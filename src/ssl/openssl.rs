@@ -6,7 +6,7 @@ use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_openssl::{AcceptAsync, ConnectAsync, SslAcceptorExt, SslConnectorExt, SslStream};
 
 use super::MAX_CONN_COUNTER;
-use connector::ConnectionInfo;
+use connector::Connect;
 use counter::{Counter, CounterGuard};
 use service::{NewService, Service};
 
@@ -102,113 +102,95 @@ impl<T: AsyncRead + AsyncWrite> Future for OpensslAcceptorServiceFut<T> {
 }
 
 /// Openssl connector factory
-pub struct OpensslConnector<T, Io, E> {
+pub struct OpensslConnector<T, E> {
     connector: SslConnector,
-    t: PhantomData<T>,
-    io: PhantomData<Io>,
-    _e: PhantomData<E>,
+    _t: PhantomData<(T, E)>,
 }
 
-impl<T, Io, E> OpensslConnector<T, Io, E> {
+impl<T, E> OpensslConnector<T, E> {
     pub fn new(connector: SslConnector) -> Self {
         OpensslConnector {
             connector,
-            t: PhantomData,
-            io: PhantomData,
-            _e: PhantomData,
+            _t: PhantomData,
         }
     }
 }
 
-impl<T, Io: AsyncRead + AsyncWrite> OpensslConnector<T, Io, ()> {
+impl<T: AsyncRead + AsyncWrite> OpensslConnector<T, ()> {
     pub fn service(
         connector: SslConnector,
-    ) -> impl Service<
-        Request = (T, ConnectionInfo, Io),
-        Response = (T, ConnectionInfo, SslStream<Io>),
-        Error = Error,
-    > {
+    ) -> impl Service<Request = (Connect, T), Response = (Connect, SslStream<T>), Error = Error>
+    {
         OpensslConnectorService {
             connector: connector,
-            t: PhantomData,
-            io: PhantomData,
+            _t: PhantomData,
         }
     }
 }
 
-impl<T, Io, E> Clone for OpensslConnector<T, Io, E> {
+impl<T, E> Clone for OpensslConnector<T, E> {
     fn clone(&self) -> Self {
         Self {
             connector: self.connector.clone(),
-            t: PhantomData,
-            io: PhantomData,
-            _e: PhantomData,
+            _t: PhantomData,
         }
     }
 }
 
-impl<T, Io: AsyncRead + AsyncWrite, E> NewService for OpensslConnector<T, Io, E> {
-    type Request = (T, ConnectionInfo, Io);
-    type Response = (T, ConnectionInfo, SslStream<Io>);
+impl<T: AsyncRead + AsyncWrite, E> NewService for OpensslConnector<T, E> {
+    type Request = (Connect, T);
+    type Response = (Connect, SslStream<T>);
     type Error = Error;
-    type Service = OpensslConnectorService<T, Io>;
+    type Service = OpensslConnectorService<T>;
     type InitError = E;
     type Future = FutureResult<Self::Service, Self::InitError>;
 
     fn new_service(&self) -> Self::Future {
         ok(OpensslConnectorService {
             connector: self.connector.clone(),
-            t: PhantomData,
-            io: PhantomData,
+            _t: PhantomData,
         })
     }
 }
 
-pub struct OpensslConnectorService<T, Io> {
+pub struct OpensslConnectorService<T> {
     connector: SslConnector,
-    t: PhantomData<T>,
-    io: PhantomData<Io>,
+    _t: PhantomData<T>,
 }
 
-impl<T, Io: AsyncRead + AsyncWrite> Service for OpensslConnectorService<T, Io> {
-    type Request = (T, ConnectionInfo, Io);
-    type Response = (T, ConnectionInfo, SslStream<Io>);
+impl<T: AsyncRead + AsyncWrite> Service for OpensslConnectorService<T> {
+    type Request = (Connect, T);
+    type Response = (Connect, SslStream<T>);
     type Error = Error;
-    type Future = ConnectAsyncExt<T, Io>;
+    type Future = ConnectAsyncExt<T>;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
         Ok(Async::Ready(()))
     }
 
-    fn call(&mut self, (req, info, stream): Self::Request) -> Self::Future {
+    fn call(&mut self, (req, stream): Self::Request) -> Self::Future {
         ConnectAsyncExt {
-            fut: SslConnectorExt::connect_async(&self.connector, &info.host, stream),
+            fut: SslConnectorExt::connect_async(&self.connector, &req.host, stream),
             req: Some(req),
-            host: Some(info),
         }
     }
 }
 
-pub struct ConnectAsyncExt<T, Io> {
-    fut: ConnectAsync<Io>,
-    req: Option<T>,
-    host: Option<ConnectionInfo>,
+pub struct ConnectAsyncExt<T> {
+    fut: ConnectAsync<T>,
+    req: Option<Connect>,
 }
 
-impl<T, Io> Future for ConnectAsyncExt<T, Io>
+impl<T> Future for ConnectAsyncExt<T>
 where
-    Io: AsyncRead + AsyncWrite,
+    T: AsyncRead + AsyncWrite,
 {
-    type Item = (T, ConnectionInfo, SslStream<Io>);
+    type Item = (Connect, SslStream<T>);
     type Error = Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         match self.fut.poll()? {
-            Async::Ready(stream) => Ok(Async::Ready((
-                self.req.take().unwrap(),
-                self.host.take().unwrap(),
-                stream,
-            ))),
+            Async::Ready(stream) => Ok(Async::Ready((self.req.take().unwrap(), stream))),
             Async::NotReady => Ok(Async::NotReady),
         }
     }

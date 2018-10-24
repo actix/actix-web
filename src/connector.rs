@@ -1,6 +1,7 @@
 use std::collections::VecDeque;
 use std::io;
 use std::net::SocketAddr;
+use std::time::Duration;
 
 use futures::{
     future::{ok, FutureResult},
@@ -24,6 +25,10 @@ pub enum ConnectorError {
     // #[fail(display = "Invalid input: {}", _0)]
     NoRecords,
 
+    /// Connecting took too long
+    // #[fail(display = "Timeout out while establishing connection")]
+    Timeout,
+
     /// Connection io error
     // #[fail(display = "{}", _0)]
     IoError(io::Error),
@@ -35,16 +40,50 @@ impl From<ResolverError> for ConnectorError {
     }
 }
 
-pub struct ConnectionInfo {
+#[derive(Eq, PartialEq, Debug)]
+pub struct Connect {
     pub host: String,
-    pub addr: SocketAddr,
+    pub port: Option<u16>,
+    pub timeout: Duration,
 }
 
-pub struct Connector<T = String> {
-    resolver: Resolver<T>,
+impl Connect {
+    pub fn host<T: AsRef<str>>(host: T) -> Connect {
+        Connect {
+            host: host.as_ref().to_owned(),
+            port: None,
+            timeout: Duration::from_secs(1),
+        }
+    }
+
+    pub fn host_and_port<T: AsRef<str>>(host: T, port: u16) -> Connect {
+        Connect {
+            host: host.as_ref().to_owned(),
+            port: Some(port),
+            timeout: Duration::from_secs(1),
+        }
+    }
+
+    /// Set connect timeout
+    ///
+    /// By default timeout is set to a 1 second.
+    pub fn timeout(mut self, timeout: Duration) -> Connect {
+        self.timeout = timeout;
+        self
+    }
 }
 
-impl<T: HostAware> Default for Connector<T> {
+impl HostAware for Connect {
+    fn host(&self) -> &str {
+        &self.host
+    }
+}
+
+pub struct Connector {
+    resolver: Resolver<Connect>,
+}
+
+impl Default for Connector {
     fn default() -> Self {
         let (cfg, opts) = if let Ok((cfg, opts)) = read_system_conf() {
             (cfg, opts)
@@ -56,7 +95,7 @@ impl<T: HostAware> Default for Connector<T> {
     }
 }
 
-impl<T: HostAware> Connector<T> {
+impl Connector {
     pub fn new(cfg: ResolverConfig, opts: ResolverOpts) -> Self {
         Connector {
             resolver: Resolver::new(cfg, opts),
@@ -64,43 +103,34 @@ impl<T: HostAware> Connector<T> {
     }
 
     pub fn with_resolver(
-        resolver: Resolver<T>,
-    ) -> impl Service<
-        Request = T,
-        Response = (T, ConnectionInfo, TcpStream),
-        Error = ConnectorError,
-    > + Clone {
+        resolver: Resolver<Connect>,
+    ) -> impl Service<Request = Connect, Response = (Connect, TcpStream), Error = ConnectorError>
+                 + Clone {
         Connector { resolver }
     }
 
     pub fn new_service<E>() -> impl NewService<
-        Request = T,
-        Response = (T, ConnectionInfo, TcpStream),
+        Request = Connect,
+        Response = (Connect, TcpStream),
         Error = ConnectorError,
         InitError = E,
     > + Clone {
-        || -> FutureResult<Connector<T>, E> { ok(Connector::default()) }
+        || -> FutureResult<Connector, E> { ok(Connector::default()) }
     }
 
     pub fn new_service_with_config<E>(
         cfg: ResolverConfig, opts: ResolverOpts,
     ) -> impl NewService<
-        Request = T,
-        Response = (T, ConnectionInfo, TcpStream),
+        Request = Connect,
+        Response = (Connect, TcpStream),
         Error = ConnectorError,
         InitError = E,
     > + Clone {
-        move || -> FutureResult<Connector<T>, E> { ok(Connector::new(cfg.clone(), opts)) }
-    }
-
-    pub fn change_request<T2: HostAware>(&self) -> Connector<T2> {
-        Connector {
-            resolver: self.resolver.change_request(),
-        }
+        move || -> FutureResult<Connector, E> { ok(Connector::new(cfg.clone(), opts)) }
     }
 }
 
-impl<T> Clone for Connector<T> {
+impl Clone for Connector {
     fn clone(&self) -> Self {
         Connector {
             resolver: self.resolver.clone(),
@@ -108,11 +138,11 @@ impl<T> Clone for Connector<T> {
     }
 }
 
-impl<T: HostAware> Service for Connector<T> {
-    type Request = T;
-    type Response = (T, ConnectionInfo, TcpStream);
+impl Service for Connector {
+    type Request = Connect;
+    type Response = (Connect, TcpStream);
     type Error = ConnectorError;
-    type Future = ConnectorFuture<T>;
+    type Future = ConnectorFuture;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
         Ok(Async::Ready(()))
@@ -127,13 +157,13 @@ impl<T: HostAware> Service for Connector<T> {
 }
 
 #[doc(hidden)]
-pub struct ConnectorFuture<T: HostAware> {
-    fut: ResolverFuture<T>,
-    fut2: Option<TcpConnector<T>>,
+pub struct ConnectorFuture {
+    fut: ResolverFuture<Connect>,
+    fut2: Option<TcpConnector>,
 }
 
-impl<T: HostAware> Future for ConnectorFuture<T> {
-    type Item = (T, ConnectionInfo, TcpStream);
+impl Future for ConnectorFuture {
+    type Item = (Connect, TcpStream);
     type Error = ConnectorError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
@@ -141,11 +171,11 @@ impl<T: HostAware> Future for ConnectorFuture<T> {
             return fut.poll();
         }
         match self.fut.poll().map_err(ConnectorError::from)? {
-            Async::Ready((req, host, addrs)) => {
+            Async::Ready((req, _, addrs)) => {
                 if addrs.is_empty() {
                     Err(ConnectorError::NoRecords)
                 } else {
-                    self.fut2 = Some(TcpConnector::new(req, host, addrs));
+                    self.fut2 = Some(TcpConnector::new(req, addrs));
                     self.poll()
                 }
             }
@@ -154,76 +184,28 @@ impl<T: HostAware> Future for ConnectorFuture<T> {
     }
 }
 
-#[derive(Clone)]
-pub struct DefaultConnector<T: HostAware>(Connector<T>);
-
-impl<T: HostAware> Default for DefaultConnector<T> {
-    fn default() -> Self {
-        DefaultConnector(Connector::default())
-    }
-}
-
-impl<T: HostAware> DefaultConnector<T> {
-    pub fn new(cfg: ResolverConfig, opts: ResolverOpts) -> Self {
-        DefaultConnector(Connector::new(cfg, opts))
-    }
-}
-
-impl<T: HostAware> Service for DefaultConnector<T> {
-    type Request = T;
-    type Response = TcpStream;
-    type Error = ConnectorError;
-    type Future = DefaultConnectorFuture<T>;
-
-    fn poll_ready(&mut self) -> Poll<(), Self::Error> {
-        self.0.poll_ready()
-    }
-
-    fn call(&mut self, req: Self::Request) -> Self::Future {
-        DefaultConnectorFuture {
-            fut: self.0.call(req),
-        }
-    }
-}
-
-#[doc(hidden)]
-pub struct DefaultConnectorFuture<T: HostAware> {
-    fut: ConnectorFuture<T>,
-}
-
-impl<T: HostAware> Future for DefaultConnectorFuture<T> {
-    type Item = TcpStream;
-    type Error = ConnectorError;
-
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        Ok(Async::Ready(try_ready!(self.fut.poll()).2))
-    }
-}
-
 #[doc(hidden)]
 /// Tcp stream connector
-pub struct TcpConnector<T> {
-    req: Option<T>,
-    host: Option<String>,
+pub struct TcpConnector {
+    req: Option<Connect>,
     addr: Option<SocketAddr>,
     addrs: VecDeque<SocketAddr>,
     stream: Option<ConnectFuture>,
 }
 
-impl<T> TcpConnector<T> {
-    pub fn new(req: T, host: String, addrs: VecDeque<SocketAddr>) -> TcpConnector<T> {
+impl TcpConnector {
+    pub fn new(req: Connect, addrs: VecDeque<SocketAddr>) -> TcpConnector {
         TcpConnector {
             addrs,
             req: Some(req),
-            host: Some(host),
             addr: None,
             stream: None,
         }
     }
 }
 
-impl<T> Future for TcpConnector<T> {
-    type Item = (T, ConnectionInfo, TcpStream);
+impl Future for TcpConnector {
+    type Item = (Connect, TcpStream);
     type Error = ConnectorError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
@@ -232,14 +214,7 @@ impl<T> Future for TcpConnector<T> {
             if let Some(new) = self.stream.as_mut() {
                 match new.poll() {
                     Ok(Async::Ready(sock)) => {
-                        return Ok(Async::Ready((
-                            self.req.take().unwrap(),
-                            ConnectionInfo {
-                                host: self.host.take().unwrap(),
-                                addr: self.addr.take().unwrap(),
-                            },
-                            sock,
-                        )))
+                        return Ok(Async::Ready((self.req.take().unwrap(), sock)))
                     }
                     Ok(Async::NotReady) => return Ok(Async::NotReady),
                     Err(err) => {
