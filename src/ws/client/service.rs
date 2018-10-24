@@ -2,7 +2,7 @@
 use std::marker::PhantomData;
 
 use actix_net::codec::Framed;
-use actix_net::connector::{ConnectorError, DefaultConnector};
+use actix_net::connector::{Connect as TcpConnect, ConnectorError, DefaultConnector};
 use actix_net::service::Service;
 use base64;
 use futures::future::{err, Either, FutureResult};
@@ -20,7 +20,7 @@ use ws::Codec;
 use super::{ClientError, Connect, Protocol};
 
 /// Default client, uses default connector.
-pub type DefaultClient = Client<DefaultConnector<String>>;
+pub type DefaultClient = Client<DefaultConnector>;
 
 /// WebSocket's client
 pub struct Client<T>
@@ -33,7 +33,7 @@ where
 
 impl<T> Client<T>
 where
-    T: Service<Request = String, Error = ConnectorError>,
+    T: Service<Request = TcpConnect, Error = ConnectorError>,
     T::Response: AsyncRead + AsyncWrite,
 {
     /// Create new websocket's client factory
@@ -42,7 +42,7 @@ where
     }
 }
 
-impl Default for Client<DefaultConnector<String>> {
+impl Default for Client<DefaultConnector> {
     fn default() -> Self {
         Client::new(DefaultConnector::default())
     }
@@ -50,7 +50,7 @@ impl Default for Client<DefaultConnector<String>> {
 
 impl<T> Clone for Client<T>
 where
-    T: Service<Request = String, Error = ConnectorError> + Clone,
+    T: Service<Request = TcpConnect, Error = ConnectorError> + Clone,
     T::Response: AsyncRead + AsyncWrite,
 {
     fn clone(&self) -> Self {
@@ -62,7 +62,7 @@ where
 
 impl<T> Service for Client<T>
 where
-    T: Service<Request = String, Error = ConnectorError>,
+    T: Service<Request = TcpConnect, Error = ConnectorError>,
     T::Response: AsyncRead + AsyncWrite + 'static,
     T::Future: 'static,
 {
@@ -129,18 +129,14 @@ where
             );
 
             // prep connection
-            let host = {
-                let uri = request.uri();
-                format!(
-                    "{}:{}",
-                    uri.host().unwrap(),
-                    uri.port().unwrap_or_else(|| proto.port())
-                )
-            };
+            let connect = TcpConnect::new(
+                request.uri().host().unwrap(),
+                request.uri().port().unwrap_or_else(|| proto.port()),
+            );
 
             let fut = Box::new(
                 self.connector
-                    .call(host)
+                    .call(connect)
                     .map_err(|e| ClientError::from(e))
                     .and_then(move |io| {
                         // h1 protocol
