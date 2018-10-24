@@ -69,6 +69,7 @@ pub mod server;
 pub mod service;
 pub mod ssl;
 pub mod stream;
+pub mod timeout;
 pub mod timer;
 
 #[derive(Copy, Clone, Debug)]
