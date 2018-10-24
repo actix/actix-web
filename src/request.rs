@@ -23,16 +23,16 @@ pub struct Request {
     pub(crate) inner: Rc<Message>,
 }
 
-pub(crate) struct Message {
-    pub(crate) version: Version,
-    pub(crate) status: StatusCode,
-    pub(crate) method: Method,
-    pub(crate) url: Url,
-    pub(crate) flags: Cell<MessageFlags>,
-    pub(crate) headers: HeaderMap,
-    pub(crate) extensions: RefCell<Extensions>,
-    pub(crate) payload: RefCell<Option<Payload>>,
+pub struct Message {
+    pub version: Version,
+    pub status: StatusCode,
+    pub method: Method,
+    pub url: Url,
+    pub headers: HeaderMap,
+    pub extensions: RefCell<Extensions>,
+    pub payload: RefCell<Option<Payload>>,
     pub(crate) pool: &'static MessagePool,
+    pub(crate) flags: Cell<MessageFlags>,
 }
 
 impl Message {
@@ -87,12 +87,14 @@ impl Request {
     }
 
     #[inline]
-    pub(crate) fn inner(&self) -> &Message {
+    #[doc(hidden)]
+    pub fn inner(&self) -> &Message {
         self.inner.as_ref()
     }
 
     #[inline]
-    pub(crate) fn inner_mut(&mut self) -> &mut Message {
+    #[doc(hidden)]
+    pub fn inner_mut(&mut self) -> &mut Message {
         Rc::get_mut(&mut self.inner).expect("Multiple copies exist")
     }
 

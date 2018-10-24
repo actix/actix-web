@@ -36,9 +36,6 @@ pub enum ClientError {
     /// Http parsing error
     #[fail(display = "Http parsing error")]
     Http(HttpError),
-    // /// Url parsing error
-    // #[fail(display = "Url parsing error")]
-    // Url(UrlParseError),
     /// Response parsing error
     #[fail(display = "Response parsing error")]
     ParseError(ParseError),
