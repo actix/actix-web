@@ -438,7 +438,7 @@ impl ContentEncoder {
         }
     }
 
-    #[cfg_attr(feature = "cargo-clippy", allow(clippy::inline_always))]
+    #[cfg_attr(feature = "cargo-clippy", allow(inline_always))]
     #[inline(always)]
     pub fn write_eof(&mut self) -> Result<bool, io::Error> {
         let encoder =
@@ -480,7 +480,7 @@ impl ContentEncoder {
         }
     }
 
-    #[cfg_attr(feature = "cargo-clippy", allow(clippy::inline_always))]
+    #[cfg_attr(feature = "cargo-clippy", allow(inline_always))]
     #[inline(always)]
     pub fn write(&mut self, data: &[u8]) -> Result<(), io::Error> {
         match *self {

@@ -61,7 +61,7 @@ pub struct Scope<S> {
 
 #[cfg_attr(
     feature = "cargo-clippy",
-    allow(clippy::new_without_default_derive)
+    allow(new_without_default_derive)
 )]
 impl<S: 'static> Scope<S> {
     /// Create a new scope
