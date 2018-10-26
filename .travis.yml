@@ -35,7 +35,7 @@ script:
     cargo check --features rust-tls
     cargo check --features ssl
     cargo check --features tls
-    cargo test --features="ssl,tls,rust-tls" -- --nocapture
+    cargo test --features="ssl,tls,rust-tls,uds" -- --nocapture
     fi
   - |
     if [[ "$TRAVIS_RUST_VERSION" == "nightly" ]]; then
