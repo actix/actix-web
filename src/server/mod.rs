@@ -334,7 +334,7 @@ impl IoStream for ::tokio_uds::UnixStream {
     }
 
     #[inline]
-    fn set_keepalive(&mut self, _nodelay: bool) -> io::Result<()> {
+    fn set_keepalive(&mut self, _dur: Option<time::Duration>) -> io::Result<()> {
         Ok(())
     }
 }
