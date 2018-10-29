@@ -40,7 +40,7 @@ impl From<ResolverError> for ConnectorError {
     }
 }
 
-#[derive(Eq, PartialEq, Debug)]
+#[derive(Eq, PartialEq, Debug, Hash)]
 pub struct Connect {
     pub host: String,
     pub port: u16,
