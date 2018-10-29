@@ -56,6 +56,22 @@ impl Connect {
         }
     }
 
+    /// split the string by ':' and convert the second part to u16
+    pub fn parse<T: AsRef<str>>(host: T) -> Option<Connect> {
+        let mut parts_iter = host.as_ref().splitn(2, ':');
+        if let Some(host) = parts_iter.next() {
+            let port_str = parts_iter.next().unwrap_or("");
+            if let Ok(port) = port_str.parse::<u16>() {
+                return Some(Connect {
+                    port,
+                    host: host.to_owned(),
+                    timeout: Duration::from_secs(1),
+                });
+            }
+        }
+        None
+    }
+
     /// Set connect timeout
     ///
     /// By default timeout is set to a 1 second.
