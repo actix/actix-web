@@ -243,9 +243,11 @@ impl Accept {
             for event in events.iter() {
                 let token = event.token();
                 match token {
-                    CMD => if !self.process_cmd() {
-                        return;
-                    },
+                    CMD => {
+                        if !self.process_cmd() {
+                            return;
+                        }
+                    }
                     TIMER => self.process_timer(),
                     NOTIFY => self.backpressure(false),
                     _ => {

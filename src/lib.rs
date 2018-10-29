@@ -9,10 +9,7 @@
 
 #![cfg_attr(
     feature = "cargo-clippy",
-    allow(
-        declare_interior_mutable_const,
-        borrow_interior_mutable_const
-    )
+    allow(declare_interior_mutable_const, borrow_interior_mutable_const)
 )]
 
 #[macro_use]
@@ -69,8 +66,8 @@ pub mod server;
 pub mod service;
 pub mod ssl;
 pub mod stream;
+pub mod time;
 pub mod timeout;
-pub mod timer;
 
 #[derive(Copy, Clone, Debug)]
 pub enum Never {}

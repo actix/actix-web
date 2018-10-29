@@ -10,7 +10,7 @@ use super::service::{NewService, Service};
 use super::Never;
 
 #[derive(Clone, Debug)]
-pub struct LowResTimer(Cell<Inner>);
+pub struct LowResTime(Cell<Inner>);
 
 #[derive(Debug)]
 struct Inner {
@@ -27,28 +27,28 @@ impl Inner {
     }
 }
 
-impl LowResTimer {
-    pub fn with(resolution: Duration) -> LowResTimer {
-        LowResTimer(Cell::new(Inner::new(resolution)))
+impl LowResTime {
+    pub fn with(resolution: Duration) -> LowResTime {
+        LowResTime(Cell::new(Inner::new(resolution)))
     }
 
-    pub fn timer(&self) -> LowResTimerService {
-        LowResTimerService(self.0.clone())
+    pub fn timer(&self) -> LowResTimeService {
+        LowResTimeService(self.0.clone())
     }
 }
 
-impl Default for LowResTimer {
+impl Default for LowResTime {
     fn default() -> Self {
-        LowResTimer(Cell::new(Inner::new(Duration::from_secs(1))))
+        LowResTime(Cell::new(Inner::new(Duration::from_secs(1))))
     }
 }
 
-impl NewService for LowResTimer {
+impl NewService for LowResTime {
     type Request = ();
     type Response = Instant;
     type Error = Never;
     type InitError = Never;
-    type Service = LowResTimerService;
+    type Service = LowResTimeService;
     type Future = FutureResult<Self::Service, Self::InitError>;
 
     fn new_service(&self) -> Self::Future {
@@ -57,11 +57,11 @@ impl NewService for LowResTimer {
 }
 
 #[derive(Clone, Debug)]
-pub struct LowResTimerService(Cell<Inner>);
+pub struct LowResTimeService(Cell<Inner>);
 
-impl LowResTimerService {
-    pub fn with(resolution: Duration) -> LowResTimerService {
-        LowResTimerService(Cell::new(Inner::new(resolution)))
+impl LowResTimeService {
+    pub fn with(resolution: Duration) -> LowResTimeService {
+        LowResTimeService(Cell::new(Inner::new(resolution)))
     }
 
     /// Get current time. This function has to be called from
@@ -88,7 +88,7 @@ impl LowResTimerService {
     }
 }
 
-impl Service for LowResTimerService {
+impl Service for LowResTimeService {
     type Request = ();
     type Response = Instant;
     type Error = Never;

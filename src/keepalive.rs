@@ -6,13 +6,13 @@ use futures::{Async, Future, Poll};
 use tokio_timer::Delay;
 
 use super::service::{NewService, Service};
-use super::timer::{LowResTimer, LowResTimerService};
+use super::time::{LowResTime, LowResTimeService};
 use super::Never;
 
 pub struct KeepAlive<R, E, F> {
     f: F,
     ka: Duration,
-    timer: LowResTimer,
+    time: LowResTime,
     _t: PhantomData<(R, E)>,
 }
 
@@ -20,11 +20,11 @@ impl<R, E, F> KeepAlive<R, E, F>
 where
     F: Fn() -> E + Clone,
 {
-    pub fn new(ka: Duration, timer: LowResTimer, f: F) -> Self {
+    pub fn new(ka: Duration, time: LowResTime, f: F) -> Self {
         KeepAlive {
             f,
             ka,
-            timer,
+            time,
             _t: PhantomData,
         }
     }
@@ -38,7 +38,7 @@ where
         KeepAlive {
             f: self.f.clone(),
             ka: self.ka,
-            timer: self.timer.clone(),
+            time: self.time.clone(),
             _t: PhantomData,
         }
     }
@@ -58,7 +58,7 @@ where
     fn new_service(&self) -> Self::Future {
         ok(KeepAliveService::new(
             self.ka,
-            self.timer.timer(),
+            self.time.timer(),
             self.f.clone(),
         ))
     }
@@ -67,7 +67,7 @@ where
 pub struct KeepAliveService<R, E, F> {
     f: F,
     ka: Duration,
-    timer: LowResTimerService,
+    time: LowResTimeService,
     delay: Delay,
     expire: Instant,
     _t: PhantomData<(R, E)>,
@@ -77,14 +77,14 @@ impl<R, E, F> KeepAliveService<R, E, F>
 where
     F: Fn() -> E,
 {
-    pub fn new(ka: Duration, timer: LowResTimerService, f: F) -> Self {
-        let expire = timer.now() + ka;
+    pub fn new(ka: Duration, time: LowResTimeService, f: F) -> Self {
+        let expire = time.now() + ka;
         KeepAliveService {
             f,
             ka,
-            timer,
-            delay: Delay::new(expire),
+            time,
             expire,
+            delay: Delay::new(expire),
             _t: PhantomData,
         }
     }
@@ -102,7 +102,7 @@ where
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
         match self.delay.poll() {
             Ok(Async::Ready(_)) => {
-                let now = self.timer.now();
+                let now = self.time.now();
                 if self.expire <= now {
                     Err((self.f)())
                 } else {
@@ -117,7 +117,7 @@ where
     }
 
     fn call(&mut self, req: Self::Request) -> Self::Future {
-        self.expire = self.timer.now() + self.ka;
+        self.expire = self.time.now() + self.ka;
         ok(req)
     }
 }

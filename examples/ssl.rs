@@ -60,7 +60,8 @@ fn main() {
                     println!("got ssl connection {:?}", num);
                     future::ok(())
                 })
-        }).unwrap()
+        })
+        .unwrap()
         .start();
 
     sys.run();
