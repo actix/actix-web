@@ -77,7 +77,7 @@ impl<R, E, F> KeepAliveService<R, E, F>
 where
     F: Fn() -> E,
 {
-    pub fn new(ka: Duration, mut timer: LowResTimerService, f: F) -> Self {
+    pub fn new(ka: Duration, timer: LowResTimerService, f: F) -> Self {
         let expire = timer.now() + ka;
         KeepAliveService {
             f,
