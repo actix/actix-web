@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
-use std::io;
 use std::net::SocketAddr;
 use std::time::Duration;
+use std::{fmt, io};
 
 use futures::{
     future::{ok, FutureResult},
@@ -84,6 +84,12 @@ impl Connect {
 impl HostAware for Connect {
     fn host(&self) -> &str {
         &self.host
+    }
+}
+
+impl fmt::Display for Connect {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}:{}", self.host, self.port)
     }
 }
 
