@@ -334,7 +334,9 @@ pub(crate) struct HeaderIndex {
 
 impl HeaderIndex {
     pub(crate) fn record(
-        bytes: &[u8], headers: &[httparse::Header], indices: &mut [HeaderIndex],
+        bytes: &[u8],
+        headers: &[httparse::Header],
+        indices: &mut [HeaderIndex],
     ) {
         let bytes_ptr = bytes.as_ptr() as usize;
         for (header, indices) in headers.iter().zip(indices.iter_mut()) {
@@ -491,7 +493,10 @@ macro_rules! byte (
 
 impl ChunkedState {
     fn step(
-        &self, body: &mut BytesMut, size: &mut u64, buf: &mut Option<Bytes>,
+        &self,
+        body: &mut BytesMut,
+        size: &mut u64,
+        buf: &mut Option<Bytes>,
     ) -> Poll<ChunkedState, io::Error> {
         use self::ChunkedState::*;
         match *self {
@@ -554,7 +559,8 @@ impl ChunkedState {
         }
     }
     fn read_size_lf(
-        rdr: &mut BytesMut, size: &mut u64,
+        rdr: &mut BytesMut,
+        size: &mut u64,
     ) -> Poll<ChunkedState, io::Error> {
         match byte!(rdr) {
             b'\n' if *size > 0 => Ok(Async::Ready(ChunkedState::Body)),
@@ -567,7 +573,9 @@ impl ChunkedState {
     }
 
     fn read_body(
-        rdr: &mut BytesMut, rem: &mut u64, buf: &mut Option<Bytes>,
+        rdr: &mut BytesMut,
+        rem: &mut u64,
+        buf: &mut Option<Bytes>,
     ) -> Poll<ChunkedState, io::Error> {
         trace!("Chunked read, remaining={:?}", rem);
 

@@ -107,7 +107,9 @@ impl ResponseEncoder {
     }
 
     fn streaming_encoding(
-        &mut self, version: Version, resp: &mut Response,
+        &mut self,
+        version: Version,
+        resp: &mut Response,
     ) -> TransferEncoding {
         match resp.chunked() {
             Some(true) => {

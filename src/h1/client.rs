@@ -102,7 +102,9 @@ impl ClientCodec {
     }
 
     fn encode_response(
-        &mut self, msg: ClientRequest, buffer: &mut BytesMut,
+        &mut self,
+        msg: ClientRequest,
+        buffer: &mut BytesMut,
     ) -> io::Result<()> {
         // Connection upgrade
         if msg.upgrade() {
@@ -187,7 +189,9 @@ impl Encoder for ClientCodec {
     type Error = io::Error;
 
     fn encode(
-        &mut self, item: Self::Item, dst: &mut BytesMut,
+        &mut self,
+        item: Self::Item,
+        dst: &mut BytesMut,
     ) -> Result<(), Self::Error> {
         match item {
             Message::Item(res) => {

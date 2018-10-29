@@ -253,7 +253,7 @@ where
     type Future = Dispatcher<T, S>;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
-        self.srv.poll_ready().map_err(|e| DispatchError::Service(e))
+        self.srv.poll_ready().map_err(DispatchError::Service)
     }
 
     fn call(&mut self, req: Self::Request) -> Self::Future {

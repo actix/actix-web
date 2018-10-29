@@ -97,12 +97,10 @@ where
         }
         match self.framed.as_mut().unwrap().poll_complete() {
             Ok(Async::Ready(_)) => {
-                return Err((self.err.take().unwrap(), self.framed.take().unwrap()))
+                Err((self.err.take().unwrap(), self.framed.take().unwrap()))
             }
             Ok(Async::NotReady) => Ok(Async::NotReady),
-            Err(_) => {
-                return Err((self.err.take().unwrap(), self.framed.take().unwrap()))
-            }
+            Err(_) => Err((self.err.take().unwrap(), self.framed.take().unwrap())),
         }
     }
 }

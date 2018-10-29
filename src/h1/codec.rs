@@ -103,7 +103,9 @@ impl Codec {
     }
 
     fn encode_response(
-        &mut self, mut msg: Response, buffer: &mut BytesMut,
+        &mut self,
+        mut msg: Response,
+        buffer: &mut BytesMut,
     ) -> io::Result<()> {
         let ka = self.flags.contains(Flags::KEEPALIVE_ENABLED) && msg
             .keep_alive()
@@ -277,7 +279,9 @@ impl Encoder for Codec {
     type Error = io::Error;
 
     fn encode(
-        &mut self, item: Self::Item, dst: &mut BytesMut,
+        &mut self,
+        item: Self::Item,
+        dst: &mut BytesMut,
     ) -> Result<(), Self::Error> {
         match item {
             Message::Item(res) => {

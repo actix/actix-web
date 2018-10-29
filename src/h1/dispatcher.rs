@@ -90,7 +90,10 @@ where
 
     /// Create http/1 dispatcher with slow request timeout.
     pub fn with_timeout(
-        stream: T, config: ServiceConfig, timeout: Option<Delay>, service: S,
+        stream: T,
+        config: ServiceConfig,
+        timeout: Option<Delay>,
+        service: S,
     ) -> Self {
         let keepalive = config.keep_alive_enabled();
         let flags = if keepalive {
@@ -173,19 +176,15 @@ where
         // process
         loop {
             let state = match self.state {
-                State::None => loop {
-                    break if let Some(msg) = self.messages.pop_front() {
-                        match msg {
-                            DispatcherMessage::Item(req) => {
-                                Some(self.handle_request(req)?)
-                            }
-                            DispatcherMessage::Error(res) => Some(State::SendResponse(
-                                Some((Message::Item(res), Body::Empty)),
-                            )),
-                        }
-                    } else {
-                        None
-                    };
+                State::None => if let Some(msg) = self.messages.pop_front() {
+                    match msg {
+                        DispatcherMessage::Item(req) => Some(self.handle_request(req)?),
+                        DispatcherMessage::Error(res) => Some(State::SendResponse(
+                            Some((Message::Item(res), Body::Empty)),
+                        )),
+                    }
+                } else {
+                    None
                 },
                 // call inner service
                 State::ServiceCall(ref mut fut) => {
@@ -255,7 +254,7 @@ where
                                 .framed
                                 .as_mut()
                                 .unwrap()
-                                .start_send(Message::Chunk(Some(item.into())))
+                                .start_send(Message::Chunk(Some(item)))
                             {
                                 Ok(AsyncSink::Ready) => {
                                     self.flags.remove(Flags::FLUSHED);
@@ -299,7 +298,8 @@ where
     }
 
     fn handle_request(
-        &mut self, req: Request,
+        &mut self,
+        req: Request,
     ) -> Result<State<S>, DispatchError<S::Error>> {
         let mut task = self.service.call(req);
         match task.poll().map_err(DispatchError::Service)? {
@@ -324,7 +324,7 @@ where
         }
 
         let mut updated = false;
-        'outer: loop {
+        loop {
             match self.framed.as_mut().unwrap().poll() {
                 Ok(Async::Ready(Some(msg))) => {
                     updated = true;

@@ -690,9 +690,10 @@ impl ResponseBuilder {
 }
 
 #[inline]
-#[cfg_attr(feature = "cargo-clippy", allow(clippy::borrowed_box))]
+#[cfg_attr(feature = "cargo-clippy", allow(borrowed_box))]
 fn parts<'a>(
-    parts: &'a mut Option<Box<InnerResponse>>, err: &Option<HttpError>,
+    parts: &'a mut Option<Box<InnerResponse>>,
+    err: &Option<HttpError>,
 ) -> Option<&'a mut Box<InnerResponse>> {
     if err.is_some() {
         return None;
@@ -871,7 +872,8 @@ impl ResponsePool {
 
     #[inline]
     pub fn get_builder(
-        pool: &'static ResponsePool, status: StatusCode,
+        pool: &'static ResponsePool,
+        status: StatusCode,
     ) -> ResponseBuilder {
         if let Some(mut msg) = pool.0.borrow_mut().pop_front() {
             msg.status = status;
@@ -894,7 +896,9 @@ impl ResponsePool {
 
     #[inline]
     pub fn get_response(
-        pool: &'static ResponsePool, status: StatusCode, body: Body,
+        pool: &'static ResponsePool,
+        status: StatusCode,
+        body: Body,
     ) -> Response {
         if let Some(mut msg) = pool.0.borrow_mut().pop_front() {
             msg.status = status;

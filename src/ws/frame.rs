@@ -13,7 +13,9 @@ pub struct Parser;
 
 impl Parser {
     fn parse_metadata(
-        src: &[u8], server: bool, max_size: usize,
+        src: &[u8],
+        server: bool,
+        max_size: usize,
     ) -> Result<Option<(usize, bool, OpCode, usize, Option<u32>)>, ProtocolError> {
         let chunk_len = src.len();
 
@@ -86,7 +88,9 @@ impl Parser {
 
     /// Parse the input stream into a frame.
     pub fn parse(
-        src: &mut BytesMut, server: bool, max_size: usize,
+        src: &mut BytesMut,
+        server: bool,
+        max_size: usize,
     ) -> Result<Option<(bool, OpCode, Option<BytesMut>)>, ProtocolError> {
         // try to parse ws frame metadata
         let (idx, finished, opcode, length, mask) =
@@ -148,7 +152,11 @@ impl Parser {
 
     /// Generate binary representation
     pub fn write_message<B: Into<Binary>>(
-        dst: &mut BytesMut, pl: B, op: OpCode, fin: bool, mask: bool,
+        dst: &mut BytesMut,
+        pl: B,
+        op: OpCode,
+        fin: bool,
+        mask: bool,
     ) {
         let payload = pl.into();
         let one: u8 = if fin {

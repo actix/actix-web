@@ -137,13 +137,13 @@ where
             let fut = Box::new(
                 self.connector
                     .call(connect)
-                    .map_err(|e| ClientError::from(e))
+                    .map_err(ClientError::from)
                     .and_then(move |io| {
                         // h1 protocol
                         let framed = Framed::new(io, h1::ClientCodec::default());
                         framed
                             .send(request.into())
-                            .map_err(|e| ClientError::from(e))
+                            .map_err(ClientError::from)
                             .and_then(|framed| {
                                 framed
                                     .into_future()

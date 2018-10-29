@@ -536,7 +536,8 @@ impl ClientRequestBuilder {
 
 #[inline]
 fn parts<'a>(
-    parts: &'a mut Option<ClientRequest>, err: &Option<HttpError>,
+    parts: &'a mut Option<ClientRequest>,
+    err: &Option<HttpError>,
 ) -> Option<&'a mut ClientRequest> {
     if err.is_some() {
         return None;

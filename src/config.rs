@@ -66,7 +66,9 @@ impl Default for ServiceConfig {
 impl ServiceConfig {
     /// Create instance of `ServiceConfig`
     pub(crate) fn new(
-        keep_alive: KeepAlive, client_timeout: u64, client_disconnect: u64,
+        keep_alive: KeepAlive,
+        client_timeout: u64,
+        client_disconnect: u64,
     ) -> ServiceConfig {
         let (keep_alive, ka_enabled) = match keep_alive {
             KeepAlive::Timeout(val) => (val as u64, true),
