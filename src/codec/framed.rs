@@ -176,7 +176,8 @@ where
     type SinkError = U::Error;
 
     fn start_send(
-        &mut self, item: Self::SinkItem,
+        &mut self,
+        item: Self::SinkItem,
     ) -> StartSend<Self::SinkItem, Self::SinkError> {
         self.inner.get_mut().start_send(item)
     }

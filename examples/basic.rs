@@ -80,8 +80,7 @@ fn main() {
                     future::ok(())
                 })
             },
-        )
-        .unwrap()
+        ).unwrap()
         .start();
 
     sys.run();

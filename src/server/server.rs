@@ -137,7 +137,10 @@ impl Server {
 
     /// Add new service to server
     pub fn listen<F, N: AsRef<str>>(
-        mut self, name: N, lst: net::TcpListener, factory: F,
+        mut self,
+        name: N,
+        lst: net::TcpListener,
+        factory: F,
     ) -> Self
     where
         F: StreamServiceFactory,
@@ -151,7 +154,10 @@ impl Server {
 
     /// Add new service to server
     pub fn listen2<F, N: AsRef<str>>(
-        mut self, name: N, lst: net::TcpListener, factory: F,
+        mut self,
+        name: N,
+        lst: net::TcpListener,
+        factory: F,
     ) -> Self
     where
         F: ServiceFactory,

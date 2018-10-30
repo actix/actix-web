@@ -61,7 +61,9 @@ pub(crate) struct WorkerClient {
 
 impl WorkerClient {
     pub fn new(
-        idx: usize, tx: UnboundedSender<WorkerCommand>, avail: WorkerAvailability,
+        idx: usize,
+        tx: UnboundedSender<WorkerCommand>,
+        avail: WorkerAvailability,
     ) -> Self {
         WorkerClient { idx, tx, avail }
     }
@@ -128,8 +130,10 @@ pub(crate) struct Worker {
 
 impl Worker {
     pub(crate) fn start(
-        rx: UnboundedReceiver<WorkerCommand>, factories: Vec<Box<InternalServiceFactory>>,
-        availability: WorkerAvailability, shutdown_timeout: time::Duration,
+        rx: UnboundedReceiver<WorkerCommand>,
+        factories: Vec<Box<InternalServiceFactory>>,
+        availability: WorkerAvailability,
+        shutdown_timeout: time::Duration,
     ) {
         availability.set(false);
         let mut wrk = MAX_CONNS_COUNTER.with(|conns| Worker {
@@ -151,8 +155,7 @@ impl Worker {
                 .map_err(|e| {
                     error!("Can not start worker: {:?}", e);
                     Arbiter::current().do_send(StopArbiter(0));
-                })
-                .and_then(move |services| {
+                }).and_then(move |services| {
                     wrk.services.extend(services);
                     wrk
                 }),

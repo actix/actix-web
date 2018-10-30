@@ -24,7 +24,8 @@ struct ServiceState {
 }
 
 fn service<T: AsyncRead + AsyncWrite>(
-    st: &mut ServiceState, _: T,
+    st: &mut ServiceState,
+    _: T,
 ) -> impl Future<Item = (), Error = ()> {
     let num = st.num.fetch_add(1, Ordering::Relaxed);
     println!("got ssl connection {:?}", num);
@@ -60,8 +61,7 @@ fn main() {
                     println!("got ssl connection {:?}", num);
                     future::ok(())
                 })
-        })
-        .unwrap()
+        }).unwrap()
         .start();
 
     sys.run();

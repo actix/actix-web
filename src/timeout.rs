@@ -1,4 +1,4 @@
-//! Tower middleware that applies a timeout to requests.
+//! Service that applies a timeout to requests.
 //!
 //! If the response does not complete within the specified timeout, the response
 //! will be aborted.
@@ -34,13 +34,6 @@ impl<E: fmt::Debug> fmt::Debug for TimeoutError<E> {
     }
 }
 
-/// `Timeout` response future
-#[derive(Debug)]
-pub struct TimeoutFut<T: NewService> {
-    fut: T::Future,
-    timeout: Duration,
-}
-
 impl<T> Timeout<T>
 where
     T: NewService + Clone,
@@ -67,6 +60,13 @@ where
             timeout: self.timeout.clone(),
         }
     }
+}
+
+/// `Timeout` response future
+#[derive(Debug)]
+pub struct TimeoutFut<T: NewService> {
+    fut: T::Future,
+    timeout: Duration,
 }
 
 impl<T> Future for TimeoutFut<T>

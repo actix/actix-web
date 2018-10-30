@@ -9,7 +9,10 @@
 
 #![cfg_attr(
     feature = "cargo-clippy",
-    allow(declare_interior_mutable_const, borrow_interior_mutable_const)
+    allow(
+        declare_interior_mutable_const,
+        borrow_interior_mutable_const
+    )
 )]
 
 #[macro_use]

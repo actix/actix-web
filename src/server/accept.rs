@@ -87,7 +87,9 @@ impl AcceptLoop {
     }
 
     pub(crate) fn start(
-        &mut self, socks: Vec<(Token, net::TcpListener)>, workers: Vec<WorkerClient>,
+        &mut self,
+        socks: Vec<(Token, net::TcpListener)>,
+        workers: Vec<WorkerClient>,
     ) -> mpsc::UnboundedReceiver<ServerCommand> {
         let (tx, rx) = self.srv.take().expect("Can not re-use AcceptInfo");
 
@@ -135,9 +137,12 @@ fn connection_error(e: &io::Error) -> bool {
 impl Accept {
     #![cfg_attr(feature = "cargo-clippy", allow(too_many_arguments))]
     pub(crate) fn start(
-        rx: sync_mpsc::Receiver<Command>, cmd_reg: mio::Registration,
-        notify_reg: mio::Registration, socks: Vec<(Token, net::TcpListener)>,
-        srv: mpsc::UnboundedSender<ServerCommand>, workers: Vec<WorkerClient>,
+        rx: sync_mpsc::Receiver<Command>,
+        cmd_reg: mio::Registration,
+        notify_reg: mio::Registration,
+        socks: Vec<(Token, net::TcpListener)>,
+        srv: mpsc::UnboundedSender<ServerCommand>,
+        workers: Vec<WorkerClient>,
     ) {
         let sys = System::current();
 
@@ -173,8 +178,10 @@ impl Accept {
     }
 
     fn new(
-        rx: sync_mpsc::Receiver<Command>, socks: Vec<(Token, net::TcpListener)>,
-        workers: Vec<WorkerClient>, srv: mpsc::UnboundedSender<ServerCommand>,
+        rx: sync_mpsc::Receiver<Command>,
+        socks: Vec<(Token, net::TcpListener)>,
+        workers: Vec<WorkerClient>,
+        srv: mpsc::UnboundedSender<ServerCommand>,
     ) -> Accept {
         // Create a poll instance
         let poll = match mio::Poll::new() {

@@ -98,7 +98,8 @@ where
     type SinkError = T::SinkError;
 
     fn start_send(
-        &mut self, item: Self::SinkItem,
+        &mut self,
+        item: Self::SinkItem,
     ) -> StartSend<Self::SinkItem, Self::SinkError> {
         self.inner.inner.0.start_send(item)
     }

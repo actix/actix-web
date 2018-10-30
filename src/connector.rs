@@ -11,7 +11,7 @@ use tokio_tcp::{ConnectFuture, TcpStream};
 use trust_dns_resolver::config::{ResolverConfig, ResolverOpts};
 use trust_dns_resolver::system_conf::read_system_conf;
 
-use super::resolver::{HostAware, Resolver, ResolverError, ResolverFuture};
+use super::resolver::{HostAware, ResolveError, Resolver, ResolverFuture};
 use super::service::{NewService, Service};
 
 // #[derive(Fail, Debug)]
@@ -19,9 +19,9 @@ use super::service::{NewService, Service};
 pub enum ConnectorError {
     /// Failed to resolve the hostname
     // #[fail(display = "Failed resolving hostname: {}", _0)]
-    Resolver(ResolverError),
+    Resolver(ResolveError),
 
-    /// Not dns records
+    /// No dns records
     // #[fail(display = "Invalid input: {}", _0)]
     NoRecords,
 
@@ -29,17 +29,21 @@ pub enum ConnectorError {
     // #[fail(display = "Timeout out while establishing connection")]
     Timeout,
 
+    /// Invalid input
+    InvalidInput,
+
     /// Connection io error
     // #[fail(display = "{}", _0)]
     IoError(io::Error),
 }
 
-impl From<ResolverError> for ConnectorError {
-    fn from(err: ResolverError) -> Self {
+impl From<ResolveError> for ConnectorError {
+    fn from(err: ResolveError) -> Self {
         ConnectorError::Resolver(err)
     }
 }
 
+/// Connect request
 #[derive(Eq, PartialEq, Debug, Hash)]
 pub struct Connect {
     pub host: String,
@@ -48,6 +52,7 @@ pub struct Connect {
 }
 
 impl Connect {
+    /// Create new `Connect` instance.
     pub fn new<T: AsRef<str>>(host: T, port: u16) -> Connect {
         Connect {
             port,
@@ -56,20 +61,19 @@ impl Connect {
         }
     }
 
-    /// split the string by ':' and convert the second part to u16
-    pub fn parse<T: AsRef<str>>(host: T) -> Option<Connect> {
+    /// Create `Connect` instance by spliting the string by ':' and convert the second part to u16
+    pub fn with<T: AsRef<str>>(host: T) -> Result<Connect, ConnectorError> {
         let mut parts_iter = host.as_ref().splitn(2, ':');
-        if let Some(host) = parts_iter.next() {
-            let port_str = parts_iter.next().unwrap_or("");
-            if let Ok(port) = port_str.parse::<u16>() {
-                return Some(Connect {
-                    port,
-                    host: host.to_owned(),
-                    timeout: Duration::from_secs(1),
-                });
-            }
-        }
-        None
+        let host = parts_iter.next().ok_or(ConnectorError::InvalidInput)?;
+        let port_str = parts_iter.next().unwrap_or("");
+        let port = port_str
+            .parse::<u16>()
+            .map_err(|_| ConnectorError::InvalidInput)?;
+        Ok(Connect {
+            port,
+            host: host.to_owned(),
+            timeout: Duration::from_secs(1),
+        })
     }
 
     /// Set connect timeout
@@ -93,6 +97,7 @@ impl fmt::Display for Connect {
     }
 }
 
+/// Tcp connector
 pub struct Connector {
     resolver: Resolver<Connect>,
 }
@@ -110,12 +115,14 @@ impl Default for Connector {
 }
 
 impl Connector {
+    /// Create new connector with resolver configuration
     pub fn new(cfg: ResolverConfig, opts: ResolverOpts) -> Self {
         Connector {
             resolver: Resolver::new(cfg, opts),
         }
     }
 
+    /// Create new connector with custom resolver
     pub fn with_resolver(
         resolver: Resolver<Connect>,
     ) -> impl Service<Request = Connect, Response = (Connect, TcpStream), Error = ConnectorError>
@@ -123,17 +130,10 @@ impl Connector {
         Connector { resolver }
     }
 
-    pub fn new_service<E>() -> impl NewService<
-        Request = Connect,
-        Response = (Connect, TcpStream),
-        Error = ConnectorError,
-        InitError = E,
-    > + Clone {
-        || -> FutureResult<Connector, E> { ok(Connector::default()) }
-    }
-
+    /// Create new default connector service
     pub fn new_service_with_config<E>(
-        cfg: ResolverConfig, opts: ResolverOpts,
+        cfg: ResolverConfig,
+        opts: ResolverOpts,
     ) -> impl NewService<
         Request = Connect,
         Response = (Connect, TcpStream),
@@ -185,19 +185,14 @@ impl Future for ConnectorFuture {
             return fut.poll();
         }
         match self.fut.poll().map_err(ConnectorError::from)? {
-            Async::Ready((req, _, mut addrs)) => {
+            Async::Ready((req, mut addrs)) => {
                 if addrs.is_empty() {
                     Err(ConnectorError::NoRecords)
                 } else {
                     for addr in &mut addrs {
                         match addr {
-                            SocketAddr::V4(ref mut addr) if addr.port() == 0 => {
-                                addr.set_port(req.port)
-                            }
-                            SocketAddr::V6(ref mut addr) if addr.port() == 0 => {
-                                addr.set_port(req.port)
-                            }
-                            _ => (),
+                            SocketAddr::V4(ref mut addr) => addr.set_port(req.port),
+                            SocketAddr::V6(ref mut addr) => addr.set_port(req.port),
                         }
                     }
                     self.fut2 = Some(TcpConnector::new(req, addrs));

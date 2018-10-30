@@ -27,7 +27,9 @@ pub trait ServiceExt: Service {
     /// Apply function to specified service and use it as a next service in
     /// chain.
     fn apply<S, I, F, R>(
-        self, service: I, f: F,
+        self,
+        service: I,
+        f: F,
     ) -> AndThen<Self, Apply<S, F, R, Self::Response>>
     where
         Self: Sized,
@@ -120,7 +122,9 @@ pub trait ServiceExt: Service {
 
 pub trait NewServiceExt: NewService {
     fn apply<S, I, F, R>(
-        self, service: I, f: F,
+        self,
+        service: I,
+        f: F,
     ) -> AndThenNewService<Self, ApplyNewService<S, F, R, Self::Response>>
     where
         Self: Sized,
