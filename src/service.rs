@@ -59,7 +59,7 @@ where
             Ok(r) => Either::A(ok(r)),
             Err((e, framed)) => Either::B(SendErrorFut {
                 framed: Some(framed),
-                res: Some(Message::Item(e.error_response())),
+                res: Some(Message::Item(e.response_with_message())),
                 err: Some(e),
                 _t: PhantomData,
             }),
