@@ -351,8 +351,7 @@ impl<C: StaticFileConfig> Responder for NamedFile<C> {
             if let Some(current_encoding) = self.encoding {
                 resp.content_encoding(current_encoding);
             }
-            let reader = 
-            {
+            let reader = ChunkedReadFile {	
                 size: self.md.len(),
                 offset: 0,
                 cpu_pool: self.cpu_pool.unwrap_or_else(|| req.cpu_pool().clone()),
