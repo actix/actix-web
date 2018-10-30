@@ -98,6 +98,14 @@ impl Error {
             Fail::downcast_ref(self.cause.as_fail());
         compat.and_then(|e| e.get_ref().downcast_ref())
     }
+
+    /// Converts error to a response instance and set error message as response body
+    pub fn response_with_message(self) -> Response {
+        let message = format!("{}", self);
+        let mut resp: Response = self.into();
+        resp.set_body(message);
+        resp
+    }
 }
 
 /// Helper trait to downcast a response error into a fail.
