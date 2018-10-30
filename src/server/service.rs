@@ -89,6 +89,7 @@ where
     }
 
     fn call(&mut self, req: Self::Request) -> Self::Future {
+        let _ = req.set_nodelay(true);
         HttpChannel::new(self.settings.clone(), req)
     }
 }
