@@ -57,12 +57,16 @@ where
     fn call(&mut self, req: Self::Request) -> Self::Future {
         match req {
             Ok(r) => Either::A(ok(r)),
-            Err((e, framed)) => Either::B(SendErrorFut {
-                framed: Some(framed),
-                res: Some(Message::Item(e.response_with_message())),
-                err: Some(e),
-                _t: PhantomData,
-            }),
+            Err((e, framed)) => {
+                let mut resp = e.error_response();
+                resp.set_body(format!("{}", e));
+                Either::B(SendErrorFut {
+                    framed: Some(framed),
+                    res: Some(resp.into()),
+                    err: Some(e),
+                    _t: PhantomData,
+                })
+            }
         }
     }
 }
