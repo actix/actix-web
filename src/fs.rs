@@ -351,7 +351,8 @@ impl<C: StaticFileConfig> Responder for NamedFile<C> {
             if let Some(current_encoding) = self.encoding {
                 resp.content_encoding(current_encoding);
             }
-            let reader = ChunkedReadFile {
+            let reader = 
+            {
                 size: self.md.len(),
                 offset: 0,
                 cpu_pool: self.cpu_pool.unwrap_or_else(|| req.cpu_pool().clone()),
@@ -475,12 +476,12 @@ impl<C: StaticFileConfig> Responder for NamedFile<C> {
 /// A helper created from a `std::fs::File` which reads the file
 /// chunk-by-chunk on a `CpuPool`.
 pub struct ChunkedReadFile {
-    size: u64,
-    offset: u64,
-    cpu_pool: CpuPool,
-    file: Option<File>,
-    fut: Option<CpuFuture<(File, Bytes), io::Error>>,
-    counter: u64,
+    pub size: u64,
+    pub offset: u64,
+    pub cpu_pool: CpuPool,
+    pub file: Option<File>,
+    pub fut: Option<CpuFuture<(File, Bytes), io::Error>>,
+    pub counter: u64,
 }
 
 impl Stream for ChunkedReadFile {
