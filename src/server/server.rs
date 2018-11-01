@@ -249,15 +249,16 @@ impl Server {
     }
 
     fn start_worker(&self, idx: usize, notify: AcceptNotify) -> WorkerClient {
-        let (tx, rx) = unbounded();
+        let (tx1, rx1) = unbounded();
+        let (tx2, rx2) = unbounded();
         let timeout = self.shutdown_timeout;
         let avail = WorkerAvailability::new(notify);
-        let worker = WorkerClient::new(idx, tx, avail.clone());
+        let worker = WorkerClient::new(idx, tx1, tx2, avail.clone());
         let services: Vec<Box<InternalServiceFactory>> =
             self.services.iter().map(|v| v.clone_factory()).collect();
 
         Arbiter::new(format!("actix-net-worker-{}", idx)).do_send(Execute::new(move || {
-            Worker::start(rx, services, avail, timeout.clone());
+            Worker::start(rx1, rx2, services, avail, timeout.clone());
             Ok::<_, ()>(())
         }));
 
@@ -317,6 +318,7 @@ impl Handler<StopServer> for Server {
     type Result = Response<(), ()>;
 
     fn handle(&mut self, msg: StopServer, ctx: &mut Context<Self>) -> Self::Result {
+        println!("STOP command");
         // stop accept thread
         self.accept.send(Command::Stop);
 
