@@ -58,8 +58,8 @@ tokio-timer = "0.2"
 tokio-reactor = "0.1"
 tokio-current-thread = "0.1"
 tower-service = "0.1"
-trust-dns-proto = "^0.5.0-alpha.3"
-trust-dns-resolver = "^0.10.0-alpha.3"
+trust-dns-proto = "^0.5.0"
+trust-dns-resolver = "^0.10.0"
 
 # native-tls
 native-tls = { version="0.2", optional = true }
