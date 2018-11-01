@@ -103,6 +103,12 @@ impl<T> TakeItem<T> {
     }
 }
 
+impl<T> Clone for TakeItem<T> {
+    fn clone(&self) -> TakeItem<T> {
+        TakeItem { _t: PhantomData }
+    }
+}
+
 impl<T: Stream> NewService for TakeItem<T> {
     type Request = T;
     type Response = (Option<T::Item>, T);
@@ -119,6 +125,12 @@ impl<T: Stream> NewService for TakeItem<T> {
 /// `NewService` that implements, read one request from framed object feature.
 pub struct TakeItemService<T> {
     _t: PhantomData<T>,
+}
+
+impl<T> Clone for TakeItemService<T> {
+    fn clone(&self) -> TakeItemService<T> {
+        TakeItemService { _t: PhantomData }
+    }
 }
 
 impl<T: Stream> Service for TakeItemService<T> {
