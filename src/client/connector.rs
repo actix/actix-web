@@ -287,7 +287,7 @@ impl Default for ClientConnector {
             }
         };
 
-        #[cfg_attr(feature = "cargo-clippy", allow(clippy::let_unit_value))]
+        #[cfg_attr(feature = "cargo-clippy", allow(let_unit_value))]
         ClientConnector::with_connector_impl(connector)
     }
 }

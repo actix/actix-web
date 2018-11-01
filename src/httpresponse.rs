@@ -694,7 +694,7 @@ impl HttpResponseBuilder {
 }
 
 #[inline]
-#[cfg_attr(feature = "cargo-clippy", allow(clippy::borrowed_box))]
+#[cfg_attr(feature = "cargo-clippy", allow(borrowed_box))]
 fn parts<'a>(
     parts: &'a mut Option<Box<InnerHttpResponse>>, err: &Option<HttpError>,
 ) -> Option<&'a mut Box<InnerHttpResponse>> {
