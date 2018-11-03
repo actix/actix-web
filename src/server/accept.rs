@@ -23,7 +23,6 @@ pub(crate) enum Command {
 struct ServerSocketInfo {
     addr: net::SocketAddr,
     token: Token,
-    handler: Token,
     sock: mio::net::TcpListener,
     timeout: Option<Instant>,
 }
@@ -191,7 +190,7 @@ impl Accept {
 
         // Start accept
         let mut sockets = Slab::new();
-        for (idx, (hnd_token, lst)) in socks.into_iter().enumerate() {
+        for (hnd_token, lst) in socks.into_iter() {
             let addr = lst.local_addr().unwrap();
             let server = mio::net::TcpListener::from_std(lst)
                 .expect("Can not create mio::net::TcpListener");
@@ -212,7 +211,6 @@ impl Accept {
             entry.insert(ServerSocketInfo {
                 addr,
                 token: hnd_token,
-                handler: Token(idx),
                 sock: server,
                 timeout: None,
             });
@@ -436,7 +434,6 @@ impl Accept {
                     Ok((io, addr)) => Conn {
                         io,
                         token: info.token,
-                        handler: info.handler,
                         peer: Some(addr),
                     },
                     Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => return,

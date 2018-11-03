@@ -28,7 +28,6 @@ pub(crate) struct StopCommand {
 #[derive(Debug, Message)]
 pub(crate) struct Conn {
     pub io: net::TcpStream,
-    pub handler: Token,
     pub token: Token,
     pub peer: Option<net::SocketAddr>,
 }
@@ -295,7 +294,7 @@ impl Future for Worker {
                             match self.check_readiness(false) {
                                 Ok(true) => {
                                     let guard = self.conns.get();
-                                    let _ = self.services[msg.handler.0]
+                                    let _ = self.services[msg.token.0]
                                         .as_mut()
                                         .expect("actix net bug")
                                         .1
@@ -401,7 +400,7 @@ impl Future for Worker {
                             match self.check_readiness(false) {
                                 Ok(true) => {
                                     let guard = self.conns.get();
-                                    let _ = self.services[msg.handler.0]
+                                    let _ = self.services[msg.token.0]
                                         .as_mut()
                                         .expect("actix net bug")
                                         .1
