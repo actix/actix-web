@@ -7,6 +7,7 @@ use tokio_current_thread::spawn;
 use tokio_reactor::Handle;
 use tokio_tcp::TcpStream;
 
+use super::Token;
 use counter::CounterGuard;
 use service::{NewService, Service};
 
@@ -33,11 +34,11 @@ pub trait ServiceFactory: Send + Clone + 'static {
 }
 
 pub(crate) trait InternalServiceFactory: Send {
-    fn name(&self) -> &str;
+    fn name(&self, token: Token) -> &str;
 
     fn clone_factory(&self) -> Box<InternalServiceFactory>;
 
-    fn create(&self) -> Box<Future<Item = BoxedServerService, Error = ()>>;
+    fn create(&self) -> Box<Future<Item = Vec<(Token, BoxedServerService)>, Error = ()>>;
 }
 
 pub(crate) type BoxedServerService = Box<
@@ -54,7 +55,7 @@ pub(crate) struct StreamService<T> {
 }
 
 impl<T> StreamService<T> {
-    fn new(service: T) -> Self {
+    pub(crate) fn new(service: T) -> Self {
         StreamService { service }
     }
 }
@@ -133,14 +134,15 @@ where
 pub(crate) struct ServiceNewService<F: ServiceFactory> {
     name: String,
     inner: F,
+    token: Token,
 }
 
 impl<F> ServiceNewService<F>
 where
     F: ServiceFactory,
 {
-    pub(crate) fn create(name: String, inner: F) -> Box<InternalServiceFactory> {
-        Box::new(Self { name, inner })
+    pub(crate) fn create(name: String, token: Token, inner: F) -> Box<InternalServiceFactory> {
+        Box::new(Self { name, inner, token })
     }
 }
 
@@ -148,7 +150,7 @@ impl<F> InternalServiceFactory for ServiceNewService<F>
 where
     F: ServiceFactory,
 {
-    fn name(&self) -> &str {
+    fn name(&self, _: Token) -> &str {
         &self.name
     }
 
@@ -156,10 +158,12 @@ where
         Box::new(Self {
             name: self.name.clone(),
             inner: self.inner.clone(),
+            token: self.token,
         })
     }
 
-    fn create(&self) -> Box<Future<Item = BoxedServerService, Error = ()>> {
+    fn create(&self) -> Box<Future<Item = Vec<(Token, BoxedServerService)>, Error = ()>> {
+        let token = self.token;
         Box::new(
             self.inner
                 .create()
@@ -167,7 +171,7 @@ where
                 .map_err(|_| ())
                 .map(move |inner| {
                     let service: BoxedServerService = Box::new(ServerService::new(inner));
-                    service
+                    vec![(token, service)]
                 }),
         )
     }
@@ -176,14 +180,15 @@ where
 pub(crate) struct StreamNewService<F: StreamServiceFactory> {
     name: String,
     inner: F,
+    token: Token,
 }
 
 impl<F> StreamNewService<F>
 where
     F: StreamServiceFactory,
 {
-    pub(crate) fn create(name: String, inner: F) -> Box<InternalServiceFactory> {
-        Box::new(Self { name, inner })
+    pub(crate) fn create(name: String, token: Token, inner: F) -> Box<InternalServiceFactory> {
+        Box::new(Self { name, token, inner })
     }
 }
 
@@ -191,7 +196,7 @@ impl<F> InternalServiceFactory for StreamNewService<F>
 where
     F: StreamServiceFactory,
 {
-    fn name(&self) -> &str {
+    fn name(&self, _: Token) -> &str {
         &self.name
     }
 
@@ -199,10 +204,12 @@ where
         Box::new(Self {
             name: self.name.clone(),
             inner: self.inner.clone(),
+            token: self.token,
         })
     }
 
-    fn create(&self) -> Box<Future<Item = BoxedServerService, Error = ()>> {
+    fn create(&self) -> Box<Future<Item = Vec<(Token, BoxedServerService)>, Error = ()>> {
+        let token = self.token;
         Box::new(
             self.inner
                 .create()
@@ -210,22 +217,22 @@ where
                 .map_err(|_| ())
                 .map(move |inner| {
                     let service: BoxedServerService = Box::new(StreamService::new(inner));
-                    service
+                    vec![(token, service)]
                 }),
         )
     }
 }
 
 impl InternalServiceFactory for Box<InternalServiceFactory> {
-    fn name(&self) -> &str {
-        self.as_ref().name()
+    fn name(&self, token: Token) -> &str {
+        self.as_ref().name(token)
     }
 
     fn clone_factory(&self) -> Box<InternalServiceFactory> {
         self.as_ref().clone_factory()
     }
 
-    fn create(&self) -> Box<Future<Item = BoxedServerService, Error = ()>> {
+    fn create(&self) -> Box<Future<Item = Vec<(Token, BoxedServerService)>, Error = ()>> {
         self.as_ref().create()
     }
 }

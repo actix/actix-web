@@ -12,6 +12,7 @@ use actix::{
 };
 
 use super::accept::{AcceptLoop, AcceptNotify, Command};
+use super::config::{ConfiguredService, ServiceConfig};
 use super::services::{InternalServiceFactory, StreamNewService, StreamServiceFactory};
 use super::services::{ServiceFactory, ServiceNewService};
 use super::worker::{self, Worker, WorkerAvailability, WorkerClient};
@@ -24,6 +25,7 @@ pub(crate) enum ServerCommand {
 /// Server
 pub struct Server {
     threads: usize,
+    token: Token,
     workers: Vec<(usize, WorkerClient)>,
     services: Vec<Box<InternalServiceFactory>>,
     sockets: Vec<(Token, net::TcpListener)>,
@@ -45,6 +47,7 @@ impl Server {
     pub fn new() -> Server {
         Server {
             threads: num_cpus::get(),
+            token: Token(0),
             workers: Vec::new(),
             services: Vec::new(),
             sockets: Vec::new(),
@@ -113,12 +116,24 @@ impl Server {
     /// process
     ///
     /// This function is useful for moving parts of configuration to a
-    /// different module or event library.
-    pub fn configure<F>(self, cfg: F) -> Server
+    /// different module or even library.
+    pub fn configure<F>(mut self, f: F) -> io::Result<Server>
     where
-        F: Fn(Server) -> Server,
+        F: Fn(&mut ServiceConfig) -> io::Result<()>,
     {
-        cfg(self)
+        let mut cfg = ServiceConfig::new();
+
+        f(&mut cfg)?;
+
+        let mut srv = ConfiguredService::new(cfg.rt);
+        for (name, lst) in cfg.services {
+            let token = self.token.next();
+            srv.stream(token, name);
+            self.sockets.push((token, lst));
+        }
+        self.services.push(Box::new(srv));
+
+        Ok(self)
     }
 
     /// Add new service to server
@@ -145,9 +160,12 @@ impl Server {
     where
         F: StreamServiceFactory,
     {
-        let token = Token(self.services.len());
-        self.services
-            .push(StreamNewService::create(name.as_ref().to_string(), factory));
+        let token = self.token.next();
+        self.services.push(StreamNewService::create(
+            name.as_ref().to_string(),
+            token,
+            factory,
+        ));
         self.sockets.push((token, lst));
         self
     }
@@ -162,9 +180,10 @@ impl Server {
     where
         F: ServiceFactory,
     {
-        let token = Token(self.services.len());
+        let token = self.token.next();
         self.services.push(ServiceNewService::create(
             name.as_ref().to_string(),
+            token,
             factory,
         ));
         self.sockets.push((token, lst));
@@ -403,7 +422,7 @@ impl StreamHandler<ServerCommand, ()> for Server {
     }
 }
 
-fn bind_addr<S: net::ToSocketAddrs>(addr: S) -> io::Result<Vec<net::TcpListener>> {
+pub(super) fn bind_addr<S: net::ToSocketAddrs>(addr: S) -> io::Result<Vec<net::TcpListener>> {
     let mut err = None;
     let mut succ = false;
     let mut sockets = Vec::new();

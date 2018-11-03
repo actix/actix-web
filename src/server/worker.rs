@@ -127,7 +127,7 @@ impl WorkerAvailability {
 pub(crate) struct Worker {
     rx: UnboundedReceiver<WorkerCommand>,
     rx2: UnboundedReceiver<StopCommand>,
-    services: Vec<BoxedServerService>,
+    services: Vec<Option<(usize, BoxedServerService)>>,
     availability: WorkerAvailability,
     conns: Counter,
     factories: Vec<Box<InternalServiceFactory>>,
@@ -156,8 +156,12 @@ impl Worker {
         });
 
         let mut fut = Vec::new();
-        for factory in &wrk.factories {
-            fut.push(factory.create());
+        for (idx, factory) in wrk.factories.iter().enumerate() {
+            fut.push(factory.create().map(move |res| {
+                res.into_iter()
+                    .map(|(t, s)| (idx, t, s))
+                    .collect::<Vec<_>>()
+            }));
         }
         spawn(
             future::join_all(fut)
@@ -165,7 +169,14 @@ impl Worker {
                     error!("Can not start worker: {:?}", e);
                     Arbiter::current().do_send(StopArbiter(0));
                 }).and_then(move |services| {
-                    wrk.services.extend(services);
+                    for item in services {
+                        for (idx, token, service) in item {
+                            while token.0 >= wrk.services.len() {
+                                wrk.services.push(None);
+                            }
+                            wrk.services[token.0] = Some((idx, service));
+                        }
+                    }
                     wrk
                 }),
         );
@@ -174,33 +185,42 @@ impl Worker {
     fn shutdown(&mut self, force: bool) {
         if force {
             self.services.iter_mut().for_each(|h| {
-                let _ = h.call((None, ServerMessage::ForceShutdown));
+                if let Some(h) = h {
+                    let _ = h.1.call((None, ServerMessage::ForceShutdown));
+                }
             });
         } else {
             let timeout = self.shutdown_timeout;
             self.services.iter_mut().for_each(move |h| {
-                let _ = h.call((None, ServerMessage::Shutdown(timeout.clone())));
+                if let Some(h) = h {
+                    let _ = h.1.call((None, ServerMessage::Shutdown(timeout.clone())));
+                }
             });
         }
     }
 
-    fn check_readiness(&mut self, trace: bool) -> Result<bool, usize> {
+    fn check_readiness(&mut self, trace: bool) -> Result<bool, (Token, usize)> {
         let mut ready = self.conns.available();
         let mut failed = None;
-        for (idx, service) in self.services.iter_mut().enumerate() {
-            match service.poll_ready() {
-                Ok(Async::Ready(_)) => {
-                    if trace {
-                        trace!("Service {:?} is available", self.factories[idx].name());
+        for (token, service) in &mut self.services.iter_mut().enumerate() {
+            if let Some(service) = service {
+                match service.1.poll_ready() {
+                    Ok(Async::Ready(_)) => {
+                        if trace {
+                            trace!(
+                                "Service {:?} is available",
+                                self.factories[service.0].name(Token(token))
+                            );
+                        }
                     }
-                }
-                Ok(Async::NotReady) => ready = false,
-                Err(_) => {
-                    error!(
-                        "Service {:?} readiness check returned error, restarting",
-                        self.factories[idx].name()
-                    );
-                    failed = Some(idx);
+                    Ok(Async::NotReady) => ready = false,
+                    Err(_) => {
+                        error!(
+                            "Service {:?} readiness check returned error, restarting",
+                            self.factories[service.0].name(Token(token))
+                        );
+                        failed = Some((Token(token), service.0));
+                    }
                 }
             }
         }
@@ -216,7 +236,11 @@ enum WorkerState {
     None,
     Available,
     Unavailable(Vec<Conn>),
-    Restarting(usize, Box<Future<Item = BoxedServerService, Error = ()>>),
+    Restarting(
+        usize,
+        Token,
+        Box<Future<Item = Vec<(Token, BoxedServerService)>, Error = ()>>,
+    ),
     Shutdown(Delay, Delay, oneshot::Sender<bool>),
 }
 
@@ -272,6 +296,9 @@ impl Future for Worker {
                                 Ok(true) => {
                                     let guard = self.conns.get();
                                     let _ = self.services[msg.handler.0]
+                                        .as_mut()
+                                        .expect("actix net bug")
+                                        .1
                                         .call((Some(guard), ServerMessage::Connect(msg.io)));
                                 }
                                 Ok(false) => {
@@ -279,13 +306,14 @@ impl Future for Worker {
                                     self.state = WorkerState::Unavailable(conns);
                                     return self.poll();
                                 }
-                                Err(idx) => {
+                                Err((token, idx)) => {
                                     trace!(
                                         "Service {:?} failed, restarting",
-                                        self.factories[idx].name()
+                                        self.factories[idx].name(token)
                                     );
                                     self.state = WorkerState::Restarting(
                                         idx,
+                                        token,
                                         self.factories[idx].create(),
                                     );
                                     return self.poll();
@@ -299,32 +327,38 @@ impl Future for Worker {
                         self.state = WorkerState::Unavailable(conns);
                         return Ok(Async::NotReady);
                     }
-                    Err(idx) => {
+                    Err((token, idx)) => {
                         trace!(
                             "Service {:?} failed, restarting",
-                            self.factories[idx].name()
+                            self.factories[idx].name(token)
                         );
-                        self.state = WorkerState::Restarting(idx, self.factories[idx].create());
+                        self.state =
+                            WorkerState::Restarting(idx, token, self.factories[idx].create());
                         return self.poll();
                     }
                 }
             }
-            WorkerState::Restarting(idx, mut fut) => {
+            WorkerState::Restarting(idx, token, mut fut) => {
                 match fut.poll() {
-                    Ok(Async::Ready(service)) => {
-                        trace!(
-                            "Service {:?} has been restarted",
-                            self.factories[idx].name()
-                        );
-                        self.services[idx] = service;
-                        self.state = WorkerState::Unavailable(Vec::new());
+                    Ok(Async::Ready(item)) => {
+                        for (token, service) in item {
+                            trace!(
+                                "Service {:?} has been restarted",
+                                self.factories[idx].name(token)
+                            );
+                            self.services[token.0] = Some((idx, service));
+                            self.state = WorkerState::Unavailable(Vec::new());
+                        }
                     }
                     Ok(Async::NotReady) => {
-                        self.state = WorkerState::Restarting(idx, fut);
+                        self.state = WorkerState::Restarting(idx, token, fut);
                         return Ok(Async::NotReady);
                     }
                     Err(_) => {
-                        panic!("Can not restart {:?} service", self.factories[idx].name());
+                        panic!(
+                            "Can not restart {:?} service",
+                            self.factories[idx].name(token)
+                        );
                     }
                 }
                 return self.poll();
@@ -368,6 +402,9 @@ impl Future for Worker {
                                 Ok(true) => {
                                     let guard = self.conns.get();
                                     let _ = self.services[msg.handler.0]
+                                        .as_mut()
+                                        .expect("actix net bug")
+                                        .1
                                         .call((Some(guard), ServerMessage::Connect(msg.io)));
                                     continue;
                                 }
@@ -376,14 +413,15 @@ impl Future for Worker {
                                     self.availability.set(false);
                                     self.state = WorkerState::Unavailable(vec![msg]);
                                 }
-                                Err(idx) => {
+                                Err((token, idx)) => {
                                     trace!(
                                         "Service {:?} failed, restarting",
-                                        self.factories[idx].name()
+                                        self.factories[idx].name(token)
                                     );
                                     self.availability.set(false);
                                     self.state = WorkerState::Restarting(
                                         idx,
+                                        token,
                                         self.factories[idx].create(),
                                     );
                                 }
