@@ -119,7 +119,7 @@ where
         let req = req.clone();
         let req2 = req.clone();
         let err = Rc::clone(&cfg.ehandler);
-        de::Deserialize::deserialize(PathDeserializer::new(&req))
+        de::Deserialize::deserialize(PathDeserializer::new(&req, cfg.decode))
             .map_err(move |e| (*err)(e, &req2))
             .map(|inner| Path { inner })
     }
@@ -149,6 +149,7 @@ where
 /// ```
 pub struct PathConfig<S> {
     ehandler: Rc<Fn(serde_urlencoded::de::Error, &HttpRequest<S>) -> Error>,
+    decode: bool,
 }
 impl<S> PathConfig<S> {
     /// Set custom error handler
@@ -159,12 +160,20 @@ impl<S> PathConfig<S> {
         self.ehandler = Rc::new(f);
         self
     }
+
+    /// Disable decoding
+    pub fn disable_decoding(&mut self) -> &mut Self
+    {
+        self.decode = false;
+        self
+    }
 }
 
 impl<S> Default for PathConfig<S> {
     fn default() -> Self {
         PathConfig {
             ehandler: Rc::new(|e, _| ErrorNotFound(e)),
+            decode: true,
         }
     }
 }
@@ -1088,6 +1097,50 @@ mod tests {
         let info = router.recognize(&req, &(), 0);
         let req = req.with_route_info(info);
         assert_eq!(*Path::<i8>::from_request(&req, &&PathConfig::default()).unwrap(), 32);
+    }
+
+    #[test]
+    fn test_extract_path_decode() {
+        let mut router = Router::<()>::default();
+        router.register_resource(Resource::new(ResourceDef::new("/{value}/")));
+
+        let req = TestRequest::with_uri("/%25/").finish();
+        let info = router.recognize(&req, &(), 0);
+        let req = req.with_route_info(info);
+        assert_eq!(*Path::<String>::from_request(&req, &&PathConfig::default()).unwrap(), "%");
+
+        let req = TestRequest::with_uri("/%25/7/?id=test").finish();
+
+        let mut router = Router::<()>::default();
+        router.register_resource(Resource::new(ResourceDef::new("/{key}/{value}/")));
+        let info = router.recognize(&req, &(), 0);
+        let req = req.with_route_info(info);
+
+        let s = Path::<Test2>::from_request(&req, &PathConfig::default()).unwrap();
+        assert_eq!(s.key, "%");
+        assert_eq!(s.value, 7);
+
+        let s = Path::<(String, String)>::from_request(&req, &PathConfig::default()).unwrap();
+        assert_eq!(s.0, "%");
+        assert_eq!(s.1, "7");
+
+    }
+
+    #[test]
+    fn test_extract_path_no_decode() {
+        let mut router = Router::<()>::default();
+        router.register_resource(Resource::new(ResourceDef::new("/{value}/")));
+
+        let req = TestRequest::with_uri("/%25/").finish();
+        let info = router.recognize(&req, &(), 0);
+        let req = req.with_route_info(info);
+        assert_eq!(
+            *Path::<String>::from_request(
+                &req,
+                &&PathConfig::default().disable_decoding()
+            ).unwrap(),
+            "%25"
+        );
     }
 
     #[test]

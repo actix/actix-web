@@ -7,18 +7,24 @@ const GEN_DELIMS: &[u8] = b":/?#[]@";
 const SUB_DELIMS_WITHOUT_QS: &[u8] = b"!$'()*,";
 #[allow(dead_code)]
 const SUB_DELIMS: &[u8] = b"!$'()*,+?=;";
+
+// https://tools.ietf.org/html/rfc3986#section-2.2
 #[allow(dead_code)]
 const RESERVED: &[u8] = b":/?#[]@!$'()*,+?=;";
 #[allow(dead_code)]
-const UNRESERVED: &[u8] = b"abcdefghijklmnopqrstuvwxyz
-    ABCDEFGHIJKLMNOPQRSTUVWXYZ
-    1234567890
-    -._~";
+const RESERVED_PLUS_PERCENT: &[u8] = b":/?#[]@!$'()*,+?=;%";
+
+// https://tools.ietf.org/html/rfc3986#section-2.3
+#[allow(dead_code)]
+const UNRESERVED: &[u8] =
+    b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890-._~";
+#[allow(dead_code)]
 const ALLOWED: &[u8] = b"abcdefghijklmnopqrstuvwxyz
     ABCDEFGHIJKLMNOPQRSTUVWXYZ
     1234567890
     -._~
     !$'()*,";
+#[allow(dead_code)]
 const QS: &[u8] = b"+&=;b";
 
 #[inline]
@@ -32,7 +38,8 @@ fn set_bit(array: &mut [u8], ch: u8) {
 }
 
 lazy_static! {
-    static ref DEFAULT_QUOTER: Quoter = { Quoter::new(b"@:", b"/+") };
+    static ref UNRESERVED_QUOTER: Quoter = { Quoter::new(UNRESERVED, b"") };
+    pub(crate) static ref RESERVED_QUOTER: Quoter = { Quoter::new(RESERVED_PLUS_PERCENT, b"") };
 }
 
 #[derive(Default, Clone, Debug)]
@@ -43,7 +50,7 @@ pub(crate) struct Url {
 
 impl Url {
     pub fn new(uri: Uri) -> Url {
-        let path = DEFAULT_QUOTER.requote(uri.path().as_bytes());
+        let path = UNRESERVED_QUOTER.requote(uri.path().as_bytes());
 
         Url { uri, path }
     }
@@ -74,15 +81,6 @@ impl Quoter {
         };
 
         // prepare safe table
-        for i in 0..128 {
-            if ALLOWED.contains(&i) {
-                set_bit(&mut q.safe_table, i);
-            }
-            if QS.contains(&i) {
-                set_bit(&mut q.safe_table, i);
-            }
-        }
-
         for ch in safe {
             set_bit(&mut q.safe_table, *ch)
         }
@@ -126,8 +124,12 @@ impl Quoter {
                                 idx += 1;
                                 continue;
                             }
+
+                            buf.extend_from_slice(&pct);
+                        } else {
+                            // Not ASCII, decode it
+                            buf.push(ch);
                         }
-                        buf.push(ch);
                     } else {
                         buf.extend_from_slice(&pct[..]);
                     }
@@ -171,4 +173,38 @@ fn from_hex(v: u8) -> Option<u8> {
 #[inline]
 fn restore_ch(d1: u8, d2: u8) -> Option<u8> {
     from_hex(d1).and_then(|d1| from_hex(d2).and_then(move |d2| Some(d1 << 4 | d2)))
+}
+
+
+#[cfg(test)]
+mod tests {
+    use std::rc::Rc;
+
+    use super::*;
+
+    #[test]
+    fn decode_path() {
+        assert_eq!(UNRESERVED_QUOTER.requote(b"https://localhost:80/foo"), None);
+
+        assert_eq!(
+            Rc::try_unwrap(UNRESERVED_QUOTER.requote(
+                b"https://localhost:80/foo%25"
+            ).unwrap()).unwrap(),
+            "https://localhost:80/foo%25".to_string()
+        );
+
+        assert_eq!(
+            Rc::try_unwrap(UNRESERVED_QUOTER.requote(
+                b"http://cache-service/http%3A%2F%2Flocalhost%3A80%2Ffoo"
+            ).unwrap()).unwrap(),
+            "http://cache-service/http%3A%2F%2Flocalhost%3A80%2Ffoo".to_string()
+        );
+
+        assert_eq!(
+            Rc::try_unwrap(UNRESERVED_QUOTER.requote(
+                b"http://cache/http%3A%2F%2Flocal%3A80%2Ffile%2F%252Fvar%252Flog%0A"
+            ).unwrap()).unwrap(),
+            "http://cache/http%3A%2F%2Flocal%3A80%2Ffile%2F%252Fvar%252Flog%0A".to_string()
+        );
+    }
 }

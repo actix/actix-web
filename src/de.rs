@@ -1,7 +1,10 @@
+use std::rc::Rc;
+
 use serde::de::{self, Deserializer, Error as DeError, Visitor};
 
 use httprequest::HttpRequest;
 use param::ParamsIter;
+use uri::RESERVED_QUOTER;
 
 macro_rules! unsupported_type {
     ($trait_fn:ident, $name:expr) => {
@@ -23,11 +26,20 @@ macro_rules! parse_single_value {
                     format!("wrong number of parameters: {} expected 1",
                             self.req.match_info().len()).as_str()))
             } else {
-                let v = self.req.match_info()[0].parse().map_err(
-                    |_| de::value::Error::custom(
-                        format!("can not parse {:?} to a {}",
-                                &self.req.match_info()[0], $tp)))?;
-                visitor.$visit_fn(v)
+                let v: &str = &self.req.match_info()[0];
+                let v_parsed = if self.decode {
+                    let decoded = RESERVED_QUOTER.requote(v.as_bytes());
+                    if let Some(ref value) = decoded {
+                        Rc::make_mut(&mut value.clone()).parse()
+                    } else {
+                        v.parse()
+                    }
+                } else {
+                    v.parse()
+                }.map_err(|_| de::value::Error::custom(
+                    format!("can not parse {:?} to a {}", &self.req.match_info()[0], $tp)
+                ))?;
+                visitor.$visit_fn(v_parsed)
             }
         }
     }
@@ -35,11 +47,12 @@ macro_rules! parse_single_value {
 
 pub struct PathDeserializer<'de, S: 'de> {
     req: &'de HttpRequest<S>,
+    decode: bool,
 }
 
 impl<'de, S: 'de> PathDeserializer<'de, S> {
-    pub fn new(req: &'de HttpRequest<S>) -> Self {
-        PathDeserializer { req }
+    pub fn new(req: &'de HttpRequest<S>, decode: bool) -> Self {
+        PathDeserializer { req, decode }
     }
 }
 
@@ -53,6 +66,7 @@ impl<'de, S: 'de> Deserializer<'de> for PathDeserializer<'de, S> {
         visitor.visit_map(ParamsDeserializer {
             params: self.req.match_info().iter(),
             current: None,
+            decode: self.decode,
         })
     }
 
@@ -107,6 +121,7 @@ impl<'de, S: 'de> Deserializer<'de> for PathDeserializer<'de, S> {
         } else {
             visitor.visit_seq(ParamsSeq {
                 params: self.req.match_info().iter(),
+                decode: self.decode,
             })
         }
     }
@@ -128,6 +143,7 @@ impl<'de, S: 'de> Deserializer<'de> for PathDeserializer<'de, S> {
         } else {
             visitor.visit_seq(ParamsSeq {
                 params: self.req.match_info().iter(),
+                decode: self.decode,
             })
         }
     }
@@ -141,28 +157,13 @@ impl<'de, S: 'de> Deserializer<'de> for PathDeserializer<'de, S> {
         Err(de::value::Error::custom("unsupported type: enum"))
     }
 
-    fn deserialize_str<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-    where
-        V: Visitor<'de>,
-    {
-        if self.req.match_info().len() != 1 {
-            Err(de::value::Error::custom(
-                format!(
-                    "wrong number of parameters: {} expected 1",
-                    self.req.match_info().len()
-                ).as_str(),
-            ))
-        } else {
-            visitor.visit_str(&self.req.match_info()[0])
-        }
-    }
-
     fn deserialize_seq<V>(self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
         visitor.visit_seq(ParamsSeq {
             params: self.req.match_info().iter(),
+            decode: self.decode,
         })
     }
 
@@ -184,13 +185,16 @@ impl<'de, S: 'de> Deserializer<'de> for PathDeserializer<'de, S> {
     parse_single_value!(deserialize_f32, visit_f32, "f32");
     parse_single_value!(deserialize_f64, visit_f64, "f64");
     parse_single_value!(deserialize_string, visit_string, "String");
+    parse_single_value!(deserialize_str, visit_string, "String");
     parse_single_value!(deserialize_byte_buf, visit_string, "String");
     parse_single_value!(deserialize_char, visit_char, "char");
+
 }
 
 struct ParamsDeserializer<'de> {
     params: ParamsIter<'de>,
     current: Option<(&'de str, &'de str)>,
+    decode: bool,
 }
 
 impl<'de> de::MapAccess<'de> for ParamsDeserializer<'de> {
@@ -212,7 +216,7 @@ impl<'de> de::MapAccess<'de> for ParamsDeserializer<'de> {
         V: de::DeserializeSeed<'de>,
     {
         if let Some((_, value)) = self.current.take() {
-            seed.deserialize(Value { value })
+            seed.deserialize(Value { value, decode: self.decode })
         } else {
             Err(de::value::Error::custom("unexpected item"))
         }
@@ -252,16 +256,27 @@ macro_rules! parse_value {
         fn $trait_fn<V>(self, visitor: V) -> Result<V::Value, Self::Error>
             where V: Visitor<'de>
         {
-            let v = self.value.parse().map_err(
-                |_| de::value::Error::custom(
-                    format!("can not parse {:?} to a {}", self.value, $tp)))?;
-            visitor.$visit_fn(v)
+            let v: &str = &self.value;
+            let v_parsed = if self.decode {
+                let decoded = RESERVED_QUOTER.requote(v.as_bytes());
+                if let Some(ref value) = decoded {
+                    Rc::make_mut(&mut value.clone()).parse()
+                } else {
+                    v.parse()
+                }
+            } else {
+                v.parse()
+            }.map_err(|_| de::value::Error::custom(
+                format!("can not parse {:?} to a {}", &self.value, $tp)
+            ))?;
+            visitor.$visit_fn(v_parsed)
         }
     }
 }
 
 struct Value<'de> {
     value: &'de str,
+    decode: bool,
 }
 
 impl<'de> Deserializer<'de> for Value<'de> {
@@ -377,6 +392,7 @@ impl<'de> Deserializer<'de> for Value<'de> {
 
 struct ParamsSeq<'de> {
     params: ParamsIter<'de>,
+    decode: bool,
 }
 
 impl<'de> de::SeqAccess<'de> for ParamsSeq<'de> {
@@ -387,7 +403,7 @@ impl<'de> de::SeqAccess<'de> for ParamsSeq<'de> {
         T: de::DeserializeSeed<'de>,
     {
         match self.params.next() {
-            Some(item) => Ok(Some(seed.deserialize(Value { value: item.1 })?)),
+            Some(item) => Ok(Some(seed.deserialize(Value { value: item.1, decode: self.decode })?)),
             None => Ok(None),
         }
     }
