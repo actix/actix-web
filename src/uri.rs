@@ -10,9 +10,9 @@ const SUB_DELIMS: &[u8] = b"!$'()*,+?=;";
 
 // https://tools.ietf.org/html/rfc3986#section-2.2
 #[allow(dead_code)]
-const RESERVED: &[u8] = b":/?#[]@!$'()*,+?=;";
+const RESERVED: &[u8] = b":/?#[]@!$&'()*,+?;=";
 #[allow(dead_code)]
-const RESERVED_PLUS_PERCENT: &[u8] = b":/?#[]@!$'()*,+?=;%";
+const RESERVED_PLUS_EXTRA: &[u8] = b":/?#[]@!$&'()*,+?;=%^ <>\"\\`{}|";
 
 // https://tools.ietf.org/html/rfc3986#section-2.3
 #[allow(dead_code)]
@@ -39,7 +39,7 @@ fn set_bit(array: &mut [u8], ch: u8) {
 
 lazy_static! {
     static ref UNRESERVED_QUOTER: Quoter = { Quoter::new(UNRESERVED, b"") };
-    pub(crate) static ref RESERVED_QUOTER: Quoter = { Quoter::new(RESERVED_PLUS_PERCENT, b"") };
+    pub(crate) static ref RESERVED_QUOTER: Quoter = { Quoter::new(RESERVED_PLUS_EXTRA, b"") };
 }
 
 #[derive(Default, Clone, Debug)]
