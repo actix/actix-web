@@ -192,6 +192,7 @@ where
 
     #[inline]
     pub fn poll(&mut self) -> Poll<(), HttpDispatchError> {
+        ::futures::task::current().notify();
         // check connection keep-alive
         self.poll_keepalive()?;
 
