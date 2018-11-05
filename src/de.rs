@@ -16,6 +16,20 @@ macro_rules! unsupported_type {
     };
 }
 
+macro_rules! percent_decode_if_needed {
+    ($value:expr, $decode:expr) => {
+        if $decode {
+            if let Some(ref value) = RESERVED_QUOTER.requote($value.as_bytes()) {
+                Rc::make_mut(&mut value.clone()).parse()
+            } else {
+                $value.parse()
+            }
+        } else {
+            $value.parse()
+        }
+    }
+}
+
 macro_rules! parse_single_value {
     ($trait_fn:ident, $visit_fn:ident, $tp:tt) => {
         fn $trait_fn<V>(self, visitor: V) -> Result<V::Value, Self::Error>
@@ -26,19 +40,10 @@ macro_rules! parse_single_value {
                     format!("wrong number of parameters: {} expected 1",
                             self.req.match_info().len()).as_str()))
             } else {
-                let v: &str = &self.req.match_info()[0];
-                let v_parsed = if self.decode {
-                    let decoded = RESERVED_QUOTER.requote(v.as_bytes());
-                    if let Some(ref value) = decoded {
-                        Rc::make_mut(&mut value.clone()).parse()
-                    } else {
-                        v.parse()
-                    }
-                } else {
-                    v.parse()
-                }.map_err(|_| de::value::Error::custom(
-                    format!("can not parse {:?} to a {}", &self.req.match_info()[0], $tp)
-                ))?;
+                let v_parsed = percent_decode_if_needed!(&self.req.match_info()[0], self.decode)
+                    .map_err(|_| de::value::Error::custom(
+                        format!("can not parse {:?} to a {}", &self.req.match_info()[0], $tp)
+                    ))?;
                 visitor.$visit_fn(v_parsed)
             }
         }
@@ -256,19 +261,10 @@ macro_rules! parse_value {
         fn $trait_fn<V>(self, visitor: V) -> Result<V::Value, Self::Error>
             where V: Visitor<'de>
         {
-            let v: &str = &self.value;
-            let v_parsed = if self.decode {
-                let decoded = RESERVED_QUOTER.requote(v.as_bytes());
-                if let Some(ref value) = decoded {
-                    Rc::make_mut(&mut value.clone()).parse()
-                } else {
-                    v.parse()
-                }
-            } else {
-                v.parse()
-            }.map_err(|_| de::value::Error::custom(
-                format!("can not parse {:?} to a {}", &self.value, $tp)
-            ))?;
+            let v_parsed = percent_decode_if_needed!(&self.value, self.decode)
+                .map_err(|_| de::value::Error::custom(
+                    format!("can not parse {:?} to a {}", &self.value, $tp)
+                ))?;
             visitor.$visit_fn(v_parsed)
         }
     }
