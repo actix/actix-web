@@ -18,7 +18,8 @@ use httpmessage::{HttpMessage, MessageBody, UrlEncoded};
 use httprequest::HttpRequest;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
-/// Extract typed information from the request's path.
+/// Extract typed information from the request's path. Information from the path is
+/// URL decoded. Decoding of special characters can be disabled through `PathConfig`.
 ///
 /// ## Example
 ///
@@ -161,7 +162,7 @@ impl<S> PathConfig<S> {
         self
     }
 
-    /// Disable decoding
+    /// Disable decoding of URL encoded special charaters from the path
     pub fn disable_decoding(&mut self) -> &mut Self
     {
         self.decode = false;
