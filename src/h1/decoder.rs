@@ -648,9 +648,7 @@ mod tests {
 
     use super::*;
     use error::ParseError;
-    use h1::Message;
     use httpmessage::HttpMessage;
-    use request::Request;
 
     impl PayloadType {
         fn unwrap(self) -> PayloadDecoder {
@@ -664,15 +662,6 @@ mod tests {
             match self {
                 PayloadType::Unhandled => true,
                 _ => false,
-            }
-        }
-    }
-
-    impl Message<Request> {
-        fn message(self) -> Request {
-            match self {
-                Message::Item(req) => req,
-                _ => panic!("error"),
             }
         }
     }

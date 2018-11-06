@@ -37,6 +37,7 @@ cell = ["actix-net/cell"]
 [dependencies]
 actix = "0.7.5"
 #actix-net = "0.1.1"
+#actix-net = { path="../actix-net/" }
 actix-net = { git="https://github.com/actix/actix-net.git" }
 
 base64 = "0.9"

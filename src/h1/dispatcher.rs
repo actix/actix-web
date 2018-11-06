@@ -370,6 +370,7 @@ where
                                     Response::InternalServerError().finish(),
                                 ));
                                 self.error = Some(DispatchError::InternalError);
+                                break;
                             }
                         }
                         Message::Chunk(None) => {
@@ -382,6 +383,7 @@ where
                                     Response::InternalServerError().finish(),
                                 ));
                                 self.error = Some(DispatchError::InternalError);
+                                break;
                             }
                         }
                     }

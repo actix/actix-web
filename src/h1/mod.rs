@@ -46,3 +46,32 @@ pub enum MessageType {
     Payload,
     Unhandled,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    impl Message<Request> {
+        pub fn message(self) -> Request {
+            match self {
+                Message::Item(req) => req,
+                _ => panic!("error"),
+            }
+        }
+
+        pub fn chunk(self) -> Bytes {
+            match self {
+                Message::Chunk(Some(data)) => data,
+                _ => panic!("error"),
+            }
+        }
+
+        pub fn eof(self) -> bool {
+            match self {
+                Message::Chunk(None) => true,
+                Message::Chunk(Some(_)) => false,
+                _ => panic!("error"),
+            }
+        }
+    }
+}

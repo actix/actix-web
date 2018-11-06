@@ -42,6 +42,12 @@ pub struct Codec {
     te: ResponseEncoder,
 }
 
+impl Default for Codec {
+    fn default() -> Self {
+        Codec::new(ServiceConfig::default())
+    }
+}
+
 impl fmt::Debug for Codec {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "h1::Codec({:?})", self.flags)
@@ -247,7 +253,10 @@ impl Decoder for Codec {
         if self.payload.is_some() {
             Ok(match self.payload.as_mut().unwrap().decode(src)? {
                 Some(PayloadItem::Chunk(chunk)) => Some(Message::Chunk(Some(chunk))),
-                Some(PayloadItem::Eof) => Some(Message::Chunk(None)),
+                Some(PayloadItem::Eof) => {
+                    self.payload.take();
+                    Some(Message::Chunk(None))
+                }
                 None => None,
             })
         } else if self.flags.contains(Flags::UNHANDLED) {
@@ -295,5 +304,57 @@ impl Encoder for Codec {
             }
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{cmp, io};
+
+    use bytes::{Buf, Bytes, BytesMut};
+    use http::{Method, Version};
+    use tokio_io::{AsyncRead, AsyncWrite};
+
+    use super::*;
+    use error::ParseError;
+    use h1::Message;
+    use httpmessage::HttpMessage;
+    use request::Request;
+
+    #[test]
+    fn test_http_request_chunked_payload_and_next_message() {
+        let mut codec = Codec::default();
+
+        let mut buf = BytesMut::from(
+            "GET /test HTTP/1.1\r\n\
+             transfer-encoding: chunked\r\n\r\n",
+        );
+        let item = codec.decode(&mut buf).unwrap().unwrap();
+        let req = item.message();
+
+        assert_eq!(req.method(), Method::GET);
+        assert!(req.chunked().unwrap());
+
+        buf.extend(
+            b"4\r\ndata\r\n4\r\nline\r\n0\r\n\r\n\
+               POST /test2 HTTP/1.1\r\n\
+               transfer-encoding: chunked\r\n\r\n"
+                .iter(),
+        );
+
+        let msg = codec.decode(&mut buf).unwrap().unwrap();
+        assert_eq!(msg.chunk().as_ref(), b"data");
+
+        let msg = codec.decode(&mut buf).unwrap().unwrap();
+        assert_eq!(msg.chunk().as_ref(), b"line");
+
+        let msg = codec.decode(&mut buf).unwrap().unwrap();
+        assert!(msg.eof());
+
+        // decode next message
+        let item = codec.decode(&mut buf).unwrap().unwrap();
+        let req = item.message();
+        assert_eq!(*req.method(), Method::POST);
+        assert!(req.chunked().unwrap());
     }
 }
