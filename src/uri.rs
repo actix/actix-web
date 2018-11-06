@@ -1,31 +1,12 @@
 use http::Uri;
 use std::rc::Rc;
 
-#[allow(dead_code)]
-const GEN_DELIMS: &[u8] = b":/?#[]@";
-#[allow(dead_code)]
-const SUB_DELIMS_WITHOUT_QS: &[u8] = b"!$'()*,";
-#[allow(dead_code)]
-const SUB_DELIMS: &[u8] = b"!$'()*,+?=;";
-
 // https://tools.ietf.org/html/rfc3986#section-2.2
-#[allow(dead_code)]
-const RESERVED: &[u8] = b":/?#[]@!$&'()*,+?;=";
-#[allow(dead_code)]
 const RESERVED_PLUS_EXTRA: &[u8] = b":/?#[]@!$&'()*,+?;=%^ <>\"\\`{}|";
 
 // https://tools.ietf.org/html/rfc3986#section-2.3
-#[allow(dead_code)]
 const UNRESERVED: &[u8] =
     b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890-._~";
-#[allow(dead_code)]
-const ALLOWED: &[u8] = b"abcdefghijklmnopqrstuvwxyz
-    ABCDEFGHIJKLMNOPQRSTUVWXYZ
-    1234567890
-    -._~
-    !$'()*,";
-#[allow(dead_code)]
-const QS: &[u8] = b"+&=;b";
 
 #[inline]
 fn bit_at(array: &[u8], ch: u8) -> bool {
@@ -38,8 +19,8 @@ fn set_bit(array: &mut [u8], ch: u8) {
 }
 
 lazy_static! {
-    static ref UNRESERVED_QUOTER: Quoter = { Quoter::new(UNRESERVED, b"") };
-    pub(crate) static ref RESERVED_QUOTER: Quoter = { Quoter::new(RESERVED_PLUS_EXTRA, b"") };
+    static ref UNRESERVED_QUOTER: Quoter = { Quoter::new(UNRESERVED) };
+    pub(crate) static ref RESERVED_QUOTER: Quoter = { Quoter::new(RESERVED_PLUS_EXTRA) };
 }
 
 #[derive(Default, Clone, Debug)]
@@ -70,25 +51,17 @@ impl Url {
 
 pub(crate) struct Quoter {
     safe_table: [u8; 16],
-    protected_table: [u8; 16],
 }
 
 impl Quoter {
-    pub fn new(safe: &[u8], protected: &[u8]) -> Quoter {
+    pub fn new(safe: &[u8]) -> Quoter {
         let mut q = Quoter {
             safe_table: [0; 16],
-            protected_table: [0; 16],
         };
 
         // prepare safe table
         for ch in safe {
             set_bit(&mut q.safe_table, *ch)
-        }
-
-        // prepare protected table
-        for ch in protected {
-            set_bit(&mut q.safe_table, *ch);
-            set_bit(&mut q.protected_table, *ch);
         }
 
         q
@@ -113,12 +86,6 @@ impl Quoter {
 
                     if let Some(ch) = restore_ch(pct[1], pct[2]) {
                         if ch < 128 {
-                            if bit_at(&self.protected_table, ch) {
-                                buf.extend_from_slice(&pct);
-                                idx += 1;
-                                continue;
-                            }
-
                             if bit_at(&self.safe_table, ch) {
                                 buf.push(ch);
                                 idx += 1;
