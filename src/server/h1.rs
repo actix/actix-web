@@ -560,6 +560,7 @@ where
 
         if self.ka_timer.is_some() && updated {
             if let Some(expire) = self.settings.keep_alive_expire() {
+                self.ka_timer.as_mut().unwrap().reset(expire);
                 self.ka_expire = expire;
             }
         }
