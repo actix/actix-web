@@ -9,6 +9,7 @@
 ### Added
 
 * Add method to configure custom error handler to `Query` and `Path` extractors.
+* Add method to configure `SameSite` option in `CookieIdentityPolicy`.
 
 ## [0.7.13] - 2018-10-14
 
