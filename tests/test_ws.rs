@@ -148,6 +148,31 @@ fn test_large_text() {
 }
 
 #[test]
+fn test_continuation_text() {
+    let data1 = rand::thread_rng()
+        .sample_iter(&Alphanumeric)
+        .take(10_000)
+        .collect::<String>();
+    let data2 = rand::thread_rng()
+        .sample_iter(&Alphanumeric)
+        .take(10_000)
+        .collect::<String>();
+    let data = data1.clone() + &data2;
+
+    let mut srv = test::TestServer::new(|app| app.handler(|req| ws::start(req, Ws)));
+    let (mut reader, mut writer) = srv.ws().unwrap();
+
+    for _ in 0..100 {
+        writer.text_part(data1.clone(), false);
+        writer.text_part(data2.clone(), true);
+
+        let (item, r) = srv.execute(reader.into_future()).unwrap();
+        reader = r;
+        assert_eq!(item, Some(ws::Message::Text(data.clone())));
+    }
+}
+
+#[test]
 fn test_large_bin() {
     let data = rand::thread_rng()
         .sample_iter(&Alphanumeric)
@@ -159,6 +184,31 @@ fn test_large_bin() {
 
     for _ in 0..100 {
         writer.binary(data.clone());
+        let (item, r) = srv.execute(reader.into_future()).unwrap();
+        reader = r;
+        assert_eq!(item, Some(ws::Message::Binary(Binary::from(data.clone()))));
+    }
+}
+
+#[test]
+fn test_continuation_binary() {
+    let data1 = rand::thread_rng()
+        .sample_iter(&Alphanumeric)
+        .take(10_000)
+        .collect::<String>();
+    let data2 = rand::thread_rng()
+        .sample_iter(&Alphanumeric)
+        .take(10_000)
+        .collect::<String>();
+    let data = data1.clone() + &data2;
+
+    let mut srv = test::TestServer::new(|app| app.handler(|req| ws::start(req, Ws)));
+    let (mut reader, mut writer) = srv.ws().unwrap();
+
+    for _ in 0..100 {
+        writer.binary_part(data1.clone(), false);
+        writer.binary_part(data2.clone(), true);
+
         let (item, r) = srv.execute(reader.into_future()).unwrap();
         reader = r;
         assert_eq!(item, Some(ws::Message::Binary(Binary::from(data.clone()))));
