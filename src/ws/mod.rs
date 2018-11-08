@@ -88,8 +88,8 @@ pub enum ProtocolError {
     /// A payload reached size limit.
     #[fail(display = "A payload reached size limit.")]
     Overflow,
-    /// Bad continuation frame sequence.
-    #[fail(display = "Bad continuation frame sequence.")]
+    /// Bad continuation frame sequence or overflow of continuation buffer.
+    #[fail(display = "Bad continuation frame sequence or overflow of continuation buffer.")]
     BadContinuation,
     /// Bad utf-8 encoding
     #[fail(display = "Bad utf-8 encoding.")]

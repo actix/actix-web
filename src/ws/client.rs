@@ -127,6 +127,7 @@ pub struct Client {
     protocols: Option<String>,
     conn: Addr<ClientConnector>,
     max_size: usize,
+    max_continuation_size: usize,
     no_masking: bool,
 }
 
@@ -145,6 +146,7 @@ impl Client {
             origin: None,
             protocols: None,
             max_size: 65_536,
+            max_continuation_size: 1_048_576,
             no_masking: false,
             conn,
         };
@@ -189,6 +191,14 @@ impl Client {
     /// By default max size is set to 64kb
     pub fn max_frame_size(mut self, size: usize) -> Self {
         self.max_size = size;
+        self
+    }
+
+    /// Set max continuation size
+    ///
+    /// By default max size is set to 1Mb
+    pub fn max_continuation_size(mut self, size: usize) -> Self {
+        self.max_continuation_size = size;
         self
     }
 
@@ -268,7 +278,7 @@ impl Client {
             }
 
             // start handshake
-            ClientHandshake::new(request, self.max_size, self.no_masking)
+            ClientHandshake::new(request, self.max_size, self.max_continuation_size, self.no_masking)
         }
     }
 }
@@ -288,6 +298,7 @@ struct Inner {
     rx: PayloadBuffer<Box<Pipeline>>,
     closed: bool,
     continuation: Option<Continuation>,
+    max_continuation_size: usize,
 }
 
 /// Future that implementes client websocket handshake process.
@@ -300,12 +311,13 @@ pub struct ClientHandshake {
     key: String,
     error: Option<ClientError>,
     max_size: usize,
+    max_continuation_size: usize,
     no_masking: bool,
 }
 
 impl ClientHandshake {
     fn new(
-        mut request: ClientRequest, max_size: usize, no_masking: bool,
+        mut request: ClientRequest, max_size: usize, max_continuation_size: usize, no_masking: bool,
     ) -> ClientHandshake {
         // Generate a random key for the `Sec-WebSocket-Key` header.
         // a base64-encoded (see Section 4 of [RFC4648]) value that,
@@ -326,6 +338,7 @@ impl ClientHandshake {
         ClientHandshake {
             key,
             max_size,
+            max_continuation_size,
             no_masking,
             request: Some(request.send()),
             tx: Some(tx),
@@ -340,6 +353,7 @@ impl ClientHandshake {
             tx: None,
             error: Some(err),
             max_size: 0,
+            max_continuation_size: 0,
             no_masking: false,
         }
     }
@@ -445,6 +459,7 @@ impl Future for ClientHandshake {
             rx: PayloadBuffer::new(resp.payload()),
             closed: false,
             continuation: None,
+            max_continuation_size: self.max_continuation_size,
         };
 
         let inner = Rc::new(RefCell::new(inner));
@@ -497,13 +512,13 @@ impl Stream for ClientReader {
                         if !finished {
                             let inner = &mut *inner;
                             match inner.continuation {
-                                Some(ref mut continuation) => {
+                                Some(ref mut continuation) if continuation.buffer.len() <= inner.max_continuation_size => {
                                     continuation
                                         .buffer
                                         .append(&mut Vec::from(payload.as_ref()));
                                     Ok(Async::NotReady)
                                 }
-                                None => {
+                                _ => {
                                     inner.closed = true;
                                     Err(ProtocolError::BadContinuation)
                                 }
