@@ -1,15 +1,20 @@
 # Changes
 
-## [0.7.14] - 2018-10-x
+## [0.7.14] - 2018-11-x
 
 ### Fixed
 
+* Fix keep-alive timer reset
+
 * HttpServer now treats streaming bodies the same for HTTP/1.x protocols. #549
+
 
 ### Added
 
 * Add method to configure custom error handler to `Query` and `Path` extractors.
+
 * Add method to configure `SameSite` option in `CookieIdentityPolicy`.
+
 
 ## [0.7.13] - 2018-10-14
 

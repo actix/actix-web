@@ -87,7 +87,10 @@ where
     H: HttpHandler + 'static,
 {
     pub fn new(
-        settings: ServiceConfig<H>, stream: T, buf: BytesMut, is_eof: bool,
+        settings: ServiceConfig<H>,
+        stream: T,
+        buf: BytesMut,
+        is_eof: bool,
         keepalive_timer: Option<Delay>,
     ) -> Self {
         let addr = stream.peer_addr();
@@ -123,8 +126,11 @@ where
     }
 
     pub(crate) fn for_error(
-        settings: ServiceConfig<H>, stream: T, status: StatusCode,
-        mut keepalive_timer: Option<Delay>, buf: BytesMut,
+        settings: ServiceConfig<H>,
+        stream: T,
+        status: StatusCode,
+        mut keepalive_timer: Option<Delay>,
+        buf: BytesMut,
     ) -> Self {
         if let Some(deadline) = settings.client_timer_expire() {
             let _ = keepalive_timer.as_mut().map(|delay| delay.reset(deadline));
@@ -298,16 +304,19 @@ where
                                 if let Some(deadline) =
                                     self.settings.client_shutdown_timer()
                                 {
-                                    timer.reset(deadline)
+                                    timer.reset(deadline);
+                                    let _ = timer.poll();
                                 } else {
                                     return Ok(());
                                 }
                             }
                         } else if let Some(dl) = self.settings.keep_alive_expire() {
-                            timer.reset(dl)
+                            timer.reset(dl);
+                            let _ = timer.poll();
                         }
                     } else {
-                        timer.reset(self.ka_expire)
+                        timer.reset(self.ka_expire);
+                        let _ = timer.poll();
                     }
                 }
                 Ok(Async::NotReady) => (),
