@@ -11,10 +11,10 @@ use std::{cmp, io};
 #[cfg(unix)]
 use std::os::unix::fs::MetadataExt;
 
+use askama_escape::{escape as escape_html_entity};
 use bytes::Bytes;
 use futures::{Async, Future, Poll, Stream};
 use futures_cpupool::{CpuFuture, CpuPool};
-use htmlescape::encode_minimal as escape_html_entity;
 use mime;
 use mime_guess::{get_mime_type, guess_mime_type};
 use percent_encoding::{utf8_percent_encode, DEFAULT_ENCODE_SET};
@@ -561,6 +561,20 @@ impl Directory {
     }
 }
 
+// show file url as relative to static path
+macro_rules! encode_file_url {
+    ($path:ident) => {
+        utf8_percent_encode(&$path.to_string_lossy(), DEFAULT_ENCODE_SET)
+    };
+}
+
+// " -- &quot;  & -- &amp;  ' -- &#x27;  < -- &lt;  > -- &gt;  / -- &#x2f;
+macro_rules! encode_file_name {
+    ($entry:ident) => {
+        escape_html_entity(&$entry.file_name().to_string_lossy())
+    };
+}
+
 fn directory_listing<S>(
     dir: &Directory, req: &HttpRequest<S>,
 ) -> Result<HttpResponse, io::Error> {
@@ -575,11 +589,6 @@ fn directory_listing<S>(
                 Ok(p) => base.join(p),
                 Err(_) => continue,
             };
-            // show file url as relative to static path
-            let file_url = utf8_percent_encode(&p.to_string_lossy(), DEFAULT_ENCODE_SET)
-                .to_string();
-            // " -- &quot;  & -- &amp;  ' -- &#x27;  < -- &lt;  > -- &gt;
-            let file_name = escape_html_entity(&entry.file_name().to_string_lossy());
 
             // if file is a directory, add '/' to the end of the name
             if let Ok(metadata) = entry.metadata() {
@@ -587,13 +596,15 @@ fn directory_listing<S>(
                     let _ = write!(
                         body,
                         "<li><a href=\"{}\">{}/</a></li>",
-                        file_url, file_name
+                        encode_file_url!(p),
+                        encode_file_name!(entry),
                     );
                 } else {
                     let _ = write!(
                         body,
                         "<li><a href=\"{}\">{}</a></li>",
-                        file_url, file_name
+                        encode_file_url!(p),
+                        encode_file_name!(entry),
                     );
                 }
             } else {
