@@ -441,7 +441,8 @@ where
                                 if let Some(deadline) =
                                     self.config.client_disconnect_timer()
                                 {
-                                    timer.reset(deadline)
+                                    timer.reset(deadline);
+                                    let _ = timer.poll();
                                 } else {
                                     return Ok(());
                                 }
@@ -455,10 +456,12 @@ where
                                 )));
                             }
                         } else if let Some(deadline) = self.config.keep_alive_expire() {
-                            timer.reset(deadline)
+                            timer.reset(deadline);
+                            let _ = timer.poll();
                         }
                     } else {
-                        timer.reset(self.ka_expire)
+                        timer.reset(self.ka_expire);
+                        let _ = timer.poll();
                     }
                 }
                 Ok(Async::NotReady) => (),
