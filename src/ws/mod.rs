@@ -266,6 +266,7 @@ pub struct WsStream<S> {
     closed: bool,
     max_size: usize,
     continuation: Option<Continuation>,
+    max_continuation_size: usize,
 }
 
 impl<S> WsStream<S>
@@ -278,7 +279,8 @@ where
             rx: PayloadBuffer::new(stream),
             closed: false,
             max_size: 65_536,
-            continuation: None
+            continuation: None,
+            max_continuation_size: 1_048_576,
         }
     }
 
@@ -287,6 +289,14 @@ where
     /// By default max size is set to 64kb
     pub fn max_size(mut self, size: usize) -> Self {
         self.max_size = size;
+        self
+    }
+
+    /// Set max continuation size
+    /// 
+    /// By default max continuation size is set to 1Mb
+    pub fn max_continuation_size(mut self, size: usize) -> Self {
+        self.max_continuation_size = size;
         self
     }
 }
@@ -313,11 +323,11 @@ where
                     OpCode::Continue => {
                         if !finished {
                             match self.continuation {
-                                Some(ref mut continuation) => {
+                                Some(ref mut continuation) if continuation.buffer.len() <= self.max_continuation_size => {
                                     continuation.buffer.append(&mut Vec::from(payload.as_ref()));
                                     Ok(Async::NotReady)
                                 }
-                                None => {
+                                _ => {
                                     self.closed = true;
                                     Err(ProtocolError::BadContinuation)
                                 }
