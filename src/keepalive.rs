@@ -106,7 +106,7 @@ where
                 if self.expire <= now {
                     Err((self.f)())
                 } else {
-                    self.delay = Delay::new(self.expire);
+                    self.delay.reset(self.expire);
                     let _ = self.delay.poll();
                     Ok(Async::Ready(()))
                 }
