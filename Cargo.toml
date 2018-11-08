@@ -39,7 +39,7 @@ rust-tls = ["rustls", "tokio-rustls", "webpki", "webpki-roots"]
 cell = []
 
 [dependencies]
-actix = "^0.7.5"
+actix = "0.7.5"
 
 log = "0.4"
 num_cpus = "1.0"
