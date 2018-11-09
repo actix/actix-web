@@ -385,10 +385,11 @@ fn test_ws_stopped() {
     {
         let (reader, mut writer) = srv.ws().unwrap();
         writer.text("text");
+        writer.close(None);
         let (item, _) = srv.execute(reader.into_future()).unwrap();
         assert_eq!(item, Some(ws::Message::Text("text".to_owned())));
     }
-    thread::sleep(time::Duration::from_millis(1000));
+    thread::sleep(time::Duration::from_millis(100));
 
     assert_eq!(num.load(Ordering::Relaxed), 1);
 }

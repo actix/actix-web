@@ -62,7 +62,7 @@ cell = ["actix-net/cell"]
 
 [dependencies]
 actix = "^0.7.5"
-actix-net = "^0.1.1"
+actix-net = "0.2.0"
 
 base64 = "0.10"
 bitflags = "1.0"
