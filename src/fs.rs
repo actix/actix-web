@@ -472,6 +472,7 @@ impl<C: StaticFileConfig> Responder for NamedFile<C> {
     }
 }
 
+#[doc(hidden)]
 /// A helper created from a `std::fs::File` which reads the file
 /// chunk-by-chunk on a `CpuPool`.
 pub struct ChunkedReadFile {
@@ -562,7 +563,8 @@ impl Directory {
 }
 
 fn directory_listing<S>(
-    dir: &Directory, req: &HttpRequest<S>,
+    dir: &Directory,
+    req: &HttpRequest<S>,
 ) -> Result<HttpResponse, io::Error> {
     let index_of = format!("Index of {}", req.path());
     let mut body = String::new();
@@ -656,7 +658,8 @@ impl<S: 'static> StaticFiles<S> {
     /// Create new `StaticFiles` instance for specified base directory and
     /// `CpuPool`.
     pub fn with_pool<T: Into<PathBuf>>(
-        dir: T, pool: CpuPool,
+        dir: T,
+        pool: CpuPool,
     ) -> Result<StaticFiles<S>, Error> {
         Self::with_config_pool(dir, pool, DefaultConfig)
     }
@@ -667,7 +670,8 @@ impl<S: 'static, C: StaticFileConfig> StaticFiles<S, C> {
     ///
     /// Identical with `new` but allows to specify configiration to use.
     pub fn with_config<T: Into<PathBuf>>(
-        dir: T, config: C,
+        dir: T,
+        config: C,
     ) -> Result<StaticFiles<S, C>, Error> {
         // use default CpuPool
         let pool = { DEFAULT_CPUPOOL.lock().clone() };
@@ -678,7 +682,9 @@ impl<S: 'static, C: StaticFileConfig> StaticFiles<S, C> {
     /// Create new `StaticFiles` instance for specified base directory with config and
     /// `CpuPool`.
     pub fn with_config_pool<T: Into<PathBuf>>(
-        dir: T, pool: CpuPool, _: C,
+        dir: T,
+        pool: CpuPool,
+        _: C,
     ) -> Result<StaticFiles<S, C>, Error> {
         let dir = dir.into().canonicalize()?;
 
@@ -736,7 +742,8 @@ impl<S: 'static, C: StaticFileConfig> StaticFiles<S, C> {
     }
 
     fn try_handle(
-        &self, req: &HttpRequest<S>,
+        &self,
+        req: &HttpRequest<S>,
     ) -> Result<AsyncResult<HttpResponse>, Error> {
         let tail: String = req.match_info().query("tail")?;
         let relpath = PathBuf::from_param(tail.trim_left_matches('/'))?;
