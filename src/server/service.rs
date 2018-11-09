@@ -88,7 +88,7 @@ where
         Ok(Async::Ready(()))
     }
 
-    fn call(&mut self, req: Self::Request) -> Self::Future {
+    fn call(&mut self, mut req: Self::Request) -> Self::Future {
         HttpChannel::new(self.settings.clone(), req)
     }
 }
