@@ -337,7 +337,6 @@ impl Handler<StopServer> for Server {
     type Result = Response<(), ()>;
 
     fn handle(&mut self, msg: StopServer, ctx: &mut Context<Self>) -> Self::Result {
-        println!("STOP command");
         // stop accept thread
         self.accept.send(Command::Stop);
 
