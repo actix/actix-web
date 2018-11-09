@@ -286,7 +286,7 @@ where
                     }
                     if timer.deadline() >= self.ka_expire {
                         // check for any outstanding request handling
-                        if self.tasks.is_empty() {
+                        if self.tasks.is_empty() && self.flags.contains(Flags::FLUSHED) {
                             if !self.flags.contains(Flags::STARTED) {
                                 // timeout on first request (slow request) return 408
                                 trace!("Slow request timeout");
