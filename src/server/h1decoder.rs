@@ -43,7 +43,9 @@ impl H1Decoder {
     }
 
     pub fn decode<H>(
-        &mut self, src: &mut BytesMut, settings: &ServiceConfig<H>,
+        &mut self,
+        src: &mut BytesMut,
+        settings: &ServiceConfig<H>,
     ) -> Result<Option<Message>, DecoderError> {
         // read payload
         if self.decoder.is_some() {
@@ -80,7 +82,9 @@ impl H1Decoder {
     }
 
     fn parse_message<H>(
-        &self, buf: &mut BytesMut, settings: &ServiceConfig<H>,
+        &self,
+        buf: &mut BytesMut,
+        settings: &ServiceConfig<H>,
     ) -> Poll<(Request, Option<EncodingDecoder>), ParseError> {
         // Parse http message
         let mut has_upgrade = false;
@@ -178,6 +182,13 @@ impl H1Decoder {
                             }
                             header::UPGRADE => {
                                 has_upgrade = true;
+                                // check content-length, some clients (dart)
+                                // sends "content-length: 0" with websocket upgrade
+                                if let Ok(val) = value.to_str() {
+                                    if val == "websocket" {
+                                        content_length = None;
+                                    }
+                                }
                             }
                             _ => (),
                         }
@@ -221,7 +232,9 @@ pub(crate) struct HeaderIndex {
 
 impl HeaderIndex {
     pub(crate) fn record(
-        bytes: &[u8], headers: &[httparse::Header], indices: &mut [HeaderIndex],
+        bytes: &[u8],
+        headers: &[httparse::Header],
+        indices: &mut [HeaderIndex],
     ) {
         let bytes_ptr = bytes.as_ptr() as usize;
         for (header, indices) in headers.iter().zip(indices.iter_mut()) {
@@ -369,7 +382,10 @@ macro_rules! byte (
 
 impl ChunkedState {
     fn step(
-        &self, body: &mut BytesMut, size: &mut u64, buf: &mut Option<Bytes>,
+        &self,
+        body: &mut BytesMut,
+        size: &mut u64,
+        buf: &mut Option<Bytes>,
     ) -> Poll<ChunkedState, io::Error> {
         use self::ChunkedState::*;
         match *self {
@@ -432,7 +448,8 @@ impl ChunkedState {
         }
     }
     fn read_size_lf(
-        rdr: &mut BytesMut, size: &mut u64,
+        rdr: &mut BytesMut,
+        size: &mut u64,
     ) -> Poll<ChunkedState, io::Error> {
         match byte!(rdr) {
             b'\n' if *size > 0 => Ok(Async::Ready(ChunkedState::Body)),
@@ -445,7 +462,9 @@ impl ChunkedState {
     }
 
     fn read_body(
-        rdr: &mut BytesMut, rem: &mut u64, buf: &mut Option<Bytes>,
+        rdr: &mut BytesMut,
+        rem: &mut u64,
+        buf: &mut Option<Bytes>,
     ) -> Poll<ChunkedState, io::Error> {
         trace!("Chunked read, remaining={:?}", rem);
 

@@ -11,6 +11,8 @@
 
 ### Fixed
 
+* Fix websockets connection drop if request contains "content-length" header #567
+
 * Fix keep-alive timer reset
 
 * HttpServer now treats streaming bodies the same for HTTP/1.x protocols. #549
