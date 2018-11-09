@@ -141,6 +141,13 @@ impl Decoder for RequestDecoder {
                             }
                             header::UPGRADE => {
                                 has_upgrade = true;
+                                // check content-length, some clients (dart)
+                                // sends "content-length: 0" with websocket upgrade
+                                if let Ok(val) = value.to_str() {
+                                    if val == "websocket" {
+                                        content_length = None;
+                                    }
+                                }
                             }
                             _ => (),
                         }
