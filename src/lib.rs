@@ -100,9 +100,9 @@ extern crate failure;
 extern crate lazy_static;
 #[macro_use]
 extern crate futures;
+extern crate askama_escape;
 extern crate cookie;
 extern crate futures_cpupool;
-extern crate htmlescape;
 extern crate http as modhttp;
 extern crate httparse;
 extern crate language_tags;
