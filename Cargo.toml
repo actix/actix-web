@@ -64,11 +64,11 @@ cell = ["actix-net/cell"]
 actix = "^0.7.5"
 actix-net = "0.2.0"
 
+askama_escape = "0.1.0"
 base64 = "0.10"
 bitflags = "1.0"
 failure = "^0.1.2"
 h2 = "0.1"
-htmlescape = "0.3"
 http = "^0.1.8"
 httparse = "1.3"
 log = "0.4"
