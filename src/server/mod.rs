@@ -107,7 +107,7 @@ use futures::{Async, Poll};
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_tcp::TcpStream;
 
-pub use actix_net::server::{PauseServer, ResumeServer, StopServer};
+pub use actix_net::server::{PauseServer, ResumeServer, StopServer, Server};
 
 pub(crate) mod acceptor;
 pub(crate) mod builder;
