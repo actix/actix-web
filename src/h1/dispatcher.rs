@@ -432,7 +432,7 @@ where
                         return Err(DispatchError::DisconnectTimeout);
                     } else if timer.deadline() >= self.ka_expire {
                         // check for any outstanding response processing
-                        if self.state.is_empty() {
+                        if self.state.is_empty() && self.flags.contains(Flags::FLUSHED) {
                             if self.flags.contains(Flags::STARTED) {
                                 trace!("Keep-alive timeout, close connection");
                                 self.flags.insert(Flags::SHUTDOWN);
