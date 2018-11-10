@@ -16,6 +16,9 @@
 
 * Add method to configure `SameSite` option in `CookieIdentityPolicy`.
 
+* By default, `Path` extractor now percent decode all characters. This behaviour can be disabled
+  with `PathConfig::default().disable_decoding()`
+
 
 ### Fixed
 
