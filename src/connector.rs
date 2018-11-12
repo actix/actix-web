@@ -1,5 +1,6 @@
 use std::collections::VecDeque;
-use std::net::SocketAddr;
+use std::marker::PhantomData;
+use std::net::{IpAddr, SocketAddr};
 use std::time::Duration;
 use std::{fmt, io};
 
@@ -11,8 +12,13 @@ use tokio_tcp::{ConnectFuture, TcpStream};
 use trust_dns_resolver::config::{ResolverConfig, ResolverOpts};
 use trust_dns_resolver::system_conf::read_system_conf;
 
-use super::resolver::{HostAware, ResolveError, Resolver, ResolverFuture};
+use super::resolver::{RequestHost, ResolveError, Resolver, ResolverFuture};
 use super::service::{NewService, Service};
+
+/// Port of the request
+pub trait RequestPort {
+    fn port(&self) -> u16;
+}
 
 // #[derive(Fail, Debug)]
 #[derive(Debug)]
@@ -22,7 +28,7 @@ pub enum ConnectorError {
     Resolver(ResolveError),
 
     /// No dns records
-    // #[fail(display = "Invalid input: {}", _0)]
+    // #[fail(display = "No dns records found for the input")]
     NoRecords,
 
     /// Connecting took too long
@@ -40,6 +46,12 @@ pub enum ConnectorError {
 impl From<ResolveError> for ConnectorError {
     fn from(err: ResolveError) -> Self {
         ConnectorError::Resolver(err)
+    }
+}
+
+impl From<io::Error> for ConnectorError {
+    fn from(err: io::Error) -> Self {
+        ConnectorError::IoError(err)
     }
 }
 
@@ -85,9 +97,15 @@ impl Connect {
     }
 }
 
-impl HostAware for Connect {
+impl RequestHost for Connect {
     fn host(&self) -> &str {
         &self.host
+    }
+}
+
+impl RequestPort for Connect {
+    fn port(&self) -> u16 {
+        self.port
     }
 }
 
@@ -173,7 +191,7 @@ impl Service for Connector {
 #[doc(hidden)]
 pub struct ConnectorFuture {
     fut: ResolverFuture<Connect>,
-    fut2: Option<TcpConnector>,
+    fut2: Option<TcpConnectorResponse<Connect>>,
 }
 
 impl Future for ConnectorFuture {
@@ -182,20 +200,14 @@ impl Future for ConnectorFuture {
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         if let Some(ref mut fut) = self.fut2 {
-            return fut.poll();
+            return fut.poll().map_err(ConnectorError::from);
         }
         match self.fut.poll().map_err(ConnectorError::from)? {
-            Async::Ready((req, mut addrs)) => {
+            Async::Ready((req, addrs)) => {
                 if addrs.is_empty() {
                     Err(ConnectorError::NoRecords)
                 } else {
-                    for addr in &mut addrs {
-                        match addr {
-                            SocketAddr::V4(ref mut addr) => addr.set_port(req.port),
-                            SocketAddr::V6(ref mut addr) => addr.set_port(req.port),
-                        }
-                    }
-                    self.fut2 = Some(TcpConnector::new(req, addrs));
+                    self.fut2 = Some(TcpConnectorResponse::new(req, addrs));
                     self.poll()
                 }
             }
@@ -204,19 +216,45 @@ impl Future for ConnectorFuture {
     }
 }
 
+/// Tcp stream connector service
+pub struct TcpConnector<T: RequestPort>(PhantomData<T>);
+
+impl<T: RequestPort> Default for TcpConnector<T> {
+    fn default() -> TcpConnector<T> {
+        TcpConnector(PhantomData)
+    }
+}
+
+impl<T: RequestPort> Service for TcpConnector<T> {
+    type Request = (T, VecDeque<IpAddr>);
+    type Response = (T, TcpStream);
+    type Error = io::Error;
+    type Future = TcpConnectorResponse<T>;
+
+    fn poll_ready(&mut self) -> Poll<(), Self::Error> {
+        Ok(Async::Ready(()))
+    }
+
+    fn call(&mut self, (req, addrs): Self::Request) -> Self::Future {
+        TcpConnectorResponse::new(req, addrs)
+    }
+}
+
 #[doc(hidden)]
-/// Tcp stream connector
-pub struct TcpConnector {
-    req: Option<Connect>,
+/// Tcp stream connector response future
+pub struct TcpConnectorResponse<T: RequestPort> {
+    port: u16,
+    req: Option<T>,
     addr: Option<SocketAddr>,
-    addrs: VecDeque<SocketAddr>,
+    addrs: VecDeque<IpAddr>,
     stream: Option<ConnectFuture>,
 }
 
-impl TcpConnector {
-    pub fn new(req: Connect, addrs: VecDeque<SocketAddr>) -> TcpConnector {
-        TcpConnector {
+impl<T: RequestPort> TcpConnectorResponse<T> {
+    pub fn new(req: T, addrs: VecDeque<IpAddr>) -> TcpConnectorResponse<T> {
+        TcpConnectorResponse {
             addrs,
+            port: req.port(),
             req: Some(req),
             addr: None,
             stream: None,
@@ -224,9 +262,9 @@ impl TcpConnector {
     }
 }
 
-impl Future for TcpConnector {
-    type Item = (Connect, TcpStream);
-    type Error = ConnectorError;
+impl<T: RequestPort> Future for TcpConnectorResponse<T> {
+    type Item = (T, TcpStream);
+    type Error = io::Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         // connect
@@ -239,14 +277,14 @@ impl Future for TcpConnector {
                     Ok(Async::NotReady) => return Ok(Async::NotReady),
                     Err(err) => {
                         if self.addrs.is_empty() {
-                            return Err(ConnectorError::IoError(err));
+                            return Err(err);
                         }
                     }
                 }
             }
 
             // try to connect
-            let addr = self.addrs.pop_front().unwrap();
+            let addr = SocketAddr::new(self.addrs.pop_front().unwrap(), self.port);
             self.stream = Some(TcpStream::connect(&addr));
             self.addr = Some(addr)
         }

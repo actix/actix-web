@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 use std::marker::PhantomData;
-use std::net::SocketAddr;
+use std::net::IpAddr;
 
 use futures::{Async, Future, Poll};
 
@@ -13,11 +13,12 @@ use trust_dns_resolver::{AsyncResolver, Background};
 
 use super::service::Service;
 
-pub trait HostAware {
+/// Host name of the request
+pub trait RequestHost {
     fn host(&self) -> &str;
 }
 
-impl HostAware for String {
+impl RequestHost for String {
     fn host(&self) -> &str {
         self.as_ref()
     }
@@ -28,7 +29,7 @@ pub struct Resolver<T = String> {
     req: PhantomData<T>,
 }
 
-impl<T: HostAware> Default for Resolver<T> {
+impl<T: RequestHost> Default for Resolver<T> {
     fn default() -> Self {
         let (cfg, opts) = if let Ok((cfg, opts)) = read_system_conf() {
             (cfg, opts)
@@ -40,7 +41,8 @@ impl<T: HostAware> Default for Resolver<T> {
     }
 }
 
-impl<T: HostAware> Resolver<T> {
+impl<T: RequestHost> Resolver<T> {
+    /// Create new resolver instance with custom configuration and options.
     pub fn new(cfg: ResolverConfig, opts: ResolverOpts) -> Self {
         let (resolver, bg) = AsyncResolver::new(cfg, opts);
         spawn(bg);
@@ -50,7 +52,8 @@ impl<T: HostAware> Resolver<T> {
         }
     }
 
-    pub fn change_request<T2: HostAware>(&self) -> Resolver<T2> {
+    /// Change type of resolver request.
+    pub fn into_request<T2: RequestHost>(&self) -> Resolver<T2> {
         Resolver {
             resolver: self.resolver.clone(),
             req: PhantomData,
@@ -67,9 +70,9 @@ impl<T> Clone for Resolver<T> {
     }
 }
 
-impl<T: HostAware> Service for Resolver<T> {
+impl<T: RequestHost> Service for Resolver<T> {
     type Request = T;
-    type Response = (T, VecDeque<SocketAddr>);
+    type Response = (T, VecDeque<IpAddr>);
     type Error = ResolveError;
     type Future = ResolverFuture<T>;
 
@@ -87,10 +90,10 @@ impl<T: HostAware> Service for Resolver<T> {
 pub struct ResolverFuture<T> {
     req: Option<T>,
     lookup: Option<Background<LookupIpFuture>>,
-    addrs: Option<VecDeque<SocketAddr>>,
+    addrs: Option<VecDeque<IpAddr>>,
 }
 
-impl<T: HostAware> ResolverFuture<T> {
+impl<T: RequestHost> ResolverFuture<T> {
     pub fn new(addr: T, resolver: &AsyncResolver) -> Self {
         // we need to do dns resolution
         let lookup = Some(resolver.lookup_ip(addr.host()));
@@ -102,8 +105,8 @@ impl<T: HostAware> ResolverFuture<T> {
     }
 }
 
-impl<T: HostAware> Future for ResolverFuture<T> {
-    type Item = (T, VecDeque<SocketAddr>);
+impl<T: RequestHost> Future for ResolverFuture<T> {
+    type Item = (T, VecDeque<IpAddr>);
     type Error = ResolveError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
@@ -112,11 +115,10 @@ impl<T: HostAware> Future for ResolverFuture<T> {
         } else {
             match self.lookup.as_mut().unwrap().poll() {
                 Ok(Async::NotReady) => Ok(Async::NotReady),
-                Ok(Async::Ready(ips)) => {
-                    let addrs: VecDeque<_> =
-                        ips.iter().map(|ip| SocketAddr::new(ip, 0)).collect();
-                    Ok(Async::Ready((self.req.take().unwrap(), addrs)))
-                }
+                Ok(Async::Ready(ips)) => Ok(Async::Ready((
+                    self.req.take().unwrap(),
+                    ips.iter().collect(),
+                ))),
                 Err(err) => Err(err),
             }
         }
