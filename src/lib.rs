@@ -83,6 +83,7 @@ extern crate cookie;
 extern crate encoding;
 extern crate http as modhttp;
 extern crate httparse;
+extern crate indexmap;
 extern crate mime;
 extern crate net2;
 extern crate percent_encoding;
@@ -90,17 +91,23 @@ extern crate rand;
 extern crate serde;
 extern crate serde_json;
 extern crate serde_urlencoded;
+extern crate slab;
 extern crate tokio;
 extern crate tokio_codec;
 extern crate tokio_current_thread;
 extern crate tokio_io;
 extern crate tokio_tcp;
 extern crate tokio_timer;
+extern crate trust_dns_proto;
+extern crate trust_dns_resolver;
 extern crate url as urlcrate;
 
 #[cfg(test)]
 #[macro_use]
 extern crate serde_derive;
+
+#[cfg(feature = "ssl")]
+extern crate openssl;
 
 mod body;
 pub mod client;
