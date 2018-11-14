@@ -79,6 +79,16 @@ impl<T, E> FramedWrite<T, E> {
     }
 }
 
+impl<T, E> FramedWrite<T, E>
+where
+    E: Encoder,
+{
+    /// Force send item
+    pub fn force_send(&mut self, item: E::Item) -> Result<(), E::Error> {
+        self.inner.force_send(item)
+    }
+}
+
 impl<T, E> Sink for FramedWrite<T, E>
 where
     T: AsyncWrite,
@@ -186,6 +196,20 @@ impl<T> FramedWrite2<T> {
     }
 }
 
+impl<T> FramedWrite2<T>
+where
+    T: Encoder,
+{
+    pub fn force_send(&mut self, item: T::Item) -> Result<(), T::Error> {
+        let len = self.buffer.len();
+        if len < self.low_watermark {
+            self.buffer.reserve(self.high_watermark - len)
+        }
+        self.inner.encode(item, &mut self.buffer)?;
+        Ok(())
+    }
+}
+
 impl<T> Sink for FramedWrite2<T>
 where
     T: AsyncWrite + Encoder,
@@ -203,7 +227,7 @@ where
             self.buffer.reserve(self.high_watermark - len)
         }
 
-        try!(self.inner.encode(item, &mut self.buffer));
+        self.inner.encode(item, &mut self.buffer)?;
 
         Ok(AsyncSink::Ready)
     }

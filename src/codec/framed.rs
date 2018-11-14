@@ -54,9 +54,18 @@ where
 
     /// Same as `Framed::new()` with ability to specify write buffer low/high capacity watermarks.
     pub fn new_with_caps(inner: T, codec: U, lw: usize, hw: usize) -> Framed<T, U> {
+        debug_assert!((lw < hw) && hw != 0);
         Framed {
             inner: framed_read2(framed_write2(Fuse(inner, codec), lw, hw)),
         }
+    }
+
+    /// Force send item
+    pub fn force_send(
+        &mut self,
+        item: <U as Encoder>::Item,
+    ) -> Result<(), <U as Encoder>::Error> {
+        self.inner.get_mut().force_send(item)
     }
 }
 
@@ -148,6 +157,22 @@ impl<T, U> Framed<T, U> {
         Framed {
             inner: framed_read2_with_buffer(
                 framed_write2_with_buffer(Fuse(inner.0, codec), write_buf, lw, hw),
+                read_buf,
+            ),
+        }
+    }
+
+    /// Consume the `Frame`, returning `Frame` with different codec.
+    pub fn map_codec<F, U2>(self, f: F) -> Framed<T, U2>
+    where
+        F: Fn(U) -> U2,
+    {
+        let (inner, read_buf) = self.inner.into_parts();
+        let (inner, write_buf, lw, hw) = inner.into_parts();
+
+        Framed {
+            inner: framed_read2_with_buffer(
+                framed_write2_with_buffer(Fuse(inner.0, f(inner.1)), write_buf, lw, hw),
                 read_buf,
             ),
         }

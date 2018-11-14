@@ -1,5 +1,11 @@
 # Changes
 
+## [0.2.2] - 2018-11-14
+
+* Refactor Connector and Resolver services
+
+* Add low/high caps to Framed
+
 ## [0.2.0] - 2018-11-08
 
 ### Added
