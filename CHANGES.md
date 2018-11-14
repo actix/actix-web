@@ -2,9 +2,19 @@
 
 ## [0.2.2] - 2018-11-14
 
-* Refactor Connector and Resolver services
+### Added
 
 * Add low/high caps to Framed
+
+### Changed
+
+* Refactor Connector and Resolver services
+
+
+### Fixed
+
+* Fix wrong service to socket binding
+
 
 ## [0.2.0] - 2018-11-08
 

@@ -144,8 +144,15 @@ impl Server {
     {
         let sockets = bind_addr(addr)?;
 
+        let token = self.token.next();
+        self.services.push(StreamNewService::create(
+            name.as_ref().to_string(),
+            token,
+            factory,
+        ));
+
         for lst in sockets {
-            self = self.listen(name.as_ref(), lst, factory.clone())
+            self.sockets.push((token, lst));
         }
         Ok(self)
     }

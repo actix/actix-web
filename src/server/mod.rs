@@ -40,7 +40,9 @@ impl Message for StopServer {
 pub(crate) struct Token(usize);
 
 impl Token {
-    pub(crate) fn next(&self) -> Token {
-        Token(self.0 + 1)
+    pub(crate) fn next(&mut self) -> Token {
+        let token = Token(self.0 + 1);
+        self.0 += 1;
+        token
     }
 }
