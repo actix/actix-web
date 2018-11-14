@@ -178,17 +178,13 @@ impl ClientCodecInner {
 }
 
 impl Decoder for ClientCodec {
-    type Item = Message<ClientResponse>;
+    type Item = ClientResponse;
     type Error = ParseError;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
-        if self.inner.payload.is_some() {
-            Ok(match self.inner.payload.as_mut().unwrap().decode(src)? {
-                Some(PayloadItem::Chunk(chunk)) => Some(Message::Chunk(Some(chunk))),
-                Some(PayloadItem::Eof) => Some(Message::Chunk(None)),
-                None => None,
-            })
-        } else if let Some((req, payload)) = self.inner.decoder.decode(src)? {
+        debug_assert!(!self.inner.payload.is_some(), "Payload decoder is set");
+
+        if let Some((req, payload)) = self.inner.decoder.decode(src)? {
             self.inner
                 .flags
                 .set(Flags::HEAD, req.inner.method == Method::HEAD);
@@ -204,7 +200,7 @@ impl Decoder for ClientCodec {
                     self.inner.flags.insert(Flags::STREAM);
                 }
             };
-            Ok(Some(Message::Item(req)))
+            Ok(Some(req))
         } else {
             Ok(None)
         }
@@ -216,7 +212,7 @@ impl Decoder for ClientPayloadCodec {
     type Error = PayloadError;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
-        assert!(
+        debug_assert!(
             self.inner.payload.is_some(),
             "Payload decoder is not specified"
         );

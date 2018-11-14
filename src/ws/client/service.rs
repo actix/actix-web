@@ -172,10 +172,7 @@ where
 {
     fut: Box<
         Future<
-            Item = (
-                Option<h1::Message<ClientResponse>>,
-                Framed<T, h1::ClientCodec>,
-            ),
+            Item = (Option<ClientResponse>, Framed<T, h1::ClientCodec>),
             Error = ClientError,
         >,
     >,
@@ -196,8 +193,7 @@ where
         let (item, framed) = try_ready!(self.fut.poll());
 
         let res = match item {
-            Some(h1::Message::Item(res)) => res,
-            Some(h1::Message::Chunk(_)) => unreachable!(),
+            Some(res) => res,
             None => return Err(ClientError::Disconnected),
         };
 

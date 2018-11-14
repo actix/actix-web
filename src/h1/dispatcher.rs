@@ -64,7 +64,7 @@ enum State<S: Service> {
     None,
     ServiceCall(S::Future),
     SendResponse(Option<(Message<Response>, Body)>),
-    SendPayload(Option<BodyStream>, Option<Message<Response>>),
+    SendPayload(BodyStream),
 }
 
 impl<S: Service> State<S> {
@@ -204,21 +204,23 @@ where
                 // send respons
                 State::SendResponse(ref mut item) => {
                     let (msg, body) = item.take().expect("SendResponse is empty");
-                    match self.framed.as_mut().unwrap().start_send(msg) {
+                    let framed = self.framed.as_mut().unwrap();
+                    match framed.start_send(msg) {
                         Ok(AsyncSink::Ready) => {
-                            self.flags.set(
-                                Flags::KEEPALIVE,
-                                self.framed.as_mut().unwrap().get_codec().keepalive(),
-                            );
+                            self.flags
+                                .set(Flags::KEEPALIVE, framed.get_codec().keepalive());
                             self.flags.remove(Flags::FLUSHED);
                             match body {
                                 Body::Empty => Some(State::None),
-                                Body::Binary(mut bin) => Some(State::SendPayload(
-                                    None,
-                                    Some(Message::Chunk(Some(bin.take()))),
-                                )),
                                 Body::Streaming(stream) => {
-                                    Some(State::SendPayload(Some(stream), None))
+                                    Some(State::SendPayload(stream))
+                                }
+                                Body::Binary(mut bin) => {
+                                    self.flags.remove(Flags::FLUSHED);
+                                    framed
+                                        .force_send(Message::Chunk(Some(bin.take())))?;
+                                    framed.force_send(Message::Chunk(None))?;
+                                    Some(State::None)
                                 }
                             }
                         }
@@ -235,51 +237,28 @@ where
                     }
                 }
                 // Send payload
-                State::SendPayload(ref mut stream, ref mut bin) => {
-                    println!("SEND payload");
-                    if let Some(item) = bin.take() {
-                        let mut framed = self.framed.as_mut().unwrap();
-                        if framed.is_
-                        match self.framed.as_mut().unwrap().start_send(item) {
-                            Ok(AsyncSink::Ready) => {
-                                self.flags.remove(Flags::FLUSHED);
-                            }
-                            Ok(AsyncSink::NotReady(item)) => {
-                                *bin = Some(item);
-                                return Ok(());
-                            }
-                            Err(err) => return Err(DispatchError::Io(err)),
-                        }
-                    }
-                    if let Some(ref mut stream) = stream {
-                        match stream.poll() {
-                            Ok(Async::Ready(Some(item))) => match self
-                                .framed
-                                .as_mut()
-                                .unwrap()
-                                .start_send(Message::Chunk(Some(item)))
-                            {
-                                Ok(AsyncSink::Ready) => {
+                State::SendPayload(ref mut stream) => {
+                    let mut framed = self.framed.as_mut().unwrap();
+                    loop {
+                        if !framed.is_write_buf_full() {
+                            match stream.poll().map_err(|_| DispatchError::Unknown)? {
+                                Async::Ready(Some(item)) => {
                                     self.flags.remove(Flags::FLUSHED);
+                                    framed.force_send(Message::Chunk(Some(item)))?;
                                     continue;
                                 }
-                                Ok(AsyncSink::NotReady(msg)) => {
-                                    *bin = Some(msg);
-                                    return Ok(());
+                                Async::Ready(None) => {
+                                    self.flags.remove(Flags::FLUSHED);
+                                    framed.force_send(Message::Chunk(None))?;
                                 }
-                                Err(err) => return Err(DispatchError::Io(err)),
-                            },
-                            Ok(Async::Ready(None)) => Some(State::SendPayload(
-                                None,
-                                Some(Message::Chunk(None)),
-                            )),
-                            Ok(Async::NotReady) => return Ok(()),
-                            // Err(err) => return Err(DispatchError::Io(err)),
-                            Err(_) => return Err(DispatchError::Unknown),
+                                Async::NotReady => return Ok(()),
+                            }
+                        } else {
+                            return Ok(());
                         }
-                    } else {
-                        Some(State::None)
+                        break;
                     }
+                    None
                 }
             };
 

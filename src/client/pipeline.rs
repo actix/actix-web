@@ -40,11 +40,12 @@ where
                 .into_future()
                 .map_err(|(e, _)| SendRequestError::from(e))
                 .and_then(|(item, framed)| {
-                    if let Some(item) = item {
-                        let mut res = item.into_item().unwrap();
+                    if let Some(res) = item {
                         match framed.get_codec().message_type() {
                             h1::MessageType::None => release_connection(framed),
-                            _ => *res.payload.borrow_mut() = Some(Payload::stream(framed)),
+                            _ => {
+                                *res.payload.borrow_mut() = Some(Payload::stream(framed))
+                            }
                         }
                         ok(res)
                     } else {
@@ -92,20 +93,13 @@ where
                 && !self.framed.as_ref().unwrap().is_write_buf_full()
             {
                 match self.body.as_mut().unwrap().poll_next()? {
-                    Async::Ready(None) => {
+                    Async::Ready(item) => {
                         self.flushed = false;
                         self.framed
                             .as_mut()
                             .unwrap()
-                            .start_send(h1::Message::Chunk(None))?;
+                            .force_send(h1::Message::Chunk(item))?;
                         break;
-                    }
-                    Async::Ready(Some(chunk)) => {
-                        self.flushed = false;
-                        self.framed
-                            .as_mut()
-                            .unwrap()
-                            .start_send(h1::Message::Chunk(Some(chunk)))?;
                     }
                     Async::NotReady => body_ready = false,
                 }

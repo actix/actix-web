@@ -33,15 +33,6 @@ pub enum Message<T> {
     Chunk(Option<Bytes>),
 }
 
-impl<T> Message<T> {
-    pub fn into_item(self) -> Option<T> {
-        match self {
-            Message::Item(item) => Some(item),
-            _ => None,
-        }
-    }
-}
-
 impl<T> From<T> for Message<T> {
     fn from(item: T) -> Self {
         Message::Item(item)
