@@ -339,7 +339,7 @@ impl From<httparse::Error> for ParseError {
 pub enum PayloadError {
     /// A payload reached EOF, but is not complete.
     #[fail(display = "A payload reached EOF, but is not complete.")]
-    Incomplete,
+    Incomplete(Option<io::Error>),
     /// Content encoding stream corruption
     #[fail(display = "Can not decode content-encoding.")]
     EncodingCorrupted,
@@ -349,6 +349,12 @@ pub enum PayloadError {
     /// A payload length is unknown.
     #[fail(display = "A payload length is unknown.")]
     UnknownLength,
+}
+
+impl From<io::Error> for PayloadError {
+    fn from(err: io::Error) -> Self {
+        PayloadError::Incomplete(Some(err))
+    }
 }
 
 /// `PayloadError` returns two possible results:

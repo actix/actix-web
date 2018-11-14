@@ -143,7 +143,7 @@ where
     fn client_disconnected(&mut self) {
         self.flags.insert(Flags::DISCONNECTED);
         if let Some(mut payload) = self.payload.take() {
-            payload.set_error(PayloadError::Incomplete);
+            payload.set_error(PayloadError::Incomplete(None));
         }
     }
 
@@ -228,7 +228,7 @@ where
                         }
                         Err(err) => {
                             if let Some(mut payload) = self.payload.take() {
-                                payload.set_error(PayloadError::Incomplete);
+                                payload.set_error(PayloadError::Incomplete(None));
                             }
                             return Err(DispatchError::Io(err));
                         }
@@ -236,7 +236,10 @@ where
                 }
                 // Send payload
                 State::SendPayload(ref mut stream, ref mut bin) => {
+                    println!("SEND payload");
                     if let Some(item) = bin.take() {
+                        let mut framed = self.framed.as_mut().unwrap();
+                        if framed.is_
                         match self.framed.as_mut().unwrap().start_send(item) {
                             Ok(AsyncSink::Ready) => {
                                 self.flags.remove(Flags::FLUSHED);

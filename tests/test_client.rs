@@ -9,8 +9,10 @@ use std::{thread, time};
 use actix::System;
 use actix_net::server::Server;
 use actix_net::service::NewServiceExt;
+use bytes::Bytes;
 use futures::future::{self, lazy, ok};
 
+use actix_http::HttpMessage;
 use actix_http::{client, h1, test, Request, Response};
 
 const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
@@ -73,8 +75,8 @@ fn test_h1_v2() {
     assert!(response.status().is_success());
 
     // read response
-    // let bytes = srv.execute(response.body()).unwrap();
-    // assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
+    let bytes = sys.block_on(response.body()).unwrap();
+    assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
 
     let request = client::ClientRequest::post(format!("http://{}/", addr))
         .finish()
@@ -83,8 +85,8 @@ fn test_h1_v2() {
     assert!(response.status().is_success());
 
     // read response
-    // let bytes = srv.execute(response.body()).unwrap();
-    // assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
+    let bytes = sys.block_on(response.body()).unwrap();
+    assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
 }
 
 #[test]

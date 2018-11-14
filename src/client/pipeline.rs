@@ -11,8 +11,8 @@ use super::error::{ConnectorError, SendRequestError};
 use super::request::RequestHead;
 use super::response::ClientResponse;
 use super::{Connect, Connection};
-use body::{BodyStream, BodyType, MessageBody};
-use error::Error;
+use body::{BodyType, MessageBody, PayloadStream};
+use error::PayloadError;
 use h1;
 
 pub fn send_request<T, Io, B>(
@@ -44,7 +44,7 @@ where
                         let mut res = item.into_item().unwrap();
                         match framed.get_codec().message_type() {
                             h1::MessageType::None => release_connection(framed),
-                            _ => res.payload = Some(Payload::stream(framed)),
+                            _ => *res.payload.borrow_mut() = Some(Payload::stream(framed)),
                         }
                         ok(res)
                     } else {
@@ -129,41 +129,56 @@ where
     }
 }
 
-struct Payload<Io> {
-    framed: Option<Framed<Connection<Io>, h1::ClientCodec>>,
+struct EmptyPayload;
+
+impl Stream for EmptyPayload {
+    type Item = Bytes;
+    type Error = PayloadError;
+
+    fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
+        Ok(Async::Ready(None))
+    }
+}
+
+pub(crate) struct Payload<Io> {
+    framed: Option<Framed<Connection<Io>, h1::ClientPayloadCodec>>,
+}
+
+impl Payload<()> {
+    pub fn empty() -> PayloadStream {
+        Box::new(EmptyPayload)
+    }
 }
 
 impl<Io: AsyncRead + AsyncWrite + 'static> Payload<Io> {
-    fn stream(framed: Framed<Connection<Io>, h1::ClientCodec>) -> BodyStream {
+    fn stream(framed: Framed<Connection<Io>, h1::ClientCodec>) -> PayloadStream {
         Box::new(Payload {
-            framed: Some(framed),
+            framed: Some(framed.map_codec(|codec| codec.into_payload_codec())),
         })
     }
 }
 
 impl<Io: AsyncRead + AsyncWrite + 'static> Stream for Payload<Io> {
     type Item = Bytes;
-    type Error = Error;
+    type Error = PayloadError;
 
-    fn poll(&mut self) -> Poll<Option<Self::Item>, Error> {
+    fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
         match self.framed.as_mut().unwrap().poll()? {
             Async::NotReady => Ok(Async::NotReady),
-            Async::Ready(Some(chunk)) => match chunk {
-                h1::Message::Chunk(Some(chunk)) => Ok(Async::Ready(Some(chunk))),
-                h1::Message::Chunk(None) => {
-                    release_connection(self.framed.take().unwrap());
-                    Ok(Async::Ready(None))
-                }
-                h1::Message::Item(_) => unreachable!(),
+            Async::Ready(Some(chunk)) => if let Some(chunk) = chunk {
+                Ok(Async::Ready(Some(chunk)))
+            } else {
+                release_connection(self.framed.take().unwrap());
+                Ok(Async::Ready(None))
             },
             Async::Ready(None) => Ok(Async::Ready(None)),
         }
     }
 }
 
-fn release_connection<Io>(framed: Framed<Connection<Io>, h1::ClientCodec>)
+fn release_connection<T, U>(framed: Framed<Connection<T>, U>)
 where
-    Io: AsyncRead + AsyncWrite + 'static,
+    T: AsyncRead + AsyncWrite + 'static,
 {
     let parts = framed.into_parts();
     if parts.read_buf.is_empty() && parts.write_buf.is_empty() {

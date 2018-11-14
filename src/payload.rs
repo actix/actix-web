@@ -527,7 +527,7 @@ mod tests {
 
     #[test]
     fn test_error() {
-        let err = PayloadError::Incomplete;
+        let err = PayloadError::Incomplete(None);
         assert_eq!(
             format!("{}", err),
             "A payload reached EOF, but is not complete."
@@ -584,7 +584,7 @@ mod tests {
 
                 assert_eq!(Async::NotReady, payload.readany().ok().unwrap());
 
-                sender.set_error(PayloadError::Incomplete);
+                sender.set_error(PayloadError::Incomplete(None));
                 payload.readany().err().unwrap();
                 let res: Result<(), ()> = Ok(());
                 result(res)
@@ -644,7 +644,7 @@ mod tests {
                 );
                 assert_eq!(payload.len, 4);
 
-                sender.set_error(PayloadError::Incomplete);
+                sender.set_error(PayloadError::Incomplete(None));
                 payload.read_exact(10).err().unwrap();
 
                 let res: Result<(), ()> = Ok(());
@@ -677,7 +677,7 @@ mod tests {
                 );
                 assert_eq!(payload.len, 0);
 
-                sender.set_error(PayloadError::Incomplete);
+                sender.set_error(PayloadError::Incomplete(None));
                 payload.read_until(b"b").err().unwrap();
 
                 let res: Result<(), ()> = Ok(());

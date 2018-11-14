@@ -4,10 +4,13 @@ use std::{fmt, mem};
 use bytes::{Bytes, BytesMut};
 use futures::{Async, Poll, Stream};
 
-use error::Error;
+use error::{Error, PayloadError};
 
 /// Type represent streaming body
-pub type BodyStream = Box<Stream<Item = Bytes, Error = Error>>;
+pub type BodyStream = Box<dyn Stream<Item = Bytes, Error = Error>>;
+
+/// Type represent streaming payload
+pub type PayloadStream = Box<dyn Stream<Item = Bytes, Error = PayloadError>>;
 
 /// Different type of bory
 pub enum BodyType {

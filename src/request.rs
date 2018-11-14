@@ -242,7 +242,7 @@ impl MessagePool {
             }
             return ClientResponse {
                 inner: msg,
-                payload: None,
+                payload: RefCell::new(None),
             };
         }
         ClientResponse::with_pool(pool)

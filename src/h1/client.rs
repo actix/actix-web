@@ -10,7 +10,7 @@ use super::{Message, MessageType};
 use body::{Binary, Body, BodyType};
 use client::{ClientResponse, RequestHead};
 use config::ServiceConfig;
-use error::ParseError;
+use error::{ParseError, PayloadError};
 use helpers;
 use http::header::{
     HeaderValue, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING, UPGRADE,
@@ -32,6 +32,15 @@ const AVERAGE_HEADER_SIZE: usize = 30;
 
 /// HTTP/1 Codec
 pub struct ClientCodec {
+    inner: ClientCodecInner,
+}
+
+/// HTTP/1 Payload Codec
+pub struct ClientPayloadCodec {
+    inner: ClientCodecInner,
+}
+
+struct ClientCodecInner {
     config: ServiceConfig,
     decoder: ResponseDecoder,
     payload: Option<PayloadDecoder>,
@@ -65,32 +74,34 @@ impl ClientCodec {
             Flags::empty()
         };
         ClientCodec {
-            config,
-            decoder: ResponseDecoder::with_pool(pool),
-            payload: None,
-            version: Version::HTTP_11,
+            inner: ClientCodecInner {
+                config,
+                decoder: ResponseDecoder::with_pool(pool),
+                payload: None,
+                version: Version::HTTP_11,
 
-            flags,
-            headers_size: 0,
-            te: RequestEncoder::default(),
+                flags,
+                headers_size: 0,
+                te: RequestEncoder::default(),
+            },
         }
     }
 
     /// Check if request is upgrade
     pub fn upgrade(&self) -> bool {
-        self.flags.contains(Flags::UPGRADE)
+        self.inner.flags.contains(Flags::UPGRADE)
     }
 
     /// Check if last response is keep-alive
     pub fn keepalive(&self) -> bool {
-        self.flags.contains(Flags::KEEPALIVE)
+        self.inner.flags.contains(Flags::KEEPALIVE)
     }
 
     /// Check last request's message type
     pub fn message_type(&self) -> MessageType {
-        if self.flags.contains(Flags::STREAM) {
+        if self.inner.flags.contains(Flags::STREAM) {
             MessageType::Stream
-        } else if self.payload.is_none() {
+        } else if self.inner.payload.is_none() {
             MessageType::None
         } else {
             MessageType::Payload
@@ -99,10 +110,27 @@ impl ClientCodec {
 
     /// prepare transfer encoding
     pub fn prepare_te(&mut self, head: &mut RequestHead, btype: BodyType) {
-        self.te
-            .update(head, self.flags.contains(Flags::HEAD), self.version);
+        self.inner.te.update(
+            head,
+            self.inner.flags.contains(Flags::HEAD),
+            self.inner.version,
+        );
     }
 
+    /// Convert message codec to a payload codec
+    pub fn into_payload_codec(self) -> ClientPayloadCodec {
+        ClientPayloadCodec { inner: self.inner }
+    }
+}
+
+impl ClientPayloadCodec {
+    /// Transform payload codec to a message codec
+    pub fn into_message_codec(self) -> ClientCodec {
+        ClientCodec { inner: self.inner }
+    }
+}
+
+impl ClientCodecInner {
     fn encode_response(
         &mut self,
         msg: RequestHead,
@@ -154,31 +182,53 @@ impl Decoder for ClientCodec {
     type Error = ParseError;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
-        if self.payload.is_some() {
-            Ok(match self.payload.as_mut().unwrap().decode(src)? {
+        if self.inner.payload.is_some() {
+            Ok(match self.inner.payload.as_mut().unwrap().decode(src)? {
                 Some(PayloadItem::Chunk(chunk)) => Some(Message::Chunk(Some(chunk))),
                 Some(PayloadItem::Eof) => Some(Message::Chunk(None)),
                 None => None,
             })
-        } else if let Some((req, payload)) = self.decoder.decode(src)? {
-            self.flags
+        } else if let Some((req, payload)) = self.inner.decoder.decode(src)? {
+            self.inner
+                .flags
                 .set(Flags::HEAD, req.inner.method == Method::HEAD);
-            self.version = req.inner.version;
-            if self.flags.contains(Flags::KEEPALIVE_ENABLED) {
-                self.flags.set(Flags::KEEPALIVE, req.keep_alive());
+            self.inner.version = req.inner.version;
+            if self.inner.flags.contains(Flags::KEEPALIVE_ENABLED) {
+                self.inner.flags.set(Flags::KEEPALIVE, req.keep_alive());
             }
             match payload {
-                PayloadType::None => self.payload = None,
-                PayloadType::Payload(pl) => self.payload = Some(pl),
+                PayloadType::None => self.inner.payload = None,
+                PayloadType::Payload(pl) => self.inner.payload = Some(pl),
                 PayloadType::Stream(pl) => {
-                    self.payload = Some(pl);
-                    self.flags.insert(Flags::STREAM);
+                    self.inner.payload = Some(pl);
+                    self.inner.flags.insert(Flags::STREAM);
                 }
             };
             Ok(Some(Message::Item(req)))
         } else {
             Ok(None)
         }
+    }
+}
+
+impl Decoder for ClientPayloadCodec {
+    type Item = Option<Bytes>;
+    type Error = PayloadError;
+
+    fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
+        assert!(
+            self.inner.payload.is_some(),
+            "Payload decoder is not specified"
+        );
+
+        Ok(match self.inner.payload.as_mut().unwrap().decode(src)? {
+            Some(PayloadItem::Chunk(chunk)) => Some(Some(chunk)),
+            Some(PayloadItem::Eof) => {
+                self.inner.payload.take();
+                Some(None)
+            }
+            None => None,
+        })
     }
 }
 
@@ -193,13 +243,13 @@ impl Encoder for ClientCodec {
     ) -> Result<(), Self::Error> {
         match item {
             Message::Item((msg, btype)) => {
-                self.encode_response(msg, btype, dst)?;
+                self.inner.encode_response(msg, btype, dst)?;
             }
             Message::Chunk(Some(bytes)) => {
-                self.te.encode(bytes.as_ref(), dst)?;
+                self.inner.te.encode(bytes.as_ref(), dst)?;
             }
             Message::Chunk(None) => {
-                self.te.encode_eof(dst)?;
+                self.inner.te.encode_eof(dst)?;
             }
         }
         Ok(())

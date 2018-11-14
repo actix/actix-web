@@ -6,34 +6,37 @@ use bytes::Bytes;
 use futures::{Async, Poll, Stream};
 use http::{HeaderMap, Method, StatusCode, Version};
 
-use body::BodyStream;
-use error::Error;
+use body::PayloadStream;
+use error::PayloadError;
 use extensions::Extensions;
+use httpmessage::HttpMessage;
 use request::{Message, MessageFlags, MessagePool};
 use uri::Url;
+
+use super::pipeline::Payload;
 
 /// Client Response
 pub struct ClientResponse {
     pub(crate) inner: Rc<Message>,
-    pub(crate) payload: Option<BodyStream>,
+    pub(crate) payload: RefCell<Option<PayloadStream>>,
 }
 
-// impl HttpMessage for ClientResponse {
-//     type Stream = Payload;
+impl HttpMessage for ClientResponse {
+    type Stream = PayloadStream;
 
-//     fn headers(&self) -> &HeaderMap {
-//         &self.inner.headers
-//     }
+    fn headers(&self) -> &HeaderMap {
+        &self.inner.headers
+    }
 
-//     #[inline]
-//     fn payload(&self) -> Payload {
-//         if let Some(payload) = self.inner.payload.borrow_mut().take() {
-//             payload
-//         } else {
-//             Payload::empty()
-//         }
-//     }
-// }
+    #[inline]
+    fn payload(&self) -> Self::Stream {
+        if let Some(payload) = self.payload.borrow_mut().take() {
+            payload
+        } else {
+            Payload::empty()
+        }
+    }
+}
 
 impl ClientResponse {
     /// Create new Request instance
@@ -55,7 +58,7 @@ impl ClientResponse {
                 payload: RefCell::new(None),
                 extensions: RefCell::new(Extensions::new()),
             }),
-            payload: None,
+            payload: RefCell::new(None),
         }
     }
 
@@ -114,10 +117,10 @@ impl ClientResponse {
 
 impl Stream for ClientResponse {
     type Item = Bytes;
-    type Error = Error;
+    type Error = PayloadError;
 
-    fn poll(&mut self) -> Poll<Option<Self::Item>, Error> {
-        if let Some(ref mut payload) = self.payload {
+    fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
+        if let Some(ref mut payload) = &mut *self.payload.borrow_mut() {
             payload.poll()
         } else {
             Ok(Async::Ready(None))
