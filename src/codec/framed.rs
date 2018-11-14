@@ -11,7 +11,7 @@ use tokio_io::{AsyncRead, AsyncWrite};
 use super::framed_read::{framed_read2, framed_read2_with_buffer, FramedRead2};
 use super::framed_write::{framed_write2, framed_write2_with_buffer, FramedWrite2};
 
-const LW: usize = 2 * 1024;
+const LW: usize = 1024;
 const HW: usize = 8 * 1024;
 
 /// A unified `Stream` and `Sink` interface to an underlying I/O object, using
@@ -53,7 +53,7 @@ where
     }
 
     /// Same as `Framed::new()` with ability to specify write buffer low/high capacity watermarks.
-    pub fn new_with_cap(inner: T, codec: U, lw: usize, hw: usize) -> Framed<T, U> {
+    pub fn new_with_caps(inner: T, codec: U, lw: usize, hw: usize) -> Framed<T, U> {
         Framed {
             inner: framed_read2(framed_write2(Fuse(inner, codec), lw, hw)),
         }
