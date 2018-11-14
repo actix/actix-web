@@ -85,7 +85,12 @@ impl<T, U> Framed<T, U> {
     pub fn from_parts(parts: FramedParts<T, U>) -> Framed<T, U> {
         Framed {
             inner: framed_read2_with_buffer(
-                framed_write2_with_buffer(Fuse(parts.io, parts.codec), parts.write_buf, parts.write_buf_lw, parts.write_buf_hw),
+                framed_write2_with_buffer(
+                    Fuse(parts.io, parts.codec),
+                    parts.write_buf,
+                    parts.write_buf_lw,
+                    parts.write_buf_hw,
+                ),
                 parts.read_buf,
             ),
         }
@@ -119,6 +124,11 @@ impl<T, U> Framed<T, U> {
     /// being worked with.
     pub fn get_mut(&mut self) -> &mut T {
         &mut self.inner.get_mut().get_mut().0
+    }
+
+    /// Check if write buffer is full.
+    pub fn is_full(&self) -> bool {
+        self.inner.get_ref().is_full()
     }
 
     /// Consumes the `Frame`, returning its underlying I/O stream.

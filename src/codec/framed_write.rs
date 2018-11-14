@@ -72,6 +72,11 @@ impl<T, E> FramedWrite<T, E> {
     pub fn encoder_mut(&mut self) -> &mut E {
         &mut self.inner.inner.1
     }
+
+    /// Check if write buffer is full
+    pub fn is_full(&self) -> bool {
+        self.inner.is_full()
+    }
 }
 
 impl<T, E> Sink for FramedWrite<T, E>
@@ -123,7 +128,11 @@ where
 
 // ===== impl FramedWrite2 =====
 
-pub fn framed_write2<T>(inner: T, low_watermark: usize, high_watermark: usize) -> FramedWrite2<T> {
+pub fn framed_write2<T>(
+    inner: T,
+    low_watermark: usize,
+    high_watermark: usize,
+) -> FramedWrite2<T> {
     FramedWrite2 {
         inner,
         low_watermark,
@@ -132,7 +141,12 @@ pub fn framed_write2<T>(inner: T, low_watermark: usize, high_watermark: usize) -
     }
 }
 
-pub fn framed_write2_with_buffer<T>(inner: T, mut buffer: BytesMut, low_watermark: usize, high_watermark: usize) -> FramedWrite2<T> {
+pub fn framed_write2_with_buffer<T>(
+    inner: T,
+    mut buffer: BytesMut,
+    low_watermark: usize,
+    high_watermark: usize,
+) -> FramedWrite2<T> {
     if buffer.capacity() < high_watermark {
         let bytes_to_reserve = high_watermark - buffer.capacity();
         buffer.reserve(bytes_to_reserve);
@@ -155,11 +169,20 @@ impl<T> FramedWrite2<T> {
     }
 
     pub fn into_parts(self) -> (T, BytesMut, usize, usize) {
-        (self.inner, self.buffer, self.low_watermark, self.high_watermark)
+        (
+            self.inner,
+            self.buffer,
+            self.low_watermark,
+            self.high_watermark,
+        )
     }
 
     pub fn get_mut(&mut self) -> &mut T {
         &mut self.inner
+    }
+
+    pub fn is_full(&self) -> bool {
+        self.buffer.len() >= self.high_watermark
     }
 }
 
