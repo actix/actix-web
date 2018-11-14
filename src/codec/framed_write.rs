@@ -16,10 +16,9 @@ pub struct FramedWrite<T, E> {
 pub struct FramedWrite2<T> {
     inner: T,
     buffer: BytesMut,
+    low_watermark: usize,
+    high_watermark: usize,
 }
-
-const INITIAL_CAPACITY: usize = 8 * 1024;
-const BACKPRESSURE_BOUNDARY: usize = INITIAL_CAPACITY;
 
 impl<T, E> FramedWrite<T, E>
 where
@@ -27,9 +26,9 @@ where
     E: Encoder,
 {
     /// Creates a new `FramedWrite` with the given `encoder`.
-    pub fn new(inner: T, encoder: E) -> FramedWrite<T, E> {
+    pub fn new(inner: T, encoder: E, lw: usize, hw: usize) -> FramedWrite<T, E> {
         FramedWrite {
-            inner: framed_write2(Fuse(inner, encoder)),
+            inner: framed_write2(Fuse(inner, encoder), lw, hw),
         }
     }
 }
@@ -124,21 +123,25 @@ where
 
 // ===== impl FramedWrite2 =====
 
-pub fn framed_write2<T>(inner: T) -> FramedWrite2<T> {
+pub fn framed_write2<T>(inner: T, low_watermark: usize, high_watermark: usize) -> FramedWrite2<T> {
     FramedWrite2 {
-        inner: inner,
-        buffer: BytesMut::with_capacity(INITIAL_CAPACITY),
+        inner,
+        low_watermark,
+        high_watermark,
+        buffer: BytesMut::with_capacity(high_watermark),
     }
 }
 
-pub fn framed_write2_with_buffer<T>(inner: T, mut buf: BytesMut) -> FramedWrite2<T> {
-    if buf.capacity() < INITIAL_CAPACITY {
-        let bytes_to_reserve = INITIAL_CAPACITY - buf.capacity();
-        buf.reserve(bytes_to_reserve);
+pub fn framed_write2_with_buffer<T>(inner: T, mut buffer: BytesMut, low_watermark: usize, high_watermark: usize) -> FramedWrite2<T> {
+    if buffer.capacity() < high_watermark {
+        let bytes_to_reserve = high_watermark - buffer.capacity();
+        buffer.reserve(bytes_to_reserve);
     }
     FramedWrite2 {
-        inner: inner,
-        buffer: buf,
+        inner,
+        buffer,
+        low_watermark,
+        high_watermark,
     }
 }
 
@@ -151,8 +154,8 @@ impl<T> FramedWrite2<T> {
         self.inner
     }
 
-    pub fn into_parts(self) -> (T, BytesMut) {
-        (self.inner, self.buffer)
+    pub fn into_parts(self) -> (T, BytesMut, usize, usize) {
+        (self.inner, self.buffer, self.low_watermark, self.high_watermark)
     }
 
     pub fn get_mut(&mut self) -> &mut T {
@@ -168,15 +171,13 @@ where
     type SinkError = T::Error;
 
     fn start_send(&mut self, item: T::Item) -> StartSend<T::Item, T::Error> {
-        // If the buffer is already over 8KiB, then attempt to flush it. If after
-        // flushing it's *still* over 8KiB, then apply backpressure (reject the
-        // send).
-        if self.buffer.len() >= BACKPRESSURE_BOUNDARY {
-            try!(self.poll_complete());
-
-            if self.buffer.len() >= BACKPRESSURE_BOUNDARY {
-                return Ok(AsyncSink::NotReady(item));
-            }
+        // Check the buffer capacity
+        let len = self.buffer.len();
+        if len >= self.high_watermark {
+            return Ok(AsyncSink::NotReady(item));
+        }
+        if len < self.low_watermark {
+            self.buffer.reserve(self.high_watermark - len)
         }
 
         try!(self.inner.encode(item, &mut self.buffer));

@@ -11,6 +11,9 @@ use tokio_io::{AsyncRead, AsyncWrite};
 use super::framed_read::{framed_read2, framed_read2_with_buffer, FramedRead2};
 use super::framed_write::{framed_write2, framed_write2_with_buffer, FramedWrite2};
 
+const LW: usize = 2 * 1024;
+const HW: usize = 8 * 1024;
+
 /// A unified `Stream` and `Sink` interface to an underlying I/O object, using
 /// the `Encoder` and `Decoder` traits to encode and decode frames.
 ///
@@ -45,7 +48,14 @@ where
     /// break them into separate objects, allowing them to interact more easily.
     pub fn new(inner: T, codec: U) -> Framed<T, U> {
         Framed {
-            inner: framed_read2(framed_write2(Fuse(inner, codec))),
+            inner: framed_read2(framed_write2(Fuse(inner, codec), LW, HW)),
+        }
+    }
+
+    /// Same as `Framed::new()` with ability to specify write buffer low/high capacity watermarks.
+    pub fn new_with_cap(inner: T, codec: U, lw: usize, hw: usize) -> Framed<T, U> {
+        Framed {
+            inner: framed_read2(framed_write2(Fuse(inner, codec), lw, hw)),
         }
     }
 }
@@ -75,7 +85,7 @@ impl<T, U> Framed<T, U> {
     pub fn from_parts(parts: FramedParts<T, U>) -> Framed<T, U> {
         Framed {
             inner: framed_read2_with_buffer(
-                framed_write2_with_buffer(Fuse(parts.io, parts.codec), parts.write_buf),
+                framed_write2_with_buffer(Fuse(parts.io, parts.codec), parts.write_buf, parts.write_buf_lw, parts.write_buf_hw),
                 parts.read_buf,
             ),
         }
@@ -123,11 +133,11 @@ impl<T, U> Framed<T, U> {
     /// Consume the `Frame`, returning `Frame` with different codec.
     pub fn into_framed<U2>(self, codec: U2) -> Framed<T, U2> {
         let (inner, read_buf) = self.inner.into_parts();
-        let (inner, write_buf) = inner.into_parts();
+        let (inner, write_buf, lw, hw) = inner.into_parts();
 
         Framed {
             inner: framed_read2_with_buffer(
-                framed_write2_with_buffer(Fuse(inner.0, codec), write_buf),
+                framed_write2_with_buffer(Fuse(inner.0, codec), write_buf, lw, hw),
                 read_buf,
             ),
         }
@@ -141,13 +151,15 @@ impl<T, U> Framed<T, U> {
     /// being worked with.
     pub fn into_parts(self) -> FramedParts<T, U> {
         let (inner, read_buf) = self.inner.into_parts();
-        let (inner, write_buf) = inner.into_parts();
+        let (inner, write_buf, write_buf_lw, write_buf_hw) = inner.into_parts();
 
         FramedParts {
             io: inner.0,
             codec: inner.1,
-            read_buf: read_buf,
-            write_buf: write_buf,
+            read_buf,
+            write_buf,
+            write_buf_lw,
+            write_buf_hw,
             _priv: (),
         }
     }
@@ -273,6 +285,12 @@ pub struct FramedParts<T, U> {
     /// A buffer with unprocessed data which are not written yet.
     pub write_buf: BytesMut,
 
+    /// A buffer low watermark capacity
+    pub write_buf_lw: usize,
+
+    /// A buffer high watermark capacity
+    pub write_buf_hw: usize,
+
     /// This private field allows us to add additional fields in the future in a
     /// backwards compatible way.
     _priv: (),
@@ -286,6 +304,8 @@ impl<T, U> FramedParts<T, U> {
             codec,
             read_buf: BytesMut::new(),
             write_buf: BytesMut::new(),
+            write_buf_lw: LW,
+            write_buf_hw: HW,
             _priv: (),
         }
     }
