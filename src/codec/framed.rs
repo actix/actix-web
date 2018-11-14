@@ -127,7 +127,7 @@ impl<T, U> Framed<T, U> {
     }
 
     /// Check if write buffer is full.
-    pub fn is_full(&self) -> bool {
+    pub fn is_write_buf_full(&self) -> bool {
         self.inner.get_ref().is_full()
     }
 
