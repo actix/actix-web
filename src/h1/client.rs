@@ -7,12 +7,14 @@ use tokio_codec::{Decoder, Encoder};
 use super::decoder::{PayloadDecoder, PayloadItem, PayloadType, ResponseDecoder};
 use super::encoder::{RequestEncoder, ResponseLength};
 use super::{Message, MessageType};
-use body::{Binary, Body};
-use client::{ClientRequest, ClientResponse};
+use body::{Binary, Body, BodyType};
+use client::{ClientResponse, RequestHead};
 use config::ServiceConfig;
 use error::ParseError;
 use helpers;
-use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING};
+use http::header::{
+    HeaderValue, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING, UPGRADE,
+};
 use http::{Method, Version};
 use request::MessagePool;
 
@@ -22,7 +24,7 @@ bitflags! {
         const UPGRADE           = 0b0000_0010;
         const KEEPALIVE         = 0b0000_0100;
         const KEEPALIVE_ENABLED = 0b0000_1000;
-        const UNHANDLED         = 0b0001_0000;
+        const STREAM            = 0b0001_0000;
     }
 }
 
@@ -86,8 +88,8 @@ impl ClientCodec {
 
     /// Check last request's message type
     pub fn message_type(&self) -> MessageType {
-        if self.flags.contains(Flags::UNHANDLED) {
-            MessageType::Unhandled
+        if self.flags.contains(Flags::STREAM) {
+            MessageType::Stream
         } else if self.payload.is_none() {
             MessageType::None
         } else {
@@ -96,38 +98,31 @@ impl ClientCodec {
     }
 
     /// prepare transfer encoding
-    pub fn prepare_te(&mut self, res: &mut ClientRequest) {
+    pub fn prepare_te(&mut self, head: &mut RequestHead, btype: BodyType) {
         self.te
-            .update(res, self.flags.contains(Flags::HEAD), self.version);
+            .update(head, self.flags.contains(Flags::HEAD), self.version);
     }
 
     fn encode_response(
         &mut self,
-        msg: ClientRequest,
+        msg: RequestHead,
+        btype: BodyType,
         buffer: &mut BytesMut,
     ) -> io::Result<()> {
-        // Connection upgrade
-        if msg.upgrade() {
-            self.flags.insert(Flags::UPGRADE);
-        }
-
         // render message
         {
             // status line
             writeln!(
                 Writer(buffer),
                 "{} {} {:?}\r",
-                msg.method(),
-                msg.uri()
-                    .path_and_query()
-                    .map(|u| u.as_str())
-                    .unwrap_or("/"),
-                msg.version()
+                msg.method,
+                msg.uri.path_and_query().map(|u| u.as_str()).unwrap_or("/"),
+                msg.version
             ).map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
 
             // write headers
-            buffer.reserve(msg.headers().len() * AVERAGE_HEADER_SIZE);
-            for (key, value) in msg.headers() {
+            buffer.reserve(msg.headers.len() * AVERAGE_HEADER_SIZE);
+            for (key, value) in &msg.headers {
                 let v = value.as_ref();
                 let k = key.as_str().as_bytes();
                 buffer.reserve(k.len() + v.len() + 4);
@@ -135,10 +130,15 @@ impl ClientCodec {
                 buffer.put_slice(b": ");
                 buffer.put_slice(v);
                 buffer.put_slice(b"\r\n");
+
+                // Connection upgrade
+                if key == UPGRADE {
+                    self.flags.insert(Flags::UPGRADE);
+                }
             }
 
             // set date header
-            if !msg.headers().contains_key(DATE) {
+            if !msg.headers.contains_key(DATE) {
                 self.config.set_date(buffer);
             } else {
                 buffer.extend_from_slice(b"\r\n");
@@ -160,8 +160,6 @@ impl Decoder for ClientCodec {
                 Some(PayloadItem::Eof) => Some(Message::Chunk(None)),
                 None => None,
             })
-        } else if self.flags.contains(Flags::UNHANDLED) {
-            Ok(None)
         } else if let Some((req, payload)) = self.decoder.decode(src)? {
             self.flags
                 .set(Flags::HEAD, req.inner.method == Method::HEAD);
@@ -172,9 +170,9 @@ impl Decoder for ClientCodec {
             match payload {
                 PayloadType::None => self.payload = None,
                 PayloadType::Payload(pl) => self.payload = Some(pl),
-                PayloadType::Unhandled => {
-                    self.payload = None;
-                    self.flags.insert(Flags::UNHANDLED);
+                PayloadType::Stream(pl) => {
+                    self.payload = Some(pl);
+                    self.flags.insert(Flags::STREAM);
                 }
             };
             Ok(Some(Message::Item(req)))
@@ -185,7 +183,7 @@ impl Decoder for ClientCodec {
 }
 
 impl Encoder for ClientCodec {
-    type Item = Message<ClientRequest>;
+    type Item = Message<(RequestHead, BodyType)>;
     type Error = io::Error;
 
     fn encode(
@@ -194,8 +192,8 @@ impl Encoder for ClientCodec {
         dst: &mut BytesMut,
     ) -> Result<(), Self::Error> {
         match item {
-            Message::Item(res) => {
-                self.encode_response(res, dst)?;
+            Message::Item((msg, btype)) => {
+                self.encode_response(msg, btype, dst)?;
             }
             Message::Chunk(Some(bytes)) => {
                 self.te.encode(bytes.as_ref(), dst)?;

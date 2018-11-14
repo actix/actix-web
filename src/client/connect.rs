@@ -14,19 +14,19 @@ pub struct Connect {
 }
 
 impl Connect {
+    /// Create `Connect` message for specified `Uri`
+    pub fn new(uri: Uri) -> Connect {
+        Connect { uri }
+    }
+
     /// Construct `Uri` instance and create `Connect` message.
-    pub fn new<U>(uri: U) -> Result<Connect, HttpError>
+    pub fn try_from<U>(uri: U) -> Result<Connect, HttpError>
     where
         Uri: HttpTryFrom<U>,
     {
         Ok(Connect {
             uri: Uri::try_from(uri).map_err(|e| e.into())?,
         })
-    }
-
-    /// Create `Connect` message for specified `Uri`
-    pub fn with(uri: Uri) -> Connect {
-        Connect { uri }
     }
 
     pub(crate) fn is_secure(&self) -> bool {

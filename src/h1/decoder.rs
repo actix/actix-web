@@ -25,7 +25,7 @@ pub struct ResponseDecoder(&'static MessagePool);
 pub enum PayloadType {
     None,
     Payload(PayloadDecoder),
-    Unhandled,
+    Stream(PayloadDecoder),
 }
 
 impl RequestDecoder {
@@ -174,7 +174,7 @@ impl Decoder for RequestDecoder {
             PayloadType::Payload(PayloadDecoder::length(len))
         } else if has_upgrade || msg.inner.method == Method::CONNECT {
             // upgrade(websocket) or connect
-            PayloadType::Unhandled
+            PayloadType::Stream(PayloadDecoder::eof())
         } else if src.len() >= MAX_BUFFER_SIZE {
             error!("MAX_BUFFER_SIZE unprocessed data reached, closing");
             return Err(ParseError::TooLarge);
@@ -321,7 +321,7 @@ impl Decoder for ResponseDecoder {
             || msg.inner.method == Method::CONNECT
         {
             // switching protocol or connect
-            PayloadType::Unhandled
+            PayloadType::Stream(PayloadDecoder::eof())
         } else if src.len() >= MAX_BUFFER_SIZE {
             error!("MAX_BUFFER_SIZE unprocessed data reached, closing");
             return Err(ParseError::TooLarge);
@@ -667,7 +667,7 @@ mod tests {
 
         fn is_unhandled(&self) -> bool {
             match self {
-                PayloadType::Unhandled => true,
+                PayloadType::Stream(_) => true,
                 _ => false,
             }
         }

@@ -9,7 +9,7 @@ use http::header::{HeaderValue, ACCEPT_ENCODING, CONTENT_LENGTH};
 use http::{StatusCode, Version};
 
 use body::{Binary, Body};
-use client::ClientRequest;
+use client::RequestHead;
 use header::ContentEncoding;
 use http::Method;
 use request::Request;
@@ -196,7 +196,7 @@ impl RequestEncoder {
         self.te.encode_eof(buf)
     }
 
-    pub fn update(&mut self, resp: &mut ClientRequest, head: bool, version: Version) {
+    pub fn update(&mut self, resp: &mut RequestHead, head: bool, version: Version) {
         self.head = head;
     }
 }

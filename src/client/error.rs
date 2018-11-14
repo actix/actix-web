@@ -17,6 +17,8 @@ use native_tls::Error as SslError;
 ))]
 use std::io::Error as SslError;
 
+use error::{Error, ParseError};
+
 /// A set of errors that can occur while connecting to an HTTP host
 #[derive(Fail, Debug)]
 pub enum ConnectorError {
@@ -73,5 +75,43 @@ impl From<io::Error> for ConnectorError {
 impl From<ResolveError> for ConnectorError {
     fn from(err: ResolveError) -> ConnectorError {
         ConnectorError::Resolver(err)
+    }
+}
+
+/// A set of errors that can occur during request sending and response reading
+#[derive(Debug)]
+pub enum SendRequestError {
+    /// Failed to connect to host
+    // #[fail(display = "Failed to connect to host: {}", _0)]
+    Connector(ConnectorError),
+    /// Error sending request
+    Send(io::Error),
+    /// Error parsing response
+    Response(ParseError),
+    /// Error sending request body
+    Body(Error),
+}
+
+impl From<io::Error> for SendRequestError {
+    fn from(err: io::Error) -> SendRequestError {
+        SendRequestError::Send(err)
+    }
+}
+
+impl From<ConnectorError> for SendRequestError {
+    fn from(err: ConnectorError) -> SendRequestError {
+        SendRequestError::Connector(err)
+    }
+}
+
+impl From<ParseError> for SendRequestError {
+    fn from(err: ParseError) -> SendRequestError {
+        SendRequestError::Response(err)
+    }
+}
+
+impl From<Error> for SendRequestError {
+    fn from(err: Error) -> SendRequestError {
+        SendRequestError::Body(err)
     }
 }

@@ -23,7 +23,7 @@ bitflags! {
         const UPGRADE           = 0b0000_0010;
         const KEEPALIVE         = 0b0000_0100;
         const KEEPALIVE_ENABLED = 0b0000_1000;
-        const UNHANDLED         = 0b0001_0000;
+        const STREAM            = 0b0001_0000;
     }
 }
 
@@ -93,8 +93,8 @@ impl Codec {
 
     /// Check last request's message type
     pub fn message_type(&self) -> MessageType {
-        if self.flags.contains(Flags::UNHANDLED) {
-            MessageType::Unhandled
+        if self.flags.contains(Flags::STREAM) {
+            MessageType::Stream
         } else if self.payload.is_none() {
             MessageType::None
         } else {
@@ -259,8 +259,6 @@ impl Decoder for Codec {
                 }
                 None => None,
             })
-        } else if self.flags.contains(Flags::UNHANDLED) {
-            Ok(None)
         } else if let Some((req, payload)) = self.decoder.decode(src)? {
             self.flags
                 .set(Flags::HEAD, req.inner.method == Method::HEAD);
@@ -271,9 +269,9 @@ impl Decoder for Codec {
             match payload {
                 PayloadType::None => self.payload = None,
                 PayloadType::Payload(pl) => self.payload = Some(pl),
-                PayloadType::Unhandled => {
-                    self.payload = None;
-                    self.flags.insert(Flags::UNHANDLED);
+                PayloadType::Stream(pl) => {
+                    self.payload = Some(pl);
+                    self.flags.insert(Flags::STREAM);
                 }
             }
             Ok(Some(Message::Item(req)))

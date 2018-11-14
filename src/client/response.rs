@@ -2,35 +2,38 @@ use std::cell::{Cell, Ref, RefCell, RefMut};
 use std::fmt;
 use std::rc::Rc;
 
+use bytes::Bytes;
+use futures::{Async, Poll, Stream};
 use http::{HeaderMap, Method, StatusCode, Version};
 
+use body::BodyStream;
+use error::Error;
 use extensions::Extensions;
-use httpmessage::HttpMessage;
-use payload::Payload;
 use request::{Message, MessageFlags, MessagePool};
 use uri::Url;
 
 /// Client Response
 pub struct ClientResponse {
     pub(crate) inner: Rc<Message>,
+    pub(crate) payload: Option<BodyStream>,
 }
 
-impl HttpMessage for ClientResponse {
-    type Stream = Payload;
+// impl HttpMessage for ClientResponse {
+//     type Stream = Payload;
 
-    fn headers(&self) -> &HeaderMap {
-        &self.inner.headers
-    }
+//     fn headers(&self) -> &HeaderMap {
+//         &self.inner.headers
+//     }
 
-    #[inline]
-    fn payload(&self) -> Payload {
-        if let Some(payload) = self.inner.payload.borrow_mut().take() {
-            payload
-        } else {
-            Payload::empty()
-        }
-    }
-}
+//     #[inline]
+//     fn payload(&self) -> Payload {
+//         if let Some(payload) = self.inner.payload.borrow_mut().take() {
+//             payload
+//         } else {
+//             Payload::empty()
+//         }
+//     }
+// }
 
 impl ClientResponse {
     /// Create new Request instance
@@ -52,6 +55,7 @@ impl ClientResponse {
                 payload: RefCell::new(None),
                 extensions: RefCell::new(Extensions::new()),
             }),
+            payload: None,
         }
     }
 
@@ -105,6 +109,19 @@ impl ClientResponse {
     #[inline]
     pub fn extensions_mut(&self) -> RefMut<Extensions> {
         self.inner().extensions.borrow_mut()
+    }
+}
+
+impl Stream for ClientResponse {
+    type Item = Bytes;
+    type Error = Error;
+
+    fn poll(&mut self) -> Poll<Option<Self::Item>, Error> {
+        if let Some(ref mut payload) = self.payload {
+            payload.poll()
+        } else {
+            Ok(Async::Ready(None))
+        }
     }
 }
 

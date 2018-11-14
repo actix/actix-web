@@ -1,12 +1,38 @@
-use bytes::{Bytes, BytesMut};
-use futures::Stream;
 use std::sync::Arc;
 use std::{fmt, mem};
+
+use bytes::{Bytes, BytesMut};
+use futures::{Async, Poll, Stream};
 
 use error::Error;
 
 /// Type represent streaming body
 pub type BodyStream = Box<Stream<Item = Bytes, Error = Error>>;
+
+/// Different type of bory
+pub enum BodyType {
+    None,
+    Zero,
+    Sized(usize),
+    Unsized,
+}
+
+/// Type that provides this trait can be streamed to a peer.
+pub trait MessageBody {
+    fn tp(&self) -> BodyType;
+
+    fn poll_next(&mut self) -> Poll<Option<Bytes>, Error>;
+}
+
+impl MessageBody for () {
+    fn tp(&self) -> BodyType {
+        BodyType::Zero
+    }
+
+    fn poll_next(&mut self) -> Poll<Option<Bytes>, Error> {
+        Ok(Async::Ready(None))
+    }
+}
 
 /// Represents various types of http message body.
 pub enum Body {
@@ -238,6 +264,112 @@ impl AsRef<[u8]> for Binary {
             Binary::SharedString(ref s) => s.as_bytes(),
             Binary::SharedVec(ref s) => s.as_ref().as_ref(),
         }
+    }
+}
+
+impl MessageBody for Bytes {
+    fn tp(&self) -> BodyType {
+        BodyType::Sized(self.len())
+    }
+
+    fn poll_next(&mut self) -> Poll<Option<Bytes>, Error> {
+        if self.is_empty() {
+            Ok(Async::Ready(None))
+        } else {
+            Ok(Async::Ready(Some(mem::replace(self, Bytes::new()))))
+        }
+    }
+}
+
+impl MessageBody for &'static str {
+    fn tp(&self) -> BodyType {
+        BodyType::Sized(self.len())
+    }
+
+    fn poll_next(&mut self) -> Poll<Option<Bytes>, Error> {
+        if self.is_empty() {
+            Ok(Async::Ready(None))
+        } else {
+            Ok(Async::Ready(Some(Bytes::from_static(
+                mem::replace(self, "").as_ref(),
+            ))))
+        }
+    }
+}
+
+impl MessageBody for &'static [u8] {
+    fn tp(&self) -> BodyType {
+        BodyType::Sized(self.len())
+    }
+
+    fn poll_next(&mut self) -> Poll<Option<Bytes>, Error> {
+        if self.is_empty() {
+            Ok(Async::Ready(None))
+        } else {
+            Ok(Async::Ready(Some(Bytes::from_static(mem::replace(
+                self, b"",
+            )))))
+        }
+    }
+}
+
+impl MessageBody for Vec<u8> {
+    fn tp(&self) -> BodyType {
+        BodyType::Sized(self.len())
+    }
+
+    fn poll_next(&mut self) -> Poll<Option<Bytes>, Error> {
+        if self.is_empty() {
+            Ok(Async::Ready(None))
+        } else {
+            Ok(Async::Ready(Some(Bytes::from(mem::replace(
+                self,
+                Vec::new(),
+            )))))
+        }
+    }
+}
+
+impl MessageBody for String {
+    fn tp(&self) -> BodyType {
+        BodyType::Sized(self.len())
+    }
+
+    fn poll_next(&mut self) -> Poll<Option<Bytes>, Error> {
+        if self.is_empty() {
+            Ok(Async::Ready(None))
+        } else {
+            Ok(Async::Ready(Some(Bytes::from(
+                mem::replace(self, String::new()).into_bytes(),
+            ))))
+        }
+    }
+}
+
+#[doc(hidden)]
+pub struct MessageBodyStream<S> {
+    stream: S,
+}
+
+impl<S> MessageBodyStream<S>
+where
+    S: Stream<Item = Bytes, Error = Error>,
+{
+    pub fn new(stream: S) -> Self {
+        MessageBodyStream { stream }
+    }
+}
+
+impl<S> MessageBody for MessageBodyStream<S>
+where
+    S: Stream<Item = Bytes, Error = Error>,
+{
+    fn tp(&self) -> BodyType {
+        BodyType::Unsized
+    }
+
+    fn poll_next(&mut self) -> Poll<Option<Bytes>, Error> {
+        self.stream.poll()
     }
 }
 

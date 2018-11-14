@@ -344,7 +344,7 @@ where
                                     *req.inner.payload.borrow_mut() = Some(pl);
                                     self.payload = Some(ps);
                                 }
-                                MessageType::Unhandled => {
+                                MessageType::Stream => {
                                     self.unhandled = Some(req);
                                     return Ok(updated);
                                 }

@@ -240,7 +240,10 @@ impl MessagePool {
             if let Some(r) = Rc::get_mut(&mut msg) {
                 r.reset();
             }
-            return ClientResponse { inner: msg };
+            return ClientResponse {
+                inner: msg,
+                payload: None,
+            };
         }
         ClientResponse::with_pool(pool)
     }

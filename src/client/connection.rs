@@ -6,7 +6,7 @@ use tokio_io::{AsyncRead, AsyncWrite};
 use super::pool::Acquired;
 
 /// HTTP client connection
-pub struct Connection<T: AsyncRead + AsyncWrite + 'static> {
+pub struct Connection<T> {
     io: T,
     created: time::Instant,
     pool: Option<Acquired<T>>,
@@ -14,7 +14,7 @@ pub struct Connection<T: AsyncRead + AsyncWrite + 'static> {
 
 impl<T> fmt::Debug for Connection<T>
 where
-    T: AsyncRead + AsyncWrite + fmt::Debug + 'static,
+    T: fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Connection {:?}", self.io)

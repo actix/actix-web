@@ -327,10 +327,7 @@ enum Acquire<T> {
     NotAvailable,
 }
 
-pub(crate) struct Inner<Io>
-where
-    Io: AsyncRead + AsyncWrite + 'static,
-{
+pub(crate) struct Inner<Io> {
     conn_lifetime: Duration,
     conn_keep_alive: Duration,
     disconnect_timeout: Option<Duration>,
@@ -343,6 +340,33 @@ where
     )>,
     waiters_queue: IndexSet<(Key, usize)>,
     task: AtomicTask,
+}
+
+impl<Io> Inner<Io> {
+    fn reserve(&mut self) {
+        self.acquired += 1;
+    }
+
+    fn release(&mut self) {
+        self.acquired -= 1;
+    }
+
+    fn release_waiter(&mut self, key: &Key, token: usize) {
+        self.waiters.remove(token);
+        self.waiters_queue.remove(&(key.clone(), token));
+    }
+
+    fn release_conn(&mut self, key: &Key, io: Io, created: Instant) {
+        self.acquired -= 1;
+        self.available
+            .entry(key.clone())
+            .or_insert_with(VecDeque::new)
+            .push_back(AvailableConnection {
+                io,
+                created,
+                used: Instant::now(),
+            });
+    }
 }
 
 impl<Io> Inner<Io>
@@ -365,11 +389,6 @@ where
         entry.insert((connect, tx));
         assert!(!self.waiters_queue.insert((key, token)));
         (rx, token)
-    }
-
-    fn release_waiter(&mut self, key: &Key, token: usize) {
-        self.waiters.remove(token);
-        self.waiters_queue.remove(&(key.clone(), token));
     }
 
     fn acquire(&mut self, key: &Key) -> Acquire<Io> {
@@ -410,26 +429,6 @@ where
             }
         }
         Acquire::Available
-    }
-
-    fn reserve(&mut self) {
-        self.acquired += 1;
-    }
-
-    fn release(&mut self) {
-        self.acquired -= 1;
-    }
-
-    fn release_conn(&mut self, key: &Key, io: Io, created: Instant) {
-        self.acquired -= 1;
-        self.available
-            .entry(key.clone())
-            .or_insert_with(VecDeque::new)
-            .push_back(AvailableConnection {
-                io,
-                created,
-                used: Instant::now(),
-            });
     }
 
     fn release_close(&mut self, io: Io) {
@@ -541,10 +540,7 @@ where
     }
 }
 
-pub(crate) struct Acquired<T: AsyncRead + AsyncWrite + 'static>(
-    Key,
-    Option<Rc<RefCell<Inner<T>>>>,
-);
+pub(crate) struct Acquired<T>(Key, Option<Rc<RefCell<Inner<T>>>>);
 
 impl<T> Acquired<T>
 where
@@ -567,10 +563,7 @@ where
     }
 }
 
-impl<T> Drop for Acquired<T>
-where
-    T: AsyncRead + AsyncWrite + 'static,
-{
+impl<T> Drop for Acquired<T> {
     fn drop(&mut self) {
         if let Some(inner) = self.1.take() {
             inner.as_ref().borrow_mut().release();

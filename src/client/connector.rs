@@ -130,7 +130,7 @@ impl Connector {
         self,
     ) -> impl Service<
         Request = Connect,
-        Response = impl AsyncRead + AsyncWrite + fmt::Debug,
+        Response = Connection<impl AsyncRead + AsyncWrite + fmt::Debug>,
         Error = ConnectorError,
     > + Clone {
         #[cfg(not(feature = "ssl"))]
