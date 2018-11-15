@@ -202,7 +202,6 @@ where
             let framed = self.framed.as_mut().unwrap();
             if !framed.is_write_buf_full() {
                 if let Some(res) = self.res.take() {
-                    println!("SEND RESP: {:?}", res);
                     framed.force_send(res)?;
                 }
             }
