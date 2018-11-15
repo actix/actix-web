@@ -17,7 +17,7 @@ use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_timer::{sleep, Delay};
 
 use super::connect::Connect;
-use super::connection::Connection;
+use super::connection::IoConnection;
 use super::error::ConnectorError;
 
 #[derive(Hash, Eq, PartialEq, Clone, Debug)]
@@ -89,10 +89,10 @@ where
     T: Service<Request = Connect, Response = (Connect, Io), Error = ConnectorError>,
 {
     type Request = Connect;
-    type Response = Connection<Io>;
+    type Response = IoConnection<Io>;
     type Error = ConnectorError;
     type Future = Either<
-        FutureResult<Connection<Io>, ConnectorError>,
+        FutureResult<IoConnection<Io>, ConnectorError>,
         Either<WaitForConnection<Io>, OpenConnection<T::Future, Io>>,
     >;
 
@@ -107,7 +107,7 @@ where
         match self.1.as_ref().borrow_mut().acquire(&key) {
             Acquire::Acquired(io, created) => {
                 // use existing connection
-                Either::A(ok(Connection::new(
+                Either::A(ok(IoConnection::new(
                     io,
                     created,
                     Acquired(key, Some(self.1.clone())),
@@ -142,7 +142,7 @@ where
 {
     key: Key,
     token: usize,
-    rx: oneshot::Receiver<Result<Connection<Io>, ConnectorError>>,
+    rx: oneshot::Receiver<Result<IoConnection<Io>, ConnectorError>>,
     inner: Option<Rc<RefCell<Inner<Io>>>>,
 }
 
@@ -163,7 +163,7 @@ impl<Io> Future for WaitForConnection<Io>
 where
     Io: AsyncRead + AsyncWrite,
 {
-    type Item = Connection<Io>;
+    type Item = IoConnection<Io>;
     type Error = ConnectorError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
@@ -226,7 +226,7 @@ where
     F: Future<Item = (Connect, Io), Error = ConnectorError>,
     Io: AsyncRead + AsyncWrite,
 {
-    type Item = Connection<Io>;
+    type Item = IoConnection<Io>;
     type Error = ConnectorError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
@@ -234,7 +234,7 @@ where
             Err(err) => Err(err.into()),
             Ok(Async::Ready((_, io))) => {
                 let _ = self.inner.take();
-                Ok(Async::Ready(Connection::new(
+                Ok(Async::Ready(IoConnection::new(
                     io,
                     Instant::now(),
                     Acquired(self.key.clone(), self.inner.clone()),
@@ -251,7 +251,7 @@ where
 {
     fut: F,
     key: Key,
-    rx: Option<oneshot::Sender<Result<Connection<Io>, ConnectorError>>>,
+    rx: Option<oneshot::Sender<Result<IoConnection<Io>, ConnectorError>>>,
     inner: Option<Rc<RefCell<Inner<Io>>>>,
 }
 
@@ -262,7 +262,7 @@ where
 {
     fn spawn(
         key: Key,
-        rx: oneshot::Sender<Result<Connection<Io>, ConnectorError>>,
+        rx: oneshot::Sender<Result<IoConnection<Io>, ConnectorError>>,
         inner: Rc<RefCell<Inner<Io>>>,
         fut: F,
     ) {
@@ -308,7 +308,7 @@ where
             Ok(Async::Ready((_, io))) => {
                 let _ = self.inner.take();
                 if let Some(rx) = self.rx.take() {
-                    let _ = rx.send(Ok(Connection::new(
+                    let _ = rx.send(Ok(IoConnection::new(
                         io,
                         Instant::now(),
                         Acquired(self.key.clone(), self.inner.clone()),
@@ -336,7 +336,7 @@ pub(crate) struct Inner<Io> {
     available: HashMap<Key, VecDeque<AvailableConnection<Io>>>,
     waiters: Slab<(
         Connect,
-        oneshot::Sender<Result<Connection<Io>, ConnectorError>>,
+        oneshot::Sender<Result<IoConnection<Io>, ConnectorError>>,
     )>,
     waiters_queue: IndexSet<(Key, usize)>,
     task: AtomicTask,
@@ -378,7 +378,7 @@ where
         &mut self,
         connect: Connect,
     ) -> (
-        oneshot::Receiver<Result<Connection<Io>, ConnectorError>>,
+        oneshot::Receiver<Result<IoConnection<Io>, ConnectorError>>,
         usize,
     ) {
         let (tx, rx) = oneshot::channel();
@@ -479,7 +479,7 @@ where
                 Acquire::NotAvailable => break,
                 Acquire::Acquired(io, created) => {
                     let (_, tx) = inner.waiters.remove(token);
-                    if let Err(conn) = tx.send(Ok(Connection::new(
+                    if let Err(conn) = tx.send(Ok(IoConnection::new(
                         io,
                         created,
                         Acquired(key.clone(), Some(self.inner.clone())),
@@ -546,13 +546,13 @@ impl<T> Acquired<T>
 where
     T: AsyncRead + AsyncWrite + 'static,
 {
-    pub(crate) fn close(&mut self, conn: Connection<T>) {
+    pub(crate) fn close(&mut self, conn: IoConnection<T>) {
         if let Some(inner) = self.1.take() {
             let (io, _) = conn.into_inner();
             inner.as_ref().borrow_mut().release_close(io);
         }
     }
-    pub(crate) fn release(&mut self, conn: Connection<T>) {
+    pub(crate) fn release(&mut self, conn: IoConnection<T>) {
         if let Some(inner) = self.1.take() {
             let (io, created) = conn.into_inner();
             inner

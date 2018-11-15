@@ -7,7 +7,6 @@ use bytes::{BufMut, Bytes, BytesMut};
 use cookie::{Cookie, CookieJar};
 use futures::{Future, Stream};
 use percent_encoding::{percent_encode, USERINFO_ENCODE_SET};
-use tokio_io::{AsyncRead, AsyncWrite};
 use urlcrate::Url;
 
 use body::{MessageBody, MessageBodyStream};
@@ -176,13 +175,13 @@ where
     // Send request
     ///
     /// This method returns a future that resolves to a ClientResponse
-    pub fn send<T, Io>(
+    pub fn send<T, I>(
         self,
         connector: &mut T,
     ) -> impl Future<Item = ClientResponse, Error = SendRequestError>
     where
-        T: Service<Request = Connect, Response = Connection<Io>, Error = ConnectorError>,
-        Io: AsyncRead + AsyncWrite + 'static,
+        T: Service<Request = Connect, Response = I, Error = ConnectorError>,
+        I: Connection,
     {
         pipeline::send_request(self.head, self.body, connector)
     }

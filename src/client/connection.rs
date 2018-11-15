@@ -5,14 +5,23 @@ use tokio_io::{AsyncRead, AsyncWrite};
 
 use super::pool::Acquired;
 
+pub trait Connection: AsyncRead + AsyncWrite + 'static {
+    /// Close connection
+    fn close(&mut self);
+
+    /// Release connection to the connection pool
+    fn release(&mut self);
+}
+
+#[doc(hidden)]
 /// HTTP client connection
-pub struct Connection<T> {
-    io: T,
+pub struct IoConnection<T> {
+    io: Option<T>,
     created: time::Instant,
     pool: Option<Acquired<T>>,
 }
 
-impl<T> fmt::Debug for Connection<T>
+impl<T> fmt::Debug for IoConnection<T>
 where
     T: fmt::Debug,
 {
@@ -21,59 +30,73 @@ where
     }
 }
 
-impl<T: AsyncRead + AsyncWrite + 'static> Connection<T> {
+impl<T: AsyncRead + AsyncWrite + 'static> IoConnection<T> {
     pub(crate) fn new(io: T, created: time::Instant, pool: Acquired<T>) -> Self {
-        Connection {
-            io,
+        IoConnection {
             created,
+            io: Some(io),
             pool: Some(pool),
         }
     }
 
     /// Raw IO stream
     pub fn get_mut(&mut self) -> &mut T {
-        &mut self.io
+        self.io.as_mut().unwrap()
     }
 
+    pub(crate) fn into_inner(self) -> (T, time::Instant) {
+        (self.io.unwrap(), self.created)
+    }
+}
+
+impl<T: AsyncRead + AsyncWrite + 'static> Connection for IoConnection<T> {
     /// Close connection
-    pub fn close(mut self) {
+    fn close(&mut self) {
         if let Some(mut pool) = self.pool.take() {
-            pool.close(self)
+            if let Some(io) = self.io.take() {
+                pool.close(IoConnection {
+                    io: Some(io),
+                    created: self.created,
+                    pool: None,
+                })
+            }
         }
     }
 
     /// Release this connection to the connection pool
-    pub fn release(mut self) {
+    fn release(&mut self) {
         if let Some(mut pool) = self.pool.take() {
-            pool.release(self)
+            if let Some(io) = self.io.take() {
+                pool.release(IoConnection {
+                    io: Some(io),
+                    created: self.created,
+                    pool: None,
+                })
+            }
         }
     }
-
-    pub(crate) fn into_inner(self) -> (T, time::Instant) {
-        (self.io, self.created)
-    }
 }
 
-impl<T: AsyncRead + AsyncWrite + 'static> io::Read for Connection<T> {
+impl<T: AsyncRead + AsyncWrite + 'static> io::Read for IoConnection<T> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.io.read(buf)
+        self.io.as_mut().unwrap().read(buf)
     }
 }
 
-impl<T: AsyncRead + AsyncWrite + 'static> AsyncRead for Connection<T> {}
+impl<T: AsyncRead + AsyncWrite + 'static> AsyncRead for IoConnection<T> {}
 
-impl<T: AsyncRead + AsyncWrite + 'static> io::Write for Connection<T> {
+impl<T: AsyncRead + AsyncWrite + 'static> io::Write for IoConnection<T> {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.io.write(buf)
+        self.io.as_mut().unwrap().write(buf)
     }
 
     fn flush(&mut self) -> io::Result<()> {
-        self.io.flush()
+        self.io.as_mut().unwrap().flush()
     }
 }
 
-impl<T: AsyncRead + AsyncWrite + 'static> AsyncWrite for Connection<T> {
+impl<T: AsyncRead + AsyncWrite + 'static> AsyncWrite for IoConnection<T> {
     fn shutdown(&mut self) -> Poll<(), io::Error> {
-        self.io.shutdown()
+        self.io.as_mut().unwrap().shutdown()
     }
 }

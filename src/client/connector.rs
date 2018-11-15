@@ -11,7 +11,7 @@ use tokio_io::{AsyncRead, AsyncWrite};
 use trust_dns_resolver::config::{ResolverConfig, ResolverOpts};
 
 use super::connect::Connect;
-use super::connection::Connection;
+use super::connection::{Connection, IoConnection};
 use super::error::ConnectorError;
 use super::pool::ConnectionPool;
 
@@ -130,7 +130,7 @@ impl Connector {
         self,
     ) -> impl Service<
         Request = Connect,
-        Response = Connection<impl AsyncRead + AsyncWrite + fmt::Debug>,
+        Response = impl Connection,
         Error = ConnectorError,
     > + Clone {
         #[cfg(not(feature = "ssl"))]
@@ -234,11 +234,11 @@ mod connect_impl {
         T: Service<Request = Connect, Response = (Connect, Io), Error = ConnectorError>,
     {
         type Request = Connect;
-        type Response = Connection<Io>;
+        type Response = IoConnection<Io>;
         type Error = ConnectorError;
         type Future = Either<
             <ConnectionPool<T, Io> as Service>::Future,
-            FutureResult<Connection<Io>, ConnectorError>,
+            FutureResult<IoConnection<Io>, ConnectorError>,
         >;
 
         fn poll_ready(&mut self) -> Poll<(), Self::Error> {
@@ -324,7 +324,7 @@ mod connect_impl {
         >,
     {
         type Request = Connect;
-        type Response = IoEither<Connection<Io1>, Connection<Io2>>;
+        type Response = IoEither<IoConnection<Io1>, IoConnection<Io2>>;
         type Error = ConnectorError;
         type Future = Either<
             FutureResult<Self::Response, Self::Error>,
@@ -342,13 +342,13 @@ mod connect_impl {
             if let Err(e) = req.validate() {
                 Either::A(err(e))
             } else if req.is_secure() {
-                Either::B(Either::A(InnerConnectorResponseA {
-                    fut: self.tcp_pool.call(req),
+                Either::B(Either::B(InnerConnectorResponseB {
+                    fut: self.ssl_pool.call(req),
                     _t: PhantomData,
                 }))
             } else {
-                Either::B(Either::B(InnerConnectorResponseB {
-                    fut: self.ssl_pool.call(req),
+                Either::B(Either::A(InnerConnectorResponseA {
+                    fut: self.tcp_pool.call(req),
                     _t: PhantomData,
                 }))
             }
@@ -370,7 +370,7 @@ mod connect_impl {
         Io1: AsyncRead + AsyncWrite + 'static,
         Io2: AsyncRead + AsyncWrite + 'static,
     {
-        type Item = IoEither<Connection<Io1>, Connection<Io2>>;
+        type Item = IoEither<IoConnection<Io1>, IoConnection<Io2>>;
         type Error = ConnectorError;
 
         fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
@@ -396,7 +396,7 @@ mod connect_impl {
         Io1: AsyncRead + AsyncWrite + 'static,
         Io2: AsyncRead + AsyncWrite + 'static,
     {
-        type Item = IoEither<Connection<Io1>, Connection<Io2>>;
+        type Item = IoEither<IoConnection<Io1>, IoConnection<Io2>>;
         type Error = ConnectorError;
 
         fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
@@ -413,10 +413,30 @@ pub(crate) enum IoEither<Io1, Io2> {
     B(Io2),
 }
 
+impl<Io1, Io2> Connection for IoEither<Io1, Io2>
+where
+    Io1: Connection,
+    Io2: Connection,
+{
+    fn close(&mut self) {
+        match self {
+            IoEither::A(ref mut io) => io.close(),
+            IoEither::B(ref mut io) => io.close(),
+        }
+    }
+
+    fn release(&mut self) {
+        match self {
+            IoEither::A(ref mut io) => io.release(),
+            IoEither::B(ref mut io) => io.release(),
+        }
+    }
+}
+
 impl<Io1, Io2> io::Read for IoEither<Io1, Io2>
 where
-    Io1: io::Read,
-    Io2: io::Read,
+    Io1: Connection,
+    Io2: Connection,
 {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         match self {
@@ -428,8 +448,8 @@ where
 
 impl<Io1, Io2> AsyncRead for IoEither<Io1, Io2>
 where
-    Io1: AsyncRead,
-    Io2: AsyncRead,
+    Io1: Connection,
+    Io2: Connection,
 {
     unsafe fn prepare_uninitialized_buffer(&self, buf: &mut [u8]) -> bool {
         match self {
@@ -441,8 +461,8 @@ where
 
 impl<Io1, Io2> AsyncWrite for IoEither<Io1, Io2>
 where
-    Io1: AsyncWrite,
-    Io2: AsyncWrite,
+    Io1: Connection,
+    Io2: Connection,
 {
     fn shutdown(&mut self) -> Poll<(), io::Error> {
         match self {
@@ -468,8 +488,8 @@ where
 
 impl<Io1, Io2> io::Write for IoEither<Io1, Io2>
 where
-    Io1: io::Write,
-    Io2: io::Write,
+    Io1: Connection,
+    Io2: Connection,
 {
     fn flush(&mut self) -> io::Result<()> {
         match self {

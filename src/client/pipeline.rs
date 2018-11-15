@@ -15,27 +15,32 @@ use body::{BodyType, MessageBody, PayloadStream};
 use error::PayloadError;
 use h1;
 
-pub fn send_request<T, Io, B>(
+pub(crate) fn send_request<T, I, B>(
     head: RequestHead,
     body: B,
     connector: &mut T,
 ) -> impl Future<Item = ClientResponse, Error = SendRequestError>
 where
-    T: Service<Request = Connect, Response = Connection<Io>, Error = ConnectorError>,
+    T: Service<Request = Connect, Response = I, Error = ConnectorError>,
     B: MessageBody,
-    Io: AsyncRead + AsyncWrite + 'static,
+    I: Connection,
 {
     let tp = body.tp();
 
     connector
+        // connect to the host
         .call(Connect::new(head.uri.clone()))
         .from_err()
+        // create Framed and send reqest
         .map(|io| Framed::new(io, h1::ClientCodec::default()))
         .and_then(|framed| framed.send((head, tp).into()).from_err())
+        // send request body
         .and_then(move |framed| match body.tp() {
             BodyType::None | BodyType::Zero => Either::A(ok(framed)),
             _ => Either::B(SendBody::new(body, framed)),
-        }).and_then(|framed| {
+        })
+        // read response and init read body
+        .and_then(|framed| {
             framed
                 .into_future()
                 .map_err(|(e, _)| SendRequestError::from(e))
@@ -55,19 +60,20 @@ where
         })
 }
 
-struct SendBody<Io, B> {
+/// Future responsible for sending request body to the peer
+struct SendBody<I, B> {
     body: Option<B>,
-    framed: Option<Framed<Connection<Io>, h1::ClientCodec>>,
+    framed: Option<Framed<I, h1::ClientCodec>>,
     write_buf: VecDeque<h1::Message<(RequestHead, BodyType)>>,
     flushed: bool,
 }
 
-impl<Io, B> SendBody<Io, B>
+impl<I, B> SendBody<I, B>
 where
-    Io: AsyncRead + AsyncWrite + 'static,
+    I: AsyncRead + AsyncWrite + 'static,
     B: MessageBody,
 {
-    fn new(body: B, framed: Framed<Connection<Io>, h1::ClientCodec>) -> Self {
+    fn new(body: B, framed: Framed<I, h1::ClientCodec>) -> Self {
         SendBody {
             body: Some(body),
             framed: Some(framed),
@@ -77,12 +83,12 @@ where
     }
 }
 
-impl<Io, B> Future for SendBody<Io, B>
+impl<I, B> Future for SendBody<I, B>
 where
-    Io: AsyncRead + AsyncWrite + 'static,
+    I: Connection,
     B: MessageBody,
 {
-    type Item = Framed<Connection<Io>, h1::ClientCodec>;
+    type Item = Framed<I, h1::ClientCodec>;
     type Error = SendRequestError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
@@ -135,7 +141,7 @@ impl Stream for EmptyPayload {
 }
 
 pub(crate) struct Payload<Io> {
-    framed: Option<Framed<Connection<Io>, h1::ClientPayloadCodec>>,
+    framed: Option<Framed<Io, h1::ClientPayloadCodec>>,
 }
 
 impl Payload<()> {
@@ -144,15 +150,15 @@ impl Payload<()> {
     }
 }
 
-impl<Io: AsyncRead + AsyncWrite + 'static> Payload<Io> {
-    fn stream(framed: Framed<Connection<Io>, h1::ClientCodec>) -> PayloadStream {
+impl<Io: Connection> Payload<Io> {
+    fn stream(framed: Framed<Io, h1::ClientCodec>) -> PayloadStream {
         Box::new(Payload {
             framed: Some(framed.map_codec(|codec| codec.into_payload_codec())),
         })
     }
 }
 
-impl<Io: AsyncRead + AsyncWrite + 'static> Stream for Payload<Io> {
+impl<Io: Connection> Stream for Payload<Io> {
     type Item = Bytes;
     type Error = PayloadError;
 
@@ -170,11 +176,11 @@ impl<Io: AsyncRead + AsyncWrite + 'static> Stream for Payload<Io> {
     }
 }
 
-fn release_connection<T, U>(framed: Framed<Connection<T>, U>)
+fn release_connection<T, U>(framed: Framed<T, U>)
 where
-    T: AsyncRead + AsyncWrite + 'static,
+    T: Connection,
 {
-    let parts = framed.into_parts();
+    let mut parts = framed.into_parts();
     if parts.read_buf.is_empty() && parts.write_buf.is_empty() {
         parts.io.release()
     } else {
