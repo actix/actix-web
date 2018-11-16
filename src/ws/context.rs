@@ -231,6 +231,13 @@ where
     pub fn handle(&self) -> SpawnHandle {
         self.inner.curr_handle()
     }
+
+    /// Set mailbox capacity
+    ///
+    /// By default mailbox capacity is 16 messages.
+    pub fn set_mailbox_capacity(&mut self, cap: usize) {
+        self.inner.set_mailbox_capacity(cap)
+    }
 }
 
 impl<A, S> WsWriter for WebsocketContext<A, S>
