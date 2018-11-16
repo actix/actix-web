@@ -391,10 +391,10 @@ impl TestRequest {
         let mut req = Request::new();
         {
             let inner = req.inner_mut();
-            inner.method = method;
+            inner.head.method = method;
             inner.url = InnerUrl::new(uri);
-            inner.version = version;
-            inner.headers = headers;
+            inner.head.version = version;
+            inner.head.headers = headers;
             *inner.payload.borrow_mut() = payload;
         }
         // req.set_cookies(cookies);

@@ -23,12 +23,28 @@ pub struct Request {
     pub(crate) inner: Rc<Message>,
 }
 
-pub struct Message {
-    pub version: Version,
-    pub status: StatusCode,
+pub struct RequestHead {
+    pub uri: Uri,
     pub method: Method,
-    pub url: Url,
+    pub version: Version,
     pub headers: HeaderMap,
+}
+
+impl Default for RequestHead {
+    fn default() -> RequestHead {
+        RequestHead {
+            uri: Uri::default(),
+            method: Method::default(),
+            version: Version::HTTP_11,
+            headers: HeaderMap::with_capacity(16),
+        }
+    }
+}
+
+pub struct Message {
+    pub head: RequestHead,
+    pub url: Url,
+    pub status: StatusCode,
     pub extensions: RefCell<Extensions>,
     pub payload: RefCell<Option<Payload>>,
     pub(crate) pool: &'static MessagePool,
@@ -39,7 +55,7 @@ impl Message {
     #[inline]
     /// Reset request instance
     pub fn reset(&mut self) {
-        self.headers.clear();
+        self.head.clear();
         self.extensions.borrow_mut().clear();
         self.flags.set(MessageFlags::empty());
         *self.payload.borrow_mut() = None;
@@ -50,7 +66,7 @@ impl HttpMessage for Request {
     type Stream = Payload;
 
     fn headers(&self) -> &HeaderMap {
-        &self.inner.headers
+        &self.inner.head.headers
     }
 
     #[inline]
@@ -74,11 +90,9 @@ impl Request {
         Request {
             inner: Rc::new(Message {
                 pool,
-                method: Method::GET,
-                status: StatusCode::OK,
                 url: Url::default(),
-                version: Version::HTTP_11,
-                headers: HeaderMap::with_capacity(16),
+                head: RequestHead::default(),
+                status: StatusCode::OK,
                 flags: Cell::new(MessageFlags::empty()),
                 payload: RefCell::new(None),
                 extensions: RefCell::new(Extensions::new()),
@@ -98,27 +112,28 @@ impl Request {
         Rc::get_mut(&mut self.inner).expect("Multiple copies exist")
     }
 
-    #[inline]
-    pub fn url(&self) -> &Url {
-        &self.inner().url
-    }
-
-    /// Read the Request Uri.
+    /// Request's uri.
     #[inline]
     pub fn uri(&self) -> &Uri {
-        self.inner().url.uri()
+        &self.inner().head.uri
+    }
+
+    /// Mutable reference to the request's uri.
+    #[inline]
+    pub fn uri_mut(&mut self) -> &mut Uri {
+        &mut self.inner_mut().head.uri
     }
 
     /// Read the Request method.
     #[inline]
     pub fn method(&self) -> &Method {
-        &self.inner().method
+        &self.inner().head.method
     }
 
     /// Read the Request Version.
     #[inline]
     pub fn version(&self) -> Version {
-        self.inner().version
+        self.inner().head.version
     }
 
     /// The target path of this Request.
@@ -130,13 +145,13 @@ impl Request {
     #[inline]
     /// Returns Request's headers.
     pub fn headers(&self) -> &HeaderMap {
-        &self.inner().headers
+        &self.inner().head.headers
     }
 
     #[inline]
     /// Returns mutable Request's headers.
     pub fn headers_mut(&mut self) -> &mut HeaderMap {
-        &mut self.inner_mut().headers
+        &mut self.inner_mut().head.headers
     }
 
     /// Checks if a connection should be kept alive.
@@ -159,12 +174,12 @@ impl Request {
 
     /// Check if request requires connection upgrade
     pub fn upgrade(&self) -> bool {
-        if let Some(conn) = self.inner().headers.get(header::CONNECTION) {
+        if let Some(conn) = self.inner().head.headers.get(header::CONNECTION) {
             if let Ok(s) = conn.to_str() {
                 return s.to_lowercase().contains("upgrade");
             }
         }
-        self.inner().method == Method::CONNECT
+        self.inner().head.method == Method::CONNECT
     }
 
     #[doc(hidden)]

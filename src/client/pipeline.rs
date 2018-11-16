@@ -8,12 +8,12 @@ use futures::{Async, Future, Poll, Sink, Stream};
 use tokio_io::{AsyncRead, AsyncWrite};
 
 use super::error::{ConnectorError, SendRequestError};
-use super::request::RequestHead;
 use super::response::ClientResponse;
 use super::{Connect, Connection};
 use body::{BodyType, MessageBody, PayloadStream};
 use error::PayloadError;
 use h1;
+use request::RequestHead;
 
 pub(crate) fn send_request<T, I, B>(
     head: RequestHead,

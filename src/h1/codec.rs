@@ -261,8 +261,8 @@ impl Decoder for Codec {
             })
         } else if let Some((req, payload)) = self.decoder.decode(src)? {
             self.flags
-                .set(Flags::HEAD, req.inner.method == Method::HEAD);
-            self.version = req.inner.version;
+                .set(Flags::HEAD, req.inner.head.method == Method::HEAD);
+            self.version = req.inner.head.version;
             if self.flags.contains(Flags::KEEPALIVE_ENABLED) {
                 self.flags.set(Flags::KEEPALIVE, req.keep_alive());
             }

@@ -9,10 +9,9 @@ use http::header::{HeaderValue, ACCEPT_ENCODING, CONTENT_LENGTH};
 use http::{StatusCode, Version};
 
 use body::{Binary, Body};
-use client::RequestHead;
 use header::ContentEncoding;
 use http::Method;
-use request::Request;
+use request::{Request, RequestHead};
 use response::Response;
 
 #[derive(Debug)]

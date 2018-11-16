@@ -12,5 +12,5 @@ pub use self::connect::Connect;
 pub use self::connection::Connection;
 pub use self::connector::Connector;
 pub use self::error::{ConnectorError, InvalidUrlKind, SendRequestError};
-pub use self::request::{ClientRequest, ClientRequestBuilder, RequestHead};
+pub use self::request::{ClientRequest, ClientRequestBuilder};
 pub use self::response::ClientResponse;

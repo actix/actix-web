@@ -4,13 +4,13 @@ use std::rc::Rc;
 
 use bytes::Bytes;
 use futures::{Async, Poll, Stream};
-use http::{HeaderMap, Method, StatusCode, Version};
+use http::{HeaderMap, StatusCode, Version};
 
 use body::PayloadStream;
 use error::PayloadError;
 use extensions::Extensions;
 use httpmessage::HttpMessage;
-use request::{Message, MessageFlags, MessagePool};
+use request::{Message, MessageFlags, MessagePool, RequestHead};
 use uri::Url;
 
 use super::pipeline::Payload;
@@ -25,7 +25,7 @@ impl HttpMessage for ClientResponse {
     type Stream = PayloadStream;
 
     fn headers(&self) -> &HeaderMap {
-        &self.inner.headers
+        &self.inner.head.headers
     }
 
     #[inline]
@@ -49,11 +49,9 @@ impl ClientResponse {
         ClientResponse {
             inner: Rc::new(Message {
                 pool,
-                method: Method::GET,
+                head: RequestHead::default(),
                 status: StatusCode::OK,
                 url: Url::default(),
-                version: Version::HTTP_11,
-                headers: HeaderMap::with_capacity(16),
                 flags: Cell::new(MessageFlags::empty()),
                 payload: RefCell::new(None),
                 extensions: RefCell::new(Extensions::new()),
@@ -75,7 +73,7 @@ impl ClientResponse {
     /// Read the Request Version.
     #[inline]
     pub fn version(&self) -> Version {
-        self.inner().version
+        self.inner().head.version
     }
 
     /// Get the status from the server.
@@ -87,13 +85,13 @@ impl ClientResponse {
     #[inline]
     /// Returns Request's headers.
     pub fn headers(&self) -> &HeaderMap {
-        &self.inner().headers
+        &self.inner().head.headers
     }
 
     #[inline]
     /// Returns mutable Request's headers.
     pub fn headers_mut(&mut self) -> &mut HeaderMap {
-        &mut self.inner_mut().headers
+        &mut self.inner_mut().head.headers
     }
 
     /// Checks if a connection should be kept alive.

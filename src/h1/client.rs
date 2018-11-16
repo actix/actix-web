@@ -8,7 +8,7 @@ use super::decoder::{PayloadDecoder, PayloadItem, PayloadType, ResponseDecoder};
 use super::encoder::{RequestEncoder, ResponseLength};
 use super::{Message, MessageType};
 use body::{Binary, Body, BodyType};
-use client::{ClientResponse, RequestHead};
+use client::ClientResponse;
 use config::ServiceConfig;
 use error::{ParseError, PayloadError};
 use helpers;
@@ -16,7 +16,7 @@ use http::header::{
     HeaderValue, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING, UPGRADE,
 };
 use http::{Method, Version};
-use request::MessagePool;
+use request::{MessagePool, RequestHead};
 
 bitflags! {
     struct Flags: u8 {
@@ -187,8 +187,8 @@ impl Decoder for ClientCodec {
         if let Some((req, payload)) = self.inner.decoder.decode(src)? {
             self.inner
                 .flags
-                .set(Flags::HEAD, req.inner.method == Method::HEAD);
-            self.inner.version = req.inner.version;
+                .set(Flags::HEAD, req.inner.head.method == Method::HEAD);
+            self.inner.version = req.inner.head.version;
             if self.inner.flags.contains(Flags::KEEPALIVE_ENABLED) {
                 self.inner.flags.set(Flags::KEEPALIVE, req.keep_alive());
             }

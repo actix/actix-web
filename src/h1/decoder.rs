@@ -152,15 +152,15 @@ impl Decoder for RequestDecoder {
                             _ => (),
                         }
 
-                        inner.headers.append(name, value);
+                        inner.head.headers.append(name, value);
                     } else {
                         return Err(ParseError::Header);
                     }
                 }
 
                 inner.url = path;
-                inner.method = method;
-                inner.version = version;
+                inner.head.method = method;
+                inner.head.version = version;
             }
             msg
         };
@@ -172,7 +172,7 @@ impl Decoder for RequestDecoder {
         } else if let Some(len) = content_length {
             // Content-Length
             PayloadType::Payload(PayloadDecoder::length(len))
-        } else if has_upgrade || msg.inner.method == Method::CONNECT {
+        } else if has_upgrade || msg.inner.head.method == Method::CONNECT {
             // upgrade(websocket) or connect
             PayloadType::Stream(PayloadDecoder::eof())
         } else if src.len() >= MAX_BUFFER_SIZE {
@@ -298,14 +298,14 @@ impl Decoder for ResponseDecoder {
                             _ => (),
                         }
 
-                        inner.headers.append(name, value);
+                        inner.head.headers.append(name, value);
                     } else {
                         return Err(ParseError::Header);
                     }
                 }
 
                 inner.status = status;
-                inner.version = version;
+                inner.head.version = version;
             }
             msg
         };
@@ -318,7 +318,7 @@ impl Decoder for ResponseDecoder {
             // Content-Length
             PayloadType::Payload(PayloadDecoder::length(len))
         } else if msg.inner.status == StatusCode::SWITCHING_PROTOCOLS
-            || msg.inner.method == Method::CONNECT
+            || msg.inner.head.method == Method::CONNECT
         {
             // switching protocol or connect
             PayloadType::Stream(PayloadDecoder::eof())

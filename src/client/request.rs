@@ -16,6 +16,7 @@ use http::{
     uri, Error as HttpError, HeaderMap, HeaderName, HeaderValue, HttpTryFrom, Method,
     Uri, Version,
 };
+use request::RequestHead;
 
 use super::response::ClientResponse;
 use super::{pipeline, Connect, Connection, ConnectorError, SendRequestError};
@@ -50,21 +51,9 @@ pub struct ClientRequest<B: MessageBody = ()> {
     body: B,
 }
 
-pub struct RequestHead {
-    pub uri: Uri,
-    pub method: Method,
-    pub version: Version,
-    pub headers: HeaderMap,
-}
-
-impl Default for RequestHead {
-    fn default() -> RequestHead {
-        RequestHead {
-            uri: Uri::default(),
-            method: Method::default(),
-            version: Version::HTTP_11,
-            headers: HeaderMap::with_capacity(16),
-        }
+impl RequestHead {
+    pub fn clear(&mut self) {
+        self.headers.clear()
     }
 }
 
