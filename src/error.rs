@@ -759,6 +759,16 @@ where
     InternalError::new(err, StatusCode::UNAUTHORIZED).into()
 }
 
+/// Helper function that creates wrapper of any error and generate
+/// *PAYMENT_REQUIRED* response.
+#[allow(non_snake_case)]
+pub fn ErrorPaymentRequired<T>(err: T) -> Error
+where
+    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
+{
+    InternalError::new(err, StatusCode::PAYMENT_REQUIRED).into()
+}
+
 /// Helper function that creates wrapper of any error and generate *FORBIDDEN*
 /// response.
 #[allow(non_snake_case)]
@@ -787,6 +797,26 @@ where
     T: Send + Sync + fmt::Debug + fmt::Display + 'static,
 {
     InternalError::new(err, StatusCode::METHOD_NOT_ALLOWED).into()
+}
+
+/// Helper function that creates wrapper of any error and generate *NOT
+/// ACCEPTABLE* response.
+#[allow(non_snake_case)]
+pub fn ErrorNotAcceptable<T>(err: T) -> Error
+where
+    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
+{
+    InternalError::new(err, StatusCode::NOT_ACCEPTABLE).into()
+}
+
+/// Helper function that creates wrapper of any error and generate *PROXY
+/// AUTHENTICATION REQUIRED* response.
+#[allow(non_snake_case)]
+pub fn ErrorProxyAuthenticationRequired<T>(err: T) -> Error
+where
+    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
+{
+    InternalError::new(err, StatusCode::PROXY_AUTHENTICATION_REQUIRED).into()
 }
 
 /// Helper function that creates wrapper of any error and generate *REQUEST
@@ -819,6 +849,16 @@ where
     InternalError::new(err, StatusCode::GONE).into()
 }
 
+/// Helper function that creates wrapper of any error and generate *LENGTH
+/// REQUIRED* response.
+#[allow(non_snake_case)]
+pub fn ErrorLengthRequired<T>(err: T) -> Error
+where
+    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
+{
+    InternalError::new(err, StatusCode::LENGTH_REQUIRED).into()
+}
+
 /// Helper function that creates wrapper of any error and generate
 /// *PRECONDITION FAILED* response.
 #[allow(non_snake_case)]
@@ -830,6 +870,46 @@ where
 }
 
 /// Helper function that creates wrapper of any error and generate
+/// *PAYLOAD TOO LARGE* response.
+#[allow(non_snake_case)]
+pub fn ErrorPayloadTooLarge<T>(err: T) -> Error
+where
+    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
+{
+    InternalError::new(err, StatusCode::PAYLOAD_TOO_LARGE).into()
+}
+
+/// Helper function that creates wrapper of any error and generate
+/// *URI TOO LONG* response.
+#[allow(non_snake_case)]
+pub fn ErrorUriTooLong<T>(err: T) -> Error
+where
+    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
+{
+    InternalError::new(err, StatusCode::URI_TOO_LONG).into()
+}
+
+/// Helper function that creates wrapper of any error and generate
+/// *UNSUPPORTED MEDIA TYPE* response.
+#[allow(non_snake_case)]
+pub fn ErrorUnsupportedMediaType<T>(err: T) -> Error
+where
+    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
+{
+    InternalError::new(err, StatusCode::UNSUPPORTED_MEDIA_TYPE).into()
+}
+
+/// Helper function that creates wrapper of any error and generate
+/// *RANGE NOT SATISFIABLE* response.
+#[allow(non_snake_case)]
+pub fn ErrorRangeNotSatisfiable<T>(err: T) -> Error
+where
+    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
+{
+    InternalError::new(err, StatusCode::RANGE_NOT_SATISFIABLE).into()
+}
+
+/// Helper function that creates wrapper of any error and generate
 /// *EXPECTATION FAILED* response.
 #[allow(non_snake_case)]
 pub fn ErrorExpectationFailed<T>(err: T) -> Error
@@ -837,6 +917,106 @@ where
     T: Send + Sync + fmt::Debug + fmt::Display + 'static,
 {
     InternalError::new(err, StatusCode::EXPECTATION_FAILED).into()
+}
+
+/// Helper function that creates wrapper of any error and generate
+/// *IM A TEAPOT* response.
+#[allow(non_snake_case)]
+pub fn ErrorImATeapot<T>(err: T) -> Error
+where
+    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
+{
+    InternalError::new(err, StatusCode::IM_A_TEAPOT).into()
+}
+
+/// Helper function that creates wrapper of any error and generate
+/// *MISDIRECTED REQUEST* response.
+#[allow(non_snake_case)]
+pub fn ErrorMisdirectedRequest<T>(err: T) -> Error
+where
+    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
+{
+    InternalError::new(err, StatusCode::MISDIRECTED_REQUEST).into()
+}
+
+/// Helper function that creates wrapper of any error and generate
+/// *UNPROCESSABLE ENTITY* response.
+#[allow(non_snake_case)]
+pub fn ErrorUnprocessableEntity<T>(err: T) -> Error
+where
+    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
+{
+    InternalError::new(err, StatusCode::UNPROCESSABLE_ENTITY).into()
+}
+
+/// Helper function that creates wrapper of any error and generate
+/// *LOCKED* response.
+#[allow(non_snake_case)]
+pub fn ErrorLocked<T>(err: T) -> Error
+where
+    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
+{
+    InternalError::new(err, StatusCode::LOCKED).into()
+}
+
+/// Helper function that creates wrapper of any error and generate
+/// *FAILED DEPENDENCY* response.
+#[allow(non_snake_case)]
+pub fn ErrorFailedDependency<T>(err: T) -> Error
+where
+    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
+{
+    InternalError::new(err, StatusCode::FAILED_DEPENDENCY).into()
+}
+
+/// Helper function that creates wrapper of any error and generate
+/// *UPGRADE REQUIRED* response.
+#[allow(non_snake_case)]
+pub fn ErrorUpgradeRequired<T>(err: T) -> Error
+where
+    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
+{
+    InternalError::new(err, StatusCode::UPGRADE_REQUIRED).into()
+}
+
+/// Helper function that creates wrapper of any error and generate
+/// *PRECONDITION REQUIRED* response.
+#[allow(non_snake_case)]
+pub fn ErrorPreconditionRequired<T>(err: T) -> Error
+where
+    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
+{
+    InternalError::new(err, StatusCode::PRECONDITION_REQUIRED).into()
+}
+
+/// Helper function that creates wrapper of any error and generate
+/// *TOO MANY REQUESTS* response.
+#[allow(non_snake_case)]
+pub fn ErrorTooManyRequests<T>(err: T) -> Error
+where
+    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
+{
+    InternalError::new(err, StatusCode::TOO_MANY_REQUESTS).into()
+}
+
+/// Helper function that creates wrapper of any error and generate
+/// *REQUEST HEADER FIELDS TOO LARGE* response.
+#[allow(non_snake_case)]
+pub fn ErrorRequestHeaderFieldsTooLarge<T>(err: T) -> Error
+where
+    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
+{
+    InternalError::new(err, StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE).into()
+}
+
+/// Helper function that creates wrapper of any error and generate
+/// *UNAVAILABLE FOR LEGAL REASONS* response.
+#[allow(non_snake_case)]
+pub fn ErrorUnavailableForLegalReasons<T>(err: T) -> Error
+where
+    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
+{
+    InternalError::new(err, StatusCode::UNAVAILABLE_FOR_LEGAL_REASONS).into()
 }
 
 /// Helper function that creates wrapper of any error and
@@ -887,6 +1067,66 @@ where
     T: Send + Sync + fmt::Debug + fmt::Display + 'static,
 {
     InternalError::new(err, StatusCode::GATEWAY_TIMEOUT).into()
+}
+
+/// Helper function that creates wrapper of any error and
+/// generate *HTTP VERSION NOT SUPPORTED* response.
+#[allow(non_snake_case)]
+pub fn ErrorHttpVersionNotSupported<T>(err: T) -> Error
+where
+    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
+{
+    InternalError::new(err, StatusCode::HTTP_VERSION_NOT_SUPPORTED).into()
+}
+
+/// Helper function that creates wrapper of any error and
+/// generate *VARIANT ALSO NEGOTIATES* response.
+#[allow(non_snake_case)]
+pub fn ErrorVariantAlsoNegotiates<T>(err: T) -> Error
+where
+    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
+{
+    InternalError::new(err, StatusCode::VARIANT_ALSO_NEGOTIATES).into()
+}
+
+/// Helper function that creates wrapper of any error and
+/// generate *INSUFFICIENT STORAGE* response.
+#[allow(non_snake_case)]
+pub fn ErrorInsufficientStorage<T>(err: T) -> Error
+where
+    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
+{
+    InternalError::new(err, StatusCode::INSUFFICIENT_STORAGE).into()
+}
+
+/// Helper function that creates wrapper of any error and
+/// generate *LOOP DETECTED* response.
+#[allow(non_snake_case)]
+pub fn ErrorLoopDetected<T>(err: T) -> Error
+where
+    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
+{
+    InternalError::new(err, StatusCode::LOOP_DETECTED).into()
+}
+
+/// Helper function that creates wrapper of any error and
+/// generate *NOT EXTENDED* response.
+#[allow(non_snake_case)]
+pub fn ErrorNotExtended<T>(err: T) -> Error
+where
+    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
+{
+    InternalError::new(err, StatusCode::NOT_EXTENDED).into()
+}
+
+/// Helper function that creates wrapper of any error and
+/// generate *NETWORK AUTHENTICATION REQUIRED* response.
+#[allow(non_snake_case)]
+pub fn ErrorNetworkAuthenticationRequired<T>(err: T) -> Error
+where
+    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
+{
+    InternalError::new(err, StatusCode::NETWORK_AUTHENTICATION_REQUIRED).into()
 }
 
 #[cfg(test)]
@@ -1068,6 +1308,9 @@ mod tests {
         let r: HttpResponse = ErrorUnauthorized("err").into();
         assert_eq!(r.status(), StatusCode::UNAUTHORIZED);
 
+        let r: HttpResponse = ErrorPaymentRequired("err").into();
+        assert_eq!(r.status(), StatusCode::PAYMENT_REQUIRED);
+
         let r: HttpResponse = ErrorForbidden("err").into();
         assert_eq!(r.status(), StatusCode::FORBIDDEN);
 
@@ -1076,6 +1319,12 @@ mod tests {
 
         let r: HttpResponse = ErrorMethodNotAllowed("err").into();
         assert_eq!(r.status(), StatusCode::METHOD_NOT_ALLOWED);
+
+        let r: HttpResponse = ErrorNotAcceptable("err").into();
+        assert_eq!(r.status(), StatusCode::NOT_ACCEPTABLE);
+
+        let r: HttpResponse = ErrorProxyAuthenticationRequired("err").into();
+        assert_eq!(r.status(), StatusCode::PROXY_AUTHENTICATION_REQUIRED);
 
         let r: HttpResponse = ErrorRequestTimeout("err").into();
         assert_eq!(r.status(), StatusCode::REQUEST_TIMEOUT);
@@ -1086,11 +1335,56 @@ mod tests {
         let r: HttpResponse = ErrorGone("err").into();
         assert_eq!(r.status(), StatusCode::GONE);
 
+        let r: HttpResponse = ErrorLengthRequired("err").into();
+        assert_eq!(r.status(), StatusCode::LENGTH_REQUIRED);
+
         let r: HttpResponse = ErrorPreconditionFailed("err").into();
         assert_eq!(r.status(), StatusCode::PRECONDITION_FAILED);
 
+        let r: HttpResponse = ErrorPayloadTooLarge("err").into();
+        assert_eq!(r.status(), StatusCode::PAYLOAD_TOO_LARGE);
+
+        let r: HttpResponse = ErrorUriTooLong("err").into();
+        assert_eq!(r.status(), StatusCode::URI_TOO_LONG);
+
+        let r: HttpResponse = ErrorUnsupportedMediaType("err").into();
+        assert_eq!(r.status(), StatusCode::UNSUPPORTED_MEDIA_TYPE);
+
+        let r: HttpResponse = ErrorRangeNotSatisfiable("err").into();
+        assert_eq!(r.status(), StatusCode::RANGE_NOT_SATISFIABLE);
+
         let r: HttpResponse = ErrorExpectationFailed("err").into();
         assert_eq!(r.status(), StatusCode::EXPECTATION_FAILED);
+
+        let r: HttpResponse = ErrorImATeapot("err").into();
+        assert_eq!(r.status(), StatusCode::IM_A_TEAPOT);
+
+        let r: HttpResponse = ErrorMisdirectedRequest("err").into();
+        assert_eq!(r.status(), StatusCode::MISDIRECTED_REQUEST);
+
+        let r: HttpResponse = ErrorUnprocessableEntity("err").into();
+        assert_eq!(r.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+        let r: HttpResponse = ErrorLocked("err").into();
+        assert_eq!(r.status(), StatusCode::LOCKED);
+
+        let r: HttpResponse = ErrorFailedDependency("err").into();
+        assert_eq!(r.status(), StatusCode::FAILED_DEPENDENCY);
+
+        let r: HttpResponse = ErrorUpgradeRequired("err").into();
+        assert_eq!(r.status(), StatusCode::UPGRADE_REQUIRED);
+
+        let r: HttpResponse = ErrorPreconditionRequired("err").into();
+        assert_eq!(r.status(), StatusCode::PRECONDITION_REQUIRED);
+
+        let r: HttpResponse = ErrorTooManyRequests("err").into();
+        assert_eq!(r.status(), StatusCode::TOO_MANY_REQUESTS);
+
+        let r: HttpResponse = ErrorRequestHeaderFieldsTooLarge("err").into();
+        assert_eq!(r.status(), StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE);
+
+        let r: HttpResponse = ErrorUnavailableForLegalReasons("err").into();
+        assert_eq!(r.status(), StatusCode::UNAVAILABLE_FOR_LEGAL_REASONS);
 
         let r: HttpResponse = ErrorInternalServerError("err").into();
         assert_eq!(r.status(), StatusCode::INTERNAL_SERVER_ERROR);
@@ -1106,5 +1400,23 @@ mod tests {
 
         let r: HttpResponse = ErrorGatewayTimeout("err").into();
         assert_eq!(r.status(), StatusCode::GATEWAY_TIMEOUT);
+
+        let r: HttpResponse = ErrorHttpVersionNotSupported("err").into();
+        assert_eq!(r.status(), StatusCode::HTTP_VERSION_NOT_SUPPORTED);
+
+        let r: HttpResponse = ErrorVariantAlsoNegotiates("err").into();
+        assert_eq!(r.status(), StatusCode::VARIANT_ALSO_NEGOTIATES);
+
+        let r: HttpResponse = ErrorInsufficientStorage("err").into();
+        assert_eq!(r.status(), StatusCode::INSUFFICIENT_STORAGE);
+
+        let r: HttpResponse = ErrorLoopDetected("err").into();
+        assert_eq!(r.status(), StatusCode::LOOP_DETECTED);
+
+        let r: HttpResponse = ErrorNotExtended("err").into();
+        assert_eq!(r.status(), StatusCode::NOT_EXTENDED);
+
+        let r: HttpResponse = ErrorNetworkAuthenticationRequired("err").into();
+        assert_eq!(r.status(), StatusCode::NETWORK_AUTHENTICATION_REQUIRED);
     }
 }
