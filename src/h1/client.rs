@@ -125,6 +125,15 @@ impl ClientPayloadCodec {
     }
 }
 
+fn prn_version(ver: Version) -> &'static str {
+    match ver {
+        Version::HTTP_09 => "HTTP/0.9",
+        Version::HTTP_10 => "HTTP/1.0",
+        Version::HTTP_11 => "HTTP/1.1",
+        Version::HTTP_2 => "HTTP/2.0",
+    }
+}
+
 impl ClientCodecInner {
     fn encode_response(
         &mut self,
@@ -135,33 +144,63 @@ impl ClientCodecInner {
         // render message
         {
             // status line
-            writeln!(
+            write!(
                 Writer(buffer),
-                "{} {} {:?}\r",
+                "{} {} {}",
                 msg.method,
                 msg.uri.path_and_query().map(|u| u.as_str()).unwrap_or("/"),
-                msg.version
+                prn_version(msg.version)
             ).map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
 
             // write headers
             buffer.reserve(msg.headers.len() * AVERAGE_HEADER_SIZE);
-            for (key, value) in &msg.headers {
-                let v = value.as_ref();
-                let k = key.as_str().as_bytes();
-                buffer.reserve(k.len() + v.len() + 4);
-                buffer.put_slice(k);
-                buffer.put_slice(b": ");
-                buffer.put_slice(v);
-                buffer.put_slice(b"\r\n");
 
-                // Connection upgrade
-                if key == UPGRADE {
-                    self.flags.insert(Flags::UPGRADE);
+            // content length
+            let mut len_is_set = true;
+            match btype {
+                BodyType::Sized(len) => {
+                    buffer.extend_from_slice(b"\r\ncontent-length: ");
+                    write!(buffer.writer(), "{}", len)?;
+                    buffer.extend_from_slice(b"\r\n");
                 }
+                BodyType::Unsized => {
+                    buffer.extend_from_slice(b"\r\ntransfer-encoding: chunked\r\n")
+                }
+                BodyType::Zero => {
+                    len_is_set = false;
+                    buffer.extend_from_slice(b"\r\n")
+                }
+                BodyType::None => buffer.extend_from_slice(b"\r\n"),
+            }
+
+            let mut has_date = false;
+
+            for (key, value) in &msg.headers {
+                match *key {
+                    TRANSFER_ENCODING => continue,
+                    CONTENT_LENGTH => match btype {
+                        BodyType::None => (),
+                        BodyType::Zero => len_is_set = true,
+                        _ => continue,
+                    },
+                    DATE => has_date = true,
+                    UPGRADE => self.flags.insert(Flags::UPGRADE),
+                    _ => (),
+                }
+
+                buffer.put_slice(key.as_ref());
+                buffer.put_slice(b": ");
+                buffer.put_slice(value.as_ref());
+                buffer.put_slice(b"\r\n");
+            }
+
+            // set content length
+            if !len_is_set {
+                buffer.extend_from_slice(b"content-length: 0\r\n")
             }
 
             // set date header
-            if !msg.headers.contains_key(DATE) {
+            if !has_date {
                 self.config.set_date(buffer);
             } else {
                 buffer.extend_from_slice(b"\r\n");

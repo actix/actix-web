@@ -42,10 +42,9 @@ impl<T: MessageTypeDecoder> Decoder for MessageDecoder<T> {
 }
 
 pub(crate) enum PayloadLength {
-    None,
-    Chunked,
+    Payload(PayloadType),
     Upgrade,
-    Length(u64),
+    None,
 }
 
 pub(crate) trait MessageTypeDecoder: Sized {
@@ -55,7 +54,7 @@ pub(crate) trait MessageTypeDecoder: Sized {
 
     fn decode(src: &mut BytesMut) -> Result<Option<(Self, PayloadType)>, ParseError>;
 
-    fn process_headers(
+    fn set_headers(
         &mut self,
         slice: &Bytes,
         version: Version,
@@ -140,10 +139,17 @@ pub(crate) trait MessageTypeDecoder: Sized {
             self.keep_alive();
         }
 
+        // https://tools.ietf.org/html/rfc7230#section-3.3.3
         if chunked {
-            Ok(PayloadLength::Chunked)
+            // Chunked encoding
+            Ok(PayloadLength::Payload(PayloadType::Payload(
+                PayloadDecoder::chunked(),
+            )))
         } else if let Some(len) = content_length {
-            Ok(PayloadLength::Length(len))
+            // Content-Length
+            Ok(PayloadLength::Payload(PayloadType::Payload(
+                PayloadDecoder::length(len),
+            )))
         } else if has_upgrade {
             Ok(PayloadLength::Upgrade)
         } else {
@@ -166,7 +172,7 @@ impl MessageTypeDecoder for Request {
         // performance bump for pipeline benchmarks.
         let mut headers: [HeaderIndex; MAX_HEADERS] = unsafe { mem::uninitialized() };
 
-        let (len, method, uri, version, headers_len) = {
+        let (len, method, uri, ver, h_len) = {
             let mut parsed: [httparse::Header; MAX_HEADERS] =
                 unsafe { mem::uninitialized() };
 
@@ -189,35 +195,24 @@ impl MessageTypeDecoder for Request {
             }
         };
 
-        // convert headers
         let mut msg = Request::new();
 
-        let len = msg.process_headers(
-            &src.split_to(len).freeze(),
-            version,
-            &headers[..headers_len],
-        )?;
+        // convert headers
+        let len =
+            msg.set_headers(&src.split_to(len).freeze(), ver, &headers[..h_len])?;
 
-        // https://tools.ietf.org/html/rfc7230#section-3.3.3
+        // payload decoder
         let decoder = match len {
-            PayloadLength::Chunked => {
-                // Chunked encoding
-                PayloadType::Payload(PayloadDecoder::chunked())
-            }
-            PayloadLength::Length(len) => {
-                // Content-Length
-                PayloadType::Payload(PayloadDecoder::length(len))
-            }
+            PayloadLength::Payload(pl) => pl,
             PayloadLength::Upgrade => {
-                // upgrade(websocket) or connect
+                // upgrade(websocket)
                 PayloadType::Stream(PayloadDecoder::eof())
             }
             PayloadLength::None => {
                 if method == Method::CONNECT {
-                    // upgrade(websocket) or connect
                     PayloadType::Stream(PayloadDecoder::eof())
                 } else if src.len() >= MAX_BUFFER_SIZE {
-                    error!("MAX_BUFFER_SIZE unprocessed data reached, closing");
+                    trace!("MAX_BUFFER_SIZE unprocessed data reached, closing");
                     return Err(ParseError::TooLarge);
                 } else {
                     PayloadType::None
@@ -230,7 +225,7 @@ impl MessageTypeDecoder for Request {
             inner.url.update(&uri);
             inner.head.uri = uri;
             inner.head.method = method;
-            inner.head.version = version;
+            inner.head.version = ver;
         }
 
         Ok(Some((msg, decoder)))
@@ -251,7 +246,7 @@ impl MessageTypeDecoder for ClientResponse {
         // performance bump for pipeline benchmarks.
         let mut headers: [HeaderIndex; MAX_HEADERS] = unsafe { mem::uninitialized() };
 
-        let (len, version, status, headers_len) = {
+        let (len, ver, status, h_len) = {
             let mut parsed: [httparse::Header; MAX_HEADERS] =
                 unsafe { mem::uninitialized() };
 
@@ -276,37 +271,26 @@ impl MessageTypeDecoder for ClientResponse {
         let mut msg = ClientResponse::new();
 
         // convert headers
-        let len = msg.process_headers(
-            &src.split_to(len).freeze(),
-            version,
-            &headers[..headers_len],
-        )?;
+        let len =
+            msg.set_headers(&src.split_to(len).freeze(), ver, &headers[..h_len])?;
 
-        // https://tools.ietf.org/html/rfc7230#section-3.3.3
-        let decoder = match len {
-            PayloadLength::Chunked => {
-                // Chunked encoding
-                PayloadType::Payload(PayloadDecoder::chunked())
-            }
-            PayloadLength::Length(len) => {
-                // Content-Length
-                PayloadType::Payload(PayloadDecoder::length(len))
-            }
-            _ => {
-                if status == StatusCode::SWITCHING_PROTOCOLS {
-                    // switching protocol or connect
-                    PayloadType::Stream(PayloadDecoder::eof())
-                } else if src.len() >= MAX_BUFFER_SIZE {
-                    error!("MAX_BUFFER_SIZE unprocessed data reached, closing");
-                    return Err(ParseError::TooLarge);
-                } else {
-                    PayloadType::None
-                }
+        // message payload
+        let decoder = if let PayloadLength::Payload(pl) = len {
+            pl
+        } else {
+            if status == StatusCode::SWITCHING_PROTOCOLS {
+                // switching protocol or connect
+                PayloadType::Stream(PayloadDecoder::eof())
+            } else if src.len() >= MAX_BUFFER_SIZE {
+                error!("MAX_BUFFER_SIZE unprocessed data reached, closing");
+                return Err(ParseError::TooLarge);
+            } else {
+                PayloadType::None
             }
         };
 
         msg.head.status = status;
-        msg.head.version = Some(version);
+        msg.head.version = Some(ver);
 
         Ok(Some((msg, decoder)))
     }
