@@ -13,7 +13,7 @@ use rand;
 use sha1::Sha1;
 use tokio_io::{AsyncRead, AsyncWrite};
 
-use body::BodyType;
+use body::BodyLength;
 use client::ClientResponse;
 use h1;
 use ws::Codec;
@@ -141,7 +141,7 @@ where
                         // h1 protocol
                         let framed = Framed::new(io, h1::ClientCodec::default());
                         framed
-                            .send((request.into_parts().0, BodyType::None).into())
+                            .send((request.into_parts().0, BodyLength::None).into())
                             .map_err(ClientError::from)
                             .and_then(|framed| {
                                 framed

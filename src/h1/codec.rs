@@ -6,9 +6,9 @@ use bytes::{BufMut, Bytes, BytesMut};
 use tokio_codec::{Decoder, Encoder};
 
 use super::decoder::{MessageDecoder, PayloadDecoder, PayloadItem, PayloadType};
-use super::encoder::{ResponseEncoder, ResponseLength};
+use super::encoder::ResponseEncoder;
 use super::{Message, MessageType};
-use body::{Binary, Body};
+use body::{Binary, Body, BodyLength};
 use config::ServiceConfig;
 use error::ParseError;
 use helpers;
@@ -155,22 +155,20 @@ impl Codec {
             // content length
             let mut len_is_set = true;
             match self.te.length {
-                ResponseLength::Chunked => {
+                BodyLength::Unsized => {
                     buffer.extend_from_slice(b"\r\ntransfer-encoding: chunked\r\n")
                 }
-                ResponseLength::Zero => {
+                BodyLength::Zero => {
                     len_is_set = false;
                     buffer.extend_from_slice(b"\r\n")
                 }
-                ResponseLength::Length(len) => {
-                    helpers::write_content_length(len, buffer)
-                }
-                ResponseLength::Length64(len) => {
+                BodyLength::Sized(len) => helpers::write_content_length(len, buffer),
+                BodyLength::Sized64(len) => {
                     buffer.extend_from_slice(b"\r\ncontent-length: ");
                     write!(buffer.writer(), "{}", len)?;
                     buffer.extend_from_slice(b"\r\n");
                 }
-                ResponseLength::None => buffer.extend_from_slice(b"\r\n"),
+                BodyLength::None => buffer.extend_from_slice(b"\r\n"),
             }
 
             // write headers
@@ -182,8 +180,8 @@ impl Codec {
                 match *key {
                     TRANSFER_ENCODING => continue,
                     CONTENT_LENGTH => match self.te.length {
-                        ResponseLength::None => (),
-                        ResponseLength::Zero => {
+                        BodyLength::None => (),
+                        BodyLength::Zero => {
                             len_is_set = true;
                         }
                         _ => continue,

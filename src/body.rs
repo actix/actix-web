@@ -12,24 +12,26 @@ pub type BodyStream = Box<dyn Stream<Item = Bytes, Error = Error>>;
 /// Type represent streaming payload
 pub type PayloadStream = Box<dyn Stream<Item = Bytes, Error = PayloadError>>;
 
-/// Different type of bory
-pub enum BodyType {
+#[derive(Debug)]
+/// Different type of body
+pub enum BodyLength {
     None,
     Zero,
     Sized(usize),
+    Sized64(u64),
     Unsized,
 }
 
 /// Type that provides this trait can be streamed to a peer.
 pub trait MessageBody {
-    fn tp(&self) -> BodyType;
+    fn length(&self) -> BodyLength;
 
     fn poll_next(&mut self) -> Poll<Option<Bytes>, Error>;
 }
 
 impl MessageBody for () {
-    fn tp(&self) -> BodyType {
-        BodyType::Zero
+    fn length(&self) -> BodyLength {
+        BodyLength::Zero
     }
 
     fn poll_next(&mut self) -> Poll<Option<Bytes>, Error> {
@@ -271,8 +273,8 @@ impl AsRef<[u8]> for Binary {
 }
 
 impl MessageBody for Bytes {
-    fn tp(&self) -> BodyType {
-        BodyType::Sized(self.len())
+    fn length(&self) -> BodyLength {
+        BodyLength::Sized(self.len())
     }
 
     fn poll_next(&mut self) -> Poll<Option<Bytes>, Error> {
@@ -285,8 +287,8 @@ impl MessageBody for Bytes {
 }
 
 impl MessageBody for &'static str {
-    fn tp(&self) -> BodyType {
-        BodyType::Sized(self.len())
+    fn length(&self) -> BodyLength {
+        BodyLength::Sized(self.len())
     }
 
     fn poll_next(&mut self) -> Poll<Option<Bytes>, Error> {
@@ -301,8 +303,8 @@ impl MessageBody for &'static str {
 }
 
 impl MessageBody for &'static [u8] {
-    fn tp(&self) -> BodyType {
-        BodyType::Sized(self.len())
+    fn length(&self) -> BodyLength {
+        BodyLength::Sized(self.len())
     }
 
     fn poll_next(&mut self) -> Poll<Option<Bytes>, Error> {
@@ -317,8 +319,8 @@ impl MessageBody for &'static [u8] {
 }
 
 impl MessageBody for Vec<u8> {
-    fn tp(&self) -> BodyType {
-        BodyType::Sized(self.len())
+    fn length(&self) -> BodyLength {
+        BodyLength::Sized(self.len())
     }
 
     fn poll_next(&mut self) -> Poll<Option<Bytes>, Error> {
@@ -334,8 +336,8 @@ impl MessageBody for Vec<u8> {
 }
 
 impl MessageBody for String {
-    fn tp(&self) -> BodyType {
-        BodyType::Sized(self.len())
+    fn length(&self) -> BodyLength {
+        BodyLength::Sized(self.len())
     }
 
     fn poll_next(&mut self) -> Poll<Option<Bytes>, Error> {
@@ -367,8 +369,8 @@ impl<S> MessageBody for MessageBodyStream<S>
 where
     S: Stream<Item = Bytes, Error = Error>,
 {
-    fn tp(&self) -> BodyType {
-        BodyType::Unsized
+    fn length(&self) -> BodyLength {
+        BodyLength::Unsized
     }
 
     fn poll_next(&mut self) -> Poll<Option<Bytes>, Error> {

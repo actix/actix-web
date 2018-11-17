@@ -5,9 +5,9 @@ use bytes::{BufMut, Bytes, BytesMut};
 use tokio_codec::{Decoder, Encoder};
 
 use super::decoder::{MessageDecoder, PayloadDecoder, PayloadItem, PayloadType};
-use super::encoder::{RequestEncoder, ResponseLength};
+use super::encoder::RequestEncoder;
 use super::{Message, MessageType};
-use body::{Binary, Body, BodyType};
+use body::{Binary, Body, BodyLength};
 use client::ClientResponse;
 use config::ServiceConfig;
 use error::{ParseError, PayloadError};
@@ -104,7 +104,7 @@ impl ClientCodec {
     }
 
     /// prepare transfer encoding
-    pub fn prepare_te(&mut self, head: &mut RequestHead, btype: BodyType) {
+    pub fn prepare_te(&mut self, head: &mut RequestHead, length: BodyLength) {
         self.inner.te.update(
             head,
             self.inner.flags.contains(Flags::HEAD),
@@ -138,7 +138,7 @@ impl ClientCodecInner {
     fn encode_response(
         &mut self,
         msg: RequestHead,
-        btype: BodyType,
+        length: BodyLength,
         buffer: &mut BytesMut,
     ) -> io::Result<()> {
         // render message
@@ -157,20 +157,21 @@ impl ClientCodecInner {
 
             // content length
             let mut len_is_set = true;
-            match btype {
-                BodyType::Sized(len) => {
+            match length {
+                BodyLength::Sized(len) => helpers::write_content_length(len, buffer),
+                BodyLength::Sized64(len) => {
                     buffer.extend_from_slice(b"\r\ncontent-length: ");
                     write!(buffer.writer(), "{}", len)?;
                     buffer.extend_from_slice(b"\r\n");
                 }
-                BodyType::Unsized => {
+                BodyLength::Unsized => {
                     buffer.extend_from_slice(b"\r\ntransfer-encoding: chunked\r\n")
                 }
-                BodyType::Zero => {
+                BodyLength::Zero => {
                     len_is_set = false;
                     buffer.extend_from_slice(b"\r\n")
                 }
-                BodyType::None => buffer.extend_from_slice(b"\r\n"),
+                BodyLength::None => buffer.extend_from_slice(b"\r\n"),
             }
 
             let mut has_date = false;
@@ -178,9 +179,9 @@ impl ClientCodecInner {
             for (key, value) in &msg.headers {
                 match *key {
                     TRANSFER_ENCODING => continue,
-                    CONTENT_LENGTH => match btype {
-                        BodyType::None => (),
-                        BodyType::Zero => len_is_set = true,
+                    CONTENT_LENGTH => match length {
+                        BodyLength::None => (),
+                        BodyLength::Zero => len_is_set = true,
                         _ => continue,
                     },
                     DATE => has_date = true,
@@ -263,7 +264,7 @@ impl Decoder for ClientPayloadCodec {
 }
 
 impl Encoder for ClientCodec {
-    type Item = Message<(RequestHead, BodyType)>;
+    type Item = Message<(RequestHead, BodyLength)>;
     type Error = io::Error;
 
     fn encode(

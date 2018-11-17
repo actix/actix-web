@@ -10,7 +10,7 @@ use tokio_io::{AsyncRead, AsyncWrite};
 use super::error::{ConnectorError, SendRequestError};
 use super::response::ClientResponse;
 use super::{Connect, Connection};
-use body::{BodyType, MessageBody, PayloadStream};
+use body::{BodyLength, MessageBody, PayloadStream};
 use error::PayloadError;
 use h1;
 use message::RequestHead;
@@ -25,7 +25,7 @@ where
     B: MessageBody,
     I: Connection,
 {
-    let tp = body.tp();
+    let len = body.length();
 
     connector
         // connect to the host
@@ -33,10 +33,10 @@ where
         .from_err()
         // create Framed and send reqest
         .map(|io| Framed::new(io, h1::ClientCodec::default()))
-        .and_then(|framed| framed.send((head, tp).into()).from_err())
+        .and_then(|framed| framed.send((head, len).into()).from_err())
         // send request body
-        .and_then(move |framed| match body.tp() {
-            BodyType::None | BodyType::Zero => Either::A(ok(framed)),
+        .and_then(move |framed| match body.length() {
+            BodyLength::None | BodyLength::Zero => Either::A(ok(framed)),
             _ => Either::B(SendBody::new(body, framed)),
         })
         // read response and init read body
@@ -64,7 +64,7 @@ where
 struct SendBody<I, B> {
     body: Option<B>,
     framed: Option<Framed<I, h1::ClientCodec>>,
-    write_buf: VecDeque<h1::Message<(RequestHead, BodyType)>>,
+    write_buf: VecDeque<h1::Message<(RequestHead, BodyLength)>>,
     flushed: bool,
 }
 

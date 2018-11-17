@@ -8,7 +8,7 @@ use bytes::{Bytes, BytesMut};
 use http::header::{HeaderValue, ACCEPT_ENCODING, CONTENT_LENGTH};
 use http::{StatusCode, Version};
 
-use body::{Binary, Body};
+use body::{Binary, Body, BodyLength};
 use header::ContentEncoding;
 use http::Method;
 use message::RequestHead;
@@ -16,20 +16,9 @@ use request::Request;
 use response::Response;
 
 #[derive(Debug)]
-pub(crate) enum ResponseLength {
-    Chunked,
-    /// Check if headers contains length or write 0
-    Zero,
-    Length(usize),
-    Length64(u64),
-    /// Do no set content-length
-    None,
-}
-
-#[derive(Debug)]
 pub(crate) struct ResponseEncoder {
     head: bool,
-    pub length: ResponseLength,
+    pub length: BodyLength,
     pub te: TransferEncoding,
 }
 
@@ -37,7 +26,7 @@ impl Default for ResponseEncoder {
     fn default() -> Self {
         ResponseEncoder {
             head: false,
-            length: ResponseLength::None,
+            length: BodyLength::None,
             te: TransferEncoding::empty(),
         }
     }
@@ -80,18 +69,18 @@ impl ResponseEncoder {
                     StatusCode::NO_CONTENT
                     | StatusCode::CONTINUE
                     | StatusCode::SWITCHING_PROTOCOLS
-                    | StatusCode::PROCESSING => ResponseLength::None,
-                    _ => ResponseLength::Zero,
+                    | StatusCode::PROCESSING => BodyLength::None,
+                    _ => BodyLength::Zero,
                 };
                 TransferEncoding::empty()
             }
             Body::Binary(_) => {
-                self.length = ResponseLength::Length(len);
+                self.length = BodyLength::Sized(len);
                 TransferEncoding::length(len as u64)
             }
             Body::Streaming(_) => {
                 if resp.upgrade() {
-                    self.length = ResponseLength::None;
+                    self.length = BodyLength::None;
                     TransferEncoding::eof()
                 } else {
                     self.streaming_encoding(version, resp)
@@ -115,10 +104,10 @@ impl ResponseEncoder {
             Some(true) => {
                 // Enable transfer encoding
                 if version == Version::HTTP_2 {
-                    self.length = ResponseLength::None;
+                    self.length = BodyLength::None;
                     TransferEncoding::eof()
                 } else {
-                    self.length = ResponseLength::Chunked;
+                    self.length = BodyLength::Unsized;
                     TransferEncoding::chunked()
                 }
             }
@@ -145,7 +134,7 @@ impl ResponseEncoder {
 
                 if !chunked {
                     if let Some(len) = len {
-                        self.length = ResponseLength::Length64(len);
+                        self.length = BodyLength::Sized64(len);
                         TransferEncoding::length(len)
                     } else {
                         TransferEncoding::eof()
@@ -154,11 +143,11 @@ impl ResponseEncoder {
                     // Enable transfer encoding
                     match version {
                         Version::HTTP_11 => {
-                            self.length = ResponseLength::Chunked;
+                            self.length = BodyLength::Unsized;
                             TransferEncoding::chunked()
                         }
                         _ => {
-                            self.length = ResponseLength::None;
+                            self.length = BodyLength::None;
                             TransferEncoding::eof()
                         }
                     }
@@ -171,7 +160,7 @@ impl ResponseEncoder {
 #[derive(Debug)]
 pub(crate) struct RequestEncoder {
     head: bool,
-    pub length: ResponseLength,
+    pub length: BodyLength,
     pub te: TransferEncoding,
 }
 
@@ -179,7 +168,7 @@ impl Default for RequestEncoder {
     fn default() -> Self {
         RequestEncoder {
             head: false,
-            length: ResponseLength::None,
+            length: BodyLength::None,
             te: TransferEncoding::empty(),
         }
     }
