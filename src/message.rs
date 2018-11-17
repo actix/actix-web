@@ -53,7 +53,7 @@ impl Head for RequestHead {
 }
 
 pub struct ResponseHead {
-    pub version: Option<Version>,
+    pub version: Version,
     pub status: StatusCode,
     pub headers: HeaderMap,
     pub reason: Option<&'static str>,
@@ -63,7 +63,7 @@ pub struct ResponseHead {
 impl Default for ResponseHead {
     fn default() -> ResponseHead {
         ResponseHead {
-            version: None,
+            version: Version::default(),
             status: StatusCode::OK,
             headers: HeaderMap::with_capacity(16),
             reason: None,
@@ -75,7 +75,6 @@ impl Default for ResponseHead {
 impl Head for ResponseHead {
     fn clear(&mut self) {
         self.reason = None;
-        self.version = None;
         self.headers.clear();
         self.flags = MessageFlags::empty();
     }

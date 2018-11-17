@@ -113,7 +113,6 @@ impl Codec {
             .unwrap_or_else(|| self.flags.contains(Flags::KEEPALIVE));
 
         // Connection upgrade
-        let version = msg.version().unwrap_or_else(|| self.version);
         if msg.upgrade() {
             self.flags.insert(Flags::UPGRADE);
             self.flags.remove(Flags::KEEPALIVE);
@@ -123,11 +122,11 @@ impl Codec {
         // keep-alive
         else if ka {
             self.flags.insert(Flags::KEEPALIVE);
-            if version < Version::HTTP_11 {
+            if self.version < Version::HTTP_11 {
                 msg.headers_mut()
                     .insert(CONNECTION, HeaderValue::from_static("keep-alive"));
             }
-        } else if version >= Version::HTTP_11 {
+        } else if self.version >= Version::HTTP_11 {
             self.flags.remove(Flags::KEEPALIVE);
             msg.headers_mut()
                 .insert(CONNECTION, HeaderValue::from_static("close"));
@@ -149,7 +148,7 @@ impl Codec {
             }
 
             // status line
-            helpers::write_status_line(version, msg.status().as_u16(), buffer);
+            helpers::write_status_line(self.version, msg.status().as_u16(), buffer);
             buffer.extend_from_slice(reason);
 
             // content length

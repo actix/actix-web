@@ -290,7 +290,7 @@ impl MessageTypeDecoder for ClientResponse {
         };
 
         msg.head.status = status;
-        msg.head.version = Some(ver);
+        msg.head.version = ver;
 
         Ok(Some((msg, decoder)))
     }

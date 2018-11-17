@@ -12,10 +12,10 @@ use http::{Error as HttpError, HeaderMap, HttpTryFrom, StatusCode, Version};
 use serde::Serialize;
 use serde_json;
 
-use message::{Head, ResponseHead, MessageFlags};
 use body::Body;
 use error::Error;
 use header::{ContentEncoding, Header, IntoHeaderValue};
+use message::{Head, MessageFlags, ResponseHead};
 
 /// max write buffer size 64k
 pub(crate) const MAX_WRITE_BUFFER_SIZE: usize = 65_536;
@@ -105,12 +105,6 @@ impl Response {
         self.get_ref().error.as_ref()
     }
 
-    /// Get the HTTP version of this response
-    #[inline]
-    pub fn version(&self) -> Option<Version> {
-        self.get_ref().head.version
-    }
-
     /// Get the headers from the response
     #[inline]
     pub fn headers(&self) -> &HeaderMap {
@@ -127,7 +121,12 @@ impl Response {
     #[inline]
     pub fn cookies(&self) -> CookieIter {
         CookieIter {
-            iter: self.get_ref().head.headers.get_all(header::SET_COOKIE).iter(),
+            iter: self
+                .get_ref()
+                .head
+                .headers
+                .get_all(header::SET_COOKIE)
+                .iter(),
         }
     }
 
@@ -187,7 +186,8 @@ impl Response {
             reason
         } else {
             self.get_ref()
-                .head.status
+                .head
+                .status
                 .canonical_reason()
                 .unwrap_or("<unknown status code>")
         }
@@ -343,17 +343,6 @@ impl ResponseBuilder {
     pub fn status(&mut self, status: StatusCode) -> &mut Self {
         if let Some(parts) = parts(&mut self.response, &self.err) {
             parts.head.status = status;
-        }
-        self
-    }
-
-    /// Set HTTP version of this response.
-    ///
-    /// By default response's http version depends on request's version.
-    #[inline]
-    pub fn version(&mut self, version: Version) -> &mut Self {
-        if let Some(parts) = parts(&mut self.response, &self.err) {
-            parts.head.version = Some(version);
         }
         self
     }
@@ -782,11 +771,15 @@ pub(crate) struct ResponseParts {
 
 impl InnerResponse {
     #[inline]
-    fn new(status: StatusCode, body: Body, pool: &'static ResponsePool) -> InnerResponse {
+    fn new(
+        status: StatusCode,
+        body: Body,
+        pool: &'static ResponsePool,
+    ) -> InnerResponse {
         InnerResponse {
             head: ResponseHead {
                 status,
-                version: None,
+                version: Version::default(),
                 headers: HeaderMap::with_capacity(16),
                 reason: None,
                 flags: MessageFlags::empty(),
@@ -999,11 +992,7 @@ mod tests {
 
     #[test]
     fn test_basic_builder() {
-        let resp = Response::Ok()
-            .header("X-TEST", "value")
-            .version(Version::HTTP_10)
-            .finish();
-        assert_eq!(resp.version(), Some(Version::HTTP_10));
+        let resp = Response::Ok().header("X-TEST", "value").finish();
         assert_eq!(resp.status(), StatusCode::OK);
     }
 

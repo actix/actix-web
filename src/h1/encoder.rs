@@ -45,8 +45,6 @@ impl ResponseEncoder {
 
     pub fn update(&mut self, resp: &mut Response, head: bool, version: Version) {
         self.head = head;
-
-        let version = resp.version().unwrap_or_else(|| version);
         let mut len = 0;
 
         let has_body = match resp.body() {

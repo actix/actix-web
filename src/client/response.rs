@@ -57,7 +57,7 @@ impl ClientResponse {
     /// Read the Request Version.
     #[inline]
     pub fn version(&self) -> Version {
-        self.head().version.clone().unwrap()
+        self.head().version
     }
 
     /// Get the status from the server.
