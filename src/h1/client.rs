@@ -4,7 +4,7 @@ use std::io::{self, Write};
 use bytes::{BufMut, Bytes, BytesMut};
 use tokio_codec::{Decoder, Encoder};
 
-use super::decoder::{PayloadDecoder, PayloadItem, PayloadType, ResponseDecoder};
+use super::decoder::{MessageDecoder, PayloadDecoder, PayloadItem, PayloadType};
 use super::encoder::{RequestEncoder, ResponseLength};
 use super::{Message, MessageType};
 use body::{Binary, Body, BodyType};
@@ -16,7 +16,7 @@ use http::header::{
     HeaderValue, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING, UPGRADE,
 };
 use http::{Method, Version};
-use request::{MessagePool, RequestHead};
+use message::{MessagePool, RequestHead};
 
 bitflags! {
     struct Flags: u8 {
@@ -42,7 +42,7 @@ pub struct ClientPayloadCodec {
 
 struct ClientCodecInner {
     config: ServiceConfig,
-    decoder: ResponseDecoder,
+    decoder: MessageDecoder<ClientResponse>,
     payload: Option<PayloadDecoder>,
     version: Version,
 
@@ -63,11 +63,6 @@ impl ClientCodec {
     ///
     /// `keepalive_enabled` how response `connection` header get generated.
     pub fn new(config: ServiceConfig) -> Self {
-        ClientCodec::with_pool(MessagePool::pool(), config)
-    }
-
-    /// Create HTTP/1 codec with request's pool
-    pub(crate) fn with_pool(pool: &'static MessagePool, config: ServiceConfig) -> Self {
         let flags = if config.keep_alive_enabled() {
             Flags::KEEPALIVE_ENABLED
         } else {
@@ -76,7 +71,7 @@ impl ClientCodec {
         ClientCodec {
             inner: ClientCodecInner {
                 config,
-                decoder: ResponseDecoder::with_pool(pool),
+                decoder: MessageDecoder::default(),
                 payload: None,
                 version: Version::HTTP_11,
 
@@ -185,10 +180,10 @@ impl Decoder for ClientCodec {
         debug_assert!(!self.inner.payload.is_some(), "Payload decoder is set");
 
         if let Some((req, payload)) = self.inner.decoder.decode(src)? {
-            self.inner
-                .flags
-                .set(Flags::HEAD, req.inner.head.method == Method::HEAD);
-            self.inner.version = req.inner.head.version;
+            // self.inner
+            //     .flags
+            //     .set(Flags::HEAD, req.head.method == Method::HEAD);
+            // self.inner.version = req.head.version;
             if self.inner.flags.contains(Flags::KEEPALIVE_ENABLED) {
                 self.inner.flags.set(Flags::KEEPALIVE, req.keep_alive());
             }

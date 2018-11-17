@@ -1,6 +1,5 @@
-use std::cell::{Cell, Ref, RefCell, RefMut};
+use std::cell::RefCell;
 use std::fmt;
-use std::rc::Rc;
 
 use bytes::Bytes;
 use futures::{Async, Poll, Stream};
@@ -8,16 +7,14 @@ use http::{HeaderMap, StatusCode, Version};
 
 use body::PayloadStream;
 use error::PayloadError;
-use extensions::Extensions;
 use httpmessage::HttpMessage;
-use request::{Message, MessageFlags, MessagePool, RequestHead};
-use uri::Url;
+use message::{MessageFlags, ResponseHead};
 
 use super::pipeline::Payload;
 
 /// Client Response
 pub struct ClientResponse {
-    pub(crate) inner: Rc<Message>,
+    pub(crate) head: ResponseHead,
     pub(crate) payload: RefCell<Option<PayloadStream>>,
 }
 
@@ -25,7 +22,7 @@ impl HttpMessage for ClientResponse {
     type Stream = PayloadStream;
 
     fn headers(&self) -> &HeaderMap {
-        &self.inner.head.headers
+        &self.head.headers
     }
 
     #[inline]
@@ -41,75 +38,50 @@ impl HttpMessage for ClientResponse {
 impl ClientResponse {
     /// Create new Request instance
     pub fn new() -> ClientResponse {
-        ClientResponse::with_pool(MessagePool::pool())
-    }
-
-    /// Create new Request instance with pool
-    pub(crate) fn with_pool(pool: &'static MessagePool) -> ClientResponse {
         ClientResponse {
-            inner: Rc::new(Message {
-                pool,
-                head: RequestHead::default(),
-                status: StatusCode::OK,
-                url: Url::default(),
-                flags: Cell::new(MessageFlags::empty()),
-                payload: RefCell::new(None),
-                extensions: RefCell::new(Extensions::new()),
-            }),
+            head: ResponseHead::default(),
             payload: RefCell::new(None),
         }
     }
 
     #[inline]
-    pub(crate) fn inner(&self) -> &Message {
-        self.inner.as_ref()
+    pub(crate) fn head(&self) -> &ResponseHead {
+        &self.head
     }
 
     #[inline]
-    pub(crate) fn inner_mut(&mut self) -> &mut Message {
-        Rc::get_mut(&mut self.inner).expect("Multiple copies exist")
+    pub(crate) fn head_mut(&mut self) -> &mut ResponseHead {
+        &mut self.head
     }
 
     /// Read the Request Version.
     #[inline]
     pub fn version(&self) -> Version {
-        self.inner().head.version
+        self.head().version.clone().unwrap()
     }
 
     /// Get the status from the server.
     #[inline]
     pub fn status(&self) -> StatusCode {
-        self.inner().status
+        self.head().status
     }
 
     #[inline]
     /// Returns Request's headers.
     pub fn headers(&self) -> &HeaderMap {
-        &self.inner().head.headers
+        &self.head().headers
     }
 
     #[inline]
     /// Returns mutable Request's headers.
     pub fn headers_mut(&mut self) -> &mut HeaderMap {
-        &mut self.inner_mut().head.headers
+        &mut self.head_mut().headers
     }
 
     /// Checks if a connection should be kept alive.
     #[inline]
     pub fn keep_alive(&self) -> bool {
-        self.inner().flags.get().contains(MessageFlags::KEEPALIVE)
-    }
-
-    /// Request extensions
-    #[inline]
-    pub fn extensions(&self) -> Ref<Extensions> {
-        self.inner().extensions.borrow()
-    }
-
-    /// Mutable reference to a the request's extensions
-    #[inline]
-    pub fn extensions_mut(&self) -> RefMut<Extensions> {
-        self.inner().extensions.borrow_mut()
+        self.head().flags.contains(MessageFlags::KEEPALIVE)
     }
 }
 
@@ -122,14 +94,6 @@ impl Stream for ClientResponse {
             payload.poll()
         } else {
             Ok(Async::Ready(None))
-        }
-    }
-}
-
-impl Drop for ClientResponse {
-    fn drop(&mut self) {
-        if Rc::strong_count(&self.inner) == 1 {
-            self.inner.pool.release(self.inner.clone());
         }
     }
 }

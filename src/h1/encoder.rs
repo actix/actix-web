@@ -11,7 +11,8 @@ use http::{StatusCode, Version};
 use body::{Binary, Body};
 use header::ContentEncoding;
 use http::Method;
-use request::{Request, RequestHead};
+use message::RequestHead;
+use request::Request;
 use response::Response;
 
 #[derive(Debug)]

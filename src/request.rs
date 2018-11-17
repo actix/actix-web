@@ -1,65 +1,18 @@
-use std::cell::{Cell, Ref, RefCell, RefMut};
-use std::collections::VecDeque;
+use std::cell::{Ref, RefMut};
 use std::fmt;
 use std::rc::Rc;
 
-use http::{header, HeaderMap, Method, StatusCode, Uri, Version};
+use http::{header, HeaderMap, Method, Uri, Version};
 
-use client::ClientResponse;
 use extensions::Extensions;
 use httpmessage::HttpMessage;
 use payload::Payload;
-use uri::Url;
 
-bitflags! {
-    pub(crate) struct MessageFlags: u8 {
-        const KEEPALIVE = 0b0000_0001;
-        const CONN_INFO = 0b0000_0010;
-    }
-}
+use message::{Message, MessageFlags, MessagePool, RequestHead};
 
 /// Request
 pub struct Request {
-    pub(crate) inner: Rc<Message>,
-}
-
-pub struct RequestHead {
-    pub uri: Uri,
-    pub method: Method,
-    pub version: Version,
-    pub headers: HeaderMap,
-}
-
-impl Default for RequestHead {
-    fn default() -> RequestHead {
-        RequestHead {
-            uri: Uri::default(),
-            method: Method::default(),
-            version: Version::HTTP_11,
-            headers: HeaderMap::with_capacity(16),
-        }
-    }
-}
-
-pub struct Message {
-    pub head: RequestHead,
-    pub url: Url,
-    pub status: StatusCode,
-    pub extensions: RefCell<Extensions>,
-    pub payload: RefCell<Option<Payload>>,
-    pub(crate) pool: &'static MessagePool,
-    pub(crate) flags: Cell<MessageFlags>,
-}
-
-impl Message {
-    #[inline]
-    /// Reset request instance
-    pub fn reset(&mut self) {
-        self.head.clear();
-        self.extensions.borrow_mut().clear();
-        self.flags.set(MessageFlags::empty());
-        *self.payload.borrow_mut() = None;
-    }
+    pub(crate) inner: Rc<Message<RequestHead>>,
 }
 
 impl HttpMessage for Request {
@@ -82,33 +35,35 @@ impl HttpMessage for Request {
 impl Request {
     /// Create new Request instance
     pub fn new() -> Request {
-        Request::with_pool(MessagePool::pool())
-    }
-
-    /// Create new Request instance with pool
-    pub(crate) fn with_pool(pool: &'static MessagePool) -> Request {
         Request {
-            inner: Rc::new(Message {
-                pool,
-                url: Url::default(),
-                head: RequestHead::default(),
-                status: StatusCode::OK,
-                flags: Cell::new(MessageFlags::empty()),
-                payload: RefCell::new(None),
-                extensions: RefCell::new(Extensions::new()),
-            }),
+            inner: MessagePool::get_message(),
         }
     }
 
+    // /// Create new Request instance with pool
+    // pub(crate) fn with_pool(pool: &'static MessagePool) -> Request {
+    //     Request {
+    //         inner: Rc::new(Message {
+    //             pool,
+    //             url: Url::default(),
+    //             head: RequestHead::default(),
+    //             status: StatusCode::OK,
+    //             flags: Cell::new(MessageFlags::empty()),
+    //             payload: RefCell::new(None),
+    //             extensions: RefCell::new(Extensions::new()),
+    //         }),
+    //     }
+    // }
+
     #[inline]
     #[doc(hidden)]
-    pub fn inner(&self) -> &Message {
+    pub fn inner(&self) -> &Message<RequestHead> {
         self.inner.as_ref()
     }
 
     #[inline]
     #[doc(hidden)]
-    pub fn inner_mut(&mut self) -> &mut Message {
+    pub fn inner_mut(&mut self) -> &mut Message<RequestHead> {
         Rc::get_mut(&mut self.inner).expect("Multiple copies exist")
     }
 
@@ -139,7 +94,11 @@ impl Request {
     /// The target path of this Request.
     #[inline]
     pub fn path(&self) -> &str {
-        self.inner().url.path()
+        if let Some(path) = self.inner().url.path() {
+            path
+        } else {
+            self.inner().head.uri.path()
+        }
     }
 
     #[inline]
@@ -217,58 +176,5 @@ impl fmt::Debug for Request {
             writeln!(f, "    {:?}: {:?}", key, val)?;
         }
         Ok(())
-    }
-}
-
-/// Request's objects pool
-pub(crate) struct MessagePool(RefCell<VecDeque<Rc<Message>>>);
-
-thread_local!(static POOL: &'static MessagePool = MessagePool::create());
-
-impl MessagePool {
-    fn create() -> &'static MessagePool {
-        let pool = MessagePool(RefCell::new(VecDeque::with_capacity(128)));
-        Box::leak(Box::new(pool))
-    }
-
-    /// Get default request's pool
-    pub fn pool() -> &'static MessagePool {
-        POOL.with(|p| *p)
-    }
-
-    /// Get Request object
-    #[inline]
-    pub fn get_request(pool: &'static MessagePool) -> Request {
-        if let Some(mut msg) = pool.0.borrow_mut().pop_front() {
-            if let Some(r) = Rc::get_mut(&mut msg) {
-                r.reset();
-            }
-            return Request { inner: msg };
-        }
-        Request::with_pool(pool)
-    }
-
-    /// Get Client Response object
-    #[inline]
-    pub fn get_response(pool: &'static MessagePool) -> ClientResponse {
-        if let Some(mut msg) = pool.0.borrow_mut().pop_front() {
-            if let Some(r) = Rc::get_mut(&mut msg) {
-                r.reset();
-            }
-            return ClientResponse {
-                inner: msg,
-                payload: RefCell::new(None),
-            };
-        }
-        ClientResponse::with_pool(pool)
-    }
-
-    #[inline]
-    /// Release request instance
-    pub(crate) fn release(&self, msg: Rc<Message>) {
-        let v = &mut self.0.borrow_mut();
-        if v.len() < 128 {
-            v.push_front(msg);
-        }
     }
 }

@@ -5,7 +5,7 @@ use std::io::{self, Write};
 use bytes::{BufMut, Bytes, BytesMut};
 use tokio_codec::{Decoder, Encoder};
 
-use super::decoder::{PayloadDecoder, PayloadItem, PayloadType, RequestDecoder};
+use super::decoder::{MessageDecoder, PayloadDecoder, PayloadItem, PayloadType};
 use super::encoder::{ResponseEncoder, ResponseLength};
 use super::{Message, MessageType};
 use body::{Binary, Body};
@@ -14,7 +14,7 @@ use error::ParseError;
 use helpers;
 use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING};
 use http::{Method, Version};
-use request::{MessagePool, Request};
+use request::Request;
 use response::Response;
 
 bitflags! {
@@ -32,7 +32,7 @@ const AVERAGE_HEADER_SIZE: usize = 30;
 /// HTTP/1 Codec
 pub struct Codec {
     config: ServiceConfig,
-    decoder: RequestDecoder,
+    decoder: MessageDecoder<Request>,
     payload: Option<PayloadDecoder>,
     version: Version,
 
@@ -59,11 +59,6 @@ impl Codec {
     ///
     /// `keepalive_enabled` how response `connection` header get generated.
     pub fn new(config: ServiceConfig) -> Self {
-        Codec::with_pool(MessagePool::pool(), config)
-    }
-
-    /// Create HTTP/1 codec with request's pool
-    pub(crate) fn with_pool(pool: &'static MessagePool, config: ServiceConfig) -> Self {
         let flags = if config.keep_alive_enabled() {
             Flags::KEEPALIVE_ENABLED
         } else {
@@ -71,7 +66,7 @@ impl Codec {
         };
         Codec {
             config,
-            decoder: RequestDecoder::with_pool(pool),
+            decoder: MessageDecoder::default(),
             payload: None,
             version: Version::HTTP_11,
 

@@ -16,7 +16,7 @@ use http::{
     uri, Error as HttpError, HeaderMap, HeaderName, HeaderValue, HttpTryFrom, Method,
     Uri, Version,
 };
-use request::RequestHead;
+use message::RequestHead;
 
 use super::response::ClientResponse;
 use super::{pipeline, Connect, Connection, ConnectorError, SendRequestError};

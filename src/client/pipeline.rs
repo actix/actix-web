@@ -13,7 +13,7 @@ use super::{Connect, Connection};
 use body::{BodyType, MessageBody, PayloadStream};
 use error::PayloadError;
 use h1;
-use request::RequestHead;
+use message::RequestHead;
 
 pub(crate) fn send_request<T, I, B>(
     head: RequestHead,

@@ -37,27 +37,22 @@ lazy_static! {
 
 #[derive(Default, Clone, Debug)]
 pub struct Url {
-    uri: Uri,
     path: Option<Rc<String>>,
 }
 
 impl Url {
-    pub fn new(uri: Uri) -> Url {
+    pub fn new(uri: &Uri) -> Url {
         let path = DEFAULT_QUOTER.requote(uri.path().as_bytes());
 
-        Url { uri, path }
+        Url { path }
     }
 
-    pub fn uri(&self) -> &Uri {
-        &self.uri
+    pub(crate) fn update(&mut self, uri: &Uri) {
+        self.path = DEFAULT_QUOTER.requote(uri.path().as_bytes());
     }
 
-    pub fn path(&self) -> &str {
-        if let Some(ref s) = self.path {
-            s
-        } else {
-            self.uri.path()
-        }
+    pub fn path(&self) -> Option<&str> {
+        self.path.as_ref().map(|s| s.as_str())
     }
 }
 

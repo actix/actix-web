@@ -392,7 +392,7 @@ impl TestRequest {
         {
             let inner = req.inner_mut();
             inner.head.method = method;
-            inner.url = InnerUrl::new(uri);
+            inner.url = InnerUrl::new(&uri);
             inner.head.version = version;
             inner.head.headers = headers;
             *inner.payload.borrow_mut() = payload;

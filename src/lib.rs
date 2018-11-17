@@ -117,6 +117,7 @@ mod header;
 mod httpcodes;
 mod httpmessage;
 mod json;
+mod message;
 mod payload;
 mod request;
 mod response;
