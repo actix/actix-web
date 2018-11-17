@@ -74,6 +74,8 @@ impl Default for ResponseHead {
 
 impl Head for ResponseHead {
     fn clear(&mut self) {
+        self.reason = None;
+        self.version = None;
         self.headers.clear();
         self.flags = MessageFlags::empty();
     }

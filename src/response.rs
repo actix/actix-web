@@ -12,6 +12,7 @@ use http::{Error as HttpError, HeaderMap, HttpTryFrom, StatusCode, Version};
 use serde::Serialize;
 use serde_json;
 
+use message::{Head, ResponseHead, MessageFlags};
 use body::Body;
 use error::Error;
 use header::{ContentEncoding, Header, IntoHeaderValue};
@@ -31,7 +32,7 @@ pub enum ConnectionType {
 }
 
 /// An HTTP Response
-pub struct Response(Box<InnerResponse>, &'static ResponsePool);
+pub struct Response(Box<InnerResponse>);
 
 impl Response {
     #[inline]
@@ -92,7 +93,6 @@ impl Response {
         }
 
         ResponseBuilder {
-            pool: self.1,
             response: Some(self.0),
             err: None,
             cookies: jar,
@@ -108,33 +108,33 @@ impl Response {
     /// Get the HTTP version of this response
     #[inline]
     pub fn version(&self) -> Option<Version> {
-        self.get_ref().version
+        self.get_ref().head.version
     }
 
     /// Get the headers from the response
     #[inline]
     pub fn headers(&self) -> &HeaderMap {
-        &self.get_ref().headers
+        &self.get_ref().head.headers
     }
 
     /// Get a mutable reference to the headers
     #[inline]
     pub fn headers_mut(&mut self) -> &mut HeaderMap {
-        &mut self.get_mut().headers
+        &mut self.get_mut().head.headers
     }
 
     /// Get an iterator for the cookies set by this response
     #[inline]
     pub fn cookies(&self) -> CookieIter {
         CookieIter {
-            iter: self.get_ref().headers.get_all(header::SET_COOKIE).iter(),
+            iter: self.get_ref().head.headers.get_all(header::SET_COOKIE).iter(),
         }
     }
 
     /// Add a cookie to this response
     #[inline]
     pub fn add_cookie(&mut self, cookie: &Cookie) -> Result<(), HttpError> {
-        let h = &mut self.get_mut().headers;
+        let h = &mut self.get_mut().head.headers;
         HeaderValue::from_str(&cookie.to_string())
             .map(|c| {
                 h.append(header::SET_COOKIE, c);
@@ -145,7 +145,7 @@ impl Response {
     /// the number of cookies removed.
     #[inline]
     pub fn del_cookie(&mut self, name: &str) -> usize {
-        let h = &mut self.get_mut().headers;
+        let h = &mut self.get_mut().head.headers;
         let vals: Vec<HeaderValue> = h
             .get_all(header::SET_COOKIE)
             .iter()
@@ -171,23 +171,23 @@ impl Response {
     /// Get the response status code
     #[inline]
     pub fn status(&self) -> StatusCode {
-        self.get_ref().status
+        self.get_ref().head.status
     }
 
     /// Set the `StatusCode` for this response
     #[inline]
     pub fn status_mut(&mut self) -> &mut StatusCode {
-        &mut self.get_mut().status
+        &mut self.get_mut().head.status
     }
 
     /// Get custom reason for the response
     #[inline]
     pub fn reason(&self) -> &str {
-        if let Some(reason) = self.get_ref().reason {
+        if let Some(reason) = self.get_ref().head.reason {
             reason
         } else {
             self.get_ref()
-                .status
+                .head.status
                 .canonical_reason()
                 .unwrap_or("<unknown status code>")
         }
@@ -196,7 +196,7 @@ impl Response {
     /// Set the custom reason for the response
     #[inline]
     pub fn set_reason(&mut self, reason: &'static str) -> &mut Self {
-        self.get_mut().reason = Some(reason);
+        self.get_mut().head.reason = Some(reason);
         self
     }
 
@@ -279,7 +279,7 @@ impl Response {
     }
 
     pub(crate) fn release(self) {
-        self.1.release(self.0);
+        ResponsePool::release(self.0);
     }
 
     pub(crate) fn into_parts(self) -> ResponseParts {
@@ -287,10 +287,7 @@ impl Response {
     }
 
     pub(crate) fn from_parts(parts: ResponseParts) -> Response {
-        Response(
-            Box::new(InnerResponse::from_parts(parts)),
-            ResponsePool::get_pool(),
-        )
+        Response(Box::new(InnerResponse::from_parts(parts)))
     }
 }
 
@@ -299,13 +296,13 @@ impl fmt::Debug for Response {
         let res = writeln!(
             f,
             "\nResponse {:?} {}{}",
-            self.get_ref().version,
-            self.get_ref().status,
-            self.get_ref().reason.unwrap_or("")
+            self.get_ref().head.version,
+            self.get_ref().head.status,
+            self.get_ref().head.reason.unwrap_or("")
         );
         let _ = writeln!(f, "  encoding: {:?}", self.get_ref().encoding);
         let _ = writeln!(f, "  headers:");
-        for (key, val) in self.get_ref().headers.iter() {
+        for (key, val) in self.get_ref().head.headers.iter() {
             let _ = writeln!(f, "    {:?}: {:?}", key, val);
         }
         res
@@ -335,7 +332,6 @@ impl<'a> Iterator for CookieIter<'a> {
 /// This type can be used to construct an instance of `Response` through a
 /// builder-like pattern.
 pub struct ResponseBuilder {
-    pool: &'static ResponsePool,
     response: Option<Box<InnerResponse>>,
     err: Option<HttpError>,
     cookies: Option<CookieJar>,
@@ -346,7 +342,7 @@ impl ResponseBuilder {
     #[inline]
     pub fn status(&mut self, status: StatusCode) -> &mut Self {
         if let Some(parts) = parts(&mut self.response, &self.err) {
-            parts.status = status;
+            parts.head.status = status;
         }
         self
     }
@@ -357,7 +353,7 @@ impl ResponseBuilder {
     #[inline]
     pub fn version(&mut self, version: Version) -> &mut Self {
         if let Some(parts) = parts(&mut self.response, &self.err) {
-            parts.version = Some(version);
+            parts.head.version = Some(version);
         }
         self
     }
@@ -382,7 +378,7 @@ impl ResponseBuilder {
         if let Some(parts) = parts(&mut self.response, &self.err) {
             match hdr.try_into() {
                 Ok(value) => {
-                    parts.headers.append(H::name(), value);
+                    parts.head.headers.append(H::name(), value);
                 }
                 Err(e) => self.err = Some(e.into()),
             }
@@ -413,7 +409,7 @@ impl ResponseBuilder {
             match HeaderName::try_from(key) {
                 Ok(key) => match value.try_into() {
                     Ok(value) => {
-                        parts.headers.append(key, value);
+                        parts.head.headers.append(key, value);
                     }
                     Err(e) => self.err = Some(e.into()),
                 },
@@ -427,7 +423,7 @@ impl ResponseBuilder {
     #[inline]
     pub fn reason(&mut self, reason: &'static str) -> &mut Self {
         if let Some(parts) = parts(&mut self.response, &self.err) {
-            parts.reason = Some(reason);
+            parts.head.reason = Some(reason);
         }
         self
     }
@@ -496,7 +492,7 @@ impl ResponseBuilder {
         if let Some(parts) = parts(&mut self.response, &self.err) {
             match HeaderValue::try_from(value) {
                 Ok(value) => {
-                    parts.headers.insert(header::CONTENT_TYPE, value);
+                    parts.head.headers.insert(header::CONTENT_TYPE, value);
                 }
                 Err(e) => self.err = Some(e.into()),
             };
@@ -620,13 +616,13 @@ impl ResponseBuilder {
         if let Some(ref jar) = self.cookies {
             for cookie in jar.delta() {
                 match HeaderValue::from_str(&cookie.to_string()) {
-                    Ok(val) => response.headers.append(header::SET_COOKIE, val),
+                    Ok(val) => response.head.headers.append(header::SET_COOKIE, val),
                     Err(e) => return Error::from(e).into(),
                 };
             }
         }
         response.body = body.into();
-        Response(response, self.pool)
+        Response(response)
     }
 
     #[inline]
@@ -656,7 +652,7 @@ impl ResponseBuilder {
             Ok(body) => {
                 let contains = if let Some(parts) = parts(&mut self.response, &self.err)
                 {
-                    parts.headers.contains_key(header::CONTENT_TYPE)
+                    parts.head.headers.contains_key(header::CONTENT_TYPE)
                 } else {
                     true
                 };
@@ -681,7 +677,6 @@ impl ResponseBuilder {
     /// This method construct new `ResponseBuilder`
     pub fn take(&mut self) -> ResponseBuilder {
         ResponseBuilder {
-            pool: self.pool,
             response: self.response.take(),
             err: self.err.take(),
             cookies: self.cookies.take(),
@@ -765,12 +760,8 @@ impl From<BytesMut> for Response {
     }
 }
 
-#[derive(Debug)]
 struct InnerResponse {
-    version: Option<Version>,
-    headers: HeaderMap,
-    status: StatusCode,
-    reason: Option<&'static str>,
+    head: ResponseHead,
     body: Body,
     chunked: Option<bool>,
     encoding: Option<ContentEncoding>,
@@ -778,13 +769,11 @@ struct InnerResponse {
     write_capacity: usize,
     response_size: u64,
     error: Option<Error>,
+    pool: &'static ResponsePool,
 }
 
 pub(crate) struct ResponseParts {
-    version: Option<Version>,
-    headers: HeaderMap,
-    status: StatusCode,
-    reason: Option<&'static str>,
+    head: ResponseHead,
     body: Option<Bytes>,
     encoding: Option<ContentEncoding>,
     connection_type: Option<ConnectionType>,
@@ -793,13 +782,17 @@ pub(crate) struct ResponseParts {
 
 impl InnerResponse {
     #[inline]
-    fn new(status: StatusCode, body: Body) -> InnerResponse {
+    fn new(status: StatusCode, body: Body, pool: &'static ResponsePool) -> InnerResponse {
         InnerResponse {
-            status,
+            head: ResponseHead {
+                status,
+                version: None,
+                headers: HeaderMap::with_capacity(16),
+                reason: None,
+                flags: MessageFlags::empty(),
+            },
             body,
-            version: None,
-            headers: HeaderMap::with_capacity(16),
-            reason: None,
+            pool,
             chunked: None,
             encoding: None,
             connection_type: None,
@@ -822,10 +815,7 @@ impl InnerResponse {
 
         ResponseParts {
             body,
-            version: self.version,
-            headers: self.headers,
-            status: self.status,
-            reason: self.reason,
+            head: self.head,
             encoding: self.encoding,
             connection_type: self.connection_type,
             error: self.error,
@@ -841,16 +831,14 @@ impl InnerResponse {
 
         InnerResponse {
             body,
-            status: parts.status,
-            version: parts.version,
-            headers: parts.headers,
-            reason: parts.reason,
+            head: parts.head,
             chunked: None,
             encoding: parts.encoding,
             connection_type: parts.connection_type,
             response_size: 0,
             write_capacity: MAX_WRITE_BUFFER_SIZE,
             error: parts.error,
+            pool: ResponsePool::pool(),
         }
     }
 }
@@ -876,17 +864,15 @@ impl ResponsePool {
         status: StatusCode,
     ) -> ResponseBuilder {
         if let Some(mut msg) = pool.0.borrow_mut().pop_front() {
-            msg.status = status;
+            msg.head.status = status;
             ResponseBuilder {
-                pool,
                 response: Some(msg),
                 err: None,
                 cookies: None,
             }
         } else {
-            let msg = Box::new(InnerResponse::new(status, Body::Empty));
+            let msg = Box::new(InnerResponse::new(status, Body::Empty, pool));
             ResponseBuilder {
-                pool,
                 response: Some(msg),
                 err: None,
                 cookies: None,
@@ -901,12 +887,11 @@ impl ResponsePool {
         body: Body,
     ) -> Response {
         if let Some(mut msg) = pool.0.borrow_mut().pop_front() {
-            msg.status = status;
+            msg.head.status = status;
             msg.body = body;
-            Response(msg, pool)
+            Response(msg)
         } else {
-            let msg = Box::new(InnerResponse::new(status, body));
-            Response(msg, pool)
+            Response(Box::new(InnerResponse::new(status, body, pool)))
         }
     }
 
@@ -921,13 +906,11 @@ impl ResponsePool {
     }
 
     #[inline]
-    fn release(&self, mut inner: Box<InnerResponse>) {
-        let mut p = self.0.borrow_mut();
+    fn release(mut inner: Box<InnerResponse>) {
+        let mut p = inner.pool.0.borrow_mut();
         if p.len() < 128 {
-            inner.headers.clear();
-            inner.version = None;
+            inner.head.clear();
             inner.chunked = None;
-            inner.reason = None;
             inner.encoding = None;
             inner.connection_type = None;
             inner.response_size = 0;
