@@ -12,9 +12,9 @@ use http::{Error as HttpError, HeaderMap, HttpTryFrom, StatusCode, Version};
 use serde::Serialize;
 use serde_json;
 
-use body::{MessageBody, MessageBodyStream};
+use body::{Body, BodyStream, MessageBody};
 use error::Error;
-use header::{ContentEncoding, Header, IntoHeaderValue};
+use header::{Header, IntoHeaderValue};
 use message::{Head, MessageFlags, ResponseHead};
 
 /// max write buffer size 64k
@@ -32,9 +32,9 @@ pub enum ConnectionType {
 }
 
 /// An HTTP Response
-pub struct Response<B: MessageBody = ()>(Box<InnerResponse>, B);
+pub struct Response<B: MessageBody = Body>(Box<InnerResponse>, B);
 
-impl Response<()> {
+impl Response<Body> {
     /// Create http response builder with specific status.
     #[inline]
     pub fn build(status: StatusCode) -> ResponseBuilder {
@@ -50,7 +50,7 @@ impl Response<()> {
     /// Constructs a response
     #[inline]
     pub fn new(status: StatusCode) -> Response {
-        ResponsePool::with_body(status, ())
+        ResponsePool::with_body(status, Body::Empty)
     }
 
     /// Constructs an error response
@@ -242,6 +242,11 @@ impl<B: MessageBody> Response<B> {
         Response(self.0, body)
     }
 
+    /// Drop request's body
+    pub fn drop_body(self) -> Response<()> {
+        Response(self.0, ())
+    }
+
     /// Set a body and return previous body value
     pub fn replace_body<B2: MessageBody>(self, body: B2) -> (Response<B2>, B) {
         (Response(self.0, body), self.1)
@@ -252,7 +257,7 @@ impl<B: MessageBody> Response<B> {
         self.get_ref().response_size
     }
 
-    /// Set content encoding
+    /// Set response size
     pub(crate) fn set_response_size(&mut self, size: u64) {
         self.get_mut().response_size = size;
     }
@@ -266,7 +271,7 @@ impl<B: MessageBody> Response<B> {
     }
 
     pub(crate) fn from_parts(parts: ResponseParts) -> Response {
-        Response(Box::new(InnerResponse::from_parts(parts)), ())
+        Response(Box::new(InnerResponse::from_parts(parts)), Body::Empty)
     }
 }
 
@@ -279,7 +284,6 @@ impl fmt::Debug for Response {
             self.get_ref().head.status,
             self.get_ref().head.reason.unwrap_or("")
         );
-        let _ = writeln!(f, "  encoding: {:?}", self.get_ref().encoding);
         let _ = writeln!(f, "  headers:");
         for (key, val) in self.get_ref().head.headers.iter() {
             let _ = writeln!(f, "    {:?}: {:?}", key, val);
@@ -392,20 +396,6 @@ impl ResponseBuilder {
     pub fn reason(&mut self, reason: &'static str) -> &mut Self {
         if let Some(parts) = parts(&mut self.response, &self.err) {
             parts.head.reason = Some(reason);
-        }
-        self
-    }
-
-    /// Set content encoding.
-    ///
-    /// By default `ContentEncoding::Auto` is used, which automatically
-    /// negotiates content encoding based on request's `Accept-Encoding`
-    /// headers. To enforce specific encoding, use specific
-    /// ContentEncoding` value.
-    #[inline]
-    pub fn content_encoding(&mut self, enc: ContentEncoding) -> &mut Self {
-        if let Some(parts) = parts(&mut self.response, &self.err) {
-            parts.encoding = Some(enc);
         }
         self
     }
@@ -558,7 +548,14 @@ impl ResponseBuilder {
     /// Set a body and generate `Response`.
     ///
     /// `ResponseBuilder` can not be used after this call.
-    pub fn body<B: MessageBody>(&mut self, body: B) -> Response<B> {
+    pub fn body<B: Into<Body>>(&mut self, body: B) -> Response {
+        self.message_body(body.into())
+    }
+
+    /// Set a body and generate `Response`.
+    ///
+    /// `ResponseBuilder` can not be used after this call.
+    pub fn message_body<B: MessageBody>(&mut self, body: B) -> Response<B> {
         let mut error = if let Some(e) = self.err.take() {
             Some(Error::from(e))
         } else {
@@ -589,25 +586,25 @@ impl ResponseBuilder {
     /// Set a streaming body and generate `Response`.
     ///
     /// `ResponseBuilder` can not be used after this call.
-    pub fn streaming<S, E>(&mut self, stream: S) -> Response<impl MessageBody>
+    pub fn streaming<S, E>(&mut self, stream: S) -> Response
     where
         S: Stream<Item = Bytes, Error = E> + 'static,
-        E: Into<Error>,
+        E: Into<Error> + 'static,
     {
-        self.body(MessageBodyStream::new(stream.map_err(|e| e.into())))
+        self.body(Body::from_message(BodyStream::new(stream)))
     }
 
     /// Set a json body and generate `Response`
     ///
     /// `ResponseBuilder` can not be used after this call.
-    pub fn json<T: Serialize>(&mut self, value: T) -> Response<String> {
+    pub fn json<T: Serialize>(&mut self, value: T) -> Response {
         self.json2(&value)
     }
 
     /// Set a json body and generate `Response`
     ///
     /// `ResponseBuilder` can not be used after this call.
-    pub fn json2<T: Serialize>(&mut self, value: &T) -> Response<String> {
+    pub fn json2<T: Serialize>(&mut self, value: &T) -> Response {
         match serde_json::to_string(value) {
             Ok(body) => {
                 let contains = if let Some(parts) = parts(&mut self.response, &self.err)
@@ -620,12 +617,9 @@ impl ResponseBuilder {
                     self.header(header::CONTENT_TYPE, "application/json");
                 }
 
-                self.body(body)
+                self.body(Body::from(body))
             }
-            Err(e) => {
-                let mut res: Response = Error::from(e).into();
-                res.replace_body(String::new()).0
-            }
+            Err(e) => Error::from(e).into(),
         }
     }
 
@@ -633,8 +627,8 @@ impl ResponseBuilder {
     /// Set an empty body and generate `Response`
     ///
     /// `ResponseBuilder` can not be used after this call.
-    pub fn finish(&mut self) -> Response<()> {
-        self.body(())
+    pub fn finish(&mut self) -> Response {
+        self.body(Body::Empty)
     }
 
     /// This method construct new `ResponseBuilder`
@@ -675,7 +669,7 @@ impl From<ResponseBuilder> for Response {
     }
 }
 
-impl From<&'static str> for Response<&'static str> {
+impl From<&'static str> for Response {
     fn from(val: &'static str) -> Self {
         Response::Ok()
             .content_type("text/plain; charset=utf-8")
@@ -683,7 +677,7 @@ impl From<&'static str> for Response<&'static str> {
     }
 }
 
-impl From<&'static [u8]> for Response<&'static [u8]> {
+impl From<&'static [u8]> for Response {
     fn from(val: &'static [u8]) -> Self {
         Response::Ok()
             .content_type("application/octet-stream")
@@ -691,7 +685,7 @@ impl From<&'static [u8]> for Response<&'static [u8]> {
     }
 }
 
-impl From<String> for Response<String> {
+impl From<String> for Response {
     fn from(val: String) -> Self {
         Response::Ok()
             .content_type("text/plain; charset=utf-8")
@@ -699,7 +693,15 @@ impl From<String> for Response<String> {
     }
 }
 
-impl From<Bytes> for Response<Bytes> {
+impl<'a> From<&'a String> for Response {
+    fn from(val: &'a String) -> Self {
+        Response::Ok()
+            .content_type("text/plain; charset=utf-8")
+            .body(val)
+    }
+}
+
+impl From<Bytes> for Response {
     fn from(val: Bytes) -> Self {
         Response::Ok()
             .content_type("application/octet-stream")
@@ -707,7 +709,7 @@ impl From<Bytes> for Response<Bytes> {
     }
 }
 
-impl From<BytesMut> for Response<BytesMut> {
+impl From<BytesMut> for Response {
     fn from(val: BytesMut) -> Self {
         Response::Ok()
             .content_type("application/octet-stream")
@@ -717,7 +719,6 @@ impl From<BytesMut> for Response<BytesMut> {
 
 struct InnerResponse {
     head: ResponseHead,
-    encoding: Option<ContentEncoding>,
     connection_type: Option<ConnectionType>,
     write_capacity: usize,
     response_size: u64,
@@ -727,7 +728,6 @@ struct InnerResponse {
 
 pub(crate) struct ResponseParts {
     head: ResponseHead,
-    encoding: Option<ContentEncoding>,
     connection_type: Option<ConnectionType>,
     error: Option<Error>,
 }
@@ -744,7 +744,6 @@ impl InnerResponse {
                 flags: MessageFlags::empty(),
             },
             pool,
-            encoding: None,
             connection_type: None,
             response_size: 0,
             write_capacity: MAX_WRITE_BUFFER_SIZE,
@@ -756,7 +755,6 @@ impl InnerResponse {
     fn into_parts(self) -> ResponseParts {
         ResponseParts {
             head: self.head,
-            encoding: self.encoding,
             connection_type: self.connection_type,
             error: self.error,
         }
@@ -765,7 +763,6 @@ impl InnerResponse {
     fn from_parts(parts: ResponseParts) -> InnerResponse {
         InnerResponse {
             head: parts.head,
-            encoding: parts.encoding,
             connection_type: parts.connection_type,
             response_size: 0,
             write_capacity: MAX_WRITE_BUFFER_SIZE,
@@ -841,7 +838,6 @@ impl ResponsePool {
         let mut p = inner.pool.0.borrow_mut();
         if p.len() < 128 {
             inner.head.clear();
-            inner.encoding = None;
             inner.connection_type = None;
             inner.response_size = 0;
             inner.error = None;
@@ -854,11 +850,10 @@ impl ResponsePool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use body::Binary;
+    use body::Body;
     use http;
     use http::header::{HeaderValue, CONTENT_TYPE, COOKIE};
 
-    use header::ContentEncoding;
     // use test::TestRequest;
 
     #[test]
@@ -953,24 +948,24 @@ mod tests {
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "text/plain")
     }
 
-    #[test]
-    fn test_content_encoding() {
-        let resp = Response::build(StatusCode::OK).finish();
-        assert_eq!(resp.content_encoding(), None);
+    // #[test]
+    // fn test_content_encoding() {
+    //     let resp = Response::build(StatusCode::OK).finish();
+    //     assert_eq!(resp.content_encoding(), None);
 
-        #[cfg(feature = "brotli")]
-        {
-            let resp = Response::build(StatusCode::OK)
-                .content_encoding(ContentEncoding::Br)
-                .finish();
-            assert_eq!(resp.content_encoding(), Some(ContentEncoding::Br));
-        }
+    //     #[cfg(feature = "brotli")]
+    //     {
+    //         let resp = Response::build(StatusCode::OK)
+    //             .content_encoding(ContentEncoding::Br)
+    //             .finish();
+    //         assert_eq!(resp.content_encoding(), Some(ContentEncoding::Br));
+    //     }
 
-        let resp = Response::build(StatusCode::OK)
-            .content_encoding(ContentEncoding::Gzip)
-            .finish();
-        assert_eq!(resp.content_encoding(), Some(ContentEncoding::Gzip));
-    }
+    //     let resp = Response::build(StatusCode::OK)
+    //         .content_encoding(ContentEncoding::Gzip)
+    //         .finish();
+    //     assert_eq!(resp.content_encoding(), Some(ContentEncoding::Gzip));
+    // }
 
     #[test]
     fn test_json() {
@@ -1020,15 +1015,6 @@ mod tests {
         );
     }
 
-    impl Body {
-        pub(crate) fn bin_ref(&self) -> &Binary {
-            match *self {
-                Body::Binary(ref bin) => bin,
-                _ => panic!(),
-            }
-        }
-    }
-
     #[test]
     fn test_into_response() {
         let resp: Response = "test".into();
@@ -1038,7 +1024,7 @@ mod tests {
             HeaderValue::from_static("text/plain; charset=utf-8")
         );
         assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.body().bin_ref(), &Binary::from("test"));
+        assert_eq!(resp.body().get_ref(), b"test");
 
         let resp: Response = b"test".as_ref().into();
         assert_eq!(resp.status(), StatusCode::OK);
@@ -1047,7 +1033,7 @@ mod tests {
             HeaderValue::from_static("application/octet-stream")
         );
         assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.body().bin_ref(), &Binary::from(b"test".as_ref()));
+        assert_eq!(resp.body().get_ref(), b"test");
 
         let resp: Response = "test".to_owned().into();
         assert_eq!(resp.status(), StatusCode::OK);
@@ -1056,7 +1042,7 @@ mod tests {
             HeaderValue::from_static("text/plain; charset=utf-8")
         );
         assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.body().bin_ref(), &Binary::from("test".to_owned()));
+        assert_eq!(resp.body().get_ref(), b"test");
 
         let resp: Response = (&"test".to_owned()).into();
         assert_eq!(resp.status(), StatusCode::OK);
@@ -1065,7 +1051,7 @@ mod tests {
             HeaderValue::from_static("text/plain; charset=utf-8")
         );
         assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.body().bin_ref(), &Binary::from(&"test".to_owned()));
+        assert_eq!(resp.body().get_ref(), b"test");
 
         let b = Bytes::from_static(b"test");
         let resp: Response = b.into();
@@ -1075,10 +1061,7 @@ mod tests {
             HeaderValue::from_static("application/octet-stream")
         );
         assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(
-            resp.body().bin_ref(),
-            &Binary::from(Bytes::from_static(b"test"))
-        );
+        assert_eq!(resp.body().get_ref(), b"test");
 
         let b = Bytes::from_static(b"test");
         let resp: Response = b.into();
@@ -1088,7 +1071,7 @@ mod tests {
             HeaderValue::from_static("application/octet-stream")
         );
         assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.body().bin_ref(), &Binary::from(BytesMut::from("test")));
+        assert_eq!(resp.body().get_ref(), b"test");
 
         let b = BytesMut::from("test");
         let resp: Response = b.into();
@@ -1098,7 +1081,7 @@ mod tests {
             HeaderValue::from_static("application/octet-stream")
         );
         assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.body().bin_ref(), &Binary::from(BytesMut::from("test")));
+        assert_eq!(resp.body().get_ref(), b"test");
     }
 
     #[test]

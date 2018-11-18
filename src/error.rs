@@ -20,6 +20,7 @@ use tokio_timer::Error as TimerError;
 // re-exports
 pub use cookie::ParseError as CookieParseError;
 
+use body::Body;
 use response::{Response, ResponseParts};
 
 /// A specialized [`Result`](https://doc.rust-lang.org/std/result/enum.Result.html)
@@ -100,10 +101,10 @@ impl Error {
     }
 
     /// Converts error to a response instance and set error message as response body
-    pub fn response_with_message(self) -> Response<String> {
+    pub fn response_with_message(self) -> Response {
         let message = format!("{}", self);
         let resp: Response = self.into();
-        resp.set_body(message)
+        resp.set_body(Body::from(message))
     }
 }
 

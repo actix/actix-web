@@ -15,7 +15,7 @@ use bytes::Bytes;
 use futures::future::{self, ok};
 use futures::stream::once;
 
-use actix_http::{h1, http, Body, KeepAlive, Request, Response};
+use actix_http::{body, h1, http, Body, Error, KeepAlive, Request, Response};
 
 #[test]
 fn test_h1_v2() {
@@ -349,11 +349,9 @@ fn test_body_length() {
             .bind("test", addr, move || {
                 h1::H1Service::new(|_| {
                     let body = once(Ok(Bytes::from_static(STR.as_ref())));
-                    ok::<_, ()>(
-                        Response::Ok()
-                            .content_length(STR.len() as u64)
-                            .body(Body::Streaming(Box::new(body))),
-                    )
+                    ok::<_, ()>(Response::Ok().body(Body::from_message(
+                        body::SizedStream::new(STR.len(), body),
+                    )))
                 }).map(|_| ())
             }).unwrap()
             .run()
@@ -379,12 +377,8 @@ fn test_body_chunked_explicit() {
         Server::new()
             .bind("test", addr, move || {
                 h1::H1Service::new(|_| {
-                    let body = once(Ok(Bytes::from_static(STR.as_ref())));
-                    ok::<_, ()>(
-                        Response::Ok()
-                            .chunked()
-                            .body(Body::Streaming(Box::new(body))),
-                    )
+                    let body = once::<_, Error>(Ok(Bytes::from_static(STR.as_ref())));
+                    ok::<_, ()>(Response::Ok().streaming(body))
                 }).map(|_| ())
             }).unwrap()
             .run()
@@ -412,8 +406,8 @@ fn test_body_chunked_implicit() {
         Server::new()
             .bind("test", addr, move || {
                 h1::H1Service::new(|_| {
-                    let body = once(Ok(Bytes::from_static(STR.as_ref())));
-                    ok::<_, ()>(Response::Ok().body(Body::Streaming(Box::new(body))))
+                    let body = once::<_, Error>(Ok(Bytes::from_static(STR.as_ref())));
+                    ok::<_, ()>(Response::Ok().streaming(body))
                 }).map(|_| ())
             }).unwrap()
             .run()

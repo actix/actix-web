@@ -18,7 +18,7 @@ use bytes::{Bytes, BytesMut};
 use futures::future::{lazy, ok, Either};
 use futures::{Future, IntoFuture, Sink, Stream};
 
-use actix_http::{h1, ws, ResponseError, ServiceConfig};
+use actix_http::{h1, ws, ResponseError, SendResponse, ServiceConfig};
 
 fn ws_service(req: ws::Frame) -> impl Future<Item = ws::Message, Error = io::Error> {
     match req {
@@ -55,20 +55,19 @@ fn test_simple() {
                             match ws::verify_handshake(&req) {
                                 Err(e) => {
                                     // validation failed
-                                    let resp = e.error_response();
                                     Either::A(
-                                        framed
-                                            .send(h1::Message::Item(resp))
+                                        SendResponse::send(framed, e.error_response())
                                             .map_err(|_| ())
                                             .map(|_| ()),
                                     )
                                 }
-                                Ok(_) => Either::B(
-                                    // send response
-                                    framed
-                                        .send(h1::Message::Item(
+                                Ok(_) => {
+                                    Either::B(
+                                        // send handshake response
+                                        SendResponse::send(
+                                            framed,
                                             ws::handshake_response(&req).finish(),
-                                        )).map_err(|_| ())
+                                        ).map_err(|_| ())
                                         .and_then(|framed| {
                                             // start websocket service
                                             let framed =
@@ -76,7 +75,8 @@ fn test_simple() {
                                             ws::Transport::with(framed, ws_service)
                                                 .map_err(|_| ())
                                         }),
-                                ),
+                                    )
+                                }
                             }
                         } else {
                             panic!()

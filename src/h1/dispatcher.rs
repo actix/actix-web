@@ -65,7 +65,7 @@ where
 
 enum DispatcherMessage {
     Item(Request),
-    Error(Response),
+    Error(Response<()>),
 }
 
 enum State<S: Service, B: MessageBody> {
@@ -190,7 +190,7 @@ where
 
     fn send_response<B1: MessageBody>(
         &mut self,
-        message: Response,
+        message: Response<()>,
         body: B1,
     ) -> Result<State<S, B1>, DispatchError<S::Error>> {
         self.framed
@@ -206,7 +206,7 @@ where
             .set(Flags::KEEPALIVE, self.framed.get_codec().keepalive());
         self.flags.remove(Flags::FLUSHED);
         match body.length() {
-            BodyLength::None | BodyLength::Zero => Ok(State::None),
+            BodyLength::None | BodyLength::Empty => Ok(State::None),
             _ => Ok(State::SendPayload(body)),
         }
     }
@@ -351,7 +351,7 @@ where
                                 );
                                 self.flags.insert(Flags::DISCONNECTED);
                                 self.messages.push_back(DispatcherMessage::Error(
-                                    Response::InternalServerError().finish(),
+                                    Response::InternalServerError().finish().drop_body(),
                                 ));
                                 self.error = Some(DispatchError::InternalError);
                                 break;
@@ -364,7 +364,7 @@ where
                                 error!("Internal server error: unexpected eof");
                                 self.flags.insert(Flags::DISCONNECTED);
                                 self.messages.push_back(DispatcherMessage::Error(
-                                    Response::InternalServerError().finish(),
+                                    Response::InternalServerError().finish().drop_body(),
                                 ));
                                 self.error = Some(DispatchError::InternalError);
                                 break;
@@ -389,7 +389,7 @@ where
 
                     // Malformed requests should be responded with 400
                     self.messages.push_back(DispatcherMessage::Error(
-                        Response::BadRequest().finish(),
+                        Response::BadRequest().finish().drop_body(),
                     ));
                     self.flags.insert(Flags::DISCONNECTED);
                     self.error = Some(e.into());
@@ -440,8 +440,10 @@ where
                             // timeout on first request (slow request) return 408
                             trace!("Slow request timeout");
                             self.flags.insert(Flags::STARTED | Flags::DISCONNECTED);
-                            let _ = self
-                                .send_response(Response::RequestTimeout().finish(), ());
+                            let _ = self.send_response(
+                                Response::RequestTimeout().finish().drop_body(),
+                                (),
+                            );
                             self.state = State::None;
                         }
                     } else if let Some(deadline) = self.config.keep_alive_expire() {

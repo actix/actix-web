@@ -8,7 +8,7 @@ use bytes::{Bytes, BytesMut};
 use http::header::{HeaderValue, ACCEPT_ENCODING, CONTENT_LENGTH};
 use http::{StatusCode, Version};
 
-use body::{Binary, BodyLength};
+use body::BodyLength;
 use header::ContentEncoding;
 use http::Method;
 use message::{RequestHead, ResponseHead};
@@ -52,7 +52,7 @@ impl ResponseEncoder {
     ) {
         self.head = head;
         let transfer = match length {
-            BodyLength::Zero => {
+            BodyLength::Empty => {
                 match resp.status {
                     StatusCode::NO_CONTENT
                     | StatusCode::CONTINUE

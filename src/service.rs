@@ -72,7 +72,7 @@ where
 }
 
 pub struct SendErrorFut<T, R, E> {
-    res: Option<Message<Response>>,
+    res: Option<Message<Response<()>>>,
     framed: Option<Framed<T, Codec>>,
     err: Option<E>,
     _t: PhantomData<R>,
@@ -188,7 +188,7 @@ where
 }
 
 pub struct SendResponseFut<T, B> {
-    res: Option<Message<Response>>,
+    res: Option<Message<Response<()>>>,
     body: Option<B>,
     framed: Option<Framed<T, Codec>>,
 }

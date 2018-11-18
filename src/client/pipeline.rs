@@ -36,7 +36,9 @@ where
         .and_then(|framed| framed.send((head, len).into()).from_err())
         // send request body
         .and_then(move |framed| match body.length() {
-            BodyLength::None | BodyLength::Zero => Either::A(ok(framed)),
+            BodyLength::None | BodyLength::Empty | BodyLength::Sized(0) => {
+                Either::A(ok(framed))
+            }
             _ => Either::B(SendBody::new(body, framed)),
         })
         // read response and init read body

@@ -1,8 +1,7 @@
 use byteorder::{ByteOrder, LittleEndian, NetworkEndian};
-use bytes::{BufMut, BytesMut};
+use bytes::{BufMut, Bytes, BytesMut};
 use rand;
 
-use body::Binary;
 use ws::mask::apply_mask;
 use ws::proto::{CloseCode, CloseReason, OpCode};
 use ws::ProtocolError;
@@ -151,7 +150,7 @@ impl Parser {
     }
 
     /// Generate binary representation
-    pub fn write_message<B: Into<Binary>>(
+    pub fn write_message<B: Into<Bytes>>(
         dst: &mut BytesMut,
         pl: B,
         op: OpCode,

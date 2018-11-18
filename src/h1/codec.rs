@@ -8,7 +8,7 @@ use tokio_codec::{Decoder, Encoder};
 use super::decoder::{MessageDecoder, PayloadDecoder, PayloadItem, PayloadType};
 use super::encoder::ResponseEncoder;
 use super::{Message, MessageType};
-use body::{Binary, BodyLength};
+use body::BodyLength;
 use config::ServiceConfig;
 use error::ParseError;
 use helpers;
@@ -106,7 +106,7 @@ impl Codec {
 
     fn encode_response(
         &mut self,
-        mut msg: Response,
+        mut msg: Response<()>,
         buffer: &mut BytesMut,
     ) -> io::Result<()> {
         let ka = self.flags.contains(Flags::KEEPALIVE_ENABLED) && msg
@@ -149,7 +149,7 @@ impl Codec {
                 BodyLength::Chunked => {
                     buffer.extend_from_slice(b"\r\ntransfer-encoding: chunked\r\n")
                 }
-                BodyLength::Zero => {
+                BodyLength::Empty => {
                     len_is_set = false;
                     buffer.extend_from_slice(b"\r\n")
                 }
@@ -174,7 +174,7 @@ impl Codec {
                     TRANSFER_ENCODING => continue,
                     CONTENT_LENGTH => match self.te.length {
                         BodyLength::None => (),
-                        BodyLength::Zero => {
+                        BodyLength::Empty => {
                             len_is_set = true;
                         }
                         _ => continue,
@@ -268,7 +268,7 @@ impl Decoder for Codec {
 }
 
 impl Encoder for Codec {
-    type Item = Message<Response>;
+    type Item = Message<Response<()>>;
     type Error = io::Error;
 
     fn encode(

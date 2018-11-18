@@ -109,7 +109,7 @@ extern crate serde_derive;
 #[cfg(feature = "ssl")]
 extern crate openssl;
 
-mod body;
+pub mod body;
 pub mod client;
 mod config;
 mod extensions;
@@ -129,7 +129,7 @@ pub mod h1;
 pub(crate) mod helpers;
 pub mod test;
 pub mod ws;
-pub use body::{Binary, MessageBody};
+pub use body::{Body, MessageBody};
 pub use error::{Error, ResponseError, Result};
 pub use extensions::Extensions;
 pub use httpmessage::HttpMessage;
@@ -150,7 +150,6 @@ pub mod dev {
     //! use actix_http::dev::*;
     //! ```
 
-    pub use body::BodyStream;
     pub use httpmessage::{MessageBody, Readlines, UrlEncoded};
     pub use json::JsonBody;
     pub use payload::{Payload, PayloadBuffer};

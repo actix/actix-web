@@ -9,7 +9,7 @@ use futures::{Future, Stream};
 use percent_encoding::{percent_encode, USERINFO_ENCODE_SET};
 use urlcrate::Url;
 
-use body::{MessageBody, MessageBodyStream};
+use body::{BodyStream, MessageBody};
 use error::Error;
 use header::{self, Header, IntoHeaderValue};
 use http::{
@@ -534,14 +534,15 @@ impl ClientRequestBuilder {
     /// Set an streaming body and generate `ClientRequest`.
     ///
     /// `ClientRequestBuilder` can not be used after this call.
-    pub fn stream<S>(
+    pub fn stream<S, E>(
         &mut self,
         stream: S,
     ) -> Result<ClientRequest<impl MessageBody>, HttpError>
     where
-        S: Stream<Item = Bytes, Error = Error>,
+        S: Stream<Item = Bytes, Error = E>,
+        E: Into<Error> + 'static,
     {
-        self.body(MessageBodyStream::new(stream))
+        self.body(BodyStream::new(stream))
     }
 
     /// Set an empty body and generate `ClientRequest`.

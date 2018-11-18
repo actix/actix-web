@@ -1,10 +1,9 @@
-use bytes::BytesMut;
+use bytes::{Bytes, BytesMut};
 use tokio_codec::{Decoder, Encoder};
 
 use super::frame::Parser;
 use super::proto::{CloseReason, OpCode};
 use super::ProtocolError;
-use body::Binary;
 
 /// `WebSocket` Message
 #[derive(Debug, PartialEq)]
@@ -12,7 +11,7 @@ pub enum Message {
     /// Text message
     Text(String),
     /// Binary message
-    Binary(Binary),
+    Binary(Bytes),
     /// Ping message
     Ping(String),
     /// Pong message

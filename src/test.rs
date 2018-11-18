@@ -4,6 +4,7 @@ use std::str::FromStr;
 
 use actix::System;
 
+use bytes::Bytes;
 use cookie::Cookie;
 use futures::Future;
 use http::header::HeaderName;
@@ -11,7 +12,6 @@ use http::{HeaderMap, HttpTryFrom, Method, Uri, Version};
 use net2::TcpBuilder;
 use tokio::runtime::current_thread::Runtime;
 
-use body::Binary;
 use header::{Header, IntoHeaderValue};
 use payload::Payload;
 use request::Request;
@@ -362,10 +362,9 @@ impl TestRequest {
     }
 
     /// Set request payload
-    pub fn set_payload<B: Into<Binary>>(mut self, data: B) -> Self {
-        let mut data = data.into();
+    pub fn set_payload<B: Into<Bytes>>(mut self, data: B) -> Self {
         let mut payload = Payload::empty();
-        payload.unread_data(data.take());
+        payload.unread_data(data.into());
         self.payload = Some(payload);
         self
     }
