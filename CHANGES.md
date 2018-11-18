@@ -8,6 +8,12 @@
 
 * `QueryConfig` and `PathConfig` are made public.
 
+### Added
+
+* By default, `Path` extractor now percent decode all characters. This behaviour can be disabled
+  with `PathConfig::default().disable_decoding()`
+
+
 ## [0.7.14] - 2018-11-14
 
 ### Added

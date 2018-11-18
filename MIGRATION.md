@@ -1,4 +1,4 @@
-## 0.7.14
+## 0.7.15
 
 * The `' '` character is not percent decoded anymore before matching routes. If you need to use it in
   your routes, you should use `%20`.
