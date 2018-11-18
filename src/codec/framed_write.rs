@@ -77,6 +77,11 @@ impl<T, E> FramedWrite<T, E> {
     pub fn is_full(&self) -> bool {
         self.inner.is_full()
     }
+
+    /// Check if write buffer is empty.
+    pub fn is_empty(&self) -> bool {
+        self.inner.is_empty()
+    }
 }
 
 impl<T, E> FramedWrite<T, E>
@@ -193,6 +198,10 @@ impl<T> FramedWrite2<T> {
 
     pub fn is_full(&self) -> bool {
         self.buffer.len() >= self.high_watermark
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.buffer.is_empty()
     }
 }
 

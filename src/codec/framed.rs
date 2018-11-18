@@ -135,6 +135,11 @@ impl<T, U> Framed<T, U> {
         &mut self.inner.get_mut().get_mut().0
     }
 
+    /// Check if write buffer is empty.
+    pub fn is_write_buf_empty(&self) -> bool {
+        self.inner.get_ref().is_empty()
+    }
+
     /// Check if write buffer is full.
     pub fn is_write_buf_full(&self) -> bool {
         self.inner.get_ref().is_full()

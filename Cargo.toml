@@ -1,6 +1,6 @@
 [package]
 name = "actix-net"
-version = "0.2.2"
+version = "0.2.3"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix net - framework for the compisible network services for Rust (experimental)"
 readme = "README.md"

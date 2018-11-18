@@ -1,5 +1,11 @@
 # Changes
 
+## [0.2.3] - 2018-11-17
+
+### Added
+
+* Framed::is_write_buf_empty() checks if write buffer is flushed
+
 ## [0.2.2] - 2018-11-14
 
 ### Added
