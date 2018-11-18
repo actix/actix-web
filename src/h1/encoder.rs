@@ -8,10 +8,10 @@ use bytes::{Bytes, BytesMut};
 use http::header::{HeaderValue, ACCEPT_ENCODING, CONTENT_LENGTH};
 use http::{StatusCode, Version};
 
-use body::{Binary, Body, BodyLength};
+use body::{Binary, BodyLength};
 use header::ContentEncoding;
 use http::Method;
-use message::RequestHead;
+use message::{RequestHead, ResponseHead};
 use request::Request;
 use response::Response;
 
@@ -43,114 +43,34 @@ impl ResponseEncoder {
         self.te.encode_eof(buf)
     }
 
-    pub fn update(&mut self, resp: &mut Response, head: bool, version: Version) {
+    pub fn update(
+        &mut self,
+        resp: &mut ResponseHead,
+        head: bool,
+        version: Version,
+        length: &mut BodyLength,
+    ) {
         self.head = head;
-        let mut len = 0;
-
-        let has_body = match resp.body() {
-            Body::Empty => false,
-            Body::Binary(ref bin) => {
-                len = bin.len();
-                true
-            }
-            _ => true,
-        };
-
-        let has_body = match resp.body() {
-            Body::Empty => false,
-            _ => true,
-        };
-
-        let transfer = match resp.body() {
-            Body::Empty => {
-                self.length = match resp.status() {
+        let transfer = match length {
+            BodyLength::Zero => {
+                match resp.status {
                     StatusCode::NO_CONTENT
                     | StatusCode::CONTINUE
                     | StatusCode::SWITCHING_PROTOCOLS
-                    | StatusCode::PROCESSING => BodyLength::None,
-                    _ => BodyLength::Zero,
-                };
+                    | StatusCode::PROCESSING => *length = BodyLength::None,
+                    _ => (),
+                }
                 TransferEncoding::empty()
             }
-            Body::Binary(_) => {
-                self.length = BodyLength::Sized(len);
-                TransferEncoding::length(len as u64)
-            }
-            Body::Streaming(_) => {
-                if resp.upgrade() {
-                    self.length = BodyLength::None;
-                    TransferEncoding::eof()
-                } else {
-                    self.streaming_encoding(version, resp)
-                }
-            }
+            BodyLength::Sized(len) => TransferEncoding::length(*len as u64),
+            BodyLength::Sized64(len) => TransferEncoding::length(*len),
+            BodyLength::Chunked => TransferEncoding::chunked(),
+            BodyLength::Stream => TransferEncoding::eof(),
+            BodyLength::None => TransferEncoding::length(0),
         };
         // check for head response
-        if self.head {
-            resp.set_body(Body::Empty);
-        } else {
+        if !self.head {
             self.te = transfer;
-        }
-    }
-
-    fn streaming_encoding(
-        &mut self,
-        version: Version,
-        resp: &mut Response,
-    ) -> TransferEncoding {
-        match resp.chunked() {
-            Some(true) => {
-                // Enable transfer encoding
-                if version == Version::HTTP_2 {
-                    self.length = BodyLength::None;
-                    TransferEncoding::eof()
-                } else {
-                    self.length = BodyLength::Unsized;
-                    TransferEncoding::chunked()
-                }
-            }
-            Some(false) => TransferEncoding::eof(),
-            None => {
-                // if Content-Length is specified, then use it as length hint
-                let (len, chunked) =
-                    if let Some(len) = resp.headers().get(CONTENT_LENGTH) {
-                        // Content-Length
-                        if let Ok(s) = len.to_str() {
-                            if let Ok(len) = s.parse::<u64>() {
-                                (Some(len), false)
-                            } else {
-                                error!("illegal Content-Length: {:?}", len);
-                                (None, false)
-                            }
-                        } else {
-                            error!("illegal Content-Length: {:?}", len);
-                            (None, false)
-                        }
-                    } else {
-                        (None, true)
-                    };
-
-                if !chunked {
-                    if let Some(len) = len {
-                        self.length = BodyLength::Sized64(len);
-                        TransferEncoding::length(len)
-                    } else {
-                        TransferEncoding::eof()
-                    }
-                } else {
-                    // Enable transfer encoding
-                    match version {
-                        Version::HTTP_11 => {
-                            self.length = BodyLength::Unsized;
-                            TransferEncoding::chunked()
-                        }
-                        _ => {
-                            self.length = BodyLength::None;
-                            TransferEncoding::eof()
-                        }
-                    }
-                }
-            }
         }
     }
 }

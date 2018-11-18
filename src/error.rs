@@ -100,11 +100,10 @@ impl Error {
     }
 
     /// Converts error to a response instance and set error message as response body
-    pub fn response_with_message(self) -> Response {
+    pub fn response_with_message(self) -> Response<String> {
         let message = format!("{}", self);
-        let mut resp: Response = self.into();
-        resp.set_body(message);
-        resp
+        let resp: Response = self.into();
+        resp.set_body(message)
     }
 }
 
@@ -637,7 +636,7 @@ where
             InternalErrorType::Status(st) => Response::new(st),
             InternalErrorType::Response(ref resp) => {
                 if let Some(resp) = resp.lock().unwrap().take() {
-                    Response::from_parts(resp)
+                    Response::<()>::from_parts(resp)
                 } else {
                     Response::new(StatusCode::INTERNAL_SERVER_ERROR)
                 }

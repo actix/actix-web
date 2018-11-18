@@ -8,12 +8,13 @@ use tokio_codec::{Decoder, Encoder};
 use super::decoder::{MessageDecoder, PayloadDecoder, PayloadItem, PayloadType};
 use super::encoder::ResponseEncoder;
 use super::{Message, MessageType};
-use body::{Binary, Body, BodyLength};
+use body::{Binary, BodyLength};
 use config::ServiceConfig;
 use error::ParseError;
 use helpers;
 use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING};
 use http::{Method, Version};
+use message::ResponseHead;
 use request::Request;
 use response::Response;
 
@@ -98,9 +99,9 @@ impl Codec {
     }
 
     /// prepare transfer encoding
-    pub fn prepare_te(&mut self, res: &mut Response) {
+    pub fn prepare_te(&mut self, head: &mut ResponseHead, length: &mut BodyLength) {
         self.te
-            .update(res, self.flags.contains(Flags::HEAD), self.version);
+            .update(head, self.flags.contains(Flags::HEAD), self.version, length);
     }
 
     fn encode_response(
@@ -135,17 +136,8 @@ impl Codec {
         // render message
         {
             let reason = msg.reason().as_bytes();
-            if let Body::Binary(ref bytes) = msg.body() {
-                buffer.reserve(
-                    256 + msg.headers().len() * AVERAGE_HEADER_SIZE
-                        + bytes.len()
-                        + reason.len(),
-                );
-            } else {
-                buffer.reserve(
-                    256 + msg.headers().len() * AVERAGE_HEADER_SIZE + reason.len(),
-                );
-            }
+            buffer
+                .reserve(256 + msg.headers().len() * AVERAGE_HEADER_SIZE + reason.len());
 
             // status line
             helpers::write_status_line(self.version, msg.status().as_u16(), buffer);
@@ -154,7 +146,7 @@ impl Codec {
             // content length
             let mut len_is_set = true;
             match self.te.length {
-                BodyLength::Unsized => {
+                BodyLength::Chunked => {
                     buffer.extend_from_slice(b"\r\ntransfer-encoding: chunked\r\n")
                 }
                 BodyLength::Zero => {
@@ -167,7 +159,9 @@ impl Codec {
                     write!(buffer.writer(), "{}", len)?;
                     buffer.extend_from_slice(b"\r\n");
                 }
-                BodyLength::None => buffer.extend_from_slice(b"\r\n"),
+                BodyLength::None | BodyLength::Stream => {
+                    buffer.extend_from_slice(b"\r\n")
+                }
             }
 
             // write headers

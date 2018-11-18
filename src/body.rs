@@ -1,5 +1,5 @@
+use std::mem;
 use std::sync::Arc;
-use std::{fmt, mem};
 
 use bytes::{Bytes, BytesMut};
 use futures::{Async, Poll, Stream};
@@ -19,7 +19,8 @@ pub enum BodyLength {
     Zero,
     Sized(usize),
     Sized64(u64),
-    Unsized,
+    Chunked,
+    Stream,
 }
 
 /// Type that provides this trait can be streamed to a peer.
@@ -39,17 +40,6 @@ impl MessageBody for () {
     }
 }
 
-/// Represents various types of http message body.
-pub enum Body {
-    /// Empty response. `Content-Length` header is set to `0`
-    Empty,
-    /// Specific response body.
-    Binary(Binary),
-    /// Unspecified streaming response. Developer is responsible for setting
-    /// right `Content-Length` or `Transfer-Encoding` headers.
-    Streaming(BodyStream),
-}
-
 /// Represents various types of binary body.
 /// `Content-Length` header is set to length of the body.
 #[derive(Debug, PartialEq)]
@@ -63,84 +53,6 @@ pub enum Binary {
     SharedString(Arc<String>),
     /// Shared vec body
     SharedVec(Arc<Vec<u8>>),
-}
-
-impl Body {
-    /// Does this body streaming.
-    #[inline]
-    pub fn is_streaming(&self) -> bool {
-        match *self {
-            Body::Streaming(_) => true,
-            _ => false,
-        }
-    }
-
-    /// Is this binary body.
-    #[inline]
-    pub fn is_binary(&self) -> bool {
-        match *self {
-            Body::Binary(_) => true,
-            _ => false,
-        }
-    }
-
-    /// Is this binary empy.
-    #[inline]
-    pub fn is_empty(&self) -> bool {
-        match *self {
-            Body::Empty => true,
-            _ => false,
-        }
-    }
-
-    /// Create body from slice (copy)
-    pub fn from_slice(s: &[u8]) -> Body {
-        Body::Binary(Binary::Bytes(Bytes::from(s)))
-    }
-
-    /// Is this binary body.
-    #[inline]
-    pub(crate) fn into_binary(self) -> Option<Binary> {
-        match self {
-            Body::Binary(b) => Some(b),
-            _ => None,
-        }
-    }
-}
-
-impl PartialEq for Body {
-    fn eq(&self, other: &Body) -> bool {
-        match *self {
-            Body::Empty => match *other {
-                Body::Empty => true,
-                _ => false,
-            },
-            Body::Binary(ref b) => match *other {
-                Body::Binary(ref b2) => b == b2,
-                _ => false,
-            },
-            Body::Streaming(_) => false,
-        }
-    }
-}
-
-impl fmt::Debug for Body {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            Body::Empty => write!(f, "Body::Empty"),
-            Body::Binary(ref b) => write!(f, "Body::Binary({:?})", b),
-            Body::Streaming(_) => write!(f, "Body::Streaming(_)"),
-        }
-    }
-}
-
-impl<T> From<T> for Body
-where
-    T: Into<Binary>,
-{
-    fn from(b: T) -> Body {
-        Body::Binary(b.into())
-    }
 }
 
 impl Binary {
@@ -286,6 +198,22 @@ impl MessageBody for Bytes {
     }
 }
 
+impl MessageBody for BytesMut {
+    fn length(&self) -> BodyLength {
+        BodyLength::Sized(self.len())
+    }
+
+    fn poll_next(&mut self) -> Poll<Option<Bytes>, Error> {
+        if self.is_empty() {
+            Ok(Async::Ready(None))
+        } else {
+            Ok(Async::Ready(Some(
+                mem::replace(self, BytesMut::new()).freeze(),
+            )))
+        }
+    }
+}
+
 impl MessageBody for &'static str {
     fn length(&self) -> BodyLength {
         BodyLength::Sized(self.len())
@@ -370,7 +298,7 @@ where
     S: Stream<Item = Bytes, Error = Error>,
 {
     fn length(&self) -> BodyLength {
-        BodyLength::Unsized
+        BodyLength::Chunked
     }
 
     fn poll_next(&mut self) -> Poll<Option<Bytes>, Error> {
@@ -381,12 +309,6 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_body_is_streaming() {
-        assert_eq!(Body::Empty.is_streaming(), false);
-        assert_eq!(Body::Binary(Binary::from("")).is_streaming(), false);
-    }
 
     #[test]
     fn test_is_empty() {

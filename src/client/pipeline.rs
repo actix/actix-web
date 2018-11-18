@@ -100,6 +100,10 @@ where
             {
                 match self.body.as_mut().unwrap().poll_next()? {
                     Async::Ready(item) => {
+                        // check if body is done
+                        if item.is_none() {
+                            let _ = self.body.take();
+                        }
                         self.flushed = false;
                         self.framed
                             .as_mut()

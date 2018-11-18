@@ -13,7 +13,7 @@ use tokio_timer::Delay;
 use error::{ParseError, PayloadError};
 use payload::{Payload, PayloadSender, PayloadStatus, PayloadWriter};
 
-use body::{Body, BodyStream};
+use body::{BodyLength, MessageBody};
 use config::ServiceConfig;
 use error::DispatchError;
 use request::Request;
@@ -37,14 +37,14 @@ bitflags! {
 }
 
 /// Dispatcher for HTTP/1.1 protocol
-pub struct Dispatcher<T, S: Service>
+pub struct Dispatcher<T, S: Service, B: MessageBody>
 where
     S::Error: Debug,
 {
-    inner: Option<InnerDispatcher<T, S>>,
+    inner: Option<InnerDispatcher<T, S, B>>,
 }
 
-struct InnerDispatcher<T, S: Service>
+struct InnerDispatcher<T, S: Service, B: MessageBody>
 where
     S::Error: Debug,
 {
@@ -54,7 +54,7 @@ where
     error: Option<DispatchError<S::Error>>,
     config: ServiceConfig,
 
-    state: State<S>,
+    state: State<S, B>,
     payload: Option<PayloadSender>,
     messages: VecDeque<DispatcherMessage>,
     unhandled: Option<Request>,
@@ -68,13 +68,13 @@ enum DispatcherMessage {
     Error(Response),
 }
 
-enum State<S: Service> {
+enum State<S: Service, B: MessageBody> {
     None,
     ServiceCall(S::Future),
-    SendPayload(BodyStream),
+    SendPayload(B),
 }
 
-impl<S: Service> State<S> {
+impl<S: Service, B: MessageBody> State<S, B> {
     fn is_empty(&self) -> bool {
         if let State::None = self {
             true
@@ -84,11 +84,12 @@ impl<S: Service> State<S> {
     }
 }
 
-impl<T, S> Dispatcher<T, S>
+impl<T, S, B> Dispatcher<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: Service<Request = Request, Response = Response>,
+    S: Service<Request = Request, Response = Response<B>>,
     S::Error: Debug,
+    B: MessageBody,
 {
     /// Create http/1 dispatcher.
     pub fn new(stream: T, config: ServiceConfig, service: S) -> Self {
@@ -137,11 +138,12 @@ where
     }
 }
 
-impl<T, S> InnerDispatcher<T, S>
+impl<T, S, B> InnerDispatcher<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: Service<Request = Request, Response = Response>,
+    S: Service<Request = Request, Response = Response<B>>,
     S::Error: Debug,
+    B: MessageBody,
 {
     fn can_read(&self) -> bool {
         if self.flags.contains(Flags::DISCONNECTED) {
@@ -186,11 +188,11 @@ where
         }
     }
 
-    fn send_response(
+    fn send_response<B1: MessageBody>(
         &mut self,
         message: Response,
-        body: Body,
-    ) -> Result<State<S>, DispatchError<S::Error>> {
+        body: B1,
+    ) -> Result<State<S, B1>, DispatchError<S::Error>> {
         self.framed
             .force_send(Message::Item(message))
             .map_err(|err| {
@@ -203,15 +205,9 @@ where
         self.flags
             .set(Flags::KEEPALIVE, self.framed.get_codec().keepalive());
         self.flags.remove(Flags::FLUSHED);
-        match body {
-            Body::Empty => Ok(State::None),
-            Body::Streaming(stream) => Ok(State::SendPayload(stream)),
-            Body::Binary(mut bin) => {
-                self.flags.remove(Flags::FLUSHED);
-                self.framed.force_send(Message::Chunk(Some(bin.take())))?;
-                self.framed.force_send(Message::Chunk(None))?;
-                Ok(State::None)
-            }
+        match body.length() {
+            BodyLength::None | BodyLength::Zero => Ok(State::None),
+            _ => Ok(State::SendPayload(body)),
         }
     }
 
@@ -224,15 +220,18 @@ where
                         Some(self.handle_request(req)?)
                     }
                     Some(DispatcherMessage::Error(res)) => {
-                        Some(self.send_response(res, Body::Empty)?)
+                        self.send_response(res, ())?;
+                        None
                     }
                     None => None,
                 },
                 State::ServiceCall(mut fut) => {
                     match fut.poll().map_err(DispatchError::Service)? {
                         Async::Ready(mut res) => {
-                            self.framed.get_codec_mut().prepare_te(&mut res);
-                            let body = res.replace_body(Body::Empty);
+                            let (mut res, body) = res.replace_body(());
+                            self.framed
+                                .get_codec_mut()
+                                .prepare_te(res.head_mut(), &mut body.length());
                             Some(self.send_response(res, body)?)
                         }
                         Async::NotReady => {
@@ -244,7 +243,10 @@ where
                 State::SendPayload(mut stream) => {
                     loop {
                         if !self.framed.is_write_buf_full() {
-                            match stream.poll().map_err(|_| DispatchError::Unknown)? {
+                            match stream
+                                .poll_next()
+                                .map_err(|_| DispatchError::Unknown)?
+                            {
                                 Async::Ready(Some(item)) => {
                                     self.flags.remove(Flags::FLUSHED);
                                     self.framed
@@ -290,12 +292,14 @@ where
     fn handle_request(
         &mut self,
         req: Request,
-    ) -> Result<State<S>, DispatchError<S::Error>> {
+    ) -> Result<State<S, B>, DispatchError<S::Error>> {
         let mut task = self.service.call(req);
         match task.poll().map_err(DispatchError::Service)? {
-            Async::Ready(mut res) => {
-                self.framed.get_codec_mut().prepare_te(&mut res);
-                let body = res.replace_body(Body::Empty);
+            Async::Ready(res) => {
+                let (mut res, body) = res.replace_body(());
+                self.framed
+                    .get_codec_mut()
+                    .prepare_te(res.head_mut(), &mut body.length());
                 self.send_response(res, body)
             }
             Async::NotReady => Ok(State::ServiceCall(task)),
@@ -436,10 +440,9 @@ where
                             // timeout on first request (slow request) return 408
                             trace!("Slow request timeout");
                             self.flags.insert(Flags::STARTED | Flags::DISCONNECTED);
-                            self.state = self.send_response(
-                                Response::RequestTimeout().finish(),
-                                Body::Empty,
-                            )?;
+                            let _ = self
+                                .send_response(Response::RequestTimeout().finish(), ());
+                            self.state = State::None;
                         }
                     } else if let Some(deadline) = self.config.keep_alive_expire() {
                         self.ka_timer.as_mut().map(|timer| {
@@ -462,11 +465,12 @@ where
     }
 }
 
-impl<T, S> Future for Dispatcher<T, S>
+impl<T, S, B> Future for Dispatcher<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: Service<Request = Request, Response = Response>,
+    S: Service<Request = Request, Response = Response<B>>,
     S::Error: Debug,
+    B: MessageBody,
 {
     type Item = H1ServiceResult<T>;
     type Error = DispatchError<S::Error>;

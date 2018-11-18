@@ -7,7 +7,7 @@ use tokio_codec::{Decoder, Encoder};
 use super::decoder::{MessageDecoder, PayloadDecoder, PayloadItem, PayloadType};
 use super::encoder::RequestEncoder;
 use super::{Message, MessageType};
-use body::{Binary, Body, BodyLength};
+use body::{Binary, BodyLength};
 use client::ClientResponse;
 use config::ServiceConfig;
 use error::{ParseError, PayloadError};
@@ -164,14 +164,16 @@ impl ClientCodecInner {
                     write!(buffer.writer(), "{}", len)?;
                     buffer.extend_from_slice(b"\r\n");
                 }
-                BodyLength::Unsized => {
+                BodyLength::Chunked => {
                     buffer.extend_from_slice(b"\r\ntransfer-encoding: chunked\r\n")
                 }
                 BodyLength::Zero => {
                     len_is_set = false;
                     buffer.extend_from_slice(b"\r\n")
                 }
-                BodyLength::None => buffer.extend_from_slice(b"\r\n"),
+                BodyLength::None | BodyLength::Stream => {
+                    buffer.extend_from_slice(b"\r\n")
+                }
             }
 
             let mut has_date = false;

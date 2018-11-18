@@ -8,6 +8,7 @@ use futures::future::{ok, FutureResult};
 use futures::{Async, Future, Poll, Stream};
 use tokio_io::{AsyncRead, AsyncWrite};
 
+use body::MessageBody;
 use config::{KeepAlive, ServiceConfig};
 use error::{DispatchError, ParseError};
 use request::Request;
@@ -18,17 +19,18 @@ use super::dispatcher::Dispatcher;
 use super::{H1ServiceResult, Message};
 
 /// `NewService` implementation for HTTP1 transport
-pub struct H1Service<T, S> {
+pub struct H1Service<T, S, B> {
     srv: S,
     cfg: ServiceConfig,
-    _t: PhantomData<T>,
+    _t: PhantomData<(T, B)>,
 }
 
-impl<T, S> H1Service<T, S>
+impl<T, S, B> H1Service<T, S, B>
 where
-    S: NewService<Request = Request, Response = Response> + Clone,
+    S: NewService<Request = Request, Response = Response<B>> + Clone,
     S::Service: Clone,
     S::Error: Debug,
+    B: MessageBody,
 {
     /// Create new `HttpService` instance.
     pub fn new<F: IntoNewService<S>>(service: F) -> Self {
@@ -47,19 +49,20 @@ where
     }
 }
 
-impl<T, S> NewService for H1Service<T, S>
+impl<T, S, B> NewService for H1Service<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: NewService<Request = Request, Response = Response> + Clone,
+    S: NewService<Request = Request, Response = Response<B>> + Clone,
     S::Service: Clone,
     S::Error: Debug,
+    B: MessageBody,
 {
     type Request = T;
     type Response = H1ServiceResult<T>;
     type Error = DispatchError<S::Error>;
     type InitError = S::InitError;
-    type Service = H1ServiceHandler<T, S::Service>;
-    type Future = H1ServiceResponse<T, S>;
+    type Service = H1ServiceHandler<T, S::Service, B>;
+    type Future = H1ServiceResponse<T, S, B>;
 
     fn new_service(&self) -> Self::Future {
         H1ServiceResponse {
@@ -180,7 +183,11 @@ where
     }
 
     /// Finish service configuration and create `H1Service` instance.
-    pub fn finish<F: IntoNewService<S>>(self, service: F) -> H1Service<T, S> {
+    pub fn finish<F, B>(self, service: F) -> H1Service<T, S, B>
+    where
+        B: MessageBody,
+        F: IntoNewService<S>,
+    {
         let cfg = ServiceConfig::new(
             self.keep_alive,
             self.client_timeout,
@@ -195,20 +202,21 @@ where
 }
 
 #[doc(hidden)]
-pub struct H1ServiceResponse<T, S: NewService> {
+pub struct H1ServiceResponse<T, S: NewService, B> {
     fut: S::Future,
     cfg: Option<ServiceConfig>,
-    _t: PhantomData<T>,
+    _t: PhantomData<(T, B)>,
 }
 
-impl<T, S> Future for H1ServiceResponse<T, S>
+impl<T, S, B> Future for H1ServiceResponse<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: NewService<Request = Request, Response = Response>,
+    S: NewService<Request = Request, Response = Response<B>>,
     S::Service: Clone,
     S::Error: Debug,
+    B: MessageBody,
 {
-    type Item = H1ServiceHandler<T, S::Service>;
+    type Item = H1ServiceHandler<T, S::Service, B>;
     type Error = S::InitError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
@@ -221,18 +229,19 @@ where
 }
 
 /// `Service` implementation for HTTP1 transport
-pub struct H1ServiceHandler<T, S> {
+pub struct H1ServiceHandler<T, S, B> {
     srv: S,
     cfg: ServiceConfig,
-    _t: PhantomData<T>,
+    _t: PhantomData<(T, B)>,
 }
 
-impl<T, S> H1ServiceHandler<T, S>
+impl<T, S, B> H1ServiceHandler<T, S, B>
 where
-    S: Service<Request = Request, Response = Response> + Clone,
+    S: Service<Request = Request, Response = Response<B>> + Clone,
     S::Error: Debug,
+    B: MessageBody,
 {
-    fn new(cfg: ServiceConfig, srv: S) -> H1ServiceHandler<T, S> {
+    fn new(cfg: ServiceConfig, srv: S) -> H1ServiceHandler<T, S, B> {
         H1ServiceHandler {
             srv,
             cfg,
@@ -241,16 +250,17 @@ where
     }
 }
 
-impl<T, S> Service for H1ServiceHandler<T, S>
+impl<T, S, B> Service for H1ServiceHandler<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: Service<Request = Request, Response = Response> + Clone,
+    S: Service<Request = Request, Response = Response<B>> + Clone,
     S::Error: Debug,
+    B: MessageBody,
 {
     type Request = T;
     type Response = H1ServiceResult<T>;
     type Error = DispatchError<S::Error>;
-    type Future = Dispatcher<T, S>;
+    type Future = Dispatcher<T, S, B>;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
         self.srv.poll_ready().map_err(DispatchError::Service)

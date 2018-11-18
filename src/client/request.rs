@@ -51,12 +51,6 @@ pub struct ClientRequest<B: MessageBody = ()> {
     body: B,
 }
 
-impl RequestHead {
-    pub fn clear(&mut self) {
-        self.headers.clear()
-    }
-}
-
 impl ClientRequest<()> {
     /// Create client request builder
     pub fn build() -> ClientRequestBuilder {
