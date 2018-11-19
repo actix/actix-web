@@ -1,251 +1,31 @@
 //! Various helpers for Actix applications to use during testing.
-use std::net;
 use std::str::FromStr;
+use std::sync::mpsc;
+use std::{net, thread};
 
 use actix::System;
+use actix_net::codec::Framed;
+use actix_net::server::{Server, StreamServiceFactory};
+use actix_net::service::Service;
 
 use bytes::Bytes;
 use cookie::Cookie;
-use futures::Future;
+use futures::future::{lazy, Future};
 use http::header::HeaderName;
 use http::{HeaderMap, HttpTryFrom, Method, Uri, Version};
 use net2::TcpBuilder;
 use tokio::runtime::current_thread::Runtime;
+use tokio_io::{AsyncRead, AsyncWrite};
 
+use body::MessageBody;
+use client::{
+    ClientRequest, ClientRequestBuilder, ClientResponse, Connect, Connection, Connector,
+    ConnectorError, SendRequestError,
+};
 use header::{Header, IntoHeaderValue};
 use payload::Payload;
 use request::Request;
-// use ws;
-
-/// The `TestServer` type.
-///
-/// `TestServer` is very simple test server that simplify process of writing
-/// integration tests cases for actix web applications.
-///
-/// # Examples
-///
-/// ```rust,ignore
-/// # extern crate actix_web;
-/// # use actix_web::*;
-/// #
-/// # fn my_handler(req: &HttpRequest) -> Response {
-/// #     Response::Ok().into()
-/// # }
-/// #
-/// # fn main() {
-/// use actix_web::test::TestServer;
-///
-/// let mut srv = TestServer::new(|app| app.handler(my_handler));
-///
-/// let req = srv.get().finish().unwrap();
-/// let response = srv.execute(req.send()).unwrap();
-/// assert!(response.status().is_success());
-/// # }
-/// ```
-pub struct TestServer {
-    addr: net::SocketAddr,
-    rt: Runtime,
-    ssl: bool,
-}
-
-impl TestServer {
-    /// Start new test server
-    ///
-    /// This method accepts configuration method. You can add
-    /// middlewares or set handlers for test application.
-    pub fn new<F>(_config: F) -> Self
-    where
-        F: Fn() + Clone + Send + 'static,
-    {
-        unimplemented!()
-    }
-
-    /// Get firat available unused address
-    pub fn unused_addr() -> net::SocketAddr {
-        let addr: net::SocketAddr = "127.0.0.1:0".parse().unwrap();
-        let socket = TcpBuilder::new_v4().unwrap();
-        socket.bind(&addr).unwrap();
-        socket.reuse_address(true).unwrap();
-        let tcp = socket.to_tcp_listener().unwrap();
-        tcp.local_addr().unwrap()
-    }
-
-    /// Construct test server url
-    pub fn addr(&self) -> net::SocketAddr {
-        self.addr
-    }
-
-    /// Construct test server url
-    pub fn url(&self, uri: &str) -> String {
-        if uri.starts_with('/') {
-            format!(
-                "{}://localhost:{}{}",
-                if self.ssl { "https" } else { "http" },
-                self.addr.port(),
-                uri
-            )
-        } else {
-            format!(
-                "{}://localhost:{}/{}",
-                if self.ssl { "https" } else { "http" },
-                self.addr.port(),
-                uri
-            )
-        }
-    }
-
-    /// Stop http server
-    fn stop(&mut self) {
-        System::current().stop();
-    }
-
-    /// Execute future on current core
-    pub fn execute<F, I, E>(&mut self, fut: F) -> Result<I, E>
-    where
-        F: Future<Item = I, Error = E>,
-    {
-        self.rt.block_on(fut)
-    }
-
-    // /// Connect to websocket server at a given path
-    // pub fn ws_at(
-    //     &mut self, path: &str,
-    // ) -> Result<(ws::ClientReader, ws::ClientWriter), ws::ClientError> {
-    //     let url = self.url(path);
-    //     self.rt
-    //         .block_on(ws::Client::with_connector(url, self.conn.clone()).connect())
-    // }
-
-    // /// Connect to a websocket server
-    // pub fn ws(
-    //     &mut self,
-    // ) -> Result<(ws::ClientReader, ws::ClientWriter), ws::ClientError> {
-    //     self.ws_at("/")
-    // }
-
-    // /// Create `GET` request
-    // pub fn get(&self) -> ClientRequestBuilder {
-    //     ClientRequest::get(self.url("/").as_str())
-    // }
-
-    // /// Create `POST` request
-    // pub fn post(&self) -> ClientRequestBuilder {
-    //     ClientRequest::post(self.url("/").as_str())
-    // }
-
-    // /// Create `HEAD` request
-    // pub fn head(&self) -> ClientRequestBuilder {
-    //     ClientRequest::head(self.url("/").as_str())
-    // }
-
-    // /// Connect to test http server
-    // pub fn client(&self, meth: Method, path: &str) -> ClientRequestBuilder {
-    //     ClientRequest::build()
-    //         .method(meth)
-    //         .uri(self.url(path).as_str())
-    //         .with_connector(self.conn.clone())
-    //         .take()
-    // }
-}
-
-impl Drop for TestServer {
-    fn drop(&mut self) {
-        self.stop()
-    }
-}
-
-// /// An `TestServer` builder
-// ///
-// /// This type can be used to construct an instance of `TestServer` through a
-// /// builder-like pattern.
-// pub struct TestServerBuilder<S, F>
-// where
-//     F: Fn() -> S + Send + Clone + 'static,
-// {
-//     state: F,
-// }
-
-// impl<S: 'static, F> TestServerBuilder<S, F>
-// where
-//     F: Fn() -> S + Send + Clone + 'static,
-// {
-//     /// Create a new test server
-//     pub fn new(state: F) -> TestServerBuilder<S, F> {
-//         TestServerBuilder { state }
-//     }
-
-//     #[allow(unused_mut)]
-//     /// Configure test application and run test server
-//     pub fn start<C>(mut self, config: C) -> TestServer
-//     where
-//         C: Fn(&mut TestApp<S>) + Clone + Send + 'static,
-//     {
-//         let (tx, rx) = mpsc::channel();
-
-//         let mut has_ssl = false;
-
-//         #[cfg(any(feature = "alpn", feature = "ssl"))]
-//         {
-//             has_ssl = has_ssl || self.ssl.is_some();
-//         }
-
-//         #[cfg(feature = "rust-tls")]
-//         {
-//             has_ssl = has_ssl || self.rust_ssl.is_some();
-//         }
-
-//         // run server in separate thread
-//         thread::spawn(move || {
-//             let addr = TestServer::unused_addr();
-
-//             let sys = System::new("actix-test-server");
-//             let state = self.state;
-//             let mut srv = HttpServer::new(move || {
-//                 let mut app = TestApp::new(state());
-//                 config(&mut app);
-//                 app
-//             }).workers(1)
-//             .keep_alive(5)
-//             .disable_signals();
-
-//             tx.send((System::current(), addr, TestServer::get_conn()))
-//                 .unwrap();
-
-//             #[cfg(any(feature = "alpn", feature = "ssl"))]
-//             {
-//                 let ssl = self.ssl.take();
-//                 if let Some(ssl) = ssl {
-//                     let tcp = net::TcpListener::bind(addr).unwrap();
-//                     srv = srv.listen_ssl(tcp, ssl).unwrap();
-//                 }
-//             }
-//             #[cfg(feature = "rust-tls")]
-//             {
-//                 let ssl = self.rust_ssl.take();
-//                 if let Some(ssl) = ssl {
-//                     let tcp = net::TcpListener::bind(addr).unwrap();
-//                     srv = srv.listen_rustls(tcp, ssl);
-//                 }
-//             }
-//             if !has_ssl {
-//                 let tcp = net::TcpListener::bind(addr).unwrap();
-//                 srv = srv.listen(tcp);
-//             }
-//             srv.start();
-
-//             sys.run();
-//         });
-
-//         let (system, addr, conn) = rx.recv().unwrap();
-//         System::set_current(system);
-//         TestServer {
-//             addr,
-//             conn,
-//             ssl: has_ssl,
-//             rt: Runtime::new().unwrap(),
-//         }
-//     }
-// }
+use ws;
 
 /// Test `Request` builder
 ///
@@ -485,4 +265,205 @@ impl TestRequest {
     //         Err(err) => Err(err.into()),
     //     }
     // }
+}
+
+/// The `TestServer` type.
+///
+/// `TestServer` is very simple test server that simplify process of writing
+/// integration tests cases for actix web applications.
+///
+/// # Examples
+///
+/// ```rust
+/// # extern crate actix_web;
+/// # use actix_web::*;
+/// #
+/// # fn my_handler(req: &HttpRequest) -> HttpResponse {
+/// #     HttpResponse::Ok().into()
+/// # }
+/// #
+/// # fn main() {
+/// use actix_web::test::TestServer;
+///
+/// let mut srv = TestServer::new(|app| app.handler(my_handler));
+///
+/// let req = srv.get().finish().unwrap();
+/// let response = srv.execute(req.send()).unwrap();
+/// assert!(response.status().is_success());
+/// # }
+/// ```
+pub struct TestServer;
+
+///
+pub struct TestServerRuntime<T> {
+    addr: net::SocketAddr,
+    conn: T,
+    rt: Runtime,
+}
+
+impl TestServer {
+    /// Start new test server with application factory
+    pub fn with_factory<F: StreamServiceFactory>(
+        factory: F,
+    ) -> TestServerRuntime<
+        impl Service<Request = Connect, Response = impl Connection, Error = ConnectorError>
+            + Clone,
+    > {
+        let (tx, rx) = mpsc::channel();
+
+        // run server in separate thread
+        thread::spawn(move || {
+            let sys = System::new("actix-test-server");
+            let tcp = net::TcpListener::bind("127.0.0.1:0").unwrap();
+            let local_addr = tcp.local_addr().unwrap();
+
+            Server::default()
+                .listen("test", tcp, factory)
+                .workers(1)
+                .disable_signals()
+                .start();
+
+            tx.send((System::current(), local_addr)).unwrap();
+            sys.run();
+        });
+
+        let (system, addr) = rx.recv().unwrap();
+        System::set_current(system);
+
+        let mut rt = Runtime::new().unwrap();
+        let conn = rt
+            .block_on(lazy(|| Ok::<_, ()>(TestServer::new_connector())))
+            .unwrap();
+
+        TestServerRuntime { addr, conn, rt }
+    }
+
+    fn new_connector(
+) -> impl Service<Request = Connect, Response = impl Connection, Error = ConnectorError>
+             + Clone {
+        #[cfg(feature = "ssl")]
+        {
+            use openssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
+
+            let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
+            builder.set_verify(SslVerifyMode::NONE);
+            Connector::default().ssl(builder.build()).service()
+        }
+        #[cfg(not(feature = "ssl"))]
+        {
+            Connector::default().service()
+        }
+    }
+
+    /// Get firat available unused address
+    pub fn unused_addr() -> net::SocketAddr {
+        let addr: net::SocketAddr = "127.0.0.1:0".parse().unwrap();
+        let socket = TcpBuilder::new_v4().unwrap();
+        socket.bind(&addr).unwrap();
+        socket.reuse_address(true).unwrap();
+        let tcp = socket.to_tcp_listener().unwrap();
+        tcp.local_addr().unwrap()
+    }
+}
+
+impl<T> TestServerRuntime<T> {
+    /// Execute future on current core
+    pub fn block_on<F, I, E>(&mut self, fut: F) -> Result<I, E>
+    where
+        F: Future<Item = I, Error = E>,
+    {
+        self.rt.block_on(fut)
+    }
+
+    /// Construct test server url
+    pub fn addr(&self) -> net::SocketAddr {
+        self.addr
+    }
+
+    /// Construct test server url
+    pub fn url(&self, uri: &str) -> String {
+        if uri.starts_with('/') {
+            format!("http://localhost:{}{}", self.addr.port(), uri)
+        } else {
+            format!("http://localhost:{}/{}", self.addr.port(), uri)
+        }
+    }
+
+    /// Create `GET` request
+    pub fn get(&self) -> ClientRequestBuilder {
+        ClientRequest::get(self.url("/").as_str())
+    }
+
+    /// Create `POST` request
+    pub fn post(&self) -> ClientRequestBuilder {
+        ClientRequest::post(self.url("/").as_str())
+    }
+
+    /// Create `HEAD` request
+    pub fn head(&self) -> ClientRequestBuilder {
+        ClientRequest::head(self.url("/").as_str())
+    }
+
+    /// Connect to test http server
+    pub fn client(&self, meth: Method, path: &str) -> ClientRequestBuilder {
+        ClientRequest::build()
+            .method(meth)
+            .uri(self.url(path).as_str())
+            .take()
+    }
+
+    /// Http connector
+    pub fn connector(&mut self) -> &mut T {
+        &mut self.conn
+    }
+
+    /// Http connector
+    pub fn new_connector(&mut self) -> T
+    where
+        T: Clone,
+    {
+        self.conn.clone()
+    }
+
+    /// Stop http server
+    fn stop(&mut self) {
+        System::current().stop();
+    }
+}
+
+impl<T> TestServerRuntime<T>
+where
+    T: Service<Request = Connect, Error = ConnectorError> + Clone,
+    T::Response: Connection,
+{
+    /// Connect to websocket server at a given path
+    pub fn ws_at(
+        &mut self,
+        path: &str,
+    ) -> Result<Framed<impl AsyncRead + AsyncWrite, ws::Codec>, ws::ClientError> {
+        let url = self.url(path);
+        self.rt
+            .block_on(ws::Client::default().call(ws::Connect::new(url)))
+    }
+
+    /// Connect to a websocket server
+    pub fn ws(
+        &mut self,
+    ) -> Result<Framed<impl AsyncRead + AsyncWrite, ws::Codec>, ws::ClientError> {
+        self.ws_at("/")
+    }
+
+    /// Send request and read response message
+    pub fn send_request<B: MessageBody>(
+        &mut self,
+        req: ClientRequest<B>,
+    ) -> Result<ClientResponse, SendRequestError> {
+        self.rt.block_on(req.send(&mut self.conn))
+    }
+}
+
+impl<T> Drop for TestServerRuntime<T> {
+    fn drop(&mut self) {
+        self.stop()
+    }
 }
