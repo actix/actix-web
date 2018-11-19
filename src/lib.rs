@@ -107,8 +107,6 @@ extern crate serde_derive;
 #[cfg(feature = "ssl")]
 extern crate openssl;
 
-extern crate backtrace;
-
 pub mod body;
 pub mod client;
 mod config;
