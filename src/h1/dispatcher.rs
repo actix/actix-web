@@ -30,7 +30,6 @@ bitflags! {
         const KEEPALIVE_ENABLED  = 0b0000_0010;
         const KEEPALIVE          = 0b0000_0100;
         const POLLED             = 0b0000_1000;
-        const FLUSHED            = 0b0001_0000;
         const SHUTDOWN           = 0b0010_0000;
         const DISCONNECTED       = 0b0100_0000;
     }
@@ -105,9 +104,9 @@ where
     ) -> Self {
         let keepalive = config.keep_alive_enabled();
         let flags = if keepalive {
-            Flags::KEEPALIVE | Flags::KEEPALIVE_ENABLED | Flags::FLUSHED
+            Flags::KEEPALIVE | Flags::KEEPALIVE_ENABLED
         } else {
-            Flags::FLUSHED
+            Flags::empty()
         };
         let framed = Framed::new(stream, Codec::new(config.clone()));
 
@@ -167,7 +166,7 @@ where
 
     /// Flush stream
     fn poll_flush(&mut self) -> Poll<(), DispatchError<S::Error>> {
-        if !self.flags.contains(Flags::FLUSHED) {
+        if !self.framed.is_write_buf_empty() {
             match self.framed.poll_complete() {
                 Ok(Async::NotReady) => Ok(Async::NotReady),
                 Err(err) => {
@@ -179,7 +178,6 @@ where
                     if self.payload.is_some() && self.state.is_empty() {
                         return Err(DispatchError::PayloadIsNotConsumed);
                     }
-                    self.flags.insert(Flags::FLUSHED);
                     Ok(Async::Ready(()))
                 }
             }
@@ -194,7 +192,7 @@ where
         body: B1,
     ) -> Result<State<S, B1>, DispatchError<S::Error>> {
         self.framed
-            .force_send(Message::Item(message))
+            .force_send(Message::Item((message, body.length())))
             .map_err(|err| {
                 if let Some(mut payload) = self.payload.take() {
                     payload.set_error(PayloadError::Incomplete(None));
@@ -204,7 +202,6 @@ where
 
         self.flags
             .set(Flags::KEEPALIVE, self.framed.get_codec().keepalive());
-        self.flags.remove(Flags::FLUSHED);
         match body.length() {
             BodyLength::None | BodyLength::Empty => Ok(State::None),
             _ => Ok(State::SendPayload(body)),
@@ -228,10 +225,7 @@ where
                 State::ServiceCall(mut fut) => {
                     match fut.poll().map_err(DispatchError::Service)? {
                         Async::Ready(mut res) => {
-                            let (mut res, body) = res.replace_body(());
-                            self.framed
-                                .get_codec_mut()
-                                .prepare_te(res.head_mut(), &mut body.length());
+                            let (res, body) = res.replace_body(());
                             Some(self.send_response(res, body)?)
                         }
                         Async::NotReady => {
@@ -248,13 +242,11 @@ where
                                 .map_err(|_| DispatchError::Unknown)?
                             {
                                 Async::Ready(Some(item)) => {
-                                    self.flags.remove(Flags::FLUSHED);
                                     self.framed
                                         .force_send(Message::Chunk(Some(item)))?;
                                     continue;
                                 }
                                 Async::Ready(None) => {
-                                    self.flags.remove(Flags::FLUSHED);
                                     self.framed.force_send(Message::Chunk(None))?;
                                 }
                                 Async::NotReady => {
@@ -296,10 +288,7 @@ where
         let mut task = self.service.call(req);
         match task.poll().map_err(DispatchError::Service)? {
             Async::Ready(res) => {
-                let (mut res, body) = res.replace_body(());
-                self.framed
-                    .get_codec_mut()
-                    .prepare_te(res.head_mut(), &mut body.length());
+                let (res, body) = res.replace_body(());
                 self.send_response(res, body)
             }
             Async::NotReady => Ok(State::ServiceCall(task)),
@@ -408,7 +397,7 @@ where
 
     /// keep-alive timer
     fn poll_keepalive(&mut self) -> Result<(), DispatchError<S::Error>> {
-        if self.ka_timer.is_some() {
+        if self.ka_timer.is_none() {
             return Ok(());
         }
         match self.ka_timer.as_mut().unwrap().poll().map_err(|e| {
@@ -421,7 +410,7 @@ where
                     return Err(DispatchError::DisconnectTimeout);
                 } else if self.ka_timer.as_mut().unwrap().deadline() >= self.ka_expire {
                     // check for any outstanding response processing
-                    if self.state.is_empty() && self.flags.contains(Flags::FLUSHED) {
+                    if self.state.is_empty() && self.framed.is_write_buf_empty() {
                         if self.flags.contains(Flags::STARTED) {
                             trace!("Keep-alive timeout, close connection");
                             self.flags.insert(Flags::SHUTDOWN);
@@ -490,12 +479,14 @@ where
                 inner.poll_response()?;
                 inner.poll_flush()?;
 
+                if inner.flags.contains(Flags::DISCONNECTED) {
+                    return Ok(Async::Ready(H1ServiceResult::Disconnected));
+                }
+
                 // keep-alive and stream errors
-                if inner.state.is_empty() && inner.flags.contains(Flags::FLUSHED) {
+                if inner.state.is_empty() && inner.framed.is_write_buf_empty() {
                     if let Some(err) = inner.error.take() {
                         return Err(err);
-                    } else if inner.flags.contains(Flags::DISCONNECTED) {
-                        return Ok(Async::Ready(H1ServiceResult::Disconnected));
                     }
                     // unhandled request (upgrade or connect)
                     else if inner.unhandled.is_some() {

@@ -48,22 +48,13 @@ impl ResponseEncoder {
         resp: &mut ResponseHead,
         head: bool,
         version: Version,
-        length: &mut BodyLength,
+        length: BodyLength,
     ) {
         self.head = head;
         let transfer = match length {
-            BodyLength::Empty => {
-                match resp.status {
-                    StatusCode::NO_CONTENT
-                    | StatusCode::CONTINUE
-                    | StatusCode::SWITCHING_PROTOCOLS
-                    | StatusCode::PROCESSING => *length = BodyLength::None,
-                    _ => (),
-                }
-                TransferEncoding::empty()
-            }
-            BodyLength::Sized(len) => TransferEncoding::length(*len as u64),
-            BodyLength::Sized64(len) => TransferEncoding::length(*len),
+            BodyLength::Empty => TransferEncoding::empty(),
+            BodyLength::Sized(len) => TransferEncoding::length(len as u64),
+            BodyLength::Sized64(len) => TransferEncoding::length(len),
             BodyLength::Chunked => TransferEncoding::chunked(),
             BodyLength::Stream => TransferEncoding::eof(),
             BodyLength::None => TransferEncoding::length(0),

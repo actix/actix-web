@@ -13,8 +13,8 @@ use config::ServiceConfig;
 use error::ParseError;
 use helpers;
 use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING};
-use http::{Method, Version};
-use message::ResponseHead;
+use http::{Method, StatusCode, Version};
+use message::{Head, ResponseHead};
 use request::Request;
 use response::Response;
 
@@ -99,69 +99,71 @@ impl Codec {
     }
 
     /// prepare transfer encoding
-    pub fn prepare_te(&mut self, head: &mut ResponseHead, length: &mut BodyLength) {
+    fn prepare_te(&mut self, head: &mut ResponseHead, length: BodyLength) {
         self.te
             .update(head, self.flags.contains(Flags::HEAD), self.version, length);
     }
 
     fn encode_response(
         &mut self,
-        mut msg: Response<()>,
+        msg: &mut ResponseHead,
+        length: BodyLength,
         buffer: &mut BytesMut,
     ) -> io::Result<()> {
-        let ka = self.flags.contains(Flags::KEEPALIVE_ENABLED) && msg
-            .keep_alive()
-            .unwrap_or_else(|| self.flags.contains(Flags::KEEPALIVE));
+        msg.version = self.version;
 
         // Connection upgrade
         if msg.upgrade() {
             self.flags.insert(Flags::UPGRADE);
             self.flags.remove(Flags::KEEPALIVE);
-            msg.headers_mut()
+            msg.headers
                 .insert(CONNECTION, HeaderValue::from_static("upgrade"));
         }
         // keep-alive
-        else if ka {
+        else if self.flags.contains(Flags::KEEPALIVE_ENABLED) && msg.keep_alive() {
             self.flags.insert(Flags::KEEPALIVE);
             if self.version < Version::HTTP_11 {
-                msg.headers_mut()
+                msg.headers
                     .insert(CONNECTION, HeaderValue::from_static("keep-alive"));
             }
         } else if self.version >= Version::HTTP_11 {
             self.flags.remove(Flags::KEEPALIVE);
-            msg.headers_mut()
+            msg.headers
                 .insert(CONNECTION, HeaderValue::from_static("close"));
         }
 
         // render message
         {
             let reason = msg.reason().as_bytes();
-            buffer
-                .reserve(256 + msg.headers().len() * AVERAGE_HEADER_SIZE + reason.len());
+            buffer.reserve(256 + msg.headers.len() * AVERAGE_HEADER_SIZE + reason.len());
 
             // status line
-            helpers::write_status_line(self.version, msg.status().as_u16(), buffer);
+            helpers::write_status_line(self.version, msg.status.as_u16(), buffer);
             buffer.extend_from_slice(reason);
 
             // content length
-            let mut len_is_set = true;
-            match self.te.length {
-                BodyLength::Chunked => {
-                    buffer.extend_from_slice(b"\r\ntransfer-encoding: chunked\r\n")
-                }
-                BodyLength::Empty => {
-                    len_is_set = false;
-                    buffer.extend_from_slice(b"\r\n")
-                }
-                BodyLength::Sized(len) => helpers::write_content_length(len, buffer),
-                BodyLength::Sized64(len) => {
-                    buffer.extend_from_slice(b"\r\ncontent-length: ");
-                    write!(buffer.writer(), "{}", len)?;
-                    buffer.extend_from_slice(b"\r\n");
-                }
-                BodyLength::None | BodyLength::Stream => {
-                    buffer.extend_from_slice(b"\r\n")
-                }
+            match msg.status {
+                StatusCode::NO_CONTENT
+                | StatusCode::CONTINUE
+                | StatusCode::SWITCHING_PROTOCOLS
+                | StatusCode::PROCESSING => buffer.extend_from_slice(b"\r\n"),
+                _ => match length {
+                    BodyLength::Chunked => {
+                        buffer.extend_from_slice(b"\r\ntransfer-encoding: chunked\r\n")
+                    }
+                    BodyLength::Empty => {
+                        buffer.extend_from_slice(b"\r\ncontent-length: 0\r\n");
+                    }
+                    BodyLength::Sized(len) => helpers::write_content_length(len, buffer),
+                    BodyLength::Sized64(len) => {
+                        buffer.extend_from_slice(b"\r\ncontent-length: ");
+                        write!(buffer.writer(), "{}", len)?;
+                        buffer.extend_from_slice(b"\r\n");
+                    }
+                    BodyLength::None | BodyLength::Stream => {
+                        buffer.extend_from_slice(b"\r\n")
+                    }
+                },
             }
 
             // write headers
@@ -169,16 +171,9 @@ impl Codec {
             let mut has_date = false;
             let mut remaining = buffer.remaining_mut();
             let mut buf = unsafe { &mut *(buffer.bytes_mut() as *mut [u8]) };
-            for (key, value) in msg.headers() {
+            for (key, value) in &msg.headers {
                 match *key {
-                    TRANSFER_ENCODING => continue,
-                    CONTENT_LENGTH => match self.te.length {
-                        BodyLength::None => (),
-                        BodyLength::Empty => {
-                            len_is_set = true;
-                        }
-                        _ => continue,
-                    },
+                    TRANSFER_ENCODING | CONTENT_LENGTH => continue,
                     DATE => {
                         has_date = true;
                     }
@@ -212,9 +207,6 @@ impl Codec {
             }
             unsafe {
                 buffer.advance_mut(pos);
-            }
-            if !len_is_set {
-                buffer.extend_from_slice(b"content-length: 0\r\n")
             }
 
             // optimized date header, set_date writes \r\n
@@ -268,7 +260,7 @@ impl Decoder for Codec {
 }
 
 impl Encoder for Codec {
-    type Item = Message<Response<()>>;
+    type Item = Message<(Response<()>, BodyLength)>;
     type Error = io::Error;
 
     fn encode(
@@ -277,8 +269,9 @@ impl Encoder for Codec {
         dst: &mut BytesMut,
     ) -> Result<(), Self::Error> {
         match item {
-            Message::Item(res) => {
-                self.encode_response(res, dst)?;
+            Message::Item((mut res, length)) => {
+                self.prepare_te(res.head_mut(), length);
+                self.encode_response(res.head_mut(), length, dst)?;
             }
             Message::Chunk(Some(bytes)) => {
                 self.te.encode(bytes.as_ref(), dst)?;

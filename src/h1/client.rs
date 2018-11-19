@@ -16,7 +16,7 @@ use http::header::{
     HeaderValue, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING, UPGRADE,
 };
 use http::{Method, Version};
-use message::{MessagePool, RequestHead};
+use message::{Head, MessagePool, RequestHead};
 
 bitflags! {
     struct Flags: u8 {
@@ -135,7 +135,7 @@ fn prn_version(ver: Version) -> &'static str {
 }
 
 impl ClientCodecInner {
-    fn encode_response(
+    fn encode_request(
         &mut self,
         msg: RequestHead,
         length: BodyLength,
@@ -146,7 +146,7 @@ impl ClientCodecInner {
             // status line
             write!(
                 Writer(buffer),
-                "{} {} {}",
+                "{} {} {}\r\n",
                 msg.method,
                 msg.uri.path_and_query().map(|u| u.as_str()).unwrap_or("/"),
                 prn_version(msg.version)
@@ -156,38 +156,26 @@ impl ClientCodecInner {
             buffer.reserve(msg.headers.len() * AVERAGE_HEADER_SIZE);
 
             // content length
-            let mut len_is_set = true;
             match length {
                 BodyLength::Sized(len) => helpers::write_content_length(len, buffer),
                 BodyLength::Sized64(len) => {
-                    buffer.extend_from_slice(b"\r\ncontent-length: ");
+                    buffer.extend_from_slice(b"content-length: ");
                     write!(buffer.writer(), "{}", len)?;
                     buffer.extend_from_slice(b"\r\n");
                 }
                 BodyLength::Chunked => {
-                    buffer.extend_from_slice(b"\r\ntransfer-encoding: chunked\r\n")
+                    buffer.extend_from_slice(b"transfer-encoding: chunked\r\n")
                 }
-                BodyLength::Empty => {
-                    len_is_set = false;
-                    buffer.extend_from_slice(b"\r\n")
-                }
-                BodyLength::None | BodyLength::Stream => {
-                    buffer.extend_from_slice(b"\r\n")
-                }
+                BodyLength::Empty => buffer.extend_from_slice(b"content-length: 0\r\n"),
+                BodyLength::None | BodyLength::Stream => (),
             }
 
             let mut has_date = false;
 
             for (key, value) in &msg.headers {
                 match *key {
-                    TRANSFER_ENCODING => continue,
-                    CONTENT_LENGTH => match length {
-                        BodyLength::None => (),
-                        BodyLength::Empty => len_is_set = true,
-                        _ => continue,
-                    },
+                    TRANSFER_ENCODING | CONNECTION | CONTENT_LENGTH => continue,
                     DATE => has_date = true,
-                    UPGRADE => self.flags.insert(Flags::UPGRADE),
                     _ => (),
                 }
 
@@ -197,12 +185,19 @@ impl ClientCodecInner {
                 buffer.put_slice(b"\r\n");
             }
 
-            // set content length
-            if !len_is_set {
-                buffer.extend_from_slice(b"content-length: 0\r\n")
+            // Connection header
+            if msg.upgrade() {
+                self.flags.set(Flags::UPGRADE, msg.upgrade());
+                buffer.extend_from_slice(b"connection: upgrade\r\n");
+            } else if msg.keep_alive() {
+                if self.version < Version::HTTP_11 {
+                    buffer.extend_from_slice(b"connection: keep-alive\r\n");
+                }
+            } else if self.version >= Version::HTTP_11 {
+                buffer.extend_from_slice(b"connection: close\r\n");
             }
 
-            // set date header
+            // Date header
             if !has_date {
                 self.config.set_date(buffer);
             } else {
@@ -276,7 +271,7 @@ impl Encoder for ClientCodec {
     ) -> Result<(), Self::Error> {
         match item {
             Message::Item((msg, btype)) => {
-                self.inner.encode_response(msg, btype, dst)?;
+                self.inner.encode_request(msg, btype, dst)?;
             }
             Message::Chunk(Some(bytes)) => {
                 self.inner.te.encode(bytes.as_ref(), dst)?;

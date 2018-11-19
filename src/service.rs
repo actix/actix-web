@@ -3,10 +3,10 @@ use std::marker::PhantomData;
 use actix_net::codec::Framed;
 use actix_net::service::{NewService, Service};
 use futures::future::{ok, Either, FutureResult};
-use futures::{Async, AsyncSink, Future, Poll, Sink};
+use futures::{Async, Future, Poll, Sink};
 use tokio_io::{AsyncRead, AsyncWrite};
 
-use body::MessageBody;
+use body::{BodyLength, MessageBody};
 use error::{Error, ResponseError};
 use h1::{Codec, Message};
 use response::Response;
@@ -15,7 +15,7 @@ pub struct SendError<T, R, E>(PhantomData<(T, R, E)>);
 
 impl<T, R, E> Default for SendError<T, R, E>
 where
-    T: AsyncWrite,
+    T: AsyncRead + AsyncWrite,
     E: ResponseError,
 {
     fn default() -> Self {
@@ -25,7 +25,7 @@ where
 
 impl<T, R, E> NewService for SendError<T, R, E>
 where
-    T: AsyncWrite,
+    T: AsyncRead + AsyncWrite,
     E: ResponseError,
 {
     type Request = Result<R, (E, Framed<T, Codec>)>;
@@ -42,7 +42,7 @@ where
 
 impl<T, R, E> Service for SendError<T, R, E>
 where
-    T: AsyncWrite,
+    T: AsyncRead + AsyncWrite,
     E: ResponseError,
 {
     type Request = Result<R, (E, Framed<T, Codec>)>;
@@ -62,7 +62,7 @@ where
                 let (res, _body) = res.replace_body(());
                 Either::B(SendErrorFut {
                     framed: Some(framed),
-                    res: Some(res.into()),
+                    res: Some((res, BodyLength::Empty).into()),
                     err: Some(e),
                     _t: PhantomData,
                 })
@@ -72,7 +72,7 @@ where
 }
 
 pub struct SendErrorFut<T, R, E> {
-    res: Option<Message<Response<()>>>,
+    res: Option<Message<(Response<()>, BodyLength)>>,
     framed: Option<Framed<T, Codec>>,
     err: Option<E>,
     _t: PhantomData<R>,
@@ -81,22 +81,15 @@ pub struct SendErrorFut<T, R, E> {
 impl<T, R, E> Future for SendErrorFut<T, R, E>
 where
     E: ResponseError,
-    T: AsyncWrite,
+    T: AsyncRead + AsyncWrite,
 {
     type Item = R;
     type Error = (E, Framed<T, Codec>);
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         if let Some(res) = self.res.take() {
-            match self.framed.as_mut().unwrap().start_send(res) {
-                Ok(AsyncSink::Ready) => (),
-                Ok(AsyncSink::NotReady(res)) => {
-                    self.res = Some(res);
-                    return Ok(Async::NotReady);
-                }
-                Err(_) => {
-                    return Err((self.err.take().unwrap(), self.framed.take().unwrap()))
-                }
+            if let Err(_) = self.framed.as_mut().unwrap().force_send(res) {
+                return Err((self.err.take().unwrap(), self.framed.take().unwrap()));
             }
         }
         match self.framed.as_mut().unwrap().poll_complete() {
@@ -123,20 +116,15 @@ where
     B: MessageBody,
 {
     pub fn send(
-        mut framed: Framed<T, Codec>,
+        framed: Framed<T, Codec>,
         res: Response<B>,
     ) -> impl Future<Item = Framed<T, Codec>, Error = Error> {
         // extract body from response
-        let (mut res, body) = res.replace_body(());
-
-        // init codec
-        framed
-            .get_codec_mut()
-            .prepare_te(&mut res.head_mut(), &mut body.length());
+        let (res, body) = res.replace_body(());
 
         // write response
         SendResponseFut {
-            res: Some(Message::Item(res)),
+            res: Some(Message::Item((res, body.length()))),
             body: Some(body),
             framed: Some(framed),
         }
@@ -174,13 +162,10 @@ where
         Ok(Async::Ready(()))
     }
 
-    fn call(&mut self, (res, mut framed): Self::Request) -> Self::Future {
-        let (mut res, body) = res.replace_body(());
-        framed
-            .get_codec_mut()
-            .prepare_te(res.head_mut(), &mut body.length());
+    fn call(&mut self, (res, framed): Self::Request) -> Self::Future {
+        let (res, body) = res.replace_body(());
         SendResponseFut {
-            res: Some(Message::Item(res)),
+            res: Some(Message::Item((res, body.length()))),
             body: Some(body),
             framed: Some(framed),
         }
@@ -188,7 +173,7 @@ where
 }
 
 pub struct SendResponseFut<T, B> {
-    res: Option<Message<Response<()>>>,
+    res: Option<Message<(Response<()>, BodyLength)>>,
     body: Option<B>,
     framed: Option<Framed<T, Codec>>,
 }

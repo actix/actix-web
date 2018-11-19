@@ -10,7 +10,7 @@ use client::ClientResponse;
 use error::ParseError;
 use http::header::{HeaderName, HeaderValue};
 use http::{header, HeaderMap, HttpTryFrom, Method, StatusCode, Uri, Version};
-use message::MessageFlags;
+use message::Head;
 use request::Request;
 
 const MAX_BUFFER_SIZE: usize = 131_072;
@@ -49,6 +49,8 @@ pub(crate) enum PayloadLength {
 
 pub(crate) trait MessageTypeDecoder: Sized {
     fn keep_alive(&mut self);
+
+    fn force_close(&mut self);
 
     fn headers_mut(&mut self) -> &mut HeaderMap;
 
@@ -137,6 +139,8 @@ pub(crate) trait MessageTypeDecoder: Sized {
 
         if ka {
             self.keep_alive();
+        } else {
+            self.force_close();
         }
 
         // https://tools.ietf.org/html/rfc7230#section-3.3.3
@@ -160,7 +164,11 @@ pub(crate) trait MessageTypeDecoder: Sized {
 
 impl MessageTypeDecoder for Request {
     fn keep_alive(&mut self) {
-        self.inner_mut().flags.set(MessageFlags::KEEPALIVE);
+        self.inner_mut().head.set_keep_alive()
+    }
+
+    fn force_close(&mut self) {
+        self.inner_mut().head.force_close()
     }
 
     fn headers_mut(&mut self) -> &mut HeaderMap {
@@ -234,7 +242,11 @@ impl MessageTypeDecoder for Request {
 
 impl MessageTypeDecoder for ClientResponse {
     fn keep_alive(&mut self) {
-        self.head.flags.insert(MessageFlags::KEEPALIVE);
+        self.head.set_keep_alive();
+    }
+
+    fn force_close(&mut self) {
+        self.head.force_close();
     }
 
     fn headers_mut(&mut self) -> &mut HeaderMap {

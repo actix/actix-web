@@ -20,17 +20,6 @@ use message::{Head, MessageFlags, ResponseHead};
 /// max write buffer size 64k
 pub(crate) const MAX_WRITE_BUFFER_SIZE: usize = 65_536;
 
-/// Represents various types of connection
-#[derive(Copy, Clone, PartialEq, Debug)]
-pub enum ConnectionType {
-    /// Close connection after response
-    Close,
-    /// Keep connection alive after response
-    KeepAlive,
-    /// Connection is upgraded to different type
-    Upgrade,
-}
-
 /// An HTTP Response
 pub struct Response<B: MessageBody = Body>(Box<InnerResponse>, B);
 
@@ -124,27 +113,6 @@ impl<B: MessageBody> Response<B> {
         &mut self.get_mut().head.status
     }
 
-    /// Get custom reason for the response
-    #[inline]
-    pub fn reason(&self) -> &str {
-        if let Some(reason) = self.get_ref().head.reason {
-            reason
-        } else {
-            self.get_ref()
-                .head
-                .status
-                .canonical_reason()
-                .unwrap_or("<unknown status code>")
-        }
-    }
-
-    /// Set the custom reason for the response
-    #[inline]
-    pub fn set_reason(&mut self, reason: &'static str) -> &mut Self {
-        self.get_mut().head.reason = Some(reason);
-        self
-    }
-
     /// Get the headers from the response
     #[inline]
     pub fn headers(&self) -> &HeaderMap {
@@ -207,28 +175,15 @@ impl<B: MessageBody> Response<B> {
         count
     }
 
-    /// Set connection type
-    pub fn set_connection_type(&mut self, conn: ConnectionType) -> &mut Self {
-        self.get_mut().connection_type = Some(conn);
-        self
-    }
-
     /// Connection upgrade status
     #[inline]
     pub fn upgrade(&self) -> bool {
-        self.get_ref().connection_type == Some(ConnectionType::Upgrade)
+        self.get_ref().head.upgrade()
     }
 
     /// Keep-alive status for this connection
-    pub fn keep_alive(&self) -> Option<bool> {
-        if let Some(ct) = self.get_ref().connection_type {
-            match ct {
-                ConnectionType::KeepAlive => Some(true),
-                ConnectionType::Close | ConnectionType::Upgrade => Some(false),
-            }
-        } else {
-            None
-        }
+    pub fn keep_alive(&self) -> bool {
+        self.get_ref().head.keep_alive()
     }
 
     /// Get body os this response
@@ -275,19 +230,20 @@ impl<B: MessageBody> Response<B> {
     }
 }
 
-impl fmt::Debug for Response {
+impl<B: MessageBody> fmt::Debug for Response<B> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let res = writeln!(
             f,
             "\nResponse {:?} {}{}",
             self.get_ref().head.version,
             self.get_ref().head.status,
-            self.get_ref().head.reason.unwrap_or("")
+            self.get_ref().head.reason.unwrap_or(""),
         );
         let _ = writeln!(f, "  headers:");
         for (key, val) in self.get_ref().head.headers.iter() {
             let _ = writeln!(f, "    {:?}: {:?}", key, val);
         }
+        let _ = writeln!(f, "  body: {:?}", self.body().length());
         res
     }
 }
@@ -400,27 +356,31 @@ impl ResponseBuilder {
         self
     }
 
-    /// Set connection type
+    /// Set connection type to KeepAlive
     #[inline]
-    #[doc(hidden)]
-    pub fn connection_type(&mut self, conn: ConnectionType) -> &mut Self {
+    pub fn keep_alive(&mut self) -> &mut Self {
         if let Some(parts) = parts(&mut self.response, &self.err) {
-            parts.connection_type = Some(conn);
+            parts.head.set_keep_alive();
         }
         self
     }
 
     /// Set connection type to Upgrade
     #[inline]
-    #[doc(hidden)]
     pub fn upgrade(&mut self) -> &mut Self {
-        self.connection_type(ConnectionType::Upgrade)
+        if let Some(parts) = parts(&mut self.response, &self.err) {
+            parts.head.set_upgrade();
+        }
+        self
     }
 
     /// Force close connection, even if it is marked as keep-alive
     #[inline]
     pub fn force_close(&mut self) -> &mut Self {
-        self.connection_type(ConnectionType::Close)
+        if let Some(parts) = parts(&mut self.response, &self.err) {
+            parts.head.force_close();
+        }
+        self
     }
 
     /// Set response content type
@@ -719,8 +679,6 @@ impl From<BytesMut> for Response {
 
 struct InnerResponse {
     head: ResponseHead,
-    connection_type: Option<ConnectionType>,
-    write_capacity: usize,
     response_size: u64,
     error: Option<Error>,
     pool: &'static ResponsePool,
@@ -728,7 +686,6 @@ struct InnerResponse {
 
 pub(crate) struct ResponseParts {
     head: ResponseHead,
-    connection_type: Option<ConnectionType>,
     error: Option<Error>,
 }
 
@@ -744,9 +701,7 @@ impl InnerResponse {
                 flags: MessageFlags::empty(),
             },
             pool,
-            connection_type: None,
             response_size: 0,
-            write_capacity: MAX_WRITE_BUFFER_SIZE,
             error: None,
         }
     }
@@ -755,7 +710,6 @@ impl InnerResponse {
     fn into_parts(self) -> ResponseParts {
         ResponseParts {
             head: self.head,
-            connection_type: self.connection_type,
             error: self.error,
         }
     }
@@ -763,9 +717,7 @@ impl InnerResponse {
     fn from_parts(parts: ResponseParts) -> InnerResponse {
         InnerResponse {
             head: parts.head,
-            connection_type: parts.connection_type,
             response_size: 0,
-            write_capacity: MAX_WRITE_BUFFER_SIZE,
             error: parts.error,
             pool: ResponsePool::pool(),
         }
@@ -838,10 +790,8 @@ impl ResponsePool {
         let mut p = inner.pool.0.borrow_mut();
         if p.len() < 128 {
             inner.head.clear();
-            inner.connection_type = None;
             inner.response_size = 0;
             inner.error = None;
-            inner.write_capacity = MAX_WRITE_BUFFER_SIZE;
             p.push_front(inner);
         }
     }
@@ -937,7 +887,7 @@ mod tests {
     #[test]
     fn test_force_close() {
         let resp = Response::build(StatusCode::OK).force_close().finish();
-        assert!(!resp.keep_alive().unwrap())
+        assert!(!resp.keep_alive())
     }
 
     #[test]

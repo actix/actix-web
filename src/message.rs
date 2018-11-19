@@ -12,12 +12,41 @@ use uri::Url;
 pub trait Head: Default + 'static {
     fn clear(&mut self);
 
+    fn flags(&self) -> MessageFlags;
+
+    fn flags_mut(&mut self) -> &mut MessageFlags;
+
     fn pool() -> &'static MessagePool<Self>;
+
+    /// Set upgrade
+    fn set_upgrade(&mut self) {
+        *self.flags_mut() = MessageFlags::UPGRADE;
+    }
+
+    /// Check if request is upgrade request
+    fn upgrade(&self) -> bool {
+        self.flags().contains(MessageFlags::UPGRADE)
+    }
+
+    /// Set keep-alive
+    fn set_keep_alive(&mut self) {
+        *self.flags_mut() = MessageFlags::KEEP_ALIVE;
+    }
+
+    /// Check if request is keep-alive
+    fn keep_alive(&self) -> bool;
+
+    /// Set force-close connection
+    fn force_close(&mut self) {
+        *self.flags_mut() = MessageFlags::FORCE_CLOSE;
+    }
 }
 
 bitflags! {
-    pub(crate) struct MessageFlags: u8 {
-        const KEEPALIVE = 0b0000_0001;
+    pub struct MessageFlags: u8 {
+        const KEEP_ALIVE  = 0b0000_0001;
+        const FORCE_CLOSE = 0b0000_0010;
+        const UPGRADE     = 0b0000_0100;
     }
 }
 
@@ -45,6 +74,25 @@ impl Head for RequestHead {
     fn clear(&mut self) {
         self.headers.clear();
         self.flags = MessageFlags::empty();
+    }
+
+    fn flags(&self) -> MessageFlags {
+        self.flags
+    }
+
+    fn flags_mut(&mut self) -> &mut MessageFlags {
+        &mut self.flags
+    }
+
+    /// Check if request is keep-alive
+    fn keep_alive(&self) -> bool {
+        if self.flags().contains(MessageFlags::FORCE_CLOSE) {
+            false
+        } else if self.flags().contains(MessageFlags::KEEP_ALIVE) {
+            true
+        } else {
+            self.version <= Version::HTTP_11
+        }
     }
 
     fn pool() -> &'static MessagePool<Self> {
@@ -79,8 +127,41 @@ impl Head for ResponseHead {
         self.flags = MessageFlags::empty();
     }
 
+    fn flags(&self) -> MessageFlags {
+        self.flags
+    }
+
+    fn flags_mut(&mut self) -> &mut MessageFlags {
+        &mut self.flags
+    }
+
+    /// Check if response is keep-alive
+    fn keep_alive(&self) -> bool {
+        if self.flags().contains(MessageFlags::FORCE_CLOSE) {
+            false
+        } else if self.flags().contains(MessageFlags::KEEP_ALIVE) {
+            true
+        } else {
+            self.version <= Version::HTTP_11
+        }
+    }
+
     fn pool() -> &'static MessagePool<Self> {
         RESPONSE_POOL.with(|p| *p)
+    }
+}
+
+impl ResponseHead {
+    /// Get custom reason for the response
+    #[inline]
+    pub fn reason(&self) -> &str {
+        if let Some(reason) = self.reason {
+            reason
+        } else {
+            self.status
+                .canonical_reason()
+                .unwrap_or("<unknown status code>")
+        }
     }
 }
 

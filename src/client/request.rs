@@ -16,7 +16,7 @@ use http::{
     uri, Error as HttpError, HeaderMap, HeaderName, HeaderValue, HttpTryFrom, Method,
     Uri, Version,
 };
-use message::RequestHead;
+use message::{Head, RequestHead};
 
 use super::response::ClientResponse;
 use super::{pipeline, Connect, Connection, ConnectorError, SendRequestError};
@@ -365,8 +365,21 @@ impl ClientRequestBuilder {
     where
         V: IntoHeaderValue,
     {
+        {
+            if let Some(parts) = parts(&mut self.head, &self.err) {
+                parts.set_upgrade();
+            }
+        }
         self.set_header(header::UPGRADE, value)
-            .set_header(header::CONNECTION, "upgrade")
+    }
+
+    /// Close connection
+    #[inline]
+    pub fn close(&mut self) -> &mut Self {
+        if let Some(parts) = parts(&mut self.head, &self.err) {
+            parts.force_close();
+        }
+        self
     }
 
     /// Set request's content type

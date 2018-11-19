@@ -8,7 +8,7 @@ use http::{HeaderMap, StatusCode, Version};
 use body::PayloadStream;
 use error::PayloadError;
 use httpmessage::HttpMessage;
-use message::{MessageFlags, ResponseHead};
+use message::{Head, ResponseHead};
 
 use super::pipeline::Payload;
 
@@ -81,7 +81,7 @@ impl ClientResponse {
     /// Checks if a connection should be kept alive.
     #[inline]
     pub fn keep_alive(&self) -> bool {
-        self.head().flags.contains(MessageFlags::KEEPALIVE)
+        self.head().keep_alive()
     }
 }
 

@@ -9,7 +9,7 @@ use error::{Error, PayloadError};
 /// Type represent streaming payload
 pub type PayloadStream = Box<dyn Stream<Item = Bytes, Error = PayloadError>>;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Copy, Clone)]
 /// Different type of body
 pub enum BodyLength {
     None,
@@ -76,10 +76,11 @@ impl MessageBody for Body {
             Body::None => Ok(Async::Ready(None)),
             Body::Empty => Ok(Async::Ready(None)),
             Body::Bytes(ref mut bin) => {
-                if bin.len() == 0 {
+                let len = bin.len();
+                if len == 0 {
                     Ok(Async::Ready(None))
                 } else {
-                    Ok(Async::Ready(Some(bin.slice_to(bin.len()))))
+                    Ok(Async::Ready(Some(bin.split_to(len))))
                 }
             }
             Body::Message(ref mut body) => body.poll_next(),

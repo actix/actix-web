@@ -8,7 +8,7 @@ use extensions::Extensions;
 use httpmessage::HttpMessage;
 use payload::Payload;
 
-use message::{Message, MessageFlags, MessagePool, RequestHead};
+use message::{Head, Message, MessagePool, RequestHead};
 
 /// Request
 pub struct Request {
@@ -116,7 +116,7 @@ impl Request {
     /// Checks if a connection should be kept alive.
     #[inline]
     pub fn keep_alive(&self) -> bool {
-        self.inner().flags.get().contains(MessageFlags::KEEPALIVE)
+        self.inner().head.keep_alive()
     }
 
     /// Request extensions

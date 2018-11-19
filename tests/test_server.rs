@@ -12,10 +12,13 @@ use actix_net::server::Server;
 use actix_net::service::NewServiceExt;
 use actix_web::{client, test, HttpMessage};
 use bytes::Bytes;
-use futures::future::{self, ok};
+use futures::future::{self, lazy, ok};
 use futures::stream::once;
 
-use actix_http::{body, h1, http, Body, Error, KeepAlive, Request, Response};
+use actix_http::{
+    body, client as client2, h1, http, Body, Error, HttpMessage as HttpMessage2,
+    KeepAlive, Request, Response,
+};
 
 #[test]
 fn test_h1_v2() {
@@ -181,14 +184,19 @@ fn test_headers() {
             .unwrap()
             .run()
     });
-    thread::sleep(time::Duration::from_millis(400));
+    thread::sleep(time::Duration::from_millis(200));
 
     let mut sys = System::new("test");
-    let req = client::ClientRequest::get(format!("http://{}/", addr))
+    let mut connector = sys
+        .block_on(lazy(|| {
+            Ok::<_, ()>(client2::Connector::default().service())
+        })).unwrap();
+
+    let req = client2::ClientRequest::get(format!("http://{}/", addr))
         .finish()
         .unwrap();
 
-    let response = sys.block_on(req.send()).unwrap();
+    let response = sys.block_on(req.send(&mut connector)).unwrap();
     assert!(response.status().is_success());
 
     // read response
@@ -249,9 +257,7 @@ fn test_head_empty() {
     thread::spawn(move || {
         Server::new()
             .bind("test", addr, move || {
-                h1::H1Service::new(|_| {
-                    ok::<_, ()>(Response::Ok().content_length(STR.len() as u64).finish())
-                }).map(|_| ())
+                h1::H1Service::new(|_| ok::<_, ()>(Response::Ok().body(STR))).map(|_| ())
             }).unwrap()
             .run()
     });

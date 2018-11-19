@@ -109,6 +109,8 @@ extern crate serde_derive;
 #[cfg(feature = "ssl")]
 extern crate openssl;
 
+extern crate backtrace;
+
 pub mod body;
 pub mod client;
 mod config;
@@ -173,5 +175,4 @@ pub mod http {
         pub use header::*;
     }
     pub use header::ContentEncoding;
-    pub use response::ConnectionType;
 }

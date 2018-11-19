@@ -33,7 +33,7 @@ where
         .from_err()
         // create Framed and send reqest
         .map(|io| Framed::new(io, h1::ClientCodec::default()))
-        .and_then(|framed| framed.send((head, len).into()).from_err())
+        .and_then(move |framed| framed.send((head, len).into()).from_err())
         // send request body
         .and_then(move |framed| match body.length() {
             BodyLength::None | BodyLength::Empty | BodyLength::Sized(0) => {
