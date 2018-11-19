@@ -6,7 +6,6 @@ use http::{HeaderMap, Method, StatusCode, Uri, Version};
 
 use extensions::Extensions;
 use payload::Payload;
-use uri::Url;
 
 /// Represents various types of connection
 #[derive(Copy, Clone, PartialEq, Debug)]
@@ -147,8 +146,6 @@ impl ResponseHead {
 
 pub struct Message<T: Head> {
     pub head: T,
-    pub url: Url,
-    pub status: StatusCode,
     pub extensions: RefCell<Extensions>,
     pub payload: RefCell<Option<Payload>>,
     pub(crate) pool: &'static MessagePool<T>,
@@ -168,9 +165,7 @@ impl<T: Head> Default for Message<T> {
     fn default() -> Self {
         Message {
             pool: T::pool(),
-            url: Url::default(),
             head: T::default(),
-            status: StatusCode::OK,
             payload: RefCell::new(None),
             extensions: RefCell::new(Extensions::new()),
         }

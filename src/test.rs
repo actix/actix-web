@@ -15,7 +15,6 @@ use tokio::runtime::current_thread::Runtime;
 use header::{Header, IntoHeaderValue};
 use payload::Payload;
 use request::Request;
-use uri::Url as InnerUrl;
 // use ws;
 
 /// The `TestServer` type.
@@ -390,8 +389,8 @@ impl TestRequest {
         let mut req = Request::new();
         {
             let inner = req.inner_mut();
+            inner.head.uri = uri;
             inner.head.method = method;
-            inner.url = InnerUrl::new(&uri);
             inner.head.version = version;
             inner.head.headers = headers;
             *inner.payload.borrow_mut() = payload;

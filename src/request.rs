@@ -94,11 +94,7 @@ impl Request {
     /// The target path of this Request.
     #[inline]
     pub fn path(&self) -> &str {
-        if let Some(path) = self.inner().url.path() {
-            path
-        } else {
-            self.inner().head.uri.path()
-        }
+        self.inner().head.uri.path()
     }
 
     #[inline]

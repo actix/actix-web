@@ -76,8 +76,6 @@ extern crate bitflags;
 #[macro_use]
 extern crate failure;
 #[macro_use]
-extern crate lazy_static;
-#[macro_use]
 extern crate futures;
 extern crate cookie;
 extern crate encoding;
@@ -124,7 +122,6 @@ mod payload;
 mod request;
 mod response;
 mod service;
-pub mod uri;
 
 pub mod error;
 pub mod h1;

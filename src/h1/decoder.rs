@@ -234,7 +234,6 @@ impl MessageTypeDecoder for Request {
 
         {
             let inner = msg.inner_mut();
-            inner.url.update(&uri);
             inner.head.uri = uri;
             inner.head.method = method;
             inner.head.version = ver;
