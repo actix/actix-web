@@ -1,4 +1,4 @@
-use std::cell::{Cell, RefCell};
+use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::rc::Rc;
 
@@ -8,46 +8,36 @@ use extensions::Extensions;
 use payload::Payload;
 use uri::Url;
 
+/// Represents various types of connection
+#[derive(Copy, Clone, PartialEq, Debug)]
+pub enum ConnectionType {
+    /// Close connection after response
+    Close,
+    /// Keep connection alive after response
+    KeepAlive,
+    /// Connection is upgraded to different type
+    Upgrade,
+}
+
 #[doc(hidden)]
 pub trait Head: Default + 'static {
     fn clear(&mut self);
 
-    fn flags(&self) -> MessageFlags;
+    /// Connection type
+    fn connection_type(&self) -> ConnectionType;
 
-    fn flags_mut(&mut self) -> &mut MessageFlags;
+    /// Set connection type of the message
+    fn set_connection_type(&mut self, ctype: ConnectionType);
+
+    fn upgrade(&self) -> bool {
+        self.connection_type() == ConnectionType::Upgrade
+    }
+
+    fn keep_alive(&self) -> bool {
+        self.connection_type() == ConnectionType::KeepAlive
+    }
 
     fn pool() -> &'static MessagePool<Self>;
-
-    /// Set upgrade
-    fn set_upgrade(&mut self) {
-        *self.flags_mut() = MessageFlags::UPGRADE;
-    }
-
-    /// Check if request is upgrade request
-    fn upgrade(&self) -> bool {
-        self.flags().contains(MessageFlags::UPGRADE)
-    }
-
-    /// Set keep-alive
-    fn set_keep_alive(&mut self) {
-        *self.flags_mut() = MessageFlags::KEEP_ALIVE;
-    }
-
-    /// Check if request is keep-alive
-    fn keep_alive(&self) -> bool;
-
-    /// Set force-close connection
-    fn force_close(&mut self) {
-        *self.flags_mut() = MessageFlags::FORCE_CLOSE;
-    }
-}
-
-bitflags! {
-    pub struct MessageFlags: u8 {
-        const KEEP_ALIVE  = 0b0000_0001;
-        const FORCE_CLOSE = 0b0000_0010;
-        const UPGRADE     = 0b0000_0100;
-    }
 }
 
 pub struct RequestHead {
@@ -55,7 +45,7 @@ pub struct RequestHead {
     pub method: Method,
     pub version: Version,
     pub headers: HeaderMap,
-    pub(crate) flags: MessageFlags,
+    ctype: Option<ConnectionType>,
 }
 
 impl Default for RequestHead {
@@ -65,33 +55,28 @@ impl Default for RequestHead {
             method: Method::default(),
             version: Version::HTTP_11,
             headers: HeaderMap::with_capacity(16),
-            flags: MessageFlags::empty(),
+            ctype: None,
         }
     }
 }
 
 impl Head for RequestHead {
     fn clear(&mut self) {
+        self.ctype = None;
         self.headers.clear();
-        self.flags = MessageFlags::empty();
     }
 
-    fn flags(&self) -> MessageFlags {
-        self.flags
+    fn set_connection_type(&mut self, ctype: ConnectionType) {
+        self.ctype = Some(ctype)
     }
 
-    fn flags_mut(&mut self) -> &mut MessageFlags {
-        &mut self.flags
-    }
-
-    /// Check if request is keep-alive
-    fn keep_alive(&self) -> bool {
-        if self.flags().contains(MessageFlags::FORCE_CLOSE) {
-            false
-        } else if self.flags().contains(MessageFlags::KEEP_ALIVE) {
-            true
+    fn connection_type(&self) -> ConnectionType {
+        if let Some(ct) = self.ctype {
+            ct
+        } else if self.version <= Version::HTTP_11 {
+            ConnectionType::Close
         } else {
-            self.version <= Version::HTTP_11
+            ConnectionType::KeepAlive
         }
     }
 
@@ -105,7 +90,7 @@ pub struct ResponseHead {
     pub status: StatusCode,
     pub headers: HeaderMap,
     pub reason: Option<&'static str>,
-    pub(crate) flags: MessageFlags,
+    pub(crate) ctype: Option<ConnectionType>,
 }
 
 impl Default for ResponseHead {
@@ -115,34 +100,29 @@ impl Default for ResponseHead {
             status: StatusCode::OK,
             headers: HeaderMap::with_capacity(16),
             reason: None,
-            flags: MessageFlags::empty(),
+            ctype: None,
         }
     }
 }
 
 impl Head for ResponseHead {
     fn clear(&mut self) {
+        self.ctype = None;
         self.reason = None;
         self.headers.clear();
-        self.flags = MessageFlags::empty();
     }
 
-    fn flags(&self) -> MessageFlags {
-        self.flags
+    fn set_connection_type(&mut self, ctype: ConnectionType) {
+        self.ctype = Some(ctype)
     }
 
-    fn flags_mut(&mut self) -> &mut MessageFlags {
-        &mut self.flags
-    }
-
-    /// Check if response is keep-alive
-    fn keep_alive(&self) -> bool {
-        if self.flags().contains(MessageFlags::FORCE_CLOSE) {
-            false
-        } else if self.flags().contains(MessageFlags::KEEP_ALIVE) {
-            true
+    fn connection_type(&self) -> ConnectionType {
+        if let Some(ct) = self.ctype {
+            ct
+        } else if self.version <= Version::HTTP_11 {
+            ConnectionType::Close
         } else {
-            self.version <= Version::HTTP_11
+            ConnectionType::KeepAlive
         }
     }
 
@@ -172,7 +152,6 @@ pub struct Message<T: Head> {
     pub extensions: RefCell<Extensions>,
     pub payload: RefCell<Option<Payload>>,
     pub(crate) pool: &'static MessagePool<T>,
-    pub(crate) flags: Cell<MessageFlags>,
 }
 
 impl<T: Head> Message<T> {
@@ -181,7 +160,6 @@ impl<T: Head> Message<T> {
     pub fn reset(&mut self) {
         self.head.clear();
         self.extensions.borrow_mut().clear();
-        self.flags.set(MessageFlags::empty());
         *self.payload.borrow_mut() = None;
     }
 }
@@ -193,7 +171,6 @@ impl<T: Head> Default for Message<T> {
             url: Url::default(),
             head: T::default(),
             status: StatusCode::OK,
-            flags: Cell::new(MessageFlags::empty()),
             payload: RefCell::new(None),
             extensions: RefCell::new(Extensions::new()),
         }

@@ -15,7 +15,7 @@ use serde_json;
 use body::{Body, BodyStream, MessageBody};
 use error::Error;
 use header::{Header, IntoHeaderValue};
-use message::{Head, MessageFlags, ResponseHead};
+use message::{ConnectionType, Head, ResponseHead};
 
 /// max write buffer size 64k
 pub(crate) const MAX_WRITE_BUFFER_SIZE: usize = 65_536;
@@ -360,7 +360,7 @@ impl ResponseBuilder {
     #[inline]
     pub fn keep_alive(&mut self) -> &mut Self {
         if let Some(parts) = parts(&mut self.response, &self.err) {
-            parts.head.set_keep_alive();
+            parts.head.set_connection_type(ConnectionType::KeepAlive);
         }
         self
     }
@@ -369,7 +369,7 @@ impl ResponseBuilder {
     #[inline]
     pub fn upgrade(&mut self) -> &mut Self {
         if let Some(parts) = parts(&mut self.response, &self.err) {
-            parts.head.set_upgrade();
+            parts.head.set_connection_type(ConnectionType::Upgrade);
         }
         self
     }
@@ -378,7 +378,7 @@ impl ResponseBuilder {
     #[inline]
     pub fn force_close(&mut self) -> &mut Self {
         if let Some(parts) = parts(&mut self.response, &self.err) {
-            parts.head.force_close();
+            parts.head.set_connection_type(ConnectionType::Close);
         }
         self
     }
@@ -698,7 +698,7 @@ impl InnerResponse {
                 version: Version::default(),
                 headers: HeaderMap::with_capacity(16),
                 reason: None,
-                flags: MessageFlags::empty(),
+                ctype: None,
             },
             pool,
             response_size: 0,

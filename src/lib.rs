@@ -175,4 +175,5 @@ pub mod http {
         pub use header::*;
     }
     pub use header::ContentEncoding;
+    pub use message::ConnectionType;
 }

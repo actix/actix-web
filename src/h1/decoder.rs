@@ -10,7 +10,7 @@ use client::ClientResponse;
 use error::ParseError;
 use http::header::{HeaderName, HeaderValue};
 use http::{header, HeaderMap, HttpTryFrom, Method, StatusCode, Uri, Version};
-use message::Head;
+use message::{ConnectionType, Head};
 use request::Request;
 
 const MAX_BUFFER_SIZE: usize = 131_072;
@@ -164,11 +164,15 @@ pub(crate) trait MessageTypeDecoder: Sized {
 
 impl MessageTypeDecoder for Request {
     fn keep_alive(&mut self) {
-        self.inner_mut().head.set_keep_alive()
+        self.inner_mut()
+            .head
+            .set_connection_type(ConnectionType::KeepAlive)
     }
 
     fn force_close(&mut self) {
-        self.inner_mut().head.force_close()
+        self.inner_mut()
+            .head
+            .set_connection_type(ConnectionType::Close)
     }
 
     fn headers_mut(&mut self) -> &mut HeaderMap {
@@ -242,11 +246,11 @@ impl MessageTypeDecoder for Request {
 
 impl MessageTypeDecoder for ClientResponse {
     fn keep_alive(&mut self) {
-        self.head.set_keep_alive();
+        self.head.set_connection_type(ConnectionType::KeepAlive);
     }
 
     fn force_close(&mut self) {
-        self.head.force_close();
+        self.head.set_connection_type(ConnectionType::Close);
     }
 
     fn headers_mut(&mut self) -> &mut HeaderMap {
