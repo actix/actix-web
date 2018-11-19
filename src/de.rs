@@ -19,8 +19,8 @@ macro_rules! unsupported_type {
 macro_rules! percent_decode_if_needed {
     ($value:expr, $decode:expr) => {
         if $decode {
-            if let Some(ref value) = RESERVED_QUOTER.requote($value.as_bytes()) {
-                Rc::make_mut(&mut value.clone()).parse()
+            if let Some(ref mut value) = RESERVED_QUOTER.requote($value.as_bytes()) {
+                Rc::make_mut(value).parse()
             } else {
                 $value.parse()
             }
