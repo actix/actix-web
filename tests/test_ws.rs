@@ -13,7 +13,7 @@ use actix_net::service::NewServiceExt;
 use actix_net::stream::TakeItem;
 use actix_web::ws as web_ws;
 use bytes::{Bytes, BytesMut};
-use futures::future::{ok, Either};
+use futures::future::{lazy, ok, Either};
 use futures::{Future, Sink, Stream};
 
 use actix_http::{h1, test, ws, ResponseError, SendResponse, ServiceConfig};
@@ -81,8 +81,9 @@ fn test_simple() {
     {
         let url = srv.url("/");
 
-        let (reader, mut writer) =
-            srv.block_on(web_ws::Client::new(url).connect()).unwrap();
+        let (reader, mut writer) = srv
+            .block_on(lazy(|| web_ws::Client::new(url).connect()))
+            .unwrap();
 
         writer.text("text");
         let (item, reader) = srv.block_on(reader.into_future()).unwrap();

@@ -443,7 +443,7 @@ where
     ) -> Result<Framed<impl AsyncRead + AsyncWrite, ws::Codec>, ws::ClientError> {
         let url = self.url(path);
         self.rt
-            .block_on(ws::Client::default().call(ws::Connect::new(url)))
+            .block_on(lazy(|| ws::Client::default().call(ws::Connect::new(url))))
     }
 
     /// Connect to a websocket server

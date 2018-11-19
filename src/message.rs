@@ -39,12 +39,13 @@ pub trait Head: Default + 'static {
     fn pool() -> &'static MessagePool<Self>;
 }
 
+#[derive(Debug)]
 pub struct RequestHead {
     pub uri: Uri,
     pub method: Method,
     pub version: Version,
     pub headers: HeaderMap,
-    ctype: Option<ConnectionType>,
+    pub ctype: Option<ConnectionType>,
 }
 
 impl Default for RequestHead {
@@ -72,7 +73,7 @@ impl Head for RequestHead {
     fn connection_type(&self) -> ConnectionType {
         if let Some(ct) = self.ctype {
             ct
-        } else if self.version <= Version::HTTP_11 {
+        } else if self.version < Version::HTTP_11 {
             ConnectionType::Close
         } else {
             ConnectionType::KeepAlive
@@ -84,6 +85,7 @@ impl Head for RequestHead {
     }
 }
 
+#[derive(Debug)]
 pub struct ResponseHead {
     pub version: Version,
     pub status: StatusCode,
@@ -118,7 +120,7 @@ impl Head for ResponseHead {
     fn connection_type(&self) -> ConnectionType {
         if let Some(ct) = self.ctype {
             ct
-        } else if self.version <= Version::HTTP_11 {
+        } else if self.version < Version::HTTP_11 {
             ConnectionType::Close
         } else {
             ConnectionType::KeepAlive

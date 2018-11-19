@@ -183,8 +183,7 @@ pub fn handshake_response(req: &Request) -> ResponseBuilder {
     };
 
     Response::build(StatusCode::SWITCHING_PROTOCOLS)
-        .upgrade()
-        .header(header::UPGRADE, "websocket")
+        .upgrade("websocket")
         .header(header::TRANSFER_ENCODING, "chunked")
         .header(header::SEC_WEBSOCKET_ACCEPT, key.as_str())
         .take()

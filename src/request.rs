@@ -8,7 +8,7 @@ use extensions::Extensions;
 use httpmessage::HttpMessage;
 use payload::Payload;
 
-use message::{Head, Message, MessagePool, RequestHead};
+use message::{Message, MessagePool, RequestHead};
 
 /// Request
 pub struct Request {
@@ -67,6 +67,19 @@ impl Request {
         Rc::get_mut(&mut self.inner).expect("Multiple copies exist")
     }
 
+    #[inline]
+    /// Http message part of the request
+    pub fn head(&self) -> &RequestHead {
+        &self.inner.as_ref().head
+    }
+
+    #[inline]
+    #[doc(hidden)]
+    /// Mutable reference to a http message part of the request
+    pub fn head_mut(&mut self) -> &mut RequestHead {
+        &mut self.inner_mut().head
+    }
+
     /// Request's uri.
     #[inline]
     pub fn uri(&self) -> &Uri {
@@ -107,12 +120,6 @@ impl Request {
     /// Returns mutable Request's headers.
     pub fn headers_mut(&mut self) -> &mut HeaderMap {
         &mut self.inner_mut().head.headers
-    }
-
-    /// Checks if a connection should be kept alive.
-    #[inline]
-    pub fn keep_alive(&self) -> bool {
-        self.inner().head.keep_alive()
     }
 
     /// Request extensions

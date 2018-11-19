@@ -85,7 +85,14 @@ impl<B: MessageBody> Response<B> {
     }
 
     #[inline]
-    pub(crate) fn head_mut(&mut self) -> &mut ResponseHead {
+    /// Http message part of the response
+    pub fn head(&self) -> &ResponseHead {
+        &self.0.as_ref().head
+    }
+
+    #[inline]
+    /// Mutable reference to a http message part of the response
+    pub fn head_mut(&mut self) -> &mut ResponseHead {
         &mut self.0.as_mut().head
     }
 
@@ -314,7 +321,7 @@ impl ResponseBuilder {
         self
     }
 
-    /// Set a header.
+    /// Append a header to existing headers.
     ///
     /// ```rust,ignore
     /// # extern crate actix_web;
@@ -347,6 +354,39 @@ impl ResponseBuilder {
         self
     }
 
+    /// Set a header.
+    ///
+    /// ```rust,ignore
+    /// # extern crate actix_web;
+    /// use actix_web::{http, Request, Response};
+    ///
+    /// fn index(req: HttpRequest) -> Response {
+    ///     Response::Ok()
+    ///         .set_header("X-TEST", "value")
+    ///         .set_header(http::header::CONTENT_TYPE, "application/json")
+    ///         .finish()
+    /// }
+    /// fn main() {}
+    /// ```
+    pub fn set_header<K, V>(&mut self, key: K, value: V) -> &mut Self
+    where
+        HeaderName: HttpTryFrom<K>,
+        V: IntoHeaderValue,
+    {
+        if let Some(parts) = parts(&mut self.response, &self.err) {
+            match HeaderName::try_from(key) {
+                Ok(key) => match value.try_into() {
+                    Ok(value) => {
+                        parts.head.headers.insert(key, value);
+                    }
+                    Err(e) => self.err = Some(e.into()),
+                },
+                Err(e) => self.err = Some(e.into()),
+            };
+        }
+        self
+    }
+
     /// Set the custom reason for the response.
     #[inline]
     pub fn reason(&mut self, reason: &'static str) -> &mut Self {
@@ -367,11 +407,14 @@ impl ResponseBuilder {
 
     /// Set connection type to Upgrade
     #[inline]
-    pub fn upgrade(&mut self) -> &mut Self {
+    pub fn upgrade<V>(&mut self, value: V) -> &mut Self
+    where
+        V: IntoHeaderValue,
+    {
         if let Some(parts) = parts(&mut self.response, &self.err) {
             parts.head.set_connection_type(ConnectionType::Upgrade);
         }
-        self
+        self.set_header(header::UPGRADE, value)
     }
 
     /// Force close connection, even if it is marked as keep-alive
@@ -880,8 +923,14 @@ mod tests {
 
     #[test]
     fn test_upgrade() {
-        let resp = Response::build(StatusCode::OK).upgrade().finish();
-        assert!(resp.upgrade())
+        let resp = Response::build(StatusCode::OK)
+            .upgrade("websocket")
+            .finish();
+        assert!(resp.upgrade());
+        assert_eq!(
+            resp.headers().get(header::UPGRADE).unwrap(),
+            HeaderValue::from_static("websocket")
+        );
     }
 
     #[test]

@@ -10,15 +10,16 @@ use client::ClientResponse;
 use error::ParseError;
 use http::header::{HeaderName, HeaderValue};
 use http::{header, HeaderMap, HttpTryFrom, Method, StatusCode, Uri, Version};
-use message::{ConnectionType, Head};
+use message::ConnectionType;
 use request::Request;
 
 const MAX_BUFFER_SIZE: usize = 131_072;
 const MAX_HEADERS: usize = 96;
 
 /// Incoming messagd decoder
-pub(crate) struct MessageDecoder<T: MessageTypeDecoder>(PhantomData<T>);
+pub(crate) struct MessageDecoder<T: MessageType>(PhantomData<T>);
 
+#[derive(Debug)]
 /// Incoming request type
 pub(crate) enum PayloadType {
     None,
@@ -26,13 +27,13 @@ pub(crate) enum PayloadType {
     Stream(PayloadDecoder),
 }
 
-impl<T: MessageTypeDecoder> Default for MessageDecoder<T> {
+impl<T: MessageType> Default for MessageDecoder<T> {
     fn default() -> Self {
         MessageDecoder(PhantomData)
     }
 }
 
-impl<T: MessageTypeDecoder> Decoder for MessageDecoder<T> {
+impl<T: MessageType> Decoder for MessageDecoder<T> {
     type Item = (T, PayloadType);
     type Error = ParseError;
 
@@ -47,10 +48,8 @@ pub(crate) enum PayloadLength {
     None,
 }
 
-pub(crate) trait MessageTypeDecoder: Sized {
-    fn keep_alive(&mut self);
-
-    fn force_close(&mut self);
+pub(crate) trait MessageType: Sized {
+    fn set_connection_type(&mut self, ctype: Option<ConnectionType>);
 
     fn headers_mut(&mut self) -> &mut HeaderMap;
 
@@ -59,10 +58,9 @@ pub(crate) trait MessageTypeDecoder: Sized {
     fn set_headers(
         &mut self,
         slice: &Bytes,
-        version: Version,
         raw_headers: &[HeaderIndex],
     ) -> Result<PayloadLength, ParseError> {
-        let mut ka = version != Version::HTTP_10;
+        let mut ka = None;
         let mut has_upgrade = false;
         let mut chunked = false;
         let mut content_length = None;
@@ -104,18 +102,18 @@ pub(crate) trait MessageTypeDecoder: Sized {
                         // connection keep-alive state
                         header::CONNECTION => {
                             ka = if let Ok(conn) = value.to_str() {
-                                if version == Version::HTTP_10
-                                    && conn.contains("keep-alive")
-                                {
-                                    true
+                                if conn.contains("keep-alive") {
+                                    Some(ConnectionType::KeepAlive)
+                                } else if conn.contains("close") {
+                                    Some(ConnectionType::Close)
+                                } else if conn.contains("upgrade") {
+                                    Some(ConnectionType::Upgrade)
                                 } else {
-                                    version == Version::HTTP_11 && !(conn
-                                        .contains("close")
-                                        || conn.contains("upgrade"))
+                                    None
                                 }
                             } else {
-                                false
-                            }
+                                None
+                            };
                         }
                         header::UPGRADE => {
                             has_upgrade = true;
@@ -136,12 +134,7 @@ pub(crate) trait MessageTypeDecoder: Sized {
                 }
             }
         }
-
-        if ka {
-            self.keep_alive();
-        } else {
-            self.force_close();
-        }
+        self.set_connection_type(ka);
 
         // https://tools.ietf.org/html/rfc7230#section-3.3.3
         if chunked {
@@ -162,17 +155,9 @@ pub(crate) trait MessageTypeDecoder: Sized {
     }
 }
 
-impl MessageTypeDecoder for Request {
-    fn keep_alive(&mut self) {
-        self.inner_mut()
-            .head
-            .set_connection_type(ConnectionType::KeepAlive)
-    }
-
-    fn force_close(&mut self) {
-        self.inner_mut()
-            .head
-            .set_connection_type(ConnectionType::Close)
+impl MessageType for Request {
+    fn set_connection_type(&mut self, ctype: Option<ConnectionType>) {
+        self.inner_mut().head.ctype = ctype;
     }
 
     fn headers_mut(&mut self) -> &mut HeaderMap {
@@ -210,8 +195,7 @@ impl MessageTypeDecoder for Request {
         let mut msg = Request::new();
 
         // convert headers
-        let len =
-            msg.set_headers(&src.split_to(len).freeze(), ver, &headers[..h_len])?;
+        let len = msg.set_headers(&src.split_to(len).freeze(), &headers[..h_len])?;
 
         // payload decoder
         let decoder = match len {
@@ -243,13 +227,9 @@ impl MessageTypeDecoder for Request {
     }
 }
 
-impl MessageTypeDecoder for ClientResponse {
-    fn keep_alive(&mut self) {
-        self.head.set_connection_type(ConnectionType::KeepAlive);
-    }
-
-    fn force_close(&mut self) {
-        self.head.set_connection_type(ConnectionType::Close);
+impl MessageType for ClientResponse {
+    fn set_connection_type(&mut self, ctype: Option<ConnectionType>) {
+        self.head.ctype = ctype;
     }
 
     fn headers_mut(&mut self) -> &mut HeaderMap {
@@ -286,8 +266,7 @@ impl MessageTypeDecoder for ClientResponse {
         let mut msg = ClientResponse::new();
 
         // convert headers
-        let len =
-            msg.set_headers(&src.split_to(len).freeze(), ver, &headers[..h_len])?;
+        let len = msg.set_headers(&src.split_to(len).freeze(), &headers[..h_len])?;
 
         // message payload
         let decoder = if let PayloadLength::Payload(pl) = len {
@@ -634,6 +613,7 @@ mod tests {
     use super::*;
     use error::ParseError;
     use httpmessage::HttpMessage;
+    use message::Head;
 
     impl PayloadType {
         fn unwrap(self) -> PayloadDecoder {
@@ -886,7 +866,7 @@ mod tests {
         let mut buf = BytesMut::from("GET /test HTTP/1.0\r\n\r\n");
         let req = parse_ready!(&mut buf);
 
-        assert!(!req.keep_alive());
+        assert_eq!(req.head().connection_type(), ConnectionType::Close);
     }
 
     #[test]
@@ -894,7 +874,7 @@ mod tests {
         let mut buf = BytesMut::from("GET /test HTTP/1.1\r\n\r\n");
         let req = parse_ready!(&mut buf);
 
-        assert!(req.keep_alive());
+        assert_eq!(req.head().connection_type(), ConnectionType::KeepAlive);
     }
 
     #[test]
@@ -905,7 +885,7 @@ mod tests {
         );
         let req = parse_ready!(&mut buf);
 
-        assert!(!req.keep_alive());
+        assert_eq!(req.inner().head.ctype, Some(ConnectionType::Close));
     }
 
     #[test]
@@ -916,7 +896,7 @@ mod tests {
         );
         let req = parse_ready!(&mut buf);
 
-        assert!(!req.keep_alive());
+        assert_eq!(req.inner().head.ctype, Some(ConnectionType::Close));
     }
 
     #[test]
@@ -927,7 +907,7 @@ mod tests {
         );
         let req = parse_ready!(&mut buf);
 
-        assert!(req.keep_alive());
+        assert_eq!(req.inner().head.ctype, Some(ConnectionType::KeepAlive));
     }
 
     #[test]
@@ -938,7 +918,7 @@ mod tests {
         );
         let req = parse_ready!(&mut buf);
 
-        assert!(req.keep_alive());
+        assert_eq!(req.inner().head.ctype, Some(ConnectionType::KeepAlive));
     }
 
     #[test]
@@ -949,7 +929,7 @@ mod tests {
         );
         let req = parse_ready!(&mut buf);
 
-        assert!(!req.keep_alive());
+        assert_eq!(req.inner().head.connection_type(), ConnectionType::Close);
     }
 
     #[test]
@@ -960,7 +940,11 @@ mod tests {
         );
         let req = parse_ready!(&mut buf);
 
-        assert!(req.keep_alive());
+        assert_eq!(req.inner().head.ctype, None);
+        assert_eq!(
+            req.inner().head.connection_type(),
+            ConnectionType::KeepAlive
+        );
     }
 
     #[test]
@@ -973,6 +957,7 @@ mod tests {
         let req = parse_ready!(&mut buf);
 
         assert!(req.upgrade());
+        assert_eq!(req.inner().head.ctype, Some(ConnectionType::Upgrade));
     }
 
     #[test]
@@ -1070,7 +1055,7 @@ mod tests {
         );
         let mut reader = MessageDecoder::<Request>::default();
         let (req, pl) = reader.decode(&mut buf).unwrap().unwrap();
-        assert!(!req.keep_alive());
+        assert_eq!(req.inner().head.ctype, Some(ConnectionType::Upgrade));
         assert!(req.upgrade());
         assert!(pl.is_unhandled());
     }

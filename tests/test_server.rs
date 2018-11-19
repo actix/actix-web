@@ -89,7 +89,9 @@ fn test_content_length() {
 
     {
         for i in 0..4 {
-            let req = client::ClientRequest::get(srv.url("/")).finish().unwrap();
+            let req = client::ClientRequest::get(srv.url(&format!("/{}", i)))
+                .finish()
+                .unwrap();
             let response = srv.send_request(req).unwrap();
             assert_eq!(response.headers().get(&header), None);
 

@@ -49,7 +49,10 @@ where
                 .and_then(|(item, framed)| {
                     if let Some(res) = item {
                         match framed.get_codec().message_type() {
-                            h1::MessageType::None => release_connection(framed),
+                            h1::MessageType::None => {
+                                let force_close = !framed.get_codec().keepalive();
+                                release_connection(framed, force_close)
+                            }
                             _ => {
                                 *res.payload.borrow_mut() = Some(Payload::stream(framed))
                             }
@@ -174,7 +177,9 @@ impl<Io: Connection> Stream for Payload<Io> {
             Async::Ready(Some(chunk)) => if let Some(chunk) = chunk {
                 Ok(Async::Ready(Some(chunk)))
             } else {
-                release_connection(self.framed.take().unwrap());
+                let framed = self.framed.take().unwrap();
+                let force_close = framed.get_codec().keepalive();
+                release_connection(framed, force_close);
                 Ok(Async::Ready(None))
             },
             Async::Ready(None) => Ok(Async::Ready(None)),
@@ -182,12 +187,12 @@ impl<Io: Connection> Stream for Payload<Io> {
     }
 }
 
-fn release_connection<T, U>(framed: Framed<T, U>)
+fn release_connection<T, U>(framed: Framed<T, U>, force_close: bool)
 where
     T: Connection,
 {
     let mut parts = framed.into_parts();
-    if parts.read_buf.is_empty() && parts.write_buf.is_empty() {
+    if !force_close && parts.read_buf.is_empty() && parts.write_buf.is_empty() {
         parts.io.release()
     } else {
         parts.io.close()
