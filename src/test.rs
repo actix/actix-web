@@ -375,6 +375,14 @@ impl<T> TestServerRuntime<T> {
         self.rt.block_on(fut)
     }
 
+    /// Execute future on current core
+    pub fn execute<F, I, E>(&mut self, fut: F) -> Result<I, E>
+    where
+        F: Future<Item = I, Error = E>,
+    {
+        self.rt.block_on(fut)
+    }
+
     /// Construct test server url
     pub fn addr(&self) -> net::SocketAddr {
         self.addr
