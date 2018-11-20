@@ -1,5 +1,11 @@
 # Changes
 
+## [0.7.15] - 2018-xx-xx
+
+## Changed
+
+* `QueryConfig` and `PathConfig` are made public.
+
 ## [0.7.14] - 2018-11-14
 
 ### Added

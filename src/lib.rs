@@ -255,7 +255,7 @@ pub mod dev {
 
     pub use body::BodyStream;
     pub use context::Drain;
-    pub use extractor::{FormConfig, PayloadConfig};
+    pub use extractor::{FormConfig, PayloadConfig, QueryConfig, PathConfig};
     pub use handler::{AsyncResult, Handler};
     pub use httpmessage::{MessageBody, Readlines, UrlEncoded};
     pub use httpresponse::HttpResponseBuilder;
