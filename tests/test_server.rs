@@ -137,7 +137,7 @@ fn test_keepalive_http10_default_close() {
     let _ = stream.write_all(b"GET /test/tests/test HTTP/1.0\r\n\r\n");
     let mut data = vec![0; 1024];
     let _ = stream.read(&mut data);
-    assert_eq!(&data[..17], b"HTTP/1.1 200 OK\r\n");
+    assert_eq!(&data[..17], b"HTTP/1.0 200 OK\r\n");
 
     let mut data = vec![0; 1024];
     let res = stream.read(&mut data).unwrap();
@@ -157,13 +157,13 @@ fn test_keepalive_http10() {
         .write_all(b"GET /test/tests/test HTTP/1.0\r\nconnection: keep-alive\r\n\r\n");
     let mut data = vec![0; 1024];
     let _ = stream.read(&mut data);
-    assert_eq!(&data[..17], b"HTTP/1.1 200 OK\r\n");
+    assert_eq!(&data[..17], b"HTTP/1.0 200 OK\r\n");
 
     let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
     let _ = stream.write_all(b"GET /test/tests/test HTTP/1.0\r\n\r\n");
     let mut data = vec![0; 1024];
     let _ = stream.read(&mut data);
-    assert_eq!(&data[..17], b"HTTP/1.1 200 OK\r\n");
+    assert_eq!(&data[..17], b"HTTP/1.0 200 OK\r\n");
 
     let mut data = vec![0; 1024];
     let res = stream.read(&mut data).unwrap();

@@ -149,6 +149,9 @@ impl Encoder for Codec {
     ) -> Result<(), Self::Error> {
         match item {
             Message::Item((mut res, length)) => {
+                // set response version
+                res.head_mut().version = self.version;
+
                 // connection status
                 self.ctype = if let Some(ct) = res.head().ctype {
                     if ct == ConnectionType::KeepAlive {
