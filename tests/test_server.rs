@@ -4,7 +4,9 @@ extern crate actix_net;
 extern crate bytes;
 extern crate futures;
 
-use std::{io::Read, io::Write, net};
+use std::io::{Read, Write};
+use std::time::Duration;
+use std::{net, thread};
 
 use actix_net::service::NewServiceExt;
 use bytes::Bytes;
@@ -60,6 +62,132 @@ fn test_malformed_request() {
     let mut data = String::new();
     let _ = stream.read_to_string(&mut data);
     assert!(data.starts_with("HTTP/1.1 400 Bad Request"));
+}
+
+#[test]
+fn test_keepalive() {
+    let srv = test::TestServer::with_factory(|| {
+        h1::H1Service::build()
+            .finish(|_| future::ok::<_, ()>(Response::Ok().finish()))
+            .map(|_| ())
+    });
+
+    let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
+    let _ = stream.write_all(b"GET /test/tests/test HTTP/1.1\r\n\r\n");
+    let mut data = vec![0; 1024];
+    let _ = stream.read(&mut data);
+    assert_eq!(&data[..17], b"HTTP/1.1 200 OK\r\n");
+
+    let _ = stream.write_all(b"GET /test/tests/test HTTP/1.1\r\n\r\n");
+    let mut data = vec![0; 1024];
+    let _ = stream.read(&mut data);
+    assert_eq!(&data[..17], b"HTTP/1.1 200 OK\r\n");
+}
+
+#[test]
+fn test_keepalive_timeout() {
+    let srv = test::TestServer::with_factory(|| {
+        h1::H1Service::build()
+            .keep_alive(1)
+            .finish(|_| future::ok::<_, ()>(Response::Ok().finish()))
+            .map(|_| ())
+    });
+
+    let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
+    let _ = stream.write_all(b"GET /test/tests/test HTTP/1.1\r\n\r\n");
+    let mut data = vec![0; 1024];
+    let _ = stream.read(&mut data);
+    assert_eq!(&data[..17], b"HTTP/1.1 200 OK\r\n");
+    thread::sleep(Duration::from_millis(1100));
+
+    let mut data = vec![0; 1024];
+    let res = stream.read(&mut data).unwrap();
+    assert_eq!(res, 0);
+}
+
+#[test]
+fn test_keepalive_close() {
+    let srv = test::TestServer::with_factory(|| {
+        h1::H1Service::build()
+            .finish(|_| future::ok::<_, ()>(Response::Ok().finish()))
+            .map(|_| ())
+    });
+
+    let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
+    let _ =
+        stream.write_all(b"GET /test/tests/test HTTP/1.1\r\nconnection: close\r\n\r\n");
+    let mut data = vec![0; 1024];
+    let _ = stream.read(&mut data);
+    assert_eq!(&data[..17], b"HTTP/1.1 200 OK\r\n");
+
+    let mut data = vec![0; 1024];
+    let res = stream.read(&mut data).unwrap();
+    assert_eq!(res, 0);
+}
+
+#[test]
+fn test_keepalive_http10_default_close() {
+    let srv = test::TestServer::with_factory(|| {
+        h1::H1Service::build()
+            .finish(|_| future::ok::<_, ()>(Response::Ok().finish()))
+            .map(|_| ())
+    });
+
+    let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
+    let _ = stream.write_all(b"GET /test/tests/test HTTP/1.0\r\n\r\n");
+    let mut data = vec![0; 1024];
+    let _ = stream.read(&mut data);
+    assert_eq!(&data[..17], b"HTTP/1.1 200 OK\r\n");
+
+    let mut data = vec![0; 1024];
+    let res = stream.read(&mut data).unwrap();
+    assert_eq!(res, 0);
+}
+
+#[test]
+fn test_keepalive_http10() {
+    let srv = test::TestServer::with_factory(|| {
+        h1::H1Service::build()
+            .finish(|_| future::ok::<_, ()>(Response::Ok().finish()))
+            .map(|_| ())
+    });
+
+    let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
+    let _ = stream
+        .write_all(b"GET /test/tests/test HTTP/1.0\r\nconnection: keep-alive\r\n\r\n");
+    let mut data = vec![0; 1024];
+    let _ = stream.read(&mut data);
+    assert_eq!(&data[..17], b"HTTP/1.1 200 OK\r\n");
+
+    let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
+    let _ = stream.write_all(b"GET /test/tests/test HTTP/1.0\r\n\r\n");
+    let mut data = vec![0; 1024];
+    let _ = stream.read(&mut data);
+    assert_eq!(&data[..17], b"HTTP/1.1 200 OK\r\n");
+
+    let mut data = vec![0; 1024];
+    let res = stream.read(&mut data).unwrap();
+    assert_eq!(res, 0);
+}
+
+#[test]
+fn test_keepalive_disabled() {
+    let srv = test::TestServer::with_factory(|| {
+        h1::H1Service::build()
+            .keep_alive(KeepAlive::Disabled)
+            .finish(|_| future::ok::<_, ()>(Response::Ok().finish()))
+            .map(|_| ())
+    });
+
+    let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
+    let _ = stream.write_all(b"GET /test/tests/test HTTP/1.1\r\n\r\n");
+    let mut data = vec![0; 1024];
+    let _ = stream.read(&mut data);
+    assert_eq!(&data[..17], b"HTTP/1.1 200 OK\r\n");
+
+    let mut data = vec![0; 1024];
+    let res = stream.read(&mut data).unwrap();
+    assert_eq!(res, 0);
 }
 
 #[test]

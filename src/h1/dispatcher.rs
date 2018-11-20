@@ -409,7 +409,7 @@ where
                 if self.flags.contains(Flags::SHUTDOWN) {
                     return Err(DispatchError::DisconnectTimeout);
                 } else if self.ka_timer.as_mut().unwrap().deadline() >= self.ka_expire {
-                    // check for any outstanding response processing
+                    // check for any outstanding tasks
                     if self.state.is_empty() && self.framed.is_write_buf_empty() {
                         if self.flags.contains(Flags::STARTED) {
                             trace!("Keep-alive timeout, close connection");
@@ -427,12 +427,16 @@ where
                             }
                         } else {
                             // timeout on first request (slow request) return 408
-                            trace!("Slow request timeout");
-                            self.flags.insert(Flags::STARTED | Flags::DISCONNECTED);
-                            let _ = self.send_response(
-                                Response::RequestTimeout().finish().drop_body(),
-                                (),
-                            );
+                            if !self.flags.contains(Flags::STARTED) {
+                                trace!("Slow request timeout");
+                                let _ = self.send_response(
+                                    Response::RequestTimeout().finish().drop_body(),
+                                    (),
+                                );
+                            } else {
+                                trace!("Keep-alive connection timeout");
+                            }
+                            self.flags.insert(Flags::STARTED | Flags::SHUTDOWN);
                             self.state = State::None;
                         }
                     } else if let Some(deadline) = self.config.keep_alive_expire() {
@@ -493,10 +497,13 @@ where
                         false
                     }
                     // disconnect if keep-alive is not enabled
-                    else if inner.flags.contains(Flags::STARTED) && !inner
-                        .flags
-                        .intersects(Flags::KEEPALIVE | Flags::KEEPALIVE_ENABLED)
+                    else if inner.flags.contains(Flags::STARTED)
+                        && !inner.flags.intersects(Flags::KEEPALIVE)
                     {
+                        true
+                    }
+                    // disconnect if shutdown
+                    else if inner.flags.contains(Flags::SHUTDOWN) {
                         true
                     } else {
                         return Ok(Async::NotReady);
