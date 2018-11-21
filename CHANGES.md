@@ -1,5 +1,12 @@
 # Changes
 
+## [0.2.4] - 2018-11-21
+
+### Added
+
+* Allow to skip name resolution stage in Connector
+
+
 ## [0.2.3] - 2018-11-17
 
 ### Added

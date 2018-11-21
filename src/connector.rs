@@ -4,10 +4,9 @@ use std::net::{IpAddr, SocketAddr};
 use std::time::Duration;
 use std::{fmt, io};
 
-use futures::{
-    future::{ok, FutureResult},
-    Async, Future, Poll,
-};
+use futures::future::{ok, Either, FutureResult};
+use futures::{Async, Future, Poll};
+
 use tokio_tcp::{ConnectFuture, TcpStream};
 use trust_dns_resolver::config::{ResolverConfig, ResolverOpts};
 use trust_dns_resolver::system_conf::read_system_conf;
@@ -58,17 +57,24 @@ impl From<io::Error> for ConnectorError {
 /// Connect request
 #[derive(Eq, PartialEq, Debug, Hash)]
 pub struct Connect {
-    pub host: String,
-    pub port: u16,
+    pub kind: ConnectKind,
     pub timeout: Duration,
+}
+
+#[derive(Eq, PartialEq, Debug, Hash)]
+pub enum ConnectKind {
+    Host { host: String, port: u16 },
+    Addr { host: String, addr: SocketAddr },
 }
 
 impl Connect {
     /// Create new `Connect` instance.
     pub fn new<T: AsRef<str>>(host: T, port: u16) -> Connect {
         Connect {
-            port,
-            host: host.as_ref().to_owned(),
+            kind: ConnectKind::Host {
+                host: host.as_ref().to_owned(),
+                port,
+            },
             timeout: Duration::from_secs(1),
         }
     }
@@ -82,10 +88,23 @@ impl Connect {
             .parse::<u16>()
             .map_err(|_| ConnectorError::InvalidInput)?;
         Ok(Connect {
-            port,
-            host: host.to_owned(),
+            kind: ConnectKind::Host {
+                host: host.to_owned(),
+                port,
+            },
             timeout: Duration::from_secs(1),
         })
+    }
+
+    /// Create new `Connect` instance from host and address. Connector skips name resolution stage for such connect messages.
+    pub fn with_address<T: Into<String>>(host: T, addr: SocketAddr) -> Connect {
+        Connect {
+            kind: ConnectKind::Addr {
+                addr,
+                host: host.into(),
+            },
+            timeout: Duration::from_secs(1),
+        }
     }
 
     /// Set connect timeout
@@ -99,19 +118,25 @@ impl Connect {
 
 impl RequestHost for Connect {
     fn host(&self) -> &str {
-        &self.host
+        match self.kind {
+            ConnectKind::Host { ref host, port: _ } => host,
+            ConnectKind::Addr { ref host, addr: _ } => host,
+        }
     }
 }
 
 impl RequestPort for Connect {
     fn port(&self) -> u16 {
-        self.port
+        match self.kind {
+            ConnectKind::Host { host: _, port } => port,
+            ConnectKind::Addr { host: _, addr } => addr.port(),
+        }
     }
 }
 
 impl fmt::Display for Connect {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}:{}", self.host, self.port)
+        write!(f, "{}:{}", self.host(), self.port())
     }
 }
 
@@ -174,16 +199,25 @@ impl Service for Connector {
     type Request = Connect;
     type Response = (Connect, TcpStream);
     type Error = ConnectorError;
-    type Future = ConnectorFuture;
+    type Future = Either<ConnectorFuture, ConnectorTcpFuture>;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
         Ok(Async::Ready(()))
     }
 
     fn call(&mut self, req: Self::Request) -> Self::Future {
-        ConnectorFuture {
-            fut: self.resolver.call(req),
-            fut2: None,
+        match req.kind {
+            ConnectKind::Host { host: _, port: _ } => Either::A(ConnectorFuture {
+                fut: self.resolver.call(req),
+                fut2: None,
+            }),
+            ConnectKind::Addr { host: _, addr } => {
+                let mut addrs = VecDeque::new();
+                addrs.push_back(addr.ip());
+                Either::B(ConnectorTcpFuture {
+                    fut: TcpConnectorResponse::new(req, addrs),
+                })
+            }
         }
     }
 }
@@ -213,6 +247,20 @@ impl Future for ConnectorFuture {
             }
             Async::NotReady => Ok(Async::NotReady),
         }
+    }
+}
+
+#[doc(hidden)]
+pub struct ConnectorTcpFuture {
+    fut: TcpConnectorResponse<Connect>,
+}
+
+impl Future for ConnectorTcpFuture {
+    type Item = (Connect, TcpStream);
+    type Error = ConnectorError;
+
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        self.fut.poll().map_err(ConnectorError::IoError)
     }
 }
 
@@ -325,7 +373,7 @@ impl Service for DefaultConnector {
 
 #[doc(hidden)]
 pub struct DefaultConnectorFuture {
-    fut: ConnectorFuture,
+    fut: Either<ConnectorFuture, ConnectorTcpFuture>,
 }
 
 impl Future for DefaultConnectorFuture {
