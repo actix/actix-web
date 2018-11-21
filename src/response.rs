@@ -12,7 +12,7 @@ use http::{Error as HttpError, HeaderMap, HttpTryFrom, StatusCode, Version};
 use serde::Serialize;
 use serde_json;
 
-use body::{Body, BodyStream, MessageBody};
+use body::{Body, BodyStream, MessageBody, ResponseBody};
 use error::Error;
 use header::{Header, IntoHeaderValue};
 use message::{ConnectionType, Head, ResponseHead};
@@ -21,7 +21,7 @@ use message::{ConnectionType, Head, ResponseHead};
 pub(crate) const MAX_WRITE_BUFFER_SIZE: usize = 65_536;
 
 /// An HTTP Response
-pub struct Response<B: MessageBody = Body>(Box<InnerResponse>, B);
+pub struct Response<B: MessageBody = Body>(Box<InnerResponse>, ResponseBody<B>);
 
 impl Response<Body> {
     /// Create http response builder with specific status.
@@ -70,6 +70,15 @@ impl Response<Body> {
             err: None,
             cookies: jar,
         }
+    }
+
+    /// Convert response to response with body
+    pub fn into_body<B: MessageBody>(self) -> Response<B> {
+        let b = match self.1 {
+            ResponseBody::Body(b) => b,
+            ResponseBody::Other(b) => b,
+        };
+        Response(self.0, ResponseBody::Other(b))
     }
 }
 
@@ -195,23 +204,26 @@ impl<B: MessageBody> Response<B> {
 
     /// Get body os this response
     #[inline]
-    pub fn body(&self) -> &B {
+    pub(crate) fn body(&self) -> &ResponseBody<B> {
         &self.1
     }
 
     /// Set a body
-    pub fn set_body<B2: MessageBody>(self, body: B2) -> Response<B2> {
-        Response(self.0, body)
+    pub(crate) fn set_body<B2: MessageBody>(self, body: B2) -> Response<B2> {
+        Response(self.0, ResponseBody::Body(body))
     }
 
     /// Drop request's body
-    pub fn drop_body(self) -> Response<()> {
-        Response(self.0, ())
+    pub(crate) fn drop_body(self) -> Response<()> {
+        Response(self.0, ResponseBody::Body(()))
     }
 
     /// Set a body and return previous body value
-    pub fn replace_body<B2: MessageBody>(self, body: B2) -> (Response<B2>, B) {
-        (Response(self.0, body), self.1)
+    pub(crate) fn replace_body<B2: MessageBody>(
+        self,
+        body: B2,
+    ) -> (Response<B2>, ResponseBody<B>) {
+        (Response(self.0, ResponseBody::Body(body)), self.1)
     }
 
     /// Size of response in bytes, excluding HTTP headers
@@ -233,7 +245,10 @@ impl<B: MessageBody> Response<B> {
     }
 
     pub(crate) fn from_parts(parts: ResponseParts) -> Response {
-        Response(Box::new(InnerResponse::from_parts(parts)), Body::Empty)
+        Response(
+            Box::new(InnerResponse::from_parts(parts)),
+            ResponseBody::Body(Body::Empty),
+        )
     }
 }
 
@@ -250,7 +265,7 @@ impl<B: MessageBody> fmt::Debug for Response<B> {
         for (key, val) in self.get_ref().head.headers.iter() {
             let _ = writeln!(f, "    {:?}: {:?}", key, val);
         }
-        let _ = writeln!(f, "  body: {:?}", self.body().length());
+        let _ = writeln!(f, "  body: {:?}", self.1.length());
         res
     }
 }
@@ -559,11 +574,9 @@ impl ResponseBuilder {
     ///
     /// `ResponseBuilder` can not be used after this call.
     pub fn message_body<B: MessageBody>(&mut self, body: B) -> Response<B> {
-        let mut error = if let Some(e) = self.err.take() {
-            Some(Error::from(e))
-        } else {
-            None
-        };
+        if let Some(e) = self.err.take() {
+            return Response::from(Error::from(e)).into_body();
+        }
 
         let mut response = self.response.take().expect("cannot reuse response builder");
         if let Some(ref jar) = self.cookies {
@@ -572,17 +585,12 @@ impl ResponseBuilder {
                     Ok(val) => {
                         let _ = response.head.headers.append(header::SET_COOKIE, val);
                     }
-                    Err(e) => if error.is_none() {
-                        error = Some(Error::from(e));
-                    },
+                    Err(e) => return Response::from(Error::from(e)).into_body(),
                 };
             }
         }
-        if let Some(error) = error {
-            response.error = Some(error);
-        }
 
-        Response(response, body)
+        Response(response, ResponseBody::Body(body))
     }
 
     #[inline]
@@ -812,9 +820,12 @@ impl ResponsePool {
     ) -> Response<B> {
         if let Some(mut msg) = pool.0.borrow_mut().pop_front() {
             msg.head.status = status;
-            Response(msg, body)
+            Response(msg, ResponseBody::Body(body))
         } else {
-            Response(Box::new(InnerResponse::new(status, pool)), body)
+            Response(
+                Box::new(InnerResponse::new(status, pool)),
+                ResponseBody::Body(body),
+            )
         }
     }
 
@@ -971,10 +982,7 @@ mod tests {
         let resp = Response::build(StatusCode::OK).json(vec!["v1", "v2", "v3"]);
         let ct = resp.headers().get(CONTENT_TYPE).unwrap();
         assert_eq!(ct, HeaderValue::from_static("application/json"));
-        assert_eq!(
-            *resp.body(),
-            Body::from(Bytes::from_static(b"[\"v1\",\"v2\",\"v3\"]"))
-        );
+        assert_eq!(resp.body().get_ref(), b"[\"v1\",\"v2\",\"v3\"]");
     }
 
     #[test]
@@ -984,10 +992,7 @@ mod tests {
             .json(vec!["v1", "v2", "v3"]);
         let ct = resp.headers().get(CONTENT_TYPE).unwrap();
         assert_eq!(ct, HeaderValue::from_static("text/json"));
-        assert_eq!(
-            *resp.body(),
-            Body::from(Bytes::from_static(b"[\"v1\",\"v2\",\"v3\"]"))
-        );
+        assert_eq!(resp.body().get_ref(), b"[\"v1\",\"v2\",\"v3\"]");
     }
 
     #[test]
@@ -995,10 +1000,7 @@ mod tests {
         let resp = Response::build(StatusCode::OK).json2(&vec!["v1", "v2", "v3"]);
         let ct = resp.headers().get(CONTENT_TYPE).unwrap();
         assert_eq!(ct, HeaderValue::from_static("application/json"));
-        assert_eq!(
-            *resp.body(),
-            Body::from(Bytes::from_static(b"[\"v1\",\"v2\",\"v3\"]"))
-        );
+        assert_eq!(resp.body().get_ref(), b"[\"v1\",\"v2\",\"v3\"]");
     }
 
     #[test]
@@ -1008,10 +1010,7 @@ mod tests {
             .json2(&vec!["v1", "v2", "v3"]);
         let ct = resp.headers().get(CONTENT_TYPE).unwrap();
         assert_eq!(ct, HeaderValue::from_static("text/json"));
-        assert_eq!(
-            *resp.body(),
-            Body::from(Bytes::from_static(b"[\"v1\",\"v2\",\"v3\"]"))
-        );
+        assert_eq!(resp.body().get_ref(), b"[\"v1\",\"v2\",\"v3\"]");
     }
 
     #[test]

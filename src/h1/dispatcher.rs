@@ -13,7 +13,7 @@ use tokio_timer::Delay;
 use error::{ParseError, PayloadError};
 use payload::{Payload, PayloadSender, PayloadStatus, PayloadWriter};
 
-use body::{BodyLength, MessageBody};
+use body::{Body, BodyLength, MessageBody, ResponseBody};
 use config::ServiceConfig;
 use error::DispatchError;
 use request::Request;
@@ -70,7 +70,7 @@ enum DispatcherMessage {
 enum State<S: Service, B: MessageBody> {
     None,
     ServiceCall(S::Future),
-    SendPayload(B),
+    SendPayload(ResponseBody<B>),
 }
 
 impl<S: Service, B: MessageBody> State<S, B> {
@@ -186,11 +186,11 @@ where
         }
     }
 
-    fn send_response<B1: MessageBody>(
+    fn send_response(
         &mut self,
         message: Response<()>,
-        body: B1,
-    ) -> Result<State<S, B1>, DispatchError<S::Error>> {
+        body: ResponseBody<B>,
+    ) -> Result<State<S, B>, DispatchError<S::Error>> {
         self.framed
             .force_send(Message::Item((message, body.length())))
             .map_err(|err| {
@@ -217,7 +217,7 @@ where
                         Some(self.handle_request(req)?)
                     }
                     Some(DispatcherMessage::Error(res)) => {
-                        self.send_response(res, ())?;
+                        self.send_response(res, ResponseBody::Other(Body::Empty))?;
                         None
                     }
                     None => None,
@@ -431,7 +431,7 @@ where
                                 trace!("Slow request timeout");
                                 let _ = self.send_response(
                                     Response::RequestTimeout().finish().drop_body(),
-                                    (),
+                                    ResponseBody::Other(Body::Empty),
                                 );
                             } else {
                                 trace!("Keep-alive connection timeout");

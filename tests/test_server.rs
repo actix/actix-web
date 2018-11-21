@@ -445,3 +445,25 @@ fn test_body_chunked_implicit() {
     let bytes = srv.block_on(response.body()).unwrap();
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
 }
+
+#[test]
+fn test_response_http_error_handling() {
+    let mut srv = test::TestServer::with_factory(|| {
+        h1::H1Service::new(|_| {
+            let broken_header = Bytes::from_static(b"\0\0\0");
+            ok::<_, ()>(
+                Response::Ok()
+                    .header(http::header::CONTENT_TYPE, broken_header)
+                    .body(STR),
+            )
+        }).map(|_| ())
+    });
+
+    let req = srv.get().finish().unwrap();
+    let response = srv.send_request(req).unwrap();
+    assert_eq!(response.status(), http::StatusCode::INTERNAL_SERVER_ERROR);
+
+    // read response
+    let bytes = srv.block_on(response.body()).unwrap();
+    assert!(bytes.is_empty());
+}

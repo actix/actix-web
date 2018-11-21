@@ -6,7 +6,7 @@ use futures::future::{ok, Either, FutureResult};
 use futures::{Async, Future, Poll, Sink};
 use tokio_io::{AsyncRead, AsyncWrite};
 
-use body::{BodyLength, MessageBody};
+use body::{BodyLength, MessageBody, ResponseBody};
 use error::{Error, ResponseError};
 use h1::{Codec, Message};
 use response::Response;
@@ -174,7 +174,7 @@ where
 
 pub struct SendResponseFut<T, B> {
     res: Option<Message<(Response<()>, BodyLength)>>,
-    body: Option<B>,
+    body: Option<ResponseBody<B>>,
     framed: Option<Framed<T, Codec>>,
 }
 

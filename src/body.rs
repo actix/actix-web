@@ -37,6 +37,37 @@ impl MessageBody for () {
     }
 }
 
+pub enum ResponseBody<B> {
+    Body(B),
+    Other(Body),
+}
+
+impl<B: MessageBody> ResponseBody<B> {
+    pub fn as_ref(&self) -> Option<&B> {
+        if let ResponseBody::Body(ref b) = self {
+            Some(b)
+        } else {
+            None
+        }
+    }
+}
+
+impl<B: MessageBody> MessageBody for ResponseBody<B> {
+    fn length(&self) -> BodyLength {
+        match self {
+            ResponseBody::Body(ref body) => body.length(),
+            ResponseBody::Other(ref body) => body.length(),
+        }
+    }
+
+    fn poll_next(&mut self) -> Poll<Option<Bytes>, Error> {
+        match self {
+            ResponseBody::Body(ref mut body) => body.poll_next(),
+            ResponseBody::Other(ref mut body) => body.poll_next(),
+        }
+    }
+}
+
 /// Represents various types of http message body.
 pub enum Body {
     /// Empty response. `Content-Length` header is not set.
@@ -328,6 +359,15 @@ mod tests {
             match *self {
                 Body::Bytes(ref bin) => &bin,
                 _ => panic!(),
+            }
+        }
+    }
+
+    impl ResponseBody<Body> {
+        pub(crate) fn get_ref(&self) -> &[u8] {
+            match *self {
+                ResponseBody::Body(ref b) => b.get_ref(),
+                ResponseBody::Other(ref b) => b.get_ref(),
             }
         }
     }
