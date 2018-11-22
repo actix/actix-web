@@ -4,6 +4,8 @@
 
 ## Changed
 
+* `ClientConnector::resolver` now accepts `Into<Recipient>` instead of `Addr`. It enables user to implement own resolver.
+
 * `QueryConfig` and `PathConfig` are made public.
 
 ## [0.7.14] - 2018-11-14
