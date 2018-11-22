@@ -61,7 +61,7 @@ flate2-rust = ["flate2/rust_backend"]
 cell = ["actix-net/cell"]
 
 [dependencies]
-actix = "0.7.6"
+actix = "0.7.7"
 actix-net = "0.2.2"
 
 askama_escape = "0.1.0"

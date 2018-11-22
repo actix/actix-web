@@ -5,7 +5,7 @@ use std::{fmt, io, mem, time};
 
 use actix::resolver::{Connect as ResolveConnect, Resolver, ResolverError};
 use actix::{
-    fut, Actor, ActorFuture, ActorResponse, Addr, AsyncContext, Context,
+    fut, Actor, ActorFuture, ActorResponse, AsyncContext, Context,
     ContextFutureSpawner, Handler, Message, Recipient, StreamHandler, Supervised,
     SystemService, WrapFuture,
 };
@@ -220,7 +220,7 @@ pub struct ClientConnector {
     acq_tx: mpsc::UnboundedSender<AcquiredConnOperation>,
     acq_rx: Option<mpsc::UnboundedReceiver<AcquiredConnOperation>>,
 
-    resolver: Option<Addr<Resolver>>,
+    resolver: Option<Recipient<ResolveConnect>>,
     conn_lifetime: Duration,
     conn_keep_alive: Duration,
     limit: usize,
@@ -239,7 +239,7 @@ impl Actor for ClientConnector {
 
     fn started(&mut self, ctx: &mut Self::Context) {
         if self.resolver.is_none() {
-            self.resolver = Some(Resolver::from_registry())
+            self.resolver = Some(Resolver::from_registry().recipient())
         }
         self.collect_periodic(ctx);
         ctx.add_stream(self.acq_rx.take().unwrap());
@@ -503,8 +503,10 @@ impl ClientConnector {
     }
 
     /// Use custom resolver actor
-    pub fn resolver(mut self, addr: Addr<Resolver>) -> Self {
-        self.resolver = Some(addr);
+    ///
+    /// By default actix's Resolver is used.
+    pub fn resolver<A: Into<Recipient<ResolveConnect>>>(mut self, addr: A) -> Self {
+        self.resolver = Some(addr.into());
         self
     }
 
