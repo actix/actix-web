@@ -1,3 +1,31 @@
+## 0.7.15
+
+* The `' '` character is not percent decoded anymore before matching routes. If you need to use it in
+  your routes, you should use `%20`.
+
+  instead of
+
+    ```rust
+    fn main() {
+         let app = App::new().resource("/my index", |r| {
+             r.method(http::Method::GET)
+                    .with(index);
+         });
+    }
+    ```
+
+  use
+
+    ```rust
+    fn main() {
+         let app = App::new().resource("/my%20index", |r| {
+             r.method(http::Method::GET)
+                    .with(index);
+         });
+    }
+    ```
+
+
 ## 0.7.4
 
 * `Route::with_config()`/`Route::with_async_config()` always passes configuration objects as tuple

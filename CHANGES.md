@@ -8,6 +8,12 @@
 
 * `QueryConfig` and `PathConfig` are made public.
 
+### Added
+
+* By default, `Path` extractor now percent decode all characters. This behaviour can be disabled
+  with `PathConfig::default().disable_decoding()`
+
+
 ## [0.7.14] - 2018-11-14
 
 ### Added
@@ -15,6 +21,9 @@
 * Add method to configure custom error handler to `Query` and `Path` extractors.
 
 * Add method to configure `SameSite` option in `CookieIdentityPolicy`.
+
+* By default, `Path` extractor now percent decode all characters. This behaviour can be disabled
+  with `PathConfig::default().disable_decoding()`
 
 
 ### Fixed

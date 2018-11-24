@@ -672,6 +672,6 @@ fn test_unsafe_path_route() {
     let bytes = srv.execute(response.body()).unwrap();
     assert_eq!(
         bytes,
-        Bytes::from_static(b"success: http:%2F%2Fexample.com")
+        Bytes::from_static(b"success: http%3A%2F%2Fexample.com")
     );
 }
