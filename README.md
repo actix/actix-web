@@ -21,8 +21,8 @@ use actix_http::{h1, Response, ServiceConfig};
 fn main() {
     Server::new().bind("framed_hello", "127.0.0.1:8080", || {
         IntoFramed::new(|| h1::Codec::new(ServiceConfig::default()))	// <- create h1 codec
-            .and_then(TakeItem::new().map_err(|_| ()))	// <- read one request
-            .and_then(|(_req, _framed): (_, Framed<_, _>)| {	// <- send response and close conn
+            .and_then(TakeItem::new().map_err(|_| ()))	                // <- read one request
+            .and_then(|(_req, _framed): (_, Framed<_, _>)| {	        // <- send response and close conn
                 SendResponse::send(_framed, Response::Ok().body("Hello world!"))
                     .map_err(|_| ())
                     .map(|_| ())
