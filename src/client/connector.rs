@@ -62,6 +62,12 @@ impl Default for Connector {
 }
 
 impl Connector {
+    /// Use custom resolver.
+    pub fn resolver(mut self, resolver: Resolver<Connect>) -> Self {
+        self.resolver = resolver;;
+        self
+    }
+
     /// Use custom resolver configuration.
     pub fn resolver_config(mut self, cfg: ResolverConfig, opts: ResolverOpts) -> Self {
         self.resolver = Resolver::new(cfg, opts);

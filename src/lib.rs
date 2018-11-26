@@ -163,6 +163,9 @@ pub mod http {
     #[doc(hidden)]
     pub use modhttp::{uri, Error, HeaderMap, HttpTryFrom, Uri};
 
+    #[doc(hidden)]
+    pub use modhttp::uri::PathAndQuery;
+
     pub use cookie::{Cookie, CookieBuilder};
 
     /// Various http headers

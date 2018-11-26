@@ -7,7 +7,6 @@ use bytes::{BufMut, Bytes, BytesMut};
 use cookie::{Cookie, CookieJar};
 use futures::{Future, Stream};
 use percent_encoding::{percent_encode, USERINFO_ENCODE_SET};
-use urlcrate::Url;
 
 use body::{BodyStream, MessageBody};
 use error::Error;
@@ -63,35 +62,50 @@ impl ClientRequest<()> {
     }
 
     /// Create request builder for `GET` request
-    pub fn get<U: AsRef<str>>(uri: U) -> ClientRequestBuilder {
+    pub fn get<U>(uri: U) -> ClientRequestBuilder
+    where
+        Uri: HttpTryFrom<U>,
+    {
         let mut builder = ClientRequest::build();
         builder.method(Method::GET).uri(uri);
         builder
     }
 
     /// Create request builder for `HEAD` request
-    pub fn head<U: AsRef<str>>(uri: U) -> ClientRequestBuilder {
+    pub fn head<U>(uri: U) -> ClientRequestBuilder
+    where
+        Uri: HttpTryFrom<U>,
+    {
         let mut builder = ClientRequest::build();
         builder.method(Method::HEAD).uri(uri);
         builder
     }
 
     /// Create request builder for `POST` request
-    pub fn post<U: AsRef<str>>(uri: U) -> ClientRequestBuilder {
+    pub fn post<U>(uri: U) -> ClientRequestBuilder
+    where
+        Uri: HttpTryFrom<U>,
+    {
         let mut builder = ClientRequest::build();
         builder.method(Method::POST).uri(uri);
         builder
     }
 
     /// Create request builder for `PUT` request
-    pub fn put<U: AsRef<str>>(uri: U) -> ClientRequestBuilder {
+    pub fn put<U>(uri: U) -> ClientRequestBuilder
+    where
+        Uri: HttpTryFrom<U>,
+    {
         let mut builder = ClientRequest::build();
         builder.method(Method::PUT).uri(uri);
         builder
     }
 
     /// Create request builder for `DELETE` request
-    pub fn delete<U: AsRef<str>>(uri: U) -> ClientRequestBuilder {
+    pub fn delete<U>(uri: U) -> ClientRequestBuilder
+    where
+        Uri: HttpTryFrom<U>,
+    {
         let mut builder = ClientRequest::build();
         builder.method(Method::DELETE).uri(uri);
         builder
@@ -202,15 +216,11 @@ pub struct ClientRequestBuilder {
 impl ClientRequestBuilder {
     /// Set HTTP URI of request.
     #[inline]
-    pub fn uri<U: AsRef<str>>(&mut self, uri: U) -> &mut Self {
-        match Url::parse(uri.as_ref()) {
-            Ok(url) => self._uri(url.as_str()),
-            Err(_) => self._uri(uri.as_ref()),
-        }
-    }
-
-    fn _uri(&mut self, url: &str) -> &mut Self {
-        match Uri::try_from(url) {
+    pub fn uri<U>(&mut self, uri: U) -> &mut Self
+    where
+        Uri: HttpTryFrom<U>,
+    {
+        match Uri::try_from(uri) {
             Ok(uri) => {
                 if let Some(parts) = parts(&mut self.head, &self.err) {
                     parts.uri = uri;
