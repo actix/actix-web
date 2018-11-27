@@ -20,7 +20,7 @@ use mime_guess::{get_mime_type, guess_mime_type};
 use percent_encoding::{utf8_percent_encode, DEFAULT_ENCODE_SET};
 
 use error::{Error, StaticFileError};
-use handler::{AsyncResult, Handler, Responder, RouteHandler, WrapHandler};
+use handler::{AsyncResult, Handler, Responder};
 use header;
 use header::{ContentDisposition, DispositionParam, DispositionType};
 use http::{ContentEncoding, Method, StatusCode};
@@ -111,6 +111,13 @@ pub trait StaticFileConfig: Default {
     /// Uses default one, unless re-defined.
     fn directory_listing<S>(dir: &Directory, req: &HttpRequest<S>) -> Result<HttpResponse, io::Error> {
         directory_listing(dir, req)
+    }
+
+    /// Default handler for StaticFiles.
+    ///
+    /// Responses with NotFound by default
+    fn default_handler<S>(_req: &HttpRequest<S>) -> AsyncResult<HttpResponse> {
+        HttpResponse::new(StatusCode::NOT_FOUND).into()
     }
 }
 
@@ -665,22 +672,21 @@ fn directory_listing<S>(
 ///         .finish();
 /// }
 /// ```
-pub struct StaticFiles<S, C = DefaultConfig> {
+pub struct StaticFiles<C = DefaultConfig> {
     directory: PathBuf,
     cpu_pool: CpuPool,
-    default: Box<RouteHandler<S>>,
     _chunk_size: usize,
     _follow_symlinks: bool,
     _cd_map: PhantomData<C>,
 }
 
-impl<S: 'static> StaticFiles<S> {
+impl StaticFiles {
     /// Create new `StaticFiles` instance for specified base directory.
     ///
     /// `StaticFile` uses `CpuPool` for blocking filesystem operations.
     /// By default pool with 20 threads is used.
     /// Pool size can be changed by setting ACTIX_CPU_POOL environment variable.
-    pub fn new<T: Into<PathBuf>>(dir: T) -> Result<StaticFiles<S>, Error> {
+    pub fn new<T: Into<PathBuf>>(dir: T) -> Result<StaticFiles, Error> {
         Self::with_config(dir, DefaultConfig)
     }
 
@@ -689,19 +695,19 @@ impl<S: 'static> StaticFiles<S> {
     pub fn with_pool<T: Into<PathBuf>>(
         dir: T,
         pool: CpuPool,
-    ) -> Result<StaticFiles<S>, Error> {
+    ) -> Result<StaticFiles, Error> {
         Self::with_config_pool(dir, pool, DefaultConfig)
     }
 }
 
-impl<S: 'static, C: StaticFileConfig> StaticFiles<S, C> {
+impl<C: StaticFileConfig> StaticFiles<C> {
     /// Create new `StaticFiles` instance for specified base directory.
     ///
     /// Identical with `new` but allows to specify configiration to use.
     pub fn with_config<T: Into<PathBuf>>(
         dir: T,
         config: C,
-    ) -> Result<StaticFiles<S, C>, Error> {
+    ) -> Result<StaticFiles<C>, Error> {
         // use default CpuPool
         let pool = { DEFAULT_CPUPOOL.lock().clone() };
 
@@ -714,7 +720,7 @@ impl<S: 'static, C: StaticFileConfig> StaticFiles<S, C> {
         dir: T,
         pool: CpuPool,
         _: C,
-    ) -> Result<StaticFiles<S, C>, Error> {
+    ) -> Result<StaticFiles<C>, Error> {
         let dir = dir.into().canonicalize()?;
 
         if !dir.is_dir() {
@@ -724,22 +730,13 @@ impl<S: 'static, C: StaticFileConfig> StaticFiles<S, C> {
         Ok(StaticFiles {
             directory: dir,
             cpu_pool: pool,
-            default: Box::new(WrapHandler::new(|_: &_| {
-                HttpResponse::new(StatusCode::NOT_FOUND)
-            })),
             _chunk_size: 0,
             _follow_symlinks: false,
             _cd_map: PhantomData,
         })
     }
 
-    /// Sets default handler which is used when no matched file could be found.
-    pub fn default_handler<H: Handler<S>>(mut self, handler: H) -> StaticFiles<S, C> {
-        self.default = Box::new(WrapHandler::new(handler));
-        self
-    }
-
-    fn try_handle(
+    fn try_handle<S: 'static>(
         &self,
         req: &HttpRequest<S>,
     ) -> Result<AsyncResult<HttpResponse>, Error> {
@@ -767,13 +764,13 @@ impl<S: 'static, C: StaticFileConfig> StaticFiles<S, C> {
     }
 }
 
-impl<S: 'static, C: 'static + StaticFileConfig> Handler<S> for StaticFiles<S, C> {
+impl<S: 'static, C: 'static + StaticFileConfig> Handler<S> for StaticFiles<C> {
     type Result = Result<AsyncResult<HttpResponse>, Error>;
 
     fn handle(&self, req: &HttpRequest<S>) -> Self::Result {
         self.try_handle(req).or_else(|e| {
             debug!("StaticFiles: Failed to handle {}: {}", req.path(), e);
-            Ok(self.default.handle(req))
+            Ok(C::default_handler(req))
         })
     }
 }
@@ -1392,18 +1389,24 @@ mod tests {
 
     #[test]
     fn test_static_files_bad_directory() {
-        let st: Result<StaticFiles<()>, Error> = StaticFiles::new("missing");
+        let st: Result<StaticFiles, Error> = StaticFiles::new("missing");
         assert!(st.is_err());
 
-        let st: Result<StaticFiles<()>, Error> = StaticFiles::new("Cargo.toml");
+        let st: Result<StaticFiles, Error> = StaticFiles::new("Cargo.toml");
         assert!(st.is_err());
     }
 
     #[test]
     fn test_default_handler_file_missing() {
-        let st = StaticFiles::new(".")
-            .unwrap()
-            .default_handler(|_: &_| "default content");
+        #[derive(Default)]
+        struct DefaultHandler;
+        impl StaticFileConfig for DefaultHandler {
+            fn default_handler<S>(_: &HttpRequest<S>) -> AsyncResult<HttpResponse> {
+                AsyncResult::ok("default content")
+            }
+        }
+        let st = StaticFiles::with_config(".", DefaultHandler)
+            .unwrap();
         let req = TestRequest::with_uri("/missing")
             .param("tail", "missing")
             .finish();
