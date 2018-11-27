@@ -88,6 +88,30 @@ pub trait StaticFileConfig: Default {
     fn is_method_allowed(_method: &Method) -> bool {
         true
     }
+
+    /// Set index file
+    ///
+    /// Redirects to specific index file for directory "/" instead of
+    /// showing files listing.
+    ///
+    /// By default None
+    fn index_file() -> Option<&'static str> {
+        None
+    }
+
+    /// Show files listing for directories.
+    ///
+    /// By default show files listing is disabled.
+    fn show_index() -> bool {
+        false
+    }
+
+    /// Directory renderer
+    ///
+    /// Uses default one, unless re-defined.
+    fn directory_listing<S>(dir: &Directory, req: &HttpRequest<S>) -> Result<HttpResponse, io::Error> {
+        directory_listing(dir, req)
+    }
 }
 
 ///Default content disposition as described in
@@ -527,9 +551,6 @@ impl Stream for ChunkedReadFile {
     }
 }
 
-type DirectoryRenderer<S> =
-    Fn(&Directory, &HttpRequest<S>) -> Result<HttpResponse, io::Error>;
-
 /// A directory; responds with the generated directory listing.
 #[derive(Debug)]
 pub struct Directory {
@@ -646,11 +667,8 @@ fn directory_listing<S>(
 /// ```
 pub struct StaticFiles<S, C = DefaultConfig> {
     directory: PathBuf,
-    index: Option<String>,
-    show_index: bool,
     cpu_pool: CpuPool,
     default: Box<RouteHandler<S>>,
-    renderer: Box<DirectoryRenderer<S>>,
     _chunk_size: usize,
     _follow_symlinks: bool,
     _cd_map: PhantomData<C>,
@@ -705,45 +723,14 @@ impl<S: 'static, C: StaticFileConfig> StaticFiles<S, C> {
 
         Ok(StaticFiles {
             directory: dir,
-            index: None,
-            show_index: false,
             cpu_pool: pool,
             default: Box::new(WrapHandler::new(|_: &_| {
                 HttpResponse::new(StatusCode::NOT_FOUND)
             })),
-            renderer: Box::new(directory_listing),
             _chunk_size: 0,
             _follow_symlinks: false,
             _cd_map: PhantomData,
         })
-    }
-
-    /// Show files listing for directories.
-    ///
-    /// By default show files listing is disabled.
-    pub fn show_files_listing(mut self) -> Self {
-        self.show_index = true;
-        self
-    }
-
-    /// Set custom directory renderer
-    pub fn files_listing_renderer<F>(mut self, f: F) -> Self
-    where
-        for<'r, 's> F: Fn(&'r Directory, &'s HttpRequest<S>)
-                -> Result<HttpResponse, io::Error>
-            + 'static,
-    {
-        self.renderer = Box::new(f);
-        self
-    }
-
-    /// Set index file
-    ///
-    /// Redirects to specific index file for directory "/" instead of
-    /// showing files listing.
-    pub fn index_file<T: Into<String>>(mut self, index: T) -> StaticFiles<S, C> {
-        self.index = Some(index.into());
-        self
     }
 
     /// Sets default handler which is used when no matched file could be found.
@@ -763,11 +750,11 @@ impl<S: 'static, C: StaticFileConfig> StaticFiles<S, C> {
         let mut path = self.directory.join(&relpath).canonicalize()?;
 
         if path.is_dir() {
-            if let Some(ref redir_index) = self.index {
+            if let Some(redir_index) = C::index_file() {
                 path.push(redir_index);
-            } else if self.show_index {
+            } else if C::show_index() {
                 let dir = Directory::new(self.directory.clone(), path);
-                return Ok((*self.renderer)(&dir, &req)?.into())
+                return Ok(C::directory_listing(&dir, &req)?.into())
             } else {
                 return Err(StaticFileError::IsDirectory.into())
             }
@@ -1118,10 +1105,19 @@ mod tests {
 
     #[test]
     fn test_named_file_ranges_status_code() {
+        #[derive(Default)]
+        struct IndexCfg;
+
+        impl StaticFileConfig for IndexCfg {
+            fn index_file() -> Option<&'static str> {
+                Some("Cargo.toml")
+            }
+        }
+
         let mut srv = test::TestServer::with_factory(|| {
             App::new().handler(
                 "test",
-                StaticFiles::new(".").unwrap().index_file("Cargo.toml"),
+                StaticFiles::with_config(".", IndexCfg).unwrap(),
             )
         });
 
@@ -1149,12 +1145,19 @@ mod tests {
 
     #[test]
     fn test_named_file_content_range_headers() {
+        #[derive(Default)]
+        struct IndexCfg;
+        impl StaticFileConfig for IndexCfg {
+            fn index_file() -> Option<&'static str> {
+                Some("tests/test.binary")
+            }
+        }
+
         let mut srv = test::TestServer::with_factory(|| {
             App::new().handler(
                 "test",
-                StaticFiles::new(".")
+                StaticFiles::with_config(".", IndexCfg)
                     .unwrap()
-                    .index_file("tests/test.binary"),
             )
         });
 
@@ -1199,12 +1202,19 @@ mod tests {
 
     #[test]
     fn test_named_file_content_length_headers() {
+        #[derive(Default)]
+        struct IndexCfg;
+        impl StaticFileConfig for IndexCfg {
+            fn index_file() -> Option<&'static str> {
+                Some("tests/test.binary")
+            }
+        }
+
         let mut srv = test::TestServer::with_factory(|| {
             App::new().handler(
                 "test",
-                StaticFiles::new(".")
+                StaticFiles::with_config(".", IndexCfg)
                     .unwrap()
-                    .index_file("tests/test.binary"),
             )
         });
 
@@ -1344,7 +1354,16 @@ mod tests {
 
     #[test]
     fn test_static_files() {
-        let mut st = StaticFiles::new(".").unwrap().show_files_listing();
+        #[derive(Default)]
+        struct ShowIndex;
+
+        impl StaticFileConfig for ShowIndex {
+            fn show_index() -> bool {
+                true
+            }
+        }
+
+        let st = StaticFiles::with_config(".", ShowIndex).unwrap();
         let req = TestRequest::with_uri("/missing")
             .param("tail", "missing")
             .finish();
@@ -1352,7 +1371,7 @@ mod tests {
         let resp = resp.as_msg();
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 
-        st.show_index = false;
+        let st = StaticFiles::new(".").unwrap();
         let req = TestRequest::default().finish();
         let resp = st.handle(&req).respond_to(&req).unwrap();
         let resp = resp.as_msg();
@@ -1360,7 +1379,7 @@ mod tests {
 
         let req = TestRequest::default().param("tail", "").finish();
 
-        st.show_index = true;
+        let st = StaticFiles::with_config(".", ShowIndex).unwrap();
         let resp = st.handle(&req).respond_to(&req).unwrap();
         let resp = resp.as_msg();
         assert_eq!(
@@ -1400,10 +1419,18 @@ mod tests {
 
     #[test]
     fn test_redirect_to_index() {
+        #[derive(Default)]
+        struct IndexCfg;
+        impl StaticFileConfig for IndexCfg {
+            fn index_file() -> Option<&'static str> {
+                Some("test.png")
+            }
+        }
+
         const EXPECTED_INDEX: &[u8] = include_bytes!("../tests/test.png");
         let expected_len = format!("{}", EXPECTED_INDEX.len());
 
-        let st = StaticFiles::new(".").unwrap().index_file("test.png");
+        let st = StaticFiles::with_config(".", IndexCfg).unwrap();
         let req = TestRequest::default().uri("/tests").finish();
 
         let resp = st.handle(&req).respond_to(&req).unwrap();
@@ -1429,15 +1456,22 @@ mod tests {
             .to_str()
             .unwrap();
         assert_eq!(len, expected_len);
-
     }
 
     #[test]
     fn test_redirect_to_index_nested() {
+        #[derive(Default)]
+        struct IndexCfg;
+        impl StaticFileConfig for IndexCfg {
+            fn index_file() -> Option<&'static str> {
+                Some("mod.rs")
+            }
+        }
+
         const EXPECTED_INDEX: &[u8] = include_bytes!("client/mod.rs");
         let expected_len = format!("{}", EXPECTED_INDEX.len());
 
-        let st = StaticFiles::new(".").unwrap().index_file("mod.rs");
+        let st = StaticFiles::with_config(".", IndexCfg).unwrap();
         let req = TestRequest::default().uri("/src/client").finish();
         let resp = st.handle(&req).respond_to(&req).unwrap();
         let resp = resp.as_msg();
@@ -1452,12 +1486,20 @@ mod tests {
 
     }
 
+    #[derive(Default)]
+    struct CargoTomlIndex;
+    impl StaticFileConfig for CargoTomlIndex {
+        fn index_file() -> Option<&'static str> {
+            Some("Cargo.toml")
+        }
+    }
+
     #[test]
     fn integration_redirect_to_index_with_prefix() {
         let mut srv = test::TestServer::with_factory(|| {
             App::new()
                 .prefix("public")
-                .handler("/", StaticFiles::new(".").unwrap().index_file("Cargo.toml"))
+                .handler("/", StaticFiles::with_config(".", CargoTomlIndex).unwrap())
         });
 
         let request = srv.get().uri(srv.url("/public")).finish().unwrap();
@@ -1474,7 +1516,7 @@ mod tests {
         let mut srv = test::TestServer::with_factory(|| {
             App::new().handler(
                 "test",
-                StaticFiles::new(".").unwrap().index_file("Cargo.toml"),
+                StaticFiles::with_config(".", CargoTomlIndex).unwrap(),
             )
         });
 
@@ -1492,7 +1534,7 @@ mod tests {
         let mut srv = test::TestServer::with_factory(|| {
             App::new().handler(
                 "test",
-                StaticFiles::new(".").unwrap().index_file("Cargo.toml"),
+                StaticFiles::with_config(".", CargoTomlIndex).unwrap(),
             )
         });
 
