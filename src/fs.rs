@@ -760,34 +760,23 @@ impl<S: 'static, C: StaticFileConfig> StaticFiles<S, C> {
         let relpath = PathBuf::from_param(tail.trim_left_matches('/'))?;
 
         // full filepath
-        let path = self.directory.join(&relpath).canonicalize()?;
+        let mut path = self.directory.join(&relpath).canonicalize()?;
 
         if path.is_dir() {
             if let Some(ref redir_index) = self.index {
-                // TODO: Don't redirect, just return the index content.
-                // TODO: It'd be nice if there were a good usable URL manipulation
-                // library
-                let mut new_path: String = req.path().to_owned();
-                if !new_path.ends_with('/') {
-                    new_path.push('/');
-                }
-                new_path.push_str(redir_index);
-                HttpResponse::Found()
-                    .header(header::LOCATION, new_path.as_str())
-                    .finish()
-                    .respond_to(&req)
+                path.push(redir_index);
             } else if self.show_index {
                 let dir = Directory::new(self.directory.clone(), path);
-                Ok((*self.renderer)(&dir, &req)?.into())
+                return Ok((*self.renderer)(&dir, &req)?.into())
             } else {
-                Err(StaticFileError::IsDirectory.into())
+                return Err(StaticFileError::IsDirectory.into())
             }
-        } else {
-            NamedFile::open_with_config(path, C::default())?
-                .set_cpu_pool(self.cpu_pool.clone())
-                .respond_to(&req)?
-                .respond_to(&req)
         }
+
+        NamedFile::open_with_config(path, C::default())?
+            .set_cpu_pool(self.cpu_pool.clone())
+            .respond_to(&req)?
+            .respond_to(&req)
     }
 }
 
@@ -1411,38 +1400,56 @@ mod tests {
 
     #[test]
     fn test_redirect_to_index() {
-        let st = StaticFiles::new(".").unwrap().index_file("index.html");
+        const EXPECTED_INDEX: &[u8] = include_bytes!("../tests/test.png");
+        let expected_len = format!("{}", EXPECTED_INDEX.len());
+
+        let st = StaticFiles::new(".").unwrap().index_file("test.png");
         let req = TestRequest::default().uri("/tests").finish();
 
         let resp = st.handle(&req).respond_to(&req).unwrap();
         let resp = resp.as_msg();
-        assert_eq!(resp.status(), StatusCode::FOUND);
-        assert_eq!(
-            resp.headers().get(header::LOCATION).unwrap(),
-            "/tests/index.html"
-        );
+        assert_eq!(resp.status(), StatusCode::OK);
+        let len = resp
+            .headers()
+            .get(header::CONTENT_LENGTH)
+            .unwrap()
+            .to_str()
+            .unwrap();
+        assert_eq!(len, expected_len);
+
 
         let req = TestRequest::default().uri("/tests/").finish();
         let resp = st.handle(&req).respond_to(&req).unwrap();
         let resp = resp.as_msg();
-        assert_eq!(resp.status(), StatusCode::FOUND);
-        assert_eq!(
-            resp.headers().get(header::LOCATION).unwrap(),
-            "/tests/index.html"
-        );
+        assert_eq!(resp.status(), StatusCode::OK);
+        let len = resp
+            .headers()
+            .get(header::CONTENT_LENGTH)
+            .unwrap()
+            .to_str()
+            .unwrap();
+        assert_eq!(len, expected_len);
+
     }
 
     #[test]
     fn test_redirect_to_index_nested() {
+        const EXPECTED_INDEX: &[u8] = include_bytes!("client/mod.rs");
+        let expected_len = format!("{}", EXPECTED_INDEX.len());
+
         let st = StaticFiles::new(".").unwrap().index_file("mod.rs");
         let req = TestRequest::default().uri("/src/client").finish();
         let resp = st.handle(&req).respond_to(&req).unwrap();
         let resp = resp.as_msg();
-        assert_eq!(resp.status(), StatusCode::FOUND);
-        assert_eq!(
-            resp.headers().get(header::LOCATION).unwrap(),
-            "/src/client/mod.rs"
-        );
+        assert_eq!(resp.status(), StatusCode::OK);
+        let len = resp
+            .headers()
+            .get(header::CONTENT_LENGTH)
+            .unwrap()
+            .to_str()
+            .unwrap();
+        assert_eq!(len, expected_len);
+
     }
 
     #[test]
@@ -1454,26 +1461,12 @@ mod tests {
         });
 
         let request = srv.get().uri(srv.url("/public")).finish().unwrap();
-        let response = srv.execute(request.send()).unwrap();
-        assert_eq!(response.status(), StatusCode::FOUND);
-        let loc = response
-            .headers()
-            .get(header::LOCATION)
-            .unwrap()
-            .to_str()
-            .unwrap();
-        assert_eq!(loc, "/public/Cargo.toml");
+        let resp = srv.execute(request.send()).unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
 
         let request = srv.get().uri(srv.url("/public/")).finish().unwrap();
-        let response = srv.execute(request.send()).unwrap();
-        assert_eq!(response.status(), StatusCode::FOUND);
-        let loc = response
-            .headers()
-            .get(header::LOCATION)
-            .unwrap()
-            .to_str()
-            .unwrap();
-        assert_eq!(loc, "/public/Cargo.toml");
+        let resp = srv.execute(request.send()).unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
     }
 
     #[test]
@@ -1486,26 +1479,12 @@ mod tests {
         });
 
         let request = srv.get().uri(srv.url("/test")).finish().unwrap();
-        let response = srv.execute(request.send()).unwrap();
-        assert_eq!(response.status(), StatusCode::FOUND);
-        let loc = response
-            .headers()
-            .get(header::LOCATION)
-            .unwrap()
-            .to_str()
-            .unwrap();
-        assert_eq!(loc, "/test/Cargo.toml");
+        let resp = srv.execute(request.send()).unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
 
         let request = srv.get().uri(srv.url("/test/")).finish().unwrap();
-        let response = srv.execute(request.send()).unwrap();
-        assert_eq!(response.status(), StatusCode::FOUND);
-        let loc = response
-            .headers()
-            .get(header::LOCATION)
-            .unwrap()
-            .to_str()
-            .unwrap();
-        assert_eq!(loc, "/test/Cargo.toml");
+        let resp = srv.execute(request.send()).unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
     }
 
     #[test]
@@ -1522,8 +1501,8 @@ mod tests {
             .uri(srv.url("/test/%43argo.toml"))
             .finish()
             .unwrap();
-        let response = srv.execute(request.send()).unwrap();
-        assert_eq!(response.status(), StatusCode::OK);
+        let resp = srv.execute(request.send()).unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
     }
 
     struct T(&'static str, u64, Vec<HttpRange>);
