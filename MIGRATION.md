@@ -1,3 +1,12 @@
+## 0.8.0
+
+`StaticFiles` configuration methods are removed:
+
+- `show_files_listing` - use custom configuration with `StaticFileConfig::show_index`
+- `files_listing_renderer` - use custom configuration with `StaticFileConfig::directory_listing`
+- `index_file` - use custom configuration with `StaticFileConfig::index_file`
+- `default_handler` - use custom configuration with `StaticFileConfig::default_handler`
+
 ## 0.7.15
 
 * The `' '` character is not percent decoded anymore before matching routes. If you need to use it in
@@ -38,9 +47,9 @@
 
 * `HttpRequest` does not implement `Stream` anymore. If you need to read request payload
   use `HttpMessage::payload()` method.
-  
+
   instead of
-  
+
     ```rust
     fn index(req: HttpRequest) -> impl Responder {
          req
@@ -66,8 +75,8 @@
   trait uses `&HttpRequest` instead of `&mut HttpRequest`.
 
 * Removed `Route::with2()` and `Route::with3()` use tuple of extractors instead.
-    
-    instead of 
+
+    instead of
 
     ```rust
     fn index(query: Query<..>, info: Json<MyStruct) -> impl Responder {}
@@ -83,7 +92,7 @@
 
 * `Handler::handle()` accepts reference to `HttpRequest<_>` instead of value
 
-* Removed deprecated `HttpServer::threads()`, use 
+* Removed deprecated `HttpServer::threads()`, use
   [HttpServer::workers()](https://actix.rs/actix-web/actix_web/server/struct.HttpServer.html#method.workers) instead.
 
 * Renamed `client::ClientConnectorError::Connector` to
@@ -92,7 +101,7 @@
 * `Route::with()` does not return `ExtractorConfig`, to configure
   extractor use `Route::with_config()`
 
-    instead of 
+    instead of
 
     ```rust
     fn main() {
@@ -103,11 +112,11 @@
          });
     }
     ```
-    
-    use 
-    
+
+    use
+
     ```rust
-  
+
     fn main() {
          let app = App::new().resource("/index.html", |r| {
              r.method(http::Method::GET)
@@ -137,12 +146,12 @@
 * `HttpRequest::extensions()` returns read only reference to the request's Extension
   `HttpRequest::extensions_mut()` returns mutable reference.
 
-* Instead of 
+* Instead of
 
    `use actix_web::middleware::{
         CookieSessionBackend, CookieSessionError, RequestSession,
         Session, SessionBackend, SessionImpl, SessionStorage};`
-                                
+
   use `actix_web::middleware::session`
 
    `use actix_web::middleware::session{CookieSessionBackend, CookieSessionError,
