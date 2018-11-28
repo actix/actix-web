@@ -1,5 +1,13 @@
 # Changes
 
+## [0.8.0] - 2019-xx-xx
+
+## Changed
+
+* `StaticFiles` no longer redirects to index file and instead attempts to return its content
+
+* `StaticFiles` configuration is moved to `StaticFileConfig` completely.
+
 ## [0.7.15] - 2018-xx-xx
 
 ## Changed
