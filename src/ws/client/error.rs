@@ -35,19 +35,19 @@ pub enum ClientError {
     InvalidChallengeResponse(String, HeaderValue),
     /// Http parsing error
     #[fail(display = "Http parsing error")]
-    Http(HttpError),
+    Http(#[cause] HttpError),
     /// Response parsing error
     #[fail(display = "Response parsing error: {}", _0)]
-    ParseError(ParseError),
+    ParseError(#[cause] ParseError),
     /// Protocol error
     #[fail(display = "{}", _0)]
     Protocol(#[cause] ProtocolError),
     /// Connect error
-    #[fail(display = "{:?}", _0)]
+    #[fail(display = "Connector error: {:?}", _0)]
     Connect(ConnectorError),
     /// IO Error
     #[fail(display = "{}", _0)]
-    Io(io::Error),
+    Io(#[cause] io::Error),
     /// "Disconnected"
     #[fail(display = "Disconnected")]
     Disconnected,
