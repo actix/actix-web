@@ -6,16 +6,24 @@ extern crate actix_http;
 extern crate actix_net;
 extern crate bytes;
 extern crate futures;
-extern crate http;
 
+use actix_http::http::HeaderValue;
 use actix_http::HttpMessage;
-use actix_http::{h1, Request, Response};
+use actix_http::{h1, Error, Request, Response};
 use actix_net::server::Server;
 use actix_net::service::NewServiceExt;
 use bytes::Bytes;
 use futures::Future;
-use http::header::HeaderValue;
 use std::env;
+
+fn handle_request(_req: Request) -> impl Future<Item = Response, Error = Error> {
+    _req.body().limit(512).from_err().and_then(|bytes: Bytes| {
+        info!("request body: {:?}", bytes);
+        let mut res = Response::Ok();
+        res.header("x-head", HeaderValue::from_static("dummy value!"));
+        Ok(res.body(bytes))
+    })
+}
 
 fn main() {
     env::set_var("RUST_LOG", "echo=info");
@@ -27,14 +35,8 @@ fn main() {
                 .client_timeout(1000)
                 .client_disconnect(1000)
                 .server_hostname("localhost")
-                .finish(|_req: Request| {
-                    _req.body().limit(512).and_then(|bytes: Bytes| {
-                        info!("request body: {:?}", bytes);
-                        let mut res = Response::Ok();
-                        res.header("x-head", HeaderValue::from_static("dummy value!"));
-                        Ok(res.body(bytes))
-                    })
-                }).map(|_| ())
+                .finish(|_req: Request| handle_request(_req))
+                .map(|_| ())
         }).unwrap()
         .run();
 }
