@@ -168,23 +168,24 @@ impl Connector {
     /// Create new connector with custom resolver
     pub fn with_resolver(
         resolver: Resolver<Connect>,
-    ) -> impl Service<Request = Connect, Response = (Connect, TcpStream), Error = ConnectorError>
-                 + Clone {
+    ) -> impl Service<Connect, Response = (Connect, TcpStream), Error = ConnectorError> + Clone
+    {
         Connector { resolver }
     }
 
-    /// Create new default connector service
-    pub fn new_service_with_config<E>(
-        cfg: ResolverConfig,
-        opts: ResolverOpts,
-    ) -> impl NewService<
-        Request = Connect,
-        Response = (Connect, TcpStream),
-        Error = ConnectorError,
-        InitError = E,
-    > + Clone {
-        move || -> FutureResult<Connector, E> { ok(Connector::new(cfg.clone(), opts)) }
-    }
+    // /// Create new default connector service
+    // pub fn new_service_with_config<E>(
+    //     cfg: ResolverConfig,
+    //     opts: ResolverOpts,
+    // ) -> impl NewService<
+    //     Connect,
+    //     Response = (Connect, TcpStream),
+    //     Error = ConnectorError,
+    //     InitError = E,
+    //     Service = impl Service<Connect, Response = (Connect, TcpStream), Error = ConnectorError> + Clone,
+    // > + Clone {
+    //     move || -> FutureResult<Connector, E> { ok(Connector::new(cfg.clone(), opts)) }
+    // }
 }
 
 impl Clone for Connector {
@@ -195,8 +196,7 @@ impl Clone for Connector {
     }
 }
 
-impl Service for Connector {
-    type Request = Connect;
+impl Service<Connect> for Connector {
     type Response = (Connect, TcpStream);
     type Error = ConnectorError;
     type Future = Either<ConnectorFuture, ConnectorTcpFuture>;
@@ -205,7 +205,7 @@ impl Service for Connector {
         Ok(Async::Ready(()))
     }
 
-    fn call(&mut self, req: Self::Request) -> Self::Future {
+    fn call(&mut self, req: Connect) -> Self::Future {
         match req.kind {
             ConnectKind::Host { host: _, port: _ } => Either::A(ConnectorFuture {
                 fut: self.resolver.call(req),
@@ -273,8 +273,7 @@ impl<T: RequestPort> Default for TcpConnector<T> {
     }
 }
 
-impl<T: RequestPort> Service for TcpConnector<T> {
-    type Request = (T, VecDeque<IpAddr>);
+impl<T: RequestPort> Service<(T, VecDeque<IpAddr>)> for TcpConnector<T> {
     type Response = (T, TcpStream);
     type Error = io::Error;
     type Future = TcpConnectorResponse<T>;
@@ -283,7 +282,7 @@ impl<T: RequestPort> Service for TcpConnector<T> {
         Ok(Async::Ready(()))
     }
 
-    fn call(&mut self, (req, addrs): Self::Request) -> Self::Future {
+    fn call(&mut self, (req, addrs): (T, VecDeque<IpAddr>)) -> Self::Future {
         TcpConnectorResponse::new(req, addrs)
     }
 }
@@ -354,8 +353,7 @@ impl DefaultConnector {
     }
 }
 
-impl Service for DefaultConnector {
-    type Request = Connect;
+impl Service<Connect> for DefaultConnector {
     type Response = TcpStream;
     type Error = ConnectorError;
     type Future = DefaultConnectorFuture;
@@ -364,7 +362,7 @@ impl Service for DefaultConnector {
         self.0.poll_ready()
     }
 
-    fn call(&mut self, req: Self::Request) -> Self::Future {
+    fn call(&mut self, req: Connect) -> Self::Future {
         DefaultConnectorFuture {
             fut: self.0.call(req),
         }

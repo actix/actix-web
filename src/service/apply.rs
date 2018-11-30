@@ -5,21 +5,23 @@ use futures::{Async, Future, IntoFuture, Poll};
 use super::{IntoNewService, IntoService, NewService, Service};
 
 /// `Apply` service combinator
-pub struct Apply<T, F, R, Req> {
+pub struct Apply<T, F, In, Out, Request>
+where
+    T: Service<Request>,
+{
     service: T,
     f: F,
-    r: PhantomData<(Req, R)>,
+    r: PhantomData<(In, Out, Request)>,
 }
 
-impl<T, F, R, Req> Apply<T, F, R, Req>
+impl<T, F, In, Out, Request> Apply<T, F, In, Out, Request>
 where
-    T: Service,
-    T::Error: Into<<R::Future as Future>::Error>,
-    F: Fn(Req, &mut T) -> R,
-    R: IntoFuture,
+    T: Service<Request>,
+    F: Fn(In, &mut T) -> Out,
+    Out: IntoFuture,
 {
     /// Create new `Apply` combinator
-    pub fn new<I: IntoService<T>>(service: I, f: F) -> Self {
+    pub fn new<I: IntoService<T, Request>>(service: I, f: F) -> Self {
         Self {
             service: service.into_service(),
             f,
@@ -28,12 +30,10 @@ where
     }
 }
 
-impl<T, F, R, Req> Clone for Apply<T, F, R, Req>
+impl<T, F, In, Out, Request> Clone for Apply<T, F, In, Out, Request>
 where
-    T: Service + Clone,
-    T::Error: Into<<R::Future as Future>::Error>,
-    F: Fn(Req, &mut T) -> R + Clone,
-    R: IntoFuture,
+    T: Service<Request> + Clone,
+    F: Clone,
 {
     fn clone(&self) -> Self {
         Apply {
@@ -44,42 +44,43 @@ where
     }
 }
 
-impl<T, F, R, Req> Service for Apply<T, F, R, Req>
+impl<T, F, In, Out, Request> Service<In> for Apply<T, F, In, Out, Request>
 where
-    T: Service,
-    T::Error: Into<<R::Future as Future>::Error>,
-    F: Fn(Req, &mut T) -> R,
-    R: IntoFuture,
+    T: Service<Request, Error = Out::Error>,
+    F: Fn(In, &mut T) -> Out,
+    Out: IntoFuture,
 {
-    type Request = Req;
-    type Response = <R::Future as Future>::Item;
-    type Error = <R::Future as Future>::Error;
-    type Future = R::Future;
+    type Response = <Out::Future as Future>::Item;
+    type Error = <Out::Future as Future>::Error;
+    type Future = Out::Future;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
         self.service.poll_ready().map_err(|e| e.into())
     }
 
-    fn call(&mut self, req: Self::Request) -> Self::Future {
+    fn call(&mut self, req: In) -> Self::Future {
         (self.f)(req, &mut self.service).into_future()
     }
 }
 
 /// `ApplyNewService` new service combinator
-pub struct ApplyNewService<T, F, R, Req> {
+pub struct ApplyNewService<T, F, In, Out, Request>
+where
+    T: NewService<Request>,
+{
     service: T,
     f: F,
-    r: PhantomData<Fn(Req) -> R>,
+    r: PhantomData<(In, Out, Request)>,
 }
 
-impl<T, F, R, Req> ApplyNewService<T, F, R, Req>
+impl<T, F, In, Out, Request> ApplyNewService<T, F, In, Out, Request>
 where
-    T: NewService,
-    F: Fn(Req, &mut T::Service) -> R,
-    R: IntoFuture,
+    T: NewService<Request>,
+    F: Fn(In, &mut T::Service) -> Out,
+    Out: IntoFuture,
 {
     /// Create new `ApplyNewService` new service instance
-    pub fn new<F1: IntoNewService<T>>(service: F1, f: F) -> Self {
+    pub fn new<F1: IntoNewService<T, Request>>(service: F1, f: F) -> Self {
         Self {
             f,
             service: service.into_new_service(),
@@ -88,11 +89,11 @@ where
     }
 }
 
-impl<T, F, R, Req> Clone for ApplyNewService<T, F, R, Req>
+impl<T, F, In, Out, Request> Clone for ApplyNewService<T, F, In, Out, Request>
 where
-    T: NewService + Clone,
-    F: Fn(Req, &mut T::Service) -> R + Clone,
-    R: IntoFuture,
+    T: NewService<Request> + Clone,
+    F: Fn(Out, &mut T::Service) -> Out + Clone,
+    Out: IntoFuture,
 {
     fn clone(&self) -> Self {
         Self {
@@ -103,42 +104,40 @@ where
     }
 }
 
-impl<T, F, R, Req> NewService for ApplyNewService<T, F, R, Req>
+impl<T, F, In, Out, Request> NewService<In> for ApplyNewService<T, F, In, Out, Request>
 where
-    T: NewService,
-    T::Error: Into<<R::Future as Future>::Error>,
-    F: Fn(Req, &mut T::Service) -> R + Clone,
-    R: IntoFuture,
+    T: NewService<Request, Error = Out::Error>,
+    F: Fn(In, &mut T::Service) -> Out + Clone,
+    Out: IntoFuture,
 {
-    type Request = Req;
-    type Response = <R::Future as Future>::Item;
-    type Error = <R::Future as Future>::Error;
-    type Service = Apply<T::Service, F, R, Req>;
+    type Response = <Out::Future as Future>::Item;
+    type Error = <Out::Future as Future>::Error;
+    type Service = Apply<T::Service, F, In, Out, Request>;
 
     type InitError = T::InitError;
-    type Future = ApplyNewServiceFuture<T, F, R, Req>;
+    type Future = ApplyNewServiceFuture<T, F, In, Out, Request>;
 
     fn new_service(&self) -> Self::Future {
         ApplyNewServiceFuture::new(self.service.new_service(), self.f.clone())
     }
 }
 
-pub struct ApplyNewServiceFuture<T, F, R, Req>
+pub struct ApplyNewServiceFuture<T, F, In, Out, Request>
 where
-    T: NewService,
-    F: Fn(Req, &mut T::Service) -> R,
-    R: IntoFuture,
+    T: NewService<Request>,
+    F: Fn(In, &mut T::Service) -> Out,
+    Out: IntoFuture,
 {
     fut: T::Future,
     f: Option<F>,
-    r: PhantomData<Fn(Req) -> R>,
+    r: PhantomData<(In, Out)>,
 }
 
-impl<T, F, R, Req> ApplyNewServiceFuture<T, F, R, Req>
+impl<T, F, In, Out, Request> ApplyNewServiceFuture<T, F, In, Out, Request>
 where
-    T: NewService,
-    F: Fn(Req, &mut T::Service) -> R,
-    R: IntoFuture,
+    T: NewService<Request>,
+    F: Fn(In, &mut T::Service) -> Out,
+    Out: IntoFuture,
 {
     fn new(fut: T::Future, f: F) -> Self {
         ApplyNewServiceFuture {
@@ -149,14 +148,13 @@ where
     }
 }
 
-impl<T, F, R, Req> Future for ApplyNewServiceFuture<T, F, R, Req>
+impl<T, F, In, Out, Request> Future for ApplyNewServiceFuture<T, F, In, Out, Request>
 where
-    T: NewService,
-    T::Error: Into<<R::Future as Future>::Error>,
-    F: Fn(Req, &mut T::Service) -> R,
-    R: IntoFuture,
+    T: NewService<Request>,
+    F: Fn(In, &mut T::Service) -> Out,
+    Out: IntoFuture,
 {
-    type Item = Apply<T::Service, F, R, Req>;
+    type Item = Apply<T::Service, F, In, Out, Request>;
     type Error = T::InitError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {

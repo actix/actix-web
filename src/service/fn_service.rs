@@ -42,12 +42,11 @@ where
     }
 }
 
-impl<F, Req, Resp, E, Fut> Service for FnService<F, Req, Resp, E, Fut>
+impl<F, Req, Resp, E, Fut> Service<Req> for FnService<F, Req, Resp, E, Fut>
 where
     F: Fn(Req) -> Fut,
     Fut: IntoFuture<Item = Resp, Error = E>,
 {
-    type Request = Req;
     type Response = Resp;
     type Error = E;
     type Future = Fut::Future;
@@ -61,7 +60,7 @@ where
     }
 }
 
-impl<F, Req, Resp, Err, Fut> IntoService<FnService<F, Req, Resp, Err, Fut>> for F
+impl<F, Req, Resp, Err, Fut> IntoService<FnService<F, Req, Resp, Err, Fut>, Req> for F
 where
     F: Fn(Req) -> Fut + 'static,
     Fut: IntoFuture<Item = Resp, Error = Err>,
@@ -93,12 +92,11 @@ where
     }
 }
 
-impl<F, Req, Resp, Err, Fut> NewService for FnNewService<F, Req, Resp, Err, Fut>
+impl<F, Req, Resp, Err, Fut> NewService<Req> for FnNewService<F, Req, Resp, Err, Fut>
 where
     F: Fn(Req) -> Fut + Clone,
     Fut: IntoFuture<Item = Resp, Error = Err>,
 {
-    type Request = Req;
     type Response = Resp;
     type Error = Err;
     type Service = FnService<F, Req, Resp, Err, Fut>;
@@ -110,7 +108,7 @@ where
     }
 }
 
-impl<F, Req, Resp, Err, Fut> IntoNewService<FnNewService<F, Req, Resp, Err, Fut>> for F
+impl<F, Req, Resp, Err, Fut> IntoNewService<FnNewService<F, Req, Resp, Err, Fut>, Req> for F
 where
     F: Fn(Req) -> Fut + Clone + 'static,
     Fut: IntoFuture<Item = Resp, Error = Err>,

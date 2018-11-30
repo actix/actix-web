@@ -70,8 +70,7 @@ impl<T> Clone for Resolver<T> {
     }
 }
 
-impl<T: RequestHost> Service for Resolver<T> {
-    type Request = T;
+impl<T: RequestHost> Service<T> for Resolver<T> {
     type Response = (T, VecDeque<IpAddr>);
     type Error = ResolveError;
     type Future = ResolverFuture<T>;
@@ -80,7 +79,7 @@ impl<T: RequestHost> Service for Resolver<T> {
         Ok(Async::Ready(()))
     }
 
-    fn call(&mut self, req: Self::Request) -> Self::Future {
+    fn call(&mut self, req: T) -> Self::Future {
         ResolverFuture::new(req, &self.resolver)
     }
 }

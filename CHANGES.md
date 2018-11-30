@@ -1,5 +1,10 @@
 # Changes
 
+## [0.3.0] - xxx
+
+* Use new `Service<Request>` trait
+
+
 ## [0.2.4] - 2018-11-21
 
 ### Added

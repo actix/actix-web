@@ -13,12 +13,11 @@ pub enum EitherService<A, B> {
     B(B),
 }
 
-impl<A, B> Service for EitherService<A, B>
+impl<A, B, Request> Service<Request> for EitherService<A, B>
 where
-    A: Service,
-    B: Service<Request = A::Request, Response = A::Response, Error = A::Error>,
+    A: Service<Request>,
+    B: Service<Request, Response = A::Response, Error = A::Error>,
 {
-    type Request = A::Request;
     type Response = A::Response;
     type Error = A::Error;
     type Future = future::Either<A::Future, B::Future>;
@@ -30,7 +29,7 @@ where
         }
     }
 
-    fn call(&mut self, req: Self::Request) -> Self::Future {
+    fn call(&mut self, req: Request) -> Self::Future {
         match self {
             EitherService::A(ref mut inner) => future::Either::A(inner.call(req)),
             EitherService::B(ref mut inner) => future::Either::B(inner.call(req)),
@@ -44,22 +43,16 @@ pub enum Either<A, B> {
     B(B),
 }
 
-impl<A, B> NewService for Either<A, B>
+impl<A, B, Request> NewService<Request> for Either<A, B>
 where
-    A: NewService,
-    B: NewService<
-        Request = A::Request,
-        Response = A::Response,
-        Error = A::Error,
-        InitError = A::InitError,
-    >,
+    A: NewService<Request>,
+    B: NewService<Request, Response = A::Response, Error = A::Error, InitError = A::InitError>,
 {
-    type Request = A::Request;
     type Response = A::Response;
     type Error = A::Error;
     type InitError = A::InitError;
     type Service = EitherService<A::Service, B::Service>;
-    type Future = EitherNewService<A, B>;
+    type Future = EitherNewService<A, B, Request>;
 
     fn new_service(&self) -> Self::Future {
         match self {
@@ -70,20 +63,15 @@ where
 }
 
 #[doc(hidden)]
-pub enum EitherNewService<A: NewService, B: NewService> {
+pub enum EitherNewService<A: NewService<R>, B: NewService<R>, R> {
     A(A::Future),
     B(B::Future),
 }
 
-impl<A, B> Future for EitherNewService<A, B>
+impl<A, B, Request> Future for EitherNewService<A, B, Request>
 where
-    A: NewService,
-    B: NewService<
-        Request = A::Request,
-        Response = A::Response,
-        Error = A::Error,
-        InitError = A::InitError,
-    >,
+    A: NewService<Request>,
+    B: NewService<Request, Response = A::Response, Error = A::Error, InitError = A::InitError>,
 {
     type Item = EitherService<A::Service, B::Service>;
     type Error = A::InitError;

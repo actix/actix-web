@@ -12,7 +12,7 @@ use service::{NewService, Service};
 
 /// Applies a timeout to requests.
 #[derive(Debug)]
-pub struct Timeout<T: NewService + Clone> {
+pub struct Timeout<T> {
     inner: T,
     timeout: Duration,
 }
@@ -34,25 +34,24 @@ impl<E: fmt::Debug> fmt::Debug for TimeoutError<E> {
     }
 }
 
-impl<T> Timeout<T>
-where
-    T: NewService + Clone,
-{
-    pub fn new(timeout: Duration, inner: T) -> Self {
+impl<T> Timeout<T> {
+    pub fn new<Request>(timeout: Duration, inner: T) -> Self
+    where
+        T: NewService<Request> + Clone,
+    {
         Timeout { inner, timeout }
     }
 }
 
-impl<T> NewService for Timeout<T>
+impl<T, Request> NewService<Request> for Timeout<T>
 where
-    T: NewService + Clone,
+    T: NewService<Request> + Clone,
 {
-    type Request = T::Request;
     type Response = T::Response;
     type Error = TimeoutError<T::Error>;
     type InitError = T::InitError;
     type Service = TimeoutService<T::Service>;
-    type Future = TimeoutFut<T>;
+    type Future = TimeoutFut<T, Request>;
 
     fn new_service(&self) -> Self::Future {
         TimeoutFut {
@@ -64,14 +63,14 @@ where
 
 /// `Timeout` response future
 #[derive(Debug)]
-pub struct TimeoutFut<T: NewService> {
+pub struct TimeoutFut<T: NewService<Request>, Request> {
     fut: T::Future,
     timeout: Duration,
 }
 
-impl<T> Future for TimeoutFut<T>
+impl<T, Request> Future for TimeoutFut<T, Request>
 where
-    T: NewService,
+    T: NewService<Request>,
 {
     type Item = TimeoutService<T::Service>;
     type Error = T::InitError;
@@ -90,15 +89,15 @@ pub struct TimeoutService<T> {
 }
 
 impl<T> TimeoutService<T> {
-    pub fn new(timeout: Duration, inner: T) -> Self {
+    pub fn new<Request>(timeout: Duration, inner: T) -> Self
+    where
+        T: Service<Request>,
+    {
         TimeoutService { inner, timeout }
     }
 }
 
-impl<T> Clone for TimeoutService<T>
-where
-    T: Clone,
-{
+impl<T: Clone> Clone for TimeoutService<T> {
     fn clone(&self) -> Self {
         TimeoutService {
             inner: self.inner.clone(),
@@ -107,14 +106,13 @@ where
     }
 }
 
-impl<T> Service for TimeoutService<T>
+impl<T, Request> Service<Request> for TimeoutService<T>
 where
-    T: Service,
+    T: Service<Request>,
 {
-    type Request = T::Request;
     type Response = T::Response;
     type Error = TimeoutError<T::Error>;
-    type Future = TimeoutServiceResponse<T>;
+    type Future = TimeoutServiceResponse<T, Request>;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
         self.inner
@@ -122,7 +120,7 @@ where
             .map_err(|e| TimeoutError::Service(e))
     }
 
-    fn call(&mut self, request: Self::Request) -> Self::Future {
+    fn call(&mut self, request: Request) -> Self::Future {
         TimeoutServiceResponse {
             fut: self.inner.call(request),
             sleep: Delay::new(clock::now() + self.timeout),
@@ -132,14 +130,14 @@ where
 
 /// `TimeoutService` response future
 #[derive(Debug)]
-pub struct TimeoutServiceResponse<T: Service> {
+pub struct TimeoutServiceResponse<T: Service<Request>, Request> {
     fut: T::Future,
     sleep: Delay,
 }
 
-impl<T> Future for TimeoutServiceResponse<T>
+impl<T, Request> Future for TimeoutServiceResponse<T, Request>
 where
-    T: Service,
+    T: Service<Request>,
 {
     type Item = T::Response;
     type Error = TimeoutError<T::Error>;

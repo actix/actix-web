@@ -154,8 +154,8 @@ impl ServiceRuntime {
 
     pub fn service<T, F>(&mut self, name: &str, service: F)
     where
-        F: IntoNewService<T>,
-        T: NewService<Request = TcpStream, Response = ()> + 'static,
+        F: IntoNewService<T, TcpStream>,
+        T: NewService<TcpStream, Response = ()> + 'static,
         T::Future: 'static,
         T::Service: 'static,
         T::InitError: fmt::Debug,
@@ -176,7 +176,7 @@ impl ServiceRuntime {
 
 type BoxedNewService = Box<
     NewService<
-        Request = (Option<CounterGuard>, ServerMessage),
+        (Option<CounterGuard>, ServerMessage),
         Response = (),
         Error = (),
         InitError = (),
@@ -189,15 +189,14 @@ struct ServiceFactory<T> {
     inner: T,
 }
 
-impl<T> NewService for ServiceFactory<T>
+impl<T> NewService<(Option<CounterGuard>, ServerMessage)> for ServiceFactory<T>
 where
-    T: NewService<Request = TcpStream, Response = ()>,
+    T: NewService<TcpStream, Response = ()>,
     T::Future: 'static,
     T::Service: 'static,
     T::Error: 'static,
     T::InitError: fmt::Debug + 'static,
 {
-    type Request = (Option<CounterGuard>, ServerMessage);
     type Response = ();
     type Error = ();
     type InitError = ();

@@ -12,21 +12,21 @@ pub struct Then<A, B> {
     b: Cell<B>,
 }
 
-impl<A, B> Then<A, B>
-where
-    A: Service,
-    B: Service<Request = Result<A::Response, A::Error>, Error = A::Error>,
-{
+impl<A, B> Then<A, B> {
     /// Create new `Then` combinator
-    pub fn new(a: A, b: B) -> Then<A, B> {
+    pub fn new<Request>(a: A, b: B) -> Then<A, B>
+    where
+        A: Service<Request>,
+        B: Service<Result<A::Response, A::Error>, Error = A::Error>,
+    {
         Then { a, b: Cell::new(b) }
     }
 }
 
 impl<A, B> Clone for Then<A, B>
 where
-    A: Service + Clone,
-    B: Service<Request = Result<A::Response, A::Error>, Error = A::Error>,
+    A: Clone,
+    B: Clone,
 {
     fn clone(&self) -> Self {
         Then {
@@ -36,40 +36,39 @@ where
     }
 }
 
-impl<A, B> Service for Then<A, B>
+impl<A, B, Request> Service<Request> for Then<A, B>
 where
-    A: Service,
-    B: Service<Request = Result<A::Response, A::Error>, Error = A::Error>,
+    A: Service<Request>,
+    B: Service<Result<A::Response, A::Error>, Error = A::Error>,
 {
-    type Request = A::Request;
     type Response = B::Response;
     type Error = B::Error;
-    type Future = ThenFuture<A, B>;
+    type Future = ThenFuture<A, B, Request>;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
         let _ = try_ready!(self.a.poll_ready());
         self.b.borrow_mut().poll_ready()
     }
 
-    fn call(&mut self, req: Self::Request) -> Self::Future {
+    fn call(&mut self, req: Request) -> Self::Future {
         ThenFuture::new(self.a.call(req), self.b.clone())
     }
 }
 
-pub struct ThenFuture<A, B>
+pub struct ThenFuture<A, B, Request>
 where
-    A: Service,
-    B: Service<Request = Result<A::Response, A::Error>>,
+    A: Service<Request>,
+    B: Service<Result<A::Response, A::Error>>,
 {
     b: Cell<B>,
     fut_b: Option<B::Future>,
     fut_a: A::Future,
 }
 
-impl<A, B> ThenFuture<A, B>
+impl<A, B, Request> ThenFuture<A, B, Request>
 where
-    A: Service,
-    B: Service<Request = Result<A::Response, A::Error>>,
+    A: Service<Request>,
+    B: Service<Result<A::Response, A::Error>>,
 {
     fn new(fut_a: A::Future, b: Cell<B>) -> Self {
         ThenFuture {
@@ -80,10 +79,10 @@ where
     }
 }
 
-impl<A, B> Future for ThenFuture<A, B>
+impl<A, B, Request> Future for ThenFuture<A, B, Request>
 where
-    A: Service,
-    B: Service<Request = Result<A::Response, A::Error>>,
+    A: Service<Request>,
+    B: Service<Result<A::Response, A::Error>>,
 {
     type Item = B::Response;
     type Error = B::Error;
@@ -113,13 +112,18 @@ pub struct ThenNewService<A, B> {
     b: B,
 }
 
-impl<A, B> ThenNewService<A, B>
-where
-    A: NewService,
-    B: NewService,
-{
+impl<A, B> ThenNewService<A, B> {
     /// Create new `AndThen` combinator
-    pub fn new<F: IntoNewService<B>>(a: A, f: F) -> Self {
+    pub fn new<F, Request>(a: A, f: F) -> Self
+    where
+        A: NewService<Request>,
+        B: NewService<
+            Result<A::Response, A::Error>,
+            Error = A::Error,
+            InitError = A::InitError,
+        >,
+        F: IntoNewService<B, Result<A::Response, A::Error>>,
+    {
         Self {
             a,
             b: f.into_new_service(),
@@ -127,22 +131,17 @@ where
     }
 }
 
-impl<A, B> NewService for ThenNewService<A, B>
+impl<A, B, Request> NewService<Request> for ThenNewService<A, B>
 where
-    A: NewService,
-    B: NewService<
-        Request = Result<A::Response, A::Error>,
-        Error = A::Error,
-        InitError = A::InitError,
-    >,
+    A: NewService<Request>,
+    B: NewService<Result<A::Response, A::Error>, Error = A::Error, InitError = A::InitError>,
 {
-    type Request = A::Request;
     type Response = B::Response;
     type Error = A::Error;
     type Service = Then<A::Service, B::Service>;
 
     type InitError = A::InitError;
-    type Future = ThenNewServiceFuture<A, B>;
+    type Future = ThenNewServiceFuture<A, B, Request>;
 
     fn new_service(&self) -> Self::Future {
         ThenNewServiceFuture::new(self.a.new_service(), self.b.new_service())
@@ -151,12 +150,8 @@ where
 
 impl<A, B> Clone for ThenNewService<A, B>
 where
-    A: NewService + Clone,
-    B: NewService<
-            Request = Result<A::Response, A::Error>,
-            Error = A::Error,
-            InitError = A::InitError,
-        > + Clone,
+    A: Clone,
+    B: Clone,
 {
     fn clone(&self) -> Self {
         Self {
@@ -166,10 +161,10 @@ where
     }
 }
 
-pub struct ThenNewServiceFuture<A, B>
+pub struct ThenNewServiceFuture<A, B, Request>
 where
-    A: NewService,
-    B: NewService,
+    A: NewService<Request>,
+    B: NewService<Result<A::Response, A::Error>, Error = A::Error, InitError = A::InitError>,
 {
     fut_b: B::Future,
     fut_a: A::Future,
@@ -177,10 +172,10 @@ where
     b: Option<B::Service>,
 }
 
-impl<A, B> ThenNewServiceFuture<A, B>
+impl<A, B, Request> ThenNewServiceFuture<A, B, Request>
 where
-    A: NewService,
-    B: NewService,
+    A: NewService<Request>,
+    B: NewService<Result<A::Response, A::Error>, Error = A::Error, InitError = A::InitError>,
 {
     fn new(fut_a: A::Future, fut_b: B::Future) -> Self {
         ThenNewServiceFuture {
@@ -192,14 +187,10 @@ where
     }
 }
 
-impl<A, B> Future for ThenNewServiceFuture<A, B>
+impl<A, B, Request> Future for ThenNewServiceFuture<A, B, Request>
 where
-    A: NewService,
-    B: NewService<
-        Request = Result<A::Response, A::Error>,
-        Error = A::Error,
-        InitError = A::InitError,
-    >,
+    A: NewService<Request>,
+    B: NewService<Result<A::Response, A::Error>, Error = A::Error, InitError = A::InitError>,
 {
     type Item = Then<A::Service, B::Service>;
     type Error = A::InitError;

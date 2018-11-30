@@ -17,10 +17,13 @@ pub struct StreamDispatcher<S: Stream, T> {
 impl<S, T> StreamDispatcher<S, T>
 where
     S: Stream,
-    T: Service<Request = Result<S::Item, S::Error>, Response = (), Error = ()>,
+    T: Service<Result<S::Item, S::Error>, Response = (), Error = ()>,
     T::Future: 'static,
 {
-    pub fn new<F: IntoService<T>>(stream: S, service: F) -> Self {
+    pub fn new<F>(stream: S, service: F) -> Self
+    where
+        F: IntoService<T, Result<S::Item, S::Error>>,
+    {
         let (stop_tx, stop_rx) = mpsc::unbounded();
         StreamDispatcher {
             stream,
@@ -35,7 +38,7 @@ where
 impl<S, T> Future for StreamDispatcher<S, T>
 where
     S: Stream,
-    T: Service<Request = Result<S::Item, S::Error>, Response = (), Error = ()>,
+    T: Service<Result<S::Item, S::Error>, Response = (), Error = ()>,
     T::Future: 'static,
 {
     type Item = ();
@@ -109,8 +112,7 @@ impl<T> Clone for TakeItem<T> {
     }
 }
 
-impl<T: Stream> NewService for TakeItem<T> {
-    type Request = T;
+impl<T: Stream> NewService<T> for TakeItem<T> {
     type Response = (Option<T::Item>, T);
     type Error = T::Error;
     type InitError = ();
@@ -133,8 +135,7 @@ impl<T> Clone for TakeItemService<T> {
     }
 }
 
-impl<T: Stream> Service for TakeItemService<T> {
-    type Request = T;
+impl<T: Stream> Service<T> for TakeItemService<T> {
     type Response = (Option<T::Item>, T);
     type Error = T::Error;
     type Future = TakeItemServiceResponse<T>;
@@ -143,7 +144,7 @@ impl<T: Stream> Service for TakeItemService<T> {
         Ok(Async::Ready(()))
     }
 
-    fn call(&mut self, req: Self::Request) -> Self::Future {
+    fn call(&mut self, req: T) -> Self::Future {
         TakeItemServiceResponse { stream: Some(req) }
     }
 }

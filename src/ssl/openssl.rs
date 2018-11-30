@@ -37,8 +37,7 @@ impl<T: AsyncRead + AsyncWrite> Clone for OpensslAcceptor<T> {
     }
 }
 
-impl<T: AsyncRead + AsyncWrite> NewService for OpensslAcceptor<T> {
-    type Request = T;
+impl<T: AsyncRead + AsyncWrite> NewService<T> for OpensslAcceptor<T> {
     type Response = SslStream<T>;
     type Error = Error;
     type Service = OpensslAcceptorService<T>;
@@ -62,8 +61,7 @@ pub struct OpensslAcceptorService<T> {
     conns: Counter,
 }
 
-impl<T: AsyncRead + AsyncWrite> Service for OpensslAcceptorService<T> {
-    type Request = T;
+impl<T: AsyncRead + AsyncWrite> Service<T> for OpensslAcceptorService<T> {
     type Response = SslStream<T>;
     type Error = Error;
     type Future = OpensslAcceptorServiceFut<T>;
@@ -76,7 +74,7 @@ impl<T: AsyncRead + AsyncWrite> Service for OpensslAcceptorService<T> {
         }
     }
 
-    fn call(&mut self, req: Self::Request) -> Self::Future {
+    fn call(&mut self, req: T) -> Self::Future {
         OpensslAcceptorServiceFut {
             _guard: self.conns.get(),
             fut: SslAcceptorExt::accept_async(&self.acceptor, req),
@@ -119,7 +117,7 @@ impl<R, T, E> OpensslConnector<R, T, E> {
 impl<R: RequestHost, T: AsyncRead + AsyncWrite> OpensslConnector<R, T, ()> {
     pub fn service(
         connector: SslConnector,
-    ) -> impl Service<Request = (R, T), Response = (R, SslStream<T>), Error = Error> {
+    ) -> impl Service<(R, T), Response = (R, SslStream<T>), Error = Error> {
         OpensslConnectorService {
             connector: connector,
             _t: PhantomData,
@@ -136,8 +134,9 @@ impl<R, T, E> Clone for OpensslConnector<R, T, E> {
     }
 }
 
-impl<R: RequestHost, T: AsyncRead + AsyncWrite, E> NewService for OpensslConnector<R, T, E> {
-    type Request = (R, T);
+impl<R: RequestHost, T: AsyncRead + AsyncWrite, E> NewService<(R, T)>
+    for OpensslConnector<R, T, E>
+{
     type Response = (R, SslStream<T>);
     type Error = Error;
     type Service = OpensslConnectorService<R, T>;
@@ -157,8 +156,9 @@ pub struct OpensslConnectorService<R, T> {
     _t: PhantomData<(R, T)>,
 }
 
-impl<R: RequestHost, T: AsyncRead + AsyncWrite> Service for OpensslConnectorService<R, T> {
-    type Request = (R, T);
+impl<R: RequestHost, T: AsyncRead + AsyncWrite> Service<(R, T)>
+    for OpensslConnectorService<R, T>
+{
     type Response = (R, SslStream<T>);
     type Error = Error;
     type Future = ConnectAsyncExt<R, T>;
@@ -167,7 +167,7 @@ impl<R: RequestHost, T: AsyncRead + AsyncWrite> Service for OpensslConnectorServ
         Ok(Async::Ready(()))
     }
 
-    fn call(&mut self, (req, stream): Self::Request) -> Self::Future {
+    fn call(&mut self, (req, stream): (R, T)) -> Self::Future {
         ConnectAsyncExt {
             fut: SslConnectorExt::connect_async(&self.connector, req.host(), stream),
             req: Some(req),

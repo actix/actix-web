@@ -7,16 +7,17 @@ use super::{NewService, Service};
 /// Service for the `from_err` combinator, changing the error type of a service.
 ///
 /// This is created by the `ServiceExt::from_err` method.
-pub struct FromErr<A, E>
-where
-    A: Service,
-{
+pub struct FromErr<A, E> {
     service: A,
     f: PhantomData<E>,
 }
 
-impl<A: Service, E: From<A::Error>> FromErr<A, E> {
-    pub(crate) fn new(service: A) -> Self {
+impl<A, E> FromErr<A, E> {
+    pub(crate) fn new<Request>(service: A) -> Self
+    where
+        A: Service<Request>,
+        E: From<A::Error>,
+    {
         FromErr {
             service,
             f: PhantomData,
@@ -26,8 +27,7 @@ impl<A: Service, E: From<A::Error>> FromErr<A, E> {
 
 impl<A, E> Clone for FromErr<A, E>
 where
-    A: Service + Clone,
-    E: From<A::Error>,
+    A: Clone,
 {
     fn clone(&self) -> Self {
         FromErr {
@@ -37,21 +37,20 @@ where
     }
 }
 
-impl<A, E> Service for FromErr<A, E>
+impl<A, E, Request> Service<Request> for FromErr<A, E>
 where
-    A: Service,
+    A: Service<Request>,
     E: From<A::Error>,
 {
-    type Request = A::Request;
     type Response = A::Response;
     type Error = E;
-    type Future = FromErrFuture<A, E>;
+    type Future = FromErrFuture<A, E, Request>;
 
     fn poll_ready(&mut self) -> Poll<(), E> {
         Ok(self.service.poll_ready().map_err(E::from)?)
     }
 
-    fn call(&mut self, req: Self::Request) -> Self::Future {
+    fn call(&mut self, req: Request) -> Self::Future {
         FromErrFuture {
             fut: self.service.call(req),
             f: PhantomData,
@@ -59,14 +58,14 @@ where
     }
 }
 
-pub struct FromErrFuture<A: Service, E> {
+pub struct FromErrFuture<A: Service<Request>, E, Request> {
     fut: A::Future,
     f: PhantomData<E>,
 }
 
-impl<A, E> Future for FromErrFuture<A, E>
+impl<A, E, Request> Future for FromErrFuture<A, E, Request>
 where
-    A: Service,
+    A: Service<Request>,
     E: From<A::Error>,
 {
     type Item = A::Response;
@@ -86,21 +85,20 @@ pub struct FromErrNewService<A, E> {
     e: PhantomData<E>,
 }
 
-impl<A, E> FromErrNewService<A, E>
-where
-    A: NewService,
-    E: From<A::Error>,
-{
+impl<A, E> FromErrNewService<A, E> {
     /// Create new `FromErr` new service instance
-    pub fn new(a: A) -> Self {
+    pub fn new<Request>(a: A) -> Self
+    where
+        A: NewService<Request>,
+        E: From<A::Error>,
+    {
         Self { a, e: PhantomData }
     }
 }
 
 impl<A, E> Clone for FromErrNewService<A, E>
 where
-    A: NewService + Clone,
-    E: From<A::Error>,
+    A: Clone,
 {
     fn clone(&self) -> Self {
         Self {
@@ -110,18 +108,17 @@ where
     }
 }
 
-impl<A, E> NewService for FromErrNewService<A, E>
+impl<A, E, Request> NewService<Request> for FromErrNewService<A, E>
 where
-    A: NewService,
+    A: NewService<Request>,
     E: From<A::Error>,
 {
-    type Request = A::Request;
     type Response = A::Response;
     type Error = E;
     type Service = FromErr<A::Service, E>;
 
     type InitError = A::InitError;
-    type Future = FromErrNewServiceFuture<A, E>;
+    type Future = FromErrNewServiceFuture<A, E, Request>;
 
     fn new_service(&self) -> Self::Future {
         FromErrNewServiceFuture {
@@ -131,18 +128,18 @@ where
     }
 }
 
-pub struct FromErrNewServiceFuture<A, E>
+pub struct FromErrNewServiceFuture<A, E, Request>
 where
-    A: NewService,
+    A: NewService<Request>,
     E: From<A::Error>,
 {
     fut: A::Future,
     e: PhantomData<E>,
 }
 
-impl<A, E> Future for FromErrNewServiceFuture<A, E>
+impl<A, E, Request> Future for FromErrNewServiceFuture<A, E, Request>
 where
-    A: NewService,
+    A: NewService<Request>,
     E: From<A::Error>,
 {
     type Item = FromErr<A::Service, E>;

@@ -36,8 +36,7 @@ impl<T: AsyncRead + AsyncWrite> Clone for NativeTlsAcceptor<T> {
     }
 }
 
-impl<T: AsyncRead + AsyncWrite> NewService for NativeTlsAcceptor<T> {
-    type Request = T;
+impl<T: AsyncRead + AsyncWrite> NewService<T> for NativeTlsAcceptor<T> {
     type Response = TlsStream<T>;
     type Error = Error;
     type Service = NativeTlsAcceptorService<T>;
@@ -61,8 +60,7 @@ pub struct NativeTlsAcceptorService<T> {
     conns: Counter,
 }
 
-impl<T: AsyncRead + AsyncWrite> Service for NativeTlsAcceptorService<T> {
-    type Request = T;
+impl<T: AsyncRead + AsyncWrite> Service<T> for NativeTlsAcceptorService<T> {
     type Response = TlsStream<T>;
     type Error = Error;
     type Future = Accept<T>;
@@ -75,7 +73,7 @@ impl<T: AsyncRead + AsyncWrite> Service for NativeTlsAcceptorService<T> {
         }
     }
 
-    fn call(&mut self, req: Self::Request) -> Self::Future {
+    fn call(&mut self, req: T) -> Self::Future {
         Accept {
             _guard: self.conns.get(),
             inner: Some(self.acceptor.accept(req)),

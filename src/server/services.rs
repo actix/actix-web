@@ -22,13 +22,13 @@ pub enum ServerMessage {
 }
 
 pub trait StreamServiceFactory: Send + Clone + 'static {
-    type NewService: NewService<Request = TcpStream, Response = ()>;
+    type NewService: NewService<TcpStream, Response = ()>;
 
     fn create(&self) -> Self::NewService;
 }
 
 pub trait ServiceFactory: Send + Clone + 'static {
-    type NewService: NewService<Request = ServerMessage, Response = ()>;
+    type NewService: NewService<ServerMessage, Response = ()>;
 
     fn create(&self) -> Self::NewService;
 }
@@ -43,7 +43,7 @@ pub(crate) trait InternalServiceFactory: Send {
 
 pub(crate) type BoxedServerService = Box<
     Service<
-        Request = (Option<CounterGuard>, ServerMessage),
+        (Option<CounterGuard>, ServerMessage),
         Response = (),
         Error = (),
         Future = FutureResult<(), ()>,
@@ -60,13 +60,12 @@ impl<T> StreamService<T> {
     }
 }
 
-impl<T> Service for StreamService<T>
+impl<T> Service<(Option<CounterGuard>, ServerMessage)> for StreamService<T>
 where
-    T: Service<Request = TcpStream, Response = ()>,
+    T: Service<TcpStream, Response = ()>,
     T::Future: 'static,
     T::Error: 'static,
 {
-    type Request = (Option<CounterGuard>, ServerMessage);
     type Response = ();
     type Error = ();
     type Future = FutureResult<(), ()>;
@@ -107,13 +106,12 @@ impl<T> ServerService<T> {
     }
 }
 
-impl<T> Service for ServerService<T>
+impl<T> Service<(Option<CounterGuard>, ServerMessage)> for ServerService<T>
 where
-    T: Service<Request = ServerMessage, Response = ()>,
+    T: Service<ServerMessage, Response = ()>,
     T::Future: 'static,
     T::Error: 'static,
 {
-    type Request = (Option<CounterGuard>, ServerMessage);
     type Response = ();
     type Error = ();
     type Future = FutureResult<(), ()>;
@@ -240,7 +238,7 @@ impl InternalServiceFactory for Box<InternalServiceFactory> {
 impl<F, T> ServiceFactory for F
 where
     F: Fn() -> T + Send + Clone + 'static,
-    T: NewService<Request = ServerMessage, Response = ()>,
+    T: NewService<ServerMessage, Response = ()>,
 {
     type NewService = T;
 
@@ -252,7 +250,7 @@ where
 impl<F, T> StreamServiceFactory for F
 where
     F: Fn() -> T + Send + Clone + 'static,
-    T: NewService<Request = TcpStream, Response = ()>,
+    T: NewService<TcpStream, Response = ()>,
 {
     type NewService = T;
 

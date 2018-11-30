@@ -1,6 +1,6 @@
 [package]
 name = "actix-net"
-version = "0.2.4"
+version = "0.3.0"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix net - framework for the compisible network services for Rust (experimental)"
 readme = "README.md"
@@ -57,7 +57,7 @@ tokio-tcp = "0.1"
 tokio-timer = "0.2"
 tokio-reactor = "0.1"
 tokio-current-thread = "0.1"
-tower-service = "0.1"
+tower-service = { path="../../actix/tower/tower-service/" }
 trust-dns-proto = "^0.5.0"
 trust-dns-resolver = "^0.10.0"
 

@@ -1,31 +1,35 @@
+use std::marker::PhantomData;
+
 use futures::Poll;
 
 use super::cell::Cell;
 use super::service::Service;
 
 /// Service that allows to turn non-clone service to a service with `Clone` impl
-pub struct CloneableService<S: Service + 'static> {
+pub struct CloneableService<S: Service<R> + 'static, R> {
     service: Cell<S>,
+    _t: PhantomData<R>,
 }
 
-impl<S: Service + 'static> CloneableService<S> {
+impl<S: Service<R> + 'static, R> CloneableService<S, R> {
     pub fn new(service: S) -> Self {
         Self {
             service: Cell::new(service),
+            _t: PhantomData,
         }
     }
 }
 
-impl<S: Service + 'static> Clone for CloneableService<S> {
+impl<S: Service<R> + 'static, R> Clone for CloneableService<S, R> {
     fn clone(&self) -> Self {
         Self {
             service: self.service.clone(),
+            _t: PhantomData,
         }
     }
 }
 
-impl<S: Service + 'static> Service for CloneableService<S> {
-    type Request = S::Request;
+impl<S: Service<R> + 'static, R> Service<R> for CloneableService<S, R> {
     type Response = S::Response;
     type Error = S::Error;
     type Future = S::Future;
@@ -34,7 +38,7 @@ impl<S: Service + 'static> Service for CloneableService<S> {
         self.service.borrow_mut().poll_ready()
     }
 
-    fn call(&mut self, req: Self::Request) -> Self::Future {
+    fn call(&mut self, req: R) -> Self::Future {
         self.service.borrow_mut().call(req)
     }
 }

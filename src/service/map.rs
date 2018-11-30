@@ -1,4 +1,4 @@
-use std::marker;
+use std::marker::PhantomData;
 
 use futures::{Async, Future, Poll};
 
@@ -7,83 +7,84 @@ use super::{NewService, Service};
 /// Service for the `map` combinator, changing the type of a service's response.
 ///
 /// This is created by the `ServiceExt::map` method.
-pub struct Map<A, F, R>
-where
-    A: Service,
-    F: Fn(A::Response) -> R,
-{
+pub struct Map<A, F, Response> {
     service: A,
     f: F,
+    _t: PhantomData<Response>,
 }
 
-impl<A, F, R> Map<A, F, R>
-where
-    A: Service,
-    F: Fn(A::Response) -> R,
-{
+impl<A, F, Response> Map<A, F, Response> {
     /// Create new `Map` combinator
-    pub fn new(service: A, f: F) -> Self {
-        Self { service, f }
+    pub fn new<Request>(service: A, f: F) -> Self
+    where
+        A: Service<Request>,
+        F: Fn(A::Response) -> Response,
+    {
+        Self {
+            service,
+            f,
+            _t: PhantomData,
+        }
     }
 }
 
-impl<A, F, R> Clone for Map<A, F, R>
+impl<A, F, Response> Clone for Map<A, F, Response>
 where
-    A: Service + Clone,
-    F: Fn(A::Response) -> R + Clone,
+    A: Clone,
+    F: Clone,
 {
     fn clone(&self) -> Self {
         Map {
             service: self.service.clone(),
             f: self.f.clone(),
+            _t: PhantomData,
         }
     }
 }
 
-impl<A, F, R> Service for Map<A, F, R>
+impl<A, F, Request, Response> Service<Request> for Map<A, F, Response>
 where
-    A: Service,
-    F: Fn(A::Response) -> R + Clone,
+    A: Service<Request>,
+    F: Fn(A::Response) -> Response + Clone,
 {
-    type Request = A::Request;
-    type Response = R;
+    type Response = Response;
     type Error = A::Error;
-    type Future = MapFuture<A, F, R>;
+    type Future = MapFuture<A, F, Request, Response>;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
         self.service.poll_ready()
     }
 
-    fn call(&mut self, req: Self::Request) -> Self::Future {
+    fn call(&mut self, req: Request) -> Self::Future {
         MapFuture::new(self.service.call(req), self.f.clone())
     }
 }
 
-pub struct MapFuture<A, F, R>
+pub struct MapFuture<A, F, Request, Response>
 where
-    A: Service,
-    F: Fn(A::Response) -> R,
+    A: Service<Request>,
+    F: Fn(A::Response) -> Response,
 {
     f: F,
     fut: A::Future,
 }
 
-impl<A, F, R> MapFuture<A, F, R>
+impl<A, F, Request, Response> MapFuture<A, F, Request, Response>
 where
-    A: Service,
-    F: Fn(A::Response) -> R,
+    A: Service<Request>,
+    F: Fn(A::Response) -> Response,
 {
     fn new(fut: A::Future, f: F) -> Self {
         MapFuture { f, fut }
     }
 }
 
-impl<A, F, R> Future for MapFuture<A, F, R>
+impl<A, F, Request, Response> Future for MapFuture<A, F, Request, Response>
 where
-    A: Service,
-    F: Fn(A::Response) -> R,
+    A: Service<Request>,
+    F: Fn(A::Response) -> Response,
 {
-    type Item = R;
+    type Item = Response;
     type Error = A::Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
@@ -95,84 +96,83 @@ where
 }
 
 /// `MapNewService` new service combinator
-pub struct MapNewService<A, F, R> {
+pub struct MapNewService<A, F, Response> {
     a: A,
     f: F,
-    r: marker::PhantomData<R>,
+    r: PhantomData<Response>,
 }
 
-impl<A, F, R> MapNewService<A, F, R>
-where
-    A: NewService,
-    F: Fn(A::Response) -> R,
-{
+impl<A, F, Response> MapNewService<A, F, Response> {
     /// Create new `Map` new service instance
-    pub fn new(a: A, f: F) -> Self {
+    pub fn new<Request>(a: A, f: F) -> Self
+    where
+        A: NewService<Request>,
+        F: Fn(A::Response) -> Response,
+    {
         Self {
             a,
             f,
-            r: marker::PhantomData,
+            r: PhantomData,
         }
     }
 }
 
-impl<A, F, R> Clone for MapNewService<A, F, R>
+impl<A, F, Response> Clone for MapNewService<A, F, Response>
 where
-    A: NewService + Clone,
-    F: Fn(A::Response) -> R + Clone,
+    A: Clone,
+    F: Clone,
 {
     fn clone(&self) -> Self {
         Self {
             a: self.a.clone(),
             f: self.f.clone(),
-            r: marker::PhantomData,
+            r: PhantomData,
         }
     }
 }
 
-impl<A, F, R> NewService for MapNewService<A, F, R>
+impl<A, F, Request, Response> NewService<Request> for MapNewService<A, F, Response>
 where
-    A: NewService,
-    F: Fn(A::Response) -> R + Clone,
+    A: NewService<Request>,
+    F: Fn(A::Response) -> Response + Clone,
 {
-    type Request = A::Request;
-    type Response = R;
+    type Response = Response;
     type Error = A::Error;
-    type Service = Map<A::Service, F, R>;
+    type Service = Map<A::Service, F, Response>;
 
     type InitError = A::InitError;
-    type Future = MapNewServiceFuture<A, F, R>;
+    type Future = MapNewServiceFuture<A, F, Request, Response>;
 
     fn new_service(&self) -> Self::Future {
         MapNewServiceFuture::new(self.a.new_service(), self.f.clone())
     }
 }
 
-pub struct MapNewServiceFuture<A, F, R>
+pub struct MapNewServiceFuture<A, F, Request, Response>
 where
-    A: NewService,
-    F: Fn(A::Response) -> R,
+    A: NewService<Request>,
+    F: Fn(A::Response) -> Response,
 {
     fut: A::Future,
     f: Option<F>,
 }
 
-impl<A, F, R> MapNewServiceFuture<A, F, R>
+impl<A, F, Request, Response> MapNewServiceFuture<A, F, Request, Response>
 where
-    A: NewService,
-    F: Fn(A::Response) -> R,
+    A: NewService<Request>,
+    F: Fn(A::Response) -> Response,
 {
     fn new(fut: A::Future, f: F) -> Self {
         MapNewServiceFuture { f: Some(f), fut }
     }
 }
 
-impl<A, F, R> Future for MapNewServiceFuture<A, F, R>
+impl<A, F, Request, Response> Future for MapNewServiceFuture<A, F, Request, Response>
 where
-    A: NewService,
-    F: Fn(A::Response) -> R,
+    A: NewService<Request>,
+    F: Fn(A::Response) -> Response,
 {
-    type Item = Map<A::Service, F, R>;
+    type Item = Map<A::Service, F, Response>;
     type Error = A::InitError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
