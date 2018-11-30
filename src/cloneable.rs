@@ -1,4 +1,5 @@
 use std::marker::PhantomData;
+use std::rc::Rc;
 
 use futures::Poll;
 
@@ -6,13 +7,16 @@ use super::cell::Cell;
 use super::service::Service;
 
 /// Service that allows to turn non-clone service to a service with `Clone` impl
-pub struct CloneableService<S: Service<R> + 'static, R> {
-    service: Cell<S>,
-    _t: PhantomData<R>,
+pub struct CloneableService<T: 'static> {
+    service: Cell<T>,
+    _t: PhantomData<Rc<()>>,
 }
 
-impl<S: Service<R> + 'static, R> CloneableService<S, R> {
-    pub fn new(service: S) -> Self {
+impl<T: 'static> CloneableService<T> {
+    pub fn new<Request>(service: T) -> Self
+    where
+        T: Service<Request>,
+    {
         Self {
             service: Cell::new(service),
             _t: PhantomData,
@@ -20,7 +24,7 @@ impl<S: Service<R> + 'static, R> CloneableService<S, R> {
     }
 }
 
-impl<S: Service<R> + 'static, R> Clone for CloneableService<S, R> {
+impl<T: 'static> Clone for CloneableService<T> {
     fn clone(&self) -> Self {
         Self {
             service: self.service.clone(),
@@ -29,16 +33,19 @@ impl<S: Service<R> + 'static, R> Clone for CloneableService<S, R> {
     }
 }
 
-impl<S: Service<R> + 'static, R> Service<R> for CloneableService<S, R> {
-    type Response = S::Response;
-    type Error = S::Error;
-    type Future = S::Future;
+impl<T: 'static, Request> Service<Request> for CloneableService<T>
+where
+    T: Service<Request>,
+{
+    type Response = T::Response;
+    type Error = T::Error;
+    type Future = T::Future;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
         self.service.borrow_mut().poll_ready()
     }
 
-    fn call(&mut self, req: R) -> Self::Future {
+    fn call(&mut self, req: Request) -> Self::Future {
         self.service.borrow_mut().call(req)
     }
 }
