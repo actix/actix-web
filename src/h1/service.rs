@@ -27,13 +27,13 @@ pub struct H1Service<T, S, B> {
 
 impl<T, S, B> H1Service<T, S, B>
 where
-    S: NewService<Request = Request, Response = Response<B>> + Clone,
+    S: NewService<Request, Response = Response<B>> + Clone,
     S::Service: Clone,
     S::Error: Debug,
     B: MessageBody,
 {
     /// Create new `HttpService` instance.
-    pub fn new<F: IntoNewService<S>>(service: F) -> Self {
+    pub fn new<F: IntoNewService<S, Request>>(service: F) -> Self {
         let cfg = ServiceConfig::new(KeepAlive::Timeout(5), 5000, 0);
 
         H1Service {
@@ -49,15 +49,14 @@ where
     }
 }
 
-impl<T, S, B> NewService for H1Service<T, S, B>
+impl<T, S, B> NewService<T> for H1Service<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: NewService<Request = Request, Response = Response<B>> + Clone,
+    S: NewService<Request, Response = Response<B>> + Clone,
     S::Service: Clone,
     S::Error: Debug,
     B: MessageBody,
 {
-    type Request = T;
     type Response = H1ServiceResult<T>;
     type Error = DispatchError<S::Error>;
     type InitError = S::InitError;
@@ -89,7 +88,7 @@ pub struct H1ServiceBuilder<T, S> {
 
 impl<T, S> H1ServiceBuilder<T, S>
 where
-    S: NewService,
+    S: NewService<Request>,
     S::Service: Clone,
     S::Error: Debug,
 {
@@ -186,7 +185,7 @@ where
     pub fn finish<F, B>(self, service: F) -> H1Service<T, S, B>
     where
         B: MessageBody,
-        F: IntoNewService<S>,
+        F: IntoNewService<S, Request>,
     {
         let cfg = ServiceConfig::new(
             self.keep_alive,
@@ -202,7 +201,7 @@ where
 }
 
 #[doc(hidden)]
-pub struct H1ServiceResponse<T, S: NewService, B> {
+pub struct H1ServiceResponse<T, S: NewService<Request>, B> {
     fut: S::Future,
     cfg: Option<ServiceConfig>,
     _t: PhantomData<(T, B)>,
@@ -211,7 +210,7 @@ pub struct H1ServiceResponse<T, S: NewService, B> {
 impl<T, S, B> Future for H1ServiceResponse<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: NewService<Request = Request, Response = Response<B>>,
+    S: NewService<Request, Response = Response<B>>,
     S::Service: Clone,
     S::Error: Debug,
     B: MessageBody,
@@ -237,7 +236,7 @@ pub struct H1ServiceHandler<T, S, B> {
 
 impl<T, S, B> H1ServiceHandler<T, S, B>
 where
-    S: Service<Request = Request, Response = Response<B>> + Clone,
+    S: Service<Request, Response = Response<B>> + Clone,
     S::Error: Debug,
     B: MessageBody,
 {
@@ -250,14 +249,13 @@ where
     }
 }
 
-impl<T, S, B> Service for H1ServiceHandler<T, S, B>
+impl<T, S, B> Service<T> for H1ServiceHandler<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: Service<Request = Request, Response = Response<B>> + Clone,
+    S: Service<Request, Response = Response<B>> + Clone,
     S::Error: Debug,
     B: MessageBody,
 {
-    type Request = T;
     type Response = H1ServiceResult<T>;
     type Error = DispatchError<S::Error>;
     type Future = Dispatcher<T, S, B>;
@@ -266,7 +264,7 @@ where
         self.srv.poll_ready().map_err(DispatchError::Service)
     }
 
-    fn call(&mut self, req: Self::Request) -> Self::Future {
+    fn call(&mut self, req: T) -> Self::Future {
         Dispatcher::new(req, self.cfg.clone(), self.srv.clone())
     }
 }
@@ -290,11 +288,10 @@ where
     }
 }
 
-impl<T> NewService for OneRequest<T>
+impl<T> NewService<T> for OneRequest<T>
 where
     T: AsyncRead + AsyncWrite,
 {
-    type Request = T;
     type Response = (Request, Framed<T, Codec>);
     type Error = ParseError;
     type InitError = ();
@@ -316,11 +313,10 @@ pub struct OneRequestService<T> {
     _t: PhantomData<T>,
 }
 
-impl<T> Service for OneRequestService<T>
+impl<T> Service<T> for OneRequestService<T>
 where
     T: AsyncRead + AsyncWrite,
 {
-    type Request = T;
     type Response = (Request, Framed<T, Codec>);
     type Error = ParseError;
     type Future = OneRequestServiceResponse<T>;
@@ -329,7 +325,7 @@ where
         Ok(Async::Ready(()))
     }
 
-    fn call(&mut self, req: Self::Request) -> Self::Future {
+    fn call(&mut self, req: T) -> Self::Future {
         OneRequestServiceResponse {
             framed: Some(Framed::new(req, Codec::new(self.config.clone()))),
         }

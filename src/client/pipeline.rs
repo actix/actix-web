@@ -21,7 +21,7 @@ pub(crate) fn send_request<T, I, B>(
     connector: &mut T,
 ) -> impl Future<Item = ClientResponse, Error = SendRequestError>
 where
-    T: Service<Request = Connect, Response = I, Error = ConnectorError>,
+    T: Service<Connect, Response = I, Error = ConnectorError>,
     B: MessageBody,
     I: Connection,
 {

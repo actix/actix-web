@@ -20,8 +20,7 @@ impl<T> Default for VerifyWebSockets<T> {
     }
 }
 
-impl<T> NewService for VerifyWebSockets<T> {
-    type Request = (Request, Framed<T, Codec>);
+impl<T> NewService<(Request, Framed<T, Codec>)> for VerifyWebSockets<T> {
     type Response = (Request, Framed<T, Codec>);
     type Error = (HandshakeError, Framed<T, Codec>);
     type InitError = ();
@@ -33,8 +32,7 @@ impl<T> NewService for VerifyWebSockets<T> {
     }
 }
 
-impl<T> Service for VerifyWebSockets<T> {
-    type Request = (Request, Framed<T, Codec>);
+impl<T> Service<(Request, Framed<T, Codec>)> for VerifyWebSockets<T> {
     type Response = (Request, Framed<T, Codec>);
     type Error = (HandshakeError, Framed<T, Codec>);
     type Future = FutureResult<Self::Response, Self::Error>;
@@ -43,7 +41,7 @@ impl<T> Service for VerifyWebSockets<T> {
         Ok(Async::Ready(()))
     }
 
-    fn call(&mut self, (req, framed): Self::Request) -> Self::Future {
+    fn call(&mut self, (req, framed): (Request, Framed<T, Codec>)) -> Self::Future {
         match verify_handshake(&req) {
             Err(e) => Err((e, framed)).into_future(),
             Ok(_) => Ok((req, framed)).into_future(),

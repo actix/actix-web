@@ -177,7 +177,7 @@ where
         connector: &mut T,
     ) -> impl Future<Item = ClientResponse, Error = SendRequestError>
     where
-        T: Service<Request = Connect, Response = I, Error = ConnectorError>,
+        T: Service<Connect, Response = I, Error = ConnectorError>,
         I: Connection,
     {
         pipeline::send_request(self.head, self.body, connector)

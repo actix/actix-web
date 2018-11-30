@@ -134,11 +134,8 @@ impl Connector {
     /// Finish configuration process and create connector service.
     pub fn service(
         self,
-    ) -> impl Service<
-        Request = Connect,
-        Response = impl Connection,
-        Error = ConnectorError,
-    > + Clone {
+    ) -> impl Service<Connect, Response = impl Connection, Error = ConnectorError> + Clone
+    {
         #[cfg(not(feature = "ssl"))]
         {
             let connector = TimeoutService::new(
@@ -216,7 +213,7 @@ mod connect_impl {
     pub(crate) struct InnerConnector<T, Io>
     where
         Io: AsyncRead + AsyncWrite + 'static,
-        T: Service<Request = Connect, Response = (Connect, Io), Error = ConnectorError>,
+        T: Service<Connect, Response = (Connect, Io), Error = ConnectorError>,
     {
         pub(crate) tcp_pool: ConnectionPool<T, Io>,
     }
@@ -224,8 +221,7 @@ mod connect_impl {
     impl<T, Io> Clone for InnerConnector<T, Io>
     where
         Io: AsyncRead + AsyncWrite + 'static,
-        T: Service<Request = Connect, Response = (Connect, Io), Error = ConnectorError>
-            + Clone,
+        T: Service<Connect, Response = (Connect, Io), Error = ConnectorError> + Clone,
     {
         fn clone(&self) -> Self {
             InnerConnector {
@@ -234,16 +230,15 @@ mod connect_impl {
         }
     }
 
-    impl<T, Io> Service for InnerConnector<T, Io>
+    impl<T, Io> Service<Connect> for InnerConnector<T, Io>
     where
         Io: AsyncRead + AsyncWrite + 'static,
-        T: Service<Request = Connect, Response = (Connect, Io), Error = ConnectorError>,
+        T: Service<Connect, Response = (Connect, Io), Error = ConnectorError>,
     {
-        type Request = Connect;
         type Response = IoConnection<Io>;
         type Error = ConnectorError;
         type Future = Either<
-            <ConnectionPool<T, Io> as Service>::Future,
+            <ConnectionPool<T, Io> as Service<Connect>>::Future,
             FutureResult<IoConnection<Io>, ConnectorError>,
         >;
 
@@ -251,7 +246,7 @@ mod connect_impl {
             self.tcp_pool.poll_ready()
         }
 
-        fn call(&mut self, req: Self::Request) -> Self::Future {
+        fn call(&mut self, req: Connect) -> Self::Future {
             if req.is_secure() {
                 Either::B(err(ConnectorError::SslIsNotSupported))
             } else if let Err(e) = req.validate() {
@@ -295,16 +290,8 @@ mod connect_impl {
     where
         Io1: AsyncRead + AsyncWrite + 'static,
         Io2: AsyncRead + AsyncWrite + 'static,
-        T1: Service<
-                Request = Connect,
-                Response = (Connect, Io1),
-                Error = ConnectorError,
-            > + Clone,
-        T2: Service<
-                Request = Connect,
-                Response = (Connect, Io2),
-                Error = ConnectorError,
-            > + Clone,
+        T1: Service<Connect, Response = (Connect, Io1), Error = ConnectorError> + Clone,
+        T2: Service<Connect, Response = (Connect, Io2), Error = ConnectorError> + Clone,
     {
         fn clone(&self) -> Self {
             InnerConnector {
@@ -318,18 +305,9 @@ mod connect_impl {
     where
         Io1: AsyncRead + AsyncWrite + 'static,
         Io2: AsyncRead + AsyncWrite + 'static,
-        T1: Service<
-            Request = Connect,
-            Response = (Connect, Io1),
-            Error = ConnectorError,
-        >,
-        T2: Service<
-            Request = Connect,
-            Response = (Connect, Io2),
-            Error = ConnectorError,
-        >,
+        T1: Service<Connect, Response = (Connect, Io1), Error = ConnectorError>,
+        T2: Service<Connect, Response = (Connect, Io2), Error = ConnectorError>,
     {
-        type Request = Connect;
         type Response = IoEither<IoConnection<Io1>, IoConnection<Io2>>;
         type Error = ConnectorError;
         type Future = Either<
@@ -344,7 +322,7 @@ mod connect_impl {
             self.tcp_pool.poll_ready()
         }
 
-        fn call(&mut self, req: Self::Request) -> Self::Future {
+        fn call(&mut self, req: Connect) -> Self::Future {
             if let Err(e) = req.validate() {
                 Either::A(err(e))
             } else if req.is_secure() {
@@ -364,7 +342,7 @@ mod connect_impl {
     pub(crate) struct InnerConnectorResponseA<T, Io1, Io2>
     where
         Io1: AsyncRead + AsyncWrite + 'static,
-        T: Service<Request = Connect, Response = (Connect, Io1), Error = ConnectorError>,
+        T: Service<Connect, Response = (Connect, Io1), Error = ConnectorError>,
     {
         fut: <ConnectionPool<T, Io1> as Service>::Future,
         _t: PhantomData<Io2>,
@@ -372,7 +350,7 @@ mod connect_impl {
 
     impl<T, Io1, Io2> Future for InnerConnectorResponseA<T, Io1, Io2>
     where
-        T: Service<Request = Connect, Response = (Connect, Io1), Error = ConnectorError>,
+        T: Service<Connect, Response = (Connect, Io1), Error = ConnectorError>,
         Io1: AsyncRead + AsyncWrite + 'static,
         Io2: AsyncRead + AsyncWrite + 'static,
     {
@@ -390,7 +368,7 @@ mod connect_impl {
     pub(crate) struct InnerConnectorResponseB<T, Io1, Io2>
     where
         Io2: AsyncRead + AsyncWrite + 'static,
-        T: Service<Request = Connect, Response = (Connect, Io2), Error = ConnectorError>,
+        T: Service<Connect, Response = (Connect, Io2), Error = ConnectorError>,
     {
         fut: <ConnectionPool<T, Io2> as Service>::Future,
         _t: PhantomData<Io1>,
@@ -398,7 +376,7 @@ mod connect_impl {
 
     impl<T, Io1, Io2> Future for InnerConnectorResponseB<T, Io1, Io2>
     where
-        T: Service<Request = Connect, Response = (Connect, Io2), Error = ConnectorError>,
+        T: Service<Connect, Response = (Connect, Io2), Error = ConnectorError>,
         Io1: AsyncRead + AsyncWrite + 'static,
         Io2: AsyncRead + AsyncWrite + 'static,
     {

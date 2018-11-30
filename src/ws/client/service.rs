@@ -26,7 +26,7 @@ pub type DefaultClient = Client<DefaultConnector>;
 /// WebSocket's client
 pub struct Client<T>
 where
-    T: Service<Error = ConnectorError>,
+    T: Service<TcpConnect, Error = ConnectorError>,
     T::Response: AsyncRead + AsyncWrite,
 {
     connector: T,
@@ -34,7 +34,7 @@ where
 
 impl<T> Client<T>
 where
-    T: Service<Request = TcpConnect, Error = ConnectorError>,
+    T: Service<TcpConnect, Error = ConnectorError>,
     T::Response: AsyncRead + AsyncWrite,
 {
     /// Create new websocket's client factory
@@ -51,7 +51,7 @@ impl Default for Client<DefaultConnector> {
 
 impl<T> Clone for Client<T>
 where
-    T: Service<Request = TcpConnect, Error = ConnectorError> + Clone,
+    T: Service<TcpConnect, Error = ConnectorError> + Clone,
     T::Response: AsyncRead + AsyncWrite,
 {
     fn clone(&self) -> Self {
@@ -61,13 +61,12 @@ where
     }
 }
 
-impl<T> Service for Client<T>
+impl<T> Service<Connect> for Client<T>
 where
-    T: Service<Request = TcpConnect, Error = ConnectorError>,
+    T: Service<TcpConnect, Error = ConnectorError>,
     T::Response: AsyncRead + AsyncWrite + 'static,
     T::Future: 'static,
 {
-    type Request = Connect;
     type Response = Framed<T::Response, Codec>;
     type Error = ClientError;
     type Future = Either<
@@ -79,7 +78,7 @@ where
         self.connector.poll_ready().map_err(ClientError::from)
     }
 
-    fn call(&mut self, mut req: Self::Request) -> Self::Future {
+    fn call(&mut self, mut req: Connect) -> Self::Future {
         if let Some(e) = req.err.take() {
             Either::A(err(e))
         } else if let Some(e) = req.http_err.take() {

@@ -23,12 +23,11 @@ where
     }
 }
 
-impl<T, R, E> NewService for SendError<T, R, E>
+impl<T, R, E> NewService<Result<R, (E, Framed<T, Codec>)>> for SendError<T, R, E>
 where
     T: AsyncRead + AsyncWrite,
     E: ResponseError,
 {
-    type Request = Result<R, (E, Framed<T, Codec>)>;
     type Response = R;
     type Error = (E, Framed<T, Codec>);
     type InitError = ();
@@ -40,12 +39,11 @@ where
     }
 }
 
-impl<T, R, E> Service for SendError<T, R, E>
+impl<T, R, E> Service<Result<R, (E, Framed<T, Codec>)>> for SendError<T, R, E>
 where
     T: AsyncRead + AsyncWrite,
     E: ResponseError,
 {
-    type Request = Result<R, (E, Framed<T, Codec>)>;
     type Response = R;
     type Error = (E, Framed<T, Codec>);
     type Future = Either<FutureResult<R, (E, Framed<T, Codec>)>, SendErrorFut<T, R, E>>;
@@ -54,7 +52,7 @@ where
         Ok(Async::Ready(()))
     }
 
-    fn call(&mut self, req: Self::Request) -> Self::Future {
+    fn call(&mut self, req: Result<R, (E, Framed<T, Codec>)>) -> Self::Future {
         match req {
             Ok(r) => Either::A(ok(r)),
             Err((e, framed)) => {
@@ -131,12 +129,11 @@ where
     }
 }
 
-impl<T, B> NewService for SendResponse<T, B>
+impl<T, B> NewService<(Response<B>, Framed<T, Codec>)> for SendResponse<T, B>
 where
     T: AsyncRead + AsyncWrite,
     B: MessageBody,
 {
-    type Request = (Response<B>, Framed<T, Codec>);
     type Response = Framed<T, Codec>;
     type Error = Error;
     type InitError = ();
@@ -148,12 +145,11 @@ where
     }
 }
 
-impl<T, B> Service for SendResponse<T, B>
+impl<T, B> Service<(Response<B>, Framed<T, Codec>)> for SendResponse<T, B>
 where
     T: AsyncRead + AsyncWrite,
     B: MessageBody,
 {
-    type Request = (Response<B>, Framed<T, Codec>);
     type Response = Framed<T, Codec>;
     type Error = Error;
     type Future = SendResponseFut<T, B>;
@@ -162,7 +158,7 @@ where
         Ok(Async::Ready(()))
     }
 
-    fn call(&mut self, (res, framed): Self::Request) -> Self::Future {
+    fn call(&mut self, (res, framed): (Response<B>, Framed<T, Codec>)) -> Self::Future {
         let (res, body) = res.replace_body(());
         SendResponseFut {
             res: Some(Message::Item((res, body.length()))),

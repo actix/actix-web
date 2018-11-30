@@ -47,7 +47,7 @@ pub(crate) struct ConnectionPool<T, Io: AsyncRead + AsyncWrite + 'static>(
 impl<T, Io> ConnectionPool<T, Io>
 where
     Io: AsyncRead + AsyncWrite + 'static,
-    T: Service<Request = Connect, Response = (Connect, Io), Error = ConnectorError>,
+    T: Service<Connect, Response = (Connect, Io), Error = ConnectorError>,
 {
     pub(crate) fn new(
         connector: T,
@@ -83,12 +83,11 @@ where
     }
 }
 
-impl<T, Io> Service for ConnectionPool<T, Io>
+impl<T, Io> Service<Connect> for ConnectionPool<T, Io>
 where
     Io: AsyncRead + AsyncWrite + 'static,
-    T: Service<Request = Connect, Response = (Connect, Io), Error = ConnectorError>,
+    T: Service<Connect, Response = (Connect, Io), Error = ConnectorError>,
 {
-    type Request = Connect;
     type Response = IoConnection<Io>;
     type Error = ConnectorError;
     type Future = Either<
@@ -100,7 +99,7 @@ where
         self.0.poll_ready()
     }
 
-    fn call(&mut self, req: Self::Request) -> Self::Future {
+    fn call(&mut self, req: Connect) -> Self::Future {
         let key = req.key();
 
         // acquire connection
@@ -456,7 +455,7 @@ where
 impl<T, Io> Future for ConnectorPoolSupport<T, Io>
 where
     Io: AsyncRead + AsyncWrite + 'static,
-    T: Service<Request = Connect, Response = (Connect, Io), Error = ConnectorError>,
+    T: Service<Connect, Response = (Connect, Io), Error = ConnectorError>,
     T::Future: 'static,
 {
     type Item = ();
