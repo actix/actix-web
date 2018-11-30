@@ -231,6 +231,23 @@ pub trait NewServiceExt<Request>: NewService<Request> {
     }
 }
 
+impl<F, R, E, S, Request> NewService<Request> for F
+where
+    F: Fn() -> R,
+    R: IntoFuture<Item = S, Error = E>,
+    S: Service<Request>,
+{
+    type Response = S::Response;
+    type Error = S::Error;
+    type Service = S;
+    type InitError = E;
+    type Future = R::Future;
+
+    fn new_service(&self) -> Self::Future {
+        (*self)().into_future()
+    }
+}
+
 impl<T: ?Sized, R> ServiceExt<R> for T where T: Service<R> {}
 impl<T: ?Sized, R> NewServiceExt<R> for T where T: NewService<R> {}
 

@@ -173,19 +173,18 @@ impl Connector {
         Connector { resolver }
     }
 
-    // /// Create new default connector service
-    // pub fn new_service_with_config<E>(
-    //     cfg: ResolverConfig,
-    //     opts: ResolverOpts,
-    // ) -> impl NewService<
-    //     Connect,
-    //     Response = (Connect, TcpStream),
-    //     Error = ConnectorError,
-    //     InitError = E,
-    //     Service = impl Service<Connect, Response = (Connect, TcpStream), Error = ConnectorError> + Clone,
-    // > + Clone {
-    //     move || -> FutureResult<Connector, E> { ok(Connector::new(cfg.clone(), opts)) }
-    // }
+    /// Create new default connector service
+    pub fn new_service_with_config<E>(
+        cfg: ResolverConfig,
+        opts: ResolverOpts,
+    ) -> impl NewService<
+        Connect,
+        Response = (Connect, TcpStream),
+        Error = ConnectorError,
+        InitError = E,
+    > + Clone {
+        move || -> FutureResult<Connector, E> { ok(Connector::new(cfg.clone(), opts)) }
+    }
 }
 
 impl Clone for Connector {

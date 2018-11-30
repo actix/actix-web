@@ -192,8 +192,7 @@ mod tests {
     use service::{IntoNewService, NewServiceExt, Service, ServiceExt};
 
     struct Srv;
-    impl Service for Srv {
-        type Request = ();
+    impl Service<()> for Srv {
         type Response = ();
         type Error = ();
         type Future = FutureResult<(), ()>;
