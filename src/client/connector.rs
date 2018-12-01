@@ -272,12 +272,12 @@ mod connect_impl {
         Io1: AsyncRead + AsyncWrite + 'static,
         Io2: AsyncRead + AsyncWrite + 'static,
         T1: Service<
-            Request = Connect,
+            Connect,
             Response = (Connect, Io1),
             Error = ConnectorError,
         >,
         T2: Service<
-            Request = Connect,
+            Connect,
             Response = (Connect, Io2),
             Error = ConnectorError,
         >,
@@ -301,7 +301,7 @@ mod connect_impl {
         }
     }
 
-    impl<T1, T2, Io1, Io2> Service for InnerConnector<T1, T2, Io1, Io2>
+    impl<T1, T2, Io1, Io2> Service<Connect> for InnerConnector<T1, T2, Io1, Io2>
     where
         Io1: AsyncRead + AsyncWrite + 'static,
         Io2: AsyncRead + AsyncWrite + 'static,
@@ -344,7 +344,7 @@ mod connect_impl {
         Io1: AsyncRead + AsyncWrite + 'static,
         T: Service<Connect, Response = (Connect, Io1), Error = ConnectorError>,
     {
-        fut: <ConnectionPool<T, Io1> as Service>::Future,
+        fut: <ConnectionPool<T, Io1> as Service<Connect>>::Future,
         _t: PhantomData<Io2>,
     }
 
@@ -370,7 +370,7 @@ mod connect_impl {
         Io2: AsyncRead + AsyncWrite + 'static,
         T: Service<Connect, Response = (Connect, Io2), Error = ConnectorError>,
     {
-        fut: <ConnectionPool<T, Io2> as Service>::Future,
+        fut: <ConnectionPool<T, Io2> as Service<Connect>>::Future,
         _t: PhantomData<Io1>,
     }
 
