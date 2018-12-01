@@ -210,6 +210,15 @@ impl From<String> for Binary {
     }
 }
 
+impl From<Cow<'static, str>> for Binary {
+    fn from(s: Cow<'static, str>) -> Binary {
+        match s {
+            Cow::Borrowed(s) => Binary::Slice(s.as_ref()),
+            Cow::Owned(s) => Binary::Bytes(Bytes::from(s)),
+        }
+    }
+}
+
 impl<'a> From<&'a String> for Binary {
     fn from(s: &'a String) -> Binary {
         Binary::Bytes(Bytes::from(AsRef::<[u8]>::as_ref(&s)))
@@ -298,6 +307,16 @@ mod tests {
     }
 
     #[test]
+    fn test_cow_str() {
+        let cow: Cow<'static, str> = Cow::Borrowed("test");
+        assert_eq!(Binary::from(cow.clone()).len(), 4);
+        assert_eq!(Binary::from(cow.clone()).as_ref(), b"test");
+        let cow: Cow<'static, str> = Cow::Owned("test".to_owned());
+        assert_eq!(Binary::from(cow.clone()).len(), 4);
+        assert_eq!(Binary::from(cow.clone()).as_ref(), b"test");
+    }
+
+    #[test]
     fn test_static_bytes() {
         assert_eq!(Binary::from(b"test".as_ref()).len(), 4);
         assert_eq!(Binary::from(b"test".as_ref()).as_ref(), b"test");
@@ -315,6 +334,16 @@ mod tests {
     fn test_bytes() {
         assert_eq!(Binary::from(Bytes::from("test")).len(), 4);
         assert_eq!(Binary::from(Bytes::from("test")).as_ref(), b"test");
+    }
+
+    #[test]
+    fn test_cow_bytes() {
+        let cow: Cow<'static, [u8]> = Cow::Borrowed(b"test");
+        assert_eq!(Binary::from(cow.clone()).len(), 4);
+        assert_eq!(Binary::from(cow.clone()).as_ref(), b"test");
+        let cow: Cow<'static, [u8]> = Cow::Owned(Vec::from("test"));
+        assert_eq!(Binary::from(cow.clone()).len(), 4);
+        assert_eq!(Binary::from(cow.clone()).as_ref(), b"test");
     }
 
     #[test]
