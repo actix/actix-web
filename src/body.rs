@@ -1,5 +1,6 @@
 use bytes::{Bytes, BytesMut};
 use futures::Stream;
+use std::borrow::Cow;
 use std::sync::Arc;
 use std::{fmt, mem};
 
@@ -191,6 +192,15 @@ impl From<&'static [u8]> for Binary {
 impl From<Vec<u8>> for Binary {
     fn from(vec: Vec<u8>) -> Binary {
         Binary::Bytes(Bytes::from(vec))
+    }
+}
+
+impl From<Cow<'static, [u8]>> for Binary {
+    fn from(b: Cow<'static, [u8]>) -> Binary {
+        match b {
+            Cow::Borrowed(s) => Binary::Slice(s),
+            Cow::Owned(vec) => Binary::Bytes(Bytes::from(vec)),
+        }
     }
 }
 
