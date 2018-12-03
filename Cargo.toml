@@ -127,7 +127,7 @@ webpki-roots = { version = "0.15", optional = true }
 tokio-uds = { version="0.2", optional = true }
 
 [dev-dependencies]
-env_logger = "0.5"
+env_logger = "0.6"
 serde_derive = "1.0"
 
 [build-dependencies]
