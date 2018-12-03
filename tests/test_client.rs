@@ -179,7 +179,7 @@ fn test_client_gzip_encoding_large() {
 #[test]
 fn test_client_gzip_encoding_large_random() {
     let data = rand::thread_rng()
-        .gen_ascii_chars()
+        .sample_iter(&rand::distributions::Alphanumeric)
         .take(100_000)
         .collect::<String>();
 
@@ -247,7 +247,7 @@ fn test_client_brotli_encoding() {
 #[test]
 fn test_client_brotli_encoding_large_random() {
     let data = rand::thread_rng()
-        .gen_ascii_chars()
+        .sample_iter(&rand::distributions::Alphanumeric)
         .take(70_000)
         .collect::<String>();
 
@@ -309,7 +309,7 @@ fn test_client_deflate_encoding() {
 #[test]
 fn test_client_deflate_encoding_large_random() {
     let data = rand::thread_rng()
-        .gen_ascii_chars()
+        .sample_iter(&rand::distributions::Alphanumeric)
         .take(70_000)
         .collect::<String>();
 
