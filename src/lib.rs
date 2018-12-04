@@ -55,8 +55,7 @@ extern crate webpki;
 #[cfg(feature = "rust-tls")]
 extern crate webpki_roots;
 
-#[doc(hidden)]
-pub mod cell;
+mod cell;
 pub mod cloneable;
 pub mod codec;
 pub mod connector;

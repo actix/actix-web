@@ -7,8 +7,7 @@ use std::cell::{Ref, RefCell, RefMut};
 use std::fmt;
 use std::rc::Rc;
 
-#[doc(hidden)]
-pub struct Cell<T> {
+pub(crate) struct Cell<T> {
     #[cfg(feature = "cell")]
     inner: Rc<UnsafeCell<T>>,
     #[cfg(not(feature = "cell"))]
