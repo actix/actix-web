@@ -76,7 +76,7 @@ mime = "0.3"
 mime_guess = "2.0.0-alpha"
 num_cpus = "1.0"
 percent-encoding = "1.0"
-rand = "0.5"
+rand = "0.6"
 regex = "1.0"
 serde = "1.0"
 serde_json = "1.0"
@@ -87,7 +87,7 @@ encoding = "0.2"
 language-tags = "0.2"
 lazy_static = "1.0"
 lazycell = "1.0.0"
-parking_lot = "0.6"
+parking_lot = "0.7"
 serde_urlencoded = "^0.5.3"
 url = { version="1.7", features=["query_encoding"] }
 cookie = { version="0.11", features=["percent-encode"] }
@@ -127,7 +127,7 @@ webpki-roots = { version = "0.15", optional = true }
 tokio-uds = { version="0.2", optional = true }
 
 [dev-dependencies]
-env_logger = "0.5"
+env_logger = "0.6"
 serde_derive = "1.0"
 
 [build-dependencies]
