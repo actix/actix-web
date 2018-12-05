@@ -942,7 +942,7 @@ impl Handler<Connect> for ClientConnector {
         }
 
         let host = uri.host().unwrap().to_owned();
-        let port = uri.port().unwrap_or_else(|| proto.port());
+        let port = uri.port_part().map(|port| port.as_u16()).unwrap_or_else(|| proto.port());
         let key = Key {
             host,
             port,

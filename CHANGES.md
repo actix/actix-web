@@ -8,6 +8,8 @@
 
 * `QueryConfig` and `PathConfig` are made public.
 
+* `AsyncResult::async` is changed to `AsyncResult::future` as `async` is reserved keyword in 2018 edition.
+
 ### Added
 
 * By default, `Path` extractor now percent decode all characters. This behaviour can be disabled
