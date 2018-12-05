@@ -25,6 +25,8 @@
     }
     ```
 
+* If you used `AsyncResult::async` you need to replace it with `AsyncResult::future`
+
 
 ## 0.7.4
 

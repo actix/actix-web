@@ -76,7 +76,7 @@ impl ResponseError for CsrfError {
 }
 
 fn uri_origin(uri: &Uri) -> Option<String> {
-    match (uri.scheme_part(), uri.host(), uri.port()) {
+    match (uri.scheme_part(), uri.host(), uri.port_part().map(|port| port.as_u16())) {
         (Some(scheme), Some(host), Some(port)) => {
             Some(format!("{}://{}:{}", scheme, host, port))
         }

@@ -356,7 +356,7 @@ impl<S: 'static> RouteHandler<S> for Scope<S> {
         if self.middlewares.is_empty() {
             self.router.handle(&req2)
         } else {
-            AsyncResult::async(Box::new(Compose::new(
+            AsyncResult::future(Box::new(Compose::new(
                 req2,
                 Rc::clone(&self.router),
                 Rc::clone(&self.middlewares),

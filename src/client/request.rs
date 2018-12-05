@@ -631,7 +631,7 @@ impl ClientRequestBuilder {
                     if !parts.headers.contains_key(header::HOST) {
                         let mut wrt = BytesMut::with_capacity(host.len() + 5).writer();
 
-                        let _ = match parts.uri.port() {
+                        let _ = match parts.uri.port_part().map(|port| port.as_u16()) {
                             None | Some(80) | Some(443) => write!(wrt, "{}", host),
                             Some(port) => write!(wrt, "{}:{}", host, port),
                         };
