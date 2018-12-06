@@ -17,7 +17,7 @@ where
 impl<T, F, In, Out, Request> Apply<T, F, In, Out, Request>
 where
     T: Service<Request>,
-    F: Fn(In, &mut T) -> Out,
+    F: FnMut(In, &mut T) -> Out,
     Out: IntoFuture,
 {
     /// Create new `Apply` combinator
@@ -47,7 +47,7 @@ where
 impl<T, F, In, Out, Request> Service<In> for Apply<T, F, In, Out, Request>
 where
     T: Service<Request, Error = Out::Error>,
-    F: Fn(In, &mut T) -> Out,
+    F: FnMut(In, &mut T) -> Out,
     Out: IntoFuture,
 {
     type Response = <Out::Future as Future>::Item;
@@ -76,7 +76,7 @@ where
 impl<T, F, In, Out, Request> ApplyNewService<T, F, In, Out, Request>
 where
     T: NewService<Request>,
-    F: Fn(In, &mut T::Service) -> Out,
+    F: FnMut(In, &mut T::Service) -> Out,
     Out: IntoFuture,
 {
     /// Create new `ApplyNewService` new service instance
@@ -92,7 +92,7 @@ where
 impl<T, F, In, Out, Request> Clone for ApplyNewService<T, F, In, Out, Request>
 where
     T: NewService<Request> + Clone,
-    F: Fn(Out, &mut T::Service) -> Out + Clone,
+    F: FnMut(Out, &mut T::Service) -> Out + Clone,
     Out: IntoFuture,
 {
     fn clone(&self) -> Self {
@@ -107,7 +107,7 @@ where
 impl<T, F, In, Out, Request> NewService<In> for ApplyNewService<T, F, In, Out, Request>
 where
     T: NewService<Request, Error = Out::Error>,
-    F: Fn(In, &mut T::Service) -> Out + Clone,
+    F: FnMut(In, &mut T::Service) -> Out + Clone,
     Out: IntoFuture,
 {
     type Response = <Out::Future as Future>::Item;
@@ -125,7 +125,7 @@ where
 pub struct ApplyNewServiceFuture<T, F, In, Out, Request>
 where
     T: NewService<Request>,
-    F: Fn(In, &mut T::Service) -> Out,
+    F: FnMut(In, &mut T::Service) -> Out,
     Out: IntoFuture,
 {
     fut: T::Future,
@@ -136,7 +136,7 @@ where
 impl<T, F, In, Out, Request> ApplyNewServiceFuture<T, F, In, Out, Request>
 where
     T: NewService<Request>,
-    F: Fn(In, &mut T::Service) -> Out,
+    F: FnMut(In, &mut T::Service) -> Out,
     Out: IntoFuture,
 {
     fn new(fut: T::Future, f: F) -> Self {
@@ -151,7 +151,7 @@ where
 impl<T, F, In, Out, Request> Future for ApplyNewServiceFuture<T, F, In, Out, Request>
 where
     T: NewService<Request>,
-    F: Fn(In, &mut T::Service) -> Out,
+    F: FnMut(In, &mut T::Service) -> Out,
     Out: IntoFuture,
 {
     type Item = Apply<T::Service, F, In, Out, Request>;
