@@ -73,9 +73,9 @@ impl Response {
 
 #[cfg(test)]
 mod tests {
-    use body::Body;
+    use crate::body::Body;
+    use crate::response::Response;
     use http::StatusCode;
-    use response::Response;
 
     #[test]
     fn test_build() {

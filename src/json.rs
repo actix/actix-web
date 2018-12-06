@@ -137,8 +137,9 @@ mod tests {
     use bytes::Bytes;
     use futures::Async;
     use http::header;
+    use serde_derive::{Deserialize, Serialize};
 
-    use test::TestRequest;
+    use crate::test::TestRequest;
 
     impl PartialEq for JsonPayloadError {
         fn eq(&self, other: &JsonPayloadError) -> bool {

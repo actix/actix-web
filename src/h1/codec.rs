@@ -197,10 +197,10 @@ mod tests {
     use tokio_io::{AsyncRead, AsyncWrite};
 
     use super::*;
-    use error::ParseError;
-    use h1::Message;
-    use httpmessage::HttpMessage;
-    use request::Request;
+    use crate::error::ParseError;
+    use crate::h1::Message;
+    use crate::httpmessage::HttpMessage;
+    use crate::request::Request;
 
     #[test]
     fn test_http_request_chunked_payload_and_next_message() {

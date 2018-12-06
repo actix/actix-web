@@ -612,9 +612,9 @@ mod tests {
     use tokio_io::{AsyncRead, AsyncWrite};
 
     use super::*;
-    use error::ParseError;
-    use httpmessage::HttpMessage;
-    use message::Head;
+    use crate::error::ParseError;
+    use crate::httpmessage::HttpMessage;
+    use crate::message::Head;
 
     impl PayloadType {
         fn unwrap(self) -> PayloadDecoder {

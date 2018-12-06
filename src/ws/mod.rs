@@ -194,8 +194,8 @@ pub fn handshake_response(req: &Request) -> ResponseBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test::TestRequest;
     use http::{header, Method};
-    use test::TestRequest;
 
     #[test]
     fn test_handshake() {

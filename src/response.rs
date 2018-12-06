@@ -855,9 +855,9 @@ impl ResponsePool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use body::Body;
-    use http;
-    use http::header::{HeaderValue, CONTENT_TYPE, COOKIE};
+    use crate::body::Body;
+    use crate::http;
+    use crate::http::header::{HeaderValue, CONTENT_TYPE, COOKIE};
 
     // use test::TestRequest;
 
