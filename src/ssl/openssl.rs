@@ -6,9 +6,9 @@ use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_openssl::{AcceptAsync, ConnectAsync, SslAcceptorExt, SslConnectorExt, SslStream};
 
 use super::MAX_CONN_COUNTER;
-use counter::{Counter, CounterGuard};
-use resolver::RequestHost;
-use service::{NewService, Service};
+use crate::counter::{Counter, CounterGuard};
+use crate::resolver::RequestHost;
+use crate::service::{NewService, Service};
 
 /// Support `SSL` connections via openssl package
 ///

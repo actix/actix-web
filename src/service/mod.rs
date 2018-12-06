@@ -35,7 +35,7 @@ pub trait ServiceExt<Request>: Service<Request> {
         Self: Sized,
         T: Service<Req, Error = Out::Error>,
         I: IntoService<T, Req>,
-        F: FnMut(Self::Response, &mut T) -> Out,
+        F: Fn(Self::Response, &mut T) -> Out,
         Out: IntoFuture<Error = Self::Error>,
     {
         self.and_then(Apply::new(service.into_service(), f))
@@ -158,7 +158,7 @@ pub trait NewServiceExt<Request>: NewService<Request> {
         Self: Sized,
         T: NewService<Req, InitError = Self::InitError, Error = Out::Error>,
         I: IntoNewService<T, Req>,
-        F: FnMut(Self::Response, &mut T::Service) -> Out + Clone,
+        F: Fn(Self::Response, &mut T::Service) -> Out + Clone,
         Out: IntoFuture<Error = Self::Error>,
     {
         self.and_then(ApplyNewService::new(service, f))

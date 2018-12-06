@@ -159,7 +159,7 @@ mod tests {
     use futures::future::{err, FutureResult};
 
     use super::*;
-    use service::{IntoNewService, NewServiceExt, Service, ServiceExt};
+    use crate::service::{IntoNewService, NewServiceExt, Service, ServiceExt};
 
     struct Srv;
     impl Service<()> for Srv {

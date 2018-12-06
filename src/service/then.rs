@@ -226,7 +226,7 @@ mod tests {
     use std::rc::Rc;
 
     use super::*;
-    use service::{NewServiceExt, ServiceExt};
+    use crate::service::{NewServiceExt, ServiceExt};
 
     #[derive(Clone)]
     struct Srv1(Rc<Cell<usize>>);
