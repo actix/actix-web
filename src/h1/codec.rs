@@ -2,21 +2,22 @@
 use std::fmt;
 use std::io::{self, Write};
 
+use bitflags::bitflags;
 use bytes::{BufMut, Bytes, BytesMut};
+use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING};
+use http::{Method, StatusCode, Version};
 use tokio_codec::{Decoder, Encoder};
 
 use super::decoder::{PayloadDecoder, PayloadItem, PayloadType};
 use super::{decoder, encoder};
 use super::{Message, MessageType};
-use body::BodyLength;
-use config::ServiceConfig;
-use error::ParseError;
-use helpers;
-use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING};
-use http::{Method, StatusCode, Version};
-use message::{ConnectionType, Head, ResponseHead};
-use request::Request;
-use response::Response;
+use crate::body::BodyLength;
+use crate::config::ServiceConfig;
+use crate::error::ParseError;
+use crate::helpers;
+use crate::message::{ConnectionType, Head, ResponseHead};
+use crate::request::Request;
+use crate::response::Response;
 
 bitflags! {
     struct Flags: u8 {

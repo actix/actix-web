@@ -29,7 +29,9 @@ fn main() {
                     let mut res = Response::Ok();
                     res.header("x-head", HeaderValue::from_static("dummy value!"));
                     future::ok::<_, ()>(res.body("Hello world!"))
-                }).map(|_| ())
-        }).unwrap()
+                })
+                .map(|_| ())
+        })
+        .unwrap()
         .run();
 }

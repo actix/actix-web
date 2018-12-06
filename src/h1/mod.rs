@@ -16,7 +16,7 @@ pub use self::codec::Codec;
 pub use self::dispatcher::Dispatcher;
 pub use self::service::{H1Service, H1ServiceHandler, OneRequest};
 
-use request::Request;
+use crate::request::Request;
 
 /// H1 service response type
 pub enum H1ServiceResult<T> {

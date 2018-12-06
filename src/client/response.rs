@@ -5,10 +5,10 @@ use bytes::Bytes;
 use futures::{Async, Poll, Stream};
 use http::{HeaderMap, StatusCode, Version};
 
-use body::PayloadStream;
-use error::PayloadError;
-use httpmessage::HttpMessage;
-use message::{Head, ResponseHead};
+use crate::body::PayloadStream;
+use crate::error::PayloadError;
+use crate::httpmessage::HttpMessage;
+use crate::message::{Head, ResponseHead};
 
 use super::pipeline::Payload;
 

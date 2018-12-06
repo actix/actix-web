@@ -20,8 +20,8 @@ use tokio_timer::Error as TimerError;
 // re-exports
 pub use cookie::ParseError as CookieParseError;
 
-use body::Body;
-use response::{Response, ResponseParts};
+use crate::body::Body;
+use crate::response::{Response, ResponseParts};
 
 /// A specialized [`Result`](https://doc.rust-lang.org/std/result/enum.Result.html)
 /// for actix web operations
@@ -186,7 +186,8 @@ impl<T: ResponseError> From<T> for Error {
 /// Compatibility for `failure::Error`
 impl<T> ResponseError for failure::Compat<T> where
     T: fmt::Display + fmt::Debug + Sync + Send + 'static
-{}
+{
+}
 
 impl From<failure::Error> for Error {
     fn from(err: failure::Error) -> Error {

@@ -5,10 +5,9 @@ use cookie::Cookie;
 use http::header::{HeaderName, HeaderValue};
 use http::{Error as HttpError, HttpTryFrom};
 
-use client::{ClientRequest, ClientRequestBuilder};
-use header::IntoHeaderValue;
-
 use super::ClientError;
+use crate::client::{ClientRequest, ClientRequestBuilder};
+use crate::header::IntoHeaderValue;
 
 /// `WebSocket` connection
 pub struct Connect {

@@ -12,10 +12,10 @@ use http::{Error as HttpError, HeaderMap, HttpTryFrom, StatusCode, Version};
 use serde::Serialize;
 use serde_json;
 
-use body::{Body, BodyStream, MessageBody, ResponseBody};
-use error::Error;
-use header::{Header, IntoHeaderValue};
-use message::{ConnectionType, Head, ResponseHead};
+use crate::body::{Body, BodyStream, MessageBody, ResponseBody};
+use crate::error::Error;
+use crate::header::{Header, IntoHeaderValue};
+use crate::message::{ConnectionType, Head, ResponseHead};
 
 /// max write buffer size 64k
 pub(crate) const MAX_WRITE_BUFFER_SIZE: usize = 65_536;
@@ -161,7 +161,8 @@ impl<B: MessageBody> Response<B> {
         HeaderValue::from_str(&cookie.to_string())
             .map(|c| {
                 h.append(header::SET_COOKIE, c);
-            }).map_err(|e| e.into())
+            })
+            .map_err(|e| e.into())
     }
 
     /// Remove all cookies with the given name from this response. Returns

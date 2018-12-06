@@ -5,14 +5,15 @@ use std::net;
 use actix_net::codec::Framed;
 use actix_net::service::{IntoNewService, NewService, Service};
 use futures::future::{ok, FutureResult};
-use futures::{Async, Future, Poll, Stream};
+use futures::{try_ready, Async, Future, Poll, Stream};
+use log::error;
 use tokio_io::{AsyncRead, AsyncWrite};
 
-use body::MessageBody;
-use config::{KeepAlive, ServiceConfig};
-use error::{DispatchError, ParseError};
-use request::Request;
-use response::Response;
+use crate::body::MessageBody;
+use crate::config::{KeepAlive, ServiceConfig};
+use crate::error::{DispatchError, ParseError};
+use crate::request::Request;
+use crate::response::Response;
 
 use super::codec::Codec;
 use super::dispatcher::Dispatcher;
@@ -174,9 +175,11 @@ where
     pub fn server_address<U: net::ToSocketAddrs>(mut self, addr: U) -> Self {
         match addr.to_socket_addrs() {
             Err(err) => error!("Can not convert to SocketAddr: {}", err),
-            Ok(mut addrs) => if let Some(addr) = addrs.next() {
-                self.addr = addr;
-            },
+            Ok(mut addrs) => {
+                if let Some(addr) = addrs.next() {
+                    self.addr = addr;
+                }
+            }
         }
         self
     }

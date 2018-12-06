@@ -5,19 +5,19 @@ use std::time::Instant;
 
 use actix_net::codec::Framed;
 use actix_net::service::Service;
-
-use futures::{Async, Future, Poll, Sink, Stream};
+use bitflags::bitflags;
+use futures::{try_ready, Async, Future, Poll, Sink, Stream};
+use log::{debug, error, trace};
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_timer::Delay;
 
-use error::{ParseError, PayloadError};
-use payload::{Payload, PayloadSender, PayloadStatus, PayloadWriter};
-
-use body::{Body, BodyLength, MessageBody, ResponseBody};
-use config::ServiceConfig;
-use error::DispatchError;
-use request::Request;
-use response::Response;
+use crate::body::{Body, BodyLength, MessageBody, ResponseBody};
+use crate::config::ServiceConfig;
+use crate::error::DispatchError;
+use crate::error::{ParseError, PayloadError};
+use crate::payload::{Payload, PayloadSender, PayloadStatus, PayloadWriter};
+use crate::request::Request;
+use crate::response::Response;
 
 use super::codec::Codec;
 use super::{H1ServiceResult, Message, MessageType};
@@ -224,7 +224,7 @@ where
                 },
                 State::ServiceCall(mut fut) => {
                     match fut.poll().map_err(DispatchError::Service)? {
-                        Async::Ready(mut res) => {
+                        Async::Ready(res) => {
                             let (res, body) = res.replace_body(());
                             Some(self.send_response(res, body)?)
                         }

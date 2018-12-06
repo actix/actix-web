@@ -62,7 +62,8 @@ fn test_simple() {
                                 SendResponse::send(
                                     framed,
                                     ws::handshake_response(&req).finish(),
-                                ).map_err(|_| ())
+                                )
+                                .map_err(|_| ())
                                 .and_then(|framed| {
                                     // start websocket service
                                     let framed = framed.into_framed(ws::Codec::new());

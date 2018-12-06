@@ -4,7 +4,7 @@ use std::{fmt, mem};
 use bytes::{Bytes, BytesMut};
 use futures::{Async, Poll, Stream};
 
-use error::{Error, PayloadError};
+use crate::error::{Error, PayloadError};
 
 /// Type represent streaming payload
 pub type PayloadStream = Box<dyn Stream<Item = Bytes, Error = PayloadError>>;

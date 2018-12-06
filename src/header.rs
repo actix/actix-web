@@ -1,13 +1,12 @@
 //! Various http headers
 
 use bytes::Bytes;
+pub use http::header::*;
+use http::Error as HttpError;
 use mime::Mime;
-use modhttp::Error as HttpError;
 
-pub use modhttp::header::*;
-
-use error::ParseError;
-use httpmessage::HttpMessage;
+use crate::error::ParseError;
+use crate::httpmessage::HttpMessage;
 
 #[doc(hidden)]
 /// A trait for any object that will represent a header field and value.

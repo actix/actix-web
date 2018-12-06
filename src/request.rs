@@ -4,11 +4,10 @@ use std::rc::Rc;
 
 use http::{header, HeaderMap, Method, Uri, Version};
 
-use extensions::Extensions;
-use httpmessage::HttpMessage;
-use payload::Payload;
-
-use message::{Message, MessagePool, RequestHead};
+use crate::extensions::Extensions;
+use crate::httpmessage::HttpMessage;
+use crate::message::{Message, MessagePool, RequestHead};
+use crate::payload::Payload;
 
 /// Request
 pub struct Request {

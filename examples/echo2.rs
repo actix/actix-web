@@ -37,6 +37,7 @@ fn main() {
                 .server_hostname("localhost")
                 .finish(|_req: Request| handle_request(_req))
                 .map(|_| ())
-        }).unwrap()
+        })
+        .unwrap()
         .run();
 }

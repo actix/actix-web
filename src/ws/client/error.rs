@@ -2,12 +2,11 @@
 use std::io;
 
 use actix_net::connector::ConnectorError;
-use http::header::HeaderValue;
-use http::StatusCode;
+use failure::Fail;
+use http::{header::HeaderValue, Error as HttpError, StatusCode};
 
-use error::ParseError;
-use http::Error as HttpError;
-use ws::ProtocolError;
+use crate::error::ParseError;
+use crate::ws::ProtocolError;
 
 /// Websocket client error
 #[derive(Fail, Debug)]

@@ -209,7 +209,8 @@ fn test_content_length() {
                 StatusCode::NOT_FOUND,
             ];
             future::ok::<_, ()>(Response::new(statuses[indx]))
-        }).map(|_| ())
+        })
+        .map(|_| ())
     });
 
     let header = HeaderName::from_static("content-length");
@@ -348,7 +349,8 @@ fn test_head_binary() {
     let mut srv = test::TestServer::with_factory(|| {
         h1::H1Service::new(|_| {
             ok::<_, ()>(Response::Ok().content_length(STR.len() as u64).body(STR))
-        }).map(|_| ())
+        })
+        .map(|_| ())
     });
 
     let req = client::ClientRequest::head(srv.url("/")).finish().unwrap();
@@ -396,7 +398,8 @@ fn test_body_length() {
                 Response::Ok()
                     .body(Body::from_message(body::SizedStream::new(STR.len(), body))),
             )
-        }).map(|_| ())
+        })
+        .map(|_| ())
     });
 
     let req = srv.get().finish().unwrap();
@@ -414,7 +417,8 @@ fn test_body_chunked_explicit() {
         h1::H1Service::new(|_| {
             let body = once::<_, Error>(Ok(Bytes::from_static(STR.as_ref())));
             ok::<_, ()>(Response::Ok().streaming(body))
-        }).map(|_| ())
+        })
+        .map(|_| ())
     });
 
     let req = srv.get().finish().unwrap();
@@ -434,7 +438,8 @@ fn test_body_chunked_implicit() {
         h1::H1Service::new(|_| {
             let body = once::<_, Error>(Ok(Bytes::from_static(STR.as_ref())));
             ok::<_, ()>(Response::Ok().streaming(body))
-        }).map(|_| ())
+        })
+        .map(|_| ())
     });
 
     let req = srv.get().finish().unwrap();
@@ -456,7 +461,8 @@ fn test_response_http_error_handling() {
                     .header(http::header::CONTENT_TYPE, broken_header)
                     .body(STR),
             )
-        }).map(|_| ())
+        })
+        .map(|_| ())
     });
 
     let req = srv.get().finish().unwrap();

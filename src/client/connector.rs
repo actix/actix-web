@@ -143,7 +143,8 @@ impl Connector {
                 self.resolver
                     .map_err(ConnectorError::from)
                     .and_then(TcpConnector::default().from_err()),
-            ).map_err(|e| match e {
+            )
+            .map_err(|e| match e {
                 TimeoutError::Service(e) => e,
                 TimeoutError::Timeout => ConnectorError::Timeout,
             });
@@ -170,7 +171,8 @@ impl Connector {
                         OpensslConnector::service(self.connector)
                             .map_err(ConnectorError::SslError),
                     ),
-            ).map_err(|e| match e {
+            )
+            .map_err(|e| match e {
                 TimeoutError::Service(e) => e,
                 TimeoutError::Timeout => ConnectorError::Timeout,
             });
@@ -180,7 +182,8 @@ impl Connector {
                 self.resolver
                     .map_err(ConnectorError::from)
                     .and_then(TcpConnector::default().from_err()),
-            ).map_err(|e| match e {
+            )
+            .map_err(|e| match e {
                 TimeoutError::Service(e) => e,
                 TimeoutError::Timeout => ConnectorError::Timeout,
             });
@@ -271,16 +274,8 @@ mod connect_impl {
     where
         Io1: AsyncRead + AsyncWrite + 'static,
         Io2: AsyncRead + AsyncWrite + 'static,
-        T1: Service<
-            Connect,
-            Response = (Connect, Io1),
-            Error = ConnectorError,
-        >,
-        T2: Service<
-            Connect,
-            Response = (Connect, Io2),
-            Error = ConnectorError,
-        >,
+        T1: Service<Connect, Response = (Connect, Io1), Error = ConnectorError>,
+        T2: Service<Connect, Response = (Connect, Io2), Error = ConnectorError>,
     {
         pub(crate) tcp_pool: ConnectionPool<T1, Io1>,
         pub(crate) ssl_pool: ConnectionPool<T2, Io2>,

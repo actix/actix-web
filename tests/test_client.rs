@@ -91,7 +91,8 @@ fn test_with_query_parameter() {
                 } else {
                     ok::<_, ()>(Response::BadRequest().finish())
                 }
-            }).map(|_| ())
+            })
+            .map(|_| ())
     });
     let mut connector = srv.new_connector();
 

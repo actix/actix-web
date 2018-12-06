@@ -10,10 +10,10 @@ use tokio_io::{AsyncRead, AsyncWrite};
 use super::error::{ConnectorError, SendRequestError};
 use super::response::ClientResponse;
 use super::{Connect, Connection};
-use body::{BodyLength, MessageBody, PayloadStream};
-use error::PayloadError;
-use h1;
-use message::RequestHead;
+use crate::body::{BodyLength, MessageBody, PayloadStream};
+use crate::error::PayloadError;
+use crate::h1;
+use crate::message::RequestHead;
 
 pub(crate) fn send_request<T, I, B>(
     head: RequestHead,
@@ -174,14 +174,16 @@ impl<Io: Connection> Stream for Payload<Io> {
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
         match self.framed.as_mut().unwrap().poll()? {
             Async::NotReady => Ok(Async::NotReady),
-            Async::Ready(Some(chunk)) => if let Some(chunk) = chunk {
-                Ok(Async::Ready(Some(chunk)))
-            } else {
-                let framed = self.framed.take().unwrap();
-                let force_close = framed.get_codec().keepalive();
-                release_connection(framed, force_close);
-                Ok(Async::Ready(None))
-            },
+            Async::Ready(Some(chunk)) => {
+                if let Some(chunk) = chunk {
+                    Ok(Async::Ready(Some(chunk)))
+                } else {
+                    let framed = self.framed.take().unwrap();
+                    let force_close = framed.get_codec().keepalive();
+                    release_connection(framed, force_close);
+                    Ok(Async::Ready(None))
+                }
+            }
             Async::Ready(None) => Ok(Async::Ready(None)),
         }
     }

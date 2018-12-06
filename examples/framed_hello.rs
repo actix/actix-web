@@ -29,6 +29,7 @@ fn main() {
                         .map_err(|_| ())
                         .map(|_| ())
                 })
-        }).unwrap()
+        })
+        .unwrap()
         .run();
 }

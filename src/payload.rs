@@ -9,7 +9,7 @@ use std::cmp;
 use std::collections::VecDeque;
 use std::rc::{Rc, Weak};
 
-use error::PayloadError;
+use crate::error::PayloadError;
 
 /// max buffer size 32k
 pub(crate) const MAX_BUFFER_SIZE: usize = 32_768;
@@ -515,7 +515,8 @@ where
             .fold(BytesMut::new(), |mut b, c| {
                 b.extend_from_slice(c);
                 b
-            }).freeze()
+            })
+            .freeze()
     }
 }
 
@@ -547,7 +548,8 @@ mod tests {
 
                 let res: Result<(), ()> = Ok(());
                 result(res)
-            })).unwrap();
+            }))
+            .unwrap();
     }
 
     #[test]
@@ -571,7 +573,8 @@ mod tests {
 
                 let res: Result<(), ()> = Ok(());
                 result(res)
-            })).unwrap();
+            }))
+            .unwrap();
     }
 
     #[test]
@@ -588,7 +591,8 @@ mod tests {
                 payload.readany().err().unwrap();
                 let res: Result<(), ()> = Ok(());
                 result(res)
-            })).unwrap();
+            }))
+            .unwrap();
     }
 
     #[test]
@@ -616,7 +620,8 @@ mod tests {
 
                 let res: Result<(), ()> = Ok(());
                 result(res)
-            })).unwrap();
+            }))
+            .unwrap();
     }
 
     #[test]
@@ -649,7 +654,8 @@ mod tests {
 
                 let res: Result<(), ()> = Ok(());
                 result(res)
-            })).unwrap();
+            }))
+            .unwrap();
     }
 
     #[test]
@@ -682,7 +688,8 @@ mod tests {
 
                 let res: Result<(), ()> = Ok(());
                 result(res)
-            })).unwrap();
+            }))
+            .unwrap();
     }
 
     #[test]
@@ -703,6 +710,7 @@ mod tests {
 
                 let res: Result<(), ()> = Ok(());
                 result(res)
-            })).unwrap();
+            }))
+            .unwrap();
     }
 }

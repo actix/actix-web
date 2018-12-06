@@ -4,8 +4,8 @@ use std::rc::Rc;
 
 use http::{HeaderMap, Method, StatusCode, Uri, Version};
 
-use extensions::Extensions;
-use payload::Payload;
+use crate::extensions::Extensions;
+use crate::payload::Payload;
 
 /// Represents various types of connection
 #[derive(Copy, Clone, PartialEq, Debug)]

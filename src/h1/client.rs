@@ -1,22 +1,23 @@
 #![allow(unused_imports, unused_variables, dead_code)]
 use std::io::{self, Write};
 
+use bitflags::bitflags;
 use bytes::{BufMut, Bytes, BytesMut};
+use http::header::{
+    HeaderValue, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING, UPGRADE,
+};
+use http::{Method, Version};
 use tokio_codec::{Decoder, Encoder};
 
 use super::decoder::{PayloadDecoder, PayloadItem, PayloadType};
 use super::{decoder, encoder};
 use super::{Message, MessageType};
-use body::BodyLength;
-use client::ClientResponse;
-use config::ServiceConfig;
-use error::{ParseError, PayloadError};
-use helpers;
-use http::header::{
-    HeaderValue, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING, UPGRADE,
-};
-use http::{Method, Version};
-use message::{ConnectionType, Head, MessagePool, RequestHead};
+use crate::body::BodyLength;
+use crate::client::ClientResponse;
+use crate::config::ServiceConfig;
+use crate::error::{ParseError, PayloadError};
+use crate::helpers;
+use crate::message::{ConnectionType, Head, MessagePool, RequestHead};
 
 bitflags! {
     struct Flags: u8 {

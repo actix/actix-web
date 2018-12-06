@@ -1,10 +1,11 @@
 use byteorder::{ByteOrder, LittleEndian, NetworkEndian};
 use bytes::{BufMut, Bytes, BytesMut};
+use log::debug;
 use rand;
 
-use ws::mask::apply_mask;
-use ws::proto::{CloseCode, CloseReason, OpCode};
-use ws::ProtocolError;
+use crate::ws::mask::apply_mask;
+use crate::ws::proto::{CloseCode, CloseReason, OpCode};
+use crate::ws::ProtocolError;
 
 /// A struct representing a `WebSocket` frame.
 #[derive(Debug)]

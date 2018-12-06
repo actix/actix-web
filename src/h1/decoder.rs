@@ -3,15 +3,16 @@ use std::{io, mem};
 
 use bytes::{Bytes, BytesMut};
 use futures::{Async, Poll};
-use httparse;
-use tokio_codec::Decoder;
-
-use client::ClientResponse;
-use error::ParseError;
 use http::header::{HeaderName, HeaderValue};
 use http::{header, HeaderMap, HttpTryFrom, Method, StatusCode, Uri, Version};
-use message::ConnectionType;
-use request::Request;
+use httparse;
+use log::{debug, error, trace};
+use tokio_codec::Decoder;
+
+use crate::client::ClientResponse;
+use crate::error::ParseError;
+use crate::message::ConnectionType;
+use crate::request::Request;
 
 const MAX_BUFFER_SIZE: usize = 131_072;
 const MAX_HEADERS: usize = 96;
@@ -825,13 +826,13 @@ mod tests {
         let mut buf = BytesMut::from("GET /test HTTP/1.1\r\n");
 
         let mut reader = MessageDecoder::<Request>::default();
-        assert!{ reader.decode(&mut buf).unwrap().is_none() }
+        assert! { reader.decode(&mut buf).unwrap().is_none() }
 
         buf.extend(b"t");
-        assert!{ reader.decode(&mut buf).unwrap().is_none() }
+        assert! { reader.decode(&mut buf).unwrap().is_none() }
 
         buf.extend(b"es");
-        assert!{ reader.decode(&mut buf).unwrap().is_none() }
+        assert! { reader.decode(&mut buf).unwrap().is_none() }
 
         buf.extend(b"t: value\r\n\r\n");
         let (req, _) = reader.decode(&mut buf).unwrap().unwrap();

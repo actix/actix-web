@@ -8,14 +8,14 @@ use cookie::{Cookie, CookieJar};
 use futures::{Future, Stream};
 use percent_encoding::{percent_encode, USERINFO_ENCODE_SET};
 
-use body::{BodyStream, MessageBody};
-use error::Error;
-use header::{self, Header, IntoHeaderValue};
-use http::{
+use crate::body::{BodyStream, MessageBody};
+use crate::error::Error;
+use crate::header::{self, Header, IntoHeaderValue};
+use crate::http::{
     uri, Error as HttpError, HeaderMap, HeaderName, HeaderValue, HttpTryFrom, Method,
     Uri, Version,
 };
-use message::{ConnectionType, Head, RequestHead};
+use crate::message::{ConnectionType, Head, RequestHead};
 
 use super::response::ClientResponse;
 use super::{pipeline, Connect, Connection, ConnectorError, SendRequestError};
@@ -355,14 +355,16 @@ impl ClientRequestBuilder {
     {
         if let Some(parts) = parts(&mut self.head, &self.err) {
             match HeaderName::try_from(key) {
-                Ok(key) => if !parts.headers.contains_key(&key) {
-                    match value.try_into() {
-                        Ok(value) => {
-                            parts.headers.insert(key, value);
+                Ok(key) => {
+                    if !parts.headers.contains_key(&key) {
+                        match value.try_into() {
+                            Ok(value) => {
+                                parts.headers.insert(key, value);
+                            }
+                            Err(e) => self.err = Some(e.into()),
                         }
-                        Err(e) => self.err = Some(e.into()),
                     }
-                },
+                }
                 Err(e) => self.err = Some(e.into()),
             };
         }

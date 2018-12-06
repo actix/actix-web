@@ -5,8 +5,8 @@ use actix_net::service::{NewService, Service};
 use futures::future::{ok, FutureResult};
 use futures::{Async, IntoFuture, Poll};
 
-use h1::Codec;
-use request::Request;
+use crate::h1::Codec;
+use crate::request::Request;
 
 use super::{verify_handshake, HandshakeError};
 

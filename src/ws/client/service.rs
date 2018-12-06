@@ -6,17 +6,18 @@ use actix_net::connector::{Connect as TcpConnect, ConnectorError, DefaultConnect
 use actix_net::service::Service;
 use base64;
 use futures::future::{err, Either, FutureResult};
-use futures::{Async, Future, Poll, Sink, Stream};
+use futures::{try_ready, Async, Future, Poll, Sink, Stream};
 use http::header::{self, HeaderValue};
 use http::{HttpTryFrom, StatusCode};
+use log::trace;
 use rand;
 use sha1::Sha1;
 use tokio_io::{AsyncRead, AsyncWrite};
 
-use body::BodyLength;
-use client::ClientResponse;
-use h1;
-use ws::Codec;
+use crate::body::BodyLength;
+use crate::client::ClientResponse;
+use crate::h1;
+use crate::ws::Codec;
 
 use super::{ClientError, Connect, Protocol};
 

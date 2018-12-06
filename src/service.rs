@@ -6,10 +6,10 @@ use futures::future::{ok, Either, FutureResult};
 use futures::{Async, Future, Poll, Sink};
 use tokio_io::{AsyncRead, AsyncWrite};
 
-use body::{BodyLength, MessageBody, ResponseBody};
-use error::{Error, ResponseError};
-use h1::{Codec, Message};
-use response::Response;
+use crate::body::{BodyLength, MessageBody, ResponseBody};
+use crate::error::{Error, ResponseError};
+use crate::h1::{Codec, Message};
+use crate::response::Response;
 
 pub struct SendError<T, R, E>(PhantomData<(T, R, E)>);
 
@@ -56,7 +56,7 @@ where
         match req {
             Ok(r) => Either::A(ok(r)),
             Err((e, framed)) => {
-                let mut res = e.error_response().set_body(format!("{}", e));
+                let res = e.error_response().set_body(format!("{}", e));
                 let (res, _body) = res.replace_body(());
                 Either::B(SendErrorFut {
                     framed: Some(framed),
@@ -206,11 +206,13 @@ where
             // flush write buffer
             if !framed.is_write_buf_empty() {
                 match framed.poll_complete()? {
-                    Async::Ready(_) => if body_ready {
-                        continue;
-                    } else {
-                        return Ok(Async::NotReady);
-                    },
+                    Async::Ready(_) => {
+                        if body_ready {
+                            continue;
+                        } else {
+                            return Ok(Async::NotReady);
+                        }
+                    }
                     Async::NotReady => return Ok(Async::NotReady),
                 }
             }

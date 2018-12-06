@@ -17,15 +17,15 @@ use net2::TcpBuilder;
 use tokio::runtime::current_thread::Runtime;
 use tokio_io::{AsyncRead, AsyncWrite};
 
-use body::MessageBody;
-use client::{
+use crate::body::MessageBody;
+use crate::client::{
     ClientRequest, ClientRequestBuilder, ClientResponse, Connect, Connection, Connector,
     ConnectorError, SendRequestError,
 };
-use header::{Header, IntoHeaderValue};
-use payload::Payload;
-use request::Request;
-use ws;
+use crate::header::{Header, IntoHeaderValue};
+use crate::payload::Payload;
+use crate::request::Request;
+use crate::ws;
 
 /// Test `Request` builder
 ///
@@ -338,7 +338,7 @@ impl TestServer {
     }
 
     fn new_connector(
-) -> impl Service<Connect, Response = impl Connection, Error = ConnectorError> + Clone
+    ) -> impl Service<Connect, Response = impl Connection, Error = ConnectorError> + Clone
     {
         #[cfg(feature = "ssl")]
         {

@@ -34,7 +34,9 @@ fn main() {
                         res.header("x-head", HeaderValue::from_static("dummy value!"));
                         Ok(res.body(bytes))
                     })
-                }).map(|_| ())
-        }).unwrap()
+                })
+                .map(|_| ())
+        })
+        .unwrap()
         .run();
 }

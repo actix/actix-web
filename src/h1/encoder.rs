@@ -9,16 +9,15 @@ use bytes::{BufMut, Bytes, BytesMut};
 use http::header::{
     HeaderValue, ACCEPT_ENCODING, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING,
 };
-use http::{HeaderMap, StatusCode, Version};
+use http::{HeaderMap, Method, StatusCode, Version};
 
-use body::BodyLength;
-use config::ServiceConfig;
-use header::ContentEncoding;
-use helpers;
-use http::Method;
-use message::{ConnectionType, RequestHead, ResponseHead};
-use request::Request;
-use response::Response;
+use crate::body::BodyLength;
+use crate::config::ServiceConfig;
+use crate::header::ContentEncoding;
+use crate::helpers;
+use crate::message::{ConnectionType, RequestHead, ResponseHead};
+use crate::request::Request;
+use crate::response::Response;
 
 const AVERAGE_HEADER_SIZE: usize = 30;
 
@@ -205,7 +204,8 @@ impl MessageType for RequestHead {
                 Version::HTTP_11 => "HTTP/1.1",
                 Version::HTTP_2 => "HTTP/2.0",
             }
-        ).map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+        )
+        .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
     }
 }
 

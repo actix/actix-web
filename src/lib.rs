@@ -62,56 +62,12 @@
 // #![warn(missing_docs)]
 #![allow(dead_code)]
 
-extern crate actix;
-extern crate actix_net;
-#[macro_use]
-extern crate log;
-extern crate base64;
-extern crate byteorder;
-extern crate bytes;
-extern crate sha1;
-extern crate time;
-#[macro_use]
-extern crate bitflags;
-#[macro_use]
-extern crate failure;
-#[macro_use]
-extern crate futures;
-extern crate cookie;
-extern crate encoding;
-extern crate http as modhttp;
-extern crate httparse;
-extern crate indexmap;
-extern crate mime;
-extern crate net2;
-extern crate percent_encoding;
-extern crate rand;
-extern crate serde;
-extern crate serde_json;
-extern crate serde_urlencoded;
-extern crate slab;
-extern crate tokio;
-extern crate tokio_codec;
-extern crate tokio_current_thread;
-extern crate tokio_io;
-extern crate tokio_tcp;
-extern crate tokio_timer;
-extern crate trust_dns_proto;
-extern crate trust_dns_resolver;
-extern crate url as urlcrate;
-
-#[cfg(test)]
-#[macro_use]
-extern crate serde_derive;
-
-#[cfg(feature = "ssl")]
-extern crate openssl;
-
 pub mod body;
 pub mod client;
 mod config;
 mod extensions;
 mod header;
+mod helpers;
 mod httpcodes;
 mod httpmessage;
 mod json;
@@ -123,18 +79,17 @@ mod service;
 
 pub mod error;
 pub mod h1;
-pub(crate) mod helpers;
 pub mod test;
 pub mod ws;
-pub use body::{Body, MessageBody};
-pub use error::{Error, ResponseError, Result};
-pub use extensions::Extensions;
-pub use httpmessage::HttpMessage;
-pub use request::Request;
-pub use response::Response;
-pub use service::{SendError, SendResponse};
 
+pub use self::body::{Body, MessageBody};
 pub use self::config::{KeepAlive, ServiceConfig, ServiceConfigBuilder};
+pub use self::error::{Error, ResponseError, Result};
+pub use self::extensions::Extensions;
+pub use self::httpmessage::HttpMessage;
+pub use self::request::Request;
+pub use self::response::Response;
+pub use self::service::{SendError, SendResponse};
 
 pub mod dev {
     //! The `actix-web` prelude for library developers
@@ -147,31 +102,31 @@ pub mod dev {
     //! use actix_http::dev::*;
     //! ```
 
-    pub use httpmessage::{MessageBody, Readlines, UrlEncoded};
-    pub use json::JsonBody;
-    pub use payload::{Payload, PayloadBuffer};
-    pub use response::ResponseBuilder;
+    pub use crate::httpmessage::{MessageBody, Readlines, UrlEncoded};
+    pub use crate::json::JsonBody;
+    pub use crate::payload::{Payload, PayloadBuffer};
+    pub use crate::response::ResponseBuilder;
 }
 
 pub mod http {
     //! Various HTTP related types
 
     // re-exports
-    pub use modhttp::header::{HeaderName, HeaderValue};
-    pub use modhttp::{Method, StatusCode, Version};
+    pub use http::header::{HeaderName, HeaderValue};
+    pub use http::{Method, StatusCode, Version};
 
     #[doc(hidden)]
-    pub use modhttp::{uri, Error, HeaderMap, HttpTryFrom, Uri};
+    pub use http::{uri, Error, HeaderMap, HttpTryFrom, Uri};
 
     #[doc(hidden)]
-    pub use modhttp::uri::PathAndQuery;
+    pub use http::uri::PathAndQuery;
 
     pub use cookie::{Cookie, CookieBuilder};
 
     /// Various http headers
     pub mod header {
-        pub use header::*;
+        pub use crate::header::*;
     }
-    pub use header::ContentEncoding;
-    pub use message::ConnectionType;
+    pub use crate::header::ContentEncoding;
+    pub use crate::message::ConnectionType;
 }

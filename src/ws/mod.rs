@@ -5,10 +5,12 @@
 //! communicate with the peer.
 use std::io;
 
-use error::ResponseError;
+use failure::Fail;
 use http::{header, Method, StatusCode};
-use request::Request;
-use response::{Response, ResponseBuilder};
+
+use crate::error::ResponseError;
+use crate::request::Request;
+use crate::response::{Response, ResponseBuilder};
 
 mod client;
 mod codec;
@@ -221,7 +223,8 @@ mod tests {
             .header(
                 header::UPGRADE,
                 header::HeaderValue::from_static("websocket"),
-            ).finish();
+            )
+            .finish();
         assert_eq!(
             HandshakeError::NoConnectionUpgrade,
             verify_handshake(&req).err().unwrap()
@@ -231,10 +234,12 @@ mod tests {
             .header(
                 header::UPGRADE,
                 header::HeaderValue::from_static("websocket"),
-            ).header(
+            )
+            .header(
                 header::CONNECTION,
                 header::HeaderValue::from_static("upgrade"),
-            ).finish();
+            )
+            .finish();
         assert_eq!(
             HandshakeError::NoVersionHeader,
             verify_handshake(&req).err().unwrap()
@@ -244,13 +249,16 @@ mod tests {
             .header(
                 header::UPGRADE,
                 header::HeaderValue::from_static("websocket"),
-            ).header(
+            )
+            .header(
                 header::CONNECTION,
                 header::HeaderValue::from_static("upgrade"),
-            ).header(
+            )
+            .header(
                 header::SEC_WEBSOCKET_VERSION,
                 header::HeaderValue::from_static("5"),
-            ).finish();
+            )
+            .finish();
         assert_eq!(
             HandshakeError::UnsupportedVersion,
             verify_handshake(&req).err().unwrap()
@@ -260,13 +268,16 @@ mod tests {
             .header(
                 header::UPGRADE,
                 header::HeaderValue::from_static("websocket"),
-            ).header(
+            )
+            .header(
                 header::CONNECTION,
                 header::HeaderValue::from_static("upgrade"),
-            ).header(
+            )
+            .header(
                 header::SEC_WEBSOCKET_VERSION,
                 header::HeaderValue::from_static("13"),
-            ).finish();
+            )
+            .finish();
         assert_eq!(
             HandshakeError::BadWebsocketKey,
             verify_handshake(&req).err().unwrap()
@@ -276,16 +287,20 @@ mod tests {
             .header(
                 header::UPGRADE,
                 header::HeaderValue::from_static("websocket"),
-            ).header(
+            )
+            .header(
                 header::CONNECTION,
                 header::HeaderValue::from_static("upgrade"),
-            ).header(
+            )
+            .header(
                 header::SEC_WEBSOCKET_VERSION,
                 header::HeaderValue::from_static("13"),
-            ).header(
+            )
+            .header(
                 header::SEC_WEBSOCKET_KEY,
                 header::HeaderValue::from_static("13"),
-            ).finish();
+            )
+            .finish();
         assert_eq!(
             StatusCode::SWITCHING_PROTOCOLS,
             handshake_response(&req).finish().status()
