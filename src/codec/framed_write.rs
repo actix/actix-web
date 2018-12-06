@@ -2,7 +2,8 @@ use std::fmt;
 use std::io::{self, Read};
 
 use bytes::BytesMut;
-use futures::{Async, AsyncSink, Poll, Sink, StartSend, Stream};
+use futures::{try_ready, Async, AsyncSink, Poll, Sink, StartSend, Stream};
+use log::trace;
 use tokio_codec::{Decoder, Encoder};
 use tokio_io::{AsyncRead, AsyncWrite};
 
@@ -111,7 +112,7 @@ where
     }
 
     fn close(&mut self) -> Poll<(), Self::SinkError> {
-        Ok(try!(self.inner.close()))
+        Ok(self.inner.close()?)
     }
 }
 
@@ -254,7 +255,8 @@ where
                     io::ErrorKind::WriteZero,
                     "failed to \
                      write frame to transport",
-                ).into());
+                )
+                .into());
             }
 
             // TODO: Add a way to `bytes` to do this w/o returning the drained
@@ -266,12 +268,12 @@ where
         try_ready!(self.inner.poll_flush());
 
         trace!("framed transport flushed");
-        return Ok(Async::Ready(()));
+        Ok(Async::Ready(()))
     }
 
     fn close(&mut self) -> Poll<(), Self::SinkError> {
         try_ready!(self.poll_complete());
-        Ok(try!(self.inner.shutdown()))
+        Ok(self.inner.shutdown()?)
     }
 }
 

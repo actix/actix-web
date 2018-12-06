@@ -55,7 +55,7 @@ where
     type Future = Out::Future;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
-        self.service.poll_ready().map_err(|e| e.into())
+        self.service.poll_ready()
     }
 
     fn call(&mut self, req: In) -> Self::Future {

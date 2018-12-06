@@ -5,10 +5,11 @@
 use std::fmt;
 use std::time::Duration;
 
+use futures::try_ready;
 use futures::{Async, Future, Poll};
 use tokio_timer::{clock, Delay};
 
-use service::{NewService, Service};
+use crate::service::{NewService, Service};
 
 /// Applies a timeout to requests.
 #[derive(Debug)]
@@ -56,7 +57,7 @@ where
     fn new_service(&self) -> Self::Future {
         TimeoutFut {
             fut: self.inner.new_service(),
-            timeout: self.timeout.clone(),
+            timeout: self.timeout,
         }
     }
 }
@@ -115,9 +116,7 @@ where
     type Future = TimeoutServiceResponse<T, Request>;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
-        self.inner
-            .poll_ready()
-            .map_err(|e| TimeoutError::Service(e))
+        self.inner.poll_ready().map_err(TimeoutError::Service)
     }
 
     fn call(&mut self, request: Request) -> Self::Future {

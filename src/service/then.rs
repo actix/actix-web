@@ -1,7 +1,7 @@
-use futures::{Async, Future, Poll};
+use futures::{try_ready, Async, Future, Poll};
 
 use super::{IntoNewService, NewService, Service};
-use cell::Cell;
+use crate::cell::Cell;
 
 /// Service for the `then` combinator, chaining a computation onto the end of
 /// another service.
@@ -45,7 +45,7 @@ where
     type Future = ThenFuture<A, B, Request>;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
-        let _ = try_ready!(self.a.poll_ready());
+        try_ready!(self.a.poll_ready());
         self.b.borrow_mut().poll_ready()
     }
 

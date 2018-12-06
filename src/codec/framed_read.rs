@@ -1,7 +1,8 @@
 use std::fmt;
 
 use bytes::BytesMut;
-use futures::{Async, Poll, Sink, StartSend, Stream};
+use futures::{try_ready, Async, Poll, Sink, StartSend, Stream};
+use log::trace;
 use tokio_codec::Decoder;
 use tokio_io::AsyncRead;
 
@@ -133,7 +134,7 @@ where
 
 pub fn framed_read2<T>(inner: T) -> FramedRead2<T> {
     FramedRead2 {
-        inner: inner,
+        inner,
         eof: false,
         is_readable: false,
         buffer: BytesMut::with_capacity(INITIAL_CAPACITY),
@@ -146,9 +147,9 @@ pub fn framed_read2_with_buffer<T>(inner: T, mut buf: BytesMut) -> FramedRead2<T
         buf.reserve(bytes_to_reserve);
     }
     FramedRead2 {
-        inner: inner,
+        inner,
         eof: false,
-        is_readable: buf.len() > 0,
+        is_readable: !buf.is_empty(),
         buffer: buf,
     }
 }
@@ -187,13 +188,13 @@ where
             // readable again, at which point the stream is terminated.
             if self.is_readable {
                 if self.eof {
-                    let frame = try!(self.inner.decode_eof(&mut self.buffer));
+                    let frame = self.inner.decode_eof(&mut self.buffer)?;
                     return Ok(Async::Ready(frame));
                 }
 
                 trace!("attempting to decode a frame");
 
-                if let Some(frame) = try!(self.inner.decode(&mut self.buffer)) {
+                if let Some(frame) = self.inner.decode(&mut self.buffer)? {
                     trace!("frame decoded from buffer");
                     return Ok(Async::Ready(Some(frame)));
                 }

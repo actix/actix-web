@@ -2,10 +2,11 @@ use std::collections::HashMap;
 use std::{fmt, io, net};
 
 use futures::future::{join_all, Future};
+use log::error;
 use tokio_tcp::TcpStream;
 
-use counter::CounterGuard;
-use service::{IntoNewService, NewService};
+use crate::counter::CounterGuard;
+use crate::service::{IntoNewService, NewService};
 
 use super::server::bind_addr;
 use super::services::{
@@ -111,7 +112,7 @@ impl InternalServiceFactory for ConfiguredService {
 pub(super) trait ServiceRuntimeConfiguration: Send {
     fn clone(&self) -> Box<ServiceRuntimeConfiguration>;
 
-    fn configure(&self, &mut ServiceRuntime);
+    fn configure(&self, rt: &mut ServiceRuntime);
 }
 
 impl<F> ServiceRuntimeConfiguration for F

@@ -9,8 +9,8 @@ use futures::{Async, AsyncSink, Future, Poll, Sink, Stream};
 use tokio_codec::{Decoder, Encoder};
 use tokio_io::{AsyncRead, AsyncWrite};
 
-use codec::Framed;
-use service::{IntoNewService, IntoService, NewService, Service};
+use crate::codec::Framed;
+use crate::service::{IntoNewService, IntoService, NewService, Service};
 
 type Request<U> = <U as Decoder>::Item;
 type Response<U> = <U as Encoder>::Item;
@@ -300,10 +300,10 @@ where
                     }
                 }
             }
-            Ok(Async::NotReady) => return false,
+            Ok(Async::NotReady) => false,
             Err(err) => {
                 self.state = TransportState::Error(FramedTransportError::Service(err));
-                return true;
+                true
             }
         }
     }
@@ -387,26 +387,22 @@ where
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         match mem::replace(&mut self.state, TransportState::Processing) {
             TransportState::Processing => {
-                if self.poll_service() {
-                    return self.poll();
+                if self.poll_service() || self.poll_response() {
+                    self.poll()
+                } else {
+                    Ok(Async::NotReady)
                 }
-                if self.poll_response() {
-                    return self.poll();
-                }
-                return Ok(Async::NotReady);
             }
             TransportState::Error(err) => {
-                if self.poll_response() {
-                    return Err(err);
+                if self.poll_response() || self.flushed {
+                    Err(err)
+                } else {
+                    self.state = TransportState::Error(err);
+                    Ok(Async::NotReady)
                 }
-                if self.flushed {
-                    return Err(err);
-                }
-                self.state = TransportState::Error(err);
-                return Ok(Async::NotReady);
             }
-            TransportState::EncoderError(err) => return Err(err),
-            TransportState::Stopping => return Ok(Async::Ready(())),
+            TransportState::EncoderError(err) => Err(err),
+            TransportState::Stopping => Ok(Async::Ready(())),
         }
     }
 }

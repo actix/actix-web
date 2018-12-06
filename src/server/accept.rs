@@ -3,6 +3,7 @@ use std::time::{Duration, Instant};
 use std::{io, net, thread};
 
 use futures::{sync::mpsc, Future};
+use log::{error, info};
 use mio;
 use slab::Slab;
 use tokio_timer::Delay;
@@ -134,7 +135,7 @@ fn connection_error(e: &io::Error) -> bool {
 }
 
 impl Accept {
-    #![cfg_attr(feature = "cargo-clippy", allow(too_many_arguments))]
+    #![allow(clippy::too_many_arguments)]
     pub(crate) fn start(
         rx: sync_mpsc::Receiver<Command>,
         cmd_reg: mio::Registration,

@@ -5,6 +5,7 @@ use std::{mem, net, time};
 use futures::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use futures::sync::oneshot;
 use futures::{future, Async, Future, Poll, Stream};
+use log::{error, info, trace};
 use tokio_current_thread::spawn;
 use tokio_timer::{sleep, Delay};
 
@@ -14,7 +15,7 @@ use actix::{Arbiter, Message};
 use super::accept::AcceptNotify;
 use super::services::{BoxedServerService, InternalServiceFactory, ServerMessage};
 use super::Token;
-use counter::Counter;
+use crate::counter::Counter;
 
 pub(crate) struct WorkerCommand(Conn);
 
@@ -167,7 +168,8 @@ impl Worker {
                 .map_err(|e| {
                     error!("Can not start worker: {:?}", e);
                     Arbiter::current().do_send(StopArbiter(0));
-                }).and_then(move |services| {
+                })
+                .and_then(move |services| {
                     for item in services {
                         for (idx, token, service) in item {
                             while token.0 >= wrk.services.len() {
@@ -192,7 +194,7 @@ impl Worker {
             let timeout = self.shutdown_timeout;
             self.services.iter_mut().for_each(move |h| {
                 if let Some(h) = h {
-                    let _ = h.1.call((None, ServerMessage::Shutdown(timeout.clone())));
+                    let _ = h.1.call((None, ServerMessage::Shutdown(timeout)));
                 }
             });
         }
@@ -249,36 +251,33 @@ impl Future for Worker {
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         // `StopWorker` message handler
-        match self.rx2.poll() {
-            Ok(Async::Ready(Some(StopCommand { graceful, result }))) => {
-                self.availability.set(false);
+        if let Ok(Async::Ready(Some(StopCommand { graceful, result }))) = self.rx2.poll() {
+            self.availability.set(false);
+            let num = num_connections();
+            if num == 0 {
+                info!("Shutting down worker, 0 connections");
+                let _ = result.send(true);
+                return Ok(Async::Ready(()));
+            } else if graceful {
+                self.shutdown(false);
                 let num = num_connections();
-                if num == 0 {
-                    info!("Shutting down worker, 0 connections");
+                if num != 0 {
+                    info!("Graceful worker shutdown, {} connections", num);
+                    self.state = WorkerState::Shutdown(
+                        sleep(time::Duration::from_secs(1)),
+                        sleep(self.shutdown_timeout),
+                        result,
+                    );
+                } else {
                     let _ = result.send(true);
                     return Ok(Async::Ready(()));
-                } else if graceful {
-                    self.shutdown(false);
-                    let num = num_connections();
-                    if num != 0 {
-                        info!("Graceful worker shutdown, {} connections", num);
-                        self.state = WorkerState::Shutdown(
-                            sleep(time::Duration::from_secs(1)),
-                            sleep(self.shutdown_timeout),
-                            result,
-                        );
-                    } else {
-                        let _ = result.send(true);
-                        return Ok(Async::Ready(()));
-                    }
-                } else {
-                    info!("Force shutdown worker, {} connections", num);
-                    self.shutdown(true);
-                    let _ = result.send(false);
-                    return Ok(Async::Ready(()));
                 }
+            } else {
+                info!("Force shutdown worker, {} connections", num);
+                self.shutdown(true);
+                let _ = result.send(false);
+                return Ok(Async::Ready(()));
             }
-            _ => (),
         }
 
         let state = mem::replace(&mut self.state, WorkerState::None);

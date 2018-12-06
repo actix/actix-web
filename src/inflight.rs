@@ -1,4 +1,4 @@
-use futures::{Async, Future, Poll};
+use futures::{try_ready, Async, Future, Poll};
 
 use super::counter::{Counter, CounterGuard};
 use super::service::{IntoNewService, IntoService, NewService, Service};

@@ -66,7 +66,7 @@ impl LowResTimeService {
     /// Get current time. This function has to be called from
     /// future's poll method, otherwise it panics.
     pub fn now(&self) -> Instant {
-        let cur = self.0.borrow().current.clone();
+        let cur = self.0.borrow().current;
         if let Some(cur) = cur {
             cur
         } else {

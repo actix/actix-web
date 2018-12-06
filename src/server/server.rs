@@ -3,6 +3,7 @@ use std::{io, mem, net};
 
 use futures::sync::{mpsc, mpsc::unbounded};
 use futures::{Future, Sink, Stream};
+use log::{error, info};
 use net2::TcpBuilder;
 use num_cpus;
 
@@ -284,7 +285,7 @@ impl Server {
             self.services.iter().map(|v| v.clone_factory()).collect();
 
         Arbiter::new(format!("actix-net-worker-{}", idx)).do_send(Execute::new(move || {
-            Worker::start(rx1, rx2, services, avail, timeout.clone());
+            Worker::start(rx1, rx2, services, avail, timeout);
             Ok::<_, ()>(())
         }));
 
@@ -376,7 +377,7 @@ impl Handler<StopServer> for Server {
         }
 
         if !self.workers.is_empty() {
-            Response::async(rx.into_future().map(|_| ()).map_err(|_| ()))
+            Response::r#async(rx.into_future().map(|_| ()).map_err(|_| ()))
         } else {
             // we need to stop system if server was spawned
             if self.exit {

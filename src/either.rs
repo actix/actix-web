@@ -1,5 +1,5 @@
 //! Contains `Either` service and related types and functions.
-use futures::{future, Async, Future, Poll};
+use futures::{future, try_ready, Async, Future, Poll};
 
 use super::service::{NewService, Service};
 

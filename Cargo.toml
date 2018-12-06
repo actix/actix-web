@@ -11,6 +11,7 @@ documentation = "https://docs.rs/actix-net/"
 categories = ["network-programming", "asynchronous"]
 license = "MIT/Apache-2.0"
 exclude = [".gitignore", ".travis.yml", ".cargo/config", "appveyor.yml"]
+edition = "2018"
 
 [package.metadata.docs.rs]
 features = ["ssl", "tls", "rust-tls"]

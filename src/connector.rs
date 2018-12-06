@@ -5,7 +5,7 @@ use std::time::Duration;
 use std::{fmt, io};
 
 use futures::future::{ok, Either, FutureResult};
-use futures::{Async, Future, Poll};
+use futures::{try_ready, Async, Future, Poll};
 
 use tokio_tcp::{ConnectFuture, TcpStream};
 use trust_dns_resolver::config::{ResolverConfig, ResolverOpts};
@@ -119,8 +119,8 @@ impl Connect {
 impl RequestHost for Connect {
     fn host(&self) -> &str {
         match self.kind {
-            ConnectKind::Host { ref host, port: _ } => host,
-            ConnectKind::Addr { ref host, addr: _ } => host,
+            ConnectKind::Host { ref host, .. } => host,
+            ConnectKind::Addr { ref host, .. } => host,
         }
     }
 }
@@ -128,8 +128,8 @@ impl RequestHost for Connect {
 impl RequestPort for Connect {
     fn port(&self) -> u16 {
         match self.kind {
-            ConnectKind::Host { host: _, port } => port,
-            ConnectKind::Addr { host: _, addr } => addr.port(),
+            ConnectKind::Host { port, .. } => port,
+            ConnectKind::Addr { addr, .. } => addr.port(),
         }
     }
 }
@@ -206,11 +206,11 @@ impl Service<Connect> for Connector {
 
     fn call(&mut self, req: Connect) -> Self::Future {
         match req.kind {
-            ConnectKind::Host { host: _, port: _ } => Either::A(ConnectorFuture {
+            ConnectKind::Host { .. } => Either::A(ConnectorFuture {
                 fut: self.resolver.call(req),
                 fut2: None,
             }),
-            ConnectKind::Addr { host: _, addr } => {
+            ConnectKind::Addr { addr, .. } => {
                 let mut addrs = VecDeque::new();
                 addrs.push_back(addr.ip());
                 Either::B(ConnectorTcpFuture {

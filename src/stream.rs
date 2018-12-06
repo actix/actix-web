@@ -106,6 +106,12 @@ impl<T> TakeItem<T> {
     }
 }
 
+impl<T> Default for TakeItem<T> {
+    fn default() -> Self {
+        TakeItem { _t: PhantomData }
+    }
+}
+
 impl<T> Clone for TakeItem<T> {
     fn clone(&self) -> TakeItem<T> {
         TakeItem { _t: PhantomData }

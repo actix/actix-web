@@ -3,13 +3,14 @@ use std::time::Duration;
 
 use futures::future::{err, ok, FutureResult};
 use futures::{Future, Poll};
+use log::error;
 use tokio_current_thread::spawn;
 use tokio_reactor::Handle;
 use tokio_tcp::TcpStream;
 
 use super::Token;
-use counter::CounterGuard;
-use service::{NewService, Service};
+use crate::counter::CounterGuard;
+use crate::service::{NewService, Service};
 
 /// Server message
 pub enum ServerMessage {
