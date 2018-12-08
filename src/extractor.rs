@@ -656,6 +656,7 @@ where
 /// #[macro_use] extern crate serde_derive;
 /// use actix_web::{http, App, Result, HttpRequest, Error, FromRequest};
 /// use actix_web::error::ErrorBadRequest;
+/// use actix_web::Either;
 ///
 /// #[derive(Debug, Deserialize)]
 /// struct Thing { name: String }
@@ -694,8 +695,8 @@ where
 /// /// extract text data from request
 /// fn index(supplied_thing: Either<Thing, OtherThing>) -> Result<String> {
 ///     match supplied_thing {
-///         A(thing) => Ok(format!("Got something: {:?}", thing)),
-///         B(other_thing) => Ok(format!("Got anotherthing: {:?}", other_thing))
+///         Either::A(thing) => Ok(format!("Got something: {:?}", thing)),
+///         Either::B(other_thing) => Ok(format!("Got anotherthing: {:?}", other_thing))
 ///     }
 /// }
 ///
