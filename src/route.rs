@@ -16,7 +16,7 @@ use middleware::{
     Started as MiddlewareStarted,
 };
 use pred::Predicate;
-use with::{With, WithAsync};
+use with::{WithAsyncFactory, WithFactory};
 
 /// Resource route definition
 ///
@@ -57,7 +57,7 @@ impl<S: 'static> Route<S> {
     pub(crate) fn compose(
         &self, req: HttpRequest<S>, mws: Rc<Vec<Box<Middleware<S>>>>,
     ) -> AsyncResult<HttpResponse> {
-        AsyncResult::async(Box::new(Compose::new(req, mws, self.handler.clone())))
+        AsyncResult::future(Box::new(Compose::new(req, mws, self.handler.clone())))
     }
 
     /// Add match predicate to route.
@@ -134,8 +134,7 @@ impl<S: 'static> Route<S> {
     /// }
     /// ```
     ///
-    /// It is possible to use tuples for specifing multiple extractors for one
-    /// handler function.
+    /// It is possible to use multiple extractors for one handler function.
     ///
     /// ```rust
     /// # extern crate bytes;
@@ -152,9 +151,9 @@ impl<S: 'static> Route<S> {
     ///
     /// /// extract path info using serde
     /// fn index(
-    ///     info: (Path<Info>, Query<HashMap<String, String>>, Json<Info>),
+    ///     path: Path<Info>, query: Query<HashMap<String, String>>, body: Json<Info>,
     /// ) -> Result<String> {
-    ///     Ok(format!("Welcome {}!", info.0.username))
+    ///     Ok(format!("Welcome {}!", path.username))
     /// }
     ///
     /// fn main() {
@@ -166,15 +165,15 @@ impl<S: 'static> Route<S> {
     /// ```
     pub fn with<T, F, R>(&mut self, handler: F)
     where
-        F: Fn(T) -> R + 'static,
+        F: WithFactory<T, S, R> + 'static,
         R: Responder + 'static,
         T: FromRequest<S> + 'static,
     {
-        self.h(With::new(handler, <T::Config as Default>::default()));
+        self.h(handler.create());
     }
 
     /// Set handler function. Same as `.with()` but it allows to configure
-    /// extractor.
+    /// extractor. Configuration closure accepts config objects as tuple.
     ///
     /// ```rust
     /// # extern crate bytes;
@@ -192,21 +191,21 @@ impl<S: 'static> Route<S> {
     ///     let app = App::new().resource("/index.html", |r| {
     ///         r.method(http::Method::GET)
     ///                .with_config(index, |cfg| { // <- register handler
-    ///                   cfg.limit(4096);  // <- limit size of the payload
+    ///                   cfg.0.limit(4096);  // <- limit size of the payload
     ///                 })
     ///     });
     /// }
     /// ```
     pub fn with_config<T, F, R, C>(&mut self, handler: F, cfg_f: C)
     where
-        F: Fn(T) -> R + 'static,
+        F: WithFactory<T, S, R>,
         R: Responder + 'static,
         T: FromRequest<S> + 'static,
         C: FnOnce(&mut T::Config),
     {
         let mut cfg = <T::Config as Default>::default();
         cfg_f(&mut cfg);
-        self.h(With::new(handler, cfg));
+        self.h(handler.create_with_config(cfg));
     }
 
     /// Set async handler function, use request extractor for parameters.
@@ -240,17 +239,18 @@ impl<S: 'static> Route<S> {
     /// ```
     pub fn with_async<T, F, R, I, E>(&mut self, handler: F)
     where
-        F: Fn(T) -> R + 'static,
+        F: WithAsyncFactory<T, S, R, I, E>,
         R: Future<Item = I, Error = E> + 'static,
         I: Responder + 'static,
         E: Into<Error> + 'static,
         T: FromRequest<S> + 'static,
     {
-        self.h(WithAsync::new(handler, <T::Config as Default>::default()));
+        self.h(handler.create());
     }
 
     /// Set async handler function, use request extractor for parameters.
-    /// This method allows to configure extractor.
+    /// This method allows to configure extractor. Configuration closure
+    /// accepts config objects as tuple.
     ///
     /// ```rust
     /// # extern crate bytes;
@@ -275,14 +275,14 @@ impl<S: 'static> Route<S> {
     ///         "/{username}/index.html", // <- define path parameters
     ///         |r| r.method(http::Method::GET)
     ///            .with_async_config(index, |cfg| {
-    ///                cfg.limit(4096);
+    ///                cfg.0.limit(4096);
     ///            }),
     ///     ); // <- use `with` extractor
     /// }
     /// ```
     pub fn with_async_config<T, F, R, I, E, C>(&mut self, handler: F, cfg: C)
     where
-        F: Fn(T) -> R + 'static,
+        F: WithAsyncFactory<T, S, R, I, E>,
         R: Future<Item = I, Error = E> + 'static,
         I: Responder + 'static,
         E: Into<Error> + 'static,
@@ -291,7 +291,7 @@ impl<S: 'static> Route<S> {
     {
         let mut extractor_cfg = <T::Config as Default>::default();
         cfg(&mut extractor_cfg);
-        self.h(WithAsync::new(handler, extractor_cfg));
+        self.h(handler.create_with_config(extractor_cfg));
     }
 }
 

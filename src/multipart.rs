@@ -441,13 +441,13 @@ where
 
 impl<S> fmt::Debug for Field<S> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let res = writeln!(f, "\nMultipartField: {}", self.ct);
-        let _ = writeln!(f, "  boundary: {}", self.inner.borrow().boundary);
-        let _ = writeln!(f, "  headers:");
+        writeln!(f, "\nMultipartField: {}", self.ct)?;
+        writeln!(f, "  boundary: {}", self.inner.borrow().boundary)?;
+        writeln!(f, "  headers:")?;
         for (key, val) in self.headers.iter() {
-            let _ = writeln!(f, "    {:?}: {:?}", key, val);
+            writeln!(f, "    {:?}: {:?}", key, val)?;
         }
-        res
+        Ok(())
     }
 }
 
@@ -756,13 +756,10 @@ mod tests {
                             {
                                 use http::header::{DispositionParam, DispositionType};
                                 let cd = field.content_disposition().unwrap();
-                                assert_eq!(
-                                    cd.disposition,
-                                    DispositionType::Ext("form-data".into())
-                                );
+                                assert_eq!(cd.disposition, DispositionType::FormData);
                                 assert_eq!(
                                     cd.parameters[0],
-                                    DispositionParam::Ext("name".into(), "file".into())
+                                    DispositionParam::Name("file".into())
                                 );
                             }
                             assert_eq!(field.content_type().type_(), mime::TEXT);
@@ -813,7 +810,6 @@ mod tests {
 
                 let res: Result<(), ()> = Ok(());
                 result(res)
-            }))
-            .unwrap();
+            })).unwrap();
     }
 }

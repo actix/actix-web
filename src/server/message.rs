@@ -1,5 +1,6 @@
 use std::cell::{Cell, Ref, RefCell, RefMut};
 use std::collections::VecDeque;
+use std::fmt;
 use std::net::SocketAddr;
 use std::rc::Rc;
 
@@ -35,6 +36,7 @@ pub(crate) struct InnerRequest {
     pub(crate) info: RefCell<ConnectionInfo>,
     pub(crate) payload: RefCell<Option<Payload>>,
     pub(crate) settings: ServerSettings,
+    pub(crate) stream_extensions: Option<Rc<Extensions>>,
     pool: &'static RequestPool,
 }
 
@@ -82,6 +84,7 @@ impl Request {
                 info: RefCell::new(ConnectionInfo::default()),
                 payload: RefCell::new(None),
                 extensions: RefCell::new(Extensions::new()),
+                stream_extensions: None,
             }),
         }
     }
@@ -189,6 +192,12 @@ impl Request {
         }
     }
 
+    /// Io stream extensions
+    #[inline]
+    pub fn stream_extensions(&self) -> Option<&Extensions> {
+        self.inner().stream_extensions.as_ref().map(|e| e.as_ref())
+    }
+
     /// Server settings
     #[inline]
     pub fn server_settings(&self) -> &ServerSettings {
@@ -209,6 +218,26 @@ impl Request {
             return;
         }
         inner.pool.release(inner);
+    }
+}
+
+impl fmt::Debug for Request {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        writeln!(
+            f,
+            "\nRequest {:?} {}:{}",
+            self.version(),
+            self.method(),
+            self.path()
+        )?;
+        if let Some(q) = self.uri().query().as_ref() {
+            writeln!(f, "  query: ?{:?}", q)?;
+        }
+        writeln!(f, "  headers:")?;
+        for (key, val) in self.headers().iter() {
+            writeln!(f, "    {:?}: {:?}", key, val)?;
+        }
+        Ok(())
     }
 }
 

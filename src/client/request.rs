@@ -254,16 +254,16 @@ impl ClientRequest {
 
 impl fmt::Debug for ClientRequest {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let res = writeln!(
+        writeln!(
             f,
             "\nClientRequest {:?} {}:{}",
             self.version, self.method, self.uri
-        );
-        let _ = writeln!(f, "  headers:");
+        )?;
+        writeln!(f, "  headers:")?;
         for (key, val) in self.headers.iter() {
-            let _ = writeln!(f, "    {:?}: {:?}", key, val);
+            writeln!(f, "    {:?}: {:?}", key, val)?;
         }
-        res
+        Ok(())
     }
 }
 
@@ -291,10 +291,6 @@ impl ClientRequestBuilder {
     fn _uri(&mut self, url: &str) -> &mut Self {
         match Uri::try_from(url) {
             Ok(uri) => {
-                // set request host header
-                if let Some(host) = uri.host() {
-                    self.set_header(header::HOST, host);
-                }
                 if let Some(parts) = parts(&mut self.request, &self.err) {
                     parts.uri = uri;
                 }
@@ -316,8 +312,7 @@ impl ClientRequestBuilder {
     /// Set HTTP method of this request.
     #[inline]
     pub fn get_method(&mut self) -> &Method {
-        let parts =
-            parts(&mut self.request, &self.err).expect("cannot reuse request builder");
+        let parts = self.request.as_ref().expect("cannot reuse request builder");
         &parts.method
     }
 
@@ -630,9 +625,31 @@ impl ClientRequestBuilder {
                 self.set_header_if_none(header::ACCEPT_ENCODING, "gzip, deflate");
             }
 
+            // set request host header
+            if let Some(parts) = parts(&mut self.request, &self.err) {
+                if let Some(host) = parts.uri.host() {
+                    if !parts.headers.contains_key(header::HOST) {
+                        let mut wrt = BytesMut::with_capacity(host.len() + 5).writer();
+
+                        let _ = match parts.uri.port_part().map(|port| port.as_u16()) {
+                            None | Some(80) | Some(443) => write!(wrt, "{}", host),
+                            Some(port) => write!(wrt, "{}:{}", host, port),
+                        };
+
+                        match wrt.get_mut().take().freeze().try_into() {
+                            Ok(value) => {
+                                parts.headers.insert(header::HOST, value);
+                            }
+                            Err(e) => self.err = Some(e.into()),
+                        }
+                    }
+                }
+            }
+
+            // user agent
             self.set_header_if_none(
                 header::USER_AGENT,
-                concat!("Actix-web/", env!("CARGO_PKG_VERSION")),
+                concat!("actix-web/", env!("CARGO_PKG_VERSION")),
             );
         }
 
@@ -733,16 +750,16 @@ fn parts<'a>(
 impl fmt::Debug for ClientRequestBuilder {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if let Some(ref parts) = self.request {
-            let res = writeln!(
+            writeln!(
                 f,
                 "\nClientRequestBuilder {:?} {}:{}",
                 parts.version, parts.method, parts.uri
-            );
-            let _ = writeln!(f, "  headers:");
+            )?;
+            writeln!(f, "  headers:")?;
             for (key, val) in parts.headers.iter() {
-                let _ = writeln!(f, "    {:?}: {:?}", key, val);
+                writeln!(f, "    {:?}: {:?}", key, val)?;
             }
-            res
+            Ok(())
         } else {
             write!(f, "ClientRequestBuilder(Consumed)")
         }

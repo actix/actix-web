@@ -223,8 +223,7 @@ pub fn from_comma_delimited<T: FromStr>(
                 .filter_map(|x| match x.trim() {
                     "" => None,
                     y => Some(y),
-                })
-                .filter_map(|x| x.trim().parse().ok()),
+                }).filter_map(|x| x.trim().parse().ok()),
         )
     }
     Ok(result)
@@ -263,8 +262,10 @@ where
 
 // From hyper v0.11.27 src/header/parsing.rs
 
-/// An extended header parameter value (i.e., tagged with a character set and optionally,
-/// a language), as defined in [RFC 5987](https://tools.ietf.org/html/rfc5987#section-3.2).
+/// The value part of an extended parameter consisting of three parts:
+/// the REQUIRED character set name (`charset`), the OPTIONAL language information (`language_tag`),
+/// and a character sequence representing the actual value (`value`), separated by single quote
+/// characters. It is defined in [RFC 5987](https://tools.ietf.org/html/rfc5987#section-3.2).
 #[derive(Clone, Debug, PartialEq)]
 pub struct ExtendedValue {
     /// The character set that is used to encode the `value` to a string.

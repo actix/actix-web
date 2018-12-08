@@ -250,7 +250,7 @@ pub(crate) enum AsyncResultItem<I, E> {
 impl<I, E> AsyncResult<I, E> {
     /// Create async response
     #[inline]
-    pub fn async(fut: Box<Future<Item = I, Error = E>>) -> AsyncResult<I, E> {
+    pub fn future(fut: Box<Future<Item = I, Error = E>>) -> AsyncResult<I, E> {
         AsyncResult(Some(AsyncResultItem::Future(fut)))
     }
 
@@ -353,13 +353,17 @@ impl<T, E: Into<Error>> From<Result<T, E>> for AsyncResult<T> {
     }
 }
 
-impl<T, E: Into<Error>> From<Result<Box<Future<Item = T, Error = Error>>, E>>
-    for AsyncResult<T>
+impl<T, E> From<Result<Box<Future<Item = T, Error = E>>, E>> for AsyncResult<T>
+where
+    T: 'static,
+    E: Into<Error> + 'static,
 {
     #[inline]
-    fn from(res: Result<Box<Future<Item = T, Error = Error>>, E>) -> Self {
+    fn from(res: Result<Box<Future<Item = T, Error = E>>, E>) -> Self {
         match res {
-            Ok(fut) => AsyncResult(Some(AsyncResultItem::Future(fut))),
+            Ok(fut) => AsyncResult(Some(AsyncResultItem::Future(Box::new(
+                fut.map_err(|e| e.into()),
+            )))),
             Err(err) => AsyncResult(Some(AsyncResultItem::Err(err.into()))),
         }
     }
@@ -397,7 +401,7 @@ where
                 },
                 Err(e) => err(e),
             });
-        Ok(AsyncResult::async(Box::new(fut)))
+        Ok(AsyncResult::future(Box::new(fut)))
     }
 }
 
@@ -498,7 +502,7 @@ where
                 Err(e) => Either::A(err(e)),
             }
         });
-        AsyncResult::async(Box::new(fut))
+        AsyncResult::future(Box::new(fut))
     }
 }
 
@@ -526,8 +530,7 @@ where
 /// }
 ///
 /// /// extract path info using serde
-/// fn index(data: (State<MyApp>, Path<Info>)) -> String {
-///     let (state, path) = data;
+/// fn index(state: State<MyApp>, path: Path<Info>) -> String {
 ///     format!("{} {}!", state.msg, path.username)
 /// }
 ///

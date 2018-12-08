@@ -1,16 +1,260 @@
 # Changes
 
-## [0.7.1] - 2018-07-21
+## [0.7.15] - 2018-12-05
+
+## Changed
+
+* `ClientConnector::resolver` now accepts `Into<Recipient>` instead of `Addr`. It enables user to implement own resolver.
+
+* `QueryConfig` and `PathConfig` are made public.
+
+* `AsyncResult::async` is changed to `AsyncResult::future` as `async` is reserved keyword in 2018 edition.
 
 ### Added
 
-  * Add implementation of `FromRequest<S>` for `Option<T>` and `Result<T, Error>`
+* By default, `Path` extractor now percent decode all characters. This behaviour can be disabled
+  with `PathConfig::default().disable_decoding()`
+
+
+## [0.7.14] - 2018-11-14
+
+### Added
+
+* Add method to configure custom error handler to `Query` and `Path` extractors.
+
+* Add method to configure `SameSite` option in `CookieIdentityPolicy`.
+
+* By default, `Path` extractor now percent decode all characters. This behaviour can be disabled
+  with `PathConfig::default().disable_decoding()`
+
+
+### Fixed
+
+* Fix websockets connection drop if request contains "content-length" header #567
+
+* Fix keep-alive timer reset
+
+* HttpServer now treats streaming bodies the same for HTTP/1.x protocols. #549
+
+* Set nodelay for socket #560
+
+
+## [0.7.13] - 2018-10-14
+
+### Fixed
+
+* Fixed rustls support
+
+* HttpServer not sending streamed request body on HTTP/2 requests #544
+
+
+## [0.7.12] - 2018-10-10
+
+### Changed
+
+* Set min version for actix
+
+* Set min version for actix-net
+
+
+## [0.7.11] - 2018-10-09
+
+### Fixed
+
+* Fixed 204 responses for http/2
+
+
+## [0.7.10] - 2018-10-09
+
+### Fixed
+
+* Fixed panic during graceful shutdown
+
+
+## [0.7.9] - 2018-10-09
+
+### Added
+
+* Added client shutdown timeout setting
+
+* Added slow request timeout setting
+
+* Respond with 408 response on slow request timeout #523
+
+
+### Fixed
+
+* HTTP1 decoding errors are reported to the client. #512
+
+* Correctly compose multiple allowed origins in CORS. #517
+
+* Websocket server finished() isn't called if client disconnects #511
+
+* Responses with the following codes: 100, 101, 102, 204 -- are sent without Content-Length header. #521
+
+* Correct usage of `no_http2` flag in `bind_*` methods. #519
+
+
+## [0.7.8] - 2018-09-17
+
+### Added
+
+* Use server `Keep-Alive` setting as slow request timeout #439
+
+### Changed
+
+* Use 5 seconds keep-alive timer by default.
+
+### Fixed
+
+* Fixed wrong error message for i16 type #510
+
+
+## [0.7.7] - 2018-09-11
+
+### Fixed
+
+* Fix linked list of HttpChannels #504
+
+* Fix requests to TestServer fail #508
+
+
+## [0.7.6] - 2018-09-07
+
+### Fixed
+
+* Fix system_exit in HttpServer #501
+
+* Fix parsing of route param containin regexes with repetition #500
+
+### Changes
+
+* Unhide `SessionBackend` and `SessionImpl` traits #455
+
+
+## [0.7.5] - 2018-09-04
+
+### Added
+
+* Added the ability to pass a custom `TlsConnector`.
+
+* Allow to register handlers on scope level #465
+
+
+### Fixed
+
+* Handle socket read disconnect
+
+* Handling scoped paths without leading slashes #460
+
+
+### Changed
+
+* Read client response until eof if connection header set to close #464
+
+
+## [0.7.4] - 2018-08-23
+
+### Added
+
+* Added `HttpServer::maxconn()` and `HttpServer::maxconnrate()`,
+  accept backpressure #250
+
+* Allow to customize connection handshake process via `HttpServer::listen_with()`
+  and `HttpServer::bind_with()` methods
+
+* Support making client connections via `tokio-uds`'s `UnixStream` when "uds" feature is enabled #472
+
+### Changed
+
+* It is allowed to use function with up to 10 parameters for handler with `extractor parameters`.
+ `Route::with_config()`/`Route::with_async_config()` always passes configuration objects as tuple
+  even for handler with one parameter.
+
+* native-tls - 0.2
+
+* `Content-Disposition` is re-worked. Its parser is now more robust and handles quoted content better. See #461
+
+### Fixed
+
+* Use zlib instead of raw deflate for decoding and encoding payloads with
+  `Content-Encoding: deflate`.
+
+* Fixed headers formating for CORS Middleware Access-Control-Expose-Headers #436
+
+* Fix adding multiple response headers #446
+
+* Client includes port in HOST header when it is not default(e.g. not 80 and 443). #448
+
+* Panic during access without routing being set #452
+
+* Fixed http/2 error handling
+
+### Deprecated
+
+* `HttpServer::no_http2()` is deprecated, use `OpensslAcceptor::with_flags()` or
+  `RustlsAcceptor::with_flags()` instead
+
+* `HttpServer::listen_tls()`, `HttpServer::listen_ssl()`, `HttpServer::listen_rustls()` have been
+  deprecated in favor of `HttpServer::listen_with()` with specific `acceptor`.
+
+* `HttpServer::bind_tls()`, `HttpServer::bind_ssl()`, `HttpServer::bind_rustls()` have been
+  deprecated in favor of `HttpServer::bind_with()` with specific `acceptor`.
+
+
+## [0.7.3] - 2018-08-01
+
+### Added
+
+* Support HTTP/2 with rustls #36
+
+* Allow TestServer to open a websocket on any URL (TestServer::ws_at()) #433
+
+### Fixed
+
+* Fixed failure 0.1.2 compatibility
+
+* Do not override HOST header for client request #428
+
+* Gz streaming, use `flate2::write::GzDecoder` #228
+
+* HttpRequest::url_for is not working with scopes #429
+
+* Fixed headers' formating for CORS Middleware `Access-Control-Expose-Headers` header value to HTTP/1.1 & HTTP/2 spec-compliant format #436
+
+
+## [0.7.2] - 2018-07-26
+
+### Added
+
+* Add implementation of `FromRequest<S>` for `Option<T>` and `Result<T, Error>`
+
+* Allow to handle application prefix, i.e. allow to handle `/app` path
+  for application with `/app` prefix.
+  Check [`App::prefix()`](https://actix.rs/actix-web/actix_web/struct.App.html#method.prefix)
+  api doc.
+
+* Add `CookieSessionBackend::http_only` method to set `HttpOnly` directive of cookies
+
+### Changed
+
+* Upgrade to cookie 0.11
+
+* Removed the timestamp from the default logger middleware
+
+### Fixed
+
+* Missing response header "content-encoding" #421
+
+* Fix stream draining for http/2 connections #290
+
+
+## [0.7.1] - 2018-07-21
 
 ### Fixed
 
 * Fixed default_resource 'not yet implemented' panic #410
 
-* Add `CookieSessionBackend::http_only` method to set `HttpOnly` directive of cookies
 
 ## [0.7.0] - 2018-07-21
 

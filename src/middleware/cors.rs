@@ -387,12 +387,10 @@ impl<S> Middleware<S> for Cors {
                             header::ACCESS_CONTROL_MAX_AGE,
                             format!("{}", max_age).as_str(),
                         );
-                    })
-                    .if_some(headers, |headers, resp| {
+                    }).if_some(headers, |headers, resp| {
                         let _ =
                             resp.header(header::ACCESS_CONTROL_ALLOW_HEADERS, headers);
-                    })
-                    .if_true(self.inner.origins.is_all(), |resp| {
+                    }).if_true(self.inner.origins.is_all(), |resp| {
                         if self.inner.send_wildcard {
                             resp.header(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*");
                         } else {
@@ -402,17 +400,14 @@ impl<S> Middleware<S> for Cors {
                                 origin.clone(),
                             );
                         }
-                    })
-                    .if_true(self.inner.origins.is_some(), |resp| {
+                    }).if_true(self.inner.origins.is_some(), |resp| {
                         resp.header(
                             header::ACCESS_CONTROL_ALLOW_ORIGIN,
                             self.inner.origins_str.as_ref().unwrap().clone(),
                         );
-                    })
-                    .if_true(self.inner.supports_credentials, |resp| {
+                    }).if_true(self.inner.supports_credentials, |resp| {
                         resp.header(header::ACCESS_CONTROL_ALLOW_CREDENTIALS, "true");
-                    })
-                    .header(
+                    }).header(
                         header::ACCESS_CONTROL_ALLOW_METHODS,
                         &self
                             .inner
@@ -420,8 +415,7 @@ impl<S> Middleware<S> for Cors {
                             .iter()
                             .fold(String::new(), |s, v| s + "," + v.as_str())
                             .as_str()[1..],
-                    )
-                    .finish(),
+                    ).finish(),
             ))
         } else {
             // Only check requests with a origin header.
@@ -832,15 +826,15 @@ impl<S: 'static> CorsBuilder<S> {
         if let AllOrSome::Some(ref origins) = cors.origins {
             let s = origins
                 .iter()
-                .fold(String::new(), |s, v| s + &v.to_string());
-            cors.origins_str = Some(HeaderValue::try_from(s.as_str()).unwrap());
+                .fold(String::new(), |s, v| format!("{}, {}", s, v));
+            cors.origins_str = Some(HeaderValue::try_from(&s[2..]).unwrap());
         }
 
         if !self.expose_hdrs.is_empty() {
             cors.expose_hdrs = Some(
                 self.expose_hdrs
                     .iter()
-                    .fold(String::new(), |s, v| s + v.as_str())[1..]
+                    .fold(String::new(), |s, v| format!("{}, {}", s, v.as_str()))[2..]
                     .to_owned(),
             );
         }
@@ -978,8 +972,7 @@ mod tests {
             .header(
                 header::ACCESS_CONTROL_REQUEST_HEADERS,
                 "AUTHORIZATION,ACCEPT",
-            )
-            .method(Method::OPTIONS)
+            ).method(Method::OPTIONS)
             .finish();
 
         let resp = cors.start(&req).unwrap().response();
@@ -1073,12 +1066,14 @@ mod tests {
 
     #[test]
     fn test_response() {
+        let exposed_headers = vec![header::AUTHORIZATION, header::ACCEPT];
         let cors = Cors::build()
             .send_wildcard()
             .disable_preflight()
             .max_age(3600)
             .allowed_methods(vec![Method::GET, Method::OPTIONS, Method::POST])
-            .allowed_headers(vec![header::AUTHORIZATION, header::ACCEPT])
+            .allowed_headers(exposed_headers.clone())
+            .expose_headers(exposed_headers.clone())
             .allowed_header(header::CONTENT_TYPE)
             .finish();
 
@@ -1100,6 +1095,22 @@ mod tests {
             resp.headers().get(header::VARY).unwrap().as_bytes()
         );
 
+        {
+            let headers = resp
+                .headers()
+                .get(header::ACCESS_CONTROL_EXPOSE_HEADERS)
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .split(',')
+                .map(|s| s.trim())
+                .collect::<Vec<&str>>();
+
+            for h in exposed_headers {
+                assert!(headers.contains(&h.as_str()));
+            }
+        }
+
         let resp: HttpResponse =
             HttpResponse::Ok().header(header::VARY, "Accept").finish();
         let resp = cors.response(&req, resp).unwrap().response();
@@ -1111,16 +1122,29 @@ mod tests {
         let cors = Cors::build()
             .disable_vary_header()
             .allowed_origin("https://www.example.com")
+            .allowed_origin("https://www.google.com")
             .finish();
         let resp: HttpResponse = HttpResponse::Ok().into();
         let resp = cors.response(&req, resp).unwrap().response();
-        assert_eq!(
-            &b"https://www.example.com"[..],
-            resp.headers()
-                .get(header::ACCESS_CONTROL_ALLOW_ORIGIN)
-                .unwrap()
-                .as_bytes()
-        );
+
+        let origins_str = resp
+            .headers()
+            .get(header::ACCESS_CONTROL_ALLOW_ORIGIN)
+            .unwrap()
+            .to_str()
+            .unwrap();
+
+        if origins_str.starts_with("https://www.example.com") {
+            assert_eq!(
+                "https://www.example.com, https://www.google.com",
+                origins_str
+            );
+        } else {
+            assert_eq!(
+                "https://www.google.com, https://www.example.com",
+                origins_str
+            );
+        }
     }
 
     #[test]

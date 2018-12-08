@@ -31,6 +31,7 @@ impl Hasher for IdHasher {
 
 type AnyMap = HashMap<TypeId, Box<Any>, BuildHasherDefault<IdHasher>>;
 
+#[derive(Default)]
 /// A type map of request extensions.
 pub struct Extensions {
     map: AnyMap,
@@ -39,7 +40,7 @@ pub struct Extensions {
 impl Extensions {
     /// Create an empty `Extensions`.
     #[inline]
-    pub(crate) fn new() -> Extensions {
+    pub fn new() -> Extensions {
         Extensions {
             map: HashMap::default(),
         }

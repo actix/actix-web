@@ -6,7 +6,7 @@ use std::{fmt, str};
 use bytes::Bytes;
 use encoding::all::UTF_8;
 use encoding::types::{DecoderTrap, Encoding};
-use futures::{Async, Future, Poll, future};
+use futures::{future, Async, Future, Poll};
 use mime::Mime;
 use serde::de::{self, DeserializeOwned};
 use serde_urlencoded;
@@ -19,7 +19,8 @@ use httprequest::HttpRequest;
 use Either;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
-/// Extract typed information from the request's path.
+/// Extract typed information from the request's path. Information from the path is
+/// URL decoded. Decoding of special characters can be disabled through `PathConfig`.
 ///
 /// ## Example
 ///
@@ -102,19 +103,80 @@ impl<T> Path<T> {
     }
 }
 
+impl<T> From<T> for Path<T> {
+    fn from(inner: T) -> Path<T> {
+        Path { inner }
+    }
+}
+
 impl<T, S> FromRequest<S> for Path<T>
 where
     T: DeserializeOwned,
 {
-    type Config = ();
+    type Config = PathConfig<S>;
     type Result = Result<Self, Error>;
 
     #[inline]
-    fn from_request(req: &HttpRequest<S>, _: &Self::Config) -> Self::Result {
+    fn from_request(req: &HttpRequest<S>, cfg: &Self::Config) -> Self::Result {
         let req = req.clone();
-        de::Deserialize::deserialize(PathDeserializer::new(&req))
-            .map_err(ErrorNotFound)
+        let req2 = req.clone();
+        let err = Rc::clone(&cfg.ehandler);
+        de::Deserialize::deserialize(PathDeserializer::new(&req, cfg.decode))
+            .map_err(move |e| (*err)(e, &req2))
             .map(|inner| Path { inner })
+    }
+}
+
+/// Path extractor configuration
+///
+/// ```rust
+/// # extern crate actix_web;
+/// use actix_web::{error, http, App, HttpResponse, Path, Result};
+///
+/// /// deserialize `Info` from request's body, max payload size is 4kb
+/// fn index(info: Path<(u32, String)>) -> Result<String> {
+///     Ok(format!("Welcome {}!", info.1))
+/// }
+///
+/// fn main() {
+///     let app = App::new().resource("/index.html/{id}/{name}", |r| {
+///         r.method(http::Method::GET).with_config(index, |cfg| {
+///             cfg.0.error_handler(|err, req| {
+///                 // <- create custom error response
+///                 error::InternalError::from_response(err, HttpResponse::Conflict().finish()).into()
+///             });
+///         })
+///     });
+/// }
+/// ```
+pub struct PathConfig<S> {
+    ehandler: Rc<Fn(serde_urlencoded::de::Error, &HttpRequest<S>) -> Error>,
+    decode: bool,
+}
+impl<S> PathConfig<S> {
+    /// Set custom error handler
+    pub fn error_handler<F>(&mut self, f: F) -> &mut Self
+    where
+        F: Fn(serde_urlencoded::de::Error, &HttpRequest<S>) -> Error + 'static,
+    {
+        self.ehandler = Rc::new(f);
+        self
+    }
+
+    /// Disable decoding of URL encoded special charaters from the path
+    pub fn disable_decoding(&mut self) -> &mut Self
+    {
+        self.decode = false;
+        self
+    }
+}
+
+impl<S> Default for PathConfig<S> {
+    fn default() -> Self {
+        PathConfig {
+            ehandler: Rc::new(|e, _| ErrorNotFound(e)),
+            decode: true,
+        }
     }
 }
 
@@ -195,14 +257,66 @@ impl<T, S> FromRequest<S> for Query<T>
 where
     T: de::DeserializeOwned,
 {
-    type Config = ();
+    type Config = QueryConfig<S>;
     type Result = Result<Self, Error>;
 
     #[inline]
-    fn from_request(req: &HttpRequest<S>, _: &Self::Config) -> Self::Result {
+    fn from_request(req: &HttpRequest<S>, cfg: &Self::Config) -> Self::Result {
+        let req2 = req.clone();
+        let err = Rc::clone(&cfg.ehandler);
         serde_urlencoded::from_str::<T>(req.query_string())
-            .map_err(|e| e.into())
+            .map_err(move |e| (*err)(e, &req2))
             .map(Query)
+    }
+}
+
+/// Query extractor configuration
+///
+/// ```rust
+/// # extern crate actix_web;
+/// #[macro_use] extern crate serde_derive;
+/// use actix_web::{error, http, App, HttpResponse, Query, Result};
+///
+/// #[derive(Deserialize)]
+/// struct Info {
+///     username: String,
+/// }
+///
+/// /// deserialize `Info` from request's body, max payload size is 4kb
+/// fn index(info: Query<Info>) -> Result<String> {
+///     Ok(format!("Welcome {}!", info.username))
+/// }
+///
+/// fn main() {
+///     let app = App::new().resource("/index.html", |r| {
+///         r.method(http::Method::GET).with_config(index, |cfg| {
+///             cfg.0.error_handler(|err, req| {
+///                 // <- create custom error response
+///                 error::InternalError::from_response(err, HttpResponse::Conflict().finish()).into()
+///             });
+///         })
+///     });
+/// }
+/// ```
+pub struct QueryConfig<S> {
+    ehandler: Rc<Fn(serde_urlencoded::de::Error, &HttpRequest<S>) -> Error>,
+}
+impl<S> QueryConfig<S> {
+    /// Set custom error handler
+    pub fn error_handler<F>(&mut self, f: F) -> &mut Self
+    where
+        F: Fn(serde_urlencoded::de::Error, &HttpRequest<S>) -> Error + 'static,
+    {
+        self.ehandler = Rc::new(f);
+        self
+    }
+}
+
+impl<S> Default for QueryConfig<S> {
+    fn default() -> Self {
+        QueryConfig {
+            ehandler: Rc::new(|e, _| e.into()),
+        }
     }
 }
 
@@ -327,7 +441,7 @@ impl<T: fmt::Display> fmt::Display for Form<T> {
 ///         |r| {
 ///             r.method(http::Method::GET)
 ///                 // register form handler and change form extractor configuration
-///                 .with_config(index, |cfg| {cfg.limit(4096);})
+///                 .with_config(index, |cfg| {cfg.0.limit(4096);})
 ///         },
 ///     );
 /// }
@@ -422,7 +536,7 @@ impl<S: 'static> FromRequest<S> for Bytes {
 ///     let app = App::new().resource("/index.html", |r| {
 ///         r.method(http::Method::GET)
 ///                .with_config(index, |cfg| { // <- register handler with extractor params
-///                   cfg.limit(4096);  // <- limit size of the payload
+///                   cfg.0.limit(4096);  // <- limit size of the payload
 ///                 })
 ///     });
 /// }
@@ -505,19 +619,18 @@ impl<S: 'static> FromRequest<S> for String {
 ///     });
 /// }
 /// ```
-impl<T: 'static, S: 'static> FromRequest<S> for Option<T> where T: FromRequest<S> {
+impl<T: 'static, S: 'static> FromRequest<S> for Option<T>
+where
+    T: FromRequest<S>,
+{
     type Config = T::Config;
     type Result = Box<Future<Item = Option<T>, Error = Error>>;
 
     #[inline]
     fn from_request(req: &HttpRequest<S>, cfg: &Self::Config) -> Self::Result {
-        Box::new(T::from_request(req, cfg).into().then( |r| {
-            match r {
-                Ok(v) => future::ok(Some(v)),
-                Err(e) => {
-                    future::ok(None)
-                }
-            }
+        Box::new(T::from_request(req, cfg).into().then(|r| match r {
+            Ok(v) => future::ok(Some(v)),
+            Err(_) => future::ok(None),
         }))
     }
 }
@@ -711,13 +824,16 @@ impl<A,B,S> Default for EitherConfig<A,B,S> where A: FromRequest<S>, B: FromRequ
 ///     });
 /// }
 /// ```
-impl<T: 'static, S: 'static> FromRequest<S> for Result<T, Error> where T: FromRequest<S>{
+impl<T: 'static, S: 'static> FromRequest<S> for Result<T, Error>
+where
+    T: FromRequest<S>,
+{
     type Config = T::Config;
     type Result = Box<Future<Item = Result<T, Error>, Error = Error>>;
 
     #[inline]
     fn from_request(req: &HttpRequest<S>, cfg: &Self::Config) -> Self::Result {
-        Box::new(T::from_request(req, cfg).into().then( |r| { future::ok(r) }))
+        Box::new(T::from_request(req, cfg).into().then(future::ok))
     }
 }
 
@@ -833,6 +949,12 @@ macro_rules! tuple_from_req ({$fut_type:ident, $(($n:tt, $T:ident)),+} => {
     }
 });
 
+impl<S> FromRequest<S> for () {
+    type Config = ();
+    type Result = Self;
+    fn from_request(_req: &HttpRequest<S>, _cfg: &Self::Config) -> Self::Result {}
+}
+
 tuple_from_req!(TupleFromRequest1, (0, A));
 tuple_from_req!(TupleFromRequest2, (0, A), (1, B));
 tuple_from_req!(TupleFromRequest3, (0, A), (1, B), (2, C));
@@ -938,8 +1060,8 @@ mod tests {
             header::CONTENT_TYPE,
             "application/x-www-form-urlencoded",
         ).header(header::CONTENT_LENGTH, "11")
-            .set_payload(Bytes::from_static(b"hello=world"))
-            .finish();
+        .set_payload(Bytes::from_static(b"hello=world"))
+        .finish();
 
         let mut cfg = FormConfig::default();
         cfg.limit(4096);
@@ -961,7 +1083,10 @@ mod tests {
         let mut cfg = FormConfig::default();
         cfg.limit(4096);
 
-        match Option::<Form<Info>>::from_request(&req, &cfg).poll().unwrap() {
+        match Option::<Form<Info>>::from_request(&req, &cfg)
+            .poll()
+            .unwrap()
+        {
             Async::Ready(r) => assert_eq!(r, None),
             _ => unreachable!(),
         }
@@ -970,11 +1095,19 @@ mod tests {
             header::CONTENT_TYPE,
             "application/x-www-form-urlencoded",
         ).header(header::CONTENT_LENGTH, "9")
-            .set_payload(Bytes::from_static(b"hello=world"))
-            .finish();
+        .set_payload(Bytes::from_static(b"hello=world"))
+        .finish();
 
-        match Option::<Form<Info>>::from_request(&req, &cfg).poll().unwrap() {
-            Async::Ready(r) => assert_eq!(r, Some(Form(Info { hello: "world".into() }))),
+        match Option::<Form<Info>>::from_request(&req, &cfg)
+            .poll()
+            .unwrap()
+        {
+            Async::Ready(r) => assert_eq!(
+                r,
+                Some(Form(Info {
+                    hello: "world".into()
+                }))
+            ),
             _ => unreachable!(),
         }
 
@@ -982,10 +1115,13 @@ mod tests {
             header::CONTENT_TYPE,
             "application/x-www-form-urlencoded",
         ).header(header::CONTENT_LENGTH, "9")
-            .set_payload(Bytes::from_static(b"bye=world"))
-            .finish();
+        .set_payload(Bytes::from_static(b"bye=world"))
+        .finish();
 
-        match Option::<Form<Info>>::from_request(&req, &cfg).poll().unwrap() {
+        match Option::<Form<Info>>::from_request(&req, &cfg)
+            .poll()
+            .unwrap()
+        {
             Async::Ready(r) => assert_eq!(r, None),
             _ => unreachable!(),
         }
@@ -1039,11 +1175,19 @@ mod tests {
             header::CONTENT_TYPE,
             "application/x-www-form-urlencoded",
         ).header(header::CONTENT_LENGTH, "11")
-            .set_payload(Bytes::from_static(b"hello=world"))
-            .finish();
+        .set_payload(Bytes::from_static(b"hello=world"))
+        .finish();
 
-        match Result::<Form<Info>, Error>::from_request(&req, &FormConfig::default()).poll().unwrap() {
-            Async::Ready(Ok(r)) => assert_eq!(r, Form(Info { hello: "world".into() })),
+        match Result::<Form<Info>, Error>::from_request(&req, &FormConfig::default())
+            .poll()
+            .unwrap()
+        {
+            Async::Ready(Ok(r)) => assert_eq!(
+                r,
+                Form(Info {
+                    hello: "world".into()
+                })
+            ),
             _ => unreachable!(),
         }
 
@@ -1051,16 +1195,17 @@ mod tests {
             header::CONTENT_TYPE,
             "application/x-www-form-urlencoded",
         ).header(header::CONTENT_LENGTH, "9")
-            .set_payload(Bytes::from_static(b"bye=world"))
-            .finish();
+        .set_payload(Bytes::from_static(b"bye=world"))
+        .finish();
 
-        match Result::<Form<Info>, Error>::from_request(&req, &FormConfig::default()).poll().unwrap() {
+        match Result::<Form<Info>, Error>::from_request(&req, &FormConfig::default())
+            .poll()
+            .unwrap()
+        {
             Async::Ready(r) => assert!(r.is_err()),
             _ => unreachable!(),
         }
     }
-
-
 
     #[test]
     fn test_payload_config() {
@@ -1101,33 +1246,33 @@ mod tests {
     fn test_request_extract() {
         let req = TestRequest::with_uri("/name/user1/?id=test").finish();
 
-        let mut router = Router::<()>::new();
+        let mut router = Router::<()>::default();
         router.register_resource(Resource::new(ResourceDef::new("/{key}/{value}/")));
         let info = router.recognize(&req, &(), 0);
         let req = req.with_route_info(info);
 
-        let s = Path::<MyStruct>::from_request(&req, &()).unwrap();
+        let s = Path::<MyStruct>::from_request(&req, &PathConfig::default()).unwrap();
         assert_eq!(s.key, "name");
         assert_eq!(s.value, "user1");
 
-        let s = Path::<(String, String)>::from_request(&req, &()).unwrap();
+        let s = Path::<(String, String)>::from_request(&req, &PathConfig::default()).unwrap();
         assert_eq!(s.0, "name");
         assert_eq!(s.1, "user1");
 
-        let s = Query::<Id>::from_request(&req, &()).unwrap();
+        let s = Query::<Id>::from_request(&req, &QueryConfig::default()).unwrap();
         assert_eq!(s.id, "test");
 
-        let mut router = Router::<()>::new();
+        let mut router = Router::<()>::default();
         router.register_resource(Resource::new(ResourceDef::new("/{key}/{value}/")));
         let req = TestRequest::with_uri("/name/32/").finish();
         let info = router.recognize(&req, &(), 0);
         let req = req.with_route_info(info);
 
-        let s = Path::<Test2>::from_request(&req, &()).unwrap();
+        let s = Path::<Test2>::from_request(&req, &PathConfig::default()).unwrap();
         assert_eq!(s.as_ref().key, "name");
         assert_eq!(s.value, 32);
 
-        let s = Path::<(String, u8)>::from_request(&req, &()).unwrap();
+        let s = Path::<(String, u8)>::from_request(&req, &PathConfig::default()).unwrap();
         assert_eq!(s.0, "name");
         assert_eq!(s.1, 32);
 
@@ -1138,18 +1283,80 @@ mod tests {
 
     #[test]
     fn test_extract_path_single() {
-        let mut router = Router::<()>::new();
+        let mut router = Router::<()>::default();
         router.register_resource(Resource::new(ResourceDef::new("/{value}/")));
 
         let req = TestRequest::with_uri("/32/").finish();
         let info = router.recognize(&req, &(), 0);
         let req = req.with_route_info(info);
-        assert_eq!(*Path::<i8>::from_request(&req, &()).unwrap(), 32);
+        assert_eq!(*Path::<i8>::from_request(&req, &&PathConfig::default()).unwrap(), 32);
+    }
+
+    #[test]
+    fn test_extract_path_decode() {
+        let mut router = Router::<()>::default();
+        router.register_resource(Resource::new(ResourceDef::new("/{value}/")));
+
+        macro_rules! test_single_value {
+            ($value:expr, $expected:expr) => {
+                {
+                    let req = TestRequest::with_uri($value).finish();
+                    let info = router.recognize(&req, &(), 0);
+                    let req = req.with_route_info(info);
+                    assert_eq!(*Path::<String>::from_request(&req, &PathConfig::default()).unwrap(), $expected);
+                }
+            }
+        }
+
+        test_single_value!("/%25/", "%");
+        test_single_value!("/%40%C2%A3%24%25%5E%26%2B%3D/", "@£$%^&+=");
+        test_single_value!("/%2B/", "+");
+        test_single_value!("/%252B/", "%2B");
+        test_single_value!("/%2F/", "/");
+        test_single_value!("/%252F/", "%2F");
+        test_single_value!("/http%3A%2F%2Flocalhost%3A80%2Ffoo/", "http://localhost:80/foo");
+        test_single_value!("/%2Fvar%2Flog%2Fsyslog/", "/var/log/syslog");
+        test_single_value!(
+            "/http%3A%2F%2Flocalhost%3A80%2Ffile%2F%252Fvar%252Flog%252Fsyslog/",
+            "http://localhost:80/file/%2Fvar%2Flog%2Fsyslog"
+        );
+
+        let req = TestRequest::with_uri("/%25/7/?id=test").finish();
+
+        let mut router = Router::<()>::default();
+        router.register_resource(Resource::new(ResourceDef::new("/{key}/{value}/")));
+        let info = router.recognize(&req, &(), 0);
+        let req = req.with_route_info(info);
+
+        let s = Path::<Test2>::from_request(&req, &PathConfig::default()).unwrap();
+        assert_eq!(s.key, "%");
+        assert_eq!(s.value, 7);
+
+        let s = Path::<(String, String)>::from_request(&req, &PathConfig::default()).unwrap();
+        assert_eq!(s.0, "%");
+        assert_eq!(s.1, "7");
+    }
+
+    #[test]
+    fn test_extract_path_no_decode() {
+        let mut router = Router::<()>::default();
+        router.register_resource(Resource::new(ResourceDef::new("/{value}/")));
+
+        let req = TestRequest::with_uri("/%25/").finish();
+        let info = router.recognize(&req, &(), 0);
+        let req = req.with_route_info(info);
+        assert_eq!(
+            *Path::<String>::from_request(
+                &req,
+                &&PathConfig::default().disable_decoding()
+            ).unwrap(),
+            "%25"
+        );
     }
 
     #[test]
     fn test_tuple_extract() {
-        let mut router = Router::<()>::new();
+        let mut router = Router::<()>::default();
         router.register_resource(Resource::new(ResourceDef::new("/{key}/{value}/")));
 
         let req = TestRequest::with_uri("/name/user1/?id=test").finish();
@@ -1173,5 +1380,7 @@ mod tests {
         assert_eq!((res.0).1, "user1");
         assert_eq!((res.1).0, "name");
         assert_eq!((res.1).1, "user1");
+
+        let () = <()>::extract(&req);
     }
 }

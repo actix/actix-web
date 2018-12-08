@@ -12,6 +12,7 @@ use resource::Resource;
 use router::{ResourceDef, Router};
 use scope::Scope;
 use server::{HttpHandler, HttpHandlerTask, IntoHttpHandler, Request};
+use with::WithFactory;
 
 /// Application
 pub struct HttpApplication<S = ()> {
@@ -134,13 +135,13 @@ where
     /// instance for each thread, thus application state must be constructed
     /// multiple times. If you want to share state between different
     /// threads, a shared object should be used, e.g. `Arc`. Application
-    /// state does not need to be `Send` and `Sync`.
+    /// state does not need to be `Send` or `Sync`.
     pub fn with_state(state: S) -> App<S> {
         App {
             parts: Some(ApplicationParts {
                 state,
                 prefix: "".to_owned(),
-                router: Router::new(),
+                router: Router::new(ResourceDef::prefix("")),
                 middlewares: Vec::new(),
                 filters: Vec::new(),
                 encoding: ContentEncoding::Auto,
@@ -171,7 +172,9 @@ where
     /// In the following example only requests with an `/app/` path
     /// prefix get handled. Requests with path `/app/test/` would be
     /// handled, while requests with the paths `/application` or
-    /// `/other/...` would return `NOT FOUND`.
+    /// `/other/...` would return `NOT FOUND`. It is also possible to
+    /// handle `/app` path, to do this you can register resource for
+    /// empty string `""`
     ///
     /// ```rust
     /// # extern crate actix_web;
@@ -180,6 +183,8 @@ where
     /// fn main() {
     ///     let app = App::new()
     ///         .prefix("/app")
+    ///         .resource("", |r| r.f(|_| HttpResponse::Ok()))  // <- handle `/app` path
+    ///         .resource("/", |r| r.f(|_| HttpResponse::Ok())) // <- handle `/app/` path
     ///         .resource("/test", |r| {
     ///             r.get().f(|_| HttpResponse::Ok());
     ///             r.head().f(|_| HttpResponse::MethodNotAllowed());
@@ -194,6 +199,7 @@ where
             if !prefix.starts_with('/') {
                 prefix.insert(0, '/')
             }
+            parts.router.set_prefix(&prefix);
             parts.prefix = prefix;
         }
         self
@@ -244,7 +250,7 @@ where
     /// ```
     pub fn route<T, F, R>(mut self, path: &str, method: Method, f: F) -> App<S>
     where
-        F: Fn(T) -> R + 'static,
+        F: WithFactory<T, S, R>,
         R: Responder + 'static,
         T: FromRequest<S> + 'static,
     {
@@ -441,11 +447,8 @@ where
         {
             let mut path = path.trim().trim_right_matches('/').to_owned();
             if !path.is_empty() && !path.starts_with('/') {
-                path.insert(0, '/')
-            }
-            if path.len() > 1 && path.ends_with('/') {
-                path.pop();
-            }
+                path.insert(0, '/');
+            };
             self.parts
                 .as_mut()
                 .expect("Use after finish")
@@ -770,8 +773,7 @@ mod tests {
             .route("/test", Method::GET, |_: HttpRequest| HttpResponse::Ok())
             .route("/test", Method::POST, |_: HttpRequest| {
                 HttpResponse::Created()
-            })
-            .finish();
+            }).finish();
 
         let req = TestRequest::with_uri("/test").method(Method::GET).request();
         let resp = app.run(req);
@@ -823,6 +825,23 @@ mod tests {
     }
 
     #[test]
+    fn test_option_responder() {
+        let app = App::new()
+            .resource("/none", |r| r.f(|_| -> Option<&'static str> { None }))
+            .resource("/some", |r| r.f(|_| Some("some")))
+            .finish();
+
+        let req = TestRequest::with_uri("/none").request();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::NOT_FOUND);
+
+        let req = TestRequest::with_uri("/some").request();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::OK);
+        assert_eq!(resp.as_msg().body(), &Body::Binary(Binary::Slice(b"some")));
+    }
+
+    #[test]
     fn test_filter() {
         let mut srv = TestServer::with_factory(|| {
             App::new()
@@ -840,19 +859,21 @@ mod tests {
     }
 
     #[test]
-    fn test_option_responder() {
-        let app = App::new()
-            .resource("/none", |r| r.f(|_| -> Option<&'static str> { None }))
-            .resource("/some", |r| r.f(|_| Some("some")))
-            .finish();
+    fn test_prefix_root() {
+        let mut srv = TestServer::with_factory(|| {
+            App::new()
+                .prefix("/test")
+                .resource("/", |r| r.f(|_| HttpResponse::Ok()))
+                .resource("", |r| r.f(|_| HttpResponse::Created()))
+        });
 
-        let req = TestRequest::with_uri("/none").request();
-        let resp = app.run(req);
-        assert_eq!(resp.as_msg().status(), StatusCode::NOT_FOUND);
+        let request = srv.get().uri(srv.url("/test/")).finish().unwrap();
+        let response = srv.execute(request.send()).unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
 
-        let req = TestRequest::with_uri("/some").request();
-        let resp = app.run(req);
-        assert_eq!(resp.as_msg().status(), StatusCode::OK);
-        assert_eq!(resp.as_msg().body(), &Body::Binary(Binary::Slice(b"some")));
+        let request = srv.get().uri(srv.url("/test")).finish().unwrap();
+        let response = srv.execute(request.send()).unwrap();
+        assert_eq!(response.status(), StatusCode::CREATED);
     }
+
 }

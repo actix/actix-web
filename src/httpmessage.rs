@@ -479,8 +479,7 @@ where
                         body.extend_from_slice(&chunk);
                         Ok(body)
                     }
-                })
-                .map(|body| body.freeze()),
+                }).map(|body| body.freeze()),
         ));
         self.poll()
     }
@@ -588,8 +587,7 @@ where
                     body.extend_from_slice(&chunk);
                     Ok(body)
                 }
-            })
-            .and_then(move |body| {
+            }).and_then(move |body| {
                 if (encoding as *const Encoding) == UTF_8 {
                     serde_urlencoded::from_bytes::<U>(&body)
                         .map_err(|_| UrlencodedError::Parse)
@@ -694,8 +692,7 @@ mod tests {
             .header(
                 header::TRANSFER_ENCODING,
                 Bytes::from_static(b"some va\xadscc\xacas0xsdasdlue"),
-            )
-            .finish();
+            ).finish();
         assert!(req.chunked().is_err());
     }
 
@@ -734,7 +731,7 @@ mod tests {
             header::CONTENT_TYPE,
             "application/x-www-form-urlencoded",
         ).header(header::CONTENT_LENGTH, "xxxx")
-            .finish();
+        .finish();
         assert_eq!(
             req.urlencoded::<Info>().poll().err().unwrap(),
             UrlencodedError::UnknownLength
@@ -744,7 +741,7 @@ mod tests {
             header::CONTENT_TYPE,
             "application/x-www-form-urlencoded",
         ).header(header::CONTENT_LENGTH, "1000000")
-            .finish();
+        .finish();
         assert_eq!(
             req.urlencoded::<Info>().poll().err().unwrap(),
             UrlencodedError::Overflow
@@ -765,8 +762,8 @@ mod tests {
             header::CONTENT_TYPE,
             "application/x-www-form-urlencoded",
         ).header(header::CONTENT_LENGTH, "11")
-            .set_payload(Bytes::from_static(b"hello=world"))
-            .finish();
+        .set_payload(Bytes::from_static(b"hello=world"))
+        .finish();
 
         let result = req.urlencoded::<Info>().poll().ok().unwrap();
         assert_eq!(
@@ -780,8 +777,8 @@ mod tests {
             header::CONTENT_TYPE,
             "application/x-www-form-urlencoded; charset=utf-8",
         ).header(header::CONTENT_LENGTH, "11")
-            .set_payload(Bytes::from_static(b"hello=world"))
-            .finish();
+        .set_payload(Bytes::from_static(b"hello=world"))
+        .finish();
 
         let result = req.urlencoded().poll().ok().unwrap();
         assert_eq!(
@@ -830,8 +827,7 @@ mod tests {
                 b"Lorem Ipsum is simply dummy text of the printing and typesetting\n\
                   industry. Lorem Ipsum has been the industry's standard dummy\n\
                   Contrary to popular belief, Lorem Ipsum is not simply random text.",
-            ))
-            .finish();
+            )).finish();
         let mut r = Readlines::new(&req);
         match r.poll().ok().unwrap() {
             Async::Ready(Some(s)) => assert_eq!(

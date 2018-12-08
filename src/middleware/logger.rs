@@ -25,7 +25,7 @@ use middleware::{Finished, Middleware, Started};
 /// default format:
 ///
 /// ```ignore
-///  %a %t "%r" %s %b "%{Referer}i" "%{User-Agent}i" %T
+///  %a "%r" %s %b "%{Referer}i" "%{User-Agent}i" %T
 /// ```
 /// ```rust
 /// # extern crate actix_web;
@@ -94,7 +94,7 @@ impl Default for Logger {
     /// Create `Logger` middleware with format:
     ///
     /// ```ignore
-    /// %a %t "%r" %s %b "%{Referer}i" "%{User-Agent}i" %T
+    /// %a "%r" %s %b "%{Referer}i" "%{User-Agent}i" %T
     /// ```
     fn default() -> Logger {
         Logger {
@@ -143,7 +143,7 @@ struct Format(Vec<FormatText>);
 impl Default for Format {
     /// Return the default formatting style for the `Logger`:
     fn default() -> Format {
-        Format::new(r#"%a %t "%r" %s %b "%{Referer}i" "%{User-Agent}i" %T"#)
+        Format::new(r#"%a "%r" %s %b "%{Referer}i" "%{User-Agent}i" %T"#)
     }
 }
 

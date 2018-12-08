@@ -5,7 +5,10 @@ use std::rc::Rc;
 use futures::{Async, Future, Poll};
 
 use error::Error;
-use handler::{AsyncResult, AsyncResultItem, FromRequest, Responder, RouteHandler};
+use handler::{
+    AsyncResult, AsyncResultItem, FromRequest, Handler, Responder, RouteHandler,
+    WrapHandler,
+};
 use http::Method;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
@@ -17,6 +20,7 @@ use pred::Predicate;
 use resource::{DefaultResource, Resource};
 use router::{ResourceDef, Router};
 use server::Request;
+use with::WithFactory;
 
 /// Resources scope
 ///
@@ -55,14 +59,17 @@ pub struct Scope<S> {
     middlewares: Rc<Vec<Box<Middleware<S>>>>,
 }
 
-#[cfg_attr(feature = "cargo-clippy", allow(new_without_default_derive))]
+#[cfg_attr(
+    feature = "cargo-clippy",
+    allow(new_without_default_derive)
+)]
 impl<S: 'static> Scope<S> {
     /// Create a new scope
-    // TODO: Why is this not exactly the default impl?
     pub fn new(path: &str) -> Scope<S> {
+        let rdef = ResourceDef::prefix(path);
         Scope {
-            rdef: ResourceDef::prefix(path),
-            router: Rc::new(Router::new()),
+            rdef: rdef.clone(),
+            router: Rc::new(Router::new(rdef)),
             filters: Vec::new(),
             middlewares: Rc::new(Vec::new()),
         }
@@ -132,10 +139,11 @@ impl<S: 'static> Scope<S> {
     where
         F: FnOnce(Scope<T>) -> Scope<T>,
     {
+        let rdef = ResourceDef::prefix(path);
         let scope = Scope {
-            rdef: ResourceDef::prefix(path),
+            rdef: rdef.clone(),
             filters: Vec::new(),
-            router: Rc::new(Router::new()),
+            router: Rc::new(Router::new(rdef)),
             middlewares: Rc::new(Vec::new()),
         };
         let mut scope = f(scope);
@@ -178,10 +186,11 @@ impl<S: 'static> Scope<S> {
     where
         F: FnOnce(Scope<S>) -> Scope<S>,
     {
+        let rdef = ResourceDef::prefix(&insert_slash(path));
         let scope = Scope {
-            rdef: ResourceDef::prefix(&path),
+            rdef: rdef.clone(),
             filters: Vec::new(),
-            router: Rc::new(Router::new()),
+            router: Rc::new(Router::new(rdef)),
             middlewares: Rc::new(Vec::new()),
         };
         Rc::get_mut(&mut self.router)
@@ -220,13 +229,15 @@ impl<S: 'static> Scope<S> {
     /// ```
     pub fn route<T, F, R>(mut self, path: &str, method: Method, f: F) -> Scope<S>
     where
-        F: Fn(T) -> R + 'static,
+        F: WithFactory<T, S, R>,
         R: Responder + 'static,
         T: FromRequest<S> + 'static,
     {
-        Rc::get_mut(&mut self.router)
-            .unwrap()
-            .register_route(path, method, f);
+        Rc::get_mut(&mut self.router).unwrap().register_route(
+            &insert_slash(path),
+            method,
+            f,
+        );
         self
     }
 
@@ -258,12 +269,7 @@ impl<S: 'static> Scope<S> {
         F: FnOnce(&mut Resource<S>) -> R + 'static,
     {
         // add resource
-        let pattern = ResourceDef::with_prefix(
-            path,
-            if path.is_empty() { "" } else { "/" },
-            false,
-        );
-        let mut resource = Resource::new(pattern);
+        let mut resource = Resource::new(ResourceDef::new(&insert_slash(path)));
         f(&mut resource);
 
         Rc::get_mut(&mut self.router)
@@ -288,6 +294,35 @@ impl<S: 'static> Scope<S> {
         self
     }
 
+    /// Configure handler for specific path prefix.
+    ///
+    /// A path prefix consists of valid path segments, i.e for the
+    /// prefix `/app` any request with the paths `/app`, `/app/` or
+    /// `/app/test` would match, but the path `/application` would
+    /// not.
+    ///
+    /// ```rust
+    /// # extern crate actix_web;
+    /// use actix_web::{http, App, HttpRequest, HttpResponse};
+    ///
+    /// fn main() {
+    ///     let app = App::new().scope("/scope-prefix", |scope| {
+    ///         scope.handler("/app", |req: &HttpRequest| match *req.method() {
+    ///             http::Method::GET => HttpResponse::Ok(),
+    ///             http::Method::POST => HttpResponse::MethodNotAllowed(),
+    ///             _ => HttpResponse::NotFound(),
+    ///         })
+    ///     });
+    /// }
+    /// ```
+    pub fn handler<H: Handler<S>>(mut self, path: &str, handler: H) -> Scope<S> {
+        let path = insert_slash(path.trim().trim_right_matches('/'));
+        Rc::get_mut(&mut self.router)
+            .expect("Multiple copies of scope router")
+            .register_handler(&path, Box::new(WrapHandler::new(handler)), None);
+        self
+    }
+
     /// Register a scope middleware
     ///
     /// This is similar to `App's` middlewares, but
@@ -303,6 +338,14 @@ impl<S: 'static> Scope<S> {
     }
 }
 
+fn insert_slash(path: &str) -> String {
+    let mut path = path.to_owned();
+    if !path.is_empty() && !path.starts_with('/') {
+        path.insert(0, '/');
+    };
+    path
+}
+
 impl<S: 'static> RouteHandler<S> for Scope<S> {
     fn handle(&self, req: &HttpRequest<S>) -> AsyncResult<HttpResponse> {
         let tail = req.match_info().tail as usize;
@@ -313,7 +356,7 @@ impl<S: 'static> RouteHandler<S> for Scope<S> {
         if self.middlewares.is_empty() {
             self.router.handle(&req2)
         } else {
-            AsyncResult::async(Box::new(Compose::new(
+            AsyncResult::future(Box::new(Compose::new(
                 req2,
                 Rc::clone(&self.router),
                 Rc::clone(&self.middlewares),
@@ -717,8 +760,7 @@ mod tests {
         let app = App::new()
             .scope("/app", |scope| {
                 scope.resource("/path1", |r| r.f(|_| HttpResponse::Ok()))
-            })
-            .finish();
+            }).finish();
 
         let req = TestRequest::with_uri("/app/path1").request();
         let resp = app.run(req);
@@ -732,8 +774,7 @@ mod tests {
                 scope
                     .resource("", |r| r.f(|_| HttpResponse::Ok()))
                     .resource("/", |r| r.f(|_| HttpResponse::Created()))
-            })
-            .finish();
+            }).finish();
 
         let req = TestRequest::with_uri("/app").request();
         let resp = app.run(req);
@@ -749,8 +790,7 @@ mod tests {
         let app = App::new()
             .scope("/app/", |scope| {
                 scope.resource("", |r| r.f(|_| HttpResponse::Ok()))
-            })
-            .finish();
+            }).finish();
 
         let req = TestRequest::with_uri("/app").request();
         let resp = app.run(req);
@@ -766,8 +806,7 @@ mod tests {
         let app = App::new()
             .scope("/app/", |scope| {
                 scope.resource("/", |r| r.f(|_| HttpResponse::Ok()))
-            })
-            .finish();
+            }).finish();
 
         let req = TestRequest::with_uri("/app").request();
         let resp = app.run(req);
@@ -785,12 +824,38 @@ mod tests {
                 scope
                     .route("/path1", Method::GET, |_: HttpRequest<_>| {
                         HttpResponse::Ok()
-                    })
-                    .route("/path1", Method::DELETE, |_: HttpRequest<_>| {
+                    }).route("/path1", Method::DELETE, |_: HttpRequest<_>| {
                         HttpResponse::Ok()
                     })
-            })
-            .finish();
+            }).finish();
+
+        let req = TestRequest::with_uri("/app/path1").request();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::OK);
+
+        let req = TestRequest::with_uri("/app/path1")
+            .method(Method::DELETE)
+            .request();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::OK);
+
+        let req = TestRequest::with_uri("/app/path1")
+            .method(Method::POST)
+            .request();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::NOT_FOUND);
+    }
+
+    #[test]
+    fn test_scope_route_without_leading_slash() {
+        let app = App::new()
+            .scope("app", |scope| {
+                scope
+                    .route("path1", Method::GET, |_: HttpRequest<_>| HttpResponse::Ok())
+                    .route("path1", Method::DELETE, |_: HttpRequest<_>| {
+                        HttpResponse::Ok()
+                    })
+            }).finish();
 
         let req = TestRequest::with_uri("/app/path1").request();
         let resp = app.run(req);
@@ -816,8 +881,7 @@ mod tests {
                 scope
                     .filter(pred::Get())
                     .resource("/path1", |r| r.f(|_| HttpResponse::Ok()))
-            })
-            .finish();
+            }).finish();
 
         let req = TestRequest::with_uri("/app/path1")
             .method(Method::POST)
@@ -842,8 +906,7 @@ mod tests {
                             .body(format!("project: {}", &r.match_info()["project"]))
                     })
                 })
-            })
-            .finish();
+            }).finish();
 
         let req = TestRequest::with_uri("/ab-project1/path1").request();
         let resp = app.run(req);
@@ -871,8 +934,7 @@ mod tests {
                 scope.with_state("/t1", State, |scope| {
                     scope.resource("/path1", |r| r.f(|_| HttpResponse::Created()))
                 })
-            })
-            .finish();
+            }).finish();
 
         let req = TestRequest::with_uri("/app/t1/path1").request();
         let resp = app.run(req);
@@ -890,8 +952,7 @@ mod tests {
                         .resource("", |r| r.f(|_| HttpResponse::Ok()))
                         .resource("/", |r| r.f(|_| HttpResponse::Created()))
                 })
-            })
-            .finish();
+            }).finish();
 
         let req = TestRequest::with_uri("/app/t1").request();
         let resp = app.run(req);
@@ -911,8 +972,7 @@ mod tests {
                 scope.with_state("/t1/", State, |scope| {
                     scope.resource("", |r| r.f(|_| HttpResponse::Ok()))
                 })
-            })
-            .finish();
+            }).finish();
 
         let req = TestRequest::with_uri("/app/t1").request();
         let resp = app.run(req);
@@ -932,8 +992,7 @@ mod tests {
                 scope.with_state("/t1/", State, |scope| {
                     scope.resource("/", |r| r.f(|_| HttpResponse::Ok()))
                 })
-            })
-            .finish();
+            }).finish();
 
         let req = TestRequest::with_uri("/app/t1").request();
         let resp = app.run(req);
@@ -955,8 +1014,7 @@ mod tests {
                         .filter(pred::Get())
                         .resource("/path1", |r| r.f(|_| HttpResponse::Ok()))
                 })
-            })
-            .finish();
+            }).finish();
 
         let req = TestRequest::with_uri("/app/t1/path1")
             .method(Method::POST)
@@ -978,8 +1036,21 @@ mod tests {
                 scope.nested("/t1", |scope| {
                     scope.resource("/path1", |r| r.f(|_| HttpResponse::Created()))
                 })
-            })
-            .finish();
+            }).finish();
+
+        let req = TestRequest::with_uri("/app/t1/path1").request();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::CREATED);
+    }
+
+    #[test]
+    fn test_nested_scope_no_slash() {
+        let app = App::new()
+            .scope("/app", |scope| {
+                scope.nested("t1", |scope| {
+                    scope.resource("/path1", |r| r.f(|_| HttpResponse::Created()))
+                })
+            }).finish();
 
         let req = TestRequest::with_uri("/app/t1/path1").request();
         let resp = app.run(req);
@@ -995,8 +1066,7 @@ mod tests {
                         .resource("", |r| r.f(|_| HttpResponse::Ok()))
                         .resource("/", |r| r.f(|_| HttpResponse::Created()))
                 })
-            })
-            .finish();
+            }).finish();
 
         let req = TestRequest::with_uri("/app/t1").request();
         let resp = app.run(req);
@@ -1016,8 +1086,7 @@ mod tests {
                         .filter(pred::Get())
                         .resource("/path1", |r| r.f(|_| HttpResponse::Ok()))
                 })
-            })
-            .finish();
+            }).finish();
 
         let req = TestRequest::with_uri("/app/t1/path1")
             .method(Method::POST)
@@ -1046,8 +1115,7 @@ mod tests {
                         })
                     })
                 })
-            })
-            .finish();
+            }).finish();
 
         let req = TestRequest::with_uri("/app/project_1/path1").request();
         let resp = app.run(req);
@@ -1079,8 +1147,7 @@ mod tests {
                         })
                     })
                 })
-            })
-            .finish();
+            }).finish();
 
         let req = TestRequest::with_uri("/app/test/1/path1").request();
         let resp = app.run(req);
@@ -1106,8 +1173,7 @@ mod tests {
                 scope
                     .resource("/path1", |r| r.f(|_| HttpResponse::Ok()))
                     .default_resource(|r| r.f(|_| HttpResponse::BadRequest()))
-            })
-            .finish();
+            }).finish();
 
         let req = TestRequest::with_uri("/app/path2").request();
         let resp = app.run(req);
@@ -1123,8 +1189,7 @@ mod tests {
         let app = App::new()
             .scope("/app1", |scope| {
                 scope.default_resource(|r| r.f(|_| HttpResponse::BadRequest()))
-            })
-            .scope("/app2", |scope| scope)
+            }).scope("/app2", |scope| scope)
             .default_resource(|r| r.f(|_| HttpResponse::MethodNotAllowed()))
             .finish();
 
@@ -1139,5 +1204,33 @@ mod tests {
         let req = TestRequest::with_uri("/app2/non-exist").request();
         let resp = app.run(req);
         assert_eq!(resp.as_msg().status(), StatusCode::METHOD_NOT_ALLOWED);
+    }
+
+    #[test]
+    fn test_handler() {
+        let app = App::new()
+            .scope("/scope", |scope| {
+                scope.handler("/test", |_: &_| HttpResponse::Ok())
+            }).finish();
+
+        let req = TestRequest::with_uri("/scope/test").request();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::OK);
+
+        let req = TestRequest::with_uri("/scope/test/").request();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::OK);
+
+        let req = TestRequest::with_uri("/scope/test/app").request();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::OK);
+
+        let req = TestRequest::with_uri("/scope/testapp").request();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::NOT_FOUND);
+
+        let req = TestRequest::with_uri("/scope/blah").request();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::NOT_FOUND);
     }
 }

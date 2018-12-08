@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 use std::io::{Read, Write};
 use std::net::SocketAddr;
 use std::rc::Rc;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 use std::{cmp, io, mem};
 
 use bytes::{Buf, Bytes};
@@ -14,19 +14,21 @@ use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_timer::Delay;
 
 use error::{Error, PayloadError};
+use extensions::Extensions;
 use http::{StatusCode, Version};
 use payload::{Payload, PayloadStatus, PayloadWriter};
 use uri::Url;
 
-use super::error::ServerError;
+use super::error::{HttpDispatchError, ServerError};
 use super::h2writer::H2Writer;
 use super::input::PayloadType;
-use super::settings::WorkerSettings;
-use super::{HttpHandler, HttpHandlerTask, Writer};
+use super::settings::ServiceConfig;
+use super::{HttpHandler, HttpHandlerTask, IoStream, Writer};
 
 bitflags! {
     struct Flags: u8 {
-        const DISCONNECTED = 0b0000_0010;
+        const DISCONNECTED = 0b0000_0001;
+        const SHUTDOWN = 0b0000_0010;
     }
 }
 
@@ -37,11 +39,13 @@ where
     H: HttpHandler + 'static,
 {
     flags: Flags,
-    settings: Rc<WorkerSettings<H>>,
+    settings: ServiceConfig<H>,
     addr: Option<SocketAddr>,
     state: State<IoWrapper<T>>,
     tasks: VecDeque<Entry<H>>,
-    keepalive_timer: Option<Delay>,
+    extensions: Option<Rc<Extensions>>,
+    ka_expire: Instant,
+    ka_timer: Option<Delay>,
 }
 
 enum State<T: AsyncRead + AsyncWrite> {
@@ -52,12 +56,27 @@ enum State<T: AsyncRead + AsyncWrite> {
 
 impl<T, H> Http2<T, H>
 where
-    T: AsyncRead + AsyncWrite + 'static,
+    T: IoStream + 'static,
     H: HttpHandler + 'static,
 {
     pub fn new(
-        settings: Rc<WorkerSettings<H>>, io: T, addr: Option<SocketAddr>, buf: Bytes,
+        settings: ServiceConfig<H>,
+        io: T,
+        buf: Bytes,
+        keepalive_timer: Option<Delay>,
     ) -> Self {
+        let addr = io.peer_addr();
+        let extensions = io.extensions();
+
+        // keep-alive timeout
+        let (ka_expire, ka_timer) = if let Some(delay) = keepalive_timer {
+            (delay.deadline(), Some(delay))
+        } else if let Some(delay) = settings.keep_alive_timer() {
+            (delay.deadline(), Some(delay))
+        } else {
+            (settings.now(), None)
+        };
+
         Http2 {
             flags: Flags::empty(),
             tasks: VecDeque::new(),
@@ -65,84 +84,84 @@ where
                 unread: if buf.is_empty() { None } else { Some(buf) },
                 inner: io,
             })),
-            keepalive_timer: None,
             addr,
             settings,
+            extensions,
+            ka_expire,
+            ka_timer,
         }
     }
 
-    pub(crate) fn shutdown(&mut self) {
-        self.state = State::Empty;
-        self.tasks.clear();
-        self.keepalive_timer.take();
-    }
+    pub fn poll(&mut self) -> Poll<(), HttpDispatchError> {
+        self.poll_keepalive()?;
 
-    pub fn settings(&self) -> &WorkerSettings<H> {
-        self.settings.as_ref()
-    }
-
-    pub fn poll(&mut self) -> Poll<(), ()> {
         // server
         if let State::Connection(ref mut conn) = self.state {
-            // keep-alive timer
-            if let Some(ref mut timeout) = self.keepalive_timer {
-                match timeout.poll() {
-                    Ok(Async::Ready(_)) => {
-                        trace!("Keep-alive timeout, close connection");
-                        return Ok(Async::Ready(()));
-                    }
-                    Ok(Async::NotReady) => (),
-                    Err(_) => unreachable!(),
-                }
-            }
-
             loop {
+                // shutdown connection
+                if self.flags.contains(Flags::SHUTDOWN) {
+                    return conn.poll_close().map_err(|e| e.into());
+                }
+
                 let mut not_ready = true;
+                let disconnected = self.flags.contains(Flags::DISCONNECTED);
 
                 // check in-flight connections
                 for item in &mut self.tasks {
                     // read payload
-                    item.poll_payload();
+                    if !disconnected {
+                        item.poll_payload();
+                    }
 
                     if !item.flags.contains(EntryFlags::EOF) {
-                        let retry = item.payload.need_read() == PayloadStatus::Read;
-                        loop {
-                            match item.task.poll_io(&mut item.stream) {
-                                Ok(Async::Ready(ready)) => {
-                                    if ready {
+                        if disconnected {
+                            item.flags.insert(EntryFlags::EOF);
+                        } else {
+                            let retry = item.payload.need_read() == PayloadStatus::Read;
+                            loop {
+                                match item.task.poll_io(&mut item.stream) {
+                                    Ok(Async::Ready(ready)) => {
+                                        if ready {
+                                            item.flags.insert(
+                                                EntryFlags::EOF | EntryFlags::FINISHED,
+                                            );
+                                        } else {
+                                            item.flags.insert(EntryFlags::EOF);
+                                        }
+                                        not_ready = false;
+                                    }
+                                    Ok(Async::NotReady) => {
+                                        if item.payload.need_read()
+                                            == PayloadStatus::Read
+                                            && !retry
+                                        {
+                                            continue;
+                                        }
+                                    }
+                                    Err(err) => {
+                                        error!("Unhandled error: {}", err);
                                         item.flags.insert(
-                                            EntryFlags::EOF | EntryFlags::FINISHED,
+                                            EntryFlags::EOF
+                                                | EntryFlags::ERROR
+                                                | EntryFlags::WRITE_DONE,
                                         );
-                                    } else {
-                                        item.flags.insert(EntryFlags::EOF);
-                                    }
-                                    not_ready = false;
-                                }
-                                Ok(Async::NotReady) => {
-                                    if item.payload.need_read() == PayloadStatus::Read
-                                        && !retry
-                                    {
-                                        continue;
+                                        item.stream.reset(Reason::INTERNAL_ERROR);
                                     }
                                 }
-                                Err(err) => {
-                                    error!("Unhandled error: {}", err);
-                                    item.flags.insert(
-                                        EntryFlags::EOF
-                                            | EntryFlags::ERROR
-                                            | EntryFlags::WRITE_DONE,
-                                    );
-                                    item.stream.reset(Reason::INTERNAL_ERROR);
-                                }
+                                break;
                             }
-                            break;
                         }
-                    } else if !item.flags.contains(EntryFlags::FINISHED) {
+                    }
+
+                    if item.flags.contains(EntryFlags::EOF)
+                        && !item.flags.contains(EntryFlags::FINISHED)
+                    {
                         match item.task.poll_completed() {
                             Ok(Async::NotReady) => (),
                             Ok(Async::Ready(_)) => {
-                                not_ready = false;
-                                item.flags.insert(EntryFlags::FINISHED);
+                                item.flags.insert(
+                                    EntryFlags::FINISHED | EntryFlags::WRITE_DONE,
+                                );
                             }
                             Err(err) => {
                                 item.flags.insert(
@@ -155,14 +174,17 @@ where
                         }
                     }
 
-                    if !item.flags.contains(EntryFlags::WRITE_DONE) {
+                    if item.flags.contains(EntryFlags::FINISHED)
+                        && !item.flags.contains(EntryFlags::WRITE_DONE)
+                        && !disconnected
+                    {
                         match item.stream.poll_completed(false) {
                             Ok(Async::NotReady) => (),
                             Ok(Async::Ready(_)) => {
                                 not_ready = false;
                                 item.flags.insert(EntryFlags::WRITE_DONE);
                             }
-                            Err(_err) => {
+                            Err(_) => {
                                 item.flags.insert(EntryFlags::ERROR);
                             }
                         }
@@ -171,7 +193,7 @@ where
 
                 // cleanup finished tasks
                 while !self.tasks.is_empty() {
-                    if self.tasks[0].flags.contains(EntryFlags::EOF)
+                    if self.tasks[0].flags.contains(EntryFlags::FINISHED)
                         && self.tasks[0].flags.contains(EntryFlags::WRITE_DONE)
                         || self.tasks[0].flags.contains(EntryFlags::ERROR)
                     {
@@ -195,50 +217,30 @@ where
                             not_ready = false;
                             let (parts, body) = req.into_parts();
 
-                            // stop keepalive timer
-                            self.keepalive_timer.take();
+                            // update keep-alive expire
+                            if self.ka_timer.is_some() {
+                                if let Some(expire) = self.settings.keep_alive_expire() {
+                                    self.ka_expire = expire;
+                                }
+                            }
 
                             self.tasks.push_back(Entry::new(
                                 parts,
                                 body,
                                 resp,
                                 self.addr,
-                                &self.settings,
+                                self.settings.clone(),
+                                self.extensions.clone(),
                             ));
                         }
-                        Ok(Async::NotReady) => {
-                            // start keep-alive timer
-                            if self.tasks.is_empty() {
-                                if self.settings.keep_alive_enabled() {
-                                    let keep_alive = self.settings.keep_alive();
-                                    if keep_alive > 0 && self.keepalive_timer.is_none() {
-                                        trace!("Start keep-alive timer");
-                                        let mut timeout = Delay::new(
-                                            Instant::now()
-                                                + Duration::new(keep_alive, 0),
-                                        );
-                                        // register timeout
-                                        let _ = timeout.poll();
-                                        self.keepalive_timer = Some(timeout);
-                                    }
-                                } else {
-                                    // keep-alive disable, drop connection
-                                    return conn.poll_close().map_err(|e| {
-                                        error!("Error during connection close: {}", e)
-                                    });
-                                }
-                            } else {
-                                // keep-alive unset, rely on operating system
-                                return Ok(Async::NotReady);
-                            }
-                        }
+                        Ok(Async::NotReady) => return Ok(Async::NotReady),
                         Err(err) => {
                             trace!("Connection error: {}", err);
-                            self.flags.insert(Flags::DISCONNECTED);
+                            self.flags.insert(Flags::SHUTDOWN);
                             for entry in &mut self.tasks {
                                 entry.task.disconnected()
                             }
-                            self.keepalive_timer.take();
+                            continue;
                         }
                     }
                 }
@@ -246,9 +248,7 @@ where
                 if not_ready {
                     if self.tasks.is_empty() && self.flags.contains(Flags::DISCONNECTED)
                     {
-                        return conn
-                            .poll_close()
-                            .map_err(|e| error!("Error during connection close: {}", e));
+                        return conn.poll_close().map_err(|e| e.into());
                     } else {
                         return Ok(Async::NotReady);
                     }
@@ -263,7 +263,7 @@ where
                 Ok(Async::NotReady) => return Ok(Async::NotReady),
                 Err(err) => {
                     trace!("Error handling connection: {}", err);
-                    return Err(());
+                    return Err(err.into());
                 }
             }
         } else {
@@ -271,6 +271,39 @@ where
         };
 
         self.poll()
+    }
+
+    /// keep-alive timer. returns `true` is keep-alive, otherwise drop
+    fn poll_keepalive(&mut self) -> Result<(), HttpDispatchError> {
+        if let Some(ref mut timer) = self.ka_timer {
+            match timer.poll() {
+                Ok(Async::Ready(_)) => {
+                    // if we get timer during shutdown, just drop connection
+                    if self.flags.contains(Flags::SHUTDOWN) {
+                        return Err(HttpDispatchError::ShutdownTimeout);
+                    }
+                    if timer.deadline() >= self.ka_expire {
+                        // check for any outstanding request handling
+                        if self.tasks.is_empty() {
+                            return Err(HttpDispatchError::ShutdownTimeout);
+                        } else if let Some(dl) = self.settings.keep_alive_expire() {
+                            timer.reset(dl);
+                            let _ = timer.poll();
+                        }
+                    } else {
+                        timer.reset(self.ka_expire);
+                        let _ = timer.poll();
+                    }
+                }
+                Ok(Async::NotReady) => (),
+                Err(e) => {
+                    error!("Timer error {:?}", e);
+                    return Err(HttpDispatchError::Unknown);
+                }
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -320,8 +353,12 @@ struct Entry<H: HttpHandler + 'static> {
 
 impl<H: HttpHandler + 'static> Entry<H> {
     fn new(
-        parts: Parts, recv: RecvStream, resp: SendResponse<Bytes>,
-        addr: Option<SocketAddr>, settings: &Rc<WorkerSettings<H>>,
+        parts: Parts,
+        recv: RecvStream,
+        resp: SendResponse<Bytes>,
+        addr: Option<SocketAddr>,
+        settings: ServiceConfig<H>,
+        extensions: Option<Rc<Extensions>>,
     ) -> Entry<H>
     where
         H: HttpHandler + 'static,
@@ -336,6 +373,7 @@ impl<H: HttpHandler + 'static> Entry<H> {
             inner.method = parts.method;
             inner.version = parts.version;
             inner.headers = parts.headers;
+            inner.stream_extensions = extensions;
             *inner.payload.borrow_mut() = Some(payload);
             inner.addr = addr;
         }
@@ -344,28 +382,20 @@ impl<H: HttpHandler + 'static> Entry<H> {
         let psender = PayloadType::new(msg.headers(), psender);
 
         // start request processing
-        let mut task = None;
-        for h in settings.handlers().iter_mut() {
-            msg = match h.handle(msg) {
-                Ok(t) => {
-                    task = Some(t);
-                    break;
-                }
-                Err(msg) => msg,
-            }
-        }
+        let task = match settings.handler().handle(msg) {
+            Ok(task) => EntryPipe::Task(task),
+            Err(_) => EntryPipe::Error(ServerError::err(
+                Version::HTTP_2,
+                StatusCode::NOT_FOUND,
+            )),
+        };
 
         Entry {
-            task: task.map(EntryPipe::Task).unwrap_or_else(|| {
-                EntryPipe::Error(ServerError::err(
-                    Version::HTTP_2,
-                    StatusCode::NOT_FOUND,
-                ))
-            }),
-            payload: psender,
-            stream: H2Writer::new(resp, Rc::clone(settings)),
-            flags: EntryFlags::empty(),
+            task,
             recv,
+            payload: psender,
+            stream: H2Writer::new(resp, settings),
+            flags: EntryFlags::empty(),
         }
     }
 

@@ -1,7 +1,6 @@
 // #![cfg_attr(feature = "cargo-clippy", allow(redundant_field_names))]
 
 use std::io::{self, Write};
-use std::rc::Rc;
 
 use bytes::{BufMut, BytesMut};
 use futures::{Async, Poll};
@@ -9,7 +8,7 @@ use tokio_io::AsyncWrite;
 
 use super::helpers;
 use super::output::{Output, ResponseInfo, ResponseLength};
-use super::settings::WorkerSettings;
+use super::settings::ServiceConfig;
 use super::Request;
 use super::{Writer, WriterState, MAX_WRITE_BUFFER_SIZE};
 use body::{Binary, Body};
@@ -38,11 +37,11 @@ pub(crate) struct H1Writer<T: AsyncWrite, H: 'static> {
     headers_size: u32,
     buffer: Output,
     buffer_capacity: usize,
-    settings: Rc<WorkerSettings<H>>,
+    settings: ServiceConfig<H>,
 }
 
 impl<T: AsyncWrite, H: 'static> H1Writer<T, H> {
-    pub fn new(stream: T, settings: Rc<WorkerSettings<H>>) -> H1Writer<T, H> {
+    pub fn new(stream: T, settings: ServiceConfig<H>) -> H1Writer<T, H> {
         H1Writer {
             flags: Flags::KEEPALIVE,
             written: 0,
@@ -63,7 +62,17 @@ impl<T: AsyncWrite, H: 'static> H1Writer<T, H> {
         self.flags = Flags::KEEPALIVE;
     }
 
-    pub fn disconnected(&mut self) {}
+    pub fn flushed(&mut self) -> bool {
+        self.buffer.is_empty()
+    }
+
+    pub fn disconnected(&mut self) {
+        self.flags.insert(Flags::DISCONNECTED);
+    }
+
+    pub fn upgrade(&self) -> bool {
+        self.flags.contains(Flags::UPGRADE)
+    }
 
     pub fn keepalive(&self) -> bool {
         self.flags.contains(Flags::KEEPALIVE) && !self.flags.contains(Flags::UPGRADE)
@@ -152,8 +161,7 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
             let reason = msg.reason().as_bytes();
             if let Body::Binary(ref bytes) = body {
                 buffer.reserve(
-                    256
-                        + msg.headers().len() * AVERAGE_HEADER_SIZE
+                    256 + msg.headers().len() * AVERAGE_HEADER_SIZE
                         + bytes.len()
                         + reason.len(),
                 );
@@ -168,12 +176,10 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
             buffer.extend_from_slice(reason);
 
             // content length
+            let mut len_is_set = true;
             match info.length {
                 ResponseLength::Chunked => {
                     buffer.extend_from_slice(b"\r\ntransfer-encoding: chunked\r\n")
-                }
-                ResponseLength::Zero => {
-                    buffer.extend_from_slice(b"\r\ncontent-length: 0\r\n")
                 }
                 ResponseLength::Length(len) => {
                     helpers::write_content_length(len, &mut buffer)
@@ -181,6 +187,10 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
                 ResponseLength::Length64(len) => {
                     buffer.extend_from_slice(b"\r\ncontent-length: ");
                     write!(buffer.writer(), "{}", len)?;
+                    buffer.extend_from_slice(b"\r\n");
+                }
+                ResponseLength::Zero => {
+                    len_is_set = false;
                     buffer.extend_from_slice(b"\r\n");
                 }
                 ResponseLength::None => buffer.extend_from_slice(b"\r\n"),
@@ -195,46 +205,56 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
             let mut pos = 0;
             let mut has_date = false;
             let mut remaining = buffer.remaining_mut();
-            unsafe {
-                let mut buf = &mut *(buffer.bytes_mut() as *mut [u8]);
-                for (key, value) in msg.headers() {
-                    match *key {
-                        TRANSFER_ENCODING => continue,
-                        CONTENT_ENCODING => if encoding != ContentEncoding::Identity {
-                            continue;
-                        },
-                        CONTENT_LENGTH => match info.length {
-                            ResponseLength::None => (),
-                            _ => continue,
-                        },
-                        DATE => {
-                            has_date = true;
+            let mut buf = unsafe { &mut *(buffer.bytes_mut() as *mut [u8]) };
+            for (key, value) in msg.headers() {
+                match *key {
+                    TRANSFER_ENCODING => continue,
+                    CONTENT_ENCODING => if encoding != ContentEncoding::Identity {
+                        continue;
+                    },
+                    CONTENT_LENGTH => match info.length {
+                        ResponseLength::None => (),
+                        ResponseLength::Zero => {
+                            len_is_set = true;
                         }
-                        _ => (),
+                        _ => continue,
+                    },
+                    DATE => {
+                        has_date = true;
                     }
+                    _ => (),
+                }
 
-                    let v = value.as_ref();
-                    let k = key.as_str().as_bytes();
-                    let len = k.len() + v.len() + 4;
-                    if len > remaining {
+                let v = value.as_ref();
+                let k = key.as_str().as_bytes();
+                let len = k.len() + v.len() + 4;
+                if len > remaining {
+                    unsafe {
                         buffer.advance_mut(pos);
-                        pos = 0;
-                        buffer.reserve(len);
-                        remaining = buffer.remaining_mut();
+                    }
+                    pos = 0;
+                    buffer.reserve(len);
+                    remaining = buffer.remaining_mut();
+                    unsafe {
                         buf = &mut *(buffer.bytes_mut() as *mut _);
                     }
-
-                    buf[pos..pos + k.len()].copy_from_slice(k);
-                    pos += k.len();
-                    buf[pos..pos + 2].copy_from_slice(b": ");
-                    pos += 2;
-                    buf[pos..pos + v.len()].copy_from_slice(v);
-                    pos += v.len();
-                    buf[pos..pos + 2].copy_from_slice(b"\r\n");
-                    pos += 2;
-                    remaining -= len;
                 }
+
+                buf[pos..pos + k.len()].copy_from_slice(k);
+                pos += k.len();
+                buf[pos..pos + 2].copy_from_slice(b": ");
+                pos += 2;
+                buf[pos..pos + v.len()].copy_from_slice(v);
+                pos += v.len();
+                buf[pos..pos + 2].copy_from_slice(b"\r\n");
+                pos += 2;
+                remaining -= len;
+            }
+            unsafe {
                 buffer.advance_mut(pos);
+            }
+            if !len_is_set {
+                buffer.extend_from_slice(b"content-length: 0\r\n")
             }
 
             // optimized date header, set_date writes \r\n
@@ -269,10 +289,7 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
                         let pl: &[u8] = payload.as_ref();
                         let n = match Self::write_data(&mut self.stream, pl) {
                             Err(err) => {
-                                if err.kind() == io::ErrorKind::WriteZero {
-                                    self.disconnected();
-                                }
-
+                                self.disconnected();
                                 return Err(err);
                             }
                             Ok(val) => val,
@@ -316,14 +333,15 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
 
     #[inline]
     fn poll_completed(&mut self, shutdown: bool) -> Poll<(), io::Error> {
+        if self.flags.contains(Flags::DISCONNECTED) {
+            return Err(io::Error::new(io::ErrorKind::Other, "disconnected"));
+        }
+
         if !self.buffer.is_empty() {
             let written = {
                 match Self::write_data(&mut self.stream, self.buffer.as_ref().as_ref()) {
                     Err(err) => {
-                        if err.kind() == io::ErrorKind::WriteZero {
-                            self.disconnected();
-                        }
-
+                        self.disconnected();
                         return Err(err);
                     }
                     Ok(val) => val,
@@ -337,9 +355,10 @@ impl<T: AsyncWrite, H: 'static> Writer for H1Writer<T, H> {
             }
         }
         if shutdown {
+            self.stream.poll_flush()?;
             self.stream.shutdown()
         } else {
-            Ok(Async::Ready(()))
+            Ok(self.stream.poll_flush()?)
         }
     }
 }

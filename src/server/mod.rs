@@ -1,5 +1,105 @@
-//! Http server
-use std::net::Shutdown;
+//! Http server module
+//!
+//! The module contains everything necessary to setup
+//! HTTP server.
+//!
+//! In order to start HTTP server, first you need to create and configure it
+//! using factory that can be supplied to [new](fn.new.html).
+//!
+//! ## Factory
+//!
+//! Factory is a function that returns Application, describing how
+//! to serve incoming HTTP requests.
+//!
+//! As the server uses worker pool, the factory function is restricted to trait bounds
+//! `Send + Clone + 'static` so that each worker would be able to accept Application
+//! without a need for synchronization.
+//!
+//! If you wish to share part of state among all workers you should
+//! wrap it in `Arc` and potentially synchronization primitive like
+//! [RwLock](https://doc.rust-lang.org/std/sync/struct.RwLock.html)
+//! If the wrapped type is not thread safe.
+//!
+//! Note though that locking is not advisable for asynchronous programming
+//! and you should minimize all locks in your request handlers
+//!
+//! ## HTTPS Support
+//!
+//! Actix-web provides support for major crates that provides TLS.
+//! Each TLS implementation is provided with [AcceptorService](trait.AcceptorService.html)
+//! that describes how HTTP Server accepts connections.
+//!
+//! For `bind` and `listen` there are corresponding `bind_ssl|tls|rustls` and `listen_ssl|tls|rustls` that accepts
+//! these services.
+//!
+//! **NOTE:** `native-tls` doesn't support `HTTP2` yet
+//!
+//! ## Signal handling and shutdown
+//!
+//! By default HTTP Server listens for system signals
+//! and, gracefully shuts down at most after 30 seconds.
+//!
+//! Both signal handling and shutdown timeout can be controlled
+//! using corresponding methods.
+//!
+//! If worker, for some reason, unable to shut down within timeout
+//! it is forcibly dropped.
+//!
+//! ## Example
+//!
+//! ```rust,ignore
+//!extern crate actix;
+//!extern crate actix_web;
+//!extern crate rustls;
+//!
+//!use actix_web::{http, middleware, server, App, Error, HttpRequest, HttpResponse, Responder};
+//!use std::io::BufReader;
+//!use rustls::internal::pemfile::{certs, rsa_private_keys};
+//!use rustls::{NoClientAuth, ServerConfig};
+//!
+//!fn index(req: &HttpRequest) -> Result<HttpResponse, Error> {
+//!    Ok(HttpResponse::Ok().content_type("text/plain").body("Welcome!"))
+//!}
+//!
+//!fn load_ssl() -> ServerConfig {
+//!    use std::io::BufReader;
+//!
+//!    const CERT: &'static [u8] = include_bytes!("../cert.pem");
+//!    const KEY: &'static [u8] = include_bytes!("../key.pem");
+//!
+//!    let mut cert = BufReader::new(CERT);
+//!    let mut key = BufReader::new(KEY);
+//!
+//!    let mut config = ServerConfig::new(NoClientAuth::new());
+//!    let cert_chain = certs(&mut cert).unwrap();
+//!    let mut keys = rsa_private_keys(&mut key).unwrap();
+//!    config.set_single_cert(cert_chain, keys.remove(0)).unwrap();
+//!
+//!    config
+//!}
+//!
+//!fn main() {
+//!    let sys = actix::System::new("http-server");
+//!    // load ssl keys
+//!    let config = load_ssl();
+//!
+//!     // create and start server at once
+//!     server::new(|| {
+//!         App::new()
+//!             // register simple handler, handle all methods
+//!             .resource("/index.html", |r| r.f(index))
+//!             }))
+//!     }).bind_rustls("127.0.0.1:8443", config)
+//!     .unwrap()
+//!     .start();
+//!
+//!     println!("Started http server: 127.0.0.1:8080");
+//!     //Run system so that server would start accepting connections
+//!     let _ = sys.run();
+//!}
+//! ```
+use std::net::{Shutdown, SocketAddr};
+use std::rc::Rc;
 use std::{io, time};
 
 use bytes::{BufMut, BytesMut};
@@ -7,6 +107,10 @@ use futures::{Async, Poll};
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_tcp::TcpStream;
 
+pub use actix_net::server::{PauseServer, ResumeServer, StopServer};
+
+pub(crate) mod acceptor;
+pub(crate) mod builder;
 mod channel;
 mod error;
 pub(crate) mod h1;
@@ -14,24 +118,39 @@ pub(crate) mod h1decoder;
 mod h1writer;
 mod h2;
 mod h2writer;
+mod handler;
 pub(crate) mod helpers;
+mod http;
+pub(crate) mod incoming;
 pub(crate) mod input;
 pub(crate) mod message;
 pub(crate) mod output;
+pub(crate) mod service;
 pub(crate) mod settings;
-mod srv;
-mod worker;
+mod ssl;
 
+pub use self::handler::*;
+pub use self::http::HttpServer;
 pub use self::message::Request;
+pub use self::ssl::*;
+
+pub use self::error::{AcceptorError, HttpDispatchError};
 pub use self::settings::ServerSettings;
-pub use self::srv::HttpServer;
+
+#[doc(hidden)]
+pub use self::acceptor::AcceptorTimeout;
+
+#[doc(hidden)]
+pub use self::settings::{ServiceConfig, ServiceConfigBuilder};
+
+#[doc(hidden)]
+pub use self::service::{H1Service, HttpService, StreamConfiguration};
 
 #[doc(hidden)]
 pub use self::helpers::write_content_length;
 
-use actix::Message;
 use body::Binary;
-use error::Error;
+use extensions::Extensions;
 use header::ContentEncoding;
 use httpresponse::HttpResponse;
 
@@ -62,13 +181,23 @@ const HW_BUFFER_SIZE: usize = 32_768;
 ///     sys.run();
 /// }
 /// ```
-pub fn new<F, U, H>(factory: F) -> HttpServer<H>
+pub fn new<F, H>(factory: F) -> HttpServer<H, F>
 where
-    F: Fn() -> U + Sync + Send + 'static,
-    U: IntoIterator<Item = H> + 'static,
+    F: Fn() -> H + Send + Clone + 'static,
     H: IntoHttpHandler + 'static,
 {
     HttpServer::new(factory)
+}
+
+#[doc(hidden)]
+bitflags! {
+    ///Flags that can be used to configure HTTP Server.
+    pub struct ServerFlags: u8 {
+        ///Use HTTP1 protocol
+        const HTTP1 = 0b0000_0001;
+        ///Use HTTP2 protocol
+        const HTTP2 = 0b0000_0010;
+    }
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -97,84 +226,6 @@ impl From<Option<usize>> for KeepAlive {
         } else {
             KeepAlive::Disabled
         }
-    }
-}
-
-/// Pause accepting incoming connections
-///
-/// If socket contains some pending connection, they might be dropped.
-/// All opened connection remains active.
-#[derive(Message)]
-pub struct PauseServer;
-
-/// Resume accepting incoming connections
-#[derive(Message)]
-pub struct ResumeServer;
-
-/// Stop incoming connection processing, stop all workers and exit.
-///
-/// If server starts with `spawn()` method, then spawned thread get terminated.
-pub struct StopServer {
-    /// Whether to try and shut down gracefully
-    pub graceful: bool,
-}
-
-impl Message for StopServer {
-    type Result = Result<(), ()>;
-}
-
-/// Low level http request handler
-#[allow(unused_variables)]
-pub trait HttpHandler: 'static {
-    /// Request handling task
-    type Task: HttpHandlerTask;
-
-    /// Handle request
-    fn handle(&self, req: Request) -> Result<Self::Task, Request>;
-}
-
-impl HttpHandler for Box<HttpHandler<Task = Box<HttpHandlerTask>>> {
-    type Task = Box<HttpHandlerTask>;
-
-    fn handle(&self, req: Request) -> Result<Box<HttpHandlerTask>, Request> {
-        self.as_ref().handle(req)
-    }
-}
-
-/// Low level http request handler
-pub trait HttpHandlerTask {
-    /// Poll task, this method is used before or after *io* object is available
-    fn poll_completed(&mut self) -> Poll<(), Error> {
-        Ok(Async::Ready(()))
-    }
-
-    /// Poll task when *io* object is available
-    fn poll_io(&mut self, io: &mut Writer) -> Poll<bool, Error>;
-
-    /// Connection is disconnected
-    fn disconnected(&mut self) {}
-}
-
-impl HttpHandlerTask for Box<HttpHandlerTask> {
-    fn poll_io(&mut self, io: &mut Writer) -> Poll<bool, Error> {
-        self.as_mut().poll_io(io)
-    }
-}
-
-/// Conversion helper trait
-pub trait IntoHttpHandler {
-    /// The associated type which is result of conversion.
-    type Handler: HttpHandler;
-
-    /// Convert into `HttpHandler` object.
-    fn into_handler(self) -> Self::Handler;
-}
-
-impl<T: HttpHandler> IntoHttpHandler for T {
-    type Handler = T;
-
-    fn into_handler(self) -> Self::Handler {
-        self
     }
 }
 
@@ -213,40 +264,78 @@ pub trait Writer {
 pub trait IoStream: AsyncRead + AsyncWrite + 'static {
     fn shutdown(&mut self, how: Shutdown) -> io::Result<()>;
 
+    /// Returns the socket address of the remote peer of this TCP connection.
+    fn peer_addr(&self) -> Option<SocketAddr> {
+        None
+    }
+
+    /// Sets the value of the TCP_NODELAY option on this socket.
     fn set_nodelay(&mut self, nodelay: bool) -> io::Result<()>;
 
     fn set_linger(&mut self, dur: Option<time::Duration>) -> io::Result<()>;
 
-    fn read_available(&mut self, buf: &mut BytesMut) -> Poll<bool, io::Error> {
+    fn set_keepalive(&mut self, dur: Option<time::Duration>) -> io::Result<()>;
+
+    fn read_available(&mut self, buf: &mut BytesMut) -> Poll<(bool, bool), io::Error> {
         let mut read_some = false;
         loop {
             if buf.remaining_mut() < LW_BUFFER_SIZE {
                 buf.reserve(HW_BUFFER_SIZE);
             }
-            unsafe {
-                match self.read(buf.bytes_mut()) {
-                    Ok(n) => {
-                        if n == 0 {
-                            return Ok(Async::Ready(!read_some));
-                        } else {
-                            read_some = true;
+
+            let read = unsafe { self.read(buf.bytes_mut()) };
+            match read {
+                Ok(n) => {
+                    if n == 0 {
+                        return Ok(Async::Ready((read_some, true)));
+                    } else {
+                        read_some = true;
+                        unsafe {
                             buf.advance_mut(n);
                         }
                     }
-                    Err(e) => {
-                        return if e.kind() == io::ErrorKind::WouldBlock {
-                            if read_some {
-                                Ok(Async::Ready(false))
-                            } else {
-                                Ok(Async::NotReady)
-                            }
+                }
+                Err(e) => {
+                    return if e.kind() == io::ErrorKind::WouldBlock {
+                        if read_some {
+                            Ok(Async::Ready((read_some, false)))
                         } else {
-                            Err(e)
-                        };
-                    }
+                            Ok(Async::NotReady)
+                        }
+                    } else {
+                        Err(e)
+                    };
                 }
             }
         }
+    }
+
+    /// Extra io stream extensions
+    fn extensions(&self) -> Option<Rc<Extensions>> {
+        None
+    }
+}
+
+#[cfg(all(unix, feature = "uds"))]
+impl IoStream for ::tokio_uds::UnixStream {
+    #[inline]
+    fn shutdown(&mut self, how: Shutdown) -> io::Result<()> {
+        ::tokio_uds::UnixStream::shutdown(self, how)
+    }
+
+    #[inline]
+    fn set_nodelay(&mut self, _nodelay: bool) -> io::Result<()> {
+        Ok(())
+    }
+
+    #[inline]
+    fn set_linger(&mut self, _dur: Option<time::Duration>) -> io::Result<()> {
+        Ok(())
+    }
+
+    #[inline]
+    fn set_keepalive(&mut self, _dur: Option<time::Duration>) -> io::Result<()> {
+        Ok(())
     }
 }
 
@@ -254,6 +343,11 @@ impl IoStream for TcpStream {
     #[inline]
     fn shutdown(&mut self, how: Shutdown) -> io::Result<()> {
         TcpStream::shutdown(self, how)
+    }
+
+    #[inline]
+    fn peer_addr(&self) -> Option<SocketAddr> {
+        TcpStream::peer_addr(self).ok()
     }
 
     #[inline]
@@ -265,48 +359,9 @@ impl IoStream for TcpStream {
     fn set_linger(&mut self, dur: Option<time::Duration>) -> io::Result<()> {
         TcpStream::set_linger(self, dur)
     }
-}
-
-#[cfg(feature = "alpn")]
-use tokio_openssl::SslStream;
-
-#[cfg(feature = "alpn")]
-impl IoStream for SslStream<TcpStream> {
-    #[inline]
-    fn shutdown(&mut self, _how: Shutdown) -> io::Result<()> {
-        let _ = self.get_mut().shutdown();
-        Ok(())
-    }
 
     #[inline]
-    fn set_nodelay(&mut self, nodelay: bool) -> io::Result<()> {
-        self.get_mut().get_mut().set_nodelay(nodelay)
-    }
-
-    #[inline]
-    fn set_linger(&mut self, dur: Option<time::Duration>) -> io::Result<()> {
-        self.get_mut().get_mut().set_linger(dur)
-    }
-}
-
-#[cfg(feature = "tls")]
-use tokio_tls::TlsStream;
-
-#[cfg(feature = "tls")]
-impl IoStream for TlsStream<TcpStream> {
-    #[inline]
-    fn shutdown(&mut self, _how: Shutdown) -> io::Result<()> {
-        let _ = self.get_mut().shutdown();
-        Ok(())
-    }
-
-    #[inline]
-    fn set_nodelay(&mut self, nodelay: bool) -> io::Result<()> {
-        self.get_mut().get_mut().set_nodelay(nodelay)
-    }
-
-    #[inline]
-    fn set_linger(&mut self, dur: Option<time::Duration>) -> io::Result<()> {
-        self.get_mut().get_mut().set_linger(dur)
+    fn set_keepalive(&mut self, dur: Option<time::Duration>) -> io::Result<()> {
+        TcpStream::set_keepalive(self, dur)
     }
 }

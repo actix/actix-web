@@ -5,13 +5,19 @@ extern crate futures;
 extern crate http;
 extern crate rand;
 
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
+use std::{thread, time};
+
 use bytes::Bytes;
 use futures::Stream;
 use rand::distributions::Alphanumeric;
 use rand::Rng;
 
-#[cfg(feature = "alpn")]
+#[cfg(feature = "ssl")]
 extern crate openssl;
+#[cfg(feature = "rust-tls")]
+extern crate rustls;
 
 use actix::prelude::*;
 use actix_web::*;
@@ -38,6 +44,45 @@ impl StreamHandler<ws::Message, ws::ProtocolError> for Ws {
 fn test_simple() {
     let mut srv = test::TestServer::new(|app| app.handler(|req| ws::start(req, Ws)));
     let (reader, mut writer) = srv.ws().unwrap();
+
+    writer.text("text");
+    let (item, reader) = srv.execute(reader.into_future()).unwrap();
+    assert_eq!(item, Some(ws::Message::Text("text".to_owned())));
+
+    writer.binary(b"text".as_ref());
+    let (item, reader) = srv.execute(reader.into_future()).unwrap();
+    assert_eq!(
+        item,
+        Some(ws::Message::Binary(Bytes::from_static(b"text").into()))
+    );
+
+    writer.ping("ping");
+    let (item, reader) = srv.execute(reader.into_future()).unwrap();
+    assert_eq!(item, Some(ws::Message::Pong("ping".to_owned())));
+
+    writer.close(Some(ws::CloseCode::Normal.into()));
+    let (item, _) = srv.execute(reader.into_future()).unwrap();
+    assert_eq!(
+        item,
+        Some(ws::Message::Close(Some(ws::CloseCode::Normal.into())))
+    );
+}
+
+// websocket resource helper function
+fn start_ws_resource(req: &HttpRequest) -> Result<HttpResponse, Error> {
+    ws::start(req, Ws)
+}
+
+#[test]
+fn test_simple_path() {
+    const PATH: &str = "/v1/ws/";
+
+    // Create a websocket at a specific path.
+    let mut srv = test::TestServer::new(|app| {
+        app.resource(PATH, |r| r.route().f(start_ws_resource));
+    });
+    // fetch the sockets for the resource at a given path.
+    let (reader, mut writer) = srv.ws_at(PATH).unwrap();
 
     writer.text("text");
     let (item, reader) = srv.execute(reader.into_future()).unwrap();
@@ -172,8 +217,7 @@ impl Ws2 {
                     act.send(ctx);
                 }
                 actix::fut::ok(())
-            })
-            .wait(ctx);
+            }).wait(ctx);
     }
 }
 
@@ -238,9 +282,8 @@ fn test_server_send_bin() {
 }
 
 #[test]
-#[cfg(feature = "alpn")]
+#[cfg(feature = "ssl")]
 fn test_ws_server_ssl() {
-    extern crate openssl;
     use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
 
     // load ssl keys
@@ -271,4 +314,82 @@ fn test_ws_server_ssl() {
         reader = r;
         assert_eq!(item, data);
     }
+}
+
+#[test]
+#[cfg(feature = "rust-tls")]
+fn test_ws_server_rust_tls() {
+    use rustls::internal::pemfile::{certs, rsa_private_keys};
+    use rustls::{NoClientAuth, ServerConfig};
+    use std::fs::File;
+    use std::io::BufReader;
+
+    // load ssl keys
+    let mut config = ServerConfig::new(NoClientAuth::new());
+    let cert_file = &mut BufReader::new(File::open("tests/cert.pem").unwrap());
+    let key_file = &mut BufReader::new(File::open("tests/key.pem").unwrap());
+    let cert_chain = certs(cert_file).unwrap();
+    let mut keys = rsa_private_keys(key_file).unwrap();
+    config.set_single_cert(cert_chain, keys.remove(0)).unwrap();
+
+    let mut srv = test::TestServer::build().rustls(config).start(|app| {
+        app.handler(|req| {
+            ws::start(
+                req,
+                Ws2 {
+                    count: 0,
+                    bin: false,
+                },
+            )
+        })
+    });
+
+    let (mut reader, _writer) = srv.ws().unwrap();
+
+    let data = Some(ws::Message::Text("0".repeat(65_536)));
+    for _ in 0..10_000 {
+        let (item, r) = srv.execute(reader.into_future()).unwrap();
+        reader = r;
+        assert_eq!(item, data);
+    }
+}
+
+struct WsStopped(Arc<AtomicUsize>);
+
+impl Actor for WsStopped {
+    type Context = ws::WebsocketContext<Self>;
+
+    fn stopped(&mut self, _: &mut Self::Context) {
+        self.0.fetch_add(1, Ordering::Relaxed);
+    }
+}
+
+impl StreamHandler<ws::Message, ws::ProtocolError> for WsStopped {
+    fn handle(&mut self, msg: ws::Message, ctx: &mut Self::Context) {
+        match msg {
+            ws::Message::Text(text) => ctx.text(text),
+            _ => (),
+        }
+    }
+}
+
+#[test]
+fn test_ws_stopped() {
+    let num = Arc::new(AtomicUsize::new(0));
+    let num2 = num.clone();
+
+    let mut srv = test::TestServer::new(move |app| {
+        let num3 = num2.clone();
+        app.handler(move |req| ws::start(req, WsStopped(num3.clone())))
+    });
+    {
+        let (reader, mut writer) = srv.ws().unwrap();
+        writer.text("text");
+        writer.close(None);
+        let (item, _) = srv.execute(reader.into_future()).unwrap();
+        assert_eq!(item, Some(ws::Message::Text("text".to_owned())));
+    }
+    thread::sleep(time::Duration::from_millis(100));
+
+    assert_eq!(num.load(Ordering::Relaxed), 1);
 }

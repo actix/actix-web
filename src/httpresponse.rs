@@ -142,8 +142,7 @@ impl HttpResponse {
         HeaderValue::from_str(&cookie.to_string())
             .map(|c| {
                 h.append(header::SET_COOKIE, c);
-            })
-            .map_err(|e| e.into())
+            }).map_err(|e| e.into())
     }
 
     /// Remove all cookies with the given name from this response. Returns
@@ -273,7 +272,7 @@ impl HttpResponse {
         self.get_mut().response_size = size;
     }
 
-    /// Set write buffer capacity
+    /// Get write buffer capacity
     pub fn write_buffer_capacity(&self) -> usize {
         self.get_ref().write_capacity
     }
@@ -650,7 +649,14 @@ impl HttpResponseBuilder {
     ///
     /// `HttpResponseBuilder` can not be used after this call.
     pub fn json<T: Serialize>(&mut self, value: T) -> HttpResponse {
-        match serde_json::to_string(&value) {
+        self.json2(&value)
+    }
+
+    /// Set a json body and generate `HttpResponse`
+    ///
+    /// `HttpResponseBuilder` can not be used after this call.
+    pub fn json2<T: Serialize>(&mut self, value: &T) -> HttpResponse {
+        match serde_json::to_string(value) {
             Ok(body) => {
                 let contains = if let Some(parts) = parts(&mut self.response, &self.err)
                 {
@@ -1072,8 +1078,7 @@ mod tests {
                     .http_only(true)
                     .max_age(Duration::days(1))
                     .finish(),
-            )
-            .del_cookie(&cookies[0])
+            ).del_cookie(&cookies[0])
             .finish();
 
         let mut val: Vec<_> = resp
@@ -1178,6 +1183,30 @@ mod tests {
         let resp = HttpResponse::build(StatusCode::OK)
             .header(CONTENT_TYPE, "text/json")
             .json(vec!["v1", "v2", "v3"]);
+        let ct = resp.headers().get(CONTENT_TYPE).unwrap();
+        assert_eq!(ct, HeaderValue::from_static("text/json"));
+        assert_eq!(
+            *resp.body(),
+            Body::from(Bytes::from_static(b"[\"v1\",\"v2\",\"v3\"]"))
+        );
+    }
+
+    #[test]
+    fn test_json2() {
+        let resp = HttpResponse::build(StatusCode::OK).json2(&vec!["v1", "v2", "v3"]);
+        let ct = resp.headers().get(CONTENT_TYPE).unwrap();
+        assert_eq!(ct, HeaderValue::from_static("application/json"));
+        assert_eq!(
+            *resp.body(),
+            Body::from(Bytes::from_static(b"[\"v1\",\"v2\",\"v3\"]"))
+        );
+    }
+
+    #[test]
+    fn test_json2_ct() {
+        let resp = HttpResponse::build(StatusCode::OK)
+            .header(CONTENT_TYPE, "text/json")
+            .json2(&vec!["v1", "v2", "v3"]);
         let ct = resp.headers().get(CONTENT_TYPE).unwrap();
         assert_eq!(ct, HeaderValue::from_static("text/json"));
         assert_eq!(

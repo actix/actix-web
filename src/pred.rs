@@ -264,8 +264,7 @@ mod tests {
             .header(
                 header::HOST,
                 header::HeaderValue::from_static("www.rust-lang.org"),
-            )
-            .finish();
+            ).finish();
 
         let pred = Host("www.rust-lang.org");
         assert!(pred.check(&req, req.state()));

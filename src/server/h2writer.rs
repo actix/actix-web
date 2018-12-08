@@ -1,23 +1,27 @@
-#![cfg_attr(feature = "cargo-clippy", allow(redundant_field_names))]
+#![cfg_attr(
+    feature = "cargo-clippy",
+    allow(redundant_field_names)
+)]
+
+use std::{cmp, io};
 
 use bytes::{Bytes, BytesMut};
 use futures::{Async, Poll};
 use http2::server::SendResponse;
 use http2::{Reason, SendStream};
 use modhttp::Response;
-use std::rc::Rc;
-use std::{cmp, io};
-
-use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING};
-use http::{HttpTryFrom, Method, Version};
 
 use super::helpers;
 use super::message::Request;
-use super::output::{Output, ResponseInfo};
-use super::settings::WorkerSettings;
+use super::output::{Output, ResponseInfo, ResponseLength};
+use super::settings::ServiceConfig;
 use super::{Writer, WriterState, MAX_WRITE_BUFFER_SIZE};
 use body::{Binary, Body};
 use header::ContentEncoding;
+use http::header::{
+    HeaderValue, CONNECTION, CONTENT_ENCODING, CONTENT_LENGTH, DATE, TRANSFER_ENCODING,
+};
+use http::{HttpTryFrom, Method, Version};
 use httpresponse::HttpResponse;
 
 const CHUNK_SIZE: usize = 16_384;
@@ -38,13 +42,11 @@ pub(crate) struct H2Writer<H: 'static> {
     written: u64,
     buffer: Output,
     buffer_capacity: usize,
-    settings: Rc<WorkerSettings<H>>,
+    settings: ServiceConfig<H>,
 }
 
 impl<H: 'static> H2Writer<H> {
-    pub fn new(
-        respond: SendResponse<Bytes>, settings: Rc<WorkerSettings<H>>,
-    ) -> H2Writer<H> {
+    pub fn new(respond: SendResponse<Bytes>, settings: ServiceConfig<H>) -> H2Writer<H> {
         H2Writer {
             stream: None,
             flags: Flags::empty(),
@@ -92,49 +94,73 @@ impl<H: 'static> Writer for H2Writer<H> {
         let mut info = ResponseInfo::new(req.inner.method == Method::HEAD);
         self.buffer.for_server(&mut info, &req.inner, msg, encoding);
 
-        // http2 specific
-        msg.headers_mut().remove(CONNECTION);
-        msg.headers_mut().remove(TRANSFER_ENCODING);
-
-        // using helpers::date is quite a lot faster
-        if !msg.headers().contains_key(DATE) {
-            let mut bytes = BytesMut::with_capacity(29);
-            self.settings.set_date(&mut bytes, false);
-            msg.headers_mut()
-                .insert(DATE, HeaderValue::try_from(bytes.freeze()).unwrap());
-        }
-
-        let body = msg.replace_body(Body::Empty);
-        match body {
-            Body::Binary(ref bytes) => {
-                if bytes.is_empty() {
-                    msg.headers_mut()
-                        .insert(CONTENT_LENGTH, HeaderValue::from_static("0"));
-                    self.flags.insert(Flags::EOF);
-                } else {
-                    let mut val = BytesMut::new();
-                    helpers::convert_usize(bytes.len(), &mut val);
-                    let l = val.len();
-                    msg.headers_mut().insert(
-                        CONTENT_LENGTH,
-                        HeaderValue::try_from(val.split_to(l - 2).freeze()).unwrap(),
-                    );
-                }
-            }
-            Body::Empty => {
-                self.flags.insert(Flags::EOF);
-                msg.headers_mut()
-                    .insert(CONTENT_LENGTH, HeaderValue::from_static("0"));
-            }
-            _ => (),
-        }
-
+        let mut has_date = false;
         let mut resp = Response::new(());
+        let mut len_is_set = false;
         *resp.status_mut() = msg.status();
         *resp.version_mut() = Version::HTTP_2;
         for (key, value) in msg.headers().iter() {
-            resp.headers_mut().insert(key, value.clone());
+            match *key {
+                // http2 specific
+                CONNECTION | TRANSFER_ENCODING => continue,
+                CONTENT_ENCODING => if encoding != ContentEncoding::Identity {
+                    continue;
+                },
+                CONTENT_LENGTH => match info.length {
+                    ResponseLength::None => (),
+                    ResponseLength::Zero => {
+                        len_is_set = true;
+                    }
+                    _ => continue,
+                },
+                DATE => has_date = true,
+                _ => (),
+            }
+            resp.headers_mut().append(key, value.clone());
         }
+
+        // set date header
+        if !has_date {
+            let mut bytes = BytesMut::with_capacity(29);
+            self.settings.set_date(&mut bytes, false);
+            resp.headers_mut()
+                .insert(DATE, HeaderValue::try_from(bytes.freeze()).unwrap());
+        }
+
+        // content length
+        match info.length {
+            ResponseLength::Zero => {
+                if !len_is_set {
+                    resp.headers_mut()
+                        .insert(CONTENT_LENGTH, HeaderValue::from_static("0"));
+                }
+                self.flags.insert(Flags::EOF);
+            }
+            ResponseLength::Length(len) => {
+                let mut val = BytesMut::new();
+                helpers::convert_usize(len, &mut val);
+                let l = val.len();
+                resp.headers_mut().insert(
+                    CONTENT_LENGTH,
+                    HeaderValue::try_from(val.split_to(l - 2).freeze()).unwrap(),
+                );
+            }
+            ResponseLength::Length64(len) => {
+                let l = format!("{}", len);
+                resp.headers_mut()
+                    .insert(CONTENT_LENGTH, HeaderValue::try_from(l.as_str()).unwrap());
+            }
+            ResponseLength::None => {
+                self.flags.insert(Flags::EOF);
+            }
+            _ => (),
+        }
+        if let Some(ce) = info.content_encoding {
+            resp.headers_mut()
+                .insert(CONTENT_ENCODING, HeaderValue::try_from(ce).unwrap());
+        }
+
+        trace!("Response: {:?}", resp);
 
         match self
             .respond
@@ -144,14 +170,12 @@ impl<H: 'static> Writer for H2Writer<H> {
             Err(_) => return Err(io::Error::new(io::ErrorKind::Other, "err")),
         }
 
-        trace!("Response: {:?}", msg);
-
+        let body = msg.replace_body(Body::Empty);
         if let Body::Binary(bytes) = body {
             if bytes.is_empty() {
                 Ok(WriterState::Done)
             } else {
                 self.flags.insert(Flags::EOF);
-                self.written = bytes.len() as u64;
                 self.buffer.write(bytes.as_ref())?;
                 if let Some(ref mut stream) = self.stream {
                     self.flags.insert(Flags::RESERVED);
@@ -167,8 +191,6 @@ impl<H: 'static> Writer for H2Writer<H> {
     }
 
     fn write(&mut self, payload: &Binary) -> io::Result<WriterState> {
-        self.written = payload.len() as u64;
-
         if !self.flags.contains(Flags::DISCONNECTED) {
             if self.flags.contains(Flags::STARTED) {
                 // TODO: add warning, write after EOF
@@ -229,14 +251,18 @@ impl<H: 'static> Writer for H2Writer<H> {
                             let cap = cmp::min(self.buffer.len(), CHUNK_SIZE);
                             stream.reserve_capacity(cap);
                         } else {
+                            if eof {
+                                stream.reserve_capacity(0);
+                                continue;
+                            }
                             self.flags.remove(Flags::RESERVED);
-                            return Ok(Async::NotReady);
+                            return Ok(Async::Ready(()));
                         }
                     }
                     Err(e) => return Err(io::Error::new(io::ErrorKind::Other, e)),
                 }
             }
         }
-        Ok(Async::NotReady)
+        Ok(Async::Ready(()))
     }
 }

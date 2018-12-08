@@ -7,11 +7,11 @@ use std::{cmp, fmt, io, mem};
 use brotli2::write::BrotliEncoder;
 use bytes::BytesMut;
 #[cfg(feature = "flate2")]
-use flate2::write::{DeflateEncoder, GzEncoder};
+use flate2::write::{GzEncoder, ZlibEncoder};
 #[cfg(feature = "flate2")]
 use flate2::Compression;
 use http::header::{ACCEPT_ENCODING, CONTENT_LENGTH};
-use http::Version;
+use http::{StatusCode, Version};
 
 use super::message::InnerRequest;
 use body::{Binary, Body};
@@ -151,10 +151,9 @@ impl Output {
         let version = resp.version().unwrap_or_else(|| req.version);
         let mut len = 0;
 
-        #[cfg_attr(feature = "cargo-clippy", allow(match_ref_pats))]
         let has_body = match resp.body() {
-            &Body::Empty => false,
-            &Body::Binary(ref bin) => {
+            Body::Empty => false,
+            Body::Binary(ref bin) => {
                 len = bin.len();
                 !(response_encoding == ContentEncoding::Auto && len < 96)
             }
@@ -190,16 +189,19 @@ impl Output {
         #[cfg(not(any(feature = "brotli", feature = "flate2")))]
         let mut encoding = ContentEncoding::Identity;
 
-        #[cfg_attr(feature = "cargo-clippy", allow(match_ref_pats))]
         let transfer = match resp.body() {
-            &Body::Empty => {
-                if !info.head {
-                    info.length = ResponseLength::Zero;
-                }
+            Body::Empty => {
+                info.length = match resp.status() {
+                    StatusCode::NO_CONTENT
+                    | StatusCode::CONTINUE
+                    | StatusCode::SWITCHING_PROTOCOLS
+                    | StatusCode::PROCESSING => ResponseLength::None,
+                    _ => ResponseLength::Zero,
+                };
                 *self = Output::Empty(buf);
                 return;
             }
-            &Body::Binary(_) => {
+            Body::Binary(_) => {
                 #[cfg(any(feature = "brotli", feature = "flate2"))]
                 {
                     if !(encoding == ContentEncoding::Identity
@@ -210,7 +212,7 @@ impl Output {
                         let mut enc = match encoding {
                             #[cfg(feature = "flate2")]
                             ContentEncoding::Deflate => ContentEncoder::Deflate(
-                                DeflateEncoder::new(transfer, Compression::fast()),
+                                ZlibEncoder::new(transfer, Compression::fast()),
                             ),
                             #[cfg(feature = "flate2")]
                             ContentEncoding::Gzip => ContentEncoder::Gzip(
@@ -244,7 +246,7 @@ impl Output {
                 }
                 return;
             }
-            &Body::Streaming(_) | &Body::Actor(_) => {
+            Body::Streaming(_) | Body::Actor(_) => {
                 if resp.upgrade() {
                     if version == Version::HTTP_2 {
                         error!("Connection upgrade is forbidden for HTTP/2");
@@ -273,10 +275,9 @@ impl Output {
 
         let enc = match encoding {
             #[cfg(feature = "flate2")]
-            ContentEncoding::Deflate => ContentEncoder::Deflate(DeflateEncoder::new(
-                transfer,
-                Compression::fast(),
-            )),
+            ContentEncoding::Deflate => {
+                ContentEncoder::Deflate(ZlibEncoder::new(transfer, Compression::fast()))
+            }
             #[cfg(feature = "flate2")]
             ContentEncoding::Gzip => {
                 ContentEncoder::Gzip(GzEncoder::new(transfer, Compression::fast()))
@@ -298,11 +299,10 @@ impl Output {
         match resp.chunked() {
             Some(true) => {
                 // Enable transfer encoding
+                info.length = ResponseLength::Chunked;
                 if version == Version::HTTP_2 {
-                    info.length = ResponseLength::None;
                     TransferEncoding::eof(buf)
                 } else {
-                    info.length = ResponseLength::Chunked;
                     TransferEncoding::chunked(buf)
                 }
             }
@@ -336,15 +336,11 @@ impl Output {
                     }
                 } else {
                     // Enable transfer encoding
-                    match version {
-                        Version::HTTP_11 => {
-                            info.length = ResponseLength::Chunked;
-                            TransferEncoding::chunked(buf)
-                        }
-                        _ => {
-                            info.length = ResponseLength::None;
-                            TransferEncoding::eof(buf)
-                        }
+                    info.length = ResponseLength::Chunked;
+                    if version == Version::HTTP_2 {
+                        TransferEncoding::eof(buf)
+                    } else {
+                        TransferEncoding::chunked(buf)
                     }
                 }
             }
@@ -354,7 +350,7 @@ impl Output {
 
 pub(crate) enum ContentEncoder {
     #[cfg(feature = "flate2")]
-    Deflate(DeflateEncoder<TransferEncoding>),
+    Deflate(ZlibEncoder<TransferEncoding>),
     #[cfg(feature = "flate2")]
     Gzip(GzEncoder<TransferEncoding>),
     #[cfg(feature = "brotli")]

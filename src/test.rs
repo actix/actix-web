@@ -13,14 +13,16 @@ use http::{HeaderMap, HttpTryFrom, Method, Uri, Version};
 use net2::TcpBuilder;
 use tokio::runtime::current_thread::Runtime;
 
-#[cfg(feature = "alpn")]
+#[cfg(any(feature = "alpn", feature = "ssl"))]
 use openssl::ssl::SslAcceptorBuilder;
+#[cfg(feature = "rust-tls")]
+use rustls::ServerConfig;
 
 use application::{App, HttpApplication};
 use body::Binary;
 use client::{ClientConnector, ClientRequest, ClientRequestBuilder};
 use error::Error;
-use handler::{AsyncResultItem, Handler, Responder};
+use handler::{AsyncResult, AsyncResultItem, Handler, Responder};
 use header::{Header, IntoHeaderValue};
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
@@ -73,13 +75,13 @@ impl TestServer {
     /// middlewares or set handlers for test application.
     pub fn new<F>(config: F) -> Self
     where
-        F: Sync + Send + 'static + Fn(&mut TestApp<()>),
+        F: Clone + Send + 'static + Fn(&mut TestApp<()>),
     {
         TestServerBuilder::new(|| ()).start(config)
     }
 
     /// Create test server builder
-    pub fn build() -> TestServerBuilder<()> {
+    pub fn build() -> TestServerBuilder<(), impl Fn() -> () + Clone + Send + 'static> {
         TestServerBuilder::new(|| ())
     }
 
@@ -88,19 +90,18 @@ impl TestServer {
     /// This method can be used for constructing application state.
     /// Also it can be used for external dependency initialization,
     /// like creating sync actors for diesel integration.
-    pub fn build_with_state<F, S>(state: F) -> TestServerBuilder<S>
+    pub fn build_with_state<S, F>(state: F) -> TestServerBuilder<S, F>
     where
-        F: Fn() -> S + Sync + Send + 'static,
+        F: Fn() -> S + Clone + Send + 'static,
         S: 'static,
     {
         TestServerBuilder::new(state)
     }
 
     /// Start new test server with application factory
-    pub fn with_factory<F, U, H>(factory: F) -> Self
+    pub fn with_factory<F, H>(factory: F) -> Self
     where
-        F: Fn() -> U + Sync + Send + 'static,
-        U: IntoIterator<Item = H> + 'static,
+        F: Fn() -> H + Send + Clone + 'static,
         H: IntoHttpHandler + 'static,
     {
         let (tx, rx) = mpsc::channel();
@@ -111,9 +112,10 @@ impl TestServer {
             let tcp = net::TcpListener::bind("127.0.0.1:0").unwrap();
             let local_addr = tcp.local_addr().unwrap();
 
-            HttpServer::new(factory)
+            let _ = HttpServer::new(factory)
                 .disable_signals()
                 .listen(tcp)
+                .keep_alive(5)
                 .start();
 
             tx.send((System::current(), local_addr, TestServer::get_conn()))
@@ -132,7 +134,7 @@ impl TestServer {
     }
 
     fn get_conn() -> Addr<ClientConnector> {
-        #[cfg(feature = "alpn")]
+        #[cfg(any(feature = "alpn", feature = "ssl"))]
         {
             use openssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
 
@@ -140,7 +142,20 @@ impl TestServer {
             builder.set_verify(SslVerifyMode::NONE);
             ClientConnector::with_connector(builder.build()).start()
         }
-        #[cfg(not(feature = "alpn"))]
+        #[cfg(all(
+            feature = "rust-tls",
+            not(any(feature = "alpn", feature = "ssl"))
+        ))]
+        {
+            use rustls::ClientConfig;
+            use std::fs::File;
+            use std::io::BufReader;
+            let mut config = ClientConfig::new();
+            let pem_file = &mut BufReader::new(File::open("tests/cert.pem").unwrap());
+            config.root_store.add_pem_file(pem_file).unwrap();
+            ClientConnector::with_connector(config).start()
+        }
+        #[cfg(not(any(feature = "alpn", feature = "ssl", feature = "rust-tls")))]
         {
             ClientConnector::default().start()
         }
@@ -165,16 +180,16 @@ impl TestServer {
     pub fn url(&self, uri: &str) -> String {
         if uri.starts_with('/') {
             format!(
-                "{}://{}{}",
+                "{}://localhost:{}{}",
                 if self.ssl { "https" } else { "http" },
-                self.addr,
+                self.addr.port(),
                 uri
             )
         } else {
             format!(
-                "{}://{}/{}",
+                "{}://localhost:{}/{}",
                 if self.ssl { "https" } else { "http" },
-                self.addr,
+                self.addr.port(),
                 uri
             )
         }
@@ -193,13 +208,20 @@ impl TestServer {
         self.rt.block_on(fut)
     }
 
-    /// Connect to websocket server
+    /// Connect to websocket server at a given path
+    pub fn ws_at(
+        &mut self, path: &str,
+    ) -> Result<(ws::ClientReader, ws::ClientWriter), ws::ClientError> {
+        let url = self.url(path);
+        self.rt
+            .block_on(ws::Client::with_connector(url, self.conn.clone()).connect())
+    }
+
+    /// Connect to a websocket server
     pub fn ws(
         &mut self,
     ) -> Result<(ws::ClientReader, ws::ClientWriter), ws::ClientError> {
-        let url = self.url("/");
-        self.rt
-            .block_on(ws::Client::with_connector(url, self.conn.clone()).connect())
+        self.ws_at("/")
     }
 
     /// Create `GET` request
@@ -237,75 +259,105 @@ impl Drop for TestServer {
 ///
 /// This type can be used to construct an instance of `TestServer` through a
 /// builder-like pattern.
-pub struct TestServerBuilder<S> {
-    state: Box<Fn() -> S + Sync + Send + 'static>,
-    #[cfg(feature = "alpn")]
+pub struct TestServerBuilder<S, F>
+where
+    F: Fn() -> S + Send + Clone + 'static,
+{
+    state: F,
+    #[cfg(any(feature = "alpn", feature = "ssl"))]
     ssl: Option<SslAcceptorBuilder>,
+    #[cfg(feature = "rust-tls")]
+    rust_ssl: Option<ServerConfig>,
 }
 
-impl<S: 'static> TestServerBuilder<S> {
+impl<S: 'static, F> TestServerBuilder<S, F>
+where
+    F: Fn() -> S + Send + Clone + 'static,
+{
     /// Create a new test server
-    pub fn new<F>(state: F) -> TestServerBuilder<S>
-    where
-        F: Fn() -> S + Sync + Send + 'static,
-    {
+    pub fn new(state: F) -> TestServerBuilder<S, F> {
         TestServerBuilder {
-            state: Box::new(state),
-            #[cfg(feature = "alpn")]
+            state,
+            #[cfg(any(feature = "alpn", feature = "ssl"))]
             ssl: None,
+            #[cfg(feature = "rust-tls")]
+            rust_ssl: None,
         }
     }
 
-    #[cfg(feature = "alpn")]
+    #[cfg(any(feature = "alpn", feature = "ssl"))]
     /// Create ssl server
     pub fn ssl(mut self, ssl: SslAcceptorBuilder) -> Self {
         self.ssl = Some(ssl);
         self
     }
 
+    #[cfg(feature = "rust-tls")]
+    /// Create rust tls server
+    pub fn rustls(mut self, ssl: ServerConfig) -> Self {
+        self.rust_ssl = Some(ssl);
+        self
+    }
+
     #[allow(unused_mut)]
     /// Configure test application and run test server
-    pub fn start<F>(mut self, config: F) -> TestServer
+    pub fn start<C>(mut self, config: C) -> TestServer
     where
-        F: Sync + Send + 'static + Fn(&mut TestApp<S>),
+        C: Fn(&mut TestApp<S>) + Clone + Send + 'static,
     {
         let (tx, rx) = mpsc::channel();
 
-        #[cfg(feature = "alpn")]
-        let ssl = self.ssl.is_some();
-        #[cfg(not(feature = "alpn"))]
-        let ssl = false;
+        let mut has_ssl = false;
+
+        #[cfg(any(feature = "alpn", feature = "ssl"))]
+        {
+            has_ssl = has_ssl || self.ssl.is_some();
+        }
+
+        #[cfg(feature = "rust-tls")]
+        {
+            has_ssl = has_ssl || self.rust_ssl.is_some();
+        }
 
         // run server in separate thread
         thread::spawn(move || {
-            let tcp = net::TcpListener::bind("127.0.0.1:0").unwrap();
-            let local_addr = tcp.local_addr().unwrap();
+            let addr = TestServer::unused_addr();
 
             let sys = System::new("actix-test-server");
             let state = self.state;
-            let srv = HttpServer::new(move || {
+            let mut srv = HttpServer::new(move || {
                 let mut app = TestApp::new(state());
                 config(&mut app);
-                vec![app]
+                app
             }).workers(1)
-                .disable_signals();
+            .keep_alive(5)
+            .disable_signals();
 
-            tx.send((System::current(), local_addr, TestServer::get_conn()))
+            tx.send((System::current(), addr, TestServer::get_conn()))
                 .unwrap();
 
-            #[cfg(feature = "alpn")]
+            #[cfg(any(feature = "alpn", feature = "ssl"))]
             {
                 let ssl = self.ssl.take();
                 if let Some(ssl) = ssl {
-                    srv.listen_ssl(tcp, ssl).unwrap().start();
-                } else {
-                    srv.listen(tcp).start();
+                    let tcp = net::TcpListener::bind(addr).unwrap();
+                    srv = srv.listen_ssl(tcp, ssl).unwrap();
                 }
             }
-            #[cfg(not(feature = "alpn"))]
+            #[cfg(feature = "rust-tls")]
             {
-                srv.listen(tcp).start();
+                let ssl = self.rust_ssl.take();
+                if let Some(ssl) = ssl {
+                    let tcp = net::TcpListener::bind(addr).unwrap();
+                    srv = srv.listen_rustls(tcp, ssl);
+                }
             }
+            if !has_ssl {
+                let tcp = net::TcpListener::bind(addr).unwrap();
+                srv = srv.listen(tcp);
+            }
+            srv.start();
+
             sys.run();
         });
 
@@ -313,8 +365,8 @@ impl<S: 'static> TestServerBuilder<S> {
         System::set_current(system);
         TestServer {
             addr,
-            ssl,
             conn,
+            ssl: has_ssl,
             rt: Runtime::new().unwrap(),
         }
     }
@@ -549,7 +601,7 @@ impl<S: 'static> TestRequest<S> {
             payload,
             prefix,
         } = self;
-        let router = Router::<()>::new();
+        let router = Router::<()>::default();
 
         let pool = RequestPool::pool(ServerSettings::default());
         let mut req = RequestPool::get(pool);
@@ -629,8 +681,6 @@ impl<S: 'static> TestRequest<S> {
 
     /// This method generates `HttpRequest` instance and runs handler
     /// with generated request.
-    ///
-    /// This method panics is handler returns actor or async result.
     pub fn run<H: Handler<S>>(self, h: &H) -> Result<HttpResponse, Error> {
         let req = self.finish();
         let resp = h.handle(&req);
@@ -639,7 +689,10 @@ impl<S: 'static> TestRequest<S> {
             Ok(resp) => match resp.into().into() {
                 AsyncResultItem::Ok(resp) => Ok(resp),
                 AsyncResultItem::Err(err) => Err(err),
-                AsyncResultItem::Future(_) => panic!("Async handler is not supported."),
+                AsyncResultItem::Future(fut) => {
+                    let mut sys = System::new("test");
+                    sys.block_on(fut)
+                }
             },
             Err(err) => Err(err.into()),
         }
@@ -659,8 +712,8 @@ impl<S: 'static> TestRequest<S> {
         let req = self.finish();
         let fut = h(req.clone());
 
-        let mut core = Runtime::new().unwrap();
-        match core.block_on(fut) {
+        let mut sys = System::new("test");
+        match sys.block_on(fut) {
             Ok(r) => match r.respond_to(&req) {
                 Ok(reply) => match reply.into().into() {
                     AsyncResultItem::Ok(resp) => Ok(resp),
@@ -669,6 +722,47 @@ impl<S: 'static> TestRequest<S> {
                 Err(e) => Err(e),
             },
             Err(err) => Err(err),
+        }
+    }
+
+    /// This method generates `HttpRequest` instance and executes handler
+    pub fn run_async_result<F, R, I, E>(self, f: F) -> Result<I, E>
+    where
+        F: FnOnce(&HttpRequest<S>) -> R,
+        R: Into<AsyncResult<I, E>>,
+    {
+        let req = self.finish();
+        let res = f(&req);
+
+        match res.into().into() {
+            AsyncResultItem::Ok(resp) => Ok(resp),
+            AsyncResultItem::Err(err) => Err(err),
+            AsyncResultItem::Future(fut) => {
+                let mut sys = System::new("test");
+                sys.block_on(fut)
+            }
+        }
+    }
+
+    /// This method generates `HttpRequest` instance and executes handler
+    pub fn execute<F, R>(self, f: F) -> Result<HttpResponse, Error>
+    where
+        F: FnOnce(&HttpRequest<S>) -> R,
+        R: Responder + 'static,
+    {
+        let req = self.finish();
+        let resp = f(&req);
+
+        match resp.respond_to(&req) {
+            Ok(resp) => match resp.into().into() {
+                AsyncResultItem::Ok(resp) => Ok(resp),
+                AsyncResultItem::Err(err) => Err(err),
+                AsyncResultItem::Future(fut) => {
+                    let mut sys = System::new("test");
+                    sys.block_on(fut)
+                }
+            },
+            Err(err) => Err(err.into()),
         }
     }
 }

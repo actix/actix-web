@@ -1,6 +1,8 @@
 //! Payload stream
 use bytes::{Bytes, BytesMut};
-use futures::task::{current as current_task, Task};
+#[cfg(not(test))]
+use futures::task::current as current_task;
+use futures::task::Task;
 use futures::{Async, Poll, Stream};
 use std::cell::RefCell;
 use std::cmp;
@@ -513,8 +515,7 @@ where
             .fold(BytesMut::new(), |mut b, c| {
                 b.extend_from_slice(c);
                 b
-            })
-            .freeze()
+            }).freeze()
     }
 }
 
@@ -553,8 +554,7 @@ mod tests {
 
                 let res: Result<(), ()> = Ok(());
                 result(res)
-            }))
-            .unwrap();
+            })).unwrap();
     }
 
     #[test]
@@ -578,8 +578,7 @@ mod tests {
 
                 let res: Result<(), ()> = Ok(());
                 result(res)
-            }))
-            .unwrap();
+            })).unwrap();
     }
 
     #[test]
@@ -596,8 +595,7 @@ mod tests {
                 payload.readany().err().unwrap();
                 let res: Result<(), ()> = Ok(());
                 result(res)
-            }))
-            .unwrap();
+            })).unwrap();
     }
 
     #[test]
@@ -625,8 +623,7 @@ mod tests {
 
                 let res: Result<(), ()> = Ok(());
                 result(res)
-            }))
-            .unwrap();
+            })).unwrap();
     }
 
     #[test]
@@ -659,8 +656,7 @@ mod tests {
 
                 let res: Result<(), ()> = Ok(());
                 result(res)
-            }))
-            .unwrap();
+            })).unwrap();
     }
 
     #[test]
@@ -693,8 +689,7 @@ mod tests {
 
                 let res: Result<(), ()> = Ok(());
                 result(res)
-            }))
-            .unwrap();
+            })).unwrap();
     }
 
     #[test]
@@ -715,7 +710,6 @@ mod tests {
 
                 let res: Result<(), ()> = Ok(());
                 result(res)
-            }))
-            .unwrap();
+            })).unwrap();
     }
 }

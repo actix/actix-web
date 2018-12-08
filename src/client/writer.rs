@@ -1,4 +1,7 @@
-#![cfg_attr(feature = "cargo-clippy", allow(redundant_field_names))]
+#![cfg_attr(
+    feature = "cargo-clippy",
+    allow(redundant_field_names)
+)]
 
 use std::cell::RefCell;
 use std::fmt::Write as FmtWrite;
@@ -8,7 +11,7 @@ use std::io::{self, Write};
 use brotli2::write::BrotliEncoder;
 use bytes::{BufMut, BytesMut};
 #[cfg(feature = "flate2")]
-use flate2::write::{DeflateEncoder, GzEncoder};
+use flate2::write::{GzEncoder, ZlibEncoder};
 #[cfg(feature = "flate2")]
 use flate2::Compression;
 use futures::{Async, Poll};
@@ -232,7 +235,7 @@ fn content_encoder(buf: BytesMut, req: &mut ClientRequest) -> Output {
                     let mut enc = match encoding {
                         #[cfg(feature = "flate2")]
                         ContentEncoding::Deflate => ContentEncoder::Deflate(
-                            DeflateEncoder::new(transfer, Compression::default()),
+                            ZlibEncoder::new(transfer, Compression::default()),
                         ),
                         #[cfg(feature = "flate2")]
                         ContentEncoding::Gzip => ContentEncoder::Gzip(GzEncoder::new(
@@ -302,10 +305,9 @@ fn content_encoder(buf: BytesMut, req: &mut ClientRequest) -> Output {
     req.replace_body(body);
     let enc = match encoding {
         #[cfg(feature = "flate2")]
-        ContentEncoding::Deflate => ContentEncoder::Deflate(DeflateEncoder::new(
-            transfer,
-            Compression::default(),
-        )),
+        ContentEncoding::Deflate => {
+            ContentEncoder::Deflate(ZlibEncoder::new(transfer, Compression::default()))
+        }
         #[cfg(feature = "flate2")]
         ContentEncoding::Gzip => {
             ContentEncoder::Gzip(GzEncoder::new(transfer, Compression::default()))

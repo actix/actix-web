@@ -11,10 +11,10 @@ use std::{cmp, io};
 #[cfg(unix)]
 use std::os::unix::fs::MetadataExt;
 
+use askama_escape::{escape as escape_html_entity};
 use bytes::Bytes;
 use futures::{Async, Future, Poll, Stream};
 use futures_cpupool::{CpuFuture, CpuPool};
-use htmlescape::encode_minimal as escape_html_entity;
 use mime;
 use mime_guess::{get_mime_type, guess_mime_type};
 use percent_encoding::{utf8_percent_encode, DEFAULT_ENCODE_SET};
@@ -164,11 +164,7 @@ impl<C: StaticFileConfig> NamedFile<C> {
             let disposition_type = C::content_disposition_map(ct.type_());
             let cd = ContentDisposition {
                 disposition: disposition_type,
-                parameters: vec![DispositionParam::Filename(
-                    header::Charset::Ext("UTF-8".to_owned()),
-                    None,
-                    filename.as_bytes().to_vec(),
-                )],
+                parameters: vec![DispositionParam::Filename(filename.into_owned())],
             };
             (ct, cd)
         };
@@ -373,11 +369,7 @@ impl<C: StaticFileConfig> Responder for NamedFile<C> {
                 .body("This resource only supports GET and HEAD."));
         }
 
-        let etag = if C::is_use_etag() {
-            self.etag()
-        } else {
-            None
-        };
+        let etag = if C::is_use_etag() { self.etag() } else { None };
         let last_modified = if C::is_use_last_modifier() {
             self.last_modified()
         } else {
@@ -480,6 +472,7 @@ impl<C: StaticFileConfig> Responder for NamedFile<C> {
     }
 }
 
+#[doc(hidden)]
 /// A helper created from a `std::fs::File` which reads the file
 /// chunk-by-chunk on a `CpuPool`.
 pub struct ChunkedReadFile {
@@ -522,7 +515,8 @@ impl Stream for ChunkedReadFile {
                 max_bytes = cmp::min(size.saturating_sub(counter), 65_536) as usize;
                 let mut buf = Vec::with_capacity(max_bytes);
                 file.seek(io::SeekFrom::Start(offset))?;
-                let nbytes = file.by_ref().take(max_bytes as u64).read_to_end(&mut buf)?;
+                let nbytes =
+                    file.by_ref().take(max_bytes as u64).read_to_end(&mut buf)?;
                 if nbytes == 0 {
                     return Err(io::ErrorKind::UnexpectedEof.into());
                 }
@@ -568,8 +562,23 @@ impl Directory {
     }
 }
 
+// show file url as relative to static path
+macro_rules! encode_file_url {
+    ($path:ident) => {
+        utf8_percent_encode(&$path.to_string_lossy(), DEFAULT_ENCODE_SET)
+    };
+}
+
+// " -- &quot;  & -- &amp;  ' -- &#x27;  < -- &lt;  > -- &gt;  / -- &#x2f;
+macro_rules! encode_file_name {
+    ($entry:ident) => {
+        escape_html_entity(&$entry.file_name().to_string_lossy())
+    };
+}
+
 fn directory_listing<S>(
-    dir: &Directory, req: &HttpRequest<S>,
+    dir: &Directory,
+    req: &HttpRequest<S>,
 ) -> Result<HttpResponse, io::Error> {
     let index_of = format!("Index of {}", req.path());
     let mut body = String::new();
@@ -582,11 +591,6 @@ fn directory_listing<S>(
                 Ok(p) => base.join(p),
                 Err(_) => continue,
             };
-            // show file url as relative to static path
-            let file_url = utf8_percent_encode(&p.to_string_lossy(), DEFAULT_ENCODE_SET)
-                .to_string();
-            // " -- &quot;  & -- &amp;  ' -- &#x27;  < -- &lt;  > -- &gt;
-            let file_name = escape_html_entity(&entry.file_name().to_string_lossy());
 
             // if file is a directory, add '/' to the end of the name
             if let Ok(metadata) = entry.metadata() {
@@ -594,13 +598,15 @@ fn directory_listing<S>(
                     let _ = write!(
                         body,
                         "<li><a href=\"{}\">{}/</a></li>",
-                        file_url, file_name
+                        encode_file_url!(p),
+                        encode_file_name!(entry),
                     );
                 } else {
                     let _ = write!(
                         body,
                         "<li><a href=\"{}\">{}</a></li>",
-                        file_url, file_name
+                        encode_file_url!(p),
+                        encode_file_name!(entry),
                     );
                 }
             } else {
@@ -663,7 +669,8 @@ impl<S: 'static> StaticFiles<S> {
     /// Create new `StaticFiles` instance for specified base directory and
     /// `CpuPool`.
     pub fn with_pool<T: Into<PathBuf>>(
-        dir: T, pool: CpuPool,
+        dir: T,
+        pool: CpuPool,
     ) -> Result<StaticFiles<S>, Error> {
         Self::with_config_pool(dir, pool, DefaultConfig)
     }
@@ -674,7 +681,8 @@ impl<S: 'static, C: StaticFileConfig> StaticFiles<S, C> {
     ///
     /// Identical with `new` but allows to specify configiration to use.
     pub fn with_config<T: Into<PathBuf>>(
-        dir: T, config: C,
+        dir: T,
+        config: C,
     ) -> Result<StaticFiles<S, C>, Error> {
         // use default CpuPool
         let pool = { DEFAULT_CPUPOOL.lock().clone() };
@@ -685,7 +693,9 @@ impl<S: 'static, C: StaticFileConfig> StaticFiles<S, C> {
     /// Create new `StaticFiles` instance for specified base directory with config and
     /// `CpuPool`.
     pub fn with_config_pool<T: Into<PathBuf>>(
-        dir: T, pool: CpuPool, _: C,
+        dir: T,
+        pool: CpuPool,
+        _: C,
     ) -> Result<StaticFiles<S, C>, Error> {
         let dir = dir.into().canonicalize()?;
 
@@ -743,7 +753,8 @@ impl<S: 'static, C: StaticFileConfig> StaticFiles<S, C> {
     }
 
     fn try_handle(
-        &self, req: &HttpRequest<S>,
+        &self,
+        req: &HttpRequest<S>,
     ) -> Result<AsyncResult<HttpResponse>, Error> {
         let tail: String = req.match_info().query("tail")?;
         let relpath = PathBuf::from_param(tail.trim_left_matches('/'))?;
@@ -873,8 +884,7 @@ impl HttpRange {
                         length: length as u64,
                     }))
                 }
-            })
-            .collect::<Result<_, _>>()?;
+            }).collect::<Result<_, _>>()?;
 
         let ranges: Vec<HttpRange> = all_ranges.into_iter().filter_map(|x| x).collect();
 
@@ -990,11 +1000,7 @@ mod tests {
         use header::{ContentDisposition, DispositionParam, DispositionType};
         let cd = ContentDisposition {
             disposition: DispositionType::Attachment,
-            parameters: vec![DispositionParam::Filename(
-                header::Charset::Ext("UTF-8".to_owned()),
-                None,
-                "test.png".as_bytes().to_vec(),
-            )],
+            parameters: vec![DispositionParam::Filename(String::from("test.png"))],
         };
         let mut file = NamedFile::open("tests/test.png")
             .unwrap()

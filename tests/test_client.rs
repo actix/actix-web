@@ -5,8 +5,11 @@ extern crate bytes;
 extern crate flate2;
 extern crate futures;
 extern crate rand;
+#[cfg(all(unix, feature = "uds"))]
+extern crate tokio_uds;
 
-use std::io::Read;
+use std::io::{Read, Write};
+use std::{net, thread};
 
 use bytes::Bytes;
 use flate2::read::GzDecoder;
@@ -65,6 +68,16 @@ fn test_simple() {
 }
 
 #[test]
+fn test_connection_close() {
+    let mut srv =
+        test::TestServer::new(|app| app.handler(|_| HttpResponse::Ok().body(STR)));
+
+    let request = srv.get().header("Connection", "close").finish().unwrap();
+    let response = srv.execute(request.send()).unwrap();
+    assert!(response.status().is_success());
+}
+
+#[test]
 fn test_with_query_parameter() {
     let mut srv = test::TestServer::new(|app| {
         app.handler(|req: &HttpRequest| match req.query().get("qp") {
@@ -116,8 +129,7 @@ fn test_client_gzip_encoding() {
                     Ok(HttpResponse::Ok()
                         .content_encoding(http::ContentEncoding::Deflate)
                         .body(bytes))
-                })
-                .responder()
+                }).responder()
         })
     });
 
@@ -146,8 +158,7 @@ fn test_client_gzip_encoding_large() {
                     Ok(HttpResponse::Ok()
                         .content_encoding(http::ContentEncoding::Deflate)
                         .body(bytes))
-                })
-                .responder()
+                }).responder()
         })
     });
 
@@ -168,7 +179,7 @@ fn test_client_gzip_encoding_large() {
 #[test]
 fn test_client_gzip_encoding_large_random() {
     let data = rand::thread_rng()
-        .gen_ascii_chars()
+        .sample_iter(&rand::distributions::Alphanumeric)
         .take(100_000)
         .collect::<String>();
 
@@ -179,8 +190,7 @@ fn test_client_gzip_encoding_large_random() {
                     Ok(HttpResponse::Ok()
                         .content_encoding(http::ContentEncoding::Deflate)
                         .body(bytes))
-                })
-                .responder()
+                }).responder()
         })
     });
 
@@ -198,6 +208,13 @@ fn test_client_gzip_encoding_large_random() {
     assert_eq!(bytes, Bytes::from(data));
 }
 
+#[cfg(all(unix, feature = "uds"))]
+#[test]
+fn test_compatible_with_unix_socket_stream() {
+    let (stream, _) = tokio_uds::UnixStream::pair().unwrap();
+    let _ = client::Connection::from_stream(stream);
+}
+
 #[cfg(feature = "brotli")]
 #[test]
 fn test_client_brotli_encoding() {
@@ -208,8 +225,7 @@ fn test_client_brotli_encoding() {
                     Ok(HttpResponse::Ok()
                         .content_encoding(http::ContentEncoding::Gzip)
                         .body(bytes))
-                })
-                .responder()
+                }).responder()
         })
     });
 
@@ -231,7 +247,7 @@ fn test_client_brotli_encoding() {
 #[test]
 fn test_client_brotli_encoding_large_random() {
     let data = rand::thread_rng()
-        .gen_ascii_chars()
+        .sample_iter(&rand::distributions::Alphanumeric)
         .take(70_000)
         .collect::<String>();
 
@@ -242,8 +258,7 @@ fn test_client_brotli_encoding_large_random() {
                     Ok(HttpResponse::Ok()
                         .content_encoding(http::ContentEncoding::Gzip)
                         .body(bytes))
-                })
-                .responder()
+                }).responder()
         })
     });
 
@@ -272,8 +287,7 @@ fn test_client_deflate_encoding() {
                     Ok(HttpResponse::Ok()
                         .content_encoding(http::ContentEncoding::Br)
                         .body(bytes))
-                })
-                .responder()
+                }).responder()
         })
     });
 
@@ -295,7 +309,7 @@ fn test_client_deflate_encoding() {
 #[test]
 fn test_client_deflate_encoding_large_random() {
     let data = rand::thread_rng()
-        .gen_ascii_chars()
+        .sample_iter(&rand::distributions::Alphanumeric)
         .take(70_000)
         .collect::<String>();
 
@@ -306,8 +320,7 @@ fn test_client_deflate_encoding_large_random() {
                     Ok(HttpResponse::Ok()
                         .content_encoding(http::ContentEncoding::Br)
                         .body(bytes))
-                })
-                .responder()
+                }).responder()
         })
     });
 
@@ -336,8 +349,7 @@ fn test_client_streaming_explicit() {
                         .chunked()
                         .content_encoding(http::ContentEncoding::Identity)
                         .body(body))
-                })
-                .responder()
+                }).responder()
         })
     });
 
@@ -395,24 +407,29 @@ fn test_client_cookie_handling() {
         let cookie2 = cookie2b.clone();
         app.handler(move |req: &HttpRequest| {
             // Check cookies were sent correctly
-            req.cookie("cookie1").ok_or_else(err)
-                    .and_then(|c1| if c1.value() == "value1" {
+            req.cookie("cookie1")
+                .ok_or_else(err)
+                .and_then(|c1| {
+                    if c1.value() == "value1" {
                         Ok(())
                     } else {
                         Err(err())
-                    })
-                    .and_then(|()| req.cookie("cookie2").ok_or_else(err))
-                    .and_then(|c2| if c2.value() == "value2" {
+                    }
+                }).and_then(|()| req.cookie("cookie2").ok_or_else(err))
+                .and_then(|c2| {
+                    if c2.value() == "value2" {
                         Ok(())
                     } else {
                         Err(err())
-                    })
-                    // Send some cookies back
-                    .map(|_| HttpResponse::Ok()
-                         .cookie(cookie1.clone())
-                         .cookie(cookie2.clone())
-                         .finish()
-                    )
+                    }
+                })
+                // Send some cookies back
+                .map(|_| {
+                    HttpResponse::Ok()
+                        .cookie(cookie1.clone())
+                        .cookie(cookie2.clone())
+                        .finish()
+                })
         })
     });
 
@@ -438,7 +455,7 @@ fn test_default_headers() {
     let repr = format!("{:?}", request);
     assert!(repr.contains("\"accept-encoding\": \"gzip, deflate\""));
     assert!(repr.contains(concat!(
-        "\"user-agent\": \"Actix-web/",
+        "\"user-agent\": \"actix-web/",
         env!("CARGO_PKG_VERSION"),
         "\""
     )));
@@ -458,4 +475,34 @@ fn test_default_headers() {
         env!("CARGO_PKG_VERSION"),
         "\""
     )));
+}
+
+#[test]
+fn client_read_until_eof() {
+    let addr = test::TestServer::unused_addr();
+
+    thread::spawn(move || {
+        let lst = net::TcpListener::bind(addr).unwrap();
+
+        for stream in lst.incoming() {
+            let mut stream = stream.unwrap();
+            let mut b = [0; 1000];
+            let _ = stream.read(&mut b).unwrap();
+            let _ = stream
+                .write_all(b"HTTP/1.1 200 OK\r\nconnection: close\r\n\r\nwelcome!");
+        }
+    });
+
+    let mut sys = actix::System::new("test");
+
+    // client request
+    let req = client::ClientRequest::get(format!("http://{}/", addr).as_str())
+        .finish()
+        .unwrap();
+    let response = sys.block_on(req.send()).unwrap();
+    assert!(response.status().is_success());
+
+    // read response
+    let bytes = sys.block_on(response.body()).unwrap();
+    assert_eq!(bytes, Bytes::from_static(b"welcome!"));
 }

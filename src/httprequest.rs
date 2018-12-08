@@ -81,6 +81,15 @@ impl<S> HttpRequest<S> {
         }
     }
 
+    /// Construct new http request with empty state.
+    pub fn drop_state(&self) -> HttpRequest {
+        HttpRequest {
+            state: Rc::new(()),
+            req: self.req.as_ref().map(|r| r.clone()),
+            resource: self.resource.clone(),
+        }
+    }
+
     #[inline]
     /// Construct new http request with new RouteInfo.
     pub(crate) fn with_route_info(&self, mut resource: ResourceInfo) -> HttpRequest<S> {
@@ -207,7 +216,7 @@ impl<S> HttpRequest<S> {
         self.url_for(name, &NO_PARAMS)
     }
 
-    /// This method returns reference to current `RouteInfo` object.
+    /// This method returns reference to current `ResourceInfo` object.
     #[inline]
     pub fn resource(&self) -> &ResourceInfo {
         &self.resource
@@ -255,7 +264,8 @@ impl<S> HttpRequest<S> {
         if self.extensions().get::<Cookies>().is_none() {
             let mut cookies = Vec::new();
             for hdr in self.request().inner.headers.get_all(header::COOKIE) {
-                let s = str::from_utf8(hdr.as_bytes()).map_err(CookieParseError::from)?;
+                let s =
+                    str::from_utf8(hdr.as_bytes()).map_err(CookieParseError::from)?;
                 for cookie_str in s.split(';').map(|s| s.trim()) {
                     if !cookie_str.is_empty() {
                         cookies.push(Cookie::parse_encoded(cookie_str)?.into_owned());
@@ -344,24 +354,24 @@ impl<S> FromRequest<S> for HttpRequest<S> {
 
 impl<S> fmt::Debug for HttpRequest<S> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let res = writeln!(
+        writeln!(
             f,
             "\nHttpRequest {:?} {}:{}",
             self.version(),
             self.method(),
             self.path()
-        );
+        )?;
         if !self.query_string().is_empty() {
-            let _ = writeln!(f, "  query: ?{:?}", self.query_string());
+            writeln!(f, "  query: ?{:?}", self.query_string())?;
         }
         if !self.match_info().is_empty() {
-            let _ = writeln!(f, "  params: {:?}", self.match_info());
+            writeln!(f, "  params: {:?}", self.match_info())?;
         }
-        let _ = writeln!(f, "  headers:");
+        writeln!(f, "  headers:")?;
         for (key, val) in self.headers().iter() {
-            let _ = writeln!(f, "    {:?}: {:?}", key, val);
+            writeln!(f, "    {:?}: {:?}", key, val)?;
         }
-        res
+        Ok(())
     }
 }
 
@@ -420,7 +430,7 @@ mod tests {
 
     #[test]
     fn test_request_match_info() {
-        let mut router = Router::<()>::new();
+        let mut router = Router::<()>::default();
         router.register_resource(Resource::new(ResourceDef::new("/{key}/")));
 
         let req = TestRequest::with_uri("/value/?id=test").finish();
@@ -430,7 +440,7 @@ mod tests {
 
     #[test]
     fn test_url_for() {
-        let mut router = Router::<()>::new();
+        let mut router = Router::<()>::default();
         let mut resource = Resource::new(ResourceDef::new("/user/{name}.{ext}"));
         resource.name("index");
         router.register_resource(resource);
@@ -464,7 +474,8 @@ mod tests {
     fn test_url_for_with_prefix() {
         let mut resource = Resource::new(ResourceDef::new("/user/{name}.html"));
         resource.name("index");
-        let mut router = Router::<()>::new();
+        let mut router = Router::<()>::default();
+        router.set_prefix("/prefix");
         router.register_resource(resource);
 
         let mut info = router.default_route_info();
@@ -490,7 +501,8 @@ mod tests {
     fn test_url_for_static() {
         let mut resource = Resource::new(ResourceDef::new("/index.html"));
         resource.name("index");
-        let mut router = Router::<()>::new();
+        let mut router = Router::<()>::default();
+        router.set_prefix("/prefix");
         router.register_resource(resource);
 
         let mut info = router.default_route_info();
@@ -513,7 +525,7 @@ mod tests {
 
     #[test]
     fn test_url_for_external() {
-        let mut router = Router::<()>::new();
+        let mut router = Router::<()>::default();
         router.register_external(
             "youtube",
             ResourceDef::external("https://youtube.com/watch/{video_id}"),

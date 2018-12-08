@@ -5,7 +5,7 @@ use std::{fmt, io, mem, time};
 
 use actix::resolver::{Connect as ResolveConnect, Resolver, ResolverError};
 use actix::{
-    fut, Actor, ActorFuture, ActorResponse, Addr, AsyncContext, Context,
+    fut, Actor, ActorFuture, ActorResponse, AsyncContext, Context,
     ContextFutureSpawner, Handler, Message, Recipient, StreamHandler, Supervised,
     SystemService, WrapFuture,
 };
@@ -16,18 +16,40 @@ use http::{Error as HttpError, HttpTryFrom, Uri};
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_timer::Delay;
 
-#[cfg(feature = "alpn")]
-use openssl::ssl::{Error as OpensslError, SslConnector, SslMethod};
-#[cfg(feature = "alpn")]
-use tokio_openssl::SslConnectorExt;
+#[cfg(any(feature = "alpn", feature = "ssl"))]
+use {
+    openssl::ssl::{Error as SslError, SslConnector, SslMethod},
+    tokio_openssl::SslConnectorExt,
+};
 
-#[cfg(all(feature = "tls", not(feature = "alpn")))]
-use native_tls::{Error as TlsError, TlsConnector};
-#[cfg(all(feature = "tls", not(feature = "alpn")))]
-use tokio_tls::TlsConnectorExt;
+#[cfg(all(
+    feature = "tls",
+    not(any(feature = "alpn", feature = "ssl", feature = "rust-tls"))
+))]
+use {
+    native_tls::{Error as SslError, TlsConnector as NativeTlsConnector},
+    tokio_tls::TlsConnector as SslConnector,
+};
+
+#[cfg(all(
+    feature = "rust-tls",
+    not(any(feature = "alpn", feature = "tls", feature = "ssl"))
+))]
+use {
+    rustls::ClientConfig, std::io::Error as SslError, std::sync::Arc,
+    tokio_rustls::TlsConnector as SslConnector, webpki::DNSNameRef, webpki_roots,
+};
+
+#[cfg(not(any(
+    feature = "alpn",
+    feature = "ssl",
+    feature = "tls",
+    feature = "rust-tls"
+)))]
+type SslConnector = ();
 
 use server::IoStream;
-use {HAS_OPENSSL, HAS_TLS};
+use {HAS_OPENSSL, HAS_RUSTLS, HAS_TLS};
 
 /// Client connector usage stats
 #[derive(Default, Message)]
@@ -130,14 +152,14 @@ pub enum ClientConnectorError {
     SslIsNotSupported,
 
     /// SSL error
-    #[cfg(feature = "alpn")]
+    #[cfg(any(
+        feature = "tls",
+        feature = "alpn",
+        feature = "ssl",
+        feature = "rust-tls",
+    ))]
     #[fail(display = "{}", _0)]
-    SslError(#[cause] OpensslError),
-
-    /// SSL error
-    #[cfg(all(feature = "tls", not(feature = "alpn")))]
-    #[fail(display = "{}", _0)]
-    SslError(#[cause] TlsError),
+    SslError(#[cause] SslError),
 
     /// Resolver error
     #[fail(display = "{}", _0)]
@@ -189,10 +211,8 @@ impl Paused {
 /// `ClientConnector` type is responsible for transport layer of a
 /// client connection.
 pub struct ClientConnector {
-    #[cfg(all(feature = "alpn"))]
+    #[allow(dead_code)]
     connector: SslConnector,
-    #[cfg(all(feature = "tls", not(feature = "alpn")))]
-    connector: TlsConnector,
 
     stats: ClientConnectorStats,
     subscriber: Option<Recipient<ClientConnectorStats>>,
@@ -200,7 +220,7 @@ pub struct ClientConnector {
     acq_tx: mpsc::UnboundedSender<AcquiredConnOperation>,
     acq_rx: Option<mpsc::UnboundedReceiver<AcquiredConnOperation>>,
 
-    resolver: Option<Addr<Resolver>>,
+    resolver: Option<Recipient<ResolveConnect>>,
     conn_lifetime: Duration,
     conn_keep_alive: Duration,
     limit: usize,
@@ -219,7 +239,7 @@ impl Actor for ClientConnector {
 
     fn started(&mut self, ctx: &mut Self::Context) {
         if self.resolver.is_none() {
-            self.resolver = Some(Resolver::from_registry())
+            self.resolver = Some(Resolver::from_registry().recipient())
         }
         self.collect_periodic(ctx);
         ctx.add_stream(self.acq_rx.take().unwrap());
@@ -233,63 +253,47 @@ impl SystemService for ClientConnector {}
 
 impl Default for ClientConnector {
     fn default() -> ClientConnector {
-        #[cfg(all(feature = "alpn"))]
-        {
-            let builder = SslConnector::builder(SslMethod::tls()).unwrap();
-            ClientConnector::with_connector(builder.build())
-        }
-        #[cfg(all(feature = "tls", not(feature = "alpn")))]
-        {
-            let (tx, rx) = mpsc::unbounded();
-            let builder = TlsConnector::builder().unwrap();
-            ClientConnector {
-                stats: ClientConnectorStats::default(),
-                subscriber: None,
-                acq_tx: tx,
-                acq_rx: Some(rx),
-                resolver: None,
-                connector: builder.build().unwrap(),
-                conn_lifetime: Duration::from_secs(75),
-                conn_keep_alive: Duration::from_secs(15),
-                limit: 100,
-                limit_per_host: 0,
-                acquired: 0,
-                acquired_per_host: HashMap::new(),
-                available: HashMap::new(),
-                to_close: Vec::new(),
-                waiters: Some(HashMap::new()),
-                wait_timeout: None,
-                paused: Paused::No,
+        let connector = {
+            #[cfg(all(any(feature = "alpn", feature = "ssl")))]
+            {
+                SslConnector::builder(SslMethod::tls()).unwrap().build()
             }
-        }
 
-        #[cfg(not(any(feature = "alpn", feature = "tls")))]
-        {
-            let (tx, rx) = mpsc::unbounded();
-            ClientConnector {
-                stats: ClientConnectorStats::default(),
-                subscriber: None,
-                acq_tx: tx,
-                acq_rx: Some(rx),
-                resolver: None,
-                conn_lifetime: Duration::from_secs(75),
-                conn_keep_alive: Duration::from_secs(15),
-                limit: 100,
-                limit_per_host: 0,
-                acquired: 0,
-                acquired_per_host: HashMap::new(),
-                available: HashMap::new(),
-                to_close: Vec::new(),
-                waiters: Some(HashMap::new()),
-                wait_timeout: None,
-                paused: Paused::No,
+            #[cfg(all(
+                feature = "tls",
+                not(any(feature = "alpn", feature = "ssl", feature = "rust-tls"))
+            ))]
+            {
+                NativeTlsConnector::builder().build().unwrap().into()
             }
-        }
+
+            #[cfg(all(
+                feature = "rust-tls",
+                not(any(feature = "alpn", feature = "tls", feature = "ssl"))
+            ))]
+            {
+                let mut config = ClientConfig::new();
+                config
+                    .root_store
+                    .add_server_trust_anchors(&webpki_roots::TLS_SERVER_ROOTS);
+                SslConnector::from(Arc::new(config))
+            }
+
+            #[cfg_attr(rustfmt, rustfmt_skip)]
+            #[cfg(not(any(
+                feature = "alpn", feature = "ssl", feature = "tls", feature = "rust-tls")))]
+            {
+                ()
+            }
+        };
+
+        #[cfg_attr(feature = "cargo-clippy", allow(let_unit_value))]
+        ClientConnector::with_connector_impl(connector)
     }
 }
 
 impl ClientConnector {
-    #[cfg(feature = "alpn")]
+    #[cfg(any(feature = "alpn", feature = "ssl"))]
     /// Create `ClientConnector` actor with custom `SslConnector` instance.
     ///
     /// By default `ClientConnector` uses very a simple SSL configuration.
@@ -302,7 +306,6 @@ impl ClientConnector {
     /// # extern crate futures;
     /// # use futures::{future, Future};
     /// # use std::io::Write;
-    /// # use std::process;
     /// # use actix_web::actix::Actor;
     /// extern crate openssl;
     /// use actix_web::{actix, client::ClientConnector, client::Connect};
@@ -325,10 +328,112 @@ impl ClientConnector {
     /// #                   actix::System::current().stop();
     ///                     Ok(())
     ///                 })
-    ///     );
+    ///     });
     /// }
     /// ```
     pub fn with_connector(connector: SslConnector) -> ClientConnector {
+        // keep level of indirection for docstrings matching featureflags
+        Self::with_connector_impl(connector)
+    }
+
+    #[cfg(all(
+        feature = "rust-tls",
+        not(any(feature = "alpn", feature = "ssl", feature = "tls"))
+    ))]
+    /// Create `ClientConnector` actor with custom `SslConnector` instance.
+    ///
+    /// By default `ClientConnector` uses very a simple SSL configuration.
+    /// With `with_connector` method it is possible to use a custom
+    /// `SslConnector` object.
+    ///
+    /// ```rust
+    /// # #![cfg(feature = "rust-tls")]
+    /// # extern crate actix_web;
+    /// # extern crate futures;
+    /// # use futures::{future, Future};
+    /// # use std::io::Write;
+    /// # use actix_web::actix::Actor;
+    /// extern crate rustls;
+    /// extern crate webpki_roots;
+    /// use actix_web::{actix, client::ClientConnector, client::Connect};
+    ///
+    /// use rustls::ClientConfig;
+    /// use std::sync::Arc;
+    ///
+    /// fn main() {
+    ///     actix::run(|| {
+    ///         // Start `ClientConnector` with custom `ClientConfig`
+    ///         let mut config = ClientConfig::new();
+    ///         config
+    ///             .root_store
+    ///             .add_server_trust_anchors(&webpki_roots::TLS_SERVER_ROOTS);
+    ///         let conn = ClientConnector::with_connector(config).start();
+    ///
+    ///         conn.send(
+    ///             Connect::new("https://www.rust-lang.org").unwrap()) // <- connect to host
+    ///                 .map_err(|_| ())
+    ///                 .and_then(|res| {
+    ///                     if let Ok(mut stream) = res {
+    ///                         stream.write_all(b"GET / HTTP/1.0\r\n\r\n").unwrap();
+    ///                     }
+    /// #                   actix::System::current().stop();
+    ///                     Ok(())
+    ///                 })
+    ///     });
+    /// }
+    /// ```
+    pub fn with_connector(connector: ClientConfig) -> ClientConnector {
+        // keep level of indirection for docstrings matching featureflags
+        Self::with_connector_impl(SslConnector::from(Arc::new(connector)))
+    }
+
+    #[cfg(all(
+        feature = "tls",
+        not(any(feature = "ssl", feature = "alpn", feature = "rust-tls"))
+    ))]
+    /// Create `ClientConnector` actor with custom `SslConnector` instance.
+    ///
+    /// By default `ClientConnector` uses very a simple SSL configuration.
+    /// With `with_connector` method it is possible to use a custom
+    /// `SslConnector` object.
+    ///
+    /// ```rust
+    /// # #![cfg(feature = "tls")]
+    /// # extern crate actix_web;
+    /// # extern crate futures;
+    /// # use futures::{future, Future};
+    /// # use std::io::Write;
+    /// # use actix_web::actix::Actor;
+    /// extern crate native_tls;
+    /// extern crate webpki_roots;
+    /// use native_tls::TlsConnector;
+    /// use actix_web::{actix, client::ClientConnector, client::Connect};
+    ///
+    /// fn main() {
+    ///     actix::run(|| {
+    ///         let connector = TlsConnector::new().unwrap();
+    ///         let conn = ClientConnector::with_connector(connector.into()).start();
+    ///
+    ///         conn.send(
+    ///             Connect::new("https://www.rust-lang.org").unwrap()) // <- connect to host
+    ///                 .map_err(|_| ())
+    ///                 .and_then(|res| {
+    ///                     if let Ok(mut stream) = res {
+    ///                         stream.write_all(b"GET / HTTP/1.0\r\n\r\n").unwrap();
+    ///                     }
+    /// #                   actix::System::current().stop();
+    ///                     Ok(())
+    ///                 })
+    ///     });
+    /// }
+    /// ```
+    pub fn with_connector(connector: SslConnector) -> ClientConnector {
+        // keep level of indirection for docstrings matching featureflags
+        Self::with_connector_impl(connector)
+    }
+
+    #[inline]
+    fn with_connector_impl(connector: SslConnector) -> ClientConnector {
         let (tx, rx) = mpsc::unbounded();
 
         ClientConnector {
@@ -398,8 +503,10 @@ impl ClientConnector {
     }
 
     /// Use custom resolver actor
-    pub fn resolver(mut self, addr: Addr<Resolver>) -> Self {
-        self.resolver = Some(addr);
+    ///
+    /// By default actix's Resolver is used.
+    pub fn resolver<A: Into<Recipient<ResolveConnect>>>(mut self, addr: A) -> Self {
+        self.resolver = Some(addr.into());
         self
     }
 
@@ -599,7 +706,7 @@ impl ClientConnector {
                     }
                     Acquire::Available => {
                         // create new connection
-                        self.connect_waiter(key.clone(), waiter, ctx);
+                        self.connect_waiter(&key, waiter, ctx);
                     }
                 }
             }
@@ -608,7 +715,8 @@ impl ClientConnector {
         self.waiters = Some(act_waiters);
     }
 
-    fn connect_waiter(&mut self, key: Key, waiter: Waiter, ctx: &mut Context<Self>) {
+    fn connect_waiter(&mut self, key: &Key, waiter: Waiter, ctx: &mut Context<Self>) {
+        let key = key.clone();
         let conn = AcquiredConn(key.clone(), Some(self.acq_tx.clone()));
 
         let key2 = key.clone();
@@ -620,118 +728,164 @@ impl ClientConnector {
         ).map_err(move |_, act, _| {
             act.release_key(&key2);
             ()
-        })
-            .and_then(move |res, act, _| {
-                #[cfg(feature = "alpn")]
-                match res {
-                    Err(err) => {
-                        let _ = waiter.tx.send(Err(err.into()));
-                        fut::Either::B(fut::err(()))
-                    }
-                    Ok(stream) => {
-                        act.stats.opened += 1;
-                        if conn.0.ssl {
-                            fut::Either::A(
-                                act.connector
-                                    .connect_async(&key.host, stream)
-                                    .into_actor(act)
-                                    .then(move |res, act, _| {
-                                        match res {
-                                            Err(e) => {
-                                                let _ = waiter.tx.send(Err(
-                                                    ClientConnectorError::SslError(e),
-                                                ));
-                                            }
-                                            Ok(stream) => {
-                                                let _ =
-                                                    waiter.tx.send(Ok(Connection::new(
-                                                        conn.0.clone(),
-                                                        Some(conn),
-                                                        Box::new(stream),
-                                                    )));
-                                            }
+        }).and_then(move |res, act, _| {
+            #[cfg(any(feature = "alpn", feature = "ssl"))]
+            match res {
+                Err(err) => {
+                    let _ = waiter.tx.send(Err(err.into()));
+                    fut::Either::B(fut::err(()))
+                }
+                Ok(stream) => {
+                    act.stats.opened += 1;
+                    if conn.0.ssl {
+                        fut::Either::A(
+                            act.connector
+                                .connect_async(&key.host, stream)
+                                .into_actor(act)
+                                .then(move |res, _, _| {
+                                    match res {
+                                        Err(e) => {
+                                            let _ = waiter.tx.send(Err(
+                                                ClientConnectorError::SslError(e),
+                                            ));
                                         }
-                                        fut::ok(())
-                                    }),
-                            )
-                        } else {
-                            let _ = waiter.tx.send(Ok(Connection::new(
-                                conn.0.clone(),
-                                Some(conn),
-                                Box::new(stream),
-                            )));
-                            fut::Either::B(fut::ok(()))
-                        }
-                    }
-                }
-
-                #[cfg(all(feature = "tls", not(feature = "alpn")))]
-                match res {
-                    Err(err) => {
-                        let _ = waiter.tx.send(Err(err.into()));
-                        fut::Either::B(fut::err(()))
-                    }
-                    Ok(stream) => {
-                        act.stats.opened += 1;
-                        if conn.0.ssl {
-                            fut::Either::A(
-                                act.connector
-                                    .connect_async(&conn.0.host, stream)
-                                    .into_actor(act)
-                                    .then(move |res, _, _| {
-                                        match res {
-                                            Err(e) => {
-                                                let _ = waiter.tx.send(Err(
-                                                    ClientConnectorError::SslError(e),
-                                                ));
-                                            }
-                                            Ok(stream) => {
-                                                let _ =
-                                                    waiter.tx.send(Ok(Connection::new(
-                                                        conn.0.clone(),
-                                                        Some(conn),
-                                                        Box::new(stream),
-                                                    )));
-                                            }
+                                        Ok(stream) => {
+                                            let _ = waiter.tx.send(Ok(Connection::new(
+                                                conn.0.clone(),
+                                                Some(conn),
+                                                Box::new(stream),
+                                            )));
                                         }
-                                        fut::ok(())
-                                    }),
-                            )
-                        } else {
-                            let _ = waiter.tx.send(Ok(Connection::new(
-                                conn.0.clone(),
-                                Some(conn),
-                                Box::new(stream),
-                            )));
-                            fut::Either::B(fut::ok(()))
-                        }
+                                    }
+                                    fut::ok(())
+                                }),
+                        )
+                    } else {
+                        let _ = waiter.tx.send(Ok(Connection::new(
+                            conn.0.clone(),
+                            Some(conn),
+                            Box::new(stream),
+                        )));
+                        fut::Either::B(fut::ok(()))
                     }
                 }
+            }
 
-                #[cfg(not(any(feature = "alpn", feature = "tls")))]
-                match res {
-                    Err(err) => {
-                        let _ = waiter.tx.send(Err(err.into()));
-                        fut::err(())
-                    }
-                    Ok(stream) => {
-                        act.stats.opened += 1;
-                        if conn.0.ssl {
-                            let _ = waiter
-                                .tx
-                                .send(Err(ClientConnectorError::SslIsNotSupported));
-                        } else {
-                            let _ = waiter.tx.send(Ok(Connection::new(
-                                conn.0.clone(),
-                                Some(conn),
-                                Box::new(stream),
-                            )));
-                        };
-                        fut::ok(())
+            #[cfg(all(feature = "tls", not(any(feature = "alpn", feature = "ssl"))))]
+            match res {
+                Err(err) => {
+                    let _ = waiter.tx.send(Err(err.into()));
+                    fut::Either::B(fut::err(()))
+                }
+                Ok(stream) => {
+                    act.stats.opened += 1;
+                    if conn.0.ssl {
+                        fut::Either::A(
+                            act.connector
+                                .connect(&conn.0.host, stream)
+                                .into_actor(act)
+                                .then(move |res, _, _| {
+                                    match res {
+                                        Err(e) => {
+                                            let _ = waiter.tx.send(Err(
+                                                ClientConnectorError::SslError(e),
+                                            ));
+                                        }
+                                        Ok(stream) => {
+                                            let _ = waiter.tx.send(Ok(Connection::new(
+                                                conn.0.clone(),
+                                                Some(conn),
+                                                Box::new(stream),
+                                            )));
+                                        }
+                                    }
+                                    fut::ok(())
+                                }),
+                        )
+                    } else {
+                        let _ = waiter.tx.send(Ok(Connection::new(
+                            conn.0.clone(),
+                            Some(conn),
+                            Box::new(stream),
+                        )));
+                        fut::Either::B(fut::ok(()))
                     }
                 }
-            })
-            .spawn(ctx);
+            }
+
+            #[cfg(all(
+                feature = "rust-tls",
+                not(any(feature = "alpn", feature = "ssl", feature = "tls"))
+            ))]
+            match res {
+                Err(err) => {
+                    let _ = waiter.tx.send(Err(err.into()));
+                    fut::Either::B(fut::err(()))
+                }
+                Ok(stream) => {
+                    act.stats.opened += 1;
+                    if conn.0.ssl {
+                        let host = DNSNameRef::try_from_ascii_str(&key.host).unwrap();
+                        fut::Either::A(
+                            act.connector
+                                .connect(host, stream)
+                                .into_actor(act)
+                                .then(move |res, _, _| {
+                                    match res {
+                                        Err(e) => {
+                                            let _ = waiter.tx.send(Err(
+                                                ClientConnectorError::SslError(e),
+                                            ));
+                                        }
+                                        Ok(stream) => {
+                                            let _ = waiter.tx.send(Ok(Connection::new(
+                                                conn.0.clone(),
+                                                Some(conn),
+                                                Box::new(stream),
+                                            )));
+                                        }
+                                    }
+                                    fut::ok(())
+                                }),
+                        )
+                    } else {
+                        let _ = waiter.tx.send(Ok(Connection::new(
+                            conn.0.clone(),
+                            Some(conn),
+                            Box::new(stream),
+                        )));
+                        fut::Either::B(fut::ok(()))
+                    }
+                }
+            }
+
+            #[cfg(not(any(
+                feature = "alpn",
+                feature = "ssl",
+                feature = "tls",
+                feature = "rust-tls"
+            )))]
+            match res {
+                Err(err) => {
+                    let _ = waiter.tx.send(Err(err.into()));
+                    fut::err(())
+                }
+                Ok(stream) => {
+                    act.stats.opened += 1;
+                    if conn.0.ssl {
+                        let _ =
+                            waiter.tx.send(Err(ClientConnectorError::SslIsNotSupported));
+                    } else {
+                        let _ = waiter.tx.send(Ok(Connection::new(
+                            conn.0.clone(),
+                            Some(conn),
+                            Box::new(stream),
+                        )));
+                    };
+                    fut::ok(())
+                }
+            }
+        }).spawn(ctx);
     }
 }
 
@@ -783,12 +937,12 @@ impl Handler<Connect> for ClientConnector {
         };
 
         // check ssl availability
-        if proto.is_secure() && !HAS_OPENSSL && !HAS_TLS {
+        if proto.is_secure() && !HAS_OPENSSL && !HAS_TLS && !HAS_RUSTLS {
             return ActorResponse::reply(Err(ClientConnectorError::SslIsNotSupported));
         }
 
         let host = uri.host().unwrap().to_owned();
-        let port = uri.port().unwrap_or_else(|| proto.port());
+        let port = uri.port_part().map(|port| port.as_u16()).unwrap_or_else(|| proto.port());
         let key = Key {
             host,
             port,
@@ -828,7 +982,7 @@ impl Handler<Connect> for ClientConnector {
                 wait,
                 conn_timeout,
             };
-            self.connect_waiter(key.clone(), waiter, ctx);
+            self.connect_waiter(&key, waiter, ctx);
 
             return ActorResponse::async(
                 rx.map_err(|_| ClientConnectorError::Disconnected)
@@ -885,7 +1039,7 @@ impl Handler<Connect> for ClientConnector {
                     wait,
                     conn_timeout,
                 };
-                self.connect_waiter(key.clone(), waiter, ctx);
+                self.connect_waiter(&key, waiter, ctx);
 
                 ActorResponse::async(
                     rx.map_err(|_| ClientConnectorError::Disconnected)
@@ -1089,6 +1243,10 @@ impl Connection {
     }
 
     /// Create a new connection from an IO Stream
+    ///
+    /// The stream can be a `UnixStream` if the Unix-only "uds" feature is enabled.
+    ///
+    /// See also `ClientRequestBuilder::with_connection()`.
     pub fn from_stream<T: IoStream + Send>(io: T) -> Connection {
         Connection::new(Key::empty(), None, Box::new(io))
     }
@@ -1122,6 +1280,11 @@ impl IoStream for Connection {
     fn set_linger(&mut self, dur: Option<time::Duration>) -> io::Result<()> {
         IoStream::set_linger(&mut *self.stream, dur)
     }
+
+    #[inline]
+    fn set_keepalive(&mut self, dur: Option<time::Duration>) -> io::Result<()> {
+        IoStream::set_keepalive(&mut *self.stream, dur)
+    }
 }
 
 impl io::Read for Connection {
@@ -1145,5 +1308,33 @@ impl io::Write for Connection {
 impl AsyncWrite for Connection {
     fn shutdown(&mut self) -> Poll<(), io::Error> {
         self.stream.shutdown()
+    }
+}
+
+#[cfg(feature = "tls")]
+use tokio_tls::TlsStream;
+
+#[cfg(feature = "tls")]
+/// This is temp solution untile actix-net migration
+impl<Io: IoStream> IoStream for TlsStream<Io> {
+    #[inline]
+    fn shutdown(&mut self, _how: Shutdown) -> io::Result<()> {
+        let _ = self.get_mut().shutdown();
+        Ok(())
+    }
+
+    #[inline]
+    fn set_nodelay(&mut self, nodelay: bool) -> io::Result<()> {
+        self.get_mut().get_mut().set_nodelay(nodelay)
+    }
+
+    #[inline]
+    fn set_linger(&mut self, dur: Option<time::Duration>) -> io::Result<()> {
+        self.get_mut().get_mut().set_linger(dur)
+    }
+
+    #[inline]
+    fn set_keepalive(&mut self, dur: Option<time::Duration>) -> io::Result<()> {
+        self.get_mut().get_mut().set_keepalive(dur)
     }
 }

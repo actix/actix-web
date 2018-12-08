@@ -16,7 +16,10 @@ pub struct ConnectionInfo {
 
 impl ConnectionInfo {
     /// Create *ConnectionInfo* instance for a request.
-    #[cfg_attr(feature = "cargo-clippy", allow(cyclomatic_complexity))]
+    #[cfg_attr(
+        feature = "cargo-clippy",
+        allow(cyclomatic_complexity)
+    )]
     pub fn update(&mut self, req: &Request) {
         let mut host = None;
         let mut scheme = None;
@@ -174,8 +177,7 @@ mod tests {
             .header(
                 header::FORWARDED,
                 "for=192.0.2.60; proto=https; by=203.0.113.43; host=rust-lang.org",
-            )
-            .request();
+            ).request();
 
         let mut info = ConnectionInfo::default();
         info.update(&req);

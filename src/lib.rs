@@ -64,25 +64,24 @@
 //! ## Package feature
 //!
 //! * `tls` - enables ssl support via `native-tls` crate
-//! * `alpn` - enables ssl support via `openssl` crate, require for `http/2`
-//!    support
+//! * `ssl` - enables ssl support via `openssl` crate, supports `http/2`
+//! * `rust-tls` - enables ssl support via `rustls` crate, supports `http/2`
+//! * `uds` - enables support for making client requests via Unix Domain Sockets.
+//!   Unix only. Not necessary for *serving* requests.
 //! * `session` - enables session support, includes `ring` crate as
 //!   dependency
 //! * `brotli` - enables `brotli` compression support, requires `c`
 //!   compiler
-//! * `flate-c` - enables `gzip`, `deflate` compression support, requires
+//! * `flate2-c` - enables `gzip`, `deflate` compression support, requires
 //!   `c` compiler
-//! * `flate-rust` - experimental rust based implementation for
+//! * `flate2-rust` - experimental rust based implementation for
 //!   `gzip`, `deflate` compression.
 //!
 #![cfg_attr(actix_nightly, feature(
     specialization, // for impl ErrorResponse for std::error::Error
     extern_prelude,
+    tool_lints,
 ))]
-#![cfg_attr(
-    feature = "cargo-clippy",
-    allow(decimal_literal_representation, suspicious_arithmetic_impl)
-)]
 #![warn(missing_docs)]
 
 #[macro_use]
@@ -101,9 +100,9 @@ extern crate failure;
 extern crate lazy_static;
 #[macro_use]
 extern crate futures;
+extern crate askama_escape;
 extern crate cookie;
 extern crate futures_cpupool;
-extern crate htmlescape;
 extern crate http as modhttp;
 extern crate httparse;
 extern crate language_tags;
@@ -116,10 +115,13 @@ extern crate parking_lot;
 extern crate rand;
 extern crate slab;
 extern crate tokio;
+extern crate tokio_current_thread;
 extern crate tokio_io;
 extern crate tokio_reactor;
 extern crate tokio_tcp;
 extern crate tokio_timer;
+#[cfg(all(unix, feature = "uds"))]
+extern crate tokio_uds;
 extern crate url;
 #[macro_use]
 extern crate serde;
@@ -130,10 +132,13 @@ extern crate encoding;
 extern crate flate2;
 extern crate h2 as http2;
 extern crate num_cpus;
+extern crate serde_urlencoded;
 #[macro_use]
 extern crate percent_encoding;
 extern crate serde_json;
 extern crate smallvec;
+
+extern crate actix_net;
 #[macro_use]
 extern crate actix as actix_inner;
 
@@ -150,6 +155,15 @@ extern crate tokio_tls;
 extern crate openssl;
 #[cfg(feature = "openssl")]
 extern crate tokio_openssl;
+
+#[cfg(feature = "rust-tls")]
+extern crate rustls;
+#[cfg(feature = "rust-tls")]
+extern crate tokio_rustls;
+#[cfg(feature = "rust-tls")]
+extern crate webpki;
+#[cfg(feature = "rust-tls")]
+extern crate webpki_roots;
 
 mod application;
 mod body;
@@ -173,7 +187,6 @@ mod resource;
 mod route;
 mod router;
 mod scope;
-mod serde_urlencoded;
 mod uri;
 mod with;
 
@@ -224,6 +237,11 @@ pub(crate) const HAS_TLS: bool = true;
 #[cfg(not(feature = "tls"))]
 pub(crate) const HAS_TLS: bool = false;
 
+#[cfg(feature = "rust-tls")]
+pub(crate) const HAS_RUSTLS: bool = true;
+#[cfg(not(feature = "rust-tls"))]
+pub(crate) const HAS_RUSTLS: bool = false;
+
 pub mod dev {
     //! The `actix-web` prelude for library developers
     //!
@@ -237,14 +255,15 @@ pub mod dev {
 
     pub use body::BodyStream;
     pub use context::Drain;
-    pub use extractor::{FormConfig, PayloadConfig};
+    pub use extractor::{FormConfig, PayloadConfig, QueryConfig, PathConfig};
     pub use handler::{AsyncResult, Handler};
-    pub use httpmessage::{MessageBody, UrlEncoded};
+    pub use httpmessage::{MessageBody, Readlines, UrlEncoded};
     pub use httpresponse::HttpResponseBuilder;
     pub use info::ConnectionInfo;
     pub use json::{JsonBody, JsonConfig};
     pub use param::{FromParam, Params};
     pub use payload::{Payload, PayloadBuffer};
+    pub use pipeline::Pipeline;
     pub use resource::Resource;
     pub use route::Route;
     pub use router::{ResourceDef, ResourceInfo, ResourceType, Router};
@@ -266,7 +285,9 @@ pub mod http {
     /// Various http headers
     pub mod header {
         pub use header::*;
-        pub use header::{ContentDisposition, DispositionType, DispositionParam, Charset, LanguageTag};
+        pub use header::{
+            Charset, ContentDisposition, DispositionParam, DispositionType, LanguageTag,
+        };
     }
     pub use header::ContentEncoding;
     pub use httpresponse::ConnectionType;
