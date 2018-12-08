@@ -715,26 +715,26 @@ impl<A: 'static, B: 'static, S: 'static> FromRequest<S> for Either<A,B> where A:
         let b = B::from_request(req, &cfg.b).into().map(|b| Either::B(b));
 
         match &cfg.collision_strategy {
-            EitherCollisionStrategy::PreferA => AsyncResult::async(Box::new(a.or_else(|_| b))),
-            EitherCollisionStrategy::PreferB => AsyncResult::async(Box::new(b.or_else(|_| a))),
-            EitherCollisionStrategy::FastestSuccessful => AsyncResult::async(Box::new(a.select2(b).then( |r| match r {
+            EitherCollisionStrategy::PreferA => AsyncResult::future(Box::new(a.or_else(|_| b))),
+            EitherCollisionStrategy::PreferB => AsyncResult::future(Box::new(b.or_else(|_| a))),
+            EitherCollisionStrategy::FastestSuccessful => AsyncResult::future(Box::new(a.select2(b).then( |r| match r {
                 Ok(future::Either::A((ares, _b))) => AsyncResult::ok(ares),
                 Ok(future::Either::B((bres, _a))) => AsyncResult::ok(bres),
-                Err(future::Either::A((_aerr, b))) => AsyncResult::async(Box::new(b)),
-                Err(future::Either::B((_berr, a))) => AsyncResult::async(Box::new(a))
+                Err(future::Either::A((_aerr, b))) => AsyncResult::future(Box::new(b)),
+                Err(future::Either::B((_berr, a))) => AsyncResult::future(Box::new(a))
             }))),
-            EitherCollisionStrategy::ErrorA => AsyncResult::async(Box::new(b.then(|r| match r {
-                Err(berr) => AsyncResult::async(Box::new(a)),
-                Ok(b) => AsyncResult::async(Box::new(a.then( |r| match r {
-                    Ok(a) => Err(ErrorConflict("Both wings of either extractor completed")),
-                    Err(arr) => Ok(b)
+            EitherCollisionStrategy::ErrorA => AsyncResult::future(Box::new(b.then(|r| match r {
+                Err(_berr) => AsyncResult::future(Box::new(a)),
+                Ok(b) => AsyncResult::future(Box::new(a.then( |r| match r {
+                    Ok(_a) => Err(ErrorConflict("Both wings of either extractor completed")),
+                    Err(_arr) => Ok(b)
                 })))
             }))),
-            EitherCollisionStrategy::ErrorB => AsyncResult::async(Box::new(a.then(|r| match r {
-                Err(aerr) => AsyncResult::async(Box::new(b)),
-                Ok(a) => AsyncResult::async(Box::new(b.then( |r| match r {
-                    Ok(b) => Err(ErrorConflict("Both wings of either extractor completed")),
-                    Err(berr) => Ok(a)
+            EitherCollisionStrategy::ErrorB => AsyncResult::future(Box::new(a.then(|r| match r {
+                Err(_aerr) => AsyncResult::future(Box::new(b)),
+                Ok(a) => AsyncResult::future(Box::new(b.then( |r| match r {
+                    Ok(_b) => Err(ErrorConflict("Both wings of either extractor completed")),
+                    Err(_berr) => Ok(a)
                 })))
             }))),
         }
