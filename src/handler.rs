@@ -86,7 +86,7 @@ pub trait FromRequest<S>: Sized {
 /// # fn is_a_variant() -> bool { true }
 /// # fn main() {}
 /// ```
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Either<A, B> {
     /// First branch of the type
     A(A),
