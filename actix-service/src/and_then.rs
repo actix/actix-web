@@ -46,7 +46,7 @@ where
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
         try_ready!(self.a.poll_ready());
-        self.b.borrow_mut().poll_ready()
+        self.b.get_mut().poll_ready()
     }
 
     fn call(&mut self, req: Request) -> Self::Future {
@@ -82,7 +82,6 @@ impl<A, B, Request> Future for AndThenFuture<A, B, Request>
 where
     A: Service<Request>,
     B: Service<A::Response, Error = A::Error>,
-    B::Error: Into<A::Error>,
 {
     type Item = B::Response;
     type Error = A::Error;
@@ -94,7 +93,7 @@ where
 
         match self.fut_a.poll() {
             Ok(Async::Ready(resp)) => {
-                self.fut_b = Some(self.b.borrow_mut().call(resp));
+                self.fut_b = Some(self.b.get_mut().call(resp));
                 self.poll()
             }
             Ok(Async::NotReady) => Ok(Async::NotReady),
@@ -219,7 +218,7 @@ mod tests {
     use std::rc::Rc;
 
     use super::*;
-    use crate::service::{NewServiceExt, Service, ServiceExt};
+    use crate::{NewService, Service};
 
     struct Srv1(Rc<Cell<usize>>);
     impl Service<&'static str> for Srv1 {

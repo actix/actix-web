@@ -16,7 +16,7 @@ matrix:
 
 env:
   global:
-    # - RUSTFLAGS="-C link-dead-code"
+    - RUSTFLAGS="-C link-dead-code"
     - OPENSSL_VERSION=openssl-1.0.2
 
 before_install:
@@ -33,6 +33,7 @@ script:
     if [[ "$TRAVIS_RUST_VERSION" != "nightly" ]]; then
     cargo clean
     cargo test --features="ssl,tls,rust-tls" -- --nocapture
+    cd actix-service && cargo test
     fi
   - |
     if [[ "$TRAVIS_RUST_VERSION" == "nightly" ]]; then
@@ -40,6 +41,7 @@ script:
     cargo tarpaulin --features="ssl,tls,rust-tls" --out Xml
     bash <(curl -s https://codecov.io/bash)
     echo "Uploaded code coverage"
+    cd actix-service && cargo tarpaulin --out Xml && bash <(curl -s https://codecov.io/bash)
     fi
 
 # Upload docs

@@ -13,6 +13,12 @@ license = "MIT/Apache-2.0"
 exclude = [".gitignore", ".travis.yml", ".cargo/config", "appveyor.yml"]
 edition = "2018"
 
+[workspace]
+members = [
+  "./",
+  "actix-service",
+]
+
 [package.metadata.docs.rs]
 features = ["ssl", "tls", "rust-tls"]
 
@@ -41,6 +47,8 @@ cell = []
 
 [dependencies]
 actix = "0.7.6"
+# actix-service = "0.1"
+actix-service = { path="./actix-service" }
 
 log = "0.4"
 num_cpus = "1.0"

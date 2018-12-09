@@ -50,8 +50,8 @@ where
     F: Fn(In, &mut T) -> Out,
     Out: IntoFuture,
 {
-    type Response = <Out::Future as Future>::Item;
-    type Error = <Out::Future as Future>::Error;
+    type Response = Out::Item;
+    type Error = Out::Error;
     type Future = Out::Future;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
@@ -110,8 +110,8 @@ where
     F: Fn(In, &mut T::Service) -> Out + Clone,
     Out: IntoFuture,
 {
-    type Response = <Out::Future as Future>::Item;
-    type Error = <Out::Future as Future>::Error;
+    type Response = Out::Item;
+    type Error = Out::Error;
     type Service = Apply<T::Service, F, In, Out, Request>;
 
     type InitError = T::InitError;
@@ -171,9 +171,7 @@ mod tests {
     use futures::future::{ok, FutureResult};
     use futures::{Async, Future, Poll};
 
-    use crate::service::{
-        IntoNewService, IntoService, NewService, NewServiceExt, Service, ServiceExt,
-    };
+    use crate::{IntoNewService, IntoService, NewService, Service};
 
     #[derive(Clone)]
     struct Srv;

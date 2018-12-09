@@ -1,0 +1,26 @@
+[package]
+name = "actix-service"
+version = "0.1.0"
+authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
+description = "Actix Service"
+keywords = ["network", "framework", "async", "futures"]
+homepage = "https://actix.rs"
+repository = "https://github.com/actix/actix-net.git"
+documentation = "https://docs.rs/actix-service/"
+categories = ["network-programming", "asynchronous"]
+license = "MIT/Apache-2.0"
+exclude = [".gitignore", ".travis.yml", ".cargo/config", "appveyor.yml"]
+edition = "2018"
+workspace = "../"
+
+[badges]
+travis-ci = { repository = "actix/actix-service", branch = "master" }
+# appveyor = { repository = "fafhrd91/actix-web-hdy9d" }
+codecov = { repository = "actix/actix-service", branch = "master", service = "github" }
+
+[lib]
+name = "actix_service"
+path = "src/lib.rs"
+
+[dependencies]
+futures = "0.1.24"

@@ -46,7 +46,7 @@ where
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
         try_ready!(self.a.poll_ready());
-        self.b.borrow_mut().poll_ready()
+        self.b.get_mut().poll_ready()
     }
 
     fn call(&mut self, req: Request) -> Self::Future {
@@ -93,11 +93,11 @@ where
 
         match self.fut_a.poll() {
             Ok(Async::Ready(resp)) => {
-                self.fut_b = Some(self.b.borrow_mut().call(Ok(resp)));
+                self.fut_b = Some(self.b.get_mut().call(Ok(resp)));
                 self.poll()
             }
             Err(err) => {
-                self.fut_b = Some(self.b.borrow_mut().call(Err(err)));
+                self.fut_b = Some(self.b.get_mut().call(Err(err)));
                 self.poll()
             }
             Ok(Async::NotReady) => Ok(Async::NotReady),
@@ -226,7 +226,6 @@ mod tests {
     use std::rc::Rc;
 
     use super::*;
-    use crate::service::{NewServiceExt, ServiceExt};
 
     #[derive(Clone)]
     struct Srv1(Rc<Cell<usize>>);

@@ -23,7 +23,6 @@ pub mod inflight;
 pub mod keepalive;
 pub mod resolver;
 pub mod server;
-pub mod service;
 pub mod ssl;
 pub mod stream;
 pub mod time;

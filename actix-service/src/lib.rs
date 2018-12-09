@@ -1,10 +1,7 @@
-use futures::{Future, IntoFuture};
-
-/// re-export for convinience
-pub use tower_service::Service;
-
+use futures::{Future, IntoFuture, Poll};
 mod and_then;
 mod apply;
+mod cell;
 mod fn_service;
 mod from_err;
 mod map;
@@ -21,9 +18,39 @@ pub use self::map_err::{MapErr, MapErrNewService};
 pub use self::map_init_err::MapInitErr;
 pub use self::then::{Then, ThenNewService};
 
-/// An extension trait for `Service`s that provides a variety of convenient
-/// adapters
-pub trait ServiceExt<Request>: Service<Request> {
+/// An asynchronous function from `Request` to a `Response`.
+pub trait Service<Request> {
+    /// Responses given by the service.
+    type Response;
+
+    /// Errors produced by the service.
+    type Error;
+
+    /// The future response value.
+    type Future: Future<Item = Self::Response, Error = Self::Error>;
+
+    /// Returns `Ready` when the service is able to process requests.
+    ///
+    /// If the service is at capacity, then `NotReady` is returned and the task
+    /// is notified when the service becomes ready again. This function is
+    /// expected to be called while on a task.
+    ///
+    /// This is a **best effort** implementation. False positives are permitted.
+    /// It is permitted for the service to return `Ready` from a `poll_ready`
+    /// call and the next invocation of `call` results in an error.
+    fn poll_ready(&mut self) -> Poll<(), Self::Error>;
+
+    /// Process the request and return the response asynchronously.
+    ///
+    /// This function is expected to be callable off task. As such,
+    /// implementations should take care to not call `poll_ready`. If the
+    /// service is at capacity and the request is unable to be handled, the
+    /// returned `Future` should resolve to an error.
+    ///
+    /// Calling `call` without calling `poll_ready` is permitted. The
+    /// implementation must be resilient to this fact.
+    fn call(&mut self, req: Request) -> Self::Future;
+
     /// Apply function to specified service and use it as a next service in
     /// chain.
     fn apply<T, I, F, Out, Req>(
@@ -33,7 +60,7 @@ pub trait ServiceExt<Request>: Service<Request> {
     ) -> AndThen<Self, Apply<T, F, Self::Response, Out, Req>>
     where
         Self: Sized,
-        T: Service<Req, Error = Out::Error>,
+        T: Service<Req, Error = Self::Error>,
         I: IntoService<T, Req>,
         F: Fn(Self::Response, &mut T) -> Out,
         Out: IntoFuture<Error = Self::Error>,
@@ -59,11 +86,11 @@ pub trait ServiceExt<Request>: Service<Request> {
         AndThen::new(self, service.into_service())
     }
 
-    // /// Map this service's error to any error implementing `From` for
-    // /// this service`s `Error`.
-    // ///
-    // /// Note that this function consumes the receiving service and returns a
-    // /// wrapped version of it.
+    /// Map this service's error to any error implementing `From` for
+    /// this service`s `Error`.
+    ///
+    /// Note that this function consumes the receiving service and returns a
+    /// wrapped version of it.
     fn from_err<E>(self) -> FromErr<Self, E>
     where
         Self: Sized,
@@ -72,11 +99,11 @@ pub trait ServiceExt<Request>: Service<Request> {
         FromErr::new(self)
     }
 
-    // /// Chain on a computation for when a call to the service finished,
-    // /// passing the result of the call to the next service `B`.
-    // ///
-    // /// Note that this function consumes the receiving future and returns a
-    // /// wrapped version of it.
+    /// Chain on a computation for when a call to the service finished,
+    /// passing the result of the call to the next service `B`.
+    ///
+    /// Note that this function consumes the receiving service and returns a
+    /// wrapped version of it.
     fn then<B>(self, service: B) -> Then<Self, B>
     where
         Self: Sized,
@@ -85,15 +112,15 @@ pub trait ServiceExt<Request>: Service<Request> {
         Then::new(self, service)
     }
 
-    // /// Map this service's output to a different type, returning a new service
-    // /// of the resulting type.
-    // ///
-    // /// This function is similar to the `Option::map` or `Iterator::map` where
-    // /// it will change the type of the underlying service.
-    // ///
-    // /// Note that this function consumes the receiving service and returns a
-    // /// wrapped version of it, similar to the existing `map` methods in the
-    // /// standard library.
+    /// Map this service's output to a different type, returning a new service
+    /// of the resulting type.
+    ///
+    /// This function is similar to the `Option::map` or `Iterator::map` where
+    /// it will change the type of the underlying service.
+    ///
+    /// Note that this function consumes the receiving service and returns a
+    /// wrapped version of it, similar to the existing `map` methods in the
+    /// standard library.
     fn map<F, R>(self, f: F) -> Map<Self, F, R>
     where
         Self: Sized,
@@ -102,14 +129,14 @@ pub trait ServiceExt<Request>: Service<Request> {
         Map::new(self, f)
     }
 
-    // /// Map this service's error to a different error, returning a new service.
-    // ///
-    // /// This function is similar to the `Result::map_err` where it will change
-    // /// the error type of the underlying service. This is useful for example to
-    // /// ensure that services have the same error type.
-    // ///
-    // /// Note that this function consumes the receiving service and returns a
-    // /// wrapped version of it.
+    /// Map this service's error to a different error, returning a new service.
+    ///
+    /// This function is similar to the `Result::map_err` where it will change
+    /// the error type of the underlying service. This is useful for example to
+    /// ensure that services have the same error type.
+    ///
+    /// Note that this function consumes the receiving service and returns a
+    /// wrapped version of it.
     fn map_err<F, E>(self, f: F) -> MapErr<Self, F, E>
     where
         Self: Sized,
@@ -146,9 +173,9 @@ pub trait NewService<Request> {
 
     /// Create and return a new service value asynchronously.
     fn new_service(&self) -> Self::Future;
-}
 
-pub trait NewServiceExt<Request>: NewService<Request> {
+    /// Apply function to specified service and use it as a next service in
+    /// chain.
     fn apply<T, I, F, Out, Req>(
         self,
         service: I,
@@ -156,7 +183,7 @@ pub trait NewServiceExt<Request>: NewService<Request> {
     ) -> AndThenNewService<Self, ApplyNewService<T, F, Self::Response, Out, Req>>
     where
         Self: Sized,
-        T: NewService<Req, InitError = Self::InitError, Error = Out::Error>,
+        T: NewService<Req, InitError = Self::InitError, Error = Self::Error>,
         I: IntoNewService<T, Req>,
         F: Fn(Self::Response, &mut T::Service) -> Out + Clone,
         Out: IntoFuture<Error = Self::Error>,
@@ -164,6 +191,7 @@ pub trait NewServiceExt<Request>: NewService<Request> {
         self.and_then(ApplyNewService::new(service, f))
     }
 
+    /// Call another service after call to this one has resolved successfully.
     fn and_then<F, B>(self, new_service: F) -> AndThenNewService<Self, B>
     where
         Self: Sized,
@@ -173,12 +201,12 @@ pub trait NewServiceExt<Request>: NewService<Request> {
         AndThenNewService::new(self, new_service)
     }
 
-    // /// `NewService` that create service to map this service's error
-    // /// and new service's init error to any error
-    // /// implementing `From` for this service`s `Error`.
-    // ///
-    // /// Note that this function consumes the receiving new service and returns a
-    // /// wrapped version of it.
+    /// `NewService` that create service to map this service's error
+    /// and new service's init error to any error
+    /// implementing `From` for this service`s `Error`.
+    ///
+    /// Note that this function consumes the receiving new service and returns a
+    /// wrapped version of it.
     fn from_err<E>(self) -> FromErrNewService<Self, E>
     where
         Self: Sized,
@@ -187,12 +215,12 @@ pub trait NewServiceExt<Request>: NewService<Request> {
         FromErrNewService::new(self)
     }
 
-    // /// Create `NewService` to chain on a computation for when a call to the
-    // /// service finished, passing the result of the call to the next
-    // /// service `B`.
-    // ///
-    // /// Note that this function consumes the receiving future and returns a
-    // /// wrapped version of it.
+    /// Create `NewService` to chain on a computation for when a call to the
+    /// service finished, passing the result of the call to the next
+    /// service `B`.
+    ///
+    /// Note that this function consumes the receiving future and returns a
+    /// wrapped version of it.
     fn then<F, B>(self, new_service: F) -> ThenNewService<Self, B>
     where
         Self: Sized,
@@ -206,6 +234,8 @@ pub trait NewServiceExt<Request>: NewService<Request> {
         ThenNewService::new(self, new_service)
     }
 
+    /// Map this service's output to a different type, returning a new service
+    /// of the resulting type.
     fn map<F, R>(self, f: F) -> MapNewService<Self, F, R>
     where
         Self: Sized,
@@ -214,6 +244,7 @@ pub trait NewServiceExt<Request>: NewService<Request> {
         MapNewService::new(self, f)
     }
 
+    /// Map this service's error to a different error, returning a new service.
     fn map_err<F, E>(self, f: F) -> MapErrNewService<Self, F, E>
     where
         Self: Sized,
@@ -222,12 +253,30 @@ pub trait NewServiceExt<Request>: NewService<Request> {
         MapErrNewService::new(self, f)
     }
 
+    /// Map this service's init error to a different error, returning a new service.
     fn map_init_err<F, E>(self, f: F) -> MapInitErr<Self, F, E>
     where
         Self: Sized,
         F: Fn(Self::InitError) -> E,
     {
         MapInitErr::new(self, f)
+    }
+}
+
+impl<'a, S, Request> Service<Request> for &'a mut S
+where
+    S: Service<Request> + 'a,
+{
+    type Response = S::Response;
+    type Error = S::Error;
+    type Future = S::Future;
+
+    fn poll_ready(&mut self) -> Poll<(), S::Error> {
+        (**self).poll_ready()
+    }
+
+    fn call(&mut self, request: Request) -> S::Future {
+        (**self).call(request)
     }
 }
 
@@ -247,9 +296,6 @@ where
         (*self)().into_future()
     }
 }
-
-impl<T: ?Sized, R> ServiceExt<R> for T where T: Service<R> {}
-impl<T: ?Sized, R> NewServiceExt<R> for T where T: NewService<R> {}
 
 /// Trait for types that can be converted to a `Service`
 pub trait IntoService<T, Request>
