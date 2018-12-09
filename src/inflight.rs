@@ -1,7 +1,7 @@
+use actix_service::{IntoNewService, IntoService, NewService, Service};
 use futures::{try_ready, Async, Future, Poll};
 
 use super::counter::{Counter, CounterGuard};
-use super::service::{IntoNewService, IntoService, NewService, Service};
 
 /// InFlight - new service for service that can limit number of in-flight
 /// async requests.

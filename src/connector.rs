@@ -4,15 +4,14 @@ use std::net::{IpAddr, SocketAddr};
 use std::time::Duration;
 use std::{fmt, io};
 
+use actix_service::{NewService, Service};
 use futures::future::{ok, Either, FutureResult};
 use futures::{try_ready, Async, Future, Poll};
-
 use tokio_tcp::{ConnectFuture, TcpStream};
 use trust_dns_resolver::config::{ResolverConfig, ResolverOpts};
 use trust_dns_resolver::system_conf::read_system_conf;
 
 use super::resolver::{RequestHost, ResolveError, Resolver, ResolverFuture};
-use super::service::{NewService, Service};
 
 /// Port of the request
 pub trait RequestPort {

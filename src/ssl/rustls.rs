@@ -2,6 +2,7 @@ use std::io;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
+use actix_service::{NewService, Service};
 use futures::{future::ok, future::FutureResult, Async, Future, Poll};
 use rustls::{ServerConfig, ServerSession};
 use tokio_io::{AsyncRead, AsyncWrite};
@@ -9,7 +10,6 @@ use tokio_rustls::{Accept, TlsAcceptor, TlsStream};
 
 use super::MAX_CONN_COUNTER;
 use crate::counter::{Counter, CounterGuard};
-use crate::service::{NewService, Service};
 
 /// Support `SSL` connections via rustls package
 ///

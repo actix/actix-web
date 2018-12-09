@@ -1,5 +1,6 @@
 use std::marker::PhantomData;
 
+use actix_service::{NewService, Service};
 use futures::{future::ok, future::FutureResult, Async, Future, Poll};
 use openssl::ssl::{Error, SslAcceptor, SslConnector};
 use tokio_io::{AsyncRead, AsyncWrite};
@@ -8,7 +9,6 @@ use tokio_openssl::{AcceptAsync, ConnectAsync, SslAcceptorExt, SslConnectorExt, 
 use super::MAX_CONN_COUNTER;
 use crate::counter::{Counter, CounterGuard};
 use crate::resolver::RequestHost;
-use crate::service::{NewService, Service};
 
 /// Support `SSL` connections via openssl package
 ///

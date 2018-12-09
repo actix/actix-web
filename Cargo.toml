@@ -47,8 +47,7 @@ cell = []
 
 [dependencies]
 actix = "0.7.6"
-# actix-service = "0.1"
-actix-service = { path="./actix-service" }
+actix-service = "0.1.1"
 
 log = "0.4"
 num_cpus = "1.0"
@@ -66,7 +65,6 @@ tokio-tcp = "0.1"
 tokio-timer = "0.2"
 tokio-reactor = "0.1"
 tokio-current-thread = "0.1"
-tower-service = { git = "https://github.com/tower-rs/tower.git" }
 trust-dns-proto = "^0.5.0"
 trust-dns-resolver = "^0.10.0"
 

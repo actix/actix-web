@@ -1,10 +1,9 @@
 use std::marker::PhantomData;
 
+use actix_service::{IntoService, NewService, Service};
 use futures::unsync::mpsc;
 use futures::{future, Async, Future, Poll, Stream};
 use tokio_current_thread::spawn;
-
-use super::service::{IntoService, NewService, Service};
 
 pub struct StreamDispatcher<S: Stream, T> {
     stream: S,

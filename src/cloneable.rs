@@ -1,10 +1,10 @@
 use std::marker::PhantomData;
 use std::rc::Rc;
 
+use actix_service::Service;
 use futures::Poll;
 
 use super::cell::Cell;
-use super::service::Service;
 
 /// Service that allows to turn non-clone service to a service with `Clone` impl
 pub struct CloneableService<T: 'static> {

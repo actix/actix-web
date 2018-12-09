@@ -5,11 +5,10 @@
 use std::fmt;
 use std::time::Duration;
 
+use actix_service::{NewService, Service};
 use futures::try_ready;
 use futures::{Async, Future, Poll};
 use tokio_timer::{clock, Delay};
-
-use crate::service::{NewService, Service};
 
 /// Applies a timeout to requests.
 #[derive(Debug)]

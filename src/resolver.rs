@@ -4,14 +4,13 @@ use std::net::IpAddr;
 
 use futures::{Async, Future, Poll};
 
+use actix_service::Service;
 use tokio_current_thread::spawn;
 use trust_dns_resolver::config::{ResolverConfig, ResolverOpts};
 pub use trust_dns_resolver::error::ResolveError;
 use trust_dns_resolver::lookup_ip::LookupIpFuture;
 use trust_dns_resolver::system_conf::read_system_conf;
 use trust_dns_resolver::{AsyncResolver, Background};
-
-use super::service::Service;
 
 /// Host name of the request
 pub trait RequestHost {

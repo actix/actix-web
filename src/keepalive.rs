@@ -1,11 +1,11 @@
 use std::marker::PhantomData;
 use std::time::{Duration, Instant};
 
+use actix_service::{NewService, Service};
 use futures::future::{ok, FutureResult};
 use futures::{Async, Future, Poll};
 use tokio_timer::Delay;
 
-use super::service::{NewService, Service};
 use super::time::{LowResTime, LowResTimeService};
 use super::Never;
 

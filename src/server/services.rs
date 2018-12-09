@@ -1,6 +1,7 @@
 use std::net;
 use std::time::Duration;
 
+use actix_service::{NewService, Service};
 use futures::future::{err, ok, FutureResult};
 use futures::{Future, Poll};
 use log::error;
@@ -10,7 +11,6 @@ use tokio_tcp::TcpStream;
 
 use super::Token;
 use crate::counter::CounterGuard;
-use crate::service::{NewService, Service};
 
 /// Server message
 pub enum ServerMessage {

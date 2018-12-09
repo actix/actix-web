@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 use std::{fmt, io, net};
 
+use actix_service::{IntoNewService, NewService};
 use futures::future::{join_all, Future};
 use log::error;
 use tokio_tcp::TcpStream;
 
 use crate::counter::CounterGuard;
-use crate::service::{IntoNewService, NewService};
 
 use super::server::bind_addr;
 use super::services::{

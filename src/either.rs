@@ -1,7 +1,6 @@
 //! Contains `Either` service and related types and functions.
+use actix_service::{NewService, Service};
 use futures::{future, try_ready, Async, Future, Poll};
-
-use super::service::{NewService, Service};
 
 /// Combine two different service types into a single type.
 ///

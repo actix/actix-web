@@ -3,6 +3,7 @@ use std::marker::PhantomData;
 use std::mem;
 
 use actix;
+use actix_service::{IntoNewService, IntoService, NewService, Service};
 use futures::future::{ok, FutureResult};
 use futures::unsync::mpsc;
 use futures::{Async, AsyncSink, Future, Poll, Sink, Stream};
@@ -10,7 +11,6 @@ use tokio_codec::{Decoder, Encoder};
 use tokio_io::{AsyncRead, AsyncWrite};
 
 use crate::codec::Framed;
-use crate::service::{IntoNewService, IntoService, NewService, Service};
 
 type Request<U> = <U as Decoder>::Item;
 type Response<U> = <U as Encoder>::Item;
