@@ -10,7 +10,7 @@
 //! [`Stream`]: #
 //! [transports]: #
 
-#![deny(missing_docs, missing_debug_implementations, warnings)]
+// #![deny(missing_docs, missing_debug_implementations, warnings)]
 
 mod bcodec;
 mod framed;
@@ -23,3 +23,6 @@ pub use self::framed::{Framed, FramedParts};
 // pub use self::framed2::{Framed2, FramedParts2};
 pub use self::framed_read::FramedRead;
 pub use self::framed_write::FramedWrite;
+
+pub use tokio_codec::{Decoder, Encoder};
+pub use tokio_io::{AsyncRead, AsyncWrite};

@@ -16,6 +16,7 @@ edition = "2018"
 [workspace]
 members = [
   "./",
+  "actix-codec",
   "actix-service",
 ]
 
@@ -48,6 +49,7 @@ cell = []
 [dependencies]
 actix = "0.7.6"
 actix-service = "0.1.1"
+actix-codec = { path = "actix-codec" }
 
 log = "0.4"
 num_cpus = "1.0"

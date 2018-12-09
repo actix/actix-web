@@ -1,0 +1,25 @@
+[package]
+name = "actix-codec"
+version = "0.1.0"
+authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
+description = "Utilities for encoding and decoding frames"
+keywords = ["network", "framework", "async", "futures"]
+homepage = "https://actix.rs"
+repository = "https://github.com/actix/actix-net.git"
+documentation = "https://docs.rs/actix-codec/"
+categories = ["network-programming", "asynchronous"]
+license = "MIT/Apache-2.0"
+exclude = [".gitignore", ".travis.yml", ".cargo/config", "appveyor.yml"]
+edition = "2018"
+workspace = "../"
+
+[lib]
+name = "actix_codec"
+path = "src/lib.rs"
+
+[dependencies]
+bytes = "0.4"
+futures = "0.1.24"
+tokio-io = "0.1"
+tokio-codec = "0.1"
+log = "0.4"
