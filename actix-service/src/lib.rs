@@ -280,6 +280,23 @@ where
     }
 }
 
+impl<S, Request> Service<Request> for Box<S>
+where
+    S: Service<Request> + ?Sized,
+{
+    type Response = S::Response;
+    type Error = S::Error;
+    type Future = S::Future;
+
+    fn poll_ready(&mut self) -> Poll<(), S::Error> {
+        (**self).poll_ready()
+    }
+
+    fn call(&mut self, request: Request) -> S::Future {
+        (**self).call(request)
+    }
+}
+
 impl<F, R, E, S, Request> NewService<Request> for F
 where
     F: Fn() -> R,
