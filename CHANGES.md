@@ -2,6 +2,8 @@
 
 ## [0.3.0] - xxx
 
+* Split `Service` trait to separate crate
+
 * Use new `Service<Request>` trait
 
 
