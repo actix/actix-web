@@ -1,5 +1,7 @@
 # Changes
 
+* `SendError` now implements `ResponseError`.
+
 ## [0.7.15] - 2018-12-05
 
 ## Changed
