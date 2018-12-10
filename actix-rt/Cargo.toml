@@ -1,0 +1,27 @@
+[package]
+name = "actix-rt"
+version = "0.1.0"
+authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
+description = "Actix runtime"
+keywords = ["network", "framework", "async", "futures"]
+homepage = "https://actix.rs"
+repository = "https://github.com/actix/actix-net.git"
+documentation = "https://docs.rs/actix-rt/"
+categories = ["network-programming", "asynchronous"]
+license = "MIT/Apache-2.0"
+exclude = [".gitignore", ".travis.yml", ".cargo/config", "appveyor.yml"]
+edition = "2018"
+workspace = "../"
+
+[lib]
+name = "actix_rt"
+path = "src/lib.rs"
+
+[dependencies]
+log = "0.4"
+bytes = "0.4"
+futures = "0.1.24"
+tokio-current-thread = "0.1"
+tokio-executor = "0.1.5"
+tokio-reactor = "0.1.7"
+tokio-timer = "0.2.8"
