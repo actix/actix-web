@@ -1,6 +1,7 @@
 environment:
   global:
     PROJECT_NAME: actix-web
+    RUST_TEST_THREADS: 1
   matrix:
     # Stable channel
     - TARGET: i686-pc-windows-msvc
