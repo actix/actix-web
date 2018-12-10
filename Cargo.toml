@@ -51,6 +51,7 @@ cell = []
 actix = "0.7.6"
 actix-service = "0.1.1"
 actix-codec = { path = "actix-codec" }
+actix-rt = { path = "actix-rt" }
 
 log = "0.4"
 num_cpus = "1.0"

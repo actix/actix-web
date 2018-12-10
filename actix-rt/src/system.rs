@@ -58,8 +58,7 @@ impl System {
     }
 
     /// Set current running system.
-    #[doc(hidden)]
-    pub(crate) fn _is_set() -> bool {
+    pub(crate) fn is_set() -> bool {
         CURRENT.with(|cell| cell.borrow().is_some())
     }
 

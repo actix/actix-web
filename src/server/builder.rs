@@ -1,15 +1,16 @@
 use std::time::Duration;
 use std::{io, mem, net};
 
+use actix_rt::Arbiter;
 use futures::sync::{mpsc, mpsc::unbounded};
-use futures::{Future, Sink, Stream};
+use futures::{future::lazy, Future, Sink, Stream};
 use log::{error, info};
 use net2::TcpBuilder;
 use num_cpus;
 
 use actix::{
-    actors::signal, fut, msgs::Execute, Actor, ActorFuture, Addr, Arbiter, AsyncContext,
-    Context, Handler, Response, StreamHandler, System, WrapFuture,
+    actors::signal, fut, Actor, ActorFuture, Addr, AsyncContext, Context, Handler, Response,
+    StreamHandler, System, WrapFuture,
 };
 
 use super::accept::{AcceptLoop, AcceptNotify, Command};
@@ -24,7 +25,9 @@ pub(crate) enum ServerCommand {
 }
 
 /// Server
-pub struct Server {
+pub struct Server {}
+
+pub struct ServerBuilder {
     threads: usize,
     token: Token,
     workers: Vec<(usize, WorkerClient)>,
@@ -37,16 +40,10 @@ pub struct Server {
     no_signals: bool,
 }
 
-impl Default for Server {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl Server {
+impl ServerBuilder {
     /// Create new Server instance
     pub fn new() -> Server {
-        Server {
+        ServerBuilder {
             threads: num_cpus::get(),
             token: Token(0),
             workers: Vec::new(),
@@ -227,7 +224,7 @@ impl Server {
     }
 
     /// Starts Server Actor and returns its address
-    pub fn start(mut self) -> Addr<Server> {
+    pub fn start(mut self) -> Server {
         if self.sockets.is_empty() {
             panic!("Service should have at least one bound socket");
         } else {
@@ -284,7 +281,7 @@ impl Server {
         let services: Vec<Box<InternalServiceFactory>> =
             self.services.iter().map(|v| v.clone_factory()).collect();
 
-        Arbiter::new(format!("actix-net-worker-{}", idx)).do_send(Execute::new(move || {
+        Arbiter::new().send(lazy(move || {
             Worker::start(rx1, rx2, services, avail, timeout);
             Ok::<_, ()>(())
         }));

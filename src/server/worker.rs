@@ -2,15 +2,12 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::{mem, net, time};
 
+use actix_rt::{spawn, Arbiter};
 use futures::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use futures::sync::oneshot;
 use futures::{future, Async, Future, Poll, Stream};
 use log::{error, info, trace};
-use tokio_current_thread::spawn;
 use tokio_timer::{sleep, Delay};
-
-use actix::msgs::StopArbiter;
-use actix::{Arbiter, Message};
 
 use super::accept::AcceptNotify;
 use super::services::{BoxedServerService, InternalServiceFactory, ServerMessage};
@@ -26,7 +23,7 @@ pub(crate) struct StopCommand {
     result: oneshot::Sender<bool>,
 }
 
-#[derive(Debug, Message)]
+#[derive(Debug)]
 pub(crate) struct Conn {
     pub io: net::TcpStream,
     pub token: Token,
@@ -167,7 +164,7 @@ impl Worker {
             future::join_all(fut)
                 .map_err(|e| {
                     error!("Can not start worker: {:?}", e);
-                    Arbiter::current().do_send(StopArbiter(0));
+                    Arbiter::current().stop();
                 })
                 .and_then(move |services| {
                     for item in services {
@@ -365,7 +362,7 @@ impl Future for Worker {
                 let num = num_connections();
                 if num == 0 {
                     let _ = tx.send(true);
-                    Arbiter::current().do_send(StopArbiter(0));
+                    Arbiter::current().stop();
                     return Ok(Async::Ready(()));
                 }
 
@@ -375,7 +372,7 @@ impl Future for Worker {
                     Async::Ready(_) => {
                         self.shutdown(true);
                         let _ = tx.send(false);
-                        Arbiter::current().do_send(StopArbiter(0));
+                        Arbiter::current().stop();
                         return Ok(Async::Ready(()));
                     }
                 }

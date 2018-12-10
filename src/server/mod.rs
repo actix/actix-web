@@ -3,13 +3,13 @@
 use actix::Message;
 
 mod accept;
+mod builder;
 mod config;
-mod server;
 mod services;
 mod worker;
 
+pub use self::builder::ServerBuilder;
 pub use self::config::{ServiceConfig, ServiceRuntime};
-pub use self::server::Server;
 pub use self::services::{ServerMessage, ServiceFactory, StreamServiceFactory};
 
 /// Pause accepting incoming connections

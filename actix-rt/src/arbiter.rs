@@ -5,7 +5,7 @@
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::thread;
+use std::{fmt, thread};
 
 use futures::sync::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
 use futures::sync::oneshot::{channel, Sender};
@@ -23,9 +23,18 @@ thread_local!(
 
 pub(crate) const COUNT: AtomicUsize = AtomicUsize::new(0);
 
-#[derive(Debug)]
 pub(crate) enum ArbiterCommand {
     Stop,
+    Execute(Box<Future<Item = (), Error = ()> + Send>),
+}
+
+impl fmt::Debug for ArbiterCommand {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            ArbiterCommand::Stop => write!(f, "ArbiterCommand::Stop"),
+            ArbiterCommand::Execute(_) => write!(f, "ArbiterCommand::Execute"),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -47,6 +56,14 @@ impl Arbiter {
         Arbiter::spawn(ArbiterController { stop: None, rx });
 
         arb
+    }
+
+    /// Returns current arbiter's address
+    pub fn current() -> Arbiter {
+        ADDR.with(|cell| match *cell.borrow() {
+            Some(ref addr) => addr.clone(),
+            None => panic!("Arbiter is not running"),
+        })
     }
 
     /// Stop arbiter
@@ -113,7 +130,7 @@ impl Arbiter {
         RUNNING.with(|cell| cell.set(false));
     }
 
-    /// Executes a future on the current thread.
+    /// Spawn a future on the current thread.
     pub fn spawn<F>(future: F)
     where
         F: Future<Item = (), Error = ()> + 'static,
@@ -134,6 +151,16 @@ impl Arbiter {
         R: IntoFuture<Item = (), Error = ()> + 'static,
     {
         Arbiter::spawn(future::lazy(f))
+    }
+
+    /// Send a future on the arbiter's thread and spawn.
+    pub fn send<F>(&self, future: F)
+    where
+        F: Future<Item = (), Error = ()> + Send + 'static,
+    {
+        let _ = self
+            .0
+            .unbounded_send(ArbiterCommand::Execute(Box::new(future)));
     }
 }
 
@@ -158,17 +185,22 @@ impl Future for ArbiterController {
     type Error = ();
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        match self.rx.poll() {
-            Ok(Async::Ready(None)) | Err(_) => Ok(Async::Ready(())),
-            Ok(Async::Ready(Some(item))) => match item {
-                ArbiterCommand::Stop => {
-                    if let Some(stop) = self.stop.take() {
-                        let _ = stop.send(0);
-                    };
-                    Ok(Async::Ready(()))
-                }
-            },
-            Ok(Async::NotReady) => Ok(Async::NotReady),
+        loop {
+            match self.rx.poll() {
+                Ok(Async::Ready(None)) | Err(_) => return Ok(Async::Ready(())),
+                Ok(Async::Ready(Some(item))) => match item {
+                    ArbiterCommand::Stop => {
+                        if let Some(stop) = self.stop.take() {
+                            let _ = stop.send(0);
+                        };
+                        return Ok(Async::Ready(()));
+                    }
+                    ArbiterCommand::Execute(fut) => {
+                        spawn(fut);
+                    }
+                },
+                Ok(Async::NotReady) => return Ok(Async::NotReady),
+            }
         }
     }
 }
