@@ -1,10 +1,3 @@
-extern crate actix;
-extern crate actix_net;
-extern crate futures;
-extern crate openssl;
-extern crate tokio_io;
-extern crate tokio_tcp;
-
 use std::sync::{
     atomic::{AtomicUsize, Ordering},
     Arc,
@@ -15,8 +8,9 @@ use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
 use tokio_io::{AsyncRead, AsyncWrite};
 
 use actix_net::server::Server;
-use actix_net::service::NewServiceExt;
 use actix_net::ssl;
+use actix_rt::System;
+use actix_service::NewService;
 
 #[derive(Debug)]
 struct ServiceState {
@@ -33,7 +27,7 @@ fn service<T: AsyncRead + AsyncWrite>(
 }
 
 fn main() {
-    let sys = actix::System::new("test");
+    let sys = System::new("test");
 
     // load ssl keys
     let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
@@ -48,7 +42,7 @@ fn main() {
     let openssl = ssl::OpensslAcceptor::new(builder.build());
 
     // server start mutiple workers, it runs supplied `Fn` in each worker.
-    Server::default()
+    Server::build()
         .bind("test-ssl", "0.0.0.0:8443", move || {
             let num = num.clone();
 

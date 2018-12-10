@@ -1,11 +1,11 @@
 use std::net;
 use std::time::Duration;
 
+use actix_rt::spawn;
 use actix_service::{NewService, Service};
 use futures::future::{err, ok, FutureResult};
 use futures::{Future, Poll};
 use log::error;
-use tokio_current_thread::spawn;
 use tokio_reactor::Handle;
 use tokio_tcp::TcpStream;
 

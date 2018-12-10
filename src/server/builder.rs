@@ -1,32 +1,27 @@
 use std::time::Duration;
 use std::{io, mem, net};
 
-use actix_rt::Arbiter;
-use futures::sync::{mpsc, mpsc::unbounded};
-use futures::{future::lazy, Future, Sink, Stream};
+use actix_rt::{spawn, Arbiter, System};
+use futures::future::{lazy, ok};
+use futures::stream::futures_unordered;
+use futures::sync::mpsc::{unbounded, UnboundedReceiver};
+use futures::{Async, Future, Poll, Stream};
 use log::{error, info};
 use net2::TcpBuilder;
 use num_cpus;
+use tokio_timer::sleep;
 
-use actix::{
-    actors::signal, fut, Actor, ActorFuture, Addr, AsyncContext, Context, Handler, Response,
-    StreamHandler, System, WrapFuture,
-};
+// use actix::{actors::signal};
 
 use super::accept::{AcceptLoop, AcceptNotify, Command};
 use super::config::{ConfiguredService, ServiceConfig};
+use super::server::{Server, ServerCommand};
 use super::services::{InternalServiceFactory, StreamNewService, StreamServiceFactory};
 use super::services::{ServiceFactory, ServiceNewService};
 use super::worker::{self, Worker, WorkerAvailability, WorkerClient};
-use super::{PauseServer, ResumeServer, StopServer, Token};
+use super::Token;
 
-pub(crate) enum ServerCommand {
-    WorkerDied(usize),
-}
-
-/// Server
-pub struct Server {}
-
+/// Server builder
 pub struct ServerBuilder {
     threads: usize,
     token: Token,
@@ -36,24 +31,35 @@ pub struct ServerBuilder {
     accept: AcceptLoop,
     exit: bool,
     shutdown_timeout: Duration,
-    signals: Option<Addr<signal::ProcessSignals>>,
     no_signals: bool,
+    cmd: UnboundedReceiver<ServerCommand>,
+    server: Server,
+}
+
+impl Default for ServerBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl ServerBuilder {
-    /// Create new Server instance
-    pub fn new() -> Server {
+    /// Create new Server builder instance
+    pub fn new() -> ServerBuilder {
+        let (tx, rx) = unbounded();
+        let server = Server::new(tx);
+
         ServerBuilder {
             threads: num_cpus::get(),
             token: Token(0),
             workers: Vec::new(),
             services: Vec::new(),
             sockets: Vec::new(),
-            accept: AcceptLoop::new(),
+            accept: AcceptLoop::new(server.clone()),
             exit: false,
             shutdown_timeout: Duration::from_secs(30),
-            signals: None,
             no_signals: false,
+            cmd: rx,
+            server,
         }
     }
 
@@ -85,13 +91,6 @@ impl ServerBuilder {
         self
     }
 
-    #[doc(hidden)]
-    /// Set alternative address for `ProcessSignals` actor.
-    pub fn signals(mut self, addr: Addr<signal::ProcessSignals>) -> Self {
-        self.signals = Some(addr);
-        self
-    }
-
     /// Disable signal handling
     pub fn disable_signals(mut self) -> Self {
         self.no_signals = true;
@@ -115,7 +114,7 @@ impl ServerBuilder {
     ///
     /// This function is useful for moving parts of configuration to a
     /// different module or even library.
-    pub fn configure<F>(mut self, f: F) -> io::Result<Server>
+    pub fn configure<F>(mut self, f: F) -> io::Result<ServerBuilder>
     where
         F: Fn(&mut ServiceConfig) -> io::Result<()>,
     {
@@ -134,7 +133,7 @@ impl ServerBuilder {
         Ok(self)
     }
 
-    /// Add new service to server
+    /// Add new service to the server.
     pub fn bind<F, U, N: AsRef<str>>(mut self, name: N, addr: U, factory: F) -> io::Result<Self>
     where
         F: StreamServiceFactory,
@@ -155,7 +154,7 @@ impl ServerBuilder {
         Ok(self)
     }
 
-    /// Add new service to server
+    /// Add new service to the server.
     pub fn listen<F, N: AsRef<str>>(
         mut self,
         name: N,
@@ -175,7 +174,7 @@ impl ServerBuilder {
         self
     }
 
-    /// Add new service to server
+    /// Add new service to the server.
     pub fn listen2<F, N: AsRef<str>>(
         mut self,
         name: N,
@@ -223,10 +222,10 @@ impl ServerBuilder {
         sys.run();
     }
 
-    /// Starts Server Actor and returns its address
+    /// Starts processing incoming connections and return server controller.
     pub fn start(mut self) -> Server {
         if self.sockets.is_empty() {
-            panic!("Service should have at least one bound socket");
+            panic!("Server should have at least one bound socket");
         } else {
             info!("Starting {} workers", self.threads);
 
@@ -242,33 +241,17 @@ impl ServerBuilder {
             for sock in &self.sockets {
                 info!("Starting server on {}", sock.1.local_addr().ok().unwrap());
             }
-            let rx = self
-                .accept
+            self.accept
                 .start(mem::replace(&mut self.sockets, Vec::new()), workers);
 
             // start http server actor
-            let signals = self.subscribe_to_signals();
-            let addr = Actor::create(move |ctx| {
-                ctx.add_stream(rx);
-                self
-            });
-            if let Some(signals) = signals {
-                signals.do_send(signal::Subscribe(addr.clone().recipient()))
-            }
-            addr
-        }
-    }
-
-    // subscribe to os signals
-    fn subscribe_to_signals(&self) -> Option<Addr<signal::ProcessSignals>> {
-        if !self.no_signals {
-            if let Some(ref signals) = self.signals {
-                Some(signals.clone())
-            } else {
-                Some(System::current().registry().get::<signal::ProcessSignals>())
-            }
-        } else {
-            None
+            // let signals = self.subscribe_to_signals();
+            // if let Some(signals) = signals {
+            // signals.do_send(signal::Subscribe(addr.clone().recipient()))
+            // }
+            let server = self.server.clone();
+            spawn(self);
+            server
         }
     }
 
@@ -290,137 +273,122 @@ impl ServerBuilder {
     }
 }
 
-impl Actor for Server {
-    type Context = Context<Self>;
-}
+// /// Signals support
+// /// Handle `SIGINT`, `SIGTERM`, `SIGQUIT` signals and stop actix system
+// /// message to `System` actor.
+// impl Handler<signal::Signal> for Server {
+//     type Result = ();
 
-/// Signals support
-/// Handle `SIGINT`, `SIGTERM`, `SIGQUIT` signals and stop actix system
-/// message to `System` actor.
-impl Handler<signal::Signal> for Server {
-    type Result = ();
+//     fn handle(&mut self, msg: signal::Signal, ctx: &mut Context<Self>) {
+//         match msg.0 {
+//             signal::SignalType::Int => {
+//                 info!("SIGINT received, exiting");
+//                 self.exit = true;
+//                 Handler::<StopServer>::handle(self, StopServer { graceful: false }, ctx);
+//             }
+//             signal::SignalType::Term => {
+//                 info!("SIGTERM received, stopping");
+//                 self.exit = true;
+//                 Handler::<StopServer>::handle(self, StopServer { graceful: true }, ctx);
+//             }
+//             signal::SignalType::Quit => {
+//                 info!("SIGQUIT received, exiting");
+//                 self.exit = true;
+//                 Handler::<StopServer>::handle(self, StopServer { graceful: false }, ctx);
+//             }
+//             _ => (),
+//         }
+//     }
+// }
 
-    fn handle(&mut self, msg: signal::Signal, ctx: &mut Context<Self>) {
-        match msg.0 {
-            signal::SignalType::Int => {
-                info!("SIGINT received, exiting");
-                self.exit = true;
-                Handler::<StopServer>::handle(self, StopServer { graceful: false }, ctx);
-            }
-            signal::SignalType::Term => {
-                info!("SIGTERM received, stopping");
-                self.exit = true;
-                Handler::<StopServer>::handle(self, StopServer { graceful: true }, ctx);
-            }
-            signal::SignalType::Quit => {
-                info!("SIGQUIT received, exiting");
-                self.exit = true;
-                Handler::<StopServer>::handle(self, StopServer { graceful: false }, ctx);
-            }
-            _ => (),
-        }
-    }
-}
+impl Future for ServerBuilder {
+    type Item = ();
+    type Error = ();
 
-impl Handler<PauseServer> for Server {
-    type Result = ();
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        loop {
+            match self.cmd.poll() {
+                Ok(Async::Ready(None)) | Err(_) => return Ok(Async::Ready(())),
+                Ok(Async::NotReady) => return Ok(Async::NotReady),
+                Ok(Async::Ready(Some(item))) => match item {
+                    ServerCommand::Pause(tx) => {
+                        self.accept.send(Command::Pause);
+                        let _ = tx.send(());
+                    }
+                    ServerCommand::Resume(tx) => {
+                        self.accept.send(Command::Resume);
+                        let _ = tx.send(());
+                    }
+                    ServerCommand::Stop {
+                        graceful,
+                        completion,
+                    } => {
+                        let exit = self.exit;
 
-    fn handle(&mut self, _: PauseServer, _: &mut Context<Self>) {
-        self.accept.send(Command::Pause);
-    }
-}
+                        // stop accept thread
+                        self.accept.send(Command::Stop);
 
-impl Handler<ResumeServer> for Server {
-    type Result = ();
-
-    fn handle(&mut self, _: ResumeServer, _: &mut Context<Self>) {
-        self.accept.send(Command::Resume);
-    }
-}
-
-impl Handler<StopServer> for Server {
-    type Result = Response<(), ()>;
-
-    fn handle(&mut self, msg: StopServer, ctx: &mut Context<Self>) -> Self::Result {
-        // stop accept thread
-        self.accept.send(Command::Stop);
-
-        // stop workers
-        let (tx, rx) = mpsc::channel(1);
-
-        for worker in &self.workers {
-            let tx2 = tx.clone();
-            ctx.spawn(
-                worker
-                    .1
-                    .stop(msg.graceful)
-                    .into_actor(self)
-                    .then(move |_, slf, ctx| {
-                        slf.workers.pop();
-                        if slf.workers.is_empty() {
-                            let _ = tx2.send(());
-
+                        // stop workers
+                        if !self.workers.is_empty() {
+                            spawn(
+                                futures_unordered(
+                                    self.workers
+                                        .iter()
+                                        .map(move |worker| worker.1.stop(graceful)),
+                                )
+                                .collect()
+                                .then(move |_| {
+                                    let _ = completion.send(());
+                                    if exit {
+                                        spawn(sleep(Duration::from_millis(300)).then(|_| {
+                                            System::current().stop();
+                                            ok(())
+                                        }));
+                                    }
+                                    ok(())
+                                }),
+                            )
+                        } else {
                             // we need to stop system if server was spawned
-                            if slf.exit {
-                                ctx.run_later(Duration::from_millis(300), |_, _| {
+                            if self.exit {
+                                spawn(sleep(Duration::from_millis(300)).then(|_| {
                                     System::current().stop();
-                                });
+                                    ok(())
+                                }));
                             }
+                            let _ = completion.send(());
                         }
-
-                        fut::ok(())
-                    }),
-            );
-        }
-
-        if !self.workers.is_empty() {
-            Response::r#async(rx.into_future().map(|_| ()).map_err(|_| ()))
-        } else {
-            // we need to stop system if server was spawned
-            if self.exit {
-                ctx.run_later(Duration::from_millis(300), |_, _| {
-                    System::current().stop();
-                });
-            }
-            Response::reply(Ok(()))
-        }
-    }
-}
-
-/// Commands from accept threads
-impl StreamHandler<ServerCommand, ()> for Server {
-    fn finished(&mut self, _: &mut Context<Self>) {}
-
-    fn handle(&mut self, msg: ServerCommand, _: &mut Context<Self>) {
-        match msg {
-            ServerCommand::WorkerDied(idx) => {
-                let mut found = false;
-                for i in 0..self.workers.len() {
-                    if self.workers[i].0 == idx {
-                        self.workers.swap_remove(i);
-                        found = true;
-                        break;
                     }
-                }
-
-                if found {
-                    error!("Worker has died {:?}, restarting", idx);
-
-                    let mut new_idx = self.workers.len();
-                    'found: loop {
+                    ServerCommand::WorkerDied(idx) => {
+                        let mut found = false;
                         for i in 0..self.workers.len() {
-                            if self.workers[i].0 == new_idx {
-                                new_idx += 1;
-                                continue 'found;
+                            if self.workers[i].0 == idx {
+                                self.workers.swap_remove(i);
+                                found = true;
+                                break;
                             }
                         }
-                        break;
-                    }
 
-                    let worker = self.start_worker(new_idx, self.accept.get_notify());
-                    self.workers.push((new_idx, worker.clone()));
-                    self.accept.send(Command::Worker(worker));
-                }
+                        if found {
+                            error!("Worker has died {:?}, restarting", idx);
+
+                            let mut new_idx = self.workers.len();
+                            'found: loop {
+                                for i in 0..self.workers.len() {
+                                    if self.workers[i].0 == new_idx {
+                                        new_idx += 1;
+                                        continue 'found;
+                                    }
+                                }
+                                break;
+                            }
+
+                            let worker = self.start_worker(new_idx, self.accept.get_notify());
+                            self.workers.push((new_idx, worker.clone()));
+                            self.accept.send(Command::Worker(worker));
+                        }
+                    }
+                },
             }
         }
     }

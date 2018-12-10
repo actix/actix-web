@@ -4,8 +4,8 @@ use std::net::IpAddr;
 
 use futures::{Async, Future, Poll};
 
+use actix_rt::spawn;
 use actix_service::Service;
-use tokio_current_thread::spawn;
 use trust_dns_resolver::config::{ResolverConfig, ResolverOpts};
 pub use trust_dns_resolver::error::ResolveError;
 use trust_dns_resolver::lookup_ip::LookupIpFuture;

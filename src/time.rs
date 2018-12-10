@@ -1,9 +1,9 @@
 use std::time::{Duration, Instant};
 
+use actix_rt::spawn;
 use actix_service::{NewService, Service};
 use futures::future::{ok, FutureResult};
 use futures::{Async, Future, Poll};
-use tokio_current_thread::spawn;
 use tokio_timer::sleep;
 
 use super::cell::Cell;

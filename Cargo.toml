@@ -48,7 +48,6 @@ rust-tls = ["rustls", "tokio-rustls", "webpki", "webpki-roots"]
 cell = []
 
 [dependencies]
-actix = "0.7.6"
 actix-service = "0.1.1"
 actix-codec = { path = "actix-codec" }
 actix-rt = { path = "actix-rt" }
@@ -62,13 +61,12 @@ net2 = "0.2"
 bytes = "0.4"
 futures = "0.1"
 slab = "0.4"
-tokio = "0.1"
-tokio-codec = "0.1"
 tokio-io = "0.1"
 tokio-tcp = "0.1"
 tokio-timer = "0.2"
 tokio-reactor = "0.1"
-tokio-current-thread = "0.1"
+tokio-signal = "0.2"
+
 trust-dns-proto = "^0.5.0"
 trust-dns-resolver = "^0.10.0"
 

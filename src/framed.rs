@@ -2,13 +2,12 @@
 use std::marker::PhantomData;
 use std::mem;
 
-use actix;
-use actix_codec::Framed;
+use actix_codec::{Decoder, Encoder, Framed};
+use actix_rt::Arbiter;
 use actix_service::{IntoNewService, IntoService, NewService, Service};
 use futures::future::{ok, FutureResult};
 use futures::unsync::mpsc;
 use futures::{Async, AsyncSink, Future, Poll, Sink, Stream};
-use tokio_codec::{Decoder, Encoder};
 use tokio_io::{AsyncRead, AsyncWrite};
 
 type Request<U> = <U as Decoder>::Item;
@@ -256,7 +255,7 @@ where
             Ok(Async::Ready(_)) => {
                 if let Some(item) = self.request.take() {
                     let sender = self.write_tx.clone();
-                    actix::Arbiter::spawn(
+                    Arbiter::spawn(
                         self.service
                             .call(item)
                             .then(|item| sender.send(item).map(|_| ()).map_err(|_| ())),
@@ -281,7 +280,7 @@ where
                     match self.service.poll_ready() {
                         Ok(Async::Ready(_)) => {
                             let sender = self.write_tx.clone();
-                            actix::Arbiter::spawn(
+                            Arbiter::spawn(
                                 self.service
                                     .call(item)
                                     .then(|item| sender.send(item).map(|_| ()).map_err(|_| ())),

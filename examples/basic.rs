@@ -1,15 +1,6 @@
 //! simple composite service
 //! build: cargo run --example basic --features "ssl"
 //! to test: curl https://127.0.0.1:8443/ -k
-extern crate actix;
-extern crate actix_net;
-extern crate env_logger;
-extern crate futures;
-extern crate openssl;
-extern crate tokio_io;
-extern crate tokio_openssl;
-extern crate tokio_tcp;
-
 use std::sync::{
     atomic::{AtomicUsize, Ordering},
     Arc,
@@ -22,7 +13,8 @@ use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_openssl::SslAcceptorExt;
 
 use actix_net::server::Server;
-use actix_net::service::{IntoNewService, NewServiceExt};
+use actix_rt::System;
+use actix_service::{IntoNewService, NewService};
 
 /// Simple logger service, it just prints fact of the new connections
 fn logger<T: AsyncRead + AsyncWrite + fmt::Debug>(
@@ -36,7 +28,7 @@ fn main() {
     env::set_var("RUST_LOG", "actix_net=trace");
     env_logger::init();
 
-    let sys = actix::System::new("test");
+    let sys = System::new("test");
 
     // load ssl keys
     let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
@@ -53,7 +45,7 @@ fn main() {
     // bind socket address and start workers. By default server uses number of
     // available logical cpu as threads count. actix net start separate
     // instances of service pipeline in each worker.
-    Server::default()
+    Server::build()
         .bind(
             // configure service pipeline
             "basic",

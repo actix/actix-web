@@ -2,15 +2,14 @@ use std::sync::mpsc as sync_mpsc;
 use std::time::{Duration, Instant};
 use std::{io, net, thread};
 
-use futures::{sync::mpsc, Future};
+use actix_rt::System;
+use futures::future::{lazy, Future};
 use log::{error, info};
 use mio;
 use slab::Slab;
 use tokio_timer::Delay;
 
-use actix::{msgs::Execute, Arbiter, System};
-
-use super::server::ServerCommand;
+use super::server::Server;
 use super::worker::{Conn, WorkerClient};
 use super::Token;
 
@@ -54,14 +53,11 @@ pub(crate) struct AcceptLoop {
     notify_ready: mio::SetReadiness,
     tx: sync_mpsc::Sender<Command>,
     rx: Option<sync_mpsc::Receiver<Command>>,
-    srv: Option<(
-        mpsc::UnboundedSender<ServerCommand>,
-        mpsc::UnboundedReceiver<ServerCommand>,
-    )>,
+    srv: Option<Server>,
 }
 
 impl AcceptLoop {
-    pub fn new() -> AcceptLoop {
+    pub fn new(srv: Server) -> AcceptLoop {
         let (tx, rx) = sync_mpsc::channel();
         let (cmd_reg, cmd_ready) = mio::Registration::new2();
         let (notify_reg, notify_ready) = mio::Registration::new2();
@@ -73,7 +69,7 @@ impl AcceptLoop {
             notify_ready,
             notify_reg: Some(notify_reg),
             rx: Some(rx),
-            srv: Some(mpsc::unbounded()),
+            srv: Some(srv),
         }
     }
 
@@ -90,18 +86,17 @@ impl AcceptLoop {
         &mut self,
         socks: Vec<(Token, net::TcpListener)>,
         workers: Vec<WorkerClient>,
-    ) -> mpsc::UnboundedReceiver<ServerCommand> {
-        let (tx, rx) = self.srv.take().expect("Can not re-use AcceptInfo");
+    ) {
+        let srv = self.srv.take().expect("Can not re-use AcceptInfo");
 
         Accept::start(
             self.rx.take().expect("Can not re-use AcceptInfo"),
             self.cmd_reg.take().expect("Can not re-use AcceptInfo"),
             self.notify_reg.take().expect("Can not re-use AcceptInfo"),
             socks,
-            tx,
+            srv,
             workers,
         );
-        rx
     }
 }
 
@@ -110,7 +105,7 @@ struct Accept {
     rx: sync_mpsc::Receiver<Command>,
     sockets: Slab<ServerSocketInfo>,
     workers: Vec<WorkerClient>,
-    srv: mpsc::UnboundedSender<ServerCommand>,
+    srv: Server,
     timer: (mio::Registration, mio::SetReadiness),
     next: usize,
     backpressure: bool,
@@ -141,7 +136,7 @@ impl Accept {
         cmd_reg: mio::Registration,
         notify_reg: mio::Registration,
         socks: Vec<(Token, net::TcpListener)>,
-        srv: mpsc::UnboundedSender<ServerCommand>,
+        srv: Server,
         workers: Vec<WorkerClient>,
     ) {
         let sys = System::current();
@@ -181,7 +176,7 @@ impl Accept {
         rx: sync_mpsc::Receiver<Command>,
         socks: Vec<(Token, net::TcpListener)>,
         workers: Vec<WorkerClient>,
-        srv: mpsc::UnboundedSender<ServerCommand>,
+        srv: Server,
     ) -> Accept {
         // Create a poll instance
         let poll = match mio::Poll::new() {
@@ -376,9 +371,7 @@ impl Accept {
                 match self.workers[self.next].send(msg) {
                     Ok(_) => (),
                     Err(tmp) => {
-                        let _ = self.srv.unbounded_send(ServerCommand::WorkerDied(
-                            self.workers[self.next].idx,
-                        ));
+                        let _ = self.srv.worker_died(self.workers[self.next].idx);
                         msg = tmp;
                         self.workers.swap_remove(self.next);
                         if self.workers.is_empty() {
@@ -404,9 +397,7 @@ impl Accept {
                             return;
                         }
                         Err(tmp) => {
-                            let _ = self.srv.unbounded_send(ServerCommand::WorkerDied(
-                                self.workers[self.next].idx,
-                            ));
+                            let _ = self.srv.worker_died(self.workers[self.next].idx);
                             msg = tmp;
                             self.workers.swap_remove(self.next);
                             if self.workers.is_empty() {
@@ -449,19 +440,14 @@ impl Accept {
                         info.timeout = Some(Instant::now() + Duration::from_millis(500));
 
                         let r = self.timer.1.clone();
-                        System::current().arbiter().do_send(Execute::new(
-                            move || -> Result<(), ()> {
-                                Arbiter::spawn(
-                                    Delay::new(Instant::now() + Duration::from_millis(510))
-                                        .map_err(|_| ())
-                                        .and_then(move |_| {
-                                            let _ = r.set_readiness(mio::Ready::readable());
-                                            Ok(())
-                                        }),
-                                );
-                                Ok(())
-                            },
-                        ));
+                        System::current().arbiter().send(lazy(move || {
+                            Delay::new(Instant::now() + Duration::from_millis(510))
+                                .map_err(|_| ())
+                                .and_then(move |_| {
+                                    let _ = r.set_readiness(mio::Ready::readable());
+                                    Ok(())
+                                })
+                        }));
                         return;
                     }
                 }

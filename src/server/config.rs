@@ -8,7 +8,7 @@ use tokio_tcp::TcpStream;
 
 use crate::counter::CounterGuard;
 
-use super::server::bind_addr;
+use super::builder::bind_addr;
 use super::services::{
     BoxedServerService, InternalServiceFactory, ServerMessage, StreamService,
 };

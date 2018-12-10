@@ -234,29 +234,30 @@ impl Future for SystemArbiter {
     type Error = ();
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        match self.commands.poll() {
-            Ok(Async::Ready(None)) | Err(_) => return Ok(Async::Ready(())),
-            Ok(Async::Ready(Some(cmd))) => match cmd {
-                SystemCommand::Exit(code) => {
-                    // stop arbiters
-                    for arb in self.arbiters.values() {
-                        arb.stop();
+        loop {
+            match self.commands.poll() {
+                Ok(Async::Ready(None)) | Err(_) => return Ok(Async::Ready(())),
+                Ok(Async::Ready(Some(cmd))) => match cmd {
+                    SystemCommand::Exit(code) => {
+                        // stop arbiters
+                        for arb in self.arbiters.values() {
+                            arb.stop();
+                        }
+                        // stop event loop
+                        if let Some(stop) = self.stop.take() {
+                            let _ = stop.send(code);
+                        }
                     }
-                    // stop event loop
-                    if let Some(stop) = self.stop.take() {
-                        let _ = stop.send(code);
+                    SystemCommand::RegisterArbiter(name, hnd) => {
+                        self.arbiters.insert(name, hnd);
                     }
-                }
-                SystemCommand::RegisterArbiter(name, hnd) => {
-                    self.arbiters.insert(name, hnd);
-                }
-                SystemCommand::UnregisterArbiter(name) => {
-                    self.arbiters.remove(&name);
-                }
-            },
-            Ok(Async::NotReady) => return Ok(Async::NotReady),
+                    SystemCommand::UnregisterArbiter(name) => {
+                        self.arbiters.remove(&name);
+                    }
+                },
+                Ok(Async::NotReady) => return Ok(Async::NotReady),
+            }
         }
-        Ok(Async::NotReady)
     }
 }
 
