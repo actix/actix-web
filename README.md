@@ -13,7 +13,7 @@ Actix net - framework for composable network services (experimental)
 
 ```rust
 fn main() {
-    let sys = actix::System::new("test");
+    let sys = actix_rt::System::new("test");
 
     // load ssl keys
     let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
@@ -26,7 +26,7 @@ fn main() {
     // bind socket address and start workers. By default server uses number of
     // available logical cpu as threads count. actix net start separate
     // instances of service pipeline in each worker.
-    Server::default()
+    actix_server::build()
         .bind(
             // configure service pipeline
             "basic", "0.0.0.0:8443",
