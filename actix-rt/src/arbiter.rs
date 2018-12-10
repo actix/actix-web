@@ -1,7 +1,3 @@
-#![allow(
-    clippy::borrow_interior_mutable_const,
-    clippy::declare_interior_mutable_const
-)]
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -21,7 +17,7 @@ thread_local!(
     static Q: RefCell<Vec<Box<Future<Item = (), Error = ()>>>> = RefCell::new(Vec::new());
 );
 
-pub(crate) const COUNT: AtomicUsize = AtomicUsize::new(0);
+pub(crate) static COUNT: AtomicUsize = AtomicUsize::new(0);
 
 pub(crate) enum ArbiterCommand {
     Stop,

@@ -33,7 +33,10 @@ script:
     if [[ "$TRAVIS_RUST_VERSION" != "nightly" ]]; then
     cargo clean
     cargo test --features="ssl,tls,rust-tls" -- --nocapture
+    cd actix-codec && cargo test
     cd actix-service && cargo test
+    cd actix-server && cargo test --features="ssl,tls,rust-tls" -- --nocapture
+    cd actix-rt && cargo test
     fi
   - |
     if [[ "$TRAVIS_RUST_VERSION" == "nightly" ]]; then

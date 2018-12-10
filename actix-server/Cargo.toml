@@ -1,51 +1,41 @@
 [package]
-name = "actix-net"
-version = "0.3.0"
+name = "actix-server"
+version = "0.1.0"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
-description = "Actix net - framework for the compisible network services for Rust (experimental)"
+description = "Actix server - General purpose tcp server"
 readme = "README.md"
 keywords = ["network", "framework", "async", "futures"]
 homepage = "https://actix.rs"
 repository = "https://github.com/actix/actix-net.git"
-documentation = "https://docs.rs/actix-net/"
+documentation = "https://docs.rs/actix-server/"
 categories = ["network-programming", "asynchronous"]
 license = "MIT/Apache-2.0"
 exclude = [".gitignore", ".travis.yml", ".cargo/config", "appveyor.yml"]
 edition = "2018"
-
-[workspace]
-members = [
-  "./",
-  "actix-codec",
-  "actix-service",
-  "actix-server",
-  "actix-rt",
-]
+workspace = "../"
 
 [package.metadata.docs.rs]
 features = ["ssl", "tls", "rust-tls"]
 
-[badges]
-travis-ci = { repository = "actix/actix-net", branch = "master" }
-# appveyor = { repository = "fafhrd91/actix-web-hdy9d" }
-codecov = { repository = "actix/actix-net", branch = "master", service = "github" }
-
 [lib]
-name = "actix_net"
+name = "actix_server"
 path = "src/lib.rs"
 
 [features]
 default = []
 
+# tls
+tls = ["native-tls"]
+
 # openssl
 ssl = ["openssl", "tokio-openssl"]
 
-cell = []
+# rustls
+rust-tls = ["rustls", "tokio-rustls", "webpki", "webpki-roots"]
 
 [dependencies]
 actix-service = "0.1.1"
-actix-codec = { path = "actix-codec" }
-actix-rt = { path = "actix-rt" }
+actix-rt = { path = "../actix-rt" }
 
 log = "0.4"
 num_cpus = "1.0"
@@ -62,12 +52,18 @@ tokio-timer = "0.2"
 tokio-reactor = "0.1"
 tokio-signal = "0.2"
 
-trust-dns-proto = "^0.5.0"
-trust-dns-resolver = "^0.10.0"
+# native-tls
+native-tls = { version="0.2", optional = true }
 
 # openssl
 openssl = { version="0.10", optional = true }
 tokio-openssl = { version="0.3", optional = true }
+
+#rustls
+rustls = { version = "^0.14", optional = true }
+tokio-rustls = { version = "^0.8", optional = true }
+webpki = { version = "0.18", optional = true }
+webpki-roots = { version = "0.15", optional = true }
 
 [dev-dependencies]
 env_logger = "0.5"

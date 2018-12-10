@@ -21,7 +21,7 @@ impl<T: AsyncRead + AsyncWrite> NativeTlsAcceptor<T> {
     /// Create `NativeTlsAcceptor` instance
     pub fn new(acceptor: TlsAcceptor) -> Self {
         NativeTlsAcceptor {
-            acceptor: acceptor.into(),
+            acceptor,
             io: PhantomData,
         }
     }

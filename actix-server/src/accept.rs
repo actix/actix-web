@@ -371,7 +371,7 @@ impl Accept {
                 match self.workers[self.next].send(msg) {
                     Ok(_) => (),
                     Err(tmp) => {
-                        let _ = self.srv.worker_died(self.workers[self.next].idx);
+                        self.srv.worker_died(self.workers[self.next].idx);
                         msg = tmp;
                         self.workers.swap_remove(self.next);
                         if self.workers.is_empty() {
@@ -397,7 +397,7 @@ impl Accept {
                             return;
                         }
                         Err(tmp) => {
-                            let _ = self.srv.worker_died(self.workers[self.next].idx);
+                            self.srv.worker_died(self.workers[self.next].idx);
                             msg = tmp;
                             self.workers.swap_remove(self.next);
                             if self.workers.is_empty() {

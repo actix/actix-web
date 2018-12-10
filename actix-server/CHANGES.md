@@ -2,4 +2,4 @@
 
 ## [0.1.0] - 2018-12-09
 
-* Initial release
+* Move server to separate crate

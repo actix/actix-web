@@ -9,10 +9,10 @@ use futures::{future, Async, Future, Poll, Stream};
 use log::{error, info, trace};
 use tokio_timer::{sleep, Delay};
 
-use super::accept::AcceptNotify;
-use super::services::{BoxedServerService, InternalServiceFactory, ServerMessage};
-use super::Token;
+use crate::accept::AcceptNotify;
 use crate::counter::Counter;
+use crate::services::{BoxedServerService, InternalServiceFactory, ServerMessage};
+use crate::Token;
 
 pub(crate) struct WorkerCommand(Conn);
 
@@ -30,7 +30,7 @@ pub(crate) struct Conn {
     pub peer: Option<net::SocketAddr>,
 }
 
-const MAX_CONNS: AtomicUsize = AtomicUsize::new(25600);
+static MAX_CONNS: AtomicUsize = AtomicUsize::new(25600);
 
 /// Sets the maximum per-worker number of concurrent connections.
 ///

@@ -21,7 +21,6 @@ pub mod framed;
 pub mod inflight;
 pub mod keepalive;
 pub mod resolver;
-pub mod server;
 pub mod ssl;
 pub mod stream;
 pub mod time;
