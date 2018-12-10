@@ -1,8 +1,14 @@
 # Changes
 
+## [0.7.16] - xxxx-xx-xx
+
+### Added
+
+* Implement `FromRequest` extractor for `Either<A,B>`
+
 ## [0.7.15] - 2018-12-05
 
-## Changed
+### Changed
 
 * `ClientConnector::resolver` now accepts `Into<Recipient>` instead of `Addr`. It enables user to implement own resolver.
 

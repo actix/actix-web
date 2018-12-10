@@ -12,10 +12,11 @@ use serde::de::{self, DeserializeOwned};
 use serde_urlencoded;
 
 use de::PathDeserializer;
-use error::{Error, ErrorBadRequest, ErrorNotFound, UrlencodedError};
+use error::{Error, ErrorBadRequest, ErrorNotFound, UrlencodedError, ErrorConflict};
 use handler::{AsyncResult, FromRequest};
 use httpmessage::{HttpMessage, MessageBody, UrlEncoded};
 use httprequest::HttpRequest;
+use Either;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
 /// Extract typed information from the request's path. Information from the path is
@@ -634,6 +635,151 @@ where
     }
 }
 
+/// Extract either one of two fields from the request.
+///
+/// If both or none of the fields can be extracted, the default behaviour is to prefer the first
+/// successful, last that failed. The behaviour can be changed by setting the appropriate
+/// ```EitherCollisionStrategy```.
+///
+/// CAVEAT: Most of the time both extractors will be run. Make sure that the extractors you specify
+/// can be run one after another (or in parallel). This will always fail for extractors that modify
+/// the request state (such as the `Form` extractors that read in the body stream).
+/// So Either<Form<A>, Form<B>> will not work correctly - it will only succeed if it matches the first
+/// option, but will always fail to match the second (since the body stream will be at the end, and
+/// appear to be empty).
+///
+/// ## Example
+///
+/// ```rust
+/// # extern crate actix_web;
+/// extern crate rand;
+/// #[macro_use] extern crate serde_derive;
+/// use actix_web::{http, App, Result, HttpRequest, Error, FromRequest};
+/// use actix_web::error::ErrorBadRequest;
+/// use actix_web::Either;
+///
+/// #[derive(Debug, Deserialize)]
+/// struct Thing { name: String }
+///
+/// #[derive(Debug, Deserialize)]
+/// struct OtherThing { id: String }
+///
+/// impl<S> FromRequest<S> for Thing {
+///     type Config = ();
+///     type Result = Result<Thing, Error>;
+///
+///     #[inline]
+///     fn from_request(req: &HttpRequest<S>, _cfg: &Self::Config) -> Self::Result {
+///         if rand::random() {
+///             Ok(Thing { name: "thingy".into() })
+///         } else {
+///             Err(ErrorBadRequest("no luck"))
+///         }
+///     }
+/// }
+///
+/// impl<S> FromRequest<S> for OtherThing {
+///     type Config = ();
+///     type Result = Result<OtherThing, Error>;
+///
+///     #[inline]
+///     fn from_request(req: &HttpRequest<S>, _cfg: &Self::Config) -> Self::Result {
+///         if rand::random() {
+///             Ok(OtherThing { id: "otherthingy".into() })
+///         } else {
+///             Err(ErrorBadRequest("no luck"))
+///         }
+///     }
+/// }
+///
+/// /// extract text data from request
+/// fn index(supplied_thing: Either<Thing, OtherThing>) -> Result<String> {
+///     match supplied_thing {
+///         Either::A(thing) => Ok(format!("Got something: {:?}", thing)),
+///         Either::B(other_thing) => Ok(format!("Got anotherthing: {:?}", other_thing))
+///     }
+/// }
+///
+/// fn main() {
+///     let app = App::new().resource("/users/:first", |r| {
+///         r.method(http::Method::POST).with(index)
+///     });
+/// }
+/// ```
+impl<A: 'static, B: 'static, S: 'static> FromRequest<S> for Either<A,B> where A: FromRequest<S>, B: FromRequest<S> {
+    type Config = EitherConfig<A,B,S>;
+    type Result = AsyncResult<Either<A,B>>;
+
+    #[inline]
+    fn from_request(req: &HttpRequest<S>, cfg: &Self::Config) -> Self::Result {
+        let a = A::from_request(&req.clone(), &cfg.a).into().map(|a| Either::A(a));
+        let b = B::from_request(req, &cfg.b).into().map(|b| Either::B(b));
+
+        match &cfg.collision_strategy {
+            EitherCollisionStrategy::PreferA => AsyncResult::future(Box::new(a.or_else(|_| b))),
+            EitherCollisionStrategy::PreferB => AsyncResult::future(Box::new(b.or_else(|_| a))),
+            EitherCollisionStrategy::FastestSuccessful => AsyncResult::future(Box::new(a.select2(b).then( |r| match r {
+                Ok(future::Either::A((ares, _b))) => AsyncResult::ok(ares),
+                Ok(future::Either::B((bres, _a))) => AsyncResult::ok(bres),
+                Err(future::Either::A((_aerr, b))) => AsyncResult::future(Box::new(b)),
+                Err(future::Either::B((_berr, a))) => AsyncResult::future(Box::new(a))
+            }))),
+            EitherCollisionStrategy::ErrorA => AsyncResult::future(Box::new(b.then(|r| match r {
+                Err(_berr) => AsyncResult::future(Box::new(a)),
+                Ok(b) => AsyncResult::future(Box::new(a.then( |r| match r {
+                    Ok(_a) => Err(ErrorConflict("Both wings of either extractor completed")),
+                    Err(_arr) => Ok(b)
+                })))
+            }))),
+            EitherCollisionStrategy::ErrorB => AsyncResult::future(Box::new(a.then(|r| match r {
+                Err(_aerr) => AsyncResult::future(Box::new(b)),
+                Ok(a) => AsyncResult::future(Box::new(b.then( |r| match r {
+                    Ok(_b) => Err(ErrorConflict("Both wings of either extractor completed")),
+                    Err(_berr) => Ok(a)
+                })))
+            }))),
+        }
+    }
+}
+
+/// Defines the result if neither or both of the extractors supplied to an Either<A,B> extractor succeed.
+#[derive(Debug)]
+pub enum EitherCollisionStrategy {
+    /// If both are successful, return A, if both fail, return error of B
+    PreferA,
+    /// If both are successful, return B, if both fail, return error of A
+    PreferB,
+    /// Return result of the faster, error of the slower if both fail
+    FastestSuccessful,
+
+    /// Return error if both succeed, return error of A if both fail
+    ErrorA,
+    /// Return error if both succeed, return error of B if both fail
+    ErrorB
+}
+
+impl Default for EitherCollisionStrategy {
+    fn default() -> Self {
+        EitherCollisionStrategy::FastestSuccessful
+    }
+}
+
+pub struct EitherConfig<A,B,S> where A: FromRequest<S>, B: FromRequest<S> {
+    a: A::Config,
+    b: B::Config,
+    collision_strategy: EitherCollisionStrategy
+}
+
+impl<A,B,S> Default for EitherConfig<A,B,S> where A: FromRequest<S>, B: FromRequest<S> {
+    fn default() -> Self {
+        EitherConfig {
+            a: A::Config::default(),
+            b: B::Config::default(),
+            collision_strategy: EitherCollisionStrategy::default()
+        }
+    }
+}
+
 /// Optionally extract a field from the request or extract the Error if unsuccessful
 ///
 /// If the FromRequest for T fails, inject Err into handler rather than returning an error response
@@ -874,6 +1020,11 @@ mod tests {
         hello: String,
     }
 
+    #[derive(Deserialize, Debug, PartialEq)]
+    struct OtherInfo {
+        bye: String,
+    }
+
     #[test]
     fn test_bytes() {
         let cfg = PayloadConfig::default();
@@ -975,6 +1126,48 @@ mod tests {
             Async::Ready(r) => assert_eq!(r, None),
             _ => unreachable!(),
         }
+    }
+
+    #[test]
+    fn test_either() {
+        let req = TestRequest::default().finish();
+        let mut cfg: EitherConfig<Query<Info>, Query<OtherInfo>, _> = EitherConfig::default();
+
+        assert!(Either::<Query<Info>, Query<OtherInfo>>::from_request(&req, &cfg).poll().is_err());
+
+        let req = TestRequest::default().uri("/index?hello=world").finish();
+
+        match Either::<Query<Info>, Query<OtherInfo>>::from_request(&req, &cfg).poll().unwrap() {
+            Async::Ready(r) => assert_eq!(r, Either::A(Query(Info { hello: "world".into() }))),
+            _ => unreachable!(),
+        }
+
+        let req = TestRequest::default().uri("/index?bye=world").finish();
+        match Either::<Query<Info>, Query<OtherInfo>>::from_request(&req, &cfg).poll().unwrap() {
+            Async::Ready(r) => assert_eq!(r, Either::B(Query(OtherInfo { bye: "world".into() }))),
+            _ => unreachable!(),
+        }
+
+        let req = TestRequest::default().uri("/index?hello=world&bye=world").finish();
+        cfg.collision_strategy = EitherCollisionStrategy::PreferA;
+
+        match Either::<Query<Info>, Query<OtherInfo>>::from_request(&req, &cfg).poll().unwrap() {
+            Async::Ready(r) => assert_eq!(r, Either::A(Query(Info { hello: "world".into() }))),
+            _ => unreachable!(),
+        }
+
+        cfg.collision_strategy = EitherCollisionStrategy::PreferB;
+
+        match Either::<Query<Info>, Query<OtherInfo>>::from_request(&req, &cfg).poll().unwrap() {
+            Async::Ready(r) => assert_eq!(r, Either::B(Query(OtherInfo { bye: "world".into() }))),
+            _ => unreachable!(),
+        }
+
+        cfg.collision_strategy = EitherCollisionStrategy::ErrorA;
+        assert!(Either::<Query<Info>, Query<OtherInfo>>::from_request(&req, &cfg).poll().is_err());
+
+        cfg.collision_strategy = EitherCollisionStrategy::FastestSuccessful;
+        assert!(Either::<Query<Info>, Query<OtherInfo>>::from_request(&req, &cfg).poll().is_ok());
     }
 
     #[test]
