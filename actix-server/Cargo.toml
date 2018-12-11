@@ -3,7 +3,6 @@ name = "actix-server"
 version = "0.1.0"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix server - General purpose tcp server"
-readme = "README.md"
 keywords = ["network", "framework", "async", "futures"]
 homepage = "https://actix.rs"
 repository = "https://github.com/actix/actix-net.git"
