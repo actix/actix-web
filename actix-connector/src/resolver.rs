@@ -2,10 +2,8 @@ use std::collections::VecDeque;
 use std::marker::PhantomData;
 use std::net::IpAddr;
 
-use futures::{Async, Future, Poll};
-
-use actix_rt::spawn;
 use actix_service::Service;
+use futures::{Async, Future, Poll};
 use trust_dns_resolver::config::{ResolverConfig, ResolverOpts};
 pub use trust_dns_resolver::error::ResolveError;
 use trust_dns_resolver::lookup_ip::LookupIpFuture;
@@ -44,7 +42,7 @@ impl<T: RequestHost> Resolver<T> {
     /// Create new resolver instance with custom configuration and options.
     pub fn new(cfg: ResolverConfig, opts: ResolverOpts) -> Self {
         let (resolver, bg) = AsyncResolver::new(cfg, opts);
-        spawn(bg);
+        actix_rt::Arbiter::spawn(bg);
         Resolver {
             resolver,
             req: PhantomData,
@@ -79,7 +77,13 @@ impl<T: RequestHost> Service<T> for Resolver<T> {
     }
 
     fn call(&mut self, req: T) -> Self::Future {
-        ResolverFuture::new(req, &self.resolver)
+        if let Ok(ip) = req.host().parse() {
+            let mut addrs = VecDeque::new();
+            addrs.push_back(ip);
+            ResolverFuture::new(req, &self.resolver, Some(addrs))
+        } else {
+            ResolverFuture::new(req, &self.resolver, None)
+        }
     }
 }
 
@@ -92,13 +96,13 @@ pub struct ResolverFuture<T> {
 }
 
 impl<T: RequestHost> ResolverFuture<T> {
-    pub fn new(addr: T, resolver: &AsyncResolver) -> Self {
+    pub fn new(addr: T, resolver: &AsyncResolver, addrs: Option<VecDeque<IpAddr>>) -> Self {
         // we need to do dns resolution
         let lookup = Some(resolver.lookup_ip(addr.host()));
         ResolverFuture {
             lookup,
+            addrs,
             req: Some(addr),
-            addrs: None,
         }
     }
 }

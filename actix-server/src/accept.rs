@@ -143,7 +143,7 @@ impl Accept {
 
         // start accept thread
         let _ = thread::Builder::new()
-            .name("actix-web accept loop".to_owned())
+            .name("actix-server accept loop".to_owned())
             .spawn(move || {
                 System::set_current(sys);
                 let mut accept = Accept::new(rx, socks, workers, srv);
