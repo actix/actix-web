@@ -22,3 +22,13 @@ members = [
   "actix-rt",
   "actix-utils",
 ]
+
+[dev-dependencies]
+actix-service = "0.1.1"
+actix-codec = "0.1.0"
+actix-rt = { path="actix-rt" }
+actix-server = { path="actix-server", features=["ssl"] }
+env_logger = "0.5"
+futures = "0.1.24"
+openssl = { version="0.10" }
+tokio-openssl = { version="0.3" }

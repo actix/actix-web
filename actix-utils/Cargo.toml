@@ -20,15 +20,10 @@ path = "src/lib.rs"
 
 [dependencies]
 actix-service = "0.1.1"
-actix-codec = { path = "../actix-codec" }
+actix-codec = "0.1.0"
 actix-rt = { path = "../actix-rt" }
 
 # io
 bytes = "0.4"
 futures = "0.1"
 tokio-timer = "0.2.8"
-
-[profile.release]
-lto = true
-opt-level = 3
-codegen-units = 1

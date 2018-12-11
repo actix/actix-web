@@ -67,8 +67,3 @@ webpki-roots = { version = "0.15", optional = true }
 
 [dev-dependencies]
 env_logger = "0.5"
-
-[profile.release]
-lto = true
-opt-level = 3
-codegen-units = 1

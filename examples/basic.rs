@@ -7,14 +7,13 @@ use std::sync::{
 };
 use std::{env, fmt};
 
+use actix_codec::{AsyncRead, AsyncWrite};
+use actix_rt::System;
+use actix_server::Server;
+use actix_service::{IntoNewService, NewService};
 use futures::{future, Future};
 use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
-use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_openssl::SslAcceptorExt;
-
-use actix_net::server::Server;
-use actix_rt::System;
-use actix_service::{IntoNewService, NewService};
 
 /// Simple logger service, it just prints fact of the new connections
 fn logger<T: AsyncRead + AsyncWrite + fmt::Debug>(

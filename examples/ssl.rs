@@ -3,14 +3,12 @@ use std::sync::{
     Arc,
 };
 
+use actix_codec::{AsyncRead, AsyncWrite};
+use actix_rt::System;
+use actix_server::{ssl, Server};
+use actix_service::NewService;
 use futures::{future, Future};
 use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
-use tokio_io::{AsyncRead, AsyncWrite};
-
-use actix_net::server::Server;
-use actix_net::ssl;
-use actix_rt::System;
-use actix_service::NewService;
 
 #[derive(Debug)]
 struct ServiceState {
