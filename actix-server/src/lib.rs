@@ -6,6 +6,7 @@ mod config;
 mod counter;
 mod server;
 mod services;
+mod signals;
 pub mod ssl;
 mod worker;
 

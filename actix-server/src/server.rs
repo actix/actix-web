@@ -2,16 +2,18 @@ use futures::sync::mpsc::UnboundedSender;
 use futures::sync::oneshot;
 use futures::Future;
 
-use super::builder::ServerBuilder;
+use crate::builder::ServerBuilder;
+use crate::signals::Signal;
 
 pub(crate) enum ServerCommand {
     WorkerDied(usize),
     Pause(oneshot::Sender<()>),
     Resume(oneshot::Sender<()>),
+    Signal(Signal),
     /// Whether to try and shut down gracefully
     Stop {
         graceful: bool,
-        completion: oneshot::Sender<()>,
+        completion: Option<oneshot::Sender<()>>,
     },
 }
 
@@ -26,6 +28,10 @@ impl Server {
     /// Start server building process
     pub fn build() -> ServerBuilder {
         ServerBuilder::default()
+    }
+
+    pub(crate) fn signal(&self, sig: Signal) {
+        let _ = self.0.unbounded_send(ServerCommand::Signal(sig));
     }
 
     pub(crate) fn worker_died(&self, idx: usize) {
@@ -56,7 +62,7 @@ impl Server {
         let (tx, rx) = oneshot::channel();
         let _ = self.0.unbounded_send(ServerCommand::Stop {
             graceful,
-            completion: tx,
+            completion: Some(tx),
         });
         rx.map_err(|_| ())
     }

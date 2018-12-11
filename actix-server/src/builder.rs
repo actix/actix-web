@@ -11,15 +11,14 @@ use net2::TcpBuilder;
 use num_cpus;
 use tokio_timer::sleep;
 
-// use actix::{actors::signal};
-
-use super::accept::{AcceptLoop, AcceptNotify, Command};
-use super::config::{ConfiguredService, ServiceConfig};
-use super::server::{Server, ServerCommand};
-use super::services::{InternalServiceFactory, StreamNewService, StreamServiceFactory};
-use super::services::{ServiceFactory, ServiceNewService};
-use super::worker::{self, Worker, WorkerAvailability, WorkerClient};
-use super::Token;
+use crate::accept::{AcceptLoop, AcceptNotify, Command};
+use crate::config::{ConfiguredService, ServiceConfig};
+use crate::server::{Server, ServerCommand};
+use crate::services::{InternalServiceFactory, StreamNewService, StreamServiceFactory};
+use crate::services::{ServiceFactory, ServiceNewService};
+use crate::signals::{Signal, Signals};
+use crate::worker::{self, Worker, WorkerAvailability, WorkerClient};
+use crate::Token;
 
 /// Server builder
 pub struct ServerBuilder {
@@ -244,11 +243,12 @@ impl ServerBuilder {
             self.accept
                 .start(mem::replace(&mut self.sockets, Vec::new()), workers);
 
+            // handle signals
+            if !self.no_signals {
+                Signals::start(self.server.clone());
+            }
+
             // start http server actor
-            // let signals = self.subscribe_to_signals();
-            // if let Some(signals) = signals {
-            // signals.do_send(signal::Subscribe(addr.clone().recipient()))
-            // }
             let server = self.server.clone();
             spawn(self);
             server
@@ -271,35 +271,124 @@ impl ServerBuilder {
 
         worker
     }
+
+    fn handle_cmd(&mut self, item: ServerCommand) {
+        match item {
+            ServerCommand::Pause(tx) => {
+                self.accept.send(Command::Pause);
+                let _ = tx.send(());
+            }
+            ServerCommand::Resume(tx) => {
+                self.accept.send(Command::Resume);
+                let _ = tx.send(());
+            }
+            ServerCommand::Signal(sig) => {
+                // Signals support
+                // Handle `SIGINT`, `SIGTERM`, `SIGQUIT` signals and stop actix system
+                match sig {
+                    Signal::Int => {
+                        info!("SIGINT received, exiting");
+                        self.exit = true;
+                        self.handle_cmd(ServerCommand::Stop {
+                            graceful: false,
+                            completion: None,
+                        })
+                    }
+                    Signal::Term => {
+                        info!("SIGTERM received, stopping");
+                        self.exit = true;
+                        self.handle_cmd(ServerCommand::Stop {
+                            graceful: true,
+                            completion: None,
+                        })
+                    }
+                    Signal::Quit => {
+                        info!("SIGQUIT received, exiting");
+                        self.exit = true;
+                        self.handle_cmd(ServerCommand::Stop {
+                            graceful: false,
+                            completion: None,
+                        })
+                    }
+                    _ => (),
+                }
+            }
+            ServerCommand::Stop {
+                graceful,
+                completion,
+            } => {
+                let exit = self.exit;
+
+                // stop accept thread
+                self.accept.send(Command::Stop);
+
+                // stop workers
+                if !self.workers.is_empty() {
+                    spawn(
+                        futures_unordered(
+                            self.workers
+                                .iter()
+                                .map(move |worker| worker.1.stop(graceful)),
+                        )
+                        .collect()
+                        .then(move |_| {
+                            if let Some(tx) = completion {
+                                let _ = tx.send(());
+                            }
+                            if exit {
+                                spawn(sleep(Duration::from_millis(300)).then(|_| {
+                                    System::current().stop();
+                                    ok(())
+                                }));
+                            }
+                            ok(())
+                        }),
+                    )
+                } else {
+                    // we need to stop system if server was spawned
+                    if self.exit {
+                        spawn(sleep(Duration::from_millis(300)).then(|_| {
+                            System::current().stop();
+                            ok(())
+                        }));
+                    }
+                    if let Some(tx) = completion {
+                        let _ = tx.send(());
+                    }
+                }
+            }
+            ServerCommand::WorkerDied(idx) => {
+                let mut found = false;
+                for i in 0..self.workers.len() {
+                    if self.workers[i].0 == idx {
+                        self.workers.swap_remove(i);
+                        found = true;
+                        break;
+                    }
+                }
+
+                if found {
+                    error!("Worker has died {:?}, restarting", idx);
+
+                    let mut new_idx = self.workers.len();
+                    'found: loop {
+                        for i in 0..self.workers.len() {
+                            if self.workers[i].0 == new_idx {
+                                new_idx += 1;
+                                continue 'found;
+                            }
+                        }
+                        break;
+                    }
+
+                    let worker = self.start_worker(new_idx, self.accept.get_notify());
+                    self.workers.push((new_idx, worker.clone()));
+                    self.accept.send(Command::Worker(worker));
+                }
+            }
+        }
+    }
 }
-
-// /// Signals support
-// /// Handle `SIGINT`, `SIGTERM`, `SIGQUIT` signals and stop actix system
-// /// message to `System` actor.
-// impl Handler<signal::Signal> for Server {
-//     type Result = ();
-
-//     fn handle(&mut self, msg: signal::Signal, ctx: &mut Context<Self>) {
-//         match msg.0 {
-//             signal::SignalType::Int => {
-//                 info!("SIGINT received, exiting");
-//                 self.exit = true;
-//                 Handler::<StopServer>::handle(self, StopServer { graceful: false }, ctx);
-//             }
-//             signal::SignalType::Term => {
-//                 info!("SIGTERM received, stopping");
-//                 self.exit = true;
-//                 Handler::<StopServer>::handle(self, StopServer { graceful: true }, ctx);
-//             }
-//             signal::SignalType::Quit => {
-//                 info!("SIGQUIT received, exiting");
-//                 self.exit = true;
-//                 Handler::<StopServer>::handle(self, StopServer { graceful: false }, ctx);
-//             }
-//             _ => (),
-//         }
-//     }
-// }
 
 impl Future for ServerBuilder {
     type Item = ();
@@ -310,85 +399,7 @@ impl Future for ServerBuilder {
             match self.cmd.poll() {
                 Ok(Async::Ready(None)) | Err(_) => return Ok(Async::Ready(())),
                 Ok(Async::NotReady) => return Ok(Async::NotReady),
-                Ok(Async::Ready(Some(item))) => match item {
-                    ServerCommand::Pause(tx) => {
-                        self.accept.send(Command::Pause);
-                        let _ = tx.send(());
-                    }
-                    ServerCommand::Resume(tx) => {
-                        self.accept.send(Command::Resume);
-                        let _ = tx.send(());
-                    }
-                    ServerCommand::Stop {
-                        graceful,
-                        completion,
-                    } => {
-                        let exit = self.exit;
-
-                        // stop accept thread
-                        self.accept.send(Command::Stop);
-
-                        // stop workers
-                        if !self.workers.is_empty() {
-                            spawn(
-                                futures_unordered(
-                                    self.workers
-                                        .iter()
-                                        .map(move |worker| worker.1.stop(graceful)),
-                                )
-                                .collect()
-                                .then(move |_| {
-                                    let _ = completion.send(());
-                                    if exit {
-                                        spawn(sleep(Duration::from_millis(300)).then(|_| {
-                                            System::current().stop();
-                                            ok(())
-                                        }));
-                                    }
-                                    ok(())
-                                }),
-                            )
-                        } else {
-                            // we need to stop system if server was spawned
-                            if self.exit {
-                                spawn(sleep(Duration::from_millis(300)).then(|_| {
-                                    System::current().stop();
-                                    ok(())
-                                }));
-                            }
-                            let _ = completion.send(());
-                        }
-                    }
-                    ServerCommand::WorkerDied(idx) => {
-                        let mut found = false;
-                        for i in 0..self.workers.len() {
-                            if self.workers[i].0 == idx {
-                                self.workers.swap_remove(i);
-                                found = true;
-                                break;
-                            }
-                        }
-
-                        if found {
-                            error!("Worker has died {:?}, restarting", idx);
-
-                            let mut new_idx = self.workers.len();
-                            'found: loop {
-                                for i in 0..self.workers.len() {
-                                    if self.workers[i].0 == new_idx {
-                                        new_idx += 1;
-                                        continue 'found;
-                                    }
-                                }
-                                break;
-                            }
-
-                            let worker = self.start_worker(new_idx, self.accept.get_notify());
-                            self.workers.push((new_idx, worker.clone()));
-                            self.accept.send(Command::Worker(worker));
-                        }
-                    }
-                },
+                Ok(Async::Ready(Some(item))) => self.handle_cmd(item),
             }
         }
     }
