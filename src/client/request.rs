@@ -27,11 +27,12 @@ use httprequest::HttpRequest;
 ///
 /// ```rust
 /// # extern crate actix_web;
+/// # extern crate actix;
 /// # extern crate futures;
 /// # extern crate tokio;
 /// # use futures::Future;
 /// # use std::process;
-/// use actix_web::{actix, client};
+/// use actix_web::client;
 ///
 /// fn main() {
 ///     actix::run(

@@ -457,7 +457,8 @@ impl<H: IntoHttpHandler, F: Fn() -> H + Send + Clone> HttpServer<H, F> {
     ///
     /// ```rust
     /// extern crate actix_web;
-    /// use actix_web::{actix, server, App, HttpResponse};
+    /// extern crate actix;
+    /// use actix_web::{server, App, HttpResponse};
     ///
     /// fn main() {
     ///     let sys = actix::System::new("example");  // <- create Actix system

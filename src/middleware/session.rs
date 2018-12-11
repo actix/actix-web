@@ -33,7 +33,8 @@
 //!
 //! ```rust
 //! # extern crate actix_web;
-//! use actix_web::{actix, server, App, HttpRequest, Result};
+//! # extern crate actix;
+//! use actix_web::{server, App, HttpRequest, Result};
 //! use actix_web::middleware::session::{RequestSession, SessionStorage, CookieSessionBackend};
 //!
 //! fn index(req: HttpRequest) -> Result<&'static str> {

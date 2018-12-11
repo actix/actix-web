@@ -8,7 +8,8 @@
 //!
 //! ```rust
 //! # extern crate actix_web;
-//! # use actix_web::actix::*;
+//! # extern crate actix;
+//! # use actix::prelude::*;
 //! # use actix_web::*;
 //! use actix_web::{ws, HttpRequest, HttpResponse};
 //!

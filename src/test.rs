@@ -4,7 +4,7 @@ use std::str::FromStr;
 use std::sync::mpsc;
 use std::{net, thread};
 
-use actix_inner::{Actor, Addr, System};
+use actix::{Actor, Addr, System};
 
 use cookie::Cookie;
 use futures::Future;

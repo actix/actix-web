@@ -3,8 +3,8 @@ use std::net::Shutdown;
 use std::time::{Duration, Instant};
 use std::{fmt, io, mem, time};
 
-use actix::resolver::{Connect as ResolveConnect, Resolver, ResolverError};
-use actix::{
+use actix_inner::actors::resolver::{Connect as ResolveConnect, Resolver, ResolverError};
+use actix_inner::{
     fut, Actor, ActorFuture, ActorResponse, AsyncContext, Context,
     ContextFutureSpawner, Handler, Message, Recipient, StreamHandler, Supervised,
     SystemService, WrapFuture,
