@@ -1,6 +1,6 @@
 [package]
 name = "actix-web"
-version = "0.7.15"
+version = "0.7.16"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix web is a simple, pragmatic and extremely fast web framework for Rust."
 readme = "README.md"
@@ -61,7 +61,7 @@ flate2-rust = ["flate2/rust_backend"]
 cell = ["actix-net/cell"]
 
 [dependencies]
-actix = "0.7.7"
+actix = "0.7.9"
 actix-net = "0.2.2"
 
 askama_escape = "0.1.0"

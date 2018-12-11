@@ -6,7 +6,8 @@ use std::time::{Duration, Instant};
 use std::{io, mem};
 use tokio_timer::Delay;
 
-use actix::{Addr, Request, SystemService};
+use actix_inner::dev::Request;
+use actix::{Addr, SystemService};
 
 use super::{
     ClientConnector, ClientConnectorError, ClientRequest, ClientResponse, Connect,

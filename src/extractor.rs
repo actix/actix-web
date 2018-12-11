@@ -751,7 +751,6 @@ pub enum EitherCollisionStrategy {
     PreferB,
     /// Return result of the faster, error of the slower if both fail
     FastestSuccessful,
-
     /// Return error if both succeed, return error of A if both fail
     ErrorA,
     /// Return error if both succeed, return error of B if both fail
@@ -764,6 +763,9 @@ impl Default for EitherCollisionStrategy {
     }
 }
 
+///Determines Either extractor configuration
+///
+///By default `EitherCollisionStrategy::FastestSuccessful` is used.
 pub struct EitherConfig<A,B,S> where A: FromRequest<S>, B: FromRequest<S> {
     a: A::Config,
     b: B::Config,
