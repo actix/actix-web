@@ -34,10 +34,12 @@ impl Signals {
         let fut = {
             #[cfg(not(unix))]
             {
-                tokio_signal::ctrl_c().and_then(move |stream| Signals {
-                    srv,
-                    stream: Box::new(stream.map(|_| Signal::Int)),
-                })
+                tokio_signal::ctrl_c()
+                    .map_err(|_| ())
+                    .and_then(move |stream| Signals {
+                        srv,
+                        stream: Box::new(stream.map(|_| Signal::Int)),
+                    })
             }
 
             #[cfg(unix)]
