@@ -38,11 +38,11 @@ ssl = ["openssl", "actix-connector/ssl"]
 
 [dependencies]
 actix-service = "0.1.1"
-actix-codec = { git="https://github.com/actix/actix-net.git" }
-actix-connector = { git="https://github.com/actix/actix-net.git" }
-actix-rt = { git="https://github.com/actix/actix-net.git" }
-actix-server = { git="https://github.com/actix/actix-net.git" }
-actix-utils = { git="https://github.com/actix/actix-net.git" }
+actix-codec = "0.1.0"
+actix-connector = "0.1.0"
+actix-rt = "0.1.0"
+actix-server = "0.1.0"
+actix-utils = "0.1.0"
 
 # actix-codec = { path="../actix-net/actix-codec/" }
 # actix-connector = { path="../actix-net/actix-connector/" }
