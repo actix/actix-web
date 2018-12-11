@@ -33,10 +33,12 @@ script:
     if [[ "$TRAVIS_RUST_VERSION" != "nightly" ]]; then
     cargo clean
     cargo test --features="ssl,tls,rust-tls" -- --nocapture
-    cd actix-codec && cargo test
-    cd actix-service && cargo test
-    cd actix-server && cargo test --features="ssl,tls,rust-tls" -- --nocapture
-    cd actix-rt && cargo test
+    cd actix-codec && cargo test && cd ..
+    cd actix-service && cargo test && cd ..
+    cd actix-server && cargo test --features="ssl,tls,rust-tls" -- --nocapture && cd ..
+    cd actix-rt && cargo test && cd ..
+    cd actix-connector && cargo test && cd ..
+    cd actix-utils && cargo test && cd ..
     fi
   - |
     if [[ "$TRAVIS_RUST_VERSION" == "nightly" ]]; then
@@ -44,16 +46,10 @@ script:
     cargo tarpaulin --features="ssl,tls,rust-tls" --out Xml
     bash <(curl -s https://codecov.io/bash)
     echo "Uploaded code coverage"
-    cd actix-service && cargo tarpaulin --out Xml && bash <(curl -s https://codecov.io/bash)
-    fi
-
-# Upload docs
-after_success:
-  - |
-    if [[ "$TRAVIS_OS_NAME" == "linux" && "$TRAVIS_PULL_REQUEST" = "false" && "$TRAVIS_BRANCH" == "master" && "$TRAVIS_RUST_VERSION" == "beta" ]]; then
-      cargo doc --features "ssl,tls,rust-tls" --no-deps &&
-      echo "<meta http-equiv=refresh content=0;url=os_balloon/index.html>" > target/doc/index.html &&
-      git clone https://github.com/davisp/ghp-import.git &&
-      ./ghp-import/ghp_import.py -n -p -f -m "Documentation upload" -r https://"$GH_TOKEN"@github.com/"$TRAVIS_REPO_SLUG.git" target/doc &&
-      echo "Uploaded documentation"
+    cd actix-service && cargo tarpaulin --out Xml && bash <(curl -s https://codecov.io/bash) && cd ..
+    cd actix-rt && cargo tarpaulin --out Xml && bash <(curl -s https://codecov.io/bash) && cd ..
+    cd actix-connector && cargo tarpaulin --out Xml && bash <(curl -s https://codecov.io/bash) && cd ..
+    cd actix-codec && cargo tarpaulin --out Xml && bash <(curl -s https://codecov.io/bash) && cd ..
+    cd actix-server && cargo tarpaulin --out Xml && bash <(curl -s https://codecov.io/bash) && cd ..
+    cd actix-utils && cargo tarpaulin --out Xml && bash <(curl -s https://codecov.io/bash) && cd ..
     fi
