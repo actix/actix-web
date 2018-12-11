@@ -5,7 +5,7 @@ use std::string::FromUtf8Error;
 use std::sync::Mutex;
 use std::{fmt, io, result};
 
-use actix::MailboxError;
+use actix::{MailboxError, SendError};
 use cookie;
 use failure::{self, Backtrace, Fail};
 use futures::Canceled;
@@ -134,6 +134,10 @@ pub trait ResponseError: Fail + InternalResponseErrorAsFail {
     fn error_response(&self) -> HttpResponse {
         HttpResponse::new(StatusCode::INTERNAL_SERVER_ERROR)
     }
+}
+
+impl<T> ResponseError for SendError<T>
+where T: Send + Sync + 'static {
 }
 
 impl fmt::Display for Error {
