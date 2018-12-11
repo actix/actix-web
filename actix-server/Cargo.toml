@@ -35,7 +35,7 @@ rust-tls = ["rustls", "tokio-rustls", "webpki", "webpki-roots"]
 
 [dependencies]
 actix-service = "0.1.1"
-actix-rt = { path = "../actix-rt" }
+actix-rt = "0.1.0"
 
 log = "0.4"
 num_cpus = "1.0"

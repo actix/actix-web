@@ -21,7 +21,7 @@ path = "src/lib.rs"
 [dependencies]
 actix-service = "0.1.1"
 actix-codec = "0.1.0"
-actix-rt = { path = "../actix-rt" }
+actix-rt = "0.1.0"
 
 # io
 bytes = "0.4"

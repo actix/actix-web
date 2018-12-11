@@ -30,10 +30,9 @@ ssl = ["openssl", "tokio-openssl"]
 [dependencies]
 actix-service = "0.1.1"
 actix-codec = "0.1.0"
-actix-rt = { path = "../actix-rt" }
+actix-rt = "0.1.0"
 futures = "0.1"
 tokio-tcp = "0.1"
-
 trust-dns-proto = "^0.5.0"
 trust-dns-resolver = "^0.10.0"
 
