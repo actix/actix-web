@@ -1,0 +1,34 @@
+[package]
+name = "actix-utils"
+version = "0.1.0"
+authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
+description = "Actix utils - various actix net related services"
+readme = "README.md"
+keywords = ["network", "framework", "async", "futures"]
+homepage = "https://actix.rs"
+repository = "https://github.com/actix/actix-net.git"
+documentation = "https://docs.rs/actix-utils/"
+categories = ["network-programming", "asynchronous"]
+license = "MIT/Apache-2.0"
+exclude = [".gitignore", ".travis.yml", ".cargo/config", "appveyor.yml"]
+edition = "2018"
+workspace = "../"
+
+[lib]
+name = "actix_utils"
+path = "src/lib.rs"
+
+[dependencies]
+actix-service = "0.1.1"
+actix-codec = { path = "../actix-codec" }
+actix-rt = { path = "../actix-rt" }
+
+# io
+bytes = "0.4"
+futures = "0.1"
+tokio-timer = "0.2.8"
+
+[profile.release]
+lto = true
+opt-level = 3
+codegen-units = 1

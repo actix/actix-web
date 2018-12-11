@@ -2,13 +2,12 @@
 use std::marker::PhantomData;
 use std::mem;
 
-use actix_codec::{Decoder, Encoder, Framed};
+use actix_codec::{AsyncRead, AsyncWrite, Decoder, Encoder, Framed};
 use actix_rt::Arbiter;
 use actix_service::{IntoNewService, IntoService, NewService, Service};
 use futures::future::{ok, FutureResult};
 use futures::unsync::mpsc;
 use futures::{Async, AsyncSink, Future, Poll, Sink, Stream};
-use tokio_io::{AsyncRead, AsyncWrite};
 
 type Request<U> = <U as Decoder>::Item;
 type Response<U> = <U as Encoder>::Item;

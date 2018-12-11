@@ -15,65 +15,10 @@ edition = "2018"
 
 [workspace]
 members = [
-  "./",
   "actix-codec",
   "actix-connector",
   "actix-service",
   "actix-server",
   "actix-rt",
+  "actix-utils",
 ]
-
-[package.metadata.docs.rs]
-features = ["ssl"]
-
-[badges]
-travis-ci = { repository = "actix/actix-net", branch = "master" }
-# appveyor = { repository = "fafhrd91/actix-web-hdy9d" }
-codecov = { repository = "actix/actix-net", branch = "master", service = "github" }
-
-[lib]
-name = "actix_net"
-path = "src/lib.rs"
-
-[features]
-default = []
-
-# openssl
-ssl = ["openssl", "tokio-openssl"]
-
-cell = []
-
-[dependencies]
-actix-service = "0.1.1"
-actix-codec = { path = "actix-codec" }
-actix-rt = { path = "actix-rt" }
-
-log = "0.4"
-num_cpus = "1.0"
-
-# io
-mio = "^0.6.13"
-net2 = "0.2"
-bytes = "0.4"
-futures = "0.1"
-slab = "0.4"
-tokio-io = "0.1"
-tokio-tcp = "0.1"
-tokio-timer = "0.2"
-tokio-reactor = "0.1"
-tokio-signal = "0.2"
-
-trust-dns-proto = "^0.5.0"
-trust-dns-resolver = "^0.10.0"
-
-# openssl
-openssl = { version="0.10", optional = true }
-tokio-openssl = { version="0.3", optional = true }
-
-[dev-dependencies]
-env_logger = "0.5"
-
-[profile.release]
-lto = true
-opt-level = 3
-codegen-units = 1

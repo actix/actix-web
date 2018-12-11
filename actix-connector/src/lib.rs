@@ -8,6 +8,7 @@
 
 mod connector;
 mod resolver;
+pub mod ssl;
 
 pub use self::connector::{
     Connect, Connector, ConnectorError, DefaultConnector, RequestPort, TcpConnector,
