@@ -1,13 +1,13 @@
 use std::marker::PhantomData;
 use std::{io, mem};
 
+use actix_codec::Decoder;
 use bytes::{Bytes, BytesMut};
 use futures::{Async, Poll};
 use http::header::{HeaderName, HeaderValue};
 use http::{header, HeaderMap, HttpTryFrom, Method, StatusCode, Uri, Version};
 use httparse;
 use log::{debug, error, trace};
-use tokio_codec::Decoder;
 
 use crate::client::ClientResponse;
 use crate::error::ParseError;
@@ -607,9 +607,9 @@ impl ChunkedState {
 mod tests {
     use std::{cmp, io};
 
+    use actix_codec::{AsyncRead, AsyncWrite};
     use bytes::{Buf, Bytes, BytesMut};
     use http::{Method, Version};
-    use tokio_io::{AsyncRead, AsyncWrite};
 
     use super::*;
     use crate::error::ParseError;

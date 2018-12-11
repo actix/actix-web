@@ -1,7 +1,7 @@
 //! Http client request
 use std::io;
 
-use actix_net::connector::ConnectorError;
+use actix_connector::ConnectorError;
 use failure::Fail;
 use http::{header::HeaderValue, Error as HttpError, StatusCode};
 

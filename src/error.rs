@@ -5,7 +5,7 @@ use std::string::FromUtf8Error;
 use std::sync::Mutex;
 use std::{fmt, io, result};
 
-use actix::MailboxError;
+// use actix::MailboxError;
 use cookie;
 use failure::{self, Backtrace, Fail};
 use futures::Canceled;
@@ -250,8 +250,8 @@ impl ResponseError for header::InvalidHeaderValueBytes {
 /// `InternalServerError` for `futures::Canceled`
 impl ResponseError for Canceled {}
 
-/// `InternalServerError` for `actix::MailboxError`
-impl ResponseError for MailboxError {}
+// /// `InternalServerError` for `actix::MailboxError`
+// impl ResponseError for MailboxError {}
 
 /// A set of errors that can occur during parsing HTTP streams
 #[derive(Fail, Debug)]

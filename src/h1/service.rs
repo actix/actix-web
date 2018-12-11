@@ -2,12 +2,11 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::net;
 
-use actix_net::codec::Framed;
-use actix_net::service::{IntoNewService, NewService, Service};
+use actix_codec::{AsyncRead, AsyncWrite, Framed};
+use actix_service::{IntoNewService, NewService, Service};
 use futures::future::{ok, FutureResult};
 use futures::{try_ready, Async, Future, Poll, Stream};
 use log::error;
-use tokio_io::{AsyncRead, AsyncWrite};
 
 use crate::body::MessageBody;
 use crate::config::{KeepAlive, ServiceConfig};

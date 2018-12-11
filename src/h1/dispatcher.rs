@@ -3,12 +3,11 @@ use std::fmt::Debug;
 use std::mem;
 use std::time::Instant;
 
-use actix_net::codec::Framed;
-use actix_net::service::Service;
+use actix_codec::{AsyncRead, AsyncWrite, Framed};
+use actix_service::Service;
 use bitflags::bitflags;
 use futures::{try_ready, Async, Future, Poll, Sink, Stream};
 use log::{debug, error, trace};
-use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_timer::Delay;
 
 use crate::body::{Body, BodyLength, MessageBody, ResponseBody};

@@ -1,11 +1,10 @@
 use std::collections::VecDeque;
 
-use actix_net::codec::Framed;
-use actix_net::service::Service;
+use actix_codec::{AsyncRead, AsyncWrite, Framed};
+use actix_service::Service;
 use bytes::Bytes;
 use futures::future::{err, ok, Either};
 use futures::{Async, Future, Poll, Sink, Stream};
-use tokio_io::{AsyncRead, AsyncWrite};
 
 use super::error::{ConnectorError, SendRequestError};
 use super::response::ClientResponse;

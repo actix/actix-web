@@ -1,7 +1,7 @@
 //! HTTP/1 implementation
 use std::fmt;
 
-use actix_net::codec::Framed;
+use actix_codec::Framed;
 use bytes::Bytes;
 
 mod client;

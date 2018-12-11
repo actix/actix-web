@@ -1,13 +1,12 @@
 use std::time::Duration;
 use std::{fmt, io};
 
-use actix_net::connector::TcpConnector;
-use actix_net::resolver::Resolver;
-use actix_net::service::{Service, ServiceExt};
-use actix_net::timeout::{TimeoutError, TimeoutService};
+use actix_codec::{AsyncRead, AsyncWrite};
+use actix_connector::{Resolver, TcpConnector};
+use actix_service::Service;
+use actix_utils::timeout::{TimeoutError, TimeoutService};
 use futures::future::Either;
 use futures::Poll;
-use tokio_io::{AsyncRead, AsyncWrite};
 use trust_dns_resolver::config::{ResolverConfig, ResolverOpts};
 
 use super::connect::Connect;
@@ -16,7 +15,7 @@ use super::error::ConnectorError;
 use super::pool::ConnectionPool;
 
 #[cfg(feature = "ssl")]
-use actix_net::ssl::OpensslConnector;
+use actix_connector::ssl::OpensslConnector;
 #[cfg(feature = "ssl")]
 use openssl::ssl::{SslConnector, SslMethod};
 
@@ -169,7 +168,7 @@ impl Connector {
                     .and_then(TcpConnector::default().from_err())
                     .and_then(
                         OpensslConnector::service(self.connector)
-                            .map_err(ConnectorError::SslError),
+                            .map_err(ConnectorError::from),
                     ),
             )
             .map_err(|e| match e {

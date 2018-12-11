@@ -1,5 +1,4 @@
-use actix_net::connector::RequestPort;
-use actix_net::resolver::RequestHost;
+use actix_connector::{RequestHost, RequestPort};
 use http::uri::Uri;
 use http::{Error as HttpError, HttpTryFrom};
 

@@ -1,7 +1,7 @@
 use std::{fmt, io, time};
 
+use actix_codec::{AsyncRead, AsyncWrite};
 use futures::Poll;
-use tokio_io::{AsyncRead, AsyncWrite};
 
 use super::pool::Acquired;
 

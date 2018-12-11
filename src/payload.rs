@@ -523,8 +523,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use actix_rt::Runtime;
     use futures::future::{lazy, result};
-    use tokio::runtime::current_thread::Runtime;
 
     #[test]
     fn test_error() {

@@ -1,19 +1,11 @@
-#[macro_use]
-extern crate log;
-extern crate env_logger;
-
-extern crate actix_http;
-extern crate actix_net;
-extern crate bytes;
-extern crate futures;
-
 use actix_http::http::HeaderValue;
 use actix_http::HttpMessage;
 use actix_http::{h1, Error, Request, Response};
-use actix_net::server::Server;
-use actix_net::service::NewServiceExt;
+use actix_server::Server;
+use actix_service::NewService;
 use bytes::Bytes;
 use futures::Future;
+use log::info;
 use std::env;
 
 fn handle_request(_req: Request) -> impl Future<Item = Response, Error = Error> {
@@ -29,7 +21,7 @@ fn main() {
     env::set_var("RUST_LOG", "echo=info");
     env_logger::init();
 
-    Server::new()
+    Server::build()
         .bind("echo", "127.0.0.1:8080", || {
             h1::H1Service::build()
                 .client_timeout(1000)

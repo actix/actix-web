@@ -1,13 +1,13 @@
 #![allow(unused_imports, unused_variables, dead_code)]
 use std::io::{self, Write};
 
+use actix_codec::{Decoder, Encoder};
 use bitflags::bitflags;
 use bytes::{BufMut, Bytes, BytesMut};
 use http::header::{
     HeaderValue, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING, UPGRADE,
 };
 use http::{Method, Version};
-use tokio_codec::{Decoder, Encoder};
 
 use super::decoder::{PayloadDecoder, PayloadItem, PayloadType};
 use super::{decoder, encoder};

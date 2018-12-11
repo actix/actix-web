@@ -1,14 +1,8 @@
-extern crate actix;
-extern crate actix_http;
-extern crate actix_net;
-extern crate bytes;
-extern crate futures;
-
 use std::io::{Read, Write};
 use std::time::Duration;
 use std::{net, thread};
 
-use actix_net::service::NewServiceExt;
+use actix_service::NewService;
 use bytes::Bytes;
 use futures::future::{self, ok};
 use futures::stream::once;

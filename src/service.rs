@@ -1,10 +1,9 @@
 use std::marker::PhantomData;
 
-use actix_net::codec::Framed;
-use actix_net::service::{NewService, Service};
+use actix_codec::{AsyncRead, AsyncWrite, Framed};
+use actix_service::{NewService, Service};
 use futures::future::{ok, Either, FutureResult};
 use futures::{Async, Future, Poll, Sink};
-use tokio_io::{AsyncRead, AsyncWrite};
 
 use crate::body::{BodyLength, MessageBody, ResponseBody};
 use crate::error::{Error, ResponseError};

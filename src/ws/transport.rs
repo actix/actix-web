@@ -1,8 +1,7 @@
-use actix_net::codec::Framed;
-use actix_net::framed::{FramedTransport, FramedTransportError};
-use actix_net::service::{IntoService, Service};
+use actix_codec::{AsyncRead, AsyncWrite, Framed};
+use actix_service::{IntoService, Service};
+use actix_utils::framed::{FramedTransport, FramedTransportError};
 use futures::{Future, Poll};
-use tokio_io::{AsyncRead, AsyncWrite};
 
 use super::{Codec, Frame, Message};
 

@@ -3,10 +3,10 @@ use std::str::FromStr;
 use std::sync::mpsc;
 use std::{net, thread};
 
-use actix::System;
-use actix_net::codec::Framed;
-use actix_net::server::{Server, StreamServiceFactory};
-use actix_net::service::Service;
+use actix_codec::{AsyncRead, AsyncWrite, Framed};
+use actix_rt::{Runtime, System};
+use actix_server::{Server, StreamServiceFactory};
+use actix_service::Service;
 
 use bytes::Bytes;
 use cookie::Cookie;
@@ -14,8 +14,6 @@ use futures::future::{lazy, Future};
 use http::header::HeaderName;
 use http::{HeaderMap, HttpTryFrom, Method, Uri, Version};
 use net2::TcpBuilder;
-use tokio::runtime::current_thread::Runtime;
-use tokio_io::{AsyncRead, AsyncWrite};
 
 use crate::body::MessageBody;
 use crate::client::{
@@ -316,7 +314,7 @@ impl TestServer {
             let tcp = net::TcpListener::bind("127.0.0.1:0").unwrap();
             let local_addr = tcp.local_addr().unwrap();
 
-            Server::default()
+            Server::build()
                 .listen("test", tcp, factory)
                 .workers(1)
                 .disable_signals()
@@ -390,9 +388,9 @@ impl<T> TestServerRuntime<T> {
     /// Construct test server url
     pub fn url(&self, uri: &str) -> String {
         if uri.starts_with('/') {
-            format!("http://localhost:{}{}", self.addr.port(), uri)
+            format!("http://127.0.0.1:{}{}", self.addr.port(), uri)
         } else {
-            format!("http://localhost:{}/{}", self.addr.port(), uri)
+            format!("http://127.0.0.1:{}/{}", self.addr.port(), uri)
         }
     }
 

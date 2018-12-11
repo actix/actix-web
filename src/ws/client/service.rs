@@ -1,9 +1,9 @@
 //! websockets client
 use std::marker::PhantomData;
 
-use actix_net::codec::Framed;
-use actix_net::connector::{Connect as TcpConnect, ConnectorError, DefaultConnector};
-use actix_net::service::Service;
+use actix_codec::{AsyncRead, AsyncWrite, Framed};
+use actix_connector::{Connect as TcpConnect, ConnectorError, DefaultConnector};
+use actix_service::Service;
 use base64;
 use futures::future::{err, Either, FutureResult};
 use futures::{try_ready, Async, Future, Poll, Sink, Stream};
@@ -12,7 +12,6 @@ use http::{HttpTryFrom, StatusCode};
 use log::trace;
 use rand;
 use sha1::Sha1;
-use tokio_io::{AsyncRead, AsyncWrite};
 
 use crate::body::BodyLength;
 use crate::client::ClientResponse;

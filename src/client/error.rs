@@ -4,13 +4,7 @@ use failure::Fail;
 use trust_dns_resolver::error::ResolveError;
 
 #[cfg(feature = "ssl")]
-use openssl::ssl::Error as SslError;
-
-#[cfg(all(feature = "tls", not(any(feature = "ssl", feature = "rust-tls"))))]
-use native_tls::Error as SslError;
-
-#[cfg(all(feature = "rust-tls", not(any(feature = "tls", feature = "ssl"))))]
-use std::io::Error as SslError;
+use openssl::ssl::{Error as SslError, HandshakeError};
 
 use crate::error::{Error, ParseError};
 
@@ -26,7 +20,7 @@ pub enum ConnectorError {
     SslIsNotSupported,
 
     /// SSL error
-    #[cfg(any(feature = "tls", feature = "ssl", feature = "rust-tls"))]
+    #[cfg(feature = "ssl")]
     #[fail(display = "{}", _0)]
     SslError(#[cause] SslError),
 
@@ -70,6 +64,28 @@ impl From<io::Error> for ConnectorError {
 impl From<ResolveError> for ConnectorError {
     fn from(err: ResolveError) -> ConnectorError {
         ConnectorError::Resolver(err)
+    }
+}
+
+#[cfg(feature = "ssl")]
+impl From<SslError> for ConnectorError {
+    fn from(err: SslError) -> ConnectorError {
+        ConnectorError::SslError(err)
+    }
+}
+
+#[cfg(feature = "ssl")]
+impl<T> From<HandshakeError<T>> for ConnectorError {
+    fn from(err: HandshakeError<T>) -> ConnectorError {
+        match err {
+            HandshakeError::SetupFailure(stack) => SslError::from(stack).into(),
+            HandshakeError::Failure(stream) => {
+                SslError::from(stream.into_error()).into()
+            }
+            HandshakeError::WouldBlock(stream) => {
+                SslError::from(stream.into_error()).into()
+            }
+        }
     }
 }
 

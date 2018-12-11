@@ -2,11 +2,11 @@
 use std::fmt;
 use std::io::{self, Write};
 
+use actix_codec::{Decoder, Encoder};
 use bitflags::bitflags;
 use bytes::{BufMut, Bytes, BytesMut};
 use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING};
 use http::{Method, StatusCode, Version};
-use tokio_codec::{Decoder, Encoder};
 
 use super::decoder::{PayloadDecoder, PayloadItem, PayloadType};
 use super::{decoder, encoder};
@@ -192,9 +192,9 @@ impl Encoder for Codec {
 mod tests {
     use std::{cmp, io};
 
+    use actix_codec::{AsyncRead, AsyncWrite};
     use bytes::{Buf, Bytes, BytesMut};
     use http::{Method, Version};
-    use tokio_io::{AsyncRead, AsyncWrite};
 
     use super::*;
     use crate::error::ParseError;

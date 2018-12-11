@@ -1,10 +1,4 @@
-extern crate actix;
-extern crate actix_http;
-extern crate actix_net;
-extern crate bytes;
-extern crate futures;
-
-use actix_net::service::NewServiceExt;
+use actix_service::NewService;
 use bytes::Bytes;
 use futures::future::{self, ok};
 
@@ -35,6 +29,7 @@ const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
 
 #[test]
 fn test_h1_v2() {
+    env_logger::init();
     let mut srv = TestServer::with_factory(move || {
         h1::H1Service::build()
             .finish(|_| future::ok::<_, ()>(Response::Ok().body(STR)))

@@ -1,16 +1,9 @@
-extern crate actix;
-extern crate actix_http;
-extern crate actix_net;
-extern crate actix_web;
-extern crate bytes;
-extern crate futures;
-
 use std::io;
 
-use actix_net::codec::Framed;
-use actix_net::framed::IntoFramed;
-use actix_net::service::NewServiceExt;
-use actix_net::stream::TakeItem;
+use actix_codec::Framed;
+use actix_service::NewService;
+use actix_utils::framed::IntoFramed;
+use actix_utils::stream::TakeItem;
 use actix_web::ws as web_ws;
 use bytes::{Bytes, BytesMut};
 use futures::future::{lazy, ok, Either};
@@ -79,38 +72,6 @@ fn test_simple() {
             })
     });
 
-    {
-        let url = srv.url("/");
-
-        let (reader, mut writer) = srv
-            .block_on(lazy(|| web_ws::Client::new(url).connect()))
-            .unwrap();
-
-        writer.text("text");
-        let (item, reader) = srv.block_on(reader.into_future()).unwrap();
-        assert_eq!(item, Some(web_ws::Message::Text("text".to_owned())));
-
-        writer.binary(b"text".as_ref());
-        let (item, reader) = srv.block_on(reader.into_future()).unwrap();
-        assert_eq!(
-            item,
-            Some(web_ws::Message::Binary(Bytes::from_static(b"text").into()))
-        );
-
-        writer.ping("ping");
-        let (item, reader) = srv.block_on(reader.into_future()).unwrap();
-        assert_eq!(item, Some(web_ws::Message::Pong("ping".to_owned())));
-
-        writer.close(Some(web_ws::CloseCode::Normal.into()));
-        let (item, _) = srv.block_on(reader.into_future()).unwrap();
-        assert_eq!(
-            item,
-            Some(web_ws::Message::Close(Some(
-                web_ws::CloseCode::Normal.into()
-            )))
-        );
-    }
-
     // client service
     let framed = srv.ws().unwrap();
     let framed = srv
@@ -142,5 +103,38 @@ fn test_simple() {
     assert_eq!(
         item,
         Some(ws::Frame::Close(Some(ws::CloseCode::Normal.into())))
-    )
+    );
+
+    {
+        let mut sys = actix_web::actix::System::new("test");
+        let url = srv.url("/");
+
+        let (reader, mut writer) = sys
+            .block_on(lazy(|| web_ws::Client::new(url).connect()))
+            .unwrap();
+
+        writer.text("text");
+        let (item, reader) = sys.block_on(reader.into_future()).unwrap();
+        assert_eq!(item, Some(web_ws::Message::Text("text".to_owned())));
+
+        writer.binary(b"text".as_ref());
+        let (item, reader) = sys.block_on(reader.into_future()).unwrap();
+        assert_eq!(
+            item,
+            Some(web_ws::Message::Binary(Bytes::from_static(b"text").into()))
+        );
+
+        writer.ping("ping");
+        let (item, reader) = sys.block_on(reader.into_future()).unwrap();
+        assert_eq!(item, Some(web_ws::Message::Pong("ping".to_owned())));
+
+        writer.close(Some(web_ws::CloseCode::Normal.into()));
+        let (item, _) = sys.block_on(reader.into_future()).unwrap();
+        assert_eq!(
+            item,
+            Some(web_ws::Message::Close(Some(
+                web_ws::CloseCode::Normal.into()
+            )))
+        );
+    }
 }

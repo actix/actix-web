@@ -4,7 +4,9 @@ use std::io;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
-use actix_net::service::Service;
+use actix_codec::{AsyncRead, AsyncWrite};
+use actix_rt::spawn;
+use actix_service::Service;
 use futures::future::{ok, Either, FutureResult};
 use futures::sync::oneshot;
 use futures::task::AtomicTask;
@@ -12,8 +14,6 @@ use futures::{Async, Future, Poll};
 use http::uri::Authority;
 use indexmap::IndexSet;
 use slab::Slab;
-use tokio_current_thread::spawn;
-use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_timer::{sleep, Delay};
 
 use super::connect::Connect;

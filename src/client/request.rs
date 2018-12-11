@@ -2,7 +2,7 @@ use std::fmt;
 use std::fmt::Write as FmtWrite;
 use std::io::Write;
 
-use actix_net::service::Service;
+use actix_service::Service;
 use bytes::{BufMut, Bytes, BytesMut};
 use cookie::{Cookie, CookieJar};
 use futures::{Future, Stream};
@@ -23,26 +23,24 @@ use super::{pipeline, Connect, Connection, ConnectorError, SendRequestError};
 /// An HTTP Client Request
 ///
 /// ```rust
-/// # extern crate actix_web;
-/// # extern crate futures;
-/// # extern crate tokio;
-/// # use futures::Future;
-/// # use std::process;
-/// use actix_web::{actix, client};
+/// use futures::future::{Future, lazy};
+/// use actix_rt::System;
+/// use actix_http::client;
 ///
 /// fn main() {
-///     actix::run(
-///         || client::ClientRequest::get("http://www.rust-lang.org") // <- Create request builder
-///             .header("User-Agent", "Actix-web")
-///             .finish().unwrap()
-///             .send()                                    // <- Send http request
-///             .map_err(|_| ())
-///             .and_then(|response| {                     // <- server http response
-///                 println!("Response: {:?}", response);
-/// #               actix::System::current().stop();
-///                 Ok(())
-///             }),
-///     );
+///     System::new("test").block_on(lazy(|| {
+///        let mut connector = client::Connector::default().service();
+///        client::ClientRequest::get("http://www.rust-lang.org") // <- Create request builder
+///           .header("User-Agent", "Actix-web")
+///           .finish().unwrap()
+///           .send(&mut connector)                      // <- Send http request
+///           .map_err(|_| ())
+///           .and_then(|response| {                     // <- server http response
+///                println!("Response: {:?}", response);
+/// #              actix_rt::System::current().stop();
+///                Ok(())
+///           })
+///     }));
 /// }
 /// ```
 pub struct ClientRequest<B: MessageBody = ()> {

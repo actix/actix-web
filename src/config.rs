@@ -4,11 +4,11 @@ use std::rc::Rc;
 use std::time::{Duration, Instant};
 use std::{fmt, net};
 
+use actix_rt::spawn;
 use bytes::BytesMut;
 use futures::{future, Future};
 use log::error;
 use time;
-use tokio_current_thread::spawn;
 use tokio_timer::{sleep, Delay};
 
 // "Sun, 06 Nov 1994 08:49:37 GMT".len()
@@ -378,8 +378,8 @@ impl DateService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use actix_rt::System;
     use futures::future;
-    use tokio::runtime::current_thread;
 
     #[test]
     fn test_date_len() {
@@ -388,7 +388,7 @@ mod tests {
 
     #[test]
     fn test_date() {
-        let mut rt = current_thread::Runtime::new().unwrap();
+        let mut rt = System::new("test");
 
         let _ = rt.block_on(future::lazy(|| {
             let settings = ServiceConfig::new(KeepAlive::Os, 0, 0);
