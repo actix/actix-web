@@ -1,6 +1,6 @@
 [package]
 name = "actix-server"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix server - General purpose tcp server"
 keywords = ["network", "framework", "async", "futures"]
@@ -66,3 +66,6 @@ webpki-roots = { version = "0.15", optional = true }
 
 [dev-dependencies]
 env_logger = "0.5"
+actix-service = "0.1.1"
+actix-codec = "0.1.0"
+actix-rt = "0.1.0"
