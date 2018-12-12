@@ -15,16 +15,26 @@ use super::services::{
 use super::Token;
 
 pub struct ServiceConfig {
-    pub(super) services: Vec<(String, net::TcpListener)>,
-    pub(super) rt: Box<ServiceRuntimeConfiguration>,
+    pub(crate) services: Vec<(String, net::TcpListener)>,
+    pub(crate) apply: Option<Box<ServiceRuntimeConfiguration>>,
+    pub(crate) threads: usize,
 }
 
 impl ServiceConfig {
-    pub(super) fn new() -> ServiceConfig {
+    pub(super) fn new(threads: usize) -> ServiceConfig {
         ServiceConfig {
+            threads,
             services: Vec::new(),
-            rt: Box::new(not_configured),
+            apply: None,
         }
+    }
+
+    /// Set number of workers to start.
+    ///
+    /// By default server uses number of available logical cpu as workers
+    /// count.
+    pub fn workers(&mut self, num: usize) {
+        self.threads = num;
     }
 
     /// Add new service to server
@@ -43,16 +53,20 @@ impl ServiceConfig {
 
     /// Add new service to server
     pub fn listen<N: AsRef<str>>(&mut self, name: N, lst: net::TcpListener) -> &mut Self {
+        if self.apply.is_none() {
+            self.apply = Some(Box::new(not_configured));
+        }
         self.services.push((name.as_ref().to_string(), lst));
         self
     }
 
-    /// Register service configuration function
-    pub fn rt<F>(&mut self, f: F) -> io::Result<()>
+    /// Register service configuration function. This function get called
+    /// during worker runtime configuration. It get executed in worker thread.
+    pub fn apply<F>(&mut self, f: F) -> io::Result<()>
     where
         F: Fn(&mut ServiceRuntime) + Send + Clone + 'static,
     {
-        self.rt = Box::new(f);
+        self.apply = Some(Box::new(f));
         Ok(())
     }
 }

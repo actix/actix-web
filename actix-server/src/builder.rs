@@ -64,7 +64,7 @@ impl ServerBuilder {
 
     /// Set number of workers to start.
     ///
-    /// By default server uses number of available logical cpu as threads
+    /// By default server uses number of available logical cpu as workers
     /// count.
     pub fn workers(mut self, num: usize) -> Self {
         self.threads = num;
@@ -108,8 +108,8 @@ impl ServerBuilder {
         self
     }
 
-    /// Run external configuration as part of the server building
-    /// process
+    /// Execute external configuration as part of the server building
+    /// process.
     ///
     /// This function is useful for moving parts of configuration to a
     /// different module or even library.
@@ -117,17 +117,20 @@ impl ServerBuilder {
     where
         F: Fn(&mut ServiceConfig) -> io::Result<()>,
     {
-        let mut cfg = ServiceConfig::new();
+        let mut cfg = ServiceConfig::new(self.threads);
 
         f(&mut cfg)?;
 
-        let mut srv = ConfiguredService::new(cfg.rt);
-        for (name, lst) in cfg.services {
-            let token = self.token.next();
-            srv.stream(token, name);
-            self.sockets.push((token, lst));
+        if let Some(apply) = cfg.apply {
+            let mut srv = ConfiguredService::new(apply);
+            for (name, lst) in cfg.services {
+                let token = self.token.next();
+                srv.stream(token, name);
+                self.sockets.push((token, lst));
+            }
+            self.services.push(Box::new(srv));
         }
-        self.services.push(Box::new(srv));
+        self.threads = cfg.threads;
 
         Ok(self)
     }
