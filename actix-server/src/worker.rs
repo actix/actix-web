@@ -398,7 +398,7 @@ impl Future for Worker {
                                     let guard = self.conns.get();
                                     let _ = self.services[msg.token.0]
                                         .as_mut()
-                                        .expect("actix net bug")
+                                        .expect("actix-server bug")
                                         .1
                                         .call((Some(guard), ServerMessage::Connect(msg.io)));
                                     continue;

@@ -9,6 +9,7 @@ use futures::task::AtomicTask;
 /// Counter could be cloned, total ncount is shared across all clones.
 pub struct Counter(Rc<CounterInner>);
 
+#[derive(Debug)]
 struct CounterInner {
     count: Cell<usize>,
     capacity: usize,
@@ -40,6 +41,7 @@ impl Counter {
     }
 }
 
+#[derive(Debug)]
 pub struct CounterGuard(Rc<CounterInner>);
 
 impl CounterGuard {
@@ -57,11 +59,7 @@ impl Drop for CounterGuard {
 
 impl CounterInner {
     fn inc(&self) {
-        let num = self.count.get() + 1;
-        self.count.set(num);
-        if num == self.capacity {
-            self.task.register();
-        }
+        self.count.set(self.count.get() + 1);
     }
 
     fn dec(&self) {
@@ -73,6 +71,10 @@ impl CounterInner {
     }
 
     fn available(&self) -> bool {
-        self.count.get() < self.capacity
+        let avail = self.count.get() < self.capacity;
+        if !avail {
+            self.task.register();
+        }
+        avail
     }
 }
