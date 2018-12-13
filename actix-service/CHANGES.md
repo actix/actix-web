@@ -1,5 +1,12 @@
 # Changes
 
+## [0.1.3] - 2018-12-12
+
+## Changed
+
+* Split service combinators to separate trait
+
+
 ## [0.1.2] - 2018-12-12
 
 ### Fixed

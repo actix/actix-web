@@ -50,7 +50,11 @@ pub trait Service<Request> {
     /// Calling `call` without calling `poll_ready` is permitted. The
     /// implementation must be resilient to this fact.
     fn call(&mut self, req: Request) -> Self::Future;
+}
 
+/// An extension trait for `Service`s that provides a variety of convenient
+/// adapters
+pub trait ServiceExt<Request>: Service<Request> {
     /// Apply function to specified service and use it as a next service in
     /// chain.
     fn apply<T, I, F, Out, Req>(
@@ -145,6 +149,8 @@ pub trait Service<Request> {
         MapErr::new(self, f)
     }
 }
+
+impl<T: ?Sized, Request> ServiceExt<Request> for T where T: Service<Request> {}
 
 /// Creates new `Service` values.
 ///
