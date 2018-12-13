@@ -171,7 +171,7 @@ mod tests {
     use futures::future::{ok, FutureResult};
     use futures::{Async, Future, Poll};
 
-    use crate::{IntoNewService, IntoService, NewService, Service};
+    use crate::{IntoNewService, IntoService, NewService, Service, ServiceExt};
 
     #[derive(Clone)]
     struct Srv;

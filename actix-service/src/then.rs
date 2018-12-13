@@ -223,11 +223,11 @@ where
 #[cfg(test)]
 mod tests {
     use futures::future::{err, ok, FutureResult};
-    use futures::{Async, Poll};
+    use futures::{Async, Future, Poll};
     use std::cell::Cell;
     use std::rc::Rc;
 
-    use super::*;
+    use crate::{IntoNewService, NewService, Service, ServiceExt};
 
     #[derive(Clone)]
     struct Srv1(Rc<Cell<usize>>);

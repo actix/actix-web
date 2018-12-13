@@ -219,7 +219,7 @@ mod tests {
     use std::rc::Rc;
 
     use super::*;
-    use crate::{NewService, Service};
+    use crate::{NewService, Service, ServiceExt};
 
     struct Srv1(Rc<Cell<usize>>);
     impl Service<&'static str> for Srv1 {
