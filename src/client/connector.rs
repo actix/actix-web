@@ -3,7 +3,7 @@ use std::{fmt, io};
 
 use actix_codec::{AsyncRead, AsyncWrite};
 use actix_connector::{Resolver, TcpConnector};
-use actix_service::Service;
+use actix_service::{Service, ServiceExt};
 use actix_utils::timeout::{TimeoutError, TimeoutService};
 use futures::future::Either;
 use futures::Poll;

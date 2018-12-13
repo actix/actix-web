@@ -37,7 +37,7 @@ session = ["cookie/secure"]
 ssl = ["openssl", "actix-connector/ssl"]
 
 [dependencies]
-actix-service = "0.1.1"
+actix-service = "0.1.3"
 actix-codec = "0.1.0"
 actix-connector = "0.1.0"
 actix-rt = "0.1.0"
