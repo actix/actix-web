@@ -94,20 +94,20 @@ pub(crate) trait MessageType: Sized {
                         }
                         // transfer-encoding
                         header::TRANSFER_ENCODING => {
-                            if let Ok(s) = value.to_str() {
-                                chunked = s.to_lowercase().contains("chunked");
+                            if let Ok(s) = value.to_str().map(|s| s.trim()) {
+                                chunked = s.eq_ignore_ascii_case("chunked");
                             } else {
                                 return Err(ParseError::Header);
                             }
                         }
                         // connection keep-alive state
                         header::CONNECTION => {
-                            ka = if let Ok(conn) = value.to_str() {
-                                if conn.contains("keep-alive") {
+                            ka = if let Ok(conn) = value.to_str().map(|conn| conn.trim()) {
+                                if conn.eq_ignore_ascii_case("keep-alive") {
                                     Some(ConnectionType::KeepAlive)
-                                } else if conn.contains("close") {
+                                } else if conn.eq_ignore_ascii_case("close") {
                                     Some(ConnectionType::Close)
-                                } else if conn.contains("upgrade") {
+                                } else if conn.eq_ignore_ascii_case("upgrade") {
                                     Some(ConnectionType::Upgrade)
                                 } else {
                                     None
@@ -120,8 +120,8 @@ pub(crate) trait MessageType: Sized {
                             has_upgrade = true;
                             // check content-length, some clients (dart)
                             // sends "content-length: 0" with websocket upgrade
-                            if let Ok(val) = value.to_str() {
-                                if val == "websocket" {
+                            if let Ok(val) = value.to_str().map(|val| val.trim()) {
+                                if val.eq_ignore_ascii_case("websocket") {
                                     content_length = None;
                                 }
                             }
@@ -887,6 +887,14 @@ mod tests {
         let req = parse_ready!(&mut buf);
 
         assert_eq!(req.inner().head.ctype, Some(ConnectionType::Close));
+
+        let mut buf = BytesMut::from(
+            "GET /test HTTP/1.1\r\n\
+             connection: Close\r\n\r\n",
+        );
+        let req = parse_ready!(&mut buf);
+
+        assert_eq!(req.inner().head.ctype, Some(ConnectionType::Close));
     }
 
     #[test]
@@ -909,6 +917,15 @@ mod tests {
         let req = parse_ready!(&mut buf);
 
         assert_eq!(req.inner().head.ctype, Some(ConnectionType::KeepAlive));
+
+        let mut buf = BytesMut::from(
+            "GET /test HTTP/1.0\r\n\
+             connection: Keep-Alive\r\n\r\n",
+        );
+        let req = parse_ready!(&mut buf);
+
+        assert_eq!(req.inner().head.ctype, Some(ConnectionType::KeepAlive));
+
     }
 
     #[test]
@@ -959,6 +976,17 @@ mod tests {
 
         assert!(req.upgrade());
         assert_eq!(req.inner().head.ctype, Some(ConnectionType::Upgrade));
+
+        let mut buf = BytesMut::from(
+            "GET /test HTTP/1.1\r\n\
+             upgrade: Websockets\r\n\
+             connection: Upgrade\r\n\r\n",
+        );
+        let req = parse_ready!(&mut buf);
+
+        assert!(req.upgrade());
+        assert_eq!(req.inner().head.ctype, Some(ConnectionType::Upgrade));
+
     }
 
     #[test]
