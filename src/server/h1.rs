@@ -942,6 +942,14 @@ mod tests {
         let req = parse_ready!(&mut buf);
 
         assert!(!req.keep_alive());
+
+        let mut buf = BytesMut::from(
+            "GET /test HTTP/1.1\r\n\
+             connection: Close\r\n\r\n",
+        );
+        let req = parse_ready!(&mut buf);
+
+        assert!(!req.keep_alive());
     }
 
     #[test]
@@ -953,10 +961,26 @@ mod tests {
         let req = parse_ready!(&mut buf);
 
         assert!(!req.keep_alive());
+
+        let mut buf = BytesMut::from(
+            "GET /test HTTP/1.0\r\n\
+             connection: Close\r\n\r\n",
+        );
+        let req = parse_ready!(&mut buf);
+
+        assert!(!req.keep_alive());
     }
 
     #[test]
     fn test_conn_keep_alive_1_0() {
+        let mut buf = BytesMut::from(
+            "GET /test HTTP/1.0\r\n\
+             connection: Keep-Alive\r\n\r\n",
+        );
+        let req = parse_ready!(&mut buf);
+
+        assert!(req.keep_alive());
+
         let mut buf = BytesMut::from(
             "GET /test HTTP/1.0\r\n\
              connection: keep-alive\r\n\r\n",
@@ -1005,6 +1029,15 @@ mod tests {
             "GET /test HTTP/1.1\r\n\
              upgrade: websockets\r\n\
              connection: upgrade\r\n\r\n",
+        );
+        let req = parse_ready!(&mut buf);
+
+        assert!(req.upgrade());
+
+        let mut buf = BytesMut::from(
+            "GET /test HTTP/1.1\r\n\
+             upgrade: Websockets\r\n\
+             connection: Upgrade\r\n\r\n",
         );
         let req = parse_ready!(&mut buf);
 

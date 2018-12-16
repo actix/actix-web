@@ -1,5 +1,11 @@
 # Changes
 
+## [0.7.17] - 2018-xx-xx
+
+### Fixed
+
+* HTTP1 decoder should perform case-insentive comparison for client requests (e.g. `Keep-Alive`). #631
+
 ## [0.7.16] - 2018-12-11
 
 ### Added

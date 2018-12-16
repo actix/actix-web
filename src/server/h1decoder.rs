@@ -157,23 +157,19 @@ impl H1Decoder {
                             }
                             // transfer-encoding
                             header::TRANSFER_ENCODING => {
-                                if let Ok(s) = value.to_str() {
-                                    chunked = s.to_lowercase().contains("chunked");
+                                if let Ok(s) = value.to_str().map(|s| s.trim()) {
+                                    chunked = s.eq_ignore_ascii_case("chunked");
                                 } else {
                                     return Err(ParseError::Header);
                                 }
                             }
                             // connection keep-alive state
                             header::CONNECTION => {
-                                let ka = if let Ok(conn) = value.to_str() {
-                                    if version == Version::HTTP_10
-                                        && conn.contains("keep-alive")
-                                    {
+                                let ka = if let Ok(conn) = value.to_str().map(|conn| conn.trim()) {
+                                    if version == Version::HTTP_10 && conn.eq_ignore_ascii_case("keep-alive") {
                                         true
                                     } else {
-                                        version == Version::HTTP_11 && !(conn
-                                            .contains("close")
-                                            || conn.contains("upgrade"))
+                                        version == Version::HTTP_11 && !(conn.eq_ignore_ascii_case("close") || conn.eq_ignore_ascii_case("upgrade"))
                                     }
                                 } else {
                                     false
@@ -184,8 +180,8 @@ impl H1Decoder {
                                 has_upgrade = true;
                                 // check content-length, some clients (dart)
                                 // sends "content-length: 0" with websocket upgrade
-                                if let Ok(val) = value.to_str() {
-                                    if val == "websocket" {
+                                if let Ok(val) = value.to_str().map(|val| val.trim()) {
+                                    if val.eq_ignore_ascii_case("websocket") {
                                         content_length = None;
                                     }
                                 }
