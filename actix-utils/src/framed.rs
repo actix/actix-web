@@ -7,7 +7,8 @@ use actix_rt::Arbiter;
 use actix_service::{IntoNewService, IntoService, NewService, Service};
 use futures::future::{ok, FutureResult};
 use futures::unsync::mpsc;
-use futures::{Async, AsyncSink, Future, Poll, Sink, Stream};
+use futures::{Async, Future, Poll, Sink, Stream};
+use log::debug;
 
 type Request<U> = <U as Decoder>::Item;
 type Response<U> = <U as Encoder>::Item;
@@ -179,10 +180,8 @@ where
     state: TransportState<S, U>,
     framed: Framed<T, U>,
     request: Option<Request<U>>,
-    response: Option<Response<U>>,
     write_rx: mpsc::Receiver<Result<Response<U>, S::Error>>,
     write_tx: mpsc::Sender<Result<Response<U>, S::Error>>,
-    flushed: bool,
 }
 
 enum TransportState<S: Service<Request<U>>, U: Encoder + Decoder> {
@@ -210,8 +209,6 @@ where
             service: service.into_service(),
             state: TransportState::Processing,
             request: None,
-            response: None,
-            flushed: true,
         }
     }
 
@@ -247,7 +244,7 @@ where
     S::Future: 'static,
     S::Error: 'static,
     <U as Encoder>::Item: 'static,
-    <U as Encoder>::Error: 'static,
+    <U as Encoder>::Error: std::fmt::Debug + 'static,
 {
     fn poll_service(&mut self) -> bool {
         match self.service.poll_ready() {
@@ -307,59 +304,42 @@ where
 
     /// write to sink
     fn poll_response(&mut self) -> bool {
-        let mut item = self.response.take();
         loop {
-            item = if let Some(msg) = item {
-                self.flushed = false;
-                match self.framed.start_send(msg) {
-                    Ok(AsyncSink::Ready) => None,
-                    Ok(AsyncSink::NotReady(item)) => Some(item),
-                    Err(err) => {
-                        self.state =
-                            TransportState::EncoderError(FramedTransportError::Encoder(err));
-                        return true;
-                    }
-                }
-            } else {
-                None
-            };
-
-            // flush sink
-            if !self.flushed {
-                match self.framed.poll_complete() {
-                    Ok(Async::Ready(_)) => {
-                        self.flushed = true;
-                    }
+            while !self.framed.is_write_buf_full() {
+                match self.write_rx.poll() {
+                    Ok(Async::Ready(Some(msg))) => match msg {
+                        Ok(msg) => {
+                            if let Err(err) = self.framed.force_send(msg) {
+                                self.state = TransportState::EncoderError(
+                                    FramedTransportError::Encoder(err),
+                                );
+                                return true;
+                            }
+                        }
+                        Err(err) => {
+                            self.state =
+                                TransportState::Error(FramedTransportError::Service(err));
+                            return true;
+                        }
+                    },
                     Ok(Async::NotReady) => break,
-                    Err(err) => {
-                        self.state =
-                            TransportState::EncoderError(FramedTransportError::Encoder(err));
-                        return true;
-                    }
+                    Err(_) => panic!("Bug in actix-net code"),
+                    Ok(Async::Ready(None)) => panic!("Bug in actix-net code"),
                 }
             }
 
-            // check channel
-            if self.flushed {
-                if item.is_none() {
-                    match self.write_rx.poll() {
-                        Ok(Async::Ready(Some(msg))) => match msg {
-                            Ok(msg) => item = Some(msg),
-                            Err(err) => {
-                                self.state =
-                                    TransportState::Error(FramedTransportError::Service(err));
-                                return true;
-                            }
-                        },
-                        Ok(Async::NotReady) => break,
-                        Err(_) => panic!("Bug in gw code"),
-                        Ok(Async::Ready(None)) => panic!("Bug in gw code"),
+            if !self.framed.is_write_buf_empty() {
+                match self.framed.poll_complete() {
+                    Ok(Async::NotReady) => break,
+                    Err(err) => {
+                        debug!("Error sending data: {:?}", err);
+                        self.state =
+                            TransportState::EncoderError(FramedTransportError::Encoder(err));
+                        return true;
                     }
-                } else {
-                    continue;
+                    Ok(Async::Ready(_)) => (),
                 }
             } else {
-                self.response = item;
                 break;
             }
         }
@@ -376,7 +356,7 @@ where
     S::Future: 'static,
     S::Error: 'static,
     <U as Encoder>::Item: 'static,
-    <U as Encoder>::Error: 'static,
+    <U as Encoder>::Error: std::fmt::Debug + 'static,
 {
     type Item = ();
     type Error = FramedTransportError<S::Error, U>;
@@ -391,7 +371,7 @@ where
                 }
             }
             TransportState::Error(err) => {
-                if self.poll_response() || self.flushed {
+                if self.poll_response() || !self.framed.is_write_buf_empty() {
                     Err(err)
                 } else {
                     self.state = TransportState::Error(err);

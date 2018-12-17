@@ -21,8 +21,7 @@ path = "src/lib.rs"
 actix-service = "0.1.1"
 actix-codec = "0.1.0"
 actix-rt = "0.1.0"
-
-# io
 bytes = "0.4"
 futures = "0.1"
 tokio-timer = "0.2.8"
+log = "0.4"
