@@ -200,7 +200,7 @@ pub trait HttpMessage: Sized {
     /// # fn main() {}
     /// ```
     fn json<T: DeserializeOwned>(&self) -> JsonBody<Self, T> {
-        JsonBody::new(self)
+        JsonBody::new::<()>(self, None)
     }
 
     /// Return stream to http payload processes as multipart.

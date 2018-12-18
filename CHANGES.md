@@ -2,6 +2,10 @@
 
 ## [0.7.17] - 2018-xx-xx
 
+### Added
+
+* Support for custom content types in `JsonConfig`. #637
+
 ### Fixed
 
 * HTTP1 decoder should perform case-insentive comparison for client requests (e.g. `Keep-Alive`). #631
