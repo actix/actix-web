@@ -143,7 +143,7 @@ where
         let req2 = req.clone();
         let err = Rc::clone(&cfg.ehandler);
         Box::new(
-            JsonBody::new(req)
+            JsonBody::new(req, Some(cfg))
                 .limit(cfg.limit)
                 .map_err(move |e| (*err)(e, &req2))
                 .map(Json),
@@ -155,6 +155,7 @@ where
 ///
 /// ```rust
 /// # extern crate actix_web;
+/// extern crate mime;
 /// #[macro_use] extern crate serde_derive;
 /// use actix_web::{error, http, App, HttpResponse, Json, Result};
 ///
@@ -173,6 +174,9 @@ where
 ///         r.method(http::Method::POST)
 ///               .with_config(index, |cfg| {
 ///                   cfg.0.limit(4096)   // <- change json extractor configuration
+///                      .content_type(|mime| {  // <- accept text/plain content type
+///                          mime.type_() == mime::TEXT && mime.subtype() == mime::PLAIN
+///                      })
 ///                      .error_handler(|err, req| {  // <- create custom error response
 ///                          error::InternalError::from_response(
 ///                              err, HttpResponse::Conflict().finish()).into()
@@ -184,6 +188,7 @@ where
 pub struct JsonConfig<S> {
     limit: usize,
     ehandler: Rc<Fn(JsonPayloadError, &HttpRequest<S>) -> Error>,
+    content_type: Option<Box<Fn(mime::Mime) -> bool>>,
 }
 
 impl<S> JsonConfig<S> {
@@ -201,6 +206,15 @@ impl<S> JsonConfig<S> {
         self.ehandler = Rc::new(f);
         self
     }
+
+    /// Set predicate for allowed content types
+    pub fn content_type<F>(&mut self, predicate: F) -> &mut Self
+    where
+        F: Fn(mime::Mime) -> bool + 'static,
+    {
+        self.content_type = Some(Box::new(predicate));
+        self
+    }
 }
 
 impl<S> Default for JsonConfig<S> {
@@ -208,6 +222,7 @@ impl<S> Default for JsonConfig<S> {
         JsonConfig {
             limit: 262_144,
             ehandler: Rc::new(|e, _| e.into()),
+            content_type: None,
         }
     }
 }
@@ -217,6 +232,7 @@ impl<S> Default for JsonConfig<S> {
 /// Returns error:
 ///
 /// * content type is not `application/json`
+///   (unless specified in [`JsonConfig`](struct.JsonConfig.html))
 /// * content length is greater than 256k
 ///
 /// # Server example
@@ -253,10 +269,13 @@ pub struct JsonBody<T: HttpMessage, U: DeserializeOwned> {
 
 impl<T: HttpMessage, U: DeserializeOwned> JsonBody<T, U> {
     /// Create `JsonBody` for request.
-    pub fn new(req: &T) -> Self {
+    pub fn new<S>(req: &T, cfg: Option<&JsonConfig<S>>) -> Self {
         // check content-type
         let json = if let Ok(Some(mime)) = req.mime_type() {
-            mime.subtype() == mime::JSON || mime.suffix() == Some(mime::JSON)
+            mime.subtype() == mime::JSON || mime.suffix() == Some(mime::JSON) ||
+                cfg.map_or(false, |cfg| {
+                    cfg.content_type.as_ref().map_or(false, |predicate| predicate(mime))
+                })
         } else {
             false
         };
@@ -439,5 +458,62 @@ mod tests {
         ).set_payload(Bytes::from_static(b"{\"name\": \"test\"}"))
         .finish();
         assert!(handler.handle(&req).as_err().is_none())
+    }
+
+    #[test]
+    fn test_with_json_and_bad_content_type() {
+        let mut cfg = JsonConfig::default();
+        cfg.limit(4096);
+        let handler = With::new(|data: Json<MyObject>| data, cfg);
+
+        let req = TestRequest::with_header(
+            header::CONTENT_TYPE,
+            header::HeaderValue::from_static("text/plain"),
+        ).header(
+            header::CONTENT_LENGTH,
+            header::HeaderValue::from_static("16"),
+        ).set_payload(Bytes::from_static(b"{\"name\": \"test\"}"))
+        .finish();
+        assert!(handler.handle(&req).as_err().is_some())
+    }
+
+    #[test]
+    fn test_with_json_and_good_custom_content_type() {
+        let mut cfg = JsonConfig::default();
+        cfg.limit(4096);
+        cfg.content_type(|mime: mime::Mime| {
+            mime.type_() == mime::TEXT && mime.subtype() == mime::PLAIN
+        });
+        let handler = With::new(|data: Json<MyObject>| data, cfg);
+
+        let req = TestRequest::with_header(
+            header::CONTENT_TYPE,
+            header::HeaderValue::from_static("text/plain"),
+        ).header(
+            header::CONTENT_LENGTH,
+            header::HeaderValue::from_static("16"),
+        ).set_payload(Bytes::from_static(b"{\"name\": \"test\"}"))
+        .finish();
+        assert!(handler.handle(&req).as_err().is_none())
+    }
+
+    #[test]
+    fn test_with_json_and_bad_custom_content_type() {
+        let mut cfg = JsonConfig::default();
+        cfg.limit(4096);
+        cfg.content_type(|mime: mime::Mime| {
+            mime.type_() == mime::TEXT && mime.subtype() == mime::PLAIN
+        });
+        let handler = With::new(|data: Json<MyObject>| data, cfg);
+
+        let req = TestRequest::with_header(
+            header::CONTENT_TYPE,
+            header::HeaderValue::from_static("text/html"),
+        ).header(
+            header::CONTENT_LENGTH,
+            header::HeaderValue::from_static("16"),
+        ).set_payload(Bytes::from_static(b"{\"name\": \"test\"}"))
+        .finish();
+        assert!(handler.handle(&req).as_err().is_some())
     }
 }
