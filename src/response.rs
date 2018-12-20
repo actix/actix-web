@@ -240,17 +240,6 @@ impl<B: MessageBody> Response<B> {
     pub(crate) fn release(self) {
         ResponsePool::release(self.0);
     }
-
-    pub(crate) fn into_parts(self) -> ResponseParts {
-        self.0.into_parts()
-    }
-
-    pub(crate) fn from_parts(parts: ResponseParts) -> Response {
-        Response(
-            Box::new(InnerResponse::from_parts(parts)),
-            ResponseBody::Body(Body::Empty),
-        )
-    }
 }
 
 impl<B: MessageBody> fmt::Debug for Response<B> {
@@ -736,11 +725,6 @@ struct InnerResponse {
     pool: &'static ResponsePool,
 }
 
-pub(crate) struct ResponseParts {
-    head: ResponseHead,
-    error: Option<Error>,
-}
-
 impl InnerResponse {
     #[inline]
     fn new(status: StatusCode, pool: &'static ResponsePool) -> InnerResponse {
@@ -755,23 +739,6 @@ impl InnerResponse {
             pool,
             response_size: 0,
             error: None,
-        }
-    }
-
-    /// This is for failure, we can not have Send + Sync on Streaming and Actor response
-    fn into_parts(self) -> ResponseParts {
-        ResponseParts {
-            head: self.head,
-            error: self.error,
-        }
-    }
-
-    fn from_parts(parts: ResponseParts) -> InnerResponse {
-        InnerResponse {
-            head: parts.head,
-            response_size: 0,
-            error: parts.error,
-            pool: ResponsePool::pool(),
         }
     }
 }

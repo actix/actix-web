@@ -1,13 +1,14 @@
 //! Error and Result module
+use std::cell::RefCell;
 use std::io::Error as IoError;
 use std::str::Utf8Error;
 use std::string::FromUtf8Error;
-use std::sync::Mutex;
 use std::{fmt, io, result};
 
 // use actix::MailboxError;
+use backtrace::Backtrace;
 use cookie;
-use failure::{self, Backtrace, Fail};
+use derive_more::{Display, From};
 use futures::Canceled;
 use http::uri::InvalidUri;
 use http::{header, Error as HttpError, StatusCode};
@@ -21,7 +22,7 @@ use tokio_timer::Error as TimerError;
 pub use cookie::ParseError as CookieParseError;
 
 use crate::body::Body;
-use crate::response::{Response, ResponseParts};
+use crate::response::Response;
 
 /// A specialized [`Result`](https://doc.rust-lang.org/std/result/enum.Result.html)
 /// for actix web operations
@@ -47,20 +48,6 @@ pub struct Error {
 }
 
 impl Error {
-    /// Deprecated way to reference the underlying response error.
-    #[deprecated(
-        since = "0.6.0",
-        note = "please use `Error::as_response_error()` instead"
-    )]
-    pub fn cause(&self) -> &ResponseError {
-        self.cause.as_ref()
-    }
-
-    /// Returns a reference to the underlying cause of this `Error` as `Fail`
-    pub fn as_fail(&self) -> &Fail {
-        self.cause.as_fail()
-    }
-
     /// Returns the reference to the underlying `ResponseError`.
     pub fn as_response_error(&self) -> &ResponseError {
         self.cause.as_ref()
@@ -78,27 +65,27 @@ impl Error {
         }
     }
 
-    /// Attempts to downcast this `Error` to a particular `Fail` type by
-    /// reference.
-    ///
-    /// If the underlying error is not of type `T`, this will return `None`.
-    pub fn downcast_ref<T: Fail>(&self) -> Option<&T> {
-        // in the most trivial way the cause is directly of the requested type.
-        if let Some(rv) = Fail::downcast_ref(self.cause.as_fail()) {
-            return Some(rv);
-        }
+    // /// Attempts to downcast this `Error` to a particular `Fail` type by
+    // /// reference.
+    // ///
+    // /// If the underlying error is not of type `T`, this will return `None`.
+    // pub fn downcast_ref<T: Fail>(&self) -> Option<&T> {
+    //     // in the most trivial way the cause is directly of the requested type.
+    //     if let Some(rv) = Fail::downcast_ref(self.cause.as_fail()) {
+    //         return Some(rv);
+    //     }
 
-        // in the more complex case the error has been constructed from a failure
-        // error.  This happens because we implement From<failure::Error> by
-        // calling compat() and then storing it here.  In failure this is
-        // represented by a failure::Error being wrapped in a failure::Compat.
-        //
-        // So we first downcast into that compat, to then further downcast through
-        // the failure's Error downcasting system into the original failure.
-        let compat: Option<&failure::Compat<failure::Error>> =
-            Fail::downcast_ref(self.cause.as_fail());
-        compat.and_then(|e| e.get_ref().downcast_ref())
-    }
+    //     // in the more complex case the error has been constructed from a failure
+    //     // error.  This happens because we implement From<failure::Error> by
+    //     // calling compat() and then storing it here.  In failure this is
+    //     // represented by a failure::Error being wrapped in a failure::Compat.
+    //     //
+    //     // So we first downcast into that compat, to then further downcast through
+    //     // the failure's Error downcasting system into the original failure.
+    //     let compat: Option<&failure::Compat<failure::Error>> =
+    //         Fail::downcast_ref(self.cause.as_fail());
+    //     compat.and_then(|e| e.get_ref().downcast_ref())
+    // }
 
     /// Converts error to a response instance and set error message as response body
     pub fn response_with_message(self) -> Response {
@@ -108,35 +95,40 @@ impl Error {
     }
 }
 
-/// Helper trait to downcast a response error into a fail.
-///
-/// This is currently not exposed because it's unclear if this is the best way
-/// to achieve the downcasting on `Error` for which this is needed.
-#[doc(hidden)]
-pub trait InternalResponseErrorAsFail {
-    #[doc(hidden)]
-    fn as_fail(&self) -> &Fail;
-    #[doc(hidden)]
-    fn as_mut_fail(&mut self) -> &mut Fail;
-}
+// /// Helper trait to downcast a response error into a fail.
+// ///
+// /// This is currently not exposed because it's unclear if this is the best way
+// /// to achieve the downcasting on `Error` for which this is needed.
+// #[doc(hidden)]
+// pub trait InternalResponseErrorAsFail {
+//     #[doc(hidden)]
+//     fn as_fail(&self) -> &Fail;
+//     #[doc(hidden)]
+//     fn as_mut_fail(&mut self) -> &mut Fail;
+// }
 
-#[doc(hidden)]
-impl<T: ResponseError> InternalResponseErrorAsFail for T {
-    fn as_fail(&self) -> &Fail {
-        self
-    }
-    fn as_mut_fail(&mut self) -> &mut Fail {
-        self
-    }
-}
+// #[doc(hidden)]
+// impl<T: ResponseError> InternalResponseErrorAsFail for T {
+//     fn as_fail(&self) -> &Fail {
+//         self
+//     }
+//     fn as_mut_fail(&mut self) -> &mut Fail {
+//         self
+//     }
+// }
 
 /// Error that can be converted to `Response`
-pub trait ResponseError: Fail + InternalResponseErrorAsFail {
+pub trait ResponseError: fmt::Debug + fmt::Display {
     /// Create response for error
     ///
     /// Internal server error is generated by default.
     fn error_response(&self) -> Response {
         Response::new(StatusCode::INTERNAL_SERVER_ERROR)
+    }
+
+    /// Response
+    fn backtrace(&self) -> Option<&Backtrace> {
+        None
     }
 }
 
@@ -169,7 +161,7 @@ impl From<Error> for Response {
 }
 
 /// `Error` for any error that implements `ResponseError`
-impl<T: ResponseError> From<T> for Error {
+impl<T: ResponseError + 'static> From<T> for Error {
     fn from(err: T) -> Error {
         let backtrace = if err.backtrace().is_none() {
             Some(Backtrace::new())
@@ -183,17 +175,17 @@ impl<T: ResponseError> From<T> for Error {
     }
 }
 
-/// Compatibility for `failure::Error`
-impl<T> ResponseError for failure::Compat<T> where
-    T: fmt::Display + fmt::Debug + Sync + Send + 'static
-{
-}
+// /// Compatibility for `failure::Error`
+// impl<T> ResponseError for failure::Compat<T> where
+//     T: fmt::Display + fmt::Debug + Sync + Send + 'static
+// {
+// }
 
-impl From<failure::Error> for Error {
-    fn from(err: failure::Error) -> Error {
-        err.compat().into()
-    }
-}
+// impl From<failure::Error> for Error {
+//     fn from(err: failure::Error) -> Error {
+//         err.compat().into()
+//     }
+// }
 
 /// `InternalServerError` for `JsonError`
 impl ResponseError for JsonError {}
@@ -254,40 +246,40 @@ impl ResponseError for Canceled {}
 // impl ResponseError for MailboxError {}
 
 /// A set of errors that can occur during parsing HTTP streams
-#[derive(Fail, Debug)]
+#[derive(Debug, Display)]
 pub enum ParseError {
     /// An invalid `Method`, such as `GE.T`.
-    #[fail(display = "Invalid Method specified")]
+    #[display(fmt = "Invalid Method specified")]
     Method,
     /// An invalid `Uri`, such as `exam ple.domain`.
-    #[fail(display = "Uri error: {}", _0)]
+    #[display(fmt = "Uri error: {}", _0)]
     Uri(InvalidUri),
     /// An invalid `HttpVersion`, such as `HTP/1.1`
-    #[fail(display = "Invalid HTTP version specified")]
+    #[display(fmt = "Invalid HTTP version specified")]
     Version,
     /// An invalid `Header`.
-    #[fail(display = "Invalid Header provided")]
+    #[display(fmt = "Invalid Header provided")]
     Header,
     /// A message head is too large to be reasonable.
-    #[fail(display = "Message head is too large")]
+    #[display(fmt = "Message head is too large")]
     TooLarge,
     /// A message reached EOF, but is not complete.
-    #[fail(display = "Message is incomplete")]
+    #[display(fmt = "Message is incomplete")]
     Incomplete,
     /// An invalid `Status`, such as `1337 ELITE`.
-    #[fail(display = "Invalid Status provided")]
+    #[display(fmt = "Invalid Status provided")]
     Status,
     /// A timeout occurred waiting for an IO event.
     #[allow(dead_code)]
-    #[fail(display = "Timeout")]
+    #[display(fmt = "Timeout")]
     Timeout,
     /// An `io::Error` that occurred while trying to read or write to a network
     /// stream.
-    #[fail(display = "IO error: {}", _0)]
-    Io(#[cause] IoError),
+    #[display(fmt = "IO error: {}", _0)]
+    Io(IoError),
     /// Parsing a field as string failed
-    #[fail(display = "UTF8 error: {}", _0)]
-    Utf8(#[cause] Utf8Error),
+    #[display(fmt = "UTF8 error: {}", _0)]
+    Utf8(Utf8Error),
 }
 
 /// Return `BadRequest` for `ParseError`
@@ -335,20 +327,20 @@ impl From<httparse::Error> for ParseError {
     }
 }
 
-#[derive(Fail, Debug)]
+#[derive(Display, Debug)]
 /// A set of errors that can occur during payload parsing
 pub enum PayloadError {
     /// A payload reached EOF, but is not complete.
-    #[fail(display = "A payload reached EOF, but is not complete.")]
+    #[display(fmt = "A payload reached EOF, but is not complete.")]
     Incomplete(Option<io::Error>),
     /// Content encoding stream corruption
-    #[fail(display = "Can not decode content-encoding.")]
+    #[display(fmt = "Can not decode content-encoding.")]
     EncodingCorrupted,
     /// A payload reached size limit.
-    #[fail(display = "A payload reached size limit.")]
+    #[display(fmt = "A payload reached size limit.")]
     Overflow,
     /// A payload length is unknown.
-    #[fail(display = "A payload length is unknown.")]
+    #[display(fmt = "A payload length is unknown.")]
     UnknownLength,
 }
 
@@ -378,44 +370,44 @@ impl ResponseError for cookie::ParseError {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Display)]
 /// A set of errors that can occur during dispatching http requests
 pub enum DispatchError<E: fmt::Debug> {
     /// Service error
-    // #[fail(display = "Application specific error: {}", _0)]
+    #[display(fmt = "Service specific error: {:?}", _0)]
     Service(E),
 
     /// An `io::Error` that occurred while trying to read or write to a network
     /// stream.
-    // #[fail(display = "IO error: {}", _0)]
+    #[display(fmt = "IO error: {}", _0)]
     Io(io::Error),
 
     /// Http request parse error.
-    // #[fail(display = "Parse error: {}", _0)]
+    #[display(fmt = "Parse error: {}", _0)]
     Parse(ParseError),
 
     /// The first request did not complete within the specified timeout.
-    // #[fail(display = "The first request did not complete within the specified timeout")]
+    #[display(fmt = "The first request did not complete within the specified timeout")]
     SlowRequestTimeout,
 
     /// Disconnect timeout. Makes sense for ssl streams.
-    // #[fail(display = "Connection shutdown timeout")]
+    #[display(fmt = "Connection shutdown timeout")]
     DisconnectTimeout,
 
     /// Payload is not consumed
-    // #[fail(display = "Task is completed but request's payload is not consumed")]
+    #[display(fmt = "Task is completed but request's payload is not consumed")]
     PayloadIsNotConsumed,
 
     /// Malformed request
-    // #[fail(display = "Malformed request")]
+    #[display(fmt = "Malformed request")]
     MalformedRequest,
 
     /// Internal error
-    // #[fail(display = "Internal error")]
+    #[display(fmt = "Internal error")]
     InternalError,
 
     /// Unknown error
-    // #[fail(display = "Unknown error")]
+    #[display(fmt = "Unknown error")]
     Unknown,
 }
 
@@ -432,13 +424,13 @@ impl<E: fmt::Debug> From<io::Error> for DispatchError<E> {
 }
 
 /// A set of error that can occure during parsing content type
-#[derive(Fail, PartialEq, Debug)]
+#[derive(PartialEq, Debug, Display)]
 pub enum ContentTypeError {
     /// Can not parse content type
-    #[fail(display = "Can not parse content type")]
+    #[display(fmt = "Can not parse content type")]
     ParseError,
     /// Unknown content encoding
-    #[fail(display = "Unknown content encoding")]
+    #[display(fmt = "Unknown content encoding")]
     UnknownEncoding,
 }
 
@@ -450,28 +442,26 @@ impl ResponseError for ContentTypeError {
 }
 
 /// A set of errors that can occur during parsing urlencoded payloads
-#[derive(Fail, Debug)]
+#[derive(Debug, Display, From)]
 pub enum UrlencodedError {
     /// Can not decode chunked transfer encoding
-    #[fail(display = "Can not decode chunked transfer encoding")]
+    #[display(fmt = "Can not decode chunked transfer encoding")]
     Chunked,
     /// Payload size is bigger than allowed. (default: 256kB)
-    #[fail(
-        display = "Urlencoded payload size is bigger than allowed. (default: 256kB)"
-    )]
+    #[display(fmt = "Urlencoded payload size is bigger than allowed. (default: 256kB)")]
     Overflow,
     /// Payload size is now known
-    #[fail(display = "Payload size is now known")]
+    #[display(fmt = "Payload size is now known")]
     UnknownLength,
     /// Content type error
-    #[fail(display = "Content type error")]
+    #[display(fmt = "Content type error")]
     ContentType,
     /// Parse error
-    #[fail(display = "Parse error")]
+    #[display(fmt = "Parse error")]
     Parse,
     /// Payload error
-    #[fail(display = "Error that occur during reading payload: {}", _0)]
-    Payload(#[cause] PayloadError),
+    #[display(fmt = "Error that occur during reading payload: {}", _0)]
+    Payload(PayloadError),
 }
 
 /// Return `BadRequest` for `UrlencodedError`
@@ -485,27 +475,21 @@ impl ResponseError for UrlencodedError {
     }
 }
 
-impl From<PayloadError> for UrlencodedError {
-    fn from(err: PayloadError) -> UrlencodedError {
-        UrlencodedError::Payload(err)
-    }
-}
-
 /// A set of errors that can occur during parsing json payloads
-#[derive(Fail, Debug)]
+#[derive(Debug, Display, From)]
 pub enum JsonPayloadError {
     /// Payload size is bigger than allowed. (default: 256kB)
-    #[fail(display = "Json payload size is bigger than allowed. (default: 256kB)")]
+    #[display(fmt = "Json payload size is bigger than allowed. (default: 256kB)")]
     Overflow,
     /// Content type error
-    #[fail(display = "Content type error")]
+    #[display(fmt = "Content type error")]
     ContentType,
     /// Deserialize error
-    #[fail(display = "Json deserialize error: {}", _0)]
-    Deserialize(#[cause] JsonError),
+    #[display(fmt = "Json deserialize error: {}", _0)]
+    Deserialize(JsonError),
     /// Payload error
-    #[fail(display = "Error that occur during reading payload: {}", _0)]
-    Payload(#[cause] PayloadError),
+    #[display(fmt = "Error that occur during reading payload: {}", _0)]
+    Payload(PayloadError),
 }
 
 /// Return `BadRequest` for `UrlencodedError`
@@ -518,19 +502,8 @@ impl ResponseError for JsonPayloadError {
     }
 }
 
-impl From<PayloadError> for JsonPayloadError {
-    fn from(err: PayloadError) -> JsonPayloadError {
-        JsonPayloadError::Payload(err)
-    }
-}
-
-impl From<JsonError> for JsonPayloadError {
-    fn from(err: JsonError) -> JsonPayloadError {
-        JsonPayloadError::Deserialize(err)
-    }
-}
-
 /// Error type returned when reading body as lines.
+#[derive(From)]
 pub enum ReadlinesError {
     /// Error when decoding a line.
     EncodingError,
@@ -540,18 +513,6 @@ pub enum ReadlinesError {
     LimitOverflow,
     /// ContentType error.
     ContentTypeError(ContentTypeError),
-}
-
-impl From<PayloadError> for ReadlinesError {
-    fn from(err: PayloadError) -> Self {
-        ReadlinesError::PayloadError(err)
-    }
-}
-
-impl From<ContentTypeError> for ReadlinesError {
-    fn from(err: ContentTypeError) -> Self {
-        ReadlinesError::ContentTypeError(err)
-    }
 }
 
 /// Helper type that can wrap any error and generate custom response.
@@ -578,7 +539,7 @@ pub struct InternalError<T> {
 
 enum InternalErrorType {
     Status(StatusCode),
-    Response(Box<Mutex<Option<ResponseParts>>>),
+    Response(RefCell<Option<Response>>),
 }
 
 impl<T> InternalError<T> {
@@ -593,27 +554,17 @@ impl<T> InternalError<T> {
 
     /// Create `InternalError` with predefined `Response`.
     pub fn from_response(cause: T, response: Response) -> Self {
-        let resp = response.into_parts();
         InternalError {
             cause,
-            status: InternalErrorType::Response(Box::new(Mutex::new(Some(resp)))),
+            status: InternalErrorType::Response(RefCell::new(Some(response))),
             backtrace: Backtrace::new(),
         }
     }
 }
 
-impl<T> Fail for InternalError<T>
-where
-    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
-{
-    fn backtrace(&self) -> Option<&Backtrace> {
-        Some(&self.backtrace)
-    }
-}
-
 impl<T> fmt::Debug for InternalError<T>
 where
-    T: Send + Sync + fmt::Debug + 'static,
+    T: fmt::Debug + 'static,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         fmt::Debug::fmt(&self.cause, f)
@@ -622,7 +573,7 @@ where
 
 impl<T> fmt::Display for InternalError<T>
 where
-    T: Send + Sync + fmt::Display + 'static,
+    T: fmt::Display + 'static,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         fmt::Display::fmt(&self.cause, f)
@@ -631,14 +582,18 @@ where
 
 impl<T> ResponseError for InternalError<T>
 where
-    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
+    T: fmt::Debug + fmt::Display + 'static,
 {
+    fn backtrace(&self) -> Option<&Backtrace> {
+        Some(&self.backtrace)
+    }
+
     fn error_response(&self) -> Response {
         match self.status {
             InternalErrorType::Status(st) => Response::new(st),
             InternalErrorType::Response(ref resp) => {
-                if let Some(resp) = resp.lock().unwrap().take() {
-                    Response::<()>::from_parts(resp)
+                if let Some(resp) = resp.borrow_mut().take() {
+                    resp
                 } else {
                     Response::new(StatusCode::INTERNAL_SERVER_ERROR)
                 }
@@ -659,7 +614,7 @@ impl From<Response> for Error {
 #[allow(non_snake_case)]
 pub fn ErrorBadRequest<T>(err: T) -> Error
 where
-    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
+    T: fmt::Debug + fmt::Display + 'static,
 {
     InternalError::new(err, StatusCode::BAD_REQUEST).into()
 }
@@ -669,7 +624,7 @@ where
 #[allow(non_snake_case)]
 pub fn ErrorUnauthorized<T>(err: T) -> Error
 where
-    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
+    T: fmt::Debug + fmt::Display + 'static,
 {
     InternalError::new(err, StatusCode::UNAUTHORIZED).into()
 }
@@ -679,7 +634,7 @@ where
 #[allow(non_snake_case)]
 pub fn ErrorForbidden<T>(err: T) -> Error
 where
-    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
+    T: fmt::Debug + fmt::Display + 'static,
 {
     InternalError::new(err, StatusCode::FORBIDDEN).into()
 }
@@ -689,7 +644,7 @@ where
 #[allow(non_snake_case)]
 pub fn ErrorNotFound<T>(err: T) -> Error
 where
-    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
+    T: fmt::Debug + fmt::Display + 'static,
 {
     InternalError::new(err, StatusCode::NOT_FOUND).into()
 }
@@ -699,7 +654,7 @@ where
 #[allow(non_snake_case)]
 pub fn ErrorMethodNotAllowed<T>(err: T) -> Error
 where
-    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
+    T: fmt::Debug + fmt::Display + 'static,
 {
     InternalError::new(err, StatusCode::METHOD_NOT_ALLOWED).into()
 }
@@ -709,7 +664,7 @@ where
 #[allow(non_snake_case)]
 pub fn ErrorRequestTimeout<T>(err: T) -> Error
 where
-    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
+    T: fmt::Debug + fmt::Display + 'static,
 {
     InternalError::new(err, StatusCode::REQUEST_TIMEOUT).into()
 }
@@ -719,7 +674,7 @@ where
 #[allow(non_snake_case)]
 pub fn ErrorConflict<T>(err: T) -> Error
 where
-    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
+    T: fmt::Debug + fmt::Display + 'static,
 {
     InternalError::new(err, StatusCode::CONFLICT).into()
 }
@@ -729,7 +684,7 @@ where
 #[allow(non_snake_case)]
 pub fn ErrorGone<T>(err: T) -> Error
 where
-    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
+    T: fmt::Debug + fmt::Display + 'static,
 {
     InternalError::new(err, StatusCode::GONE).into()
 }
@@ -739,7 +694,7 @@ where
 #[allow(non_snake_case)]
 pub fn ErrorPreconditionFailed<T>(err: T) -> Error
 where
-    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
+    T: fmt::Debug + fmt::Display + 'static,
 {
     InternalError::new(err, StatusCode::PRECONDITION_FAILED).into()
 }
@@ -749,7 +704,7 @@ where
 #[allow(non_snake_case)]
 pub fn ErrorExpectationFailed<T>(err: T) -> Error
 where
-    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
+    T: fmt::Debug + fmt::Display + 'static,
 {
     InternalError::new(err, StatusCode::EXPECTATION_FAILED).into()
 }
@@ -759,7 +714,7 @@ where
 #[allow(non_snake_case)]
 pub fn ErrorInternalServerError<T>(err: T) -> Error
 where
-    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
+    T: fmt::Debug + fmt::Display + 'static,
 {
     InternalError::new(err, StatusCode::INTERNAL_SERVER_ERROR).into()
 }
@@ -769,7 +724,7 @@ where
 #[allow(non_snake_case)]
 pub fn ErrorNotImplemented<T>(err: T) -> Error
 where
-    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
+    T: fmt::Debug + fmt::Display + 'static,
 {
     InternalError::new(err, StatusCode::NOT_IMPLEMENTED).into()
 }
@@ -779,7 +734,7 @@ where
 #[allow(non_snake_case)]
 pub fn ErrorBadGateway<T>(err: T) -> Error
 where
-    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
+    T: fmt::Debug + fmt::Display + 'static,
 {
     InternalError::new(err, StatusCode::BAD_GATEWAY).into()
 }
@@ -789,7 +744,7 @@ where
 #[allow(non_snake_case)]
 pub fn ErrorServiceUnavailable<T>(err: T) -> Error
 where
-    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
+    T: fmt::Debug + fmt::Display + 'static,
 {
     InternalError::new(err, StatusCode::SERVICE_UNAVAILABLE).into()
 }
@@ -799,7 +754,7 @@ where
 #[allow(non_snake_case)]
 pub fn ErrorGatewayTimeout<T>(err: T) -> Error
 where
-    T: Send + Sync + fmt::Debug + fmt::Display + 'static,
+    T: fmt::Debug + fmt::Display + 'static,
 {
     InternalError::new(err, StatusCode::GATEWAY_TIMEOUT).into()
 }
@@ -808,10 +763,8 @@ where
 mod tests {
     use super::*;
     use cookie::ParseError as CookieParseError;
-    use failure;
     use http::{Error as HttpError, StatusCode};
     use httparse;
-    use std::env;
     use std::error::Error as StdError;
     use std::io;
 
@@ -829,11 +782,10 @@ mod tests {
     }
 
     #[test]
-    fn test_as_fail() {
+    fn test_as_response() {
         let orig = io::Error::new(io::ErrorKind::Other, "other");
-        let desc = orig.description().to_owned();
-        let e = ParseError::Io(orig);
-        assert_eq!(format!("{}", e.cause().unwrap()), desc);
+        let e: Error = ParseError::Io(orig).into();
+        assert_eq!(format!("{}", e.as_response_error()), "IO error: other");
     }
 
     #[test]
@@ -847,7 +799,7 @@ mod tests {
         let orig = io::Error::new(io::ErrorKind::Other, "other");
         let desc = orig.description().to_owned();
         let e = Error::from(orig);
-        assert_eq!(format!("{}", e.as_fail()), desc);
+        assert_eq!(format!("{}", e.as_response_error()), desc);
     }
 
     #[test]
@@ -881,7 +833,7 @@ mod tests {
         ($from:expr => $error:pat) => {
             match ParseError::from($from) {
                 e @ $error => {
-                    let desc = format!("{}", e.cause().unwrap());
+                    let desc = format!("{}", e);
                     assert_eq!(desc, $from.description().to_owned());
                 }
                 _ => unreachable!("{:?}", $from),
@@ -891,8 +843,7 @@ mod tests {
 
     #[test]
     fn test_from() {
-        from_and_cause!(io::Error::new(io::ErrorKind::Other, "other") => ParseError::Io(..));
-
+        // from_and_cause!(io::Error::new(io::ErrorKind::Other, "other") => ParseError::Io(..));
         from!(httparse::Error::HeaderName => ParseError::Header);
         from!(httparse::Error::HeaderName => ParseError::Header);
         from!(httparse::Error::HeaderValue => ParseError::Header);
@@ -903,22 +854,22 @@ mod tests {
         from!(httparse::Error::Version => ParseError::Version);
     }
 
-    #[test]
-    fn failure_error() {
-        const NAME: &str = "RUST_BACKTRACE";
-        let old_tb = env::var(NAME);
-        env::set_var(NAME, "0");
-        let error = failure::err_msg("Hello!");
-        let resp: Error = error.into();
-        assert_eq!(
-            format!("{:?}", resp),
-            "Compat { error: ErrorMessage { msg: \"Hello!\" } }\n\n"
-        );
-        match old_tb {
-            Ok(x) => env::set_var(NAME, x),
-            _ => env::remove_var(NAME),
-        }
-    }
+    // #[test]
+    // fn failure_error() {
+    //     const NAME: &str = "RUST_BACKTRACE";
+    //     let old_tb = env::var(NAME);
+    //     env::set_var(NAME, "0");
+    //     let error = failure::err_msg("Hello!");
+    //     let resp: Error = error.into();
+    //     assert_eq!(
+    //         format!("{:?}", resp),
+    //         "Compat { error: ErrorMessage { msg: \"Hello!\" } }\n\n"
+    //     );
+    //     match old_tb {
+    //         Ok(x) => env::set_var(NAME, x),
+    //         _ => env::remove_var(NAME),
+    //     }
+    // }
 
     #[test]
     fn test_internal_error() {
@@ -928,31 +879,31 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
-    #[test]
-    fn test_error_downcasting_direct() {
-        #[derive(Debug, Fail)]
-        #[fail(display = "demo error")]
-        struct DemoError;
+    // #[test]
+    // fn test_error_downcasting_direct() {
+    //     #[derive(Debug, Display)]
+    //     #[display(fmt = "demo error")]
+    //     struct DemoError;
 
-        impl ResponseError for DemoError {}
+    //     impl ResponseError for DemoError {}
 
-        let err: Error = DemoError.into();
-        let err_ref: &DemoError = err.downcast_ref().unwrap();
-        assert_eq!(err_ref.to_string(), "demo error");
-    }
+    //     let err: Error = DemoError.into();
+    //     let err_ref: &DemoError = err.downcast_ref().unwrap();
+    //     assert_eq!(err_ref.to_string(), "demo error");
+    // }
 
-    #[test]
-    fn test_error_downcasting_compat() {
-        #[derive(Debug, Fail)]
-        #[fail(display = "demo error")]
-        struct DemoError;
+    // #[test]
+    // fn test_error_downcasting_compat() {
+    //     #[derive(Debug, Display)]
+    //     #[display(fmt = "demo error")]
+    //     struct DemoError;
 
-        impl ResponseError for DemoError {}
+    //     impl ResponseError for DemoError {}
 
-        let err: Error = failure::Error::from(DemoError).into();
-        let err_ref: &DemoError = err.downcast_ref().unwrap();
-        assert_eq!(err_ref.to_string(), "demo error");
-    }
+    //     let err: Error = failure::Error::from(DemoError).into();
+    //     let err_ref: &DemoError = err.downcast_ref().unwrap();
+    //     assert_eq!(err_ref.to_string(), "demo error");
+    // }
 
     #[test]
     fn test_error_helpers() {

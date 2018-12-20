@@ -51,12 +51,13 @@ actix-utils = "0.1.0"
 # actix-utils = { path="../actix-net/actix-utils/" }
 
 base64 = "0.9"
+backtrace = "0.3"
 bitflags = "1.0"
 bytes = "0.4"
 byteorder = "1.2"
 cookie = { version="0.11", features=["percent-encode"] }
+derive_more = "0.13"
 encoding = "0.2"
-failure = "0.1.3"
 futures = "0.1"
 http = "0.1.8"
 httparse = "1.3"
@@ -74,18 +75,10 @@ serde_urlencoded = "0.5.3"
 time = "0.1"
 tokio-tcp = "0.1"
 tokio-timer = "0.2"
-trust-dns-proto = "0.5.0"
-trust-dns-resolver = "0.10.0"
-url = { version="1.7", features=["query_encoding"] }
-
-# native-tls
-native-tls = { version="0.2", optional = true }
+trust-dns-resolver = "0.10.1"
 
 # openssl
 openssl = { version="0.10", optional = true }
-
-# rustls
-rustls = { version = "^0.14", optional = true }
 
 [dev-dependencies]
 actix-web = "0.7"

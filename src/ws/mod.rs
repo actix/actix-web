@@ -5,7 +5,7 @@
 //! communicate with the peer.
 use std::io;
 
-use failure::Fail;
+use derive_more::{Display, From};
 use http::{header, Method, StatusCode};
 
 use crate::error::ResponseError;
@@ -28,65 +28,59 @@ pub use self::service::VerifyWebSockets;
 pub use self::transport::Transport;
 
 /// Websocket protocol errors
-#[derive(Fail, Debug)]
+#[derive(Debug, Display, From)]
 pub enum ProtocolError {
     /// Received an unmasked frame from client
-    #[fail(display = "Received an unmasked frame from client")]
+    #[display(fmt = "Received an unmasked frame from client")]
     UnmaskedFrame,
     /// Received a masked frame from server
-    #[fail(display = "Received a masked frame from server")]
+    #[display(fmt = "Received a masked frame from server")]
     MaskedFrame,
     /// Encountered invalid opcode
-    #[fail(display = "Invalid opcode: {}", _0)]
+    #[display(fmt = "Invalid opcode: {}", _0)]
     InvalidOpcode(u8),
     /// Invalid control frame length
-    #[fail(display = "Invalid control frame length: {}", _0)]
+    #[display(fmt = "Invalid control frame length: {}", _0)]
     InvalidLength(usize),
     /// Bad web socket op code
-    #[fail(display = "Bad web socket op code")]
+    #[display(fmt = "Bad web socket op code")]
     BadOpCode,
     /// A payload reached size limit.
-    #[fail(display = "A payload reached size limit.")]
+    #[display(fmt = "A payload reached size limit.")]
     Overflow,
     /// Continuation is not supported
-    #[fail(display = "Continuation is not supported.")]
+    #[display(fmt = "Continuation is not supported.")]
     NoContinuation,
     /// Bad utf-8 encoding
-    #[fail(display = "Bad utf-8 encoding.")]
+    #[display(fmt = "Bad utf-8 encoding.")]
     BadEncoding,
     /// Io error
-    #[fail(display = "io error: {}", _0)]
-    Io(#[cause] io::Error),
+    #[display(fmt = "io error: {}", _0)]
+    Io(io::Error),
 }
 
 impl ResponseError for ProtocolError {}
 
-impl From<io::Error> for ProtocolError {
-    fn from(err: io::Error) -> ProtocolError {
-        ProtocolError::Io(err)
-    }
-}
-
 /// Websocket handshake errors
-#[derive(Fail, PartialEq, Debug)]
+#[derive(PartialEq, Debug, Display)]
 pub enum HandshakeError {
     /// Only get method is allowed
-    #[fail(display = "Method not allowed")]
+    #[display(fmt = "Method not allowed")]
     GetMethodRequired,
     /// Upgrade header if not set to websocket
-    #[fail(display = "Websocket upgrade is expected")]
+    #[display(fmt = "Websocket upgrade is expected")]
     NoWebsocketUpgrade,
     /// Connection header is not set to upgrade
-    #[fail(display = "Connection upgrade is expected")]
+    #[display(fmt = "Connection upgrade is expected")]
     NoConnectionUpgrade,
     /// Websocket version header is not set
-    #[fail(display = "Websocket version header is required")]
+    #[display(fmt = "Websocket version header is required")]
     NoVersionHeader,
     /// Unsupported websocket version
-    #[fail(display = "Unsupported version")]
+    #[display(fmt = "Unsupported version")]
     UnsupportedVersion,
     /// Websocket key is not set or wrong
-    #[fail(display = "Unknown websocket key")]
+    #[display(fmt = "Unknown websocket key")]
     BadWebsocketKey,
 }
 
