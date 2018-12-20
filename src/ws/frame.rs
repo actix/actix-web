@@ -54,7 +54,7 @@ impl Frame {
         S: Stream<Item = Bytes, Error = PayloadError>,
     {
         let mut idx = 2;
-        let buf = match pl.copy(2)? {
+        let buf = match pl.copy(2).poll()? {
             Async::Ready(Some(buf)) => buf,
             Async::Ready(None) => return Ok(Async::Ready(None)),
             Async::NotReady => return Ok(Async::NotReady),
@@ -80,7 +80,7 @@ impl Frame {
 
         let len = second & 0x7F;
         let length = if len == 126 {
-            let buf = match pl.copy(4)? {
+            let buf = match pl.copy(4).poll()? {
                 Async::Ready(Some(buf)) => buf,
                 Async::Ready(None) => return Ok(Async::Ready(None)),
                 Async::NotReady => return Ok(Async::NotReady),
@@ -89,7 +89,7 @@ impl Frame {
             idx += 2;
             len
         } else if len == 127 {
-            let buf = match pl.copy(10)? {
+            let buf = match pl.copy(10).poll()? {
                 Async::Ready(Some(buf)) => buf,
                 Async::Ready(None) => return Ok(Async::Ready(None)),
                 Async::NotReady => return Ok(Async::NotReady),
@@ -110,7 +110,7 @@ impl Frame {
         }
 
         let mask = if server {
-            let buf = match pl.copy(idx + 4)? {
+            let buf = match pl.copy(idx + 4).poll()? {
                 Async::Ready(Some(buf)) => buf,
                 Async::Ready(None) => return Ok(Async::Ready(None)),
                 Async::NotReady => return Ok(Async::NotReady),
@@ -241,7 +241,7 @@ impl Frame {
             })));
         }
 
-        let data = match pl.read_exact(length)? {
+        let data = match pl.read_exact(length).poll()? {
             Async::Ready(Some(buf)) => buf,
             Async::Ready(None) => return Ok(Async::Ready(None)),
             Async::NotReady => panic!(),

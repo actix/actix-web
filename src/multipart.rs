@@ -134,7 +134,7 @@ where
     S: Stream<Item = Bytes, Error = PayloadError>,
 {
     fn read_headers(payload: &mut PayloadBuffer<S>) -> Poll<HeaderMap, MultipartError> {
-        match payload.read_until(b"\r\n\r\n")? {
+        match payload.read_until(b"\r\n\r\n").poll()? {
             Async::NotReady => Ok(Async::NotReady),
             Async::Ready(None) => Err(MultipartError::Incomplete),
             Async::Ready(Some(bytes)) => {
@@ -167,7 +167,7 @@ where
         payload: &mut PayloadBuffer<S>, boundary: &str,
     ) -> Poll<bool, MultipartError> {
         // TODO: need to read epilogue
-        match payload.readline()? {
+        match payload.readline().poll()? {
             Async::NotReady => Ok(Async::NotReady),
             Async::Ready(None) => Err(MultipartError::Incomplete),
             Async::Ready(Some(chunk)) => {
@@ -194,7 +194,7 @@ where
     ) -> Poll<bool, MultipartError> {
         let mut eof = false;
         loop {
-            match payload.readline()? {
+            match payload.readline().poll()? {
                 Async::Ready(Some(chunk)) => {
                     if chunk.is_empty() {
                         //ValueError("Could not find starting boundary %r"
@@ -495,7 +495,7 @@ where
         if *size == 0 {
             Ok(Async::Ready(None))
         } else {
-            match payload.readany() {
+            match payload.readany().poll() {
                 Ok(Async::NotReady) => Ok(Async::NotReady),
                 Ok(Async::Ready(None)) => Err(MultipartError::Incomplete),
                 Ok(Async::Ready(Some(mut chunk))) => {
@@ -517,13 +517,13 @@ where
     fn read_stream(
         payload: &mut PayloadBuffer<S>, boundary: &str,
     ) -> Poll<Option<Bytes>, MultipartError> {
-        match payload.read_until(b"\r")? {
+        match payload.read_until(b"\r").poll()? {
             Async::NotReady => Ok(Async::NotReady),
             Async::Ready(None) => Err(MultipartError::Incomplete),
             Async::Ready(Some(mut chunk)) => {
                 if chunk.len() == 1 {
                     payload.unprocessed(chunk);
-                    match payload.read_exact(boundary.len() + 4)? {
+                    match payload.read_exact(boundary.len() + 4).poll()? {
                         Async::NotReady => Ok(Async::NotReady),
                         Async::Ready(None) => Err(MultipartError::Incomplete),
                         Async::Ready(Some(mut chunk)) => {
@@ -568,7 +568,7 @@ where
                 Async::Ready(Some(bytes)) => Async::Ready(Some(bytes)),
                 Async::Ready(None) => {
                     self.eof = true;
-                    match payload.readline()? {
+                    match payload.readline().poll()? {
                         Async::NotReady => Async::NotReady,
                         Async::Ready(None) => Async::Ready(None),
                         Async::Ready(Some(line)) => {
