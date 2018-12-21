@@ -322,8 +322,8 @@ where
 
     /// Read first available chunk of bytes
     #[inline]
-    pub fn readany(&mut self) -> ReadAny<S> {
-        ReadAny { inner: self }
+    pub fn readany(&mut self) -> PayloadReadAny<S> {
+        PayloadReadAny { inner: self }
     }
 
     /// Check if buffer contains enough bytes
@@ -358,8 +358,8 @@ where
 
     /// Read exact number of bytes
     #[inline]
-    pub fn read_exact(&mut self, size: usize) -> ReadExact<S> {
-        ReadExact { inner: self, size }
+    pub fn read_exact(&mut self, size: usize) -> PayloadReadExact<S> {
+        PayloadReadExact { inner: self, size }
     }
 
     /// Remove specified amount if bytes from buffer
@@ -382,17 +382,17 @@ where
     }
 
     /// Copy buffered data
-    pub fn copy(&mut self, size: usize) -> Copy<S> {
-        Copy { inner: self, size }
+    pub fn copy(&mut self, size: usize) -> PayloadCopy<S> {
+        PayloadCopy { inner: self, size }
     }
 
     /// Read until specified ending
-    pub fn read_until(&mut self, line: &[u8]) -> ReadUntil<S> {
-        ReadUntil { inner: self, line: line.to_vec() }
+    pub fn read_until(&mut self, line: &[u8]) -> PayloadReadUntil<S> {
+        PayloadReadUntil { inner: self, line: line.to_vec() }
     }
 
     /// Read bytes until new line delimiter
-    pub fn readline(&mut self) -> ReadUntil<S> {
+    pub fn readline(&mut self) -> PayloadReadUntil<S> {
         self.read_until(b"\n")
     }
 
@@ -413,11 +413,11 @@ where
     }
 }
 
-pub struct ReadAny<'a, S> {
+pub struct PayloadReadAny<'a, S> {
     inner: &'a mut PayloadBuffer<S>,
 }
 
-impl<'a, S: 'a> Stream for ReadAny<'a, S>
+impl<'a, S: 'a> Stream for PayloadReadAny<'a, S>
 where
     S: Stream<Item = Bytes, Error = PayloadError>,
 {
@@ -437,12 +437,12 @@ where
     }
 }
 
-pub struct ReadExact<'a, S> {
+pub struct PayloadReadExact<'a, S> {
     inner: &'a mut PayloadBuffer<S>,
     size: usize,
 }
 
-impl<'a, S: 'a> Stream for ReadExact<'a, S>
+impl<'a, S: 'a> Stream for PayloadReadExact<'a, S>
 where
     S: Stream<Item = Bytes, Error = PayloadError>,
 {
@@ -482,12 +482,12 @@ where
     }
 }
 
-pub struct Copy<'a, S> {
+pub struct PayloadCopy<'a, S> {
     inner: &'a mut PayloadBuffer<S>,
     size: usize,
 }
 
-impl<'a, S: 'a> Stream for Copy<'a, S>
+impl<'a, S: 'a> Stream for PayloadCopy<'a, S>
 where
     S: Stream<Item = Bytes, Error = PayloadError>
 {
@@ -515,12 +515,12 @@ where
     }
 }
 
-pub struct ReadUntil<'a, S> {
+pub struct PayloadReadUntil<'a, S> {
     inner: &'a mut PayloadBuffer<S>,
     line: Vec<u8>,
 }
 
-impl<'a, S: 'a> Stream for ReadUntil<'a, S>
+impl<'a, S: 'a> Stream for PayloadReadUntil<'a, S>
 where
     S: Stream<Item = Bytes, Error = PayloadError>,
 {
