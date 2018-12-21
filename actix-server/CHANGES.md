@@ -1,5 +1,12 @@
 # Changes
 
+## [0.1.3] - 2018-12-21
+
+## Fixed
+
+* Fix max concurrent connections handling
+
+
 ## [0.1.2] - 2018-12-12
 
 ## Changed

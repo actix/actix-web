@@ -83,9 +83,9 @@ where
                 });
 
                 if let Ok(stream) = stream {
-                    spawn(self.service.call(stream).map_err(|_| ()).map(move |val| {
+                    spawn(self.service.call(stream).then(move |res| {
                         drop(guard);
-                        val
+                        res.map_err(|_| ())
                     }));
                     ok(())
                 } else {
@@ -122,9 +122,9 @@ where
     }
 
     fn call(&mut self, (guard, req): (Option<CounterGuard>, ServerMessage)) -> Self::Future {
-        spawn(self.service.call(req).map_err(|_| ()).map(move |val| {
+        spawn(self.service.call(req).then(move |res| {
             drop(guard);
-            val
+            res.map_err(|_| ())
         }));
         ok(())
     }
