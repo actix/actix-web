@@ -187,7 +187,7 @@ where
 enum TransportState<S: Service<Request<U>>, U: Encoder + Decoder> {
     Processing,
     Error(FramedTransportError<S::Error, U>),
-    EncoderError(FramedTransportError<S::Error, U>),
+    FramedError(FramedTransportError<S::Error, U>),
     Stopping,
 }
 
@@ -263,7 +263,7 @@ where
                         Ok(Async::Ready(Some(el))) => el,
                         Err(err) => {
                             self.state =
-                                TransportState::Error(FramedTransportError::Decoder(err));
+                                TransportState::FramedError(FramedTransportError::Decoder(err));
                             return true;
                         }
                         Ok(Async::NotReady) => return false,
@@ -310,7 +310,7 @@ where
                     Ok(Async::Ready(Some(msg))) => match msg {
                         Ok(msg) => {
                             if let Err(err) = self.framed.force_send(msg) {
-                                self.state = TransportState::EncoderError(
+                                self.state = TransportState::FramedError(
                                     FramedTransportError::Encoder(err),
                                 );
                                 return true;
@@ -334,7 +334,7 @@ where
                     Err(err) => {
                         debug!("Error sending data: {:?}", err);
                         self.state =
-                            TransportState::EncoderError(FramedTransportError::Encoder(err));
+                            TransportState::FramedError(FramedTransportError::Encoder(err));
                         return true;
                     }
                     Ok(Async::Ready(_)) => (),
@@ -378,7 +378,7 @@ where
                     Ok(Async::NotReady)
                 }
             }
-            TransportState::EncoderError(err) => Err(err),
+            TransportState::FramedError(err) => Err(err),
             TransportState::Stopping => Ok(Async::Ready(())),
         }
     }
