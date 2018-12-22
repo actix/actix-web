@@ -109,14 +109,14 @@ pub trait StaticFileConfig: Default {
     /// Directory renderer
     ///
     /// Uses default one, unless re-defined.
-    fn directory_listing<S>(dir: &Directory, req: &HttpRequest<S>) -> Result<HttpResponse, io::Error> {
+    fn directory_listing<S: 'static>(dir: &Directory, req: &HttpRequest<S>) -> Result<HttpResponse, io::Error> {
         directory_listing(dir, req)
     }
 
     /// Default handler for StaticFiles.
     ///
     /// Responses with NotFound by default
-    fn default_handler<S>(_req: &HttpRequest<S>) -> AsyncResult<HttpResponse> {
+    fn default_handler<S: 'static>(_req: &HttpRequest<S>) -> AsyncResult<HttpResponse> {
         HttpResponse::new(StatusCode::NOT_FOUND).into()
     }
 }
