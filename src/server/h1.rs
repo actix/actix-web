@@ -7,6 +7,7 @@ use futures::{Async, Future, Poll};
 use tokio_current_thread::spawn;
 use tokio_timer::Delay;
 
+use body::Binary;
 use error::{Error, PayloadError};
 use http::{StatusCode, Version};
 use payload::{Payload, PayloadStatus, PayloadWriter};
@@ -50,32 +51,40 @@ pub struct Http1Dispatcher<T: IoStream, H: HttpHandler + 'static> {
 }
 
 enum Entry<H: HttpHandler> {
-    Task(H::Task),
+    Task(H::Task, Option<()>),
     Error(Box<HttpHandlerTask>),
 }
 
 impl<H: HttpHandler> Entry<H> {
     fn into_task(self) -> H::Task {
         match self {
-            Entry::Task(task) => task,
+            Entry::Task(task, _) => task,
             Entry::Error(_) => panic!(),
         }
     }
     fn disconnected(&mut self) {
         match *self {
-            Entry::Task(ref mut task) => task.disconnected(),
+            Entry::Task(ref mut task, _) => task.disconnected(),
             Entry::Error(ref mut task) => task.disconnected(),
         }
     }
     fn poll_io(&mut self, io: &mut Writer) -> Poll<bool, Error> {
         match *self {
-            Entry::Task(ref mut task) => task.poll_io(io),
+            Entry::Task(ref mut task, ref mut except) => {
+                match except {
+                    Some(_) => {
+                        let _ = io.write(&Binary::from("HTTP/1.1 100 Continue\r\n\r\n"));
+                    }
+                    _ => (),
+                };
+                task.poll_io(io)
+            }
             Entry::Error(ref mut task) => task.poll_io(io),
         }
     }
     fn poll_completed(&mut self) -> Poll<(), Error> {
         match *self {
-            Entry::Task(ref mut task) => task.poll_completed(),
+            Entry::Task(ref mut task, _) => task.poll_completed(),
             Entry::Error(ref mut task) => task.poll_completed(),
         }
     }
@@ -463,7 +472,11 @@ where
 
         'outer: loop {
             match self.decoder.decode(&mut self.buf, &self.settings) {
-                Ok(Some(Message::Message { mut msg, payload })) => {
+                Ok(Some(Message::Message {
+                    mut msg,
+                    mut expect,
+                    payload,
+                })) => {
                     updated = true;
                     self.flags.insert(Flags::STARTED);
 
@@ -484,6 +497,12 @@ where
                     match self.settings.handler().handle(msg) {
                         Ok(mut task) => {
                             if self.tasks.is_empty() {
+                                if expect {
+                                    expect = false;
+                                    let _ = self.stream.write(&Binary::from(
+                                        "HTTP/1.1 100 Continue\r\n\r\n",
+                                    ));
+                                }
                                 match task.poll_io(&mut self.stream) {
                                     Ok(Async::Ready(ready)) => {
                                         // override keep-alive state
@@ -510,7 +529,10 @@ where
                                     }
                                 }
                             }
-                            self.tasks.push_back(Entry::Task(task));
+                            self.tasks.push_back(Entry::Task(
+                                task,
+                                if expect { Some(()) } else { None },
+                            ));
                             continue 'outer;
                         }
                         Err(_) => {
@@ -608,13 +630,13 @@ mod tests {
     impl Message {
         fn message(self) -> Request {
             match self {
-                Message::Message { msg, payload: _ } => msg,
+                Message::Message { msg, .. } => msg,
                 _ => panic!("error"),
             }
         }
         fn is_payload(&self) -> bool {
             match *self {
-                Message::Message { msg: _, payload } => payload,
+                Message::Message { payload, .. } => payload,
                 _ => panic!("error"),
             }
         }
@@ -874,13 +896,13 @@ mod tests {
         let settings = wrk_settings();
 
         let mut reader = H1Decoder::new();
-        assert!{ reader.decode(&mut buf, &settings).unwrap().is_none() }
+        assert! { reader.decode(&mut buf, &settings).unwrap().is_none() }
 
         buf.extend(b"t");
-        assert!{ reader.decode(&mut buf, &settings).unwrap().is_none() }
+        assert! { reader.decode(&mut buf, &settings).unwrap().is_none() }
 
         buf.extend(b"es");
-        assert!{ reader.decode(&mut buf, &settings).unwrap().is_none() }
+        assert! { reader.decode(&mut buf, &settings).unwrap().is_none() }
 
         buf.extend(b"t: value\r\n\r\n");
         match reader.decode(&mut buf, &settings) {

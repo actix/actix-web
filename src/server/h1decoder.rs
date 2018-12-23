@@ -20,7 +20,11 @@ pub(crate) struct H1Decoder {
 
 #[derive(Debug)]
 pub(crate) enum Message {
-    Message { msg: Request, payload: bool },
+    Message {
+        msg: Request,
+        payload: bool,
+        expect: bool,
+    },
     Chunk(Bytes),
     Eof,
 }
@@ -63,10 +67,11 @@ impl H1Decoder {
             .parse_message(src, settings)
             .map_err(DecoderError::Error)?
         {
-            Async::Ready((msg, decoder)) => {
+            Async::Ready((msg, expect, decoder)) => {
                 self.decoder = decoder;
                 Ok(Some(Message::Message {
                     msg,
+                    expect,
                     payload: self.decoder.is_some(),
                 }))
             }
@@ -85,11 +90,12 @@ impl H1Decoder {
         &self,
         buf: &mut BytesMut,
         settings: &ServiceConfig<H>,
-    ) -> Poll<(Request, Option<EncodingDecoder>), ParseError> {
+    ) -> Poll<(Request, bool, Option<EncodingDecoder>), ParseError> {
         // Parse http message
         let mut has_upgrade = false;
         let mut chunked = false;
         let mut content_length = None;
+        let mut expect_continue = false;
 
         let msg = {
             // Unsafe: we read only this data only after httparse parses headers into.
@@ -165,11 +171,17 @@ impl H1Decoder {
                             }
                             // connection keep-alive state
                             header::CONNECTION => {
-                                let ka = if let Ok(conn) = value.to_str().map(|conn| conn.trim()) {
-                                    if version == Version::HTTP_10 && conn.eq_ignore_ascii_case("keep-alive") {
+                                let ka = if let Ok(conn) =
+                                    value.to_str().map(|conn| conn.trim())
+                                {
+                                    if version == Version::HTTP_10
+                                        && conn.eq_ignore_ascii_case("keep-alive")
+                                    {
                                         true
                                     } else {
-                                        version == Version::HTTP_11 && !(conn.eq_ignore_ascii_case("close") || conn.eq_ignore_ascii_case("upgrade"))
+                                        version == Version::HTTP_11
+                                            && !(conn.eq_ignore_ascii_case("close")
+                                                || conn.eq_ignore_ascii_case("upgrade"))
                                     }
                                 } else {
                                     false
@@ -184,6 +196,11 @@ impl H1Decoder {
                                     if val.eq_ignore_ascii_case("websocket") {
                                         content_length = None;
                                     }
+                                }
+                            }
+                            header::EXPECT => {
+                                if value == "100-continue" {
+                                    expect_continue = true
                                 }
                             }
                             _ => (),
@@ -216,7 +233,7 @@ impl H1Decoder {
             None
         };
 
-        Ok(Async::Ready((msg, decoder)))
+        Ok(Async::Ready((msg, expect_continue, decoder)))
     }
 }
 

@@ -1,6 +1,6 @@
 [package]
 name = "actix-web"
-version = "0.7.16"
+version = "0.7.17"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix web is a simple, pragmatic and extremely fast web framework for Rust."
 readme = "README.md"
@@ -62,7 +62,7 @@ cell = ["actix-net/cell"]
 
 [dependencies]
 actix = "0.7.9"
-actix-net = "0.2.2"
+actix-net = "0.2.6"
 
 askama_escape = "0.1.0"
 base64 = "0.10"
@@ -105,7 +105,7 @@ slab = "0.4"
 tokio = "0.1"
 tokio-io = "0.1"
 tokio-tcp = "0.1"
-tokio-timer = "0.2"
+tokio-timer = "0.2.8"
 tokio-reactor = "0.1"
 tokio-current-thread = "0.1"
 

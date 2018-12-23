@@ -1,10 +1,12 @@
 # Changes
 
-## [0.7.17] - 2018-xx-xx
+## [0.7.17] - 2018-12-23
 
 ### Added
 
 * Support for custom content types in `JsonConfig`. #637
+
+* Send `HTTP/1.1 100 Continue` if request contains `expect: continue` header #634
 
 ### Fixed
 
