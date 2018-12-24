@@ -11,6 +11,7 @@
 ### Fixed
 
 * HTTP1 decoder should perform case-insentive comparison for client requests (e.g. `Keep-Alive`). #631
+* Access-Control-Allow-Origin header should only a return a single, matching origin. #603
 
 ## [0.7.16] - 2018-12-11
 
