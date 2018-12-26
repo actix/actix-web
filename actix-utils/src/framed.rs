@@ -371,7 +371,9 @@ where
                 }
             }
             TransportState::Error(err) => {
-                if self.poll_response() || !self.framed.is_write_buf_empty() {
+                if self.framed.is_write_buf_empty()
+                    || (self.poll_response() || self.framed.is_write_buf_empty())
+                {
                     Err(err)
                 } else {
                     self.state = TransportState::Error(err);
