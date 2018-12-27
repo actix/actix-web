@@ -507,6 +507,10 @@ impl TestRequest<()> {
     {
         TestRequest::default().header(key, value)
     }
+    /// Create TestRequest and set request cookie
+    pub fn with_cookie(cookie: Cookie<'static>) -> TestRequest<()> {
+        TestRequest::default().cookie(cookie)
+    }
 }
 
 impl<S: 'static> TestRequest<S> {
@@ -540,6 +544,27 @@ impl<S: 'static> TestRequest<S> {
     /// Set HTTP Uri of this request
     pub fn uri(mut self, path: &str) -> Self {
         self.uri = Uri::from_str(path).unwrap();
+        self
+    }
+
+    /// set cookie of this request
+    pub fn cookie(mut self, cookie: Cookie<'static>) -> Self {
+        let mut should_insert = true;
+        let mut cookies = match self.cookies {
+            Some(old_cookies) => {
+                for old_cookie in &old_cookies {
+                    if old_cookie == &cookie {
+                        should_insert = false
+                    };
+                }
+                old_cookies
+            }
+            None => { Vec::<Cookie>::new() }
+        };
+        if should_insert {
+            cookies.push(cookie)
+        };
+        self.cookies = Some(cookies);
         self
     }
 
