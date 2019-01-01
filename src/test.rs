@@ -550,21 +550,19 @@ impl<S: 'static> TestRequest<S> {
     /// set cookie of this request
     pub fn cookie(mut self, cookie: Cookie<'static>) -> Self {
         let mut should_insert = true;
-        let mut cookies = match self.cookies {
+        match &mut self.cookies {
             Some(old_cookies) => {
-                for old_cookie in &old_cookies {
+                for old_cookie in old_cookies.iter() {
                     if old_cookie == &cookie {
                         should_insert = false
                     };
-                }
-                old_cookies
+                };
+                if should_insert {
+                    old_cookies.push(cookie);
+                };
             }
-            None => { Vec::<Cookie>::new() }
+            None => {}
         };
-        if should_insert {
-            cookies.push(cookie)
-        };
-        self.cookies = Some(cookies);
         self
     }
 
