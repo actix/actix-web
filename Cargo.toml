@@ -17,9 +17,10 @@ edition = "2018"
 members = [
   "actix-codec",
   "actix-connector",
+  "actix-rt",
   "actix-service",
   "actix-server",
-  "actix-rt",
+  "actix-test-server",
   "actix-utils",
 ]
 
