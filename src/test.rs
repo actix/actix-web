@@ -507,6 +507,7 @@ impl TestRequest<()> {
     {
         TestRequest::default().header(key, value)
     }
+
     /// Create TestRequest and set request cookie
     pub fn with_cookie(cookie: Cookie<'static>) -> TestRequest<()> {
         TestRequest::default().cookie(cookie)
