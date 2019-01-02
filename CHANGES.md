@@ -1,5 +1,12 @@
 # Changes
 
+## [0.7.18] - 2019-01-02
+
+### Added
+
+* Add `with_cookie` for `TestRequest` to allow users to customize request cookie. #647
+* Add `cookie` method for `TestRequest` to allow users to add cookie dynamically. 
+
 ## [0.7.17] - 2018-12-25
 
 ### Added
