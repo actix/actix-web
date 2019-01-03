@@ -8,6 +8,8 @@
 
 * `StaticFiles` configuration is moved to `StaticFileConfig` completely.
 
+* `StaticFiles` now serves both index file and directory index.
+
 ## [0.7.17] - 2018-xx-xx
 
 ### Fixed
