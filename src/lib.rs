@@ -100,7 +100,6 @@ extern crate failure;
 extern crate lazy_static;
 #[macro_use]
 extern crate futures;
-extern crate askama_escape;
 extern crate cookie;
 extern crate futures_cpupool;
 extern crate http as modhttp;
@@ -137,6 +136,7 @@ extern crate serde_urlencoded;
 extern crate percent_encoding;
 extern crate serde_json;
 extern crate smallvec;
+extern crate v_htmlescape;
 
 extern crate actix_net;
 #[macro_use]

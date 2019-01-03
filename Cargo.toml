@@ -64,7 +64,7 @@ cell = ["actix-net/cell"]
 actix = "0.7.9"
 actix-net = "0.2.6"
 
-askama_escape = "0.1.0"
+v_htmlescape = "0.3.2"
 base64 = "0.10"
 bitflags = "1.0"
 failure = "^0.1.2"
