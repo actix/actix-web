@@ -22,6 +22,7 @@ members = [
   "actix-server",
   "actix-test-server",
   "actix-utils",
+  "router",
 ]
 
 [dev-dependencies]

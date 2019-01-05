@@ -39,6 +39,7 @@ script:
     cd actix-rt && cargo test && cd ..
     cd actix-connector && cargo test && cd ..
     cd actix-utils && cargo test && cd ..
+    cd router && cargo test && cd ..
     fi
   - |
     if [[ "$TRAVIS_RUST_VERSION" == "nightly" ]]; then
@@ -52,4 +53,5 @@ script:
     cd actix-codec && cargo tarpaulin --out Xml && bash <(curl -s https://codecov.io/bash) && cd ..
     cd actix-server && cargo tarpaulin --out Xml && bash <(curl -s https://codecov.io/bash) && cd ..
     cd actix-utils && cargo tarpaulin --out Xml && bash <(curl -s https://codecov.io/bash) && cd ..
+    cd router && cargo tarpaulin --out Xml && bash <(curl -s https://codecov.io/bash) && cd ..
     fi
