@@ -1,0 +1,31 @@
+[package]
+name = "actix-router"
+version = "0.1.0"
+authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
+description = "Path router"
+keywords = ["actix"]
+homepage = "https://actix.rs"
+repository = "https://github.com/actix/actix-net.git"
+documentation = "https://actix.rs/api/actix-net/stable/actix_router/"
+license = "MIT/Apache-2.0"
+exclude = [".gitignore", ".travis.yml", ".cargo/config", "appveyor.yml"]
+edition = "2018"
+workspace = "../"
+
+[lib]
+name = "actix_router"
+path = "src/lib.rs"
+
+[features]
+default = ["http"]
+
+[dependencies]
+bytes = "0.4"
+regex = "1.0"
+serde = "1.0.80"
+string = "0.1"
+
+http = { version="0.1.14", optional=true }
+
+[dev-dependencies]
+serde_derive = "1.0"
