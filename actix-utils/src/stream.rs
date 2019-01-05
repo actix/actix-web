@@ -5,18 +5,22 @@ use actix_service::{IntoService, NewService, Service};
 use futures::unsync::mpsc;
 use futures::{future, Async, Future, Poll, Stream};
 
-pub struct StreamDispatcher<S: Stream, T> {
+pub struct StreamDispatcher<S, T>
+where
+    S: Stream,
+    T: Service<Result<S::Item, S::Error>>,
+{
     stream: S,
     service: T,
     item: Option<Result<S::Item, S::Error>>,
-    stop_rx: mpsc::UnboundedReceiver<()>,
-    stop_tx: mpsc::UnboundedSender<()>,
+    stop_rx: mpsc::UnboundedReceiver<T::Error>,
+    stop_tx: mpsc::UnboundedSender<T::Error>,
 }
 
 impl<S, T> StreamDispatcher<S, T>
 where
     S: Stream,
-    T: Service<Result<S::Item, S::Error>, Response = (), Error = ()>,
+    T: Service<Result<S::Item, S::Error>, Response = ()>,
     T::Future: 'static,
 {
     pub fn new<F>(stream: S, service: F) -> Self
@@ -37,15 +41,15 @@ where
 impl<S, T> Future for StreamDispatcher<S, T>
 where
     S: Stream,
-    T: Service<Result<S::Item, S::Error>, Response = (), Error = ()>,
+    T: Service<Result<S::Item, S::Error>, Response = ()>,
     T::Future: 'static,
 {
     type Item = ();
-    type Error = ();
+    type Error = T::Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        if let Ok(Async::Ready(Some(_))) = self.stop_rx.poll() {
-            return Ok(Async::Ready(()));
+        if let Ok(Async::Ready(Some(e))) = self.stop_rx.poll() {
+            return Err(e);
         }
 
         let mut item = self.item.take();
@@ -74,7 +78,7 @@ where
 
 struct StreamDispatcherService<F: Future> {
     fut: F,
-    stop: mpsc::UnboundedSender<()>,
+    stop: mpsc::UnboundedSender<F::Error>,
 }
 
 impl<F: Future> Future for StreamDispatcherService<F> {
@@ -85,8 +89,8 @@ impl<F: Future> Future for StreamDispatcherService<F> {
         match self.fut.poll() {
             Ok(Async::Ready(_)) => Ok(Async::Ready(())),
             Ok(Async::NotReady) => Ok(Async::NotReady),
-            Err(_) => {
-                let _ = self.stop.unbounded_send(());
+            Err(e) => {
+                let _ = self.stop.unbounded_send(e);
                 Ok(Async::Ready(()))
             }
         }
