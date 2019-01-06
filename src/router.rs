@@ -75,6 +75,24 @@ impl<T> Router<T> {
     }
 }
 
+impl<'a, T> IntoIterator for &'a Router<T> {
+    type Item = &'a T;
+    type IntoIter = std::slice::Iter<'a, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.resources.iter()
+    }
+}
+
+impl<'a, T> IntoIterator for &'a mut Router<T> {
+    type Item = &'a mut T;
+    type IntoIter = std::slice::IterMut<'a, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.resources.iter_mut()
+    }
+}
+
 impl ResourceMap {
     fn register(&mut self, pattern: Pattern) {
         self.patterns.push(pattern);
