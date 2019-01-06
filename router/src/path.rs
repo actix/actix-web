@@ -12,7 +12,7 @@ pub(crate) enum PathItem {
 /// Resource path match information
 ///
 /// If resource path contains variable patterns, `Path` stores them.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Path<T> {
     path: T,
     pub(crate) skip: u16,
@@ -29,6 +29,16 @@ impl<T: Default> Default for Path<T> {
     }
 }
 
+impl<T: Clone> Clone for Path<T> {
+    fn clone(&self) -> Self {
+        Path {
+            path: self.path.clone(),
+            skip: self.skip,
+            segments: self.segments.clone(),
+        }
+    }
+}
+
 impl<T: RequestPath> Path<T> {
     pub fn new(path: T) -> Path<T> {
         Path {
@@ -36,6 +46,16 @@ impl<T: RequestPath> Path<T> {
             skip: 0,
             segments: Vec::new(),
         }
+    }
+
+    /// Get reference to inner path instance
+    pub fn get_ref(&self) -> &T {
+        &self.path
+    }
+
+    /// Get mutable reference to inner path instance
+    pub fn get_mut(&mut self) -> &mut T {
+        &mut self.path
     }
 
     pub fn path(&self) -> &str {
@@ -68,7 +88,8 @@ impl<T: RequestPath> Path<T> {
         }
     }
 
-    pub(crate) fn add_static(&mut self, name: &str, value: &'static str) {
+    #[doc(hidden)]
+    pub fn add_static(&mut self, name: &str, value: &'static str) {
         self.segments
             .push((Rc::new(name.to_string()), PathItem::Static(value)));
     }
