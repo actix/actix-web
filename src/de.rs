@@ -487,10 +487,25 @@ mod tests {
         id: String,
     }
 
-    #[derive(Deserialize)]
+    #[derive(Debug, Deserialize)]
+    struct Test1(String, u32);
+
+    #[derive(Debug, Deserialize)]
     struct Test2 {
         key: String,
         value: u32,
+    }
+
+    #[derive(Debug, Deserialize, PartialEq)]
+    #[serde(rename_all = "lowercase")]
+    enum TestEnum {
+        Val1,
+        Val2,
+    }
+
+    #[derive(Debug, Deserialize)]
+    struct Test3 {
+        val: TestEnum,
     }
 
     #[test]
@@ -518,6 +533,10 @@ mod tests {
         let mut path = Path::new("/name/32/");
         assert!(router.recognize(&mut path).is_some());
 
+        let s: Test1 = de::Deserialize::deserialize(PathDeserializer::new(&path)).unwrap();
+        assert_eq!(s.0, "name");
+        assert_eq!(s.1, 32);
+
         let s: Test2 = de::Deserialize::deserialize(PathDeserializer::new(&path)).unwrap();
         assert_eq!(s.key, "name");
         assert_eq!(s.value, 32);
@@ -543,6 +562,55 @@ mod tests {
         assert!(router.recognize(&mut path).is_some());
         let i: i8 = de::Deserialize::deserialize(PathDeserializer::new(&path)).unwrap();
         assert_eq!(i, 32);
+    }
+
+    #[test]
+    fn test_extract_enum_value() {
+        let mut router = Router::<()>::build();
+        router.path("/{val}/", ());
+        let router = router.finish();
+
+        let mut path = Path::new("/val1/");
+        assert!(router.recognize(&mut path).is_some());
+        let i: Test3 = de::Deserialize::deserialize(PathDeserializer::new(&path)).unwrap();
+        assert_eq!(i.val, TestEnum::Val1);
+
+        let mut path = Path::new("/val3/");
+        assert!(router.recognize(&mut path).is_some());
+        let i: Result<Test3, de::value::Error> =
+            de::Deserialize::deserialize(PathDeserializer::new(&path));
+        assert!(i.is_err());
+        assert!(format!("{:?}", i).contains("unknown variant"));
+    }
+
+    #[test]
+    fn test_extract_errors() {
+        let mut router = Router::<()>::build();
+        router.path("/{value}/", ());
+        let router = router.finish();
+
+        let mut path = Path::new("/name/");
+        assert!(router.recognize(&mut path).is_some());
+
+        let s: Result<Test1, de::value::Error> =
+            de::Deserialize::deserialize(PathDeserializer::new(&path));
+        assert!(s.is_err());
+        assert!(format!("{:?}", s).contains("wrong number of parameters"));
+
+        let s: Result<Test2, de::value::Error> =
+            de::Deserialize::deserialize(PathDeserializer::new(&path));
+        assert!(s.is_err());
+        assert!(format!("{:?}", s).contains("can not parse"));
+
+        let s: Result<(String, String), de::value::Error> =
+            de::Deserialize::deserialize(PathDeserializer::new(&path));
+        assert!(s.is_err());
+        assert!(format!("{:?}", s).contains("wrong number of parameters"));
+
+        let s: Result<u32, de::value::Error> =
+            de::Deserialize::deserialize(PathDeserializer::new(&path));
+        assert!(s.is_err());
+        assert!(format!("{:?}", s).contains("can not parse"));
     }
 
     // #[test]

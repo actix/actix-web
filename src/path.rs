@@ -58,6 +58,7 @@ impl<T: RequestPath> Path<T> {
         &mut self.path
     }
 
+    /// Path
     pub fn path(&self) -> &str {
         let skip = self.skip as usize;
         let path = self.path.path();
@@ -68,7 +69,8 @@ impl<T: RequestPath> Path<T> {
         }
     }
 
-    pub fn set_path(&mut self, path: T) {
+    /// Reset inner path
+    pub fn set(&mut self, path: T) {
         self.skip = 0;
         self.path = path;
         self.segments.clear();
@@ -123,7 +125,7 @@ impl<T: RequestPath> Path<T> {
         }
     }
 
-    /// Get unprocessed part of path
+    /// Get unprocessed part of the path
     pub fn unprocessed(&self) -> &str {
         &self.path.path()[(self.skip as usize)..]
     }
