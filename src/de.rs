@@ -146,12 +146,20 @@ impl<'de, T: RequestPath + 'de> Deserializer<'de> for PathDeserializer<'de, T> {
         self,
         _: &'static str,
         _: &'static [&'static str],
-        _: V,
+        visitor: V,
     ) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        Err(de::value::Error::custom("unsupported type: enum"))
+        if self.path.len() < 1 {
+            Err(de::value::Error::custom(
+                "expeceted at least one parameters",
+            ))
+        } else {
+            visitor.visit_enum(ValueEnum {
+                value: &self.path[0],
+            })
+        }
     }
 
     fn deserialize_str<V>(self, visitor: V) -> Result<V::Value, Self::Error>
@@ -562,6 +570,28 @@ mod tests {
         assert!(router.recognize(&mut path).is_some());
         let i: i8 = de::Deserialize::deserialize(PathDeserializer::new(&path)).unwrap();
         assert_eq!(i, 32);
+    }
+
+    #[test]
+    fn test_extract_enum() {
+        let mut router = Router::<()>::build();
+        router.path("/{val}/", ());
+        let router = router.finish();
+
+        let mut path = Path::new("/val1/");
+        assert!(router.recognize(&mut path).is_some());
+        let i: TestEnum = de::Deserialize::deserialize(PathDeserializer::new(&path)).unwrap();
+        assert_eq!(i, TestEnum::Val1);
+
+        let mut router = Router::<()>::build();
+        router.path("/{val1}/{val2}/", ());
+        let router = router.finish();
+
+        let mut path = Path::new("/val1/val2/");
+        assert!(router.recognize(&mut path).is_some());
+        let i: (TestEnum, TestEnum) =
+            de::Deserialize::deserialize(PathDeserializer::new(&path)).unwrap();
+        assert_eq!(i, (TestEnum::Val1, TestEnum::Val2));
     }
 
     #[test]
