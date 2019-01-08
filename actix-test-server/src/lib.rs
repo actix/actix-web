@@ -40,6 +40,8 @@ pub struct TestServer;
 /// Test server runstime
 pub struct TestServerRuntime {
     addr: net::SocketAddr,
+    host: String,
+    port: u16,
     rt: Runtime,
 }
 
@@ -68,8 +70,15 @@ impl TestServer {
         System::set_current(system);
 
         let rt = Runtime::new().unwrap();
+        let host = format!("{}", addr.ip());
+        let port = addr.port();
 
-        TestServerRuntime { addr, rt }
+        TestServerRuntime {
+            addr,
+            rt,
+            host,
+            port,
+        }
     }
 
     /// Get firat available unused local address
@@ -98,6 +107,16 @@ impl TestServerRuntime {
         F: Future<Item = (), Error = ()> + 'static,
     {
         self.rt.spawn(fut);
+    }
+
+    /// Test server host
+    pub fn host(&self) -> &str {
+        &self.host
+    }
+
+    /// Test server port
+    pub fn port(&self) -> u16 {
+        self.port
     }
 
     /// Get test server address
