@@ -12,6 +12,8 @@
 
 * StaticFiles decode special characters in request's path
 
+* Fix test server listener leak #654
+
 ## [0.7.17] - 2018-12-25
 
 ### Added
