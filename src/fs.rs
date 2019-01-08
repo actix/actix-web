@@ -761,7 +761,7 @@ impl<S: 'static, C: StaticFileConfig> StaticFiles<S, C> {
         &self,
         req: &HttpRequest<S>,
     ) -> Result<AsyncResult<HttpResponse>, Error> {
-        let tail: String = req.match_info().query("tail")?;
+        let tail: String = req.match_info().get_decoded("tail").unwrap_or_else(|| "".to_string());
         let relpath = PathBuf::from_param(tail.trim_left_matches('/'))?;
 
         // full filepath
@@ -1300,6 +1300,27 @@ mod tests {
         }
         let bytes = srv.execute(response.body()).unwrap();
         let data = Bytes::from(fs::read("tests/test.binary").unwrap());
+        assert_eq!(bytes, data);
+    }
+
+    #[test]
+    fn test_static_files_with_spaces() {
+        let mut srv = test::TestServer::with_factory(|| {
+            App::new().handler(
+                "/",
+                StaticFiles::new(".").unwrap().index_file("Cargo.toml"),
+            )
+        });
+        let request = srv
+            .get()
+            .uri(srv.url("/tests/test%20space.binary"))
+            .finish()
+            .unwrap();
+        let response = srv.execute(request.send()).unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let bytes = srv.execute(response.body()).unwrap();
+        let data = Bytes::from(fs::read("tests/test space.binary").unwrap());
         assert_eq!(bytes, data);
     }
 
