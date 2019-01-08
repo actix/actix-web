@@ -1,11 +1,16 @@
 # Changes
 
-## [0.7.18] - 2019-01-02
+## [0.7.18] - 2019-xx-xx
 
 ### Added
 
 * Add `with_cookie` for `TestRequest` to allow users to customize request cookie. #647
-* Add `cookie` method for `TestRequest` to allow users to add cookie dynamically. 
+
+* Add `cookie` method for `TestRequest` to allow users to add cookie dynamically.
+
+### Fixed
+
+* StaticFiles decode special characters in request's path
 
 ## [0.7.17] - 2018-12-25
 
