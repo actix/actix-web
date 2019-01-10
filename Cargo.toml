@@ -23,7 +23,8 @@ default = ["http"]
 bytes = "0.4"
 regex = "1.0"
 serde = "1.0.80"
-string = "0.1"
+# string = "0.1"
+string = { git="https://github.com/fafhrd91/string.git" }
 
 http = { version="0.1.14", optional=true }
 
