@@ -165,7 +165,6 @@ extern crate webpki;
 #[cfg(feature = "rust-tls")]
 extern crate webpki_roots;
 
-mod application;
 mod body;
 mod context;
 mod de;
@@ -190,6 +189,7 @@ mod scope;
 mod uri;
 mod with;
 
+pub mod application;
 pub mod client;
 pub mod error;
 pub mod fs;
