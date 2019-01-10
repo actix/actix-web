@@ -246,7 +246,7 @@ impl HttpResponse {
         self
     }
 
-    /// Get body os this response
+    /// Get body of this response
     #[inline]
     pub fn body(&self) -> &Body {
         &self.get_ref().body
