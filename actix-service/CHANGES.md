@@ -2,14 +2,14 @@
 
 ## [0.1.4] - 2019-01-11
 
-## Changed
+### Changed
 
 * Use `FnMut` instead of `Fn` for `FnService`
 
 
 ## [0.1.3] - 2018-12-12
 
-## Changed
+### Changed
 
 * Split service combinators to separate trait
 
