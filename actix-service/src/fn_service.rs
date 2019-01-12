@@ -9,7 +9,7 @@ use super::{IntoNewService, IntoService, NewService, Service};
 
 pub struct FnService<F, Req, Resp, E, Fut>
 where
-    F: Fn(Req) -> Fut,
+    F: FnMut(Req) -> Fut,
     Fut: IntoFuture<Item = Resp, Error = E>,
 {
     f: F,
@@ -18,7 +18,7 @@ where
 
 impl<F, Req, Resp, E, Fut> FnService<F, Req, Resp, E, Fut>
 where
-    F: Fn(Req) -> Fut,
+    F: FnMut(Req) -> Fut,
     Fut: IntoFuture<Item = Resp, Error = E>,
 {
     pub fn new(f: F) -> Self {
@@ -31,7 +31,7 @@ where
 
 impl<F, Req, Resp, E, Fut> Clone for FnService<F, Req, Resp, E, Fut>
 where
-    F: Fn(Req) -> Fut + Clone,
+    F: FnMut(Req) -> Fut + Clone,
     Fut: IntoFuture<Item = Resp, Error = E>,
 {
     fn clone(&self) -> Self {
@@ -44,7 +44,7 @@ where
 
 impl<F, Req, Resp, E, Fut> Service<Req> for FnService<F, Req, Resp, E, Fut>
 where
-    F: Fn(Req) -> Fut,
+    F: FnMut(Req) -> Fut,
     Fut: IntoFuture<Item = Resp, Error = E>,
 {
     type Response = Resp;
@@ -62,7 +62,7 @@ where
 
 impl<F, Req, Resp, Err, Fut> IntoService<FnService<F, Req, Resp, Err, Fut>, Req> for F
 where
-    F: Fn(Req) -> Fut + 'static,
+    F: FnMut(Req) -> Fut + 'static,
     Fut: IntoFuture<Item = Resp, Error = Err>,
 {
     fn into_service(self) -> FnService<F, Req, Resp, Err, Fut> {
@@ -72,7 +72,7 @@ where
 
 pub struct FnNewService<F, Req, Resp, Err, Fut>
 where
-    F: Fn(Req) -> Fut,
+    F: FnMut(Req) -> Fut,
     Fut: IntoFuture<Item = Resp, Error = Err>,
 {
     f: F,
@@ -81,7 +81,7 @@ where
 
 impl<F, Req, Resp, Err, Fut> FnNewService<F, Req, Resp, Err, Fut>
 where
-    F: Fn(Req) -> Fut + Clone,
+    F: FnMut(Req) -> Fut + Clone,
     Fut: IntoFuture<Item = Resp, Error = Err>,
 {
     pub fn new(f: F) -> Self {
@@ -94,7 +94,7 @@ where
 
 impl<F, Req, Resp, Err, Fut> NewService<Req> for FnNewService<F, Req, Resp, Err, Fut>
 where
-    F: Fn(Req) -> Fut + Clone,
+    F: FnMut(Req) -> Fut + Clone,
     Fut: IntoFuture<Item = Resp, Error = Err>,
 {
     type Response = Resp;
@@ -110,7 +110,7 @@ where
 
 impl<F, Req, Resp, Err, Fut> IntoNewService<FnNewService<F, Req, Resp, Err, Fut>, Req> for F
 where
-    F: Fn(Req) -> Fut + Clone + 'static,
+    F: FnMut(Req) -> Fut + Clone + 'static,
     Fut: IntoFuture<Item = Resp, Error = Err>,
 {
     fn into_new_service(self) -> FnNewService<F, Req, Resp, Err, Fut> {
@@ -120,7 +120,7 @@ where
 
 impl<F, Req, Resp, Err, Fut> Clone for FnNewService<F, Req, Resp, Err, Fut>
 where
-    F: Fn(Req) -> Fut + Clone,
+    F: FnMut(Req) -> Fut + Clone,
     Fut: IntoFuture<Item = Resp, Error = Err>,
 {
     fn clone(&self) -> Self {
