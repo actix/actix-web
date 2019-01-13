@@ -144,6 +144,50 @@ fn test_query_enum_extractor() {
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 }
 
+#[derive(Debug, Deserialize)]
+pub struct Customer {
+    first_name: String,
+    last_name: String,
+    emails: Vec<String>,
+}
+
+#[test]
+fn test_query_sequence_extractor() {
+    let mut srv = test::TestServer::new(|app| {
+        app.resource("/index.html", |r| {
+            r.with(|p: Query<Customer>| format!("{:?}", p))
+        });
+    });
+
+    // client request
+    let request = srv
+        .get()
+        .uri(srv.url("/index.html?first_name=John&last_name=Doe&emails=john%40example.com&emails=doe%40example.com"))
+        .finish()
+        .unwrap();
+    let response = srv.execute(request.send()).unwrap();
+    assert!(response.status().is_success());
+}
+
+#[test]
+fn test_form_sequence_extractor() {
+    let mut srv = test::TestServer::new(|app| {
+        app.resource("/index.html", |r| {
+            r.with(|form: Form<Customer>| format!("{:?}", form))
+        });
+    });
+
+    // client request
+    let request = srv
+        .post()
+        .uri(srv.url("/index.html"))
+        .header("content-type", "application/x-www-form-urlencoded")
+        .body("first_name=John&last_name=Doe&emails=john%40example.com&emails=doe%40example.com")
+        .unwrap();
+    let response = srv.execute(request.send()).unwrap();
+    assert!(response.status().is_success());
+}
+
 #[test]
 fn test_async_extractor_async() {
     let mut srv = test::TestServer::new(|app| {
