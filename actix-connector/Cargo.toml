@@ -32,8 +32,8 @@ actix-codec = "0.1.0"
 actix-rt = "0.1.0"
 futures = "0.1"
 tokio-tcp = "0.1"
-trust-dns-proto = "^0.5.0"
-trust-dns-resolver = "^0.10.0"
+trust-dns-proto = "0.6.2"
+trust-dns-resolver = "0.10.2"
 
 # openssl
 openssl = { version="0.10", optional = true }
