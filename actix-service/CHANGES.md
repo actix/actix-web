@@ -1,5 +1,12 @@
 # Changes
 
+## [0.1.5] - 2019-01-13
+
+### Changed
+
+* Make `Out::Error` convertable from `T::Error` for apply combinator
+
+
 ## [0.1.4] - 2019-01-11
 
 ### Changed

@@ -19,6 +19,7 @@ where
     T: Service<Request>,
     F: Fn(In, &mut T) -> Out,
     Out: IntoFuture,
+    Out::Error: From<T::Error>,
 {
     /// Create new `Apply` combinator
     pub fn new<I: IntoService<T, Request>>(service: I, f: F) -> Self {
@@ -46,16 +47,17 @@ where
 
 impl<T, F, In, Out, Request> Service<In> for Apply<T, F, In, Out, Request>
 where
-    T: Service<Request, Error = Out::Error>,
+    T: Service<Request>,
     F: Fn(In, &mut T) -> Out,
     Out: IntoFuture,
+    Out::Error: From<T::Error>,
 {
     type Response = Out::Item;
     type Error = Out::Error;
     type Future = Out::Future;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
-        self.service.poll_ready()
+        self.service.poll_ready().map_err(|e| e.into())
     }
 
     fn call(&mut self, req: In) -> Self::Future {
@@ -78,6 +80,7 @@ where
     T: NewService<Request>,
     F: Fn(In, &mut T::Service) -> Out,
     Out: IntoFuture,
+    Out::Error: From<T::Error>,
 {
     /// Create new `ApplyNewService` new service instance
     pub fn new<F1: IntoNewService<T, Request>>(service: F1, f: F) -> Self {
@@ -92,7 +95,7 @@ where
 impl<T, F, In, Out, Request> Clone for ApplyNewService<T, F, In, Out, Request>
 where
     T: NewService<Request> + Clone,
-    F: Fn(Out, &mut T::Service) -> Out + Clone,
+    F: Fn(In, &mut T::Service) -> Out + Clone,
     Out: IntoFuture,
 {
     fn clone(&self) -> Self {
@@ -106,9 +109,10 @@ where
 
 impl<T, F, In, Out, Request> NewService<In> for ApplyNewService<T, F, In, Out, Request>
 where
-    T: NewService<Request, Error = Out::Error>,
+    T: NewService<Request>,
     F: Fn(In, &mut T::Service) -> Out + Clone,
     Out: IntoFuture,
+    Out::Error: From<T::Error>,
 {
     type Response = Out::Item;
     type Error = Out::Error;
@@ -153,6 +157,7 @@ where
     T: NewService<Request>,
     F: Fn(In, &mut T::Service) -> Out,
     Out: IntoFuture,
+    Out::Error: From<T::Error>,
 {
     type Item = Apply<T::Service, F, In, Out, Request>;
     type Error = T::InitError;
