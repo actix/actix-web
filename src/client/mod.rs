@@ -5,9 +5,9 @@
 //! # extern crate actix;
 //! # extern crate futures;
 //! # extern crate tokio;
-//! # use futures::Future;
 //! # use std::process;
 //! use actix_web::client;
+//! use futures::Future;
 //!
 //! fn main() {
 //!     actix::run(
@@ -66,9 +66,9 @@ impl ResponseError for SendRequestError {
 /// # extern crate futures;
 /// # extern crate tokio;
 /// # extern crate env_logger;
-/// # use futures::Future;
 /// # use std::process;
 /// use actix_web::client;
+/// use futures::Future;
 ///
 /// fn main() {
 ///     actix::run(
