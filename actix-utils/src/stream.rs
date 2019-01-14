@@ -160,8 +160,8 @@ where
         }
 
         loop {
-            if let Async::Ready(_) = self.service.poll_ready()? {
-                match self.stream.poll() {
+            match self.service.poll_ready()? {
+                Async::Ready(_) => match self.stream.poll() {
                     Ok(Async::Ready(Some(item))) => spawn(StreamDispatcherService {
                         fut: self.service.call(Ok(item)),
                         stop: self.err_tx.clone(),
@@ -172,7 +172,8 @@ where
                     }),
                     Ok(Async::NotReady) => return Ok(Async::NotReady),
                     Ok(Async::Ready(None)) => return Ok(Async::Ready(())),
-                }
+                },
+                Async::NotReady => return Ok(Async::NotReady),
             }
         }
     }
