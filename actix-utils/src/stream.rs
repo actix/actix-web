@@ -43,15 +43,9 @@ where
     T::Service: 'static,
     <T::Service as Service<Request<S>>>::Future: 'static,
 {
-    // pub fn new<F: IntoNewService<T, Request<S>>>(factory: F) -> Self {
-    //     Self {
-    //         factory: Rc::new(factory.into_new_service()),
-    //         _t: PhantomData,
-    //     }
-    // }
-    pub fn new(factory: T) -> Self {
+    pub fn new<F: IntoNewService<T, Request<S>>>(factory: F) -> Self {
         Self {
-            factory: Rc::new(factory),
+            factory: Rc::new(factory.into_new_service()),
             _t: PhantomData,
         }
     }
