@@ -104,7 +104,7 @@ impl<S: 'static> Route<S> {
         R: Responder + 'static,
         E: Into<Error> + 'static,
     {
-        self.handler = InnerHandler::async(handler);
+        self.handler = InnerHandler::future(handler);
     }
 
     /// Set handler function, use request extractor for parameters.
@@ -306,7 +306,7 @@ impl<S: 'static> InnerHandler<S> {
     }
 
     #[inline]
-    fn async<H, R, F, E>(h: H) -> Self
+    fn future<H, R, F, E>(h: H) -> Self
     where
         H: Fn(&HttpRequest<S>) -> F + 'static,
         F: Future<Item = R, Error = E> + 'static,

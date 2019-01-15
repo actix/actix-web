@@ -61,7 +61,7 @@ flate2-rust = ["flate2/rust_backend"]
 cell = ["actix-net/cell"]
 
 [dependencies]
-actix = "0.7.9"
+actix = "0.7.10"
 actix-net = "0.2.6"
 
 v_htmlescape = "0.3.2"

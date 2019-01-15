@@ -953,7 +953,7 @@ impl Handler<Connect> for ClientConnector {
         if self.paused.is_paused() {
             let rx = self.wait_for(key.clone(), wait_timeout, conn_timeout);
             self.stats.waits += 1;
-            return ActorResponse::async(
+            return ActorResponse::future(
                 rx.map_err(|_| ClientConnectorError::Disconnected)
                     .into_actor(self)
                     .and_then(move |res, act, ctx| match res {
@@ -984,7 +984,7 @@ impl Handler<Connect> for ClientConnector {
             };
             self.connect_waiter(&key, waiter, ctx);
 
-            return ActorResponse::async(
+            return ActorResponse::future(
                 rx.map_err(|_| ClientConnectorError::Disconnected)
                     .into_actor(self)
                     .and_then(move |res, act, ctx| match res {
@@ -1005,14 +1005,14 @@ impl Handler<Connect> for ClientConnector {
                 // use existing connection
                 conn.pool = Some(AcquiredConn(key, Some(self.acq_tx.clone())));
                 self.stats.reused += 1;
-                ActorResponse::async(fut::ok(conn))
+                ActorResponse::future(fut::ok(conn))
             }
             Acquire::NotAvailable => {
                 // connection is not available, wait
                 let rx = self.wait_for(key.clone(), wait_timeout, conn_timeout);
                 self.stats.waits += 1;
 
-                ActorResponse::async(
+                ActorResponse::future(
                     rx.map_err(|_| ClientConnectorError::Disconnected)
                         .into_actor(self)
                         .and_then(move |res, act, ctx| match res {
@@ -1041,7 +1041,7 @@ impl Handler<Connect> for ClientConnector {
                 };
                 self.connect_waiter(&key, waiter, ctx);
 
-                ActorResponse::async(
+                ActorResponse::future(
                     rx.map_err(|_| ClientConnectorError::Disconnected)
                         .into_actor(self)
                         .and_then(move |res, act, ctx| match res {
