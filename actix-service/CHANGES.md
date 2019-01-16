@@ -2,6 +2,9 @@
 
 ## [0.1.6] - 2019-01-xx
 
+### Changed
+
+* Use `FnMut` instead of `Fn` for .apply() and .map() combinators and `FnService` type
 
 ## [0.1.5] - 2019-01-13
 

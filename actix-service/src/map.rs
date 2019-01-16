@@ -18,7 +18,7 @@ impl<A, F, Response> Map<A, F, Response> {
     pub fn new<Request>(service: A, f: F) -> Self
     where
         A: Service<Request>,
-        F: Fn(A::Response) -> Response,
+        F: FnMut(A::Response) -> Response,
     {
         Self {
             service,
@@ -45,7 +45,7 @@ where
 impl<A, F, Request, Response> Service<Request> for Map<A, F, Response>
 where
     A: Service<Request>,
-    F: Fn(A::Response) -> Response + Clone,
+    F: FnMut(A::Response) -> Response + Clone,
 {
     type Response = Response;
     type Error = A::Error;
@@ -63,7 +63,7 @@ where
 pub struct MapFuture<A, F, Request, Response>
 where
     A: Service<Request>,
-    F: Fn(A::Response) -> Response,
+    F: FnMut(A::Response) -> Response,
 {
     f: F,
     fut: A::Future,
@@ -72,7 +72,7 @@ where
 impl<A, F, Request, Response> MapFuture<A, F, Request, Response>
 where
     A: Service<Request>,
-    F: Fn(A::Response) -> Response,
+    F: FnMut(A::Response) -> Response,
 {
     fn new(fut: A::Future, f: F) -> Self {
         MapFuture { f, fut }
@@ -82,7 +82,7 @@ where
 impl<A, F, Request, Response> Future for MapFuture<A, F, Request, Response>
 where
     A: Service<Request>,
-    F: Fn(A::Response) -> Response,
+    F: FnMut(A::Response) -> Response,
 {
     type Item = Response;
     type Error = A::Error;
@@ -107,7 +107,7 @@ impl<A, F, Response> MapNewService<A, F, Response> {
     pub fn new<Request>(a: A, f: F) -> Self
     where
         A: NewService<Request>,
-        F: Fn(A::Response) -> Response,
+        F: FnMut(A::Response) -> Response,
     {
         Self {
             a,
@@ -134,7 +134,7 @@ where
 impl<A, F, Request, Response> NewService<Request> for MapNewService<A, F, Response>
 where
     A: NewService<Request>,
-    F: Fn(A::Response) -> Response + Clone,
+    F: FnMut(A::Response) -> Response + Clone,
 {
     type Response = Response;
     type Error = A::Error;
@@ -151,7 +151,7 @@ where
 pub struct MapNewServiceFuture<A, F, Request, Response>
 where
     A: NewService<Request>,
-    F: Fn(A::Response) -> Response,
+    F: FnMut(A::Response) -> Response,
 {
     fut: A::Future,
     f: Option<F>,
@@ -160,7 +160,7 @@ where
 impl<A, F, Request, Response> MapNewServiceFuture<A, F, Request, Response>
 where
     A: NewService<Request>,
-    F: Fn(A::Response) -> Response,
+    F: FnMut(A::Response) -> Response,
 {
     fn new(fut: A::Future, f: F) -> Self {
         MapNewServiceFuture { f: Some(f), fut }
@@ -170,7 +170,7 @@ where
 impl<A, F, Request, Response> Future for MapNewServiceFuture<A, F, Request, Response>
 where
     A: NewService<Request>,
-    F: Fn(A::Response) -> Response,
+    F: FnMut(A::Response) -> Response,
 {
     type Item = Map<A::Service, F, Response>;
     type Error = A::InitError;

@@ -128,7 +128,7 @@ pub trait ServiceExt<Request>: Service<Request> {
     fn map<F, R>(self, f: F) -> Map<Self, F, R>
     where
         Self: Sized,
-        F: Fn(Self::Response) -> R,
+        F: FnMut(Self::Response) -> R,
     {
         Map::new(self, f)
     }
@@ -245,7 +245,7 @@ pub trait NewService<Request> {
     fn map<F, R>(self, f: F) -> MapNewService<Self, F, R>
     where
         Self: Sized,
-        F: Fn(Self::Response) -> R,
+        F: FnMut(Self::Response) -> R,
     {
         MapNewService::new(self, f)
     }

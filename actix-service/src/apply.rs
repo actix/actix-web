@@ -78,7 +78,7 @@ where
 impl<T, F, In, Out, Request> ApplyNewService<T, F, In, Out, Request>
 where
     T: NewService<Request>,
-    F: Fn(In, &mut T::Service) -> Out,
+    F: FnMut(In, &mut T::Service) -> Out,
     Out: IntoFuture,
     Out::Error: From<T::Error>,
 {
@@ -95,7 +95,7 @@ where
 impl<T, F, In, Out, Request> Clone for ApplyNewService<T, F, In, Out, Request>
 where
     T: NewService<Request> + Clone,
-    F: Fn(In, &mut T::Service) -> Out + Clone,
+    F: FnMut(In, &mut T::Service) -> Out + Clone,
     Out: IntoFuture,
 {
     fn clone(&self) -> Self {
@@ -110,7 +110,7 @@ where
 impl<T, F, In, Out, Request> NewService<In> for ApplyNewService<T, F, In, Out, Request>
 where
     T: NewService<Request>,
-    F: Fn(In, &mut T::Service) -> Out + Clone,
+    F: FnMut(In, &mut T::Service) -> Out + Clone,
     Out: IntoFuture,
     Out::Error: From<T::Error>,
 {
@@ -129,7 +129,7 @@ where
 pub struct ApplyNewServiceFuture<T, F, In, Out, Request>
 where
     T: NewService<Request>,
-    F: Fn(In, &mut T::Service) -> Out,
+    F: FnMut(In, &mut T::Service) -> Out,
     Out: IntoFuture,
 {
     fut: T::Future,
@@ -140,7 +140,7 @@ where
 impl<T, F, In, Out, Request> ApplyNewServiceFuture<T, F, In, Out, Request>
 where
     T: NewService<Request>,
-    F: Fn(In, &mut T::Service) -> Out,
+    F: FnMut(In, &mut T::Service) -> Out,
     Out: IntoFuture,
 {
     fn new(fut: T::Future, f: F) -> Self {
@@ -155,7 +155,7 @@ where
 impl<T, F, In, Out, Request> Future for ApplyNewServiceFuture<T, F, In, Out, Request>
 where
     T: NewService<Request>,
-    F: Fn(In, &mut T::Service) -> Out,
+    F: FnMut(In, &mut T::Service) -> Out,
     Out: IntoFuture,
     Out::Error: From<T::Error>,
 {
