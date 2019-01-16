@@ -17,7 +17,7 @@ where
 impl<T, F, In, Out, Request> Apply<T, F, In, Out, Request>
 where
     T: Service<Request>,
-    F: Fn(In, &mut T) -> Out,
+    F: FnMut(In, &mut T) -> Out,
     Out: IntoFuture,
     Out::Error: From<T::Error>,
 {
@@ -48,7 +48,7 @@ where
 impl<T, F, In, Out, Request> Service<In> for Apply<T, F, In, Out, Request>
 where
     T: Service<Request>,
-    F: Fn(In, &mut T) -> Out,
+    F: FnMut(In, &mut T) -> Out,
     Out: IntoFuture,
     Out::Error: From<T::Error>,
 {
