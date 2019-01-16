@@ -1,6 +1,9 @@
 use std::ops::Index;
 use std::rc::Rc;
 
+use serde::de;
+
+use crate::de::PathDeserializer;
 use crate::RequestPath;
 
 #[derive(Debug, Clone, Copy)]
@@ -148,6 +151,11 @@ impl<T: RequestPath> Path<T> {
             idx: 0,
             params: self,
         }
+    }
+
+    /// Try to deserialize matching parameters to a specified type `U`
+    pub fn load<'de, U: serde::Deserialize<'de>>(&'de self) -> Result<U, de::value::Error> {
+        de::Deserialize::deserialize(PathDeserializer::new(self))
     }
 }
 
