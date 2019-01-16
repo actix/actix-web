@@ -12,6 +12,15 @@ pub enum EitherService<A, B> {
     B(B),
 }
 
+impl<A: Clone, B: Clone> Clone for EitherService<A, B> {
+    fn clone(&self) -> Self {
+        match self {
+            EitherService::A(srv) => EitherService::A(srv.clone()),
+            EitherService::B(srv) => EitherService::B(srv.clone()),
+        }
+    }
+}
+
 impl<A, B, Request> Service<Request> for EitherService<A, B>
 where
     A: Service<Request>,
@@ -57,6 +66,15 @@ where
         match self {
             Either::A(ref inner) => EitherNewService::A(inner.new_service()),
             Either::B(ref inner) => EitherNewService::B(inner.new_service()),
+        }
+    }
+}
+
+impl<A: Clone, B: Clone> Clone for Either<A, B> {
+    fn clone(&self) -> Self {
+        match self {
+            Either::A(srv) => Either::A(srv.clone()),
+            Either::B(srv) => Either::B(srv.clone()),
         }
     }
 }
