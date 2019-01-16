@@ -51,6 +51,34 @@ pub enum Either<A, B> {
     B(B),
 }
 
+impl<A, B> Either<A, B> {
+    pub fn new_a<Request>(srv: A) -> Self
+    where
+        A: NewService<Request>,
+        B: NewService<
+            Request,
+            Response = A::Response,
+            Error = A::Error,
+            InitError = A::InitError,
+        >,
+    {
+        Either::A(srv)
+    }
+
+    pub fn new_b<Request>(srv: B) -> Self
+    where
+        A: NewService<Request>,
+        B: NewService<
+            Request,
+            Response = A::Response,
+            Error = A::Error,
+            InitError = A::InitError,
+        >,
+    {
+        Either::B(srv)
+    }
+}
+
 impl<A, B, Request> NewService<Request> for Either<A, B>
 where
     A: NewService<Request>,
