@@ -6,6 +6,9 @@
 
 * Use `FnMut` instead of `Fn` for .apply() and .map() combinators and `FnService` type
 
+* Change `.apply()` error semantic, new service's error is `From<Self::Error>`
+
+
 ## [0.1.5] - 2019-01-13
 
 ### Changed

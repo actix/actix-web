@@ -1,5 +1,7 @@
 use futures::{Future, IntoFuture, Poll};
+
 mod and_then;
+mod and_then_apply;
 mod apply;
 mod cell;
 mod fn_service;
@@ -10,6 +12,7 @@ mod map_init_err;
 mod then;
 
 pub use self::and_then::{AndThen, AndThenNewService};
+pub use self::and_then_apply::{AndThenApply, AndThenApplyNewService};
 pub use self::apply::{Apply, ApplyNewService};
 pub use self::fn_service::{FnNewService, FnService};
 pub use self::from_err::{FromErr, FromErrNewService};
@@ -57,19 +60,20 @@ pub trait Service<Request> {
 pub trait ServiceExt<Request>: Service<Request> {
     /// Apply function to specified service and use it as a next service in
     /// chain.
-    fn apply<T, I, F, Out, Req>(
+    fn apply<B, I, F, Out, Req>(
         self,
         service: I,
         f: F,
-    ) -> AndThen<Self, Apply<T, F, Self::Response, Out, Req>>
+    ) -> AndThenApply<Self, B, F, Out, Request, Req>
     where
         Self: Sized,
-        T: Service<Req, Error = Self::Error>,
-        I: IntoService<T, Req>,
-        F: FnMut(Self::Response, &mut T) -> Out,
-        Out: IntoFuture<Error = Self::Error>,
+        B: Service<Req, Error = Self::Error>,
+        I: IntoService<B, Req>,
+        F: FnMut(Self::Response, &mut B) -> Out,
+        Out: IntoFuture,
+        Out::Error: From<Self::Error>,
     {
-        self.and_then(Apply::new(service.into_service(), f))
+        AndThenApply::new(self, service, f)
     }
 
     /// Call another service after call to this one has resolved successfully.
@@ -182,19 +186,20 @@ pub trait NewService<Request> {
 
     /// Apply function to specified service and use it as a next service in
     /// chain.
-    fn apply<T, I, F, Out, Req>(
+    fn apply<B, I, F, Out, Req>(
         self,
         service: I,
         f: F,
-    ) -> AndThenNewService<Self, ApplyNewService<T, F, Self::Response, Out, Req>>
+    ) -> AndThenApplyNewService<Self, B, F, Out, Request, Req>
     where
         Self: Sized,
-        T: NewService<Req, InitError = Self::InitError, Error = Self::Error>,
-        I: IntoNewService<T, Req>,
-        F: FnMut(Self::Response, &mut T::Service) -> Out + Clone,
-        Out: IntoFuture<Error = Self::Error>,
+        B: NewService<Req, Error = Self::Error, InitError = Self::InitError>,
+        I: IntoNewService<B, Req>,
+        F: FnMut(Self::Response, &mut B::Service) -> Out,
+        Out: IntoFuture,
+        Out::Error: From<Self::Error>,
     {
-        self.and_then(ApplyNewService::new(service, f))
+        AndThenApplyNewService::new(self, service, f)
     }
 
     /// Call another service after call to this one has resolved successfully.
