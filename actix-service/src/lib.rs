@@ -71,7 +71,7 @@ pub trait ServiceExt<Request>: Service<Request> {
         I: IntoService<B, Req>,
         F: FnMut(Self::Response, &mut B) -> Out,
         Out: IntoFuture,
-        Out::Error: From<Self::Error>,
+        Out::Error: Into<Self::Error>,
     {
         AndThenApply::new(self, service, f)
     }
@@ -197,7 +197,7 @@ pub trait NewService<Request> {
         I: IntoNewService<B, Req>,
         F: FnMut(Self::Response, &mut B::Service) -> Out,
         Out: IntoFuture,
-        Out::Error: From<Self::Error>,
+        Out::Error: Into<Self::Error>,
     {
         AndThenApplyNewService::new(self, service, f)
     }

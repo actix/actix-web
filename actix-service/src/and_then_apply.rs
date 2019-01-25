@@ -6,7 +6,14 @@ use super::{IntoNewService, IntoService, NewService, Service};
 use crate::cell::Cell;
 
 /// `Apply` service combinator
-pub struct AndThenApply<A, B, F, Out, Req1, Req2> {
+pub struct AndThenApply<A, B, F, Out, Req1, Req2>
+where
+    A: Service<Req1>,
+    B: Service<Req2, Error = A::Error>,
+    F: FnMut(A::Response, &mut B) -> Out,
+    Out: IntoFuture,
+    Out::Error: Into<A::Error>,
+{
     a: A,
     b: Cell<B>,
     f: Cell<F>,
@@ -19,7 +26,7 @@ where
     B: Service<Req2, Error = A::Error>,
     F: FnMut(A::Response, &mut B) -> Out,
     Out: IntoFuture,
-    Out::Error: From<A::Error>,
+    Out::Error: Into<A::Error>,
 {
     /// Create new `Apply` combinator
     pub fn new<A1: IntoService<A, Req1>, B1: IntoService<B, Req2>>(a: A1, b: B1, f: F) -> Self {
@@ -34,7 +41,11 @@ where
 
 impl<A, B, F, Out, Req1, Req2> Clone for AndThenApply<A, B, F, Out, Req1, Req2>
 where
-    A: Clone,
+    A: Service<Req1> + Clone,
+    B: Service<Req2, Error = A::Error>,
+    F: FnMut(A::Response, &mut B) -> Out,
+    Out: IntoFuture,
+    Out::Error: Into<A::Error>,
 {
     fn clone(&self) -> Self {
         AndThenApply {
@@ -52,14 +63,14 @@ where
     B: Service<Req2, Error = A::Error>,
     F: FnMut(A::Response, &mut B) -> Out,
     Out: IntoFuture,
-    Out::Error: From<A::Error>,
+    Out::Error: Into<A::Error>,
 {
     type Response = Out::Item;
-    type Error = Out::Error;
+    type Error = A::Error;
     type Future = AndThenApplyFuture<A, B, F, Out, Req1, Req2>;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
-        try_ready!(self.a.poll_ready().map_err(|e| e.into()));
+        try_ready!(self.a.poll_ready());
         self.b.get_mut().poll_ready().map_err(|e| e.into())
     }
 
@@ -80,7 +91,7 @@ where
     B: Service<Req2, Error = A::Error>,
     F: FnMut(A::Response, &mut B) -> Out,
     Out: IntoFuture,
-    Out::Error: From<A::Error>,
+    Out::Error: Into<A::Error>,
 {
     b: Cell<B>,
     f: Cell<F>,
@@ -95,14 +106,14 @@ where
     B: Service<Req2, Error = A::Error>,
     F: FnMut(A::Response, &mut B) -> Out,
     Out: IntoFuture,
-    Out::Error: From<A::Error>,
+    Out::Error: Into<A::Error>,
 {
     type Item = Out::Item;
-    type Error = Out::Error;
+    type Error = A::Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         if let Some(ref mut fut) = self.fut_b {
-            return fut.poll();
+            return fut.poll().map_err(|e| e.into());
         }
 
         match self.fut_a.as_mut().expect("Bug in actix-service").poll() {
@@ -132,7 +143,7 @@ where
     B: NewService<Req2, Error = A::Error, InitError = A::InitError>,
     F: FnMut(A::Response, &mut B::Service) -> Out,
     Out: IntoFuture,
-    Out::Error: From<A::Error>,
+    Out::Error: Into<A::Error>,
 {
     /// Create new `ApplyNewService` new service instance
     pub fn new<A1: IntoNewService<A, Req1>, B1: IntoNewService<B, Req2>>(
@@ -171,10 +182,10 @@ where
     B: NewService<Req2, Error = A::Error, InitError = A::InitError>,
     F: FnMut(A::Response, &mut B::Service) -> Out,
     Out: IntoFuture,
-    Out::Error: From<A::Error>,
+    Out::Error: Into<A::Error>,
 {
     type Response = Out::Item;
-    type Error = Out::Error;
+    type Error = A::Error;
 
     type InitError = A::InitError;
     type Service = AndThenApply<A::Service, B::Service, F, Out, Req1, Req2>;
@@ -197,7 +208,7 @@ where
     B: NewService<Req2, Error = A::Error, InitError = A::InitError>,
     F: FnMut(A::Response, &mut B::Service) -> Out,
     Out: IntoFuture,
-    Out::Error: From<A::Error>,
+    Out::Error: Into<A::Error>,
 {
     fut_b: B::Future,
     fut_a: A::Future,
@@ -212,7 +223,7 @@ where
     B: NewService<Req2, Error = A::Error, InitError = A::InitError>,
     F: FnMut(A::Response, &mut B::Service) -> Out,
     Out: IntoFuture,
-    Out::Error: From<A::Error>,
+    Out::Error: Into<A::Error>,
 {
     type Item = AndThenApply<A::Service, B::Service, F, Out, Req1, Req2>;
     type Error = A::InitError;
