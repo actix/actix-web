@@ -11,7 +11,7 @@ use std::{cmp, io};
 #[cfg(unix)]
 use std::os::unix::fs::MetadataExt;
 
-use v_htmlescape::HTMLEscape;
+use v_htmlescape::escape as escape_html_entity;
 use bytes::Bytes;
 use futures::{Async, Future, Poll, Stream};
 use futures_cpupool::{CpuFuture, CpuPool};
@@ -567,11 +567,6 @@ macro_rules! encode_file_url {
     ($path:ident) => {
         utf8_percent_encode(&$path.to_string_lossy(), DEFAULT_ENCODE_SET)
     };
-}
-
-#[inline]
-fn escape_html_entity(s: &str) -> HTMLEscape {
-    HTMLEscape::from(s)
 }
 
 // " -- &quot;  & -- &amp;  ' -- &#x27;  < -- &lt;  > -- &gt;  / -- &#x2f;
