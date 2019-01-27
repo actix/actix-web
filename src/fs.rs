@@ -127,31 +127,18 @@ impl NamedFile {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```no_run
     /// extern crate actix_web;
     ///
     /// use actix_web::fs::NamedFile;
     /// use std::io::{self, Write};
     /// use std::env;
-    /// # use std::fs::{self, File};
-    /// # use std::path::PathBuf;
-    /// #
-    /// # fn path() -> PathBuf {
-    /// #     let mut path = env::temp_dir();
-    /// #     path.push("actix-web-named-file-test-from-file");
-    /// #     path
-    /// # }
-    /// #
-    /// # fn tempfile() -> Result<File, io::Error> {
-    /// #     let file = File::create(path())?;
-    /// #     Ok(file)
-    /// # }
+    /// use std::fs::File;
     ///
     /// fn main() -> io::Result<()> {
-    ///     let mut file = tempfile()?;
+    ///     let mut file = File::create("foo.txt")?;
     ///     file.write_all(b"Hello, world!")?;
-    ///     let named_file = NamedFile::from_file(file, "foo.txt")?;
-    /// #   fs::remove_file(path())?;
+    ///     let named_file = NamedFile::from_file(file, "bar.txt")?;
     ///     Ok(())
     /// }
     /// ```
@@ -181,31 +168,18 @@ impl<C: StaticFileConfig> NamedFile<C> {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```no_run
     /// extern crate actix_web;
     ///
     /// use actix_web::fs::{DefaultConfig, NamedFile};
     /// use std::io::{self, Write};
     /// use std::env;
-    /// # use std::fs::{self, File};
-    /// # use std::path::PathBuf;
-    /// #
-    /// # fn path() -> PathBuf {
-    /// #     let mut path = env::temp_dir();
-    /// #     path.push("actix-web-named-file-test-from-file-with-config");
-    /// #     path
-    /// # }
-    /// #
-    /// # fn tempfile() -> Result<File, io::Error> {
-    /// #     let file = File::create(path())?;
-    /// #     Ok(file)
-    /// # }
+    /// use std::fs::File;
     ///
     /// fn main() -> io::Result<()> {
-    ///     let mut file = tempfile()?;
+    ///     let mut file = File::create("foo.txt")?;
     ///     file.write_all(b"Hello, world!")?;
-    ///     let named_file = NamedFile::from_file_with_config(file, "foo.txt", DefaultConfig)?;
-    /// #   fs::remove_file(path())?;
+    ///     let named_file = NamedFile::from_file_with_config(file, "bar.txt", DefaultConfig)?;
     ///     Ok(())
     /// }
     /// ```

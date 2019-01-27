@@ -1,5 +1,11 @@
 # Changes
 
+## [x.x.xx] - xxxx-xx-xx
+
+### Added
+
+* Add `from_file` and `from_file_with_config` to `NamedFile` to allow sending files without a known path. #670
+
 ## [0.7.18] - 2019-01-10
 
 ### Added
