@@ -102,7 +102,8 @@ pub(crate) trait MessageType: Sized {
                         }
                         // connection keep-alive state
                         header::CONNECTION => {
-                            ka = if let Ok(conn) = value.to_str().map(|conn| conn.trim()) {
+                            ka = if let Ok(conn) = value.to_str().map(|conn| conn.trim())
+                            {
                                 if conn.eq_ignore_ascii_case("keep-alive") {
                                     Some(ConnectionType::KeepAlive)
                                 } else if conn.eq_ignore_ascii_case("close") {
@@ -925,7 +926,6 @@ mod tests {
         let req = parse_ready!(&mut buf);
 
         assert_eq!(req.inner().head.ctype, Some(ConnectionType::KeepAlive));
-
     }
 
     #[test]
@@ -986,7 +986,6 @@ mod tests {
 
         assert!(req.upgrade());
         assert_eq!(req.inner().head.ctype, Some(ConnectionType::Upgrade));
-
     }
 
     #[test]

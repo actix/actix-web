@@ -7,7 +7,7 @@ use super::{Codec, Frame, Message};
 
 pub struct Transport<S, T>
 where
-    S: Service<Frame, Response = Message>,
+    S: Service<Frame, Response = Message> + 'static,
     T: AsyncRead + AsyncWrite,
 {
     inner: FramedTransport<S, T, Codec>,
