@@ -1458,6 +1458,17 @@ mod tests {
             resp.headers().get(header::CONTENT_DISPOSITION).unwrap(),
             "attachment; filename=\"test.binary\""
         );
+
+        // nonexistent index file
+        let req = TestRequest::default().uri("/tests/unknown").finish();
+        let resp = st.handle(&req).respond_to(&req).unwrap();
+        let resp = resp.as_msg();
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+
+        let req = TestRequest::default().uri("/tests/unknown/").finish();
+        let resp = st.handle(&req).respond_to(&req).unwrap();
+        let resp = resp.as_msg();
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
     }
 
     #[test]
@@ -1478,7 +1489,7 @@ mod tests {
     }
 
     #[test]
-    fn integration_redirect_to_index_with_prefix() {
+    fn integration_serve_index_with_prefix() {
         let mut srv = test::TestServer::with_factory(|| {
             App::new()
                 .prefix("public")
@@ -1501,7 +1512,7 @@ mod tests {
     }
 
     #[test]
-    fn integration_redirect_to_index() {
+    fn integration_serve_index() {
         let mut srv = test::TestServer::with_factory(|| {
             App::new().handler(
                 "test",
@@ -1522,6 +1533,15 @@ mod tests {
         let bytes = srv.execute(response.body()).unwrap();
         let data = Bytes::from(fs::read("Cargo.toml").unwrap());
         assert_eq!(bytes, data);
+
+        // nonexistent index file
+        let request = srv.get().uri(srv.url("/test/unknown")).finish().unwrap();
+        let response = srv.execute(request.send()).unwrap();
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+
+        let request = srv.get().uri(srv.url("/test/unknown/")).finish().unwrap();
+        let response = srv.execute(request.send()).unwrap();
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
     }
 
     #[test]
