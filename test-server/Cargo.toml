@@ -28,9 +28,6 @@ default = ["session"]
 # sessions feature, session require "ring" crate and c compiler
 session = ["cookie/secure"]
 
-# openssl
-ssl = ["openssl", "actix-http/ssl"]
-
 [dependencies]
 actix-codec = "0.1"
 actix-service = "0.1.6"
@@ -38,10 +35,6 @@ actix-rt = "0.1.0"
 actix-server = "0.1.0"
 actix-http = { path=".." }
 actix-utils = { git = "https://github.com/actix/actix-net.git" }
-
-# actix-codec = { path="../actix-net/actix-codec/" }
-# actix-rt = { path="../actix-net/actix-rt/" }
-# actix-server = { path="../actix-net/actix-server/" }
 
 base64 = "0.10"
 bytes = "0.4"
@@ -59,6 +52,3 @@ serde_urlencoded = "0.5.3"
 time = "0.1"
 tokio-tcp = "0.1"
 tokio-timer = "0.2"
-
-# openssl
-openssl = { version="0.10", optional = true }
