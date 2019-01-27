@@ -303,6 +303,8 @@ pub trait IoStream: AsyncRead + AsyncWrite + 'static {
                         } else {
                             Ok(Async::NotReady)
                         }
+                    } else if e.kind() == io::ErrorKind::ConnectionReset && read_some {
+                        Ok(Async::Ready((read_some, true)))
                     } else {
                         Err(e)
                     };
