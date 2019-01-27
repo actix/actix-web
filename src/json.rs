@@ -133,12 +133,12 @@ impl<T: HttpMessage + 'static, U: DeserializeOwned + 'static> Future for JsonBod
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use bytes::Bytes;
     use futures::Async;
     use http::header;
     use serde_derive::{Deserialize, Serialize};
 
+    use super::*;
     use crate::test::TestRequest;
 
     impl PartialEq for JsonPayloadError {

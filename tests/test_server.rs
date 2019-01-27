@@ -2,19 +2,20 @@ use std::io::{Read, Write};
 use std::time::Duration;
 use std::{net, thread};
 
+use actix_http_test::TestServer;
 use actix_service::NewService;
 use bytes::Bytes;
 use futures::future::{self, ok};
 use futures::stream::once;
 
 use actix_http::{
-    body, client, h1, http, test, Body, Error, HttpMessage as HttpMessage2, KeepAlive,
+    body, client, h1, http, Body, Error, HttpMessage as HttpMessage2, KeepAlive,
     Request, Response,
 };
 
 #[test]
 fn test_h1_v2() {
-    let mut srv = test::TestServer::with_factory(|| {
+    let mut srv = TestServer::with_factory(|| {
         h1::H1Service::build()
             .keep_alive(KeepAlive::Disabled)
             .client_timeout(1000)
@@ -31,7 +32,7 @@ fn test_h1_v2() {
 
 #[test]
 fn test_slow_request() {
-    let srv = test::TestServer::with_factory(|| {
+    let srv = TestServer::with_factory(|| {
         h1::H1Service::build()
             .client_timeout(100)
             .finish(|_| future::ok::<_, ()>(Response::Ok().finish()))
@@ -47,7 +48,7 @@ fn test_slow_request() {
 
 #[test]
 fn test_malformed_request() {
-    let srv = test::TestServer::with_factory(|| {
+    let srv = TestServer::with_factory(|| {
         h1::H1Service::new(|_| future::ok::<_, ()>(Response::Ok().finish())).map(|_| ())
     });
 
@@ -60,7 +61,7 @@ fn test_malformed_request() {
 
 #[test]
 fn test_keepalive() {
-    let srv = test::TestServer::with_factory(|| {
+    let srv = TestServer::with_factory(|| {
         h1::H1Service::build()
             .finish(|_| future::ok::<_, ()>(Response::Ok().finish()))
             .map(|_| ())
@@ -80,7 +81,7 @@ fn test_keepalive() {
 
 #[test]
 fn test_keepalive_timeout() {
-    let srv = test::TestServer::with_factory(|| {
+    let srv = TestServer::with_factory(|| {
         h1::H1Service::build()
             .keep_alive(1)
             .finish(|_| future::ok::<_, ()>(Response::Ok().finish()))
@@ -101,7 +102,7 @@ fn test_keepalive_timeout() {
 
 #[test]
 fn test_keepalive_close() {
-    let srv = test::TestServer::with_factory(|| {
+    let srv = TestServer::with_factory(|| {
         h1::H1Service::build()
             .finish(|_| future::ok::<_, ()>(Response::Ok().finish()))
             .map(|_| ())
@@ -121,7 +122,7 @@ fn test_keepalive_close() {
 
 #[test]
 fn test_keepalive_http10_default_close() {
-    let srv = test::TestServer::with_factory(|| {
+    let srv = TestServer::with_factory(|| {
         h1::H1Service::build()
             .finish(|_| future::ok::<_, ()>(Response::Ok().finish()))
             .map(|_| ())
@@ -140,7 +141,7 @@ fn test_keepalive_http10_default_close() {
 
 #[test]
 fn test_keepalive_http10() {
-    let srv = test::TestServer::with_factory(|| {
+    let srv = TestServer::with_factory(|| {
         h1::H1Service::build()
             .finish(|_| future::ok::<_, ()>(Response::Ok().finish()))
             .map(|_| ())
@@ -166,7 +167,7 @@ fn test_keepalive_http10() {
 
 #[test]
 fn test_keepalive_disabled() {
-    let srv = test::TestServer::with_factory(|| {
+    let srv = TestServer::with_factory(|| {
         h1::H1Service::build()
             .keep_alive(KeepAlive::Disabled)
             .finish(|_| future::ok::<_, ()>(Response::Ok().finish()))
@@ -191,7 +192,7 @@ fn test_content_length() {
         StatusCode,
     };
 
-    let mut srv = test::TestServer::with_factory(|| {
+    let mut srv = TestServer::with_factory(|| {
         h1::H1Service::new(|req: Request| {
             let indx: usize = req.uri().path()[1..].parse().unwrap();
             let statuses = [
@@ -240,7 +241,7 @@ fn test_headers() {
     let data = STR.repeat(10);
     let data2 = data.clone();
 
-    let mut srv = test::TestServer::with_factory(move || {
+    let mut srv = TestServer::with_factory(move || {
         let data = data.clone();
         h1::H1Service::new(move |_| {
             let mut builder = Response::Ok();
@@ -302,7 +303,7 @@ const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
 
 #[test]
 fn test_body() {
-    let mut srv = test::TestServer::with_factory(|| {
+    let mut srv = TestServer::with_factory(|| {
         h1::H1Service::new(|_| future::ok::<_, ()>(Response::Ok().body(STR))).map(|_| ())
     });
 
@@ -317,7 +318,7 @@ fn test_body() {
 
 #[test]
 fn test_head_empty() {
-    let mut srv = test::TestServer::with_factory(|| {
+    let mut srv = TestServer::with_factory(|| {
         h1::H1Service::new(|_| ok::<_, ()>(Response::Ok().body(STR))).map(|_| ())
     });
 
@@ -340,7 +341,7 @@ fn test_head_empty() {
 
 #[test]
 fn test_head_binary() {
-    let mut srv = test::TestServer::with_factory(|| {
+    let mut srv = TestServer::with_factory(|| {
         h1::H1Service::new(|_| {
             ok::<_, ()>(Response::Ok().content_length(STR.len() as u64).body(STR))
         })
@@ -366,7 +367,7 @@ fn test_head_binary() {
 
 #[test]
 fn test_head_binary2() {
-    let mut srv = test::TestServer::with_factory(|| {
+    let mut srv = TestServer::with_factory(|| {
         h1::H1Service::new(|_| ok::<_, ()>(Response::Ok().body(STR))).map(|_| ())
     });
 
@@ -385,7 +386,7 @@ fn test_head_binary2() {
 
 #[test]
 fn test_body_length() {
-    let mut srv = test::TestServer::with_factory(|| {
+    let mut srv = TestServer::with_factory(|| {
         h1::H1Service::new(|_| {
             let body = once(Ok(Bytes::from_static(STR.as_ref())));
             ok::<_, ()>(
@@ -407,7 +408,7 @@ fn test_body_length() {
 
 #[test]
 fn test_body_chunked_explicit() {
-    let mut srv = test::TestServer::with_factory(|| {
+    let mut srv = TestServer::with_factory(|| {
         h1::H1Service::new(|_| {
             let body = once::<_, Error>(Ok(Bytes::from_static(STR.as_ref())));
             ok::<_, ()>(Response::Ok().streaming(body))
@@ -428,7 +429,7 @@ fn test_body_chunked_explicit() {
 
 #[test]
 fn test_body_chunked_implicit() {
-    let mut srv = test::TestServer::with_factory(|| {
+    let mut srv = TestServer::with_factory(|| {
         h1::H1Service::new(|_| {
             let body = once::<_, Error>(Ok(Bytes::from_static(STR.as_ref())));
             ok::<_, ()>(Response::Ok().streaming(body))
@@ -447,7 +448,7 @@ fn test_body_chunked_implicit() {
 
 #[test]
 fn test_response_http_error_handling() {
-    let mut srv = test::TestServer::with_factory(|| {
+    let mut srv = TestServer::with_factory(|| {
         h1::H1Service::new(|_| {
             let broken_header = Bytes::from_static(b"\0\0\0");
             ok::<_, ()>(

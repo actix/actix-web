@@ -567,13 +567,14 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::test::TestRequest;
     use encoding::all::ISO_8859_2;
     use encoding::Encoding;
     use futures::Async;
     use mime;
     use serde_derive::Deserialize;
+
+    use super::*;
+    use crate::test::TestRequest;
 
     #[test]
     fn test_content_type() {

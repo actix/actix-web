@@ -3,7 +3,8 @@ use bytes::Bytes;
 use futures::future::{self, ok};
 
 use actix_http::HttpMessage;
-use actix_http::{client, h1, test::TestServer, Request, Response};
+use actix_http::{client, h1, Request, Response};
+use actix_http_test::TestServer;
 
 const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
                    Hello World Hello World Hello World Hello World Hello World \

@@ -59,9 +59,6 @@
 //! * `session` - enables session support, includes `ring` crate as
 //!   dependency
 //!
-// #![warn(missing_docs)]
-#![allow(dead_code)]
-
 pub mod body;
 pub mod client;
 mod config;

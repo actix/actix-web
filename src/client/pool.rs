@@ -5,7 +5,6 @@ use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use actix_codec::{AsyncRead, AsyncWrite};
-use actix_rt::spawn;
 use actix_service::Service;
 use futures::future::{ok, Either, FutureResult};
 use futures::sync::oneshot;
@@ -265,7 +264,7 @@ where
         inner: Rc<RefCell<Inner<Io>>>,
         fut: F,
     ) {
-        spawn(OpenWaitingConnection {
+        tokio_current_thread::spawn(OpenWaitingConnection {
             key,
             fut,
             rx: Some(rx),
@@ -408,7 +407,9 @@ where
                     || (now - conn.created) > self.conn_lifetime
                 {
                     if let Some(timeout) = self.disconnect_timeout {
-                        spawn(CloseConnection::new(conn.io, timeout))
+                        tokio_current_thread::spawn(CloseConnection::new(
+                            conn.io, timeout,
+                        ))
                     }
                 } else {
                     let mut io = conn.io;
@@ -417,7 +418,9 @@ where
                         Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => (),
                         Ok(n) if n > 0 => {
                             if let Some(timeout) = self.disconnect_timeout {
-                                spawn(CloseConnection::new(io, timeout))
+                                tokio_current_thread::spawn(CloseConnection::new(
+                                    io, timeout,
+                                ))
                             }
                             continue;
                         }
@@ -433,7 +436,7 @@ where
     fn release_close(&mut self, io: Io) {
         self.acquired -= 1;
         if let Some(timeout) = self.disconnect_timeout {
-            spawn(CloseConnection::new(io, timeout))
+            tokio_current_thread::spawn(CloseConnection::new(io, timeout))
         }
     }
 

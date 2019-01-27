@@ -4,7 +4,6 @@ use std::rc::Rc;
 use std::time::{Duration, Instant};
 use std::{fmt, net};
 
-use actix_rt::spawn;
 use bytes::BytesMut;
 use futures::{future, Future};
 use log::error;
@@ -355,10 +354,12 @@ impl DateService {
 
             // periodic date update
             let s = self.clone();
-            spawn(sleep(Duration::from_millis(500)).then(move |_| {
-                s.0.reset();
-                future::ok(())
-            }));
+            tokio_current_thread::spawn(sleep(Duration::from_millis(500)).then(
+                move |_| {
+                    s.0.reset();
+                    future::ok(())
+                },
+            ));
         }
     }
 

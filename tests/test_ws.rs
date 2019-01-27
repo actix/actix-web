@@ -1,6 +1,7 @@
 use std::io;
 
 use actix_codec::Framed;
+use actix_http_test::TestServer;
 use actix_service::NewService;
 use actix_utils::framed::IntoFramed;
 use actix_utils::stream::TakeItem;
@@ -9,7 +10,7 @@ use bytes::{Bytes, BytesMut};
 use futures::future::{lazy, ok, Either};
 use futures::{Future, Sink, Stream};
 
-use actix_http::{h1, test, ws, ResponseError, SendResponse, ServiceConfig};
+use actix_http::{h1, ws, ResponseError, SendResponse, ServiceConfig};
 
 fn ws_service(req: ws::Frame) -> impl Future<Item = ws::Message, Error = io::Error> {
     match req {
@@ -34,7 +35,7 @@ fn ws_service(req: ws::Frame) -> impl Future<Item = ws::Message, Error = io::Err
 
 #[test]
 fn test_simple() {
-    let mut srv = test::TestServer::with_factory(|| {
+    let mut srv = TestServer::with_factory(|| {
         IntoFramed::new(|| h1::Codec::new(ServiceConfig::default()))
             .and_then(TakeItem::new().map_err(|_| ()))
             .and_then(|(req, framed): (_, Framed<_, _>)| {
