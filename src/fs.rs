@@ -120,6 +120,32 @@ pub struct NamedFile<C = DefaultConfig> {
 }
 
 impl NamedFile {
+    /// Creates an instance from a previously opened file.
+    ///
+    /// The given `path` need not exist and is only used to determine the `ContentType` and
+    /// `ContentDisposition` headers.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// extern crate actix_web;
+    ///
+    /// use actix_web::fs::NamedFile;
+    /// use std::io::{self, Write};
+    /// use std::env;
+    /// use std::fs::File;
+    ///
+    /// fn main() -> io::Result<()> {
+    ///     let mut file = File::create("foo.txt")?;
+    ///     file.write_all(b"Hello, world!")?;
+    ///     let named_file = NamedFile::from_file(file, "bar.txt")?;
+    ///     Ok(())
+    /// }
+    /// ```
+    pub fn from_file<P: AsRef<Path>>(file: File, path: P) -> io::Result<NamedFile> {
+        Self::from_file_with_config(file, path, DefaultConfig)
+    }
+
     /// Attempts to open a file in read-only mode.
     ///
     /// # Examples
@@ -135,16 +161,29 @@ impl NamedFile {
 }
 
 impl<C: StaticFileConfig> NamedFile<C> {
-    /// Attempts to open a file in read-only mode using provided configiration.
+    /// Creates an instance from a previously opened file using the provided configuration.
+    ///
+    /// The given `path` need not exist and is only used to determine the `ContentType` and
+    /// `ContentDisposition` headers.
     ///
     /// # Examples
     ///
-    /// ```rust
-    /// use actix_web::fs::{DefaultConfig, NamedFile};
+    /// ```no_run
+    /// extern crate actix_web;
     ///
-    /// let file = NamedFile::open_with_config("foo.txt", DefaultConfig);
+    /// use actix_web::fs::{DefaultConfig, NamedFile};
+    /// use std::io::{self, Write};
+    /// use std::env;
+    /// use std::fs::File;
+    ///
+    /// fn main() -> io::Result<()> {
+    ///     let mut file = File::create("foo.txt")?;
+    ///     file.write_all(b"Hello, world!")?;
+    ///     let named_file = NamedFile::from_file_with_config(file, "bar.txt", DefaultConfig)?;
+    ///     Ok(())
+    /// }
     /// ```
-    pub fn open_with_config<P: AsRef<Path>>(path: P, _: C) -> io::Result<NamedFile<C>> {
+    pub fn from_file_with_config<P: AsRef<Path>>(file: File, path: P, _: C) -> io::Result<NamedFile<C>> {
         let path = path.as_ref().to_path_buf();
 
         // Get the name of the file and use it to construct default Content-Type
@@ -169,7 +208,6 @@ impl<C: StaticFileConfig> NamedFile<C> {
             (ct, cd)
         };
 
-        let file = File::open(&path)?;
         let md = file.metadata()?;
         let modified = md.modified().ok();
         let cpu_pool = None;
@@ -186,6 +224,19 @@ impl<C: StaticFileConfig> NamedFile<C> {
             status_code: StatusCode::OK,
             _cd_map: PhantomData,
         })
+    }
+
+    /// Attempts to open a file in read-only mode using provided configuration.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use actix_web::fs::{DefaultConfig, NamedFile};
+    ///
+    /// let file = NamedFile::open_with_config("foo.txt", DefaultConfig);
+    /// ```
+    pub fn open_with_config<P: AsRef<Path>>(path: P, config: C) -> io::Result<NamedFile<C>> {
+        Self::from_file_with_config(File::open(&path)?, path, config)
     }
 
     /// Returns reference to the underlying `File` object.
