@@ -7,7 +7,7 @@ use actix_utils::timeout::{TimeoutError, TimeoutService};
 use trust_dns_resolver::config::{ResolverConfig, ResolverOpts};
 
 use super::connect::Connect;
-use super::connection::RequestSender;
+use super::connection::Connection;
 use super::error::ConnectorError;
 use super::pool::{ConnectionPool, Protocol};
 
@@ -135,7 +135,7 @@ impl Connector {
     /// Finish configuration process and create connector service.
     pub fn service(
         self,
-    ) -> impl Service<Connect, Response = impl RequestSender, Error = ConnectorError> + Clone
+    ) -> impl Service<Connect, Response = impl Connection, Error = ConnectorError> + Clone
     {
         #[cfg(not(feature = "ssl"))]
         {

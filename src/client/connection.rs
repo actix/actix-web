@@ -18,7 +18,7 @@ pub(crate) enum ConnectionType<Io> {
     H2(SendRequest<Bytes>),
 }
 
-pub trait RequestSender {
+pub trait Connection {
     type Future: Future<Item = ClientResponse, Error = SendRequestError>;
 
     /// Close connection
@@ -76,7 +76,7 @@ impl<T: AsyncRead + AsyncWrite + 'static> IoConnection<T> {
     }
 }
 
-impl<T> RequestSender for IoConnection<T>
+impl<T> Connection for IoConnection<T>
 where
     T: AsyncRead + AsyncWrite + 'static,
 {
@@ -112,7 +112,7 @@ pub(crate) enum EitherConnection<A, B> {
     B(IoConnection<B>),
 }
 
-impl<A, B> RequestSender for EitherConnection<A, B>
+impl<A, B> Connection for EitherConnection<A, B>
 where
     A: AsyncRead + AsyncWrite + 'static,
     B: AsyncRead + AsyncWrite + 'static,

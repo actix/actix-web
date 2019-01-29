@@ -70,7 +70,7 @@ serde_urlencoded = "0.5.3"
 time = "0.1"
 tokio-timer = "0.2"
 tokio-current-thread = "0.1"
-trust-dns-resolver = { version="0.11.0-alpha.1", default-features = false }
+trust-dns-resolver = { version="0.11.0-alpha.2", default-features = false }
 
 # openssl
 openssl = { version="0.10", optional = true }

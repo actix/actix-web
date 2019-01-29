@@ -17,7 +17,7 @@ use crate::http::{
 };
 use crate::message::{ConnectionType, Head, RequestHead};
 
-use super::connection::RequestSender;
+use super::connection::Connection;
 use super::response::ClientResponse;
 use super::{Connect, ConnectorError, SendRequestError};
 
@@ -177,7 +177,7 @@ where
     where
         B: 'static,
         T: Service<Connect, Response = I, Error = ConnectorError>,
-        I: RequestSender,
+        I: Connection,
     {
         let Self { head, body } = self;
 

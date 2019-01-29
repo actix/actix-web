@@ -604,10 +604,7 @@ impl ChunkedState {
 
 #[cfg(test)]
 mod tests {
-    use std::{cmp, io};
-
-    use actix_codec::{AsyncRead, AsyncWrite};
-    use bytes::{Buf, Bytes, BytesMut};
+    use bytes::{Bytes, BytesMut};
     use http::{Method, Version};
 
     use super::*;

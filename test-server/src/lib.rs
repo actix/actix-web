@@ -13,8 +13,8 @@ use net2::TcpBuilder;
 
 use actix_http::body::MessageBody;
 use actix_http::client::{
-    ClientRequest, ClientRequestBuilder, ClientResponse, Connect, Connector,
-    ConnectorError, RequestSender, SendRequestError,
+    ClientRequest, ClientRequestBuilder, ClientResponse, Connect, Connection, Connector,
+    ConnectorError, SendRequestError,
 };
 use actix_http::ws;
 
@@ -57,7 +57,7 @@ impl TestServer {
     pub fn with_factory<F: StreamServiceFactory>(
         factory: F,
     ) -> TestServerRuntime<
-        impl Service<Connect, Response = impl RequestSender, Error = ConnectorError> + Clone,
+        impl Service<Connect, Response = impl Connection, Error = ConnectorError> + Clone,
     > {
         let (tx, rx) = mpsc::channel();
 
@@ -89,7 +89,7 @@ impl TestServer {
     }
 
     fn new_connector(
-    ) -> impl Service<Connect, Response = impl RequestSender, Error = ConnectorError> + Clone
+    ) -> impl Service<Connect, Response = impl Connection, Error = ConnectorError> + Clone
     {
         #[cfg(feature = "ssl")]
         {
@@ -192,7 +192,7 @@ impl<T> TestServerRuntime<T> {
 impl<T> TestServerRuntime<T>
 where
     T: Service<Connect, Error = ConnectorError> + Clone,
-    T::Response: RequestSender,
+    T::Response: Connection,
 {
     /// Connect to websocket server at a given path
     pub fn ws_at(
