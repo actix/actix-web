@@ -109,7 +109,7 @@ impl<B: MessageBody> Response<B> {
     /// Constructs a response with body
     #[inline]
     pub fn with_body(status: StatusCode, body: B) -> Response<B> {
-        ResponsePool::with_body(status, body.into())
+        ResponsePool::with_body(status, body)
     }
 
     /// The source `error` for this response
@@ -644,7 +644,7 @@ impl ResponseBuilder {
 }
 
 #[inline]
-#[cfg_attr(feature = "cargo-clippy", allow(borrowed_box))]
+#[allow(clippy::borrowed_box)]
 fn parts<'a>(
     parts: &'a mut Option<Box<InnerResponse>>,
     err: &Option<HttpError>,

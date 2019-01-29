@@ -104,10 +104,10 @@ pub(crate) trait MessageType: Sized {
         let mut remaining = dst.remaining_mut();
         let mut buf = unsafe { &mut *(dst.bytes_mut() as *mut [u8]) };
         for (key, value) in self.headers() {
-            match key {
-                &CONNECTION => continue,
-                &TRANSFER_ENCODING | &CONTENT_LENGTH if skip_len => continue,
-                &DATE => {
+            match *key {
+                CONNECTION => continue,
+                TRANSFER_ENCODING | CONTENT_LENGTH if skip_len => continue,
+                DATE => {
                     has_date = true;
                 }
                 _ => (),

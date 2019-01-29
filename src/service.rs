@@ -85,7 +85,7 @@ where
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         if let Some(res) = self.res.take() {
-            if let Err(_) = self.framed.as_mut().unwrap().force_send(res) {
+            if self.framed.as_mut().unwrap().force_send(res).is_err() {
                 return Err((self.err.take().unwrap(), self.framed.take().unwrap()));
             }
         }
@@ -232,6 +232,6 @@ where
                 break;
             }
         }
-        return Ok(Async::Ready(self.framed.take().unwrap()));
+        Ok(Async::Ready(self.framed.take().unwrap()))
     }
 }

@@ -272,6 +272,7 @@ where
 }
 
 /// `NewService` implementation for `OneRequestService` service
+#[derive(Default)]
 pub struct OneRequest<T> {
     config: ServiceConfig,
     _t: PhantomData<T>,

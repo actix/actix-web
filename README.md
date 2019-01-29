@@ -1,14 +1,13 @@
-# Actix http [![Build Status](https://travis-ci.org/fafhrd91/actix-http.svg?branch=master)](https://travis-ci.org/fafhrd91/actix-http) [![Build status](https://ci.appveyor.com/api/projects/status/bwq6923pblqg55gk/branch/master?svg=true)](https://ci.appveyor.com/project/fafhrd91/actix-http/branch/master) [![codecov](https://codecov.io/gh/fafhrd91/actix-http/branch/master/graph/badge.svg)](https://codecov.io/gh/fafhrd91/actix-http) [![crates.io](https://meritbadge.herokuapp.com/actix-web)](https://crates.io/crates/actix-web) [![Join the chat at https://gitter.im/actix/actix](https://badges.gitter.im/actix/actix.svg)](https://gitter.im/actix/actix?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+# Actix http [![Build Status](https://travis-ci.org/actix/actix-http.svg?branch=master)](https://travis-ci.org/actix/actix-http) [![Build status](https://ci.appveyor.com/api/projects/status/bwq6923pblqg55gk/branch/master?svg=true)](https://ci.appveyor.com/project/actix/actix-http/branch/master) [![codecov](https://codecov.io/gh/actix/actix-http/branch/master/graph/badge.svg)](https://codecov.io/gh/actix/actix-http) [![crates.io](https://meritbadge.herokuapp.com/actix-web)](https://crates.io/crates/actix-web) [![Join the chat at https://gitter.im/actix/actix](https://badges.gitter.im/actix/actix.svg)](https://gitter.im/actix/actix?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
 Actix http
 
 ## Documentation & community resources
 
 * [User Guide](https://actix.rs/docs/)
-* [API Documentation (Development)](https://actix.rs/actix-http/actix_http/)
-* [API Documentation (Releases)](https://actix.rs/api/actix-http/stable/actix_http/)
+* [API Documentation](https://docs.rs/actix-http/)
 * [Chat on gitter](https://gitter.im/actix/actix)
-* Cargo package: [actix-http](https://crates.io/crates/actix-web)
+* Cargo package: [actix-http](https://crates.io/crates/actix-http)
 * Minimum supported Rust version: 1.26 or later
 
 ## Example

@@ -248,7 +248,7 @@ where
         }
 
         match self.fut.poll() {
-            Err(err) => Err(err.into()),
+            Err(err) => Err(err),
             Ok(Async::Ready((_, io, proto))) => {
                 let _ = self.inner.take();
                 if proto == Protocol::Http1 {
@@ -259,7 +259,7 @@ where
                     )))
                 } else {
                     self.h2 = Some(handshake(io));
-                    return self.poll();
+                    self.poll()
                 }
             }
             Ok(Async::NotReady) => Ok(Async::NotReady),

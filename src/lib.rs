@@ -59,6 +59,12 @@
 //! * `session` - enables session support, includes `ring` crate as
 //!   dependency
 //!
+#![allow(
+    clippy::type_complexity,
+    clippy::new_without_default,
+    clippy::new_without_default_derive
+)]
+
 #[macro_use]
 extern crate log;
 

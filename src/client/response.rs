@@ -13,6 +13,7 @@ use crate::message::{Head, ResponseHead};
 use super::h1proto::Payload;
 
 /// Client Response
+#[derive(Default)]
 pub struct ClientResponse {
     pub(crate) head: ResponseHead,
     pub(crate) payload: RefCell<Option<PayloadStream>>,

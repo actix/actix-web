@@ -26,9 +26,9 @@ where
     B: MessageBody,
 {
     let io = H1Connection {
+        created,
+        pool,
         io: Some(io),
-        created: created,
-        pool: pool,
     };
 
     let len = body.length();

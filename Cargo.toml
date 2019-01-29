@@ -6,8 +6,8 @@ description = "Actix http"
 readme = "README.md"
 keywords = ["http", "web", "framework", "async", "futures"]
 homepage = "https://actix.rs"
-repository = "https://github.com/actix/actix-web.git"
-documentation = "https://actix.rs/api/actix-web/stable/actix_web/"
+repository = "https://github.com/actix/actix-http.git"
+documentation = "https://actix.rs/api/actix-http/stable/actix_http/"
 categories = ["network-programming", "asynchronous",
               "web-programming::http-server",
               "web-programming::websocket"]
@@ -20,7 +20,7 @@ features = ["session"]
 
 [badges]
 travis-ci = { repository = "actix/actix-web", branch = "master" }
-appveyor = { repository = "fafhrd91/actix-web-hdy9d" }
+appveyor = { repository = "actix/actix-http-hdy9d" }
 codecov = { repository = "actix/actix-web", branch = "master", service = "github" }
 
 [lib]

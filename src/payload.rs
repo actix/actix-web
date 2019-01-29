@@ -42,7 +42,7 @@ impl Payload {
     /// * `PayloadSender` - *Sender* side of the stream
     ///
     /// * `Payload` - *Receiver* side of the stream
-    pub fn new(eof: bool) -> (PayloadSender, Payload) {
+    pub fn create(eof: bool) -> (PayloadSender, Payload) {
         let shared = Rc::new(RefCell::new(Inner::new(eof)));
 
         (
@@ -540,7 +540,7 @@ mod tests {
         Runtime::new()
             .unwrap()
             .block_on(lazy(|| {
-                let (_, payload) = Payload::new(false);
+                let (_, payload) = Payload::create(false);
                 let mut payload = PayloadBuffer::new(payload);
 
                 assert_eq!(payload.len, 0);
@@ -557,7 +557,7 @@ mod tests {
         Runtime::new()
             .unwrap()
             .block_on(lazy(|| {
-                let (mut sender, payload) = Payload::new(false);
+                let (mut sender, payload) = Payload::create(false);
                 let mut payload = PayloadBuffer::new(payload);
 
                 assert_eq!(Async::NotReady, payload.readany().ok().unwrap());
@@ -582,7 +582,7 @@ mod tests {
         Runtime::new()
             .unwrap()
             .block_on(lazy(|| {
-                let (mut sender, payload) = Payload::new(false);
+                let (mut sender, payload) = Payload::create(false);
                 let mut payload = PayloadBuffer::new(payload);
 
                 assert_eq!(Async::NotReady, payload.readany().ok().unwrap());
@@ -600,7 +600,7 @@ mod tests {
         Runtime::new()
             .unwrap()
             .block_on(lazy(|| {
-                let (mut sender, payload) = Payload::new(false);
+                let (mut sender, payload) = Payload::create(false);
                 let mut payload = PayloadBuffer::new(payload);
 
                 sender.feed_data(Bytes::from("line1"));
@@ -629,7 +629,7 @@ mod tests {
         Runtime::new()
             .unwrap()
             .block_on(lazy(|| {
-                let (mut sender, payload) = Payload::new(false);
+                let (mut sender, payload) = Payload::create(false);
                 let mut payload = PayloadBuffer::new(payload);
 
                 assert_eq!(Async::NotReady, payload.read_exact(2).ok().unwrap());
@@ -663,7 +663,7 @@ mod tests {
         Runtime::new()
             .unwrap()
             .block_on(lazy(|| {
-                let (mut sender, payload) = Payload::new(false);
+                let (mut sender, payload) = Payload::create(false);
                 let mut payload = PayloadBuffer::new(payload);
 
                 assert_eq!(Async::NotReady, payload.read_until(b"ne").ok().unwrap());
@@ -697,7 +697,7 @@ mod tests {
         Runtime::new()
             .unwrap()
             .block_on(lazy(|| {
-                let (_, mut payload) = Payload::new(false);
+                let (_, mut payload) = Payload::create(false);
 
                 payload.unread_data(Bytes::from("data"));
                 assert!(!payload.is_empty());

@@ -837,7 +837,7 @@ mod tests {
             match ParseError::from($from) {
                 e @ $error => {
                     let desc = format!("{}", e);
-                    assert_eq!(desc, $from.description().to_owned());
+                    assert_eq!(desc, format!("IO error: {}", $from.description()));
                 }
                 _ => unreachable!("{:?}", $from),
             }
@@ -846,7 +846,7 @@ mod tests {
 
     #[test]
     fn test_from() {
-        // from_and_cause!(io::Error::new(io::ErrorKind::Other, "other") => ParseError::Io(..));
+        from_and_cause!(io::Error::new(io::ErrorKind::Other, "other") => ParseError::Io(..));
         from!(httparse::Error::HeaderName => ParseError::Header);
         from!(httparse::Error::HeaderName => ParseError::Header);
         from!(httparse::Error::HeaderValue => ParseError::Header);

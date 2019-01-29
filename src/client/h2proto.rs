@@ -91,25 +91,25 @@ impl<B: MessageBody> Future for SendBody<B> {
     type Error = SendRequestError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        if self.buf.is_none() {
-            match self.body.poll_next() {
-                Ok(Async::Ready(Some(buf))) => {
-                    self.send.reserve_capacity(buf.len());
-                    self.buf = Some(buf);
-                }
-                Ok(Async::Ready(None)) => {
-                    if let Err(e) = self.send.send_data(Bytes::new(), true) {
-                        return Err(e.into());
-                    }
-                    self.send.reserve_capacity(0);
-                    return Ok(Async::Ready(()));
-                }
-                Ok(Async::NotReady) => return Ok(Async::NotReady),
-                Err(e) => return Err(e.into()),
-            }
-        }
-
         loop {
+            if self.buf.is_none() {
+                match self.body.poll_next() {
+                    Ok(Async::Ready(Some(buf))) => {
+                        self.send.reserve_capacity(buf.len());
+                        self.buf = Some(buf);
+                    }
+                    Ok(Async::Ready(None)) => {
+                        if let Err(e) = self.send.send_data(Bytes::new(), true) {
+                            return Err(e.into());
+                        }
+                        self.send.reserve_capacity(0);
+                        return Ok(Async::Ready(()));
+                    }
+                    Ok(Async::NotReady) => return Ok(Async::NotReady),
+                    Err(e) => return Err(e.into()),
+                }
+            }
+
             match self.send.poll_capacity() {
                 Ok(Async::NotReady) => return Ok(Async::NotReady),
                 Ok(Async::Ready(None)) => return Ok(Async::Ready(())),
@@ -125,7 +125,7 @@ impl<B: MessageBody> Future for SendBody<B> {
                             self.send.reserve_capacity(buf.len());
                             self.buf = Some(buf);
                         }
-                        return self.poll();
+                        continue;
                     }
                 }
                 Err(e) => return Err(e.into()),

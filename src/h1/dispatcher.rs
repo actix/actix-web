@@ -312,7 +312,7 @@ where
                         Message::Item(req) => {
                             match self.framed.get_codec().message_type() {
                                 MessageType::Payload => {
-                                    let (ps, pl) = Payload::new(false);
+                                    let (ps, pl) = Payload::create(false);
                                     *req.inner.payload.borrow_mut() = Some(pl);
                                     self.payload = Some(ps);
                                 }
@@ -417,10 +417,10 @@ where
                             // start shutdown timer
                             if let Some(deadline) = self.config.client_disconnect_timer()
                             {
-                                self.ka_timer.as_mut().map(|timer| {
+                                if let Some(timer) = self.ka_timer.as_mut() {
                                     timer.reset(deadline);
                                     let _ = timer.poll();
-                                });
+                                }
                             } else {
                                 return Ok(());
                             }
@@ -439,17 +439,14 @@ where
                             self.state = State::None;
                         }
                     } else if let Some(deadline) = self.config.keep_alive_expire() {
-                        self.ka_timer.as_mut().map(|timer| {
+                        if let Some(timer) = self.ka_timer.as_mut() {
                             timer.reset(deadline);
                             let _ = timer.poll();
-                        });
+                        }
                     }
-                } else {
-                    let expire = self.ka_expire;
-                    self.ka_timer.as_mut().map(|timer| {
-                        timer.reset(expire);
-                        let _ = timer.poll();
-                    });
+                } else if let Some(timer) = self.ka_timer.as_mut() {
+                    timer.reset(self.ka_expire);
+                    let _ = timer.poll();
                 }
             }
             Async::NotReady => (),
@@ -524,5 +521,92 @@ where
             let req = inner.unhandled.take().unwrap();
             Ok(Async::Ready(H1ServiceResult::Unhandled(req, inner.framed)))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{cmp, io};
+
+    use actix_codec::{AsyncRead, AsyncWrite};
+    use actix_service::IntoService;
+    use bytes::{Buf, Bytes, BytesMut};
+    use futures::future::{lazy, ok};
+
+    use super::*;
+    use crate::error::Error;
+
+    struct Buffer {
+        buf: Bytes,
+        err: Option<io::Error>,
+    }
+
+    impl Buffer {
+        fn new(data: &'static str) -> Buffer {
+            Buffer {
+                buf: Bytes::from(data),
+                err: None,
+            }
+        }
+    }
+
+    impl AsyncRead for Buffer {}
+    impl io::Read for Buffer {
+        fn read(&mut self, dst: &mut [u8]) -> Result<usize, io::Error> {
+            if self.buf.is_empty() {
+                if self.err.is_some() {
+                    Err(self.err.take().unwrap())
+                } else {
+                    Err(io::Error::new(io::ErrorKind::WouldBlock, ""))
+                }
+            } else {
+                let size = cmp::min(self.buf.len(), dst.len());
+                let b = self.buf.split_to(size);
+                dst[..size].copy_from_slice(&b);
+                Ok(size)
+            }
+        }
+    }
+
+    impl io::Write for Buffer {
+        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+            Ok(buf.len())
+        }
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+    impl AsyncWrite for Buffer {
+        fn shutdown(&mut self) -> Poll<(), io::Error> {
+            Ok(Async::Ready(()))
+        }
+        fn write_buf<B: Buf>(&mut self, _: &mut B) -> Poll<usize, io::Error> {
+            Ok(Async::NotReady)
+        }
+    }
+
+    #[test]
+    fn test_req_parse_err() {
+        let mut sys = actix_rt::System::new("test");
+        let _ = sys.block_on(lazy(|| {
+            let buf = Buffer::new("GET /test HTTP/1\r\n\r\n");
+            let readbuf = BytesMut::new();
+
+            let mut h1 = Dispatcher::new(
+                buf,
+                ServiceConfig::default(),
+                (|req| ok::<_, Error>(Response::Ok().finish())).into_service(),
+            );
+            assert!(h1.poll().is_ok());
+            assert!(h1.poll().is_ok());
+            assert!(h1
+                .inner
+                .as_ref()
+                .unwrap()
+                .flags
+                .contains(Flags::DISCONNECTED));
+            // assert_eq!(h1.tasks.len(), 1);
+            ok::<_, ()>(())
+        }));
     }
 }

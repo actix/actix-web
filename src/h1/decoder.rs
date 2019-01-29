@@ -273,16 +273,14 @@ impl MessageType for ClientResponse {
         // message payload
         let decoder = if let PayloadLength::Payload(pl) = len {
             pl
+        } else if status == StatusCode::SWITCHING_PROTOCOLS {
+            // switching protocol or connect
+            PayloadType::Stream(PayloadDecoder::eof())
+        } else if src.len() >= MAX_BUFFER_SIZE {
+            error!("MAX_BUFFER_SIZE unprocessed data reached, closing");
+            return Err(ParseError::TooLarge);
         } else {
-            if status == StatusCode::SWITCHING_PROTOCOLS {
-                // switching protocol or connect
-                PayloadType::Stream(PayloadDecoder::eof())
-            } else if src.len() >= MAX_BUFFER_SIZE {
-                error!("MAX_BUFFER_SIZE unprocessed data reached, closing");
-                return Err(ParseError::TooLarge);
-            } else {
-                PayloadType::None
-            }
+            PayloadType::None
         };
 
         msg.head.status = status;
@@ -669,71 +667,6 @@ mod tests {
             }
         }};
     }
-
-    struct Buffer {
-        buf: Bytes,
-        err: Option<io::Error>,
-    }
-
-    impl Buffer {
-        fn new(data: &'static str) -> Buffer {
-            Buffer {
-                buf: Bytes::from(data),
-                err: None,
-            }
-        }
-    }
-
-    impl AsyncRead for Buffer {}
-    impl io::Read for Buffer {
-        fn read(&mut self, dst: &mut [u8]) -> Result<usize, io::Error> {
-            if self.buf.is_empty() {
-                if self.err.is_some() {
-                    Err(self.err.take().unwrap())
-                } else {
-                    Err(io::Error::new(io::ErrorKind::WouldBlock, ""))
-                }
-            } else {
-                let size = cmp::min(self.buf.len(), dst.len());
-                let b = self.buf.split_to(size);
-                dst[..size].copy_from_slice(&b);
-                Ok(size)
-            }
-        }
-    }
-
-    impl io::Write for Buffer {
-        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-            Ok(buf.len())
-        }
-        fn flush(&mut self) -> io::Result<()> {
-            Ok(())
-        }
-    }
-    impl AsyncWrite for Buffer {
-        fn shutdown(&mut self) -> Poll<(), io::Error> {
-            Ok(Async::Ready(()))
-        }
-        fn write_buf<B: Buf>(&mut self, _: &mut B) -> Poll<usize, io::Error> {
-            Ok(Async::NotReady)
-        }
-    }
-
-    // #[test]
-    // fn test_req_parse_err() {
-    //     let mut sys = System::new("test");
-    //     let _ = sys.block_on(future::lazy(|| {
-    //         let buf = Buffer::new("GET /test HTTP/1\r\n\r\n");
-    //         let readbuf = BytesMut::new();
-
-    //         let mut h1 = Dispatcher::new(buf, |req| ok(Response::Ok().finish()));
-    //         assert!(h1.poll_io().is_ok());
-    //         assert!(h1.poll_io().is_ok());
-    //         assert!(h1.flags.contains(Flags::READ_DISCONNECTED));
-    //         assert_eq!(h1.tasks.len(), 1);
-    //         future::ok::<_, ()>(())
-    //     }));
-    // }
 
     #[test]
     fn test_parse() {

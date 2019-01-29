@@ -65,12 +65,8 @@ impl<T> From<HandshakeError<T>> for ConnectorError {
     fn from(err: HandshakeError<T>) -> ConnectorError {
         match err {
             HandshakeError::SetupFailure(stack) => SslError::from(stack).into(),
-            HandshakeError::Failure(stream) => {
-                SslError::from(stream.into_error()).into()
-            }
-            HandshakeError::WouldBlock(stream) => {
-                SslError::from(stream.into_error()).into()
-            }
+            HandshakeError::Failure(stream) => stream.into_error().into(),
+            HandshakeError::WouldBlock(stream) => stream.into_error().into(),
         }
     }
 }

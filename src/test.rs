@@ -144,9 +144,8 @@ impl TestRequest {
             uri,
             version,
             headers,
-            _cookies: _,
             payload,
-            prefix: _,
+            ..
         } = self;
 
         let mut req = Request::new();

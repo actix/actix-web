@@ -47,9 +47,7 @@ impl Default for Connector {
                 ssl.build()
             }
             #[cfg(not(feature = "ssl"))]
-            {
-                ()
-            }
+            {}
         };
 
         Connector {

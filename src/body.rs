@@ -158,7 +158,7 @@ impl From<&'static str> for Body {
 
 impl From<&'static [u8]> for Body {
     fn from(s: &'static [u8]) -> Body {
-        Body::Bytes(Bytes::from_static(s.as_ref()))
+        Body::Bytes(Bytes::from_static(s))
     }
 }
 
