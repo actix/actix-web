@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! Http response
 use std::cell::RefCell;
 use std::collections::VecDeque;

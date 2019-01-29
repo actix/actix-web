@@ -6,10 +6,12 @@ use std::time::{Duration, Instant};
 
 use actix_codec::{AsyncRead, AsyncWrite};
 use actix_service::Service;
+use bytes::Bytes;
 use futures::future::{ok, Either, FutureResult};
 use futures::task::AtomicTask;
 use futures::unsync::oneshot;
 use futures::{Async, Future, Poll};
+use h2::client::{handshake, Handshake};
 use hashbrown::HashMap;
 use http::uri::Authority;
 use indexmap::IndexSet;
@@ -17,8 +19,14 @@ use slab::Slab;
 use tokio_timer::{sleep, Delay};
 
 use super::connect::Connect;
-use super::connection::IoConnection;
+use super::connection::{ConnectionType, IoConnection};
 use super::error::ConnectorError;
+
+#[derive(Clone, Copy, PartialEq)]
+pub enum Protocol {
+    Http1,
+    Http2,
+}
 
 #[derive(Hash, Eq, PartialEq, Clone, Debug)]
 pub(crate) struct Key {
@@ -31,13 +39,6 @@ impl From<Authority> for Key {
     }
 }
 
-#[derive(Debug)]
-struct AvailableConnection<T> {
-    io: T,
-    used: Instant,
-    created: Instant,
-}
-
 /// Connections pool
 pub(crate) struct ConnectionPool<T, Io: AsyncRead + AsyncWrite + 'static>(
     T,
@@ -47,7 +48,7 @@ pub(crate) struct ConnectionPool<T, Io: AsyncRead + AsyncWrite + 'static>(
 impl<T, Io> ConnectionPool<T, Io>
 where
     Io: AsyncRead + AsyncWrite + 'static,
-    T: Service<Connect, Response = (Connect, Io), Error = ConnectorError>,
+    T: Service<Connect, Response = (Connect, Io, Protocol), Error = ConnectorError>,
 {
     pub(crate) fn new(
         connector: T,
@@ -86,7 +87,7 @@ where
 impl<T, Io> Service<Connect> for ConnectionPool<T, Io>
 where
     Io: AsyncRead + AsyncWrite + 'static,
-    T: Service<Connect, Response = (Connect, Io), Error = ConnectorError>,
+    T: Service<Connect, Response = (Connect, Io, Protocol), Error = ConnectorError>,
 {
     type Response = IoConnection<Io>;
     type Error = ConnectorError;
@@ -109,7 +110,7 @@ where
                 Either::A(ok(IoConnection::new(
                     io,
                     created,
-                    Acquired(key, Some(self.1.clone())),
+                    Some(Acquired(key, Some(self.1.clone()))),
                 )))
             }
             Acquire::NotAvailable => {
@@ -190,12 +191,13 @@ where
 {
     fut: F,
     key: Key,
+    h2: Option<Handshake<Io, Bytes>>,
     inner: Option<Rc<RefCell<Inner<Io>>>>,
 }
 
 impl<F, Io> OpenConnection<F, Io>
 where
-    F: Future<Item = (Connect, Io), Error = ConnectorError>,
+    F: Future<Item = (Connect, Io, Protocol), Error = ConnectorError>,
     Io: AsyncRead + AsyncWrite + 'static,
 {
     fn new(key: Key, inner: Rc<RefCell<Inner<Io>>>, fut: F) -> Self {
@@ -203,6 +205,7 @@ where
             key,
             fut,
             inner: Some(inner),
+            h2: None,
         }
     }
 }
@@ -222,108 +225,163 @@ where
 
 impl<F, Io> Future for OpenConnection<F, Io>
 where
-    F: Future<Item = (Connect, Io), Error = ConnectorError>,
+    F: Future<Item = (Connect, Io, Protocol), Error = ConnectorError>,
     Io: AsyncRead + AsyncWrite,
 {
     type Item = IoConnection<Io>;
     type Error = ConnectorError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        if let Some(ref mut h2) = self.h2 {
+            return match h2.poll() {
+                Ok(Async::Ready((snd, connection))) => {
+                    tokio_current_thread::spawn(connection.map_err(|_| ()));
+                    Ok(Async::Ready(IoConnection::new(
+                        ConnectionType::H2(snd),
+                        Instant::now(),
+                        Some(Acquired(self.key.clone(), self.inner.clone())),
+                    )))
+                }
+                Ok(Async::NotReady) => Ok(Async::NotReady),
+                Err(e) => Err(e.into()),
+            };
+        }
+
         match self.fut.poll() {
             Err(err) => Err(err.into()),
-            Ok(Async::Ready((_, io))) => {
+            Ok(Async::Ready((_, io, proto))) => {
                 let _ = self.inner.take();
-                Ok(Async::Ready(IoConnection::new(
-                    io,
-                    Instant::now(),
-                    Acquired(self.key.clone(), self.inner.clone()),
-                )))
-            }
-            Ok(Async::NotReady) => Ok(Async::NotReady),
-        }
-    }
-}
-
-struct OpenWaitingConnection<F, Io>
-where
-    Io: AsyncRead + AsyncWrite + 'static,
-{
-    fut: F,
-    key: Key,
-    rx: Option<oneshot::Sender<Result<IoConnection<Io>, ConnectorError>>>,
-    inner: Option<Rc<RefCell<Inner<Io>>>>,
-}
-
-impl<F, Io> OpenWaitingConnection<F, Io>
-where
-    F: Future<Item = (Connect, Io), Error = ConnectorError> + 'static,
-    Io: AsyncRead + AsyncWrite + 'static,
-{
-    fn spawn(
-        key: Key,
-        rx: oneshot::Sender<Result<IoConnection<Io>, ConnectorError>>,
-        inner: Rc<RefCell<Inner<Io>>>,
-        fut: F,
-    ) {
-        tokio_current_thread::spawn(OpenWaitingConnection {
-            key,
-            fut,
-            rx: Some(rx),
-            inner: Some(inner),
-        })
-    }
-}
-
-impl<F, Io> Drop for OpenWaitingConnection<F, Io>
-where
-    Io: AsyncRead + AsyncWrite + 'static,
-{
-    fn drop(&mut self) {
-        if let Some(inner) = self.inner.take() {
-            let mut inner = inner.as_ref().borrow_mut();
-            inner.release();
-            inner.check_availibility();
-        }
-    }
-}
-
-impl<F, Io> Future for OpenWaitingConnection<F, Io>
-where
-    F: Future<Item = (Connect, Io), Error = ConnectorError>,
-    Io: AsyncRead + AsyncWrite,
-{
-    type Item = ();
-    type Error = ();
-
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        match self.fut.poll() {
-            Err(err) => {
-                let _ = self.inner.take();
-                if let Some(rx) = self.rx.take() {
-                    let _ = rx.send(Err(err));
-                }
-                Err(())
-            }
-            Ok(Async::Ready((_, io))) => {
-                let _ = self.inner.take();
-                if let Some(rx) = self.rx.take() {
-                    let _ = rx.send(Ok(IoConnection::new(
-                        io,
+                if proto == Protocol::Http1 {
+                    Ok(Async::Ready(IoConnection::new(
+                        ConnectionType::H1(io),
                         Instant::now(),
-                        Acquired(self.key.clone(), self.inner.clone()),
-                    )));
+                        Some(Acquired(self.key.clone(), self.inner.clone())),
+                    )))
+                } else {
+                    self.h2 = Some(handshake(io));
+                    return self.poll();
                 }
-                Ok(Async::Ready(()))
             }
             Ok(Async::NotReady) => Ok(Async::NotReady),
         }
     }
 }
+
+// struct OpenWaitingConnection<F, Io>
+// where
+//     Io: AsyncRead + AsyncWrite + 'static,
+// {
+//     fut: F,
+//     key: Key,
+//     h2: Option<Handshake<Io, Bytes>>,
+//     rx: Option<oneshot::Sender<Result<IoConnection<Io>, ConnectorError>>>,
+//     inner: Option<Rc<RefCell<Inner<Io>>>>,
+// }
+
+// impl<F, Io> OpenWaitingConnection<F, Io>
+// where
+//     F: Future<Item = (Connect, Io, Protocol), Error = ConnectorError> + 'static,
+//     Io: AsyncRead + AsyncWrite + 'static,
+// {
+//     fn spawn(
+//         key: Key,
+//         rx: oneshot::Sender<Result<IoConnection<Io>, ConnectorError>>,
+//         inner: Rc<RefCell<Inner<Io>>>,
+//         fut: F,
+//     ) {
+//         tokio_current_thread::spawn(OpenWaitingConnection {
+//             key,
+//             fut,
+//             h2: None,
+//             rx: Some(rx),
+//             inner: Some(inner),
+//         })
+//     }
+// }
+
+// impl<F, Io> Drop for OpenWaitingConnection<F, Io>
+// where
+//     Io: AsyncRead + AsyncWrite + 'static,
+// {
+//     fn drop(&mut self) {
+//         if let Some(inner) = self.inner.take() {
+//             let mut inner = inner.as_ref().borrow_mut();
+//             inner.release();
+//             inner.check_availibility();
+//         }
+//     }
+// }
+
+// impl<F, Io> Future for OpenWaitingConnection<F, Io>
+// where
+//     F: Future<Item = (Connect, Io, Protocol), Error = ConnectorError>,
+//     Io: AsyncRead + AsyncWrite,
+// {
+//     type Item = ();
+//     type Error = ();
+
+//     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+//         if let Some(ref mut h2) = self.h2 {
+//             return match h2.poll() {
+//                 Ok(Async::Ready((snd, connection))) => {
+//                     tokio_current_thread::spawn(connection.map_err(|_| ()));
+//                     let _ = self.rx.take().unwrap().send(Ok(IoConnection::new(
+//                         ConnectionType::H2(snd),
+//                         Instant::now(),
+//                         Some(Acquired(self.key.clone(), self.inner.clone())),
+//                     )));
+//                     Ok(Async::Ready(()))
+//                 }
+//                 Ok(Async::NotReady) => Ok(Async::NotReady),
+//                 Err(e) => {
+//                     let _ = self.inner.take();
+//                     if let Some(rx) = self.rx.take() {
+//                         let _ = rx.send(Err(e.into()));
+//                     }
+
+//                     Err(())
+//                 }
+//             };
+//         }
+
+//         match self.fut.poll() {
+//             Err(err) => {
+//                 let _ = self.inner.take();
+//                 if let Some(rx) = self.rx.take() {
+//                     let _ = rx.send(Err(err));
+//                 }
+//                 Err(())
+//             }
+//             Ok(Async::Ready((_, io, proto))) => {
+//                 let _ = self.inner.take();
+//                 if proto == Protocol::Http1 {
+//                     let _ = self.rx.take().unwrap().send(Ok(IoConnection::new(
+//                         ConnectionType::H1(io),
+//                         Instant::now(),
+//                         Some(Acquired(self.key.clone(), self.inner.clone())),
+//                     )));
+//                 } else {
+//                     self.h2 = Some(handshake(io));
+//                     return self.poll();
+//                 }
+//                 Ok(Async::Ready(()))
+//             }
+//             Ok(Async::NotReady) => Ok(Async::NotReady),
+//         }
+//     }
+// }
 
 enum Acquire<T> {
-    Acquired(T, Instant),
+    Acquired(ConnectionType<T>, Instant),
     Available,
     NotAvailable,
+}
+
+// #[derive(Debug)]
+struct AvailableConnection<Io> {
+    io: ConnectionType<Io>,
+    used: Instant,
+    created: Instant,
 }
 
 pub(crate) struct Inner<Io> {
@@ -355,7 +413,7 @@ impl<Io> Inner<Io> {
         self.waiters_queue.remove(&(key.clone(), token));
     }
 
-    fn release_conn(&mut self, key: &Key, io: Io, created: Instant) {
+    fn release_conn(&mut self, key: &Key, io: ConnectionType<Io>, created: Instant) {
         self.acquired -= 1;
         self.available
             .entry(key.clone())
@@ -408,24 +466,30 @@ where
                     || (now - conn.created) > self.conn_lifetime
                 {
                     if let Some(timeout) = self.disconnect_timeout {
-                        tokio_current_thread::spawn(CloseConnection::new(
-                            conn.io, timeout,
-                        ))
+                        if let ConnectionType::H1(io) = conn.io {
+                            tokio_current_thread::spawn(CloseConnection::new(
+                                io, timeout,
+                            ))
+                        }
                     }
                 } else {
                     let mut io = conn.io;
                     let mut buf = [0; 2];
-                    match io.read(&mut buf) {
-                        Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => (),
-                        Ok(n) if n > 0 => {
-                            if let Some(timeout) = self.disconnect_timeout {
-                                tokio_current_thread::spawn(CloseConnection::new(
-                                    io, timeout,
-                                ))
+                    if let ConnectionType::H1(ref mut s) = io {
+                        match s.read(&mut buf) {
+                            Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => (),
+                            Ok(n) if n > 0 => {
+                                if let Some(timeout) = self.disconnect_timeout {
+                                    if let ConnectionType::H1(io) = io {
+                                        tokio_current_thread::spawn(
+                                            CloseConnection::new(io, timeout),
+                                        )
+                                    }
+                                }
+                                continue;
                             }
-                            continue;
+                            Ok(_) | Err(_) => continue,
                         }
-                        Ok(_) | Err(_) => continue,
                     }
                     return Acquire::Acquired(io, conn.created);
                 }
@@ -434,10 +498,12 @@ where
         Acquire::Available
     }
 
-    fn release_close(&mut self, io: Io) {
+    fn release_close(&mut self, io: ConnectionType<Io>) {
         self.acquired -= 1;
         if let Some(timeout) = self.disconnect_timeout {
-            tokio_current_thread::spawn(CloseConnection::new(io, timeout))
+            if let ConnectionType::H1(io) = io {
+                tokio_current_thread::spawn(CloseConnection::new(io, timeout))
+            }
         }
     }
 
@@ -448,65 +514,65 @@ where
     }
 }
 
-struct ConnectorPoolSupport<T, Io>
-where
-    Io: AsyncRead + AsyncWrite + 'static,
-{
-    connector: T,
-    inner: Rc<RefCell<Inner<Io>>>,
-}
+// struct ConnectorPoolSupport<T, Io>
+// where
+//     Io: AsyncRead + AsyncWrite + 'static,
+// {
+//     connector: T,
+//     inner: Rc<RefCell<Inner<Io>>>,
+// }
 
-impl<T, Io> Future for ConnectorPoolSupport<T, Io>
-where
-    Io: AsyncRead + AsyncWrite + 'static,
-    T: Service<Connect, Response = (Connect, Io), Error = ConnectorError>,
-    T::Future: 'static,
-{
-    type Item = ();
-    type Error = ();
+// impl<T, Io> Future for ConnectorPoolSupport<T, Io>
+// where
+//     Io: AsyncRead + AsyncWrite + 'static,
+//     T: Service<Connect, Response = (Connect, Io, Protocol), Error = ConnectorError>,
+//     T::Future: 'static,
+// {
+//     type Item = ();
+//     type Error = ();
 
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        let mut inner = self.inner.as_ref().borrow_mut();
-        inner.task.register();
+//     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+//         let mut inner = self.inner.as_ref().borrow_mut();
+//         inner.task.register();
 
-        // check waiters
-        loop {
-            let (key, token) = {
-                if let Some((key, token)) = inner.waiters_queue.get_index(0) {
-                    (key.clone(), *token)
-                } else {
-                    break;
-                }
-            };
-            match inner.acquire(&key) {
-                Acquire::NotAvailable => break,
-                Acquire::Acquired(io, created) => {
-                    let (_, tx) = inner.waiters.remove(token);
-                    if let Err(conn) = tx.send(Ok(IoConnection::new(
-                        io,
-                        created,
-                        Acquired(key.clone(), Some(self.inner.clone())),
-                    ))) {
-                        let (io, created) = conn.unwrap().into_inner();
-                        inner.release_conn(&key, io, created);
-                    }
-                }
-                Acquire::Available => {
-                    let (connect, tx) = inner.waiters.remove(token);
-                    OpenWaitingConnection::spawn(
-                        key.clone(),
-                        tx,
-                        self.inner.clone(),
-                        self.connector.call(connect),
-                    );
-                }
-            }
-            let _ = inner.waiters_queue.swap_remove_index(0);
-        }
+//         // check waiters
+//         loop {
+//             let (key, token) = {
+//                 if let Some((key, token)) = inner.waiters_queue.get_index(0) {
+//                     (key.clone(), *token)
+//                 } else {
+//                     break;
+//                 }
+//             };
+//             match inner.acquire(&key) {
+//                 Acquire::NotAvailable => break,
+//                 Acquire::Acquired(io, created) => {
+//                     let (_, tx) = inner.waiters.remove(token);
+//                     if let Err(conn) = tx.send(Ok(IoConnection::new(
+//                         io,
+//                         created,
+//                         Some(Acquired(key.clone(), Some(self.inner.clone()))),
+//                     ))) {
+//                         let (io, created) = conn.unwrap().into_inner();
+//                         inner.release_conn(&key, io, created);
+//                     }
+//                 }
+//                 Acquire::Available => {
+//                     let (connect, tx) = inner.waiters.remove(token);
+//                     OpenWaitingConnection::spawn(
+//                         key.clone(),
+//                         tx,
+//                         self.inner.clone(),
+//                         self.connector.call(connect),
+//                     );
+//                 }
+//             }
+//             let _ = inner.waiters_queue.swap_remove_index(0);
+//         }
 
-        Ok(Async::NotReady)
-    }
-}
+//         Ok(Async::NotReady)
+//     }
+// }
 
 struct CloseConnection<T> {
     io: T,

@@ -1,38 +1,42 @@
-use std::collections::VecDeque;
+use std::{io, time};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
-use actix_service::Service;
 use bytes::Bytes;
 use futures::future::{err, ok, Either};
 use futures::{Async, Future, Poll, Sink, Stream};
 
+use super::connection::{ConnectionLifetime, ConnectionType, IoConnection};
 use super::error::{ConnectorError, SendRequestError};
+use super::pool::Acquired;
 use super::response::ClientResponse;
-use super::{Connect, Connection};
 use crate::body::{BodyLength, MessageBody, PayloadStream};
 use crate::error::PayloadError;
 use crate::h1;
 use crate::message::RequestHead;
 
-pub(crate) fn send_request<T, I, B>(
+pub(crate) fn send_request<T, B>(
+    io: T,
     head: RequestHead,
     body: B,
-    connector: &mut T,
+    created: time::Instant,
+    pool: Option<Acquired<T>>,
 ) -> impl Future<Item = ClientResponse, Error = SendRequestError>
 where
-    T: Service<Connect, Response = I, Error = ConnectorError>,
+    T: AsyncRead + AsyncWrite + 'static,
     B: MessageBody,
-    I: Connection,
 {
+    let io = H1Connection {
+        io: Some(io),
+        created: created,
+        pool: pool,
+    };
+
     let len = body.length();
 
-    connector
-        // connect to the host
-        .call(Connect::new(head.uri.clone()))
+    // create Framed and send reqest
+    Framed::new(io, h1::ClientCodec::default())
+        .send((head, len).into())
         .from_err()
-        // create Framed and send reqest
-        .map(|io| Framed::new(io, h1::ClientCodec::default()))
-        .and_then(move |framed| framed.send((head, len).into()).from_err())
         // send request body
         .and_then(move |framed| match body.length() {
             BodyLength::None | BodyLength::Empty | BodyLength::Sized(0) => {
@@ -64,11 +68,70 @@ where
         })
 }
 
+#[doc(hidden)]
+/// HTTP client connection
+pub struct H1Connection<T> {
+    io: Option<T>,
+    created: time::Instant,
+    pool: Option<Acquired<T>>,
+}
+
+impl<T: AsyncRead + AsyncWrite + 'static> ConnectionLifetime for H1Connection<T> {
+    /// Close connection
+    fn close(&mut self) {
+        if let Some(mut pool) = self.pool.take() {
+            if let Some(io) = self.io.take() {
+                pool.close(IoConnection::new(
+                    ConnectionType::H1(io),
+                    self.created,
+                    None,
+                ));
+            }
+        }
+    }
+
+    /// Release this connection to the connection pool
+    fn release(&mut self) {
+        if let Some(mut pool) = self.pool.take() {
+            if let Some(io) = self.io.take() {
+                pool.release(IoConnection::new(
+                    ConnectionType::H1(io),
+                    self.created,
+                    None,
+                ));
+            }
+        }
+    }
+}
+
+impl<T: AsyncRead + AsyncWrite + 'static> io::Read for H1Connection<T> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        self.io.as_mut().unwrap().read(buf)
+    }
+}
+
+impl<T: AsyncRead + AsyncWrite + 'static> AsyncRead for H1Connection<T> {}
+
+impl<T: AsyncRead + AsyncWrite + 'static> io::Write for H1Connection<T> {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.io.as_mut().unwrap().write(buf)
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        self.io.as_mut().unwrap().flush()
+    }
+}
+
+impl<T: AsyncRead + AsyncWrite + 'static> AsyncWrite for H1Connection<T> {
+    fn shutdown(&mut self) -> Poll<(), io::Error> {
+        self.io.as_mut().unwrap().shutdown()
+    }
+}
+
 /// Future responsible for sending request body to the peer
-struct SendBody<I, B> {
+pub(crate) struct SendBody<I, B> {
     body: Option<B>,
     framed: Option<Framed<I, h1::ClientCodec>>,
-    write_buf: VecDeque<h1::Message<(RequestHead, BodyLength)>>,
     flushed: bool,
 }
 
@@ -77,11 +140,10 @@ where
     I: AsyncRead + AsyncWrite + 'static,
     B: MessageBody,
 {
-    fn new(body: B, framed: Framed<I, h1::ClientCodec>) -> Self {
+    pub(crate) fn new(body: B, framed: Framed<I, h1::ClientCodec>) -> Self {
         SendBody {
             body: Some(body),
             framed: Some(framed),
-            write_buf: VecDeque::new(),
             flushed: true,
         }
     }
@@ -89,7 +151,7 @@ where
 
 impl<I, B> Future for SendBody<I, B>
 where
-    I: Connection,
+    I: ConnectionLifetime,
     B: MessageBody,
 {
     type Item = Framed<I, h1::ClientCodec>;
@@ -158,15 +220,15 @@ impl Payload<()> {
     }
 }
 
-impl<Io: Connection> Payload<Io> {
-    fn stream(framed: Framed<Io, h1::ClientCodec>) -> PayloadStream {
+impl<Io: ConnectionLifetime> Payload<Io> {
+    pub fn stream(framed: Framed<Io, h1::ClientCodec>) -> PayloadStream {
         Box::new(Payload {
             framed: Some(framed.map_codec(|codec| codec.into_payload_codec())),
         })
     }
 }
 
-impl<Io: Connection> Stream for Payload<Io> {
+impl<Io: ConnectionLifetime> Stream for Payload<Io> {
     type Item = Bytes;
     type Error = PayloadError;
 
@@ -190,7 +252,7 @@ impl<Io: Connection> Stream for Payload<Io> {
 
 fn release_connection<T, U>(framed: Framed<T, U>, force_close: bool)
 where
-    T: Connection,
+    T: ConnectionLifetime,
 {
     let mut parts = framed.into_parts();
     if !force_close && parts.read_buf.is_empty() && parts.write_buf.is_empty() {

@@ -1,6 +1,5 @@
 use std::any::{Any, TypeId};
 use std::fmt;
-use std::hash::{BuildHasherDefault, Hasher};
 
 use hashbrown::HashMap;
 

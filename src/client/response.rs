@@ -10,7 +10,7 @@ use crate::error::PayloadError;
 use crate::httpmessage::HttpMessage;
 use crate::message::{Head, ResponseHead};
 
-use super::pipeline::Payload;
+use super::h1proto::Payload;
 
 /// Client Response
 pub struct ClientResponse {

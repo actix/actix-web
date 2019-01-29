@@ -6,7 +6,8 @@ use trust_dns_resolver::error::ResolveError;
 #[cfg(feature = "ssl")]
 use openssl::ssl::{Error as SslError, HandshakeError};
 
-use crate::error::{Error, ParseError};
+use crate::error::{Error, ParseError, ResponseError};
+use crate::response::Response;
 
 /// A set of errors that can occur while connecting to an HTTP host
 #[derive(Debug, Display, From)]
@@ -31,6 +32,10 @@ pub enum ConnectorError {
     /// No dns records
     #[display(fmt = "No dns records found for the input")]
     NoRecords,
+
+    /// Http2 error
+    #[display(fmt = "{}", _0)]
+    H2(h2::Error),
 
     /// Connecting took too long
     #[display(fmt = "Timeout out while establishing connection")]
@@ -80,6 +85,23 @@ pub enum SendRequestError {
     Send(io::Error),
     /// Error parsing response
     Response(ParseError),
+    /// Http2 error
+    #[display(fmt = "{}", _0)]
+    H2(h2::Error),
     /// Error sending request body
     Body(Error),
+}
+
+/// Convert `SendRequestError` to a server `Response`
+impl ResponseError for SendRequestError {
+    fn error_response(&self) -> Response {
+        match *self {
+            SendRequestError::Connector(ConnectorError::Timeout) => {
+                Response::GatewayTimeout()
+            }
+            SendRequestError::Connector(_) => Response::BadGateway(),
+            _ => Response::InternalServerError(),
+        }
+        .into()
+    }
 }

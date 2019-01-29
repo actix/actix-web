@@ -17,8 +17,9 @@ use crate::http::{
 };
 use crate::message::{ConnectionType, Head, RequestHead};
 
+use super::connection::RequestSender;
 use super::response::ClientResponse;
-use super::{pipeline, Connect, Connection, ConnectorError, SendRequestError};
+use super::{Connect, ConnectorError, SendRequestError};
 
 /// An HTTP Client Request
 ///
@@ -37,7 +38,6 @@ use super::{pipeline, Connect, Connection, ConnectorError, SendRequestError};
 ///           .map_err(|_| ())
 ///           .and_then(|response| {                     // <- server http response
 ///                println!("Response: {:?}", response);
-/// #              actix_rt::System::current().stop();
 ///                Ok(())
 ///           })
 ///     }));
@@ -175,10 +175,18 @@ where
         connector: &mut T,
     ) -> impl Future<Item = ClientResponse, Error = SendRequestError>
     where
+        B: 'static,
         T: Service<Connect, Response = I, Error = ConnectorError>,
-        I: Connection,
+        I: RequestSender,
     {
-        pipeline::send_request(self.head, self.body, connector)
+        let Self { head, body } = self;
+
+        connector
+            // connect to the host
+            .call(Connect::new(head.uri.clone()))
+            .from_err()
+            // send request
+            .and_then(move |connection| connection.send_request(head, body))
     }
 }
 
@@ -273,7 +281,6 @@ impl ClientRequestBuilder {
     ///         .unwrap();
     /// }
     /// ```
-    #[doc(hidden)]
     pub fn set<H: Header>(&mut self, hdr: H) -> &mut Self {
         if let Some(parts) = parts(&mut self.head, &self.err) {
             match hdr.try_into() {

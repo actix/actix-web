@@ -327,7 +327,7 @@ impl From<httparse::Error> for ParseError {
     }
 }
 
-#[derive(Display, Debug)]
+#[derive(Display, Debug, From)]
 /// A set of errors that can occur during payload parsing
 pub enum PayloadError {
     /// A payload reached EOF, but is not complete.
@@ -342,6 +342,9 @@ pub enum PayloadError {
     /// A payload length is unknown.
     #[display(fmt = "A payload length is unknown.")]
     UnknownLength,
+    /// Http2 payload error
+    #[display(fmt = "{}", _0)]
+    H2Payload(h2::Error),
 }
 
 impl From<io::Error> for PayloadError {

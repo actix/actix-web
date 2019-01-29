@@ -1,23 +1,22 @@
 use std::time::Duration;
-use std::{fmt, io};
 
 use actix_codec::{AsyncRead, AsyncWrite};
 use actix_connector::{Resolver, TcpConnector};
 use actix_service::{Service, ServiceExt};
 use actix_utils::timeout::{TimeoutError, TimeoutService};
-use futures::future::Either;
-use futures::Poll;
 use trust_dns_resolver::config::{ResolverConfig, ResolverOpts};
 
 use super::connect::Connect;
-use super::connection::{Connection, IoConnection};
+use super::connection::RequestSender;
 use super::error::ConnectorError;
-use super::pool::ConnectionPool;
+use super::pool::{ConnectionPool, Protocol};
 
 #[cfg(feature = "ssl")]
 use actix_connector::ssl::OpensslConnector;
 #[cfg(feature = "ssl")]
 use openssl::ssl::{SslConnector, SslMethod};
+#[cfg(feature = "ssl")]
+const H2: &[u8] = b"h2";
 
 #[cfg(not(feature = "ssl"))]
 type SslConnector = ();
@@ -40,7 +39,12 @@ impl Default for Connector {
         let connector = {
             #[cfg(feature = "ssl")]
             {
-                SslConnector::builder(SslMethod::tls()).unwrap().build()
+                use log::error;
+                let mut ssl = SslConnector::builder(SslMethod::tls()).unwrap();
+                let _ = ssl
+                    .set_alpn_protos(b"\x02h2\x08http/1.1")
+                    .map_err(|e| error!("Can not set alpn protocol: {:?}", e));
+                ssl.build()
             }
             #[cfg(not(feature = "ssl"))]
             {
@@ -133,15 +137,17 @@ impl Connector {
     /// Finish configuration process and create connector service.
     pub fn service(
         self,
-    ) -> impl Service<Connect, Response = impl Connection, Error = ConnectorError> + Clone
+    ) -> impl Service<Connect, Response = impl RequestSender, Error = ConnectorError> + Clone
     {
         #[cfg(not(feature = "ssl"))]
         {
             let connector = TimeoutService::new(
                 self.timeout,
-                self.resolver
-                    .map_err(ConnectorError::from)
-                    .and_then(TcpConnector::default().from_err()),
+                self.resolver.map_err(ConnectorError::from).and_then(
+                    TcpConnector::default()
+                        .from_err()
+                        .map(|(msg, io)| (msg, io, Protocol::Http1)),
+                ),
             )
             .map_err(|e| match e {
                 TimeoutError::Service(e) => e,
@@ -168,7 +174,20 @@ impl Connector {
                     .and_then(TcpConnector::default().from_err())
                     .and_then(
                         OpensslConnector::service(self.connector)
-                            .map_err(ConnectorError::from),
+                            .map_err(ConnectorError::from)
+                            .map(|(msg, io)| {
+                                let h2 = io
+                                    .get_ref()
+                                    .ssl()
+                                    .selected_alpn_protocol()
+                                    .map(|protos| protos.windows(2).any(|w| w == H2))
+                                    .unwrap_or(false);
+                                if h2 {
+                                    (msg, io, Protocol::Http2)
+                                } else {
+                                    (msg, io, Protocol::Http1)
+                                }
+                            }),
                     ),
             )
             .map_err(|e| match e {
@@ -178,9 +197,11 @@ impl Connector {
 
             let tcp_service = TimeoutService::new(
                 self.timeout,
-                self.resolver
-                    .map_err(ConnectorError::from)
-                    .and_then(TcpConnector::default().from_err()),
+                self.resolver.map_err(ConnectorError::from).and_then(
+                    TcpConnector::default()
+                        .from_err()
+                        .map(|(msg, io)| (msg, io, Protocol::Http1)),
+                ),
             )
             .map_err(|e| match e {
                 TimeoutError::Service(e) => e,
@@ -209,13 +230,16 @@ impl Connector {
 
 #[cfg(not(feature = "ssl"))]
 mod connect_impl {
+    use futures::future::{err, Either, FutureResult};
+    use futures::Poll;
+
     use super::*;
-    use futures::future::{err, FutureResult};
+    use crate::client::connection::IoConnection;
 
     pub(crate) struct InnerConnector<T, Io>
     where
         Io: AsyncRead + AsyncWrite + 'static,
-        T: Service<Connect, Response = (Connect, Io), Error = ConnectorError>,
+        T: Service<Connect, Response = (Connect, Io, Protocol), Error = ConnectorError>,
     {
         pub(crate) tcp_pool: ConnectionPool<T, Io>,
     }
@@ -223,7 +247,8 @@ mod connect_impl {
     impl<T, Io> Clone for InnerConnector<T, Io>
     where
         Io: AsyncRead + AsyncWrite + 'static,
-        T: Service<Connect, Response = (Connect, Io), Error = ConnectorError> + Clone,
+        T: Service<Connect, Response = (Connect, Io, Protocol), Error = ConnectorError>
+            + Clone,
     {
         fn clone(&self) -> Self {
             InnerConnector {
@@ -235,7 +260,7 @@ mod connect_impl {
     impl<T, Io> Service<Connect> for InnerConnector<T, Io>
     where
         Io: AsyncRead + AsyncWrite + 'static,
-        T: Service<Connect, Response = (Connect, Io), Error = ConnectorError>,
+        T: Service<Connect, Response = (Connect, Io, Protocol), Error = ConnectorError>,
     {
         type Response = IoConnection<Io>;
         type Error = ConnectorError;
@@ -264,17 +289,26 @@ mod connect_impl {
 mod connect_impl {
     use std::marker::PhantomData;
 
-    use futures::future::{err, FutureResult};
+    use futures::future::{err, Either, FutureResult};
     use futures::{Async, Future, Poll};
 
     use super::*;
+    use crate::client::connection::EitherConnection;
 
     pub(crate) struct InnerConnector<T1, T2, Io1, Io2>
     where
         Io1: AsyncRead + AsyncWrite + 'static,
         Io2: AsyncRead + AsyncWrite + 'static,
-        T1: Service<Connect, Response = (Connect, Io1), Error = ConnectorError>,
-        T2: Service<Connect, Response = (Connect, Io2), Error = ConnectorError>,
+        T1: Service<
+            Connect,
+            Response = (Connect, Io1, Protocol),
+            Error = ConnectorError,
+        >,
+        T2: Service<
+            Connect,
+            Response = (Connect, Io2, Protocol),
+            Error = ConnectorError,
+        >,
     {
         pub(crate) tcp_pool: ConnectionPool<T1, Io1>,
         pub(crate) ssl_pool: ConnectionPool<T2, Io2>,
@@ -284,8 +318,16 @@ mod connect_impl {
     where
         Io1: AsyncRead + AsyncWrite + 'static,
         Io2: AsyncRead + AsyncWrite + 'static,
-        T1: Service<Connect, Response = (Connect, Io1), Error = ConnectorError> + Clone,
-        T2: Service<Connect, Response = (Connect, Io2), Error = ConnectorError> + Clone,
+        T1: Service<
+                Connect,
+                Response = (Connect, Io1, Protocol),
+                Error = ConnectorError,
+            > + Clone,
+        T2: Service<
+                Connect,
+                Response = (Connect, Io2, Protocol),
+                Error = ConnectorError,
+            > + Clone,
     {
         fn clone(&self) -> Self {
             InnerConnector {
@@ -299,10 +341,18 @@ mod connect_impl {
     where
         Io1: AsyncRead + AsyncWrite + 'static,
         Io2: AsyncRead + AsyncWrite + 'static,
-        T1: Service<Connect, Response = (Connect, Io1), Error = ConnectorError>,
-        T2: Service<Connect, Response = (Connect, Io2), Error = ConnectorError>,
+        T1: Service<
+            Connect,
+            Response = (Connect, Io1, Protocol),
+            Error = ConnectorError,
+        >,
+        T2: Service<
+            Connect,
+            Response = (Connect, Io2, Protocol),
+            Error = ConnectorError,
+        >,
     {
-        type Response = IoEither<IoConnection<Io1>, IoConnection<Io2>>;
+        type Response = EitherConnection<Io1, Io2>;
         type Error = ConnectorError;
         type Future = Either<
             FutureResult<Self::Response, Self::Error>,
@@ -336,7 +386,7 @@ mod connect_impl {
     pub(crate) struct InnerConnectorResponseA<T, Io1, Io2>
     where
         Io1: AsyncRead + AsyncWrite + 'static,
-        T: Service<Connect, Response = (Connect, Io1), Error = ConnectorError>,
+        T: Service<Connect, Response = (Connect, Io1, Protocol), Error = ConnectorError>,
     {
         fut: <ConnectionPool<T, Io1> as Service<Connect>>::Future,
         _t: PhantomData<Io2>,
@@ -344,17 +394,17 @@ mod connect_impl {
 
     impl<T, Io1, Io2> Future for InnerConnectorResponseA<T, Io1, Io2>
     where
-        T: Service<Connect, Response = (Connect, Io1), Error = ConnectorError>,
+        T: Service<Connect, Response = (Connect, Io1, Protocol), Error = ConnectorError>,
         Io1: AsyncRead + AsyncWrite + 'static,
         Io2: AsyncRead + AsyncWrite + 'static,
     {
-        type Item = IoEither<IoConnection<Io1>, IoConnection<Io2>>;
+        type Item = EitherConnection<Io1, Io2>;
         type Error = ConnectorError;
 
         fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
             match self.fut.poll()? {
                 Async::NotReady => Ok(Async::NotReady),
-                Async::Ready(res) => Ok(Async::Ready(IoEither::A(res))),
+                Async::Ready(res) => Ok(Async::Ready(EitherConnection::A(res))),
             }
         }
     }
@@ -362,7 +412,7 @@ mod connect_impl {
     pub(crate) struct InnerConnectorResponseB<T, Io1, Io2>
     where
         Io2: AsyncRead + AsyncWrite + 'static,
-        T: Service<Connect, Response = (Connect, Io2), Error = ConnectorError>,
+        T: Service<Connect, Response = (Connect, Io2, Protocol), Error = ConnectorError>,
     {
         fut: <ConnectionPool<T, Io2> as Service<Connect>>::Future,
         _t: PhantomData<Io1>,
@@ -370,129 +420,18 @@ mod connect_impl {
 
     impl<T, Io1, Io2> Future for InnerConnectorResponseB<T, Io1, Io2>
     where
-        T: Service<Connect, Response = (Connect, Io2), Error = ConnectorError>,
+        T: Service<Connect, Response = (Connect, Io2, Protocol), Error = ConnectorError>,
         Io1: AsyncRead + AsyncWrite + 'static,
         Io2: AsyncRead + AsyncWrite + 'static,
     {
-        type Item = IoEither<IoConnection<Io1>, IoConnection<Io2>>;
+        type Item = EitherConnection<Io1, Io2>;
         type Error = ConnectorError;
 
         fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
             match self.fut.poll()? {
                 Async::NotReady => Ok(Async::NotReady),
-                Async::Ready(res) => Ok(Async::Ready(IoEither::B(res))),
+                Async::Ready(res) => Ok(Async::Ready(EitherConnection::B(res))),
             }
-        }
-    }
-}
-
-pub(crate) enum IoEither<Io1, Io2> {
-    A(Io1),
-    B(Io2),
-}
-
-impl<Io1, Io2> Connection for IoEither<Io1, Io2>
-where
-    Io1: Connection,
-    Io2: Connection,
-{
-    fn close(&mut self) {
-        match self {
-            IoEither::A(ref mut io) => io.close(),
-            IoEither::B(ref mut io) => io.close(),
-        }
-    }
-
-    fn release(&mut self) {
-        match self {
-            IoEither::A(ref mut io) => io.release(),
-            IoEither::B(ref mut io) => io.release(),
-        }
-    }
-}
-
-impl<Io1, Io2> io::Read for IoEither<Io1, Io2>
-where
-    Io1: Connection,
-    Io2: Connection,
-{
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        match self {
-            IoEither::A(ref mut io) => io.read(buf),
-            IoEither::B(ref mut io) => io.read(buf),
-        }
-    }
-}
-
-impl<Io1, Io2> AsyncRead for IoEither<Io1, Io2>
-where
-    Io1: Connection,
-    Io2: Connection,
-{
-    unsafe fn prepare_uninitialized_buffer(&self, buf: &mut [u8]) -> bool {
-        match self {
-            IoEither::A(ref io) => io.prepare_uninitialized_buffer(buf),
-            IoEither::B(ref io) => io.prepare_uninitialized_buffer(buf),
-        }
-    }
-}
-
-impl<Io1, Io2> AsyncWrite for IoEither<Io1, Io2>
-where
-    Io1: Connection,
-    Io2: Connection,
-{
-    fn shutdown(&mut self) -> Poll<(), io::Error> {
-        match self {
-            IoEither::A(ref mut io) => io.shutdown(),
-            IoEither::B(ref mut io) => io.shutdown(),
-        }
-    }
-
-    fn poll_write(&mut self, buf: &[u8]) -> Poll<usize, io::Error> {
-        match self {
-            IoEither::A(ref mut io) => io.poll_write(buf),
-            IoEither::B(ref mut io) => io.poll_write(buf),
-        }
-    }
-
-    fn poll_flush(&mut self) -> Poll<(), io::Error> {
-        match self {
-            IoEither::A(ref mut io) => io.poll_flush(),
-            IoEither::B(ref mut io) => io.poll_flush(),
-        }
-    }
-}
-
-impl<Io1, Io2> io::Write for IoEither<Io1, Io2>
-where
-    Io1: Connection,
-    Io2: Connection,
-{
-    fn flush(&mut self) -> io::Result<()> {
-        match self {
-            IoEither::A(ref mut io) => io.flush(),
-            IoEither::B(ref mut io) => io.flush(),
-        }
-    }
-
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        match self {
-            IoEither::A(ref mut io) => io.write(buf),
-            IoEither::B(ref mut io) => io.write(buf),
-        }
-    }
-}
-
-impl<Io1, Io2> fmt::Debug for IoEither<Io1, Io2>
-where
-    Io1: fmt::Debug,
-    Io2: fmt::Debug,
-{
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            IoEither::A(ref io) => io.fmt(fmt),
-            IoEither::B(ref io) => io.fmt(fmt),
         }
     }
 }

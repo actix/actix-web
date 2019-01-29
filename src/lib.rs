@@ -59,6 +59,9 @@
 //! * `session` - enables session support, includes `ring` crate as
 //!   dependency
 //!
+#[macro_use]
+extern crate log;
+
 pub mod body;
 pub mod client;
 mod config;
