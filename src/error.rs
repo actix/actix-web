@@ -44,41 +44,33 @@ pub type Result<T, E = Error> = result::Result<T, E>;
 /// for it that can be used to create an http response from it this means that
 /// if you have access to an actix `Error` you can always get a
 /// `ResponseError` reference from it.
+///
+/// This type supports conversion to the `failure::Error` type. To use this
+/// type as `std::error::Error`, you can use the `compat` method from `failure`.
 pub struct Error {
     cause: Box<ResponseError>,
     backtrace: Option<Backtrace>,
 }
 
-impl Error {
-    /// Deprecated way to reference the underlying response error.
-    #[deprecated(
-        since = "0.6.0",
-        note = "please use `Error::as_response_error()` instead"
-    )]
-    pub fn cause(&self) -> &ResponseError {
-        self.cause.as_ref()
-    }
-
-    /// Returns a reference to the underlying cause of this `Error` as `Fail`
-    pub fn as_fail(&self) -> &Fail {
-        self.cause.as_fail()
-    }
-
-    /// Returns the reference to the underlying `ResponseError`.
-    pub fn as_response_error(&self) -> &ResponseError {
-        self.cause.as_ref()
-    }
-
+impl failure::Fail for Error {
     /// Returns a reference to the Backtrace carried by this error, if it
     /// carries one.
     ///
     /// This uses the same `Backtrace` type that `failure` uses.
-    pub fn backtrace(&self) -> &Backtrace {
-        if let Some(bt) = self.cause.backtrace() {
+    fn backtrace(&self) -> Option<&Backtrace> {
+        let backtrace = if let Some(bt) = self.cause.backtrace() {
             bt
         } else {
             self.backtrace.as_ref().unwrap()
-        }
+        };
+        Some(backtrace)
+    }
+}
+
+impl Error {
+    /// Returns the reference to the underlying `ResponseError`.
+    pub fn as_response_error(&self) -> &ResponseError {
+        self.cause.as_ref()
     }
 
     /// Attempts to downcast this `Error` to a particular `Fail` type by
@@ -1137,7 +1129,7 @@ where
 mod tests {
     use super::*;
     use cookie::ParseError as CookieParseError;
-    use failure;
+    use failure::{self, Fail, AsFail};
     use http::{Error as HttpError, StatusCode};
     use httparse;
     use std::env;
@@ -1204,6 +1196,16 @@ mod tests {
         let e = Error::from(orig);
         let resp: HttpResponse = e.into();
         assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    #[test]
+    fn test_conversion() {
+        // this should just compile
+        let err: Error = ParseError::Incomplete.into();
+        let _: failure::Error = err.into();
+
+        let err: Error = ParseError::Incomplete.into();
+        let _: Box<dyn std::error::Error> = Box::new(err.compat());
     }
 
     #[test]
