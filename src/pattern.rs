@@ -278,6 +278,7 @@ impl Hash for Pattern {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use http::{HttpTryFrom, Uri};
 
     #[test]
     fn test_parse_static() {
@@ -336,6 +337,24 @@ mod tests {
         let mut path = Path::new("/012345");
         assert!(re.match_path(&mut path));
         assert_eq!(path.get("id").unwrap(), "012345");
+    }
+
+    #[test]
+    fn test_parse_urlencoded_param() {
+        let re = Pattern::new("/user/{id}/test");
+
+        let mut path = Path::new("/user/2345/test");
+        assert!(re.match_path(&mut path));
+        assert_eq!(path.get("id").unwrap(), "2345");
+
+        let mut path = Path::new("/user/qwe%25/test");
+        assert!(re.match_path(&mut path));
+        assert_eq!(path.get("id").unwrap(), "qwe%25");
+
+        let uri = Uri::try_from("/user/qwe%25/test").unwrap();
+        let mut path = Path::new(uri);
+        assert!(re.match_path(&mut path));
+        assert_eq!(path.get("id").unwrap(), "qwe%25");
     }
 
     #[test]

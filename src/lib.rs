@@ -32,6 +32,12 @@ impl<T: AsRef<[u8]>> RequestPath for string::String<T> {
 }
 
 #[cfg(feature = "http")]
+mod url;
+
+#[cfg(feature = "http")]
+pub use self::url::Url;
+
+#[cfg(feature = "http")]
 mod http_support {
     use super::RequestPath;
     use http::Uri;
