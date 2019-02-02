@@ -48,7 +48,7 @@ bitflags = "1.0"
 bytes = "0.4"
 byteorder = "1.2"
 cookie = { version="0.11", features=["percent-encode"] }
-derive_more = "0.13"
+derive_more = "0.14"
 encoding = "0.2"
 futures = "0.1"
 hashbrown = "0.1.8"
