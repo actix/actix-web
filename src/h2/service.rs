@@ -4,8 +4,10 @@ use std::net;
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use actix_service::{IntoNewService, NewService, Service};
+use bytes::Bytes;
 use futures::future::{ok, FutureResult};
 use futures::{try_ready, Async, Future, Poll, Stream};
+use h2::server::{self, Connection, Handshake};
 use log::error;
 
 use crate::body::MessageBody;
@@ -14,18 +16,17 @@ use crate::error::{DispatchError, ParseError};
 use crate::request::Request;
 use crate::response::Response;
 
-use super::codec::Codec;
-use super::dispatcher::Dispatcher;
-use super::{H1ServiceResult, Message};
+// use super::dispatcher::Dispatcher;
+use super::H2ServiceResult;
 
-/// `NewService` implementation for HTTP1 transport
-pub struct H1Service<T, S, B> {
+/// `NewService` implementation for HTTP2 transport
+pub struct H2Service<T, S, B> {
     srv: S,
     cfg: ServiceConfig,
     _t: PhantomData<(T, B)>,
 }
 
-impl<T, S, B> H1Service<T, S, B>
+impl<T, S, B> H2Service<T, S, B>
 where
     S: NewService<Request = Request, Response = Response<B>> + Clone,
     S::Service: Clone,
@@ -36,7 +37,7 @@ where
     pub fn new<F: IntoNewService<S>>(service: F) -> Self {
         let cfg = ServiceConfig::new(KeepAlive::Timeout(5), 5000, 0);
 
-        H1Service {
+        H2Service {
             cfg,
             srv: service.into_new_service(),
             _t: PhantomData,
@@ -44,12 +45,12 @@ where
     }
 
     /// Create builder for `HttpService` instance.
-    pub fn build() -> H1ServiceBuilder<T, S> {
-        H1ServiceBuilder::new()
+    pub fn build() -> H2ServiceBuilder<T, S> {
+        H2ServiceBuilder::new()
     }
 }
 
-impl<T, S, B> NewService for H1Service<T, S, B>
+impl<T, S, B> NewService for H2Service<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
     S: NewService<Request = Request, Response = Response<B>> + Clone,
@@ -58,14 +59,14 @@ where
     B: MessageBody,
 {
     type Request = T;
-    type Response = H1ServiceResult<T>;
-    type Error = DispatchError<S::Error>;
+    type Response = H2ServiceResult<T>;
+    type Error = (); //DispatchError<S::Error>;
     type InitError = S::InitError;
-    type Service = H1ServiceHandler<T, S::Service, B>;
-    type Future = H1ServiceResponse<T, S, B>;
+    type Service = H2ServiceHandler<T, S::Service, B>;
+    type Future = H2ServiceResponse<T, S, B>;
 
     fn new_service(&self) -> Self::Future {
-        H1ServiceResponse {
+        H2ServiceResponse {
             fut: self.srv.new_service(),
             cfg: Some(self.cfg.clone()),
             _t: PhantomData,
@@ -73,11 +74,11 @@ where
     }
 }
 
-/// A http/1 new service builder
+/// A http/2 new service builder
 ///
 /// This type can be used to construct an instance of `ServiceConfig` through a
 /// builder-like pattern.
-pub struct H1ServiceBuilder<T, S> {
+pub struct H2ServiceBuilder<T, S> {
     keep_alive: KeepAlive,
     client_timeout: u64,
     client_disconnect: u64,
@@ -87,15 +88,15 @@ pub struct H1ServiceBuilder<T, S> {
     _t: PhantomData<(T, S)>,
 }
 
-impl<T, S> H1ServiceBuilder<T, S>
+impl<T, S> H2ServiceBuilder<T, S>
 where
     S: NewService<Request = Request>,
     S::Service: Clone,
     S::Error: Debug,
 {
-    /// Create instance of `ServiceConfigBuilder`
-    pub fn new() -> H1ServiceBuilder<T, S> {
-        H1ServiceBuilder {
+    /// Create instance of `H2ServiceBuilder`
+    pub fn new() -> H2ServiceBuilder<T, S> {
+        H2ServiceBuilder {
             keep_alive: KeepAlive::Timeout(5),
             client_timeout: 5000,
             client_disconnect: 0,
@@ -185,7 +186,7 @@ where
     }
 
     /// Finish service configuration and create `H1Service` instance.
-    pub fn finish<F, B>(self, service: F) -> H1Service<T, S, B>
+    pub fn finish<F, B>(self, service: F) -> H2Service<T, S, B>
     where
         B: MessageBody,
         F: IntoNewService<S>,
@@ -195,7 +196,7 @@ where
             self.client_timeout,
             self.client_disconnect,
         );
-        H1Service {
+        H2Service {
             cfg,
             srv: service.into_new_service(),
             _t: PhantomData,
@@ -204,13 +205,13 @@ where
 }
 
 #[doc(hidden)]
-pub struct H1ServiceResponse<T, S: NewService, B> {
+pub struct H2ServiceResponse<T, S: NewService, B> {
     fut: S::Future,
     cfg: Option<ServiceConfig>,
     _t: PhantomData<(T, B)>,
 }
 
-impl<T, S, B> Future for H1ServiceResponse<T, S, B>
+impl<T, S, B> Future for H2ServiceResponse<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
     S: NewService<Request = Request, Response = Response<B>>,
@@ -218,33 +219,33 @@ where
     S::Error: Debug,
     B: MessageBody,
 {
-    type Item = H1ServiceHandler<T, S::Service, B>;
+    type Item = H2ServiceHandler<T, S::Service, B>;
     type Error = S::InitError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         let service = try_ready!(self.fut.poll());
-        Ok(Async::Ready(H1ServiceHandler::new(
+        Ok(Async::Ready(H2ServiceHandler::new(
             self.cfg.take().unwrap(),
             service,
         )))
     }
 }
 
-/// `Service` implementation for HTTP1 transport
-pub struct H1ServiceHandler<T, S, B> {
+/// `Service` implementation for http/2 transport
+pub struct H2ServiceHandler<T, S, B> {
     srv: S,
     cfg: ServiceConfig,
     _t: PhantomData<(T, B)>,
 }
 
-impl<T, S, B> H1ServiceHandler<T, S, B>
+impl<T, S, B> H2ServiceHandler<T, S, B>
 where
     S: Service<Request = Request, Response = Response<B>> + Clone,
     S::Error: Debug,
     B: MessageBody,
 {
-    fn new(cfg: ServiceConfig, srv: S) -> H1ServiceHandler<T, S, B> {
-        H1ServiceHandler {
+    fn new(cfg: ServiceConfig, srv: S) -> H2ServiceHandler<T, S, B> {
+        H2ServiceHandler {
             srv,
             cfg,
             _t: PhantomData,
@@ -252,7 +253,7 @@ where
     }
 }
 
-impl<T, S, B> Service for H1ServiceHandler<T, S, B>
+impl<T, S, B> Service for H2ServiceHandler<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
     S: Service<Request = Request, Response = Response<B>> + Clone,
@@ -260,110 +261,50 @@ where
     B: MessageBody,
 {
     type Request = T;
-    type Response = H1ServiceResult<T>;
-    type Error = DispatchError<S::Error>;
-    type Future = Dispatcher<T, S, B>;
+    type Response = H2ServiceResult<T>;
+    type Error = (); // DispatchError<S::Error>;
+    type Future = H2ServiceHandlerResponse<T, S, B>;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
-        self.srv.poll_ready().map_err(DispatchError::Service)
+        self.srv.poll_ready().map_err(|_| ())
     }
 
     fn call(&mut self, req: T) -> Self::Future {
-        Dispatcher::new(req, self.cfg.clone(), self.srv.clone())
-    }
-}
-
-/// `NewService` implementation for `OneRequestService` service
-#[derive(Default)]
-pub struct OneRequest<T> {
-    config: ServiceConfig,
-    _t: PhantomData<T>,
-}
-
-impl<T> OneRequest<T>
-where
-    T: AsyncRead + AsyncWrite,
-{
-    /// Create new `H1SimpleService` instance.
-    pub fn new() -> Self {
-        OneRequest {
-            config: ServiceConfig::default(),
+        H2ServiceHandlerResponse {
+            state: State::Handshake(server::handshake(req)),
             _t: PhantomData,
         }
     }
 }
 
-impl<T> NewService for OneRequest<T>
-where
-    T: AsyncRead + AsyncWrite,
-{
-    type Request = T;
-    type Response = (Request, Framed<T, Codec>);
-    type Error = ParseError;
-    type InitError = ();
-    type Service = OneRequestService<T>;
-    type Future = FutureResult<Self::Service, Self::InitError>;
-
-    fn new_service(&self) -> Self::Future {
-        ok(OneRequestService {
-            config: self.config.clone(),
-            _t: PhantomData,
-        })
-    }
+enum State<T: AsyncRead + AsyncWrite> {
+    Handshake(Handshake<T, Bytes>),
+    Connection(Connection<T, Bytes>),
+    Empty,
 }
 
-/// `Service` implementation for HTTP1 transport. Reads one request and returns
-/// request and framed object.
-pub struct OneRequestService<T> {
-    config: ServiceConfig,
-    _t: PhantomData<T>,
-}
-
-impl<T> Service for OneRequestService<T>
+pub struct H2ServiceHandlerResponse<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
+    S: Service<Request = Request, Response = Response<B>> + Clone,
+    S::Error: Debug,
+    B: MessageBody,
 {
-    type Request = T;
-    type Response = (Request, Framed<T, Codec>);
-    type Error = ParseError;
-    type Future = OneRequestServiceResponse<T>;
-
-    fn poll_ready(&mut self) -> Poll<(), Self::Error> {
-        Ok(Async::Ready(()))
-    }
-
-    fn call(&mut self, req: T) -> Self::Future {
-        OneRequestServiceResponse {
-            framed: Some(Framed::new(req, Codec::new(self.config.clone()))),
-        }
-    }
+    state: State<T>,
+    _t: PhantomData<S>,
 }
 
-#[doc(hidden)]
-pub struct OneRequestServiceResponse<T>
+impl<T, S, B> Future for H2ServiceHandlerResponse<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
+    S: Service<Request = Request, Response = Response<B>> + Clone,
+    S::Error: Debug,
+    B: MessageBody,
 {
-    framed: Option<Framed<T, Codec>>,
-}
-
-impl<T> Future for OneRequestServiceResponse<T>
-where
-    T: AsyncRead + AsyncWrite,
-{
-    type Item = (Request, Framed<T, Codec>);
-    type Error = ParseError;
+    type Item = H2ServiceResult<T>;
+    type Error = ();
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        match self.framed.as_mut().unwrap().poll()? {
-            Async::Ready(Some(req)) => match req {
-                Message::Item(req) => {
-                    Ok(Async::Ready((req, self.framed.take().unwrap())))
-                }
-                Message::Chunk(_) => unreachable!("Something is wrong"),
-            },
-            Async::Ready(None) => Err(ParseError::Incomplete),
-            Async::NotReady => Ok(Async::NotReady),
-        }
+        unimplemented!()
     }
 }

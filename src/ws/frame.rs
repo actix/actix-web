@@ -117,7 +117,7 @@ impl Parser {
         // control frames must have length <= 125
         match opcode {
             OpCode::Ping | OpCode::Pong if length > 125 => {
-                return Err(ProtocolError::InvalidLength(length))
+                return Err(ProtocolError::InvalidLength(length));
             }
             OpCode::Close if length > 125 => {
                 debug!("Received close frame with payload length exceeding 125. Morphing to protocol close frame.");

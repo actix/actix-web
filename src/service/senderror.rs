@@ -22,11 +22,12 @@ where
     }
 }
 
-impl<T, R, E> NewService<Result<R, (E, Framed<T, Codec>)>> for SendError<T, R, E>
+impl<T, R, E> NewService for SendError<T, R, E>
 where
     T: AsyncRead + AsyncWrite,
     E: ResponseError,
 {
+    type Request = Result<R, (E, Framed<T, Codec>)>;
     type Response = R;
     type Error = (E, Framed<T, Codec>);
     type InitError = ();
@@ -38,11 +39,12 @@ where
     }
 }
 
-impl<T, R, E> Service<Result<R, (E, Framed<T, Codec>)>> for SendError<T, R, E>
+impl<T, R, E> Service for SendError<T, R, E>
 where
     T: AsyncRead + AsyncWrite,
     E: ResponseError,
 {
+    type Request = Result<R, (E, Framed<T, Codec>)>;
     type Response = R;
     type Error = (E, Framed<T, Codec>);
     type Future = Either<FutureResult<R, (E, Framed<T, Codec>)>, SendErrorFut<T, R, E>>;
@@ -128,11 +130,12 @@ where
     }
 }
 
-impl<T, B> NewService<(Response<B>, Framed<T, Codec>)> for SendResponse<T, B>
+impl<T, B> NewService for SendResponse<T, B>
 where
     T: AsyncRead + AsyncWrite,
     B: MessageBody,
 {
+    type Request = (Response<B>, Framed<T, Codec>);
     type Response = Framed<T, Codec>;
     type Error = Error;
     type InitError = ();
@@ -144,11 +147,12 @@ where
     }
 }
 
-impl<T, B> Service<(Response<B>, Framed<T, Codec>)> for SendResponse<T, B>
+impl<T, B> Service for SendResponse<T, B>
 where
     T: AsyncRead + AsyncWrite,
     B: MessageBody,
 {
+    type Request = (Response<B>, Framed<T, Codec>);
     type Response = Framed<T, Codec>;
     type Error = Error;
     type Future = SendResponseFut<T, B>;

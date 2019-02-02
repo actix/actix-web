@@ -30,11 +30,11 @@ session = ["cookie/secure"]
 
 [dependencies]
 actix-codec = "0.1"
-actix-service = "0.1.6"
+actix-service = "0.2.0"
 actix-rt = "0.1.0"
-actix-server = "0.1.0"
+actix-server = "0.2.0"
+actix-utils = "0.2.0"
 actix-http = { path=".." }
-actix-utils = { git = "https://github.com/actix/actix-net.git" }
 
 base64 = "0.10"
 bytes = "0.4"

@@ -35,14 +35,14 @@ bitflags! {
 }
 
 /// Dispatcher for HTTP/1.1 protocol
-pub struct Dispatcher<T, S: Service<Request>, B: MessageBody>
+pub struct Dispatcher<T, S: Service, B: MessageBody>
 where
     S::Error: Debug,
 {
     inner: Option<InnerDispatcher<T, S, B>>,
 }
 
-struct InnerDispatcher<T, S: Service<Request>, B: MessageBody>
+struct InnerDispatcher<T, S: Service, B: MessageBody>
 where
     S::Error: Debug,
 {
@@ -66,13 +66,13 @@ enum DispatcherMessage {
     Error(Response<()>),
 }
 
-enum State<S: Service<Request>, B: MessageBody> {
+enum State<S: Service, B: MessageBody> {
     None,
     ServiceCall(S::Future),
     SendPayload(ResponseBody<B>),
 }
 
-impl<S: Service<Request>, B: MessageBody> State<S, B> {
+impl<S: Service, B: MessageBody> State<S, B> {
     fn is_empty(&self) -> bool {
         if let State::None = self {
             true
@@ -85,7 +85,7 @@ impl<S: Service<Request>, B: MessageBody> State<S, B> {
 impl<T, S, B> Dispatcher<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: Service<Request, Response = Response<B>>,
+    S: Service<Request = Request, Response = Response<B>>,
     S::Error: Debug,
     B: MessageBody,
 {
@@ -139,7 +139,7 @@ where
 impl<T, S, B> InnerDispatcher<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: Service<Request, Response = Response<B>>,
+    S: Service<Request = Request, Response = Response<B>>,
     S::Error: Debug,
     B: MessageBody,
 {
@@ -459,7 +459,7 @@ where
 impl<T, S, B> Future for Dispatcher<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: Service<Request, Response = Response<B>>,
+    S: Service<Request = Request, Response = Response<B>>,
     S::Error: Debug,
     B: MessageBody,
 {

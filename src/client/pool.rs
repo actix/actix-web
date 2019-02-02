@@ -48,7 +48,11 @@ pub(crate) struct ConnectionPool<T, Io: AsyncRead + AsyncWrite + 'static>(
 impl<T, Io> ConnectionPool<T, Io>
 where
     Io: AsyncRead + AsyncWrite + 'static,
-    T: Service<Connect, Response = (Connect, Io, Protocol), Error = ConnectorError>,
+    T: Service<
+        Request = Connect,
+        Response = (Connect, Io, Protocol),
+        Error = ConnectorError,
+    >,
 {
     pub(crate) fn new(
         connector: T,
@@ -84,11 +88,16 @@ where
     }
 }
 
-impl<T, Io> Service<Connect> for ConnectionPool<T, Io>
+impl<T, Io> Service for ConnectionPool<T, Io>
 where
     Io: AsyncRead + AsyncWrite + 'static,
-    T: Service<Connect, Response = (Connect, Io, Protocol), Error = ConnectorError>,
+    T: Service<
+        Request = Connect,
+        Response = (Connect, Io, Protocol),
+        Error = ConnectorError,
+    >,
 {
+    type Request = Connect;
     type Response = IoConnection<Io>;
     type Error = ConnectorError;
     type Future = Either<
