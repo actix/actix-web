@@ -37,7 +37,7 @@ session = ["cookie/secure"]
 ssl = ["openssl", "actix-connector/ssl"]
 
 [dependencies]
-actix-service = "0.2.0"
+actix-service = "0.2.1"
 actix-codec = "0.1.0"
 actix-connector = "0.2.0"
 actix-utils = "0.2.0"
@@ -83,4 +83,3 @@ serde_derive = "1.0"
 
 [patch.crates-io]
 actix-utils = { git = "https://github.com/actix/actix-net.git" }
-actix-service = { git = "https://github.com/actix/actix-net.git" }
