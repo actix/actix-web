@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use actix_codec::{AsyncRead, AsyncWrite};
 use actix_connector::{Resolver, TcpConnector};
-use actix_service::{Service, ServiceExt};
+use actix_service::{Apply, Service, ServiceExt};
 use actix_utils::timeout::{TimeoutError, TimeoutService};
 use trust_dns_resolver::config::{ResolverConfig, ResolverOpts};
 
@@ -142,8 +142,8 @@ impl Connector {
     > + Clone {
         #[cfg(not(feature = "ssl"))]
         {
-            let connector = TimeoutService::new(
-                self.timeout,
+            let connector = Apply::new(
+                TimeoutService::new(self.timeout),
                 self.resolver.map_err(ConnectorError::from).and_then(
                     TcpConnector::default()
                         .from_err()
@@ -167,8 +167,8 @@ impl Connector {
         }
         #[cfg(feature = "ssl")]
         {
-            let ssl_service = TimeoutService::new(
-                self.timeout,
+            let ssl_service = Apply::new(
+                TimeoutService::new(self.timeout),
                 self.resolver
                     .clone()
                     .map_err(ConnectorError::from)
@@ -196,8 +196,8 @@ impl Connector {
                 TimeoutError::Timeout => ConnectorError::Timeout,
             });
 
-            let tcp_service = TimeoutService::new(
-                self.timeout,
+            let tcp_service = Apply::new(
+                TimeoutService::new(self.timeout),
                 self.resolver.map_err(ConnectorError::from).and_then(
                     TcpConnector::default()
                         .from_err()

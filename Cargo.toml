@@ -80,3 +80,7 @@ actix-server = "0.2"
 actix-http-test = { path="test-server" }
 env_logger = "0.6"
 serde_derive = "1.0"
+
+[patch.crates-io]
+actix-utils = { git = "https://github.com/actix/actix-net.git" }
+actix-service = { git = "https://github.com/actix/actix-net.git" }
