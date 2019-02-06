@@ -558,7 +558,7 @@ impl<S: 'static> TestRequest<S> {
 
     /// set cookie of this request
     pub fn cookie(mut self, cookie: Cookie<'static>) -> Self {
-        if self.cookies.is_none() {
+        if self.cookies.is_some() {
             let mut should_insert = true;
             let old_cookies = self.cookies.as_mut().unwrap();
             for old_cookie in old_cookies.iter() {
