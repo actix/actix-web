@@ -309,11 +309,11 @@ where
                     self.flags.insert(Flags::STARTED);
 
                     match msg {
-                        Message::Item(req) => {
+                        Message::Item(mut req) => {
                             match self.framed.get_codec().message_type() {
                                 MessageType::Payload => {
                                     let (ps, pl) = Payload::create(false);
-                                    *req.inner.payload.borrow_mut() = Some(pl);
+                                    req = req.set_payload(pl);
                                     self.payload = Some(ps);
                                 }
                                 MessageType::Stream => {

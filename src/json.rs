@@ -50,7 +50,7 @@ pub struct JsonBody<T: HttpMessage, U: DeserializeOwned> {
 
 impl<T: HttpMessage, U: DeserializeOwned> JsonBody<T, U> {
     /// Create `JsonBody` for request.
-    pub fn new(req: &T) -> Self {
+    pub fn new(req: T) -> Self {
         // check content-type
         let json = if let Ok(Some(mime)) = req.mime_type() {
             mime.subtype() == mime::JSON || mime.suffix() == Some(mime::JSON)

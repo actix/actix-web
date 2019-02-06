@@ -5,16 +5,16 @@ use std::{net, thread};
 use actix_http_test::TestServer;
 use actix_service::NewService;
 use bytes::Bytes;
-use futures::future::{self, ok};
+use futures::future::{self, ok, Future};
 use futures::stream::once;
 
 use actix_http::{
-    body, client, h1, http, Body, Error, HttpMessage as HttpMessage2, KeepAlive,
+    body, client, h1, h2, http, Body, Error, HttpMessage as HttpMessage2, KeepAlive,
     Request, Response,
 };
 
 #[test]
-fn test_h1_v2() {
+fn test_h1() {
     let mut srv = TestServer::with_factory(|| {
         h1::H1Service::build()
             .keep_alive(KeepAlive::Disabled)
@@ -28,6 +28,85 @@ fn test_h1_v2() {
     let req = client::ClientRequest::get(srv.url("/")).finish().unwrap();
     let response = srv.send_request(req).unwrap();
     assert!(response.status().is_success());
+}
+
+#[cfg(feature = "ssl")]
+fn ssl_acceptor<T>() -> std::io::Result<actix_server::ssl::OpensslAcceptor<T>> {
+    use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
+    // load ssl keys
+    let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
+    builder
+        .set_private_key_file("tests/key.pem", SslFiletype::PEM)
+        .unwrap();
+    builder
+        .set_certificate_chain_file("tests/cert.pem")
+        .unwrap();
+    builder.set_alpn_select_callback(|_, protos| {
+        const H2: &[u8] = b"\x02h2";
+        if protos.windows(3).any(|window| window == H2) {
+            Ok(b"h2")
+        } else {
+            Err(openssl::ssl::AlpnError::NOACK)
+        }
+    });
+    builder.set_alpn_protos(b"\x02h2")?;
+    Ok(actix_server::ssl::OpensslAcceptor::new(builder.build()))
+}
+
+#[cfg(feature = "ssl")]
+#[test]
+fn test_h2() -> std::io::Result<()> {
+    let openssl = ssl_acceptor()?;
+    let mut srv = TestServer::with_factory(move || {
+        openssl
+            .clone()
+            .map_err(|e| println!("Openssl error: {}", e))
+            .and_then(
+                h2::H2Service::build()
+                    .finish(|_| future::ok::<_, Error>(Response::Ok().finish()))
+                    .map_err(|_| ()),
+            )
+    });
+
+    let req = client::ClientRequest::get(srv.surl("/")).finish().unwrap();
+    let response = srv.send_request(req).unwrap();
+    println!("RES: {:?}", response);
+    assert!(response.status().is_success());
+    Ok(())
+}
+
+#[cfg(feature = "ssl")]
+#[test]
+fn test_h2_body() -> std::io::Result<()> {
+    // std::env::set_var("RUST_LOG", "actix_http=trace");
+    // env_logger::init();
+
+    let data = "HELLOWORLD".to_owned().repeat(64 * 1024);
+    let openssl = ssl_acceptor()?;
+    let mut srv = TestServer::with_factory(move || {
+        openssl
+            .clone()
+            .map_err(|e| println!("Openssl error: {}", e))
+            .and_then(
+                h2::H2Service::build()
+                    .finish(|req: Request<_>| {
+                        req.body()
+                            .limit(1024 * 1024)
+                            .and_then(|body| Ok(Response::Ok().body(body)))
+                    })
+                    .map_err(|_| ()),
+            )
+    });
+
+    let req = client::ClientRequest::get(srv.surl("/"))
+        .body(data.clone())
+        .unwrap();
+    let response = srv.send_request(req).unwrap();
+    assert!(response.status().is_success());
+
+    let body = srv.block_on(response.body().limit(1024 * 1024)).unwrap();
+    assert_eq!(&body, data.as_bytes());
+    Ok(())
 }
 
 #[test]

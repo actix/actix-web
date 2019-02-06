@@ -20,6 +20,18 @@ pub enum BodyLength {
     Stream,
 }
 
+impl BodyLength {
+    pub fn is_eof(&self) -> bool {
+        match self {
+            BodyLength::None
+            | BodyLength::Empty
+            | BodyLength::Sized(0)
+            | BodyLength::Sized64(0) => true,
+            _ => false,
+        }
+    }
+}
+
 /// Type that provides this trait can be streamed to a peer.
 pub trait MessageBody {
     fn length(&self) -> BodyLength;
@@ -40,6 +52,15 @@ impl MessageBody for () {
 pub enum ResponseBody<B> {
     Body(B),
     Other(Body),
+}
+
+impl ResponseBody<Body> {
+    pub fn into_body<B>(self) -> ResponseBody<B> {
+        match self {
+            ResponseBody::Body(b) => ResponseBody::Other(b),
+            ResponseBody::Other(b) => ResponseBody::Other(b),
+        }
+    }
 }
 
 impl<B: MessageBody> ResponseBody<B> {

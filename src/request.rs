@@ -2,41 +2,74 @@ use std::cell::{Ref, RefMut};
 use std::fmt;
 use std::rc::Rc;
 
+use bytes::Bytes;
+use futures::Stream;
 use http::{header, HeaderMap, Method, Uri, Version};
 
+use crate::error::PayloadError;
 use crate::extensions::Extensions;
 use crate::httpmessage::HttpMessage;
 use crate::message::{Message, MessagePool, RequestHead};
 use crate::payload::Payload;
 
 /// Request
-pub struct Request {
+pub struct Request<P = Payload> {
+    pub(crate) payload: Option<P>,
     pub(crate) inner: Rc<Message<RequestHead>>,
 }
 
-impl HttpMessage for Request {
-    type Stream = Payload;
+impl<P> HttpMessage for Request<P>
+where
+    P: Stream<Item = Bytes, Error = PayloadError>,
+{
+    type Stream = P;
 
     fn headers(&self) -> &HeaderMap {
         &self.inner.head.headers
     }
 
     #[inline]
-    fn payload(&self) -> Payload {
-        if let Some(payload) = self.inner.payload.borrow_mut().take() {
-            payload
-        } else {
-            Payload::empty()
+    fn payload(mut self) -> P {
+        self.payload.take().unwrap()
+    }
+}
+
+impl Request<Payload> {
+    /// Create new Request instance
+    pub fn new() -> Request<Payload> {
+        Request {
+            payload: Some(Payload::empty()),
+            inner: MessagePool::get_message(),
         }
     }
 }
 
-impl Request {
+impl<Payload> Request<Payload> {
     /// Create new Request instance
-    pub fn new() -> Request {
+    pub fn with_payload(payload: Payload) -> Request<Payload> {
         Request {
+            payload: Some(payload),
             inner: MessagePool::get_message(),
         }
+    }
+
+    /// Create new Request instance
+    pub fn set_payload<P>(self, payload: P) -> Request<P> {
+        Request {
+            payload: Some(payload),
+            inner: self.inner.clone(),
+        }
+    }
+
+    /// Take request's payload
+    pub fn take_payload(mut self) -> (Payload, Request<()>) {
+        (
+            self.payload.take().unwrap(),
+            Request {
+                payload: Some(()),
+                inner: self.inner.clone(),
+            },
+        )
     }
 
     // /// Create new Request instance with pool
@@ -143,17 +176,17 @@ impl Request {
         self.inner().head.method == Method::CONNECT
     }
 
-    #[doc(hidden)]
-    /// Note: this method should be called only as part of clone operation
-    /// of wrapper type.
-    pub fn clone_request(&self) -> Self {
-        Request {
-            inner: self.inner.clone(),
-        }
-    }
+    // #[doc(hidden)]
+    // /// Note: this method should be called only as part of clone operation
+    // /// of wrapper type.
+    // pub fn clone_request(&self) -> Self {
+    //     Request {
+    //         inner: self.inner.clone(),
+    //     }
+    // }
 }
 
-impl Drop for Request {
+impl<Payload> Drop for Request<Payload> {
     fn drop(&mut self) {
         if Rc::strong_count(&self.inner) == 1 {
             self.inner.pool.release(self.inner.clone());
@@ -161,7 +194,7 @@ impl Drop for Request {
     }
 }
 
-impl fmt::Debug for Request {
+impl<Payload> fmt::Debug for Request<Payload> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         writeln!(
             f,

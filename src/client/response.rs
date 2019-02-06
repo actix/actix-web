@@ -27,7 +27,7 @@ impl HttpMessage for ClientResponse {
     }
 
     #[inline]
-    fn payload(&self) -> Self::Stream {
+    fn payload(self) -> Self::Stream {
         if let Some(payload) = self.payload.borrow_mut().take() {
             payload
         } else {

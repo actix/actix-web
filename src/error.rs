@@ -389,6 +389,10 @@ pub enum DispatchError<E: fmt::Debug> {
     #[display(fmt = "Parse error: {}", _0)]
     Parse(ParseError),
 
+    /// Http/2 error
+    #[display(fmt = "{}", _0)]
+    H2(h2::Error),
+
     /// The first request did not complete within the specified timeout.
     #[display(fmt = "The first request did not complete within the specified timeout")]
     SlowRequestTimeout,
@@ -423,6 +427,12 @@ impl<E: fmt::Debug> From<ParseError> for DispatchError<E> {
 impl<E: fmt::Debug> From<io::Error> for DispatchError<E> {
     fn from(err: io::Error) -> Self {
         DispatchError::Io(err)
+    }
+}
+
+impl<E: fmt::Debug> From<h2::Error> for DispatchError<E> {
+    fn from(err: h2::Error) -> Self {
+        DispatchError::H2(err)
     }
 }
 

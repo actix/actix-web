@@ -34,13 +34,13 @@ default = ["session"]
 session = ["cookie/secure"]
 
 # openssl
-ssl = ["openssl", "actix-connector/ssl"]
+ssl = ["openssl", "actix-connector/ssl", "actix-server/ssl", "actix-http-test/ssl"]
 
 [dependencies]
 actix-service = "0.2.1"
 actix-codec = "0.1.0"
 actix-connector = "0.2.0"
-actix-utils = "0.2.0"
+actix-utils = "0.2.1"
 
 base64 = "0.10"
 backtrace = "0.3"
@@ -80,6 +80,3 @@ actix-server = "0.2"
 actix-http-test = { path="test-server" }
 env_logger = "0.6"
 serde_derive = "1.0"
-
-[patch.crates-io]
-actix-utils = { git = "https://github.com/actix/actix-net.git" }

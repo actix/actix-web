@@ -148,15 +148,18 @@ impl TestRequest {
             ..
         } = self;
 
-        let mut req = Request::new();
-        {
-            let inner = req.inner_mut();
-            inner.head.uri = uri;
-            inner.head.method = method;
-            inner.head.version = version;
-            inner.head.headers = headers;
-            *inner.payload.borrow_mut() = payload;
-        }
+        let mut req = if let Some(pl) = payload {
+            Request::with_payload(pl)
+        } else {
+            Request::with_payload(Payload::empty())
+        };
+
+        let inner = req.inner_mut();
+        inner.head.uri = uri;
+        inner.head.method = method;
+        inner.head.version = version;
+        inner.head.headers = headers;
+
         // req.set_cookies(cookies);
         req
     }

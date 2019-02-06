@@ -25,7 +25,7 @@ pub trait HttpMessage: Sized {
     fn headers(&self) -> &HeaderMap;
 
     /// Message payload stream
-    fn payload(&self) -> Self::Stream;
+    fn payload(self) -> Self::Stream;
 
     #[doc(hidden)]
     /// Get a header
@@ -128,7 +128,7 @@ pub trait HttpMessage: Sized {
     /// }
     /// # fn main() {}
     /// ```
-    fn body(&self) -> MessageBody<Self> {
+    fn body(self) -> MessageBody<Self> {
         MessageBody::new(self)
     }
 
@@ -162,7 +162,7 @@ pub trait HttpMessage: Sized {
     /// }
     /// # fn main() {}
     /// ```
-    fn urlencoded<T: DeserializeOwned>(&self) -> UrlEncoded<Self, T> {
+    fn urlencoded<T: DeserializeOwned>(self) -> UrlEncoded<Self, T> {
         UrlEncoded::new(self)
     }
 
@@ -198,12 +198,12 @@ pub trait HttpMessage: Sized {
     /// }
     /// # fn main() {}
     /// ```
-    fn json<T: DeserializeOwned>(&self) -> JsonBody<Self, T> {
+    fn json<T: DeserializeOwned>(self) -> JsonBody<Self, T> {
         JsonBody::new(self)
     }
 
     /// Return stream of lines.
-    fn readlines(&self) -> Readlines<Self> {
+    fn readlines(self) -> Readlines<Self> {
         Readlines::new(self)
     }
 }
@@ -220,7 +220,7 @@ pub struct Readlines<T: HttpMessage> {
 
 impl<T: HttpMessage> Readlines<T> {
     /// Create a new stream to read request line by line.
-    fn new(req: &T) -> Self {
+    fn new(req: T) -> Self {
         let encoding = match req.encoding() {
             Ok(enc) => enc,
             Err(err) => return Self::err(req, err.into()),
@@ -242,7 +242,7 @@ impl<T: HttpMessage> Readlines<T> {
         self
     }
 
-    fn err(req: &T, err: ReadlinesError) -> Self {
+    fn err(req: T, err: ReadlinesError) -> Self {
         Readlines {
             stream: req.payload(),
             buff: BytesMut::new(),
@@ -362,7 +362,7 @@ pub struct MessageBody<T: HttpMessage> {
 
 impl<T: HttpMessage> MessageBody<T> {
     /// Create `MessageBody` for request.
-    pub fn new(req: &T) -> MessageBody<T> {
+    pub fn new(req: T) -> MessageBody<T> {
         let mut len = None;
         if let Some(l) = req.headers().get(header::CONTENT_LENGTH) {
             if let Ok(s) = l.to_str() {
@@ -457,7 +457,7 @@ pub struct UrlEncoded<T: HttpMessage, U> {
 
 impl<T: HttpMessage, U> UrlEncoded<T, U> {
     /// Create a new future to URL encode a request
-    pub fn new(req: &T) -> UrlEncoded<T, U> {
+    pub fn new(req: T) -> UrlEncoded<T, U> {
         // check content type
         if req.content_type().to_lowercase() != "application/x-www-form-urlencoded" {
             return Self::err(UrlencodedError::ContentType);
@@ -800,7 +800,7 @@ mod tests {
                   Contrary to popular belief, Lorem Ipsum is not simply random text.",
             ))
             .finish();
-        let mut r = Readlines::new(&req);
+        let mut r = Readlines::new(req);
         match r.poll().ok().unwrap() {
             Async::Ready(Some(s)) => assert_eq!(
                 s,

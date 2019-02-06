@@ -12,11 +12,7 @@ use super::error::ConnectorError;
 use super::pool::{ConnectionPool, Protocol};
 
 #[cfg(feature = "ssl")]
-use actix_connector::ssl::OpensslConnector;
-#[cfg(feature = "ssl")]
-use openssl::ssl::{SslConnector, SslMethod};
-#[cfg(feature = "ssl")]
-const H2: &[u8] = b"h2";
+use openssl::ssl::SslConnector;
 
 #[cfg(not(feature = "ssl"))]
 type SslConnector = ();
@@ -40,6 +36,8 @@ impl Default for Connector {
             #[cfg(feature = "ssl")]
             {
                 use log::error;
+                use openssl::ssl::{SslConnector, SslMethod};
+
                 let mut ssl = SslConnector::builder(SslMethod::tls()).unwrap();
                 let _ = ssl
                     .set_alpn_protos(b"\x02h2\x08http/1.1")
@@ -167,6 +165,9 @@ impl Connector {
         }
         #[cfg(feature = "ssl")]
         {
+            const H2: &[u8] = b"h2";
+            use actix_connector::ssl::OpensslConnector;
+
             let ssl_service = Apply::new(
                 TimeoutService::new(self.timeout),
                 self.resolver

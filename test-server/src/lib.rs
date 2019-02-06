@@ -3,6 +3,12 @@ use std::sync::mpsc;
 use std::{net, thread};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
+use actix_http::body::MessageBody;
+use actix_http::client::{
+    ClientRequest, ClientRequestBuilder, ClientResponse, Connect, Connection, Connector,
+    ConnectorError, SendRequestError,
+};
+use actix_http::ws;
 use actix_rt::{Runtime, System};
 use actix_server::{Server, StreamServiceFactory};
 use actix_service::Service;
@@ -10,13 +16,6 @@ use actix_service::Service;
 use futures::future::{lazy, Future};
 use http::Method;
 use net2::TcpBuilder;
-
-use actix_http::body::MessageBody;
-use actix_http::client::{
-    ClientRequest, ClientRequestBuilder, ClientResponse, Connect, Connection, Connector,
-    ConnectorError, SendRequestError,
-};
-use actix_http::ws;
 
 /// The `TestServer` type.
 ///
@@ -101,6 +100,9 @@ impl TestServer {
 
             let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
             builder.set_verify(SslVerifyMode::NONE);
+            let _ = builder
+                .set_alpn_protos(b"\x02h2\x08http/1.1")
+                .map_err(|e| log::error!("Can not set alpn protocol: {:?}", e));
             Connector::default().ssl(builder.build()).service()
         }
         #[cfg(not(feature = "ssl"))]
@@ -148,6 +150,15 @@ impl<T> TestServerRuntime<T> {
             format!("http://127.0.0.1:{}{}", self.addr.port(), uri)
         } else {
             format!("http://127.0.0.1:{}/{}", self.addr.port(), uri)
+        }
+    }
+
+    /// Construct test https server url
+    pub fn surl(&self, uri: &str) -> String {
+        if uri.starts_with('/') {
+            format!("https://127.0.0.1:{}{}", self.addr.port(), uri)
+        } else {
+            format!("https://127.0.0.1:{}/{}", self.addr.port(), uri)
         }
     }
 

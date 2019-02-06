@@ -5,7 +5,6 @@ use std::rc::Rc;
 use http::{HeaderMap, Method, StatusCode, Uri, Version};
 
 use crate::extensions::Extensions;
-use crate::payload::Payload;
 
 /// Represents various types of connection
 #[derive(Copy, Clone, PartialEq, Debug)]
@@ -149,7 +148,6 @@ impl ResponseHead {
 pub struct Message<T: Head> {
     pub head: T,
     pub extensions: RefCell<Extensions>,
-    pub payload: RefCell<Option<Payload>>,
     pub(crate) pool: &'static MessagePool<T>,
 }
 
@@ -159,7 +157,6 @@ impl<T: Head> Message<T> {
     pub fn reset(&mut self) {
         self.head.clear();
         self.extensions.borrow_mut().clear();
-        *self.payload.borrow_mut() = None;
     }
 }
 
@@ -168,7 +165,6 @@ impl<T: Head> Default for Message<T> {
         Message {
             pool: T::pool(),
             head: T::default(),
-            payload: RefCell::new(None),
             extensions: RefCell::new(Extensions::new()),
         }
     }

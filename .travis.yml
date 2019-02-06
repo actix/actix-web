@@ -31,7 +31,7 @@ script:
   - |
     if [[ "$TRAVIS_RUST_VERSION" != "nightly" ]]; then
     cargo clean
-    cargo test
+    cargo test --features="ssl"
     fi
   - |
     if [[ "$TRAVIS_RUST_VERSION" == "nightly" ]]; then

@@ -171,6 +171,10 @@ impl ServiceConfig {
         buf[35..].copy_from_slice(b"\r\n\r\n");
         dst.extend_from_slice(&buf);
     }
+
+    pub(crate) fn set_date_header(&self, dst: &mut BytesMut) {
+        dst.extend_from_slice(&self.0.timer.date().bytes);
+    }
 }
 
 /// A service config builder

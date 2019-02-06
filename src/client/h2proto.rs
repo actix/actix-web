@@ -4,16 +4,19 @@ use std::time;
 use actix_codec::{AsyncRead, AsyncWrite};
 use bytes::Bytes;
 use futures::future::{err, Either};
-use futures::{Async, Future, Poll, Stream};
+use futures::{Async, Future, Poll};
 use h2::{client::SendRequest, SendStream};
-use http::{request::Request, Version};
+use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING};
+use http::{request::Request, HttpTryFrom, Version};
+
+use crate::body::{BodyLength, MessageBody};
+use crate::h2::Payload;
+use crate::message::{RequestHead, ResponseHead};
 
 use super::connection::{ConnectionType, IoConnection};
 use super::error::SendRequestError;
 use super::pool::Acquired;
 use super::response::ClientResponse;
-use crate::body::{BodyLength, MessageBody};
-use crate::message::{RequestHead, ResponseHead};
 
 pub(crate) fn send_request<T, B>(
     io: SendRequest<Bytes>,
@@ -27,7 +30,8 @@ where
     B: MessageBody,
 {
     trace!("Sending client request: {:?} {:?}", head, body.length());
-    let eof = match body.length() {
+    let length = body.length();
+    let eof = match length {
         BodyLength::None | BodyLength::Empty | BodyLength::Sized(0) => true,
         _ => false,
     };
@@ -38,11 +42,44 @@ where
             let mut req = Request::new(());
             *req.uri_mut() = head.uri;
             *req.method_mut() = head.method;
-            *req.headers_mut() = head.headers;
             *req.version_mut() = Version::HTTP_2;
 
+            let mut skip_len = true;
+            let mut has_date = false;
+
+            // Content length
+            let _ = match length {
+                BodyLength::Chunked | BodyLength::None => None,
+                BodyLength::Stream => {
+                    skip_len = false;
+                    None
+                }
+                BodyLength::Empty => req
+                    .headers_mut()
+                    .insert(CONTENT_LENGTH, HeaderValue::from_static("0")),
+                BodyLength::Sized(len) => req.headers_mut().insert(
+                    CONTENT_LENGTH,
+                    HeaderValue::try_from(format!("{}", len)).unwrap(),
+                ),
+                BodyLength::Sized64(len) => req.headers_mut().insert(
+                    CONTENT_LENGTH,
+                    HeaderValue::try_from(format!("{}", len)).unwrap(),
+                ),
+            };
+
+            // copy headers
+            for (key, value) in head.headers.iter() {
+                match *key {
+                    CONNECTION | TRANSFER_ENCODING => continue, // http2 specific
+                    CONTENT_LENGTH if skip_len => continue,
+                    DATE => has_date = true,
+                    _ => (),
+                }
+                req.headers_mut().append(key, value.clone());
+            }
+
             match io.send_request(req, eof) {
-                Ok((resp, send)) => {
+                Ok((res, send)) => {
                     release(io, pool, created, false);
 
                     if !eof {
@@ -52,10 +89,10 @@ where
                                 send,
                                 buf: None,
                             }
-                            .and_then(move |_| resp.map_err(SendRequestError::from)),
+                            .and_then(move |_| res.map_err(SendRequestError::from)),
                         ))
                     } else {
-                        Either::B(resp.map_err(SendRequestError::from))
+                        Either::B(res.map_err(SendRequestError::from))
                     }
                 }
                 Err(e) => {
@@ -74,7 +111,7 @@ where
 
             Ok(ClientResponse {
                 head,
-                payload: RefCell::new(Some(Box::new(body.from_err()))),
+                payload: RefCell::new(Some(Box::new(Payload::new(body)))),
             })
         })
         .from_err()

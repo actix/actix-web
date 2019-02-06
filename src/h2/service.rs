@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 use std::marker::PhantomData;
-use std::net;
+use std::{io, net};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use actix_service::{IntoNewService, NewService, Service};
@@ -8,16 +8,17 @@ use bytes::Bytes;
 use futures::future::{ok, FutureResult};
 use futures::{try_ready, Async, Future, Poll, Stream};
 use h2::server::{self, Connection, Handshake};
+use h2::RecvStream;
 use log::error;
 
 use crate::body::MessageBody;
 use crate::config::{KeepAlive, ServiceConfig};
-use crate::error::{DispatchError, ParseError};
+use crate::error::{DispatchError, Error, ParseError, ResponseError};
 use crate::request::Request;
 use crate::response::Response;
 
-// use super::dispatcher::Dispatcher;
-use super::H2ServiceResult;
+use super::dispatcher::Dispatcher;
+use super::{H2ServiceResult, Payload};
 
 /// `NewService` implementation for HTTP2 transport
 pub struct H2Service<T, S, B> {
@@ -28,10 +29,10 @@ pub struct H2Service<T, S, B> {
 
 impl<T, S, B> H2Service<T, S, B>
 where
-    S: NewService<Request = Request, Response = Response<B>> + Clone,
-    S::Service: Clone,
-    S::Error: Debug,
-    B: MessageBody,
+    S: NewService<Request = Request<Payload>, Response = Response<B>> + Clone,
+    S::Service: Clone + 'static,
+    S::Error: Into<Error> + Debug + 'static,
+    B: MessageBody + 'static,
 {
     /// Create new `HttpService` instance.
     pub fn new<F: IntoNewService<S>>(service: F) -> Self {
@@ -53,14 +54,14 @@ where
 impl<T, S, B> NewService for H2Service<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: NewService<Request = Request, Response = Response<B>> + Clone,
-    S::Service: Clone,
-    S::Error: Debug,
-    B: MessageBody,
+    S: NewService<Request = Request<Payload>, Response = Response<B>> + Clone,
+    S::Service: Clone + 'static,
+    S::Error: Into<Error> + Debug,
+    B: MessageBody + 'static,
 {
     type Request = T;
-    type Response = H2ServiceResult<T>;
-    type Error = (); //DispatchError<S::Error>;
+    type Response = ();
+    type Error = DispatchError<()>;
     type InitError = S::InitError;
     type Service = H2ServiceHandler<T, S::Service, B>;
     type Future = H2ServiceResponse<T, S, B>;
@@ -90,9 +91,9 @@ pub struct H2ServiceBuilder<T, S> {
 
 impl<T, S> H2ServiceBuilder<T, S>
 where
-    S: NewService<Request = Request>,
-    S::Service: Clone,
-    S::Error: Debug,
+    S: NewService<Request = Request<Payload>>,
+    S::Service: Clone + 'static,
+    S::Error: Into<Error> + Debug + 'static,
 {
     /// Create instance of `H2ServiceBuilder`
     pub fn new() -> H2ServiceBuilder<T, S> {
@@ -185,6 +186,25 @@ where
         self
     }
 
+    // #[cfg(feature = "ssl")]
+    // /// Configure alpn protocols for SslAcceptorBuilder.
+    // pub fn configure_openssl(
+    //     builder: &mut openssl::ssl::SslAcceptorBuilder,
+    // ) -> io::Result<()> {
+    //     let protos: &[u8] = b"\x02h2";
+    //     builder.set_alpn_select_callback(|_, protos| {
+    //         const H2: &[u8] = b"\x02h2";
+    //         if protos.windows(3).any(|window| window == H2) {
+    //             Ok(b"h2")
+    //         } else {
+    //             Err(openssl::ssl::AlpnError::NOACK)
+    //         }
+    //     });
+    //     builder.set_alpn_protos(&protos)?;
+
+    //     Ok(())
+    // }
+
     /// Finish service configuration and create `H1Service` instance.
     pub fn finish<F, B>(self, service: F) -> H2Service<T, S, B>
     where
@@ -214,10 +234,10 @@ pub struct H2ServiceResponse<T, S: NewService, B> {
 impl<T, S, B> Future for H2ServiceResponse<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: NewService<Request = Request, Response = Response<B>>,
-    S::Service: Clone,
-    S::Error: Debug,
-    B: MessageBody,
+    S: NewService<Request = Request<Payload>, Response = Response<B>>,
+    S::Service: Clone + 'static,
+    S::Error: Into<Error> + Debug,
+    B: MessageBody + 'static,
 {
     type Item = H2ServiceHandler<T, S::Service, B>;
     type Error = S::InitError;
@@ -240,9 +260,9 @@ pub struct H2ServiceHandler<T, S, B> {
 
 impl<T, S, B> H2ServiceHandler<T, S, B>
 where
-    S: Service<Request = Request, Response = Response<B>> + Clone,
-    S::Error: Debug,
-    B: MessageBody,
+    S: Service<Request = Request<Payload>, Response = Response<B>> + Clone + 'static,
+    S::Error: Into<Error> + Debug,
+    B: MessageBody + 'static,
 {
     fn new(cfg: ServiceConfig, srv: S) -> H2ServiceHandler<T, S, B> {
         H2ServiceHandler {
@@ -256,55 +276,79 @@ where
 impl<T, S, B> Service for H2ServiceHandler<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: Service<Request = Request, Response = Response<B>> + Clone,
-    S::Error: Debug,
-    B: MessageBody,
+    S: Service<Request = Request<Payload>, Response = Response<B>> + Clone + 'static,
+    S::Error: Into<Error> + Debug,
+    B: MessageBody + 'static,
 {
     type Request = T;
-    type Response = H2ServiceResult<T>;
-    type Error = (); // DispatchError<S::Error>;
+    type Response = ();
+    type Error = DispatchError<()>;
     type Future = H2ServiceHandlerResponse<T, S, B>;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
-        self.srv.poll_ready().map_err(|_| ())
+        self.srv.poll_ready().map_err(|e| {
+            error!("Service readiness error: {:?}", e);
+            DispatchError::Service(())
+        })
     }
 
     fn call(&mut self, req: T) -> Self::Future {
         H2ServiceHandlerResponse {
-            state: State::Handshake(server::handshake(req)),
-            _t: PhantomData,
+            state: State::Handshake(
+                Some(self.srv.clone()),
+                Some(self.cfg.clone()),
+                server::handshake(req),
+            ),
         }
     }
 }
 
-enum State<T: AsyncRead + AsyncWrite> {
-    Handshake(Handshake<T, Bytes>),
-    Connection(Connection<T, Bytes>),
-    Empty,
+enum State<T: AsyncRead + AsyncWrite, S: Service, B: MessageBody> {
+    Incoming(Dispatcher<T, S, B>),
+    Handshake(Option<S>, Option<ServiceConfig>, Handshake<T, Bytes>),
 }
 
 pub struct H2ServiceHandlerResponse<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: Service<Request = Request, Response = Response<B>> + Clone,
-    S::Error: Debug,
-    B: MessageBody,
+    S: Service<Request = Request<Payload>, Response = Response<B>> + Clone + 'static,
+    S::Error: Into<Error> + Debug,
+    B: MessageBody + 'static,
 {
-    state: State<T>,
-    _t: PhantomData<S>,
+    state: State<T, S, B>,
 }
 
 impl<T, S, B> Future for H2ServiceHandlerResponse<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: Service<Request = Request, Response = Response<B>> + Clone,
-    S::Error: Debug,
+    S: Service<Request = Request<Payload>, Response = Response<B>> + Clone,
+    S::Error: Into<Error> + Debug,
     B: MessageBody,
 {
-    type Item = H2ServiceResult<T>;
-    type Error = ();
+    type Item = ();
+    type Error = DispatchError<()>;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        unimplemented!()
+        match self.state {
+            State::Incoming(ref mut disp) => disp.poll(),
+            State::Handshake(ref mut srv, ref mut config, ref mut handshake) => {
+                match handshake.poll() {
+                    Ok(Async::Ready(conn)) => {
+                        self.state = State::Incoming(Dispatcher::new(
+                            srv.take().unwrap(),
+                            conn,
+                            config.take().unwrap(),
+                            None,
+                        ));
+                        self.poll()
+                    }
+                    Ok(Async::NotReady) => Ok(Async::NotReady),
+                    Err(err) => {
+                        trace!("H2 handshake error: {}", err);
+                        return Err(err.into());
+                    }
+                }
+            }
+        }
     }
 }
