@@ -301,11 +301,11 @@ impl<S: 'static> Router<S> {
         }
     }
 
-    pub(crate) fn set_prefix(&mut self, path: &str) {
+    pub fn set_prefix(&mut self, path: &str) {
         Rc::get_mut(&mut self.rmap).unwrap().root = ResourceDef::new(path);
     }
 
-    pub(crate) fn register_resource(&mut self, resource: Resource<S>) {
+    pub fn register_resource(&mut self, resource: Resource<S>) {
         {
             let rmap = Rc::get_mut(&mut self.rmap).unwrap();
 
@@ -325,7 +325,7 @@ impl<S: 'static> Router<S> {
         self.resources.push(ResourceItem::Resource(resource));
     }
 
-    pub(crate) fn register_scope(&mut self, mut scope: Scope<S>) {
+    pub fn register_scope(&mut self, mut scope: Scope<S>) {
         Rc::get_mut(&mut self.rmap)
             .unwrap()
             .patterns
@@ -341,7 +341,7 @@ impl<S: 'static> Router<S> {
         self.resources.push(ResourceItem::Scope(scope));
     }
 
-    pub(crate) fn register_handler(
+    pub fn register_handler(
         &mut self, path: &str, hnd: Box<RouteHandler<S>>,
         filters: Option<Vec<Box<Predicate<S>>>>,
     ) {
@@ -354,15 +354,15 @@ impl<S: 'static> Router<S> {
         self.patterns.push(ResourcePattern::Handler(rdef, filters));
     }
 
-    pub(crate) fn has_default_resource(&self) -> bool {
+    pub fn has_default_resource(&self) -> bool {
         self.default.is_some()
     }
 
-    pub(crate) fn register_default_resource(&mut self, resource: DefaultResource<S>) {
+    pub fn register_default_resource(&mut self, resource: DefaultResource<S>) {
         self.default = Some(resource);
     }
 
-    pub(crate) fn finish(&mut self) {
+    pub fn finish(&mut self) {
         for resource in &mut self.resources {
             match resource {
                 ResourceItem::Resource(_) => (),
@@ -387,7 +387,7 @@ impl<S: 'static> Router<S> {
         }
     }
 
-    pub(crate) fn register_external(&mut self, name: &str, rdef: ResourceDef) {
+    pub fn register_external(&mut self, name: &str, rdef: ResourceDef) {
         let rmap = Rc::get_mut(&mut self.rmap).unwrap();
         assert!(
             !rmap.named.contains_key(name),
@@ -397,7 +397,7 @@ impl<S: 'static> Router<S> {
         rmap.named.insert(name.to_owned(), rdef);
     }
 
-    pub(crate) fn register_route<T, F, R>(&mut self, path: &str, method: Method, f: F)
+    pub fn register_route<T, F, R>(&mut self, path: &str, method: Method, f: F)
     where
         F: WithFactory<T, S, R>,
         R: Responder + 'static,

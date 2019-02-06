@@ -405,7 +405,7 @@ where
     }
 }
 
-pub(crate) trait RouteHandler<S>: 'static {
+pub trait RouteHandler<S>: 'static {
     fn handle(&self, &HttpRequest<S>) -> AsyncResult<HttpResponse>;
 
     fn has_default_resource(&self) -> bool {
@@ -418,7 +418,7 @@ pub(crate) trait RouteHandler<S>: 'static {
 }
 
 /// Route handler wrapper for Handler
-pub(crate) struct WrapHandler<S, H, R>
+pub struct WrapHandler<S, H, R>
 where
     H: Handler<S, Result = R>,
     R: Responder,
