@@ -38,6 +38,8 @@ enum ResourceItem<S> {
 }
 
 /// Interface for application router.
+///
+/// Functionality of this structure is very similar to `App`, but is more low-level.
 pub struct Router<S> {
     rmap: Rc<ResourceMap>,
     patterns: Vec<ResourcePattern<S>>,
@@ -301,10 +303,15 @@ impl<S: 'static> Router<S> {
         }
     }
 
+    /// Set router prefix.
+    ///
+    /// Only requests that match the router's prefix get
+    /// processed by this router.
     pub fn set_prefix(&mut self, path: &str) {
         Rc::get_mut(&mut self.rmap).unwrap().root = ResourceDef::new(path);
     }
 
+    /// Register a specific resource in the router.
     pub fn register_resource(&mut self, resource: Resource<S>) {
         {
             let rmap = Rc::get_mut(&mut self.rmap).unwrap();
@@ -325,6 +332,7 @@ impl<S: 'static> Router<S> {
         self.resources.push(ResourceItem::Resource(resource));
     }
 
+    /// Register a scope for the router.
     pub fn register_scope(&mut self, mut scope: Scope<S>) {
         Rc::get_mut(&mut self.rmap)
             .unwrap()
@@ -341,6 +349,28 @@ impl<S: 'static> Router<S> {
         self.resources.push(ResourceItem::Scope(scope));
     }
 
+    /// Configure handler for specific path prefix.
+    ///
+    /// ```rust
+    /// # extern crate actix_web;
+    /// use actix_web::{
+    ///     dev::{Router, WrapHandler},
+    ///     App, HttpRequest, HttpResponse,
+    /// };
+    ///
+    /// fn main() {
+    ///     let app = App::new().handler("/app", |req: &HttpRequest| {
+    ///         let mut router = Router::default();
+    ///         router.register_handler(
+    ///             "/app/a",
+    ///             Box::new(WrapHandler::new(|_: &HttpRequest| HttpResponse::Ok())),
+    ///             None,
+    ///         );
+    ///         router.finish();
+    ///         router.handle(req)
+    ///     });
+    /// }
+    /// ```
     pub fn register_handler(
         &mut self, path: &str, hnd: Box<RouteHandler<S>>,
         filters: Option<Vec<Box<Predicate<S>>>>,
@@ -354,14 +384,17 @@ impl<S: 'static> Router<S> {
         self.patterns.push(ResourcePattern::Handler(rdef, filters));
     }
 
+    /// Check if router has default resource.
     pub fn has_default_resource(&self) -> bool {
         self.default.is_some()
     }
 
+    /// Register default resource to be used if no matching route could be found.
     pub fn register_default_resource(&mut self, resource: DefaultResource<S>) {
         self.default = Some(resource);
     }
 
+    /// Finish router configuration. Router should not be re-configured after calling this method.
     pub fn finish(&mut self) {
         for resource in &mut self.resources {
             match resource {
@@ -387,6 +420,7 @@ impl<S: 'static> Router<S> {
         }
     }
 
+    /// Register an external resource for a router.
     pub fn register_external(&mut self, name: &str, rdef: ResourceDef) {
         let rmap = Rc::get_mut(&mut self.rmap).unwrap();
         assert!(
@@ -397,6 +431,23 @@ impl<S: 'static> Router<S> {
         rmap.named.insert(name.to_owned(), rdef);
     }
 
+    /// Configure route for a specific path.
+    ///
+    /// ```rust
+    /// # extern crate actix_web;
+    /// use actix_web::{dev::Router, http, App, HttpRequest, HttpResponse};
+    ///
+    /// fn main() {
+    ///     let app = App::new().handler("/app", |req: &HttpRequest| {
+    ///         let mut router = Router::default();
+    ///         router.register_route("/app/test", http::Method::GET, |_: HttpRequest| {
+    ///             HttpResponse::Ok()
+    ///         });
+    ///         router.finish();
+    ///         router.handle(req)
+    ///     });
+    /// }
+    /// ```
     pub fn register_route<T, F, R>(&mut self, path: &str, method: Method, f: F)
     where
         F: WithFactory<T, S, R>,
@@ -427,7 +478,7 @@ impl<S: 'static> Router<S> {
         }
     }
 
-    /// Handle request
+    /// Handle request.
     pub fn handle(&self, req: &HttpRequest<S>) -> AsyncResult<HttpResponse> {
         let resource = match req.resource().resource {
             ResourceId::Normal(idx) => &self.resources[idx as usize],
@@ -458,7 +509,7 @@ impl<S: 'static> Router<S> {
         AsyncResult::ok(HttpResponse::new(StatusCode::NOT_FOUND))
     }
 
-    /// Query for matched resource
+    /// Query for matched resource.
     pub fn recognize(&self, req: &Request, state: &S, tail: usize) -> ResourceInfo {
         if tail <= req.path().len() {
             'outer: for (idx, resource) in self.patterns.iter().enumerate() {

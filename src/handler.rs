@@ -417,7 +417,7 @@ pub trait RouteHandler<S>: 'static {
     fn finish(&mut self) {}
 }
 
-/// Route handler wrapper for Handler
+/// Route handler wrapper for Handler.
 pub struct WrapHandler<S, H, R>
 where
     H: Handler<S, Result = R>,
@@ -434,6 +434,8 @@ where
     R: Responder,
     S: 'static,
 {
+    /// Creates new route handler wrapper for Handler.
+    /// This method should be used to register handler in Router manually.
     pub fn new(h: H) -> Self {
         WrapHandler { h, s: PhantomData }
     }
