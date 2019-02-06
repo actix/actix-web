@@ -790,7 +790,7 @@ impl<S: 'static, C: StaticFileConfig> StaticFiles<S, C> {
 
     /// Set index file
     ///
-    /// Redirects to specific index file for directory "/" instead of
+    /// Shows specific index file for directory "/" instead of
     /// showing files listing.
     pub fn index_file<T: Into<String>>(mut self, index: T) -> StaticFiles<S, C> {
         self.index = Some(index.into());
@@ -815,17 +815,11 @@ impl<S: 'static, C: StaticFileConfig> StaticFiles<S, C> {
 
         if path.is_dir() {
             if let Some(ref redir_index) = self.index {
-                // TODO: Don't redirect, just return the index content.
-                // TODO: It'd be nice if there were a good usable URL manipulation
-                // library
-                let mut new_path: String = req.path().to_owned();
-                if !new_path.ends_with('/') {
-                    new_path.push('/');
-                }
-                new_path.push_str(redir_index);
-                HttpResponse::Found()
-                    .header(header::LOCATION, new_path.as_str())
-                    .finish()
+                let path = path.join(redir_index);
+
+                NamedFile::open_with_config(path, C::default())?
+                    .set_cpu_pool(self.cpu_pool.clone())
+                    .respond_to(&req)?
                     .respond_to(&req)
             } else if self.show_index {
                 let dir = Directory::new(self.directory.clone(), path);
@@ -1482,43 +1476,66 @@ mod tests {
     }
 
     #[test]
-    fn test_redirect_to_index() {
-        let st = StaticFiles::new(".").unwrap().index_file("index.html");
+    fn test_serve_index() {
+        let st = StaticFiles::new(".").unwrap().index_file("test.binary");
         let req = TestRequest::default().uri("/tests").finish();
 
         let resp = st.handle(&req).respond_to(&req).unwrap();
         let resp = resp.as_msg();
-        assert_eq!(resp.status(), StatusCode::FOUND);
+        assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(
-            resp.headers().get(header::LOCATION).unwrap(),
-            "/tests/index.html"
+            resp.headers().get(header::CONTENT_TYPE).expect("content type"),
+            "application/octet-stream"
+        );
+        assert_eq!(
+            resp.headers().get(header::CONTENT_DISPOSITION).expect("content disposition"),
+            "attachment; filename=\"test.binary\""
         );
 
         let req = TestRequest::default().uri("/tests/").finish();
         let resp = st.handle(&req).respond_to(&req).unwrap();
         let resp = resp.as_msg();
-        assert_eq!(resp.status(), StatusCode::FOUND);
+        assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(
-            resp.headers().get(header::LOCATION).unwrap(),
-            "/tests/index.html"
+            resp.headers().get(header::CONTENT_TYPE).unwrap(),
+            "application/octet-stream"
         );
+        assert_eq!(
+            resp.headers().get(header::CONTENT_DISPOSITION).unwrap(),
+            "attachment; filename=\"test.binary\""
+        );
+
+        // nonexistent index file
+        let req = TestRequest::default().uri("/tests/unknown").finish();
+        let resp = st.handle(&req).respond_to(&req).unwrap();
+        let resp = resp.as_msg();
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+
+        let req = TestRequest::default().uri("/tests/unknown/").finish();
+        let resp = st.handle(&req).respond_to(&req).unwrap();
+        let resp = resp.as_msg();
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
     }
 
     #[test]
-    fn test_redirect_to_index_nested() {
+    fn test_serve_index_nested() {
         let st = StaticFiles::new(".").unwrap().index_file("mod.rs");
         let req = TestRequest::default().uri("/src/client").finish();
         let resp = st.handle(&req).respond_to(&req).unwrap();
         let resp = resp.as_msg();
-        assert_eq!(resp.status(), StatusCode::FOUND);
+        assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(
-            resp.headers().get(header::LOCATION).unwrap(),
-            "/src/client/mod.rs"
+            resp.headers().get(header::CONTENT_TYPE).unwrap(),
+            "text/x-rust"
+        );
+        assert_eq!(
+            resp.headers().get(header::CONTENT_DISPOSITION).unwrap(),
+            "inline; filename=\"mod.rs\""
         );
     }
 
     #[test]
-    fn integration_redirect_to_index_with_prefix() {
+    fn integration_serve_index_with_prefix() {
         let mut srv = test::TestServer::with_factory(|| {
             App::new()
                 .prefix("public")
@@ -1527,29 +1544,21 @@ mod tests {
 
         let request = srv.get().uri(srv.url("/public")).finish().unwrap();
         let response = srv.execute(request.send()).unwrap();
-        assert_eq!(response.status(), StatusCode::FOUND);
-        let loc = response
-            .headers()
-            .get(header::LOCATION)
-            .unwrap()
-            .to_str()
-            .unwrap();
-        assert_eq!(loc, "/public/Cargo.toml");
+        assert_eq!(response.status(), StatusCode::OK);
+        let bytes = srv.execute(response.body()).unwrap();
+        let data = Bytes::from(fs::read("Cargo.toml").unwrap());
+        assert_eq!(bytes, data);
 
         let request = srv.get().uri(srv.url("/public/")).finish().unwrap();
         let response = srv.execute(request.send()).unwrap();
-        assert_eq!(response.status(), StatusCode::FOUND);
-        let loc = response
-            .headers()
-            .get(header::LOCATION)
-            .unwrap()
-            .to_str()
-            .unwrap();
-        assert_eq!(loc, "/public/Cargo.toml");
+        assert_eq!(response.status(), StatusCode::OK);
+        let bytes = srv.execute(response.body()).unwrap();
+        let data = Bytes::from(fs::read("Cargo.toml").unwrap());
+        assert_eq!(bytes, data);
     }
 
     #[test]
-    fn integration_redirect_to_index() {
+    fn integration_serve_index() {
         let mut srv = test::TestServer::with_factory(|| {
             App::new().handler(
                 "test",
@@ -1559,25 +1568,26 @@ mod tests {
 
         let request = srv.get().uri(srv.url("/test")).finish().unwrap();
         let response = srv.execute(request.send()).unwrap();
-        assert_eq!(response.status(), StatusCode::FOUND);
-        let loc = response
-            .headers()
-            .get(header::LOCATION)
-            .unwrap()
-            .to_str()
-            .unwrap();
-        assert_eq!(loc, "/test/Cargo.toml");
+        assert_eq!(response.status(), StatusCode::OK);
+        let bytes = srv.execute(response.body()).unwrap();
+        let data = Bytes::from(fs::read("Cargo.toml").unwrap());
+        assert_eq!(bytes, data);
 
         let request = srv.get().uri(srv.url("/test/")).finish().unwrap();
         let response = srv.execute(request.send()).unwrap();
-        assert_eq!(response.status(), StatusCode::FOUND);
-        let loc = response
-            .headers()
-            .get(header::LOCATION)
-            .unwrap()
-            .to_str()
-            .unwrap();
-        assert_eq!(loc, "/test/Cargo.toml");
+        assert_eq!(response.status(), StatusCode::OK);
+        let bytes = srv.execute(response.body()).unwrap();
+        let data = Bytes::from(fs::read("Cargo.toml").unwrap());
+        assert_eq!(bytes, data);
+
+        // nonexistent index file
+        let request = srv.get().uri(srv.url("/test/unknown")).finish().unwrap();
+        let response = srv.execute(request.send()).unwrap();
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+
+        let request = srv.get().uri(srv.url("/test/unknown/")).finish().unwrap();
+        let response = srv.execute(request.send()).unwrap();
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
     }
 
     #[test]
