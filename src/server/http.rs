@@ -451,9 +451,8 @@ impl<H: IntoHttpHandler, F: Fn() -> H + Send + Clone> HttpServer<H, F> {
     /// For each address this method starts separate thread which does
     /// `accept()` in a loop.
     ///
-    /// This methods panics if no socket addresses get bound.
-    ///
-    /// This method requires to run within properly configured `Actix` system.
+    /// This methods panics if no socket address can be bound or an `Actix` system is not yet
+    /// configured.
     ///
     /// ```rust
     /// extern crate actix_web;
