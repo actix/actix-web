@@ -21,10 +21,11 @@ use crate::body::{Body, BodyLength, MessageBody, ResponseBody};
 use crate::config::ServiceConfig;
 use crate::error::{DispatchError, Error, ParseError, PayloadError, ResponseError};
 use crate::message::ResponseHead;
+use crate::payload::Payload;
 use crate::request::Request;
 use crate::response::Response;
 
-use super::{H2ServiceResult, Payload};
+use super::H2ServiceResult;
 
 const CHUNK_SIZE: usize = 16_384;
 
@@ -113,7 +114,7 @@ where
                     }
 
                     let (parts, body) = req.into_parts();
-                    let mut req = Request::with_payload(Payload::new(body));
+                    let mut req = Request::with_payload(body.into());
 
                     let head = &mut req.inner_mut().head;
                     head.uri = parts.uri;

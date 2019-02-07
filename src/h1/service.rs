@@ -11,6 +11,7 @@ use log::error;
 use crate::body::MessageBody;
 use crate::config::{KeepAlive, ServiceConfig};
 use crate::error::{DispatchError, ParseError};
+use crate::payload::Payload;
 use crate::request::Request;
 use crate::response::Response;
 
@@ -27,7 +28,7 @@ pub struct H1Service<T, S, B> {
 
 impl<T, S, B> H1Service<T, S, B>
 where
-    S: NewService<Request = Request, Response = Response<B>> + Clone,
+    S: NewService<Request = Request<Payload>, Response = Response<B>> + Clone,
     S::Service: Clone,
     S::Error: Debug,
     B: MessageBody,

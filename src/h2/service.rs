@@ -14,11 +14,12 @@ use log::error;
 use crate::body::MessageBody;
 use crate::config::{KeepAlive, ServiceConfig};
 use crate::error::{DispatchError, Error, ParseError, ResponseError};
+use crate::payload::Payload;
 use crate::request::Request;
 use crate::response::Response;
 
 use super::dispatcher::Dispatcher;
-use super::{H2ServiceResult, Payload};
+use super::H2ServiceResult;
 
 /// `NewService` implementation for HTTP2 transport
 pub struct H2Service<T, S, B> {
