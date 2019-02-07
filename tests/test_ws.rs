@@ -6,7 +6,7 @@ use actix_service::NewService;
 use actix_utils::framed::IntoFramed;
 use actix_utils::stream::TakeItem;
 use bytes::{Bytes, BytesMut};
-use futures::future::{lazy, ok, Either};
+use futures::future::{ok, Either};
 use futures::{Future, Sink, Stream};
 
 use actix_http::{h1, ws, ResponseError, SendResponse, ServiceConfig};
