@@ -268,10 +268,9 @@ impl ClientRequestBuilder {
     ///
     /// ```rust
     /// # extern crate mime;
-    /// # extern crate actix_web;
-    /// # use actix_web::client::*;
+    /// # extern crate actix_http;
     /// #
-    /// use actix_web::{client, http};
+    /// use actix_http::{client, http};
     ///
     /// fn main() {
     ///     let req = client::ClientRequest::build()
@@ -299,16 +298,14 @@ impl ClientRequestBuilder {
     /// To override header use `set_header()` method.
     ///
     /// ```rust
-    /// # extern crate http;
-    /// # extern crate actix_web;
-    /// # use actix_web::client::*;
+    /// # extern crate actix_http;
     /// #
-    /// use http::header;
+    /// use actix_http::{client, http};
     ///
     /// fn main() {
-    ///     let req = ClientRequest::build()
+    ///     let req = client::ClientRequest::build()
     ///         .header("X-TEST", "value")
-    ///         .header(header::CONTENT_TYPE, "application/json")
+    ///         .header(http::header::CONTENT_TYPE, "application/json")
     ///         .finish()
     ///         .unwrap();
     /// }
@@ -427,8 +424,8 @@ impl ClientRequestBuilder {
     /// Set a cookie
     ///
     /// ```rust
-    /// # extern crate actix_web;
-    /// use actix_web::{client, http};
+    /// # extern crate actix_http;
+    /// use actix_http::{client, http};
     ///
     /// fn main() {
     ///     let req = client::ClientRequest::build()

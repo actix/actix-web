@@ -47,7 +47,7 @@ fn test_h1_v2() {
     assert!(repr.contains("ClientRequest"));
     assert!(repr.contains("x-test"));
 
-    let response = srv.block_on(request.send(&mut connector)).unwrap();
+    let mut response = srv.block_on(request.send(&mut connector)).unwrap();
     assert!(response.status().is_success());
 
     // read response
@@ -55,7 +55,7 @@ fn test_h1_v2() {
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
 
     let request = srv.post().finish().unwrap();
-    let response = srv.block_on(request.send(&mut connector)).unwrap();
+    let mut response = srv.block_on(request.send(&mut connector)).unwrap();
     assert!(response.status().is_success());
 
     // read response

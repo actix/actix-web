@@ -1,4 +1,3 @@
-use std::cell::RefCell;
 use std::time;
 
 use actix_codec::{AsyncRead, AsyncWrite};
@@ -111,7 +110,7 @@ where
 
             Ok(ClientResponse {
                 head,
-                payload: RefCell::new(Some(Box::new(Payload::new(body)))),
+                payload: Some(Box::new(Payload::new(body))),
             })
         })
         .from_err()

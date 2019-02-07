@@ -25,7 +25,7 @@ pub trait HttpMessage: Sized {
     fn headers(&self) -> &HeaderMap;
 
     /// Message payload stream
-    fn payload(self) -> Self::Stream;
+    fn payload(&mut self) -> Option<Self::Stream>;
 
     #[doc(hidden)]
     /// Get a header
@@ -128,7 +128,7 @@ pub trait HttpMessage: Sized {
     /// }
     /// # fn main() {}
     /// ```
-    fn body(self) -> MessageBody<Self> {
+    fn body(&mut self) -> MessageBody<Self> {
         MessageBody::new(self)
     }
 
@@ -162,7 +162,7 @@ pub trait HttpMessage: Sized {
     /// }
     /// # fn main() {}
     /// ```
-    fn urlencoded<T: DeserializeOwned>(self) -> UrlEncoded<Self, T> {
+    fn urlencoded<T: DeserializeOwned>(&mut self) -> UrlEncoded<Self, T> {
         UrlEncoded::new(self)
     }
 
@@ -198,19 +198,19 @@ pub trait HttpMessage: Sized {
     /// }
     /// # fn main() {}
     /// ```
-    fn json<T: DeserializeOwned>(self) -> JsonBody<Self, T> {
+    fn json<T: DeserializeOwned>(&mut self) -> JsonBody<Self, T> {
         JsonBody::new(self)
     }
 
     /// Return stream of lines.
-    fn readlines(self) -> Readlines<Self> {
+    fn readlines(&mut self) -> Readlines<Self> {
         Readlines::new(self)
     }
 }
 
 /// Stream to read request line by line.
 pub struct Readlines<T: HttpMessage> {
-    stream: T::Stream,
+    stream: Option<T::Stream>,
     buff: BytesMut,
     limit: usize,
     checked_buff: bool,
@@ -220,7 +220,7 @@ pub struct Readlines<T: HttpMessage> {
 
 impl<T: HttpMessage> Readlines<T> {
     /// Create a new stream to read request line by line.
-    fn new(req: T) -> Self {
+    fn new(req: &mut T) -> Self {
         let encoding = match req.encoding() {
             Ok(enc) => enc,
             Err(err) => return Self::err(req, err.into()),
@@ -242,7 +242,7 @@ impl<T: HttpMessage> Readlines<T> {
         self
     }
 
-    fn err(req: T, err: ReadlinesError) -> Self {
+    fn err(req: &mut T, err: ReadlinesError) -> Self {
         Readlines {
             stream: req.payload(),
             buff: BytesMut::new(),
@@ -292,61 +292,65 @@ impl<T: HttpMessage + 'static> Stream for Readlines<T> {
             self.checked_buff = true;
         }
         // poll req for more bytes
-        match self.stream.poll() {
-            Ok(Async::Ready(Some(mut bytes))) => {
-                // check if there is a newline in bytes
-                let mut found: Option<usize> = None;
-                for (ind, b) in bytes.iter().enumerate() {
-                    if *b == b'\n' {
-                        found = Some(ind);
-                        break;
+        if let Some(ref mut stream) = self.stream {
+            match stream.poll() {
+                Ok(Async::Ready(Some(mut bytes))) => {
+                    // check if there is a newline in bytes
+                    let mut found: Option<usize> = None;
+                    for (ind, b) in bytes.iter().enumerate() {
+                        if *b == b'\n' {
+                            found = Some(ind);
+                            break;
+                        }
                     }
+                    if let Some(ind) = found {
+                        // check if line is longer than limit
+                        if ind + 1 > self.limit {
+                            return Err(ReadlinesError::LimitOverflow);
+                        }
+                        let enc: *const Encoding = self.encoding as *const Encoding;
+                        let line = if enc == UTF_8 {
+                            str::from_utf8(&bytes.split_to(ind + 1))
+                                .map_err(|_| ReadlinesError::EncodingError)?
+                                .to_owned()
+                        } else {
+                            self.encoding
+                                .decode(&bytes.split_to(ind + 1), DecoderTrap::Strict)
+                                .map_err(|_| ReadlinesError::EncodingError)?
+                        };
+                        // extend buffer with rest of the bytes;
+                        self.buff.extend_from_slice(&bytes);
+                        self.checked_buff = false;
+                        return Ok(Async::Ready(Some(line)));
+                    }
+                    self.buff.extend_from_slice(&bytes);
+                    Ok(Async::NotReady)
                 }
-                if let Some(ind) = found {
-                    // check if line is longer than limit
-                    if ind + 1 > self.limit {
+                Ok(Async::NotReady) => Ok(Async::NotReady),
+                Ok(Async::Ready(None)) => {
+                    if self.buff.is_empty() {
+                        return Ok(Async::Ready(None));
+                    }
+                    if self.buff.len() > self.limit {
                         return Err(ReadlinesError::LimitOverflow);
                     }
                     let enc: *const Encoding = self.encoding as *const Encoding;
                     let line = if enc == UTF_8 {
-                        str::from_utf8(&bytes.split_to(ind + 1))
+                        str::from_utf8(&self.buff)
                             .map_err(|_| ReadlinesError::EncodingError)?
                             .to_owned()
                     } else {
                         self.encoding
-                            .decode(&bytes.split_to(ind + 1), DecoderTrap::Strict)
+                            .decode(&self.buff, DecoderTrap::Strict)
                             .map_err(|_| ReadlinesError::EncodingError)?
                     };
-                    // extend buffer with rest of the bytes;
-                    self.buff.extend_from_slice(&bytes);
-                    self.checked_buff = false;
-                    return Ok(Async::Ready(Some(line)));
+                    self.buff.clear();
+                    Ok(Async::Ready(Some(line)))
                 }
-                self.buff.extend_from_slice(&bytes);
-                Ok(Async::NotReady)
+                Err(e) => Err(ReadlinesError::from(e)),
             }
-            Ok(Async::NotReady) => Ok(Async::NotReady),
-            Ok(Async::Ready(None)) => {
-                if self.buff.is_empty() {
-                    return Ok(Async::Ready(None));
-                }
-                if self.buff.len() > self.limit {
-                    return Err(ReadlinesError::LimitOverflow);
-                }
-                let enc: *const Encoding = self.encoding as *const Encoding;
-                let line = if enc == UTF_8 {
-                    str::from_utf8(&self.buff)
-                        .map_err(|_| ReadlinesError::EncodingError)?
-                        .to_owned()
-                } else {
-                    self.encoding
-                        .decode(&self.buff, DecoderTrap::Strict)
-                        .map_err(|_| ReadlinesError::EncodingError)?
-                };
-                self.buff.clear();
-                Ok(Async::Ready(Some(line)))
-            }
-            Err(e) => Err(ReadlinesError::from(e)),
+        } else {
+            Ok(Async::Ready(None))
         }
     }
 }
@@ -362,7 +366,7 @@ pub struct MessageBody<T: HttpMessage> {
 
 impl<T: HttpMessage> MessageBody<T> {
     /// Create `MessageBody` for request.
-    pub fn new(req: T) -> MessageBody<T> {
+    pub fn new(req: &mut T) -> MessageBody<T> {
         let mut len = None;
         if let Some(l) = req.headers().get(header::CONTENT_LENGTH) {
             if let Ok(s) = l.to_str() {
@@ -379,7 +383,7 @@ impl<T: HttpMessage> MessageBody<T> {
         MessageBody {
             limit: 262_144,
             length: len,
-            stream: Some(req.payload()),
+            stream: req.payload(),
             fut: None,
             err: None,
         }
@@ -424,6 +428,10 @@ where
             }
         }
 
+        if self.stream.is_none() {
+            return Ok(Async::Ready(Bytes::new()));
+        }
+
         // future
         let limit = self.limit;
         self.fut = Some(Box::new(
@@ -457,7 +465,7 @@ pub struct UrlEncoded<T: HttpMessage, U> {
 
 impl<T: HttpMessage, U> UrlEncoded<T, U> {
     /// Create a new future to URL encode a request
-    pub fn new(req: T) -> UrlEncoded<T, U> {
+    pub fn new(req: &mut T) -> UrlEncoded<T, U> {
         // check content type
         if req.content_type().to_lowercase() != "application/x-www-form-urlencoded" {
             return Self::err(UrlencodedError::ContentType);
@@ -482,7 +490,7 @@ impl<T: HttpMessage, U> UrlEncoded<T, U> {
 
         UrlEncoded {
             encoding,
-            stream: Some(req.payload()),
+            stream: req.payload(),
             limit: 262_144,
             length: len,
             fut: None,
@@ -694,7 +702,7 @@ mod tests {
 
     #[test]
     fn test_urlencoded_error() {
-        let req = TestRequest::with_header(
+        let mut req = TestRequest::with_header(
             header::CONTENT_TYPE,
             "application/x-www-form-urlencoded",
         )
@@ -705,7 +713,7 @@ mod tests {
             UrlencodedError::UnknownLength
         );
 
-        let req = TestRequest::with_header(
+        let mut req = TestRequest::with_header(
             header::CONTENT_TYPE,
             "application/x-www-form-urlencoded",
         )
@@ -716,7 +724,7 @@ mod tests {
             UrlencodedError::Overflow
         );
 
-        let req = TestRequest::with_header(header::CONTENT_TYPE, "text/plain")
+        let mut req = TestRequest::with_header(header::CONTENT_TYPE, "text/plain")
             .header(header::CONTENT_LENGTH, "10")
             .finish();
         assert_eq!(
@@ -727,7 +735,7 @@ mod tests {
 
     #[test]
     fn test_urlencoded() {
-        let req = TestRequest::with_header(
+        let mut req = TestRequest::with_header(
             header::CONTENT_TYPE,
             "application/x-www-form-urlencoded",
         )
@@ -743,7 +751,7 @@ mod tests {
             })
         );
 
-        let req = TestRequest::with_header(
+        let mut req = TestRequest::with_header(
             header::CONTENT_TYPE,
             "application/x-www-form-urlencoded; charset=utf-8",
         )
@@ -762,19 +770,20 @@ mod tests {
 
     #[test]
     fn test_message_body() {
-        let req = TestRequest::with_header(header::CONTENT_LENGTH, "xxxx").finish();
+        let mut req = TestRequest::with_header(header::CONTENT_LENGTH, "xxxx").finish();
         match req.body().poll().err().unwrap() {
             PayloadError::UnknownLength => (),
             _ => unreachable!("error"),
         }
 
-        let req = TestRequest::with_header(header::CONTENT_LENGTH, "1000000").finish();
+        let mut req =
+            TestRequest::with_header(header::CONTENT_LENGTH, "1000000").finish();
         match req.body().poll().err().unwrap() {
             PayloadError::Overflow => (),
             _ => unreachable!("error"),
         }
 
-        let req = TestRequest::default()
+        let mut req = TestRequest::default()
             .set_payload(Bytes::from_static(b"test"))
             .finish();
         match req.body().poll().ok().unwrap() {
@@ -782,7 +791,7 @@ mod tests {
             _ => unreachable!("error"),
         }
 
-        let req = TestRequest::default()
+        let mut req = TestRequest::default()
             .set_payload(Bytes::from_static(b"11111111111111"))
             .finish();
         match req.body().limit(5).poll().err().unwrap() {
@@ -793,14 +802,14 @@ mod tests {
 
     #[test]
     fn test_readlines() {
-        let req = TestRequest::default()
+        let mut req = TestRequest::default()
             .set_payload(Bytes::from_static(
                 b"Lorem Ipsum is simply dummy text of the printing and typesetting\n\
                   industry. Lorem Ipsum has been the industry's standard dummy\n\
                   Contrary to popular belief, Lorem Ipsum is not simply random text.",
             ))
             .finish();
-        let mut r = Readlines::new(req);
+        let mut r = Readlines::new(&mut req);
         match r.poll().ok().unwrap() {
             Async::Ready(Some(s)) => assert_eq!(
                 s,

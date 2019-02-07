@@ -14,11 +14,11 @@ use crate::body::{Body, BodyLength, MessageBody, ResponseBody};
 use crate::config::ServiceConfig;
 use crate::error::DispatchError;
 use crate::error::{ParseError, PayloadError};
-use crate::payload::{Payload, PayloadSender, PayloadStatus, PayloadWriter};
 use crate::request::Request;
 use crate::response::Response;
 
 use super::codec::Codec;
+use super::payload::{Payload, PayloadSender, PayloadStatus, PayloadWriter};
 use super::{H1ServiceResult, Message, MessageType};
 
 const MAX_PIPELINED_MESSAGES: usize = 16;

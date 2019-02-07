@@ -54,6 +54,7 @@ impl Response {
     STATIC_RESP!(Gone, StatusCode::GONE);
     STATIC_RESP!(LengthRequired, StatusCode::LENGTH_REQUIRED);
     STATIC_RESP!(PreconditionFailed, StatusCode::PRECONDITION_FAILED);
+    STATIC_RESP!(PreconditionRequired, StatusCode::PRECONDITION_REQUIRED);
     STATIC_RESP!(PayloadTooLarge, StatusCode::PAYLOAD_TOO_LARGE);
     STATIC_RESP!(UriTooLong, StatusCode::URI_TOO_LONG);
     STATIC_RESP!(UnsupportedMediaType, StatusCode::UNSUPPORTED_MEDIA_TYPE);

@@ -6,8 +6,8 @@ use cookie::Cookie;
 use http::header::HeaderName;
 use http::{HeaderMap, HttpTryFrom, Method, Uri, Version};
 
+use crate::h1::Payload;
 use crate::header::{Header, IntoHeaderValue};
-use crate::payload::Payload;
 use crate::Request;
 
 /// Test `Request` builder

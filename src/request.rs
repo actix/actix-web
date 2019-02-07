@@ -10,7 +10,8 @@ use crate::error::PayloadError;
 use crate::extensions::Extensions;
 use crate::httpmessage::HttpMessage;
 use crate::message::{Message, MessagePool, RequestHead};
-use crate::payload::Payload;
+
+use crate::h1::Payload;
 
 /// Request
 pub struct Request<P = Payload> {
@@ -29,8 +30,8 @@ where
     }
 
     #[inline]
-    fn payload(mut self) -> P {
-        self.payload.take().unwrap()
+    fn payload(&mut self) -> Option<P> {
+        self.payload.take()
     }
 }
 
@@ -62,9 +63,9 @@ impl<Payload> Request<Payload> {
     }
 
     /// Take request's payload
-    pub fn take_payload(mut self) -> (Payload, Request<()>) {
+    pub fn take_payload(mut self) -> (Option<Payload>, Request<()>) {
         (
-            self.payload.take().unwrap(),
+            self.payload.take(),
             Request {
                 payload: Some(()),
                 inner: self.inner.clone(),

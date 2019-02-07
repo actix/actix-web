@@ -50,7 +50,7 @@ pub struct JsonBody<T: HttpMessage, U: DeserializeOwned> {
 
 impl<T: HttpMessage, U: DeserializeOwned> JsonBody<T, U> {
     /// Create `JsonBody` for request.
-    pub fn new(req: T) -> Self {
+    pub fn new(req: &mut T) -> Self {
         // check content-type
         let json = if let Ok(Some(mime)) = req.mime_type() {
             mime.subtype() == mime::JSON || mime.suffix() == Some(mime::JSON)
@@ -79,7 +79,7 @@ impl<T: HttpMessage, U: DeserializeOwned> JsonBody<T, U> {
         JsonBody {
             limit: 262_144,
             length: len,
-            stream: Some(req.payload()),
+            stream: req.payload(),
             fut: None,
             err: None,
         }
@@ -164,11 +164,11 @@ mod tests {
 
     #[test]
     fn test_json_body() {
-        let req = TestRequest::default().finish();
+        let mut req = TestRequest::default().finish();
         let mut json = req.json::<MyObject>();
         assert_eq!(json.poll().err().unwrap(), JsonPayloadError::ContentType);
 
-        let req = TestRequest::default()
+        let mut req = TestRequest::default()
             .header(
                 header::CONTENT_TYPE,
                 header::HeaderValue::from_static("application/text"),
@@ -177,7 +177,7 @@ mod tests {
         let mut json = req.json::<MyObject>();
         assert_eq!(json.poll().err().unwrap(), JsonPayloadError::ContentType);
 
-        let req = TestRequest::default()
+        let mut req = TestRequest::default()
             .header(
                 header::CONTENT_TYPE,
                 header::HeaderValue::from_static("application/json"),
@@ -190,7 +190,7 @@ mod tests {
         let mut json = req.json::<MyObject>().limit(100);
         assert_eq!(json.poll().err().unwrap(), JsonPayloadError::Overflow);
 
-        let req = TestRequest::default()
+        let mut req = TestRequest::default()
             .header(
                 header::CONTENT_TYPE,
                 header::HeaderValue::from_static("application/json"),

@@ -50,14 +50,14 @@ where
                 .into_future()
                 .map_err(|(e, _)| SendRequestError::from(e))
                 .and_then(|(item, framed)| {
-                    if let Some(res) = item {
+                    if let Some(mut res) = item {
                         match framed.get_codec().message_type() {
                             h1::MessageType::None => {
                                 let force_close = !framed.get_codec().keepalive();
                                 release_connection(framed, force_close)
                             }
                             _ => {
-                                *res.payload.borrow_mut() = Some(Payload::stream(framed))
+                                res.set_payload(Payload::stream(framed));
                             }
                         }
                         ok(res)
@@ -199,25 +199,8 @@ where
     }
 }
 
-struct EmptyPayload;
-
-impl Stream for EmptyPayload {
-    type Item = Bytes;
-    type Error = PayloadError;
-
-    fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
-        Ok(Async::Ready(None))
-    }
-}
-
 pub(crate) struct Payload<Io> {
     framed: Option<Framed<Io, h1::ClientPayloadCodec>>,
-}
-
-impl Payload<()> {
-    pub fn empty() -> PayloadStream {
-        Box::new(EmptyPayload)
-    }
 }
 
 impl<Io: ConnectionLifetime> Payload<Io> {

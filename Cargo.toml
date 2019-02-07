@@ -75,7 +75,6 @@ openssl = { version="0.10", optional = true }
 
 [dev-dependencies]
 actix-rt = "0.1.0"
-actix-web = "0.7"
 actix-server = { version="0.2", features=["ssl"] }
 actix-connector =  { version="0.2.0", features=["ssl"] }
 actix-utils = "0.2.1"

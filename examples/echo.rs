@@ -18,8 +18,8 @@ fn main() {
                 .client_timeout(1000)
                 .client_disconnect(1000)
                 .server_hostname("localhost")
-                .finish(|_req: Request| {
-                    _req.body().limit(512).and_then(|bytes: Bytes| {
+                .finish(|mut req: Request| {
+                    req.body().limit(512).and_then(|bytes: Bytes| {
                         info!("request body: {:?}", bytes);
                         let mut res = Response::Ok();
                         res.header("x-head", HeaderValue::from_static("dummy value!"));

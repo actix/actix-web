@@ -8,8 +8,8 @@ use futures::Future;
 use log::info;
 use std::env;
 
-fn handle_request(_req: Request) -> impl Future<Item = Response, Error = Error> {
-    _req.body().limit(512).from_err().and_then(|bytes: Bytes| {
+fn handle_request(mut req: Request) -> impl Future<Item = Response, Error = Error> {
+    req.body().limit(512).from_err().and_then(|bytes: Bytes| {
         info!("request body: {:?}", bytes);
         let mut res = Response::Ok();
         res.header("x-head", HeaderValue::from_static("dummy value!"));
