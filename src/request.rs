@@ -10,8 +10,7 @@ use crate::error::PayloadError;
 use crate::extensions::Extensions;
 use crate::httpmessage::HttpMessage;
 use crate::message::{Message, MessagePool, RequestHead};
-
-use crate::h1::Payload;
+use crate::payload::Payload;
 
 /// Request
 pub struct Request<P = Payload> {
@@ -39,7 +38,7 @@ impl Request<Payload> {
     /// Create new Request instance
     pub fn new() -> Request<Payload> {
         Request {
-            payload: Some(Payload::empty()),
+            payload: None,
             inner: MessagePool::get_message(),
         }
     }
@@ -55,9 +54,12 @@ impl<Payload> Request<Payload> {
     }
 
     /// Create new Request instance
-    pub fn set_payload<P>(self, payload: P) -> Request<P> {
+    pub fn set_payload<I, P>(self, payload: I) -> Request<P>
+    where
+        I: Into<P>,
+    {
         Request {
-            payload: Some(payload),
+            payload: Some(payload.into()),
             inner: self.inner.clone(),
         }
     }

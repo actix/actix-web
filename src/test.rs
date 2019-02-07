@@ -6,8 +6,8 @@ use cookie::Cookie;
 use http::header::HeaderName;
 use http::{HeaderMap, HttpTryFrom, Method, Uri, Version};
 
-use crate::h1::Payload;
 use crate::header::{Header, IntoHeaderValue};
+use crate::payload::Payload;
 use crate::Request;
 
 /// Test `Request` builder
@@ -125,9 +125,9 @@ impl TestRequest {
 
     /// Set request payload
     pub fn set_payload<B: Into<Bytes>>(mut self, data: B) -> Self {
-        let mut payload = Payload::empty();
+        let mut payload = crate::h1::Payload::empty();
         payload.unread_data(data.into());
-        self.payload = Some(payload);
+        self.payload = Some(payload.into());
         self
     }
 
@@ -151,7 +151,7 @@ impl TestRequest {
         let mut req = if let Some(pl) = payload {
             Request::with_payload(pl)
         } else {
-            Request::with_payload(Payload::empty())
+            Request::with_payload(crate::h1::Payload::empty().into())
         };
 
         let inner = req.inner_mut();
