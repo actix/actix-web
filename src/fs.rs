@@ -968,7 +968,25 @@ mod tests {
     }
 
     #[test]
-    fn test_if_modified_since_ignored() {
+    fn test_if_modified_since_without_if_none_match() {
+        let mut file = NamedFile::open("Cargo.toml")
+            .unwrap()
+            .set_cpu_pool(CpuPool::new(1));
+        let since = header::HttpDate::from(
+            SystemTime::now().add(Duration::from_secs(60)));
+
+        let req = TestRequest::default()
+            .header(header::IF_MODIFIED_SINCE, since)
+            .finish();
+        let resp = file.respond_to(&req).unwrap();
+        assert_eq!(
+            resp.status(),
+            StatusCode::NOT_MODIFIED
+        );
+    }
+
+    #[test]
+    fn test_if_modified_since_with_if_none_match() {
         let mut file = NamedFile::open("Cargo.toml")
             .unwrap()
             .set_cpu_pool(CpuPool::new(1));
