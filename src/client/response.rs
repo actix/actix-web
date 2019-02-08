@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::fmt;
 
 use bytes::Bytes;
@@ -13,7 +14,7 @@ use crate::message::{Head, ResponseHead};
 #[derive(Default)]
 pub struct ClientResponse {
     pub(crate) head: ResponseHead,
-    pub(crate) payload: Option<PayloadStream>,
+    pub(crate) payload: RefCell<Option<PayloadStream>>,
 }
 
 impl HttpMessage for ClientResponse {
@@ -24,8 +25,8 @@ impl HttpMessage for ClientResponse {
     }
 
     #[inline]
-    fn payload(&mut self) -> Option<Self::Stream> {
-        self.payload.take()
+    fn payload(&self) -> Option<Self::Stream> {
+        self.payload.borrow_mut().take()
     }
 }
 
@@ -34,7 +35,7 @@ impl ClientResponse {
     pub fn new() -> ClientResponse {
         ClientResponse {
             head: ResponseHead::default(),
-            payload: None,
+            payload: RefCell::new(None),
         }
     }
 
@@ -80,7 +81,7 @@ impl ClientResponse {
 
     /// Set response payload
     pub fn set_payload(&mut self, payload: PayloadStream) {
-        self.payload = Some(payload);
+        *self.payload.get_mut() = Some(payload);
     }
 }
 
@@ -89,7 +90,7 @@ impl Stream for ClientResponse {
     type Error = PayloadError;
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
-        if let Some(ref mut payload) = self.payload {
+        if let Some(ref mut payload) = self.payload.get_mut() {
             payload.poll()
         } else {
             Ok(Async::Ready(None))

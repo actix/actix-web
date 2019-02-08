@@ -25,7 +25,7 @@ pub trait HttpMessage: Sized {
     fn headers(&self) -> &HeaderMap;
 
     /// Message payload stream
-    fn payload(&mut self) -> Option<Self::Stream>;
+    fn payload(&self) -> Option<Self::Stream>;
 
     #[doc(hidden)]
     /// Get a header

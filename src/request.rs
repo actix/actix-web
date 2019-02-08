@@ -1,4 +1,4 @@
-use std::cell::{Ref, RefMut};
+use std::cell::{Ref, RefCell, RefMut};
 use std::fmt;
 use std::rc::Rc;
 
@@ -14,7 +14,7 @@ use crate::payload::Payload;
 
 /// Request
 pub struct Request<P = Payload> {
-    pub(crate) payload: Option<P>,
+    pub(crate) payload: RefCell<Option<P>>,
     pub(crate) inner: Rc<Message<RequestHead>>,
 }
 
@@ -29,8 +29,8 @@ where
     }
 
     #[inline]
-    fn payload(&mut self) -> Option<P> {
-        self.payload.take()
+    fn payload(&self) -> Option<P> {
+        self.payload.borrow_mut().take()
     }
 }
 
@@ -38,7 +38,7 @@ impl Request<Payload> {
     /// Create new Request instance
     pub fn new() -> Request<Payload> {
         Request {
-            payload: None,
+            payload: RefCell::new(None),
             inner: MessagePool::get_message(),
         }
     }
@@ -48,7 +48,7 @@ impl<Payload> Request<Payload> {
     /// Create new Request instance
     pub fn with_payload(payload: Payload) -> Request<Payload> {
         Request {
-            payload: Some(payload),
+            payload: RefCell::new(Some(payload.into())),
             inner: MessagePool::get_message(),
         }
     }
@@ -59,7 +59,7 @@ impl<Payload> Request<Payload> {
         I: Into<P>,
     {
         Request {
-            payload: Some(payload.into()),
+            payload: RefCell::new(Some(payload.into())),
             inner: self.inner.clone(),
         }
     }
@@ -67,9 +67,9 @@ impl<Payload> Request<Payload> {
     /// Take request's payload
     pub fn take_payload(mut self) -> (Option<Payload>, Request<()>) {
         (
-            self.payload.take(),
+            self.payload.get_mut().take(),
             Request {
-                payload: Some(()),
+                payload: RefCell::new(None),
                 inner: self.inner.clone(),
             },
         )

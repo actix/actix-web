@@ -75,7 +75,7 @@ mod extensions;
 mod header;
 mod helpers;
 mod httpcodes;
-mod httpmessage;
+pub mod httpmessage;
 mod json;
 mod message;
 mod request;
