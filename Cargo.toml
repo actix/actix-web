@@ -11,7 +11,7 @@ documentation = "https://actix.rs/api/actix-http/stable/actix_http/"
 categories = ["network-programming", "asynchronous",
               "web-programming::http-server",
               "web-programming::websocket"]
-license = "MIT/Apache-2.0"
+license = "Apache-2.0"
 exclude = [".gitignore", ".travis.yml", ".cargo/config", "appveyor.yml"]
 edition = "2018"
 

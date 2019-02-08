@@ -169,6 +169,15 @@ impl<T: Head> Message<T> {
     }
 }
 
+impl<T: Head> Clone for Message<T> {
+    fn clone(&self) -> Self {
+        Message {
+            inner: self.inner.clone(),
+            pool: self.pool,
+        }
+    }
+}
+
 impl<T: Head> std::ops::Deref for Message<T> {
     type Target = T;
 

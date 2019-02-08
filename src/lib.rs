@@ -94,6 +94,7 @@ pub use self::config::{KeepAlive, ServiceConfig, ServiceConfigBuilder};
 pub use self::error::{Error, ResponseError, Result};
 pub use self::extensions::Extensions;
 pub use self::httpmessage::HttpMessage;
+pub use self::message::{Message, RequestHead, ResponseHead};
 pub use self::request::Request;
 pub use self::response::Response;
 pub use self::service::{SendError, SendResponse};
