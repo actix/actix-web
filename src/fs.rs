@@ -441,6 +441,8 @@ impl<C: StaticFileConfig> Responder for NamedFile<C> {
         // check last modified
         let not_modified = if !none_match(etag.as_ref(), req) {
             true
+        } else if req.headers().contains_key(header::IF_NONE_MATCH) {
+            false
         } else if let (Some(ref m), Some(header::IfModifiedSince(ref since))) =
             (last_modified, req.get_header())
         {
@@ -944,6 +946,8 @@ impl HttpRange {
 #[cfg(test)]
 mod tests {
     use std::fs;
+    use std::time::Duration;
+    use std::ops::Add;
 
     use super::*;
     use application::App;
@@ -961,6 +965,43 @@ mod tests {
 
         let m = file_extension_to_mime("");
         assert_eq!(m, mime::APPLICATION_OCTET_STREAM);
+    }
+
+    #[test]
+    fn test_if_modified_since_without_if_none_match() {
+        let mut file = NamedFile::open("Cargo.toml")
+            .unwrap()
+            .set_cpu_pool(CpuPool::new(1));
+        let since = header::HttpDate::from(
+            SystemTime::now().add(Duration::from_secs(60)));
+
+        let req = TestRequest::default()
+            .header(header::IF_MODIFIED_SINCE, since)
+            .finish();
+        let resp = file.respond_to(&req).unwrap();
+        assert_eq!(
+            resp.status(),
+            StatusCode::NOT_MODIFIED
+        );
+    }
+
+    #[test]
+    fn test_if_modified_since_with_if_none_match() {
+        let mut file = NamedFile::open("Cargo.toml")
+            .unwrap()
+            .set_cpu_pool(CpuPool::new(1));
+        let since = header::HttpDate::from(
+            SystemTime::now().add(Duration::from_secs(60)));
+
+        let req = TestRequest::default()
+            .header(header::IF_NONE_MATCH, "miss_etag")
+            .header(header::IF_MODIFIED_SINCE, since)
+            .finish();
+        let resp = file.respond_to(&req).unwrap();
+        assert_ne!(
+            resp.status(),
+            StatusCode::NOT_MODIFIED
+        );
     }
 
     #[test]
