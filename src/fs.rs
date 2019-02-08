@@ -969,17 +969,9 @@ mod tests {
 
     #[test]
     fn test_if_modified_since_ignored() {
-        assert!(NamedFile::open("test--").is_err());
         let mut file = NamedFile::open("Cargo.toml")
             .unwrap()
             .set_cpu_pool(CpuPool::new(1));
-        {
-            file.file();
-            let _f: &File = &file;
-        }
-        {
-            let _f: &mut File = &mut file;
-        }
         let since = header::HttpDate::from(
             SystemTime::now().add(Duration::from_secs(60)));
 
