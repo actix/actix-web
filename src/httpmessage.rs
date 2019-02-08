@@ -128,7 +128,7 @@ pub trait HttpMessage: Sized {
     /// }
     /// # fn main() {}
     /// ```
-    fn body(&mut self) -> MessageBody<Self> {
+    fn body(&self) -> MessageBody<Self> {
         MessageBody::new(self)
     }
 
@@ -162,7 +162,7 @@ pub trait HttpMessage: Sized {
     /// }
     /// # fn main() {}
     /// ```
-    fn urlencoded<T: DeserializeOwned>(&mut self) -> UrlEncoded<Self, T> {
+    fn urlencoded<T: DeserializeOwned>(&self) -> UrlEncoded<Self, T> {
         UrlEncoded::new(self)
     }
 
@@ -198,12 +198,12 @@ pub trait HttpMessage: Sized {
     /// }
     /// # fn main() {}
     /// ```
-    fn json<T: DeserializeOwned>(&mut self) -> JsonBody<Self, T> {
+    fn json<T: DeserializeOwned>(&self) -> JsonBody<Self, T> {
         JsonBody::new(self)
     }
 
     /// Return stream of lines.
-    fn readlines(&mut self) -> Readlines<Self> {
+    fn readlines(&self) -> Readlines<Self> {
         Readlines::new(self)
     }
 }
@@ -220,10 +220,10 @@ pub struct Readlines<T: HttpMessage> {
 
 impl<T: HttpMessage> Readlines<T> {
     /// Create a new stream to read request line by line.
-    fn new(req: &mut T) -> Self {
+    fn new(req: &T) -> Self {
         let encoding = match req.encoding() {
             Ok(enc) => enc,
-            Err(err) => return Self::err(req, err.into()),
+            Err(err) => return Self::err(err.into()),
         };
 
         Readlines {
@@ -242,9 +242,9 @@ impl<T: HttpMessage> Readlines<T> {
         self
     }
 
-    fn err(req: &mut T, err: ReadlinesError) -> Self {
+    fn err(err: ReadlinesError) -> Self {
         Readlines {
-            stream: req.payload(),
+            stream: None,
             buff: BytesMut::new(),
             limit: 262_144,
             checked_buff: true,
@@ -366,7 +366,7 @@ pub struct MessageBody<T: HttpMessage> {
 
 impl<T: HttpMessage> MessageBody<T> {
     /// Create `MessageBody` for request.
-    pub fn new(req: &mut T) -> MessageBody<T> {
+    pub fn new(req: &T) -> MessageBody<T> {
         let mut len = None;
         if let Some(l) = req.headers().get(header::CONTENT_LENGTH) {
             if let Ok(s) = l.to_str() {
@@ -465,7 +465,7 @@ pub struct UrlEncoded<T: HttpMessage, U> {
 
 impl<T: HttpMessage, U> UrlEncoded<T, U> {
     /// Create a new future to URL encode a request
-    pub fn new(req: &mut T) -> UrlEncoded<T, U> {
+    pub fn new(req: &T) -> UrlEncoded<T, U> {
         // check content type
         if req.content_type().to_lowercase() != "application/x-www-form-urlencoded" {
             return Self::err(UrlencodedError::ContentType);
@@ -702,7 +702,7 @@ mod tests {
 
     #[test]
     fn test_urlencoded_error() {
-        let mut req = TestRequest::with_header(
+        let req = TestRequest::with_header(
             header::CONTENT_TYPE,
             "application/x-www-form-urlencoded",
         )
@@ -713,7 +713,7 @@ mod tests {
             UrlencodedError::UnknownLength
         );
 
-        let mut req = TestRequest::with_header(
+        let req = TestRequest::with_header(
             header::CONTENT_TYPE,
             "application/x-www-form-urlencoded",
         )
@@ -724,7 +724,7 @@ mod tests {
             UrlencodedError::Overflow
         );
 
-        let mut req = TestRequest::with_header(header::CONTENT_TYPE, "text/plain")
+        let req = TestRequest::with_header(header::CONTENT_TYPE, "text/plain")
             .header(header::CONTENT_LENGTH, "10")
             .finish();
         assert_eq!(
@@ -735,7 +735,7 @@ mod tests {
 
     #[test]
     fn test_urlencoded() {
-        let mut req = TestRequest::with_header(
+        let req = TestRequest::with_header(
             header::CONTENT_TYPE,
             "application/x-www-form-urlencoded",
         )
@@ -751,7 +751,7 @@ mod tests {
             })
         );
 
-        let mut req = TestRequest::with_header(
+        let req = TestRequest::with_header(
             header::CONTENT_TYPE,
             "application/x-www-form-urlencoded; charset=utf-8",
         )
@@ -770,20 +770,19 @@ mod tests {
 
     #[test]
     fn test_message_body() {
-        let mut req = TestRequest::with_header(header::CONTENT_LENGTH, "xxxx").finish();
+        let req = TestRequest::with_header(header::CONTENT_LENGTH, "xxxx").finish();
         match req.body().poll().err().unwrap() {
             PayloadError::UnknownLength => (),
             _ => unreachable!("error"),
         }
 
-        let mut req =
-            TestRequest::with_header(header::CONTENT_LENGTH, "1000000").finish();
+        let req = TestRequest::with_header(header::CONTENT_LENGTH, "1000000").finish();
         match req.body().poll().err().unwrap() {
             PayloadError::Overflow => (),
             _ => unreachable!("error"),
         }
 
-        let mut req = TestRequest::default()
+        let req = TestRequest::default()
             .set_payload(Bytes::from_static(b"test"))
             .finish();
         match req.body().poll().ok().unwrap() {
@@ -791,7 +790,7 @@ mod tests {
             _ => unreachable!("error"),
         }
 
-        let mut req = TestRequest::default()
+        let req = TestRequest::default()
             .set_payload(Bytes::from_static(b"11111111111111"))
             .finish();
         match req.body().limit(5).poll().err().unwrap() {
@@ -802,14 +801,14 @@ mod tests {
 
     #[test]
     fn test_readlines() {
-        let mut req = TestRequest::default()
+        let req = TestRequest::default()
             .set_payload(Bytes::from_static(
                 b"Lorem Ipsum is simply dummy text of the printing and typesetting\n\
                   industry. Lorem Ipsum has been the industry's standard dummy\n\
                   Contrary to popular belief, Lorem Ipsum is not simply random text.",
             ))
             .finish();
-        let mut r = Readlines::new(&mut req);
+        let mut r = Readlines::new(&req);
         match r.poll().ok().unwrap() {
             Async::Ready(Some(s)) => assert_eq!(
                 s,
