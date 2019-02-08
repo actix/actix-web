@@ -115,10 +115,10 @@ impl Decoder for Codec {
                 None => None,
             })
         } else if let Some((req, payload)) = self.decoder.decode(src)? {
-            self.flags
-                .set(Flags::HEAD, req.inner.head.method == Method::HEAD);
-            self.version = req.inner().head.version;
-            self.ctype = req.inner().head.connection_type();
+            let head = req.head();
+            self.flags.set(Flags::HEAD, head.method == Method::HEAD);
+            self.version = head.version;
+            self.ctype = head.connection_type();
             if self.ctype == ConnectionType::KeepAlive
                 && !self.flags.contains(Flags::KEEPALIVE_ENABLED)
             {

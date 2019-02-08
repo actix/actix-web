@@ -1,7 +1,4 @@
-#![allow(dead_code)]
 //! Http response
-use std::cell::RefCell;
-use std::collections::VecDeque;
 use std::io::Write;
 use std::{fmt, str};
 
@@ -9,26 +6,27 @@ use bytes::{BufMut, Bytes, BytesMut};
 use cookie::{Cookie, CookieJar};
 use futures::Stream;
 use http::header::{self, HeaderName, HeaderValue};
-use http::{Error as HttpError, HeaderMap, HttpTryFrom, StatusCode, Version};
+use http::{Error as HttpError, HeaderMap, HttpTryFrom, StatusCode};
 use serde::Serialize;
 use serde_json;
 
 use crate::body::{Body, BodyStream, MessageBody, ResponseBody};
 use crate::error::Error;
 use crate::header::{Header, IntoHeaderValue};
-use crate::message::{ConnectionType, Head, ResponseHead};
-
-/// max write buffer size 64k
-pub(crate) const MAX_WRITE_BUFFER_SIZE: usize = 65_536;
+use crate::message::{ConnectionType, Head, Message, ResponseHead};
 
 /// An HTTP Response
-pub struct Response<B: MessageBody = Body>(Box<InnerResponse>, ResponseBody<B>);
+pub struct Response<B: MessageBody = Body> {
+    head: Message<ResponseHead>,
+    body: ResponseBody<B>,
+    error: Option<Error>,
+}
 
 impl Response<Body> {
     /// Create http response builder with specific status.
     #[inline]
     pub fn build(status: StatusCode) -> ResponseBuilder {
-        ResponsePool::get(status)
+        ResponseBuilder::new(status)
     }
 
     /// Create http response builder
@@ -40,14 +38,21 @@ impl Response<Body> {
     /// Constructs a response
     #[inline]
     pub fn new(status: StatusCode) -> Response {
-        ResponsePool::with_body(status, Body::Empty)
+        let mut head: Message<ResponseHead> = Message::new();
+        head.status = status;
+
+        Response {
+            head,
+            body: ResponseBody::Body(Body::Empty),
+            error: None,
+        }
     }
 
     /// Constructs an error response
     #[inline]
     pub fn from_error(error: Error) -> Response {
         let mut resp = error.as_response_error().error_response();
-        resp.get_mut().error = Some(error);
+        resp.error = Some(error);
         resp
     }
 
@@ -67,7 +72,7 @@ impl Response<Body> {
         }
 
         ResponseBuilder {
-            response: Some(self.0),
+            head: Some(self.head),
             err: None,
             cookies: jar,
         }
@@ -75,90 +80,85 @@ impl Response<Body> {
 
     /// Convert response to response with body
     pub fn into_body<B: MessageBody>(self) -> Response<B> {
-        let b = match self.1 {
+        let b = match self.body {
             ResponseBody::Body(b) => b,
             ResponseBody::Other(b) => b,
         };
-        Response(self.0, ResponseBody::Other(b))
+        Response {
+            head: self.head,
+            error: self.error,
+            body: ResponseBody::Other(b),
+        }
     }
 }
 
 impl<B: MessageBody> Response<B> {
     #[inline]
-    fn get_ref(&self) -> &InnerResponse {
-        self.0.as_ref()
-    }
-
-    #[inline]
-    fn get_mut(&mut self) -> &mut InnerResponse {
-        self.0.as_mut()
-    }
-
-    #[inline]
     /// Http message part of the response
     pub fn head(&self) -> &ResponseHead {
-        &self.0.as_ref().head
+        &*self.head
     }
 
     #[inline]
     /// Mutable reference to a http message part of the response
     pub fn head_mut(&mut self) -> &mut ResponseHead {
-        &mut self.0.as_mut().head
+        &mut *self.head
     }
 
     /// Constructs a response with body
     #[inline]
     pub fn with_body(status: StatusCode, body: B) -> Response<B> {
-        ResponsePool::with_body(status, body)
+        let mut head: Message<ResponseHead> = Message::new();
+        head.status = status;
+        Response {
+            head,
+            body: ResponseBody::Body(body),
+            error: None,
+        }
     }
 
     /// The source `error` for this response
     #[inline]
     pub fn error(&self) -> Option<&Error> {
-        self.get_ref().error.as_ref()
+        self.error.as_ref()
     }
 
     /// Get the response status code
     #[inline]
     pub fn status(&self) -> StatusCode {
-        self.get_ref().head.status
+        self.head.status
     }
 
     /// Set the `StatusCode` for this response
     #[inline]
     pub fn status_mut(&mut self) -> &mut StatusCode {
-        &mut self.get_mut().head.status
+        &mut self.head.status
     }
 
     /// Get the headers from the response
     #[inline]
     pub fn headers(&self) -> &HeaderMap {
-        &self.get_ref().head.headers
+        &self.head.headers
     }
 
     /// Get a mutable reference to the headers
     #[inline]
     pub fn headers_mut(&mut self) -> &mut HeaderMap {
-        &mut self.get_mut().head.headers
+        &mut self.head.headers
     }
 
     /// Get an iterator for the cookies set by this response
     #[inline]
     pub fn cookies(&self) -> CookieIter {
         CookieIter {
-            iter: self
-                .get_ref()
-                .head
-                .headers
-                .get_all(header::SET_COOKIE)
-                .iter(),
+            iter: self.head.headers.get_all(header::SET_COOKIE).iter(),
         }
     }
 
     /// Add a cookie to this response
     #[inline]
     pub fn add_cookie(&mut self, cookie: &Cookie) -> Result<(), HttpError> {
-        let h = &mut self.get_mut().head.headers;
+        let h = &mut self.head.headers;
         HeaderValue::from_str(&cookie.to_string())
             .map(|c| {
                 h.append(header::SET_COOKIE, c);
@@ -170,7 +170,7 @@ impl<B: MessageBody> Response<B> {
     /// the number of cookies removed.
     #[inline]
     pub fn del_cookie(&mut self, name: &str) -> usize {
-        let h = &mut self.get_mut().head.headers;
+        let h = &mut self.head.headers;
         let vals: Vec<HeaderValue> = h
             .get_all(header::SET_COOKIE)
             .iter()
@@ -196,28 +196,36 @@ impl<B: MessageBody> Response<B> {
     /// Connection upgrade status
     #[inline]
     pub fn upgrade(&self) -> bool {
-        self.get_ref().head.upgrade()
+        self.head.upgrade()
     }
 
     /// Keep-alive status for this connection
     pub fn keep_alive(&self) -> bool {
-        self.get_ref().head.keep_alive()
+        self.head.keep_alive()
     }
 
     /// Get body os this response
     #[inline]
-    pub(crate) fn body(&self) -> &ResponseBody<B> {
-        &self.1
+    pub fn body(&self) -> &ResponseBody<B> {
+        &self.body
     }
 
     /// Set a body
     pub(crate) fn set_body<B2: MessageBody>(self, body: B2) -> Response<B2> {
-        Response(self.0, ResponseBody::Body(body))
+        Response {
+            head: self.head,
+            body: ResponseBody::Body(body),
+            error: None,
+        }
     }
 
     /// Drop request's body
     pub(crate) fn drop_body(self) -> Response<()> {
-        Response(self.0, ResponseBody::Body(()))
+        Response {
+            head: self.head,
+            body: ResponseBody::Body(()),
+            error: None,
+        }
     }
 
     /// Set a body and return previous body value
@@ -225,21 +233,14 @@ impl<B: MessageBody> Response<B> {
         self,
         body: B2,
     ) -> (Response<B2>, ResponseBody<B>) {
-        (Response(self.0, ResponseBody::Body(body)), self.1)
-    }
-
-    /// Size of response in bytes, excluding HTTP headers
-    pub fn response_size(&self) -> u64 {
-        self.get_ref().response_size
-    }
-
-    /// Set response size
-    pub(crate) fn set_response_size(&mut self, size: u64) {
-        self.get_mut().response_size = size;
-    }
-
-    pub(crate) fn release(self) {
-        ResponsePool::release(self.0);
+        (
+            Response {
+                head: self.head,
+                body: ResponseBody::Body(body),
+                error: self.error,
+            },
+            self.body,
+        )
     }
 }
 
@@ -248,15 +249,15 @@ impl<B: MessageBody> fmt::Debug for Response<B> {
         let res = writeln!(
             f,
             "\nResponse {:?} {}{}",
-            self.get_ref().head.version,
-            self.get_ref().head.status,
-            self.get_ref().head.reason.unwrap_or(""),
+            self.head.version,
+            self.head.status,
+            self.head.reason.unwrap_or(""),
         );
         let _ = writeln!(f, "  headers:");
-        for (key, val) in self.get_ref().head.headers.iter() {
+        for (key, val) in self.head.headers.iter() {
             let _ = writeln!(f, "    {:?}: {:?}", key, val);
         }
-        let _ = writeln!(f, "  body: {:?}", self.1.length());
+        let _ = writeln!(f, "  body: {:?}", self.body.length());
         res
     }
 }
@@ -284,17 +285,29 @@ impl<'a> Iterator for CookieIter<'a> {
 /// This type can be used to construct an instance of `Response` through a
 /// builder-like pattern.
 pub struct ResponseBuilder {
-    response: Option<Box<InnerResponse>>,
+    head: Option<Message<ResponseHead>>,
     err: Option<HttpError>,
     cookies: Option<CookieJar>,
 }
 
 impl ResponseBuilder {
+    /// Create response builder
+    pub fn new(status: StatusCode) -> Self {
+        let mut head: Message<ResponseHead> = Message::new();
+        head.status = status;
+
+        ResponseBuilder {
+            head: Some(head),
+            err: None,
+            cookies: None,
+        }
+    }
+
     /// Set HTTP status code of this response.
     #[inline]
     pub fn status(&mut self, status: StatusCode) -> &mut Self {
-        if let Some(parts) = parts(&mut self.response, &self.err) {
-            parts.head.status = status;
+        if let Some(parts) = parts(&mut self.head, &self.err) {
+            parts.status = status;
         }
         self
     }
@@ -316,10 +329,10 @@ impl ResponseBuilder {
     /// ```
     #[doc(hidden)]
     pub fn set<H: Header>(&mut self, hdr: H) -> &mut Self {
-        if let Some(parts) = parts(&mut self.response, &self.err) {
+        if let Some(parts) = parts(&mut self.head, &self.err) {
             match hdr.try_into() {
                 Ok(value) => {
-                    parts.head.headers.append(H::name(), value);
+                    parts.headers.append(H::name(), value);
                 }
                 Err(e) => self.err = Some(e.into()),
             }
@@ -346,11 +359,11 @@ impl ResponseBuilder {
         HeaderName: HttpTryFrom<K>,
         V: IntoHeaderValue,
     {
-        if let Some(parts) = parts(&mut self.response, &self.err) {
+        if let Some(parts) = parts(&mut self.head, &self.err) {
             match HeaderName::try_from(key) {
                 Ok(key) => match value.try_into() {
                     Ok(value) => {
-                        parts.head.headers.append(key, value);
+                        parts.headers.append(key, value);
                     }
                     Err(e) => self.err = Some(e.into()),
                 },
@@ -379,11 +392,11 @@ impl ResponseBuilder {
         HeaderName: HttpTryFrom<K>,
         V: IntoHeaderValue,
     {
-        if let Some(parts) = parts(&mut self.response, &self.err) {
+        if let Some(parts) = parts(&mut self.head, &self.err) {
             match HeaderName::try_from(key) {
                 Ok(key) => match value.try_into() {
                     Ok(value) => {
-                        parts.head.headers.insert(key, value);
+                        parts.headers.insert(key, value);
                     }
                     Err(e) => self.err = Some(e.into()),
                 },
@@ -396,8 +409,8 @@ impl ResponseBuilder {
     /// Set the custom reason for the response.
     #[inline]
     pub fn reason(&mut self, reason: &'static str) -> &mut Self {
-        if let Some(parts) = parts(&mut self.response, &self.err) {
-            parts.head.reason = Some(reason);
+        if let Some(parts) = parts(&mut self.head, &self.err) {
+            parts.reason = Some(reason);
         }
         self
     }
@@ -405,8 +418,8 @@ impl ResponseBuilder {
     /// Set connection type to KeepAlive
     #[inline]
     pub fn keep_alive(&mut self) -> &mut Self {
-        if let Some(parts) = parts(&mut self.response, &self.err) {
-            parts.head.set_connection_type(ConnectionType::KeepAlive);
+        if let Some(parts) = parts(&mut self.head, &self.err) {
+            parts.set_connection_type(ConnectionType::KeepAlive);
         }
         self
     }
@@ -417,8 +430,8 @@ impl ResponseBuilder {
     where
         V: IntoHeaderValue,
     {
-        if let Some(parts) = parts(&mut self.response, &self.err) {
-            parts.head.set_connection_type(ConnectionType::Upgrade);
+        if let Some(parts) = parts(&mut self.head, &self.err) {
+            parts.set_connection_type(ConnectionType::Upgrade);
         }
         self.set_header(header::UPGRADE, value)
     }
@@ -426,8 +439,8 @@ impl ResponseBuilder {
     /// Force close connection, even if it is marked as keep-alive
     #[inline]
     pub fn force_close(&mut self) -> &mut Self {
-        if let Some(parts) = parts(&mut self.response, &self.err) {
-            parts.head.set_connection_type(ConnectionType::Close);
+        if let Some(parts) = parts(&mut self.head, &self.err) {
+            parts.set_connection_type(ConnectionType::Close);
         }
         self
     }
@@ -438,10 +451,10 @@ impl ResponseBuilder {
     where
         HeaderValue: HttpTryFrom<V>,
     {
-        if let Some(parts) = parts(&mut self.response, &self.err) {
+        if let Some(parts) = parts(&mut self.head, &self.err) {
             match HeaderValue::try_from(value) {
                 Ok(value) => {
-                    parts.head.headers.insert(header::CONTENT_TYPE, value);
+                    parts.headers.insert(header::CONTENT_TYPE, value);
                 }
                 Err(e) => self.err = Some(e.into()),
             };
@@ -540,20 +553,6 @@ impl ResponseBuilder {
         self
     }
 
-    // /// Set write buffer capacity
-    // ///
-    // /// This parameter makes sense only for streaming response
-    // /// or actor. If write buffer reaches specified capacity, stream or actor
-    // /// get paused.
-    // ///
-    // /// Default write buffer capacity is 64kb
-    // pub fn write_buffer_capacity(&mut self, cap: usize) -> &mut Self {
-    //     if let Some(parts) = parts(&mut self.response, &self.err) {
-    //         parts.write_capacity = cap;
-    //     }
-    //     self
-    // }
-
     /// Set a body and generate `Response`.
     ///
     /// `ResponseBuilder` can not be used after this call.
@@ -569,19 +568,23 @@ impl ResponseBuilder {
             return Response::from(Error::from(e)).into_body();
         }
 
-        let mut response = self.response.take().expect("cannot reuse response builder");
+        let mut response = self.head.take().expect("cannot reuse response builder");
         if let Some(ref jar) = self.cookies {
             for cookie in jar.delta() {
                 match HeaderValue::from_str(&cookie.to_string()) {
                     Ok(val) => {
-                        let _ = response.head.headers.append(header::SET_COOKIE, val);
+                        let _ = response.headers.append(header::SET_COOKIE, val);
                     }
                     Err(e) => return Response::from(Error::from(e)).into_body(),
                 };
             }
         }
 
-        Response(response, ResponseBody::Body(body))
+        Response {
+            head: response,
+            body: ResponseBody::Body(body),
+            error: None,
+        }
     }
 
     #[inline]
@@ -609,9 +612,8 @@ impl ResponseBuilder {
     pub fn json2<T: Serialize>(&mut self, value: &T) -> Response {
         match serde_json::to_string(value) {
             Ok(body) => {
-                let contains = if let Some(parts) = parts(&mut self.response, &self.err)
-                {
-                    parts.head.headers.contains_key(header::CONTENT_TYPE)
+                let contains = if let Some(parts) = parts(&mut self.head, &self.err) {
+                    parts.headers.contains_key(header::CONTENT_TYPE)
                 } else {
                     true
                 };
@@ -636,7 +638,7 @@ impl ResponseBuilder {
     /// This method construct new `ResponseBuilder`
     pub fn take(&mut self) -> ResponseBuilder {
         ResponseBuilder {
-            response: self.response.take(),
+            head: self.head.take(),
             err: self.err.take(),
             cookies: self.cookies.take(),
         }
@@ -646,9 +648,9 @@ impl ResponseBuilder {
 #[inline]
 #[allow(clippy::borrowed_box)]
 fn parts<'a>(
-    parts: &'a mut Option<Box<InnerResponse>>,
+    parts: &'a mut Option<Message<ResponseHead>>,
     err: &Option<HttpError>,
-) -> Option<&'a mut Box<InnerResponse>> {
+) -> Option<&'a mut Message<ResponseHead>> {
     if err.is_some() {
         return None;
     }
@@ -716,107 +718,6 @@ impl From<BytesMut> for Response {
         Response::Ok()
             .content_type("application/octet-stream")
             .body(val)
-    }
-}
-
-struct InnerResponse {
-    head: ResponseHead,
-    response_size: u64,
-    error: Option<Error>,
-    pool: &'static ResponsePool,
-}
-
-impl InnerResponse {
-    #[inline]
-    fn new(status: StatusCode, pool: &'static ResponsePool) -> InnerResponse {
-        InnerResponse {
-            head: ResponseHead {
-                status,
-                version: Version::default(),
-                headers: HeaderMap::with_capacity(16),
-                reason: None,
-                ctype: None,
-            },
-            pool,
-            response_size: 0,
-            error: None,
-        }
-    }
-}
-
-/// Internal use only!
-pub(crate) struct ResponsePool(RefCell<VecDeque<Box<InnerResponse>>>);
-
-thread_local!(static POOL: &'static ResponsePool = ResponsePool::pool());
-
-impl ResponsePool {
-    fn pool() -> &'static ResponsePool {
-        let pool = ResponsePool(RefCell::new(VecDeque::with_capacity(128)));
-        Box::leak(Box::new(pool))
-    }
-
-    pub fn get_pool() -> &'static ResponsePool {
-        POOL.with(|p| *p)
-    }
-
-    #[inline]
-    pub fn get_builder(
-        pool: &'static ResponsePool,
-        status: StatusCode,
-    ) -> ResponseBuilder {
-        if let Some(mut msg) = pool.0.borrow_mut().pop_front() {
-            msg.head.status = status;
-            ResponseBuilder {
-                response: Some(msg),
-                err: None,
-                cookies: None,
-            }
-        } else {
-            let msg = Box::new(InnerResponse::new(status, pool));
-            ResponseBuilder {
-                response: Some(msg),
-                err: None,
-                cookies: None,
-            }
-        }
-    }
-
-    #[inline]
-    pub fn get_response<B: MessageBody>(
-        pool: &'static ResponsePool,
-        status: StatusCode,
-        body: B,
-    ) -> Response<B> {
-        if let Some(mut msg) = pool.0.borrow_mut().pop_front() {
-            msg.head.status = status;
-            Response(msg, ResponseBody::Body(body))
-        } else {
-            Response(
-                Box::new(InnerResponse::new(status, pool)),
-                ResponseBody::Body(body),
-            )
-        }
-    }
-
-    #[inline]
-    fn get(status: StatusCode) -> ResponseBuilder {
-        POOL.with(|pool| ResponsePool::get_builder(pool, status))
-    }
-
-    #[inline]
-    fn with_body<B: MessageBody>(status: StatusCode, body: B) -> Response<B> {
-        POOL.with(|pool| ResponsePool::get_response(pool, status, body))
-    }
-
-    #[inline]
-    fn release(mut inner: Box<InnerResponse>) {
-        let mut p = inner.pool.0.borrow_mut();
-        if p.len() < 128 {
-            inner.head.clear();
-            inner.response_size = 0;
-            inner.error = None;
-            p.push_front(inner);
-        }
     }
 }
 

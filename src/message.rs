@@ -1,4 +1,4 @@
-use std::cell::RefCell;
+use std::cell::{Ref, RefCell, RefMut};
 use std::collections::VecDeque;
 use std::rc::Rc;
 
@@ -146,12 +146,59 @@ impl ResponseHead {
 }
 
 pub struct Message<T: Head> {
-    pub head: T,
-    pub extensions: RefCell<Extensions>,
-    pub(crate) pool: &'static MessagePool<T>,
+    inner: Rc<MessageInner<T>>,
+    pool: &'static MessagePool<T>,
 }
 
 impl<T: Head> Message<T> {
+    /// Get new message from the pool of objects
+    pub fn new() -> Self {
+        T::pool().get_message()
+    }
+
+    /// Message extensions
+    #[inline]
+    pub fn extensions(&self) -> Ref<Extensions> {
+        self.inner.as_ref().extensions.borrow()
+    }
+
+    /// Mutable reference to a the message's extensions
+    #[inline]
+    pub fn extensions_mut(&self) -> RefMut<Extensions> {
+        self.inner.as_ref().extensions.borrow_mut()
+    }
+}
+
+impl<T: Head> std::ops::Deref for Message<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner.as_ref().head
+    }
+}
+
+impl<T: Head> std::ops::DerefMut for Message<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut Rc::get_mut(&mut self.inner)
+            .expect("Multiple copies exist")
+            .head
+    }
+}
+
+impl<T: Head> Drop for Message<T> {
+    fn drop(&mut self) {
+        if Rc::strong_count(&self.inner) == 1 {
+            self.pool.release(self.inner.clone());
+        }
+    }
+}
+
+struct MessageInner<T: Head> {
+    head: T,
+    extensions: RefCell<Extensions>,
+}
+
+impl<T: Head> MessageInner<T> {
     #[inline]
     /// Reset request instance
     pub fn reset(&mut self) {
@@ -160,10 +207,9 @@ impl<T: Head> Message<T> {
     }
 }
 
-impl<T: Head> Default for Message<T> {
+impl<T: Head> Default for MessageInner<T> {
     fn default() -> Self {
-        Message {
-            pool: T::pool(),
+        MessageInner {
             head: T::default(),
             extensions: RefCell::new(Extensions::new()),
         }
@@ -172,31 +218,10 @@ impl<T: Head> Default for Message<T> {
 
 #[doc(hidden)]
 /// Request's objects pool
-pub struct MessagePool<T: Head>(RefCell<VecDeque<Rc<Message<T>>>>);
+pub struct MessagePool<T: Head>(RefCell<VecDeque<Rc<MessageInner<T>>>>);
 
 thread_local!(static REQUEST_POOL: &'static MessagePool<RequestHead> = MessagePool::<RequestHead>::create());
 thread_local!(static RESPONSE_POOL: &'static MessagePool<ResponseHead> = MessagePool::<ResponseHead>::create());
-
-impl MessagePool<RequestHead> {
-    /// Get default request's pool
-    pub fn pool() -> &'static MessagePool<RequestHead> {
-        REQUEST_POOL.with(|p| *p)
-    }
-
-    /// Get Request object
-    #[inline]
-    pub fn get_message() -> Rc<Message<RequestHead>> {
-        REQUEST_POOL.with(|pool| {
-            if let Some(mut msg) = pool.0.borrow_mut().pop_front() {
-                if let Some(r) = Rc::get_mut(&mut msg) {
-                    r.reset();
-                }
-                return msg;
-            }
-            Rc::new(Message::default())
-        })
-    }
-}
 
 impl<T: Head> MessagePool<T> {
     fn create() -> &'static MessagePool<T> {
@@ -204,9 +229,28 @@ impl<T: Head> MessagePool<T> {
         Box::leak(Box::new(pool))
     }
 
+    /// Get message from the pool
+    #[inline]
+    fn get_message(&'static self) -> Message<T> {
+        if let Some(mut msg) = self.0.borrow_mut().pop_front() {
+            if let Some(r) = Rc::get_mut(&mut msg) {
+                r.reset();
+            }
+            Message {
+                inner: msg,
+                pool: self,
+            }
+        } else {
+            Message {
+                inner: Rc::new(MessageInner::default()),
+                pool: self,
+            }
+        }
+    }
+
     #[inline]
     /// Release request instance
-    pub(crate) fn release(&self, msg: Rc<Message<T>>) {
+    fn release(&self, msg: Rc<MessageInner<T>>) {
         let v = &mut self.0.borrow_mut();
         if v.len() < 128 {
             v.push_front(msg);

@@ -116,7 +116,7 @@ where
                     let (parts, body) = req.into_parts();
                     let mut req = Request::with_payload(body.into());
 
-                    let head = &mut req.inner_mut().head;
+                    let head = &mut req.head_mut();
                     head.uri = parts.uri;
                     head.method = parts.method;
                     head.version = parts.version;

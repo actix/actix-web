@@ -1,6 +1,5 @@
 use std::cell::{Ref, RefCell, RefMut};
 use std::fmt;
-use std::rc::Rc;
 
 use bytes::Bytes;
 use futures::Stream;
@@ -9,13 +8,13 @@ use http::{header, HeaderMap, Method, Uri, Version};
 use crate::error::PayloadError;
 use crate::extensions::Extensions;
 use crate::httpmessage::HttpMessage;
-use crate::message::{Message, MessagePool, RequestHead};
+use crate::message::{Message, RequestHead};
 use crate::payload::Payload;
 
 /// Request
 pub struct Request<P = Payload> {
     pub(crate) payload: RefCell<Option<P>>,
-    pub(crate) inner: Rc<Message<RequestHead>>,
+    pub(crate) inner: Message<RequestHead>,
 }
 
 impl<P> HttpMessage for Request<P>
@@ -25,7 +24,7 @@ where
     type Stream = P;
 
     fn headers(&self) -> &HeaderMap {
-        &self.inner.head.headers
+        &self.head().headers
     }
 
     #[inline]
@@ -34,12 +33,21 @@ where
     }
 }
 
+impl<Payload> From<Message<RequestHead>> for Request<Payload> {
+    fn from(msg: Message<RequestHead>) -> Self {
+        Request {
+            payload: RefCell::new(None),
+            inner: msg,
+        }
+    }
+}
+
 impl Request<Payload> {
     /// Create new Request instance
     pub fn new() -> Request<Payload> {
         Request {
             payload: RefCell::new(None),
-            inner: MessagePool::get_message(),
+            inner: Message::new(),
         }
     }
 }
@@ -49,7 +57,7 @@ impl<Payload> Request<Payload> {
     pub fn with_payload(payload: Payload) -> Request<Payload> {
         Request {
             payload: RefCell::new(Some(payload.into())),
-            inner: MessagePool::get_message(),
+            inner: Message::new(),
         }
     }
 
@@ -60,123 +68,90 @@ impl<Payload> Request<Payload> {
     {
         Request {
             payload: RefCell::new(Some(payload.into())),
-            inner: self.inner.clone(),
+            inner: self.inner,
         }
     }
 
-    /// Take request's payload
-    pub fn take_payload(mut self) -> (Option<Payload>, Request<()>) {
-        (
-            self.payload.get_mut().take(),
-            Request {
-                payload: RefCell::new(None),
-                inner: self.inner.clone(),
-            },
-        )
-    }
-
-    // /// Create new Request instance with pool
-    // pub(crate) fn with_pool(pool: &'static MessagePool) -> Request {
-    //     Request {
-    //         inner: Rc::new(Message {
-    //             pool,
-    //             url: Url::default(),
-    //             head: RequestHead::default(),
-    //             status: StatusCode::OK,
-    //             flags: Cell::new(MessageFlags::empty()),
-    //             payload: RefCell::new(None),
-    //             extensions: RefCell::new(Extensions::new()),
-    //         }),
-    //     }
-    // }
-
-    #[inline]
-    #[doc(hidden)]
-    pub fn inner(&self) -> &Message<RequestHead> {
-        self.inner.as_ref()
-    }
-
-    #[inline]
-    #[doc(hidden)]
-    pub fn inner_mut(&mut self) -> &mut Message<RequestHead> {
-        Rc::get_mut(&mut self.inner).expect("Multiple copies exist")
+    /// Split request into request head and payload
+    pub fn into_parts(mut self) -> (Message<RequestHead>, Option<Payload>) {
+        (self.inner, self.payload.get_mut().take())
     }
 
     #[inline]
     /// Http message part of the request
     pub fn head(&self) -> &RequestHead {
-        &self.inner.as_ref().head
+        &*self.inner
     }
 
     #[inline]
     #[doc(hidden)]
     /// Mutable reference to a http message part of the request
     pub fn head_mut(&mut self) -> &mut RequestHead {
-        &mut self.inner_mut().head
+        &mut *self.inner
     }
 
     /// Request's uri.
     #[inline]
     pub fn uri(&self) -> &Uri {
-        &self.inner().head.uri
+        &self.head().uri
     }
 
     /// Mutable reference to the request's uri.
     #[inline]
     pub fn uri_mut(&mut self) -> &mut Uri {
-        &mut self.inner_mut().head.uri
+        &mut self.head_mut().uri
     }
 
     /// Read the Request method.
     #[inline]
     pub fn method(&self) -> &Method {
-        &self.inner().head.method
+        &self.head().method
     }
 
     /// Read the Request Version.
     #[inline]
     pub fn version(&self) -> Version {
-        self.inner().head.version
+        self.head().version
     }
 
     /// The target path of this Request.
     #[inline]
     pub fn path(&self) -> &str {
-        self.inner().head.uri.path()
+        self.head().uri.path()
     }
 
     #[inline]
     /// Returns Request's headers.
     pub fn headers(&self) -> &HeaderMap {
-        &self.inner().head.headers
+        &self.head().headers
     }
 
     #[inline]
     /// Returns mutable Request's headers.
     pub fn headers_mut(&mut self) -> &mut HeaderMap {
-        &mut self.inner_mut().head.headers
+        &mut self.head_mut().headers
     }
 
     /// Request extensions
     #[inline]
     pub fn extensions(&self) -> Ref<Extensions> {
-        self.inner().extensions.borrow()
+        self.inner.extensions()
     }
 
     /// Mutable reference to a the request's extensions
     #[inline]
     pub fn extensions_mut(&self) -> RefMut<Extensions> {
-        self.inner().extensions.borrow_mut()
+        self.inner.extensions_mut()
     }
 
     /// Check if request requires connection upgrade
     pub fn upgrade(&self) -> bool {
-        if let Some(conn) = self.inner().head.headers.get(header::CONNECTION) {
+        if let Some(conn) = self.head().headers.get(header::CONNECTION) {
             if let Ok(s) = conn.to_str() {
                 return s.to_lowercase().contains("upgrade");
             }
         }
-        self.inner().head.method == Method::CONNECT
+        self.head().method == Method::CONNECT
     }
 
     // #[doc(hidden)]
@@ -187,14 +162,6 @@ impl<Payload> Request<Payload> {
     //         inner: self.inner.clone(),
     //     }
     // }
-}
-
-impl<Payload> Drop for Request<Payload> {
-    fn drop(&mut self) {
-        if Rc::strong_count(&self.inner) == 1 {
-            self.inner.pool.release(self.inner.clone());
-        }
-    }
 }
 
 impl<Payload> fmt::Debug for Request<Payload> {

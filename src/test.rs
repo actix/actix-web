@@ -154,11 +154,11 @@ impl TestRequest {
             Request::with_payload(crate::h1::Payload::empty().into())
         };
 
-        let inner = req.inner_mut();
-        inner.head.uri = uri;
-        inner.head.method = method;
-        inner.head.version = version;
-        inner.head.headers = headers;
+        let head = req.head_mut();
+        head.uri = uri;
+        head.method = method;
+        head.version = version;
+        head.headers = headers;
 
         // req.set_cookies(cookies);
         req
