@@ -26,6 +26,11 @@ impl Extensions {
         self.map.insert(TypeId::of::<T>(), Box::new(val));
     }
 
+    /// Check if container contains entry
+    pub fn contains<T: 'static>(&self) -> bool {
+        self.map.get(&TypeId::of::<T>()).is_some()
+    }
+
     /// Get a reference to a type previously inserted on this `Extensions`.
     pub fn get<T: 'static>(&self) -> Option<&T> {
         self.map
