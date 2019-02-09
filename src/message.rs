@@ -45,6 +45,7 @@ pub struct RequestHead {
     pub version: Version,
     pub headers: HeaderMap,
     pub ctype: Option<ConnectionType>,
+    pub extensions: RefCell<Extensions>,
 }
 
 impl Default for RequestHead {
@@ -55,6 +56,7 @@ impl Default for RequestHead {
             version: Version::HTTP_11,
             headers: HeaderMap::with_capacity(16),
             ctype: None,
+            extensions: RefCell::new(Extensions::new()),
         }
     }
 }
@@ -63,6 +65,7 @@ impl Head for RequestHead {
     fn clear(&mut self) {
         self.ctype = None;
         self.headers.clear();
+        self.extensions.borrow_mut().clear();
     }
 
     fn set_connection_type(&mut self, ctype: ConnectionType) {
@@ -81,6 +84,20 @@ impl Head for RequestHead {
 
     fn pool() -> &'static MessagePool<Self> {
         REQUEST_POOL.with(|p| *p)
+    }
+}
+
+impl RequestHead {
+    /// Message extensions
+    #[inline]
+    pub fn extensions(&self) -> Ref<Extensions> {
+        self.extensions.borrow()
+    }
+
+    /// Mutable reference to a the message's extensions
+    #[inline]
+    pub fn extensions_mut(&self) -> RefMut<Extensions> {
+        self.extensions.borrow_mut()
     }
 }
 
@@ -146,7 +163,7 @@ impl ResponseHead {
 }
 
 pub struct Message<T: Head> {
-    inner: Rc<MessageInner<T>>,
+    head: Rc<T>,
     pool: &'static MessagePool<T>,
 }
 
@@ -155,24 +172,12 @@ impl<T: Head> Message<T> {
     pub fn new() -> Self {
         T::pool().get_message()
     }
-
-    /// Message extensions
-    #[inline]
-    pub fn extensions(&self) -> Ref<Extensions> {
-        self.inner.as_ref().extensions.borrow()
-    }
-
-    /// Mutable reference to a the message's extensions
-    #[inline]
-    pub fn extensions_mut(&self) -> RefMut<Extensions> {
-        self.inner.as_ref().extensions.borrow_mut()
-    }
 }
 
 impl<T: Head> Clone for Message<T> {
     fn clone(&self) -> Self {
         Message {
-            inner: self.inner.clone(),
+            head: self.head.clone(),
             pool: self.pool,
         }
     }
@@ -182,52 +187,27 @@ impl<T: Head> std::ops::Deref for Message<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
-        &self.inner.as_ref().head
+        &self.head.as_ref()
     }
 }
 
 impl<T: Head> std::ops::DerefMut for Message<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut Rc::get_mut(&mut self.inner)
-            .expect("Multiple copies exist")
-            .head
+        Rc::get_mut(&mut self.head).expect("Multiple copies exist")
     }
 }
 
 impl<T: Head> Drop for Message<T> {
     fn drop(&mut self) {
-        if Rc::strong_count(&self.inner) == 1 {
-            self.pool.release(self.inner.clone());
-        }
-    }
-}
-
-struct MessageInner<T: Head> {
-    head: T,
-    extensions: RefCell<Extensions>,
-}
-
-impl<T: Head> MessageInner<T> {
-    #[inline]
-    /// Reset request instance
-    pub fn reset(&mut self) {
-        self.head.clear();
-        self.extensions.borrow_mut().clear();
-    }
-}
-
-impl<T: Head> Default for MessageInner<T> {
-    fn default() -> Self {
-        MessageInner {
-            head: T::default(),
-            extensions: RefCell::new(Extensions::new()),
+        if Rc::strong_count(&self.head) == 1 {
+            self.pool.release(self.head.clone());
         }
     }
 }
 
 #[doc(hidden)]
 /// Request's objects pool
-pub struct MessagePool<T: Head>(RefCell<VecDeque<Rc<MessageInner<T>>>>);
+pub struct MessagePool<T: Head>(RefCell<VecDeque<Rc<T>>>);
 
 thread_local!(static REQUEST_POOL: &'static MessagePool<RequestHead> = MessagePool::<RequestHead>::create());
 thread_local!(static RESPONSE_POOL: &'static MessagePool<ResponseHead> = MessagePool::<ResponseHead>::create());
@@ -243,15 +223,15 @@ impl<T: Head> MessagePool<T> {
     fn get_message(&'static self) -> Message<T> {
         if let Some(mut msg) = self.0.borrow_mut().pop_front() {
             if let Some(r) = Rc::get_mut(&mut msg) {
-                r.reset();
+                r.clear();
             }
             Message {
-                inner: msg,
+                head: msg,
                 pool: self,
             }
         } else {
             Message {
-                inner: Rc::new(MessageInner::default()),
+                head: Rc::new(T::default()),
                 pool: self,
             }
         }
@@ -259,7 +239,7 @@ impl<T: Head> MessagePool<T> {
 
     #[inline]
     /// Release request instance
-    fn release(&self, msg: Rc<MessageInner<T>>) {
+    fn release(&self, msg: Rc<T>) {
         let v = &mut self.0.borrow_mut();
         if v.len() < 128 {
             v.push_front(msg);
