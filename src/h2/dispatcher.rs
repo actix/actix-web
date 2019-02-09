@@ -50,8 +50,9 @@ pub struct Dispatcher<T: AsyncRead + AsyncWrite, S: Service, B: MessageBody> {
 impl<T, S, B> Dispatcher<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: Service<Request = Request<Payload>, Response = Response<B>> + 'static,
+    S: Service<Request = Request<Payload>> + 'static,
     S::Error: Into<Error> + fmt::Debug,
+    S::Response: Into<Response<B>>,
     B: MessageBody + 'static,
 {
     pub fn new(
@@ -91,8 +92,9 @@ where
 impl<T, S, B> Future for Dispatcher<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: Service<Request = Request<Payload>, Response = Response<B>> + 'static,
+    S: Service<Request = Request<Payload>> + 'static,
     S::Error: Into<Error> + fmt::Debug,
+    S::Response: Into<Response<B>>,
     B: MessageBody + 'static,
 {
     type Item = ();
@@ -149,8 +151,9 @@ enum ServiceResponseState<S: Service, B> {
 
 impl<S, B> ServiceResponse<S, B>
 where
-    S: Service<Request = Request<Payload>, Response = Response<B>> + 'static,
+    S: Service<Request = Request<Payload>> + 'static,
     S::Error: Into<Error> + fmt::Debug,
+    S::Response: Into<Response<B>>,
     B: MessageBody + 'static,
 {
     fn prepare_response(
@@ -216,8 +219,9 @@ where
 
 impl<S, B> Future for ServiceResponse<S, B>
 where
-    S: Service<Request = Request<Payload>, Response = Response<B>> + 'static,
+    S: Service<Request = Request<Payload>> + 'static,
     S::Error: Into<Error> + fmt::Debug,
+    S::Response: Into<Response<B>>,
     B: MessageBody + 'static,
 {
     type Item = ();
@@ -228,7 +232,7 @@ where
             ServiceResponseState::ServiceCall(ref mut call, ref mut send) => {
                 match call.poll() {
                     Ok(Async::Ready(res)) => {
-                        let (res, body) = res.replace_body(());
+                        let (res, body) = res.into().replace_body(());
 
                         let mut send = send.take().unwrap();
                         let mut length = body.length();

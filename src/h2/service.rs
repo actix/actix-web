@@ -30,9 +30,10 @@ pub struct H2Service<T, S, B> {
 
 impl<T, S, B> H2Service<T, S, B>
 where
-    S: NewService<Request = Request<Payload>, Response = Response<B>> + Clone,
+    S: NewService<Request = Request<Payload>> + Clone,
     S::Service: Clone + 'static,
     S::Error: Into<Error> + Debug + 'static,
+    S::Response: Into<Response<B>>,
     B: MessageBody + 'static,
 {
     /// Create new `HttpService` instance.
@@ -55,9 +56,10 @@ where
 impl<T, S, B> NewService for H2Service<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: NewService<Request = Request<Payload>, Response = Response<B>> + Clone,
+    S: NewService<Request = Request<Payload>> + Clone,
     S::Service: Clone + 'static,
     S::Error: Into<Error> + Debug,
+    S::Response: Into<Response<B>>,
     B: MessageBody + 'static,
 {
     type Request = T;
@@ -235,8 +237,9 @@ pub struct H2ServiceResponse<T, S: NewService, B> {
 impl<T, S, B> Future for H2ServiceResponse<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: NewService<Request = Request<Payload>, Response = Response<B>>,
+    S: NewService<Request = Request<Payload>>,
     S::Service: Clone + 'static,
+    S::Response: Into<Response<B>>,
     S::Error: Into<Error> + Debug,
     B: MessageBody + 'static,
 {
@@ -261,8 +264,9 @@ pub struct H2ServiceHandler<T, S, B> {
 
 impl<T, S, B> H2ServiceHandler<T, S, B>
 where
-    S: Service<Request = Request<Payload>, Response = Response<B>> + Clone + 'static,
+    S: Service<Request = Request<Payload>> + Clone + 'static,
     S::Error: Into<Error> + Debug,
+    S::Response: Into<Response<B>>,
     B: MessageBody + 'static,
 {
     fn new(cfg: ServiceConfig, srv: S) -> H2ServiceHandler<T, S, B> {
@@ -277,8 +281,9 @@ where
 impl<T, S, B> Service for H2ServiceHandler<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: Service<Request = Request<Payload>, Response = Response<B>> + Clone + 'static,
+    S: Service<Request = Request<Payload>> + Clone + 'static,
     S::Error: Into<Error> + Debug,
+    S::Response: Into<Response<B>>,
     B: MessageBody + 'static,
 {
     type Request = T;
@@ -312,8 +317,9 @@ enum State<T: AsyncRead + AsyncWrite, S: Service, B: MessageBody> {
 pub struct H2ServiceHandlerResponse<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: Service<Request = Request<Payload>, Response = Response<B>> + Clone + 'static,
+    S: Service<Request = Request<Payload>> + Clone + 'static,
     S::Error: Into<Error> + Debug,
+    S::Response: Into<Response<B>>,
     B: MessageBody + 'static,
 {
     state: State<T, S, B>,
@@ -322,8 +328,9 @@ where
 impl<T, S, B> Future for H2ServiceHandlerResponse<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: Service<Request = Request<Payload>, Response = Response<B>> + Clone,
+    S: Service<Request = Request<Payload>> + Clone,
     S::Error: Into<Error> + Debug,
+    S::Response: Into<Response<B>>,
     B: MessageBody,
 {
     type Item = ();

@@ -28,9 +28,10 @@ pub struct H1Service<T, S, B> {
 
 impl<T, S, B> H1Service<T, S, B>
 where
-    S: NewService<Request = Request<Payload>, Response = Response<B>> + Clone,
+    S: NewService<Request = Request<Payload>> + Clone,
     S::Service: Clone,
     S::Error: Debug,
+    S::Response: Into<Response<B>>,
     B: MessageBody,
 {
     /// Create new `HttpService` instance.
@@ -53,9 +54,10 @@ where
 impl<T, S, B> NewService for H1Service<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: NewService<Request = Request, Response = Response<B>> + Clone,
+    S: NewService<Request = Request> + Clone,
     S::Service: Clone,
     S::Error: Debug,
+    S::Response: Into<Response<B>>,
     B: MessageBody,
 {
     type Request = T;
@@ -214,9 +216,10 @@ pub struct H1ServiceResponse<T, S: NewService, B> {
 impl<T, S, B> Future for H1ServiceResponse<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: NewService<Request = Request, Response = Response<B>>,
+    S: NewService<Request = Request>,
     S::Service: Clone,
     S::Error: Debug,
+    S::Response: Into<Response<B>>,
     B: MessageBody,
 {
     type Item = H1ServiceHandler<T, S::Service, B>;
@@ -240,8 +243,9 @@ pub struct H1ServiceHandler<T, S, B> {
 
 impl<T, S, B> H1ServiceHandler<T, S, B>
 where
-    S: Service<Request = Request, Response = Response<B>> + Clone,
+    S: Service<Request = Request> + Clone,
     S::Error: Debug,
+    S::Response: Into<Response<B>>,
     B: MessageBody,
 {
     fn new(cfg: ServiceConfig, srv: S) -> H1ServiceHandler<T, S, B> {
@@ -256,8 +260,9 @@ where
 impl<T, S, B> Service for H1ServiceHandler<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: Service<Request = Request, Response = Response<B>> + Clone,
+    S: Service<Request = Request> + Clone,
     S::Error: Debug,
+    S::Response: Into<Response<B>>,
     B: MessageBody,
 {
     type Request = T;

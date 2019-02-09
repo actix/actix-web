@@ -85,8 +85,9 @@ impl<S: Service, B: MessageBody> State<S, B> {
 impl<T, S, B> Dispatcher<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: Service<Request = Request, Response = Response<B>>,
+    S: Service<Request = Request>,
     S::Error: Debug,
+    S::Response: Into<Response<B>>,
     B: MessageBody,
 {
     /// Create http/1 dispatcher.
@@ -139,8 +140,9 @@ where
 impl<T, S, B> InnerDispatcher<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: Service<Request = Request, Response = Response<B>>,
+    S: Service<Request = Request>,
     S::Error: Debug,
+    S::Response: Into<Response<B>>,
     B: MessageBody,
 {
     fn can_read(&self) -> bool {
@@ -224,7 +226,7 @@ where
                 State::ServiceCall(mut fut) => {
                     match fut.poll().map_err(DispatchError::Service)? {
                         Async::Ready(res) => {
-                            let (res, body) = res.replace_body(());
+                            let (res, body) = res.into().replace_body(());
                             Some(self.send_response(res, body)?)
                         }
                         Async::NotReady => {
@@ -287,7 +289,7 @@ where
         let mut task = self.service.call(req);
         match task.poll().map_err(DispatchError::Service)? {
             Async::Ready(res) => {
-                let (res, body) = res.replace_body(());
+                let (res, body) = res.into().replace_body(());
                 self.send_response(res, body)
             }
             Async::NotReady => Ok(State::ServiceCall(task)),
@@ -459,8 +461,9 @@ where
 impl<T, S, B> Future for Dispatcher<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: Service<Request = Request, Response = Response<B>>,
+    S: Service<Request = Request>,
     S::Error: Debug,
+    S::Response: Into<Response<B>>,
     B: MessageBody,
 {
     type Item = H1ServiceResult<T>;
