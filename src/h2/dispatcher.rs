@@ -5,6 +5,7 @@ use std::{fmt, mem};
 
 use actix_codec::{AsyncRead, AsyncWrite};
 use actix_service::Service;
+use actix_utils::cloneable::CloneableService;
 use bitflags::bitflags;
 use bytes::{Bytes, BytesMut};
 use futures::{try_ready, Async, Future, Poll, Sink, Stream};
@@ -37,9 +38,9 @@ bitflags! {
 }
 
 /// Dispatcher for HTTP/2 protocol
-pub struct Dispatcher<T: AsyncRead + AsyncWrite, S: Service, B: MessageBody> {
+pub struct Dispatcher<T: AsyncRead + AsyncWrite, S: Service + 'static, B: MessageBody> {
     flags: Flags,
-    service: S,
+    service: CloneableService<S>,
     connection: Connection<T, Bytes>,
     config: ServiceConfig,
     ka_expire: Instant,
@@ -56,7 +57,7 @@ where
     B: MessageBody + 'static,
 {
     pub fn new(
-        service: S,
+        service: CloneableService<S>,
         connection: Connection<T, Bytes>,
         config: ServiceConfig,
         timeout: Option<Delay>,

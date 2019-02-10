@@ -4,6 +4,7 @@ use std::net;
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use actix_service::{IntoNewService, NewService, Service};
+use actix_utils::cloneable::CloneableService;
 use futures::future::{ok, FutureResult};
 use futures::{try_ready, Async, Future, Poll, Stream};
 use log::error;
@@ -28,10 +29,10 @@ pub struct H1Service<T, S, B> {
 
 impl<T, S, B> H1Service<T, S, B>
 where
-    S: NewService<Request = Request<Payload>> + Clone,
-    S::Service: Clone,
+    S: NewService<Request = Request<Payload>>,
     S::Error: Debug,
     S::Response: Into<Response<B>>,
+    S::Service: 'static,
     B: MessageBody,
 {
     /// Create new `HttpService` instance.
@@ -54,10 +55,10 @@ where
 impl<T, S, B> NewService for H1Service<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: NewService<Request = Request> + Clone,
-    S::Service: Clone,
+    S: NewService<Request = Request>,
     S::Error: Debug,
     S::Response: Into<Response<B>>,
+    S::Service: 'static,
     B: MessageBody,
 {
     type Request = T;
@@ -93,7 +94,6 @@ pub struct H1ServiceBuilder<T, S> {
 impl<T, S> H1ServiceBuilder<T, S>
 where
     S: NewService<Request = Request>,
-    S::Service: Clone,
     S::Error: Debug,
 {
     /// Create instance of `ServiceConfigBuilder`
@@ -217,7 +217,7 @@ impl<T, S, B> Future for H1ServiceResponse<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
     S: NewService<Request = Request>,
-    S::Service: Clone,
+    S::Service: 'static,
     S::Error: Debug,
     S::Response: Into<Response<B>>,
     B: MessageBody,
@@ -235,22 +235,22 @@ where
 }
 
 /// `Service` implementation for HTTP1 transport
-pub struct H1ServiceHandler<T, S, B> {
-    srv: S,
+pub struct H1ServiceHandler<T, S: 'static, B> {
+    srv: CloneableService<S>,
     cfg: ServiceConfig,
     _t: PhantomData<(T, B)>,
 }
 
 impl<T, S, B> H1ServiceHandler<T, S, B>
 where
-    S: Service<Request = Request> + Clone,
+    S: Service<Request = Request>,
     S::Error: Debug,
     S::Response: Into<Response<B>>,
     B: MessageBody,
 {
     fn new(cfg: ServiceConfig, srv: S) -> H1ServiceHandler<T, S, B> {
         H1ServiceHandler {
-            srv,
+            srv: CloneableService::new(srv),
             cfg,
             _t: PhantomData,
         }
@@ -260,7 +260,7 @@ where
 impl<T, S, B> Service for H1ServiceHandler<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: Service<Request = Request> + Clone,
+    S: Service<Request = Request>,
     S::Error: Debug,
     S::Response: Into<Response<B>>,
     B: MessageBody,

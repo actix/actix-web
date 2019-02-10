@@ -153,15 +153,6 @@ impl<Payload> Request<Payload> {
         }
         self.head().method == Method::CONNECT
     }
-
-    // #[doc(hidden)]
-    // /// Note: this method should be called only as part of clone operation
-    // /// of wrapper type.
-    // pub fn clone_request(&self) -> Self {
-    //     Request {
-    //         inner: self.inner.clone(),
-    //     }
-    // }
 }
 
 impl<Payload> fmt::Debug for Request<Payload> {

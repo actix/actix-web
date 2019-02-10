@@ -5,6 +5,7 @@ use std::time::Instant;
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use actix_service::Service;
+use actix_utils::cloneable::CloneableService;
 use bitflags::bitflags;
 use futures::{try_ready, Async, Future, Poll, Sink, Stream};
 use log::{debug, error, trace};
@@ -35,18 +36,18 @@ bitflags! {
 }
 
 /// Dispatcher for HTTP/1.1 protocol
-pub struct Dispatcher<T, S: Service, B: MessageBody>
+pub struct Dispatcher<T, S: Service + 'static, B: MessageBody>
 where
     S::Error: Debug,
 {
     inner: Option<InnerDispatcher<T, S, B>>,
 }
 
-struct InnerDispatcher<T, S: Service, B: MessageBody>
+struct InnerDispatcher<T, S: Service + 'static, B: MessageBody>
 where
     S::Error: Debug,
 {
-    service: S,
+    service: CloneableService<S>,
     flags: Flags,
     framed: Framed<T, Codec>,
     error: Option<DispatchError<S::Error>>,
@@ -85,13 +86,13 @@ impl<S: Service, B: MessageBody> State<S, B> {
 impl<T, S, B> Dispatcher<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: Service<Request = Request>,
+    S: Service<Request = Request> + 'static,
     S::Error: Debug,
     S::Response: Into<Response<B>>,
     B: MessageBody,
 {
     /// Create http/1 dispatcher.
-    pub fn new(stream: T, config: ServiceConfig, service: S) -> Self {
+    pub fn new(stream: T, config: ServiceConfig, service: CloneableService<S>) -> Self {
         Dispatcher::with_timeout(stream, config, None, service)
     }
 
@@ -100,7 +101,7 @@ where
         stream: T,
         config: ServiceConfig,
         timeout: Option<Delay>,
-        service: S,
+        service: CloneableService<S>,
     ) -> Self {
         let keepalive = config.keep_alive_enabled();
         let flags = if keepalive {
@@ -140,7 +141,7 @@ where
 impl<T, S, B> InnerDispatcher<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: Service<Request = Request>,
+    S: Service<Request = Request> + 'static,
     S::Error: Debug,
     S::Response: Into<Response<B>>,
     B: MessageBody,

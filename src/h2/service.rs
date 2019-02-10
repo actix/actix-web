@@ -4,6 +4,7 @@ use std::{io, net};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use actix_service::{IntoNewService, NewService, Service};
+use actix_utils::cloneable::CloneableService;
 use bytes::Bytes;
 use futures::future::{ok, FutureResult};
 use futures::{try_ready, Async, Future, Poll, Stream};
@@ -30,8 +31,8 @@ pub struct H2Service<T, S, B> {
 
 impl<T, S, B> H2Service<T, S, B>
 where
-    S: NewService<Request = Request<Payload>> + Clone,
-    S::Service: Clone + 'static,
+    S: NewService<Request = Request<Payload>>,
+    S::Service: 'static,
     S::Error: Into<Error> + Debug + 'static,
     S::Response: Into<Response<B>>,
     B: MessageBody + 'static,
@@ -56,8 +57,8 @@ where
 impl<T, S, B> NewService for H2Service<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: NewService<Request = Request<Payload>> + Clone,
-    S::Service: Clone + 'static,
+    S: NewService<Request = Request<Payload>>,
+    S::Service: 'static,
     S::Error: Into<Error> + Debug,
     S::Response: Into<Response<B>>,
     B: MessageBody + 'static,
@@ -95,7 +96,7 @@ pub struct H2ServiceBuilder<T, S> {
 impl<T, S> H2ServiceBuilder<T, S>
 where
     S: NewService<Request = Request<Payload>>,
-    S::Service: Clone + 'static,
+    S::Service: 'static,
     S::Error: Into<Error> + Debug + 'static,
 {
     /// Create instance of `H2ServiceBuilder`
@@ -238,7 +239,7 @@ impl<T, S, B> Future for H2ServiceResponse<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
     S: NewService<Request = Request<Payload>>,
-    S::Service: Clone + 'static,
+    S::Service: 'static,
     S::Response: Into<Response<B>>,
     S::Error: Into<Error> + Debug,
     B: MessageBody + 'static,
@@ -256,23 +257,23 @@ where
 }
 
 /// `Service` implementation for http/2 transport
-pub struct H2ServiceHandler<T, S, B> {
-    srv: S,
+pub struct H2ServiceHandler<T, S: 'static, B> {
+    srv: CloneableService<S>,
     cfg: ServiceConfig,
     _t: PhantomData<(T, B)>,
 }
 
 impl<T, S, B> H2ServiceHandler<T, S, B>
 where
-    S: Service<Request = Request<Payload>> + Clone + 'static,
+    S: Service<Request = Request<Payload>> + 'static,
     S::Error: Into<Error> + Debug,
     S::Response: Into<Response<B>>,
     B: MessageBody + 'static,
 {
     fn new(cfg: ServiceConfig, srv: S) -> H2ServiceHandler<T, S, B> {
         H2ServiceHandler {
-            srv,
             cfg,
+            srv: CloneableService::new(srv),
             _t: PhantomData,
         }
     }
@@ -281,7 +282,7 @@ where
 impl<T, S, B> Service for H2ServiceHandler<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: Service<Request = Request<Payload>> + Clone + 'static,
+    S: Service<Request = Request<Payload>> + 'static,
     S::Error: Into<Error> + Debug,
     S::Response: Into<Response<B>>,
     B: MessageBody + 'static,
@@ -309,15 +310,19 @@ where
     }
 }
 
-enum State<T: AsyncRead + AsyncWrite, S: Service, B: MessageBody> {
+enum State<T: AsyncRead + AsyncWrite, S: Service + 'static, B: MessageBody> {
     Incoming(Dispatcher<T, S, B>),
-    Handshake(Option<S>, Option<ServiceConfig>, Handshake<T, Bytes>),
+    Handshake(
+        Option<CloneableService<S>>,
+        Option<ServiceConfig>,
+        Handshake<T, Bytes>,
+    ),
 }
 
 pub struct H2ServiceHandlerResponse<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: Service<Request = Request<Payload>> + Clone + 'static,
+    S: Service<Request = Request<Payload>> + 'static,
     S::Error: Into<Error> + Debug,
     S::Response: Into<Response<B>>,
     B: MessageBody + 'static,
@@ -328,7 +333,7 @@ where
 impl<T, S, B> Future for H2ServiceHandlerResponse<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: Service<Request = Request<Payload>> + Clone,
+    S: Service<Request = Request<Payload>> + 'static,
     S::Error: Into<Error> + Debug,
     S::Response: Into<Response<B>>,
     B: MessageBody,
