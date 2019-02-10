@@ -599,7 +599,9 @@ mod tests {
             let mut h1 = Dispatcher::new(
                 buf,
                 ServiceConfig::default(),
-                (|req| ok::<_, Error>(Response::Ok().finish())).into_service(),
+                CloneableService::new(
+                    (|req| ok::<_, Error>(Response::Ok().finish())).into_service(),
+                ),
             );
             assert!(h1.poll().is_ok());
             assert!(h1.poll().is_ok());
