@@ -40,7 +40,7 @@ ssl = ["openssl"]
 actix-service = "0.2.1"
 actix-codec = "0.1.0"
 actix-connector = "0.2.0"
-actix-utils = "0.2.1"
+actix-utils = "0.2.2"
 
 base64 = "0.10"
 backtrace = "0.3"
@@ -80,7 +80,6 @@ openssl = { version="0.10", optional = true }
 actix-rt = "0.1.0"
 actix-server = { version="0.2", features=["ssl"] }
 actix-connector =  { version="0.2.0", features=["ssl"] }
-actix-utils = "0.2.1"
 actix-http-test = { path="test-server", features=["ssl"] }
 env_logger = "0.6"
 serde_derive = "1.0"

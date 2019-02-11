@@ -6,6 +6,7 @@ use std::string::FromUtf8Error;
 use std::{fmt, io, result};
 
 // use actix::MailboxError;
+use actix_utils::timeout::TimeoutError;
 use backtrace::Backtrace;
 use cookie;
 use derive_more::{Display, From};
@@ -186,6 +187,16 @@ impl<T: ResponseError + 'static> From<T> for Error {
 //         err.compat().into()
 //     }
 // }
+
+/// Return `GATEWAY_TIMEOUT` for `TimeoutError`
+impl<E: ResponseError> ResponseError for TimeoutError<E> {
+    fn error_response(&self) -> Response {
+        match self {
+            TimeoutError::Service(e) => e.error_response(),
+            TimeoutError::Timeout => Response::new(StatusCode::GATEWAY_TIMEOUT),
+        }
+    }
+}
 
 /// `InternalServerError` for `JsonError`
 impl ResponseError for JsonError {}
