@@ -9,10 +9,11 @@ use super::connection::{ConnectionLifetime, ConnectionType, IoConnection};
 use super::error::{ConnectorError, SendRequestError};
 use super::pool::Acquired;
 use super::response::ClientResponse;
-use crate::body::{BodyLength, MessageBody, PayloadStream};
+use crate::body::{BodyLength, MessageBody};
 use crate::error::PayloadError;
 use crate::h1;
 use crate::message::RequestHead;
+use crate::payload::PayloadStream;
 
 pub(crate) fn send_request<T, B>(
     io: T,
@@ -57,7 +58,7 @@ where
                                 release_connection(framed, force_close)
                             }
                             _ => {
-                                res.set_payload(Payload::stream(framed));
+                                res.set_payload(Payload::stream(framed).into());
                             }
                         }
                         ok(res)

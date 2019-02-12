@@ -1,3 +1,5 @@
+use std::{mem, str};
+
 use bytes::{Bytes, BytesMut};
 use encoding::all::UTF_8;
 use encoding::label::encoding_from_whatwg_label;
@@ -8,13 +10,13 @@ use http::{header, HeaderMap};
 use mime::Mime;
 use serde::de::DeserializeOwned;
 use serde_urlencoded;
-use std::str;
 
 use crate::error::{
     ContentTypeError, ParseError, PayloadError, ReadlinesError, UrlencodedError,
 };
 use crate::header::Header;
 use crate::json::JsonBody;
+use crate::payload::Payload;
 
 /// Trait that implements general purpose operations on http messages
 pub trait HttpMessage: Sized {
@@ -25,7 +27,7 @@ pub trait HttpMessage: Sized {
     fn headers(&self) -> &HeaderMap;
 
     /// Message payload stream
-    fn payload(&self) -> Option<Self::Stream>;
+    fn payload(&self) -> Payload<Self::Stream>;
 
     #[doc(hidden)]
     /// Get a header
@@ -210,7 +212,7 @@ pub trait HttpMessage: Sized {
 
 /// Stream to read request line by line.
 pub struct Readlines<T: HttpMessage> {
-    stream: Option<T::Stream>,
+    stream: Payload<T::Stream>,
     buff: BytesMut,
     limit: usize,
     checked_buff: bool,
@@ -244,7 +246,7 @@ impl<T: HttpMessage> Readlines<T> {
 
     fn err(err: ReadlinesError) -> Self {
         Readlines {
-            stream: None,
+            stream: Payload::None,
             buff: BytesMut::new(),
             limit: 262_144,
             checked_buff: true,
@@ -292,65 +294,61 @@ impl<T: HttpMessage + 'static> Stream for Readlines<T> {
             self.checked_buff = true;
         }
         // poll req for more bytes
-        if let Some(ref mut stream) = self.stream {
-            match stream.poll() {
-                Ok(Async::Ready(Some(mut bytes))) => {
-                    // check if there is a newline in bytes
-                    let mut found: Option<usize> = None;
-                    for (ind, b) in bytes.iter().enumerate() {
-                        if *b == b'\n' {
-                            found = Some(ind);
-                            break;
-                        }
+        match self.stream.poll() {
+            Ok(Async::Ready(Some(mut bytes))) => {
+                // check if there is a newline in bytes
+                let mut found: Option<usize> = None;
+                for (ind, b) in bytes.iter().enumerate() {
+                    if *b == b'\n' {
+                        found = Some(ind);
+                        break;
                     }
-                    if let Some(ind) = found {
-                        // check if line is longer than limit
-                        if ind + 1 > self.limit {
-                            return Err(ReadlinesError::LimitOverflow);
-                        }
-                        let enc: *const Encoding = self.encoding as *const Encoding;
-                        let line = if enc == UTF_8 {
-                            str::from_utf8(&bytes.split_to(ind + 1))
-                                .map_err(|_| ReadlinesError::EncodingError)?
-                                .to_owned()
-                        } else {
-                            self.encoding
-                                .decode(&bytes.split_to(ind + 1), DecoderTrap::Strict)
-                                .map_err(|_| ReadlinesError::EncodingError)?
-                        };
-                        // extend buffer with rest of the bytes;
-                        self.buff.extend_from_slice(&bytes);
-                        self.checked_buff = false;
-                        return Ok(Async::Ready(Some(line)));
-                    }
-                    self.buff.extend_from_slice(&bytes);
-                    Ok(Async::NotReady)
                 }
-                Ok(Async::NotReady) => Ok(Async::NotReady),
-                Ok(Async::Ready(None)) => {
-                    if self.buff.is_empty() {
-                        return Ok(Async::Ready(None));
-                    }
-                    if self.buff.len() > self.limit {
+                if let Some(ind) = found {
+                    // check if line is longer than limit
+                    if ind + 1 > self.limit {
                         return Err(ReadlinesError::LimitOverflow);
                     }
                     let enc: *const Encoding = self.encoding as *const Encoding;
                     let line = if enc == UTF_8 {
-                        str::from_utf8(&self.buff)
+                        str::from_utf8(&bytes.split_to(ind + 1))
                             .map_err(|_| ReadlinesError::EncodingError)?
                             .to_owned()
                     } else {
                         self.encoding
-                            .decode(&self.buff, DecoderTrap::Strict)
+                            .decode(&bytes.split_to(ind + 1), DecoderTrap::Strict)
                             .map_err(|_| ReadlinesError::EncodingError)?
                     };
-                    self.buff.clear();
-                    Ok(Async::Ready(Some(line)))
+                    // extend buffer with rest of the bytes;
+                    self.buff.extend_from_slice(&bytes);
+                    self.checked_buff = false;
+                    return Ok(Async::Ready(Some(line)));
                 }
-                Err(e) => Err(ReadlinesError::from(e)),
+                self.buff.extend_from_slice(&bytes);
+                Ok(Async::NotReady)
             }
-        } else {
-            Ok(Async::Ready(None))
+            Ok(Async::NotReady) => Ok(Async::NotReady),
+            Ok(Async::Ready(None)) => {
+                if self.buff.is_empty() {
+                    return Ok(Async::Ready(None));
+                }
+                if self.buff.len() > self.limit {
+                    return Err(ReadlinesError::LimitOverflow);
+                }
+                let enc: *const Encoding = self.encoding as *const Encoding;
+                let line = if enc == UTF_8 {
+                    str::from_utf8(&self.buff)
+                        .map_err(|_| ReadlinesError::EncodingError)?
+                        .to_owned()
+                } else {
+                    self.encoding
+                        .decode(&self.buff, DecoderTrap::Strict)
+                        .map_err(|_| ReadlinesError::EncodingError)?
+                };
+                self.buff.clear();
+                Ok(Async::Ready(Some(line)))
+            }
+            Err(e) => Err(ReadlinesError::from(e)),
         }
     }
 }
@@ -359,7 +357,7 @@ impl<T: HttpMessage + 'static> Stream for Readlines<T> {
 pub struct MessageBody<T: HttpMessage> {
     limit: usize,
     length: Option<usize>,
-    stream: Option<T::Stream>,
+    stream: Payload<T::Stream>,
     err: Option<PayloadError>,
     fut: Option<Box<Future<Item = Bytes, Error = PayloadError>>>,
 }
@@ -397,7 +395,7 @@ impl<T: HttpMessage> MessageBody<T> {
 
     fn err(e: PayloadError) -> Self {
         MessageBody {
-            stream: None,
+            stream: Payload::None,
             limit: 262_144,
             fut: None,
             err: Some(e),
@@ -428,16 +426,10 @@ where
             }
         }
 
-        if self.stream.is_none() {
-            return Ok(Async::Ready(Bytes::new()));
-        }
-
         // future
         let limit = self.limit;
         self.fut = Some(Box::new(
-            self.stream
-                .take()
-                .expect("Can not be used second time")
+            mem::replace(&mut self.stream, Payload::None)
                 .from_err()
                 .fold(BytesMut::with_capacity(8192), move |mut body, chunk| {
                     if (body.len() + chunk.len()) > limit {
@@ -455,7 +447,7 @@ where
 
 /// Future that resolves to a parsed urlencoded values.
 pub struct UrlEncoded<T: HttpMessage, U> {
-    stream: Option<T::Stream>,
+    stream: Payload<T::Stream>,
     limit: usize,
     length: Option<usize>,
     encoding: EncodingRef,
@@ -500,7 +492,7 @@ impl<T: HttpMessage, U> UrlEncoded<T, U> {
 
     fn err(e: UrlencodedError) -> Self {
         UrlEncoded {
-            stream: None,
+            stream: Payload::None,
             limit: 262_144,
             fut: None,
             err: Some(e),
@@ -543,10 +535,7 @@ where
 
         // future
         let encoding = self.encoding;
-        let fut = self
-            .stream
-            .take()
-            .expect("UrlEncoded could not be used second time")
+        let fut = mem::replace(&mut self.stream, Payload::None)
             .from_err()
             .fold(BytesMut::with_capacity(8192), move |mut body, chunk| {
                 if (body.len() + chunk.len()) > limit {

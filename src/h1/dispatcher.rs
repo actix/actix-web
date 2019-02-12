@@ -316,7 +316,7 @@ where
                             match self.framed.get_codec().message_type() {
                                 MessageType::Payload => {
                                     let (ps, pl) = Payload::create(false);
-                                    req = req.set_payload(pl);
+                                    req = req.set_payload(crate::Payload::H1(pl));
                                     self.payload = Some(ps);
                                 }
                                 MessageType::Stream => {

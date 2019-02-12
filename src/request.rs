@@ -1,5 +1,5 @@
 use std::cell::{Ref, RefCell, RefMut};
-use std::fmt;
+use std::{fmt, mem};
 
 use bytes::Bytes;
 use futures::Stream;
@@ -9,11 +9,11 @@ use crate::error::PayloadError;
 use crate::extensions::Extensions;
 use crate::httpmessage::HttpMessage;
 use crate::message::{Message, RequestHead};
-use crate::payload::Payload;
+use crate::payload::{Payload, PayloadStream};
 
 /// Request
-pub struct Request<P = Payload> {
-    pub(crate) payload: RefCell<Option<P>>,
+pub struct Request<P = PayloadStream> {
+    pub(crate) payload: RefCell<Payload<P>>,
     pub(crate) inner: Message<RequestHead>,
 }
 
@@ -28,53 +28,53 @@ where
     }
 
     #[inline]
-    fn payload(&self) -> Option<P> {
-        self.payload.borrow_mut().take()
+    fn payload(&self) -> Payload<Self::Stream> {
+        mem::replace(&mut *self.payload.borrow_mut(), Payload::None)
     }
 }
 
-impl<Payload> From<Message<RequestHead>> for Request<Payload> {
+impl<P> From<Message<RequestHead>> for Request<P> {
     fn from(msg: Message<RequestHead>) -> Self {
         Request {
-            payload: RefCell::new(None),
+            payload: RefCell::new(Payload::None),
             inner: msg,
         }
     }
 }
 
-impl Request<Payload> {
+impl Request<PayloadStream> {
     /// Create new Request instance
-    pub fn new() -> Request<Payload> {
+    pub fn new() -> Request<PayloadStream> {
         Request {
-            payload: RefCell::new(None),
+            payload: RefCell::new(Payload::None),
             inner: Message::new(),
         }
     }
 }
 
-impl<Payload> Request<Payload> {
+impl<P> Request<P> {
     /// Create new Request instance
-    pub fn with_payload(payload: Payload) -> Request<Payload> {
+    pub fn with_payload(payload: Payload<P>) -> Request<P> {
         Request {
-            payload: RefCell::new(Some(payload.into())),
+            payload: RefCell::new(payload),
             inner: Message::new(),
         }
     }
 
     /// Create new Request instance
-    pub fn set_payload<I, P>(self, payload: I) -> Request<P>
+    pub fn set_payload<I, P1>(self, payload: I) -> Request<P1>
     where
-        I: Into<P>,
+        I: Into<Payload<P1>>,
     {
         Request {
-            payload: RefCell::new(Some(payload.into())),
+            payload: RefCell::new(payload.into()),
             inner: self.inner,
         }
     }
 
     /// Split request into request head and payload
-    pub fn into_parts(mut self) -> (Message<RequestHead>, Option<Payload>) {
-        (self.inner, self.payload.get_mut().take())
+    pub fn into_parts(self) -> (Message<RequestHead>, Payload<P>) {
+        (self.inner, self.payload.into_inner())
     }
 
     #[inline]

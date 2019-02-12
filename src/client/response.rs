@@ -1,20 +1,19 @@
 use std::cell::RefCell;
-use std::fmt;
+use std::{fmt, mem};
 
 use bytes::Bytes;
-use futures::{Async, Poll, Stream};
+use futures::{Poll, Stream};
 use http::{HeaderMap, StatusCode, Version};
 
-use crate::body::PayloadStream;
 use crate::error::PayloadError;
 use crate::httpmessage::HttpMessage;
 use crate::message::{Head, ResponseHead};
+use crate::payload::{Payload, PayloadStream};
 
 /// Client Response
-#[derive(Default)]
 pub struct ClientResponse {
     pub(crate) head: ResponseHead,
-    pub(crate) payload: RefCell<Option<PayloadStream>>,
+    pub(crate) payload: RefCell<Payload>,
 }
 
 impl HttpMessage for ClientResponse {
@@ -25,8 +24,8 @@ impl HttpMessage for ClientResponse {
     }
 
     #[inline]
-    fn payload(&self) -> Option<Self::Stream> {
-        self.payload.borrow_mut().take()
+    fn payload(&self) -> Payload<Self::Stream> {
+        mem::replace(&mut *self.payload.borrow_mut(), Payload::None)
     }
 }
 
@@ -35,7 +34,7 @@ impl ClientResponse {
     pub fn new() -> ClientResponse {
         ClientResponse {
             head: ResponseHead::default(),
-            payload: RefCell::new(None),
+            payload: RefCell::new(Payload::None),
         }
     }
 
@@ -80,8 +79,8 @@ impl ClientResponse {
     }
 
     /// Set response payload
-    pub fn set_payload(&mut self, payload: PayloadStream) {
-        *self.payload.get_mut() = Some(payload);
+    pub fn set_payload(&mut self, payload: Payload) {
+        *self.payload.get_mut() = payload;
     }
 }
 
@@ -90,11 +89,7 @@ impl Stream for ClientResponse {
     type Error = PayloadError;
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
-        if let Some(ref mut payload) = self.payload.get_mut() {
-            payload.poll()
-        } else {
-            Ok(Async::Ready(None))
-        }
+        self.payload.get_mut().poll()
     }
 }
 

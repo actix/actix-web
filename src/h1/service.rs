@@ -12,7 +12,7 @@ use log::error;
 use crate::body::MessageBody;
 use crate::config::{KeepAlive, ServiceConfig};
 use crate::error::{DispatchError, ParseError};
-use crate::payload::Payload;
+use crate::payload::PayloadStream;
 use crate::request::Request;
 use crate::response::Response;
 
@@ -29,7 +29,7 @@ pub struct H1Service<T, S, B> {
 
 impl<T, S, B> H1Service<T, S, B>
 where
-    S: NewService<Request = Request<Payload>>,
+    S: NewService<Request = Request<PayloadStream>>,
     S::Error: Debug,
     S::Response: Into<Response<B>>,
     S::Service: 'static,

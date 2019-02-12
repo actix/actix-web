@@ -8,6 +8,7 @@ use serde_json;
 
 use crate::error::JsonPayloadError;
 use crate::httpmessage::HttpMessage;
+use crate::payload::Payload;
 
 /// Request payload json parser that resolves to a deserialized `T` value.
 ///
@@ -43,7 +44,7 @@ use crate::httpmessage::HttpMessage;
 pub struct JsonBody<T: HttpMessage, U: DeserializeOwned> {
     limit: usize,
     length: Option<usize>,
-    stream: Option<T::Stream>,
+    stream: Payload<T::Stream>,
     err: Option<JsonPayloadError>,
     fut: Option<Box<Future<Item = U, Error = JsonPayloadError>>>,
 }
@@ -61,7 +62,7 @@ impl<T: HttpMessage, U: DeserializeOwned> JsonBody<T, U> {
             return JsonBody {
                 limit: 262_144,
                 length: None,
-                stream: None,
+                stream: Payload::None,
                 fut: None,
                 err: Some(JsonPayloadError::ContentType),
             };
@@ -112,10 +113,7 @@ impl<T: HttpMessage + 'static, U: DeserializeOwned + 'static> Future for JsonBod
             }
         }
 
-        let fut = self
-            .stream
-            .take()
-            .expect("JsonBody could not be used second time")
+        let fut = std::mem::replace(&mut self.stream, Payload::None)
             .from_err()
             .fold(BytesMut::with_capacity(8192), move |mut body, chunk| {
                 if (body.len() + chunk.len()) > limit {

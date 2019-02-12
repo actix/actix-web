@@ -10,7 +10,6 @@ use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCOD
 use http::{request::Request, HttpTryFrom, Version};
 
 use crate::body::{BodyLength, MessageBody};
-use crate::h2::Payload;
 use crate::message::{RequestHead, ResponseHead};
 
 use super::connection::{ConnectionType, IoConnection};
@@ -111,7 +110,7 @@ where
 
             Ok(ClientResponse {
                 head,
-                payload: RefCell::new(Some(Box::new(Payload::new(body)))),
+                payload: RefCell::new(body.into()),
             })
         })
         .from_err()
