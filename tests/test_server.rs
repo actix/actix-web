@@ -89,7 +89,7 @@ fn test_h2_body() -> std::io::Result<()> {
             .map_err(|e| println!("Openssl error: {}", e))
             .and_then(
                 h2::H2Service::build()
-                    .finish(|req: Request<_>| {
+                    .finish(|mut req: Request<_>| {
                         req.body()
                             .limit(1024 * 1024)
                             .and_then(|body| Ok(Response::Ok().body(body)))
@@ -101,7 +101,7 @@ fn test_h2_body() -> std::io::Result<()> {
     let req = client::ClientRequest::get(srv.surl("/"))
         .body(data.clone())
         .unwrap();
-    let response = srv.send_request(req).unwrap();
+    let mut response = srv.send_request(req).unwrap();
     assert!(response.status().is_success());
 
     let body = srv.block_on(response.body().limit(1024 * 1024)).unwrap();
@@ -350,7 +350,7 @@ fn test_headers() {
 
     let req = srv.get().finish().unwrap();
 
-    let response = srv.block_on(req.send(&mut connector)).unwrap();
+    let mut response = srv.block_on(req.send(&mut connector)).unwrap();
     assert!(response.status().is_success());
 
     // read response
@@ -387,7 +387,7 @@ fn test_body() {
     });
 
     let req = srv.get().finish().unwrap();
-    let response = srv.send_request(req).unwrap();
+    let mut response = srv.send_request(req).unwrap();
     assert!(response.status().is_success());
 
     // read response
@@ -402,7 +402,7 @@ fn test_head_empty() {
     });
 
     let req = client::ClientRequest::head(srv.url("/")).finish().unwrap();
-    let response = srv.send_request(req).unwrap();
+    let mut response = srv.send_request(req).unwrap();
     assert!(response.status().is_success());
 
     {
@@ -428,7 +428,7 @@ fn test_head_binary() {
     });
 
     let req = client::ClientRequest::head(srv.url("/")).finish().unwrap();
-    let response = srv.send_request(req).unwrap();
+    let mut response = srv.send_request(req).unwrap();
     assert!(response.status().is_success());
 
     {
@@ -477,7 +477,7 @@ fn test_body_length() {
     });
 
     let req = srv.get().finish().unwrap();
-    let response = srv.send_request(req).unwrap();
+    let mut response = srv.send_request(req).unwrap();
     assert!(response.status().is_success());
 
     // read response
@@ -496,7 +496,7 @@ fn test_body_chunked_explicit() {
     });
 
     let req = srv.get().finish().unwrap();
-    let response = srv.send_request(req).unwrap();
+    let mut response = srv.send_request(req).unwrap();
     assert!(response.status().is_success());
 
     // read response
@@ -517,7 +517,7 @@ fn test_body_chunked_implicit() {
     });
 
     let req = srv.get().finish().unwrap();
-    let response = srv.send_request(req).unwrap();
+    let mut response = srv.send_request(req).unwrap();
     assert!(response.status().is_success());
 
     // read response
@@ -540,7 +540,7 @@ fn test_response_http_error_handling() {
     });
 
     let req = srv.get().finish().unwrap();
-    let response = srv.send_request(req).unwrap();
+    let mut response = srv.send_request(req).unwrap();
     assert_eq!(response.status(), http::StatusCode::INTERNAL_SERVER_ERROR);
 
     // read response

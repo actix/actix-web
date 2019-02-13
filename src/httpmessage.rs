@@ -1,4 +1,4 @@
-use std::{mem, str};
+use std::str;
 
 use bytes::{Bytes, BytesMut};
 use encoding::all::UTF_8;
@@ -21,13 +21,13 @@ use crate::payload::Payload;
 /// Trait that implements general purpose operations on http messages
 pub trait HttpMessage: Sized {
     /// Type of message payload stream
-    type Stream: Stream<Item = Bytes, Error = PayloadError> + Sized;
+    type Stream;
 
     /// Read the message headers.
     fn headers(&self) -> &HeaderMap;
 
     /// Message payload stream
-    fn payload(&self) -> Payload<Self::Stream>;
+    fn take_payload(&mut self) -> Payload<Self::Stream>;
 
     #[doc(hidden)]
     /// Get a header
@@ -130,7 +130,10 @@ pub trait HttpMessage: Sized {
     /// }
     /// # fn main() {}
     /// ```
-    fn body(&self) -> MessageBody<Self> {
+    fn body(&mut self) -> MessageBody<Self>
+    where
+        Self::Stream: Stream<Item = Bytes, Error = PayloadError> + Sized,
+    {
         MessageBody::new(self)
     }
 
@@ -164,7 +167,10 @@ pub trait HttpMessage: Sized {
     /// }
     /// # fn main() {}
     /// ```
-    fn urlencoded<T: DeserializeOwned>(&self) -> UrlEncoded<Self, T> {
+    fn urlencoded<T: DeserializeOwned>(&mut self) -> UrlEncoded<Self, T>
+    where
+        Self::Stream: Stream<Item = Bytes, Error = PayloadError>,
+    {
         UrlEncoded::new(self)
     }
 
@@ -200,12 +206,18 @@ pub trait HttpMessage: Sized {
     /// }
     /// # fn main() {}
     /// ```
-    fn json<T: DeserializeOwned>(&self) -> JsonBody<Self, T> {
+    fn json<T: DeserializeOwned + 'static>(&mut self) -> JsonBody<Self, T>
+    where
+        Self::Stream: Stream<Item = Bytes, Error = PayloadError> + 'static,
+    {
         JsonBody::new(self)
     }
 
     /// Return stream of lines.
-    fn readlines(&self) -> Readlines<Self> {
+    fn readlines(&mut self) -> Readlines<Self>
+    where
+        Self::Stream: Stream<Item = Bytes, Error = PayloadError> + 'static,
+    {
         Readlines::new(self)
     }
 }
@@ -220,16 +232,20 @@ pub struct Readlines<T: HttpMessage> {
     err: Option<ReadlinesError>,
 }
 
-impl<T: HttpMessage> Readlines<T> {
+impl<T> Readlines<T>
+where
+    T: HttpMessage,
+    T::Stream: Stream<Item = Bytes, Error = PayloadError>,
+{
     /// Create a new stream to read request line by line.
-    fn new(req: &T) -> Self {
+    fn new(req: &mut T) -> Self {
         let encoding = match req.encoding() {
             Ok(enc) => enc,
             Err(err) => return Self::err(err.into()),
         };
 
         Readlines {
-            stream: req.payload(),
+            stream: req.take_payload(),
             buff: BytesMut::with_capacity(262_144),
             limit: 262_144,
             checked_buff: true,
@@ -256,7 +272,11 @@ impl<T: HttpMessage> Readlines<T> {
     }
 }
 
-impl<T: HttpMessage + 'static> Stream for Readlines<T> {
+impl<T> Stream for Readlines<T>
+where
+    T: HttpMessage,
+    T::Stream: Stream<Item = Bytes, Error = PayloadError>,
+{
     type Item = String;
     type Error = ReadlinesError;
 
@@ -362,9 +382,13 @@ pub struct MessageBody<T: HttpMessage> {
     fut: Option<Box<Future<Item = Bytes, Error = PayloadError>>>,
 }
 
-impl<T: HttpMessage> MessageBody<T> {
+impl<T> MessageBody<T>
+where
+    T: HttpMessage,
+    T::Stream: Stream<Item = Bytes, Error = PayloadError>,
+{
     /// Create `MessageBody` for request.
-    pub fn new(req: &T) -> MessageBody<T> {
+    pub fn new(req: &mut T) -> MessageBody<T> {
         let mut len = None;
         if let Some(l) = req.headers().get(header::CONTENT_LENGTH) {
             if let Ok(s) = l.to_str() {
@@ -379,9 +403,9 @@ impl<T: HttpMessage> MessageBody<T> {
         }
 
         MessageBody {
+            stream: req.take_payload(),
             limit: 262_144,
             length: len,
-            stream: req.payload(),
             fut: None,
             err: None,
         }
@@ -406,7 +430,8 @@ impl<T: HttpMessage> MessageBody<T> {
 
 impl<T> Future for MessageBody<T>
 where
-    T: HttpMessage + 'static,
+    T: HttpMessage,
+    T::Stream: Stream<Item = Bytes, Error = PayloadError> + 'static,
 {
     type Item = Bytes;
     type Error = PayloadError;
@@ -429,7 +454,7 @@ where
         // future
         let limit = self.limit;
         self.fut = Some(Box::new(
-            mem::replace(&mut self.stream, Payload::None)
+            std::mem::replace(&mut self.stream, Payload::None)
                 .from_err()
                 .fold(BytesMut::with_capacity(8192), move |mut body, chunk| {
                     if (body.len() + chunk.len()) > limit {
@@ -455,9 +480,13 @@ pub struct UrlEncoded<T: HttpMessage, U> {
     fut: Option<Box<Future<Item = U, Error = UrlencodedError>>>,
 }
 
-impl<T: HttpMessage, U> UrlEncoded<T, U> {
+impl<T, U> UrlEncoded<T, U>
+where
+    T: HttpMessage,
+    T::Stream: Stream<Item = Bytes, Error = PayloadError>,
+{
     /// Create a new future to URL encode a request
-    pub fn new(req: &T) -> UrlEncoded<T, U> {
+    pub fn new(req: &mut T) -> UrlEncoded<T, U> {
         // check content type
         if req.content_type().to_lowercase() != "application/x-www-form-urlencoded" {
             return Self::err(UrlencodedError::ContentType);
@@ -482,7 +511,7 @@ impl<T: HttpMessage, U> UrlEncoded<T, U> {
 
         UrlEncoded {
             encoding,
-            stream: req.payload(),
+            stream: req.take_payload(),
             limit: 262_144,
             length: len,
             fut: None,
@@ -510,7 +539,8 @@ impl<T: HttpMessage, U> UrlEncoded<T, U> {
 
 impl<T, U> Future for UrlEncoded<T, U>
 where
-    T: HttpMessage + 'static,
+    T: HttpMessage,
+    T::Stream: Stream<Item = Bytes, Error = PayloadError> + 'static,
     U: DeserializeOwned + 'static,
 {
     type Item = U;
@@ -535,7 +565,7 @@ where
 
         // future
         let encoding = self.encoding;
-        let fut = mem::replace(&mut self.stream, Payload::None)
+        let fut = std::mem::replace(&mut self.stream, Payload::None)
             .from_err()
             .fold(BytesMut::with_capacity(8192), move |mut body, chunk| {
                 if (body.len() + chunk.len()) > limit {
@@ -691,7 +721,7 @@ mod tests {
 
     #[test]
     fn test_urlencoded_error() {
-        let req = TestRequest::with_header(
+        let mut req = TestRequest::with_header(
             header::CONTENT_TYPE,
             "application/x-www-form-urlencoded",
         )
@@ -702,7 +732,7 @@ mod tests {
             UrlencodedError::UnknownLength
         );
 
-        let req = TestRequest::with_header(
+        let mut req = TestRequest::with_header(
             header::CONTENT_TYPE,
             "application/x-www-form-urlencoded",
         )
@@ -713,7 +743,7 @@ mod tests {
             UrlencodedError::Overflow
         );
 
-        let req = TestRequest::with_header(header::CONTENT_TYPE, "text/plain")
+        let mut req = TestRequest::with_header(header::CONTENT_TYPE, "text/plain")
             .header(header::CONTENT_LENGTH, "10")
             .finish();
         assert_eq!(
@@ -724,7 +754,7 @@ mod tests {
 
     #[test]
     fn test_urlencoded() {
-        let req = TestRequest::with_header(
+        let mut req = TestRequest::with_header(
             header::CONTENT_TYPE,
             "application/x-www-form-urlencoded",
         )
@@ -740,7 +770,7 @@ mod tests {
             })
         );
 
-        let req = TestRequest::with_header(
+        let mut req = TestRequest::with_header(
             header::CONTENT_TYPE,
             "application/x-www-form-urlencoded; charset=utf-8",
         )
@@ -759,19 +789,20 @@ mod tests {
 
     #[test]
     fn test_message_body() {
-        let req = TestRequest::with_header(header::CONTENT_LENGTH, "xxxx").finish();
+        let mut req = TestRequest::with_header(header::CONTENT_LENGTH, "xxxx").finish();
         match req.body().poll().err().unwrap() {
             PayloadError::UnknownLength => (),
             _ => unreachable!("error"),
         }
 
-        let req = TestRequest::with_header(header::CONTENT_LENGTH, "1000000").finish();
+        let mut req =
+            TestRequest::with_header(header::CONTENT_LENGTH, "1000000").finish();
         match req.body().poll().err().unwrap() {
             PayloadError::Overflow => (),
             _ => unreachable!("error"),
         }
 
-        let req = TestRequest::default()
+        let mut req = TestRequest::default()
             .set_payload(Bytes::from_static(b"test"))
             .finish();
         match req.body().poll().ok().unwrap() {
@@ -779,7 +810,7 @@ mod tests {
             _ => unreachable!("error"),
         }
 
-        let req = TestRequest::default()
+        let mut req = TestRequest::default()
             .set_payload(Bytes::from_static(b"11111111111111"))
             .finish();
         match req.body().limit(5).poll().err().unwrap() {
@@ -790,14 +821,14 @@ mod tests {
 
     #[test]
     fn test_readlines() {
-        let req = TestRequest::default()
+        let mut req = TestRequest::default()
             .set_payload(Bytes::from_static(
                 b"Lorem Ipsum is simply dummy text of the printing and typesetting\n\
                   industry. Lorem Ipsum has been the industry's standard dummy\n\
                   Contrary to popular belief, Lorem Ipsum is not simply random text.",
             ))
             .finish();
-        let mut r = Readlines::new(&req);
+        let mut r = Readlines::new(&mut req);
         match r.poll().ok().unwrap() {
             Async::Ready(Some(s)) => assert_eq!(
                 s,

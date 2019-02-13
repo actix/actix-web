@@ -13,7 +13,6 @@ use crate::body::{BodyLength, MessageBody};
 use crate::error::PayloadError;
 use crate::h1;
 use crate::message::RequestHead;
-use crate::payload::PayloadStream;
 
 pub(crate) fn send_request<T, B>(
     io: T,
@@ -205,7 +204,9 @@ pub(crate) struct Payload<Io> {
 }
 
 impl<Io: ConnectionLifetime> Payload<Io> {
-    pub fn stream(framed: Framed<Io, h1::ClientCodec>) -> PayloadStream {
+    pub fn stream(
+        framed: Framed<Io, h1::ClientCodec>,
+    ) -> Box<Stream<Item = Bytes, Error = PayloadError>> {
         Box::new(Payload {
             framed: Some(framed.map_codec(|codec| codec.into_payload_codec())),
         })

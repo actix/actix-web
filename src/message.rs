@@ -2,9 +2,8 @@ use std::cell::{Ref, RefCell, RefMut};
 use std::collections::VecDeque;
 use std::rc::Rc;
 
-use http::{HeaderMap, Method, StatusCode, Uri, Version};
-
 use crate::extensions::Extensions;
+use crate::http::{HeaderMap, Method, StatusCode, Uri, Version};
 
 /// Represents various types of connection
 #[derive(Copy, Clone, PartialEq, Debug)]
@@ -20,6 +19,12 @@ pub enum ConnectionType {
 #[doc(hidden)]
 pub trait Head: Default + 'static {
     fn clear(&mut self);
+
+    /// Read the message headers.
+    fn headers(&self) -> &HeaderMap;
+
+    /// Mutable reference to the message headers.
+    fn headers_mut(&mut self) -> &mut HeaderMap;
 
     /// Connection type
     fn connection_type(&self) -> ConnectionType;
@@ -66,6 +71,14 @@ impl Head for RequestHead {
         self.ctype = None;
         self.headers.clear();
         self.extensions.borrow_mut().clear();
+    }
+
+    fn headers(&self) -> &HeaderMap {
+        &self.headers
+    }
+
+    fn headers_mut(&mut self) -> &mut HeaderMap {
+        &mut self.headers
     }
 
     fn set_connection_type(&mut self, ctype: ConnectionType) {
@@ -127,6 +140,14 @@ impl Head for ResponseHead {
         self.ctype = None;
         self.reason = None;
         self.headers.clear();
+    }
+
+    fn headers(&self) -> &HeaderMap {
+        &self.headers
+    }
+
+    fn headers_mut(&mut self) -> &mut HeaderMap {
+        &mut self.headers
     }
 
     fn set_connection_type(&mut self, ctype: ConnectionType) {

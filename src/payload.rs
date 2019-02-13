@@ -15,21 +15,21 @@ pub enum Payload<S = PayloadStream> {
     Stream(S),
 }
 
-impl<S> From<RecvStream> for Payload<S> {
-    fn from(v: RecvStream) -> Self {
-        Payload::H2(crate::h2::Payload::new(v))
-    }
-}
-
 impl<S> From<crate::h1::Payload> for Payload<S> {
-    fn from(pl: crate::h1::Payload) -> Self {
-        Payload::H1(pl)
+    fn from(v: crate::h1::Payload) -> Self {
+        Payload::H1(v)
     }
 }
 
 impl<S> From<crate::h2::Payload> for Payload<S> {
-    fn from(pl: crate::h2::Payload) -> Self {
-        Payload::H2(pl)
+    fn from(v: crate::h2::Payload) -> Self {
+        Payload::H2(v)
+    }
+}
+
+impl<S> From<RecvStream> for Payload<S> {
+    fn from(v: RecvStream) -> Self {
+        Payload::H2(crate::h2::Payload::new(v))
     }
 }
 

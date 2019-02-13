@@ -1,4 +1,3 @@
-use std::cell::RefCell;
 use std::time;
 
 use actix_codec::{AsyncRead, AsyncWrite};
@@ -10,7 +9,7 @@ use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCOD
 use http::{request::Request, HttpTryFrom, Version};
 
 use crate::body::{BodyLength, MessageBody};
-use crate::message::{RequestHead, ResponseHead};
+use crate::message::{Message, RequestHead, ResponseHead};
 
 use super::connection::{ConnectionType, IoConnection};
 use super::error::SendRequestError;
@@ -103,14 +102,14 @@ where
         .and_then(|resp| {
             let (parts, body) = resp.into_parts();
 
-            let mut head = ResponseHead::default();
+            let mut head: Message<ResponseHead> = Message::new();
             head.version = parts.version;
             head.status = parts.status;
             head.headers = parts.headers;
 
             Ok(ClientResponse {
                 head,
-                payload: RefCell::new(body.into()),
+                payload: body.into(),
             })
         })
         .from_err()

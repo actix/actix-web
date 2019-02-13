@@ -18,7 +18,7 @@ fn main() {
                 .client_timeout(1000)
                 .client_disconnect(1000)
                 .server_hostname("localhost")
-                .finish(|req: Request| {
+                .finish(|mut req: Request| {
                     req.body().limit(512).and_then(|bytes: Bytes| {
                         info!("request body: {:?}", bytes);
                         let mut res = Response::Ok();

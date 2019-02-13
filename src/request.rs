@@ -1,11 +1,8 @@
-use std::cell::{Ref, RefCell, RefMut};
-use std::{fmt, mem};
+use std::cell::{Ref, RefMut};
+use std::fmt;
 
-use bytes::Bytes;
-use futures::Stream;
 use http::{header, HeaderMap, Method, Uri, Version};
 
-use crate::error::PayloadError;
 use crate::extensions::Extensions;
 use crate::httpmessage::HttpMessage;
 use crate::message::{Message, RequestHead};
@@ -13,31 +10,27 @@ use crate::payload::{Payload, PayloadStream};
 
 /// Request
 pub struct Request<P = PayloadStream> {
-    pub(crate) payload: RefCell<Payload<P>>,
-    pub(crate) inner: Message<RequestHead>,
+    pub(crate) payload: Payload<P>,
+    pub(crate) head: Message<RequestHead>,
 }
 
-impl<P> HttpMessage for Request<P>
-where
-    P: Stream<Item = Bytes, Error = PayloadError>,
-{
+impl<P> HttpMessage for Request<P> {
     type Stream = P;
 
     fn headers(&self) -> &HeaderMap {
         &self.head().headers
     }
 
-    #[inline]
-    fn payload(&self) -> Payload<Self::Stream> {
-        mem::replace(&mut *self.payload.borrow_mut(), Payload::None)
+    fn take_payload(&mut self) -> Payload<P> {
+        std::mem::replace(&mut self.payload, Payload::None)
     }
 }
 
-impl<P> From<Message<RequestHead>> for Request<P> {
-    fn from(msg: Message<RequestHead>) -> Self {
+impl From<Message<RequestHead>> for Request<PayloadStream> {
+    fn from(head: Message<RequestHead>) -> Self {
         Request {
-            payload: RefCell::new(Payload::None),
-            inner: msg,
+            head,
+            payload: Payload::None,
         }
     }
 }
@@ -46,8 +39,8 @@ impl Request<PayloadStream> {
     /// Create new Request instance
     pub fn new() -> Request<PayloadStream> {
         Request {
-            payload: RefCell::new(Payload::None),
-            inner: Message::new(),
+            head: Message::new(),
+            payload: Payload::None,
         }
     }
 }
@@ -56,38 +49,44 @@ impl<P> Request<P> {
     /// Create new Request instance
     pub fn with_payload(payload: Payload<P>) -> Request<P> {
         Request {
-            payload: RefCell::new(payload),
-            inner: Message::new(),
+            payload,
+            head: Message::new(),
         }
     }
 
     /// Create new Request instance
-    pub fn set_payload<I, P1>(self, payload: I) -> Request<P1>
-    where
-        I: Into<Payload<P1>>,
-    {
-        Request {
-            payload: RefCell::new(payload.into()),
-            inner: self.inner,
-        }
+    pub fn replace_payload<P1>(self, payload: Payload<P1>) -> (Request<P1>, Payload<P>) {
+        let pl = self.payload;
+        (
+            Request {
+                payload,
+                head: self.head,
+            },
+            pl,
+        )
+    }
+
+    /// Get request's payload
+    pub fn take_payload(&mut self) -> Payload<P> {
+        std::mem::replace(&mut self.payload, Payload::None)
     }
 
     /// Split request into request head and payload
     pub fn into_parts(self) -> (Message<RequestHead>, Payload<P>) {
-        (self.inner, self.payload.into_inner())
+        (self.head, self.payload)
     }
 
     #[inline]
     /// Http message part of the request
     pub fn head(&self) -> &RequestHead {
-        &*self.inner
+        &*self.head
     }
 
     #[inline]
     #[doc(hidden)]
     /// Mutable reference to a http message part of the request
     pub fn head_mut(&mut self) -> &mut RequestHead {
-        &mut *self.inner
+        &mut *self.head
     }
 
     /// Request's uri.
@@ -135,13 +134,13 @@ impl<P> Request<P> {
     /// Request extensions
     #[inline]
     pub fn extensions(&self) -> Ref<Extensions> {
-        self.inner.extensions()
+        self.head.extensions()
     }
 
     /// Mutable reference to a the request's extensions
     #[inline]
     pub fn extensions_mut(&self) -> RefMut<Extensions> {
-        self.inner.extensions_mut()
+        self.head.extensions_mut()
     }
 
     /// Check if request requires connection upgrade
@@ -155,7 +154,7 @@ impl<P> Request<P> {
     }
 }
 
-impl<Payload> fmt::Debug for Request<Payload> {
+impl<P> fmt::Debug for Request<P> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         writeln!(
             f,
