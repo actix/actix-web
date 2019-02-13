@@ -48,10 +48,10 @@ impl HttpResponse {
         self.0.as_mut()
     }
 
-    /// Create http response builder with specific status.
+    /// Create a new HTTP response builder with specific status.
     #[inline]
     pub fn build(status: StatusCode) -> HttpResponseBuilder {
-        HttpResponsePool::get(status)
+        HttpResponseBuilder::new(status)
     }
 
     /// Create http response builder
@@ -346,6 +346,12 @@ pub struct HttpResponseBuilder {
 }
 
 impl HttpResponseBuilder {
+    /// Create a new HTTP response builder with specific status.
+    #[inline]
+    pub fn new(status: StatusCode) -> HttpResponseBuilder {
+        HttpResponsePool::get(status)
+    }
+
     /// Set HTTP status code of this response.
     #[inline]
     pub fn status(&mut self, status: StatusCode) -> &mut Self {
@@ -1176,6 +1182,14 @@ mod tests {
         let v = iter.next().unwrap();
         assert_eq!((v.name(), v.value()), ("cookie3", "val300"));
     }
+
+    #[test]
+    fn test_builder_new() {
+        let resp = HttpResponseBuilder::new(StatusCode::BAD_REQUEST)
+            .finish();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    }
+
 
     #[test]
     fn test_basic_builder() {
