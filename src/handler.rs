@@ -32,7 +32,8 @@ pub trait Responder {
 
     /// Convert itself to `AsyncResult` or `Error`.
     fn respond_to<S: 'static>(
-        self, req: &HttpRequest<S>,
+        self,
+        req: &HttpRequest<S>,
     ) -> Result<Self::Item, Self::Error>;
 }
 
@@ -103,7 +104,8 @@ where
     type Error = Error;
 
     fn respond_to<S: 'static>(
-        self, req: &HttpRequest<S>,
+        self,
+        req: &HttpRequest<S>,
     ) -> Result<AsyncResult<HttpResponse>, Error> {
         match self {
             Either::A(a) => match a.respond_to(req) {
@@ -142,7 +144,8 @@ where
     type Error = Error;
 
     fn respond_to<S: 'static>(
-        self, req: &HttpRequest<S>,
+        self,
+        req: &HttpRequest<S>,
     ) -> Result<AsyncResult<HttpResponse>, Error> {
         match self {
             Some(t) => match t.respond_to(req) {
@@ -151,6 +154,18 @@ where
             },
             None => Ok(req.build_response(StatusCode::NOT_FOUND).finish().into()),
         }
+    }
+}
+
+impl Responder for () {
+    type Item = HttpResponse;
+    type Error = Error;
+
+    fn respond_to<S: 'static>(
+        self,
+        req: &HttpRequest<S>,
+    ) -> Result<Self::Item, Self::Error> {
+        Ok(req.build_response(StatusCode::OK).finish())
     }
 }
 
@@ -293,7 +308,8 @@ impl Responder for AsyncResult<HttpResponse> {
     type Error = Error;
 
     fn respond_to<S>(
-        self, _: &HttpRequest<S>,
+        self,
+        _: &HttpRequest<S>,
     ) -> Result<AsyncResult<HttpResponse>, Error> {
         Ok(self)
     }
@@ -305,7 +321,8 @@ impl Responder for HttpResponse {
 
     #[inline]
     fn respond_to<S>(
-        self, _: &HttpRequest<S>,
+        self,
+        _: &HttpRequest<S>,
     ) -> Result<AsyncResult<HttpResponse>, Error> {
         Ok(AsyncResult(Some(AsyncResultItem::Ok(self))))
     }
@@ -389,7 +406,8 @@ where
 
     #[inline]
     fn respond_to<S: 'static>(
-        self, req: &HttpRequest<S>,
+        self,
+        req: &HttpRequest<S>,
     ) -> Result<AsyncResult<HttpResponse>, Error> {
         let req = req.clone();
         let fut = self
