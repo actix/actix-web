@@ -5,7 +5,7 @@
 ### Added
 
 * Add `from_file` and `from_file_with_config` to `NamedFile` to allow sending files without a known path. #670
-* Implement `Responder` for `()` returning 200 with empty body to allow handlers to return a unit.
+* Support handlers returning `()`. Unit is converted to 200 response with an empty body.
 
 ### Fixed
 
