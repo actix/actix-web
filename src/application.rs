@@ -825,6 +825,16 @@ mod tests {
     }
 
     #[test]
+    fn test_unit_responser() {
+        let app = App::new().resource("/unit", |r| r.f(|_| {})).finish();
+
+        let req = TestRequest::with_uri("/unit").request();
+        let resp = app.run(req);
+        assert_eq!(resp.as_msg().status(), StatusCode::OK);
+        assert_eq!(resp.as_msg().body(), &Body::Empty);
+    }
+
+    #[test]
     fn test_option_responder() {
         let app = App::new()
             .resource("/none", |r| r.f(|_| -> Option<&'static str> { None }))
