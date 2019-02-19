@@ -242,6 +242,20 @@ impl<B: MessageBody> Response<B> {
             self.body,
         )
     }
+
+    /// Set a body and return previous body value
+    pub fn map_body<F, B2: MessageBody>(mut self, f: F) -> Response<B2>
+    where
+        F: FnOnce(&mut ResponseHead, ResponseBody<B>) -> ResponseBody<B2>,
+    {
+        let body = f(&mut self.head, self.body);
+
+        Response {
+            head: self.head,
+            body: body,
+            error: self.error,
+        }
+    }
 }
 
 impl<B: MessageBody> fmt::Debug for Response<B> {
