@@ -79,6 +79,7 @@ pub(crate) trait MessageType: Sized {
                     dst.extend_from_slice(b"\r\ntransfer-encoding: chunked\r\n")
                 } else {
                     skip_len = false;
+                    dst.extend_from_slice(b"\r\n");
                 }
             }
             BodyLength::Empty => {
