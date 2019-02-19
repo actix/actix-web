@@ -57,6 +57,7 @@ pub(crate) trait MessageType: Sized {
         ctype: ConnectionType,
         config: &ServiceConfig,
     ) -> io::Result<()> {
+        let chunked = self.chunked();
         let mut skip_len = length != BodyLength::Stream;
 
         // Content length
@@ -74,8 +75,10 @@ pub(crate) trait MessageType: Sized {
         }
         match length {
             BodyLength::Stream => {
-                if self.chunked() {
+                if chunked {
                     dst.extend_from_slice(b"\r\ntransfer-encoding: chunked\r\n")
+                } else {
+                    skip_len = false;
                 }
             }
             BodyLength::Empty => {
