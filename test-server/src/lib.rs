@@ -53,7 +53,7 @@ pub struct TestServerRuntime<T> {
 
 impl TestServer {
     /// Start new test server with application factory
-    pub fn with_factory<F: StreamServiceFactory>(
+    pub fn new<F: StreamServiceFactory>(
         factory: F,
     ) -> TestServerRuntime<
         impl Service<Request = Connect, Response = impl Connection, Error = ConnectorError>

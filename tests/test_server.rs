@@ -8,14 +8,15 @@ use bytes::Bytes;
 use futures::future::{self, ok, Future};
 use futures::stream::once;
 
+use actix_http::body::Body;
 use actix_http::{
-    body, client, h1, h2, http, Body, Error, HttpMessage as HttpMessage2, KeepAlive,
-    Request, Response,
+    body, client, h1, h2, http, Error, HttpMessage as HttpMessage2, KeepAlive, Request,
+    Response,
 };
 
 #[test]
 fn test_h1() {
-    let mut srv = TestServer::with_factory(|| {
+    let mut srv = TestServer::new(|| {
         h1::H1Service::build()
             .keep_alive(KeepAlive::Disabled)
             .client_timeout(1000)
@@ -57,7 +58,7 @@ fn ssl_acceptor<T>() -> std::io::Result<actix_server::ssl::OpensslAcceptor<T>> {
 #[test]
 fn test_h2() -> std::io::Result<()> {
     let openssl = ssl_acceptor()?;
-    let mut srv = TestServer::with_factory(move || {
+    let mut srv = TestServer::new(move || {
         openssl
             .clone()
             .map_err(|e| println!("Openssl error: {}", e))
@@ -83,7 +84,7 @@ fn test_h2_body() -> std::io::Result<()> {
 
     let data = "HELLOWORLD".to_owned().repeat(64 * 1024);
     let openssl = ssl_acceptor()?;
-    let mut srv = TestServer::with_factory(move || {
+    let mut srv = TestServer::new(move || {
         openssl
             .clone()
             .map_err(|e| println!("Openssl error: {}", e))
@@ -111,7 +112,7 @@ fn test_h2_body() -> std::io::Result<()> {
 
 #[test]
 fn test_slow_request() {
-    let srv = TestServer::with_factory(|| {
+    let srv = TestServer::new(|| {
         h1::H1Service::build()
             .client_timeout(100)
             .finish(|_| future::ok::<_, ()>(Response::Ok().finish()))
@@ -127,7 +128,7 @@ fn test_slow_request() {
 
 #[test]
 fn test_malformed_request() {
-    let srv = TestServer::with_factory(|| {
+    let srv = TestServer::new(|| {
         h1::H1Service::new(|_| future::ok::<_, ()>(Response::Ok().finish())).map(|_| ())
     });
 
@@ -140,7 +141,7 @@ fn test_malformed_request() {
 
 #[test]
 fn test_keepalive() {
-    let srv = TestServer::with_factory(|| {
+    let srv = TestServer::new(|| {
         h1::H1Service::build()
             .finish(|_| future::ok::<_, ()>(Response::Ok().finish()))
             .map(|_| ())
@@ -160,7 +161,7 @@ fn test_keepalive() {
 
 #[test]
 fn test_keepalive_timeout() {
-    let srv = TestServer::with_factory(|| {
+    let srv = TestServer::new(|| {
         h1::H1Service::build()
             .keep_alive(1)
             .finish(|_| future::ok::<_, ()>(Response::Ok().finish()))
@@ -181,7 +182,7 @@ fn test_keepalive_timeout() {
 
 #[test]
 fn test_keepalive_close() {
-    let srv = TestServer::with_factory(|| {
+    let srv = TestServer::new(|| {
         h1::H1Service::build()
             .finish(|_| future::ok::<_, ()>(Response::Ok().finish()))
             .map(|_| ())
@@ -201,7 +202,7 @@ fn test_keepalive_close() {
 
 #[test]
 fn test_keepalive_http10_default_close() {
-    let srv = TestServer::with_factory(|| {
+    let srv = TestServer::new(|| {
         h1::H1Service::build()
             .finish(|_| future::ok::<_, ()>(Response::Ok().finish()))
             .map(|_| ())
@@ -220,7 +221,7 @@ fn test_keepalive_http10_default_close() {
 
 #[test]
 fn test_keepalive_http10() {
-    let srv = TestServer::with_factory(|| {
+    let srv = TestServer::new(|| {
         h1::H1Service::build()
             .finish(|_| future::ok::<_, ()>(Response::Ok().finish()))
             .map(|_| ())
@@ -246,7 +247,7 @@ fn test_keepalive_http10() {
 
 #[test]
 fn test_keepalive_disabled() {
-    let srv = TestServer::with_factory(|| {
+    let srv = TestServer::new(|| {
         h1::H1Service::build()
             .keep_alive(KeepAlive::Disabled)
             .finish(|_| future::ok::<_, ()>(Response::Ok().finish()))
@@ -271,7 +272,7 @@ fn test_content_length() {
         StatusCode,
     };
 
-    let mut srv = TestServer::with_factory(|| {
+    let mut srv = TestServer::new(|| {
         h1::H1Service::new(|req: Request| {
             let indx: usize = req.uri().path()[1..].parse().unwrap();
             let statuses = [
@@ -320,7 +321,7 @@ fn test_headers() {
     let data = STR.repeat(10);
     let data2 = data.clone();
 
-    let mut srv = TestServer::with_factory(move || {
+    let mut srv = TestServer::new(move || {
         let data = data.clone();
         h1::H1Service::new(move |_| {
             let mut builder = Response::Ok();
@@ -382,7 +383,7 @@ const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
 
 #[test]
 fn test_body() {
-    let mut srv = TestServer::with_factory(|| {
+    let mut srv = TestServer::new(|| {
         h1::H1Service::new(|_| future::ok::<_, ()>(Response::Ok().body(STR))).map(|_| ())
     });
 
@@ -397,7 +398,7 @@ fn test_body() {
 
 #[test]
 fn test_head_empty() {
-    let mut srv = TestServer::with_factory(|| {
+    let mut srv = TestServer::new(|| {
         h1::H1Service::new(|_| ok::<_, ()>(Response::Ok().body(STR))).map(|_| ())
     });
 
@@ -420,7 +421,7 @@ fn test_head_empty() {
 
 #[test]
 fn test_head_binary() {
-    let mut srv = TestServer::with_factory(|| {
+    let mut srv = TestServer::new(|| {
         h1::H1Service::new(|_| {
             ok::<_, ()>(Response::Ok().content_length(STR.len() as u64).body(STR))
         })
@@ -446,7 +447,7 @@ fn test_head_binary() {
 
 #[test]
 fn test_head_binary2() {
-    let mut srv = TestServer::with_factory(|| {
+    let mut srv = TestServer::new(|| {
         h1::H1Service::new(|_| ok::<_, ()>(Response::Ok().body(STR))).map(|_| ())
     });
 
@@ -465,7 +466,7 @@ fn test_head_binary2() {
 
 #[test]
 fn test_body_length() {
-    let mut srv = TestServer::with_factory(|| {
+    let mut srv = TestServer::new(|| {
         h1::H1Service::new(|_| {
             let body = once(Ok(Bytes::from_static(STR.as_ref())));
             ok::<_, ()>(
@@ -487,7 +488,7 @@ fn test_body_length() {
 
 #[test]
 fn test_body_chunked_explicit() {
-    let mut srv = TestServer::with_factory(|| {
+    let mut srv = TestServer::new(|| {
         h1::H1Service::new(|_| {
             let body = once::<_, Error>(Ok(Bytes::from_static(STR.as_ref())));
             ok::<_, ()>(Response::Ok().streaming(body))
@@ -508,7 +509,7 @@ fn test_body_chunked_explicit() {
 
 #[test]
 fn test_body_chunked_implicit() {
-    let mut srv = TestServer::with_factory(|| {
+    let mut srv = TestServer::new(|| {
         h1::H1Service::new(|_| {
             let body = once::<_, Error>(Ok(Bytes::from_static(STR.as_ref())));
             ok::<_, ()>(Response::Ok().streaming(body))
@@ -527,7 +528,7 @@ fn test_body_chunked_implicit() {
 
 #[test]
 fn test_response_http_error_handling() {
-    let mut srv = TestServer::with_factory(|| {
+    let mut srv = TestServer::new(|| {
         h1::H1Service::new(|_| {
             let broken_header = Bytes::from_static(b"\0\0\0");
             ok::<_, ()>(

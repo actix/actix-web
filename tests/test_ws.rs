@@ -34,7 +34,7 @@ fn ws_service(req: ws::Frame) -> impl Future<Item = ws::Message, Error = io::Err
 
 #[test]
 fn test_simple() {
-    let mut srv = TestServer::with_factory(|| {
+    let mut srv = TestServer::new(|| {
         IntoFramed::new(|| h1::Codec::new(ServiceConfig::default()))
             .and_then(TakeItem::new().map_err(|_| ()))
             .and_then(|(req, framed): (_, Framed<_, _>)| {
