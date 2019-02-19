@@ -167,7 +167,7 @@ where
     }
 
     /// Flush stream
-    fn poll_flush(&mut self) -> Poll<(), DispatchError<S::Error>> {
+    fn poll_flush(&mut self) -> Poll<bool, DispatchError<S::Error>> {
         if !self.framed.is_write_buf_empty() {
             match self.framed.poll_complete() {
                 Ok(Async::NotReady) => Ok(Async::NotReady),
@@ -180,11 +180,11 @@ where
                     if self.payload.is_some() && self.state.is_empty() {
                         return Err(DispatchError::PayloadIsNotConsumed);
                     }
-                    Ok(Async::Ready(()))
+                    Ok(Async::Ready(true))
                 }
             }
         } else {
-            Ok(Async::Ready(()))
+            Ok(Async::Ready(false))
         }
     }
 
@@ -482,8 +482,12 @@ where
             } else {
                 inner.poll_keepalive()?;
                 inner.poll_request()?;
-                inner.poll_response()?;
-                inner.poll_flush()?;
+                loop {
+                    inner.poll_response()?;
+                    if let Async::Ready(false) = inner.poll_flush()? {
+                        break;
+                    }
+                }
 
                 if inner.flags.contains(Flags::DISCONNECTED) {
                     return Ok(Async::Ready(H1ServiceResult::Disconnected));
