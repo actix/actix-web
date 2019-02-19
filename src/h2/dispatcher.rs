@@ -181,7 +181,7 @@ where
             _ => (),
         }
         let _ = match length {
-            BodyLength::Chunked | BodyLength::None | BodyLength::Stream => None,
+            BodyLength::None | BodyLength::Stream => None,
             BodyLength::Empty => res
                 .headers_mut()
                 .insert(CONTENT_LENGTH, HeaderValue::from_static("0")),

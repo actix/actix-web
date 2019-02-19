@@ -47,7 +47,7 @@ where
 
             // Content length
             let _ = match length {
-                BodyLength::Chunked | BodyLength::None => None,
+                BodyLength::None => None,
                 BodyLength::Stream => {
                     skip_len = false;
                     None

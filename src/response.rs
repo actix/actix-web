@@ -459,6 +459,15 @@ impl ResponseBuilder {
         self
     }
 
+    /// Disable chunked transfer encoding for HTTP/1.1 streaming responses.
+    #[inline]
+    pub fn no_chunking(&mut self) -> &mut Self {
+        if let Some(parts) = parts(&mut self.head, &self.err) {
+            parts.no_chunking = true;
+        }
+        self
+    }
+
     /// Set response content type
     #[inline]
     pub fn content_type<V>(&mut self, value: V) -> &mut Self

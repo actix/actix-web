@@ -13,7 +13,6 @@ pub enum BodyLength {
     Empty,
     Sized(usize),
     Sized64(u64),
-    Chunked,
     Stream,
 }
 
@@ -331,7 +330,7 @@ where
     E: Into<Error>,
 {
     fn length(&self) -> BodyLength {
-        BodyLength::Chunked
+        BodyLength::Stream
     }
 
     fn poll_next(&mut self) -> Poll<Option<Bytes>, Error> {

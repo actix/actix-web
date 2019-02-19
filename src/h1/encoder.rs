@@ -45,6 +45,8 @@ pub(crate) trait MessageType: Sized {
 
     fn headers(&self) -> &HeaderMap;
 
+    fn chunked(&self) -> bool;
+
     fn encode_status(&mut self, dst: &mut BytesMut) -> io::Result<()>;
 
     fn encode_headers(
@@ -71,8 +73,10 @@ pub(crate) trait MessageType: Sized {
             }
         }
         match length {
-            BodyLength::Chunked => {
-                dst.extend_from_slice(b"\r\ntransfer-encoding: chunked\r\n")
+            BodyLength::Stream => {
+                if self.chunked() {
+                    dst.extend_from_slice(b"\r\ntransfer-encoding: chunked\r\n")
+                }
             }
             BodyLength::Empty => {
                 dst.extend_from_slice(b"\r\ncontent-length: 0\r\n");
@@ -83,7 +87,7 @@ pub(crate) trait MessageType: Sized {
                 write!(dst.writer(), "{}", len)?;
                 dst.extend_from_slice(b"\r\n");
             }
-            BodyLength::None | BodyLength::Stream => dst.extend_from_slice(b"\r\n"),
+            BodyLength::None => dst.extend_from_slice(b"\r\n"),
         }
 
         // Connection
@@ -159,6 +163,10 @@ impl MessageType for Response<()> {
         Some(self.head().status)
     }
 
+    fn chunked(&self) -> bool {
+        !self.head().no_chunking
+    }
+
     fn connection_type(&self) -> Option<ConnectionType> {
         self.head().ctype
     }
@@ -186,6 +194,10 @@ impl MessageType for RequestHead {
 
     fn connection_type(&self) -> Option<ConnectionType> {
         self.ctype
+    }
+
+    fn chunked(&self) -> bool {
+        !self.no_chunking
     }
 
     fn headers(&self) -> &HeaderMap {
@@ -236,8 +248,13 @@ impl<T: MessageType> MessageEncoder<T> {
                 BodyLength::Empty => TransferEncoding::empty(),
                 BodyLength::Sized(len) => TransferEncoding::length(len as u64),
                 BodyLength::Sized64(len) => TransferEncoding::length(len),
-                BodyLength::Chunked => TransferEncoding::chunked(),
-                BodyLength::Stream => TransferEncoding::eof(),
+                BodyLength::Stream => {
+                    if message.chunked() {
+                        TransferEncoding::chunked()
+                    } else {
+                        TransferEncoding::eof()
+                    }
+                }
                 BodyLength::None => TransferEncoding::empty(),
             };
         } else {

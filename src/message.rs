@@ -36,6 +36,7 @@ pub trait Head: Default + 'static {
         self.connection_type() == ConnectionType::Upgrade
     }
 
+    /// Check if keep-alive is enabled
     fn keep_alive(&self) -> bool {
         self.connection_type() == ConnectionType::KeepAlive
     }
@@ -50,6 +51,7 @@ pub struct RequestHead {
     pub version: Version,
     pub headers: HeaderMap,
     pub ctype: Option<ConnectionType>,
+    pub no_chunking: bool,
     pub extensions: RefCell<Extensions>,
 }
 
@@ -61,6 +63,7 @@ impl Default for RequestHead {
             version: Version::HTTP_11,
             headers: HeaderMap::with_capacity(16),
             ctype: None,
+            no_chunking: false,
             extensions: RefCell::new(Extensions::new()),
         }
     }
@@ -120,6 +123,7 @@ pub struct ResponseHead {
     pub status: StatusCode,
     pub headers: HeaderMap,
     pub reason: Option<&'static str>,
+    pub no_chunking: bool,
     pub(crate) ctype: Option<ConnectionType>,
 }
 
@@ -130,6 +134,7 @@ impl Default for ResponseHead {
             status: StatusCode::OK,
             headers: HeaderMap::with_capacity(16),
             reason: None,
+            no_chunking: false,
             ctype: None,
         }
     }
@@ -139,6 +144,7 @@ impl Head for ResponseHead {
     fn clear(&mut self) {
         self.ctype = None;
         self.reason = None;
+        self.no_chunking = false;
         self.headers.clear();
     }
 
