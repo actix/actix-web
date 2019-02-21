@@ -92,7 +92,7 @@ impl Response<Body> {
     }
 }
 
-impl<B: MessageBody> Response<B> {
+impl<B> Response<B> {
     #[inline]
     /// Http message part of the response
     pub fn head(&self) -> &ResponseHead {
