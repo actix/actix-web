@@ -16,7 +16,7 @@ use crate::header::{Header, IntoHeaderValue};
 use crate::message::{ConnectionType, Head, Message, ResponseHead};
 
 /// An HTTP Response
-pub struct Response<B: MessageBody = Body> {
+pub struct Response<B = Body> {
     head: Message<ResponseHead>,
     body: ResponseBody<B>,
     error: Option<Error>,
