@@ -28,7 +28,7 @@ impl<T> NewService for VerifyWebSockets<T> {
     type Service = VerifyWebSockets<T>;
     type Future = FutureResult<Self::Service, Self::InitError>;
 
-    fn new_service(&self) -> Self::Future {
+    fn new_service(&self, _: &()) -> Self::Future {
         ok(VerifyWebSockets { _t: PhantomData })
     }
 }

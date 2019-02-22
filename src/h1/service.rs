@@ -67,9 +67,9 @@ where
     type Service = H1ServiceHandler<T, S::Service, B>;
     type Future = H1ServiceResponse<T, S, B>;
 
-    fn new_service(&self) -> Self::Future {
+    fn new_service(&self, _: &()) -> Self::Future {
         H1ServiceResponse {
-            fut: self.srv.new_service(),
+            fut: self.srv.new_service(&()),
             cfg: Some(self.cfg.clone()),
             _t: PhantomData,
         }
@@ -309,7 +309,7 @@ where
     type Service = OneRequestService<T>;
     type Future = FutureResult<Self::Service, Self::InitError>;
 
-    fn new_service(&self) -> Self::Future {
+    fn new_service(&self, _: &()) -> Self::Future {
         ok(OneRequestService {
             config: self.config.clone(),
             _t: PhantomData,

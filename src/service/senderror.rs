@@ -34,7 +34,7 @@ where
     type Service = SendError<T, R, E>;
     type Future = FutureResult<Self::Service, Self::InitError>;
 
-    fn new_service(&self) -> Self::Future {
+    fn new_service(&self, _: &()) -> Self::Future {
         ok(SendError(PhantomData))
     }
 }
@@ -142,7 +142,7 @@ where
     type Service = SendResponse<T, B>;
     type Future = FutureResult<Self::Service, Self::InitError>;
 
-    fn new_service(&self) -> Self::Future {
+    fn new_service(&self, _: &()) -> Self::Future {
         ok(SendResponse(PhantomData))
     }
 }

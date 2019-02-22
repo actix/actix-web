@@ -514,7 +514,6 @@ fn test_body_chunked_implicit() {
             let body = once::<_, Error>(Ok(Bytes::from_static(STR.as_ref())));
             ok::<_, ()>(Response::Ok().streaming(body))
         })
-        .map(|_| ())
     });
 
     let req = srv.get().finish().unwrap();
@@ -537,7 +536,6 @@ fn test_response_http_error_handling() {
                     .body(STR),
             )
         })
-        .map(|_| ())
     });
 
     let req = srv.get().finish().unwrap();
