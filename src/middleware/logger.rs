@@ -49,6 +49,8 @@ use middleware::{Finished, Middleware, Started};
 /// `%%`  The percent sign
 ///
 /// `%a`  Remote IP-address (IP-address of proxy if using reverse proxy)
+/// 
+/// `%R`  The matched route of request
 ///
 /// `%t`  Time when the request was started to process
 ///
@@ -153,7 +155,7 @@ impl Format {
     /// Returns `None` if the format string syntax is incorrect.
     pub fn new(s: &str) -> Format {
         trace!("Access log format: {}", s);
-        let fmt = Regex::new(r"%(\{([A-Za-z0-9\-_]+)\}([ioe])|[atPrsbTD]?)").unwrap();
+        let fmt = Regex::new(r"%(\{([A-Za-z0-9\-_]+)\}([ioe])|[atPrRsbTD]?)").unwrap();
 
         let mut idx = 0;
         let mut results = Vec::new();
@@ -181,6 +183,7 @@ impl Format {
                     "r" => FormatText::RequestLine,
                     "s" => FormatText::ResponseStatus,
                     "b" => FormatText::ResponseSize,
+                    "R" => FormatText::Route,
                     "T" => FormatText::Time,
                     "D" => FormatText::TimeMillis,
                     _ => FormatText::Str(m.as_str().to_owned()),
@@ -209,6 +212,7 @@ pub enum FormatText {
     Time,
     TimeMillis,
     RemoteAddr,
+    Route,
     RequestHeader(String),
     ResponseHeader(String),
     EnvironHeader(String),
@@ -258,7 +262,8 @@ impl FormatText {
                 } else {
                     "-".fmt(fmt)
                 }
-            }
+            },
+            FormatText::Route => req.path().fmt(fmt),
             FormatText::RequestTime => entry_time
                 .strftime("[%d/%b/%Y:%H:%M:%S %z]")
                 .unwrap()
@@ -344,6 +349,26 @@ mod tests {
         };
         let s = format!("{}", FormatDisplay(&render));
         assert!(s.contains("ACTIX-WEB ttt"));
+    }
+
+    #[test]
+    fn test_route() {
+        let format = Format::new("%T %R");
+        let req = TestRequest::with_header(
+            header::USER_AGENT,
+            header::HeaderValue::from_static("ACTIX-WEB"),
+        ).uri("/test/route/yeah").finish();
+        let resp = HttpResponse::build(StatusCode::OK).force_close().finish();
+        let entry_time = time::now();
+
+        let render = |fmt: &mut Formatter| {
+            for unit in &format.0 {
+                unit.render(fmt, &req, &resp, entry_time)?;
+            }
+            Ok(())
+        };
+        let s = format!("{}", FormatDisplay(&render));
+        assert!(s.contains("/test/route/yeah"));
     }
 
     #[test]
