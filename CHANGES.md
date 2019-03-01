@@ -7,6 +7,8 @@
 * Add `from_file` and `from_file_with_config` to `NamedFile` to allow sending files without a known path. #670
 * Support handlers returning `()`. Unit is converted to 200 response with an empty body.
 
+* Add `insert` and `remove` methods to `HttpResponseBuilder`
+
 ### Fixed
 
 * Ignored the `If-Modified-Since` if `If-None-Match` is specified. #680

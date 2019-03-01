@@ -193,7 +193,7 @@ impl<T: fmt::Display> fmt::Display for Path<T> {
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
-/// Extract typed information from from the request's query.
+/// Extract typed information from the request's query.
 ///
 /// ## Example
 ///
