@@ -12,6 +12,8 @@
 
 * Ignored the `If-Modified-Since` if `If-None-Match` is specified. #680
 
+* Do not remove `Content-Length` on `Body::Empty` and insert zero value if it is missing for `POST` and `PUT` methods.
+
 ## [0.7.18] - 2019-01-10
 
 ### Added
