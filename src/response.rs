@@ -669,7 +669,6 @@ impl ResponseBuilder {
 }
 
 #[inline]
-#[allow(clippy::borrowed_box)]
 fn parts<'a>(
     parts: &'a mut Option<Message<ResponseHead>>,
     err: &Option<HttpError>,

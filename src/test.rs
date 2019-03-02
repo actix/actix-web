@@ -37,7 +37,9 @@ use crate::Request;
 ///     assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 /// }
 /// ```
-pub struct TestRequest {
+pub struct TestRequest(Option<Inner>);
+
+struct Inner {
     version: Version,
     method: Method,
     uri: Uri,
@@ -49,7 +51,7 @@ pub struct TestRequest {
 
 impl Default for TestRequest {
     fn default() -> TestRequest {
-        TestRequest {
+        TestRequest(Some(Inner {
             method: Method::GET,
             uri: Uri::from_str("/").unwrap(),
             version: Version::HTTP_11,
@@ -57,19 +59,19 @@ impl Default for TestRequest {
             _cookies: None,
             payload: None,
             prefix: 0,
-        }
+        }))
     }
 }
 
 impl TestRequest {
     /// Create TestRequest and set request uri
     pub fn with_uri(path: &str) -> TestRequest {
-        TestRequest::default().uri(path)
+        TestRequest::default().uri(path).take()
     }
 
     /// Create TestRequest and set header
     pub fn with_hdr<H: Header>(hdr: H) -> TestRequest {
-        TestRequest::default().set(hdr)
+        TestRequest::default().set(hdr).take()
     }
 
     /// Create TestRequest and set header
@@ -78,45 +80,45 @@ impl TestRequest {
         HeaderName: HttpTryFrom<K>,
         V: IntoHeaderValue,
     {
-        TestRequest::default().header(key, value)
+        TestRequest::default().header(key, value).take()
     }
 
     /// Set HTTP version of this request
-    pub fn version(mut self, ver: Version) -> Self {
-        self.version = ver;
+    pub fn version(&mut self, ver: Version) -> &mut Self {
+        parts(&mut self.0).version = ver;
         self
     }
 
     /// Set HTTP method of this request
-    pub fn method(mut self, meth: Method) -> Self {
-        self.method = meth;
+    pub fn method(&mut self, meth: Method) -> &mut Self {
+        parts(&mut self.0).method = meth;
         self
     }
 
     /// Set HTTP Uri of this request
-    pub fn uri(mut self, path: &str) -> Self {
-        self.uri = Uri::from_str(path).unwrap();
+    pub fn uri(&mut self, path: &str) -> &mut Self {
+        parts(&mut self.0).uri = Uri::from_str(path).unwrap();
         self
     }
 
     /// Set a header
-    pub fn set<H: Header>(mut self, hdr: H) -> Self {
+    pub fn set<H: Header>(&mut self, hdr: H) -> &mut Self {
         if let Ok(value) = hdr.try_into() {
-            self.headers.append(H::name(), value);
+            parts(&mut self.0).headers.append(H::name(), value);
             return self;
         }
         panic!("Can not set header");
     }
 
     /// Set a header
-    pub fn header<K, V>(mut self, key: K, value: V) -> Self
+    pub fn header<K, V>(&mut self, key: K, value: V) -> &mut Self
     where
         HeaderName: HttpTryFrom<K>,
         V: IntoHeaderValue,
     {
         if let Ok(key) = HeaderName::try_from(key) {
             if let Ok(value) = value.try_into() {
-                self.headers.append(key, value);
+                parts(&mut self.0).headers.append(key, value);
                 return self;
             }
         }
@@ -124,29 +126,27 @@ impl TestRequest {
     }
 
     /// Set request payload
-    pub fn set_payload<B: Into<Bytes>>(mut self, data: B) -> Self {
+    pub fn set_payload<B: Into<Bytes>>(&mut self, data: B) -> &mut Self {
         let mut payload = crate::h1::Payload::empty();
         payload.unread_data(data.into());
-        self.payload = Some(payload.into());
+        parts(&mut self.0).payload = Some(payload.into());
         self
     }
 
-    /// Set request's prefix
-    pub fn prefix(mut self, prefix: u16) -> Self {
-        self.prefix = prefix;
-        self
+    pub(crate) fn take(&mut self) -> TestRequest {
+        TestRequest(self.0.take())
     }
 
     /// Complete request creation and generate `Request` instance
-    pub fn finish(self) -> Request {
-        let TestRequest {
+    pub fn finish(&mut self) -> Request {
+        let Inner {
             method,
             uri,
             version,
             headers,
             payload,
             ..
-        } = self;
+        } = self.0.take().expect("cannot reuse test request builder");;
 
         let mut req = if let Some(pl) = payload {
             Request::with_payload(pl)
@@ -250,4 +250,9 @@ impl TestRequest {
     //         Err(err) => Err(err.into()),
     //     }
     // }
+}
+
+#[inline]
+fn parts<'a>(parts: &'a mut Option<Inner>) -> &'a mut Inner {
+    parts.as_mut().expect("cannot reuse test request builder")
 }
