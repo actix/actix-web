@@ -16,9 +16,9 @@ use flate2::write::{GzEncoder, ZlibEncoder};
 use flate2::Compression;
 use futures::{Async, Poll};
 use http::header::{
-    HeaderValue, CONNECTION, CONTENT_ENCODING, CONTENT_LENGTH, DATE, TRANSFER_ENCODING,
+    self, HeaderValue, CONNECTION, CONTENT_ENCODING, CONTENT_LENGTH, DATE, TRANSFER_ENCODING,
 };
-use http::{HttpTryFrom, Version};
+use http::{Method, HttpTryFrom, Version};
 use time::{self, Duration};
 use tokio_io::AsyncWrite;
 
@@ -223,7 +223,19 @@ fn content_encoder(buf: BytesMut, req: &mut ClientRequest) -> Output {
 
     let transfer = match body {
         Body::Empty => {
-            req.headers_mut().remove(CONTENT_LENGTH);
+            match req.method() {
+                //Insert zero content-length only if user hasn't added it.
+                //We don't really need it for other methods as they are not supposed to carry payload
+                &Method::POST | &Method::PUT | &Method::PATCH => {
+                    req.headers_mut()
+                       .entry(CONTENT_LENGTH)
+                       .expect("CONTENT_LENGTH to be valid header name")
+                       .or_insert(header::HeaderValue::from_static("0"));
+                },
+                _ => {
+                    req.headers_mut().remove(CONTENT_LENGTH);
+                }
+            }
             return Output::Empty(buf);
         }
         Body::Binary(ref mut bytes) => {
@@ -408,5 +420,78 @@ impl CachedDate {
         write!(&mut self.bytes[..], "{}", time::at_utc(now).rfc822()).unwrap();
         self.next_update = now + Duration::seconds(1);
         self.next_update.nsec = 0;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_content_encoder_empty_body() {
+        let mut req = ClientRequest::post("http://google.com").finish().expect("Create request");
+
+        let result = content_encoder(BytesMut::new(), &mut req);
+
+        match result {
+            Output::Empty(buf) => {
+                assert_eq!(buf.len(), 0);
+                let content_len = req.headers().get(CONTENT_LENGTH).expect("To set Content-Length for empty POST");
+                assert_eq!(content_len, "0");
+            },
+            _ => panic!("Unexpected result, should be Output::Empty"),
+        }
+
+        req.set_method(Method::GET);
+
+        let result = content_encoder(BytesMut::new(), &mut req);
+
+        match result {
+            Output::Empty(buf) => {
+                assert_eq!(buf.len(), 0);
+                assert!(!req.headers().contains_key(CONTENT_LENGTH));
+            },
+            _ => panic!("Unexpected result, should be Output::Empty"),
+        }
+
+        req.set_method(Method::PUT);
+
+        let result = content_encoder(BytesMut::new(), &mut req);
+
+        match result {
+            Output::Empty(buf) => {
+                assert_eq!(buf.len(), 0);
+                let content_len = req.headers().get(CONTENT_LENGTH).expect("To set Content-Length for empty PUT");
+                assert_eq!(content_len, "0");
+            },
+            _ => panic!("Unexpected result, should be Output::Empty"),
+        }
+
+        req.set_method(Method::DELETE);
+
+        let result = content_encoder(BytesMut::new(), &mut req);
+
+        match result {
+            Output::Empty(buf) => {
+                assert_eq!(buf.len(), 0);
+                assert!(!req.headers().contains_key(CONTENT_LENGTH));
+            },
+            _ => panic!("Unexpected result, should be Output::Empty"),
+        }
+
+        req.set_method(Method::PATCH);
+
+        let result = content_encoder(BytesMut::new(), &mut req);
+
+        match result {
+            Output::Empty(buf) => {
+                assert_eq!(buf.len(), 0);
+                let content_len = req.headers().get(CONTENT_LENGTH).expect("To set Content-Length for empty PATCH");
+                assert_eq!(content_len, "0");
+            },
+            _ => panic!("Unexpected result, should be Output::Empty"),
+        }
+
+
     }
 }
