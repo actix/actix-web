@@ -11,7 +11,7 @@ extern crate tokio_uds;
 use std::io::{Read, Write};
 use std::{net, thread};
 
-use bytes::Bytes;
+use bytes::{Bytes, BytesMut, BufMut};
 use flate2::read::GzDecoder;
 use futures::stream::once;
 use futures::Future;
@@ -475,6 +475,42 @@ fn test_default_headers() {
         env!("CARGO_PKG_VERSION"),
         "\""
     )));
+}
+
+#[test]
+fn test_upper_camel_case_headers() {
+    let addr = test::TestServer::unused_addr();
+
+    thread::spawn(move || {
+        let lst = net::TcpListener::bind(addr).unwrap();
+
+        for stream in lst.incoming() {
+            let mut stream = stream.unwrap();
+            let mut b = [0; 1000];
+            let _ = stream.read(&mut b).unwrap();
+            let mut v = BytesMut::from("HTTP/1.1 200 OK\r\nconnection: close\r\n\r\n");
+            v.reserve(b.len());
+            v.put_slice(&b);
+            let _ = stream.write_all(&v);
+        }
+    });
+
+    let mut sys = actix::System::new("test");
+
+    // client request
+    let req = client::ClientRequest::get(format!("http://{}/", addr).as_str())
+        .header("User-Agent", "test")
+        .header("Accept-Encoding", "over_test")
+        .no_default_headers()
+        .set_upper_camel_case_headers(true)
+        .finish()
+        .unwrap();
+    let response = sys.block_on(req.send()).unwrap();
+    assert!(response.status().is_success());
+
+    // read response
+    let bytes = sys.block_on(response.body()).unwrap();
+    assert_eq!(&&bytes[..62], &&b"GET / HTTP/1.1\r\nUser-Agent: test\r\nAccept-Encoding: over_test\r\n"[..]);
 }
 
 #[test]

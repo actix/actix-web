@@ -54,6 +54,7 @@ pub struct ClientRequest {
     method: Method,
     version: Version,
     headers: HeaderMap,
+    upper_camel_case_headers: bool,
     body: Body,
     chunked: bool,
     upgrade: bool,
@@ -77,6 +78,7 @@ impl Default for ClientRequest {
             method: Method::default(),
             version: Version::HTTP_11,
             headers: HeaderMap::with_capacity(16),
+            upper_camel_case_headers: false,
             body: Body::Empty,
             chunked: false,
             upgrade: false,
@@ -188,6 +190,19 @@ impl ClientRequest {
     #[inline]
     pub fn headers_mut(&mut self) -> &mut HeaderMap {
         &mut self.headers
+    }
+
+    /// is to uppercase headers with Camel-Case
+    /// default is `false`
+    #[inline]
+    pub fn upper_camel_case_headers(&self) -> bool {
+        self.upper_camel_case_headers
+    }
+
+    /// Set `true` to send headers which are uppercased with Camel-Case.
+    #[inline]
+    pub fn set_upper_camel_case_headers(&mut self, value: bool) {
+        self.upper_camel_case_headers = value;
     }
 
     /// is chunked encoding enabled
@@ -435,6 +450,15 @@ impl ClientRequestBuilder {
                 },
                 Err(e) => self.err = Some(e.into()),
             };
+        }
+        self
+    }
+
+    /// Set `true` to send headers which are uppercased with Camel-Case.
+    #[inline]
+    pub fn set_upper_camel_case_headers(&mut self, value: bool) -> &mut Self {
+        if let Some(parts) = parts(&mut self.request, &self.err) {
+            parts.upper_camel_case_headers = value;
         }
         self
     }

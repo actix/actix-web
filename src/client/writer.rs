@@ -16,7 +16,7 @@ use flate2::write::{GzEncoder, ZlibEncoder};
 use flate2::Compression;
 use futures::{Async, Poll};
 use http::header::{
-    HeaderValue, CONNECTION, CONTENT_ENCODING, CONTENT_LENGTH, DATE, TRANSFER_ENCODING,
+    HeaderName, HeaderValue, CONNECTION, CONTENT_ENCODING, CONTENT_LENGTH, DATE, TRANSFER_ENCODING,
 };
 use http::{HttpTryFrom, Version};
 use time::{self, Duration};
@@ -142,14 +142,27 @@ impl HttpClientWriter {
                 buffer.reserve(msg.headers().len() * AVERAGE_HEADER_SIZE);
             }
 
-            for (key, value) in msg.headers() {
-                let v = value.as_ref();
-                let k = key.as_str().as_bytes();
-                buffer.reserve(k.len() + v.len() + 4);
-                buffer.put_slice(k);
-                buffer.put_slice(b": ");
-                buffer.put_slice(v);
-                buffer.put_slice(b"\r\n");
+            // to use Camel-Case headers
+            if msg.upper_camel_case_headers() {
+                for (key, value) in msg.headers() {
+                    let v = value.as_ref();
+                    let k = key.as_str().as_bytes();
+                    buffer.reserve(k.len() + v.len() + 4);
+                    key.to_upper_camel_case(buffer);
+                    buffer.put_slice(b": ");
+                    buffer.put_slice(v);
+                    buffer.put_slice(b"\r\n");
+                }
+            } else {
+                for (key, value) in msg.headers() {
+                    let v = value.as_ref();
+                    let k = key.as_str().as_bytes();
+                    buffer.reserve(k.len() + v.len() + 4);
+                    buffer.put_slice(k);
+                    buffer.put_slice(b": ");
+                    buffer.put_slice(v);
+                    buffer.put_slice(b"\r\n");
+                }
             }
 
             // set date header
@@ -212,6 +225,38 @@ impl HttpClientWriter {
             }
             Ok(WriterState::Pause) => Ok(Async::NotReady),
             Err(err) => Err(err),
+        }
+    }
+}
+
+trait UpperCamelCaseHeader {
+    fn to_upper_camel_case(&self, buffer: &mut BytesMut);
+}
+
+impl UpperCamelCaseHeader for HeaderName {
+
+    /// Let header name to be as upper Camel-Case, then write it to buffer.
+    fn to_upper_camel_case(&self, buffer: &mut BytesMut) {
+        let key = self.as_str().as_bytes();
+        let mut key_iter = key.iter();
+
+        if let Some(c) = key_iter.next() {
+            if *c >= b'a' && *c <= b'z' {
+                buffer.put_slice(&[*c ^ b' ']);
+            }
+        } else {
+            return;
+        }
+
+        while let Some(c) = key_iter.next() {
+            buffer.put_slice(&[*c]);
+            if *c == b'-' {
+                if let Some(c) = key_iter.next() {
+                    if *c >= b'a' && *c <= b'z' {
+                        buffer.put_slice(&[*c ^ b' ']);
+                    }
+                }
+            }
         }
     }
 }
