@@ -26,7 +26,7 @@ path = "src/lib.rs"
 [workspace]
 members = [
   ".",
-  "actix-web-fs",
+  "staticfiles",
 ]
 
 [features]
