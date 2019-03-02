@@ -1,13 +1,11 @@
-use actix_http::dev::ResponseBuilder;
-use actix_http::http::StatusCode;
-use actix_http::{Error, Response};
+use actix_http::{dev::ResponseBuilder, http::StatusCode, Error, Response};
 use bytes::{Bytes, BytesMut};
 use futures::future::{err, ok, Either as EitherFuture, FutureResult};
 use futures::{Future, Poll};
 
 use crate::request::HttpRequest;
 
-/// Trait implemented by types that generate http responses.
+/// Trait implemented by types that can be converted to a http response.
 ///
 /// Types that implement this trait can be used as the return type of a handler.
 pub trait Responder {
@@ -69,6 +67,15 @@ impl Responder for ResponseBuilder {
     #[inline]
     fn respond_to(mut self, _: &HttpRequest) -> Self::Future {
         ok(self.finish())
+    }
+}
+
+impl Responder for () {
+    type Error = Error;
+    type Future = FutureResult<Response, Error>;
+
+    fn respond_to(self, _: &HttpRequest) -> Self::Future {
+        ok(Response::build(StatusCode::OK).finish())
     }
 }
 
@@ -167,12 +174,7 @@ impl Responder for BytesMut {
 /// # fn is_a_variant() -> bool { true }
 /// # fn main() {}
 /// ```
-pub enum Either<A, B> {
-    /// First branch of the type
-    A(A),
-    /// Second branch of the type
-    B(B),
-}
+pub type Either<A, B> = either::Either<A, B>;
 
 impl<A, B> Responder for Either<A, B>
 where
@@ -184,8 +186,8 @@ where
 
     fn respond_to(self, req: &HttpRequest) -> Self::Future {
         match self {
-            Either::A(a) => EitherResponder::A(a.respond_to(req)),
-            Either::B(b) => EitherResponder::B(b.respond_to(req)),
+            either::Either::Left(a) => EitherResponder::A(a.respond_to(req)),
+            either::Either::Right(b) => EitherResponder::B(b.respond_to(req)),
         }
     }
 }

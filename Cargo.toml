@@ -57,6 +57,7 @@ actix-router = { git = "https://github.com/actix/actix-net.git" }
 bytes = "0.4"
 futures = "0.1"
 derive_more = "0.14"
+either = "1.5.1"
 log = "0.4"
 lazy_static = "1.2"
 mime = "0.3"
