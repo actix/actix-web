@@ -1,68 +1,65 @@
-//! Middlewares
-use futures::Future;
+use std::marker::PhantomData;
 
-use error::{Error, Result};
-use httprequest::HttpRequest;
-use httpresponse::HttpResponse;
+use actix_service::{NewTransform, Service, Transform};
+use futures::future::{ok, FutureResult};
 
-mod logger;
+#[cfg(any(feature = "brotli", feature = "flate2"))]
+mod compress;
+#[cfg(any(feature = "brotli", feature = "flate2"))]
+pub use self::compress::Compress;
 
-pub mod cors;
-pub mod csrf;
 mod defaultheaders;
-mod errhandlers;
-#[cfg(feature = "session")]
-pub mod identity;
-#[cfg(feature = "session")]
-pub mod session;
 pub use self::defaultheaders::DefaultHeaders;
-pub use self::errhandlers::ErrorHandlers;
-pub use self::logger::Logger;
 
-/// Middleware start result
-pub enum Started {
-    /// Middleware is completed, continue to next middleware
-    Done,
-    /// New http response got generated. If middleware generates response
-    /// handler execution halts.
-    Response(HttpResponse),
-    /// Execution completed, runs future to completion.
-    Future(Box<Future<Item = Option<HttpResponse>, Error = Error>>),
+/// Helper for middleware service factory
+pub struct MiddlewareFactory<T, S>
+where
+    T: Transform<S> + Clone,
+    S: Service,
+{
+    tr: T,
+    _t: PhantomData<S>,
 }
 
-/// Middleware execution result
-pub enum Response {
-    /// New http response got generated
-    Done(HttpResponse),
-    /// Result is a future that resolves to a new http response
-    Future(Box<Future<Item = HttpResponse, Error = Error>>),
-}
-
-/// Middleware finish result
-pub enum Finished {
-    /// Execution completed
-    Done,
-    /// Execution completed, but run future to completion
-    Future(Box<Future<Item = (), Error = Error>>),
-}
-
-/// Middleware definition
-#[allow(unused_variables)]
-pub trait Middleware<S>: 'static {
-    /// Method is called when request is ready. It may return
-    /// future, which should resolve before next middleware get called.
-    fn start(&self, req: &HttpRequest<S>) -> Result<Started> {
-        Ok(Started::Done)
+impl<T, S> MiddlewareFactory<T, S>
+where
+    T: Transform<S> + Clone,
+    S: Service,
+{
+    pub fn new(tr: T) -> Self {
+        MiddlewareFactory {
+            tr,
+            _t: PhantomData,
+        }
     }
+}
 
-    /// Method is called when handler returns response,
-    /// but before sending http message to peer.
-    fn response(&self, req: &HttpRequest<S>, resp: HttpResponse) -> Result<Response> {
-        Ok(Response::Done(resp))
+impl<T, S> Clone for MiddlewareFactory<T, S>
+where
+    T: Transform<S> + Clone,
+    S: Service,
+{
+    fn clone(&self) -> Self {
+        Self {
+            tr: self.tr.clone(),
+            _t: PhantomData,
+        }
     }
+}
 
-    /// Method is called after body stream get sent to peer.
-    fn finish(&self, req: &HttpRequest<S>, resp: &HttpResponse) -> Finished {
-        Finished::Done
+impl<T, S> NewTransform<S> for MiddlewareFactory<T, S>
+where
+    T: Transform<S> + Clone,
+    S: Service,
+{
+    type Request = T::Request;
+    type Response = T::Response;
+    type Error = T::Error;
+    type Transform = T;
+    type InitError = ();
+    type Future = FutureResult<Self::Transform, Self::InitError>;
+
+    fn new_transform(&self) -> Self::Future {
+        ok(self.tr.clone())
     }
 }

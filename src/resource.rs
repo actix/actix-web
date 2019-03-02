@@ -1,82 +1,65 @@
-use std::ops::Deref;
+use std::cell::RefCell;
 use std::rc::Rc;
 
-use futures::Future;
-use http::Method;
-use smallvec::SmallVec;
+use actix_http::{http::Method, Error, Response};
+use actix_service::{
+    ApplyNewService, IntoNewService, IntoNewTransform, NewService, NewTransform, Service,
+};
+use futures::future::{ok, Either, FutureResult};
+use futures::{Async, Future, IntoFuture, Poll};
 
-use error::Error;
-use handler::{AsyncResult, FromRequest, Handler, Responder};
-use httprequest::HttpRequest;
-use httpresponse::HttpResponse;
-use middleware::Middleware;
-use pred;
-use route::Route;
-use router::ResourceDef;
-use with::WithFactory;
+use crate::handler::{AsyncFactory, Factory, FromRequest};
+use crate::helpers::{DefaultNewService, HttpDefaultNewService, HttpDefaultService};
+use crate::responder::Responder;
+use crate::route::{CreateRouteService, Route, RouteBuilder, RouteService};
+use crate::service::{ServiceRequest, ServiceResponse};
 
-#[derive(Copy, Clone)]
-pub(crate) struct RouteId(usize);
-
-/// *Resource* is an entry in route table which corresponds to requested URL.
+/// Resource route definition
 ///
-/// Resource in turn has at least one route.
-/// Route consists of an object that implements `Handler` trait (handler)
-/// and list of predicates (objects that implement `Predicate` trait).
 /// Route uses builder-like pattern for configuration.
-/// During request handling, resource object iterate through all routes
-/// and check all predicates for specific route, if request matches all
-/// predicates route route considered matched and route handler get called.
-///
-/// ```rust
-/// # extern crate actix_web;
-/// use actix_web::{App, HttpResponse, http};
-///
-/// fn main() {
-///     let app = App::new()
-///         .resource(
-///             "/", |r| r.method(http::Method::GET).f(|r| HttpResponse::Ok()))
-///         .finish();
-/// }
-pub struct Resource<S = ()> {
-    rdef: ResourceDef,
-    routes: SmallVec<[Route<S>; 3]>,
-    middlewares: Rc<Vec<Box<Middleware<S>>>>,
+/// If handler is not explicitly set, default *404 Not Found* handler is used.
+pub struct Resource<P, T = ResourceEndpoint<P>> {
+    routes: Vec<Route<P>>,
+    endpoint: T,
+    default: Rc<
+        RefCell<Option<Rc<HttpDefaultNewService<ServiceRequest<P>, ServiceResponse>>>>,
+    >,
+    factory_ref: Rc<RefCell<Option<ResourceFactory<P>>>>,
 }
 
-impl<S> Resource<S> {
-    /// Create new resource with specified resource definition
-    pub fn new(rdef: ResourceDef) -> Self {
+impl<P> Resource<P> {
+    pub fn new() -> Resource<P> {
+        let fref = Rc::new(RefCell::new(None));
+
         Resource {
-            rdef,
-            routes: SmallVec::new(),
-            middlewares: Rc::new(Vec::new()),
+            routes: Vec::new(),
+            endpoint: ResourceEndpoint::new(fref.clone()),
+            factory_ref: fref,
+            default: Rc::new(RefCell::new(None)),
         }
     }
+}
 
-    /// Name of the resource
-    pub(crate) fn get_name(&self) -> &str {
-        self.rdef.name()
-    }
-
-    /// Set resource name
-    pub fn name(&mut self, name: &str) {
-        self.rdef.set_name(name);
-    }
-
-    /// Resource definition
-    pub fn rdef(&self) -> &ResourceDef {
-        &self.rdef
+impl<P> Default for Resource<P> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
-impl<S: 'static> Resource<S> {
+impl<P: 'static, T> Resource<P, T>
+where
+    T: NewService<
+        Request = ServiceRequest<P>,
+        Response = ServiceResponse,
+        Error = (),
+        InitError = (),
+    >,
+{
     /// Register a new route and return mutable reference to *Route* object.
     /// *Route* is used for route configuration, i.e. adding predicates,
     /// setting up handler.
     ///
-    /// ```rust
-    /// # extern crate actix_web;
+    /// ```rust,ignore
     /// use actix_web::*;
     ///
     /// fn main() {
@@ -90,44 +73,72 @@ impl<S: 'static> Resource<S> {
     ///         .finish();
     /// }
     /// ```
-    pub fn route(&mut self) -> &mut Route<S> {
-        self.routes.push(Route::default());
-        self.routes.last_mut().unwrap()
+    pub fn route<F>(mut self, f: F) -> Self
+    where
+        F: FnOnce(RouteBuilder<P>) -> Route<P>,
+    {
+        self.routes.push(f(Route::build()));
+        self
     }
 
     /// Register a new `GET` route.
-    pub fn get(&mut self) -> &mut Route<S> {
-        self.routes.push(Route::default());
-        self.routes.last_mut().unwrap().filter(pred::Get())
+    pub fn get<F, I, R>(mut self, f: F) -> Self
+    where
+        F: Factory<I, R> + 'static,
+        I: FromRequest<P> + 'static,
+        R: Responder + 'static,
+    {
+        self.routes.push(Route::get().to(f));
+        self
     }
 
     /// Register a new `POST` route.
-    pub fn post(&mut self) -> &mut Route<S> {
-        self.routes.push(Route::default());
-        self.routes.last_mut().unwrap().filter(pred::Post())
+    pub fn post<F, I, R>(mut self, f: F) -> Self
+    where
+        F: Factory<I, R> + 'static,
+        I: FromRequest<P> + 'static,
+        R: Responder + 'static,
+    {
+        self.routes.push(Route::post().to(f));
+        self
     }
 
     /// Register a new `PUT` route.
-    pub fn put(&mut self) -> &mut Route<S> {
-        self.routes.push(Route::default());
-        self.routes.last_mut().unwrap().filter(pred::Put())
+    pub fn put<F, I, R>(mut self, f: F) -> Self
+    where
+        F: Factory<I, R> + 'static,
+        I: FromRequest<P> + 'static,
+        R: Responder + 'static,
+    {
+        self.routes.push(Route::put().to(f));
+        self
     }
 
     /// Register a new `DELETE` route.
-    pub fn delete(&mut self) -> &mut Route<S> {
-        self.routes.push(Route::default());
-        self.routes.last_mut().unwrap().filter(pred::Delete())
+    pub fn delete<F, I, R>(mut self, f: F) -> Self
+    where
+        F: Factory<I, R> + 'static,
+        I: FromRequest<P> + 'static,
+        R: Responder + 'static,
+    {
+        self.routes.push(Route::delete().to(f));
+        self
     }
 
     /// Register a new `HEAD` route.
-    pub fn head(&mut self) -> &mut Route<S> {
-        self.routes.push(Route::default());
-        self.routes.last_mut().unwrap().filter(pred::Head())
+    pub fn head<F, I, R>(mut self, f: F) -> Self
+    where
+        F: Factory<I, R> + 'static,
+        I: FromRequest<P> + 'static,
+        R: Responder + 'static,
+    {
+        self.routes.push(Route::build().method(Method::HEAD).to(f));
+        self
     }
 
     /// Register a new route and add method check to route.
     ///
-    /// ```rust
+    /// ```rust,ignore
     /// # extern crate actix_web;
     /// use actix_web::*;
     /// fn index(req: &HttpRequest) -> HttpResponse { unimplemented!() }
@@ -137,70 +148,23 @@ impl<S: 'static> Resource<S> {
     ///
     /// This is shortcut for:
     ///
-    /// ```rust
+    /// ```rust,ignore
     /// # extern crate actix_web;
     /// # use actix_web::*;
     /// # fn index(req: &HttpRequest) -> HttpResponse { unimplemented!() }
     /// App::new().resource("/", |r| r.route().filter(pred::Get()).f(index));
     /// ```
-    pub fn method(&mut self, method: Method) -> &mut Route<S> {
-        self.routes.push(Route::default());
-        self.routes.last_mut().unwrap().filter(pred::Method(method))
-    }
-
-    /// Register a new route and add handler object.
-    ///
-    /// ```rust
-    /// # extern crate actix_web;
-    /// use actix_web::*;
-    /// fn handler(req: &HttpRequest) -> HttpResponse { unimplemented!() }
-    ///
-    /// App::new().resource("/", |r| r.h(handler));
-    /// ```
-    ///
-    /// This is shortcut for:
-    ///
-    /// ```rust
-    /// # extern crate actix_web;
-    /// # use actix_web::*;
-    /// # fn handler(req: &HttpRequest) -> HttpResponse { unimplemented!() }
-    /// App::new().resource("/", |r| r.route().h(handler));
-    /// ```
-    pub fn h<H: Handler<S>>(&mut self, handler: H) {
-        self.routes.push(Route::default());
-        self.routes.last_mut().unwrap().h(handler)
-    }
-
-    /// Register a new route and add handler function.
-    ///
-    /// ```rust
-    /// # extern crate actix_web;
-    /// use actix_web::*;
-    /// fn index(req: &HttpRequest) -> HttpResponse { unimplemented!() }
-    ///
-    /// App::new().resource("/", |r| r.f(index));
-    /// ```
-    ///
-    /// This is shortcut for:
-    ///
-    /// ```rust
-    /// # extern crate actix_web;
-    /// # use actix_web::*;
-    /// # fn index(req: &HttpRequest) -> HttpResponse { unimplemented!() }
-    /// App::new().resource("/", |r| r.route().f(index));
-    /// ```
-    pub fn f<F, R>(&mut self, handler: F)
+    pub fn method<F>(mut self, method: Method, f: F) -> Self
     where
-        F: Fn(&HttpRequest<S>) -> R + 'static,
-        R: Responder + 'static,
+        F: FnOnce(RouteBuilder<P>) -> Route<P>,
     {
-        self.routes.push(Route::default());
-        self.routes.last_mut().unwrap().f(handler)
+        self.routes.push(f(Route::build().method(method)));
+        self
     }
 
     /// Register a new route and add handler.
     ///
-    /// ```rust
+    /// ```rust,ignore
     /// # extern crate actix_web;
     /// use actix_web::*;
     /// fn index(req: HttpRequest) -> HttpResponse { unimplemented!() }
@@ -210,25 +174,25 @@ impl<S: 'static> Resource<S> {
     ///
     /// This is shortcut for:
     ///
-    /// ```rust
+    /// ```rust,ignore
     /// # extern crate actix_web;
     /// # use actix_web::*;
     /// # fn index(req: HttpRequest) -> HttpResponse { unimplemented!() }
     /// App::new().resource("/", |r| r.route().with(index));
     /// ```
-    pub fn with<T, F, R>(&mut self, handler: F)
+    pub fn to<F, I, R>(mut self, handler: F) -> Self
     where
-        F: WithFactory<T, S, R>,
+        F: Factory<I, R> + 'static,
+        I: FromRequest<P> + 'static,
         R: Responder + 'static,
-        T: FromRequest<S> + 'static,
     {
-        self.routes.push(Route::default());
-        self.routes.last_mut().unwrap().with(handler);
+        self.routes.push(Route::build().to(handler));
+        self
     }
 
     /// Register a new route and add async handler.
     ///
-    /// ```rust
+    /// ```rust,ignore
     /// # extern crate actix_web;
     /// # extern crate futures;
     /// use actix_web::*;
@@ -243,7 +207,7 @@ impl<S: 'static> Resource<S> {
     ///
     /// This is shortcut for:
     ///
-    /// ```rust
+    /// ```rust,ignore
     /// # extern crate actix_web;
     /// # extern crate futures;
     /// # use actix_web::*;
@@ -253,72 +217,259 @@ impl<S: 'static> Resource<S> {
     /// # }
     /// App::new().resource("/", |r| r.route().with_async(index));
     /// ```
-    pub fn with_async<T, F, R, I, E>(&mut self, handler: F)
+    #[allow(clippy::wrong_self_convention)]
+    pub fn to_async<F, I, R>(mut self, handler: F) -> Self
     where
-        F: Fn(T) -> R + 'static,
-        R: Future<Item = I, Error = E> + 'static,
-        I: Responder + 'static,
-        E: Into<Error> + 'static,
-        T: FromRequest<S> + 'static,
+        F: AsyncFactory<I, R>,
+        I: FromRequest<P> + 'static,
+        R: IntoFuture + 'static,
+        R::Item: Into<Response>,
+        R::Error: Into<Error>,
     {
-        self.routes.push(Route::default());
-        self.routes.last_mut().unwrap().with_async(handler);
+        self.routes.push(Route::build().to_async(handler));
+        self
     }
 
     /// Register a resource middleware
     ///
     /// This is similar to `App's` middlewares, but
     /// middlewares get invoked on resource level.
-    ///
-    /// *Note* `Middleware::finish()` fires right after response get
-    /// prepared. It does not wait until body get sent to peer.
-    pub fn middleware<M: Middleware<S>>(&mut self, mw: M) {
-        Rc::get_mut(&mut self.middlewares)
-            .unwrap()
-            .push(Box::new(mw));
+    pub fn middleware<M, F>(
+        self,
+        mw: F,
+    ) -> Resource<
+        P,
+        impl NewService<
+            Request = ServiceRequest<P>,
+            Response = ServiceResponse,
+            Error = (),
+            InitError = (),
+        >,
+    >
+    where
+        M: NewTransform<
+            T::Service,
+            Request = ServiceRequest<P>,
+            Response = ServiceResponse,
+            Error = (),
+            InitError = (),
+        >,
+        F: IntoNewTransform<M, T::Service>,
+    {
+        let endpoint = ApplyNewService::new(mw, self.endpoint);
+        Resource {
+            endpoint,
+            routes: self.routes,
+            default: self.default,
+            factory_ref: self.factory_ref,
+        }
     }
 
-    #[inline]
-    pub(crate) fn get_route_id(&self, req: &HttpRequest<S>) -> Option<RouteId> {
-        for idx in 0..self.routes.len() {
-            if (&self.routes[idx]).check(req) {
-                return Some(RouteId(idx));
+    /// Default resource to be used if no matching route could be found.
+    pub fn default_resource<F, R, U>(mut self, f: F) -> Self
+    where
+        F: FnOnce(Resource<P>) -> R,
+        R: IntoNewService<U>,
+        U: NewService<
+                Request = ServiceRequest<P>,
+                Response = ServiceResponse,
+                Error = (),
+            > + 'static,
+    {
+        // create and configure default resource
+        self.default = Rc::new(RefCell::new(Some(Rc::new(Box::new(
+            DefaultNewService::new(f(Resource::new()).into_new_service()),
+        )))));
+
+        self
+    }
+
+    pub(crate) fn get_default(
+        &self,
+    ) -> Rc<RefCell<Option<Rc<HttpDefaultNewService<ServiceRequest<P>, ServiceResponse>>>>>
+    {
+        self.default.clone()
+    }
+}
+
+impl<P, T> IntoNewService<T> for Resource<P, T>
+where
+    T: NewService<
+        Request = ServiceRequest<P>,
+        Response = ServiceResponse,
+        Error = (),
+        InitError = (),
+    >,
+{
+    fn into_new_service(self) -> T {
+        *self.factory_ref.borrow_mut() = Some(ResourceFactory {
+            routes: self.routes,
+            default: self.default,
+        });
+
+        self.endpoint
+    }
+}
+
+pub struct ResourceFactory<P> {
+    routes: Vec<Route<P>>,
+    default: Rc<
+        RefCell<Option<Rc<HttpDefaultNewService<ServiceRequest<P>, ServiceResponse>>>>,
+    >,
+}
+
+impl<P> NewService for ResourceFactory<P> {
+    type Request = ServiceRequest<P>;
+    type Response = ServiceResponse;
+    type Error = ();
+    type InitError = ();
+    type Service = ResourceService<P>;
+    type Future = CreateResourceService<P>;
+
+    fn new_service(&self, _: &()) -> Self::Future {
+        let default_fut = if let Some(ref default) = *self.default.borrow() {
+            Some(default.new_service(&()))
+        } else {
+            None
+        };
+
+        CreateResourceService {
+            fut: self
+                .routes
+                .iter()
+                .map(|route| CreateRouteServiceItem::Future(route.new_service(&())))
+                .collect(),
+            default: None,
+            default_fut,
+        }
+    }
+}
+
+enum CreateRouteServiceItem<P> {
+    Future(CreateRouteService<P>),
+    Service(RouteService<P>),
+}
+
+pub struct CreateResourceService<P> {
+    fut: Vec<CreateRouteServiceItem<P>>,
+    default: Option<HttpDefaultService<ServiceRequest<P>, ServiceResponse>>,
+    default_fut: Option<
+        Box<
+            Future<
+                Item = HttpDefaultService<ServiceRequest<P>, ServiceResponse>,
+                Error = (),
+            >,
+        >,
+    >,
+}
+
+impl<P> Future for CreateResourceService<P> {
+    type Item = ResourceService<P>;
+    type Error = ();
+
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        let mut done = true;
+
+        if let Some(ref mut fut) = self.default_fut {
+            match fut.poll()? {
+                Async::Ready(default) => self.default = Some(default),
+                Async::NotReady => done = false,
             }
         }
-        None
-    }
 
-    #[inline]
-    pub(crate) fn handle(
-        &self, id: RouteId, req: &HttpRequest<S>,
-    ) -> AsyncResult<HttpResponse> {
-        if self.middlewares.is_empty() {
-            (&self.routes[id.0]).handle(req)
+        // poll http services
+        for item in &mut self.fut {
+            match item {
+                CreateRouteServiceItem::Future(ref mut fut) => match fut.poll()? {
+                    Async::Ready(route) => {
+                        *item = CreateRouteServiceItem::Service(route)
+                    }
+                    Async::NotReady => {
+                        done = false;
+                    }
+                },
+                CreateRouteServiceItem::Service(_) => continue,
+            };
+        }
+
+        if done {
+            let routes = self
+                .fut
+                .drain(..)
+                .map(|item| match item {
+                    CreateRouteServiceItem::Service(service) => service,
+                    CreateRouteServiceItem::Future(_) => unreachable!(),
+                })
+                .collect();
+            Ok(Async::Ready(ResourceService {
+                routes,
+                default: self.default.take(),
+            }))
         } else {
-            (&self.routes[id.0]).compose(req.clone(), Rc::clone(&self.middlewares))
+            Ok(Async::NotReady)
         }
     }
 }
 
-/// Default resource
-pub struct DefaultResource<S>(Rc<Resource<S>>);
+pub struct ResourceService<P> {
+    routes: Vec<RouteService<P>>,
+    default: Option<HttpDefaultService<ServiceRequest<P>, ServiceResponse>>,
+}
 
-impl<S> Deref for DefaultResource<S> {
-    type Target = Resource<S>;
+impl<P> Service for ResourceService<P> {
+    type Request = ServiceRequest<P>;
+    type Response = ServiceResponse;
+    type Error = ();
+    type Future = Either<
+        Box<Future<Item = ServiceResponse, Error = ()>>,
+        Either<
+            Box<Future<Item = Self::Response, Error = Self::Error>>,
+            FutureResult<Self::Response, Self::Error>,
+        >,
+    >;
 
-    fn deref(&self) -> &Resource<S> {
-        self.0.as_ref()
+    fn poll_ready(&mut self) -> Poll<(), Self::Error> {
+        Ok(Async::Ready(()))
+    }
+
+    fn call(&mut self, mut req: ServiceRequest<P>) -> Self::Future {
+        for route in self.routes.iter_mut() {
+            if route.check(&mut req) {
+                return Either::A(route.call(req));
+            }
+        }
+        if let Some(ref mut default) = self.default {
+            Either::B(Either::A(default.call(req)))
+        } else {
+            let req = req.into_request();
+            Either::B(Either::B(ok(ServiceResponse::new(
+                req,
+                Response::NotFound().finish(),
+            ))))
+        }
     }
 }
 
-impl<S> Clone for DefaultResource<S> {
-    fn clone(&self) -> Self {
-        DefaultResource(self.0.clone())
+#[doc(hidden)]
+pub struct ResourceEndpoint<P> {
+    factory: Rc<RefCell<Option<ResourceFactory<P>>>>,
+}
+
+impl<P> ResourceEndpoint<P> {
+    fn new(factory: Rc<RefCell<Option<ResourceFactory<P>>>>) -> Self {
+        ResourceEndpoint { factory }
     }
 }
 
-impl<S> From<Resource<S>> for DefaultResource<S> {
-    fn from(res: Resource<S>) -> Self {
-        DefaultResource(Rc::new(res))
+impl<P> NewService for ResourceEndpoint<P> {
+    type Request = ServiceRequest<P>;
+    type Response = ServiceResponse;
+    type Error = ();
+    type InitError = ();
+    type Service = ResourceService<P>;
+    type Future = CreateResourceService<P>;
+
+    fn new_service(&self, _: &()) -> Self::Future {
+        self.factory.borrow_mut().as_mut().unwrap().new_service(&())
     }
 }

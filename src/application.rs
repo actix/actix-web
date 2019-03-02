@@ -1,17 +1,21 @@
 use std::rc::Rc;
 
+use actix_http::http::ContentEncoding;
+use actix_http::{Error, Request, Response};
+use actix_service::Service;
+use futures::{Async, Future, Poll};
+
 use handler::{AsyncResult, FromRequest, Handler, Responder, WrapHandler};
-use header::ContentEncoding;
 use http::Method;
 use httprequest::HttpRequest;
 use httpresponse::HttpResponse;
-use middleware::Middleware;
-use pipeline::{Pipeline, PipelineHandler};
+// use middleware::Middleware;
+// use pipeline::{Pipeline, PipelineHandler};
 use pred::Predicate;
 use resource::Resource;
 use router::{ResourceDef, Router};
-use scope::Scope;
-use server::{HttpHandler, HttpHandlerTask, IntoHttpHandler, Request};
+// use scope::Scope;
+// use server::{HttpHandler, HttpHandlerTask, IntoHttpHandler, Request};
 use with::WithFactory;
 
 /// Application
@@ -21,7 +25,7 @@ pub struct HttpApplication<S = ()> {
     prefix_len: usize,
     inner: Rc<Inner<S>>,
     filters: Option<Vec<Box<Predicate<S>>>>,
-    middlewares: Rc<Vec<Box<Middleware<S>>>>,
+    // middlewares: Rc<Vec<Box<Middleware<S>>>>,
 }
 
 #[doc(hidden)]
@@ -30,16 +34,16 @@ pub struct Inner<S> {
     encoding: ContentEncoding,
 }
 
-impl<S: 'static> PipelineHandler<S> for Inner<S> {
-    #[inline]
-    fn encoding(&self) -> ContentEncoding {
-        self.encoding
-    }
+// impl<S: 'static> PipelineHandler<S> for Inner<S> {
+//     #[inline]
+//     fn encoding(&self) -> ContentEncoding {
+//         self.encoding
+//     }
 
-    fn handle(&self, req: &HttpRequest<S>) -> AsyncResult<HttpResponse> {
-        self.router.handle(req)
-    }
-}
+//     fn handle(&self, req: &HttpRequest<S>) -> AsyncResult<HttpResponse> {
+//         self.router.handle(req)
+//     }
+// }
 
 impl<S: 'static> HttpApplication<S> {
     #[cfg(test)]
@@ -54,10 +58,18 @@ impl<S: 'static> HttpApplication<S> {
     }
 }
 
-impl<S: 'static> HttpHandler for HttpApplication<S> {
-    type Task = Pipeline<S, Inner<S>>;
+impl<S: 'static> Service for HttpApplication<S> {
+    // type Task = Pipeline<S, Inner<S>>;
+    type Request = actix_http::Request;
+    type Response = actix_http::Response;
+    type Error = Error;
+    type Future = Box<Future<Item = Response, Error = Error>>;
 
-    fn handle(&self, msg: Request) -> Result<Pipeline<S, Inner<S>>, Request> {
+    fn poll_ready(&mut self) -> Poll<(), Self::Error> {
+        Ok(Async::Ready(()))
+    }
+
+    fn call(&mut self, msg: actix_http::Request) -> Self::Future {
         let m = {
             if self.prefix_len == 0 {
                 true
@@ -70,11 +82,12 @@ impl<S: 'static> HttpHandler for HttpApplication<S> {
         };
         if m {
             if let Some(ref filters) = self.filters {
-                for filter in filters {
-                    if !filter.check(&msg, &self.state) {
-                        return Err(msg);
-                    }
-                }
+                //for filter in filters {
+                //    if !filter.check(&msg, &self.state) {
+                //return Err(msg);
+                unimplemented!()
+                //    }
+                //}
             }
 
             let info = self
@@ -83,10 +96,12 @@ impl<S: 'static> HttpHandler for HttpApplication<S> {
                 .recognize(&msg, &self.state, self.prefix_len);
 
             let inner = Rc::clone(&self.inner);
-            let req = HttpRequest::new(msg, Rc::clone(&self.state), info);
-            Ok(Pipeline::new(req, Rc::clone(&self.middlewares), inner))
+            // let req = HttpRequest::new(msg, Rc::clone(&self.state), info);
+            // Ok(Pipeline::new(req, inner))
+            unimplemented!()
         } else {
-            Err(msg)
+            // Err(msg)
+            unimplemented!()
         }
     }
 }
@@ -96,7 +111,7 @@ struct ApplicationParts<S> {
     prefix: String,
     router: Router<S>,
     encoding: ContentEncoding,
-    middlewares: Vec<Box<Middleware<S>>>,
+    // middlewares: Vec<Box<Middleware<S>>>,
     filters: Vec<Box<Predicate<S>>>,
 }
 
@@ -106,55 +121,10 @@ pub struct App<S = ()> {
     parts: Option<ApplicationParts<S>>,
 }
 
-impl App<()> {
-    /// Create application with empty state. Application can
-    /// be configured with a builder-like pattern.
-    pub fn new() -> App<()> {
-        App::with_state(())
-    }
-}
-
-impl Default for App<()> {
-    fn default() -> Self {
-        App::new()
-    }
-}
-
 impl<S> App<S>
 where
     S: 'static,
 {
-    /// Create application with specified state. Application can be
-    /// configured with a builder-like pattern.
-    ///
-    /// State is shared with all resources within same application and
-    /// could be accessed with `HttpRequest::state()` method.
-    ///
-    /// **Note**: http server accepts an application factory rather than
-    /// an application instance. Http server constructs an application
-    /// instance for each thread, thus application state must be constructed
-    /// multiple times. If you want to share state between different
-    /// threads, a shared object should be used, e.g. `Arc`. Application
-    /// state does not need to be `Send` or `Sync`.
-    pub fn with_state(state: S) -> App<S> {
-        App {
-            parts: Some(ApplicationParts {
-                state,
-                prefix: "".to_owned(),
-                router: Router::new(ResourceDef::prefix("")),
-                middlewares: Vec::new(),
-                filters: Vec::new(),
-                encoding: ContentEncoding::Auto,
-            }),
-        }
-    }
-
-    /// Get reference to the application state
-    pub fn state(&self) -> &S {
-        let parts = self.parts.as_ref().expect("Use after finish");
-        &parts.state
-    }
-
     /// Set application prefix.
     ///
     /// Only requests that match the application's prefix get
@@ -205,26 +175,6 @@ where
         self
     }
 
-    /// Add match predicate to application.
-    ///
-    /// ```rust
-    /// # extern crate actix_web;
-    /// # use actix_web::*;
-    /// # fn main() {
-    /// App::new()
-    ///     .filter(pred::Host("www.rust-lang.org"))
-    ///     .resource("/path", |r| r.f(|_| HttpResponse::Ok()))
-    /// #      .finish();
-    /// # }
-    /// ```
-    pub fn filter<T: Predicate<S> + 'static>(mut self, p: T) -> App<S> {
-        {
-            let parts = self.parts.as_mut().expect("Use after finish");
-            parts.filters.push(Box::new(p));
-        }
-        self
-    }
-
     /// Configure route for a specific path.
     ///
     /// This is a simplified version of the `App::resource()` method.
@@ -263,42 +213,42 @@ where
         self
     }
 
-    /// Configure scope for common root path.
-    ///
-    /// Scopes collect multiple paths under a common path prefix.
-    /// Scope path can contain variable path segments as resources.
-    ///
-    /// ```rust
-    /// # extern crate actix_web;
-    /// use actix_web::{http, App, HttpRequest, HttpResponse};
-    ///
-    /// fn main() {
-    ///     let app = App::new().scope("/{project_id}", |scope| {
-    ///         scope
-    ///             .resource("/path1", |r| r.f(|_| HttpResponse::Ok()))
-    ///             .resource("/path2", |r| r.f(|_| HttpResponse::Ok()))
-    ///             .resource("/path3", |r| r.f(|_| HttpResponse::MethodNotAllowed()))
-    ///     });
-    /// }
-    /// ```
-    ///
-    /// In the above example, three routes get added:
-    ///  * /{project_id}/path1
-    ///  * /{project_id}/path2
-    ///  * /{project_id}/path3
-    ///
-    pub fn scope<F>(mut self, path: &str, f: F) -> App<S>
-    where
-        F: FnOnce(Scope<S>) -> Scope<S>,
-    {
-        let scope = f(Scope::new(path));
-        self.parts
-            .as_mut()
-            .expect("Use after finish")
-            .router
-            .register_scope(scope);
-        self
-    }
+    // /// Configure scope for common root path.
+    // ///
+    // /// Scopes collect multiple paths under a common path prefix.
+    // /// Scope path can contain variable path segments as resources.
+    // ///
+    // /// ```rust
+    // /// # extern crate actix_web;
+    // /// use actix_web::{http, App, HttpRequest, HttpResponse};
+    // ///
+    // /// fn main() {
+    // ///     let app = App::new().scope("/{project_id}", |scope| {
+    // ///         scope
+    // ///             .resource("/path1", |r| r.f(|_| HttpResponse::Ok()))
+    // ///             .resource("/path2", |r| r.f(|_| HttpResponse::Ok()))
+    // ///             .resource("/path3", |r| r.f(|_| HttpResponse::MethodNotAllowed()))
+    // ///     });
+    // /// }
+    // /// ```
+    // ///
+    // /// In the above example, three routes get added:
+    // ///  * /{project_id}/path1
+    // ///  * /{project_id}/path2
+    // ///  * /{project_id}/path3
+    // ///
+    // pub fn scope<F>(mut self, path: &str, f: F) -> App<S>
+    // where
+    //     F: FnOnce(Scope<S>) -> Scope<S>,
+    // {
+    //     let scope = f(Scope::new(path));
+    //     self.parts
+    //         .as_mut()
+    //         .expect("Use after finish")
+    //         .router
+    //         .register_scope(scope);
+    //     self
+    // }
 
     /// Configure resource for a specific path.
     ///
@@ -377,51 +327,6 @@ where
         self
     }
 
-    /// Set default content encoding. `ContentEncoding::Auto` is set by default.
-    pub fn default_encoding(mut self, encoding: ContentEncoding) -> App<S> {
-        {
-            let parts = self.parts.as_mut().expect("Use after finish");
-            parts.encoding = encoding;
-        }
-        self
-    }
-
-    /// Register an external resource.
-    ///
-    /// External resources are useful for URL generation purposes only
-    /// and are never considered for matching at request time. Calls to
-    /// `HttpRequest::url_for()` will work as expected.
-    ///
-    /// ```rust
-    /// # extern crate actix_web;
-    /// use actix_web::{App, HttpRequest, HttpResponse, Result};
-    ///
-    /// fn index(req: &HttpRequest) -> Result<HttpResponse> {
-    ///     let url = req.url_for("youtube", &["oHg5SJYRHA0"])?;
-    ///     assert_eq!(url.as_str(), "https://youtube.com/watch/oHg5SJYRHA0");
-    ///     Ok(HttpResponse::Ok().into())
-    /// }
-    ///
-    /// fn main() {
-    ///     let app = App::new()
-    ///         .resource("/index.html", |r| r.get().f(index))
-    ///         .external_resource("youtube", "https://youtube.com/watch/{video_id}")
-    ///         .finish();
-    /// }
-    /// ```
-    pub fn external_resource<T, U>(mut self, name: T, url: U) -> App<S>
-    where
-        T: AsRef<str>,
-        U: AsRef<str>,
-    {
-        self.parts
-            .as_mut()
-            .expect("Use after finish")
-            .router
-            .register_external(name.as_ref(), ResourceDef::external(url.as_ref()));
-        self
-    }
-
     /// Configure handler for specific path prefix.
     ///
     /// A path prefix consists of valid path segments, i.e for the
@@ -458,15 +363,15 @@ where
         self
     }
 
-    /// Register a middleware.
-    pub fn middleware<M: Middleware<S>>(mut self, mw: M) -> App<S> {
-        self.parts
-            .as_mut()
-            .expect("Use after finish")
-            .middlewares
-            .push(Box::new(mw));
-        self
-    }
+    // /// Register a middleware.
+    // pub fn middleware<M: Middleware<S>>(mut self, mw: M) -> App<S> {
+    //     self.parts
+    //         .as_mut()
+    //         .expect("Use after finish")
+    //         .middlewares
+    //         .push(Box::new(mw));
+    //     self
+    // }
 
     /// Run external configuration as part of the application building
     /// process
@@ -521,93 +426,93 @@ where
             inner,
             filters,
             state: Rc::new(parts.state),
-            middlewares: Rc::new(parts.middlewares),
+            // middlewares: Rc::new(parts.middlewares),
             prefix: prefix.to_owned(),
             prefix_len: prefix.len(),
         }
     }
 
-    /// Convenience method for creating `Box<HttpHandler>` instances.
-    ///
-    /// This method is useful if you need to register multiple
-    /// application instances with different state.
-    ///
-    /// ```rust
-    /// # use std::thread;
-    /// # extern crate actix_web;
-    /// use actix_web::{server, App, HttpResponse};
-    ///
-    /// struct State1;
-    ///
-    /// struct State2;
-    ///
-    /// fn main() {
-    /// # thread::spawn(|| {
-    ///     server::new(|| {
-    ///         vec![
-    ///             App::with_state(State1)
-    ///                 .prefix("/app1")
-    ///                 .resource("/", |r| r.f(|r| HttpResponse::Ok()))
-    ///                 .boxed(),
-    ///             App::with_state(State2)
-    ///                 .prefix("/app2")
-    ///                 .resource("/", |r| r.f(|r| HttpResponse::Ok()))
-    ///                 .boxed(),
-    ///         ]
-    ///     }).bind("127.0.0.1:8080")
-    ///         .unwrap()
-    ///         .run()
-    /// # });
-    /// }
-    /// ```
-    pub fn boxed(mut self) -> Box<HttpHandler<Task = Box<HttpHandlerTask>>> {
-        Box::new(BoxedApplication { app: self.finish() })
-    }
+    // /// Convenience method for creating `Box<HttpHandler>` instances.
+    // ///
+    // /// This method is useful if you need to register multiple
+    // /// application instances with different state.
+    // ///
+    // /// ```rust
+    // /// # use std::thread;
+    // /// # extern crate actix_web;
+    // /// use actix_web::{server, App, HttpResponse};
+    // ///
+    // /// struct State1;
+    // ///
+    // /// struct State2;
+    // ///
+    // /// fn main() {
+    // /// # thread::spawn(|| {
+    // ///     server::new(|| {
+    // ///         vec![
+    // ///             App::with_state(State1)
+    // ///                 .prefix("/app1")
+    // ///                 .resource("/", |r| r.f(|r| HttpResponse::Ok()))
+    // ///                 .boxed(),
+    // ///             App::with_state(State2)
+    // ///                 .prefix("/app2")
+    // ///                 .resource("/", |r| r.f(|r| HttpResponse::Ok()))
+    // ///                 .boxed(),
+    // ///         ]
+    // ///     }).bind("127.0.0.1:8080")
+    // ///         .unwrap()
+    // ///         .run()
+    // /// # });
+    // /// }
+    // /// ```
+    // pub fn boxed(mut self) -> Box<HttpHandler<Task = Box<HttpHandlerTask>>> {
+    //     Box::new(BoxedApplication { app: self.finish() })
+    // }
 }
 
-struct BoxedApplication<S> {
-    app: HttpApplication<S>,
-}
+// struct BoxedApplication<S> {
+//    app: HttpApplication<S>,
+// }
 
-impl<S: 'static> HttpHandler for BoxedApplication<S> {
-    type Task = Box<HttpHandlerTask>;
+// impl<S: 'static> HttpHandler for BoxedApplication<S> {
+//     type Task = Box<HttpHandlerTask>;
 
-    fn handle(&self, req: Request) -> Result<Self::Task, Request> {
-        self.app.handle(req).map(|t| {
-            let task: Self::Task = Box::new(t);
-            task
-        })
-    }
-}
+//     fn handle(&self, req: Request) -> Result<Self::Task, Request> {
+//         self.app.handle(req).map(|t| {
+//             let task: Self::Task = Box::new(t);
+//             task
+//         })
+//     }
+// }
 
-impl<S: 'static> IntoHttpHandler for App<S> {
-    type Handler = HttpApplication<S>;
+// impl<S: 'static> IntoHttpHandler for App<S> {
+//     type Handler = HttpApplication<S>;
 
-    fn into_handler(mut self) -> HttpApplication<S> {
-        self.finish()
-    }
-}
+//     fn into_handler(mut self) -> HttpApplication<S> {
+//         self.finish()
+//     }
+// }
 
-impl<'a, S: 'static> IntoHttpHandler for &'a mut App<S> {
-    type Handler = HttpApplication<S>;
+// impl<'a, S: 'static> IntoHttpHandler for &'a mut App<S> {
+//     type Handler = HttpApplication<S>;
 
-    fn into_handler(self) -> HttpApplication<S> {
-        self.finish()
-    }
-}
+//     fn into_handler(self) -> HttpApplication<S> {
+//         self.finish()
+//     }
+// }
 
-#[doc(hidden)]
-impl<S: 'static> Iterator for App<S> {
-    type Item = HttpApplication<S>;
+// #[doc(hidden)]
+// impl<S: 'static> Iterator for App<S> {
+//     type Item = HttpApplication<S>;
 
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.parts.is_some() {
-            Some(self.finish())
-        } else {
-            None
-        }
-    }
-}
+//     fn next(&mut self) -> Option<Self::Item> {
+//         if self.parts.is_some() {
+//             Some(self.finish())
+//         } else {
+//             None
+//         }
+//     }
+// }
 
 #[cfg(test)]
 mod tests {
@@ -773,7 +678,8 @@ mod tests {
             .route("/test", Method::GET, |_: HttpRequest| HttpResponse::Ok())
             .route("/test", Method::POST, |_: HttpRequest| {
                 HttpResponse::Created()
-            }).finish();
+            })
+            .finish();
 
         let req = TestRequest::with_uri("/test").method(Method::GET).request();
         let resp = app.run(req);

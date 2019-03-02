@@ -1,571 +1,180 @@
-//! Various helpers
+use actix_http::Response;
+use actix_service::{NewService, Service};
+use futures::future::{ok, FutureResult};
+use futures::{Future, Poll};
 
-use http::{header, StatusCode};
-use regex::Regex;
+pub(crate) type BoxedHttpService<Req, Res> = Box<
+    Service<
+        Request = Req,
+        Response = Res,
+        Error = (),
+        Future = Box<Future<Item = Res, Error = ()>>,
+    >,
+>;
 
-use handler::Handler;
-use httprequest::HttpRequest;
-use httpresponse::HttpResponse;
+pub(crate) type BoxedHttpNewService<Req, Res> = Box<
+    NewService<
+        Request = Req,
+        Response = Res,
+        Error = (),
+        InitError = (),
+        Service = BoxedHttpService<Req, Res>,
+        Future = Box<Future<Item = BoxedHttpService<Req, Res>, Error = ()>>,
+    >,
+>;
 
-/// Path normalization helper
-///
-/// By normalizing it means:
-///
-/// - Add a trailing slash to the path.
-/// - Remove a trailing slash from the path.
-/// - Double slashes are replaced by one.
-///
-/// The handler returns as soon as it finds a path that resolves
-/// correctly. The order if all enable is 1) merge, 3) both merge and append
-/// and 3) append. If the path resolves with
-/// at least one of those conditions, it will redirect to the new path.
-///
-/// If *append* is *true* append slash when needed. If a resource is
-/// defined with trailing slash and the request comes without it, it will
-/// append it automatically.
-///
-/// If *merge* is *true*, merge multiple consecutive slashes in the path into
-/// one.
-///
-/// This handler designed to be use as a handler for application's *default
-/// resource*.
-///
-/// ```rust
-/// # extern crate actix_web;
-/// # #[macro_use] extern crate serde_derive;
-/// # use actix_web::*;
-/// use actix_web::http::NormalizePath;
-///
-/// # fn index(req: &HttpRequest) -> HttpResponse {
-/// #     HttpResponse::Ok().into()
-/// # }
-/// fn main() {
-///     let app = App::new()
-///         .resource("/test/", |r| r.f(index))
-///         .default_resource(|r| r.h(NormalizePath::default()))
-///         .finish();
-/// }
-/// ```
-/// In this example `/test`, `/test///` will be redirected to `/test/` url.
-pub struct NormalizePath {
-    append: bool,
-    merge: bool,
-    re_merge: Regex,
-    redirect: StatusCode,
-    not_found: StatusCode,
-}
+pub(crate) struct HttpNewService<T: NewService>(T);
 
-impl Default for NormalizePath {
-    /// Create default `NormalizePath` instance, *append* is set to *true*,
-    /// *merge* is set to *true* and *redirect* is set to
-    /// `StatusCode::MOVED_PERMANENTLY`
-    fn default() -> NormalizePath {
-        NormalizePath {
-            append: true,
-            merge: true,
-            re_merge: Regex::new("//+").unwrap(),
-            redirect: StatusCode::MOVED_PERMANENTLY,
-            not_found: StatusCode::NOT_FOUND,
-        }
+impl<T> HttpNewService<T>
+where
+    T: NewService,
+    T::Response: 'static,
+    T::Future: 'static,
+    T::Service: Service,
+    <T::Service as Service>::Future: 'static,
+{
+    pub fn new(service: T) -> Self {
+        HttpNewService(service)
     }
 }
 
-impl NormalizePath {
-    /// Create new `NormalizePath` instance
-    pub fn new(append: bool, merge: bool, redirect: StatusCode) -> NormalizePath {
-        NormalizePath {
-            append,
-            merge,
-            redirect,
-            re_merge: Regex::new("//+").unwrap(),
-            not_found: StatusCode::NOT_FOUND,
-        }
+impl<T> NewService for HttpNewService<T>
+where
+    T: NewService,
+    T::Request: 'static,
+    T::Response: 'static,
+    T::Future: 'static,
+    T::Service: Service + 'static,
+    <T::Service as Service>::Future: 'static,
+{
+    type Request = T::Request;
+    type Response = T::Response;
+    type Error = ();
+    type InitError = ();
+    type Service = BoxedHttpService<T::Request, T::Response>;
+    type Future = Box<Future<Item = Self::Service, Error = Self::InitError>>;
+
+    fn new_service(&self, _: &()) -> Self::Future {
+        Box::new(self.0.new_service(&()).map_err(|_| ()).and_then(|service| {
+            let service: BoxedHttpService<_, _> =
+                Box::new(HttpServiceWrapper { service });
+            Ok(service)
+        }))
     }
 }
 
-impl<S> Handler<S> for NormalizePath {
-    type Result = HttpResponse;
+struct HttpServiceWrapper<T: Service> {
+    service: T,
+}
 
-    fn handle(&self, req: &HttpRequest<S>) -> Self::Result {
-        let query = req.query_string();
-        if self.merge {
-            // merge slashes
-            let p = self.re_merge.replace_all(req.path(), "/");
-            if p.len() != req.path().len() {
-                if req.resource().has_prefixed_resource(p.as_ref()) {
-                    let p = if !query.is_empty() {
-                        p + "?" + query
-                    } else {
-                        p
-                    };
-                    return HttpResponse::build(self.redirect)
-                        .header(header::LOCATION, p.as_ref())
-                        .finish();
-                }
-                // merge slashes and append trailing slash
-                if self.append && !p.ends_with('/') {
-                    let p = p.as_ref().to_owned() + "/";
-                    if req.resource().has_prefixed_resource(&p) {
-                        let p = if !query.is_empty() {
-                            p + "?" + query
-                        } else {
-                            p
-                        };
-                        return HttpResponse::build(self.redirect)
-                            .header(header::LOCATION, p.as_str())
-                            .finish();
-                    }
-                }
+impl<T> Service for HttpServiceWrapper<T>
+where
+    T: Service,
+    T::Request: 'static,
+    T::Response: 'static,
+    T::Future: 'static,
+{
+    type Request = T::Request;
+    type Response = T::Response;
+    type Error = ();
+    type Future = Box<Future<Item = Self::Response, Error = Self::Error>>;
 
-                // try to remove trailing slash
-                if p.ends_with('/') {
-                    let p = p.as_ref().trim_right_matches('/');
-                    if req.resource().has_prefixed_resource(p) {
-                        let mut req = HttpResponse::build(self.redirect);
-                        return if !query.is_empty() {
-                            req.header(
-                                header::LOCATION,
-                                (p.to_owned() + "?" + query).as_str(),
-                            )
-                        } else {
-                            req.header(header::LOCATION, p)
-                        }.finish();
-                    }
-                }
-            } else if p.ends_with('/') {
-                // try to remove trailing slash
-                let p = p.as_ref().trim_right_matches('/');
-                if req.resource().has_prefixed_resource(p) {
-                    let mut req = HttpResponse::build(self.redirect);
-                    return if !query.is_empty() {
-                        req.header(
-                            header::LOCATION,
-                            (p.to_owned() + "?" + query).as_str(),
-                        )
-                    } else {
-                        req.header(header::LOCATION, p)
-                    }.finish();
-                }
-            }
-        }
-        // append trailing slash
-        if self.append && !req.path().ends_with('/') {
-            let p = req.path().to_owned() + "/";
-            if req.resource().has_prefixed_resource(&p) {
-                let p = if !query.is_empty() {
-                    p + "?" + query
-                } else {
-                    p
-                };
-                return HttpResponse::build(self.redirect)
-                    .header(header::LOCATION, p.as_str())
-                    .finish();
-            }
-        }
-        HttpResponse::new(self.not_found)
+    fn poll_ready(&mut self) -> Poll<(), Self::Error> {
+        self.service.poll_ready().map_err(|_| ())
+    }
+
+    fn call(&mut self, req: Self::Request) -> Self::Future {
+        Box::new(self.service.call(req).map_err(|_| ()))
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use application::App;
-    use http::{header, Method};
-    use test::TestRequest;
+pub(crate) fn not_found<Req>(_: Req) -> FutureResult<Response, ()> {
+    ok(Response::NotFound().finish())
+}
 
-    fn index(_req: &HttpRequest) -> HttpResponse {
-        HttpResponse::new(StatusCode::OK)
+pub(crate) type HttpDefaultService<Req, Res> = Box<
+    Service<
+        Request = Req,
+        Response = Res,
+        Error = (),
+        Future = Box<Future<Item = Res, Error = ()>>,
+    >,
+>;
+
+pub(crate) type HttpDefaultNewService<Req, Res> = Box<
+    NewService<
+        Request = Req,
+        Response = Res,
+        Error = (),
+        InitError = (),
+        Service = HttpDefaultService<Req, Res>,
+        Future = Box<Future<Item = HttpDefaultService<Req, Res>, Error = ()>>,
+    >,
+>;
+
+pub(crate) struct DefaultNewService<T: NewService> {
+    service: T,
+}
+
+impl<T> DefaultNewService<T>
+where
+    T: NewService + 'static,
+    T::Future: 'static,
+    <T::Service as Service>::Future: 'static,
+{
+    pub fn new(service: T) -> Self {
+        DefaultNewService { service }
+    }
+}
+
+impl<T> NewService for DefaultNewService<T>
+where
+    T: NewService + 'static,
+    T::Request: 'static,
+    T::Future: 'static,
+    T::Service: 'static,
+    <T::Service as Service>::Future: 'static,
+{
+    type Request = T::Request;
+    type Response = T::Response;
+    type Error = ();
+    type InitError = ();
+    type Service = HttpDefaultService<T::Request, T::Response>;
+    type Future = Box<Future<Item = Self::Service, Error = Self::InitError>>;
+
+    fn new_service(&self, _: &()) -> Self::Future {
+        Box::new(
+            self.service
+                .new_service(&())
+                .map_err(|_| ())
+                .and_then(|service| {
+                    let service: HttpDefaultService<_, _> =
+                        Box::new(DefaultServiceWrapper { service });
+                    Ok(service)
+                }),
+        )
+    }
+}
+
+struct DefaultServiceWrapper<T: Service> {
+    service: T,
+}
+
+impl<T> Service for DefaultServiceWrapper<T>
+where
+    T: Service + 'static,
+    T::Future: 'static,
+{
+    type Request = T::Request;
+    type Response = T::Response;
+    type Error = ();
+    type Future = Box<Future<Item = Self::Response, Error = Self::Error>>;
+
+    fn poll_ready(&mut self) -> Poll<(), Self::Error> {
+        self.service.poll_ready().map_err(|_| ())
     }
 
-    #[test]
-    fn test_normalize_path_trailing_slashes() {
-        let app = App::new()
-            .resource("/resource1", |r| r.method(Method::GET).f(index))
-            .resource("/resource2/", |r| r.method(Method::GET).f(index))
-            .default_resource(|r| r.h(NormalizePath::default()))
-            .finish();
-
-        // trailing slashes
-        let params = vec![
-            ("/resource1", "", StatusCode::OK),
-            ("/resource1/", "/resource1", StatusCode::MOVED_PERMANENTLY),
-            ("/resource2", "/resource2/", StatusCode::MOVED_PERMANENTLY),
-            ("/resource2/", "", StatusCode::OK),
-            ("/resource1?p1=1&p2=2", "", StatusCode::OK),
-            (
-                "/resource1/?p1=1&p2=2",
-                "/resource1?p1=1&p2=2",
-                StatusCode::MOVED_PERMANENTLY,
-            ),
-            (
-                "/resource2?p1=1&p2=2",
-                "/resource2/?p1=1&p2=2",
-                StatusCode::MOVED_PERMANENTLY,
-            ),
-            ("/resource2/?p1=1&p2=2", "", StatusCode::OK),
-        ];
-        for (path, target, code) in params {
-            let req = TestRequest::with_uri(path).request();
-            let resp = app.run(req);
-            let r = &resp.as_msg();
-            assert_eq!(r.status(), code);
-            if !target.is_empty() {
-                assert_eq!(
-                    target,
-                    r.headers().get(header::LOCATION).unwrap().to_str().unwrap()
-                );
-            }
-        }
-    }
-
-    #[test]
-    fn test_prefixed_normalize_path_trailing_slashes() {
-        let app = App::new()
-            .prefix("/test")
-            .resource("/resource1", |r| r.method(Method::GET).f(index))
-            .resource("/resource2/", |r| r.method(Method::GET).f(index))
-            .default_resource(|r| r.h(NormalizePath::default()))
-            .finish();
-
-        // trailing slashes
-        let params = vec![
-            ("/test/resource1", "", StatusCode::OK),
-            (
-                "/test/resource1/",
-                "/test/resource1",
-                StatusCode::MOVED_PERMANENTLY,
-            ),
-            (
-                "/test/resource2",
-                "/test/resource2/",
-                StatusCode::MOVED_PERMANENTLY,
-            ),
-            ("/test/resource2/", "", StatusCode::OK),
-            ("/test/resource1?p1=1&p2=2", "", StatusCode::OK),
-            (
-                "/test/resource1/?p1=1&p2=2",
-                "/test/resource1?p1=1&p2=2",
-                StatusCode::MOVED_PERMANENTLY,
-            ),
-            (
-                "/test/resource2?p1=1&p2=2",
-                "/test/resource2/?p1=1&p2=2",
-                StatusCode::MOVED_PERMANENTLY,
-            ),
-            ("/test/resource2/?p1=1&p2=2", "", StatusCode::OK),
-        ];
-        for (path, target, code) in params {
-            let req = TestRequest::with_uri(path).request();
-            let resp = app.run(req);
-            let r = &resp.as_msg();
-            assert_eq!(r.status(), code);
-            if !target.is_empty() {
-                assert_eq!(
-                    target,
-                    r.headers().get(header::LOCATION).unwrap().to_str().unwrap()
-                );
-            }
-        }
-    }
-
-    #[test]
-    fn test_normalize_path_trailing_slashes_disabled() {
-        let app = App::new()
-            .resource("/resource1", |r| r.method(Method::GET).f(index))
-            .resource("/resource2/", |r| r.method(Method::GET).f(index))
-            .default_resource(|r| {
-                r.h(NormalizePath::new(
-                    false,
-                    true,
-                    StatusCode::MOVED_PERMANENTLY,
-                ))
-            }).finish();
-
-        // trailing slashes
-        let params = vec![
-            ("/resource1", StatusCode::OK),
-            ("/resource1/", StatusCode::MOVED_PERMANENTLY),
-            ("/resource2", StatusCode::NOT_FOUND),
-            ("/resource2/", StatusCode::OK),
-            ("/resource1?p1=1&p2=2", StatusCode::OK),
-            ("/resource1/?p1=1&p2=2", StatusCode::MOVED_PERMANENTLY),
-            ("/resource2?p1=1&p2=2", StatusCode::NOT_FOUND),
-            ("/resource2/?p1=1&p2=2", StatusCode::OK),
-        ];
-        for (path, code) in params {
-            let req = TestRequest::with_uri(path).request();
-            let resp = app.run(req);
-            let r = &resp.as_msg();
-            assert_eq!(r.status(), code);
-        }
-    }
-
-    #[test]
-    fn test_normalize_path_merge_slashes() {
-        let app = App::new()
-            .resource("/resource1", |r| r.method(Method::GET).f(index))
-            .resource("/resource1/a/b", |r| r.method(Method::GET).f(index))
-            .default_resource(|r| r.h(NormalizePath::default()))
-            .finish();
-
-        // trailing slashes
-        let params = vec![
-            ("/resource1/a/b", "", StatusCode::OK),
-            ("/resource1/", "/resource1", StatusCode::MOVED_PERMANENTLY),
-            ("/resource1//", "/resource1", StatusCode::MOVED_PERMANENTLY),
-            (
-                "//resource1//a//b",
-                "/resource1/a/b",
-                StatusCode::MOVED_PERMANENTLY,
-            ),
-            (
-                "//resource1//a//b/",
-                "/resource1/a/b",
-                StatusCode::MOVED_PERMANENTLY,
-            ),
-            (
-                "//resource1//a//b//",
-                "/resource1/a/b",
-                StatusCode::MOVED_PERMANENTLY,
-            ),
-            (
-                "///resource1//a//b",
-                "/resource1/a/b",
-                StatusCode::MOVED_PERMANENTLY,
-            ),
-            (
-                "/////resource1/a///b",
-                "/resource1/a/b",
-                StatusCode::MOVED_PERMANENTLY,
-            ),
-            (
-                "/////resource1/a//b/",
-                "/resource1/a/b",
-                StatusCode::MOVED_PERMANENTLY,
-            ),
-            ("/resource1/a/b?p=1", "", StatusCode::OK),
-            (
-                "//resource1//a//b?p=1",
-                "/resource1/a/b?p=1",
-                StatusCode::MOVED_PERMANENTLY,
-            ),
-            (
-                "//resource1//a//b/?p=1",
-                "/resource1/a/b?p=1",
-                StatusCode::MOVED_PERMANENTLY,
-            ),
-            (
-                "///resource1//a//b?p=1",
-                "/resource1/a/b?p=1",
-                StatusCode::MOVED_PERMANENTLY,
-            ),
-            (
-                "/////resource1/a///b?p=1",
-                "/resource1/a/b?p=1",
-                StatusCode::MOVED_PERMANENTLY,
-            ),
-            (
-                "/////resource1/a//b/?p=1",
-                "/resource1/a/b?p=1",
-                StatusCode::MOVED_PERMANENTLY,
-            ),
-            (
-                "/////resource1/a//b//?p=1",
-                "/resource1/a/b?p=1",
-                StatusCode::MOVED_PERMANENTLY,
-            ),
-        ];
-        for (path, target, code) in params {
-            let req = TestRequest::with_uri(path).request();
-            let resp = app.run(req);
-            let r = &resp.as_msg();
-            assert_eq!(r.status(), code);
-            if !target.is_empty() {
-                assert_eq!(
-                    target,
-                    r.headers().get(header::LOCATION).unwrap().to_str().unwrap()
-                );
-            }
-        }
-    }
-
-    #[test]
-    fn test_normalize_path_merge_and_append_slashes() {
-        let app = App::new()
-            .resource("/resource1", |r| r.method(Method::GET).f(index))
-            .resource("/resource2/", |r| r.method(Method::GET).f(index))
-            .resource("/resource1/a/b", |r| r.method(Method::GET).f(index))
-            .resource("/resource2/a/b/", |r| r.method(Method::GET).f(index))
-            .default_resource(|r| r.h(NormalizePath::default()))
-            .finish();
-
-        // trailing slashes
-        let params = vec![
-            ("/resource1/a/b", "", StatusCode::OK),
-            (
-                "/resource1/a/b/",
-                "/resource1/a/b",
-                StatusCode::MOVED_PERMANENTLY,
-            ),
-            (
-                "//resource2//a//b",
-                "/resource2/a/b/",
-                StatusCode::MOVED_PERMANENTLY,
-            ),
-            (
-                "//resource2//a//b/",
-                "/resource2/a/b/",
-                StatusCode::MOVED_PERMANENTLY,
-            ),
-            (
-                "//resource2//a//b//",
-                "/resource2/a/b/",
-                StatusCode::MOVED_PERMANENTLY,
-            ),
-            (
-                "///resource1//a//b",
-                "/resource1/a/b",
-                StatusCode::MOVED_PERMANENTLY,
-            ),
-            (
-                "///resource1//a//b/",
-                "/resource1/a/b",
-                StatusCode::MOVED_PERMANENTLY,
-            ),
-            (
-                "/////resource1/a///b",
-                "/resource1/a/b",
-                StatusCode::MOVED_PERMANENTLY,
-            ),
-            (
-                "/////resource1/a///b/",
-                "/resource1/a/b",
-                StatusCode::MOVED_PERMANENTLY,
-            ),
-            (
-                "/resource2/a/b",
-                "/resource2/a/b/",
-                StatusCode::MOVED_PERMANENTLY,
-            ),
-            ("/resource2/a/b/", "", StatusCode::OK),
-            (
-                "//resource2//a//b",
-                "/resource2/a/b/",
-                StatusCode::MOVED_PERMANENTLY,
-            ),
-            (
-                "//resource2//a//b/",
-                "/resource2/a/b/",
-                StatusCode::MOVED_PERMANENTLY,
-            ),
-            (
-                "///resource2//a//b",
-                "/resource2/a/b/",
-                StatusCode::MOVED_PERMANENTLY,
-            ),
-            (
-                "///resource2//a//b/",
-                "/resource2/a/b/",
-                StatusCode::MOVED_PERMANENTLY,
-            ),
-            (
-                "/////resource2/a///b",
-                "/resource2/a/b/",
-                StatusCode::MOVED_PERMANENTLY,
-            ),
-            (
-                "/////resource2/a///b/",
-                "/resource2/a/b/",
-                StatusCode::MOVED_PERMANENTLY,
-            ),
-            ("/resource1/a/b?p=1", "", StatusCode::OK),
-            (
-                "/resource1/a/b/?p=1",
-                "/resource1/a/b?p=1",
-                StatusCode::MOVED_PERMANENTLY,
-            ),
-            (
-                "//resource2//a//b?p=1",
-                "/resource2/a/b/?p=1",
-                StatusCode::MOVED_PERMANENTLY,
-            ),
-            (
-                "//resource2//a//b/?p=1",
-                "/resource2/a/b/?p=1",
-                StatusCode::MOVED_PERMANENTLY,
-            ),
-            (
-                "///resource1//a//b?p=1",
-                "/resource1/a/b?p=1",
-                StatusCode::MOVED_PERMANENTLY,
-            ),
-            (
-                "///resource1//a//b/?p=1",
-                "/resource1/a/b?p=1",
-                StatusCode::MOVED_PERMANENTLY,
-            ),
-            (
-                "/////resource1/a///b?p=1",
-                "/resource1/a/b?p=1",
-                StatusCode::MOVED_PERMANENTLY,
-            ),
-            (
-                "/////resource1/a///b/?p=1",
-                "/resource1/a/b?p=1",
-                StatusCode::MOVED_PERMANENTLY,
-            ),
-            (
-                "/////resource1/a///b//?p=1",
-                "/resource1/a/b?p=1",
-                StatusCode::MOVED_PERMANENTLY,
-            ),
-            (
-                "/resource2/a/b?p=1",
-                "/resource2/a/b/?p=1",
-                StatusCode::MOVED_PERMANENTLY,
-            ),
-            (
-                "//resource2//a//b?p=1",
-                "/resource2/a/b/?p=1",
-                StatusCode::MOVED_PERMANENTLY,
-            ),
-            (
-                "//resource2//a//b/?p=1",
-                "/resource2/a/b/?p=1",
-                StatusCode::MOVED_PERMANENTLY,
-            ),
-            (
-                "///resource2//a//b?p=1",
-                "/resource2/a/b/?p=1",
-                StatusCode::MOVED_PERMANENTLY,
-            ),
-            (
-                "///resource2//a//b/?p=1",
-                "/resource2/a/b/?p=1",
-                StatusCode::MOVED_PERMANENTLY,
-            ),
-            (
-                "/////resource2/a///b?p=1",
-                "/resource2/a/b/?p=1",
-                StatusCode::MOVED_PERMANENTLY,
-            ),
-            (
-                "/////resource2/a///b/?p=1",
-                "/resource2/a/b/?p=1",
-                StatusCode::MOVED_PERMANENTLY,
-            ),
-        ];
-        for (path, target, code) in params {
-            let req = TestRequest::with_uri(path).request();
-            let resp = app.run(req);
-            let r = &resp.as_msg();
-            assert_eq!(r.status(), code);
-            if !target.is_empty() {
-                assert_eq!(
-                    target,
-                    r.headers().get(header::LOCATION).unwrap().to_str().unwrap()
-                );
-            }
-        }
+    fn call(&mut self, req: T::Request) -> Self::Future {
+        Box::new(self.service.call(req).map_err(|_| ()))
     }
 }

@@ -1,6 +1,6 @@
 [package]
 name = "actix-web"
-version = "0.7.18"
+version = "0.1.0"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix web is a simple, pragmatic and extremely fast web framework for Rust."
 readme = "README.md"
@@ -10,44 +10,21 @@ repository = "https://github.com/actix/actix-web.git"
 documentation = "https://actix.rs/api/actix-web/stable/actix_web/"
 categories = ["network-programming", "asynchronous",
               "web-programming::http-server",
-              "web-programming::http-client",
               "web-programming::websocket"]
 license = "MIT/Apache-2.0"
 exclude = [".gitignore", ".travis.yml", ".cargo/config", "appveyor.yml"]
-build = "build.rs"
-
-[package.metadata.docs.rs]
-features = ["tls", "ssl", "rust-tls", "session", "brotli", "flate2-c"]
+edition = "2018"
 
 [badges]
-travis-ci = { repository = "actix/actix-web", branch = "master" }
-appveyor = { repository = "fafhrd91/actix-web-hdy9d" }
-codecov = { repository = "actix/actix-web", branch = "master", service = "github" }
+travis-ci = { repository = "actix/actix-web2", branch = "master" }
+codecov = { repository = "actix/actix-web2", branch = "master", service = "github" }
 
 [lib]
 name = "actix_web"
 path = "src/lib.rs"
 
 [features]
-default = ["session", "brotli", "flate2-c", "cell"]
-
-# tls
-tls = ["native-tls", "tokio-tls", "actix-net/tls"]
-
-# openssl
-ssl = ["openssl", "tokio-openssl", "actix-net/ssl"]
-
-# deprecated, use "ssl"
-alpn = ["openssl", "tokio-openssl", "actix-net/ssl"]
-
-# rustls
-rust-tls = ["rustls", "tokio-rustls", "webpki", "webpki-roots", "actix-net/rust-tls"]
-
-# unix sockets
-uds = ["tokio-uds"]
-
-# sessions feature, session require "ring" crate and c compiler
-session = ["cookie/secure"]
+default = ["brotli", "flate2-c"]
 
 # brotli encoding, requires c compiler
 brotli = ["brotli2"]
@@ -58,80 +35,53 @@ flate2-c = ["flate2/miniz-sys"]
 # rust backend for flate2 crate
 flate2-rust = ["flate2/rust_backend"]
 
-cell = ["actix-net/cell"]
-
 [dependencies]
-actix = "0.7.9"
-actix-net = "0.2.6"
+actix-codec = "0.1.0"
+#actix-service = "0.2.1"
+#actix-server = "0.2.1"
+#actix-utils = "0.2.1"
+actix-service = { git = "https://github.com/actix/actix-net.git" }
+actix-server = { git = "https://github.com/actix/actix-net.git" }
+actix-utils = { git = "https://github.com/actix/actix-net.git" }
 
-v_htmlescape = "0.4"
-base64 = "0.10"
-bitflags = "1.0"
-failure = "^0.1.2"
-h2 = "0.1"
-http = "^0.1.14"
-httparse = "1.3"
+actix-rt = "0.1.0"
+actix-http = { git = "https://github.com/actix/actix-http.git" }
+actix-router = { git = "https://github.com/actix/actix-net.git" }
+
+bytes = "0.4"
+futures = "0.1"
+derive_more = "0.14"
 log = "0.4"
+lazy_static = "1.2"
 mime = "0.3"
 mime_guess = "2.0.0-alpha"
-num_cpus = "1.0"
+num_cpus = "1.10"
 percent-encoding = "1.0"
-rand = "0.6"
-regex = "1.0"
+cookie = { version="0.11", features=["percent-encode"] }
+v_htmlescape = "0.4"
 serde = "1.0"
 serde_json = "1.0"
-sha1 = "0.6"
-smallvec = "0.6"
-time = "0.1"
 encoding = "0.2"
-language-tags = "0.2"
-lazy_static = "1.0"
-lazycell = "1.0.0"
-parking_lot = "0.7"
 serde_urlencoded = "^0.5.3"
-url = { version="1.7", features=["query_encoding"] }
-cookie = { version="0.11", features=["percent-encode"] }
+parking_lot = "0.7"
+hashbrown = "0.1"
+regex = "1"
+time = "0.1"
+threadpool = "1.7"
+
+# compression
 brotli2 = { version="^0.3.2", optional = true }
 flate2 = { version="^1.0.2", optional = true, default-features = false }
 
-# io
-mio = "^0.6.13"
-net2 = "0.2"
-bytes = "0.4"
-byteorder = "1.2"
-futures = "0.1"
-futures-cpupool = "0.1"
-slab = "0.4"
-tokio = "0.1"
-tokio-io = "0.1"
-tokio-tcp = "0.1"
-tokio-timer = "0.2.8"
-tokio-reactor = "0.1"
-tokio-current-thread = "0.1"
-
-# native-tls
-native-tls = { version="0.2", optional = true }
-tokio-tls = { version="0.2", optional = true }
-
-# openssl
-openssl = { version="0.10", optional = true }
-tokio-openssl = { version="0.2", optional = true }
-
-#rustls
-rustls = { version = "0.14", optional = true }
-tokio-rustls = { version = "0.8", optional = true }
-webpki = { version = "0.18", optional = true }
-webpki-roots = { version = "0.15", optional = true }
-
-# unix sockets
-tokio-uds = { version="0.2", optional = true }
-
 [dev-dependencies]
+actix-rt = "0.1.0"
+#actix-server = { version="0.2", features=["ssl"] }
+actix-server = { git = "https://github.com/actix/actix-net.git", features=["ssl"] }
+actix-http = { git = "https://github.com/actix/actix-http.git", features=["ssl"] }
+actix-http-test = { git = "https://github.com/actix/actix-http.git", features=["ssl"] }
+rand = "0.6"
 env_logger = "0.6"
 serde_derive = "1.0"
-
-[build-dependencies]
-version_check = "0.1"
 
 [profile.release]
 lto = true
