@@ -7,7 +7,7 @@ readme = "README.md"
 keywords = ["http", "web", "framework", "async", "futures"]
 homepage = "https://actix.rs"
 repository = "https://github.com/actix/actix-web.git"
-documentation = "https://actix.rs/api/actix-web/stable/actix_web/"
+documentation = "https://docs.rs/actix-web/"
 categories = ["network-programming", "asynchronous",
               "web-programming::http-server",
               "web-programming::websocket"]
@@ -16,8 +16,9 @@ exclude = [".gitignore", ".travis.yml", ".cargo/config", "appveyor.yml"]
 edition = "2018"
 
 [badges]
-travis-ci = { repository = "actix/actix-web2", branch = "master" }
-codecov = { repository = "actix/actix-web2", branch = "master", service = "github" }
+travis-ci = { repository = "actix/actix-web", branch = "master" }
+appveyor = { repository = "fafhrd91/actix-web-hdy9d" }
+codecov = { repository = "actix/actix-web", branch = "master", service = "github" }
 
 [lib]
 name = "actix_web"
@@ -46,34 +47,24 @@ actix-codec = "0.1.0"
 #actix-service = "0.2.1"
 #actix-server = "0.2.1"
 #actix-utils = "0.2.1"
-actix-service = { git = "https://github.com/actix/actix-net.git" }
-actix-server = { git = "https://github.com/actix/actix-net.git" }
 actix-utils = { git = "https://github.com/actix/actix-net.git" }
-
-actix-rt = "0.1.0"
 actix-http = { git = "https://github.com/actix/actix-http.git" }
 actix-router = { git = "https://github.com/actix/actix-net.git" }
+actix-service = { git = "https://github.com/actix/actix-net.git" }
 
 bytes = "0.4"
-futures = "0.1"
 derive_more = "0.14"
 either = "1.5.1"
+encoding = "0.2"
+futures = "0.1"
 log = "0.4"
 lazy_static = "1.2"
 mime = "0.3"
-mime_guess = "2.0.0-alpha"
 num_cpus = "1.10"
-percent-encoding = "1.0"
-cookie = { version="0.11", features=["percent-encode"] }
-v_htmlescape = "0.4"
+parking_lot = "0.7"
 serde = "1.0"
 serde_json = "1.0"
-encoding = "0.2"
 serde_urlencoded = "^0.5.3"
-parking_lot = "0.7"
-hashbrown = "0.1"
-regex = "1"
-time = "0.1"
 threadpool = "1.7"
 
 # compression
