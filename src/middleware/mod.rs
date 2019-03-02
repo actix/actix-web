@@ -47,7 +47,7 @@ where
     }
 }
 
-impl<T, S> NewTransform<S> for MiddlewareFactory<T, S>
+impl<T, S, C> NewTransform<S, C> for MiddlewareFactory<T, S>
 where
     T: Transform<S> + Clone,
     S: Service,
@@ -59,7 +59,7 @@ where
     type InitError = ();
     type Future = FutureResult<Self::Transform, Self::InitError>;
 
-    fn new_transform(&self) -> Self::Future {
+    fn new_transform(&self, _: &C) -> Self::Future {
         ok(self.tr.clone())
     }
 }

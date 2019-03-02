@@ -1,8 +1,7 @@
 use std::marker::PhantomData;
 
 use actix_http::{Error, Response};
-use actix_service::{NewService, Service};
-use actix_utils::Never;
+use actix_service::{NewService, Service, Void};
 use futures::future::{ok, FutureResult};
 use futures::{try_ready, Async, Future, IntoFuture, Poll};
 
@@ -71,7 +70,7 @@ where
 {
     type Request = (T, HttpRequest);
     type Response = ServiceResponse;
-    type Error = Never;
+    type Error = Void;
     type InitError = ();
     type Service = HandleService<F, T, R>;
     type Future = FutureResult<Self::Service, ()>;
@@ -101,7 +100,7 @@ where
 {
     type Request = (T, HttpRequest);
     type Response = ServiceResponse;
-    type Error = Never;
+    type Error = Void;
     type Future = HandleServiceResponse<R::Future>;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
@@ -128,7 +127,7 @@ where
     T::Error: Into<Error>,
 {
     type Item = ServiceResponse;
-    type Error = Never;
+    type Error = Void;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         match self.fut.poll() {
