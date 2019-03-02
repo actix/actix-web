@@ -117,7 +117,6 @@ where
 enum EncoderBody<B> {
     Body(B),
     Other(Box<dyn MessageBody>),
-    None,
 }
 
 pub struct Encoder<B> {
@@ -131,7 +130,6 @@ impl<B: MessageBody> MessageBody for Encoder<B> {
             match self.body {
                 EncoderBody::Body(ref b) => b.length(),
                 EncoderBody::Other(ref b) => b.length(),
-                EncoderBody::None => BodyLength::Empty,
             }
         } else {
             BodyLength::Stream
@@ -143,7 +141,6 @@ impl<B: MessageBody> MessageBody for Encoder<B> {
             let result = match self.body {
                 EncoderBody::Body(ref mut b) => b.poll_next()?,
                 EncoderBody::Other(ref mut b) => b.poll_next()?,
-                EncoderBody::None => return Ok(Async::Ready(None)),
             };
             match result {
                 Async::NotReady => return Ok(Async::NotReady),

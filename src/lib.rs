@@ -1,4 +1,4 @@
-#![allow(clippy::type_complexity, dead_code, unused_variables)]
+#![allow(clippy::type_complexity)]
 
 mod app;
 mod extractor;
@@ -28,7 +28,7 @@ pub use crate::service::{ServiceRequest, ServiceResponse};
 pub use crate::state::State;
 
 pub mod dev {
-    pub use crate::app::AppService;
+    pub use crate::app::AppRouter;
     pub use crate::handler::{AsyncFactory, Extract, Factory, Handle};
     pub use crate::route::{Route, RouteBuilder};
     // pub use crate::info::ConnectionInfo;

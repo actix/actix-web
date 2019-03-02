@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
 use std::{fmt, str};

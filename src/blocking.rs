@@ -24,7 +24,7 @@ lazy_static::lazy_static! {
         Mutex::new(
             threadpool::Builder::new()
                 .thread_name("actix-web".to_owned())
-                .num_threads(8)
+                .num_threads(default)
                 .build(),
         )
     };
@@ -45,11 +45,15 @@ pub enum BlockingError<E> {
 /// to result of the function execution.
 pub fn run<F, I, E>(f: F) -> CpuFuture<I, E>
 where
-    F: FnOnce() -> Result<I, E>,
+    F: FnOnce() -> Result<I, E> + Send + 'static,
+    I: Send + 'static,
+    E: Send + 'static,
 {
     let (tx, rx) = oneshot::channel();
-    POOL.with(move |pool| {
-        let _ = tx.send(f());
+    POOL.with(|pool| {
+        pool.execute(move || {
+            let _ = tx.send(f());
+        })
     });
 
     CpuFuture { rx }

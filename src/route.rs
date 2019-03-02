@@ -320,11 +320,11 @@ impl<P: 'static> RouteBuilder<P> {
     }
 }
 
-pub struct RouteServiceBuilder<P, T, U1, U2> {
-    service: T,
-    filters: Vec<Box<Filter>>,
-    _t: PhantomData<(P, U1, U2)>,
-}
+// pub struct RouteServiceBuilder<P, T, U1, U2> {
+//     service: T,
+//     filters: Vec<Box<Filter>>,
+//     _t: PhantomData<(P, U1, U2)>,
+// }
 
 // impl<T, S: 'static, U1, U2> RouteServiceBuilder<T, S, U1, U2>
 // where
