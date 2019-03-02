@@ -2,6 +2,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use actix_http::{http::Method, Error, Response};
+use actix_service::boxed::{self, BoxedNewService, BoxedService};
 use actix_service::{
     ApplyNewService, IntoNewService, IntoNewTransform, NewService, NewTransform, Service,
 };
@@ -9,10 +10,12 @@ use futures::future::{ok, Either, FutureResult};
 use futures::{Async, Future, IntoFuture, Poll};
 
 use crate::handler::{AsyncFactory, Factory, FromRequest};
-use crate::helpers::{DefaultNewService, HttpDefaultNewService, HttpDefaultService};
 use crate::responder::Responder;
 use crate::route::{CreateRouteService, Route, RouteBuilder, RouteService};
 use crate::service::{ServiceRequest, ServiceResponse};
+
+type HttpService<P> = BoxedService<ServiceRequest<P>, ServiceResponse, ()>;
+type HttpNewService<P> = BoxedNewService<(), ServiceRequest<P>, ServiceResponse, (), ()>;
 
 /// Resource route definition
 ///
@@ -21,9 +24,7 @@ use crate::service::{ServiceRequest, ServiceResponse};
 pub struct Resource<P, T = ResourceEndpoint<P>> {
     routes: Vec<Route<P>>,
     endpoint: T,
-    default: Rc<
-        RefCell<Option<Rc<HttpDefaultNewService<ServiceRequest<P>, ServiceResponse>>>>,
-    >,
+    default: Rc<RefCell<Option<Rc<HttpNewService<P>>>>>,
     factory_ref: Rc<RefCell<Option<ResourceFactory<P>>>>,
 }
 
@@ -277,17 +278,14 @@ where
             > + 'static,
     {
         // create and configure default resource
-        self.default = Rc::new(RefCell::new(Some(Rc::new(Box::new(
-            DefaultNewService::new(f(Resource::new()).into_new_service()),
+        self.default = Rc::new(RefCell::new(Some(Rc::new(boxed::new_service(
+            f(Resource::new()).into_new_service().map_init_err(|_| ()),
         )))));
 
         self
     }
 
-    pub(crate) fn get_default(
-        &self,
-    ) -> Rc<RefCell<Option<Rc<HttpDefaultNewService<ServiceRequest<P>, ServiceResponse>>>>>
-    {
+    pub(crate) fn get_default(&self) -> Rc<RefCell<Option<Rc<HttpNewService<P>>>>> {
         self.default.clone()
     }
 }
@@ -313,12 +311,10 @@ where
 
 pub struct ResourceFactory<P> {
     routes: Vec<Route<P>>,
-    default: Rc<
-        RefCell<Option<Rc<HttpDefaultNewService<ServiceRequest<P>, ServiceResponse>>>>,
-    >,
+    default: Rc<RefCell<Option<Rc<HttpNewService<P>>>>>,
 }
 
-impl<P> NewService for ResourceFactory<P> {
+impl<P: 'static> NewService for ResourceFactory<P> {
     type Request = ServiceRequest<P>;
     type Response = ServiceResponse;
     type Error = ();
@@ -352,15 +348,8 @@ enum CreateRouteServiceItem<P> {
 
 pub struct CreateResourceService<P> {
     fut: Vec<CreateRouteServiceItem<P>>,
-    default: Option<HttpDefaultService<ServiceRequest<P>, ServiceResponse>>,
-    default_fut: Option<
-        Box<
-            Future<
-                Item = HttpDefaultService<ServiceRequest<P>, ServiceResponse>,
-                Error = (),
-            >,
-        >,
-    >,
+    default: Option<HttpService<P>>,
+    default_fut: Option<Box<Future<Item = HttpService<P>, Error = ()>>>,
 }
 
 impl<P> Future for CreateResourceService<P> {
@@ -413,7 +402,7 @@ impl<P> Future for CreateResourceService<P> {
 
 pub struct ResourceService<P> {
     routes: Vec<RouteService<P>>,
-    default: Option<HttpDefaultService<ServiceRequest<P>, ServiceResponse>>,
+    default: Option<HttpService<P>>,
 }
 
 impl<P> Service for ResourceService<P> {
@@ -461,7 +450,7 @@ impl<P> ResourceEndpoint<P> {
     }
 }
 
-impl<P> NewService for ResourceEndpoint<P> {
+impl<P: 'static> NewService for ResourceEndpoint<P> {
     type Request = ServiceRequest<P>;
     type Response = ServiceResponse;
     type Error = ();

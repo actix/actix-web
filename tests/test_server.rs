@@ -12,7 +12,7 @@ use flate2::write::ZlibDecoder;
 use futures::stream::once; //Future, Stream
 use rand::{distributions::Alphanumeric, Rng};
 
-use actix_web2::{middleware, App};
+use actix_web::{middleware, App};
 
 const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
                    Hello World Hello World Hello World Hello World Hello World \

@@ -27,15 +27,14 @@ use actix_http::http::header::{
 };
 use actix_http::http::{ContentEncoding, Method, StatusCode};
 use actix_http::{HttpMessage, Response};
+use actix_service::boxed::BoxedNewService;
 use actix_service::{NewService, Service};
+use actix_web::{
+    blocking, FromRequest, HttpRequest, Responder, ServiceRequest, ServiceResponse,
+};
 use futures::future::{err, ok, FutureResult};
 
-use crate::blocking;
-use crate::handler::FromRequest;
-use crate::helpers::HttpDefaultNewService;
-use crate::request::HttpRequest;
-use crate::responder::Responder;
-use crate::service::{ServiceRequest, ServiceResponse};
+type HttpNewService<P> = BoxedNewService<(), ServiceRequest<P>, ServiceResponse, (), ()>;
 
 ///Describes `StaticFiles` configiration
 ///
@@ -101,6 +100,7 @@ pub trait StaticFileConfig: Default {
 ///[StaticFileConfig](trait.StaticFileConfig.html)
 #[derive(Default)]
 pub struct DefaultConfig;
+
 impl StaticFileConfig for DefaultConfig {}
 
 /// Return the MIME type associated with a filename extension (case-insensitive).
@@ -716,9 +716,7 @@ pub struct StaticFiles<S, C = DefaultConfig> {
     directory: PathBuf,
     index: Option<String>,
     show_index: bool,
-    default: Rc<
-        RefCell<Option<Rc<HttpDefaultNewService<ServiceRequest<S>, ServiceResponse>>>>,
-    >,
+    default: Rc<RefCell<Option<Rc<HttpNewService<S>>>>>,
     renderer: Rc<DirectoryRenderer>,
     _chunk_size: usize,
     _follow_symlinks: bool,
@@ -817,9 +815,7 @@ pub struct StaticFilesService<S, C = DefaultConfig> {
     directory: PathBuf,
     index: Option<String>,
     show_index: bool,
-    default: Rc<
-        RefCell<Option<Rc<HttpDefaultNewService<ServiceRequest<S>, ServiceResponse>>>>,
-    >,
+    default: Rc<RefCell<Option<Rc<HttpNewService<S>>>>>,
     renderer: Rc<DirectoryRenderer>,
     _chunk_size: usize,
     _follow_symlinks: bool,
@@ -838,8 +834,8 @@ impl<S: 'static, C: StaticFileConfig> Service for StaticFilesService<S, C> {
 
     fn call(&mut self, req: Self::Request) -> Self::Future {
         let mut req = req;
-        let real_path = match PathBuf::from_request(&mut req).poll() {
-            Ok(Async::Ready(item)) => item,
+        let real_path = match PathBufWrp::from_request(&mut req).poll() {
+            Ok(Async::Ready(item)) => item.0,
             Ok(Async::NotReady) => unreachable!(),
             Err(e) => return err(Error::from(e)),
         };
@@ -888,7 +884,9 @@ impl<S: 'static, C: StaticFileConfig> Service for StaticFilesService<S, C> {
     }
 }
 
-impl<P> FromRequest<P> for PathBuf {
+struct PathBufWrp(PathBuf);
+
+impl<P> FromRequest<P> for PathBufWrp {
     type Error = UriSegmentError;
     type Future = FutureResult<Self, Self::Error>;
 
@@ -917,7 +915,7 @@ impl<P> FromRequest<P> for PathBuf {
             }
         }
 
-        ok(buf)
+        ok(PathBufWrp(buf))
     }
 }
 

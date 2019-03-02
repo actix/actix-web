@@ -2,7 +2,7 @@ use futures::IntoFuture;
 
 use actix_http::{h1, http::Method, Response};
 use actix_server::Server;
-use actix_web2::{middleware, App, Error, HttpRequest, Resource};
+use actix_web::{middleware, App, Error, HttpRequest, Resource};
 
 fn index(req: HttpRequest) -> &'static str {
     println!("REQ: {:?}", req);

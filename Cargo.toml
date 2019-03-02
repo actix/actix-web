@@ -23,6 +23,12 @@ codecov = { repository = "actix/actix-web2", branch = "master", service = "githu
 name = "actix_web"
 path = "src/lib.rs"
 
+[workspace]
+members = [
+  ".",
+  "actix-web-fs",
+]
+
 [features]
 default = ["brotli", "flate2-c"]
 
