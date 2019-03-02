@@ -1,10 +1,12 @@
 language: rust
 sudo: required
 dist: trusty
+addons:
+    apt:
+        packages:
+            - libssl-dev
 
-cache:
-  cargo: true
-  apt: true
+cache: cargo
 
 matrix:
   include:
@@ -14,32 +16,22 @@ matrix:
   allow_failures:
     - rust: nightly
 
-env:
-  global:
-    - RUSTFLAGS="-C link-dead-code"
-    - OPENSSL_VERSION=openssl-1.0.2
-
-before_install:
-  - sudo add-apt-repository -y ppa:0k53d-karl-f830m/openssl
-  - sudo apt-get update -qq
-  - sudo apt-get install -y openssl libssl-dev libelf-dev libdw-dev cmake gcc binutils-dev libiberty-dev
-
-before_script:
-  - export PATH=$PATH:~/.cargo/bin
+before_cache: |
+  if [[ "$TRAVIS_RUST_VERSION" == nightly ]]; then
+    RUSTFLAGS="--cfg procmacro2_semver_exempt" cargo install cargo-tarpaulin -f
+  fi
 
 script:
-  - |
-    if [[ "$TRAVIS_RUST_VERSION" != "nightly" ]]; then
-    cargo clean
-    cargo test --features="ssl"
-    fi
-  - |
-    if [[ "$TRAVIS_RUST_VERSION" == "nightly" ]]; then
-    RUSTFLAGS="--cfg procmacro2_semver_exempt" cargo install -f cargo-tarpaulin
-    RUST_BACKTRACE=1 cargo tarpaulin --features="ssl" --out Xml
+- cargo clean
+- cargo build --features="ssl"
+- cargo test --features="ssl"
+
+after_success: |
+  if [[ "$TRAVIS_RUST_VERSION" == nightly ]]; then
+    cargo tarpaulin --features="ssl"  --out Xml
     bash <(curl -s https://codecov.io/bash)
     echo "Uploaded code coverage"
-    fi
+  fi
 
 # Upload docs
 #after_success:
