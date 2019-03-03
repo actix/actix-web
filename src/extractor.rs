@@ -1022,8 +1022,7 @@ mod tests {
         let mut rt = actix_rt::Runtime::new().unwrap();
         let mut req = TestRequest::with_header(header::CONTENT_LENGTH, "11")
             .set_payload(Bytes::from_static(b"hello=world"))
-            .finish()
-            .into();
+            .to_from();
 
         let s = rt.block_on(Bytes::from_request(&mut req)).unwrap();
         assert_eq!(s, Bytes::from_static(b"hello=world"));
@@ -1034,8 +1033,7 @@ mod tests {
         let mut rt = actix_rt::Runtime::new().unwrap();
         let mut req = TestRequest::with_header(header::CONTENT_LENGTH, "11")
             .set_payload(Bytes::from_static(b"hello=world"))
-            .finish()
-            .into();
+            .to_from();
 
         let s = rt.block_on(String::from_request(&mut req)).unwrap();
         assert_eq!(s, "hello=world");
@@ -1050,8 +1048,7 @@ mod tests {
         )
         .header(header::CONTENT_LENGTH, "11")
         .set_payload(Bytes::from_static(b"hello=world"))
-        .finish()
-        .into();
+        .to_from();
 
         let s = rt.block_on(Form::<Info>::from_request(&mut req)).unwrap();
         assert_eq!(s.hello, "world");
