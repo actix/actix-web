@@ -133,7 +133,7 @@ impl TestRequest {
         self
     }
 
-    pub(crate) fn take(&mut self) -> TestRequest {
+    pub fn take(&mut self) -> TestRequest {
         TestRequest(self.0.take())
     }
 
