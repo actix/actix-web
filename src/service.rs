@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::cell::{Ref, RefMut};
 use std::rc::Rc;
 
@@ -167,9 +168,18 @@ impl<P> std::ops::DerefMut for ServiceRequest<P> {
 pub struct ServiceFromRequest<P> {
     req: HttpRequest,
     payload: Payload<P>,
+    config: Option<Rc<Extensions>>,
 }
 
 impl<P> ServiceFromRequest<P> {
+    pub(crate) fn new(req: ServiceRequest<P>, config: Option<Rc<Extensions>>) -> Self {
+        Self {
+            req: req.req,
+            payload: req.payload,
+            config,
+        }
+    }
+
     #[inline]
     pub fn into_request(self) -> HttpRequest {
         self.req
@@ -179,6 +189,16 @@ impl<P> ServiceFromRequest<P> {
     #[inline]
     pub fn error_response<E: Into<Error>>(self, err: E) -> ServiceResponse {
         ServiceResponse::new(self.req, err.into().into())
+    }
+
+    /// Load extractor configuration
+    pub fn load_config<T: Clone + Default + 'static>(&self) -> Cow<T> {
+        if let Some(ref ext) = self.config {
+            if let Some(cfg) = ext.get::<T>() {
+                return Cow::Borrowed(cfg);
+            }
+        }
+        Cow::Owned(T::default())
     }
 }
 
@@ -201,15 +221,6 @@ impl<P> HttpMessage for ServiceFromRequest<P> {
     #[inline]
     fn take_payload(&mut self) -> Payload<Self::Stream> {
         std::mem::replace(&mut self.payload, Payload::None)
-    }
-}
-
-impl<P> From<ServiceRequest<P>> for ServiceFromRequest<P> {
-    fn from(req: ServiceRequest<P>) -> Self {
-        Self {
-            req: req.req,
-            payload: req.payload,
-        }
     }
 }
 

@@ -1,6 +1,8 @@
+use std::cell::RefCell;
 use std::marker::PhantomData;
+use std::rc::Rc;
 
-use actix_http::{Error, Response};
+use actix_http::{Error, Extensions, Response};
 use actix_service::{NewService, Service, Void};
 use futures::future::{ok, FutureResult};
 use futures::{try_ready, Async, Future, IntoFuture, Poll};
@@ -19,8 +21,39 @@ pub trait FromRequest<P>: Sized {
     /// Future that resolves to a Self
     type Future: Future<Item = Self, Error = Self::Error>;
 
+    /// Configuration for the extractor
+    type Config: ExtractorConfig;
+
     /// Convert request to a Self
     fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future;
+}
+
+/// Storage for extractor configs
+#[derive(Default)]
+pub struct ConfigStorage {
+    pub(crate) storage: Option<Rc<Extensions>>,
+}
+
+impl ConfigStorage {
+    pub fn store<C: ExtractorConfig>(&mut self, config: C) {
+        if self.storage.is_none() {
+            self.storage = Some(Rc::new(Extensions::new()));
+        }
+        if let Some(ref mut ext) = self.storage {
+            Rc::get_mut(ext).unwrap().insert(config);
+        }
+    }
+}
+
+pub trait ExtractorConfig: Default + Clone + 'static {
+    /// Set default configuration to config storage
+    fn store_default(ext: &mut ConfigStorage) {
+        ext.store(Self::default())
+    }
+}
+
+impl ExtractorConfig for () {
+    fn store_default(_: &mut ConfigStorage) {}
 }
 
 /// Handler converter factory
@@ -288,18 +321,16 @@ where
 
 /// Extract arguments from request
 pub struct Extract<P, T: FromRequest<P>> {
+    config: Rc<RefCell<Option<Rc<Extensions>>>>,
     _t: PhantomData<(P, T)>,
 }
 
 impl<P, T: FromRequest<P>> Extract<P, T> {
-    pub fn new() -> Self {
-        Extract { _t: PhantomData }
-    }
-}
-
-impl<P, T: FromRequest<P>> Default for Extract<P, T> {
-    fn default() -> Self {
-        Self::new()
+    pub fn new(config: Rc<RefCell<Option<Rc<Extensions>>>>) -> Self {
+        Extract {
+            config,
+            _t: PhantomData,
+        }
     }
 }
 
@@ -312,11 +343,15 @@ impl<P, T: FromRequest<P>> NewService for Extract<P, T> {
     type Future = FutureResult<Self::Service, ()>;
 
     fn new_service(&self, _: &()) -> Self::Future {
-        ok(ExtractService { _t: PhantomData })
+        ok(ExtractService {
+            _t: PhantomData,
+            config: self.config.borrow().clone(),
+        })
     }
 }
 
 pub struct ExtractService<P, T: FromRequest<P>> {
+    config: Option<Rc<Extensions>>,
     _t: PhantomData<(P, T)>,
 }
 
@@ -331,7 +366,7 @@ impl<P, T: FromRequest<P>> Service for ExtractService<P, T> {
     }
 
     fn call(&mut self, req: ServiceRequest<P>) -> Self::Future {
-        let mut req = req.into();
+        let mut req = ServiceFromRequest::new(req, self.config.clone());
         ExtractResponse {
             fut: T::from_request(&mut req),
             req: Some(req),
@@ -365,7 +400,6 @@ impl<P, T: FromRequest<P>> Future for ExtractResponse<P, T> {
 macro_rules! factory_tuple ({ $(($n:tt, $T:ident)),+} => {
     impl<Func, $($T,)+ Res> Factory<($($T,)+), Res> for Func
     where Func: Fn($($T,)+) -> Res + Clone + 'static,
-        //$($T,)+
           Res: Responder + 'static,
     {
         fn call(&self, param: ($($T,)+)) -> Res {

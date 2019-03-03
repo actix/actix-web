@@ -1,11 +1,15 @@
+use std::cell::RefCell;
 use std::rc::Rc;
 
-use actix_http::{http::Method, Error, Response};
+use actix_http::{http::Method, Error, Extensions, Response};
 use actix_service::{NewService, Service};
 use futures::{Async, Future, IntoFuture, Poll};
 
 use crate::filter::{self, Filter};
-use crate::handler::{AsyncFactory, AsyncHandle, Extract, Factory, FromRequest, Handle};
+use crate::handler::{
+    AsyncFactory, AsyncHandle, ConfigStorage, Extract, ExtractorConfig, Factory,
+    FromRequest, Handle,
+};
 use crate::responder::Responder;
 use crate::service::{ServiceFromRequest, ServiceRequest, ServiceResponse};
 use crate::HttpResponse;
@@ -37,32 +41,49 @@ type BoxedRouteNewService<Req, Res> = Box<
 pub struct Route<P> {
     service: BoxedRouteNewService<ServiceRequest<P>, ServiceResponse>,
     filters: Rc<Vec<Box<Filter>>>,
+    config: ConfigStorage,
+    config_ref: Rc<RefCell<Option<Rc<Extensions>>>>,
 }
 
 impl<P: 'static> Route<P> {
+    /// Create new route which matches any request.
     pub fn new() -> Route<P> {
+        let config_ref = Rc::new(RefCell::new(None));
         Route {
-            service: Box::new(RouteNewService::new(Extract::new().and_then(
-                Handle::new(|| HttpResponse::NotFound()).map_err(|_| panic!()),
-            ))),
+            service: Box::new(RouteNewService::new(
+                Extract::new(config_ref.clone()).and_then(
+                    Handle::new(|| HttpResponse::NotFound()).map_err(|_| panic!()),
+                ),
+            )),
             filters: Rc::new(Vec::new()),
+            config: ConfigStorage::default(),
+            config_ref,
         }
     }
 
+    /// Create new `GET` route.
     pub fn get() -> Route<P> {
         Route::new().method(Method::GET)
     }
 
+    /// Create new `POST` route.
     pub fn post() -> Route<P> {
         Route::new().method(Method::POST)
     }
 
+    /// Create new `PUT` route.
     pub fn put() -> Route<P> {
         Route::new().method(Method::PUT)
     }
 
+    /// Create new `DELETE` route.
     pub fn delete() -> Route<P> {
         Route::new().method(Method::DELETE)
+    }
+
+    pub(crate) fn finish(self) -> Self {
+        *self.config_ref.borrow_mut() = self.config.storage.clone();
+        self
     }
 }
 
@@ -260,8 +281,10 @@ impl<P: 'static> Route<P> {
         T: FromRequest<P> + 'static,
         R: Responder + 'static,
     {
+        T::Config::store_default(&mut self.config);
         self.service = Box::new(RouteNewService::new(
-            Extract::new().and_then(Handle::new(handler).map_err(|_| panic!())),
+            Extract::new(self.config_ref.clone())
+                .and_then(Handle::new(handler).map_err(|_| panic!())),
         ));
         self
     }
@@ -305,8 +328,37 @@ impl<P: 'static> Route<P> {
         R::Error: Into<Error>,
     {
         self.service = Box::new(RouteNewService::new(
-            Extract::new().and_then(AsyncHandle::new(handler).map_err(|_| panic!())),
+            Extract::new(self.config_ref.clone())
+                .and_then(AsyncHandle::new(handler).map_err(|_| panic!())),
         ));
+        self
+    }
+
+    /// This method allows to add extractor configuration
+    /// for specific route.
+    ///
+    /// ```rust
+    /// use actix_web::{web, extractor, App};
+    ///
+    /// /// extract text data from request
+    /// fn index(body: String) -> String {
+    ///     format!("Body {}!", body)
+    /// }
+    ///
+    /// fn main() {
+    ///     let app = App::new().resource("/index.html", |r| {
+    ///         r.route(
+    ///             web::get()
+    ///                // limit size of the payload
+    ///                .config(extractor::PayloadConfig::new(4096))
+    ///                // register handler
+    ///                .to(index)
+    ///         )
+    ///     });
+    /// }
+    /// ```
+    pub fn config<C: ExtractorConfig>(mut self, config: C) -> Self {
+        self.config.store(config);
         self
     }
 }

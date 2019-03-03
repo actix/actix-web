@@ -75,7 +75,7 @@ where
     /// }
     /// ```
     pub fn route(mut self, route: Route<P>) -> Self {
-        self.routes.push(route);
+        self.routes.push(route.finish());
         self
     }
 

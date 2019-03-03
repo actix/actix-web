@@ -1,7 +1,7 @@
 #![allow(clippy::type_complexity)]
 
 mod app;
-mod extractor;
+pub mod extractor;
 pub mod handler;
 // mod info;
 pub mod blocking;
@@ -20,7 +20,7 @@ pub use actix_http::Response as HttpResponse;
 pub use actix_http::{http, Error, HttpMessage, ResponseError};
 
 pub use crate::app::App;
-pub use crate::extractor::{Form, Json, Path, Query};
+pub use crate::extractor::{Form, Json, Path, PayloadConfig, Query};
 pub use crate::handler::FromRequest;
 pub use crate::request::HttpRequest;
 pub use crate::resource::Resource;

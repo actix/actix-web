@@ -143,6 +143,7 @@ impl HttpMessage for HttpRequest {
 impl<P> FromRequest<P> for HttpRequest {
     type Error = Error;
     type Future = FutureResult<Self, Error>;
+    type Config = ();
 
     #[inline]
     fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {

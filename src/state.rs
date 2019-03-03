@@ -48,6 +48,7 @@ impl<S> Clone for State<S> {
 impl<S: 'static, P> FromRequest<P> for State<S> {
     type Error = Error;
     type Future = FutureResult<Self, Error>;
+    type Config = ();
 
     #[inline]
     fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {

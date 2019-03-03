@@ -9,7 +9,7 @@ use actix_router::{Path, Url};
 use bytes::Bytes;
 
 use crate::request::HttpRequest;
-use crate::service::ServiceRequest;
+use crate::service::{ServiceFromRequest, ServiceRequest};
 
 /// Test `Request` builder
 ///
@@ -133,7 +133,7 @@ impl TestRequest {
     }
 
     /// Complete request creation and generate `HttpRequest` instance
-    pub fn request(mut self) -> HttpRequest {
+    pub fn to_request(mut self) -> HttpRequest {
         let req = self.req.finish();
 
         ServiceRequest::new(
@@ -142,5 +142,17 @@ impl TestRequest {
             Rc::new(self.extensions),
         )
         .into_request()
+    }
+
+    /// Complete request creation and generate `ServiceFromRequest` instance
+    pub fn to_from(mut self) -> ServiceFromRequest<PayloadStream> {
+        let req = self.req.finish();
+
+        let req = ServiceRequest::new(
+            Path::new(Url::new(req.uri().clone())),
+            req,
+            Rc::new(self.extensions),
+        );
+        ServiceFromRequest::new(req, None)
     }
 }

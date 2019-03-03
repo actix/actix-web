@@ -23,7 +23,7 @@ use actix_http::http::StatusCode;
 use actix_http::{HttpMessage, Response};
 use actix_router::PathDeserializer;
 
-use crate::handler::FromRequest;
+use crate::handler::{ConfigStorage, ExtractorConfig, FromRequest};
 use crate::request::HttpRequest;
 use crate::responder::Responder;
 use crate::service::ServiceFromRequest;
@@ -133,6 +133,7 @@ where
 {
     type Error = Error;
     type Future = FutureResult<Self, Error>;
+    type Config = ();
 
     #[inline]
     fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
@@ -219,6 +220,7 @@ where
 {
     type Error = Error;
     type Future = FutureResult<Self, Error>;
+    type Config = ();
 
     #[inline]
     fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
@@ -299,16 +301,18 @@ where
 {
     type Error = Error;
     type Future = Box<Future<Item = Self, Error = Error>>;
+    type Config = FormConfig;
 
     #[inline]
     fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
-        let cfg = FormConfig::default();
-
         let req2 = req.clone();
+        let cfg = req.load_config::<FormConfig>();
+
+        let limit = cfg.limit;
         let err = Rc::clone(&cfg.ehandler);
         Box::new(
             UrlEncoded::new(req)
-                .limit(cfg.limit)
+                .limit(limit)
                 .map_err(move |e| (*err)(e, &req2))
                 .map(Form),
         )
@@ -356,6 +360,7 @@ impl<T: fmt::Display> fmt::Display for Form<T> {
 ///     );
 /// }
 /// ```
+#[derive(Clone)]
 pub struct FormConfig {
     limit: usize,
     ehandler: Rc<Fn(UrlencodedError, &HttpRequest) -> Error>,
@@ -363,13 +368,13 @@ pub struct FormConfig {
 
 impl FormConfig {
     /// Change max size of payload. By default max size is 256Kb
-    pub fn limit(&mut self, limit: usize) -> &mut Self {
+    pub fn limit(mut self, limit: usize) -> Self {
         self.limit = limit;
         self
     }
 
     /// Set custom error handler
-    pub fn error_handler<F>(&mut self, f: F) -> &mut Self
+    pub fn error_handler<F>(mut self, f: F) -> Self
     where
         F: Fn(UrlencodedError, &HttpRequest) -> Error + 'static,
     {
@@ -377,6 +382,8 @@ impl FormConfig {
         self
     }
 }
+
+impl ExtractorConfig for FormConfig {}
 
 impl Default for FormConfig {
     fn default() -> Self {
@@ -509,16 +516,18 @@ where
 {
     type Error = Error;
     type Future = Box<Future<Item = Self, Error = Error>>;
+    type Config = JsonConfig;
 
     #[inline]
     fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
-        let cfg = JsonConfig::default();
-
         let req2 = req.clone();
+        let cfg = req.load_config::<JsonConfig>();
+
+        let limit = cfg.limit;
         let err = Rc::clone(&cfg.ehandler);
         Box::new(
             JsonBody::new(req)
-                .limit(cfg.limit)
+                .limit(limit)
                 .map_err(move |e| (*err)(e, &req2))
                 .map(Json),
         )
@@ -555,6 +564,7 @@ where
 ///     });
 /// }
 /// ```
+#[derive(Clone)]
 pub struct JsonConfig {
     limit: usize,
     ehandler: Rc<Fn(JsonPayloadError, &HttpRequest) -> Error>,
@@ -562,13 +572,13 @@ pub struct JsonConfig {
 
 impl JsonConfig {
     /// Change max size of payload. By default max size is 256Kb
-    pub fn limit(&mut self, limit: usize) -> &mut Self {
+    pub fn limit(mut self, limit: usize) -> Self {
         self.limit = limit;
         self
     }
 
     /// Set custom error handler
-    pub fn error_handler<F>(&mut self, f: F) -> &mut Self
+    pub fn error_handler<F>(mut self, f: F) -> Self
     where
         F: Fn(JsonPayloadError, &HttpRequest) -> Error + 'static,
     {
@@ -576,6 +586,8 @@ impl JsonConfig {
         self
     }
 }
+
+impl ExtractorConfig for JsonConfig {}
 
 impl Default for JsonConfig {
     fn default() -> Self {
@@ -617,16 +629,18 @@ where
     type Error = Error;
     type Future =
         Either<Box<Future<Item = Bytes, Error = Error>>, FutureResult<Bytes, Error>>;
+    type Config = PayloadConfig;
 
     #[inline]
     fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
-        let cfg = PayloadConfig::default();
+        let cfg = req.load_config::<PayloadConfig>();
 
         if let Err(e) = cfg.check_mimetype(req) {
             return Either::B(err(e));
         }
 
-        Either::A(Box::new(MessageBody::new(req).limit(cfg.limit).from_err()))
+        let limit = cfg.limit;
+        Either::A(Box::new(MessageBody::new(req).limit(limit).from_err()))
     }
 }
 
@@ -664,10 +678,11 @@ where
     type Error = Error;
     type Future =
         Either<Box<Future<Item = String, Error = Error>>, FutureResult<String, Error>>;
+    type Config = PayloadConfig;
 
     #[inline]
     fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
-        let cfg = PayloadConfig::default();
+        let cfg = req.load_config::<PayloadConfig>();
 
         // check content-type
         if let Err(e) = cfg.check_mimetype(req) {
@@ -679,10 +694,11 @@ where
             Ok(enc) => enc,
             Err(e) => return Either::B(err(e.into())),
         };
+        let limit = cfg.limit;
 
         Either::A(Box::new(
             MessageBody::new(req)
-                .limit(cfg.limit)
+                .limit(limit)
                 .from_err()
                 .and_then(move |body| {
                     let enc: *const Encoding = encoding as *const Encoding;
@@ -753,6 +769,7 @@ where
 {
     type Error = Error;
     type Future = Box<Future<Item = Option<T>, Error = Error>>;
+    type Config = T::Config;
 
     #[inline]
     fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
@@ -816,6 +833,7 @@ where
 {
     type Error = Error;
     type Future = Box<Future<Item = Result<T, T::Error>, Error = Error>>;
+    type Config = T::Config;
 
     #[inline]
     fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
@@ -827,21 +845,27 @@ where
 }
 
 /// Payload configuration for request's payload.
+#[derive(Clone)]
 pub struct PayloadConfig {
     limit: usize,
     mimetype: Option<Mime>,
 }
 
 impl PayloadConfig {
+    /// Create `PayloadConfig` instance and set max size of payload.
+    pub fn new(limit: usize) -> Self {
+        Self::default().limit(limit)
+    }
+
     /// Change max size of payload. By default max size is 256Kb
-    pub fn limit(&mut self, limit: usize) -> &mut Self {
+    pub fn limit(mut self, limit: usize) -> Self {
         self.limit = limit;
         self
     }
 
     /// Set required mime-type of the request. By default mime type is not
     /// enforced.
-    pub fn mimetype(&mut self, mt: Mime) -> &mut Self {
+    pub fn mimetype(mut self, mt: Mime) -> Self {
         self.mimetype = Some(mt);
         self
     }
@@ -867,6 +891,8 @@ impl PayloadConfig {
     }
 }
 
+impl ExtractorConfig for PayloadConfig {}
+
 impl Default for PayloadConfig {
     fn default() -> Self {
         PayloadConfig {
@@ -876,6 +902,16 @@ impl Default for PayloadConfig {
     }
 }
 
+macro_rules! tuple_config ({ $($T:ident),+} => {
+    impl<$($T,)+> ExtractorConfig for ($($T,)+)
+    where $($T: ExtractorConfig + Clone,)+
+    {
+        fn store_default(ext: &mut ConfigStorage) {
+            $($T::store_default(ext);)+
+        }
+    }
+});
+
 macro_rules! tuple_from_req ({$fut_type:ident, $(($n:tt, $T:ident)),+} => {
 
     /// FromRequest implementation for tuple
@@ -883,6 +919,7 @@ macro_rules! tuple_from_req ({$fut_type:ident, $(($n:tt, $T:ident)),+} => {
     {
         type Error = Error;
         type Future = $fut_type<P, $($T),+>;
+        type Config = ($($T::Config,)+);
 
         fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
             $fut_type {
@@ -932,6 +969,7 @@ macro_rules! tuple_from_req ({$fut_type:ident, $(($n:tt, $T:ident)),+} => {
 impl<P> FromRequest<P> for () {
     type Error = Error;
     type Future = FutureResult<(), Error>;
+    type Config = ();
 
     fn from_request(_req: &mut ServiceFromRequest<P>) -> Self::Future {
         ok(())
@@ -941,6 +979,17 @@ impl<P> FromRequest<P> for () {
 #[rustfmt::skip]
 mod m {
     use super::*;
+
+tuple_config!(A);
+tuple_config!(A, B);
+tuple_config!(A, B, C);
+tuple_config!(A, B, C, D);
+tuple_config!(A, B, C, D, E);
+tuple_config!(A, B, C, D, E, F);
+tuple_config!(A, B, C, D, E, F, G);
+tuple_config!(A, B, C, D, E, F, G, H);
+tuple_config!(A, B, C, D, E, F, G, H, I);
+tuple_config!(A, B, C, D, E, F, G, H, I, J);
 
 tuple_from_req!(TupleFromRequest1, (0, A));
 tuple_from_req!(TupleFromRequest2, (0, A), (1, B));
