@@ -54,12 +54,6 @@ impl App<PayloadStream, AppChain> {
     }
 }
 
-impl Default for App<PayloadStream, AppChain> {
-    fn default() -> Self {
-        App::new()
-    }
-}
-
 impl<P, T> App<P, T>
 where
     P: 'static,
@@ -246,23 +240,6 @@ where
             chain,
             state: self.state,
             extensions: self.extensions,
-            _t: PhantomData,
-        }
-    }
-
-    /// Complete applicatin chain configuration and start resource
-    /// configuration.
-    pub fn router<B>(self) -> AppRouter<T, P, B, AppEntry<P>> {
-        let fref = Rc::new(RefCell::new(None));
-        AppRouter {
-            chain: self.chain,
-            services: Vec::new(),
-            default: None,
-            defaults: Vec::new(),
-            endpoint: AppEntry::new(fref.clone()),
-            factory_ref: fref,
-            extensions: self.extensions,
-            state: self.state,
             _t: PhantomData,
         }
     }
