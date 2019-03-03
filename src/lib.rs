@@ -1,7 +1,7 @@
 #![allow(clippy::type_complexity)]
 
 mod app;
-pub mod extractor;
+pub mod extract;
 pub mod handler;
 // mod info;
 pub mod blocking;
@@ -17,23 +17,23 @@ pub mod test;
 
 // re-export for convenience
 pub use actix_http::Response as HttpResponse;
-pub use actix_http::{http, Error, HttpMessage, ResponseError};
+pub use actix_http::{error, http, Error, HttpMessage, ResponseError, Result};
 
 pub use crate::app::App;
-pub use crate::extractor::{Form, Json, Path, PayloadConfig, Query};
-pub use crate::handler::FromRequest;
+pub use crate::extract::{FromRequest, Json};
 pub use crate::request::HttpRequest;
 pub use crate::resource::Resource;
 pub use crate::responder::{Either, Responder};
 pub use crate::route::Route;
-pub use crate::service::{ServiceRequest, ServiceResponse};
+pub use crate::service::{ServiceFromRequest, ServiceRequest, ServiceResponse};
 pub use crate::state::State;
 
 pub mod web {
     use actix_http::{http::Method, Error, Response};
     use futures::IntoFuture;
 
-    use crate::handler::{AsyncFactory, Factory, FromRequest};
+    use crate::extract::FromRequest;
+    use crate::handler::{AsyncFactory, Factory};
     use crate::responder::Responder;
     use crate::Route;
 
@@ -106,10 +106,4 @@ pub mod web {
     {
         Route::new().to_async(handler)
     }
-}
-
-pub mod dev {
-    pub use crate::app::AppRouter;
-    pub use crate::handler::{AsyncFactory, Extract, Factory, Handle};
-    // pub use crate::info::ConnectionInfo;
 }

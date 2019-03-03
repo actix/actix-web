@@ -9,7 +9,8 @@ use actix_service::{
 use futures::future::{ok, Either, FutureResult};
 use futures::{Async, Future, IntoFuture, Poll};
 
-use crate::handler::{AsyncFactory, Factory, FromRequest};
+use crate::extract::FromRequest;
+use crate::handler::{AsyncFactory, Factory};
 use crate::responder::Responder;
 use crate::route::{CreateRouteService, Route, RouteService};
 use crate::service::{ServiceRequest, ServiceResponse};

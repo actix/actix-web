@@ -7,54 +7,10 @@ use actix_service::{NewService, Service, Void};
 use futures::future::{ok, FutureResult};
 use futures::{try_ready, Async, Future, IntoFuture, Poll};
 
+use crate::extract::FromRequest;
 use crate::request::HttpRequest;
 use crate::responder::Responder;
 use crate::service::{ServiceFromRequest, ServiceRequest, ServiceResponse};
-
-/// Trait implemented by types that can be extracted from request.
-///
-/// Types that implement this trait can be used with `Route` handlers.
-pub trait FromRequest<P>: Sized {
-    /// The associated error which can be returned.
-    type Error: Into<Error>;
-
-    /// Future that resolves to a Self
-    type Future: Future<Item = Self, Error = Self::Error>;
-
-    /// Configuration for the extractor
-    type Config: ExtractorConfig;
-
-    /// Convert request to a Self
-    fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future;
-}
-
-/// Storage for extractor configs
-#[derive(Default)]
-pub struct ConfigStorage {
-    pub(crate) storage: Option<Rc<Extensions>>,
-}
-
-impl ConfigStorage {
-    pub fn store<C: ExtractorConfig>(&mut self, config: C) {
-        if self.storage.is_none() {
-            self.storage = Some(Rc::new(Extensions::new()));
-        }
-        if let Some(ref mut ext) = self.storage {
-            Rc::get_mut(ext).unwrap().insert(config);
-        }
-    }
-}
-
-pub trait ExtractorConfig: Default + Clone + 'static {
-    /// Set default configuration to config storage
-    fn store_default(ext: &mut ConfigStorage) {
-        ext.store(Self::default())
-    }
-}
-
-impl ExtractorConfig for () {
-    fn store_default(_: &mut ConfigStorage) {}
-}
 
 /// Handler converter factory
 pub trait Factory<T, R>: Clone
@@ -134,14 +90,14 @@ where
     type Request = (T, HttpRequest);
     type Response = ServiceResponse;
     type Error = Void;
-    type Future = HandleServiceResponse<R::Future>;
+    type Future = HandleServiceResponse<<R::Future as IntoFuture>::Future>;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
         Ok(Async::Ready(()))
     }
 
     fn call(&mut self, (param, req): (T, HttpRequest)) -> Self::Future {
-        let fut = self.hnd.call(param).respond_to(&req);
+        let fut = self.hnd.call(param).respond_to(&req).into_future();
         HandleServiceResponse {
             fut,
             req: Some(req),
@@ -368,7 +324,7 @@ impl<P, T: FromRequest<P>> Service for ExtractService<P, T> {
     fn call(&mut self, req: ServiceRequest<P>) -> Self::Future {
         let mut req = ServiceFromRequest::new(req, self.config.clone());
         ExtractResponse {
-            fut: T::from_request(&mut req),
+            fut: T::from_request(&mut req).into_future(),
             req: Some(req),
         }
     }
@@ -376,7 +332,7 @@ impl<P, T: FromRequest<P>> Service for ExtractService<P, T> {
 
 pub struct ExtractResponse<P, T: FromRequest<P>> {
     req: Option<ServiceFromRequest<P>>,
-    fut: T::Future,
+    fut: <T::Future as IntoFuture>::Future,
 }
 
 impl<P, T: FromRequest<P>> Future for ExtractResponse<P, T> {

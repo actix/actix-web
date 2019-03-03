@@ -8,7 +8,7 @@ use actix_http::{Error, Extensions, HttpMessage, Message, Payload, RequestHead};
 use actix_router::{Path, Url};
 use futures::future::{ok, FutureResult};
 
-use crate::handler::FromRequest;
+use crate::extract::FromRequest;
 use crate::service::ServiceFromRequest;
 
 #[derive(Clone)]

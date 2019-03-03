@@ -14,13 +14,10 @@ use crate::service::{ServiceFromRequest, ServiceRequest};
 /// Test `Request` builder
 ///
 /// ```rust,ignore
-/// # extern crate http;
-/// # extern crate actix_web;
-/// # use http::{header, StatusCode};
 /// # use actix_web::*;
 /// use actix_web::test::TestRequest;
 ///
-/// fn index(req: &HttpRequest) -> HttpResponse {
+/// fn index(req: HttpRequest) -> HttpResponse {
 ///     if let Some(hdr) = req.headers().get(header::CONTENT_TYPE) {
 ///         HttpResponse::Ok().into()
 ///     } else {

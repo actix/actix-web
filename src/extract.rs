@@ -20,65 +20,103 @@ use actix_http::error::{
     UrlencodedError,
 };
 use actix_http::http::StatusCode;
-use actix_http::{HttpMessage, Response};
+use actix_http::{Extensions, HttpMessage, Response};
 use actix_router::PathDeserializer;
 
-use crate::handler::{ConfigStorage, ExtractorConfig, FromRequest};
 use crate::request::HttpRequest;
 use crate::responder::Responder;
 use crate::service::ServiceFromRequest;
+
+/// Trait implemented by types that can be extracted from request.
+///
+/// Types that implement this trait can be used with `Route` handlers.
+pub trait FromRequest<P>: Sized {
+    /// The associated error which can be returned.
+    type Error: Into<Error>;
+
+    /// Future that resolves to a Self
+    type Future: IntoFuture<Item = Self, Error = Self::Error>;
+
+    /// Configuration for the extractor
+    type Config: ExtractorConfig;
+
+    /// Convert request to a Self
+    fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future;
+}
+
+/// Storage for extractor configs
+#[derive(Default)]
+pub struct ConfigStorage {
+    pub(crate) storage: Option<Rc<Extensions>>,
+}
+
+impl ConfigStorage {
+    pub fn store<C: ExtractorConfig>(&mut self, config: C) {
+        if self.storage.is_none() {
+            self.storage = Some(Rc::new(Extensions::new()));
+        }
+        if let Some(ref mut ext) = self.storage {
+            Rc::get_mut(ext).unwrap().insert(config);
+        }
+    }
+}
+
+pub trait ExtractorConfig: Default + Clone + 'static {
+    /// Set default configuration to config storage
+    fn store_default(ext: &mut ConfigStorage) {
+        ext.store(Self::default())
+    }
+}
+
+impl ExtractorConfig for () {
+    fn store_default(_: &mut ConfigStorage) {}
+}
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
 /// Extract typed information from the request's path.
 ///
 /// ## Example
 ///
-/// ```rust,ignore
-/// # extern crate bytes;
-/// # extern crate actix_web;
-/// # extern crate futures;
-/// use actix_web::{http, App, Path, Result};
+/// ```rust
+/// use actix_web::{web, http, App, extract::Path};
 ///
 /// /// extract path info from "/{username}/{count}/index.html" url
 /// /// {username} - deserializes to a String
 /// /// {count} -  - deserializes to a u32
-/// fn index(info: Path<(String, u32)>) -> Result<String> {
-///     Ok(format!("Welcome {}! {}", info.0, info.1))
+/// fn index(info: Path<(String, u32)>) -> String {
+///     format!("Welcome {}! {}", info.0, info.1)
 /// }
 ///
 /// fn main() {
 ///     let app = App::new().resource(
 ///         "/{username}/{count}/index.html", // <- define path parameters
-///         |r| r.method(http::Method::GET).with(index),
-///     ); // <- use `with` extractor
+///         |r| r.route(web::get().to(index)) // <- register handler with `Path` extractor
+///     );
 /// }
 /// ```
 ///
 /// It is possible to extract path information to a specific type that
 /// implements `Deserialize` trait from *serde*.
 ///
-/// ```rust,ignore
-/// # extern crate bytes;
-/// # extern crate actix_web;
-/// # extern crate futures;
+/// ```rust
 /// #[macro_use] extern crate serde_derive;
-/// use actix_web::{http, App, Path, Result};
+/// use actix_web::{web, App, extract::Path, Error};
 ///
 /// #[derive(Deserialize)]
 /// struct Info {
 ///     username: String,
 /// }
 ///
-/// /// extract path info using serde
-/// fn index(info: Path<Info>) -> Result<String> {
+/// /// extract `Info` from a path using serde
+/// fn index(info: Path<Info>) -> Result<String, Error> {
 ///     Ok(format!("Welcome {}!", info.username))
 /// }
 ///
 /// fn main() {
 ///     let app = App::new().resource(
 ///         "/{username}/index.html", // <- define path parameters
-///         |r| r.method(http::Method::GET).with(index),
-///     ); // <- use `with` extractor
+///         |r| r.route(web::get().to(index)) // <- use handler with Path` extractor
+///     );
 /// }
 /// ```
 pub struct Path<T> {
@@ -112,7 +150,7 @@ impl<T> Path<T> {
     }
 
     /// Extract path information from a request
-    pub fn extract<P>(req: &ServiceFromRequest<P>) -> Result<Path<T>, de::value::Error>
+    pub fn extract(req: &HttpRequest) -> Result<Path<T>, de::value::Error>
     where
         T: DeserializeOwned,
     {
@@ -158,13 +196,9 @@ impl<T: fmt::Display> fmt::Display for Path<T> {
 ///
 /// ## Example
 ///
-/// ```rust,ignore
-/// # extern crate bytes;
-/// # extern crate actix_web;
-/// # extern crate futures;
+/// ```rust
 /// #[macro_use] extern crate serde_derive;
-/// use actix_web::{App, Query, http};
-///
+/// use actix_web::{web, extract, App};
 ///
 ///#[derive(Debug, Deserialize)]
 ///pub enum ResponseType {
@@ -178,17 +212,17 @@ impl<T: fmt::Display> fmt::Display for Path<T> {
 ///    response_type: ResponseType,
 ///}
 ///
-/// // use `with` extractor for query info
-/// // this handler get called only if request's query contains `username` field
+/// // Use `Query` extractor for query information.
+/// // This handler get called only if request's query contains `username` field
 /// // The correct request for this handler would be `/index.html?id=64&response_type=Code"`
-/// fn index(info: Query<AuthRequest>) -> String {
+/// fn index(info: extract::Query<AuthRequest>) -> String {
 ///     format!("Authorization request for client with id={} and type={:?}!", info.id, info.response_type)
 /// }
 ///
 /// fn main() {
 ///     let app = App::new().resource(
 ///        "/index.html",
-///        |r| r.method(http::Method::GET).with(index)); // <- use `with` extractor
+///        |r| r.route(web::get().to(index))); // <- use `Query` extractor
 /// }
 /// ```
 pub struct Query<T>(T);
@@ -253,21 +287,21 @@ impl<T: fmt::Display> fmt::Display for Query<T> {
 ///
 /// ## Example
 ///
-/// ```rust,ignore
+/// ```rust
 /// # extern crate actix_web;
 /// #[macro_use] extern crate serde_derive;
-/// use actix_web::{App, Form, Result};
+/// use actix_web::{web, App, extract::Form};
 ///
 /// #[derive(Deserialize)]
 /// struct FormData {
 ///     username: String,
 /// }
 ///
-/// /// extract form data using serde
-/// /// this handler get called only if content type is *x-www-form-urlencoded*
+/// /// Extract form data using serde.
+/// /// This handler get called only if content type is *x-www-form-urlencoded*
 /// /// and content of the request could be deserialized to a `FormData` struct
-/// fn index(form: Form<FormData>) -> Result<String> {
-///     Ok(format!("Welcome {}!", form.username))
+/// fn index(form: Form<FormData>) -> String {
+///     format!("Welcome {}!", form.username)
 /// }
 /// # fn main() {}
 /// ```
@@ -333,19 +367,18 @@ impl<T: fmt::Display> fmt::Display for Form<T> {
 
 /// Form extractor configuration
 ///
-/// ```rust,ignore
-/// # extern crate actix_web;
+/// ```rust
 /// #[macro_use] extern crate serde_derive;
-/// use actix_web::{http, App, Form, Result};
+/// use actix_web::{web, extract, App, Result};
 ///
 /// #[derive(Deserialize)]
 /// struct FormData {
 ///     username: String,
 /// }
 ///
-/// /// extract form data using serde.
-/// /// custom configuration is used for this handler, max payload size is 4k
-/// fn index(form: Form<FormData>) -> Result<String> {
+/// /// Extract form data using serde.
+/// /// Custom configuration is used for this handler, max payload size is 4k
+/// fn index(form: extract::Form<FormData>) -> Result<String> {
 ///     Ok(format!("Welcome {}!", form.username))
 /// }
 ///
@@ -353,11 +386,11 @@ impl<T: fmt::Display> fmt::Display for Form<T> {
 ///     let app = App::new().resource(
 ///         "/index.html",
 ///         |r| {
-///             r.method(http::Method::GET)
-///                 // register form handler and change form extractor configuration
-///                 .with_config(index, |cfg| {cfg.0.limit(4096);})
-///         },
-///     );
+///             r.route(web::get()
+///                 // change `Form` extractor configuration
+///                 .config(extract::FormConfig::default().limit(4097))
+///                 .to(index))
+///         });
 /// }
 /// ```
 #[derive(Clone)]
@@ -408,10 +441,9 @@ impl Default for FormConfig {
 ///
 /// ## Example
 ///
-/// ```rust,ignore
-/// # extern crate actix_web;
+/// ```rust
 /// #[macro_use] extern crate serde_derive;
-/// use actix_web::{App, Json, Result, http};
+/// use actix_web::{web, extract, App};
 ///
 /// #[derive(Deserialize)]
 /// struct Info {
@@ -419,14 +451,14 @@ impl Default for FormConfig {
 /// }
 ///
 /// /// deserialize `Info` from request's body
-/// fn index(info: Json<Info>) -> Result<String> {
-///     Ok(format!("Welcome {}!", info.username))
+/// fn index(info: extract::Json<Info>) -> String {
+///     format!("Welcome {}!", info.username)
 /// }
 ///
 /// fn main() {
 ///     let app = App::new().resource(
 ///        "/index.html",
-///        |r| r.method(http::Method::POST).with(index));  // <- use `with` extractor
+///        |r| r.route(web::post().to(index)));
 /// }
 /// ```
 ///
@@ -435,8 +467,7 @@ impl Default for FormConfig {
 /// to serialize into *JSON*. The type `T` must implement the `Serialize`
 /// trait from *serde*.
 ///
-/// ```rust,ignore
-/// # extern crate actix_web;
+/// ```rust
 /// # #[macro_use] extern crate serde_derive;
 /// # use actix_web::*;
 /// #
@@ -447,7 +478,7 @@ impl Default for FormConfig {
 ///
 /// fn index(req: HttpRequest) -> Result<Json<MyObj>> {
 ///     Ok(Json(MyObj {
-///         name: req.match_info().query("name")?,
+///         name: req.match_info().get("name").unwrap().to_string(),
 ///     }))
 /// }
 /// # fn main() {}
@@ -536,10 +567,9 @@ where
 
 /// Json extractor configuration
 ///
-/// ```rust,ignore
-/// # extern crate actix_web;
+/// ```rust
 /// #[macro_use] extern crate serde_derive;
-/// use actix_web::{error, http, App, HttpResponse, Json, Result};
+/// use actix_web::{error, extract, web, App, HttpResponse, Json};
 ///
 /// #[derive(Deserialize)]
 /// struct Info {
@@ -547,20 +577,20 @@ where
 /// }
 ///
 /// /// deserialize `Info` from request's body, max payload size is 4kb
-/// fn index(info: Json<Info>) -> Result<String> {
-///     Ok(format!("Welcome {}!", info.username))
+/// fn index(info: Json<Info>) -> String {
+///     format!("Welcome {}!", info.username)
 /// }
 ///
 /// fn main() {
 ///     let app = App::new().resource("/index.html", |r| {
-///         r.method(http::Method::POST)
-///               .with_config(index, |cfg| {
-///                   cfg.0.limit(4096)   // <- change json extractor configuration
-///                      .error_handler(|err, req| {  // <- create custom error response
-///                          error::InternalError::from_response(
-///                              err, HttpResponse::Conflict().finish()).into()
-///                          });
-///               })
+///         r.route(web::post().config(
+///             // change json extractor configuration
+///             extract::JsonConfig::default().limit(4096)
+///                 .error_handler(|err, req| {  // <- create custom error response
+///                     error::InternalError::from_response(
+///                         err, HttpResponse::Conflict().finish()).into()
+///                 }))
+///             .to(index))
 ///     });
 /// }
 /// ```
@@ -598,7 +628,7 @@ impl Default for JsonConfig {
     }
 }
 
-/// Request payload extractor.
+/// Request binary data from a request's payload.
 ///
 /// Loads request's payload and construct Bytes instance.
 ///
@@ -607,19 +637,18 @@ impl Default for JsonConfig {
 ///
 /// ## Example
 ///
-/// ```rust,ignore
-/// extern crate bytes;
-/// # extern crate actix_web;
-/// use actix_web::{http, App, Result};
+/// ```rust
+/// use bytes::Bytes;
+/// use actix_web::{web, App};
 ///
-/// /// extract text data from request
-/// fn index(body: bytes::Bytes) -> Result<String> {
-///     Ok(format!("Body {:?}!", body))
+/// /// extract binary data from request
+/// fn index(body: Bytes) -> String {
+///     format!("Body {:?}!", body)
 /// }
 ///
 /// fn main() {
 ///     let app = App::new()
-///         .resource("/index.html", |r| r.method(http::Method::GET).with(index));
+///         .resource("/index.html", |r| r.route(web::get().to(index)));
 /// }
 /// ```
 impl<P> FromRequest<P> for Bytes
@@ -644,7 +673,7 @@ where
     }
 }
 
-/// Extract text information from the request's body.
+/// Extract text information from a request's body.
 ///
 /// Text extractor automatically decode body according to the request's charset.
 ///
@@ -653,21 +682,20 @@ where
 ///
 /// ## Example
 ///
-/// ```rust,ignore
-/// # extern crate actix_web;
-/// use actix_web::{http, App, Result};
+/// ```rust
+/// use actix_web::{web, extract, App};
 ///
 /// /// extract text data from request
-/// fn index(body: String) -> Result<String> {
-///     Ok(format!("Body {}!", body))
+/// fn index(text: String) -> String {
+///     format!("Body {}!", text)
 /// }
 ///
 /// fn main() {
 ///     let app = App::new().resource("/index.html", |r| {
-///         r.method(http::Method::GET)
-///                .with_config(index, |cfg| { // <- register handler with extractor params
-///                   cfg.0.limit(4096);  // <- limit size of the payload
-///                 })
+///         r.route(
+///             web::get()
+///                .config(extract::PayloadConfig::new(4096)) // <- limit size of the payload
+///                .to(index))  // <- register handler with extractor params
 ///     });
 /// }
 /// ```
@@ -722,22 +750,23 @@ where
 ///
 /// ## Example
 ///
-/// ```rust,ignore
-/// # extern crate actix_web;
-/// extern crate rand;
-/// #[macro_use] extern crate serde_derive;
-/// use actix_web::{http, App, Result, HttpRequest, Error, FromRequest};
+/// ```rust
+/// # #[macro_use] extern crate serde_derive;
+/// use actix_web::{web, App, Error, FromRequest, ServiceFromRequest};
 /// use actix_web::error::ErrorBadRequest;
+/// use rand;
 ///
 /// #[derive(Debug, Deserialize)]
-/// struct Thing { name: String }
+/// struct Thing {
+///     name: String
+/// }
 ///
-/// impl<S> FromRequest<S> for Thing {
+/// impl<P> FromRequest<P> for Thing {
+///     type Error = Error;
+///     type Future = Result<Self, Self::Error>;
 ///     type Config = ();
-///     type Result = Result<Thing, Error>;
 ///
-///     #[inline]
-///     fn from_request(req: &HttpRequest<S>, _cfg: &Self::Config) -> Self::Result {
+///     fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
 ///         if rand::random() {
 ///             Ok(Thing { name: "thingy".into() })
 ///         } else {
@@ -747,18 +776,18 @@ where
 ///     }
 /// }
 ///
-/// /// extract text data from request
-/// fn index(supplied_thing: Option<Thing>) -> Result<String> {
+/// /// extract `Thing` from request
+/// fn index(supplied_thing: Option<Thing>) -> String {
 ///     match supplied_thing {
 ///         // Puns not intended
-///         Some(thing) => Ok(format!("Got something: {:?}", thing)),
-///         None => Ok(format!("No thing!"))
+///         Some(thing) => format!("Got something: {:?}", thing),
+///         None => format!("No thing!")
 ///     }
 /// }
 ///
 /// fn main() {
 ///     let app = App::new().resource("/users/:first", |r| {
-///         r.method(http::Method::POST).with(index)
+///         r.route(web::post().to(index))
 ///     });
 /// }
 /// ```
@@ -773,7 +802,7 @@ where
 
     #[inline]
     fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
-        Box::new(T::from_request(req).then(|r| match r {
+        Box::new(T::from_request(req).into_future().then(|r| match r {
             Ok(v) => future::ok(Some(v)),
             Err(_) => future::ok(None),
         }))
@@ -782,46 +811,46 @@ where
 
 /// Optionally extract a field from the request or extract the Error if unsuccessful
 ///
-/// If the FromRequest for T fails, inject Err into handler rather than returning an error response
+/// If the `FromRequest` for T fails, inject Err into handler rather than returning an error response
 ///
 /// ## Example
 ///
-/// ```rust,ignore
-/// # extern crate actix_web;
-/// extern crate rand;
-/// #[macro_use] extern crate serde_derive;
-/// use actix_web::{http, App, Result, HttpRequest, Error, FromRequest};
+/// ```rust
+/// # #[macro_use] extern crate serde_derive;
+/// use actix_web::{web, App, Result, Error, FromRequest, ServiceFromRequest};
 /// use actix_web::error::ErrorBadRequest;
+/// use rand;
 ///
 /// #[derive(Debug, Deserialize)]
-/// struct Thing { name: String }
+/// struct Thing {
+///     name: String
+/// }
 ///
-/// impl FromRequest for Thing {
+/// impl<P> FromRequest<P> for Thing {
+///     type Error = Error;
+///     type Future = Result<Thing, Error>;
 ///     type Config = ();
-///     type Result = Result<Thing, Error>;
 ///
-///     #[inline]
-///     fn from_request(req: &Request, _cfg: &Self::Config) -> Self::Result {
+///     fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
 ///         if rand::random() {
 ///             Ok(Thing { name: "thingy".into() })
 ///         } else {
 ///             Err(ErrorBadRequest("no luck"))
 ///         }
-///
 ///     }
 /// }
 ///
-/// /// extract text data from request
-/// fn index(supplied_thing: Result<Thing>) -> Result<String> {
+/// /// extract `Thing` from request
+/// fn index(supplied_thing: Result<Thing>) -> String {
 ///     match supplied_thing {
-///         Ok(thing) => Ok(format!("Got thing: {:?}", thing)),
-///         Err(e) => Ok(format!("Error extracting thing: {}", e))
+///         Ok(thing) => format!("Got thing: {:?}", thing),
+///         Err(e) => format!("Error extracting thing: {}", e)
 ///     }
 /// }
 ///
 /// fn main() {
 ///     let app = App::new().resource("/users/:first", |r| {
-///         r.method(http::Method::POST).with(index)
+///         r.route(web::post().to(index))
 ///     });
 /// }
 /// ```
@@ -837,7 +866,7 @@ where
 
     #[inline]
     fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
-        Box::new(T::from_request(req).then(|res| match res {
+        Box::new(T::from_request(req).into_future().then(|res| match res {
             Ok(v) => ok(Ok(v)),
             Err(e) => ok(Err(e)),
         }))
@@ -924,7 +953,7 @@ macro_rules! tuple_from_req ({$fut_type:ident, $(($n:tt, $T:ident)),+} => {
         fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
             $fut_type {
                 items: <($(Option<$T>,)+)>::default(),
-                futs: ($($T::from_request(req),)+),
+                futs: ($($T::from_request(req).into_future(),)+),
             }
         }
     }
@@ -932,7 +961,7 @@ macro_rules! tuple_from_req ({$fut_type:ident, $(($n:tt, $T:ident)),+} => {
     #[doc(hidden)]
     pub struct $fut_type<P, $($T: FromRequest<P>),+> {
         items: ($(Option<$T>,)+),
-        futs: ($($T::Future,)+),
+        futs: ($(<$T::Future as futures::IntoFuture>::Future,)+),
     }
 
     impl<P, $($T: FromRequest<P>),+> Future for $fut_type<P, $($T),+>

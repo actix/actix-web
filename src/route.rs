@@ -5,11 +5,9 @@ use actix_http::{http::Method, Error, Extensions, Response};
 use actix_service::{NewService, Service};
 use futures::{Async, Future, IntoFuture, Poll};
 
+use crate::extract::{ConfigStorage, ExtractorConfig, FromRequest};
 use crate::guard::{self, Guard};
-use crate::handler::{
-    AsyncFactory, AsyncHandle, ConfigStorage, Extract, ExtractorConfig, Factory,
-    FromRequest, Handle,
-};
+use crate::handler::{AsyncFactory, AsyncHandle, Extract, Factory, Handle};
 use crate::responder::Responder;
 use crate::service::{ServiceFromRequest, ServiceRequest, ServiceResponse};
 use crate::HttpResponse;
@@ -219,7 +217,7 @@ impl<P: 'static> Route<P> {
     ///
     /// ```rust
     /// #[macro_use] extern crate serde_derive;
-    /// use actix_web::{web, http, App, Path};
+    /// use actix_web::{web, http, App, extract::Path};
     ///
     /// #[derive(Deserialize)]
     /// struct Info {
@@ -244,7 +242,7 @@ impl<P: 'static> Route<P> {
     /// ```rust
     /// # use std::collections::HashMap;
     /// # use serde_derive::Deserialize;
-    /// use actix_web::{web, http, App, Json, Path, Query};
+    /// use actix_web::{web, App, Json, extract::Path, extract::Query};
     ///
     /// #[derive(Deserialize)]
     /// struct Info {
@@ -259,7 +257,7 @@ impl<P: 'static> Route<P> {
     /// fn main() {
     ///     let app = App::new().resource(
     ///         "/{username}/index.html", // <- define path parameters
-    ///         |r| r.route(web::method(http::Method::GET).to(index)),
+    ///         |r| r.route(web::get().to(index)),
     ///     );
     /// }
     /// ```
@@ -283,7 +281,7 @@ impl<P: 'static> Route<P> {
     /// ```rust
     /// # use futures::future::ok;
     /// #[macro_use] extern crate serde_derive;
-    /// use actix_web::{web, http, App, Error, Path};
+    /// use actix_web::{web, App, Error, extract::Path};
     /// use futures::Future;
     ///
     /// #[derive(Deserialize)]
@@ -323,7 +321,7 @@ impl<P: 'static> Route<P> {
     /// for specific route.
     ///
     /// ```rust
-    /// use actix_web::{web, extractor, App};
+    /// use actix_web::{web, extract, App};
     ///
     /// /// extract text data from request
     /// fn index(body: String) -> String {
@@ -335,7 +333,7 @@ impl<P: 'static> Route<P> {
     ///         r.route(
     ///             web::get()
     ///                // limit size of the payload
-    ///                .config(extractor::PayloadConfig::new(4096))
+    ///                .config(extract::PayloadConfig::new(4096))
     ///                // register handler
     ///                .to(index)
     ///         )

@@ -1,7 +1,7 @@
 use actix_http::{dev::ResponseBuilder, http::StatusCode, Error, Response};
 use bytes::{Bytes, BytesMut};
 use futures::future::{err, ok, Either as EitherFuture, FutureResult};
-use futures::{Future, Poll};
+use futures::{Future, IntoFuture, Poll};
 
 use crate::request::HttpRequest;
 
@@ -13,7 +13,7 @@ pub trait Responder {
     type Error: Into<Error>;
 
     /// The future response value.
-    type Future: Future<Item = Response, Error = Self::Error>;
+    type Future: IntoFuture<Item = Response, Error = Self::Error>;
 
     /// Convert itself to `AsyncResult` or `Error`.
     fn respond_to(self, req: &HttpRequest) -> Self::Future;
@@ -34,11 +34,14 @@ where
     T: Responder,
 {
     type Error = T::Error;
-    type Future = EitherFuture<T::Future, FutureResult<Response, T::Error>>;
+    type Future = EitherFuture<
+        <T::Future as IntoFuture>::Future,
+        FutureResult<Response, T::Error>,
+    >;
 
     fn respond_to(self, req: &HttpRequest) -> Self::Future {
         match self {
-            Some(t) => EitherFuture::A(t.respond_to(req)),
+            Some(t) => EitherFuture::A(t.respond_to(req).into_future()),
             None => EitherFuture::B(ok(Response::build(StatusCode::NOT_FOUND).finish())),
         }
     }
@@ -50,11 +53,16 @@ where
     E: Into<Error>,
 {
     type Error = Error;
-    type Future = EitherFuture<ResponseFuture<T::Future>, FutureResult<Response, Error>>;
+    type Future = EitherFuture<
+        ResponseFuture<<T::Future as IntoFuture>::Future>,
+        FutureResult<Response, Error>,
+    >;
 
     fn respond_to(self, req: &HttpRequest) -> Self::Future {
         match self {
-            Ok(val) => EitherFuture::A(ResponseFuture::new(val.respond_to(req))),
+            Ok(val) => {
+                EitherFuture::A(ResponseFuture::new(val.respond_to(req).into_future()))
+            }
             Err(e) => EitherFuture::B(err(e.into())),
         }
     }
@@ -147,34 +155,36 @@ impl Responder for BytesMut {
 
 /// Combines two different responder types into a single type
 ///
-/// ```rust,ignore
-/// # extern crate actix_web;
-/// # extern crate futures;
-/// # use futures::future::Future;
-/// use actix_web::{AsyncResponder, Either, Error, Request, Response};
-/// use futures::future::result;
+/// ```rust
+/// # use futures::future::{ok, Future};
+/// use actix_web::{Either, Error, HttpResponse};
 ///
 /// type RegisterResult =
-///     Either<Response, Box<Future<Item = Response, Error = Error>>>;
+///     Either<HttpResponse, Box<Future<Item = HttpResponse, Error = Error>>>;
 ///
-/// fn index(req: Request) -> RegisterResult {
+/// fn index() -> RegisterResult {
 ///     if is_a_variant() {
-///         // <- choose variant A
-///         Either::A(Response::BadRequest().body("Bad data"))
+///         // <- choose left variant
+///         Either::A(HttpResponse::BadRequest().body("Bad data"))
 ///     } else {
 ///         Either::B(
-///             // <- variant B
-///             result(Ok(Response::Ok()
+///             // <- Right variant
+///             Box::new(ok(HttpResponse::Ok()
 ///                 .content_type("text/html")
 ///                 .body("Hello!")))
-///                 .responder(),
 ///         )
 ///     }
 /// }
 /// # fn is_a_variant() -> bool { true }
 /// # fn main() {}
 /// ```
-pub type Either<A, B> = either::Either<A, B>;
+#[derive(Debug, PartialEq)]
+pub enum Either<A, B> {
+    /// First branch of the type
+    A(A),
+    /// Second branch of the type
+    B(B),
+}
 
 impl<A, B> Responder for Either<A, B>
 where
@@ -182,12 +192,15 @@ where
     B: Responder,
 {
     type Error = Error;
-    type Future = EitherResponder<A::Future, B::Future>;
+    type Future = EitherResponder<
+        <A::Future as IntoFuture>::Future,
+        <B::Future as IntoFuture>::Future,
+    >;
 
     fn respond_to(self, req: &HttpRequest) -> Self::Future {
         match self {
-            either::Either::Left(a) => EitherResponder::A(a.respond_to(req)),
-            either::Either::Right(b) => EitherResponder::B(b.respond_to(req)),
+            Either::A(a) => EitherResponder::A(a.respond_to(req).into_future()),
+            Either::B(b) => EitherResponder::B(b.respond_to(req).into_future()),
         }
     }
 }
@@ -234,7 +247,7 @@ where
         let req = req.clone();
         Box::new(
             self.map_err(|e| e.into())
-                .and_then(move |r| ResponseFuture(r.respond_to(&req))),
+                .and_then(move |r| ResponseFuture(r.respond_to(&req).into_future())),
         )
     }
 }

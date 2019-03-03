@@ -6,7 +6,7 @@ use actix_http::Extensions;
 use futures::future::{err, ok, FutureResult};
 use futures::{Async, Future, IntoFuture, Poll};
 
-use crate::handler::FromRequest;
+use crate::extract::FromRequest;
 use crate::service::ServiceFromRequest;
 
 /// Application state factory
