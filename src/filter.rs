@@ -230,14 +230,14 @@ impl Filter for HeaderFilter {
 
 #[cfg(test)]
 mod tests {
-    use crate::test::TestServiceRequest;
     use actix_http::http::{header, Method};
 
     use super::*;
+    use crate::test::TestRequest;
 
     #[test]
     fn test_header() {
-        let req = TestServiceRequest::with_header(header::TRANSFER_ENCODING, "chunked")
+        let req = TestRequest::with_header(header::TRANSFER_ENCODING, "chunked")
             .finish()
             .into_request();
 
@@ -269,8 +269,8 @@ mod tests {
 
     #[test]
     fn test_methods() {
-        let req = TestServiceRequest::default().finish().into_request();
-        let req2 = TestServiceRequest::default()
+        let req = TestRequest::default().finish().into_request();
+        let req2 = TestRequest::default()
             .method(Method::POST)
             .finish()
             .into_request();
@@ -280,46 +280,38 @@ mod tests {
         assert!(Post().check(&req2));
         assert!(!Post().check(&req));
 
-        let r = TestServiceRequest::default().method(Method::PUT).finish();
+        let r = TestRequest::default().method(Method::PUT).finish();
         assert!(Put().check(&r,));
         assert!(!Put().check(&req,));
 
-        let r = TestServiceRequest::default()
-            .method(Method::DELETE)
-            .finish();
+        let r = TestRequest::default().method(Method::DELETE).finish();
         assert!(Delete().check(&r,));
         assert!(!Delete().check(&req,));
 
-        let r = TestServiceRequest::default().method(Method::HEAD).finish();
+        let r = TestRequest::default().method(Method::HEAD).finish();
         assert!(Head().check(&r,));
         assert!(!Head().check(&req,));
 
-        let r = TestServiceRequest::default()
-            .method(Method::OPTIONS)
-            .finish();
+        let r = TestRequest::default().method(Method::OPTIONS).finish();
         assert!(Options().check(&r,));
         assert!(!Options().check(&req,));
 
-        let r = TestServiceRequest::default()
-            .method(Method::CONNECT)
-            .finish();
+        let r = TestRequest::default().method(Method::CONNECT).finish();
         assert!(Connect().check(&r,));
         assert!(!Connect().check(&req,));
 
-        let r = TestServiceRequest::default().method(Method::PATCH).finish();
+        let r = TestRequest::default().method(Method::PATCH).finish();
         assert!(Patch().check(&r,));
         assert!(!Patch().check(&req,));
 
-        let r = TestServiceRequest::default().method(Method::TRACE).finish();
+        let r = TestRequest::default().method(Method::TRACE).finish();
         assert!(Trace().check(&r,));
         assert!(!Trace().check(&req,));
     }
 
     #[test]
     fn test_preds() {
-        let r = TestServiceRequest::default()
-            .method(Method::TRACE)
-            .request();
+        let r = TestRequest::default().method(Method::TRACE).request();
 
         assert!(Not(Get()).check(&r,));
         assert!(!Not(Trace()).check(&r,));

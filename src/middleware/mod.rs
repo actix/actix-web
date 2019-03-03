@@ -34,19 +34,6 @@ where
     }
 }
 
-impl<T, S> Clone for MiddlewareFactory<T, S>
-where
-    T: Transform<S> + Clone,
-    S: Service,
-{
-    fn clone(&self) -> Self {
-        Self {
-            tr: self.tr.clone(),
-            _t: PhantomData,
-        }
-    }
-}
-
 impl<T, S, C> NewTransform<S, C> for MiddlewareFactory<T, S>
 where
     T: Transform<S> + Clone,

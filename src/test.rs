@@ -1,10 +1,9 @@
 //! Various helpers for Actix applications to use during testing.
-use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
 
 use actix_http::http::header::{Header, HeaderName, IntoHeaderValue};
 use actix_http::http::{HttpTryFrom, Method, Version};
-use actix_http::test::TestRequest;
+use actix_http::test::TestRequest as HttpTestRequest;
 use actix_http::{Extensions, PayloadStream};
 use actix_router::{Path, Url};
 use bytes::Bytes;
@@ -39,45 +38,45 @@ use crate::service::ServiceRequest;
 ///     assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 /// }
 /// ```
-pub struct TestServiceRequest {
-    req: TestRequest,
+pub struct TestRequest {
+    req: HttpTestRequest,
     extensions: Extensions,
 }
 
-impl Default for TestServiceRequest {
-    fn default() -> TestServiceRequest {
-        TestServiceRequest {
-            req: TestRequest::default(),
+impl Default for TestRequest {
+    fn default() -> TestRequest {
+        TestRequest {
+            req: HttpTestRequest::default(),
             extensions: Extensions::new(),
         }
     }
 }
 
-impl TestServiceRequest {
+impl TestRequest {
     /// Create TestRequest and set request uri
-    pub fn with_uri(path: &str) -> TestServiceRequest {
-        TestServiceRequest {
-            req: TestRequest::default().uri(path).take(),
+    pub fn with_uri(path: &str) -> TestRequest {
+        TestRequest {
+            req: HttpTestRequest::default().uri(path).take(),
             extensions: Extensions::new(),
         }
     }
 
     /// Create TestRequest and set header
-    pub fn with_hdr<H: Header>(hdr: H) -> TestServiceRequest {
-        TestServiceRequest {
-            req: TestRequest::default().set(hdr).take(),
+    pub fn with_hdr<H: Header>(hdr: H) -> TestRequest {
+        TestRequest {
+            req: HttpTestRequest::default().set(hdr).take(),
             extensions: Extensions::new(),
         }
     }
 
     /// Create TestRequest and set header
-    pub fn with_header<K, V>(key: K, value: V) -> TestServiceRequest
+    pub fn with_header<K, V>(key: K, value: V) -> TestRequest
     where
         HeaderName: HttpTryFrom<K>,
         V: IntoHeaderValue,
     {
-        TestServiceRequest {
-            req: TestRequest::default().header(key, value).take(),
+        TestRequest {
+            req: HttpTestRequest::default().header(key, value).take(),
             extensions: Extensions::new(),
         }
     }
@@ -143,19 +142,5 @@ impl TestServiceRequest {
             Rc::new(self.extensions),
         )
         .into_request()
-    }
-}
-
-impl Deref for TestServiceRequest {
-    type Target = TestRequest;
-
-    fn deref(&self) -> &TestRequest {
-        &self.req
-    }
-}
-
-impl DerefMut for TestServiceRequest {
-    fn deref_mut(&mut self) -> &mut TestRequest {
-        &mut self.req
     }
 }

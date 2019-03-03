@@ -999,73 +999,60 @@ tuple_from_req!(
     (9, J)
 );
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-//     use actix_http::http::header;
-//     use actix_http::test::TestRequest;
-//     use bytes::Bytes;
-//     use futures::{Async, Future};
-//     use mime;
-//     use serde::{Deserialize, Serialize};
+#[cfg(test)]
+mod tests {
+    use actix_http::http::header;
+    use bytes::Bytes;
+    use serde_derive::Deserialize;
 
-//     use crate::resource::Resource;
-//     // use crate::router::{ResourceDef, Router};
+    use super::*;
+    use crate::test::TestRequest;
 
-//     #[derive(Deserialize, Debug, PartialEq)]
-//     struct Info {
-//         hello: String,
-//     }
+    #[derive(Deserialize, Debug, PartialEq)]
+    struct Info {
+        hello: String,
+    }
 
-//     #[test]
-//     fn test_bytes() {
-//         let cfg = PayloadConfig::default();
-//         let req = TestRequest::with_header(header::CONTENT_LENGTH, "11")
-//             .set_payload(Bytes::from_static(b"hello=world"))
-//             .finish();
+    #[test]
+    fn test_bytes() {
+        let mut rt = actix_rt::Runtime::new().unwrap();
+        let mut req = TestRequest::with_header(header::CONTENT_LENGTH, "11")
+            .set_payload(Bytes::from_static(b"hello=world"))
+            .finish()
+            .into();
 
-//         match Bytes::from_request(&req, &cfg).unwrap().poll().unwrap() {
-//             Async::Ready(s) => {
-//                 assert_eq!(s, Bytes::from_static(b"hello=world"));
-//             }
-//             _ => unreachable!(),
-//         }
-//     }
+        let s = rt.block_on(Bytes::from_request(&mut req)).unwrap();
+        assert_eq!(s, Bytes::from_static(b"hello=world"));
+    }
 
-//     #[test]
-//     fn test_string() {
-//         let cfg = PayloadConfig::default();
-//         let req = TestRequest::with_header(header::CONTENT_LENGTH, "11")
-//             .set_payload(Bytes::from_static(b"hello=world"))
-//             .finish();
+    #[test]
+    fn test_string() {
+        let mut rt = actix_rt::Runtime::new().unwrap();
+        let mut req = TestRequest::with_header(header::CONTENT_LENGTH, "11")
+            .set_payload(Bytes::from_static(b"hello=world"))
+            .finish()
+            .into();
 
-//         match String::from_request(&req, &cfg).unwrap().poll().unwrap() {
-//             Async::Ready(s) => {
-//                 assert_eq!(s, "hello=world");
-//             }
-//             _ => unreachable!(),
-//         }
-//     }
+        let s = rt.block_on(String::from_request(&mut req)).unwrap();
+        assert_eq!(s, "hello=world");
+    }
 
-//     #[test]
-//     fn test_form() {
-//         let req = TestRequest::with_header(
-//             header::CONTENT_TYPE,
-//             "application/x-www-form-urlencoded",
-//         )
-//         .header(header::CONTENT_LENGTH, "11")
-//         .set_payload(Bytes::from_static(b"hello=world"))
-//         .finish();
+    #[test]
+    fn test_form() {
+        let mut rt = actix_rt::Runtime::new().unwrap();
+        let mut req = TestRequest::with_header(
+            header::CONTENT_TYPE,
+            "application/x-www-form-urlencoded",
+        )
+        .header(header::CONTENT_LENGTH, "11")
+        .set_payload(Bytes::from_static(b"hello=world"))
+        .finish()
+        .into();
 
-//         let mut cfg = FormConfig::default();
-//         cfg.limit(4096);
-//         match Form::<Info>::from_request(&req, &cfg).poll().unwrap() {
-//             Async::Ready(s) => {
-//                 assert_eq!(s.hello, "world");
-//             }
-//             _ => unreachable!(),
-//         }
-//     }
+        let s = rt.block_on(Form::<Info>::from_request(&mut req)).unwrap();
+        assert_eq!(s.hello, "world");
+    }
+}
 
 //     #[test]
 //     fn test_option() {

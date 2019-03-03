@@ -29,7 +29,8 @@ pub trait HttpServiceFactory<Request> {
     fn create(self) -> Self::Factory;
 }
 
-/// Application builder
+/// Application builder - structure that follows the builder pattern
+/// for building application instances.
 pub struct App<P, T>
 where
     T: NewService<Request = ServiceRequest<PayloadStream>, Response = ServiceRequest<P>>,
@@ -69,11 +70,8 @@ where
         InitError = (),
     >,
 {
-    /// Create application with specified state. Application can be
-    /// configured with a builder-like pattern.
-    ///
-    /// State is shared with all resources within same application and
-    /// could be accessed with `HttpRequest::state()` method.
+    /// Set application state. Applicatin state could be accessed
+    /// by using `State<T>` extractor where `T` is state type.
     ///
     /// **Note**: http server accepts an application factory rather than
     /// an application instance. Http server constructs an application
@@ -86,7 +84,7 @@ where
         self
     }
 
-    /// Set application state. This function is
+    /// Set application state factory. This function is
     /// similar to `.state()` but it accepts state factory. State get
     /// constructed asynchronously during application initialization.
     pub fn state_factory<S, F, Out>(mut self, state: F) -> Self
@@ -119,14 +117,14 @@ where
     /// `/users/{userid}/{friend}` and store `userid` and `friend` in
     /// the exposed `Params` object:
     ///
-    /// ```rust,ignore
+    /// ```rust
     /// # extern crate actix_web;
-    /// use actix_web::{http, App, HttpResponse};
+    /// use actix_web::{web, http, App, HttpResponse};
     ///
     /// fn main() {
     ///     let app = App::new().resource("/users/{userid}/{friend}", |r| {
-    ///         r.get(|r| r.to(|_| HttpResponse::Ok()));
-    ///         r.head(|r| r.to(|_| HttpResponse::MethodNotAllowed()))
+    ///         r.route(web::get().to(|| HttpResponse::Ok()))
+    ///          .route(web::head().to(|| HttpResponse::MethodNotAllowed()))
     ///     });
     /// }
     /// ```
@@ -294,15 +292,17 @@ where
     /// `/users/{userid}/{friend}` and store `userid` and `friend` in
     /// the exposed `Params` object:
     ///
-    /// ```rust,ignore
-    /// # extern crate actix_web;
-    /// use actix_web::{http, App, HttpResponse};
+    /// ```rust
+    /// use actix_web::{web, http, App, HttpResponse};
     ///
     /// fn main() {
-    ///     let app = App::new().resource("/users/{userid}/{friend}", |r| {
-    ///         r.get(|r| r.to(|_| HttpResponse::Ok()));
-    ///         r.head(|r| r.to(|_| HttpResponse::MethodNotAllowed()))
-    ///     });
+    ///     let app = App::new()
+    ///         .resource("/users/{userid}/{friend}", |r| {
+    ///             r.route(web::to(|| HttpResponse::Ok()))
+    ///         })
+    ///         .resource("/index.html", |r| {
+    ///             r.route(web::head().to(|| HttpResponse::MethodNotAllowed()))
+    ///         });
     /// }
     /// ```
     pub fn resource<F, U>(mut self, path: &str, f: F) -> Self

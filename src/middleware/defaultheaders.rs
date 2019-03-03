@@ -138,7 +138,7 @@ mod tests {
     use actix_service::FnService;
 
     use super::*;
-    use crate::test::TestServiceRequest;
+    use crate::test::TestRequest;
     use crate::{HttpResponse, ServiceRequest};
 
     #[test]
@@ -149,11 +149,11 @@ mod tests {
             req.into_response(HttpResponse::Ok().finish())
         });
 
-        let req = TestServiceRequest::default().finish();
+        let req = TestRequest::default().finish();
         let resp = rt.block_on(mw.call(req, &mut srv)).unwrap();
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0001");
 
-        let req = TestServiceRequest::default().finish();
+        let req = TestRequest::default().finish();
         let mut srv = FnService::new(|req: ServiceRequest<_>| {
             req.into_response(HttpResponse::Ok().header(CONTENT_TYPE, "0002").finish())
         });
@@ -169,7 +169,7 @@ mod tests {
             req.into_response(HttpResponse::Ok().finish())
         });
 
-        let req = TestServiceRequest::default().finish();
+        let req = TestRequest::default().finish();
         let resp = rt.block_on(mw.call(req, &mut srv)).unwrap();
         assert_eq!(
             resp.headers().get(CONTENT_TYPE).unwrap(),
