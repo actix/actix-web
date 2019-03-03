@@ -79,6 +79,27 @@ where
     /// multiple times. If you want to share state between different
     /// threads, a shared object should be used, e.g. `Arc`. Application
     /// state does not need to be `Send` or `Sync`.
+    ///
+    /// ```rust
+    /// use std::cell::Cell;
+    /// use actix_web::{web, State, App};
+    ///
+    /// struct MyState {
+    ///     counter: Cell<usize>,
+    /// }
+    ///
+    /// fn index(state: State<MyState>) {
+    ///     state.counter.set(state.counter.get() + 1);
+    /// }
+    ///
+    /// fn main() {
+    ///     let app = App::new()
+    ///         .state(MyState{ counter: Cell::new(0) })
+    ///         .resource(
+    ///             "/index.html",
+    ///             |r| r.route(web::get().to(index)));
+    /// }
+    /// ```
     pub fn state<S: 'static>(mut self, state: S) -> Self {
         self.state.push(Box::new(State::new(state)));
         self

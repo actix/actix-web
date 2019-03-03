@@ -938,66 +938,21 @@ impl<P> FromRequest<P> for () {
     }
 }
 
+#[rustfmt::skip]
+mod m {
+    use super::*;
+
 tuple_from_req!(TupleFromRequest1, (0, A));
 tuple_from_req!(TupleFromRequest2, (0, A), (1, B));
 tuple_from_req!(TupleFromRequest3, (0, A), (1, B), (2, C));
 tuple_from_req!(TupleFromRequest4, (0, A), (1, B), (2, C), (3, D));
 tuple_from_req!(TupleFromRequest5, (0, A), (1, B), (2, C), (3, D), (4, E));
-tuple_from_req!(
-    TupleFromRequest6,
-    (0, A),
-    (1, B),
-    (2, C),
-    (3, D),
-    (4, E),
-    (5, F)
-);
-tuple_from_req!(
-    TupleFromRequest7,
-    (0, A),
-    (1, B),
-    (2, C),
-    (3, D),
-    (4, E),
-    (5, F),
-    (6, G)
-);
-tuple_from_req!(
-    TupleFromRequest8,
-    (0, A),
-    (1, B),
-    (2, C),
-    (3, D),
-    (4, E),
-    (5, F),
-    (6, G),
-    (7, H)
-);
-tuple_from_req!(
-    TupleFromRequest9,
-    (0, A),
-    (1, B),
-    (2, C),
-    (3, D),
-    (4, E),
-    (5, F),
-    (6, G),
-    (7, H),
-    (8, I)
-);
-tuple_from_req!(
-    TupleFromRequest10,
-    (0, A),
-    (1, B),
-    (2, C),
-    (3, D),
-    (4, E),
-    (5, F),
-    (6, G),
-    (7, H),
-    (8, I),
-    (9, J)
-);
+tuple_from_req!(TupleFromRequest6, (0, A), (1, B), (2, C), (3, D), (4, E), (5, F));
+tuple_from_req!(TupleFromRequest7, (0, A), (1, B), (2, C), (3, D), (4, E), (5, F), (6, G));
+tuple_from_req!(TupleFromRequest8, (0, A), (1, B), (2, C), (3, D), (4, E), (5, F), (6, G), (7, H));
+tuple_from_req!(TupleFromRequest9, (0, A), (1, B), (2, C), (3, D), (4, E), (5, F), (6, G), (7, H), (8, I));
+tuple_from_req!(TupleFromRequest10, (0, A), (1, B), (2, C), (3, D), (4, E), (5, F), (6, G), (7, H), (8, I), (9, J));
+}
 
 #[cfg(test)]
 mod tests {
