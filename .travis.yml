@@ -50,7 +50,7 @@ after_success:
     fi
   - |
     if [[ "$TRAVIS_RUST_VERSION" ==  "nightly-2019-03-02" ]]; then
-        cargo tarpaulin --features="ssl"  --out Xml
+        cargo tarpaulin --out Xml
         bash <(curl -s https://codecov.io/bash)
         echo "Uploaded code coverage"
     fi
