@@ -35,7 +35,6 @@ before_script:
 
 script:
   - cargo clean
-  - cargo check
   - cargo test -- --nocapture
 
 # Upload docs
