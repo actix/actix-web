@@ -118,6 +118,12 @@ impl TestRequest {
         self
     }
 
+    /// Set request config
+    pub fn config<T: 'static>(mut self, data: T) -> Self {
+        self.extensions.insert(data);
+        self
+    }
+
     /// Complete request creation and generate `ServiceRequest` instance
     pub fn finish(mut self) -> ServiceRequest<PayloadStream> {
         let req = self.req.finish();

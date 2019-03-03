@@ -1044,11 +1044,11 @@ impl Default for PayloadConfig {
 #[doc(hidden)]
 impl<P> FromRequest<P> for () {
     type Error = Error;
-    type Future = FutureResult<(), Error>;
+    type Future = Result<(), Error>;
     type Config = ();
 
     fn from_request(_req: &mut ServiceFromRequest<P>) -> Self::Future {
-        ok(())
+        Ok(())
     }
 }
 
@@ -1147,6 +1147,7 @@ tuple_from_req!(TupleFromRequest10, (0, A), (1, B), (2, C), (3, D), (4, E), (5, 
 #[cfg(test)]
 mod tests {
     use actix_http::http::header;
+    use actix_router::ResourceDef;
     use bytes::Bytes;
     use serde_derive::Deserialize;
 
@@ -1194,218 +1195,196 @@ mod tests {
         let s = rt.block_on(Form::<Info>::from_request(&mut req)).unwrap();
         assert_eq!(s.hello, "world");
     }
+
+    #[test]
+    fn test_option() {
+        let mut rt = actix_rt::Runtime::new().unwrap();
+        let mut req = TestRequest::with_header(
+            header::CONTENT_TYPE,
+            "application/x-www-form-urlencoded",
+        )
+        .config(FormConfig::default().limit(4096))
+        .to_from();
+
+        let r = rt
+            .block_on(Option::<Form<Info>>::from_request(&mut req))
+            .unwrap();
+        assert_eq!(r, None);
+
+        let mut req = TestRequest::with_header(
+            header::CONTENT_TYPE,
+            "application/x-www-form-urlencoded",
+        )
+        .header(header::CONTENT_LENGTH, "9")
+        .set_payload(Bytes::from_static(b"hello=world"))
+        .to_from();
+
+        let r = rt
+            .block_on(Option::<Form<Info>>::from_request(&mut req))
+            .unwrap();
+        assert_eq!(
+            r,
+            Some(Form(Info {
+                hello: "world".into()
+            }))
+        );
+
+        let mut req = TestRequest::with_header(
+            header::CONTENT_TYPE,
+            "application/x-www-form-urlencoded",
+        )
+        .header(header::CONTENT_LENGTH, "9")
+        .set_payload(Bytes::from_static(b"bye=world"))
+        .to_from();
+
+        let r = rt
+            .block_on(Option::<Form<Info>>::from_request(&mut req))
+            .unwrap();
+        assert_eq!(r, None);
+    }
+
+    #[test]
+    fn test_result() {
+        let mut rt = actix_rt::Runtime::new().unwrap();
+        let mut req = TestRequest::with_header(
+            header::CONTENT_TYPE,
+            "application/x-www-form-urlencoded",
+        )
+        .header(header::CONTENT_LENGTH, "11")
+        .set_payload(Bytes::from_static(b"hello=world"))
+        .to_from();
+
+        let r = rt
+            .block_on(Result::<Form<Info>, Error>::from_request(&mut req))
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            r,
+            Form(Info {
+                hello: "world".into()
+            })
+        );
+
+        let mut req = TestRequest::with_header(
+            header::CONTENT_TYPE,
+            "application/x-www-form-urlencoded",
+        )
+        .header(header::CONTENT_LENGTH, "9")
+        .set_payload(Bytes::from_static(b"bye=world"))
+        .to_from();
+
+        let r = rt
+            .block_on(Result::<Form<Info>, Error>::from_request(&mut req))
+            .unwrap();
+        assert!(r.is_err());
+    }
+
+    #[test]
+    fn test_payload_config() {
+        let req = TestRequest::default().to_from();
+        let cfg = PayloadConfig::default().mimetype(mime::APPLICATION_JSON);
+        assert!(cfg.check_mimetype(&req).is_err());
+
+        let req = TestRequest::with_header(
+            header::CONTENT_TYPE,
+            "application/x-www-form-urlencoded",
+        )
+        .to_from();
+        assert!(cfg.check_mimetype(&req).is_err());
+
+        let req =
+            TestRequest::with_header(header::CONTENT_TYPE, "application/json").to_from();
+        assert!(cfg.check_mimetype(&req).is_ok());
+    }
+
+    #[derive(Deserialize)]
+    struct MyStruct {
+        key: String,
+        value: String,
+    }
+
+    #[derive(Deserialize)]
+    struct Id {
+        id: String,
+    }
+
+    #[derive(Deserialize)]
+    struct Test2 {
+        key: String,
+        value: u32,
+    }
+
+    #[test]
+    fn test_request_extract() {
+        let mut req = TestRequest::with_uri("/name/user1/?id=test").to_from();
+
+        let resource = ResourceDef::new("/{key}/{value}/");
+        resource.match_path(req.match_info_mut());
+
+        let s = Path::<MyStruct>::from_request(&mut req).unwrap();
+        assert_eq!(s.key, "name");
+        assert_eq!(s.value, "user1");
+
+        let s = Path::<(String, String)>::from_request(&mut req).unwrap();
+        assert_eq!(s.0, "name");
+        assert_eq!(s.1, "user1");
+
+        let s = Query::<Id>::from_request(&mut req).unwrap();
+        assert_eq!(s.id, "test");
+
+        let mut req = TestRequest::with_uri("/name/32/").to_from();
+        let resource = ResourceDef::new("/{key}/{value}/");
+        resource.match_path(req.match_info_mut());
+
+        let s = Path::<Test2>::from_request(&mut req).unwrap();
+        assert_eq!(s.as_ref().key, "name");
+        assert_eq!(s.value, 32);
+
+        let s = Path::<(String, u8)>::from_request(&mut req).unwrap();
+        assert_eq!(s.0, "name");
+        assert_eq!(s.1, 32);
+
+        let res = Path::<Vec<String>>::from_request(&mut req).unwrap();
+        assert_eq!(res[0], "name".to_owned());
+        assert_eq!(res[1], "32".to_owned());
+    }
+
+    #[test]
+    fn test_extract_path_single() {
+        let resource = ResourceDef::new("/{value}/");
+
+        let mut req = TestRequest::with_uri("/32/").to_from();
+        resource.match_path(req.match_info_mut());
+
+        assert_eq!(*Path::<i8>::from_request(&mut req).unwrap(), 32);
+    }
+
+    #[test]
+    fn test_tuple_extract() {
+        let mut rt = actix_rt::Runtime::new().unwrap();
+        let resource = ResourceDef::new("/{key}/{value}/");
+
+        let mut req = TestRequest::with_uri("/name/user1/?id=test").to_from();
+        resource.match_path(req.match_info_mut());
+
+        let res = rt
+            .block_on(<(Path<(String, String)>,)>::from_request(&mut req))
+            .unwrap();
+        assert_eq!((res.0).0, "name");
+        assert_eq!((res.0).1, "user1");
+
+        let res = rt
+            .block_on(
+                <(Path<(String, String)>, Path<(String, String)>)>::from_request(
+                    &mut req,
+                ),
+            )
+            .unwrap();
+        assert_eq!((res.0).0, "name");
+        assert_eq!((res.0).1, "user1");
+        assert_eq!((res.1).0, "name");
+        assert_eq!((res.1).1, "user1");
+
+        let () = <()>::from_request(&mut req).unwrap();
+    }
 }
-
-//     #[test]
-//     fn test_option() {
-//         let req = TestRequest::with_header(
-//             header::CONTENT_TYPE,
-//             "application/x-www-form-urlencoded",
-//         )
-//         .finish();
-
-//         let mut cfg = FormConfig::default();
-//         cfg.limit(4096);
-
-//         match Option::<Form<Info>>::from_request(&req, &cfg)
-//             .poll()
-//             .unwrap()
-//         {
-//             Async::Ready(r) => assert_eq!(r, None),
-//             _ => unreachable!(),
-//         }
-
-//         let req = TestRequest::with_header(
-//             header::CONTENT_TYPE,
-//             "application/x-www-form-urlencoded",
-//         )
-//         .header(header::CONTENT_LENGTH, "9")
-//         .set_payload(Bytes::from_static(b"hello=world"))
-//         .finish();
-
-//         match Option::<Form<Info>>::from_request(&req, &cfg)
-//             .poll()
-//             .unwrap()
-//         {
-//             Async::Ready(r) => assert_eq!(
-//                 r,
-//                 Some(Form(Info {
-//                     hello: "world".into()
-//                 }))
-//             ),
-//             _ => unreachable!(),
-//         }
-
-//         let req = TestRequest::with_header(
-//             header::CONTENT_TYPE,
-//             "application/x-www-form-urlencoded",
-//         )
-//         .header(header::CONTENT_LENGTH, "9")
-//         .set_payload(Bytes::from_static(b"bye=world"))
-//         .finish();
-
-//         match Option::<Form<Info>>::from_request(&req, &cfg)
-//             .poll()
-//             .unwrap()
-//         {
-//             Async::Ready(r) => assert_eq!(r, None),
-//             _ => unreachable!(),
-//         }
-//     }
-
-//     #[test]
-//     fn test_result() {
-//         let req = TestRequest::with_header(
-//             header::CONTENT_TYPE,
-//             "application/x-www-form-urlencoded",
-//         )
-//         .header(header::CONTENT_LENGTH, "11")
-//         .set_payload(Bytes::from_static(b"hello=world"))
-//         .finish();
-
-//         match Result::<Form<Info>, Error>::from_request(&req, &FormConfig::default())
-//             .poll()
-//             .unwrap()
-//         {
-//             Async::Ready(Ok(r)) => assert_eq!(
-//                 r,
-//                 Form(Info {
-//                     hello: "world".into()
-//                 })
-//             ),
-//             _ => unreachable!(),
-//         }
-
-//         let req = TestRequest::with_header(
-//             header::CONTENT_TYPE,
-//             "application/x-www-form-urlencoded",
-//         )
-//         .header(header::CONTENT_LENGTH, "9")
-//         .set_payload(Bytes::from_static(b"bye=world"))
-//         .finish();
-
-//         match Result::<Form<Info>, Error>::from_request(&req, &FormConfig::default())
-//             .poll()
-//             .unwrap()
-//         {
-//             Async::Ready(r) => assert!(r.is_err()),
-//             _ => unreachable!(),
-//         }
-//     }
-
-//     #[test]
-//     fn test_payload_config() {
-//         let req = TestRequest::default().finish();
-//         let mut cfg = PayloadConfig::default();
-//         cfg.mimetype(mime::APPLICATION_JSON);
-//         assert!(cfg.check_mimetype(&req).is_err());
-
-//         let req = TestRequest::with_header(
-//             header::CONTENT_TYPE,
-//             "application/x-www-form-urlencoded",
-//         )
-//         .finish();
-//         assert!(cfg.check_mimetype(&req).is_err());
-
-//         let req =
-//             TestRequest::with_header(header::CONTENT_TYPE, "application/json").finish();
-//         assert!(cfg.check_mimetype(&req).is_ok());
-//     }
-
-//     #[derive(Deserialize)]
-//     struct MyStruct {
-//         key: String,
-//         value: String,
-//     }
-
-//     #[derive(Deserialize)]
-//     struct Id {
-//         id: String,
-//     }
-
-//     #[derive(Deserialize)]
-//     struct Test2 {
-//         key: String,
-//         value: u32,
-//     }
-
-//     #[test]
-//     fn test_request_extract() {
-//         let req = TestRequest::with_uri("/name/user1/?id=test").finish();
-
-//         let mut router = Router::<()>::default();
-//         router.register_resource(Resource::new(ResourceDef::new("/{key}/{value}/")));
-//         let info = router.recognize(&req, &(), 0);
-//         let req = req.with_route_info(info);
-
-//         let s = Path::<MyStruct>::from_request(&req, &()).unwrap();
-//         assert_eq!(s.key, "name");
-//         assert_eq!(s.value, "user1");
-
-//         let s = Path::<(String, String)>::from_request(&req, &()).unwrap();
-//         assert_eq!(s.0, "name");
-//         assert_eq!(s.1, "user1");
-
-//         let s = Query::<Id>::from_request(&req, &()).unwrap();
-//         assert_eq!(s.id, "test");
-
-//         let mut router = Router::<()>::default();
-//         router.register_resource(Resource::new(ResourceDef::new("/{key}/{value}/")));
-//         let req = TestRequest::with_uri("/name/32/").finish();
-//         let info = router.recognize(&req, &(), 0);
-//         let req = req.with_route_info(info);
-
-//         let s = Path::<Test2>::from_request(&req, &()).unwrap();
-//         assert_eq!(s.as_ref().key, "name");
-//         assert_eq!(s.value, 32);
-
-//         let s = Path::<(String, u8)>::from_request(&req, &()).unwrap();
-//         assert_eq!(s.0, "name");
-//         assert_eq!(s.1, 32);
-
-//         let res = Path::<Vec<String>>::extract(&req).unwrap();
-//         assert_eq!(res[0], "name".to_owned());
-//         assert_eq!(res[1], "32".to_owned());
-//     }
-
-//     #[test]
-//     fn test_extract_path_single() {
-//         let mut router = Router::<()>::default();
-//         router.register_resource(Resource::new(ResourceDef::new("/{value}/")));
-
-//         let req = TestRequest::with_uri("/32/").finish();
-//         let info = router.recognize(&req, &(), 0);
-//         let req = req.with_route_info(info);
-//         assert_eq!(*Path::<i8>::from_request(&req, &()).unwrap(), 32);
-//     }
-
-//     #[test]
-//     fn test_tuple_extract() {
-//         let mut router = Router::<()>::default();
-//         router.register_resource(Resource::new(ResourceDef::new("/{key}/{value}/")));
-
-//         let req = TestRequest::with_uri("/name/user1/?id=test").finish();
-//         let info = router.recognize(&req, &(), 0);
-//         let req = req.with_route_info(info);
-
-//         let res = match <(Path<(String, String)>,)>::extract(&req).poll() {
-//             Ok(Async::Ready(res)) => res,
-//             _ => panic!("error"),
-//         };
-//         assert_eq!((res.0).0, "name");
-//         assert_eq!((res.0).1, "user1");
-
-//         let res = match <(Path<(String, String)>, Path<(String, String)>)>::extract(&req)
-//             .poll()
-//         {
-//             Ok(Async::Ready(res)) => res,
-//             _ => panic!("error"),
-//         };
-//         assert_eq!((res.0).0, "name");
-//         assert_eq!((res.0).1, "user1");
-//         assert_eq!((res.1).0, "name");
-//         assert_eq!((res.1).1, "user1");
-
-//         let () = <()>::extract(&req);
-//     }
-// }

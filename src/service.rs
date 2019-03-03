@@ -185,6 +185,11 @@ impl<P> ServiceFromRequest<P> {
         self.req
     }
 
+    #[inline]
+    pub fn match_info_mut(&mut self) -> &mut Path<Url> {
+        &mut self.req.path
+    }
+
     /// Create service response for error
     #[inline]
     pub fn error_response<E: Into<Error>>(self, err: E) -> ServiceResponse {
