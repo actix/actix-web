@@ -1,47 +1,48 @@
-//! Route match predicates
+//! Route match guards.
 #![allow(non_snake_case)]
 use actix_http::http::{self, header, HttpTryFrom};
 use actix_http::RequestHead;
 
-/// Trait defines resource predicate.
-/// Predicate can modify request object. It is also possible to
+/// Trait defines resource guards. Guards are used for routes selection.
+///
+/// Guard can not modify request object. But it is possible to
 /// to store extra attributes on request by using `Extensions` container,
-/// Extensions container available via `HttpRequest::extensions()` method.
-pub trait Filter {
+/// Extensions container available via `RequestHead::extensions()` method.
+pub trait Guard {
     /// Check if request matches predicate
     fn check(&self, request: &RequestHead) -> bool;
 }
 
-/// Return filter that matches if any of supplied filters.
+/// Return guard that matches if any of supplied guards.
 ///
 /// ```rust
-/// use actix_web::{web, filter, App, HttpResponse};
+/// use actix_web::{web, guard, App, HttpResponse};
 ///
 /// fn main() {
 ///     App::new().resource("/index.html", |r|
 ///         r.route(
 ///             web::route()
-///                  .filter(filter::Any(filter::Get()).or(filter::Post()))
+///                  .guard(guard::Any(guard::Get()).or(guard::Post()))
 ///                  .to(|| HttpResponse::MethodNotAllowed()))
 ///     );
 /// }
 /// ```
-pub fn Any<F: Filter + 'static>(filter: F) -> AnyFilter {
-    AnyFilter(vec![Box::new(filter)])
+pub fn Any<F: Guard + 'static>(guard: F) -> AnyGuard {
+    AnyGuard(vec![Box::new(guard)])
 }
 
-/// Matches if any of supplied filters matche.
-pub struct AnyFilter(Vec<Box<Filter>>);
+/// Matches if any of supplied guards matche.
+pub struct AnyGuard(Vec<Box<Guard>>);
 
-impl AnyFilter {
-    /// Add filter to a list of filters to check
-    pub fn or<F: Filter + 'static>(mut self, filter: F) -> Self {
-        self.0.push(Box::new(filter));
+impl AnyGuard {
+    /// Add guard to a list of guards to check
+    pub fn or<F: Guard + 'static>(mut self, guard: F) -> Self {
+        self.0.push(Box::new(guard));
         self
     }
 }
 
-impl Filter for AnyFilter {
+impl Guard for AnyGuard {
     fn check(&self, req: &RequestHead) -> bool {
         for p in &self.0 {
             if p.check(req) {
@@ -52,37 +53,37 @@ impl Filter for AnyFilter {
     }
 }
 
-/// Return filter that matches if all of supplied filters match.
+/// Return guard that matches if all of the supplied guards.
 ///
 /// ```rust
 /// # extern crate actix_web;
-/// use actix_web::{filter, web, App, HttpResponse};
+/// use actix_web::{guard, web, App, HttpResponse};
 ///
 /// fn main() {
 ///     App::new().resource("/index.html", |r| {
 ///         r.route(web::route()
-///             .filter(
-///                 filter::All(filter::Get()).and(filter::Header("content-type", "text/plain")))
+///             .guard(
+///                 guard::All(guard::Get()).and(guard::Header("content-type", "text/plain")))
 ///             .to(|| HttpResponse::MethodNotAllowed()))
 ///     });
 /// }
 /// ```
-pub fn All<F: Filter + 'static>(filter: F) -> AllFilter {
-    AllFilter(vec![Box::new(filter)])
+pub fn All<F: Guard + 'static>(guard: F) -> AllGuard {
+    AllGuard(vec![Box::new(guard)])
 }
 
-/// Matches if all of supplied filters matche.
-pub struct AllFilter(Vec<Box<Filter>>);
+/// Matches if all of supplied guards.
+pub struct AllGuard(Vec<Box<Guard>>);
 
-impl AllFilter {
-    /// Add new predicate to list of predicates to check
-    pub fn and<F: Filter + 'static>(mut self, filter: F) -> Self {
-        self.0.push(Box::new(filter));
+impl AllGuard {
+    /// Add new guard to the list of guards to check
+    pub fn and<F: Guard + 'static>(mut self, guard: F) -> Self {
+        self.0.push(Box::new(guard));
         self
     }
 }
 
-impl Filter for AllFilter {
+impl Guard for AllGuard {
     fn check(&self, request: &RequestHead) -> bool {
         for p in &self.0 {
             if !p.check(request) {
@@ -93,93 +94,93 @@ impl Filter for AllFilter {
     }
 }
 
-/// Return predicate that matches if supplied predicate does not match.
-pub fn Not<F: Filter + 'static>(filter: F) -> NotFilter {
-    NotFilter(Box::new(filter))
+/// Return guard that matches if supplied guard does not match.
+pub fn Not<F: Guard + 'static>(guard: F) -> NotGuard {
+    NotGuard(Box::new(guard))
 }
 
 #[doc(hidden)]
-pub struct NotFilter(Box<Filter>);
+pub struct NotGuard(Box<Guard>);
 
-impl Filter for NotFilter {
+impl Guard for NotGuard {
     fn check(&self, request: &RequestHead) -> bool {
         !self.0.check(request)
     }
 }
 
-/// Http method predicate
+/// Http method guard
 #[doc(hidden)]
-pub struct MethodFilter(http::Method);
+pub struct MethodGuard(http::Method);
 
-impl Filter for MethodFilter {
+impl Guard for MethodGuard {
     fn check(&self, request: &RequestHead) -> bool {
         request.method == self.0
     }
 }
 
-/// Predicate to match *GET* http method
-pub fn Get() -> MethodFilter {
-    MethodFilter(http::Method::GET)
+/// Guard to match *GET* http method
+pub fn Get() -> MethodGuard {
+    MethodGuard(http::Method::GET)
 }
 
 /// Predicate to match *POST* http method
-pub fn Post() -> MethodFilter {
-    MethodFilter(http::Method::POST)
+pub fn Post() -> MethodGuard {
+    MethodGuard(http::Method::POST)
 }
 
 /// Predicate to match *PUT* http method
-pub fn Put() -> MethodFilter {
-    MethodFilter(http::Method::PUT)
+pub fn Put() -> MethodGuard {
+    MethodGuard(http::Method::PUT)
 }
 
 /// Predicate to match *DELETE* http method
-pub fn Delete() -> MethodFilter {
-    MethodFilter(http::Method::DELETE)
+pub fn Delete() -> MethodGuard {
+    MethodGuard(http::Method::DELETE)
 }
 
 /// Predicate to match *HEAD* http method
-pub fn Head() -> MethodFilter {
-    MethodFilter(http::Method::HEAD)
+pub fn Head() -> MethodGuard {
+    MethodGuard(http::Method::HEAD)
 }
 
 /// Predicate to match *OPTIONS* http method
-pub fn Options() -> MethodFilter {
-    MethodFilter(http::Method::OPTIONS)
+pub fn Options() -> MethodGuard {
+    MethodGuard(http::Method::OPTIONS)
 }
 
 /// Predicate to match *CONNECT* http method
-pub fn Connect() -> MethodFilter {
-    MethodFilter(http::Method::CONNECT)
+pub fn Connect() -> MethodGuard {
+    MethodGuard(http::Method::CONNECT)
 }
 
 /// Predicate to match *PATCH* http method
-pub fn Patch() -> MethodFilter {
-    MethodFilter(http::Method::PATCH)
+pub fn Patch() -> MethodGuard {
+    MethodGuard(http::Method::PATCH)
 }
 
 /// Predicate to match *TRACE* http method
-pub fn Trace() -> MethodFilter {
-    MethodFilter(http::Method::TRACE)
+pub fn Trace() -> MethodGuard {
+    MethodGuard(http::Method::TRACE)
 }
 
 /// Predicate to match specified http method
-pub fn Method(method: http::Method) -> MethodFilter {
-    MethodFilter(method)
+pub fn Method(method: http::Method) -> MethodGuard {
+    MethodGuard(method)
 }
 
 /// Return predicate that matches if request contains specified header and
 /// value.
-pub fn Header(name: &'static str, value: &'static str) -> HeaderFilter {
-    HeaderFilter(
+pub fn Header(name: &'static str, value: &'static str) -> HeaderGuard {
+    HeaderGuard(
         header::HeaderName::try_from(name).unwrap(),
         header::HeaderValue::from_static(value),
     )
 }
 
 #[doc(hidden)]
-pub struct HeaderFilter(header::HeaderName, header::HeaderValue);
+pub struct HeaderGuard(header::HeaderName, header::HeaderValue);
 
-impl Filter for HeaderFilter {
+impl Guard for HeaderGuard {
     fn check(&self, req: &RequestHead) -> bool {
         if let Some(val) = req.headers.get(&self.0) {
             return val == self.1;
@@ -197,26 +198,26 @@ impl Filter for HeaderFilter {
 // /// fn main() {
 // ///     App::new().resource("/index.html", |r| {
 // ///         r.route()
-// ///             .filter(pred::Host("www.rust-lang.org"))
+// ///             .guard(pred::Host("www.rust-lang.org"))
 // ///             .f(|_| HttpResponse::MethodNotAllowed())
 // ///     });
 // /// }
 // /// ```
-// pub fn Host<H: AsRef<str>>(host: H) -> HostFilter {
-//     HostFilter(host.as_ref().to_string(), None)
+// pub fn Host<H: AsRef<str>>(host: H) -> HostGuard {
+//     HostGuard(host.as_ref().to_string(), None)
 // }
 
 // #[doc(hidden)]
-// pub struct HostFilter(String, Option<String>);
+// pub struct HostGuard(String, Option<String>);
 
-// impl HostFilter {
+// impl HostGuard {
 //     /// Set reuest scheme to match
 //     pub fn scheme<H: AsRef<str>>(&mut self, scheme: H) {
 //         self.1 = Some(scheme.as_ref().to_string())
 //     }
 // }
 
-// impl Filter for HostFilter {
+// impl Guard for HostGuard {
 //     fn check(&self, _req: &RequestHead) -> bool {
 //         // let info = req.connection_info();
 //         // if let Some(ref scheme) = self.1 {

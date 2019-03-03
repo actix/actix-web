@@ -56,22 +56,21 @@ where
         InitError = (),
     >,
 {
-    /// Register a new route and return mutable reference to *Route* object.
-    /// *Route* is used for route configuration, i.e. adding predicates,
+    /// Register a new route.
+    /// *Route* is used for route configuration, i.e. adding guards,
     /// setting up handler.
     ///
-    /// ```rust,ignore
-    /// use actix_web::*;
+    /// ```rust
+    /// use actix_web::{web, guard, App, HttpResponse};
     ///
     /// fn main() {
     ///     let app = App::new()
     ///         .resource("/", |r| {
-    ///             r.route()
-    ///                 .filter(pred::Any(pred::Get()).or(pred::Put()))
-    ///                 .filter(pred::Header("Content-Type", "text/plain"))
-    ///                 .f(|r| HttpResponse::Ok())
-    ///         })
-    ///         .finish();
+    ///             r.route(web::route()
+    ///                 .guard(guard::Any(guard::Get()).or(guard::Put()))
+    ///                 .guard(guard::Header("Content-Type", "text/plain"))
+    ///                 .to(|| HttpResponse::Ok()))
+    ///         });
     /// }
     /// ```
     pub fn route(mut self, route: Route<P>) -> Self {
@@ -81,21 +80,23 @@ where
 
     /// Register a new route and add handler.
     ///
-    /// ```rust,ignore
-    /// # extern crate actix_web;
+    /// ```rust
     /// use actix_web::*;
-    /// fn index(req: HttpRequest) -> HttpResponse { unimplemented!() }
     ///
-    /// App::new().resource("/", |r| r.with(index));
+    /// fn index(req: HttpRequest) -> HttpResponse {
+    ///     unimplemented!()
+    /// }
+    ///
+    /// App::new().resource("/", |r| r.to(index));
     /// ```
     ///
     /// This is shortcut for:
     ///
-    /// ```rust,ignore
+    /// ```rust
     /// # extern crate actix_web;
     /// # use actix_web::*;
     /// # fn index(req: HttpRequest) -> HttpResponse { unimplemented!() }
-    /// App::new().resource("/", |r| r.route().with(index));
+    /// App::new().resource("/", |r| r.route(web::route().to(index)));
     /// ```
     pub fn to<F, I, R>(mut self, handler: F) -> Self
     where
@@ -109,30 +110,26 @@ where
 
     /// Register a new route and add async handler.
     ///
-    /// ```rust,ignore
-    /// # extern crate actix_web;
-    /// # extern crate futures;
+    /// ```rust
     /// use actix_web::*;
-    /// use futures::future::Future;
+    /// use futures::future::{ok, Future};
     ///
-    /// fn index(req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
-    ///     unimplemented!()
+    /// fn index(req: HttpRequest) -> impl Future<Item=HttpResponse, Error=Error> {
+    ///     ok(HttpResponse::Ok().finish())
     /// }
     ///
-    /// App::new().resource("/", |r| r.with_async(index));
+    /// App::new().resource("/", |r| r.to_async(index));
     /// ```
     ///
     /// This is shortcut for:
     ///
-    /// ```rust,ignore
-    /// # extern crate actix_web;
-    /// # extern crate futures;
+    /// ```rust
     /// # use actix_web::*;
     /// # use futures::future::Future;
     /// # fn index(req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
     /// #     unimplemented!()
     /// # }
-    /// App::new().resource("/", |r| r.route().with_async(index));
+    /// App::new().resource("/", |r| r.route(web::route().to_async(index)));
     /// ```
     #[allow(clippy::wrong_self_convention)]
     pub fn to_async<F, I, R>(mut self, handler: F) -> Self

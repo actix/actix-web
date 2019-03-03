@@ -5,7 +5,7 @@ use actix_http::{http::Method, Error, Extensions, Response};
 use actix_service::{NewService, Service};
 use futures::{Async, Future, IntoFuture, Poll};
 
-use crate::filter::{self, Filter};
+use crate::guard::{self, Guard};
 use crate::handler::{
     AsyncFactory, AsyncHandle, ConfigStorage, Extract, ExtractorConfig, Factory,
     FromRequest, Handle,
@@ -40,7 +40,7 @@ type BoxedRouteNewService<Req, Res> = Box<
 /// If handler is not explicitly set, default *404 Not Found* handler is used.
 pub struct Route<P> {
     service: BoxedRouteNewService<ServiceRequest<P>, ServiceResponse>,
-    filters: Rc<Vec<Box<Filter>>>,
+    guards: Rc<Vec<Box<Guard>>>,
     config: ConfigStorage,
     config_ref: Rc<RefCell<Option<Rc<Extensions>>>>,
 }
@@ -55,7 +55,7 @@ impl<P: 'static> Route<P> {
                     Handle::new(|| HttpResponse::NotFound()).map_err(|_| panic!()),
                 ),
             )),
-            filters: Rc::new(Vec::new()),
+            guards: Rc::new(Vec::new()),
             config: ConfigStorage::default(),
             config_ref,
         }
@@ -98,7 +98,7 @@ impl<P> NewService for Route<P> {
     fn new_service(&self, _: &()) -> Self::Future {
         CreateRouteService {
             fut: self.service.new_service(&()),
-            filters: self.filters.clone(),
+            guards: self.guards.clone(),
         }
     }
 }
@@ -109,7 +109,7 @@ type RouteFuture<P> = Box<
 
 pub struct CreateRouteService<P> {
     fut: RouteFuture<P>,
-    filters: Rc<Vec<Box<Filter>>>,
+    guards: Rc<Vec<Box<Guard>>>,
 }
 
 impl<P> Future for CreateRouteService<P> {
@@ -120,7 +120,7 @@ impl<P> Future for CreateRouteService<P> {
         match self.fut.poll()? {
             Async::Ready(service) => Ok(Async::Ready(RouteService {
                 service,
-                filters: self.filters.clone(),
+                guards: self.guards.clone(),
             })),
             Async::NotReady => Ok(Async::NotReady),
         }
@@ -129,12 +129,12 @@ impl<P> Future for CreateRouteService<P> {
 
 pub struct RouteService<P> {
     service: BoxedRouteService<ServiceRequest<P>, ServiceResponse>,
-    filters: Rc<Vec<Box<Filter>>>,
+    guards: Rc<Vec<Box<Guard>>>,
 }
 
 impl<P> RouteService<P> {
     pub fn check(&self, req: &mut ServiceRequest<P>) -> bool {
-        for f in self.filters.iter() {
+        for f in self.guards.iter() {
             if !f.check(req.head()) {
                 return false;
             }
@@ -159,45 +159,41 @@ impl<P> Service for RouteService<P> {
 }
 
 impl<P: 'static> Route<P> {
-    /// Add method match filter to the route.
+    /// Add method guard to the route.
     ///
-    /// ```rust,ignore
-    /// # extern crate actix_web;
+    /// ```rust
     /// # use actix_web::*;
     /// # fn main() {
     /// App::new().resource("/path", |r| {
-    ///     r.route()
-    ///         .filter(pred::Get())
-    ///         .filter(pred::Header("content-type", "text/plain"))
-    ///         .f(|req| HttpResponse::Ok())
-    /// })
-    /// #      .finish();
+    ///     r.route(web::get()
+    ///         .guard(guard::Get())
+    ///         .guard(guard::Header("content-type", "text/plain"))
+    ///         .to(|req: HttpRequest| HttpResponse::Ok()))
+    /// });
     /// # }
     /// ```
     pub fn method(mut self, method: Method) -> Self {
-        Rc::get_mut(&mut self.filters)
+        Rc::get_mut(&mut self.guards)
             .unwrap()
-            .push(Box::new(filter::Method(method)));
+            .push(Box::new(guard::Method(method)));
         self
     }
 
-    /// Add filter to the route.
+    /// Add guard to the route.
     ///
-    /// ```rust,ignore
-    /// # extern crate actix_web;
+    /// ```rust
     /// # use actix_web::*;
     /// # fn main() {
     /// App::new().resource("/path", |r| {
-    ///     r.route()
-    ///         .filter(pred::Get())
-    ///         .filter(pred::Header("content-type", "text/plain"))
-    ///         .f(|req| HttpResponse::Ok())
-    /// })
-    /// #      .finish();
+    ///     r.route(web::route()
+    ///         .guard(guard::Get())
+    ///         .guard(guard::Header("content-type", "text/plain"))
+    ///         .to(|req: HttpRequest| HttpResponse::Ok()))
+    /// });
     /// # }
     /// ```
-    pub fn filter<F: Filter + 'static>(mut self, f: F) -> Self {
-        Rc::get_mut(&mut self.filters).unwrap().push(Box::new(f));
+    pub fn guard<F: Guard + 'static>(mut self, f: F) -> Self {
+        Rc::get_mut(&mut self.guards).unwrap().push(Box::new(f));
         self
     }
 
@@ -214,19 +210,16 @@ impl<P: 'static> Route<P> {
     // {
     //     RouteServiceBuilder {
     //         service: md.into_new_service(),
-    //         filters: self.filters,
+    //         guards: self.guards,
     //         _t: PhantomData,
     //     }
     // }
 
-    /// Set handler function, use request extractor for parameters.
+    /// Set handler function, use request extractors for parameters.
     ///
-    /// ```rust,ignore
-    /// # extern crate bytes;
-    /// # extern crate actix_web;
-    /// # extern crate futures;
+    /// ```rust
     /// #[macro_use] extern crate serde_derive;
-    /// use actix_web::{http, App, Path, Result};
+    /// use actix_web::{web, http, App, Path};
     ///
     /// #[derive(Deserialize)]
     /// struct Info {
@@ -234,27 +227,24 @@ impl<P: 'static> Route<P> {
     /// }
     ///
     /// /// extract path info using serde
-    /// fn index(info: Path<Info>) -> Result<String> {
-    ///     Ok(format!("Welcome {}!", info.username))
+    /// fn index(info: Path<Info>) -> String {
+    ///     format!("Welcome {}!", info.username)
     /// }
     ///
     /// fn main() {
     ///     let app = App::new().resource(
     ///         "/{username}/index.html", // <- define path parameters
-    ///         |r| r.method(http::Method::GET).with(index),
-    ///     ); // <- use `with` extractor
+    ///         |r| r.route(web::get().to(index)), // <- register handler
+    ///     );
     /// }
     /// ```
     ///
     /// It is possible to use multiple extractors for one handler function.
     ///
-    /// ```rust,ignore
-    /// # extern crate bytes;
-    /// # extern crate actix_web;
-    /// # extern crate futures;
-    /// #[macro_use] extern crate serde_derive;
+    /// ```rust
     /// # use std::collections::HashMap;
-    /// use actix_web::{http, App, Json, Path, Query, Result};
+    /// # use serde_derive::Deserialize;
+    /// use actix_web::{web, http, App, Json, Path, Query};
     ///
     /// #[derive(Deserialize)]
     /// struct Info {
@@ -262,17 +252,15 @@ impl<P: 'static> Route<P> {
     /// }
     ///
     /// /// extract path info using serde
-    /// fn index(
-    ///     path: Path<Info>, query: Query<HashMap<String, String>>, body: Json<Info>,
-    /// ) -> Result<String> {
-    ///     Ok(format!("Welcome {}!", path.username))
+    /// fn index(path: Path<Info>, query: Query<HashMap<String, String>>, body: Json<Info>) -> String {
+    ///     format!("Welcome {}!", path.username)
     /// }
     ///
     /// fn main() {
     ///     let app = App::new().resource(
     ///         "/{username}/index.html", // <- define path parameters
-    ///         |r| r.method(http::Method::GET).with(index),
-    ///     ); // <- use `with` extractor
+    ///         |r| r.route(web::method(http::Method::GET).to(index)),
+    ///     );
     /// }
     /// ```
     pub fn to<F, T, R>(mut self, handler: F) -> Route<P>
@@ -289,16 +277,13 @@ impl<P: 'static> Route<P> {
         self
     }
 
-    /// Set async handler function, use request extractor for parameters.
-    /// Also this method needs to be used if your handler function returns
-    /// `impl Future<>`
+    /// Set async handler function, use request extractors for parameters.
+    /// This method has to be used if your handler function returns `impl Future<>`
     ///
-    /// ```rust,ignore
-    /// # extern crate bytes;
-    /// # extern crate actix_web;
-    /// # extern crate futures;
+    /// ```rust
+    /// # use futures::future::ok;
     /// #[macro_use] extern crate serde_derive;
-    /// use actix_web::{http, App, Error, Path};
+    /// use actix_web::{web, http, App, Error, Path};
     /// use futures::Future;
     ///
     /// #[derive(Deserialize)]
@@ -307,15 +292,15 @@ impl<P: 'static> Route<P> {
     /// }
     ///
     /// /// extract path info using serde
-    /// fn index(info: Path<Info>) -> Box<Future<Item = &'static str, Error = Error>> {
-    ///     unimplemented!()
+    /// fn index(info: Path<Info>) -> impl Future<Item = &'static str, Error = Error> {
+    ///     ok("Hello World!")
     /// }
     ///
     /// fn main() {
     ///     let app = App::new().resource(
     ///         "/{username}/index.html", // <- define path parameters
-    ///         |r| r.method(http::Method::GET).with_async(index),
-    ///     ); // <- use `with` extractor
+    ///         |r| r.route(web::get().to_async(index)), // <- register async handler
+    ///     );
     /// }
     /// ```
     #[allow(clippy::wrong_self_convention)]
@@ -362,134 +347,6 @@ impl<P: 'static> Route<P> {
         self
     }
 }
-
-// pub struct RouteServiceBuilder<P, T, U1, U2> {
-//     service: T,
-//     filters: Vec<Box<Filter>>,
-//     _t: PhantomData<(P, U1, U2)>,
-// }
-
-// impl<T, S: 'static, U1, U2> RouteServiceBuilder<T, S, U1, U2>
-// where
-//     T: NewService<
-//         Request = HandlerRequest<S, U1>,
-//         Response = HandlerRequest<S, U2>,
-//         Error = Error,
-//         InitError = (),
-//     >,
-// {
-//     pub fn new<F: IntoNewService<T>>(factory: F) -> Self {
-//         RouteServiceBuilder {
-//             service: factory.into_new_service(),
-//             filters: Vec::new(),
-//             _t: PhantomData,
-//         }
-//     }
-
-//     /// Add method match filter to the route.
-//     ///
-//     /// ```rust
-//     /// # extern crate actix_web;
-//     /// # use actix_web::*;
-//     /// # fn main() {
-//     /// App::new().resource("/path", |r| {
-//     ///     r.route()
-//     ///         .filter(pred::Get())
-//     ///         .filter(pred::Header("content-type", "text/plain"))
-//     ///         .f(|req| HttpResponse::Ok())
-//     /// })
-//     /// #      .finish();
-//     /// # }
-//     /// ```
-//     pub fn method(mut self, method: Method) -> Self {
-//         self.filters.push(Box::new(filter::Method(method)));
-//         self
-//     }
-
-//     /// Add filter to the route.
-//     ///
-//     /// ```rust
-//     /// # extern crate actix_web;
-//     /// # use actix_web::*;
-//     /// # fn main() {
-//     /// App::new().resource("/path", |r| {
-//     ///     r.route()
-//     ///         .filter(pred::Get())
-//     ///         .filter(pred::Header("content-type", "text/plain"))
-//     ///         .f(|req| HttpResponse::Ok())
-//     /// })
-//     /// #      .finish();
-//     /// # }
-//     /// ```
-//     pub fn filter<F: Filter<S> + 'static>(&mut self, f: F) -> &mut Self {
-//         self.filters.push(Box::new(f));
-//         self
-//     }
-
-//     pub fn map<T1, U3, F: IntoNewService<T1>>(
-//         self,
-//         md: F,
-//     ) -> RouteServiceBuilder<
-//         impl NewService<
-//             Request = HandlerRequest<S, U1>,
-//             Response = HandlerRequest<S, U3>,
-//             Error = Error,
-//             InitError = (),
-//         >,
-//         S,
-//         U1,
-//         U2,
-//     >
-//     where
-//         T1: NewService<
-//             Request = HandlerRequest<S, U2>,
-//             Response = HandlerRequest<S, U3>,
-//             InitError = (),
-//         >,
-//         T1::Error: Into<Error>,
-//     {
-//         RouteServiceBuilder {
-//             service: self
-//                 .service
-//                 .and_then(md.into_new_service().map_err(|e| e.into())),
-//             filters: self.filters,
-//             _t: PhantomData,
-//         }
-//     }
-
-//     pub fn to_async<F, P, R>(self, handler: F) -> Route<S>
-//     where
-//         F: AsyncFactory<S, U2, P, R>,
-//         P: FromRequest<S> + 'static,
-//         R: IntoFuture,
-//         R::Item: Into<Response>,
-//         R::Error: Into<Error>,
-//     {
-//         Route {
-//             service: self
-//                 .service
-//                 .and_then(Extract::new(P::Config::default()))
-//                 .then(AsyncHandle::new(handler)),
-//             filters: Rc::new(self.filters),
-//         }
-//     }
-
-//     pub fn to<F, P, R>(self, handler: F) -> Route<S>
-//     where
-//         F: Factory<S, U2, P, R> + 'static,
-//         P: FromRequest<S> + 'static,
-//         R: Responder<S> + 'static,
-//     {
-//         Route {
-//             service: Box::new(RouteNewService::new(
-//                 self.service
-//                     .and_then(Extract::new(P::Config::default()))
-//                     .and_then(Handle::new(handler)),
-//             )),
-//             filters: Rc::new(self.filters),
-//         }
-//     }
-// }
 
 struct RouteNewService<P, T>
 where
