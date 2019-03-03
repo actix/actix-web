@@ -8,6 +8,7 @@ use actix_http::{
     ResponseHead,
 };
 use actix_router::{Path, Url};
+use futures::future::{ok, FutureResult, IntoFuture};
 
 use crate::request::HttpRequest;
 
@@ -286,5 +287,15 @@ impl<B: MessageBody> std::ops::DerefMut for ServiceResponse<B> {
 impl<B: MessageBody> Into<Response<B>> for ServiceResponse<B> {
     fn into(self) -> Response<B> {
         self.response
+    }
+}
+
+impl<B: MessageBody> IntoFuture for ServiceResponse<B> {
+    type Item = ServiceResponse<B>;
+    type Error = Error;
+    type Future = FutureResult<ServiceResponse<B>, Error>;
+
+    fn into_future(self) -> Self::Future {
+        ok(self)
     }
 }

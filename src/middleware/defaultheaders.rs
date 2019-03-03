@@ -13,17 +13,15 @@ use crate::service::{ServiceRequest, ServiceResponse};
 ///
 /// This middleware does not set header if response headers already contains it.
 ///
-/// ```rust,ignore
-/// # extern crate actix_web;
-/// use actix_web::{http, middleware, App, HttpResponse};
+/// ```rust
+/// use actix_web::{web, http, middleware, App, HttpResponse};
 ///
 /// fn main() {
 ///     let app = App::new()
 ///         .middleware(middleware::DefaultHeaders::new().header("X-Version", "0.2"))
 ///         .resource("/test", |r| {
-///             r.method(http::Method::GET).f(|_| HttpResponse::Ok());
-///             r.method(http::Method::HEAD)
-///                 .f(|_| HttpResponse::MethodNotAllowed());
+///             r.route(web::get().to(|| HttpResponse::Ok()))
+///              .route(web::method(http::Method::HEAD).to(|| HttpResponse::MethodNotAllowed()))
 ///         });
 /// }
 /// ```
@@ -134,30 +132,48 @@ where
     }
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-//     use actix_http::http::header::CONTENT_TYPE;
-//     use actix_http::test::TestRequest;
+#[cfg(test)]
+mod tests {
+    use actix_http::http::header::CONTENT_TYPE;
+    use actix_service::FnService;
 
-//     #[test]
-//     fn test_default_headers() {
-//         let mw = DefaultHeaders::new().header(CONTENT_TYPE, "0001");
+    use super::*;
+    use crate::test::TestServiceRequest;
+    use crate::{HttpResponse, ServiceRequest};
 
-//         let req = TestRequest::default().finish();
+    #[test]
+    fn test_default_headers() {
+        let mut rt = actix_rt::Runtime::new().unwrap();
+        let mut mw = DefaultHeaders::new().header(CONTENT_TYPE, "0001");
+        let mut srv = FnService::new(|req: ServiceRequest<_>| {
+            req.into_response(HttpResponse::Ok().finish())
+        });
 
-//         let resp = Response::Ok().finish();
-//         let resp = match mw.response(&req, resp) {
-//             Ok(Response::Done(resp)) => resp,
-//             _ => panic!(),
-//         };
-//         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0001");
+        let req = TestServiceRequest::default().finish();
+        let resp = rt.block_on(mw.call(req, &mut srv)).unwrap();
+        assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0001");
 
-//         let resp = Response::Ok().header(CONTENT_TYPE, "0002").finish();
-//         let resp = match mw.response(&req, resp) {
-//             Ok(Response::Done(resp)) => resp,
-//             _ => panic!(),
-//         };
-//         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0002");
-//     }
-// }
+        let req = TestServiceRequest::default().finish();
+        let mut srv = FnService::new(|req: ServiceRequest<_>| {
+            req.into_response(HttpResponse::Ok().header(CONTENT_TYPE, "0002").finish())
+        });
+        let resp = rt.block_on(mw.call(req, &mut srv)).unwrap();
+        assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0002");
+    }
+
+    #[test]
+    fn test_content_type() {
+        let mut rt = actix_rt::Runtime::new().unwrap();
+        let mut mw = DefaultHeaders::new().content_type();
+        let mut srv = FnService::new(|req: ServiceRequest<_>| {
+            req.into_response(HttpResponse::Ok().finish())
+        });
+
+        let req = TestServiceRequest::default().finish();
+        let resp = rt.block_on(mw.call(req, &mut srv)).unwrap();
+        assert_eq!(
+            resp.headers().get(CONTENT_TYPE).unwrap(),
+            "application/octet-stream"
+        );
+    }
+}
