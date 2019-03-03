@@ -34,19 +34,9 @@ before_script:
   - export PATH=$PATH:~/.cargo/bin
 
 script:
-  - |
-    if [[ "$TRAVIS_RUST_VERSION" != "nightly-2019-03-02" ]]; then
-    cargo clean
-    cargo check
-    cargo test -- --nocapture
-    fi
-  - |
-    if [[ "$TRAVIS_RUST_VERSION" == "nightly-2019-03-02" ]]; then
-    RUSTFLAGS="--cfg procmacro2_semver_exempt" cargo install -f cargo-tarpaulin
-    RUST_BACKTRACE=1 cargo tarpaulin --out Xml
-    bash <(curl -s https://codecov.io/bash)
-    echo "Uploaded code coverage"
-    fi
+  - cargo clean
+  - cargo check
+  - cargo test -- --nocapture
 
 # Upload docs
 after_success:
@@ -57,4 +47,10 @@ after_success:
       git clone https://github.com/davisp/ghp-import.git &&
       ./ghp-import/ghp_import.py -n -p -f -m "Documentation upload" -r https://"$GH_TOKEN"@github.com/"$TRAVIS_REPO_SLUG.git" target/doc &&
       echo "Uploaded documentation"
+    fi
+  - |
+    if [[ "$TRAVIS_RUST_VERSION" ==  "nightly-2019-03-02" ]]; then
+        cargo tarpaulin --features="ssl"  --out Xml
+        bash <(curl -s https://codecov.io/bash)
+        echo "Uploaded code coverage"
     fi
