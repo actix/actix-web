@@ -1,4 +1,3 @@
-use std::marker::PhantomData;
 use std::rc::Rc;
 
 use actix_http::{http::Method, Error, Response};
@@ -8,7 +7,8 @@ use futures::{Async, Future, IntoFuture, Poll};
 use crate::filter::{self, Filter};
 use crate::handler::{AsyncFactory, AsyncHandle, Extract, Factory, FromRequest, Handle};
 use crate::responder::Responder;
-use crate::service::{ServiceRequest, ServiceResponse};
+use crate::service::{ServiceFromRequest, ServiceRequest, ServiceResponse};
+use crate::HttpResponse;
 
 type BoxedRouteService<Req, Res> = Box<
     Service<
@@ -40,24 +40,29 @@ pub struct Route<P> {
 }
 
 impl<P: 'static> Route<P> {
-    pub fn build() -> RouteBuilder<P> {
-        RouteBuilder::new()
+    pub fn new() -> Route<P> {
+        Route {
+            service: Box::new(RouteNewService::new(Extract::new().and_then(
+                Handle::new(|| HttpResponse::NotFound()).map_err(|_| panic!()),
+            ))),
+            filters: Rc::new(Vec::new()),
+        }
     }
 
-    pub fn get() -> RouteBuilder<P> {
-        RouteBuilder::new().method(Method::GET)
+    pub fn get() -> Route<P> {
+        Route::new().method(Method::GET)
     }
 
-    pub fn post() -> RouteBuilder<P> {
-        RouteBuilder::new().method(Method::POST)
+    pub fn post() -> Route<P> {
+        Route::new().method(Method::POST)
     }
 
-    pub fn put() -> RouteBuilder<P> {
-        RouteBuilder::new().method(Method::PUT)
+    pub fn put() -> Route<P> {
+        Route::new().method(Method::PUT)
     }
 
-    pub fn delete() -> RouteBuilder<P> {
-        RouteBuilder::new().method(Method::DELETE)
+    pub fn delete() -> Route<P> {
+        Route::new().method(Method::DELETE)
     }
 }
 
@@ -109,7 +114,7 @@ pub struct RouteService<P> {
 impl<P> RouteService<P> {
     pub fn check(&self, req: &mut ServiceRequest<P>) -> bool {
         for f in self.filters.iter() {
-            if !f.check(req.request()) {
+            if !f.check(req.head()) {
                 return false;
             }
         }
@@ -132,19 +137,7 @@ impl<P> Service for RouteService<P> {
     }
 }
 
-pub struct RouteBuilder<P> {
-    filters: Vec<Box<Filter>>,
-    _t: PhantomData<P>,
-}
-
-impl<P: 'static> RouteBuilder<P> {
-    fn new() -> RouteBuilder<P> {
-        RouteBuilder {
-            filters: Vec::new(),
-            _t: PhantomData,
-        }
-    }
-
+impl<P: 'static> Route<P> {
     /// Add method match filter to the route.
     ///
     /// ```rust,ignore
@@ -161,7 +154,9 @@ impl<P: 'static> RouteBuilder<P> {
     /// # }
     /// ```
     pub fn method(mut self, method: Method) -> Self {
-        self.filters.push(Box::new(filter::Method(method)));
+        Rc::get_mut(&mut self.filters)
+            .unwrap()
+            .push(Box::new(filter::Method(method)));
         self
     }
 
@@ -181,7 +176,7 @@ impl<P: 'static> RouteBuilder<P> {
     /// # }
     /// ```
     pub fn filter<F: Filter + 'static>(mut self, f: F) -> Self {
-        self.filters.push(Box::new(f));
+        Rc::get_mut(&mut self.filters).unwrap().push(Box::new(f));
         self
     }
 
@@ -259,18 +254,16 @@ impl<P: 'static> RouteBuilder<P> {
     ///     ); // <- use `with` extractor
     /// }
     /// ```
-    pub fn to<F, T, R>(self, handler: F) -> Route<P>
+    pub fn to<F, T, R>(mut self, handler: F) -> Route<P>
     where
         F: Factory<T, R> + 'static,
         T: FromRequest<P> + 'static,
         R: Responder + 'static,
     {
-        Route {
-            service: Box::new(RouteNewService::new(
-                Extract::new().and_then(Handle::new(handler).map_err(|_| panic!())),
-            )),
-            filters: Rc::new(self.filters),
-        }
+        self.service = Box::new(RouteNewService::new(
+            Extract::new().and_then(Handle::new(handler).map_err(|_| panic!())),
+        ));
+        self
     }
 
     /// Set async handler function, use request extractor for parameters.
@@ -303,7 +296,7 @@ impl<P: 'static> RouteBuilder<P> {
     /// }
     /// ```
     #[allow(clippy::wrong_self_convention)]
-    pub fn to_async<F, T, R>(self, handler: F) -> Route<P>
+    pub fn to_async<F, T, R>(mut self, handler: F) -> Self
     where
         F: AsyncFactory<T, R>,
         T: FromRequest<P> + 'static,
@@ -311,12 +304,10 @@ impl<P: 'static> RouteBuilder<P> {
         R::Item: Into<Response>,
         R::Error: Into<Error>,
     {
-        Route {
-            service: Box::new(RouteNewService::new(
-                Extract::new().and_then(AsyncHandle::new(handler).map_err(|_| panic!())),
-            )),
-            filters: Rc::new(self.filters),
-        }
+        self.service = Box::new(RouteNewService::new(
+            Extract::new().and_then(AsyncHandle::new(handler).map_err(|_| panic!())),
+        ));
+        self
     }
 }
 
@@ -450,7 +441,7 @@ impl<P: 'static> RouteBuilder<P> {
 
 struct RouteNewService<P, T>
 where
-    T: NewService<Request = ServiceRequest<P>, Error = (Error, ServiceRequest<P>)>,
+    T: NewService<Request = ServiceRequest<P>, Error = (Error, ServiceFromRequest<P>)>,
 {
     service: T,
 }
@@ -460,7 +451,7 @@ where
     T: NewService<
         Request = ServiceRequest<P>,
         Response = ServiceResponse,
-        Error = (Error, ServiceRequest<P>),
+        Error = (Error, ServiceFromRequest<P>),
     >,
     T::Future: 'static,
     T::Service: 'static,
@@ -476,7 +467,7 @@ where
     T: NewService<
         Request = ServiceRequest<P>,
         Response = ServiceResponse,
-        Error = (Error, ServiceRequest<P>),
+        Error = (Error, ServiceFromRequest<P>),
     >,
     T::Future: 'static,
     T::Service: 'static,
@@ -513,7 +504,7 @@ where
     T: Service<
         Request = ServiceRequest<P>,
         Response = ServiceResponse,
-        Error = (Error, ServiceRequest<P>),
+        Error = (Error, ServiceFromRequest<P>),
     >,
 {
     type Request = ServiceRequest<P>;

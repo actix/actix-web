@@ -7,7 +7,7 @@ use futures::future::{err, ok, FutureResult};
 use futures::{Async, Future, IntoFuture, Poll};
 
 use crate::handler::FromRequest;
-use crate::service::ServiceRequest;
+use crate::service::ServiceFromRequest;
 
 /// Application state factory
 pub(crate) trait StateFactory {
@@ -50,7 +50,7 @@ impl<S: 'static, P> FromRequest<P> for State<S> {
     type Future = FutureResult<Self, Error>;
 
     #[inline]
-    fn from_request(req: &mut ServiceRequest<P>) -> Self::Future {
+    fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
         if let Some(st) = req.app_extensions().get::<State<S>>() {
             ok(st.clone())
         } else {

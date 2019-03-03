@@ -7,7 +7,7 @@ use futures::{try_ready, Async, Future, IntoFuture, Poll};
 
 use crate::request::HttpRequest;
 use crate::responder::Responder;
-use crate::service::{ServiceRequest, ServiceResponse};
+use crate::service::{ServiceFromRequest, ServiceRequest, ServiceResponse};
 
 /// Trait implemented by types that can be extracted from request.
 ///
@@ -20,7 +20,7 @@ pub trait FromRequest<P>: Sized {
     type Future: Future<Item = Self, Error = Self::Error>;
 
     /// Convert request to a Self
-    fn from_request(req: &mut ServiceRequest<P>) -> Self::Future;
+    fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future;
 }
 
 /// Handler converter factory
@@ -306,7 +306,7 @@ impl<P, T: FromRequest<P>> Default for Extract<P, T> {
 impl<P, T: FromRequest<P>> NewService for Extract<P, T> {
     type Request = ServiceRequest<P>;
     type Response = (T, HttpRequest);
-    type Error = (Error, ServiceRequest<P>);
+    type Error = (Error, ServiceFromRequest<P>);
     type InitError = ();
     type Service = ExtractService<P, T>;
     type Future = FutureResult<Self::Service, ()>;
@@ -323,14 +323,15 @@ pub struct ExtractService<P, T: FromRequest<P>> {
 impl<P, T: FromRequest<P>> Service for ExtractService<P, T> {
     type Request = ServiceRequest<P>;
     type Response = (T, HttpRequest);
-    type Error = (Error, ServiceRequest<P>);
+    type Error = (Error, ServiceFromRequest<P>);
     type Future = ExtractResponse<P, T>;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
         Ok(Async::Ready(()))
     }
 
-    fn call(&mut self, mut req: ServiceRequest<P>) -> Self::Future {
+    fn call(&mut self, req: ServiceRequest<P>) -> Self::Future {
+        let mut req = req.into();
         ExtractResponse {
             fut: T::from_request(&mut req),
             req: Some(req),
@@ -339,13 +340,13 @@ impl<P, T: FromRequest<P>> Service for ExtractService<P, T> {
 }
 
 pub struct ExtractResponse<P, T: FromRequest<P>> {
-    req: Option<ServiceRequest<P>>,
+    req: Option<ServiceFromRequest<P>>,
     fut: T::Future,
 }
 
 impl<P, T: FromRequest<P>> Future for ExtractResponse<P, T> {
     type Item = (T, HttpRequest);
-    type Error = (Error, ServiceRequest<P>);
+    type Error = (Error, ServiceFromRequest<P>);
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         let item = try_ready!(self

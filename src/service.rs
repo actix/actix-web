@@ -1,9 +1,11 @@
+use std::cell::{Ref, RefMut};
 use std::rc::Rc;
 
 use actix_http::body::{Body, MessageBody, ResponseBody};
-use actix_http::http::HeaderMap;
+use actix_http::http::{HeaderMap, Method, Uri, Version};
 use actix_http::{
-    Error, Extensions, HttpMessage, Payload, Request, Response, ResponseHead,
+    Error, Extensions, HttpMessage, Payload, Request, RequestHead, Response,
+    ResponseHead,
 };
 use actix_router::{Path, Url};
 
@@ -28,11 +30,6 @@ impl<P> ServiceRequest<P> {
     }
 
     #[inline]
-    pub fn request(&self) -> &HttpRequest {
-        &self.req
-    }
-
-    #[inline]
     pub fn into_request(self) -> HttpRequest {
         self.req
     }
@@ -49,9 +46,92 @@ impl<P> ServiceRequest<P> {
         ServiceResponse::new(self.req, err.into().into())
     }
 
+    /// This method returns reference to the request head
+    #[inline]
+    pub fn head(&self) -> &RequestHead {
+        &self.req.head
+    }
+
+    /// This method returns reference to the request head
+    #[inline]
+    pub fn head_mut(&mut self) -> &mut RequestHead {
+        &mut self.req.head
+    }
+
+    /// Request's uri.
+    #[inline]
+    pub fn uri(&self) -> &Uri {
+        &self.head().uri
+    }
+
+    /// Read the Request method.
+    #[inline]
+    pub fn method(&self) -> &Method {
+        &self.head().method
+    }
+
+    /// Read the Request Version.
+    #[inline]
+    pub fn version(&self) -> Version {
+        self.head().version
+    }
+
+    /// The target path of this Request.
+    #[inline]
+    pub fn path(&self) -> &str {
+        self.head().uri.path()
+    }
+
+    #[inline]
+    /// Returns Request's headers.
+    pub fn headers(&self) -> &HeaderMap {
+        &self.head().headers
+    }
+
+    /// The query string in the URL.
+    ///
+    /// E.g., id=10
+    #[inline]
+    pub fn query_string(&self) -> &str {
+        if let Some(query) = self.uri().query().as_ref() {
+            query
+        } else {
+            ""
+        }
+    }
+
+    /// Get a reference to the Path parameters.
+    ///
+    /// Params is a container for url parameters.
+    /// A variable segment is specified in the form `{identifier}`,
+    /// where the identifier can be used later in a request handler to
+    /// access the matched value for that segment.
+    #[inline]
+    pub fn match_info(&self) -> &Path<Url> {
+        &self.req.path
+    }
+
     #[inline]
     pub fn match_info_mut(&mut self) -> &mut Path<Url> {
         &mut self.req.path
+    }
+
+    /// Request extensions
+    #[inline]
+    pub fn extensions(&self) -> Ref<Extensions> {
+        self.req.head.extensions()
+    }
+
+    /// Mutable reference to a the request's extensions
+    #[inline]
+    pub fn extensions_mut(&self) -> RefMut<Extensions> {
+        self.req.head.extensions_mut()
+    }
+
+    /// Application extensions
+    #[inline]
+    pub fn app_extensions(&self) -> &Extensions {
+        self.req.app_extensions()
     }
 }
 
@@ -70,10 +150,65 @@ impl<P> HttpMessage for ServiceRequest<P> {
 }
 
 impl<P> std::ops::Deref for ServiceRequest<P> {
+    type Target = RequestHead;
+
+    fn deref(&self) -> &RequestHead {
+        self.req.head()
+    }
+}
+
+impl<P> std::ops::DerefMut for ServiceRequest<P> {
+    fn deref_mut(&mut self) -> &mut RequestHead {
+        self.head_mut()
+    }
+}
+
+pub struct ServiceFromRequest<P> {
+    req: HttpRequest,
+    payload: Payload<P>,
+}
+
+impl<P> ServiceFromRequest<P> {
+    #[inline]
+    pub fn into_request(self) -> HttpRequest {
+        self.req
+    }
+
+    /// Create service response for error
+    #[inline]
+    pub fn error_response<E: Into<Error>>(self, err: E) -> ServiceResponse {
+        ServiceResponse::new(self.req, err.into().into())
+    }
+}
+
+impl<P> std::ops::Deref for ServiceFromRequest<P> {
     type Target = HttpRequest;
 
     fn deref(&self) -> &HttpRequest {
-        self.request()
+        &self.req
+    }
+}
+
+impl<P> HttpMessage for ServiceFromRequest<P> {
+    type Stream = P;
+
+    #[inline]
+    fn headers(&self) -> &HeaderMap {
+        self.req.headers()
+    }
+
+    #[inline]
+    fn take_payload(&mut self) -> Payload<Self::Stream> {
+        std::mem::replace(&mut self.payload, Payload::None)
+    }
+}
+
+impl<P> From<ServiceRequest<P>> for ServiceFromRequest<P> {
+    fn from(req: ServiceRequest<P>) -> Self {
+        Self {
+            req: req.req,
+            payload: req.payload,
+        }
     }
 }
 

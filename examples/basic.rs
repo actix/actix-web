@@ -2,7 +2,7 @@ use futures::IntoFuture;
 
 use actix_http::{h1, http::Method, Response};
 use actix_server::Server;
-use actix_web::{middleware, App, Error, HttpRequest, Resource};
+use actix_web::{middleware, web, App, Error, HttpRequest, Resource, Route};
 
 fn index(req: HttpRequest) -> &'static str {
     println!("REQ: {:?}", req);
@@ -31,7 +31,7 @@ fn main() {
                         middleware::DefaultHeaders::new().header("X-Version", "0.2"),
                     )
                     .middleware(middleware::Compress::default())
-                    .resource("/resource1/index.html", |r| r.get(index))
+                    .resource("/resource1/index.html", |r| r.route(web::get().to(index)))
                     .service(
                         "/resource2/index.html",
                         Resource::new()
@@ -39,8 +39,10 @@ fn main() {
                                 middleware::DefaultHeaders::new()
                                     .header("X-Version-R2", "0.3"),
                             )
-                            .default_resource(|r| r.to(|| Response::MethodNotAllowed()))
-                            .method(Method::GET, |r| r.to_async(index_async)),
+                            .default_resource(|r| {
+                                r.route(Route::new().to(|| Response::MethodNotAllowed()))
+                            })
+                            .route(web::method(Method::GET).to_async(index_async)),
                     )
                     .service("/test1.html", Resource::new().to(|| "Test\r\n"))
                     .service("/", Resource::new().to(no_params)),

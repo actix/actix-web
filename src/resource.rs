@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use actix_http::{http::Method, Error, Response};
+use actix_http::{Error, Response};
 use actix_service::boxed::{self, BoxedNewService, BoxedService};
 use actix_service::{
     ApplyNewService, IntoNewService, IntoNewTransform, NewService, NewTransform, Service,
@@ -11,7 +11,7 @@ use futures::{Async, Future, IntoFuture, Poll};
 
 use crate::handler::{AsyncFactory, Factory, FromRequest};
 use crate::responder::Responder;
-use crate::route::{CreateRouteService, Route, RouteBuilder, RouteService};
+use crate::route::{CreateRouteService, Route, RouteService};
 use crate::service::{ServiceRequest, ServiceResponse};
 
 type HttpService<P> = BoxedService<ServiceRequest<P>, ServiceResponse, ()>;
@@ -74,92 +74,8 @@ where
     ///         .finish();
     /// }
     /// ```
-    pub fn route<F>(mut self, f: F) -> Self
-    where
-        F: FnOnce(RouteBuilder<P>) -> Route<P>,
-    {
-        self.routes.push(f(Route::build()));
-        self
-    }
-
-    /// Register a new `GET` route.
-    pub fn get<F, I, R>(mut self, f: F) -> Self
-    where
-        F: Factory<I, R> + 'static,
-        I: FromRequest<P> + 'static,
-        R: Responder + 'static,
-    {
-        self.routes.push(Route::get().to(f));
-        self
-    }
-
-    /// Register a new `POST` route.
-    pub fn post<F, I, R>(mut self, f: F) -> Self
-    where
-        F: Factory<I, R> + 'static,
-        I: FromRequest<P> + 'static,
-        R: Responder + 'static,
-    {
-        self.routes.push(Route::post().to(f));
-        self
-    }
-
-    /// Register a new `PUT` route.
-    pub fn put<F, I, R>(mut self, f: F) -> Self
-    where
-        F: Factory<I, R> + 'static,
-        I: FromRequest<P> + 'static,
-        R: Responder + 'static,
-    {
-        self.routes.push(Route::put().to(f));
-        self
-    }
-
-    /// Register a new `DELETE` route.
-    pub fn delete<F, I, R>(mut self, f: F) -> Self
-    where
-        F: Factory<I, R> + 'static,
-        I: FromRequest<P> + 'static,
-        R: Responder + 'static,
-    {
-        self.routes.push(Route::delete().to(f));
-        self
-    }
-
-    /// Register a new `HEAD` route.
-    pub fn head<F, I, R>(mut self, f: F) -> Self
-    where
-        F: Factory<I, R> + 'static,
-        I: FromRequest<P> + 'static,
-        R: Responder + 'static,
-    {
-        self.routes.push(Route::build().method(Method::HEAD).to(f));
-        self
-    }
-
-    /// Register a new route and add method check to route.
-    ///
-    /// ```rust,ignore
-    /// # extern crate actix_web;
-    /// use actix_web::*;
-    /// fn index(req: &HttpRequest) -> HttpResponse { unimplemented!() }
-    ///
-    /// App::new().resource("/", |r| r.method(http::Method::GET).f(index));
-    /// ```
-    ///
-    /// This is shortcut for:
-    ///
-    /// ```rust,ignore
-    /// # extern crate actix_web;
-    /// # use actix_web::*;
-    /// # fn index(req: &HttpRequest) -> HttpResponse { unimplemented!() }
-    /// App::new().resource("/", |r| r.route().filter(pred::Get()).f(index));
-    /// ```
-    pub fn method<F>(mut self, method: Method, f: F) -> Self
-    where
-        F: FnOnce(RouteBuilder<P>) -> Route<P>,
-    {
-        self.routes.push(f(Route::build().method(method)));
+    pub fn route(mut self, route: Route<P>) -> Self {
+        self.routes.push(route);
         self
     }
 
@@ -187,7 +103,7 @@ where
         I: FromRequest<P> + 'static,
         R: Responder + 'static,
     {
-        self.routes.push(Route::build().to(handler));
+        self.routes.push(Route::new().to(handler));
         self
     }
 
@@ -227,7 +143,7 @@ where
         R::Item: Into<Response>,
         R::Error: Into<Error>,
     {
-        self.routes.push(Route::build().to_async(handler));
+        self.routes.push(Route::new().to_async(handler));
         self
     }
 

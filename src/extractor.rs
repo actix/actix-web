@@ -26,7 +26,7 @@ use actix_router::PathDeserializer;
 use crate::handler::FromRequest;
 use crate::request::HttpRequest;
 use crate::responder::Responder;
-use crate::service::ServiceRequest;
+use crate::service::ServiceFromRequest;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
 /// Extract typed information from the request's path.
@@ -112,7 +112,7 @@ impl<T> Path<T> {
     }
 
     /// Extract path information from a request
-    pub fn extract<P>(req: &ServiceRequest<P>) -> Result<Path<T>, de::value::Error>
+    pub fn extract<P>(req: &ServiceFromRequest<P>) -> Result<Path<T>, de::value::Error>
     where
         T: DeserializeOwned,
     {
@@ -135,7 +135,7 @@ where
     type Future = FutureResult<Self, Error>;
 
     #[inline]
-    fn from_request(req: &mut ServiceRequest<P>) -> Self::Future {
+    fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
         Self::extract(req).map_err(ErrorNotFound).into_future()
     }
 }
@@ -221,7 +221,7 @@ where
     type Future = FutureResult<Self, Error>;
 
     #[inline]
-    fn from_request(req: &mut ServiceRequest<P>) -> Self::Future {
+    fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
         serde_urlencoded::from_str::<T>(req.query_string())
             .map(|val| ok(Query(val)))
             .unwrap_or_else(|e| err(e.into()))
@@ -301,7 +301,7 @@ where
     type Future = Box<Future<Item = Self, Error = Error>>;
 
     #[inline]
-    fn from_request(req: &mut ServiceRequest<P>) -> Self::Future {
+    fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
         let cfg = FormConfig::default();
 
         let req2 = req.clone();
@@ -511,7 +511,7 @@ where
     type Future = Box<Future<Item = Self, Error = Error>>;
 
     #[inline]
-    fn from_request(req: &mut ServiceRequest<P>) -> Self::Future {
+    fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
         let cfg = JsonConfig::default();
 
         let req2 = req.clone();
@@ -619,7 +619,7 @@ where
         Either<Box<Future<Item = Bytes, Error = Error>>, FutureResult<Bytes, Error>>;
 
     #[inline]
-    fn from_request(req: &mut ServiceRequest<P>) -> Self::Future {
+    fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
         let cfg = PayloadConfig::default();
 
         if let Err(e) = cfg.check_mimetype(req) {
@@ -666,7 +666,7 @@ where
         Either<Box<Future<Item = String, Error = Error>>, FutureResult<String, Error>>;
 
     #[inline]
-    fn from_request(req: &mut ServiceRequest<P>) -> Self::Future {
+    fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
         let cfg = PayloadConfig::default();
 
         // check content-type
@@ -755,7 +755,7 @@ where
     type Future = Box<Future<Item = Option<T>, Error = Error>>;
 
     #[inline]
-    fn from_request(req: &mut ServiceRequest<P>) -> Self::Future {
+    fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
         Box::new(T::from_request(req).then(|r| match r {
             Ok(v) => future::ok(Some(v)),
             Err(_) => future::ok(None),
@@ -818,7 +818,7 @@ where
     type Future = Box<Future<Item = Result<T, T::Error>, Error = Error>>;
 
     #[inline]
-    fn from_request(req: &mut ServiceRequest<P>) -> Self::Future {
+    fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
         Box::new(T::from_request(req).then(|res| match res {
             Ok(v) => ok(Ok(v)),
             Err(e) => ok(Err(e)),
@@ -846,7 +846,7 @@ impl PayloadConfig {
         self
     }
 
-    fn check_mimetype<P>(&self, req: &ServiceRequest<P>) -> Result<(), Error> {
+    fn check_mimetype<P>(&self, req: &ServiceFromRequest<P>) -> Result<(), Error> {
         // check content-type
         if let Some(ref mt) = self.mimetype {
             match req.mime_type() {
@@ -884,7 +884,7 @@ macro_rules! tuple_from_req ({$fut_type:ident, $(($n:tt, $T:ident)),+} => {
         type Error = Error;
         type Future = $fut_type<P, $($T),+>;
 
-        fn from_request(req: &mut ServiceRequest<P>) -> Self::Future {
+        fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
             $fut_type {
                 items: <($(Option<$T>,)+)>::default(),
                 futs: ($($T::from_request(req),)+),
@@ -933,7 +933,7 @@ impl<P> FromRequest<P> for () {
     type Error = Error;
     type Future = FutureResult<(), Error>;
 
-    fn from_request(_req: &mut ServiceRequest<P>) -> Self::Future {
+    fn from_request(_req: &mut ServiceFromRequest<P>) -> Self::Future {
         ok(())
     }
 }

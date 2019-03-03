@@ -159,16 +159,16 @@ where
     }
 
     /// Register a middleware.
-    pub fn middleware<M, F>(
+    pub fn middleware<M, B, F>(
         self,
         mw: F,
     ) -> AppRouter<
         T,
         P,
-        Body,
+        B,
         impl NewService<
             Request = ServiceRequest<P>,
-            Response = ServiceResponse,
+            Response = ServiceResponse<B>,
             Error = (),
             InitError = (),
         >,
@@ -177,7 +177,7 @@ where
         M: NewTransform<
             AppService<P>,
             Request = ServiceRequest<P>,
-            Response = ServiceResponse,
+            Response = ServiceResponse<B>,
             Error = (),
             InitError = (),
         >,

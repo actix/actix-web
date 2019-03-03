@@ -9,11 +9,11 @@ use actix_router::{Path, Url};
 use futures::future::{ok, FutureResult};
 
 use crate::handler::FromRequest;
-use crate::service::ServiceRequest;
+use crate::service::ServiceFromRequest;
 
 #[derive(Clone)]
 pub struct HttpRequest {
-    head: Message<RequestHead>,
+    pub(crate) head: Message<RequestHead>,
     pub(crate) path: Path<Url>,
     extensions: Rc<Extensions>,
 }
@@ -145,7 +145,7 @@ impl<P> FromRequest<P> for HttpRequest {
     type Future = FutureResult<Self, Error>;
 
     #[inline]
-    fn from_request(req: &mut ServiceRequest<P>) -> Self::Future {
+    fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
         ok(req.clone())
     }
 }

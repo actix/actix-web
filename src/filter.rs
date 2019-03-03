@@ -1,8 +1,7 @@
 //! Route match predicates
 #![allow(non_snake_case)]
 use actix_http::http::{self, header, HttpTryFrom};
-
-use crate::request::HttpRequest;
+use actix_http::RequestHead;
 
 /// Trait defines resource predicate.
 /// Predicate can modify request object. It is also possible to
@@ -10,20 +9,21 @@ use crate::request::HttpRequest;
 /// Extensions container available via `HttpRequest::extensions()` method.
 pub trait Filter {
     /// Check if request matches predicate
-    fn check(&self, request: &HttpRequest) -> bool;
+    fn check(&self, request: &RequestHead) -> bool;
 }
 
 /// Return filter that matches if any of supplied filters.
 ///
-/// ```rust,ignore
-/// use actix_web::{filter, App, HttpResponse};
+/// ```rust
+/// use actix_web::{web, filter, App, HttpResponse};
 ///
 /// fn main() {
-///     App::new().resource("/index.html", |r| {
-///         r.route()
-///             .filter(pred::Any(pred::Get()).or(pred::Post()))
-///             .to(|| HttpResponse::MethodNotAllowed())
-///     });
+///     App::new().resource("/index.html", |r|
+///         r.route(
+///             web::route()
+///                  .filter(filter::Any(filter::Get()).or(filter::Post()))
+///                  .to(|| HttpResponse::MethodNotAllowed()))
+///     );
 /// }
 /// ```
 pub fn Any<F: Filter + 'static>(filter: F) -> AnyFilter {
@@ -42,7 +42,7 @@ impl AnyFilter {
 }
 
 impl Filter for AnyFilter {
-    fn check(&self, req: &HttpRequest) -> bool {
+    fn check(&self, req: &RequestHead) -> bool {
         for p in &self.0 {
             if p.check(req) {
                 return true;
@@ -56,15 +56,13 @@ impl Filter for AnyFilter {
 ///
 /// ```rust
 /// # extern crate actix_web;
-/// use actix_web::{filter, App, HttpResponse};
+/// use actix_web::{filter, web, App, HttpResponse};
 ///
 /// fn main() {
 ///     App::new().resource("/index.html", |r| {
-///         r.route(
-///             |r| r.filter(
-///                 filter::All(filter::Get())
-///                     .and(filter::Header("content-type", "text/plain")),
-///             )
+///         r.route(web::route()
+///             .filter(
+///                 filter::All(filter::Get()).and(filter::Header("content-type", "text/plain")))
 ///             .to(|| HttpResponse::MethodNotAllowed()))
 ///     });
 /// }
@@ -85,7 +83,7 @@ impl AllFilter {
 }
 
 impl Filter for AllFilter {
-    fn check(&self, request: &HttpRequest) -> bool {
+    fn check(&self, request: &RequestHead) -> bool {
         for p in &self.0 {
             if !p.check(request) {
                 return false;
@@ -104,7 +102,7 @@ pub fn Not<F: Filter + 'static>(filter: F) -> NotFilter {
 pub struct NotFilter(Box<Filter>);
 
 impl Filter for NotFilter {
-    fn check(&self, request: &HttpRequest) -> bool {
+    fn check(&self, request: &RequestHead) -> bool {
         !self.0.check(request)
     }
 }
@@ -114,8 +112,8 @@ impl Filter for NotFilter {
 pub struct MethodFilter(http::Method);
 
 impl Filter for MethodFilter {
-    fn check(&self, request: &HttpRequest) -> bool {
-        request.method() == self.0
+    fn check(&self, request: &RequestHead) -> bool {
+        request.method == self.0
     }
 }
 
@@ -182,8 +180,8 @@ pub fn Header(name: &'static str, value: &'static str) -> HeaderFilter {
 pub struct HeaderFilter(header::HeaderName, header::HeaderValue);
 
 impl Filter for HeaderFilter {
-    fn check(&self, req: &HttpRequest) -> bool {
-        if let Some(val) = req.headers().get(&self.0) {
+    fn check(&self, req: &RequestHead) -> bool {
+        if let Some(val) = req.headers.get(&self.0) {
             return val == self.1;
         }
         false
@@ -219,7 +217,7 @@ impl Filter for HeaderFilter {
 // }
 
 // impl Filter for HostFilter {
-//     fn check(&self, _req: &HttpRequest) -> bool {
+//     fn check(&self, _req: &RequestHead) -> bool {
 //         // let info = req.connection_info();
 //         // if let Some(ref scheme) = self.1 {
 //         //     self.0 == info.host() && scheme == info.scheme()
