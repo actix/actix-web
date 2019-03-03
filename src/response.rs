@@ -4,6 +4,7 @@ use std::{fmt, str};
 
 use bytes::{BufMut, Bytes, BytesMut};
 use cookie::{Cookie, CookieJar};
+use futures::future::{ok, FutureResult, IntoFuture};
 use futures::Stream;
 use http::header::{self, HeaderName, HeaderValue};
 use http::{Error as HttpError, HeaderMap, HttpTryFrom, StatusCode};
@@ -273,6 +274,16 @@ impl<B: MessageBody> fmt::Debug for Response<B> {
         }
         let _ = writeln!(f, "  body: {:?}", self.body.length());
         res
+    }
+}
+
+impl IntoFuture for Response {
+    type Item = Response;
+    type Error = Error;
+    type Future = FutureResult<Response, Error>;
+
+    fn into_future(self) -> Self::Future {
+        ok(self)
     }
 }
 
@@ -677,6 +688,16 @@ fn parts<'a>(
         return None;
     }
     parts.as_mut()
+}
+
+impl IntoFuture for ResponseBuilder {
+    type Item = Response;
+    type Error = Error;
+    type Future = FutureResult<Response, Error>;
+
+    fn into_future(mut self) -> Self::Future {
+        ok(self.finish())
+    }
 }
 
 /// Helper converters
