@@ -3,7 +3,6 @@ use std::rc::Rc;
 
 use actix_http::error::{Error, ErrorInternalServerError};
 use actix_http::Extensions;
-use futures::future::{err, ok, FutureResult};
 use futures::{Async, Future, IntoFuture, Poll};
 
 use crate::extract::FromRequest;
@@ -19,60 +18,61 @@ pub(crate) trait StateFactoryResult {
 }
 
 /// Application state
-pub struct State<S>(Rc<S>);
+pub struct State<T>(Rc<T>);
 
-impl<S> State<S> {
-    pub fn new(state: S) -> State<S> {
+impl<T> State<T> {
+    pub(crate) fn new(state: T) -> State<T> {
         State(Rc::new(state))
     }
 
-    pub fn get_ref(&self) -> &S {
+    /// Get referecnce to inner state type.
+    pub fn get_ref(&self) -> &T {
         self.0.as_ref()
     }
 }
 
-impl<S> Deref for State<S> {
-    type Target = S;
+impl<T> Deref for State<T> {
+    type Target = T;
 
-    fn deref(&self) -> &S {
+    fn deref(&self) -> &T {
         self.0.as_ref()
     }
 }
 
-impl<S> Clone for State<S> {
-    fn clone(&self) -> State<S> {
+impl<T> Clone for State<T> {
+    fn clone(&self) -> State<T> {
         State(self.0.clone())
     }
 }
 
-impl<S: 'static, P> FromRequest<P> for State<S> {
+impl<T: 'static, P> FromRequest<P> for State<T> {
     type Error = Error;
-    type Future = FutureResult<Self, Error>;
+    type Future = Result<Self, Error>;
     type Config = ();
 
     #[inline]
     fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
-        if let Some(st) = req.app_extensions().get::<State<S>>() {
-            ok(st.clone())
+        if let Some(st) = req.app_extensions().get::<State<T>>() {
+            Ok(st.clone())
         } else {
-            err(ErrorInternalServerError(
-                "State is not configured, use App::state()",
+            Err(ErrorInternalServerError(
+                "State is not configured, to configure use App::state()",
             ))
         }
     }
 }
 
-impl<S: 'static> StateFactory for State<S> {
+impl<T: 'static> StateFactory for State<T> {
     fn construct(&self) -> Box<StateFactoryResult> {
         Box::new(StateFut { st: self.clone() })
     }
 }
 
-struct StateFut<S> {
-    st: State<S>,
+struct StateFut<T> {
+    st: State<T>,
 }
 
-impl<S: 'static> StateFactoryResult for StateFut<S> {
+impl<T: 'static> StateFactoryResult for StateFut<T> {
     fn poll_result(&mut self, extensions: &mut Extensions) -> Poll<(), ()> {
         extensions.insert(self.st.clone());
         Ok(Async::Ready(()))
@@ -92,17 +92,17 @@ where
     }
 }
 
-struct StateFactoryFut<S, F>
+struct StateFactoryFut<T, F>
 where
-    F: Future<Item = S>,
+    F: Future<Item = T>,
     F::Error: std::fmt::Debug,
 {
     fut: F,
 }
 
-impl<S: 'static, F> StateFactoryResult for StateFactoryFut<S, F>
+impl<T: 'static, F> StateFactoryResult for StateFactoryFut<T, F>
 where
-    F: Future<Item = S>,
+    F: Future<Item = T>,
     F::Error: std::fmt::Debug,
 {
     fn poll_result(&mut self, extensions: &mut Extensions) -> Poll<(), ()> {

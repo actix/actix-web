@@ -165,17 +165,63 @@ impl<T> From<T> for Path<T> {
     }
 }
 
+/// Extract typed information from the request's path.
+///
+/// ## Example
+///
+/// ```rust
+/// use actix_web::{web, http, App, extract::Path};
+///
+/// /// extract path info from "/{username}/{count}/index.html" url
+/// /// {username} - deserializes to a String
+/// /// {count} -  - deserializes to a u32
+/// fn index(info: Path<(String, u32)>) -> String {
+///     format!("Welcome {}! {}", info.0, info.1)
+/// }
+///
+/// fn main() {
+///     let app = App::new().resource(
+///         "/{username}/{count}/index.html", // <- define path parameters
+///         |r| r.route(web::get().to(index)) // <- register handler with `Path` extractor
+///     );
+/// }
+/// ```
+///
+/// It is possible to extract path information to a specific type that
+/// implements `Deserialize` trait from *serde*.
+///
+/// ```rust
+/// #[macro_use] extern crate serde_derive;
+/// use actix_web::{web, App, extract::Path, Error};
+///
+/// #[derive(Deserialize)]
+/// struct Info {
+///     username: String,
+/// }
+///
+/// /// extract `Info` from a path using serde
+/// fn index(info: Path<Info>) -> Result<String, Error> {
+///     Ok(format!("Welcome {}!", info.username))
+/// }
+///
+/// fn main() {
+///     let app = App::new().resource(
+///         "/{username}/index.html", // <- define path parameters
+///         |r| r.route(web::get().to(index)) // <- use handler with Path` extractor
+///     );
+/// }
+/// ```
 impl<T, P> FromRequest<P> for Path<T>
 where
     T: DeserializeOwned,
 {
     type Error = Error;
-    type Future = FutureResult<Self, Error>;
+    type Future = Result<Self, Error>;
     type Config = ();
 
     #[inline]
     fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
-        Self::extract(req).map_err(ErrorNotFound).into_future()
+        Self::extract(req).map_err(ErrorNotFound)
     }
 }
 
@@ -200,17 +246,17 @@ impl<T: fmt::Display> fmt::Display for Path<T> {
 /// #[macro_use] extern crate serde_derive;
 /// use actix_web::{web, extract, App};
 ///
-///#[derive(Debug, Deserialize)]
-///pub enum ResponseType {
+/// #[derive(Debug, Deserialize)]
+/// pub enum ResponseType {
 ///    Token,
 ///    Code
-///}
+/// }
 ///
-///#[derive(Deserialize)]
-///pub struct AuthRequest {
+/// #[derive(Deserialize)]
+/// pub struct AuthRequest {
 ///    id: u64,
 ///    response_type: ResponseType,
-///}
+/// }
 ///
 /// // Use `Query` extractor for query information.
 /// // This handler get called only if request's query contains `username` field
@@ -248,19 +294,52 @@ impl<T> Query<T> {
     }
 }
 
+/// Extract typed information from from the request's query.
+///
+/// ## Example
+///
+/// ```rust
+/// #[macro_use] extern crate serde_derive;
+/// use actix_web::{web, extract, App};
+///
+/// #[derive(Debug, Deserialize)]
+/// pub enum ResponseType {
+///    Token,
+///    Code
+/// }
+///
+/// #[derive(Deserialize)]
+/// pub struct AuthRequest {
+///    id: u64,
+///    response_type: ResponseType,
+/// }
+///
+/// // Use `Query` extractor for query information.
+/// // This handler get called only if request's query contains `username` field
+/// // The correct request for this handler would be `/index.html?id=64&response_type=Code"`
+/// fn index(info: extract::Query<AuthRequest>) -> String {
+///     format!("Authorization request for client with id={} and type={:?}!", info.id, info.response_type)
+/// }
+///
+/// fn main() {
+///     let app = App::new().resource(
+///        "/index.html",
+///        |r| r.route(web::get().to(index))); // <- use `Query` extractor
+/// }
+/// ```
 impl<T, P> FromRequest<P> for Query<T>
 where
     T: de::DeserializeOwned,
 {
     type Error = Error;
-    type Future = FutureResult<Self, Error>;
+    type Future = Result<Self, Error>;
     type Config = ();
 
     #[inline]
     fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
         serde_urlencoded::from_str::<T>(req.query_string())
-            .map(|val| ok(Query(val)))
-            .unwrap_or_else(|e| err(e.into()))
+            .map(|val| Ok(Query(val)))
+            .unwrap_or_else(|e| Err(e.into()))
     }
 }
 
@@ -282,7 +361,7 @@ impl<T: fmt::Display> fmt::Display for Query<T> {
 /// To extract typed information from request's body, the type `T` must
 /// implement the `Deserialize` trait from *serde*.
 ///
-/// [**FormConfig**](dev/struct.FormConfig.html) allows to configure extraction
+/// [**FormConfig**](struct.FormConfig.html) allows to configure extraction
 /// process.
 ///
 /// ## Example
@@ -436,7 +515,7 @@ impl Default for FormConfig {
 /// To extract typed information from request's body, the type `T` must
 /// implement the `Deserialize` trait from *serde*.
 ///
-/// [**JsonConfig**](dev/struct.JsonConfig.html) allows to configure extraction
+/// [**JsonConfig**](struct.JsonConfig.html) allows to configure extraction
 /// process.
 ///
 /// ## Example
@@ -526,20 +605,51 @@ where
 
 impl<T: Serialize> Responder for Json<T> {
     type Error = Error;
-    type Future = FutureResult<Response, Error>;
+    type Future = Result<Response, Error>;
 
     fn respond_to(self, _: &HttpRequest) -> Self::Future {
         let body = match serde_json::to_string(&self.0) {
             Ok(body) => body,
-            Err(e) => return err(e.into()),
+            Err(e) => return Err(e.into()),
         };
 
-        ok(Response::build(StatusCode::OK)
+        Ok(Response::build(StatusCode::OK)
             .content_type("application/json")
             .body(body))
     }
 }
 
+/// Json extractor. Allow to extract typed information from request's
+/// payload.
+///
+/// To extract typed information from request's body, the type `T` must
+/// implement the `Deserialize` trait from *serde*.
+///
+/// [**JsonConfig**](struct.JsonConfig.html) allows to configure extraction
+/// process.
+///
+/// ## Example
+///
+/// ```rust
+/// #[macro_use] extern crate serde_derive;
+/// use actix_web::{web, extract, App};
+///
+/// #[derive(Deserialize)]
+/// struct Info {
+///     username: String,
+/// }
+///
+/// /// deserialize `Info` from request's body
+/// fn index(info: extract::Json<Info>) -> String {
+///     format!("Welcome {}!", info.username)
+/// }
+///
+/// fn main() {
+///     let app = App::new().resource(
+///        "/index.html",
+///        |r| r.route(web::post().to(index)));
+/// }
+/// ```
 impl<T, P> FromRequest<P> for Json<T>
 where
     T: DeserializeOwned + 'static,
@@ -632,7 +742,7 @@ impl Default for JsonConfig {
 ///
 /// Loads request's payload and construct Bytes instance.
 ///
-/// [**PayloadConfig**](dev/struct.PayloadConfig.html) allows to configure
+/// [**PayloadConfig**](struct.PayloadConfig.html) allows to configure
 /// extraction process.
 ///
 /// ## Example
@@ -677,7 +787,7 @@ where
 ///
 /// Text extractor automatically decode body according to the request's charset.
 ///
-/// [**PayloadConfig**](dev/struct.PayloadConfig.html) allows to configure
+/// [**PayloadConfig**](struct.PayloadConfig.html) allows to configure
 /// extraction process.
 ///
 /// ## Example
@@ -931,6 +1041,17 @@ impl Default for PayloadConfig {
     }
 }
 
+#[doc(hidden)]
+impl<P> FromRequest<P> for () {
+    type Error = Error;
+    type Future = FutureResult<(), Error>;
+    type Config = ();
+
+    fn from_request(_req: &mut ServiceFromRequest<P>) -> Self::Future {
+        ok(())
+    }
+}
+
 macro_rules! tuple_config ({ $($T:ident),+} => {
     impl<$($T,)+> ExtractorConfig for ($($T,)+)
     where $($T: ExtractorConfig + Clone,)+
@@ -944,6 +1065,7 @@ macro_rules! tuple_config ({ $($T:ident),+} => {
 macro_rules! tuple_from_req ({$fut_type:ident, $(($n:tt, $T:ident)),+} => {
 
     /// FromRequest implementation for tuple
+    #[doc(hidden)]
     impl<P, $($T: FromRequest<P> + 'static),+> FromRequest<P> for ($($T,)+)
     {
         type Error = Error;
@@ -994,16 +1116,6 @@ macro_rules! tuple_from_req ({$fut_type:ident, $(($n:tt, $T:ident)),+} => {
         }
     }
 });
-
-impl<P> FromRequest<P> for () {
-    type Error = Error;
-    type Future = FutureResult<(), Error>;
-    type Config = ();
-
-    fn from_request(_req: &mut ServiceFromRequest<P>) -> Self::Future {
-        ok(())
-    }
-}
 
 #[rustfmt::skip]
 mod m {

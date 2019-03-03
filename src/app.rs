@@ -245,8 +245,8 @@ where
     }
 }
 
-/// Structure that follows the builder pattern for building application
-/// instances.
+/// Application router builder - Structure that follows the builder pattern
+/// for building application instances.
 pub struct AppRouter<C, P, B, T> {
     chain: C,
     services: Vec<(ResourceDef, HttpNewService<P>)>,

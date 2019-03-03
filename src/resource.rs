@@ -18,10 +18,24 @@ use crate::service::{ServiceRequest, ServiceResponse};
 type HttpService<P> = BoxedService<ServiceRequest<P>, ServiceResponse, ()>;
 type HttpNewService<P> = BoxedNewService<(), ServiceRequest<P>, ServiceResponse, (), ()>;
 
-/// Resource route definition
+/// *Resource* is an entry in route table which corresponds to requested URL.
 ///
-/// Route uses builder-like pattern for configuration.
-/// If handler is not explicitly set, default *404 Not Found* handler is used.
+/// Resource in turn has at least one route.
+/// Route consists of an handlers objects and list of guards
+/// (objects that implement `Guard` trait).
+/// Resources and rouets uses builder-like pattern for configuration.
+/// During request handling, resource object iterate through all routes
+/// and check guards for specific route, if request matches all
+/// guards, route considered matched and route handler get called.
+///
+/// ```rust
+/// use actix_web::{web, App, HttpResponse};
+///
+/// fn main() {
+///     let app = App::new()
+///         .resource(
+///             "/", |r| r.route(web::get().to(|| HttpResponse::Ok())));
+/// }
 pub struct Resource<P, T = ResourceEndpoint<P>> {
     routes: Vec<Route<P>>,
     endpoint: T,
@@ -58,8 +72,6 @@ where
     >,
 {
     /// Register a new route.
-    /// *Route* is used for route configuration, i.e. adding guards,
-    /// setting up handler.
     ///
     /// ```rust
     /// use actix_web::{web, guard, App, HttpResponse};
@@ -74,12 +86,31 @@ where
     ///         });
     /// }
     /// ```
+    ///
+    /// Multiple routes could be added to a resource.
+    ///
+    /// ```rust
+    /// use actix_web::{web, guard, App, HttpResponse};
+    ///
+    /// fn main() {
+    ///     let app = App::new()
+    ///         .resource("/container/", |r| {
+    ///             r.route(web::get().to(get_handler))
+    ///              .route(web::post().to(post_handler))
+    ///              .route(web::delete().to(delete_handler))
+    ///         });
+    /// }
+    /// # fn get_handler() {}
+    /// # fn post_handler() {}
+    /// # fn delete_handler() {}
+    /// ```
     pub fn route(mut self, route: Route<P>) -> Self {
         self.routes.push(route.finish());
         self
     }
 
-    /// Register a new route and add handler.
+    /// Register a new route and add handler. This route get called for all
+    /// requests.
     ///
     /// ```rust
     /// use actix_web::*;
@@ -148,7 +179,8 @@ where
     /// Register a resource middleware
     ///
     /// This is similar to `App's` middlewares, but
-    /// middlewares get invoked on resource level.
+    /// middleware is not allowed to change response type (i.e modify response's body).
+    /// Middleware get invoked on resource level.
     pub fn middleware<M, F>(
         self,
         mw: F,

@@ -2,7 +2,7 @@
 
 mod app;
 pub mod extract;
-pub mod handler;
+mod handler;
 // mod info;
 pub mod blocking;
 pub mod guard;
@@ -19,7 +19,7 @@ pub mod test;
 pub use actix_http::Response as HttpResponse;
 pub use actix_http::{error, http, Error, HttpMessage, ResponseError, Result};
 
-pub use crate::app::App;
+pub use crate::app::{App, AppRouter};
 pub use crate::extract::{FromRequest, Json};
 pub use crate::request::HttpRequest;
 pub use crate::resource::Resource;
@@ -37,30 +37,37 @@ pub mod web {
     use crate::responder::Responder;
     use crate::Route;
 
+    /// Create **route** without configuration.
     pub fn route<P: 'static>() -> Route<P> {
         Route::new()
     }
 
+    /// Create **route** with `GET` method guard.
     pub fn get<P: 'static>() -> Route<P> {
         Route::get()
     }
 
+    /// Create **route** with `POST` method guard.
     pub fn post<P: 'static>() -> Route<P> {
         Route::post()
     }
 
+    /// Create **route** with `PUT` method guard.
     pub fn put<P: 'static>() -> Route<P> {
         Route::put()
     }
 
+    /// Create **route** with `DELETE` method guard.
     pub fn delete<P: 'static>() -> Route<P> {
         Route::delete()
     }
 
+    /// Create **route** with `HEAD` method guard.
     pub fn head<P: 'static>() -> Route<P> {
         Route::new().method(Method::HEAD)
     }
 
+    /// Create **route** and add method guard.
     pub fn method<P: 'static>(method: Method) -> Route<P> {
         Route::new().method(method)
     }

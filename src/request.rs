@@ -6,12 +6,12 @@ use std::rc::Rc;
 use actix_http::http::{HeaderMap, Method, Uri, Version};
 use actix_http::{Error, Extensions, HttpMessage, Message, Payload, RequestHead};
 use actix_router::{Path, Url};
-use futures::future::{ok, FutureResult};
 
 use crate::extract::FromRequest;
 use crate::service::ServiceFromRequest;
 
 #[derive(Clone)]
+/// An HTTP Request
 pub struct HttpRequest {
     pub(crate) head: Message<RequestHead>,
     pub(crate) path: Path<Url>,
@@ -20,7 +20,7 @@ pub struct HttpRequest {
 
 impl HttpRequest {
     #[inline]
-    pub fn new(
+    pub(crate) fn new(
         head: Message<RequestHead>,
         path: Path<Url>,
         extensions: Rc<Extensions>,
@@ -140,14 +140,33 @@ impl HttpMessage for HttpRequest {
     }
 }
 
+/// It is possible to get `HttpRequest` as an extractor handler parameter
+///
+/// ## Example
+///
+/// ```rust
+/// # #[macro_use] extern crate serde_derive;
+/// use actix_web::{web, App, HttpRequest};
+///
+/// /// extract `Thing` from request
+/// fn index(req: HttpRequest) -> String {
+///    format!("Got thing: {:?}", req)
+/// }
+///
+/// fn main() {
+///     let app = App::new().resource("/users/:first", |r| {
+///         r.route(web::get().to(index))
+///     });
+/// }
+/// ```
 impl<P> FromRequest<P> for HttpRequest {
     type Error = Error;
-    type Future = FutureResult<Self, Error>;
+    type Future = Result<Self, Error>;
     type Config = ();
 
     #[inline]
     fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
-        ok(req.clone())
+        Ok(req.clone())
     }
 }
 
