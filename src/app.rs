@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::marker::PhantomData;
 use std::rc::Rc;
 
-use actix_http::body::MessageBody;
+use actix_http::body::{Body, MessageBody};
 use actix_http::{Extensions, PayloadStream, Request, Response};
 use actix_router::{Path, ResourceDef, ResourceInfo, Router, Url};
 use actix_service::boxed::{self, BoxedNewService, BoxedService};
@@ -130,7 +130,7 @@ where
     ///     });
     /// }
     /// ```
-    pub fn resource<F, U, B>(self, path: &str, f: F) -> AppRouter<T, P, B, AppEntry<P>>
+    pub fn resource<F, U>(self, path: &str, f: F) -> AppRouter<T, P, Body, AppEntry<P>>
     where
         F: FnOnce(Resource<P>) -> Resource<P, U>,
         U: NewService<
@@ -159,16 +159,16 @@ where
     }
 
     /// Register a middleware.
-    pub fn middleware<M, B, F>(
+    pub fn middleware<M, F>(
         self,
         mw: F,
     ) -> AppRouter<
         T,
         P,
-        B,
+        Body,
         impl NewService<
             Request = ServiceRequest<P>,
-            Response = ServiceResponse<B>,
+            Response = ServiceResponse,
             Error = (),
             InitError = (),
         >,
@@ -177,11 +177,10 @@ where
         M: NewTransform<
             AppService<P>,
             Request = ServiceRequest<P>,
-            Response = ServiceResponse<B>,
+            Response = ServiceResponse,
             Error = (),
             InitError = (),
         >,
-        B: MessageBody,
         F: IntoNewTransform<M, AppService<P>>,
     {
         let fref = Rc::new(RefCell::new(None));

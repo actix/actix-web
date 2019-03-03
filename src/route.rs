@@ -180,7 +180,7 @@ impl<P: 'static> RouteBuilder<P> {
     /// #      .finish();
     /// # }
     /// ```
-    pub fn filter<F: Filter + 'static>(&mut self, f: F) -> &mut Self {
+    pub fn filter<F: Filter + 'static>(mut self, f: F) -> Self {
         self.filters.push(Box::new(f));
         self
     }

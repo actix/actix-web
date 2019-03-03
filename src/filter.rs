@@ -16,14 +16,13 @@ pub trait Filter {
 /// Return filter that matches if any of supplied filters.
 ///
 /// ```rust,ignore
-/// # extern crate actix_web;
-/// use actix_web2::{filter, App, HttpResponse};
+/// use actix_web::{filter, App, HttpResponse};
 ///
 /// fn main() {
 ///     App::new().resource("/index.html", |r| {
 ///         r.route()
 ///             .filter(pred::Any(pred::Get()).or(pred::Post()))
-///             .f(|r| HttpResponse::MethodNotAllowed())
+///             .to(|| HttpResponse::MethodNotAllowed())
 ///     });
 /// }
 /// ```
@@ -55,18 +54,18 @@ impl Filter for AnyFilter {
 
 /// Return filter that matches if all of supplied filters match.
 ///
-/// ```rust,ignore
+/// ```rust
 /// # extern crate actix_web;
-/// use actix_web::{pred, App, HttpResponse};
+/// use actix_web::{filter, App, HttpResponse};
 ///
 /// fn main() {
 ///     App::new().resource("/index.html", |r| {
-///         r.route()
-///             .filter(
-///                 pred::All(pred::Get())
-///                     .and(pred::Header("content-type", "text/plain")),
+///         r.route(
+///             |r| r.filter(
+///                 filter::All(filter::Get())
+///                     .and(filter::Header("content-type", "text/plain")),
 ///             )
-///             .f(|_| HttpResponse::MethodNotAllowed())
+///             .to(|| HttpResponse::MethodNotAllowed()))
 ///     });
 /// }
 /// ```
@@ -191,137 +190,146 @@ impl Filter for HeaderFilter {
     }
 }
 
-/// Return predicate that matches if request contains specified Host name.
-///
-/// ```rust,ignore
-/// # extern crate actix_web;
-/// use actix_web::{pred, App, HttpResponse};
-///
-/// fn main() {
-///     App::new().resource("/index.html", |r| {
-///         r.route()
-///             .filter(pred::Host("www.rust-lang.org"))
-///             .f(|_| HttpResponse::MethodNotAllowed())
-///     });
-/// }
-/// ```
-pub fn Host<H: AsRef<str>>(host: H) -> HostFilter {
-    HostFilter(host.as_ref().to_string(), None)
-}
+// /// Return predicate that matches if request contains specified Host name.
+// ///
+// /// ```rust,ignore
+// /// # extern crate actix_web;
+// /// use actix_web::{pred, App, HttpResponse};
+// ///
+// /// fn main() {
+// ///     App::new().resource("/index.html", |r| {
+// ///         r.route()
+// ///             .filter(pred::Host("www.rust-lang.org"))
+// ///             .f(|_| HttpResponse::MethodNotAllowed())
+// ///     });
+// /// }
+// /// ```
+// pub fn Host<H: AsRef<str>>(host: H) -> HostFilter {
+//     HostFilter(host.as_ref().to_string(), None)
+// }
 
-#[doc(hidden)]
-pub struct HostFilter(String, Option<String>);
+// #[doc(hidden)]
+// pub struct HostFilter(String, Option<String>);
 
-impl HostFilter {
-    /// Set reuest scheme to match
-    pub fn scheme<H: AsRef<str>>(&mut self, scheme: H) {
-        self.1 = Some(scheme.as_ref().to_string())
-    }
-}
-
-impl Filter for HostFilter {
-    fn check(&self, _req: &HttpRequest) -> bool {
-        // let info = req.connection_info();
-        // if let Some(ref scheme) = self.1 {
-        //     self.0 == info.host() && scheme == info.scheme()
-        // } else {
-        //     self.0 == info.host()
-        // }
-        false
-    }
-}
-
-// #[cfg(test)]
-// mod tests {
-//     use actix_http::http::{header, Method};
-//     use actix_http::test::TestRequest;
-
-//     use super::*;
-
-//     #[test]
-//     fn test_header() {
-//         let req = TestRequest::with_header(
-//             header::TRANSFER_ENCODING,
-//             header::HeaderValue::from_static("chunked"),
-//         )
-//         .finish();
-
-//         let pred = Header("transfer-encoding", "chunked");
-//         assert!(pred.check(&req, req.state()));
-
-//         let pred = Header("transfer-encoding", "other");
-//         assert!(!pred.check(&req, req.state()));
-
-//         let pred = Header("content-type", "other");
-//         assert!(!pred.check(&req, req.state()));
-//     }
-
-//     #[test]
-//     fn test_host() {
-//         let req = TestRequest::default()
-//             .header(
-//                 header::HOST,
-//                 header::HeaderValue::from_static("www.rust-lang.org"),
-//             )
-//             .finish();
-
-//         let pred = Host("www.rust-lang.org");
-//         assert!(pred.check(&req, req.state()));
-
-//         let pred = Host("localhost");
-//         assert!(!pred.check(&req, req.state()));
-//     }
-
-//     #[test]
-//     fn test_methods() {
-//         let req = TestRequest::default().finish();
-//         let req2 = TestRequest::default().method(Method::POST).finish();
-
-//         assert!(Get().check(&req, req.state()));
-//         assert!(!Get().check(&req2, req2.state()));
-//         assert!(Post().check(&req2, req2.state()));
-//         assert!(!Post().check(&req, req.state()));
-
-//         let r = TestRequest::default().method(Method::PUT).finish();
-//         assert!(Put().check(&r, r.state()));
-//         assert!(!Put().check(&req, req.state()));
-
-//         let r = TestRequest::default().method(Method::DELETE).finish();
-//         assert!(Delete().check(&r, r.state()));
-//         assert!(!Delete().check(&req, req.state()));
-
-//         let r = TestRequest::default().method(Method::HEAD).finish();
-//         assert!(Head().check(&r, r.state()));
-//         assert!(!Head().check(&req, req.state()));
-
-//         let r = TestRequest::default().method(Method::OPTIONS).finish();
-//         assert!(Options().check(&r, r.state()));
-//         assert!(!Options().check(&req, req.state()));
-
-//         let r = TestRequest::default().method(Method::CONNECT).finish();
-//         assert!(Connect().check(&r, r.state()));
-//         assert!(!Connect().check(&req, req.state()));
-
-//         let r = TestRequest::default().method(Method::PATCH).finish();
-//         assert!(Patch().check(&r, r.state()));
-//         assert!(!Patch().check(&req, req.state()));
-
-//         let r = TestRequest::default().method(Method::TRACE).finish();
-//         assert!(Trace().check(&r, r.state()));
-//         assert!(!Trace().check(&req, req.state()));
-//     }
-
-//     #[test]
-//     fn test_preds() {
-//         let r = TestRequest::default().method(Method::TRACE).finish();
-
-//         assert!(Not(Get()).check(&r, r.state()));
-//         assert!(!Not(Trace()).check(&r, r.state()));
-
-//         assert!(All(Trace()).and(Trace()).check(&r, r.state()));
-//         assert!(!All(Get()).and(Trace()).check(&r, r.state()));
-
-//         assert!(Any(Get()).or(Trace()).check(&r, r.state()));
-//         assert!(!Any(Get()).or(Get()).check(&r, r.state()));
+// impl HostFilter {
+//     /// Set reuest scheme to match
+//     pub fn scheme<H: AsRef<str>>(&mut self, scheme: H) {
+//         self.1 = Some(scheme.as_ref().to_string())
 //     }
 // }
+
+// impl Filter for HostFilter {
+//     fn check(&self, _req: &HttpRequest) -> bool {
+//         // let info = req.connection_info();
+//         // if let Some(ref scheme) = self.1 {
+//         //     self.0 == info.host() && scheme == info.scheme()
+//         // } else {
+//         //     self.0 == info.host()
+//         // }
+//         false
+//     }
+// }
+
+#[cfg(test)]
+mod tests {
+    use crate::test::TestServiceRequest;
+    use actix_http::http::{header, Method};
+
+    use super::*;
+
+    #[test]
+    fn test_header() {
+        let req = TestServiceRequest::with_header(header::TRANSFER_ENCODING, "chunked")
+            .finish()
+            .into_request();
+
+        let pred = Header("transfer-encoding", "chunked");
+        assert!(pred.check(&req));
+
+        let pred = Header("transfer-encoding", "other");
+        assert!(!pred.check(&req));
+
+        let pred = Header("content-type", "other");
+        assert!(!pred.check(&req));
+    }
+
+    // #[test]
+    // fn test_host() {
+    //     let req = TestServiceRequest::default()
+    //         .header(
+    //             header::HOST,
+    //             header::HeaderValue::from_static("www.rust-lang.org"),
+    //         )
+    //         .request();
+
+    //     let pred = Host("www.rust-lang.org");
+    //     assert!(pred.check(&req));
+
+    //     let pred = Host("localhost");
+    //     assert!(!pred.check(&req));
+    // }
+
+    #[test]
+    fn test_methods() {
+        let req = TestServiceRequest::default().finish().into_request();
+        let req2 = TestServiceRequest::default()
+            .method(Method::POST)
+            .finish()
+            .into_request();
+
+        assert!(Get().check(&req));
+        assert!(!Get().check(&req2));
+        assert!(Post().check(&req2));
+        assert!(!Post().check(&req));
+
+        let r = TestServiceRequest::default().method(Method::PUT).finish();
+        assert!(Put().check(&r,));
+        assert!(!Put().check(&req,));
+
+        let r = TestServiceRequest::default()
+            .method(Method::DELETE)
+            .finish();
+        assert!(Delete().check(&r,));
+        assert!(!Delete().check(&req,));
+
+        let r = TestServiceRequest::default().method(Method::HEAD).finish();
+        assert!(Head().check(&r,));
+        assert!(!Head().check(&req,));
+
+        let r = TestServiceRequest::default()
+            .method(Method::OPTIONS)
+            .finish();
+        assert!(Options().check(&r,));
+        assert!(!Options().check(&req,));
+
+        let r = TestServiceRequest::default()
+            .method(Method::CONNECT)
+            .finish();
+        assert!(Connect().check(&r,));
+        assert!(!Connect().check(&req,));
+
+        let r = TestServiceRequest::default().method(Method::PATCH).finish();
+        assert!(Patch().check(&r,));
+        assert!(!Patch().check(&req,));
+
+        let r = TestServiceRequest::default().method(Method::TRACE).finish();
+        assert!(Trace().check(&r,));
+        assert!(!Trace().check(&req,));
+    }
+
+    #[test]
+    fn test_preds() {
+        let r = TestServiceRequest::default()
+            .method(Method::TRACE)
+            .request();
+
+        assert!(Not(Get()).check(&r,));
+        assert!(!Not(Trace()).check(&r,));
+
+        assert!(All(Trace()).and(Trace()).check(&r,));
+        assert!(!All(Get()).and(Trace()).check(&r,));
+
+        assert!(Any(Get()).or(Trace()).check(&r,));
+        assert!(!Any(Get()).or(Get()).check(&r,));
+    }
+}

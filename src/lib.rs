@@ -13,6 +13,7 @@ mod responder;
 mod route;
 mod service;
 mod state;
+pub mod test;
 
 // re-export for convenience
 pub use actix_http::Response as HttpResponse;
