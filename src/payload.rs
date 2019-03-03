@@ -39,6 +39,13 @@ impl From<PayloadStream> for Payload {
     }
 }
 
+impl<S> Payload<S> {
+    /// Takes current payload and replaces it with `None` value
+    fn take(&mut self) -> Payload<S> {
+        std::mem::replace(self, Payload::None)
+    }
+}
+
 impl<S> Stream for Payload<S>
 where
     S: Stream<Item = Bytes, Error = PayloadError>,
