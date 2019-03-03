@@ -25,8 +25,8 @@ before_install:
   - sudo apt-get install -y openssl libssl-dev libelf-dev libdw-dev cmake gcc binutils-dev libiberty-dev
 
 before_cache: |
-  if [[ "$TRAVIS_RUST_VERSION" == nightly ]]; then
-    RUSTFLAGS="--cfg procmacro2_semver_exempt" cargo install cargo-tarpaulin -f
+  if [[ "$TRAVIS_RUST_VERSION" == "nightly-2019-03-02" ]]; then
+    RUSTFLAGS="--cfg procmacro2_semver_exempt" cargo install cargo-tarpaulin
   fi
 
 # Add clippy
@@ -35,13 +35,13 @@ before_script:
 
 script:
   - |
-    if [[ "$TRAVIS_RUST_VERSION" != "nightly" ]]; then
+    if [[ "$TRAVIS_RUST_VERSION" != "nightly-2019-03-02" ]]; then
     cargo clean
     cargo check
     cargo test -- --nocapture
     fi
   - |
-    if [[ "$TRAVIS_RUST_VERSION" == "nightly" ]]; then
+    if [[ "$TRAVIS_RUST_VERSION" == "nightly-2019-03-02" ]]; then
     RUSTFLAGS="--cfg procmacro2_semver_exempt" cargo install -f cargo-tarpaulin
     RUST_BACKTRACE=1 cargo tarpaulin --out Xml
     bash <(curl -s https://codecov.io/bash)
