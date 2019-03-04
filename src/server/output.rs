@@ -299,11 +299,10 @@ impl Output {
         match resp.chunked() {
             Some(true) => {
                 // Enable transfer encoding
+                info.length = ResponseLength::Chunked;
                 if version == Version::HTTP_2 {
-                    info.length = ResponseLength::None;
                     TransferEncoding::eof(buf)
                 } else {
-                    info.length = ResponseLength::Chunked;
                     TransferEncoding::chunked(buf)
                 }
             }
@@ -337,15 +336,11 @@ impl Output {
                     }
                 } else {
                     // Enable transfer encoding
-                    match version {
-                        Version::HTTP_11 => {
-                            info.length = ResponseLength::Chunked;
-                            TransferEncoding::chunked(buf)
-                        }
-                        _ => {
-                            info.length = ResponseLength::None;
-                            TransferEncoding::eof(buf)
-                        }
+                    info.length = ResponseLength::Chunked;
+                    if version == Version::HTTP_2 {
+                        TransferEncoding::eof(buf)
+                    } else {
+                        TransferEncoding::chunked(buf)
                     }
                 }
             }
@@ -443,7 +438,7 @@ impl ContentEncoder {
         }
     }
 
-    #[cfg_attr(feature = "cargo-clippy", allow(clippy::inline_always))]
+    #[cfg_attr(feature = "cargo-clippy", allow(inline_always))]
     #[inline(always)]
     pub fn write_eof(&mut self) -> Result<bool, io::Error> {
         let encoder =
@@ -485,7 +480,7 @@ impl ContentEncoder {
         }
     }
 
-    #[cfg_attr(feature = "cargo-clippy", allow(clippy::inline_always))]
+    #[cfg_attr(feature = "cargo-clippy", allow(inline_always))]
     #[inline(always)]
     pub fn write(&mut self, data: &[u8]) -> Result<(), io::Error> {
         match *self {

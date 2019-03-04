@@ -200,7 +200,7 @@ pub trait HttpMessage: Sized {
     /// # fn main() {}
     /// ```
     fn json<T: DeserializeOwned>(&self) -> JsonBody<Self, T> {
-        JsonBody::new(self)
+        JsonBody::new::<()>(self, None)
     }
 
     /// Return stream to http payload processes as multipart.
@@ -213,9 +213,10 @@ pub trait HttpMessage: Sized {
     /// # extern crate actix_web;
     /// # extern crate env_logger;
     /// # extern crate futures;
+    /// # extern crate actix;
     /// # use std::str;
     /// # use actix_web::*;
-    /// # use actix_web::actix::fut::FinishStream;
+    /// # use actix::FinishStream;
     /// # use futures::{Future, Stream};
     /// # use futures::future::{ok, result, Either};
     /// fn index(mut req: HttpRequest) -> Box<Future<Item = HttpResponse, Error = Error>> {

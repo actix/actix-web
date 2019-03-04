@@ -7,6 +7,7 @@ use futures::{Async, Future, Poll};
 use tokio_current_thread::spawn;
 use tokio_timer::Delay;
 
+use body::Binary;
 use error::{Error, PayloadError};
 use http::{StatusCode, Version};
 use payload::{Payload, PayloadStatus, PayloadWriter};
@@ -50,32 +51,40 @@ pub struct Http1Dispatcher<T: IoStream, H: HttpHandler + 'static> {
 }
 
 enum Entry<H: HttpHandler> {
-    Task(H::Task),
+    Task(H::Task, Option<()>),
     Error(Box<HttpHandlerTask>),
 }
 
 impl<H: HttpHandler> Entry<H> {
     fn into_task(self) -> H::Task {
         match self {
-            Entry::Task(task) => task,
+            Entry::Task(task, _) => task,
             Entry::Error(_) => panic!(),
         }
     }
     fn disconnected(&mut self) {
         match *self {
-            Entry::Task(ref mut task) => task.disconnected(),
+            Entry::Task(ref mut task, _) => task.disconnected(),
             Entry::Error(ref mut task) => task.disconnected(),
         }
     }
     fn poll_io(&mut self, io: &mut Writer) -> Poll<bool, Error> {
         match *self {
-            Entry::Task(ref mut task) => task.poll_io(io),
+            Entry::Task(ref mut task, ref mut except) => {
+                match except {
+                    Some(_) => {
+                        let _ = io.write(&Binary::from("HTTP/1.1 100 Continue\r\n\r\n"));
+                    }
+                    _ => (),
+                };
+                task.poll_io(io)
+            }
             Entry::Error(ref mut task) => task.poll_io(io),
         }
     }
     fn poll_completed(&mut self) -> Poll<(), Error> {
         match *self {
-            Entry::Task(ref mut task) => task.poll_completed(),
+            Entry::Task(ref mut task, _) => task.poll_completed(),
             Entry::Error(ref mut task) => task.poll_completed(),
         }
     }
@@ -87,7 +96,10 @@ where
     H: HttpHandler + 'static,
 {
     pub fn new(
-        settings: ServiceConfig<H>, stream: T, buf: BytesMut, is_eof: bool,
+        settings: ServiceConfig<H>,
+        stream: T,
+        buf: BytesMut,
+        is_eof: bool,
         keepalive_timer: Option<Delay>,
     ) -> Self {
         let addr = stream.peer_addr();
@@ -123,8 +135,11 @@ where
     }
 
     pub(crate) fn for_error(
-        settings: ServiceConfig<H>, stream: T, status: StatusCode,
-        mut keepalive_timer: Option<Delay>, buf: BytesMut,
+        settings: ServiceConfig<H>,
+        stream: T,
+        status: StatusCode,
+        mut keepalive_timer: Option<Delay>,
+        buf: BytesMut,
     ) -> Self {
         if let Some(deadline) = settings.client_timer_expire() {
             let _ = keepalive_timer.as_mut().map(|delay| delay.reset(deadline));
@@ -280,7 +295,7 @@ where
                     }
                     if timer.deadline() >= self.ka_expire {
                         // check for any outstanding request handling
-                        if self.tasks.is_empty() {
+                        if self.tasks.is_empty() && self.flags.contains(Flags::FLUSHED) {
                             if !self.flags.contains(Flags::STARTED) {
                                 // timeout on first request (slow request) return 408
                                 trace!("Slow request timeout");
@@ -298,16 +313,19 @@ where
                                 if let Some(deadline) =
                                     self.settings.client_shutdown_timer()
                                 {
-                                    timer.reset(deadline)
+                                    timer.reset(deadline);
+                                    let _ = timer.poll();
                                 } else {
                                     return Ok(());
                                 }
                             }
                         } else if let Some(dl) = self.settings.keep_alive_expire() {
-                            timer.reset(dl)
+                            timer.reset(dl);
+                            let _ = timer.poll();
                         }
                     } else {
-                        timer.reset(self.ka_expire)
+                        timer.reset(self.ka_expire);
+                        let _ = timer.poll();
                     }
                 }
                 Ok(Async::NotReady) => (),
@@ -454,7 +472,11 @@ where
 
         'outer: loop {
             match self.decoder.decode(&mut self.buf, &self.settings) {
-                Ok(Some(Message::Message { mut msg, payload })) => {
+                Ok(Some(Message::Message {
+                    mut msg,
+                    mut expect,
+                    payload,
+                })) => {
                     updated = true;
                     self.flags.insert(Flags::STARTED);
 
@@ -475,6 +497,12 @@ where
                     match self.settings.handler().handle(msg) {
                         Ok(mut task) => {
                             if self.tasks.is_empty() {
+                                if expect {
+                                    expect = false;
+                                    let _ = self.stream.write(&Binary::from(
+                                        "HTTP/1.1 100 Continue\r\n\r\n",
+                                    ));
+                                }
                                 match task.poll_io(&mut self.stream) {
                                     Ok(Async::Ready(ready)) => {
                                         // override keep-alive state
@@ -501,7 +529,10 @@ where
                                     }
                                 }
                             }
-                            self.tasks.push_back(Entry::Task(task));
+                            self.tasks.push_back(Entry::Task(
+                                task,
+                                if expect { Some(()) } else { None },
+                            ));
                             continue 'outer;
                         }
                         Err(_) => {
@@ -599,13 +630,13 @@ mod tests {
     impl Message {
         fn message(self) -> Request {
             match self {
-                Message::Message { msg, payload: _ } => msg,
+                Message::Message { msg, .. } => msg,
                 _ => panic!("error"),
             }
         }
         fn is_payload(&self) -> bool {
             match *self {
-                Message::Message { msg: _, payload } => payload,
+                Message::Message { payload, .. } => payload,
                 _ => panic!("error"),
             }
         }
@@ -865,13 +896,13 @@ mod tests {
         let settings = wrk_settings();
 
         let mut reader = H1Decoder::new();
-        assert!{ reader.decode(&mut buf, &settings).unwrap().is_none() }
+        assert! { reader.decode(&mut buf, &settings).unwrap().is_none() }
 
         buf.extend(b"t");
-        assert!{ reader.decode(&mut buf, &settings).unwrap().is_none() }
+        assert! { reader.decode(&mut buf, &settings).unwrap().is_none() }
 
         buf.extend(b"es");
-        assert!{ reader.decode(&mut buf, &settings).unwrap().is_none() }
+        assert! { reader.decode(&mut buf, &settings).unwrap().is_none() }
 
         buf.extend(b"t: value\r\n\r\n");
         match reader.decode(&mut buf, &settings) {
@@ -933,6 +964,14 @@ mod tests {
         let req = parse_ready!(&mut buf);
 
         assert!(!req.keep_alive());
+
+        let mut buf = BytesMut::from(
+            "GET /test HTTP/1.1\r\n\
+             connection: Close\r\n\r\n",
+        );
+        let req = parse_ready!(&mut buf);
+
+        assert!(!req.keep_alive());
     }
 
     #[test]
@@ -944,10 +983,26 @@ mod tests {
         let req = parse_ready!(&mut buf);
 
         assert!(!req.keep_alive());
+
+        let mut buf = BytesMut::from(
+            "GET /test HTTP/1.0\r\n\
+             connection: Close\r\n\r\n",
+        );
+        let req = parse_ready!(&mut buf);
+
+        assert!(!req.keep_alive());
     }
 
     #[test]
     fn test_conn_keep_alive_1_0() {
+        let mut buf = BytesMut::from(
+            "GET /test HTTP/1.0\r\n\
+             connection: Keep-Alive\r\n\r\n",
+        );
+        let req = parse_ready!(&mut buf);
+
+        assert!(req.keep_alive());
+
         let mut buf = BytesMut::from(
             "GET /test HTTP/1.0\r\n\
              connection: keep-alive\r\n\r\n",
@@ -996,6 +1051,15 @@ mod tests {
             "GET /test HTTP/1.1\r\n\
              upgrade: websockets\r\n\
              connection: upgrade\r\n\r\n",
+        );
+        let req = parse_ready!(&mut buf);
+
+        assert!(req.upgrade());
+
+        let mut buf = BytesMut::from(
+            "GET /test HTTP/1.1\r\n\
+             upgrade: Websockets\r\n\
+             connection: Upgrade\r\n\r\n",
         );
         let req = parse_ready!(&mut buf);
 

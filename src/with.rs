@@ -86,7 +86,7 @@ where
 
         match fut.poll() {
             Ok(Async::Ready(resp)) => AsyncResult::ok(resp),
-            Ok(Async::NotReady) => AsyncResult::async(Box::new(fut)),
+            Ok(Async::NotReady) => AsyncResult::future(Box::new(fut)),
             Err(e) => AsyncResult::err(e),
         }
     }
@@ -208,7 +208,7 @@ where
 
         match fut.poll() {
             Ok(Async::Ready(resp)) => AsyncResult::ok(resp),
-            Ok(Async::NotReady) => AsyncResult::async(Box::new(fut)),
+            Ok(Async::NotReady) => AsyncResult::future(Box::new(fut)),
             Err(e) => AsyncResult::err(e),
         }
     }

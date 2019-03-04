@@ -56,7 +56,7 @@ impl HttpResponseParser {
                         return Ok(Async::Ready(msg));
                     }
                     Async::NotReady => {
-                        if buf.capacity() >= MAX_BUFFER_SIZE {
+                        if buf.len() >= MAX_BUFFER_SIZE {
                             return Err(HttpResponseParserError::Error(
                                 ParseError::TooLarge,
                             ));

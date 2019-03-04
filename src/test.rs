@@ -4,8 +4,10 @@ use std::str::FromStr;
 use std::sync::mpsc;
 use std::{net, thread};
 
-use actix_inner::{Actor, Addr, System};
+use actix::{Actor, Addr, System};
+use actix::actors::signal;
 
+use actix_net::server::Server;
 use cookie::Cookie;
 use futures::Future;
 use http::header::HeaderName;
@@ -66,6 +68,7 @@ pub struct TestServer {
     ssl: bool,
     conn: Addr<ClientConnector>,
     rt: Runtime,
+    backend: Addr<Server>,
 }
 
 impl TestServer {
@@ -112,24 +115,25 @@ impl TestServer {
             let tcp = net::TcpListener::bind("127.0.0.1:0").unwrap();
             let local_addr = tcp.local_addr().unwrap();
 
-            let _ = HttpServer::new(factory)
+            let srv = HttpServer::new(factory)
                 .disable_signals()
                 .listen(tcp)
                 .keep_alive(5)
                 .start();
 
-            tx.send((System::current(), local_addr, TestServer::get_conn()))
+            tx.send((System::current(), local_addr, TestServer::get_conn(), srv))
                 .unwrap();
             sys.run();
         });
 
-        let (system, addr, conn) = rx.recv().unwrap();
+        let (system, addr, conn, backend) = rx.recv().unwrap();
         System::set_current(system);
         TestServer {
             addr,
             conn,
             ssl: false,
             rt: Runtime::new().unwrap(),
+            backend,
         }
     }
 
@@ -197,6 +201,7 @@ impl TestServer {
 
     /// Stop http server
     fn stop(&mut self) {
+        let _ = self.backend.send(signal::Signal(signal::SignalType::Term)).wait();
         System::current().stop();
     }
 
@@ -333,8 +338,7 @@ where
             .keep_alive(5)
             .disable_signals();
 
-            tx.send((System::current(), addr, TestServer::get_conn()))
-                .unwrap();
+
 
             #[cfg(any(feature = "alpn", feature = "ssl"))]
             {
@@ -356,18 +360,22 @@ where
                 let tcp = net::TcpListener::bind(addr).unwrap();
                 srv = srv.listen(tcp);
             }
-            srv.start();
+            let backend = srv.start();
+
+            tx.send((System::current(), addr, TestServer::get_conn(), backend))
+                .unwrap();
 
             sys.run();
         });
 
-        let (system, addr, conn) = rx.recv().unwrap();
+        let (system, addr, conn, backend) = rx.recv().unwrap();
         System::set_current(system);
         TestServer {
             addr,
             conn,
             ssl: has_ssl,
             rt: Runtime::new().unwrap(),
+            backend,
         }
     }
 }
@@ -507,6 +515,11 @@ impl TestRequest<()> {
     {
         TestRequest::default().header(key, value)
     }
+
+    /// Create TestRequest and set request cookie
+    pub fn with_cookie(cookie: Cookie<'static>) -> TestRequest<()> {
+        TestRequest::default().cookie(cookie)
+    }
 }
 
 impl<S: 'static> TestRequest<S> {
@@ -540,6 +553,25 @@ impl<S: 'static> TestRequest<S> {
     /// Set HTTP Uri of this request
     pub fn uri(mut self, path: &str) -> Self {
         self.uri = Uri::from_str(path).unwrap();
+        self
+    }
+
+    /// set cookie of this request
+    pub fn cookie(mut self, cookie: Cookie<'static>) -> Self {
+        if self.cookies.is_some() {
+            let mut should_insert = true;
+            let old_cookies = self.cookies.as_mut().unwrap();
+            for old_cookie in old_cookies.iter() {
+                if old_cookie == &cookie {
+                    should_insert = false
+                };
+            };
+            if should_insert {
+                old_cookies.push(cookie);
+            };
+        } else {
+            self.cookies = Some(vec![cookie]);
+        };
         self
     }
 

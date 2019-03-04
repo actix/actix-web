@@ -61,7 +61,7 @@ pub struct Scope<S> {
 
 #[cfg_attr(
     feature = "cargo-clippy",
-    allow(clippy::new_without_default_derive)
+    allow(new_without_default_derive)
 )]
 impl<S: 'static> Scope<S> {
     /// Create a new scope
@@ -356,7 +356,7 @@ impl<S: 'static> RouteHandler<S> for Scope<S> {
         if self.middlewares.is_empty() {
             self.router.handle(&req2)
         } else {
-            AsyncResult::async(Box::new(Compose::new(
+            AsyncResult::future(Box::new(Compose::new(
                 req2,
                 Rc::clone(&self.router),
                 Rc::clone(&self.middlewares),

@@ -326,7 +326,7 @@ where
     #[doc(hidden)]
     #[cfg_attr(
         feature = "cargo-clippy",
-        allow(clippy::needless_pass_by_value)
+        allow(needless_pass_by_value)
     )]
     pub fn bind_with<S, A>(mut self, addr: S, acceptor: A) -> io::Result<Self>
     where
@@ -451,13 +451,13 @@ impl<H: IntoHttpHandler, F: Fn() -> H + Send + Clone> HttpServer<H, F> {
     /// For each address this method starts separate thread which does
     /// `accept()` in a loop.
     ///
-    /// This methods panics if no socket addresses get bound.
-    ///
-    /// This method requires to run within properly configured `Actix` system.
+    /// This methods panics if no socket address can be bound or an `Actix` system is not yet
+    /// configured.
     ///
     /// ```rust
     /// extern crate actix_web;
-    /// use actix_web::{actix, server, App, HttpResponse};
+    /// extern crate actix;
+    /// use actix_web::{server, App, HttpResponse};
     ///
     /// fn main() {
     ///     let sys = actix::System::new("example");  // <- create Actix system

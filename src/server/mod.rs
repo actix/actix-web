@@ -166,7 +166,8 @@ const HW_BUFFER_SIZE: usize = 32_768;
 ///
 /// ```rust
 /// # extern crate actix_web;
-/// use actix_web::{actix, server, App, HttpResponse};
+/// # extern crate actix;
+/// use actix_web::{server, App, HttpResponse};
 ///
 /// fn main() {
 ///     let sys = actix::System::new("example");  // <- create Actix system
@@ -302,6 +303,8 @@ pub trait IoStream: AsyncRead + AsyncWrite + 'static {
                         } else {
                             Ok(Async::NotReady)
                         }
+                    } else if e.kind() == io::ErrorKind::ConnectionReset && read_some {
+                        Ok(Async::Ready((read_some, true)))
                     } else {
                         Err(e)
                     };
@@ -334,7 +337,7 @@ impl IoStream for ::tokio_uds::UnixStream {
     }
 
     #[inline]
-    fn set_keepalive(&mut self, _nodelay: bool) -> io::Result<()> {
+    fn set_keepalive(&mut self, _dur: Option<time::Duration>) -> io::Result<()> {
         Ok(())
     }
 }

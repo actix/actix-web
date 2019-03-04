@@ -57,7 +57,7 @@ impl<S: 'static> Route<S> {
     pub(crate) fn compose(
         &self, req: HttpRequest<S>, mws: Rc<Vec<Box<Middleware<S>>>>,
     ) -> AsyncResult<HttpResponse> {
-        AsyncResult::async(Box::new(Compose::new(req, mws, self.handler.clone())))
+        AsyncResult::future(Box::new(Compose::new(req, mws, self.handler.clone())))
     }
 
     /// Add match predicate to route.

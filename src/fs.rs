@@ -11,10 +11,10 @@ use std::{cmp, io};
 #[cfg(unix)]
 use std::os::unix::fs::MetadataExt;
 
+use v_htmlescape::escape as escape_html_entity;
 use bytes::Bytes;
 use futures::{Async, Future, Poll, Stream};
 use futures_cpupool::{CpuFuture, CpuPool};
-use htmlescape::encode_minimal as escape_html_entity;
 use mime;
 use mime_guess::{get_mime_type, guess_mime_type};
 use percent_encoding::{utf8_percent_encode, DEFAULT_ENCODE_SET};
@@ -120,6 +120,32 @@ pub struct NamedFile<C = DefaultConfig> {
 }
 
 impl NamedFile {
+    /// Creates an instance from a previously opened file.
+    ///
+    /// The given `path` need not exist and is only used to determine the `ContentType` and
+    /// `ContentDisposition` headers.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// extern crate actix_web;
+    ///
+    /// use actix_web::fs::NamedFile;
+    /// use std::io::{self, Write};
+    /// use std::env;
+    /// use std::fs::File;
+    ///
+    /// fn main() -> io::Result<()> {
+    ///     let mut file = File::create("foo.txt")?;
+    ///     file.write_all(b"Hello, world!")?;
+    ///     let named_file = NamedFile::from_file(file, "bar.txt")?;
+    ///     Ok(())
+    /// }
+    /// ```
+    pub fn from_file<P: AsRef<Path>>(file: File, path: P) -> io::Result<NamedFile> {
+        Self::from_file_with_config(file, path, DefaultConfig)
+    }
+
     /// Attempts to open a file in read-only mode.
     ///
     /// # Examples
@@ -135,16 +161,29 @@ impl NamedFile {
 }
 
 impl<C: StaticFileConfig> NamedFile<C> {
-    /// Attempts to open a file in read-only mode using provided configiration.
+    /// Creates an instance from a previously opened file using the provided configuration.
+    ///
+    /// The given `path` need not exist and is only used to determine the `ContentType` and
+    /// `ContentDisposition` headers.
     ///
     /// # Examples
     ///
-    /// ```rust
-    /// use actix_web::fs::{DefaultConfig, NamedFile};
+    /// ```no_run
+    /// extern crate actix_web;
     ///
-    /// let file = NamedFile::open_with_config("foo.txt", DefaultConfig);
+    /// use actix_web::fs::{DefaultConfig, NamedFile};
+    /// use std::io::{self, Write};
+    /// use std::env;
+    /// use std::fs::File;
+    ///
+    /// fn main() -> io::Result<()> {
+    ///     let mut file = File::create("foo.txt")?;
+    ///     file.write_all(b"Hello, world!")?;
+    ///     let named_file = NamedFile::from_file_with_config(file, "bar.txt", DefaultConfig)?;
+    ///     Ok(())
+    /// }
     /// ```
-    pub fn open_with_config<P: AsRef<Path>>(path: P, _: C) -> io::Result<NamedFile<C>> {
+    pub fn from_file_with_config<P: AsRef<Path>>(file: File, path: P, _: C) -> io::Result<NamedFile<C>> {
         let path = path.as_ref().to_path_buf();
 
         // Get the name of the file and use it to construct default Content-Type
@@ -169,7 +208,6 @@ impl<C: StaticFileConfig> NamedFile<C> {
             (ct, cd)
         };
 
-        let file = File::open(&path)?;
         let md = file.metadata()?;
         let modified = md.modified().ok();
         let cpu_pool = None;
@@ -186,6 +224,19 @@ impl<C: StaticFileConfig> NamedFile<C> {
             status_code: StatusCode::OK,
             _cd_map: PhantomData,
         })
+    }
+
+    /// Attempts to open a file in read-only mode using provided configuration.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use actix_web::fs::{DefaultConfig, NamedFile};
+    ///
+    /// let file = NamedFile::open_with_config("foo.txt", DefaultConfig);
+    /// ```
+    pub fn open_with_config<P: AsRef<Path>>(path: P, config: C) -> io::Result<NamedFile<C>> {
+        Self::from_file_with_config(File::open(&path)?, path, config)
     }
 
     /// Returns reference to the underlying `File` object.
@@ -390,6 +441,8 @@ impl<C: StaticFileConfig> Responder for NamedFile<C> {
         // check last modified
         let not_modified = if !none_match(etag.as_ref(), req) {
             true
+        } else if req.headers().contains_key(header::IF_NONE_MATCH) {
+            false
         } else if let (Some(ref m), Some(header::IfModifiedSince(ref since))) =
             (last_modified, req.get_header())
         {
@@ -472,6 +525,7 @@ impl<C: StaticFileConfig> Responder for NamedFile<C> {
     }
 }
 
+#[doc(hidden)]
 /// A helper created from a `std::fs::File` which reads the file
 /// chunk-by-chunk on a `CpuPool`.
 pub struct ChunkedReadFile {
@@ -561,8 +615,23 @@ impl Directory {
     }
 }
 
+// show file url as relative to static path
+macro_rules! encode_file_url {
+    ($path:ident) => {
+        utf8_percent_encode(&$path.to_string_lossy(), DEFAULT_ENCODE_SET)
+    };
+}
+
+// " -- &quot;  & -- &amp;  ' -- &#x27;  < -- &lt;  > -- &gt;  / -- &#x2f;
+macro_rules! encode_file_name {
+    ($entry:ident) => {
+        escape_html_entity(&$entry.file_name().to_string_lossy())
+    };
+}
+
 fn directory_listing<S>(
-    dir: &Directory, req: &HttpRequest<S>,
+    dir: &Directory,
+    req: &HttpRequest<S>,
 ) -> Result<HttpResponse, io::Error> {
     let index_of = format!("Index of {}", req.path());
     let mut body = String::new();
@@ -575,11 +644,6 @@ fn directory_listing<S>(
                 Ok(p) => base.join(p),
                 Err(_) => continue,
             };
-            // show file url as relative to static path
-            let file_url = utf8_percent_encode(&p.to_string_lossy(), DEFAULT_ENCODE_SET)
-                .to_string();
-            // " -- &quot;  & -- &amp;  ' -- &#x27;  < -- &lt;  > -- &gt;
-            let file_name = escape_html_entity(&entry.file_name().to_string_lossy());
 
             // if file is a directory, add '/' to the end of the name
             if let Ok(metadata) = entry.metadata() {
@@ -587,13 +651,15 @@ fn directory_listing<S>(
                     let _ = write!(
                         body,
                         "<li><a href=\"{}\">{}/</a></li>",
-                        file_url, file_name
+                        encode_file_url!(p),
+                        encode_file_name!(entry),
                     );
                 } else {
                     let _ = write!(
                         body,
                         "<li><a href=\"{}\">{}</a></li>",
-                        file_url, file_name
+                        encode_file_url!(p),
+                        encode_file_name!(entry),
                     );
                 }
             } else {
@@ -656,7 +722,8 @@ impl<S: 'static> StaticFiles<S> {
     /// Create new `StaticFiles` instance for specified base directory and
     /// `CpuPool`.
     pub fn with_pool<T: Into<PathBuf>>(
-        dir: T, pool: CpuPool,
+        dir: T,
+        pool: CpuPool,
     ) -> Result<StaticFiles<S>, Error> {
         Self::with_config_pool(dir, pool, DefaultConfig)
     }
@@ -667,7 +734,8 @@ impl<S: 'static, C: StaticFileConfig> StaticFiles<S, C> {
     ///
     /// Identical with `new` but allows to specify configiration to use.
     pub fn with_config<T: Into<PathBuf>>(
-        dir: T, config: C,
+        dir: T,
+        config: C,
     ) -> Result<StaticFiles<S, C>, Error> {
         // use default CpuPool
         let pool = { DEFAULT_CPUPOOL.lock().clone() };
@@ -678,7 +746,9 @@ impl<S: 'static, C: StaticFileConfig> StaticFiles<S, C> {
     /// Create new `StaticFiles` instance for specified base directory with config and
     /// `CpuPool`.
     pub fn with_config_pool<T: Into<PathBuf>>(
-        dir: T, pool: CpuPool, _: C,
+        dir: T,
+        pool: CpuPool,
+        _: C,
     ) -> Result<StaticFiles<S, C>, Error> {
         let dir = dir.into().canonicalize()?;
 
@@ -722,7 +792,7 @@ impl<S: 'static, C: StaticFileConfig> StaticFiles<S, C> {
 
     /// Set index file
     ///
-    /// Redirects to specific index file for directory "/" instead of
+    /// Shows specific index file for directory "/" instead of
     /// showing files listing.
     pub fn index_file<T: Into<String>>(mut self, index: T) -> StaticFiles<S, C> {
         self.index = Some(index.into());
@@ -736,9 +806,10 @@ impl<S: 'static, C: StaticFileConfig> StaticFiles<S, C> {
     }
 
     fn try_handle(
-        &self, req: &HttpRequest<S>,
+        &self,
+        req: &HttpRequest<S>,
     ) -> Result<AsyncResult<HttpResponse>, Error> {
-        let tail: String = req.match_info().query("tail")?;
+        let tail: String = req.match_info().get_decoded("tail").unwrap_or_else(|| "".to_string());
         let relpath = PathBuf::from_param(tail.trim_left_matches('/'))?;
 
         // full filepath
@@ -746,17 +817,11 @@ impl<S: 'static, C: StaticFileConfig> StaticFiles<S, C> {
 
         if path.is_dir() {
             if let Some(ref redir_index) = self.index {
-                // TODO: Don't redirect, just return the index content.
-                // TODO: It'd be nice if there were a good usable URL manipulation
-                // library
-                let mut new_path: String = req.path().to_owned();
-                if !new_path.ends_with('/') {
-                    new_path.push('/');
-                }
-                new_path.push_str(redir_index);
-                HttpResponse::Found()
-                    .header(header::LOCATION, new_path.as_str())
-                    .finish()
+                let path = path.join(redir_index);
+
+                NamedFile::open_with_config(path, C::default())?
+                    .set_cpu_pool(self.cpu_pool.clone())
+                    .respond_to(&req)?
                     .respond_to(&req)
             } else if self.show_index {
                 let dir = Directory::new(self.directory.clone(), path);
@@ -881,6 +946,8 @@ impl HttpRange {
 #[cfg(test)]
 mod tests {
     use std::fs;
+    use std::time::Duration;
+    use std::ops::Add;
 
     use super::*;
     use application::App;
@@ -898,6 +965,43 @@ mod tests {
 
         let m = file_extension_to_mime("");
         assert_eq!(m, mime::APPLICATION_OCTET_STREAM);
+    }
+
+    #[test]
+    fn test_if_modified_since_without_if_none_match() {
+        let mut file = NamedFile::open("Cargo.toml")
+            .unwrap()
+            .set_cpu_pool(CpuPool::new(1));
+        let since = header::HttpDate::from(
+            SystemTime::now().add(Duration::from_secs(60)));
+
+        let req = TestRequest::default()
+            .header(header::IF_MODIFIED_SINCE, since)
+            .finish();
+        let resp = file.respond_to(&req).unwrap();
+        assert_eq!(
+            resp.status(),
+            StatusCode::NOT_MODIFIED
+        );
+    }
+
+    #[test]
+    fn test_if_modified_since_with_if_none_match() {
+        let mut file = NamedFile::open("Cargo.toml")
+            .unwrap()
+            .set_cpu_pool(CpuPool::new(1));
+        let since = header::HttpDate::from(
+            SystemTime::now().add(Duration::from_secs(60)));
+
+        let req = TestRequest::default()
+            .header(header::IF_NONE_MATCH, "miss_etag")
+            .header(header::IF_MODIFIED_SINCE, since)
+            .finish();
+        let resp = file.respond_to(&req).unwrap();
+        assert_ne!(
+            resp.status(),
+            StatusCode::NOT_MODIFIED
+        );
     }
 
     #[test]
@@ -1280,6 +1384,27 @@ mod tests {
         assert_eq!(bytes, data);
     }
 
+    #[test]
+    fn test_static_files_with_spaces() {
+        let mut srv = test::TestServer::with_factory(|| {
+            App::new().handler(
+                "/",
+                StaticFiles::new(".").unwrap().index_file("Cargo.toml"),
+            )
+        });
+        let request = srv
+            .get()
+            .uri(srv.url("/tests/test%20space.binary"))
+            .finish()
+            .unwrap();
+        let response = srv.execute(request.send()).unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let bytes = srv.execute(response.body()).unwrap();
+        let data = Bytes::from(fs::read("tests/test space.binary").unwrap());
+        assert_eq!(bytes, data);
+    }
+
     #[derive(Default)]
     pub struct OnlyMethodHeadConfig;
     impl StaticFileConfig for OnlyMethodHeadConfig {
@@ -1392,43 +1517,66 @@ mod tests {
     }
 
     #[test]
-    fn test_redirect_to_index() {
-        let st = StaticFiles::new(".").unwrap().index_file("index.html");
+    fn test_serve_index() {
+        let st = StaticFiles::new(".").unwrap().index_file("test.binary");
         let req = TestRequest::default().uri("/tests").finish();
 
         let resp = st.handle(&req).respond_to(&req).unwrap();
         let resp = resp.as_msg();
-        assert_eq!(resp.status(), StatusCode::FOUND);
+        assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(
-            resp.headers().get(header::LOCATION).unwrap(),
-            "/tests/index.html"
+            resp.headers().get(header::CONTENT_TYPE).expect("content type"),
+            "application/octet-stream"
+        );
+        assert_eq!(
+            resp.headers().get(header::CONTENT_DISPOSITION).expect("content disposition"),
+            "attachment; filename=\"test.binary\""
         );
 
         let req = TestRequest::default().uri("/tests/").finish();
         let resp = st.handle(&req).respond_to(&req).unwrap();
         let resp = resp.as_msg();
-        assert_eq!(resp.status(), StatusCode::FOUND);
+        assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(
-            resp.headers().get(header::LOCATION).unwrap(),
-            "/tests/index.html"
+            resp.headers().get(header::CONTENT_TYPE).unwrap(),
+            "application/octet-stream"
         );
+        assert_eq!(
+            resp.headers().get(header::CONTENT_DISPOSITION).unwrap(),
+            "attachment; filename=\"test.binary\""
+        );
+
+        // nonexistent index file
+        let req = TestRequest::default().uri("/tests/unknown").finish();
+        let resp = st.handle(&req).respond_to(&req).unwrap();
+        let resp = resp.as_msg();
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+
+        let req = TestRequest::default().uri("/tests/unknown/").finish();
+        let resp = st.handle(&req).respond_to(&req).unwrap();
+        let resp = resp.as_msg();
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
     }
 
     #[test]
-    fn test_redirect_to_index_nested() {
+    fn test_serve_index_nested() {
         let st = StaticFiles::new(".").unwrap().index_file("mod.rs");
         let req = TestRequest::default().uri("/src/client").finish();
         let resp = st.handle(&req).respond_to(&req).unwrap();
         let resp = resp.as_msg();
-        assert_eq!(resp.status(), StatusCode::FOUND);
+        assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(
-            resp.headers().get(header::LOCATION).unwrap(),
-            "/src/client/mod.rs"
+            resp.headers().get(header::CONTENT_TYPE).unwrap(),
+            "text/x-rust"
+        );
+        assert_eq!(
+            resp.headers().get(header::CONTENT_DISPOSITION).unwrap(),
+            "inline; filename=\"mod.rs\""
         );
     }
 
     #[test]
-    fn integration_redirect_to_index_with_prefix() {
+    fn integration_serve_index_with_prefix() {
         let mut srv = test::TestServer::with_factory(|| {
             App::new()
                 .prefix("public")
@@ -1437,29 +1585,21 @@ mod tests {
 
         let request = srv.get().uri(srv.url("/public")).finish().unwrap();
         let response = srv.execute(request.send()).unwrap();
-        assert_eq!(response.status(), StatusCode::FOUND);
-        let loc = response
-            .headers()
-            .get(header::LOCATION)
-            .unwrap()
-            .to_str()
-            .unwrap();
-        assert_eq!(loc, "/public/Cargo.toml");
+        assert_eq!(response.status(), StatusCode::OK);
+        let bytes = srv.execute(response.body()).unwrap();
+        let data = Bytes::from(fs::read("Cargo.toml").unwrap());
+        assert_eq!(bytes, data);
 
         let request = srv.get().uri(srv.url("/public/")).finish().unwrap();
         let response = srv.execute(request.send()).unwrap();
-        assert_eq!(response.status(), StatusCode::FOUND);
-        let loc = response
-            .headers()
-            .get(header::LOCATION)
-            .unwrap()
-            .to_str()
-            .unwrap();
-        assert_eq!(loc, "/public/Cargo.toml");
+        assert_eq!(response.status(), StatusCode::OK);
+        let bytes = srv.execute(response.body()).unwrap();
+        let data = Bytes::from(fs::read("Cargo.toml").unwrap());
+        assert_eq!(bytes, data);
     }
 
     #[test]
-    fn integration_redirect_to_index() {
+    fn integration_serve_index() {
         let mut srv = test::TestServer::with_factory(|| {
             App::new().handler(
                 "test",
@@ -1469,25 +1609,26 @@ mod tests {
 
         let request = srv.get().uri(srv.url("/test")).finish().unwrap();
         let response = srv.execute(request.send()).unwrap();
-        assert_eq!(response.status(), StatusCode::FOUND);
-        let loc = response
-            .headers()
-            .get(header::LOCATION)
-            .unwrap()
-            .to_str()
-            .unwrap();
-        assert_eq!(loc, "/test/Cargo.toml");
+        assert_eq!(response.status(), StatusCode::OK);
+        let bytes = srv.execute(response.body()).unwrap();
+        let data = Bytes::from(fs::read("Cargo.toml").unwrap());
+        assert_eq!(bytes, data);
 
         let request = srv.get().uri(srv.url("/test/")).finish().unwrap();
         let response = srv.execute(request.send()).unwrap();
-        assert_eq!(response.status(), StatusCode::FOUND);
-        let loc = response
-            .headers()
-            .get(header::LOCATION)
-            .unwrap()
-            .to_str()
-            .unwrap();
-        assert_eq!(loc, "/test/Cargo.toml");
+        assert_eq!(response.status(), StatusCode::OK);
+        let bytes = srv.execute(response.body()).unwrap();
+        let data = Bytes::from(fs::read("Cargo.toml").unwrap());
+        assert_eq!(bytes, data);
+
+        // nonexistent index file
+        let request = srv.get().uri(srv.url("/test/unknown")).finish().unwrap();
+        let response = srv.execute(request.send()).unwrap();
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+
+        let request = srv.get().uri(srv.url("/test/unknown/")).finish().unwrap();
+        let response = srv.execute(request.send()).unwrap();
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
     }
 
     #[test]

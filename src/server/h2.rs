@@ -60,7 +60,10 @@ where
     H: HttpHandler + 'static,
 {
     pub fn new(
-        settings: ServiceConfig<H>, io: T, buf: Bytes, keepalive_timer: Option<Delay>,
+        settings: ServiceConfig<H>,
+        io: T,
+        buf: Bytes,
+        keepalive_timer: Option<Delay>,
     ) -> Self {
         let addr = io.peer_addr();
         let extensions = io.extensions();
@@ -284,10 +287,12 @@ where
                         if self.tasks.is_empty() {
                             return Err(HttpDispatchError::ShutdownTimeout);
                         } else if let Some(dl) = self.settings.keep_alive_expire() {
-                            timer.reset(dl)
+                            timer.reset(dl);
+                            let _ = timer.poll();
                         }
                     } else {
-                        timer.reset(self.ka_expire)
+                        timer.reset(self.ka_expire);
+                        let _ = timer.poll();
                     }
                 }
                 Ok(Async::NotReady) => (),
@@ -348,8 +353,11 @@ struct Entry<H: HttpHandler + 'static> {
 
 impl<H: HttpHandler + 'static> Entry<H> {
     fn new(
-        parts: Parts, recv: RecvStream, resp: SendResponse<Bytes>,
-        addr: Option<SocketAddr>, settings: ServiceConfig<H>,
+        parts: Parts,
+        recv: RecvStream,
+        resp: SendResponse<Bytes>,
+        addr: Option<SocketAddr>,
+        settings: ServiceConfig<H>,
         extensions: Option<Rc<Extensions>>,
     ) -> Entry<H>
     where

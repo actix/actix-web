@@ -3,9 +3,9 @@ use std::net::Shutdown;
 use std::time::{Duration, Instant};
 use std::{fmt, io, mem, time};
 
-use actix::resolver::{Connect as ResolveConnect, Resolver, ResolverError};
-use actix::{
-    fut, Actor, ActorFuture, ActorResponse, Addr, AsyncContext, Context,
+use actix_inner::actors::resolver::{Connect as ResolveConnect, Resolver, ResolverError};
+use actix_inner::{
+    fut, Actor, ActorFuture, ActorResponse, AsyncContext, Context,
     ContextFutureSpawner, Handler, Message, Recipient, StreamHandler, Supervised,
     SystemService, WrapFuture,
 };
@@ -37,14 +37,8 @@ use {
 ))]
 use {
     rustls::ClientConfig, std::io::Error as SslError, std::sync::Arc,
-    tokio_rustls::ClientConfigExt, webpki::DNSNameRef, webpki_roots,
+    tokio_rustls::TlsConnector as SslConnector, webpki::DNSNameRef, webpki_roots,
 };
-
-#[cfg(all(
-    feature = "rust-tls",
-    not(any(feature = "alpn", feature = "tls", feature = "ssl"))
-))]
-type SslConnector = Arc<ClientConfig>;
 
 #[cfg(not(any(
     feature = "alpn",
@@ -226,7 +220,7 @@ pub struct ClientConnector {
     acq_tx: mpsc::UnboundedSender<AcquiredConnOperation>,
     acq_rx: Option<mpsc::UnboundedReceiver<AcquiredConnOperation>>,
 
-    resolver: Option<Addr<Resolver>>,
+    resolver: Option<Recipient<ResolveConnect>>,
     conn_lifetime: Duration,
     conn_keep_alive: Duration,
     limit: usize,
@@ -245,7 +239,7 @@ impl Actor for ClientConnector {
 
     fn started(&mut self, ctx: &mut Self::Context) {
         if self.resolver.is_none() {
-            self.resolver = Some(Resolver::from_registry())
+            self.resolver = Some(Resolver::from_registry().recipient())
         }
         self.collect_periodic(ctx);
         ctx.add_stream(self.acq_rx.take().unwrap());
@@ -282,7 +276,7 @@ impl Default for ClientConnector {
                 config
                     .root_store
                     .add_server_trust_anchors(&webpki_roots::TLS_SERVER_ROOTS);
-                Arc::new(config)
+                SslConnector::from(Arc::new(config))
             }
 
             #[cfg_attr(rustfmt, rustfmt_skip)]
@@ -293,7 +287,7 @@ impl Default for ClientConnector {
             }
         };
 
-        #[cfg_attr(feature = "cargo-clippy", allow(clippy::let_unit_value))]
+        #[cfg_attr(feature = "cargo-clippy", allow(let_unit_value))]
         ClientConnector::with_connector_impl(connector)
     }
 }
@@ -373,7 +367,7 @@ impl ClientConnector {
     ///         config
     ///             .root_store
     ///             .add_server_trust_anchors(&webpki_roots::TLS_SERVER_ROOTS);
-    ///         let conn = ClientConnector::with_connector(Arc::new(config)).start();
+    ///         let conn = ClientConnector::with_connector(config).start();
     ///
     ///         conn.send(
     ///             Connect::new("https://www.rust-lang.org").unwrap()) // <- connect to host
@@ -390,7 +384,7 @@ impl ClientConnector {
     /// ```
     pub fn with_connector(connector: ClientConfig) -> ClientConnector {
         // keep level of indirection for docstrings matching featureflags
-        Self::with_connector_impl(Arc::new(connector))
+        Self::with_connector_impl(SslConnector::from(Arc::new(connector)))
     }
 
     #[cfg(all(
@@ -509,8 +503,10 @@ impl ClientConnector {
     }
 
     /// Use custom resolver actor
-    pub fn resolver(mut self, addr: Addr<Resolver>) -> Self {
-        self.resolver = Some(addr);
+    ///
+    /// By default actix's Resolver is used.
+    pub fn resolver<A: Into<Recipient<ResolveConnect>>>(mut self, addr: A) -> Self {
+        self.resolver = Some(addr.into());
         self
     }
 
@@ -832,7 +828,7 @@ impl ClientConnector {
                         let host = DNSNameRef::try_from_ascii_str(&key.host).unwrap();
                         fut::Either::A(
                             act.connector
-                                .connect_async(host, stream)
+                                .connect(host, stream)
                                 .into_actor(act)
                                 .then(move |res, _, _| {
                                     match res {
@@ -946,7 +942,7 @@ impl Handler<Connect> for ClientConnector {
         }
 
         let host = uri.host().unwrap().to_owned();
-        let port = uri.port().unwrap_or_else(|| proto.port());
+        let port = uri.port_part().map(|port| port.as_u16()).unwrap_or_else(|| proto.port());
         let key = Key {
             host,
             port,
