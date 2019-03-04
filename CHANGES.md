@@ -1,8 +1,112 @@
 # Changes
 
-## [0.7.19] - 2019-04-19
+## [x.x.xx] - xxxx-xx-xx
 
-* Added client HTTP Authentication methods `.basic_auth()`  and `.bearer_auth()`. #540
+### Added
+
+* Add `from_file` and `from_file_with_config` to `NamedFile` to allow sending files without a known path. #670
+
+* Add `insert` and `remove` methods to `HttpResponseBuilder`
+
+* Add client HTTP Authentication methods `.basic_auth()`  and `.bearer_auth()`. #540
+
+### Fixed
+
+* Ignored the `If-Modified-Since` if `If-None-Match` is specified. #680
+
+## [0.7.18] - 2019-01-10
+
+### Added
+
+* Add `with_cookie` for `TestRequest` to allow users to customize request cookie. #647
+
+* Add `cookie` method for `TestRequest` to allow users to add cookie dynamically.
+
+### Fixed
+
+* StaticFiles decode special characters in request's path
+
+* Fix test server listener leak #654
+
+## [0.7.17] - 2018-12-25
+
+### Added
+
+* Support for custom content types in `JsonConfig`. #637
+
+* Send `HTTP/1.1 100 Continue` if request contains `expect: continue` header #634
+
+### Fixed
+
+* HTTP1 decoder should perform case-insentive comparison for client requests (e.g. `Keep-Alive`). #631
+
+* Access-Control-Allow-Origin header should only a return a single, matching origin. #603
+
+## [0.7.16] - 2018-12-11
+
+### Added
+
+* Implement `FromRequest` extractor for `Either<A,B>`
+
+* Implement `ResponseError` for `SendError`
+
+
+## [0.7.15] - 2018-12-05
+
+### Changed
+
+* `ClientConnector::resolver` now accepts `Into<Recipient>` instead of `Addr`. It enables user to implement own resolver.
+
+* `QueryConfig` and `PathConfig` are made public.
+
+* `AsyncResult::async` is changed to `AsyncResult::future` as `async` is reserved keyword in 2018 edition.
+
+### Added
+
+* By default, `Path` extractor now percent decode all characters. This behaviour can be disabled
+  with `PathConfig::default().disable_decoding()`
+
+
+## [0.7.14] - 2018-11-14
+
+### Added
+
+* Add method to configure custom error handler to `Query` and `Path` extractors.
+
+* Add method to configure `SameSite` option in `CookieIdentityPolicy`.
+
+* By default, `Path` extractor now percent decode all characters. This behaviour can be disabled
+  with `PathConfig::default().disable_decoding()`
+
+
+### Fixed
+
+* Fix websockets connection drop if request contains "content-length" header #567
+
+* Fix keep-alive timer reset
+
+* HttpServer now treats streaming bodies the same for HTTP/1.x protocols. #549
+
+* Set nodelay for socket #560
+
+
+## [0.7.13] - 2018-10-14
+
+### Fixed
+
+* Fixed rustls support
+
+* HttpServer not sending streamed request body on HTTP/2 requests #544
+
+
+## [0.7.12] - 2018-10-10
+
+### Changed
+
+* Set min version for actix
+
+* Set min version for actix-net
+
 
 ## [0.7.11] - 2018-10-09
 

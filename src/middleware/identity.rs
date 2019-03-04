@@ -48,7 +48,7 @@
 //! ```
 use std::rc::Rc;
 
-use cookie::{Cookie, CookieJar, Key};
+use cookie::{Cookie, CookieJar, Key, SameSite};
 use futures::future::{err as FutErr, ok as FutOk, FutureResult};
 use futures::Future;
 use time::Duration;
@@ -237,6 +237,7 @@ struct CookieIdentityInner {
     domain: Option<String>,
     secure: bool,
     max_age: Option<Duration>,
+    same_site: Option<SameSite>,
 }
 
 impl CookieIdentityInner {
@@ -248,6 +249,7 @@ impl CookieIdentityInner {
             domain: None,
             secure: true,
             max_age: None,
+            same_site: None,
         }
     }
 
@@ -266,6 +268,10 @@ impl CookieIdentityInner {
 
             if let Some(max_age) = self.max_age {
                 cookie.set_max_age(max_age);
+            }
+
+            if let Some(same_site) = self.same_site {
+                cookie.set_same_site(same_site);
             }
 
             let mut jar = CookieJar::new();
@@ -368,6 +374,12 @@ impl CookieIdentityPolicy {
     /// Sets the `max-age` field in the session cookie being built.
     pub fn max_age(mut self, value: Duration) -> CookieIdentityPolicy {
         Rc::get_mut(&mut self.0).unwrap().max_age = Some(value);
+        self
+    }
+
+    /// Sets the `same_site` field in the session cookie being built.
+    pub fn same_site(mut self, same_site: SameSite) -> Self {
+        Rc::get_mut(&mut self.0).unwrap().same_site = Some(same_site);
         self
     }
 }

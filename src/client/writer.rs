@@ -1,6 +1,6 @@
 #![cfg_attr(
     feature = "cargo-clippy",
-    allow(clippy::redundant_field_names)
+    allow(redundant_field_names)
 )]
 
 use std::cell::RefCell;

@@ -9,14 +9,20 @@ use super::acceptor::{
 };
 use super::error::AcceptorError;
 use super::handler::IntoHttpHandler;
-use super::service::HttpService;
+use super::service::{HttpService, StreamConfiguration};
 use super::settings::{ServerSettings, ServiceConfig};
 use super::KeepAlive;
 
 pub(crate) trait ServiceProvider {
     fn register(
-        &self, server: Server, lst: net::TcpListener, host: String,
-        addr: net::SocketAddr, keep_alive: KeepAlive, secure: bool, client_timeout: u64,
+        &self,
+        server: Server,
+        lst: net::TcpListener,
+        host: String,
+        addr: net::SocketAddr,
+        keep_alive: KeepAlive,
+        secure: bool,
+        client_timeout: u64,
         client_shutdown: u64,
     ) -> Server;
 }
@@ -43,8 +49,13 @@ where
     }
 
     fn finish(
-        &self, host: String, addr: net::SocketAddr, keep_alive: KeepAlive, secure: bool,
-        client_timeout: u64, client_shutdown: u64,
+        &self,
+        host: String,
+        addr: net::SocketAddr,
+        keep_alive: KeepAlive,
+        secure: bool,
+        client_timeout: u64,
+        client_shutdown: u64,
     ) -> impl ServiceFactory {
         let factory = self.factory.clone();
         let acceptor = self.acceptor.clone();
@@ -65,6 +76,7 @@ where
                         acceptor.create(),
                     )).map_err(|_| ())
                     .map_init_err(|_| ())
+                    .and_then(StreamConfiguration::new().nodelay(true))
                     .and_then(
                         HttpService::new(settings)
                             .map_init_err(|_| ())
@@ -76,6 +88,7 @@ where
                     TcpAcceptor::new(acceptor.create().map_err(AcceptorError::Service))
                         .map_err(|_| ())
                         .map_init_err(|_| ())
+                        .and_then(StreamConfiguration::new().nodelay(true))
                         .and_then(
                             HttpService::new(settings)
                                 .map_init_err(|_| ())
@@ -95,8 +108,14 @@ where
     H: IntoHttpHandler,
 {
     fn register(
-        &self, server: Server, lst: net::TcpListener, host: String,
-        addr: net::SocketAddr, keep_alive: KeepAlive, secure: bool, client_timeout: u64,
+        &self,
+        server: Server,
+        lst: net::TcpListener,
+        host: String,
+        addr: net::SocketAddr,
+        keep_alive: KeepAlive,
+        secure: bool,
+        client_timeout: u64,
         client_shutdown: u64,
     ) -> Server {
         server.listen2(

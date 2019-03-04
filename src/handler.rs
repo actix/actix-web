@@ -86,7 +86,7 @@ pub trait FromRequest<S>: Sized {
 /// # fn is_a_variant() -> bool { true }
 /// # fn main() {}
 /// ```
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Either<A, B> {
     /// First branch of the type
     A(A),
@@ -250,7 +250,7 @@ pub(crate) enum AsyncResultItem<I, E> {
 impl<I, E> AsyncResult<I, E> {
     /// Create async response
     #[inline]
-    pub fn async(fut: Box<Future<Item = I, Error = E>>) -> AsyncResult<I, E> {
+    pub fn future(fut: Box<Future<Item = I, Error = E>>) -> AsyncResult<I, E> {
         AsyncResult(Some(AsyncResultItem::Future(fut)))
     }
 
@@ -401,7 +401,7 @@ where
                 },
                 Err(e) => err(e),
             });
-        Ok(AsyncResult::async(Box::new(fut)))
+        Ok(AsyncResult::future(Box::new(fut)))
     }
 }
 
@@ -502,7 +502,7 @@ where
                 Err(e) => Either::A(err(e)),
             }
         });
-        AsyncResult::async(Box::new(fut))
+        AsyncResult::future(Box::new(fut))
     }
 }
 

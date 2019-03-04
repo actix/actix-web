@@ -246,7 +246,7 @@ impl HttpResponse {
         self
     }
 
-    /// Get body os this response
+    /// Get body of this response
     #[inline]
     pub fn body(&self) -> &Body {
         &self.get_ref().body
@@ -366,7 +366,7 @@ impl HttpResponseBuilder {
         self
     }
 
-    /// Set a header.
+    /// Append a header.
     ///
     /// ```rust
     /// # extern crate actix_web;
@@ -394,7 +394,7 @@ impl HttpResponseBuilder {
         self
     }
 
-    /// Set a header.
+    /// Append a header.
     ///
     /// ```rust
     /// # extern crate actix_web;
@@ -420,6 +420,65 @@ impl HttpResponseBuilder {
                         parts.headers.append(key, value);
                     }
                     Err(e) => self.err = Some(e.into()),
+                },
+                Err(e) => self.err = Some(e.into()),
+            };
+        }
+        self
+    }
+    /// Set or replace a header with a single value.
+    ///
+    /// ```rust
+    /// # extern crate actix_web;
+    /// use actix_web::{http, HttpRequest, HttpResponse};
+    ///
+    /// fn index(req: HttpRequest) -> HttpResponse {
+    ///     HttpResponse::Ok()
+    ///         .insert("X-TEST", "value")
+    ///         .insert(http::header::CONTENT_TYPE, "application/json")
+    ///         .finish()
+    /// }
+    /// fn main() {}
+    /// ```
+    pub fn insert<K, V>(&mut self, key: K, value: V) -> &mut Self
+    where
+        HeaderName: HttpTryFrom<K>,
+        V: IntoHeaderValue,
+    {
+        if let Some(parts) = parts(&mut self.response, &self.err) {
+            match HeaderName::try_from(key) {
+                Ok(key) => match value.try_into() {
+                    Ok(value) => {
+                        parts.headers.insert(key, value);
+                    }
+                    Err(e) => self.err = Some(e.into()),
+                },
+                Err(e) => self.err = Some(e.into()),
+            };
+        }
+        self
+    }
+
+    /// Remove all instances of a header already set on this `HttpResponseBuilder`.
+    ///
+    /// ```rust
+    /// # extern crate actix_web;
+    /// use actix_web::{http, HttpRequest, HttpResponse};
+    ///
+    /// fn index(req: HttpRequest) -> HttpResponse {
+    ///     HttpResponse::Ok()
+    ///         .header(http::header::CONTENT_TYPE, "nevermind") // won't be used
+    ///         .remove(http::header::CONTENT_TYPE)
+    ///         .finish()
+    /// }
+    /// ```
+    pub fn remove<K>(&mut self, key: K) -> &mut Self
+        where HeaderName: HttpTryFrom<K>
+    {
+        if let Some(parts) = parts(&mut self.response, &self.err) {
+            match HeaderName::try_from(key) {
+                Ok(key) => {
+                    parts.headers.remove(key);
                 },
                 Err(e) => self.err = Some(e.into()),
             };
@@ -694,7 +753,7 @@ impl HttpResponseBuilder {
 }
 
 #[inline]
-#[cfg_attr(feature = "cargo-clippy", allow(clippy::borrowed_box))]
+#[cfg_attr(feature = "cargo-clippy", allow(borrowed_box))]
 fn parts<'a>(
     parts: &'a mut Option<Box<InnerHttpResponse>>, err: &Option<HttpError>,
 ) -> Option<&'a mut Box<InnerHttpResponse>> {
@@ -1126,6 +1185,40 @@ mod tests {
             .finish();
         assert_eq!(resp.version(), Some(Version::HTTP_10));
         assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[test]
+    fn test_insert() {
+        let resp = HttpResponse::Ok()
+            .insert("deleteme", "old value")
+            .insert("deleteme", "new value")
+            .finish();
+        assert_eq!("new value", resp.headers().get("deleteme").expect("new value"));
+    }
+
+    #[test]
+    fn test_remove() {
+        let resp = HttpResponse::Ok()
+            .header("deleteme", "value")
+            .remove("deleteme")
+            .finish();
+        assert!(resp.headers().get("deleteme").is_none())
+    }
+
+    #[test]
+    fn test_remove_replace() {
+        let resp = HttpResponse::Ok()
+            .header("some-header", "old_value1")
+            .header("some-header", "old_value2")
+            .remove("some-header")
+            .header("some-header", "new_value1")
+            .header("some-header", "new_value2")
+            .remove("unrelated-header")
+            .finish();
+        let mut v = resp.headers().get_all("some-header").into_iter();
+        assert_eq!("new_value1", v.next().unwrap());
+        assert_eq!("new_value2", v.next().unwrap());
+        assert_eq!(None, v.next());
     }
 
     #[test]

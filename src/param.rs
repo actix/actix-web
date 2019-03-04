@@ -8,7 +8,7 @@ use http::StatusCode;
 use smallvec::SmallVec;
 
 use error::{InternalError, ResponseError, UriSegmentError};
-use uri::Url;
+use uri::{Url, RESERVED_QUOTER};
 
 /// A trait to abstract the idea of creating a new instance of a type from a
 /// path parameter.
@@ -101,6 +101,17 @@ impl Params {
         } else {
             None
         }
+    }
+
+    /// Get URL-decoded matched parameter by name without type conversion
+    pub fn get_decoded(&self, key: &str) -> Option<String> {
+        self.get(key).map(|value| {
+            if let Some(ref mut value) = RESERVED_QUOTER.requote(value.as_bytes()) {
+                Rc::make_mut(value).to_string()
+            } else {
+                value.to_string()
+            }
+        })
     }
 
     /// Get unprocessed part of path
@@ -298,6 +309,26 @@ mod tests {
         assert_eq!(
             PathBuf::from_param("/seg1/../seg2/"),
             Ok(PathBuf::from_iter(vec!["seg2"]))
+        );
+    }
+
+    #[test]
+    fn test_get_param_by_name() {
+        let mut params = Params::new();
+        params.add_static("item1", "path");
+        params.add_static("item2", "http%3A%2F%2Flocalhost%3A80%2Ffoo");
+
+        assert_eq!(params.get("item0"), None);
+        assert_eq!(params.get_decoded("item0"), None);
+        assert_eq!(params.get("item1"), Some("path"));
+        assert_eq!(params.get_decoded("item1"), Some("path".to_string()));
+        assert_eq!(
+            params.get("item2"),
+            Some("http%3A%2F%2Flocalhost%3A80%2Ffoo")
+        );
+        assert_eq!(
+            params.get_decoded("item2"),
+            Some("http://localhost:80/foo".to_string())
         );
     }
 }

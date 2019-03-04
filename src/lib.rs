@@ -102,7 +102,6 @@ extern crate lazy_static;
 extern crate futures;
 extern crate cookie;
 extern crate futures_cpupool;
-extern crate htmlescape;
 extern crate http as modhttp;
 extern crate httparse;
 extern crate language_tags;
@@ -137,6 +136,7 @@ extern crate serde_urlencoded;
 extern crate percent_encoding;
 extern crate serde_json;
 extern crate smallvec;
+extern crate v_htmlescape;
 
 extern crate actix_net;
 #[macro_use]
@@ -217,14 +217,12 @@ pub use server::Request;
 
 pub mod actix {
     //! Re-exports [actix's](https://docs.rs/actix/) prelude
-
-    extern crate actix;
-    pub use self::actix::actors::resolver;
-    pub use self::actix::actors::signal;
-    pub use self::actix::fut;
-    pub use self::actix::msgs;
-    pub use self::actix::prelude::*;
-    pub use self::actix::{run, spawn};
+    pub use super::actix_inner::actors::resolver;
+    pub use super::actix_inner::actors::signal;
+    pub use super::actix_inner::fut;
+    pub use super::actix_inner::msgs;
+    pub use super::actix_inner::prelude::*;
+    pub use super::actix_inner::{run, spawn};
 }
 
 #[cfg(feature = "openssl")]
@@ -255,7 +253,7 @@ pub mod dev {
 
     pub use body::BodyStream;
     pub use context::Drain;
-    pub use extractor::{FormConfig, PayloadConfig};
+    pub use extractor::{FormConfig, PayloadConfig, QueryConfig, PathConfig, EitherConfig, EitherCollisionStrategy};
     pub use handler::{AsyncResult, Handler};
     pub use httpmessage::{MessageBody, Readlines, UrlEncoded};
     pub use httpresponse::HttpResponseBuilder;

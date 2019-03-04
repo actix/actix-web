@@ -20,7 +20,11 @@ pub(crate) struct H1Decoder {
 
 #[derive(Debug)]
 pub(crate) enum Message {
-    Message { msg: Request, payload: bool },
+    Message {
+        msg: Request,
+        payload: bool,
+        expect: bool,
+    },
     Chunk(Bytes),
     Eof,
 }
@@ -43,7 +47,9 @@ impl H1Decoder {
     }
 
     pub fn decode<H>(
-        &mut self, src: &mut BytesMut, settings: &ServiceConfig<H>,
+        &mut self,
+        src: &mut BytesMut,
+        settings: &ServiceConfig<H>,
     ) -> Result<Option<Message>, DecoderError> {
         // read payload
         if self.decoder.is_some() {
@@ -61,10 +67,11 @@ impl H1Decoder {
             .parse_message(src, settings)
             .map_err(DecoderError::Error)?
         {
-            Async::Ready((msg, decoder)) => {
+            Async::Ready((msg, expect, decoder)) => {
                 self.decoder = decoder;
                 Ok(Some(Message::Message {
                     msg,
+                    expect,
                     payload: self.decoder.is_some(),
                 }))
             }
@@ -80,12 +87,15 @@ impl H1Decoder {
     }
 
     fn parse_message<H>(
-        &self, buf: &mut BytesMut, settings: &ServiceConfig<H>,
-    ) -> Poll<(Request, Option<EncodingDecoder>), ParseError> {
+        &self,
+        buf: &mut BytesMut,
+        settings: &ServiceConfig<H>,
+    ) -> Poll<(Request, bool, Option<EncodingDecoder>), ParseError> {
         // Parse http message
         let mut has_upgrade = false;
         let mut chunked = false;
         let mut content_length = None;
+        let mut expect_continue = false;
 
         let msg = {
             // Unsafe: we read only this data only after httparse parses headers into.
@@ -153,23 +163,25 @@ impl H1Decoder {
                             }
                             // transfer-encoding
                             header::TRANSFER_ENCODING => {
-                                if let Ok(s) = value.to_str() {
-                                    chunked = s.to_lowercase().contains("chunked");
+                                if let Ok(s) = value.to_str().map(|s| s.trim()) {
+                                    chunked = s.eq_ignore_ascii_case("chunked");
                                 } else {
                                     return Err(ParseError::Header);
                                 }
                             }
                             // connection keep-alive state
                             header::CONNECTION => {
-                                let ka = if let Ok(conn) = value.to_str() {
+                                let ka = if let Ok(conn) =
+                                    value.to_str().map(|conn| conn.trim())
+                                {
                                     if version == Version::HTTP_10
-                                        && conn.contains("keep-alive")
+                                        && conn.eq_ignore_ascii_case("keep-alive")
                                     {
                                         true
                                     } else {
-                                        version == Version::HTTP_11 && !(conn
-                                            .contains("close")
-                                            || conn.contains("upgrade"))
+                                        version == Version::HTTP_11
+                                            && !(conn.eq_ignore_ascii_case("close")
+                                                || conn.eq_ignore_ascii_case("upgrade"))
                                     }
                                 } else {
                                     false
@@ -178,6 +190,18 @@ impl H1Decoder {
                             }
                             header::UPGRADE => {
                                 has_upgrade = true;
+                                // check content-length, some clients (dart)
+                                // sends "content-length: 0" with websocket upgrade
+                                if let Ok(val) = value.to_str().map(|val| val.trim()) {
+                                    if val.eq_ignore_ascii_case("websocket") {
+                                        content_length = None;
+                                    }
+                                }
+                            }
+                            header::EXPECT => {
+                                if value == "100-continue" {
+                                    expect_continue = true
+                                }
                             }
                             _ => (),
                         }
@@ -209,7 +233,7 @@ impl H1Decoder {
             None
         };
 
-        Ok(Async::Ready((msg, decoder)))
+        Ok(Async::Ready((msg, expect_continue, decoder)))
     }
 }
 
@@ -221,7 +245,9 @@ pub(crate) struct HeaderIndex {
 
 impl HeaderIndex {
     pub(crate) fn record(
-        bytes: &[u8], headers: &[httparse::Header], indices: &mut [HeaderIndex],
+        bytes: &[u8],
+        headers: &[httparse::Header],
+        indices: &mut [HeaderIndex],
     ) {
         let bytes_ptr = bytes.as_ptr() as usize;
         for (header, indices) in headers.iter().zip(indices.iter_mut()) {
@@ -369,7 +395,10 @@ macro_rules! byte (
 
 impl ChunkedState {
     fn step(
-        &self, body: &mut BytesMut, size: &mut u64, buf: &mut Option<Bytes>,
+        &self,
+        body: &mut BytesMut,
+        size: &mut u64,
+        buf: &mut Option<Bytes>,
     ) -> Poll<ChunkedState, io::Error> {
         use self::ChunkedState::*;
         match *self {
@@ -432,7 +461,8 @@ impl ChunkedState {
         }
     }
     fn read_size_lf(
-        rdr: &mut BytesMut, size: &mut u64,
+        rdr: &mut BytesMut,
+        size: &mut u64,
     ) -> Poll<ChunkedState, io::Error> {
         match byte!(rdr) {
             b'\n' if *size > 0 => Ok(Async::Ready(ChunkedState::Body)),
@@ -445,7 +475,9 @@ impl ChunkedState {
     }
 
     fn read_body(
-        rdr: &mut BytesMut, rem: &mut u64, buf: &mut Option<Bytes>,
+        rdr: &mut BytesMut,
+        rem: &mut u64,
+        buf: &mut Option<Bytes>,
     ) -> Poll<ChunkedState, io::Error> {
         trace!("Chunked read, remaining={:?}", rem);
 

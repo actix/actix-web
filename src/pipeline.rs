@@ -551,12 +551,12 @@ impl<S: 'static, H> ProcessResponse<S, H> {
                                 if self.resp.as_ref().unwrap().status().is_server_error()
                                 {
                                     error!(
-                                        "Error occured during request handling, status: {} {}",
+                                        "Error occurred during request handling, status: {} {}",
                                         self.resp.as_ref().unwrap().status(), err
                                     );
                                 } else {
                                     warn!(
-                                        "Error occured during request handling: {}",
+                                        "Error occurred during request handling: {}",
                                         err
                                     );
                                 }
