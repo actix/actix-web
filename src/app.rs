@@ -14,6 +14,7 @@ use futures::future::{ok, Either, FutureResult};
 use futures::{Async, Future, IntoFuture, Poll};
 
 use crate::resource::Resource;
+use crate::scope::Scope;
 use crate::service::{ServiceRequest, ServiceResponse};
 use crate::state::{State, StateFactory, StateFactoryResult};
 
@@ -110,6 +111,52 @@ where
     {
         self.state.push(Box::new(State::new(state)));
         self
+    }
+
+    /// Configure scope for common root path.
+    ///
+    /// Scopes collect multiple paths under a common path prefix.
+    /// Scope path can contain variable path segments as resources.
+    ///
+    /// ```rust
+    /// # extern crate actix_web;
+    /// use actix_web::{App, HttpRequest, HttpResponse};
+    ///
+    /// fn main() {
+    ///     let app = App::new().scope("/{project_id}", |scope| {
+    ///         scope
+    ///             .resource("/path1", |r| r.to(|| HttpResponse::Ok()))
+    ///             .resource("/path2", |r| r.to(|| HttpResponse::Ok()))
+    ///             .resource("/path3", |r| r.to(|| HttpResponse::MethodNotAllowed()))
+    ///     });
+    /// }
+    /// ```
+    ///
+    /// In the above example, three routes get added:
+    ///  * /{project_id}/path1
+    ///  * /{project_id}/path2
+    ///  * /{project_id}/path3
+    ///
+    pub fn scope<F>(self, path: &str, f: F) -> AppRouter<T, P, Body, AppEntry<P>>
+    where
+        F: FnOnce(Scope<P>) -> Scope<P>,
+    {
+        let scope = f(Scope::new(path));
+        let rdef = scope.rdef().clone();
+        let default = scope.get_default();
+
+        let fref = Rc::new(RefCell::new(None));
+        AppRouter {
+            chain: self.chain,
+            services: vec![(rdef, boxed::new_service(scope.into_new_service()))],
+            default: None,
+            defaults: vec![default],
+            endpoint: AppEntry::new(fref.clone()),
+            factory_ref: fref,
+            extensions: self.extensions,
+            state: self.state,
+            _t: PhantomData,
+        }
     }
 
     /// Configure resource for a specific path.
@@ -243,6 +290,18 @@ where
             _t: PhantomData,
         }
     }
+
+    /// Set server host name.
+    ///
+    /// Host name is used by application router aa a hostname for url
+    /// generation. Check [ConnectionInfo](./dev/struct.ConnectionInfo.
+    /// html#method.host) documentation for more information.
+    ///
+    /// By default host name is set to a "localhost" value.
+    pub fn hostname(self, _val: &str) -> Self {
+        // self.host = val.to_owned();
+        self
+    }
 }
 
 /// Application router builder - Structure that follows the builder pattern
@@ -270,6 +329,42 @@ where
         InitError = (),
     >,
 {
+    /// Configure scope for common root path.
+    ///
+    /// Scopes collect multiple paths under a common path prefix.
+    /// Scope path can contain variable path segments as resources.
+    ///
+    /// ```rust
+    /// # extern crate actix_web;
+    /// use actix_web::{App, HttpRequest, HttpResponse};
+    ///
+    /// fn main() {
+    ///     let app = App::new().scope("/{project_id}", |scope| {
+    ///         scope
+    ///             .resource("/path1", |r| r.to(|| HttpResponse::Ok()))
+    ///             .resource("/path2", |r| r.to(|| HttpResponse::Ok()))
+    ///             .resource("/path3", |r| r.to(|| HttpResponse::MethodNotAllowed()))
+    ///     });
+    /// }
+    /// ```
+    ///
+    /// In the above example, three routes get added:
+    ///  * /{project_id}/path1
+    ///  * /{project_id}/path2
+    ///  * /{project_id}/path3
+    ///
+    pub fn scope<F>(mut self, path: &str, f: F) -> Self
+    where
+        F: FnOnce(Scope<P>) -> Scope<P>,
+    {
+        let scope = f(Scope::new(path));
+        let rdef = scope.rdef().clone();
+        self.defaults.push(scope.get_default());
+        self.services
+            .push((rdef, boxed::new_service(scope.into_new_service())));
+        self
+    }
+
     /// Configure resource for a specific path.
     ///
     /// Resources may have variable path segments. For example, a
@@ -466,6 +561,7 @@ where
 
         // set factory
         *self.factory_ref.borrow_mut() = Some(AppRoutingFactory {
+            default: self.default.clone(),
             services: Rc::new(self.services),
         });
 
@@ -480,6 +576,7 @@ where
 
 pub struct AppRoutingFactory<P> {
     services: Rc<Vec<(ResourceDef, HttpNewService<P>)>>,
+    default: Option<Rc<HttpNewService<P>>>,
 }
 
 impl<P: 'static> NewService for AppRoutingFactory<P> {
@@ -491,6 +588,12 @@ impl<P: 'static> NewService for AppRoutingFactory<P> {
     type Future = AppRoutingFactoryResponse<P>;
 
     fn new_service(&self, _: &()) -> Self::Future {
+        let default_fut = if let Some(ref default) = self.default {
+            Some(default.new_service(&()))
+        } else {
+            None
+        };
+
         AppRoutingFactoryResponse {
             fut: self
                 .services
@@ -502,6 +605,8 @@ impl<P: 'static> NewService for AppRoutingFactory<P> {
                     )
                 })
                 .collect(),
+            default: None,
+            default_fut,
         }
     }
 }
@@ -512,6 +617,8 @@ type HttpServiceFut<P> = Box<Future<Item = HttpService<P>, Error = ()>>;
 #[doc(hidden)]
 pub struct AppRoutingFactoryResponse<P> {
     fut: Vec<CreateAppRoutingItem<P>>,
+    default: Option<HttpService<P>>,
+    default_fut: Option<Box<Future<Item = HttpService<P>, Error = ()>>>,
 }
 
 enum CreateAppRoutingItem<P> {
@@ -525,6 +632,13 @@ impl<P> Future for AppRoutingFactoryResponse<P> {
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         let mut done = true;
+
+        if let Some(ref mut fut) = self.default_fut {
+            match fut.poll()? {
+                Async::Ready(default) => self.default = Some(default),
+                Async::NotReady => done = false,
+            }
+        }
 
         // poll http services
         for item in &mut self.fut {
@@ -560,8 +674,9 @@ impl<P> Future for AppRoutingFactoryResponse<P> {
                     router
                 });
             Ok(Async::Ready(AppRouting {
-                router: router.finish(),
                 ready: None,
+                router: router.finish(),
+                default: self.default.take(),
             }))
         } else {
             Ok(Async::NotReady)
@@ -572,6 +687,7 @@ impl<P> Future for AppRoutingFactoryResponse<P> {
 pub struct AppRouting<P> {
     router: Router<HttpService<P>>,
     ready: Option<(ServiceRequest<P>, ResourceInfo)>,
+    default: Option<HttpService<P>>,
 }
 
 impl<P> Service for AppRouting<P> {
@@ -591,6 +707,8 @@ impl<P> Service for AppRouting<P> {
     fn call(&mut self, mut req: ServiceRequest<P>) -> Self::Future {
         if let Some((srv, _info)) = self.router.recognize_mut(req.match_info_mut()) {
             Either::A(srv.call(req))
+        } else if let Some(ref mut default) = self.default {
+            Either::A(default.call(req))
         } else {
             let req = req.into_request();
             Either::B(ok(ServiceResponse::new(req, Response::NotFound().finish())))

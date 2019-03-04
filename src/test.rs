@@ -4,7 +4,7 @@ use std::rc::Rc;
 use actix_http::http::header::{Header, HeaderName, IntoHeaderValue};
 use actix_http::http::{HttpTryFrom, Method, Version};
 use actix_http::test::TestRequest as HttpTestRequest;
-use actix_http::{Extensions, PayloadStream};
+use actix_http::{Extensions, PayloadStream, Request};
 use actix_router::{Path, Url};
 use bytes::Bytes;
 
@@ -135,8 +135,13 @@ impl TestRequest {
         )
     }
 
+    /// Complete request creation and generate `Request` instance
+    pub fn to_request(mut self) -> Request<PayloadStream> {
+        self.req.finish()
+    }
+
     /// Complete request creation and generate `HttpRequest` instance
-    pub fn to_request(mut self) -> HttpRequest {
+    pub fn to_http_request(mut self) -> HttpRequest {
         let req = self.req.finish();
 
         ServiceRequest::new(

@@ -312,7 +312,9 @@ mod tests {
 
     #[test]
     fn test_preds() {
-        let r = TestRequest::default().method(Method::TRACE).to_request();
+        let r = TestRequest::default()
+            .method(Method::TRACE)
+            .to_http_request();
 
         assert!(Not(Get()).check(&r,));
         assert!(!Not(Trace()).check(&r,));
