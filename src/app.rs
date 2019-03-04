@@ -13,11 +13,13 @@ use actix_service::{
 use futures::future::{ok, Either, FutureResult};
 use futures::{Async, Future, IntoFuture, Poll};
 
+use crate::guard::Guard;
 use crate::resource::Resource;
 use crate::scope::{insert_slash, Scope};
 use crate::service::{ServiceRequest, ServiceResponse};
 use crate::state::{State, StateFactory, StateFactoryResult};
 
+type Guards = Vec<Box<Guard>>;
 type HttpService<P> = BoxedService<ServiceRequest<P>, ServiceResponse, ()>;
 type HttpNewService<P> = BoxedNewService<(), ServiceRequest<P>, ServiceResponse, (), ()>;
 type BoxedResponse = Box<Future<Item = ServiceResponse, Error = ()>>;
@@ -141,14 +143,15 @@ where
     where
         F: FnOnce(Scope<P>) -> Scope<P>,
     {
-        let scope = f(Scope::new(path));
+        let mut scope = f(Scope::new(path));
         let rdef = scope.rdef().clone();
         let default = scope.get_default();
+        let guards = scope.take_guards();
 
         let fref = Rc::new(RefCell::new(None));
         AppRouter {
             chain: self.chain,
-            services: vec![(rdef, boxed::new_service(scope.into_new_service()))],
+            services: vec![(rdef, boxed::new_service(scope.into_new_service()), guards)],
             default: None,
             defaults: vec![default],
             endpoint: AppEntry::new(fref.clone()),
@@ -201,13 +204,13 @@ where
             > + 'static,
     {
         let rdef = ResourceDef::new(&insert_slash(path));
-        let resource = f(Resource::new());
-        let default = resource.get_default();
+        let res = f(Resource::new());
+        let default = res.get_default();
 
         let fref = Rc::new(RefCell::new(None));
         AppRouter {
             chain: self.chain,
-            services: vec![(rdef, boxed::new_service(resource.into_new_service()))],
+            services: vec![(rdef, boxed::new_service(res.into_new_service()), None)],
             default: None,
             defaults: vec![default],
             endpoint: AppEntry::new(fref.clone()),
@@ -308,7 +311,7 @@ where
 /// for building application instances.
 pub struct AppRouter<C, P, B, T> {
     chain: C,
-    services: Vec<(ResourceDef, HttpNewService<P>)>,
+    services: Vec<(ResourceDef, HttpNewService<P>, Option<Guards>)>,
     default: Option<Rc<HttpNewService<P>>>,
     defaults: Vec<Rc<RefCell<Option<Rc<HttpNewService<P>>>>>>,
     endpoint: T,
@@ -357,11 +360,12 @@ where
     where
         F: FnOnce(Scope<P>) -> Scope<P>,
     {
-        let scope = f(Scope::new(path));
+        let mut scope = f(Scope::new(path));
         let rdef = scope.rdef().clone();
+        let guards = scope.take_guards();
         self.defaults.push(scope.get_default());
         self.services
-            .push((rdef, boxed::new_service(scope.into_new_service())));
+            .push((rdef, boxed::new_service(scope.into_new_service()), guards));
         self
     }
 
@@ -411,8 +415,11 @@ where
         let rdef = ResourceDef::new(&insert_slash(path));
         let resource = f(Resource::new());
         self.defaults.push(resource.get_default());
-        self.services
-            .push((rdef, boxed::new_service(resource.into_new_service())));
+        self.services.push((
+            rdef,
+            boxed::new_service(resource.into_new_service()),
+            None,
+        ));
         self
     }
 
@@ -452,6 +459,7 @@ where
         self.services.push((
             rdef.into(),
             boxed::new_service(factory.into_new_service().map_init_err(|_| ())),
+            None,
         ));
         self
     }
@@ -562,7 +570,12 @@ where
         // set factory
         *self.factory_ref.borrow_mut() = Some(AppRoutingFactory {
             default: self.default.clone(),
-            services: Rc::new(self.services),
+            services: Rc::new(
+                self.services
+                    .into_iter()
+                    .map(|(rdef, srv, guards)| (rdef, srv, RefCell::new(guards)))
+                    .collect(),
+            ),
         });
 
         AppInit {
@@ -575,7 +588,7 @@ where
 }
 
 pub struct AppRoutingFactory<P> {
-    services: Rc<Vec<(ResourceDef, HttpNewService<P>)>>,
+    services: Rc<Vec<(ResourceDef, HttpNewService<P>, RefCell<Option<Guards>>)>>,
     default: Option<Rc<HttpNewService<P>>>,
 }
 
@@ -598,9 +611,10 @@ impl<P: 'static> NewService for AppRoutingFactory<P> {
             fut: self
                 .services
                 .iter()
-                .map(|(path, service)| {
+                .map(|(path, service, guards)| {
                     CreateAppRoutingItem::Future(
                         Some(path.clone()),
+                        guards.borrow_mut().take(),
                         service.new_service(&()),
                     )
                 })
@@ -622,8 +636,8 @@ pub struct AppRoutingFactoryResponse<P> {
 }
 
 enum CreateAppRoutingItem<P> {
-    Future(Option<ResourceDef>, HttpServiceFut<P>),
-    Service(ResourceDef, HttpService<P>),
+    Future(Option<ResourceDef>, Option<Guards>, HttpServiceFut<P>),
+    Service(ResourceDef, Option<Guards>, HttpService<P>),
 }
 
 impl<P> Future for AppRoutingFactoryResponse<P> {
@@ -643,20 +657,24 @@ impl<P> Future for AppRoutingFactoryResponse<P> {
         // poll http services
         for item in &mut self.fut {
             let res = match item {
-                CreateAppRoutingItem::Future(ref mut path, ref mut fut) => {
-                    match fut.poll()? {
-                        Async::Ready(service) => Some((path.take().unwrap(), service)),
-                        Async::NotReady => {
-                            done = false;
-                            None
-                        }
+                CreateAppRoutingItem::Future(
+                    ref mut path,
+                    ref mut guards,
+                    ref mut fut,
+                ) => match fut.poll()? {
+                    Async::Ready(service) => {
+                        Some((path.take().unwrap(), guards.take(), service))
                     }
-                }
-                CreateAppRoutingItem::Service(_, _) => continue,
+                    Async::NotReady => {
+                        done = false;
+                        None
+                    }
+                },
+                CreateAppRoutingItem::Service(_, _, _) => continue,
             };
 
-            if let Some((path, service)) = res {
-                *item = CreateAppRoutingItem::Service(path, service);
+            if let Some((path, guards, service)) = res {
+                *item = CreateAppRoutingItem::Service(path, guards, service);
             }
         }
 
@@ -666,10 +684,11 @@ impl<P> Future for AppRoutingFactoryResponse<P> {
                 .drain(..)
                 .fold(Router::build(), |mut router, item| {
                     match item {
-                        CreateAppRoutingItem::Service(path, service) => {
-                            router.rdef(path, service)
+                        CreateAppRoutingItem::Service(path, guards, service) => {
+                            router.rdef(path, service);
+                            router.set_user_data(guards);
                         }
-                        CreateAppRoutingItem::Future(_, _) => unreachable!(),
+                        CreateAppRoutingItem::Future(_, _, _) => unreachable!(),
                     }
                     router
                 });
@@ -685,7 +704,7 @@ impl<P> Future for AppRoutingFactoryResponse<P> {
 }
 
 pub struct AppRouting<P> {
-    router: Router<HttpService<P>>,
+    router: Router<HttpService<P>, Guards>,
     ready: Option<(ServiceRequest<P>, ResourceInfo)>,
     default: Option<HttpService<P>>,
 }
@@ -705,7 +724,18 @@ impl<P> Service for AppRouting<P> {
     }
 
     fn call(&mut self, mut req: ServiceRequest<P>) -> Self::Future {
-        if let Some((srv, _info)) = self.router.recognize_mut(req.match_info_mut()) {
+        let res = self.router.recognize_mut_checked(&mut req, |req, guards| {
+            if let Some(ref guards) = guards {
+                for f in guards {
+                    if !f.check(req.head()) {
+                        return false;
+                    }
+                }
+            }
+            true
+        });
+
+        if let Some((srv, _info)) = res {
             Either::A(srv.call(req))
         } else if let Some(ref mut default) = self.default {
             Either::A(default.call(req))

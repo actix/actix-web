@@ -49,7 +49,6 @@ actix-utils = "0.3.0"
 
 actix-http = { git = "https://github.com/actix/actix-http.git" }
 actix-router = { git = "https://github.com/actix/actix-net.git" }
-#actix-router = { path = "../actix-net/router" }
 
 bytes = "0.4"
 derive_more = "0.14"

@@ -8,7 +8,7 @@ use actix_http::{
     Error, Extensions, HttpMessage, Payload, Request, RequestHead, Response,
     ResponseHead,
 };
-use actix_router::{Path, Url};
+use actix_router::{Path, Resource, Url};
 use futures::future::{ok, FutureResult, IntoFuture};
 
 use crate::request::HttpRequest;
@@ -134,6 +134,12 @@ impl<P> ServiceRequest<P> {
     #[inline]
     pub fn app_extensions(&self) -> &Extensions {
         self.req.app_extensions()
+    }
+}
+
+impl<P> Resource<Url> for ServiceRequest<P> {
+    fn resource_path(&mut self) -> &mut Path<Url> {
+        self.match_info_mut()
     }
 }
 

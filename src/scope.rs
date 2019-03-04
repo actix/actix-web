@@ -15,6 +15,7 @@ use crate::resource::Resource;
 use crate::route::Route;
 use crate::service::{ServiceRequest, ServiceResponse};
 
+type Guards = Vec<Box<Guard>>;
 type HttpService<P> = BoxedService<ServiceRequest<P>, ServiceResponse, ()>;
 type HttpNewService<P> = BoxedNewService<(), ServiceRequest<P>, ServiceResponse, (), ()>;
 type BoxedResponse = Box<Future<Item = ServiceResponse, Error = ()>>;
@@ -51,8 +52,8 @@ type BoxedResponse = Box<Future<Item = ServiceResponse, Error = ()>>;
 pub struct Scope<P, T = ScopeEndpoint<P>> {
     endpoint: T,
     rdef: ResourceDef,
-    services: Vec<(ResourceDef, HttpNewService<P>)>,
-    guards: Rc<Vec<Box<Guard>>>,
+    services: Vec<(ResourceDef, HttpNewService<P>, Option<Guards>)>,
+    guards: Vec<Box<Guard>>,
     default: Rc<RefCell<Option<Rc<HttpNewService<P>>>>>,
     defaults: Vec<Rc<RefCell<Option<Rc<HttpNewService<P>>>>>>,
     factory_ref: Rc<RefCell<Option<ScopeFactory<P>>>>,
@@ -66,7 +67,7 @@ impl<P: 'static> Scope<P> {
         Scope {
             endpoint: ScopeEndpoint::new(fref.clone()),
             rdef: rdef.clone(),
-            guards: Rc::new(Vec::new()),
+            guards: Vec::new(),
             services: Vec::new(),
             default: Rc::new(RefCell::new(None)),
             defaults: Vec::new(),
@@ -110,7 +111,7 @@ where
     /// }
     /// ```
     pub fn guard<G: Guard + 'static>(mut self, guard: G) -> Self {
-        Rc::get_mut(&mut self.guards).unwrap().push(Box::new(guard));
+        self.guards.push(Box::new(guard));
         self
     }
 
@@ -135,11 +136,12 @@ where
     where
         F: FnOnce(Scope<P>) -> Scope<P>,
     {
-        let scope = f(Scope::new(path));
+        let mut scope = f(Scope::new(path));
         let rdef = scope.rdef().clone();
+        let guards = scope.take_guards();
         self.defaults.push(scope.get_default());
         self.services
-            .push((rdef, boxed::new_service(scope.into_new_service())));
+            .push((rdef, boxed::new_service(scope.into_new_service()), guards));
 
         self
     }
@@ -204,8 +206,11 @@ where
         let rdef = ResourceDef::new(&insert_slash(path));
         let resource = f(Resource::new());
         self.defaults.push(resource.get_default());
-        self.services
-            .push((rdef, boxed::new_service(resource.into_new_service())));
+        self.services.push((
+            rdef,
+            boxed::new_service(resource.into_new_service()),
+            None,
+        ));
         self
     }
 
@@ -270,6 +275,14 @@ where
     pub(crate) fn get_default(&self) -> Rc<RefCell<Option<Rc<HttpNewService<P>>>>> {
         self.default.clone()
     }
+
+    pub(crate) fn take_guards(&mut self) -> Option<Vec<Box<Guard>>> {
+        if self.guards.is_empty() {
+            None
+        } else {
+            Some(std::mem::replace(&mut self.guards, Vec::new()))
+        }
+    }
 }
 
 pub(crate) fn insert_slash(path: &str) -> String {
@@ -301,7 +314,12 @@ where
 
         *self.factory_ref.borrow_mut() = Some(ScopeFactory {
             default: self.default.clone(),
-            services: Rc::new(self.services),
+            services: Rc::new(
+                self.services
+                    .into_iter()
+                    .map(|(rdef, srv, guards)| (rdef, srv, RefCell::new(guards)))
+                    .collect(),
+            ),
         });
 
         self.endpoint
@@ -309,7 +327,7 @@ where
 }
 
 pub struct ScopeFactory<P> {
-    services: Rc<Vec<(ResourceDef, HttpNewService<P>)>>,
+    services: Rc<Vec<(ResourceDef, HttpNewService<P>, RefCell<Option<Guards>>)>>,
     default: Rc<RefCell<Option<Rc<HttpNewService<P>>>>>,
 }
 
@@ -332,9 +350,10 @@ impl<P: 'static> NewService for ScopeFactory<P> {
             fut: self
                 .services
                 .iter()
-                .map(|(path, service)| {
+                .map(|(path, service, guards)| {
                     CreateScopeServiceItem::Future(
                         Some(path.clone()),
+                        guards.borrow_mut().take(),
                         service.new_service(&()),
                     )
                 })
@@ -356,8 +375,8 @@ pub struct ScopeFactoryResponse<P> {
 type HttpServiceFut<P> = Box<Future<Item = HttpService<P>, Error = ()>>;
 
 enum CreateScopeServiceItem<P> {
-    Future(Option<ResourceDef>, HttpServiceFut<P>),
-    Service(ResourceDef, HttpService<P>),
+    Future(Option<ResourceDef>, Option<Guards>, HttpServiceFut<P>),
+    Service(ResourceDef, Option<Guards>, HttpService<P>),
 }
 
 impl<P> Future for ScopeFactoryResponse<P> {
@@ -377,20 +396,24 @@ impl<P> Future for ScopeFactoryResponse<P> {
         // poll http services
         for item in &mut self.fut {
             let res = match item {
-                CreateScopeServiceItem::Future(ref mut path, ref mut fut) => {
-                    match fut.poll()? {
-                        Async::Ready(service) => Some((path.take().unwrap(), service)),
-                        Async::NotReady => {
-                            done = false;
-                            None
-                        }
+                CreateScopeServiceItem::Future(
+                    ref mut path,
+                    ref mut guards,
+                    ref mut fut,
+                ) => match fut.poll()? {
+                    Async::Ready(service) => {
+                        Some((path.take().unwrap(), guards.take(), service))
                     }
-                }
-                CreateScopeServiceItem::Service(_, _) => continue,
+                    Async::NotReady => {
+                        done = false;
+                        None
+                    }
+                },
+                CreateScopeServiceItem::Service(_, _, _) => continue,
             };
 
-            if let Some((path, service)) = res {
-                *item = CreateScopeServiceItem::Service(path, service);
+            if let Some((path, guards, service)) = res {
+                *item = CreateScopeServiceItem::Service(path, guards, service);
             }
         }
 
@@ -400,10 +423,11 @@ impl<P> Future for ScopeFactoryResponse<P> {
                 .drain(..)
                 .fold(Router::build(), |mut router, item| {
                     match item {
-                        CreateScopeServiceItem::Service(path, service) => {
-                            router.rdef(path, service)
+                        CreateScopeServiceItem::Service(path, guards, service) => {
+                            router.rdef(path, service);
+                            router.set_user_data(guards);
                         }
-                        CreateScopeServiceItem::Future(_, _) => unreachable!(),
+                        CreateScopeServiceItem::Future(_, _, _) => unreachable!(),
                     }
                     router
                 });
@@ -419,7 +443,7 @@ impl<P> Future for ScopeFactoryResponse<P> {
 }
 
 pub struct ScopeService<P> {
-    router: Router<HttpService<P>>,
+    router: Router<HttpService<P>, Vec<Box<Guard>>>,
     default: Option<HttpService<P>>,
     _ready: Option<(ServiceRequest<P>, ResourceInfo)>,
 }
@@ -435,7 +459,18 @@ impl<P> Service for ScopeService<P> {
     }
 
     fn call(&mut self, mut req: ServiceRequest<P>) -> Self::Future {
-        if let Some((srv, _info)) = self.router.recognize_mut(req.match_info_mut()) {
+        let res = self.router.recognize_mut_checked(&mut req, |req, guards| {
+            if let Some(ref guards) = guards {
+                for f in guards {
+                    if !f.check(req.head()) {
+                        return false;
+                    }
+                }
+            }
+            true
+        });
+
+        if let Some((srv, _info)) = res {
             Either::A(srv.call(req))
         } else if let Some(ref mut default) = self.default {
             Either::A(default.call(req))
@@ -478,7 +513,7 @@ mod tests {
     use bytes::Bytes;
 
     use crate::test::TestRequest;
-    use crate::{web, App, HttpRequest, HttpResponse};
+    use crate::{guard, web, App, HttpRequest, HttpResponse};
 
     #[test]
     fn test_scope() {
@@ -614,30 +649,30 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
     }
 
-    // #[test]
-    // fn test_scope_guard() {
-    //     let mut rt = actix_rt::Runtime::new().unwrap();
-    //     let app = App::new()
-    //         .scope("/app", |scope| {
-    //             scope
-    //                 .guard(guard::Get())
-    //                 .resource("/path1", |r| r.to(|| HttpResponse::Ok()))
-    //         })
-    //         .into_new_service();
-    //     let mut srv = rt.block_on(app.new_service(&())).unwrap();
+    #[test]
+    fn test_scope_guard() {
+        let mut rt = actix_rt::Runtime::new().unwrap();
+        let app = App::new()
+            .scope("/app", |scope| {
+                scope
+                    .guard(guard::Get())
+                    .resource("/path1", |r| r.to(|| HttpResponse::Ok()))
+            })
+            .into_new_service();
+        let mut srv = rt.block_on(app.new_service(&())).unwrap();
 
-    //     let req = TestRequest::with_uri("/app/path1")
-    //         .method(Method::POST)
-    //         .to_request();
-    //     let resp = rt.block_on(srv.call(req)).unwrap();
-    //     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+        let req = TestRequest::with_uri("/app/path1")
+            .method(Method::POST)
+            .to_request();
+        let resp = rt.block_on(srv.call(req)).unwrap();
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 
-    //     let req = TestRequest::with_uri("/app/path1")
-    //         .method(Method::GET)
-    //         .to_request();
-    //     let resp = rt.block_on(srv.call(req)).unwrap();
-    //     assert_eq!(resp.status(), StatusCode::OK);
-    // }
+        let req = TestRequest::with_uri("/app/path1")
+            .method(Method::GET)
+            .to_request();
+        let resp = rt.block_on(srv.call(req)).unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
 
     #[test]
     fn test_scope_variable_segment() {
@@ -728,30 +763,32 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::CREATED);
     }
 
-    //     #[test]
-    //     fn test_nested_scope_filter() {
-    //         let app = App::new()
-    //             .scope("/app", |scope| {
-    //                 scope.nested("/t1", |scope| {
-    //                     scope
-    //                         .filter(pred::Get())
-    //                         .resource("/path1", |r| r.f(|_| HttpResponse::Ok()))
-    //                 })
-    //             })
-    //             .finish();
+    #[test]
+    fn test_nested_scope_filter() {
+        let mut rt = actix_rt::Runtime::new().unwrap();
+        let app = App::new()
+            .scope("/app", |scope| {
+                scope.nested("/t1", |scope| {
+                    scope
+                        .guard(guard::Get())
+                        .resource("/path1", |r| r.to(|| HttpResponse::Ok()))
+                })
+            })
+            .into_new_service();
+        let mut srv = rt.block_on(app.new_service(&())).unwrap();
 
-    //         let req = TestRequest::with_uri("/app/t1/path1")
-    //             .method(Method::POST)
-    //             .request();
-    //         let resp = app.run(req);
-    //         assert_eq!(resp.as_msg().status(), StatusCode::NOT_FOUND);
+        let req = TestRequest::with_uri("/app/t1/path1")
+            .method(Method::POST)
+            .to_request();
+        let resp = rt.block_on(srv.call(req)).unwrap();
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 
-    //         let req = TestRequest::with_uri("/app/t1/path1")
-    //             .method(Method::GET)
-    //             .request();
-    //         let resp = app.run(req);
-    //         assert_eq!(resp.as_msg().status(), StatusCode::OK);
-    //     }
+        let req = TestRequest::with_uri("/app/t1/path1")
+            .method(Method::GET)
+            .to_request();
+        let resp = rt.block_on(srv.call(req)).unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
 
     #[test]
     fn test_nested_scope_with_variable_segment() {
