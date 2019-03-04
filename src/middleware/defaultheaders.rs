@@ -138,39 +138,37 @@ mod tests {
     use actix_service::FnService;
 
     use super::*;
-    use crate::test::TestRequest;
+    use crate::test::{block_on, TestRequest};
     use crate::{HttpResponse, ServiceRequest};
 
     #[test]
     fn test_default_headers() {
-        let mut rt = actix_rt::Runtime::new().unwrap();
         let mut mw = DefaultHeaders::new().header(CONTENT_TYPE, "0001");
         let mut srv = FnService::new(|req: ServiceRequest<_>| {
             req.into_response(HttpResponse::Ok().finish())
         });
 
-        let req = TestRequest::default().finish();
-        let resp = rt.block_on(mw.call(req, &mut srv)).unwrap();
+        let req = TestRequest::default().to_service();
+        let resp = block_on(mw.call(req, &mut srv)).unwrap();
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0001");
 
-        let req = TestRequest::default().finish();
+        let req = TestRequest::default().to_service();
         let mut srv = FnService::new(|req: ServiceRequest<_>| {
             req.into_response(HttpResponse::Ok().header(CONTENT_TYPE, "0002").finish())
         });
-        let resp = rt.block_on(mw.call(req, &mut srv)).unwrap();
+        let resp = block_on(mw.call(req, &mut srv)).unwrap();
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0002");
     }
 
     #[test]
     fn test_content_type() {
-        let mut rt = actix_rt::Runtime::new().unwrap();
         let mut mw = DefaultHeaders::new().content_type();
         let mut srv = FnService::new(|req: ServiceRequest<_>| {
             req.into_response(HttpResponse::Ok().finish())
         });
 
-        let req = TestRequest::default().finish();
-        let resp = rt.block_on(mw.call(req, &mut srv)).unwrap();
+        let req = TestRequest::default().to_service();
+        let resp = block_on(mw.call(req, &mut srv)).unwrap();
         assert_eq!(
             resp.headers().get(CONTENT_TYPE).unwrap(),
             "application/octet-stream"

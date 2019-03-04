@@ -32,14 +32,14 @@ type BoxedResponse = Box<Future<Item = ServiceResponse, Error = ()>>;
 /// `Path` extractor also is able to extract scope level variable segments.
 ///
 /// ```rust
-/// use actix_web::{App, HttpResponse};
+/// use actix_web::{web, App, HttpResponse};
 ///
 /// fn main() {
 ///     let app = App::new().scope("/{project_id}/", |scope| {
 ///         scope
 ///             .resource("/path1", |r| r.to(|| HttpResponse::Ok()))
-///             .resource("/path2", |r| r.to(|| HttpResponse::Ok()))
-///             .resource("/path3", |r| r.to(|| HttpResponse::MethodNotAllowed()))
+///             .resource("/path2", |r| r.route(web::get().to(|| HttpResponse::Ok())))
+///             .resource("/path3", |r| r.route(web::head().to(|| HttpResponse::MethodNotAllowed())))
 ///     });
 /// }
 /// ```
@@ -512,27 +512,25 @@ mod tests {
     use actix_service::{IntoNewService, NewService, Service};
     use bytes::Bytes;
 
-    use crate::test::TestRequest;
+    use crate::test::{block_on, TestRequest};
     use crate::{guard, web, App, HttpRequest, HttpResponse};
 
     #[test]
     fn test_scope() {
-        let mut rt = actix_rt::Runtime::new().unwrap();
         let app = App::new()
             .scope("/app", |scope| {
                 scope.resource("/path1", |r| r.to(|| HttpResponse::Ok()))
             })
             .into_new_service();
-        let mut srv = rt.block_on(app.new_service(&())).unwrap();
+        let mut srv = block_on(app.new_service(&())).unwrap();
 
         let req = TestRequest::with_uri("/app/path1").to_request();
-        let resp = rt.block_on(srv.call(req)).unwrap();
+        let resp = block_on(srv.call(req)).unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
     #[test]
     fn test_scope_root() {
-        let mut rt = actix_rt::Runtime::new().unwrap();
         let app = App::new()
             .scope("/app", |scope| {
                 scope
@@ -540,58 +538,55 @@ mod tests {
                     .resource("/", |r| r.to(|| HttpResponse::Created()))
             })
             .into_new_service();
-        let mut srv = rt.block_on(app.new_service(&())).unwrap();
+        let mut srv = block_on(app.new_service(&())).unwrap();
 
         let req = TestRequest::with_uri("/app").to_request();
-        let resp = rt.block_on(srv.call(req)).unwrap();
+        let resp = block_on(srv.call(req)).unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
 
         let req = TestRequest::with_uri("/app/").to_request();
-        let resp = rt.block_on(srv.call(req)).unwrap();
+        let resp = block_on(srv.call(req)).unwrap();
         assert_eq!(resp.status(), StatusCode::CREATED);
     }
 
     #[test]
     fn test_scope_root2() {
-        let mut rt = actix_rt::Runtime::new().unwrap();
         let app = App::new()
             .scope("/app/", |scope| {
                 scope.resource("", |r| r.to(|| HttpResponse::Ok()))
             })
             .into_new_service();
-        let mut srv = rt.block_on(app.new_service(&())).unwrap();
+        let mut srv = block_on(app.new_service(&())).unwrap();
 
         let req = TestRequest::with_uri("/app").to_request();
-        let resp = rt.block_on(srv.call(req)).unwrap();
+        let resp = block_on(srv.call(req)).unwrap();
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 
         let req = TestRequest::with_uri("/app/").to_request();
-        let resp = rt.block_on(srv.call(req)).unwrap();
+        let resp = block_on(srv.call(req)).unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
     #[test]
     fn test_scope_root3() {
-        let mut rt = actix_rt::Runtime::new().unwrap();
         let app = App::new()
             .scope("/app/", |scope| {
                 scope.resource("/", |r| r.to(|| HttpResponse::Ok()))
             })
             .into_new_service();
-        let mut srv = rt.block_on(app.new_service(&())).unwrap();
+        let mut srv = block_on(app.new_service(&())).unwrap();
 
         let req = TestRequest::with_uri("/app").to_request();
-        let resp = rt.block_on(srv.call(req)).unwrap();
+        let resp = block_on(srv.call(req)).unwrap();
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 
         let req = TestRequest::with_uri("/app/").to_request();
-        let resp = rt.block_on(srv.call(req)).unwrap();
+        let resp = block_on(srv.call(req)).unwrap();
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
     }
 
     #[test]
     fn test_scope_route() {
-        let mut rt = actix_rt::Runtime::new().unwrap();
         let app = App::new()
             .scope("app", |scope| {
                 scope.resource("/path1", |r| {
@@ -600,28 +595,27 @@ mod tests {
                 })
             })
             .into_new_service();
-        let mut srv = rt.block_on(app.new_service(&())).unwrap();
+        let mut srv = block_on(app.new_service(&())).unwrap();
 
         let req = TestRequest::with_uri("/app/path1").to_request();
-        let resp = rt.block_on(srv.call(req)).unwrap();
+        let resp = block_on(srv.call(req)).unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
 
         let req = TestRequest::with_uri("/app/path1")
             .method(Method::DELETE)
             .to_request();
-        let resp = rt.block_on(srv.call(req)).unwrap();
+        let resp = block_on(srv.call(req)).unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
 
         let req = TestRequest::with_uri("/app/path1")
             .method(Method::POST)
             .to_request();
-        let resp = rt.block_on(srv.call(req)).unwrap();
+        let resp = block_on(srv.call(req)).unwrap();
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
     }
 
     #[test]
     fn test_scope_route_without_leading_slash() {
-        let mut rt = actix_rt::Runtime::new().unwrap();
         let app = App::new()
             .scope("app", |scope| {
                 scope.resource("path1", |r| {
@@ -630,28 +624,27 @@ mod tests {
                 })
             })
             .into_new_service();
-        let mut srv = rt.block_on(app.new_service(&())).unwrap();
+        let mut srv = block_on(app.new_service(&())).unwrap();
 
         let req = TestRequest::with_uri("/app/path1").to_request();
-        let resp = rt.block_on(srv.call(req)).unwrap();
+        let resp = block_on(srv.call(req)).unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
 
         let req = TestRequest::with_uri("/app/path1")
             .method(Method::DELETE)
             .to_request();
-        let resp = rt.block_on(srv.call(req)).unwrap();
+        let resp = block_on(srv.call(req)).unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
 
         let req = TestRequest::with_uri("/app/path1")
             .method(Method::POST)
             .to_request();
-        let resp = rt.block_on(srv.call(req)).unwrap();
+        let resp = block_on(srv.call(req)).unwrap();
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
     }
 
     #[test]
     fn test_scope_guard() {
-        let mut rt = actix_rt::Runtime::new().unwrap();
         let app = App::new()
             .scope("/app", |scope| {
                 scope
@@ -659,24 +652,23 @@ mod tests {
                     .resource("/path1", |r| r.to(|| HttpResponse::Ok()))
             })
             .into_new_service();
-        let mut srv = rt.block_on(app.new_service(&())).unwrap();
+        let mut srv = block_on(app.new_service(&())).unwrap();
 
         let req = TestRequest::with_uri("/app/path1")
             .method(Method::POST)
             .to_request();
-        let resp = rt.block_on(srv.call(req)).unwrap();
+        let resp = block_on(srv.call(req)).unwrap();
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 
         let req = TestRequest::with_uri("/app/path1")
             .method(Method::GET)
             .to_request();
-        let resp = rt.block_on(srv.call(req)).unwrap();
+        let resp = block_on(srv.call(req)).unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
     #[test]
     fn test_scope_variable_segment() {
-        let mut rt = actix_rt::Runtime::new().unwrap();
         let app = App::new()
             .scope("/ab-{project}", |scope| {
                 scope.resource("/path1", |r| {
@@ -687,10 +679,10 @@ mod tests {
                 })
             })
             .into_new_service();
-        let mut srv = rt.block_on(app.new_service(&())).unwrap();
+        let mut srv = block_on(app.new_service(&())).unwrap();
 
         let req = TestRequest::with_uri("/ab-project1/path1").to_request();
-        let resp = rt.block_on(srv.call(req)).unwrap();
+        let resp = block_on(srv.call(req)).unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
 
         match resp.body() {
@@ -702,13 +694,12 @@ mod tests {
         }
 
         let req = TestRequest::with_uri("/aa-project1/path1").to_request();
-        let resp = rt.block_on(srv.call(req)).unwrap();
+        let resp = block_on(srv.call(req)).unwrap();
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
     }
 
     #[test]
     fn test_nested_scope() {
-        let mut rt = actix_rt::Runtime::new().unwrap();
         let app = App::new()
             .scope("/app", |scope| {
                 scope.nested("/t1", |scope| {
@@ -716,16 +707,15 @@ mod tests {
                 })
             })
             .into_new_service();
-        let mut srv = rt.block_on(app.new_service(&())).unwrap();
+        let mut srv = block_on(app.new_service(&())).unwrap();
 
         let req = TestRequest::with_uri("/app/t1/path1").to_request();
-        let resp = rt.block_on(srv.call(req)).unwrap();
+        let resp = block_on(srv.call(req)).unwrap();
         assert_eq!(resp.status(), StatusCode::CREATED);
     }
 
     #[test]
     fn test_nested_scope_no_slash() {
-        let mut rt = actix_rt::Runtime::new().unwrap();
         let app = App::new()
             .scope("/app", |scope| {
                 scope.nested("t1", |scope| {
@@ -733,16 +723,15 @@ mod tests {
                 })
             })
             .into_new_service();
-        let mut srv = rt.block_on(app.new_service(&())).unwrap();
+        let mut srv = block_on(app.new_service(&())).unwrap();
 
         let req = TestRequest::with_uri("/app/t1/path1").to_request();
-        let resp = rt.block_on(srv.call(req)).unwrap();
+        let resp = block_on(srv.call(req)).unwrap();
         assert_eq!(resp.status(), StatusCode::CREATED);
     }
 
     #[test]
     fn test_nested_scope_root() {
-        let mut rt = actix_rt::Runtime::new().unwrap();
         let app = App::new()
             .scope("/app", |scope| {
                 scope.nested("/t1", |scope| {
@@ -752,20 +741,19 @@ mod tests {
                 })
             })
             .into_new_service();
-        let mut srv = rt.block_on(app.new_service(&())).unwrap();
+        let mut srv = block_on(app.new_service(&())).unwrap();
 
         let req = TestRequest::with_uri("/app/t1").to_request();
-        let resp = rt.block_on(srv.call(req)).unwrap();
+        let resp = block_on(srv.call(req)).unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
 
         let req = TestRequest::with_uri("/app/t1/").to_request();
-        let resp = rt.block_on(srv.call(req)).unwrap();
+        let resp = block_on(srv.call(req)).unwrap();
         assert_eq!(resp.status(), StatusCode::CREATED);
     }
 
     #[test]
     fn test_nested_scope_filter() {
-        let mut rt = actix_rt::Runtime::new().unwrap();
         let app = App::new()
             .scope("/app", |scope| {
                 scope.nested("/t1", |scope| {
@@ -775,24 +763,23 @@ mod tests {
                 })
             })
             .into_new_service();
-        let mut srv = rt.block_on(app.new_service(&())).unwrap();
+        let mut srv = block_on(app.new_service(&())).unwrap();
 
         let req = TestRequest::with_uri("/app/t1/path1")
             .method(Method::POST)
             .to_request();
-        let resp = rt.block_on(srv.call(req)).unwrap();
+        let resp = block_on(srv.call(req)).unwrap();
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 
         let req = TestRequest::with_uri("/app/t1/path1")
             .method(Method::GET)
             .to_request();
-        let resp = rt.block_on(srv.call(req)).unwrap();
+        let resp = block_on(srv.call(req)).unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
     #[test]
     fn test_nested_scope_with_variable_segment() {
-        let mut rt = actix_rt::Runtime::new().unwrap();
         let app = App::new()
             .scope("/app", |scope| {
                 scope.nested("/{project_id}", |scope| {
@@ -807,10 +794,10 @@ mod tests {
                 })
             })
             .into_new_service();
-        let mut srv = rt.block_on(app.new_service(&())).unwrap();
+        let mut srv = block_on(app.new_service(&())).unwrap();
 
         let req = TestRequest::with_uri("/app/project_1/path1").to_request();
-        let resp = rt.block_on(srv.call(req)).unwrap();
+        let resp = block_on(srv.call(req)).unwrap();
         assert_eq!(resp.status(), StatusCode::CREATED);
 
         match resp.body() {
@@ -824,7 +811,6 @@ mod tests {
 
     #[test]
     fn test_nested2_scope_with_variable_segment() {
-        let mut rt = actix_rt::Runtime::new().unwrap();
         let app = App::new()
             .scope("/app", |scope| {
                 scope.nested("/{project}", |scope| {
@@ -842,10 +828,10 @@ mod tests {
                 })
             })
             .into_new_service();
-        let mut srv = rt.block_on(app.new_service(&())).unwrap();
+        let mut srv = block_on(app.new_service(&())).unwrap();
 
         let req = TestRequest::with_uri("/app/test/1/path1").to_request();
-        let resp = rt.block_on(srv.call(req)).unwrap();
+        let resp = block_on(srv.call(req)).unwrap();
         assert_eq!(resp.status(), StatusCode::CREATED);
 
         match resp.body() {
@@ -857,13 +843,12 @@ mod tests {
         }
 
         let req = TestRequest::with_uri("/app/test/1/path2").to_request();
-        let resp = rt.block_on(srv.call(req)).unwrap();
+        let resp = block_on(srv.call(req)).unwrap();
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
     }
 
     #[test]
     fn test_default_resource() {
-        let mut rt = actix_rt::Runtime::new().unwrap();
         let app = App::new()
             .scope("/app", |scope| {
                 scope
@@ -871,20 +856,19 @@ mod tests {
                     .default_resource(|r| r.to(|| HttpResponse::BadRequest()))
             })
             .into_new_service();
-        let mut srv = rt.block_on(app.new_service(&())).unwrap();
+        let mut srv = block_on(app.new_service(&())).unwrap();
 
         let req = TestRequest::with_uri("/app/path2").to_request();
-        let resp = rt.block_on(srv.call(req)).unwrap();
+        let resp = block_on(srv.call(req)).unwrap();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 
         let req = TestRequest::with_uri("/path2").to_request();
-        let resp = rt.block_on(srv.call(req)).unwrap();
+        let resp = block_on(srv.call(req)).unwrap();
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
     }
 
     #[test]
     fn test_default_resource_propagation() {
-        let mut rt = actix_rt::Runtime::new().unwrap();
         let app = App::new()
             .scope("/app1", |scope| {
                 scope.default_resource(|r| r.to(|| HttpResponse::BadRequest()))
@@ -892,18 +876,18 @@ mod tests {
             .scope("/app2", |scope| scope)
             .default_resource(|r| r.to(|| HttpResponse::MethodNotAllowed()))
             .into_new_service();
-        let mut srv = rt.block_on(app.new_service(&())).unwrap();
+        let mut srv = block_on(app.new_service(&())).unwrap();
 
         let req = TestRequest::with_uri("/non-exist").to_request();
-        let resp = rt.block_on(srv.call(req)).unwrap();
+        let resp = block_on(srv.call(req)).unwrap();
         assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
 
         let req = TestRequest::with_uri("/app1/non-exist").to_request();
-        let resp = rt.block_on(srv.call(req)).unwrap();
+        let resp = block_on(srv.call(req)).unwrap();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 
         let req = TestRequest::with_uri("/app2/non-exist").to_request();
-        let resp = rt.block_on(srv.call(req)).unwrap();
+        let resp = block_on(srv.call(req)).unwrap();
         assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
     }
 }

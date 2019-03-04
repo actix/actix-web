@@ -46,6 +46,7 @@ flate2-rust = ["flate2/rust_backend"]
 actix-codec = "0.1.0"
 actix-service = "0.3.0"
 actix-utils = "0.3.0"
+actix-rt = "0.1.0"
 
 actix-http = { git = "https://github.com/actix/actix-http.git" }
 actix-router = { git = "https://github.com/actix/actix-net.git" }
@@ -69,7 +70,6 @@ brotli2 = { version="^0.3.2", optional = true }
 flate2 = { version="^1.0.2", optional = true, default-features = false }
 
 [dev-dependencies]
-actix-rt = "0.1.0"
 actix-server = { version="0.3.0", features=["ssl"] }
 actix-http = { git = "https://github.com/actix/actix-http.git", features=["ssl"] }
 actix-http-test = { git = "https://github.com/actix/actix-http.git", features=["ssl"] }

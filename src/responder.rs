@@ -286,19 +286,18 @@ mod tests {
 
     #[test]
     fn test_option_responder() {
-        let mut rt = actix_rt::Runtime::new().unwrap();
         let app = App::new()
             .resource("/none", |r| r.to(|| -> Option<&'static str> { None }))
             .resource("/some", |r| r.to(|| Some("some")))
             .into_new_service();
-        let mut srv = rt.block_on(app.new_service(&())).unwrap();
+        let mut srv = TestRequest::block_on(app.new_service(&())).unwrap();
 
         let req = TestRequest::with_uri("/none").to_request();
-        let resp = rt.block_on(srv.call(req)).unwrap();
+        let resp = TestRequest::block_on(srv.call(req)).unwrap();
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 
         let req = TestRequest::with_uri("/some").to_request();
-        let resp = rt.block_on(srv.call(req)).unwrap();
+        let resp = TestRequest::block_on(srv.call(req)).unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
         match resp.body() {
             ResponseBody::Body(Body::Bytes(ref b)) => {

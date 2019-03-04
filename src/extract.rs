@@ -1152,7 +1152,7 @@ mod tests {
     use serde_derive::Deserialize;
 
     use super::*;
-    use crate::test::TestRequest;
+    use crate::test::{block_on, TestRequest};
 
     #[derive(Deserialize, Debug, PartialEq)]
     struct Info {
@@ -1161,29 +1161,26 @@ mod tests {
 
     #[test]
     fn test_bytes() {
-        let mut rt = actix_rt::Runtime::new().unwrap();
         let mut req = TestRequest::with_header(header::CONTENT_LENGTH, "11")
             .set_payload(Bytes::from_static(b"hello=world"))
             .to_from();
 
-        let s = rt.block_on(Bytes::from_request(&mut req)).unwrap();
+        let s = block_on(Bytes::from_request(&mut req)).unwrap();
         assert_eq!(s, Bytes::from_static(b"hello=world"));
     }
 
     #[test]
     fn test_string() {
-        let mut rt = actix_rt::Runtime::new().unwrap();
         let mut req = TestRequest::with_header(header::CONTENT_LENGTH, "11")
             .set_payload(Bytes::from_static(b"hello=world"))
             .to_from();
 
-        let s = rt.block_on(String::from_request(&mut req)).unwrap();
+        let s = block_on(String::from_request(&mut req)).unwrap();
         assert_eq!(s, "hello=world");
     }
 
     #[test]
     fn test_form() {
-        let mut rt = actix_rt::Runtime::new().unwrap();
         let mut req = TestRequest::with_header(
             header::CONTENT_TYPE,
             "application/x-www-form-urlencoded",
@@ -1192,13 +1189,12 @@ mod tests {
         .set_payload(Bytes::from_static(b"hello=world"))
         .to_from();
 
-        let s = rt.block_on(Form::<Info>::from_request(&mut req)).unwrap();
+        let s = block_on(Form::<Info>::from_request(&mut req)).unwrap();
         assert_eq!(s.hello, "world");
     }
 
     #[test]
     fn test_option() {
-        let mut rt = actix_rt::Runtime::new().unwrap();
         let mut req = TestRequest::with_header(
             header::CONTENT_TYPE,
             "application/x-www-form-urlencoded",
@@ -1206,9 +1202,7 @@ mod tests {
         .config(FormConfig::default().limit(4096))
         .to_from();
 
-        let r = rt
-            .block_on(Option::<Form<Info>>::from_request(&mut req))
-            .unwrap();
+        let r = block_on(Option::<Form<Info>>::from_request(&mut req)).unwrap();
         assert_eq!(r, None);
 
         let mut req = TestRequest::with_header(
@@ -1219,9 +1213,7 @@ mod tests {
         .set_payload(Bytes::from_static(b"hello=world"))
         .to_from();
 
-        let r = rt
-            .block_on(Option::<Form<Info>>::from_request(&mut req))
-            .unwrap();
+        let r = block_on(Option::<Form<Info>>::from_request(&mut req)).unwrap();
         assert_eq!(
             r,
             Some(Form(Info {
@@ -1237,15 +1229,12 @@ mod tests {
         .set_payload(Bytes::from_static(b"bye=world"))
         .to_from();
 
-        let r = rt
-            .block_on(Option::<Form<Info>>::from_request(&mut req))
-            .unwrap();
+        let r = block_on(Option::<Form<Info>>::from_request(&mut req)).unwrap();
         assert_eq!(r, None);
     }
 
     #[test]
     fn test_result() {
-        let mut rt = actix_rt::Runtime::new().unwrap();
         let mut req = TestRequest::with_header(
             header::CONTENT_TYPE,
             "application/x-www-form-urlencoded",
@@ -1254,8 +1243,7 @@ mod tests {
         .set_payload(Bytes::from_static(b"hello=world"))
         .to_from();
 
-        let r = rt
-            .block_on(Result::<Form<Info>, Error>::from_request(&mut req))
+        let r = block_on(Result::<Form<Info>, Error>::from_request(&mut req))
             .unwrap()
             .unwrap();
         assert_eq!(
@@ -1273,9 +1261,7 @@ mod tests {
         .set_payload(Bytes::from_static(b"bye=world"))
         .to_from();
 
-        let r = rt
-            .block_on(Result::<Form<Info>, Error>::from_request(&mut req))
-            .unwrap();
+        let r = block_on(Result::<Form<Info>, Error>::from_request(&mut req)).unwrap();
         assert!(r.is_err());
     }
 
@@ -1361,25 +1347,19 @@ mod tests {
 
     #[test]
     fn test_tuple_extract() {
-        let mut rt = actix_rt::Runtime::new().unwrap();
         let resource = ResourceDef::new("/{key}/{value}/");
 
         let mut req = TestRequest::with_uri("/name/user1/?id=test").to_from();
         resource.match_path(req.match_info_mut());
 
-        let res = rt
-            .block_on(<(Path<(String, String)>,)>::from_request(&mut req))
-            .unwrap();
+        let res = block_on(<(Path<(String, String)>,)>::from_request(&mut req)).unwrap();
         assert_eq!((res.0).0, "name");
         assert_eq!((res.0).1, "user1");
 
-        let res = rt
-            .block_on(
-                <(Path<(String, String)>, Path<(String, String)>)>::from_request(
-                    &mut req,
-                ),
-            )
-            .unwrap();
+        let res = block_on(
+            <(Path<(String, String)>, Path<(String, String)>)>::from_request(&mut req),
+        )
+        .unwrap();
         assert_eq!((res.0).0, "name");
         assert_eq!((res.0).1, "user1");
         assert_eq!((res.1).0, "name");

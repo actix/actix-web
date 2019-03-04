@@ -1,4 +1,5 @@
 //! Various helpers for Actix applications to use during testing.
+use std::cell::RefCell;
 use std::rc::Rc;
 
 use actix_http::http::header::{Header, HeaderName, IntoHeaderValue};
@@ -6,16 +7,47 @@ use actix_http::http::{HttpTryFrom, Method, Version};
 use actix_http::test::TestRequest as HttpTestRequest;
 use actix_http::{Extensions, PayloadStream, Request};
 use actix_router::{Path, Url};
+use actix_rt::Runtime;
 use bytes::Bytes;
+use futures::Future;
 
 use crate::request::HttpRequest;
 use crate::service::{ServiceFromRequest, ServiceRequest};
 
-/// Test `Request` builder
+thread_local! {
+    static RT: RefCell<Runtime> = {
+        RefCell::new(Runtime::new().unwrap())
+    };
+}
+
+/// Runs the provided future, blocking the current thread until the future
+/// completes.
+///
+/// This function can be used to synchronously block the current thread
+/// until the provided `future` has resolved either successfully or with an
+/// error. The result of the future is then returned from this function
+/// call.
+///
+/// Note that this function is intended to be used only for testing purpose.
+/// This function panics on nested call.
+pub fn block_on<F>(f: F) -> Result<F::Item, F::Error>
+where
+    F: Future,
+{
+    RT.with(move |rt| rt.borrow_mut().block_on(f))
+}
+
+/// Test `Request` builder.
+///
+/// For unit testing, actix provides a request builder type and a simple handler runner. TestRequest implements a builder-like pattern.
+/// You can generate various types of request via TestRequest's methods:
+///  * `TestRequest::to_request` creates `actix_http::Request` instance.
+///  * `TestRequest::to_service` creates `ServiceRequest` instance, which is used for testing middlewares and chain adapters.
+///  * `TestRequest::to_from` creates `ServiceFromRequest` instance, which is used for testing extractors.
+///  * `TestRequest::to_http_request` creates `HttpRequest` instance, which is used for testing handlers.
 ///
 /// ```rust,ignore
-/// # use actix_web::*;
-/// use actix_web::test::TestRequest;
+/// use actix_web::test;
 ///
 /// fn index(req: HttpRequest) -> HttpResponse {
 ///     if let Some(hdr) = req.headers().get(header::CONTENT_TYPE) {
@@ -26,12 +58,14 @@ use crate::service::{ServiceFromRequest, ServiceRequest};
 /// }
 ///
 /// fn main() {
-///     let resp = TestRequest::with_header("content-type", "text/plain")
-///         .run(&index)
-///         .unwrap();
+///     let req = test::TestRequest::with_header("content-type", "text/plain")
+///         .to_http_request();
+///
+///     let resp = test::block_on(index(req));
 ///     assert_eq!(resp.status(), StatusCode::OK);
 ///
-///     let resp = TestRequest::default().run(&index).unwrap();
+///     let req = test::TestRequest::default().to_http_request();
+///     let resp = test::block_on(index(req));
 ///     assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 /// }
 /// ```
@@ -125,7 +159,7 @@ impl TestRequest {
     }
 
     /// Complete request creation and generate `ServiceRequest` instance
-    pub fn finish(mut self) -> ServiceRequest<PayloadStream> {
+    pub fn to_service(mut self) -> ServiceRequest<PayloadStream> {
         let req = self.req.finish();
 
         ServiceRequest::new(
@@ -162,5 +196,22 @@ impl TestRequest {
             Rc::new(self.extensions),
         );
         ServiceFromRequest::new(req, None)
+    }
+
+    /// Runs the provided future, blocking the current thread until the future
+    /// completes.
+    ///
+    /// This function can be used to synchronously block the current thread
+    /// until the provided `future` has resolved either successfully or with an
+    /// error. The result of the future is then returned from this function
+    /// call.
+    ///
+    /// Note that this function is intended to be used only for testing purpose.
+    /// This function panics on nested call.
+    pub fn block_on<F>(f: F) -> Result<F::Item, F::Error>
+    where
+        F: Future,
+    {
+        block_on(f)
     }
 }

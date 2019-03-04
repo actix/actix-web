@@ -924,85 +924,95 @@ where
 
 #[cfg(test)]
 mod tests {
-    use actix_http::http::StatusCode;
+    use actix_http::http::{Method, StatusCode};
 
     use super::*;
-    use crate::test::TestRequest;
-    use crate::{HttpResponse, State};
+    use crate::test::{block_on, TestRequest};
+    use crate::{web, HttpResponse, State};
 
     #[test]
     fn test_default_resource() {
-        let mut rt = actix_rt::Runtime::new().unwrap();
-
         let app = App::new()
             .resource("/test", |r| r.to(|| HttpResponse::Ok()))
             .into_new_service();
-        let mut srv = rt.block_on(app.new_service(&())).unwrap();
+        let mut srv = block_on(app.new_service(&())).unwrap();
 
         let req = TestRequest::with_uri("/test").to_request();
-        let resp = rt.block_on(srv.call(req)).unwrap();
+        let resp = block_on(srv.call(req)).unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
 
         let req = TestRequest::with_uri("/blah").to_request();
-        let resp = rt.block_on(srv.call(req)).unwrap();
+        let resp = block_on(srv.call(req)).unwrap();
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 
         let app = App::new()
             .resource("/test", |r| r.to(|| HttpResponse::Ok()))
+            .resource("/test2", |r| {
+                r.default_resource(|r| r.to(|| HttpResponse::Created()))
+                    .route(web::get().to(|| HttpResponse::Ok()))
+            })
             .default_resource(|r| r.to(|| HttpResponse::MethodNotAllowed()))
             .into_new_service();
-        let mut srv = rt.block_on(app.new_service(&())).unwrap();
+        let mut srv = block_on(app.new_service(&())).unwrap();
 
         let req = TestRequest::with_uri("/blah").to_request();
-        let resp = rt.block_on(srv.call(req)).unwrap();
+        let resp = block_on(srv.call(req)).unwrap();
         assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
+
+        let req = TestRequest::with_uri("/test2").to_request();
+        let resp = block_on(srv.call(req)).unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let req = TestRequest::with_uri("/test2")
+            .method(Method::POST)
+            .to_request();
+        let resp = block_on(srv.call(req)).unwrap();
+        assert_eq!(resp.status(), StatusCode::CREATED);
     }
 
     #[test]
     fn test_state() {
-        let mut rt = actix_rt::Runtime::new().unwrap();
         let app = App::new()
             .state(10usize)
             .resource("/", |r| r.to(|_: State<usize>| HttpResponse::Ok()))
             .into_new_service();
-        let mut srv = rt.block_on(app.new_service(&())).unwrap();
+        let mut srv = block_on(app.new_service(&())).unwrap();
 
         let req = TestRequest::default().to_request();
-        let resp = rt.block_on(srv.call(req)).unwrap();
+        let resp = block_on(srv.call(req)).unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
 
         let app = App::new()
             .state(10u32)
             .resource("/", |r| r.to(|_: State<usize>| HttpResponse::Ok()))
             .into_new_service();
-        let mut srv = rt.block_on(app.new_service(&())).unwrap();
+        let mut srv = block_on(app.new_service(&())).unwrap();
 
         let req = TestRequest::default().to_request();
-        let resp = rt.block_on(srv.call(req)).unwrap();
+        let resp = block_on(srv.call(req)).unwrap();
         assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
     }
 
     #[test]
     fn test_state_factory() {
-        let mut rt = actix_rt::Runtime::new().unwrap();
         let app = App::new()
             .state_factory(|| Ok::<_, ()>(10usize))
             .resource("/", |r| r.to(|_: State<usize>| HttpResponse::Ok()))
             .into_new_service();
-        let mut srv = rt.block_on(app.new_service(&())).unwrap();
+        let mut srv = block_on(app.new_service(&())).unwrap();
 
         let req = TestRequest::default().to_request();
-        let resp = rt.block_on(srv.call(req)).unwrap();
+        let resp = block_on(srv.call(req)).unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
 
         let app = App::new()
             .state_factory(|| Ok::<_, ()>(10u32))
             .resource("/", |r| r.to(|_: State<usize>| HttpResponse::Ok()))
             .into_new_service();
-        let mut srv = rt.block_on(app.new_service(&())).unwrap();
+        let mut srv = block_on(app.new_service(&())).unwrap();
 
         let req = TestRequest::default().to_request();
-        let resp = rt.block_on(srv.call(req)).unwrap();
+        let resp = block_on(srv.call(req)).unwrap();
         assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
     }
 

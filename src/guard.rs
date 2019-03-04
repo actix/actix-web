@@ -239,8 +239,7 @@ mod tests {
     #[test]
     fn test_header() {
         let req = TestRequest::with_header(header::TRANSFER_ENCODING, "chunked")
-            .finish()
-            .into_request();
+            .to_http_request();
 
         let pred = Header("transfer-encoding", "chunked");
         assert!(pred.check(&req));
@@ -270,44 +269,55 @@ mod tests {
 
     #[test]
     fn test_methods() {
-        let req = TestRequest::default().finish().into_request();
+        let req = TestRequest::default().to_http_request();
         let req2 = TestRequest::default()
             .method(Method::POST)
-            .finish()
-            .into_request();
+            .to_http_request();
 
         assert!(Get().check(&req));
         assert!(!Get().check(&req2));
         assert!(Post().check(&req2));
         assert!(!Post().check(&req));
 
-        let r = TestRequest::default().method(Method::PUT).finish();
-        assert!(Put().check(&r,));
-        assert!(!Put().check(&req,));
+        let r = TestRequest::default().method(Method::PUT).to_http_request();
+        assert!(Put().check(&r));
+        assert!(!Put().check(&req));
 
-        let r = TestRequest::default().method(Method::DELETE).finish();
-        assert!(Delete().check(&r,));
-        assert!(!Delete().check(&req,));
+        let r = TestRequest::default()
+            .method(Method::DELETE)
+            .to_http_request();
+        assert!(Delete().check(&r));
+        assert!(!Delete().check(&req));
 
-        let r = TestRequest::default().method(Method::HEAD).finish();
-        assert!(Head().check(&r,));
-        assert!(!Head().check(&req,));
+        let r = TestRequest::default()
+            .method(Method::HEAD)
+            .to_http_request();
+        assert!(Head().check(&r));
+        assert!(!Head().check(&req));
 
-        let r = TestRequest::default().method(Method::OPTIONS).finish();
-        assert!(Options().check(&r,));
-        assert!(!Options().check(&req,));
+        let r = TestRequest::default()
+            .method(Method::OPTIONS)
+            .to_http_request();
+        assert!(Options().check(&r));
+        assert!(!Options().check(&req));
 
-        let r = TestRequest::default().method(Method::CONNECT).finish();
-        assert!(Connect().check(&r,));
-        assert!(!Connect().check(&req,));
+        let r = TestRequest::default()
+            .method(Method::CONNECT)
+            .to_http_request();
+        assert!(Connect().check(&r));
+        assert!(!Connect().check(&req));
 
-        let r = TestRequest::default().method(Method::PATCH).finish();
-        assert!(Patch().check(&r,));
-        assert!(!Patch().check(&req,));
+        let r = TestRequest::default()
+            .method(Method::PATCH)
+            .to_http_request();
+        assert!(Patch().check(&r));
+        assert!(!Patch().check(&req));
 
-        let r = TestRequest::default().method(Method::TRACE).finish();
-        assert!(Trace().check(&r,));
-        assert!(!Trace().check(&req,));
+        let r = TestRequest::default()
+            .method(Method::TRACE)
+            .to_http_request();
+        assert!(Trace().check(&r));
+        assert!(!Trace().check(&req));
     }
 
     #[test]
@@ -316,13 +326,13 @@ mod tests {
             .method(Method::TRACE)
             .to_http_request();
 
-        assert!(Not(Get()).check(&r,));
-        assert!(!Not(Trace()).check(&r,));
+        assert!(Not(Get()).check(&r));
+        assert!(!Not(Trace()).check(&r));
 
-        assert!(All(Trace()).and(Trace()).check(&r,));
-        assert!(!All(Get()).and(Trace()).check(&r,));
+        assert!(All(Trace()).and(Trace()).check(&r));
+        assert!(!All(Get()).and(Trace()).check(&r));
 
-        assert!(Any(Get()).or(Trace()).check(&r,));
-        assert!(!Any(Get()).or(Get()).check(&r,));
+        assert!(Any(Get()).or(Trace()).check(&r));
+        assert!(!Any(Get()).or(Get()).check(&r));
     }
 }
