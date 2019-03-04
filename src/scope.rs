@@ -272,7 +272,7 @@ where
     }
 }
 
-fn insert_slash(path: &str) -> String {
+pub(crate) fn insert_slash(path: &str) -> String {
     let mut path = path.to_owned();
     if !path.is_empty() && !path.starts_with('/') {
         path.insert(0, '/');
