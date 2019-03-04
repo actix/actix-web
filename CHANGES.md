@@ -1,5 +1,9 @@
 # Changes
 
+## [0.7.19] - 2019-04-19
+
+* Added client HTTP Authentication methods `.basic_auth()`  and `.bearer_auth()`. #540
+
 ## [0.7.11] - 2018-10-09
 
 ### Fixed
