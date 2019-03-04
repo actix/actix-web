@@ -34,10 +34,19 @@ where
     S::Service: 'static,
     B: MessageBody,
 {
-    /// Create new `HttpService` instance.
+    /// Create new `HttpService` instance with default config.
     pub fn new<F: IntoNewService<S>>(service: F) -> Self {
         let cfg = ServiceConfig::new(KeepAlive::Timeout(5), 5000, 0);
 
+        H1Service {
+            cfg,
+            srv: service.into_new_service(),
+            _t: PhantomData,
+        }
+    }
+
+    /// Create new `HttpService` instance with config.
+    pub fn with_config<F: IntoNewService<S>>(cfg: ServiceConfig, service: F) -> Self {
         H1Service {
             cfg,
             srv: service.into_new_service(),

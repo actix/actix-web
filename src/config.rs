@@ -65,7 +65,7 @@ impl Default for ServiceConfig {
 
 impl ServiceConfig {
     /// Create instance of `ServiceConfig`
-    pub(crate) fn new(
+    pub fn new(
         keep_alive: KeepAlive,
         client_timeout: u64,
         client_disconnect: u64,
@@ -282,7 +282,7 @@ impl ServiceConfigBuilder {
     }
 
     /// Finish service configuration and create `ServiceConfig` object.
-    pub fn finish(self) -> ServiceConfig {
+    pub fn finish(&mut self) -> ServiceConfig {
         ServiceConfig::new(self.keep_alive, self.client_timeout, self.client_disconnect)
     }
 }
