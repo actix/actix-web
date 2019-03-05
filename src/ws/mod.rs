@@ -9,6 +9,7 @@ use derive_more::{Display, From};
 use http::{header, Method, StatusCode};
 
 use crate::error::ResponseError;
+use crate::httpmessage::HttpMessage;
 use crate::request::Request;
 use crate::response::{Response, ResponseBuilder};
 

@@ -1,6 +1,8 @@
+use std::cell::{Ref, RefMut};
 use std::str;
 
 use bytes::{Bytes, BytesMut};
+use cookie::Cookie;
 use encoding::all::UTF_8;
 use encoding::label::encoding_from_whatwg_label;
 use encoding::types::{DecoderTrap, Encoding};
@@ -12,11 +14,15 @@ use serde::de::DeserializeOwned;
 use serde_urlencoded;
 
 use crate::error::{
-    ContentTypeError, ParseError, PayloadError, ReadlinesError, UrlencodedError,
+    ContentTypeError, CookieParseError, ParseError, PayloadError, ReadlinesError,
+    UrlencodedError,
 };
+use crate::extensions::Extensions;
 use crate::header::Header;
 use crate::json::JsonBody;
 use crate::payload::Payload;
+
+struct Cookies(Vec<Cookie<'static>>);
 
 /// Trait that implements general purpose operations on http messages
 pub trait HttpMessage: Sized {
@@ -26,8 +32,17 @@ pub trait HttpMessage: Sized {
     /// Read the message headers.
     fn headers(&self) -> &HeaderMap;
 
+    /// Mutable reference to the message's headers.
+    fn headers_mut(&mut self) -> &mut HeaderMap;
+
     /// Message payload stream
     fn take_payload(&mut self) -> Payload<Self::Stream>;
+
+    /// Request's extensions container
+    fn extensions(&self) -> Ref<Extensions>;
+
+    /// Mutable reference to a the request's extensions container
+    fn extensions_mut(&self) -> RefMut<Extensions>;
 
     #[doc(hidden)]
     /// Get a header
@@ -98,6 +113,39 @@ pub trait HttpMessage: Sized {
         } else {
             Ok(false)
         }
+    }
+
+    /// Load request cookies.
+    #[inline]
+    fn cookies(&self) -> Result<Ref<Vec<Cookie<'static>>>, CookieParseError> {
+        if self.extensions().get::<Cookies>().is_none() {
+            let mut cookies = Vec::new();
+            for hdr in self.headers().get_all(header::COOKIE) {
+                let s =
+                    str::from_utf8(hdr.as_bytes()).map_err(CookieParseError::from)?;
+                for cookie_str in s.split(';').map(|s| s.trim()) {
+                    if !cookie_str.is_empty() {
+                        cookies.push(Cookie::parse_encoded(cookie_str)?.into_owned());
+                    }
+                }
+            }
+            self.extensions_mut().insert(Cookies(cookies));
+        }
+        Ok(Ref::map(self.extensions(), |ext| {
+            &ext.get::<Cookies>().unwrap().0
+        }))
+    }
+
+    /// Return request cookie.
+    fn cookie(&self, name: &str) -> Option<Cookie<'static>> {
+        if let Ok(cookies) = self.cookies() {
+            for cookie in cookies.iter() {
+                if cookie.name() == name {
+                    return Some(cookie.to_owned());
+                }
+            }
+        }
+        None
     }
 
     /// Load http message body.

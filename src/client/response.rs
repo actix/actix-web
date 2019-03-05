@@ -1,3 +1,4 @@
+use std::cell::{Ref, RefMut};
 use std::fmt;
 
 use bytes::Bytes;
@@ -5,6 +6,7 @@ use futures::{Poll, Stream};
 use http::{HeaderMap, StatusCode, Version};
 
 use crate::error::PayloadError;
+use crate::extensions::Extensions;
 use crate::httpmessage::HttpMessage;
 use crate::message::{Head, Message, ResponseHead};
 use crate::payload::{Payload, PayloadStream};
@@ -22,6 +24,18 @@ impl HttpMessage for ClientResponse {
         &self.head.headers
     }
 
+    fn headers_mut(&mut self) -> &mut HeaderMap {
+        &mut self.head.headers
+    }
+
+    fn extensions(&self) -> Ref<Extensions> {
+        self.head.extensions()
+    }
+
+    fn extensions_mut(&self) -> RefMut<Extensions> {
+        self.head.extensions_mut()
+    }
+
     fn take_payload(&mut self) -> Payload {
         std::mem::replace(&mut self.payload, Payload::None)
     }
@@ -30,8 +44,11 @@ impl HttpMessage for ClientResponse {
 impl ClientResponse {
     /// Create new Request instance
     pub fn new() -> ClientResponse {
+        let head: Message<ResponseHead> = Message::new();
+        head.extensions_mut().clear();
+
         ClientResponse {
-            head: Message::new(),
+            head,
             payload: Payload::None,
         }
     }

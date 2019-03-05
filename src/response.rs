@@ -766,12 +766,14 @@ impl From<BytesMut> for Response {
 
 #[cfg(test)]
 mod tests {
+    use time::Duration;
+
     use super::*;
     use crate::body::Body;
     use crate::http;
     use crate::http::header::{HeaderValue, CONTENT_TYPE, COOKIE};
-
-    // use test::TestRequest;
+    use crate::httpmessage::HttpMessage;
+    use crate::test::TestRequest;
 
     #[test]
     fn test_debug() {
@@ -783,38 +785,39 @@ mod tests {
         assert!(dbg.contains("Response"));
     }
 
-    // #[test]
-    // fn test_response_cookies() {
-    //     let req = TestRequest::default()
-    //         .header(COOKIE, "cookie1=value1")
-    //         .header(COOKIE, "cookie2=value2")
-    //         .finish();
-    //     let cookies = req.cookies().unwrap();
+    #[test]
+    fn test_response_cookies() {
+        let req = TestRequest::default()
+            .header(COOKIE, "cookie1=value1")
+            .header(COOKIE, "cookie2=value2")
+            .finish();
+        let cookies = req.cookies().unwrap();
 
-    //     let resp = Response::Ok()
-    //         .cookie(
-    //             http::Cookie::build("name", "value")
-    //                 .domain("www.rust-lang.org")
-    //                 .path("/test")
-    //                 .http_only(true)
-    //                 .max_age(Duration::days(1))
-    //                 .finish(),
-    //         ).del_cookie(&cookies[0])
-    //         .finish();
+        let resp = Response::Ok()
+            .cookie(
+                http::Cookie::build("name", "value")
+                    .domain("www.rust-lang.org")
+                    .path("/test")
+                    .http_only(true)
+                    .max_age(Duration::days(1))
+                    .finish(),
+            )
+            .del_cookie(&cookies[0])
+            .finish();
 
-    //     let mut val: Vec<_> = resp
-    //         .headers()
-    //         .get_all("Set-Cookie")
-    //         .iter()
-    //         .map(|v| v.to_str().unwrap().to_owned())
-    //         .collect();
-    //     val.sort();
-    //     assert!(val[0].starts_with("cookie1=; Max-Age=0;"));
-    //     assert_eq!(
-    //         val[1],
-    //         "name=value; HttpOnly; Path=/test; Domain=www.rust-lang.org; Max-Age=86400"
-    //     );
-    // }
+        let mut val: Vec<_> = resp
+            .headers()
+            .get_all("Set-Cookie")
+            .iter()
+            .map(|v| v.to_str().unwrap().to_owned())
+            .collect();
+        val.sort();
+        assert!(val[0].starts_with("cookie1=; Max-Age=0;"));
+        assert_eq!(
+            val[1],
+            "name=value; HttpOnly; Path=/test; Domain=www.rust-lang.org; Max-Age=86400"
+        );
+    }
 
     #[test]
     fn test_update_response_cookies() {
@@ -870,25 +873,6 @@ mod tests {
             .body(Body::Empty);
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "text/plain")
     }
-
-    // #[test]
-    // fn test_content_encoding() {
-    //     let resp = Response::build(StatusCode::OK).finish();
-    //     assert_eq!(resp.content_encoding(), None);
-
-    //     #[cfg(feature = "brotli")]
-    //     {
-    //         let resp = Response::build(StatusCode::OK)
-    //             .content_encoding(ContentEncoding::Br)
-    //             .finish();
-    //         assert_eq!(resp.content_encoding(), Some(ContentEncoding::Br));
-    //     }
-
-    //     let resp = Response::build(StatusCode::OK)
-    //         .content_encoding(ContentEncoding::Gzip)
-    //         .finish();
-    //     assert_eq!(resp.content_encoding(), Some(ContentEncoding::Gzip));
-    // }
 
     #[test]
     fn test_json() {

@@ -125,6 +125,7 @@ pub struct ResponseHead {
     pub reason: Option<&'static str>,
     pub no_chunking: bool,
     pub(crate) ctype: Option<ConnectionType>,
+    pub(crate) extensions: RefCell<Extensions>,
 }
 
 impl Default for ResponseHead {
@@ -136,7 +137,22 @@ impl Default for ResponseHead {
             reason: None,
             no_chunking: false,
             ctype: None,
+            extensions: RefCell::new(Extensions::new()),
         }
+    }
+}
+
+impl ResponseHead {
+    /// Message extensions
+    #[inline]
+    pub fn extensions(&self) -> Ref<Extensions> {
+        self.extensions.borrow()
+    }
+
+    /// Mutable reference to a the message's extensions
+    #[inline]
+    pub fn extensions_mut(&self) -> RefMut<Extensions> {
+        self.extensions.borrow_mut()
     }
 }
 

@@ -163,7 +163,7 @@ impl MessageType for Request {
     }
 
     fn headers_mut(&mut self) -> &mut HeaderMap {
-        self.headers_mut()
+        &mut self.head_mut().headers
     }
 
     fn decode(src: &mut BytesMut) -> Result<Option<(Self, PayloadType)>, ParseError> {
@@ -832,6 +832,7 @@ mod tests {
             "GET /test HTTP/1.0\r\n\
              connection: close\r\n\r\n",
         );
+
         let req = parse_ready!(&mut buf);
 
         assert_eq!(req.head().ctype, Some(ConnectionType::Close));

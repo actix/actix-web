@@ -28,10 +28,7 @@ name = "actix_http"
 path = "src/lib.rs"
 
 [features]
-default = ["session"]
-
-# sessions feature, session require "ring" crate and c compiler
-session = ["cookie/secure"]
+default = []
 
 # openssl
 ssl = ["openssl", "actix-connector/ssl"]

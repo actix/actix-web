@@ -17,8 +17,26 @@ pub struct Request<P = PayloadStream> {
 impl<P> HttpMessage for Request<P> {
     type Stream = P;
 
+    #[inline]
     fn headers(&self) -> &HeaderMap {
         &self.head().headers
+    }
+
+    #[inline]
+    fn headers_mut(&mut self) -> &mut HeaderMap {
+        &mut self.head_mut().headers
+    }
+
+    /// Request extensions
+    #[inline]
+    fn extensions(&self) -> Ref<Extensions> {
+        self.head.extensions()
+    }
+
+    /// Mutable reference to a the request's extensions
+    #[inline]
+    fn extensions_mut(&self) -> RefMut<Extensions> {
+        self.head.extensions_mut()
     }
 
     fn take_payload(&mut self) -> Payload<P> {
@@ -117,30 +135,6 @@ impl<P> Request<P> {
     #[inline]
     pub fn path(&self) -> &str {
         self.head().uri.path()
-    }
-
-    #[inline]
-    /// Returns Request's headers.
-    pub fn headers(&self) -> &HeaderMap {
-        &self.head().headers
-    }
-
-    #[inline]
-    /// Returns mutable Request's headers.
-    pub fn headers_mut(&mut self) -> &mut HeaderMap {
-        &mut self.head_mut().headers
-    }
-
-    /// Request extensions
-    #[inline]
-    pub fn extensions(&self) -> Ref<Extensions> {
-        self.head.extensions()
-    }
-
-    /// Mutable reference to a the request's extensions
-    #[inline]
-    pub fn extensions_mut(&self) -> RefMut<Extensions> {
-        self.head.extensions_mut()
     }
 
     /// Check if request requires connection upgrade
