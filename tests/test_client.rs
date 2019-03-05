@@ -511,10 +511,10 @@ fn client_read_until_eof() {
 fn client_basic_auth() {
     let mut srv =
         test::TestServer::new(|app| app.handler(|_| HttpResponse::Ok().body(STR)));
-
+    /// set authorization header to Basic <base64 encoded username:password>
     let request = srv
                     .get()
-                    .basic_auth("username",Some("password"))
+                    .basic_auth("username", Some("password"))
                     .finish()
                     .unwrap();
     let repr = format!("{:?}", request);
@@ -525,7 +525,7 @@ fn client_basic_auth() {
 fn client_bearer_auth() {
     let mut srv =
         test::TestServer::new(|app| app.handler(|_| HttpResponse::Ok().body(STR)));
-
+    /// set authorization header to Bearer <token>
     let request = srv
                     .get()
                     .bearer_auth("someS3cr3tAutht0k3n")
