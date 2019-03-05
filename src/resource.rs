@@ -65,7 +65,7 @@ impl<P> Default for Resource<P> {
 impl<P: 'static, T> Resource<P, T>
 where
     T: NewService<
-        Request = ServiceRequest<P>,
+        ServiceRequest<P>,
         Response = ServiceResponse,
         Error = (),
         InitError = (),
@@ -187,7 +187,7 @@ where
     ) -> Resource<
         P,
         impl NewService<
-            Request = ServiceRequest<P>,
+            ServiceRequest<P>,
             Response = ServiceResponse,
             Error = (),
             InitError = (),
@@ -196,12 +196,12 @@ where
     where
         M: Transform<
             T::Service,
-            Request = ServiceRequest<P>,
+            ServiceRequest<P>,
             Response = ServiceResponse,
             Error = (),
             InitError = (),
         >,
-        F: IntoTransform<M, T::Service>,
+        F: IntoTransform<M, T::Service, ServiceRequest<P>>,
     {
         let endpoint = ApplyTransform::new(mw, self.endpoint);
         Resource {
@@ -216,12 +216,9 @@ where
     pub fn default_resource<F, R, U>(mut self, f: F) -> Self
     where
         F: FnOnce(Resource<P>) -> R,
-        R: IntoNewService<U>,
-        U: NewService<
-                Request = ServiceRequest<P>,
-                Response = ServiceResponse,
-                Error = (),
-            > + 'static,
+        R: IntoNewService<U, ServiceRequest<P>>,
+        U: NewService<ServiceRequest<P>, Response = ServiceResponse, Error = ()>
+            + 'static,
     {
         // create and configure default resource
         self.default = Rc::new(RefCell::new(Some(Rc::new(boxed::new_service(
@@ -236,10 +233,10 @@ where
     }
 }
 
-impl<P, T> IntoNewService<T> for Resource<P, T>
+impl<P, T> IntoNewService<T, ServiceRequest<P>> for Resource<P, T>
 where
     T: NewService<
-        Request = ServiceRequest<P>,
+        ServiceRequest<P>,
         Response = ServiceResponse,
         Error = (),
         InitError = (),
@@ -260,8 +257,7 @@ pub struct ResourceFactory<P> {
     default: Rc<RefCell<Option<Rc<HttpNewService<P>>>>>,
 }
 
-impl<P: 'static> NewService for ResourceFactory<P> {
-    type Request = ServiceRequest<P>;
+impl<P: 'static> NewService<ServiceRequest<P>> for ResourceFactory<P> {
     type Response = ServiceResponse;
     type Error = ();
     type InitError = ();
@@ -351,8 +347,7 @@ pub struct ResourceService<P> {
     default: Option<HttpService<P>>,
 }
 
-impl<P> Service for ResourceService<P> {
-    type Request = ServiceRequest<P>;
+impl<P> Service<ServiceRequest<P>> for ResourceService<P> {
     type Response = ServiceResponse;
     type Error = ();
     type Future = Either<
@@ -396,8 +391,7 @@ impl<P> ResourceEndpoint<P> {
     }
 }
 
-impl<P: 'static> NewService for ResourceEndpoint<P> {
-    type Request = ServiceRequest<P>;
+impl<P: 'static> NewService<ServiceRequest<P>> for ResourceEndpoint<P> {
     type Response = ServiceResponse;
     type Error = ();
     type InitError = ();

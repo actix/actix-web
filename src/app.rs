@@ -25,7 +25,7 @@ type HttpNewService<P> = BoxedNewService<(), ServiceRequest<P>, ServiceResponse,
 type BoxedResponse = Box<Future<Item = ServiceResponse, Error = ()>>;
 
 pub trait HttpServiceFactory<Request> {
-    type Factory: NewService<Request = Request>;
+    type Factory: NewService<Request>;
 
     fn rdef(&self) -> &ResourceDef;
 
@@ -36,7 +36,7 @@ pub trait HttpServiceFactory<Request> {
 /// for building application instances.
 pub struct App<P, T>
 where
-    T: NewService<Request = ServiceRequest<PayloadStream>, Response = ServiceRequest<P>>,
+    T: NewService<ServiceRequest, Response = ServiceRequest<P>>,
 {
     chain: T,
     extensions: Extensions,
@@ -61,7 +61,7 @@ impl<P, T> App<P, T>
 where
     P: 'static,
     T: NewService<
-        Request = ServiceRequest<PayloadStream>,
+        ServiceRequest,
         Response = ServiceRequest<P>,
         Error = (),
         InitError = (),
@@ -197,7 +197,7 @@ where
     where
         F: FnOnce(Resource<P>) -> Resource<P, U>,
         U: NewService<
-                Request = ServiceRequest<P>,
+                ServiceRequest<P>,
                 Response = ServiceResponse,
                 Error = (),
                 InitError = (),
@@ -230,7 +230,7 @@ where
         P,
         B,
         impl NewService<
-            Request = ServiceRequest<P>,
+            ServiceRequest<P>,
             Response = ServiceResponse<B>,
             Error = (),
             InitError = (),
@@ -239,12 +239,12 @@ where
     where
         M: Transform<
             AppRouting<P>,
-            Request = ServiceRequest<P>,
+            ServiceRequest<P>,
             Response = ServiceResponse<B>,
             Error = (),
             InitError = (),
         >,
-        F: IntoTransform<M, AppRouting<P>>,
+        F: IntoTransform<M, AppRouting<P>, ServiceRequest<P>>,
     {
         let fref = Rc::new(RefCell::new(None));
         let endpoint = ApplyTransform::new(mw, AppEntry::new(fref.clone()));
@@ -269,7 +269,7 @@ where
     ) -> App<
         P1,
         impl NewService<
-            Request = ServiceRequest<PayloadStream>,
+            ServiceRequest,
             Response = ServiceRequest<P1>,
             Error = (),
             InitError = (),
@@ -277,13 +277,12 @@ where
     >
     where
         C: NewService<
-            (),
-            Request = ServiceRequest<P>,
+            ServiceRequest<P>,
             Response = ServiceRequest<P1>,
             Error = (),
             InitError = (),
         >,
-        F: IntoNewService<C>,
+        F: IntoNewService<C, ServiceRequest<P>>,
     {
         let chain = self.chain.and_then(chain.into_new_service());
         App {
@@ -326,7 +325,7 @@ where
     P: 'static,
     B: MessageBody,
     T: NewService<
-        Request = ServiceRequest<P>,
+        ServiceRequest<P>,
         Response = ServiceResponse<B>,
         Error = (),
         InitError = (),
@@ -406,7 +405,7 @@ where
     where
         F: FnOnce(Resource<P>) -> Resource<P, U>,
         U: NewService<
-                Request = ServiceRequest<P>,
+                ServiceRequest<P>,
                 Response = ServiceResponse,
                 Error = (),
                 InitError = (),
@@ -430,12 +429,9 @@ where
     pub fn default_resource<F, R, U>(mut self, f: F) -> Self
     where
         F: FnOnce(Resource<P>) -> R,
-        R: IntoNewService<U>,
-        U: NewService<
-                Request = ServiceRequest<P>,
-                Response = ServiceResponse,
-                Error = (),
-            > + 'static,
+        R: IntoNewService<U, ServiceRequest<P>>,
+        U: NewService<ServiceRequest<P>, Response = ServiceResponse, Error = ()>
+            + 'static,
     {
         // create and configure default resource
         self.default = Some(Rc::new(boxed::new_service(
@@ -449,12 +445,9 @@ where
     pub fn service<R, F, U>(mut self, rdef: R, factory: F) -> Self
     where
         R: Into<ResourceDef>,
-        F: IntoNewService<U>,
-        U: NewService<
-                Request = ServiceRequest<P>,
-                Response = ServiceResponse,
-                Error = (),
-            > + 'static,
+        F: IntoNewService<U, ServiceRequest<P>>,
+        U: NewService<ServiceRequest<P>, Response = ServiceResponse, Error = ()>
+            + 'static,
     {
         self.services.push((
             rdef.into(),
@@ -473,7 +466,7 @@ where
         P,
         B1,
         impl NewService<
-            Request = ServiceRequest<P>,
+            ServiceRequest<P>,
             Response = ServiceResponse<B1>,
             Error = (),
             InitError = (),
@@ -482,13 +475,13 @@ where
     where
         M: Transform<
             T::Service,
-            Request = ServiceRequest<P>,
+            ServiceRequest<P>,
             Response = ServiceResponse<B1>,
             Error = (),
             InitError = (),
         >,
         B1: MessageBody,
-        F: IntoTransform<M, T::Service>,
+        F: IntoTransform<M, T::Service, ServiceRequest<P>>,
     {
         let endpoint = ApplyTransform::new(mw, self.endpoint);
         AppRouter {
@@ -542,22 +535,23 @@ where
 }
 
 impl<C, T, P: 'static, B: MessageBody>
-    IntoNewService<AndThenNewService<AppInit<C, P>, T, ()>> for AppRouter<C, P, B, T>
+    IntoNewService<AndThenNewService<AppInit<C, P>, T>, Request>
+    for AppRouter<C, P, B, T>
 where
     T: NewService<
-        Request = ServiceRequest<P>,
+        ServiceRequest<P>,
         Response = ServiceResponse<B>,
         Error = (),
         InitError = (),
     >,
     C: NewService<
-        Request = ServiceRequest<PayloadStream>,
+        ServiceRequest,
         Response = ServiceRequest<P>,
         Error = (),
         InitError = (),
     >,
 {
-    fn into_new_service(self) -> AndThenNewService<AppInit<C, P>, T, ()> {
+    fn into_new_service(self) -> AndThenNewService<AppInit<C, P>, T> {
         // update resource default service
         if self.default.is_some() {
             for default in &self.defaults {
@@ -592,8 +586,7 @@ pub struct AppRoutingFactory<P> {
     default: Option<Rc<HttpNewService<P>>>,
 }
 
-impl<P: 'static> NewService for AppRoutingFactory<P> {
-    type Request = ServiceRequest<P>;
+impl<P: 'static> NewService<ServiceRequest<P>> for AppRoutingFactory<P> {
     type Response = ServiceResponse;
     type Error = ();
     type InitError = ();
@@ -709,8 +702,7 @@ pub struct AppRouting<P> {
     default: Option<HttpService<P>>,
 }
 
-impl<P> Service for AppRouting<P> {
-    type Request = ServiceRequest<P>;
+impl<P> Service<ServiceRequest<P>> for AppRouting<P> {
     type Response = ServiceResponse;
     type Error = ();
     type Future = Either<BoxedResponse, FutureResult<Self::Response, Self::Error>>;
@@ -758,8 +750,7 @@ impl<P> AppEntry<P> {
     }
 }
 
-impl<P: 'static> NewService for AppEntry<P> {
-    type Request = ServiceRequest<P>;
+impl<P: 'static> NewService<ServiceRequest<P>> for AppEntry<P> {
     type Response = ServiceResponse;
     type Error = ();
     type InitError = ();
@@ -774,9 +765,8 @@ impl<P: 'static> NewService for AppEntry<P> {
 #[doc(hidden)]
 pub struct AppChain;
 
-impl NewService<()> for AppChain {
-    type Request = ServiceRequest<PayloadStream>;
-    type Response = ServiceRequest<PayloadStream>;
+impl NewService<ServiceRequest> for AppChain {
+    type Response = ServiceRequest;
     type Error = ();
     type InitError = ();
     type Service = AppChain;
@@ -787,9 +777,8 @@ impl NewService<()> for AppChain {
     }
 }
 
-impl Service for AppChain {
-    type Request = ServiceRequest<PayloadStream>;
-    type Response = ServiceRequest<PayloadStream>;
+impl Service<ServiceRequest> for AppChain {
+    type Response = ServiceRequest;
     type Error = ();
     type Future = FutureResult<Self::Response, Self::Error>;
 
@@ -799,7 +788,7 @@ impl Service for AppChain {
     }
 
     #[inline]
-    fn call(&mut self, req: Self::Request) -> Self::Future {
+    fn call(&mut self, req: ServiceRequest) -> Self::Future {
         ok(req)
     }
 }
@@ -808,22 +797,17 @@ impl Service for AppChain {
 /// It also executes state factories.
 pub struct AppInit<C, P>
 where
-    C: NewService<Request = ServiceRequest<PayloadStream>, Response = ServiceRequest<P>>,
+    C: NewService<ServiceRequest, Response = ServiceRequest<P>>,
 {
     chain: C,
     state: Vec<Box<StateFactory>>,
     extensions: Rc<RefCell<Rc<Extensions>>>,
 }
 
-impl<C, P: 'static> NewService for AppInit<C, P>
+impl<C, P: 'static> NewService<Request> for AppInit<C, P>
 where
-    C: NewService<
-        Request = ServiceRequest<PayloadStream>,
-        Response = ServiceRequest<P>,
-        InitError = (),
-    >,
+    C: NewService<ServiceRequest, Response = ServiceRequest<P>, InitError = ()>,
 {
-    type Request = Request<PayloadStream>;
     type Response = ServiceRequest<P>;
     type Error = C::Error;
     type InitError = C::InitError;
@@ -842,11 +826,7 @@ where
 #[doc(hidden)]
 pub struct AppInitResult<C, P>
 where
-    C: NewService<
-        Request = ServiceRequest<PayloadStream>,
-        Response = ServiceRequest<P>,
-        InitError = (),
-    >,
+    C: NewService<ServiceRequest, Response = ServiceRequest<P>, InitError = ()>,
 {
     chain: C::Future,
     state: Vec<Box<StateFactoryResult>>,
@@ -855,11 +835,7 @@ where
 
 impl<C, P> Future for AppInitResult<C, P>
 where
-    C: NewService<
-        Request = ServiceRequest<PayloadStream>,
-        Response = ServiceRequest<P>,
-        InitError = (),
-    >,
+    C: NewService<ServiceRequest, Response = ServiceRequest<P>, InitError = ()>,
 {
     type Item = AppInitService<C::Service, P>;
     type Error = C::InitError;
@@ -893,17 +869,16 @@ where
 /// Service to convert `Request` to a `ServiceRequest<S>`
 pub struct AppInitService<C, P>
 where
-    C: Service<Request = ServiceRequest<PayloadStream>, Response = ServiceRequest<P>>,
+    C: Service<ServiceRequest, Response = ServiceRequest<P>>,
 {
     chain: C,
     extensions: Rc<Extensions>,
 }
 
-impl<C, P> Service for AppInitService<C, P>
+impl<C, P> Service<Request> for AppInitService<C, P>
 where
-    C: Service<Request = ServiceRequest<PayloadStream>, Response = ServiceRequest<P>>,
+    C: Service<ServiceRequest, Response = ServiceRequest<P>>,
 {
-    type Request = Request<PayloadStream>;
     type Response = ServiceRequest<P>;
     type Error = C::Error;
     type Future = C::Future;
@@ -912,7 +887,7 @@ where
         self.chain.poll_ready()
     }
 
-    fn call(&mut self, req: Request<PayloadStream>) -> Self::Future {
+    fn call(&mut self, req: Request) -> Self::Future {
         let req = ServiceRequest::new(
             Path::new(Url::new(req.uri().clone())),
             req,

@@ -5,3 +5,6 @@ pub use self::compress::Compress;
 
 mod defaultheaders;
 pub use self::defaultheaders::DefaultHeaders;
+
+#[cfg(feature = "session")]
+pub use actix_session as session;

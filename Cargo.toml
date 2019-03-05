@@ -31,7 +31,7 @@ members = [
 ]
 
 [package.metadata.docs.rs]
-features = ["ssl", "tls", "rust-tls"]
+features = ["ssl", "tls", "rust-tls"] #, "session"]
 
 [features]
 default = ["brotli", "flate2-c"]
@@ -45,6 +45,9 @@ flate2-c = ["flate2/miniz-sys"]
 # rust backend for flate2 crate
 flate2-rust = ["flate2/rust_backend"]
 
+# sessions feature, session require "ring" crate and c compiler
+# session = ["actix-session"]
+
 # tls
 tls = ["native-tls", "actix-server/ssl"]
 
@@ -56,9 +59,12 @@ ssl = ["openssl", "actix-server/ssl"]
 
 [dependencies]
 actix-codec = "0.1.0"
-actix-service = "0.3.2"
-actix-utils = "0.3.1"
+#actix-service = "0.3.2"
+#actix-utils = "0.3.1"
 actix-rt = "0.1.0"
+
+actix-service = { git = "https://github.com/actix/actix-net.git" }
+actix-utils = { git = "https://github.com/actix/actix-net.git" }
 
 actix-http = { git = "https://github.com/actix/actix-http.git" }
 actix-router = { git = "https://github.com/actix/actix-net.git" }
@@ -78,6 +84,9 @@ serde = "1.0"
 serde_json = "1.0"
 serde_urlencoded = "^0.5.3"
 threadpool = "1.7"
+
+# middlewares
+# actix-session = { path="session", optional = true }
 
 # compression
 brotli2 = { version="^0.3.2", optional = true }

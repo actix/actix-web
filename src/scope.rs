@@ -79,7 +79,7 @@ impl<P: 'static> Scope<P> {
 impl<P: 'static, T> Scope<P, T>
 where
     T: NewService<
-        Request = ServiceRequest<P>,
+        ServiceRequest<P>,
         Response = ServiceResponse,
         Error = (),
         InitError = (),
@@ -196,7 +196,7 @@ where
     where
         F: FnOnce(Resource<P>) -> Resource<P, U>,
         U: NewService<
-                Request = ServiceRequest<P>,
+                ServiceRequest<P>,
                 Response = ServiceResponse,
                 Error = (),
                 InitError = (),
@@ -219,7 +219,7 @@ where
     where
         F: FnOnce(Resource<P>) -> Resource<P, U>,
         U: NewService<
-                Request = ServiceRequest<P>,
+                ServiceRequest<P>,
                 Response = ServiceResponse,
                 Error = (),
                 InitError = (),
@@ -244,7 +244,7 @@ where
     ) -> Scope<
         P,
         impl NewService<
-            Request = ServiceRequest<P>,
+            ServiceRequest<P>,
             Response = ServiceResponse,
             Error = (),
             InitError = (),
@@ -253,12 +253,12 @@ where
     where
         M: Transform<
             T::Service,
-            Request = ServiceRequest<P>,
+            ServiceRequest<P>,
             Response = ServiceResponse,
             Error = (),
             InitError = (),
         >,
-        F: IntoTransform<M, T::Service>,
+        F: IntoTransform<M, T::Service, ServiceRequest<P>>,
     {
         let endpoint = ApplyTransform::new(mw, self.endpoint);
         Scope {
@@ -293,10 +293,10 @@ pub(crate) fn insert_slash(path: &str) -> String {
     path
 }
 
-impl<P, T> IntoNewService<T> for Scope<P, T>
+impl<P, T> IntoNewService<T, ServiceRequest<P>> for Scope<P, T>
 where
     T: NewService<
-        Request = ServiceRequest<P>,
+        ServiceRequest<P>,
         Response = ServiceResponse,
         Error = (),
         InitError = (),
@@ -331,8 +331,7 @@ pub struct ScopeFactory<P> {
     default: Rc<RefCell<Option<Rc<HttpNewService<P>>>>>,
 }
 
-impl<P: 'static> NewService for ScopeFactory<P> {
-    type Request = ServiceRequest<P>;
+impl<P: 'static> NewService<ServiceRequest<P>> for ScopeFactory<P> {
     type Response = ServiceResponse;
     type Error = ();
     type InitError = ();
@@ -448,8 +447,7 @@ pub struct ScopeService<P> {
     _ready: Option<(ServiceRequest<P>, ResourceInfo)>,
 }
 
-impl<P> Service for ScopeService<P> {
-    type Request = ServiceRequest<P>;
+impl<P> Service<ServiceRequest<P>> for ScopeService<P> {
     type Response = ServiceResponse;
     type Error = ();
     type Future = Either<BoxedResponse, FutureResult<Self::Response, Self::Error>>;
@@ -492,8 +490,7 @@ impl<P> ScopeEndpoint<P> {
     }
 }
 
-impl<P: 'static> NewService for ScopeEndpoint<P> {
-    type Request = ServiceRequest<P>;
+impl<P: 'static> NewService<ServiceRequest<P>> for ScopeEndpoint<P> {
     type Response = ServiceResponse;
     type Error = ();
     type InitError = ();

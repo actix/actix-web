@@ -5,15 +5,15 @@ use std::rc::Rc;
 use actix_http::body::{Body, MessageBody, ResponseBody};
 use actix_http::http::{HeaderMap, Method, Uri, Version};
 use actix_http::{
-    Error, Extensions, HttpMessage, Payload, Request, RequestHead, Response,
-    ResponseHead,
+    Error, Extensions, HttpMessage, Payload, PayloadStream, Request, RequestHead,
+    Response, ResponseHead,
 };
 use actix_router::{Path, Resource, Url};
 use futures::future::{ok, FutureResult, IntoFuture};
 
 use crate::request::HttpRequest;
 
-pub struct ServiceRequest<P> {
+pub struct ServiceRequest<P = PayloadStream> {
     req: HttpRequest,
     payload: Payload<P>,
 }
