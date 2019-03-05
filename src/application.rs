@@ -825,7 +825,7 @@ mod tests {
     }
 
     #[test]
-    fn test_unit_responser() {
+    fn test_unit_responder() {
         let app = App::new().resource("/unit", |r| r.f(|_| {})).finish();
 
         let req = TestRequest::with_uri("/unit").request();
