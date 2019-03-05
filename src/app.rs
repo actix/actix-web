@@ -7,8 +7,8 @@ use actix_http::{Extensions, PayloadStream, Request, Response};
 use actix_router::{Path, ResourceDef, ResourceInfo, Router, Url};
 use actix_service::boxed::{self, BoxedNewService, BoxedService};
 use actix_service::{
-    AndThenNewService, ApplyNewService, IntoNewService, IntoNewTransform, NewService,
-    NewTransform, Service,
+    AndThenNewService, ApplyTransform, IntoNewService, IntoTransform, NewService,
+    Service, Transform,
 };
 use futures::future::{ok, Either, FutureResult};
 use futures::{Async, Future, IntoFuture, Poll};
@@ -237,17 +237,17 @@ where
         >,
     >
     where
-        M: NewTransform<
+        M: Transform<
             AppRouting<P>,
             Request = ServiceRequest<P>,
             Response = ServiceResponse<B>,
             Error = (),
             InitError = (),
         >,
-        F: IntoNewTransform<M, AppRouting<P>>,
+        F: IntoTransform<M, AppRouting<P>>,
     {
         let fref = Rc::new(RefCell::new(None));
-        let endpoint = ApplyNewService::new(mw, AppEntry::new(fref.clone()));
+        let endpoint = ApplyTransform::new(mw, AppEntry::new(fref.clone()));
         AppRouter {
             endpoint,
             chain: self.chain,
@@ -480,7 +480,7 @@ where
         >,
     >
     where
-        M: NewTransform<
+        M: Transform<
             T::Service,
             Request = ServiceRequest<P>,
             Response = ServiceResponse<B1>,
@@ -488,9 +488,9 @@ where
             InitError = (),
         >,
         B1: MessageBody,
-        F: IntoNewTransform<M, T::Service>,
+        F: IntoTransform<M, T::Service>,
     {
-        let endpoint = ApplyNewService::new(mw, self.endpoint);
+        let endpoint = ApplyTransform::new(mw, self.endpoint);
         AppRouter {
             endpoint,
             chain: self.chain,

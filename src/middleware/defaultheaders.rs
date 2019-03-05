@@ -3,10 +3,10 @@ use std::rc::Rc;
 
 use actix_http::http::header::{HeaderName, HeaderValue, CONTENT_TYPE};
 use actix_http::http::{HeaderMap, HttpTryFrom};
-use actix_service::{IntoNewTransform, Service, Transform};
-use futures::{Async, Future, Poll};
+use actix_service::{Service, Transform};
+use futures::future::{ok, FutureResult};
+use futures::{Future, Poll};
 
-use crate::middleware::MiddlewareFactory;
 use crate::service::{ServiceRequest, ServiceResponse};
 
 /// `Middleware` for setting default response headers.
@@ -84,35 +84,49 @@ impl DefaultHeaders {
     }
 }
 
-impl<S, State, B> IntoNewTransform<MiddlewareFactory<DefaultHeaders, S>, S>
-    for DefaultHeaders
+impl<S, P, B> Transform<S> for DefaultHeaders
 where
-    S: Service<Request = ServiceRequest<State>, Response = ServiceResponse<B>>,
+    S: Service<Request = ServiceRequest<P>, Response = ServiceResponse<B>>,
     S::Future: 'static,
 {
-    fn into_new_transform(self) -> MiddlewareFactory<DefaultHeaders, S> {
-        MiddlewareFactory::new(self)
+    type Request = ServiceRequest<P>;
+    type Response = ServiceResponse<B>;
+    type Error = S::Error;
+    type InitError = ();
+    type Transform = DefaultHeadersMiddleware<S>;
+    type Future = FutureResult<Self::Transform, Self::InitError>;
+
+    fn new_transform(&self, service: S) -> Self::Future {
+        ok(DefaultHeadersMiddleware {
+            service,
+            inner: self.inner.clone(),
+        })
     }
 }
 
-impl<S, State, B> Transform<S> for DefaultHeaders
+pub struct DefaultHeadersMiddleware<S> {
+    service: S,
+    inner: Rc<Inner>,
+}
+
+impl<S, P, B> Service for DefaultHeadersMiddleware<S>
 where
-    S: Service<Request = ServiceRequest<State>, Response = ServiceResponse<B>>,
+    S: Service<Request = ServiceRequest<P>, Response = ServiceResponse<B>>,
     S::Future: 'static,
 {
-    type Request = ServiceRequest<State>;
+    type Request = ServiceRequest<P>;
     type Response = ServiceResponse<B>;
     type Error = S::Error;
     type Future = Box<Future<Item = Self::Response, Error = Self::Error>>;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
-        Ok(Async::Ready(()))
+        self.service.poll_ready()
     }
 
-    fn call(&mut self, req: ServiceRequest<State>, srv: &mut S) -> Self::Future {
+    fn call(&mut self, req: ServiceRequest<P>) -> Self::Future {
         let inner = self.inner.clone();
 
-        Box::new(srv.call(req).map(move |mut res| {
+        Box::new(self.service.call(req).map(move |mut res| {
             // set response headers
             for (key, value) in inner.headers.iter() {
                 if !res.headers().contains_key(key) {
@@ -143,32 +157,44 @@ mod tests {
 
     #[test]
     fn test_default_headers() {
-        let mut mw = DefaultHeaders::new().header(CONTENT_TYPE, "0001");
-        let mut srv = FnService::new(|req: ServiceRequest<_>| {
+        let srv = FnService::new(|req: ServiceRequest<_>| {
             req.into_response(HttpResponse::Ok().finish())
         });
+        let mut mw = block_on(
+            DefaultHeaders::new()
+                .header(CONTENT_TYPE, "0001")
+                .new_transform(srv),
+        )
+        .unwrap();
 
         let req = TestRequest::default().to_service();
-        let resp = block_on(mw.call(req, &mut srv)).unwrap();
+        let resp = block_on(mw.call(req)).unwrap();
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0001");
 
         let req = TestRequest::default().to_service();
-        let mut srv = FnService::new(|req: ServiceRequest<_>| {
+        let srv = FnService::new(|req: ServiceRequest<_>| {
             req.into_response(HttpResponse::Ok().header(CONTENT_TYPE, "0002").finish())
         });
-        let resp = block_on(mw.call(req, &mut srv)).unwrap();
+        let mut mw = block_on(
+            DefaultHeaders::new()
+                .header(CONTENT_TYPE, "0001")
+                .new_transform(srv),
+        )
+        .unwrap();
+        let resp = block_on(mw.call(req)).unwrap();
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0002");
     }
 
     #[test]
     fn test_content_type() {
-        let mut mw = DefaultHeaders::new().content_type();
-        let mut srv = FnService::new(|req: ServiceRequest<_>| {
+        let srv = FnService::new(|req: ServiceRequest<_>| {
             req.into_response(HttpResponse::Ok().finish())
         });
+        let mut mw =
+            block_on(DefaultHeaders::new().content_type().new_transform(srv)).unwrap();
 
         let req = TestRequest::default().to_service();
-        let resp = block_on(mw.call(req, &mut srv)).unwrap();
+        let resp = block_on(mw.call(req)).unwrap();
         assert_eq!(
             resp.headers().get(CONTENT_TYPE).unwrap(),
             "application/octet-stream"

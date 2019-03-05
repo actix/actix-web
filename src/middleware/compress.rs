@@ -8,8 +8,9 @@ use actix_http::http::header::{
 };
 use actix_http::http::{HttpTryFrom, StatusCode};
 use actix_http::{Error, Head, ResponseHead};
-use actix_service::{IntoNewTransform, Service, Transform};
+use actix_service::{Service, Transform};
 use bytes::{Bytes, BytesMut};
+use futures::future::{ok, FutureResult};
 use futures::{Async, Future, Poll};
 use log::trace;
 
@@ -18,7 +19,6 @@ use brotli2::write::BrotliEncoder;
 #[cfg(feature = "flate2")]
 use flate2::write::{GzEncoder, ZlibEncoder};
 
-use crate::middleware::MiddlewareFactory;
 use crate::service::{ServiceRequest, ServiceResponse};
 
 #[derive(Debug, Clone)]
@@ -46,17 +46,44 @@ where
     type Request = ServiceRequest<P>;
     type Response = ServiceResponse<Encoder<B>>;
     type Error = S::Error;
+    type InitError = ();
+    type Transform = CompressMiddleware<S>;
+    type Future = FutureResult<Self::Transform, Self::InitError>;
+
+    fn new_transform(&self, service: S) -> Self::Future {
+        ok(CompressMiddleware {
+            service,
+            encoding: self.0,
+        })
+    }
+}
+
+pub struct CompressMiddleware<S> {
+    service: S,
+    encoding: ContentEncoding,
+}
+
+impl<S, P, B> Service for CompressMiddleware<S>
+where
+    P: 'static,
+    B: MessageBody,
+    S: Service<Request = ServiceRequest<P>, Response = ServiceResponse<B>>,
+    S::Future: 'static,
+{
+    type Request = ServiceRequest<P>;
+    type Response = ServiceResponse<Encoder<B>>;
+    type Error = S::Error;
     type Future = CompressResponse<S, P, B>;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
-        Ok(Async::Ready(()))
+        self.service.poll_ready()
     }
 
-    fn call(&mut self, req: ServiceRequest<P>, srv: &mut S) -> Self::Future {
+    fn call(&mut self, req: ServiceRequest<P>) -> Self::Future {
         // negotiate content-encoding
         let encoding = if let Some(val) = req.headers.get(ACCEPT_ENCODING) {
             if let Ok(enc) = val.to_str() {
-                AcceptEncoding::parse(enc, self.0)
+                AcceptEncoding::parse(enc, self.encoding)
             } else {
                 ContentEncoding::Identity
             }
@@ -66,7 +93,7 @@ where
 
         CompressResponse {
             encoding,
-            fut: srv.call(req),
+            fut: self.service.call(req),
         }
     }
 }
@@ -99,18 +126,6 @@ where
         Ok(Async::Ready(resp.map_body(move |head, body| {
             Encoder::body(self.encoding, head, body)
         })))
-    }
-}
-
-impl<S, P, B> IntoNewTransform<MiddlewareFactory<Compress, S>, S> for Compress
-where
-    P: 'static,
-    B: MessageBody,
-    S: Service<Request = ServiceRequest<P>, Response = ServiceResponse<B>>,
-    S::Future: 'static,
-{
-    fn into_new_transform(self) -> MiddlewareFactory<Compress, S> {
-        MiddlewareFactory::new(self)
     }
 }
 

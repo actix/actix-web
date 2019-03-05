@@ -56,8 +56,8 @@ ssl = ["openssl", "actix-server/ssl"]
 
 [dependencies]
 actix-codec = "0.1.0"
-actix-service = "0.3.0"
-actix-utils = "0.3.0"
+actix-service = "0.3.2"
+actix-utils = "0.3.1"
 actix-rt = "0.1.0"
 
 actix-http = { git = "https://github.com/actix/actix-http.git" }
@@ -99,3 +99,6 @@ serde_derive = "1.0"
 lto = true
 opt-level = 3
 codegen-units = 1
+
+[patch.crates-io]
+actix-service = { git = "https://github.com/actix/actix-net.git" }
