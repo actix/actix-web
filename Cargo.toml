@@ -30,6 +30,9 @@ members = [
   "staticfiles",
 ]
 
+[package.metadata.docs.rs]
+features = ["ssl", "tls", "rust-tls"]
+
 [features]
 default = ["brotli", "flate2-c"]
 
@@ -42,6 +45,15 @@ flate2-c = ["flate2/miniz-sys"]
 # rust backend for flate2 crate
 flate2-rust = ["flate2/rust_backend"]
 
+# tls
+tls = ["native-tls", "actix-server/ssl"]
+
+# openssl
+ssl = ["openssl", "actix-server/ssl"]
+
+# rustls
+# rust-tls = ["rustls", "actix-server/rustls"]
+
 [dependencies]
 actix-codec = "0.1.0"
 actix-service = "0.3.0"
@@ -50,6 +62,7 @@ actix-rt = "0.1.0"
 
 actix-http = { git = "https://github.com/actix/actix-http.git" }
 actix-router = { git = "https://github.com/actix/actix-net.git" }
+actix-server = { git = "https://github.com/actix/actix-net.git" }
 
 bytes = "0.4"
 derive_more = "0.14"
@@ -58,6 +71,7 @@ futures = "0.1"
 log = "0.4"
 lazy_static = "1.2"
 mime = "0.3"
+net2 = "0.2.33"
 num_cpus = "1.10"
 parking_lot = "0.7"
 serde = "1.0"
@@ -69,8 +83,12 @@ threadpool = "1.7"
 brotli2 = { version="^0.3.2", optional = true }
 flate2 = { version="^1.0.2", optional = true, default-features = false }
 
+# ssl support
+native-tls = { version="0.2", optional = true }
+openssl = { version="0.10", optional = true }
+# rustls = { version = "^0.15", optional = true }
+
 [dev-dependencies]
-actix-server = { version="0.3.0", features=["ssl"] }
 actix-http = { git = "https://github.com/actix/actix-http.git", features=["ssl"] }
 actix-http-test = { git = "https://github.com/actix/actix-http.git", features=["ssl"] }
 rand = "0.6"

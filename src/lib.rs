@@ -12,6 +12,7 @@ mod resource;
 mod responder;
 mod route;
 mod scope;
+mod server;
 mod service;
 mod state;
 pub mod test;
@@ -27,6 +28,7 @@ pub use crate::resource::Resource;
 pub use crate::responder::{Either, Responder};
 pub use crate::route::Route;
 pub use crate::scope::Scope;
+pub use crate::server::HttpServer;
 pub use crate::service::{ServiceFromRequest, ServiceRequest, ServiceResponse};
 pub use crate::state::State;
 
