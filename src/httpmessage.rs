@@ -270,6 +270,37 @@ pub trait HttpMessage: Sized {
     }
 }
 
+impl<'a, T> HttpMessage for &'a mut T
+where
+    T: HttpMessage,
+{
+    type Stream = T::Stream;
+
+    fn headers(&self) -> &HeaderMap {
+        (**self).headers()
+    }
+
+    /// Mutable reference to the message's headers.
+    fn headers_mut(&mut self) -> &mut HeaderMap {
+        (**self).headers_mut()
+    }
+
+    /// Message payload stream
+    fn take_payload(&mut self) -> Payload<Self::Stream> {
+        (**self).take_payload()
+    }
+
+    /// Request's extensions container
+    fn extensions(&self) -> Ref<Extensions> {
+        (**self).extensions()
+    }
+
+    /// Mutable reference to a the request's extensions container
+    fn extensions_mut(&self) -> RefMut<Extensions> {
+        (**self).extensions_mut()
+    }
+}
+
 /// Stream to read request line by line.
 pub struct Readlines<T: HttpMessage> {
     stream: Payload<T::Stream>,
