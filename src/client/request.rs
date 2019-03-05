@@ -176,7 +176,7 @@ where
     ) -> impl Future<Item = ClientResponse, Error = SendRequestError>
     where
         B: 'static,
-        T: Service<Request = Connect, Response = I, Error = ConnectorError>,
+        T: Service<Connect, Response = I, Error = ConnectorError>,
         I: Connection,
     {
         let Self { head, body } = self;

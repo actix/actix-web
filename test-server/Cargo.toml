@@ -35,10 +35,12 @@ ssl = ["openssl", "actix-http/ssl", "actix-server/ssl"]
 actix-codec = "0.1"
 actix-rt = "0.1.0"
 actix-http = { path=".." }
-actix-service = "0.3.2"
+#actix-service = "0.3.2"
+actix-service = { git="https://github.com/actix/actix-net.git" }
 #actix-server = "0.3.0"
 actix-server = { git="https://github.com/actix/actix-net.git" }
-actix-utils = "0.3.2"
+#actix-utils = "0.3.2"
+actix-utils = { git="https://github.com/actix/actix-net.git" }
 
 base64 = "0.10"
 bytes = "0.4"

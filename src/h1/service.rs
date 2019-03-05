@@ -28,14 +28,14 @@ pub struct H1Service<T, S, B> {
 
 impl<T, S, B> H1Service<T, S, B>
 where
-    S: NewService<Request = Request>,
+    S: NewService<Request>,
     S::Error: Debug,
     S::Response: Into<Response<B>>,
     S::Service: 'static,
     B: MessageBody,
 {
     /// Create new `HttpService` instance with default config.
-    pub fn new<F: IntoNewService<S>>(service: F) -> Self {
+    pub fn new<F: IntoNewService<S, Request>>(service: F) -> Self {
         let cfg = ServiceConfig::new(KeepAlive::Timeout(5), 5000, 0);
 
         H1Service {
@@ -46,7 +46,10 @@ where
     }
 
     /// Create new `HttpService` instance with config.
-    pub fn with_config<F: IntoNewService<S>>(cfg: ServiceConfig, service: F) -> Self {
+    pub fn with_config<F: IntoNewService<S, Request>>(
+        cfg: ServiceConfig,
+        service: F,
+    ) -> Self {
         H1Service {
             cfg,
             srv: service.into_new_service(),
@@ -60,16 +63,15 @@ where
     }
 }
 
-impl<T, S, B> NewService for H1Service<T, S, B>
+impl<T, S, B> NewService<T> for H1Service<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: NewService<Request = Request>,
+    S: NewService<Request>,
     S::Error: Debug,
     S::Response: Into<Response<B>>,
     S::Service: 'static,
     B: MessageBody,
 {
-    type Request = T;
     type Response = H1ServiceResult<T>;
     type Error = DispatchError<S::Error>;
     type InitError = S::InitError;
@@ -101,7 +103,7 @@ pub struct H1ServiceBuilder<T, S> {
 
 impl<T, S> H1ServiceBuilder<T, S>
 where
-    S: NewService<Request = Request>,
+    S: NewService<Request>,
     S::Error: Debug,
 {
     /// Create instance of `ServiceConfigBuilder`
@@ -199,7 +201,7 @@ where
     pub fn finish<F, B>(self, service: F) -> H1Service<T, S, B>
     where
         B: MessageBody,
-        F: IntoNewService<S>,
+        F: IntoNewService<S, Request>,
     {
         let cfg = ServiceConfig::new(
             self.keep_alive,
@@ -215,7 +217,7 @@ where
 }
 
 #[doc(hidden)]
-pub struct H1ServiceResponse<T, S: NewService, B> {
+pub struct H1ServiceResponse<T, S: NewService<Request>, B> {
     fut: <S::Future as IntoFuture>::Future,
     cfg: Option<ServiceConfig>,
     _t: PhantomData<(T, B)>,
@@ -224,7 +226,7 @@ pub struct H1ServiceResponse<T, S: NewService, B> {
 impl<T, S, B> Future for H1ServiceResponse<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: NewService<Request = Request>,
+    S: NewService<Request>,
     S::Service: 'static,
     S::Error: Debug,
     S::Response: Into<Response<B>>,
@@ -251,7 +253,7 @@ pub struct H1ServiceHandler<T, S: 'static, B> {
 
 impl<T, S, B> H1ServiceHandler<T, S, B>
 where
-    S: Service<Request = Request>,
+    S: Service<Request>,
     S::Error: Debug,
     S::Response: Into<Response<B>>,
     B: MessageBody,
@@ -265,15 +267,14 @@ where
     }
 }
 
-impl<T, S, B> Service for H1ServiceHandler<T, S, B>
+impl<T, S, B> Service<T> for H1ServiceHandler<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: Service<Request = Request>,
+    S: Service<Request>,
     S::Error: Debug,
     S::Response: Into<Response<B>>,
     B: MessageBody,
 {
-    type Request = T;
     type Response = H1ServiceResult<T>;
     type Error = DispatchError<S::Error>;
     type Future = Dispatcher<T, S, B>;
@@ -307,11 +308,10 @@ where
     }
 }
 
-impl<T> NewService for OneRequest<T>
+impl<T> NewService<T> for OneRequest<T>
 where
     T: AsyncRead + AsyncWrite,
 {
-    type Request = T;
     type Response = (Request, Framed<T, Codec>);
     type Error = ParseError;
     type InitError = ();
@@ -333,11 +333,10 @@ pub struct OneRequestService<T> {
     _t: PhantomData<T>,
 }
 
-impl<T> Service for OneRequestService<T>
+impl<T> Service<T> for OneRequestService<T>
 where
     T: AsyncRead + AsyncWrite,
 {
-    type Request = T;
     type Response = (Request, Framed<T, Codec>);
     type Error = ParseError;
     type Future = OneRequestServiceResponse<T>;

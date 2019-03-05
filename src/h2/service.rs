@@ -31,14 +31,14 @@ pub struct H2Service<T, S, B> {
 
 impl<T, S, B> H2Service<T, S, B>
 where
-    S: NewService<Request = Request<Payload>>,
+    S: NewService<Request<Payload>>,
     S::Service: 'static,
     S::Error: Into<Error> + Debug + 'static,
     S::Response: Into<Response<B>>,
     B: MessageBody + 'static,
 {
     /// Create new `HttpService` instance.
-    pub fn new<F: IntoNewService<S>>(service: F) -> Self {
+    pub fn new<F: IntoNewService<S, Request<Payload>>>(service: F) -> Self {
         let cfg = ServiceConfig::new(KeepAlive::Timeout(5), 5000, 0);
 
         H2Service {
@@ -54,16 +54,15 @@ where
     }
 }
 
-impl<T, S, B> NewService for H2Service<T, S, B>
+impl<T, S, B> NewService<T> for H2Service<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: NewService<Request = Request<Payload>>,
+    S: NewService<Request<Payload>>,
     S::Service: 'static,
     S::Error: Into<Error> + Debug,
     S::Response: Into<Response<B>>,
     B: MessageBody + 'static,
 {
-    type Request = T;
     type Response = ();
     type Error = DispatchError<()>;
     type InitError = S::InitError;
@@ -95,7 +94,7 @@ pub struct H2ServiceBuilder<T, S> {
 
 impl<T, S> H2ServiceBuilder<T, S>
 where
-    S: NewService<Request = Request<Payload>>,
+    S: NewService<Request<Payload>>,
     S::Service: 'static,
     S::Error: Into<Error> + Debug + 'static,
 {
@@ -213,7 +212,7 @@ where
     pub fn finish<F, B>(self, service: F) -> H2Service<T, S, B>
     where
         B: MessageBody,
-        F: IntoNewService<S>,
+        F: IntoNewService<S, Request<Payload>>,
     {
         let cfg = ServiceConfig::new(
             self.keep_alive,
@@ -229,7 +228,7 @@ where
 }
 
 #[doc(hidden)]
-pub struct H2ServiceResponse<T, S: NewService, B> {
+pub struct H2ServiceResponse<T, S: NewService<Request<Payload>>, B> {
     fut: <S::Future as IntoFuture>::Future,
     cfg: Option<ServiceConfig>,
     _t: PhantomData<(T, B)>,
@@ -238,7 +237,7 @@ pub struct H2ServiceResponse<T, S: NewService, B> {
 impl<T, S, B> Future for H2ServiceResponse<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: NewService<Request = Request<Payload>>,
+    S: NewService<Request<Payload>>,
     S::Service: 'static,
     S::Response: Into<Response<B>>,
     S::Error: Into<Error> + Debug,
@@ -265,7 +264,7 @@ pub struct H2ServiceHandler<T, S: 'static, B> {
 
 impl<T, S, B> H2ServiceHandler<T, S, B>
 where
-    S: Service<Request = Request<Payload>> + 'static,
+    S: Service<Request<Payload>> + 'static,
     S::Error: Into<Error> + Debug,
     S::Response: Into<Response<B>>,
     B: MessageBody + 'static,
@@ -279,15 +278,14 @@ where
     }
 }
 
-impl<T, S, B> Service for H2ServiceHandler<T, S, B>
+impl<T, S, B> Service<T> for H2ServiceHandler<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: Service<Request = Request<Payload>> + 'static,
+    S: Service<Request<Payload>> + 'static,
     S::Error: Into<Error> + Debug,
     S::Response: Into<Response<B>>,
     B: MessageBody + 'static,
 {
-    type Request = T;
     type Response = ();
     type Error = DispatchError<()>;
     type Future = H2ServiceHandlerResponse<T, S, B>;
@@ -310,7 +308,11 @@ where
     }
 }
 
-enum State<T: AsyncRead + AsyncWrite, S: Service + 'static, B: MessageBody> {
+enum State<
+    T: AsyncRead + AsyncWrite,
+    S: Service<Request<Payload>> + 'static,
+    B: MessageBody,
+> {
     Incoming(Dispatcher<T, S, B>),
     Handshake(
         Option<CloneableService<S>>,
@@ -322,7 +324,7 @@ enum State<T: AsyncRead + AsyncWrite, S: Service + 'static, B: MessageBody> {
 pub struct H2ServiceHandlerResponse<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: Service<Request = Request<Payload>> + 'static,
+    S: Service<Request<Payload>> + 'static,
     S::Error: Into<Error> + Debug,
     S::Response: Into<Response<B>>,
     B: MessageBody + 'static,
@@ -333,7 +335,7 @@ where
 impl<T, S, B> Future for H2ServiceHandlerResponse<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: Service<Request = Request<Payload>> + 'static,
+    S: Service<Request<Payload>> + 'static,
     S::Error: Into<Error> + Debug,
     S::Response: Into<Response<B>>,
     B: MessageBody,

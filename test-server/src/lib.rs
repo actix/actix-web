@@ -56,8 +56,7 @@ impl TestServer {
     pub fn new<F: StreamServiceFactory>(
         factory: F,
     ) -> TestServerRuntime<
-        impl Service<Request = Connect, Response = impl Connection, Error = ConnectorError>
-            + Clone,
+        impl Service<Connect, Response = impl Connection, Error = ConnectorError> + Clone,
     > {
         let (tx, rx) = mpsc::channel();
 
@@ -89,11 +88,8 @@ impl TestServer {
     }
 
     fn new_connector(
-    ) -> impl Service<
-        Request = Connect,
-        Response = impl Connection,
-        Error = ConnectorError,
-    > + Clone {
+    ) -> impl Service<Connect, Response = impl Connection, Error = ConnectorError> + Clone
+    {
         #[cfg(feature = "ssl")]
         {
             use openssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
@@ -206,7 +202,7 @@ impl<T> TestServerRuntime<T> {
 
 impl<T> TestServerRuntime<T>
 where
-    T: Service<Request = Connect, Error = ConnectorError> + Clone,
+    T: Service<Connect, Error = ConnectorError> + Clone,
     T::Response: Connection,
 {
     /// Connect to websocket server at a given path

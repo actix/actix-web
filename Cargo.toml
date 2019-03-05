@@ -37,10 +37,14 @@ session = ["cookie/secure"]
 ssl = ["openssl", "actix-connector/ssl"]
 
 [dependencies]
-actix-service = "0.3.2"
+#actix-service = "0.3.2"
 actix-codec = "0.1.0"
-actix-connector = "0.3.0"
-actix-utils = "0.3.1"
+#actix-connector = "0.3.0"
+#actix-utils = "0.3.1"
+
+actix-connector = { git="https://github.com/actix/actix-net.git" }
+actix-service = { git="https://github.com/actix/actix-net.git" }
+actix-utils = { git="https://github.com/actix/actix-net.git" }
 
 base64 = "0.10"
 backtrace = "0.3"
@@ -80,7 +84,8 @@ openssl = { version="0.10", optional = true }
 actix-rt = "0.1.0"
 #actix-server = { version = "0.3.0", features=["ssl"] }
 actix-server = { git="https://github.com/actix/actix-net.git", features=["ssl"] }
-actix-connector = { version = "0.3.0", features=["ssl"] }
+#actix-connector = { version = "0.3.0", features=["ssl"] }
+actix-connector = { git="https://github.com/actix/actix-net.git", features=["ssl"] }
 actix-http-test = { path="test-server", features=["ssl"] }
 env_logger = "0.6"
 serde_derive = "1.0"

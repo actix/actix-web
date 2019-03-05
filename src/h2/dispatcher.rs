@@ -38,7 +38,11 @@ bitflags! {
 }
 
 /// Dispatcher for HTTP/2 protocol
-pub struct Dispatcher<T: AsyncRead + AsyncWrite, S: Service + 'static, B: MessageBody> {
+pub struct Dispatcher<
+    T: AsyncRead + AsyncWrite,
+    S: Service<Request<Payload>> + 'static,
+    B: MessageBody,
+> {
     flags: Flags,
     service: CloneableService<S>,
     connection: Connection<T, Bytes>,
@@ -51,7 +55,7 @@ pub struct Dispatcher<T: AsyncRead + AsyncWrite, S: Service + 'static, B: Messag
 impl<T, S, B> Dispatcher<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: Service<Request = Request<Payload>> + 'static,
+    S: Service<Request<Payload>> + 'static,
     S::Error: Into<Error> + fmt::Debug,
     S::Response: Into<Response<B>>,
     B: MessageBody + 'static,
@@ -93,7 +97,7 @@ where
 impl<T, S, B> Future for Dispatcher<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: Service<Request = Request<Payload>> + 'static,
+    S: Service<Request<Payload>> + 'static,
     S::Error: Into<Error> + fmt::Debug,
     S::Response: Into<Response<B>>,
     B: MessageBody + 'static,
@@ -139,20 +143,20 @@ where
     }
 }
 
-struct ServiceResponse<S: Service, B> {
+struct ServiceResponse<S: Service<Request<Payload>>, B> {
     state: ServiceResponseState<S, B>,
     config: ServiceConfig,
     buffer: Option<Bytes>,
 }
 
-enum ServiceResponseState<S: Service, B> {
+enum ServiceResponseState<S: Service<Request<Payload>>, B> {
     ServiceCall(S::Future, Option<SendResponse<Bytes>>),
     SendPayload(SendStream<Bytes>, ResponseBody<B>),
 }
 
 impl<S, B> ServiceResponse<S, B>
 where
-    S: Service<Request = Request<Payload>> + 'static,
+    S: Service<Request<Payload>> + 'static,
     S::Error: Into<Error> + fmt::Debug,
     S::Response: Into<Response<B>>,
     B: MessageBody + 'static,
@@ -220,7 +224,7 @@ where
 
 impl<S, B> Future for ServiceResponse<S, B>
 where
-    S: Service<Request = Request<Payload>> + 'static,
+    S: Service<Request<Payload>> + 'static,
     S::Error: Into<Error> + fmt::Debug,
     S::Response: Into<Response<B>>,
     B: MessageBody + 'static,

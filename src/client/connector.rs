@@ -133,11 +133,8 @@ impl Connector {
     /// Finish configuration process and create connector service.
     pub fn service(
         self,
-    ) -> impl Service<
-        Request = Connect,
-        Response = impl Connection,
-        Error = ConnectorError,
-    > + Clone {
+    ) -> impl Service<Connect, Response = impl Connection, Error = ConnectorError> + Clone
+    {
         #[cfg(not(feature = "ssl"))]
         {
             let connector = TimeoutService::new(
@@ -314,12 +311,12 @@ mod connect_impl {
         Io1: AsyncRead + AsyncWrite + 'static,
         Io2: AsyncRead + AsyncWrite + 'static,
         T1: Service<
-            Request = Connect,
+            Connect,
             Response = (Connect, Io1, Protocol),
             Error = ConnectorError,
         >,
         T2: Service<
-            Request = Connect,
+            Connect,
             Response = (Connect, Io2, Protocol),
             Error = ConnectorError,
         >,
@@ -333,12 +330,12 @@ mod connect_impl {
         Io1: AsyncRead + AsyncWrite + 'static,
         Io2: AsyncRead + AsyncWrite + 'static,
         T1: Service<
-                Request = Connect,
+                Connect,
                 Response = (Connect, Io1, Protocol),
                 Error = ConnectorError,
             > + Clone,
         T2: Service<
-                Request = Connect,
+                Connect,
                 Response = (Connect, Io2, Protocol),
                 Error = ConnectorError,
             > + Clone,
@@ -351,22 +348,21 @@ mod connect_impl {
         }
     }
 
-    impl<T1, T2, Io1, Io2> Service for InnerConnector<T1, T2, Io1, Io2>
+    impl<T1, T2, Io1, Io2> Service<Connect> for InnerConnector<T1, T2, Io1, Io2>
     where
         Io1: AsyncRead + AsyncWrite + 'static,
         Io2: AsyncRead + AsyncWrite + 'static,
         T1: Service<
-            Request = Connect,
+            Connect,
             Response = (Connect, Io1, Protocol),
             Error = ConnectorError,
         >,
         T2: Service<
-            Request = Connect,
+            Connect,
             Response = (Connect, Io2, Protocol),
             Error = ConnectorError,
         >,
     {
-        type Request = Connect;
         type Response = EitherConnection<Io1, Io2>;
         type Error = ConnectorError;
         type Future = Either<
@@ -401,23 +397,15 @@ mod connect_impl {
     pub(crate) struct InnerConnectorResponseA<T, Io1, Io2>
     where
         Io1: AsyncRead + AsyncWrite + 'static,
-        T: Service<
-            Request = Connect,
-            Response = (Connect, Io1, Protocol),
-            Error = ConnectorError,
-        >,
+        T: Service<Connect, Response = (Connect, Io1, Protocol), Error = ConnectorError>,
     {
-        fut: <ConnectionPool<T, Io1> as Service>::Future,
+        fut: <ConnectionPool<T, Io1> as Service<Connect>>::Future,
         _t: PhantomData<Io2>,
     }
 
     impl<T, Io1, Io2> Future for InnerConnectorResponseA<T, Io1, Io2>
     where
-        T: Service<
-            Request = Connect,
-            Response = (Connect, Io1, Protocol),
-            Error = ConnectorError,
-        >,
+        T: Service<Connect, Response = (Connect, Io1, Protocol), Error = ConnectorError>,
         Io1: AsyncRead + AsyncWrite + 'static,
         Io2: AsyncRead + AsyncWrite + 'static,
     {
@@ -435,23 +423,15 @@ mod connect_impl {
     pub(crate) struct InnerConnectorResponseB<T, Io1, Io2>
     where
         Io2: AsyncRead + AsyncWrite + 'static,
-        T: Service<
-            Request = Connect,
-            Response = (Connect, Io2, Protocol),
-            Error = ConnectorError,
-        >,
+        T: Service<Connect, Response = (Connect, Io2, Protocol), Error = ConnectorError>,
     {
-        fut: <ConnectionPool<T, Io2> as Service>::Future,
+        fut: <ConnectionPool<T, Io2> as Service<Connect>>::Future,
         _t: PhantomData<Io1>,
     }
 
     impl<T, Io1, Io2> Future for InnerConnectorResponseB<T, Io1, Io2>
     where
-        T: Service<
-            Request = Connect,
-            Response = (Connect, Io2, Protocol),
-            Error = ConnectorError,
-        >,
+        T: Service<Connect, Response = (Connect, Io2, Protocol), Error = ConnectorError>,
         Io1: AsyncRead + AsyncWrite + 'static,
         Io2: AsyncRead + AsyncWrite + 'static,
     {
