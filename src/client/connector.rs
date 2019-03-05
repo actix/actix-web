@@ -238,11 +238,7 @@ mod connect_impl {
     pub(crate) struct InnerConnector<T, Io>
     where
         Io: AsyncRead + AsyncWrite + 'static,
-        T: Service<
-            Request = Connect,
-            Response = (Connect, Io, Protocol),
-            Error = ConnectorError,
-        >,
+        T: Service<Connect, Response = (Connect, Io, Protocol), Error = ConnectorError>,
     {
         pub(crate) tcp_pool: ConnectionPool<T, Io>,
     }
@@ -250,11 +246,8 @@ mod connect_impl {
     impl<T, Io> Clone for InnerConnector<T, Io>
     where
         Io: AsyncRead + AsyncWrite + 'static,
-        T: Service<
-                Request = Connect,
-                Response = (Connect, Io, Protocol),
-                Error = ConnectorError,
-            > + Clone,
+        T: Service<Connect, Response = (Connect, Io, Protocol), Error = ConnectorError>
+            + Clone,
     {
         fn clone(&self) -> Self {
             InnerConnector {
@@ -263,20 +256,15 @@ mod connect_impl {
         }
     }
 
-    impl<T, Io> Service for InnerConnector<T, Io>
+    impl<T, Io> Service<Connect> for InnerConnector<T, Io>
     where
         Io: AsyncRead + AsyncWrite + 'static,
-        T: Service<
-            Request = Connect,
-            Response = (Connect, Io, Protocol),
-            Error = ConnectorError,
-        >,
+        T: Service<Connect, Response = (Connect, Io, Protocol), Error = ConnectorError>,
     {
-        type Request = Connect;
         type Response = IoConnection<Io>;
         type Error = ConnectorError;
         type Future = Either<
-            <ConnectionPool<T, Io> as Service>::Future,
+            <ConnectionPool<T, Io> as Service<Connect>>::Future,
             FutureResult<IoConnection<Io>, ConnectorError>,
         >;
 
