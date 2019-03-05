@@ -6,7 +6,7 @@ use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use actix_service::{IntoNewService, NewService, Service};
 use actix_utils::cloneable::CloneableService;
 use futures::future::{ok, FutureResult};
-use futures::{try_ready, Async, Future, Poll, Stream};
+use futures::{try_ready, Async, Future, IntoFuture, Poll, Stream};
 use log::error;
 
 use crate::body::MessageBody;
@@ -78,7 +78,7 @@ where
 
     fn new_service(&self, _: &()) -> Self::Future {
         H1ServiceResponse {
-            fut: self.srv.new_service(&()),
+            fut: self.srv.new_service(&()).into_future(),
             cfg: Some(self.cfg.clone()),
             _t: PhantomData,
         }
@@ -216,7 +216,7 @@ where
 
 #[doc(hidden)]
 pub struct H1ServiceResponse<T, S: NewService, B> {
-    fut: S::Future,
+    fut: <S::Future as IntoFuture>::Future,
     cfg: Option<ServiceConfig>,
     _t: PhantomData<(T, B)>,
 }

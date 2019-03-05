@@ -7,7 +7,7 @@ use actix_service::{IntoNewService, NewService, Service};
 use actix_utils::cloneable::CloneableService;
 use bytes::Bytes;
 use futures::future::{ok, FutureResult};
-use futures::{try_ready, Async, Future, Poll, Stream};
+use futures::{try_ready, Async, Future, IntoFuture, Poll, Stream};
 use h2::server::{self, Connection, Handshake};
 use h2::RecvStream;
 use log::error;
@@ -72,7 +72,7 @@ where
 
     fn new_service(&self, _: &()) -> Self::Future {
         H2ServiceResponse {
-            fut: self.srv.new_service(&()),
+            fut: self.srv.new_service(&()).into_future(),
             cfg: Some(self.cfg.clone()),
             _t: PhantomData,
         }
@@ -230,7 +230,7 @@ where
 
 #[doc(hidden)]
 pub struct H2ServiceResponse<T, S: NewService, B> {
-    fut: S::Future,
+    fut: <S::Future as IntoFuture>::Future,
     cfg: Option<ServiceConfig>,
     _t: PhantomData<(T, B)>,
 }
