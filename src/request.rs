@@ -117,11 +117,6 @@ impl HttpMessage for HttpRequest {
         &self.head().headers
     }
 
-    #[inline]
-    fn headers_mut(&mut self) -> &mut HeaderMap {
-        &mut self.head.headers
-    }
-
     /// Request extensions
     #[inline]
     fn extensions(&self) -> Ref<Extensions> {

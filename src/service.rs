@@ -78,6 +78,12 @@ impl<P> ServiceRequest<P> {
         self.head().version
     }
 
+    #[inline]
+    /// Returns mutable Request's headers.
+    pub fn headers_mut(&mut self) -> &mut HeaderMap {
+        &mut self.head_mut().headers
+    }
+
     /// The target path of this Request.
     #[inline]
     pub fn path(&self) -> &str {
@@ -132,12 +138,6 @@ impl<P> HttpMessage for ServiceRequest<P> {
     /// Returns Request's headers.
     fn headers(&self) -> &HeaderMap {
         &self.head().headers
-    }
-
-    #[inline]
-    /// Mutable reference to the request's headers.
-    fn headers_mut(&mut self) -> &mut HeaderMap {
-        &mut self.head_mut().headers
     }
 
     /// Request extensions
@@ -228,11 +228,6 @@ impl<P> HttpMessage for ServiceFromRequest<P> {
     #[inline]
     fn headers(&self) -> &HeaderMap {
         self.req.headers()
-    }
-
-    #[inline]
-    fn headers_mut(&mut self) -> &mut HeaderMap {
-        self.req.headers_mut()
     }
 
     /// Request extensions
