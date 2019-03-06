@@ -27,10 +27,12 @@ use futures::future::{ok, FutureResult};
 mod config;
 mod error;
 mod named;
+mod range;
 
 use self::error::{StaticFilesError, UriSegmentError};
 pub use crate::config::{DefaultConfig, StaticFileConfig};
 pub use crate::named::NamedFile;
+pub use crate::range::HttpRange;
 
 type HttpNewService<P> = BoxedNewService<(), ServiceRequest<P>, ServiceResponse, (), ()>;
 
@@ -212,17 +214,15 @@ fn directory_listing(
 
 /// Static files handling
 ///
-/// `StaticFile` handler must be registered with `App::handler()` method,
-/// because `StaticFile` handler requires access sub-path information.
+/// `StaticFile` handler must be registered with `App::service()` method.
 ///
-/// ```rust,ignore
-/// # extern crate actix_web;
-/// use actix_web::{fs, App};
+/// ```rust
+/// use actix_web::App;
+/// use actix_staticfiles as fs;
 ///
 /// fn main() {
 ///     let app = App::new()
-///         .handler("/static", fs::StaticFiles::new(".").unwrap())
-///         .finish();
+///         .service(fs::StaticFiles::new("/static", "."));
 /// }
 /// ```
 pub struct StaticFiles<S, C = DefaultConfig> {
@@ -243,7 +243,7 @@ impl<S: 'static> StaticFiles<S> {
     /// `StaticFile` uses `ThreadPool` for blocking filesystem operations.
     /// By default pool with 5x threads of available cpus is used.
     /// Pool size can be changed by setting ACTIX_CPU_POOL environment variable.
-    pub fn new<T: Into<PathBuf>>(path: &str, dir: T) -> Result<StaticFiles<S>, Error> {
+    pub fn new<T: Into<PathBuf>>(path: &str, dir: T) -> StaticFiles<S> {
         Self::with_config(path, dir, DefaultConfig)
     }
 }
@@ -252,18 +252,13 @@ impl<S: 'static, C: StaticFileConfig> StaticFiles<S, C> {
     /// Create new `StaticFiles` instance for specified base directory.
     ///
     /// Identical with `new` but allows to specify configiration to use.
-    pub fn with_config<T: Into<PathBuf>>(
-        path: &str,
-        dir: T,
-        _: C,
-    ) -> Result<StaticFiles<S, C>, Error> {
-        let dir = dir.into().canonicalize()?;
-
+    pub fn with_config<T: Into<PathBuf>>(path: &str, dir: T, _: C) -> StaticFiles<S, C> {
+        let dir = dir.into().canonicalize().unwrap_or_else(|_| PathBuf::new());
         if !dir.is_dir() {
-            return Err(StaticFilesError::IsNotDirectory.into());
+            log::error!("Specified path is not a directory");
         }
 
-        Ok(StaticFiles {
+        StaticFiles {
             path: ResourceDef::root_prefix(path),
             directory: dir,
             index: None,
@@ -273,7 +268,7 @@ impl<S: 'static, C: StaticFileConfig> StaticFiles<S, C> {
             _chunk_size: 0,
             _follow_symlinks: false,
             _cd_map: PhantomData,
-        })
+        }
     }
 
     /// Show files listing for directories.
@@ -449,101 +444,6 @@ impl<P> FromRequest<P> for PathBufWrp {
 
     fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
         PathBufWrp::get_pathbuf(req.match_info())
-    }
-}
-
-/// HTTP Range header representation.
-#[derive(Debug, Clone, Copy)]
-struct HttpRange {
-    pub start: u64,
-    pub length: u64,
-}
-
-static PREFIX: &'static str = "bytes=";
-const PREFIX_LEN: usize = 6;
-
-impl HttpRange {
-    /// Parses Range HTTP header string as per RFC 2616.
-    ///
-    /// `header` is HTTP Range header (e.g. `bytes=bytes=0-9`).
-    /// `size` is full size of response (file).
-    fn parse(header: &str, size: u64) -> Result<Vec<HttpRange>, ()> {
-        if header.is_empty() {
-            return Ok(Vec::new());
-        }
-        if !header.starts_with(PREFIX) {
-            return Err(());
-        }
-
-        let size_sig = size as i64;
-        let mut no_overlap = false;
-
-        let all_ranges: Vec<Option<HttpRange>> = header[PREFIX_LEN..]
-            .split(',')
-            .map(|x| x.trim())
-            .filter(|x| !x.is_empty())
-            .map(|ra| {
-                let mut start_end_iter = ra.split('-');
-
-                let start_str = start_end_iter.next().ok_or(())?.trim();
-                let end_str = start_end_iter.next().ok_or(())?.trim();
-
-                if start_str.is_empty() {
-                    // If no start is specified, end specifies the
-                    // range start relative to the end of the file.
-                    let mut length: i64 = end_str.parse().map_err(|_| ())?;
-
-                    if length > size_sig {
-                        length = size_sig;
-                    }
-
-                    Ok(Some(HttpRange {
-                        start: (size_sig - length) as u64,
-                        length: length as u64,
-                    }))
-                } else {
-                    let start: i64 = start_str.parse().map_err(|_| ())?;
-
-                    if start < 0 {
-                        return Err(());
-                    }
-                    if start >= size_sig {
-                        no_overlap = true;
-                        return Ok(None);
-                    }
-
-                    let length = if end_str.is_empty() {
-                        // If no end is specified, range extends to end of the file.
-                        size_sig - start
-                    } else {
-                        let mut end: i64 = end_str.parse().map_err(|_| ())?;
-
-                        if start > end {
-                            return Err(());
-                        }
-
-                        if end >= size_sig {
-                            end = size_sig - 1;
-                        }
-
-                        end - start + 1
-                    };
-
-                    Ok(Some(HttpRange {
-                        start: start as u64,
-                        length: length as u64,
-                    }))
-                }
-            })
-            .collect::<Result<_, _>>()?;
-
-        let ranges: Vec<HttpRange> = all_ranges.into_iter().filter_map(|x| x).collect();
-
-        if no_overlap && ranges.is_empty() {
-            return Err(());
-        }
-
-        Ok(ranges)
     }
 }
 
@@ -800,11 +700,7 @@ mod tests {
     #[test]
     fn test_named_file_ranges_status_code() {
         let mut srv = test::init_service(
-            App::new().service(
-                StaticFiles::new("/test", ".")
-                    .unwrap()
-                    .index_file("Cargo.toml"),
-            ),
+            App::new().service(StaticFiles::new("/test", ".").index_file("Cargo.toml")),
         );
 
         // Valid range header
@@ -828,11 +724,8 @@ mod tests {
     #[test]
     fn test_named_file_content_range_headers() {
         let mut srv = test::init_service(
-            App::new().service(
-                StaticFiles::new("/test", ".")
-                    .unwrap()
-                    .index_file("tests/test.binary"),
-            ),
+            App::new()
+                .service(StaticFiles::new("/test", ".").index_file("tests/test.binary")),
         );
 
         // Valid range header
@@ -871,11 +764,8 @@ mod tests {
     #[test]
     fn test_named_file_content_length_headers() {
         let mut srv = test::init_service(
-            App::new().service(
-                StaticFiles::new("test", ".")
-                    .unwrap()
-                    .index_file("tests/test.binary"),
-            ),
+            App::new()
+                .service(StaticFiles::new("test", ".").index_file("tests/test.binary")),
         );
 
         // Valid range header
@@ -948,8 +838,7 @@ mod tests {
     #[test]
     fn test_static_files_with_spaces() {
         let mut srv = test::init_service(
-            App::new()
-                .service(StaticFiles::new("/", ".").unwrap().index_file("Cargo.toml")),
+            App::new().service(StaticFiles::new("/", ".").index_file("Cargo.toml")),
         );
         let request = TestRequest::get()
             .uri("/tests/test%20space.binary")
@@ -1030,22 +919,21 @@ mod tests {
     #[test]
     fn test_static_files() {
         let mut srv = test::init_service(
-            App::new().service(StaticFiles::new("/", ".").unwrap().show_files_listing()),
+            App::new().service(StaticFiles::new("/", ".").show_files_listing()),
         );
         let req = TestRequest::with_uri("/missing").to_request();
 
         let resp = test::call_success(&mut srv, req);
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 
-        let mut srv =
-            test::init_service(App::new().service(StaticFiles::new("/", ".").unwrap()));
+        let mut srv = test::init_service(App::new().service(StaticFiles::new("/", ".")));
 
         let req = TestRequest::default().to_request();
         let resp = test::call_success(&mut srv, req);
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 
         let mut srv = test::init_service(
-            App::new().service(StaticFiles::new("/", ".").unwrap().show_files_listing()),
+            App::new().service(StaticFiles::new("/", ".").show_files_listing()),
         );
         let req = TestRequest::with_uri("/tests").to_request();
         let mut resp = test::call_success(&mut srv, req);
@@ -1065,17 +953,13 @@ mod tests {
 
     #[test]
     fn test_static_files_bad_directory() {
-        let st: Result<StaticFiles<()>, Error> = StaticFiles::new("/", "missing");
-        assert!(st.is_err());
-
-        let st: Result<StaticFiles<()>, Error> = StaticFiles::new("/", "Cargo.toml");
-        assert!(st.is_err());
+        let _st: StaticFiles<()> = StaticFiles::new("/", "missing");
+        let _st: StaticFiles<()> = StaticFiles::new("/", "Cargo.toml");
     }
 
     //     #[test]
     //     fn test_default_handler_file_missing() {
     //         let st = StaticFiles::new(".")
-    //             .unwrap()
     //             .default_handler(|_: &_| "default content");
     //         let req = TestRequest::with_uri("/missing")
     //             .param("tail", "missing")
@@ -1092,7 +976,7 @@ mod tests {
 
     //     #[test]
     //     fn test_serve_index() {
-    //         let st = StaticFiles::new(".").unwrap().index_file("test.binary");
+    //         let st = StaticFiles::new(".").index_file("test.binary");
     //         let req = TestRequest::default().uri("/tests").finish();
 
     //         let resp = st.handle(&req).respond_to(&req).unwrap();
@@ -1138,7 +1022,7 @@ mod tests {
 
     //     #[test]
     //     fn test_serve_index_nested() {
-    //         let st = StaticFiles::new(".").unwrap().index_file("mod.rs");
+    //         let st = StaticFiles::new(".").index_file("mod.rs");
     //         let req = TestRequest::default().uri("/src/client").finish();
     //         let resp = st.handle(&req).respond_to(&req).unwrap();
     //         let resp = resp.as_msg();
@@ -1158,7 +1042,7 @@ mod tests {
     //         let mut srv = test::TestServer::with_factory(|| {
     //             App::new().handler(
     //                 "test",
-    //                 StaticFiles::new(".").unwrap().index_file("Cargo.toml"),
+    //                 StaticFiles::new(".").index_file("Cargo.toml"),
     //             )
     //         });
 
@@ -1191,7 +1075,7 @@ mod tests {
     //         let mut srv = test::TestServer::with_factory(|| {
     //             App::new().handler(
     //                 "test",
-    //                 StaticFiles::new(".").unwrap().index_file("Cargo.toml"),
+    //                 StaticFiles::new(".").index_file("Cargo.toml"),
     //             )
     //         });
 
@@ -1204,279 +1088,4 @@ mod tests {
     //         assert_eq!(response.status(), StatusCode::OK);
     //     }
 
-    struct T(&'static str, u64, Vec<HttpRange>);
-
-    #[test]
-    fn test_parse() {
-        let tests = vec![
-            T("", 0, vec![]),
-            T("", 1000, vec![]),
-            T("foo", 0, vec![]),
-            T("bytes=", 0, vec![]),
-            T("bytes=7", 10, vec![]),
-            T("bytes= 7 ", 10, vec![]),
-            T("bytes=1-", 0, vec![]),
-            T("bytes=5-4", 10, vec![]),
-            T("bytes=0-2,5-4", 10, vec![]),
-            T("bytes=2-5,4-3", 10, vec![]),
-            T("bytes=--5,4--3", 10, vec![]),
-            T("bytes=A-", 10, vec![]),
-            T("bytes=A- ", 10, vec![]),
-            T("bytes=A-Z", 10, vec![]),
-            T("bytes= -Z", 10, vec![]),
-            T("bytes=5-Z", 10, vec![]),
-            T("bytes=Ran-dom, garbage", 10, vec![]),
-            T("bytes=0x01-0x02", 10, vec![]),
-            T("bytes=         ", 10, vec![]),
-            T("bytes= , , ,   ", 10, vec![]),
-            T(
-                "bytes=0-9",
-                10,
-                vec![HttpRange {
-                    start: 0,
-                    length: 10,
-                }],
-            ),
-            T(
-                "bytes=0-",
-                10,
-                vec![HttpRange {
-                    start: 0,
-                    length: 10,
-                }],
-            ),
-            T(
-                "bytes=5-",
-                10,
-                vec![HttpRange {
-                    start: 5,
-                    length: 5,
-                }],
-            ),
-            T(
-                "bytes=0-20",
-                10,
-                vec![HttpRange {
-                    start: 0,
-                    length: 10,
-                }],
-            ),
-            T(
-                "bytes=15-,0-5",
-                10,
-                vec![HttpRange {
-                    start: 0,
-                    length: 6,
-                }],
-            ),
-            T(
-                "bytes=1-2,5-",
-                10,
-                vec![
-                    HttpRange {
-                        start: 1,
-                        length: 2,
-                    },
-                    HttpRange {
-                        start: 5,
-                        length: 5,
-                    },
-                ],
-            ),
-            T(
-                "bytes=-2 , 7-",
-                11,
-                vec![
-                    HttpRange {
-                        start: 9,
-                        length: 2,
-                    },
-                    HttpRange {
-                        start: 7,
-                        length: 4,
-                    },
-                ],
-            ),
-            T(
-                "bytes=0-0 ,2-2, 7-",
-                11,
-                vec![
-                    HttpRange {
-                        start: 0,
-                        length: 1,
-                    },
-                    HttpRange {
-                        start: 2,
-                        length: 1,
-                    },
-                    HttpRange {
-                        start: 7,
-                        length: 4,
-                    },
-                ],
-            ),
-            T(
-                "bytes=-5",
-                10,
-                vec![HttpRange {
-                    start: 5,
-                    length: 5,
-                }],
-            ),
-            T(
-                "bytes=-15",
-                10,
-                vec![HttpRange {
-                    start: 0,
-                    length: 10,
-                }],
-            ),
-            T(
-                "bytes=0-499",
-                10000,
-                vec![HttpRange {
-                    start: 0,
-                    length: 500,
-                }],
-            ),
-            T(
-                "bytes=500-999",
-                10000,
-                vec![HttpRange {
-                    start: 500,
-                    length: 500,
-                }],
-            ),
-            T(
-                "bytes=-500",
-                10000,
-                vec![HttpRange {
-                    start: 9500,
-                    length: 500,
-                }],
-            ),
-            T(
-                "bytes=9500-",
-                10000,
-                vec![HttpRange {
-                    start: 9500,
-                    length: 500,
-                }],
-            ),
-            T(
-                "bytes=0-0,-1",
-                10000,
-                vec![
-                    HttpRange {
-                        start: 0,
-                        length: 1,
-                    },
-                    HttpRange {
-                        start: 9999,
-                        length: 1,
-                    },
-                ],
-            ),
-            T(
-                "bytes=500-600,601-999",
-                10000,
-                vec![
-                    HttpRange {
-                        start: 500,
-                        length: 101,
-                    },
-                    HttpRange {
-                        start: 601,
-                        length: 399,
-                    },
-                ],
-            ),
-            T(
-                "bytes=500-700,601-999",
-                10000,
-                vec![
-                    HttpRange {
-                        start: 500,
-                        length: 201,
-                    },
-                    HttpRange {
-                        start: 601,
-                        length: 399,
-                    },
-                ],
-            ),
-            // Match Apache laxity:
-            T(
-                "bytes=   1 -2   ,  4- 5, 7 - 8 , ,,",
-                11,
-                vec![
-                    HttpRange {
-                        start: 1,
-                        length: 2,
-                    },
-                    HttpRange {
-                        start: 4,
-                        length: 2,
-                    },
-                    HttpRange {
-                        start: 7,
-                        length: 2,
-                    },
-                ],
-            ),
-        ];
-
-        for t in tests {
-            let header = t.0;
-            let size = t.1;
-            let expected = t.2;
-
-            let res = HttpRange::parse(header, size);
-
-            if res.is_err() {
-                if expected.is_empty() {
-                    continue;
-                } else {
-                    assert!(
-                        false,
-                        "parse({}, {}) returned error {:?}",
-                        header,
-                        size,
-                        res.unwrap_err()
-                    );
-                }
-            }
-
-            let got = res.unwrap();
-
-            if got.len() != expected.len() {
-                assert!(
-                    false,
-                    "len(parseRange({}, {})) = {}, want {}",
-                    header,
-                    size,
-                    got.len(),
-                    expected.len()
-                );
-                continue;
-            }
-
-            for i in 0..expected.len() {
-                if got[i].start != expected[i].start {
-                    assert!(
-                        false,
-                        "parseRange({}, {})[{}].start = {}, want {}",
-                        header, size, i, got[i].start, expected[i].start
-                    )
-                }
-                if got[i].length != expected[i].length {
-                    assert!(
-                        false,
-                        "parseRange({}, {})[{}].length = {}, want {}",
-                        header, size, i, got[i].length, expected[i].length
-                    )
-                }
-            }
-        }
-    }
 }

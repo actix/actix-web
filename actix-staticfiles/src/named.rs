@@ -17,7 +17,8 @@ use actix_web::http::{ContentEncoding, Method, StatusCode};
 use actix_web::{HttpMessage, HttpRequest, HttpResponse, Responder};
 
 use crate::config::{DefaultConfig, StaticFileConfig};
-use crate::{ChunkedReadFile, HttpRange};
+use crate::range::HttpRange;
+use crate::ChunkedReadFile;
 
 /// A file with an associated name.
 #[derive(Debug)]
@@ -303,6 +304,8 @@ impl<C: StaticFileConfig> Responder for NamedFile<C> {
     type Future = Result<HttpResponse, Error>;
 
     fn respond_to(self, req: &HttpRequest) -> Self::Future {
+        println!("RESP: {:?}", req);
+
         if self.status_code != StatusCode::OK {
             let mut resp = HttpResponse::build(self.status_code);
             resp.set(header::ContentType(self.content_type.clone()))
