@@ -42,16 +42,20 @@ where
 /// service.
 ///
 /// ```rust
-/// use actix_http::http::{test, App, HttpResponse};
+/// use actix_web::{test, App, HttpResponse, http::StatusCode};
+/// use actix_service::Service;
 ///
 /// fn main() {
-///     let app = test::init_service(
+///     let mut app = test::init_service(
 ///         App::new()
 ///             .resource("/test", |r| r.to(|| HttpResponse::Ok()))
-///     )
+///     );
 ///
-///     let req = TestRequest::with_uri("/test").to_request();
-///     let resp = block_on(srv.call(req)).unwrap();
+///     // Create request object
+///     let req = test::TestRequest::with_uri("/test").to_request();
+///
+///     // Execute application
+///     let resp = test::block_on(app.call(req)).unwrap();
 ///     assert_eq!(resp.status(), StatusCode::OK);
 /// }
 /// ```
