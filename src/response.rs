@@ -212,7 +212,7 @@ impl<B> Response<B> {
     }
 
     /// Set a body
-    pub(crate) fn set_body<B2: MessageBody>(self, body: B2) -> Response<B2> {
+    pub(crate) fn set_body<B2>(self, body: B2) -> Response<B2> {
         Response {
             head: self.head,
             body: ResponseBody::Body(body),
@@ -230,10 +230,7 @@ impl<B> Response<B> {
     }
 
     /// Set a body and return previous body value
-    pub(crate) fn replace_body<B2: MessageBody>(
-        self,
-        body: B2,
-    ) -> (Response<B2>, ResponseBody<B>) {
+    pub(crate) fn replace_body<B2>(self, body: B2) -> (Response<B2>, ResponseBody<B>) {
         (
             Response {
                 head: self.head,
@@ -245,7 +242,7 @@ impl<B> Response<B> {
     }
 
     /// Set a body and return previous body value
-    pub fn map_body<F, B2: MessageBody>(mut self, f: F) -> Response<B2>
+    pub fn map_body<F, B2>(mut self, f: F) -> Response<B2>
     where
         F: FnOnce(&mut ResponseHead, ResponseBody<B>) -> ResponseBody<B2>,
     {
@@ -597,7 +594,7 @@ impl ResponseBuilder {
     /// Set a body and generate `Response`.
     ///
     /// `ResponseBuilder` can not be used after this call.
-    pub fn message_body<B: MessageBody>(&mut self, body: B) -> Response<B> {
+    pub fn message_body<B>(&mut self, body: B) -> Response<B> {
         if let Some(e) = self.err.take() {
             return Response::from(Error::from(e)).into_body();
         }
