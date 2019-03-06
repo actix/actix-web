@@ -509,17 +509,14 @@ mod tests {
     use actix_service::{IntoNewService, NewService, Service};
     use bytes::Bytes;
 
-    use crate::test::{block_on, TestRequest};
+    use crate::test::{self, block_on, TestRequest};
     use crate::{guard, web, App, HttpRequest, HttpResponse};
 
     #[test]
     fn test_scope() {
-        let app = App::new()
-            .scope("/app", |scope| {
-                scope.resource("/path1", |r| r.to(|| HttpResponse::Ok()))
-            })
-            .into_new_service();
-        let mut srv = block_on(app.new_service(&())).unwrap();
+        let mut srv = test::init_service(App::new().scope("/app", |scope| {
+            scope.resource("/path1", |r| r.to(|| HttpResponse::Ok()))
+        }));
 
         let req = TestRequest::with_uri("/app/path1").to_request();
         let resp = block_on(srv.call(req)).unwrap();
@@ -528,14 +525,11 @@ mod tests {
 
     #[test]
     fn test_scope_root() {
-        let app = App::new()
-            .scope("/app", |scope| {
-                scope
-                    .resource("", |r| r.to(|| HttpResponse::Ok()))
-                    .resource("/", |r| r.to(|| HttpResponse::Created()))
-            })
-            .into_new_service();
-        let mut srv = block_on(app.new_service(&())).unwrap();
+        let mut srv = test::init_service(App::new().scope("/app", |scope| {
+            scope
+                .resource("", |r| r.to(|| HttpResponse::Ok()))
+                .resource("/", |r| r.to(|| HttpResponse::Created()))
+        }));
 
         let req = TestRequest::with_uri("/app").to_request();
         let resp = block_on(srv.call(req)).unwrap();
@@ -548,12 +542,9 @@ mod tests {
 
     #[test]
     fn test_scope_root2() {
-        let app = App::new()
-            .scope("/app/", |scope| {
-                scope.resource("", |r| r.to(|| HttpResponse::Ok()))
-            })
-            .into_new_service();
-        let mut srv = block_on(app.new_service(&())).unwrap();
+        let mut srv = test::init_service(App::new().scope("/app/", |scope| {
+            scope.resource("", |r| r.to(|| HttpResponse::Ok()))
+        }));
 
         let req = TestRequest::with_uri("/app").to_request();
         let resp = block_on(srv.call(req)).unwrap();

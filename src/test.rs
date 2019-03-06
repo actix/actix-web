@@ -41,7 +41,7 @@ where
 /// This method accepts application builder instance, and constructs
 /// service.
 ///
-/// ```rust
+/// ```rust,ignore
 /// use actix_web::{test, App, HttpResponse, http::StatusCode};
 /// use actix_service::Service;
 ///
@@ -80,7 +80,9 @@ where
 ///  * `TestRequest::to_http_request` creates `HttpRequest` instance, which is used for testing handlers.
 ///
 /// ```rust,ignore
-/// use actix_web::test;
+/// # use futures::IntoFuture;
+/// use actix_web::{test, HttpRequest, HttpResponse, HttpMessage};
+/// use actix_web::http::{header, StatusCode};
 ///
 /// fn index(req: HttpRequest) -> HttpResponse {
 ///     if let Some(hdr) = req.headers().get(header::CONTENT_TYPE) {
@@ -94,11 +96,11 @@ where
 ///     let req = test::TestRequest::with_header("content-type", "text/plain")
 ///         .to_http_request();
 ///
-///     let resp = test::block_on(index(req));
+///     let resp = test::block_on(index(req).into_future()).unwrap();
 ///     assert_eq!(resp.status(), StatusCode::OK);
 ///
 ///     let req = test::TestRequest::default().to_http_request();
-///     let resp = test::block_on(index(req));
+///     let resp = test::block_on(index(req).into_future()).unwrap();
 ///     assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 /// }
 /// ```

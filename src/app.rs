@@ -902,16 +902,14 @@ mod tests {
     use actix_http::http::{Method, StatusCode};
 
     use super::*;
-    use crate::test::{block_on, TestRequest};
+    use crate::test::{self, block_on, TestRequest};
     use crate::{web, HttpResponse, State};
 
     #[test]
     fn test_default_resource() {
-        let app = App::new()
-            .resource("/test", |r| r.to(|| HttpResponse::Ok()))
-            .into_new_service();
-        let mut srv = block_on(app.new_service(&())).unwrap();
-
+        let mut srv = test::init_service(
+            App::new().resource("/test", |r| r.to(|| HttpResponse::Ok())),
+        );
         let req = TestRequest::with_uri("/test").to_request();
         let resp = block_on(srv.call(req)).unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
@@ -920,15 +918,15 @@ mod tests {
         let resp = block_on(srv.call(req)).unwrap();
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 
-        let app = App::new()
-            .resource("/test", |r| r.to(|| HttpResponse::Ok()))
-            .resource("/test2", |r| {
-                r.default_resource(|r| r.to(|| HttpResponse::Created()))
-                    .route(web::get().to(|| HttpResponse::Ok()))
-            })
-            .default_resource(|r| r.to(|| HttpResponse::MethodNotAllowed()))
-            .into_new_service();
-        let mut srv = block_on(app.new_service(&())).unwrap();
+        let mut srv = test::init_service(
+            App::new()
+                .resource("/test", |r| r.to(|| HttpResponse::Ok()))
+                .resource("/test2", |r| {
+                    r.default_resource(|r| r.to(|| HttpResponse::Created()))
+                        .route(web::get().to(|| HttpResponse::Ok()))
+                })
+                .default_resource(|r| r.to(|| HttpResponse::MethodNotAllowed())),
+        );
 
         let req = TestRequest::with_uri("/blah").to_request();
         let resp = block_on(srv.call(req)).unwrap();
@@ -947,21 +945,21 @@ mod tests {
 
     #[test]
     fn test_state() {
-        let app = App::new()
-            .state(10usize)
-            .resource("/", |r| r.to(|_: State<usize>| HttpResponse::Ok()))
-            .into_new_service();
-        let mut srv = block_on(app.new_service(&())).unwrap();
+        let mut srv = test::init_service(
+            App::new()
+                .state(10usize)
+                .resource("/", |r| r.to(|_: State<usize>| HttpResponse::Ok())),
+        );
 
         let req = TestRequest::default().to_request();
         let resp = block_on(srv.call(req)).unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
 
-        let app = App::new()
-            .state(10u32)
-            .resource("/", |r| r.to(|_: State<usize>| HttpResponse::Ok()))
-            .into_new_service();
-        let mut srv = block_on(app.new_service(&())).unwrap();
+        let mut srv = test::init_service(
+            App::new()
+                .state(10u32)
+                .resource("/", |r| r.to(|_: State<usize>| HttpResponse::Ok())),
+        );
 
         let req = TestRequest::default().to_request();
         let resp = block_on(srv.call(req)).unwrap();
@@ -970,21 +968,21 @@ mod tests {
 
     #[test]
     fn test_state_factory() {
-        let app = App::new()
-            .state_factory(|| Ok::<_, ()>(10usize))
-            .resource("/", |r| r.to(|_: State<usize>| HttpResponse::Ok()))
-            .into_new_service();
-        let mut srv = block_on(app.new_service(&())).unwrap();
+        let mut srv = test::init_service(
+            App::new()
+                .state_factory(|| Ok::<_, ()>(10usize))
+                .resource("/", |r| r.to(|_: State<usize>| HttpResponse::Ok())),
+        );
 
         let req = TestRequest::default().to_request();
         let resp = block_on(srv.call(req)).unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
 
-        let app = App::new()
-            .state_factory(|| Ok::<_, ()>(10u32))
-            .resource("/", |r| r.to(|_: State<usize>| HttpResponse::Ok()))
-            .into_new_service();
-        let mut srv = block_on(app.new_service(&())).unwrap();
+        let mut srv = test::init_service(
+            App::new()
+                .state_factory(|| Ok::<_, ()>(10u32))
+                .resource("/", |r| r.to(|_: State<usize>| HttpResponse::Ok())),
+        );
 
         let req = TestRequest::default().to_request();
         let resp = block_on(srv.call(req)).unwrap();
