@@ -33,7 +33,7 @@ ssl = ["openssl", "actix-http/ssl", "actix-server/ssl"]
 
 [dependencies]
 actix-codec = "0.1"
-actix-rt = "0.1.0"
+actix-rt = "0.2.0"
 actix-http = { path=".." }
 #actix-service = "0.3.2"
 actix-service = { git="https://github.com/actix/actix-net.git" }

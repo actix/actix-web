@@ -78,7 +78,7 @@ trust-dns-resolver = { version="0.11.0-alpha.2", default-features = false }
 openssl = { version="0.10", optional = true }
 
 [dev-dependencies]
-actix-rt = "0.1.0"
+actix-rt = "0.2.0"
 #actix-server = { version = "0.3.0", features=["ssl"] }
 actix-server = { git="https://github.com/actix/actix-net.git", features=["ssl"] }
 #actix-connector = { version = "0.3.0", features=["ssl"] }
