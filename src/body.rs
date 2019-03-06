@@ -59,6 +59,12 @@ impl ResponseBody<Body> {
     }
 }
 
+impl<B> ResponseBody<B> {
+    pub fn take_body(&mut self) -> ResponseBody<B> {
+        std::mem::replace(self, ResponseBody::Other(Body::None))
+    }
+}
+
 impl<B: MessageBody> ResponseBody<B> {
     pub fn as_ref(&self) -> Option<&B> {
         if let ResponseBody::Body(ref b) = self {

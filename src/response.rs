@@ -254,6 +254,11 @@ impl<B> Response<B> {
             error: self.error,
         }
     }
+
+    /// Extract response body
+    pub fn take_body(&mut self) -> ResponseBody<B> {
+        self.body.take_body()
+    }
 }
 
 impl<B: MessageBody> fmt::Debug for Response<B> {
