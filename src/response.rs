@@ -80,7 +80,7 @@ impl Response<Body> {
     }
 
     /// Convert response to response with body
-    pub fn into_body<B: MessageBody>(self) -> Response<B> {
+    pub fn into_body<B>(self) -> Response<B> {
         let b = match self.body {
             ResponseBody::Body(b) => b,
             ResponseBody::Other(b) => b,
