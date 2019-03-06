@@ -91,6 +91,15 @@ impl<B: MessageBody> MessageBody for ResponseBody<B> {
     }
 }
 
+impl<B: MessageBody> Stream for ResponseBody<B> {
+    type Item = Bytes;
+    type Error = Error;
+
+    fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
+        self.poll_next()
+    }
+}
+
 /// Represents various types of http message body.
 pub enum Body {
     /// Empty response. `Content-Length` header is not set.
