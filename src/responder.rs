@@ -1,3 +1,4 @@
+use actix_http::error::InternalError;
 use actix_http::{dev::ResponseBuilder, http::StatusCode, Error, Response};
 use bytes::{Bytes, BytesMut};
 use futures::future::{err, ok, Either as EitherFuture, FutureResult};
@@ -249,6 +250,18 @@ where
             self.map_err(|e| e.into())
                 .and_then(move |r| ResponseFuture(r.respond_to(&req).into_future())),
         )
+    }
+}
+
+impl<T> Responder for InternalError<T>
+where
+    T: std::fmt::Debug + std::fmt::Display + 'static,
+{
+    type Error = Error;
+    type Future = Result<Response, Error>;
+
+    fn respond_to(self, _: &HttpRequest) -> Self::Future {
+        Err(self.into())
     }
 }
 
