@@ -426,12 +426,15 @@ where
     ///
     /// Default resource works with resources only and does not work with
     /// custom services.
-    pub fn default_resource<F, R, U>(mut self, f: F) -> Self
+    pub fn default_resource<F, U>(mut self, f: F) -> Self
     where
-        F: FnOnce(Resource<P>) -> R,
-        R: IntoNewService<U, ServiceRequest<P>>,
-        U: NewService<ServiceRequest<P>, Response = ServiceResponse, Error = ()>
-            + 'static,
+        F: FnOnce(Resource<P>) -> Resource<P, U>,
+        U: NewService<
+                ServiceRequest<P>,
+                Response = ServiceResponse,
+                Error = (),
+                InitError = (),
+            > + 'static,
     {
         // create and configure default resource
         self.default = Some(Rc::new(boxed::new_service(
