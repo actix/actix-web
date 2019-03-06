@@ -12,6 +12,7 @@ use serde::Serialize;
 use serde_json;
 use serde_urlencoded;
 use url::Url;
+use base64::encode;
 
 use super::connector::{ClientConnector, Connection};
 use super::pipeline::SendRequest;
@@ -483,6 +484,29 @@ impl ClientRequestBuilder {
             };
         }
         self
+    }
+
+    /// Set HTTP basic authorization
+    pub fn basic_auth<U, P>(&mut self, username: U, password: Option<P>) -> &mut Self 
+    where 
+        U: fmt::Display,
+        P: fmt::Display,
+    {
+        let auth = match password {
+            Some(password) => format!("{}:{}", username, password),
+            None => format!("{}", username)
+        };
+        let header_value = format!("Basic {}", encode(&auth));
+        self.header(header::AUTHORIZATION, &*header_value)
+    }
+
+    /// Set HTTP bearer authentication
+    pub fn bearer_auth<T>( &mut self, token: T) -> &mut Self
+    where 
+        T: fmt::Display,
+    {
+        let header_value = format!("Bearer {}", token);
+        self.header(header::AUTHORIZATION, &*header_value)
     }
 
     /// Set content length
