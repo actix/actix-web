@@ -70,6 +70,34 @@ where
     block_on(app.into_new_service().new_service(&())).unwrap()
 }
 
+/// Calls service and waits for response future completion.
+///
+/// ```rust,ignore
+/// use actix_web::{test, App, HttpResponse, http::StatusCode};
+/// use actix_service::Service;
+///
+/// fn main() {
+///     let mut app = test::init_service(
+///         App::new()
+///             .resource("/test", |r| r.to(|| HttpResponse::Ok()))
+///     );
+///
+///     // Create request object
+///     let req = test::TestRequest::with_uri("/test").to_request();
+///
+///     // Call application
+///     let resp = test::call_succ_service(&mut app, req);
+///     assert_eq!(resp.status(), StatusCode::OK);
+/// }
+/// ```
+pub fn call_success<S, R, B, E>(app: &mut S, req: R) -> S::Response
+where
+    S: Service<R, Response = ServiceResponse<B>, Error = E>,
+    E: std::fmt::Debug,
+{
+    block_on(app.call(req)).unwrap()
+}
+
 /// Test `Request` builder.
 ///
 /// For unit testing, actix provides a request builder type and a simple handler runner. TestRequest implements a builder-like pattern.

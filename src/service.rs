@@ -1,8 +1,9 @@
 use std::borrow::Cow;
 use std::cell::{Ref, RefMut};
+use std::fmt;
 use std::rc::Rc;
 
-use actix_http::body::{Body, ResponseBody};
+use actix_http::body::{Body, MessageBody, ResponseBody};
 use actix_http::http::{HeaderMap, Method, Uri, Version};
 use actix_http::{
     Error, Extensions, HttpMessage, Payload, PayloadStream, Request, RequestHead,
@@ -123,6 +124,11 @@ impl<P> ServiceRequest<P> {
     pub fn app_extensions(&self) -> &Extensions {
         self.req.app_extensions()
     }
+
+    /// Deconstruct request into parts
+    pub fn into_parts(self) -> (HttpRequest, Payload<P>) {
+        (self.req, self.payload)
+    }
 }
 
 impl<P> Resource<Url> for ServiceRequest<P> {
@@ -169,6 +175,29 @@ impl<P> std::ops::Deref for ServiceRequest<P> {
 impl<P> std::ops::DerefMut for ServiceRequest<P> {
     fn deref_mut(&mut self) -> &mut RequestHead {
         self.head_mut()
+    }
+}
+
+impl<P> fmt::Debug for ServiceRequest<P> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        writeln!(
+            f,
+            "\nServiceRequest {:?} {}:{}",
+            self.head().version,
+            self.head().method,
+            self.path()
+        )?;
+        if !self.query_string().is_empty() {
+            writeln!(f, "  query: ?{:?}", self.query_string())?;
+        }
+        if !self.match_info().is_empty() {
+            writeln!(f, "  params: {:?}", self.match_info())?;
+        }
+        writeln!(f, "  headers:")?;
+        for (key, val) in self.headers().iter() {
+            writeln!(f, "    {:?}: {:?}", key, val)?;
+        }
+        Ok(())
     }
 }
 
@@ -259,6 +288,16 @@ impl<B> ServiceResponse<B> {
         ServiceResponse { request, response }
     }
 
+    /// Create service response from the error
+    pub fn from_err<E: Into<Error>>(err: E, request: HttpRequest) -> Self {
+        let e: Error = err.into();
+        let res: Response = e.into();
+        ServiceResponse {
+            request,
+            response: res.into_body(),
+        }
+    }
+
     /// Get reference to original request
     #[inline]
     pub fn request(&self) -> &HttpRequest {
@@ -302,6 +341,11 @@ impl<B> ServiceResponse<B> {
                 ServiceResponse::new(self.request, res.into_body())
             }
         }
+    }
+
+    /// Extract response body
+    pub fn take_body(&mut self) -> ResponseBody<B> {
+        self.response.take_body()
     }
 }
 
@@ -347,5 +391,23 @@ impl<B> IntoFuture for ServiceResponse<B> {
 
     fn into_future(self) -> Self::Future {
         ok(self)
+    }
+}
+
+impl<B: MessageBody> fmt::Debug for ServiceResponse<B> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let res = writeln!(
+            f,
+            "\nServiceResponse {:?} {}{}",
+            self.response.head().version,
+            self.response.head().status,
+            self.response.head().reason.unwrap_or(""),
+        );
+        let _ = writeln!(f, "  headers:");
+        for (key, val) in self.response.head().headers.iter() {
+            let _ = writeln!(f, "    {:?}: {:?}", key, val);
+        }
+        let _ = writeln!(f, "  body: {:?}", self.response.body().length());
+        res
     }
 }

@@ -35,7 +35,7 @@ before_script:
 
 script:
   - cargo clean
-  - cargo test -- --nocapture
+  - cargo test --all -- --nocapture
 
 # Upload docs
 after_success:
@@ -49,7 +49,7 @@ after_success:
     fi
   - |
     if [[ "$TRAVIS_RUST_VERSION" ==  "nightly-2019-03-02" ]]; then
-        cargo tarpaulin --out Xml
+        cargo tarpaulin --out Xml --all
         bash <(curl -s https://codecov.io/bash)
         echo "Uploaded code coverage"
     fi

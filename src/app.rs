@@ -24,8 +24,13 @@ type HttpService<P> = BoxedService<ServiceRequest<P>, ServiceResponse, ()>;
 type HttpNewService<P> = BoxedNewService<(), ServiceRequest<P>, ServiceResponse, (), ()>;
 type BoxedResponse = Box<Future<Item = ServiceResponse, Error = ()>>;
 
-pub trait HttpServiceFactory<Request> {
-    type Factory: NewService<Request>;
+pub trait HttpServiceFactory<P> {
+    type Factory: NewService<
+        ServiceRequest<P>,
+        Response = ServiceResponse,
+        Error = (),
+        InitError = (),
+    >;
 
     fn rdef(&self) -> &ResourceDef;
 
@@ -293,6 +298,29 @@ where
         }
     }
 
+    /// Register resource handler service.
+    pub fn service<F>(self, service: F) -> AppRouter<T, P, Body, AppEntry<P>>
+    where
+        F: HttpServiceFactory<P> + 'static,
+    {
+        let fref = Rc::new(RefCell::new(None));
+        AppRouter {
+            chain: self.chain,
+            services: vec![(
+                service.rdef().clone(),
+                boxed::new_service(service.create().map_init_err(|_| ())),
+                None,
+            )],
+            default: None,
+            defaults: vec![],
+            endpoint: AppEntry::new(fref.clone()),
+            factory_ref: fref,
+            extensions: self.extensions,
+            state: self.state,
+            _t: PhantomData,
+        }
+    }
+
     /// Set server host name.
     ///
     /// Host name is used by application router aa a hostname for url
@@ -445,16 +473,15 @@ where
     }
 
     /// Register resource handler service.
-    pub fn service<R, F, U>(mut self, rdef: R, factory: F) -> Self
+    pub fn service<F>(mut self, factory: F) -> Self
     where
-        R: Into<ResourceDef>,
-        F: IntoNewService<U, ServiceRequest<P>>,
-        U: NewService<ServiceRequest<P>, Response = ServiceResponse, Error = ()>
-            + 'static,
+        F: HttpServiceFactory<P> + 'static,
     {
+        let rdef = factory.rdef().clone();
+
         self.services.push((
-            rdef.into(),
-            boxed::new_service(factory.into_new_service().map_init_err(|_| ())),
+            rdef,
+            boxed::new_service(factory.create().map_init_err(|_| ())),
             None,
         ));
         self

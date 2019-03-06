@@ -2,7 +2,6 @@ use futures::IntoFuture;
 
 use actix_web::{
     http::Method, middleware, web, App, Error, HttpRequest, HttpResponse, HttpServer,
-    Resource, Route,
 };
 
 fn index(req: HttpRequest) -> &'static str {
@@ -29,19 +28,17 @@ fn main() -> std::io::Result<()> {
             .middleware(middleware::DefaultHeaders::new().header("X-Version", "0.2"))
             .middleware(middleware::Compress::default())
             .resource("/resource1/index.html", |r| r.route(web::get().to(index)))
-            .service(
-                "/resource2/index.html",
-                Resource::new()
-                    .middleware(
-                        middleware::DefaultHeaders::new().header("X-Version-R2", "0.3"),
-                    )
-                    .default_resource(|r| {
-                        r.route(Route::new().to(|| HttpResponse::MethodNotAllowed()))
-                    })
-                    .route(web::method(Method::GET).to_async(index_async)),
-            )
-            .service("/test1.html", Resource::new().to(|| "Test\r\n"))
-            .service("/", Resource::new().to(no_params))
+            .resource("/resource2/index.html", |r| {
+                r.middleware(
+                    middleware::DefaultHeaders::new().header("X-Version-R2", "0.3"),
+                )
+                .default_resource(|r| {
+                    r.route(web::route().to(|| HttpResponse::MethodNotAllowed()))
+                })
+                .route(web::method(Method::GET).to_async(index_async))
+            })
+            .resource("/test1.html", |r| r.to(|| "Test\r\n"))
+            .resource("/", |r| r.to(no_params))
     })
     .bind("127.0.0.1:8080")?
     .workers(1)

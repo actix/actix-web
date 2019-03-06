@@ -19,9 +19,9 @@ pub mod test;
 
 // re-export for convenience
 pub use actix_http::Response as HttpResponse;
-pub use actix_http::{error, http, Error, HttpMessage, ResponseError, Result};
+pub use actix_http::{body, error, http, Error, HttpMessage, ResponseError, Result};
 
-pub use crate::app::{App, AppRouter};
+pub use crate::app::App;
 pub use crate::extract::{FromRequest, Json};
 pub use crate::request::HttpRequest;
 pub use crate::resource::Resource;
@@ -31,6 +31,26 @@ pub use crate::scope::Scope;
 pub use crate::server::HttpServer;
 pub use crate::service::{ServiceFromRequest, ServiceRequest, ServiceResponse};
 pub use crate::state::State;
+
+pub mod dev {
+    //! The `actix-web` prelude for library developers
+    //!
+    //! The purpose of this module is to alleviate imports of many common actix
+    //! traits by adding a glob import to the top of actix heavy modules:
+    //!
+    //! ```
+    //! # #![allow(unused_imports)]
+    //! use actix_web::dev::*;
+    //! ```
+
+    pub use crate::app::{AppRouter, HttpServiceFactory};
+    pub use actix_http::body::{Body, MessageBody, ResponseBody};
+    pub use actix_http::dev::ResponseBuilder as HttpResponseBuilder;
+    pub use actix_http::{
+        Extensions, Payload, PayloadStream, RequestHead, ResponseHead,
+    };
+    pub use actix_router::{Path, ResourceDef, Url};
+}
 
 pub mod web {
     use actix_http::{http::Method, Error, Response};

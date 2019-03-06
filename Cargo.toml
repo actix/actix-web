@@ -28,7 +28,7 @@ path = "src/lib.rs"
 members = [
   ".",
   "actix-session",
-  "staticfiles",
+  "actix-staticfiles",
 ]
 
 [package.metadata.docs.rs]
