@@ -24,10 +24,6 @@ impl HttpMessage for ClientResponse {
         &self.head.headers
     }
 
-    fn headers_mut(&mut self) -> &mut HeaderMap {
-        &mut self.head.headers
-    }
-
     fn extensions(&self) -> Ref<Extensions> {
         self.head.extensions()
     }

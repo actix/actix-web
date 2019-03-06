@@ -32,9 +32,6 @@ pub trait HttpMessage: Sized {
     /// Read the message headers.
     fn headers(&self) -> &HeaderMap;
 
-    /// Mutable reference to the message's headers.
-    fn headers_mut(&mut self) -> &mut HeaderMap;
-
     /// Message payload stream
     fn take_payload(&mut self) -> Payload<Self::Stream>;
 
@@ -278,11 +275,6 @@ where
 
     fn headers(&self) -> &HeaderMap {
         (**self).headers()
-    }
-
-    /// Mutable reference to the message's headers.
-    fn headers_mut(&mut self) -> &mut HeaderMap {
-        (**self).headers_mut()
     }
 
     /// Message payload stream

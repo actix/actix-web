@@ -22,11 +22,6 @@ impl<P> HttpMessage for Request<P> {
         &self.head().headers
     }
 
-    #[inline]
-    fn headers_mut(&mut self) -> &mut HeaderMap {
-        &mut self.head_mut().headers
-    }
-
     /// Request extensions
     #[inline]
     fn extensions(&self) -> Ref<Extensions> {
@@ -105,6 +100,11 @@ impl<P> Request<P> {
     /// Mutable reference to a http message part of the request
     pub fn head_mut(&mut self) -> &mut RequestHead {
         &mut *self.head
+    }
+
+    /// Mutable reference to the message's headers.
+    fn headers_mut(&mut self) -> &mut HeaderMap {
+        &mut self.head_mut().headers
     }
 
     /// Request's uri.
