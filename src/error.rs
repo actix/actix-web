@@ -66,28 +66,6 @@ impl Error {
         }
     }
 
-    // /// Attempts to downcast this `Error` to a particular `Fail` type by
-    // /// reference.
-    // ///
-    // /// If the underlying error is not of type `T`, this will return `None`.
-    // pub fn downcast_ref<T: Fail>(&self) -> Option<&T> {
-    //     // in the most trivial way the cause is directly of the requested type.
-    //     if let Some(rv) = Fail::downcast_ref(self.cause.as_fail()) {
-    //         return Some(rv);
-    //     }
-
-    //     // in the more complex case the error has been constructed from a failure
-    //     // error.  This happens because we implement From<failure::Error> by
-    //     // calling compat() and then storing it here.  In failure this is
-    //     // represented by a failure::Error being wrapped in a failure::Compat.
-    //     //
-    //     // So we first downcast into that compat, to then further downcast through
-    //     // the failure's Error downcasting system into the original failure.
-    //     let compat: Option<&failure::Compat<failure::Error>> =
-    //         Fail::downcast_ref(self.cause.as_fail());
-    //     compat.and_then(|e| e.get_ref().downcast_ref())
-    // }
-
     /// Converts error to a response instance and set error message as response body
     pub fn response_with_message(self) -> Response {
         let message = format!("{}", self);
@@ -95,28 +73,6 @@ impl Error {
         resp.set_body(Body::from(message))
     }
 }
-
-// /// Helper trait to downcast a response error into a fail.
-// ///
-// /// This is currently not exposed because it's unclear if this is the best way
-// /// to achieve the downcasting on `Error` for which this is needed.
-// #[doc(hidden)]
-// pub trait InternalResponseErrorAsFail {
-//     #[doc(hidden)]
-//     fn as_fail(&self) -> &Fail;
-//     #[doc(hidden)]
-//     fn as_mut_fail(&mut self) -> &mut Fail;
-// }
-
-// #[doc(hidden)]
-// impl<T: ResponseError> InternalResponseErrorAsFail for T {
-//     fn as_fail(&self) -> &Fail {
-//         self
-//     }
-//     fn as_mut_fail(&mut self) -> &mut Fail {
-//         self
-//     }
-// }
 
 /// Error that can be converted to `Response`
 pub trait ResponseError: fmt::Debug + fmt::Display {
@@ -175,18 +131,6 @@ impl<T: ResponseError + 'static> From<T> for Error {
         }
     }
 }
-
-// /// Compatibility for `failure::Error`
-// impl<T> ResponseError for failure::Compat<T> where
-//     T: fmt::Display + fmt::Debug + Sync + Send + 'static
-// {
-// }
-
-// impl From<failure::Error> for Error {
-//     fn from(err: failure::Error) -> Error {
-//         err.compat().into()
-//     }
-// }
 
 /// Return `GATEWAY_TIMEOUT` for `TimeoutError`
 impl<E: ResponseError> ResponseError for TimeoutError<E> {
@@ -1021,6 +965,28 @@ where
     T: fmt::Debug + fmt::Display + 'static,
 {
     InternalError::new(err, StatusCode::NETWORK_AUTHENTICATION_REQUIRED).into()
+}
+
+#[cfg(feature = "fail")]
+mod failure_integration {
+    use super::*;
+    use failure::{self, Fail};
+
+    /// Compatibility for `failure::Error`
+    impl<T> ResponseError for failure::Compat<T>
+    where
+        T: fmt::Display + fmt::Debug + Sync + Send + 'static,
+    {
+        fn error_response(&self) -> Response {
+            Response::new(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+
+    impl From<failure::Error> for Error {
+        fn from(err: failure::Error) -> Error {
+            err.compat().into()
+        }
+    }
 }
 
 #[cfg(test)]

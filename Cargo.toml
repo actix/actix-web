@@ -28,10 +28,14 @@ name = "actix_http"
 path = "src/lib.rs"
 
 [features]
-default = []
+default = ["fail"]
 
 # openssl
 ssl = ["openssl", "actix-connector/ssl"]
+
+# failure integration. it is on by default, it will be off in future versions
+# actix itself does not use failure anymore
+fail = ["failure"]
 
 [dependencies]
 #actix-service = "0.3.2"
@@ -76,6 +80,9 @@ trust-dns-resolver = { version="0.11.0-alpha.2", default-features = false }
 
 # openssl
 openssl = { version="0.10", optional = true }
+
+# failure is optional
+failure = { version = "0.1.5", optional = true }
 
 [dev-dependencies]
 actix-rt = "0.2.0"
