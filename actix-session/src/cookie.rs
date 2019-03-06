@@ -174,7 +174,7 @@ impl CookieSessionInner {
 ///
 /// ```rust
 /// use actix_session::CookieSession;
-/// use actix_web::{App, HttpResponse, HttpServer};
+/// use actix_web::{web, App, HttpResponse, HttpServer};
 ///
 /// fn main() {
 ///     let app = App::new().middleware(
@@ -183,7 +183,7 @@ impl CookieSessionInner {
 ///             .name("actix_session")
 ///             .path("/")
 ///             .secure(true))
-///         .resource("/", |r| r.to(|| HttpResponse::Ok()));
+///         .service(web::resource("/").to(|| HttpResponse::Ok()));
 /// }
 /// ```
 pub struct CookieSession(Rc<CookieSessionInner>);
@@ -314,19 +314,17 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use actix_web::{test, App};
+    use actix_web::{test, web, App};
 
     #[test]
     fn cookie_session() {
         let mut app = test::init_service(
             App::new()
                 .middleware(CookieSession::signed(&[0; 32]).secure(false))
-                .resource("/", |r| {
-                    r.to(|ses: Session| {
-                        let _ = ses.set("counter", 100);
-                        "test"
-                    })
-                }),
+                .service(web::resource("/").to(|ses: Session| {
+                    let _ = ses.set("counter", 100);
+                    "test"
+                })),
         );
 
         let request = test::TestRequest::get().to_request();
@@ -342,12 +340,10 @@ mod tests {
         let mut app = test::init_service(
             App::new()
                 .middleware(CookieSession::signed(&[0; 32]).secure(false))
-                .resource("/", |r| {
-                    r.to(|ses: Session| {
-                        let _ = ses.set("counter", 100);
-                        "test"
-                    })
-                }),
+                .service(web::resource("/").to(|ses: Session| {
+                    let _ = ses.set("counter", 100);
+                    "test"
+                })),
         );
 
         let request = test::TestRequest::get().to_request();

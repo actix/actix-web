@@ -88,9 +88,9 @@ impl ExtractorConfig for () {
 /// }
 ///
 /// fn main() {
-///     let app = App::new().resource(
-///         "/{username}/{count}/index.html", // <- define path parameters
-///         |r| r.route(web::get().to(index)) // <- register handler with `Path` extractor
+///     let app = App::new().service(
+///         web::resource("/{username}/{count}/index.html") // <- define path parameters
+///              .route(web::get().to(index))               // <- register handler with `Path` extractor
 ///     );
 /// }
 /// ```
@@ -113,9 +113,9 @@ impl ExtractorConfig for () {
 /// }
 ///
 /// fn main() {
-///     let app = App::new().resource(
-///         "/{username}/index.html", // <- define path parameters
-///         |r| r.route(web::get().to(index)) // <- use handler with Path` extractor
+///     let app = App::new().service(
+///         web::resource("/{username}/index.html") // <- define path parameters
+///              .route(web::get().to(index)) // <- use handler with Path` extractor
 ///     );
 /// }
 /// ```
@@ -180,9 +180,9 @@ impl<T> From<T> for Path<T> {
 /// }
 ///
 /// fn main() {
-///     let app = App::new().resource(
-///         "/{username}/{count}/index.html", // <- define path parameters
-///         |r| r.route(web::get().to(index)) // <- register handler with `Path` extractor
+///     let app = App::new().service(
+///         web::resource("/{username}/{count}/index.html") // <- define path parameters
+///              .route(web::get().to(index)) // <- register handler with `Path` extractor
 ///     );
 /// }
 /// ```
@@ -205,9 +205,9 @@ impl<T> From<T> for Path<T> {
 /// }
 ///
 /// fn main() {
-///     let app = App::new().resource(
-///         "/{username}/index.html", // <- define path parameters
-///         |r| r.route(web::get().to(index)) // <- use handler with Path` extractor
+///     let app = App::new().service(
+///         web::resource("/{username}/index.html") // <- define path parameters
+///              .route(web::get().to(index)) // <- use handler with Path` extractor
 ///     );
 /// }
 /// ```
@@ -266,9 +266,8 @@ impl<T: fmt::Display> fmt::Display for Path<T> {
 /// }
 ///
 /// fn main() {
-///     let app = App::new().resource(
-///        "/index.html",
-///        |r| r.route(web::get().to(index))); // <- use `Query` extractor
+///     let app = App::new().service(
+///        web::resource("/index.html").route(web::get().to(index))); // <- use `Query` extractor
 /// }
 /// ```
 pub struct Query<T>(T);
@@ -322,9 +321,9 @@ impl<T> Query<T> {
 /// }
 ///
 /// fn main() {
-///     let app = App::new().resource(
-///        "/index.html",
-///        |r| r.route(web::get().to(index))); // <- use `Query` extractor
+///     let app = App::new().service(
+///        web::resource("/index.html")
+///            .route(web::get().to(index))); // <- use `Query` extractor
 /// }
 /// ```
 impl<T, P> FromRequest<P> for Query<T>
@@ -462,14 +461,13 @@ impl<T: fmt::Display> fmt::Display for Form<T> {
 /// }
 ///
 /// fn main() {
-///     let app = App::new().resource(
-///         "/index.html",
-///         |r| {
-///             r.route(web::get()
+///     let app = App::new().service(
+///         web::resource("/index.html")
+///             .route(web::get()
 ///                 // change `Form` extractor configuration
 ///                 .config(extract::FormConfig::default().limit(4097))
 ///                 .to(index))
-///         });
+///     );
 /// }
 /// ```
 #[derive(Clone)]
@@ -535,9 +533,10 @@ impl Default for FormConfig {
 /// }
 ///
 /// fn main() {
-///     let app = App::new().resource(
-///        "/index.html",
-///        |r| r.route(web::post().to(index)));
+///     let app = App::new().service(
+///        web::resource("/index.html").route(
+///            web::post().to(index))
+///     );
 /// }
 /// ```
 ///
@@ -645,9 +644,10 @@ impl<T: Serialize> Responder for Json<T> {
 /// }
 ///
 /// fn main() {
-///     let app = App::new().resource(
-///        "/index.html",
-///        |r| r.route(web::post().to(index)));
+///     let app = App::new().service(
+///         web::resource("/index.html").route(
+///            web::post().to(index))
+///     );
 /// }
 /// ```
 impl<T, P> FromRequest<P> for Json<T>
@@ -692,16 +692,17 @@ where
 /// }
 ///
 /// fn main() {
-///     let app = App::new().resource("/index.html", |r| {
-///         r.route(web::post().config(
-///             // change json extractor configuration
-///             extract::JsonConfig::default().limit(4096)
-///                 .error_handler(|err, req| {  // <- create custom error response
-///                     error::InternalError::from_response(
-///                         err, HttpResponse::Conflict().finish()).into()
-///                 }))
-///             .to(index))
-///     });
+///     let app = App::new().service(
+///         web::resource("/index.html").route(
+///             web::post().config(
+///                 // change json extractor configuration
+///                 extract::JsonConfig::default().limit(4096)
+///                     .error_handler(|err, req| {  // <- create custom error response
+///                         error::InternalError::from_response(
+///                             err, HttpResponse::Conflict().finish()).into()
+///                     }))
+///                 .to(index))
+///     );
 /// }
 /// ```
 #[derive(Clone)]
@@ -757,8 +758,10 @@ impl Default for JsonConfig {
 /// }
 ///
 /// fn main() {
-///     let app = App::new()
-///         .resource("/index.html", |r| r.route(web::get().to(index)));
+///     let app = App::new().service(
+///         web::resource("/index.html").route(
+///             web::get().to(index))
+///     );
 /// }
 /// ```
 impl<P> FromRequest<P> for Bytes
@@ -801,12 +804,12 @@ where
 /// }
 ///
 /// fn main() {
-///     let app = App::new().resource("/index.html", |r| {
-///         r.route(
+///     let app = App::new().service(
+///         web::resource("/index.html").route(
 ///             web::get()
 ///                .config(extract::PayloadConfig::new(4096)) // <- limit size of the payload
 ///                .to(index))  // <- register handler with extractor params
-///     });
+///     );
 /// }
 /// ```
 impl<P> FromRequest<P> for String
@@ -896,9 +899,10 @@ where
 /// }
 ///
 /// fn main() {
-///     let app = App::new().resource("/users/:first", |r| {
-///         r.route(web::post().to(index))
-///     });
+///     let app = App::new().service(
+///         web::resource("/users/:first").route(
+///             web::post().to(index))
+///     );
 /// }
 /// ```
 impl<T: 'static, P> FromRequest<P> for Option<T>
@@ -959,9 +963,9 @@ where
 /// }
 ///
 /// fn main() {
-///     let app = App::new().resource("/users/:first", |r| {
-///         r.route(web::post().to(index))
-///     });
+///     let app = App::new().service(
+///         web::resource("/users/:first").route(web::post().to(index))
+///     );
 /// }
 /// ```
 impl<T: 'static, P> FromRequest<P> for Result<T, T::Error>

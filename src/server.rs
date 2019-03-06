@@ -33,20 +33,19 @@ struct Config {
 ///
 /// ```rust
 /// use std::io;
-/// use actix_web::{App, HttpResponse, HttpServer};
+/// use actix_web::{web, App, HttpResponse, HttpServer};
 ///
 /// fn main() -> io::Result<()> {
 ///     let sys = actix_rt::System::new("example");  // <- create Actix runtime
 ///
 ///     HttpServer::new(
 ///         || App::new()
-///             .resource("/", |r| r.to(|| HttpResponse::Ok())))
+///             .service(web::resource("/").to(|| HttpResponse::Ok())))
 ///         .bind("127.0.0.1:59090")?
 ///         .start();
 ///
 /// #       actix_rt::System::current().stop();
-///     sys.run();
-///     Ok(())
+///     sys.run()
 /// }
 /// ```
 pub struct HttpServer<F, I, S, B>
@@ -448,17 +447,17 @@ where
     /// configured.
     ///
     /// ```rust
-    /// use actix_web::{App, HttpResponse, HttpServer};
+    /// use std::io;
+    /// use actix_web::{web, App, HttpResponse, HttpServer};
     ///
-    /// fn main() {
+    /// fn main() -> io::Result<()> {
     ///     let sys = actix_rt::System::new("example");  // <- create Actix system
     ///
-    ///     HttpServer::new(|| App::new().resource("/", |r| r.to(|| HttpResponse::Ok())))
-    ///         .bind("127.0.0.1:0")
-    ///         .expect("Can not bind to 127.0.0.1:0")
+    ///     HttpServer::new(|| App::new().service(web::resource("/").to(|| HttpResponse::Ok())))
+    ///         .bind("127.0.0.1:0")?
     ///         .start();
     /// #   actix_rt::System::current().stop();
-    ///    sys.run();  // <- Run actix system, this method starts all async processes
+    ///    sys.run()  // <- Run actix system, this method starts all async processes
     /// }
     /// ```
     pub fn start(mut self) -> Server {
@@ -472,20 +471,23 @@ where
     ///
     /// This methods panics if no socket addresses get bound.
     ///
-    /// ```rust,ignore
-    /// use actix_web::{App, HttpResponse, HttpServer};
+    /// ```rust
+    /// use std::io;
+    /// use actix_web::{web, App, HttpResponse, HttpServer};
     ///
-    /// fn main() {
-    ///     HttpServer::new(|| App::new().resource("/", |r| r.to(|| HttpResponse::Ok())))
-    ///         .bind("127.0.0.1:0")
-    ///         .expect("Can not bind to 127.0.0.1:0")
-    ///         .run();
+    /// fn main() -> io::Result<()> {
+    /// # std::thread::spawn(|| {
+    ///     HttpServer::new(|| App::new().service(web::resource("/").to(|| HttpResponse::Ok())))
+    ///         .bind("127.0.0.1:0")?
+    ///         .run()
+    /// # });
+    /// # Ok(())
     /// }
     /// ```
-    pub fn run(self) {
+    pub fn run(self) -> io::Result<()> {
         let sys = System::new("http-server");
         self.start();
-        sys.run();
+        sys.run()
     }
 }
 

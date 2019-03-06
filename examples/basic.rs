@@ -27,23 +27,23 @@ fn main() -> std::io::Result<()> {
         App::new()
             .middleware(middleware::DefaultHeaders::new().header("X-Version", "0.2"))
             .middleware(middleware::Compress::default())
-            .resource("/resource1/index.html", |r| r.route(web::get().to(index)))
-            .resource("/resource2/index.html", |r| {
-                r.middleware(
-                    middleware::DefaultHeaders::new().header("X-Version-R2", "0.3"),
-                )
-                .default_resource(|r| {
-                    r.route(web::route().to(|| HttpResponse::MethodNotAllowed()))
-                })
-                .route(web::method(Method::GET).to_async(index_async))
-            })
-            .resource("/test1.html", |r| r.to(|| "Test\r\n"))
-            .resource("/", |r| r.to(no_params))
+            .service(web::resource("/resource1/index.html").route(web::get().to(index)))
+            .service(
+                web::resource("/resource2/index.html")
+                    .middleware(
+                        middleware::DefaultHeaders::new().header("X-Version-R2", "0.3"),
+                    )
+                    .default_resource(|r| {
+                        r.route(web::route().to(|| HttpResponse::MethodNotAllowed()))
+                    })
+                    .route(web::method(Method::GET).to_async(index_async)),
+            )
+            .service(web::resource("/test1.html").to(|| "Test\r\n"))
+            .service(web::resource("/").to(no_params))
     })
     .bind("127.0.0.1:8080")?
     .workers(1)
     .start();
 
-    let _ = sys.run();
-    Ok(())
+    sys.run()
 }

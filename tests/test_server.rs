@@ -40,7 +40,8 @@ const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
 fn test_body() {
     let mut srv = TestServer::new(|| {
         h1::H1Service::new(
-            App::new().resource("/", |r| r.route(web::to(|| Response::Ok().body(STR)))),
+            App::new()
+                .service(web::resource("/").route(web::to(|| Response::Ok().body(STR)))),
         )
     });
 
@@ -59,7 +60,7 @@ fn test_body_gzip() {
         h1::H1Service::new(
             App::new()
                 .middleware(middleware::Compress::new(ContentEncoding::Gzip))
-                .resource("/", |r| r.route(web::to(|| Response::Ok().body(STR)))),
+                .service(web::resource("/").route(web::to(|| Response::Ok().body(STR)))),
         )
     });
 
@@ -87,9 +88,10 @@ fn test_body_gzip_large() {
         h1::H1Service::new(
             App::new()
                 .middleware(middleware::Compress::new(ContentEncoding::Gzip))
-                .resource("/", |r| {
-                    r.route(web::to(move || Response::Ok().body(data.clone())))
-                }),
+                .service(
+                    web::resource("/")
+                        .route(web::to(move || Response::Ok().body(data.clone()))),
+                ),
         )
     });
 
@@ -120,9 +122,10 @@ fn test_body_gzip_large_random() {
         h1::H1Service::new(
             App::new()
                 .middleware(middleware::Compress::new(ContentEncoding::Gzip))
-                .resource("/", |r| {
-                    r.route(web::to(move || Response::Ok().body(data.clone())))
-                }),
+                .service(
+                    web::resource("/")
+                        .route(web::to(move || Response::Ok().body(data.clone()))),
+                ),
         )
     });
 
@@ -147,13 +150,11 @@ fn test_body_chunked_implicit() {
         h1::H1Service::new(
             App::new()
                 .middleware(middleware::Compress::new(ContentEncoding::Gzip))
-                .resource("/", |r| {
-                    r.route(web::get().to(move || {
-                        Response::Ok().streaming(once(Ok::<_, Error>(
-                            Bytes::from_static(STR.as_ref()),
-                        )))
-                    }))
-                }),
+                .service(web::resource("/").route(web::get().to(move || {
+                    Response::Ok().streaming(once(Ok::<_, Error>(Bytes::from_static(
+                        STR.as_ref(),
+                    ))))
+                }))),
         )
     });
 
@@ -181,13 +182,11 @@ fn test_body_br_streaming() {
         h1::H1Service::new(
             App::new()
                 .middleware(middleware::Compress::new(ContentEncoding::Br))
-                .resource("/", |r| {
-                    r.route(web::to(move || {
-                        Response::Ok().streaming(once(Ok::<_, Error>(
-                            Bytes::from_static(STR.as_ref()),
-                        )))
-                    }))
-                }),
+                .service(web::resource("/").route(web::to(move || {
+                    Response::Ok().streaming(once(Ok::<_, Error>(Bytes::from_static(
+                        STR.as_ref(),
+                    ))))
+                }))),
         )
     });
 
@@ -208,9 +207,9 @@ fn test_body_br_streaming() {
 #[test]
 fn test_head_binary() {
     let mut srv = TestServer::new(move || {
-        h1::H1Service::new(App::new().resource("/", |r| {
-            r.route(web::head().to(move || Response::Ok().content_length(100).body(STR)))
-        }))
+        h1::H1Service::new(App::new().service(web::resource("/").route(
+            web::head().to(move || Response::Ok().content_length(100).body(STR)),
+        )))
     });
 
     let request = srv.head().finish().unwrap();
@@ -230,14 +229,14 @@ fn test_head_binary() {
 #[test]
 fn test_no_chunking() {
     let mut srv = TestServer::new(move || {
-        h1::H1Service::new(App::new().resource("/", |r| {
-            r.route(web::to(move || {
+        h1::H1Service::new(App::new().service(web::resource("/").route(web::to(
+            move || {
                 Response::Ok()
                     .no_chunking()
                     .content_length(STR.len() as u64)
                     .streaming(once(Ok::<_, Error>(Bytes::from_static(STR.as_ref()))))
-            }))
-        }))
+            },
+        ))))
     });
 
     let request = srv.get().finish().unwrap();
@@ -256,7 +255,9 @@ fn test_body_deflate() {
         h1::H1Service::new(
             App::new()
                 .middleware(middleware::Compress::new(ContentEncoding::Deflate))
-                .resource("/", |r| r.route(web::to(move || Response::Ok().body(STR)))),
+                .service(
+                    web::resource("/").route(web::to(move || Response::Ok().body(STR))),
+                ),
         )
     });
 
@@ -281,7 +282,9 @@ fn test_body_brotli() {
         h1::H1Service::new(
             App::new()
                 .middleware(middleware::Compress::new(ContentEncoding::Br))
-                .resource("/", |r| r.route(web::to(move || Response::Ok().body(STR)))),
+                .service(
+                    web::resource("/").route(web::to(move || Response::Ok().body(STR))),
+                ),
         )
     });
 

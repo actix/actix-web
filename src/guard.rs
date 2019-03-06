@@ -19,11 +19,10 @@ pub trait Guard {
 /// use actix_web::{web, guard, App, HttpResponse};
 ///
 /// fn main() {
-///     App::new().resource("/index.html", |r|
-///         r.route(
-///             web::route()
-///                  .guard(guard::Any(guard::Get()).or(guard::Post()))
-///                  .to(|| HttpResponse::MethodNotAllowed()))
+///     App::new().service(web::resource("/index.html").route(
+///         web::route()
+///              .guard(guard::Any(guard::Get()).or(guard::Post()))
+///              .to(|| HttpResponse::MethodNotAllowed()))
 ///     );
 /// }
 /// ```
@@ -60,12 +59,12 @@ impl Guard for AnyGuard {
 /// use actix_web::{guard, web, App, HttpResponse};
 ///
 /// fn main() {
-///     App::new().resource("/index.html", |r| {
-///         r.route(web::route()
+///     App::new().service(web::resource("/index.html").route(
+///         web::route()
 ///             .guard(
 ///                 guard::All(guard::Get()).and(guard::Header("content-type", "text/plain")))
 ///             .to(|| HttpResponse::MethodNotAllowed()))
-///     });
+///     );
 /// }
 /// ```
 pub fn All<F: Guard + 'static>(guard: F) -> AllGuard {

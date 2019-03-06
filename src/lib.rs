@@ -5,6 +5,7 @@ pub mod extract;
 mod handler;
 // mod info;
 pub mod blocking;
+mod config;
 pub mod guard;
 pub mod middleware;
 mod request;
@@ -43,13 +44,24 @@ pub mod dev {
     //! use actix_web::dev::*;
     //! ```
 
-    pub use crate::app::{AppRouter, HttpServiceFactory};
+    pub use crate::app::AppRouter;
+    pub use crate::config::AppConfig;
+    pub use crate::service::HttpServiceFactory;
+
     pub use actix_http::body::{Body, MessageBody, ResponseBody};
     pub use actix_http::dev::ResponseBuilder as HttpResponseBuilder;
     pub use actix_http::{
         Extensions, Payload, PayloadStream, RequestHead, ResponseHead,
     };
     pub use actix_router::{Path, ResourceDef, Url};
+
+    pub(crate) fn insert_slash(path: &str) -> String {
+        let mut path = path.to_owned();
+        if !path.is_empty() && !path.starts_with('/') {
+            path.insert(0, '/');
+        };
+        path
+    }
 }
 
 pub mod web {
@@ -58,8 +70,74 @@ pub mod web {
 
     use crate::extract::FromRequest;
     use crate::handler::{AsyncFactory, Factory};
+    use crate::resource::Resource;
     use crate::responder::Responder;
-    use crate::Route;
+    use crate::route::Route;
+    use crate::scope::Scope;
+
+    /// Create resource for a specific path.
+    ///
+    /// Resources may have variable path segments. For example, a
+    /// resource with the path `/a/{name}/c` would match all incoming
+    /// requests with paths such as `/a/b/c`, `/a/1/c`, or `/a/etc/c`.
+    ///
+    /// A variable segment is specified in the form `{identifier}`,
+    /// where the identifier can be used later in a request handler to
+    /// access the matched value for that segment. This is done by
+    /// looking up the identifier in the `Params` object returned by
+    /// `HttpRequest.match_info()` method.
+    ///
+    /// By default, each segment matches the regular expression `[^{}/]+`.
+    ///
+    /// You can also specify a custom regex in the form `{identifier:regex}`:
+    ///
+    /// For instance, to route `GET`-requests on any route matching
+    /// `/users/{userid}/{friend}` and store `userid` and `friend` in
+    /// the exposed `Params` object:
+    ///
+    /// ```rust
+    /// # extern crate actix_web;
+    /// use actix_web::{web, http, App, HttpResponse};
+    ///
+    /// fn main() {
+    ///     let app = App::new().service(
+    ///         web::resource("/users/{userid}/{friend}")
+    ///             .route(web::get().to(|| HttpResponse::Ok()))
+    ///             .route(web::head().to(|| HttpResponse::MethodNotAllowed()))
+    ///     );
+    /// }
+    /// ```
+    pub fn resource<P: 'static>(path: &str) -> Resource<P> {
+        Resource::new(path)
+    }
+
+    /// Configure scope for common root path.
+    ///
+    /// Scopes collect multiple paths under a common path prefix.
+    /// Scope path can contain variable path segments as resources.
+    ///
+    /// ```rust
+    /// # extern crate actix_web;
+    /// use actix_web::{web, App, HttpRequest, HttpResponse};
+    ///
+    /// fn main() {
+    ///     let app = App::new().service(
+    ///         web::scope("/{project_id}")
+    ///             .service(web::resource("/path1").to(|| HttpResponse::Ok()))
+    ///             .service(web::resource("/path2").to(|| HttpResponse::Ok()))
+    ///             .service(web::resource("/path3").to(|| HttpResponse::MethodNotAllowed()))
+    ///     );
+    /// }
+    /// ```
+    ///
+    /// In the above example, three routes get added:
+    ///  * /{project_id}/path1
+    ///  * /{project_id}/path2
+    ///  * /{project_id}/path3
+    ///
+    pub fn scope<P: 'static>(path: &str) -> Scope<P> {
+        Scope::new(path)
+    }
 
     /// Create **route** without configuration.
     pub fn route<P: 'static>() -> Route<P> {
@@ -105,7 +183,10 @@ pub mod web {
     ///    unimplemented!()
     /// }
     ///
-    /// App::new().resource("/", |r| r.route(web::to(index)));
+    /// App::new().service(
+    ///     web::resource("/").route(
+    ///         web::to(index))
+    /// );
     /// ```
     pub fn to<F, I, R, P: 'static>(handler: F) -> Route<P>
     where
@@ -125,7 +206,9 @@ pub mod web {
     ///     futures::future::ok(HttpResponse::Ok().finish())
     /// }
     ///
-    /// App::new().resource("/", |r| r.route(web::to_async(index)));
+    /// App::new().service(web::resource("/").route(
+    ///     web::to_async(index))
+    /// );
     /// ```
     pub fn to_async<F, I, R, P: 'static>(handler: F) -> Route<P>
     where

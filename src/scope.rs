@@ -10,10 +10,13 @@ use actix_service::{
 use futures::future::{ok, Either, Future, FutureResult};
 use futures::{Async, Poll};
 
+use crate::dev::{insert_slash, AppConfig, HttpServiceFactory};
 use crate::guard::Guard;
 use crate::resource::Resource;
 use crate::route::Route;
-use crate::service::{ServiceRequest, ServiceResponse};
+use crate::service::{
+    ServiceFactory, ServiceFactoryWrapper, ServiceRequest, ServiceResponse,
+};
 
 type Guards = Vec<Box<Guard>>;
 type HttpService<P> = BoxedService<ServiceRequest<P>, ServiceResponse, ()>;
@@ -35,12 +38,12 @@ type BoxedResponse = Box<Future<Item = ServiceResponse, Error = ()>>;
 /// use actix_web::{web, App, HttpResponse};
 ///
 /// fn main() {
-///     let app = App::new().scope("/{project_id}/", |scope| {
-///         scope
-///             .resource("/path1", |r| r.to(|| HttpResponse::Ok()))
-///             .resource("/path2", |r| r.route(web::get().to(|| HttpResponse::Ok())))
-///             .resource("/path3", |r| r.route(web::head().to(|| HttpResponse::MethodNotAllowed())))
-///     });
+///     let app = App::new().service(
+///         web::scope("/{project_id}/")
+///             .service(web::resource("/path1").to(|| HttpResponse::Ok()))
+///             .service(web::resource("/path2").route(web::get().to(|| HttpResponse::Ok())))
+///             .service(web::resource("/path3").route(web::head().to(|| HttpResponse::MethodNotAllowed())))
+///     );
 /// }
 /// ```
 ///
@@ -51,11 +54,10 @@ type BoxedResponse = Box<Future<Item = ServiceResponse, Error = ()>>;
 ///
 pub struct Scope<P, T = ScopeEndpoint<P>> {
     endpoint: T,
-    rdef: ResourceDef,
-    services: Vec<(ResourceDef, HttpNewService<P>, Option<Guards>)>,
+    rdef: String,
+    services: Vec<Box<ServiceFactory<P>>>,
     guards: Vec<Box<Guard>>,
     default: Rc<RefCell<Option<Rc<HttpNewService<P>>>>>,
-    defaults: Vec<Rc<RefCell<Option<Rc<HttpNewService<P>>>>>>,
     factory_ref: Rc<RefCell<Option<ScopeFactory<P>>>>,
 }
 
@@ -63,21 +65,20 @@ impl<P: 'static> Scope<P> {
     /// Create a new scope
     pub fn new(path: &str) -> Scope<P> {
         let fref = Rc::new(RefCell::new(None));
-        let rdef = ResourceDef::prefix(&insert_slash(path));
         Scope {
             endpoint: ScopeEndpoint::new(fref.clone()),
-            rdef: rdef.clone(),
+            rdef: path.to_string(),
             guards: Vec::new(),
             services: Vec::new(),
             default: Rc::new(RefCell::new(None)),
-            defaults: Vec::new(),
             factory_ref: fref,
         }
     }
 }
 
-impl<P: 'static, T> Scope<P, T>
+impl<P, T> Scope<P, T>
 where
+    P: 'static,
     T: NewService<
         ServiceRequest<P>,
         Response = ServiceResponse,
@@ -85,12 +86,7 @@ where
         InitError = (),
     >,
 {
-    #[inline]
-    pub(crate) fn rdef(&self) -> &ResourceDef {
-        &self.rdef
-    }
-
-    /// Add guard to a scope.
+    /// Add match guard to a scope.
     ///
     /// ```rust
     /// use actix_web::{web, guard, App, HttpRequest, HttpResponse, extract::Path};
@@ -100,14 +96,14 @@ where
     /// }
     ///
     /// fn main() {
-    ///     let app = App::new().scope("/app", |scope| {
-    ///         scope
+    ///     let app = App::new().service(
+    ///         web::scope("/app")
     ///             .guard(guard::Header("content-type", "text/plain"))
-    ///             .route("/test1",web::get().to(index))
+    ///             .route("/test1", web::get().to(index))
     ///             .route("/test2", web::post().to(|r: HttpRequest| {
     ///                 HttpResponse::MethodNotAllowed()
     ///             }))
-    ///     });
+    ///     );
     /// }
     /// ```
     pub fn guard<G: Guard + 'static>(mut self, guard: G) -> Self {
@@ -115,10 +111,10 @@ where
         self
     }
 
-    /// Create nested scope.
+    /// Create nested service.
     ///
     /// ```rust
-    /// use actix_web::{App, HttpRequest};
+    /// use actix_web::{web, App, HttpRequest};
     ///
     /// struct AppState;
     ///
@@ -127,28 +123,25 @@ where
     /// }
     ///
     /// fn main() {
-    ///     let app = App::new().scope("/app", |scope| {
-    ///         scope.nested("/v1", |scope| scope.resource("/test1", |r| r.to(index)))
-    ///     });
+    ///     let app = App::new().service(
+    ///         web::scope("/app").service(
+    ///             web::scope("/v1")
+    ///                 .service(web::resource("/test1").to(index)))
+    ///     );
     /// }
     /// ```
-    pub fn nested<F>(mut self, path: &str, f: F) -> Self
+    pub fn service<F>(mut self, factory: F) -> Self
     where
-        F: FnOnce(Scope<P>) -> Scope<P>,
+        F: HttpServiceFactory<P> + 'static,
     {
-        let mut scope = f(Scope::new(path));
-        let rdef = scope.rdef().clone();
-        let guards = scope.take_guards();
-        self.defaults.push(scope.get_default());
         self.services
-            .push((rdef, boxed::new_service(scope.into_new_service()), guards));
-
+            .push(Box::new(ServiceFactoryWrapper::new(factory)));
         self
     }
 
     /// Configure route for a specific path.
     ///
-    /// This is a simplified version of the `Scope::resource()` method.
+    /// This is a simplified version of the `Scope::service()` method.
     /// This method can not be could multiple times, in that case
     /// multiple resources with one route would be registered for same resource path.
     ///
@@ -160,58 +153,19 @@ where
     /// }
     ///
     /// fn main() {
-    ///     let app = App::new().scope("/app", |scope| {
-    ///         scope.route("/test1", web::get().to(index))
+    ///     let app = App::new().service(
+    ///         web::scope("/app")
+    ///             .route("/test1", web::get().to(index))
     ///             .route("/test2", web::post().to(|| HttpResponse::MethodNotAllowed()))
-    ///     });
+    ///     );
     /// }
     /// ```
-    pub fn route(self, path: &str, route: Route<P>) -> Self {
-        self.resource(path, move |r| r.route(route))
-    }
-
-    /// configure resource for a specific path.
-    ///
-    /// This method is similar to an `App::resource()` method.
-    /// Resources may have variable path segments. Resource path uses scope
-    /// path as a path prefix.
-    ///
-    /// ```rust
-    /// use actix_web::*;
-    ///
-    /// fn main() {
-    ///     let app = App::new().scope("/api", |scope| {
-    ///         scope.resource("/users/{userid}/{friend}", |r| {
-    ///             r.route(web::get().to(|| HttpResponse::Ok()))
-    ///              .route(web::head().to(|| HttpResponse::MethodNotAllowed()))
-    ///              .route(web::route()
-    ///                 .guard(guard::Any(guard::Get()).or(guard::Put()))
-    ///                 .guard(guard::Header("Content-Type", "text/plain"))
-    ///                 .to(|| HttpResponse::Ok()))
-    ///         })
-    ///     });
-    /// }
-    /// ```
-    pub fn resource<F, U>(mut self, path: &str, f: F) -> Self
-    where
-        F: FnOnce(Resource<P>) -> Resource<P, U>,
-        U: NewService<
-                ServiceRequest<P>,
-                Response = ServiceResponse,
-                Error = (),
-                InitError = (),
-            > + 'static,
-    {
-        // add resource
-        let rdef = ResourceDef::new(&insert_slash(path));
-        let resource = f(Resource::new());
-        self.defaults.push(resource.get_default());
-        self.services.push((
-            rdef,
-            boxed::new_service(resource.into_new_service()),
-            None,
-        ));
-        self
+    pub fn route(self, path: &str, mut route: Route<P>) -> Self {
+        self.service(
+            Resource::new(path)
+                .add_guards(route.take_guards())
+                .route(route),
+        )
     }
 
     /// Default resource to be used if no matching route could be found.
@@ -227,7 +181,7 @@ where
     {
         // create and configure default resource
         self.default = Rc::new(RefCell::new(Some(Rc::new(boxed::new_service(
-            f(Resource::new()).into_new_service().map_init_err(|_| ()),
+            f(Resource::new("")).into_new_service().map_init_err(|_| ()),
         )))));
 
         self
@@ -267,62 +221,53 @@ where
             guards: self.guards,
             services: self.services,
             default: self.default,
-            defaults: self.defaults,
             factory_ref: self.factory_ref,
         }
     }
-
-    pub(crate) fn get_default(&self) -> Rc<RefCell<Option<Rc<HttpNewService<P>>>>> {
-        self.default.clone()
-    }
-
-    pub(crate) fn take_guards(&mut self) -> Option<Vec<Box<Guard>>> {
-        if self.guards.is_empty() {
-            None
-        } else {
-            Some(std::mem::replace(&mut self.guards, Vec::new()))
-        }
-    }
 }
 
-pub(crate) fn insert_slash(path: &str) -> String {
-    let mut path = path.to_owned();
-    if !path.is_empty() && !path.starts_with('/') {
-        path.insert(0, '/');
-    };
-    path
-}
-
-impl<P, T> IntoNewService<T, ServiceRequest<P>> for Scope<P, T>
+impl<P, T> HttpServiceFactory<P> for Scope<P, T>
 where
+    P: 'static,
     T: NewService<
-        ServiceRequest<P>,
-        Response = ServiceResponse,
-        Error = (),
-        InitError = (),
-    >,
+            ServiceRequest<P>,
+            Response = ServiceResponse,
+            Error = (),
+            InitError = (),
+        > + 'static,
 {
-    fn into_new_service(self) -> T {
-        // update resource default service
-        if let Some(ref d) = *self.default.as_ref().borrow() {
-            for default in &self.defaults {
-                if default.borrow_mut().is_none() {
-                    *default.borrow_mut() = Some(d.clone());
-                }
-            }
+    fn register(self, config: &mut AppConfig<P>) {
+        if self.default.borrow().is_none() {
+            *self.default.borrow_mut() = Some(config.default_service());
         }
+
+        // register services
+        let mut cfg = config.clone_config();
+        self.services
+            .into_iter()
+            .for_each(|mut srv| srv.register(&mut cfg));
 
         *self.factory_ref.borrow_mut() = Some(ScopeFactory {
             default: self.default.clone(),
             services: Rc::new(
-                self.services
+                cfg.into_services()
                     .into_iter()
                     .map(|(rdef, srv, guards)| (rdef, srv, RefCell::new(guards)))
                     .collect(),
             ),
         });
 
-        self.endpoint
+        let guards = if self.guards.is_empty() {
+            None
+        } else {
+            Some(self.guards)
+        };
+        let rdef = if config.is_root() {
+            ResourceDef::prefix(&insert_slash(&self.rdef))
+        } else {
+            ResourceDef::prefix(&insert_slash(&self.rdef))
+        };
+        config.register_service(rdef, guards, self.endpoint)
     }
 }
 
@@ -504,19 +449,22 @@ impl<P: 'static> NewService<ServiceRequest<P>> for ScopeEndpoint<P> {
 
 #[cfg(test)]
 mod tests {
-    use actix_http::body::{Body, ResponseBody};
-    use actix_http::http::{Method, StatusCode};
-    use actix_service::{IntoNewService, NewService, Service};
+    use actix_service::Service;
     use bytes::Bytes;
 
-    use crate::test::{self, block_on, TestRequest};
+    use crate::body::{Body, ResponseBody};
+    use crate::http::{Method, StatusCode};
+    use crate::test::{block_on, init_service, TestRequest};
     use crate::{guard, web, App, HttpRequest, HttpResponse};
 
     #[test]
     fn test_scope() {
-        let mut srv = test::init_service(App::new().scope("/app", |scope| {
-            scope.resource("/path1", |r| r.to(|| HttpResponse::Ok()))
-        }));
+        let mut srv = init_service(
+            App::new().service(
+                web::scope("/app")
+                    .service(web::resource("/path1").to(|| HttpResponse::Ok())),
+            ),
+        );
 
         let req = TestRequest::with_uri("/app/path1").to_request();
         let resp = block_on(srv.call(req)).unwrap();
@@ -525,11 +473,13 @@ mod tests {
 
     #[test]
     fn test_scope_root() {
-        let mut srv = test::init_service(App::new().scope("/app", |scope| {
-            scope
-                .resource("", |r| r.to(|| HttpResponse::Ok()))
-                .resource("/", |r| r.to(|| HttpResponse::Created()))
-        }));
+        let mut srv = init_service(
+            App::new().service(
+                web::scope("/app")
+                    .service(web::resource("").to(|| HttpResponse::Ok()))
+                    .service(web::resource("/").to(|| HttpResponse::Created())),
+            ),
+        );
 
         let req = TestRequest::with_uri("/app").to_request();
         let resp = block_on(srv.call(req)).unwrap();
@@ -542,9 +492,9 @@ mod tests {
 
     #[test]
     fn test_scope_root2() {
-        let mut srv = test::init_service(App::new().scope("/app/", |scope| {
-            scope.resource("", |r| r.to(|| HttpResponse::Ok()))
-        }));
+        let mut srv = init_service(App::new().service(
+            web::scope("/app/").service(web::resource("").to(|| HttpResponse::Ok())),
+        ));
 
         let req = TestRequest::with_uri("/app").to_request();
         let resp = block_on(srv.call(req)).unwrap();
@@ -557,12 +507,9 @@ mod tests {
 
     #[test]
     fn test_scope_root3() {
-        let app = App::new()
-            .scope("/app/", |scope| {
-                scope.resource("/", |r| r.to(|| HttpResponse::Ok()))
-            })
-            .into_new_service();
-        let mut srv = block_on(app.new_service(&())).unwrap();
+        let mut srv = init_service(App::new().service(
+            web::scope("/app/").service(web::resource("/").to(|| HttpResponse::Ok())),
+        ));
 
         let req = TestRequest::with_uri("/app").to_request();
         let resp = block_on(srv.call(req)).unwrap();
@@ -575,15 +522,13 @@ mod tests {
 
     #[test]
     fn test_scope_route() {
-        let app = App::new()
-            .scope("app", |scope| {
-                scope.resource("/path1", |r| {
-                    r.route(web::get().to(|| HttpResponse::Ok()))
-                        .route(web::delete().to(|| HttpResponse::Ok()))
-                })
-            })
-            .into_new_service();
-        let mut srv = block_on(app.new_service(&())).unwrap();
+        let mut srv = init_service(
+            App::new().service(
+                web::scope("app")
+                    .route("/path1", web::get().to(|| HttpResponse::Ok()))
+                    .route("/path1", web::delete().to(|| HttpResponse::Ok())),
+            ),
+        );
 
         let req = TestRequest::with_uri("/app/path1").to_request();
         let resp = block_on(srv.call(req)).unwrap();
@@ -604,15 +549,15 @@ mod tests {
 
     #[test]
     fn test_scope_route_without_leading_slash() {
-        let app = App::new()
-            .scope("app", |scope| {
-                scope.resource("path1", |r| {
-                    r.route(web::get().to(|| HttpResponse::Ok()))
-                        .route(web::delete().to(|| HttpResponse::Ok()))
-                })
-            })
-            .into_new_service();
-        let mut srv = block_on(app.new_service(&())).unwrap();
+        let mut srv = init_service(
+            App::new().service(
+                web::scope("app").service(
+                    web::resource("path1")
+                        .route(web::get().to(|| HttpResponse::Ok()))
+                        .route(web::delete().to(|| HttpResponse::Ok())),
+                ),
+            ),
+        );
 
         let req = TestRequest::with_uri("/app/path1").to_request();
         let resp = block_on(srv.call(req)).unwrap();
@@ -633,14 +578,13 @@ mod tests {
 
     #[test]
     fn test_scope_guard() {
-        let app = App::new()
-            .scope("/app", |scope| {
-                scope
+        let mut srv = init_service(
+            App::new().service(
+                web::scope("/app")
                     .guard(guard::Get())
-                    .resource("/path1", |r| r.to(|| HttpResponse::Ok()))
-            })
-            .into_new_service();
-        let mut srv = block_on(app.new_service(&())).unwrap();
+                    .service(web::resource("/path1").to(|| HttpResponse::Ok())),
+            ),
+        );
 
         let req = TestRequest::with_uri("/app/path1")
             .method(Method::POST)
@@ -657,17 +601,13 @@ mod tests {
 
     #[test]
     fn test_scope_variable_segment() {
-        let app = App::new()
-            .scope("/ab-{project}", |scope| {
-                scope.resource("/path1", |r| {
-                    r.to(|r: HttpRequest| {
-                        HttpResponse::Ok()
-                            .body(format!("project: {}", &r.match_info()["project"]))
-                    })
-                })
-            })
-            .into_new_service();
-        let mut srv = block_on(app.new_service(&())).unwrap();
+        let mut srv =
+            init_service(App::new().service(web::scope("/ab-{project}").service(
+                web::resource("/path1").to(|r: HttpRequest| {
+                    HttpResponse::Ok()
+                        .body(format!("project: {}", &r.match_info()["project"]))
+                }),
+            )));
 
         let req = TestRequest::with_uri("/ab-project1/path1").to_request();
         let resp = block_on(srv.call(req)).unwrap();
@@ -688,14 +628,14 @@ mod tests {
 
     #[test]
     fn test_nested_scope() {
-        let app = App::new()
-            .scope("/app", |scope| {
-                scope.nested("/t1", |scope| {
-                    scope.resource("/path1", |r| r.to(|| HttpResponse::Created()))
-                })
-            })
-            .into_new_service();
-        let mut srv = block_on(app.new_service(&())).unwrap();
+        let mut srv = init_service(
+            App::new().service(
+                web::scope("/app")
+                    .service(web::scope("/t1").service(
+                        web::resource("/path1").to(|| HttpResponse::Created()),
+                    )),
+            ),
+        );
 
         let req = TestRequest::with_uri("/app/t1/path1").to_request();
         let resp = block_on(srv.call(req)).unwrap();
@@ -704,14 +644,14 @@ mod tests {
 
     #[test]
     fn test_nested_scope_no_slash() {
-        let app = App::new()
-            .scope("/app", |scope| {
-                scope.nested("t1", |scope| {
-                    scope.resource("/path1", |r| r.to(|| HttpResponse::Created()))
-                })
-            })
-            .into_new_service();
-        let mut srv = block_on(app.new_service(&())).unwrap();
+        let mut srv = init_service(
+            App::new().service(
+                web::scope("/app")
+                    .service(web::scope("t1").service(
+                        web::resource("/path1").to(|| HttpResponse::Created()),
+                    )),
+            ),
+        );
 
         let req = TestRequest::with_uri("/app/t1/path1").to_request();
         let resp = block_on(srv.call(req)).unwrap();
@@ -720,16 +660,15 @@ mod tests {
 
     #[test]
     fn test_nested_scope_root() {
-        let app = App::new()
-            .scope("/app", |scope| {
-                scope.nested("/t1", |scope| {
-                    scope
-                        .resource("", |r| r.to(|| HttpResponse::Ok()))
-                        .resource("/", |r| r.to(|| HttpResponse::Created()))
-                })
-            })
-            .into_new_service();
-        let mut srv = block_on(app.new_service(&())).unwrap();
+        let mut srv = init_service(
+            App::new().service(
+                web::scope("/app").service(
+                    web::scope("/t1")
+                        .service(web::resource("").to(|| HttpResponse::Ok()))
+                        .service(web::resource("/").to(|| HttpResponse::Created())),
+                ),
+            ),
+        );
 
         let req = TestRequest::with_uri("/app/t1").to_request();
         let resp = block_on(srv.call(req)).unwrap();
@@ -742,16 +681,15 @@ mod tests {
 
     #[test]
     fn test_nested_scope_filter() {
-        let app = App::new()
-            .scope("/app", |scope| {
-                scope.nested("/t1", |scope| {
-                    scope
+        let mut srv = init_service(
+            App::new().service(
+                web::scope("/app").service(
+                    web::scope("/t1")
                         .guard(guard::Get())
-                        .resource("/path1", |r| r.to(|| HttpResponse::Ok()))
-                })
-            })
-            .into_new_service();
-        let mut srv = block_on(app.new_service(&())).unwrap();
+                        .service(web::resource("/path1").to(|| HttpResponse::Ok())),
+                ),
+            ),
+        );
 
         let req = TestRequest::with_uri("/app/t1/path1")
             .method(Method::POST)
@@ -768,21 +706,14 @@ mod tests {
 
     #[test]
     fn test_nested_scope_with_variable_segment() {
-        let app = App::new()
-            .scope("/app", |scope| {
-                scope.nested("/{project_id}", |scope| {
-                    scope.resource("/path1", |r| {
-                        r.to(|r: HttpRequest| {
-                            HttpResponse::Created().body(format!(
-                                "project: {}",
-                                &r.match_info()["project_id"]
-                            ))
-                        })
-                    })
-                })
-            })
-            .into_new_service();
-        let mut srv = block_on(app.new_service(&())).unwrap();
+        let mut srv = init_service(App::new().service(web::scope("/app").service(
+            web::scope("/{project_id}").service(web::resource("/path1").to(
+                |r: HttpRequest| {
+                    HttpResponse::Created()
+                        .body(format!("project: {}", &r.match_info()["project_id"]))
+                },
+            )),
+        )));
 
         let req = TestRequest::with_uri("/app/project_1/path1").to_request();
         let resp = block_on(srv.call(req)).unwrap();
@@ -799,24 +730,17 @@ mod tests {
 
     #[test]
     fn test_nested2_scope_with_variable_segment() {
-        let app = App::new()
-            .scope("/app", |scope| {
-                scope.nested("/{project}", |scope| {
-                    scope.nested("/{id}", |scope| {
-                        scope.resource("/path1", |r| {
-                            r.to(|r: HttpRequest| {
-                                HttpResponse::Created().body(format!(
-                                    "project: {} - {}",
-                                    &r.match_info()["project"],
-                                    &r.match_info()["id"],
-                                ))
-                            })
-                        })
-                    })
-                })
-            })
-            .into_new_service();
-        let mut srv = block_on(app.new_service(&())).unwrap();
+        let mut srv = init_service(App::new().service(web::scope("/app").service(
+            web::scope("/{project}").service(web::scope("/{id}").service(
+                web::resource("/path1").to(|r: HttpRequest| {
+                    HttpResponse::Created().body(format!(
+                        "project: {} - {}",
+                        &r.match_info()["project"],
+                        &r.match_info()["id"],
+                    ))
+                }),
+            )),
+        )));
 
         let req = TestRequest::with_uri("/app/test/1/path1").to_request();
         let resp = block_on(srv.call(req)).unwrap();
@@ -837,14 +761,13 @@ mod tests {
 
     #[test]
     fn test_default_resource() {
-        let app = App::new()
-            .scope("/app", |scope| {
-                scope
-                    .resource("/path1", |r| r.to(|| HttpResponse::Ok()))
-                    .default_resource(|r| r.to(|| HttpResponse::BadRequest()))
-            })
-            .into_new_service();
-        let mut srv = block_on(app.new_service(&())).unwrap();
+        let mut srv = init_service(
+            App::new().service(
+                web::scope("/app")
+                    .service(web::resource("/path1").to(|| HttpResponse::Ok()))
+                    .default_resource(|r| r.to(|| HttpResponse::BadRequest())),
+            ),
+        );
 
         let req = TestRequest::with_uri("/app/path2").to_request();
         let resp = block_on(srv.call(req)).unwrap();
@@ -857,14 +780,15 @@ mod tests {
 
     #[test]
     fn test_default_resource_propagation() {
-        let app = App::new()
-            .scope("/app1", |scope| {
-                scope.default_resource(|r| r.to(|| HttpResponse::BadRequest()))
-            })
-            .scope("/app2", |scope| scope)
-            .default_resource(|r| r.to(|| HttpResponse::MethodNotAllowed()))
-            .into_new_service();
-        let mut srv = block_on(app.new_service(&())).unwrap();
+        let mut srv = init_service(
+            App::new()
+                .service(
+                    web::scope("/app1")
+                        .default_resource(|r| r.to(|| HttpResponse::BadRequest())),
+                )
+                .service(web::scope("/app2"))
+                .default_resource(|r| r.to(|| HttpResponse::MethodNotAllowed())),
+        );
 
         let req = TestRequest::with_uri("/non-exist").to_request();
         let resp = block_on(srv.call(req)).unwrap();

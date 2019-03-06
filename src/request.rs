@@ -149,9 +149,10 @@ impl HttpMessage for HttpRequest {
 /// }
 ///
 /// fn main() {
-///     let app = App::new().resource("/users/:first", |r| {
-///         r.route(web::get().to(index))
-///     });
+///     let app = App::new().service(
+///         web::resource("/users/{first}").route(
+///             web::get().to(index))
+///     );
 /// }
 /// ```
 impl<P> FromRequest<P> for HttpRequest {

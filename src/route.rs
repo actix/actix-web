@@ -84,6 +84,10 @@ impl<P: 'static> Route<P> {
         *self.config_ref.borrow_mut() = self.config.storage.clone();
         self
     }
+
+    pub(crate) fn take_guards(&mut self) -> Vec<Box<Guard>> {
+        std::mem::replace(Rc::get_mut(&mut self.guards).unwrap(), Vec::new())
+    }
 }
 
 impl<P> NewService<ServiceRequest<P>> for Route<P> {
@@ -161,12 +165,12 @@ impl<P: 'static> Route<P> {
     /// ```rust
     /// # use actix_web::*;
     /// # fn main() {
-    /// App::new().resource("/path", |r| {
-    ///     r.route(web::get()
-    ///         .guard(guard::Get())
+    /// App::new().service(web::resource("/path").route(
+    ///     web::get()
+    ///         .method(http::Method::CONNECT)
     ///         .guard(guard::Header("content-type", "text/plain"))
     ///         .to(|req: HttpRequest| HttpResponse::Ok()))
-    /// });
+    /// );
     /// # }
     /// ```
     pub fn method(mut self, method: Method) -> Self {
@@ -181,12 +185,12 @@ impl<P: 'static> Route<P> {
     /// ```rust
     /// # use actix_web::*;
     /// # fn main() {
-    /// App::new().resource("/path", |r| {
-    ///     r.route(web::route()
+    /// App::new().service(web::resource("/path").route(
+    ///     web::route()
     ///         .guard(guard::Get())
     ///         .guard(guard::Header("content-type", "text/plain"))
     ///         .to(|req: HttpRequest| HttpResponse::Ok()))
-    /// });
+    /// );
     /// # }
     /// ```
     pub fn guard<F: Guard + 'static>(mut self, f: F) -> Self {
@@ -229,9 +233,9 @@ impl<P: 'static> Route<P> {
     /// }
     ///
     /// fn main() {
-    ///     let app = App::new().resource(
-    ///         "/{username}/index.html", // <- define path parameters
-    ///         |r| r.route(web::get().to(index)), // <- register handler
+    ///     let app = App::new().service(
+    ///         web::resource("/{username}/index.html") // <- define path parameters
+    ///             .route(web::get().to(index))        // <- register handler
     ///     );
     /// }
     /// ```
@@ -254,9 +258,9 @@ impl<P: 'static> Route<P> {
     /// }
     ///
     /// fn main() {
-    ///     let app = App::new().resource(
-    ///         "/{username}/index.html", // <- define path parameters
-    ///         |r| r.route(web::get().to(index)),
+    ///     let app = App::new().service(
+    ///         web::resource("/{username}/index.html") // <- define path parameters
+    ///             .route(web::get().to(index))
     ///     );
     /// }
     /// ```
@@ -294,9 +298,9 @@ impl<P: 'static> Route<P> {
     /// }
     ///
     /// fn main() {
-    ///     let app = App::new().resource(
-    ///         "/{username}/index.html", // <- define path parameters
-    ///         |r| r.route(web::get().to_async(index)), // <- register async handler
+    ///     let app = App::new().service(
+    ///         web::resource("/{username}/index.html") // <- define path parameters
+    ///             .route(web::get().to_async(index))  // <- register async handler
     ///     );
     /// }
     /// ```
@@ -328,15 +332,14 @@ impl<P: 'static> Route<P> {
     /// }
     ///
     /// fn main() {
-    ///     let app = App::new().resource("/index.html", |r| {
-    ///         r.route(
+    ///     let app = App::new().service(
+    ///         web::resource("/index.html").route(
     ///             web::get()
     ///                // limit size of the payload
     ///                .config(extract::PayloadConfig::new(4096))
     ///                // register handler
     ///                .to(index)
-    ///         )
-    ///     });
+    ///         ));
     /// }
     /// ```
     pub fn config<C: ExtractorConfig>(mut self, config: C) -> Self {

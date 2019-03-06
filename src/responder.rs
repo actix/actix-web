@@ -288,22 +288,21 @@ where
 
 #[cfg(test)]
 mod tests {
-    // use actix_http::body::Body;
-    use actix_http::body::{Body, ResponseBody};
-    use actix_http::http::StatusCode;
-    use actix_service::{IntoNewService, NewService, Service};
+    use actix_service::Service;
     use bytes::Bytes;
 
-    use crate::test::TestRequest;
-    use crate::App;
+    use crate::body::{Body, ResponseBody};
+    use crate::http::StatusCode;
+    use crate::test::{init_service, TestRequest};
+    use crate::{web, App};
 
     #[test]
     fn test_option_responder() {
-        let app = App::new()
-            .resource("/none", |r| r.to(|| -> Option<&'static str> { None }))
-            .resource("/some", |r| r.to(|| Some("some")))
-            .into_new_service();
-        let mut srv = TestRequest::block_on(app.new_service(&())).unwrap();
+        let mut srv = init_service(
+            App::new()
+                .service(web::resource("/none").to(|| -> Option<&'static str> { None }))
+                .service(web::resource("/some").to(|| Some("some"))),
+        );
 
         let req = TestRequest::with_uri("/none").to_request();
         let resp = TestRequest::block_on(srv.call(req)).unwrap();

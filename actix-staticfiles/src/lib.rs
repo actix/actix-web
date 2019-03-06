@@ -17,7 +17,7 @@ use v_htmlescape::escape as escape_html_entity;
 
 use actix_http::error::{Error, ErrorInternalServerError};
 use actix_service::{boxed::BoxedNewService, NewService, Service};
-use actix_web::dev::{self, HttpServiceFactory, ResourceDef, Url};
+use actix_web::dev::{self, AppConfig, HttpServiceFactory, ResourceDef, Url};
 use actix_web::{
     blocking, FromRequest, HttpRequest, HttpResponse, Responder, ServiceFromRequest,
     ServiceRequest, ServiceResponse,
@@ -226,7 +226,7 @@ fn directory_listing(
 /// }
 /// ```
 pub struct StaticFiles<S, C = DefaultConfig> {
-    path: ResourceDef,
+    path: String,
     directory: PathBuf,
     index: Option<String>,
     show_index: bool,
@@ -259,7 +259,7 @@ impl<S: 'static, C: StaticFileConfig> StaticFiles<S, C> {
         }
 
         StaticFiles {
-            path: ResourceDef::root_prefix(path),
+            path: path.to_string(),
             directory: dir,
             index: None,
             show_index: false,
@@ -300,15 +300,21 @@ impl<S: 'static, C: StaticFileConfig> StaticFiles<S, C> {
     }
 }
 
-impl<P, C: StaticFileConfig + 'static> HttpServiceFactory<P> for StaticFiles<P, C> {
-    type Factory = Self;
-
-    fn rdef(&self) -> &ResourceDef {
-        &self.path
-    }
-
-    fn create(self) -> Self {
-        self
+impl<P, C> HttpServiceFactory<P> for StaticFiles<P, C>
+where
+    P: 'static,
+    C: StaticFileConfig + 'static,
+{
+    fn register(self, config: &mut AppConfig<P>) {
+        if self.default.borrow().is_none() {
+            *self.default.borrow_mut() = Some(config.default_service());
+        }
+        let rdef = if config.is_root() {
+            ResourceDef::root_prefix(&self.path)
+        } else {
+            ResourceDef::prefix(&self.path)
+        };
+        config.register_service(rdef, None, self)
     }
 }
 

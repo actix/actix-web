@@ -19,10 +19,11 @@ use crate::service::{ServiceRequest, ServiceResponse};
 /// fn main() {
 ///     let app = App::new()
 ///         .middleware(middleware::DefaultHeaders::new().header("X-Version", "0.2"))
-///         .resource("/test", |r| {
-///             r.route(web::get().to(|| HttpResponse::Ok()))
-///              .route(web::method(http::Method::HEAD).to(|| HttpResponse::MethodNotAllowed()))
-///         });
+///         .service(
+///             web::resource("/test")
+///                 .route(web::get().to(|| HttpResponse::Ok()))
+///                 .route(web::method(http::Method::HEAD).to(|| HttpResponse::MethodNotAllowed()))
+///         );
 /// }
 /// ```
 #[derive(Clone)]

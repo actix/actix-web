@@ -7,35 +7,26 @@ use actix_http::{Extensions, PayloadStream, Request, Response};
 use actix_router::{Path, ResourceDef, ResourceInfo, Router, Url};
 use actix_service::boxed::{self, BoxedNewService, BoxedService};
 use actix_service::{
-    AndThenNewService, ApplyTransform, IntoNewService, IntoTransform, NewService,
-    Service, Transform,
+    fn_service, AndThenNewService, ApplyTransform, IntoNewService, IntoTransform,
+    NewService, Service, Transform,
 };
 use futures::future::{ok, Either, FutureResult};
 use futures::{Async, Future, IntoFuture, Poll};
 
+use crate::config::AppConfig;
 use crate::guard::Guard;
 use crate::resource::Resource;
-use crate::scope::{insert_slash, Scope};
-use crate::service::{ServiceRequest, ServiceResponse};
+use crate::route::Route;
+use crate::service::{
+    HttpServiceFactory, ServiceFactory, ServiceFactoryWrapper, ServiceRequest,
+    ServiceResponse,
+};
 use crate::state::{State, StateFactory, StateFactoryResult};
 
 type Guards = Vec<Box<Guard>>;
 type HttpService<P> = BoxedService<ServiceRequest<P>, ServiceResponse, ()>;
 type HttpNewService<P> = BoxedNewService<(), ServiceRequest<P>, ServiceResponse, (), ()>;
 type BoxedResponse = Box<Future<Item = ServiceResponse, Error = ()>>;
-
-pub trait HttpServiceFactory<P> {
-    type Factory: NewService<
-        ServiceRequest<P>,
-        Response = ServiceResponse,
-        Error = (),
-        InitError = (),
-    >;
-
-    fn rdef(&self) -> &ResourceDef;
-
-    fn create(self) -> Self::Factory;
-}
 
 /// Application builder - structure that follows the builder pattern
 /// for building application instances.
@@ -97,9 +88,9 @@ where
     /// fn main() {
     ///     let app = App::new()
     ///         .state(MyState{ counter: Cell::new(0) })
-    ///         .resource(
-    ///             "/index.html",
-    ///             |r| r.route(web::get().to(index)));
+    ///         .service(
+    ///             web::resource("/index.html").route(
+    ///                 web::get().to(index)));
     /// }
     /// ```
     pub fn state<S: 'static>(mut self, state: S) -> Self {
@@ -118,112 +109,6 @@ where
     {
         self.state.push(Box::new(state));
         self
-    }
-
-    /// Configure scope for common root path.
-    ///
-    /// Scopes collect multiple paths under a common path prefix.
-    /// Scope path can contain variable path segments as resources.
-    ///
-    /// ```rust
-    /// # extern crate actix_web;
-    /// use actix_web::{App, HttpRequest, HttpResponse};
-    ///
-    /// fn main() {
-    ///     let app = App::new().scope("/{project_id}", |scope| {
-    ///         scope
-    ///             .resource("/path1", |r| r.to(|| HttpResponse::Ok()))
-    ///             .resource("/path2", |r| r.to(|| HttpResponse::Ok()))
-    ///             .resource("/path3", |r| r.to(|| HttpResponse::MethodNotAllowed()))
-    ///     });
-    /// }
-    /// ```
-    ///
-    /// In the above example, three routes get added:
-    ///  * /{project_id}/path1
-    ///  * /{project_id}/path2
-    ///  * /{project_id}/path3
-    ///
-    pub fn scope<F>(self, path: &str, f: F) -> AppRouter<T, P, Body, AppEntry<P>>
-    where
-        F: FnOnce(Scope<P>) -> Scope<P>,
-    {
-        let mut scope = f(Scope::new(path));
-        let rdef = scope.rdef().clone();
-        let default = scope.get_default();
-        let guards = scope.take_guards();
-
-        let fref = Rc::new(RefCell::new(None));
-        AppRouter {
-            chain: self.chain,
-            services: vec![(rdef, boxed::new_service(scope.into_new_service()), guards)],
-            default: None,
-            defaults: vec![default],
-            endpoint: AppEntry::new(fref.clone()),
-            factory_ref: fref,
-            extensions: self.extensions,
-            state: self.state,
-            _t: PhantomData,
-        }
-    }
-
-    /// Configure resource for a specific path.
-    ///
-    /// Resources may have variable path segments. For example, a
-    /// resource with the path `/a/{name}/c` would match all incoming
-    /// requests with paths such as `/a/b/c`, `/a/1/c`, or `/a/etc/c`.
-    ///
-    /// A variable segment is specified in the form `{identifier}`,
-    /// where the identifier can be used later in a request handler to
-    /// access the matched value for that segment. This is done by
-    /// looking up the identifier in the `Params` object returned by
-    /// `HttpRequest.match_info()` method.
-    ///
-    /// By default, each segment matches the regular expression `[^{}/]+`.
-    ///
-    /// You can also specify a custom regex in the form `{identifier:regex}`:
-    ///
-    /// For instance, to route `GET`-requests on any route matching
-    /// `/users/{userid}/{friend}` and store `userid` and `friend` in
-    /// the exposed `Params` object:
-    ///
-    /// ```rust
-    /// # extern crate actix_web;
-    /// use actix_web::{web, http, App, HttpResponse};
-    ///
-    /// fn main() {
-    ///     let app = App::new().resource("/users/{userid}/{friend}", |r| {
-    ///         r.route(web::get().to(|| HttpResponse::Ok()))
-    ///          .route(web::head().to(|| HttpResponse::MethodNotAllowed()))
-    ///     });
-    /// }
-    /// ```
-    pub fn resource<F, U>(self, path: &str, f: F) -> AppRouter<T, P, Body, AppEntry<P>>
-    where
-        F: FnOnce(Resource<P>) -> Resource<P, U>,
-        U: NewService<
-                ServiceRequest<P>,
-                Response = ServiceResponse,
-                Error = (),
-                InitError = (),
-            > + 'static,
-    {
-        let rdef = ResourceDef::new(&insert_slash(path));
-        let res = f(Resource::new());
-        let default = res.get_default();
-
-        let fref = Rc::new(RefCell::new(None));
-        AppRouter {
-            chain: self.chain,
-            services: vec![(rdef, boxed::new_service(res.into_new_service()), None)],
-            default: None,
-            defaults: vec![default],
-            endpoint: AppEntry::new(fref.clone()),
-            factory_ref: fref,
-            extensions: self.extensions,
-            state: self.state,
-            _t: PhantomData,
-        }
     }
 
     /// Register a middleware.
@@ -259,7 +144,6 @@ where
             state: self.state,
             services: Vec::new(),
             default: None,
-            defaults: Vec::new(),
             factory_ref: fref,
             extensions: self.extensions,
             _t: PhantomData,
@@ -298,25 +182,52 @@ where
         }
     }
 
-    /// Register resource handler service.
+    /// Configure route for a specific path.
+    ///
+    /// This is a simplified version of the `App::service()` method.
+    /// This method can not be could multiple times, in that case
+    /// multiple resources with one route would be registered for same resource path.
+    ///
+    /// ```rust
+    /// use actix_web::{web, App, HttpResponse, extract::Path};
+    ///
+    /// fn index(data: Path<(String, String)>) -> &'static str {
+    ///     "Welcome!"
+    /// }
+    ///
+    /// fn main() {
+    ///     let app = App::new()
+    ///         .route("/test1", web::get().to(index))
+    ///         .route("/test2", web::post().to(|| HttpResponse::MethodNotAllowed()));
+    /// }
+    /// ```
+    pub fn route(
+        self,
+        path: &str,
+        mut route: Route<P>,
+    ) -> AppRouter<T, P, Body, AppEntry<P>> {
+        self.service(
+            Resource::new(path)
+                .add_guards(route.take_guards())
+                .route(route),
+        )
+    }
+
+    /// Register http service.
     pub fn service<F>(self, service: F) -> AppRouter<T, P, Body, AppEntry<P>>
     where
         F: HttpServiceFactory<P> + 'static,
     {
         let fref = Rc::new(RefCell::new(None));
+
         AppRouter {
             chain: self.chain,
-            services: vec![(
-                service.rdef().clone(),
-                boxed::new_service(service.create().map_init_err(|_| ())),
-                None,
-            )],
             default: None,
-            defaults: vec![],
             endpoint: AppEntry::new(fref.clone()),
             factory_ref: fref,
             extensions: self.extensions,
             state: self.state,
+            services: vec![Box::new(ServiceFactoryWrapper::new(service))],
             _t: PhantomData,
         }
     }
@@ -338,10 +249,9 @@ where
 /// for building application instances.
 pub struct AppRouter<C, P, B, T> {
     chain: C,
-    services: Vec<(ResourceDef, HttpNewService<P>, Option<Guards>)>,
-    default: Option<Rc<HttpNewService<P>>>,
-    defaults: Vec<Rc<RefCell<Option<Rc<HttpNewService<P>>>>>>,
     endpoint: T,
+    services: Vec<Box<ServiceFactory<P>>>,
+    default: Option<Rc<HttpNewService<P>>>,
     factory_ref: Rc<RefCell<Option<AppRoutingFactory<P>>>>,
     extensions: Extensions,
     state: Vec<Box<StateFactory>>,
@@ -359,131 +269,48 @@ where
         InitError = (),
     >,
 {
-    /// Configure scope for common root path.
+    /// Configure route for a specific path.
     ///
-    /// Scopes collect multiple paths under a common path prefix.
-    /// Scope path can contain variable path segments as resources.
+    /// This is a simplified version of the `App::service()` method.
+    /// This method can not be could multiple times, in that case
+    /// multiple resources with one route would be registered for same resource path.
     ///
     /// ```rust
-    /// # extern crate actix_web;
-    /// use actix_web::{App, HttpRequest, HttpResponse};
+    /// use actix_web::{web, App, HttpResponse, extract::Path};
     ///
-    /// fn main() {
-    ///     let app = App::new().scope("/{project_id}", |scope| {
-    ///         scope
-    ///             .resource("/path1", |r| r.to(|| HttpResponse::Ok()))
-    ///             .resource("/path2", |r| r.to(|| HttpResponse::Ok()))
-    ///             .resource("/path3", |r| r.to(|| HttpResponse::MethodNotAllowed()))
-    ///     });
+    /// fn index(data: Path<(String, String)>) -> &'static str {
+    ///     "Welcome!"
     /// }
-    /// ```
-    ///
-    /// In the above example, three routes get added:
-    ///  * /{project_id}/path1
-    ///  * /{project_id}/path2
-    ///  * /{project_id}/path3
-    ///
-    pub fn scope<F>(mut self, path: &str, f: F) -> Self
-    where
-        F: FnOnce(Scope<P>) -> Scope<P>,
-    {
-        let mut scope = f(Scope::new(path));
-        let rdef = scope.rdef().clone();
-        let guards = scope.take_guards();
-        self.defaults.push(scope.get_default());
-        self.services
-            .push((rdef, boxed::new_service(scope.into_new_service()), guards));
-        self
-    }
-
-    /// Configure resource for a specific path.
-    ///
-    /// Resources may have variable path segments. For example, a
-    /// resource with the path `/a/{name}/c` would match all incoming
-    /// requests with paths such as `/a/b/c`, `/a/1/c`, or `/a/etc/c`.
-    ///
-    /// A variable segment is specified in the form `{identifier}`,
-    /// where the identifier can be used later in a request handler to
-    /// access the matched value for that segment. This is done by
-    /// looking up the identifier in the `Params` object returned by
-    /// `HttpRequest.match_info()` method.
-    ///
-    /// By default, each segment matches the regular expression `[^{}/]+`.
-    ///
-    /// You can also specify a custom regex in the form `{identifier:regex}`:
-    ///
-    /// For instance, to route `GET`-requests on any route matching
-    /// `/users/{userid}/{friend}` and store `userid` and `friend` in
-    /// the exposed `Params` object:
-    ///
-    /// ```rust
-    /// use actix_web::{web, http, App, HttpResponse};
     ///
     /// fn main() {
     ///     let app = App::new()
-    ///         .resource("/users/{userid}/{friend}", |r| {
-    ///             r.route(web::to(|| HttpResponse::Ok()))
-    ///         })
-    ///         .resource("/index.html", |r| {
-    ///             r.route(web::head().to(|| HttpResponse::MethodNotAllowed()))
-    ///         });
+    ///         .route("/test1", web::get().to(index))
+    ///         .route("/test2", web::post().to(|| HttpResponse::MethodNotAllowed()));
     /// }
     /// ```
-    pub fn resource<F, U>(mut self, path: &str, f: F) -> Self
-    where
-        F: FnOnce(Resource<P>) -> Resource<P, U>,
-        U: NewService<
-                ServiceRequest<P>,
-                Response = ServiceResponse,
-                Error = (),
-                InitError = (),
-            > + 'static,
-    {
-        let rdef = ResourceDef::new(&insert_slash(path));
-        let resource = f(Resource::new());
-        self.defaults.push(resource.get_default());
-        self.services.push((
-            rdef,
-            boxed::new_service(resource.into_new_service()),
-            None,
-        ));
-        self
+    pub fn route(self, path: &str, mut route: Route<P>) -> Self {
+        self.service(
+            Resource::new(path)
+                .add_guards(route.take_guards())
+                .route(route),
+        )
     }
 
-    /// Default resource to be used if no matching route could be found.
+    /// Register http service.
     ///
-    /// Default resource works with resources only and does not work with
-    /// custom services.
-    pub fn default_resource<F, U>(mut self, f: F) -> Self
-    where
-        F: FnOnce(Resource<P>) -> Resource<P, U>,
-        U: NewService<
-                ServiceRequest<P>,
-                Response = ServiceResponse,
-                Error = (),
-                InitError = (),
-            > + 'static,
-    {
-        // create and configure default resource
-        self.default = Some(Rc::new(boxed::new_service(
-            f(Resource::new()).into_new_service().map_init_err(|_| ()),
-        )));
-
-        self
-    }
-
-    /// Register resource handler service.
+    /// Http service is any type that implements `HttpServiceFactory` trait.
+    ///
+    /// Actix web provides several services implementations:
+    ///
+    /// * *Resource* is an entry in route table which corresponds to requested URL.
+    /// * *Scope* is a set of resources with common root path.
+    /// * "StaticFiles" is a service for static files support
     pub fn service<F>(mut self, factory: F) -> Self
     where
         F: HttpServiceFactory<P> + 'static,
     {
-        let rdef = factory.rdef().clone();
-
-        self.services.push((
-            rdef,
-            boxed::new_service(factory.create().map_init_err(|_| ())),
-            None,
-        ));
+        self.services
+            .push(Box::new(ServiceFactoryWrapper::new(factory)));
         self
     }
 
@@ -520,11 +347,32 @@ where
             state: self.state,
             services: self.services,
             default: self.default,
-            defaults: self.defaults,
             factory_ref: self.factory_ref,
             extensions: self.extensions,
             _t: PhantomData,
         }
+    }
+
+    /// Default resource to be used if no matching route could be found.
+    ///
+    /// Default resource works with resources only and does not work with
+    /// custom services.
+    pub fn default_resource<F, U>(mut self, f: F) -> Self
+    where
+        F: FnOnce(Resource<P>) -> Resource<P, U>,
+        U: NewService<
+                ServiceRequest<P>,
+                Response = ServiceResponse,
+                Error = (),
+                InitError = (),
+            > + 'static,
+    {
+        // create and configure default resource
+        self.default = Some(Rc::new(boxed::new_service(
+            f(Resource::new("")).into_new_service().map_init_err(|_| ()),
+        )));
+
+        self
     }
 
     /// Register an external resource.
@@ -583,19 +431,30 @@ where
 {
     fn into_new_service(self) -> AndThenNewService<AppInit<C, P>, T> {
         // update resource default service
-        if self.default.is_some() {
-            for default in &self.defaults {
-                if default.borrow_mut().is_none() {
-                    *default.borrow_mut() = self.default.clone();
-                }
-            }
-        }
+        let default = self.default.unwrap_or_else(|| {
+            Rc::new(boxed::new_service(fn_service(|req: ServiceRequest<P>| {
+                Ok(req.into_response(Response::NotFound().finish()))
+            })))
+        });
+
+        let mut config = AppConfig::new(
+            "127.0.0.1:8080".parse().unwrap(),
+            "localhost:8080".to_owned(),
+            false,
+            default.clone(),
+        );
+
+        // register services
+        self.services
+            .into_iter()
+            .for_each(|mut srv| srv.register(&mut config));
 
         // set factory
         *self.factory_ref.borrow_mut() = Some(AppRoutingFactory {
-            default: self.default.clone(),
+            default: default,
             services: Rc::new(
-                self.services
+                config
+                    .into_services()
                     .into_iter()
                     .map(|(rdef, srv, guards)| (rdef, srv, RefCell::new(guards)))
                     .collect(),
@@ -613,7 +472,7 @@ where
 
 pub struct AppRoutingFactory<P> {
     services: Rc<Vec<(ResourceDef, HttpNewService<P>, RefCell<Option<Guards>>)>>,
-    default: Option<Rc<HttpNewService<P>>>,
+    default: Rc<HttpNewService<P>>,
 }
 
 impl<P: 'static> NewService<ServiceRequest<P>> for AppRoutingFactory<P> {
@@ -624,12 +483,6 @@ impl<P: 'static> NewService<ServiceRequest<P>> for AppRoutingFactory<P> {
     type Future = AppRoutingFactoryResponse<P>;
 
     fn new_service(&self, _: &()) -> Self::Future {
-        let default_fut = if let Some(ref default) = self.default {
-            Some(default.new_service(&()))
-        } else {
-            None
-        };
-
         AppRoutingFactoryResponse {
             fut: self
                 .services
@@ -643,7 +496,7 @@ impl<P: 'static> NewService<ServiceRequest<P>> for AppRoutingFactory<P> {
                 })
                 .collect(),
             default: None,
-            default_fut,
+            default_fut: Some(self.default.new_service(&())),
         }
     }
 }
@@ -929,16 +782,15 @@ where
 
 #[cfg(test)]
 mod tests {
-    use actix_http::http::{Method, StatusCode};
-
     use super::*;
-    use crate::test::{self, block_on, TestRequest};
+    use crate::http::{Method, StatusCode};
+    use crate::test::{self, block_on, init_service, TestRequest};
     use crate::{web, HttpResponse, State};
 
     #[test]
     fn test_default_resource() {
-        let mut srv = test::init_service(
-            App::new().resource("/test", |r| r.to(|| HttpResponse::Ok())),
+        let mut srv = init_service(
+            App::new().service(web::resource("/test").to(|| HttpResponse::Ok())),
         );
         let req = TestRequest::with_uri("/test").to_request();
         let resp = block_on(srv.call(req)).unwrap();
@@ -948,13 +800,14 @@ mod tests {
         let resp = block_on(srv.call(req)).unwrap();
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 
-        let mut srv = test::init_service(
+        let mut srv = init_service(
             App::new()
-                .resource("/test", |r| r.to(|| HttpResponse::Ok()))
-                .resource("/test2", |r| {
-                    r.default_resource(|r| r.to(|| HttpResponse::Created()))
-                        .route(web::get().to(|| HttpResponse::Ok()))
-                })
+                .service(web::resource("/test").to(|| HttpResponse::Ok()))
+                .service(
+                    web::resource("/test2")
+                        .default_resource(|r| r.to(|| HttpResponse::Created()))
+                        .route(web::get().to(|| HttpResponse::Ok())),
+                )
                 .default_resource(|r| r.to(|| HttpResponse::MethodNotAllowed())),
         );
 
@@ -975,22 +828,21 @@ mod tests {
 
     #[test]
     fn test_state() {
-        let mut srv = test::init_service(
+        let mut srv = init_service(
             App::new()
                 .state(10usize)
-                .resource("/", |r| r.to(|_: State<usize>| HttpResponse::Ok())),
+                .service(web::resource("/").to(|_: State<usize>| HttpResponse::Ok())),
         );
 
         let req = TestRequest::default().to_request();
         let resp = block_on(srv.call(req)).unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
 
-        let mut srv = test::init_service(
+        let mut srv = init_service(
             App::new()
                 .state(10u32)
-                .resource("/", |r| r.to(|_: State<usize>| HttpResponse::Ok())),
+                .service(web::resource("/").to(|_: State<usize>| HttpResponse::Ok())),
         );
-
         let req = TestRequest::default().to_request();
         let resp = block_on(srv.call(req)).unwrap();
         assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
@@ -998,22 +850,20 @@ mod tests {
 
     #[test]
     fn test_state_factory() {
-        let mut srv = test::init_service(
+        let mut srv = init_service(
             App::new()
                 .state_factory(|| Ok::<_, ()>(10usize))
-                .resource("/", |r| r.to(|_: State<usize>| HttpResponse::Ok())),
+                .service(web::resource("/").to(|_: State<usize>| HttpResponse::Ok())),
         );
-
         let req = TestRequest::default().to_request();
         let resp = block_on(srv.call(req)).unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
 
-        let mut srv = test::init_service(
+        let mut srv = init_service(
             App::new()
                 .state_factory(|| Ok::<_, ()>(10u32))
-                .resource("/", |r| r.to(|_: State<usize>| HttpResponse::Ok())),
+                .service(web::resource("/").to(|_: State<usize>| HttpResponse::Ok())),
         );
-
         let req = TestRequest::default().to_request();
         let resp = block_on(srv.call(req)).unwrap();
         assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);

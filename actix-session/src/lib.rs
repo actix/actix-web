@@ -13,7 +13,7 @@
 //! extractor allows us to get or set session data.
 //!
 //! ```rust
-//! use actix_web::{App, HttpServer, HttpResponse, Error};
+//! use actix_web::{web, App, HttpServer, HttpResponse, Error};
 //! use actix_session::{Session, CookieSession};
 //!
 //! fn index(session: Session) -> Result<&'static str, Error> {
@@ -29,19 +29,17 @@
 //! }
 //!
 //! fn main() -> std::io::Result<()> {
-//!     let sys = actix_rt::System::new("example");  // <- create Actix runtime
-//!
+//! # std::thread::spawn(||
 //!     HttpServer::new(
 //!         || App::new().middleware(
 //!               CookieSession::signed(&[0; 32]) // <- create cookie based session middleware
 //!                     .secure(false)
 //!              )
-//!             .resource("/", |r| r.to(|| HttpResponse::Ok())))
+//!             .service(web::resource("/").to(|| HttpResponse::Ok())))
 //!         .bind("127.0.0.1:59880")?
-//!         .start();
-//! #   actix_rt::System::current().stop();
-//!     sys.run();
-//!     Ok(())
+//!         .run()
+//! # );
+//! # Ok(())
 //! }
 //! ```
 use std::cell::RefCell;

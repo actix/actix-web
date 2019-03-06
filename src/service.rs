@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 use std::cell::{Ref, RefMut};
 use std::fmt;
+use std::marker::PhantomData;
 use std::rc::Rc;
 
 use actix_http::body::{Body, MessageBody, ResponseBody};
@@ -12,7 +13,41 @@ use actix_http::{
 use actix_router::{Path, Resource, Url};
 use futures::future::{ok, FutureResult, IntoFuture};
 
+use crate::config::AppConfig;
 use crate::request::HttpRequest;
+
+pub trait HttpServiceFactory<P> {
+    fn register(self, config: &mut AppConfig<P>);
+}
+
+pub(crate) trait ServiceFactory<P> {
+    fn register(&mut self, config: &mut AppConfig<P>);
+}
+
+pub(crate) struct ServiceFactoryWrapper<T, P> {
+    factory: Option<T>,
+    _t: PhantomData<P>,
+}
+
+impl<T, P> ServiceFactoryWrapper<T, P> {
+    pub fn new(factory: T) -> Self {
+        Self {
+            factory: Some(factory),
+            _t: PhantomData,
+        }
+    }
+}
+
+impl<T, P> ServiceFactory<P> for ServiceFactoryWrapper<T, P>
+where
+    T: HttpServiceFactory<P>,
+{
+    fn register(&mut self, config: &mut AppConfig<P>) {
+        if let Some(item) = self.factory.take() {
+            item.register(config)
+        }
+    }
+}
 
 pub struct ServiceRequest<P = PayloadStream> {
     req: HttpRequest,
