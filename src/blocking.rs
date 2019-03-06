@@ -1,9 +1,14 @@
 //! Thread pool for blocking operations
 
+use std::fmt;
+
+use derive_more::Display;
 use futures::sync::oneshot;
 use futures::{Async, Future, Poll};
 use parking_lot::Mutex;
 use threadpool::ThreadPool;
+
+use crate::ResponseError;
 
 /// Env variable for default cpu pool size
 const ENV_CPU_POOL_VAR: &str = "ACTIX_CPU_POOL";
@@ -36,10 +41,15 @@ thread_local! {
     };
 }
 
-pub enum BlockingError<E> {
+#[derive(Debug, Display)]
+pub enum BlockingError<E: fmt::Debug> {
+    #[display(fmt = "{:?}", _0)]
     Error(E),
+    #[display(fmt = "Thread pool is gone")]
     Canceled,
 }
+
+impl<E: fmt::Debug> ResponseError for BlockingError<E> {}
 
 /// Execute blocking function on a thread pool, returns future that resolves
 /// to result of the function execution.
@@ -47,7 +57,7 @@ pub fn run<F, I, E>(f: F) -> CpuFuture<I, E>
 where
     F: FnOnce() -> Result<I, E> + Send + 'static,
     I: Send + 'static,
-    E: Send + 'static,
+    E: Send + fmt::Debug + 'static,
 {
     let (tx, rx) = oneshot::channel();
     POOL.with(|pool| {
@@ -63,7 +73,7 @@ pub struct CpuFuture<I, E> {
     rx: oneshot::Receiver<Result<I, E>>,
 }
 
-impl<I, E> Future for CpuFuture<I, E> {
+impl<I, E: fmt::Debug> Future for CpuFuture<I, E> {
     type Item = I;
     type Error = BlockingError<E>;
 
