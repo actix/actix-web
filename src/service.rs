@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::cell::{Ref, RefMut};
 use std::rc::Rc;
 
-use actix_http::body::{Body, MessageBody, ResponseBody};
+use actix_http::body::{Body, ResponseBody};
 use actix_http::http::{HeaderMap, Method, Uri, Version};
 use actix_http::{
     Error, Extensions, HttpMessage, Payload, PayloadStream, Request, RequestHead,
@@ -84,12 +84,6 @@ impl<P> ServiceRequest<P> {
         self.head().uri.path()
     }
 
-    #[inline]
-    /// Returns Request's headers.
-    pub fn headers(&self) -> &HeaderMap {
-        &self.head().headers
-    }
-
     /// The query string in the URL.
     ///
     /// E.g., id=10
@@ -118,18 +112,6 @@ impl<P> ServiceRequest<P> {
         &mut self.req.path
     }
 
-    /// Request extensions
-    #[inline]
-    pub fn extensions(&self) -> Ref<Extensions> {
-        self.req.head.extensions()
-    }
-
-    /// Mutable reference to a the request's extensions
-    #[inline]
-    pub fn extensions_mut(&self) -> RefMut<Extensions> {
-        self.req.head.extensions_mut()
-    }
-
     /// Application extensions
     #[inline]
     pub fn app_extensions(&self) -> &Extensions {
@@ -147,8 +129,27 @@ impl<P> HttpMessage for ServiceRequest<P> {
     type Stream = P;
 
     #[inline]
+    /// Returns Request's headers.
     fn headers(&self) -> &HeaderMap {
-        self.req.headers()
+        &self.head().headers
+    }
+
+    #[inline]
+    /// Mutable reference to the request's headers.
+    fn headers_mut(&mut self) -> &mut HeaderMap {
+        &mut self.head_mut().headers
+    }
+
+    /// Request extensions
+    #[inline]
+    fn extensions(&self) -> Ref<Extensions> {
+        self.req.head.extensions()
+    }
+
+    /// Mutable reference to a the request's extensions
+    #[inline]
+    fn extensions_mut(&self) -> RefMut<Extensions> {
+        self.req.head.extensions_mut()
     }
 
     #[inline]
@@ -230,6 +231,23 @@ impl<P> HttpMessage for ServiceFromRequest<P> {
     }
 
     #[inline]
+    fn headers_mut(&mut self) -> &mut HeaderMap {
+        self.req.headers_mut()
+    }
+
+    /// Request extensions
+    #[inline]
+    fn extensions(&self) -> Ref<Extensions> {
+        self.req.head.extensions()
+    }
+
+    /// Mutable reference to a the request's extensions
+    #[inline]
+    fn extensions_mut(&self) -> RefMut<Extensions> {
+        self.req.head.extensions_mut()
+    }
+
+    #[inline]
     fn take_payload(&mut self) -> Payload<Self::Stream> {
         std::mem::replace(&mut self.payload, Payload::None)
     }
@@ -275,11 +293,26 @@ impl<B> ServiceResponse<B> {
     pub fn headers_mut(&mut self) -> &mut HeaderMap {
         self.response.headers_mut()
     }
+
+    /// Execute closure and in case of error convert it to response.
+    pub fn checked_expr<F, E>(mut self, f: F) -> Self
+    where
+        F: FnOnce(&mut Self) -> Result<(), E>,
+        E: Into<Error>,
+    {
+        match f(&mut self) {
+            Ok(_) => self,
+            Err(err) => {
+                let res: Response = err.into().into();
+                ServiceResponse::new(self.request, res.into_body())
+            }
+        }
+    }
 }
 
-impl<B: MessageBody> ServiceResponse<B> {
+impl<B> ServiceResponse<B> {
     /// Set a new body
-    pub fn map_body<F, B2: MessageBody>(self, f: F) -> ServiceResponse<B2>
+    pub fn map_body<F, B2>(self, f: F) -> ServiceResponse<B2>
     where
         F: FnOnce(&mut ResponseHead, ResponseBody<B>) -> ResponseBody<B2>,
     {
@@ -292,7 +325,7 @@ impl<B: MessageBody> ServiceResponse<B> {
     }
 }
 
-impl<B: MessageBody> std::ops::Deref for ServiceResponse<B> {
+impl<B> std::ops::Deref for ServiceResponse<B> {
     type Target = Response<B>;
 
     fn deref(&self) -> &Response<B> {
@@ -300,19 +333,19 @@ impl<B: MessageBody> std::ops::Deref for ServiceResponse<B> {
     }
 }
 
-impl<B: MessageBody> std::ops::DerefMut for ServiceResponse<B> {
+impl<B> std::ops::DerefMut for ServiceResponse<B> {
     fn deref_mut(&mut self) -> &mut Response<B> {
         self.response_mut()
     }
 }
 
-impl<B: MessageBody> Into<Response<B>> for ServiceResponse<B> {
+impl<B> Into<Response<B>> for ServiceResponse<B> {
     fn into(self) -> Response<B> {
         self.response
     }
 }
 
-impl<B: MessageBody> IntoFuture for ServiceResponse<B> {
+impl<B> IntoFuture for ServiceResponse<B> {
     type Item = ServiceResponse<B>;
     type Error = Error;
     type Future = FutureResult<ServiceResponse<B>, Error>;

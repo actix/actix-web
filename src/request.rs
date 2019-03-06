@@ -64,12 +64,6 @@ impl HttpRequest {
         self.head().uri.path()
     }
 
-    #[inline]
-    /// Returns Request's headers.
-    pub fn headers(&self) -> &HeaderMap {
-        &self.head().headers
-    }
-
     /// The query string in the URL.
     ///
     /// E.g., id=10
@@ -91,18 +85,6 @@ impl HttpRequest {
     #[inline]
     pub fn match_info(&self) -> &Path<Url> {
         &self.path
-    }
-
-    /// Request extensions
-    #[inline]
-    pub fn extensions(&self) -> Ref<Extensions> {
-        self.head.extensions()
-    }
-
-    /// Mutable reference to a the request's extensions
-    #[inline]
-    pub fn extensions_mut(&self) -> RefMut<Extensions> {
-        self.head.extensions_mut()
     }
 
     /// Application extensions
@@ -130,8 +112,26 @@ impl HttpMessage for HttpRequest {
     type Stream = ();
 
     #[inline]
+    /// Returns Request's headers.
     fn headers(&self) -> &HeaderMap {
-        self.headers()
+        &self.head().headers
+    }
+
+    #[inline]
+    fn headers_mut(&mut self) -> &mut HeaderMap {
+        &mut self.head.headers
+    }
+
+    /// Request extensions
+    #[inline]
+    fn extensions(&self) -> Ref<Extensions> {
+        self.head.extensions()
+    }
+
+    /// Mutable reference to a the request's extensions
+    #[inline]
+    fn extensions_mut(&self) -> RefMut<Extensions> {
+        self.head.extensions_mut()
     }
 
     #[inline]

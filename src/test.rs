@@ -8,11 +8,12 @@ use actix_http::test::TestRequest as HttpTestRequest;
 use actix_http::{Extensions, PayloadStream, Request};
 use actix_router::{Path, Url};
 use actix_rt::Runtime;
+use actix_service::{IntoNewService, NewService, Service};
 use bytes::Bytes;
 use futures::Future;
 
 use crate::request::HttpRequest;
-use crate::service::{ServiceFromRequest, ServiceRequest};
+use crate::service::{ServiceFromRequest, ServiceRequest, ServiceResponse};
 
 thread_local! {
     static RT: RefCell<Runtime> = {
@@ -35,6 +36,34 @@ where
     F: Future,
 {
     RT.with(move |rt| rt.borrow_mut().block_on(f))
+}
+
+/// This method accepts application builder instance, and constructs
+/// service.
+///
+/// ```rust
+/// use actix_http::http::{test, App, HttpResponse};
+///
+/// fn main() {
+///     let app = test::init_service(
+///         App::new()
+///             .resource("/test", |r| r.to(|| HttpResponse::Ok()))
+///     )
+///
+///     let req = TestRequest::with_uri("/test").to_request();
+///     let resp = block_on(srv.call(req)).unwrap();
+///     assert_eq!(resp.status(), StatusCode::OK);
+/// }
+/// ```
+pub fn init_service<R, S, B, E>(
+    app: R,
+) -> impl Service<Request, Response = ServiceResponse<B>, Error = E>
+where
+    R: IntoNewService<S, Request, ()>,
+    S: NewService<Request, Response = ServiceResponse<B>, Error = E>,
+    S::InitError: std::fmt::Debug,
+{
+    block_on(app.into_new_service().new_service(&())).unwrap()
 }
 
 /// Test `Request` builder.
@@ -108,6 +137,22 @@ impl TestRequest {
     {
         TestRequest {
             req: HttpTestRequest::default().header(key, value).take(),
+            extensions: Extensions::new(),
+        }
+    }
+
+    /// Create TestRequest and set method to `Method::GET`
+    pub fn get() -> TestRequest {
+        TestRequest {
+            req: HttpTestRequest::default().method(Method::GET).take(),
+            extensions: Extensions::new(),
+        }
+    }
+
+    /// Create TestRequest and set method to `Method::POST`
+    pub fn post() -> TestRequest {
+        TestRequest {
+            req: HttpTestRequest::default().method(Method::POST).take(),
             extensions: Extensions::new(),
         }
     }

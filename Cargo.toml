@@ -27,6 +27,7 @@ path = "src/lib.rs"
 [workspace]
 members = [
   ".",
+  "session",
   "staticfiles",
 ]
 
