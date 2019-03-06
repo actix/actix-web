@@ -1,5 +1,5 @@
 use std::ops::Deref;
-use std::rc::Rc;
+use std::sync::Arc;
 
 use actix_http::error::{Error, ErrorInternalServerError};
 use actix_http::Extensions;
@@ -18,11 +18,11 @@ pub(crate) trait StateFactoryResult {
 }
 
 /// Application state
-pub struct State<T>(Rc<T>);
+pub struct State<T>(Arc<T>);
 
 impl<T> State<T> {
     pub(crate) fn new(state: T) -> State<T> {
-        State(Rc::new(state))
+        State(Arc::new(state))
     }
 
     /// Get referecnce to inner state type.
