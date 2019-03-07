@@ -238,7 +238,7 @@ pub mod web {
 
     /// Execute blocking function on a thread pool, returns future that resolves
     /// to result of the function execution.
-    pub fn blocking<F, I, E>(f: F) -> CpuFuture<I, E>
+    pub fn block<F, I, E>(f: F) -> CpuFuture<I, E>
     where
         F: FnOnce() -> Result<I, E> + Send + 'static,
         I: Send + 'static,
