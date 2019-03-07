@@ -78,12 +78,12 @@ impl ExtractorConfig for () {
 /// ## Example
 ///
 /// ```rust
-/// use actix_web::{web, http, App, extract::Path};
+/// use actix_web::{web, App};
 ///
 /// /// extract path info from "/{username}/{count}/index.html" url
 /// /// {username} - deserializes to a String
 /// /// {count} -  - deserializes to a u32
-/// fn index(info: Path<(String, u32)>) -> String {
+/// fn index(info: web::Path<(String, u32)>) -> String {
 ///     format!("Welcome {}! {}", info.0, info.1)
 /// }
 ///
@@ -100,7 +100,7 @@ impl ExtractorConfig for () {
 ///
 /// ```rust
 /// #[macro_use] extern crate serde_derive;
-/// use actix_web::{web, App, extract::Path, Error};
+/// use actix_web::{web, App, Error};
 ///
 /// #[derive(Deserialize)]
 /// struct Info {
@@ -108,7 +108,7 @@ impl ExtractorConfig for () {
 /// }
 ///
 /// /// extract `Info` from a path using serde
-/// fn index(info: Path<Info>) -> Result<String, Error> {
+/// fn index(info: web::Path<Info>) -> Result<String, Error> {
 ///     Ok(format!("Welcome {}!", info.username))
 /// }
 ///
@@ -170,12 +170,12 @@ impl<T> From<T> for Path<T> {
 /// ## Example
 ///
 /// ```rust
-/// use actix_web::{web, http, App, extract::Path};
+/// use actix_web::{web, App};
 ///
 /// /// extract path info from "/{username}/{count}/index.html" url
 /// /// {username} - deserializes to a String
 /// /// {count} -  - deserializes to a u32
-/// fn index(info: Path<(String, u32)>) -> String {
+/// fn index(info: web::Path<(String, u32)>) -> String {
 ///     format!("Welcome {}! {}", info.0, info.1)
 /// }
 ///
@@ -192,7 +192,7 @@ impl<T> From<T> for Path<T> {
 ///
 /// ```rust
 /// #[macro_use] extern crate serde_derive;
-/// use actix_web::{web, App, extract::Path, Error};
+/// use actix_web::{web, App, Error};
 ///
 /// #[derive(Deserialize)]
 /// struct Info {
@@ -200,7 +200,7 @@ impl<T> From<T> for Path<T> {
 /// }
 ///
 /// /// extract `Info` from a path using serde
-/// fn index(info: Path<Info>) -> Result<String, Error> {
+/// fn index(info: web::Path<Info>) -> Result<String, Error> {
 ///     Ok(format!("Welcome {}!", info.username))
 /// }
 ///
@@ -244,7 +244,7 @@ impl<T: fmt::Display> fmt::Display for Path<T> {
 ///
 /// ```rust
 /// #[macro_use] extern crate serde_derive;
-/// use actix_web::{web, extract, App};
+/// use actix_web::{web, App};
 ///
 /// #[derive(Debug, Deserialize)]
 /// pub enum ResponseType {
@@ -261,7 +261,7 @@ impl<T: fmt::Display> fmt::Display for Path<T> {
 /// // Use `Query` extractor for query information.
 /// // This handler get called only if request's query contains `username` field
 /// // The correct request for this handler would be `/index.html?id=64&response_type=Code"`
-/// fn index(info: extract::Query<AuthRequest>) -> String {
+/// fn index(info: web::Query<AuthRequest>) -> String {
 ///     format!("Authorization request for client with id={} and type={:?}!", info.id, info.response_type)
 /// }
 ///
@@ -299,7 +299,7 @@ impl<T> Query<T> {
 ///
 /// ```rust
 /// #[macro_use] extern crate serde_derive;
-/// use actix_web::{web, extract, App};
+/// use actix_web::{web, App};
 ///
 /// #[derive(Debug, Deserialize)]
 /// pub enum ResponseType {
@@ -316,7 +316,7 @@ impl<T> Query<T> {
 /// // Use `Query` extractor for query information.
 /// // This handler get called only if request's query contains `username` field
 /// // The correct request for this handler would be `/index.html?id=64&response_type=Code"`
-/// fn index(info: extract::Query<AuthRequest>) -> String {
+/// fn index(info: web::Query<AuthRequest>) -> String {
 ///     format!("Authorization request for client with id={} and type={:?}!", info.id, info.response_type)
 /// }
 ///
@@ -368,7 +368,7 @@ impl<T: fmt::Display> fmt::Display for Query<T> {
 /// ```rust
 /// # extern crate actix_web;
 /// #[macro_use] extern crate serde_derive;
-/// use actix_web::{web, App, extract::Form};
+/// use actix_web::{web, App};
 ///
 /// #[derive(Deserialize)]
 /// struct FormData {
@@ -378,7 +378,7 @@ impl<T: fmt::Display> fmt::Display for Query<T> {
 /// /// Extract form data using serde.
 /// /// This handler get called only if content type is *x-www-form-urlencoded*
 /// /// and content of the request could be deserialized to a `FormData` struct
-/// fn index(form: Form<FormData>) -> String {
+/// fn index(form: web::Form<FormData>) -> String {
 ///     format!("Welcome {}!", form.username)
 /// }
 /// # fn main() {}
@@ -447,7 +447,7 @@ impl<T: fmt::Display> fmt::Display for Form<T> {
 ///
 /// ```rust
 /// #[macro_use] extern crate serde_derive;
-/// use actix_web::{web, extract, App, Result};
+/// use actix_web::{web, App, Result};
 ///
 /// #[derive(Deserialize)]
 /// struct FormData {
@@ -456,7 +456,7 @@ impl<T: fmt::Display> fmt::Display for Form<T> {
 ///
 /// /// Extract form data using serde.
 /// /// Custom configuration is used for this handler, max payload size is 4k
-/// fn index(form: extract::Form<FormData>) -> Result<String> {
+/// fn index(form: web::Form<FormData>) -> Result<String> {
 ///     Ok(format!("Welcome {}!", form.username))
 /// }
 ///
@@ -465,7 +465,7 @@ impl<T: fmt::Display> fmt::Display for Form<T> {
 ///         web::resource("/index.html")
 ///             .route(web::get()
 ///                 // change `Form` extractor configuration
-///                 .config(extract::FormConfig::default().limit(4097))
+///                 .config(web::FormConfig::default().limit(4097))
 ///                 .to(index))
 ///     );
 /// }
@@ -520,7 +520,7 @@ impl Default for FormConfig {
 ///
 /// ```rust
 /// #[macro_use] extern crate serde_derive;
-/// use actix_web::{web, extract, App};
+/// use actix_web::{web, App};
 ///
 /// #[derive(Deserialize)]
 /// struct Info {
@@ -528,7 +528,7 @@ impl Default for FormConfig {
 /// }
 ///
 /// /// deserialize `Info` from request's body
-/// fn index(info: extract::Json<Info>) -> String {
+/// fn index(info: web::Json<Info>) -> String {
 ///     format!("Welcome {}!", info.username)
 /// }
 ///
@@ -631,7 +631,7 @@ impl<T: Serialize> Responder for Json<T> {
 ///
 /// ```rust
 /// #[macro_use] extern crate serde_derive;
-/// use actix_web::{web, extract, App};
+/// use actix_web::{web, App};
 ///
 /// #[derive(Deserialize)]
 /// struct Info {
@@ -639,7 +639,7 @@ impl<T: Serialize> Responder for Json<T> {
 /// }
 ///
 /// /// deserialize `Info` from request's body
-/// fn index(info: extract::Json<Info>) -> String {
+/// fn index(info: web::Json<Info>) -> String {
 ///     format!("Welcome {}!", info.username)
 /// }
 ///
@@ -679,7 +679,7 @@ where
 ///
 /// ```rust
 /// #[macro_use] extern crate serde_derive;
-/// use actix_web::{error, extract, web, App, HttpResponse};
+/// use actix_web::{error, web, App, HttpResponse};
 ///
 /// #[derive(Deserialize)]
 /// struct Info {
@@ -696,7 +696,7 @@ where
 ///         web::resource("/index.html").route(
 ///             web::post().config(
 ///                 // change json extractor configuration
-///                 extract::JsonConfig::default().limit(4096)
+///                 web::JsonConfig::default().limit(4096)
 ///                     .error_handler(|err, req| {  // <- create custom error response
 ///                         error::InternalError::from_response(
 ///                             err, HttpResponse::Conflict().finish()).into()
@@ -887,7 +887,7 @@ where
 /// ## Example
 ///
 /// ```rust
-/// use actix_web::{web, extract, App};
+/// use actix_web::{web, App};
 ///
 /// /// extract text data from request
 /// fn index(text: String) -> String {
@@ -898,7 +898,7 @@ where
 ///     let app = App::new().service(
 ///         web::resource("/index.html").route(
 ///             web::get()
-///                .config(extract::PayloadConfig::new(4096)) // <- limit size of the payload
+///                .config(web::PayloadConfig::new(4096)) // <- limit size of the payload
 ///                .to(index))  // <- register handler with extractor params
 ///     );
 /// }

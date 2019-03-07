@@ -89,9 +89,9 @@ where
     /// Add match guard to a scope.
     ///
     /// ```rust
-    /// use actix_web::{web, guard, App, HttpRequest, HttpResponse, extract::Path};
+    /// use actix_web::{web, guard, App, HttpRequest, HttpResponse};
     ///
-    /// fn index(data: Path<(String, String)>) -> &'static str {
+    /// fn index(data: web::Path<(String, String)>) -> &'static str {
     ///     "Welcome!"
     /// }
     ///
@@ -146,9 +146,9 @@ where
     /// multiple resources with one route would be registered for same resource path.
     ///
     /// ```rust
-    /// use actix_web::{web, App, HttpResponse, extract::Path};
+    /// use actix_web::{web, App, HttpResponse};
     ///
-    /// fn index(data: Path<(String, String)>) -> &'static str {
+    /// fn index(data: web::Path<(String, String)>) -> &'static str {
     ///     "Welcome!"
     /// }
     ///

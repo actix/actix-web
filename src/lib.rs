@@ -1,7 +1,7 @@
 #![allow(clippy::type_complexity)]
 
 mod app;
-pub mod extract;
+mod extract;
 mod handler;
 // mod info;
 pub mod blocking;
@@ -84,7 +84,8 @@ pub mod web {
     use crate::route::Route;
     use crate::scope::Scope;
 
-    pub use crate::extract::{Json, Path, Payload, Query};
+    pub use crate::extract::{Form, Json, Path, Payload, Query};
+    pub use crate::extract::{FormConfig, JsonConfig, PayloadConfig};
     pub use crate::request::HttpRequest;
     pub use crate::state::State;
 

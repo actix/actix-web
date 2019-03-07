@@ -220,7 +220,7 @@ impl<P: 'static> Route<P> {
     ///
     /// ```rust
     /// #[macro_use] extern crate serde_derive;
-    /// use actix_web::{web, http, App, extract::Path};
+    /// use actix_web::{web, http, App};
     ///
     /// #[derive(Deserialize)]
     /// struct Info {
@@ -228,7 +228,7 @@ impl<P: 'static> Route<P> {
     /// }
     ///
     /// /// extract path info using serde
-    /// fn index(info: Path<Info>) -> String {
+    /// fn index(info: web::Path<Info>) -> String {
     ///     format!("Welcome {}!", info.username)
     /// }
     ///
@@ -284,7 +284,7 @@ impl<P: 'static> Route<P> {
     /// ```rust
     /// # use futures::future::ok;
     /// #[macro_use] extern crate serde_derive;
-    /// use actix_web::{web, App, Error, extract::Path};
+    /// use actix_web::{web, App, Error};
     /// use futures::Future;
     ///
     /// #[derive(Deserialize)]
@@ -293,7 +293,7 @@ impl<P: 'static> Route<P> {
     /// }
     ///
     /// /// extract path info using serde
-    /// fn index(info: Path<Info>) -> impl Future<Item = &'static str, Error = Error> {
+    /// fn index(info: web::Path<Info>) -> impl Future<Item = &'static str, Error = Error> {
     ///     ok("Hello World!")
     /// }
     ///
@@ -324,7 +324,7 @@ impl<P: 'static> Route<P> {
     /// for specific route.
     ///
     /// ```rust
-    /// use actix_web::{web, extract, App};
+    /// use actix_web::{web, App};
     ///
     /// /// extract text data from request
     /// fn index(body: String) -> String {
@@ -336,7 +336,7 @@ impl<P: 'static> Route<P> {
     ///         web::resource("/index.html").route(
     ///             web::get()
     ///                // limit size of the payload
-    ///                .config(extract::PayloadConfig::new(4096))
+    ///                .config(web::PayloadConfig::new(4096))
     ///                // register handler
     ///                .to(index)
     ///         ));

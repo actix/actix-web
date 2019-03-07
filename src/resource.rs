@@ -75,9 +75,9 @@ where
     /// Add match guard to a resource.
     ///
     /// ```rust
-    /// use actix_web::{web, guard, App, HttpResponse, extract::Path};
+    /// use actix_web::{web, guard, App, HttpResponse};
     ///
-    /// fn index(data: Path<(String, String)>) -> &'static str {
+    /// fn index(data: web::Path<(String, String)>) -> &'static str {
     ///     "Welcome!"
     /// }
     ///
