@@ -77,6 +77,7 @@ pub mod web {
     pub use actix_http::Response as HttpResponse;
     pub use bytes::{Bytes, BytesMut};
 
+    use crate::blocking::CpuFuture;
     use crate::extract::FromRequest;
     use crate::handler::{AsyncFactory, Factory};
     use crate::resource::Resource;
@@ -233,5 +234,16 @@ pub mod web {
         R::Error: Into<Error>,
     {
         Route::new().to_async(handler)
+    }
+
+    /// Execute blocking function on a thread pool, returns future that resolves
+    /// to result of the function execution.
+    pub fn blocking<F, I, E>(f: F) -> CpuFuture<I, E>
+    where
+        F: FnOnce() -> Result<I, E> + Send + 'static,
+        I: Send + 'static,
+        E: Send + std::fmt::Debug + 'static,
+    {
+        crate::blocking::run(f)
     }
 }
