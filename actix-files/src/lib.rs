@@ -318,9 +318,7 @@ where
     }
 }
 
-impl<P, C: StaticFileConfig + 'static> NewService<ServiceRequest<P>>
-    for Files<P, C>
-{
+impl<P, C: StaticFileConfig + 'static> NewService<ServiceRequest<P>> for Files<P, C> {
     type Response = ServiceResponse;
     type Error = ();
     type Service = FilesService<P, C>;
@@ -730,8 +728,7 @@ mod tests {
     #[test]
     fn test_named_file_content_range_headers() {
         let mut srv = test::init_service(
-            App::new()
-                .service(Files::new("/test", ".").index_file("tests/test.binary")),
+            App::new().service(Files::new("/test", ".").index_file("tests/test.binary")),
         );
 
         // Valid range header
@@ -770,8 +767,7 @@ mod tests {
     #[test]
     fn test_named_file_content_length_headers() {
         let mut srv = test::init_service(
-            App::new()
-                .service(Files::new("test", ".").index_file("tests/test.binary")),
+            App::new().service(Files::new("test", ".").index_file("tests/test.binary")),
         );
 
         // Valid range header

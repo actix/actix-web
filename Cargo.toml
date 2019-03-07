@@ -29,6 +29,7 @@ members = [
   ".",
   "actix-files",
   "actix-session",
+  "actix-web-codegen",
 ]
 
 [package.metadata.docs.rs]
@@ -63,6 +64,7 @@ actix-codec = "0.1.0"
 #actix-service = "0.3.2"
 #actix-utils = "0.3.1"
 actix-rt = "0.2.0"
+actix-web-codegen = { path="actix-web-codegen" }
 
 actix-service = { git = "https://github.com/actix/actix-net.git" }
 actix-utils = { git = "https://github.com/actix/actix-net.git" }

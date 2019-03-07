@@ -18,6 +18,24 @@ mod service;
 mod state;
 pub mod test;
 
+/// Attribute macros for route registration
+///
+/// ```rust
+/// use actix_web::{macros, App, HttpResponse};
+///
+/// #[macros::get("/index.html")]
+/// fn index() -> HttpResponse {
+///     HttpResponse::Ok().finish()
+/// }
+///
+/// fn main() {
+///     let app = App::new().service(index);
+/// }
+/// ```
+pub mod macros {
+    pub use actix_web_codegen::{get, post, put};
+}
+
 // re-export for convenience
 pub use actix_http::Response as HttpResponse;
 pub use actix_http::{body, error, http, Error, HttpMessage, ResponseError, Result};

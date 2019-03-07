@@ -31,7 +31,7 @@ where
 }
 
 #[doc(hidden)]
-pub struct Handle<F, T, R>
+pub struct Handler<F, T, R>
 where
     F: Factory<T, R>,
     R: Responder,
@@ -40,19 +40,19 @@ where
     _t: PhantomData<(T, R)>,
 }
 
-impl<F, T, R> Handle<F, T, R>
+impl<F, T, R> Handler<F, T, R>
 where
     F: Factory<T, R>,
     R: Responder,
 {
     pub fn new(hnd: F) -> Self {
-        Handle {
+        Handler {
             hnd,
             _t: PhantomData,
         }
     }
 }
-impl<F, T, R> NewService<(T, HttpRequest)> for Handle<F, T, R>
+impl<F, T, R> NewService<(T, HttpRequest)> for Handler<F, T, R>
 where
     F: Factory<T, R>,
     R: Responder + 'static,
@@ -60,11 +60,11 @@ where
     type Response = ServiceResponse;
     type Error = Void;
     type InitError = ();
-    type Service = HandleService<F, T, R>;
+    type Service = HandlerService<F, T, R>;
     type Future = FutureResult<Self::Service, ()>;
 
     fn new_service(&self, _: &()) -> Self::Future {
-        ok(HandleService {
+        ok(HandlerService {
             hnd: self.hnd.clone(),
             _t: PhantomData,
         })
@@ -72,7 +72,7 @@ where
 }
 
 #[doc(hidden)]
-pub struct HandleService<F, T, R>
+pub struct HandlerService<F, T, R>
 where
     F: Factory<T, R>,
     R: Responder + 'static,
@@ -81,14 +81,14 @@ where
     _t: PhantomData<(T, R)>,
 }
 
-impl<F, T, R> Service<(T, HttpRequest)> for HandleService<F, T, R>
+impl<F, T, R> Service<(T, HttpRequest)> for HandlerService<F, T, R>
 where
     F: Factory<T, R>,
     R: Responder + 'static,
 {
     type Response = ServiceResponse;
     type Error = Void;
-    type Future = HandleServiceResponse<<R::Future as IntoFuture>::Future>;
+    type Future = HandlerServiceResponse<<R::Future as IntoFuture>::Future>;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
         Ok(Async::Ready(()))
@@ -96,19 +96,19 @@ where
 
     fn call(&mut self, (param, req): (T, HttpRequest)) -> Self::Future {
         let fut = self.hnd.call(param).respond_to(&req).into_future();
-        HandleServiceResponse {
+        HandlerServiceResponse {
             fut,
             req: Some(req),
         }
     }
 }
 
-pub struct HandleServiceResponse<T> {
+pub struct HandlerServiceResponse<T> {
     fut: T,
     req: Option<HttpRequest>,
 }
 
-impl<T> Future for HandleServiceResponse<T>
+impl<T> Future for HandlerServiceResponse<T>
 where
     T: Future<Item = Response>,
     T::Error: Into<Error>,
@@ -157,7 +157,7 @@ where
 }
 
 #[doc(hidden)]
-pub struct AsyncHandle<F, T, R>
+pub struct AsyncHandler<F, T, R>
 where
     F: AsyncFactory<T, R>,
     R: IntoFuture,
@@ -168,7 +168,7 @@ where
     _t: PhantomData<(T, R)>,
 }
 
-impl<F, T, R> AsyncHandle<F, T, R>
+impl<F, T, R> AsyncHandler<F, T, R>
 where
     F: AsyncFactory<T, R>,
     R: IntoFuture,
@@ -176,13 +176,13 @@ where
     R::Error: Into<Error>,
 {
     pub fn new(hnd: F) -> Self {
-        AsyncHandle {
+        AsyncHandler {
             hnd,
             _t: PhantomData,
         }
     }
 }
-impl<F, T, R> NewService<(T, HttpRequest)> for AsyncHandle<F, T, R>
+impl<F, T, R> NewService<(T, HttpRequest)> for AsyncHandler<F, T, R>
 where
     F: AsyncFactory<T, R>,
     R: IntoFuture,
@@ -192,11 +192,11 @@ where
     type Response = ServiceResponse;
     type Error = ();
     type InitError = ();
-    type Service = AsyncHandleService<F, T, R>;
+    type Service = AsyncHandlerService<F, T, R>;
     type Future = FutureResult<Self::Service, ()>;
 
     fn new_service(&self, _: &()) -> Self::Future {
-        ok(AsyncHandleService {
+        ok(AsyncHandlerService {
             hnd: self.hnd.clone(),
             _t: PhantomData,
         })
@@ -204,7 +204,7 @@ where
 }
 
 #[doc(hidden)]
-pub struct AsyncHandleService<F, T, R>
+pub struct AsyncHandlerService<F, T, R>
 where
     F: AsyncFactory<T, R>,
     R: IntoFuture,
@@ -215,7 +215,7 @@ where
     _t: PhantomData<(T, R)>,
 }
 
-impl<F, T, R> Service<(T, HttpRequest)> for AsyncHandleService<F, T, R>
+impl<F, T, R> Service<(T, HttpRequest)> for AsyncHandlerService<F, T, R>
 where
     F: AsyncFactory<T, R>,
     R: IntoFuture,
@@ -224,14 +224,14 @@ where
 {
     type Response = ServiceResponse;
     type Error = ();
-    type Future = AsyncHandleServiceResponse<R::Future>;
+    type Future = AsyncHandlerServiceResponse<R::Future>;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
         Ok(Async::Ready(()))
     }
 
     fn call(&mut self, (param, req): (T, HttpRequest)) -> Self::Future {
-        AsyncHandleServiceResponse {
+        AsyncHandlerServiceResponse {
             fut: self.hnd.call(param).into_future(),
             req: Some(req),
         }
@@ -239,12 +239,12 @@ where
 }
 
 #[doc(hidden)]
-pub struct AsyncHandleServiceResponse<T> {
+pub struct AsyncHandlerServiceResponse<T> {
     fut: T,
     req: Option<HttpRequest>,
 }
 
-impl<T> Future for AsyncHandleServiceResponse<T>
+impl<T> Future for AsyncHandlerServiceResponse<T>
 where
     T: Future,
     T::Item: Into<Response>,

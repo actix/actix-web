@@ -8,7 +8,7 @@ use futures::{Async, Future, IntoFuture, Poll};
 
 use crate::extract::{ConfigStorage, ExtractorConfig, FromRequest};
 use crate::guard::{self, Guard};
-use crate::handler::{AsyncFactory, AsyncHandle, Extract, Factory, Handle};
+use crate::handler::{AsyncFactory, AsyncHandler, Extract, Factory, Handler};
 use crate::responder::Responder;
 use crate::service::{ServiceFromRequest, ServiceRequest, ServiceResponse};
 use crate::HttpResponse;
@@ -50,8 +50,9 @@ impl<P: 'static> Route<P> {
         let config_ref = Rc::new(RefCell::new(None));
         Route {
             service: Box::new(RouteNewService::new(
-                Extract::new(config_ref.clone())
-                    .and_then(Handle::new(HttpResponse::NotFound).map_err(|_| panic!())),
+                Extract::new(config_ref.clone()).and_then(
+                    Handler::new(HttpResponse::NotFound).map_err(|_| panic!()),
+                ),
             )),
             guards: Rc::new(Vec::new()),
             config: ConfigStorage::default(),
@@ -272,7 +273,7 @@ impl<P: 'static> Route<P> {
         T::Config::store_default(&mut self.config);
         self.service = Box::new(RouteNewService::new(
             Extract::new(self.config_ref.clone())
-                .and_then(Handle::new(handler).map_err(|_| panic!())),
+                .and_then(Handler::new(handler).map_err(|_| panic!())),
         ));
         self
     }
@@ -314,7 +315,7 @@ impl<P: 'static> Route<P> {
     {
         self.service = Box::new(RouteNewService::new(
             Extract::new(self.config_ref.clone())
-                .and_then(AsyncHandle::new(handler).map_err(|_| panic!())),
+                .and_then(AsyncHandler::new(handler).map_err(|_| panic!())),
         ));
         self
     }
