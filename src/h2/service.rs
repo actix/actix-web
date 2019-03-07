@@ -47,6 +47,18 @@ where
         }
     }
 
+    /// Create new `HttpService` instance with config.
+    pub fn with_config<F: IntoNewService<S, Request>>(
+        cfg: ServiceConfig,
+        service: F,
+    ) -> Self {
+        H2Service {
+            cfg,
+            srv: service.into_new_service(),
+            _t: PhantomData,
+        }
+    }
+
     /// Create builder for `HttpService` instance.
     pub fn build() -> H2ServiceBuilder<T, S> {
         H2ServiceBuilder::new()

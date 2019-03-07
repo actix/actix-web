@@ -44,6 +44,18 @@ where
         }
     }
 
+    /// Create new `HttpService` instance with config.
+    pub fn with_config<F: IntoNewService<S, Request>>(
+        cfg: ServiceConfig,
+        service: F,
+    ) -> Self {
+        HttpService {
+            cfg,
+            srv: service.into_new_service(),
+            _t: PhantomData,
+        }
+    }
+
     /// Create builder for `HttpService` instance.
     pub fn build() -> HttpServiceBuilder<T, S> {
         HttpServiceBuilder::new()
