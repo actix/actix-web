@@ -262,12 +262,11 @@ where
         } else {
             Some(self.guards)
         };
-        let rdef = if config.is_root() {
-            ResourceDef::root_prefix(&self.rdef)
-        } else {
-            ResourceDef::prefix(&self.rdef)
-        };
-        config.register_service(rdef, guards, self.endpoint)
+        config.register_service(
+            ResourceDef::root_prefix(&self.rdef),
+            guards,
+            self.endpoint,
+        )
     }
 }
 

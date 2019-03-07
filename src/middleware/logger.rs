@@ -32,8 +32,6 @@ use crate::{HttpMessage, HttpResponse};
 ///  %a "%r" %s %b "%{Referer}i" "%{User-Agent}i" %T
 /// ```
 /// ```rust
-/// # extern crate actix_web;
-/// extern crate env_logger;
 /// use actix_web::middleware::Logger;
 /// use actix_web::App;
 ///
@@ -43,8 +41,7 @@ use crate::{HttpMessage, HttpResponse};
 ///
 ///     let app = App::new()
 ///         .middleware(Logger::default())
-///         .middleware(Logger::new("%a %{User-Agent}i"))
-///         .finish();
+///         .middleware(Logger::new("%a %{User-Agent}i"));
 /// }
 /// ```
 ///

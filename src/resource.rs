@@ -283,7 +283,7 @@ where
         } else {
             Some(std::mem::replace(&mut self.guards, Vec::new()))
         };
-        let rdef = if config.is_root() {
+        let rdef = if config.is_root() || !self.rdef.is_empty() {
             ResourceDef::new(&insert_slash(&self.rdef))
         } else {
             ResourceDef::new(&self.rdef)
