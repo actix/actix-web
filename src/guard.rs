@@ -1,4 +1,30 @@
 //! Route match guards.
+//!
+//! Guards are one of the way how actix-web router chooses
+//! handler service. In essence it just function that accepts
+//! reference to a `RequestHead` instance and returns boolean.
+//! It is possible to add guards to *scopes*, *resources*
+//! and *routes*. Actix provide several guards by default, like various
+//! http methods, header, etc. To become a guard, type must implement `Guard`
+//! trait. Simple functions coulds guards as well.
+//!
+//! Guard can not modify request object. But it is possible to
+//! to store extra attributes on a request by using `Extensions` container.
+//! Extensions container available via `RequestHead::extensions()` method.
+//!
+//! ```rust
+//! use actix_web::{web, http, dev, guard, App, HttpResponse};
+//!
+//! fn main() {
+//!     App::new().service(web::resource("/index.html").route(
+//!         web::route()
+//!              .guard(guard::Post())
+//!              .guard(|head: &dev::RequestHead| head.method == http::Method::GET)
+//!              .to(|| HttpResponse::MethodNotAllowed()))
+//!     );
+//! }
+//! ```
+
 #![allow(non_snake_case)]
 use actix_http::http::{self, header, HttpTryFrom};
 use actix_http::RequestHead;
@@ -11,6 +37,18 @@ use actix_http::RequestHead;
 pub trait Guard {
     /// Check if request matches predicate
     fn check(&self, request: &RequestHead) -> bool;
+}
+
+#[doc(hidden)]
+pub struct FnGuard<F: Fn(&RequestHead) -> bool + 'static>(F);
+
+impl<F> Guard for F
+where
+    F: Fn(&RequestHead) -> bool + 'static,
+{
+    fn check(&self, head: &RequestHead) -> bool {
+        (*self)(head)
+    }
 }
 
 /// Return guard that matches if any of supplied guards.
