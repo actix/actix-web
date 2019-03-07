@@ -14,7 +14,7 @@ edition = "2018"
 workspace = ".."
 
 [lib]
-name = "actix_staticfiles"
+name = "actix_files"
 path = "src/lib.rs"
 
 [dependencies]
