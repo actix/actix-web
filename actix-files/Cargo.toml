@@ -1,5 +1,5 @@
 [package]
-name = "actix-staticfiles"
+name = "actix-files"
 version = "0.1.0"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Static files support for Actix web."

@@ -3,7 +3,7 @@ use derive_more::Display;
 
 /// Errors which can occur when serving static files.
 #[derive(Display, Debug, PartialEq)]
-pub enum StaticFilesError {
+pub enum FilesError {
     /// Path is not a directory
     #[display(fmt = "Path is not a directory. Unable to serve static files")]
     IsNotDirectory,
@@ -13,8 +13,8 @@ pub enum StaticFilesError {
     IsDirectory,
 }
 
-/// Return `NotFound` for `StaticFilesError`
-impl ResponseError for StaticFilesError {
+/// Return `NotFound` for `FilesError`
+impl ResponseError for FilesError {
     fn error_response(&self) -> HttpResponse {
         HttpResponse::new(StatusCode::NOT_FOUND)
     }

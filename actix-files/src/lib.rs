@@ -29,7 +29,7 @@ mod error;
 mod named;
 mod range;
 
-use self::error::{StaticFilesError, UriSegmentError};
+use self::error::{FilesError, UriSegmentError};
 pub use crate::config::{DefaultConfig, StaticFileConfig};
 pub use crate::named::NamedFile;
 pub use crate::range::HttpRange;
@@ -222,10 +222,10 @@ fn directory_listing(
 ///
 /// fn main() {
 ///     let app = App::new()
-///         .service(fs::StaticFiles::new("/static", "."));
+///         .service(fs::Files::new("/static", "."));
 /// }
 /// ```
-pub struct StaticFiles<S, C = DefaultConfig> {
+pub struct Files<S, C = DefaultConfig> {
     path: String,
     directory: PathBuf,
     index: Option<String>,
@@ -237,28 +237,28 @@ pub struct StaticFiles<S, C = DefaultConfig> {
     _cd_map: PhantomData<C>,
 }
 
-impl<S: 'static> StaticFiles<S> {
-    /// Create new `StaticFiles` instance for specified base directory.
+impl<S: 'static> Files<S> {
+    /// Create new `Files` instance for specified base directory.
     ///
     /// `StaticFile` uses `ThreadPool` for blocking filesystem operations.
     /// By default pool with 5x threads of available cpus is used.
     /// Pool size can be changed by setting ACTIX_CPU_POOL environment variable.
-    pub fn new<T: Into<PathBuf>>(path: &str, dir: T) -> StaticFiles<S> {
+    pub fn new<T: Into<PathBuf>>(path: &str, dir: T) -> Files<S> {
         Self::with_config(path, dir, DefaultConfig)
     }
 }
 
-impl<S: 'static, C: StaticFileConfig> StaticFiles<S, C> {
-    /// Create new `StaticFiles` instance for specified base directory.
+impl<S: 'static, C: StaticFileConfig> Files<S, C> {
+    /// Create new `Files` instance for specified base directory.
     ///
     /// Identical with `new` but allows to specify configiration to use.
-    pub fn with_config<T: Into<PathBuf>>(path: &str, dir: T, _: C) -> StaticFiles<S, C> {
+    pub fn with_config<T: Into<PathBuf>>(path: &str, dir: T, _: C) -> Files<S, C> {
         let dir = dir.into().canonicalize().unwrap_or_else(|_| PathBuf::new());
         if !dir.is_dir() {
             log::error!("Specified path is not a directory");
         }
 
-        StaticFiles {
+        Files {
             path: path.to_string(),
             directory: dir,
             index: None,
@@ -294,13 +294,13 @@ impl<S: 'static, C: StaticFileConfig> StaticFiles<S, C> {
     ///
     /// Shows specific index file for directory "/" instead of
     /// showing files listing.
-    pub fn index_file<T: Into<String>>(mut self, index: T) -> StaticFiles<S, C> {
+    pub fn index_file<T: Into<String>>(mut self, index: T) -> Files<S, C> {
         self.index = Some(index.into());
         self
     }
 }
 
-impl<P, C> HttpServiceFactory<P> for StaticFiles<P, C>
+impl<P, C> HttpServiceFactory<P> for Files<P, C>
 where
     P: 'static,
     C: StaticFileConfig + 'static,
@@ -319,16 +319,16 @@ where
 }
 
 impl<P, C: StaticFileConfig + 'static> NewService<ServiceRequest<P>>
-    for StaticFiles<P, C>
+    for Files<P, C>
 {
     type Response = ServiceResponse;
     type Error = ();
-    type Service = StaticFilesService<P, C>;
+    type Service = FilesService<P, C>;
     type InitError = ();
     type Future = FutureResult<Self::Service, Self::InitError>;
 
     fn new_service(&self, _: &()) -> Self::Future {
-        ok(StaticFilesService {
+        ok(FilesService {
             directory: self.directory.clone(),
             index: self.index.clone(),
             show_index: self.show_index,
@@ -341,7 +341,7 @@ impl<P, C: StaticFileConfig + 'static> NewService<ServiceRequest<P>>
     }
 }
 
-pub struct StaticFilesService<S, C = DefaultConfig> {
+pub struct FilesService<S, C = DefaultConfig> {
     directory: PathBuf,
     index: Option<String>,
     show_index: bool,
@@ -352,7 +352,7 @@ pub struct StaticFilesService<S, C = DefaultConfig> {
     _cd_map: PhantomData<C>,
 }
 
-impl<P, C: StaticFileConfig> Service<ServiceRequest<P>> for StaticFilesService<P, C> {
+impl<P, C: StaticFileConfig> Service<ServiceRequest<P>> for FilesService<P, C> {
     type Response = ServiceResponse;
     type Error = ();
     type Future = FutureResult<Self::Response, Self::Error>;
@@ -395,7 +395,7 @@ impl<P, C: StaticFileConfig> Service<ServiceRequest<P>> for StaticFilesService<P
                 }
             } else {
                 ok(ServiceResponse::from_err(
-                    StaticFilesError::IsDirectory,
+                    FilesError::IsDirectory,
                     req.clone(),
                 ))
             }
@@ -706,7 +706,7 @@ mod tests {
     #[test]
     fn test_named_file_ranges_status_code() {
         let mut srv = test::init_service(
-            App::new().service(StaticFiles::new("/test", ".").index_file("Cargo.toml")),
+            App::new().service(Files::new("/test", ".").index_file("Cargo.toml")),
         );
 
         // Valid range header
@@ -731,7 +731,7 @@ mod tests {
     fn test_named_file_content_range_headers() {
         let mut srv = test::init_service(
             App::new()
-                .service(StaticFiles::new("/test", ".").index_file("tests/test.binary")),
+                .service(Files::new("/test", ".").index_file("tests/test.binary")),
         );
 
         // Valid range header
@@ -771,7 +771,7 @@ mod tests {
     fn test_named_file_content_length_headers() {
         let mut srv = test::init_service(
             App::new()
-                .service(StaticFiles::new("test", ".").index_file("tests/test.binary")),
+                .service(Files::new("test", ".").index_file("tests/test.binary")),
         );
 
         // Valid range header
@@ -844,7 +844,7 @@ mod tests {
     #[test]
     fn test_static_files_with_spaces() {
         let mut srv = test::init_service(
-            App::new().service(StaticFiles::new("/", ".").index_file("Cargo.toml")),
+            App::new().service(Files::new("/", ".").index_file("Cargo.toml")),
         );
         let request = TestRequest::get()
             .uri("/tests/test%20space.binary")
@@ -925,21 +925,21 @@ mod tests {
     #[test]
     fn test_static_files() {
         let mut srv = test::init_service(
-            App::new().service(StaticFiles::new("/", ".").show_files_listing()),
+            App::new().service(Files::new("/", ".").show_files_listing()),
         );
         let req = TestRequest::with_uri("/missing").to_request();
 
         let resp = test::call_success(&mut srv, req);
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 
-        let mut srv = test::init_service(App::new().service(StaticFiles::new("/", ".")));
+        let mut srv = test::init_service(App::new().service(Files::new("/", ".")));
 
         let req = TestRequest::default().to_request();
         let resp = test::call_success(&mut srv, req);
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 
         let mut srv = test::init_service(
-            App::new().service(StaticFiles::new("/", ".").show_files_listing()),
+            App::new().service(Files::new("/", ".").show_files_listing()),
         );
         let req = TestRequest::with_uri("/tests").to_request();
         let mut resp = test::call_success(&mut srv, req);
@@ -959,13 +959,13 @@ mod tests {
 
     #[test]
     fn test_static_files_bad_directory() {
-        let _st: StaticFiles<()> = StaticFiles::new("/", "missing");
-        let _st: StaticFiles<()> = StaticFiles::new("/", "Cargo.toml");
+        let _st: Files<()> = Files::new("/", "missing");
+        let _st: Files<()> = Files::new("/", "Cargo.toml");
     }
 
     //     #[test]
     //     fn test_default_handler_file_missing() {
-    //         let st = StaticFiles::new(".")
+    //         let st = Files::new(".")
     //             .default_handler(|_: &_| "default content");
     //         let req = TestRequest::with_uri("/missing")
     //             .param("tail", "missing")
@@ -982,7 +982,7 @@ mod tests {
 
     //     #[test]
     //     fn test_serve_index() {
-    //         let st = StaticFiles::new(".").index_file("test.binary");
+    //         let st = Files::new(".").index_file("test.binary");
     //         let req = TestRequest::default().uri("/tests").finish();
 
     //         let resp = st.handle(&req).respond_to(&req).unwrap();
@@ -1028,7 +1028,7 @@ mod tests {
 
     //     #[test]
     //     fn test_serve_index_nested() {
-    //         let st = StaticFiles::new(".").index_file("mod.rs");
+    //         let st = Files::new(".").index_file("mod.rs");
     //         let req = TestRequest::default().uri("/src/client").finish();
     //         let resp = st.handle(&req).respond_to(&req).unwrap();
     //         let resp = resp.as_msg();
@@ -1048,7 +1048,7 @@ mod tests {
     //         let mut srv = test::TestServer::with_factory(|| {
     //             App::new().handler(
     //                 "test",
-    //                 StaticFiles::new(".").index_file("Cargo.toml"),
+    //                 Files::new(".").index_file("Cargo.toml"),
     //             )
     //         });
 
@@ -1081,7 +1081,7 @@ mod tests {
     //         let mut srv = test::TestServer::with_factory(|| {
     //             App::new().handler(
     //                 "test",
-    //                 StaticFiles::new(".").index_file("Cargo.toml"),
+    //                 Files::new(".").index_file("Cargo.toml"),
     //             )
     //         });
 
