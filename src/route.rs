@@ -60,26 +60,6 @@ impl<P: 'static> Route<P> {
         }
     }
 
-    /// Create new `GET` route.
-    pub fn get() -> Route<P> {
-        Route::new().method(Method::GET)
-    }
-
-    /// Create new `POST` route.
-    pub fn post() -> Route<P> {
-        Route::new().method(Method::POST)
-    }
-
-    /// Create new `PUT` route.
-    pub fn put() -> Route<P> {
-        Route::new().method(Method::PUT)
-    }
-
-    /// Create new `DELETE` route.
-    pub fn delete() -> Route<P> {
-        Route::new().method(Method::DELETE)
-    }
-
     pub(crate) fn finish(self) -> Self {
         *self.config_ref.borrow_mut() = self.config.storage.clone();
         self

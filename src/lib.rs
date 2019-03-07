@@ -27,7 +27,7 @@ pub use actix_web_codegen::*;
 
 // re-export for convenience
 pub use actix_http::Response as HttpResponse;
-pub use actix_http::{body, error, http, Error, HttpMessage, ResponseError, Result};
+pub use actix_http::{error, http, Error, HttpMessage, ResponseError, Result};
 
 pub use crate::app::App;
 pub use crate::extract::FromRequest;
@@ -154,37 +154,42 @@ pub mod web {
         Scope::new(path)
     }
 
-    /// Create **route** without configuration.
+    /// Create *route* without configuration.
     pub fn route<P: 'static>() -> Route<P> {
         Route::new()
     }
 
-    /// Create **route** with `GET` method guard.
+    /// Create *route* with `GET` method guard.
     pub fn get<P: 'static>() -> Route<P> {
-        Route::get()
+        Route::new().method(Method::GET)
     }
 
-    /// Create **route** with `POST` method guard.
+    /// Create *route* with `POST` method guard.
     pub fn post<P: 'static>() -> Route<P> {
-        Route::post()
+        Route::new().method(Method::POST)
     }
 
-    /// Create **route** with `PUT` method guard.
+    /// Create *route* with `PUT` method guard.
     pub fn put<P: 'static>() -> Route<P> {
-        Route::put()
+        Route::new().method(Method::PUT)
     }
 
-    /// Create **route** with `DELETE` method guard.
+    /// Create *route* with `PATCH` method guard.
+    pub fn patch<P: 'static>() -> Route<P> {
+        Route::new().method(Method::PATCH)
+    }
+
+    /// Create *route* with `DELETE` method guard.
     pub fn delete<P: 'static>() -> Route<P> {
-        Route::delete()
+        Route::new().method(Method::DELETE)
     }
 
-    /// Create **route** with `HEAD` method guard.
+    /// Create *route* with `HEAD` method guard.
     pub fn head<P: 'static>() -> Route<P> {
         Route::new().method(Method::HEAD)
     }
 
-    /// Create **route** and add method guard.
+    /// Create *route* and add method guard.
     pub fn method<P: 'static>(method: Method) -> Route<P> {
         Route::new().method(method)
     }

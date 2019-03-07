@@ -291,7 +291,7 @@ mod tests {
     use actix_service::Service;
     use bytes::Bytes;
 
-    use crate::body::{Body, ResponseBody};
+    use crate::dev::{Body, ResponseBody};
     use crate::http::StatusCode;
     use crate::test::{init_service, TestRequest};
     use crate::{web, App};
