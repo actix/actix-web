@@ -239,6 +239,11 @@ impl TestServer {
         ClientRequest::post(self.url("/").as_str())
     }
 
+    /// Create `PATCH` request
+    pub fn patch(&self) -> ClientRequestBuilder {
+        ClientRequest::patch(self.url("/").as_str())
+    }
+
     /// Create `HEAD` request
     pub fn head(&self) -> ClientRequestBuilder {
         ClientRequest::head(self.url("/").as_str())

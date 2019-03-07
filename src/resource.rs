@@ -107,6 +107,12 @@ impl<S: 'static> Resource<S> {
         self.routes.last_mut().unwrap().filter(pred::Post())
     }
 
+    /// Register a new `PATCH` route.
+    pub fn patch(&mut self) -> &mut Route<S> {
+        self.routes.push(Route::default());
+        self.routes.last_mut().unwrap().filter(pred::Patch())
+    }
+
     /// Register a new `PUT` route.
     pub fn put(&mut self) -> &mut Route<S> {
         self.routes.push(Route::default());
