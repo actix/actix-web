@@ -10,8 +10,8 @@ use futures::stream::once;
 
 use actix_http::body::Body;
 use actix_http::{
-    body, client, h1, h2, http, Error, HttpMessage as HttpMessage2, KeepAlive, Request,
-    Response,
+    body, client, h1, h2, http, Error, HttpMessage as HttpMessage2, HttpService,
+    KeepAlive, Request, Response,
 };
 
 #[test]
@@ -23,6 +23,26 @@ fn test_h1() {
             .client_disconnect(1000)
             .server_hostname("localhost")
             .finish(|_| future::ok::<_, ()>(Response::Ok().finish()))
+            .map(|_| ())
+    });
+
+    let req = client::ClientRequest::get(srv.url("/")).finish().unwrap();
+    let response = srv.send_request(req).unwrap();
+    assert!(response.status().is_success());
+}
+
+#[test]
+fn test_h1_2() {
+    let mut srv = TestServer::new(|| {
+        HttpService::build()
+            .keep_alive(KeepAlive::Disabled)
+            .client_timeout(1000)
+            .client_disconnect(1000)
+            .server_hostname("localhost")
+            .finish(|req: Request| {
+                assert_eq!(req.version(), http::Version::HTTP_11);
+                future::ok::<_, ()>(Response::Ok().finish())
+            })
             .map(|_| ())
     });
 
@@ -71,7 +91,30 @@ fn test_h2() -> std::io::Result<()> {
 
     let req = client::ClientRequest::get(srv.surl("/")).finish().unwrap();
     let response = srv.send_request(req).unwrap();
-    println!("RES: {:?}", response);
+    assert!(response.status().is_success());
+    Ok(())
+}
+
+#[cfg(feature = "ssl")]
+#[test]
+fn test_h2_1() -> std::io::Result<()> {
+    let openssl = ssl_acceptor()?;
+    let mut srv = TestServer::new(move || {
+        openssl
+            .clone()
+            .map_err(|e| println!("Openssl error: {}", e))
+            .and_then(
+                HttpService::build()
+                    .finish(|req: Request| {
+                        assert_eq!(req.version(), http::Version::HTTP_2);
+                        future::ok::<_, Error>(Response::Ok().finish())
+                    })
+                    .map_err(|_| ()),
+            )
+    });
+
+    let req = client::ClientRequest::get(srv.surl("/")).finish().unwrap();
+    let response = srv.send_request(req).unwrap();
     assert!(response.status().is_success());
     Ok(())
 }
@@ -79,9 +122,6 @@ fn test_h2() -> std::io::Result<()> {
 #[cfg(feature = "ssl")]
 #[test]
 fn test_h2_body() -> std::io::Result<()> {
-    // std::env::set_var("RUST_LOG", "actix_http=trace");
-    // env_logger::init();
-
     let data = "HELLOWORLD".to_owned().repeat(64 * 1024);
     let openssl = ssl_acceptor()?;
     let mut srv = TestServer::new(move || {

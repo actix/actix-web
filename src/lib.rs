@@ -97,6 +97,7 @@ pub use self::message::{Head, Message, RequestHead, ResponseHead};
 pub use self::payload::{Payload, PayloadStream};
 pub use self::request::Request;
 pub use self::response::Response;
+pub use self::service::HttpService;
 pub use self::service::{SendError, SendResponse};
 
 pub mod dev {

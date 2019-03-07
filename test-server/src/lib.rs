@@ -73,7 +73,7 @@ impl TestServer {
                 .start();
 
             tx.send((System::current(), local_addr)).unwrap();
-            sys.run();
+            sys.run()
         });
 
         let (system, addr) = rx.recv().unwrap();

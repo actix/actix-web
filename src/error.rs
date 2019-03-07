@@ -328,12 +328,11 @@ impl ResponseError for cookie::ParseError {
     }
 }
 
-#[derive(Debug, Display)]
+#[derive(Debug, Display, From)]
 /// A set of errors that can occur during dispatching http requests
-pub enum DispatchError<E: fmt::Debug> {
+pub enum DispatchError {
     /// Service error
-    #[display(fmt = "Service specific error: {:?}", _0)]
-    Service(E),
+    Service,
 
     /// An `io::Error` that occurred while trying to read or write to a network
     /// stream.
@@ -371,24 +370,6 @@ pub enum DispatchError<E: fmt::Debug> {
     /// Unknown error
     #[display(fmt = "Unknown error")]
     Unknown,
-}
-
-impl<E: fmt::Debug> From<ParseError> for DispatchError<E> {
-    fn from(err: ParseError) -> Self {
-        DispatchError::Parse(err)
-    }
-}
-
-impl<E: fmt::Debug> From<io::Error> for DispatchError<E> {
-    fn from(err: io::Error) -> Self {
-        DispatchError::Io(err)
-    }
-}
-
-impl<E: fmt::Debug> From<h2::Error> for DispatchError<E> {
-    fn from(err: h2::Error) -> Self {
-        DispatchError::H2(err)
-    }
 }
 
 /// A set of error that can occure during parsing content type

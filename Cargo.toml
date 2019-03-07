@@ -39,7 +39,8 @@ fail = ["failure"]
 
 [dependencies]
 #actix-service = "0.3.2"
-actix-codec = "0.1.0"
+actix-codec = "0.1.1"
+
 #actix-connector = "0.3.0"
 #actix-utils = "0.3.1"
 

@@ -20,7 +20,7 @@ use crate::response::Response;
 
 use super::codec::Codec;
 use super::payload::{Payload, PayloadSender, PayloadStatus, PayloadWriter};
-use super::{H1ServiceResult, Message, MessageType};
+use super::{Message, MessageType};
 
 const MAX_PIPELINED_MESSAGES: usize = 16;
 
@@ -50,7 +50,7 @@ where
     service: CloneableService<S>,
     flags: Flags,
     framed: Framed<T, Codec>,
-    error: Option<DispatchError<S::Error>>,
+    error: Option<DispatchError>,
     config: ServiceConfig,
 
     state: State<S, B>,
@@ -93,12 +93,17 @@ where
 {
     /// Create http/1 dispatcher.
     pub fn new(stream: T, config: ServiceConfig, service: CloneableService<S>) -> Self {
-        Dispatcher::with_timeout(stream, config, None, service)
+        Dispatcher::with_timeout(
+            Framed::new(stream, Codec::new(config.clone())),
+            config,
+            None,
+            service,
+        )
     }
 
     /// Create http/1 dispatcher with slow request timeout.
     pub fn with_timeout(
-        stream: T,
+        framed: Framed<T, Codec>,
         config: ServiceConfig,
         timeout: Option<Delay>,
         service: CloneableService<S>,
@@ -109,7 +114,6 @@ where
         } else {
             Flags::empty()
         };
-        let framed = Framed::new(stream, Codec::new(config.clone()));
 
         // keep-alive timer
         let (ka_expire, ka_timer) = if let Some(delay) = timeout {
@@ -167,7 +171,7 @@ where
     }
 
     /// Flush stream
-    fn poll_flush(&mut self) -> Poll<bool, DispatchError<S::Error>> {
+    fn poll_flush(&mut self) -> Poll<bool, DispatchError> {
         if !self.framed.is_write_buf_empty() {
             match self.framed.poll_complete() {
                 Ok(Async::NotReady) => Ok(Async::NotReady),
@@ -192,7 +196,7 @@ where
         &mut self,
         message: Response<()>,
         body: ResponseBody<B>,
-    ) -> Result<State<S, B>, DispatchError<S::Error>> {
+    ) -> Result<State<S, B>, DispatchError> {
         self.framed
             .force_send(Message::Item((message, body.length())))
             .map_err(|err| {
@@ -210,7 +214,7 @@ where
         }
     }
 
-    fn poll_response(&mut self) -> Result<(), DispatchError<S::Error>> {
+    fn poll_response(&mut self) -> Result<(), DispatchError> {
         let mut retry = self.can_read();
         loop {
             let state = match mem::replace(&mut self.state, State::None) {
@@ -225,7 +229,7 @@ where
                     None => None,
                 },
                 State::ServiceCall(mut fut) => {
-                    match fut.poll().map_err(DispatchError::Service)? {
+                    match fut.poll().map_err(|_| DispatchError::Service)? {
                         Async::Ready(res) => {
                             let (res, body) = res.into().replace_body(());
                             Some(self.send_response(res, body)?)
@@ -283,12 +287,9 @@ where
         Ok(())
     }
 
-    fn handle_request(
-        &mut self,
-        req: Request,
-    ) -> Result<State<S, B>, DispatchError<S::Error>> {
+    fn handle_request(&mut self, req: Request) -> Result<State<S, B>, DispatchError> {
         let mut task = self.service.call(req);
-        match task.poll().map_err(DispatchError::Service)? {
+        match task.poll().map_err(|_| DispatchError::Service)? {
             Async::Ready(res) => {
                 let (res, body) = res.into().replace_body(());
                 self.send_response(res, body)
@@ -298,7 +299,7 @@ where
     }
 
     /// Process one incoming requests
-    pub(self) fn poll_request(&mut self) -> Result<bool, DispatchError<S::Error>> {
+    pub(self) fn poll_request(&mut self) -> Result<bool, DispatchError> {
         // limit a mount of non processed requests
         if self.messages.len() >= MAX_PIPELINED_MESSAGES {
             return Ok(false);
@@ -400,7 +401,7 @@ where
     }
 
     /// keep-alive timer
-    fn poll_keepalive(&mut self) -> Result<(), DispatchError<S::Error>> {
+    fn poll_keepalive(&mut self) -> Result<(), DispatchError> {
         if self.ka_timer.is_none() {
             return Ok(());
         }
@@ -469,8 +470,8 @@ where
     S::Response: Into<Response<B>>,
     B: MessageBody,
 {
-    type Item = H1ServiceResult<T>;
-    type Error = DispatchError<S::Error>;
+    type Item = ();
+    type Error = DispatchError;
 
     #[inline]
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
@@ -490,7 +491,7 @@ where
                 }
 
                 if inner.flags.contains(Flags::DISCONNECTED) {
-                    return Ok(Async::Ready(H1ServiceResult::Disconnected));
+                    return Ok(Async::Ready(()));
                 }
 
                 // keep-alive and stream errors
@@ -523,14 +524,12 @@ where
         };
 
         let mut inner = self.inner.take().unwrap();
-        if shutdown {
-            Ok(Async::Ready(H1ServiceResult::Shutdown(
-                inner.framed.into_inner(),
-            )))
-        } else {
-            let req = inner.unhandled.take().unwrap();
-            Ok(Async::Ready(H1ServiceResult::Unhandled(req, inner.framed)))
-        }
+
+        // TODO: shutdown
+        Ok(Async::Ready(()))
+        //Ok(Async::Ready(HttpServiceResult::Shutdown(
+        //    inner.framed.into_inner(),
+        //)))
     }
 }
 

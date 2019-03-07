@@ -17,7 +17,7 @@ use crate::response::Response;
 
 use super::codec::Codec;
 use super::dispatcher::Dispatcher;
-use super::{H1ServiceResult, Message};
+use super::Message;
 
 /// `NewService` implementation for HTTP1 transport
 pub struct H1Service<T, S, B> {
@@ -72,8 +72,8 @@ where
     S::Service: 'static,
     B: MessageBody,
 {
-    type Response = H1ServiceResult<T>;
-    type Error = DispatchError<S::Error>;
+    type Response = ();
+    type Error = DispatchError;
     type InitError = S::InitError;
     type Service = H1ServiceHandler<T, S::Service, B>;
     type Future = H1ServiceResponse<T, S, B>;
@@ -275,12 +275,15 @@ where
     S::Response: Into<Response<B>>,
     B: MessageBody,
 {
-    type Response = H1ServiceResult<T>;
-    type Error = DispatchError<S::Error>;
+    type Response = ();
+    type Error = DispatchError;
     type Future = Dispatcher<T, S, B>;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
-        self.srv.poll_ready().map_err(DispatchError::Service)
+        self.srv.poll_ready().map_err(|e| {
+            log::error!("Http service readiness error: {:?}", e);
+            DispatchError::Service
+        })
     }
 
     fn call(&mut self, req: T) -> Self::Future {

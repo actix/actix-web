@@ -26,8 +26,6 @@ use crate::payload::Payload;
 use crate::request::Request;
 use crate::response::Response;
 
-use super::H2ServiceResult;
-
 const CHUNK_SIZE: usize = 16_384;
 
 bitflags! {
@@ -40,7 +38,7 @@ bitflags! {
 /// Dispatcher for HTTP/2 protocol
 pub struct Dispatcher<
     T: AsyncRead + AsyncWrite,
-    S: Service<Request<Payload>> + 'static,
+    S: Service<Request> + 'static,
     B: MessageBody,
 > {
     flags: Flags,
@@ -55,8 +53,8 @@ pub struct Dispatcher<
 impl<T, S, B> Dispatcher<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: Service<Request<Payload>> + 'static,
-    S::Error: Into<Error> + fmt::Debug,
+    S: Service<Request> + 'static,
+    S::Error: fmt::Debug,
     S::Response: Into<Response<B>>,
     B: MessageBody + 'static,
 {
@@ -97,13 +95,13 @@ where
 impl<T, S, B> Future for Dispatcher<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: Service<Request<Payload>> + 'static,
-    S::Error: Into<Error> + fmt::Debug,
+    S: Service<Request> + 'static,
+    S::Error: fmt::Debug,
     S::Response: Into<Response<B>>,
     B: MessageBody + 'static,
 {
     type Item = ();
-    type Error = DispatchError<()>;
+    type Error = DispatchError;
 
     #[inline]
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
@@ -143,21 +141,21 @@ where
     }
 }
 
-struct ServiceResponse<S: Service<Request<Payload>>, B> {
+struct ServiceResponse<S: Service<Request>, B> {
     state: ServiceResponseState<S, B>,
     config: ServiceConfig,
     buffer: Option<Bytes>,
 }
 
-enum ServiceResponseState<S: Service<Request<Payload>>, B> {
+enum ServiceResponseState<S: Service<Request>, B> {
     ServiceCall(S::Future, Option<SendResponse<Bytes>>),
     SendPayload(SendStream<Bytes>, ResponseBody<B>),
 }
 
 impl<S, B> ServiceResponse<S, B>
 where
-    S: Service<Request<Payload>> + 'static,
-    S::Error: Into<Error> + fmt::Debug,
+    S: Service<Request> + 'static,
+    S::Error: fmt::Debug,
     S::Response: Into<Response<B>>,
     B: MessageBody + 'static,
 {
@@ -224,8 +222,8 @@ where
 
 impl<S, B> Future for ServiceResponse<S, B>
 where
-    S: Service<Request<Payload>> + 'static,
-    S::Error: Into<Error> + fmt::Debug,
+    S: Service<Request> + 'static,
+    S::Error: fmt::Debug,
     S::Response: Into<Response<B>>,
     B: MessageBody + 'static,
 {
@@ -258,7 +256,7 @@ where
                     }
                     Ok(Async::NotReady) => Ok(Async::NotReady),
                     Err(e) => {
-                        let res: Response = e.into().into();
+                        let res: Response = Response::InternalServerError().finish();
                         let (res, body) = res.replace_body(());
 
                         let mut send = send.take().unwrap();
