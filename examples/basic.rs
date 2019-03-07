@@ -1,6 +1,8 @@
 use futures::IntoFuture;
 
-use actix_web::macros::get;
+#[macro_use]
+extern crate actix_web;
+
 use actix_web::{middleware, web, App, Error, HttpRequest, HttpResponse, HttpServer};
 
 #[get("/resource1/{name}/index.html")]

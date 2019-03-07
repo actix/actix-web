@@ -409,7 +409,7 @@ impl<T> DerefMut for Form<T> {
 impl<T, P> FromRequest<P> for Form<T>
 where
     T: DeserializeOwned + 'static,
-    P: Stream<Item = Bytes, Error = PayloadError> + 'static,
+    P: Stream<Item = Bytes, Error = crate::error::PayloadError> + 'static,
 {
     type Error = Error;
     type Future = Box<Future<Item = Self, Error = Error>>;
@@ -653,7 +653,7 @@ impl<T: Serialize> Responder for Json<T> {
 impl<T, P> FromRequest<P> for Json<T>
 where
     T: DeserializeOwned + 'static,
-    P: Stream<Item = Bytes, Error = PayloadError> + 'static,
+    P: Stream<Item = Bytes, Error = crate::error::PayloadError> + 'static,
 {
     type Error = Error;
     type Future = Box<Future<Item = Self, Error = Error>>;
@@ -736,6 +736,97 @@ impl Default for JsonConfig {
             limit: 262_144,
             ehandler: Rc::new(|e, _| e.into()),
         }
+    }
+}
+
+/// Payload extractor returns request 's payload stream.
+///
+/// ## Example
+///
+/// ```rust
+/// use futures::{Future, Stream};
+/// use actix_web::{web, error, App, Error, HttpResponse};
+///
+/// /// extract binary data from request
+/// fn index<P>(body: web::Payload<P>) -> impl Future<Item = HttpResponse, Error = Error>
+/// where
+///     P: Stream<Item = web::Bytes, Error = error::PayloadError>
+/// {
+///     body.map_err(Error::from)
+///         .fold(web::BytesMut::new(), move |mut body, chunk| {
+///             body.extend_from_slice(&chunk);
+///             Ok::<_, Error>(body)
+///          })
+///          .and_then(|body| {
+///              format!("Body {:?}!", body);
+///              Ok(HttpResponse::Ok().finish())
+///          })
+/// }
+///
+/// fn main() {
+///     let app = App::new().service(
+///         web::resource("/index.html").route(
+///             web::get().to_async(index))
+///     );
+/// }
+/// ```
+pub struct Payload<T>(crate::dev::Payload<T>);
+
+impl<T> Stream for Payload<T>
+where
+    T: Stream<Item = Bytes, Error = PayloadError>,
+{
+    type Item = Bytes;
+    type Error = PayloadError;
+
+    #[inline]
+    fn poll(&mut self) -> Poll<Option<Self::Item>, PayloadError> {
+        self.0.poll()
+    }
+}
+
+/// Get request's payload stream
+///
+/// ## Example
+///
+/// ```rust
+/// use futures::{Future, Stream};
+/// use actix_web::{web, error, App, Error, HttpResponse};
+///
+/// /// extract binary data from request
+/// fn index<P>(body: web::Payload<P>) -> impl Future<Item = HttpResponse, Error = Error>
+/// where
+///     P: Stream<Item = web::Bytes, Error = error::PayloadError>
+/// {
+///     body.map_err(Error::from)
+///         .fold(web::BytesMut::new(), move |mut body, chunk| {
+///             body.extend_from_slice(&chunk);
+///             Ok::<_, Error>(body)
+///          })
+///          .and_then(|body| {
+///              format!("Body {:?}!", body);
+///              Ok(HttpResponse::Ok().finish())
+///          })
+/// }
+///
+/// fn main() {
+///     let app = App::new().service(
+///         web::resource("/index.html").route(
+///             web::get().to_async(index))
+///     );
+/// }
+/// ```
+impl<P> FromRequest<P> for Payload<P>
+where
+    P: Stream<Item = Bytes, Error = PayloadError>,
+{
+    type Error = Error;
+    type Future = Result<Payload<P>, Error>;
+    type Config = ();
+
+    #[inline]
+    fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
+        Ok(Payload(req.take_payload()))
     }
 }
 

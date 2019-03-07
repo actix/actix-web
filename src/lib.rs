@@ -18,23 +18,12 @@ mod service;
 mod state;
 pub mod test;
 
-/// Attribute macros for route registration
-///
-/// ```rust
-/// use actix_web::{macros, App, HttpResponse};
-///
-/// #[macros::get("/index.html")]
-/// fn index() -> HttpResponse {
-///     HttpResponse::Ok().finish()
-/// }
-///
-/// fn main() {
-///     let app = App::new().service(index);
-/// }
-/// ```
-pub mod macros {
-    pub use actix_web_codegen::{get, post, put};
-}
+#[allow(unused_imports)]
+#[macro_use]
+extern crate actix_web_codegen;
+
+#[doc(hidden)]
+pub use actix_web_codegen::*;
 
 // re-export for convenience
 pub use actix_http::Response as HttpResponse;
@@ -85,6 +74,9 @@ pub mod web {
     use actix_http::{http::Method, Error, Response};
     use futures::IntoFuture;
 
+    pub use actix_http::Response as HttpResponse;
+    pub use bytes::{Bytes, BytesMut};
+
     use crate::extract::FromRequest;
     use crate::handler::{AsyncFactory, Factory};
     use crate::resource::Resource;
@@ -92,7 +84,8 @@ pub mod web {
     use crate::route::Route;
     use crate::scope::Scope;
 
-    pub use crate::extract::{Json, Path, Query};
+    pub use crate::extract::{Json, Path, Payload, Query};
+    pub use crate::request::HttpRequest;
     pub use crate::state::State;
 
     /// Create resource for a specific path.
