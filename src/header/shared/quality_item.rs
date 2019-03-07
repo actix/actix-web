@@ -58,7 +58,7 @@ impl<T: fmt::Display> fmt::Display for QualityItem<T> {
         match self.quality.0 {
             1000 => Ok(()),
             0 => f.write_str("; q=0"),
-            x => write!(f, "; q=0.{}", format!("{:03}", x).trim_right_matches('0')),
+            x => write!(f, "; q=0.{}", format!("{:03}", x).trim_end_matches('0')),
         }
     }
 }

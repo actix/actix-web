@@ -27,7 +27,7 @@ fn split_once(haystack: &str, needle: char) -> (&str, &str) {
 /// first part and the left of the last part.
 fn split_once_and_trim(haystack: &str, needle: char) -> (&str, &str) {
     let (first, last) = split_once(haystack, needle);
-    (first.trim_right(), last.trim_left())
+    (first.trim_end(), last.trim_start())
 }
 
 /// The implied disposition of the content of the HTTP body.
@@ -324,7 +324,7 @@ impl ContentDisposition {
                         }
                     }
                     left = &left[end.ok_or(crate::error::ParseError::Header)? + 1..];
-                    left = split_once(left, ';').1.trim_left();
+                    left = split_once(left, ';').1.trim_start();
                     // In fact, it should not be Err if the above code is correct.
                     String::from_utf8(quoted_string)
                         .map_err(|_| crate::error::ParseError::Header)?

@@ -970,21 +970,11 @@ where
 #[cfg(feature = "fail")]
 mod failure_integration {
     use super::*;
-    use failure::{self, Fail};
 
     /// Compatibility for `failure::Error`
-    impl<T> ResponseError for failure::Compat<T>
-    where
-        T: fmt::Display + fmt::Debug + Sync + Send + 'static,
-    {
+    impl ResponseError for failure::Error {
         fn error_response(&self) -> Response {
             Response::new(StatusCode::INTERNAL_SERVER_ERROR)
-        }
-    }
-
-    impl From<failure::Error> for Error {
-        fn from(err: failure::Error) -> Error {
-            err.compat().into()
         }
     }
 }

@@ -46,7 +46,6 @@ struct Inner {
     headers: HeaderMap,
     _cookies: Option<Vec<Cookie<'static>>>,
     payload: Option<Payload>,
-    prefix: u16,
 }
 
 impl Default for TestRequest {
@@ -58,7 +57,6 @@ impl Default for TestRequest {
             headers: HeaderMap::new(),
             _cookies: None,
             payload: None,
-            prefix: 0,
         }))
     }
 }

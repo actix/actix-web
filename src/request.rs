@@ -103,7 +103,7 @@ impl<P> Request<P> {
     }
 
     /// Mutable reference to the message's headers.
-    fn headers_mut(&mut self) -> &mut HeaderMap {
+    pub fn headers_mut(&mut self) -> &mut HeaderMap {
         &mut self.head_mut().headers
     }
 
