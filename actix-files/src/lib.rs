@@ -214,11 +214,11 @@ fn directory_listing(
 
 /// Static files handling
 ///
-/// `StaticFile` handler must be registered with `App::service()` method.
+/// `Files` service must be registered with `App::service()` method.
 ///
 /// ```rust
 /// use actix_web::App;
-/// use actix_staticfiles as fs;
+/// use actix_files as fs;
 ///
 /// fn main() {
 ///     let app = App::new()
@@ -240,7 +240,7 @@ pub struct Files<S, C = DefaultConfig> {
 impl<S: 'static> Files<S> {
     /// Create new `Files` instance for specified base directory.
     ///
-    /// `StaticFile` uses `ThreadPool` for blocking filesystem operations.
+    /// `File` uses `ThreadPool` for blocking filesystem operations.
     /// By default pool with 5x threads of available cpus is used.
     /// Pool size can be changed by setting ACTIX_CPU_POOL environment variable.
     pub fn new<T: Into<PathBuf>>(path: &str, dir: T) -> Files<S> {
