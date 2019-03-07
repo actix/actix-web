@@ -286,7 +286,7 @@ where
         let rdef = if config.is_root() {
             ResourceDef::new(&insert_slash(&self.rdef))
         } else {
-            ResourceDef::new(&insert_slash(&self.rdef))
+            ResourceDef::new(&self.rdef)
         };
         config.register_service(rdef, guards, self)
     }

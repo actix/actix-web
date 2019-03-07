@@ -10,7 +10,7 @@ use actix_service::{
 use futures::future::{ok, Either, Future, FutureResult};
 use futures::{Async, Poll};
 
-use crate::dev::{insert_slash, AppConfig, HttpServiceFactory};
+use crate::dev::{AppConfig, HttpServiceFactory};
 use crate::guard::Guard;
 use crate::resource::Resource;
 use crate::route::Route;
@@ -263,9 +263,9 @@ where
             Some(self.guards)
         };
         let rdef = if config.is_root() {
-            ResourceDef::prefix(&insert_slash(&self.rdef))
+            ResourceDef::root_prefix(&self.rdef)
         } else {
-            ResourceDef::prefix(&insert_slash(&self.rdef))
+            ResourceDef::prefix(&self.rdef)
         };
         config.register_service(rdef, guards, self.endpoint)
     }

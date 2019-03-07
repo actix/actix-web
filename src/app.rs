@@ -451,7 +451,7 @@ where
 
         // set factory
         *self.factory_ref.borrow_mut() = Some(AppRoutingFactory {
-            default: default,
+            default,
             services: Rc::new(
                 config
                     .into_services()
@@ -784,7 +784,7 @@ where
 mod tests {
     use super::*;
     use crate::http::{Method, StatusCode};
-    use crate::test::{self, block_on, init_service, TestRequest};
+    use crate::test::{block_on, init_service, TestRequest};
     use crate::{web, HttpResponse, State};
 
     #[test]

@@ -1,12 +1,12 @@
 //! Middleware for setting default response headers
 use std::rc::Rc;
 
-use actix_http::http::header::{HeaderName, HeaderValue, CONTENT_TYPE};
-use actix_http::http::{HeaderMap, HttpTryFrom};
 use actix_service::{Service, Transform};
 use futures::future::{ok, FutureResult};
 use futures::{Future, Poll};
 
+use crate::http::header::{HeaderName, HeaderValue, CONTENT_TYPE};
+use crate::http::{HeaderMap, HttpTryFrom};
 use crate::service::{ServiceRequest, ServiceResponse};
 
 /// `Middleware` for setting default response headers.
@@ -147,10 +147,10 @@ where
 
 #[cfg(test)]
 mod tests {
-    use actix_http::http::header::CONTENT_TYPE;
     use actix_service::FnService;
 
     use super::*;
+    use crate::http::header::CONTENT_TYPE;
     use crate::test::{block_on, TestRequest};
     use crate::{HttpResponse, ServiceRequest};
 

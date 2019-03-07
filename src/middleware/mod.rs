@@ -8,3 +8,6 @@ pub use self::defaultheaders::DefaultHeaders;
 
 #[cfg(feature = "session")]
 pub use actix_session as session;
+
+mod logger;
+pub use self::logger::Logger;

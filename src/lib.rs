@@ -48,7 +48,7 @@ pub mod dev {
     pub use crate::config::AppConfig;
     pub use crate::service::HttpServiceFactory;
 
-    pub use actix_http::body::{Body, MessageBody, ResponseBody};
+    pub use actix_http::body::{Body, BodyLength, MessageBody, ResponseBody};
     pub use actix_http::dev::ResponseBuilder as HttpResponseBuilder;
     pub use actix_http::{
         Extensions, Payload, PayloadStream, RequestHead, ResponseHead,

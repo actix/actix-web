@@ -50,9 +50,8 @@ impl<P: 'static> Route<P> {
         let config_ref = Rc::new(RefCell::new(None));
         Route {
             service: Box::new(RouteNewService::new(
-                Extract::new(config_ref.clone()).and_then(
-                    Handle::new(|| HttpResponse::NotFound()).map_err(|_| panic!()),
-                ),
+                Extract::new(config_ref.clone())
+                    .and_then(Handle::new(HttpResponse::NotFound).map_err(|_| panic!())),
             )),
             guards: Rc::new(Vec::new()),
             config: ConfigStorage::default(),
