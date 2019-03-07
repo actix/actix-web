@@ -245,7 +245,7 @@ impl<P: 'static> Route<P> {
     /// ```rust
     /// # use std::collections::HashMap;
     /// # use serde_derive::Deserialize;
-    /// use actix_web::{web, App, Json, extract::Path, extract::Query};
+    /// use actix_web::{web, App};
     ///
     /// #[derive(Deserialize)]
     /// struct Info {
@@ -253,7 +253,7 @@ impl<P: 'static> Route<P> {
     /// }
     ///
     /// /// extract path info using serde
-    /// fn index(path: Path<Info>, query: Query<HashMap<String, String>>, body: Json<Info>) -> String {
+    /// fn index(path: web::Path<Info>, query: web::Query<HashMap<String, String>>, body: web::Json<Info>) -> String {
     ///     format!("Welcome {}!", path.username)
     /// }
     ///

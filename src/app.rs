@@ -75,13 +75,13 @@ where
     ///
     /// ```rust
     /// use std::cell::Cell;
-    /// use actix_web::{web, State, App};
+    /// use actix_web::{web, App};
     ///
     /// struct MyState {
     ///     counter: Cell<usize>,
     /// }
     ///
-    /// fn index(state: State<MyState>) {
+    /// fn index(state: web::State<MyState>) {
     ///     state.counter.set(state.counter.get() + 1);
     /// }
     ///
@@ -785,7 +785,7 @@ mod tests {
     use super::*;
     use crate::http::{Method, StatusCode};
     use crate::test::{block_on, init_service, TestRequest};
-    use crate::{web, HttpResponse, State};
+    use crate::{web, HttpResponse};
 
     #[test]
     fn test_default_resource() {
@@ -828,21 +828,19 @@ mod tests {
 
     #[test]
     fn test_state() {
-        let mut srv = init_service(
-            App::new()
-                .state(10usize)
-                .service(web::resource("/").to(|_: State<usize>| HttpResponse::Ok())),
-        );
+        let mut srv =
+            init_service(App::new().state(10usize).service(
+                web::resource("/").to(|_: web::State<usize>| HttpResponse::Ok()),
+            ));
 
         let req = TestRequest::default().to_request();
         let resp = block_on(srv.call(req)).unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
 
-        let mut srv = init_service(
-            App::new()
-                .state(10u32)
-                .service(web::resource("/").to(|_: State<usize>| HttpResponse::Ok())),
-        );
+        let mut srv =
+            init_service(App::new().state(10u32).service(
+                web::resource("/").to(|_: web::State<usize>| HttpResponse::Ok()),
+            ));
         let req = TestRequest::default().to_request();
         let resp = block_on(srv.call(req)).unwrap();
         assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
@@ -850,20 +848,18 @@ mod tests {
 
     #[test]
     fn test_state_factory() {
-        let mut srv = init_service(
-            App::new()
-                .state_factory(|| Ok::<_, ()>(10usize))
-                .service(web::resource("/").to(|_: State<usize>| HttpResponse::Ok())),
-        );
+        let mut srv =
+            init_service(App::new().state_factory(|| Ok::<_, ()>(10usize)).service(
+                web::resource("/").to(|_: web::State<usize>| HttpResponse::Ok()),
+            ));
         let req = TestRequest::default().to_request();
         let resp = block_on(srv.call(req)).unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
 
-        let mut srv = init_service(
-            App::new()
-                .state_factory(|| Ok::<_, ()>(10u32))
-                .service(web::resource("/").to(|_: State<usize>| HttpResponse::Ok())),
-        );
+        let mut srv =
+            init_service(App::new().state_factory(|| Ok::<_, ()>(10u32)).service(
+                web::resource("/").to(|_: web::State<usize>| HttpResponse::Ok()),
+            ));
         let req = TestRequest::default().to_request();
         let resp = block_on(srv.call(req)).unwrap();
         assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);

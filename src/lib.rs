@@ -41,7 +41,7 @@ pub use actix_http::Response as HttpResponse;
 pub use actix_http::{body, error, http, Error, HttpMessage, ResponseError, Result};
 
 pub use crate::app::App;
-pub use crate::extract::{FromRequest, Json};
+pub use crate::extract::FromRequest;
 pub use crate::request::HttpRequest;
 pub use crate::resource::Resource;
 pub use crate::responder::{Either, Responder};
@@ -49,7 +49,6 @@ pub use crate::route::Route;
 pub use crate::scope::Scope;
 pub use crate::server::HttpServer;
 pub use crate::service::{ServiceFromRequest, ServiceRequest, ServiceResponse};
-pub use crate::state::State;
 
 pub mod dev {
     //! The `actix-web` prelude for library developers
@@ -92,6 +91,9 @@ pub mod web {
     use crate::responder::Responder;
     use crate::route::Route;
     use crate::scope::Scope;
+
+    pub use crate::extract::{Json, Path, Query};
+    pub use crate::state::State;
 
     /// Create resource for a specific path.
     ///

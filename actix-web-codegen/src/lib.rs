@@ -35,7 +35,8 @@ pub fn get(args: TokenStream, input: TokenStream) -> TokenStream {
                 #ast
                 actix_web::dev::HttpServiceFactory::register(
                     actix_web::Resource::new(#path)
-                        .route(actix_web::web::get().to(#name)), config);
+                        .guard(actix_web::guard::Get())
+                        .to(#name), config);
             }
         }
     })
@@ -71,7 +72,8 @@ pub fn post(args: TokenStream, input: TokenStream) -> TokenStream {
                 #ast
                 actix_web::dev::HttpServiceFactory::register(
                     actix_web::Resource::new(#path)
-                        .route(actix_web::web::post().to(#name)), config);
+                        .guard(actix_web::guard::Post())
+                        .to(#name), config);
             }
         }
     })
@@ -107,7 +109,8 @@ pub fn put(args: TokenStream, input: TokenStream) -> TokenStream {
                 #ast
                 actix_web::dev::HttpServiceFactory::register(
                     actix_web::Resource::new(#path)
-                        .route(actix_web::web::put().to(#name)), config);
+                        .guard(actix_web::guard::Put())
+                        .to(#name), config);
             }
         }
     })

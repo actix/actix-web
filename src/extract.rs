@@ -554,8 +554,8 @@ impl Default for FormConfig {
 ///     name: String,
 /// }
 ///
-/// fn index(req: HttpRequest) -> Result<Json<MyObj>> {
-///     Ok(Json(MyObj {
+/// fn index(req: HttpRequest) -> Result<web::Json<MyObj>> {
+///     Ok(web::Json(MyObj {
 ///         name: req.match_info().get("name").unwrap().to_string(),
 ///     }))
 /// }
@@ -679,7 +679,7 @@ where
 ///
 /// ```rust
 /// #[macro_use] extern crate serde_derive;
-/// use actix_web::{error, extract, web, App, HttpResponse, Json};
+/// use actix_web::{error, extract, web, App, HttpResponse};
 ///
 /// #[derive(Deserialize)]
 /// struct Info {
@@ -687,7 +687,7 @@ where
 /// }
 ///
 /// /// deserialize `Info` from request's body, max payload size is 4kb
-/// fn index(info: Json<Info>) -> String {
+/// fn index(info: web::Json<Info>) -> String {
 ///     format!("Welcome {}!", info.username)
 /// }
 ///

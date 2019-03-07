@@ -3,10 +3,10 @@ use futures::IntoFuture;
 use actix_web::macros::get;
 use actix_web::{middleware, web, App, Error, HttpRequest, HttpResponse, HttpServer};
 
-#[get("/resource1/index.html")]
-fn index(req: HttpRequest) -> &'static str {
+#[get("/resource1/{name}/index.html")]
+fn index(req: HttpRequest, name: web::Path<String>) -> String {
     println!("REQ: {:?}", req);
-    "Hello world!\r\n"
+    format!("Hello: {}!\r\n", name)
 }
 
 fn index_async(req: HttpRequest) -> impl IntoFuture<Item = &'static str, Error = Error> {
@@ -20,14 +20,14 @@ fn no_params() -> &'static str {
 }
 
 fn main() -> std::io::Result<()> {
-    ::std::env::set_var("RUST_LOG", "actix_server=info,actix_web2=info");
+    std::env::set_var("RUST_LOG", "actix_server=info,actix_web=info");
     env_logger::init();
-    let sys = actix_rt::System::new("hello-world");
 
     HttpServer::new(|| {
         App::new()
             .middleware(middleware::DefaultHeaders::new().header("X-Version", "0.2"))
             .middleware(middleware::Compress::default())
+            .middleware(middleware::Logger::default())
             .service(index)
             .service(no_params)
             .service(
@@ -44,7 +44,5 @@ fn main() -> std::io::Result<()> {
     })
     .bind("127.0.0.1:8080")?
     .workers(1)
-    .start();
-
-    sys.run()
+    .run()
 }
