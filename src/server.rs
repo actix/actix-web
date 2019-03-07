@@ -2,7 +2,9 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 use std::{fmt, io, net};
 
-use actix_http::{body::MessageBody, h1, KeepAlive, Request, Response, ServiceConfig};
+use actix_http::{
+    body::MessageBody, HttpService, KeepAlive, Request, Response, ServiceConfig,
+};
 use actix_rt::System;
 use actix_server::{Server, ServerBuilder};
 use actix_service::{IntoNewService, NewService};
@@ -72,10 +74,10 @@ where
     F: Fn() -> I + Send + Clone + 'static,
     I: IntoNewService<S, Request>,
     S: NewService<Request>,
-    S::Error: fmt::Debug,
+    S::Error: fmt::Debug + 'static,
     S::Response: Into<Response<B>>,
     S::Service: 'static,
-    B: MessageBody,
+    B: MessageBody + 'static,
 {
     /// Create new http server with application factory
     pub fn new(factory: F) -> Self {
@@ -244,7 +246,7 @@ where
                 let c = cfg.lock();
                 let service_config =
                     ServiceConfig::new(c.keep_alive, c.client_timeout, 0);
-                h1::H1Service::with_config(service_config, factory())
+                HttpService::with_config(service_config, factory())
             },
         ));
 
@@ -298,7 +300,7 @@ where
                 let service_config =
                     ServiceConfig::new(c.keep_alive, c.client_timeout, c.client_timeout);
                 acceptor.clone().map_err(|e| SslError::Ssl(e)).and_then(
-                    h1::H1Service::with_config(service_config, factory())
+                    HttpService::with_config(service_config, factory())
                         .map_err(|e| SslError::Service(e))
                         .map_init_err(|_| ()),
                 )
