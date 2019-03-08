@@ -41,6 +41,7 @@ thread_local! {
     };
 }
 
+/// Blocking operation execution error
 #[derive(Debug, Display)]
 pub enum BlockingError<E: fmt::Debug> {
     #[display(fmt = "{:?}", _0)]
@@ -62,13 +63,17 @@ where
     let (tx, rx) = oneshot::channel();
     POOL.with(|pool| {
         pool.execute(move || {
-            let _ = tx.send(f());
+            if !tx.is_canceled() {
+                let _ = tx.send(f());
+            }
         })
     });
 
     CpuFuture { rx }
 }
 
+/// Blocking operation completion future. It resolves with results
+/// of blocking function execution.
 pub struct CpuFuture<I, E> {
     rx: oneshot::Receiver<Result<I, E>>,
 }
