@@ -31,6 +31,7 @@ where
     chain: T,
     extensions: Extensions,
     state: Vec<Box<StateFactory>>,
+    host: String,
     _t: PhantomData<(P,)>,
 }
 
@@ -42,6 +43,7 @@ impl App<PayloadStream, AppChain> {
             chain: AppChain,
             extensions: Extensions::new(),
             state: Vec::new(),
+            host: "localhost:8080".to_string(),
             _t: PhantomData,
         }
     }
@@ -140,6 +142,7 @@ where
             default: None,
             factory_ref: fref,
             extensions: self.extensions,
+            host: self.host,
             _t: PhantomData,
         }
     }
@@ -172,6 +175,7 @@ where
             chain,
             state: self.state,
             extensions: self.extensions,
+            host: self.host,
             _t: PhantomData,
         }
     }
@@ -221,6 +225,7 @@ where
             factory_ref: fref,
             extensions: self.extensions,
             state: self.state,
+            host: self.host,
             services: vec![Box::new(ServiceFactoryWrapper::new(service))],
             _t: PhantomData,
         }
@@ -233,8 +238,8 @@ where
     /// html#method.host) documentation for more information.
     ///
     /// By default host name is set to a "localhost" value.
-    pub fn hostname(self, _val: &str) -> Self {
-        // self.host = val.to_owned();
+    pub fn hostname(mut self, val: &str) -> Self {
+        self.host = val.to_owned();
         self
     }
 }
@@ -249,6 +254,7 @@ pub struct AppRouter<C, P, B, T> {
     factory_ref: Rc<RefCell<Option<AppRoutingFactory<P>>>>,
     extensions: Extensions,
     state: Vec<Box<StateFactory>>,
+    host: String,
     _t: PhantomData<(P, B)>,
 }
 
@@ -343,6 +349,7 @@ where
             default: self.default,
             factory_ref: self.factory_ref,
             extensions: self.extensions,
+            host: self.host,
             _t: PhantomData,
         }
     }

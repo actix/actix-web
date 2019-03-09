@@ -2,9 +2,7 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 use std::{fmt, io, net};
 
-use actix_http::{
-    body::MessageBody, HttpService, KeepAlive, Request, Response, ServiceConfig,
-};
+use actix_http::{body::MessageBody, HttpService, KeepAlive, Request, Response};
 use actix_rt::System;
 use actix_server::{Server, ServerBuilder};
 use actix_server_config::ServerConfig;
@@ -13,8 +11,8 @@ use parking_lot::Mutex;
 
 use net2::TcpBuilder;
 
-#[cfg(feature = "tls")]
-use native_tls::TlsAcceptor;
+// #[cfg(feature = "tls")]
+// use native_tls::TlsAcceptor;
 
 #[cfg(feature = "ssl")]
 use openssl::ssl::{SslAcceptor, SslAcceptorBuilder};
@@ -245,27 +243,28 @@ where
             lst,
             move || {
                 let c = cfg.lock();
-                let service_config =
-                    ServiceConfig::new(c.keep_alive, c.client_timeout, 0);
-                HttpService::with_config(service_config, factory())
+                HttpService::build()
+                    .keep_alive(c.keep_alive)
+                    .client_timeout(c.client_timeout)
+                    .finish(factory())
             },
         )?);
 
         Ok(self)
     }
 
-    #[cfg(feature = "tls")]
-    /// Use listener for accepting incoming tls connection requests
-    ///
-    /// HttpServer does not change any configuration for TcpListener,
-    /// it needs to be configured before passing it to listen() method.
-    pub fn listen_tls(self, lst: net::TcpListener, acceptor: TlsAcceptor) -> Self {
-        use actix_net::service::NewServiceExt;
+    // #[cfg(feature = "tls")]
+    // /// Use listener for accepting incoming tls connection requests
+    // ///
+    // /// HttpServer does not change any configuration for TcpListener,
+    // /// it needs to be configured before passing it to listen() method.
+    // pub fn listen_nativetls(self, lst: net::TcpListener, acceptor: TlsAcceptor) -> Self {
+    //     use actix_server::ssl;
 
-        self.listen_with(lst, move || {
-            ssl::NativeTlsAcceptor::new(acceptor.clone()).map_err(|_| ())
-        })
-    }
+    //     self.listen_with(lst, move || {
+    //         ssl::NativeTlsAcceptor::new(acceptor.clone()).map_err(|_| ())
+    //     })
+    // }
 
     #[cfg(feature = "ssl")]
     /// Use listener for accepting incoming tls connection requests
@@ -276,12 +275,16 @@ where
         lst: net::TcpListener,
         builder: SslAcceptorBuilder,
     ) -> io::Result<Self> {
-        self.listen_ssl_inner(lst, openssl_acceptor(builder)?);
+        self.listen_ssl_inner(lst, openssl_acceptor(builder)?)?;
         Ok(self)
     }
 
     #[cfg(feature = "ssl")]
-    fn listen_ssl_inner(&mut self, lst: net::TcpListener, acceptor: SslAcceptor) {
+    fn listen_ssl_inner(
+        &mut self,
+        lst: net::TcpListener,
+        acceptor: SslAcceptor,
+    ) -> io::Result<()> {
         use actix_server::ssl::{OpensslAcceptor, SslError};
 
         let acceptor = OpensslAcceptor::new(acceptor);
@@ -298,15 +301,18 @@ where
             lst,
             move || {
                 let c = cfg.lock();
-                let service_config =
-                    ServiceConfig::new(c.keep_alive, c.client_timeout, c.client_timeout);
                 acceptor.clone().map_err(|e| SslError::Ssl(e)).and_then(
-                    HttpService::with_config(service_config, factory())
+                    HttpService::build()
+                        .keep_alive(c.keep_alive)
+                        .client_timeout(c.client_timeout)
+                        .client_disconnect(c.client_shutdown)
+                        .finish(factory())
                         .map_err(|e| SslError::Service(e))
                         .map_init_err(|_| ()),
                 )
             },
-        ));
+        )?);
+        Ok(())
     }
 
     #[cfg(feature = "rust-tls")]
@@ -315,7 +321,6 @@ where
     /// This method sets alpn protocols to "h2" and "http/1.1"
     pub fn listen_rustls(self, lst: net::TcpListener, config: ServerConfig) -> Self {
         use super::{RustlsAcceptor, ServerFlags};
-        use actix_net::service::NewServiceExt;
 
         self.listen_with(lst, move || {
             RustlsAcceptor::with_flags(config.clone(), flags).map_err(|_| ())
@@ -366,22 +371,21 @@ where
         }
     }
 
-    #[cfg(feature = "tls")]
-    /// The ssl socket address to bind
-    ///
-    /// To bind multiple addresses this method can be called multiple times.
-    pub fn bind_tls<A: net::ToSocketAddrs>(
-        self,
-        addr: A,
-        acceptor: TlsAcceptor,
-    ) -> io::Result<Self> {
-        use actix_net::service::NewServiceExt;
-        use actix_net::ssl::NativeTlsAcceptor;
+    // #[cfg(feature = "tls")]
+    // /// The ssl socket address to bind
+    // ///
+    // /// To bind multiple addresses this method can be called multiple times.
+    // pub fn bind_nativetls<A: net::ToSocketAddrs>(
+    //     self,
+    //     addr: A,
+    //     acceptor: TlsAcceptor,
+    // ) -> io::Result<Self> {
+    //     use actix_server::ssl::NativeTlsAcceptor;
 
-        self.bind_with(addr, move || {
-            NativeTlsAcceptor::new(acceptor.clone()).map_err(|_| ())
-        })
-    }
+    //     self.bind_with(addr, move || {
+    //         NativeTlsAcceptor::new(acceptor.clone()).map_err(|_| ())
+    //     })
+    // }
 
     #[cfg(feature = "ssl")]
     /// Start listening for incoming tls connections.
@@ -399,7 +403,7 @@ where
         let acceptor = openssl_acceptor(builder)?;
 
         for lst in sockets {
-            self.listen_ssl_inner(lst, acceptor.clone());
+            self.listen_ssl_inner(lst, acceptor.clone())?;
         }
 
         Ok(self)
@@ -415,14 +419,7 @@ where
         builder: ServerConfig,
     ) -> io::Result<Self> {
         use super::{RustlsAcceptor, ServerFlags};
-        use actix_net::service::NewServiceExt;
-
-        // alpn support
-        let flags = if self.no_http2 {
-            ServerFlags::HTTP1
-        } else {
-            ServerFlags::HTTP1 | ServerFlags::HTTP2
-        };
+        use actix_service::NewServiceExt;
 
         self.bind_with(addr, move || {
             RustlsAcceptor::with_flags(builder.clone(), flags).map_err(|_| ())
