@@ -288,7 +288,7 @@ where
         } else {
             ResourceDef::new(&self.rdef)
         };
-        config.register_service(rdef, guards, self)
+        config.register_service(rdef, guards, self, None)
     }
 }
 

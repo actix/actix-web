@@ -13,6 +13,7 @@ use futures::{Async, Poll};
 use crate::dev::{AppConfig, HttpServiceFactory};
 use crate::guard::Guard;
 use crate::resource::Resource;
+use crate::rmap::ResourceMap;
 use crate::route::Route;
 use crate::service::{
     ServiceFactory, ServiceFactoryWrapper, ServiceRequest, ServiceResponse,
@@ -237,35 +238,46 @@ where
         > + 'static,
 {
     fn register(self, config: &mut AppConfig<P>) {
+        // update default resource if needed
         if self.default.borrow().is_none() {
             *self.default.borrow_mut() = Some(config.default_service());
         }
 
-        // register services
+        // register nested services
         let mut cfg = config.clone_config();
         self.services
             .into_iter()
             .for_each(|mut srv| srv.register(&mut cfg));
 
+        let mut rmap = ResourceMap::new(ResourceDef::root_prefix(&self.rdef));
+
+        // complete scope pipeline creation
         *self.factory_ref.borrow_mut() = Some(ScopeFactory {
             default: self.default.clone(),
             services: Rc::new(
                 cfg.into_services()
                     .into_iter()
-                    .map(|(rdef, srv, guards)| (rdef, srv, RefCell::new(guards)))
+                    .map(|(mut rdef, srv, guards, nested)| {
+                        rmap.add(&mut rdef, nested);
+                        (rdef, srv, RefCell::new(guards))
+                    })
                     .collect(),
             ),
         });
 
+        // get guards
         let guards = if self.guards.is_empty() {
             None
         } else {
             Some(self.guards)
         };
+
+        // register final service
         config.register_service(
             ResourceDef::root_prefix(&self.rdef),
             guards,
             self.endpoint,
+            Some(Rc::new(rmap)),
         )
     }
 }
@@ -367,8 +379,7 @@ impl<P> Future for ScopeFactoryResponse<P> {
                 .fold(Router::build(), |mut router, item| {
                     match item {
                         CreateScopeServiceItem::Service(path, guards, service) => {
-                            router.rdef(path, service);
-                            router.set_user_data(guards);
+                            router.rdef(path, service).2 = guards;
                         }
                         CreateScopeServiceItem::Future(_, _, _) => unreachable!(),
                     }

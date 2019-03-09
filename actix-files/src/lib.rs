@@ -1090,4 +1090,35 @@ mod tests {
     //         assert_eq!(response.status(), StatusCode::OK);
     //     }
 
+    #[test]
+    fn test_path_buf() {
+        assert_eq!(
+            PathBuf::from_param("/test/.tt"),
+            Err(UriSegmentError::BadStart('.'))
+        );
+        assert_eq!(
+            PathBuf::from_param("/test/*tt"),
+            Err(UriSegmentError::BadStart('*'))
+        );
+        assert_eq!(
+            PathBuf::from_param("/test/tt:"),
+            Err(UriSegmentError::BadEnd(':'))
+        );
+        assert_eq!(
+            PathBuf::from_param("/test/tt<"),
+            Err(UriSegmentError::BadEnd('<'))
+        );
+        assert_eq!(
+            PathBuf::from_param("/test/tt>"),
+            Err(UriSegmentError::BadEnd('>'))
+        );
+        assert_eq!(
+            PathBuf::from_param("/seg1/seg2/"),
+            Ok(PathBuf::from_iter(vec!["seg1", "seg2"]))
+        );
+        assert_eq!(
+            PathBuf::from_param("/seg1/../seg2/"),
+            Ok(PathBuf::from_iter(vec!["seg2"]))
+        );
+    }
 }

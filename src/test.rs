@@ -6,13 +6,14 @@ use actix_http::http::header::{Header, HeaderName, IntoHeaderValue};
 use actix_http::http::{HttpTryFrom, Method, Version};
 use actix_http::test::TestRequest as HttpTestRequest;
 use actix_http::{Extensions, PayloadStream, Request};
-use actix_router::{Path, Url};
+use actix_router::{Path, ResourceDef, Url};
 use actix_rt::Runtime;
 use actix_service::{IntoNewService, NewService, Service};
 use bytes::Bytes;
 use futures::Future;
 
 use crate::request::HttpRequest;
+use crate::rmap::ResourceMap;
 use crate::service::{ServiceFromRequest, ServiceRequest, ServiceResponse};
 
 thread_local! {
@@ -135,6 +136,7 @@ where
 pub struct TestRequest {
     req: HttpTestRequest,
     extensions: Extensions,
+    rmap: ResourceMap,
 }
 
 impl Default for TestRequest {
@@ -142,6 +144,7 @@ impl Default for TestRequest {
         TestRequest {
             req: HttpTestRequest::default(),
             extensions: Extensions::new(),
+            rmap: ResourceMap::new(ResourceDef::new("")),
         }
     }
 }
@@ -152,6 +155,7 @@ impl TestRequest {
         TestRequest {
             req: HttpTestRequest::default().uri(path).take(),
             extensions: Extensions::new(),
+            rmap: ResourceMap::new(ResourceDef::new("")),
         }
     }
 
@@ -160,6 +164,7 @@ impl TestRequest {
         TestRequest {
             req: HttpTestRequest::default().set(hdr).take(),
             extensions: Extensions::new(),
+            rmap: ResourceMap::new(ResourceDef::new("")),
         }
     }
 
@@ -172,6 +177,7 @@ impl TestRequest {
         TestRequest {
             req: HttpTestRequest::default().header(key, value).take(),
             extensions: Extensions::new(),
+            rmap: ResourceMap::new(ResourceDef::new("")),
         }
     }
 
@@ -180,6 +186,7 @@ impl TestRequest {
         TestRequest {
             req: HttpTestRequest::default().method(Method::GET).take(),
             extensions: Extensions::new(),
+            rmap: ResourceMap::new(ResourceDef::new("")),
         }
     }
 
@@ -188,6 +195,7 @@ impl TestRequest {
         TestRequest {
             req: HttpTestRequest::default().method(Method::POST).take(),
             extensions: Extensions::new(),
+            rmap: ResourceMap::new(ResourceDef::new("")),
         }
     }
 
@@ -244,6 +252,7 @@ impl TestRequest {
         ServiceRequest::new(
             Path::new(Url::new(req.uri().clone())),
             req,
+            Rc::new(self.rmap),
             Rc::new(self.extensions),
         )
     }
@@ -260,6 +269,7 @@ impl TestRequest {
         ServiceRequest::new(
             Path::new(Url::new(req.uri().clone())),
             req,
+            Rc::new(self.rmap),
             Rc::new(self.extensions),
         )
         .into_request()
@@ -272,6 +282,7 @@ impl TestRequest {
         let req = ServiceRequest::new(
             Path::new(Url::new(req.uri().clone())),
             req,
+            Rc::new(self.rmap),
             Rc::new(self.extensions),
         );
         ServiceFromRequest::new(req, None)

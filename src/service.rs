@@ -15,6 +15,7 @@ use futures::future::{ok, FutureResult, IntoFuture};
 
 use crate::config::AppConfig;
 use crate::request::HttpRequest;
+use crate::rmap::ResourceMap;
 
 pub trait HttpServiceFactory<P> {
     fn register(self, config: &mut AppConfig<P>);
@@ -58,12 +59,13 @@ impl<P> ServiceRequest<P> {
     pub(crate) fn new(
         path: Path<Url>,
         request: Request<P>,
+        rmap: Rc<ResourceMap>,
         extensions: Rc<Extensions>,
     ) -> Self {
         let (head, payload) = request.into_parts();
         ServiceRequest {
             payload,
-            req: HttpRequest::new(head, path, extensions),
+            req: HttpRequest::new(head, path, rmap, extensions),
         }
     }
 

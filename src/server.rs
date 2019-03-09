@@ -230,7 +230,7 @@ where
     ///
     /// HttpServer does not change any configuration for TcpListener,
     /// it needs to be configured before passing it to listen() method.
-    pub fn listen(mut self, lst: net::TcpListener) -> Self {
+    pub fn listen(mut self, lst: net::TcpListener) -> io::Result<Self> {
         let cfg = self.config.clone();
         let factory = self.factory.clone();
         let addr = lst.local_addr().unwrap();
@@ -248,9 +248,9 @@ where
                     ServiceConfig::new(c.keep_alive, c.client_timeout, 0);
                 HttpService::with_config(service_config, factory())
             },
-        ));
+        )?);
 
-        self
+        Ok(self)
     }
 
     #[cfg(feature = "tls")]
@@ -328,7 +328,7 @@ where
         let sockets = self.bind2(addr)?;
 
         for lst in sockets {
-            self = self.listen(lst);
+            self = self.listen(lst)?;
         }
 
         Ok(self)

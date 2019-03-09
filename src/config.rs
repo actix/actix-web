@@ -5,6 +5,7 @@ use actix_router::ResourceDef;
 use actix_service::{boxed, IntoNewService, NewService};
 
 use crate::guard::Guard;
+use crate::rmap::ResourceMap;
 use crate::service::{ServiceRequest, ServiceResponse};
 
 type Guards = Vec<Box<Guard>>;
@@ -18,7 +19,12 @@ pub struct AppConfig<P> {
     host: String,
     root: bool,
     default: Rc<HttpNewService<P>>,
-    services: Vec<(ResourceDef, HttpNewService<P>, Option<Guards>)>,
+    services: Vec<(
+        ResourceDef,
+        HttpNewService<P>,
+        Option<Guards>,
+        Option<Rc<ResourceMap>>,
+    )>,
 }
 
 impl<P: 'static> AppConfig<P> {
@@ -46,7 +52,12 @@ impl<P: 'static> AppConfig<P> {
 
     pub(crate) fn into_services(
         self,
-    ) -> Vec<(ResourceDef, HttpNewService<P>, Option<Guards>)> {
+    ) -> Vec<(
+        ResourceDef,
+        HttpNewService<P>,
+        Option<Guards>,
+        Option<Rc<ResourceMap>>,
+    )> {
         self.services
     }
 
@@ -85,6 +96,7 @@ impl<P: 'static> AppConfig<P> {
         rdef: ResourceDef,
         guards: Option<Vec<Box<Guard>>>,
         service: F,
+        nested: Option<Rc<ResourceMap>>,
     ) where
         F: IntoNewService<S, ServiceRequest<P>>,
         S: NewService<
@@ -98,6 +110,7 @@ impl<P: 'static> AppConfig<P> {
             rdef,
             boxed::new_service(service.into_new_service()),
             guards,
+            nested,
         ));
     }
 }

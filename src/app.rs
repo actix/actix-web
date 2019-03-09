@@ -16,6 +16,7 @@ use futures::{Async, Future, IntoFuture, Poll};
 use crate::config::AppConfig;
 use crate::guard::Guard;
 use crate::resource::Resource;
+use crate::rmap::ResourceMap;
 use crate::route::Route;
 use crate::service::{
     HttpServiceFactory, ServiceFactory, ServiceFactoryWrapper, ServiceRequest,
@@ -449,19 +450,29 @@ where
             .into_iter()
             .for_each(|mut srv| srv.register(&mut config));
 
-        // set factory
+        let mut rmap = ResourceMap::new(ResourceDef::new(""));
+
+        // complete pipeline creation
         *self.factory_ref.borrow_mut() = Some(AppRoutingFactory {
             default,
             services: Rc::new(
                 config
                     .into_services()
                     .into_iter()
-                    .map(|(rdef, srv, guards)| (rdef, srv, RefCell::new(guards)))
+                    .map(|(mut rdef, srv, guards, nested)| {
+                        rmap.add(&mut rdef, nested);
+                        (rdef, srv, RefCell::new(guards))
+                    })
                     .collect(),
             ),
         });
 
+        // complete ResourceMap tree creation
+        let rmap = Rc::new(rmap);
+        rmap.finish(rmap.clone());
+
         AppInit {
+            rmap,
             chain: self.chain,
             state: self.state,
             extensions: Rc::new(RefCell::new(Rc::new(self.extensions))),
@@ -561,8 +572,7 @@ impl<P> Future for AppRoutingFactoryResponse<P> {
                 .fold(Router::build(), |mut router, item| {
                     match item {
                         CreateAppRoutingItem::Service(path, guards, service) => {
-                            router.rdef(path, service);
-                            router.set_user_data(guards);
+                            router.rdef(path, service).2 = guards;
                         }
                         CreateAppRoutingItem::Future(_, _, _) => unreachable!(),
                     }
@@ -683,6 +693,7 @@ where
     C: NewService<ServiceRequest, Response = ServiceRequest<P>>,
 {
     chain: C,
+    rmap: Rc<ResourceMap>,
     state: Vec<Box<StateFactory>>,
     extensions: Rc<RefCell<Rc<Extensions>>>,
 }
@@ -702,6 +713,7 @@ where
             chain: self.chain.new_service(&()),
             state: self.state.iter().map(|s| s.construct()).collect(),
             extensions: self.extensions.clone(),
+            rmap: self.rmap.clone(),
         }
     }
 }
@@ -712,6 +724,7 @@ where
     C: NewService<ServiceRequest, Response = ServiceRequest<P>, InitError = ()>,
 {
     chain: C::Future,
+    rmap: Rc<ResourceMap>,
     state: Vec<Box<StateFactoryResult>>,
     extensions: Rc<RefCell<Rc<Extensions>>>,
 }
@@ -744,6 +757,7 @@ where
 
         Ok(Async::Ready(AppInitService {
             chain,
+            rmap: self.rmap.clone(),
             extensions: self.extensions.borrow().clone(),
         }))
     }
@@ -755,6 +769,7 @@ where
     C: Service<ServiceRequest, Response = ServiceRequest<P>>,
 {
     chain: C,
+    rmap: Rc<ResourceMap>,
     extensions: Rc<Extensions>,
 }
 
@@ -774,6 +789,7 @@ where
         let req = ServiceRequest::new(
             Path::new(Url::new(req.uri().clone())),
             req,
+            self.rmap.clone(),
             self.extensions.clone(),
         );
         self.chain.call(req)

@@ -6,11 +6,13 @@ mod handler;
 // mod info;
 pub mod blocking;
 mod config;
+pub mod error;
 pub mod guard;
 pub mod middleware;
 mod request;
 mod resource;
 mod responder;
+mod rmap;
 mod route;
 mod scope;
 mod server;
@@ -27,7 +29,7 @@ pub use actix_web_codegen::*;
 
 // re-export for convenience
 pub use actix_http::Response as HttpResponse;
-pub use actix_http::{error, http, Error, HttpMessage, ResponseError, Result};
+pub use actix_http::{http, Error, HttpMessage, ResponseError, Result};
 
 pub use crate::app::App;
 pub use crate::extract::FromRequest;

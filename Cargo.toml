@@ -72,11 +72,13 @@ actix-utils = { git = "https://github.com/actix/actix-net.git" }
 actix-http = { git = "https://github.com/actix/actix-http.git" }
 actix-router = { git = "https://github.com/actix/actix-net.git" }
 actix-server = { git = "https://github.com/actix/actix-net.git" }
+#actix-router = { path="../actix-net/router" }
 
 bytes = "0.4"
 derive_more = "0.14"
 encoding = "0.2"
 futures = "0.1"
+hashbrown = "0.1.8"
 log = "0.4"
 lazy_static = "1.2"
 mime = "0.3"
@@ -89,6 +91,7 @@ serde_json = "1.0"
 serde_urlencoded = "^0.5.3"
 threadpool = "1.7"
 time = "0.1"
+url = { version="1.7", features=["query_encoding"] }
 
 # middlewares
 # actix-session = { path="session", optional = true }

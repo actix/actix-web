@@ -7,7 +7,9 @@ use actix_http::http::{HeaderMap, Method, Uri, Version};
 use actix_http::{Error, Extensions, HttpMessage, Message, Payload, RequestHead};
 use actix_router::{Path, Url};
 
+use crate::error::UrlGenerationError;
 use crate::extract::FromRequest;
+use crate::rmap::ResourceMap;
 use crate::service::ServiceFromRequest;
 
 #[derive(Clone)]
@@ -15,6 +17,7 @@ use crate::service::ServiceFromRequest;
 pub struct HttpRequest {
     pub(crate) head: Message<RequestHead>,
     pub(crate) path: Path<Url>,
+    rmap: Rc<ResourceMap>,
     extensions: Rc<Extensions>,
 }
 
@@ -23,11 +26,13 @@ impl HttpRequest {
     pub(crate) fn new(
         head: Message<RequestHead>,
         path: Path<Url>,
+        rmap: Rc<ResourceMap>,
         extensions: Rc<Extensions>,
     ) -> HttpRequest {
         HttpRequest {
             head,
             path,
+            rmap,
             extensions,
         }
     }
@@ -91,6 +96,47 @@ impl HttpRequest {
     #[inline]
     pub fn app_extensions(&self) -> &Extensions {
         &self.extensions
+    }
+
+    /// Generate url for named resource
+    ///
+    /// ```rust
+    /// # extern crate actix_web;
+    /// # use actix_web::{App, HttpRequest, HttpResponse, http};
+    /// #
+    /// fn index(req: HttpRequest) -> HttpResponse {
+    ///     let url = req.url_for("foo", &["1", "2", "3"]); // <- generate url for "foo" resource
+    ///     HttpResponse::Ok().into()
+    /// }
+    ///
+    /// fn main() {
+    ///     let app = App::new()
+    ///         .resource("/test/{one}/{two}/{three}", |r| {
+    ///              r.name("foo");  // <- set resource name, then it could be used in `url_for`
+    ///              r.method(http::Method::GET).f(|_| HttpResponse::Ok());
+    ///         })
+    ///         .finish();
+    /// }
+    /// ```
+    pub fn url_for<U, I>(
+        &self,
+        name: &str,
+        elements: U,
+    ) -> Result<url::Url, UrlGenerationError>
+    where
+        U: IntoIterator<Item = I>,
+        I: AsRef<str>,
+    {
+        self.rmap.url_for(&self, name, elements)
+    }
+
+    /// Generate url for named resource
+    ///
+    /// This method is similar to `HttpRequest::url_for()` but it can be used
+    /// for urls that do not contain variable parts.
+    pub fn url_for_static(&self, name: &str) -> Result<url::Url, UrlGenerationError> {
+        const NO_PARAMS: [&str; 0] = [];
+        self.url_for(name, &NO_PARAMS)
     }
 
     // /// Get *ConnectionInfo* for the correct request.
