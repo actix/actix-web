@@ -52,7 +52,7 @@ impl<T: 'static, P> FromRequest<P> for State<T> {
 
     #[inline]
     fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
-        if let Some(st) = req.app_extensions().get::<State<T>>() {
+        if let Some(st) = req.config().extensions().get::<State<T>>() {
             Ok(st.clone())
         } else {
             Err(ErrorInternalServerError(

@@ -13,16 +13,16 @@ use actix_http::{
 use actix_router::{Path, Resource, Url};
 use futures::future::{ok, FutureResult, IntoFuture};
 
-use crate::config::AppConfig;
+use crate::config::{AppConfig, ServiceConfig};
 use crate::request::HttpRequest;
 use crate::rmap::ResourceMap;
 
 pub trait HttpServiceFactory<P> {
-    fn register(self, config: &mut AppConfig<P>);
+    fn register(self, config: &mut ServiceConfig<P>);
 }
 
 pub(crate) trait ServiceFactory<P> {
-    fn register(&mut self, config: &mut AppConfig<P>);
+    fn register(&mut self, config: &mut ServiceConfig<P>);
 }
 
 pub(crate) struct ServiceFactoryWrapper<T, P> {
@@ -43,7 +43,7 @@ impl<T, P> ServiceFactory<P> for ServiceFactoryWrapper<T, P>
 where
     T: HttpServiceFactory<P>,
 {
-    fn register(&mut self, config: &mut AppConfig<P>) {
+    fn register(&mut self, config: &mut ServiceConfig<P>) {
         if let Some(item) = self.factory.take() {
             item.register(config)
         }
@@ -60,12 +60,12 @@ impl<P> ServiceRequest<P> {
         path: Path<Url>,
         request: Request<P>,
         rmap: Rc<ResourceMap>,
-        extensions: Rc<Extensions>,
+        config: AppConfig,
     ) -> Self {
         let (head, payload) = request.into_parts();
         ServiceRequest {
             payload,
-            req: HttpRequest::new(head, path, rmap, extensions),
+            req: HttpRequest::new(head, path, rmap, config),
         }
     }
 
@@ -156,10 +156,10 @@ impl<P> ServiceRequest<P> {
         &mut self.req.path
     }
 
-    /// Application extensions
+    /// Service configuration
     #[inline]
-    pub fn app_extensions(&self) -> &Extensions {
-        self.req.app_extensions()
+    pub fn app_config(&self) -> &AppConfig {
+        self.req.config()
     }
 
     /// Deconstruct request into parts

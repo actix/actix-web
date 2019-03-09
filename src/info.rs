@@ -1,19 +1,14 @@
 use std::cell::Ref;
 
-use actix_http::http::header::{self, HeaderName};
-use actix_http::RequestHead;
+use crate::dev::{AppConfig, RequestHead};
+use crate::http::header::{self, HeaderName};
 
 const X_FORWARDED_FOR: &[u8] = b"x-forwarded-for";
 const X_FORWARDED_HOST: &[u8] = b"x-forwarded-host";
 const X_FORWARDED_PROTO: &[u8] = b"x-forwarded-proto";
 
-pub enum ConnectionInfoError {
-    UnknownHost,
-    UnknownScheme,
-}
-
 /// `HttpRequest` connection information
-#[derive(Clone, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct ConnectionInfo {
     scheme: String,
     host: String,
@@ -23,19 +18,19 @@ pub struct ConnectionInfo {
 
 impl ConnectionInfo {
     /// Create *ConnectionInfo* instance for a request.
-    pub fn get(req: &RequestHead) -> Ref<Self> {
+    pub fn get<'a>(req: &'a RequestHead, cfg: &AppConfig) -> Ref<'a, Self> {
         if !req.extensions().contains::<ConnectionInfo>() {
-            req.extensions_mut().insert(ConnectionInfo::new(req));
+            req.extensions_mut().insert(ConnectionInfo::new(req, cfg));
         }
         Ref::map(req.extensions(), |e| e.get().unwrap())
     }
 
     #[cfg_attr(feature = "cargo-clippy", allow(cyclomatic_complexity))]
-    fn new(req: &RequestHead) -> ConnectionInfo {
+    fn new(req: &RequestHead, cfg: &AppConfig) -> ConnectionInfo {
         let mut host = None;
         let mut scheme = None;
         let mut remote = None;
-        let mut peer = None;
+        let peer = None;
 
         // load forwarded header
         for hdr in req.headers.get_all(header::FORWARDED) {
@@ -82,7 +77,7 @@ impl ConnectionInfo {
             }
             if scheme.is_none() {
                 scheme = req.uri.scheme_part().map(|a| a.as_str());
-                if scheme.is_none() && req.server_settings().secure() {
+                if scheme.is_none() && cfg.secure() {
                     scheme = Some("https")
                 }
             }
@@ -105,7 +100,7 @@ impl ConnectionInfo {
                 if host.is_none() {
                     host = req.uri.authority_part().map(|a| a.as_str());
                     if host.is_none() {
-                        host = Some(req.server_settings().host());
+                        host = Some(cfg.host());
                     }
                 }
             }
@@ -121,10 +116,10 @@ impl ConnectionInfo {
                     remote = h.split(',').next().map(|v| v.trim());
                 }
             }
-            if remote.is_none() {
-                // get peeraddr from socketaddr
-                peer = req.peer_addr().map(|addr| format!("{}", addr));
-            }
+            // if remote.is_none() {
+            // get peeraddr from socketaddr
+            // peer = req.peer_addr().map(|addr| format!("{}", addr));
+            // }
         }
 
         ConnectionInfo {
@@ -186,9 +181,8 @@ mod tests {
 
     #[test]
     fn test_forwarded() {
-        let req = TestRequest::default().request();
-        let mut info = ConnectionInfo::default();
-        info.update(&req);
+        let req = TestRequest::default().to_http_request();
+        let info = req.connection_info();
         assert_eq!(info.scheme(), "http");
         assert_eq!(info.host(), "localhost:8080");
 
@@ -197,44 +191,39 @@ mod tests {
                 header::FORWARDED,
                 "for=192.0.2.60; proto=https; by=203.0.113.43; host=rust-lang.org",
             )
-            .request();
+            .to_http_request();
 
-        let mut info = ConnectionInfo::default();
-        info.update(&req);
+        let info = req.connection_info();
         assert_eq!(info.scheme(), "https");
         assert_eq!(info.host(), "rust-lang.org");
         assert_eq!(info.remote(), Some("192.0.2.60"));
 
         let req = TestRequest::default()
             .header(header::HOST, "rust-lang.org")
-            .request();
+            .to_http_request();
 
-        let mut info = ConnectionInfo::default();
-        info.update(&req);
+        let info = req.connection_info();
         assert_eq!(info.scheme(), "http");
         assert_eq!(info.host(), "rust-lang.org");
         assert_eq!(info.remote(), None);
 
         let req = TestRequest::default()
             .header(X_FORWARDED_FOR, "192.0.2.60")
-            .request();
-        let mut info = ConnectionInfo::default();
-        info.update(&req);
+            .to_http_request();
+        let info = req.connection_info();
         assert_eq!(info.remote(), Some("192.0.2.60"));
 
         let req = TestRequest::default()
             .header(X_FORWARDED_HOST, "192.0.2.60")
-            .request();
-        let mut info = ConnectionInfo::default();
-        info.update(&req);
+            .to_http_request();
+        let info = req.connection_info();
         assert_eq!(info.host(), "192.0.2.60");
         assert_eq!(info.remote(), None);
 
         let req = TestRequest::default()
             .header(X_FORWARDED_PROTO, "https")
-            .request();
-        let mut info = ConnectionInfo::default();
-        info.update(&req);
+            .to_http_request();
+        let info = req.connection_info();
         assert_eq!(info.scheme(), "https");
     }
 }

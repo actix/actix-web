@@ -9,7 +9,7 @@ use actix_service::{
 use futures::future::{ok, Either, FutureResult};
 use futures::{Async, Future, IntoFuture, Poll};
 
-use crate::dev::{insert_slash, AppConfig, HttpServiceFactory, ResourceDef};
+use crate::dev::{insert_slash, HttpServiceFactory, ResourceDef, ServiceConfig};
 use crate::extract::FromRequest;
 use crate::guard::Guard;
 use crate::handler::{AsyncFactory, Factory};
@@ -41,6 +41,7 @@ type HttpNewService<P> = BoxedNewService<(), ServiceRequest<P>, ServiceResponse,
 pub struct Resource<P, T = ResourceEndpoint<P>> {
     endpoint: T,
     rdef: String,
+    name: Option<String>,
     routes: Vec<Route<P>>,
     guards: Vec<Box<Guard>>,
     default: Rc<RefCell<Option<Rc<HttpNewService<P>>>>>,
@@ -54,6 +55,7 @@ impl<P> Resource<P> {
         Resource {
             routes: Vec::new(),
             rdef: path.to_string(),
+            name: None,
             endpoint: ResourceEndpoint::new(fref.clone()),
             factory_ref: fref,
             guards: Vec::new(),
@@ -72,6 +74,14 @@ where
         InitError = (),
     >,
 {
+    /// Set resource name.
+    ///
+    /// Name is used for url generation.
+    pub fn name(mut self, name: &str) -> Self {
+        self.name = Some(name.to_string());
+        self
+    }
+
     /// Add match guard to a resource.
     ///
     /// ```rust
@@ -240,6 +250,7 @@ where
         Resource {
             endpoint,
             rdef: self.rdef,
+            name: self.name,
             guards: self.guards,
             routes: self.routes,
             default: self.default,
@@ -277,7 +288,7 @@ where
             InitError = (),
         > + 'static,
 {
-    fn register(mut self, config: &mut AppConfig<P>) {
+    fn register(mut self, config: &mut ServiceConfig<P>) {
         if self.default.borrow().is_none() {
             *self.default.borrow_mut() = Some(config.default_service());
         }
@@ -286,11 +297,14 @@ where
         } else {
             Some(std::mem::replace(&mut self.guards, Vec::new()))
         };
-        let rdef = if config.is_root() || !self.rdef.is_empty() {
+        let mut rdef = if config.is_root() || !self.rdef.is_empty() {
             ResourceDef::new(&insert_slash(&self.rdef))
         } else {
             ResourceDef::new(&self.rdef)
         };
+        if let Some(ref name) = self.name {
+            *rdef.name_mut() = name.clone();
+        }
         config.register_service(rdef, guards, self, None)
     }
 }

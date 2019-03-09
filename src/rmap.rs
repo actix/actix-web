@@ -64,14 +64,13 @@ impl ResourceMap {
 
         if self.patterns_for(name, &mut path, &mut elements)?.is_some() {
             if path.starts_with('/') {
-                // let conn = req.connection_info();
-                // Ok(Url::parse(&format!(
-                //     "{}://{}{}",
-                //     conn.scheme(),
-                //     conn.host(),
-                //     path
-                // ))?)
-                unimplemented!()
+                let conn = req.connection_info();
+                Ok(Url::parse(&format!(
+                    "{}://{}{}",
+                    conn.scheme(),
+                    conn.host(),
+                    path
+                ))?)
             } else {
                 Ok(Url::parse(&path)?)
             }

@@ -2,13 +2,13 @@
 
 mod app;
 mod app_service;
-mod extract;
-mod handler;
-// mod info;
 pub mod blocking;
 mod config;
 pub mod error;
+mod extract;
 pub mod guard;
+mod handler;
+mod info;
 pub mod middleware;
 mod request;
 mod resource;
@@ -54,7 +54,9 @@ pub mod dev {
     //! ```
 
     pub use crate::app::AppRouter;
-    pub use crate::config::AppConfig;
+    pub use crate::config::{AppConfig, ServiceConfig};
+    pub use crate::info::ConnectionInfo;
+    pub use crate::rmap::ResourceMap;
     pub use crate::service::HttpServiceFactory;
 
     pub use actix_http::body::{Body, BodyLength, MessageBody, ResponseBody};
@@ -62,7 +64,7 @@ pub mod dev {
     pub use actix_http::{
         Extensions, Payload, PayloadStream, RequestHead, ResponseHead,
     };
-    pub use actix_router::{Path, ResourceDef, Url};
+    pub use actix_router::{Path, ResourceDef, ResourcePath, Url};
 
     pub(crate) fn insert_slash(path: &str) -> String {
         let mut path = path.to_owned();

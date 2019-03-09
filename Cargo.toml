@@ -70,9 +70,10 @@ actix-service = { git = "https://github.com/actix/actix-net.git" }
 actix-utils = { git = "https://github.com/actix/actix-net.git" }
 
 actix-http = { git = "https://github.com/actix/actix-http.git" }
-actix-router = { git = "https://github.com/actix/actix-net.git" }
+#actix-router = { git = "https://github.com/actix/actix-net.git" }
 actix-server = { git = "https://github.com/actix/actix-net.git" }
 actix-server-config = { git = "https://github.com/actix/actix-net.git" }
+actix-router = { path = "../actix-net/router" }
 
 bytes = "0.4"
 derive_more = "0.14"

@@ -304,8 +304,6 @@ impl<C: StaticFileConfig> Responder for NamedFile<C> {
     type Future = Result<HttpResponse, Error>;
 
     fn respond_to(self, req: &HttpRequest) -> Self::Future {
-        println!("RESP: {:?}", req);
-
         if self.status_code != StatusCode::OK {
             let mut resp = HttpResponse::build(self.status_code);
             resp.set(header::ContentType(self.content_type.clone()))

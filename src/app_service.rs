@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::marker::PhantomData;
 use std::rc::Rc;
 
-use actix_http::{Extensions, Request, Response};
+use actix_http::{Request, Response};
 use actix_router::{Path, ResourceDef, ResourceInfo, Router, Url};
 use actix_server_config::ServerConfig;
 use actix_service::boxed::{self, BoxedNewService, BoxedService};
@@ -10,7 +10,7 @@ use actix_service::{fn_service, AndThen, NewService, Service, ServiceExt};
 use futures::future::{ok, Either, FutureResult};
 use futures::{Async, Future, Poll};
 
-use crate::config::AppConfig;
+use crate::config::{AppConfig, ServiceConfig};
 use crate::guard::Guard;
 use crate::rmap::ResourceMap;
 use crate::service::{ServiceFactory, ServiceRequest, ServiceResponse};
@@ -36,10 +36,11 @@ where
     pub(crate) chain: C,
     pub(crate) endpoint: T,
     pub(crate) state: Vec<Box<StateFactory>>,
-    pub(crate) extensions: Rc<RefCell<Rc<Extensions>>>,
+    pub(crate) config: RefCell<AppConfig>,
     pub(crate) services: RefCell<Vec<Box<ServiceFactory<P>>>>,
     pub(crate) default: Option<Rc<HttpNewService<P>>>,
     pub(crate) factory_ref: Rc<RefCell<Option<AppRoutingFactory<P>>>>,
+    pub(crate) external: RefCell<Vec<ResourceDef>>,
 }
 
 impl<C, T, P: 'static, B> NewService<ServerConfig> for AppInit<C, T, P, B>
@@ -64,7 +65,7 @@ where
     type Service = AndThen<AppInitService<C::Service, P>, T::Service>;
     type Future = AppInitResult<C, T, P, B>;
 
-    fn new_service(&self, _: &ServerConfig) -> Self::Future {
+    fn new_service(&self, cfg: &ServerConfig) -> Self::Future {
         // update resource default service
         let default = self.default.clone().unwrap_or_else(|| {
             Rc::new(boxed::new_service(fn_service(|req: ServiceRequest<P>| {
@@ -72,12 +73,15 @@ where
             })))
         });
 
-        let mut config = AppConfig::new(
-            "127.0.0.1:8080".parse().unwrap(),
-            "localhost:8080".to_owned(),
-            false,
-            default.clone(),
-        );
+        {
+            let mut c = self.config.borrow_mut();
+            let loc_cfg = Rc::get_mut(&mut c.0).unwrap();
+            loc_cfg.secure = cfg.secure();
+            loc_cfg.addr = cfg.local_addr();
+        }
+
+        let mut config =
+            ServiceConfig::new(self.config.borrow().clone(), default.clone());
 
         // register services
         std::mem::replace(&mut *self.services.borrow_mut(), Vec::new())
@@ -101,6 +105,11 @@ where
             ),
         });
 
+        // external resources
+        for mut rdef in std::mem::replace(&mut *self.external.borrow_mut(), Vec::new()) {
+            rmap.add(&mut rdef, None);
+        }
+
         // complete ResourceMap tree creation
         let rmap = Rc::new(rmap);
         rmap.finish(rmap.clone());
@@ -111,7 +120,7 @@ where
             endpoint: None,
             endpoint_fut: self.endpoint.new_service(&()),
             state: self.state.iter().map(|s| s.construct()).collect(),
-            extensions: self.extensions.clone(),
+            config: self.config.borrow().clone(),
             rmap,
             _t: PhantomData,
         }
@@ -129,7 +138,7 @@ where
     endpoint_fut: T::Future,
     rmap: Rc<ResourceMap>,
     state: Vec<Box<StateFactoryResult>>,
-    extensions: Rc<RefCell<Rc<Extensions>>>,
+    config: AppConfig,
     _t: PhantomData<(P, B)>,
 }
 
@@ -152,20 +161,14 @@ where
     type Error = C::InitError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        if let Some(extensions) = Rc::get_mut(&mut *self.extensions.borrow_mut()) {
-            let mut idx = 0;
-            while idx < self.state.len() {
-                if let Async::Ready(_) = self.state[idx].poll_result(extensions)? {
-                    self.state.remove(idx);
-                } else {
-                    idx += 1;
-                }
+        let mut idx = 0;
+        let mut extensions = self.config.0.extensions.borrow_mut();
+        while idx < self.state.len() {
+            if let Async::Ready(_) = self.state[idx].poll_result(&mut extensions)? {
+                self.state.remove(idx);
+            } else {
+                idx += 1;
             }
-            if !self.state.is_empty() {
-                return Ok(Async::NotReady);
-            }
-        } else {
-            log::warn!("Multiple copies of app extensions exists");
         }
 
         if self.chain.is_none() {
@@ -185,7 +188,7 @@ where
                 AppInitService {
                     chain: self.chain.take().unwrap(),
                     rmap: self.rmap.clone(),
-                    extensions: self.extensions.borrow().clone(),
+                    config: self.config.clone(),
                 }
                 .and_then(self.endpoint.take().unwrap()),
             ))
@@ -202,7 +205,7 @@ where
 {
     chain: C,
     rmap: Rc<ResourceMap>,
-    extensions: Rc<Extensions>,
+    config: AppConfig,
 }
 
 impl<C, P> Service for AppInitService<C, P>
@@ -223,7 +226,7 @@ where
             Path::new(Url::new(req.uri().clone())),
             req,
             self.rmap.clone(),
-            self.extensions.clone(),
+            self.config.clone(),
         );
         self.chain.call(req)
     }

@@ -7,8 +7,10 @@ use actix_http::http::{HeaderMap, Method, Uri, Version};
 use actix_http::{Error, Extensions, HttpMessage, Message, Payload, RequestHead};
 use actix_router::{Path, Url};
 
+use crate::config::AppConfig;
 use crate::error::UrlGenerationError;
 use crate::extract::FromRequest;
+use crate::info::ConnectionInfo;
 use crate::rmap::ResourceMap;
 use crate::service::ServiceFromRequest;
 
@@ -18,7 +20,7 @@ pub struct HttpRequest {
     pub(crate) head: Message<RequestHead>,
     pub(crate) path: Path<Url>,
     rmap: Rc<ResourceMap>,
-    extensions: Rc<Extensions>,
+    config: AppConfig,
 }
 
 impl HttpRequest {
@@ -27,13 +29,13 @@ impl HttpRequest {
         head: Message<RequestHead>,
         path: Path<Url>,
         rmap: Rc<ResourceMap>,
-        extensions: Rc<Extensions>,
+        config: AppConfig,
     ) -> HttpRequest {
         HttpRequest {
             head,
             path,
             rmap,
-            extensions,
+            config,
         }
     }
 }
@@ -92,17 +94,17 @@ impl HttpRequest {
         &self.path
     }
 
-    /// Application extensions
+    /// App config
     #[inline]
-    pub fn app_extensions(&self) -> &Extensions {
-        &self.extensions
+    pub fn config(&self) -> &AppConfig {
+        &self.config
     }
 
     /// Generate url for named resource
     ///
     /// ```rust
     /// # extern crate actix_web;
-    /// # use actix_web::{App, HttpRequest, HttpResponse, http};
+    /// # use actix_web::{web, App, HttpRequest, HttpResponse};
     /// #
     /// fn index(req: HttpRequest) -> HttpResponse {
     ///     let url = req.url_for("foo", &["1", "2", "3"]); // <- generate url for "foo" resource
@@ -111,11 +113,10 @@ impl HttpRequest {
     ///
     /// fn main() {
     ///     let app = App::new()
-    ///         .resource("/test/{one}/{two}/{three}", |r| {
-    ///              r.name("foo");  // <- set resource name, then it could be used in `url_for`
-    ///              r.method(http::Method::GET).f(|_| HttpResponse::Ok());
-    ///         })
-    ///         .finish();
+    ///         .service(web::resource("/test/{one}/{two}/{three}")
+    ///              .name("foo")  // <- set resource name, then it could be used in `url_for`
+    ///              .route(web::get().to(|| HttpResponse::Ok()))
+    ///         );
     /// }
     /// ```
     pub fn url_for<U, I>(
@@ -139,11 +140,11 @@ impl HttpRequest {
         self.url_for(name, &NO_PARAMS)
     }
 
-    // /// Get *ConnectionInfo* for the correct request.
-    // #[inline]
-    // pub fn connection_info(&self) -> Ref<ConnectionInfo> {
-    //    ConnectionInfo::get(&*self)
-    // }
+    /// Get *ConnectionInfo* for the current request.
+    #[inline]
+    pub fn connection_info(&self) -> Ref<ConnectionInfo> {
+        ConnectionInfo::get(&*self, &*self.config())
+    }
 }
 
 impl Deref for HttpRequest {
@@ -232,5 +233,126 @@ impl fmt::Debug for HttpRequest {
             writeln!(f, "    {:?}: {:?}", key, val)?;
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::dev::{ResourceDef, ResourceMap};
+    use crate::http::header;
+    use crate::test::TestRequest;
+
+    #[test]
+    fn test_debug() {
+        let req =
+            TestRequest::with_header("content-type", "text/plain").to_http_request();
+        let dbg = format!("{:?}", req);
+        assert!(dbg.contains("HttpRequest"));
+    }
+
+    #[test]
+    fn test_no_request_cookies() {
+        let req = TestRequest::default().to_http_request();
+        assert!(req.cookies().unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_request_cookies() {
+        let req = TestRequest::default()
+            .header(header::COOKIE, "cookie1=value1")
+            .header(header::COOKIE, "cookie2=value2")
+            .to_http_request();
+        {
+            let cookies = req.cookies().unwrap();
+            assert_eq!(cookies.len(), 2);
+            assert_eq!(cookies[0].name(), "cookie1");
+            assert_eq!(cookies[0].value(), "value1");
+            assert_eq!(cookies[1].name(), "cookie2");
+            assert_eq!(cookies[1].value(), "value2");
+        }
+
+        let cookie = req.cookie("cookie1");
+        assert!(cookie.is_some());
+        let cookie = cookie.unwrap();
+        assert_eq!(cookie.name(), "cookie1");
+        assert_eq!(cookie.value(), "value1");
+
+        let cookie = req.cookie("cookie-unknown");
+        assert!(cookie.is_none());
+    }
+
+    #[test]
+    fn test_request_query() {
+        let req = TestRequest::with_uri("/?id=test").to_http_request();
+        assert_eq!(req.query_string(), "id=test");
+    }
+
+    #[test]
+    fn test_url_for() {
+        let mut res = ResourceDef::new("/user/{name}.{ext}");
+        *res.name_mut() = "index".to_string();
+
+        let mut rmap = ResourceMap::new(ResourceDef::new(""));
+        rmap.add(&mut res, None);
+        assert!(rmap.has_resource("/user/test.html"));
+        assert!(!rmap.has_resource("/test/unknown"));
+
+        let req = TestRequest::with_header(header::HOST, "www.rust-lang.org")
+            .rmap(rmap)
+            .to_http_request();
+
+        assert_eq!(
+            req.url_for("unknown", &["test"]),
+            Err(UrlGenerationError::ResourceNotFound)
+        );
+        assert_eq!(
+            req.url_for("index", &["test"]),
+            Err(UrlGenerationError::NotEnoughElements)
+        );
+        let url = req.url_for("index", &["test", "html"]);
+        assert_eq!(
+            url.ok().unwrap().as_str(),
+            "http://www.rust-lang.org/user/test.html"
+        );
+    }
+
+    #[test]
+    fn test_url_for_static() {
+        let mut rdef = ResourceDef::new("/index.html");
+        *rdef.name_mut() = "index".to_string();
+
+        let mut rmap = ResourceMap::new(ResourceDef::new(""));
+        rmap.add(&mut rdef, None);
+
+        assert!(rmap.has_resource("/index.html"));
+
+        let req = TestRequest::with_uri("/test")
+            .header(header::HOST, "www.rust-lang.org")
+            .rmap(rmap)
+            .to_http_request();
+        let url = req.url_for_static("index");
+        assert_eq!(
+            url.ok().unwrap().as_str(),
+            "http://www.rust-lang.org/index.html"
+        );
+    }
+
+    #[test]
+    fn test_url_for_external() {
+        let mut rdef = ResourceDef::new("https://youtube.com/watch/{video_id}");
+
+        *rdef.name_mut() = "youtube".to_string();
+
+        let mut rmap = ResourceMap::new(ResourceDef::new(""));
+        rmap.add(&mut rdef, None);
+        assert!(rmap.has_resource("https://youtube.com/watch/unknown"));
+
+        let req = TestRequest::default().rmap(rmap).to_http_request();
+        let url = req.url_for("youtube", &["oHg5SJYRHA0"]);
+        assert_eq!(
+            url.ok().unwrap().as_str(),
+            "https://youtube.com/watch/oHg5SJYRHA0"
+        );
     }
 }

@@ -1,3 +1,5 @@
+//! Error and Result module
+
 pub use actix_http::error::*;
 use derive_more::{Display, From};
 use url::ParseError as UrlParseError;

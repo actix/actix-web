@@ -1,6 +1,8 @@
+use std::cell::{Ref, RefCell};
 use std::net::SocketAddr;
 use std::rc::Rc;
 
+use actix_http::Extensions;
 use actix_router::ResourceDef;
 use actix_service::{boxed, IntoNewService, NewService};
 
@@ -13,10 +15,8 @@ type HttpNewService<P> =
     boxed::BoxedNewService<(), ServiceRequest<P>, ServiceResponse, (), ()>;
 
 /// Application configuration
-pub struct AppConfig<P> {
-    addr: SocketAddr,
-    secure: bool,
-    host: String,
+pub struct ServiceConfig<P> {
+    config: AppConfig,
     root: bool,
     default: Rc<HttpNewService<P>>,
     services: Vec<(
@@ -27,18 +27,11 @@ pub struct AppConfig<P> {
     )>,
 }
 
-impl<P: 'static> AppConfig<P> {
+impl<P: 'static> ServiceConfig<P> {
     /// Crate server settings instance
-    pub(crate) fn new(
-        addr: SocketAddr,
-        host: String,
-        secure: bool,
-        default: Rc<HttpNewService<P>>,
-    ) -> Self {
-        AppConfig {
-            addr,
-            secure,
-            host,
+    pub(crate) fn new(config: AppConfig, default: Rc<HttpNewService<P>>) -> Self {
+        ServiceConfig {
+            config,
             default,
             root: true,
             services: Vec::new(),
@@ -62,31 +55,20 @@ impl<P: 'static> AppConfig<P> {
     }
 
     pub(crate) fn clone_config(&self) -> Self {
-        AppConfig {
-            addr: self.addr,
-            secure: self.secure,
-            host: self.host.clone(),
+        ServiceConfig {
+            config: self.config.clone(),
             default: self.default.clone(),
             services: Vec::new(),
             root: false,
         }
     }
 
-    /// Returns the socket address of the local half of this TCP connection
-    pub fn local_addr(&self) -> SocketAddr {
-        self.addr
+    /// Service configuration
+    pub fn config(&self) -> &AppConfig {
+        &self.config
     }
 
-    /// Returns true if connection is secure(https)
-    pub fn secure(&self) -> bool {
-        self.secure
-    }
-
-    /// Returns host header value
-    pub fn host(&self) -> &str {
-        &self.host
-    }
-
+    /// Default resource
     pub fn default_service(&self) -> Rc<HttpNewService<P>> {
         self.default.clone()
     }
@@ -112,5 +94,65 @@ impl<P: 'static> AppConfig<P> {
             guards,
             nested,
         ));
+    }
+}
+
+#[derive(Clone)]
+pub struct AppConfig(pub(crate) Rc<AppConfigInner>);
+
+impl AppConfig {
+    pub(crate) fn new(inner: AppConfigInner) -> Self {
+        AppConfig(Rc::new(inner))
+    }
+
+    /// Set server host name.
+    ///
+    /// Host name is used by application router aa a hostname for url
+    /// generation. Check [ConnectionInfo](./dev/struct.ConnectionInfo.
+    /// html#method.host) documentation for more information.
+    ///
+    /// By default host name is set to a "localhost" value.
+    pub fn host(&self) -> &str {
+        &self.0.host
+    }
+
+    /// Returns true if connection is secure(https)
+    pub fn secure(&self) -> bool {
+        self.0.secure
+    }
+
+    /// Returns the socket address of the local half of this TCP connection
+    pub fn local_addr(&self) -> SocketAddr {
+        self.0.addr
+    }
+
+    /// Resource map
+    pub fn rmap(&self) -> &ResourceMap {
+        &self.0.rmap
+    }
+
+    /// Application extensions
+    pub fn extensions(&self) -> Ref<Extensions> {
+        self.0.extensions.borrow()
+    }
+}
+
+pub(crate) struct AppConfigInner {
+    pub(crate) secure: bool,
+    pub(crate) host: String,
+    pub(crate) addr: SocketAddr,
+    pub(crate) rmap: ResourceMap,
+    pub(crate) extensions: RefCell<Extensions>,
+}
+
+impl Default for AppConfigInner {
+    fn default() -> AppConfigInner {
+        AppConfigInner {
+            secure: false,
+            addr: "127.0.0.1:8080".parse().unwrap(),
+            host: "localhost:8080".to_owned(),
+            rmap: ResourceMap::new(ResourceDef::new("")),
+            extensions: RefCell::new(Extensions::new()),
+        }
     }
 }

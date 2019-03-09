@@ -5,7 +5,7 @@ use std::rc::Rc;
 use actix_http::http::header::{Header, HeaderName, IntoHeaderValue};
 use actix_http::http::{HttpTryFrom, Method, Version};
 use actix_http::test::TestRequest as HttpTestRequest;
-use actix_http::{Extensions, PayloadStream, Request};
+use actix_http::{PayloadStream, Request};
 use actix_router::{Path, ResourceDef, Url};
 use actix_rt::Runtime;
 use actix_server_config::ServerConfig;
@@ -13,6 +13,7 @@ use actix_service::{IntoNewService, NewService, Service};
 use bytes::Bytes;
 use futures::Future;
 
+use crate::config::{AppConfig, AppConfigInner};
 use crate::request::HttpRequest;
 use crate::rmap::ResourceMap;
 use crate::service::{ServiceFromRequest, ServiceRequest, ServiceResponse};
@@ -142,16 +143,16 @@ where
 /// ```
 pub struct TestRequest {
     req: HttpTestRequest,
-    extensions: Extensions,
     rmap: ResourceMap,
+    config: AppConfigInner,
 }
 
 impl Default for TestRequest {
     fn default() -> TestRequest {
         TestRequest {
             req: HttpTestRequest::default(),
-            extensions: Extensions::new(),
             rmap: ResourceMap::new(ResourceDef::new("")),
+            config: AppConfigInner::default(),
         }
     }
 }
@@ -161,8 +162,8 @@ impl TestRequest {
     pub fn with_uri(path: &str) -> TestRequest {
         TestRequest {
             req: HttpTestRequest::default().uri(path).take(),
-            extensions: Extensions::new(),
             rmap: ResourceMap::new(ResourceDef::new("")),
+            config: AppConfigInner::default(),
         }
     }
 
@@ -170,7 +171,7 @@ impl TestRequest {
     pub fn with_hdr<H: Header>(hdr: H) -> TestRequest {
         TestRequest {
             req: HttpTestRequest::default().set(hdr).take(),
-            extensions: Extensions::new(),
+            config: AppConfigInner::default(),
             rmap: ResourceMap::new(ResourceDef::new("")),
         }
     }
@@ -183,7 +184,7 @@ impl TestRequest {
     {
         TestRequest {
             req: HttpTestRequest::default().header(key, value).take(),
-            extensions: Extensions::new(),
+            config: AppConfigInner::default(),
             rmap: ResourceMap::new(ResourceDef::new("")),
         }
     }
@@ -192,7 +193,7 @@ impl TestRequest {
     pub fn get() -> TestRequest {
         TestRequest {
             req: HttpTestRequest::default().method(Method::GET).take(),
-            extensions: Extensions::new(),
+            config: AppConfigInner::default(),
             rmap: ResourceMap::new(ResourceDef::new("")),
         }
     }
@@ -201,7 +202,7 @@ impl TestRequest {
     pub fn post() -> TestRequest {
         TestRequest {
             req: HttpTestRequest::default().method(Method::POST).take(),
-            extensions: Extensions::new(),
+            config: AppConfigInner::default(),
             rmap: ResourceMap::new(ResourceDef::new("")),
         }
     }
@@ -247,8 +248,15 @@ impl TestRequest {
     }
 
     /// Set request config
-    pub fn config<T: 'static>(mut self, data: T) -> Self {
-        self.extensions.insert(data);
+    pub fn config<T: 'static>(self, data: T) -> Self {
+        self.config.extensions.borrow_mut().insert(data);
+        self
+    }
+
+    #[cfg(test)]
+    /// Set request config
+    pub(crate) fn rmap(mut self, rmap: ResourceMap) -> Self {
+        self.rmap = rmap;
         self
     }
 
@@ -260,7 +268,7 @@ impl TestRequest {
             Path::new(Url::new(req.uri().clone())),
             req,
             Rc::new(self.rmap),
-            Rc::new(self.extensions),
+            AppConfig::new(self.config),
         )
     }
 
@@ -277,7 +285,7 @@ impl TestRequest {
             Path::new(Url::new(req.uri().clone())),
             req,
             Rc::new(self.rmap),
-            Rc::new(self.extensions),
+            AppConfig::new(self.config),
         )
         .into_request()
     }
@@ -290,7 +298,7 @@ impl TestRequest {
             Path::new(Url::new(req.uri().clone())),
             req,
             Rc::new(self.rmap),
-            Rc::new(self.extensions),
+            AppConfig::new(self.config),
         );
         ServiceFromRequest::new(req, None)
     }

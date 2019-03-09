@@ -3,7 +3,8 @@ use std::marker::PhantomData;
 use std::rc::Rc;
 
 use actix_http::body::{Body, MessageBody};
-use actix_http::{Extensions, PayloadStream};
+use actix_http::PayloadStream;
+use actix_router::ResourceDef;
 use actix_server_config::ServerConfig;
 use actix_service::boxed::{self, BoxedNewService};
 use actix_service::{
@@ -12,6 +13,7 @@ use actix_service::{
 use futures::IntoFuture;
 
 use crate::app_service::{AppChain, AppEntry, AppInit, AppRouting, AppRoutingFactory};
+use crate::config::{AppConfig, AppConfigInner};
 use crate::resource::Resource;
 use crate::route::Route;
 use crate::service::{
@@ -29,9 +31,8 @@ where
     T: NewService<Request = ServiceRequest, Response = ServiceRequest<P>>,
 {
     chain: T,
-    extensions: Extensions,
     state: Vec<Box<StateFactory>>,
-    host: String,
+    config: AppConfigInner,
     _t: PhantomData<(P,)>,
 }
 
@@ -41,9 +42,8 @@ impl App<PayloadStream, AppChain> {
     pub fn new() -> Self {
         App {
             chain: AppChain,
-            extensions: Extensions::new(),
             state: Vec::new(),
-            host: "localhost:8080".to_string(),
+            config: AppConfigInner::default(),
             _t: PhantomData,
         }
     }
@@ -141,8 +141,8 @@ where
             services: Vec::new(),
             default: None,
             factory_ref: fref,
-            extensions: self.extensions,
-            host: self.host,
+            config: self.config,
+            external: Vec::new(),
             _t: PhantomData,
         }
     }
@@ -174,8 +174,7 @@ where
         App {
             chain,
             state: self.state,
-            extensions: self.extensions,
-            host: self.host,
+            config: self.config,
             _t: PhantomData,
         }
     }
@@ -223,10 +222,10 @@ where
             default: None,
             endpoint: AppEntry::new(fref.clone()),
             factory_ref: fref,
-            extensions: self.extensions,
             state: self.state,
-            host: self.host,
+            config: self.config,
             services: vec![Box::new(ServiceFactoryWrapper::new(service))],
+            external: Vec::new(),
             _t: PhantomData,
         }
     }
@@ -239,7 +238,7 @@ where
     ///
     /// By default host name is set to a "localhost" value.
     pub fn hostname(mut self, val: &str) -> Self {
-        self.host = val.to_owned();
+        self.config.host = val.to_owned();
         self
     }
 }
@@ -252,9 +251,9 @@ pub struct AppRouter<C, P, B, T> {
     services: Vec<Box<ServiceFactory<P>>>,
     default: Option<Rc<HttpNewService<P>>>,
     factory_ref: Rc<RefCell<Option<AppRoutingFactory<P>>>>,
-    extensions: Extensions,
     state: Vec<Box<StateFactory>>,
-    host: String,
+    config: AppConfigInner,
+    external: Vec<ResourceDef>,
     _t: PhantomData<(P, B)>,
 }
 
@@ -348,8 +347,8 @@ where
             services: self.services,
             default: self.default,
             factory_ref: self.factory_ref,
-            extensions: self.extensions,
-            host: self.host,
+            config: self.config,
+            external: self.external,
             _t: PhantomData,
         }
     }
@@ -382,33 +381,30 @@ where
     /// and are never considered for matching at request time. Calls to
     /// `HttpRequest::url_for()` will work as expected.
     ///
-    /// ```rust,ignore
-    /// # extern crate actix_web;
-    /// use actix_web::{App, HttpRequest, HttpResponse, Result};
+    /// ```rust
+    /// use actix_web::{web, App, HttpRequest, HttpResponse, Result};
     ///
-    /// fn index(req: &HttpRequest) -> Result<HttpResponse> {
-    ///     let url = req.url_for("youtube", &["oHg5SJYRHA0"])?;
-    ///     assert_eq!(url.as_str(), "https://youtube.com/watch/oHg5SJYRHA0");
+    /// fn index(req: HttpRequest) -> Result<HttpResponse> {
+    ///     let url = req.url_for("youtube", &["asdlkjqme"])?;
+    ///     assert_eq!(url.as_str(), "https://youtube.com/watch/asdlkjqme");
     ///     Ok(HttpResponse::Ok().into())
     /// }
     ///
     /// fn main() {
     ///     let app = App::new()
-    ///         .resource("/index.html", |r| r.get().f(index))
-    ///         .external_resource("youtube", "https://youtube.com/watch/{video_id}")
-    ///         .finish();
+    ///         .service(web::resource("/index.html").route(
+    ///             web::get().to(index)))
+    ///         .external_resource("youtube", "https://youtube.com/watch/{video_id}");
     /// }
     /// ```
-    pub fn external_resource<N, U>(self, _name: N, _url: U) -> Self
+    pub fn external_resource<N, U>(mut self, name: N, url: U) -> Self
     where
         N: AsRef<str>,
         U: AsRef<str>,
     {
-        // self.parts
-        //     .as_mut()
-        //     .expect("Use after finish")
-        //     .router
-        //     .register_external(name.as_ref(), ResourceDef::external(url.as_ref()));
+        let mut rdef = ResourceDef::new(url.as_ref());
+        *rdef.name_mut() = name.as_ref().to_string();
+        self.external.push(rdef);
         self
     }
 }
@@ -435,9 +431,10 @@ where
             state: self.state,
             endpoint: self.endpoint,
             services: RefCell::new(self.services),
+            external: RefCell::new(self.external),
             default: self.default,
             factory_ref: self.factory_ref,
-            extensions: Rc::new(RefCell::new(Rc::new(self.extensions))),
+            config: RefCell::new(AppConfig(Rc::new(self.config))),
         }
     }
 }

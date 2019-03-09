@@ -255,12 +255,13 @@ impl CookieSession {
     }
 }
 
-impl<S, P, B: 'static> Transform<S, ServiceRequest<P>> for CookieSession
+impl<S, P, B: 'static> Transform<S> for CookieSession
 where
-    S: Service<ServiceRequest<P>, Response = ServiceResponse<B>>,
+    S: Service<Request = ServiceRequest<P>, Response = ServiceResponse<B>>,
     S::Future: 'static,
     S::Error: 'static,
 {
+    type Request = ServiceRequest<P>;
     type Response = ServiceResponse<B>;
     type Error = S::Error;
     type InitError = ();
@@ -281,12 +282,13 @@ pub struct CookieSessionMiddleware<S> {
     inner: Rc<CookieSessionInner>,
 }
 
-impl<S, P, B: 'static> Service<ServiceRequest<P>> for CookieSessionMiddleware<S>
+impl<S, P, B: 'static> Service for CookieSessionMiddleware<S>
 where
-    S: Service<ServiceRequest<P>, Response = ServiceResponse<B>>,
+    S: Service<Request = ServiceRequest<P>, Response = ServiceResponse<B>>,
     S::Future: 'static,
     S::Error: 'static,
 {
+    type Request = ServiceRequest<P>;
     type Response = ServiceResponse<B>;
     type Error = S::Error;
     type Future = Box<Future<Item = Self::Response, Error = Self::Error>>;

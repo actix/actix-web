@@ -17,7 +17,7 @@ use v_htmlescape::escape as escape_html_entity;
 
 use actix_http::error::{Error, ErrorInternalServerError};
 use actix_service::{boxed::BoxedNewService, NewService, Service};
-use actix_web::dev::{self, AppConfig, HttpServiceFactory, ResourceDef, Url};
+use actix_web::dev::{HttpServiceFactory, ResourceDef, ServiceConfig};
 use actix_web::{
     blocking, FromRequest, HttpRequest, HttpResponse, Responder, ServiceFromRequest,
     ServiceRequest, ServiceResponse,
@@ -305,7 +305,7 @@ where
     P: 'static,
     C: StaticFileConfig + 'static,
 {
-    fn register(self, config: &mut AppConfig<P>) {
+    fn register(self, config: &mut ServiceConfig<P>) {
         if self.default.borrow().is_none() {
             *self.default.borrow_mut() = Some(config.default_service());
         }
@@ -314,11 +314,12 @@ where
         } else {
             ResourceDef::prefix(&self.path)
         };
-        config.register_service(rdef, None, self)
+        config.register_service(rdef, None, self, None)
     }
 }
 
-impl<P, C: StaticFileConfig + 'static> NewService<ServiceRequest<P>> for Files<P, C> {
+impl<P, C: StaticFileConfig + 'static> NewService for Files<P, C> {
+    type Request = ServiceRequest<P>;
     type Response = ServiceResponse;
     type Error = ();
     type Service = FilesService<P, C>;
@@ -350,7 +351,8 @@ pub struct FilesService<S, C = DefaultConfig> {
     _cd_map: PhantomData<C>,
 }
 
-impl<P, C: StaticFileConfig> Service<ServiceRequest<P>> for FilesService<P, C> {
+impl<P, C: StaticFileConfig> Service for FilesService<P, C> {
+    type Request = ServiceRequest<P>;
     type Response = ServiceResponse;
     type Error = ();
     type Future = FutureResult<Self::Response, Self::Error>;
@@ -362,7 +364,7 @@ impl<P, C: StaticFileConfig> Service<ServiceRequest<P>> for FilesService<P, C> {
     fn call(&mut self, req: ServiceRequest<P>) -> Self::Future {
         let (req, _) = req.into_parts();
 
-        let real_path = match PathBufWrp::get_pathbuf(req.match_info()) {
+        let real_path = match PathBufWrp::get_pathbuf(req.match_info().path()) {
             Ok(item) => item,
             Err(e) => return ok(ServiceResponse::from_err(e, req.clone())),
         };
@@ -409,13 +411,13 @@ impl<P, C: StaticFileConfig> Service<ServiceRequest<P>> for FilesService<P, C> {
     }
 }
 
+#[derive(Debug)]
 struct PathBufWrp(PathBuf);
 
 impl PathBufWrp {
-    fn get_pathbuf(path: &dev::Path<Url>) -> Result<Self, UriSegmentError> {
-        let path_str = path.path();
+    fn get_pathbuf(path: &str) -> Result<Self, UriSegmentError> {
         let mut buf = PathBuf::new();
-        for segment in path_str.split('/') {
+        for segment in path.split('/') {
             if segment == ".." {
                 buf.pop();
             } else if segment.starts_with('.') {
@@ -447,13 +449,14 @@ impl<P> FromRequest<P> for PathBufWrp {
     type Config = ();
 
     fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
-        PathBufWrp::get_pathbuf(req.match_info())
+        PathBufWrp::get_pathbuf(req.match_info().path())
     }
 }
 
 #[cfg(test)]
 mod tests {
     use std::fs;
+    use std::iter::FromIterator;
     use std::ops::Add;
     use std::time::{Duration, SystemTime};
 
@@ -1093,32 +1096,32 @@ mod tests {
     #[test]
     fn test_path_buf() {
         assert_eq!(
-            PathBuf::from_param("/test/.tt"),
+            PathBufWrp::get_pathbuf("/test/.tt").map(|t| t.0),
             Err(UriSegmentError::BadStart('.'))
         );
         assert_eq!(
-            PathBuf::from_param("/test/*tt"),
+            PathBufWrp::get_pathbuf("/test/*tt").map(|t| t.0),
             Err(UriSegmentError::BadStart('*'))
         );
         assert_eq!(
-            PathBuf::from_param("/test/tt:"),
+            PathBufWrp::get_pathbuf("/test/tt:").map(|t| t.0),
             Err(UriSegmentError::BadEnd(':'))
         );
         assert_eq!(
-            PathBuf::from_param("/test/tt<"),
+            PathBufWrp::get_pathbuf("/test/tt<").map(|t| t.0),
             Err(UriSegmentError::BadEnd('<'))
         );
         assert_eq!(
-            PathBuf::from_param("/test/tt>"),
+            PathBufWrp::get_pathbuf("/test/tt>").map(|t| t.0),
             Err(UriSegmentError::BadEnd('>'))
         );
         assert_eq!(
-            PathBuf::from_param("/seg1/seg2/"),
-            Ok(PathBuf::from_iter(vec!["seg1", "seg2"]))
+            PathBufWrp::get_pathbuf("/seg1/seg2/").unwrap().0,
+            PathBuf::from_iter(vec!["seg1", "seg2"])
         );
         assert_eq!(
-            PathBuf::from_param("/seg1/../seg2/"),
-            Ok(PathBuf::from_iter(vec!["seg2"]))
+            PathBufWrp::get_pathbuf("/seg1/../seg2/").unwrap().0,
+            PathBuf::from_iter(vec!["seg2"])
         );
     }
 }

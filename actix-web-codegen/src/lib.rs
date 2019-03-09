@@ -31,7 +31,7 @@ pub fn get(args: TokenStream, input: TokenStream) -> TokenStream {
         struct #name;
 
         impl<P: 'static> actix_web::dev::HttpServiceFactory<P> for #name {
-            fn register(self, config: &mut actix_web::dev::AppConfig<P>) {
+            fn register(self, config: &mut actix_web::dev::ServiceConfig<P>) {
                 #ast
                 actix_web::dev::HttpServiceFactory::register(
                     actix_web::Resource::new(#path)
@@ -68,7 +68,7 @@ pub fn post(args: TokenStream, input: TokenStream) -> TokenStream {
         struct #name;
 
         impl<P: 'static> actix_web::dev::HttpServiceFactory<P> for #name {
-            fn register(self, config: &mut actix_web::dev::AppConfig<P>) {
+            fn register(self, config: &mut actix_web::dev::ServiceConfig<P>) {
                 #ast
                 actix_web::dev::HttpServiceFactory::register(
                     actix_web::Resource::new(#path)
@@ -105,7 +105,7 @@ pub fn put(args: TokenStream, input: TokenStream) -> TokenStream {
         struct #name;
 
         impl<P: 'static> actix_web::dev::HttpServiceFactory<P> for #name {
-            fn register(self, config: &mut actix_web::dev::AppConfig<P>) {
+            fn register(self, config: &mut actix_web::dev::ServiceConfig<P>) {
                 #ast
                 actix_web::dev::HttpServiceFactory::register(
                     actix_web::Resource::new(#path)
