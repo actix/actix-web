@@ -67,7 +67,7 @@ impl TestServer {
             let local_addr = tcp.local_addr().unwrap();
 
             Server::build()
-                .listen("test", tcp, factory)
+                .listen("test", tcp, factory)?
                 .workers(1)
                 .disable_signals()
                 .start();
