@@ -269,7 +269,11 @@ mod connect_impl {
     impl<T, Io> Service for InnerConnector<T, Io>
     where
         Io: AsyncRead + AsyncWrite + 'static,
-        T: Service<Connect, Response = (Connect, Io, Protocol), Error = ConnectorError>,
+        T: Service<
+            Request = Connect,
+            Response = (Connect, Io, Protocol),
+            Error = ConnectorError,
+        >,
     {
         type Request = Connect;
         type Response = IoConnection<Io>;

@@ -69,7 +69,7 @@ where
     ///
     /// To disable timeout set value to 0.
     ///
-    /// By default disconnect timeout is set to 3000 milliseconds.
+    /// By default disconnect timeout is set to 0.
     pub fn client_disconnect(mut self, val: u64) -> Self {
         self.client_disconnect = val;
         self
