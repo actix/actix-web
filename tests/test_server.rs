@@ -565,17 +565,22 @@ fn test_body_chunked_implicit() {
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
 }
 
+use actix_server_config::ServerConfig;
+use actix_service::fn_cfg_factory;
+
 #[test]
 fn test_response_http_error_handling() {
     let mut srv = TestServer::new(|| {
-        h1::H1Service::new(|_| {
-            let broken_header = Bytes::from_static(b"\0\0\0");
-            ok::<_, ()>(
-                Response::Ok()
-                    .header(http::header::CONTENT_TYPE, broken_header)
-                    .body(STR),
-            )
-        })
+        h1::H1Service::new(fn_cfg_factory(|_: &ServerConfig| {
+            Ok::<_, ()>(|_| {
+                let broken_header = Bytes::from_static(b"\0\0\0");
+                ok::<_, ()>(
+                    Response::Ok()
+                        .header(http::header::CONTENT_TYPE, broken_header)
+                        .body(STR),
+                )
+            })
+        }))
     });
 
     let req = srv.get().finish().unwrap();

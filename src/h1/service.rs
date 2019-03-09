@@ -3,6 +3,7 @@ use std::marker::PhantomData;
 use std::net;
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
+use actix_server_config::ServerConfig as SrvConfig;
 use actix_service::{IntoNewService, NewService, Service};
 use actix_utils::cloneable::CloneableService;
 use futures::future::{ok, FutureResult};
@@ -28,14 +29,14 @@ pub struct H1Service<T, S, B> {
 
 impl<T, S, B> H1Service<T, S, B>
 where
-    S: NewService<Request>,
+    S: NewService<SrvConfig, Request = Request>,
     S::Error: Debug,
     S::Response: Into<Response<B>>,
     S::Service: 'static,
     B: MessageBody,
 {
     /// Create new `HttpService` instance with default config.
-    pub fn new<F: IntoNewService<S, Request>>(service: F) -> Self {
+    pub fn new<F: IntoNewService<S, SrvConfig>>(service: F) -> Self {
         let cfg = ServiceConfig::new(KeepAlive::Timeout(5), 5000, 0);
 
         H1Service {
@@ -46,7 +47,7 @@ where
     }
 
     /// Create new `HttpService` instance with config.
-    pub fn with_config<F: IntoNewService<S, Request>>(
+    pub fn with_config<F: IntoNewService<S, SrvConfig>>(
         cfg: ServiceConfig,
         service: F,
     ) -> Self {
@@ -63,24 +64,25 @@ where
     }
 }
 
-impl<T, S, B> NewService<T> for H1Service<T, S, B>
+impl<T, S, B> NewService<SrvConfig> for H1Service<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: NewService<Request>,
+    S: NewService<SrvConfig, Request = Request>,
     S::Error: Debug,
     S::Response: Into<Response<B>>,
     S::Service: 'static,
     B: MessageBody,
 {
+    type Request = T;
     type Response = ();
     type Error = DispatchError;
     type InitError = S::InitError;
     type Service = H1ServiceHandler<T, S::Service, B>;
     type Future = H1ServiceResponse<T, S, B>;
 
-    fn new_service(&self, _: &()) -> Self::Future {
+    fn new_service(&self, cfg: &SrvConfig) -> Self::Future {
         H1ServiceResponse {
-            fut: self.srv.new_service(&()).into_future(),
+            fut: self.srv.new_service(cfg).into_future(),
             cfg: Some(self.cfg.clone()),
             _t: PhantomData,
         }
@@ -103,7 +105,7 @@ pub struct H1ServiceBuilder<T, S> {
 
 impl<T, S> H1ServiceBuilder<T, S>
 where
-    S: NewService<Request>,
+    S: NewService<SrvConfig, Request = Request>,
     S::Error: Debug,
 {
     /// Create instance of `ServiceConfigBuilder`
@@ -201,7 +203,7 @@ where
     pub fn finish<F, B>(self, service: F) -> H1Service<T, S, B>
     where
         B: MessageBody,
-        F: IntoNewService<S, Request>,
+        F: IntoNewService<S, SrvConfig>,
     {
         let cfg = ServiceConfig::new(
             self.keep_alive,
@@ -217,7 +219,7 @@ where
 }
 
 #[doc(hidden)]
-pub struct H1ServiceResponse<T, S: NewService<Request>, B> {
+pub struct H1ServiceResponse<T, S: NewService<SrvConfig, Request = Request>, B> {
     fut: <S::Future as IntoFuture>::Future,
     cfg: Option<ServiceConfig>,
     _t: PhantomData<(T, B)>,
@@ -226,7 +228,7 @@ pub struct H1ServiceResponse<T, S: NewService<Request>, B> {
 impl<T, S, B> Future for H1ServiceResponse<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: NewService<Request>,
+    S: NewService<SrvConfig, Request = Request>,
     S::Service: 'static,
     S::Error: Debug,
     S::Response: Into<Response<B>>,
@@ -253,7 +255,7 @@ pub struct H1ServiceHandler<T, S: 'static, B> {
 
 impl<T, S, B> H1ServiceHandler<T, S, B>
 where
-    S: Service<Request>,
+    S: Service<Request = Request>,
     S::Error: Debug,
     S::Response: Into<Response<B>>,
     B: MessageBody,
@@ -267,14 +269,15 @@ where
     }
 }
 
-impl<T, S, B> Service<T> for H1ServiceHandler<T, S, B>
+impl<T, S, B> Service for H1ServiceHandler<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: Service<Request>,
+    S: Service<Request = Request>,
     S::Error: Debug,
     S::Response: Into<Response<B>>,
     B: MessageBody,
 {
+    type Request = T;
     type Response = ();
     type Error = DispatchError;
     type Future = Dispatcher<T, S, B>;
@@ -311,17 +314,18 @@ where
     }
 }
 
-impl<T> NewService<T> for OneRequest<T>
+impl<T> NewService<SrvConfig> for OneRequest<T>
 where
     T: AsyncRead + AsyncWrite,
 {
+    type Request = T;
     type Response = (Request, Framed<T, Codec>);
     type Error = ParseError;
     type InitError = ();
     type Service = OneRequestService<T>;
     type Future = FutureResult<Self::Service, Self::InitError>;
 
-    fn new_service(&self, _: &()) -> Self::Future {
+    fn new_service(&self, _: &SrvConfig) -> Self::Future {
         ok(OneRequestService {
             config: self.config.clone(),
             _t: PhantomData,
@@ -336,10 +340,11 @@ pub struct OneRequestService<T> {
     _t: PhantomData<T>,
 }
 
-impl<T> Service<T> for OneRequestService<T>
+impl<T> Service for OneRequestService<T>
 where
     T: AsyncRead + AsyncWrite,
 {
+    type Request = T;
     type Response = (Request, Framed<T, Codec>);
     type Error = ParseError;
     type Future = OneRequestServiceResponse<T>;

@@ -1,12 +1,13 @@
+use std::{env, io};
+
 use actix_http::{h1, Response};
 use actix_server::Server;
 use actix_service::NewService;
 use futures::future;
 use http::header::HeaderValue;
 use log::info;
-use std::env;
 
-fn main() {
+fn main() -> io::Result<()> {
     env::set_var("RUST_LOG", "hello_world=info");
     env_logger::init();
 
@@ -23,7 +24,6 @@ fn main() {
                     future::ok::<_, ()>(res.body("Hello world!"))
                 })
                 .map(|_| ())
-        })
-        .unwrap()
-        .run();
+        })?
+        .run()
 }

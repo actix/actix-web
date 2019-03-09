@@ -3,6 +3,7 @@ use std::marker::PhantomData;
 use std::{fmt, io, net};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed, FramedParts};
+use actix_server_config::ServerConfig as SrvConfig;
 use actix_service::{IntoNewService, NewService, Service};
 use actix_utils::cloneable::CloneableService;
 use bytes::{Buf, BufMut, Bytes, BytesMut};
@@ -27,14 +28,14 @@ pub struct HttpService<T, S, B> {
 
 impl<T, S, B> HttpService<T, S, B>
 where
-    S: NewService<Request>,
+    S: NewService<SrvConfig, Request = Request>,
     S::Service: 'static,
     S::Error: Debug + 'static,
     S::Response: Into<Response<B>>,
     B: MessageBody + 'static,
 {
     /// Create new `HttpService` instance.
-    pub fn new<F: IntoNewService<S, Request>>(service: F) -> Self {
+    pub fn new<F: IntoNewService<S, SrvConfig>>(service: F) -> Self {
         let cfg = ServiceConfig::new(KeepAlive::Timeout(5), 5000, 0);
 
         HttpService {
@@ -45,7 +46,7 @@ where
     }
 
     /// Create new `HttpService` instance with config.
-    pub fn with_config<F: IntoNewService<S, Request>>(
+    pub fn with_config<F: IntoNewService<S, SrvConfig>>(
         cfg: ServiceConfig,
         service: F,
     ) -> Self {
@@ -62,24 +63,25 @@ where
     }
 }
 
-impl<T, S, B> NewService<T> for HttpService<T, S, B>
+impl<T, S, B> NewService<SrvConfig> for HttpService<T, S, B>
 where
     T: AsyncRead + AsyncWrite + 'static,
-    S: NewService<Request>,
+    S: NewService<SrvConfig, Request = Request>,
     S::Service: 'static,
     S::Error: Debug,
     S::Response: Into<Response<B>>,
     B: MessageBody + 'static,
 {
+    type Request = T;
     type Response = ();
     type Error = DispatchError;
     type InitError = S::InitError;
     type Service = HttpServiceHandler<T, S::Service, B>;
     type Future = HttpServiceResponse<T, S, B>;
 
-    fn new_service(&self, _: &()) -> Self::Future {
+    fn new_service(&self, cfg: &SrvConfig) -> Self::Future {
         HttpServiceResponse {
-            fut: self.srv.new_service(&()).into_future(),
+            fut: self.srv.new_service(cfg).into_future(),
             cfg: Some(self.cfg.clone()),
             _t: PhantomData,
         }
@@ -102,7 +104,7 @@ pub struct HttpServiceBuilder<T, S> {
 
 impl<T, S> HttpServiceBuilder<T, S>
 where
-    S: NewService<Request>,
+    S: NewService<SrvConfig, Request = Request>,
     S::Service: 'static,
     S::Error: Debug + 'static,
 {
@@ -220,7 +222,7 @@ where
     pub fn finish<F, B>(self, service: F) -> HttpService<T, S, B>
     where
         B: MessageBody,
-        F: IntoNewService<S, Request>,
+        F: IntoNewService<S, SrvConfig>,
     {
         let cfg = ServiceConfig::new(
             self.keep_alive,
@@ -236,7 +238,7 @@ where
 }
 
 #[doc(hidden)]
-pub struct HttpServiceResponse<T, S: NewService<Request>, B> {
+pub struct HttpServiceResponse<T, S: NewService<SrvConfig>, B> {
     fut: <S::Future as IntoFuture>::Future,
     cfg: Option<ServiceConfig>,
     _t: PhantomData<(T, B)>,
@@ -245,7 +247,7 @@ pub struct HttpServiceResponse<T, S: NewService<Request>, B> {
 impl<T, S, B> Future for HttpServiceResponse<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: NewService<Request>,
+    S: NewService<SrvConfig, Request = Request>,
     S::Service: 'static,
     S::Response: Into<Response<B>>,
     S::Error: Debug,
@@ -272,7 +274,7 @@ pub struct HttpServiceHandler<T, S: 'static, B> {
 
 impl<T, S, B> HttpServiceHandler<T, S, B>
 where
-    S: Service<Request> + 'static,
+    S: Service<Request = Request> + 'static,
     S::Error: Debug,
     S::Response: Into<Response<B>>,
     B: MessageBody + 'static,
@@ -286,14 +288,15 @@ where
     }
 }
 
-impl<T, S, B> Service<T> for HttpServiceHandler<T, S, B>
+impl<T, S, B> Service for HttpServiceHandler<T, S, B>
 where
     T: AsyncRead + AsyncWrite + 'static,
-    S: Service<Request> + 'static,
+    S: Service<Request = Request> + 'static,
     S::Error: Debug,
     S::Response: Into<Response<B>>,
     B: MessageBody + 'static,
 {
+    type Request = T;
     type Response = ();
     type Error = DispatchError;
     type Future = HttpServiceHandlerResponse<T, S, B>;
@@ -317,7 +320,7 @@ where
     }
 }
 
-enum State<T, S: Service<Request> + 'static, B: MessageBody>
+enum State<T, S: Service<Request = Request> + 'static, B: MessageBody>
 where
     S::Error: fmt::Debug,
     T: AsyncRead + AsyncWrite + 'static,
@@ -331,7 +334,7 @@ where
 pub struct HttpServiceHandlerResponse<T, S, B>
 where
     T: AsyncRead + AsyncWrite + 'static,
-    S: Service<Request> + 'static,
+    S: Service<Request = Request> + 'static,
     S::Error: Debug,
     S::Response: Into<Response<B>>,
     B: MessageBody + 'static,
@@ -344,7 +347,7 @@ const HTTP2_PREFACE: [u8; 14] = *b"PRI * HTTP/2.0";
 impl<T, S, B> Future for HttpServiceHandlerResponse<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: Service<Request> + 'static,
+    S: Service<Request = Request> + 'static,
     S::Error: Debug,
     S::Response: Into<Response<B>>,
     B: MessageBody,

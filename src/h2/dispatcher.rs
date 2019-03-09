@@ -38,7 +38,7 @@ bitflags! {
 /// Dispatcher for HTTP/2 protocol
 pub struct Dispatcher<
     T: AsyncRead + AsyncWrite,
-    S: Service<Request> + 'static,
+    S: Service<Request = Request> + 'static,
     B: MessageBody,
 > {
     flags: Flags,
@@ -53,7 +53,7 @@ pub struct Dispatcher<
 impl<T, S, B> Dispatcher<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: Service<Request> + 'static,
+    S: Service<Request = Request> + 'static,
     S::Error: fmt::Debug,
     S::Response: Into<Response<B>>,
     B: MessageBody + 'static,
@@ -95,7 +95,7 @@ where
 impl<T, S, B> Future for Dispatcher<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: Service<Request> + 'static,
+    S: Service<Request = Request> + 'static,
     S::Error: fmt::Debug,
     S::Response: Into<Response<B>>,
     B: MessageBody + 'static,
@@ -141,20 +141,20 @@ where
     }
 }
 
-struct ServiceResponse<S: Service<Request>, B> {
+struct ServiceResponse<S: Service, B> {
     state: ServiceResponseState<S, B>,
     config: ServiceConfig,
     buffer: Option<Bytes>,
 }
 
-enum ServiceResponseState<S: Service<Request>, B> {
+enum ServiceResponseState<S: Service, B> {
     ServiceCall(S::Future, Option<SendResponse<Bytes>>),
     SendPayload(SendStream<Bytes>, ResponseBody<B>),
 }
 
 impl<S, B> ServiceResponse<S, B>
 where
-    S: Service<Request> + 'static,
+    S: Service<Request = Request> + 'static,
     S::Error: fmt::Debug,
     S::Response: Into<Response<B>>,
     B: MessageBody + 'static,
@@ -222,7 +222,7 @@ where
 
 impl<S, B> Future for ServiceResponse<S, B>
 where
-    S: Service<Request> + 'static,
+    S: Service<Request = Request> + 'static,
     S::Error: fmt::Debug,
     S::Response: Into<Response<B>>,
     B: MessageBody + 'static,

@@ -1,3 +1,5 @@
+use std::{env, io};
+
 use actix_http::HttpMessage;
 use actix_http::{h1, Request, Response};
 use actix_server::Server;
@@ -6,9 +8,8 @@ use bytes::Bytes;
 use futures::Future;
 use http::header::HeaderValue;
 use log::info;
-use std::env;
 
-fn main() {
+fn main() -> io::Result<()> {
     env::set_var("RUST_LOG", "echo=info");
     env_logger::init();
 
@@ -27,7 +28,6 @@ fn main() {
                     })
                 })
                 .map(|_| ())
-        })
-        .unwrap()
-        .run();
+        })?
+        .run()
 }

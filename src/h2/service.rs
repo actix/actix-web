@@ -3,6 +3,7 @@ use std::marker::PhantomData;
 use std::{io, net};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
+use actix_server_config::ServerConfig as SrvConfig;
 use actix_service::{IntoNewService, NewService, Service};
 use actix_utils::cloneable::CloneableService;
 use bytes::Bytes;
@@ -30,14 +31,14 @@ pub struct H2Service<T, S, B> {
 
 impl<T, S, B> H2Service<T, S, B>
 where
-    S: NewService<Request>,
+    S: NewService<SrvConfig, Request = Request>,
     S::Service: 'static,
     S::Error: Debug + 'static,
     S::Response: Into<Response<B>>,
     B: MessageBody + 'static,
 {
     /// Create new `HttpService` instance.
-    pub fn new<F: IntoNewService<S, Request>>(service: F) -> Self {
+    pub fn new<F: IntoNewService<S, SrvConfig>>(service: F) -> Self {
         let cfg = ServiceConfig::new(KeepAlive::Timeout(5), 5000, 0);
 
         H2Service {
@@ -48,7 +49,7 @@ where
     }
 
     /// Create new `HttpService` instance with config.
-    pub fn with_config<F: IntoNewService<S, Request>>(
+    pub fn with_config<F: IntoNewService<S, SrvConfig>>(
         cfg: ServiceConfig,
         service: F,
     ) -> Self {
@@ -65,24 +66,25 @@ where
     }
 }
 
-impl<T, S, B> NewService<T> for H2Service<T, S, B>
+impl<T, S, B> NewService<SrvConfig> for H2Service<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: NewService<Request>,
+    S: NewService<SrvConfig, Request = Request>,
     S::Service: 'static,
     S::Error: Debug,
     S::Response: Into<Response<B>>,
     B: MessageBody + 'static,
 {
+    type Request = T;
     type Response = ();
     type Error = DispatchError;
     type InitError = S::InitError;
     type Service = H2ServiceHandler<T, S::Service, B>;
     type Future = H2ServiceResponse<T, S, B>;
 
-    fn new_service(&self, _: &()) -> Self::Future {
+    fn new_service(&self, cfg: &SrvConfig) -> Self::Future {
         H2ServiceResponse {
-            fut: self.srv.new_service(&()).into_future(),
+            fut: self.srv.new_service(cfg).into_future(),
             cfg: Some(self.cfg.clone()),
             _t: PhantomData,
         }
@@ -105,7 +107,7 @@ pub struct H2ServiceBuilder<T, S> {
 
 impl<T, S> H2ServiceBuilder<T, S>
 where
-    S: NewService<Request>,
+    S: NewService<SrvConfig, Request = Request>,
     S::Service: 'static,
     S::Error: Debug + 'static,
 {
@@ -204,7 +206,7 @@ where
     pub fn finish<F, B>(self, service: F) -> H2Service<T, S, B>
     where
         B: MessageBody,
-        F: IntoNewService<S, Request>,
+        F: IntoNewService<S, SrvConfig>,
     {
         let cfg = ServiceConfig::new(
             self.keep_alive,
@@ -220,7 +222,7 @@ where
 }
 
 #[doc(hidden)]
-pub struct H2ServiceResponse<T, S: NewService<Request>, B> {
+pub struct H2ServiceResponse<T, S: NewService<SrvConfig, Request = Request>, B> {
     fut: <S::Future as IntoFuture>::Future,
     cfg: Option<ServiceConfig>,
     _t: PhantomData<(T, B)>,
@@ -229,7 +231,7 @@ pub struct H2ServiceResponse<T, S: NewService<Request>, B> {
 impl<T, S, B> Future for H2ServiceResponse<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: NewService<Request>,
+    S: NewService<SrvConfig, Request = Request>,
     S::Service: 'static,
     S::Response: Into<Response<B>>,
     S::Error: Debug,
@@ -256,7 +258,7 @@ pub struct H2ServiceHandler<T, S: 'static, B> {
 
 impl<T, S, B> H2ServiceHandler<T, S, B>
 where
-    S: Service<Request> + 'static,
+    S: Service<Request = Request> + 'static,
     S::Error: Debug,
     S::Response: Into<Response<B>>,
     B: MessageBody + 'static,
@@ -270,14 +272,15 @@ where
     }
 }
 
-impl<T, S, B> Service<T> for H2ServiceHandler<T, S, B>
+impl<T, S, B> Service for H2ServiceHandler<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: Service<Request> + 'static,
+    S: Service<Request = Request> + 'static,
     S::Error: Debug,
     S::Response: Into<Response<B>>,
     B: MessageBody + 'static,
 {
+    type Request = T;
     type Response = ();
     type Error = DispatchError;
     type Future = H2ServiceHandlerResponse<T, S, B>;
@@ -300,7 +303,11 @@ where
     }
 }
 
-enum State<T: AsyncRead + AsyncWrite, S: Service<Request> + 'static, B: MessageBody> {
+enum State<
+    T: AsyncRead + AsyncWrite,
+    S: Service<Request = Request> + 'static,
+    B: MessageBody,
+> {
     Incoming(Dispatcher<T, S, B>),
     Handshake(
         Option<CloneableService<S>>,
@@ -312,7 +319,7 @@ enum State<T: AsyncRead + AsyncWrite, S: Service<Request> + 'static, B: MessageB
 pub struct H2ServiceHandlerResponse<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: Service<Request> + 'static,
+    S: Service<Request = Request> + 'static,
     S::Error: Debug,
     S::Response: Into<Response<B>>,
     B: MessageBody + 'static,
@@ -323,7 +330,7 @@ where
 impl<T, S, B> Future for H2ServiceHandlerResponse<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: Service<Request> + 'static,
+    S: Service<Request = Request> + 'static,
     S::Error: Debug,
     S::Response: Into<Response<B>>,
     B: MessageBody,

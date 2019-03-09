@@ -20,7 +20,8 @@ impl<T> Default for VerifyWebSockets<T> {
     }
 }
 
-impl<T> NewService<(Request, Framed<T, Codec>)> for VerifyWebSockets<T> {
+impl<T> NewService for VerifyWebSockets<T> {
+    type Request = (Request, Framed<T, Codec>);
     type Response = (Request, Framed<T, Codec>);
     type Error = (HandshakeError, Framed<T, Codec>);
     type InitError = ();
@@ -32,7 +33,8 @@ impl<T> NewService<(Request, Framed<T, Codec>)> for VerifyWebSockets<T> {
     }
 }
 
-impl<T> Service<(Request, Framed<T, Codec>)> for VerifyWebSockets<T> {
+impl<T> Service for VerifyWebSockets<T> {
+    type Request = (Request, Framed<T, Codec>);
     type Response = (Request, Framed<T, Codec>);
     type Error = (HandshakeError, Framed<T, Codec>);
     type Future = FutureResult<Self::Response, Self::Error>;
