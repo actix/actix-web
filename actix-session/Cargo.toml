@@ -25,13 +25,9 @@ cookie-session = ["cookie/secure"]
 
 [dependencies]
 actix-web = { path=".." }
-actix-codec = "0.1.0"
-
-#actix-service = "0.3.2"
-#actix-utils = "0.3.1"
-actix-service = { git = "https://github.com/actix/actix-net.git" }
-actix-utils = { git = "https://github.com/actix/actix-net.git" }
-
+actix-codec = "0.1.1"
+actix-service = "0.3.3"
+actix-utils = "0.3.3"
 actix-http = { git = "https://github.com/actix/actix-http.git" }
 actix-router = { git = "https://github.com/actix/actix-net.git" }
 actix-server = { git = "https://github.com/actix/actix-net.git" }
@@ -48,4 +44,4 @@ serde_json = "1.0"
 time = "0.1"
 
 [dev-dependencies]
-actix-rt = "0.1.0"
+actix-rt = "0.2.0"
