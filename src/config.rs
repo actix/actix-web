@@ -98,9 +98,9 @@ impl<P: 'static> AppConfig<P> {
         service: F,
         nested: Option<Rc<ResourceMap>>,
     ) where
-        F: IntoNewService<S, ServiceRequest<P>>,
+        F: IntoNewService<S>,
         S: NewService<
-                ServiceRequest<P>,
+                Request = ServiceRequest<P>,
                 Response = ServiceResponse,
                 Error = (),
                 InitError = (),

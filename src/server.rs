@@ -7,6 +7,7 @@ use actix_http::{
 };
 use actix_rt::System;
 use actix_server::{Server, ServerBuilder};
+use actix_server_config::ServerConfig;
 use actix_service::{IntoNewService, NewService};
 use parking_lot::Mutex;
 
@@ -53,8 +54,8 @@ struct Config {
 pub struct HttpServer<F, I, S, B>
 where
     F: Fn() -> I + Send + Clone + 'static,
-    I: IntoNewService<S, Request>,
-    S: NewService<Request>,
+    I: IntoNewService<S, ServerConfig>,
+    S: NewService<ServerConfig, Request = Request>,
     S::Error: fmt::Debug,
     S::Response: Into<Response<B>>,
     S::Service: 'static,
@@ -72,8 +73,8 @@ where
 impl<F, I, S, B> HttpServer<F, I, S, B>
 where
     F: Fn() -> I + Send + Clone + 'static,
-    I: IntoNewService<S, Request>,
-    S: NewService<Request>,
+    I: IntoNewService<S, ServerConfig>,
+    S: NewService<ServerConfig, Request = Request>,
     S::Error: fmt::Debug + 'static,
     S::Response: Into<Response<B>>,
     S::Service: 'static,
@@ -432,8 +433,8 @@ where
 impl<F, I, S, B> HttpServer<F, I, S, B>
 where
     F: Fn() -> I + Send + Clone + 'static,
-    I: IntoNewService<S, Request>,
-    S: NewService<Request>,
+    I: IntoNewService<S, ServerConfig>,
+    S: NewService<ServerConfig, Request = Request>,
     S::Error: fmt::Debug,
     S::Response: Into<Response<B>>,
     S::Service: 'static,

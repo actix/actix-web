@@ -85,11 +85,12 @@ impl DefaultHeaders {
     }
 }
 
-impl<S, P, B> Transform<S, ServiceRequest<P>> for DefaultHeaders
+impl<S, P, B> Transform<S> for DefaultHeaders
 where
-    S: Service<ServiceRequest<P>, Response = ServiceResponse<B>>,
+    S: Service<Request = ServiceRequest<P>, Response = ServiceResponse<B>>,
     S::Future: 'static,
 {
+    type Request = ServiceRequest<P>;
     type Response = ServiceResponse<B>;
     type Error = S::Error;
     type InitError = ();
@@ -109,11 +110,12 @@ pub struct DefaultHeadersMiddleware<S> {
     inner: Rc<Inner>,
 }
 
-impl<S, P, B> Service<ServiceRequest<P>> for DefaultHeadersMiddleware<S>
+impl<S, P, B> Service for DefaultHeadersMiddleware<S>
 where
-    S: Service<ServiceRequest<P>, Response = ServiceResponse<B>>,
+    S: Service<Request = ServiceRequest<P>, Response = ServiceResponse<B>>,
     S::Future: 'static,
 {
+    type Request = ServiceRequest<P>;
     type Response = ServiceResponse<B>;
     type Error = S::Error;
     type Future = Box<Future<Item = Self::Response, Error = Self::Error>>;

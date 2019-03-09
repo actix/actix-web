@@ -8,6 +8,7 @@ use actix_http::test::TestRequest as HttpTestRequest;
 use actix_http::{Extensions, PayloadStream, Request};
 use actix_router::{Path, ResourceDef, Url};
 use actix_rt::Runtime;
+use actix_server_config::ServerConfig;
 use actix_service::{IntoNewService, NewService, Service};
 use bytes::Bytes;
 use futures::Future;
@@ -62,13 +63,19 @@ where
 /// ```
 pub fn init_service<R, S, B, E>(
     app: R,
-) -> impl Service<Request, Response = ServiceResponse<B>, Error = E>
+) -> impl Service<Request = Request, Response = ServiceResponse<B>, Error = E>
 where
-    R: IntoNewService<S, Request, ()>,
-    S: NewService<Request, Response = ServiceResponse<B>, Error = E>,
+    R: IntoNewService<S, ServerConfig>,
+    S: NewService<
+        ServerConfig,
+        Request = Request,
+        Response = ServiceResponse<B>,
+        Error = E,
+    >,
     S::InitError: std::fmt::Debug,
 {
-    block_on(app.into_new_service().new_service(&())).unwrap()
+    let cfg = ServerConfig::new("127.0.0.1:8080".parse().unwrap());
+    block_on(app.into_new_service().new_service(&cfg)).unwrap()
 }
 
 /// Calls service and waits for response future completion.
@@ -93,7 +100,7 @@ where
 /// ```
 pub fn call_success<S, R, B, E>(app: &mut S, req: R) -> S::Response
 where
-    S: Service<R, Response = ServiceResponse<B>, Error = E>,
+    S: Service<Request = R, Response = ServiceResponse<B>, Error = E>,
     E: std::fmt::Debug,
 {
     block_on(app.call(req)).unwrap()

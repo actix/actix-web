@@ -2,6 +2,7 @@
 use std::collections::HashSet;
 use std::env;
 use std::fmt::{self, Display, Formatter};
+use std::marker::PhantomData;
 use std::rc::Rc;
 
 use actix_service::{Service, Transform};
@@ -110,11 +111,12 @@ impl Default for Logger {
     }
 }
 
-impl<S, P, B> Transform<S, ServiceRequest<P>> for Logger
+impl<S, P, B> Transform<S> for Logger
 where
-    S: Service<ServiceRequest<P>, Response = ServiceResponse<B>>,
+    S: Service<Request = ServiceRequest<P>, Response = ServiceResponse<B>>,
     B: MessageBody,
 {
+    type Request = ServiceRequest<P>;
     type Response = ServiceResponse<StreamLog<B>>;
     type Error = S::Error;
     type InitError = ();
@@ -135,11 +137,12 @@ pub struct LoggerMiddleware<S> {
     service: S,
 }
 
-impl<S, P, B> Service<ServiceRequest<P>> for LoggerMiddleware<S>
+impl<S, P, B> Service for LoggerMiddleware<S>
 where
-    S: Service<ServiceRequest<P>, Response = ServiceResponse<B>>,
+    S: Service<Request = ServiceRequest<P>, Response = ServiceResponse<B>>,
     B: MessageBody,
 {
+    type Request = ServiceRequest<P>;
     type Response = ServiceResponse<StreamLog<B>>;
     type Error = S::Error;
     type Future = LoggerResponse<S, P, B>;
@@ -154,6 +157,7 @@ where
                 fut: self.service.call(req),
                 format: None,
                 time: time::now(),
+                _t: PhantomData,
             }
         } else {
             let now = time::now();
@@ -166,6 +170,7 @@ where
                 fut: self.service.call(req),
                 format: Some(format),
                 time: now,
+                _t: PhantomData,
             }
         }
     }
@@ -175,17 +180,18 @@ where
 pub struct LoggerResponse<S, P, B>
 where
     B: MessageBody,
-    S: Service<ServiceRequest<P>, Response = ServiceResponse<B>>,
+    S: Service,
 {
     fut: S::Future,
     time: time::Tm,
     format: Option<Format>,
+    _t: PhantomData<(P, B)>,
 }
 
 impl<S, P, B> Future for LoggerResponse<S, P, B>
 where
     B: MessageBody,
-    S: Service<ServiceRequest<P>, Response = ServiceResponse<B>>,
+    S: Service<Request = ServiceRequest<P>, Response = ServiceResponse<B>>,
 {
     type Item = ServiceResponse<StreamLog<B>>;
     type Error = S::Error;

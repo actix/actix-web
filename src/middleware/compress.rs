@@ -1,4 +1,5 @@
 use std::io::Write;
+use std::marker::PhantomData;
 use std::str::FromStr;
 use std::{cmp, fmt, io};
 
@@ -36,13 +37,14 @@ impl Default for Compress {
     }
 }
 
-impl<S, P, B> Transform<S, ServiceRequest<P>> for Compress
+impl<S, P, B> Transform<S> for Compress
 where
     P: 'static,
     B: MessageBody,
-    S: Service<ServiceRequest<P>, Response = ServiceResponse<B>>,
+    S: Service<Request = ServiceRequest<P>, Response = ServiceResponse<B>>,
     S::Future: 'static,
 {
+    type Request = ServiceRequest<P>;
     type Response = ServiceResponse<Encoder<B>>;
     type Error = S::Error;
     type InitError = ();
@@ -62,13 +64,14 @@ pub struct CompressMiddleware<S> {
     encoding: ContentEncoding,
 }
 
-impl<S, P, B> Service<ServiceRequest<P>> for CompressMiddleware<S>
+impl<S, P, B> Service for CompressMiddleware<S>
 where
     P: 'static,
     B: MessageBody,
-    S: Service<ServiceRequest<P>, Response = ServiceResponse<B>>,
+    S: Service<Request = ServiceRequest<P>, Response = ServiceResponse<B>>,
     S::Future: 'static,
 {
+    type Request = ServiceRequest<P>;
     type Response = ServiceResponse<Encoder<B>>;
     type Error = S::Error;
     type Future = CompressResponse<S, P, B>;
@@ -92,6 +95,7 @@ where
         CompressResponse {
             encoding,
             fut: self.service.call(req),
+            _t: PhantomData,
         }
     }
 }
@@ -101,18 +105,19 @@ pub struct CompressResponse<S, P, B>
 where
     P: 'static,
     B: MessageBody,
-    S: Service<ServiceRequest<P>, Response = ServiceResponse<B>>,
+    S: Service,
     S::Future: 'static,
 {
     fut: S::Future,
     encoding: ContentEncoding,
+    _t: PhantomData<(P, B)>,
 }
 
 impl<S, P, B> Future for CompressResponse<S, P, B>
 where
     P: 'static,
     B: MessageBody,
-    S: Service<ServiceRequest<P>, Response = ServiceResponse<B>>,
+    S: Service<Request = ServiceRequest<P>, Response = ServiceResponse<B>>,
     S::Future: 'static,
 {
     type Item = ServiceResponse<Encoder<B>>;

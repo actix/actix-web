@@ -52,11 +52,12 @@ where
         }
     }
 }
-impl<F, T, R> NewService<(T, HttpRequest)> for Handler<F, T, R>
+impl<F, T, R> NewService for Handler<F, T, R>
 where
     F: Factory<T, R>,
     R: Responder + 'static,
 {
+    type Request = (T, HttpRequest);
     type Response = ServiceResponse;
     type Error = Void;
     type InitError = ();
@@ -81,11 +82,12 @@ where
     _t: PhantomData<(T, R)>,
 }
 
-impl<F, T, R> Service<(T, HttpRequest)> for HandlerService<F, T, R>
+impl<F, T, R> Service for HandlerService<F, T, R>
 where
     F: Factory<T, R>,
     R: Responder + 'static,
 {
+    type Request = (T, HttpRequest);
     type Response = ServiceResponse;
     type Error = Void;
     type Future = HandlerServiceResponse<<R::Future as IntoFuture>::Future>;
@@ -182,13 +184,14 @@ where
         }
     }
 }
-impl<F, T, R> NewService<(T, HttpRequest)> for AsyncHandler<F, T, R>
+impl<F, T, R> NewService for AsyncHandler<F, T, R>
 where
     F: AsyncFactory<T, R>,
     R: IntoFuture,
     R::Item: Into<Response>,
     R::Error: Into<Error>,
 {
+    type Request = (T, HttpRequest);
     type Response = ServiceResponse;
     type Error = ();
     type InitError = ();
@@ -215,13 +218,14 @@ where
     _t: PhantomData<(T, R)>,
 }
 
-impl<F, T, R> Service<(T, HttpRequest)> for AsyncHandlerService<F, T, R>
+impl<F, T, R> Service for AsyncHandlerService<F, T, R>
 where
     F: AsyncFactory<T, R>,
     R: IntoFuture,
     R::Item: Into<Response>,
     R::Error: Into<Error>,
 {
+    type Request = (T, HttpRequest);
     type Response = ServiceResponse;
     type Error = ();
     type Future = AsyncHandlerServiceResponse<R::Future>;
@@ -286,7 +290,8 @@ impl<P, T: FromRequest<P>> Extract<P, T> {
     }
 }
 
-impl<P, T: FromRequest<P>> NewService<ServiceRequest<P>> for Extract<P, T> {
+impl<P, T: FromRequest<P>> NewService for Extract<P, T> {
+    type Request = ServiceRequest<P>;
     type Response = (T, HttpRequest);
     type Error = (Error, ServiceFromRequest<P>);
     type InitError = ();
@@ -306,7 +311,8 @@ pub struct ExtractService<P, T: FromRequest<P>> {
     _t: PhantomData<(P, T)>,
 }
 
-impl<P, T: FromRequest<P>> Service<ServiceRequest<P>> for ExtractService<P, T> {
+impl<P, T: FromRequest<P>> Service for ExtractService<P, T> {
+    type Request = ServiceRequest<P>;
     type Response = (T, HttpRequest);
     type Error = (Error, ServiceFromRequest<P>);
     type Future = ExtractResponse<P, T>;

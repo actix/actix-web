@@ -81,7 +81,7 @@ impl<P, T> Scope<P, T>
 where
     P: 'static,
     T: NewService<
-        ServiceRequest<P>,
+        Request = ServiceRequest<P>,
         Response = ServiceResponse,
         Error = (),
         InitError = (),
@@ -174,7 +174,7 @@ where
     where
         F: FnOnce(Resource<P>) -> Resource<P, U>,
         U: NewService<
-                ServiceRequest<P>,
+                Request = ServiceRequest<P>,
                 Response = ServiceResponse,
                 Error = (),
                 InitError = (),
@@ -199,7 +199,7 @@ where
     ) -> Scope<
         P,
         impl NewService<
-            ServiceRequest<P>,
+            Request = ServiceRequest<P>,
             Response = ServiceResponse,
             Error = (),
             InitError = (),
@@ -208,12 +208,12 @@ where
     where
         M: Transform<
             T::Service,
-            ServiceRequest<P>,
+            Request = ServiceRequest<P>,
             Response = ServiceResponse,
             Error = (),
             InitError = (),
         >,
-        F: IntoTransform<M, T::Service, ServiceRequest<P>>,
+        F: IntoTransform<M, T::Service>,
     {
         let endpoint = ApplyTransform::new(mw, self.endpoint);
         Scope {
@@ -231,7 +231,7 @@ impl<P, T> HttpServiceFactory<P> for Scope<P, T>
 where
     P: 'static,
     T: NewService<
-            ServiceRequest<P>,
+            Request = ServiceRequest<P>,
             Response = ServiceResponse,
             Error = (),
             InitError = (),
@@ -287,7 +287,8 @@ pub struct ScopeFactory<P> {
     default: Rc<RefCell<Option<Rc<HttpNewService<P>>>>>,
 }
 
-impl<P: 'static> NewService<ServiceRequest<P>> for ScopeFactory<P> {
+impl<P: 'static> NewService for ScopeFactory<P> {
+    type Request = ServiceRequest<P>;
     type Response = ServiceResponse;
     type Error = ();
     type InitError = ();
@@ -402,7 +403,8 @@ pub struct ScopeService<P> {
     _ready: Option<(ServiceRequest<P>, ResourceInfo)>,
 }
 
-impl<P> Service<ServiceRequest<P>> for ScopeService<P> {
+impl<P> Service for ScopeService<P> {
+    type Request = ServiceRequest<P>;
     type Response = ServiceResponse;
     type Error = ();
     type Future = Either<BoxedResponse, FutureResult<Self::Response, Self::Error>>;
@@ -445,7 +447,8 @@ impl<P> ScopeEndpoint<P> {
     }
 }
 
-impl<P: 'static> NewService<ServiceRequest<P>> for ScopeEndpoint<P> {
+impl<P: 'static> NewService for ScopeEndpoint<P> {
+    type Request = ServiceRequest<P>;
     type Response = ServiceResponse;
     type Error = ();
     type InitError = ();

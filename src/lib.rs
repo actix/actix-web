@@ -1,6 +1,7 @@
 #![allow(clippy::type_complexity)]
 
 mod app;
+mod app_service;
 mod extract;
 mod handler;
 // mod info;

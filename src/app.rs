@@ -3,37 +3,30 @@ use std::marker::PhantomData;
 use std::rc::Rc;
 
 use actix_http::body::{Body, MessageBody};
-use actix_http::{Extensions, PayloadStream, Request, Response};
-use actix_router::{Path, ResourceDef, ResourceInfo, Router, Url};
-use actix_service::boxed::{self, BoxedNewService, BoxedService};
+use actix_http::{Extensions, PayloadStream};
+use actix_server_config::ServerConfig;
+use actix_service::boxed::{self, BoxedNewService};
 use actix_service::{
-    fn_service, AndThenNewService, ApplyTransform, IntoNewService, IntoTransform,
-    NewService, Service, Transform,
+    ApplyTransform, IntoNewService, IntoTransform, NewService, Transform,
 };
-use futures::future::{ok, Either, FutureResult};
-use futures::{Async, Future, IntoFuture, Poll};
+use futures::IntoFuture;
 
-use crate::config::AppConfig;
-use crate::guard::Guard;
+use crate::app_service::{AppChain, AppEntry, AppInit, AppRouting, AppRoutingFactory};
 use crate::resource::Resource;
-use crate::rmap::ResourceMap;
 use crate::route::Route;
 use crate::service::{
     HttpServiceFactory, ServiceFactory, ServiceFactoryWrapper, ServiceRequest,
     ServiceResponse,
 };
-use crate::state::{State, StateFactory, StateFactoryResult};
+use crate::state::{State, StateFactory};
 
-type Guards = Vec<Box<Guard>>;
-type HttpService<P> = BoxedService<ServiceRequest<P>, ServiceResponse, ()>;
 type HttpNewService<P> = BoxedNewService<(), ServiceRequest<P>, ServiceResponse, (), ()>;
-type BoxedResponse = Box<Future<Item = ServiceResponse, Error = ()>>;
 
 /// Application builder - structure that follows the builder pattern
 /// for building application instances.
 pub struct App<P, T>
 where
-    T: NewService<ServiceRequest, Response = ServiceRequest<P>>,
+    T: NewService<Request = ServiceRequest, Response = ServiceRequest<P>>,
 {
     chain: T,
     extensions: Extensions,
@@ -58,7 +51,7 @@ impl<P, T> App<P, T>
 where
     P: 'static,
     T: NewService<
-        ServiceRequest,
+        Request = ServiceRequest,
         Response = ServiceRequest<P>,
         Error = (),
         InitError = (),
@@ -121,7 +114,7 @@ where
         P,
         B,
         impl NewService<
-            ServiceRequest<P>,
+            Request = ServiceRequest<P>,
             Response = ServiceResponse<B>,
             Error = (),
             InitError = (),
@@ -130,12 +123,12 @@ where
     where
         M: Transform<
             AppRouting<P>,
-            ServiceRequest<P>,
+            Request = ServiceRequest<P>,
             Response = ServiceResponse<B>,
             Error = (),
             InitError = (),
         >,
-        F: IntoTransform<M, AppRouting<P>, ServiceRequest<P>>,
+        F: IntoTransform<M, AppRouting<P>>,
     {
         let fref = Rc::new(RefCell::new(None));
         let endpoint = ApplyTransform::new(mw, AppEntry::new(fref.clone()));
@@ -159,7 +152,7 @@ where
     ) -> App<
         P1,
         impl NewService<
-            ServiceRequest,
+            Request = ServiceRequest,
             Response = ServiceRequest<P1>,
             Error = (),
             InitError = (),
@@ -167,12 +160,12 @@ where
     >
     where
         C: NewService<
-            ServiceRequest<P>,
+            Request = ServiceRequest<P>,
             Response = ServiceRequest<P1>,
             Error = (),
             InitError = (),
         >,
-        F: IntoNewService<C, ServiceRequest<P>>,
+        F: IntoNewService<C>,
     {
         let chain = self.chain.and_then(chain.into_new_service());
         App {
@@ -264,7 +257,7 @@ where
     P: 'static,
     B: MessageBody,
     T: NewService<
-        ServiceRequest<P>,
+        Request = ServiceRequest<P>,
         Response = ServiceResponse<B>,
         Error = (),
         InitError = (),
@@ -324,7 +317,7 @@ where
         P,
         B1,
         impl NewService<
-            ServiceRequest<P>,
+            Request = ServiceRequest<P>,
             Response = ServiceResponse<B1>,
             Error = (),
             InitError = (),
@@ -333,13 +326,13 @@ where
     where
         M: Transform<
             T::Service,
-            ServiceRequest<P>,
+            Request = ServiceRequest<P>,
             Response = ServiceResponse<B1>,
             Error = (),
             InitError = (),
         >,
         B1: MessageBody,
-        F: IntoTransform<M, T::Service, ServiceRequest<P>>,
+        F: IntoTransform<M, T::Service>,
     {
         let endpoint = ApplyTransform::new(mw, self.endpoint);
         AppRouter {
@@ -362,7 +355,7 @@ where
     where
         F: FnOnce(Resource<P>) -> Resource<P, U>,
         U: NewService<
-                ServiceRequest<P>,
+                Request = ServiceRequest<P>,
                 Response = ServiceResponse,
                 Error = (),
                 InitError = (),
@@ -413,391 +406,39 @@ where
     }
 }
 
-impl<C, T, P: 'static, B: MessageBody>
-    IntoNewService<AndThenNewService<AppInit<C, P>, T>, Request>
+impl<C, T, P: 'static, B: MessageBody> IntoNewService<AppInit<C, T, P, B>, ServerConfig>
     for AppRouter<C, P, B, T>
 where
     T: NewService<
-        ServiceRequest<P>,
+        Request = ServiceRequest<P>,
         Response = ServiceResponse<B>,
         Error = (),
         InitError = (),
     >,
     C: NewService<
-        ServiceRequest,
+        Request = ServiceRequest,
         Response = ServiceRequest<P>,
         Error = (),
         InitError = (),
     >,
 {
-    fn into_new_service(self) -> AndThenNewService<AppInit<C, P>, T> {
-        // update resource default service
-        let default = self.default.unwrap_or_else(|| {
-            Rc::new(boxed::new_service(fn_service(|req: ServiceRequest<P>| {
-                Ok(req.into_response(Response::NotFound().finish()))
-            })))
-        });
-
-        let mut config = AppConfig::new(
-            "127.0.0.1:8080".parse().unwrap(),
-            "localhost:8080".to_owned(),
-            false,
-            default.clone(),
-        );
-
-        // register services
-        self.services
-            .into_iter()
-            .for_each(|mut srv| srv.register(&mut config));
-
-        let mut rmap = ResourceMap::new(ResourceDef::new(""));
-
-        // complete pipeline creation
-        *self.factory_ref.borrow_mut() = Some(AppRoutingFactory {
-            default,
-            services: Rc::new(
-                config
-                    .into_services()
-                    .into_iter()
-                    .map(|(mut rdef, srv, guards, nested)| {
-                        rmap.add(&mut rdef, nested);
-                        (rdef, srv, RefCell::new(guards))
-                    })
-                    .collect(),
-            ),
-        });
-
-        // complete ResourceMap tree creation
-        let rmap = Rc::new(rmap);
-        rmap.finish(rmap.clone());
-
+    fn into_new_service(self) -> AppInit<C, T, P, B> {
         AppInit {
-            rmap,
             chain: self.chain,
             state: self.state,
+            endpoint: self.endpoint,
+            services: RefCell::new(self.services),
+            default: self.default,
+            factory_ref: self.factory_ref,
             extensions: Rc::new(RefCell::new(Rc::new(self.extensions))),
         }
-        .and_then(self.endpoint)
-    }
-}
-
-pub struct AppRoutingFactory<P> {
-    services: Rc<Vec<(ResourceDef, HttpNewService<P>, RefCell<Option<Guards>>)>>,
-    default: Rc<HttpNewService<P>>,
-}
-
-impl<P: 'static> NewService<ServiceRequest<P>> for AppRoutingFactory<P> {
-    type Response = ServiceResponse;
-    type Error = ();
-    type InitError = ();
-    type Service = AppRouting<P>;
-    type Future = AppRoutingFactoryResponse<P>;
-
-    fn new_service(&self, _: &()) -> Self::Future {
-        AppRoutingFactoryResponse {
-            fut: self
-                .services
-                .iter()
-                .map(|(path, service, guards)| {
-                    CreateAppRoutingItem::Future(
-                        Some(path.clone()),
-                        guards.borrow_mut().take(),
-                        service.new_service(&()),
-                    )
-                })
-                .collect(),
-            default: None,
-            default_fut: Some(self.default.new_service(&())),
-        }
-    }
-}
-
-type HttpServiceFut<P> = Box<Future<Item = HttpService<P>, Error = ()>>;
-
-/// Create app service
-#[doc(hidden)]
-pub struct AppRoutingFactoryResponse<P> {
-    fut: Vec<CreateAppRoutingItem<P>>,
-    default: Option<HttpService<P>>,
-    default_fut: Option<Box<Future<Item = HttpService<P>, Error = ()>>>,
-}
-
-enum CreateAppRoutingItem<P> {
-    Future(Option<ResourceDef>, Option<Guards>, HttpServiceFut<P>),
-    Service(ResourceDef, Option<Guards>, HttpService<P>),
-}
-
-impl<P> Future for AppRoutingFactoryResponse<P> {
-    type Item = AppRouting<P>;
-    type Error = ();
-
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        let mut done = true;
-
-        if let Some(ref mut fut) = self.default_fut {
-            match fut.poll()? {
-                Async::Ready(default) => self.default = Some(default),
-                Async::NotReady => done = false,
-            }
-        }
-
-        // poll http services
-        for item in &mut self.fut {
-            let res = match item {
-                CreateAppRoutingItem::Future(
-                    ref mut path,
-                    ref mut guards,
-                    ref mut fut,
-                ) => match fut.poll()? {
-                    Async::Ready(service) => {
-                        Some((path.take().unwrap(), guards.take(), service))
-                    }
-                    Async::NotReady => {
-                        done = false;
-                        None
-                    }
-                },
-                CreateAppRoutingItem::Service(_, _, _) => continue,
-            };
-
-            if let Some((path, guards, service)) = res {
-                *item = CreateAppRoutingItem::Service(path, guards, service);
-            }
-        }
-
-        if done {
-            let router = self
-                .fut
-                .drain(..)
-                .fold(Router::build(), |mut router, item| {
-                    match item {
-                        CreateAppRoutingItem::Service(path, guards, service) => {
-                            router.rdef(path, service).2 = guards;
-                        }
-                        CreateAppRoutingItem::Future(_, _, _) => unreachable!(),
-                    }
-                    router
-                });
-            Ok(Async::Ready(AppRouting {
-                ready: None,
-                router: router.finish(),
-                default: self.default.take(),
-            }))
-        } else {
-            Ok(Async::NotReady)
-        }
-    }
-}
-
-pub struct AppRouting<P> {
-    router: Router<HttpService<P>, Guards>,
-    ready: Option<(ServiceRequest<P>, ResourceInfo)>,
-    default: Option<HttpService<P>>,
-}
-
-impl<P> Service<ServiceRequest<P>> for AppRouting<P> {
-    type Response = ServiceResponse;
-    type Error = ();
-    type Future = Either<BoxedResponse, FutureResult<Self::Response, Self::Error>>;
-
-    fn poll_ready(&mut self) -> Poll<(), Self::Error> {
-        if self.ready.is_none() {
-            Ok(Async::Ready(()))
-        } else {
-            Ok(Async::NotReady)
-        }
-    }
-
-    fn call(&mut self, mut req: ServiceRequest<P>) -> Self::Future {
-        let res = self.router.recognize_mut_checked(&mut req, |req, guards| {
-            if let Some(ref guards) = guards {
-                for f in guards {
-                    if !f.check(req.head()) {
-                        return false;
-                    }
-                }
-            }
-            true
-        });
-
-        if let Some((srv, _info)) = res {
-            Either::A(srv.call(req))
-        } else if let Some(ref mut default) = self.default {
-            Either::A(default.call(req))
-        } else {
-            let req = req.into_request();
-            Either::B(ok(ServiceResponse::new(req, Response::NotFound().finish())))
-        }
-    }
-}
-
-#[doc(hidden)]
-/// Wrapper service for routing
-pub struct AppEntry<P> {
-    factory: Rc<RefCell<Option<AppRoutingFactory<P>>>>,
-}
-
-impl<P> AppEntry<P> {
-    fn new(factory: Rc<RefCell<Option<AppRoutingFactory<P>>>>) -> Self {
-        AppEntry { factory }
-    }
-}
-
-impl<P: 'static> NewService<ServiceRequest<P>> for AppEntry<P> {
-    type Response = ServiceResponse;
-    type Error = ();
-    type InitError = ();
-    type Service = AppRouting<P>;
-    type Future = AppRoutingFactoryResponse<P>;
-
-    fn new_service(&self, _: &()) -> Self::Future {
-        self.factory.borrow_mut().as_mut().unwrap().new_service(&())
-    }
-}
-
-#[doc(hidden)]
-pub struct AppChain;
-
-impl NewService<ServiceRequest> for AppChain {
-    type Response = ServiceRequest;
-    type Error = ();
-    type InitError = ();
-    type Service = AppChain;
-    type Future = FutureResult<Self::Service, Self::InitError>;
-
-    fn new_service(&self, _: &()) -> Self::Future {
-        ok(AppChain)
-    }
-}
-
-impl Service<ServiceRequest> for AppChain {
-    type Response = ServiceRequest;
-    type Error = ();
-    type Future = FutureResult<Self::Response, Self::Error>;
-
-    #[inline]
-    fn poll_ready(&mut self) -> Poll<(), Self::Error> {
-        Ok(Async::Ready(()))
-    }
-
-    #[inline]
-    fn call(&mut self, req: ServiceRequest) -> Self::Future {
-        ok(req)
-    }
-}
-
-/// Service factory to convert `Request` to a `ServiceRequest<S>`.
-/// It also executes state factories.
-pub struct AppInit<C, P>
-where
-    C: NewService<ServiceRequest, Response = ServiceRequest<P>>,
-{
-    chain: C,
-    rmap: Rc<ResourceMap>,
-    state: Vec<Box<StateFactory>>,
-    extensions: Rc<RefCell<Rc<Extensions>>>,
-}
-
-impl<C, P: 'static> NewService<Request> for AppInit<C, P>
-where
-    C: NewService<ServiceRequest, Response = ServiceRequest<P>, InitError = ()>,
-{
-    type Response = ServiceRequest<P>;
-    type Error = C::Error;
-    type InitError = C::InitError;
-    type Service = AppInitService<C::Service, P>;
-    type Future = AppInitResult<C, P>;
-
-    fn new_service(&self, _: &()) -> Self::Future {
-        AppInitResult {
-            chain: self.chain.new_service(&()),
-            state: self.state.iter().map(|s| s.construct()).collect(),
-            extensions: self.extensions.clone(),
-            rmap: self.rmap.clone(),
-        }
-    }
-}
-
-#[doc(hidden)]
-pub struct AppInitResult<C, P>
-where
-    C: NewService<ServiceRequest, Response = ServiceRequest<P>, InitError = ()>,
-{
-    chain: C::Future,
-    rmap: Rc<ResourceMap>,
-    state: Vec<Box<StateFactoryResult>>,
-    extensions: Rc<RefCell<Rc<Extensions>>>,
-}
-
-impl<C, P> Future for AppInitResult<C, P>
-where
-    C: NewService<ServiceRequest, Response = ServiceRequest<P>, InitError = ()>,
-{
-    type Item = AppInitService<C::Service, P>;
-    type Error = C::InitError;
-
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        if let Some(extensions) = Rc::get_mut(&mut *self.extensions.borrow_mut()) {
-            let mut idx = 0;
-            while idx < self.state.len() {
-                if let Async::Ready(_) = self.state[idx].poll_result(extensions)? {
-                    self.state.remove(idx);
-                } else {
-                    idx += 1;
-                }
-            }
-            if !self.state.is_empty() {
-                return Ok(Async::NotReady);
-            }
-        } else {
-            log::warn!("Multiple copies of app extensions exists");
-        }
-
-        let chain = futures::try_ready!(self.chain.poll());
-
-        Ok(Async::Ready(AppInitService {
-            chain,
-            rmap: self.rmap.clone(),
-            extensions: self.extensions.borrow().clone(),
-        }))
-    }
-}
-
-/// Service to convert `Request` to a `ServiceRequest<S>`
-pub struct AppInitService<C, P>
-where
-    C: Service<ServiceRequest, Response = ServiceRequest<P>>,
-{
-    chain: C,
-    rmap: Rc<ResourceMap>,
-    extensions: Rc<Extensions>,
-}
-
-impl<C, P> Service<Request> for AppInitService<C, P>
-where
-    C: Service<ServiceRequest, Response = ServiceRequest<P>>,
-{
-    type Response = ServiceRequest<P>;
-    type Error = C::Error;
-    type Future = C::Future;
-
-    fn poll_ready(&mut self) -> Poll<(), Self::Error> {
-        self.chain.poll_ready()
-    }
-
-    fn call(&mut self, req: Request) -> Self::Future {
-        let req = ServiceRequest::new(
-            Path::new(Url::new(req.uri().clone())),
-            req,
-            self.rmap.clone(),
-            self.extensions.clone(),
-        );
-        self.chain.call(req)
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use actix_service::Service;
+
     use super::*;
     use crate::http::{Method, StatusCode};
     use crate::test::{block_on, init_service, TestRequest};
