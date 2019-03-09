@@ -1,12 +1,11 @@
 use std::cell::UnsafeCell;
+use std::fmt;
 use std::fmt::Write;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
-use std::{fmt, net};
 
 use bytes::BytesMut;
 use futures::{future, Future};
-use log::error;
 use time;
 use tokio_timer::{sleep, Delay};
 
@@ -90,11 +89,6 @@ impl ServiceConfig {
         }))
     }
 
-    /// Create worker settings builder.
-    pub fn build() -> ServiceConfigBuilder {
-        ServiceConfigBuilder::new()
-    }
-
     #[inline]
     /// Keep alive duration if configured.
     pub fn keep_alive(&self) -> Option<Duration> {
@@ -174,116 +168,6 @@ impl ServiceConfig {
 
     pub(crate) fn set_date_header(&self, dst: &mut BytesMut) {
         dst.extend_from_slice(&self.0.timer.date().bytes);
-    }
-}
-
-/// A service config builder
-///
-/// This type can be used to construct an instance of `ServiceConfig` through a
-/// builder-like pattern.
-pub struct ServiceConfigBuilder {
-    keep_alive: KeepAlive,
-    client_timeout: u64,
-    client_disconnect: u64,
-    host: String,
-    addr: net::SocketAddr,
-    secure: bool,
-}
-
-impl ServiceConfigBuilder {
-    /// Create instance of `ServiceConfigBuilder`
-    pub fn new() -> ServiceConfigBuilder {
-        ServiceConfigBuilder {
-            keep_alive: KeepAlive::Timeout(5),
-            client_timeout: 5000,
-            client_disconnect: 0,
-            secure: false,
-            host: "localhost".to_owned(),
-            addr: "127.0.0.1:8080".parse().unwrap(),
-        }
-    }
-
-    /// Enable secure flag for current server.
-    /// This flags also enables `client disconnect timeout`.
-    ///
-    /// By default this flag is set to false.
-    pub fn secure(mut self) -> Self {
-        self.secure = true;
-        if self.client_disconnect == 0 {
-            self.client_disconnect = 3000;
-        }
-        self
-    }
-
-    /// Set server keep-alive setting.
-    ///
-    /// By default keep alive is set to a 5 seconds.
-    pub fn keep_alive<T: Into<KeepAlive>>(mut self, val: T) -> Self {
-        self.keep_alive = val.into();
-        self
-    }
-
-    /// Set server client timeout in milliseconds for first request.
-    ///
-    /// Defines a timeout for reading client request header. If a client does not transmit
-    /// the entire set headers within this time, the request is terminated with
-    /// the 408 (Request Time-out) error.
-    ///
-    /// To disable timeout set value to 0.
-    ///
-    /// By default client timeout is set to 5000 milliseconds.
-    pub fn client_timeout(mut self, val: u64) -> Self {
-        self.client_timeout = val;
-        self
-    }
-
-    /// Set server connection disconnect timeout in milliseconds.
-    ///
-    /// Defines a timeout for disconnect connection. If a disconnect procedure does not complete
-    /// within this time, the request get dropped. This timeout affects secure connections.
-    ///
-    /// To disable timeout set value to 0.
-    ///
-    /// By default disconnect timeout is set to 3000 milliseconds.
-    pub fn client_disconnect(mut self, val: u64) -> Self {
-        self.client_disconnect = val;
-        self
-    }
-
-    /// Set server host name.
-    ///
-    /// Host name is used by application router aa a hostname for url
-    /// generation. Check [ConnectionInfo](./dev/struct.ConnectionInfo.
-    /// html#method.host) documentation for more information.
-    ///
-    /// By default host name is set to a "localhost" value.
-    pub fn server_hostname(mut self, val: &str) -> Self {
-        self.host = val.to_owned();
-        self
-    }
-
-    /// Set server ip address.
-    ///
-    /// Host name is used by application router aa a hostname for url
-    /// generation. Check [ConnectionInfo](./dev/struct.ConnectionInfo.
-    /// html#method.host) documentation for more information.
-    ///
-    /// By default server address is set to a "127.0.0.1:8080"
-    pub fn server_address<S: net::ToSocketAddrs>(mut self, addr: S) -> Self {
-        match addr.to_socket_addrs() {
-            Err(err) => error!("Can not convert to SocketAddr: {}", err),
-            Ok(mut addrs) => {
-                if let Some(addr) = addrs.next() {
-                    self.addr = addr;
-                }
-            }
-        }
-        self
-    }
-
-    /// Finish service configuration and create `ServiceConfig` object.
-    pub fn finish(&mut self) -> ServiceConfig {
-        ServiceConfig::new(self.keep_alive, self.client_timeout, self.client_disconnect)
     }
 }
 

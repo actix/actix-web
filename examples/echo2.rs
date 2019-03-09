@@ -2,9 +2,8 @@ use std::{env, io};
 
 use actix_http::http::HeaderValue;
 use actix_http::HttpMessage;
-use actix_http::{h1, Error, Request, Response};
+use actix_http::{Error, HttpService, Request, Response};
 use actix_server::Server;
-use actix_service::NewService;
 use bytes::Bytes;
 use futures::Future;
 use log::info;
@@ -24,12 +23,7 @@ fn main() -> io::Result<()> {
 
     Server::build()
         .bind("echo", "127.0.0.1:8080", || {
-            h1::H1Service::build()
-                .client_timeout(1000)
-                .client_disconnect(1000)
-                .server_hostname("localhost")
-                .finish(|_req: Request| handle_request(_req))
-                .map(|_| ())
+            HttpService::build().finish(|_req: Request| handle_request(_req))
         })?
         .run()
 }

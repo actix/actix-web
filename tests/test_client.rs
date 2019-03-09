@@ -3,7 +3,7 @@ use bytes::Bytes;
 use futures::future::{self, ok};
 
 use actix_http::HttpMessage;
-use actix_http::{client, h1, Request, Response};
+use actix_http::{client, HttpService, Request, Response};
 use actix_http_test::TestServer;
 
 const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
@@ -32,7 +32,7 @@ const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
 fn test_h1_v2() {
     env_logger::init();
     let mut srv = TestServer::new(move || {
-        h1::H1Service::build()
+        HttpService::build()
             .finish(|_| future::ok::<_, ()>(Response::Ok().body(STR)))
             .map(|_| ())
     });
@@ -66,7 +66,7 @@ fn test_h1_v2() {
 #[test]
 fn test_connection_close() {
     let mut srv = TestServer::new(move || {
-        h1::H1Service::build()
+        HttpService::build()
             .finish(|_| ok::<_, ()>(Response::Ok().body(STR)))
             .map(|_| ())
     });
@@ -80,7 +80,7 @@ fn test_connection_close() {
 #[test]
 fn test_with_query_parameter() {
     let mut srv = TestServer::new(move || {
-        h1::H1Service::build()
+        HttpService::build()
             .finish(|req: Request| {
                 if req.uri().query().unwrap().contains("qp=") {
                     ok::<_, ()>(Response::Ok().finish())

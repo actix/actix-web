@@ -10,20 +10,18 @@ use futures::stream::once;
 
 use actix_http::body::Body;
 use actix_http::{
-    body, client, h1, h2, http, Error, HttpMessage as HttpMessage2, HttpService,
-    KeepAlive, Request, Response,
+    body, client, http, Error, HttpMessage as HttpMessage2, HttpService, KeepAlive,
+    Request, Response,
 };
 
 #[test]
 fn test_h1() {
     let mut srv = TestServer::new(|| {
-        h1::H1Service::build()
+        HttpService::build()
             .keep_alive(KeepAlive::Disabled)
             .client_timeout(1000)
             .client_disconnect(1000)
-            .server_hostname("localhost")
-            .finish(|_| future::ok::<_, ()>(Response::Ok().finish()))
-            .map(|_| ())
+            .h1(|_| future::ok::<_, ()>(Response::Ok().finish()))
     });
 
     let req = client::ClientRequest::get(srv.url("/")).finish().unwrap();
@@ -38,7 +36,6 @@ fn test_h1_2() {
             .keep_alive(KeepAlive::Disabled)
             .client_timeout(1000)
             .client_disconnect(1000)
-            .server_hostname("localhost")
             .finish(|req: Request| {
                 assert_eq!(req.version(), http::Version::HTTP_11);
                 future::ok::<_, ()>(Response::Ok().finish())
@@ -83,8 +80,8 @@ fn test_h2() -> std::io::Result<()> {
             .clone()
             .map_err(|e| println!("Openssl error: {}", e))
             .and_then(
-                h2::H2Service::build()
-                    .finish(|_| future::ok::<_, Error>(Response::Ok().finish()))
+                HttpService::build()
+                    .h2(|_| future::ok::<_, Error>(Response::Ok().finish()))
                     .map_err(|_| ()),
             )
     });
@@ -129,8 +126,8 @@ fn test_h2_body() -> std::io::Result<()> {
             .clone()
             .map_err(|e| println!("Openssl error: {}", e))
             .and_then(
-                h2::H2Service::build()
-                    .finish(|mut req: Request<_>| {
+                HttpService::build()
+                    .h2(|mut req: Request<_>| {
                         req.body()
                             .limit(1024 * 1024)
                             .and_then(|body| Ok(Response::Ok().body(body)))
@@ -153,10 +150,9 @@ fn test_h2_body() -> std::io::Result<()> {
 #[test]
 fn test_slow_request() {
     let srv = TestServer::new(|| {
-        h1::H1Service::build()
+        HttpService::build()
             .client_timeout(100)
-            .finish(|_| future::ok::<_, ()>(Response::Ok().finish()))
-            .map(|_| ())
+            .h1(|_| future::ok::<_, ()>(Response::Ok().finish()))
     });
 
     let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
@@ -167,9 +163,9 @@ fn test_slow_request() {
 }
 
 #[test]
-fn test_malformed_request() {
+fn test_http1_malformed_request() {
     let srv = TestServer::new(|| {
-        h1::H1Service::new(|_| future::ok::<_, ()>(Response::Ok().finish())).map(|_| ())
+        HttpService::build().h1(|_| future::ok::<_, ()>(Response::Ok().finish()))
     });
 
     let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
@@ -180,11 +176,9 @@ fn test_malformed_request() {
 }
 
 #[test]
-fn test_keepalive() {
+fn test_http1_keepalive() {
     let srv = TestServer::new(|| {
-        h1::H1Service::build()
-            .finish(|_| future::ok::<_, ()>(Response::Ok().finish()))
-            .map(|_| ())
+        HttpService::build().h1(|_| future::ok::<_, ()>(Response::Ok().finish()))
     });
 
     let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
@@ -200,12 +194,11 @@ fn test_keepalive() {
 }
 
 #[test]
-fn test_keepalive_timeout() {
+fn test_http1_keepalive_timeout() {
     let srv = TestServer::new(|| {
-        h1::H1Service::build()
+        HttpService::build()
             .keep_alive(1)
-            .finish(|_| future::ok::<_, ()>(Response::Ok().finish()))
-            .map(|_| ())
+            .h1(|_| future::ok::<_, ()>(Response::Ok().finish()))
     });
 
     let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
@@ -221,11 +214,9 @@ fn test_keepalive_timeout() {
 }
 
 #[test]
-fn test_keepalive_close() {
+fn test_http1_keepalive_close() {
     let srv = TestServer::new(|| {
-        h1::H1Service::build()
-            .finish(|_| future::ok::<_, ()>(Response::Ok().finish()))
-            .map(|_| ())
+        HttpService::build().h1(|_| future::ok::<_, ()>(Response::Ok().finish()))
     });
 
     let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
@@ -241,11 +232,9 @@ fn test_keepalive_close() {
 }
 
 #[test]
-fn test_keepalive_http10_default_close() {
+fn test_http10_keepalive_default_close() {
     let srv = TestServer::new(|| {
-        h1::H1Service::build()
-            .finish(|_| future::ok::<_, ()>(Response::Ok().finish()))
-            .map(|_| ())
+        HttpService::build().h1(|_| future::ok::<_, ()>(Response::Ok().finish()))
     });
 
     let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
@@ -260,11 +249,9 @@ fn test_keepalive_http10_default_close() {
 }
 
 #[test]
-fn test_keepalive_http10() {
+fn test_http10_keepalive() {
     let srv = TestServer::new(|| {
-        h1::H1Service::build()
-            .finish(|_| future::ok::<_, ()>(Response::Ok().finish()))
-            .map(|_| ())
+        HttpService::build().h1(|_| future::ok::<_, ()>(Response::Ok().finish()))
     });
 
     let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
@@ -286,12 +273,11 @@ fn test_keepalive_http10() {
 }
 
 #[test]
-fn test_keepalive_disabled() {
+fn test_http1_keepalive_disabled() {
     let srv = TestServer::new(|| {
-        h1::H1Service::build()
+        HttpService::build()
             .keep_alive(KeepAlive::Disabled)
-            .finish(|_| future::ok::<_, ()>(Response::Ok().finish()))
-            .map(|_| ())
+            .h1(|_| future::ok::<_, ()>(Response::Ok().finish()))
     });
 
     let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
@@ -313,7 +299,7 @@ fn test_content_length() {
     };
 
     let mut srv = TestServer::new(|| {
-        h1::H1Service::new(|req: Request| {
+        HttpService::build().h1(|req: Request| {
             let indx: usize = req.uri().path()[1..].parse().unwrap();
             let statuses = [
                 StatusCode::NO_CONTENT,
@@ -325,7 +311,6 @@ fn test_content_length() {
             ];
             future::ok::<_, ()>(Response::new(statuses[indx]))
         })
-        .map(|_| ())
     });
 
     let header = HeaderName::from_static("content-length");
@@ -356,6 +341,65 @@ fn test_content_length() {
     }
 }
 
+// TODO: fix
+// #[test]
+// fn test_h2_content_length() {
+//     use actix_http::http::{
+//         header::{HeaderName, HeaderValue},
+//         StatusCode,
+//     };
+//     let openssl = ssl_acceptor().unwrap();
+
+//     let mut srv = TestServer::new(move || {
+//         openssl
+//             .clone()
+//             .map_err(|e| println!("Openssl error: {}", e))
+//             .and_then(
+//                 HttpService::build()
+//                     .h2(|req: Request| {
+//                         let indx: usize = req.uri().path()[1..].parse().unwrap();
+//                         let statuses = [
+//                             StatusCode::NO_CONTENT,
+//                             StatusCode::CONTINUE,
+//                             StatusCode::SWITCHING_PROTOCOLS,
+//                             StatusCode::PROCESSING,
+//                             StatusCode::OK,
+//                             StatusCode::NOT_FOUND,
+//                         ];
+//                         future::ok::<_, ()>(Response::new(statuses[indx]))
+//                     })
+//                     .map_err(|_| ()),
+//             )
+//     });
+
+//     let header = HeaderName::from_static("content-length");
+//     let value = HeaderValue::from_static("0");
+
+//     {
+//         for i in 0..4 {
+//             let req = client::ClientRequest::get(srv.surl(&format!("/{}", i)))
+//                 .finish()
+//                 .unwrap();
+//             let response = srv.send_request(req).unwrap();
+//             assert_eq!(response.headers().get(&header), None);
+
+//             let req = client::ClientRequest::head(srv.surl(&format!("/{}", i)))
+//                 .finish()
+//                 .unwrap();
+//             let response = srv.send_request(req).unwrap();
+//             assert_eq!(response.headers().get(&header), None);
+//         }
+
+//         for i in 4..6 {
+//             let req = client::ClientRequest::get(srv.surl(&format!("/{}", i)))
+//                 .finish()
+//                 .unwrap();
+//             let response = srv.send_request(req).unwrap();
+//             assert_eq!(response.headers().get(&header), Some(&value));
+//         }
+//     }
+// }
+
 #[test]
 fn test_headers() {
     let data = STR.repeat(10);
@@ -363,7 +407,7 @@ fn test_headers() {
 
     let mut srv = TestServer::new(move || {
         let data = data.clone();
-        h1::H1Service::new(move |_| {
+        HttpService::build().h1(move |_| {
             let mut builder = Response::Ok();
             for idx in 0..90 {
                 builder.header(
@@ -384,13 +428,58 @@ fn test_headers() {
                 );
             }
             future::ok::<_, ()>(builder.body(data.clone()))
-        }).map(|_| ())
+        })
     });
-
     let mut connector = srv.new_connector();
 
     let req = srv.get().finish().unwrap();
 
+    let mut response = srv.block_on(req.send(&mut connector)).unwrap();
+    assert!(response.status().is_success());
+
+    // read response
+    let bytes = srv.block_on(response.body()).unwrap();
+    assert_eq!(bytes, Bytes::from(data2));
+}
+
+#[test]
+fn test_h2_headers() {
+    let data = STR.repeat(10);
+    let data2 = data.clone();
+    let openssl = ssl_acceptor().unwrap();
+
+    let mut srv = TestServer::new(move || {
+        let data = data.clone();
+        openssl
+            .clone()
+            .map_err(|e| println!("Openssl error: {}", e))
+            .and_then(
+        HttpService::build().h2(move |_| {
+            let mut builder = Response::Ok();
+            for idx in 0..90 {
+                builder.header(
+                    format!("X-TEST-{}", idx).as_str(),
+                    "TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST \
+                        TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST \
+                        TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST \
+                        TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST \
+                        TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST \
+                        TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST \
+                        TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST \
+                        TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST \
+                        TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST \
+                        TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST \
+                        TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST \
+                        TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST \
+                        TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST ",
+                );
+            }
+            future::ok::<_, ()>(builder.body(data.clone()))
+        }).map_err(|_| ()))
+    });
+    let mut connector = srv.new_connector();
+
+    let req = client::ClientRequest::get(srv.surl("/")).finish().unwrap();
     let mut response = srv.block_on(req.send(&mut connector)).unwrap();
     assert!(response.status().is_success());
 
@@ -424,7 +513,7 @@ const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
 #[test]
 fn test_body() {
     let mut srv = TestServer::new(|| {
-        h1::H1Service::new(|_| future::ok::<_, ()>(Response::Ok().body(STR))).map(|_| ())
+        HttpService::build().h1(|_| future::ok::<_, ()>(Response::Ok().body(STR)))
     });
 
     let req = srv.get().finish().unwrap();
@@ -439,7 +528,7 @@ fn test_body() {
 #[test]
 fn test_head_empty() {
     let mut srv = TestServer::new(|| {
-        h1::H1Service::new(|_| ok::<_, ()>(Response::Ok().body(STR))).map(|_| ())
+        HttpService::build().h1(|_| ok::<_, ()>(Response::Ok().body(STR)))
     });
 
     let req = client::ClientRequest::head(srv.url("/")).finish().unwrap();
@@ -462,10 +551,9 @@ fn test_head_empty() {
 #[test]
 fn test_head_binary() {
     let mut srv = TestServer::new(|| {
-        h1::H1Service::new(|_| {
+        HttpService::build().h1(|_| {
             ok::<_, ()>(Response::Ok().content_length(STR.len() as u64).body(STR))
         })
-        .map(|_| ())
     });
 
     let req = client::ClientRequest::head(srv.url("/")).finish().unwrap();
@@ -488,7 +576,7 @@ fn test_head_binary() {
 #[test]
 fn test_head_binary2() {
     let mut srv = TestServer::new(|| {
-        h1::H1Service::new(|_| ok::<_, ()>(Response::Ok().body(STR))).map(|_| ())
+        HttpService::build().h1(|_| ok::<_, ()>(Response::Ok().body(STR)))
     });
 
     let req = client::ClientRequest::head(srv.url("/")).finish().unwrap();
@@ -507,14 +595,13 @@ fn test_head_binary2() {
 #[test]
 fn test_body_length() {
     let mut srv = TestServer::new(|| {
-        h1::H1Service::new(|_| {
+        HttpService::build().h1(|_| {
             let body = once(Ok(Bytes::from_static(STR.as_ref())));
             ok::<_, ()>(
                 Response::Ok()
                     .body(Body::from_message(body::SizedStream::new(STR.len(), body))),
             )
         })
-        .map(|_| ())
     });
 
     let req = srv.get().finish().unwrap();
@@ -529,11 +616,10 @@ fn test_body_length() {
 #[test]
 fn test_body_chunked_explicit() {
     let mut srv = TestServer::new(|| {
-        h1::H1Service::new(|_| {
+        HttpService::build().h1(|_| {
             let body = once::<_, Error>(Ok(Bytes::from_static(STR.as_ref())));
             ok::<_, ()>(Response::Ok().streaming(body))
         })
-        .map(|_| ())
     });
 
     let req = srv.get().finish().unwrap();
@@ -550,7 +636,7 @@ fn test_body_chunked_explicit() {
 #[test]
 fn test_body_chunked_implicit() {
     let mut srv = TestServer::new(|| {
-        h1::H1Service::new(|_| {
+        HttpService::build().h1(|_| {
             let body = once::<_, Error>(Ok(Bytes::from_static(STR.as_ref())));
             ok::<_, ()>(Response::Ok().streaming(body))
         })
@@ -571,7 +657,7 @@ use actix_service::fn_cfg_factory;
 #[test]
 fn test_response_http_error_handling() {
     let mut srv = TestServer::new(|| {
-        h1::H1Service::new(fn_cfg_factory(|_: &ServerConfig| {
+        HttpService::build().h1(fn_cfg_factory(|_: &ServerConfig| {
             Ok::<_, ()>(|_| {
                 let broken_header = Bytes::from_static(b"\0\0\0");
                 ok::<_, ()>(

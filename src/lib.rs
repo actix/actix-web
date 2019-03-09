@@ -69,6 +69,7 @@
 extern crate log;
 
 pub mod body;
+mod builder;
 pub mod client;
 mod config;
 mod extensions;
@@ -89,7 +90,8 @@ pub mod h2;
 pub mod test;
 pub mod ws;
 
-pub use self::config::{KeepAlive, ServiceConfig, ServiceConfigBuilder};
+pub use self::builder::HttpServiceBuilder;
+pub use self::config::{KeepAlive, ServiceConfig};
 pub use self::error::{Error, ResponseError, Result};
 pub use self::extensions::Extensions;
 pub use self::httpmessage::HttpMessage;
