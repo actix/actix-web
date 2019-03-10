@@ -1,7 +1,6 @@
-use std::rc::Rc;
+//! Request extractors
 
 use actix_http::error::Error;
-use actix_http::Extensions;
 use futures::future::ok;
 use futures::{future, Async, Future, IntoFuture, Poll};
 
@@ -29,39 +28,8 @@ pub trait FromRequest<P>: Sized {
     /// Future that resolves to a Self
     type Future: IntoFuture<Item = Self, Error = Self::Error>;
 
-    /// Configuration for the extractor
-    type Config: ExtractorConfig;
-
     /// Convert request to a Self
     fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future;
-}
-
-/// Storage for extractor configs
-#[derive(Default)]
-pub struct ConfigStorage {
-    pub(crate) storage: Option<Rc<Extensions>>,
-}
-
-impl ConfigStorage {
-    pub fn store<C: ExtractorConfig>(&mut self, config: C) {
-        if self.storage.is_none() {
-            self.storage = Some(Rc::new(Extensions::new()));
-        }
-        if let Some(ref mut ext) = self.storage {
-            Rc::get_mut(ext).unwrap().insert(config);
-        }
-    }
-}
-
-pub trait ExtractorConfig: Default + Clone + 'static {
-    /// Set default configuration to config storage
-    fn store_default(ext: &mut ConfigStorage) {
-        ext.store(Self::default())
-    }
-}
-
-impl ExtractorConfig for () {
-    fn store_default(_: &mut ConfigStorage) {}
 }
 
 /// Optionally extract a field from the request
@@ -84,7 +52,6 @@ impl ExtractorConfig for () {
 /// impl<P> FromRequest<P> for Thing {
 ///     type Error = Error;
 ///     type Future = Result<Self, Self::Error>;
-///     type Config = ();
 ///
 ///     fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
 ///         if rand::random() {
@@ -119,7 +86,6 @@ where
 {
     type Error = Error;
     type Future = Box<Future<Item = Option<T>, Error = Error>>;
-    type Config = T::Config;
 
     #[inline]
     fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
@@ -153,7 +119,6 @@ where
 /// impl<P> FromRequest<P> for Thing {
 ///     type Error = Error;
 ///     type Future = Result<Thing, Error>;
-///     type Config = ();
 ///
 ///     fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
 ///         if rand::random() {
@@ -186,7 +151,6 @@ where
 {
     type Error = Error;
     type Future = Box<Future<Item = Result<T, T::Error>, Error = Error>>;
-    type Config = T::Config;
 
     #[inline]
     fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
@@ -201,22 +165,11 @@ where
 impl<P> FromRequest<P> for () {
     type Error = Error;
     type Future = Result<(), Error>;
-    type Config = ();
 
     fn from_request(_req: &mut ServiceFromRequest<P>) -> Self::Future {
         Ok(())
     }
 }
-
-macro_rules! tuple_config ({ $($T:ident),+} => {
-    impl<$($T,)+> ExtractorConfig for ($($T,)+)
-    where $($T: ExtractorConfig + Clone,)+
-    {
-        fn store_default(ext: &mut ConfigStorage) {
-            $($T::store_default(ext);)+
-        }
-    }
-});
 
 macro_rules! tuple_from_req ({$fut_type:ident, $(($n:tt, $T:ident)),+} => {
 
@@ -226,7 +179,6 @@ macro_rules! tuple_from_req ({$fut_type:ident, $(($n:tt, $T:ident)),+} => {
     {
         type Error = Error;
         type Future = $fut_type<P, $($T),+>;
-        type Config = ($($T::Config,)+);
 
         fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
             $fut_type {
@@ -277,17 +229,6 @@ macro_rules! tuple_from_req ({$fut_type:ident, $(($n:tt, $T:ident)),+} => {
 mod m {
     use super::*;
 
-tuple_config!(A);
-tuple_config!(A, B);
-tuple_config!(A, B, C);
-tuple_config!(A, B, C, D);
-tuple_config!(A, B, C, D, E);
-tuple_config!(A, B, C, D, E, F);
-tuple_config!(A, B, C, D, E, F, G);
-tuple_config!(A, B, C, D, E, F, G, H);
-tuple_config!(A, B, C, D, E, F, G, H, I);
-tuple_config!(A, B, C, D, E, F, G, H, I, J);
-
 tuple_from_req!(TupleFromRequest1, (0, A));
 tuple_from_req!(TupleFromRequest2, (0, A), (1, B));
 tuple_from_req!(TupleFromRequest3, (0, A), (1, B), (2, C));
@@ -333,20 +274,6 @@ mod tests {
 
         let s = block_on(String::from_request(&mut req)).unwrap();
         assert_eq!(s, "hello=world");
-    }
-
-    #[test]
-    fn test_form() {
-        let mut req = TestRequest::with_header(
-            header::CONTENT_TYPE,
-            "application/x-www-form-urlencoded",
-        )
-        .header(header::CONTENT_LENGTH, "11")
-        .set_payload(Bytes::from_static(b"hello=world"))
-        .to_from();
-
-        let s = block_on(Form::<Info>::from_request(&mut req)).unwrap();
-        assert_eq!(s.hello, "world");
     }
 
     #[test]

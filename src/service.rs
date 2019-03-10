@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::cell::{Ref, RefMut};
 use std::fmt;
 use std::marker::PhantomData;
@@ -271,13 +270,12 @@ impl<P> ServiceFromRequest<P> {
     }
 
     /// Load extractor configuration
-    pub fn load_config<T: Clone + Default + 'static>(&self) -> Cow<T> {
+    pub fn load_config<T: 'static>(&self) -> Option<&T> {
         if let Some(ref ext) = self.config {
-            if let Some(cfg) = ext.get::<T>() {
-                return Cow::Borrowed(cfg);
-            }
+            ext.get::<T>()
+        } else {
+            None
         }
-        Cow::Owned(T::default())
     }
 }
 

@@ -145,7 +145,6 @@ struct IdentityItem {
 impl<P> FromRequest<P> for Identity {
     type Error = Error;
     type Future = Result<Identity, Error>;
-    type Config = ();
 
     #[inline]
     fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {

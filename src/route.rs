@@ -6,7 +6,7 @@ use actix_http::{http::Method, Error, Extensions, Response};
 use actix_service::{NewService, Service};
 use futures::{Async, Future, IntoFuture, Poll};
 
-use crate::extract::{ConfigStorage, ExtractorConfig, FromRequest};
+use crate::extract::FromRequest;
 use crate::guard::{self, Guard};
 use crate::handler::{AsyncFactory, AsyncHandler, Extract, Factory, Handler};
 use crate::responder::Responder;
@@ -40,7 +40,7 @@ type BoxedRouteNewService<Req, Res> = Box<
 pub struct Route<P> {
     service: BoxedRouteNewService<ServiceRequest<P>, ServiceResponse>,
     guards: Rc<Vec<Box<Guard>>>,
-    config: ConfigStorage,
+    config: Option<Extensions>,
     config_ref: Rc<RefCell<Option<Rc<Extensions>>>>,
 }
 
@@ -55,13 +55,13 @@ impl<P: 'static> Route<P> {
                 ),
             )),
             guards: Rc::new(Vec::new()),
-            config: ConfigStorage::default(),
+            config: None,
             config_ref,
         }
     }
 
-    pub(crate) fn finish(self) -> Self {
-        *self.config_ref.borrow_mut() = self.config.storage.clone();
+    pub(crate) fn finish(mut self) -> Self {
+        *self.config_ref.borrow_mut() = self.config.take().map(|e| Rc::new(e));
         self
     }
 
@@ -252,7 +252,6 @@ impl<P: 'static> Route<P> {
         T: FromRequest<P> + 'static,
         R: Responder + 'static,
     {
-        T::Config::store_default(&mut self.config);
         self.service = Box::new(RouteNewService::new(
             Extract::new(self.config_ref.clone())
                 .and_then(Handler::new(handler).map_err(|_| panic!())),
@@ -324,8 +323,11 @@ impl<P: 'static> Route<P> {
     ///         ));
     /// }
     /// ```
-    pub fn config<C: ExtractorConfig>(mut self, config: C) -> Self {
-        self.config.store(config);
+    pub fn config<C: 'static>(mut self, config: C) -> Self {
+        if self.config.is_none() {
+            self.config = Some(Extensions::new());
+        }
+        self.config.as_mut().unwrap().insert(config);
         self
     }
 }
