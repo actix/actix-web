@@ -82,8 +82,9 @@ impl<P> ServiceRequest<P> {
 
     /// Create service response for error
     #[inline]
-    pub fn error_response<E: Into<Error>>(self, err: E) -> ServiceResponse {
-        ServiceResponse::new(self.req, err.into().into())
+    pub fn error_response<B, E: Into<Error>>(self, err: E) -> ServiceResponse<B> {
+        let res: Response = err.into().into();
+        ServiceResponse::new(self.req, res.into_body())
     }
 
     /// This method returns reference to the request head
@@ -333,6 +334,12 @@ impl<B> ServiceResponse<B> {
             request,
             response: res.into_body(),
         }
+    }
+
+    /// Create service response for error
+    #[inline]
+    pub fn error_response<E: Into<Error>>(self, err: E) -> Self {
+        Self::from_err(err, self.request)
     }
 
     /// Get reference to original request

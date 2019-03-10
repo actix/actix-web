@@ -6,8 +6,11 @@ pub use self::compress::Compress;
 mod defaultheaders;
 pub use self::defaultheaders::DefaultHeaders;
 
-#[cfg(feature = "session")]
-pub use actix_session as session;
+// #[cfg(feature = "session")]
+// pub use actix_session as session;
 
 mod logger;
 pub use self::logger::Logger;
+
+#[cfg(feature = "session")]
+pub mod identity;

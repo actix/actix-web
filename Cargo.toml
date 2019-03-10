@@ -33,10 +33,10 @@ members = [
 ]
 
 [package.metadata.docs.rs]
-features = ["ssl", "tls", "rust-tls"] #, "session"]
+features = ["ssl", "tls", "rust-tls", "session"]
 
 [features]
-default = ["brotli", "flate2-c"]
+default = ["brotli", "flate2-c", "session"]
 
 # brotli encoding, requires c compiler
 brotli = ["brotli2"]
@@ -48,7 +48,7 @@ flate2-c = ["flate2/miniz-sys"]
 flate2-rust = ["flate2/rust_backend"]
 
 # sessions feature, session require "ring" crate and c compiler
-# session = ["actix-session"]
+session = ["cookie/secure"]
 
 # tls
 tls = ["native-tls", "actix-server/ssl"]
@@ -72,6 +72,7 @@ actix-server = { git = "https://github.com/actix/actix-net.git" }
 actix-server-config = { git = "https://github.com/actix/actix-net.git" }
 
 bytes = "0.4"
+cookie = { version="0.11", features=["percent-encode"] }
 derive_more = "0.14"
 encoding = "0.2"
 futures = "0.1"
