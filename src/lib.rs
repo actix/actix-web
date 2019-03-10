@@ -65,6 +65,7 @@ pub mod dev {
         Extensions, Payload, PayloadStream, RequestHead, ResponseHead,
     };
     pub use actix_router::{Path, ResourceDef, ResourcePath, Url};
+    pub use actix_server::Server;
 
     pub(crate) fn insert_slash(path: &str) -> String {
         let mut path = path.to_owned();
