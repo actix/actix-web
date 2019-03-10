@@ -193,7 +193,7 @@ where
 {
     type Request = (T, HttpRequest);
     type Response = ServiceResponse;
-    type Error = ();
+    type Error = Error;
     type InitError = ();
     type Service = AsyncHandlerService<F, T, R>;
     type Future = FutureResult<Self::Service, ()>;
@@ -227,7 +227,7 @@ where
 {
     type Request = (T, HttpRequest);
     type Response = ServiceResponse;
-    type Error = ();
+    type Error = Error;
     type Future = AsyncHandlerServiceResponse<R::Future>;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
@@ -255,7 +255,7 @@ where
     T::Error: Into<Error>,
 {
     type Item = ServiceResponse;
-    type Error = ();
+    type Error = Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         match self.fut.poll() {

@@ -17,8 +17,9 @@ use crate::responder::Responder;
 use crate::route::{CreateRouteService, Route, RouteService};
 use crate::service::{ServiceRequest, ServiceResponse};
 
-type HttpService<P> = BoxedService<ServiceRequest<P>, ServiceResponse, ()>;
-type HttpNewService<P> = BoxedNewService<(), ServiceRequest<P>, ServiceResponse, (), ()>;
+type HttpService<P> = BoxedService<ServiceRequest<P>, ServiceResponse, Error>;
+type HttpNewService<P> =
+    BoxedNewService<(), ServiceRequest<P>, ServiceResponse, Error, ()>;
 
 /// *Resource* is an entry in route table which corresponds to requested URL.
 ///
@@ -70,7 +71,7 @@ where
     T: NewService<
         Request = ServiceRequest<P>,
         Response = ServiceResponse,
-        Error = (),
+        Error = Error,
         InitError = (),
     >,
 {
@@ -232,7 +233,7 @@ where
         impl NewService<
             Request = ServiceRequest<P>,
             Response = ServiceResponse,
-            Error = (),
+            Error = Error,
             InitError = (),
         >,
     >
@@ -241,7 +242,7 @@ where
             T::Service,
             Request = ServiceRequest<P>,
             Response = ServiceResponse,
-            Error = (),
+            Error = Error,
             InitError = (),
         >,
         F: IntoTransform<M, T::Service>,
@@ -266,7 +267,7 @@ where
         U: NewService<
                 Request = ServiceRequest<P>,
                 Response = ServiceResponse,
-                Error = (),
+                Error = Error,
             > + 'static,
     {
         // create and configure default resource
@@ -284,7 +285,7 @@ where
     T: NewService<
             Request = ServiceRequest<P>,
             Response = ServiceResponse,
-            Error = (),
+            Error = Error,
             InitError = (),
         > + 'static,
 {
@@ -314,7 +315,7 @@ where
     T: NewService<
         Request = ServiceRequest<P>,
         Response = ServiceResponse,
-        Error = (),
+        Error = Error,
         InitError = (),
     >,
 {
@@ -336,7 +337,7 @@ pub struct ResourceFactory<P> {
 impl<P: 'static> NewService for ResourceFactory<P> {
     type Request = ServiceRequest<P>;
     type Response = ServiceResponse;
-    type Error = ();
+    type Error = Error;
     type InitError = ();
     type Service = ResourceService<P>;
     type Future = CreateResourceService<P>;
@@ -427,9 +428,9 @@ pub struct ResourceService<P> {
 impl<P> Service for ResourceService<P> {
     type Request = ServiceRequest<P>;
     type Response = ServiceResponse;
-    type Error = ();
+    type Error = Error;
     type Future = Either<
-        Box<Future<Item = ServiceResponse, Error = ()>>,
+        Box<Future<Item = ServiceResponse, Error = Error>>,
         Either<
             Box<Future<Item = Self::Response, Error = Self::Error>>,
             FutureResult<Self::Response, Self::Error>,
@@ -472,7 +473,7 @@ impl<P> ResourceEndpoint<P> {
 impl<P: 'static> NewService for ResourceEndpoint<P> {
     type Request = ServiceRequest<P>;
     type Response = ServiceResponse;
-    type Error = ();
+    type Error = Error;
     type InitError = ();
     type Service = ResourceService<P>;
     type Future = CreateResourceService<P>;

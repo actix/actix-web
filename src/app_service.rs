@@ -11,15 +11,17 @@ use futures::future::{ok, Either, FutureResult};
 use futures::{Async, Future, Poll};
 
 use crate::config::{AppConfig, ServiceConfig};
+use crate::error::Error;
 use crate::guard::Guard;
 use crate::rmap::ResourceMap;
 use crate::service::{ServiceFactory, ServiceRequest, ServiceResponse};
 use crate::state::{StateFactory, StateFactoryResult};
 
 type Guards = Vec<Box<Guard>>;
-type HttpService<P> = BoxedService<ServiceRequest<P>, ServiceResponse, ()>;
-type HttpNewService<P> = BoxedNewService<(), ServiceRequest<P>, ServiceResponse, (), ()>;
-type BoxedResponse = Box<Future<Item = ServiceResponse, Error = ()>>;
+type HttpService<P> = BoxedService<ServiceRequest<P>, ServiceResponse, Error>;
+type HttpNewService<P> =
+    BoxedNewService<(), ServiceRequest<P>, ServiceResponse, Error, ()>;
+type BoxedResponse = Box<Future<Item = ServiceResponse, Error = Error>>;
 
 /// Service factory to convert `Request` to a `ServiceRequest<S>`.
 /// It also executes state factories.
@@ -29,7 +31,7 @@ where
     T: NewService<
         Request = ServiceRequest<P>,
         Response = ServiceResponse<B>,
-        Error = (),
+        Error = Error,
         InitError = (),
     >,
 {
@@ -48,13 +50,13 @@ where
     C: NewService<
         Request = ServiceRequest,
         Response = ServiceRequest<P>,
-        Error = (),
+        Error = Error,
         InitError = (),
     >,
     T: NewService<
         Request = ServiceRequest<P>,
         Response = ServiceResponse<B>,
-        Error = (),
+        Error = Error,
         InitError = (),
     >,
 {
@@ -147,13 +149,13 @@ where
     C: NewService<
         Request = ServiceRequest,
         Response = ServiceRequest<P>,
-        Error = (),
+        Error = Error,
         InitError = (),
     >,
     T: NewService<
         Request = ServiceRequest<P>,
         Response = ServiceResponse<B>,
-        Error = (),
+        Error = Error,
         InitError = (),
     >,
 {
@@ -201,7 +203,7 @@ where
 /// Service to convert `Request` to a `ServiceRequest<S>`
 pub struct AppInitService<C, P>
 where
-    C: Service<Request = ServiceRequest, Response = ServiceRequest<P>, Error = ()>,
+    C: Service<Request = ServiceRequest, Response = ServiceRequest<P>, Error = Error>,
 {
     chain: C,
     rmap: Rc<ResourceMap>,
@@ -210,7 +212,7 @@ where
 
 impl<C, P> Service for AppInitService<C, P>
 where
-    C: Service<Request = ServiceRequest, Response = ServiceRequest<P>, Error = ()>,
+    C: Service<Request = ServiceRequest, Response = ServiceRequest<P>, Error = Error>,
 {
     type Request = Request;
     type Response = ServiceRequest<P>;
@@ -240,7 +242,7 @@ pub struct AppRoutingFactory<P> {
 impl<P: 'static> NewService for AppRoutingFactory<P> {
     type Request = ServiceRequest<P>;
     type Response = ServiceResponse;
-    type Error = ();
+    type Error = Error;
     type InitError = ();
     type Service = AppRouting<P>;
     type Future = AppRoutingFactoryResponse<P>;
@@ -350,7 +352,7 @@ pub struct AppRouting<P> {
 impl<P> Service for AppRouting<P> {
     type Request = ServiceRequest<P>;
     type Response = ServiceResponse;
-    type Error = ();
+    type Error = Error;
     type Future = Either<BoxedResponse, FutureResult<Self::Response, Self::Error>>;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
@@ -398,7 +400,7 @@ impl<P> AppEntry<P> {
 impl<P: 'static> NewService for AppEntry<P> {
     type Request = ServiceRequest<P>;
     type Response = ServiceResponse;
-    type Error = ();
+    type Error = Error;
     type InitError = ();
     type Service = AppRouting<P>;
     type Future = AppRoutingFactoryResponse<P>;
@@ -414,7 +416,7 @@ pub struct AppChain;
 impl NewService for AppChain {
     type Request = ServiceRequest;
     type Response = ServiceRequest;
-    type Error = ();
+    type Error = Error;
     type InitError = ();
     type Service = AppChain;
     type Future = FutureResult<Self::Service, Self::InitError>;
@@ -427,7 +429,7 @@ impl NewService for AppChain {
 impl Service for AppChain {
     type Request = ServiceRequest;
     type Response = ServiceRequest;
-    type Error = ();
+    type Error = Error;
     type Future = FutureResult<Self::Response, Self::Error>;
 
     #[inline]

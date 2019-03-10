@@ -17,8 +17,8 @@ type BoxedRouteService<Req, Res> = Box<
     Service<
         Request = Req,
         Response = Res,
-        Error = (),
-        Future = Box<Future<Item = Res, Error = ()>>,
+        Error = Error,
+        Future = Box<Future<Item = Res, Error = Error>>,
     >,
 >;
 
@@ -26,7 +26,7 @@ type BoxedRouteNewService<Req, Res> = Box<
     NewService<
         Request = Req,
         Response = Res,
-        Error = (),
+        Error = Error,
         InitError = (),
         Service = BoxedRouteService<Req, Res>,
         Future = Box<Future<Item = BoxedRouteService<Req, Res>, Error = ()>>,
@@ -73,7 +73,7 @@ impl<P: 'static> Route<P> {
 impl<P> NewService for Route<P> {
     type Request = ServiceRequest<P>;
     type Response = ServiceResponse;
-    type Error = ();
+    type Error = Error;
     type InitError = ();
     type Service = RouteService<P>;
     type Future = CreateRouteService<P>;
@@ -129,7 +129,7 @@ impl<P> RouteService<P> {
 impl<P> Service for RouteService<P> {
     type Request = ServiceRequest<P>;
     type Response = ServiceResponse;
-    type Error = ();
+    type Error = Error;
     type Future = Box<Future<Item = Self::Response, Error = Self::Error>>;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
@@ -188,7 +188,7 @@ impl<P: 'static> Route<P> {
     //     T: NewService<
     //         Request = HandlerRequest<S>,
     //         Response = HandlerRequest<S, U>,
-    //         InitError = (),
+    //         InitError = Error,
     //     >,
     // {
     //     RouteServiceBuilder {
@@ -372,7 +372,7 @@ where
 {
     type Request = ServiceRequest<P>;
     type Response = ServiceResponse;
-    type Error = ();
+    type Error = Error;
     type InitError = ();
     type Service = BoxedRouteService<ServiceRequest<P>, Self::Response>;
     type Future = Box<Future<Item = Self::Service, Error = Self::InitError>>;
@@ -410,11 +410,11 @@ where
 {
     type Request = ServiceRequest<P>;
     type Response = ServiceResponse;
-    type Error = ();
+    type Error = Error;
     type Future = Box<Future<Item = Self::Response, Error = Self::Error>>;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
-        self.service.poll_ready().map_err(|_| ())
+        self.service.poll_ready().map_err(|(e, _)| e)
     }
 
     fn call(&mut self, req: ServiceRequest<P>) -> Self::Future {

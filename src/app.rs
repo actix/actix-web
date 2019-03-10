@@ -3,8 +3,6 @@ use std::marker::PhantomData;
 use std::rc::Rc;
 
 use actix_http::body::{Body, MessageBody};
-use actix_http::PayloadStream;
-use actix_router::ResourceDef;
 use actix_server_config::ServerConfig;
 use actix_service::boxed::{self, BoxedNewService};
 use actix_service::{
@@ -14,6 +12,8 @@ use futures::IntoFuture;
 
 use crate::app_service::{AppChain, AppEntry, AppInit, AppRouting, AppRoutingFactory};
 use crate::config::{AppConfig, AppConfigInner};
+use crate::dev::{PayloadStream, ResourceDef};
+use crate::error::Error;
 use crate::resource::Resource;
 use crate::route::Route;
 use crate::service::{
@@ -22,7 +22,8 @@ use crate::service::{
 };
 use crate::state::{State, StateFactory};
 
-type HttpNewService<P> = BoxedNewService<(), ServiceRequest<P>, ServiceResponse, (), ()>;
+type HttpNewService<P> =
+    BoxedNewService<(), ServiceRequest<P>, ServiceResponse, Error, ()>;
 
 /// Application builder - structure that follows the builder pattern
 /// for building application instances.
@@ -55,7 +56,7 @@ where
     T: NewService<
         Request = ServiceRequest,
         Response = ServiceRequest<P>,
-        Error = (),
+        Error = Error,
         InitError = (),
     >,
 {
@@ -118,7 +119,7 @@ where
         impl NewService<
             Request = ServiceRequest<P>,
             Response = ServiceResponse<B>,
-            Error = (),
+            Error = Error,
             InitError = (),
         >,
     >
@@ -127,7 +128,7 @@ where
             AppRouting<P>,
             Request = ServiceRequest<P>,
             Response = ServiceResponse<B>,
-            Error = (),
+            Error = Error,
             InitError = (),
         >,
         F: IntoTransform<M, AppRouting<P>>,
@@ -157,7 +158,7 @@ where
         impl NewService<
             Request = ServiceRequest,
             Response = ServiceRequest<P1>,
-            Error = (),
+            Error = Error,
             InitError = (),
         >,
     >
@@ -165,7 +166,7 @@ where
         C: NewService<
             Request = ServiceRequest<P>,
             Response = ServiceRequest<P1>,
-            Error = (),
+            Error = Error,
             InitError = (),
         >,
         F: IntoNewService<C>,
@@ -264,7 +265,7 @@ where
     T: NewService<
         Request = ServiceRequest<P>,
         Response = ServiceResponse<B>,
-        Error = (),
+        Error = Error,
         InitError = (),
     >,
 {
@@ -324,7 +325,7 @@ where
         impl NewService<
             Request = ServiceRequest<P>,
             Response = ServiceResponse<B1>,
-            Error = (),
+            Error = Error,
             InitError = (),
         >,
     >
@@ -333,7 +334,7 @@ where
             T::Service,
             Request = ServiceRequest<P>,
             Response = ServiceResponse<B1>,
-            Error = (),
+            Error = Error,
             InitError = (),
         >,
         B1: MessageBody,
@@ -363,7 +364,7 @@ where
         U: NewService<
                 Request = ServiceRequest<P>,
                 Response = ServiceResponse,
-                Error = (),
+                Error = Error,
                 InitError = (),
             > + 'static,
     {
@@ -415,13 +416,13 @@ where
     T: NewService<
         Request = ServiceRequest<P>,
         Response = ServiceResponse<B>,
-        Error = (),
+        Error = Error,
         InitError = (),
     >,
     C: NewService<
         Request = ServiceRequest,
         Response = ServiceRequest<P>,
-        Error = (),
+        Error = Error,
         InitError = (),
     >,
 {

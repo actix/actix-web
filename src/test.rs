@@ -14,9 +14,9 @@ use bytes::Bytes;
 use futures::Future;
 
 use crate::config::{AppConfig, AppConfigInner};
-use crate::request::HttpRequest;
 use crate::rmap::ResourceMap;
 use crate::service::{ServiceFromRequest, ServiceRequest, ServiceResponse};
+use crate::{HttpRequest, HttpResponse};
 
 thread_local! {
     static RT: RefCell<Runtime> = {
@@ -275,6 +275,11 @@ impl TestRequest {
     /// Complete request creation and generate `Request` instance
     pub fn to_request(mut self) -> Request<PayloadStream> {
         self.req.finish()
+    }
+
+    /// Complete request creation and generate `ServiceResponse` instance
+    pub fn to_response<B>(self, res: HttpResponse<B>) -> ServiceResponse<B> {
+        self.to_service().into_response(res)
     }
 
     /// Complete request creation and generate `HttpRequest` instance

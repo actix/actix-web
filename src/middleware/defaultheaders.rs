@@ -152,9 +152,10 @@ mod tests {
     use actix_service::FnService;
 
     use super::*;
+    use crate::dev::ServiceRequest;
     use crate::http::header::CONTENT_TYPE;
     use crate::test::{block_on, TestRequest};
-    use crate::{HttpResponse, ServiceRequest};
+    use crate::HttpResponse;
 
     #[test]
     fn test_default_headers() {

@@ -6,13 +6,14 @@ use actix_http::Extensions;
 use actix_router::ResourceDef;
 use actix_service::{boxed, IntoNewService, NewService};
 
+use crate::error::Error;
 use crate::guard::Guard;
 use crate::rmap::ResourceMap;
 use crate::service::{ServiceRequest, ServiceResponse};
 
 type Guards = Vec<Box<Guard>>;
 type HttpNewService<P> =
-    boxed::BoxedNewService<(), ServiceRequest<P>, ServiceResponse, (), ()>;
+    boxed::BoxedNewService<(), ServiceRequest<P>, ServiceResponse, Error, ()>;
 
 /// Application configuration
 pub struct ServiceConfig<P> {
@@ -84,7 +85,7 @@ impl<P: 'static> ServiceConfig<P> {
         S: NewService<
                 Request = ServiceRequest<P>,
                 Response = ServiceResponse,
-                Error = (),
+                Error = Error,
                 InitError = (),
             > + 'static,
     {

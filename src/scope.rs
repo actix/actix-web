@@ -11,6 +11,7 @@ use futures::future::{ok, Either, Future, FutureResult};
 use futures::{Async, Poll};
 
 use crate::dev::{HttpServiceFactory, ServiceConfig};
+use crate::error::Error;
 use crate::guard::Guard;
 use crate::resource::Resource;
 use crate::rmap::ResourceMap;
@@ -20,9 +21,10 @@ use crate::service::{
 };
 
 type Guards = Vec<Box<Guard>>;
-type HttpService<P> = BoxedService<ServiceRequest<P>, ServiceResponse, ()>;
-type HttpNewService<P> = BoxedNewService<(), ServiceRequest<P>, ServiceResponse, (), ()>;
-type BoxedResponse = Box<Future<Item = ServiceResponse, Error = ()>>;
+type HttpService<P> = BoxedService<ServiceRequest<P>, ServiceResponse, Error>;
+type HttpNewService<P> =
+    BoxedNewService<(), ServiceRequest<P>, ServiceResponse, Error, ()>;
+type BoxedResponse = Box<Future<Item = ServiceResponse, Error = Error>>;
 
 /// Resources scope
 ///
@@ -83,7 +85,7 @@ where
     T: NewService<
         Request = ServiceRequest<P>,
         Response = ServiceResponse,
-        Error = (),
+        Error = Error,
         InitError = (),
     >,
 {
@@ -176,7 +178,7 @@ where
         U: NewService<
                 Request = ServiceRequest<P>,
                 Response = ServiceResponse,
-                Error = (),
+                Error = Error,
                 InitError = (),
             > + 'static,
     {
@@ -201,7 +203,7 @@ where
         impl NewService<
             Request = ServiceRequest<P>,
             Response = ServiceResponse,
-            Error = (),
+            Error = Error,
             InitError = (),
         >,
     >
@@ -210,7 +212,7 @@ where
             T::Service,
             Request = ServiceRequest<P>,
             Response = ServiceResponse,
-            Error = (),
+            Error = Error,
             InitError = (),
         >,
         F: IntoTransform<M, T::Service>,
@@ -233,7 +235,7 @@ where
     T: NewService<
             Request = ServiceRequest<P>,
             Response = ServiceResponse,
-            Error = (),
+            Error = Error,
             InitError = (),
         > + 'static,
 {
@@ -290,7 +292,7 @@ pub struct ScopeFactory<P> {
 impl<P: 'static> NewService for ScopeFactory<P> {
     type Request = ServiceRequest<P>;
     type Response = ServiceResponse;
-    type Error = ();
+    type Error = Error;
     type InitError = ();
     type Service = ScopeService<P>;
     type Future = ScopeFactoryResponse<P>;
@@ -406,7 +408,7 @@ pub struct ScopeService<P> {
 impl<P> Service for ScopeService<P> {
     type Request = ServiceRequest<P>;
     type Response = ServiceResponse;
-    type Error = ();
+    type Error = Error;
     type Future = Either<BoxedResponse, FutureResult<Self::Response, Self::Error>>;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
@@ -450,7 +452,7 @@ impl<P> ScopeEndpoint<P> {
 impl<P: 'static> NewService for ScopeEndpoint<P> {
     type Request = ServiceRequest<P>;
     type Response = ServiceResponse;
-    type Error = ();
+    type Error = Error;
     type InitError = ();
     type Service = ScopeService<P>;
     type Future = ScopeFactoryResponse<P>;

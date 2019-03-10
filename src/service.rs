@@ -340,6 +340,12 @@ impl<B> ServiceResponse<B> {
         Self::from_err(err, self.request)
     }
 
+    /// Create service response
+    #[inline]
+    pub fn into_response<B1>(self, response: Response<B1>) -> ServiceResponse<B1> {
+        ServiceResponse::new(self.request, response)
+    }
+
     /// Get reference to original request
     #[inline]
     pub fn request(&self) -> &HttpRequest {
@@ -356,18 +362,6 @@ impl<B> ServiceResponse<B> {
     #[inline]
     pub fn response_mut(&mut self) -> &mut Response<B> {
         &mut self.response
-    }
-
-    /// Get the headers from the response
-    #[inline]
-    pub fn headers(&self) -> &HeaderMap {
-        self.response.headers()
-    }
-
-    /// Get a mutable reference to the headers
-    #[inline]
-    pub fn headers_mut(&mut self) -> &mut HeaderMap {
-        self.response.headers_mut()
     }
 
     /// Execute closure and in case of error convert it to response.

@@ -40,7 +40,6 @@ pub use crate::responder::{Either, Responder};
 pub use crate::route::Route;
 pub use crate::scope::Scope;
 pub use crate::server::HttpServer;
-pub use crate::service::{ServiceFromRequest, ServiceRequest, ServiceResponse};
 
 pub mod dev {
     //! The `actix-web` prelude for library developers
@@ -58,7 +57,9 @@ pub mod dev {
     pub use crate::config::{AppConfig, ServiceConfig};
     pub use crate::info::ConnectionInfo;
     pub use crate::rmap::ResourceMap;
-    pub use crate::service::HttpServiceFactory;
+    pub use crate::service::{
+        HttpServiceFactory, ServiceFromRequest, ServiceRequest, ServiceResponse,
+    };
 
     pub use actix_http::body::{Body, BodyLength, MessageBody, ResponseBody};
     pub use actix_http::dev::ResponseBuilder as HttpResponseBuilder;
