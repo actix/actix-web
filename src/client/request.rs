@@ -7,6 +7,8 @@ use bytes::{BufMut, Bytes, BytesMut};
 use cookie::{Cookie, CookieJar};
 use futures::{Future, Stream};
 use percent_encoding::{percent_encode, USERINFO_ENCODE_SET};
+use serde::Serialize;
+use serde_json;
 
 use crate::body::{BodyStream, MessageBody};
 use crate::error::Error;
@@ -556,6 +558,48 @@ impl ClientRequestBuilder {
             );
         }
         Ok(ClientRequest { head, body })
+    }
+
+    /// Set a JSON body and generate `ClientRequest`
+    ///
+    /// `ClientRequestBuilder` can not be used after this call.
+    pub fn json<T: Serialize>(
+        &mut self,
+        value: T,
+    ) -> Result<ClientRequest<String>, Error> {
+        let body = serde_json::to_string(&value)?;
+
+        let contains = if let Some(head) = parts(&mut self.head, &self.err) {
+            head.headers.contains_key(header::CONTENT_TYPE)
+        } else {
+            true
+        };
+        if !contains {
+            self.header(header::CONTENT_TYPE, "application/json");
+        }
+
+        Ok(self.body(body)?)
+    }
+
+    /// Set a urlencoded body and generate `ClientRequest`
+    ///
+    /// `ClientRequestBuilder` can not be used after this call.
+    pub fn form<T: Serialize>(
+        &mut self,
+        value: T,
+    ) -> Result<ClientRequest<String>, Error> {
+        let body = serde_urlencoded::to_string(&value)?;
+
+        let contains = if let Some(head) = parts(&mut self.head, &self.err) {
+            head.headers.contains_key(header::CONTENT_TYPE)
+        } else {
+            true
+        };
+        if !contains {
+            self.header(header::CONTENT_TYPE, "application/x-www-form-urlencoded");
+        }
+
+        Ok(self.body(body)?)
     }
 
     /// Set an streaming body and generate `ClientRequest`.
