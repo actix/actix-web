@@ -4,6 +4,8 @@ pub use actix_http::error::*;
 use derive_more::{Display, From};
 use url::ParseError as UrlParseError;
 
+pub use crate::blocking::BlockingError;
+
 /// Errors which can occur when attempting to generate resource uri.
 #[derive(Debug, PartialEq, Display, From)]
 pub enum UrlGenerationError {

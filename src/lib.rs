@@ -2,7 +2,7 @@
 
 mod app;
 mod app_service;
-pub mod blocking;
+mod blocking;
 mod config;
 pub mod error;
 mod extract;
@@ -54,6 +54,7 @@ pub mod dev {
     //! ```
 
     pub use crate::app::AppRouter;
+    pub use crate::blocking::CpuFuture;
     pub use crate::config::{AppConfig, ServiceConfig};
     pub use crate::info::ConnectionInfo;
     pub use crate::rmap::ResourceMap;
