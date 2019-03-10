@@ -175,7 +175,6 @@ impl Session {
 impl<P> FromRequest<P> for Session {
     type Error = Error;
     type Future = Result<Session, Error>;
-    type Config = ();
 
     #[inline]
     fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {

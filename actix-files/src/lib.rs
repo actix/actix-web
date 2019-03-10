@@ -15,11 +15,11 @@ use mime_guess::get_mime_type;
 use percent_encoding::{utf8_percent_encode, DEFAULT_ENCODE_SET};
 use v_htmlescape::escape as escape_html_entity;
 
-use actix_http::error::{Error, ErrorInternalServerError};
 use actix_service::{boxed::BoxedNewService, NewService, Service};
-use actix_web::dev::{HttpServiceFactory, ResourceDef, ServiceConfig};
+use actix_web::dev::{CpuFuture, HttpServiceFactory, ResourceDef, ServiceConfig};
+use actix_web::error::{BlockingError, Error, ErrorInternalServerError};
 use actix_web::{
-    blocking, FromRequest, HttpRequest, HttpResponse, Responder, ServiceFromRequest,
+    web, FromRequest, HttpRequest, HttpResponse, Responder, ServiceFromRequest,
     ServiceRequest, ServiceResponse,
 };
 use futures::future::{ok, FutureResult};
@@ -51,16 +51,14 @@ pub struct ChunkedReadFile {
     size: u64,
     offset: u64,
     file: Option<File>,
-    fut: Option<blocking::CpuFuture<(File, Bytes), io::Error>>,
+    fut: Option<CpuFuture<(File, Bytes), io::Error>>,
     counter: u64,
 }
 
-fn handle_error(err: blocking::BlockingError<io::Error>) -> Error {
+fn handle_error(err: BlockingError<io::Error>) -> Error {
     match err {
-        blocking::BlockingError::Error(err) => err.into(),
-        blocking::BlockingError::Canceled => {
-            ErrorInternalServerError("Unexpected error").into()
-        }
+        BlockingError::Error(err) => err.into(),
+        BlockingError::Canceled => ErrorInternalServerError("Unexpected error").into(),
     }
 }
 
@@ -90,7 +88,7 @@ impl Stream for ChunkedReadFile {
             Ok(Async::Ready(None))
         } else {
             let mut file = self.file.take().expect("Use after completion");
-            self.fut = Some(blocking::run(move || {
+            self.fut = Some(web::block(move || {
                 let max_bytes: usize;
                 max_bytes = cmp::min(size.saturating_sub(counter), 65_536) as usize;
                 let mut buf = Vec::with_capacity(max_bytes);
@@ -446,7 +444,6 @@ impl PathBufWrp {
 impl<P> FromRequest<P> for PathBufWrp {
     type Error = UriSegmentError;
     type Future = Result<Self, Self::Error>;
-    type Config = ();
 
     fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
         PathBufWrp::get_pathbuf(req.match_info().path())
