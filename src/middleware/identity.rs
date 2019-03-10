@@ -10,8 +10,7 @@
 //! uses cookies as identity storage.
 //!
 //! To access current request identity
-//! [**RequestIdentity**](trait.RequestIdentity.html) should be used.
-//! *HttpRequest* implements *RequestIdentity* trait.
+//! [**Identity**](trait.Identity.html) extractor should be used.
 //!
 //! ```rust
 //! use actix_web::middleware::identity::Identity;
@@ -226,6 +225,7 @@ where
     }
 }
 
+#[doc(hidden)]
 pub struct IdentityServiceMiddleware<S, T> {
     backend: Rc<T>,
     service: Rc<RefCell<S>>,
