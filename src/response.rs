@@ -57,28 +57,6 @@ impl Response<Body> {
         resp
     }
 
-    /// Convert `Response` to a `ResponseBuilder`
-    #[inline]
-    pub fn into_builder(self) -> ResponseBuilder {
-        // If this response has cookies, load them into a jar
-        let mut jar: Option<CookieJar> = None;
-        for c in self.cookies() {
-            if let Some(ref mut j) = jar {
-                j.add_original(c.into_owned());
-            } else {
-                let mut j = CookieJar::new();
-                j.add_original(c.into_owned());
-                jar = Some(j);
-            }
-        }
-
-        ResponseBuilder {
-            head: Some(self.head),
-            err: None,
-            cookies: jar,
-        }
-    }
-
     /// Convert response to response with body
     pub fn into_body<B>(self) -> Response<B> {
         let b = match self.body {
@@ -692,6 +670,62 @@ fn parts<'a>(
     parts.as_mut()
 }
 
+/// Convert `Response` to a `ResponseBuilder`. Body get dropped.
+impl<B> From<Response<B>> for ResponseBuilder {
+    fn from(res: Response<B>) -> ResponseBuilder {
+        // If this response has cookies, load them into a jar
+        let mut jar: Option<CookieJar> = None;
+        for c in res.cookies() {
+            if let Some(ref mut j) = jar {
+                j.add_original(c.into_owned());
+            } else {
+                let mut j = CookieJar::new();
+                j.add_original(c.into_owned());
+                jar = Some(j);
+            }
+        }
+
+        ResponseBuilder {
+            head: Some(res.head),
+            err: None,
+            cookies: jar,
+        }
+    }
+}
+
+/// Convert `ResponseHead` to a `ResponseBuilder`
+impl<'a> From<&'a ResponseHead> for ResponseBuilder {
+    fn from(head: &'a ResponseHead) -> ResponseBuilder {
+        // If this response has cookies, load them into a jar
+        let mut jar: Option<CookieJar> = None;
+        let cookies = CookieIter {
+            iter: head.headers.get_all(header::SET_COOKIE).iter(),
+        };
+        for c in cookies {
+            if let Some(ref mut j) = jar {
+                j.add_original(c.into_owned());
+            } else {
+                let mut j = CookieJar::new();
+                j.add_original(c.into_owned());
+                jar = Some(j);
+            }
+        }
+
+        let mut msg: Message<ResponseHead> = Message::new();
+        msg.version = head.version;
+        msg.status = head.status;
+        msg.reason = head.reason;
+        msg.headers = head.headers.clone();
+        msg.no_chunking = head.no_chunking;
+
+        ResponseBuilder {
+            head: Some(msg),
+            err: None,
+            cookies: jar,
+        }
+    }
+}
+
 impl IntoFuture for ResponseBuilder {
     type Item = Response;
     type Error = Error;
@@ -989,7 +1023,7 @@ mod tests {
         resp.add_cookie(&http::Cookie::new("cookie1", "val100"))
             .unwrap();
 
-        let mut builder = resp.into_builder();
+        let mut builder: ResponseBuilder = resp.into();
         let resp = builder.status(StatusCode::BAD_REQUEST).finish();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 
