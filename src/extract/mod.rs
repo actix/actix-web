@@ -257,26 +257,6 @@ mod tests {
     }
 
     #[test]
-    fn test_bytes() {
-        let mut req = TestRequest::with_header(header::CONTENT_LENGTH, "11")
-            .set_payload(Bytes::from_static(b"hello=world"))
-            .to_from();
-
-        let s = block_on(Bytes::from_request(&mut req)).unwrap();
-        assert_eq!(s, Bytes::from_static(b"hello=world"));
-    }
-
-    #[test]
-    fn test_string() {
-        let mut req = TestRequest::with_header(header::CONTENT_LENGTH, "11")
-            .set_payload(Bytes::from_static(b"hello=world"))
-            .to_from();
-
-        let s = block_on(String::from_request(&mut req)).unwrap();
-        assert_eq!(s, "hello=world");
-    }
-
-    #[test]
     fn test_option() {
         let mut req = TestRequest::with_header(
             header::CONTENT_TYPE,
@@ -400,36 +380,4 @@ mod tests {
         assert_eq!(res[1], "32".to_owned());
     }
 
-    #[test]
-    fn test_extract_path_single() {
-        let resource = ResourceDef::new("/{value}/");
-
-        let mut req = TestRequest::with_uri("/32/").to_from();
-        resource.match_path(req.match_info_mut());
-
-        assert_eq!(*Path::<i8>::from_request(&mut req).unwrap(), 32);
-    }
-
-    #[test]
-    fn test_tuple_extract() {
-        let resource = ResourceDef::new("/{key}/{value}/");
-
-        let mut req = TestRequest::with_uri("/name/user1/?id=test").to_from();
-        resource.match_path(req.match_info_mut());
-
-        let res = block_on(<(Path<(String, String)>,)>::from_request(&mut req)).unwrap();
-        assert_eq!((res.0).0, "name");
-        assert_eq!((res.0).1, "user1");
-
-        let res = block_on(
-            <(Path<(String, String)>, Path<(String, String)>)>::from_request(&mut req),
-        )
-        .unwrap();
-        assert_eq!((res.0).0, "name");
-        assert_eq!((res.0).1, "user1");
-        assert_eq!((res.1).0, "name");
-        assert_eq!((res.1).1, "user1");
-
-        let () = <()>::from_request(&mut req).unwrap();
-    }
 }

@@ -289,9 +289,11 @@ impl Default for PayloadConfig {
 
 #[cfg(test)]
 mod tests {
+    use bytes::Bytes;
+
     use super::*;
     use crate::http::header;
-    use crate::test::TestRequest;
+    use crate::test::{block_on, TestRequest};
 
     #[test]
     fn test_payload_config() {
@@ -309,5 +311,25 @@ mod tests {
         let req =
             TestRequest::with_header(header::CONTENT_TYPE, "application/json").to_from();
         assert!(cfg.check_mimetype(&req).is_ok());
+    }
+
+    #[test]
+    fn test_bytes() {
+        let mut req = TestRequest::with_header(header::CONTENT_LENGTH, "11")
+            .set_payload(Bytes::from_static(b"hello=world"))
+            .to_from();
+
+        let s = block_on(Bytes::from_request(&mut req)).unwrap();
+        assert_eq!(s, Bytes::from_static(b"hello=world"));
+    }
+
+    #[test]
+    fn test_string() {
+        let mut req = TestRequest::with_header(header::CONTENT_LENGTH, "11")
+            .set_payload(Bytes::from_static(b"hello=world"))
+            .to_from();
+
+        let s = block_on(String::from_request(&mut req)).unwrap();
+        assert_eq!(s, "hello=world");
     }
 }
