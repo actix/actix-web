@@ -45,8 +45,8 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use actix_web::dev::{ServiceFromRequest, ServiceRequest, ServiceResponse};
 use actix_web::{Error, FromRequest, HttpMessage};
-use actix_web::{ServiceFromRequest, ServiceRequest, ServiceResponse};
 use hashbrown::HashMap;
 use serde::de::DeserializeOwned;
 use serde::Serialize;

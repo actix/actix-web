@@ -40,7 +40,7 @@ pub trait FromRequest<P>: Sized {
 ///
 /// ```rust
 /// # #[macro_use] extern crate serde_derive;
-/// use actix_web::{web, App, Error, FromRequest, ServiceFromRequest};
+/// use actix_web::{web, dev, App, Error, FromRequest};
 /// use actix_web::error::ErrorBadRequest;
 /// use rand;
 ///
@@ -53,7 +53,7 @@ pub trait FromRequest<P>: Sized {
 ///     type Error = Error;
 ///     type Future = Result<Self, Self::Error>;
 ///
-///     fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
+///     fn from_request(req: &mut dev::ServiceFromRequest<P>) -> Self::Future {
 ///         if rand::random() {
 ///             Ok(Thing { name: "thingy".into() })
 ///         } else {
@@ -107,7 +107,7 @@ where
 ///
 /// ```rust
 /// # #[macro_use] extern crate serde_derive;
-/// use actix_web::{web, App, Result, Error, FromRequest, ServiceFromRequest};
+/// use actix_web::{web, dev, App, Result, Error, FromRequest};
 /// use actix_web::error::ErrorBadRequest;
 /// use rand;
 ///
@@ -120,7 +120,7 @@ where
 ///     type Error = Error;
 ///     type Future = Result<Thing, Error>;
 ///
-///     fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
+///     fn from_request(req: &mut dev::ServiceFromRequest<P>) -> Self::Future {
 ///         if rand::random() {
 ///             Ok(Thing { name: "thingy".into() })
 ///         } else {

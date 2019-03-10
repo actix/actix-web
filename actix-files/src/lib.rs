@@ -16,12 +16,12 @@ use percent_encoding::{utf8_percent_encode, DEFAULT_ENCODE_SET};
 use v_htmlescape::escape as escape_html_entity;
 
 use actix_service::{boxed::BoxedNewService, NewService, Service};
-use actix_web::dev::{CpuFuture, HttpServiceFactory, ResourceDef, ServiceConfig};
-use actix_web::error::{BlockingError, Error, ErrorInternalServerError};
-use actix_web::{
-    web, FromRequest, HttpRequest, HttpResponse, Responder, ServiceFromRequest,
+use actix_web::dev::{
+    CpuFuture, HttpServiceFactory, ResourceDef, ServiceConfig, ServiceFromRequest,
     ServiceRequest, ServiceResponse,
 };
+use actix_web::error::{BlockingError, Error, ErrorInternalServerError};
+use actix_web::{web, FromRequest, HttpRequest, HttpResponse, Responder};
 use futures::future::{ok, FutureResult};
 
 mod config;
@@ -34,7 +34,8 @@ pub use crate::config::{DefaultConfig, StaticFileConfig};
 pub use crate::named::NamedFile;
 pub use crate::range::HttpRange;
 
-type HttpNewService<P> = BoxedNewService<(), ServiceRequest<P>, ServiceResponse, (), ()>;
+type HttpNewService<P> =
+    BoxedNewService<(), ServiceRequest<P>, ServiceResponse, Error, ()>;
 
 /// Return the MIME type associated with a filename extension (case-insensitive).
 /// If `ext` is empty or no associated type for the extension was found, returns
@@ -319,7 +320,7 @@ where
 impl<P, C: StaticFileConfig + 'static> NewService for Files<P, C> {
     type Request = ServiceRequest<P>;
     type Response = ServiceResponse;
-    type Error = ();
+    type Error = Error;
     type Service = FilesService<P, C>;
     type InitError = ();
     type Future = FutureResult<Self::Service, Self::InitError>;
@@ -352,7 +353,7 @@ pub struct FilesService<S, C = DefaultConfig> {
 impl<P, C: StaticFileConfig> Service for FilesService<P, C> {
     type Request = ServiceRequest<P>;
     type Response = ServiceResponse;
-    type Error = ();
+    type Error = Error;
     type Future = FutureResult<Self::Response, Self::Error>;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {

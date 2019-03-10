@@ -19,8 +19,9 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use actix_service::{Service, Transform};
+use actix_web::dev::{ServiceRequest, ServiceResponse};
 use actix_web::http::{header::SET_COOKIE, HeaderValue};
-use actix_web::{Error, HttpMessage, ResponseError, ServiceRequest, ServiceResponse};
+use actix_web::{Error, HttpMessage, ResponseError};
 use cookie::{Cookie, CookieJar, Key, SameSite};
 use derive_more::{Display, From};
 use futures::future::{ok, Future, FutureResult};
