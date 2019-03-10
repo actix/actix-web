@@ -26,7 +26,7 @@
 //!     }
 //! }
 //!
-//! fn login(id: Idenity) -> HttpResponse {
+//! fn login(id: Identity) -> HttpResponse {
 //!     id.remember("User1".to_owned()); // <- remember identity
 //!     HttpResponse::Ok().finish()
 //! }
@@ -41,11 +41,10 @@
 //!         // <- create identity middleware
 //!         CookieIdentityPolicy::new(&[0; 32])    // <- create cookie session backend
 //!               .name("auth-cookie")
-//!               .secure(false))
-//!         .service(web::resource("/index.html").to(index)
-//!         .service(web::resource("/login.html").to(login)
-//!         .service(web::resource("/logout.html").to(logout)
-//!     ));
+//!               .secure(false)))
+//!         .service(web::resource("/index.html").to(index))
+//!         .service(web::resource("/login.html").to(login))
+//!         .service(web::resource("/logout.html").to(logout));
 //! }
 //! ```
 use std::cell::RefCell;
