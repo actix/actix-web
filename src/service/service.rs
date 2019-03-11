@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use std::{fmt, io};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed, FramedParts};
-use actix_server_config::ServerConfig as SrvConfig;
+use actix_server_config::{Io as ServerIo, Protocol, ServerConfig as SrvConfig};
 use actix_service::{IntoNewService, NewService, Service};
 use actix_utils::cloneable::CloneableService;
 use bytes::{Buf, BufMut, Bytes, BytesMut};
@@ -20,13 +20,27 @@ use crate::response::Response;
 use crate::{h1, h2::Dispatcher};
 
 /// `NewService` HTTP1.1/HTTP2 transport implementation
-pub struct HttpService<T, S, B> {
+pub struct HttpService<T, P, S, B> {
     srv: S,
     cfg: ServiceConfig,
-    _t: PhantomData<(T, B)>,
+    _t: PhantomData<(T, P, B)>,
 }
 
-impl<T, S, B> HttpService<T, S, B>
+impl<T, S, B> HttpService<T, (), S, B>
+where
+    S: NewService<SrvConfig, Request = Request>,
+    S::Service: 'static,
+    S::Error: Debug + 'static,
+    S::Response: Into<Response<B>>,
+    B: MessageBody + 'static,
+{
+    /// Create builder for `HttpService` instance.
+    pub fn build() -> HttpServiceBuilder<T, S> {
+        HttpServiceBuilder::new()
+    }
+}
+
+impl<T, P, S, B> HttpService<T, P, S, B>
 where
     S: NewService<SrvConfig, Request = Request>,
     S::Service: 'static,
@@ -56,14 +70,9 @@ where
             _t: PhantomData,
         }
     }
-
-    /// Create builder for `HttpService` instance.
-    pub fn build() -> HttpServiceBuilder<T, S> {
-        HttpServiceBuilder::new()
-    }
 }
 
-impl<T, S, B> NewService<SrvConfig> for HttpService<T, S, B>
+impl<T, P, S, B> NewService<SrvConfig> for HttpService<T, P, S, B>
 where
     T: AsyncRead + AsyncWrite + 'static,
     S: NewService<SrvConfig, Request = Request>,
@@ -72,12 +81,12 @@ where
     S::Response: Into<Response<B>>,
     B: MessageBody + 'static,
 {
-    type Request = T;
+    type Request = ServerIo<T, P>;
     type Response = ();
     type Error = DispatchError;
     type InitError = S::InitError;
-    type Service = HttpServiceHandler<T, S::Service, B>;
-    type Future = HttpServiceResponse<T, S, B>;
+    type Service = HttpServiceHandler<T, P, S::Service, B>;
+    type Future = HttpServiceResponse<T, P, S, B>;
 
     fn new_service(&self, cfg: &SrvConfig) -> Self::Future {
         HttpServiceResponse {
@@ -89,13 +98,13 @@ where
 }
 
 #[doc(hidden)]
-pub struct HttpServiceResponse<T, S: NewService<SrvConfig>, B> {
+pub struct HttpServiceResponse<T, P, S: NewService<SrvConfig>, B> {
     fut: <S::Future as IntoFuture>::Future,
     cfg: Option<ServiceConfig>,
-    _t: PhantomData<(T, B)>,
+    _t: PhantomData<(T, P, B)>,
 }
 
-impl<T, S, B> Future for HttpServiceResponse<T, S, B>
+impl<T, P, S, B> Future for HttpServiceResponse<T, P, S, B>
 where
     T: AsyncRead + AsyncWrite,
     S: NewService<SrvConfig, Request = Request>,
@@ -104,7 +113,7 @@ where
     S::Error: Debug,
     B: MessageBody + 'static,
 {
-    type Item = HttpServiceHandler<T, S::Service, B>;
+    type Item = HttpServiceHandler<T, P, S::Service, B>;
     type Error = S::InitError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
@@ -117,20 +126,20 @@ where
 }
 
 /// `Service` implementation for http transport
-pub struct HttpServiceHandler<T, S: 'static, B> {
+pub struct HttpServiceHandler<T, P, S: 'static, B> {
     srv: CloneableService<S>,
     cfg: ServiceConfig,
-    _t: PhantomData<(T, B)>,
+    _t: PhantomData<(T, P, B)>,
 }
 
-impl<T, S, B> HttpServiceHandler<T, S, B>
+impl<T, P, S, B> HttpServiceHandler<T, P, S, B>
 where
     S: Service<Request = Request> + 'static,
     S::Error: Debug,
     S::Response: Into<Response<B>>,
     B: MessageBody + 'static,
 {
-    fn new(cfg: ServiceConfig, srv: S) -> HttpServiceHandler<T, S, B> {
+    fn new(cfg: ServiceConfig, srv: S) -> HttpServiceHandler<T, P, S, B> {
         HttpServiceHandler {
             cfg,
             srv: CloneableService::new(srv),
@@ -139,7 +148,7 @@ where
     }
 }
 
-impl<T, S, B> Service for HttpServiceHandler<T, S, B>
+impl<T, P, S, B> Service for HttpServiceHandler<T, P, S, B>
 where
     T: AsyncRead + AsyncWrite + 'static,
     S: Service<Request = Request> + 'static,
@@ -147,7 +156,7 @@ where
     S::Response: Into<Response<B>>,
     B: MessageBody + 'static,
 {
-    type Request = T;
+    type Request = ServerIo<T, P>;
     type Response = ();
     type Error = DispatchError;
     type Future = HttpServiceHandlerResponse<T, S, B>;
@@ -159,14 +168,37 @@ where
         })
     }
 
-    fn call(&mut self, req: T) -> Self::Future {
-        HttpServiceHandlerResponse {
-            state: State::Unknown(Some((
-                req,
-                BytesMut::with_capacity(14),
-                self.cfg.clone(),
-                self.srv.clone(),
-            ))),
+    fn call(&mut self, req: Self::Request) -> Self::Future {
+        let (io, params, proto) = req.into_parts();
+        match proto {
+            Protocol::Http2 => {
+                let io = Io {
+                    inner: io,
+                    unread: None,
+                };
+                HttpServiceHandlerResponse {
+                    state: State::Handshake(Some((
+                        server::handshake(io),
+                        self.cfg.clone(),
+                        self.srv.clone(),
+                    ))),
+                }
+            }
+            Protocol::Http10 | Protocol::Http11 => HttpServiceHandlerResponse {
+                state: State::H1(h1::Dispatcher::new(
+                    io,
+                    self.cfg.clone(),
+                    self.srv.clone(),
+                )),
+            },
+            _ => HttpServiceHandlerResponse {
+                state: State::Unknown(Some((
+                    io,
+                    BytesMut::with_capacity(14),
+                    self.cfg.clone(),
+                    self.srv.clone(),
+                ))),
+            },
         }
     }
 }

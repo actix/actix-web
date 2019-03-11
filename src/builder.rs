@@ -95,7 +95,7 @@ where
     // }
 
     /// Finish service configuration and create *http service* for HTTP/1 protocol.
-    pub fn h1<F, B>(self, service: F) -> H1Service<T, S, B>
+    pub fn h1<F, P, B>(self, service: F) -> H1Service<T, P, S, B>
     where
         B: MessageBody + 'static,
         F: IntoNewService<S, SrvConfig>,
@@ -110,7 +110,7 @@ where
     }
 
     /// Finish service configuration and create *http service* for HTTP/2 protocol.
-    pub fn h2<F, B>(self, service: F) -> H2Service<T, S, B>
+    pub fn h2<F, P, B>(self, service: F) -> H2Service<T, P, S, B>
     where
         B: MessageBody + 'static,
         F: IntoNewService<S, SrvConfig>,
@@ -125,7 +125,7 @@ where
     }
 
     /// Finish service configuration and create `HttpService` instance.
-    pub fn finish<F, B>(self, service: F) -> HttpService<T, S, B>
+    pub fn finish<F, P, B>(self, service: F) -> HttpService<T, P, S, B>
     where
         B: MessageBody + 'static,
         F: IntoNewService<S, SrvConfig>,

@@ -49,7 +49,7 @@ fn test_h1_2() {
 }
 
 #[cfg(feature = "ssl")]
-fn ssl_acceptor<T>() -> std::io::Result<actix_server::ssl::OpensslAcceptor<T>> {
+fn ssl_acceptor<T>() -> std::io::Result<actix_server::ssl::OpensslAcceptor<T, ()>> {
     use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
     // load ssl keys
     let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();

@@ -2,7 +2,8 @@ use std::io;
 
 use actix_codec::Framed;
 use actix_http_test::TestServer;
-use actix_service::NewService;
+use actix_server::Io;
+use actix_service::{fn_service, NewService};
 use actix_utils::framed::IntoFramed;
 use actix_utils::stream::TakeItem;
 use bytes::{Bytes, BytesMut};
@@ -35,7 +36,8 @@ fn ws_service(req: ws::Frame) -> impl Future<Item = ws::Message, Error = io::Err
 #[test]
 fn test_simple() {
     let mut srv = TestServer::new(|| {
-        IntoFramed::new(|| h1::Codec::new(ServiceConfig::default()))
+        fn_service(|io: Io<_>| Ok(io.into_parts().0))
+            .and_then(IntoFramed::new(|| h1::Codec::new(ServiceConfig::default())))
             .and_then(TakeItem::new().map_err(|_| ()))
             .and_then(|(req, framed): (_, Framed<_, _>)| {
                 // validate request

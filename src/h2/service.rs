@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use std::{io, net};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
-use actix_server_config::ServerConfig as SrvConfig;
+use actix_server_config::{Io, ServerConfig as SrvConfig};
 use actix_service::{IntoNewService, NewService, Service};
 use actix_utils::cloneable::CloneableService;
 use bytes::Bytes;
@@ -23,13 +23,13 @@ use crate::response::Response;
 use super::dispatcher::Dispatcher;
 
 /// `NewService` implementation for HTTP2 transport
-pub struct H2Service<T, S, B> {
+pub struct H2Service<T, P, S, B> {
     srv: S,
     cfg: ServiceConfig,
-    _t: PhantomData<(T, B)>,
+    _t: PhantomData<(T, P, B)>,
 }
 
-impl<T, S, B> H2Service<T, S, B>
+impl<T, P, S, B> H2Service<T, P, S, B>
 where
     S: NewService<SrvConfig, Request = Request>,
     S::Service: 'static,
@@ -61,7 +61,7 @@ where
     }
 }
 
-impl<T, S, B> NewService<SrvConfig> for H2Service<T, S, B>
+impl<T, P, S, B> NewService<SrvConfig> for H2Service<T, P, S, B>
 where
     T: AsyncRead + AsyncWrite,
     S: NewService<SrvConfig, Request = Request>,
@@ -70,12 +70,12 @@ where
     S::Response: Into<Response<B>>,
     B: MessageBody + 'static,
 {
-    type Request = T;
+    type Request = Io<T, P>;
     type Response = ();
     type Error = DispatchError;
     type InitError = S::InitError;
-    type Service = H2ServiceHandler<T, S::Service, B>;
-    type Future = H2ServiceResponse<T, S, B>;
+    type Service = H2ServiceHandler<T, P, S::Service, B>;
+    type Future = H2ServiceResponse<T, P, S, B>;
 
     fn new_service(&self, cfg: &SrvConfig) -> Self::Future {
         H2ServiceResponse {
@@ -87,13 +87,13 @@ where
 }
 
 #[doc(hidden)]
-pub struct H2ServiceResponse<T, S: NewService<SrvConfig, Request = Request>, B> {
+pub struct H2ServiceResponse<T, P, S: NewService<SrvConfig, Request = Request>, B> {
     fut: <S::Future as IntoFuture>::Future,
     cfg: Option<ServiceConfig>,
-    _t: PhantomData<(T, B)>,
+    _t: PhantomData<(T, P, B)>,
 }
 
-impl<T, S, B> Future for H2ServiceResponse<T, S, B>
+impl<T, P, S, B> Future for H2ServiceResponse<T, P, S, B>
 where
     T: AsyncRead + AsyncWrite,
     S: NewService<SrvConfig, Request = Request>,
@@ -102,7 +102,7 @@ where
     S::Error: Debug,
     B: MessageBody + 'static,
 {
-    type Item = H2ServiceHandler<T, S::Service, B>;
+    type Item = H2ServiceHandler<T, P, S::Service, B>;
     type Error = S::InitError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
@@ -115,20 +115,20 @@ where
 }
 
 /// `Service` implementation for http/2 transport
-pub struct H2ServiceHandler<T, S: 'static, B> {
+pub struct H2ServiceHandler<T, P, S: 'static, B> {
     srv: CloneableService<S>,
     cfg: ServiceConfig,
-    _t: PhantomData<(T, B)>,
+    _t: PhantomData<(T, P, B)>,
 }
 
-impl<T, S, B> H2ServiceHandler<T, S, B>
+impl<T, P, S, B> H2ServiceHandler<T, P, S, B>
 where
     S: Service<Request = Request> + 'static,
     S::Error: Debug,
     S::Response: Into<Response<B>>,
     B: MessageBody + 'static,
 {
-    fn new(cfg: ServiceConfig, srv: S) -> H2ServiceHandler<T, S, B> {
+    fn new(cfg: ServiceConfig, srv: S) -> H2ServiceHandler<T, P, S, B> {
         H2ServiceHandler {
             cfg,
             srv: CloneableService::new(srv),
@@ -137,7 +137,7 @@ where
     }
 }
 
-impl<T, S, B> Service for H2ServiceHandler<T, S, B>
+impl<T, P, S, B> Service for H2ServiceHandler<T, P, S, B>
 where
     T: AsyncRead + AsyncWrite,
     S: Service<Request = Request> + 'static,
@@ -145,7 +145,7 @@ where
     S::Response: Into<Response<B>>,
     B: MessageBody + 'static,
 {
-    type Request = T;
+    type Request = Io<T, P>;
     type Response = ();
     type Error = DispatchError;
     type Future = H2ServiceHandlerResponse<T, S, B>;
@@ -157,12 +157,12 @@ where
         })
     }
 
-    fn call(&mut self, req: T) -> Self::Future {
+    fn call(&mut self, req: Self::Request) -> Self::Future {
         H2ServiceHandlerResponse {
             state: State::Handshake(
                 Some(self.srv.clone()),
                 Some(self.cfg.clone()),
-                server::handshake(req),
+                server::handshake(req.into_parts().0),
             ),
         }
     }
