@@ -172,10 +172,12 @@ impl TestRequest {
             let value = percent_encode(c.value().as_bytes(), USERINFO_ENCODE_SET);
             let _ = write!(&mut cookie, "; {}={}", name, value);
         }
-        head.headers.insert(
-            header::COOKIE,
-            HeaderValue::from_str(&cookie.as_str()[2..]).unwrap(),
-        );
+        if !cookie.is_empty() {
+            head.headers.insert(
+                header::COOKIE,
+                HeaderValue::from_str(&cookie.as_str()[2..]).unwrap(),
+            );
+        }
 
         req
     }
