@@ -83,12 +83,12 @@ where
         HttpServer {
             factory,
             host: None,
-            backlog: 2048,
             config: Arc::new(Mutex::new(Config {
                 keep_alive: KeepAlive::Timeout(5),
                 client_timeout: 5000,
                 client_shutdown: 5000,
             })),
+            backlog: 1024,
             sockets: Vec::new(),
             builder: Some(ServerBuilder::default()),
             _t: PhantomData,
@@ -114,8 +114,9 @@ where
     /// Generally set in the 64-2048 range. Default value is 2048.
     ///
     /// This method should be called before `bind()` method call.
-    pub fn backlog(mut self, num: i32) -> Self {
-        self.backlog = num;
+    pub fn backlog(mut self, backlog: i32) -> Self {
+        self.backlog = backlog;
+        self.builder = Some(self.builder.take().unwrap().backlog(backlog));
         self
     }
 
