@@ -126,7 +126,7 @@ impl TestRequest {
     }
 
     /// Set cookie for this request
-    pub fn cookie<'a>(mut self, cookie: Cookie<'a>) -> Self {
+    pub fn cookie<'a>(&mut self, cookie: Cookie<'a>) -> &mut Self {
         parts(&mut self.0).cookies.add(cookie.into_owned());
         self
     }
