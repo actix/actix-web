@@ -40,10 +40,7 @@ impl Stream for Payload {
             }
             Ok(Async::Ready(None)) => Ok(Async::Ready(None)),
             Ok(Async::NotReady) => Ok(Async::NotReady),
-            Err(err) => {
-                println!("======== {:?}", err);
-                Err(err.into())
-            }
+            Err(err) => Err(err.into()),
         }
     }
 }

@@ -28,20 +28,12 @@ use crate::response::Response;
 
 const CHUNK_SIZE: usize = 16_384;
 
-bitflags! {
-    struct Flags: u8 {
-        const DISCONNECTED = 0b0000_0001;
-        const SHUTDOWN = 0b0000_0010;
-    }
-}
-
 /// Dispatcher for HTTP/2 protocol
 pub struct Dispatcher<
     T: AsyncRead + AsyncWrite,
     S: Service<Request = Request> + 'static,
     B: MessageBody,
 > {
-    flags: Flags,
     service: CloneableService<S>,
     connection: Connection<T, Bytes>,
     config: ServiceConfig,
@@ -86,7 +78,6 @@ where
             ka_expire,
             ka_timer,
             connection,
-            flags: Flags::empty(),
             _t: PhantomData,
         }
     }
