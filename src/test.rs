@@ -1,10 +1,12 @@
 //! Test Various helpers for Actix applications to use during testing.
+use std::fmt::Write as FmtWrite;
 use std::str::FromStr;
 
 use bytes::Bytes;
-use cookie::Cookie;
-use http::header::HeaderName;
+use cookie::{Cookie, CookieJar};
+use http::header::{self, HeaderName, HeaderValue};
 use http::{HeaderMap, HttpTryFrom, Method, Uri, Version};
+use percent_encoding::{percent_encode, USERINFO_ENCODE_SET};
 
 use crate::header::{Header, IntoHeaderValue};
 use crate::payload::Payload;
@@ -44,7 +46,7 @@ struct Inner {
     method: Method,
     uri: Uri,
     headers: HeaderMap,
-    _cookies: Option<Vec<Cookie<'static>>>,
+    cookies: CookieJar,
     payload: Option<Payload>,
 }
 
@@ -55,7 +57,7 @@ impl Default for TestRequest {
             uri: Uri::from_str("/").unwrap(),
             version: Version::HTTP_11,
             headers: HeaderMap::new(),
-            _cookies: None,
+            cookies: CookieJar::new(),
             payload: None,
         }))
     }
@@ -123,6 +125,12 @@ impl TestRequest {
         panic!("Can not create header");
     }
 
+    /// Set cookie for this request
+    pub fn cookie<'a>(mut self, cookie: Cookie<'a>) -> Self {
+        parts(&mut self.0).cookies.add(cookie.into_owned());
+        self
+    }
+
     /// Set request payload
     pub fn set_payload<B: Into<Bytes>>(&mut self, data: B) -> &mut Self {
         let mut payload = crate::h1::Payload::empty();
@@ -143,7 +151,7 @@ impl TestRequest {
             version,
             headers,
             payload,
-            ..
+            cookies,
         } = self.0.take().expect("cannot reuse test request builder");;
 
         let mut req = if let Some(pl) = payload {
@@ -158,96 +166,19 @@ impl TestRequest {
         head.version = version;
         head.headers = headers;
 
-        // req.set_cookies(cookies);
+        let mut cookie = String::new();
+        for c in cookies.delta() {
+            let name = percent_encode(c.name().as_bytes(), USERINFO_ENCODE_SET);
+            let value = percent_encode(c.value().as_bytes(), USERINFO_ENCODE_SET);
+            let _ = write!(&mut cookie, "; {}={}", name, value);
+        }
+        head.headers.insert(
+            header::COOKIE,
+            HeaderValue::from_str(&cookie.as_str()[2..]).unwrap(),
+        );
+
         req
     }
-
-    // /// This method generates `HttpRequest` instance and runs handler
-    // /// with generated request.
-    // pub fn run<H: Handler<S>>(self, h: &H) -> Result<Response, Error> {
-    //     let req = self.finish();
-    //     let resp = h.handle(&req);
-
-    //     match resp.respond_to(&req) {
-    //         Ok(resp) => match resp.into().into() {
-    //             AsyncResultItem::Ok(resp) => Ok(resp),
-    //             AsyncResultItem::Err(err) => Err(err),
-    //             AsyncResultItem::Future(fut) => {
-    //                 let mut sys = System::new("test");
-    //                 sys.block_on(fut)
-    //             }
-    //         },
-    //         Err(err) => Err(err.into()),
-    //     }
-    // }
-
-    // /// This method generates `HttpRequest` instance and runs handler
-    // /// with generated request.
-    // ///
-    // /// This method panics is handler returns actor.
-    // pub fn run_async<H, R, F, E>(self, h: H) -> Result<Response, E>
-    // where
-    //     H: Fn(HttpRequest<S>) -> F + 'static,
-    //     F: Future<Item = R, Error = E> + 'static,
-    //     R: Responder<Error = E> + 'static,
-    //     E: Into<Error> + 'static,
-    // {
-    //     let req = self.finish();
-    //     let fut = h(req.clone());
-
-    //     let mut sys = System::new("test");
-    //     match sys.block_on(fut) {
-    //         Ok(r) => match r.respond_to(&req) {
-    //             Ok(reply) => match reply.into().into() {
-    //                 AsyncResultItem::Ok(resp) => Ok(resp),
-    //                 _ => panic!("Nested async replies are not supported"),
-    //             },
-    //             Err(e) => Err(e),
-    //         },
-    //         Err(err) => Err(err),
-    //     }
-    // }
-
-    // /// This method generates `HttpRequest` instance and executes handler
-    // pub fn run_async_result<F, R, I, E>(self, f: F) -> Result<I, E>
-    // where
-    //     F: FnOnce(&HttpRequest<S>) -> R,
-    //     R: Into<AsyncResult<I, E>>,
-    // {
-    //     let req = self.finish();
-    //     let res = f(&req);
-
-    //     match res.into().into() {
-    //         AsyncResultItem::Ok(resp) => Ok(resp),
-    //         AsyncResultItem::Err(err) => Err(err),
-    //         AsyncResultItem::Future(fut) => {
-    //             let mut sys = System::new("test");
-    //             sys.block_on(fut)
-    //         }
-    //     }
-    // }
-
-    // /// This method generates `HttpRequest` instance and executes handler
-    // pub fn execute<F, R>(self, f: F) -> Result<Response, Error>
-    // where
-    //     F: FnOnce(&HttpRequest<S>) -> R,
-    //     R: Responder + 'static,
-    // {
-    //     let req = self.finish();
-    //     let resp = f(&req);
-
-    //     match resp.respond_to(&req) {
-    //         Ok(resp) => match resp.into().into() {
-    //             AsyncResultItem::Ok(resp) => Ok(resp),
-    //             AsyncResultItem::Err(err) => Err(err),
-    //             AsyncResultItem::Future(fut) => {
-    //                 let mut sys = System::new("test");
-    //                 sys.block_on(fut)
-    //             }
-    //         },
-    //         Err(err) => Err(err.into()),
-    //     }
-    // }
 }
 
 #[inline]
