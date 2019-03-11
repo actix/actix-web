@@ -79,7 +79,7 @@ pub mod dev {
 }
 
 pub mod web {
-    use actix_http::{http::Method, Error, Response};
+    use actix_http::{http::Method, Response};
     use futures::IntoFuture;
 
     pub use actix_http::Response as HttpResponse;
@@ -93,6 +93,7 @@ pub mod web {
     use crate::route::Route;
     use crate::scope::Scope;
 
+    pub use crate::error::Error;
     pub use crate::extract::{Form, Json, Path, Payload, Query};
     pub use crate::extract::{FormConfig, JsonConfig, PayloadConfig};
     pub use crate::request::HttpRequest;

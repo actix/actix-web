@@ -424,3 +424,41 @@ where
         }))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::http::{Method, StatusCode};
+    use crate::test::{call_success, init_service, TestRequest};
+    use crate::{web, App, Error, HttpResponse};
+
+    #[test]
+    fn test_route() {
+        let mut srv = init_service(
+            App::new().service(
+                web::resource("/test")
+                    .route(web::get().to(|| HttpResponse::Ok()))
+                    .route(
+                        web::post().to_async(|| Ok::<_, Error>(HttpResponse::Created())),
+                    ),
+            ),
+        );
+
+        let req = TestRequest::with_uri("/test")
+            .method(Method::GET)
+            .to_request();
+        let resp = call_success(&mut srv, req);
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let req = TestRequest::with_uri("/test")
+            .method(Method::POST)
+            .to_request();
+        let resp = call_success(&mut srv, req);
+        assert_eq!(resp.status(), StatusCode::CREATED);
+
+        let req = TestRequest::with_uri("/test")
+            .method(Method::HEAD)
+            .to_request();
+        let resp = call_success(&mut srv, req);
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    }
+}
