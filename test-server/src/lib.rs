@@ -167,6 +167,11 @@ impl<T> TestServerRuntime<T> {
         ClientRequest::get(self.url("/").as_str())
     }
 
+    /// Create https `GET` request
+    pub fn sget(&self) -> ClientRequestBuilder {
+        ClientRequest::get(self.surl("/").as_str())
+    }
+
     /// Create `POST` request
     pub fn post(&self) -> ClientRequestBuilder {
         ClientRequest::post(self.url("/").as_str())

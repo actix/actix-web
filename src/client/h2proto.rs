@@ -6,10 +6,11 @@ use futures::future::{err, Either};
 use futures::{Async, Future, Poll};
 use h2::{client::SendRequest, SendStream};
 use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING};
-use http::{request::Request, HttpTryFrom, Version};
+use http::{request::Request, HttpTryFrom, Method, Version};
 
 use crate::body::{BodyLength, MessageBody};
 use crate::message::{Message, RequestHead, ResponseHead};
+use crate::payload::Payload;
 
 use super::connection::{ConnectionType, IoConnection};
 use super::error::SendRequestError;
@@ -28,6 +29,7 @@ where
     B: MessageBody,
 {
     trace!("Sending client request: {:?} {:?}", head, body.length());
+    let head_req = head.method == Method::HEAD;
     let length = body.length();
     let eof = match length {
         BodyLength::None | BodyLength::Empty | BodyLength::Sized(0) => true,
@@ -99,18 +101,16 @@ where
                 }
             }
         })
-        .and_then(|resp| {
+        .and_then(move |resp| {
             let (parts, body) = resp.into_parts();
+            let payload = if head_req { Payload::None } else { body.into() };
 
             let mut head: Message<ResponseHead> = Message::new();
             head.version = parts.version;
             head.status = parts.status;
             head.headers = parts.headers;
 
-            Ok(ClientResponse {
-                head,
-                payload: body.into(),
-            })
+            Ok(ClientResponse { head, payload })
         })
         .from_err()
 }

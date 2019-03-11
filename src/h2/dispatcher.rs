@@ -107,9 +107,7 @@ where
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         loop {
             match self.connection.poll()? {
-                Async::Ready(None) => {
-                    self.flags.insert(Flags::DISCONNECTED);
-                }
+                Async::Ready(None) => return Ok(Async::Ready(())),
                 Async::Ready(Some((req, res))) => {
                     // update keep-alive expire
                     if self.ka_timer.is_some() {
@@ -255,7 +253,7 @@ where
                         }
                     }
                     Ok(Async::NotReady) => Ok(Async::NotReady),
-                    Err(e) => {
+                    Err(_e) => {
                         let res: Response = Response::InternalServerError().finish();
                         let (res, body) = res.replace_body(());
 
@@ -304,7 +302,9 @@ where
                         }
                     } else {
                         match body.poll_next() {
-                            Ok(Async::NotReady) => return Ok(Async::NotReady),
+                            Ok(Async::NotReady) => {
+                                return Ok(Async::NotReady);
+                            }
                             Ok(Async::Ready(None)) => {
                                 if let Err(e) = stream.send_data(Bytes::new(), true) {
                                     warn!("{:?}", e);

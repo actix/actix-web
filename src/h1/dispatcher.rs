@@ -228,18 +228,21 @@ where
                     }
                     None => None,
                 },
-                State::ServiceCall(mut fut) => {
-                    match fut.poll().map_err(|_| DispatchError::Service)? {
-                        Async::Ready(res) => {
-                            let (res, body) = res.into().replace_body(());
-                            Some(self.send_response(res, body)?)
-                        }
-                        Async::NotReady => {
-                            self.state = State::ServiceCall(fut);
-                            None
-                        }
+                State::ServiceCall(mut fut) => match fut.poll() {
+                    Ok(Async::Ready(res)) => {
+                        let (res, body) = res.into().replace_body(());
+                        Some(self.send_response(res, body)?)
                     }
-                }
+                    Ok(Async::NotReady) => {
+                        self.state = State::ServiceCall(fut);
+                        None
+                    }
+                    Err(_e) => {
+                        let res: Response = Response::InternalServerError().finish();
+                        let (res, body) = res.replace_body(());
+                        Some(self.send_response(res, body.into_body())?)
+                    }
+                },
                 State::SendPayload(mut stream) => {
                     loop {
                         if !self.framed.is_write_buf_full() {
@@ -289,12 +292,17 @@ where
 
     fn handle_request(&mut self, req: Request) -> Result<State<S, B>, DispatchError> {
         let mut task = self.service.call(req);
-        match task.poll().map_err(|_| DispatchError::Service)? {
-            Async::Ready(res) => {
+        match task.poll() {
+            Ok(Async::Ready(res)) => {
                 let (res, body) = res.into().replace_body(());
                 self.send_response(res, body)
             }
-            Async::NotReady => Ok(State::ServiceCall(task)),
+            Ok(Async::NotReady) => Ok(State::ServiceCall(task)),
+            Err(_e) => {
+                let res: Response = Response::InternalServerError().finish();
+                let (res, body) = res.replace_body(());
+                self.send_response(res, body.into_body())
+            }
         }
     }
 

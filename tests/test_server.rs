@@ -3,15 +3,16 @@ use std::time::Duration;
 use std::{net, thread};
 
 use actix_http_test::TestServer;
-use actix_service::NewService;
+use actix_server_config::ServerConfig;
+use actix_service::{fn_cfg_factory, NewService};
 use bytes::Bytes;
 use futures::future::{self, ok, Future};
 use futures::stream::once;
 
 use actix_http::body::Body;
 use actix_http::{
-    body, client, http, Error, HttpMessage as HttpMessage2, HttpService, KeepAlive,
-    Request, Response,
+    body, client, error, http, http::header, Error, HttpMessage as HttpMessage2,
+    HttpService, KeepAlive, Request, Response,
 };
 
 #[test]
@@ -152,7 +153,7 @@ fn test_slow_request() {
     let srv = TestServer::new(|| {
         HttpService::build()
             .client_timeout(100)
-            .h1(|_| future::ok::<_, ()>(Response::Ok().finish()))
+            .finish(|_| future::ok::<_, ()>(Response::Ok().finish()))
     });
 
     let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
@@ -341,67 +342,66 @@ fn test_content_length() {
     }
 }
 
-// TODO: fix
-// #[test]
-// fn test_h2_content_length() {
-//     use actix_http::http::{
-//         header::{HeaderName, HeaderValue},
-//         StatusCode,
-//     };
-//     let openssl = ssl_acceptor().unwrap();
+#[test]
+fn test_h2_content_length() {
+    use actix_http::http::{
+        header::{HeaderName, HeaderValue},
+        StatusCode,
+    };
+    let openssl = ssl_acceptor().unwrap();
 
-//     let mut srv = TestServer::new(move || {
-//         openssl
-//             .clone()
-//             .map_err(|e| println!("Openssl error: {}", e))
-//             .and_then(
-//                 HttpService::build()
-//                     .h2(|req: Request| {
-//                         let indx: usize = req.uri().path()[1..].parse().unwrap();
-//                         let statuses = [
-//                             StatusCode::NO_CONTENT,
-//                             StatusCode::CONTINUE,
-//                             StatusCode::SWITCHING_PROTOCOLS,
-//                             StatusCode::PROCESSING,
-//                             StatusCode::OK,
-//                             StatusCode::NOT_FOUND,
-//                         ];
-//                         future::ok::<_, ()>(Response::new(statuses[indx]))
-//                     })
-//                     .map_err(|_| ()),
-//             )
-//     });
+    let mut srv = TestServer::new(move || {
+        openssl
+            .clone()
+            .map_err(|e| println!("Openssl error: {}", e))
+            .and_then(
+                HttpService::build()
+                    .h2(|req: Request| {
+                        let indx: usize = req.uri().path()[1..].parse().unwrap();
+                        let statuses = [
+                            StatusCode::NO_CONTENT,
+                            StatusCode::CONTINUE,
+                            StatusCode::SWITCHING_PROTOCOLS,
+                            StatusCode::PROCESSING,
+                            StatusCode::OK,
+                            StatusCode::NOT_FOUND,
+                        ];
+                        future::ok::<_, ()>(Response::new(statuses[indx]))
+                    })
+                    .map_err(|_| ()),
+            )
+    });
 
-//     let header = HeaderName::from_static("content-length");
-//     let value = HeaderValue::from_static("0");
+    let header = HeaderName::from_static("content-length");
+    let value = HeaderValue::from_static("0");
 
-//     {
-//         for i in 0..4 {
-//             let req = client::ClientRequest::get(srv.surl(&format!("/{}", i)))
-//                 .finish()
-//                 .unwrap();
-//             let response = srv.send_request(req).unwrap();
-//             assert_eq!(response.headers().get(&header), None);
+    {
+        for i in 0..4 {
+            let req = client::ClientRequest::get(srv.surl(&format!("/{}", i)))
+                .finish()
+                .unwrap();
+            let response = srv.send_request(req).unwrap();
+            assert_eq!(response.headers().get(&header), None);
 
-//             let req = client::ClientRequest::head(srv.surl(&format!("/{}", i)))
-//                 .finish()
-//                 .unwrap();
-//             let response = srv.send_request(req).unwrap();
-//             assert_eq!(response.headers().get(&header), None);
-//         }
+            let req = client::ClientRequest::head(srv.surl(&format!("/{}", i)))
+                .finish()
+                .unwrap();
+            let response = srv.send_request(req).unwrap();
+            assert_eq!(response.headers().get(&header), None);
+        }
 
-//         for i in 4..6 {
-//             let req = client::ClientRequest::get(srv.surl(&format!("/{}", i)))
-//                 .finish()
-//                 .unwrap();
-//             let response = srv.send_request(req).unwrap();
-//             assert_eq!(response.headers().get(&header), Some(&value));
-//         }
-//     }
-// }
+        for i in 4..6 {
+            let req = client::ClientRequest::get(srv.surl(&format!("/{}", i)))
+                .finish()
+                .unwrap();
+            let response = srv.send_request(req).unwrap();
+            assert_eq!(response.headers().get(&header), Some(&value));
+        }
+    }
+}
 
 #[test]
-fn test_headers() {
+fn test_h1_headers() {
     let data = STR.repeat(10);
     let data2 = data.clone();
 
@@ -511,7 +511,7 @@ const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
                    Hello World Hello World Hello World Hello World Hello World";
 
 #[test]
-fn test_body() {
+fn test_h1_body() {
     let mut srv = TestServer::new(|| {
         HttpService::build().h1(|_| future::ok::<_, ()>(Response::Ok().body(STR)))
     });
@@ -526,7 +526,30 @@ fn test_body() {
 }
 
 #[test]
-fn test_head_empty() {
+fn test_h2_body2() {
+    let openssl = ssl_acceptor().unwrap();
+    let mut srv = TestServer::new(move || {
+        openssl
+            .clone()
+            .map_err(|e| println!("Openssl error: {}", e))
+            .and_then(
+                HttpService::build()
+                    .h2(|_| future::ok::<_, ()>(Response::Ok().body(STR)))
+                    .map_err(|_| ()),
+            )
+    });
+
+    let req = srv.sget().finish().unwrap();
+    let mut response = srv.send_request(req).unwrap();
+    assert!(response.status().is_success());
+
+    // read response
+    let bytes = srv.block_on(response.body()).unwrap();
+    assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
+}
+
+#[test]
+fn test_h1_head_empty() {
     let mut srv = TestServer::new(|| {
         HttpService::build().h1(|_| ok::<_, ()>(Response::Ok().body(STR)))
     });
@@ -549,7 +572,39 @@ fn test_head_empty() {
 }
 
 #[test]
-fn test_head_binary() {
+fn test_h2_head_empty() {
+    let openssl = ssl_acceptor().unwrap();
+    let mut srv = TestServer::new(move || {
+        openssl
+            .clone()
+            .map_err(|e| println!("Openssl error: {}", e))
+            .and_then(
+                HttpService::build()
+                    .finish(|_| ok::<_, ()>(Response::Ok().body(STR)))
+                    .map_err(|_| ()),
+            )
+    });
+
+    let req = client::ClientRequest::head(srv.surl("/")).finish().unwrap();
+    let mut response = srv.send_request(req).unwrap();
+    assert!(response.status().is_success());
+    assert_eq!(response.version(), http::Version::HTTP_2);
+
+    {
+        let len = response
+            .headers()
+            .get(http::header::CONTENT_LENGTH)
+            .unwrap();
+        assert_eq!(format!("{}", STR.len()), len.to_str().unwrap());
+    }
+
+    // read response
+    let bytes = srv.block_on(response.body()).unwrap();
+    assert!(bytes.is_empty());
+}
+
+#[test]
+fn test_h1_head_binary() {
     let mut srv = TestServer::new(|| {
         HttpService::build().h1(|_| {
             ok::<_, ()>(Response::Ok().content_length(STR.len() as u64).body(STR))
@@ -574,7 +629,42 @@ fn test_head_binary() {
 }
 
 #[test]
-fn test_head_binary2() {
+fn test_h2_head_binary() {
+    let openssl = ssl_acceptor().unwrap();
+    let mut srv = TestServer::new(move || {
+        openssl
+            .clone()
+            .map_err(|e| println!("Openssl error: {}", e))
+            .and_then(
+                HttpService::build()
+                    .h2(|_| {
+                        ok::<_, ()>(
+                            Response::Ok().content_length(STR.len() as u64).body(STR),
+                        )
+                    })
+                    .map_err(|_| ()),
+            )
+    });
+
+    let req = client::ClientRequest::head(srv.surl("/")).finish().unwrap();
+    let mut response = srv.send_request(req).unwrap();
+    assert!(response.status().is_success());
+
+    {
+        let len = response
+            .headers()
+            .get(http::header::CONTENT_LENGTH)
+            .unwrap();
+        assert_eq!(format!("{}", STR.len()), len.to_str().unwrap());
+    }
+
+    // read response
+    let bytes = srv.block_on(response.body()).unwrap();
+    assert!(bytes.is_empty());
+}
+
+#[test]
+fn test_h1_head_binary2() {
     let mut srv = TestServer::new(|| {
         HttpService::build().h1(|_| ok::<_, ()>(Response::Ok().body(STR)))
     });
@@ -593,7 +683,34 @@ fn test_head_binary2() {
 }
 
 #[test]
-fn test_body_length() {
+fn test_h2_head_binary2() {
+    let openssl = ssl_acceptor().unwrap();
+    let mut srv = TestServer::new(move || {
+        openssl
+            .clone()
+            .map_err(|e| println!("Openssl error: {}", e))
+            .and_then(
+                HttpService::build()
+                    .h2(|_| ok::<_, ()>(Response::Ok().body(STR)))
+                    .map_err(|_| ()),
+            )
+    });
+
+    let req = client::ClientRequest::head(srv.surl("/")).finish().unwrap();
+    let response = srv.send_request(req).unwrap();
+    assert!(response.status().is_success());
+
+    {
+        let len = response
+            .headers()
+            .get(http::header::CONTENT_LENGTH)
+            .unwrap();
+        assert_eq!(format!("{}", STR.len()), len.to_str().unwrap());
+    }
+}
+
+#[test]
+fn test_h1_body_length() {
     let mut srv = TestServer::new(|| {
         HttpService::build().h1(|_| {
             let body = once(Ok(Bytes::from_static(STR.as_ref())));
@@ -614,17 +731,58 @@ fn test_body_length() {
 }
 
 #[test]
-fn test_body_chunked_explicit() {
+fn test_h2_body_length() {
+    let openssl = ssl_acceptor().unwrap();
+    let mut srv = TestServer::new(move || {
+        openssl
+            .clone()
+            .map_err(|e| println!("Openssl error: {}", e))
+            .and_then(
+                HttpService::build()
+                    .h2(|_| {
+                        let body = once(Ok(Bytes::from_static(STR.as_ref())));
+                        ok::<_, ()>(Response::Ok().body(Body::from_message(
+                            body::SizedStream::new(STR.len(), body),
+                        )))
+                    })
+                    .map_err(|_| ()),
+            )
+    });
+
+    let req = srv.sget().finish().unwrap();
+    let mut response = srv.send_request(req).unwrap();
+    assert!(response.status().is_success());
+
+    // read response
+    let bytes = srv.block_on(response.body()).unwrap();
+    assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
+}
+
+#[test]
+fn test_h1_body_chunked_explicit() {
     let mut srv = TestServer::new(|| {
         HttpService::build().h1(|_| {
             let body = once::<_, Error>(Ok(Bytes::from_static(STR.as_ref())));
-            ok::<_, ()>(Response::Ok().streaming(body))
+            ok::<_, ()>(
+                Response::Ok()
+                    .header(header::TRANSFER_ENCODING, "chunked")
+                    .streaming(body),
+            )
         })
     });
 
     let req = srv.get().finish().unwrap();
     let mut response = srv.send_request(req).unwrap();
     assert!(response.status().is_success());
+    assert_eq!(
+        response
+            .headers()
+            .get(header::TRANSFER_ENCODING)
+            .unwrap()
+            .to_str()
+            .unwrap(),
+        "chunked"
+    );
 
     // read response
     let bytes = srv.block_on(response.body()).unwrap();
@@ -634,7 +792,41 @@ fn test_body_chunked_explicit() {
 }
 
 #[test]
-fn test_body_chunked_implicit() {
+fn test_h2_body_chunked_explicit() {
+    let openssl = ssl_acceptor().unwrap();
+    let mut srv = TestServer::new(move || {
+        openssl
+            .clone()
+            .map_err(|e| println!("Openssl error: {}", e))
+            .and_then(
+                HttpService::build()
+                    .h2(|_| {
+                        let body =
+                            once::<_, Error>(Ok(Bytes::from_static(STR.as_ref())));
+                        ok::<_, ()>(
+                            Response::Ok()
+                                .header(header::TRANSFER_ENCODING, "chunked")
+                                .streaming(body),
+                        )
+                    })
+                    .map_err(|_| ()),
+            )
+    });
+
+    let req = srv.sget().finish().unwrap();
+    let mut response = srv.send_request(req).unwrap();
+    assert!(response.status().is_success());
+    assert!(!response.headers().contains_key(header::TRANSFER_ENCODING));
+
+    // read response
+    let bytes = srv.block_on(response.body()).unwrap();
+
+    // decode
+    assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
+}
+
+#[test]
+fn test_h1_body_chunked_implicit() {
     let mut srv = TestServer::new(|| {
         HttpService::build().h1(|_| {
             let body = once::<_, Error>(Ok(Bytes::from_static(STR.as_ref())));
@@ -645,17 +837,23 @@ fn test_body_chunked_implicit() {
     let req = srv.get().finish().unwrap();
     let mut response = srv.send_request(req).unwrap();
     assert!(response.status().is_success());
+    assert_eq!(
+        response
+            .headers()
+            .get(header::TRANSFER_ENCODING)
+            .unwrap()
+            .to_str()
+            .unwrap(),
+        "chunked"
+    );
 
     // read response
     let bytes = srv.block_on(response.body()).unwrap();
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
 }
 
-use actix_server_config::ServerConfig;
-use actix_service::fn_cfg_factory;
-
 #[test]
-fn test_response_http_error_handling() {
+fn test_h1_response_http_error_handling() {
     let mut srv = TestServer::new(|| {
         HttpService::build().h1(fn_cfg_factory(|_: &ServerConfig| {
             Ok::<_, ()>(|_| {
@@ -670,6 +868,79 @@ fn test_response_http_error_handling() {
     });
 
     let req = srv.get().finish().unwrap();
+    let mut response = srv.send_request(req).unwrap();
+    assert_eq!(response.status(), http::StatusCode::INTERNAL_SERVER_ERROR);
+
+    // read response
+    let bytes = srv.block_on(response.body()).unwrap();
+    assert!(bytes.is_empty());
+}
+
+#[test]
+fn test_h2_response_http_error_handling() {
+    let openssl = ssl_acceptor().unwrap();
+
+    let mut srv = TestServer::new(move || {
+        openssl
+            .clone()
+            .map_err(|e| println!("Openssl error: {}", e))
+            .and_then(
+                HttpService::build()
+                    .h2(fn_cfg_factory(|_: &ServerConfig| {
+                        Ok::<_, ()>(|_| {
+                            let broken_header = Bytes::from_static(b"\0\0\0");
+                            ok::<_, ()>(
+                                Response::Ok()
+                                    .header(http::header::CONTENT_TYPE, broken_header)
+                                    .body(STR),
+                            )
+                        })
+                    }))
+                    .map_err(|_| ()),
+            )
+    });
+
+    let req = srv.sget().finish().unwrap();
+    let mut response = srv.send_request(req).unwrap();
+    assert_eq!(response.status(), http::StatusCode::INTERNAL_SERVER_ERROR);
+
+    // read response
+    let bytes = srv.block_on(response.body()).unwrap();
+    assert!(bytes.is_empty());
+}
+
+#[test]
+fn test_h1_service_error() {
+    let mut srv = TestServer::new(|| {
+        HttpService::build()
+            .h1(|_| Err::<Response, Error>(error::ErrorBadRequest("error")))
+    });
+
+    let req = srv.get().finish().unwrap();
+    let mut response = srv.send_request(req).unwrap();
+    assert_eq!(response.status(), http::StatusCode::INTERNAL_SERVER_ERROR);
+
+    // read response
+    let bytes = srv.block_on(response.body()).unwrap();
+    assert!(bytes.is_empty());
+}
+
+#[test]
+fn test_h2_service_error() {
+    let openssl = ssl_acceptor().unwrap();
+
+    let mut srv = TestServer::new(move || {
+        openssl
+            .clone()
+            .map_err(|e| println!("Openssl error: {}", e))
+            .and_then(
+                HttpService::build()
+                    .h2(|_| Err::<Response, Error>(error::ErrorBadRequest("error")))
+                    .map_err(|_| ()),
+            )
+    });
+
+    let req = srv.sget().finish().unwrap();
     let mut response = srv.send_request(req).unwrap();
     assert_eq!(response.status(), http::StatusCode::INTERNAL_SERVER_ERROR);
 
