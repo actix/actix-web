@@ -461,3 +461,69 @@ impl IdentityPolicy for CookieIdentityPolicy {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::http::StatusCode;
+    use crate::test::{self, TestRequest};
+    use crate::{web, App, HttpResponse};
+
+    #[test]
+    fn test_identity() {
+        let mut srv = test::init_service(
+            App::new()
+                .middleware(IdentityService::new(
+                    CookieIdentityPolicy::new(&[0; 32])
+                        .domain("www.rust-lang.org")
+                        .name("actix_auth")
+                        .path("/")
+                        .secure(true),
+                ))
+                .service(web::resource("/index").to(|id: Identity| {
+                    if id.identity().is_some() {
+                        HttpResponse::Created()
+                    } else {
+                        HttpResponse::Ok()
+                    }
+                }))
+                .service(web::resource("/login").to(|id: Identity| {
+                    id.remember("test".to_string());
+                    HttpResponse::Ok()
+                }))
+                .service(web::resource("/logout").to(|id: Identity| {
+                    if id.identity().is_some() {
+                        id.forget();
+                        HttpResponse::Ok()
+                    } else {
+                        HttpResponse::BadRequest()
+                    }
+                })),
+        );
+        let resp =
+            test::call_success(&mut srv, TestRequest::with_uri("/index").to_request());
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let resp =
+            test::call_success(&mut srv, TestRequest::with_uri("/login").to_request());
+        assert_eq!(resp.status(), StatusCode::OK);
+        let c = resp.cookies().next().unwrap().to_owned();
+
+        let resp = test::call_success(
+            &mut srv,
+            TestRequest::with_uri("/index")
+                .cookie(c.clone())
+                .to_request(),
+        );
+        assert_eq!(resp.status(), StatusCode::CREATED);
+
+        let resp = test::call_success(
+            &mut srv,
+            TestRequest::with_uri("/logout")
+                .cookie(c.clone())
+                .to_request(),
+        );
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert!(resp.headers().contains_key(header::SET_COOKIE))
+    }
+}

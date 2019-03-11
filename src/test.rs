@@ -11,6 +11,7 @@ use actix_rt::Runtime;
 use actix_server_config::ServerConfig;
 use actix_service::{IntoNewService, NewService, Service};
 use bytes::Bytes;
+use cookie::Cookie;
 use futures::Future;
 
 use crate::config::{AppConfig, AppConfigInner};
@@ -238,6 +239,12 @@ impl TestRequest {
         V: IntoHeaderValue,
     {
         self.req.header(key, value);
+        self
+    }
+
+    /// Set cookie for this request
+    pub fn cookie<'a>(mut self, cookie: Cookie<'a>) -> Self {
+        self.req.cookie(cookie);
         self
     }
 
