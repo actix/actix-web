@@ -64,7 +64,7 @@ actix-codec = "0.1.0"
 actix-service = "0.3.3"
 actix-utils = "0.3.3"
 actix-router = "0.1.0"
-actix-rt = "0.2.0"
+actix-rt = "0.2.1"
 actix-web-codegen = { path="actix-web-codegen" }
 
 actix-http = { git = "https://github.com/actix/actix-http.git" }
@@ -78,16 +78,13 @@ encoding = "0.2"
 futures = "0.1"
 hashbrown = "0.1.8"
 log = "0.4"
-lazy_static = "1.2"
 mime = "0.3"
 net2 = "0.2.33"
-num_cpus = "1.10"
 parking_lot = "0.7"
 regex = "1.0"
 serde = "1.0"
 serde_json = "1.0"
 serde_urlencoded = "^0.5.3"
-threadpool = "1.7"
 time = "0.1"
 url = { version="1.7", features=["query_encoding"] }
 

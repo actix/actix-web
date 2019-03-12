@@ -2,7 +2,6 @@
 
 mod app;
 mod app_service;
-mod blocking;
 mod config;
 pub mod error;
 mod extract;
@@ -53,7 +52,6 @@ pub mod dev {
     //! ```
 
     pub use crate::app::AppRouter;
-    pub use crate::blocking::CpuFuture;
     pub use crate::config::{AppConfig, ServiceConfig};
     pub use crate::info::ConnectionInfo;
     pub use crate::rmap::ResourceMap;
@@ -67,6 +65,7 @@ pub mod dev {
         Extensions, Payload, PayloadStream, RequestHead, ResponseHead,
     };
     pub use actix_router::{Path, ResourceDef, ResourcePath, Url};
+    pub use actix_rt::blocking::CpuFuture;
     pub use actix_server::Server;
 
     pub(crate) fn insert_slash(path: &str) -> String {
@@ -80,12 +79,12 @@ pub mod dev {
 
 pub mod web {
     use actix_http::{http::Method, Response};
+    use actix_rt::blocking::{self, CpuFuture};
     use futures::IntoFuture;
 
     pub use actix_http::Response as HttpResponse;
     pub use bytes::{Bytes, BytesMut};
 
-    use crate::blocking::CpuFuture;
     use crate::extract::FromRequest;
     use crate::handler::{AsyncFactory, Factory};
     use crate::resource::Resource;
@@ -258,6 +257,6 @@ pub mod web {
         I: Send + 'static,
         E: Send + std::fmt::Debug + 'static,
     {
-        crate::blocking::run(f)
+        blocking::run(f)
     }
 }
