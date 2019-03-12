@@ -7,6 +7,7 @@ use actix_service::{fn_service, NewService};
 use actix_utils::framed::IntoFramed;
 use actix_utils::stream::TakeItem;
 use futures::Future;
+use tokio_tcp::TcpStream;
 
 fn main() -> io::Result<()> {
     env::set_var("RUST_LOG", "framed_hello=info");
@@ -14,7 +15,7 @@ fn main() -> io::Result<()> {
 
     Server::build()
         .bind("framed_hello", "127.0.0.1:8080", || {
-            fn_service(|io: Io<_>| Ok(io.into_parts().0))
+            fn_service(|io: Io<TcpStream>| Ok(io.into_parts().0))
                 .and_then(IntoFramed::new(|| h1::Codec::new(ServiceConfig::default())))
                 .and_then(TakeItem::new().map_err(|_| ()))
                 .and_then(|(_req, _framed): (_, Framed<_, _>)| {

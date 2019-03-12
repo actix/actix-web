@@ -2,6 +2,7 @@ use std::io::{Read, Write};
 use std::time::Duration;
 use std::{net, thread};
 
+use actix_codec::{AsyncRead, AsyncWrite};
 use actix_http_test::TestServer;
 use actix_server_config::ServerConfig;
 use actix_service::{fn_cfg_factory, NewService};
@@ -50,7 +51,8 @@ fn test_h1_2() {
 }
 
 #[cfg(feature = "ssl")]
-fn ssl_acceptor<T>() -> std::io::Result<actix_server::ssl::OpensslAcceptor<T, ()>> {
+fn ssl_acceptor<T: AsyncRead + AsyncWrite>(
+) -> std::io::Result<actix_server::ssl::OpensslAcceptor<T, ()>> {
     use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
     // load ssl keys
     let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();

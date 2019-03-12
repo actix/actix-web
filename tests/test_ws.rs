@@ -9,6 +9,7 @@ use actix_utils::stream::TakeItem;
 use bytes::{Bytes, BytesMut};
 use futures::future::{ok, Either};
 use futures::{Future, Sink, Stream};
+use tokio_tcp::TcpStream;
 
 use actix_http::{h1, ws, ResponseError, SendResponse, ServiceConfig};
 
@@ -36,7 +37,7 @@ fn ws_service(req: ws::Frame) -> impl Future<Item = ws::Message, Error = io::Err
 #[test]
 fn test_simple() {
     let mut srv = TestServer::new(|| {
-        fn_service(|io: Io<_>| Ok(io.into_parts().0))
+        fn_service(|io: Io<TcpStream>| Ok(io.into_parts().0))
             .and_then(IntoFramed::new(|| h1::Codec::new(ServiceConfig::default())))
             .and_then(TakeItem::new().map_err(|_| ()))
             .and_then(|(req, framed): (_, Framed<_, _>)| {
