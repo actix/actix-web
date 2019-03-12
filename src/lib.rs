@@ -65,7 +65,6 @@ pub mod dev {
         Extensions, Payload, PayloadStream, RequestHead, ResponseHead,
     };
     pub use actix_router::{Path, ResourceDef, ResourcePath, Url};
-    pub use actix_rt::blocking::CpuFuture;
     pub use actix_server::Server;
 
     pub(crate) fn insert_slash(path: &str) -> String {
@@ -79,8 +78,8 @@ pub mod dev {
 
 pub mod web {
     use actix_http::{http::Method, Response};
-    use actix_rt::blocking::{self, CpuFuture};
-    use futures::IntoFuture;
+    use actix_rt::blocking;
+    use futures::{Future, IntoFuture};
 
     pub use actix_http::Response as HttpResponse;
     pub use bytes::{Bytes, BytesMut};
@@ -92,7 +91,7 @@ pub mod web {
     use crate::route::Route;
     use crate::scope::Scope;
 
-    pub use crate::error::Error;
+    pub use crate::error::{BlockingError, Error};
     pub use crate::extract::{Form, Json, Path, Payload, Query};
     pub use crate::extract::{FormConfig, JsonConfig, PayloadConfig};
     pub use crate::request::HttpRequest;
@@ -251,12 +250,12 @@ pub mod web {
 
     /// Execute blocking function on a thread pool, returns future that resolves
     /// to result of the function execution.
-    pub fn block<F, I, E>(f: F) -> CpuFuture<I, E>
+    pub fn block<F, I, E>(f: F) -> impl Future<Item = I, Error = BlockingError<E>>
     where
         F: FnOnce() -> Result<I, E> + Send + 'static,
         I: Send + 'static,
         E: Send + std::fmt::Debug + 'static,
     {
-        blocking::run(f)
+        blocking::run(f).from_err()
     }
 }

@@ -1,4 +1,5 @@
 //! Error and Result module
+use std::fmt;
 
 pub use actix_http::error::*;
 use derive_more::{Display, From};
@@ -20,3 +21,23 @@ pub enum UrlGenerationError {
 
 /// `InternalServerError` for `UrlGeneratorError`
 impl ResponseError for UrlGenerationError {}
+
+/// Blocking operation execution error
+#[derive(Debug, Display)]
+pub enum BlockingError<E: fmt::Debug> {
+    #[display(fmt = "{:?}", _0)]
+    Error(E),
+    #[display(fmt = "Thread pool is gone")]
+    Canceled,
+}
+
+impl<E: fmt::Debug> ResponseError for BlockingError<E> {}
+
+impl<E: fmt::Debug> From<actix_rt::blocking::BlockingError<E>> for BlockingError<E> {
+    fn from(err: actix_rt::blocking::BlockingError<E>) -> Self {
+        match err {
+            actix_rt::blocking::BlockingError::Error(e) => BlockingError::Error(e),
+            actix_rt::blocking::BlockingError::Canceled => BlockingError::Canceled,
+        }
+    }
+}

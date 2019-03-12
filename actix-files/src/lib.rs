@@ -17,8 +17,8 @@ use v_htmlescape::escape as escape_html_entity;
 
 use actix_service::{boxed::BoxedNewService, NewService, Service};
 use actix_web::dev::{
-    CpuFuture, HttpServiceFactory, ResourceDef, ServiceConfig, ServiceFromRequest,
-    ServiceRequest, ServiceResponse,
+    HttpServiceFactory, ResourceDef, ServiceConfig, ServiceFromRequest, ServiceRequest,
+    ServiceResponse,
 };
 use actix_web::error::{BlockingError, Error, ErrorInternalServerError};
 use actix_web::{web, FromRequest, HttpRequest, HttpResponse, Responder};
@@ -52,7 +52,7 @@ pub struct ChunkedReadFile {
     size: u64,
     offset: u64,
     file: Option<File>,
-    fut: Option<CpuFuture<(File, Bytes), io::Error>>,
+    fut: Option<Box<Future<Item = (File, Bytes), Error = BlockingError<io::Error>>>>,
     counter: u64,
 }
 
@@ -89,7 +89,7 @@ impl Stream for ChunkedReadFile {
             Ok(Async::Ready(None))
         } else {
             let mut file = self.file.take().expect("Use after completion");
-            self.fut = Some(web::block(move || {
+            self.fut = Some(Box::new(web::block(move || {
                 let max_bytes: usize;
                 max_bytes = cmp::min(size.saturating_sub(counter), 65_536) as usize;
                 let mut buf = Vec::with_capacity(max_bytes);
@@ -100,7 +100,7 @@ impl Stream for ChunkedReadFile {
                     return Err(io::ErrorKind::UnexpectedEof.into());
                 }
                 Ok((file, Bytes::from(buf)))
-            }));
+            })));
             self.poll()
         }
     }
