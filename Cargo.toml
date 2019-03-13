@@ -83,8 +83,7 @@ failure = { version = "0.1.5", optional = true }
 
 [dev-dependencies]
 actix-rt = "0.2.0"
-#actix-server = { version = "0.3.0", features=["ssl"] }
-actix-server = { git="https://github.com/actix/actix-net.git", features=["ssl"] }
+actix-server = { version = "0.4.0", features=["ssl"] }
 actix-connector = { version = "0.3.0", features=["ssl"] }
 actix-http-test = { path="test-server", features=["ssl"] }
 

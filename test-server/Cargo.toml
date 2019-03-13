@@ -36,8 +36,7 @@ actix-codec = "0.1.1"
 actix-rt = "0.2.1"
 actix-http = { path=".." }
 actix-service = "0.3.4"
-#actix-server = "0.3.0"
-actix-server = { git="https://github.com/actix/actix-net.git" }
+actix-server = "0.4.0"
 actix-utils = "0.3.4"
 
 base64 = "0.10"
