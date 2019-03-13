@@ -173,7 +173,7 @@ where
             let connector = TimeoutService::new(
                 self.timeout,
                 apply_fn(self.connector, |msg: Connect, srv| {
-                    srv.call(actix_connect::Connect::with_request(msg))
+                    srv.call(actix_connect::Connect::with(msg))
                 })
                 .map(|stream| (stream.into_parts().0, Protocol::Http1)),
             )
@@ -200,7 +200,7 @@ where
             let ssl_service = TimeoutService::new(
                 self.timeout,
                 apply_fn(self.connector.clone(), |msg: Connect, srv| {
-                    srv.call(actix_connect::Connect::with_request(msg))
+                    srv.call(actix_connect::Connect::with(msg))
                 })
                 .map_err(ConnectError::from)
                 .and_then(
@@ -230,7 +230,7 @@ where
             let tcp_service = TimeoutService::new(
                 self.timeout,
                 apply_fn(self.connector.clone(), |msg: Connect, srv| {
-                    srv.call(actix_connect::Connect::with_request(msg))
+                    srv.call(actix_connect::Connect::with(msg))
                 })
                 .map_err(ConnectError::from)
                 .map(|stream| (stream.into_parts().0, Protocol::Http1)),
