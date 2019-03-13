@@ -1,3 +1,4 @@
+use actix_connect::Address;
 use http::uri::Uri;
 use http::HttpTryFrom;
 
@@ -53,12 +54,14 @@ impl Connect {
             Ok(())
         }
     }
+}
 
-    pub(crate) fn host(&self) -> &str {
+impl Address for Connect {
+    fn host(&self) -> &str {
         &self.uri.host().unwrap()
     }
 
-    pub(crate) fn port(&self) -> u16 {
+    fn port(&self) -> u16 {
         if let Some(port) = self.uri.port() {
             port
         } else if let Some(scheme) = self.uri.scheme_part() {

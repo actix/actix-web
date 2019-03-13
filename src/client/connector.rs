@@ -3,7 +3,9 @@ use std::marker::PhantomData;
 use std::time::Duration;
 
 use actix_codec::{AsyncRead, AsyncWrite};
-use actix_connect::{default_connector, Stream};
+use actix_connect::{
+    default_connector, Connect as TcpConnect, Connection as TcpConnection,
+};
 use actix_service::{apply_fn, Service, ServiceExt};
 use actix_utils::timeout::{TimeoutError, TimeoutService};
 use tokio_tcp::TcpStream;
@@ -36,8 +38,8 @@ pub struct Connector<T, U> {
 impl Connector<(), ()> {
     pub fn new() -> Connector<
         impl Service<
-                Request = actix_connect::Connect,
-                Response = Stream<TcpStream>,
+                Request = TcpConnect<Connect>,
+                Response = TcpConnection<Connect, TcpStream>,
                 Error = actix_connect::ConnectError,
             > + Clone,
         TcpStream,
@@ -77,8 +79,8 @@ impl<T, U> Connector<T, U> {
     where
         U1: AsyncRead + AsyncWrite + fmt::Debug,
         T1: Service<
-                Request = actix_connect::Connect,
-                Response = Stream<U1>,
+                Request = TcpConnect<Connect>,
+                Response = TcpConnection<Connect, U1>,
                 Error = actix_connect::ConnectError,
             > + Clone,
     {
@@ -99,8 +101,8 @@ impl<T, U> Connector<T, U>
 where
     U: AsyncRead + AsyncWrite + fmt::Debug + 'static,
     T: Service<
-            Request = actix_connect::Connect,
-            Response = Stream<U>,
+            Request = TcpConnect<Connect>,
+            Response = TcpConnection<Connect, U>,
             Error = actix_connect::ConnectError,
         > + Clone,
 {
@@ -170,8 +172,10 @@ where
         {
             let connector = TimeoutService::new(
                 self.timeout,
-                self.connector
-                    .map(|stream| (stream.into_parts().0, Protocol::Http1)),
+                apply_fn(self.connector, |msg: Connect, srv| {
+                    srv.call(actix_connect::Connect::with_request(msg))
+                })
+                .map(|stream| (stream.into_parts().0, Protocol::Http1)),
             )
             .map_err(|e| match e {
                 TimeoutError::Service(e) => e,
@@ -196,7 +200,7 @@ where
             let ssl_service = TimeoutService::new(
                 self.timeout,
                 apply_fn(self.connector.clone(), |msg: Connect, srv| {
-                    srv.call(actix_connect::Connect::new(msg.host(), msg.port()))
+                    srv.call(actix_connect::Connect::with_request(msg))
                 })
                 .map_err(ConnectError::from)
                 .and_then(
@@ -226,7 +230,7 @@ where
             let tcp_service = TimeoutService::new(
                 self.timeout,
                 apply_fn(self.connector.clone(), |msg: Connect, srv| {
-                    srv.call(actix_connect::Connect::new(msg.host(), msg.port()))
+                    srv.call(actix_connect::Connect::with_request(msg))
                 })
                 .map_err(ConnectError::from)
                 .map(|stream| (stream.into_parts().0, Protocol::Http1)),
@@ -267,11 +271,7 @@ mod connect_impl {
     pub(crate) struct InnerConnector<T, Io>
     where
         Io: AsyncRead + AsyncWrite + 'static,
-        T: Service<
-            Request = Connect,
-            Response = (Connect, Io, Protocol),
-            Error = ConnectorError,
-        >,
+        T: Service<Request = Connect, Response = (Io, Protocol), Error = ConnectorError>,
     {
         pub(crate) tcp_pool: ConnectionPool<T, Io>,
     }

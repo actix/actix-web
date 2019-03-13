@@ -2,7 +2,7 @@
 use std::marker::PhantomData;
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
-use actix_connect::{default_connector, Connect as TcpConnect, ConnectError};
+use actix_connect::{default_connector, Address, Connect as TcpConnect, ConnectError};
 use actix_service::{apply_fn, Service};
 use base64;
 use futures::future::{err, Either, FutureResult};
@@ -29,12 +29,12 @@ impl Client<()> {
     /// Create client with default connector.
     pub fn default() -> Client<
         impl Service<
-                Request = TcpConnect,
+                Request = TcpConnect<(String, u16)>,
                 Response = impl AsyncRead + AsyncWrite,
                 Error = ConnectError,
             > + Clone,
     > {
-        Client::new(apply_fn(default_connector(), |msg: TcpConnect, srv| {
+        Client::new(apply_fn(default_connector(), |msg: TcpConnect<_>, srv| {
             srv.call(msg).map(|stream| stream.into_parts().0)
         }))
     }
@@ -42,7 +42,7 @@ impl Client<()> {
 
 impl<T> Client<T>
 where
-    T: Service<Request = TcpConnect, Error = ConnectError>,
+    T: Service<Request = TcpConnect<(String, u16)>, Error = ConnectError>,
     T::Response: AsyncRead + AsyncWrite,
 {
     /// Create new websocket's client factory
@@ -53,7 +53,7 @@ where
 
 impl<T> Clone for Client<T>
 where
-    T: Service<Request = TcpConnect, Error = ConnectError> + Clone,
+    T: Service<Request = TcpConnect<(String, u16)>, Error = ConnectError> + Clone,
     T::Response: AsyncRead + AsyncWrite,
 {
     fn clone(&self) -> Self {
@@ -65,7 +65,7 @@ where
 
 impl<T> Service for Client<T>
 where
-    T: Service<Request = TcpConnect, Error = ConnectError>,
+    T: Service<Request = TcpConnect<(String, u16)>, Error = ConnectError>,
     T::Response: AsyncRead + AsyncWrite + 'static,
     T::Future: 'static,
 {
@@ -130,8 +130,8 @@ where
             );
 
             // prep connection
-            let connect = TcpConnect::new(
-                request.uri().host().unwrap(),
+            let connect = TcpConnect::from_string(
+                request.uri().host().unwrap().to_string(),
                 request.uri().port().unwrap_or_else(|| proto.port()),
             );
 
