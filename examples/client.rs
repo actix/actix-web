@@ -8,7 +8,7 @@ fn main() -> Result<(), Error> {
     env_logger::init();
 
     System::new("test").block_on(lazy(|| {
-        let mut connector = client::Connector::default().service();
+        let mut connector = client::Connector::new().service();
 
         client::ClientRequest::get("https://www.rust-lang.org/") // <- Create request builder
             .header("User-Agent", "Actix-web")

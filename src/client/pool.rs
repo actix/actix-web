@@ -20,7 +20,7 @@ use tokio_timer::{sleep, Delay};
 
 use super::connect::Connect;
 use super::connection::{ConnectionType, IoConnection};
-use super::error::ConnectorError;
+use super::error::ConnectError;
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum Protocol {
@@ -48,11 +48,7 @@ pub(crate) struct ConnectionPool<T, Io: AsyncRead + AsyncWrite + 'static>(
 impl<T, Io> ConnectionPool<T, Io>
 where
     Io: AsyncRead + AsyncWrite + 'static,
-    T: Service<
-        Request = Connect,
-        Response = (Connect, Io, Protocol),
-        Error = ConnectorError,
-    >,
+    T: Service<Request = Connect, Response = (Io, Protocol), Error = ConnectError>,
 {
     pub(crate) fn new(
         connector: T,
@@ -91,17 +87,13 @@ where
 impl<T, Io> Service for ConnectionPool<T, Io>
 where
     Io: AsyncRead + AsyncWrite + 'static,
-    T: Service<
-        Request = Connect,
-        Response = (Connect, Io, Protocol),
-        Error = ConnectorError,
-    >,
+    T: Service<Request = Connect, Response = (Io, Protocol), Error = ConnectError>,
 {
     type Request = Connect;
     type Response = IoConnection<Io>;
-    type Error = ConnectorError;
+    type Error = ConnectError;
     type Future = Either<
-        FutureResult<IoConnection<Io>, ConnectorError>,
+        FutureResult<Self::Response, Self::Error>,
         Either<WaitForConnection<Io>, OpenConnection<T::Future, Io>>,
     >;
 
@@ -151,7 +143,7 @@ where
 {
     key: Key,
     token: usize,
-    rx: oneshot::Receiver<Result<IoConnection<Io>, ConnectorError>>,
+    rx: oneshot::Receiver<Result<IoConnection<Io>, ConnectError>>,
     inner: Option<Rc<RefCell<Inner<Io>>>>,
 }
 
@@ -173,7 +165,7 @@ where
     Io: AsyncRead + AsyncWrite,
 {
     type Item = IoConnection<Io>;
-    type Error = ConnectorError;
+    type Error = ConnectError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         match self.rx.poll() {
@@ -187,7 +179,7 @@ where
             Ok(Async::NotReady) => Ok(Async::NotReady),
             Err(_) => {
                 let _ = self.inner.take();
-                Err(ConnectorError::Disconnected)
+                Err(ConnectError::Disconnected)
             }
         }
     }
@@ -206,7 +198,7 @@ where
 
 impl<F, Io> OpenConnection<F, Io>
 where
-    F: Future<Item = (Connect, Io, Protocol), Error = ConnectorError>,
+    F: Future<Item = (Io, Protocol), Error = ConnectError>,
     Io: AsyncRead + AsyncWrite + 'static,
 {
     fn new(key: Key, inner: Rc<RefCell<Inner<Io>>>, fut: F) -> Self {
@@ -234,11 +226,11 @@ where
 
 impl<F, Io> Future for OpenConnection<F, Io>
 where
-    F: Future<Item = (Connect, Io, Protocol), Error = ConnectorError>,
+    F: Future<Item = (Io, Protocol), Error = ConnectError>,
     Io: AsyncRead + AsyncWrite,
 {
     type Item = IoConnection<Io>;
-    type Error = ConnectorError;
+    type Error = ConnectError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         if let Some(ref mut h2) = self.h2 {
@@ -258,7 +250,7 @@ where
 
         match self.fut.poll() {
             Err(err) => Err(err),
-            Ok(Async::Ready((_, io, proto))) => {
+            Ok(Async::Ready((io, proto))) => {
                 let _ = self.inner.take();
                 if proto == Protocol::Http1 {
                     Ok(Async::Ready(IoConnection::new(
@@ -289,7 +281,7 @@ where
 
 // impl<F, Io> OpenWaitingConnection<F, Io>
 // where
-//     F: Future<Item = (Connect, Io, Protocol), Error = ConnectorError> + 'static,
+//     F: Future<Item = (Io, Protocol), Error = ConnectorError> + 'static,
 //     Io: AsyncRead + AsyncWrite + 'static,
 // {
 //     fn spawn(
@@ -323,7 +315,7 @@ where
 
 // impl<F, Io> Future for OpenWaitingConnection<F, Io>
 // where
-//     F: Future<Item = (Connect, Io, Protocol), Error = ConnectorError>,
+//     F: Future<Item = (Io, Protocol), Error = ConnectorError>,
 //     Io: AsyncRead + AsyncWrite,
 // {
 //     type Item = ();
@@ -402,7 +394,7 @@ pub(crate) struct Inner<Io> {
     available: HashMap<Key, VecDeque<AvailableConnection<Io>>>,
     waiters: Slab<(
         Connect,
-        oneshot::Sender<Result<IoConnection<Io>, ConnectorError>>,
+        oneshot::Sender<Result<IoConnection<Io>, ConnectError>>,
     )>,
     waiters_queue: IndexSet<(Key, usize)>,
     task: AtomicTask,
@@ -444,7 +436,7 @@ where
         &mut self,
         connect: Connect,
     ) -> (
-        oneshot::Receiver<Result<IoConnection<Io>, ConnectorError>>,
+        oneshot::Receiver<Result<IoConnection<Io>, ConnectError>>,
         usize,
     ) {
         let (tx, rx) = oneshot::channel();
@@ -534,7 +526,7 @@ where
 // impl<T, Io> Future for ConnectorPoolSupport<T, Io>
 // where
 //     Io: AsyncRead + AsyncWrite + 'static,
-//     T: Service<Connect, Response = (Connect, Io, Protocol), Error = ConnectorError>,
+//     T: Service<Connect, Response = (Io, Protocol), Error = ConnectorError>,
 //     T::Future: 'static,
 // {
 //     type Item = ();

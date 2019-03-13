@@ -1,18 +1,17 @@
 //! Various helpers for Actix applications to use during testing.
 use std::sync::mpsc;
-use std::{net, thread};
+use std::{net, thread, time};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use actix_http::body::MessageBody;
 use actix_http::client::{
-    ClientRequest, ClientRequestBuilder, ClientResponse, Connect, Connection, Connector,
-    ConnectorError, SendRequestError,
+    ClientRequest, ClientRequestBuilder, ClientResponse, Connect, ConnectError,
+    Connection, Connector, SendRequestError,
 };
 use actix_http::ws;
 use actix_rt::{Runtime, System};
 use actix_server::{Server, StreamServiceFactory};
 use actix_service::Service;
-
 use futures::future::{lazy, Future};
 use http::Method;
 use net2::TcpBuilder;
@@ -44,21 +43,15 @@ use net2::TcpBuilder;
 /// ```
 pub struct TestServer;
 
-///
-pub struct TestServerRuntime<T> {
+/// Test server controller
+pub struct TestServerRuntime {
     addr: net::SocketAddr,
-    conn: T,
     rt: Runtime,
 }
 
 impl TestServer {
     /// Start new test server with application factory
-    pub fn new<F: StreamServiceFactory>(
-        factory: F,
-    ) -> TestServerRuntime<
-        impl Service<Request = Connect, Response = impl Connection, Error = ConnectorError>
-            + Clone,
-    > {
+    pub fn new<F: StreamServiceFactory>(factory: F) -> TestServerRuntime {
         let (tx, rx) = mpsc::channel();
 
         // run server in separate thread
@@ -79,35 +72,9 @@ impl TestServer {
 
         let (system, addr) = rx.recv().unwrap();
         System::set_current(system);
-
-        let mut rt = Runtime::new().unwrap();
-        let conn = rt
-            .block_on(lazy(|| Ok::<_, ()>(TestServer::new_connector())))
-            .unwrap();
-
-        TestServerRuntime { addr, conn, rt }
-    }
-
-    fn new_connector(
-    ) -> impl Service<
-        Request = Connect,
-        Response = impl Connection,
-        Error = ConnectorError,
-    > + Clone {
-        #[cfg(feature = "ssl")]
-        {
-            use openssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
-
-            let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
-            builder.set_verify(SslVerifyMode::NONE);
-            let _ = builder
-                .set_alpn_protos(b"\x02h2\x08http/1.1")
-                .map_err(|e| log::error!("Can not set alpn protocol: {:?}", e));
-            Connector::default().ssl(builder.build()).service()
-        }
-        #[cfg(not(feature = "ssl"))]
-        {
-            Connector::default().service()
+        TestServerRuntime {
+            addr,
+            rt: Runtime::new().unwrap(),
         }
     }
 
@@ -122,7 +89,7 @@ impl TestServer {
     }
 }
 
-impl<T> TestServerRuntime<T> {
+impl TestServerRuntime {
     /// Execute future on current core
     pub fn block_on<F, I, E>(&mut self, fut: F) -> Result<I, E>
     where
@@ -131,12 +98,12 @@ impl<T> TestServerRuntime<T> {
         self.rt.block_on(fut)
     }
 
-    /// Execute future on current core
-    pub fn execute<F, I, E>(&mut self, fut: F) -> Result<I, E>
+    /// Execute function on current core
+    pub fn execute<F, R>(&mut self, fut: F) -> R
     where
-        F: Future<Item = I, Error = E>,
+        F: FnOnce() -> R,
     {
-        self.rt.block_on(fut)
+        self.rt.block_on(lazy(|| Ok::<_, ()>(fut()))).unwrap()
     }
 
     /// Construct test server url
@@ -190,17 +157,37 @@ impl<T> TestServerRuntime<T> {
             .take()
     }
 
-    /// Http connector
-    pub fn connector(&mut self) -> &mut T {
-        &mut self.conn
+    fn new_connector(
+    ) -> impl Service<Request = Connect, Response = impl Connection, Error = ConnectError>
+                 + Clone {
+        #[cfg(feature = "ssl")]
+        {
+            use openssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
+
+            let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
+            builder.set_verify(SslVerifyMode::NONE);
+            let _ = builder
+                .set_alpn_protos(b"\x02h2\x08http/1.1")
+                .map_err(|e| log::error!("Can not set alpn protocol: {:?}", e));
+            Connector::new()
+                .timeout(time::Duration::from_millis(500))
+                .ssl(builder.build())
+                .service()
+        }
+        #[cfg(not(feature = "ssl"))]
+        {
+            Connector::new()
+                .timeout(time::Duration::from_millis(500))
+                .service()
+        }
     }
 
     /// Http connector
-    pub fn new_connector(&mut self) -> T
-    where
-        T: Clone,
-    {
-        self.conn.clone()
+    pub fn connector(
+        &mut self,
+    ) -> impl Service<Request = Connect, Response = impl Connection, Error = ConnectError>
+                 + Clone {
+        self.execute(|| TestServerRuntime::new_connector())
     }
 
     /// Stop http server
@@ -209,11 +196,7 @@ impl<T> TestServerRuntime<T> {
     }
 }
 
-impl<T> TestServerRuntime<T>
-where
-    T: Service<Request = Connect, Error = ConnectorError> + Clone,
-    T::Response: Connection,
-{
+impl TestServerRuntime {
     /// Connect to websocket server at a given path
     pub fn ws_at(
         &mut self,
@@ -236,11 +219,12 @@ where
         &mut self,
         req: ClientRequest<B>,
     ) -> Result<ClientResponse, SendRequestError> {
-        self.rt.block_on(req.send(&mut self.conn))
+        let mut conn = self.connector();
+        self.rt.block_on(req.send(&mut conn))
     }
 }
 
-impl<T> Drop for TestServerRuntime<T> {
+impl Drop for TestServerRuntime {
     fn drop(&mut self) {
         self.stop()
     }

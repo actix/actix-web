@@ -5,6 +5,7 @@ use std::io::Write;
 use actix_service::Service;
 use bytes::{BufMut, Bytes, BytesMut};
 use cookie::{Cookie, CookieJar};
+use futures::future::{err, Either};
 use futures::{Future, Stream};
 use percent_encoding::{percent_encode, USERINFO_ENCODE_SET};
 use serde::Serialize;
@@ -21,7 +22,7 @@ use crate::message::{ConnectionType, Head, RequestHead};
 
 use super::connection::Connection;
 use super::response::ClientResponse;
-use super::{Connect, ConnectorError, SendRequestError};
+use super::{Connect, ConnectError, SendRequestError};
 
 /// An HTTP Client Request
 ///
@@ -32,7 +33,8 @@ use super::{Connect, ConnectorError, SendRequestError};
 ///
 /// fn main() {
 ///     System::new("test").block_on(lazy(|| {
-///        let mut connector = client::Connector::default().service();
+///        let mut connector = client::Connector::new().service();
+///
 ///        client::ClientRequest::get("http://www.rust-lang.org") // <- Create request builder
 ///           .header("User-Agent", "Actix-web")
 ///           .finish().unwrap()
@@ -178,17 +180,24 @@ where
     ) -> impl Future<Item = ClientResponse, Error = SendRequestError>
     where
         B: 'static,
-        T: Service<Request = Connect, Response = I, Error = ConnectorError>,
+        T: Service<Request = Connect, Response = I, Error = ConnectError>,
         I: Connection,
     {
         let Self { head, body } = self;
 
-        connector
-            // connect to the host
-            .call(Connect::new(head.uri.clone()))
-            .from_err()
-            // send request
-            .and_then(move |connection| connection.send_request(head, body))
+        let connect = Connect::new(head.uri.clone());
+        if let Err(e) = connect.validate() {
+            Either::A(err(e.into()))
+        } else {
+            Either::B(
+                connector
+                    // connect to the host
+                    .call(connect)
+                    .from_err()
+                    // send request
+                    .and_then(move |connection| connection.send_request(head, body)),
+            )
+        }
     }
 }
 

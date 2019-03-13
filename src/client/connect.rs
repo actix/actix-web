@@ -1,8 +1,7 @@
-use actix_connector::{RequestHost, RequestPort};
 use http::uri::Uri;
-use http::{Error as HttpError, HttpTryFrom};
+use http::HttpTryFrom;
 
-use super::error::{ConnectorError, InvalidUrlKind};
+use super::error::InvalidUrl;
 use super::pool::Key;
 
 #[derive(Debug)]
@@ -19,7 +18,7 @@ impl Connect {
     }
 
     /// Construct `Uri` instance and create `Connect` message.
-    pub fn try_from<U>(uri: U) -> Result<Connect, HttpError>
+    pub fn try_from<U>(uri: U) -> Result<Connect, InvalidUrl>
     where
         Uri: HttpTryFrom<U>,
     {
@@ -40,30 +39,26 @@ impl Connect {
         self.uri.authority_part().unwrap().clone().into()
     }
 
-    pub(crate) fn validate(&self) -> Result<(), ConnectorError> {
+    pub(crate) fn validate(&self) -> Result<(), InvalidUrl> {
         if self.uri.host().is_none() {
-            Err(ConnectorError::InvalidUrl(InvalidUrlKind::MissingHost))
+            Err(InvalidUrl::MissingHost)
         } else if self.uri.scheme_part().is_none() {
-            Err(ConnectorError::InvalidUrl(InvalidUrlKind::MissingScheme))
+            Err(InvalidUrl::MissingScheme)
         } else if let Some(scheme) = self.uri.scheme_part() {
             match scheme.as_str() {
                 "http" | "ws" | "https" | "wss" => Ok(()),
-                _ => Err(ConnectorError::InvalidUrl(InvalidUrlKind::UnknownScheme)),
+                _ => Err(InvalidUrl::UnknownScheme),
             }
         } else {
             Ok(())
         }
     }
-}
 
-impl RequestHost for Connect {
-    fn host(&self) -> &str {
+    pub(crate) fn host(&self) -> &str {
         &self.uri.host().unwrap()
     }
-}
 
-impl RequestPort for Connect {
-    fn port(&self) -> u16 {
+    pub(crate) fn port(&self) -> u16 {
         if let Some(port) = self.uri.port() {
             port
         } else if let Some(scheme) = self.uri.scheme_part() {

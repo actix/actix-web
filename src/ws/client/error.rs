@@ -1,7 +1,7 @@
 //! Http client request
 use std::io;
 
-use actix_connector::ConnectorError;
+use actix_connect::ConnectError;
 use derive_more::{Display, From};
 use http::{header::HeaderValue, Error as HttpError, StatusCode};
 
@@ -43,7 +43,7 @@ pub enum ClientError {
     Protocol(ProtocolError),
     /// Connect error
     #[display(fmt = "Connector error: {:?}", _0)]
-    Connect(ConnectorError),
+    Connect(ConnectError),
     /// IO Error
     #[display(fmt = "{}", _0)]
     Io(io::Error),

@@ -2,8 +2,8 @@
 use std::marker::PhantomData;
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
-use actix_connector::{Connect as TcpConnect, ConnectorError, DefaultConnector};
-use actix_service::Service;
+use actix_connect::{default_connector, Connect as TcpConnect, ConnectError};
+use actix_service::{apply_fn, Service};
 use base64;
 use futures::future::{err, Either, FutureResult};
 use futures::{try_ready, Async, Future, Poll, Sink, Stream};
@@ -20,21 +20,29 @@ use crate::ws::Codec;
 
 use super::{ClientError, Connect, Protocol};
 
-/// Default client, uses default connector.
-pub type DefaultClient = Client<DefaultConnector>;
-
 /// WebSocket's client
-pub struct Client<T>
-where
-    T: Service<Request = TcpConnect, Error = ConnectorError>,
-    T::Response: AsyncRead + AsyncWrite,
-{
+pub struct Client<T> {
     connector: T,
+}
+
+impl Client<()> {
+    /// Create client with default connector.
+    pub fn default() -> Client<
+        impl Service<
+                Request = TcpConnect,
+                Response = impl AsyncRead + AsyncWrite,
+                Error = ConnectError,
+            > + Clone,
+    > {
+        Client::new(apply_fn(default_connector(), |msg: TcpConnect, srv| {
+            srv.call(msg).map(|stream| stream.into_parts().0)
+        }))
+    }
 }
 
 impl<T> Client<T>
 where
-    T: Service<Request = TcpConnect, Error = ConnectorError>,
+    T: Service<Request = TcpConnect, Error = ConnectError>,
     T::Response: AsyncRead + AsyncWrite,
 {
     /// Create new websocket's client factory
@@ -43,15 +51,9 @@ where
     }
 }
 
-impl Default for Client<DefaultConnector> {
-    fn default() -> Self {
-        Client::new(DefaultConnector::default())
-    }
-}
-
 impl<T> Clone for Client<T>
 where
-    T: Service<Request = TcpConnect, Error = ConnectorError> + Clone,
+    T: Service<Request = TcpConnect, Error = ConnectError> + Clone,
     T::Response: AsyncRead + AsyncWrite,
 {
     fn clone(&self) -> Self {
@@ -63,7 +65,7 @@ where
 
 impl<T> Service for Client<T>
 where
-    T: Service<Request = TcpConnect, Error = ConnectorError>,
+    T: Service<Request = TcpConnect, Error = ConnectError>,
     T::Response: AsyncRead + AsyncWrite + 'static,
     T::Future: 'static,
 {

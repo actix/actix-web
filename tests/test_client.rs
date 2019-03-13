@@ -36,7 +36,7 @@ fn test_h1_v2() {
             .finish(|_| future::ok::<_, ()>(Response::Ok().body(STR)))
             .map(|_| ())
     });
-    let mut connector = srv.new_connector();
+    let mut connector = srv.connector();
 
     let request = srv.get().finish().unwrap();
     let response = srv.block_on(request.send(&mut connector)).unwrap();
@@ -70,7 +70,7 @@ fn test_connection_close() {
             .finish(|_| ok::<_, ()>(Response::Ok().body(STR)))
             .map(|_| ())
     });
-    let mut connector = srv.new_connector();
+    let mut connector = srv.connector();
 
     let request = srv.get().close().finish().unwrap();
     let response = srv.block_on(request.send(&mut connector)).unwrap();
@@ -90,7 +90,7 @@ fn test_with_query_parameter() {
             })
             .map(|_| ())
     });
-    let mut connector = srv.new_connector();
+    let mut connector = srv.connector();
 
     let request = client::ClientRequest::get(srv.url("/?qp=5"))
         .finish()

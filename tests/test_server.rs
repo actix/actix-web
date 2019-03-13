@@ -432,7 +432,7 @@ fn test_h1_headers() {
             future::ok::<_, ()>(builder.body(data.clone()))
         })
     });
-    let mut connector = srv.new_connector();
+    let mut connector = srv.connector();
 
     let req = srv.get().finish().unwrap();
 
@@ -479,7 +479,7 @@ fn test_h2_headers() {
             future::ok::<_, ()>(builder.body(data.clone()))
         }).map_err(|_| ()))
     });
-    let mut connector = srv.new_connector();
+    let mut connector = srv.connector();
 
     let req = client::ClientRequest::get(srv.surl("/")).finish().unwrap();
     let mut response = srv.block_on(req.send(&mut connector)).unwrap();

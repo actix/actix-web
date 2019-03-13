@@ -6,7 +6,7 @@ use futures::future::{err, ok, Either};
 use futures::{Async, Future, Poll, Sink, Stream};
 
 use super::connection::{ConnectionLifetime, ConnectionType, IoConnection};
-use super::error::{ConnectorError, SendRequestError};
+use super::error::{ConnectError, SendRequestError};
 use super::pool::Acquired;
 use super::response::ClientResponse;
 use crate::body::{BodyLength, MessageBody};
@@ -62,7 +62,7 @@ where
                         }
                         ok(res)
                     } else {
-                        err(ConnectorError::Disconnected.into())
+                        err(ConnectError::Disconnected.into())
                     }
                 })
         })

@@ -11,11 +11,7 @@ use crate::response::Response;
 
 /// A set of errors that can occur while connecting to an HTTP host
 #[derive(Debug, Display, From)]
-pub enum ConnectorError {
-    /// Invalid URL
-    #[display(fmt = "Invalid URL")]
-    InvalidUrl(InvalidUrlKind),
-
+pub enum ConnectError {
     /// SSL feature is not enabled
     #[display(fmt = "SSL is not supported")]
     SslIsNotSupported,
@@ -45,24 +41,30 @@ pub enum ConnectorError {
     #[display(fmt = "Internal error: connector has been disconnected")]
     Disconnected,
 
+    /// Unresolved host name
+    #[display(fmt = "Connector received `Connect` method with unresolved host")]
+    Unresolverd,
+
     /// Connection io error
     #[display(fmt = "{}", _0)]
     Io(io::Error),
 }
 
-#[derive(Debug, Display)]
-pub enum InvalidUrlKind {
-    #[display(fmt = "Missing url scheme")]
-    MissingScheme,
-    #[display(fmt = "Unknown url scheme")]
-    UnknownScheme,
-    #[display(fmt = "Missing host name")]
-    MissingHost,
+impl From<actix_connect::ConnectError> for ConnectError {
+    fn from(err: actix_connect::ConnectError) -> ConnectError {
+        match err {
+            actix_connect::ConnectError::Resolver(e) => ConnectError::Resolver(e),
+            actix_connect::ConnectError::NoRecords => ConnectError::NoRecords,
+            actix_connect::ConnectError::InvalidInput => panic!(),
+            actix_connect::ConnectError::Unresolverd => ConnectError::Unresolverd,
+            actix_connect::ConnectError::Io(e) => ConnectError::Io(e),
+        }
+    }
 }
 
 #[cfg(feature = "ssl")]
-impl<T> From<HandshakeError<T>> for ConnectorError {
-    fn from(err: HandshakeError<T>) -> ConnectorError {
+impl<T> From<HandshakeError<T>> for ConnectError {
+    fn from(err: HandshakeError<T>) -> ConnectError {
         match err {
             HandshakeError::SetupFailure(stack) => SslError::from(stack).into(),
             HandshakeError::Failure(stream) => stream.into_error().into(),
@@ -71,12 +73,27 @@ impl<T> From<HandshakeError<T>> for ConnectorError {
     }
 }
 
+#[derive(Debug, Display, From)]
+pub enum InvalidUrl {
+    #[display(fmt = "Missing url scheme")]
+    MissingScheme,
+    #[display(fmt = "Unknown url scheme")]
+    UnknownScheme,
+    #[display(fmt = "Missing host name")]
+    MissingHost,
+    #[display(fmt = "Url parse error: {}", _0)]
+    HttpError(http::Error),
+}
+
 /// A set of errors that can occur during request sending and response reading
 #[derive(Debug, Display, From)]
 pub enum SendRequestError {
+    /// Invalid URL
+    #[display(fmt = "Invalid URL: {}", _0)]
+    Url(InvalidUrl),
     /// Failed to connect to host
     #[display(fmt = "Failed to connect to host: {}", _0)]
-    Connector(ConnectorError),
+    Connect(ConnectError),
     /// Error sending request
     Send(io::Error),
     /// Error parsing response
@@ -92,10 +109,10 @@ pub enum SendRequestError {
 impl ResponseError for SendRequestError {
     fn error_response(&self) -> Response {
         match *self {
-            SendRequestError::Connector(ConnectorError::Timeout) => {
+            SendRequestError::Connect(ConnectError::Timeout) => {
                 Response::GatewayTimeout()
             }
-            SendRequestError::Connector(_) => Response::BadGateway(),
+            SendRequestError::Connect(_) => Response::BadGateway(),
             _ => Response::InternalServerError(),
         }
         .into()
