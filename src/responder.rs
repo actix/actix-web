@@ -261,7 +261,8 @@ where
     type Future = Result<Response, Error>;
 
     fn respond_to(self, _: &HttpRequest) -> Self::Future {
-        Err(self.into())
+        let err: Error = self.into();
+        Ok(err.into())
     }
 }
 
@@ -289,12 +290,13 @@ where
 #[cfg(test)]
 mod tests {
     use actix_service::Service;
-    use bytes::Bytes;
+    use bytes::{Bytes, BytesMut};
 
+    use super::*;
     use crate::dev::{Body, ResponseBody};
-    use crate::http::StatusCode;
-    use crate::test::{init_service, TestRequest};
-    use crate::{web, App};
+    use crate::http::{header::CONTENT_TYPE, HeaderValue, StatusCode};
+    use crate::test::{block_on, init_service, TestRequest};
+    use crate::{error, web, App, HttpResponse};
 
     #[test]
     fn test_option_responder() {
@@ -318,5 +320,88 @@ mod tests {
             }
             _ => panic!(),
         }
+    }
+
+    trait BodyTest {
+        fn bin_ref(&self) -> &[u8];
+        fn body(&self) -> &Body;
+    }
+
+    impl BodyTest for ResponseBody<Body> {
+        fn bin_ref(&self) -> &[u8] {
+            match self {
+                ResponseBody::Body(ref b) => match b {
+                    Body::Bytes(ref bin) => &bin,
+                    _ => panic!(),
+                },
+                ResponseBody::Other(ref b) => match b {
+                    Body::Bytes(ref bin) => &bin,
+                    _ => panic!(),
+                },
+            }
+        }
+        fn body(&self) -> &Body {
+            match self {
+                ResponseBody::Body(ref b) => b,
+                ResponseBody::Other(ref b) => b,
+            }
+        }
+    }
+
+    #[test]
+    fn test_responder() {
+        let req = TestRequest::default().to_http_request();
+
+        let resp: HttpResponse = block_on(().respond_to(&req)).unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(*resp.body().body(), Body::Empty);
+
+        let resp: HttpResponse = block_on("test".respond_to(&req)).unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(resp.body().bin_ref(), b"test");
+        assert_eq!(
+            resp.headers().get(CONTENT_TYPE).unwrap(),
+            HeaderValue::from_static("text/plain; charset=utf-8")
+        );
+
+        let resp: HttpResponse = block_on(b"test".respond_to(&req)).unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(resp.body().bin_ref(), b"test");
+        assert_eq!(
+            resp.headers().get(CONTENT_TYPE).unwrap(),
+            HeaderValue::from_static("application/octet-stream")
+        );
+
+        let resp: HttpResponse = block_on("test".to_string().respond_to(&req)).unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(resp.body().bin_ref(), b"test");
+        assert_eq!(
+            resp.headers().get(CONTENT_TYPE).unwrap(),
+            HeaderValue::from_static("text/plain; charset=utf-8")
+        );
+
+        let resp: HttpResponse =
+            block_on(Bytes::from_static(b"test").respond_to(&req)).unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(resp.body().bin_ref(), b"test");
+        assert_eq!(
+            resp.headers().get(CONTENT_TYPE).unwrap(),
+            HeaderValue::from_static("application/octet-stream")
+        );
+
+        let resp: HttpResponse =
+            block_on(BytesMut::from(b"test".as_ref()).respond_to(&req)).unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(resp.body().bin_ref(), b"test");
+        assert_eq!(
+            resp.headers().get(CONTENT_TYPE).unwrap(),
+            HeaderValue::from_static("application/octet-stream")
+        );
+
+        let resp: HttpResponse =
+            error::InternalError::new("err", StatusCode::BAD_REQUEST)
+                .respond_to(&req)
+                .unwrap();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
     }
 }

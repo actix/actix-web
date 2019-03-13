@@ -12,7 +12,7 @@ use actix_server_config::ServerConfig;
 use actix_service::{IntoNewService, NewService, Service};
 use bytes::Bytes;
 use cookie::Cookie;
-use futures::Future;
+use futures::future::{lazy, Future};
 
 use crate::config::{AppConfig, AppConfigInner};
 use crate::rmap::ResourceMap;
@@ -40,6 +40,17 @@ where
     F: Future,
 {
     RT.with(move |rt| rt.borrow_mut().block_on(f))
+}
+
+/// Runs the provided function, with runtime enabled.
+///
+/// Note that this function is intended to be used only for testing purpose.
+/// This function panics on nested call.
+pub fn run_on<F, I, E>(f: F) -> Result<I, E>
+where
+    F: Fn() -> Result<I, E>,
+{
+    RT.with(move |rt| rt.borrow_mut().block_on(lazy(|| f())))
 }
 
 /// This method accepts application builder instance, and constructs

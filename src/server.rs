@@ -182,8 +182,8 @@ where
     /// Host name is used by application router aa a hostname for url
     /// generation. Check [ConnectionInfo](./dev/struct.ConnectionInfo.
     /// html#method.host) documentation for more information.
-    pub fn server_hostname(mut self, val: String) -> Self {
-        self.host = Some(val);
+    pub fn server_hostname<T: AsRef<str>>(mut self, val: T) -> Self {
+        self.host = Some(val.as_ref().to_owned());
         self
     }
 
