@@ -21,8 +21,8 @@ use crate::http::{
 use crate::message::{ConnectionType, Head, RequestHead};
 
 use super::connection::Connection;
+use super::error::{ConnectError, InvalidUrl, SendRequestError};
 use super::response::ClientResponse;
-use super::{Connect, ConnectError, SendRequestError};
 
 /// An HTTP Client Request
 ///
@@ -180,23 +180,32 @@ where
     ) -> impl Future<Item = ClientResponse, Error = SendRequestError>
     where
         B: 'static,
-        T: Service<Request = Connect, Response = I, Error = ConnectError>,
+        T: Service<Request = Uri, Response = I, Error = ConnectError>,
         I: Connection,
     {
         let Self { head, body } = self;
 
-        let connect = Connect::new(head.uri.clone());
-        if let Err(e) = connect.validate() {
-            Either::A(err(e.into()))
+        let uri = head.uri.clone();
+
+        // validate uri
+        if uri.host().is_none() {
+            Either::A(err(InvalidUrl::MissingHost.into()))
+        } else if uri.scheme_part().is_none() {
+            Either::A(err(InvalidUrl::MissingScheme.into()))
+        } else if let Some(scheme) = uri.scheme_part() {
+            match scheme.as_str() {
+                "http" | "ws" | "https" | "wss" => Either::B(
+                    connector
+                        // connect to the host
+                        .call(uri)
+                        .from_err()
+                        // send request
+                        .and_then(move |connection| connection.send_request(head, body)),
+                ),
+                _ => Either::A(err(InvalidUrl::UnknownScheme.into())),
+            }
         } else {
-            Either::B(
-                connector
-                    // connect to the host
-                    .call(connect)
-                    .from_err()
-                    // send request
-                    .and_then(move |connection| connection.send_request(head, body)),
-            )
+            Either::A(err(InvalidUrl::UnknownScheme.into()))
         }
     }
 }
@@ -529,7 +538,7 @@ impl ClientRequestBuilder {
                     if !parts.headers.contains_key(header::HOST) {
                         let mut wrt = BytesMut::with_capacity(host.len() + 5).writer();
 
-                        let _ = match parts.uri.port() {
+                        let _ = match parts.uri.port_u16() {
                             None | Some(80) | Some(443) => write!(wrt, "{}", host),
                             Some(port) => write!(wrt, "{}:{}", host, port),
                         };

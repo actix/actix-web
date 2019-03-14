@@ -5,10 +5,10 @@ use std::{net, thread, time};
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use actix_http::body::MessageBody;
 use actix_http::client::{
-    ClientRequest, ClientRequestBuilder, ClientResponse, Connect, ConnectError,
-    Connection, Connector, SendRequestError,
+    ClientRequest, ClientRequestBuilder, ClientResponse, ConnectError, Connection,
+    Connector, SendRequestError,
 };
-use actix_http::ws;
+use actix_http::{http::Uri, ws};
 use actix_rt::{Runtime, System};
 use actix_server::{Server, StreamServiceFactory};
 use actix_service::Service;
@@ -158,8 +158,8 @@ impl TestServerRuntime {
     }
 
     fn new_connector(
-    ) -> impl Service<Request = Connect, Response = impl Connection, Error = ConnectError>
-                 + Clone {
+    ) -> impl Service<Request = Uri, Response = impl Connection, Error = ConnectError> + Clone
+    {
         #[cfg(feature = "ssl")]
         {
             use openssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
@@ -185,8 +185,8 @@ impl TestServerRuntime {
     /// Http connector
     pub fn connector(
         &mut self,
-    ) -> impl Service<Request = Connect, Response = impl Connection, Error = ConnectError>
-                 + Clone {
+    ) -> impl Service<Request = Uri, Response = impl Connection, Error = ConnectError> + Clone
+    {
         self.execute(|| TestServerRuntime::new_connector())
     }
 

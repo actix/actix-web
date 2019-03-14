@@ -2,7 +2,7 @@
 use std::marker::PhantomData;
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
-use actix_connect::{default_connector, Address, Connect as TcpConnect, ConnectError};
+use actix_connect::{default_connector, Connect as TcpConnect, ConnectError};
 use actix_service::{apply_fn, Service};
 use base64;
 use futures::future::{err, Either, FutureResult};
@@ -131,7 +131,7 @@ where
 
             // prep connection
             let connect = TcpConnect::new(request.uri().host().unwrap().to_string())
-                .set_port(request.uri().port().unwrap_or_else(|| proto.port()));
+                .set_port(request.uri().port_u16().unwrap_or_else(|| proto.port()));
 
             let fut = Box::new(
                 self.connector

@@ -1,5 +1,4 @@
 //! Http client api
-mod connect;
 mod connection;
 mod connector;
 mod error;
@@ -9,7 +8,6 @@ mod pool;
 mod request;
 mod response;
 
-pub use self::connect::Connect;
 pub use self::connection::Connection;
 pub use self::connector::Connector;
 pub use self::error::{ConnectError, InvalidUrl, SendRequestError};
