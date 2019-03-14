@@ -105,6 +105,13 @@ pub fn post<U: AsRef<str>>(uri: U) -> ClientRequestBuilder {
     builder
 }
 
+/// Create request builder for `PATCH` requests
+pub fn patch<U: AsRef<str>>(uri: U) -> ClientRequestBuilder {
+    let mut builder = ClientRequest::build();
+    builder.method(Method::PATCH).uri(uri);
+    builder
+}
+
 /// Create request builder for `PUT` requests
 pub fn put<U: AsRef<str>>(uri: U) -> ClientRequestBuilder {
     let mut builder = ClientRequest::build();
