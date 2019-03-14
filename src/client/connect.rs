@@ -61,8 +61,8 @@ impl Address for Connect {
         &self.uri.host().unwrap()
     }
 
-    fn port(&self) -> u16 {
-        if let Some(port) = self.uri.port() {
+    fn port(&self) -> Option<u16> {
+        let port = if let Some(port) = self.uri.port() {
             port
         } else if let Some(scheme) = self.uri.scheme_part() {
             match scheme.as_str() {
@@ -72,6 +72,7 @@ impl Address for Connect {
             }
         } else {
             80
-        }
+        };
+        Some(port)
     }
 }
