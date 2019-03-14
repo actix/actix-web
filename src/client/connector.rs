@@ -173,6 +173,7 @@ where
             let connector = TimeoutService::new(
                 self.timeout,
                 apply_fn(self.connector, |msg: Uri, srv| srv.call(msg.into()))
+                    .map_err(ConnectError::from)
                     .map(|stream| (stream.into_parts().0, Protocol::Http1)),
             )
             .map_err(|e| match e {
