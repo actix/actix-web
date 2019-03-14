@@ -50,7 +50,7 @@ fn test_start() {
 
     let mut connector = test::run_on(|| {
         Ok::<_, ()>(
-            client::Connector::default()
+            client::Connector::new()
                 .timeout(Duration::from_millis(100))
                 .service(),
         )
