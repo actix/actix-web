@@ -1398,3 +1398,11 @@ fn test_content_length() {
         assert_eq!(response.headers().get(&header), Some(&value));
     }
 }
+
+#[test]
+fn test_patch_method() {
+    let mut srv = test::TestServer::new(|app| app.handler(|_| HttpResponse::Ok()));
+    let req = srv.patch().finish().unwrap();
+    let response = srv.execute(req.send()).unwrap();
+    assert!(response.status().is_success());
+}
