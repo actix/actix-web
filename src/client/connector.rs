@@ -265,7 +265,7 @@ mod connect_impl {
     pub(crate) struct InnerConnector<T, Io>
     where
         Io: AsyncRead + AsyncWrite + 'static,
-        T: Service<Request = Uri, Response = (Io, Protocol), Error = ConnectorError>,
+        T: Service<Request = Uri, Response = (Io, Protocol), Error = ConnectError>,
     {
         pub(crate) tcp_pool: ConnectionPool<T, Io>,
     }
@@ -286,14 +286,14 @@ mod connect_impl {
     impl<T, Io> Service for InnerConnector<T, Io>
     where
         Io: AsyncRead + AsyncWrite + 'static,
-        T: Service<Request = Uri, Response = (Io, Protocol), Error = ConnectorError>,
+        T: Service<Request = Uri, Response = (Io, Protocol), Error = ConnectError>,
     {
         type Request = Uri;
         type Response = IoConnection<Io>;
-        type Error = ConnectorError;
+        type Error = ConnectError;
         type Future = Either<
             <ConnectionPool<T, Io> as Service>::Future,
-            FutureResult<IoConnection<Io>, ConnectorError>,
+            FutureResult<IoConnection<Io>, ConnectError>,
         >;
 
         fn poll_ready(&mut self) -> Poll<(), Self::Error> {
