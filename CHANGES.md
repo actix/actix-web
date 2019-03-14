@@ -10,6 +10,8 @@
 
 * Add client HTTP Authentication methods `.basic_auth()`  and `.bearer_auth()`. #540
 
+* Add support for PATCH HTTP method
+
 ### Fixed
 
 * Ignored the `If-Modified-Since` if `If-None-Match` is specified. #680
