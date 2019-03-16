@@ -215,7 +215,7 @@ where
 /// fn main() {
 ///     let app = App::new().service(
 ///         web::resource("/index.html").route(
-///             web::post().config(
+///             web::post().data(
 ///                 // change json extractor configuration
 ///                 web::JsonConfig::default().limit(4096)
 ///                     .error_handler(|err, req| {  // <- create custom error response

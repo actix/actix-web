@@ -130,7 +130,7 @@ impl<T: fmt::Display> fmt::Display for Form<T> {
 ///         web::resource("/index.html")
 ///             .route(web::get()
 ///                 // change `Form` extractor configuration
-///                 .config(web::FormConfig::default().limit(4097))
+///                 .data(web::FormConfig::default().limit(4097))
 ///                 .to(index))
 ///     );
 /// }

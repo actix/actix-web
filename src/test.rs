@@ -265,8 +265,8 @@ impl TestRequest {
         self
     }
 
-    /// Set request config
-    pub fn config<T: 'static>(self, data: T) -> Self {
+    /// Set route data
+    pub fn route_data<T: 'static>(self, data: T) -> Self {
         self.config.extensions.borrow_mut().insert(data);
         self
     }

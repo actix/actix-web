@@ -177,7 +177,7 @@ where
 ///     let app = App::new().service(
 ///         web::resource("/index.html").route(
 ///             web::get()
-///                .config(web::PayloadConfig::new(4096)) // <- limit size of the payload
+///                .data(web::PayloadConfig::new(4096)) // <- limit size of the payload
 ///                .to(index))  // <- register handler with extractor params
 ///     );
 /// }

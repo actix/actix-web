@@ -40,28 +40,28 @@ type BoxedRouteNewService<Req, Res> = Box<
 pub struct Route<P> {
     service: BoxedRouteNewService<ServiceRequest<P>, ServiceResponse>,
     guards: Rc<Vec<Box<Guard>>>,
-    config: Option<Extensions>,
-    config_ref: Rc<RefCell<Option<Rc<Extensions>>>>,
+    data: Option<Extensions>,
+    data_ref: Rc<RefCell<Option<Rc<Extensions>>>>,
 }
 
 impl<P: 'static> Route<P> {
     /// Create new route which matches any request.
     pub fn new() -> Route<P> {
-        let config_ref = Rc::new(RefCell::new(None));
+        let data_ref = Rc::new(RefCell::new(None));
         Route {
             service: Box::new(RouteNewService::new(
-                Extract::new(config_ref.clone()).and_then(
+                Extract::new(data_ref.clone()).and_then(
                     Handler::new(HttpResponse::NotFound).map_err(|_| panic!()),
                 ),
             )),
             guards: Rc::new(Vec::new()),
-            config: None,
-            config_ref,
+            data: None,
+            data_ref,
         }
     }
 
     pub(crate) fn finish(mut self) -> Self {
-        *self.config_ref.borrow_mut() = self.config.take().map(|e| Rc::new(e));
+        *self.data_ref.borrow_mut() = self.data.take().map(|e| Rc::new(e));
         self
     }
 
@@ -180,24 +180,6 @@ impl<P: 'static> Route<P> {
         self
     }
 
-    // pub fn map<T, U, F: IntoNewService<T>>(
-    //     self,
-    //     md: F,
-    // ) -> RouteServiceBuilder<T, S, (), U>
-    // where
-    //     T: NewService<
-    //         Request = HandlerRequest<S>,
-    //         Response = HandlerRequest<S, U>,
-    //         InitError = Error,
-    //     >,
-    // {
-    //     RouteServiceBuilder {
-    //         service: md.into_new_service(),
-    //         guards: self.guards,
-    //         _t: PhantomData,
-    //     }
-    // }
-
     /// Set handler function, use request extractors for parameters.
     ///
     /// ```rust
@@ -253,7 +235,7 @@ impl<P: 'static> Route<P> {
         R: Responder + 'static,
     {
         self.service = Box::new(RouteNewService::new(
-            Extract::new(self.config_ref.clone())
+            Extract::new(self.data_ref.clone())
                 .and_then(Handler::new(handler).map_err(|_| panic!())),
         ));
         self
@@ -295,14 +277,14 @@ impl<P: 'static> Route<P> {
         R::Error: Into<Error>,
     {
         self.service = Box::new(RouteNewService::new(
-            Extract::new(self.config_ref.clone())
+            Extract::new(self.data_ref.clone())
                 .and_then(AsyncHandler::new(handler).map_err(|_| panic!())),
         ));
         self
     }
 
-    /// This method allows to add extractor configuration
-    /// for specific route.
+    /// Provide route specific data. This method allows to add extractor
+    /// configuration or specific state available via `RouteData<T>` extractor.
     ///
     /// ```rust
     /// use actix_web::{web, App};
@@ -317,17 +299,17 @@ impl<P: 'static> Route<P> {
     ///         web::resource("/index.html").route(
     ///             web::get()
     ///                // limit size of the payload
-    ///                .config(web::PayloadConfig::new(4096))
+    ///                .data(web::PayloadConfig::new(4096))
     ///                // register handler
     ///                .to(index)
     ///         ));
     /// }
     /// ```
-    pub fn config<C: 'static>(mut self, config: C) -> Self {
-        if self.config.is_none() {
-            self.config = Some(Extensions::new());
+    pub fn data<C: 'static>(mut self, data: C) -> Self {
+        if self.data.is_none() {
+            self.data = Some(Extensions::new());
         }
-        self.config.as_mut().unwrap().insert(config);
+        self.data.as_mut().unwrap().insert(data);
         self
     }
 }

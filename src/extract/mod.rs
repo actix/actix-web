@@ -262,7 +262,7 @@ mod tests {
             header::CONTENT_TYPE,
             "application/x-www-form-urlencoded",
         )
-        .config(FormConfig::default().limit(4096))
+        .route_data(FormConfig::default().limit(4096))
         .to_from();
 
         let r = block_on(Option::<Form<Info>>::from_request(&mut req)).unwrap();
