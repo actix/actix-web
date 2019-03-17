@@ -34,6 +34,9 @@ pub(crate) trait DataFactoryResult {
 /// threads, a shared object should be used, e.g. `Arc`. Application
 /// data does not need to be `Send` or `Sync`.
 ///
+/// If route data is not set for a handler, using `Data<T>` extractor would
+/// cause *Internal Server Error* response.
+///
 /// ```rust
 /// use std::cell::Cell;
 /// use actix_web::{web, App};
@@ -165,6 +168,9 @@ where
 /// configuration storage. Route data could be accessed in handler
 /// via `RouteData<T>` extractor.
 ///
+/// If route data is not set for a handler, using `RouteData` extractor
+/// would cause *Internal Server Error* response.
+///
 /// ```rust
 /// # use std::cell::Cell;
 /// use actix_web::{web, App};
@@ -192,9 +198,6 @@ where
 ///         ));
 /// }
 /// ```
-///
-/// If route data is not set for a handler, using `RouteData` extractor
-/// would cause `Internal Server error` response.
 pub struct RouteData<T>(Arc<T>);
 
 impl<T> RouteData<T> {
