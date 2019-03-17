@@ -1,10 +1,11 @@
 //! Helper types
 
-mod form;
+pub(crate) mod form;
 pub(crate) mod json;
 mod path;
-mod payload;
+pub(crate) mod payload;
 mod query;
+pub(crate) mod readlines;
 
 pub use self::form::{Form, FormConfig};
 pub use self::json::{Json, JsonConfig};

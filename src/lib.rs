@@ -58,7 +58,10 @@ pub mod dev {
     pub use crate::service::{
         HttpServiceFactory, ServiceFromRequest, ServiceRequest, ServiceResponse,
     };
+    pub use crate::types::form::UrlEncoded;
     pub use crate::types::json::JsonBody;
+    pub use crate::types::payload::HttpMessageBody;
+    pub use crate::types::readlines::Readlines;
 
     pub use actix_http::body::{Body, BodyLength, MessageBody, ResponseBody};
     pub use actix_http::dev::ResponseBuilder as HttpResponseBuilder;

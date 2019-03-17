@@ -393,7 +393,7 @@ mod tests {
     #[test]
     fn test_json_body() {
         let mut req = TestRequest::default().to_request();
-        let json = block_on(req.json::<MyObject>());
+        let json = block_on(JsonBody::<_, MyObject>::new(&mut req));
         assert!(json_eq(json.err().unwrap(), JsonPayloadError::ContentType));
 
         let mut req = TestRequest::default()
@@ -402,7 +402,7 @@ mod tests {
                 header::HeaderValue::from_static("application/text"),
             )
             .to_request();
-        let json = block_on(req.json::<MyObject>());
+        let json = block_on(JsonBody::<_, MyObject>::new(&mut req));
         assert!(json_eq(json.err().unwrap(), JsonPayloadError::ContentType));
 
         let mut req = TestRequest::default()
@@ -416,7 +416,7 @@ mod tests {
             )
             .to_request();
 
-        let json = block_on(req.json::<MyObject>().limit(100));
+        let json = block_on(JsonBody::<_, MyObject>::new(&mut req).limit(100));
         assert!(json_eq(json.err().unwrap(), JsonPayloadError::Overflow));
 
         let mut req = TestRequest::default()
@@ -431,7 +431,7 @@ mod tests {
             .set_payload(Bytes::from_static(b"{\"name\": \"test\"}"))
             .to_request();
 
-        let json = block_on(req.json::<MyObject>());
+        let json = block_on(JsonBody::<_, MyObject>::new(&mut req));
         assert_eq!(
             json.ok().unwrap(),
             MyObject {

@@ -1,10 +1,9 @@
 //! Payload/Bytes/String extractors
 use std::str;
 
-use actix_http::dev::MessageBody;
 use actix_http::error::{Error, ErrorBadRequest, PayloadError};
 use actix_http::HttpMessage;
-use bytes::Bytes;
+use bytes::{Bytes, BytesMut};
 use encoding::all::UTF_8;
 use encoding::types::{DecoderTrap, Encoding};
 use futures::future::{err, Either, FutureResult};
@@ -12,6 +11,7 @@ use futures::{Future, Poll, Stream};
 use mime::Mime;
 
 use crate::extract::FromRequest;
+use crate::http::header;
 use crate::service::ServiceFromRequest;
 
 /// Payload extractor returns request 's payload stream.
@@ -152,7 +152,7 @@ where
         }
 
         let limit = cfg.limit;
-        Either::A(Box::new(MessageBody::new(req).limit(limit).from_err()))
+        Either::A(Box::new(HttpMessageBody::new(req).limit(limit).from_err()))
     }
 }
 
@@ -213,7 +213,7 @@ where
         let limit = cfg.limit;
 
         Either::A(Box::new(
-            MessageBody::new(req)
+            HttpMessageBody::new(req)
                 .limit(limit)
                 .from_err()
                 .and_then(move |body| {
@@ -287,6 +287,109 @@ impl Default for PayloadConfig {
     }
 }
 
+/// Future that resolves to a complete http message body.
+///
+/// Load http message body.
+///
+/// By default only 256Kb payload reads to a memory, then
+/// `PayloadError::Overflow` get returned. Use `MessageBody::limit()`
+/// method to change upper limit.
+pub struct HttpMessageBody<T: HttpMessage> {
+    limit: usize,
+    length: Option<usize>,
+    stream: actix_http::Payload<T::Stream>,
+    err: Option<PayloadError>,
+    fut: Option<Box<Future<Item = Bytes, Error = PayloadError>>>,
+}
+
+impl<T> HttpMessageBody<T>
+where
+    T: HttpMessage,
+    T::Stream: Stream<Item = Bytes, Error = PayloadError>,
+{
+    /// Create `MessageBody` for request.
+    pub fn new(req: &mut T) -> HttpMessageBody<T> {
+        let mut len = None;
+        if let Some(l) = req.headers().get(header::CONTENT_LENGTH) {
+            if let Ok(s) = l.to_str() {
+                if let Ok(l) = s.parse::<usize>() {
+                    len = Some(l)
+                } else {
+                    return Self::err(PayloadError::UnknownLength);
+                }
+            } else {
+                return Self::err(PayloadError::UnknownLength);
+            }
+        }
+
+        HttpMessageBody {
+            stream: req.take_payload(),
+            limit: 262_144,
+            length: len,
+            fut: None,
+            err: None,
+        }
+    }
+
+    /// Change max size of payload. By default max size is 256Kb
+    pub fn limit(mut self, limit: usize) -> Self {
+        self.limit = limit;
+        self
+    }
+
+    fn err(e: PayloadError) -> Self {
+        HttpMessageBody {
+            stream: actix_http::Payload::None,
+            limit: 262_144,
+            fut: None,
+            err: Some(e),
+            length: None,
+        }
+    }
+}
+
+impl<T> Future for HttpMessageBody<T>
+where
+    T: HttpMessage,
+    T::Stream: Stream<Item = Bytes, Error = PayloadError> + 'static,
+{
+    type Item = Bytes;
+    type Error = PayloadError;
+
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        if let Some(ref mut fut) = self.fut {
+            return fut.poll();
+        }
+
+        if let Some(err) = self.err.take() {
+            return Err(err);
+        }
+
+        if let Some(len) = self.length.take() {
+            if len > self.limit {
+                return Err(PayloadError::Overflow);
+            }
+        }
+
+        // future
+        let limit = self.limit;
+        self.fut = Some(Box::new(
+            std::mem::replace(&mut self.stream, actix_http::Payload::None)
+                .from_err()
+                .fold(BytesMut::with_capacity(8192), move |mut body, chunk| {
+                    if (body.len() + chunk.len()) > limit {
+                        Err(PayloadError::Overflow)
+                    } else {
+                        body.extend_from_slice(&chunk);
+                        Ok(body)
+                    }
+                })
+                .map(|body| body.freeze()),
+        ));
+        self.poll()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use bytes::Bytes;
@@ -331,5 +434,39 @@ mod tests {
 
         let s = block_on(String::from_request(&mut req)).unwrap();
         assert_eq!(s, "hello=world");
+    }
+
+    #[test]
+    fn test_message_body() {
+        let mut req =
+            TestRequest::with_header(header::CONTENT_LENGTH, "xxxx").to_request();
+        let res = block_on(HttpMessageBody::new(&mut req));
+        match res.err().unwrap() {
+            PayloadError::UnknownLength => (),
+            _ => unreachable!("error"),
+        }
+
+        let mut req =
+            TestRequest::with_header(header::CONTENT_LENGTH, "1000000").to_request();
+        let res = block_on(HttpMessageBody::new(&mut req));
+        match res.err().unwrap() {
+            PayloadError::Overflow => (),
+            _ => unreachable!("error"),
+        }
+
+        let mut req = TestRequest::default()
+            .set_payload(Bytes::from_static(b"test"))
+            .to_request();
+        let res = block_on(HttpMessageBody::new(&mut req));
+        assert_eq!(res.ok().unwrap(), Bytes::from_static(b"test"));
+
+        let mut req = TestRequest::default()
+            .set_payload(Bytes::from_static(b"11111111111111"))
+            .to_request();
+        let res = block_on(HttpMessageBody::new(&mut req).limit(5));
+        match res.err().unwrap() {
+            PayloadError::Overflow => (),
+            _ => unreachable!("error"),
+        }
     }
 }
