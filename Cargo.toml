@@ -29,6 +29,7 @@ members = [
   ".",
   "actix-files",
   "actix-session",
+  "actix-web-actors",
   "actix-web-codegen",
 ]
 
