@@ -142,3 +142,34 @@ impl ResponseError for ReadlinesError {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_urlencoded_error() {
+        let resp: HttpResponse = UrlencodedError::Overflow.error_response();
+        assert_eq!(resp.status(), StatusCode::PAYLOAD_TOO_LARGE);
+        let resp: HttpResponse = UrlencodedError::UnknownLength.error_response();
+        assert_eq!(resp.status(), StatusCode::LENGTH_REQUIRED);
+        let resp: HttpResponse = UrlencodedError::ContentType.error_response();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[test]
+    fn test_json_payload_error() {
+        let resp: HttpResponse = JsonPayloadError::Overflow.error_response();
+        assert_eq!(resp.status(), StatusCode::PAYLOAD_TOO_LARGE);
+        let resp: HttpResponse = JsonPayloadError::ContentType.error_response();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[test]
+    fn test_readlines_error() {
+        let resp: HttpResponse = ReadlinesError::LimitOverflow.error_response();
+        assert_eq!(resp.status(), StatusCode::PAYLOAD_TOO_LARGE);
+        let resp: HttpResponse = ReadlinesError::EncodingError.error_response();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    }
+}

@@ -381,6 +381,15 @@ pub(crate) mod tests {
         );
 
         let resp: HttpResponse =
+            block_on((&"test".to_string()).respond_to(&req)).unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(resp.body().bin_ref(), b"test");
+        assert_eq!(
+            resp.headers().get(CONTENT_TYPE).unwrap(),
+            HeaderValue::from_static("text/plain; charset=utf-8")
+        );
+
+        let resp: HttpResponse =
             block_on(Bytes::from_static(b"test").respond_to(&req)).unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(resp.body().bin_ref(), b"test");
@@ -398,10 +407,32 @@ pub(crate) mod tests {
             HeaderValue::from_static("application/octet-stream")
         );
 
+        // InternalError
         let resp: HttpResponse =
             error::InternalError::new("err", StatusCode::BAD_REQUEST)
                 .respond_to(&req)
                 .unwrap();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[test]
+    fn test_result_responder() {
+        let req = TestRequest::default().to_http_request();
+
+        // Result<I, E>
+        let resp: HttpResponse =
+            block_on(Ok::<_, Error>("test".to_string()).respond_to(&req)).unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(resp.body().bin_ref(), b"test");
+        assert_eq!(
+            resp.headers().get(CONTENT_TYPE).unwrap(),
+            HeaderValue::from_static("text/plain; charset=utf-8")
+        );
+
+        let res = block_on(
+            Err::<String, _>(error::InternalError::new("err", StatusCode::BAD_REQUEST))
+                .respond_to(&req),
+        );
+        assert!(res.is_err());
     }
 }
