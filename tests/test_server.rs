@@ -3,7 +3,7 @@ use std::io::{Read, Write};
 use actix_http::http::header::{
     ContentEncoding, ACCEPT_ENCODING, CONTENT_LENGTH, TRANSFER_ENCODING,
 };
-use actix_http::{h1, Error, HttpMessage, Response};
+use actix_http::{h1, Error, Response};
 use actix_http_test::TestServer;
 use brotli2::write::BrotliDecoder;
 use bytes::Bytes;
@@ -12,7 +12,7 @@ use flate2::write::ZlibDecoder;
 use futures::stream::once; //Future, Stream
 use rand::{distributions::Alphanumeric, Rng};
 
-use actix_web::{middleware, web, App};
+use actix_web::{dev::HttpMessageBody, middleware, web, App};
 
 const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
                    Hello World Hello World Hello World Hello World Hello World \
@@ -50,7 +50,7 @@ fn test_body() {
     assert!(response.status().is_success());
 
     // read response
-    let bytes = srv.block_on(response.body()).unwrap();
+    let bytes = srv.block_on(HttpMessageBody::new(&mut response)).unwrap();
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
 }
 
@@ -69,7 +69,7 @@ fn test_body_gzip() {
     assert!(response.status().is_success());
 
     // read response
-    let bytes = srv.block_on(response.body()).unwrap();
+    let bytes = srv.block_on(HttpMessageBody::new(&mut response)).unwrap();
 
     // decode
     let mut e = GzDecoder::new(&bytes[..]);
@@ -100,7 +100,7 @@ fn test_body_gzip_large() {
     assert!(response.status().is_success());
 
     // read response
-    let bytes = srv.block_on(response.body()).unwrap();
+    let bytes = srv.block_on(HttpMessageBody::new(&mut response)).unwrap();
 
     // decode
     let mut e = GzDecoder::new(&bytes[..]);
@@ -134,7 +134,7 @@ fn test_body_gzip_large_random() {
     assert!(response.status().is_success());
 
     // read response
-    let bytes = srv.block_on(response.body()).unwrap();
+    let bytes = srv.block_on(HttpMessageBody::new(&mut response)).unwrap();
 
     // decode
     let mut e = GzDecoder::new(&bytes[..]);
@@ -167,7 +167,7 @@ fn test_body_chunked_implicit() {
     );
 
     // read response
-    let bytes = srv.block_on(response.body()).unwrap();
+    let bytes = srv.block_on(HttpMessageBody::new(&mut response)).unwrap();
 
     // decode
     let mut e = GzDecoder::new(&bytes[..]);
@@ -195,7 +195,7 @@ fn test_body_br_streaming() {
     assert!(response.status().is_success());
 
     // read response
-    let bytes = srv.block_on(response.body()).unwrap();
+    let bytes = srv.block_on(HttpMessageBody::new(&mut response)).unwrap();
 
     // decode br
     let mut e = BrotliDecoder::new(Vec::with_capacity(2048));
@@ -222,7 +222,7 @@ fn test_head_binary() {
     }
 
     // read response
-    let bytes = srv.block_on(response.body()).unwrap();
+    let bytes = srv.block_on(HttpMessageBody::new(&mut response)).unwrap();
     assert!(bytes.is_empty());
 }
 
@@ -245,7 +245,7 @@ fn test_no_chunking() {
     assert!(!response.headers().contains_key(TRANSFER_ENCODING));
 
     // read response
-    let bytes = srv.block_on(response.body()).unwrap();
+    let bytes = srv.block_on(HttpMessageBody::new(&mut response)).unwrap();
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
 }
 
@@ -267,7 +267,7 @@ fn test_body_deflate() {
     assert!(response.status().is_success());
 
     // read response
-    let bytes = srv.block_on(response.body()).unwrap();
+    let bytes = srv.block_on(HttpMessageBody::new(&mut response)).unwrap();
 
     // decode deflate
     let mut e = ZlibDecoder::new(Vec::new());
@@ -294,7 +294,7 @@ fn test_body_brotli() {
     assert!(response.status().is_success());
 
     // read response
-    let bytes = srv.block_on(response.body()).unwrap();
+    let bytes = srv.block_on(HttpMessageBody::new(&mut response)).unwrap();
 
     // decode brotli
     let mut e = BrotliDecoder::new(Vec::with_capacity(2048));

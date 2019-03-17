@@ -3,7 +3,7 @@
 use std::rc::Rc;
 use std::{fmt, ops};
 
-use actix_http::error::{Error, PayloadError, UrlencodedError};
+use actix_http::error::{Error, PayloadError};
 use actix_http::{HttpMessage, Payload};
 use bytes::{Bytes, BytesMut};
 use encoding::all::UTF_8;
@@ -12,6 +12,7 @@ use encoding::EncodingRef;
 use futures::{Future, Poll, Stream};
 use serde::de::DeserializeOwned;
 
+use crate::error::UrlencodedError;
 use crate::extract::FromRequest;
 use crate::http::header::CONTENT_LENGTH;
 use crate::request::HttpRequest;

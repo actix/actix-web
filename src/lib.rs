@@ -64,7 +64,7 @@ pub mod dev {
     pub use crate::types::readlines::Readlines;
 
     pub use actix_http::body::{Body, BodyLength, MessageBody, ResponseBody};
-    pub use actix_http::dev::ResponseBuilder as HttpResponseBuilder;
+    pub use actix_http::ResponseBuilder as HttpResponseBuilder;
     pub use actix_http::{
         Extensions, Payload, PayloadStream, RequestHead, ResponseHead,
     };

@@ -198,7 +198,7 @@ mod tests {
         };
 
         match block_on(stream.into_future()) {
-            Ok((Some(s), stream)) => {
+            Ok((Some(s), _)) => {
                 assert_eq!(
                     s,
                     "Contrary to popular belief, Lorem Ipsum is not simply random text."

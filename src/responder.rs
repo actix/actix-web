@@ -1,5 +1,5 @@
 use actix_http::error::InternalError;
-use actix_http::{dev::ResponseBuilder, http::StatusCode, Error, Response};
+use actix_http::{http::StatusCode, Error, Response, ResponseBuilder};
 use bytes::{Bytes, BytesMut};
 use futures::future::{err, ok, Either as EitherFuture, FutureResult};
 use futures::{Future, IntoFuture, Poll};
