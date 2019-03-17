@@ -49,7 +49,7 @@ after_success:
     fi
   - |
     if [[ "$TRAVIS_RUST_VERSION" ==  "nightly-2019-03-02" ]]; then
-        cargo tarpaulin --out Xml --all
+        taskset -c 0 cargo tarpaulin --out Xml --all
         bash <(curl -s https://codecov.io/bash)
         echo "Uploaded code coverage"
     fi
