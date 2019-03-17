@@ -21,7 +21,7 @@ type HttpService<P> = BoxedService<ServiceRequest<P>, ServiceResponse, Error>;
 type HttpNewService<P> =
     BoxedNewService<(), ServiceRequest<P>, ServiceResponse, Error, ()>;
 
-/// *Resource* is an entry in route table which corresponds to requested URL.
+/// *Resource* is an entry in resources table which corresponds to requested URL.
 ///
 /// Resource in turn has at least one route.
 /// Route consists of an handlers objects and list of guards
@@ -132,7 +132,8 @@ where
     /// }
     /// ```
     ///
-    /// Multiple routes could be added to a resource.
+    /// Multiple routes could be added to a resource. Resource object uses
+    /// match guards for route selection.
     ///
     /// ```rust
     /// use actix_web::{web, guard, App, HttpResponse};
@@ -220,11 +221,11 @@ where
         self
     }
 
-    /// Register a resource middleware
+    /// Register a resource middleware.
     ///
-    /// This is similar to `App's` middlewares, but
-    /// middleware is not allowed to change response type (i.e modify response's body).
-    /// Middleware get invoked on resource level.
+    /// This is similar to `App's` middlewares, but middleware get invoked on resource level.
+    /// Resource level middlewares are not allowed to change response
+    /// type (i.e modify response's body).
     pub fn middleware<M, F>(
         self,
         mw: F,

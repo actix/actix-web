@@ -25,7 +25,7 @@ impl ConnectionInfo {
         Ref::map(req.extensions(), |e| e.get().unwrap())
     }
 
-    #[cfg_attr(feature = "cargo-clippy", allow(cyclomatic_complexity))]
+    #[allow(clippy::cyclomatic_complexity)]
     fn new(req: &RequestHead, cfg: &AppConfig) -> ConnectionInfo {
         let mut host = None;
         let mut scheme = None;
@@ -123,10 +123,10 @@ impl ConnectionInfo {
         }
 
         ConnectionInfo {
+            peer,
             scheme: scheme.unwrap_or("http").to_owned(),
             host: host.unwrap_or("localhost").to_owned(),
             remote: remote.map(|s| s.to_owned()),
-            peer: peer,
         }
     }
 

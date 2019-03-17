@@ -1,4 +1,4 @@
-#![allow(clippy::type_complexity)]
+#![allow(clippy::type_complexity, clippy::new_without_default)]
 
 mod app;
 mod app_service;
@@ -84,6 +84,7 @@ pub mod web {
     pub use actix_http::Response as HttpResponse;
     pub use bytes::{Bytes, BytesMut};
 
+    use crate::error::{BlockingError, Error};
     use crate::extract::FromRequest;
     use crate::handler::{AsyncFactory, Factory};
     use crate::resource::Resource;
@@ -92,7 +93,6 @@ pub mod web {
     use crate::scope::Scope;
 
     pub use crate::data::{Data, RouteData};
-    pub use crate::error::{BlockingError, Error};
     pub use crate::extract::{Form, Json, Path, Payload, Query};
     pub use crate::extract::{FormConfig, JsonConfig, PayloadConfig};
     pub use crate::request::HttpRequest;

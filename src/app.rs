@@ -148,7 +148,7 @@ where
     }
 
     /// Register a request modifier. It can modify any request parameters
-    /// including payload stream.
+    /// including payload stream type.
     pub fn chain<C, F, P1>(
         self,
         chain: C,
@@ -211,6 +211,14 @@ where
     }
 
     /// Register http service.
+    ///
+    /// Http service is any type that implements `HttpServiceFactory` trait.
+    ///
+    /// Actix web provides several services implementations:
+    ///
+    /// * *Resource* is an entry in resource table which corresponds to requested URL.
+    /// * *Scope* is a set of resources with common root path.
+    /// * "StaticFiles" is a service for static files support
     pub fn service<F>(self, service: F) -> AppRouter<T, P, Body, AppEntry<P>>
     where
         F: HttpServiceFactory<P> + 'static,
@@ -301,7 +309,7 @@ where
     ///
     /// Actix web provides several services implementations:
     ///
-    /// * *Resource* is an entry in route table which corresponds to requested URL.
+    /// * *Resource* is an entry in resource table which corresponds to requested URL.
     /// * *Scope* is a set of resources with common root path.
     /// * "StaticFiles" is a service for static files support
     pub fn service<F>(mut self, factory: F) -> Self
@@ -354,9 +362,6 @@ where
     }
 
     /// Default resource to be used if no matching route could be found.
-    ///
-    /// Default resource works with resources only and does not work with
-    /// custom services.
     pub fn default_resource<F, U>(mut self, f: F) -> Self
     where
         F: FnOnce(Resource<P>) -> Resource<P, U>,

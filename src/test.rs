@@ -50,7 +50,7 @@ pub fn run_on<F, I, E>(f: F) -> Result<I, E>
 where
     F: Fn() -> Result<I, E>,
 {
-    RT.with(move |rt| rt.borrow_mut().block_on(lazy(|| f())))
+    RT.with(move |rt| rt.borrow_mut().block_on(lazy(f)))
 }
 
 /// This method accepts application builder instance, and constructs
@@ -169,6 +169,7 @@ impl Default for TestRequest {
     }
 }
 
+#[allow(clippy::wrong_self_convention)]
 impl TestRequest {
     /// Create TestRequest and set request uri
     pub fn with_uri(path: &str) -> TestRequest {
@@ -254,7 +255,7 @@ impl TestRequest {
     }
 
     /// Set cookie for this request
-    pub fn cookie<'a>(mut self, cookie: Cookie<'a>) -> Self {
+    pub fn cookie(mut self, cookie: Cookie) -> Self {
         self.req.cookie(cookie);
         self
     }

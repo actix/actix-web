@@ -26,7 +26,7 @@ type HttpNewService<P> =
     BoxedNewService<(), ServiceRequest<P>, ServiceResponse, Error, ()>;
 type BoxedResponse = Box<Future<Item = ServiceResponse, Error = Error>>;
 
-/// Resources scope
+/// Resources scope.
 ///
 /// Scope is a set of resources with common root path.
 /// Scopes collect multiple paths under a common path prefix.
@@ -114,7 +114,15 @@ where
         self
     }
 
-    /// Create nested service.
+    /// Register http service.
+    ///
+    /// This is similar to `App's` service registration.
+    ///
+    /// Actix web provides several services implementations:
+    ///
+    /// * *Resource* is an entry in resource table which corresponds to requested URL.
+    /// * *Scope* is a set of resources with common root path.
+    /// * "StaticFiles" is a service for static files support
     ///
     /// ```rust
     /// use actix_web::{web, App, HttpRequest};
@@ -145,7 +153,7 @@ where
     /// Configure route for a specific path.
     ///
     /// This is a simplified version of the `Scope::service()` method.
-    /// This method can not be could multiple times, in that case
+    /// This method can be called multiple times, in that case
     /// multiple resources with one route would be registered for same resource path.
     ///
     /// ```rust
@@ -172,6 +180,8 @@ where
     }
 
     /// Default resource to be used if no matching route could be found.
+    ///
+    /// If default resource is not registered, app's default resource is being used.
     pub fn default_resource<F, U>(mut self, f: F) -> Self
     where
         F: FnOnce(Resource<P>) -> Resource<P, U>,
@@ -190,11 +200,11 @@ where
         self
     }
 
-    /// Register a scope middleware
+    /// Register a scope level middleware.
     ///
-    /// This is similar to `App's` middlewares, but
-    /// middleware is not allowed to change response type (i.e modify response's body).
-    /// Middleware get invoked on scope level.
+    /// This is similar to `App's` middlewares, but middleware get invoked on scope level.
+    /// Scope level middlewares are not allowed to change response
+    /// type (i.e modify response's body).
     pub fn middleware<M, F>(
         self,
         mw: F,
@@ -322,7 +332,7 @@ impl<P: 'static> NewService for ScopeFactory<P> {
     }
 }
 
-/// Create app service
+/// Create scope service
 #[doc(hidden)]
 pub struct ScopeFactoryResponse<P> {
     fut: Vec<CreateScopeServiceItem<P>>,

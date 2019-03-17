@@ -62,7 +62,7 @@ impl<P: 'static> Route<P> {
     }
 
     pub(crate) fn finish(mut self) -> Self {
-        *self.data_ref.borrow_mut() = self.data.take().map(|e| Rc::new(e));
+        *self.data_ref.borrow_mut() = self.data.take().map(Rc::new);
         self
     }
 
