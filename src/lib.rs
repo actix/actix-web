@@ -58,6 +58,7 @@ pub mod dev {
     pub use crate::service::{
         HttpServiceFactory, ServiceFromRequest, ServiceRequest, ServiceResponse,
     };
+    pub use crate::types::json::JsonBody;
 
     pub use actix_http::body::{Body, BodyLength, MessageBody, ResponseBody};
     pub use actix_http::dev::ResponseBuilder as HttpResponseBuilder;
@@ -95,8 +96,7 @@ pub mod web {
 
     pub use crate::data::{Data, RouteData};
     pub use crate::request::HttpRequest;
-    pub use crate::types::{Form, Json, Path, Payload, Query};
-    pub use crate::types::{FormConfig, JsonConfig, PayloadConfig};
+    pub use crate::types::*;
 
     /// Create resource for a specific path.
     ///

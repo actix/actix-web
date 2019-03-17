@@ -1,7 +1,7 @@
 //! Helper types
 
 mod form;
-mod json;
+pub(crate) mod json;
 mod path;
 mod payload;
 mod query;
