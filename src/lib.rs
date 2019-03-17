@@ -77,7 +77,6 @@ mod header;
 mod helpers;
 mod httpcodes;
 pub mod httpmessage;
-mod json;
 mod message;
 mod payload;
 mod request;
@@ -113,7 +112,6 @@ pub mod dev {
     //! ```
 
     pub use crate::httpmessage::{MessageBody, Readlines, UrlEncoded};
-    pub use crate::json::JsonBody;
     pub use crate::response::ResponseBuilder;
 }
 
