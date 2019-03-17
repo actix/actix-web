@@ -1,20 +1,25 @@
 use std::{env, io};
 
 use actix_http::http::HeaderValue;
-use actix_http::HttpMessage;
-use actix_http::{Error, HttpService, Request, Response};
+use actix_http::{error::PayloadError, Error, HttpService, Request, Response};
 use actix_server::Server;
-use bytes::Bytes;
-use futures::Future;
+use bytes::BytesMut;
+use futures::{Future, Stream};
 use log::info;
 
 fn handle_request(mut req: Request) -> impl Future<Item = Response, Error = Error> {
-    req.body().limit(512).from_err().and_then(|bytes: Bytes| {
-        info!("request body: {:?}", bytes);
-        let mut res = Response::Ok();
-        res.header("x-head", HeaderValue::from_static("dummy value!"));
-        Ok(res.body(bytes))
-    })
+    req.take_payload()
+        .fold(BytesMut::new(), move |mut body, chunk| {
+            body.extend_from_slice(&chunk);
+            Ok::<_, PayloadError>(body)
+        })
+        .from_err()
+        .and_then(|bytes| {
+            info!("request body: {:?}", bytes);
+            let mut res = Response::Ok();
+            res.header("x-head", HeaderValue::from_static("dummy value!"));
+            Ok(res.body(bytes))
+        })
 }
 
 fn main() -> io::Result<()> {

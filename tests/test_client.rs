@@ -1,9 +1,11 @@
 use actix_service::NewService;
-use bytes::Bytes;
+use bytes::{Bytes, BytesMut};
 use futures::future::{self, ok};
+use futures::{Future, Stream};
 
-use actix_http::HttpMessage;
-use actix_http::{client, HttpService, Request, Response};
+use actix_http::{
+    client, error::PayloadError, HttpMessage, HttpService, Request, Response,
+};
 use actix_http_test::TestServer;
 
 const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
@@ -28,6 +30,16 @@ const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
                    Hello World Hello World Hello World Hello World Hello World \
                    Hello World Hello World Hello World Hello World Hello World";
 
+fn load_body<S>(stream: S) -> impl Future<Item = BytesMut, Error = PayloadError>
+where
+    S: Stream<Item = Bytes, Error = PayloadError>,
+{
+    stream.fold(BytesMut::new(), move |mut body, chunk| {
+        body.extend_from_slice(&chunk);
+        Ok::<_, PayloadError>(body)
+    })
+}
+
 #[test]
 fn test_h1_v2() {
     env_logger::init();
@@ -51,7 +63,7 @@ fn test_h1_v2() {
     assert!(response.status().is_success());
 
     // read response
-    let bytes = srv.block_on(response.body()).unwrap();
+    let bytes = srv.block_on(load_body(response.take_payload())).unwrap();
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
 
     let request = srv.post().finish().unwrap();
@@ -59,7 +71,7 @@ fn test_h1_v2() {
     assert!(response.status().is_success());
 
     // read response
-    let bytes = srv.block_on(response.body()).unwrap();
+    let bytes = srv.block_on(load_body(response.take_payload())).unwrap();
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
 }
 

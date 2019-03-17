@@ -97,23 +97,8 @@ pub use self::httpmessage::HttpMessage;
 pub use self::message::{Head, Message, RequestHead, ResponseHead};
 pub use self::payload::{Payload, PayloadStream};
 pub use self::request::Request;
-pub use self::response::Response;
+pub use self::response::{Response, ResponseBuilder};
 pub use self::service::{HttpService, SendError, SendResponse};
-
-pub mod dev {
-    //! The `actix-web` prelude for library developers
-    //!
-    //! The purpose of this module is to alleviate imports of many common actix
-    //! traits by adding a glob import to the top of actix heavy modules:
-    //!
-    //! ```
-    //! # #![allow(unused_imports)]
-    //! use actix_http::dev::*;
-    //! ```
-
-    pub use crate::httpmessage::{MessageBody, Readlines, UrlEncoded};
-    pub use crate::response::ResponseBuilder;
-}
 
 pub mod http {
     //! Various HTTP related types
