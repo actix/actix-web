@@ -12,6 +12,7 @@ use futures::IntoFuture;
 
 use crate::app_service::{AppChain, AppEntry, AppInit, AppRouting, AppRoutingFactory};
 use crate::config::{AppConfig, AppConfigInner};
+use crate::data::{Data, DataFactory};
 use crate::dev::{PayloadStream, ResourceDef};
 use crate::error::Error;
 use crate::resource::Resource;
@@ -20,7 +21,6 @@ use crate::service::{
     HttpServiceFactory, ServiceFactory, ServiceFactoryWrapper, ServiceRequest,
     ServiceResponse,
 };
-use crate::state::{State, StateFactory};
 
 type HttpNewService<P> =
     BoxedNewService<(), ServiceRequest<P>, ServiceResponse, Error, ()>;
@@ -32,18 +32,17 @@ where
     T: NewService<Request = ServiceRequest, Response = ServiceRequest<P>>,
 {
     chain: T,
-    state: Vec<Box<StateFactory>>,
+    data: Vec<Box<DataFactory>>,
     config: AppConfigInner,
     _t: PhantomData<(P,)>,
 }
 
 impl App<PayloadStream, AppChain> {
-    /// Create application builder with empty state. Application can
-    /// be configured with a builder-like pattern.
+    /// Create application builder. Application can be configured with a builder-like pattern.
     pub fn new() -> Self {
         App {
             chain: AppChain,
-            state: Vec::new(),
+            data: Vec::new(),
             config: AppConfigInner::default(),
             _t: PhantomData,
         }
@@ -60,51 +59,51 @@ where
         InitError = (),
     >,
 {
-    /// Set application state. Applicatin state could be accessed
-    /// by using `State<T>` extractor where `T` is state type.
+    /// Set application data. Applicatin data could be accessed
+    /// by using `Data<T>` extractor where `T` is data type.
     ///
     /// **Note**: http server accepts an application factory rather than
     /// an application instance. Http server constructs an application
-    /// instance for each thread, thus application state must be constructed
-    /// multiple times. If you want to share state between different
+    /// instance for each thread, thus application data must be constructed
+    /// multiple times. If you want to share data between different
     /// threads, a shared object should be used, e.g. `Arc`. Application
-    /// state does not need to be `Send` or `Sync`.
+    /// data does not need to be `Send` or `Sync`.
     ///
     /// ```rust
     /// use std::cell::Cell;
     /// use actix_web::{web, App};
     ///
-    /// struct MyState {
+    /// struct MyData {
     ///     counter: Cell<usize>,
     /// }
     ///
-    /// fn index(state: web::State<MyState>) {
-    ///     state.counter.set(state.counter.get() + 1);
+    /// fn index(data: web::Data<MyData>) {
+    ///     data.counter.set(data.counter.get() + 1);
     /// }
     ///
     /// fn main() {
     ///     let app = App::new()
-    ///         .state(MyState{ counter: Cell::new(0) })
+    ///         .data(MyData{ counter: Cell::new(0) })
     ///         .service(
     ///             web::resource("/index.html").route(
     ///                 web::get().to(index)));
     /// }
     /// ```
-    pub fn state<S: 'static>(mut self, state: S) -> Self {
-        self.state.push(Box::new(State::new(state)));
+    pub fn data<S: 'static>(mut self, data: S) -> Self {
+        self.data.push(Box::new(Data::new(data)));
         self
     }
 
-    /// Set application state factory. This function is
-    /// similar to `.state()` but it accepts state factory. State get
+    /// Set application data factory. This function is
+    /// similar to `.data()` but it accepts data factory. Data object get
     /// constructed asynchronously during application initialization.
-    pub fn state_factory<F, Out>(mut self, state: F) -> Self
+    pub fn data_factory<F, Out>(mut self, data: F) -> Self
     where
         F: Fn() -> Out + 'static,
         Out: IntoFuture + 'static,
         Out::Error: std::fmt::Debug,
     {
-        self.state.push(Box::new(state));
+        self.data.push(Box::new(data));
         self
     }
 
@@ -138,7 +137,7 @@ where
         AppRouter {
             endpoint,
             chain: self.chain,
-            state: self.state,
+            data: self.data,
             services: Vec::new(),
             default: None,
             factory_ref: fref,
@@ -174,7 +173,7 @@ where
         let chain = self.chain.and_then(chain.into_new_service());
         App {
             chain,
-            state: self.state,
+            data: self.data,
             config: self.config,
             _t: PhantomData,
         }
@@ -183,7 +182,7 @@ where
     /// Configure route for a specific path.
     ///
     /// This is a simplified version of the `App::service()` method.
-    /// This method can not be could multiple times, in that case
+    /// This method can be used multiple times with same path, in that case
     /// multiple resources with one route would be registered for same resource path.
     ///
     /// ```rust
@@ -223,7 +222,7 @@ where
             default: None,
             endpoint: AppEntry::new(fref.clone()),
             factory_ref: fref,
-            state: self.state,
+            data: self.data,
             config: self.config,
             services: vec![Box::new(ServiceFactoryWrapper::new(service))],
             external: Vec::new(),
@@ -233,7 +232,7 @@ where
 
     /// Set server host name.
     ///
-    /// Host name is used by application router aa a hostname for url
+    /// Host name is used by application router as a hostname for url
     /// generation. Check [ConnectionInfo](./dev/struct.ConnectionInfo.
     /// html#method.host) documentation for more information.
     ///
@@ -252,7 +251,7 @@ pub struct AppRouter<C, P, B, T> {
     services: Vec<Box<ServiceFactory<P>>>,
     default: Option<Rc<HttpNewService<P>>>,
     factory_ref: Rc<RefCell<Option<AppRoutingFactory<P>>>>,
-    state: Vec<Box<StateFactory>>,
+    data: Vec<Box<DataFactory>>,
     config: AppConfigInner,
     external: Vec<ResourceDef>,
     _t: PhantomData<(P, B)>,
@@ -344,7 +343,7 @@ where
         AppRouter {
             endpoint,
             chain: self.chain,
-            state: self.state,
+            data: self.data,
             services: self.services,
             default: self.default,
             factory_ref: self.factory_ref,
@@ -429,7 +428,7 @@ where
     fn into_new_service(self) -> AppInit<C, T, P, B> {
         AppInit {
             chain: self.chain,
-            state: self.state,
+            data: self.data,
             endpoint: self.endpoint,
             services: RefCell::new(self.services),
             external: RefCell::new(self.external),
@@ -489,10 +488,10 @@ mod tests {
     }
 
     #[test]
-    fn test_state() {
+    fn test_data() {
         let mut srv =
-            init_service(App::new().state(10usize).service(
-                web::resource("/").to(|_: web::State<usize>| HttpResponse::Ok()),
+            init_service(App::new().data(10usize).service(
+                web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()),
             ));
 
         let req = TestRequest::default().to_request();
@@ -500,8 +499,8 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
 
         let mut srv =
-            init_service(App::new().state(10u32).service(
-                web::resource("/").to(|_: web::State<usize>| HttpResponse::Ok()),
+            init_service(App::new().data(10u32).service(
+                web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()),
             ));
         let req = TestRequest::default().to_request();
         let resp = block_on(srv.call(req)).unwrap();
@@ -509,18 +508,18 @@ mod tests {
     }
 
     #[test]
-    fn test_state_factory() {
+    fn test_data_factory() {
         let mut srv =
-            init_service(App::new().state_factory(|| Ok::<_, ()>(10usize)).service(
-                web::resource("/").to(|_: web::State<usize>| HttpResponse::Ok()),
+            init_service(App::new().data_factory(|| Ok::<_, ()>(10usize)).service(
+                web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()),
             ));
         let req = TestRequest::default().to_request();
         let resp = block_on(srv.call(req)).unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
 
         let mut srv =
-            init_service(App::new().state_factory(|| Ok::<_, ()>(10u32)).service(
-                web::resource("/").to(|_: web::State<usize>| HttpResponse::Ok()),
+            init_service(App::new().data_factory(|| Ok::<_, ()>(10u32)).service(
+                web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()),
             ));
         let req = TestRequest::default().to_request();
         let resp = block_on(srv.call(req)).unwrap();

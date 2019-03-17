@@ -3,6 +3,7 @@
 mod app;
 mod app_service;
 mod config;
+mod data;
 pub mod error;
 mod extract;
 pub mod guard;
@@ -17,7 +18,6 @@ mod route;
 mod scope;
 mod server;
 mod service;
-mod state;
 pub mod test;
 
 #[allow(unused_imports)]
@@ -37,7 +37,6 @@ pub use crate::request::HttpRequest;
 pub use crate::resource::Resource;
 pub use crate::responder::{Either, Responder};
 pub use crate::route::Route;
-pub use crate::scope::Scope;
 pub use crate::server::HttpServer;
 
 pub mod dev {
@@ -77,6 +76,7 @@ pub mod dev {
 }
 
 pub mod web {
+    //! Various types
     use actix_http::{http::Method, Response};
     use actix_rt::blocking;
     use futures::{Future, IntoFuture};
@@ -91,11 +91,11 @@ pub mod web {
     use crate::route::Route;
     use crate::scope::Scope;
 
+    pub use crate::data::Data;
     pub use crate::error::{BlockingError, Error};
     pub use crate::extract::{Form, Json, Path, Payload, Query};
     pub use crate::extract::{FormConfig, JsonConfig, PayloadConfig};
     pub use crate::request::HttpRequest;
-    pub use crate::state::State;
 
     /// Create resource for a specific path.
     ///

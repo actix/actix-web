@@ -8,21 +8,21 @@ use futures::{Async, Future, IntoFuture, Poll};
 use crate::extract::FromRequest;
 use crate::service::ServiceFromRequest;
 
-/// Application state factory
-pub(crate) trait StateFactory {
-    fn construct(&self) -> Box<StateFactoryResult>;
+/// Application data factory
+pub(crate) trait DataFactory {
+    fn construct(&self) -> Box<DataFactoryResult>;
 }
 
-pub(crate) trait StateFactoryResult {
+pub(crate) trait DataFactoryResult {
     fn poll_result(&mut self, extensions: &mut Extensions) -> Poll<(), ()>;
 }
 
 /// Application state
-pub struct State<T>(Arc<T>);
+pub struct Data<T>(Arc<T>);
 
-impl<T> State<T> {
-    pub(crate) fn new(state: T) -> State<T> {
-        State(Arc::new(state))
+impl<T> Data<T> {
+    pub(crate) fn new(state: T) -> Data<T> {
+        Data(Arc::new(state))
     }
 
     /// Get referecnce to inner state type.
@@ -31,7 +31,7 @@ impl<T> State<T> {
     }
 }
 
-impl<T> Deref for State<T> {
+impl<T> Deref for Data<T> {
     type Target = T;
 
     fn deref(&self) -> &T {
@@ -39,19 +39,19 @@ impl<T> Deref for State<T> {
     }
 }
 
-impl<T> Clone for State<T> {
-    fn clone(&self) -> State<T> {
-        State(self.0.clone())
+impl<T> Clone for Data<T> {
+    fn clone(&self) -> Data<T> {
+        Data(self.0.clone())
     }
 }
 
-impl<T: 'static, P> FromRequest<P> for State<T> {
+impl<T: 'static, P> FromRequest<P> for Data<T> {
     type Error = Error;
     type Future = Result<Self, Error>;
 
     #[inline]
     fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
-        if let Some(st) = req.config().extensions().get::<State<T>>() {
+        if let Some(st) = req.config().extensions().get::<Data<T>>() {
             Ok(st.clone())
         } else {
             Err(ErrorInternalServerError(
@@ -61,37 +61,37 @@ impl<T: 'static, P> FromRequest<P> for State<T> {
     }
 }
 
-impl<T: 'static> StateFactory for State<T> {
-    fn construct(&self) -> Box<StateFactoryResult> {
-        Box::new(StateFut { st: self.clone() })
+impl<T: 'static> DataFactory for Data<T> {
+    fn construct(&self) -> Box<DataFactoryResult> {
+        Box::new(DataFut { st: self.clone() })
     }
 }
 
-struct StateFut<T> {
-    st: State<T>,
+struct DataFut<T> {
+    st: Data<T>,
 }
 
-impl<T: 'static> StateFactoryResult for StateFut<T> {
+impl<T: 'static> DataFactoryResult for DataFut<T> {
     fn poll_result(&mut self, extensions: &mut Extensions) -> Poll<(), ()> {
         extensions.insert(self.st.clone());
         Ok(Async::Ready(()))
     }
 }
 
-impl<F, Out> StateFactory for F
+impl<F, Out> DataFactory for F
 where
     F: Fn() -> Out + 'static,
     Out: IntoFuture + 'static,
     Out::Error: std::fmt::Debug,
 {
-    fn construct(&self) -> Box<StateFactoryResult> {
-        Box::new(StateFactoryFut {
+    fn construct(&self) -> Box<DataFactoryResult> {
+        Box::new(DataFactoryFut {
             fut: (*self)().into_future(),
         })
     }
 }
 
-struct StateFactoryFut<T, F>
+struct DataFactoryFut<T, F>
 where
     F: Future<Item = T>,
     F::Error: std::fmt::Debug,
@@ -99,7 +99,7 @@ where
     fut: F,
 }
 
-impl<T: 'static, F> StateFactoryResult for StateFactoryFut<T, F>
+impl<T: 'static, F> DataFactoryResult for DataFactoryFut<T, F>
 where
     F: Future<Item = T>,
     F::Error: std::fmt::Debug,
@@ -107,7 +107,7 @@ where
     fn poll_result(&mut self, extensions: &mut Extensions) -> Poll<(), ()> {
         match self.fut.poll() {
             Ok(Async::Ready(s)) => {
-                extensions.insert(State::new(s));
+                extensions.insert(Data::new(s));
                 Ok(Async::Ready(()))
             }
             Ok(Async::NotReady) => Ok(Async::NotReady),

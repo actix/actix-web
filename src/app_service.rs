@@ -11,11 +11,11 @@ use futures::future::{ok, Either, FutureResult};
 use futures::{Async, Future, Poll};
 
 use crate::config::{AppConfig, ServiceConfig};
+use crate::data::{DataFactory, DataFactoryResult};
 use crate::error::Error;
 use crate::guard::Guard;
 use crate::rmap::ResourceMap;
 use crate::service::{ServiceFactory, ServiceRequest, ServiceResponse};
-use crate::state::{StateFactory, StateFactoryResult};
 
 type Guards = Vec<Box<Guard>>;
 type HttpService<P> = BoxedService<ServiceRequest<P>, ServiceResponse, Error>;
@@ -24,7 +24,7 @@ type HttpNewService<P> =
 type BoxedResponse = Box<Future<Item = ServiceResponse, Error = Error>>;
 
 /// Service factory to convert `Request` to a `ServiceRequest<S>`.
-/// It also executes state factories.
+/// It also executes data factories.
 pub struct AppInit<C, T, P, B>
 where
     C: NewService<Request = ServiceRequest, Response = ServiceRequest<P>>,
@@ -37,7 +37,7 @@ where
 {
     pub(crate) chain: C,
     pub(crate) endpoint: T,
-    pub(crate) state: Vec<Box<StateFactory>>,
+    pub(crate) data: Vec<Box<DataFactory>>,
     pub(crate) config: RefCell<AppConfig>,
     pub(crate) services: RefCell<Vec<Box<ServiceFactory<P>>>>,
     pub(crate) default: Option<Rc<HttpNewService<P>>>,
@@ -121,7 +121,7 @@ where
             chain_fut: self.chain.new_service(&()),
             endpoint: None,
             endpoint_fut: self.endpoint.new_service(&()),
-            state: self.state.iter().map(|s| s.construct()).collect(),
+            data: self.data.iter().map(|s| s.construct()).collect(),
             config: self.config.borrow().clone(),
             rmap,
             _t: PhantomData,
@@ -139,7 +139,7 @@ where
     chain_fut: C::Future,
     endpoint_fut: T::Future,
     rmap: Rc<ResourceMap>,
-    state: Vec<Box<StateFactoryResult>>,
+    data: Vec<Box<DataFactoryResult>>,
     config: AppConfig,
     _t: PhantomData<(P, B)>,
 }
@@ -165,9 +165,9 @@ where
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         let mut idx = 0;
         let mut extensions = self.config.0.extensions.borrow_mut();
-        while idx < self.state.len() {
-            if let Async::Ready(_) = self.state[idx].poll_result(&mut extensions)? {
-                self.state.remove(idx);
+        while idx < self.data.len() {
+            if let Async::Ready(_) = self.data[idx].poll_result(&mut extensions)? {
+                self.data.remove(idx);
             } else {
                 idx += 1;
             }
