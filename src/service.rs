@@ -13,6 +13,7 @@ use actix_router::{Path, Resource, Url};
 use futures::future::{ok, FutureResult, IntoFuture};
 
 use crate::config::{AppConfig, ServiceConfig};
+use crate::data::RouteData;
 use crate::request::HttpRequest;
 use crate::rmap::ResourceMap;
 
@@ -241,15 +242,15 @@ impl<P> fmt::Debug for ServiceRequest<P> {
 pub struct ServiceFromRequest<P> {
     req: HttpRequest,
     payload: Payload<P>,
-    config: Option<Rc<Extensions>>,
+    data: Option<Rc<Extensions>>,
 }
 
 impl<P> ServiceFromRequest<P> {
-    pub(crate) fn new(req: ServiceRequest<P>, config: Option<Rc<Extensions>>) -> Self {
+    pub(crate) fn new(req: ServiceRequest<P>, data: Option<Rc<Extensions>>) -> Self {
         Self {
             req: req.req,
             payload: req.payload,
-            config,
+            data,
         }
     }
 
@@ -269,10 +270,11 @@ impl<P> ServiceFromRequest<P> {
         ServiceResponse::new(self.req, err.into().into())
     }
 
-    /// Load extractor configuration
-    pub fn load_config<T: 'static>(&self) -> Option<&T> {
-        if let Some(ref ext) = self.config {
-            ext.get::<T>()
+    /// Load route data. Route data could be set during
+    /// route configuration with `Route::data()` method.
+    pub fn route_data<T: 'static>(&self) -> Option<&RouteData<T>> {
+        if let Some(ref ext) = self.data {
+            ext.get::<RouteData<T>>()
         } else {
             None
         }

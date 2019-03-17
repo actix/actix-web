@@ -1,6 +1,8 @@
 use futures::IntoFuture;
 
-use actix_web::{get, middleware, web, App, Error, HttpRequest, HttpResponse, HttpServer};
+use actix_web::{
+    get, middleware, web, App, Error, HttpRequest, HttpResponse, HttpServer,
+};
 
 #[get("/resource1/{name}/index.html")]
 fn index(req: HttpRequest, name: web::Path<String>) -> String {

@@ -77,7 +77,7 @@ where
     fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
         let req2 = req.clone();
         let (limit, err) = req
-            .load_config::<FormConfig>()
+            .route_data::<FormConfig>()
             .map(|c| (c.limit, c.ehandler.clone()))
             .unwrap_or((16384, None));
 

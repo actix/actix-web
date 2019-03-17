@@ -6,6 +6,7 @@ use actix_http::{http::Method, Error, Extensions, Response};
 use actix_service::{NewService, Service};
 use futures::{Async, Future, IntoFuture, Poll};
 
+use crate::data::RouteData;
 use crate::extract::FromRequest;
 use crate::guard::{self, Guard};
 use crate::handler::{AsyncFactory, AsyncHandler, Extract, Factory, Handler};
@@ -309,7 +310,7 @@ impl<P: 'static> Route<P> {
         if self.data.is_none() {
             self.data = Some(Extensions::new());
         }
-        self.data.as_mut().unwrap().insert(data);
+        self.data.as_mut().unwrap().insert(RouteData::new(data));
         self
     }
 }

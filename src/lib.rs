@@ -91,7 +91,7 @@ pub mod web {
     use crate::route::Route;
     use crate::scope::Scope;
 
-    pub use crate::data::Data;
+    pub use crate::data::{Data, RouteData};
     pub use crate::error::{BlockingError, Error};
     pub use crate::extract::{Form, Json, Path, Payload, Query};
     pub use crate::extract::{FormConfig, JsonConfig, PayloadConfig};

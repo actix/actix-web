@@ -140,7 +140,7 @@ where
     #[inline]
     fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
         let mut tmp;
-        let cfg = if let Some(cfg) = req.load_config::<PayloadConfig>() {
+        let cfg = if let Some(cfg) = req.route_data::<PayloadConfig>() {
             cfg
         } else {
             tmp = PayloadConfig::default();
@@ -193,7 +193,7 @@ where
     #[inline]
     fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
         let mut tmp;
-        let cfg = if let Some(cfg) = req.load_config::<PayloadConfig>() {
+        let cfg = if let Some(cfg) = req.route_data::<PayloadConfig>() {
             cfg
         } else {
             tmp = PayloadConfig::default();

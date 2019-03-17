@@ -488,26 +488,6 @@ mod tests {
     }
 
     #[test]
-    fn test_data() {
-        let mut srv =
-            init_service(App::new().data(10usize).service(
-                web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()),
-            ));
-
-        let req = TestRequest::default().to_request();
-        let resp = block_on(srv.call(req)).unwrap();
-        assert_eq!(resp.status(), StatusCode::OK);
-
-        let mut srv =
-            init_service(App::new().data(10u32).service(
-                web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()),
-            ));
-        let req = TestRequest::default().to_request();
-        let resp = block_on(srv.call(req)).unwrap();
-        assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
-    }
-
-    #[test]
     fn test_data_factory() {
         let mut srv =
             init_service(App::new().data_factory(|| Ok::<_, ()>(10usize)).service(
