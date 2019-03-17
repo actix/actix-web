@@ -371,6 +371,11 @@ mod tests {
     use crate::http::header;
     use crate::test::{block_on, TestRequest};
 
+    #[derive(Serialize, Deserialize, PartialEq, Debug)]
+    struct MyObject {
+        name: String,
+    }
+
     fn json_eq(err: JsonPayloadError, other: JsonPayloadError) -> bool {
         match err {
             JsonPayloadError::Overflow => match other {
@@ -385,9 +390,81 @@ mod tests {
         }
     }
 
-    #[derive(Serialize, Deserialize, PartialEq, Debug)]
-    struct MyObject {
-        name: String,
+    #[test]
+    fn test_responder() {
+        let req = TestRequest::default().to_http_request();
+
+        let j = Json(MyObject {
+            name: "test".to_string(),
+        });
+        let resp = j.respond_to(&req).unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(
+            resp.headers().get(header::CONTENT_TYPE).unwrap(),
+            header::HeaderValue::from_static("application/json")
+        );
+
+        use crate::responder::tests::BodyTest;
+        assert_eq!(resp.body().bin_ref(), b"{\"name\":\"test\"}");
+    }
+
+    #[test]
+    fn test_extract() {
+        let mut req = TestRequest::default()
+            .header(
+                header::CONTENT_TYPE,
+                header::HeaderValue::from_static("application/json"),
+            )
+            .header(
+                header::CONTENT_LENGTH,
+                header::HeaderValue::from_static("16"),
+            )
+            .set_payload(Bytes::from_static(b"{\"name\": \"test\"}"))
+            .to_from();
+
+        let s = block_on(Json::<MyObject>::from_request(&mut req)).unwrap();
+        assert_eq!(s.name, "test");
+        assert_eq!(
+            s.into_inner(),
+            MyObject {
+                name: "test".to_string()
+            }
+        );
+
+        let mut req = TestRequest::default()
+            .header(
+                header::CONTENT_TYPE,
+                header::HeaderValue::from_static("application/json"),
+            )
+            .header(
+                header::CONTENT_LENGTH,
+                header::HeaderValue::from_static("16"),
+            )
+            .set_payload(Bytes::from_static(b"{\"name\": \"test\"}"))
+            .route_data(JsonConfig::default().limit(10))
+            .to_from();
+        let s = block_on(Json::<MyObject>::from_request(&mut req));
+        assert!(format!("{}", s.err().unwrap())
+            .contains("Json payload size is bigger than allowed."));
+
+        let mut req = TestRequest::default()
+            .header(
+                header::CONTENT_TYPE,
+                header::HeaderValue::from_static("application/json"),
+            )
+            .header(
+                header::CONTENT_LENGTH,
+                header::HeaderValue::from_static("16"),
+            )
+            .set_payload(Bytes::from_static(b"{\"name\": \"test\"}"))
+            .route_data(
+                JsonConfig::default()
+                    .limit(10)
+                    .error_handler(|_, _| JsonPayloadError::ContentType.into()),
+            )
+            .to_from();
+        let s = block_on(Json::<MyObject>::from_request(&mut req));
+        assert!(format!("{}", s.err().unwrap()).contains("Content type error"));
     }
 
     #[test]

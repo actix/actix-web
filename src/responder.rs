@@ -288,7 +288,7 @@ where
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use actix_service::Service;
     use bytes::{Bytes, BytesMut};
 
@@ -322,7 +322,7 @@ mod tests {
         }
     }
 
-    trait BodyTest {
+    pub(crate) trait BodyTest {
         fn bin_ref(&self) -> &[u8];
         fn body(&self) -> &Body;
     }

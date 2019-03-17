@@ -5,7 +5,7 @@ use std::rc::Rc;
 use actix_http::http::header::{Header, HeaderName, IntoHeaderValue};
 use actix_http::http::{HttpTryFrom, Method, Version};
 use actix_http::test::TestRequest as HttpTestRequest;
-use actix_http::{PayloadStream, Request};
+use actix_http::{Extensions, PayloadStream, Request};
 use actix_router::{Path, ResourceDef, Url};
 use actix_rt::Runtime;
 use actix_server_config::ServerConfig;
@@ -15,6 +15,7 @@ use cookie::Cookie;
 use futures::future::{lazy, Future};
 
 use crate::config::{AppConfig, AppConfigInner};
+use crate::data::RouteData;
 use crate::rmap::ResourceMap;
 use crate::service::{ServiceFromRequest, ServiceRequest, ServiceResponse};
 use crate::{HttpRequest, HttpResponse};
@@ -157,6 +158,7 @@ pub struct TestRequest {
     req: HttpTestRequest,
     rmap: ResourceMap,
     config: AppConfigInner,
+    route_data: Extensions,
 }
 
 impl Default for TestRequest {
@@ -165,6 +167,7 @@ impl Default for TestRequest {
             req: HttpTestRequest::default(),
             rmap: ResourceMap::new(ResourceDef::new("")),
             config: AppConfigInner::default(),
+            route_data: Extensions::new(),
         }
     }
 }
@@ -177,6 +180,7 @@ impl TestRequest {
             req: HttpTestRequest::default().uri(path).take(),
             rmap: ResourceMap::new(ResourceDef::new("")),
             config: AppConfigInner::default(),
+            route_data: Extensions::new(),
         }
     }
 
@@ -186,6 +190,7 @@ impl TestRequest {
             req: HttpTestRequest::default().set(hdr).take(),
             config: AppConfigInner::default(),
             rmap: ResourceMap::new(ResourceDef::new("")),
+            route_data: Extensions::new(),
         }
     }
 
@@ -199,6 +204,7 @@ impl TestRequest {
             req: HttpTestRequest::default().header(key, value).take(),
             config: AppConfigInner::default(),
             rmap: ResourceMap::new(ResourceDef::new("")),
+            route_data: Extensions::new(),
         }
     }
 
@@ -208,6 +214,7 @@ impl TestRequest {
             req: HttpTestRequest::default().method(Method::GET).take(),
             config: AppConfigInner::default(),
             rmap: ResourceMap::new(ResourceDef::new("")),
+            route_data: Extensions::new(),
         }
     }
 
@@ -217,6 +224,7 @@ impl TestRequest {
             req: HttpTestRequest::default().method(Method::POST).take(),
             config: AppConfigInner::default(),
             rmap: ResourceMap::new(ResourceDef::new("")),
+            route_data: Extensions::new(),
         }
     }
 
@@ -266,9 +274,17 @@ impl TestRequest {
         self
     }
 
-    /// Set route data
-    pub fn route_data<T: 'static>(self, data: T) -> Self {
+    /// Set application data. This is equivalent of `App::data()` method
+    /// for testing purpose.
+    pub fn app_data<T: 'static>(self, data: T) -> Self {
         self.config.extensions.borrow_mut().insert(data);
+        self
+    }
+
+    /// Set route data. This is equivalent of `Route::data()` method
+    /// for testing purpose.
+    pub fn route_data<T: 'static>(mut self, data: T) -> Self {
+        self.route_data.insert(RouteData::new(data));
         self
     }
 
@@ -324,7 +340,7 @@ impl TestRequest {
             Rc::new(self.rmap),
             AppConfig::new(self.config),
         );
-        ServiceFromRequest::new(req, None)
+        ServiceFromRequest::new(req, Some(Rc::new(self.route_data)))
     }
 
     /// Runs the provided future, blocking the current thread until the future
