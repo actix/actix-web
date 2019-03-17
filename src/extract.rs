@@ -6,18 +6,6 @@ use futures::{future, Async, Future, IntoFuture, Poll};
 
 use crate::service::ServiceFromRequest;
 
-mod form;
-mod json;
-mod path;
-mod payload;
-mod query;
-
-pub use self::form::{Form, FormConfig};
-pub use self::json::{Json, JsonConfig};
-pub use self::path::Path;
-pub use self::payload::{Payload, PayloadConfig};
-pub use self::query::Query;
-
 /// Trait implemented by types that can be extracted from request.
 ///
 /// Types that implement this trait can be used with `Route` handlers.
@@ -250,6 +238,7 @@ mod tests {
 
     use super::*;
     use crate::test::{block_on, TestRequest};
+    use crate::types::{Form, FormConfig, Path, Query};
 
     #[derive(Deserialize, Debug, PartialEq)]
     struct Info {

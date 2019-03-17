@@ -8,8 +8,7 @@ use serde::de;
 
 use crate::request::HttpRequest;
 use crate::service::ServiceFromRequest;
-
-use super::FromRequest;
+use crate::FromRequest;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
 /// Extract typed information from the request's path.

@@ -19,6 +19,7 @@ mod scope;
 mod server;
 mod service;
 pub mod test;
+mod types;
 
 #[allow(unused_imports)]
 #[macro_use]
@@ -93,9 +94,9 @@ pub mod web {
     use crate::scope::Scope;
 
     pub use crate::data::{Data, RouteData};
-    pub use crate::extract::{Form, Json, Path, Payload, Query};
-    pub use crate::extract::{FormConfig, JsonConfig, PayloadConfig};
     pub use crate::request::HttpRequest;
+    pub use crate::types::{Form, Json, Path, Payload, Query};
+    pub use crate::types::{FormConfig, JsonConfig, PayloadConfig};
 
     /// Create resource for a specific path.
     ///
