@@ -24,7 +24,7 @@ mod transport;
 pub use self::client::{Client, ClientError, Connect};
 pub use self::codec::{Codec, Frame, Message};
 pub use self::frame::Parser;
-pub use self::proto::{CloseCode, CloseReason, OpCode};
+pub use self::proto::{hash_key, CloseCode, CloseReason, OpCode};
 pub use self::service::VerifyWebSockets;
 pub use self::transport::Transport;
 
