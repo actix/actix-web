@@ -106,6 +106,18 @@ impl Head for RequestHead {
         }
     }
 
+    fn upgrade(&self) -> bool {
+        if let Some(hdr) = self.headers().get(header::CONNECTION) {
+            if let Ok(s) = hdr.to_str() {
+                s.to_ascii_lowercase().contains("upgrade")
+            } else {
+                false
+            }
+        } else {
+            false
+        }
+    }
+
     fn pool() -> &'static MessagePool<Self> {
         REQUEST_POOL.with(|p| *p)
     }
@@ -192,6 +204,10 @@ impl Head for ResponseHead {
         } else {
             ConnectionType::KeepAlive
         }
+    }
+
+    fn upgrade(&self) -> bool {
+        self.connection_type() == ConnectionType::Upgrade
     }
 
     fn pool() -> &'static MessagePool<Self> {
