@@ -93,8 +93,7 @@ pub fn handshake(req: &HttpRequest) -> Result<HttpResponseBuilder, HandshakeErro
     };
 
     Ok(HttpResponse::build(StatusCode::SWITCHING_PROTOCOLS)
-        .header(header::CONNECTION, "upgrade")
-        .header(header::UPGRADE, "websocket")
+        .upgrade("websocket")
         .header(header::TRANSFER_ENCODING, "chunked")
         .header(header::SEC_WEBSOCKET_ACCEPT, key.as_str())
         .take())
