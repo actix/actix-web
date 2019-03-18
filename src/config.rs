@@ -85,7 +85,7 @@ impl ServiceConfig {
             ka_enabled,
             client_timeout,
             client_disconnect,
-            timer: DateService::with(Duration::from_millis(500)),
+            timer: DateService::new(),
         }))
     }
 
@@ -204,14 +204,12 @@ impl fmt::Write for Date {
 struct DateService(Rc<DateServiceInner>);
 
 struct DateServiceInner {
-    interval: Duration,
     current: UnsafeCell<Option<(Date, Instant)>>,
 }
 
 impl DateServiceInner {
-    fn new(interval: Duration) -> Self {
+    fn new() -> Self {
         DateServiceInner {
-            interval,
             current: UnsafeCell::new(None),
         }
     }
@@ -232,8 +230,8 @@ impl DateServiceInner {
 }
 
 impl DateService {
-    fn with(resolution: Duration) -> Self {
-        DateService(Rc::new(DateServiceInner::new(resolution)))
+    fn new() -> Self {
+        DateService(Rc::new(DateServiceInner::new()))
     }
 
     fn check_date(&self) {

@@ -5,7 +5,7 @@ use bytes::Bytes;
 use futures::future::{err, Either};
 use futures::{Async, Future, Poll};
 use h2::{client::SendRequest, SendStream};
-use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING};
+use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, TRANSFER_ENCODING};
 use http::{request::Request, HttpTryFrom, Method, Version};
 
 use crate::body::{BodyLength, MessageBody};
@@ -45,7 +45,7 @@ where
             *req.version_mut() = Version::HTTP_2;
 
             let mut skip_len = true;
-            let mut has_date = false;
+            // let mut has_date = false;
 
             // Content length
             let _ = match length {
@@ -72,7 +72,7 @@ where
                 match *key {
                     CONNECTION | TRANSFER_ENCODING => continue, // http2 specific
                     CONTENT_LENGTH if skip_len => continue,
-                    DATE => has_date = true,
+                    // DATE => has_date = true,
                     _ => (),
                 }
                 req.headers_mut().append(key, value.clone());

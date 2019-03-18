@@ -56,7 +56,7 @@ where
         config: ServiceConfig,
         timeout: Option<Delay>,
     ) -> Self {
-        let keepalive = config.keep_alive_enabled();
+        // let keepalive = config.keep_alive_enabled();
         // let flags = if keepalive {
         // Flags::KEEPALIVE | Flags::KEEPALIVE_ENABLED
         // } else {

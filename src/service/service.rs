@@ -169,7 +169,7 @@ where
     }
 
     fn call(&mut self, req: Self::Request) -> Self::Future {
-        let (io, params, proto) = req.into_parts();
+        let (io, _, proto) = req.into_parts();
         match proto {
             Protocol::Http2 => {
                 let io = Io {

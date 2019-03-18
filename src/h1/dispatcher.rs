@@ -7,7 +7,7 @@ use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use actix_service::Service;
 use actix_utils::cloneable::CloneableService;
 use bitflags::bitflags;
-use futures::{try_ready, Async, Future, Poll, Sink, Stream};
+use futures::{Async, Future, Poll, Sink, Stream};
 use log::{debug, error, trace};
 use tokio_timer::Delay;
 
@@ -32,6 +32,7 @@ bitflags! {
         const POLLED             = 0b0000_1000;
         const SHUTDOWN           = 0b0010_0000;
         const DISCONNECTED       = 0b0100_0000;
+        const DROPPING           = 0b1000_0000;
     }
 }
 
@@ -56,7 +57,6 @@ where
     state: State<S, B>,
     payload: Option<PayloadSender>,
     messages: VecDeque<DispatcherMessage>,
-    unhandled: Option<Request>,
 
     ka_expire: Instant,
     ka_timer: Option<Delay>,
@@ -131,7 +131,6 @@ where
                 state: State::None,
                 error: None,
                 messages: VecDeque::new(),
-                unhandled: None,
                 service,
                 flags,
                 config,
@@ -411,8 +410,19 @@ where
     /// keep-alive timer
     fn poll_keepalive(&mut self) -> Result<(), DispatchError> {
         if self.ka_timer.is_none() {
-            return Ok(());
+            // shutdown timeout
+            if self.flags.contains(Flags::SHUTDOWN) {
+                if let Some(interval) = self.config.client_disconnect_timer() {
+                    self.ka_timer = Some(Delay::new(interval));
+                } else {
+                    self.flags.insert(Flags::DISCONNECTED);
+                    return Ok(());
+                }
+            } else {
+                return Ok(());
+            }
         }
+
         match self.ka_timer.as_mut().unwrap().poll().map_err(|e| {
             error!("Timer error {:?}", e);
             DispatchError::Unknown
@@ -436,6 +446,8 @@ where
                                     let _ = timer.poll();
                                 }
                             } else {
+                                // no shutdown timeout, drop socket
+                                self.flags.insert(Flags::DISCONNECTED);
                                 return Ok(());
                             }
                         } else {
@@ -483,61 +495,55 @@ where
 
     #[inline]
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        let shutdown = if let Some(ref mut inner) = self.inner {
-            if inner.flags.contains(Flags::SHUTDOWN) {
-                inner.poll_keepalive()?;
-                try_ready!(inner.poll_flush());
-                true
+        let inner = self.inner.as_mut().unwrap();
+
+        if inner.flags.contains(Flags::SHUTDOWN) {
+            inner.poll_keepalive()?;
+            if inner.flags.contains(Flags::DISCONNECTED) {
+                Ok(Async::Ready(()))
             } else {
-                inner.poll_keepalive()?;
-                inner.poll_request()?;
-                loop {
-                    inner.poll_response()?;
-                    if let Async::Ready(false) = inner.poll_flush()? {
-                        break;
-                    }
-                }
-
-                if inner.flags.contains(Flags::DISCONNECTED) {
-                    return Ok(Async::Ready(()));
-                }
-
-                // keep-alive and stream errors
-                if inner.state.is_empty() && inner.framed.is_write_buf_empty() {
-                    if let Some(err) = inner.error.take() {
-                        return Err(err);
-                    }
-                    // unhandled request (upgrade or connect)
-                    else if inner.unhandled.is_some() {
-                        false
-                    }
-                    // disconnect if keep-alive is not enabled
-                    else if inner.flags.contains(Flags::STARTED)
-                        && !inner.flags.intersects(Flags::KEEPALIVE)
-                    {
-                        true
-                    }
-                    // disconnect if shutdown
-                    else if inner.flags.contains(Flags::SHUTDOWN) {
-                        true
-                    } else {
-                        return Ok(Async::NotReady);
-                    }
-                } else {
-                    return Ok(Async::NotReady);
+                // try_ready!(inner.poll_flush());
+                match inner.framed.get_mut().shutdown()? {
+                    Async::Ready(_) => Ok(Async::Ready(())),
+                    Async::NotReady => Ok(Async::NotReady),
                 }
             }
         } else {
-            unreachable!()
-        };
+            inner.poll_keepalive()?;
+            inner.poll_request()?;
+            loop {
+                inner.poll_response()?;
+                if let Async::Ready(false) = inner.poll_flush()? {
+                    break;
+                }
+            }
 
-        let mut inner = self.inner.take().unwrap();
+            if inner.flags.contains(Flags::DISCONNECTED) {
+                return Ok(Async::Ready(()));
+            }
 
-        // TODO: shutdown
-        Ok(Async::Ready(()))
-        //Ok(Async::Ready(HttpServiceResult::Shutdown(
-        //    inner.framed.into_inner(),
-        //)))
+            // keep-alive and stream errors
+            if inner.state.is_empty() && inner.framed.is_write_buf_empty() {
+                if let Some(err) = inner.error.take() {
+                    return Err(err);
+                }
+                // disconnect if keep-alive is not enabled
+                else if inner.flags.contains(Flags::STARTED)
+                    && !inner.flags.intersects(Flags::KEEPALIVE)
+                {
+                    inner.flags.insert(Flags::SHUTDOWN);
+                    self.poll()
+                }
+                // disconnect if shutdown
+                else if inner.flags.contains(Flags::SHUTDOWN) {
+                    self.poll()
+                } else {
+                    return Ok(Async::NotReady);
+                }
+            } else {
+                return Ok(Async::NotReady);
+            }
+        }
     }
 }
 

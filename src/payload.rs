@@ -41,7 +41,7 @@ impl From<PayloadStream> for Payload {
 
 impl<S> Payload<S> {
     /// Takes current payload and replaces it with `None` value
-    fn take(&mut self) -> Payload<S> {
+    pub fn take(&mut self) -> Payload<S> {
         std::mem::replace(self, Payload::None)
     }
 }
