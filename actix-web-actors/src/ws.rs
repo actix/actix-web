@@ -12,9 +12,9 @@ use actix::{
     Message as ActixMessage, SpawnHandle,
 };
 use actix_codec::{Decoder, Encoder};
-use actix_http::ws::hash_key;
+use actix_http::ws::{hash_key, Codec};
 pub use actix_http::ws::{
-    CloseCode, CloseReason, Codec, Frame, HandshakeError, Message, ProtocolError,
+    CloseCode, CloseReason, Frame, HandshakeError, Message, ProtocolError,
 };
 
 use actix_web::dev::{Head, HttpResponseBuilder};
@@ -28,7 +28,7 @@ use futures::{Async, Future, Poll, Stream};
 /// Do websocket handshake and start ws actor.
 pub fn start<A, T>(actor: A, req: &HttpRequest, stream: T) -> Result<HttpResponse, Error>
 where
-    A: Actor<Context = WebsocketContext<A>> + StreamHandler<Frame, ProtocolError>,
+    A: Actor<Context = WebsocketContext<A>> + StreamHandler<Message, ProtocolError>,
     T: Stream<Item = Bytes, Error = PayloadError> + 'static,
 {
     let mut res = handshake(req)?;
@@ -170,7 +170,7 @@ where
     /// Create a new Websocket context from a request and an actor
     pub fn create<S>(actor: A, stream: S) -> impl Stream<Item = Bytes, Error = Error>
     where
-        A: StreamHandler<Frame, ProtocolError>,
+        A: StreamHandler<Message, ProtocolError>,
         S: Stream<Item = Bytes, Error = PayloadError> + 'static,
     {
         let mb = Mailbox::default();
@@ -190,7 +190,7 @@ where
     ) -> impl Stream<Item = Bytes, Error = Error>
     where
         F: FnOnce(&mut Self) -> A + 'static,
-        A: StreamHandler<Frame, ProtocolError>,
+        A: StreamHandler<Message, ProtocolError>,
         S: Stream<Item = Bytes, Error = PayloadError> + 'static,
     {
         let mb = Mailbox::default();
@@ -368,7 +368,7 @@ impl<S> Stream for WsStream<S>
 where
     S: Stream<Item = Bytes, Error = PayloadError>,
 {
-    type Item = Frame;
+    type Item = Message;
     type Error = ProtocolError;
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
@@ -401,7 +401,28 @@ where
                     Ok(Async::NotReady)
                 }
             }
-            Some(frm) => Ok(Async::Ready(Some(frm))),
+            Some(frm) => {
+                let msg = match frm {
+                    Frame::Text(data) => {
+                        if let Some(data) = data {
+                            Message::Text(
+                                std::str::from_utf8(&data)
+                                    .map_err(|_| ProtocolError::BadEncoding)?
+                                    .to_string(),
+                            )
+                        } else {
+                            Message::Text(String::new())
+                        }
+                    }
+                    Frame::Binary(data) => Message::Binary(
+                        data.map(|b| b.freeze()).unwrap_or_else(|| Bytes::new()),
+                    ),
+                    Frame::Ping(s) => Message::Ping(s),
+                    Frame::Pong(s) => Message::Pong(s),
+                    Frame::Close(reason) => Message::Close(reason),
+                };
+                Ok(Async::Ready(Some(msg)))
+            }
         }
     }
 }

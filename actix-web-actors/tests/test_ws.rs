@@ -12,15 +12,13 @@ impl Actor for Ws {
     type Context = ws::WebsocketContext<Self>;
 }
 
-impl StreamHandler<ws::Frame, ws::ProtocolError> for Ws {
-    fn handle(&mut self, msg: ws::Frame, ctx: &mut Self::Context) {
+impl StreamHandler<ws::Message, ws::ProtocolError> for Ws {
+    fn handle(&mut self, msg: ws::Message, ctx: &mut Self::Context) {
         match msg {
-            ws::Frame::Ping(msg) => ctx.pong(&msg),
-            ws::Frame::Text(text) => {
-                ctx.text(String::from_utf8_lossy(&text.unwrap())).to_owned()
-            }
-            ws::Frame::Binary(bin) => ctx.binary(bin.unwrap()),
-            ws::Frame::Close(reason) => ctx.close(reason),
+            ws::Message::Ping(msg) => ctx.pong(&msg),
+            ws::Message::Text(text) => ctx.text(text),
+            ws::Message::Binary(bin) => ctx.binary(bin),
+            ws::Message::Close(reason) => ctx.close(reason),
             _ => (),
         }
     }
