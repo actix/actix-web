@@ -52,7 +52,7 @@ pub fn handshake(req: &HttpRequest) -> Result<HttpResponseBuilder, HandshakeErro
     // Check for "UPGRADE" to websocket header
     let has_hdr = if let Some(hdr) = req.headers().get(header::UPGRADE) {
         if let Ok(s) = hdr.to_str() {
-            s.to_lowercase().contains("websocket")
+            s.to_ascii_lowercase().contains("websocket")
         } else {
             false
         }
@@ -424,5 +424,125 @@ where
                 Ok(Async::Ready(Some(msg)))
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use actix_web::http::{header, Method};
+    use actix_web::test::TestRequest;
+
+    #[test]
+    fn test_handshake() {
+        let req = TestRequest::default()
+            .method(Method::POST)
+            .to_http_request();
+        assert_eq!(
+            HandshakeError::GetMethodRequired,
+            handshake(&req).err().unwrap()
+        );
+
+        let req = TestRequest::default().to_http_request();
+        assert_eq!(
+            HandshakeError::NoWebsocketUpgrade,
+            handshake(&req).err().unwrap()
+        );
+
+        let req = TestRequest::default()
+            .header(header::UPGRADE, header::HeaderValue::from_static("test"))
+            .to_http_request();
+        assert_eq!(
+            HandshakeError::NoWebsocketUpgrade,
+            handshake(&req).err().unwrap()
+        );
+
+        let req = TestRequest::default()
+            .header(
+                header::UPGRADE,
+                header::HeaderValue::from_static("websocket"),
+            )
+            .to_http_request();
+        assert_eq!(
+            HandshakeError::NoConnectionUpgrade,
+            handshake(&req).err().unwrap()
+        );
+
+        let req = TestRequest::default()
+            .header(
+                header::UPGRADE,
+                header::HeaderValue::from_static("websocket"),
+            )
+            .header(
+                header::CONNECTION,
+                header::HeaderValue::from_static("upgrade"),
+            )
+            .to_http_request();
+        assert_eq!(
+            HandshakeError::NoVersionHeader,
+            handshake(&req).err().unwrap()
+        );
+
+        let req = TestRequest::default()
+            .header(
+                header::UPGRADE,
+                header::HeaderValue::from_static("websocket"),
+            )
+            .header(
+                header::CONNECTION,
+                header::HeaderValue::from_static("upgrade"),
+            )
+            .header(
+                header::SEC_WEBSOCKET_VERSION,
+                header::HeaderValue::from_static("5"),
+            )
+            .to_http_request();
+        assert_eq!(
+            HandshakeError::UnsupportedVersion,
+            handshake(&req).err().unwrap()
+        );
+
+        let req = TestRequest::default()
+            .header(
+                header::UPGRADE,
+                header::HeaderValue::from_static("websocket"),
+            )
+            .header(
+                header::CONNECTION,
+                header::HeaderValue::from_static("upgrade"),
+            )
+            .header(
+                header::SEC_WEBSOCKET_VERSION,
+                header::HeaderValue::from_static("13"),
+            )
+            .to_http_request();
+        assert_eq!(
+            HandshakeError::BadWebsocketKey,
+            handshake(&req).err().unwrap()
+        );
+
+        let req = TestRequest::default()
+            .header(
+                header::UPGRADE,
+                header::HeaderValue::from_static("websocket"),
+            )
+            .header(
+                header::CONNECTION,
+                header::HeaderValue::from_static("upgrade"),
+            )
+            .header(
+                header::SEC_WEBSOCKET_VERSION,
+                header::HeaderValue::from_static("13"),
+            )
+            .header(
+                header::SEC_WEBSOCKET_KEY,
+                header::HeaderValue::from_static("13"),
+            )
+            .to_http_request();
+
+        assert_eq!(
+            StatusCode::SWITCHING_PROTOCOLS,
+            handshake(&req).unwrap().finish().status()
+        );
     }
 }
