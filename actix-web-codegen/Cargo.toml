@@ -13,3 +13,8 @@ proc-macro = true
 [dependencies]
 quote = "0.6"
 syn = { version = "0.15", features = ["full", "parsing"] }
+
+[dev-dependencies]
+actix-web = { path = ".." }
+actix-http = { git = "https://github.com/actix/actix-http.git", features=["ssl"] }
+actix-http-test = { git = "https://github.com/actix/actix-http.git", features=["ssl"] }
