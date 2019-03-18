@@ -20,9 +20,12 @@ path = "src/lib.rs"
 [dependencies]
 actix-web = { path=".." }
 actix = { git = "https://github.com/actix/actix.git" }
-
+actix-http = { git = "https://github.com/actix/actix-http.git" }
+actix-codec = "0.1.1"
 bytes = "0.4"
 futures = "0.1"
 
 [dev-dependencies]
-actix-rt = "0.2.0"
+env_logger = "0.6"
+actix-http = { git = "https://github.com/actix/actix-http.git", features=["ssl"] }
+actix-http-test = { git = "https://github.com/actix/actix-http.git", features=["ssl"] }

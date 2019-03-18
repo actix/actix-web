@@ -66,7 +66,7 @@ pub mod dev {
     pub use actix_http::body::{Body, BodyLength, MessageBody, ResponseBody};
     pub use actix_http::ResponseBuilder as HttpResponseBuilder;
     pub use actix_http::{
-        Extensions, Payload, PayloadStream, RequestHead, ResponseHead,
+        Extensions, Head, Payload, PayloadStream, RequestHead, ResponseHead,
     };
     pub use actix_router::{Path, ResourceDef, ResourcePath, Url};
     pub use actix_server::Server;

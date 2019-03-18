@@ -198,10 +198,9 @@ mod tests {
     use std::time::Duration;
 
     use actix::Actor;
-    use actix_web::dev::HttpMessageBody;
     use actix_web::http::StatusCode;
     use actix_web::test::{block_on, call_success, init_service, TestRequest};
-    use actix_web::{web, App, HttpRequest, HttpResponse};
+    use actix_web::{web, App, HttpResponse};
     use bytes::{Bytes, BytesMut};
 
     use super::*;

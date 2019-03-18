@@ -61,14 +61,14 @@ ssl = ["openssl", "actix-server/ssl"]
 # rust-tls = ["rustls", "actix-server/rustls"]
 
 [dependencies]
-actix-codec = "0.1.0"
+actix-codec = "0.1.1"
 actix-service = "0.3.4"
 actix-utils = "0.3.4"
 actix-router = "0.1.0"
 actix-rt = "0.2.1"
 actix-web-codegen = { path="actix-web-codegen" }
 actix-http = { git = "https://github.com/actix/actix-http.git" }
-actix-server = "0.4.0"
+actix-server = "0.4.1"
 actix-server-config = "0.1.0"
 
 bytes = "0.4"
