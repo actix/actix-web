@@ -170,6 +170,7 @@ impl Encoder for Codec {
                     dst,
                     &mut res,
                     self.flags.contains(Flags::HEAD),
+                    self.flags.contains(Flags::STREAM),
                     self.version,
                     length,
                     self.ctype,

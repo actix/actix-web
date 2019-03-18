@@ -241,6 +241,7 @@ impl<T: MessageType> MessageEncoder<T> {
         dst: &mut BytesMut,
         message: &mut T,
         head: bool,
+        stream: bool,
         version: Version,
         length: BodyLength,
         ctype: ConnectionType,
@@ -253,7 +254,7 @@ impl<T: MessageType> MessageEncoder<T> {
                 BodyLength::Sized(len) => TransferEncoding::length(len as u64),
                 BodyLength::Sized64(len) => TransferEncoding::length(len),
                 BodyLength::Stream => {
-                    if message.chunked() {
+                    if message.chunked() && !stream {
                         TransferEncoding::chunked()
                     } else {
                         TransferEncoding::eof()

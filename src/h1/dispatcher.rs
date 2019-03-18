@@ -323,17 +323,17 @@ where
                     match msg {
                         Message::Item(mut req) => {
                             match self.framed.get_codec().message_type() {
-                                MessageType::Payload => {
+                                MessageType::Payload | MessageType::Stream => {
                                     let (ps, pl) = Payload::create(false);
                                     let (req1, _) =
                                         req.replace_payload(crate::Payload::H1(pl));
                                     req = req1;
                                     self.payload = Some(ps);
                                 }
-                                MessageType::Stream => {
-                                    self.unhandled = Some(req);
-                                    return Ok(updated);
-                                }
+                                //MessageType::Stream => {
+                                //    self.unhandled = Some(req);
+                                //    return Ok(updated);
+                                //}
                                 _ => (),
                             }
 

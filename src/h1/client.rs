@@ -211,6 +211,7 @@ impl Encoder for ClientCodec {
                     dst,
                     &mut msg,
                     false,
+                    false,
                     inner.version,
                     length,
                     inner.ctype,
