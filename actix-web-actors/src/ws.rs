@@ -1,3 +1,4 @@
+//! Websocket integration
 use std::collections::VecDeque;
 use std::io;
 
@@ -11,9 +12,11 @@ use actix::{
     Message as ActixMessage, SpawnHandle,
 };
 use actix_codec::{Decoder, Encoder};
-use actix_http::ws::{
-    hash_key, CloseReason, Codec, Frame, HandshakeError, Message, ProtocolError,
+use actix_http::ws::hash_key;
+pub use actix_http::ws::{
+    CloseCode, CloseReason, Codec, Frame, HandshakeError, Message, ProtocolError,
 };
+
 use actix_web::dev::{Head, HttpResponseBuilder};
 use actix_web::error::{Error, ErrorInternalServerError, PayloadError};
 use actix_web::http::{header, Method, StatusCode};
@@ -23,16 +26,12 @@ use futures::sync::oneshot::Sender;
 use futures::{Async, Future, Poll, Stream};
 
 /// Do websocket handshake and start ws actor.
-pub fn ws_start<A, T>(
-    actor: A,
-    req: &HttpRequest,
-    stream: T,
-) -> Result<HttpResponse, Error>
+pub fn start<A, T>(actor: A, req: &HttpRequest, stream: T) -> Result<HttpResponse, Error>
 where
     A: Actor<Context = WebsocketContext<A>> + StreamHandler<Frame, ProtocolError>,
     T: Stream<Item = Bytes, Error = PayloadError> + 'static,
 {
-    let mut res = ws_handshake(req)?;
+    let mut res = handshake(req)?;
     Ok(res.streaming(WebsocketContext::create(actor, stream)))
 }
 
@@ -44,7 +43,7 @@ where
 // /// `protocols` is a sequence of known protocols. On successful handshake,
 // /// the returned response headers contain the first protocol in this list
 // /// which the server also knows.
-pub fn ws_handshake(req: &HttpRequest) -> Result<HttpResponseBuilder, HandshakeError> {
+pub fn handshake(req: &HttpRequest) -> Result<HttpResponseBuilder, HandshakeError> {
     // WebSocket accepts only GET
     if *req.method() != Method::GET {
         return Err(HandshakeError::GetMethodRequired);

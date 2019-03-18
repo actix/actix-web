@@ -9,18 +9,18 @@ use futures::{Sink, Stream};
 struct Ws;
 
 impl Actor for Ws {
-    type Context = WebsocketContext<Self>;
+    type Context = ws::WebsocketContext<Self>;
 }
 
-impl StreamHandler<WsFrame, WsProtocolError> for Ws {
-    fn handle(&mut self, msg: WsFrame, ctx: &mut Self::Context) {
+impl StreamHandler<ws::Frame, ws::ProtocolError> for Ws {
+    fn handle(&mut self, msg: ws::Frame, ctx: &mut Self::Context) {
         match msg {
-            WsFrame::Ping(msg) => ctx.pong(&msg),
-            WsFrame::Text(text) => {
+            ws::Frame::Ping(msg) => ctx.pong(&msg),
+            ws::Frame::Text(text) => {
                 ctx.text(String::from_utf8_lossy(&text.unwrap())).to_owned()
             }
-            WsFrame::Binary(bin) => ctx.binary(bin.unwrap()),
-            WsFrame::Close(reason) => ctx.close(reason),
+            ws::Frame::Binary(bin) => ctx.binary(bin.unwrap()),
+            ws::Frame::Close(reason) => ctx.close(reason),
             _ => (),
         }
     }
@@ -28,40 +28,42 @@ impl StreamHandler<WsFrame, WsProtocolError> for Ws {
 
 #[test]
 fn test_simple() {
-    let mut srv =
-        TestServer::new(|| {
-            HttpService::new(App::new().service(web::resource("/").to(
-                |req: HttpRequest, stream: web::Payload<_>| ws_start(Ws, &req, stream),
-            )))
-        });
+    let mut srv = TestServer::new(|| {
+        HttpService::new(App::new().service(web::resource("/").to(
+            |req: HttpRequest, stream: web::Payload<_>| ws::start(Ws, &req, stream),
+        )))
+    });
 
     // client service
     let framed = srv.ws().unwrap();
     let framed = srv
-        .block_on(framed.send(WsMessage::Text("text".to_string())))
+        .block_on(framed.send(ws::Message::Text("text".to_string())))
         .unwrap();
     let (item, framed) = srv.block_on(framed.into_future()).map_err(|_| ()).unwrap();
-    assert_eq!(item, Some(WsFrame::Text(Some(BytesMut::from("text")))));
+    assert_eq!(item, Some(ws::Frame::Text(Some(BytesMut::from("text")))));
 
     let framed = srv
-        .block_on(framed.send(WsMessage::Binary("text".into())))
+        .block_on(framed.send(ws::Message::Binary("text".into())))
         .unwrap();
     let (item, framed) = srv.block_on(framed.into_future()).map_err(|_| ()).unwrap();
     assert_eq!(
         item,
-        Some(WsFrame::Binary(Some(Bytes::from_static(b"text").into())))
+        Some(ws::Frame::Binary(Some(Bytes::from_static(b"text").into())))
     );
 
     let framed = srv
-        .block_on(framed.send(WsMessage::Ping("text".into())))
+        .block_on(framed.send(ws::Message::Ping("text".into())))
         .unwrap();
     let (item, framed) = srv.block_on(framed.into_future()).map_err(|_| ()).unwrap();
-    assert_eq!(item, Some(WsFrame::Pong("text".to_string().into())));
+    assert_eq!(item, Some(ws::Frame::Pong("text".to_string().into())));
 
     let framed = srv
-        .block_on(framed.send(WsMessage::Close(Some(WsCloseCode::Normal.into()))))
+        .block_on(framed.send(ws::Message::Close(Some(ws::CloseCode::Normal.into()))))
         .unwrap();
 
     let (item, _framed) = srv.block_on(framed.into_future()).map_err(|_| ()).unwrap();
-    assert_eq!(item, Some(WsFrame::Close(Some(WsCloseCode::Normal.into()))));
+    assert_eq!(
+        item,
+        Some(ws::Frame::Close(Some(ws::CloseCode::Normal.into())))
+    );
 }
