@@ -132,7 +132,7 @@ pub fn verify_handshake(req: &Request) -> Result<(), HandshakeError> {
     // Check for "UPGRADE" to websocket header
     let has_hdr = if let Some(hdr) = req.headers().get(header::UPGRADE) {
         if let Ok(s) = hdr.to_str() {
-            s.to_lowercase().contains("websocket")
+            s.to_ascii_lowercase().contains("websocket")
         } else {
             false
         }
