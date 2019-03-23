@@ -1,0 +1,20 @@
+[package]
+name = "actix-web-codegen"
+description = "Actix web codegen macros"
+version = "0.1.0"
+authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
+license = "MIT/Apache-2.0"
+edition = "2018"
+workspace = ".."
+
+[lib]
+proc-macro = true
+
+[dependencies]
+quote = "0.6"
+syn = { version = "0.15", features = ["full", "parsing"] }
+
+[dev-dependencies]
+actix-web = { path = ".." }
+actix-http = { git = "https://github.com/actix/actix-http.git", features=["ssl"] }
+actix-http-test = { git = "https://github.com/actix/actix-http.git", features=["ssl"] }

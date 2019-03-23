@@ -1,0 +1,31 @@
+[package]
+name = "actix-web-actors"
+version = "0.1.0"
+authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
+description = "Actix actors support for actix web framework."
+readme = "README.md"
+keywords = ["http", "web", "framework", "async", "futures"]
+homepage = "https://actix.rs"
+repository = "https://github.com/actix/actix-web.git"
+documentation = "https://docs.rs/actix-web-actors/"
+license = "MIT/Apache-2.0"
+exclude = [".gitignore", ".travis.yml", ".cargo/config", "appveyor.yml"]
+workspace = ".."
+edition = "2018"
+
+[lib]
+name = "actix_web_actors"
+path = "src/lib.rs"
+
+[dependencies]
+actix-web = { path=".." }
+actix = { git = "https://github.com/actix/actix.git" }
+actix-http = { git = "https://github.com/actix/actix-http.git" }
+actix-codec = "0.1.1"
+bytes = "0.4"
+futures = "0.1"
+
+[dev-dependencies]
+env_logger = "0.6"
+actix-http = { git = "https://github.com/actix/actix-http.git", features=["ssl"] }
+actix-http-test = { git = "https://github.com/actix/actix-http.git", features=["ssl"] }

@@ -1,244 +1,44 @@
-//! Actix web is a small, pragmatic, and extremely fast web framework
-//! for Rust.
-//!
-//! ```rust
-//! use actix_web::{server, App, Path, Responder};
-//! # use std::thread;
-//!
-//! fn index(info: Path<(String, u32)>) -> impl Responder {
-//!     format!("Hello {}! id:{}", info.0, info.1)
-//! }
-//!
-//! fn main() {
-//!     # thread::spawn(|| {
-//!     server::new(|| {
-//!         App::new().resource("/{name}/{id}/index.html", |r| r.with(index))
-//!     }).bind("127.0.0.1:8080")
-//!         .unwrap()
-//!         .run();
-//!     # });
-//! }
-//! ```
-//!
-//! ## Documentation & community resources
-//!
-//! Besides the API documentation (which you are currently looking
-//! at!), several other resources are available:
-//!
-//! * [User Guide](https://actix.rs/docs/)
-//! * [Chat on gitter](https://gitter.im/actix/actix)
-//! * [GitHub repository](https://github.com/actix/actix-web)
-//! * [Cargo package](https://crates.io/crates/actix-web)
-//!
-//! To get started navigating the API documentation you may want to
-//! consider looking at the following pages:
-//!
-//! * [App](struct.App.html): This struct represents an actix-web
-//!   application and is used to configure routes and other common
-//!   settings.
-//!
-//! * [HttpServer](server/struct.HttpServer.html): This struct
-//!   represents an HTTP server instance and is used to instantiate and
-//!   configure servers.
-//!
-//! * [HttpRequest](struct.HttpRequest.html) and
-//!   [HttpResponse](struct.HttpResponse.html): These structs
-//!   represent HTTP requests and responses and expose various methods
-//!   for inspecting, creating and otherwise utilizing them.
-//!
-//! ## Features
-//!
-//! * Supported *HTTP/1.x* and *HTTP/2.0* protocols
-//! * Streaming and pipelining
-//! * Keep-alive and slow requests handling
-//! * `WebSockets` server/client
-//! * Transparent content compression/decompression (br, gzip, deflate)
-//! * Configurable request routing
-//! * Graceful server shutdown
-//! * Multipart streams
-//! * SSL support with OpenSSL or `native-tls`
-//! * Middlewares (`Logger`, `Session`, `CORS`, `CSRF`, `DefaultHeaders`)
-//! * Built on top of [Actix actor framework](https://github.com/actix/actix)
-//! * Supported Rust version: 1.26 or later
-//!
-//! ## Package feature
-//!
-//! * `tls` - enables ssl support via `native-tls` crate
-//! * `ssl` - enables ssl support via `openssl` crate, supports `http/2`
-//! * `rust-tls` - enables ssl support via `rustls` crate, supports `http/2`
-//! * `uds` - enables support for making client requests via Unix Domain Sockets.
-//!   Unix only. Not necessary for *serving* requests.
-//! * `session` - enables session support, includes `ring` crate as
-//!   dependency
-//! * `brotli` - enables `brotli` compression support, requires `c`
-//!   compiler
-//! * `flate2-c` - enables `gzip`, `deflate` compression support, requires
-//!   `c` compiler
-//! * `flate2-rust` - experimental rust based implementation for
-//!   `gzip`, `deflate` compression.
-//!
-#![cfg_attr(actix_nightly, feature(
-    specialization, // for impl ErrorResponse for std::error::Error
-    extern_prelude,
-    tool_lints,
-))]
-#![warn(missing_docs)]
+#![allow(clippy::type_complexity, clippy::new_without_default)]
 
-#[macro_use]
-extern crate log;
-extern crate base64;
-extern crate byteorder;
-extern crate bytes;
-extern crate regex;
-extern crate sha1;
-extern crate time;
-#[macro_use]
-extern crate bitflags;
-#[macro_use]
-extern crate failure;
-#[macro_use]
-extern crate lazy_static;
-#[macro_use]
-extern crate futures;
-extern crate cookie;
-extern crate futures_cpupool;
-extern crate http as modhttp;
-extern crate httparse;
-extern crate language_tags;
-extern crate lazycell;
-extern crate mime;
-extern crate mime_guess;
-extern crate mio;
-extern crate net2;
-extern crate parking_lot;
-extern crate rand;
-extern crate slab;
-extern crate tokio;
-extern crate tokio_current_thread;
-extern crate tokio_io;
-extern crate tokio_reactor;
-extern crate tokio_tcp;
-extern crate tokio_timer;
-#[cfg(all(unix, feature = "uds"))]
-extern crate tokio_uds;
-extern crate url;
-#[macro_use]
-extern crate serde;
-#[cfg(feature = "brotli")]
-extern crate brotli2;
-extern crate encoding;
-#[cfg(feature = "flate2")]
-extern crate flate2;
-extern crate h2 as http2;
-extern crate num_cpus;
-extern crate serde_urlencoded;
-#[macro_use]
-extern crate percent_encoding;
-extern crate serde_json;
-extern crate smallvec;
-extern crate v_htmlescape;
-
-extern crate actix_net;
-#[macro_use]
-extern crate actix as actix_inner;
-
-#[cfg(test)]
-#[macro_use]
-extern crate serde_derive;
-
-#[cfg(feature = "tls")]
-extern crate native_tls;
-#[cfg(feature = "tls")]
-extern crate tokio_tls;
-
-#[cfg(feature = "openssl")]
-extern crate openssl;
-#[cfg(feature = "openssl")]
-extern crate tokio_openssl;
-
-#[cfg(feature = "rust-tls")]
-extern crate rustls;
-#[cfg(feature = "rust-tls")]
-extern crate tokio_rustls;
-#[cfg(feature = "rust-tls")]
-extern crate webpki;
-#[cfg(feature = "rust-tls")]
-extern crate webpki_roots;
-
-mod application;
-mod body;
-mod context;
-mod de;
-mod extensions;
-mod extractor;
-mod handler;
-mod header;
-mod helpers;
-mod httpcodes;
-mod httpmessage;
-mod httprequest;
-mod httpresponse;
-mod info;
-mod json;
-mod param;
-mod payload;
-mod pipeline;
-mod resource;
-mod route;
-mod router;
-mod scope;
-mod uri;
-mod with;
-
-pub mod client;
+mod app;
+mod app_service;
+mod config;
+mod data;
 pub mod error;
-pub mod fs;
+mod extract;
+pub mod guard;
+mod handler;
+mod info;
 pub mod middleware;
-pub mod multipart;
-pub mod pred;
-pub mod server;
+mod request;
+mod resource;
+mod responder;
+mod rmap;
+mod route;
+mod scope;
+mod server;
+mod service;
 pub mod test;
-pub mod ws;
-pub use application::App;
-pub use body::{Binary, Body};
-pub use context::HttpContext;
-pub use error::{Error, ResponseError, Result};
-pub use extensions::Extensions;
-pub use extractor::{Form, Path, Query};
-pub use handler::{
-    AsyncResponder, Either, FromRequest, FutureResponse, Responder, State,
-};
-pub use httpmessage::HttpMessage;
-pub use httprequest::HttpRequest;
-pub use httpresponse::HttpResponse;
-pub use json::Json;
-pub use scope::Scope;
-pub use server::Request;
+mod types;
 
-pub mod actix {
-    //! Re-exports [actix's](https://docs.rs/actix/) prelude
-    pub use super::actix_inner::actors::resolver;
-    pub use super::actix_inner::actors::signal;
-    pub use super::actix_inner::fut;
-    pub use super::actix_inner::msgs;
-    pub use super::actix_inner::prelude::*;
-    pub use super::actix_inner::{run, spawn};
-}
+#[allow(unused_imports)]
+#[macro_use]
+extern crate actix_web_codegen;
 
-#[cfg(feature = "openssl")]
-pub(crate) const HAS_OPENSSL: bool = true;
-#[cfg(not(feature = "openssl"))]
-pub(crate) const HAS_OPENSSL: bool = false;
+#[doc(hidden)]
+pub use actix_web_codegen::*;
 
-#[cfg(feature = "tls")]
-pub(crate) const HAS_TLS: bool = true;
-#[cfg(not(feature = "tls"))]
-pub(crate) const HAS_TLS: bool = false;
+// re-export for convenience
+pub use actix_http::Response as HttpResponse;
+pub use actix_http::{http, Error, HttpMessage, ResponseError, Result};
 
-#[cfg(feature = "rust-tls")]
-pub(crate) const HAS_RUSTLS: bool = true;
-#[cfg(not(feature = "rust-tls"))]
-pub(crate) const HAS_RUSTLS: bool = false;
+pub use crate::app::App;
+pub use crate::extract::FromRequest;
+pub use crate::request::HttpRequest;
+pub use crate::resource::Resource;
+pub use crate::responder::{Either, Responder};
+pub use crate::route::Route;
+pub use crate::server::HttpServer;
 
 pub mod dev {
     //! The `actix-web` prelude for library developers
@@ -251,42 +51,215 @@ pub mod dev {
     //! use actix_web::dev::*;
     //! ```
 
-    pub use body::BodyStream;
-    pub use context::Drain;
-    pub use extractor::{FormConfig, PayloadConfig, QueryConfig, PathConfig, EitherConfig, EitherCollisionStrategy};
-    pub use handler::{AsyncResult, Handler};
-    pub use httpmessage::{MessageBody, Readlines, UrlEncoded};
-    pub use httpresponse::HttpResponseBuilder;
-    pub use info::ConnectionInfo;
-    pub use json::{JsonBody, JsonConfig};
-    pub use param::{FromParam, Params};
-    pub use payload::{Payload, PayloadBuffer};
-    pub use pipeline::Pipeline;
-    pub use resource::Resource;
-    pub use route::Route;
-    pub use router::{ResourceDef, ResourceInfo, ResourceType, Router};
+    pub use crate::app::AppRouter;
+    pub use crate::config::{AppConfig, ServiceConfig};
+    pub use crate::info::ConnectionInfo;
+    pub use crate::rmap::ResourceMap;
+    pub use crate::service::{
+        HttpServiceFactory, ServiceFromRequest, ServiceRequest, ServiceResponse,
+    };
+    pub use crate::types::form::UrlEncoded;
+    pub use crate::types::json::JsonBody;
+    pub use crate::types::payload::HttpMessageBody;
+    pub use crate::types::readlines::Readlines;
+
+    pub use actix_http::body::{Body, BodyLength, MessageBody, ResponseBody};
+    pub use actix_http::ResponseBuilder as HttpResponseBuilder;
+    pub use actix_http::{
+        Extensions, Head, Payload, PayloadStream, RequestHead, ResponseHead,
+    };
+    pub use actix_router::{Path, ResourceDef, ResourcePath, Url};
+    pub use actix_server::Server;
+
+    pub(crate) fn insert_slash(path: &str) -> String {
+        let mut path = path.to_owned();
+        if !path.is_empty() && !path.starts_with('/') {
+            path.insert(0, '/');
+        };
+        path
+    }
 }
 
-pub mod http {
-    //! Various HTTP related types
+pub mod web {
+    //! Various types
+    use actix_http::{http::Method, Response};
+    use actix_rt::blocking;
+    use futures::{Future, IntoFuture};
 
-    // re-exports
-    pub use modhttp::{Method, StatusCode, Version};
+    pub use actix_http::Response as HttpResponse;
+    pub use bytes::{Bytes, BytesMut};
 
-    #[doc(hidden)]
-    pub use modhttp::{uri, Error, Extensions, HeaderMap, HttpTryFrom, Uri};
+    use crate::error::{BlockingError, Error};
+    use crate::extract::FromRequest;
+    use crate::handler::{AsyncFactory, Factory};
+    use crate::resource::Resource;
+    use crate::responder::Responder;
+    use crate::route::Route;
+    use crate::scope::Scope;
 
-    pub use cookie::{Cookie, CookieBuilder};
+    pub use crate::data::{Data, RouteData};
+    pub use crate::request::HttpRequest;
+    pub use crate::types::*;
 
-    pub use helpers::NormalizePath;
-
-    /// Various http headers
-    pub mod header {
-        pub use header::*;
-        pub use header::{
-            Charset, ContentDisposition, DispositionParam, DispositionType, LanguageTag,
-        };
+    /// Create resource for a specific path.
+    ///
+    /// Resources may have variable path segments. For example, a
+    /// resource with the path `/a/{name}/c` would match all incoming
+    /// requests with paths such as `/a/b/c`, `/a/1/c`, or `/a/etc/c`.
+    ///
+    /// A variable segment is specified in the form `{identifier}`,
+    /// where the identifier can be used later in a request handler to
+    /// access the matched value for that segment. This is done by
+    /// looking up the identifier in the `Params` object returned by
+    /// `HttpRequest.match_info()` method.
+    ///
+    /// By default, each segment matches the regular expression `[^{}/]+`.
+    ///
+    /// You can also specify a custom regex in the form `{identifier:regex}`:
+    ///
+    /// For instance, to route `GET`-requests on any route matching
+    /// `/users/{userid}/{friend}` and store `userid` and `friend` in
+    /// the exposed `Params` object:
+    ///
+    /// ```rust
+    /// # extern crate actix_web;
+    /// use actix_web::{web, http, App, HttpResponse};
+    ///
+    /// fn main() {
+    ///     let app = App::new().service(
+    ///         web::resource("/users/{userid}/{friend}")
+    ///             .route(web::get().to(|| HttpResponse::Ok()))
+    ///             .route(web::head().to(|| HttpResponse::MethodNotAllowed()))
+    ///     );
+    /// }
+    /// ```
+    pub fn resource<P: 'static>(path: &str) -> Resource<P> {
+        Resource::new(path)
     }
-    pub use header::ContentEncoding;
-    pub use httpresponse::ConnectionType;
+
+    /// Configure scope for common root path.
+    ///
+    /// Scopes collect multiple paths under a common path prefix.
+    /// Scope path can contain variable path segments as resources.
+    ///
+    /// ```rust
+    /// # extern crate actix_web;
+    /// use actix_web::{web, App, HttpRequest, HttpResponse};
+    ///
+    /// fn main() {
+    ///     let app = App::new().service(
+    ///         web::scope("/{project_id}")
+    ///             .service(web::resource("/path1").to(|| HttpResponse::Ok()))
+    ///             .service(web::resource("/path2").to(|| HttpResponse::Ok()))
+    ///             .service(web::resource("/path3").to(|| HttpResponse::MethodNotAllowed()))
+    ///     );
+    /// }
+    /// ```
+    ///
+    /// In the above example, three routes get added:
+    ///  * /{project_id}/path1
+    ///  * /{project_id}/path2
+    ///  * /{project_id}/path3
+    ///
+    pub fn scope<P: 'static>(path: &str) -> Scope<P> {
+        Scope::new(path)
+    }
+
+    /// Create *route* without configuration.
+    pub fn route<P: 'static>() -> Route<P> {
+        Route::new()
+    }
+
+    /// Create *route* with `GET` method guard.
+    pub fn get<P: 'static>() -> Route<P> {
+        Route::new().method(Method::GET)
+    }
+
+    /// Create *route* with `POST` method guard.
+    pub fn post<P: 'static>() -> Route<P> {
+        Route::new().method(Method::POST)
+    }
+
+    /// Create *route* with `PUT` method guard.
+    pub fn put<P: 'static>() -> Route<P> {
+        Route::new().method(Method::PUT)
+    }
+
+    /// Create *route* with `PATCH` method guard.
+    pub fn patch<P: 'static>() -> Route<P> {
+        Route::new().method(Method::PATCH)
+    }
+
+    /// Create *route* with `DELETE` method guard.
+    pub fn delete<P: 'static>() -> Route<P> {
+        Route::new().method(Method::DELETE)
+    }
+
+    /// Create *route* with `HEAD` method guard.
+    pub fn head<P: 'static>() -> Route<P> {
+        Route::new().method(Method::HEAD)
+    }
+
+    /// Create *route* and add method guard.
+    pub fn method<P: 'static>(method: Method) -> Route<P> {
+        Route::new().method(method)
+    }
+
+    /// Create a new route and add handler.
+    ///
+    /// ```rust
+    /// use actix_web::{web, App, HttpResponse};
+    ///
+    /// fn index() -> HttpResponse {
+    ///    unimplemented!()
+    /// }
+    ///
+    /// App::new().service(
+    ///     web::resource("/").route(
+    ///         web::to(index))
+    /// );
+    /// ```
+    pub fn to<F, I, R, P: 'static>(handler: F) -> Route<P>
+    where
+        F: Factory<I, R> + 'static,
+        I: FromRequest<P> + 'static,
+        R: Responder + 'static,
+    {
+        Route::new().to(handler)
+    }
+
+    /// Create a new route and add async handler.
+    ///
+    /// ```rust
+    /// use actix_web::{web, App, HttpResponse, Error};
+    ///
+    /// fn index() -> impl futures::Future<Item=HttpResponse, Error=Error> {
+    ///     futures::future::ok(HttpResponse::Ok().finish())
+    /// }
+    ///
+    /// App::new().service(web::resource("/").route(
+    ///     web::to_async(index))
+    /// );
+    /// ```
+    pub fn to_async<F, I, R, P: 'static>(handler: F) -> Route<P>
+    where
+        F: AsyncFactory<I, R>,
+        I: FromRequest<P> + 'static,
+        R: IntoFuture + 'static,
+        R::Item: Into<Response>,
+        R::Error: Into<Error>,
+    {
+        Route::new().to_async(handler)
+    }
+
+    /// Execute blocking function on a thread pool, returns future that resolves
+    /// to result of the function execution.
+    pub fn block<F, I, E>(f: F) -> impl Future<Item = I, Error = BlockingError<E>>
+    where
+        F: FnOnce() -> Result<I, E> + Send + 'static,
+        I: Send + 'static,
+        E: Send + std::fmt::Debug + 'static,
+    {
+        blocking::run(f).from_err()
+    }
 }

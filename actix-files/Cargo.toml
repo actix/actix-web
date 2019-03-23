@@ -1,0 +1,43 @@
+[package]
+name = "actix-files"
+version = "0.1.0"
+authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
+description = "Static files support for Actix web."
+readme = "README.md"
+keywords = ["actix", "http", "async", "futures"]
+homepage = "https://actix.rs"
+repository = "https://github.com/actix/actix-web.git"
+documentation = "https://actix.rs/api/actix-web/stable/actix_web/"
+categories = ["asynchronous", "web-programming::http-server"]
+license = "MIT/Apache-2.0"
+edition = "2018"
+workspace = ".."
+
+[lib]
+name = "actix_files"
+path = "src/lib.rs"
+
+[dependencies]
+actix-web = { path=".." }
+actix-http = { git = "https://github.com/actix/actix-http.git" }
+actix-service = "0.3.3"
+
+bytes = "0.4"
+futures = "0.1"
+derive_more = "0.14"
+log = "0.4"
+mime = "0.3"
+mime_guess = "2.0.0-alpha"
+percent-encoding = "1.0"
+v_htmlescape = "0.4"
+
+[dev-dependencies]
+actix-rt = "0.1.0"
+#actix-server = { version="0.2", features=["ssl"] }
+actix-web = { path="..", features=["ssl"] }
+actix-server = { git = "https://github.com/actix/actix-net.git", features=["ssl"] }
+actix-http = { git = "https://github.com/actix/actix-http.git", features=["ssl"] }
+actix-http-test = { git = "https://github.com/actix/actix-http.git", features=["ssl"] }
+rand = "0.6"
+env_logger = "0.6"
+serde_derive = "1.0"
