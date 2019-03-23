@@ -251,12 +251,14 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "cookies")]
     fn test_no_request_cookies() {
         let req = TestRequest::default().to_http_request();
         assert!(req.cookies().unwrap().is_empty());
     }
 
     #[test]
+    #[cfg(feature = "cookies")]
     fn test_request_cookies() {
         let req = TestRequest::default()
             .header(header::COOKIE, "cookie1=value1")

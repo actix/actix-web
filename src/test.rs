@@ -11,6 +11,7 @@ use actix_rt::Runtime;
 use actix_server_config::ServerConfig;
 use actix_service::{IntoNewService, NewService, Service};
 use bytes::Bytes;
+#[cfg(feature = "cookies")]
 use cookie::Cookie;
 use futures::future::{lazy, Future};
 
@@ -262,6 +263,7 @@ impl TestRequest {
         self
     }
 
+    #[cfg(feature = "cookies")]
     /// Set cookie for this request
     pub fn cookie(mut self, cookie: Cookie) -> Self {
         self.req.cookie(cookie);

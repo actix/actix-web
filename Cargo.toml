@@ -34,10 +34,10 @@ members = [
 ]
 
 [package.metadata.docs.rs]
-features = ["ssl", "tls", "rust-tls", "session"]
+features = ["ssl", "tls", "rust-tls", "brotli", "flate2-c", "cookies"]
 
 [features]
-default = ["brotli", "flate2-c", "session"]
+default = ["brotli", "flate2-c", "cookies"]
 
 # brotli encoding, requires c compiler
 brotli = ["brotli2"]
@@ -49,7 +49,7 @@ flate2-c = ["flate2/miniz-sys"]
 flate2-rust = ["flate2/rust_backend"]
 
 # sessions feature, session require "ring" crate and c compiler
-session = ["cookie/secure"]
+cookies = ["cookie", "actix-http/cookies"]
 
 # tls
 tls = ["native-tls", "actix-server/ssl"]
@@ -67,12 +67,11 @@ actix-utils = "0.3.4"
 actix-router = "0.1.0"
 actix-rt = "0.2.1"
 actix-web-codegen = { path="actix-web-codegen" }
-actix-http = { git = "https://github.com/actix/actix-http.git" }
+actix-http = { git = "https://github.com/actix/actix-http.git", features=["fail"] }
 actix-server = "0.4.1"
 actix-server-config = "0.1.0"
 
 bytes = "0.4"
-cookie = { version="0.11", features=["percent-encode"] }
 derive_more = "0.14"
 encoding = "0.2"
 futures = "0.1"
@@ -88,8 +87,8 @@ serde_urlencoded = "^0.5.3"
 time = "0.1"
 url = { version="1.7", features=["query_encoding"] }
 
-# middlewares
-# actix-session = { path="session", optional = true }
+# cookies support
+cookie = { version="0.11", features=["secure", "percent-encode"], optional = true }
 
 # compression
 brotli2 = { version="^0.3.2", optional = true }
