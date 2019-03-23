@@ -11,8 +11,5 @@ pub use self::defaultheaders::DefaultHeaders;
 pub use self::errhandlers::{ErrorHandlerResponse, ErrorHandlers};
 pub use self::logger::Logger;
 
-// #[cfg(feature = "session")]
-// pub use actix_session as session;
-
-#[cfg(feature = "session")]
+#[cfg(feature = "cookies")]
 pub mod identity;
