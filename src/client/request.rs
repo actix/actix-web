@@ -1,13 +1,12 @@
 use std::fmt;
-use std::fmt::Write as FmtWrite;
 use std::io::Write;
 
 use actix_service::Service;
 use bytes::{BufMut, Bytes, BytesMut};
+#[cfg(feature = "cookies")]
 use cookie::{Cookie, CookieJar};
 use futures::future::{err, Either};
 use futures::{Future, Stream};
-use percent_encoding::{percent_encode, USERINFO_ENCODE_SET};
 use serde::Serialize;
 use serde_json;
 
@@ -58,6 +57,7 @@ impl ClientRequest<()> {
         ClientRequestBuilder {
             head: Some(RequestHead::default()),
             err: None,
+            #[cfg(feature = "cookies")]
             cookies: None,
             default_headers: true,
         }
@@ -235,6 +235,7 @@ where
 pub struct ClientRequestBuilder {
     head: Option<RequestHead>,
     err: Option<HttpError>,
+    #[cfg(feature = "cookies")]
     cookies: Option<CookieJar>,
     default_headers: bool,
 }
@@ -441,6 +442,7 @@ impl ClientRequestBuilder {
         self.header(header::CONTENT_LENGTH, wrt.get_mut().take().freeze())
     }
 
+    #[cfg(feature = "cookies")]
     /// Set a cookie
     ///
     /// ```rust
@@ -560,20 +562,28 @@ impl ClientRequestBuilder {
             );
         }
 
+        #[allow(unused_mut)]
         let mut head = self.head.take().expect("cannot reuse request builder");
 
-        // set cookies
-        if let Some(ref mut jar) = self.cookies {
-            let mut cookie = String::new();
-            for c in jar.delta() {
-                let name = percent_encode(c.name().as_bytes(), USERINFO_ENCODE_SET);
-                let value = percent_encode(c.value().as_bytes(), USERINFO_ENCODE_SET);
-                let _ = write!(&mut cookie, "; {}={}", name, value);
+        #[cfg(feature = "cookies")]
+        {
+            use percent_encoding::{percent_encode, USERINFO_ENCODE_SET};
+            use std::fmt::Write;
+
+            // set cookies
+            if let Some(ref mut jar) = self.cookies {
+                let mut cookie = String::new();
+                for c in jar.delta() {
+                    let name = percent_encode(c.name().as_bytes(), USERINFO_ENCODE_SET);
+                    let value =
+                        percent_encode(c.value().as_bytes(), USERINFO_ENCODE_SET);
+                    let _ = write!(&mut cookie, "; {}={}", name, value);
+                }
+                head.headers.insert(
+                    header::COOKIE,
+                    HeaderValue::from_str(&cookie.as_str()[2..]).unwrap(),
+                );
             }
-            head.headers.insert(
-                header::COOKIE,
-                HeaderValue::from_str(&cookie.as_str()[2..]).unwrap(),
-            );
         }
         Ok(ClientRequest { head, body })
     }
@@ -646,6 +656,7 @@ impl ClientRequestBuilder {
         ClientRequestBuilder {
             head: self.head.take(),
             err: self.err.take(),
+            #[cfg(feature = "cookies")]
             cookies: self.cookies.take(),
             default_headers: self.default_headers,
         }

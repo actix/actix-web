@@ -1,18 +1,23 @@
 use std::cell::{Ref, RefMut};
 use std::str;
 
-use cookie::Cookie;
 use encoding::all::UTF_8;
 use encoding::label::encoding_from_whatwg_label;
 use encoding::EncodingRef;
 use http::{header, HeaderMap};
 use mime::Mime;
 
-use crate::error::{ContentTypeError, CookieParseError, ParseError};
+use crate::error::{ContentTypeError, ParseError};
 use crate::extensions::Extensions;
 use crate::header::Header;
 use crate::payload::Payload;
 
+#[cfg(feature = "cookies")]
+use crate::error::CookieParseError;
+#[cfg(feature = "cookies")]
+use cookie::Cookie;
+
+#[cfg(feature = "cookies")]
 struct Cookies(Vec<Cookie<'static>>);
 
 /// Trait that implements general purpose operations on http messages
@@ -105,6 +110,7 @@ pub trait HttpMessage: Sized {
 
     /// Load request cookies.
     #[inline]
+    #[cfg(feature = "cookies")]
     fn cookies(&self) -> Result<Ref<Vec<Cookie<'static>>>, CookieParseError> {
         if self.extensions().get::<Cookies>().is_none() {
             let mut cookies = Vec::new();
@@ -125,6 +131,7 @@ pub trait HttpMessage: Sized {
     }
 
     /// Return request cookie.
+    #[cfg(feature = "cookies")]
     fn cookie(&self, name: &str) -> Option<Cookie<'static>> {
         if let Ok(cookies) = self.cookies() {
             for cookie in cookies.iter() {

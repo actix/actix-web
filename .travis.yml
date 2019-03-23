@@ -31,8 +31,8 @@ before_cache: |
 
 script:
 - cargo clean
-- cargo build --features="ssl"
-- cargo test --features="ssl"
+- cargo build --all-features
+- cargo test --all-features
 
 # Upload docs
 after_success:

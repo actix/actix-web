@@ -1,12 +1,11 @@
 //! Test Various helpers for Actix applications to use during testing.
-use std::fmt::Write as FmtWrite;
 use std::str::FromStr;
 
 use bytes::Bytes;
+#[cfg(feature = "cookies")]
 use cookie::{Cookie, CookieJar};
-use http::header::{self, HeaderName, HeaderValue};
+use http::header::HeaderName;
 use http::{HeaderMap, HttpTryFrom, Method, Uri, Version};
-use percent_encoding::{percent_encode, USERINFO_ENCODE_SET};
 
 use crate::header::{Header, IntoHeaderValue};
 use crate::payload::Payload;
@@ -46,6 +45,7 @@ struct Inner {
     method: Method,
     uri: Uri,
     headers: HeaderMap,
+    #[cfg(feature = "cookies")]
     cookies: CookieJar,
     payload: Option<Payload>,
 }
@@ -57,6 +57,7 @@ impl Default for TestRequest {
             uri: Uri::from_str("/").unwrap(),
             version: Version::HTTP_11,
             headers: HeaderMap::new(),
+            #[cfg(feature = "cookies")]
             cookies: CookieJar::new(),
             payload: None,
         }))
@@ -126,6 +127,7 @@ impl TestRequest {
     }
 
     /// Set cookie for this request
+    #[cfg(feature = "cookies")]
     pub fn cookie<'a>(&mut self, cookie: Cookie<'a>) -> &mut Self {
         parts(&mut self.0).cookies.add(cookie.into_owned());
         self
@@ -145,38 +147,39 @@ impl TestRequest {
 
     /// Complete request creation and generate `Request` instance
     pub fn finish(&mut self) -> Request {
-        let Inner {
-            method,
-            uri,
-            version,
-            headers,
-            payload,
-            cookies,
-        } = self.0.take().expect("cannot reuse test request builder");;
+        let inner = self.0.take().expect("cannot reuse test request builder");;
 
-        let mut req = if let Some(pl) = payload {
+        let mut req = if let Some(pl) = inner.payload {
             Request::with_payload(pl)
         } else {
             Request::with_payload(crate::h1::Payload::empty().into())
         };
 
         let head = req.head_mut();
-        head.uri = uri;
-        head.method = method;
-        head.version = version;
-        head.headers = headers;
+        head.uri = inner.uri;
+        head.method = inner.method;
+        head.version = inner.version;
+        head.headers = inner.headers;
 
-        let mut cookie = String::new();
-        for c in cookies.delta() {
-            let name = percent_encode(c.name().as_bytes(), USERINFO_ENCODE_SET);
-            let value = percent_encode(c.value().as_bytes(), USERINFO_ENCODE_SET);
-            let _ = write!(&mut cookie, "; {}={}", name, value);
-        }
-        if !cookie.is_empty() {
-            head.headers.insert(
-                header::COOKIE,
-                HeaderValue::from_str(&cookie.as_str()[2..]).unwrap(),
-            );
+        #[cfg(feature = "cookies")]
+        {
+            use std::fmt::Write as FmtWrite;
+
+            use http::header::{self, HeaderValue};
+            use percent_encoding::{percent_encode, USERINFO_ENCODE_SET};
+
+            let mut cookie = String::new();
+            for c in inner.cookies.delta() {
+                let name = percent_encode(c.name().as_bytes(), USERINFO_ENCODE_SET);
+                let value = percent_encode(c.value().as_bytes(), USERINFO_ENCODE_SET);
+                let _ = write!(&mut cookie, "; {}={}", name, value);
+            }
+            if !cookie.is_empty() {
+                head.headers.insert(
+                    header::COOKIE,
+                    HeaderValue::from_str(&cookie.as_str()[2..]).unwrap(),
+                );
+            }
         }
 
         req

@@ -1,6 +1,7 @@
 //! Http client request
 use std::str;
 
+#[cfg(feature = "cookies")]
 use cookie::Cookie;
 use http::header::{HeaderName, HeaderValue};
 use http::{Error as HttpError, HttpTryFrom};
@@ -50,6 +51,7 @@ impl Connect {
         self
     }
 
+    #[cfg(feature = "cookies")]
     /// Set cookie for handshake request
     pub fn cookie(mut self, cookie: Cookie) -> Self {
         self.request.cookie(cookie);

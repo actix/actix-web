@@ -113,6 +113,7 @@ pub mod http {
     #[doc(hidden)]
     pub use http::uri::PathAndQuery;
 
+    #[cfg(feature = "cookies")]
     pub use cookie::{Cookie, CookieBuilder};
 
     /// Various http headers

@@ -8,6 +8,7 @@ use std::{fmt, io, result};
 // use actix::MailboxError;
 use actix_utils::timeout::TimeoutError;
 use backtrace::Backtrace;
+#[cfg(feature = "cookies")]
 use cookie;
 use derive_more::{Display, From};
 use futures::Canceled;
@@ -19,7 +20,8 @@ use serde_json::error::Error as JsonError;
 use serde_urlencoded::ser::Error as FormError;
 use tokio_timer::Error as TimerError;
 
-// re-exports
+// re-export for convinience
+#[cfg(feature = "cookies")]
 pub use cookie::ParseError as CookieParseError;
 
 use crate::body::Body;
@@ -322,6 +324,7 @@ impl ResponseError for PayloadError {
 }
 
 /// Return `BadRequest` for `cookie::ParseError`
+#[cfg(feature = "cookies")]
 impl ResponseError for cookie::ParseError {
     fn error_response(&self) -> Response {
         Response::new(StatusCode::BAD_REQUEST)
@@ -889,7 +892,6 @@ mod failure_integration {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cookie::ParseError as CookieParseError;
     use http::{Error as HttpError, StatusCode};
     use httparse;
     use std::error::Error as StdError;
@@ -900,12 +902,17 @@ mod tests {
         let resp: Response = ParseError::Incomplete.error_response();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 
-        let resp: Response = CookieParseError::EmptyName.error_response();
-        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-
         let err: HttpError = StatusCode::from_u16(10000).err().unwrap().into();
         let resp: Response = err.error_response();
         assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    #[cfg(feature = "cookies")]
+    #[test]
+    fn test_cookie_parse() {
+        use cookie::ParseError as CookieParseError;
+        let resp: Response = CookieParseError::EmptyName.error_response();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
     }
 
     #[test]

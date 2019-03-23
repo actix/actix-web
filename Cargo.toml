@@ -7,20 +7,20 @@ readme = "README.md"
 keywords = ["http", "web", "framework", "async", "futures"]
 homepage = "https://actix.rs"
 repository = "https://github.com/actix/actix-http.git"
-documentation = "https://actix.rs/api/actix-http/stable/actix_http/"
+documentation = "https://docs.rs/actix-http/"
 categories = ["network-programming", "asynchronous",
               "web-programming::http-server",
               "web-programming::websocket"]
-license = "Apache-2.0"
+license = "MIT/Apache-2.0"
 exclude = [".gitignore", ".travis.yml", ".cargo/config", "appveyor.yml"]
 edition = "2018"
 
 [package.metadata.docs.rs]
-features = ["session"]
+features = ["ssl", "fail", "cookie"]
 
 [badges]
 travis-ci = { repository = "actix/actix-http", branch = "master" }
-appveyor = { repository = "fafhrd91/actix-http-b1qsn" }
+# appveyor = { repository = "fafhrd91/actix-http-b1qsn" }
 codecov = { repository = "actix/actix-http", branch = "master", service = "github" }
 
 [lib]
@@ -28,13 +28,15 @@ name = "actix_http"
 path = "src/lib.rs"
 
 [features]
-default = ["fail"]
+default = []
 
 # openssl
 ssl = ["openssl", "actix-connect/ssl"]
 
-# failure integration. it is on by default, it will be off in future versions
-# actix itself does not use failure anymore
+# cookies integration
+cookies = ["cookie"]
+
+# failure integration. actix does not use failure anymore
 fail = ["failure"]
 
 [dependencies]
@@ -49,7 +51,6 @@ backtrace = "0.3"
 bitflags = "1.0"
 bytes = "0.4"
 byteorder = "1.2"
-cookie = { version="0.11", features=["percent-encode"] }
 derive_more = "0.14"
 encoding = "0.2"
 futures = "0.1"
@@ -76,11 +77,10 @@ tokio-timer = "0.2"
 tokio-current-thread = "0.1"
 trust-dns-resolver = { version="0.11.0-alpha.2", default-features = false }
 
-# openssl
-openssl = { version="0.10", optional = true }
-
-# failure is optional
+# optional deps
+cookie = { version="0.11", features=["percent-encode"], optional = true }
 failure = { version = "0.1.5", optional = true }
+openssl = { version="0.10", optional = true }
 
 [dev-dependencies]
 actix-rt = "0.2.0"

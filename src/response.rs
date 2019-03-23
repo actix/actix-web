@@ -3,6 +3,7 @@ use std::io::Write;
 use std::{fmt, str};
 
 use bytes::{BufMut, Bytes, BytesMut};
+#[cfg(feature = "cookies")]
 use cookie::{Cookie, CookieJar};
 use futures::future::{ok, FutureResult, IntoFuture};
 use futures::Stream;
@@ -128,6 +129,7 @@ impl<B> Response<B> {
 
     /// Get an iterator for the cookies set by this response
     #[inline]
+    #[cfg(feature = "cookies")]
     pub fn cookies(&self) -> CookieIter {
         CookieIter {
             iter: self.head.headers.get_all(header::SET_COOKIE).iter(),
@@ -136,6 +138,7 @@ impl<B> Response<B> {
 
     /// Add a cookie to this response
     #[inline]
+    #[cfg(feature = "cookies")]
     pub fn add_cookie(&mut self, cookie: &Cookie) -> Result<(), HttpError> {
         let h = &mut self.head.headers;
         HeaderValue::from_str(&cookie.to_string())
@@ -148,6 +151,7 @@ impl<B> Response<B> {
     /// Remove all cookies with the given name from this response. Returns
     /// the number of cookies removed.
     #[inline]
+    #[cfg(feature = "cookies")]
     pub fn del_cookie(&mut self, name: &str) -> usize {
         let h = &mut self.head.headers;
         let vals: Vec<HeaderValue> = h
@@ -267,10 +271,12 @@ impl IntoFuture for Response {
     }
 }
 
+#[cfg(feature = "cookies")]
 pub struct CookieIter<'a> {
     iter: header::ValueIter<'a, HeaderValue>,
 }
 
+#[cfg(feature = "cookies")]
 impl<'a> Iterator for CookieIter<'a> {
     type Item = Cookie<'a>;
 
@@ -292,6 +298,7 @@ impl<'a> Iterator for CookieIter<'a> {
 pub struct ResponseBuilder {
     head: Option<Message<ResponseHead>>,
     err: Option<HttpError>,
+    #[cfg(feature = "cookies")]
     cookies: Option<CookieJar>,
 }
 
@@ -304,6 +311,7 @@ impl ResponseBuilder {
         ResponseBuilder {
             head: Some(head),
             err: None,
+            #[cfg(feature = "cookies")]
             cookies: None,
         }
     }
@@ -503,6 +511,7 @@ impl ResponseBuilder {
     ///         .finish()
     /// }
     /// ```
+    #[cfg(feature = "cookies")]
     pub fn cookie<'c>(&mut self, cookie: Cookie<'c>) -> &mut Self {
         if self.cookies.is_none() {
             let mut jar = CookieJar::new();
@@ -530,6 +539,7 @@ impl ResponseBuilder {
     ///     builder.finish()
     /// }
     /// ```
+    #[cfg(feature = "cookies")]
     pub fn del_cookie<'a>(&mut self, cookie: &Cookie<'a>) -> &mut Self {
         {
             if self.cookies.is_none() {
@@ -582,15 +592,20 @@ impl ResponseBuilder {
             return Response::from(Error::from(e)).into_body();
         }
 
+        #[allow(unused_mut)]
         let mut response = self.head.take().expect("cannot reuse response builder");
-        if let Some(ref jar) = self.cookies {
-            for cookie in jar.delta() {
-                match HeaderValue::from_str(&cookie.to_string()) {
-                    Ok(val) => {
-                        let _ = response.headers.append(header::SET_COOKIE, val);
-                    }
-                    Err(e) => return Response::from(Error::from(e)).into_body(),
-                };
+
+        #[cfg(feature = "cookies")]
+        {
+            if let Some(ref jar) = self.cookies {
+                for cookie in jar.delta() {
+                    match HeaderValue::from_str(&cookie.to_string()) {
+                        Ok(val) => {
+                            let _ = response.headers.append(header::SET_COOKIE, val);
+                        }
+                        Err(e) => return Response::from(Error::from(e)).into_body(),
+                    };
+                }
             }
         }
 
@@ -654,6 +669,7 @@ impl ResponseBuilder {
         ResponseBuilder {
             head: self.head.take(),
             err: self.err.take(),
+            #[cfg(feature = "cookies")]
             cookies: self.cookies.take(),
         }
     }
@@ -674,7 +690,9 @@ fn parts<'a>(
 impl<B> From<Response<B>> for ResponseBuilder {
     fn from(res: Response<B>) -> ResponseBuilder {
         // If this response has cookies, load them into a jar
+        #[cfg(feature = "cookies")]
         let mut jar: Option<CookieJar> = None;
+        #[cfg(feature = "cookies")]
         for c in res.cookies() {
             if let Some(ref mut j) = jar {
                 j.add_original(c.into_owned());
@@ -688,6 +706,7 @@ impl<B> From<Response<B>> for ResponseBuilder {
         ResponseBuilder {
             head: Some(res.head),
             err: None,
+            #[cfg(feature = "cookies")]
             cookies: jar,
         }
     }
@@ -697,17 +716,22 @@ impl<B> From<Response<B>> for ResponseBuilder {
 impl<'a> From<&'a ResponseHead> for ResponseBuilder {
     fn from(head: &'a ResponseHead) -> ResponseBuilder {
         // If this response has cookies, load them into a jar
+        #[cfg(feature = "cookies")]
         let mut jar: Option<CookieJar> = None;
-        let cookies = CookieIter {
-            iter: head.headers.get_all(header::SET_COOKIE).iter(),
-        };
-        for c in cookies {
-            if let Some(ref mut j) = jar {
-                j.add_original(c.into_owned());
-            } else {
-                let mut j = CookieJar::new();
-                j.add_original(c.into_owned());
-                jar = Some(j);
+
+        #[cfg(feature = "cookies")]
+        {
+            let cookies = CookieIter {
+                iter: head.headers.get_all(header::SET_COOKIE).iter(),
+            };
+            for c in cookies {
+                if let Some(ref mut j) = jar {
+                    j.add_original(c.into_owned());
+                } else {
+                    let mut j = CookieJar::new();
+                    j.add_original(c.into_owned());
+                    jar = Some(j);
+                }
             }
         }
 
@@ -721,6 +745,7 @@ impl<'a> From<&'a ResponseHead> for ResponseBuilder {
         ResponseBuilder {
             head: Some(msg),
             err: None,
+            #[cfg(feature = "cookies")]
             cookies: jar,
         }
     }
@@ -802,14 +827,9 @@ impl From<BytesMut> for Response {
 
 #[cfg(test)]
 mod tests {
-    use time::Duration;
-
     use super::*;
     use crate::body::Body;
-    use crate::http;
     use crate::http::header::{HeaderValue, CONTENT_TYPE, COOKIE};
-    use crate::httpmessage::HttpMessage;
-    use crate::test::TestRequest;
 
     #[test]
     fn test_debug() {
@@ -822,8 +842,11 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "cookies")]
     fn test_response_cookies() {
-        let req = TestRequest::default()
+        use crate::httpmessage::HttpMessage;
+
+        let req = crate::test::TestRequest::default()
             .header(COOKIE, "cookie1=value1")
             .header(COOKIE, "cookie2=value2")
             .finish();
@@ -831,11 +854,11 @@ mod tests {
 
         let resp = Response::Ok()
             .cookie(
-                http::Cookie::build("name", "value")
+                crate::http::Cookie::build("name", "value")
                     .domain("www.rust-lang.org")
                     .path("/test")
                     .http_only(true)
-                    .max_age(Duration::days(1))
+                    .max_age(time::Duration::days(1))
                     .finish(),
             )
             .del_cookie(&cookies[0])
@@ -856,16 +879,17 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "cookies")]
     fn test_update_response_cookies() {
         let mut r = Response::Ok()
-            .cookie(http::Cookie::new("original", "val100"))
+            .cookie(crate::http::Cookie::new("original", "val100"))
             .finish();
 
-        r.add_cookie(&http::Cookie::new("cookie2", "val200"))
+        r.add_cookie(&crate::http::Cookie::new("cookie2", "val200"))
             .unwrap();
-        r.add_cookie(&http::Cookie::new("cookie2", "val250"))
+        r.add_cookie(&crate::http::Cookie::new("cookie2", "val250"))
             .unwrap();
-        r.add_cookie(&http::Cookie::new("cookie3", "val300"))
+        r.add_cookie(&crate::http::Cookie::new("cookie3", "val300"))
             .unwrap();
 
         assert_eq!(r.cookies().count(), 4);
@@ -1016,11 +1040,14 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "cookies")]
     fn test_into_builder() {
+        use crate::httpmessage::HttpMessage;
+
         let mut resp: Response = "test".into();
         assert_eq!(resp.status(), StatusCode::OK);
 
-        resp.add_cookie(&http::Cookie::new("cookie1", "val100"))
+        resp.add_cookie(&crate::http::Cookie::new("cookie1", "val100"))
             .unwrap();
 
         let mut builder: ResponseBuilder = resp.into();

@@ -613,13 +613,12 @@ mod tests {
         let mut sys = actix_rt::System::new("test");
         let _ = sys.block_on(lazy(|| {
             let buf = Buffer::new("GET /test HTTP/1\r\n\r\n");
-            let readbuf = BytesMut::new();
 
             let mut h1 = Dispatcher::new(
                 buf,
                 ServiceConfig::default(),
                 CloneableService::new(
-                    (|req| ok::<_, Error>(Response::Ok().finish())).into_service(),
+                    (|_| ok::<_, Error>(Response::Ok().finish())).into_service(),
                 ),
             );
             assert!(h1.poll().is_ok());
