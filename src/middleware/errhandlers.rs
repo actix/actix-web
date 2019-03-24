@@ -1,4 +1,4 @@
-/// Custom handlers service for responses.
+//! Custom handlers service for responses.
 use std::rc::Rc;
 
 use actix_service::{Service, Transform};
