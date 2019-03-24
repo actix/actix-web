@@ -8,6 +8,7 @@ use actix_http::{Error, Extensions, HttpMessage, Message, Payload, RequestHead};
 use actix_router::{Path, Url};
 
 use crate::config::AppConfig;
+use crate::data::Data;
 use crate::error::UrlGenerationError;
 use crate::extract::FromRequest;
 use crate::info::ConnectionInfo;
@@ -98,6 +99,16 @@ impl HttpRequest {
     #[inline]
     pub fn config(&self) -> &AppConfig {
         &self.config
+    }
+
+    /// Get an application data stored with `App::data()` method during
+    /// application configuration.
+    pub fn app_data<T: 'static>(&self) -> Option<Data<T>> {
+        if let Some(st) = self.config.extensions().get::<Data<T>>() {
+            Some(st.clone())
+        } else {
+            None
+        }
     }
 
     /// Generate url for named resource
@@ -239,8 +250,9 @@ impl fmt::Debug for HttpRequest {
 mod tests {
     use super::*;
     use crate::dev::{ResourceDef, ResourceMap};
-    use crate::http::header;
-    use crate::test::TestRequest;
+    use crate::http::{header, StatusCode};
+    use crate::test::{call_success, init_service, TestRequest};
+    use crate::{web, App, HttpResponse};
 
     #[test]
     fn test_debug() {
@@ -355,5 +367,36 @@ mod tests {
             url.ok().unwrap().as_str(),
             "https://youtube.com/watch/oHg5SJYRHA0"
         );
+    }
+
+    #[test]
+    fn test_app_data() {
+        let mut srv = init_service(App::new().data(10usize).service(
+            web::resource("/").to(|req: HttpRequest| {
+                if req.app_data::<usize>().is_some() {
+                    HttpResponse::Ok()
+                } else {
+                    HttpResponse::BadRequest()
+                }
+            }),
+        ));
+
+        let req = TestRequest::default().to_request();
+        let resp = call_success(&mut srv, req);
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let mut srv = init_service(App::new().data(10u32).service(
+            web::resource("/").to(|req: HttpRequest| {
+                if req.app_data::<usize>().is_some() {
+                    HttpResponse::Ok()
+                } else {
+                    HttpResponse::BadRequest()
+                }
+            }),
+        ));
+
+        let req = TestRequest::default().to_request();
+        let resp = call_success(&mut srv, req);
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
     }
 }
