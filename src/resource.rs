@@ -39,6 +39,10 @@ type HttpNewService<P> =
 ///         web::resource("/")
 ///             .route(web::get().to(|| HttpResponse::Ok())));
 /// }
+/// ```
+///
+/// If no matching route could be found, *405* response code get returned.
+/// Default behavior could be overriden with `default_resource()` method.
 pub struct Resource<P, T = ResourceEndpoint<P>> {
     endpoint: T,
     rdef: String,
@@ -261,6 +265,8 @@ where
     }
 
     /// Default resource to be used if no matching route could be found.
+    /// By default *405* response get returned. Resource does not use
+    /// default handler from `App` or `Scope`.
     pub fn default_resource<F, R, U>(mut self, f: F) -> Self
     where
         F: FnOnce(Resource<P>) -> R,
@@ -291,9 +297,6 @@ where
         > + 'static,
 {
     fn register(mut self, config: &mut ServiceConfig<P>) {
-        if self.default.borrow().is_none() {
-            *self.default.borrow_mut() = Some(config.default_service());
-        }
         let guards = if self.guards.is_empty() {
             None
         } else {
@@ -454,7 +457,7 @@ impl<P> Service for ResourceService<P> {
             let req = req.into_request();
             Either::B(Either::B(ok(ServiceResponse::new(
                 req,
-                Response::NotFound().finish(),
+                Response::MethodNotAllowed().finish(),
             ))))
         }
     }
@@ -481,5 +484,50 @@ impl<P: 'static> NewService for ResourceEndpoint<P> {
 
     fn new_service(&self, _: &()) -> Self::Future {
         self.factory.borrow_mut().as_mut().unwrap().new_service(&())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::http::{Method, StatusCode};
+    use crate::test::{call_success, init_service, TestRequest};
+    use crate::{web, App, HttpResponse};
+
+    #[test]
+    fn test_default_resource() {
+        let mut srv = init_service(
+            App::new()
+                .service(
+                    web::resource("/test").route(web::get().to(|| HttpResponse::Ok())),
+                )
+                .default_resource(|r| r.to(|| HttpResponse::BadRequest())),
+        );
+        let req = TestRequest::with_uri("/test").to_request();
+        let resp = call_success(&mut srv, req);
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let req = TestRequest::with_uri("/test")
+            .method(Method::POST)
+            .to_request();
+        let resp = call_success(&mut srv, req);
+        assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
+
+        let mut srv = init_service(
+            App::new().service(
+                web::resource("/test")
+                    .route(web::get().to(|| HttpResponse::Ok()))
+                    .default_resource(|r| r.to(|| HttpResponse::BadRequest())),
+            ),
+        );
+
+        let req = TestRequest::with_uri("/test").to_request();
+        let resp = call_success(&mut srv, req);
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let req = TestRequest::with_uri("/test")
+            .method(Method::POST)
+            .to_request();
+        let resp = call_success(&mut srv, req);
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
     }
 }
