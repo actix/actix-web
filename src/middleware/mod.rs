@@ -3,6 +3,7 @@ mod compress;
 #[cfg(any(feature = "brotli", feature = "flate2"))]
 pub use self::compress::Compress;
 
+pub mod cors;
 mod defaultheaders;
 mod errhandlers;
 mod logger;

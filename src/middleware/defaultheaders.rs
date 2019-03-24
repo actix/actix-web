@@ -154,18 +154,15 @@ mod tests {
     use super::*;
     use crate::dev::ServiceRequest;
     use crate::http::header::CONTENT_TYPE;
-    use crate::test::{block_on, TestRequest};
+    use crate::test::{block_on, ok_service, TestRequest};
     use crate::HttpResponse;
 
     #[test]
     fn test_default_headers() {
-        let srv = FnService::new(|req: ServiceRequest<_>| {
-            req.into_response(HttpResponse::Ok().finish())
-        });
         let mut mw = block_on(
             DefaultHeaders::new()
                 .header(CONTENT_TYPE, "0001")
-                .new_transform(srv),
+                .new_transform(ok_service()),
         )
         .unwrap();
 

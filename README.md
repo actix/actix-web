@@ -2,7 +2,7 @@
 
 Actix web is a simple, pragmatic and extremely fast web framework for Rust.
 
-* Supported *HTTP/1.x* and [*HTTP/2.0*](https://actix.rs/docs/http2/) protocols
+* Supported *HTTP/1.x* and *HTTP/2.0* protocols
 * Streaming and pipelining
 * Keep-alive and slow requests handling
 * Client/server [WebSockets](https://actix.rs/docs/websockets/) support
@@ -13,33 +13,33 @@ Actix web is a simple, pragmatic and extremely fast web framework for Rust.
 * SSL support with OpenSSL or `native-tls`
 * Middlewares ([Logger, Session, CORS, CSRF, etc](https://actix.rs/docs/middleware/))
 * Includes an asynchronous [HTTP client](https://actix.rs/actix-web/actix_web/client/index.html)
-* Built on top of [Actix actor framework](https://github.com/actix/actix)
+* Supports [Actix actor framework](https://github.com/actix/actix)
 * Experimental [Async/Await](https://github.com/mehcode/actix-web-async-await) support.
 
 ## Documentation & community resources
 
 * [User Guide](https://actix.rs/docs/)
 * [API Documentation (Development)](https://actix.rs/actix-web/actix_web/)
-* [API Documentation (Releases)](https://actix.rs/api/actix-web/stable/actix_web/)
+* [API Documentation (Releases)](https://docs.rs/actix-web/)
 * [Chat on gitter](https://gitter.im/actix/actix)
 * Cargo package: [actix-web](https://crates.io/crates/actix-web)
-* Minimum supported Rust version: 1.31 or later
+* Minimum supported Rust version: 1.32 or later
 
 ## Example
 
 ```rust
-extern crate actix_web;
-use actix_web::{http, server, App, Path, Responder};
+use actix_web::{web, App, HttpServer, Responder};
 
-fn index(info: Path<(u32, String)>) -> impl Responder {
+fn index(info: web::Path<(u32, String)>) -> impl Responder {
     format!("Hello {}! id:{}", info.1, info.0)
 }
 
-fn main() {
-    server::new(
+fn main() -> std::io::Result<()> {
+    HttpServer::new(
         || App::new()
-            .route("/{id}/{name}/index.html", http::Method::GET, index))
-        .bind("127.0.0.1:8080").unwrap()
+            .service(web::resource("/{id}/{name}/index.html")
+                .route(web::get().to(index)))
+        .bind("127.0.0.1:8080")?
         .run();
 }
 ```
@@ -48,7 +48,6 @@ fn main() {
 
 * [Basics](https://github.com/actix/examples/tree/master/basics/)
 * [Stateful](https://github.com/actix/examples/tree/master/state/)
-* [Protobuf support](https://github.com/actix/examples/tree/master/protobuf/)
 * [Multipart streams](https://github.com/actix/examples/tree/master/multipart/)
 * [Simple websocket](https://github.com/actix/examples/tree/master/websocket/)
 * [Tera](https://github.com/actix/examples/tree/master/template_tera/) /

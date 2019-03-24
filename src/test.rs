@@ -3,13 +3,13 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use actix_http::http::header::{Header, HeaderName, IntoHeaderValue};
-use actix_http::http::{HttpTryFrom, Method, Version};
+use actix_http::http::{HttpTryFrom, Method, StatusCode, Version};
 use actix_http::test::TestRequest as HttpTestRequest;
 use actix_http::{Extensions, PayloadStream, Request};
 use actix_router::{Path, ResourceDef, Url};
 use actix_rt::Runtime;
 use actix_server_config::ServerConfig;
-use actix_service::{IntoNewService, NewService, Service};
+use actix_service::{FnService, IntoNewService, NewService, Service};
 use bytes::Bytes;
 #[cfg(feature = "cookies")]
 use cookie::Cookie;
@@ -17,9 +17,10 @@ use futures::future::{lazy, Future};
 
 use crate::config::{AppConfig, AppConfigInner};
 use crate::data::RouteData;
+use crate::dev::Body;
 use crate::rmap::ResourceMap;
 use crate::service::{ServiceFromRequest, ServiceRequest, ServiceResponse};
-use crate::{HttpRequest, HttpResponse};
+use crate::{Error, HttpRequest, HttpResponse};
 
 thread_local! {
     static RT: RefCell<Runtime> = {
@@ -53,6 +54,26 @@ where
     F: Fn() -> Result<I, E>,
 {
     RT.with(move |rt| rt.borrow_mut().block_on(lazy(f)))
+}
+
+pub fn ok_service() -> impl Service<
+    Request = ServiceRequest<PayloadStream>,
+    Response = ServiceResponse<Body>,
+    Error = Error,
+> {
+    default_service(StatusCode::OK)
+}
+
+pub fn default_service(
+    status_code: StatusCode,
+) -> impl Service<
+    Request = ServiceRequest<PayloadStream>,
+    Response = ServiceResponse<Body>,
+    Error = Error,
+> {
+    FnService::new(move |req: ServiceRequest<PayloadStream>| {
+        req.into_response(HttpResponse::build(status_code).finish())
+    })
 }
 
 /// This method accepts application builder instance, and constructs
