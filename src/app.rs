@@ -361,7 +361,7 @@ where
         }
     }
 
-    /// Default resource to be used if no matching route could be found.
+    /// Default resource to be used if no matching resource could be found.
     pub fn default_resource<F, U>(mut self, f: F) -> Self
     where
         F: FnOnce(Resource<P>) -> Resource<P, U>,
