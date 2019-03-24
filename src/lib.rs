@@ -115,6 +115,7 @@ pub use crate::request::HttpRequest;
 pub use crate::resource::Resource;
 pub use crate::responder::{Either, Responder};
 pub use crate::route::Route;
+pub use crate::scope::Scope;
 pub use crate::server::HttpServer;
 
 pub mod dev {
