@@ -1,3 +1,80 @@
+//! Actix web is a small, pragmatic, and extremely fast web framework
+//! for Rust.
+//!
+//! ```rust
+//! use actix_web::{web, App, Responder, HttpServer};
+//! # use std::thread;
+//!
+//! fn index(info: web::Path<(String, u32)>) -> impl Responder {
+//!     format!("Hello {}! id:{}", info.0, info.1)
+//! }
+//!
+//! fn main() -> std::io::Result<()> {
+//!     # thread::spawn(|| {
+//!     HttpServer::new(|| App::new().service(
+//!         web::resource("/{name}/{id}/index.html").to(index))
+//!     )
+//!         .bind("127.0.0.1:8080")?
+//!         .run()
+//!     # });
+//!     # Ok(())
+//! }
+//! ```
+//!
+//! ## Documentation & community resources
+//!
+//! Besides the API documentation (which you are currently looking
+//! at!), several other resources are available:
+//!
+//! * [User Guide](https://actix.rs/docs/)
+//! * [Chat on gitter](https://gitter.im/actix/actix)
+//! * [GitHub repository](https://github.com/actix/actix-web)
+//! * [Cargo package](https://crates.io/crates/actix-web)
+//!
+//! To get started navigating the API documentation you may want to
+//! consider looking at the following pages:
+//!
+//! * [App](struct.App.html): This struct represents an actix-web
+//!   application and is used to configure routes and other common
+//!   settings.
+//!
+//! * [HttpServer](struct.HttpServer.html): This struct
+//!   represents an HTTP server instance and is used to instantiate and
+//!   configure servers.
+//!
+//! * [HttpRequest](struct.HttpRequest.html) and
+//!   [HttpResponse](struct.HttpResponse.html): These structs
+//!   represent HTTP requests and responses and expose various methods
+//!   for inspecting, creating and otherwise utilizing them.
+//!
+//! ## Features
+//!
+//! * Supported *HTTP/1.x* and *HTTP/2.0* protocols
+//! * Streaming and pipelining
+//! * Keep-alive and slow requests handling
+//! * `WebSockets` server/client
+//! * Transparent content compression/decompression (br, gzip, deflate)
+//! * Configurable request routing
+//! * Multipart streams
+//! * SSL support with OpenSSL or `native-tls`
+//! * Middlewares (`Logger`, `Session`, `CORS`, `CSRF`, `DefaultHeaders`)
+//! * Supports [Actix actor framework](https://github.com/actix/actix)
+//! * Supported Rust version: 1.32 or later
+//!
+//! ## Package feature
+//!
+//! * `tls` - enables ssl support via `native-tls` crate
+//! * `ssl` - enables ssl support via `openssl` crate, supports `http/2`
+//! * `rust-tls` - enables ssl support via `rustls` crate, supports `http/2`
+//! * `cookies` - enables cookies support, includes `ring` crate as
+//!   dependency
+//! * `brotli` - enables `brotli` compression support, requires `c`
+//!   compiler
+//! * `flate2-c` - enables `gzip`, `deflate` compression support, requires
+//!   `c` compiler
+//! * `flate2-rust` - experimental rust based implementation for
+//!   `gzip`, `deflate` compression.
+//!
 #![allow(clippy::type_complexity, clippy::new_without_default)]
 
 mod app;

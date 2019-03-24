@@ -29,7 +29,7 @@ type ErrorHandler<B> = Fn(ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>>
 /// ## Example
 ///
 /// ```rust
-/// use actix_web::middleware::{ErrorHandlers, ErrorHandlerResponse};
+/// use actix_web::middleware::errhandlers::{ErrorHandlers, ErrorHandlerResponse};
 /// use actix_web::{web, http, dev, App, HttpRequest, HttpResponse, Result};
 ///
 /// fn render_500<B>(mut res: dev::ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
