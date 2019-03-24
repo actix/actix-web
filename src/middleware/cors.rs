@@ -871,6 +871,8 @@ mod tests {
 
         assert!(cors.inner.validate_allowed_method(&req).is_err());
         assert!(cors.inner.validate_allowed_headers(&req).is_err());
+        let resp = test::call_success(&mut cors, req);
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 
         let req = TestRequest::with_header("Origin", "https://www.example.com")
             .header(header::ACCESS_CONTROL_REQUEST_METHOD, "put")
