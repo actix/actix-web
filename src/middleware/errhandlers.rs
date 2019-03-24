@@ -1,3 +1,4 @@
+/// Custom handlers service for responses.
 use std::rc::Rc;
 
 use actix_service::{Service, Transform};
@@ -106,6 +107,7 @@ where
     }
 }
 
+#[doc(hidden)]
 pub struct ErrorHandlersMiddleware<S, B> {
     service: S,
     handlers: Rc<HashMap<StatusCode, Box<ErrorHandler<B>>>>,
