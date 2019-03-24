@@ -442,6 +442,6 @@ mod tests {
             .method(Method::HEAD)
             .to_request();
         let resp = call_success(&mut srv, req);
-        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+        assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
     }
 }

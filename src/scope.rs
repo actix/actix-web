@@ -598,7 +598,7 @@ mod tests {
             .method(Method::POST)
             .to_request();
         let resp = block_on(srv.call(req)).unwrap();
-        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+        assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
     }
 
     #[test]
