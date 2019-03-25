@@ -41,7 +41,7 @@ type ErrorHandler<B> = Fn(ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>>
 ///
 /// fn main() {
 ///     let app = App::new()
-///         .middleware(
+///         .wrap(
 ///             ErrorHandlers::new()
 ///                 .handler(http::StatusCode::INTERNAL_SERVER_ERROR, render_500),
 ///         )

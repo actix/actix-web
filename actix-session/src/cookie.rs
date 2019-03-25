@@ -178,7 +178,7 @@ impl CookieSessionInner {
 /// use actix_web::{web, App, HttpResponse, HttpServer};
 ///
 /// fn main() {
-///     let app = App::new().middleware(
+///     let app = App::new().wrap(
 ///         CookieSession::signed(&[0; 32])
 ///             .domain("www.rust-lang.org")
 ///             .name("actix_session")
@@ -323,7 +323,7 @@ mod tests {
     fn cookie_session() {
         let mut app = test::init_service(
             App::new()
-                .middleware(CookieSession::signed(&[0; 32]).secure(false))
+                .wrap(CookieSession::signed(&[0; 32]).secure(false))
                 .service(web::resource("/").to(|ses: Session| {
                     let _ = ses.set("counter", 100);
                     "test"
@@ -342,7 +342,7 @@ mod tests {
     fn cookie_session_extractor() {
         let mut app = test::init_service(
             App::new()
-                .middleware(CookieSession::signed(&[0; 32]).secure(false))
+                .wrap(CookieSession::signed(&[0; 32]).secure(false))
                 .service(web::resource("/").to(|ses: Session| {
                     let _ = ses.set("counter", 100);
                     "test"

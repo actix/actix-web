@@ -26,9 +26,9 @@ fn main() -> std::io::Result<()> {
 
     HttpServer::new(|| {
         App::new()
-            .middleware(middleware::DefaultHeaders::new().header("X-Version", "0.2"))
-            .middleware(middleware::Compress::default())
-            .middleware(middleware::Logger::default())
+            .wrap(middleware::DefaultHeaders::new().header("X-Version", "0.2"))
+            .wrap(middleware::Compress::default())
+            .wrap(middleware::Logger::default())
             .service(index)
             .service(no_params)
             .service(

@@ -108,7 +108,7 @@ where
     }
 
     /// Register a middleware.
-    pub fn middleware<M, B, F>(
+    pub fn wrap<M, B, F>(
         self,
         mw: F,
     ) -> AppRouter<
@@ -322,7 +322,7 @@ where
     }
 
     /// Register a middleware.
-    pub fn middleware<M, B1, F>(
+    pub fn wrap<M, B1, F>(
         self,
         mw: F,
     ) -> AppRouter<

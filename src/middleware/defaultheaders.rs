@@ -18,7 +18,7 @@ use crate::service::{ServiceRequest, ServiceResponse};
 ///
 /// fn main() {
 ///     let app = App::new()
-///         .middleware(middleware::DefaultHeaders::new().header("X-Version", "0.2"))
+///         .wrap(middleware::DefaultHeaders::new().header("X-Version", "0.2"))
 ///         .service(
 ///             web::resource("/test")
 ///                 .route(web::get().to(|| HttpResponse::Ok()))

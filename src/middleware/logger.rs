@@ -41,8 +41,8 @@ use crate::{HttpMessage, HttpResponse};
 ///     env_logger::init();
 ///
 ///     let app = App::new()
-///         .middleware(Logger::default())
-///         .middleware(Logger::new("%a %{User-Agent}i"));
+///         .wrap(Logger::default())
+///         .wrap(Logger::new("%a %{User-Agent}i"));
 /// }
 /// ```
 ///

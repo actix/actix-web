@@ -205,7 +205,7 @@ where
     /// This is similar to `App's` middlewares, but middleware get invoked on scope level.
     /// Scope level middlewares are not allowed to change response
     /// type (i.e modify response's body).
-    pub fn middleware<M, F>(
+    pub fn wrap<M, F>(
         self,
         mw: F,
     ) -> Scope<
@@ -476,11 +476,13 @@ impl<P: 'static> NewService for ScopeEndpoint<P> {
 mod tests {
     use actix_service::Service;
     use bytes::Bytes;
+    use futures::{Future, IntoFuture};
 
     use crate::dev::{Body, ResponseBody};
-    use crate::http::{Method, StatusCode};
-    use crate::test::{block_on, init_service, TestRequest};
-    use crate::{guard, web, App, HttpRequest, HttpResponse};
+    use crate::http::{header, HeaderValue, Method, StatusCode};
+    use crate::service::{ServiceRequest, ServiceResponse};
+    use crate::test::{block_on, call_success, init_service, TestRequest};
+    use crate::{guard, web, App, Error, HttpRequest, HttpResponse};
 
     #[test]
     fn test_scope() {
@@ -826,5 +828,38 @@ mod tests {
         let req = TestRequest::with_uri("/app2/non-exist").to_request();
         let resp = block_on(srv.call(req)).unwrap();
         assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
+    }
+
+    fn md<S, P, B>(
+        req: ServiceRequest<P>,
+        srv: &mut S,
+    ) -> impl IntoFuture<Item = ServiceResponse<B>, Error = Error>
+    where
+        S: Service<
+            Request = ServiceRequest<P>,
+            Response = ServiceResponse<B>,
+            Error = Error,
+        >,
+    {
+        srv.call(req).map(|mut res| {
+            res.headers_mut()
+                .insert(header::CONTENT_TYPE, HeaderValue::from_static("0001"));
+            res
+        })
+    }
+
+    #[test]
+    fn test_middleware() {
+        let mut srv =
+            init_service(App::new().service(web::scope("app").wrap(md).service(
+                web::resource("/test").route(web::get().to(|| HttpResponse::Ok())),
+            )));
+        let req = TestRequest::with_uri("/app/test").to_request();
+        let resp = call_success(&mut srv, req);
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(
+            resp.headers().get(header::CONTENT_TYPE).unwrap(),
+            HeaderValue::from_static("0001")
+        );
     }
 }

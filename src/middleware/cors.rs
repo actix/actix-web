@@ -1,8 +1,8 @@
 //! Cross-origin resource sharing (CORS) for Actix applications
 //!
 //! CORS middleware could be used with application and with resource.
-//! Cors middleware could be used as parameter for `App::middleware()`,
-//! `Resource::middleware()` or `Scope::middleware()` methods.
+//! Cors middleware could be used as parameter for `App::wrap()`,
+//! `Resource::wrap()` or `Scope::wrap()` methods.
 //!
 //! # Example
 //!
@@ -16,7 +16,7 @@
 //!
 //! fn main() -> std::io::Result<()> {
 //!     HttpServer::new(|| App::new()
-//!         .middleware(
+//!         .wrap(
 //!             Cors::new() // <- Construct CORS middleware builder
 //!               .allowed_origin("https://www.rust-lang.org/")
 //!               .allowed_methods(vec!["GET", "POST"])

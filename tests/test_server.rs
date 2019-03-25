@@ -59,7 +59,7 @@ fn test_body_gzip() {
     let mut srv = TestServer::new(|| {
         h1::H1Service::new(
             App::new()
-                .middleware(middleware::Compress::new(ContentEncoding::Gzip))
+                .wrap(middleware::Compress::new(ContentEncoding::Gzip))
                 .service(web::resource("/").route(web::to(|| Response::Ok().body(STR)))),
         )
     });
@@ -87,7 +87,7 @@ fn test_body_gzip_large() {
         let data = srv_data.clone();
         h1::H1Service::new(
             App::new()
-                .middleware(middleware::Compress::new(ContentEncoding::Gzip))
+                .wrap(middleware::Compress::new(ContentEncoding::Gzip))
                 .service(
                     web::resource("/")
                         .route(web::to(move || Response::Ok().body(data.clone()))),
@@ -121,7 +121,7 @@ fn test_body_gzip_large_random() {
         let data = srv_data.clone();
         h1::H1Service::new(
             App::new()
-                .middleware(middleware::Compress::new(ContentEncoding::Gzip))
+                .wrap(middleware::Compress::new(ContentEncoding::Gzip))
                 .service(
                     web::resource("/")
                         .route(web::to(move || Response::Ok().body(data.clone()))),
@@ -149,7 +149,7 @@ fn test_body_chunked_implicit() {
     let mut srv = TestServer::new(move || {
         h1::H1Service::new(
             App::new()
-                .middleware(middleware::Compress::new(ContentEncoding::Gzip))
+                .wrap(middleware::Compress::new(ContentEncoding::Gzip))
                 .service(web::resource("/").route(web::get().to(move || {
                     Response::Ok().streaming(once(Ok::<_, Error>(Bytes::from_static(
                         STR.as_ref(),
@@ -181,7 +181,7 @@ fn test_body_br_streaming() {
     let mut srv = TestServer::new(move || {
         h1::H1Service::new(
             App::new()
-                .middleware(middleware::Compress::new(ContentEncoding::Br))
+                .wrap(middleware::Compress::new(ContentEncoding::Br))
                 .service(web::resource("/").route(web::to(move || {
                     Response::Ok().streaming(once(Ok::<_, Error>(Bytes::from_static(
                         STR.as_ref(),
@@ -254,7 +254,7 @@ fn test_body_deflate() {
     let mut srv = TestServer::new(move || {
         h1::H1Service::new(
             App::new()
-                .middleware(middleware::Compress::new(ContentEncoding::Deflate))
+                .wrap(middleware::Compress::new(ContentEncoding::Deflate))
                 .service(
                     web::resource("/").route(web::to(move || Response::Ok().body(STR))),
                 ),
@@ -281,7 +281,7 @@ fn test_body_brotli() {
     let mut srv = TestServer::new(move || {
         h1::H1Service::new(
             App::new()
-                .middleware(middleware::Compress::new(ContentEncoding::Br))
+                .wrap(middleware::Compress::new(ContentEncoding::Br))
                 .service(
                     web::resource("/").route(web::to(move || Response::Ok().body(STR))),
                 ),

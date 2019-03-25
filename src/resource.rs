@@ -550,7 +550,7 @@ mod tests {
     use crate::test::{call_success, init_service, TestRequest};
     use crate::{web, App, Error, HttpResponse};
 
-    fn md1<S, P, B>(
+    fn md<S, P, B>(
         req: ServiceRequest<P>,
         srv: &mut S,
     ) -> impl IntoFuture<Item = ServiceResponse<B>, Error = Error>
@@ -573,7 +573,7 @@ mod tests {
         let mut srv = init_service(
             App::new().service(
                 web::resource("/test")
-                    .wrap(md1)
+                    .wrap(md)
                     .route(web::get().to(|| HttpResponse::Ok())),
             ),
         );

@@ -31,7 +31,7 @@
 //! fn main() -> std::io::Result<()> {
 //! # std::thread::spawn(||
 //!     HttpServer::new(
-//!         || App::new().middleware(
+//!         || App::new().wrap(
 //!               CookieSession::signed(&[0; 32]) // <- create cookie based session middleware
 //!                     .secure(false)
 //!              )

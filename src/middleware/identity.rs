@@ -37,7 +37,7 @@
 //! }
 //!
 //! fn main() {
-//!     let app = App::new().middleware(IdentityService::new(
+//!     let app = App::new().wrap(IdentityService::new(
 //!         // <- create identity middleware
 //!         CookieIdentityPolicy::new(&[0; 32])    // <- create cookie session backend
 //!               .name("auth-cookie")
@@ -179,7 +179,7 @@ pub trait IdentityPolicy: Sized + 'static {
 /// use actix_web::middleware::identity::{CookieIdentityPolicy, IdentityService};
 ///
 /// fn main() {
-///     let app = App::new().middleware(IdentityService::new(
+///     let app = App::new().wrap(IdentityService::new(
 ///         // <- create identity middleware
 ///         CookieIdentityPolicy::new(&[0; 32])    // <- create cookie session backend
 ///               .name("auth-cookie")
@@ -381,7 +381,7 @@ impl CookieIdentityInner {
 /// use actix_web::App;
 ///
 /// fn main() {
-///     let app = App::new().middleware(IdentityService::new(
+///     let app = App::new().wrap(IdentityService::new(
 ///         // <- create identity middleware
 ///         CookieIdentityPolicy::new(&[0; 32])  // <- construct cookie policy
 ///                .domain("www.rust-lang.org")
@@ -473,7 +473,7 @@ mod tests {
     fn test_identity() {
         let mut srv = test::init_service(
             App::new()
-                .middleware(IdentityService::new(
+                .wrap(IdentityService::new(
                     CookieIdentityPolicy::new(&[0; 32])
                         .domain("www.rust-lang.org")
                         .name("actix_auth")
