@@ -211,6 +211,7 @@ fn directory_listing(
 
 type MimeOverride = Fn(&mime::Name) -> DispositionType;
 
+#[derive(Clone)]
 /// Static files handling
 ///
 /// `Files` service must be registered with `App::service()` method.
@@ -283,7 +284,7 @@ impl<S: 'static> Files<S> {
     }
 
     /// Specifies mime override callback
-    pub fn mime_override<F>(mut self, f: F) -> Self where for<'r, 's> F: Fn(&mime::Name) -> DispositionType + 'static {
+    pub fn mime_override<F>(mut self, f: F) -> Self where F: Fn(&mime::Name) -> DispositionType + 'static {
         self.mime_override = Some(Rc::new(f));
         self
     }
@@ -302,7 +303,7 @@ impl<S: 'static> Files<S> {
     ///
     ///Default is true.
     pub fn use_etag(mut self, value: bool) -> Self {
-        self.file_flags.use_etag = value;
+        self.file_flags.set(named::Flags::ETAG, value);
         self
     }
 
@@ -311,7 +312,7 @@ impl<S: 'static> Files<S> {
     ///
     ///Default is true.
     pub fn use_last_modified(mut self, value: bool) -> Self {
-        self.file_flags.use_last_modified = value;
+        self.file_flags.set(named::Flags::LAST_MD, value);
         self
     }
 

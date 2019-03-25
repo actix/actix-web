@@ -22,6 +22,7 @@ actix-web = { path=".." }
 actix-http = { git = "https://github.com/actix/actix-http.git" }
 actix-service = "0.3.3"
 
+bitflags = "1"
 bytes = "0.4"
 futures = "0.1"
 derive_more = "0.14"

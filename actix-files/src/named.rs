@@ -7,6 +7,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 #[cfg(unix)]
 use std::os::unix::fs::MetadataExt;
 
+use bitflags::bitflags;
 use mime;
 use mime_guess::guess_mime_type;
 
@@ -17,18 +18,16 @@ use actix_web::{Error, HttpMessage, HttpRequest, HttpResponse, Responder};
 use crate::range::HttpRange;
 use crate::ChunkedReadFile;
 
-#[derive(Debug, Clone, Copy)]
-pub(crate) struct Flags {
-    pub use_etag: bool,
-    pub use_last_modified: bool,
+bitflags! {
+    pub(crate) struct Flags: u32 {
+        const ETAG = 0b00000001;
+        const LAST_MD = 0b00000010;
+    }
 }
 
 impl Default for Flags {
     fn default() -> Self {
-        Self {
-            use_etag: true,
-            use_last_modified: true,
-        }
+        Flags::all()
     }
 }
 
@@ -188,7 +187,7 @@ impl NamedFile {
     ///
     ///Default is true.
     pub fn use_etag(mut self, value: bool) -> Self {
-        self.flags.use_etag = value;
+        self.flags.set(Flags::ETAG, value);
         self
     }
 
@@ -197,7 +196,7 @@ impl NamedFile {
     ///
     ///Default is true.
     pub fn use_last_modified(mut self, value: bool) -> Self {
-        self.flags.use_last_modified = value;
+        self.flags.set(Flags::LAST_MD, value);
         self
     }
 
@@ -318,8 +317,8 @@ impl Responder for NamedFile {
             }
         }
 
-        let etag = if self.flags.use_etag { self.etag() } else { None };
-        let last_modified = if self.flags.use_last_modified {
+        let etag = if self.flags.contains(Flags::ETAG) { self.etag() } else { None };
+        let last_modified = if self.flags.contains(Flags::LAST_MD) {
             self.last_modified()
         } else {
             None
