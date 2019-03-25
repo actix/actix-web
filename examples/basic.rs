@@ -33,7 +33,7 @@ fn main() -> std::io::Result<()> {
             .service(no_params)
             .service(
                 web::resource("/resource2/index.html")
-                    .middleware(
+                    .wrap(
                         middleware::DefaultHeaders::new().header("X-Version-R2", "0.3"),
                     )
                     .default_resource(|r| {

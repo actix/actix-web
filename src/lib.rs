@@ -340,4 +340,30 @@ pub mod web {
     {
         blocking::run(f).from_err()
     }
+
+    use actix_service::{fn_transform, Service, Transform};
+
+    use crate::service::{ServiceRequest, ServiceResponse};
+
+    /// Create middleare
+    pub fn md<F, R, S, P, B>(
+        f: F,
+    ) -> impl Transform<
+        S,
+        Request = ServiceRequest<P>,
+        Response = ServiceResponse<B>,
+        Error = Error,
+        InitError = (),
+    >
+    where
+        S: Service<
+            Request = ServiceRequest<P>,
+            Response = ServiceResponse<B>,
+            Error = Error,
+        >,
+        F: FnMut(ServiceRequest<P>, &mut S) -> R + Clone,
+        R: IntoFuture<Item = ServiceResponse<B>, Error = Error>,
+    {
+        fn_transform(f)
+    }
 }

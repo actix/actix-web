@@ -230,7 +230,9 @@ where
     /// This is similar to `App's` middlewares, but middleware get invoked on resource level.
     /// Resource level middlewares are not allowed to change response
     /// type (i.e modify response's body).
-    pub fn middleware<M, F>(
+    ///
+    /// **Note**: middlewares get called in opposite order of middlewares registration.
+    pub fn wrap<M, F>(
         self,
         mw: F,
     ) -> Resource<
@@ -262,6 +264,57 @@ where
             default: self.default,
             factory_ref: self.factory_ref,
         }
+    }
+
+    /// Register a resource middleware function.
+    ///
+    /// This function accepts instance of `ServiceRequest` type and
+    /// mutable reference to the next middleware in chain.
+    ///
+    /// This is similar to `App's` middlewares, but middleware get invoked on resource level.
+    /// Resource level middlewares are not allowed to change response
+    /// type (i.e modify response's body).
+    ///
+    /// ```rust
+    /// use actix_service::Service;
+    /// # use futures::Future;
+    /// use actix_web::{web, App};
+    /// use actix_web::http::{header::CONTENT_TYPE, HeaderValue};
+    ///
+    /// fn index() -> &'static str {
+    ///     "Welcome!"
+    /// }
+    ///
+    /// fn main() {
+    ///     let app = App::new().service(
+    ///         web::resource("/index.html")
+    ///             .wrap_fn(|req, srv|
+    ///                 srv.call(req).map(|mut res| {
+    ///                     res.headers_mut().insert(
+    ///                        CONTENT_TYPE, HeaderValue::from_static("text/plain"),
+    ///                     );
+    ///                     res
+    ///                 }))
+    ///             .route(web::get().to(index)));
+    /// }
+    /// ```
+    pub fn wrap_fn<F, R>(
+        self,
+        mw: F,
+    ) -> Resource<
+        P,
+        impl NewService<
+            Request = ServiceRequest<P>,
+            Response = ServiceResponse,
+            Error = Error,
+            InitError = (),
+        >,
+    >
+    where
+        F: FnMut(ServiceRequest<P>, &mut T::Service) -> R + Clone,
+        R: IntoFuture<Item = ServiceResponse, Error = Error>,
+    {
+        self.wrap(mw)
     }
 
     /// Default resource to be used if no matching route could be found.
@@ -489,9 +542,75 @@ impl<P: 'static> NewService for ResourceEndpoint<P> {
 
 #[cfg(test)]
 mod tests {
-    use crate::http::{Method, StatusCode};
+    use actix_service::Service;
+    use futures::{Future, IntoFuture};
+
+    use crate::http::{header, HeaderValue, Method, StatusCode};
+    use crate::service::{ServiceRequest, ServiceResponse};
     use crate::test::{call_success, init_service, TestRequest};
-    use crate::{web, App, HttpResponse};
+    use crate::{web, App, Error, HttpResponse};
+
+    fn md1<S, P, B>(
+        req: ServiceRequest<P>,
+        srv: &mut S,
+    ) -> impl IntoFuture<Item = ServiceResponse<B>, Error = Error>
+    where
+        S: Service<
+            Request = ServiceRequest<P>,
+            Response = ServiceResponse<B>,
+            Error = Error,
+        >,
+    {
+        srv.call(req).map(|mut res| {
+            res.headers_mut()
+                .insert(header::CONTENT_TYPE, HeaderValue::from_static("0001"));
+            res
+        })
+    }
+
+    #[test]
+    fn test_middleware() {
+        let mut srv = init_service(
+            App::new().service(
+                web::resource("/test")
+                    .wrap(md1)
+                    .route(web::get().to(|| HttpResponse::Ok())),
+            ),
+        );
+        let req = TestRequest::with_uri("/test").to_request();
+        let resp = call_success(&mut srv, req);
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(
+            resp.headers().get(header::CONTENT_TYPE).unwrap(),
+            HeaderValue::from_static("0001")
+        );
+    }
+
+    #[test]
+    fn test_middleware_fn() {
+        let mut srv = init_service(
+            App::new().service(
+                web::resource("/test")
+                    .wrap_fn(|req, srv| {
+                        srv.call(req).map(|mut res| {
+                            res.headers_mut().insert(
+                                header::CONTENT_TYPE,
+                                HeaderValue::from_static("0001"),
+                            );
+                            res
+                        })
+                    })
+                    .route(web::get().to(|| HttpResponse::Ok())),
+            ),
+        );
+        let req = TestRequest::with_uri("/test").to_request();
+        let resp = call_success(&mut srv, req);
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(
+            resp.headers().get(header::CONTENT_TYPE).unwrap(),
+            HeaderValue::from_static("0001")
+        );
+    }
 
     #[test]
     fn test_default_resource() {
