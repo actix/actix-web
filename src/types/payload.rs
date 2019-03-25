@@ -23,9 +23,7 @@ use crate::service::ServiceFromRequest;
 /// use actix_web::{web, error, App, Error, HttpResponse};
 ///
 /// /// extract binary data from request
-/// fn index<P>(body: web::Payload<P>) -> impl Future<Item = HttpResponse, Error = Error>
-/// where
-///     P: Stream<Item = web::Bytes, Error = error::PayloadError>
+/// fn index(body: web::Payload) -> impl Future<Item = HttpResponse, Error = Error>
 /// {
 ///     body.map_err(Error::from)
 ///         .fold(web::BytesMut::new(), move |mut body, chunk| {
@@ -45,12 +43,9 @@ use crate::service::ServiceFromRequest;
 ///     );
 /// }
 /// ```
-pub struct Payload<T>(crate::dev::Payload<T>);
+pub struct Payload(crate::dev::Payload<Box<Stream<Item = Bytes, Error = PayloadError>>>);
 
-impl<T> Stream for Payload<T>
-where
-    T: Stream<Item = Bytes, Error = PayloadError>,
-{
+impl Stream for Payload {
     type Item = Bytes;
     type Error = PayloadError;
 
@@ -69,9 +64,7 @@ where
 /// use actix_web::{web, error, App, Error, HttpResponse};
 ///
 /// /// extract binary data from request
-/// fn index<P>(body: web::Payload<P>) -> impl Future<Item = HttpResponse, Error = Error>
-/// where
-///     P: Stream<Item = web::Bytes, Error = error::PayloadError>
+/// fn index(body: web::Payload) -> impl Future<Item = HttpResponse, Error = Error>
 /// {
 ///     body.map_err(Error::from)
 ///         .fold(web::BytesMut::new(), move |mut body, chunk| {
@@ -91,16 +84,26 @@ where
 ///     );
 /// }
 /// ```
-impl<P> FromRequest<P> for Payload<P>
+impl<P> FromRequest<P> for Payload
 where
-    P: Stream<Item = Bytes, Error = PayloadError>,
+    P: Stream<Item = Bytes, Error = PayloadError> + 'static,
 {
     type Error = Error;
-    type Future = Result<Payload<P>, Error>;
+    type Future = Result<Payload, Error>;
 
     #[inline]
     fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
-        Ok(Payload(req.take_payload()))
+        let pl = match req.take_payload() {
+            crate::dev::Payload::Stream(s) => {
+                let pl: Box<dyn Stream<Item = Bytes, Error = PayloadError>> =
+                    Box::new(s);
+                crate::dev::Payload::Stream(pl)
+            }
+            crate::dev::Payload::None => crate::dev::Payload::None,
+            crate::dev::Payload::H1(pl) => crate::dev::Payload::H1(pl),
+            crate::dev::Payload::H2(pl) => crate::dev::Payload::H2(pl),
+        };
+        Ok(Payload(pl))
     }
 }
 

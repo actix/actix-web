@@ -32,12 +32,4 @@ percent-encoding = "1.0"
 v_htmlescape = "0.4"
 
 [dev-dependencies]
-actix-rt = "0.1.0"
-#actix-server = { version="0.2", features=["ssl"] }
 actix-web = { path="..", features=["ssl"] }
-actix-server = { git = "https://github.com/actix/actix-net.git", features=["ssl"] }
-actix-http = { git = "https://github.com/actix/actix-http.git", features=["ssl"] }
-actix-http-test = { git = "https://github.com/actix/actix-http.git", features=["ssl"] }
-rand = "0.6"
-env_logger = "0.6"
-serde_derive = "1.0"

@@ -26,11 +26,12 @@ impl StreamHandler<ws::Message, ws::ProtocolError> for Ws {
 
 #[test]
 fn test_simple() {
-    let mut srv = TestServer::new(|| {
-        HttpService::new(App::new().service(web::resource("/").to(
-            |req: HttpRequest, stream: web::Payload<_>| ws::start(Ws, &req, stream),
-        )))
-    });
+    let mut srv =
+        TestServer::new(|| {
+            HttpService::new(App::new().service(web::resource("/").to(
+                |req: HttpRequest, stream: web::Payload| ws::start(Ws, &req, stream),
+            )))
+        });
 
     // client service
     let framed = srv.ws().unwrap();

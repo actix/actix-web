@@ -1,5 +1,4 @@
-use actix_http::http::header::DispositionType;
-use actix_web::http::Method;
+use actix_web::http::{header::DispositionType, Method};
 use mime;
 
 /// Describes `StaticFiles` configiration
@@ -11,11 +10,9 @@ use mime;
 ///
 /// ## Example
 ///
-/// ```rust,ignore
-/// extern crate mime;
-/// extern crate actix_web;
+/// ```rust
 /// use actix_web::http::header::DispositionType;
-/// use actix_web::fs::{StaticFileConfig, NamedFile};
+/// use actix_files::{StaticFileConfig, NamedFile};
 ///
 /// #[derive(Default)]
 /// struct MyConfig;
@@ -29,10 +26,10 @@ use mime;
 /// let file = NamedFile::open_with_config("foo.txt", MyConfig);
 /// ```
 pub trait StaticFileConfig: Default {
-    ///Describes mapping for mime type to content disposition header
+    /// Describes mapping for mime type to content disposition header
     ///
-    ///By default `IMAGE`, `TEXT` and `VIDEO` are mapped to Inline.
-    ///Others are mapped to Attachment
+    /// By default `IMAGE`, `TEXT` and `VIDEO` are mapped to Inline.
+    /// Others are mapped to Attachment
     fn content_disposition_map(typ: mime::Name) -> DispositionType {
         match typ {
             mime::IMAGE | mime::TEXT | mime::VIDEO => DispositionType::Inline,
@@ -40,30 +37,30 @@ pub trait StaticFileConfig: Default {
         }
     }
 
-    ///Describes whether Actix should attempt to calculate `ETag`
+    /// Describes whether Actix should attempt to calculate `ETag`
     ///
-    ///Defaults to `true`
+    /// Defaults to `true`
     fn is_use_etag() -> bool {
         true
     }
 
-    ///Describes whether Actix should use last modified date of file.
+    /// Describes whether Actix should use last modified date of file.
     ///
-    ///Defaults to `true`
+    /// Defaults to `true`
     fn is_use_last_modifier() -> bool {
         true
     }
 
-    ///Describes allowed methods to access static resources.
+    /// Describes allowed methods to access static resources.
     ///
-    ///By default all methods are allowed
+    /// By default all methods are allowed
     fn is_method_allowed(_method: &Method) -> bool {
         true
     }
 }
 
-///Default content disposition as described in
-///[StaticFileConfig](trait.StaticFileConfig.html)
+/// Default content disposition as described in
+/// [StaticFileConfig](trait.StaticFileConfig.html)
 #[derive(Default)]
 pub struct DefaultConfig;
 

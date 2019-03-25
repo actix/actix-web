@@ -11,10 +11,9 @@ use std::os::unix::fs::MetadataExt;
 use mime;
 use mime_guess::guess_mime_type;
 
-use actix_http::error::Error;
-use actix_http::http::header::{self, ContentDisposition, DispositionParam};
+use actix_web::http::header::{self, ContentDisposition, DispositionParam};
 use actix_web::http::{ContentEncoding, Method, StatusCode};
-use actix_web::{HttpMessage, HttpRequest, HttpResponse, Responder};
+use actix_web::{Error, HttpMessage, HttpRequest, HttpResponse, Responder};
 
 use crate::config::{DefaultConfig, StaticFileConfig};
 use crate::range::HttpRange;
@@ -42,10 +41,8 @@ impl NamedFile {
     ///
     /// # Examples
     ///
-    /// ```rust,ignore
-    /// extern crate actix_web;
-    ///
-    /// use actix_web::fs::NamedFile;
+    /// ```rust
+    /// use actix_files::NamedFile;
     /// use std::io::{self, Write};
     /// use std::env;
     /// use std::fs::File;
@@ -65,8 +62,8 @@ impl NamedFile {
     ///
     /// # Examples
     ///
-    /// ```rust,ignore
-    /// use actix_web::fs::NamedFile;
+    /// ```rust
+    /// use actix_files::NamedFile;
     ///
     /// let file = NamedFile::open("foo.txt");
     /// ```
@@ -83,10 +80,8 @@ impl<C: StaticFileConfig> NamedFile<C> {
     ///
     /// # Examples
     ///
-    /// ```rust,ignore
-    /// extern crate actix_web;
-    ///
-    /// use actix_web::fs::{DefaultConfig, NamedFile};
+    /// ```rust
+    /// use actix_files::{DefaultConfig, NamedFile};
     /// use std::io::{self, Write};
     /// use std::env;
     /// use std::fs::File;
@@ -147,8 +142,8 @@ impl<C: StaticFileConfig> NamedFile<C> {
     ///
     /// # Examples
     ///
-    /// ```rust,ignore
-    /// use actix_web::fs::{DefaultConfig, NamedFile};
+    /// ```rust
+    /// use actix_files::{DefaultConfig, NamedFile};
     ///
     /// let file = NamedFile::open_with_config("foo.txt", DefaultConfig);
     /// ```
@@ -169,9 +164,9 @@ impl<C: StaticFileConfig> NamedFile<C> {
     ///
     /// # Examples
     ///
-    /// ```rust,ignore
+    /// ```rust
     /// # use std::io;
-    /// use actix_web::fs::NamedFile;
+    /// use actix_files::NamedFile;
     ///
     /// # fn path() -> io::Result<()> {
     /// let file = NamedFile::open("test.txt")?;
