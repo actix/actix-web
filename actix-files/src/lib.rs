@@ -211,7 +211,6 @@ fn directory_listing(
 
 type MimeOverride = Fn(&mime::Name) -> DispositionType;
 
-#[derive(Clone)]
 /// Static files handling
 ///
 /// `Files` service must be registered with `App::service()` method.
@@ -236,6 +235,23 @@ pub struct Files<S> {
     _chunk_size: usize,
     _follow_symlinks: bool,
     file_flags: named::Flags,
+}
+
+impl<S> Clone for Files<S> {
+    fn clone(&self) -> Self {
+        Self {
+            directory: self.directory.clone(),
+            index: self.index.clone(),
+            show_index: self.show_index,
+            default: self.default.clone(),
+            renderer: self.renderer.clone(),
+            _chunk_size: self._chunk_size,
+            _follow_symlinks: self._follow_symlinks,
+            file_flags: self.file_flags,
+            path: self.path.clone(),
+            mime_override: self.mime_override.clone(),
+        }
+    }
 }
 
 impl<S: 'static> Files<S> {
@@ -344,18 +360,7 @@ impl<P> NewService for Files<P> {
     type Future = FutureResult<Self::Service, Self::InitError>;
 
     fn new_service(&self, _: &()) -> Self::Future {
-        ok(Files {
-            directory: self.directory.clone(),
-            index: self.index.clone(),
-            show_index: self.show_index,
-            default: self.default.clone(),
-            renderer: self.renderer.clone(),
-            _chunk_size: self._chunk_size,
-            _follow_symlinks: self._follow_symlinks,
-            file_flags: self.file_flags,
-            path: self.path.clone(),
-            mime_override: self.mime_override.clone(),
-        })
+        ok(self.clone())
     }
 }
 
