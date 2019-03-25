@@ -8,7 +8,7 @@ use actix_service::{
     ApplyTransform, IntoNewService, IntoTransform, NewService, Service, Transform,
 };
 use futures::future::{ok, Either, Future, FutureResult};
-use futures::{Async, Poll};
+use futures::{Async, IntoFuture, Poll};
 
 use crate::dev::{HttpServiceFactory, ServiceConfig};
 use crate::error::Error;
@@ -236,6 +236,53 @@ where
             default: self.default,
             factory_ref: self.factory_ref,
         }
+    }
+
+    /// Register a scope level middleware function.
+    ///
+    /// This function accepts instance of `ServiceRequest` type and
+    /// mutable reference to the next middleware in chain.
+    ///
+    /// ```rust
+    /// use actix_service::Service;
+    /// # use futures::Future;
+    /// use actix_web::{web, App};
+    /// use actix_web::http::{header::CONTENT_TYPE, HeaderValue};
+    ///
+    /// fn index() -> &'static str {
+    ///     "Welcome!"
+    /// }
+    ///
+    /// fn main() {
+    ///     let app = App::new().service(
+    ///         web::scope("/app")
+    ///             .wrap_fn(|req, srv|
+    ///                 srv.call(req).map(|mut res| {
+    ///                     res.headers_mut().insert(
+    ///                        CONTENT_TYPE, HeaderValue::from_static("text/plain"),
+    ///                     );
+    ///                     res
+    ///                 }))
+    ///             .route("/index.html", web::get().to(index)));
+    /// }
+    /// ```
+    pub fn wrap_fn<F, R>(
+        self,
+        mw: F,
+    ) -> Scope<
+        P,
+        impl NewService<
+            Request = ServiceRequest<P>,
+            Response = ServiceResponse,
+            Error = Error,
+            InitError = (),
+        >,
+    >
+    where
+        F: FnMut(ServiceRequest<P>, &mut T::Service) -> R + Clone,
+        R: IntoFuture<Item = ServiceResponse, Error = Error>,
+    {
+        self.wrap(mw)
     }
 }
 
@@ -854,6 +901,32 @@ mod tests {
             init_service(App::new().service(web::scope("app").wrap(md).service(
                 web::resource("/test").route(web::get().to(|| HttpResponse::Ok())),
             )));
+        let req = TestRequest::with_uri("/app/test").to_request();
+        let resp = call_success(&mut srv, req);
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(
+            resp.headers().get(header::CONTENT_TYPE).unwrap(),
+            HeaderValue::from_static("0001")
+        );
+    }
+
+    #[test]
+    fn test_middleware_fn() {
+        let mut srv = init_service(
+            App::new().service(
+                web::scope("app")
+                    .wrap_fn(|req, srv| {
+                        srv.call(req).map(|mut res| {
+                            res.headers_mut().insert(
+                                header::CONTENT_TYPE,
+                                HeaderValue::from_static("0001"),
+                            );
+                            res
+                        })
+                    })
+                    .route("/test", web::get().to(|| HttpResponse::Ok())),
+            ),
+        );
         let req = TestRequest::with_uri("/app/test").to_request();
         let resp = call_success(&mut srv, req);
         assert_eq!(resp.status(), StatusCode::OK);

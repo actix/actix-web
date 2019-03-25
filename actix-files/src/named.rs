@@ -11,7 +11,9 @@ use bitflags::bitflags;
 use mime;
 use mime_guess::guess_mime_type;
 
-use actix_web::http::header::{self, DispositionType, ContentDisposition, DispositionParam};
+use actix_web::http::header::{
+    self, ContentDisposition, DispositionParam, DispositionType,
+};
 use actix_web::http::{ContentEncoding, Method, StatusCode};
 use actix_web::{Error, HttpMessage, HttpRequest, HttpResponse, Responder};
 
@@ -311,13 +313,17 @@ impl Responder for NamedFile {
             &Method::HEAD | &Method::GET => (),
             _ => {
                 return Ok(HttpResponse::MethodNotAllowed()
-                          .header(header::CONTENT_TYPE, "text/plain")
-                          .header(header::ALLOW, "GET, HEAD")
-                          .body("This resource only supports GET and HEAD."));
+                    .header(header::CONTENT_TYPE, "text/plain")
+                    .header(header::ALLOW, "GET, HEAD")
+                    .body("This resource only supports GET and HEAD."));
             }
         }
 
-        let etag = if self.flags.contains(Flags::ETAG) { self.etag() } else { None };
+        let etag = if self.flags.contains(Flags::ETAG) {
+            self.etag()
+        } else {
+            None
+        };
         let last_modified = if self.flags.contains(Flags::LAST_MD) {
             self.last_modified()
         } else {

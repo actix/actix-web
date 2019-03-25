@@ -20,8 +20,8 @@ use actix_web::dev::{
     ServiceResponse,
 };
 use actix_web::error::{BlockingError, Error, ErrorInternalServerError};
+use actix_web::http::header::DispositionType;
 use actix_web::{web, FromRequest, HttpRequest, HttpResponse, Responder};
-use actix_web::http::header::{DispositionType};
 use futures::future::{ok, FutureResult};
 
 mod error;
@@ -300,7 +300,10 @@ impl<S: 'static> Files<S> {
     }
 
     /// Specifies mime override callback
-    pub fn mime_override<F>(mut self, f: F) -> Self where F: Fn(&mime::Name) -> DispositionType + 'static {
+    pub fn mime_override<F>(mut self, f: F) -> Self
+    where
+        F: Fn(&mime::Name) -> DispositionType + 'static,
+    {
         self.mime_override = Some(Rc::new(f));
         self
     }
@@ -331,7 +334,6 @@ impl<S: 'static> Files<S> {
         self.file_flags.set(named::Flags::LAST_MD, value);
         self
     }
-
 }
 
 impl<P> HttpServiceFactory<P> for Files<P>
@@ -395,7 +397,8 @@ impl<P> Service for Files<P> {
                 match NamedFile::open(path) {
                     Ok(mut named_file) => {
                         if let Some(ref mime_override) = self.mime_override {
-                            let new_disposition = mime_override(&named_file.content_type.type_());
+                            let new_disposition =
+                                mime_override(&named_file.content_type.type_());
                             named_file.content_disposition.disposition = new_disposition;
                         }
 
@@ -404,7 +407,7 @@ impl<P> Service for Files<P> {
                             Ok(item) => ok(ServiceResponse::new(req.clone(), item)),
                             Err(e) => ok(ServiceResponse::from_err(e, req.clone())),
                         }
-                    },
+                    }
                     Err(e) => ok(ServiceResponse::from_err(e, req.clone())),
                 }
             } else if self.show_index {
@@ -424,7 +427,8 @@ impl<P> Service for Files<P> {
             match NamedFile::open(path) {
                 Ok(mut named_file) => {
                     if let Some(ref mime_override) = self.mime_override {
-                        let new_disposition = mime_override(&named_file.content_type.type_());
+                        let new_disposition =
+                            mime_override(&named_file.content_type.type_());
                         named_file.content_disposition.disposition = new_disposition;
                     }
 
@@ -433,7 +437,7 @@ impl<P> Service for Files<P> {
                         Ok(item) => ok(ServiceResponse::new(req.clone(), item)),
                         Err(e) => ok(ServiceResponse::from_err(e, req.clone())),
                     }
-                },
+                }
                 Err(e) => ok(ServiceResponse::from_err(e, req.clone())),
             }
         }
@@ -692,15 +696,24 @@ mod tests {
         }
 
         let mut srv = test::init_service(
-            App::new().service(Files::new("/", ".").mime_override(all_attachment).index_file("Cargo.toml")),
+            App::new().service(
+                Files::new("/", ".")
+                    .mime_override(all_attachment)
+                    .index_file("Cargo.toml"),
+            ),
         );
 
         let request = TestRequest::get().uri("/").to_request();
         let response = test::call_success(&mut srv, request);
         assert_eq!(response.status(), StatusCode::OK);
 
-        let content_disposition = response.headers().get(header::CONTENT_DISPOSITION).expect("To have CONTENT_DISPOSITION");
-        let content_disposition = content_disposition.to_str().expect("Convert CONTENT_DISPOSITION to str");
+        let content_disposition = response
+            .headers()
+            .get(header::CONTENT_DISPOSITION)
+            .expect("To have CONTENT_DISPOSITION");
+        let content_disposition = content_disposition
+            .to_str()
+            .expect("Convert CONTENT_DISPOSITION to str");
         assert_eq!(content_disposition, "attachment; filename=\"Cargo.toml\"");
     }
 
@@ -864,16 +877,14 @@ mod tests {
 
     #[test]
     fn test_named_file_not_allowed() {
-        let file =
-            NamedFile::open("Cargo.toml").unwrap();
+        let file = NamedFile::open("Cargo.toml").unwrap();
         let req = TestRequest::default()
             .method(Method::POST)
             .to_http_request();
         let resp = file.respond_to(&req).unwrap();
         assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
 
-        let file =
-            NamedFile::open("Cargo.toml").unwrap();
+        let file = NamedFile::open("Cargo.toml").unwrap();
         let req = TestRequest::default().method(Method::PUT).to_http_request();
         let resp = file.respond_to(&req).unwrap();
         assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
@@ -896,9 +907,7 @@ mod tests {
 
     #[test]
     fn test_named_file_allowed_method() {
-        let req = TestRequest::default()
-            .method(Method::GET)
-            .to_http_request();
+        let req = TestRequest::default().method(Method::GET).to_http_request();
         let file = NamedFile::open("Cargo.toml").unwrap();
         let resp = file.respond_to(&req).unwrap();
         assert_eq!(resp.status(), StatusCode::OK);

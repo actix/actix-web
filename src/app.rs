@@ -147,6 +147,51 @@ where
         }
     }
 
+    /// Register a middleware function.
+    ///
+    /// ```rust
+    /// use actix_service::Service;
+    /// # use futures::Future;
+    /// use actix_web::{web, App};
+    /// use actix_web::http::{header::CONTENT_TYPE, HeaderValue};
+    ///
+    /// fn index() -> &'static str {
+    ///     "Welcome!"
+    /// }
+    ///
+    /// fn main() {
+    ///     let app = App::new()
+    ///         .wrap_fn(|req, srv|
+    ///             srv.call(req).map(|mut res| {
+    ///                 res.headers_mut().insert(
+    ///                    CONTENT_TYPE, HeaderValue::from_static("text/plain"),
+    ///                 );
+    ///                 res
+    ///             }))
+    ///         .route("/index.html", web::get().to(index));
+    /// }
+    /// ```
+    pub fn wrap_fn<F, R, B>(
+        self,
+        mw: F,
+    ) -> AppRouter<
+        T,
+        P,
+        B,
+        impl NewService<
+            Request = ServiceRequest<P>,
+            Response = ServiceResponse<B>,
+            Error = Error,
+            InitError = (),
+        >,
+    >
+    where
+        F: FnMut(ServiceRequest<P>, &mut AppRouting<P>) -> R + Clone,
+        R: IntoFuture<Item = ServiceResponse<B>, Error = Error>,
+    {
+        self.wrap(mw)
+    }
+
     /// Register a request modifier. It can modify any request parameters
     /// including payload stream type.
     pub fn chain<C, F, P1>(
@@ -361,6 +406,29 @@ where
         }
     }
 
+    /// Register a middleware function.
+    pub fn wrap_fn<B1, F, R>(
+        self,
+        mw: F,
+    ) -> AppRouter<
+        C,
+        P,
+        B1,
+        impl NewService<
+            Request = ServiceRequest<P>,
+            Response = ServiceResponse<B1>,
+            Error = Error,
+            InitError = (),
+        >,
+    >
+    where
+        B1: MessageBody,
+        F: FnMut(ServiceRequest<P>, &mut T::Service) -> R + Clone,
+        R: IntoFuture<Item = ServiceResponse<B1>, Error = Error>,
+    {
+        self.wrap(mw)
+    }
+
     /// Default resource to be used if no matching resource could be found.
     pub fn default_resource<F, U>(mut self, f: F) -> Self
     where
@@ -447,11 +515,13 @@ where
 #[cfg(test)]
 mod tests {
     use actix_service::Service;
+    use futures::{Future, IntoFuture};
 
     use super::*;
-    use crate::http::{Method, StatusCode};
-    use crate::test::{block_on, init_service, TestRequest};
-    use crate::{web, HttpResponse};
+    use crate::http::{header, HeaderValue, Method, StatusCode};
+    use crate::service::{ServiceRequest, ServiceResponse};
+    use crate::test::{block_on, call_success, init_service, TestRequest};
+    use crate::{web, Error, HttpResponse};
 
     #[test]
     fn test_default_resource() {
@@ -509,5 +579,103 @@ mod tests {
         let req = TestRequest::default().to_request();
         let resp = block_on(srv.call(req)).unwrap();
         assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    fn md<S, P, B>(
+        req: ServiceRequest<P>,
+        srv: &mut S,
+    ) -> impl IntoFuture<Item = ServiceResponse<B>, Error = Error>
+    where
+        S: Service<
+            Request = ServiceRequest<P>,
+            Response = ServiceResponse<B>,
+            Error = Error,
+        >,
+    {
+        srv.call(req).map(|mut res| {
+            res.headers_mut()
+                .insert(header::CONTENT_TYPE, HeaderValue::from_static("0001"));
+            res
+        })
+    }
+
+    #[test]
+    fn test_wrap() {
+        let mut srv = init_service(
+            App::new()
+                .wrap(md)
+                .route("/test", web::get().to(|| HttpResponse::Ok())),
+        );
+        let req = TestRequest::with_uri("/test").to_request();
+        let resp = call_success(&mut srv, req);
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(
+            resp.headers().get(header::CONTENT_TYPE).unwrap(),
+            HeaderValue::from_static("0001")
+        );
+    }
+
+    #[test]
+    fn test_router_wrap() {
+        let mut srv = init_service(
+            App::new()
+                .route("/test", web::get().to(|| HttpResponse::Ok()))
+                .wrap(md),
+        );
+        let req = TestRequest::with_uri("/test").to_request();
+        let resp = call_success(&mut srv, req);
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(
+            resp.headers().get(header::CONTENT_TYPE).unwrap(),
+            HeaderValue::from_static("0001")
+        );
+    }
+
+    #[test]
+    fn test_wrap_fn() {
+        let mut srv = init_service(
+            App::new()
+                .wrap_fn(|req, srv| {
+                    srv.call(req).map(|mut res| {
+                        res.headers_mut().insert(
+                            header::CONTENT_TYPE,
+                            HeaderValue::from_static("0001"),
+                        );
+                        res
+                    })
+                })
+                .service(web::resource("/test").to(|| HttpResponse::Ok())),
+        );
+        let req = TestRequest::with_uri("/test").to_request();
+        let resp = call_success(&mut srv, req);
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(
+            resp.headers().get(header::CONTENT_TYPE).unwrap(),
+            HeaderValue::from_static("0001")
+        );
+    }
+
+    #[test]
+    fn test_router_wrap_fn() {
+        let mut srv = init_service(
+            App::new()
+                .route("/test", web::get().to(|| HttpResponse::Ok()))
+                .wrap_fn(|req, srv| {
+                    srv.call(req).map(|mut res| {
+                        res.headers_mut().insert(
+                            header::CONTENT_TYPE,
+                            HeaderValue::from_static("0001"),
+                        );
+                        res
+                    })
+                }),
+        );
+        let req = TestRequest::with_uri("/test").to_request();
+        let resp = call_success(&mut srv, req);
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(
+            resp.headers().get(header::CONTENT_TYPE).unwrap(),
+            HeaderValue::from_static("0001")
+        );
     }
 }
