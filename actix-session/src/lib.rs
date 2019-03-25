@@ -181,3 +181,30 @@ impl<P> FromRequest<P> for Session {
         Ok(Session::get_session(req))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use actix_web::{test, HttpResponse};
+
+    use super::*;
+
+    #[test]
+    fn session() {
+        let mut req = test::TestRequest::default().to_service();
+
+        Session::set_session(
+            vec![("key".to_string(), "\"value\"".to_string())].into_iter(),
+            &mut req,
+        );
+        let session = Session::get_session(&mut req);
+        let res = session.get::<String>("key").unwrap();
+        assert_eq!(res, Some("value".to_string()));
+
+        session.set("key2", "value2".to_string()).unwrap();
+        session.remove("key");
+
+        let mut res = req.into_response(HttpResponse::Ok().finish());
+        let changes: Vec<_> = Session::get_changes(&mut res).unwrap().collect();
+        assert_eq!(changes, [("key2".to_string(), "\"value2\"".to_string())]);
+    }
+}
