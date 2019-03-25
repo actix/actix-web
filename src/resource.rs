@@ -542,8 +542,11 @@ impl<P: 'static> NewService for ResourceEndpoint<P> {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use actix_service::Service;
     use futures::{Future, IntoFuture};
+    use tokio_timer::sleep;
 
     use crate::http::{header, HeaderValue, Method, StatusCode};
     use crate::service::{ServiceRequest, ServiceResponse};
@@ -573,6 +576,7 @@ mod tests {
         let mut srv = init_service(
             App::new().service(
                 web::resource("/test")
+                    .name("test")
                     .wrap(md)
                     .route(web::get().to(|| HttpResponse::Ok())),
             ),
@@ -610,6 +614,17 @@ mod tests {
             resp.headers().get(header::CONTENT_TYPE).unwrap(),
             HeaderValue::from_static("0001")
         );
+    }
+
+    #[test]
+    fn test_to_async() {
+        let mut srv =
+            init_service(App::new().service(web::resource("/test").to_async(|| {
+                sleep(Duration::from_millis(100)).then(|_| HttpResponse::Ok())
+            })));
+        let req = TestRequest::with_uri("/test").to_request();
+        let resp = call_success(&mut srv, req);
+        assert_eq!(resp.status(), StatusCode::OK);
     }
 
     #[test]

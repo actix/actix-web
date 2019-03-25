@@ -410,21 +410,36 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
+    use futures::Future;
+    use tokio_timer::sleep;
+
     use crate::http::{Method, StatusCode};
     use crate::test::{call_success, init_service, TestRequest};
-    use crate::{web, App, Error, HttpResponse};
+    use crate::{error, web, App, HttpResponse};
 
     #[test]
     fn test_route() {
-        let mut srv = init_service(
-            App::new().service(
-                web::resource("/test")
-                    .route(web::get().to(|| HttpResponse::Ok()))
-                    .route(
-                        web::post().to_async(|| Ok::<_, Error>(HttpResponse::Created())),
-                    ),
-            ),
-        );
+        let mut srv =
+            init_service(
+                App::new().service(
+                    web::resource("/test")
+                        .route(web::get().to(|| HttpResponse::Ok()))
+                        .route(web::put().to(|| {
+                            Err::<HttpResponse, _>(error::ErrorBadRequest("err"))
+                        }))
+                        .route(web::post().to_async(|| {
+                            sleep(Duration::from_millis(100))
+                                .then(|_| HttpResponse::Created())
+                        }))
+                        .route(web::delete().to_async(|| {
+                            sleep(Duration::from_millis(100)).then(|_| {
+                                Err::<HttpResponse, _>(error::ErrorBadRequest("err"))
+                            })
+                        })),
+                ),
+            );
 
         let req = TestRequest::with_uri("/test")
             .method(Method::GET)
@@ -437,6 +452,18 @@ mod tests {
             .to_request();
         let resp = call_success(&mut srv, req);
         assert_eq!(resp.status(), StatusCode::CREATED);
+
+        let req = TestRequest::with_uri("/test")
+            .method(Method::PUT)
+            .to_request();
+        let resp = call_success(&mut srv, req);
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+
+        let req = TestRequest::with_uri("/test")
+            .method(Method::DELETE)
+            .to_request();
+        let resp = call_success(&mut srv, req);
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 
         let req = TestRequest::with_uri("/test")
             .method(Method::HEAD)
