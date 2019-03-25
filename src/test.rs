@@ -80,13 +80,13 @@ pub fn default_service(
 /// service.
 ///
 /// ```rust,ignore
-/// use actix_web::{test, App, HttpResponse, http::StatusCode};
 /// use actix_service::Service;
+/// use actix_web::{test, web, App, HttpResponse, http::StatusCode};
 ///
 /// fn main() {
 ///     let mut app = test::init_service(
 ///         App::new()
-///             .resource("/test", |r| r.to(|| HttpResponse::Ok()))
+///             .service(web::resource("/test").to(|| HttpResponse::Ok()))
 ///     );
 ///
 ///     // Create request object
@@ -123,7 +123,7 @@ where
 /// fn main() {
 ///     let mut app = test::init_service(
 ///         App::new()
-///             .resource("/test", |r| r.to(|| HttpResponse::Ok()))
+///             .service(web::resource("/test").to(|| HttpResponse::Ok()))
 ///     );
 ///
 ///     // Create request object
