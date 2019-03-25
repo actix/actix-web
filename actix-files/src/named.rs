@@ -1,6 +1,5 @@
 use std::fs::{File, Metadata};
 use std::io;
-use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -8,20 +7,33 @@ use std::time::{SystemTime, UNIX_EPOCH};
 #[cfg(unix)]
 use std::os::unix::fs::MetadataExt;
 
+use bitflags::bitflags;
 use mime;
 use mime_guess::guess_mime_type;
 
-use actix_web::http::header::{self, ContentDisposition, DispositionParam};
+use actix_web::http::header::{self, DispositionType, ContentDisposition, DispositionParam};
 use actix_web::http::{ContentEncoding, Method, StatusCode};
 use actix_web::{Error, HttpMessage, HttpRequest, HttpResponse, Responder};
 
-use crate::config::{DefaultConfig, StaticFileConfig};
 use crate::range::HttpRange;
 use crate::ChunkedReadFile;
 
+bitflags! {
+    pub(crate) struct Flags: u32 {
+        const ETAG = 0b00000001;
+        const LAST_MD = 0b00000010;
+    }
+}
+
+impl Default for Flags {
+    fn default() -> Self {
+        Flags::all()
+    }
+}
+
 /// A file with an associated name.
 #[derive(Debug)]
-pub struct NamedFile<C = DefaultConfig> {
+pub struct NamedFile {
     path: PathBuf,
     file: File,
     pub(crate) content_type: mime::Mime,
@@ -30,7 +42,7 @@ pub struct NamedFile<C = DefaultConfig> {
     modified: Option<SystemTime>,
     encoding: Option<ContentEncoding>,
     pub(crate) status_code: StatusCode,
-    _cd_map: PhantomData<C>,
+    pub(crate) flags: Flags,
 }
 
 impl NamedFile {
@@ -55,49 +67,6 @@ impl NamedFile {
     /// }
     /// ```
     pub fn from_file<P: AsRef<Path>>(file: File, path: P) -> io::Result<NamedFile> {
-        Self::from_file_with_config(file, path, DefaultConfig)
-    }
-
-    /// Attempts to open a file in read-only mode.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use actix_files::NamedFile;
-    ///
-    /// let file = NamedFile::open("foo.txt");
-    /// ```
-    pub fn open<P: AsRef<Path>>(path: P) -> io::Result<NamedFile> {
-        Self::open_with_config(path, DefaultConfig)
-    }
-}
-
-impl<C: StaticFileConfig> NamedFile<C> {
-    /// Creates an instance from a previously opened file using the provided configuration.
-    ///
-    /// The given `path` need not exist and is only used to determine the `ContentType` and
-    /// `ContentDisposition` headers.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use actix_files::{DefaultConfig, NamedFile};
-    /// use std::io::{self, Write};
-    /// use std::env;
-    /// use std::fs::File;
-    ///
-    /// fn main() -> io::Result<()> {
-    ///     let mut file = File::create("foo.txt")?;
-    ///     file.write_all(b"Hello, world!")?;
-    ///     let named_file = NamedFile::from_file_with_config(file, "bar.txt", DefaultConfig)?;
-    ///     Ok(())
-    /// }
-    /// ```
-    pub fn from_file_with_config<P: AsRef<Path>>(
-        file: File,
-        path: P,
-        _: C,
-    ) -> io::Result<NamedFile<C>> {
         let path = path.as_ref().to_path_buf();
 
         // Get the name of the file and use it to construct default Content-Type
@@ -114,7 +83,10 @@ impl<C: StaticFileConfig> NamedFile<C> {
             };
 
             let ct = guess_mime_type(&path);
-            let disposition_type = C::content_disposition_map(ct.type_());
+            let disposition_type = match ct.type_() {
+                mime::IMAGE | mime::TEXT | mime::VIDEO => DispositionType::Inline,
+                _ => DispositionType::Attachment,
+            };
             let cd = ContentDisposition {
                 disposition: disposition_type,
                 parameters: vec![DispositionParam::Filename(filename.into_owned())],
@@ -134,24 +106,21 @@ impl<C: StaticFileConfig> NamedFile<C> {
             modified,
             encoding,
             status_code: StatusCode::OK,
-            _cd_map: PhantomData,
+            flags: Flags::default(),
         })
     }
 
-    /// Attempts to open a file in read-only mode using provided configuration.
+    /// Attempts to open a file in read-only mode.
     ///
     /// # Examples
     ///
     /// ```rust
-    /// use actix_files::{DefaultConfig, NamedFile};
+    /// use actix_files::NamedFile;
     ///
-    /// let file = NamedFile::open_with_config("foo.txt", DefaultConfig);
+    /// let file = NamedFile::open("foo.txt");
     /// ```
-    pub fn open_with_config<P: AsRef<Path>>(
-        path: P,
-        config: C,
-    ) -> io::Result<NamedFile<C>> {
-        Self::from_file_with_config(File::open(&path)?, path, config)
+    pub fn open<P: AsRef<Path>>(path: P) -> io::Result<NamedFile> {
+        Self::from_file(File::open(&path)?, path)
     }
 
     /// Returns reference to the underlying `File` object.
@@ -213,6 +182,24 @@ impl<C: StaticFileConfig> NamedFile<C> {
         self
     }
 
+    #[inline]
+    ///Specifies whether to use ETag or not.
+    ///
+    ///Default is true.
+    pub fn use_etag(mut self, value: bool) -> Self {
+        self.flags.set(Flags::ETAG, value);
+        self
+    }
+
+    #[inline]
+    ///Specifies whether to use Last-Modified or not.
+    ///
+    ///Default is true.
+    pub fn use_last_modified(mut self, value: bool) -> Self {
+        self.flags.set(Flags::LAST_MD, value);
+        self
+    }
+
     pub(crate) fn etag(&self) -> Option<header::EntityTag> {
         // This etag format is similar to Apache's.
         self.modified.as_ref().map(|mtime| {
@@ -245,7 +232,7 @@ impl<C: StaticFileConfig> NamedFile<C> {
     }
 }
 
-impl<C> Deref for NamedFile<C> {
+impl Deref for NamedFile {
     type Target = File;
 
     fn deref(&self) -> &File {
@@ -253,7 +240,7 @@ impl<C> Deref for NamedFile<C> {
     }
 }
 
-impl<C> DerefMut for NamedFile<C> {
+impl DerefMut for NamedFile {
     fn deref_mut(&mut self) -> &mut File {
         &mut self.file
     }
@@ -294,7 +281,7 @@ fn none_match(etag: Option<&header::EntityTag>, req: &HttpRequest) -> bool {
     }
 }
 
-impl<C: StaticFileConfig> Responder for NamedFile<C> {
+impl Responder for NamedFile {
     type Error = Error;
     type Future = Result<HttpResponse, Error>;
 
@@ -320,15 +307,18 @@ impl<C: StaticFileConfig> Responder for NamedFile<C> {
             return Ok(resp.streaming(reader));
         }
 
-        if !C::is_method_allowed(req.method()) {
-            return Ok(HttpResponse::MethodNotAllowed()
-                .header(header::CONTENT_TYPE, "text/plain")
-                .header(header::ALLOW, "GET, HEAD")
-                .body("This resource only supports GET and HEAD."));
+        match req.method() {
+            &Method::HEAD | &Method::GET => (),
+            _ => {
+                return Ok(HttpResponse::MethodNotAllowed()
+                          .header(header::CONTENT_TYPE, "text/plain")
+                          .header(header::ALLOW, "GET, HEAD")
+                          .body("This resource only supports GET and HEAD."));
+            }
         }
 
-        let etag = if C::is_use_etag() { self.etag() } else { None };
-        let last_modified = if C::is_use_last_modifier() {
+        let etag = if self.flags.contains(Flags::ETAG) { self.etag() } else { None };
+        let last_modified = if self.flags.contains(Flags::LAST_MD) {
             self.last_modified()
         } else {
             None
