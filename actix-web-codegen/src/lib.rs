@@ -48,7 +48,7 @@ pub fn get(args: TokenStream, input: TokenStream) -> TokenStream {
 pub fn post(args: TokenStream, input: TokenStream) -> TokenStream {
     let args = parse_macro_input!(args as syn::AttributeArgs);
     if args.is_empty() {
-        panic!("invalid server definition, expected: #[get(\"some path\")]");
+        panic!("invalid server definition, expected: #[post(\"some path\")]");
     }
 
     // path
@@ -85,7 +85,7 @@ pub fn post(args: TokenStream, input: TokenStream) -> TokenStream {
 pub fn put(args: TokenStream, input: TokenStream) -> TokenStream {
     let args = parse_macro_input!(args as syn::AttributeArgs);
     if args.is_empty() {
-        panic!("invalid server definition, expected: #[get(\"some path\")]");
+        panic!("invalid server definition, expected: #[put(\"some path\")]");
     }
 
     // path
