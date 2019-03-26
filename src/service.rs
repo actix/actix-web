@@ -69,9 +69,14 @@ impl<P> ServiceRequest<P> {
         }
     }
 
-    #[inline]
-    pub fn into_request(self) -> HttpRequest {
-        self.req
+    /// Construct service request from parts
+    pub fn from_parts(req: HttpRequest, payload: Payload<P>) -> Self {
+        ServiceRequest { req, payload }
+    }
+
+    /// Deconstruct request into parts
+    pub fn into_parts(self) -> (HttpRequest, Payload<P>) {
+        (self.req, self.payload)
     }
 
     /// Create service response
@@ -161,11 +166,6 @@ impl<P> ServiceRequest<P> {
     #[inline]
     pub fn app_config(&self) -> &AppConfig {
         self.req.config()
-    }
-
-    /// Deconstruct request into parts
-    pub fn into_parts(self) -> (HttpRequest, Payload<P>) {
-        (self.req, self.payload)
     }
 }
 

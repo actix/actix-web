@@ -12,6 +12,7 @@ pub mod body;
 mod builder;
 pub mod client;
 mod config;
+pub mod encoding;
 mod extensions;
 mod header;
 mod helpers;

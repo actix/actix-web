@@ -489,7 +489,7 @@ impl<P> Service for ScopeService<P> {
         } else if let Some(ref mut default) = self.default {
             Either::A(default.call(req))
         } else {
-            let req = req.into_request();
+            let req = req.into_parts().0;
             Either::B(ok(ServiceResponse::new(req, Response::NotFound().finish())))
         }
     }

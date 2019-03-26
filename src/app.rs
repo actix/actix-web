@@ -193,10 +193,10 @@ where
     }
 
     /// Register a request modifier. It can modify any request parameters
-    /// including payload stream type.
+    /// including request payload type.
     pub fn chain<C, F, P1>(
         self,
-        chain: C,
+        chain: F,
     ) -> App<
         P1,
         impl NewService<

@@ -1,14 +1,16 @@
 use std::io::{Read, Write};
 
 use actix_http::http::header::{
-    ContentEncoding, ACCEPT_ENCODING, CONTENT_LENGTH, TRANSFER_ENCODING,
+    ContentEncoding, ACCEPT_ENCODING, CONTENT_ENCODING, CONTENT_LENGTH,
+    TRANSFER_ENCODING,
 };
-use actix_http::{h1, Error, Response};
+use actix_http::{h1, Error, HttpService, Response};
 use actix_http_test::TestServer;
-use brotli2::write::BrotliDecoder;
+use brotli2::write::{BrotliDecoder, BrotliEncoder};
 use bytes::Bytes;
 use flate2::read::GzDecoder;
-use flate2::write::ZlibDecoder;
+use flate2::write::{GzEncoder, ZlibDecoder, ZlibEncoder};
+use flate2::Compression;
 use futures::stream::once; //Future, Stream
 use rand::{distributions::Alphanumeric, Rng};
 
@@ -297,278 +299,246 @@ fn test_body_brotli() {
     assert_eq!(Bytes::from(dec), Bytes::from_static(STR.as_ref()));
 }
 
-// #[test]
-// fn test_gzip_encoding() {
-//     let mut srv = test::TestServer::new(|app| {
-//         app.handler(|req: &HttpRequest| {
-//             req.body()
-//                 .and_then(|bytes: Bytes| {
-//                     Ok(HttpResponse::Ok()
-//                         .content_encoding(http::ContentEncoding::Identity)
-//                         .body(bytes))
-//                 })
-//                 .responder()
-//         })
-//     });
+#[test]
+fn test_gzip_encoding() {
+    let mut srv = TestServer::new(move || {
+        HttpService::new(
+            App::new().chain(middleware::Decompress::new()).service(
+                web::resource("/")
+                    .route(web::to(move |body: Bytes| Response::Ok().body(body))),
+            ),
+        )
+    });
 
-//     // client request
-//     let mut e = GzEncoder::new(Vec::new(), Compression::default());
-//     e.write_all(STR.as_ref()).unwrap();
-//     let enc = e.finish().unwrap();
+    // client request
+    let mut e = GzEncoder::new(Vec::new(), Compression::default());
+    e.write_all(STR.as_ref()).unwrap();
+    let enc = e.finish().unwrap();
 
-//     let request = srv
-//         .post()
-//         .header(http::header::CONTENT_ENCODING, "gzip")
-//         .body(enc.clone())
-//         .unwrap();
-//     let response = srv.block_on(request.send()).unwrap();
-//     assert!(response.status().is_success());
+    let request = srv
+        .post()
+        .header(CONTENT_ENCODING, "gzip")
+        .send_body(enc.clone());
+    let mut response = srv.block_on(request).unwrap();
+    assert!(response.status().is_success());
 
-//     // read response
-//     let bytes = srv.block_on(response.body()).unwrap();
-//     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
-// }
+    // read response
+    let bytes = srv.block_on(HttpMessageBody::new(&mut response)).unwrap();
+    assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
+}
 
-// #[test]
-// fn test_gzip_encoding_large() {
-//     let data = STR.repeat(10);
-//     let mut srv = test::TestServer::new(|app| {
-//         app.handler(|req: &HttpRequest| {
-//             req.body()
-//                 .and_then(|bytes: Bytes| {
-//                     Ok(HttpResponse::Ok()
-//                         .content_encoding(http::ContentEncoding::Identity)
-//                         .body(bytes))
-//                 })
-//                 .responder()
-//         })
-//     });
+#[test]
+fn test_gzip_encoding_large() {
+    let data = STR.repeat(10);
+    let mut srv = TestServer::new(move || {
+        h1::H1Service::new(
+            App::new().chain(middleware::Decompress::new()).service(
+                web::resource("/")
+                    .route(web::to(move |body: Bytes| Response::Ok().body(body))),
+            ),
+        )
+    });
 
-//     // client request
-//     let mut e = GzEncoder::new(Vec::new(), Compression::default());
-//     e.write_all(data.as_ref()).unwrap();
-//     let enc = e.finish().unwrap();
+    // client request
+    let mut e = GzEncoder::new(Vec::new(), Compression::default());
+    e.write_all(data.as_ref()).unwrap();
+    let enc = e.finish().unwrap();
 
-//     let request = srv
-//         .post()
-//         .header(http::header::CONTENT_ENCODING, "gzip")
-//         .body(enc.clone())
-//         .unwrap();
-//     let response = srv.block_on(request.send()).unwrap();
-//     assert!(response.status().is_success());
+    let request = srv
+        .post()
+        .header(CONTENT_ENCODING, "gzip")
+        .send_body(enc.clone());
+    let mut response = srv.block_on(request).unwrap();
+    assert!(response.status().is_success());
 
-//     // read response
-//     let bytes = srv.block_on(response.body()).unwrap();
-//     assert_eq!(bytes, Bytes::from(data));
-// }
+    // read response
+    let bytes = srv.block_on(HttpMessageBody::new(&mut response)).unwrap();
+    assert_eq!(bytes, Bytes::from(data));
+}
 
-// #[test]
-// fn test_reading_gzip_encoding_large_random() {
-//     let data = rand::thread_rng()
-//         .sample_iter(&Alphanumeric)
-//         .take(60_000)
-//         .collect::<String>();
+#[test]
+fn test_reading_gzip_encoding_large_random() {
+    let data = rand::thread_rng()
+        .sample_iter(&Alphanumeric)
+        .take(60_000)
+        .collect::<String>();
 
-//     let mut srv = test::TestServer::new(|app| {
-//         app.handler(|req: &HttpRequest| {
-//             req.body()
-//                 .and_then(|bytes: Bytes| {
-//                     Ok(HttpResponse::Ok()
-//                         .content_encoding(http::ContentEncoding::Identity)
-//                         .body(bytes))
-//                 })
-//                 .responder()
-//         })
-//     });
+    let mut srv = TestServer::new(move || {
+        HttpService::new(
+            App::new().chain(middleware::Decompress::new()).service(
+                web::resource("/")
+                    .route(web::to(move |body: Bytes| Response::Ok().body(body))),
+            ),
+        )
+    });
 
-//     // client request
-//     let mut e = GzEncoder::new(Vec::new(), Compression::default());
-//     e.write_all(data.as_ref()).unwrap();
-//     let enc = e.finish().unwrap();
+    // client request
+    let mut e = GzEncoder::new(Vec::new(), Compression::default());
+    e.write_all(data.as_ref()).unwrap();
+    let enc = e.finish().unwrap();
 
-//     let request = srv
-//         .post()
-//         .header(http::header::CONTENT_ENCODING, "gzip")
-//         .body(enc.clone())
-//         .unwrap();
-//     let response = srv.block_on(request.send()).unwrap();
-//     assert!(response.status().is_success());
+    let request = srv
+        .post()
+        .header(CONTENT_ENCODING, "gzip")
+        .send_body(enc.clone());
+    let mut response = srv.block_on(request).unwrap();
+    assert!(response.status().is_success());
 
-//     // read response
-//     let bytes = srv.block_on(response.body()).unwrap();
-//     assert_eq!(bytes.len(), data.len());
-//     assert_eq!(bytes, Bytes::from(data));
-// }
+    // read response
+    let bytes = srv.block_on(HttpMessageBody::new(&mut response)).unwrap();
+    assert_eq!(bytes.len(), data.len());
+    assert_eq!(bytes, Bytes::from(data));
+}
 
-// #[test]
-// fn test_reading_deflate_encoding() {
-//     let mut srv = test::TestServer::new(|app| {
-//         app.handler(|req: &HttpRequest| {
-//             req.body()
-//                 .and_then(|bytes: Bytes| {
-//                     Ok(HttpResponse::Ok()
-//                         .content_encoding(http::ContentEncoding::Identity)
-//                         .body(bytes))
-//                 })
-//                 .responder()
-//         })
-//     });
+#[test]
+fn test_reading_deflate_encoding() {
+    let mut srv = TestServer::new(move || {
+        h1::H1Service::new(
+            App::new().chain(middleware::Decompress::new()).service(
+                web::resource("/")
+                    .route(web::to(move |body: Bytes| Response::Ok().body(body))),
+            ),
+        )
+    });
 
-//     let mut e = ZlibEncoder::new(Vec::new(), Compression::default());
-//     e.write_all(STR.as_ref()).unwrap();
-//     let enc = e.finish().unwrap();
+    let mut e = ZlibEncoder::new(Vec::new(), Compression::default());
+    e.write_all(STR.as_ref()).unwrap();
+    let enc = e.finish().unwrap();
 
-//     // client request
-//     let request = srv
-//         .post()
-//         .header(http::header::CONTENT_ENCODING, "deflate")
-//         .body(enc)
-//         .unwrap();
-//     let response = srv.block_on(request.send()).unwrap();
-//     assert!(response.status().is_success());
+    // client request
+    let request = srv
+        .post()
+        .header(CONTENT_ENCODING, "deflate")
+        .send_body(enc.clone());
+    let mut response = srv.block_on(request).unwrap();
+    assert!(response.status().is_success());
 
-//     // read response
-//     let bytes = srv.block_on(response.body()).unwrap();
-//     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
-// }
+    // read response
+    let bytes = srv.block_on(HttpMessageBody::new(&mut response)).unwrap();
+    assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
+}
 
-// #[test]
-// fn test_reading_deflate_encoding_large() {
-//     let data = STR.repeat(10);
-//     let mut srv = test::TestServer::new(|app| {
-//         app.handler(|req: &HttpRequest| {
-//             req.body()
-//                 .and_then(|bytes: Bytes| {
-//                     Ok(HttpResponse::Ok()
-//                         .content_encoding(http::ContentEncoding::Identity)
-//                         .body(bytes))
-//                 })
-//                 .responder()
-//         })
-//     });
+#[test]
+fn test_reading_deflate_encoding_large() {
+    let data = STR.repeat(10);
+    let mut srv = TestServer::new(move || {
+        h1::H1Service::new(
+            App::new().chain(middleware::Decompress::new()).service(
+                web::resource("/")
+                    .route(web::to(move |body: Bytes| Response::Ok().body(body))),
+            ),
+        )
+    });
 
-//     let mut e = ZlibEncoder::new(Vec::new(), Compression::default());
-//     e.write_all(data.as_ref()).unwrap();
-//     let enc = e.finish().unwrap();
+    let mut e = ZlibEncoder::new(Vec::new(), Compression::default());
+    e.write_all(data.as_ref()).unwrap();
+    let enc = e.finish().unwrap();
 
-//     // client request
-//     let request = srv
-//         .post()
-//         .header(http::header::CONTENT_ENCODING, "deflate")
-//         .body(enc)
-//         .unwrap();
-//     let response = srv.block_on(request.send()).unwrap();
-//     assert!(response.status().is_success());
+    // client request
+    let request = srv
+        .post()
+        .header(CONTENT_ENCODING, "deflate")
+        .send_body(enc.clone());
+    let mut response = srv.block_on(request).unwrap();
+    assert!(response.status().is_success());
 
-//     // read response
-//     let bytes = srv.block_on(response.body()).unwrap();
-//     assert_eq!(bytes, Bytes::from(data));
-// }
+    // read response
+    let bytes = srv.block_on(HttpMessageBody::new(&mut response)).unwrap();
+    assert_eq!(bytes, Bytes::from(data));
+}
 
-// #[test]
-// fn test_reading_deflate_encoding_large_random() {
-//     let data = rand::thread_rng()
-//         .sample_iter(&Alphanumeric)
-//         .take(160_000)
-//         .collect::<String>();
+#[test]
+fn test_reading_deflate_encoding_large_random() {
+    let data = rand::thread_rng()
+        .sample_iter(&Alphanumeric)
+        .take(160_000)
+        .collect::<String>();
 
-//     let mut srv = test::TestServer::new(|app| {
-//         app.handler(|req: &HttpRequest| {
-//             req.body()
-//                 .and_then(|bytes: Bytes| {
-//                     Ok(HttpResponse::Ok()
-//                         .content_encoding(http::ContentEncoding::Identity)
-//                         .body(bytes))
-//                 })
-//                 .responder()
-//         })
-//     });
+    let mut srv = TestServer::new(move || {
+        h1::H1Service::new(
+            App::new().chain(middleware::Decompress::new()).service(
+                web::resource("/")
+                    .route(web::to(move |body: Bytes| Response::Ok().body(body))),
+            ),
+        )
+    });
 
-//     let mut e = ZlibEncoder::new(Vec::new(), Compression::default());
-//     e.write_all(data.as_ref()).unwrap();
-//     let enc = e.finish().unwrap();
+    let mut e = ZlibEncoder::new(Vec::new(), Compression::default());
+    e.write_all(data.as_ref()).unwrap();
+    let enc = e.finish().unwrap();
 
-//     // client request
-//     let request = srv
-//         .post()
-//         .header(http::header::CONTENT_ENCODING, "deflate")
-//         .body(enc)
-//         .unwrap();
-//     let response = srv.block_on(request.send()).unwrap();
-//     assert!(response.status().is_success());
+    // client request
+    let request = srv
+        .post()
+        .header(CONTENT_ENCODING, "deflate")
+        .send_body(enc.clone());
+    let mut response = srv.block_on(request).unwrap();
+    assert!(response.status().is_success());
 
-//     // read response
-//     let bytes = srv.execute(response.body()).unwrap();
-//     assert_eq!(bytes.len(), data.len());
-//     assert_eq!(bytes, Bytes::from(data));
-// }
+    // read response
+    let bytes = srv.block_on(HttpMessageBody::new(&mut response)).unwrap();
+    assert_eq!(bytes.len(), data.len());
+    assert_eq!(bytes, Bytes::from(data));
+}
 
-// #[cfg(feature = "brotli")]
-// #[test]
-// fn test_brotli_encoding() {
-//     let mut srv = test::TestServer::new(|app| {
-//         app.handler(|req: &HttpRequest| {
-//             req.body()
-//                 .and_then(|bytes: Bytes| {
-//                     Ok(HttpResponse::Ok()
-//                         .content_encoding(http::ContentEncoding::Identity)
-//                         .body(bytes))
-//                 })
-//                 .responder()
-//         })
-//     });
+#[cfg(feature = "brotli")]
+#[test]
+fn test_brotli_encoding() {
+    let mut srv = TestServer::new(move || {
+        h1::H1Service::new(
+            App::new().chain(middleware::Decompress::new()).service(
+                web::resource("/")
+                    .route(web::to(move |body: Bytes| Response::Ok().body(body))),
+            ),
+        )
+    });
 
-//     let mut e = BrotliEncoder::new(Vec::new(), 5);
-//     e.write_all(STR.as_ref()).unwrap();
-//     let enc = e.finish().unwrap();
+    let mut e = BrotliEncoder::new(Vec::new(), 5);
+    e.write_all(STR.as_ref()).unwrap();
+    let enc = e.finish().unwrap();
 
-//     // client request
-//     let request = srv
-//         .post()
-//         .header(http::header::CONTENT_ENCODING, "br")
-//         .body(enc)
-//         .unwrap();
-//     let response = srv.execute(request.send()).unwrap();
-//     assert!(response.status().is_success());
+    // client request
+    let request = srv
+        .post()
+        .header(CONTENT_ENCODING, "br")
+        .send_body(enc.clone());
+    let mut response = srv.block_on(request).unwrap();
+    assert!(response.status().is_success());
 
-//     // read response
-//     let bytes = srv.execute(response.body()).unwrap();
-//     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
-// }
+    // read response
+    let bytes = srv.block_on(HttpMessageBody::new(&mut response)).unwrap();
+    assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
+}
 
-// #[cfg(feature = "brotli")]
-// #[test]
-// fn test_brotli_encoding_large() {
-//     let data = STR.repeat(10);
-//     let mut srv = test::TestServer::new(|app| {
-//         app.handler(|req: &HttpRequest| {
-//             req.body()
-//                 .and_then(|bytes: Bytes| {
-//                     Ok(HttpResponse::Ok()
-//                         .content_encoding(http::ContentEncoding::Identity)
-//                         .body(bytes))
-//                 })
-//                 .responder()
-//         })
-//     });
+#[cfg(feature = "brotli")]
+#[test]
+fn test_brotli_encoding_large() {
+    let data = STR.repeat(10);
+    let mut srv = TestServer::new(move || {
+        h1::H1Service::new(
+            App::new().chain(middleware::Decompress::new()).service(
+                web::resource("/")
+                    .route(web::to(move |body: Bytes| Response::Ok().body(body))),
+            ),
+        )
+    });
 
-//     let mut e = BrotliEncoder::new(Vec::new(), 5);
-//     e.write_all(data.as_ref()).unwrap();
-//     let enc = e.finish().unwrap();
+    let mut e = BrotliEncoder::new(Vec::new(), 5);
+    e.write_all(data.as_ref()).unwrap();
+    let enc = e.finish().unwrap();
 
-//     // client request
-//     let request = srv
-//         .post()
-//         .header(http::header::CONTENT_ENCODING, "br")
-//         .body(enc)
-//         .unwrap();
-//     let response = srv.execute(request.send()).unwrap();
-//     assert!(response.status().is_success());
+    // client request
+    let request = srv
+        .post()
+        .header(CONTENT_ENCODING, "br")
+        .send_body(enc.clone());
+    let mut response = srv.block_on(request).unwrap();
+    assert!(response.status().is_success());
 
-//     // read response
-//     let bytes = srv.execute(response.body()).unwrap();
-//     assert_eq!(bytes, Bytes::from(data));
-// }
+    // read response
+    let bytes = srv.block_on(HttpMessageBody::new(&mut response)).unwrap();
+    assert_eq!(bytes, Bytes::from(data));
+}
 
 // #[cfg(all(feature = "brotli", feature = "ssl"))]
 // #[test]

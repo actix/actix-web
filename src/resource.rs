@@ -507,7 +507,7 @@ impl<P> Service for ResourceService<P> {
         if let Some(ref mut default) = self.default {
             Either::B(Either::A(default.call(req)))
         } else {
-            let req = req.into_request();
+            let req = req.into_parts().0;
             Either::B(Either::B(ok(ServiceResponse::new(
                 req,
                 Response::MethodNotAllowed().finish(),

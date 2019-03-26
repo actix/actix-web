@@ -36,7 +36,7 @@ members = [
 ]
 
 [package.metadata.docs.rs]
-features = ["ssl", "tls", "rust-tls", "brotli", "flate2-c", "cookies"]
+features = ["ssl", "tls", "rust-tls", "brotli", "flate2-c", "cookies", "client"]
 
 [features]
 default = ["brotli", "flate2-c", "cookies", "client"]
@@ -45,13 +45,13 @@ default = ["brotli", "flate2-c", "cookies", "client"]
 client = ["awc"]
 
 # brotli encoding, requires c compiler
-brotli = ["brotli2"]
+brotli = ["actix-http/brotli2"]
 
 # miniz-sys backend for flate2 crate
-flate2-c = ["flate2/miniz-sys"]
+flate2-c = ["actix-http/flate2-c"]
 
 # rust backend for flate2 crate
-flate2-rust = ["flate2/rust_backend"]
+flate2-rust = ["actix-http/flate2-rust"]
 
 # sessions feature, session require "ring" crate and c compiler
 cookies = ["cookie", "actix-http/cookies"]
@@ -96,22 +96,20 @@ url = { version="1.7", features=["query_encoding"] }
 # cookies support
 cookie = { version="0.11", features=["secure", "percent-encode"], optional = true }
 
-# compression
-brotli2 = { version="^0.3.2", optional = true }
-flate2 = { version="^1.0.2", optional = true, default-features = false }
-
 # ssl support
 native-tls = { version="0.2", optional = true }
 openssl = { version="0.10", optional = true }
 # rustls = { version = "^0.15", optional = true }
 
 [dev-dependencies]
-actix-http = { path = "actix-http", features=["ssl"] }
+actix-http = { path = "actix-http", features=["ssl", "brotli", "flate2-c"] }
 actix-http-test = { path = "test-server", features=["ssl"] }
 rand = "0.6"
 env_logger = "0.6"
 serde_derive = "1.0"
 tokio-timer = "0.2.8"
+brotli2 = { version="^0.3.2" }
+flate2 = { version="^1.0.2" }
 
 [profile.release]
 lto = true

@@ -350,7 +350,8 @@ impl TestRequest {
             Rc::new(self.rmap),
             AppConfig::new(self.config),
         )
-        .into_request()
+        .into_parts()
+        .0
     }
 
     /// Complete request creation and generate `ServiceFromRequest` instance
