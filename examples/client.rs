@@ -1,4 +1,4 @@
-use actix_http::{client, Error};
+use actix_http::Error;
 use actix_rt::System;
 use bytes::BytesMut;
 use futures::{future::lazy, Future, Stream};
@@ -8,13 +8,10 @@ fn main() -> Result<(), Error> {
     env_logger::init();
 
     System::new("test").block_on(lazy(|| {
-        let mut connector = client::Connector::new().service();
-
-        client::ClientRequest::get("https://www.rust-lang.org/") // <- Create request builder
+        awc::Client::new()
+            .get("https://www.rust-lang.org/") // <- Create request builder
             .header("User-Agent", "Actix-web")
-            .finish()
-            .unwrap()
-            .send(&mut connector) // <- Send http request
+            .send() // <- Send http request
             .from_err()
             .and_then(|response| {
                 // <- server http response

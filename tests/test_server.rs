@@ -45,8 +45,7 @@ fn test_body() {
         )
     });
 
-    let request = srv.get().finish().unwrap();
-    let mut response = srv.send_request(request).unwrap();
+    let mut response = srv.block_on(srv.get().send()).unwrap();
     assert!(response.status().is_success());
 
     // read response
@@ -64,8 +63,7 @@ fn test_body_gzip() {
         )
     });
 
-    let request = srv.get().finish().unwrap();
-    let mut response = srv.send_request(request).unwrap();
+    let mut response = srv.block_on(srv.get().send()).unwrap();
     assert!(response.status().is_success());
 
     // read response
@@ -95,8 +93,7 @@ fn test_body_gzip_large() {
         )
     });
 
-    let request = srv.get().finish().unwrap();
-    let mut response = srv.send_request(request).unwrap();
+    let mut response = srv.block_on(srv.get().send()).unwrap();
     assert!(response.status().is_success());
 
     // read response
@@ -129,8 +126,7 @@ fn test_body_gzip_large_random() {
         )
     });
 
-    let request = srv.get().finish().unwrap();
-    let mut response = srv.send_request(request).unwrap();
+    let mut response = srv.block_on(srv.get().send()).unwrap();
     assert!(response.status().is_success());
 
     // read response
@@ -158,8 +154,7 @@ fn test_body_chunked_implicit() {
         )
     });
 
-    let request = srv.get().finish().unwrap();
-    let mut response = srv.send_request(request).unwrap();
+    let mut response = srv.block_on(srv.get().send()).unwrap();
     assert!(response.status().is_success());
     assert_eq!(
         response.headers().get(TRANSFER_ENCODING).unwrap(),
@@ -190,8 +185,9 @@ fn test_body_br_streaming() {
         )
     });
 
-    let request = srv.get().header(ACCEPT_ENCODING, "br").finish().unwrap();
-    let mut response = srv.send_request(request).unwrap();
+    let mut response = srv
+        .block_on(srv.get().header(ACCEPT_ENCODING, "br").send())
+        .unwrap();
     assert!(response.status().is_success());
 
     // read response
@@ -212,8 +208,7 @@ fn test_head_binary() {
         )))
     });
 
-    let request = srv.head().finish().unwrap();
-    let mut response = srv.send_request(request).unwrap();
+    let mut response = srv.block_on(srv.head().send()).unwrap();
     assert!(response.status().is_success());
 
     {
@@ -239,8 +234,7 @@ fn test_no_chunking() {
         ))))
     });
 
-    let request = srv.get().finish().unwrap();
-    let mut response = srv.send_request(request).unwrap();
+    let mut response = srv.block_on(srv.get().send()).unwrap();
     assert!(response.status().is_success());
     assert!(!response.headers().contains_key(TRANSFER_ENCODING));
 
@@ -262,8 +256,7 @@ fn test_body_deflate() {
     });
 
     // client request
-    let request = srv.get().finish().unwrap();
-    let mut response = srv.send_request(request).unwrap();
+    let mut response = srv.block_on(srv.get().send()).unwrap();
     assert!(response.status().is_success());
 
     // read response
@@ -289,8 +282,9 @@ fn test_body_brotli() {
     });
 
     // client request
-    let request = srv.get().header(ACCEPT_ENCODING, "br").finish().unwrap();
-    let mut response = srv.send_request(request).unwrap();
+    let mut response = srv
+        .block_on(srv.get().header(ACCEPT_ENCODING, "br").send())
+        .unwrap();
     assert!(response.status().is_success());
 
     // read response

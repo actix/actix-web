@@ -28,7 +28,7 @@ cookies = ["cookie", "actix-http/cookies"]
 
 [dependencies]
 actix-service = "0.3.4"
-actix-http = { git = "https://github.com/actix/actix-http.git" }
+actix-http = { path = "../actix-http/" }
 bytes = "0.4"
 futures = "0.1"
 log =" 0.4"
@@ -44,5 +44,5 @@ openssl = { version="0.10", optional = true }
 env_logger = "0.6"
 mime = "0.3"
 actix-rt = "0.2.1"
-actix-http = { git = "https://github.com/actix/actix-http.git", features=["ssl"] }
-actix-http-test = { git = "https://github.com/actix/actix-http.git", features=["ssl"] }
+actix-http = { path = "../actix-http/", features=["ssl"] }
+actix-http-test = { path = "../actix-http/test-server/", features=["ssl"] }

@@ -38,7 +38,7 @@ actix-http = { path=".." }
 actix-service = "0.3.4"
 actix-server = "0.4.0"
 actix-utils = "0.3.4"
-awc = { git = "https://github.com/actix/actix-web.git" }
+awc = { path = "../../awc" }
 
 base64 = "0.10"
 bytes = "0.4"

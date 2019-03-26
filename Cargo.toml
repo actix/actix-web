@@ -28,6 +28,7 @@ path = "src/lib.rs"
 members = [
   ".",
   "awc",
+  "actix-http",
   "actix-files",
   "actix-session",
   "actix-web-actors",
@@ -71,7 +72,7 @@ actix-utils = "0.3.4"
 actix-router = "0.1.0"
 actix-rt = "0.2.1"
 actix-web-codegen = { path="actix-web-codegen" }
-actix-http = { git = "https://github.com/actix/actix-http.git", features=["fail"] }
+actix-http = { path = "actix-http", features=["fail"] }
 actix-server = "0.4.1"
 actix-server-config = "0.1.0"
 awc = { path = "awc", optional = true }
@@ -105,8 +106,8 @@ openssl = { version="0.10", optional = true }
 # rustls = { version = "^0.15", optional = true }
 
 [dev-dependencies]
-actix-http = { git = "https://github.com/actix/actix-http.git", features=["ssl"] }
-actix-http-test = { git = "https://github.com/actix/actix-http.git", features=["ssl"] }
+actix-http = { path = "actix-http", features=["ssl"] }
+actix-http-test = { path = "actix-http/test-server", features=["ssl"] }
 rand = "0.6"
 env_logger = "0.6"
 serde_derive = "1.0"

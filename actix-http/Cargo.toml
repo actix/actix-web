@@ -14,6 +14,7 @@ categories = ["network-programming", "asynchronous",
 license = "MIT/Apache-2.0"
 exclude = [".gitignore", ".travis.yml", ".cargo/config", "appveyor.yml"]
 edition = "2018"
+workspace = ".."
 
 [package.metadata.docs.rs]
 features = ["ssl", "fail", "cookie"]

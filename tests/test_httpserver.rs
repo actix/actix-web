@@ -48,23 +48,21 @@ fn test_start() {
     });
     let (srv, sys) = rx.recv().unwrap();
 
-    let mut connector = test::run_on(|| {
+    let client = test::run_on(|| {
         Ok::<_, ()>(
-            client::Connector::new()
-                .timeout(Duration::from_millis(100))
-                .service(),
+            awc::Client::build()
+                .connector(
+                    client::Connector::new()
+                        .timeout(Duration::from_millis(100))
+                        .service(),
+                )
+                .finish(),
         )
     })
     .unwrap();
     let host = format!("http://{}", addr);
 
-    let response = test::block_on(
-        client::ClientRequest::get(host.clone())
-            .finish()
-            .unwrap()
-            .send(&mut connector),
-    )
-    .unwrap();
+    let response = test::block_on(client.get(host.clone()).send()).unwrap();
     assert!(response.status().is_success());
 
     // stop
