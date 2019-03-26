@@ -27,6 +27,7 @@ path = "src/lib.rs"
 [workspace]
 members = [
   ".",
+  "awc",
   "actix-files",
   "actix-session",
   "actix-web-actors",
@@ -37,7 +38,10 @@ members = [
 features = ["ssl", "tls", "rust-tls", "brotli", "flate2-c", "cookies"]
 
 [features]
-default = ["brotli", "flate2-c", "cookies"]
+default = ["brotli", "flate2-c", "cookies", "client"]
+
+# http client
+client = ["awc"]
 
 # brotli encoding, requires c compiler
 brotli = ["brotli2"]
@@ -70,6 +74,7 @@ actix-web-codegen = { path="actix-web-codegen" }
 actix-http = { git = "https://github.com/actix/actix-http.git", features=["fail"] }
 actix-server = "0.4.1"
 actix-server-config = "0.1.0"
+awc = { path = "awc", optional = true }
 
 bytes = "0.4"
 derive_more = "0.14"
