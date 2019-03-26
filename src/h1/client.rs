@@ -13,11 +13,10 @@ use super::decoder::{PayloadDecoder, PayloadItem, PayloadType};
 use super::{decoder, encoder};
 use super::{Message, MessageType};
 use crate::body::BodyLength;
-use crate::client::ClientResponse;
 use crate::config::ServiceConfig;
 use crate::error::{ParseError, PayloadError};
 use crate::helpers;
-use crate::message::{ConnectionType, Head, MessagePool, RequestHead};
+use crate::message::{ConnectionType, Head, MessagePool, RequestHead, ResponseHead};
 
 bitflags! {
     struct Flags: u8 {
@@ -41,7 +40,7 @@ pub struct ClientPayloadCodec {
 
 struct ClientCodecInner {
     config: ServiceConfig,
-    decoder: decoder::MessageDecoder<ClientResponse>,
+    decoder: decoder::MessageDecoder<ResponseHead>,
     payload: Option<PayloadDecoder>,
     version: Version,
     ctype: ConnectionType,
@@ -123,14 +122,14 @@ impl ClientPayloadCodec {
 }
 
 impl Decoder for ClientCodec {
-    type Item = ClientResponse;
+    type Item = ResponseHead;
     type Error = ParseError;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
         debug_assert!(!self.inner.payload.is_some(), "Payload decoder is set");
 
         if let Some((req, payload)) = self.inner.decoder.decode(src)? {
-            if let Some(ctype) = req.head().ctype {
+            if let Some(ctype) = req.ctype {
                 // do not use peer's keep-alive
                 self.inner.ctype = if ctype == ConnectionType::KeepAlive {
                     self.inner.ctype

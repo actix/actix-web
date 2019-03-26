@@ -29,7 +29,7 @@ default = ["session"]
 session = ["cookie/secure"]
 
 # openssl
-ssl = ["openssl", "actix-http/ssl", "actix-server/ssl"]
+ssl = ["openssl", "actix-http/ssl", "actix-server/ssl", "awc/ssl"]
 
 [dependencies]
 actix-codec = "0.1.1"
@@ -38,6 +38,7 @@ actix-http = { path=".." }
 actix-service = "0.3.4"
 actix-server = "0.4.0"
 actix-utils = "0.3.4"
+awc = { git = "https://github.com/actix/actix-web.git" }
 
 base64 = "0.10"
 bytes = "0.4"

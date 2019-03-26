@@ -3,15 +3,12 @@ use std::sync::mpsc;
 use std::{net, thread, time};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
-use actix_http::body::MessageBody;
-use actix_http::client::{
-    ClientRequest, ClientRequestBuilder, ClientResponse, ConnectError, Connection,
-    Connector, SendRequestError,
-};
-use actix_http::{http::Uri, ws};
+use actix_http::client::Connector;
+use actix_http::ws;
 use actix_rt::{Runtime, System};
 use actix_server::{Server, StreamServiceFactory};
 use actix_service::Service;
+use awc::{Client, ClientRequest};
 use futures::future::{lazy, Future};
 use http::Method;
 use net2::TcpBuilder;
@@ -47,6 +44,7 @@ pub struct TestServer;
 pub struct TestServerRuntime {
     addr: net::SocketAddr,
     rt: Runtime,
+    client: Client,
 }
 
 impl TestServer {
@@ -71,11 +69,39 @@ impl TestServer {
         });
 
         let (system, addr) = rx.recv().unwrap();
+        let mut rt = Runtime::new().unwrap();
+
+        let client = rt
+            .block_on(lazy(move || {
+                let connector = {
+                    #[cfg(feature = "ssl")]
+                    {
+                        use openssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
+
+                        let mut builder =
+                            SslConnector::builder(SslMethod::tls()).unwrap();
+                        builder.set_verify(SslVerifyMode::NONE);
+                        let _ = builder.set_alpn_protos(b"\x02h2\x08http/1.1").map_err(
+                            |e| log::error!("Can not set alpn protocol: {:?}", e),
+                        );
+                        Connector::new()
+                            .timeout(time::Duration::from_millis(500))
+                            .ssl(builder.build())
+                            .service()
+                    }
+                    #[cfg(not(feature = "ssl"))]
+                    {
+                        Connector::new()
+                            .timeout(time::Duration::from_millis(500))
+                            .service()
+                    }
+                };
+
+                Ok::<Client, ()>(Client::build().connector(connector).finish())
+            }))
+            .unwrap();
         System::set_current(system);
-        TestServerRuntime {
-            addr,
-            rt: Runtime::new().unwrap(),
-        }
+        TestServerRuntime { addr, rt, client }
     }
 
     /// Get firat available unused address
@@ -130,64 +156,38 @@ impl TestServerRuntime {
     }
 
     /// Create `GET` request
-    pub fn get(&self) -> ClientRequestBuilder {
-        ClientRequest::get(self.url("/").as_str())
+    pub fn get(&self) -> ClientRequest {
+        self.client.get(self.url("/").as_str())
     }
 
     /// Create https `GET` request
-    pub fn sget(&self) -> ClientRequestBuilder {
-        ClientRequest::get(self.surl("/").as_str())
+    pub fn sget(&self) -> ClientRequest {
+        self.client.get(self.surl("/").as_str())
     }
 
     /// Create `POST` request
-    pub fn post(&self) -> ClientRequestBuilder {
-        ClientRequest::post(self.url("/").as_str())
+    pub fn post(&self) -> ClientRequest {
+        self.client.post(self.url("/").as_str())
+    }
+
+    /// Create https `POST` request
+    pub fn spost(&self) -> ClientRequest {
+        self.client.post(self.surl("/").as_str())
     }
 
     /// Create `HEAD` request
-    pub fn head(&self) -> ClientRequestBuilder {
-        ClientRequest::head(self.url("/").as_str())
+    pub fn head(&self) -> ClientRequest {
+        self.client.head(self.url("/").as_str())
+    }
+
+    /// Create https `HEAD` request
+    pub fn shead(&self) -> ClientRequest {
+        self.client.head(self.surl("/").as_str())
     }
 
     /// Connect to test http server
-    pub fn client(&self, meth: Method, path: &str) -> ClientRequestBuilder {
-        ClientRequest::build()
-            .method(meth)
-            .uri(self.url(path).as_str())
-            .take()
-    }
-
-    fn new_connector(
-    ) -> impl Service<Request = Uri, Response = impl Connection, Error = ConnectError> + Clone
-    {
-        #[cfg(feature = "ssl")]
-        {
-            use openssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
-
-            let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
-            builder.set_verify(SslVerifyMode::NONE);
-            let _ = builder
-                .set_alpn_protos(b"\x02h2\x08http/1.1")
-                .map_err(|e| log::error!("Can not set alpn protocol: {:?}", e));
-            Connector::new()
-                .timeout(time::Duration::from_millis(500))
-                .ssl(builder.build())
-                .service()
-        }
-        #[cfg(not(feature = "ssl"))]
-        {
-            Connector::new()
-                .timeout(time::Duration::from_millis(500))
-                .service()
-        }
-    }
-
-    /// Http connector
-    pub fn connector(
-        &mut self,
-    ) -> impl Service<Request = Uri, Response = impl Connection, Error = ConnectError> + Clone
-    {
-        self.execute(|| TestServerRuntime::new_connector())
+    pub fn request<S: AsRef<str>>(&self, method: Method, path: S) -> ClientRequest {
+        self.client.request(method, path.as_ref())
     }
 
     /// Stop http server
@@ -212,15 +212,6 @@ impl TestServerRuntime {
         &mut self,
     ) -> Result<Framed<impl AsyncRead + AsyncWrite, ws::Codec>, ws::ClientError> {
         self.ws_at("/")
-    }
-
-    /// Send request and read response message
-    pub fn send_request<B: MessageBody + 'static>(
-        &mut self,
-        req: ClientRequest<B>,
-    ) -> Result<ClientResponse, SendRequestError> {
-        let mut conn = self.connector();
-        self.rt.block_on(req.send(&mut conn))
     }
 }
 

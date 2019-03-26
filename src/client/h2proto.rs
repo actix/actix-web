@@ -9,13 +9,12 @@ use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, TRANSFER_ENCODING};
 use http::{request::Request, HttpTryFrom, Method, Version};
 
 use crate::body::{BodyLength, MessageBody};
-use crate::message::{Message, RequestHead, ResponseHead};
+use crate::message::{RequestHead, ResponseHead};
 use crate::payload::Payload;
 
 use super::connection::{ConnectionType, IoConnection};
 use super::error::SendRequestError;
 use super::pool::Acquired;
-use super::response::ClientResponse;
 
 pub(crate) fn send_request<T, B>(
     io: SendRequest<Bytes>,
@@ -23,7 +22,7 @@ pub(crate) fn send_request<T, B>(
     body: B,
     created: time::Instant,
     pool: Option<Acquired<T>>,
-) -> impl Future<Item = ClientResponse, Error = SendRequestError>
+) -> impl Future<Item = (ResponseHead, Payload), Error = SendRequestError>
 where
     T: AsyncRead + AsyncWrite + 'static,
     B: MessageBody,
@@ -105,12 +104,12 @@ where
             let (parts, body) = resp.into_parts();
             let payload = if head_req { Payload::None } else { body.into() };
 
-            let mut head: Message<ResponseHead> = Message::new();
+            let mut head = ResponseHead::default();
             head.version = parts.version;
             head.status = parts.status;
             head.headers = parts.headers;
 
-            Ok(ClientResponse { head, payload })
+            Ok((head, payload))
         })
         .from_err()
 }

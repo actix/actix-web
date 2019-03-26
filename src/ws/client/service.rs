@@ -14,8 +14,8 @@ use rand;
 use sha1::Sha1;
 
 use crate::body::BodyLength;
-use crate::client::ClientResponse;
 use crate::h1;
+use crate::message::{ConnectionType, Head, ResponseHead};
 use crate::ws::Codec;
 
 use super::{ClientError, Connect, Protocol};
@@ -89,27 +89,35 @@ where
         } else {
             // origin
             if let Some(origin) = req.origin.take() {
-                req.request.set_header(header::ORIGIN, origin);
+                req.head.headers.insert(header::ORIGIN, origin);
             }
 
-            req.request.upgrade("websocket");
-            req.request.set_header(header::SEC_WEBSOCKET_VERSION, "13");
+            req.head.set_connection_type(ConnectionType::Upgrade);
+            req.head
+                .headers
+                .insert(header::UPGRADE, HeaderValue::from_static("websocket"));
+            req.head.headers.insert(
+                header::SEC_WEBSOCKET_VERSION,
+                HeaderValue::from_static("13"),
+            );
 
             if let Some(protocols) = req.protocols.take() {
-                req.request
-                    .set_header(header::SEC_WEBSOCKET_PROTOCOL, protocols.as_str());
+                req.head.headers.insert(
+                    header::SEC_WEBSOCKET_PROTOCOL,
+                    HeaderValue::try_from(protocols.as_str()).unwrap(),
+                );
             }
-            let mut request = match req.request.finish() {
-                Ok(req) => req,
-                Err(e) => return Either::A(err(e.into())),
+            if let Some(e) = req.http_err {
+                return Either::A(err(e.into()));
             };
 
-            if request.uri().host().is_none() {
+            let mut request = req.head;
+            if request.uri.host().is_none() {
                 return Either::A(err(ClientError::InvalidUrl));
             }
 
             // supported protocols
-            let proto = if let Some(scheme) = request.uri().scheme_part() {
+            let proto = if let Some(scheme) = request.uri.scheme_part() {
                 match Protocol::from(scheme.as_str()) {
                     Some(proto) => proto,
                     None => return Either::A(err(ClientError::InvalidUrl)),
@@ -124,14 +132,14 @@ where
             let sec_key: [u8; 16] = rand::random();
             let key = base64::encode(&sec_key);
 
-            request.headers_mut().insert(
+            request.headers.insert(
                 header::SEC_WEBSOCKET_KEY,
                 HeaderValue::try_from(key.as_str()).unwrap(),
             );
 
             // prep connection
-            let connect = TcpConnect::new(request.uri().host().unwrap().to_string())
-                .set_port(request.uri().port_u16().unwrap_or_else(|| proto.port()));
+            let connect = TcpConnect::new(request.uri.host().unwrap().to_string())
+                .set_port(request.uri.port_u16().unwrap_or_else(|| proto.port()));
 
             let fut = Box::new(
                 self.connector
@@ -141,7 +149,7 @@ where
                         // h1 protocol
                         let framed = Framed::new(io, h1::ClientCodec::default());
                         framed
-                            .send((request.into_parts().0, BodyLength::None).into())
+                            .send((request, BodyLength::None).into())
                             .map_err(ClientError::from)
                             .and_then(|framed| {
                                 framed
@@ -172,7 +180,7 @@ where
 {
     fut: Box<
         Future<
-            Item = (Option<ClientResponse>, Framed<T, h1::ClientCodec>),
+            Item = (Option<ResponseHead>, Framed<T, h1::ClientCodec>),
             Error = ClientError,
         >,
     >,
@@ -198,11 +206,11 @@ where
         };
 
         // verify response
-        if res.status() != StatusCode::SWITCHING_PROTOCOLS {
-            return Err(ClientError::InvalidResponseStatus(res.status()));
+        if res.status != StatusCode::SWITCHING_PROTOCOLS {
+            return Err(ClientError::InvalidResponseStatus(res.status));
         }
         // Check for "UPGRADE" to websocket header
-        let has_hdr = if let Some(hdr) = res.headers().get(header::UPGRADE) {
+        let has_hdr = if let Some(hdr) = res.headers.get(header::UPGRADE) {
             if let Ok(s) = hdr.to_str() {
                 s.to_lowercase().contains("websocket")
             } else {
@@ -216,7 +224,7 @@ where
             return Err(ClientError::InvalidUpgradeHeader);
         }
         // Check for "CONNECTION" header
-        if let Some(conn) = res.headers().get(header::CONNECTION) {
+        if let Some(conn) = res.headers.get(header::CONNECTION) {
             if let Ok(s) = conn.to_str() {
                 if !s.to_lowercase().contains("upgrade") {
                     trace!("Invalid connection header: {}", s);
@@ -231,7 +239,7 @@ where
             return Err(ClientError::MissingConnectionHeader);
         }
 
-        if let Some(key) = res.headers().get(header::SEC_WEBSOCKET_ACCEPT) {
+        if let Some(key) = res.headers.get(header::SEC_WEBSOCKET_ACCEPT) {
             // field is constructed by concatenating /key/
             // with the string "258EAFA5-E914-47DA-95CA-C5AB0DC85B11" (RFC 6455)
             const WS_GUID: &[u8] = b"258EAFA5-E914-47DA-95CA-C5AB0DC85B11";

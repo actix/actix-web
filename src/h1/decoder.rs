@@ -9,9 +9,8 @@ use http::{header, HeaderMap, HttpTryFrom, Method, StatusCode, Uri, Version};
 use httparse;
 use log::{debug, error, trace};
 
-use crate::client::ClientResponse;
 use crate::error::ParseError;
-use crate::message::ConnectionType;
+use crate::message::{ConnectionType, ResponseHead};
 use crate::request::Request;
 
 const MAX_BUFFER_SIZE: usize = 131_072;
@@ -227,13 +226,13 @@ impl MessageType for Request {
     }
 }
 
-impl MessageType for ClientResponse {
+impl MessageType for ResponseHead {
     fn set_connection_type(&mut self, ctype: Option<ConnectionType>) {
-        self.head.ctype = ctype;
+        self.ctype = ctype;
     }
 
     fn headers_mut(&mut self) -> &mut HeaderMap {
-        self.headers_mut()
+        &mut self.headers
     }
 
     fn decode(src: &mut BytesMut) -> Result<Option<(Self, PayloadType)>, ParseError> {
@@ -263,7 +262,7 @@ impl MessageType for ClientResponse {
             }
         };
 
-        let mut msg = ClientResponse::new();
+        let mut msg = ResponseHead::default();
 
         // convert headers
         let len = msg.set_headers(&src.split_to(len).freeze(), &headers[..h_len])?;
@@ -281,8 +280,8 @@ impl MessageType for ClientResponse {
             PayloadType::None
         };
 
-        msg.head.status = status;
-        msg.head.version = ver;
+        msg.status = status;
+        msg.version = ver;
 
         Ok(Some((msg, decoder)))
     }

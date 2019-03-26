@@ -1042,8 +1042,6 @@ mod tests {
     #[test]
     #[cfg(feature = "cookies")]
     fn test_into_builder() {
-        use crate::httpmessage::HttpMessage;
-
         let mut resp: Response = "test".into();
         assert_eq!(resp.status(), StatusCode::OK);
 

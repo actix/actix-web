@@ -2,17 +2,18 @@ use std::{io, time};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use bytes::Bytes;
-use futures::future::{err, ok, Either};
+use futures::future::{ok, Either};
 use futures::{Async, Future, Poll, Sink, Stream};
+
+use crate::error::PayloadError;
+use crate::h1;
+use crate::message::{RequestHead, ResponseHead};
+use crate::payload::{Payload, PayloadStream};
 
 use super::connection::{ConnectionLifetime, ConnectionType, IoConnection};
 use super::error::{ConnectError, SendRequestError};
 use super::pool::Acquired;
-use super::response::ClientResponse;
 use crate::body::{BodyLength, MessageBody};
-use crate::error::PayloadError;
-use crate::h1;
-use crate::message::RequestHead;
 
 pub(crate) fn send_request<T, B>(
     io: T,
@@ -20,7 +21,7 @@ pub(crate) fn send_request<T, B>(
     body: B,
     created: time::Instant,
     pool: Option<Acquired<T>>,
-) -> impl Future<Item = ClientResponse, Error = SendRequestError>
+) -> impl Future<Item = (ResponseHead, Payload), Error = SendRequestError>
 where
     T: AsyncRead + AsyncWrite + 'static,
     B: MessageBody,
@@ -50,19 +51,20 @@ where
                 .into_future()
                 .map_err(|(e, _)| SendRequestError::from(e))
                 .and_then(|(item, framed)| {
-                    if let Some(mut res) = item {
+                    if let Some(res) = item {
                         match framed.get_codec().message_type() {
                             h1::MessageType::None => {
                                 let force_close = !framed.get_codec().keepalive();
-                                release_connection(framed, force_close)
+                                release_connection(framed, force_close);
+                                Ok((res, Payload::None))
                             }
                             _ => {
-                                res.set_payload(Payload::stream(framed).into());
+                                let pl: PayloadStream = Box::new(PlStream::new(framed));
+                                Ok((res, pl.into()))
                             }
                         }
-                        ok(res)
                     } else {
-                        err(ConnectError::Disconnected.into())
+                        Err(ConnectError::Disconnected.into())
                     }
                 })
         })
@@ -199,21 +201,19 @@ where
     }
 }
 
-pub(crate) struct Payload<Io> {
+pub(crate) struct PlStream<Io> {
     framed: Option<Framed<Io, h1::ClientPayloadCodec>>,
 }
 
-impl<Io: ConnectionLifetime> Payload<Io> {
-    pub fn stream(
-        framed: Framed<Io, h1::ClientCodec>,
-    ) -> Box<Stream<Item = Bytes, Error = PayloadError>> {
-        Box::new(Payload {
+impl<Io: ConnectionLifetime> PlStream<Io> {
+    fn new(framed: Framed<Io, h1::ClientCodec>) -> Self {
+        PlStream {
             framed: Some(framed.map_codec(|codec| codec.into_payload_codec())),
-        })
+        }
     }
 }
 
-impl<Io: ConnectionLifetime> Stream for Payload<Io> {
+impl<Io: ConnectionLifetime> Stream for PlStream<Io> {
     type Item = Bytes;
     type Error = PayloadError;
 

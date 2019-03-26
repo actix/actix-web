@@ -6,11 +6,11 @@ use futures::Future;
 use h2::client::SendRequest;
 
 use crate::body::MessageBody;
-use crate::message::RequestHead;
+use crate::message::{RequestHead, ResponseHead};
+use crate::payload::Payload;
 
 use super::error::SendRequestError;
 use super::pool::Acquired;
-use super::response::ClientResponse;
 use super::{h1proto, h2proto};
 
 pub(crate) enum ConnectionType<Io> {
@@ -19,7 +19,7 @@ pub(crate) enum ConnectionType<Io> {
 }
 
 pub trait Connection {
-    type Future: Future<Item = ClientResponse, Error = SendRequestError>;
+    type Future: Future<Item = (ResponseHead, Payload), Error = SendRequestError>;
 
     /// Send request and body
     fn send_request<B: MessageBody + 'static>(
@@ -80,7 +80,7 @@ impl<T> Connection for IoConnection<T>
 where
     T: AsyncRead + AsyncWrite + 'static,
 {
-    type Future = Box<Future<Item = ClientResponse, Error = SendRequestError>>;
+    type Future = Box<Future<Item = (ResponseHead, Payload), Error = SendRequestError>>;
 
     fn send_request<B: MessageBody + 'static>(
         mut self,
@@ -117,7 +117,7 @@ where
     A: AsyncRead + AsyncWrite + 'static,
     B: AsyncRead + AsyncWrite + 'static,
 {
-    type Future = Box<Future<Item = ClientResponse, Error = SendRequestError>>;
+    type Future = Box<Future<Item = (ResponseHead, Payload), Error = SendRequestError>>;
 
     fn send_request<RB: MessageBody + 'static>(
         self,

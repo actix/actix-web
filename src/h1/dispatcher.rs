@@ -553,7 +553,7 @@ mod tests {
 
     use actix_codec::{AsyncRead, AsyncWrite};
     use actix_service::IntoService;
-    use bytes::{Buf, Bytes, BytesMut};
+    use bytes::{Buf, Bytes};
     use futures::future::{lazy, ok};
 
     use super::*;

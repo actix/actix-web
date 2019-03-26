@@ -4,15 +4,15 @@ use std::str;
 #[cfg(feature = "cookies")]
 use cookie::Cookie;
 use http::header::{HeaderName, HeaderValue};
-use http::{Error as HttpError, HttpTryFrom};
+use http::{Error as HttpError, HttpTryFrom, Uri};
 
 use super::ClientError;
-use crate::client::{ClientRequest, ClientRequestBuilder};
 use crate::header::IntoHeaderValue;
+use crate::message::RequestHead;
 
 /// `WebSocket` connection
 pub struct Connect {
-    pub(super) request: ClientRequestBuilder,
+    pub(super) head: RequestHead,
     pub(super) err: Option<ClientError>,
     pub(super) http_err: Option<HttpError>,
     pub(super) origin: Option<HeaderValue>,
@@ -25,7 +25,7 @@ impl Connect {
     /// Create new websocket connection
     pub fn new<S: AsRef<str>>(uri: S) -> Connect {
         let mut cl = Connect {
-            request: ClientRequest::build(),
+            head: RequestHead::default(),
             err: None,
             http_err: None,
             origin: None,
@@ -33,7 +33,12 @@ impl Connect {
             max_size: 65_536,
             server_mode: false,
         };
-        cl.request.uri(uri.as_ref());
+
+        match Uri::try_from(uri.as_ref()) {
+            Ok(uri) => cl.head.uri = uri,
+            Err(e) => cl.http_err = Some(e.into()),
+        }
+
         cl
     }
 
@@ -51,12 +56,12 @@ impl Connect {
         self
     }
 
-    #[cfg(feature = "cookies")]
-    /// Set cookie for handshake request
-    pub fn cookie(mut self, cookie: Cookie) -> Self {
-        self.request.cookie(cookie);
-        self
-    }
+    // #[cfg(feature = "cookies")]
+    // /// Set cookie for handshake request
+    // pub fn cookie(mut self, cookie: Cookie) -> Self {
+    //    self.request.cookie(cookie);
+    //    self
+    // }
 
     /// Set request Origin
     pub fn origin<V>(mut self, origin: V) -> Self
@@ -90,7 +95,15 @@ impl Connect {
         HeaderName: HttpTryFrom<K>,
         V: IntoHeaderValue,
     {
-        self.request.header(key, value);
+        match HeaderName::try_from(key) {
+            Ok(key) => match value.try_into() {
+                Ok(value) => {
+                    self.head.headers.append(key, value);
+                }
+                Err(e) => self.http_err = Some(e.into()),
+            },
+            Err(e) => self.http_err = Some(e.into()),
+        }
         self
     }
 }

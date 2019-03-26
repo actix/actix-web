@@ -4,7 +4,7 @@ use futures::future::{self, ok};
 use futures::{Future, Stream};
 
 use actix_http::{
-    client, error::PayloadError, HttpMessage, HttpService, Request, Response,
+    error::PayloadError, http, HttpMessage, HttpService, Request, Response,
 };
 use actix_http_test::TestServer;
 
@@ -48,26 +48,18 @@ fn test_h1_v2() {
             .finish(|_| future::ok::<_, ()>(Response::Ok().body(STR)))
             .map(|_| ())
     });
-    let mut connector = srv.connector();
-
-    let request = srv.get().finish().unwrap();
-    let response = srv.block_on(request.send(&mut connector)).unwrap();
+    let response = srv.block_on(srv.get().send()).unwrap();
     assert!(response.status().is_success());
 
-    let request = srv.get().header("x-test", "111").finish().unwrap();
-    let repr = format!("{:?}", request);
-    assert!(repr.contains("ClientRequest"));
-    assert!(repr.contains("x-test"));
-
-    let mut response = srv.block_on(request.send(&mut connector)).unwrap();
+    let request = srv.get().header("x-test", "111").send();
+    let mut response = srv.block_on(request).unwrap();
     assert!(response.status().is_success());
 
     // read response
     let bytes = srv.block_on(load_body(response.take_payload())).unwrap();
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
 
-    let request = srv.post().finish().unwrap();
-    let mut response = srv.block_on(request.send(&mut connector)).unwrap();
+    let mut response = srv.block_on(srv.post().send()).unwrap();
     assert!(response.status().is_success());
 
     // read response
@@ -82,10 +74,7 @@ fn test_connection_close() {
             .finish(|_| ok::<_, ()>(Response::Ok().body(STR)))
             .map(|_| ())
     });
-    let mut connector = srv.connector();
-
-    let request = srv.get().close().finish().unwrap();
-    let response = srv.block_on(request.send(&mut connector)).unwrap();
+    let response = srv.block_on(srv.get().close_connection().send()).unwrap();
     assert!(response.status().is_success());
 }
 
@@ -102,12 +91,8 @@ fn test_with_query_parameter() {
             })
             .map(|_| ())
     });
-    let mut connector = srv.connector();
 
-    let request = client::ClientRequest::get(srv.url("/?qp=5"))
-        .finish()
-        .unwrap();
-
-    let response = srv.block_on(request.send(&mut connector)).unwrap();
+    let request = srv.request(http::Method::GET, srv.url("/?qp=5")).send();
+    let response = srv.block_on(request).unwrap();
     assert!(response.status().is_success());
 }
