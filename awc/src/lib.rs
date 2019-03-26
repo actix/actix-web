@@ -56,6 +56,11 @@ impl Default for Client {
 }
 
 impl Client {
+    /// Create new client instance with default settings.
+    pub fn new() -> Client {
+        Client::default()
+    }
+
     /// Build client instance.
     pub fn build() -> ClientBuilder {
         ClientBuilder::new()
