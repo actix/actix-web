@@ -21,22 +21,26 @@ use net2::TcpBuilder;
 /// # Examples
 ///
 /// ```rust
-/// # extern crate actix_web;
-/// # use actix_web::*;
+/// use actix_http::HttpService;
+/// use actix_http_test::TestServer;
+/// use actix_web::{web, App, HttpResponse};
 /// #
-/// # fn my_handler(req: &HttpRequest) -> HttpResponse {
-/// #     HttpResponse::Ok().into()
-/// # }
-/// #
-/// # fn main() {
-/// use actix_web::test::TestServer;
+/// fn my_handler() -> HttpResponse {
+///     HttpResponse::Ok().into()
+/// }
 ///
-/// let mut srv = TestServer::new(|app| app.handler(my_handler));
+/// fn main() {
+///     let mut srv = TestServer::new(
+///         || HttpService::new(
+///             App::new().service(
+///                 web::resource("/").to(my_handler))
+///         )
+///     );
 ///
-/// let req = srv.get().finish().unwrap();
-/// let response = srv.execute(req.send()).unwrap();
-/// assert!(response.status().is_success());
-/// # }
+///     let req = srv.get();
+///     let response = srv.block_on(req.send()).unwrap();
+///     assert!(response.status().is_success());
+/// }
 /// ```
 pub struct TestServer;
 

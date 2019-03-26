@@ -1,6 +1,6 @@
 use actix_http::HttpService;
 use actix_http_test::TestServer;
-use actix_web::{get, App, HttpResponse, Responder};
+use actix_web::{get, http, App, HttpResponse, Responder};
 
 #[get("/test")]
 fn test() -> impl Responder {
@@ -11,7 +11,7 @@ fn test() -> impl Responder {
 fn test_body() {
     let mut srv = TestServer::new(|| HttpService::new(App::new().service(test)));
 
-    let request = srv.get().uri(srv.url("/test")).finish().unwrap();
-    let response = srv.send_request(request).unwrap();
+    let request = srv.request(http::Method::GET, srv.url("/test"));
+    let response = srv.block_on(request.send()).unwrap();
     assert!(response.status().is_success());
 }

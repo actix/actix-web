@@ -107,7 +107,7 @@ openssl = { version="0.10", optional = true }
 
 [dev-dependencies]
 actix-http = { path = "actix-http", features=["ssl"] }
-actix-http-test = { path = "actix-http/test-server", features=["ssl"] }
+actix-http-test = { path = "test-server", features=["ssl"] }
 rand = "0.6"
 env_logger = "0.6"
 serde_derive = "1.0"

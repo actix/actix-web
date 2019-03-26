@@ -1,19 +1,20 @@
 [package]
 name = "actix-http-test"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
-description = "Actix http"
+description = "Actix http test server"
 readme = "README.md"
 keywords = ["http", "web", "framework", "async", "futures"]
 homepage = "https://actix.rs"
 repository = "https://github.com/actix/actix-web.git"
-documentation = "https://actix.rs/api/actix-web/stable/actix_web/"
+documentation = "https://docs.rs/actix-http-test/"
 categories = ["network-programming", "asynchronous",
               "web-programming::http-server",
               "web-programming::websocket"]
 license = "MIT/Apache-2.0"
 exclude = [".gitignore", ".travis.yml", ".cargo/config", "appveyor.yml"]
 edition = "2018"
+workspace = ".."
 
 [package.metadata.docs.rs]
 features = ["session"]
@@ -34,11 +35,11 @@ ssl = ["openssl", "actix-http/ssl", "actix-server/ssl", "awc/ssl"]
 [dependencies]
 actix-codec = "0.1.1"
 actix-rt = "0.2.1"
-actix-http = { path=".." }
+actix-http = { path="../actix-http" }
 actix-service = "0.3.4"
 actix-server = "0.4.0"
 actix-utils = "0.3.4"
-awc = { path = "../../awc" }
+awc = { path = "../awc" }
 
 base64 = "0.10"
 bytes = "0.4"
@@ -58,3 +59,6 @@ tokio-tcp = "0.1"
 tokio-timer = "0.2"
 
 openssl = { version="0.10", optional = true }
+
+[dev-dependencies]
+actix-web = { path=".." }

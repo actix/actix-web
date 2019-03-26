@@ -1,6 +1,6 @@
 [package]
 name = "actix-http"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix http"
 readme = "README.md"
@@ -20,9 +20,8 @@ workspace = ".."
 features = ["ssl", "fail", "cookie"]
 
 [badges]
-travis-ci = { repository = "actix/actix-http", branch = "master" }
-# appveyor = { repository = "fafhrd91/actix-http-b1qsn" }
-codecov = { repository = "actix/actix-http", branch = "master", service = "github" }
+travis-ci = { repository = "actix/actix-web", branch = "master" }
+codecov = { repository = "actix/actix-web", branch = "master", service = "github" }
 
 [lib]
 name = "actix_http"
@@ -87,7 +86,7 @@ openssl = { version="0.10", optional = true }
 actix-rt = "0.2.1"
 actix-server = { version = "0.4.0", features=["ssl"] }
 actix-connect = { version = "0.1.0", features=["ssl"] }
-actix-http-test = { path="test-server", features=["ssl"] }
+actix-http-test = { path="../test-server", features=["ssl"] }
 
 env_logger = "0.6"
 serde_derive = "1.0"

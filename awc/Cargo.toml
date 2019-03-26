@@ -1,6 +1,6 @@
 [package]
 name = "awc"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix web client."
 readme = "README.md"
@@ -45,4 +45,4 @@ env_logger = "0.6"
 mime = "0.3"
 actix-rt = "0.2.1"
 actix-http = { path = "../actix-http/", features=["ssl"] }
-actix-http-test = { path = "../actix-http/test-server/", features=["ssl"] }
+actix-http-test = { path = "../test-server/", features=["ssl"] }

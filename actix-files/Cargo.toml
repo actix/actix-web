@@ -1,13 +1,13 @@
 [package]
 name = "actix-files"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Static files support for Actix web."
 readme = "README.md"
 keywords = ["actix", "http", "async", "futures"]
 homepage = "https://actix.rs"
 repository = "https://github.com/actix/actix-web.git"
-documentation = "https://actix.rs/api/actix-web/stable/actix_web/"
+documentation = "https://docs.rs/actix-files/"
 categories = ["asynchronous", "web-programming::http-server"]
 license = "MIT/Apache-2.0"
 edition = "2018"
@@ -19,7 +19,7 @@ path = "src/lib.rs"
 
 [dependencies]
 actix-web = { path=".." }
-actix-http = { git = "https://github.com/actix/actix-http.git" }
+actix-http = { path="../actix-http" }
 actix-service = "0.3.3"
 
 bitflags = "1"
