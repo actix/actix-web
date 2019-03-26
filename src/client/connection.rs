@@ -21,7 +21,7 @@ pub(crate) enum ConnectionType<Io> {
 pub trait Connection {
     type Future: Future<Item = ClientResponse, Error = SendRequestError>;
 
-    /// Close connection
+    /// Send request and body
     fn send_request<B: MessageBody + 'static>(
         self,
         head: RequestHead,

@@ -118,6 +118,11 @@ impl<B> ClientRequest<B>
 where
     B: MessageBody,
 {
+    /// Create new client request
+    pub fn new(head: RequestHead, body: B) -> Self {
+        ClientRequest { head, body }
+    }
+
     /// Get the request URI
     #[inline]
     pub fn uri(&self) -> &Uri {
@@ -174,14 +179,14 @@ where
     // Send request
     ///
     /// This method returns a future that resolves to a ClientResponse
-    pub fn send<T, I>(
+    pub fn send<T>(
         self,
         connector: &mut T,
     ) -> impl Future<Item = ClientResponse, Error = SendRequestError>
     where
         B: 'static,
-        T: Service<Request = Uri, Response = I, Error = ConnectError>,
-        I: Connection,
+        T: Service<Request = Uri, Error = ConnectError>,
+        T::Response: Connection,
     {
         let Self { head, body } = self;
 

@@ -7,6 +7,7 @@ use trust_dns_resolver::error::ResolveError;
 use openssl::ssl::{Error as SslError, HandshakeError};
 
 use crate::error::{Error, ParseError, ResponseError};
+use crate::http::Error as HttpError;
 use crate::response::Response;
 
 /// A set of errors that can occur while connecting to an HTTP host
@@ -98,6 +99,9 @@ pub enum SendRequestError {
     Send(io::Error),
     /// Error parsing response
     Response(ParseError),
+    /// Http error
+    #[display(fmt = "{}", _0)]
+    Http(HttpError),
     /// Http2 error
     #[display(fmt = "{}", _0)]
     H2(h2::Error),

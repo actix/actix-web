@@ -45,6 +45,16 @@ impl MessageBody for () {
     }
 }
 
+impl<T: MessageBody> MessageBody for Box<T> {
+    fn length(&self) -> BodyLength {
+        self.as_ref().length()
+    }
+
+    fn poll_next(&mut self) -> Poll<Option<Bytes>, Error> {
+        self.as_mut().poll_next()
+    }
+}
+
 pub enum ResponseBody<B> {
     Body(B),
     Other(Body),
