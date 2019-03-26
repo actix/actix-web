@@ -1,0 +1,60 @@
+[package]
+name = "actix-http-test"
+version = "0.1.0"
+authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
+description = "Actix http"
+readme = "README.md"
+keywords = ["http", "web", "framework", "async", "futures"]
+homepage = "https://actix.rs"
+repository = "https://github.com/actix/actix-web.git"
+documentation = "https://actix.rs/api/actix-web/stable/actix_web/"
+categories = ["network-programming", "asynchronous",
+              "web-programming::http-server",
+              "web-programming::websocket"]
+license = "MIT/Apache-2.0"
+exclude = [".gitignore", ".travis.yml", ".cargo/config", "appveyor.yml"]
+edition = "2018"
+
+[package.metadata.docs.rs]
+features = ["session"]
+
+[lib]
+name = "actix_http_test"
+path = "src/lib.rs"
+
+[features]
+default = ["session"]
+
+# sessions feature, session require "ring" crate and c compiler
+session = ["cookie/secure"]
+
+# openssl
+ssl = ["openssl", "actix-http/ssl", "actix-server/ssl", "awc/ssl"]
+
+[dependencies]
+actix-codec = "0.1.1"
+actix-rt = "0.2.1"
+actix-http = { path=".." }
+actix-service = "0.3.4"
+actix-server = "0.4.0"
+actix-utils = "0.3.4"
+awc = { git = "https://github.com/actix/actix-web.git" }
+
+base64 = "0.10"
+bytes = "0.4"
+cookie = { version="0.11", features=["percent-encode"] }
+futures = "0.1"
+http = "0.1.8"
+log = "0.4"
+env_logger = "0.6"
+net2 = "0.2"
+serde = "1.0"
+serde_json = "1.0"
+sha1 = "0.6"
+slab = "0.4"
+serde_urlencoded = "0.5.3"
+time = "0.1"
+tokio-tcp = "0.1"
+tokio-timer = "0.2"
+
+openssl = { version="0.10", optional = true }
