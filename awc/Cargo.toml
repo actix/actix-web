@@ -29,7 +29,6 @@ cookies = ["cookie", "actix-http/cookies"]
 [dependencies]
 actix-service = "0.3.4"
 actix-http = { git = "https://github.com/actix/actix-http.git" }
-actix-codec = "0.1.1"
 bytes = "0.4"
 futures = "0.1"
 log =" 0.4"

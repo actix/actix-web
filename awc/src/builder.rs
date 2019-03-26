@@ -2,8 +2,11 @@ use std::cell::RefCell;
 use std::fmt;
 use std::rc::Rc;
 
-use actix_http::client::Connector;
-use actix_http::http::{header::IntoHeaderValue, HeaderMap, HeaderName, HttpTryFrom};
+use actix_http::client::{ConnectError, Connection, Connector};
+use actix_http::http::{
+    header::IntoHeaderValue, HeaderMap, HeaderName, HttpTryFrom, Uri,
+};
+use actix_service::Service;
 
 use crate::connect::{Connect, ConnectorWrapper};
 use crate::Client;
@@ -31,6 +34,18 @@ impl ClientBuilder {
                 Connector::new().service(),
             ))),
         }
+    }
+
+    /// Use custom connector service.
+    pub fn connector<T>(mut self, connector: T) -> Self
+    where
+        T: Service<Request = Uri, Error = ConnectError> + 'static,
+        T::Response: Connection,
+        <T::Response as Connection>::Future: 'static,
+        T::Future: 'static,
+    {
+        self.connector = Rc::new(RefCell::new(ConnectorWrapper(connector)));
+        self
     }
 
     /// Do not follow redirects.

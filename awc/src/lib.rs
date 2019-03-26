@@ -1,9 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-pub use actix_http::client::{
-    ClientResponse, ConnectError, InvalidUrl, SendRequestError,
-};
+pub use actix_http::client::{ConnectError, InvalidUrl, SendRequestError};
 pub use actix_http::http;
 
 use actix_http::client::Connector;
@@ -12,9 +10,11 @@ use actix_http::http::{HttpTryFrom, Method, Uri};
 mod builder;
 mod connect;
 mod request;
+mod response;
 
 pub use self::builder::ClientBuilder;
 pub use self::request::ClientRequest;
+pub use self::response::ClientResponse;
 
 use self::connect::{Connect, ConnectorWrapper};
 

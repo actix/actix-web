@@ -1,8 +1,10 @@
 use actix_http::body::Body;
-use actix_http::client::{ClientResponse, ConnectError, Connection, SendRequestError};
+use actix_http::client::{ConnectError, Connection, SendRequestError};
 use actix_http::{http, RequestHead};
 use actix_service::Service;
 use futures::Future;
+
+use crate::response::ClientResponse;
 
 pub(crate) struct ConnectorWrapper<T>(pub T);
 
@@ -32,7 +34,8 @@ where
                 .call(head.uri.clone())
                 .from_err()
                 // send request
-                .and_then(move |connection| connection.send_request(head, body)),
+                .and_then(move |connection| connection.send_request(head, body))
+                .map(|(head, payload)| ClientResponse::new(head, payload)),
         )
     }
 }

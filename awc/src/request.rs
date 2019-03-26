@@ -12,7 +12,7 @@ use serde::Serialize;
 use serde_json;
 
 use actix_http::body::{Body, BodyStream};
-use actix_http::client::{ClientResponse, InvalidUrl, SendRequestError};
+use actix_http::client::{InvalidUrl, SendRequestError};
 use actix_http::http::header::{self, Header, IntoHeaderValue};
 use actix_http::http::{
     uri, ConnectionType, Error as HttpError, HeaderName, HeaderValue, HttpTryFrom,
@@ -20,6 +20,7 @@ use actix_http::http::{
 };
 use actix_http::{Error, Head, RequestHead};
 
+use crate::response::ClientResponse;
 use crate::Connect;
 
 /// An HTTP Client request builder
@@ -30,18 +31,15 @@ use crate::Connect;
 /// ```rust
 /// use futures::future::{Future, lazy};
 /// use actix_rt::System;
-/// use actix_http::client;
 ///
 /// fn main() {
 ///     System::new("test").block_on(lazy(|| {
-///        let mut connector = client::Connector::new().service();
-///
-///        client::ClientRequest::get("http://www.rust-lang.org") // <- Create request builder
+///        awc::Client::new()
+///           .get("http://www.rust-lang.org") // <- Create request builder
 ///           .header("User-Agent", "Actix-web")
-///           .finish().unwrap()
-///           .send(&mut connector)                      // <- Send http request
+///           .send()                          // <- Send http request
 ///           .map_err(|_| ())
-///           .and_then(|response| {                     // <- server http response
+///           .and_then(|response| {           // <- server http response
 ///                println!("Response: {:?}", response);
 ///                Ok(())
 ///           })
@@ -137,11 +135,13 @@ impl ClientRequest {
     /// use actix_http::{client, http};
     ///
     /// fn main() {
-    ///     let req = client::ClientRequest::build()
+    /// # actix_rt::System::new("test").block_on(futures::future::lazy(|| {
+    ///     let req = awc::Client::new()
+    ///         .get("http://www.rust-lang.org")
     ///         .header("X-TEST", "value")
-    ///         .header(http::header::CONTENT_TYPE, "application/json")
-    ///         .finish()
-    ///         .unwrap();
+    ///         .header(http::header::CONTENT_TYPE, "application/json");
+    /// #   Ok::<_, ()>(())
+    /// # }));
     /// }
     /// ```
     pub fn header<K, V>(mut self, key: K, value: V) -> Self
