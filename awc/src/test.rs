@@ -10,35 +10,7 @@ use cookie::{Cookie, CookieJar};
 use crate::ClientResponse;
 
 /// Test `ClientResponse` builder
-///
-/// ```rust,ignore
-/// # extern crate http;
-/// # extern crate actix_web;
-/// # use http::{header, StatusCode};
-/// # use actix_web::*;
-/// use actix_web::test::TestRequest;
-///
-/// fn index(req: &HttpRequest) -> Response {
-///     if let Some(hdr) = req.headers().get(header::CONTENT_TYPE) {
-///         Response::Ok().into()
-///     } else {
-///         Response::BadRequest().into()
-///     }
-/// }
-///
-/// fn main() {
-///     let resp = TestRequest::with_header("content-type", "text/plain")
-///         .run(&index)
-///         .unwrap();
-///     assert_eq!(resp.status(), StatusCode::OK);
-///
-///     let resp = TestRequest::default().run(&index).unwrap();
-///     assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-/// }
-/// ```
-pub struct TestResponse(Option<Inner>);
-
-struct Inner {
+pub struct TestResponse {
     head: ResponseHead,
     #[cfg(feature = "cookies")]
     cookies: CookieJar,
@@ -47,78 +19,73 @@ struct Inner {
 
 impl Default for TestResponse {
     fn default() -> TestResponse {
-        TestResponse(Some(Inner {
+        TestResponse {
             head: ResponseHead::default(),
             #[cfg(feature = "cookies")]
             cookies: CookieJar::new(),
             payload: None,
-        }))
+        }
     }
 }
 
 impl TestResponse {
-    /// Create TestRequest and set header
+    /// Create TestResponse and set header
     pub fn with_header<K, V>(key: K, value: V) -> Self
     where
         HeaderName: HttpTryFrom<K>,
         V: IntoHeaderValue,
     {
-        Self::default().header(key, value).take()
+        Self::default().header(key, value)
     }
 
-    /// Set HTTP version of this request
-    pub fn version(&mut self, ver: Version) -> &mut Self {
-        parts(&mut self.0).head.version = ver;
+    /// Set HTTP version of this response
+    pub fn version(mut self, ver: Version) -> Self {
+        self.head.version = ver;
         self
     }
 
     /// Set a header
-    pub fn set<H: Header>(&mut self, hdr: H) -> &mut Self {
+    pub fn set<H: Header>(mut self, hdr: H) -> Self {
         if let Ok(value) = hdr.try_into() {
-            parts(&mut self.0).head.headers.append(H::name(), value);
+            self.head.headers.append(H::name(), value);
             return self;
         }
         panic!("Can not set header");
     }
 
-    /// Set a header
-    pub fn header<K, V>(&mut self, key: K, value: V) -> &mut Self
+    /// Append a header
+    pub fn header<K, V>(mut self, key: K, value: V) -> Self
     where
         HeaderName: HttpTryFrom<K>,
         V: IntoHeaderValue,
     {
         if let Ok(key) = HeaderName::try_from(key) {
             if let Ok(value) = value.try_into() {
-                parts(&mut self.0).head.headers.append(key, value);
+                self.head.headers.append(key, value);
                 return self;
             }
         }
         panic!("Can not create header");
     }
 
-    /// Set cookie for this request
+    /// Set cookie for this response
     #[cfg(feature = "cookies")]
-    pub fn cookie<'a>(&mut self, cookie: Cookie<'a>) -> &mut Self {
-        parts(&mut self.0).cookies.add(cookie.into_owned());
+    pub fn cookie<'a>(mut self, cookie: Cookie<'a>) -> Self {
+        self.cookies.add(cookie.into_owned());
         self
     }
 
-    /// Set request payload
-    pub fn set_payload<B: Into<Bytes>>(&mut self, data: B) -> &mut Self {
+    /// Set response's payload
+    pub fn set_payload<B: Into<Bytes>>(mut self, data: B) -> Self {
         let mut payload = h1::Payload::empty();
         payload.unread_data(data.into());
-        parts(&mut self.0).payload = Some(payload.into());
+        self.payload = Some(payload.into());
         self
     }
 
-    pub fn take(&mut self) -> Self {
-        Self(self.0.take())
-    }
-
-    /// Complete request creation and generate `Request` instance
-    pub fn finish(&mut self) -> ClientResponse {
-        let inner = self.0.take().expect("cannot reuse test request builder");;
-        let mut head = inner.head;
+    /// Complete response creation and generate `ClientResponse` instance
+    pub fn finish(self) -> ClientResponse {
+        let mut head = self.head;
 
         #[cfg(feature = "cookies")]
         {
@@ -128,7 +95,7 @@ impl TestResponse {
             use percent_encoding::{percent_encode, USERINFO_ENCODE_SET};
 
             let mut cookie = String::new();
-            for c in inner.cookies.delta() {
+            for c in self.cookies.delta() {
                 let name = percent_encode(c.name().as_bytes(), USERINFO_ENCODE_SET);
                 let value = percent_encode(c.value().as_bytes(), USERINFO_ENCODE_SET);
                 let _ = write!(&mut cookie, "; {}={}", name, value);
@@ -141,15 +108,10 @@ impl TestResponse {
             }
         }
 
-        if let Some(pl) = inner.payload {
+        if let Some(pl) = self.payload {
             ClientResponse::new(head, pl)
         } else {
             ClientResponse::new(head, h1::Payload::empty().into())
         }
     }
-}
-
-#[inline]
-fn parts<'a>(parts: &'a mut Option<Inner>) -> &'a mut Inner {
-    parts.as_mut().expect("cannot reuse test request builder")
 }
