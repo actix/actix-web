@@ -7,7 +7,7 @@ use futures::{Future, Poll, Stream};
 use actix_http::error::PayloadError;
 use actix_http::http::header::{CONTENT_LENGTH, SET_COOKIE};
 use actix_http::http::{HeaderMap, StatusCode, Version};
-use actix_http::{Extensions, Head, HttpMessage, Payload, PayloadStream, ResponseHead};
+use actix_http::{Extensions, HttpMessage, Payload, PayloadStream, ResponseHead};
 
 #[cfg(feature = "cookies")]
 use actix_http::error::CookieParseError;

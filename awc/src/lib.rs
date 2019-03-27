@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 pub use actix_http::client::{ConnectError, InvalidUrl, SendRequestError};
 pub use actix_http::error::PayloadError;
-pub use actix_http::http;
+pub use actix_http::{http, RequestHead};
 
 use actix_http::client::Connector;
 use actix_http::http::{HttpTryFrom, Method, Uri};
@@ -74,6 +74,24 @@ impl Client {
         Uri: HttpTryFrom<U>,
     {
         ClientRequest::new(method, url, self.connector.clone())
+    }
+
+    /// Create `ClientRequest` from `RequestHead`
+    ///
+    /// It is useful for proxy requests. This implementation
+    /// copies all headers and the method.
+    pub fn request_from<U>(&self, url: U, head: &RequestHead) -> ClientRequest
+    where
+        Uri: HttpTryFrom<U>,
+    {
+        let mut req =
+            ClientRequest::new(head.method.clone(), url, self.connector.clone());
+
+        for (key, value) in &head.headers {
+            req.head.headers.insert(key.clone(), value.clone());
+        }
+
+        req
     }
 
     pub fn get<U>(&self, url: U) -> ClientRequest

@@ -56,7 +56,7 @@ const HTTPS_ENCODING: &str = "gzip, deflate";
 /// }
 /// ```
 pub struct ClientRequest {
-    head: RequestHead,
+    pub(crate) head: RequestHead,
     err: Option<HttpError>,
     #[cfg(feature = "cookies")]
     cookies: Option<CookieJar>,
