@@ -15,6 +15,7 @@ use actix_web::http::header::{
     self, ContentDisposition, DispositionParam, DispositionType,
 };
 use actix_web::http::{ContentEncoding, Method, StatusCode};
+use actix_web::middleware::encoding::BodyEncoding;
 use actix_web::{Error, HttpMessage, HttpRequest, HttpResponse, Responder};
 
 use crate::range::HttpRange;
@@ -360,10 +361,10 @@ impl Responder for NamedFile {
                 header::CONTENT_DISPOSITION,
                 self.content_disposition.to_string(),
             );
-        // TODO blocking by compressing
-        // if let Some(current_encoding) = self.encoding {
-        //     resp.content_encoding(current_encoding);
-        // }
+        // default compressing
+        if let Some(current_encoding) = self.encoding {
+            resp.encoding(current_encoding);
+        }
 
         resp.if_some(last_modified, |lm, resp| {
             resp.set(header::LastModified(lm));
@@ -383,8 +384,7 @@ impl Responder for NamedFile {
                 if let Ok(rangesvec) = HttpRange::parse(rangesheader, length) {
                     length = rangesvec[0].length;
                     offset = rangesvec[0].start;
-                    // TODO blocking by compressing
-                    // resp.content_encoding(ContentEncoding::Identity);
+                    resp.encoding(ContentEncoding::Identity);
                     resp.header(
                         header::CONTENT_RANGE,
                         format!(

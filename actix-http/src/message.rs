@@ -24,9 +24,6 @@ bitflags! {
         const KEEP_ALIVE  = 0b0000_0010;
         const UPGRADE     = 0b0000_0100;
         const NO_CHUNKING = 0b0000_1000;
-        const ENC_BR      = 0b0001_0000;
-        const ENC_DEFLATE = 0b0010_0000;
-        const ENC_GZIP    = 0b0100_0000;
     }
 }
 

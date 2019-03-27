@@ -6,14 +6,46 @@ use std::str::FromStr;
 use actix_http::body::MessageBody;
 use actix_http::encoding::Encoder;
 use actix_http::http::header::{ContentEncoding, ACCEPT_ENCODING};
+use actix_http::ResponseBuilder;
 use actix_service::{Service, Transform};
 use futures::future::{ok, FutureResult};
 use futures::{Async, Future, Poll};
 
 use crate::service::{ServiceRequest, ServiceResponse};
 
+struct Enc(ContentEncoding);
+
+/// Helper trait that allows to set specific encoding for response.
+pub trait BodyEncoding {
+    fn encoding(&mut self, encoding: ContentEncoding) -> &mut Self;
+}
+
+impl BodyEncoding for ResponseBuilder {
+    fn encoding(&mut self, encoding: ContentEncoding) -> &mut Self {
+        self.extensions_mut().insert(Enc(encoding));
+        self
+    }
+}
+
 #[derive(Debug, Clone)]
 /// `Middleware` for compressing response body.
+///
+/// Use `BodyEncoding` trait for overriding response compression.
+/// To disable compression set encoding to `ContentEncoding::Identity` value.
+///
+/// ```rust
+/// use actix_web::{web, middleware::encoding, App, HttpResponse};
+///
+/// fn main() {
+///     let app = App::new()
+///         .wrap(encoding::Compress::default())
+///         .service(
+///             web::resource("/test")
+///                 .route(web::get().to(|| HttpResponse::Ok()))
+///                 .route(web::head().to(|| HttpResponse::MethodNotAllowed()))
+///         );
+/// }
+/// ```
 pub struct Compress(ContentEncoding);
 
 impl Compress {
@@ -118,8 +150,14 @@ where
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         let resp = futures::try_ready!(self.fut.poll());
 
+        let enc = if let Some(enc) = resp.head().extensions().get::<Enc>() {
+            enc.0
+        } else {
+            self.encoding
+        };
+
         Ok(Async::Ready(resp.map_body(move |head, body| {
-            Encoder::response(self.encoding, head, body)
+            Encoder::response(enc, head, body)
         })))
     }
 }

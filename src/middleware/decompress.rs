@@ -12,6 +12,22 @@ use crate::error::{Error, PayloadError};
 use crate::service::ServiceRequest;
 use crate::HttpMessage;
 
+/// `Middleware` for decompressing request's payload.
+/// `Decompress` middleware must be added with `App::chain()` method.
+///
+/// ```rust
+/// use actix_web::{web, middleware::encoding, App, HttpResponse};
+///
+/// fn main() {
+///     let app = App::new()
+///         .chain(encoding::Decompress::new())
+///         .service(
+///             web::resource("/test")
+///                 .route(web::get().to(|| HttpResponse::Ok()))
+///                 .route(web::head().to(|| HttpResponse::MethodNotAllowed()))
+///         );
+/// }
+/// ```
 pub struct Decompress<P>(PhantomData<P>);
 
 impl<P> Decompress<P>

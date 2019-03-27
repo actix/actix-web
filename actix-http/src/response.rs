@@ -1,4 +1,5 @@
 //! Http response
+use std::cell::{Ref, RefMut};
 use std::io::Write;
 use std::{fmt, str};
 
@@ -14,6 +15,7 @@ use serde_json;
 
 use crate::body::{Body, BodyStream, MessageBody, ResponseBody};
 use crate::error::Error;
+use crate::extensions::Extensions;
 use crate::header::{Header, IntoHeaderValue};
 use crate::message::{ConnectionType, Message, ResponseHead};
 
@@ -575,6 +577,20 @@ impl ResponseBuilder {
             f(val, self);
         }
         self
+    }
+
+    /// Responses extensions
+    #[inline]
+    pub fn extensions(&self) -> Ref<Extensions> {
+        let head = self.head.as_ref().expect("cannot reuse response builder");
+        head.extensions.borrow()
+    }
+
+    /// Mutable reference to a the response's extensions
+    #[inline]
+    pub fn extensions_mut(&mut self) -> RefMut<Extensions> {
+        let head = self.head.as_ref().expect("cannot reuse response builder");
+        head.extensions.borrow_mut()
     }
 
     /// Set a body and generate `Response`.

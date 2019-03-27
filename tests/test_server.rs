@@ -14,7 +14,7 @@ use flate2::Compression;
 use futures::stream::once; //Future, Stream
 use rand::{distributions::Alphanumeric, Rng};
 
-use actix_web::{dev::HttpMessageBody, middleware, web, App};
+use actix_web::{dev::HttpMessageBody, middleware::encoding, web, App};
 
 const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
                    Hello World Hello World Hello World Hello World Hello World \
@@ -60,7 +60,7 @@ fn test_body_gzip() {
     let mut srv = TestServer::new(|| {
         h1::H1Service::new(
             App::new()
-                .wrap(middleware::Compress::new(ContentEncoding::Gzip))
+                .wrap(encoding::Compress::new(ContentEncoding::Gzip))
                 .service(web::resource("/").route(web::to(|| Response::Ok().body(STR)))),
         )
     });
@@ -79,6 +79,32 @@ fn test_body_gzip() {
 }
 
 #[test]
+fn test_body_encoding_override() {
+    let mut srv = TestServer::new(|| {
+        h1::H1Service::new(
+            App::new()
+                .wrap(encoding::Compress::new(ContentEncoding::Gzip))
+                .service(web::resource("/").route(web::to(|| {
+                    use actix_web::middleware::encoding::BodyEncoding;
+                    Response::Ok().encoding(ContentEncoding::Deflate).body(STR)
+                }))),
+        )
+    });
+
+    let mut response = srv.block_on(srv.get().no_decompress().send()).unwrap();
+    assert!(response.status().is_success());
+
+    // read response
+    let bytes = srv.block_on(HttpMessageBody::new(&mut response)).unwrap();
+
+    // decode
+    let mut e = ZlibDecoder::new(Vec::new());
+    e.write_all(bytes.as_ref()).unwrap();
+    let dec = e.finish().unwrap();
+    assert_eq!(Bytes::from(dec), Bytes::from_static(STR.as_ref()));
+}
+
+#[test]
 fn test_body_gzip_large() {
     let data = STR.repeat(10);
     let srv_data = data.clone();
@@ -87,7 +113,7 @@ fn test_body_gzip_large() {
         let data = srv_data.clone();
         h1::H1Service::new(
             App::new()
-                .wrap(middleware::Compress::new(ContentEncoding::Gzip))
+                .wrap(encoding::Compress::new(ContentEncoding::Gzip))
                 .service(
                     web::resource("/")
                         .route(web::to(move || Response::Ok().body(data.clone()))),
@@ -120,7 +146,7 @@ fn test_body_gzip_large_random() {
         let data = srv_data.clone();
         h1::H1Service::new(
             App::new()
-                .wrap(middleware::Compress::new(ContentEncoding::Gzip))
+                .wrap(encoding::Compress::new(ContentEncoding::Gzip))
                 .service(
                     web::resource("/")
                         .route(web::to(move || Response::Ok().body(data.clone()))),
@@ -147,7 +173,7 @@ fn test_body_chunked_implicit() {
     let mut srv = TestServer::new(move || {
         h1::H1Service::new(
             App::new()
-                .wrap(middleware::Compress::new(ContentEncoding::Gzip))
+                .wrap(encoding::Compress::new(ContentEncoding::Gzip))
                 .service(web::resource("/").route(web::get().to(move || {
                     Response::Ok().streaming(once(Ok::<_, Error>(Bytes::from_static(
                         STR.as_ref(),
@@ -178,7 +204,7 @@ fn test_body_br_streaming() {
     let mut srv = TestServer::new(move || {
         h1::H1Service::new(
             App::new()
-                .wrap(middleware::Compress::new(ContentEncoding::Br))
+                .wrap(encoding::Compress::new(ContentEncoding::Br))
                 .service(web::resource("/").route(web::to(move || {
                     Response::Ok().streaming(once(Ok::<_, Error>(Bytes::from_static(
                         STR.as_ref(),
@@ -255,7 +281,7 @@ fn test_body_deflate() {
     let mut srv = TestServer::new(move || {
         h1::H1Service::new(
             App::new()
-                .wrap(middleware::Compress::new(ContentEncoding::Deflate))
+                .wrap(encoding::Compress::new(ContentEncoding::Deflate))
                 .service(
                     web::resource("/").route(web::to(move || Response::Ok().body(STR))),
                 ),
@@ -281,7 +307,7 @@ fn test_body_brotli() {
     let mut srv = TestServer::new(move || {
         h1::H1Service::new(
             App::new()
-                .wrap(middleware::Compress::new(ContentEncoding::Br))
+                .wrap(encoding::Compress::new(ContentEncoding::Br))
                 .service(
                     web::resource("/").route(web::to(move || Response::Ok().body(STR))),
                 ),
@@ -313,7 +339,7 @@ fn test_body_brotli() {
 fn test_gzip_encoding() {
     let mut srv = TestServer::new(move || {
         HttpService::new(
-            App::new().chain(middleware::Decompress::new()).service(
+            App::new().chain(encoding::Decompress::new()).service(
                 web::resource("/")
                     .route(web::to(move |body: Bytes| Response::Ok().body(body))),
             ),
@@ -342,7 +368,7 @@ fn test_gzip_encoding_large() {
     let data = STR.repeat(10);
     let mut srv = TestServer::new(move || {
         h1::H1Service::new(
-            App::new().chain(middleware::Decompress::new()).service(
+            App::new().chain(encoding::Decompress::new()).service(
                 web::resource("/")
                     .route(web::to(move |body: Bytes| Response::Ok().body(body))),
             ),
@@ -375,7 +401,7 @@ fn test_reading_gzip_encoding_large_random() {
 
     let mut srv = TestServer::new(move || {
         HttpService::new(
-            App::new().chain(middleware::Decompress::new()).service(
+            App::new().chain(encoding::Decompress::new()).service(
                 web::resource("/")
                     .route(web::to(move |body: Bytes| Response::Ok().body(body))),
             ),
@@ -404,7 +430,7 @@ fn test_reading_gzip_encoding_large_random() {
 fn test_reading_deflate_encoding() {
     let mut srv = TestServer::new(move || {
         h1::H1Service::new(
-            App::new().chain(middleware::Decompress::new()).service(
+            App::new().chain(encoding::Decompress::new()).service(
                 web::resource("/")
                     .route(web::to(move |body: Bytes| Response::Ok().body(body))),
             ),
@@ -433,7 +459,7 @@ fn test_reading_deflate_encoding_large() {
     let data = STR.repeat(10);
     let mut srv = TestServer::new(move || {
         h1::H1Service::new(
-            App::new().chain(middleware::Decompress::new()).service(
+            App::new().chain(encoding::Decompress::new()).service(
                 web::resource("/")
                     .route(web::to(move |body: Bytes| Response::Ok().body(body))),
             ),
@@ -466,7 +492,7 @@ fn test_reading_deflate_encoding_large_random() {
 
     let mut srv = TestServer::new(move || {
         h1::H1Service::new(
-            App::new().chain(middleware::Decompress::new()).service(
+            App::new().chain(encoding::Decompress::new()).service(
                 web::resource("/")
                     .route(web::to(move |body: Bytes| Response::Ok().body(body))),
             ),
@@ -496,7 +522,7 @@ fn test_reading_deflate_encoding_large_random() {
 fn test_brotli_encoding() {
     let mut srv = TestServer::new(move || {
         h1::H1Service::new(
-            App::new().chain(middleware::Decompress::new()).service(
+            App::new().chain(encoding::Decompress::new()).service(
                 web::resource("/")
                     .route(web::to(move |body: Bytes| Response::Ok().body(body))),
             ),
@@ -526,7 +552,7 @@ fn test_brotli_encoding_large() {
     let data = STR.repeat(10);
     let mut srv = TestServer::new(move || {
         h1::H1Service::new(
-            App::new().chain(middleware::Decompress::new()).service(
+            App::new().chain(encoding::Decompress::new()).service(
                 web::resource("/")
                     .route(web::to(move |body: Bytes| Response::Ok().body(body))),
             ),
