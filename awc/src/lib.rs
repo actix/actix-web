@@ -12,6 +12,7 @@ mod builder;
 mod connect;
 mod request;
 mod response;
+pub mod test;
 
 pub use self::builder::ClientBuilder;
 pub use self::request::ClientRequest;

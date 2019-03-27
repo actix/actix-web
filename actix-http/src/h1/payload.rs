@@ -1,13 +1,13 @@
 //! Payload stream
-use bytes::{Bytes, BytesMut};
-#[cfg(not(test))]
-use futures::task::current as current_task;
-use futures::task::Task;
-use futures::{Async, Poll, Stream};
 use std::cell::RefCell;
 use std::cmp;
 use std::collections::VecDeque;
 use std::rc::{Rc, Weak};
+
+use bytes::{Bytes, BytesMut};
+use futures::task::current as current_task;
+use futures::task::Task;
+use futures::{Async, Poll, Stream};
 
 use crate::error::PayloadError;
 
@@ -77,11 +77,6 @@ impl Payload {
     #[inline]
     pub fn unread_data(&mut self, data: Bytes) {
         self.inner.borrow_mut().unread_data(data);
-    }
-
-    #[cfg(test)]
-    pub(crate) fn readall(&self) -> Option<Bytes> {
-        self.inner.borrow_mut().readall()
     }
 
     #[inline]
@@ -226,35 +221,16 @@ impl Inner {
         self.len
     }
 
-    #[cfg(test)]
-    pub(crate) fn readall(&mut self) -> Option<Bytes> {
-        let len = self.items.iter().map(|b| b.len()).sum();
-        if len > 0 {
-            let mut buf = BytesMut::with_capacity(len);
-            for item in &self.items {
-                buf.extend_from_slice(item);
-            }
-            self.items = VecDeque::new();
-            self.len = 0;
-            Some(buf.take().freeze())
-        } else {
-            self.need_read = true;
-            None
-        }
-    }
-
     fn readany(&mut self) -> Poll<Option<Bytes>, PayloadError> {
         if let Some(data) = self.items.pop_front() {
             self.len -= data.len();
             self.need_read = self.len < self.capacity;
-            #[cfg(not(test))]
-            {
-                if self.need_read && self.task.is_none() {
-                    self.task = Some(current_task());
-                }
-                if let Some(task) = self.io_task.take() {
-                    task.notify()
-                }
+
+            if self.need_read && self.task.is_none() && !self.eof {
+                self.task = Some(current_task());
+            }
+            if let Some(task) = self.io_task.take() {
+                task.notify()
             }
             Ok(Async::Ready(Some(data)))
         } else if let Some(err) = self.err.take() {

@@ -249,3 +249,42 @@ where
         self.poll()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use futures::Async;
+
+    use crate::{http::header, test::TestResponse};
+
+    #[test]
+    fn test_body() {
+        let req = TestResponse::with_header(header::CONTENT_LENGTH, "xxxx").finish();
+        match req.body().poll().err().unwrap() {
+            PayloadError::UnknownLength => (),
+            _ => unreachable!("error"),
+        }
+
+        let req = TestResponse::with_header(header::CONTENT_LENGTH, "1000000").finish();
+        match req.body().poll().err().unwrap() {
+            PayloadError::Overflow => (),
+            _ => unreachable!("error"),
+        }
+
+        let req = TestResponse::default()
+            .set_payload(Bytes::from_static(b"test"))
+            .finish();
+        match req.body().poll().ok().unwrap() {
+            Async::Ready(bytes) => assert_eq!(bytes, Bytes::from_static(b"test")),
+            _ => unreachable!("error"),
+        }
+
+        let req = TestResponse::default()
+            .set_payload(Bytes::from_static(b"11111111111111"))
+            .finish();
+        match req.body().limit(5).poll().err().unwrap() {
+            PayloadError::Overflow => (),
+            _ => unreachable!("error"),
+        }
+    }
+}
