@@ -15,7 +15,7 @@ use sha1::Sha1;
 
 use crate::body::BodySize;
 use crate::h1;
-use crate::message::{ConnectionType, Head, ResponseHead};
+use crate::message::{ConnectionType, ResponseHead};
 use crate::ws::Codec;
 
 use super::{ClientError, Connect, Protocol};

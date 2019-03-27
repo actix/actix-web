@@ -2,6 +2,8 @@ use std::cell::{Ref, RefCell, RefMut};
 use std::collections::VecDeque;
 use std::rc::Rc;
 
+use bitflags::bitflags;
+
 use crate::extensions::Extensions;
 use crate::http::{header, HeaderMap, Method, StatusCode, Uri, Version};
 
@@ -16,38 +18,21 @@ pub enum ConnectionType {
     Upgrade,
 }
 
+bitflags! {
+    pub(crate) struct Flags: u8 {
+        const CLOSE       = 0b0000_0001;
+        const KEEP_ALIVE  = 0b0000_0010;
+        const UPGRADE     = 0b0000_0100;
+        const NO_CHUNKING = 0b0000_1000;
+        const ENC_BR      = 0b0001_0000;
+        const ENC_DEFLATE = 0b0010_0000;
+        const ENC_GZIP    = 0b0100_0000;
+    }
+}
+
 #[doc(hidden)]
 pub trait Head: Default + 'static {
     fn clear(&mut self);
-
-    /// Read the message headers.
-    fn headers(&self) -> &HeaderMap;
-
-    /// Mutable reference to the message headers.
-    fn headers_mut(&mut self) -> &mut HeaderMap;
-
-    /// Connection type
-    fn connection_type(&self) -> ConnectionType;
-
-    /// Set connection type of the message
-    fn set_connection_type(&mut self, ctype: ConnectionType);
-
-    fn upgrade(&self) -> bool {
-        if let Some(hdr) = self.headers().get(header::CONNECTION) {
-            if let Ok(s) = hdr.to_str() {
-                s.to_ascii_lowercase().contains("upgrade")
-            } else {
-                false
-            }
-        } else {
-            false
-        }
-    }
-
-    /// Check if keep-alive is enabled
-    fn keep_alive(&self) -> bool {
-        self.connection_type() == ConnectionType::KeepAlive
-    }
 
     fn pool() -> &'static MessagePool<Self>;
 }
@@ -58,9 +43,8 @@ pub struct RequestHead {
     pub method: Method,
     pub version: Version,
     pub headers: HeaderMap,
-    pub ctype: Option<ConnectionType>,
-    pub no_chunking: bool,
     pub extensions: RefCell<Extensions>,
+    flags: Flags,
 }
 
 impl Default for RequestHead {
@@ -70,8 +54,7 @@ impl Default for RequestHead {
             method: Method::default(),
             version: Version::HTTP_11,
             headers: HeaderMap::with_capacity(16),
-            ctype: None,
-            no_chunking: false,
+            flags: Flags::empty(),
             extensions: RefCell::new(Extensions::new()),
         }
     }
@@ -79,43 +62,9 @@ impl Default for RequestHead {
 
 impl Head for RequestHead {
     fn clear(&mut self) {
-        self.ctype = None;
+        self.flags = Flags::empty();
         self.headers.clear();
         self.extensions.borrow_mut().clear();
-    }
-
-    fn headers(&self) -> &HeaderMap {
-        &self.headers
-    }
-
-    fn headers_mut(&mut self) -> &mut HeaderMap {
-        &mut self.headers
-    }
-
-    fn set_connection_type(&mut self, ctype: ConnectionType) {
-        self.ctype = Some(ctype)
-    }
-
-    fn connection_type(&self) -> ConnectionType {
-        if let Some(ct) = self.ctype {
-            ct
-        } else if self.version < Version::HTTP_11 {
-            ConnectionType::Close
-        } else {
-            ConnectionType::KeepAlive
-        }
-    }
-
-    fn upgrade(&self) -> bool {
-        if let Some(hdr) = self.headers().get(header::CONNECTION) {
-            if let Ok(s) = hdr.to_str() {
-                s.to_ascii_lowercase().contains("upgrade")
-            } else {
-                false
-            }
-        } else {
-            false
-        }
     }
 
     fn pool() -> &'static MessagePool<Self> {
@@ -135,6 +84,70 @@ impl RequestHead {
     pub fn extensions_mut(&self) -> RefMut<Extensions> {
         self.extensions.borrow_mut()
     }
+
+    /// Read the message headers.
+    pub fn headers(&self) -> &HeaderMap {
+        &self.headers
+    }
+
+    /// Mutable reference to the message headers.
+    pub fn headers_mut(&mut self) -> &mut HeaderMap {
+        &mut self.headers
+    }
+
+    #[inline]
+    /// Set connection type of the message
+    pub fn set_connection_type(&mut self, ctype: ConnectionType) {
+        match ctype {
+            ConnectionType::Close => self.flags.insert(Flags::CLOSE),
+            ConnectionType::KeepAlive => self.flags.insert(Flags::KEEP_ALIVE),
+            ConnectionType::Upgrade => self.flags.insert(Flags::UPGRADE),
+        }
+    }
+
+    #[inline]
+    /// Connection type
+    pub fn connection_type(&self) -> ConnectionType {
+        if self.flags.contains(Flags::CLOSE) {
+            ConnectionType::Close
+        } else if self.flags.contains(Flags::KEEP_ALIVE) {
+            ConnectionType::KeepAlive
+        } else if self.flags.contains(Flags::UPGRADE) {
+            ConnectionType::Upgrade
+        } else if self.version < Version::HTTP_11 {
+            ConnectionType::Close
+        } else {
+            ConnectionType::KeepAlive
+        }
+    }
+
+    /// Connection upgrade status
+    pub fn upgrade(&self) -> bool {
+        if let Some(hdr) = self.headers().get(header::CONNECTION) {
+            if let Ok(s) = hdr.to_str() {
+                s.to_ascii_lowercase().contains("upgrade")
+            } else {
+                false
+            }
+        } else {
+            false
+        }
+    }
+
+    #[inline]
+    /// Get response body chunking state
+    pub fn chunked(&self) -> bool {
+        !self.flags.contains(Flags::NO_CHUNKING)
+    }
+
+    #[inline]
+    pub fn no_chunking(&mut self, val: bool) {
+        if val {
+            self.flags.insert(Flags::NO_CHUNKING);
+        } else {
+            self.flags.remove(Flags::NO_CHUNKING);
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -143,9 +156,8 @@ pub struct ResponseHead {
     pub status: StatusCode,
     pub headers: HeaderMap,
     pub reason: Option<&'static str>,
-    pub no_chunking: bool,
-    pub(crate) ctype: Option<ConnectionType>,
     pub(crate) extensions: RefCell<Extensions>,
+    flags: Flags,
 }
 
 impl Default for ResponseHead {
@@ -155,10 +167,21 @@ impl Default for ResponseHead {
             status: StatusCode::OK,
             headers: HeaderMap::with_capacity(16),
             reason: None,
-            no_chunking: false,
-            ctype: None,
+            flags: Flags::empty(),
             extensions: RefCell::new(Extensions::new()),
         }
+    }
+}
+
+impl Head for ResponseHead {
+    fn clear(&mut self) {
+        self.reason = None;
+        self.flags = Flags::empty();
+        self.headers.clear();
+    }
+
+    fn pool() -> &'static MessagePool<Self> {
+        RESPONSE_POOL.with(|p| *p)
     }
 }
 
@@ -174,31 +197,37 @@ impl ResponseHead {
     pub fn extensions_mut(&self) -> RefMut<Extensions> {
         self.extensions.borrow_mut()
     }
-}
 
-impl Head for ResponseHead {
-    fn clear(&mut self) {
-        self.ctype = None;
-        self.reason = None;
-        self.no_chunking = false;
-        self.headers.clear();
-    }
-
-    fn headers(&self) -> &HeaderMap {
+    #[inline]
+    /// Read the message headers.
+    pub fn headers(&self) -> &HeaderMap {
         &self.headers
     }
 
-    fn headers_mut(&mut self) -> &mut HeaderMap {
+    #[inline]
+    /// Mutable reference to the message headers.
+    pub fn headers_mut(&mut self) -> &mut HeaderMap {
         &mut self.headers
     }
 
-    fn set_connection_type(&mut self, ctype: ConnectionType) {
-        self.ctype = Some(ctype)
+    #[inline]
+    /// Set connection type of the message
+    pub fn set_connection_type(&mut self, ctype: ConnectionType) {
+        match ctype {
+            ConnectionType::Close => self.flags.insert(Flags::CLOSE),
+            ConnectionType::KeepAlive => self.flags.insert(Flags::KEEP_ALIVE),
+            ConnectionType::Upgrade => self.flags.insert(Flags::UPGRADE),
+        }
     }
 
-    fn connection_type(&self) -> ConnectionType {
-        if let Some(ct) = self.ctype {
-            ct
+    #[inline]
+    pub fn connection_type(&self) -> ConnectionType {
+        if self.flags.contains(Flags::CLOSE) {
+            ConnectionType::Close
+        } else if self.flags.contains(Flags::KEEP_ALIVE) {
+            ConnectionType::KeepAlive
+        } else if self.flags.contains(Flags::UPGRADE) {
+            ConnectionType::Upgrade
         } else if self.version < Version::HTTP_11 {
             ConnectionType::Close
         } else {
@@ -206,16 +235,18 @@ impl Head for ResponseHead {
         }
     }
 
-    fn upgrade(&self) -> bool {
+    #[inline]
+    /// Check if keep-alive is enabled
+    pub fn keep_alive(&self) -> bool {
+        self.connection_type() == ConnectionType::KeepAlive
+    }
+
+    #[inline]
+    /// Check upgrade status of this message
+    pub fn upgrade(&self) -> bool {
         self.connection_type() == ConnectionType::Upgrade
     }
 
-    fn pool() -> &'static MessagePool<Self> {
-        RESPONSE_POOL.with(|p| *p)
-    }
-}
-
-impl ResponseHead {
     /// Get custom reason for the response
     #[inline]
     pub fn reason(&self) -> &str {
@@ -225,6 +256,35 @@ impl ResponseHead {
             self.status
                 .canonical_reason()
                 .unwrap_or("<unknown status code>")
+        }
+    }
+
+    #[inline]
+    pub(crate) fn ctype(&self) -> Option<ConnectionType> {
+        if self.flags.contains(Flags::CLOSE) {
+            Some(ConnectionType::Close)
+        } else if self.flags.contains(Flags::KEEP_ALIVE) {
+            Some(ConnectionType::KeepAlive)
+        } else if self.flags.contains(Flags::UPGRADE) {
+            Some(ConnectionType::Upgrade)
+        } else {
+            None
+        }
+    }
+
+    #[inline]
+    /// Get response body chunking state
+    pub fn chunked(&self) -> bool {
+        !self.flags.contains(Flags::NO_CHUNKING)
+    }
+
+    #[inline]
+    /// Set no chunking for payload
+    pub fn no_chunking(&mut self, val: bool) {
+        if val {
+            self.flags.insert(Flags::NO_CHUNKING);
+        } else {
+            self.flags.remove(Flags::NO_CHUNKING);
         }
     }
 }

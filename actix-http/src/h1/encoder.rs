@@ -15,7 +15,7 @@ use crate::body::BodySize;
 use crate::config::ServiceConfig;
 use crate::header::ContentEncoding;
 use crate::helpers;
-use crate::message::{ConnectionType, RequestHead, ResponseHead};
+use crate::message::{ConnectionType, Head, RequestHead, ResponseHead};
 use crate::request::Request;
 use crate::response::Response;
 
@@ -41,7 +41,7 @@ impl<T: MessageType> Default for MessageEncoder<T> {
 pub(crate) trait MessageType: Sized {
     fn status(&self) -> Option<StatusCode>;
 
-    fn connection_type(&self) -> Option<ConnectionType>;
+    // fn connection_type(&self) -> Option<ConnectionType>;
 
     fn headers(&self) -> &HeaderMap;
 
@@ -168,12 +168,12 @@ impl MessageType for Response<()> {
     }
 
     fn chunked(&self) -> bool {
-        !self.head().no_chunking
+        self.head().chunked()
     }
 
-    fn connection_type(&self) -> Option<ConnectionType> {
-        self.head().ctype
-    }
+    //fn connection_type(&self) -> Option<ConnectionType> {
+    //    self.head().ctype
+    //}
 
     fn headers(&self) -> &HeaderMap {
         &self.head().headers
@@ -196,12 +196,8 @@ impl MessageType for RequestHead {
         None
     }
 
-    fn connection_type(&self) -> Option<ConnectionType> {
-        self.ctype
-    }
-
     fn chunked(&self) -> bool {
-        !self.no_chunking
+        self.chunked()
     }
 
     fn headers(&self) -> &HeaderMap {

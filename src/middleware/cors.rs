@@ -46,7 +46,7 @@ use derive_more::Display;
 use futures::future::{ok, Either, Future, FutureResult};
 use futures::Poll;
 
-use crate::dev::{Head, RequestHead};
+use crate::dev::RequestHead;
 use crate::error::{ResponseError, Result};
 use crate::http::header::{self, HeaderName, HeaderValue};
 use crate::http::{self, HttpTryFrom, Method, StatusCode, Uri};

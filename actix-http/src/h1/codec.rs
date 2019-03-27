@@ -154,7 +154,7 @@ impl Encoder for Codec {
                 res.head_mut().version = self.version;
 
                 // connection status
-                self.ctype = if let Some(ct) = res.head().ctype {
+                self.ctype = if let Some(ct) = res.head().ctype() {
                     if ct == ConnectionType::KeepAlive {
                         self.ctype
                     } else {

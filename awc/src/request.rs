@@ -19,7 +19,7 @@ use actix_http::http::{
     uri, ConnectionType, Error as HttpError, HeaderName, HeaderValue, HttpTryFrom,
     Method, Uri, Version,
 };
-use actix_http::{Error, Head, Payload, RequestHead};
+use actix_http::{Error, Payload, RequestHead};
 
 use crate::response::ClientResponse;
 use crate::{Connect, PayloadError};

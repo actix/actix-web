@@ -158,7 +158,9 @@ pub(crate) trait MessageType: Sized {
 
 impl MessageType for Request {
     fn set_connection_type(&mut self, ctype: Option<ConnectionType>) {
-        self.head_mut().ctype = ctype;
+        if let Some(ctype) = ctype {
+            self.head_mut().set_connection_type(ctype);
+        }
     }
 
     fn headers_mut(&mut self) -> &mut HeaderMap {
@@ -228,7 +230,9 @@ impl MessageType for Request {
 
 impl MessageType for ResponseHead {
     fn set_connection_type(&mut self, ctype: Option<ConnectionType>) {
-        self.ctype = ctype;
+        if let Some(ctype) = ctype {
+            ResponseHead::set_connection_type(self, ctype);
+        }
     }
 
     fn headers_mut(&mut self) -> &mut HeaderMap {
@@ -814,7 +818,7 @@ mod tests {
         );
         let req = parse_ready!(&mut buf);
 
-        assert_eq!(req.head().ctype, Some(ConnectionType::Close));
+        assert_eq!(req.head().connection_type(), ConnectionType::Close);
 
         let mut buf = BytesMut::from(
             "GET /test HTTP/1.1\r\n\
@@ -822,7 +826,7 @@ mod tests {
         );
         let req = parse_ready!(&mut buf);
 
-        assert_eq!(req.head().ctype, Some(ConnectionType::Close));
+        assert_eq!(req.head().connection_type(), ConnectionType::Close);
     }
 
     #[test]
@@ -834,7 +838,7 @@ mod tests {
 
         let req = parse_ready!(&mut buf);
 
-        assert_eq!(req.head().ctype, Some(ConnectionType::Close));
+        assert_eq!(req.head().connection_type(), ConnectionType::Close);
     }
 
     #[test]
@@ -845,7 +849,7 @@ mod tests {
         );
         let req = parse_ready!(&mut buf);
 
-        assert_eq!(req.head().ctype, Some(ConnectionType::KeepAlive));
+        assert_eq!(req.head().connection_type(), ConnectionType::KeepAlive);
 
         let mut buf = BytesMut::from(
             "GET /test HTTP/1.0\r\n\
@@ -853,7 +857,7 @@ mod tests {
         );
         let req = parse_ready!(&mut buf);
 
-        assert_eq!(req.head().ctype, Some(ConnectionType::KeepAlive));
+        assert_eq!(req.head().connection_type(), ConnectionType::KeepAlive);
     }
 
     #[test]
@@ -864,7 +868,7 @@ mod tests {
         );
         let req = parse_ready!(&mut buf);
 
-        assert_eq!(req.head().ctype, Some(ConnectionType::KeepAlive));
+        assert_eq!(req.head().connection_type(), ConnectionType::KeepAlive);
     }
 
     #[test]
@@ -886,7 +890,6 @@ mod tests {
         );
         let req = parse_ready!(&mut buf);
 
-        assert_eq!(req.head().ctype, None);
         assert_eq!(req.head().connection_type(), ConnectionType::KeepAlive);
     }
 
@@ -900,7 +903,7 @@ mod tests {
         let req = parse_ready!(&mut buf);
 
         assert!(req.upgrade());
-        assert_eq!(req.head().ctype, Some(ConnectionType::Upgrade));
+        assert_eq!(req.head().connection_type(), ConnectionType::Upgrade);
 
         let mut buf = BytesMut::from(
             "GET /test HTTP/1.1\r\n\
@@ -910,7 +913,7 @@ mod tests {
         let req = parse_ready!(&mut buf);
 
         assert!(req.upgrade());
-        assert_eq!(req.head().ctype, Some(ConnectionType::Upgrade));
+        assert_eq!(req.head().connection_type(), ConnectionType::Upgrade);
     }
 
     #[test]
@@ -1008,7 +1011,7 @@ mod tests {
         );
         let mut reader = MessageDecoder::<Request>::default();
         let (req, pl) = reader.decode(&mut buf).unwrap().unwrap();
-        assert_eq!(req.head().ctype, Some(ConnectionType::Upgrade));
+        assert_eq!(req.head().connection_type(), ConnectionType::Upgrade);
         assert!(req.upgrade());
         assert!(pl.is_unhandled());
     }

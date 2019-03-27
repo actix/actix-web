@@ -12,7 +12,7 @@ use flate2::write::{GzEncoder, ZlibEncoder};
 use crate::body::{Body, BodySize, MessageBody, ResponseBody};
 use crate::http::header::{ContentEncoding, CONTENT_ENCODING};
 use crate::http::{HeaderValue, HttpTryFrom, StatusCode};
-use crate::{Error, Head, ResponseHead};
+use crate::{Error, ResponseHead};
 
 use super::Writer;
 
@@ -56,7 +56,7 @@ impl<B: MessageBody> Encoder<B> {
                         })
                     } else {
                         update_head(encoding, head);
-                        head.no_chunking = false;
+                        head.no_chunking(false);
                         ResponseBody::Body(Encoder {
                             body: EncoderBody::Other(stream),
                             encoder: ContentEncoder::encoder(encoding),
@@ -72,7 +72,7 @@ impl<B: MessageBody> Encoder<B> {
                     })
                 } else {
                     update_head(encoding, head);
-                    head.no_chunking = false;
+                    head.no_chunking(false);
                     ResponseBody::Body(Encoder {
                         body: EncoderBody::Body(stream),
                         encoder: ContentEncoder::encoder(encoding),

@@ -35,7 +35,7 @@ pub use self::config::{KeepAlive, ServiceConfig};
 pub use self::error::{Error, ResponseError, Result};
 pub use self::extensions::Extensions;
 pub use self::httpmessage::HttpMessage;
-pub use self::message::{Head, Message, RequestHead, ResponseHead};
+pub use self::message::{Message, RequestHead, ResponseHead};
 pub use self::payload::{Payload, PayloadStream};
 pub use self::request::Request;
 pub use self::response::{Response, ResponseBuilder};

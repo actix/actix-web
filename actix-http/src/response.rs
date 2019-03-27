@@ -15,7 +15,7 @@ use serde_json;
 use crate::body::{Body, BodyStream, MessageBody, ResponseBody};
 use crate::error::Error;
 use crate::header::{Header, IntoHeaderValue};
-use crate::message::{ConnectionType, Head, Message, ResponseHead};
+use crate::message::{ConnectionType, Message, ResponseHead};
 
 /// An HTTP Response
 pub struct Response<B = Body> {
@@ -462,7 +462,7 @@ impl ResponseBuilder {
     #[inline]
     pub fn no_chunking(&mut self) -> &mut Self {
         if let Some(parts) = parts(&mut self.head, &self.err) {
-            parts.no_chunking = true;
+            parts.no_chunking(true);
         }
         self
     }
@@ -740,7 +740,7 @@ impl<'a> From<&'a ResponseHead> for ResponseBuilder {
         msg.status = head.status;
         msg.reason = head.reason;
         msg.headers = head.headers.clone();
-        msg.no_chunking = head.no_chunking;
+        msg.no_chunking(!head.chunked());
 
         ResponseBuilder {
             head: Some(msg),

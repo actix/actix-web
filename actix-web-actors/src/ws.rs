@@ -17,7 +17,7 @@ pub use actix_http::ws::{
     CloseCode, CloseReason, Frame, HandshakeError, Message, ProtocolError,
 };
 
-use actix_web::dev::{Head, HttpResponseBuilder};
+use actix_web::dev::HttpResponseBuilder;
 use actix_web::error::{Error, ErrorInternalServerError, PayloadError};
 use actix_web::http::{header, Method, StatusCode};
 use actix_web::{HttpMessage, HttpRequest, HttpResponse};
