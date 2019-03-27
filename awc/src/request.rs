@@ -242,7 +242,7 @@ impl ClientRequest {
         self.header(header::CONTENT_LENGTH, wrt.get_mut().take().freeze())
     }
 
-    /// Set HTTP basic authorization
+    /// Set HTTP basic authorization header
     pub fn basic_auth<U, P>(self, username: U, password: Option<P>) -> Self
     where
         U: fmt::Display,
@@ -258,7 +258,7 @@ impl ClientRequest {
         )
     }
 
-    /// Set HTTP bearer authentication
+    /// Set HTTP bearer authentication header
     pub fn bearer_auth<T>(self, token: T) -> Self
     where
         T: fmt::Display,

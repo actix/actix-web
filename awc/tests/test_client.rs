@@ -8,7 +8,7 @@ use rand::Rng;
 
 use actix_http::HttpService;
 use actix_http_test::TestServer;
-use actix_web::{http::header, web, App, HttpMessage, HttpRequest, HttpResponse};
+use actix_web::{http::header, web, App, Error, HttpMessage, HttpRequest, HttpResponse};
 
 const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
                    Hello World Hello World Hello World Hello World Hello World \
@@ -352,69 +352,69 @@ fn test_client_brotli_encoding() {
 //     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
 // }
 
-// #[test]
-// fn test_client_cookie_handling() {
-//     use actix_web::http::Cookie;
-//     fn err() -> Error {
-//         use std::io::{Error as IoError, ErrorKind};
-//         // stub some generic error
-//         Error::from(IoError::from(ErrorKind::NotFound))
-//     }
-//     let cookie1 = Cookie::build("cookie1", "value1").finish();
-//     let cookie2 = Cookie::build("cookie2", "value2")
-//         .domain("www.example.org")
-//         .path("/")
-//         .secure(true)
-//         .http_only(true)
-//         .finish();
-//     // Q: are all these clones really necessary? A: Yes, possibly
-//     let cookie1b = cookie1.clone();
-//     let cookie2b = cookie2.clone();
-//     let mut srv = test::TestServer::new(move |app| {
-//         let cookie1 = cookie1b.clone();
-//         let cookie2 = cookie2b.clone();
-//         app.handler(move |req: &HttpRequest| {
-//             // Check cookies were sent correctly
-//             req.cookie("cookie1")
-//                 .ok_or_else(err)
-//                 .and_then(|c1| {
-//                     if c1.value() == "value1" {
-//                         Ok(())
-//                     } else {
-//                         Err(err())
-//                     }
-//                 })
-//                 .and_then(|()| req.cookie("cookie2").ok_or_else(err))
-//                 .and_then(|c2| {
-//                     if c2.value() == "value2" {
-//                         Ok(())
-//                     } else {
-//                         Err(err())
-//                     }
-//                 })
-//                 // Send some cookies back
-//                 .map(|_| {
-//                     HttpResponse::Ok()
-//                         .cookie(cookie1.clone())
-//                         .cookie(cookie2.clone())
-//                         .finish()
-//                 })
-//         })
-//     });
+#[test]
+fn test_client_cookie_handling() {
+    use actix_web::http::Cookie;
+    fn err() -> Error {
+        use std::io::{Error as IoError, ErrorKind};
+        // stub some generic error
+        Error::from(IoError::from(ErrorKind::NotFound))
+    }
+    let cookie1 = Cookie::build("cookie1", "value1").finish();
+    let cookie2 = Cookie::build("cookie2", "value2")
+        .domain("www.example.org")
+        .path("/")
+        .secure(true)
+        .http_only(true)
+        .finish();
+    // Q: are all these clones really necessary? A: Yes, possibly
+    let cookie1b = cookie1.clone();
+    let cookie2b = cookie2.clone();
 
-//     let request = srv
-//         .get()
-//         .cookie(cookie1.clone())
-//         .cookie(cookie2.clone())
-//         .finish()
-//         .unwrap();
-//     let response = srv.execute(request.send()).unwrap();
-//     assert!(response.status().is_success());
-//     let c1 = response.cookie("cookie1").expect("Missing cookie1");
-//     assert_eq!(c1, cookie1);
-//     let c2 = response.cookie("cookie2").expect("Missing cookie2");
-//     assert_eq!(c2, cookie2);
-// }
+    let mut srv = TestServer::new(move || {
+        let cookie1 = cookie1b.clone();
+        let cookie2 = cookie2b.clone();
+
+        HttpService::new(App::new().route(
+            "/",
+            web::to(move |req: HttpRequest| {
+                // Check cookies were sent correctly
+                req.cookie("cookie1")
+                    .ok_or_else(err)
+                    .and_then(|c1| {
+                        if c1.value() == "value1" {
+                            Ok(())
+                        } else {
+                            Err(err())
+                        }
+                    })
+                    .and_then(|()| req.cookie("cookie2").ok_or_else(err))
+                    .and_then(|c2| {
+                        if c2.value() == "value2" {
+                            Ok(())
+                        } else {
+                            Err(err())
+                        }
+                    })
+                    // Send some cookies back
+                    .map(|_| {
+                        HttpResponse::Ok()
+                            .cookie(cookie1.clone())
+                            .cookie(cookie2.clone())
+                            .finish()
+                    })
+            }),
+        ))
+    });
+
+    let request = srv.get().cookie(cookie1.clone()).cookie(cookie2.clone());
+    let response = srv.block_on(request.send()).unwrap();
+    assert!(response.status().is_success());
+    let c1 = response.cookie("cookie1").expect("Missing cookie1");
+    assert_eq!(c1, cookie1);
+    let c2 = response.cookie("cookie2").expect("Missing cookie2");
+    assert_eq!(c2, cookie2);
+}
 
 // #[test]
 // fn test_default_headers() {
