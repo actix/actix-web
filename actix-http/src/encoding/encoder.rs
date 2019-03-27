@@ -6,7 +6,7 @@ use futures::{Async, Poll};
 
 #[cfg(feature = "brotli")]
 use brotli2::write::BrotliEncoder;
-#[cfg(any(feature = "flate2-c", feature = "flate2-rust"))]
+#[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
 use flate2::write::{GzEncoder, ZlibEncoder};
 
 use crate::body::{Body, BodyLength, MessageBody, ResponseBody};
@@ -142,9 +142,9 @@ fn update_head(encoding: ContentEncoding, head: &mut ResponseHead) {
 }
 
 enum ContentEncoder {
-    #[cfg(any(feature = "flate2-c", feature = "flate2-rust"))]
+    #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
     Deflate(ZlibEncoder<Writer>),
-    #[cfg(any(feature = "flate2-c", feature = "flate2-rust"))]
+    #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
     Gzip(GzEncoder<Writer>),
     #[cfg(feature = "brotli")]
     Br(BrotliEncoder<Writer>),
@@ -153,12 +153,12 @@ enum ContentEncoder {
 impl ContentEncoder {
     fn encoder(encoding: ContentEncoding) -> Option<Self> {
         match encoding {
-            #[cfg(any(feature = "flate2-c", feature = "flate2-rust"))]
+            #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
             ContentEncoding::Deflate => Some(ContentEncoder::Deflate(ZlibEncoder::new(
                 Writer::new(),
                 flate2::Compression::fast(),
             ))),
-            #[cfg(any(feature = "flate2-c", feature = "flate2-rust"))]
+            #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
             ContentEncoding::Gzip => Some(ContentEncoder::Gzip(GzEncoder::new(
                 Writer::new(),
                 flate2::Compression::fast(),
@@ -176,9 +176,9 @@ impl ContentEncoder {
         match *self {
             #[cfg(feature = "brotli")]
             ContentEncoder::Br(ref mut encoder) => encoder.get_mut().take(),
-            #[cfg(any(feature = "flate2-c", feature = "flate2-rust"))]
+            #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
             ContentEncoder::Deflate(ref mut encoder) => encoder.get_mut().take(),
-            #[cfg(any(feature = "flate2-c", feature = "flate2-rust"))]
+            #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
             ContentEncoder::Gzip(ref mut encoder) => encoder.get_mut().take(),
         }
     }
@@ -190,12 +190,12 @@ impl ContentEncoder {
                 Ok(writer) => Ok(writer.buf.freeze()),
                 Err(err) => Err(err),
             },
-            #[cfg(any(feature = "flate2-c", feature = "flate2-rust"))]
+            #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
             ContentEncoder::Gzip(encoder) => match encoder.finish() {
                 Ok(writer) => Ok(writer.buf.freeze()),
                 Err(err) => Err(err),
             },
-            #[cfg(any(feature = "flate2-c", feature = "flate2-rust"))]
+            #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
             ContentEncoder::Deflate(encoder) => match encoder.finish() {
                 Ok(writer) => Ok(writer.buf.freeze()),
                 Err(err) => Err(err),
@@ -213,7 +213,7 @@ impl ContentEncoder {
                     Err(err)
                 }
             },
-            #[cfg(any(feature = "flate2-c", feature = "flate2-rust"))]
+            #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
             ContentEncoder::Gzip(ref mut encoder) => match encoder.write_all(data) {
                 Ok(_) => Ok(!encoder.get_ref().buf.is_empty()),
                 Err(err) => {
@@ -221,7 +221,7 @@ impl ContentEncoder {
                     Err(err)
                 }
             },
-            #[cfg(any(feature = "flate2-c", feature = "flate2-rust"))]
+            #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
             ContentEncoder::Deflate(ref mut encoder) => match encoder.write_all(data) {
                 Ok(_) => Ok(!encoder.get_ref().buf.is_empty()),
                 Err(err) => {

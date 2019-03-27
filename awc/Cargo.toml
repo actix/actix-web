@@ -17,14 +17,26 @@ edition = "2018"
 name = "awc"
 path = "src/lib.rs"
 
+[package.metadata.docs.rs]
+features = ["ssl", "brotli", "flate2-zlib", "cookies"]
+
 [features]
-default = ["cookies"]
+default = ["cookies", "brotli", "flate2-zlib"]
 
 # openssl
 ssl = ["openssl", "actix-http/ssl"]
 
 # cookies integration
 cookies = ["cookie", "actix-http/cookies"]
+
+# brotli encoding, requires c compiler
+brotli = ["actix-http/brotli2"]
+
+# miniz-sys backend for flate2 crate
+flate2-zlib = ["actix-http/flate2-zlib"]
+
+# rust backend for flate2 crate
+flate2-rust = ["actix-http/flate2-rust"]
 
 [dependencies]
 actix-service = "0.3.4"

@@ -40,7 +40,7 @@ cookies = ["cookie"]
 brotli = ["brotli2"]
 
 # miniz-sys backend for flate2 crate
-flate2-c = ["flate2/miniz-sys"]
+flate2-zlib = ["flate2/miniz-sys"]
 
 # rust backend for flate2 crate
 flate2-rust = ["flate2/rust_backend"]

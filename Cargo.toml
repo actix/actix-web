@@ -36,10 +36,10 @@ members = [
 ]
 
 [package.metadata.docs.rs]
-features = ["ssl", "tls", "rust-tls", "brotli", "flate2-c", "cookies", "client"]
+features = ["ssl", "tls", "rust-tls", "brotli", "flate2-zlib", "cookies", "client"]
 
 [features]
-default = ["brotli", "flate2-c", "cookies", "client"]
+default = ["brotli", "flate2-zlib", "cookies", "client"]
 
 # http client
 client = ["awc"]
@@ -48,7 +48,7 @@ client = ["awc"]
 brotli = ["actix-http/brotli2"]
 
 # miniz-sys backend for flate2 crate
-flate2-c = ["actix-http/flate2-c"]
+flate2-zlib = ["actix-http/flate2-zlib"]
 
 # rust backend for flate2 crate
 flate2-rust = ["actix-http/flate2-rust"]
@@ -102,7 +102,7 @@ openssl = { version="0.10", optional = true }
 # rustls = { version = "^0.15", optional = true }
 
 [dev-dependencies]
-actix-http = { path = "actix-http", features=["ssl", "brotli", "flate2-c"] }
+actix-http = { path = "actix-http", features=["ssl", "brotli", "flate2-zlib"] }
 actix-http-test = { path = "test-server", features=["ssl"] }
 rand = "0.6"
 env_logger = "0.6"

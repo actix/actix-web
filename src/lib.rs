@@ -71,7 +71,7 @@
 //!   dependency
 //! * `brotli` - enables `brotli` compression support, requires `c`
 //!   compiler
-//! * `flate2-c` - enables `gzip`, `deflate` compression support, requires
+//! * `flate2-zlib` - enables `gzip`, `deflate` compression support, requires
 //!   `c` compiler
 //! * `flate2-rust` - experimental rust based implementation for
 //!   `gzip`, `deflate` compression.
