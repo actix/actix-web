@@ -1,17 +1,14 @@
-use std::io::{Read, Write};
-use std::{net, thread};
+use std::io::Write;
 
 use brotli2::write::BrotliEncoder;
 use bytes::Bytes;
-use flate2::write::{GzEncoder, ZlibEncoder};
+use flate2::write::GzEncoder;
 use flate2::Compression;
-use futures::stream::once;
-use futures::Future;
 use rand::Rng;
 
 use actix_http::HttpService;
 use actix_http_test::TestServer;
-use actix_web::{middleware, web, App, HttpRequest, HttpResponse};
+use actix_web::{http::header, web, App, HttpMessage, HttpRequest, HttpResponse};
 
 const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
                    Hello World Hello World Hello World Hello World Hello World \
@@ -479,30 +476,58 @@ fn test_client_brotli_encoding() {
 //     assert_eq!(bytes, Bytes::from_static(b"welcome!"));
 // }
 
-// #[test]
-// fn client_basic_auth() {
-//     let mut srv =
-//         test::TestServer::new(|app| app.handler(|_| HttpResponse::Ok().body(STR)));
-//     /// set authorization header to Basic <base64 encoded username:password>
-//     let request = srv
-//         .get()
-//         .basic_auth("username", Some("password"))
-//         .finish()
-//         .unwrap();
-//     let repr = format!("{:?}", request);
-//     assert!(repr.contains("Basic dXNlcm5hbWU6cGFzc3dvcmQ="));
-// }
+#[test]
+fn client_basic_auth() {
+    let mut srv = TestServer::new(|| {
+        HttpService::new(App::new().route(
+            "/",
+            web::to(|req: HttpRequest| {
+                if req
+                    .headers()
+                    .get(header::AUTHORIZATION)
+                    .unwrap()
+                    .to_str()
+                    .unwrap()
+                    == "Basic dXNlcm5hbWU6cGFzc3dvcmQ="
+                {
+                    HttpResponse::Ok()
+                } else {
+                    HttpResponse::BadRequest()
+                }
+            }),
+        ))
+    });
 
-// #[test]
-// fn client_bearer_auth() {
-//     let mut srv =
-//         test::TestServer::new(|app| app.handler(|_| HttpResponse::Ok().body(STR)));
-//     /// set authorization header to Bearer <token>
-//     let request = srv
-//         .get()
-//         .bearer_auth("someS3cr3tAutht0k3n")
-//         .finish()
-//         .unwrap();
-//     let repr = format!("{:?}", request);
-//     assert!(repr.contains("Bearer someS3cr3tAutht0k3n"));
-// }
+    // set authorization header to Basic <base64 encoded username:password>
+    let request = srv.get().basic_auth("username", Some("password"));
+    let response = srv.block_on(request.send()).unwrap();
+    assert!(response.status().is_success());
+}
+
+#[test]
+fn client_bearer_auth() {
+    let mut srv = TestServer::new(|| {
+        HttpService::new(App::new().route(
+            "/",
+            web::to(|req: HttpRequest| {
+                if req
+                    .headers()
+                    .get(header::AUTHORIZATION)
+                    .unwrap()
+                    .to_str()
+                    .unwrap()
+                    == "Bearer someS3cr3tAutht0k3n"
+                {
+                    HttpResponse::Ok()
+                } else {
+                    HttpResponse::BadRequest()
+                }
+            }),
+        ))
+    });
+
+    // set authorization header to Bearer <token>
+    let request = srv.get().bearer_auth("someS3cr3tAutht0k3n");
+    let response = srv.block_on(request.send()).unwrap();
+    assert!(response.status().is_success());
+}

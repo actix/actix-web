@@ -242,6 +242,30 @@ impl ClientRequest {
         self.header(header::CONTENT_LENGTH, wrt.get_mut().take().freeze())
     }
 
+    /// Set HTTP basic authorization
+    pub fn basic_auth<U, P>(self, username: U, password: Option<P>) -> Self
+    where
+        U: fmt::Display,
+        P: fmt::Display,
+    {
+        let auth = match password {
+            Some(password) => format!("{}:{}", username, password),
+            None => format!("{}", username),
+        };
+        self.header(
+            header::AUTHORIZATION,
+            format!("Basic {}", base64::encode(&auth)),
+        )
+    }
+
+    /// Set HTTP bearer authentication
+    pub fn bearer_auth<T>(self, token: T) -> Self
+    where
+        T: fmt::Display,
+    {
+        self.header(header::AUTHORIZATION, format!("Bearer {}", token))
+    }
+
     #[cfg(feature = "cookies")]
     /// Set a cookie
     ///

@@ -41,6 +41,7 @@ flate2-rust = ["actix-http/flate2-rust"]
 [dependencies]
 actix-service = "0.3.4"
 actix-http = { path = "../actix-http/" }
+base64 = "0.10.1"
 bytes = "0.4"
 futures = "0.1"
 log =" 0.4"
