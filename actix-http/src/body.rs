@@ -7,8 +7,8 @@ use futures::{Async, Poll, Stream};
 use crate::error::Error;
 
 #[derive(Debug, PartialEq, Copy, Clone)]
-/// Different type of body
-pub enum BodyLength {
+/// Body size hint
+pub enum BodySize {
     None,
     Empty,
     Sized(usize),
@@ -16,13 +16,13 @@ pub enum BodyLength {
     Stream,
 }
 
-impl BodyLength {
+impl BodySize {
     pub fn is_eof(&self) -> bool {
         match self {
-            BodyLength::None
-            | BodyLength::Empty
-            | BodyLength::Sized(0)
-            | BodyLength::Sized64(0) => true,
+            BodySize::None
+            | BodySize::Empty
+            | BodySize::Sized(0)
+            | BodySize::Sized64(0) => true,
             _ => false,
         }
     }
@@ -30,14 +30,14 @@ impl BodyLength {
 
 /// Type that provides this trait can be streamed to a peer.
 pub trait MessageBody {
-    fn length(&self) -> BodyLength;
+    fn length(&self) -> BodySize;
 
     fn poll_next(&mut self) -> Poll<Option<Bytes>, Error>;
 }
 
 impl MessageBody for () {
-    fn length(&self) -> BodyLength {
-        BodyLength::Empty
+    fn length(&self) -> BodySize {
+        BodySize::Empty
     }
 
     fn poll_next(&mut self) -> Poll<Option<Bytes>, Error> {
@@ -46,7 +46,7 @@ impl MessageBody for () {
 }
 
 impl<T: MessageBody> MessageBody for Box<T> {
-    fn length(&self) -> BodyLength {
+    fn length(&self) -> BodySize {
         self.as_ref().length()
     }
 
@@ -86,7 +86,7 @@ impl<B: MessageBody> ResponseBody<B> {
 }
 
 impl<B: MessageBody> MessageBody for ResponseBody<B> {
-    fn length(&self) -> BodyLength {
+    fn length(&self) -> BodySize {
         match self {
             ResponseBody::Body(ref body) => body.length(),
             ResponseBody::Other(ref body) => body.length(),
@@ -135,11 +135,11 @@ impl Body {
 }
 
 impl MessageBody for Body {
-    fn length(&self) -> BodyLength {
+    fn length(&self) -> BodySize {
         match self {
-            Body::None => BodyLength::None,
-            Body::Empty => BodyLength::Empty,
-            Body::Bytes(ref bin) => BodyLength::Sized(bin.len()),
+            Body::None => BodySize::None,
+            Body::Empty => BodySize::Empty,
+            Body::Bytes(ref bin) => BodySize::Sized(bin.len()),
             Body::Message(ref body) => body.length(),
         }
     }
@@ -235,8 +235,8 @@ impl From<BytesMut> for Body {
 }
 
 impl MessageBody for Bytes {
-    fn length(&self) -> BodyLength {
-        BodyLength::Sized(self.len())
+    fn length(&self) -> BodySize {
+        BodySize::Sized(self.len())
     }
 
     fn poll_next(&mut self) -> Poll<Option<Bytes>, Error> {
@@ -249,8 +249,8 @@ impl MessageBody for Bytes {
 }
 
 impl MessageBody for BytesMut {
-    fn length(&self) -> BodyLength {
-        BodyLength::Sized(self.len())
+    fn length(&self) -> BodySize {
+        BodySize::Sized(self.len())
     }
 
     fn poll_next(&mut self) -> Poll<Option<Bytes>, Error> {
@@ -265,8 +265,8 @@ impl MessageBody for BytesMut {
 }
 
 impl MessageBody for &'static str {
-    fn length(&self) -> BodyLength {
-        BodyLength::Sized(self.len())
+    fn length(&self) -> BodySize {
+        BodySize::Sized(self.len())
     }
 
     fn poll_next(&mut self) -> Poll<Option<Bytes>, Error> {
@@ -281,8 +281,8 @@ impl MessageBody for &'static str {
 }
 
 impl MessageBody for &'static [u8] {
-    fn length(&self) -> BodyLength {
-        BodyLength::Sized(self.len())
+    fn length(&self) -> BodySize {
+        BodySize::Sized(self.len())
     }
 
     fn poll_next(&mut self) -> Poll<Option<Bytes>, Error> {
@@ -297,8 +297,8 @@ impl MessageBody for &'static [u8] {
 }
 
 impl MessageBody for Vec<u8> {
-    fn length(&self) -> BodyLength {
-        BodyLength::Sized(self.len())
+    fn length(&self) -> BodySize {
+        BodySize::Sized(self.len())
     }
 
     fn poll_next(&mut self) -> Poll<Option<Bytes>, Error> {
@@ -314,8 +314,8 @@ impl MessageBody for Vec<u8> {
 }
 
 impl MessageBody for String {
-    fn length(&self) -> BodyLength {
-        BodyLength::Sized(self.len())
+    fn length(&self) -> BodySize {
+        BodySize::Sized(self.len())
     }
 
     fn poll_next(&mut self) -> Poll<Option<Bytes>, Error> {
@@ -354,8 +354,8 @@ where
     S: Stream<Item = Bytes, Error = E>,
     E: Into<Error>,
 {
-    fn length(&self) -> BodyLength {
-        BodyLength::Stream
+    fn length(&self) -> BodySize {
+        BodySize::Stream
     }
 
     fn poll_next(&mut self) -> Poll<Option<Bytes>, Error> {
@@ -383,8 +383,8 @@ impl<S> MessageBody for SizedStream<S>
 where
     S: Stream<Item = Bytes, Error = Error>,
 {
-    fn length(&self) -> BodyLength {
-        BodyLength::Sized(self.size)
+    fn length(&self) -> BodySize {
+        BodySize::Sized(self.size)
     }
 
     fn poll_next(&mut self) -> Poll<Option<Bytes>, Error> {
@@ -416,50 +416,47 @@ mod tests {
 
     #[test]
     fn test_static_str() {
-        assert_eq!(Body::from("").length(), BodyLength::Sized(0));
-        assert_eq!(Body::from("test").length(), BodyLength::Sized(4));
+        assert_eq!(Body::from("").length(), BodySize::Sized(0));
+        assert_eq!(Body::from("test").length(), BodySize::Sized(4));
         assert_eq!(Body::from("test").get_ref(), b"test");
     }
 
     #[test]
     fn test_static_bytes() {
-        assert_eq!(Body::from(b"test".as_ref()).length(), BodyLength::Sized(4));
+        assert_eq!(Body::from(b"test".as_ref()).length(), BodySize::Sized(4));
         assert_eq!(Body::from(b"test".as_ref()).get_ref(), b"test");
         assert_eq!(
             Body::from_slice(b"test".as_ref()).length(),
-            BodyLength::Sized(4)
+            BodySize::Sized(4)
         );
         assert_eq!(Body::from_slice(b"test".as_ref()).get_ref(), b"test");
     }
 
     #[test]
     fn test_vec() {
-        assert_eq!(Body::from(Vec::from("test")).length(), BodyLength::Sized(4));
+        assert_eq!(Body::from(Vec::from("test")).length(), BodySize::Sized(4));
         assert_eq!(Body::from(Vec::from("test")).get_ref(), b"test");
     }
 
     #[test]
     fn test_bytes() {
-        assert_eq!(
-            Body::from(Bytes::from("test")).length(),
-            BodyLength::Sized(4)
-        );
+        assert_eq!(Body::from(Bytes::from("test")).length(), BodySize::Sized(4));
         assert_eq!(Body::from(Bytes::from("test")).get_ref(), b"test");
     }
 
     #[test]
     fn test_string() {
         let b = "test".to_owned();
-        assert_eq!(Body::from(b.clone()).length(), BodyLength::Sized(4));
+        assert_eq!(Body::from(b.clone()).length(), BodySize::Sized(4));
         assert_eq!(Body::from(b.clone()).get_ref(), b"test");
-        assert_eq!(Body::from(&b).length(), BodyLength::Sized(4));
+        assert_eq!(Body::from(&b).length(), BodySize::Sized(4));
         assert_eq!(Body::from(&b).get_ref(), b"test");
     }
 
     #[test]
     fn test_bytes_mut() {
         let b = BytesMut::from("test");
-        assert_eq!(Body::from(b.clone()).length(), BodyLength::Sized(4));
+        assert_eq!(Body::from(b.clone()).length(), BodySize::Sized(4));
         assert_eq!(Body::from(b).get_ref(), b"test");
     }
 }

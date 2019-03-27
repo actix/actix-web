@@ -13,7 +13,7 @@ use crate::payload::{Payload, PayloadStream};
 use super::connection::{ConnectionLifetime, ConnectionType, IoConnection};
 use super::error::{ConnectError, SendRequestError};
 use super::pool::Acquired;
-use crate::body::{BodyLength, MessageBody};
+use crate::body::{BodySize, MessageBody};
 
 pub(crate) fn send_request<T, B>(
     io: T,
@@ -40,7 +40,7 @@ where
         .from_err()
         // send request body
         .and_then(move |framed| match body.length() {
-            BodyLength::None | BodyLength::Empty | BodyLength::Sized(0) => {
+            BodySize::None | BodySize::Empty | BodySize::Sized(0) => {
                 Either::A(ok(framed))
             }
             _ => Either::B(SendBody::new(body, framed)),

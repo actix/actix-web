@@ -1,5 +1,4 @@
-//! Test Various helpers for Actix applications to use during testing.
-
+//! Test helpers for actix http client to use during testing.
 use actix_http::http::header::{Header, IntoHeaderValue};
 use actix_http::http::{HeaderName, HttpTryFrom, Version};
 use actix_http::{h1, Payload, ResponseHead};

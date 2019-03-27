@@ -9,7 +9,7 @@ use brotli2::write::BrotliEncoder;
 #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
 use flate2::write::{GzEncoder, ZlibEncoder};
 
-use crate::body::{Body, BodyLength, MessageBody, ResponseBody};
+use crate::body::{Body, BodySize, MessageBody, ResponseBody};
 use crate::http::header::{ContentEncoding, CONTENT_ENCODING};
 use crate::http::{HeaderValue, HttpTryFrom, StatusCode};
 use crate::{Error, Head, ResponseHead};
@@ -89,14 +89,14 @@ enum EncoderBody<B> {
 }
 
 impl<B: MessageBody> MessageBody for Encoder<B> {
-    fn length(&self) -> BodyLength {
+    fn length(&self) -> BodySize {
         if self.encoder.is_none() {
             match self.body {
                 EncoderBody::Body(ref b) => b.length(),
                 EncoderBody::Other(ref b) => b.length(),
             }
         } else {
-            BodyLength::Stream
+            BodySize::Stream
         }
     }
 

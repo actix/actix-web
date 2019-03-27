@@ -12,7 +12,7 @@ use http::{Method, Version};
 use super::decoder::{PayloadDecoder, PayloadItem, PayloadType};
 use super::{decoder, encoder};
 use super::{Message, MessageType};
-use crate::body::BodyLength;
+use crate::body::BodySize;
 use crate::config::ServiceConfig;
 use crate::error::{ParseError, PayloadError};
 use crate::helpers;
@@ -179,7 +179,7 @@ impl Decoder for ClientPayloadCodec {
 }
 
 impl Encoder for ClientCodec {
-    type Item = Message<(RequestHead, BodyLength)>;
+    type Item = Message<(RequestHead, BodySize)>;
     type Error = io::Error;
 
     fn encode(

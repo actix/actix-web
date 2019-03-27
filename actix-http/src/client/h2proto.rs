@@ -8,7 +8,7 @@ use h2::{client::SendRequest, SendStream};
 use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, TRANSFER_ENCODING};
 use http::{request::Request, HttpTryFrom, Method, Version};
 
-use crate::body::{BodyLength, MessageBody};
+use crate::body::{BodySize, MessageBody};
 use crate::message::{RequestHead, ResponseHead};
 use crate::payload::Payload;
 
@@ -31,7 +31,7 @@ where
     let head_req = head.method == Method::HEAD;
     let length = body.length();
     let eof = match length {
-        BodyLength::None | BodyLength::Empty | BodyLength::Sized(0) => true,
+        BodySize::None | BodySize::Empty | BodySize::Sized(0) => true,
         _ => false,
     };
 
@@ -48,19 +48,19 @@ where
 
             // Content length
             let _ = match length {
-                BodyLength::None => None,
-                BodyLength::Stream => {
+                BodySize::None => None,
+                BodySize::Stream => {
                     skip_len = false;
                     None
                 }
-                BodyLength::Empty => req
+                BodySize::Empty => req
                     .headers_mut()
                     .insert(CONTENT_LENGTH, HeaderValue::from_static("0")),
-                BodyLength::Sized(len) => req.headers_mut().insert(
+                BodySize::Sized(len) => req.headers_mut().insert(
                     CONTENT_LENGTH,
                     HeaderValue::try_from(format!("{}", len)).unwrap(),
                 ),
-                BodyLength::Sized64(len) => req.headers_mut().insert(
+                BodySize::Sized64(len) => req.headers_mut().insert(
                     CONTENT_LENGTH,
                     HeaderValue::try_from(format!("{}", len)).unwrap(),
                 ),

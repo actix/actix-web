@@ -12,7 +12,7 @@ use futures::{Async, Future, Poll};
 use regex::Regex;
 use time;
 
-use crate::dev::{BodyLength, MessageBody, ResponseBody};
+use crate::dev::{BodySize, MessageBody, ResponseBody};
 use crate::error::{Error, Result};
 use crate::service::{ServiceRequest, ServiceResponse};
 use crate::{HttpMessage, HttpResponse};
@@ -238,7 +238,7 @@ impl<B> Drop for StreamLog<B> {
 }
 
 impl<B: MessageBody> MessageBody for StreamLog<B> {
-    fn length(&self) -> BodyLength {
+    fn length(&self) -> BodySize {
         self.body.length()
     }
 

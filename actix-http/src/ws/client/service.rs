@@ -13,7 +13,7 @@ use log::trace;
 use rand;
 use sha1::Sha1;
 
-use crate::body::BodyLength;
+use crate::body::BodySize;
 use crate::h1;
 use crate::message::{ConnectionType, Head, ResponseHead};
 use crate::ws::Codec;
@@ -149,7 +149,7 @@ where
                         // h1 protocol
                         let framed = Framed::new(io, h1::ClientCodec::default());
                         framed
-                            .send((request, BodyLength::None).into())
+                            .send((request, BodySize::None).into())
                             .map_err(ClientError::from)
                             .and_then(|framed| {
                                 framed

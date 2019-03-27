@@ -5,7 +5,7 @@ use actix_service::{NewService, Service};
 use futures::future::{ok, Either, FutureResult};
 use futures::{Async, Future, Poll, Sink};
 
-use crate::body::{BodyLength, MessageBody, ResponseBody};
+use crate::body::{BodySize, MessageBody, ResponseBody};
 use crate::error::{Error, ResponseError};
 use crate::h1::{Codec, Message};
 use crate::response::Response;
@@ -61,7 +61,7 @@ where
                 let (res, _body) = res.replace_body(());
                 Either::B(SendErrorFut {
                     framed: Some(framed),
-                    res: Some((res, BodyLength::Empty).into()),
+                    res: Some((res, BodySize::Empty).into()),
                     err: Some(e),
                     _t: PhantomData,
                 })
@@ -71,7 +71,7 @@ where
 }
 
 pub struct SendErrorFut<T, R, E> {
-    res: Option<Message<(Response<()>, BodyLength)>>,
+    res: Option<Message<(Response<()>, BodySize)>>,
     framed: Option<Framed<T, Codec>>,
     err: Option<E>,
     _t: PhantomData<R>,
@@ -172,7 +172,7 @@ where
 }
 
 pub struct SendResponseFut<T, B> {
-    res: Option<Message<(Response<()>, BodyLength)>>,
+    res: Option<Message<(Response<()>, BodySize)>>,
     body: Option<ResponseBody<B>>,
     framed: Option<Framed<T, Codec>>,
 }

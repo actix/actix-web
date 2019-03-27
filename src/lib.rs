@@ -106,9 +106,6 @@ extern crate actix_web_codegen;
 #[doc(hidden)]
 pub use actix_web_codegen::*;
 
-#[cfg(feature = "client")]
-pub use awc as client;
-
 // re-export for convenience
 pub use actix_http::Response as HttpResponse;
 pub use actix_http::{http, Error, HttpMessage, ResponseError, Result};
@@ -145,7 +142,7 @@ pub mod dev {
     pub use crate::types::payload::HttpMessageBody;
     pub use crate::types::readlines::Readlines;
 
-    pub use actix_http::body::{Body, BodyLength, MessageBody, ResponseBody};
+    pub use actix_http::body::{Body, BodySize, MessageBody, ResponseBody};
     pub use actix_http::ResponseBuilder as HttpResponseBuilder;
     pub use actix_http::{
         Extensions, Head, Payload, PayloadStream, RequestHead, ResponseHead,
@@ -370,4 +367,34 @@ pub mod web {
     {
         fn_transform(f)
     }
+}
+
+#[cfg(feature = "client")]
+pub mod client {
+    //! An HTTP Client
+    //!
+    //! ```rust
+    //! # use futures::future::{Future, lazy};
+    //! use actix_rt::System;
+    //! use actix_web::client::Client;
+    //!
+    //! fn main() {
+    //!     System::new("test").block_on(lazy(|| {
+    //!        let mut client = Client::default();
+    //!
+    //!        client.get("http://www.rust-lang.org") // <- Create request builder
+    //!           .header("User-Agent", "Actix-web")
+    //!           .send()                             // <- Send http request
+    //!           .map_err(|_| ())
+    //!           .and_then(|response| {              // <- server http response
+    //!                println!("Response: {:?}", response);
+    //!                Ok(())
+    //!           })
+    //!     }));
+    //! }
+    //! ```
+    pub use awc::{
+        test, Client, ClientBuilder, ClientRequest, ClientResponse, ConnectError,
+        InvalidUrl, PayloadError, SendRequestError,
+    };
 }

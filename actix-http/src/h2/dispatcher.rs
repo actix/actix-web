@@ -18,7 +18,7 @@ use http::HttpTryFrom;
 use log::{debug, error, trace};
 use tokio_timer::Delay;
 
-use crate::body::{Body, BodyLength, MessageBody, ResponseBody};
+use crate::body::{Body, BodySize, MessageBody, ResponseBody};
 use crate::config::ServiceConfig;
 use crate::error::{DispatchError, Error, ParseError, PayloadError, ResponseError};
 use crate::message::ResponseHead;
@@ -151,10 +151,10 @@ where
     fn prepare_response(
         &self,
         head: &ResponseHead,
-        length: &mut BodyLength,
+        length: &mut BodySize,
     ) -> http::Response<()> {
         let mut has_date = false;
-        let mut skip_len = length != &BodyLength::Stream;
+        let mut skip_len = length != &BodySize::Stream;
 
         let mut res = http::Response::new(());
         *res.status_mut() = head.status;
@@ -164,23 +164,23 @@ where
         match head.status {
             http::StatusCode::NO_CONTENT
             | http::StatusCode::CONTINUE
-            | http::StatusCode::PROCESSING => *length = BodyLength::None,
+            | http::StatusCode::PROCESSING => *length = BodySize::None,
             http::StatusCode::SWITCHING_PROTOCOLS => {
                 skip_len = true;
-                *length = BodyLength::Stream;
+                *length = BodySize::Stream;
             }
             _ => (),
         }
         let _ = match length {
-            BodyLength::None | BodyLength::Stream => None,
-            BodyLength::Empty => res
+            BodySize::None | BodySize::Stream => None,
+            BodySize::Empty => res
                 .headers_mut()
                 .insert(CONTENT_LENGTH, HeaderValue::from_static("0")),
-            BodyLength::Sized(len) => res.headers_mut().insert(
+            BodySize::Sized(len) => res.headers_mut().insert(
                 CONTENT_LENGTH,
                 HeaderValue::try_from(format!("{}", len)).unwrap(),
             ),
-            BodyLength::Sized64(len) => res.headers_mut().insert(
+            BodySize::Sized64(len) => res.headers_mut().insert(
                 CONTENT_LENGTH,
                 HeaderValue::try_from(format!("{}", len)).unwrap(),
             ),

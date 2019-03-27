@@ -11,7 +11,7 @@ use http::header::{
 };
 use http::{HeaderMap, Method, StatusCode, Version};
 
-use crate::body::BodyLength;
+use crate::body::BodySize;
 use crate::config::ServiceConfig;
 use crate::header::ContentEncoding;
 use crate::helpers;
@@ -23,7 +23,7 @@ const AVERAGE_HEADER_SIZE: usize = 30;
 
 #[derive(Debug)]
 pub(crate) struct MessageEncoder<T: MessageType> {
-    pub length: BodyLength,
+    pub length: BodySize,
     pub te: TransferEncoding,
     _t: PhantomData<T>,
 }
@@ -31,7 +31,7 @@ pub(crate) struct MessageEncoder<T: MessageType> {
 impl<T: MessageType> Default for MessageEncoder<T> {
     fn default() -> Self {
         MessageEncoder {
-            length: BodyLength::None,
+            length: BodySize::None,
             te: TransferEncoding::empty(),
             _t: PhantomData,
         }
@@ -53,28 +53,28 @@ pub(crate) trait MessageType: Sized {
         &mut self,
         dst: &mut BytesMut,
         version: Version,
-        mut length: BodyLength,
+        mut length: BodySize,
         ctype: ConnectionType,
         config: &ServiceConfig,
     ) -> io::Result<()> {
         let chunked = self.chunked();
-        let mut skip_len = length != BodyLength::Stream;
+        let mut skip_len = length != BodySize::Stream;
 
         // Content length
         if let Some(status) = self.status() {
             match status {
                 StatusCode::NO_CONTENT
                 | StatusCode::CONTINUE
-                | StatusCode::PROCESSING => length = BodyLength::None,
+                | StatusCode::PROCESSING => length = BodySize::None,
                 StatusCode::SWITCHING_PROTOCOLS => {
                     skip_len = true;
-                    length = BodyLength::Stream;
+                    length = BodySize::Stream;
                 }
                 _ => (),
             }
         }
         match length {
-            BodyLength::Stream => {
+            BodySize::Stream => {
                 if chunked {
                     dst.extend_from_slice(b"\r\ntransfer-encoding: chunked\r\n")
                 } else {
@@ -82,16 +82,16 @@ pub(crate) trait MessageType: Sized {
                     dst.extend_from_slice(b"\r\n");
                 }
             }
-            BodyLength::Empty => {
+            BodySize::Empty => {
                 dst.extend_from_slice(b"\r\ncontent-length: 0\r\n");
             }
-            BodyLength::Sized(len) => helpers::write_content_length(len, dst),
-            BodyLength::Sized64(len) => {
+            BodySize::Sized(len) => helpers::write_content_length(len, dst),
+            BodySize::Sized64(len) => {
                 dst.extend_from_slice(b"\r\ncontent-length: ");
                 write!(dst.writer(), "{}", len)?;
                 dst.extend_from_slice(b"\r\n");
             }
-            BodyLength::None => dst.extend_from_slice(b"\r\n"),
+            BodySize::None => dst.extend_from_slice(b"\r\n"),
         }
 
         // Connection
@@ -243,24 +243,24 @@ impl<T: MessageType> MessageEncoder<T> {
         head: bool,
         stream: bool,
         version: Version,
-        length: BodyLength,
+        length: BodySize,
         ctype: ConnectionType,
         config: &ServiceConfig,
     ) -> io::Result<()> {
         // transfer encoding
         if !head {
             self.te = match length {
-                BodyLength::Empty => TransferEncoding::empty(),
-                BodyLength::Sized(len) => TransferEncoding::length(len as u64),
-                BodyLength::Sized64(len) => TransferEncoding::length(len),
-                BodyLength::Stream => {
+                BodySize::Empty => TransferEncoding::empty(),
+                BodySize::Sized(len) => TransferEncoding::length(len as u64),
+                BodySize::Sized64(len) => TransferEncoding::length(len),
+                BodySize::Stream => {
                     if message.chunked() && !stream {
                         TransferEncoding::chunked()
                     } else {
                         TransferEncoding::eof()
                     }
                 }
-                BodyLength::None => TransferEncoding::empty(),
+                BodySize::None => TransferEncoding::empty(),
             };
         } else {
             self.te = TransferEncoding::empty();

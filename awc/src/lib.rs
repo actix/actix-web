@@ -1,12 +1,35 @@
+//! An HTTP Client
+//!
+//! ```rust
+//! # use futures::future::{Future, lazy};
+//! use actix_rt::System;
+//! use awc::Client;
+//!
+//! fn main() {
+//!     System::new("test").block_on(lazy(|| {
+//!        let mut client = Client::default();
+//!
+//!        client.get("http://www.rust-lang.org") // <- Create request builder
+//!           .header("User-Agent", "Actix-web")
+//!           .send()                             // <- Send http request
+//!           .map_err(|_| ())
+//!           .and_then(|response| {              // <- server http response
+//!                println!("Response: {:?}", response);
+//!                Ok(())
+//!           })
+//!     }));
+//! }
+//! ```
 use std::cell::RefCell;
 use std::rc::Rc;
 
 pub use actix_http::client::{ConnectError, InvalidUrl, SendRequestError};
 pub use actix_http::error::PayloadError;
-pub use actix_http::{http, RequestHead};
+pub use actix_http::http;
 
 use actix_http::client::Connector;
 use actix_http::http::{HttpTryFrom, Method, Uri};
+use actix_http::RequestHead;
 
 mod builder;
 mod connect;
@@ -20,7 +43,7 @@ pub use self::response::ClientResponse;
 
 use self::connect::{Connect, ConnectorWrapper};
 
-/// An HTTP Client Request
+/// An HTTP Client
 ///
 /// ```rust
 /// # use futures::future::{Future, lazy};

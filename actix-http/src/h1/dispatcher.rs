@@ -11,7 +11,7 @@ use futures::{Async, Future, Poll, Sink, Stream};
 use log::{debug, error, trace};
 use tokio_timer::Delay;
 
-use crate::body::{Body, BodyLength, MessageBody, ResponseBody};
+use crate::body::{Body, BodySize, MessageBody, ResponseBody};
 use crate::config::ServiceConfig;
 use crate::error::DispatchError;
 use crate::error::{ParseError, PayloadError};
@@ -208,7 +208,7 @@ where
         self.flags
             .set(Flags::KEEPALIVE, self.framed.get_codec().keepalive());
         match body.length() {
-            BodyLength::None | BodyLength::Empty => Ok(State::None),
+            BodySize::None | BodySize::Empty => Ok(State::None),
             _ => Ok(State::SendPayload(body)),
         }
     }
