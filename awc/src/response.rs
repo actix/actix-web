@@ -71,11 +71,6 @@ impl<S> ClientResponse<S> {
         &self.head
     }
 
-    #[inline]
-    pub(crate) fn head_mut(&mut self) -> &mut ResponseHead {
-        &mut self.head
-    }
-
     /// Read the Request Version.
     #[inline]
     pub fn version(&self) -> Version {
@@ -92,18 +87,6 @@ impl<S> ClientResponse<S> {
     /// Returns Request's headers.
     pub fn headers(&self) -> &HeaderMap {
         &self.head().headers
-    }
-
-    #[inline]
-    /// Returns mutable Request's headers.
-    pub fn headers_mut(&mut self) -> &mut HeaderMap {
-        &mut self.head_mut().headers
-    }
-
-    /// Checks if a connection should be kept alive.
-    #[inline]
-    pub fn keep_alive(&self) -> bool {
-        self.head().keep_alive()
     }
 
     /// Set a body and return previous body value

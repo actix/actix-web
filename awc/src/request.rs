@@ -141,13 +141,11 @@ impl ClientRequest {
     /// To override header use `set_header()` method.
     ///
     /// ```rust
-    /// # extern crate actix_http;
-    /// #
-    /// use actix_http::{client, http};
+    /// use awc::{http, Client};
     ///
     /// fn main() {
     /// # actix_rt::System::new("test").block_on(futures::future::lazy(|| {
-    ///     let req = awc::Client::new()
+    ///     let req = Client::new()
     ///         .get("http://www.rust-lang.org")
     ///         .header("X-TEST", "value")
     ///         .header(http::header::CONTENT_TYPE, "application/json");
@@ -304,7 +302,7 @@ impl ClientRequest {
     }
 
     /// Do not add default request headers.
-    /// By default `Accept-Encoding` and `User-Agent` headers are set.
+    /// By default `Date` and `User-Agent` headers are set.
     pub fn no_default_headers(mut self) -> Self {
         self.default_headers = false;
         self
@@ -394,7 +392,7 @@ impl ClientRequest {
             // user agent
             self.set_header_if_none(
                 header::USER_AGENT,
-                concat!("actix-http/", env!("CARGO_PKG_VERSION")),
+                concat!("awc/", env!("CARGO_PKG_VERSION")),
             )
         } else {
             self

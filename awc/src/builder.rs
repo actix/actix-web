@@ -65,13 +65,14 @@ impl ClientBuilder {
     }
 
     /// Do not add default request headers.
-    /// By default `Accept-Encoding` and `User-Agent` headers are set.
-    pub fn skip_default_headers(mut self) -> Self {
+    /// By default `Date` and `User-Agent` headers are set.
+    pub fn no_default_headers(mut self) -> Self {
         self.default_headers = false;
         self
     }
 
-    /// Add default header. This header adds to every request.
+    /// Add default header. Headers adds byt this method
+    /// get added to every request.
     pub fn header<K, V>(mut self, key: K, value: V) -> Self
     where
         HeaderName: HttpTryFrom<K>,
@@ -91,7 +92,7 @@ impl ClientBuilder {
         self
     }
 
-    /// Finish build process and create `Client`.
+    /// Finish build process and create `Client` instance.
     pub fn finish(self) -> Client {
         Client {
             connector: self.connector,
