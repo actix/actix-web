@@ -30,7 +30,7 @@ ssl = ["openssl", "actix-http/ssl"]
 cookies = ["cookie", "actix-http/cookies"]
 
 # brotli encoding, requires c compiler
-brotli = ["actix-http/brotli2"]
+brotli = ["actix-http/brotli"]
 
 # miniz-sys backend for flate2 crate
 flate2-zlib = ["actix-http/flate2-zlib"]
@@ -53,8 +53,12 @@ cookie = { version="0.11", features=["percent-encode"], optional = true }
 openssl = { version="0.10", optional = true }
 
 [dev-dependencies]
-env_logger = "0.6"
-mime = "0.3"
 actix-rt = "0.2.1"
+actix-web = { path = "..", features=["ssl"] }
 actix-http = { path = "../actix-http/", features=["ssl"] }
 actix-http-test = { path = "../test-server/", features=["ssl"] }
+brotli2 = { version="^0.3.2" }
+flate2 = { version="^1.0.2" }
+env_logger = "0.6"
+mime = "0.3"
+rand = "0.6"

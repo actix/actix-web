@@ -2,6 +2,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 pub use actix_http::client::{ConnectError, InvalidUrl, SendRequestError};
+pub use actix_http::error::PayloadError;
 pub use actix_http::http;
 
 use actix_http::client::Connector;

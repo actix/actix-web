@@ -74,7 +74,7 @@ where
                             Err(e) => return Err(e.into()),
                         }
                     } else {
-                        break;
+                        return Ok(Async::Ready(Some(chunk)));
                     }
                 }
                 Async::Ready(None) => {
@@ -150,7 +150,7 @@ impl ContentDecoder {
     #[allow(unreachable_patterns)]
     fn feed_data(&mut self, data: Bytes) -> io::Result<Option<Bytes>> {
         match self {
-            #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
+            #[cfg(feature = "brotli")]
             ContentDecoder::Br(ref mut decoder) => match decoder.write_all(&data) {
                 Ok(_) => {
                     decoder.flush()?;

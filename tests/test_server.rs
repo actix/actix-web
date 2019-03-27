@@ -65,7 +65,7 @@ fn test_body_gzip() {
         )
     });
 
-    let mut response = srv.block_on(srv.get().send()).unwrap();
+    let mut response = srv.block_on(srv.get().no_decompress().send()).unwrap();
     assert!(response.status().is_success());
 
     // read response
@@ -95,7 +95,7 @@ fn test_body_gzip_large() {
         )
     });
 
-    let mut response = srv.block_on(srv.get().send()).unwrap();
+    let mut response = srv.block_on(srv.get().no_decompress().send()).unwrap();
     assert!(response.status().is_success());
 
     // read response
@@ -128,7 +128,7 @@ fn test_body_gzip_large_random() {
         )
     });
 
-    let mut response = srv.block_on(srv.get().send()).unwrap();
+    let mut response = srv.block_on(srv.get().no_decompress().send()).unwrap();
     assert!(response.status().is_success());
 
     // read response
@@ -156,7 +156,7 @@ fn test_body_chunked_implicit() {
         )
     });
 
-    let mut response = srv.block_on(srv.get().send()).unwrap();
+    let mut response = srv.block_on(srv.get().no_decompress().send()).unwrap();
     assert!(response.status().is_success());
     assert_eq!(
         response.headers().get(TRANSFER_ENCODING).unwrap(),
@@ -188,7 +188,12 @@ fn test_body_br_streaming() {
     });
 
     let mut response = srv
-        .block_on(srv.get().header(ACCEPT_ENCODING, "br").send())
+        .block_on(
+            srv.get()
+                .header(ACCEPT_ENCODING, "br")
+                .no_decompress()
+                .send(),
+        )
         .unwrap();
     assert!(response.status().is_success());
 
@@ -258,7 +263,7 @@ fn test_body_deflate() {
     });
 
     // client request
-    let mut response = srv.block_on(srv.get().send()).unwrap();
+    let mut response = srv.block_on(srv.get().no_decompress().send()).unwrap();
     assert!(response.status().is_success());
 
     // read response
@@ -285,7 +290,12 @@ fn test_body_brotli() {
 
     // client request
     let mut response = srv
-        .block_on(srv.get().header(ACCEPT_ENCODING, "br").send())
+        .block_on(
+            srv.get()
+                .header(ACCEPT_ENCODING, "br")
+                .no_decompress()
+                .send(),
+        )
         .unwrap();
     assert!(response.status().is_success());
 
