@@ -7,7 +7,6 @@ use std::{fmt, io, result};
 
 // use actix::MailboxError;
 use actix_utils::timeout::TimeoutError;
-use backtrace::Backtrace;
 #[cfg(feature = "cookies")]
 use cookie;
 use derive_more::{Display, From};
@@ -47,25 +46,12 @@ pub type Result<T, E = Error> = result::Result<T, E>;
 /// `ResponseError` reference from it.
 pub struct Error {
     cause: Box<ResponseError>,
-    backtrace: Option<Backtrace>,
 }
 
 impl Error {
     /// Returns the reference to the underlying `ResponseError`.
     pub fn as_response_error(&self) -> &ResponseError {
         self.cause.as_ref()
-    }
-
-    /// Returns a reference to the Backtrace carried by this error, if it
-    /// carries one.
-    ///
-    /// This uses the same `Backtrace` type that `failure` uses.
-    pub fn backtrace(&self) -> &Backtrace {
-        if let Some(bt) = self.cause.backtrace() {
-            bt
-        } else {
-            self.backtrace.as_ref().unwrap()
-        }
     }
 
     /// Converts error to a response instance and set error message as response body
@@ -84,11 +70,6 @@ pub trait ResponseError: fmt::Debug + fmt::Display {
     fn error_response(&self) -> Response {
         Response::new(StatusCode::INTERNAL_SERVER_ERROR)
     }
-
-    /// Response
-    fn backtrace(&self) -> Option<&Backtrace> {
-        None
-    }
 }
 
 impl fmt::Display for Error {
@@ -99,16 +80,7 @@ impl fmt::Display for Error {
 
 impl fmt::Debug for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if let Some(bt) = self.cause.backtrace() {
-            write!(f, "{:?}\n\n{:?}", &self.cause, bt)
-        } else {
-            write!(
-                f,
-                "{:?}\n\n{:?}",
-                &self.cause,
-                self.backtrace.as_ref().unwrap()
-            )
-        }
+        write!(f, "{:?}\n", &self.cause)
     }
 }
 
@@ -122,14 +94,8 @@ impl From<Error> for Response {
 /// `Error` for any error that implements `ResponseError`
 impl<T: ResponseError + 'static> From<T> for Error {
     fn from(err: T) -> Error {
-        let backtrace = if err.backtrace().is_none() {
-            Some(Backtrace::new())
-        } else {
-            None
-        };
         Error {
             cause: Box::new(err),
-            backtrace,
         }
     }
 }
@@ -412,7 +378,6 @@ impl ResponseError for ContentTypeError {
 pub struct InternalError<T> {
     cause: T,
     status: InternalErrorType,
-    backtrace: Backtrace,
 }
 
 enum InternalErrorType {
@@ -426,7 +391,6 @@ impl<T> InternalError<T> {
         InternalError {
             cause,
             status: InternalErrorType::Status(status),
-            backtrace: Backtrace::new(),
         }
     }
 
@@ -435,7 +399,6 @@ impl<T> InternalError<T> {
         InternalError {
             cause,
             status: InternalErrorType::Response(RefCell::new(Some(response))),
-            backtrace: Backtrace::new(),
         }
     }
 }
@@ -462,10 +425,6 @@ impl<T> ResponseError for InternalError<T>
 where
     T: fmt::Debug + fmt::Display + 'static,
 {
-    fn backtrace(&self) -> Option<&Backtrace> {
-        Some(&self.backtrace)
-    }
-
     fn error_response(&self) -> Response {
         match self.status {
             InternalErrorType::Status(st) => Response::new(st),
@@ -920,12 +879,6 @@ mod tests {
         let orig = io::Error::new(io::ErrorKind::Other, "other");
         let e: Error = ParseError::Io(orig).into();
         assert_eq!(format!("{}", e.as_response_error()), "IO error: other");
-    }
-
-    #[test]
-    fn test_backtrace() {
-        let e = ErrorBadRequest("err");
-        let _ = e.backtrace();
     }
 
     #[test]

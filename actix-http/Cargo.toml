@@ -55,7 +55,6 @@ actix-utils = "0.3.4"
 actix-server-config = "0.1.0"
 
 base64 = "0.10"
-backtrace = "0.3"
 bitflags = "1.0"
 bytes = "0.4"
 byteorder = "1.2"
