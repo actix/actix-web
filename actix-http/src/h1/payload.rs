@@ -503,15 +503,6 @@ mod tests {
     use futures::future::{lazy, result};
 
     #[test]
-    fn test_error() {
-        let err = PayloadError::Incomplete(None);
-        assert_eq!(
-            format!("{}", err),
-            "A payload reached EOF, but is not complete."
-        );
-    }
-
-    #[test]
     fn test_basic() {
         Runtime::new()
             .unwrap()

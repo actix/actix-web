@@ -254,7 +254,10 @@ impl From<httparse::Error> for ParseError {
 /// A set of errors that can occur during payload parsing
 pub enum PayloadError {
     /// A payload reached EOF, but is not complete.
-    #[display(fmt = "A payload reached EOF, but is not complete.")]
+    #[display(
+        fmt = "A payload reached EOF, but is not complete. With error: {:?}",
+        _0
+    )]
     Incomplete(Option<io::Error>),
     /// Content encoding stream corruption
     #[display(fmt = "Can not decode content-encoding.")]
@@ -909,13 +912,12 @@ mod tests {
     fn test_payload_error() {
         let err: PayloadError =
             io::Error::new(io::ErrorKind::Other, "ParseError").into();
-        assert_eq!(format!("{}", err), "ParseError");
-        assert_eq!(format!("{}", err.cause().unwrap()), "ParseError");
+        assert!(format!("{}", err).contains("ParseError"));
 
-        let err = PayloadError::Incomplete;
+        let err = PayloadError::Incomplete(None);
         assert_eq!(
             format!("{}", err),
-            "A payload reached EOF, but is not complete."
+            "A payload reached EOF, but is not complete. With error: None"
         );
     }
 
