@@ -35,7 +35,7 @@ members = [
 ]
 
 [package.metadata.docs.rs]
-features = ["ssl", "tls", "rust-tls", "brotli", "flate2-zlib", "cookies", "client"]
+features = ["ssl", "tls", "brotli", "flate2-zlib", "cookies", "client"]
 
 [features]
 default = ["brotli", "flate2-zlib", "cookies", "client"]
