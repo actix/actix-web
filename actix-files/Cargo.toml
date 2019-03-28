@@ -2,7 +2,7 @@
 name = "actix-files"
 version = "0.1.0-alpha.1"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
-description = "Static files support for Actix web."
+description = "Static files support for actix web."
 readme = "README.md"
 keywords = ["actix", "http", "async", "futures"]
 homepage = "https://actix.rs"
@@ -18,13 +18,13 @@ name = "actix_files"
 path = "src/lib.rs"
 
 [dependencies]
-actix-web = { path=".." }
-actix-http = { path="../actix-http" }
+actix-web = "1.0.0-alpha.1"
+actix-http = "0.1.0-alpha.1"
 actix-service = "0.3.3"
 
 bitflags = "1"
 bytes = "0.4"
-futures = "0.1"
+futures = "0.1.25"
 derive_more = "0.14"
 log = "0.4"
 mime = "0.3"
@@ -33,4 +33,4 @@ percent-encoding = "1.0"
 v_htmlescape = "0.4"
 
 [dev-dependencies]
-actix-web = { path="..", features=["ssl"] }
+actix-web = { version = "1.0.0-alpha.1", features=["ssl"] }

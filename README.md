@@ -1,4 +1,4 @@
-# Actix web [![Build Status](https://travis-ci.org/actix/actix-web.svg?branch=master)](https://travis-ci.org/actix/actix-web) [![Build status](https://ci.appveyor.com/api/projects/status/kkdb4yce7qhm5w85/branch/master?svg=true)](https://ci.appveyor.com/project/fafhrd91/actix-web-hdy9d/branch/master) [![codecov](https://codecov.io/gh/actix/actix-web/branch/master/graph/badge.svg)](https://codecov.io/gh/actix/actix-web) [![crates.io](https://meritbadge.herokuapp.com/actix-web)](https://crates.io/crates/actix-web) [![Join the chat at https://gitter.im/actix/actix](https://badges.gitter.im/actix/actix.svg)](https://gitter.im/actix/actix?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+# Actix web [![Build Status](https://travis-ci.org/actix/actix-web.svg?branch=master)](https://travis-ci.org/actix/actix-web) [![codecov](https://codecov.io/gh/actix/actix-web/branch/master/graph/badge.svg)](https://codecov.io/gh/actix/actix-web) [![crates.io](https://meritbadge.herokuapp.com/actix-web)](https://crates.io/crates/actix-web) [![Join the chat at https://gitter.im/actix/actix](https://badges.gitter.im/actix/actix.svg)](https://gitter.im/actix/actix?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
 Actix web is a simple, pragmatic and extremely fast web framework for Rust.
 
@@ -10,11 +10,10 @@ Actix web is a simple, pragmatic and extremely fast web framework for Rust.
 * Configurable [request routing](https://actix.rs/docs/url-dispatch/)
 * Multipart streams
 * Static assets
-* SSL support with OpenSSL or `native-tls`
+* SSL support with OpenSSL or native-tls
 * Middlewares ([Logger, Session, CORS, CSRF, etc](https://actix.rs/docs/middleware/))
 * Includes an asynchronous [HTTP client](https://actix.rs/actix-web/actix_web/client/index.html)
 * Supports [Actix actor framework](https://github.com/actix/actix)
-* Experimental [Async/Await](https://github.com/mehcode/actix-web-async-await) support.
 
 ## Documentation & community resources
 
@@ -36,8 +35,8 @@ fn index(info: web::Path<(u32, String)>) -> impl Responder {
 
 fn main() -> std::io::Result<()> {
     HttpServer::new(
-        || App::new()
-            .service(web::resource("/{id}/{name}/index.html")
+        || App::new().service(
+              web::resource("/{id}/{name}/index.html")
                 .route(web::get().to(index)))
         .bind("127.0.0.1:8080")?
         .run();

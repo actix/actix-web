@@ -1,10 +1,10 @@
 [package]
 name = "actix-web-actors"
-version = "0.1.0-alpha.1"
+version = "1.0.0-alpha.1"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix actors support for actix web framework."
 readme = "README.md"
-keywords = ["http", "web", "framework", "async", "futures"]
+keywords = ["actix", "http", "web", "framework", "async"]
 homepage = "https://actix.rs"
 repository = "https://github.com/actix/actix-web.git"
 documentation = "https://docs.rs/actix-web-actors/"
@@ -18,14 +18,14 @@ name = "actix_web_actors"
 path = "src/lib.rs"
 
 [dependencies]
-actix-web = { path=".." }
-actix = { git = "https://github.com/actix/actix.git" }
-actix-http = { path = "../actix-http/" }
-actix-codec = "0.1.1"
+actix = "0.8.0-alpha.1"
+actix-web = "1.0.0-alpha.1"
+actix-http = "0.1.0-alpha.1"
+actix-codec = "0.1.2"
 bytes = "0.4"
-futures = "0.1"
+futures = "0.1.25"
 
 [dev-dependencies]
 env_logger = "0.6"
-actix-http = { path = "../actix-http/", features=["ssl"] }
-actix-http-test = { path = "../test-server/", features=["ssl"] }
+actix-http = { version = "0.1.0-alpha.1", features=["ssl"] }
+actix-http-test = { version = "0.1.0-alpha.1", features=["ssl"] }
