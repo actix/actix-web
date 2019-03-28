@@ -2,9 +2,9 @@
 name = "actix-http"
 version = "0.1.0-alpha.1"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
-description = "Actix http"
+description = "Actix http primitives"
 readme = "README.md"
-keywords = ["http", "web", "framework", "async", "futures"]
+keywords = ["actix", "http", "framework", "async", "futures"]
 homepage = "https://actix.rs"
 repository = "https://github.com/actix/actix-http.git"
 documentation = "https://docs.rs/actix-http/"
@@ -16,7 +16,7 @@ edition = "2018"
 workspace = ".."
 
 [package.metadata.docs.rs]
-features = ["ssl", "fail", "cookie"]
+features = ["ssl", "fail", "cookie", "brotli", "flate2-zlib"]
 
 [badges]
 travis-ci = { repository = "actix/actix-web", branch = "master" }
