@@ -411,66 +411,6 @@ where
     }
 }
 
-// struct ConnectorPoolSupport<T, Io>
-// where
-//     Io: AsyncRead + AsyncWrite + 'static,
-// {
-//     connector: T,
-//     inner: Rc<RefCell<Inner<Io>>>,
-// }
-
-// impl<T, Io> Future for ConnectorPoolSupport<T, Io>
-// where
-//     Io: AsyncRead + AsyncWrite + 'static,
-//     T: Service<Connect, Response = (Io, Protocol), Error = ConnectorError>,
-//     T::Future: 'static,
-// {
-//     type Item = ();
-//     type Error = ();
-
-//     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-//         let mut inner = self.inner.as_ref().borrow_mut();
-//         inner.task.register();
-
-//         // check waiters
-//         loop {
-//             let (key, token) = {
-//                 if let Some((key, token)) = inner.waiters_queue.get_index(0) {
-//                     (key.clone(), *token)
-//                 } else {
-//                     break;
-//                 }
-//             };
-//             match inner.acquire(&key) {
-//                 Acquire::NotAvailable => break,
-//                 Acquire::Acquired(io, created) => {
-//                     let (_, tx) = inner.waiters.remove(token);
-//                     if let Err(conn) = tx.send(Ok(IoConnection::new(
-//                         io,
-//                         created,
-//                         Some(Acquired(key.clone(), Some(self.inner.clone()))),
-//                     ))) {
-//                         let (io, created) = conn.unwrap().into_inner();
-//                         inner.release_conn(&key, io, created);
-//                     }
-//                 }
-//                 Acquire::Available => {
-//                     let (connect, tx) = inner.waiters.remove(token);
-//                     OpenWaitingConnection::spawn(
-//                         key.clone(),
-//                         tx,
-//                         self.inner.clone(),
-//                         self.connector.call(connect),
-//                     );
-//                 }
-//             }
-//             let _ = inner.waiters_queue.swap_remove_index(0);
-//         }
-
-//         Ok(Async::NotReady)
-//     }
-// }
-
 struct CloseConnection<T> {
     io: T,
     timeout: Delay,

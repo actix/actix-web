@@ -1,19 +1,14 @@
-//! Http client request
-use std::io;
+//! Http client errors
+pub use actix_http::client::{ConnectError, InvalidUrl, SendRequestError};
+pub use actix_http::error::PayloadError;
+pub use actix_http::ws::ProtocolError as WsProtocolError;
 
-use actix_connect::ConnectError;
+use actix_http::http::{header::HeaderValue, Error as HttpError, StatusCode};
 use derive_more::{Display, From};
-use http::{header::HeaderValue, Error as HttpError, StatusCode};
-
-use crate::error::ParseError;
-use crate::ws::ProtocolError;
 
 /// Websocket client error
 #[derive(Debug, Display, From)]
-pub enum ClientError {
-    /// Invalid url
-    #[display(fmt = "Invalid url")]
-    InvalidUrl,
+pub enum WsClientError {
     /// Invalid response status
     #[display(fmt = "Invalid response status")]
     InvalidResponseStatus(StatusCode),
@@ -32,22 +27,22 @@ pub enum ClientError {
     /// Invalid challenge response
     #[display(fmt = "Invalid challenge response")]
     InvalidChallengeResponse(String, HeaderValue),
-    /// Http parsing error
-    #[display(fmt = "Http parsing error")]
-    Http(HttpError),
-    /// Response parsing error
-    #[display(fmt = "Response parsing error: {}", _0)]
-    ParseError(ParseError),
     /// Protocol error
     #[display(fmt = "{}", _0)]
-    Protocol(ProtocolError),
-    /// Connect error
-    #[display(fmt = "Connector error: {:?}", _0)]
-    Connect(ConnectError),
-    /// IO Error
+    Protocol(WsProtocolError),
+    /// Send request error
     #[display(fmt = "{}", _0)]
-    Io(io::Error),
-    /// "Disconnected"
-    #[display(fmt = "Disconnected")]
-    Disconnected,
+    SendRequest(SendRequestError),
+}
+
+impl From<InvalidUrl> for WsClientError {
+    fn from(err: InvalidUrl) -> Self {
+        WsClientError::SendRequest(err.into())
+    }
+}
+
+impl From<HttpError> for WsClientError {
+    fn from(err: HttpError) -> Self {
+        WsClientError::SendRequest(err.into())
+    }
 }

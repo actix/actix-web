@@ -39,13 +39,16 @@ flate2-zlib = ["actix-http/flate2-zlib"]
 flate2-rust = ["actix-http/flate2-rust"]
 
 [dependencies]
+actix-codec = "0.1.1"
 actix-service = "0.3.4"
 actix-http = { path = "../actix-http/" }
 base64 = "0.10.1"
 bytes = "0.4"
+derive_more = "0.14"
 futures = "0.1"
 log =" 0.4"
 percent-encoding = "1.0"
+rand = "0.6"
 serde = "1.0"
 serde_json = "1.0"
 serde_urlencoded = "0.5.3"
@@ -58,8 +61,11 @@ actix-rt = "0.2.1"
 actix-web = { path = "..", features=["ssl"] }
 actix-http = { path = "../actix-http/", features=["ssl"] }
 actix-http-test = { path = "../test-server/", features=["ssl"] }
+actix-utils = "0.3.4"
+actix-server = { version = "0.4.0", features=["ssl"] }
 brotli2 = { version="^0.3.2" }
 flate2 = { version="^1.0.2" }
 env_logger = "0.6"
 mime = "0.3"
 rand = "0.6"
+tokio-tcp = "0.1"

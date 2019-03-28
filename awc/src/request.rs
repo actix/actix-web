@@ -12,7 +12,6 @@ use serde::Serialize;
 use serde_json;
 
 use actix_http::body::{Body, BodyStream};
-use actix_http::client::{InvalidUrl, SendRequestError};
 use actix_http::encoding::Decoder;
 use actix_http::http::header::{self, ContentEncoding, Header, IntoHeaderValue};
 use actix_http::http::{
@@ -21,8 +20,9 @@ use actix_http::http::{
 };
 use actix_http::{Error, Payload, RequestHead};
 
+use crate::connect::Connect;
+use crate::error::{InvalidUrl, PayloadError, SendRequestError};
 use crate::response::ClientResponse;
-use crate::{Connect, PayloadError};
 
 #[cfg(any(feature = "brotli", feature = "flate2-zlib", feature = "flate2-rust"))]
 const HTTPS_ENCODING: &str = "br, gzip, deflate";

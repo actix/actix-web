@@ -105,6 +105,9 @@ pub enum SendRequestError {
     /// Http2 error
     #[display(fmt = "{}", _0)]
     H2(h2::Error),
+    /// Tunnels are not supported for http2 connection
+    #[display(fmt = "Tunnels are not supported for http2 connection")]
+    TunnelNotSupported,
     /// Error sending request body
     Body(Error),
 }

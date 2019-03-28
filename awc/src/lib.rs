@@ -23,8 +23,6 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-pub use actix_http::client::{ConnectError, InvalidUrl, SendRequestError};
-pub use actix_http::error::PayloadError;
 pub use actix_http::http;
 
 use actix_http::client::Connector;
@@ -33,13 +31,16 @@ use actix_http::RequestHead;
 
 mod builder;
 mod connect;
+pub mod error;
 mod request;
 mod response;
 pub mod test;
+mod ws;
 
 pub use self::builder::ClientBuilder;
 pub use self::request::ClientRequest;
 pub use self::response::ClientResponse;
+pub use self::ws::WebsocketsRequest;
 
 use self::connect::{Connect, ConnectorWrapper};
 
@@ -164,5 +165,12 @@ impl Client {
         Uri: HttpTryFrom<U>,
     {
         ClientRequest::new(Method::OPTIONS, url, self.connector.clone())
+    }
+
+    pub fn ws<U>(&self, url: U) -> WebsocketsRequest
+    where
+        Uri: HttpTryFrom<U>,
+    {
+        WebsocketsRequest::new(url, self.connector.clone())
     }
 }

@@ -13,7 +13,6 @@ use crate::httpmessage::HttpMessage;
 use crate::request::Request;
 use crate::response::{Response, ResponseBuilder};
 
-mod client;
 mod codec;
 mod frame;
 mod mask;
@@ -21,7 +20,6 @@ mod proto;
 mod service;
 mod transport;
 
-pub use self::client::{Client, ClientError, Connect};
 pub use self::codec::{Codec, Frame, Message};
 pub use self::frame::Parser;
 pub use self::proto::{hash_key, CloseCode, CloseReason, OpCode};

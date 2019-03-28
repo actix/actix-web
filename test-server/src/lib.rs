@@ -7,7 +7,6 @@ use actix_http::client::Connector;
 use actix_http::ws;
 use actix_rt::{Runtime, System};
 use actix_server::{Server, StreamServiceFactory};
-use actix_service::Service;
 use awc::{Client, ClientRequest};
 use futures::future::{lazy, Future};
 use http::Method;
@@ -205,16 +204,19 @@ impl TestServerRuntime {
     pub fn ws_at(
         &mut self,
         path: &str,
-    ) -> Result<Framed<impl AsyncRead + AsyncWrite, ws::Codec>, ws::ClientError> {
+    ) -> Result<Framed<impl AsyncRead + AsyncWrite, ws::Codec>, awc::error::WsClientError>
+    {
         let url = self.url(path);
+        let connect = self.client.ws(url).connect();
         self.rt
-            .block_on(lazy(|| ws::Client::default().call(ws::Connect::new(url))))
+            .block_on(lazy(move || connect.map(|(_, framed)| framed)))
     }
 
     /// Connect to a websocket server
     pub fn ws(
         &mut self,
-    ) -> Result<Framed<impl AsyncRead + AsyncWrite, ws::Codec>, ws::ClientError> {
+    ) -> Result<Framed<impl AsyncRead + AsyncWrite, ws::Codec>, awc::error::WsClientError>
+    {
         self.ws_at("/")
     }
 }

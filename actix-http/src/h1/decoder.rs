@@ -611,7 +611,6 @@ mod tests {
     use super::*;
     use crate::error::ParseError;
     use crate::httpmessage::HttpMessage;
-    use crate::message::Head;
 
     impl PayloadType {
         fn unwrap(self) -> PayloadDecoder {

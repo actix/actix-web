@@ -1,11 +1,13 @@
-use std::{fmt, time};
+use std::{fmt, io, time};
 
-use actix_codec::{AsyncRead, AsyncWrite};
-use bytes::Bytes;
-use futures::Future;
+use actix_codec::{AsyncRead, AsyncWrite, Framed};
+use bytes::{Buf, Bytes};
+use futures::future::{err, Either, Future, FutureResult};
+use futures::Poll;
 use h2::client::SendRequest;
 
 use crate::body::MessageBody;
+use crate::h1::ClientCodec;
 use crate::message::{RequestHead, ResponseHead};
 use crate::payload::Payload;
 
@@ -19,6 +21,7 @@ pub(crate) enum ConnectionType<Io> {
 }
 
 pub trait Connection {
+    type Io: AsyncRead + AsyncWrite;
     type Future: Future<Item = (ResponseHead, Payload), Error = SendRequestError>;
 
     /// Send request and body
@@ -27,6 +30,14 @@ pub trait Connection {
         head: RequestHead,
         body: B,
     ) -> Self::Future;
+
+    type TunnelFuture: Future<
+        Item = (ResponseHead, Framed<Self::Io, ClientCodec>),
+        Error = SendRequestError,
+    >;
+
+    /// Send request, returns Response and Framed
+    fn open_tunnel(self, head: RequestHead) -> Self::TunnelFuture;
 }
 
 pub(crate) trait ConnectionLifetime: AsyncRead + AsyncWrite + 'static {
@@ -80,6 +91,7 @@ impl<T> Connection for IoConnection<T>
 where
     T: AsyncRead + AsyncWrite + 'static,
 {
+    type Io = T;
     type Future = Box<Future<Item = (ResponseHead, Payload), Error = SendRequestError>>;
 
     fn send_request<B: MessageBody + 'static>(
@@ -104,6 +116,35 @@ where
             )),
         }
     }
+
+    type TunnelFuture = Either<
+        Box<
+            Future<
+                Item = (ResponseHead, Framed<Self::Io, ClientCodec>),
+                Error = SendRequestError,
+            >,
+        >,
+        FutureResult<(ResponseHead, Framed<Self::Io, ClientCodec>), SendRequestError>,
+    >;
+
+    /// Send request, returns Response and Framed
+    fn open_tunnel(mut self, head: RequestHead) -> Self::TunnelFuture {
+        match self.io.take().unwrap() {
+            ConnectionType::H1(io) => {
+                Either::A(Box::new(h1proto::open_tunnel(io, head)))
+            }
+            ConnectionType::H2(io) => {
+                if let Some(mut pool) = self.pool.take() {
+                    pool.release(IoConnection::new(
+                        ConnectionType::H2(io),
+                        self.created,
+                        None,
+                    ));
+                }
+                Either::B(err(SendRequestError::TunnelNotSupported))
+            }
+        }
+    }
 }
 
 #[allow(dead_code)]
@@ -117,6 +158,7 @@ where
     A: AsyncRead + AsyncWrite + 'static,
     B: AsyncRead + AsyncWrite + 'static,
 {
+    type Io = EitherIo<A, B>;
     type Future = Box<Future<Item = (ResponseHead, Payload), Error = SendRequestError>>;
 
     fn send_request<RB: MessageBody + 'static>(
@@ -127,6 +169,101 @@ where
         match self {
             EitherConnection::A(con) => con.send_request(head, body),
             EitherConnection::B(con) => con.send_request(head, body),
+        }
+    }
+
+    type TunnelFuture = Box<
+        Future<
+            Item = (ResponseHead, Framed<Self::Io, ClientCodec>),
+            Error = SendRequestError,
+        >,
+    >;
+
+    /// Send request, returns Response and Framed
+    fn open_tunnel(self, head: RequestHead) -> Self::TunnelFuture {
+        match self {
+            EitherConnection::A(con) => Box::new(
+                con.open_tunnel(head)
+                    .map(|(head, framed)| (head, framed.map_io(|io| EitherIo::A(io)))),
+            ),
+            EitherConnection::B(con) => Box::new(
+                con.open_tunnel(head)
+                    .map(|(head, framed)| (head, framed.map_io(|io| EitherIo::B(io)))),
+            ),
+        }
+    }
+}
+
+pub enum EitherIo<A, B> {
+    A(A),
+    B(B),
+}
+
+impl<A, B> io::Read for EitherIo<A, B>
+where
+    A: io::Read,
+    B: io::Read,
+{
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        match self {
+            EitherIo::A(ref mut val) => val.read(buf),
+            EitherIo::B(ref mut val) => val.read(buf),
+        }
+    }
+}
+
+impl<A, B> AsyncRead for EitherIo<A, B>
+where
+    A: AsyncRead,
+    B: AsyncRead,
+{
+    unsafe fn prepare_uninitialized_buffer(&self, buf: &mut [u8]) -> bool {
+        match self {
+            EitherIo::A(ref val) => val.prepare_uninitialized_buffer(buf),
+            EitherIo::B(ref val) => val.prepare_uninitialized_buffer(buf),
+        }
+    }
+}
+
+impl<A, B> io::Write for EitherIo<A, B>
+where
+    A: io::Write,
+    B: io::Write,
+{
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        match self {
+            EitherIo::A(ref mut val) => val.write(buf),
+            EitherIo::B(ref mut val) => val.write(buf),
+        }
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        match self {
+            EitherIo::A(ref mut val) => val.flush(),
+            EitherIo::B(ref mut val) => val.flush(),
+        }
+    }
+}
+
+impl<A, B> AsyncWrite for EitherIo<A, B>
+where
+    A: AsyncWrite,
+    B: AsyncWrite,
+{
+    fn shutdown(&mut self) -> Poll<(), io::Error> {
+        match self {
+            EitherIo::A(ref mut val) => val.shutdown(),
+            EitherIo::B(ref mut val) => val.shutdown(),
+        }
+    }
+
+    fn write_buf<U: Buf>(&mut self, buf: &mut U) -> Poll<usize, io::Error>
+    where
+        Self: Sized,
+    {
+        match self {
+            EitherIo::A(ref mut val) => val.write_buf(buf),
+            EitherIo::B(ref mut val) => val.write_buf(buf),
         }
     }
 }

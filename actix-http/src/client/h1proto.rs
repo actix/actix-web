@@ -70,6 +70,32 @@ where
         })
 }
 
+pub(crate) fn open_tunnel<T>(
+    io: T,
+    head: RequestHead,
+) -> impl Future<Item = (ResponseHead, Framed<T, h1::ClientCodec>), Error = SendRequestError>
+where
+    T: AsyncRead + AsyncWrite + 'static,
+{
+    // create Framed and send reqest
+    Framed::new(io, h1::ClientCodec::default())
+        .send((head, BodySize::None).into())
+        .from_err()
+        // read response
+        .and_then(|framed| {
+            framed
+                .into_future()
+                .map_err(|(e, _)| SendRequestError::from(e))
+                .and_then(|(head, framed)| {
+                    if let Some(head) = head {
+                        Ok((head, framed))
+                    } else {
+                        Err(SendRequestError::from(ConnectError::Disconnected))
+                    }
+                })
+        })
+}
+
 #[doc(hidden)]
 /// HTTP client connection
 pub struct H1Connection<T> {
