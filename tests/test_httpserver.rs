@@ -2,9 +2,8 @@ use net2::TcpBuilder;
 use std::sync::mpsc;
 use std::{net, thread, time::Duration};
 
-use actix_http::{client, Response};
-
-use actix_web::{test, web, App, HttpServer};
+use actix_http::Response;
+use actix_web::{web, App, HttpServer};
 
 fn unused_addr() -> net::SocketAddr {
     let addr: net::SocketAddr = "127.0.0.1:0".parse().unwrap();
@@ -48,22 +47,28 @@ fn test_start() {
     });
     let (srv, sys) = rx.recv().unwrap();
 
-    let client = test::run_on(|| {
-        Ok::<_, ()>(
-            awc::Client::build()
-                .connector(
-                    client::Connector::new()
-                        .timeout(Duration::from_millis(100))
-                        .service(),
-                )
-                .finish(),
-        )
-    })
-    .unwrap();
-    let host = format!("http://{}", addr);
+    #[cfg(feature = "client")]
+    {
+        use actix_http::client;
+        use actix_web::test;
 
-    let response = test::block_on(client.get(host.clone()).send()).unwrap();
-    assert!(response.status().is_success());
+        let client = test::run_on(|| {
+            Ok::<_, ()>(
+                awc::Client::build()
+                    .connector(
+                        client::Connector::new()
+                            .timeout(Duration::from_millis(100))
+                            .service(),
+                    )
+                    .finish(),
+            )
+        })
+        .unwrap();
+        let host = format!("http://{}", addr);
+
+        let response = test::block_on(client.get(host.clone()).send()).unwrap();
+        assert!(response.status().is_success());
+    }
 
     // stop
     let _ = srv.stop(false);

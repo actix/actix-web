@@ -10,6 +10,7 @@ use actix_service::boxed::{self, BoxedNewService};
 use actix_service::{
     ApplyTransform, IntoNewService, IntoTransform, NewService, Transform,
 };
+#[cfg(any(feature = "brotli", feature = "flate2-zlib", feature = "flate2-rust"))]
 use bytes::Bytes;
 use futures::{IntoFuture, Stream};
 

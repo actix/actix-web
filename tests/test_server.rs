@@ -11,10 +11,13 @@ use bytes::Bytes;
 use flate2::read::GzDecoder;
 use flate2::write::{GzEncoder, ZlibDecoder, ZlibEncoder};
 use flate2::Compression;
-use futures::stream::once; //Future, Stream
+use futures::stream::once;
 use rand::{distributions::Alphanumeric, Rng};
 
-use actix_web::{dev::HttpMessageBody, middleware::encoding, web, App};
+use actix_web::{dev::HttpMessageBody, web, App};
+
+#[cfg(any(feature = "brotli", feature = "flate2-zlib", feature = "flate2-rust"))]
+use actix_web::middleware::encoding;
 
 const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
                    Hello World Hello World Hello World Hello World Hello World \
@@ -55,6 +58,7 @@ fn test_body() {
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
 }
 
+#[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
 #[test]
 fn test_body_gzip() {
     let mut srv = TestServer::new(|| {
@@ -78,6 +82,7 @@ fn test_body_gzip() {
     assert_eq!(Bytes::from(dec), Bytes::from_static(STR.as_ref()));
 }
 
+#[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
 #[test]
 fn test_body_encoding_override() {
     let mut srv = TestServer::new(|| {
@@ -104,6 +109,7 @@ fn test_body_encoding_override() {
     assert_eq!(Bytes::from(dec), Bytes::from_static(STR.as_ref()));
 }
 
+#[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
 #[test]
 fn test_body_gzip_large() {
     let data = STR.repeat(10);
@@ -134,6 +140,7 @@ fn test_body_gzip_large() {
     assert_eq!(Bytes::from(dec), Bytes::from(data));
 }
 
+#[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
 #[test]
 fn test_body_gzip_large_random() {
     let data = rand::thread_rng()
@@ -168,6 +175,7 @@ fn test_body_gzip_large_random() {
     assert_eq!(Bytes::from(dec), Bytes::from(data));
 }
 
+#[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
 #[test]
 fn test_body_chunked_implicit() {
     let mut srv = TestServer::new(move || {
@@ -200,6 +208,7 @@ fn test_body_chunked_implicit() {
 }
 
 #[test]
+#[cfg(feature = "brotli")]
 fn test_body_br_streaming() {
     let mut srv = TestServer::new(move || {
         h1::H1Service::new(
@@ -277,6 +286,7 @@ fn test_no_chunking() {
 }
 
 #[test]
+#[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
 fn test_body_deflate() {
     let mut srv = TestServer::new(move || {
         h1::H1Service::new(
@@ -303,6 +313,7 @@ fn test_body_deflate() {
 }
 
 #[test]
+#[cfg(any(feature = "brotli"))]
 fn test_body_brotli() {
     let mut srv = TestServer::new(move || {
         h1::H1Service::new(
@@ -336,6 +347,7 @@ fn test_body_brotli() {
 }
 
 #[test]
+#[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
 fn test_encoding() {
     let mut srv = TestServer::new(move || {
         HttpService::new(
@@ -364,6 +376,7 @@ fn test_encoding() {
 }
 
 #[test]
+#[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
 fn test_gzip_encoding() {
     let mut srv = TestServer::new(move || {
         HttpService::new(
@@ -392,6 +405,7 @@ fn test_gzip_encoding() {
 }
 
 #[test]
+#[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
 fn test_gzip_encoding_large() {
     let data = STR.repeat(10);
     let mut srv = TestServer::new(move || {
@@ -421,6 +435,7 @@ fn test_gzip_encoding_large() {
 }
 
 #[test]
+#[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
 fn test_reading_gzip_encoding_large_random() {
     let data = rand::thread_rng()
         .sample_iter(&Alphanumeric)
@@ -455,6 +470,7 @@ fn test_reading_gzip_encoding_large_random() {
 }
 
 #[test]
+#[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
 fn test_reading_deflate_encoding() {
     let mut srv = TestServer::new(move || {
         h1::H1Service::new(
@@ -483,6 +499,7 @@ fn test_reading_deflate_encoding() {
 }
 
 #[test]
+#[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
 fn test_reading_deflate_encoding_large() {
     let data = STR.repeat(10);
     let mut srv = TestServer::new(move || {
@@ -512,6 +529,7 @@ fn test_reading_deflate_encoding_large() {
 }
 
 #[test]
+#[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
 fn test_reading_deflate_encoding_large_random() {
     let data = rand::thread_rng()
         .sample_iter(&Alphanumeric)
@@ -545,8 +563,8 @@ fn test_reading_deflate_encoding_large_random() {
     assert_eq!(bytes, Bytes::from(data));
 }
 
-#[cfg(feature = "brotli")]
 #[test]
+#[cfg(feature = "brotli")]
 fn test_brotli_encoding() {
     let mut srv = TestServer::new(move || {
         h1::H1Service::new(

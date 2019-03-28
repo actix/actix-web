@@ -34,7 +34,8 @@ before_script:
   - export PATH=$PATH:~/.cargo/bin
 
 script:
-  - cargo clean
+  - cargo update
+  - cargo check --all --no-default-features
   - cargo test --all-features --all -- --nocapture
 
 # Upload docs
