@@ -3,18 +3,21 @@ use std::marker::PhantomData;
 use std::rc::Rc;
 
 use actix_http::body::{Body, MessageBody};
+#[cfg(any(feature = "brotli", feature = "flate2-zlib", feature = "flate2-rust"))]
+use actix_http::encoding::{Decoder, Encoder};
 use actix_server_config::ServerConfig;
 use actix_service::boxed::{self, BoxedNewService};
 use actix_service::{
     ApplyTransform, IntoNewService, IntoTransform, NewService, Transform,
 };
-use futures::IntoFuture;
+use bytes::Bytes;
+use futures::{IntoFuture, Stream};
 
 use crate::app_service::{AppChain, AppEntry, AppInit, AppRouting, AppRoutingFactory};
 use crate::config::{AppConfig, AppConfigInner};
 use crate::data::{Data, DataFactory};
-use crate::dev::{PayloadStream, ResourceDef};
-use crate::error::Error;
+use crate::dev::{Payload, PayloadStream, ResourceDef};
+use crate::error::{Error, PayloadError};
 use crate::resource::Resource;
 use crate::route::Route;
 use crate::service::{
@@ -27,17 +30,17 @@ type HttpNewService<P> =
 
 /// Application builder - structure that follows the builder pattern
 /// for building application instances.
-pub struct App<P, T>
+pub struct App<In, Out, T>
 where
-    T: NewService<Request = ServiceRequest, Response = ServiceRequest<P>>,
+    T: NewService<Request = ServiceRequest<In>, Response = ServiceRequest<Out>>,
 {
     chain: T,
     data: Vec<Box<DataFactory>>,
     config: AppConfigInner,
-    _t: PhantomData<(P,)>,
+    _t: PhantomData<(In, Out)>,
 }
 
-impl App<PayloadStream, AppChain> {
+impl App<PayloadStream, PayloadStream, AppChain> {
     /// Create application builder. Application can be configured with a builder-like pattern.
     pub fn new() -> Self {
         App {
@@ -49,12 +52,13 @@ impl App<PayloadStream, AppChain> {
     }
 }
 
-impl<P, T> App<P, T>
+impl<In, Out, T> App<In, Out, T>
 where
-    P: 'static,
+    In: 'static,
+    Out: 'static,
     T: NewService<
-        Request = ServiceRequest,
-        Response = ServiceRequest<P>,
+        Request = ServiceRequest<In>,
+        Response = ServiceRequest<Out>,
         Error = Error,
         InitError = (),
     >,
@@ -97,11 +101,11 @@ where
     /// Set application data factory. This function is
     /// similar to `.data()` but it accepts data factory. Data object get
     /// constructed asynchronously during application initialization.
-    pub fn data_factory<F, Out>(mut self, data: F) -> Self
+    pub fn data_factory<F, R>(mut self, data: F) -> Self
     where
-        F: Fn() -> Out + 'static,
-        Out: IntoFuture + 'static,
-        Out::Error: std::fmt::Debug,
+        F: Fn() -> R + 'static,
+        R: IntoFuture + 'static,
+        R::Error: std::fmt::Debug,
     {
         self.data.push(Box::new(data));
         self
@@ -113,10 +117,10 @@ where
         mw: F,
     ) -> AppRouter<
         T,
-        P,
+        Out,
         B,
         impl NewService<
-            Request = ServiceRequest<P>,
+            Request = ServiceRequest<Out>,
             Response = ServiceResponse<B>,
             Error = Error,
             InitError = (),
@@ -124,13 +128,13 @@ where
     >
     where
         M: Transform<
-            AppRouting<P>,
-            Request = ServiceRequest<P>,
+            AppRouting<Out>,
+            Request = ServiceRequest<Out>,
             Response = ServiceResponse<B>,
             Error = Error,
             InitError = (),
         >,
-        F: IntoTransform<M, AppRouting<P>>,
+        F: IntoTransform<M, AppRouting<Out>>,
     {
         let fref = Rc::new(RefCell::new(None));
         let endpoint = ApplyTransform::new(mw, AppEntry::new(fref.clone()));
@@ -176,17 +180,17 @@ where
         mw: F,
     ) -> AppRouter<
         T,
-        P,
+        Out,
         B,
         impl NewService<
-            Request = ServiceRequest<P>,
+            Request = ServiceRequest<Out>,
             Response = ServiceResponse<B>,
             Error = Error,
             InitError = (),
         >,
     >
     where
-        F: FnMut(ServiceRequest<P>, &mut AppRouting<P>) -> R + Clone,
+        F: FnMut(ServiceRequest<Out>, &mut AppRouting<Out>) -> R + Clone,
         R: IntoFuture<Item = ServiceResponse<B>, Error = Error>,
     {
         self.wrap(mw)
@@ -194,22 +198,23 @@ where
 
     /// Register a request modifier. It can modify any request parameters
     /// including request payload type.
-    pub fn chain<C, F, P1>(
+    pub fn chain<C, F, P>(
         self,
         chain: F,
     ) -> App<
-        P1,
+        In,
+        P,
         impl NewService<
-            Request = ServiceRequest,
-            Response = ServiceRequest<P1>,
+            Request = ServiceRequest<In>,
+            Response = ServiceRequest<P>,
             Error = Error,
             InitError = (),
         >,
     >
     where
         C: NewService<
-            Request = ServiceRequest<P>,
-            Response = ServiceRequest<P1>,
+            Request = ServiceRequest<Out>,
+            Response = ServiceRequest<P>,
             Error = Error,
             InitError = (),
         >,
@@ -246,8 +251,8 @@ where
     pub fn route(
         self,
         path: &str,
-        mut route: Route<P>,
-    ) -> AppRouter<T, P, Body, AppEntry<P>> {
+        mut route: Route<Out>,
+    ) -> AppRouter<T, Out, Body, AppEntry<Out>> {
         self.service(
             Resource::new(path)
                 .add_guards(route.take_guards())
@@ -264,9 +269,9 @@ where
     /// * *Resource* is an entry in resource table which corresponds to requested URL.
     /// * *Scope* is a set of resources with common root path.
     /// * "StaticFiles" is a service for static files support
-    pub fn service<F>(self, service: F) -> AppRouter<T, P, Body, AppEntry<P>>
+    pub fn service<F>(self, service: F) -> AppRouter<T, Out, Body, AppEntry<Out>>
     where
-        F: HttpServiceFactory<P> + 'static,
+        F: HttpServiceFactory<Out> + 'static,
     {
         let fref = Rc::new(RefCell::new(None));
 
@@ -293,6 +298,34 @@ where
     pub fn hostname(mut self, val: &str) -> Self {
         self.config.host = val.to_owned();
         self
+    }
+
+    #[cfg(any(feature = "brotli", feature = "flate2-zlib", feature = "flate2-rust"))]
+    /// Enable content compression and decompression.
+    pub fn enable_encoding(
+        self,
+    ) -> AppRouter<
+        impl NewService<
+            Request = ServiceRequest<In>,
+            Response = ServiceRequest<Decoder<Payload<Out>>>,
+            Error = Error,
+            InitError = (),
+        >,
+        Decoder<Payload<Out>>,
+        Encoder<Body>,
+        impl NewService<
+            Request = ServiceRequest<Decoder<Payload<Out>>>,
+            Response = ServiceResponse<Encoder<Body>>,
+            Error = Error,
+            InitError = (),
+        >,
+    >
+    where
+        Out: Stream<Item = Bytes, Error = PayloadError>,
+    {
+        use crate::middleware::encoding::{Compress, Decompress};
+
+        self.chain(Decompress::new()).wrap(Compress::default())
     }
 }
 

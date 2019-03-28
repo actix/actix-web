@@ -336,6 +336,34 @@ fn test_body_brotli() {
 }
 
 #[test]
+fn test_encoding() {
+    let mut srv = TestServer::new(move || {
+        HttpService::new(
+            App::new().enable_encoding().service(
+                web::resource("/")
+                    .route(web::to(move |body: Bytes| Response::Ok().body(body))),
+            ),
+        )
+    });
+
+    // client request
+    let mut e = GzEncoder::new(Vec::new(), Compression::default());
+    e.write_all(STR.as_ref()).unwrap();
+    let enc = e.finish().unwrap();
+
+    let request = srv
+        .post()
+        .header(CONTENT_ENCODING, "gzip")
+        .send_body(enc.clone());
+    let mut response = srv.block_on(request).unwrap();
+    assert!(response.status().is_success());
+
+    // read response
+    let bytes = srv.block_on(HttpMessageBody::new(&mut response)).unwrap();
+    assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
+}
+
+#[test]
 fn test_gzip_encoding() {
     let mut srv = TestServer::new(move || {
         HttpService::new(
