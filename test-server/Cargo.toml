@@ -35,11 +35,11 @@ ssl = ["openssl", "actix-http/ssl", "actix-server/ssl", "awc/ssl"]
 [dependencies]
 actix-codec = "0.1.1"
 actix-rt = "0.2.1"
-actix-http = "0.1.0-alpha.1"
+actix-http = { path = "../actix-http" }
 actix-service = "0.3.4"
 actix-server = "0.4.0"
 actix-utils = "0.3.4"
-awc = "0.1.0-alpha.1"
+awc = { path = "../awc" }
 
 base64 = "0.10"
 bytes = "0.4"
@@ -61,4 +61,4 @@ tokio-timer = "0.2"
 openssl = { version="0.10", optional = true }
 
 [dev-dependencies]
-actix-web = "1.0.0-alpha.1"
+actix-web = { path = ".." }

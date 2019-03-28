@@ -98,7 +98,7 @@ openssl = { version="0.10", optional = true }
 actix-rt = "0.2.2"
 actix-server = { version = "0.4.0", features=["ssl"] }
 actix-connect = { version = "0.1.0", features=["ssl"] }
-actix-http-test = { version = "0.1.0-alpha.1", features=["ssl"] }
+actix-http-test = { path = "../test-server", features=["ssl"] }
 
 env_logger = "0.6"
 serde_derive = "1.0"

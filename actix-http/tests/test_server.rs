@@ -13,8 +13,8 @@ use futures::stream::{once, Stream};
 use actix_http::body::Body;
 use actix_http::error::PayloadError;
 use actix_http::{
-    body, error, http, http::header, Error, HttpMessage as HttpMessage2, HttpService,
-    KeepAlive, Request, Response,
+    body, error, http, http::header, Error, HttpMessage, HttpService, KeepAlive,
+    Request, Response,
 };
 
 fn load_body<S>(stream: S) -> impl Future<Item = BytesMut, Error = PayloadError>
