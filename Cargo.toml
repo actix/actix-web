@@ -70,11 +70,12 @@ actix-codec = "0.1.1"
 actix-service = "0.3.4"
 actix-utils = "0.3.4"
 actix-router = "0.1.0"
-actix-rt = "0.2.1"
+actix-rt = "0.2.2"
 actix-web-codegen = { path="actix-web-codegen" }
 actix-http = { path = "actix-http", features=["fail"] }
 actix-server = "0.4.1"
 actix-server-config = "0.1.0"
+actix-threadpool = "0.1.0"
 awc = { path = "awc", optional = true }
 
 bytes = "0.4"

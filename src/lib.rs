@@ -162,7 +162,6 @@ pub mod dev {
 pub mod web {
     //! Various types
     use actix_http::{http::Method, Response};
-    use actix_rt::blocking;
     use futures::{Future, IntoFuture};
 
     pub use actix_http::Response as HttpResponse;
@@ -339,7 +338,7 @@ pub mod web {
         I: Send + 'static,
         E: Send + std::fmt::Debug + 'static,
     {
-        blocking::run(f).from_err()
+        actix_threadpool::run(f).from_err()
     }
 
     use actix_service::{fn_transform, Service, Transform};

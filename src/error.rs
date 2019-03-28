@@ -37,11 +37,11 @@ pub enum BlockingError<E: fmt::Debug> {
 
 impl<E: fmt::Debug> ResponseError for BlockingError<E> {}
 
-impl<E: fmt::Debug> From<actix_rt::blocking::BlockingError<E>> for BlockingError<E> {
-    fn from(err: actix_rt::blocking::BlockingError<E>) -> Self {
+impl<E: fmt::Debug> From<actix_threadpool::BlockingError<E>> for BlockingError<E> {
+    fn from(err: actix_threadpool::BlockingError<E>) -> Self {
         match err {
-            actix_rt::blocking::BlockingError::Error(e) => BlockingError::Error(e),
-            actix_rt::blocking::BlockingError::Canceled => BlockingError::Canceled,
+            actix_threadpool::BlockingError::Error(e) => BlockingError::Error(e),
+            actix_threadpool::BlockingError::Canceled => BlockingError::Canceled,
         }
     }
 }
