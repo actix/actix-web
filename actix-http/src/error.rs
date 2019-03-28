@@ -905,6 +905,20 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
     }
 
+    #[test]
+    fn test_payload_error() {
+        let err: PayloadError =
+            io::Error::new(io::ErrorKind::Other, "ParseError").into();
+        assert_eq!(format!("{}", err), "ParseError");
+        assert_eq!(format!("{}", err.cause().unwrap()), "ParseError");
+
+        let err = PayloadError::Incomplete;
+        assert_eq!(
+            format!("{}", err),
+            "A payload reached EOF, but is not complete."
+        );
+    }
+
     macro_rules! from {
         ($from:expr => $error:pat) => {
             match ParseError::from($from) {

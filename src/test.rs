@@ -49,11 +49,12 @@ where
 ///
 /// Note that this function is intended to be used only for testing purpose.
 /// This function panics on nested call.
-pub fn run_on<F, I, E>(f: F) -> Result<I, E>
+pub fn run_on<F, R>(f: F) -> R
 where
-    F: Fn() -> Result<I, E>,
+    F: Fn() -> R,
 {
-    RT.with(move |rt| rt.borrow_mut().block_on(lazy(f)))
+    RT.with(move |rt| rt.borrow_mut().block_on(lazy(|| Ok::<_, ()>(f()))))
+        .unwrap()
 }
 
 pub fn ok_service() -> impl Service<
