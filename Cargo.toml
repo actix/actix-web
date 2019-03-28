@@ -44,7 +44,7 @@ default = ["brotli", "flate2-zlib", "cookies", "client"]
 client = ["awc"]
 
 # brotli encoding, requires c compiler
-brotli = ["actix-http/brotli2"]
+brotli = ["actix-http/brotli"]
 
 # miniz-sys backend for flate2 crate
 flate2-zlib = ["actix-http/flate2-zlib"]

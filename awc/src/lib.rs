@@ -23,9 +23,8 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-pub use actix_http::http;
+pub use actix_http::{client::Connector, http};
 
-use actix_http::client::Connector;
 use actix_http::http::{HttpTryFrom, Method, Uri};
 use actix_http::RequestHead;
 
