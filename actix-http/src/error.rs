@@ -1,11 +1,11 @@
 //! Error and Result module
 use std::cell::RefCell;
-use std::io::Error as IoError;
 use std::str::Utf8Error;
 use std::string::FromUtf8Error;
 use std::{fmt, io, result};
 
 // use actix::MailboxError;
+pub use actix_threadpool::BlockingError;
 use actix_utils::timeout::TimeoutError;
 #[cfg(feature = "cookies")]
 use cookie;
@@ -126,6 +126,9 @@ impl ResponseError for DeError {
     }
 }
 
+/// `InternalServerError` for `BlockingError`
+impl<E: fmt::Debug> ResponseError for BlockingError<E> {}
+
 /// Return `BAD_REQUEST` for `Utf8Error`
 impl ResponseError for Utf8Error {
     fn error_response(&self) -> Response {
@@ -199,7 +202,7 @@ pub enum ParseError {
     /// An `io::Error` that occurred while trying to read or write to a network
     /// stream.
     #[display(fmt = "IO error: {}", _0)]
-    Io(IoError),
+    Io(io::Error),
     /// Parsing a field as string failed
     #[display(fmt = "UTF8 error: {}", _0)]
     Utf8(Utf8Error),
@@ -212,8 +215,8 @@ impl ResponseError for ParseError {
     }
 }
 
-impl From<IoError> for ParseError {
-    fn from(err: IoError) -> ParseError {
+impl From<io::Error> for ParseError {
+    fn from(err: io::Error) -> ParseError {
         ParseError::Io(err)
     }
 }
@@ -250,7 +253,7 @@ impl From<httparse::Error> for ParseError {
     }
 }
 
-#[derive(Display, Debug, From)]
+#[derive(Display, Debug)]
 /// A set of errors that can occur during payload parsing
 pub enum PayloadError {
     /// A payload reached EOF, but is not complete.
@@ -271,11 +274,38 @@ pub enum PayloadError {
     /// Http2 payload error
     #[display(fmt = "{}", _0)]
     Http2Payload(h2::Error),
+    /// Io error
+    #[display(fmt = "{}", _0)]
+    Io(io::Error),
+}
+
+impl From<h2::Error> for PayloadError {
+    fn from(err: h2::Error) -> Self {
+        PayloadError::Http2Payload(err)
+    }
+}
+
+impl From<Option<io::Error>> for PayloadError {
+    fn from(err: Option<io::Error>) -> Self {
+        PayloadError::Incomplete(err)
+    }
 }
 
 impl From<io::Error> for PayloadError {
     fn from(err: io::Error) -> Self {
         PayloadError::Incomplete(Some(err))
+    }
+}
+
+impl From<BlockingError<io::Error>> for PayloadError {
+    fn from(err: BlockingError<io::Error>) -> Self {
+        match err {
+            BlockingError::Error(e) => PayloadError::Io(e),
+            BlockingError::Canceled => PayloadError::Io(io::Error::new(
+                io::ErrorKind::Other,
+                "Thread pool is gone",
+            )),
+        }
     }
 }
 

@@ -70,7 +70,7 @@ where
 
     fn call(&mut self, req: ServiceRequest<P>) -> Self::Future {
         let (req, payload) = req.into_parts();
-        let payload = Decoder::from_headers(req.headers(), payload);
+        let payload = Decoder::from_headers(payload, req.headers());
         ok(ServiceRequest::from_parts(req, Payload::Stream(payload)))
     }
 }

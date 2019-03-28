@@ -53,6 +53,7 @@ actix-codec = "0.1.2"
 actix-connect = "0.1.0"
 actix-utils = "0.3.4"
 actix-server-config = "0.1.0"
+actix-threadpool = "0.1.0"
 
 base64 = "0.10"
 bitflags = "1.0"
@@ -94,7 +95,7 @@ failure = { version = "0.1.5", optional = true }
 openssl = { version="0.10", optional = true }
 
 [dev-dependencies]
-actix-rt = "0.2.1"
+actix-rt = "0.2.2"
 actix-server = { version = "0.4.0", features=["ssl"] }
 actix-connect = { version = "0.1.0", features=["ssl"] }
 actix-http-test = { path="../test-server", features=["ssl"] }

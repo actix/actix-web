@@ -1,27 +1,31 @@
 use std::io::{self, Write};
 
-use bytes::Bytes;
-use futures::{Async, Poll, Stream};
-
+use actix_threadpool::{run, CpuFuture};
 #[cfg(feature = "brotli")]
 use brotli2::write::BrotliDecoder;
+use bytes::Bytes;
 #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
 use flate2::write::{GzDecoder, ZlibDecoder};
+use futures::{try_ready, Async, Future, Poll, Stream};
 
 use super::Writer;
 use crate::error::PayloadError;
 use crate::http::header::{ContentEncoding, HeaderMap, CONTENT_ENCODING};
 
-pub struct Decoder<T> {
-    stream: T,
+pub struct Decoder<S> {
     decoder: Option<ContentDecoder>,
+    stream: S,
+    eof: bool,
+    fut: Option<CpuFuture<(Option<Bytes>, ContentDecoder), io::Error>>,
 }
 
-impl<T> Decoder<T>
+impl<S> Decoder<S>
 where
-    T: Stream<Item = Bytes, Error = PayloadError>,
+    S: Stream<Item = Bytes, Error = PayloadError>,
 {
-    pub fn new(stream: T, encoding: ContentEncoding) -> Self {
+    /// Construct a decoder.
+    #[inline]
+    pub fn new(stream: S, encoding: ContentEncoding) -> Decoder<S> {
         let decoder = match encoding {
             #[cfg(feature = "brotli")]
             ContentEncoding::Br => Some(ContentDecoder::Br(Box::new(
@@ -37,10 +41,17 @@ where
             ))),
             _ => None,
         };
-        Decoder { stream, decoder }
+        Decoder {
+            decoder,
+            stream,
+            fut: None,
+            eof: false,
+        }
     }
 
-    pub fn from_headers(headers: &HeaderMap, stream: T) -> Self {
+    /// Construct decoder based on headers.
+    #[inline]
+    pub fn from_headers(stream: S, headers: &HeaderMap) -> Decoder<S> {
         // check content-encoding
         let encoding = if let Some(enc) = headers.get(CONTENT_ENCODING) {
             if let Ok(enc) = enc.to_str() {
@@ -56,35 +67,50 @@ where
     }
 }
 
-impl<T> Stream for Decoder<T>
+impl<S> Stream for Decoder<S>
 where
-    T: Stream<Item = Bytes, Error = PayloadError>,
+    S: Stream<Item = Bytes, Error = PayloadError>,
 {
     type Item = Bytes;
     type Error = PayloadError;
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
         loop {
+            if let Some(ref mut fut) = self.fut {
+                let (chunk, decoder) = try_ready!(fut.poll());
+                self.decoder = Some(decoder);
+                self.fut.take();
+                if let Some(chunk) = chunk {
+                    return Ok(Async::Ready(Some(chunk)));
+                }
+            }
+
+            if self.eof {
+                return Ok(Async::Ready(None));
+            }
+
             match self.stream.poll()? {
                 Async::Ready(Some(chunk)) => {
-                    if let Some(ref mut decoder) = self.decoder {
-                        match decoder.feed_data(chunk) {
-                            Ok(Some(chunk)) => return Ok(Async::Ready(Some(chunk))),
-                            Ok(None) => continue,
-                            Err(e) => return Err(e.into()),
-                        }
+                    if let Some(mut decoder) = self.decoder.take() {
+                        self.fut = Some(run(move || {
+                            let chunk = decoder.feed_data(chunk)?;
+                            Ok((chunk, decoder))
+                        }));
+                        continue;
                     } else {
                         return Ok(Async::Ready(Some(chunk)));
                     }
                 }
                 Async::Ready(None) => {
-                    return if let Some(mut decoder) = self.decoder.take() {
-                        match decoder.feed_eof() {
-                            Ok(chunk) => Ok(Async::Ready(chunk)),
-                            Err(e) => Err(e.into()),
-                        }
+                    self.eof = true;
+                    if let Some(mut decoder) = self.decoder.take() {
+                        self.fut = Some(run(move || {
+                            let chunk = decoder.feed_eof()?;
+                            Ok((chunk, decoder))
+                        }));
+                        continue;
                     } else {
-                        Ok(Async::Ready(None))
+                        return Ok(Async::Ready(None));
                     };
                 }
                 Async::NotReady => break,

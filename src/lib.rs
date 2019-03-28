@@ -162,6 +162,7 @@ pub mod dev {
 pub mod web {
     //! Various types
     use actix_http::{http::Method, Response};
+    use actix_service::{fn_transform, Service, Transform};
     use futures::{Future, IntoFuture};
 
     pub use actix_http::Response as HttpResponse;
@@ -174,6 +175,7 @@ pub mod web {
     use crate::responder::Responder;
     use crate::route::Route;
     use crate::scope::Scope;
+    use crate::service::{ServiceRequest, ServiceResponse};
 
     pub use crate::data::{Data, RouteData};
     pub use crate::request::HttpRequest;
@@ -340,10 +342,6 @@ pub mod web {
     {
         actix_threadpool::run(f).from_err()
     }
-
-    use actix_service::{fn_transform, Service, Transform};
-
-    use crate::service::{ServiceRequest, ServiceResponse};
 
     /// Create middleare
     pub fn md<F, R, S, P, B>(

@@ -457,7 +457,7 @@ impl ClientRequest {
             .map(move |res| {
                 res.map_body(|head, payload| {
                     if response_decompress {
-                        Payload::Stream(Decoder::from_headers(&head.headers, payload))
+                        Payload::Stream(Decoder::from_headers(payload, &head.headers))
                     } else {
                         Payload::Stream(Decoder::new(payload, ContentEncoding::Identity))
                     }

@@ -1,6 +1,4 @@
 //! Error and Result module
-use std::fmt;
-
 pub use actix_http::error::*;
 use derive_more::{Display, From};
 use serde_json::error::Error as JsonError;
@@ -25,26 +23,6 @@ pub enum UrlGenerationError {
 
 /// `InternalServerError` for `UrlGeneratorError`
 impl ResponseError for UrlGenerationError {}
-
-/// Blocking operation execution error
-#[derive(Debug, Display)]
-pub enum BlockingError<E: fmt::Debug> {
-    #[display(fmt = "{:?}", _0)]
-    Error(E),
-    #[display(fmt = "Thread pool is gone")]
-    Canceled,
-}
-
-impl<E: fmt::Debug> ResponseError for BlockingError<E> {}
-
-impl<E: fmt::Debug> From<actix_threadpool::BlockingError<E>> for BlockingError<E> {
-    fn from(err: actix_threadpool::BlockingError<E>) -> Self {
-        match err {
-            actix_threadpool::BlockingError::Error(e) => BlockingError::Error(e),
-            actix_threadpool::BlockingError::Canceled => BlockingError::Canceled,
-        }
-    }
-}
 
 /// A set of errors that can occur during parsing urlencoded payloads
 #[derive(Debug, Display, From)]
