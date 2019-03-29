@@ -3,13 +3,11 @@ use std::fmt;
 use std::rc::Rc;
 
 use actix_http::client::{ConnectError, Connection, Connector};
-use actix_http::http::{
-    header::IntoHeaderValue, HeaderMap, HeaderName, HttpTryFrom, Uri,
-};
+use actix_http::http::{header, HeaderMap, HeaderName, HttpTryFrom, Uri};
 use actix_service::Service;
 
 use crate::connect::{Connect, ConnectorWrapper};
-use crate::Client;
+use crate::{Client, ClientConfig};
 
 /// An HTTP Client builder
 ///
@@ -77,7 +75,7 @@ impl ClientBuilder {
     where
         HeaderName: HttpTryFrom<K>,
         <HeaderName as HttpTryFrom<K>>::Error: fmt::Debug,
-        V: IntoHeaderValue,
+        V: header::IntoHeaderValue,
         V::Error: fmt::Debug,
     {
         match HeaderName::try_from(key) {
@@ -92,10 +90,85 @@ impl ClientBuilder {
         self
     }
 
+    /// Set client wide HTTP basic authorization header
+    pub fn basic_auth<U>(self, username: U, password: Option<&str>) -> Self
+    where
+        U: fmt::Display,
+    {
+        let auth = match password {
+            Some(password) => format!("{}:{}", username, password),
+            None => format!("{}", username),
+        };
+        self.header(
+            header::AUTHORIZATION,
+            format!("Basic {}", base64::encode(&auth)),
+        )
+    }
+
+    /// Set client wide HTTP bearer authentication header
+    pub fn bearer_auth<T>(self, token: T) -> Self
+    where
+        T: fmt::Display,
+    {
+        self.header(header::AUTHORIZATION, format!("Bearer {}", token))
+    }
+
     /// Finish build process and create `Client` instance.
     pub fn finish(self) -> Client {
         Client {
             connector: self.connector,
+            config: Rc::new(ClientConfig {
+                headers: self.headers,
+            }),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test;
+
+    #[test]
+    fn client_basic_auth() {
+        test::run_on(|| {
+            let client = ClientBuilder::new().basic_auth("username", Some("password"));
+            assert_eq!(
+                client
+                    .headers
+                    .get(header::AUTHORIZATION)
+                    .unwrap()
+                    .to_str()
+                    .unwrap(),
+                "Basic dXNlcm5hbWU6cGFzc3dvcmQ="
+            );
+
+            let client = ClientBuilder::new().basic_auth("username", None);
+            assert_eq!(
+                client
+                    .headers
+                    .get(header::AUTHORIZATION)
+                    .unwrap()
+                    .to_str()
+                    .unwrap(),
+                "Basic dXNlcm5hbWU="
+            );
+        });
+    }
+
+    #[test]
+    fn client_bearer_auth() {
+        test::run_on(|| {
+            let client = ClientBuilder::new().bearer_auth("someS3cr3tAutht0k3n");
+            assert_eq!(
+                client
+                    .headers
+                    .get(header::AUTHORIZATION)
+                    .unwrap()
+                    .to_str()
+                    .unwrap(),
+                "Bearer someS3cr3tAutht0k3n"
+            );
+        })
     }
 }

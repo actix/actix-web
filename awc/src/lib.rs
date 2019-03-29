@@ -25,7 +25,7 @@ use std::rc::Rc;
 
 pub use actix_http::{client::Connector, http};
 
-use actix_http::http::{HttpTryFrom, Method, Uri};
+use actix_http::http::{HeaderMap, HttpTryFrom, Method, Uri};
 use actix_http::RequestHead;
 
 mod builder;
@@ -68,6 +68,11 @@ use self::connect::{Connect, ConnectorWrapper};
 #[derive(Clone)]
 pub struct Client {
     pub(crate) connector: Rc<RefCell<dyn Connect>>,
+    pub(crate) config: Rc<ClientConfig>,
+}
+
+pub(crate) struct ClientConfig {
+    pub(crate) headers: HeaderMap,
 }
 
 impl Default for Client {
@@ -76,6 +81,9 @@ impl Default for Client {
             connector: Rc::new(RefCell::new(ConnectorWrapper(
                 Connector::new().service(),
             ))),
+            config: Rc::new(ClientConfig {
+                headers: HeaderMap::new(),
+            }),
         }
     }
 }
@@ -96,7 +104,12 @@ impl Client {
     where
         Uri: HttpTryFrom<U>,
     {
-        ClientRequest::new(method, url, self.connector.clone())
+        let mut req = ClientRequest::new(method, url, self.connector.clone());
+
+        for (key, value) in &self.config.headers {
+            req.head.headers.insert(key.clone(), value.clone());
+        }
+        req
     }
 
     /// Create `ClientRequest` from `RequestHead`
@@ -107,13 +120,10 @@ impl Client {
     where
         Uri: HttpTryFrom<U>,
     {
-        let mut req =
-            ClientRequest::new(head.method.clone(), url, self.connector.clone());
-
+        let mut req = self.request(head.method.clone(), url);
         for (key, value) in &head.headers {
             req.head.headers.insert(key.clone(), value.clone());
         }
-
         req
     }
 
@@ -121,55 +131,60 @@ impl Client {
     where
         Uri: HttpTryFrom<U>,
     {
-        ClientRequest::new(Method::GET, url, self.connector.clone())
+        self.request(Method::GET, url)
     }
 
     pub fn head<U>(&self, url: U) -> ClientRequest
     where
         Uri: HttpTryFrom<U>,
     {
-        ClientRequest::new(Method::HEAD, url, self.connector.clone())
+        self.request(Method::HEAD, url)
     }
 
     pub fn put<U>(&self, url: U) -> ClientRequest
     where
         Uri: HttpTryFrom<U>,
     {
-        ClientRequest::new(Method::PUT, url, self.connector.clone())
+        self.request(Method::PUT, url)
     }
 
     pub fn post<U>(&self, url: U) -> ClientRequest
     where
         Uri: HttpTryFrom<U>,
     {
-        ClientRequest::new(Method::POST, url, self.connector.clone())
+        self.request(Method::POST, url)
     }
 
     pub fn patch<U>(&self, url: U) -> ClientRequest
     where
         Uri: HttpTryFrom<U>,
     {
-        ClientRequest::new(Method::PATCH, url, self.connector.clone())
+        self.request(Method::PATCH, url)
     }
 
     pub fn delete<U>(&self, url: U) -> ClientRequest
     where
         Uri: HttpTryFrom<U>,
     {
-        ClientRequest::new(Method::DELETE, url, self.connector.clone())
+        self.request(Method::DELETE, url)
     }
 
     pub fn options<U>(&self, url: U) -> ClientRequest
     where
         Uri: HttpTryFrom<U>,
     {
-        ClientRequest::new(Method::OPTIONS, url, self.connector.clone())
+        self.request(Method::OPTIONS, url)
     }
 
     pub fn ws<U>(&self, url: U) -> WebsocketsRequest
     where
         Uri: HttpTryFrom<U>,
     {
-        WebsocketsRequest::new(url, self.connector.clone())
+        let mut req = WebsocketsRequest::new(url, self.connector.clone());
+
+        for (key, value) in &self.config.headers {
+            req.head.headers.insert(key.clone(), value.clone());
+        }
+        req
     }
 }

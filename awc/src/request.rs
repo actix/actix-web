@@ -241,10 +241,9 @@ impl ClientRequest {
     }
 
     /// Set HTTP basic authorization header
-    pub fn basic_auth<U, P>(self, username: U, password: Option<P>) -> Self
+    pub fn basic_auth<U>(self, username: U, password: Option<&str>) -> Self
     where
         U: fmt::Display,
-        P: fmt::Display,
     {
         let auth = match password {
             Some(password) => format!("{}:{}", username, password),
@@ -550,5 +549,110 @@ impl fmt::Debug for ClientRequest {
             writeln!(f, "    {:?}: {:?}", key, val)?;
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{test, Client};
+
+    #[test]
+    fn test_debug() {
+        test::run_on(|| {
+            let request = Client::new().get("/").header("x-test", "111");
+            let repr = format!("{:?}", request);
+            assert!(repr.contains("ClientRequest"));
+            assert!(repr.contains("x-test"));
+        })
+    }
+
+    #[test]
+    fn test_client_header() {
+        test::run_on(|| {
+            let req = Client::build()
+                .header(header::CONTENT_TYPE, "111")
+                .finish()
+                .get("/");
+
+            assert_eq!(
+                req.head
+                    .headers
+                    .get(header::CONTENT_TYPE)
+                    .unwrap()
+                    .to_str()
+                    .unwrap(),
+                "111"
+            );
+        })
+    }
+
+    #[test]
+    fn test_client_header_override() {
+        test::run_on(|| {
+            let req = Client::build()
+                .header(header::CONTENT_TYPE, "111")
+                .finish()
+                .get("/")
+                .set_header(header::CONTENT_TYPE, "222");
+
+            assert_eq!(
+                req.head
+                    .headers
+                    .get(header::CONTENT_TYPE)
+                    .unwrap()
+                    .to_str()
+                    .unwrap(),
+                "222"
+            );
+        })
+    }
+
+    #[test]
+    fn client_basic_auth() {
+        test::run_on(|| {
+            let client = Client::new()
+                .get("/")
+                .basic_auth("username", Some("password"));
+            assert_eq!(
+                client
+                    .head
+                    .headers
+                    .get(header::AUTHORIZATION)
+                    .unwrap()
+                    .to_str()
+                    .unwrap(),
+                "Basic dXNlcm5hbWU6cGFzc3dvcmQ="
+            );
+
+            let client = Client::new().get("/").basic_auth("username", None);
+            assert_eq!(
+                client
+                    .head
+                    .headers
+                    .get(header::AUTHORIZATION)
+                    .unwrap()
+                    .to_str()
+                    .unwrap(),
+                "Basic dXNlcm5hbWU="
+            );
+        });
+    }
+
+    #[test]
+    fn client_bearer_auth() {
+        test::run_on(|| {
+            let client = Client::new().get("/").bearer_auth("someS3cr3tAutht0k3n");
+            assert_eq!(
+                client
+                    .head
+                    .headers
+                    .get(header::AUTHORIZATION)
+                    .unwrap()
+                    .to_str()
+                    .unwrap(),
+                "Bearer someS3cr3tAutht0k3n"
+            );
+        })
     }
 }

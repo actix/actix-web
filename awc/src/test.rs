@@ -8,6 +8,25 @@ use cookie::{Cookie, CookieJar};
 
 use crate::ClientResponse;
 
+#[cfg(test)]
+thread_local! {
+    static RT: std::cell::RefCell<actix_rt::Runtime> = {
+        std::cell::RefCell::new(actix_rt::Runtime::new().unwrap())
+    };
+}
+
+#[cfg(test)]
+pub fn run_on<F, R>(f: F) -> R
+where
+    F: Fn() -> R,
+{
+    RT.with(move |rt| {
+        rt.borrow_mut()
+            .block_on(futures::future::lazy(|| Ok::<_, ()>(f())))
+    })
+    .unwrap()
+}
+
 /// Test `ClientResponse` builder
 pub struct TestResponse {
     head: ResponseHead,

@@ -23,7 +23,7 @@ use crate::response::ClientResponse;
 
 /// `WebSocket` connection
 pub struct WebsocketsRequest {
-    head: RequestHead,
+    pub(crate) head: RequestHead,
     err: Option<HttpError>,
     origin: Option<HeaderValue>,
     protocols: Option<String>,
