@@ -87,7 +87,7 @@ impl ClientBuilder {
         self
     }
 
-    /// Add default header. Headers adds byt this method
+    /// Add default header. Headers added by this method
     /// get added to every request.
     pub fn header<K, V>(mut self, key: K, value: V) -> Self
     where

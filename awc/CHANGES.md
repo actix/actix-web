@@ -1,16 +1,17 @@
 # Changes
 
-## [0.1.0-alpha.2] - 2019-03-xx
+## [0.1.0-alpha.2] - 2019-03-29
 
 ### Added
 
-* Request timeout.
-
-* Re-export `actix_http::client::Connector`.
+* Per request and session wide request timeout.
 
 * Session wide headers.
 
 * Session wide basic and bearer auth.
+
+* Re-export `actix_http::client::Connector`.
+
 
 ### Changed
 

@@ -1,6 +1,7 @@
 use std::fmt;
 use std::io::Write;
 use std::rc::Rc;
+use std::time::Duration;
 
 use bytes::{BufMut, Bytes, BytesMut};
 #[cfg(feature = "cookies")]
@@ -62,6 +63,7 @@ pub struct ClientRequest {
     cookies: Option<CookieJar>,
     default_headers: bool,
     response_decompress: bool,
+    timeout: Option<Duration>,
     config: Rc<ClientConfig>,
 }
 
@@ -86,6 +88,7 @@ impl ClientRequest {
             config,
             #[cfg(feature = "cookies")]
             cookies: None,
+            timeout: None,
             default_headers: true,
             response_decompress: true,
         }
@@ -309,6 +312,15 @@ impl ClientRequest {
         self
     }
 
+    /// Set request timeout. Overrides client wide timeout setting.
+    ///
+    /// Request timeout is the total time before a response must be received.
+    /// Default value is 5 seconds.
+    pub fn timeout(mut self, timeout: Duration) -> Self {
+        self.timeout = Some(timeout);
+        self
+    }
+
     /// This method calls provided closure with builder reference if
     /// value is `true`.
     pub fn if_true<F>(mut self, value: bool, f: F) -> Self
@@ -443,10 +455,10 @@ impl ClientRequest {
             }
         }
 
+        let config = slf.config;
         let response_decompress = slf.response_decompress;
 
-        let fut = slf
-            .config
+        let fut = config
             .connector
             .borrow_mut()
             .send_request(head, body.into())
@@ -461,7 +473,7 @@ impl ClientRequest {
             });
 
         // set request timeout
-        if let Some(timeout) = slf.config.timeout {
+        if let Some(timeout) = slf.timeout.or_else(|| config.timeout.clone()) {
             Either::B(Either::A(Timeout::new(fut, timeout).map_err(|e| {
                 if let Some(e) = e.into_inner() {
                     e

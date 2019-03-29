@@ -83,6 +83,32 @@ fn test_timeout() {
     }
 }
 
+#[test]
+fn test_timeout_override() {
+    let mut srv = TestServer::new(|| {
+        HttpService::new(App::new().service(web::resource("/").route(web::to_async(
+            || {
+                tokio_timer::sleep(Duration::from_millis(200))
+                    .then(|_| Ok::<_, Error>(HttpResponse::Ok().body(STR)))
+            },
+        ))))
+    });
+
+    let client = srv.execute(|| {
+        awc::Client::build()
+            .timeout(Duration::from_millis(50000))
+            .finish()
+    });
+    let request = client
+        .get(srv.url("/"))
+        .timeout(Duration::from_millis(50))
+        .send();
+    match srv.block_on(request) {
+        Err(SendRequestError::Timeout) => (),
+        _ => panic!(),
+    }
+}
+
 // #[test]
 // fn test_connection_close() {
 //     let mut srv =
