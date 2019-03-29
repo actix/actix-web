@@ -1,5 +1,4 @@
 //! Websockets client
-use std::cell::RefCell;
 use std::io::Write;
 use std::rc::Rc;
 use std::{fmt, str};
@@ -10,9 +9,10 @@ use bytes::{BufMut, BytesMut};
 #[cfg(feature = "cookies")]
 use cookie::{Cookie, CookieJar};
 use futures::future::{err, Either, Future};
+use tokio_timer::Timeout;
 
-use crate::connect::{BoxedSocket, Connect};
-use crate::error::{InvalidUrl, WsClientError};
+use crate::connect::BoxedSocket;
+use crate::error::{InvalidUrl, SendRequestError, WsClientError};
 use crate::http::header::{
     self, HeaderName, HeaderValue, IntoHeaderValue, AUTHORIZATION,
 };
@@ -20,6 +20,7 @@ use crate::http::{
     ConnectionType, Error as HttpError, HttpTryFrom, Method, StatusCode, Uri, Version,
 };
 use crate::response::ClientResponse;
+use crate::ClientConfig;
 
 /// `WebSocket` connection
 pub struct WebsocketsRequest {
@@ -32,12 +33,12 @@ pub struct WebsocketsRequest {
     default_headers: bool,
     #[cfg(feature = "cookies")]
     cookies: Option<CookieJar>,
-    connector: Rc<RefCell<dyn Connect>>,
+    config: Rc<ClientConfig>,
 }
 
 impl WebsocketsRequest {
     /// Create new websocket connection
-    pub(crate) fn new<U>(uri: U, connector: Rc<RefCell<dyn Connect>>) -> Self
+    pub(crate) fn new<U>(uri: U, config: Rc<ClientConfig>) -> Self
     where
         Uri: HttpTryFrom<U>,
     {
@@ -54,7 +55,7 @@ impl WebsocketsRequest {
         WebsocketsRequest {
             head,
             err,
-            connector,
+            config,
             origin: None,
             protocols: None,
             max_size: 65_536,
@@ -322,6 +323,7 @@ impl WebsocketsRequest {
         let server_mode = slf.server_mode;
 
         let fut = slf
+            .config
             .connector
             .borrow_mut()
             .open_tunnel(head)
@@ -393,6 +395,18 @@ impl WebsocketsRequest {
                     }),
                 ))
             });
-        Either::B(fut)
+
+        // set request timeout
+        if let Some(timeout) = slf.config.timeout {
+            Either::B(Either::A(Timeout::new(fut, timeout).map_err(|e| {
+                if let Some(e) = e.into_inner() {
+                    e
+                } else {
+                    SendRequestError::Timeout.into()
+                }
+            })))
+        } else {
+            Either::B(Either::B(fut))
+        }
     }
 }

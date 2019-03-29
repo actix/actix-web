@@ -1,4 +1,3 @@
-use std::cell::RefCell;
 use std::fmt;
 use std::io::Write;
 use std::rc::Rc;
@@ -10,6 +9,7 @@ use futures::future::{err, Either};
 use futures::{Future, Stream};
 use serde::Serialize;
 use serde_json;
+use tokio_timer::Timeout;
 
 use actix_http::body::{Body, BodyStream};
 use actix_http::encoding::Decoder;
@@ -20,9 +20,9 @@ use actix_http::http::{
 };
 use actix_http::{Error, Payload, RequestHead};
 
-use crate::connect::Connect;
 use crate::error::{InvalidUrl, PayloadError, SendRequestError};
 use crate::response::ClientResponse;
+use crate::ClientConfig;
 
 #[cfg(any(feature = "brotli", feature = "flate2-zlib", feature = "flate2-rust"))]
 const HTTPS_ENCODING: &str = "br, gzip, deflate";
@@ -62,16 +62,12 @@ pub struct ClientRequest {
     cookies: Option<CookieJar>,
     default_headers: bool,
     response_decompress: bool,
-    connector: Rc<RefCell<dyn Connect>>,
+    config: Rc<ClientConfig>,
 }
 
 impl ClientRequest {
     /// Create new client request builder.
-    pub(crate) fn new<U>(
-        method: Method,
-        uri: U,
-        connector: Rc<RefCell<dyn Connect>>,
-    ) -> Self
+    pub(crate) fn new<U>(method: Method, uri: U, config: Rc<ClientConfig>) -> Self
     where
         Uri: HttpTryFrom<U>,
     {
@@ -87,7 +83,7 @@ impl ClientRequest {
         ClientRequest {
             head,
             err,
-            connector,
+            config,
             #[cfg(feature = "cookies")]
             cookies: None,
             default_headers: true,
@@ -450,6 +446,7 @@ impl ClientRequest {
         let response_decompress = slf.response_decompress;
 
         let fut = slf
+            .config
             .connector
             .borrow_mut()
             .send_request(head, body.into())
@@ -462,7 +459,19 @@ impl ClientRequest {
                     }
                 })
             });
-        Either::B(fut)
+
+        // set request timeout
+        if let Some(timeout) = slf.config.timeout {
+            Either::B(Either::A(Timeout::new(fut, timeout).map_err(|e| {
+                if let Some(e) = e.into_inner() {
+                    e
+                } else {
+                    SendRequestError::Timeout
+                }
+            })))
+        } else {
+            Either::B(Either::B(fut))
+        }
     }
 
     /// Set a JSON body and generate `ClientRequest`

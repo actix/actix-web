@@ -1,12 +1,13 @@
 use std::cell::RefCell;
 use std::fmt;
 use std::rc::Rc;
+use std::time::Duration;
 
 use actix_http::client::{ConnectError, Connection, Connector};
 use actix_http::http::{header, HeaderMap, HeaderName, HttpTryFrom, Uri};
 use actix_service::Service;
 
-use crate::connect::{Connect, ConnectorWrapper};
+use crate::connect::ConnectorWrapper;
 use crate::{Client, ClientConfig};
 
 /// An HTTP Client builder
@@ -14,11 +15,10 @@ use crate::{Client, ClientConfig};
 /// This type can be used to construct an instance of `Client` through a
 /// builder-like pattern.
 pub struct ClientBuilder {
-    connector: Rc<RefCell<dyn Connect>>,
+    config: ClientConfig,
     default_headers: bool,
     allow_redirects: bool,
     max_redirects: usize,
-    headers: HeaderMap,
 }
 
 impl ClientBuilder {
@@ -27,10 +27,13 @@ impl ClientBuilder {
             default_headers: true,
             allow_redirects: true,
             max_redirects: 10,
-            headers: HeaderMap::new(),
-            connector: Rc::new(RefCell::new(ConnectorWrapper(
-                Connector::new().service(),
-            ))),
+            config: ClientConfig {
+                headers: HeaderMap::new(),
+                timeout: Some(Duration::from_secs(5)),
+                connector: RefCell::new(Box::new(ConnectorWrapper(
+                    Connector::new().service(),
+                ))),
+            },
         }
     }
 
@@ -42,7 +45,22 @@ impl ClientBuilder {
         <T::Response as Connection>::Future: 'static,
         T::Future: 'static,
     {
-        self.connector = Rc::new(RefCell::new(ConnectorWrapper(connector)));
+        self.config.connector = RefCell::new(Box::new(ConnectorWrapper(connector)));
+        self
+    }
+
+    /// Set request timeout
+    ///
+    /// Request timeout is the total time before a response must be received.
+    /// Default value is 5 seconds.
+    pub fn timeout(mut self, timeout: Duration) -> Self {
+        self.config.timeout = Some(timeout);
+        self
+    }
+
+    /// Disable request timeout.
+    pub fn disable_timeout(mut self) -> Self {
+        self.config.timeout = None;
         self
     }
 
@@ -81,7 +99,7 @@ impl ClientBuilder {
         match HeaderName::try_from(key) {
             Ok(key) => match value.try_into() {
                 Ok(value) => {
-                    self.headers.append(key, value);
+                    self.config.headers.append(key, value);
                 }
                 Err(e) => log::error!("Header value error: {:?}", e),
             },
@@ -115,12 +133,7 @@ impl ClientBuilder {
 
     /// Finish build process and create `Client` instance.
     pub fn finish(self) -> Client {
-        Client {
-            connector: self.connector,
-            config: Rc::new(ClientConfig {
-                headers: self.headers,
-            }),
-        }
+        Client(Rc::new(self.config))
     }
 }
 
@@ -135,6 +148,7 @@ mod tests {
             let client = ClientBuilder::new().basic_auth("username", Some("password"));
             assert_eq!(
                 client
+                    .config
                     .headers
                     .get(header::AUTHORIZATION)
                     .unwrap()
@@ -146,6 +160,7 @@ mod tests {
             let client = ClientBuilder::new().basic_auth("username", None);
             assert_eq!(
                 client
+                    .config
                     .headers
                     .get(header::AUTHORIZATION)
                     .unwrap()
@@ -162,6 +177,7 @@ mod tests {
             let client = ClientBuilder::new().bearer_auth("someS3cr3tAutht0k3n");
             assert_eq!(
                 client
+                    .config
                     .headers
                     .get(header::AUTHORIZATION)
                     .unwrap()

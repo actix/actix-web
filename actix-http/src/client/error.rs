@@ -105,6 +105,9 @@ pub enum SendRequestError {
     /// Http2 error
     #[display(fmt = "{}", _0)]
     H2(h2::Error),
+    /// Response took too long
+    #[display(fmt = "Timeout out while waiting for response")]
+    Timeout,
     /// Tunnels are not supported for http2 connection
     #[display(fmt = "Tunnels are not supported for http2 connection")]
     TunnelNotSupported,

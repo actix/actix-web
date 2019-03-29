@@ -4,11 +4,13 @@
 
 ### Added
 
-* Re-export `actix_http::client::Connector`
+* Request timeout.
 
-* Session wide headers
+* Re-export `actix_http::client::Connector`.
 
-* Session wide basic and bearer auth
+* Session wide headers.
+
+* Session wide basic and bearer auth.
 
 
 ## [0.1.0-alpha.1] - 2019-03-28

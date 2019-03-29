@@ -1,14 +1,17 @@
 use std::io::Write;
+use std::time::Duration;
 
 use brotli2::write::BrotliEncoder;
 use bytes::Bytes;
 use flate2::write::GzEncoder;
 use flate2::Compression;
+use futures::future::Future;
 use rand::Rng;
 
 use actix_http::HttpService;
 use actix_http_test::TestServer;
 use actix_web::{http::header, web, App, Error, HttpMessage, HttpRequest, HttpResponse};
+use awc::error::SendRequestError;
 
 const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
                    Hello World Hello World Hello World Hello World Hello World \
@@ -55,6 +58,29 @@ fn test_simple() {
     // read response
     let bytes = srv.block_on(response.body()).unwrap();
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
+}
+
+#[test]
+fn test_timeout() {
+    let mut srv = TestServer::new(|| {
+        HttpService::new(App::new().service(web::resource("/").route(web::to_async(
+            || {
+                tokio_timer::sleep(Duration::from_millis(200))
+                    .then(|_| Ok::<_, Error>(HttpResponse::Ok().body(STR)))
+            },
+        ))))
+    });
+
+    let client = srv.execute(|| {
+        awc::Client::build()
+            .timeout(Duration::from_millis(50))
+            .finish()
+    });
+    let request = client.get(srv.url("/")).send();
+    match srv.block_on(request) {
+        Err(SendRequestError::Timeout) => (),
+        _ => panic!(),
+    }
 }
 
 // #[test]

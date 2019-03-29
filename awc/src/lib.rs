@@ -22,6 +22,7 @@
 //! ```
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::time::Duration;
 
 pub use actix_http::{client::Connector, http};
 
@@ -66,25 +67,23 @@ use self::connect::{Connect, ConnectorWrapper};
 /// }
 /// ```
 #[derive(Clone)]
-pub struct Client {
-    pub(crate) connector: Rc<RefCell<dyn Connect>>,
-    pub(crate) config: Rc<ClientConfig>,
-}
+pub struct Client(Rc<ClientConfig>);
 
 pub(crate) struct ClientConfig {
+    pub(crate) connector: RefCell<Box<dyn Connect>>,
     pub(crate) headers: HeaderMap,
+    pub(crate) timeout: Option<Duration>,
 }
 
 impl Default for Client {
     fn default() -> Self {
-        Client {
-            connector: Rc::new(RefCell::new(ConnectorWrapper(
+        Client(Rc::new(ClientConfig {
+            connector: RefCell::new(Box::new(ConnectorWrapper(
                 Connector::new().service(),
             ))),
-            config: Rc::new(ClientConfig {
-                headers: HeaderMap::new(),
-            }),
-        }
+            headers: HeaderMap::new(),
+            timeout: Some(Duration::from_secs(5)),
+        }))
     }
 }
 
@@ -104,9 +103,9 @@ impl Client {
     where
         Uri: HttpTryFrom<U>,
     {
-        let mut req = ClientRequest::new(method, url, self.connector.clone());
+        let mut req = ClientRequest::new(method, url, self.0.clone());
 
-        for (key, value) in &self.config.headers {
+        for (key, value) in &self.0.headers {
             req.head.headers.insert(key.clone(), value.clone());
         }
         req
@@ -180,9 +179,8 @@ impl Client {
     where
         Uri: HttpTryFrom<U>,
     {
-        let mut req = WebsocketsRequest::new(url, self.connector.clone());
-
-        for (key, value) in &self.config.headers {
+        let mut req = WebsocketsRequest::new(url, self.0.clone());
+        for (key, value) in &self.0.headers {
             req.head.headers.insert(key.clone(), value.clone());
         }
         req
