@@ -4,7 +4,6 @@ use std::str::Utf8Error;
 use std::string::FromUtf8Error;
 use std::{fmt, io, result};
 
-// use actix::MailboxError;
 pub use actix_threadpool::BlockingError;
 use actix_utils::timeout::TimeoutError;
 #[cfg(feature = "cookies")]
@@ -167,9 +166,6 @@ impl ResponseError for header::InvalidHeaderValueBytes {
 
 /// `InternalServerError` for `futures::Canceled`
 impl ResponseError for Canceled {}
-
-// /// `InternalServerError` for `actix::MailboxError`
-// impl ResponseError for MailboxError {}
 
 /// A set of errors that can occur during parsing HTTP streams
 #[derive(Debug, Display)]
