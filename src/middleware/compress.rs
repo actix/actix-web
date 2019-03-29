@@ -6,7 +6,7 @@ use std::str::FromStr;
 use actix_http::body::MessageBody;
 use actix_http::encoding::Encoder;
 use actix_http::http::header::{ContentEncoding, ACCEPT_ENCODING};
-use actix_http::ResponseBuilder;
+use actix_http::{Response, ResponseBuilder};
 use actix_service::{Service, Transform};
 use futures::future::{ok, FutureResult};
 use futures::{Async, Future, Poll};
@@ -21,6 +21,13 @@ pub trait BodyEncoding {
 }
 
 impl BodyEncoding for ResponseBuilder {
+    fn encoding(&mut self, encoding: ContentEncoding) -> &mut Self {
+        self.extensions_mut().insert(Enc(encoding));
+        self
+    }
+}
+
+impl<B> BodyEncoding for Response<B> {
     fn encoding(&mut self, encoding: ContentEncoding) -> &mut Self {
         self.extensions_mut().insert(Enc(encoding));
         self
