@@ -234,6 +234,16 @@ impl<H: 'static> Writer for H2Writer<H> {
                 stream.reserve_capacity(cmp::min(self.buffer.len(), CHUNK_SIZE));
             }
 
+            if self.flags.contains(Flags::EOF)
+                && !self.flags.contains(Flags::RESERVED)
+                && self.buffer.is_empty()
+            {
+                if let Err(e) = stream.send_data(Bytes::new(), true) {
+                    return Err(io::Error::new(io::ErrorKind::Other, e));
+                }
+                return Ok(Async::Ready(()));
+            }
+
             loop {
                 match stream.poll_capacity() {
                     Ok(Async::NotReady) => return Ok(Async::NotReady),
