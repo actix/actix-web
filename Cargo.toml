@@ -35,7 +35,7 @@ members = [
 ]
 
 [package.metadata.docs.rs]
-features = ["ssl", "tls", "brotli", "flate2-zlib", "cookies", "client"]
+features = ["ssl", "tls", "brotli", "flate2-zlib", "cookies", "client", "rust-tls"]
 
 [features]
 default = ["brotli", "flate2-zlib", "cookies", "client"]
@@ -62,7 +62,7 @@ tls = ["native-tls", "actix-server/ssl"]
 ssl = ["openssl", "actix-server/ssl", "awc/ssl"]
 
 # rustls
-# rust-tls = ["rustls", "actix-server/rustls"]
+rust-tls = ["rustls", "actix-server/rust-tls"]
 
 [dependencies]
 actix-codec = "0.1.1"
@@ -100,7 +100,7 @@ cookie = { version="0.11", features=["secure", "percent-encode"], optional = tru
 # ssl support
 native-tls = { version="0.2", optional = true }
 openssl = { version="0.10", optional = true }
-# rustls = { version = "^0.15", optional = true }
+rustls = { version = "^0.15", optional = true }
 
 [dev-dependencies]
 actix-http = { path = "actix-http", features=["ssl", "brotli", "flate2-zlib"] }
@@ -111,6 +111,9 @@ serde_derive = "1.0"
 tokio-timer = "0.2.8"
 brotli2 = "0.3.2"
 flate2 = "1.0.2"
+
+[replace]
+"cookie:0.11.0" = { git = 'https://github.com/alexcrichton/cookie-rs.git' }
 
 [profile.release]
 lto = true

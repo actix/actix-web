@@ -73,25 +73,31 @@ impl ClientRequest {
     where
         Uri: HttpTryFrom<U>,
     {
-        let mut err = None;
-        let mut head = RequestHead::default();
-        head.method = method;
-
-        match Uri::try_from(uri) {
-            Ok(uri) => head.uri = uri,
-            Err(e) => err = Some(e.into()),
-        }
-
         ClientRequest {
-            head,
-            err,
             config,
+            head: RequestHead::default(),
+            err: None,
             #[cfg(feature = "cookies")]
             cookies: None,
             timeout: None,
             default_headers: true,
             response_decompress: true,
         }
+        .method(method)
+        .uri(uri)
+    }
+
+    /// Set HTTP URI of request.
+    #[inline]
+    pub fn uri<U>(mut self, uri: U) -> Self
+    where
+        Uri: HttpTryFrom<U>,
+    {
+        match Uri::try_from(uri) {
+            Ok(uri) => self.head.uri = uri,
+            Err(e) => self.err = Some(e.into()),
+        }
+        self
     }
 
     /// Set HTTP method of this request.
