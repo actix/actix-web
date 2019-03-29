@@ -3,7 +3,7 @@ use std::io::Write;
 use std::rc::Rc;
 use std::{fmt, str};
 
-use actix_codec::Framed;
+use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use actix_http::{ws, Payload, RequestHead};
 use bytes::{BufMut, BytesMut};
 #[cfg(feature = "cookies")]
@@ -13,7 +13,6 @@ use tokio_timer::Timeout;
 
 pub use actix_http::ws::{CloseCode, CloseReason, Frame, Message};
 
-use crate::connect::BoxedSocket;
 use crate::error::{InvalidUrl, SendRequestError, WsClientError};
 use crate::http::header::{
     self, HeaderName, HeaderValue, IntoHeaderValue, AUTHORIZATION,
@@ -214,7 +213,10 @@ impl WebsocketsRequest {
     pub fn connect(
         mut self,
     ) -> impl Future<
-        Item = (ClientResponse, Framed<BoxedSocket, ws::Codec>),
+        Item = (
+            ClientResponse,
+            Framed<impl AsyncRead + AsyncWrite, ws::Codec>,
+        ),
         Error = WsClientError,
     > {
         if let Some(e) = self.err.take() {
