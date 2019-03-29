@@ -39,7 +39,7 @@ pub struct Multipart {
 /// Multipart item
 pub enum MultipartItem {
     /// Multipart field
-    Field(Field),
+    Field(MultipartField),
     /// Nested multipart stream
     Nested(Multipart),
 }
@@ -402,12 +402,9 @@ impl InnerMultipart {
                 )?));
                 self.item = InnerMultipartItem::Field(Rc::clone(&field));
 
-                Ok(Async::Ready(Some(MultipartItem::Field(Field::new(
-                    safety.clone(),
-                    headers,
-                    mt,
-                    field,
-                )))))
+                Ok(Async::Ready(Some(MultipartItem::Field(
+                    MultipartField::new(safety.clone(), headers, mt, field),
+                ))))
             }
         }
     }
@@ -421,21 +418,21 @@ impl Drop for InnerMultipart {
 }
 
 /// A single field in a multipart stream
-pub struct Field {
+pub struct MultipartField {
     ct: mime::Mime,
     headers: HeaderMap,
     inner: Rc<RefCell<InnerField>>,
     safety: Safety,
 }
 
-impl Field {
+impl MultipartField {
     fn new(
         safety: Safety,
         headers: HeaderMap,
         ct: mime::Mime,
         inner: Rc<RefCell<InnerField>>,
     ) -> Self {
-        Field {
+        MultipartField {
             ct,
             headers,
             inner,
@@ -466,7 +463,7 @@ impl Field {
     }
 }
 
-impl Stream for Field {
+impl Stream for MultipartField {
     type Item = Bytes;
     type Error = MultipartError;
 
@@ -479,7 +476,7 @@ impl Stream for Field {
     }
 }
 
-impl fmt::Debug for Field {
+impl fmt::Debug for MultipartField {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         writeln!(f, "\nMultipartField: {}", self.ct)?;
         writeln!(f, "  boundary: {}", self.inner.borrow().boundary)?;
