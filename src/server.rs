@@ -11,11 +11,10 @@ use parking_lot::Mutex;
 
 use net2::TcpBuilder;
 
-// #[cfg(feature = "tls")]
-// use native_tls::TlsAcceptor;
-
 #[cfg(feature = "ssl")]
 use openssl::ssl::{SslAcceptor, SslAcceptorBuilder};
+#[cfg(feature = "rust-tls")]
+use rustls::ServerConfig as RustlsServerConfig;
 
 struct Socket {
     scheme: &'static str,
@@ -254,19 +253,6 @@ where
         Ok(self)
     }
 
-    // #[cfg(feature = "tls")]
-    // /// Use listener for accepting incoming tls connection requests
-    // ///
-    // /// HttpServer does not change any configuration for TcpListener,
-    // /// it needs to be configured before passing it to listen() method.
-    // pub fn listen_nativetls(self, lst: net::TcpListener, acceptor: TlsAcceptor) -> Self {
-    //     use actix_server::ssl;
-
-    //     self.listen_with(lst, move || {
-    //         ssl::NativeTlsAcceptor::new(acceptor.clone()).map_err(|_| ())
-    //     })
-    // }
-
     #[cfg(feature = "ssl")]
     /// Use listener for accepting incoming tls connection requests
     ///
@@ -294,7 +280,7 @@ where
         let addr = lst.local_addr().unwrap();
         self.sockets.push(Socket {
             addr,
-            scheme: "http",
+            scheme: "https",
         });
 
         self.builder = Some(self.builder.take().unwrap().listen(
@@ -320,12 +306,52 @@ where
     /// Use listener for accepting incoming tls connection requests
     ///
     /// This method sets alpn protocols to "h2" and "http/1.1"
-    pub fn listen_rustls(self, lst: net::TcpListener, config: ServerConfig) -> Self {
-        use super::{RustlsAcceptor, ServerFlags};
+    pub fn listen_rustls(
+        mut self,
+        lst: net::TcpListener,
+        config: RustlsServerConfig,
+    ) -> io::Result<Self> {
+        self.listen_rustls_inner(lst, config)?;
+        Ok(self)
+    }
 
-        self.listen_with(lst, move || {
-            RustlsAcceptor::with_flags(config.clone(), flags).map_err(|_| ())
-        })
+    #[cfg(feature = "rust-tls")]
+    fn listen_rustls_inner(
+        &mut self,
+        lst: net::TcpListener,
+        mut config: RustlsServerConfig,
+    ) -> io::Result<()> {
+        use actix_server::ssl::{RustlsAcceptor, SslError};
+
+        let protos = vec!["h2".to_string().into(), "http/1.1".to_string().into()];
+        config.set_protocols(&protos);
+
+        let acceptor = RustlsAcceptor::new(config);
+        let factory = self.factory.clone();
+        let cfg = self.config.clone();
+        let addr = lst.local_addr().unwrap();
+        self.sockets.push(Socket {
+            addr,
+            scheme: "https",
+        });
+
+        self.builder = Some(self.builder.take().unwrap().listen(
+            format!("actix-web-service-{}", addr),
+            lst,
+            move || {
+                let c = cfg.lock();
+                acceptor.clone().map_err(|e| SslError::Ssl(e)).and_then(
+                    HttpService::build()
+                        .keep_alive(c.keep_alive)
+                        .client_timeout(c.client_timeout)
+                        .client_disconnect(c.client_shutdown)
+                        .finish(factory())
+                        .map_err(|e| SslError::Service(e))
+                        .map_init_err(|_| ()),
+                )
+            },
+        )?);
+        Ok(())
     }
 
     /// The socket address to bind
@@ -372,22 +398,6 @@ where
         }
     }
 
-    // #[cfg(feature = "tls")]
-    // /// The ssl socket address to bind
-    // ///
-    // /// To bind multiple addresses this method can be called multiple times.
-    // pub fn bind_nativetls<A: net::ToSocketAddrs>(
-    //     self,
-    //     addr: A,
-    //     acceptor: TlsAcceptor,
-    // ) -> io::Result<Self> {
-    //     use actix_server::ssl::NativeTlsAcceptor;
-
-    //     self.bind_with(addr, move || {
-    //         NativeTlsAcceptor::new(acceptor.clone()).map_err(|_| ())
-    //     })
-    // }
-
     #[cfg(feature = "ssl")]
     /// Start listening for incoming tls connections.
     ///
@@ -415,16 +425,15 @@ where
     ///
     /// This method sets alpn protocols to "h2" and "http/1.1"
     pub fn bind_rustls<A: net::ToSocketAddrs>(
-        self,
+        mut self,
         addr: A,
-        builder: ServerConfig,
+        config: RustlsServerConfig,
     ) -> io::Result<Self> {
-        use super::{RustlsAcceptor, ServerFlags};
-        use actix_service::NewServiceExt;
-
-        self.bind_with(addr, move || {
-            RustlsAcceptor::with_flags(builder.clone(), flags).map_err(|_| ())
-        })
+        let sockets = self.bind2(addr)?;
+        for lst in sockets {
+            self.listen_rustls_inner(lst, config.clone())?;
+        }
+        Ok(self)
     }
 }
 

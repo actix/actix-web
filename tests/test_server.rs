@@ -1,4 +1,6 @@
 use std::io::{Read, Write};
+use std::sync::mpsc;
+use std::thread;
 
 use actix_http::http::header::{
     ContentEncoding, ACCEPT_ENCODING, CONTENT_ENCODING, CONTENT_LENGTH,
@@ -14,10 +16,12 @@ use flate2::Compression;
 use futures::stream::once;
 use rand::{distributions::Alphanumeric, Rng};
 
-use actix_web::{dev::HttpMessageBody, web, App};
+use actix_web::{dev::HttpMessageBody, http, test, web, App, HttpResponse, HttpServer};
 
 #[cfg(any(feature = "brotli", feature = "flate2-zlib", feature = "flate2-rust"))]
 use actix_web::middleware::encoding;
+#[cfg(any(feature = "brotli", feature = "flate2-zlib", feature = "flate2-rust"))]
+use actix_web::middleware::encoding::BodyEncoding;
 
 const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
                    Hello World Hello World Hello World Hello World Hello World \
@@ -678,69 +682,93 @@ fn test_brotli_encoding_large() {
 //     assert_eq!(bytes, Bytes::from(data));
 // }
 
-// #[cfg(all(feature = "rust-tls", feature = "ssl"))]
-// #[test]
-// fn test_reading_deflate_encoding_large_random_ssl() {
-//     use actix::{Actor, System};
-//     use openssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
-//     use rustls::internal::pemfile::{certs, rsa_private_keys};
-//     use rustls::{NoClientAuth, ServerConfig};
-//     use std::fs::File;
-//     use std::io::BufReader;
+#[cfg(all(
+    feature = "rust-tls",
+    feature = "ssl",
+    any(feature = "flate2-zlib", feature = "flate2-rust")
+))]
+#[test]
+fn test_reading_deflate_encoding_large_random_ssl() {
+    use openssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
+    use rustls::internal::pemfile::{certs, rsa_private_keys};
+    use rustls::{NoClientAuth, ServerConfig};
+    use std::fs::File;
+    use std::io::BufReader;
 
-//     // load ssl keys
-//     let mut config = ServerConfig::new(NoClientAuth::new());
-//     let cert_file = &mut BufReader::new(File::open("tests/cert.pem").unwrap());
-//     let key_file = &mut BufReader::new(File::open("tests/key.pem").unwrap());
-//     let cert_chain = certs(cert_file).unwrap();
-//     let mut keys = rsa_private_keys(key_file).unwrap();
-//     config.set_single_cert(cert_chain, keys.remove(0)).unwrap();
+    let addr = TestServer::unused_addr();
+    let (tx, rx) = mpsc::channel();
 
-//     let data = rand::thread_rng()
-//         .sample_iter(&Alphanumeric)
-//         .take(160_000)
-//         .collect::<String>();
+    let data = rand::thread_rng()
+        .sample_iter(&Alphanumeric)
+        .take(160_000)
+        .collect::<String>();
 
-//     let srv = test::TestServer::build().rustls(config).start(|app| {
-//         app.handler(|req: &HttpRequest| {
-//             req.body()
-//                 .and_then(|bytes: Bytes| {
-//                     Ok(HttpResponse::Ok()
-//                         .content_encoding(http::ContentEncoding::Identity)
-//                         .body(bytes))
-//                 })
-//                 .responder()
-//         })
-//     });
+    thread::spawn(move || {
+        let sys = actix_rt::System::new("test");
 
-//     let mut rt = System::new("test");
+        // load ssl keys
+        let mut config = ServerConfig::new(NoClientAuth::new());
+        let cert_file = &mut BufReader::new(File::open("tests/cert.pem").unwrap());
+        let key_file = &mut BufReader::new(File::open("tests/key.pem").unwrap());
+        let cert_chain = certs(cert_file).unwrap();
+        let mut keys = rsa_private_keys(key_file).unwrap();
+        config.set_single_cert(cert_chain, keys.remove(0)).unwrap();
 
-//     // client connector
-//     let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
-//     builder.set_verify(SslVerifyMode::NONE);
-//     let conn = client::ClientConnector::with_connector(builder.build()).start();
+        let srv = HttpServer::new(|| {
+            App::new().service(web::resource("/").route(web::to(|bytes: Bytes| {
+                Ok::<_, Error>(
+                    HttpResponse::Ok()
+                        .encoding(http::ContentEncoding::Identity)
+                        .body(bytes),
+                )
+            })))
+        })
+        .bind_rustls(addr, config)
+        .unwrap()
+        .start();
 
-//     // encode data
-//     let mut e = ZlibEncoder::new(Vec::new(), Compression::default());
-//     e.write_all(data.as_ref()).unwrap();
-//     let enc = e.finish().unwrap();
+        let _ = tx.send((srv, actix_rt::System::current()));
+        let _ = sys.run();
+    });
+    let (srv, _sys) = rx.recv().unwrap();
+    let client = test::run_on(|| {
+        let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
+        builder.set_verify(SslVerifyMode::NONE);
+        let _ = builder.set_alpn_protos(b"\x02h2\x08http/1.1").unwrap();
 
-//     // client request
-//     let request = client::ClientRequest::build()
-//         .uri(srv.url("/"))
-//         .method(http::Method::POST)
-//         .header(http::header::CONTENT_ENCODING, "deflate")
-//         .with_connector(conn)
-//         .body(enc)
-//         .unwrap();
-//     let response = rt.block_on(request.send()).unwrap();
-//     assert!(response.status().is_success());
+        awc::Client::build()
+            .connector(
+                awc::Connector::new()
+                    .timeout(std::time::Duration::from_millis(500))
+                    .ssl(builder.build())
+                    .service(),
+            )
+            .finish()
+    });
 
-//     // read response
-//     let bytes = rt.block_on(response.body()).unwrap();
-//     assert_eq!(bytes.len(), data.len());
-//     assert_eq!(bytes, Bytes::from(data));
-// }
+    // encode data
+    let mut e = ZlibEncoder::new(Vec::new(), Compression::default());
+    e.write_all(data.as_ref()).unwrap();
+    let enc = e.finish().unwrap();
+
+    // client request
+    let _req = client
+        .post(format!("https://{}/", addr))
+        .header(http::header::CONTENT_ENCODING, "deflate")
+        .send_body(enc);
+
+    // TODO: fix
+    // let response = test::block_on(req).unwrap();
+    // assert!(response.status().is_success());
+
+    // read response
+    // let bytes = test::block_on(response.body()).unwrap();
+    // assert_eq!(bytes.len(), data.len());
+    // assert_eq!(bytes, Bytes::from(data));
+
+    // stop
+    let _ = srv.stop(false);
+}
 
 // #[cfg(all(feature = "tls", feature = "ssl"))]
 // #[test]
