@@ -59,7 +59,7 @@ cookies = ["cookie", "actix-http/cookies"]
 tls = ["native-tls", "actix-server/ssl"]
 
 # openssl
-ssl = ["openssl", "actix-server/ssl"]
+ssl = ["openssl", "actix-server/ssl", "awc/ssl"]
 
 # rustls
 # rust-tls = ["rustls", "actix-server/rustls"]
