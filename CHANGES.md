@@ -1,6 +1,6 @@
 # Changes
 
-## [x.x.xx] - xxxx-xx-xx
+## [0.7.19] - 2019-03-29
 
 ### Added
 
@@ -21,6 +21,9 @@
 * Fix preflight CORS header compliance; refactor previous patch (#603). #717
 
 * Fix never-ending HTTP2 request when response is empty (#709). #737
+
+* Fix client payload decompression #674
+
 
 ## [0.7.18] - 2019-01-10
 

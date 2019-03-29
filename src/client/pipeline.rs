@@ -6,8 +6,8 @@ use std::time::{Duration, Instant};
 use std::{io, mem};
 use tokio_timer::Delay;
 
-use actix_inner::dev::Request;
 use actix::{Addr, SystemService};
+use actix_inner::dev::Request;
 
 use super::{
     ClientConnector, ClientConnectorError, ClientRequest, ClientResponse, Connect,
@@ -88,7 +88,8 @@ impl SendRequest {
     }
 
     pub(crate) fn with_connector(
-        req: ClientRequest, conn: Addr<ClientConnector>,
+        req: ClientRequest,
+        conn: Addr<ClientConnector>,
     ) -> SendRequest {
         SendRequest {
             req,
@@ -363,11 +364,11 @@ impl Pipeline {
                         if let Some(ref mut decompress) = self.decompress {
                             match decompress.feed_data(b) {
                                 Ok(Some(b)) => return Ok(Async::Ready(Some(b))),
-                                Ok(None) => return Ok(Async::NotReady),
+                                Ok(None) => continue,
                                 Err(ref err)
                                     if err.kind() == io::ErrorKind::WouldBlock =>
                                 {
-                                    continue
+                                    continue;
                                 }
                                 Err(err) => return Err(err.into()),
                             }
