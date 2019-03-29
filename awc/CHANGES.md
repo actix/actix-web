@@ -15,6 +15,8 @@
 
 ### Changed
 
+* Allow to override request's uri
+
 * Export `ws` sub-module with websockets related types
 
 
