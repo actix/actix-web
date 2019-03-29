@@ -37,9 +37,9 @@ fn main() -> std::io::Result<()> {
     HttpServer::new(
         || App::new().service(
               web::resource("/{id}/{name}/index.html")
-                .route(web::get().to(index)))
+                .route(web::get().to(index))))
         .bind("127.0.0.1:8080")?
-        .run();
+        .run()
 }
 ```
 
