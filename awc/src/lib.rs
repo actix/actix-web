@@ -35,12 +35,11 @@ pub mod error;
 mod request;
 mod response;
 pub mod test;
-mod ws;
+pub mod ws;
 
 pub use self::builder::ClientBuilder;
 pub use self::request::ClientRequest;
 pub use self::response::ClientResponse;
-pub use self::ws::WebsocketsRequest;
 
 use self::connect::{Connect, ConnectorWrapper};
 
@@ -126,6 +125,7 @@ impl Client {
         req
     }
 
+    /// Construct HTTP *GET* request.
     pub fn get<U>(&self, url: U) -> ClientRequest
     where
         Uri: HttpTryFrom<U>,
@@ -133,6 +133,7 @@ impl Client {
         self.request(Method::GET, url)
     }
 
+    /// Construct HTTP *HEAD* request.
     pub fn head<U>(&self, url: U) -> ClientRequest
     where
         Uri: HttpTryFrom<U>,
@@ -140,6 +141,7 @@ impl Client {
         self.request(Method::HEAD, url)
     }
 
+    /// Construct HTTP *PUT* request.
     pub fn put<U>(&self, url: U) -> ClientRequest
     where
         Uri: HttpTryFrom<U>,
@@ -147,6 +149,7 @@ impl Client {
         self.request(Method::PUT, url)
     }
 
+    /// Construct HTTP *POST* request.
     pub fn post<U>(&self, url: U) -> ClientRequest
     where
         Uri: HttpTryFrom<U>,
@@ -154,6 +157,7 @@ impl Client {
         self.request(Method::POST, url)
     }
 
+    /// Construct HTTP *PATCH* request.
     pub fn patch<U>(&self, url: U) -> ClientRequest
     where
         Uri: HttpTryFrom<U>,
@@ -161,6 +165,7 @@ impl Client {
         self.request(Method::PATCH, url)
     }
 
+    /// Construct HTTP *DELETE* request.
     pub fn delete<U>(&self, url: U) -> ClientRequest
     where
         Uri: HttpTryFrom<U>,
@@ -168,6 +173,7 @@ impl Client {
         self.request(Method::DELETE, url)
     }
 
+    /// Construct HTTP *OPTIONS* request.
     pub fn options<U>(&self, url: U) -> ClientRequest
     where
         Uri: HttpTryFrom<U>,
@@ -175,11 +181,12 @@ impl Client {
         self.request(Method::OPTIONS, url)
     }
 
-    pub fn ws<U>(&self, url: U) -> WebsocketsRequest
+    /// Construct WebSockets request.
+    pub fn ws<U>(&self, url: U) -> ws::WebsocketsRequest
     where
         Uri: HttpTryFrom<U>,
     {
-        let mut req = WebsocketsRequest::new(url, self.0.clone());
+        let mut req = ws::WebsocketsRequest::new(url, self.0.clone());
         for (key, value) in &self.0.headers {
             req.head.headers.insert(key.clone(), value.clone());
         }

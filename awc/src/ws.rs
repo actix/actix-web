@@ -11,6 +11,8 @@ use cookie::{Cookie, CookieJar};
 use futures::future::{err, Either, Future};
 use tokio_timer::Timeout;
 
+pub use actix_http::ws::{CloseCode, CloseReason, Frame, Message};
+
 use crate::connect::BoxedSocket;
 use crate::error::{InvalidUrl, SendRequestError, WsClientError};
 use crate::http::header::{
@@ -208,7 +210,7 @@ impl WebsocketsRequest {
         self.header(AUTHORIZATION, format!("Bearer {}", token))
     }
 
-    /// Complete request construction and connect.
+    /// Complete request construction and connect to a websockets server.
     pub fn connect(
         mut self,
     ) -> impl Future<
