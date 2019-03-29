@@ -12,6 +12,8 @@ use super::Writer;
 use crate::error::PayloadError;
 use crate::http::header::{ContentEncoding, HeaderMap, CONTENT_ENCODING};
 
+const INPLACE: usize = 2049;
+
 pub struct Decoder<S> {
     decoder: Option<ContentDecoder>,
     stream: S,
@@ -92,10 +94,18 @@ where
             match self.stream.poll()? {
                 Async::Ready(Some(chunk)) => {
                     if let Some(mut decoder) = self.decoder.take() {
-                        self.fut = Some(run(move || {
+                        if chunk.len() < INPLACE {
                             let chunk = decoder.feed_data(chunk)?;
-                            Ok((chunk, decoder))
-                        }));
+                            self.decoder = Some(decoder);
+                            if let Some(chunk) = chunk {
+                                return Ok(Async::Ready(Some(chunk)));
+                            }
+                        } else {
+                            self.fut = Some(run(move || {
+                                let chunk = decoder.feed_data(chunk)?;
+                                Ok((chunk, decoder))
+                            }));
+                        }
                         continue;
                     } else {
                         return Ok(Async::Ready(Some(chunk)));
@@ -103,14 +113,10 @@ where
                 }
                 Async::Ready(None) => {
                     self.eof = true;
-                    if let Some(mut decoder) = self.decoder.take() {
-                        self.fut = Some(run(move || {
-                            let chunk = decoder.feed_eof()?;
-                            Ok((chunk, decoder))
-                        }));
-                        continue;
+                    return if let Some(mut decoder) = self.decoder.take() {
+                        Ok(Async::Ready(decoder.feed_eof()?))
                     } else {
-                        return Ok(Async::Ready(None));
+                        Ok(Async::Ready(None))
                     };
                 }
                 Async::NotReady => break,
