@@ -56,6 +56,7 @@ where
         .unwrap()
 }
 
+/// Create service that always responds with `HttpResponse::Ok()`
 pub fn ok_service() -> impl Service<
     Request = ServiceRequest<PayloadStream>,
     Response = ServiceResponse<Body>,
@@ -64,6 +65,7 @@ pub fn ok_service() -> impl Service<
     default_service(StatusCode::OK)
 }
 
+/// Create service that responds with response with specified status code
 pub fn default_service(
     status_code: StatusCode,
 ) -> impl Service<

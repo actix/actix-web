@@ -42,6 +42,9 @@
 //!   represents an HTTP server instance and is used to instantiate and
 //!   configure servers.
 //!
+//! * [web](web/index.html): This module
+//!   provide essentials helper functions and types for application registration.
+//!
 //! * [HttpRequest](struct.HttpRequest.html) and
 //!   [HttpResponse](struct.HttpResponse.html): These structs
 //!   represent HTTP requests and responses and expose various methods
@@ -67,7 +70,7 @@
 //! * `tls` - enables ssl support via `native-tls` crate
 //! * `ssl` - enables ssl support via `openssl` crate, supports `http/2`
 //! * `rust-tls` - enables ssl support via `rustls` crate, supports `http/2`
-//! * `cookies` - enables cookies support, includes `ring` crate as
+//! * `secure-cookies` - enables secure cookies support, includes `ring` crate as
 //!   dependency
 //! * `brotli` - enables `brotli` compression support, requires `c`
 //!   compiler
@@ -98,6 +101,7 @@ mod server;
 mod service;
 pub mod test;
 mod types;
+pub mod web;
 
 #[allow(unused_imports)]
 #[macro_use]
@@ -156,213 +160,6 @@ pub mod dev {
             path.insert(0, '/');
         };
         path
-    }
-}
-
-pub mod web {
-    //! Various types
-    use actix_http::{http::Method, Response};
-    use actix_service::{fn_transform, Service, Transform};
-    use futures::{Future, IntoFuture};
-
-    pub use actix_http::Response as HttpResponse;
-    pub use bytes::{Bytes, BytesMut};
-
-    use crate::error::{BlockingError, Error};
-    use crate::extract::FromRequest;
-    use crate::handler::{AsyncFactory, Factory};
-    use crate::resource::Resource;
-    use crate::responder::Responder;
-    use crate::route::Route;
-    use crate::scope::Scope;
-    use crate::service::{ServiceRequest, ServiceResponse};
-
-    pub use crate::data::{Data, RouteData};
-    pub use crate::request::HttpRequest;
-    pub use crate::types::*;
-
-    /// Create resource for a specific path.
-    ///
-    /// Resources may have variable path segments. For example, a
-    /// resource with the path `/a/{name}/c` would match all incoming
-    /// requests with paths such as `/a/b/c`, `/a/1/c`, or `/a/etc/c`.
-    ///
-    /// A variable segment is specified in the form `{identifier}`,
-    /// where the identifier can be used later in a request handler to
-    /// access the matched value for that segment. This is done by
-    /// looking up the identifier in the `Params` object returned by
-    /// `HttpRequest.match_info()` method.
-    ///
-    /// By default, each segment matches the regular expression `[^{}/]+`.
-    ///
-    /// You can also specify a custom regex in the form `{identifier:regex}`:
-    ///
-    /// For instance, to route `GET`-requests on any route matching
-    /// `/users/{userid}/{friend}` and store `userid` and `friend` in
-    /// the exposed `Params` object:
-    ///
-    /// ```rust
-    /// # extern crate actix_web;
-    /// use actix_web::{web, http, App, HttpResponse};
-    ///
-    /// fn main() {
-    ///     let app = App::new().service(
-    ///         web::resource("/users/{userid}/{friend}")
-    ///             .route(web::get().to(|| HttpResponse::Ok()))
-    ///             .route(web::head().to(|| HttpResponse::MethodNotAllowed()))
-    ///     );
-    /// }
-    /// ```
-    pub fn resource<P: 'static>(path: &str) -> Resource<P> {
-        Resource::new(path)
-    }
-
-    /// Configure scope for common root path.
-    ///
-    /// Scopes collect multiple paths under a common path prefix.
-    /// Scope path can contain variable path segments as resources.
-    ///
-    /// ```rust
-    /// # extern crate actix_web;
-    /// use actix_web::{web, App, HttpRequest, HttpResponse};
-    ///
-    /// fn main() {
-    ///     let app = App::new().service(
-    ///         web::scope("/{project_id}")
-    ///             .service(web::resource("/path1").to(|| HttpResponse::Ok()))
-    ///             .service(web::resource("/path2").to(|| HttpResponse::Ok()))
-    ///             .service(web::resource("/path3").to(|| HttpResponse::MethodNotAllowed()))
-    ///     );
-    /// }
-    /// ```
-    ///
-    /// In the above example, three routes get added:
-    ///  * /{project_id}/path1
-    ///  * /{project_id}/path2
-    ///  * /{project_id}/path3
-    ///
-    pub fn scope<P: 'static>(path: &str) -> Scope<P> {
-        Scope::new(path)
-    }
-
-    /// Create *route* without configuration.
-    pub fn route<P: 'static>() -> Route<P> {
-        Route::new()
-    }
-
-    /// Create *route* with `GET` method guard.
-    pub fn get<P: 'static>() -> Route<P> {
-        Route::new().method(Method::GET)
-    }
-
-    /// Create *route* with `POST` method guard.
-    pub fn post<P: 'static>() -> Route<P> {
-        Route::new().method(Method::POST)
-    }
-
-    /// Create *route* with `PUT` method guard.
-    pub fn put<P: 'static>() -> Route<P> {
-        Route::new().method(Method::PUT)
-    }
-
-    /// Create *route* with `PATCH` method guard.
-    pub fn patch<P: 'static>() -> Route<P> {
-        Route::new().method(Method::PATCH)
-    }
-
-    /// Create *route* with `DELETE` method guard.
-    pub fn delete<P: 'static>() -> Route<P> {
-        Route::new().method(Method::DELETE)
-    }
-
-    /// Create *route* with `HEAD` method guard.
-    pub fn head<P: 'static>() -> Route<P> {
-        Route::new().method(Method::HEAD)
-    }
-
-    /// Create *route* and add method guard.
-    pub fn method<P: 'static>(method: Method) -> Route<P> {
-        Route::new().method(method)
-    }
-
-    /// Create a new route and add handler.
-    ///
-    /// ```rust
-    /// use actix_web::{web, App, HttpResponse};
-    ///
-    /// fn index() -> HttpResponse {
-    ///    unimplemented!()
-    /// }
-    ///
-    /// App::new().service(
-    ///     web::resource("/").route(
-    ///         web::to(index))
-    /// );
-    /// ```
-    pub fn to<F, I, R, P: 'static>(handler: F) -> Route<P>
-    where
-        F: Factory<I, R> + 'static,
-        I: FromRequest<P> + 'static,
-        R: Responder + 'static,
-    {
-        Route::new().to(handler)
-    }
-
-    /// Create a new route and add async handler.
-    ///
-    /// ```rust
-    /// use actix_web::{web, App, HttpResponse, Error};
-    ///
-    /// fn index() -> impl futures::Future<Item=HttpResponse, Error=Error> {
-    ///     futures::future::ok(HttpResponse::Ok().finish())
-    /// }
-    ///
-    /// App::new().service(web::resource("/").route(
-    ///     web::to_async(index))
-    /// );
-    /// ```
-    pub fn to_async<F, I, R, P: 'static>(handler: F) -> Route<P>
-    where
-        F: AsyncFactory<I, R>,
-        I: FromRequest<P> + 'static,
-        R: IntoFuture + 'static,
-        R::Item: Into<Response>,
-        R::Error: Into<Error>,
-    {
-        Route::new().to_async(handler)
-    }
-
-    /// Execute blocking function on a thread pool, returns future that resolves
-    /// to result of the function execution.
-    pub fn block<F, I, E>(f: F) -> impl Future<Item = I, Error = BlockingError<E>>
-    where
-        F: FnOnce() -> Result<I, E> + Send + 'static,
-        I: Send + 'static,
-        E: Send + std::fmt::Debug + 'static,
-    {
-        actix_threadpool::run(f).from_err()
-    }
-
-    /// Create middleare
-    pub fn md<F, R, S, P, B>(
-        f: F,
-    ) -> impl Transform<
-        S,
-        Request = ServiceRequest<P>,
-        Response = ServiceResponse<B>,
-        Error = Error,
-        InitError = (),
-    >
-    where
-        S: Service<
-            Request = ServiceRequest<P>,
-            Response = ServiceResponse<B>,
-            Error = Error,
-        >,
-        F: FnMut(ServiceRequest<P>, &mut S) -> R + Clone,
-        R: IntoFuture<Item = ServiceResponse<B>, Error = Error>,
-    {
-        fn_transform(f)
     }
 }
 

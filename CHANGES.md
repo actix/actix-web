@@ -1,5 +1,10 @@
 # Changes
 
+### Removed
+
+* Removed unused `actix_web::web::md()`
+
+
 ## [1.0.0-alpha.2] - 2019-03-29
 
 ### Added
