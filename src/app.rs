@@ -8,7 +8,7 @@ use actix_http::encoding::{Decoder, Encoder};
 use actix_server_config::ServerConfig;
 use actix_service::boxed::{self, BoxedNewService};
 use actix_service::{
-    ApplyTransform, IntoNewService, IntoTransform, NewService, Transform,
+    apply_transform, IntoNewService, IntoTransform, NewService, Transform,
 };
 #[cfg(any(feature = "brotli", feature = "flate2-zlib", feature = "flate2-rust"))]
 use bytes::Bytes;
@@ -138,7 +138,7 @@ where
         F: IntoTransform<M, AppRouting<Out>>,
     {
         let fref = Rc::new(RefCell::new(None));
-        let endpoint = ApplyTransform::new(mw, AppEntry::new(fref.clone()));
+        let endpoint = apply_transform(mw, AppEntry::new(fref.clone()));
         AppRouter {
             endpoint,
             chain: self.chain,
@@ -426,7 +426,7 @@ where
         B1: MessageBody,
         F: IntoTransform<M, T::Service>,
     {
-        let endpoint = ApplyTransform::new(mw, self.endpoint);
+        let endpoint = apply_transform(mw, self.endpoint);
         AppRouter {
             endpoint,
             chain: self.chain,
