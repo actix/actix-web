@@ -18,16 +18,13 @@ name = "awc"
 path = "src/lib.rs"
 
 [package.metadata.docs.rs]
-features = ["ssl", "brotli", "flate2-zlib", "cookies"]
+features = ["ssl", "brotli", "flate2-zlib"]
 
 [features]
-default = ["cookies", "brotli", "flate2-zlib"]
+default = ["brotli", "flate2-zlib"]
 
 # openssl
 ssl = ["openssl", "actix-http/ssl"]
-
-# cookies integration
-cookies = ["cookie", "actix-http/cookies"]
 
 # brotli encoding, requires c compiler
 brotli = ["actix-http/brotli"]
@@ -53,8 +50,6 @@ serde = "1.0"
 serde_json = "1.0"
 serde_urlencoded = "0.5.3"
 tokio-timer = "0.2.8"
-
-cookie = { version="0.11", features=["percent-encode"], optional = true }
 openssl = { version="0.10", optional = true }
 
 [dev-dependencies]

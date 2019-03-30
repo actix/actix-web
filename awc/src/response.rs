@@ -9,10 +9,8 @@ use actix_http::http::header::{CONTENT_LENGTH, SET_COOKIE};
 use actix_http::http::{HeaderMap, StatusCode, Version};
 use actix_http::{Extensions, HttpMessage, Payload, PayloadStream, ResponseHead};
 
-#[cfg(feature = "cookies")]
+use actix_http::cookie::Cookie;
 use actix_http::error::CookieParseError;
-#[cfg(feature = "cookies")]
-use cookie::Cookie;
 
 /// Client Response
 pub struct ClientResponse<S = PayloadStream> {
@@ -41,7 +39,6 @@ impl<S> HttpMessage for ClientResponse<S> {
 
     /// Load request cookies.
     #[inline]
-    #[cfg(feature = "cookies")]
     fn cookies(&self) -> Result<Ref<Vec<Cookie<'static>>>, CookieParseError> {
         struct Cookies(Vec<Cookie<'static>>);
 

@@ -21,13 +21,13 @@ path = "src/lib.rs"
 default = ["cookie-session"]
 
 # sessions feature, session require "ring" crate and c compiler
-cookie-session = ["cookie/secure"]
+cookie-session = ["actix-web/secure-cookies"]
 
 [dependencies]
-actix-web = "1.0.0-alpha.1"
+#actix-web = "1.0.0-alpha.1"
+actix-web = { path = ".." }
 actix-service = "0.3.3"
 bytes = "0.4"
-cookie = { version="0.11", features=["percent-encode"], optional=true }
 derive_more = "0.14"
 futures = "0.1.25"
 hashbrown = "0.1.8"

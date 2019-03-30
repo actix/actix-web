@@ -1,11 +1,8 @@
 use actix_service::NewService;
-use bytes::{Bytes, BytesMut};
+use bytes::Bytes;
 use futures::future::{self, ok};
-use futures::{Future, Stream};
 
-use actix_http::{
-    error::PayloadError, http, HttpMessage, HttpService, Request, Response,
-};
+use actix_http::{http, HttpService, Request, Response};
 use actix_http_test::TestServer;
 
 const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
@@ -29,16 +26,6 @@ const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
                    Hello World Hello World Hello World Hello World Hello World \
                    Hello World Hello World Hello World Hello World Hello World \
                    Hello World Hello World Hello World Hello World Hello World";
-
-fn load_body<S>(stream: S) -> impl Future<Item = BytesMut, Error = PayloadError>
-where
-    S: Stream<Item = Bytes, Error = PayloadError>,
-{
-    stream.fold(BytesMut::new(), move |mut body, chunk| {
-        body.extend_from_slice(&chunk);
-        Ok::<_, PayloadError>(body)
-    })
-}
 
 #[test]
 fn test_h1_v2() {

@@ -17,17 +17,14 @@ edition = "2018"
 workspace = ".."
 
 [package.metadata.docs.rs]
-features = ["session"]
+features = []
 
 [lib]
 name = "actix_http_test"
 path = "src/lib.rs"
 
 [features]
-default = ["session"]
-
-# sessions feature, session require "ring" crate and c compiler
-session = ["cookie/secure"]
+default = []
 
 # openssl
 ssl = ["openssl", "actix-server/ssl", "awc/ssl"]
@@ -42,7 +39,6 @@ awc = { path = "../awc" }
 
 base64 = "0.10"
 bytes = "0.4"
-cookie = { version="0.11", features=["percent-encode"] }
 futures = "0.1"
 http = "0.1.8"
 log = "0.4"
@@ -60,4 +56,5 @@ tokio-timer = "0.2"
 openssl = { version="0.10", optional = true }
 
 [dev-dependencies]
-actix-web = "1.0.0-alpha.1"
+actix-web = { path = ".." }
+actix-http = { path = "../actix-http" }

@@ -1,14 +1,15 @@
 //! Websockets client
+use std::fmt::Write as FmtWrite;
 use std::io::Write;
 use std::rc::Rc;
 use std::{fmt, str};
 
 use actix_codec::Framed;
+use actix_http::cookie::{Cookie, CookieJar};
 use actix_http::{ws, Payload, RequestHead};
 use bytes::{BufMut, BytesMut};
-#[cfg(feature = "cookies")]
-use cookie::{Cookie, CookieJar};
 use futures::future::{err, Either, Future};
+use percent_encoding::{percent_encode, USERINFO_ENCODE_SET};
 use tokio_timer::Timeout;
 
 pub use actix_http::ws::{CloseCode, CloseReason, Codec, Frame, Message};
@@ -33,7 +34,6 @@ pub struct WebsocketsRequest {
     max_size: usize,
     server_mode: bool,
     default_headers: bool,
-    #[cfg(feature = "cookies")]
     cookies: Option<CookieJar>,
     config: Rc<ClientConfig>,
 }
@@ -62,7 +62,6 @@ impl WebsocketsRequest {
             protocols: None,
             max_size: 65_536,
             server_mode: false,
-            #[cfg(feature = "cookies")]
             cookies: None,
             default_headers: true,
         }
@@ -82,7 +81,6 @@ impl WebsocketsRequest {
         self
     }
 
-    #[cfg(feature = "cookies")]
     /// Set a cookie
     pub fn cookie<'c>(mut self, cookie: Cookie<'c>) -> Self {
         if self.cookies.is_none() {
@@ -264,28 +262,20 @@ impl WebsocketsRequest {
             self
         };
 
-        #[allow(unused_mut)]
         let mut head = slf.head;
 
-        #[cfg(feature = "cookies")]
-        {
-            use percent_encoding::{percent_encode, USERINFO_ENCODE_SET};
-            use std::fmt::Write;
-
-            // set cookies
-            if let Some(ref mut jar) = slf.cookies {
-                let mut cookie = String::new();
-                for c in jar.delta() {
-                    let name = percent_encode(c.name().as_bytes(), USERINFO_ENCODE_SET);
-                    let value =
-                        percent_encode(c.value().as_bytes(), USERINFO_ENCODE_SET);
-                    let _ = write!(&mut cookie, "; {}={}", name, value);
-                }
-                head.headers.insert(
-                    header::COOKIE,
-                    HeaderValue::from_str(&cookie.as_str()[2..]).unwrap(),
-                );
+        // set cookies
+        if let Some(ref mut jar) = slf.cookies {
+            let mut cookie = String::new();
+            for c in jar.delta() {
+                let name = percent_encode(c.name().as_bytes(), USERINFO_ENCODE_SET);
+                let value = percent_encode(c.value().as_bytes(), USERINFO_ENCODE_SET);
+                let _ = write!(&mut cookie, "; {}={}", name, value);
             }
+            head.headers.insert(
+                header::COOKIE,
+                HeaderValue::from_str(&cookie.as_str()[2..]).unwrap(),
+            );
         }
 
         // origin

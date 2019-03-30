@@ -23,7 +23,7 @@ use net2::TcpBuilder;
 /// use actix_http::HttpService;
 /// use actix_http_test::TestServer;
 /// use actix_web::{web, App, HttpResponse};
-/// #
+///
 /// fn my_handler() -> HttpResponse {
 ///     HttpResponse::Ok().into()
 /// }

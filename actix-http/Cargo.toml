@@ -16,7 +16,7 @@ edition = "2018"
 workspace = ".."
 
 [package.metadata.docs.rs]
-features = ["ssl", "fail", "cookie", "brotli", "flate2-zlib"]
+features = ["ssl", "fail", "brotli", "flate2-zlib", "secure-cookies"]
 
 [badges]
 travis-ci = { repository = "actix/actix-web", branch = "master" }
@@ -32,9 +32,6 @@ default = []
 # openssl
 ssl = ["openssl", "actix-connect/ssl"]
 
-# cookies integration
-cookies = ["cookie"]
-
 # brotli encoding, requires c compiler
 brotli = ["brotli2"]
 
@@ -46,6 +43,9 @@ flate2-rust = ["flate2/rust_backend"]
 
 # failure integration. actix does not use failure anymore
 fail = ["failure"]
+
+# support for secure cookies
+secure-cookies = ["ring"]
 
 [dependencies]
 actix-service = "0.3.4"
@@ -85,12 +85,14 @@ tokio-timer = "0.2"
 tokio-current-thread = "0.1"
 trust-dns-resolver = { version="0.11.0-alpha.2", default-features = false }
 
+# for secure cookie
+ring = { version = "0.14.6", optional = true }
+
 # compression
 brotli2 = { version="^0.3.2", optional = true }
 flate2 = { version="^1.0.2", optional = true, default-features = false }
 
 # optional deps
-cookie = { version="0.11", features=["percent-encode"], optional = true }
 failure = { version = "0.1.5", optional = true }
 openssl = { version="0.10", optional = true }
 

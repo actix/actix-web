@@ -6,8 +6,6 @@ use std::{fmt, io, result};
 
 pub use actix_threadpool::BlockingError;
 use actix_utils::timeout::TimeoutError;
-#[cfg(feature = "cookies")]
-use cookie;
 use derive_more::{Display, From};
 use futures::Canceled;
 use http::uri::InvalidUri;
@@ -19,8 +17,7 @@ use serde_urlencoded::ser::Error as FormError;
 use tokio_timer::Error as TimerError;
 
 // re-export for convinience
-#[cfg(feature = "cookies")]
-pub use cookie::ParseError as CookieParseError;
+pub use crate::cookie::ParseError as CookieParseError;
 
 use crate::body::Body;
 use crate::response::Response;
@@ -79,7 +76,7 @@ impl fmt::Display for Error {
 
 impl fmt::Debug for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}\n", &self.cause)
+        writeln!(f, "{:?}", &self.cause)
     }
 }
 
@@ -319,8 +316,7 @@ impl ResponseError for PayloadError {
 }
 
 /// Return `BadRequest` for `cookie::ParseError`
-#[cfg(feature = "cookies")]
-impl ResponseError for cookie::ParseError {
+impl ResponseError for crate::cookie::ParseError {
     fn error_response(&self) -> Response {
         Response::new(StatusCode::BAD_REQUEST)
     }
@@ -895,10 +891,8 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
     }
 
-    #[cfg(feature = "cookies")]
     #[test]
     fn test_cookie_parse() {
-        use cookie::ParseError as CookieParseError;
         let resp: Response = CookieParseError::EmptyName.error_response();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
     }

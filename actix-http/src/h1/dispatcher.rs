@@ -525,7 +525,7 @@ where
             // keep-alive and stream errors
             if inner.state.is_empty() && inner.framed.is_write_buf_empty() {
                 if let Some(err) = inner.error.take() {
-                    return Err(err);
+                    Err(err)
                 }
                 // disconnect if keep-alive is not enabled
                 else if inner.flags.contains(Flags::STARTED)
@@ -538,10 +538,10 @@ where
                 else if inner.flags.contains(Flags::SHUTDOWN) {
                     self.poll()
                 } else {
-                    return Ok(Async::NotReady);
+                    Ok(Async::NotReady)
                 }
             } else {
-                return Ok(Async::NotReady);
+                Ok(Async::NotReady)
             }
         }
     }

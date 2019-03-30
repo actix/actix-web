@@ -220,7 +220,7 @@ where
                     Ok(Async::NotReady) => Ok(Async::NotReady),
                     Err(err) => {
                         trace!("H2 handshake error: {}", err);
-                        return Err(err.into());
+                        Err(err.into())
                     }
                 }
             }

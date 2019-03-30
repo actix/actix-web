@@ -1,9 +1,5 @@
 //! Basic http primitives for actix-net framework.
-#![allow(
-    clippy::type_complexity,
-    clippy::new_without_default,
-    clippy::new_without_default_derive
-)]
+#![allow(clippy::type_complexity, clippy::new_without_default)]
 
 #[macro_use]
 extern crate log;
@@ -24,6 +20,7 @@ mod request;
 mod response;
 mod service;
 
+pub mod cookie;
 pub mod error;
 pub mod h1;
 pub mod h2;
@@ -46,16 +43,11 @@ pub mod http {
 
     // re-exports
     pub use http::header::{HeaderName, HeaderValue};
+    pub use http::uri::PathAndQuery;
+    pub use http::{uri, Error, HeaderMap, HttpTryFrom, Uri};
     pub use http::{Method, StatusCode, Version};
 
-    #[doc(hidden)]
-    pub use http::{uri, Error, HeaderMap, HttpTryFrom, Uri};
-
-    #[doc(hidden)]
-    pub use http::uri::PathAndQuery;
-
-    #[cfg(feature = "cookies")]
-    pub use cookie::{Cookie, CookieBuilder};
+    pub use crate::cookie::{Cookie, CookieBuilder};
 
     /// Various http headers
     pub mod header {

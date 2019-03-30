@@ -51,11 +51,11 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use actix_service::{Service, Transform};
-use cookie::{Cookie, CookieJar, Key, SameSite};
 use futures::future::{ok, Either, FutureResult};
 use futures::{Future, IntoFuture, Poll};
 use time::Duration;
 
+use crate::cookie::{Cookie, CookieJar, Key, SameSite};
 use crate::error::{Error, Result};
 use crate::http::header::{self, HeaderValue};
 use crate::request::HttpRequest;

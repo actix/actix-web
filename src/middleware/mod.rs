@@ -18,5 +18,5 @@ mod logger;
 pub use self::defaultheaders::DefaultHeaders;
 pub use self::logger::Logger;
 
-#[cfg(feature = "cookies")]
+#[cfg(feature = "secure-cookies")]
 pub mod identity;

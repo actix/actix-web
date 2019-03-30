@@ -24,7 +24,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Duration;
 
-pub use actix_http::{client::Connector, http};
+pub use actix_http::{client::Connector, cookie, http};
 
 use actix_http::http::{HeaderMap, HttpTryFrom, Method, Uri};
 use actix_http::RequestHead;

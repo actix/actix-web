@@ -1,12 +1,13 @@
 //! Test Various helpers for Actix applications to use during testing.
+use std::fmt::Write as FmtWrite;
 use std::str::FromStr;
 
 use bytes::Bytes;
-#[cfg(feature = "cookies")]
-use cookie::{Cookie, CookieJar};
-use http::header::HeaderName;
+use http::header::{self, HeaderName, HeaderValue};
 use http::{HeaderMap, HttpTryFrom, Method, Uri, Version};
+use percent_encoding::{percent_encode, USERINFO_ENCODE_SET};
 
+use crate::cookie::{Cookie, CookieJar};
 use crate::header::{Header, IntoHeaderValue};
 use crate::payload::Payload;
 use crate::Request;
@@ -45,7 +46,6 @@ struct Inner {
     method: Method,
     uri: Uri,
     headers: HeaderMap,
-    #[cfg(feature = "cookies")]
     cookies: CookieJar,
     payload: Option<Payload>,
 }
@@ -57,7 +57,6 @@ impl Default for TestRequest {
             uri: Uri::from_str("/").unwrap(),
             version: Version::HTTP_11,
             headers: HeaderMap::new(),
-            #[cfg(feature = "cookies")]
             cookies: CookieJar::new(),
             payload: None,
         }))
@@ -127,7 +126,6 @@ impl TestRequest {
     }
 
     /// Set cookie for this request
-    #[cfg(feature = "cookies")]
     pub fn cookie<'a>(&mut self, cookie: Cookie<'a>) -> &mut Self {
         parts(&mut self.0).cookies.add(cookie.into_owned());
         self
@@ -161,25 +159,17 @@ impl TestRequest {
         head.version = inner.version;
         head.headers = inner.headers;
 
-        #[cfg(feature = "cookies")]
-        {
-            use std::fmt::Write as FmtWrite;
-
-            use http::header::{self, HeaderValue};
-            use percent_encoding::{percent_encode, USERINFO_ENCODE_SET};
-
-            let mut cookie = String::new();
-            for c in inner.cookies.delta() {
-                let name = percent_encode(c.name().as_bytes(), USERINFO_ENCODE_SET);
-                let value = percent_encode(c.value().as_bytes(), USERINFO_ENCODE_SET);
-                let _ = write!(&mut cookie, "; {}={}", name, value);
-            }
-            if !cookie.is_empty() {
-                head.headers.insert(
-                    header::COOKIE,
-                    HeaderValue::from_str(&cookie.as_str()[2..]).unwrap(),
-                );
-            }
+        let mut cookie = String::new();
+        for c in inner.cookies.delta() {
+            let name = percent_encode(c.name().as_bytes(), USERINFO_ENCODE_SET);
+            let value = percent_encode(c.value().as_bytes(), USERINFO_ENCODE_SET);
+            let _ = write!(&mut cookie, "; {}={}", name, value);
+        }
+        if !cookie.is_empty() {
+            head.headers.insert(
+                header::COOKIE,
+                HeaderValue::from_str(&cookie.as_str()[2..]).unwrap(),
+            );
         }
 
         req

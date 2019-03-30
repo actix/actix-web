@@ -2,6 +2,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use actix_http::cookie::Cookie;
 use actix_http::http::header::{Header, HeaderName, IntoHeaderValue};
 use actix_http::http::{HttpTryFrom, Method, StatusCode, Version};
 use actix_http::test::TestRequest as HttpTestRequest;
@@ -11,8 +12,6 @@ use actix_rt::Runtime;
 use actix_server_config::ServerConfig;
 use actix_service::{FnService, IntoNewService, NewService, Service};
 use bytes::Bytes;
-#[cfg(feature = "cookies")]
-use cookie::Cookie;
 use futures::future::{lazy, Future};
 
 use crate::config::{AppConfig, AppConfigInner};
@@ -285,7 +284,6 @@ impl TestRequest {
         self
     }
 
-    #[cfg(feature = "cookies")]
     /// Set cookie for this request
     pub fn cookie(mut self, cookie: Cookie) -> Self {
         self.req.cookie(cookie);

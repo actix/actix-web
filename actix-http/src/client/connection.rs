@@ -184,11 +184,11 @@ where
         match self {
             EitherConnection::A(con) => Box::new(
                 con.open_tunnel(head)
-                    .map(|(head, framed)| (head, framed.map_io(|io| EitherIo::A(io)))),
+                    .map(|(head, framed)| (head, framed.map_io(EitherIo::A))),
             ),
             EitherConnection::B(con) => Box::new(
                 con.open_tunnel(head)
-                    .map(|(head, framed)| (head, framed.map_io(|io| EitherIo::B(io)))),
+                    .map(|(head, framed)| (head, framed.map_io(EitherIo::B))),
             ),
         }
     }
