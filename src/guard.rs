@@ -19,7 +19,7 @@
 //!     App::new().service(web::resource("/index.html").route(
 //!         web::route()
 //!              .guard(guard::Post())
-//!              .guard(|head: &dev::RequestHead| head.method == http::Method::GET)
+//!              .guard(guard::fn_guard(|head| head.method == http::Method::GET))
 //!              .to(|| HttpResponse::MethodNotAllowed()))
 //!     );
 //! }

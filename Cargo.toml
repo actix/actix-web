@@ -72,7 +72,7 @@ actix-router = "0.1.0"
 actix-rt = "0.2.2"
 actix-web-codegen = "0.1.0-alpha.1"
 actix-http = { version = "0.1.0-alpha.2", features=["fail"] }
-actix-server = "0.4.1"
+actix-server = "0.4.2"
 actix-server-config = "0.1.0"
 actix-threadpool = "0.1.0"
 awc = { version = "0.1.0-alpha.2", optional = true }
