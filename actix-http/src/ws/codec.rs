@@ -18,6 +18,8 @@ pub enum Message {
     Pong(String),
     /// Close message with optional reason
     Close(Option<CloseReason>),
+    /// No-op. Useful for actix-net services
+    Nop,
 }
 
 /// `WebSocket` frame
@@ -87,6 +89,7 @@ impl Encoder for Codec {
                 Parser::write_message(dst, txt, OpCode::Pong, true, !self.server)
             }
             Message::Close(reason) => Parser::write_close(dst, reason, !self.server),
+            Message::Nop => (),
         }
         Ok(())
     }
