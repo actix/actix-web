@@ -333,11 +333,10 @@ impl ResponseBuilder {
 
     /// Set a header.
     ///
-    /// ```rust,ignore
-    /// # extern crate actix_web;
-    /// use actix_web::{http, Request, Response, Result};
+    /// ```rust
+    /// use actix_http::{http, Request, Response, Result};
     ///
-    /// fn index(req: HttpRequest) -> Result<Response> {
+    /// fn index(req: Request) -> Result<Response> {
     ///     Ok(Response::Ok()
     ///         .set(http::header::IfModifiedSince(
     ///             "Sun, 07 Nov 1994 08:48:37 GMT".parse()?,
@@ -361,11 +360,10 @@ impl ResponseBuilder {
 
     /// Append a header to existing headers.
     ///
-    /// ```rust,ignore
-    /// # extern crate actix_web;
-    /// use actix_web::{http, Request, Response};
+    /// ```rust
+    /// use actix_http::{http, Request, Response};
     ///
-    /// fn index(req: HttpRequest) -> Response {
+    /// fn index(req: Request) -> Response {
     ///     Response::Ok()
     ///         .header("X-TEST", "value")
     ///         .header(http::header::CONTENT_TYPE, "application/json")
@@ -394,11 +392,10 @@ impl ResponseBuilder {
 
     /// Set a header.
     ///
-    /// ```rust,ignore
-    /// # extern crate actix_web;
-    /// use actix_web::{http, Request, Response};
+    /// ```rust
+    /// use actix_http::{http, Request, Response};
     ///
-    /// fn index(req: HttpRequest) -> Response {
+    /// fn index(req: Request) -> Response {
     ///     Response::Ok()
     ///         .set_header("X-TEST", "value")
     ///         .set_header(http::header::CONTENT_TYPE, "application/json")
@@ -500,11 +497,10 @@ impl ResponseBuilder {
 
     /// Set a cookie
     ///
-    /// ```rust,ignore
-    /// # extern crate actix_web;
-    /// use actix_web::{http, HttpRequest, Response, Result};
+    /// ```rust
+    /// use actix_http::{http, Request, Response};
     ///
-    /// fn index(req: HttpRequest) -> Response {
+    /// fn index(req: Request) -> Response {
     ///     Response::Ok()
     ///         .cookie(
     ///             http::Cookie::build("name", "value")
@@ -530,11 +526,10 @@ impl ResponseBuilder {
 
     /// Remove cookie
     ///
-    /// ```rust,ignore
-    /// # extern crate actix_web;
-    /// use actix_web::{http, HttpRequest, Response, Result};
+    /// ```rust
+    /// use actix_http::{http, Request, Response, HttpMessage};
     ///
-    /// fn index(req: &HttpRequest) -> Response {
+    /// fn index(req: Request) -> Response {
     ///     let mut builder = Response::Ok();
     ///
     ///     if let Some(ref cookie) = req.cookie("name") {

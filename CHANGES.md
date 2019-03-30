@@ -2,7 +2,13 @@
 
 ## [1.0.0-alpha.2] - 2019-03-29
 
+### Added
+
+* rustls support
+
 ### Changed
+
+* use forked cookie
 
 * multipart::Field renamed to MultipartField
 

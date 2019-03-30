@@ -1,6 +1,6 @@
 [package]
 name = "actix-web-actors"
-version = "1.0.0-alpha.1"
+version = "1.0.0-alpha.2"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix actors support for actix web framework."
 readme = "README.md"
@@ -19,15 +19,12 @@ path = "src/lib.rs"
 
 [dependencies]
 actix = "0.8.0-alpha.2"
-#actix-web = "1.0.0-alpha.1"
-#actix-http = "0.1.0-alpha.1"
-actix-web = { path=".." }
-actix-http = { path="../actix-http" }
+actix-web = "1.0.0-alpha.2"
+actix-http = "0.1.0-alpha.2"
 actix-codec = "0.1.2"
 bytes = "0.4"
 futures = "0.1.25"
 
 [dev-dependencies]
 env_logger = "0.6"
-#actix-http-test = { version = "0.1.0-alpha.1", features=["ssl"] }
-actix-http-test = { path = "../test-server", features=["ssl"] }
+actix-http-test = { version = "0.1.0-alpha.2", features=["ssl"] }
