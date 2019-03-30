@@ -3,12 +3,12 @@ use std::sync::mpsc;
 use std::{net, thread, time};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
-use actix_http::client::Connector;
-use actix_http::ws;
 use actix_rt::{Runtime, System};
 use actix_server::{Server, StreamServiceFactory};
-use awc::{Client, ClientRequest};
-use futures::future::{lazy, Future};
+use awc::{error::PayloadError, ws, Client, ClientRequest, ClientResponse, Connector};
+use bytes::Bytes;
+use futures::future::lazy;
+use futures::{Future, Stream};
 use http::Method;
 use net2::TcpBuilder;
 
@@ -193,13 +193,16 @@ impl TestServerRuntime {
         self.client.request(method, path.as_ref())
     }
 
-    /// Stop http server
-    fn stop(&mut self) {
-        System::current().stop();
+    pub fn load_body<S>(
+        &mut self,
+        response: ClientResponse<S>,
+    ) -> Result<Bytes, PayloadError>
+    where
+        S: Stream<Item = Bytes, Error = PayloadError> + 'static,
+    {
+        self.block_on(response.body().limit(10_485_760))
     }
-}
 
-impl TestServerRuntime {
     /// Connect to websocket server at a given path
     pub fn ws_at(
         &mut self,
@@ -218,6 +221,11 @@ impl TestServerRuntime {
     ) -> Result<Framed<impl AsyncRead + AsyncWrite, ws::Codec>, awc::error::WsClientError>
     {
         self.ws_at("/")
+    }
+
+    /// Stop http server
+    fn stop(&mut self) {
+        System::current().stop();
     }
 }
 

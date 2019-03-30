@@ -11,7 +11,7 @@ use cookie::{Cookie, CookieJar};
 use futures::future::{err, Either, Future};
 use tokio_timer::Timeout;
 
-pub use actix_http::ws::{CloseCode, CloseReason, Frame, Message};
+pub use actix_http::ws::{CloseCode, CloseReason, Codec, Frame, Message};
 
 use crate::connect::BoxedSocket;
 use crate::error::{InvalidUrl, SendRequestError, WsClientError};
@@ -213,10 +213,8 @@ impl WebsocketsRequest {
     /// Complete request construction and connect to a websockets server.
     pub fn connect(
         mut self,
-    ) -> impl Future<
-        Item = (ClientResponse, Framed<BoxedSocket, ws::Codec>),
-        Error = WsClientError,
-    > {
+    ) -> impl Future<Item = (ClientResponse, Framed<BoxedSocket, Codec>), Error = WsClientError>
+    {
         if let Some(e) = self.err.take() {
             return Either::A(err(e.into()));
         }

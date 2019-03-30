@@ -52,18 +52,18 @@ fn test_h1_v2() {
     assert!(response.status().is_success());
 
     let request = srv.get().header("x-test", "111").send();
-    let mut response = srv.block_on(request).unwrap();
+    let response = srv.block_on(request).unwrap();
     assert!(response.status().is_success());
 
     // read response
-    let bytes = srv.block_on(load_body(response.take_payload())).unwrap();
+    let bytes = srv.load_body(response).unwrap();
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
 
-    let mut response = srv.block_on(srv.post().send()).unwrap();
+    let response = srv.block_on(srv.post().send()).unwrap();
     assert!(response.status().is_success());
 
     // read response
-    let bytes = srv.block_on(load_body(response.take_payload())).unwrap();
+    let bytes = srv.load_body(response).unwrap();
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
 }
 

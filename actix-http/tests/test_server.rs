@@ -13,8 +13,7 @@ use futures::stream::{once, Stream};
 use actix_http::body::Body;
 use actix_http::error::PayloadError;
 use actix_http::{
-    body, error, http, http::header, Error, HttpMessage, HttpService, KeepAlive,
-    Request, Response,
+    body, error, http, http::header, Error, HttpService, KeepAlive, Request, Response,
 };
 
 fn load_body<S>(stream: S) -> impl Future<Item = BytesMut, Error = PayloadError>
@@ -145,10 +144,10 @@ fn test_h2_body() -> std::io::Result<()> {
             )
     });
 
-    let mut response = srv.block_on(srv.sget().send_body(data.clone())).unwrap();
+    let response = srv.block_on(srv.sget().send_body(data.clone())).unwrap();
     assert!(response.status().is_success());
 
-    let body = srv.block_on(load_body(response.take_payload())).unwrap();
+    let body = srv.load_body(response).unwrap();
     assert_eq!(&body, data.as_bytes());
     Ok(())
 }
@@ -436,11 +435,11 @@ fn test_h1_headers() {
         })
     });
 
-    let mut response = srv.block_on(srv.get().send()).unwrap();
+    let response = srv.block_on(srv.get().send()).unwrap();
     assert!(response.status().is_success());
 
     // read response
-    let bytes = srv.block_on(load_body(response.take_payload())).unwrap();
+    let bytes = srv.load_body(response).unwrap();
     assert_eq!(bytes, Bytes::from(data2));
 }
 
@@ -480,11 +479,11 @@ fn test_h2_headers() {
         }).map_err(|_| ()))
     });
 
-    let mut response = srv.block_on(srv.sget().send()).unwrap();
+    let response = srv.block_on(srv.sget().send()).unwrap();
     assert!(response.status().is_success());
 
     // read response
-    let bytes = srv.block_on(load_body(response.take_payload())).unwrap();
+    let bytes = srv.load_body(response).unwrap();
     assert_eq!(bytes, Bytes::from(data2));
 }
 
@@ -516,11 +515,11 @@ fn test_h1_body() {
         HttpService::build().h1(|_| future::ok::<_, ()>(Response::Ok().body(STR)))
     });
 
-    let mut response = srv.block_on(srv.get().send()).unwrap();
+    let response = srv.block_on(srv.get().send()).unwrap();
     assert!(response.status().is_success());
 
     // read response
-    let bytes = srv.block_on(load_body(response.take_payload())).unwrap();
+    let bytes = srv.load_body(response).unwrap();
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
 }
 
@@ -538,11 +537,11 @@ fn test_h2_body2() {
             )
     });
 
-    let mut response = srv.block_on(srv.sget().send()).unwrap();
+    let response = srv.block_on(srv.sget().send()).unwrap();
     assert!(response.status().is_success());
 
     // read response
-    let bytes = srv.block_on(load_body(response.take_payload())).unwrap();
+    let bytes = srv.load_body(response).unwrap();
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
 }
 
@@ -552,7 +551,7 @@ fn test_h1_head_empty() {
         HttpService::build().h1(|_| ok::<_, ()>(Response::Ok().body(STR)))
     });
 
-    let mut response = srv.block_on(srv.head().send()).unwrap();
+    let response = srv.block_on(srv.head().send()).unwrap();
     assert!(response.status().is_success());
 
     {
@@ -564,7 +563,7 @@ fn test_h1_head_empty() {
     }
 
     // read response
-    let bytes = srv.block_on(load_body(response.take_payload())).unwrap();
+    let bytes = srv.load_body(response).unwrap();
     assert!(bytes.is_empty());
 }
 
@@ -582,7 +581,7 @@ fn test_h2_head_empty() {
             )
     });
 
-    let mut response = srv.block_on(srv.shead().send()).unwrap();
+    let response = srv.block_on(srv.shead().send()).unwrap();
     assert!(response.status().is_success());
     assert_eq!(response.version(), http::Version::HTTP_2);
 
@@ -595,7 +594,7 @@ fn test_h2_head_empty() {
     }
 
     // read response
-    let bytes = srv.block_on(load_body(response.take_payload())).unwrap();
+    let bytes = srv.load_body(response).unwrap();
     assert!(bytes.is_empty());
 }
 
@@ -607,7 +606,7 @@ fn test_h1_head_binary() {
         })
     });
 
-    let mut response = srv.block_on(srv.head().send()).unwrap();
+    let response = srv.block_on(srv.head().send()).unwrap();
     assert!(response.status().is_success());
 
     {
@@ -619,7 +618,7 @@ fn test_h1_head_binary() {
     }
 
     // read response
-    let bytes = srv.block_on(load_body(response.take_payload())).unwrap();
+    let bytes = srv.load_body(response).unwrap();
     assert!(bytes.is_empty());
 }
 
@@ -641,7 +640,7 @@ fn test_h2_head_binary() {
             )
     });
 
-    let mut response = srv.block_on(srv.shead().send()).unwrap();
+    let response = srv.block_on(srv.shead().send()).unwrap();
     assert!(response.status().is_success());
 
     {
@@ -653,7 +652,7 @@ fn test_h2_head_binary() {
     }
 
     // read response
-    let bytes = srv.block_on(load_body(response.take_payload())).unwrap();
+    let bytes = srv.load_body(response).unwrap();
     assert!(bytes.is_empty());
 }
 
@@ -713,11 +712,11 @@ fn test_h1_body_length() {
         })
     });
 
-    let mut response = srv.block_on(srv.get().send()).unwrap();
+    let response = srv.block_on(srv.get().send()).unwrap();
     assert!(response.status().is_success());
 
     // read response
-    let bytes = srv.block_on(load_body(response.take_payload())).unwrap();
+    let bytes = srv.load_body(response).unwrap();
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
 }
 
@@ -740,11 +739,11 @@ fn test_h2_body_length() {
             )
     });
 
-    let mut response = srv.block_on(srv.sget().send()).unwrap();
+    let response = srv.block_on(srv.sget().send()).unwrap();
     assert!(response.status().is_success());
 
     // read response
-    let bytes = srv.block_on(load_body(response.take_payload())).unwrap();
+    let bytes = srv.load_body(response).unwrap();
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
 }
 
@@ -761,7 +760,7 @@ fn test_h1_body_chunked_explicit() {
         })
     });
 
-    let mut response = srv.block_on(srv.get().send()).unwrap();
+    let response = srv.block_on(srv.get().send()).unwrap();
     assert!(response.status().is_success());
     assert_eq!(
         response
@@ -774,7 +773,7 @@ fn test_h1_body_chunked_explicit() {
     );
 
     // read response
-    let bytes = srv.block_on(load_body(response.take_payload())).unwrap();
+    let bytes = srv.load_body(response).unwrap();
 
     // decode
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
@@ -802,12 +801,12 @@ fn test_h2_body_chunked_explicit() {
             )
     });
 
-    let mut response = srv.block_on(srv.sget().send()).unwrap();
+    let response = srv.block_on(srv.sget().send()).unwrap();
     assert!(response.status().is_success());
     assert!(!response.headers().contains_key(header::TRANSFER_ENCODING));
 
     // read response
-    let bytes = srv.block_on(load_body(response.take_payload())).unwrap();
+    let bytes = srv.load_body(response).unwrap();
 
     // decode
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
@@ -822,7 +821,7 @@ fn test_h1_body_chunked_implicit() {
         })
     });
 
-    let mut response = srv.block_on(srv.get().send()).unwrap();
+    let response = srv.block_on(srv.get().send()).unwrap();
     assert!(response.status().is_success());
     assert_eq!(
         response
@@ -835,7 +834,7 @@ fn test_h1_body_chunked_implicit() {
     );
 
     // read response
-    let bytes = srv.block_on(load_body(response.take_payload())).unwrap();
+    let bytes = srv.load_body(response).unwrap();
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
 }
 
@@ -854,11 +853,11 @@ fn test_h1_response_http_error_handling() {
         }))
     });
 
-    let mut response = srv.block_on(srv.get().send()).unwrap();
+    let response = srv.block_on(srv.get().send()).unwrap();
     assert_eq!(response.status(), http::StatusCode::INTERNAL_SERVER_ERROR);
 
     // read response
-    let bytes = srv.block_on(load_body(response.take_payload())).unwrap();
+    let bytes = srv.load_body(response).unwrap();
     assert!(bytes.is_empty());
 }
 
@@ -886,11 +885,11 @@ fn test_h2_response_http_error_handling() {
             )
     });
 
-    let mut response = srv.block_on(srv.sget().send()).unwrap();
+    let response = srv.block_on(srv.sget().send()).unwrap();
     assert_eq!(response.status(), http::StatusCode::INTERNAL_SERVER_ERROR);
 
     // read response
-    let bytes = srv.block_on(load_body(response.take_payload())).unwrap();
+    let bytes = srv.load_body(response).unwrap();
     assert!(bytes.is_empty());
 }
 
@@ -901,11 +900,11 @@ fn test_h1_service_error() {
             .h1(|_| Err::<Response, Error>(error::ErrorBadRequest("error")))
     });
 
-    let mut response = srv.block_on(srv.get().send()).unwrap();
+    let response = srv.block_on(srv.get().send()).unwrap();
     assert_eq!(response.status(), http::StatusCode::INTERNAL_SERVER_ERROR);
 
     // read response
-    let bytes = srv.block_on(load_body(response.take_payload())).unwrap();
+    let bytes = srv.load_body(response).unwrap();
     assert!(bytes.is_empty());
 }
 
@@ -924,10 +923,10 @@ fn test_h2_service_error() {
             )
     });
 
-    let mut response = srv.block_on(srv.sget().send()).unwrap();
+    let response = srv.block_on(srv.sget().send()).unwrap();
     assert_eq!(response.status(), http::StatusCode::INTERNAL_SERVER_ERROR);
 
     // read response
-    let bytes = srv.block_on(load_body(response.take_payload())).unwrap();
+    let bytes = srv.load_body(response).unwrap();
     assert!(bytes.is_empty());
 }

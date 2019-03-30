@@ -100,7 +100,8 @@ fn test_body_encoding_override() {
                 .service(web::resource("/raw").route(web::to(|| {
                     use actix_web::middleware::encoding::BodyEncoding;
                     let body = actix_web::dev::Body::Bytes(STR.into());
-                    let mut response = Response::with_body(actix_web::http::StatusCode::OK, body);
+                    let mut response =
+                        Response::with_body(actix_web::http::StatusCode::OK, body);
 
                     response.encoding(ContentEncoding::Deflate);
 
@@ -123,7 +124,13 @@ fn test_body_encoding_override() {
     assert_eq!(Bytes::from(dec), Bytes::from_static(STR.as_ref()));
 
     // Raw Response
-    let mut response = srv.block_on(srv.request(actix_web::http::Method::GET, srv.url("/raw")).no_decompress().send()).unwrap();
+    let mut response = srv
+        .block_on(
+            srv.request(actix_web::http::Method::GET, srv.url("/raw"))
+                .no_decompress()
+                .send(),
+        )
+        .unwrap();
     assert!(response.status().is_success());
 
     // read response
@@ -134,7 +141,6 @@ fn test_body_encoding_override() {
     e.write_all(bytes.as_ref()).unwrap();
     let dec = e.finish().unwrap();
     assert_eq!(Bytes::from(dec), Bytes::from_static(STR.as_ref()));
-
 }
 
 #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
