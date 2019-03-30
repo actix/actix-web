@@ -39,15 +39,35 @@ pub trait Guard {
     fn check(&self, request: &RequestHead) -> bool;
 }
 
-#[doc(hidden)]
-pub struct FnGuard<F: Fn(&RequestHead) -> bool + 'static>(F);
-
-impl<F> Guard for F
+/// Return guard that matches if all of the supplied guards.
+///
+/// ```rust
+/// use actix_web::{guard, web, App, HttpResponse};
+///
+/// fn main() {
+///     App::new().service(web::resource("/index.html").route(
+///         web::route()
+///             .guard(
+///                 guard::fn_guard(|req| req.headers().contains_key("content-type")))
+///             .to(|| HttpResponse::MethodNotAllowed()))
+///     );
+/// }
+/// ```
+pub fn fn_guard<F>(f: F) -> impl Guard
 where
-    F: Fn(&RequestHead) -> bool + 'static,
+    F: Fn(&RequestHead) -> bool,
+{
+    FnGuard(f)
+}
+
+struct FnGuard<F: Fn(&RequestHead) -> bool>(F);
+
+impl<F> Guard for FnGuard<F>
+where
+    F: Fn(&RequestHead) -> bool,
 {
     fn check(&self, head: &RequestHead) -> bool {
-        (*self)(head)
+        (self.0)(head)
     }
 }
 
@@ -93,7 +113,6 @@ impl Guard for AnyGuard {
 /// Return guard that matches if all of the supplied guards.
 ///
 /// ```rust
-/// # extern crate actix_web;
 /// use actix_web::{guard, web, App, HttpResponse};
 ///
 /// fn main() {
