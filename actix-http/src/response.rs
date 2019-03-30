@@ -189,6 +189,18 @@ impl<B> Response<B> {
         self.head.keep_alive()
     }
 
+    /// Responses extensions
+    #[inline]
+    pub fn extensions(&self) -> Ref<Extensions> {
+        self.head.extensions.borrow()
+    }
+
+    /// Mutable reference to a the response's extensions
+    #[inline]
+    pub fn extensions_mut(&mut self) -> RefMut<Extensions> {
+        self.head.extensions.borrow_mut()
+    }
+
     /// Get body os this response
     #[inline]
     pub fn body(&self) -> &ResponseBody<B> {
