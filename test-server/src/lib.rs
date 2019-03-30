@@ -159,33 +159,33 @@ impl TestServerRuntime {
     }
 
     /// Create `GET` request
-    pub fn get(&self) -> ClientRequest {
-        self.client.get(self.url("/").as_str())
+    pub fn get<S: AsRef<str>>(&self, path: S) -> ClientRequest {
+        self.client.get(self.url(path.as_ref()).as_str())
     }
 
     /// Create https `GET` request
-    pub fn sget(&self) -> ClientRequest {
-        self.client.get(self.surl("/").as_str())
+    pub fn sget<S: AsRef<str>>(&self, path: S) -> ClientRequest {
+        self.client.get(self.surl(path.as_ref()).as_str())
     }
 
     /// Create `POST` request
-    pub fn post(&self) -> ClientRequest {
-        self.client.post(self.url("/").as_str())
+    pub fn post<S: AsRef<str>>(&self, path: S) -> ClientRequest {
+        self.client.post(self.url(path.as_ref()).as_str())
     }
 
     /// Create https `POST` request
-    pub fn spost(&self) -> ClientRequest {
-        self.client.post(self.surl("/").as_str())
+    pub fn spost<S: AsRef<str>>(&self, path: S) -> ClientRequest {
+        self.client.post(self.surl(path.as_ref()).as_str())
     }
 
     /// Create `HEAD` request
-    pub fn head(&self) -> ClientRequest {
-        self.client.head(self.url("/").as_str())
+    pub fn head<S: AsRef<str>>(&self, path: S) -> ClientRequest {
+        self.client.head(self.url(path.as_ref()).as_str())
     }
 
     /// Create https `HEAD` request
-    pub fn shead(&self) -> ClientRequest {
-        self.client.head(self.surl("/").as_str())
+    pub fn shead<S: AsRef<str>>(&self, path: S) -> ClientRequest {
+        self.client.head(self.surl(path.as_ref()).as_str())
     }
 
     /// Connect to test http server
