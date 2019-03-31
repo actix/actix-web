@@ -39,7 +39,7 @@ pub trait Guard {
     fn check(&self, request: &RequestHead) -> bool;
 }
 
-/// Return guard that matches if all of the supplied guards.
+/// Create guard object for supplied function.
 ///
 /// ```rust
 /// use actix_web::{guard, web, App, HttpResponse};
@@ -48,7 +48,9 @@ pub trait Guard {
 ///     App::new().service(web::resource("/index.html").route(
 ///         web::route()
 ///             .guard(
-///                 guard::fn_guard(|req| req.headers().contains_key("content-type")))
+///                 guard::fn_guard(
+///                     |req| req.headers()
+///                              .contains_key("content-type")))
 ///             .to(|| HttpResponse::MethodNotAllowed()))
 ///     );
 /// }
