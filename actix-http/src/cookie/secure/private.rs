@@ -1,6 +1,6 @@
 use std::str;
 
-use log::error;
+use log::warn;
 use ring::aead::{open_in_place, seal_in_place, Aad, Algorithm, Nonce, AES_256_GCM};
 use ring::aead::{OpeningKey, SealingKey};
 use ring::rand::{SecureRandom, SystemRandom};
@@ -63,7 +63,7 @@ impl<'a> PrivateJar<'a> {
         if let Ok(unsealed_utf8) = str::from_utf8(unsealed) {
             Ok(unsealed_utf8.to_string())
         } else {
-            error!("Private cookie does not have utf8 content!
+            warn!("Private cookie does not have utf8 content!
 It is likely the secret key used to encrypt them has been leaked.
 Please change it as soon as possible.");
             Err("bad unsealed utf8")
