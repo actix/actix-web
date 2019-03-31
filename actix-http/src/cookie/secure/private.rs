@@ -1,3 +1,4 @@
+use log::error;
 use ring::aead::{open_in_place, seal_in_place, Aad, Algorithm, Nonce, AES_256_GCM};
 use ring::aead::{OpeningKey, SealingKey};
 use ring::rand::{SecureRandom, SystemRandom};
@@ -57,9 +58,14 @@ impl<'a> PrivateJar<'a> {
         let unsealed = open_in_place(&key, nonce, ad, 0, sealed)
             .map_err(|_| "invalid key/nonce/value: bad seal")?;
 
-        ::std::str::from_utf8(unsealed)
-            .map(|s| s.to_string())
-            .map_err(|_| "bad unsealed utf8")
+        if let Ok(unsealed_utf8) = ::std::str::from_utf8(unsealed) {
+            Ok(unsealed_utf8.to_string())
+        } else {
+            error!("Private cookie does not have utf8 content!");
+            error!("It is likely the secret key used to encrypt them has been leaked.");
+            error!("Please change it as soon as possible.");
+            Err("bad unsealed utf8")
+        }
     }
 
     /// Returns a reference to the `Cookie` inside this jar with the name `name`
