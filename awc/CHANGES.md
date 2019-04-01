@@ -14,6 +14,8 @@
 
 ### Changed
 
+* Use non-consuming builder pattern for `ClientRequest`.
+
 * `ClientResponse::body()` does not consume response object.
 
 
