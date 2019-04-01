@@ -470,7 +470,9 @@ impl<'a> Iterator for Iter<'a> {
 
 #[cfg(test)]
 mod test {
-    use super::{Cookie, CookieJar, Key};
+    #[cfg(feature = "secure-cookies")]
+    use super::Key;
+    use super::{Cookie, CookieJar};
 
     #[test]
     #[allow(deprecated)]

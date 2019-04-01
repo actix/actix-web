@@ -8,6 +8,7 @@ pub mod body;
 mod builder;
 pub mod client;
 mod config;
+#[cfg(any(feature = "flate2-zlib", feature = "flate2-rust", feature = "brotli"))]
 pub mod encoding;
 mod extensions;
 mod header;

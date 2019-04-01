@@ -63,9 +63,11 @@ impl<'a> PrivateJar<'a> {
         if let Ok(unsealed_utf8) = str::from_utf8(unsealed) {
             Ok(unsealed_utf8.to_string())
         } else {
-            warn!("Private cookie does not have utf8 content!
+            warn!(
+                "Private cookie does not have utf8 content!
 It is likely the secret key used to encrypt them has been leaked.
-Please change it as soon as possible.");
+Please change it as soon as possible."
+            );
             Err("bad unsealed utf8")
         }
     }
@@ -206,15 +208,15 @@ fn encrypt_name_value(name: &[u8], value: &[u8], key: &[u8]) -> Vec<u8> {
         .fill(nonce)
         .expect("couldn't random fill nonce");
     in_out[..value.len()].copy_from_slice(value);
-    let nonce = Nonce::try_assume_unique_for_key(nonce)
-        .expect("invalid length of `nonce`");
+    let nonce =
+        Nonce::try_assume_unique_for_key(nonce).expect("invalid length of `nonce`");
 
     // Use cookie's name as associated data to prevent value swapping.
     let ad = Aad::from(name);
 
     // Perform the actual sealing operation and get the output length.
-    let output_len = seal_in_place(&key, nonce, ad, in_out, overhead)
-        .expect("in-place seal");
+    let output_len =
+        seal_in_place(&key, nonce, ad, in_out, overhead).expect("in-place seal");
 
     // Remove the overhead and return the sealed content.
     data.truncate(NONCE_LEN + output_len);
@@ -223,7 +225,7 @@ fn encrypt_name_value(name: &[u8], value: &[u8], key: &[u8]) -> Vec<u8> {
 
 #[cfg(test)]
 mod test {
-    use super::{Cookie, CookieJar, Key, encrypt_name_value};
+    use super::{encrypt_name_value, Cookie, CookieJar, Key};
 
     #[test]
     fn simple() {
@@ -248,15 +250,18 @@ mod test {
         let mut assert_non_utf8 = |value: &[u8]| {
             let sealed = encrypt_name_value(name.as_bytes(), value, &key.encryption());
             let encoded = base64::encode(&sealed);
-            assert_eq!(jar.private(&key).unseal(name, &encoded), Err("bad unsealed utf8"));
+            assert_eq!(
+                jar.private(&key).unseal(name, &encoded),
+                Err("bad unsealed utf8")
+            );
             jar.add(Cookie::new(name, encoded));
             assert_eq!(jar.private(&key).get(name), None);
         };
 
-        assert_non_utf8(&[0x72, 0xfb, 0xdf, 0x74]);  // rûst in ISO/IEC 8859-1
+        assert_non_utf8(&[0x72, 0xfb, 0xdf, 0x74]); // rûst in ISO/IEC 8859-1
 
-        let mut malicious = String::from(r#"{"id":"abc123??%X","admin":true}"#)
-            .into_bytes();
+        let mut malicious =
+            String::from(r#"{"id":"abc123??%X","admin":true}"#).into_bytes();
         malicious[8] |= 0b1100_0000;
         malicious[9] |= 0b1100_0000;
         assert_non_utf8(&malicious);

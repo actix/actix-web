@@ -16,6 +16,7 @@ use actix_http::{
     body, error, http, http::header, Error, HttpService, KeepAlive, Request, Response,
 };
 
+#[cfg(feature = "ssl")]
 fn load_body<S>(stream: S) -> impl Future<Item = BytesMut, Error = PayloadError>
 where
     S: Stream<Item = Bytes, Error = PayloadError>,
@@ -346,6 +347,7 @@ fn test_content_length() {
     }
 }
 
+#[cfg(feature = "ssl")]
 #[test]
 fn test_h2_content_length() {
     use actix_http::http::{
@@ -443,6 +445,7 @@ fn test_h1_headers() {
     assert_eq!(bytes, Bytes::from(data2));
 }
 
+#[cfg(feature = "ssl")]
 #[test]
 fn test_h2_headers() {
     let data = STR.repeat(10);
@@ -523,6 +526,7 @@ fn test_h1_body() {
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
 }
 
+#[cfg(feature = "ssl")]
 #[test]
 fn test_h2_body2() {
     let openssl = ssl_acceptor().unwrap();
@@ -567,6 +571,7 @@ fn test_h1_head_empty() {
     assert!(bytes.is_empty());
 }
 
+#[cfg(feature = "ssl")]
 #[test]
 fn test_h2_head_empty() {
     let openssl = ssl_acceptor().unwrap();
@@ -622,6 +627,7 @@ fn test_h1_head_binary() {
     assert!(bytes.is_empty());
 }
 
+#[cfg(feature = "ssl")]
 #[test]
 fn test_h2_head_binary() {
     let openssl = ssl_acceptor().unwrap();
@@ -674,6 +680,7 @@ fn test_h1_head_binary2() {
     }
 }
 
+#[cfg(feature = "ssl")]
 #[test]
 fn test_h2_head_binary2() {
     let openssl = ssl_acceptor().unwrap();
@@ -720,6 +727,7 @@ fn test_h1_body_length() {
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
 }
 
+#[cfg(feature = "ssl")]
 #[test]
 fn test_h2_body_length() {
     let openssl = ssl_acceptor().unwrap();
@@ -779,6 +787,7 @@ fn test_h1_body_chunked_explicit() {
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
 }
 
+#[cfg(feature = "ssl")]
 #[test]
 fn test_h2_body_chunked_explicit() {
     let openssl = ssl_acceptor().unwrap();
@@ -861,6 +870,7 @@ fn test_h1_response_http_error_handling() {
     assert!(bytes.is_empty());
 }
 
+#[cfg(feature = "ssl")]
 #[test]
 fn test_h2_response_http_error_handling() {
     let openssl = ssl_acceptor().unwrap();
@@ -908,6 +918,7 @@ fn test_h1_service_error() {
     assert!(bytes.is_empty());
 }
 
+#[cfg(feature = "ssl")]
 #[test]
 fn test_h2_service_error() {
     let openssl = ssl_acceptor().unwrap();
