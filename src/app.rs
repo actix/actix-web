@@ -112,7 +112,29 @@ where
         self
     }
 
-    /// Register a middleware.
+    /// Registers middleware, in the form of a middleware component (type), 
+    /// that runs during inbound and/or outbound processing in the request 
+    /// lifecycle (request -> response), modifying request/response as 
+    /// necessary, across all requests managed by the *Application*.
+    ///
+    /// Use middleware when you need to read or modify *every* request or response in some way.
+    ///
+    /// ```rust
+    /// use actix_service::Service;
+    /// # use futures::Future;
+    /// use actix_web::{middleware, web, App};
+    /// use actix_web::http::{header::CONTENT_TYPE, HeaderValue};
+    ///
+    /// fn index() -> &'static str {
+    ///     "Welcome!"
+    /// }
+    ///
+    /// fn main() {
+    ///     let app = App::new()
+    ///         .wrap(middleware::Logger::default())
+    ///         .route("/index.html", web::get().to(index));
+    /// }
+    /// ```
     pub fn wrap<M, B, F>(
         self,
         mw: F,
@@ -152,7 +174,12 @@ where
         }
     }
 
-    /// Register a middleware function.
+    /// Registers middleware, in the form of a closure, that runs during inbound
+    /// and/or outbound processing in the request lifecycle (request -> response),
+    /// modifying request/response as necessary, across all requests managed by
+    /// the *Application*.
+    ///
+    /// Use middleware when you need to read or modify *every* request or response in some way.
     ///
     /// ```rust
     /// use actix_service::Service;
@@ -400,7 +427,13 @@ where
         self
     }
 
-    /// Register a middleware.
+    /// Registers middleware, in the form of a middleware component (type), 
+    /// that runs during inbound and/or outbound processing in the request 
+    /// lifecycle (request -> response), modifying request/response as 
+    /// necessary, across all requests managed by the *Route*.
+    ///
+    /// Use middleware when you need to read or modify *every* request or response in some way.
+    ///
     pub fn wrap<M, B1, F>(
         self,
         mw: F,
@@ -440,7 +473,13 @@ where
         }
     }
 
-    /// Register a middleware function.
+    /// Registers middleware, in the form of a closure, that runs during inbound
+    /// and/or outbound processing in the request lifecycle (request -> response),
+    /// modifying request/response as necessary, across all requests managed by
+    /// the *Route*.
+    ///
+    /// Use middleware when you need to read or modify *every* request or response in some way.
+    ///
     pub fn wrap_fn<B1, F, R>(
         self,
         mw: F,
