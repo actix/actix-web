@@ -4,13 +4,14 @@ use std::fmt;
 use bytes::{Bytes, BytesMut};
 use futures::{Future, Poll, Stream};
 
-use actix_http::error::PayloadError;
+use actix_http::cookie::Cookie;
+use actix_http::error::{CookieParseError, PayloadError};
 use actix_http::http::header::{CONTENT_LENGTH, SET_COOKIE};
 use actix_http::http::{HeaderMap, StatusCode, Version};
 use actix_http::{Extensions, HttpMessage, Payload, PayloadStream, ResponseHead};
+use serde::de::DeserializeOwned;
 
-use actix_http::cookie::Cookie;
-use actix_http::error::CookieParseError;
+use crate::error::JsonPayloadError;
 
 /// Client Response
 pub struct ClientResponse<S = PayloadStream> {
@@ -104,9 +105,20 @@ impl<S> ClientResponse<S>
 where
     S: Stream<Item = Bytes, Error = PayloadError> + 'static,
 {
-    /// Load http response's body.
+    /// Loads http response's body.
     pub fn body(&mut self) -> MessageBody<S> {
         MessageBody::new(self)
+    }
+
+    /// Loads and parse `application/json` encoded body.
+    /// Return `JsonBody<T>` future. It resolves to a `T` value.
+    ///
+    /// Returns error:
+    ///
+    /// * content type is not `application/json`
+    /// * content length is greater than 256k
+    pub fn json<T: DeserializeOwned>(&mut self) -> JsonBody<S, T> {
+        JsonBody::new(self)
     }
 }
 
@@ -230,12 +242,115 @@ where
     }
 }
 
+/// Response's payload json parser, it resolves to a deserialized `T` value.
+///
+/// Returns error:
+///
+/// * content type is not `application/json`
+/// * content length is greater than 64k
+pub struct JsonBody<S, U> {
+    limit: usize,
+    length: Option<usize>,
+    stream: Payload<S>,
+    err: Option<JsonPayloadError>,
+    fut: Option<Box<Future<Item = U, Error = JsonPayloadError>>>,
+}
+
+impl<S, U> JsonBody<S, U>
+where
+    S: Stream<Item = Bytes, Error = PayloadError> + 'static,
+    U: DeserializeOwned,
+{
+    /// Create `JsonBody` for request.
+    pub fn new(req: &mut ClientResponse<S>) -> Self {
+        // check content-type
+        let json = if let Ok(Some(mime)) = req.mime_type() {
+            mime.subtype() == mime::JSON || mime.suffix() == Some(mime::JSON)
+        } else {
+            false
+        };
+        if !json {
+            return JsonBody {
+                limit: 65536,
+                length: None,
+                stream: Payload::None,
+                fut: None,
+                err: Some(JsonPayloadError::ContentType),
+            };
+        }
+
+        let mut len = None;
+        if let Some(l) = req.headers().get(CONTENT_LENGTH) {
+            if let Ok(s) = l.to_str() {
+                if let Ok(l) = s.parse::<usize>() {
+                    len = Some(l)
+                }
+            }
+        }
+
+        JsonBody {
+            limit: 65536,
+            length: len,
+            stream: req.take_payload(),
+            fut: None,
+            err: None,
+        }
+    }
+
+    /// Change max size of payload. By default max size is 64Kb
+    pub fn limit(mut self, limit: usize) -> Self {
+        self.limit = limit;
+        self
+    }
+}
+
+impl<T, U> Future for JsonBody<T, U>
+where
+    T: Stream<Item = Bytes, Error = PayloadError> + 'static,
+    U: DeserializeOwned + 'static,
+{
+    type Item = U;
+    type Error = JsonPayloadError;
+
+    fn poll(&mut self) -> Poll<U, JsonPayloadError> {
+        if let Some(ref mut fut) = self.fut {
+            return fut.poll();
+        }
+
+        if let Some(err) = self.err.take() {
+            return Err(err);
+        }
+
+        let limit = self.limit;
+        if let Some(len) = self.length.take() {
+            if len > limit {
+                return Err(JsonPayloadError::Overflow);
+            }
+        }
+
+        let fut = std::mem::replace(&mut self.stream, Payload::None)
+            .from_err()
+            .fold(BytesMut::with_capacity(8192), move |mut body, chunk| {
+                if (body.len() + chunk.len()) > limit {
+                    Err(JsonPayloadError::Overflow)
+                } else {
+                    body.extend_from_slice(&chunk);
+                    Ok(body)
+                }
+            })
+            .and_then(|body| Ok(serde_json::from_slice::<U>(&body)?));
+        self.fut = Some(Box::new(fut));
+        self.poll()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use futures::Async;
+    use serde::{Deserialize, Serialize};
 
-    use crate::{http::header, test::TestResponse};
+    use crate::{http::header, test::block_on, test::TestResponse};
 
     #[test]
     fn test_body() {
@@ -267,5 +382,74 @@ mod tests {
             PayloadError::Overflow => (),
             _ => unreachable!("error"),
         }
+    }
+
+    #[derive(Serialize, Deserialize, PartialEq, Debug)]
+    struct MyObject {
+        name: String,
+    }
+
+    fn json_eq(err: JsonPayloadError, other: JsonPayloadError) -> bool {
+        match err {
+            JsonPayloadError::Overflow => match other {
+                JsonPayloadError::Overflow => true,
+                _ => false,
+            },
+            JsonPayloadError::ContentType => match other {
+                JsonPayloadError::ContentType => true,
+                _ => false,
+            },
+            _ => false,
+        }
+    }
+
+    #[test]
+    fn test_json_body() {
+        let mut req = TestResponse::default().finish();
+        let json = block_on(JsonBody::<_, MyObject>::new(&mut req));
+        assert!(json_eq(json.err().unwrap(), JsonPayloadError::ContentType));
+
+        let mut req = TestResponse::default()
+            .header(
+                header::CONTENT_TYPE,
+                header::HeaderValue::from_static("application/text"),
+            )
+            .finish();
+        let json = block_on(JsonBody::<_, MyObject>::new(&mut req));
+        assert!(json_eq(json.err().unwrap(), JsonPayloadError::ContentType));
+
+        let mut req = TestResponse::default()
+            .header(
+                header::CONTENT_TYPE,
+                header::HeaderValue::from_static("application/json"),
+            )
+            .header(
+                header::CONTENT_LENGTH,
+                header::HeaderValue::from_static("10000"),
+            )
+            .finish();
+
+        let json = block_on(JsonBody::<_, MyObject>::new(&mut req).limit(100));
+        assert!(json_eq(json.err().unwrap(), JsonPayloadError::Overflow));
+
+        let mut req = TestResponse::default()
+            .header(
+                header::CONTENT_TYPE,
+                header::HeaderValue::from_static("application/json"),
+            )
+            .header(
+                header::CONTENT_LENGTH,
+                header::HeaderValue::from_static("16"),
+            )
+            .set_payload(Bytes::from_static(b"{\"name\": \"test\"}"))
+            .finish();
+
+        let json = block_on(JsonBody::<_, MyObject>::new(&mut req));
+        assert_eq!(
+            json.ok().unwrap(),
+            MyObject {
+                name: "test".to_owned()
+            }
+        );
     }
 }

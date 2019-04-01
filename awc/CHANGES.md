@@ -9,6 +9,8 @@
 
 * Export `MessageBody` type
 
+* `ClientResponse::json()` - Loads and parse `application/json` encoded body
+
 
 ### Changed
 
