@@ -112,7 +112,26 @@ where
         self
     }
 
-    /// Register a middleware.
+    /// Registers heavyweight Application-level middleware, in the form of a
+    /// middleware type, that runs during inbound and/or outbound processing in the 
+    /// request lifecycle (request -> response).
+    ///
+    /// ```rust
+    /// use actix_service::Service;
+    /// # use futures::Future;
+    /// use actix_web::{middleware, web, App};
+    /// use actix_web::http::{header::CONTENT_TYPE, HeaderValue};
+    ///
+    /// fn index() -> &'static str {
+    ///     "Welcome!"
+    /// }
+    ///
+    /// fn main() {
+    ///     let app = App::new()
+    ///         .wrap(middleware::Logger::default())
+    ///         .route("/index.html", web::get().to(index));
+    /// }
+    /// ```
     pub fn wrap<M, B, F>(
         self,
         mw: F,
@@ -152,7 +171,9 @@ where
         }
     }
 
-    /// Register a middleware function.
+    /// Registers lightweight Application-level middleware, in the form of a
+    /// closure, that runs during inbound and/or outbound processing in the 
+    /// request lifecycle (request -> response).
     ///
     /// ```rust
     /// use actix_service::Service;
@@ -400,7 +421,9 @@ where
         self
     }
 
-    /// Register a middleware.
+    /// Registers heavyweight Route-level middleware, in the form of a
+    /// middleware type, that runs during inbound and/or outbound processing in the 
+    /// request lifecycle (request -> response).
     pub fn wrap<M, B1, F>(
         self,
         mw: F,
@@ -440,7 +463,9 @@ where
         }
     }
 
-    /// Register a middleware function.
+    /// Registers lightweight Route-level middleware, in the form of a
+    /// closure, that runs during inbound and/or outbound processing in the 
+    /// request lifecycle (request -> response).
     pub fn wrap_fn<B1, F, R>(
         self,
         mw: F,
