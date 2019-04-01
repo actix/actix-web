@@ -59,7 +59,7 @@ mod parse;
 #[macro_use]
 mod secure;
 #[cfg(feature = "secure-cookies")]
-pub use secure::*;
+pub use self::secure::*;
 
 use std::borrow::Cow;
 use std::fmt;
@@ -68,11 +68,11 @@ use std::str::FromStr;
 use percent_encoding::{percent_encode, USERINFO_ENCODE_SET};
 use time::{Duration, Tm};
 
-pub use builder::CookieBuilder;
-pub use draft::*;
-pub use jar::{CookieJar, Delta, Iter};
-use parse::parse_cookie;
-pub use parse::ParseError;
+pub use self::builder::CookieBuilder;
+pub use self::draft::*;
+pub use self::jar::{CookieJar, Delta, Iter};
+use self::parse::parse_cookie;
+pub use self::parse::ParseError;
 
 #[derive(Debug, Clone)]
 enum CookieStr {

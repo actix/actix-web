@@ -1,5 +1,22 @@
 # Changes
 
+
+## [0.1.0-alpha.3] - 2019-04-xx
+
+### Added
+
+* Added `Deref<Target = RequestHead>` for `ClientRequest`.
+
+* Export `MessageBody` type
+
+* `ClientResponse::json()` - Loads and parse `application/json` encoded body
+
+
+### Changed
+
+* `ClientResponse::body()` does not consume response object.
+
+
 ## [0.1.0-alpha.2] - 2019-03-29
 
 ### Added
