@@ -105,7 +105,7 @@ where
     S: Stream<Item = Bytes, Error = PayloadError> + 'static,
 {
     /// Load http response's body.
-    pub fn body(self) -> MessageBody<S> {
+    pub fn body(&mut self) -> MessageBody<S> {
         MessageBody::new(self)
     }
 }
@@ -137,7 +137,7 @@ impl<S> fmt::Debug for ClientResponse<S> {
 pub struct MessageBody<S> {
     limit: usize,
     length: Option<usize>,
-    stream: Option<ClientResponse<S>>,
+    stream: Option<Payload<S>>,
     err: Option<PayloadError>,
     fut: Option<Box<Future<Item = Bytes, Error = PayloadError>>>,
 }
@@ -147,7 +147,7 @@ where
     S: Stream<Item = Bytes, Error = PayloadError> + 'static,
 {
     /// Create `MessageBody` for request.
-    pub fn new(res: ClientResponse<S>) -> MessageBody<S> {
+    pub fn new(res: &mut ClientResponse<S>) -> MessageBody<S> {
         let mut len = None;
         if let Some(l) = res.headers().get(CONTENT_LENGTH) {
             if let Ok(s) = l.to_str() {
@@ -164,7 +164,7 @@ where
         MessageBody {
             limit: 262_144,
             length: len,
-            stream: Some(res),
+            stream: Some(res.take_payload()),
             fut: None,
             err: None,
         }
@@ -239,19 +239,20 @@ mod tests {
 
     #[test]
     fn test_body() {
-        let req = TestResponse::with_header(header::CONTENT_LENGTH, "xxxx").finish();
+        let mut req = TestResponse::with_header(header::CONTENT_LENGTH, "xxxx").finish();
         match req.body().poll().err().unwrap() {
             PayloadError::UnknownLength => (),
             _ => unreachable!("error"),
         }
 
-        let req = TestResponse::with_header(header::CONTENT_LENGTH, "1000000").finish();
+        let mut req =
+            TestResponse::with_header(header::CONTENT_LENGTH, "1000000").finish();
         match req.body().poll().err().unwrap() {
             PayloadError::Overflow => (),
             _ => unreachable!("error"),
         }
 
-        let req = TestResponse::default()
+        let mut req = TestResponse::default()
             .set_payload(Bytes::from_static(b"test"))
             .finish();
         match req.body().poll().ok().unwrap() {
@@ -259,7 +260,7 @@ mod tests {
             _ => unreachable!("error"),
         }
 
-        let req = TestResponse::default()
+        let mut req = TestResponse::default()
             .set_payload(Bytes::from_static(b"11111111111111"))
             .finish();
         match req.body().limit(5).poll().err().unwrap() {

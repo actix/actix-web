@@ -7,6 +7,13 @@
 
 * Added `Deref<Target = RequestHead>` for `ClientRequest`.
 
+* Export `MessageBody` type
+
+
+### Changed
+
+* `ClientResponse::body()` does not consume response object.
+
 
 ## [0.1.0-alpha.2] - 2019-03-29
 

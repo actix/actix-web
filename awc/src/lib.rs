@@ -39,7 +39,7 @@ pub mod ws;
 
 pub use self::builder::ClientBuilder;
 pub use self::request::ClientRequest;
-pub use self::response::ClientResponse;
+pub use self::response::{ClientResponse, MessageBody};
 
 use self::connect::{Connect, ConnectorWrapper};
 
