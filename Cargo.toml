@@ -113,3 +113,7 @@ flate2 = "1.0.2"
 lto = true
 opt-level = 3
 codegen-units = 1
+
+[patch.crates-io]
+actix = { git = "https://github.com/actix/actix.git" }
+actix-http = { path = "actix-http" }
