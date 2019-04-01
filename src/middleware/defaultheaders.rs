@@ -166,11 +166,11 @@ mod tests {
         )
         .unwrap();
 
-        let req = TestRequest::default().to_service();
+        let req = TestRequest::default().to_srv_request();
         let resp = block_on(mw.call(req)).unwrap();
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0001");
 
-        let req = TestRequest::default().to_service();
+        let req = TestRequest::default().to_srv_request();
         let srv = FnService::new(|req: ServiceRequest<_>| {
             req.into_response(HttpResponse::Ok().header(CONTENT_TYPE, "0002").finish())
         });
@@ -192,7 +192,7 @@ mod tests {
         let mut mw =
             block_on(DefaultHeaders::new().content_type().new_transform(srv)).unwrap();
 
-        let req = TestRequest::default().to_service();
+        let req = TestRequest::default().to_srv_request();
         let resp = block_on(mw.call(req)).unwrap();
         assert_eq!(
             resp.headers().get(CONTENT_TYPE).unwrap(),

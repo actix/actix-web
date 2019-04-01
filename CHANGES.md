@@ -1,5 +1,12 @@
 # Changes
 
+### Changed
+
+* Renamed `TestRequest::to_service()` to `TestRequest::to_srv_request()`
+
+* Renamed `TestRequest::to_response()` to `TestRequest::to_srv_response()`
+
+
 ### Removed
 
 * Removed unused `actix_web::web::md()`

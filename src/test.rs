@@ -320,7 +320,7 @@ impl TestRequest {
     }
 
     /// Complete request creation and generate `ServiceRequest` instance
-    pub fn to_service(mut self) -> ServiceRequest<PayloadStream> {
+    pub fn to_srv_request(mut self) -> ServiceRequest<PayloadStream> {
         let req = self.req.finish();
 
         ServiceRequest::new(
@@ -331,14 +331,14 @@ impl TestRequest {
         )
     }
 
+    /// Complete request creation and generate `ServiceResponse` instance
+    pub fn to_srv_response<B>(self, res: HttpResponse<B>) -> ServiceResponse<B> {
+        self.to_srv_request().into_response(res)
+    }
+
     /// Complete request creation and generate `Request` instance
     pub fn to_request(mut self) -> Request<PayloadStream> {
         self.req.finish()
-    }
-
-    /// Complete request creation and generate `ServiceResponse` instance
-    pub fn to_response<B>(self, res: HttpResponse<B>) -> ServiceResponse<B> {
-        self.to_service().into_response(res)
     }
 
     /// Complete request creation and generate `HttpRequest` instance

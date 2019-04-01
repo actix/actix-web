@@ -469,44 +469,40 @@ mod tests {
             header::USER_AGENT,
             header::HeaderValue::from_static("ACTIX-WEB"),
         )
-        .to_service();
+        .to_srv_request();
         let _res = block_on(srv.call(req));
     }
 
-    // #[test]
-    // fn test_default_format() {
-    //     let format = Format::default();
+    #[test]
+    fn test_default_format() {
+        let mut format = Format::default();
 
-    //     let req = TestRequest::with_header(
-    //         header::USER_AGENT,
-    //         header::HeaderValue::from_static("ACTIX-WEB"),
-    //     )
-    //     .finish();
-    //     let resp = HttpResponse::build(StatusCode::OK).force_close().finish();
-    //     let entry_time = time::now();
+        let req = TestRequest::with_header(
+            header::USER_AGENT,
+            header::HeaderValue::from_static("ACTIX-WEB"),
+        )
+        .to_srv_request();
 
-    //     let render = |fmt: &mut Formatter| {
-    //         for unit in &format.0 {
-    //             unit.render(fmt, &req, &resp, entry_time)?;
-    //         }
-    //         Ok(())
-    //     };
-    //     let s = format!("{}", FormatDisplay(&render));
-    //     assert!(s.contains("GET / HTTP/1.1"));
-    //     assert!(s.contains("200 0"));
-    //     assert!(s.contains("ACTIX-WEB"));
+        let now = time::now();
+        for unit in &mut format.0 {
+            unit.render_request(now, &req);
+        }
 
-    //     let req = TestRequest::with_uri("/?test").finish();
-    //     let resp = HttpResponse::build(StatusCode::OK).force_close().finish();
-    //     let entry_time = time::now();
+        let resp = HttpResponse::build(StatusCode::OK).force_close().finish();
+        for unit in &mut format.0 {
+            unit.render_response(&resp);
+        }
 
-    //     let render = |fmt: &mut Formatter| {
-    //         for unit in &format.0 {
-    //             unit.render(fmt, &req, &resp, entry_time)?;
-    //         }
-    //         Ok(())
-    //     };
-    //     let s = format!("{}", FormatDisplay(&render));
-    //     assert!(s.contains("GET /?test HTTP/1.1"));
-    // }
+        let entry_time = time::now();
+        let render = |fmt: &mut Formatter| {
+            for unit in &format.0 {
+                unit.render(fmt, 1024, entry_time)?;
+            }
+            Ok(())
+        };
+        let s = format!("{}", FormatDisplay(&render));
+        assert!(s.contains("GET / HTTP/1.1"));
+        assert!(s.contains("200 1024"));
+        assert!(s.contains("ACTIX-WEB"));
+    }
 }

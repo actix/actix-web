@@ -848,8 +848,8 @@ mod tests {
     #[test]
     fn validate_origin_allows_all_origins() {
         let mut cors = Cors::new().finish(test::ok_service());
-        let req =
-            TestRequest::with_header("Origin", "https://www.example.com").to_service();
+        let req = TestRequest::with_header("Origin", "https://www.example.com")
+            .to_srv_request();
 
         let resp = test::call_success(&mut cors, req);
         assert_eq!(resp.status(), StatusCode::OK);
@@ -867,7 +867,7 @@ mod tests {
 
         let req = TestRequest::with_header("Origin", "https://www.example.com")
             .method(Method::OPTIONS)
-            .to_service();
+            .to_srv_request();
 
         assert!(cors.inner.validate_allowed_method(&req).is_err());
         assert!(cors.inner.validate_allowed_headers(&req).is_err());
@@ -877,7 +877,7 @@ mod tests {
         let req = TestRequest::with_header("Origin", "https://www.example.com")
             .header(header::ACCESS_CONTROL_REQUEST_METHOD, "put")
             .method(Method::OPTIONS)
-            .to_service();
+            .to_srv_request();
 
         assert!(cors.inner.validate_allowed_method(&req).is_err());
         assert!(cors.inner.validate_allowed_headers(&req).is_err());
@@ -889,7 +889,7 @@ mod tests {
                 "AUTHORIZATION,ACCEPT",
             )
             .method(Method::OPTIONS)
-            .to_service();
+            .to_srv_request();
 
         let resp = test::call_success(&mut cors, req);
         assert_eq!(
@@ -935,7 +935,7 @@ mod tests {
                 "AUTHORIZATION,ACCEPT",
             )
             .method(Method::OPTIONS)
-            .to_service();
+            .to_srv_request();
 
         let resp = test::call_success(&mut cors, req);
         assert_eq!(resp.status(), StatusCode::OK);
@@ -960,7 +960,7 @@ mod tests {
 
         let req = TestRequest::with_header("Origin", "https://www.unknown.com")
             .method(Method::GET)
-            .to_service();
+            .to_srv_request();
         cors.inner.validate_origin(&req).unwrap();
         cors.inner.validate_allowed_method(&req).unwrap();
         cors.inner.validate_allowed_headers(&req).unwrap();
@@ -974,7 +974,7 @@ mod tests {
 
         let req = TestRequest::with_header("Origin", "https://www.example.com")
             .method(Method::GET)
-            .to_service();
+            .to_srv_request();
 
         let resp = test::call_success(&mut cors, req);
         assert_eq!(resp.status(), StatusCode::OK);
@@ -984,7 +984,7 @@ mod tests {
     fn test_no_origin_response() {
         let mut cors = Cors::new().disable_preflight().finish(test::ok_service());
 
-        let req = TestRequest::default().method(Method::GET).to_service();
+        let req = TestRequest::default().method(Method::GET).to_srv_request();
         let resp = test::call_success(&mut cors, req);
         assert!(resp
             .headers()
@@ -993,7 +993,7 @@ mod tests {
 
         let req = TestRequest::with_header("Origin", "https://www.example.com")
             .method(Method::OPTIONS)
-            .to_service();
+            .to_srv_request();
         let resp = test::call_success(&mut cors, req);
         assert_eq!(
             &b"https://www.example.com"[..],
@@ -1019,7 +1019,7 @@ mod tests {
 
         let req = TestRequest::with_header("Origin", "https://www.example.com")
             .method(Method::OPTIONS)
-            .to_service();
+            .to_srv_request();
 
         let resp = test::call_success(&mut cors, req);
         assert_eq!(
@@ -1066,7 +1066,7 @@ mod tests {
             }));
         let req = TestRequest::with_header("Origin", "https://www.example.com")
             .method(Method::OPTIONS)
-            .to_service();
+            .to_srv_request();
         let resp = test::call_success(&mut cors, req);
         assert_eq!(
             &b"Accept, Origin"[..],
@@ -1082,7 +1082,7 @@ mod tests {
         let req = TestRequest::with_header("Origin", "https://www.example.com")
             .method(Method::OPTIONS)
             .header(header::ACCESS_CONTROL_REQUEST_METHOD, "POST")
-            .to_service();
+            .to_srv_request();
         let resp = test::call_success(&mut cors, req);
 
         let origins_str = resp
@@ -1105,7 +1105,7 @@ mod tests {
 
         let req = TestRequest::with_header("Origin", "https://example.com")
             .method(Method::GET)
-            .to_service();
+            .to_srv_request();
 
         let resp = test::call_success(&mut cors, req);
         assert_eq!(
@@ -1118,7 +1118,7 @@ mod tests {
 
         let req = TestRequest::with_header("Origin", "https://example.org")
             .method(Method::GET)
-            .to_service();
+            .to_srv_request();
 
         let resp = test::call_success(&mut cors, req);
         assert_eq!(
@@ -1141,7 +1141,7 @@ mod tests {
         let req = TestRequest::with_header("Origin", "https://example.com")
             .header(header::ACCESS_CONTROL_REQUEST_METHOD, "GET")
             .method(Method::OPTIONS)
-            .to_service();
+            .to_srv_request();
 
         let resp = test::call_success(&mut cors, req);
         assert_eq!(
@@ -1155,7 +1155,7 @@ mod tests {
         let req = TestRequest::with_header("Origin", "https://example.org")
             .header(header::ACCESS_CONTROL_REQUEST_METHOD, "GET")
             .method(Method::OPTIONS)
-            .to_service();
+            .to_srv_request();
 
         let resp = test::call_success(&mut cors, req);
         assert_eq!(

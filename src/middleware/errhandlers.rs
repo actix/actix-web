@@ -180,7 +180,7 @@ mod tests {
         )
         .unwrap();
 
-        let resp = test::call_success(&mut mw, TestRequest::default().to_service());
+        let resp = test::call_success(&mut mw, TestRequest::default().to_srv_request());
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0001");
     }
 
@@ -206,7 +206,7 @@ mod tests {
         )
         .unwrap();
 
-        let resp = test::call_success(&mut mw, TestRequest::default().to_service());
+        let resp = test::call_success(&mut mw, TestRequest::default().to_srv_request());
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0001");
     }
 }
