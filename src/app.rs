@@ -113,8 +113,8 @@ where
     }
 
     /// Registers heavyweight Application-level middleware, in the form of a
-    /// middleware type, that runs during inbound and/or outbound processing in the 
-    /// request lifecycle (request -> response).
+    /// re-usable middleware type, that runs during inbound and/or outbound 
+    /// processing in the request lifecycle (request -> response).
     ///
     /// ```rust
     /// use actix_service::Service;
@@ -422,8 +422,8 @@ where
     }
 
     /// Registers heavyweight Route-level middleware, in the form of a
-    /// middleware type, that runs during inbound and/or outbound processing in the 
-    /// request lifecycle (request -> response).
+    /// re-usable middleware type, that runs during inbound and/or outbound 
+    /// processing in the request lifecycle (request -> response).
     pub fn wrap<M, B1, F>(
         self,
         mw: F,
