@@ -43,7 +43,7 @@ pub struct NamedFile {
     pub(crate) content_disposition: header::ContentDisposition,
     pub(crate) md: Metadata,
     modified: Option<SystemTime>,
-    encoding: Option<ContentEncoding>,
+    pub(crate) encoding: Option<ContentEncoding>,
     pub(crate) status_code: StatusCode,
     pub(crate) flags: Flags,
 }

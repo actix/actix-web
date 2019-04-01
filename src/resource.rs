@@ -4,7 +4,7 @@ use std::rc::Rc;
 use actix_http::{Error, Response};
 use actix_service::boxed::{self, BoxedNewService, BoxedService};
 use actix_service::{
-    ApplyTransform, IntoNewService, IntoTransform, NewService, Service, Transform,
+    apply_transform, IntoNewService, IntoTransform, NewService, Service, Transform,
 };
 use futures::future::{ok, Either, FutureResult};
 use futures::{Async, Future, IntoFuture, Poll};
@@ -254,7 +254,7 @@ where
         >,
         F: IntoTransform<M, T::Service>,
     {
-        let endpoint = ApplyTransform::new(mw, self.endpoint);
+        let endpoint = apply_transform(mw, self.endpoint);
         Resource {
             endpoint,
             rdef: self.rdef,
