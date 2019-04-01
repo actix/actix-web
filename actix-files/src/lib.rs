@@ -566,7 +566,10 @@ mod tests {
     use bytes::BytesMut;
 
     use super::*;
-    use actix_web::http::{header, header::DispositionType, Method, StatusCode};
+    use actix_web::http::header::{
+        self, ContentDisposition, DispositionParam, DispositionType,
+    };
+    use actix_web::http::{Method, StatusCode};
     use actix_web::test::{self, TestRequest};
     use actix_web::App;
 
@@ -683,7 +686,6 @@ mod tests {
 
     #[test]
     fn test_named_file_image_attachment() {
-        use header::{ContentDisposition, DispositionParam, DispositionType};
         let cd = ContentDisposition {
             disposition: DispositionType::Attachment,
             parameters: vec![DispositionParam::Filename(String::from("test.png"))],

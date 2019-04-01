@@ -79,7 +79,7 @@ pub enum JsonPayloadError {
     Payload(PayloadError),
 }
 
-/// Return `BadRequest` for `UrlencodedError`
+/// Return `BadRequest` for `JsonPayloadError`
 impl ResponseError for JsonPayloadError {
     fn error_response(&self) -> HttpResponse {
         match *self {
