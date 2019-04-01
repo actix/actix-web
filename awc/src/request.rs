@@ -554,6 +554,20 @@ impl ClientRequest {
     }
 }
 
+impl std::ops::Deref for ClientRequest {
+    type Target = RequestHead;
+
+    fn deref(&self) -> &RequestHead {
+        &self.head
+    }
+}
+
+impl std::ops::DerefMut for ClientRequest {
+    fn deref_mut(&mut self) -> &mut RequestHead {
+        &mut self.head
+    }
+}
+
 impl fmt::Debug for ClientRequest {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         writeln!(
