@@ -61,9 +61,7 @@ fn test_connection_close() {
             .finish(|_| ok::<_, ()>(Response::Ok().body(STR)))
             .map(|_| ())
     });
-    let response = srv
-        .block_on(srv.get("/").close_connection().send())
-        .unwrap();
+    let response = srv.block_on(srv.get("/").force_close().send()).unwrap();
     assert!(response.status().is_success());
 }
 
