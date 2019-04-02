@@ -1,8 +1,9 @@
 use std::cell::{Ref, RefMut};
 use std::fmt;
+use std::marker::PhantomData;
 
 use bytes::{Bytes, BytesMut};
-use futures::{Future, Poll, Stream};
+use futures::{Async, Future, Poll, Stream};
 
 use actix_http::cookie::Cookie;
 use actix_http::error::{CookieParseError, PayloadError};
@@ -103,7 +104,7 @@ impl<S> ClientResponse<S> {
 
 impl<S> ClientResponse<S>
 where
-    S: Stream<Item = Bytes, Error = PayloadError> + 'static,
+    S: Stream<Item = Bytes, Error = PayloadError>,
 {
     /// Loads http response's body.
     pub fn body(&mut self) -> MessageBody<S> {
@@ -147,16 +148,14 @@ impl<S> fmt::Debug for ClientResponse<S> {
 
 /// Future that resolves to a complete http message body.
 pub struct MessageBody<S> {
-    limit: usize,
     length: Option<usize>,
-    stream: Option<Payload<S>>,
     err: Option<PayloadError>,
-    fut: Option<Box<Future<Item = Bytes, Error = PayloadError>>>,
+    fut: Option<ReadBody<S>>,
 }
 
 impl<S> MessageBody<S>
 where
-    S: Stream<Item = Bytes, Error = PayloadError> + 'static,
+    S: Stream<Item = Bytes, Error = PayloadError>,
 {
     /// Create `MessageBody` for request.
     pub fn new(res: &mut ClientResponse<S>) -> MessageBody<S> {
@@ -174,24 +173,22 @@ where
         }
 
         MessageBody {
-            limit: 262_144,
             length: len,
-            stream: Some(res.take_payload()),
-            fut: None,
             err: None,
+            fut: Some(ReadBody::new(res.take_payload(), 262_144)),
         }
     }
 
     /// Change max size of payload. By default max size is 256Kb
     pub fn limit(mut self, limit: usize) -> Self {
-        self.limit = limit;
+        if let Some(ref mut fut) = self.fut {
+            fut.limit = limit;
+        }
         self
     }
 
     fn err(e: PayloadError) -> Self {
         MessageBody {
-            stream: None,
-            limit: 262_144,
             fut: None,
             err: Some(e),
             length: None,
@@ -201,44 +198,23 @@ where
 
 impl<S> Future for MessageBody<S>
 where
-    S: Stream<Item = Bytes, Error = PayloadError> + 'static,
+    S: Stream<Item = Bytes, Error = PayloadError>,
 {
     type Item = Bytes;
     type Error = PayloadError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        if let Some(ref mut fut) = self.fut {
-            return fut.poll();
-        }
-
         if let Some(err) = self.err.take() {
             return Err(err);
         }
 
         if let Some(len) = self.length.take() {
-            if len > self.limit {
+            if len > self.fut.as_ref().unwrap().limit {
                 return Err(PayloadError::Overflow);
             }
         }
 
-        // future
-        let limit = self.limit;
-        self.fut = Some(Box::new(
-            self.stream
-                .take()
-                .expect("Can not be used second time")
-                .from_err()
-                .fold(BytesMut::with_capacity(8192), move |mut body, chunk| {
-                    if (body.len() + chunk.len()) > limit {
-                        Err(PayloadError::Overflow)
-                    } else {
-                        body.extend_from_slice(&chunk);
-                        Ok(body)
-                    }
-                })
-                .map(|body| body.freeze()),
-        ));
-        self.poll()
+        self.fut.as_mut().unwrap().poll()
     }
 }
 
@@ -249,16 +225,15 @@ where
 /// * content type is not `application/json`
 /// * content length is greater than 64k
 pub struct JsonBody<S, U> {
-    limit: usize,
     length: Option<usize>,
-    stream: Payload<S>,
     err: Option<JsonPayloadError>,
-    fut: Option<Box<Future<Item = U, Error = JsonPayloadError>>>,
+    fut: Option<ReadBody<S>>,
+    _t: PhantomData<U>,
 }
 
 impl<S, U> JsonBody<S, U>
 where
-    S: Stream<Item = Bytes, Error = PayloadError> + 'static,
+    S: Stream<Item = Bytes, Error = PayloadError>,
     U: DeserializeOwned,
 {
     /// Create `JsonBody` for request.
@@ -271,11 +246,10 @@ where
         };
         if !json {
             return JsonBody {
-                limit: 65536,
                 length: None,
-                stream: Payload::None,
                 fut: None,
                 err: Some(JsonPayloadError::ContentType),
+                _t: PhantomData,
             };
         }
 
@@ -289,58 +263,84 @@ where
         }
 
         JsonBody {
-            limit: 65536,
             length: len,
-            stream: req.take_payload(),
-            fut: None,
             err: None,
+            fut: Some(ReadBody::new(req.take_payload(), 65536)),
+            _t: PhantomData,
         }
     }
 
     /// Change max size of payload. By default max size is 64Kb
     pub fn limit(mut self, limit: usize) -> Self {
-        self.limit = limit;
+        if let Some(ref mut fut) = self.fut {
+            fut.limit = limit;
+        }
         self
     }
 }
 
 impl<T, U> Future for JsonBody<T, U>
 where
-    T: Stream<Item = Bytes, Error = PayloadError> + 'static,
+    T: Stream<Item = Bytes, Error = PayloadError>,
     U: DeserializeOwned + 'static,
 {
     type Item = U;
     type Error = JsonPayloadError;
 
     fn poll(&mut self) -> Poll<U, JsonPayloadError> {
-        if let Some(ref mut fut) = self.fut {
-            return fut.poll();
-        }
-
         if let Some(err) = self.err.take() {
             return Err(err);
         }
 
-        let limit = self.limit;
         if let Some(len) = self.length.take() {
-            if len > limit {
-                return Err(JsonPayloadError::Overflow);
+            if len > self.fut.as_ref().unwrap().limit {
+                return Err(JsonPayloadError::Payload(PayloadError::Overflow));
             }
         }
 
-        let fut = std::mem::replace(&mut self.stream, Payload::None)
-            .from_err()
-            .fold(BytesMut::with_capacity(8192), move |mut body, chunk| {
-                if (body.len() + chunk.len()) > limit {
-                    Err(JsonPayloadError::Overflow)
-                } else {
-                    body.extend_from_slice(&chunk);
-                    Ok(body)
+        let body = futures::try_ready!(self.fut.as_mut().unwrap().poll());
+        Ok(Async::Ready(serde_json::from_slice::<U>(&body)?))
+    }
+}
+
+struct ReadBody<S> {
+    stream: Payload<S>,
+    buf: BytesMut,
+    limit: usize,
+}
+
+impl<S> ReadBody<S> {
+    fn new(stream: Payload<S>, limit: usize) -> Self {
+        Self {
+            stream,
+            buf: BytesMut::with_capacity(std::cmp::min(limit, 32768)),
+            limit,
+        }
+    }
+}
+
+impl<S> Future for ReadBody<S>
+where
+    S: Stream<Item = Bytes, Error = PayloadError>,
+{
+    type Item = Bytes;
+    type Error = PayloadError;
+
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        loop {
+            return match self.stream.poll()? {
+                Async::Ready(Some(chunk)) => {
+                    if (self.buf.len() + chunk.len()) > self.limit {
+                        Err(PayloadError::Overflow)
+                    } else {
+                        self.buf.extend_from_slice(&chunk);
+                        continue;
+                    }
                 }
-            })
-            .and_then(|body| Ok(serde_json::from_slice::<U>(&body)?));
-        self.fut = Some(Box::new(fut));
-        self.poll()
+                Async::Ready(None) => Ok(Async::Ready(self.buf.take().freeze())),
+                Async::NotReady => Ok(Async::NotReady),
+            };
+        }
     }
 }
 
@@ -391,8 +391,8 @@ mod tests {
 
     fn json_eq(err: JsonPayloadError, other: JsonPayloadError) -> bool {
         match err {
-            JsonPayloadError::Overflow => match other {
-                JsonPayloadError::Overflow => true,
+            JsonPayloadError::Payload(PayloadError::Overflow) => match other {
+                JsonPayloadError::Payload(PayloadError::Overflow) => true,
                 _ => false,
             },
             JsonPayloadError::ContentType => match other {
@@ -430,7 +430,10 @@ mod tests {
             .finish();
 
         let json = block_on(JsonBody::<_, MyObject>::new(&mut req).limit(100));
-        assert!(json_eq(json.err().unwrap(), JsonPayloadError::Overflow));
+        assert!(json_eq(
+            json.err().unwrap(),
+            JsonPayloadError::Payload(PayloadError::Overflow)
+        ));
 
         let mut req = TestResponse::default()
             .header(

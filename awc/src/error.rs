@@ -54,9 +54,6 @@ impl From<HttpError> for WsClientError {
 /// A set of errors that can occur during parsing json payloads
 #[derive(Debug, Display, From)]
 pub enum JsonPayloadError {
-    /// Payload size is bigger than allowed. (default: 32kB)
-    #[display(fmt = "Json payload size is bigger than allowed.")]
-    Overflow,
     /// Content type error
     #[display(fmt = "Content type error")]
     ContentType,
