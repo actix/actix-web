@@ -19,6 +19,9 @@ use crate::message::{ConnectionType, Head, ResponseHead};
 use crate::request::Request;
 use crate::response::Response;
 
+const LW: usize = 2 * 1024;
+const HW: usize = 32 * 1024;
+
 bitflags! {
     struct Flags: u8 {
         const HEAD              = 0b0000_0001;
@@ -105,6 +108,11 @@ impl Decoder for Codec {
     type Error = ParseError;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
+        let cap = src.capacity();
+        if cap < LW {
+            src.reserve(HW - cap);
+        }
+
         if self.payload.is_some() {
             Ok(match self.payload.as_mut().unwrap().decode(src)? {
                 Some(PayloadItem::Chunk(chunk)) => Some(Message::Chunk(Some(chunk))),
