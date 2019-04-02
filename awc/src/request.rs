@@ -226,10 +226,10 @@ impl ClientRequest {
         self
     }
 
-    /// Close connection instead of returning it back to connections pool.
+    /// Force close connection instead of returning it back to connections pool.
     /// This setting affect only http/1 connections.
     #[inline]
-    pub fn close_connection(mut self) -> Self {
+    pub fn force_close(mut self) -> Self {
         self.head.set_connection_type(ConnectionType::Close);
         self
     }
