@@ -195,7 +195,7 @@ impl TestServerRuntime {
 
     pub fn load_body<S>(
         &mut self,
-        response: ClientResponse<S>,
+        mut response: ClientResponse<S>,
     ) -> Result<Bytes, PayloadError>
     where
         S: Stream<Item = Bytes, Error = PayloadError> + 'static,
