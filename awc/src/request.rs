@@ -504,7 +504,7 @@ impl ClientRequest {
         Item = ClientResponse<impl Stream<Item = Bytes, Error = PayloadError>>,
         Error = SendRequestError,
     > {
-        let body = match serde_json::to_string(&value) {
+        let body = match serde_json::to_string(value) {
             Ok(body) => body,
             Err(e) => return Either::A(err(Error::from(e).into())),
         };
@@ -520,12 +520,12 @@ impl ClientRequest {
     /// `ClientRequestBuilder` can not be used after this call.
     pub fn send_form<T: Serialize>(
         &mut self,
-        value: T,
+        value: &T,
     ) -> impl Future<
         Item = ClientResponse<impl Stream<Item = Bytes, Error = PayloadError>>,
         Error = SendRequestError,
     > {
-        let body = match serde_urlencoded::to_string(&value) {
+        let body = match serde_urlencoded::to_string(value) {
             Ok(body) => body,
             Err(e) => return Either::A(err(Error::from(e).into())),
         };
