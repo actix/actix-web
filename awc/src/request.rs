@@ -499,7 +499,7 @@ impl ClientRequest {
     /// Set a JSON body and generate `ClientRequest`
     pub fn send_json<T: Serialize>(
         &mut self,
-        value: T,
+        value: &T,
     ) -> impl Future<
         Item = ClientResponse<impl Stream<Item = Bytes, Error = PayloadError>>,
         Error = SendRequestError,

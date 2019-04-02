@@ -16,6 +16,8 @@
 
 * Use non-consuming builder pattern for `ClientRequest`.
 
+* `ClientRequest::json()` accepts reference instead of object.
+
 * `ClientResponse::body()` does not consume response object.
 
 
