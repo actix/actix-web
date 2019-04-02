@@ -10,7 +10,7 @@ use http::header::{
 use http::{Method, Version};
 
 use super::decoder::{PayloadDecoder, PayloadItem, PayloadType};
-use super::{decoder, encoder};
+use super::{decoder, encoder, reserve_readbuf};
 use super::{Message, MessageType};
 use crate::body::BodySize;
 use crate::config::ServiceConfig;
@@ -150,6 +150,7 @@ impl Decoder for ClientCodec {
             } else {
                 self.inner.payload = None;
             }
+            reserve_readbuf(src);
             Ok(Some(req))
         } else {
             Ok(None)
@@ -168,7 +169,10 @@ impl Decoder for ClientPayloadCodec {
         );
 
         Ok(match self.inner.payload.as_mut().unwrap().decode(src)? {
-            Some(PayloadItem::Chunk(chunk)) => Some(Some(chunk)),
+            Some(PayloadItem::Chunk(chunk)) => {
+                reserve_readbuf(src);
+                Some(Some(chunk))
+            }
             Some(PayloadItem::Eof) => {
                 self.inner.payload.take();
                 Some(None)

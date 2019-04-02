@@ -9,7 +9,7 @@ use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCOD
 use http::{Method, StatusCode, Version};
 
 use super::decoder::{PayloadDecoder, PayloadItem, PayloadType};
-use super::{decoder, encoder};
+use super::{decoder, encoder, reserve_readbuf};
 use super::{Message, MessageType};
 use crate::body::BodySize;
 use crate::config::ServiceConfig;
@@ -18,9 +18,6 @@ use crate::helpers;
 use crate::message::{ConnectionType, Head, ResponseHead};
 use crate::request::Request;
 use crate::response::Response;
-
-const LW: usize = 2 * 1024;
-const HW: usize = 32 * 1024;
 
 bitflags! {
     struct Flags: u8 {
@@ -108,14 +105,12 @@ impl Decoder for Codec {
     type Error = ParseError;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
-        let cap = src.capacity();
-        if cap < LW {
-            src.reserve(HW - cap);
-        }
-
         if self.payload.is_some() {
             Ok(match self.payload.as_mut().unwrap().decode(src)? {
-                Some(PayloadItem::Chunk(chunk)) => Some(Message::Chunk(Some(chunk))),
+                Some(PayloadItem::Chunk(chunk)) => {
+                    reserve_readbuf(src);
+                    Some(Message::Chunk(Some(chunk)))
+                }
                 Some(PayloadItem::Eof) => {
                     self.payload.take();
                     Some(Message::Chunk(None))
@@ -140,6 +135,7 @@ impl Decoder for Codec {
                     self.flags.insert(Flags::STREAM);
                 }
             }
+            reserve_readbuf(src);
             Ok(Some(Message::Item(req)))
         } else {
             Ok(None)
