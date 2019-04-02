@@ -36,7 +36,7 @@ use net2::TcpBuilder;
 ///         )
 ///     );
 ///
-///     let req = srv.get();
+///     let req = srv.get("/");
 ///     let response = srv.block_on(req.send()).unwrap();
 ///     assert!(response.status().is_success());
 /// }

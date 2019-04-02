@@ -53,3 +53,7 @@ time = "0.1"
 tokio-tcp = "0.1"
 tokio-timer = "0.2"
 openssl = { version="0.10", optional = true }
+
+[dev-dependencies]
+actix-web = "1.0.0-alpa.2"
+actix-http = "0.1.0-alpa.2"

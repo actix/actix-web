@@ -32,6 +32,7 @@ members = [
   "actix-session",
   "actix-web-actors",
   "actix-web-codegen",
+  "test-server",
 ]
 
 [package.metadata.docs.rs]
