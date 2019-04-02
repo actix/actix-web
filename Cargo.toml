@@ -116,4 +116,7 @@ codegen-units = 1
 
 [patch.crates-io]
 actix = { git = "https://github.com/actix/actix.git" }
+actix-web = { path = "." }
 actix-http = { path = "actix-http" }
+actix-http-test = { path = "test-server" }
+awc = { path = "awc" }

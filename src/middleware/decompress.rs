@@ -10,7 +10,6 @@ use futures::{Async, Poll, Stream};
 use crate::dev::Payload;
 use crate::error::{Error, PayloadError};
 use crate::service::ServiceRequest;
-use crate::HttpMessage;
 
 /// `Middleware` for decompressing request's payload.
 /// `Decompress` middleware must be added with `App::chain()` method.

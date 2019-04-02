@@ -693,7 +693,7 @@ mod tests {
         let resp = block_on(srv.call(req)).unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
 
-        match resp.body() {
+        match resp.response().body() {
             ResponseBody::Body(Body::Bytes(ref b)) => {
                 let bytes: Bytes = b.clone().into();
                 assert_eq!(bytes, Bytes::from_static(b"project: project1"));
@@ -799,7 +799,7 @@ mod tests {
         let resp = block_on(srv.call(req)).unwrap();
         assert_eq!(resp.status(), StatusCode::CREATED);
 
-        match resp.body() {
+        match resp.response().body() {
             ResponseBody::Body(Body::Bytes(ref b)) => {
                 let bytes: Bytes = b.clone().into();
                 assert_eq!(bytes, Bytes::from_static(b"project: project_1"));
@@ -826,7 +826,7 @@ mod tests {
         let resp = block_on(srv.call(req)).unwrap();
         assert_eq!(resp.status(), StatusCode::CREATED);
 
-        match resp.body() {
+        match resp.response().body() {
             ResponseBody::Body(Body::Bytes(ref b)) => {
                 let bytes: Bytes = b.clone().into();
                 assert_eq!(bytes, Bytes::from_static(b"project: test - 1"));

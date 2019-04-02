@@ -113,7 +113,7 @@ where
 
     fn call(&mut self, req: ServiceRequest<P>) -> Self::Future {
         // negotiate content-encoding
-        let encoding = if let Some(val) = req.headers.get(ACCEPT_ENCODING) {
+        let encoding = if let Some(val) = req.headers().get(ACCEPT_ENCODING) {
             if let Ok(enc) = val.to_str() {
                 AcceptEncoding::parse(enc, self.encoding)
             } else {
@@ -157,7 +157,7 @@ where
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         let resp = futures::try_ready!(self.fut.poll());
 
-        let enc = if let Some(enc) = resp.head().extensions().get::<Enc>() {
+        let enc = if let Some(enc) = resp.response().extensions().get::<Enc>() {
             enc.0
         } else {
             self.encoding

@@ -54,7 +54,7 @@ fn test_body() {
         )
     });
 
-    let mut response = srv.block_on(srv.get().send()).unwrap();
+    let mut response = srv.block_on(srv.get("/").send()).unwrap();
     assert!(response.status().is_success());
 
     // read response
@@ -73,7 +73,7 @@ fn test_body_gzip() {
         )
     });
 
-    let mut response = srv.block_on(srv.get().no_decompress().send()).unwrap();
+    let mut response = srv.block_on(srv.get("/").no_decompress().send()).unwrap();
     assert!(response.status().is_success());
 
     // read response
@@ -111,7 +111,7 @@ fn test_body_encoding_override() {
     });
 
     // Builder
-    let mut response = srv.block_on(srv.get().no_decompress().send()).unwrap();
+    let mut response = srv.block_on(srv.get("/").no_decompress().send()).unwrap();
     assert!(response.status().is_success());
 
     // read response
@@ -161,7 +161,7 @@ fn test_body_gzip_large() {
         )
     });
 
-    let mut response = srv.block_on(srv.get().no_decompress().send()).unwrap();
+    let mut response = srv.block_on(srv.get("/").no_decompress().send()).unwrap();
     assert!(response.status().is_success());
 
     // read response
@@ -195,7 +195,7 @@ fn test_body_gzip_large_random() {
         )
     });
 
-    let mut response = srv.block_on(srv.get().no_decompress().send()).unwrap();
+    let mut response = srv.block_on(srv.get("/").no_decompress().send()).unwrap();
     assert!(response.status().is_success());
 
     // read response
@@ -224,7 +224,7 @@ fn test_body_chunked_implicit() {
         )
     });
 
-    let mut response = srv.block_on(srv.get().no_decompress().send()).unwrap();
+    let mut response = srv.block_on(srv.get("/").no_decompress().send()).unwrap();
     assert!(response.status().is_success());
     assert_eq!(
         response.headers().get(TRANSFER_ENCODING).unwrap(),
@@ -258,7 +258,7 @@ fn test_body_br_streaming() {
 
     let mut response = srv
         .block_on(
-            srv.get()
+            srv.get("/")
                 .header(ACCEPT_ENCODING, "br")
                 .no_decompress()
                 .send(),
@@ -284,7 +284,7 @@ fn test_head_binary() {
         )))
     });
 
-    let mut response = srv.block_on(srv.head().send()).unwrap();
+    let mut response = srv.block_on(srv.head("/").send()).unwrap();
     assert!(response.status().is_success());
 
     {
@@ -310,7 +310,7 @@ fn test_no_chunking() {
         ))))
     });
 
-    let mut response = srv.block_on(srv.get().send()).unwrap();
+    let mut response = srv.block_on(srv.get("/").send()).unwrap();
     assert!(response.status().is_success());
     assert!(!response.headers().contains_key(TRANSFER_ENCODING));
 
@@ -333,7 +333,7 @@ fn test_body_deflate() {
     });
 
     // client request
-    let mut response = srv.block_on(srv.get().no_decompress().send()).unwrap();
+    let mut response = srv.block_on(srv.get("/").no_decompress().send()).unwrap();
     assert!(response.status().is_success());
 
     // read response
@@ -362,7 +362,7 @@ fn test_body_brotli() {
     // client request
     let mut response = srv
         .block_on(
-            srv.get()
+            srv.get("/")
                 .header(ACCEPT_ENCODING, "br")
                 .no_decompress()
                 .send(),
@@ -398,7 +398,7 @@ fn test_encoding() {
     let enc = e.finish().unwrap();
 
     let request = srv
-        .post()
+        .post("/")
         .header(CONTENT_ENCODING, "gzip")
         .send_body(enc.clone());
     let mut response = srv.block_on(request).unwrap();
@@ -427,7 +427,7 @@ fn test_gzip_encoding() {
     let enc = e.finish().unwrap();
 
     let request = srv
-        .post()
+        .post("/")
         .header(CONTENT_ENCODING, "gzip")
         .send_body(enc.clone());
     let mut response = srv.block_on(request).unwrap();
@@ -457,7 +457,7 @@ fn test_gzip_encoding_large() {
     let enc = e.finish().unwrap();
 
     let request = srv
-        .post()
+        .post("/")
         .header(CONTENT_ENCODING, "gzip")
         .send_body(enc.clone());
     let mut response = srv.block_on(request).unwrap();
@@ -491,7 +491,7 @@ fn test_reading_gzip_encoding_large_random() {
     let enc = e.finish().unwrap();
 
     let request = srv
-        .post()
+        .post("/")
         .header(CONTENT_ENCODING, "gzip")
         .send_body(enc.clone());
     let mut response = srv.block_on(request).unwrap();
@@ -521,7 +521,7 @@ fn test_reading_deflate_encoding() {
 
     // client request
     let request = srv
-        .post()
+        .post("/")
         .header(CONTENT_ENCODING, "deflate")
         .send_body(enc.clone());
     let mut response = srv.block_on(request).unwrap();
@@ -551,7 +551,7 @@ fn test_reading_deflate_encoding_large() {
 
     // client request
     let request = srv
-        .post()
+        .post("/")
         .header(CONTENT_ENCODING, "deflate")
         .send_body(enc.clone());
     let mut response = srv.block_on(request).unwrap();
@@ -585,7 +585,7 @@ fn test_reading_deflate_encoding_large_random() {
 
     // client request
     let request = srv
-        .post()
+        .post("/")
         .header(CONTENT_ENCODING, "deflate")
         .send_body(enc.clone());
     let mut response = srv.block_on(request).unwrap();
@@ -615,7 +615,7 @@ fn test_brotli_encoding() {
 
     // client request
     let request = srv
-        .post()
+        .post("/")
         .header(CONTENT_ENCODING, "br")
         .send_body(enc.clone());
     let mut response = srv.block_on(request).unwrap();
@@ -645,7 +645,7 @@ fn test_brotli_encoding_large() {
 
     // client request
     let request = srv
-        .post()
+        .post("/")
         .header(CONTENT_ENCODING, "br")
         .send_body(enc.clone());
     let mut response = srv.block_on(request).unwrap();
@@ -912,7 +912,7 @@ fn test_reading_deflate_encoding_large_random_ssl() {
 //         .finish();
 //     let second_cookie = http::Cookie::new("second", "second_value");
 
-//     let request = srv.get().finish().unwrap();
+//     let request = srv.get("/").finish().unwrap();
 //     let response = srv.execute(request.send()).unwrap();
 //     assert!(response.status().is_success());
 

@@ -15,7 +15,7 @@ use time;
 use crate::dev::{BodySize, MessageBody, ResponseBody};
 use crate::error::{Error, Result};
 use crate::service::{ServiceRequest, ServiceResponse};
-use crate::{HttpMessage, HttpResponse};
+use crate::HttpResponse;
 
 /// `Middleware` for logging request and response info to the terminal.
 ///
@@ -201,7 +201,7 @@ where
 
         if let Some(ref mut format) = self.format {
             for unit in &mut format.0 {
-                unit.render_response(&res);
+                unit.render_response(res.response());
             }
         }
 

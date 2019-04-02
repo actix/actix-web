@@ -51,7 +51,7 @@ use crate::error::{ResponseError, Result};
 use crate::http::header::{self, HeaderName, HeaderValue};
 use crate::http::{self, HttpTryFrom, Method, StatusCode, Uri};
 use crate::service::{ServiceRequest, ServiceResponse};
-use crate::{HttpMessage, HttpResponse};
+use crate::HttpResponse;
 
 /// A set of errors that can occur during processing CORS
 #[derive(Debug, Display)]
@@ -702,9 +702,9 @@ where
         if self.inner.preflight && Method::OPTIONS == *req.method() {
             if let Err(e) = self
                 .inner
-                .validate_origin(&req)
-                .and_then(|_| self.inner.validate_allowed_method(&req))
-                .and_then(|_| self.inner.validate_allowed_headers(&req))
+                .validate_origin(req.head())
+                .and_then(|_| self.inner.validate_allowed_method(req.head()))
+                .and_then(|_| self.inner.validate_allowed_headers(req.head()))
             {
                 return Either::A(ok(req.error_response(e)));
             }
@@ -739,7 +739,7 @@ where
                     let _ = resp.header(header::ACCESS_CONTROL_ALLOW_HEADERS, headers);
                 })
                 .if_some(
-                    self.inner.access_control_allow_origin(&req),
+                    self.inner.access_control_allow_origin(req.head()),
                     |origin, resp| {
                         let _ = resp.header(header::ACCESS_CONTROL_ALLOW_ORIGIN, origin);
                     },
@@ -762,7 +762,7 @@ where
             Either::A(ok(req.into_response(res)))
         } else if req.headers().contains_key(header::ORIGIN) {
             // Only check requests with a origin header.
-            if let Err(e) = self.inner.validate_origin(&req) {
+            if let Err(e) = self.inner.validate_origin(req.head()) {
                 return Either::A(ok(req.error_response(e)));
             }
 
@@ -771,7 +771,7 @@ where
             Either::B(Either::B(Box::new(self.service.call(req).and_then(
                 move |mut res| {
                     if let Some(origin) =
-                        inner.access_control_allow_origin(&res.request())
+                        inner.access_control_allow_origin(res.request().head())
                     {
                         res.headers_mut()
                             .insert(header::ACCESS_CONTROL_ALLOW_ORIGIN, origin.clone());
@@ -869,8 +869,8 @@ mod tests {
             .method(Method::OPTIONS)
             .to_srv_request();
 
-        assert!(cors.inner.validate_allowed_method(&req).is_err());
-        assert!(cors.inner.validate_allowed_headers(&req).is_err());
+        assert!(cors.inner.validate_allowed_method(req.head()).is_err());
+        assert!(cors.inner.validate_allowed_headers(req.head()).is_err());
         let resp = test::call_success(&mut cors, req);
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 
@@ -879,8 +879,8 @@ mod tests {
             .method(Method::OPTIONS)
             .to_srv_request();
 
-        assert!(cors.inner.validate_allowed_method(&req).is_err());
-        assert!(cors.inner.validate_allowed_headers(&req).is_err());
+        assert!(cors.inner.validate_allowed_method(req.head()).is_err());
+        assert!(cors.inner.validate_allowed_headers(req.head()).is_err());
 
         let req = TestRequest::with_header("Origin", "https://www.example.com")
             .header(header::ACCESS_CONTROL_REQUEST_METHOD, "POST")
@@ -961,9 +961,9 @@ mod tests {
         let req = TestRequest::with_header("Origin", "https://www.unknown.com")
             .method(Method::GET)
             .to_srv_request();
-        cors.inner.validate_origin(&req).unwrap();
-        cors.inner.validate_allowed_method(&req).unwrap();
-        cors.inner.validate_allowed_headers(&req).unwrap();
+        cors.inner.validate_origin(req.head()).unwrap();
+        cors.inner.validate_allowed_method(req.head()).unwrap();
+        cors.inner.validate_allowed_headers(req.head()).unwrap();
     }
 
     #[test]

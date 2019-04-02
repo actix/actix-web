@@ -174,7 +174,7 @@ where
 
     #[inline]
     fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
-        let req2 = req.clone();
+        let req2 = req.request().clone();
         let (limit, err) = req
             .route_data::<JsonConfig>()
             .map(|c| (c.limit, c.ehandler.clone()))

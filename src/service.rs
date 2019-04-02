@@ -4,7 +4,7 @@ use std::marker::PhantomData;
 use std::rc::Rc;
 
 use actix_http::body::{Body, MessageBody, ResponseBody};
-use actix_http::http::{HeaderMap, Method, Uri, Version};
+use actix_http::http::{HeaderMap, Method, StatusCode, Uri, Version};
 use actix_http::{
     Error, Extensions, HttpMessage, Payload, PayloadStream, Request, RequestHead,
     Response, ResponseHead,
@@ -123,7 +123,13 @@ impl<P> ServiceRequest<P> {
     }
 
     #[inline]
-    /// Returns mutable Request's headers.
+    /// Returns request's headers.
+    pub fn headers(&self) -> &HeaderMap {
+        &self.head().headers
+    }
+
+    #[inline]
+    /// Returns mutable request's headers.
     pub fn headers_mut(&mut self) -> &mut HeaderMap {
         &mut self.head_mut().headers
     }
@@ -202,20 +208,6 @@ impl<P> HttpMessage for ServiceRequest<P> {
     }
 }
 
-impl<P> std::ops::Deref for ServiceRequest<P> {
-    type Target = RequestHead;
-
-    fn deref(&self) -> &RequestHead {
-        self.req.head()
-    }
-}
-
-impl<P> std::ops::DerefMut for ServiceRequest<P> {
-    fn deref_mut(&mut self) -> &mut RequestHead {
-        self.head_mut()
-    }
-}
-
 impl<P> fmt::Debug for ServiceRequest<P> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         writeln!(
@@ -255,11 +247,19 @@ impl<P> ServiceFromRequest<P> {
     }
 
     #[inline]
+    /// Get reference to inner HttpRequest
+    pub fn request(&self) -> &HttpRequest {
+        &self.req
+    }
+
+    #[inline]
+    /// Convert this request into a HttpRequest
     pub fn into_request(self) -> HttpRequest {
         self.req
     }
 
     #[inline]
+    /// Get match information for this request
     pub fn match_info_mut(&mut self) -> &mut Path<Url> {
         &mut self.req.path
     }
@@ -278,14 +278,6 @@ impl<P> ServiceFromRequest<P> {
         } else {
             None
         }
-    }
-}
-
-impl<P> std::ops::Deref for ServiceFromRequest<P> {
-    type Target = HttpRequest;
-
-    fn deref(&self) -> &HttpRequest {
-        &self.req
     }
 }
 
@@ -366,6 +358,24 @@ impl<B> ServiceResponse<B> {
         &mut self.response
     }
 
+    /// Get the response status code
+    #[inline]
+    pub fn status(&self) -> StatusCode {
+        self.response.status()
+    }
+
+    #[inline]
+    /// Returns response's headers.
+    pub fn headers(&self) -> &HeaderMap {
+        self.response.headers()
+    }
+
+    #[inline]
+    /// Returns mutable response's headers.
+    pub fn headers_mut(&mut self) -> &mut HeaderMap {
+        self.response.headers_mut()
+    }
+
     /// Execute closure and in case of error convert it to response.
     pub fn checked_expr<F, E>(mut self, f: F) -> Self
     where
@@ -399,20 +409,6 @@ impl<B> ServiceResponse<B> {
             response,
             request: self.request,
         }
-    }
-}
-
-impl<B> std::ops::Deref for ServiceResponse<B> {
-    type Target = Response<B>;
-
-    fn deref(&self) -> &Response<B> {
-        self.response()
-    }
-}
-
-impl<B> std::ops::DerefMut for ServiceResponse<B> {
-    fn deref_mut(&mut self) -> &mut Response<B> {
-        self.response_mut()
     }
 }
 

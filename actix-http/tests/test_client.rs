@@ -35,10 +35,10 @@ fn test_h1_v2() {
             .finish(|_| future::ok::<_, ()>(Response::Ok().body(STR)))
             .map(|_| ())
     });
-    let response = srv.block_on(srv.get().send()).unwrap();
+    let response = srv.block_on(srv.get("/").send()).unwrap();
     assert!(response.status().is_success());
 
-    let request = srv.get().header("x-test", "111").send();
+    let request = srv.get("/").header("x-test", "111").send();
     let response = srv.block_on(request).unwrap();
     assert!(response.status().is_success());
 
@@ -46,7 +46,7 @@ fn test_h1_v2() {
     let bytes = srv.load_body(response).unwrap();
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
 
-    let response = srv.block_on(srv.post().send()).unwrap();
+    let response = srv.block_on(srv.post("/").send()).unwrap();
     assert!(response.status().is_success());
 
     // read response
@@ -61,7 +61,9 @@ fn test_connection_close() {
             .finish(|_| ok::<_, ()>(Response::Ok().body(STR)))
             .map(|_| ())
     });
-    let response = srv.block_on(srv.get().close_connection().send()).unwrap();
+    let response = srv
+        .block_on(srv.get("/").close_connection().send())
+        .unwrap();
     assert!(response.status().is_success());
 }
 

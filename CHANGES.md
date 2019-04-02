@@ -6,6 +6,8 @@
 
 * Renamed `TestRequest::to_response()` to `TestRequest::to_srv_response()`
 
+* Removed `Deref` impls
+
 
 ### Removed
 

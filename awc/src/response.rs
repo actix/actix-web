@@ -83,7 +83,7 @@ impl<S> ClientResponse<S> {
     }
 
     #[inline]
-    /// Returns Request's headers.
+    /// Returns request's headers.
     pub fn headers(&self) -> &HeaderMap {
         &self.head().headers
     }

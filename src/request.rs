@@ -1,6 +1,5 @@
 use std::cell::{Ref, RefMut};
 use std::fmt;
-use std::ops::Deref;
 use std::rc::Rc;
 
 use actix_http::http::{HeaderMap, Method, Uri, Version};
@@ -66,6 +65,12 @@ impl HttpRequest {
         self.head().version
     }
 
+    #[inline]
+    /// Returns request's headers.
+    pub fn headers(&self) -> &HeaderMap {
+        &self.head().headers
+    }
+
     /// The target path of this Request.
     #[inline]
     pub fn path(&self) -> &str {
@@ -111,6 +116,18 @@ impl HttpRequest {
         }
     }
 
+    /// Request extensions
+    #[inline]
+    pub fn extensions(&self) -> Ref<Extensions> {
+        self.head().extensions()
+    }
+
+    /// Mutable reference to a the request's extensions
+    #[inline]
+    pub fn extensions_mut(&self) -> RefMut<Extensions> {
+        self.head().extensions_mut()
+    }
+
     /// Generate url for named resource
     ///
     /// ```rust
@@ -154,15 +171,7 @@ impl HttpRequest {
     /// Get *ConnectionInfo* for the current request.
     #[inline]
     pub fn connection_info(&self) -> Ref<ConnectionInfo> {
-        ConnectionInfo::get(&*self, &*self.config())
-    }
-}
-
-impl Deref for HttpRequest {
-    type Target = RequestHead;
-
-    fn deref(&self) -> &RequestHead {
-        self.head()
+        ConnectionInfo::get(self.head(), &*self.config())
     }
 }
 
@@ -219,7 +228,7 @@ impl<P> FromRequest<P> for HttpRequest {
 
     #[inline]
     fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
-        Ok(req.clone())
+        Ok(req.request().clone())
     }
 }
 

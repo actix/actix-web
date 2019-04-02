@@ -44,7 +44,7 @@ fn test_simple() {
             ))
         });
 
-    let request = srv.get().header("x-test", "111").send();
+    let request = srv.get("/").header("x-test", "111").send();
     let response = srv.block_on(request).unwrap();
     assert!(response.status().is_success());
 
@@ -52,7 +52,7 @@ fn test_simple() {
     let bytes = srv.block_on(response.body()).unwrap();
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
 
-    let response = srv.block_on(srv.post().send()).unwrap();
+    let response = srv.block_on(srv.post("/").send()).unwrap();
     assert!(response.status().is_success());
 
     // read response
@@ -114,7 +114,7 @@ fn test_timeout_override() {
 //     let mut srv =
 //         test::TestServer::new(|app| app.handler(|_| HttpResponse::Ok().body(STR)));
 
-//     let request = srv.get().header("Connection", "close").finish().unwrap();
+//     let request = srv.get("/").header("Connection", "close").finish().unwrap();
 //     let response = srv.execute(request.send()).unwrap();
 //     assert!(response.status().is_success());
 // }
@@ -128,7 +128,7 @@ fn test_timeout_override() {
 //         })
 //     });
 
-//     let request = srv.get().uri(srv.url("/?qp=5").as_str()).finish().unwrap();
+//     let request = srv.get("/").uri(srv.url("/?qp=5").as_str()).finish().unwrap();
 
 //     let response = srv.execute(request.send()).unwrap();
 //     assert!(response.status().is_success());
@@ -139,7 +139,7 @@ fn test_timeout_override() {
 //     let mut srv =
 //         test::TestServer::new(|app| app.handler(|_| HttpResponse::Ok().body(STR)));
 
-//     let request = srv.get().disable_decompress().finish().unwrap();
+//     let request = srv.get("/").disable_decompress().finish().unwrap();
 //     let response = srv.execute(request.send()).unwrap();
 //     assert!(response.status().is_success());
 
@@ -177,7 +177,7 @@ fn test_client_gzip_encoding() {
     });
 
     // client request
-    let response = srv.block_on(srv.post().send()).unwrap();
+    let response = srv.block_on(srv.post("/").send()).unwrap();
     assert!(response.status().is_success());
 
     // read response
@@ -200,7 +200,7 @@ fn test_client_gzip_encoding_large() {
     });
 
     // client request
-    let response = srv.block_on(srv.post().send()).unwrap();
+    let response = srv.block_on(srv.post("/").send()).unwrap();
     assert!(response.status().is_success());
 
     // read response
@@ -229,7 +229,7 @@ fn test_client_gzip_encoding_large_random() {
     });
 
     // client request
-    let response = srv.block_on(srv.post().send_body(data.clone())).unwrap();
+    let response = srv.block_on(srv.post("/").send_body(data.clone())).unwrap();
     assert!(response.status().is_success());
 
     // read response
@@ -253,7 +253,7 @@ fn test_client_brotli_encoding() {
     });
 
     // client request
-    let response = srv.block_on(srv.post().send_body(STR)).unwrap();
+    let response = srv.block_on(srv.post("/").send_body(STR)).unwrap();
     assert!(response.status().is_success());
 
     // read response
@@ -375,7 +375,7 @@ fn test_client_brotli_encoding() {
 
 //     let body = once(Ok(Bytes::from_static(STR.as_ref())));
 
-//     let request = srv.get().body(Body::Streaming(Box::new(body))).unwrap();
+//     let request = srv.get("/").body(Body::Streaming(Box::new(body))).unwrap();
 //     let response = srv.execute(request.send()).unwrap();
 //     assert!(response.status().is_success());
 
@@ -395,7 +395,7 @@ fn test_client_brotli_encoding() {
 //         })
 //     });
 
-//     let request = srv.get().finish().unwrap();
+//     let request = srv.get("/").finish().unwrap();
 //     let response = srv.execute(request.send()).unwrap();
 //     assert!(response.status().is_success());
 
@@ -459,7 +459,7 @@ fn test_client_cookie_handling() {
         ))
     });
 
-    let request = srv.get().cookie(cookie1.clone()).cookie(cookie2.clone());
+    let request = srv.get("/").cookie(cookie1.clone()).cookie(cookie2.clone());
     let response = srv.block_on(request.send()).unwrap();
     assert!(response.status().is_success());
     let c1 = response.cookie("cookie1").expect("Missing cookie1");
@@ -472,7 +472,7 @@ fn test_client_cookie_handling() {
 // fn test_default_headers() {
 //     let srv = test::TestServer::new(|app| app.handler(|_| HttpResponse::Ok().body(STR)));
 
-//     let request = srv.get().finish().unwrap();
+//     let request = srv.get("/").finish().unwrap();
 //     let repr = format!("{:?}", request);
 //     assert!(repr.contains("\"accept-encoding\": \"gzip, deflate\""));
 //     assert!(repr.contains(concat!(
@@ -482,7 +482,7 @@ fn test_client_cookie_handling() {
 //     )));
 
 //     let request_override = srv
-//         .get()
+//         .get("/")
 //         .header("User-Agent", "test")
 //         .header("Accept-Encoding", "over_test")
 //         .finish()
@@ -551,7 +551,7 @@ fn client_basic_auth() {
     });
 
     // set authorization header to Basic <base64 encoded username:password>
-    let request = srv.get().basic_auth("username", Some("password"));
+    let request = srv.get("/").basic_auth("username", Some("password"));
     let response = srv.block_on(request.send()).unwrap();
     assert!(response.status().is_success());
 }
@@ -579,7 +579,7 @@ fn client_bearer_auth() {
     });
 
     // set authorization header to Bearer <token>
-    let request = srv.get().bearer_auth("someS3cr3tAutht0k3n");
+    let request = srv.get("/").bearer_auth("someS3cr3tAutht0k3n");
     let response = srv.block_on(request.send()).unwrap();
     assert!(response.status().is_success());
 }

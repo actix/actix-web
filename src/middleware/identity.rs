@@ -148,7 +148,7 @@ impl<P> FromRequest<P> for Identity {
 
     #[inline]
     fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
-        Ok(Identity(req.clone()))
+        Ok(Identity(req.request().clone()))
     }
 }
 
@@ -507,7 +507,7 @@ mod tests {
         let resp =
             test::call_success(&mut srv, TestRequest::with_uri("/login").to_request());
         assert_eq!(resp.status(), StatusCode::OK);
-        let c = resp.cookies().next().unwrap().to_owned();
+        let c = resp.response().cookies().next().unwrap().to_owned();
 
         let resp = test::call_success(
             &mut srv,
