@@ -200,12 +200,12 @@ where
         self
     }
 
-    /// Registers middleware, in the form of a middleware component (type), 
-    /// that runs during inbound processing in the request 
-    /// lifecycle (request -> response), modifying request as 
+    /// Registers middleware, in the form of a middleware component (type),
+    /// that runs during inbound processing in the request
+    /// lifecycle (request -> response), modifying request as
     /// necessary, across all requests managed by the *Scope*.  Scope-level
     /// middleware is more limited in what it can modify, relative to Route or
-    /// Application level middleware, in that Scope-level middleware can not modify 
+    /// Application level middleware, in that Scope-level middleware can not modify
     /// ServiceResponse.
     ///
     /// Use middleware when you need to read or modify *every* request in some way.
@@ -243,7 +243,7 @@ where
     }
 
     /// Registers middleware, in the form of a closure, that runs during inbound
-    /// processing in the request lifecycle (request -> response), modifying 
+    /// processing in the request lifecycle (request -> response), modifying
     /// request as necessary, across all requests managed by the *Scope*.  
     /// Scope-level middleware is more limited in what it can modify, relative
     /// to Route or Application level middleware, in that Scope-level middleware

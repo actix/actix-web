@@ -112,9 +112,9 @@ where
         self
     }
 
-    /// Registers middleware, in the form of a middleware component (type), 
-    /// that runs during inbound and/or outbound processing in the request 
-    /// lifecycle (request -> response), modifying request/response as 
+    /// Registers middleware, in the form of a middleware component (type),
+    /// that runs during inbound and/or outbound processing in the request
+    /// lifecycle (request -> response), modifying request/response as
     /// necessary, across all requests managed by the *Application*.
     ///
     /// Use middleware when you need to read or modify *every* request or response in some way.
@@ -427,9 +427,9 @@ where
         self
     }
 
-    /// Registers middleware, in the form of a middleware component (type), 
-    /// that runs during inbound and/or outbound processing in the request 
-    /// lifecycle (request -> response), modifying request/response as 
+    /// Registers middleware, in the form of a middleware component (type),
+    /// that runs during inbound and/or outbound processing in the request
+    /// lifecycle (request -> response), modifying request/response as
     /// necessary, across all requests managed by the *Route*.
     ///
     /// Use middleware when you need to read or modify *every* request or response in some way.

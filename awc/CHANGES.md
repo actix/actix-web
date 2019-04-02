@@ -5,16 +5,12 @@
 
 ### Added
 
-* Added `Deref<Target = RequestHead>` for `ClientRequest`.
-
 * Export `MessageBody` type
 
 * `ClientResponse::json()` - Loads and parse `application/json` encoded body
 
 
 ### Changed
-
-* Use non-consuming builder pattern for `ClientRequest`.
 
 * `ClientRequest::json()` accepts reference instead of object.
 

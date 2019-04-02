@@ -17,8 +17,8 @@ use actix_http::cookie::{Cookie, CookieJar};
 use actix_http::encoding::Decoder;
 use actix_http::http::header::{self, ContentEncoding, Header, IntoHeaderValue};
 use actix_http::http::{
-    uri, ConnectionType, Error as HttpError, HeaderName, HeaderValue, HttpTryFrom,
-    Method, Uri, Version,
+    uri, ConnectionType, Error as HttpError, HeaderMap, HeaderName, HeaderValue,
+    HttpTryFrom, Method, Uri, Version,
 };
 use actix_http::{Error, Payload, RequestHead};
 
@@ -58,7 +58,7 @@ const HTTPS_ENCODING: &str = "gzip, deflate";
 /// }
 /// ```
 pub struct ClientRequest {
-    pub(crate) head: Option<RequestHead>,
+    pub(crate) head: RequestHead,
     err: Option<HttpError>,
     cookies: Option<CookieJar>,
     default_headers: bool,
@@ -73,40 +73,36 @@ impl ClientRequest {
     where
         Uri: HttpTryFrom<U>,
     {
-        let mut req = ClientRequest {
+        ClientRequest {
             config,
-            head: Some(RequestHead::default()),
+            head: RequestHead::default(),
             err: None,
             cookies: None,
             timeout: None,
             default_headers: true,
             response_decompress: true,
-        };
-        req.method(method).uri(uri);
-        req
+        }
+        .method(method)
+        .uri(uri)
     }
 
     /// Set HTTP URI of request.
     #[inline]
-    pub fn uri<U>(&mut self, uri: U) -> &mut Self
+    pub fn uri<U>(mut self, uri: U) -> Self
     where
         Uri: HttpTryFrom<U>,
     {
-        if let Some(head) = parts(&mut self.head, &self.err) {
-            match Uri::try_from(uri) {
-                Ok(uri) => head.uri = uri,
-                Err(e) => self.err = Some(e.into()),
-            }
+        match Uri::try_from(uri) {
+            Ok(uri) => self.head.uri = uri,
+            Err(e) => self.err = Some(e.into()),
         }
         self
     }
 
     /// Set HTTP method of this request.
     #[inline]
-    pub fn method(&mut self, method: Method) -> &mut Self {
-        if let Some(head) = parts(&mut self.head, &self.err) {
-            head.method = method;
-        }
+    pub fn method(mut self, method: Method) -> Self {
+        self.head.method = method;
         self
     }
 
@@ -115,11 +111,21 @@ impl ClientRequest {
     ///
     /// By default requests's HTTP version depends on network stream
     #[inline]
-    pub fn version(&mut self, version: Version) -> &mut Self {
-        if let Some(head) = parts(&mut self.head, &self.err) {
-            head.version = version;
-        }
+    pub fn version(mut self, version: Version) -> Self {
+        self.head.version = version;
         self
+    }
+
+    #[inline]
+    /// Returns request's headers.
+    pub fn headers(&self) -> &HeaderMap {
+        &self.head.headers
+    }
+
+    #[inline]
+    /// Returns request's mutable headers.
+    pub fn headers_mut(&mut self) -> &mut HeaderMap {
+        &mut self.head.headers
     }
 
     /// Set a header.
@@ -135,14 +141,12 @@ impl ClientRequest {
     /// # }));
     /// }
     /// ```
-    pub fn set<H: Header>(&mut self, hdr: H) -> &mut Self {
-        if let Some(head) = parts(&mut self.head, &self.err) {
-            match hdr.try_into() {
-                Ok(value) => {
-                    head.headers.insert(H::name(), value);
-                }
-                Err(e) => self.err = Some(e.into()),
+    pub fn set<H: Header>(mut self, hdr: H) -> Self {
+        match hdr.try_into() {
+            Ok(value) => {
+                self.head.headers.insert(H::name(), value);
             }
+            Err(e) => self.err = Some(e.into()),
         }
         self
     }
@@ -165,65 +169,59 @@ impl ClientRequest {
     /// # }));
     /// }
     /// ```
-    pub fn header<K, V>(&mut self, key: K, value: V) -> &mut Self
+    pub fn header<K, V>(mut self, key: K, value: V) -> Self
     where
         HeaderName: HttpTryFrom<K>,
         V: IntoHeaderValue,
     {
-        if let Some(head) = parts(&mut self.head, &self.err) {
-            match HeaderName::try_from(key) {
-                Ok(key) => match value.try_into() {
-                    Ok(value) => {
-                        head.headers.append(key, value);
-                    }
-                    Err(e) => self.err = Some(e.into()),
-                },
+        match HeaderName::try_from(key) {
+            Ok(key) => match value.try_into() {
+                Ok(value) => {
+                    let _ = self.head.headers.append(key, value);
+                }
                 Err(e) => self.err = Some(e.into()),
-            }
+            },
+            Err(e) => self.err = Some(e.into()),
         }
         self
     }
 
     /// Insert a header, replaces existing header.
-    pub fn set_header<K, V>(&mut self, key: K, value: V) -> &mut Self
+    pub fn set_header<K, V>(mut self, key: K, value: V) -> Self
     where
         HeaderName: HttpTryFrom<K>,
         V: IntoHeaderValue,
     {
-        if let Some(head) = parts(&mut self.head, &self.err) {
-            match HeaderName::try_from(key) {
-                Ok(key) => match value.try_into() {
-                    Ok(value) => {
-                        head.headers.insert(key, value);
-                    }
-                    Err(e) => self.err = Some(e.into()),
-                },
+        match HeaderName::try_from(key) {
+            Ok(key) => match value.try_into() {
+                Ok(value) => {
+                    let _ = self.head.headers.insert(key, value);
+                }
                 Err(e) => self.err = Some(e.into()),
-            }
+            },
+            Err(e) => self.err = Some(e.into()),
         }
         self
     }
 
     /// Insert a header only if it is not yet set.
-    pub fn set_header_if_none<K, V>(&mut self, key: K, value: V) -> &mut Self
+    pub fn set_header_if_none<K, V>(mut self, key: K, value: V) -> Self
     where
         HeaderName: HttpTryFrom<K>,
         V: IntoHeaderValue,
     {
-        if let Some(head) = parts(&mut self.head, &self.err) {
-            match HeaderName::try_from(key) {
-                Ok(key) => {
-                    if !head.headers.contains_key(&key) {
-                        match value.try_into() {
-                            Ok(value) => {
-                                head.headers.insert(key, value);
-                            }
-                            Err(e) => self.err = Some(e.into()),
+        match HeaderName::try_from(key) {
+            Ok(key) => {
+                if !self.head.headers.contains_key(&key) {
+                    match value.try_into() {
+                        Ok(value) => {
+                            let _ = self.head.headers.insert(key, value);
                         }
+                        Err(e) => self.err = Some(e.into()),
                     }
                 }
-                Err(e) => self.err = Some(e.into()),
             }
+            Err(e) => self.err = Some(e.into()),
         }
         self
     }
@@ -231,40 +229,36 @@ impl ClientRequest {
     /// Close connection instead of returning it back to connections pool.
     /// This setting affect only http/1 connections.
     #[inline]
-    pub fn close_connection(&mut self) -> &mut Self {
-        if let Some(head) = parts(&mut self.head, &self.err) {
-            head.set_connection_type(ConnectionType::Close);
-        }
+    pub fn close_connection(mut self) -> Self {
+        self.head.set_connection_type(ConnectionType::Close);
         self
     }
 
     /// Set request's content type
     #[inline]
-    pub fn content_type<V>(&mut self, value: V) -> &mut Self
+    pub fn content_type<V>(mut self, value: V) -> Self
     where
         HeaderValue: HttpTryFrom<V>,
     {
-        if let Some(head) = parts(&mut self.head, &self.err) {
-            match HeaderValue::try_from(value) {
-                Ok(value) => {
-                    let _ = head.headers.insert(header::CONTENT_TYPE, value);
-                }
-                Err(e) => self.err = Some(e.into()),
+        match HeaderValue::try_from(value) {
+            Ok(value) => {
+                let _ = self.head.headers.insert(header::CONTENT_TYPE, value);
             }
+            Err(e) => self.err = Some(e.into()),
         }
         self
     }
 
     /// Set content length
     #[inline]
-    pub fn content_length(&mut self, len: u64) -> &mut Self {
+    pub fn content_length(self, len: u64) -> Self {
         let mut wrt = BytesMut::new().writer();
         let _ = write!(wrt, "{}", len);
         self.header(header::CONTENT_LENGTH, wrt.get_mut().take().freeze())
     }
 
     /// Set HTTP basic authorization header
-    pub fn basic_auth<U>(&mut self, username: U, password: Option<&str>) -> &mut Self
+    pub fn basic_auth<U>(self, username: U, password: Option<&str>) -> Self
     where
         U: fmt::Display,
     {
@@ -279,7 +273,7 @@ impl ClientRequest {
     }
 
     /// Set HTTP bearer authentication header
-    pub fn bearer_auth<T>(&mut self, token: T) -> &mut Self
+    pub fn bearer_auth<T>(self, token: T) -> Self
     where
         T: fmt::Display,
     {
@@ -311,7 +305,7 @@ impl ClientRequest {
     ///     }));
     /// }
     /// ```
-    pub fn cookie<'c>(&mut self, cookie: Cookie<'c>) -> &mut Self {
+    pub fn cookie<'c>(mut self, cookie: Cookie<'c>) -> Self {
         if self.cookies.is_none() {
             let mut jar = CookieJar::new();
             jar.add(cookie.into_owned());
@@ -324,13 +318,13 @@ impl ClientRequest {
 
     /// Do not add default request headers.
     /// By default `Date` and `User-Agent` headers are set.
-    pub fn no_default_headers(&mut self) -> &mut Self {
+    pub fn no_default_headers(mut self) -> Self {
         self.default_headers = false;
         self
     }
 
     /// Disable automatic decompress of response's body
-    pub fn no_decompress(&mut self) -> &mut Self {
+    pub fn no_decompress(mut self) -> Self {
         self.response_decompress = false;
         self
     }
@@ -339,38 +333,38 @@ impl ClientRequest {
     ///
     /// Request timeout is the total time before a response must be received.
     /// Default value is 5 seconds.
-    pub fn timeout(&mut self, timeout: Duration) -> &mut Self {
+    pub fn timeout(mut self, timeout: Duration) -> Self {
         self.timeout = Some(timeout);
         self
     }
 
     /// This method calls provided closure with builder reference if
     /// value is `true`.
-    pub fn if_true<F>(&mut self, value: bool, f: F) -> &mut Self
+    pub fn if_true<F>(mut self, value: bool, f: F) -> Self
     where
         F: FnOnce(&mut ClientRequest),
     {
         if value {
-            f(self);
+            f(&mut self);
         }
         self
     }
 
     /// This method calls provided closure with builder reference if
     /// value is `Some`.
-    pub fn if_some<T, F>(&mut self, value: Option<T>, f: F) -> &mut Self
+    pub fn if_some<T, F>(mut self, value: Option<T>, f: F) -> Self
     where
         F: FnOnce(T, &mut ClientRequest),
     {
         if let Some(val) = value {
-            f(val, self);
+            f(val, &mut self);
         }
         self
     }
 
     /// Complete request construction and send body.
     pub fn send_body<B>(
-        &mut self,
+        mut self,
         body: B,
     ) -> impl Future<
         Item = ClientResponse<impl Stream<Item = Bytes, Error = PayloadError>>,
@@ -383,10 +377,8 @@ impl ClientRequest {
             return Either::A(err(e.into()));
         }
 
-        let mut head = self.head.take().expect("cannot reuse response builder");
-
         // validate uri
-        let uri = &head.uri;
+        let uri = &self.head.uri;
         if uri.host().is_none() {
             return Either::A(err(InvalidUrl::MissingHost.into()));
         } else if uri.scheme_part().is_none() {
@@ -403,18 +395,18 @@ impl ClientRequest {
         // set default headers
         if self.default_headers {
             // set request host header
-            if let Some(host) = head.uri.host() {
-                if !head.headers.contains_key(header::HOST) {
+            if let Some(host) = self.head.uri.host() {
+                if !self.head.headers.contains_key(header::HOST) {
                     let mut wrt = BytesMut::with_capacity(host.len() + 5).writer();
 
-                    let _ = match head.uri.port_u16() {
+                    let _ = match self.head.uri.port_u16() {
                         None | Some(80) | Some(443) => write!(wrt, "{}", host),
                         Some(port) => write!(wrt, "{}:{}", host, port),
                     };
 
                     match wrt.get_mut().take().freeze().try_into() {
                         Ok(value) => {
-                            head.headers.insert(header::HOST, value);
+                            self.head.headers.insert(header::HOST, value);
                         }
                         Err(e) => return Either::A(err(HttpError::from(e).into())),
                     }
@@ -422,32 +414,11 @@ impl ClientRequest {
             }
 
             // user agent
-            self.set_header_if_none(
-                header::USER_AGENT,
-                concat!("awc/", env!("CARGO_PKG_VERSION")),
-            );
-        }
-
-        // enable br only for https
-        let https = head
-            .uri
-            .scheme_part()
-            .map(|s| s == &uri::Scheme::HTTPS)
-            .unwrap_or(true);
-
-        #[cfg(any(
-            feature = "brotli",
-            feature = "flate2-zlib",
-            feature = "flate2-rust"
-        ))]
-        {
-            if https {
-                self.set_header_if_none(header::ACCEPT_ENCODING, HTTPS_ENCODING);
-            } else {
-                #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
-                {
-                    self.set_header_if_none(header::ACCEPT_ENCODING, "gzip, deflate");
-                }
+            if !self.head.headers.contains_key(&header::USER_AGENT) {
+                self.head.headers.insert(
+                    header::USER_AGENT,
+                    HeaderValue::from_static(concat!("awc/", env!("CARGO_PKG_VERSION"))),
+                );
             }
         }
 
@@ -459,14 +430,43 @@ impl ClientRequest {
                 let value = percent_encode(c.value().as_bytes(), USERINFO_ENCODE_SET);
                 let _ = write!(&mut cookie, "; {}={}", name, value);
             }
-            head.headers.insert(
+            self.head.headers.insert(
                 header::COOKIE,
                 HeaderValue::from_str(&cookie.as_str()[2..]).unwrap(),
             );
         }
 
-        let config = self.config.as_ref();
-        let response_decompress = self.response_decompress;
+        let slf = self;
+
+        // enable br only for https
+        #[cfg(any(
+            feature = "brotli",
+            feature = "flate2-zlib",
+            feature = "flate2-rust"
+        ))]
+        let slf = {
+            let https = slf
+                .head
+                .uri
+                .scheme_part()
+                .map(|s| s == &uri::Scheme::HTTPS)
+                .unwrap_or(true);
+
+            if https {
+                slf.set_header_if_none(header::ACCEPT_ENCODING, HTTPS_ENCODING)
+            } else {
+                #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
+                {
+                    slf.set_header_if_none(header::ACCEPT_ENCODING, "gzip, deflate")
+                }
+                #[cfg(not(any(feature = "flate2-zlib", feature = "flate2-rust")))]
+                slf
+            }
+        };
+
+        let head = slf.head;
+        let config = slf.config.as_ref();
+        let response_decompress = slf.response_decompress;
 
         let fut = config
             .connector
@@ -483,7 +483,7 @@ impl ClientRequest {
             });
 
         // set request timeout
-        if let Some(timeout) = self.timeout.or_else(|| config.timeout.clone()) {
+        if let Some(timeout) = slf.timeout.or_else(|| config.timeout.clone()) {
             Either::B(Either::A(Timeout::new(fut, timeout).map_err(|e| {
                 if let Some(e) = e.into_inner() {
                     e
@@ -498,7 +498,7 @@ impl ClientRequest {
 
     /// Set a JSON body and generate `ClientRequest`
     pub fn send_json<T: Serialize>(
-        &mut self,
+        self,
         value: &T,
     ) -> impl Future<
         Item = ClientResponse<impl Stream<Item = Bytes, Error = PayloadError>>,
@@ -510,16 +510,16 @@ impl ClientRequest {
         };
 
         // set content-type
-        self.set_header_if_none(header::CONTENT_TYPE, "application/json");
+        let slf = self.set_header_if_none(header::CONTENT_TYPE, "application/json");
 
-        Either::B(self.send_body(Body::Bytes(Bytes::from(body))))
+        Either::B(slf.send_body(Body::Bytes(Bytes::from(body))))
     }
 
     /// Set a urlencoded body and generate `ClientRequest`
     ///
     /// `ClientRequestBuilder` can not be used after this call.
     pub fn send_form<T: Serialize>(
-        &mut self,
+        self,
         value: &T,
     ) -> impl Future<
         Item = ClientResponse<impl Stream<Item = Bytes, Error = PayloadError>>,
@@ -531,17 +531,17 @@ impl ClientRequest {
         };
 
         // set content-type
-        self.set_header_if_none(
+        let slf = self.set_header_if_none(
             header::CONTENT_TYPE,
             "application/x-www-form-urlencoded",
         );
 
-        Either::B(self.send_body(Body::Bytes(Bytes::from(body))))
+        Either::B(slf.send_body(Body::Bytes(Bytes::from(body))))
     }
 
     /// Set an streaming body and generate `ClientRequest`.
     pub fn send_stream<S, E>(
-        &mut self,
+        self,
         stream: S,
     ) -> impl Future<
         Item = ClientResponse<impl Stream<Item = Bytes, Error = PayloadError>>,
@@ -556,7 +556,7 @@ impl ClientRequest {
 
     /// Set an empty body and generate `ClientRequest`.
     pub fn send(
-        &mut self,
+        self,
     ) -> impl Future<
         Item = ClientResponse<impl Stream<Item = Bytes, Error = PayloadError>>,
         Error = SendRequestError,
@@ -565,46 +565,19 @@ impl ClientRequest {
     }
 }
 
-impl std::ops::Deref for ClientRequest {
-    type Target = RequestHead;
-
-    fn deref(&self) -> &RequestHead {
-        self.head.as_ref().expect("cannot reuse response builder")
-    }
-}
-
-impl std::ops::DerefMut for ClientRequest {
-    fn deref_mut(&mut self) -> &mut RequestHead {
-        self.head.as_mut().expect("cannot reuse response builder")
-    }
-}
-
 impl fmt::Debug for ClientRequest {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let head = self.head.as_ref().expect("cannot reuse response builder");
-
         writeln!(
             f,
             "\nClientRequest {:?} {}:{}",
-            head.version, head.method, head.uri
+            self.head.version, self.head.method, self.head.uri
         )?;
         writeln!(f, "  headers:")?;
-        for (key, val) in head.headers.iter() {
+        for (key, val) in self.head.headers.iter() {
             writeln!(f, "    {:?}: {:?}", key, val)?;
         }
         Ok(())
     }
-}
-
-#[inline]
-fn parts<'a>(
-    parts: &'a mut Option<RequestHead>,
-    err: &Option<HttpError>,
-) -> Option<&'a mut RequestHead> {
-    if err.is_some() {
-        return None;
-    }
-    parts.as_mut()
 }
 
 #[cfg(test)]
@@ -615,8 +588,7 @@ mod tests {
     #[test]
     fn test_debug() {
         test::run_on(|| {
-            let mut request = Client::new().get("/");
-            request.header("x-test", "111");
+            let request = Client::new().get("/").header("x-test", "111");
             let repr = format!("{:?}", request);
             assert!(repr.contains("ClientRequest"));
             assert!(repr.contains("x-test"));
@@ -633,8 +605,6 @@ mod tests {
 
             assert_eq!(
                 req.head
-                    .as_ref()
-                    .unwrap()
                     .headers
                     .get(header::CONTENT_TYPE)
                     .unwrap()
@@ -648,16 +618,14 @@ mod tests {
     #[test]
     fn test_client_header_override() {
         test::run_on(|| {
-            let mut req = Client::build()
+            let req = Client::build()
                 .header(header::CONTENT_TYPE, "111")
                 .finish()
-                .get("/");
-            req.set_header(header::CONTENT_TYPE, "222");
+                .get("/")
+                .set_header(header::CONTENT_TYPE, "222");
 
             assert_eq!(
                 req.head
-                    .as_ref()
-                    .unwrap()
                     .headers
                     .get(header::CONTENT_TYPE)
                     .unwrap()
@@ -671,12 +639,11 @@ mod tests {
     #[test]
     fn client_basic_auth() {
         test::run_on(|| {
-            let mut req = Client::new().get("/");
-            req.basic_auth("username", Some("password"));
+            let req = Client::new()
+                .get("/")
+                .basic_auth("username", Some("password"));
             assert_eq!(
                 req.head
-                    .as_ref()
-                    .unwrap()
                     .headers
                     .get(header::AUTHORIZATION)
                     .unwrap()
@@ -685,12 +652,9 @@ mod tests {
                 "Basic dXNlcm5hbWU6cGFzc3dvcmQ="
             );
 
-            let mut req = Client::new().get("/");
-            req.basic_auth("username", None);
+            let req = Client::new().get("/").basic_auth("username", None);
             assert_eq!(
                 req.head
-                    .as_ref()
-                    .unwrap()
                     .headers
                     .get(header::AUTHORIZATION)
                     .unwrap()
@@ -704,12 +668,9 @@ mod tests {
     #[test]
     fn client_bearer_auth() {
         test::run_on(|| {
-            let mut req = Client::new().get("/");
-            req.bearer_auth("someS3cr3tAutht0k3n");
+            let req = Client::new().get("/").bearer_auth("someS3cr3tAutht0k3n");
             assert_eq!(
                 req.head
-                    .as_ref()
-                    .unwrap()
                     .headers
                     .get(header::AUTHORIZATION)
                     .unwrap()
