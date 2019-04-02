@@ -45,14 +45,14 @@ fn test_simple() {
         });
 
     let request = srv.get("/").header("x-test", "111").send();
-    let response = srv.block_on(request).unwrap();
+    let mut response = srv.block_on(request).unwrap();
     assert!(response.status().is_success());
 
     // read response
     let bytes = srv.block_on(response.body()).unwrap();
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
 
-    let response = srv.block_on(srv.post("/").send()).unwrap();
+    let mut response = srv.block_on(srv.post("/").send()).unwrap();
     assert!(response.status().is_success());
 
     // read response
@@ -177,7 +177,7 @@ fn test_client_gzip_encoding() {
     });
 
     // client request
-    let response = srv.block_on(srv.post("/").send()).unwrap();
+    let mut response = srv.block_on(srv.post("/").send()).unwrap();
     assert!(response.status().is_success());
 
     // read response
@@ -200,7 +200,7 @@ fn test_client_gzip_encoding_large() {
     });
 
     // client request
-    let response = srv.block_on(srv.post("/").send()).unwrap();
+    let mut response = srv.block_on(srv.post("/").send()).unwrap();
     assert!(response.status().is_success());
 
     // read response
@@ -229,7 +229,7 @@ fn test_client_gzip_encoding_large_random() {
     });
 
     // client request
-    let response = srv.block_on(srv.post("/").send_body(data.clone())).unwrap();
+    let mut response = srv.block_on(srv.post("/").send_body(data.clone())).unwrap();
     assert!(response.status().is_success());
 
     // read response
@@ -253,7 +253,7 @@ fn test_client_brotli_encoding() {
     });
 
     // client request
-    let response = srv.block_on(srv.post("/").send_body(STR)).unwrap();
+    let mut response = srv.block_on(srv.post("/").send_body(STR)).unwrap();
     assert!(response.status().is_success());
 
     // read response

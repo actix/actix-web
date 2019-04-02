@@ -64,7 +64,7 @@ pub fn handshake(req: &HttpRequest) -> Result<HttpResponseBuilder, HandshakeErro
     }
 
     // Upgrade connection
-    if !req.upgrade() {
+    if !req.head().upgrade() {
         return Err(HandshakeError::NoConnectionUpgrade);
     }
 
