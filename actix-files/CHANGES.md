@@ -1,6 +1,6 @@
 # Changes
 
-## [0.1.0-alpha.2] - 2019-04-xx
+## [0.1.0-alpha.2] - 2019-04-02
 
 * Add default handler support
 
