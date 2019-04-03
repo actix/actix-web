@@ -1,5 +1,9 @@
 # Changes
 
+### Deleted
+
+* Removed PayloadBuffer
+
 ## [0.1.0-alpha.3] - 2019-04-02
 
 ### Added
