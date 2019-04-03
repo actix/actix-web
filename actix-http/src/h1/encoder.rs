@@ -45,6 +45,10 @@ pub(crate) trait MessageType: Sized {
 
     fn headers(&self) -> &HeaderMap;
 
+    fn upper_camel_case(&self) -> bool {
+        false
+    }
+
     fn chunked(&self) -> bool;
 
     fn encode_status(&mut self, dst: &mut BytesMut) -> io::Result<()>;
@@ -140,8 +144,15 @@ pub(crate) trait MessageType: Sized {
             pos += k.len();
             buf[pos..pos + 2].copy_from_slice(b": ");
             pos += 2;
-            buf[pos..pos + v.len()].copy_from_slice(v);
+
+            // use upper Camel-Case
+            if self.upper_camel_case() {
+                write_upper_camel_case(v, &mut buf[pos..pos + v.len()]);
+            } else {
+                buf[pos..pos + v.len()].copy_from_slice(v);
+            }
             pos += v.len();
+
             buf[pos..pos + 2].copy_from_slice(b"\r\n");
             pos += 2;
             remaining -= len;
@@ -198,6 +209,10 @@ impl MessageType for RequestHead {
 
     fn chunked(&self) -> bool {
         self.chunked()
+    }
+
+    fn upper_camel_case(&self) -> bool {
+        self.upper_camel_case_headers()
     }
 
     fn headers(&self) -> &HeaderMap {
@@ -393,6 +408,34 @@ impl<'a> io::Write for Writer<'a> {
     }
     fn flush(&mut self) -> io::Result<()> {
         Ok(())
+    }
+}
+
+fn write_upper_camel_case(value: &[u8], buffer: &mut [u8]) {
+    let mut index = 0;
+    let key = value;
+    let mut key_iter = key.iter();
+
+    if let Some(c) = key_iter.next() {
+        if *c >= b'a' && *c <= b'z' {
+            buffer[index] = *c ^ b' ';
+            index += 1;
+        }
+    } else {
+        return;
+    }
+
+    while let Some(c) = key_iter.next() {
+        buffer[index] = *c;
+        index += 1;
+        if *c == b'-' {
+            if let Some(c) = key_iter.next() {
+                if *c >= b'a' && *c <= b'z' {
+                    buffer[index] = *c ^ b' ';
+                    index += 1;
+                }
+            }
+        }
     }
 }
 

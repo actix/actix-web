@@ -40,6 +40,7 @@ pub struct RequestHead {
     pub method: Method,
     pub version: Version,
     pub headers: HeaderMap,
+    pub upper_camel_case_headers: bool,
     pub extensions: RefCell<Extensions>,
     flags: Flags,
 }
@@ -51,6 +52,7 @@ impl Default for RequestHead {
             method: Method::default(),
             version: Version::HTTP_11,
             headers: HeaderMap::with_capacity(16),
+            upper_camel_case_headers: false,
             flags: Flags::empty(),
             extensions: RefCell::new(Extensions::new()),
         }
@@ -90,6 +92,19 @@ impl RequestHead {
     /// Mutable reference to the message headers.
     pub fn headers_mut(&mut self) -> &mut HeaderMap {
         &mut self.headers
+    }
+
+    /// Is to uppercase headers with Camel-Case.
+    /// Befault is `false`
+    #[inline]
+    pub fn upper_camel_case_headers(&self) -> bool {
+        self.upper_camel_case_headers
+    }
+
+    /// Set `true` to send headers which are uppercased with Camel-Case.
+    #[inline]
+    pub fn set_upper_camel_case_headers(&mut self, value: bool) {
+        self.upper_camel_case_headers = value;
     }
 
     #[inline]
