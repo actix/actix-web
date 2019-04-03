@@ -13,7 +13,7 @@ use actix_router::{Path, Resource, Url};
 use futures::future::{ok, FutureResult, IntoFuture};
 
 use crate::config::{AppConfig, ServiceConfig};
-use crate::data::RouteData;
+use crate::data::{Data, RouteData};
 use crate::request::HttpRequest;
 use crate::rmap::ResourceMap;
 
@@ -173,6 +173,16 @@ impl<P> ServiceRequest<P> {
     pub fn app_config(&self) -> &AppConfig {
         self.req.config()
     }
+
+    /// Get an application data stored with `App::data()` method during
+    /// application configuration.
+    pub fn app_data<T: 'static>(&self) -> Option<Data<T>> {
+        if let Some(st) = self.req.config().extensions().get::<Data<T>>() {
+            Some(st.clone())
+        } else {
+            None
+        }
+    }
 }
 
 impl<P> Resource<Url> for ServiceRequest<P> {
@@ -268,6 +278,16 @@ impl<P> ServiceFromRequest<P> {
     #[inline]
     pub fn error_response<E: Into<Error>>(self, err: E) -> ServiceResponse {
         ServiceResponse::new(self.req, err.into().into())
+    }
+
+    /// Get an application data stored with `App::data()` method during
+    /// application configuration.
+    pub fn app_data<T: 'static>(&self) -> Option<Data<T>> {
+        if let Some(st) = self.req.config().extensions().get::<Data<T>>() {
+            Some(st.clone())
+        } else {
+            None
+        }
     }
 
     /// Load route data. Route data could be set during
