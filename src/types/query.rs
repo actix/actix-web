@@ -119,7 +119,7 @@ where
 
     #[inline]
     fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
-        serde_urlencoded::from_str::<T>(req.query_string())
+        serde_urlencoded::from_str::<T>(req.request().query_string())
             .map(|val| Ok(Query(val)))
             .unwrap_or_else(|e| Err(e.into()))
     }

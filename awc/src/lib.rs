@@ -105,7 +105,7 @@ impl Client {
         let mut req = ClientRequest::new(method, url, self.0.clone());
 
         for (key, value) in &self.0.headers {
-            req.set_header_if_none(key.clone(), value.clone());
+            req = req.set_header_if_none(key.clone(), value.clone());
         }
         req
     }
@@ -120,7 +120,7 @@ impl Client {
     {
         let mut req = self.request(head.method.clone(), url);
         for (key, value) in &head.headers {
-            req.set_header_if_none(key.clone(), value.clone());
+            req = req.set_header_if_none(key.clone(), value.clone());
         }
         req
     }

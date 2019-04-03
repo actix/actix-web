@@ -1,6 +1,6 @@
 [package]
 name = "actix-session"
-version = "0.1.0-alpha.2"
+version = "0.1.0-alpha.3"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Session for actix web framework."
 readme = "README.md"
@@ -24,7 +24,7 @@ default = ["cookie-session"]
 cookie-session = ["actix-web/secure-cookies"]
 
 [dependencies]
-actix-web = "1.0.0-alpha.2"
+actix-web = "1.0.0-alpha.3"
 actix-service = "0.3.4"
 bytes = "0.4"
 derive_more = "0.14"

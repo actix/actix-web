@@ -313,7 +313,7 @@ pub(crate) mod tests {
         let req = TestRequest::with_uri("/some").to_request();
         let resp = TestRequest::block_on(srv.call(req)).unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
-        match resp.body() {
+        match resp.response().body() {
             ResponseBody::Body(Body::Bytes(ref b)) => {
                 let bytes: Bytes = b.clone().into();
                 assert_eq!(bytes, Bytes::from_static(b"some"));

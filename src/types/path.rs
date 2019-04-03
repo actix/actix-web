@@ -170,7 +170,7 @@ where
 
     #[inline]
     fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
-        Self::extract(req).map_err(ErrorNotFound)
+        Self::extract(req.request()).map_err(ErrorNotFound)
     }
 }
 

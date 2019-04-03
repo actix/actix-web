@@ -190,7 +190,7 @@ mod tests {
 
     #[test]
     fn session() {
-        let mut req = test::TestRequest::default().to_service();
+        let mut req = test::TestRequest::default().to_srv_request();
 
         Session::set_session(
             vec![("key".to_string(), "\"value\"".to_string())].into_iter(),

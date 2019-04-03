@@ -20,7 +20,7 @@ pub use actix_http::ws::{
 use actix_web::dev::HttpResponseBuilder;
 use actix_web::error::{Error, ErrorInternalServerError, PayloadError};
 use actix_web::http::{header, Method, StatusCode};
-use actix_web::{HttpMessage, HttpRequest, HttpResponse};
+use actix_web::{HttpRequest, HttpResponse};
 use bytes::{Bytes, BytesMut};
 use futures::sync::oneshot::Sender;
 use futures::{Async, Future, Poll, Stream};
@@ -64,7 +64,7 @@ pub fn handshake(req: &HttpRequest) -> Result<HttpResponseBuilder, HandshakeErro
     }
 
     // Upgrade connection
-    if !req.upgrade() {
+    if !req.head().upgrade() {
         return Err(HandshakeError::NoConnectionUpgrade);
     }
 

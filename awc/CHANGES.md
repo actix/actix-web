@@ -1,11 +1,8 @@
 # Changes
 
-
-## [0.1.0-alpha.3] - 2019-04-xx
+## [0.1.0-alpha.3] - 2019-04-02
 
 ### Added
-
-* Added `Deref<Target = RequestHead>` for `ClientRequest`.
 
 * Export `MessageBody` type
 
@@ -14,11 +11,11 @@
 
 ### Changed
 
-* Use non-consuming builder pattern for `ClientRequest`.
-
 * `ClientRequest::json()` accepts reference instead of object.
 
 * `ClientResponse::body()` does not consume response object.
+
+* Renamed `ClientRequest::close_connection()` to `ClientRequest::force_close()`
 
 
 ## [0.1.0-alpha.2] - 2019-03-29

@@ -1,5 +1,5 @@
 //! HTTP/1 implementation
-use bytes::Bytes;
+use bytes::{Bytes, BytesMut};
 
 mod client;
 mod codec;
@@ -12,7 +12,7 @@ mod service;
 pub use self::client::{ClientCodec, ClientPayloadCodec};
 pub use self::codec::Codec;
 pub use self::dispatcher::Dispatcher;
-pub use self::payload::{Payload, PayloadBuffer};
+pub use self::payload::{Payload, PayloadWriter};
 pub use self::service::{H1Service, H1ServiceHandler, OneRequest};
 
 #[derive(Debug)]
@@ -36,6 +36,16 @@ pub enum MessageType {
     None,
     Payload,
     Stream,
+}
+
+const LW: usize = 2 * 1024;
+const HW: usize = 32 * 1024;
+
+pub(crate) fn reserve_readbuf(src: &mut BytesMut) {
+    let cap = src.capacity();
+    if cap < LW {
+        src.reserve(HW - cap);
+    }
 }
 
 #[cfg(test)]

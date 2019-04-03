@@ -36,7 +36,7 @@ use net2::TcpBuilder;
 ///         )
 ///     );
 ///
-///     let req = srv.get();
+///     let req = srv.get("/");
 ///     let response = srv.block_on(req.send()).unwrap();
 ///     assert!(response.status().is_success());
 /// }
@@ -195,7 +195,7 @@ impl TestServerRuntime {
 
     pub fn load_body<S>(
         &mut self,
-        response: ClientResponse<S>,
+        mut response: ClientResponse<S>,
     ) -> Result<Bytes, PayloadError>
     where
         S: Stream<Item = Bytes, Error = PayloadError> + 'static,

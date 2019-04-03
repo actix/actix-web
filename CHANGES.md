@@ -1,13 +1,27 @@
 # Changes
 
+## [1.0.0-alpha.4] - 2019-04-xx
+
+### Added
+
+* `App::configure()` allow to offload app configuration to different methods
+
+* Added `URLPath` option for logger
+
+### Changed
+
+* Move multipart support to actix-multipart crate
+
+
+## [1.0.0-alpha.3] - 2019-04-02
+
 ### Changed
 
 * Renamed `TestRequest::to_service()` to `TestRequest::to_srv_request()`
 
 * Renamed `TestRequest::to_response()` to `TestRequest::to_srv_response()`
 
-* Added `URLPath` option for logger
-
+* Removed `Deref` impls
 
 ### Removed
 

@@ -333,6 +333,7 @@ mod tests {
         let request = test::TestRequest::get().to_request();
         let response = test::block_on(app.call(request)).unwrap();
         assert!(response
+            .response()
             .cookies()
             .find(|c| c.name() == "actix-session")
             .is_some());
@@ -352,6 +353,7 @@ mod tests {
         let request = test::TestRequest::get().to_request();
         let response = test::block_on(app.call(request)).unwrap();
         assert!(response
+            .response()
             .cookies()
             .find(|c| c.name() == "actix-session")
             .is_some());

@@ -20,7 +20,6 @@ pub use self::common::*;
 #[doc(hidden)]
 pub use self::shared::*;
 
-#[doc(hidden)]
 /// A trait for any object that will represent a header field and value.
 pub trait Header
 where
@@ -33,7 +32,6 @@ where
     fn parse<T: HttpMessage>(msg: &T) -> Result<Self, ParseError>;
 }
 
-#[doc(hidden)]
 /// A trait for any object that can be Converted to a `HeaderValue`
 pub trait IntoHeaderValue: Sized {
     /// The type returned in the event of a conversion error.
@@ -94,6 +92,26 @@ impl IntoHeaderValue for String {
     #[inline]
     fn try_into(self) -> Result<HeaderValue, Self::Error> {
         HeaderValue::from_shared(Bytes::from(self))
+    }
+}
+
+impl IntoHeaderValue for usize {
+    type Error = InvalidHeaderValueBytes;
+
+    #[inline]
+    fn try_into(self) -> Result<HeaderValue, Self::Error> {
+        let s = format!("{}", self);
+        HeaderValue::from_shared(Bytes::from(s))
+    }
+}
+
+impl IntoHeaderValue for u64 {
+    type Error = InvalidHeaderValueBytes;
+
+    #[inline]
+    fn try_into(self) -> Result<HeaderValue, Self::Error> {
+        let s = format!("{}", self);
+        HeaderValue::from_shared(Bytes::from(s))
     }
 }
 

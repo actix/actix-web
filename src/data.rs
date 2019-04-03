@@ -92,7 +92,7 @@ impl<T: 'static, P> FromRequest<P> for Data<T> {
 
     #[inline]
     fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
-        if let Some(st) = req.config().extensions().get::<Data<T>>() {
+        if let Some(st) = req.request().config().extensions().get::<Data<T>>() {
             Ok(st.clone())
         } else {
             Err(ErrorInternalServerError(

@@ -552,7 +552,7 @@ impl<P> FromRequest<P> for PathBufWrp {
     type Future = Result<Self, Self::Error>;
 
     fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
-        PathBufWrp::get_pathbuf(req.match_info().path())
+        PathBufWrp::get_pathbuf(req.request().match_info().path())
     }
 }
 
@@ -1049,7 +1049,7 @@ mod tests {
                 .new_service(&()),
         )
         .unwrap();
-        let req = TestRequest::with_uri("/missing").to_service();
+        let req = TestRequest::with_uri("/missing").to_srv_request();
 
         let mut resp = test::call_success(&mut st, req);
         assert_eq!(resp.status(), StatusCode::OK);
