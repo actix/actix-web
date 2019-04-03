@@ -1,5 +1,7 @@
 # Changes
 
+## [1.0.0-alpha.3] - 2019-04-02
+
 ### Changed
 
 * Renamed `TestRequest::to_service()` to `TestRequest::to_srv_request()`
@@ -7,7 +9,6 @@
 * Renamed `TestRequest::to_response()` to `TestRequest::to_srv_response()`
 
 * Removed `Deref` impls
-
 
 ### Removed
 
