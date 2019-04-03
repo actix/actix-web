@@ -5,11 +5,18 @@ use std::rc::Rc;
 use actix_http::Extensions;
 use actix_router::ResourceDef;
 use actix_service::{boxed, IntoNewService, NewService};
+use futures::IntoFuture;
 
+use crate::data::{Data, DataFactory};
 use crate::error::Error;
 use crate::guard::Guard;
+use crate::resource::Resource;
 use crate::rmap::ResourceMap;
-use crate::service::{ServiceRequest, ServiceResponse};
+use crate::route::Route;
+use crate::service::{
+    HttpServiceFactory, ServiceFactory, ServiceFactoryWrapper, ServiceRequest,
+    ServiceResponse,
+};
 
 type Guards = Vec<Box<Guard>>;
 type HttpNewService<P> =
@@ -155,5 +162,142 @@ impl Default for AppConfigInner {
             rmap: ResourceMap::new(ResourceDef::new("")),
             extensions: RefCell::new(Extensions::new()),
         }
+    }
+}
+
+/// Router config. It is used for external configuration.
+/// Part of application configuration could be offloaded
+/// to set of external methods. This could help with
+/// modularization of big application configuration.
+pub struct RouterConfig<P: 'static> {
+    pub(crate) services: Vec<Box<ServiceFactory<P>>>,
+    pub(crate) data: Vec<Box<DataFactory>>,
+    pub(crate) external: Vec<ResourceDef>,
+}
+
+impl<P: 'static> RouterConfig<P> {
+    pub(crate) fn new() -> Self {
+        Self {
+            services: Vec::new(),
+            data: Vec::new(),
+            external: Vec::new(),
+        }
+    }
+
+    /// Set application data. Applicatin data could be accessed
+    /// by using `Data<T>` extractor where `T` is data type.
+    ///
+    /// This is same as `App::data()` method.
+    pub fn data<S: 'static>(&mut self, data: S) -> &mut Self {
+        self.data.push(Box::new(Data::new(data)));
+        self
+    }
+
+    /// Set application data factory. This function is
+    /// similar to `.data()` but it accepts data factory. Data object get
+    /// constructed asynchronously during application initialization.
+    ///
+    /// This is same as `App::data_dactory()` method.
+    pub fn data_factory<F, R>(&mut self, data: F) -> &mut Self
+    where
+        F: Fn() -> R + 'static,
+        R: IntoFuture + 'static,
+        R::Error: std::fmt::Debug,
+    {
+        self.data.push(Box::new(data));
+        self
+    }
+
+    /// Configure route for a specific path.
+    ///
+    /// This is same as `App::route()` method.
+    pub fn route(&mut self, path: &str, mut route: Route<P>) -> &mut Self {
+        self.service(
+            Resource::new(path)
+                .add_guards(route.take_guards())
+                .route(route),
+        )
+    }
+
+    /// Register http service.
+    ///
+    /// This is same as `App::service()` method.
+    pub fn service<F>(&mut self, factory: F) -> &mut Self
+    where
+        F: HttpServiceFactory<P> + 'static,
+    {
+        self.services
+            .push(Box::new(ServiceFactoryWrapper::new(factory)));
+        self
+    }
+
+    /// Register an external resource.
+    ///
+    /// External resources are useful for URL generation purposes only
+    /// and are never considered for matching at request time. Calls to
+    /// `HttpRequest::url_for()` will work as expected.
+    ///
+    /// This is same as `App::external_service()` method.
+    pub fn external_resource<N, U>(&mut self, name: N, url: U) -> &mut Self
+    where
+        N: AsRef<str>,
+        U: AsRef<str>,
+    {
+        let mut rdef = ResourceDef::new(url.as_ref());
+        *rdef.name_mut() = name.as_ref().to_string();
+        self.external.push(rdef);
+        self
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use actix_service::Service;
+
+    use super::*;
+    use crate::http::StatusCode;
+    use crate::test::{block_on, init_service, TestRequest};
+    use crate::{web, App, HttpResponse};
+
+    #[test]
+    fn test_data() {
+        let cfg = |cfg: &mut RouterConfig<_>| {
+            cfg.data(10usize);
+        };
+
+        let mut srv =
+            init_service(App::new().configure(cfg).service(
+                web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()),
+            ));
+        let req = TestRequest::default().to_request();
+        let resp = block_on(srv.call(req)).unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[test]
+    fn test_data_factory() {
+        let cfg = |cfg: &mut RouterConfig<_>| {
+            cfg.data_factory(|| Ok::<_, ()>(10usize));
+        };
+
+        let mut srv =
+            init_service(App::new().configure(cfg).service(
+                web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()),
+            ));
+        let req = TestRequest::default().to_request();
+        let resp = block_on(srv.call(req)).unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let cfg2 = |cfg: &mut RouterConfig<_>| {
+            cfg.data_factory(|| Ok::<_, ()>(10u32));
+        };
+        let mut srv = init_service(
+            App::new()
+                .service(web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()))
+                .configure(cfg2),
+        );
+        let req = TestRequest::default().to_request();
+        let resp = block_on(srv.call(req)).unwrap();
+        assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
     }
 }

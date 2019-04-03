@@ -15,7 +15,7 @@ use bytes::Bytes;
 use futures::{IntoFuture, Stream};
 
 use crate::app_service::{AppChain, AppEntry, AppInit, AppRouting, AppRoutingFactory};
-use crate::config::{AppConfig, AppConfigInner};
+use crate::config::{AppConfig, AppConfigInner, RouterConfig};
 use crate::data::{Data, DataFactory};
 use crate::dev::{Payload, PayloadStream, ResourceDef};
 use crate::error::{Error, PayloadError};
@@ -257,6 +257,55 @@ where
         }
     }
 
+    /// Run external configuration as part of the application building
+    /// process
+    ///
+    /// This function is useful for moving parts of configuration to a
+    /// different module or even library. For example,
+    /// some of the resource's configuration could be moved to different module.
+    ///
+    /// ```rust
+    /// # extern crate actix_web;
+    /// use actix_web::{web, middleware, App, HttpResponse};
+    ///
+    /// // this function could be located in different module
+    /// fn config<P>(cfg: &mut web::RouterConfig<P>) {
+    ///     cfg.service(web::resource("/test")
+    ///         .route(web::get().to(|| HttpResponse::Ok()))
+    ///         .route(web::head().to(|| HttpResponse::MethodNotAllowed()))
+    ///     );
+    /// }
+    ///
+    /// fn main() {
+    ///     let app = App::new()
+    ///         .wrap(middleware::Logger::default())
+    ///         .configure(config)  // <- register resources
+    ///         .route("/index.html", web::get().to(|| HttpResponse::Ok()));
+    /// }
+    /// ```
+    pub fn configure<F>(mut self, f: F) -> AppRouter<T, Out, Body, AppEntry<Out>>
+    where
+        F: Fn(&mut RouterConfig<Out>),
+    {
+        let mut cfg = RouterConfig::new();
+        f(&mut cfg);
+        self.data.extend(cfg.data);
+
+        let fref = Rc::new(RefCell::new(None));
+
+        AppRouter {
+            chain: self.chain,
+            default: None,
+            endpoint: AppEntry::new(fref.clone()),
+            factory_ref: fref,
+            data: self.data,
+            config: self.config,
+            services: cfg.services,
+            external: cfg.external,
+            _t: PhantomData,
+        }
+    }
+
     /// Configure route for a specific path.
     ///
     /// This is a simplified version of the `App::service()` method.
@@ -382,6 +431,45 @@ where
         InitError = (),
     >,
 {
+    /// Run external configuration as part of the application building
+    /// process
+    ///
+    /// This function is useful for moving parts of configuration to a
+    /// different module or even library. For example,
+    /// some of the resource's configuration could be moved to different module.
+    ///
+    /// ```rust
+    /// # extern crate actix_web;
+    /// use actix_web::{web, middleware, App, HttpResponse};
+    ///
+    /// // this function could be located in different module
+    /// fn config<P>(cfg: &mut web::RouterConfig<P>) {
+    ///     cfg.service(web::resource("/test")
+    ///         .route(web::get().to(|| HttpResponse::Ok()))
+    ///         .route(web::head().to(|| HttpResponse::MethodNotAllowed()))
+    ///     );
+    /// }
+    ///
+    /// fn main() {
+    ///     let app = App::new()
+    ///         .wrap(middleware::Logger::default())
+    ///         .configure(config)  // <- register resources
+    ///         .route("/index.html", web::get().to(|| HttpResponse::Ok()));
+    /// }
+    /// ```
+    pub fn configure<F>(mut self, f: F) -> Self
+    where
+        F: Fn(&mut RouterConfig<P>),
+    {
+        let mut cfg = RouterConfig::new();
+        f(&mut cfg);
+        self.data.extend(cfg.data);
+        self.services.extend(cfg.services);
+        self.external.extend(cfg.external);
+
+        self
+    }
+
     /// Configure route for a specific path.
     ///
     /// This is a simplified version of the `App::service()` method.

@@ -1,6 +1,10 @@
 # Changes
 
-## [1.0.0-alpha.3] - 2019-04-xx
+## [1.0.0-alpha.4] - 2019-04-xx
+
+### Added
+
+* `App::configure()` allow to offload app configuration to different methods
 
 ### Changed
 
