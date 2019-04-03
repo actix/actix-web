@@ -2,6 +2,10 @@
 
 ## [0.1.0-alpha.4] - 2019-04-xx
 
+### Changed
+
+* Export IntoHeaderValue
+
 ### Deleted
 
 * Removed PayloadBuffer
