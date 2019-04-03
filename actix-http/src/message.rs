@@ -24,6 +24,7 @@ bitflags! {
         const KEEP_ALIVE  = 0b0000_0010;
         const UPGRADE     = 0b0000_0100;
         const NO_CHUNKING = 0b0000_1000;
+        const CAMEL_CASE  = 0b0001_0000;
     }
 }
 
@@ -40,7 +41,6 @@ pub struct RequestHead {
     pub method: Method,
     pub version: Version,
     pub headers: HeaderMap,
-    pub upper_camel_case_headers: bool,
     pub extensions: RefCell<Extensions>,
     flags: Flags,
 }
@@ -52,7 +52,6 @@ impl Default for RequestHead {
             method: Method::default(),
             version: Version::HTTP_11,
             headers: HeaderMap::with_capacity(16),
-            upper_camel_case_headers: false,
             flags: Flags::empty(),
             extensions: RefCell::new(Extensions::new()),
         }
@@ -98,13 +97,17 @@ impl RequestHead {
     /// Befault is `false`
     #[inline]
     pub fn upper_camel_case_headers(&self) -> bool {
-        self.upper_camel_case_headers
+        self.flags.contains(Flags::CAMEL_CASE)
     }
 
     /// Set `true` to send headers which are uppercased with Camel-Case.
     #[inline]
-    pub fn set_upper_camel_case_headers(&mut self, value: bool) {
-        self.upper_camel_case_headers = value;
+    pub fn set_upper_camel_case_headers(&mut self, val: bool) {
+        if val {
+            self.flags.insert(Flags::CAMEL_CASE);
+        } else {
+            self.flags.remove(Flags::CAMEL_CASE);
+        }
     }
 
     #[inline]
