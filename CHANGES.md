@@ -6,6 +6,11 @@
 
 * `App::configure()` allow to offload app configuration to different methods
 
+* Added `ServiceRequest::app_data()`, returns `Data<T>`
+
+* Added `ServiceFromRequest::app_data()`, returns `Data<T>`
+
+
 ### Changed
 
 * Move multipart support to actix-multipart crate
