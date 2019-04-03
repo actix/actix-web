@@ -8,6 +8,8 @@
 
 * Preallocate read buffer for h1 codec
 
+* Detect socket disconnection during protocol selection
+
 
 ## [0.1.0-alpha.2] - 2019-03-29
 

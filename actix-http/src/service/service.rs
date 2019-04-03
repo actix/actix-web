@@ -247,7 +247,10 @@ where
                     loop {
                         unsafe {
                             let b = item.1.bytes_mut();
-                            let n = { try_ready!(item.0.poll_read(b)) };
+                            let n = try_ready!(item.0.poll_read(b));
+                            if n == 0 {
+                                return Ok(Async::Ready(()));
+                            }
                             item.1.advance_mut(n);
                             if item.1.len() >= HTTP2_PREFACE.len() {
                                 break;
