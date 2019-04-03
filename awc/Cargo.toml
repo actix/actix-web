@@ -1,0 +1,67 @@
+[package]
+name = "awc"
+version = "0.1.0-alpha.2"
+authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
+description = "Actix http client."
+readme = "README.md"
+keywords = ["actix", "http", "framework", "async", "web"]
+homepage = "https://actix.rs"
+repository = "https://github.com/actix/actix-web.git"
+documentation = "https://docs.rs/awc/"
+license = "MIT/Apache-2.0"
+exclude = [".gitignore", ".travis.yml", ".cargo/config", "appveyor.yml"]
+workspace = ".."
+edition = "2018"
+
+[lib]
+name = "awc"
+path = "src/lib.rs"
+
+[package.metadata.docs.rs]
+features = ["ssl", "brotli", "flate2-zlib"]
+
+[features]
+default = ["brotli", "flate2-zlib"]
+
+# openssl
+ssl = ["openssl", "actix-http/ssl"]
+
+# brotli encoding, requires c compiler
+brotli = ["actix-http/brotli"]
+
+# miniz-sys backend for flate2 crate
+flate2-zlib = ["actix-http/flate2-zlib"]
+
+# rust backend for flate2 crate
+flate2-rust = ["actix-http/flate2-rust"]
+
+[dependencies]
+actix-codec = "0.1.1"
+actix-service = "0.3.4"
+actix-http = "0.1.0-alpa.2"
+base64 = "0.10.1"
+bytes = "0.4"
+derive_more = "0.14"
+futures = "0.1.25"
+log =" 0.4"
+mime = "0.3"
+percent-encoding = "1.0"
+rand = "0.6"
+serde = "1.0"
+serde_json = "1.0"
+serde_urlencoded = "0.5.3"
+tokio-timer = "0.2.8"
+openssl = { version="0.10", optional = true }
+
+[dev-dependencies]
+actix-rt = "0.2.2"
+actix-web = { version = "1.0.0-alpha.2", features=["ssl"] }
+actix-http = { version = "0.1.0-alpa.2", features=["ssl"] }
+actix-http-test = { version = "0.1.0-alpha.2", features=["ssl"] }
+actix-utils = "0.3.4"
+actix-server = { version = "0.4.1", features=["ssl"] }
+brotli2 = { version="0.3.2" }
+flate2 = { version="1.0.2" }
+env_logger = "0.6"
+rand = "0.6"
+tokio-tcp = "0.1"

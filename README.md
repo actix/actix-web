@@ -1,8 +1,8 @@
-# Actix web [![Build Status](https://travis-ci.org/actix/actix-web.svg?branch=master)](https://travis-ci.org/actix/actix-web) [![Build status](https://ci.appveyor.com/api/projects/status/kkdb4yce7qhm5w85/branch/master?svg=true)](https://ci.appveyor.com/project/fafhrd91/actix-web-hdy9d/branch/master) [![codecov](https://codecov.io/gh/actix/actix-web/branch/master/graph/badge.svg)](https://codecov.io/gh/actix/actix-web) [![crates.io](https://meritbadge.herokuapp.com/actix-web)](https://crates.io/crates/actix-web) [![Join the chat at https://gitter.im/actix/actix](https://badges.gitter.im/actix/actix.svg)](https://gitter.im/actix/actix?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+# Actix web [![Build Status](https://travis-ci.org/actix/actix-web.svg?branch=master)](https://travis-ci.org/actix/actix-web) [![codecov](https://codecov.io/gh/actix/actix-web/branch/master/graph/badge.svg)](https://codecov.io/gh/actix/actix-web) [![crates.io](https://meritbadge.herokuapp.com/actix-web)](https://crates.io/crates/actix-web) [![Join the chat at https://gitter.im/actix/actix](https://badges.gitter.im/actix/actix.svg)](https://gitter.im/actix/actix?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
 Actix web is a simple, pragmatic and extremely fast web framework for Rust.
 
-* Supported *HTTP/1.x* and [*HTTP/2.0*](https://actix.rs/docs/http2/) protocols
+* Supported *HTTP/1.x* and *HTTP/2.0* protocols
 * Streaming and pipelining
 * Keep-alive and slow requests handling
 * Client/server [WebSockets](https://actix.rs/docs/websockets/) support
@@ -10,37 +10,36 @@ Actix web is a simple, pragmatic and extremely fast web framework for Rust.
 * Configurable [request routing](https://actix.rs/docs/url-dispatch/)
 * Multipart streams
 * Static assets
-* SSL support with OpenSSL or `native-tls`
+* SSL support with OpenSSL or Rustls
 * Middlewares ([Logger, Session, CORS, CSRF, etc](https://actix.rs/docs/middleware/))
 * Includes an asynchronous [HTTP client](https://actix.rs/actix-web/actix_web/client/index.html)
-* Built on top of [Actix actor framework](https://github.com/actix/actix)
-* Experimental [Async/Await](https://github.com/mehcode/actix-web-async-await) support.
+* Supports [Actix actor framework](https://github.com/actix/actix)
 
 ## Documentation & community resources
 
 * [User Guide](https://actix.rs/docs/)
 * [API Documentation (Development)](https://actix.rs/actix-web/actix_web/)
-* [API Documentation (Releases)](https://actix.rs/api/actix-web/stable/actix_web/)
+* [API Documentation (0.7 Release)](https://docs.rs/actix-web/0.7.19/actix_web/)
 * [Chat on gitter](https://gitter.im/actix/actix)
 * Cargo package: [actix-web](https://crates.io/crates/actix-web)
-* Minimum supported Rust version: 1.31 or later
+* Minimum supported Rust version: 1.32 or later
 
 ## Example
 
 ```rust
-extern crate actix_web;
-use actix_web::{http, server, App, Path, Responder};
+use actix_web::{web, App, HttpServer, Responder};
 
-fn index(info: Path<(u32, String)>) -> impl Responder {
+fn index(info: web::Path<(u32, String)>) -> impl Responder {
     format!("Hello {}! id:{}", info.1, info.0)
 }
 
-fn main() {
-    server::new(
-        || App::new()
-            .route("/{id}/{name}/index.html", http::Method::GET, index))
-        .bind("127.0.0.1:8080").unwrap()
-        .run();
+fn main() -> std::io::Result<()> {
+    HttpServer::new(
+        || App::new().service(
+              web::resource("/{id}/{name}/index.html")
+                .route(web::get().to(index))))
+        .bind("127.0.0.1:8080")?
+        .run()
 }
 ```
 
@@ -48,7 +47,6 @@ fn main() {
 
 * [Basics](https://github.com/actix/examples/tree/master/basics/)
 * [Stateful](https://github.com/actix/examples/tree/master/state/)
-* [Protobuf support](https://github.com/actix/examples/tree/master/protobuf/)
 * [Multipart streams](https://github.com/actix/examples/tree/master/multipart/)
 * [Simple websocket](https://github.com/actix/examples/tree/master/websocket/)
 * [Tera](https://github.com/actix/examples/tree/master/template_tera/) /
