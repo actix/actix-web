@@ -30,6 +30,7 @@ members = [
   "actix-http",
   "actix-files",
   "actix-session",
+  "actix-multipart",
   "actix-web-actors",
   "actix-web-codegen",
   "test-server",
@@ -83,7 +84,6 @@ derive_more = "0.14"
 encoding = "0.2"
 futures = "0.1"
 hashbrown = "0.1.8"
-httparse = "1.3"
 log = "0.4"
 mime = "0.3"
 net2 = "0.2.33"

@@ -12,7 +12,7 @@ mod service;
 pub use self::client::{ClientCodec, ClientPayloadCodec};
 pub use self::codec::Codec;
 pub use self::dispatcher::Dispatcher;
-pub use self::payload::Payload;
+pub use self::payload::{Payload, PayloadWriter};
 pub use self::service::{H1Service, H1ServiceHandler, OneRequest};
 
 #[derive(Debug)]

@@ -14,7 +14,7 @@ use crate::error::PayloadError;
 pub(crate) const MAX_BUFFER_SIZE: usize = 32_768;
 
 #[derive(Debug, PartialEq)]
-pub(crate) enum PayloadStatus {
+pub enum PayloadStatus {
     Read,
     Pause,
     Dropped,
@@ -106,7 +106,7 @@ impl Clone for Payload {
 }
 
 /// Payload writer interface.
-pub(crate) trait PayloadWriter {
+pub trait PayloadWriter {
     /// Set stream error.
     fn set_error(&mut self, err: PayloadError);
 
