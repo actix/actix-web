@@ -6,6 +6,8 @@
 
 * Renamed `TestRequest::to_response()` to `TestRequest::to_srv_response()`
 
+* Added `URLPath` option for logger
+
 
 ### Removed
 

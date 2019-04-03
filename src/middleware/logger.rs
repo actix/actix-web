@@ -65,7 +65,7 @@ use crate::{HttpMessage, HttpResponse};
 ///
 /// `%D`  Time taken to serve the request, in milliseconds
 ///
-/// `%R`  Request route
+/// `%U`  Request URL
 ///
 /// `%{FOO}i`  request.headers['FOO']
 ///
@@ -274,7 +274,7 @@ impl Format {
     /// Returns `None` if the format string syntax is incorrect.
     pub fn new(s: &str) -> Format {
         log::trace!("Access log format: {}", s);
-        let fmt = Regex::new(r"%(\{([A-Za-z0-9\-_]+)\}([ioe])|[atPrRsbTD]?)").unwrap();
+        let fmt = Regex::new(r"%(\{([A-Za-z0-9\-_]+)\}([ioe])|[atPrUsbTD]?)").unwrap();
 
         let mut idx = 0;
         let mut results = Vec::new();
@@ -302,7 +302,7 @@ impl Format {
                     "r" => FormatText::RequestLine,
                     "s" => FormatText::ResponseStatus,
                     "b" => FormatText::ResponseSize,
-                    "R" => FormatText::Route,
+                    "U" => FormatText::UrlPath,
                     "T" => FormatText::Time,
                     "D" => FormatText::TimeMillis,
                     _ => FormatText::Str(m.as_str().to_owned()),
@@ -331,7 +331,7 @@ pub enum FormatText {
     Time,
     TimeMillis,
     RemoteAddr,
-    Route,
+    UrlPath,
     RequestHeader(String),
     ResponseHeader(String),
     EnvironHeader(String),
@@ -417,7 +417,7 @@ impl FormatText {
                     ))
                 };
             }
-            FormatText::Route => {
+            FormatText::UrlPath => {
                 *self = FormatText::Str(format!(
                     "{}",
                     req.path()
@@ -484,8 +484,8 @@ mod tests {
     }
 
     #[test]
-    fn test_route() {
-        let mut format = Format::new("%T %R");
+    fn test_url_path() {
+        let mut format = Format::new("%T %U");
         let req = TestRequest::with_header(
             header::USER_AGENT,
             header::HeaderValue::from_static("ACTIX-WEB"),
