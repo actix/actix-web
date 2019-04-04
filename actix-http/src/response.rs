@@ -54,7 +54,8 @@ impl Response<Body> {
     /// Constructs an error response
     #[inline]
     pub fn from_error(error: Error) -> Response {
-        let mut resp = error.as_response_error().error_response();
+        let resp = error.as_response_error().error_response();
+        let mut resp = resp.set_body(Body::from(format!("{}", error)));
         resp.error = Some(error);
         resp
     }
