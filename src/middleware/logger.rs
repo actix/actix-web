@@ -65,6 +65,8 @@ use crate::HttpResponse;
 ///
 /// `%D`  Time taken to serve the request, in milliseconds
 ///
+/// `%U`  Request URL
+///
 /// `%{FOO}i`  request.headers['FOO']
 ///
 /// `%{FOO}o`  response.headers['FOO']
@@ -272,7 +274,7 @@ impl Format {
     /// Returns `None` if the format string syntax is incorrect.
     pub fn new(s: &str) -> Format {
         log::trace!("Access log format: {}", s);
-        let fmt = Regex::new(r"%(\{([A-Za-z0-9\-_]+)\}([ioe])|[atPrsbTD]?)").unwrap();
+        let fmt = Regex::new(r"%(\{([A-Za-z0-9\-_]+)\}([ioe])|[atPrUsbTD]?)").unwrap();
 
         let mut idx = 0;
         let mut results = Vec::new();
@@ -300,6 +302,7 @@ impl Format {
                     "r" => FormatText::RequestLine,
                     "s" => FormatText::ResponseStatus,
                     "b" => FormatText::ResponseSize,
+                    "U" => FormatText::UrlPath,
                     "T" => FormatText::Time,
                     "D" => FormatText::TimeMillis,
                     _ => FormatText::Str(m.as_str().to_owned()),
@@ -328,6 +331,7 @@ pub enum FormatText {
     Time,
     TimeMillis,
     RemoteAddr,
+    UrlPath,
     RequestHeader(String),
     ResponseHeader(String),
     EnvironHeader(String),
@@ -413,6 +417,12 @@ impl FormatText {
                     ))
                 };
             }
+            FormatText::UrlPath => {
+                *self = FormatText::Str(format!(
+                    "{}",
+                    req.path()
+                ))
+            }
             FormatText::RequestTime => {
                 *self = FormatText::Str(format!(
                     "{:?}",
@@ -471,6 +481,35 @@ mod tests {
         )
         .to_srv_request();
         let _res = block_on(srv.call(req));
+    }
+
+    #[test]
+    fn test_url_path() {
+        let mut format = Format::new("%T %U");
+        let req = TestRequest::with_header(
+            header::USER_AGENT,
+            header::HeaderValue::from_static("ACTIX-WEB"),
+        ).uri("/test/route/yeah").to_srv_request();
+
+        let now = time::now();
+        for unit in &mut format.0 {
+            unit.render_request(now, &req);
+        }
+
+        let resp = HttpResponse::build(StatusCode::OK).force_close().finish();
+        for unit in &mut format.0 {
+            unit.render_response(&resp);
+        }
+
+        let render = |fmt: &mut Formatter| {
+            for unit in &format.0 {
+                unit.render(fmt, 1024, now)?;
+            }
+            Ok(())
+        };
+        let s = format!("{}", FormatDisplay(&render));
+        println!("{}", s);
+        assert!(s.contains("/test/route/yeah"));
     }
 
     #[test]
