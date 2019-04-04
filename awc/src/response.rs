@@ -282,7 +282,7 @@ where
 impl<T, U> Future for JsonBody<T, U>
 where
     T: Stream<Item = Bytes, Error = PayloadError>,
-    U: DeserializeOwned + 'static,
+    U: DeserializeOwned,
 {
     type Item = U;
     type Error = JsonPayloadError;

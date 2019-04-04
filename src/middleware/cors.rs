@@ -477,8 +477,9 @@ fn cors<'a>(
 
 impl<S, P, B> IntoTransform<CorsFactory, S> for Cors
 where
-    S: Service<Request = ServiceRequest<P>, Response = ServiceResponse<B>> + 'static,
-    P: 'static,
+    S: Service<Request = ServiceRequest<P>, Response = ServiceResponse<B>>,
+    S::Future: 'static,
+    S::Error: 'static,
     B: 'static,
 {
     fn into_transform(self) -> CorsFactory {
@@ -541,7 +542,6 @@ where
     S: Service<Request = ServiceRequest<P>, Response = ServiceResponse<B>>,
     S::Future: 'static,
     S::Error: 'static,
-    P: 'static,
     B: 'static,
 {
     type Request = ServiceRequest<P>;
@@ -683,7 +683,6 @@ where
     S: Service<Request = ServiceRequest<P>, Response = ServiceResponse<B>>,
     S::Future: 'static,
     S::Error: 'static,
-    P: 'static,
     B: 'static,
 {
     type Request = ServiceRequest<P>;
@@ -826,7 +825,6 @@ mod tests {
                 + 'static,
             S::Future: 'static,
             S::Error: 'static,
-            P: 'static,
             B: 'static,
         {
             block_on(

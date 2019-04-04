@@ -30,7 +30,6 @@ where
     S: NewService<SrvConfig, Request = Request>,
     S::Error: Debug,
     S::Response: Into<Response<B>>,
-    S::Service: 'static,
     B: MessageBody,
 {
     /// Create new `HttpService` instance with default config.
@@ -63,7 +62,6 @@ where
     S: NewService<SrvConfig, Request = Request>,
     S::Error: Debug,
     S::Response: Into<Response<B>>,
-    S::Service: 'static,
     B: MessageBody,
 {
     type Request = Io<T, P>;
@@ -93,7 +91,6 @@ impl<T, P, S, B> Future for H1ServiceResponse<T, P, S, B>
 where
     T: AsyncRead + AsyncWrite,
     S: NewService<SrvConfig, Request = Request>,
-    S::Service: 'static,
     S::Error: Debug,
     S::Response: Into<Response<B>>,
     B: MessageBody,
@@ -111,7 +108,7 @@ where
 }
 
 /// `Service` implementation for HTTP1 transport
-pub struct H1ServiceHandler<T, P, S: 'static, B> {
+pub struct H1ServiceHandler<T, P, S, B> {
     srv: CloneableService<S>,
     cfg: ServiceConfig,
     _t: PhantomData<(T, P, B)>,

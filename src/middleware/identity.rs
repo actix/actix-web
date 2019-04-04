@@ -202,10 +202,11 @@ impl<T> IdentityService<T> {
 
 impl<S, T, P, B> Transform<S> for IdentityService<T>
 where
-    P: 'static,
     S: Service<Request = ServiceRequest<P>, Response = ServiceResponse<B>> + 'static,
     S::Future: 'static,
+    S::Error: 'static,
     T: IdentityPolicy,
+    P: 'static,
     B: 'static,
 {
     type Request = ServiceRequest<P>;
@@ -235,6 +236,7 @@ where
     B: 'static,
     S: Service<Request = ServiceRequest<P>, Response = ServiceResponse<B>> + 'static,
     S::Future: 'static,
+    S::Error: 'static,
     T: IdentityPolicy,
 {
     type Request = ServiceRequest<P>;

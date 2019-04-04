@@ -31,7 +31,7 @@ const CHUNK_SIZE: usize = 16_384;
 /// Dispatcher for HTTP/2 protocol
 pub struct Dispatcher<
     T: AsyncRead + AsyncWrite,
-    S: Service<Request = Request> + 'static,
+    S: Service<Request = Request>,
     B: MessageBody,
 > {
     service: CloneableService<S>,
@@ -45,8 +45,9 @@ pub struct Dispatcher<
 impl<T, S, B> Dispatcher<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: Service<Request = Request> + 'static,
+    S: Service<Request = Request>,
     S::Error: fmt::Debug,
+    S::Future: 'static,
     S::Response: Into<Response<B>>,
     B: MessageBody + 'static,
 {
@@ -86,8 +87,9 @@ where
 impl<T, S, B> Future for Dispatcher<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: Service<Request = Request> + 'static,
+    S: Service<Request = Request>,
     S::Error: fmt::Debug,
+    S::Future: 'static,
     S::Response: Into<Response<B>>,
     B: MessageBody + 'static,
 {
@@ -115,7 +117,7 @@ where
                     head.method = parts.method;
                     head.version = parts.version;
                     head.headers = parts.headers;
-                    tokio_current_thread::spawn(ServiceResponse::<S, B> {
+                    tokio_current_thread::spawn(ServiceResponse::<S::Future, B> {
                         state: ServiceResponseState::ServiceCall(
                             self.service.call(req),
                             Some(res),
@@ -130,22 +132,22 @@ where
     }
 }
 
-struct ServiceResponse<S: Service, B> {
-    state: ServiceResponseState<S, B>,
+struct ServiceResponse<F, B> {
+    state: ServiceResponseState<F, B>,
     config: ServiceConfig,
     buffer: Option<Bytes>,
 }
 
-enum ServiceResponseState<S: Service, B> {
-    ServiceCall(S::Future, Option<SendResponse<Bytes>>),
+enum ServiceResponseState<F, B> {
+    ServiceCall(F, Option<SendResponse<Bytes>>),
     SendPayload(SendStream<Bytes>, ResponseBody<B>),
 }
 
-impl<S, B> ServiceResponse<S, B>
+impl<F, B> ServiceResponse<F, B>
 where
-    S: Service<Request = Request> + 'static,
-    S::Error: fmt::Debug,
-    S::Response: Into<Response<B>>,
+    F: Future,
+    F::Error: fmt::Debug,
+    F::Item: Into<Response<B>>,
     B: MessageBody + 'static,
 {
     fn prepare_response(
@@ -209,11 +211,11 @@ where
     }
 }
 
-impl<S, B> Future for ServiceResponse<S, B>
+impl<F, B> Future for ServiceResponse<F, B>
 where
-    S: Service<Request = Request> + 'static,
-    S::Error: fmt::Debug,
-    S::Response: Into<Response<B>>,
+    F: Future,
+    F::Error: fmt::Debug,
+    F::Item: Into<Response<B>>,
     B: MessageBody + 'static,
 {
     type Item = ();

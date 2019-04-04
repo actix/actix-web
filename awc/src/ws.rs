@@ -70,7 +70,7 @@ impl WebsocketsRequest {
     /// Set supported websocket protocols
     pub fn protocols<U, V>(mut self, protos: U) -> Self
     where
-        U: IntoIterator<Item = V> + 'static,
+        U: IntoIterator<Item = V>,
         V: AsRef<str>,
     {
         let mut protos = protos

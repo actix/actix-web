@@ -69,7 +69,7 @@ where
     }
 }
 
-impl<T: AsyncRead + AsyncWrite + 'static> IoConnection<T> {
+impl<T: AsyncRead + AsyncWrite> IoConnection<T> {
     pub(crate) fn new(
         io: ConnectionType<T>,
         created: time::Instant,

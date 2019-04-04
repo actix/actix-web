@@ -29,9 +29,9 @@ pub struct HttpService<T, P, S, B> {
 impl<T, S, B> HttpService<T, (), S, B>
 where
     S: NewService<SrvConfig, Request = Request>,
-    S::Service: 'static,
-    S::Error: Debug + 'static,
+    S::Error: Debug,
     S::Response: Into<Response<B>>,
+    <S::Service as Service>::Future: 'static,
     B: MessageBody + 'static,
 {
     /// Create builder for `HttpService` instance.
@@ -43,9 +43,9 @@ where
 impl<T, P, S, B> HttpService<T, P, S, B>
 where
     S: NewService<SrvConfig, Request = Request>,
-    S::Service: 'static,
-    S::Error: Debug + 'static,
+    S::Error: Debug,
     S::Response: Into<Response<B>>,
+    <S::Service as Service>::Future: 'static,
     B: MessageBody + 'static,
 {
     /// Create new `HttpService` instance.
@@ -74,11 +74,11 @@ where
 
 impl<T, P, S, B> NewService<SrvConfig> for HttpService<T, P, S, B>
 where
-    T: AsyncRead + AsyncWrite + 'static,
+    T: AsyncRead + AsyncWrite,
     S: NewService<SrvConfig, Request = Request>,
-    S::Service: 'static,
     S::Error: Debug,
     S::Response: Into<Response<B>>,
+    <S::Service as Service>::Future: 'static,
     B: MessageBody + 'static,
 {
     type Request = ServerIo<T, P>;
@@ -108,9 +108,9 @@ impl<T, P, S, B> Future for HttpServiceResponse<T, P, S, B>
 where
     T: AsyncRead + AsyncWrite,
     S: NewService<SrvConfig, Request = Request>,
-    S::Service: 'static,
-    S::Response: Into<Response<B>>,
     S::Error: Debug,
+    S::Response: Into<Response<B>>,
+    <S::Service as Service>::Future: 'static,
     B: MessageBody + 'static,
 {
     type Item = HttpServiceHandler<T, P, S::Service, B>;
@@ -126,7 +126,7 @@ where
 }
 
 /// `Service` implementation for http transport
-pub struct HttpServiceHandler<T, P, S: 'static, B> {
+pub struct HttpServiceHandler<T, P, S, B> {
     srv: CloneableService<S>,
     cfg: ServiceConfig,
     _t: PhantomData<(T, P, B)>,
@@ -134,8 +134,9 @@ pub struct HttpServiceHandler<T, P, S: 'static, B> {
 
 impl<T, P, S, B> HttpServiceHandler<T, P, S, B>
 where
-    S: Service<Request = Request> + 'static,
+    S: Service<Request = Request>,
     S::Error: Debug,
+    S::Future: 'static,
     S::Response: Into<Response<B>>,
     B: MessageBody + 'static,
 {
@@ -150,9 +151,10 @@ where
 
 impl<T, P, S, B> Service for HttpServiceHandler<T, P, S, B>
 where
-    T: AsyncRead + AsyncWrite + 'static,
-    S: Service<Request = Request> + 'static,
+    T: AsyncRead + AsyncWrite,
+    S: Service<Request = Request>,
     S::Error: Debug,
+    S::Future: 'static,
     S::Response: Into<Response<B>>,
     B: MessageBody + 'static,
 {
@@ -203,10 +205,11 @@ where
     }
 }
 
-enum State<T, S: Service<Request = Request> + 'static, B: MessageBody>
+enum State<T, S: Service<Request = Request>, B: MessageBody>
 where
+    S::Future: 'static,
     S::Error: fmt::Debug,
-    T: AsyncRead + AsyncWrite + 'static,
+    T: AsyncRead + AsyncWrite,
 {
     H1(h1::Dispatcher<T, S, B>),
     H2(Dispatcher<Io<T>, S, B>),
@@ -216,9 +219,10 @@ where
 
 pub struct HttpServiceHandlerResponse<T, S, B>
 where
-    T: AsyncRead + AsyncWrite + 'static,
-    S: Service<Request = Request> + 'static,
+    T: AsyncRead + AsyncWrite,
+    S: Service<Request = Request>,
     S::Error: Debug,
+    S::Future: 'static,
     S::Response: Into<Response<B>>,
     B: MessageBody + 'static,
 {
@@ -230,8 +234,9 @@ const HTTP2_PREFACE: [u8; 14] = *b"PRI * HTTP/2.0";
 impl<T, S, B> Future for HttpServiceHandlerResponse<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: Service<Request = Request> + 'static,
+    S: Service<Request = Request>,
     S::Error: Debug,
+    S::Future: 'static,
     S::Response: Into<Response<B>>,
     B: MessageBody,
 {
@@ -331,13 +336,13 @@ impl<T: io::Write> io::Write for Io<T> {
     }
 }
 
-impl<T: AsyncRead + 'static> AsyncRead for Io<T> {
+impl<T: AsyncRead> AsyncRead for Io<T> {
     unsafe fn prepare_uninitialized_buffer(&self, buf: &mut [u8]) -> bool {
         self.inner.prepare_uninitialized_buffer(buf)
     }
 }
 
-impl<T: AsyncWrite + 'static> AsyncWrite for Io<T> {
+impl<T: AsyncWrite> AsyncWrite for Io<T> {
     fn shutdown(&mut self) -> Poll<(), io::Error> {
         self.inner.shutdown()
     }

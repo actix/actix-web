@@ -2,7 +2,7 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use actix_server_config::ServerConfig as SrvConfig;
-use actix_service::{IntoNewService, NewService};
+use actix_service::{IntoNewService, NewService, Service};
 
 use crate::body::MessageBody;
 use crate::config::{KeepAlive, ServiceConfig};
@@ -27,8 +27,7 @@ pub struct HttpServiceBuilder<T, S> {
 impl<T, S> HttpServiceBuilder<T, S>
 where
     S: NewService<SrvConfig, Request = Request>,
-    S::Error: Debug + 'static,
-    S::Service: 'static,
+    S::Error: Debug,
 {
     /// Create instance of `ServiceConfigBuilder`
     pub fn new() -> HttpServiceBuilder<T, S> {
@@ -115,6 +114,7 @@ where
         B: MessageBody + 'static,
         F: IntoNewService<S, SrvConfig>,
         S::Response: Into<Response<B>>,
+        <S::Service as Service>::Future: 'static,
     {
         let cfg = ServiceConfig::new(
             self.keep_alive,
@@ -130,6 +130,7 @@ where
         B: MessageBody + 'static,
         F: IntoNewService<S, SrvConfig>,
         S::Response: Into<Response<B>>,
+        <S::Service as Service>::Future: 'static,
     {
         let cfg = ServiceConfig::new(
             self.keep_alive,

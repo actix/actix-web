@@ -70,10 +70,8 @@ impl Default for Compress {
 
 impl<S, P, B> Transform<S> for Compress
 where
-    P: 'static,
     B: MessageBody,
     S: Service<Request = ServiceRequest<P>, Response = ServiceResponse<B>>,
-    S::Future: 'static,
 {
     type Request = ServiceRequest<P>;
     type Response = ServiceResponse<Encoder<B>>;
@@ -97,10 +95,8 @@ pub struct CompressMiddleware<S> {
 
 impl<S, P, B> Service for CompressMiddleware<S>
 where
-    P: 'static,
     B: MessageBody,
     S: Service<Request = ServiceRequest<P>, Response = ServiceResponse<B>>,
-    S::Future: 'static,
 {
     type Request = ServiceRequest<P>;
     type Response = ServiceResponse<Encoder<B>>;
@@ -134,10 +130,8 @@ where
 #[doc(hidden)]
 pub struct CompressResponse<S, P, B>
 where
-    P: 'static,
-    B: MessageBody,
     S: Service,
-    S::Future: 'static,
+    B: MessageBody,
 {
     fut: S::Future,
     encoding: ContentEncoding,
@@ -146,10 +140,8 @@ where
 
 impl<S, P, B> Future for CompressResponse<S, P, B>
 where
-    P: 'static,
     B: MessageBody,
     S: Service<Request = ServiceRequest<P>, Response = ServiceResponse<B>>,
-    S::Future: 'static,
 {
     type Item = ServiceResponse<Encoder<B>>;
     type Error = S::Error;

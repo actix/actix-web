@@ -37,14 +37,14 @@ bitflags! {
 }
 
 /// Dispatcher for HTTP/1.1 protocol
-pub struct Dispatcher<T, S: Service<Request = Request> + 'static, B: MessageBody>
+pub struct Dispatcher<T, S: Service<Request = Request>, B: MessageBody>
 where
     S::Error: Debug,
 {
     inner: Option<InnerDispatcher<T, S, B>>,
 }
 
-struct InnerDispatcher<T, S: Service<Request = Request> + 'static, B: MessageBody>
+struct InnerDispatcher<T, S: Service<Request = Request>, B: MessageBody>
 where
     S::Error: Debug,
 {
@@ -86,7 +86,7 @@ impl<S: Service<Request = Request>, B: MessageBody> State<S, B> {
 impl<T, S, B> Dispatcher<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: Service<Request = Request> + 'static,
+    S: Service<Request = Request>,
     S::Error: Debug,
     S::Response: Into<Response<B>>,
     B: MessageBody,
@@ -144,7 +144,7 @@ where
 impl<T, S, B> InnerDispatcher<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: Service<Request = Request> + 'static,
+    S: Service<Request = Request>,
     S::Error: Debug,
     S::Response: Into<Response<B>>,
     B: MessageBody,
