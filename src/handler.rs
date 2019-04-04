@@ -22,8 +22,8 @@ where
 
 impl<F, R> Factory<(), R> for F
 where
-    F: Fn() -> R + Clone + 'static,
-    R: Responder + 'static,
+    F: Fn() -> R + Clone,
+    R: Responder,
 {
     fn call(&self, _: ()) -> R {
         (self)()
@@ -55,7 +55,7 @@ where
 impl<F, T, R> NewService for Handler<F, T, R>
 where
     F: Factory<T, R>,
-    R: Responder + 'static,
+    R: Responder,
 {
     type Request = (T, HttpRequest);
     type Response = ServiceResponse;
@@ -76,7 +76,7 @@ where
 pub struct HandlerService<F, T, R>
 where
     F: Factory<T, R>,
-    R: Responder + 'static,
+    R: Responder,
 {
     hnd: F,
     _t: PhantomData<(T, R)>,
@@ -85,7 +85,7 @@ where
 impl<F, T, R> Service for HandlerService<F, T, R>
 where
     F: Factory<T, R>,
-    R: Responder + 'static,
+    R: Responder,
 {
     type Request = (T, HttpRequest);
     type Response = ServiceResponse;
@@ -355,8 +355,8 @@ impl<P, T: FromRequest<P>> Future for ExtractResponse<P, T> {
 /// FromRequest trait impl for tuples
 macro_rules! factory_tuple ({ $(($n:tt, $T:ident)),+} => {
     impl<Func, $($T,)+ Res> Factory<($($T,)+), Res> for Func
-    where Func: Fn($($T,)+) -> Res + Clone + 'static,
-          Res: Responder + 'static,
+    where Func: Fn($($T,)+) -> Res + Clone,
+          Res: Responder,
     {
         fn call(&self, param: ($($T,)+)) -> Res {
             (self)($(param.$n,)+)
@@ -365,7 +365,7 @@ macro_rules! factory_tuple ({ $(($n:tt, $T:ident)),+} => {
 
     impl<Func, $($T,)+ Res> AsyncFactory<($($T,)+), Res> for Func
     where Func: Fn($($T,)+) -> Res + Clone + 'static,
-          Res: IntoFuture + 'static,
+          Res: IntoFuture,
           Res::Item: Into<Response>,
           Res::Error: Into<Error>,
     {
