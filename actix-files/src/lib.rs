@@ -979,14 +979,32 @@ mod tests {
             .to_request();
         let res = test::call_success(&mut srv, request);
         assert_eq!(res.status(), StatusCode::OK);
+        assert!(!res.headers().contains_key(header::CONTENT_ENCODING));
+    }
 
+    #[test]
+    fn test_named_file_content_encoding_gzip() {
+        let mut srv = test::init_service(App::new().enable_encoding().service(
+            web::resource("/").to(|| {
+                NamedFile::open("Cargo.toml")
+                    .unwrap()
+                    .set_content_encoding(header::ContentEncoding::Gzip)
+            }),
+        ));
+
+        let request = TestRequest::get()
+            .uri("/")
+            .header(header::ACCEPT_ENCODING, "gzip")
+            .to_request();
+        let res = test::call_success(&mut srv, request);
+        assert_eq!(res.status(), StatusCode::OK);
         assert_eq!(
             res.headers()
                 .get(header::CONTENT_ENCODING)
                 .unwrap()
                 .to_str()
                 .unwrap(),
-            "identity"
+            "gzip"
         );
     }
 

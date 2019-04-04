@@ -296,10 +296,9 @@ impl Responder for NamedFile {
                     header::CONTENT_DISPOSITION,
                     self.content_disposition.to_string(),
                 );
-            // TODO blocking by compressing
-            // if let Some(current_encoding) = self.encoding {
-            //     resp.content_encoding(current_encoding);
-            // }
+            if let Some(current_encoding) = self.encoding {
+                resp.encoding(current_encoding);
+            }
             let reader = ChunkedReadFile {
                 size: self.md.len(),
                 offset: 0,
