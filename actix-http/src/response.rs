@@ -1,7 +1,7 @@
 //! Http response
 use std::cell::{Ref, RefMut};
 use std::io::Write;
-use std::{fmt, str};
+use std::{fmt, io, str};
 
 use bytes::{BufMut, Bytes, BytesMut};
 use futures::future::{ok, FutureResult, IntoFuture};
@@ -54,10 +54,13 @@ impl Response<Body> {
     /// Constructs an error response
     #[inline]
     pub fn from_error(error: Error) -> Response {
-        let resp = error.as_response_error().error_response();
-        let mut resp = resp.set_body(Body::from(format!("{}", error)));
+        let mut resp = error.as_response_error().error_response();
+        let mut buf = BytesMut::new();
+        let _ = write!(Writer(&mut buf), "{}", error);
+        resp.headers_mut()
+            .insert(header::CONTENT_TYPE, HeaderValue::from_static("text/plain"));
         resp.error = Some(error);
-        resp
+        resp.set_body(Body::from(buf))
     }
 
     /// Convert response to response with body
@@ -297,6 +300,18 @@ impl<'a> Iterator for CookieIter<'a> {
             }
         }
         None
+    }
+}
+
+pub struct Writer<'a>(pub &'a mut BytesMut);
+
+impl<'a> io::Write for Writer<'a> {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.0.extend_from_slice(buf);
+        Ok(buf.len())
+    }
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
     }
 }
 

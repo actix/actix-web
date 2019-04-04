@@ -6,6 +6,8 @@
 
 * Export IntoHeaderValue
 
+* Render error and return as response body
+
 ### Deleted
 
 * Removed PayloadBuffer

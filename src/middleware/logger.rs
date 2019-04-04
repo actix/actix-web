@@ -417,12 +417,7 @@ impl FormatText {
                     ))
                 };
             }
-            FormatText::UrlPath => {
-                *self = FormatText::Str(format!(
-                    "{}",
-                    req.path()
-                ))
-            }
+            FormatText::UrlPath => *self = FormatText::Str(format!("{}", req.path())),
             FormatText::RequestTime => {
                 *self = FormatText::Str(format!(
                     "{:?}",
@@ -489,7 +484,9 @@ mod tests {
         let req = TestRequest::with_header(
             header::USER_AGENT,
             header::HeaderValue::from_static("ACTIX-WEB"),
-        ).uri("/test/route/yeah").to_srv_request();
+        )
+        .uri("/test/route/yeah")
+        .to_srv_request();
 
         let now = time::now();
         for unit in &mut format.0 {

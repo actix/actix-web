@@ -867,7 +867,7 @@ fn test_h1_response_http_error_handling() {
 
     // read response
     let bytes = srv.load_body(response).unwrap();
-    assert!(bytes.is_empty());
+    assert_eq!(bytes, Bytes::from_static(b"failed to parse header value"));
 }
 
 #[cfg(feature = "ssl")]
@@ -900,7 +900,7 @@ fn test_h2_response_http_error_handling() {
 
     // read response
     let bytes = srv.load_body(response).unwrap();
-    assert!(bytes.is_empty());
+    assert_eq!(bytes, Bytes::from_static(b"failed to parse header value"));
 }
 
 #[test]

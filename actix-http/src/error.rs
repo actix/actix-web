@@ -18,8 +18,6 @@ use tokio_timer::Error as TimerError;
 
 // re-export for convinience
 pub use crate::cookie::ParseError as CookieParseError;
-
-use crate::body::Body;
 use crate::response::Response;
 
 /// A specialized [`Result`](https://doc.rust-lang.org/std/result/enum.Result.html)
@@ -48,13 +46,6 @@ impl Error {
     /// Returns the reference to the underlying `ResponseError`.
     pub fn as_response_error(&self) -> &ResponseError {
         self.cause.as_ref()
-    }
-
-    /// Converts error to a response instance and set error message as response body
-    pub fn response_with_message(self) -> Response {
-        let message = format!("{}", self);
-        let resp: Response = self.into();
-        resp.set_body(Body::from(message))
     }
 }
 
