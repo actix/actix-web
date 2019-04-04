@@ -70,7 +70,7 @@ rust-tls = ["rustls", "actix-server/rust-tls"]
 actix-codec = "0.1.1"
 actix-service = "0.3.4"
 actix-utils = "0.3.4"
-actix-router = "0.1.0"
+actix-router = "0.1.1"
 actix-rt = "0.2.2"
 actix-web-codegen = "0.1.0-alpha.1"
 actix-http = { version = "0.1.0-alpha.3", features=["fail"] }
