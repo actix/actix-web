@@ -19,6 +19,7 @@ use super::Writer;
 const INPLACE: usize = 2049;
 
 pub struct Encoder<B> {
+    eof: bool,
     body: EncoderBody<B>,
     encoder: Option<ContentEncoder>,
     fut: Option<CpuFuture<ContentEncoder, io::Error>>,
@@ -56,12 +57,14 @@ impl<B: MessageBody> Encoder<B> {
             head.no_chunking(false);
             ResponseBody::Body(Encoder {
                 body,
+                eof: false,
                 fut: None,
                 encoder: ContentEncoder::encoder(encoding),
             })
         } else {
             ResponseBody::Body(Encoder {
                 body,
+                eof: false,
                 fut: None,
                 encoder: None,
             })
@@ -90,6 +93,10 @@ impl<B: MessageBody> MessageBody for Encoder<B> {
 
     fn poll_next(&mut self) -> Poll<Option<Bytes>, Error> {
         loop {
+            if self.eof {
+                return Ok(Async::Ready(None));
+            }
+
             if let Some(ref mut fut) = self.fut {
                 let mut encoder = futures::try_ready!(fut.poll());
                 let chunk = encoder.take();
@@ -127,10 +134,10 @@ impl<B: MessageBody> MessageBody for Encoder<B> {
                                 encoder.write(&chunk)?;
                                 Ok(encoder)
                             }));
-                            continue;
                         }
+                    } else {
+                        return Ok(Async::Ready(Some(chunk)));
                     }
-                    return Ok(Async::Ready(Some(chunk)));
                 }
                 Async::Ready(None) => {
                     if let Some(encoder) = self.encoder.take() {
@@ -138,6 +145,7 @@ impl<B: MessageBody> MessageBody for Encoder<B> {
                         if chunk.is_empty() {
                             return Ok(Async::Ready(None));
                         } else {
+                            self.eof = true;
                             return Ok(Async::Ready(Some(chunk)));
                         }
                     } else {
