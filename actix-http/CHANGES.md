@@ -2,6 +2,10 @@
 
 ## [0.1.0-alpha.4] - 2019-04-xx
 
+### Added
+
+* Add minimal `std::error::Error` impl for `Error`
+
 ### Changed
 
 * Export IntoHeaderValue

@@ -71,6 +71,20 @@ impl fmt::Debug for Error {
     }
 }
 
+impl std::error::Error for Error {
+    fn description(&self) -> &str {
+        "actix-http::Error"
+    }
+
+    fn cause(&self) -> Option<&dyn std::error::Error> {
+        None
+    }
+
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        None
+    }
+}
+
 /// Convert `Error` to a `Response` instance
 impl From<Error> for Response {
     fn from(err: Error) -> Self {
