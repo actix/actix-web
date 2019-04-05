@@ -37,7 +37,7 @@ pub use self::message::{Message, RequestHead, ResponseHead};
 pub use self::payload::{Payload, PayloadStream};
 pub use self::request::Request;
 pub use self::response::{Response, ResponseBuilder};
-pub use self::service::{HttpService, SendError, SendResponse};
+pub use self::service::HttpService;
 
 pub mod http {
     //! Various HTTP related types

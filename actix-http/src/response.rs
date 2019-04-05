@@ -208,7 +208,7 @@ impl<B> Response<B> {
     }
 
     /// Set a body
-    pub(crate) fn set_body<B2>(self, body: B2) -> Response<B2> {
+    pub fn set_body<B2>(self, body: B2) -> Response<B2> {
         Response {
             head: self.head,
             body: ResponseBody::Body(body),
@@ -217,7 +217,7 @@ impl<B> Response<B> {
     }
 
     /// Drop request's body
-    pub(crate) fn drop_body(self) -> Response<()> {
+    pub fn drop_body(self) -> Response<()> {
         Response {
             head: self.head,
             body: ResponseBody::Body(()),
