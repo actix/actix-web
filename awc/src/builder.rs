@@ -31,7 +31,7 @@ impl ClientBuilder {
                 headers: HeaderMap::new(),
                 timeout: Some(Duration::from_secs(5)),
                 connector: RefCell::new(Box::new(ConnectorWrapper(
-                    Connector::new().service(),
+                    Connector::new().finish(),
                 ))),
             },
         }

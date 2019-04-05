@@ -21,8 +21,18 @@ use openssl::ssl::SslConnector;
 #[cfg(not(feature = "ssl"))]
 type SslConnector = ();
 
-/// Http client connector builde instance.
-/// `Connector` type uses builder-like pattern for connector service construction.
+/// Manages http client network connectivity
+/// The `Connector` type uses a builder-like combinator pattern for service
+/// construction that finishes by calling the `.finish()` method.
+///
+/// ```rust
+/// use actix-web::client::Connector;
+/// use time::Duration;
+///
+/// let connector = Connector::new()
+///                     .timeout(Duration::from_secs(5))
+///                     .finish();
+/// ```
 pub struct Connector<T, U> {
     connector: T,
     timeout: Duration,
@@ -163,8 +173,10 @@ where
         self
     }
 
-    /// Finish configuration process and create connector service.
-    pub fn service(
+    /// Finish configuration process and create connector service.  
+    /// The Connector builder always concludes by calling `finish()` last in 
+    /// its combinator chain.
+    pub fn finish(
         self,
     ) -> impl Service<Request = Uri, Response = impl Connection, Error = ConnectError> + Clone
     {
