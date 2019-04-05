@@ -414,7 +414,7 @@ impl ClientRequest {
             }
 
             // user agent
-            if !self.head.headers.contains_key(&header::USER_AGENT) {
+            if !self.head.headers.contains_key(header::USER_AGENT) {
                 self.head.headers.insert(
                     header::USER_AGENT,
                     HeaderValue::from_static(concat!("awc/", env!("CARGO_PKG_VERSION"))),
