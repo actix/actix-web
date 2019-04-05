@@ -90,13 +90,13 @@ impl TestServer {
                         Connector::new()
                             .timeout(time::Duration::from_millis(500))
                             .ssl(builder.build())
-                            .service()
+                            .finish()
                     }
                     #[cfg(not(feature = "ssl"))]
                     {
                         Connector::new()
                             .timeout(time::Duration::from_millis(500))
-                            .service()
+                            .finish()
                     }
                 };
 

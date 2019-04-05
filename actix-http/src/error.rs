@@ -71,6 +71,12 @@ impl fmt::Debug for Error {
     }
 }
 
+impl From<()> for Error {
+    fn from(_: ()) -> Self {
+        Error::from(UnitError)
+    }
+}
+
 impl std::error::Error for Error {
     fn description(&self) -> &str {
         "actix-http::Error"
@@ -111,6 +117,13 @@ impl<E: ResponseError> ResponseError for TimeoutError<E> {
     }
 }
 
+#[derive(Debug, Display)]
+#[display(fmt = "UnknownError")]
+struct UnitError;
+
+/// `InternalServerError` for `JsonError`
+impl ResponseError for UnitError {}
+
 /// `InternalServerError` for `JsonError`
 impl ResponseError for JsonError {}
 
@@ -119,6 +132,10 @@ impl ResponseError for FormError {}
 
 /// `InternalServerError` for `TimerError`
 impl ResponseError for TimerError {}
+
+#[cfg(feature = "ssl")]
+/// `InternalServerError` for `SslError`
+impl ResponseError for openssl::ssl::Error {}
 
 /// Return `BAD_REQUEST` for `de::value::Error`
 impl ResponseError for DeError {
@@ -331,7 +348,7 @@ impl ResponseError for crate::cookie::ParseError {
 /// A set of errors that can occur during dispatching http requests
 pub enum DispatchError {
     /// Service error
-    Service,
+    Service(Error),
 
     /// An `io::Error` that occurred while trying to read or write to a network
     /// stream.

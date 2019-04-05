@@ -1,4 +1,3 @@
-use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::{fmt, io};
 
@@ -9,27 +8,28 @@ use actix_utils::cloneable::CloneableService;
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use futures::{try_ready, Async, Future, IntoFuture, Poll};
 use h2::server::{self, Handshake};
-use log::error;
 
 use crate::body::MessageBody;
 use crate::builder::HttpServiceBuilder;
 use crate::config::{KeepAlive, ServiceConfig};
-use crate::error::DispatchError;
+use crate::error::{DispatchError, Error};
 use crate::request::Request;
 use crate::response::Response;
 use crate::{h1, h2::Dispatcher};
 
 /// `NewService` HTTP1.1/HTTP2 transport implementation
-pub struct HttpService<T, P, S, B> {
+pub struct HttpService<T, P, S, B, X = h1::ExpectHandler> {
     srv: S,
     cfg: ServiceConfig,
+    expect: X,
     _t: PhantomData<(T, P, B)>,
 }
 
 impl<T, S, B> HttpService<T, (), S, B>
 where
     S: NewService<SrvConfig, Request = Request>,
-    S::Error: Debug,
+    S::Error: Into<Error>,
+    S::InitError: fmt::Debug,
     S::Response: Into<Response<B>>,
     <S::Service as Service>::Future: 'static,
     B: MessageBody + 'static,
@@ -43,7 +43,8 @@ where
 impl<T, P, S, B> HttpService<T, P, S, B>
 where
     S: NewService<SrvConfig, Request = Request>,
-    S::Error: Debug,
+    S::Error: Into<Error>,
+    S::InitError: fmt::Debug,
     S::Response: Into<Response<B>>,
     <S::Service as Service>::Future: 'static,
     B: MessageBody + 'static,
@@ -55,6 +56,7 @@ where
         HttpService {
             cfg,
             srv: service.into_new_service(),
+            expect: h1::ExpectHandler,
             _t: PhantomData,
         }
     }
@@ -67,30 +69,65 @@ where
         HttpService {
             cfg,
             srv: service.into_new_service(),
+            expect: h1::ExpectHandler,
             _t: PhantomData,
         }
     }
 }
 
-impl<T, P, S, B> NewService<SrvConfig> for HttpService<T, P, S, B>
+impl<T, P, S, B, X> HttpService<T, P, S, B, X>
+where
+    S: NewService<SrvConfig, Request = Request>,
+    S::Error: Into<Error>,
+    S::InitError: fmt::Debug,
+    S::Response: Into<Response<B>>,
+    B: MessageBody,
+{
+    /// Provide service for `EXPECT: 100-Continue` support.
+    ///
+    /// Service get called with request that contains `EXPECT` header.
+    /// Service must return request in case of success, in that case
+    /// request will be forwarded to main service.
+    pub fn expect<U>(self, expect: U) -> HttpService<T, P, S, B, U>
+    where
+        U: NewService<Request = Request, Response = Request>,
+        U::Error: Into<Error>,
+        U::InitError: fmt::Debug,
+    {
+        HttpService {
+            expect,
+            cfg: self.cfg,
+            srv: self.srv,
+            _t: PhantomData,
+        }
+    }
+}
+
+impl<T, P, S, B, X> NewService<SrvConfig> for HttpService<T, P, S, B, X>
 where
     T: AsyncRead + AsyncWrite,
     S: NewService<SrvConfig, Request = Request>,
-    S::Error: Debug,
+    S::Error: Into<Error>,
+    S::InitError: fmt::Debug,
     S::Response: Into<Response<B>>,
     <S::Service as Service>::Future: 'static,
     B: MessageBody + 'static,
+    X: NewService<Request = Request, Response = Request>,
+    X::Error: Into<Error>,
+    X::InitError: fmt::Debug,
 {
     type Request = ServerIo<T, P>;
     type Response = ();
     type Error = DispatchError;
-    type InitError = S::InitError;
-    type Service = HttpServiceHandler<T, P, S::Service, B>;
-    type Future = HttpServiceResponse<T, P, S, B>;
+    type InitError = ();
+    type Service = HttpServiceHandler<T, P, S::Service, B, X::Service>;
+    type Future = HttpServiceResponse<T, P, S, B, X>;
 
     fn new_service(&self, cfg: &SrvConfig) -> Self::Future {
         HttpServiceResponse {
             fut: self.srv.new_service(cfg).into_future(),
+            fut_ex: Some(self.expect.new_service(&())),
+            expect: None,
             cfg: Some(self.cfg.clone()),
             _t: PhantomData,
         }
@@ -98,76 +135,122 @@ where
 }
 
 #[doc(hidden)]
-pub struct HttpServiceResponse<T, P, S: NewService<SrvConfig>, B> {
-    fut: <S::Future as IntoFuture>::Future,
+pub struct HttpServiceResponse<T, P, S: NewService<SrvConfig>, B, X: NewService> {
+    fut: S::Future,
+    fut_ex: Option<X::Future>,
+    expect: Option<X::Service>,
     cfg: Option<ServiceConfig>,
     _t: PhantomData<(T, P, B)>,
 }
 
-impl<T, P, S, B> Future for HttpServiceResponse<T, P, S, B>
+impl<T, P, S, B, X> Future for HttpServiceResponse<T, P, S, B, X>
 where
     T: AsyncRead + AsyncWrite,
     S: NewService<SrvConfig, Request = Request>,
-    S::Error: Debug,
+    S::Error: Into<Error>,
+    S::InitError: fmt::Debug,
     S::Response: Into<Response<B>>,
     <S::Service as Service>::Future: 'static,
     B: MessageBody + 'static,
+    X: NewService<Request = Request, Response = Request>,
+    X::Error: Into<Error>,
+    X::InitError: fmt::Debug,
 {
-    type Item = HttpServiceHandler<T, P, S::Service, B>;
-    type Error = S::InitError;
+    type Item = HttpServiceHandler<T, P, S::Service, B, X::Service>;
+    type Error = ();
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        let service = try_ready!(self.fut.poll());
+        if let Some(ref mut fut) = self.fut_ex {
+            let expect = try_ready!(fut
+                .poll()
+                .map_err(|e| log::error!("Init http service error: {:?}", e)));
+            self.expect = Some(expect);
+            self.fut_ex.take();
+        }
+
+        let service = try_ready!(self
+            .fut
+            .poll()
+            .map_err(|e| log::error!("Init http service error: {:?}", e)));
         Ok(Async::Ready(HttpServiceHandler::new(
             self.cfg.take().unwrap(),
             service,
+            self.expect.take().unwrap(),
         )))
     }
 }
 
 /// `Service` implementation for http transport
-pub struct HttpServiceHandler<T, P, S, B> {
+pub struct HttpServiceHandler<T, P, S, B, X> {
     srv: CloneableService<S>,
+    expect: CloneableService<X>,
     cfg: ServiceConfig,
-    _t: PhantomData<(T, P, B)>,
+    _t: PhantomData<(T, P, B, X)>,
 }
 
-impl<T, P, S, B> HttpServiceHandler<T, P, S, B>
+impl<T, P, S, B, X> HttpServiceHandler<T, P, S, B, X>
 where
     S: Service<Request = Request>,
-    S::Error: Debug,
+    S::Error: Into<Error>,
     S::Future: 'static,
     S::Response: Into<Response<B>>,
     B: MessageBody + 'static,
+    X: Service<Request = Request, Response = Request>,
+    X::Error: Into<Error>,
 {
-    fn new(cfg: ServiceConfig, srv: S) -> HttpServiceHandler<T, P, S, B> {
+    fn new(cfg: ServiceConfig, srv: S, expect: X) -> HttpServiceHandler<T, P, S, B, X> {
         HttpServiceHandler {
             cfg,
             srv: CloneableService::new(srv),
+            expect: CloneableService::new(expect),
             _t: PhantomData,
         }
     }
 }
 
-impl<T, P, S, B> Service for HttpServiceHandler<T, P, S, B>
+impl<T, P, S, B, X> Service for HttpServiceHandler<T, P, S, B, X>
 where
     T: AsyncRead + AsyncWrite,
     S: Service<Request = Request>,
-    S::Error: Debug,
+    S::Error: Into<Error>,
     S::Future: 'static,
     S::Response: Into<Response<B>>,
     B: MessageBody + 'static,
+    X: Service<Request = Request, Response = Request>,
+    X::Error: Into<Error>,
 {
     type Request = ServerIo<T, P>;
     type Response = ();
     type Error = DispatchError;
-    type Future = HttpServiceHandlerResponse<T, S, B>;
+    type Future = HttpServiceHandlerResponse<T, S, B, X>;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
-        self.srv.poll_ready().map_err(|e| {
-            error!("Service readiness error: {:?}", e);
-            DispatchError::Service
-        })
+        let ready = self
+            .expect
+            .poll_ready()
+            .map_err(|e| {
+                let e = e.into();
+                log::error!("Http service readiness error: {:?}", e);
+                DispatchError::Service(e)
+            })?
+            .is_ready();
+
+        let ready = self
+            .srv
+            .poll_ready()
+            .map_err(|e| {
+                let e = e.into();
+                log::error!("Http service readiness error: {:?}", e);
+                DispatchError::Service(e)
+            })?
+            .is_ready()
+            && ready;
+
+        if ready {
+            Ok(Async::Ready(()))
+        } else {
+            Ok(Async::NotReady)
+        }
     }
 
     fn call(&mut self, req: Self::Request) -> Self::Future {
@@ -191,6 +274,7 @@ where
                     io,
                     self.cfg.clone(),
                     self.srv.clone(),
+                    self.expect.clone(),
                 )),
             },
             _ => HttpServiceHandlerResponse {
@@ -199,46 +283,63 @@ where
                     BytesMut::with_capacity(14),
                     self.cfg.clone(),
                     self.srv.clone(),
+                    self.expect.clone(),
                 ))),
             },
         }
     }
 }
 
-enum State<T, S: Service<Request = Request>, B: MessageBody>
+enum State<T, S, B, X>
 where
+    S: Service<Request = Request>,
     S::Future: 'static,
-    S::Error: fmt::Debug,
+    S::Error: Into<Error>,
     T: AsyncRead + AsyncWrite,
+    B: MessageBody,
+    X: Service<Request = Request, Response = Request>,
+    X::Error: Into<Error>,
 {
-    H1(h1::Dispatcher<T, S, B>),
+    H1(h1::Dispatcher<T, S, B, X>),
     H2(Dispatcher<Io<T>, S, B>),
-    Unknown(Option<(T, BytesMut, ServiceConfig, CloneableService<S>)>),
+    Unknown(
+        Option<(
+            T,
+            BytesMut,
+            ServiceConfig,
+            CloneableService<S>,
+            CloneableService<X>,
+        )>,
+    ),
     Handshake(Option<(Handshake<Io<T>, Bytes>, ServiceConfig, CloneableService<S>)>),
 }
 
-pub struct HttpServiceHandlerResponse<T, S, B>
+pub struct HttpServiceHandlerResponse<T, S, B, X>
 where
     T: AsyncRead + AsyncWrite,
     S: Service<Request = Request>,
-    S::Error: Debug,
+    S::Error: Into<Error>,
     S::Future: 'static,
     S::Response: Into<Response<B>>,
     B: MessageBody + 'static,
+    X: Service<Request = Request, Response = Request>,
+    X::Error: Into<Error>,
 {
-    state: State<T, S, B>,
+    state: State<T, S, B, X>,
 }
 
 const HTTP2_PREFACE: [u8; 14] = *b"PRI * HTTP/2.0";
 
-impl<T, S, B> Future for HttpServiceHandlerResponse<T, S, B>
+impl<T, S, B, X> Future for HttpServiceHandlerResponse<T, S, B, X>
 where
     T: AsyncRead + AsyncWrite,
     S: Service<Request = Request>,
-    S::Error: Debug,
+    S::Error: Into<Error>,
     S::Future: 'static,
     S::Response: Into<Response<B>>,
     B: MessageBody,
+    X: Service<Request = Request, Response = Request>,
+    X::Error: Into<Error>,
 {
     type Item = ();
     type Error = DispatchError;
@@ -265,7 +366,7 @@ where
                 } else {
                     panic!()
                 }
-                let (io, buf, cfg, srv) = data.take().unwrap();
+                let (io, buf, cfg, srv, expect) = data.take().unwrap();
                 if buf[..14] == HTTP2_PREFACE[..] {
                     let io = Io {
                         inner: io,
@@ -279,8 +380,9 @@ where
                         h1::Codec::new(cfg.clone()),
                         buf,
                     ));
-                    self.state =
-                        State::H1(h1::Dispatcher::with_timeout(framed, cfg, None, srv))
+                    self.state = State::H1(h1::Dispatcher::with_timeout(
+                        framed, cfg, None, srv, expect,
+                    ))
                 }
                 self.poll()
             }

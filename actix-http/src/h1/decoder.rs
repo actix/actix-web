@@ -51,6 +51,8 @@ pub(crate) enum PayloadLength {
 pub(crate) trait MessageType: Sized {
     fn set_connection_type(&mut self, ctype: Option<ConnectionType>);
 
+    fn set_expect(&mut self);
+
     fn headers_mut(&mut self) -> &mut HeaderMap;
 
     fn decode(src: &mut BytesMut) -> Result<Option<(Self, PayloadType)>, ParseError>;
@@ -62,6 +64,7 @@ pub(crate) trait MessageType: Sized {
     ) -> Result<PayloadLength, ParseError> {
         let mut ka = None;
         let mut has_upgrade = false;
+        let mut expect = false;
         let mut chunked = false;
         let mut content_length = None;
 
@@ -126,6 +129,12 @@ pub(crate) trait MessageType: Sized {
                                 }
                             }
                         }
+                        header::EXPECT => {
+                            let bytes = value.as_bytes();
+                            if bytes.len() >= 4 && &bytes[0..4] == b"100-" {
+                                expect = true;
+                            }
+                        }
                         _ => (),
                     }
 
@@ -136,6 +145,9 @@ pub(crate) trait MessageType: Sized {
             }
         }
         self.set_connection_type(ka);
+        if expect {
+            self.set_expect()
+        }
 
         // https://tools.ietf.org/html/rfc7230#section-3.3.3
         if chunked {
@@ -161,6 +173,10 @@ impl MessageType for Request {
         if let Some(ctype) = ctype {
             self.head_mut().set_connection_type(ctype);
         }
+    }
+
+    fn set_expect(&mut self) {
+        self.head_mut().set_expect();
     }
 
     fn headers_mut(&mut self) -> &mut HeaderMap {
@@ -234,6 +250,8 @@ impl MessageType for ResponseHead {
             ResponseHead::set_connection_type(self, ctype);
         }
     }
+
+    fn set_expect(&mut self) {}
 
     fn headers_mut(&mut self) -> &mut HeaderMap {
         &mut self.headers

@@ -25,13 +25,13 @@ type SslConnector = ();
 /// The `Connector` type uses a builder-like combinator pattern for service
 /// construction that finishes by calling the `.finish()` method.
 ///
-/// ```rust
-/// use actix-web::client::Connector;
-/// use time::Duration;
+/// ```rust,ignore
+/// use std::time::Duration;
+/// use actix_http::client::Connector;
 ///
 /// let connector = Connector::new()
-///                     .timeout(Duration::from_secs(5))
-///                     .finish();
+///      .timeout(Duration::from_secs(5))
+///      .finish();
 /// ```
 pub struct Connector<T, U> {
     connector: T,

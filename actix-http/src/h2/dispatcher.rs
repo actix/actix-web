@@ -46,7 +46,7 @@ impl<T, S, B> Dispatcher<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
     S: Service<Request = Request>,
-    S::Error: fmt::Debug,
+    S::Error: Into<Error>,
     S::Future: 'static,
     S::Response: Into<Response<B>>,
     B: MessageBody + 'static,
@@ -88,7 +88,7 @@ impl<T, S, B> Future for Dispatcher<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
     S: Service<Request = Request>,
-    S::Error: fmt::Debug,
+    S::Error: Into<Error>,
     S::Future: 'static,
     S::Response: Into<Response<B>>,
     B: MessageBody + 'static,
@@ -146,7 +146,7 @@ enum ServiceResponseState<F, B> {
 impl<F, B> ServiceResponse<F, B>
 where
     F: Future,
-    F::Error: fmt::Debug,
+    F::Error: Into<Error>,
     F::Item: Into<Response<B>>,
     B: MessageBody + 'static,
 {
@@ -214,7 +214,7 @@ where
 impl<F, B> Future for ServiceResponse<F, B>
 where
     F: Future,
-    F::Error: fmt::Debug,
+    F::Error: Into<Error>,
     F::Item: Into<Response<B>>,
     B: MessageBody + 'static,
 {

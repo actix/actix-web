@@ -154,33 +154,37 @@ impl Encoder for Codec {
     ) -> Result<(), Self::Error> {
         match item {
             Message::Item((mut res, length)) => {
-                // set response version
-                res.head_mut().version = self.version;
-
-                // connection status
-                self.ctype = if let Some(ct) = res.head().ctype() {
-                    if ct == ConnectionType::KeepAlive {
-                        self.ctype
-                    } else {
-                        ct
-                    }
+                if res.head().status == StatusCode::CONTINUE {
+                    dst.extend_from_slice(b"HTTP/1.1 100 Continue\r\n\r\n");
                 } else {
-                    self.ctype
-                };
+                    // set response version
+                    res.head_mut().version = self.version;
 
-                // encode message
-                let len = dst.len();
-                self.encoder.encode(
-                    dst,
-                    &mut res,
-                    self.flags.contains(Flags::HEAD),
-                    self.flags.contains(Flags::STREAM),
-                    self.version,
-                    length,
-                    self.ctype,
-                    &self.config,
-                )?;
-                self.headers_size = (dst.len() - len) as u32;
+                    // connection status
+                    self.ctype = if let Some(ct) = res.head().ctype() {
+                        if ct == ConnectionType::KeepAlive {
+                            self.ctype
+                        } else {
+                            ct
+                        }
+                    } else {
+                        self.ctype
+                    };
+
+                    // encode message
+                    let len = dst.len();
+                    self.encoder.encode(
+                        dst,
+                        &mut res,
+                        self.flags.contains(Flags::HEAD),
+                        self.flags.contains(Flags::STREAM),
+                        self.version,
+                        length,
+                        self.ctype,
+                        &self.config,
+                    )?;
+                    self.headers_size = (dst.len() - len) as u32;
+                }
             }
             Message::Chunk(Some(bytes)) => {
                 self.encoder.encode_chunk(bytes.as_ref(), dst)?;

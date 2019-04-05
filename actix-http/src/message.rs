@@ -23,7 +23,8 @@ bitflags! {
         const CLOSE       = 0b0000_0001;
         const KEEP_ALIVE  = 0b0000_0010;
         const UPGRADE     = 0b0000_0100;
-        const NO_CHUNKING = 0b0000_1000;
+        const EXPECT      = 0b0000_1000;
+        const NO_CHUNKING = 0b0001_0000;
     }
 }
 
@@ -144,6 +145,17 @@ impl RequestHead {
         } else {
             self.flags.remove(Flags::NO_CHUNKING);
         }
+    }
+
+    #[inline]
+    /// Request contains `EXPECT` header
+    pub fn expect(&self) -> bool {
+        self.flags.contains(Flags::EXPECT)
+    }
+
+    #[inline]
+    pub(crate) fn set_expect(&mut self) {
+        self.flags.insert(Flags::EXPECT);
     }
 }
 

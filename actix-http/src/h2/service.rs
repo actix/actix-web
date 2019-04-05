@@ -32,7 +32,7 @@ pub struct H2Service<T, P, S, B> {
 impl<T, P, S, B> H2Service<T, P, S, B>
 where
     S: NewService<SrvConfig, Request = Request>,
-    S::Error: Debug,
+    S::Error: Into<Error>,
     S::Response: Into<Response<B>>,
     <S::Service as Service>::Future: 'static,
     B: MessageBody + 'static,
@@ -65,7 +65,7 @@ impl<T, P, S, B> NewService<SrvConfig> for H2Service<T, P, S, B>
 where
     T: AsyncRead + AsyncWrite,
     S: NewService<SrvConfig, Request = Request>,
-    S::Error: Debug,
+    S::Error: Into<Error>,
     S::Response: Into<Response<B>>,
     <S::Service as Service>::Future: 'static,
     B: MessageBody + 'static,
@@ -97,7 +97,7 @@ impl<T, P, S, B> Future for H2ServiceResponse<T, P, S, B>
 where
     T: AsyncRead + AsyncWrite,
     S: NewService<SrvConfig, Request = Request>,
-    S::Error: Debug,
+    S::Error: Into<Error>,
     S::Response: Into<Response<B>>,
     <S::Service as Service>::Future: 'static,
     B: MessageBody + 'static,
@@ -124,7 +124,7 @@ pub struct H2ServiceHandler<T, P, S, B> {
 impl<T, P, S, B> H2ServiceHandler<T, P, S, B>
 where
     S: Service<Request = Request>,
-    S::Error: Debug,
+    S::Error: Into<Error>,
     S::Future: 'static,
     S::Response: Into<Response<B>>,
     B: MessageBody + 'static,
@@ -142,7 +142,7 @@ impl<T, P, S, B> Service for H2ServiceHandler<T, P, S, B>
 where
     T: AsyncRead + AsyncWrite,
     S: Service<Request = Request>,
-    S::Error: Debug,
+    S::Error: Into<Error>,
     S::Future: 'static,
     S::Response: Into<Response<B>>,
     B: MessageBody + 'static,
@@ -154,8 +154,9 @@ where
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
         self.srv.poll_ready().map_err(|e| {
+            let e = e.into();
             error!("Service readiness error: {:?}", e);
-            DispatchError::Service
+            DispatchError::Service(e)
         })
     }
 
@@ -186,7 +187,7 @@ pub struct H2ServiceHandlerResponse<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
     S: Service<Request = Request>,
-    S::Error: Debug,
+    S::Error: Into<Error>,
     S::Future: 'static,
     S::Response: Into<Response<B>>,
     B: MessageBody + 'static,
@@ -198,7 +199,7 @@ impl<T, S, B> Future for H2ServiceHandlerResponse<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
     S: Service<Request = Request>,
-    S::Error: Debug,
+    S::Error: Into<Error>,
     S::Future: 'static,
     S::Response: Into<Response<B>>,
     B: MessageBody,

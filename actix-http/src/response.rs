@@ -51,6 +51,18 @@ impl Response<Body> {
         }
     }
 
+    #[inline]
+    pub(crate) fn empty(status: StatusCode) -> Response<()> {
+        let mut head: Message<ResponseHead> = Message::new();
+        head.status = status;
+
+        Response {
+            head,
+            body: ResponseBody::Body(()),
+            error: None,
+        }
+    }
+
     /// Constructs an error response
     #[inline]
     pub fn from_error(error: Error) -> Response {

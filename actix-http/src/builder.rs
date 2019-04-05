@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use std::fmt;
 use std::marker::PhantomData;
 
 use actix_server_config::ServerConfig as SrvConfig;
@@ -6,39 +6,52 @@ use actix_service::{IntoNewService, NewService, Service};
 
 use crate::body::MessageBody;
 use crate::config::{KeepAlive, ServiceConfig};
+use crate::error::Error;
+use crate::h1::{ExpectHandler, H1Service};
+use crate::h2::H2Service;
 use crate::request::Request;
 use crate::response::Response;
-
-use crate::h1::H1Service;
-use crate::h2::H2Service;
 use crate::service::HttpService;
 
 /// A http service builder
 ///
 /// This type can be used to construct an instance of `http service` through a
 /// builder-like pattern.
-pub struct HttpServiceBuilder<T, S> {
+pub struct HttpServiceBuilder<T, S, X = ExpectHandler> {
     keep_alive: KeepAlive,
     client_timeout: u64,
     client_disconnect: u64,
+    expect: X,
     _t: PhantomData<(T, S)>,
 }
 
-impl<T, S> HttpServiceBuilder<T, S>
+impl<T, S> HttpServiceBuilder<T, S, ExpectHandler>
 where
     S: NewService<SrvConfig, Request = Request>,
-    S::Error: Debug,
+    S::Error: Into<Error>,
+    S::InitError: fmt::Debug,
 {
     /// Create instance of `ServiceConfigBuilder`
-    pub fn new() -> HttpServiceBuilder<T, S> {
+    pub fn new() -> Self {
         HttpServiceBuilder {
             keep_alive: KeepAlive::Timeout(5),
             client_timeout: 5000,
             client_disconnect: 0,
+            expect: ExpectHandler,
             _t: PhantomData,
         }
     }
+}
 
+impl<T, S, X> HttpServiceBuilder<T, S, X>
+where
+    S: NewService<SrvConfig, Request = Request>,
+    S::Error: Into<Error>,
+    S::InitError: fmt::Debug,
+    X: NewService<Request = Request, Response = Request>,
+    X::Error: Into<Error>,
+    X::InitError: fmt::Debug,
+{
     /// Set server keep-alive setting.
     ///
     /// By default keep alive is set to a 5 seconds.
@@ -94,10 +107,12 @@ where
     // }
 
     /// Finish service configuration and create *http service* for HTTP/1 protocol.
-    pub fn h1<F, P, B>(self, service: F) -> H1Service<T, P, S, B>
+    pub fn h1<F, P, B>(self, service: F) -> H1Service<T, P, S, B, X>
     where
         B: MessageBody + 'static,
         F: IntoNewService<S, SrvConfig>,
+        S::Error: Into<Error>,
+        S::InitError: fmt::Debug,
         S::Response: Into<Response<B>>,
     {
         let cfg = ServiceConfig::new(
@@ -105,7 +120,7 @@ where
             self.client_timeout,
             self.client_disconnect,
         );
-        H1Service::with_config(cfg, service.into_new_service())
+        H1Service::with_config(cfg, service.into_new_service()).expect(self.expect)
     }
 
     /// Finish service configuration and create *http service* for HTTP/2 protocol.
@@ -113,6 +128,8 @@ where
     where
         B: MessageBody + 'static,
         F: IntoNewService<S, SrvConfig>,
+        S::Error: Into<Error>,
+        S::InitError: fmt::Debug,
         S::Response: Into<Response<B>>,
         <S::Service as Service>::Future: 'static,
     {
@@ -129,6 +146,8 @@ where
     where
         B: MessageBody + 'static,
         F: IntoNewService<S, SrvConfig>,
+        S::Error: Into<Error>,
+        S::InitError: fmt::Debug,
         S::Response: Into<Response<B>>,
         <S::Service as Service>::Future: 'static,
     {

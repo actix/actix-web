@@ -1,5 +1,4 @@
 use std::collections::VecDeque;
-use std::fmt::Debug;
 use std::mem;
 use std::time::Instant;
 
@@ -13,8 +12,9 @@ use tokio_timer::Delay;
 
 use crate::body::{Body, BodySize, MessageBody, ResponseBody};
 use crate::config::ServiceConfig;
-use crate::error::DispatchError;
+use crate::error::{DispatchError, Error};
 use crate::error::{ParseError, PayloadError};
+use crate::http::StatusCode;
 use crate::request::Request;
 use crate::response::Response;
 
@@ -37,24 +37,33 @@ bitflags! {
 }
 
 /// Dispatcher for HTTP/1.1 protocol
-pub struct Dispatcher<T, S: Service<Request = Request>, B: MessageBody>
+pub struct Dispatcher<T, S, B, X>
 where
-    S::Error: Debug,
+    S: Service<Request = Request>,
+    S::Error: Into<Error>,
+    B: MessageBody,
+    X: Service<Request = Request, Response = Request>,
+    X::Error: Into<Error>,
 {
-    inner: Option<InnerDispatcher<T, S, B>>,
+    inner: Option<InnerDispatcher<T, S, B, X>>,
 }
 
-struct InnerDispatcher<T, S: Service<Request = Request>, B: MessageBody>
+struct InnerDispatcher<T, S, B, X>
 where
-    S::Error: Debug,
+    S: Service<Request = Request>,
+    S::Error: Into<Error>,
+    B: MessageBody,
+    X: Service<Request = Request, Response = Request>,
+    X::Error: Into<Error>,
 {
     service: CloneableService<S>,
+    expect: CloneableService<X>,
     flags: Flags,
     framed: Framed<T, Codec>,
     error: Option<DispatchError>,
     config: ServiceConfig,
 
-    state: State<S, B>,
+    state: State<S, B, X>,
     payload: Option<PayloadSender>,
     messages: VecDeque<DispatcherMessage>,
 
@@ -67,13 +76,24 @@ enum DispatcherMessage {
     Error(Response<()>),
 }
 
-enum State<S: Service<Request = Request>, B: MessageBody> {
+enum State<S, B, X>
+where
+    S: Service<Request = Request>,
+    X: Service<Request = Request, Response = Request>,
+    B: MessageBody,
+{
     None,
+    ExpectCall(X::Future),
     ServiceCall(S::Future),
     SendPayload(ResponseBody<B>),
 }
 
-impl<S: Service<Request = Request>, B: MessageBody> State<S, B> {
+impl<S, B, X> State<S, B, X>
+where
+    S: Service<Request = Request>,
+    X: Service<Request = Request, Response = Request>,
+    B: MessageBody,
+{
     fn is_empty(&self) -> bool {
         if let State::None = self {
             true
@@ -83,21 +103,29 @@ impl<S: Service<Request = Request>, B: MessageBody> State<S, B> {
     }
 }
 
-impl<T, S, B> Dispatcher<T, S, B>
+impl<T, S, B, X> Dispatcher<T, S, B, X>
 where
     T: AsyncRead + AsyncWrite,
     S: Service<Request = Request>,
-    S::Error: Debug,
+    S::Error: Into<Error>,
     S::Response: Into<Response<B>>,
     B: MessageBody,
+    X: Service<Request = Request, Response = Request>,
+    X::Error: Into<Error>,
 {
     /// Create http/1 dispatcher.
-    pub fn new(stream: T, config: ServiceConfig, service: CloneableService<S>) -> Self {
+    pub fn new(
+        stream: T,
+        config: ServiceConfig,
+        service: CloneableService<S>,
+        expect: CloneableService<X>,
+    ) -> Self {
         Dispatcher::with_timeout(
             Framed::new(stream, Codec::new(config.clone())),
             config,
             None,
             service,
+            expect,
         )
     }
 
@@ -107,6 +135,7 @@ where
         config: ServiceConfig,
         timeout: Option<Delay>,
         service: CloneableService<S>,
+        expect: CloneableService<X>,
     ) -> Self {
         let keepalive = config.keep_alive_enabled();
         let flags = if keepalive {
@@ -132,6 +161,7 @@ where
                 error: None,
                 messages: VecDeque::new(),
                 service,
+                expect,
                 flags,
                 config,
                 ka_expire,
@@ -141,13 +171,15 @@ where
     }
 }
 
-impl<T, S, B> InnerDispatcher<T, S, B>
+impl<T, S, B, X> InnerDispatcher<T, S, B, X>
 where
     T: AsyncRead + AsyncWrite,
     S: Service<Request = Request>,
-    S::Error: Debug,
+    S::Error: Into<Error>,
     S::Response: Into<Response<B>>,
     B: MessageBody,
+    X: Service<Request = Request, Response = Request>,
+    X::Error: Into<Error>,
 {
     fn can_read(&self) -> bool {
         if self.flags.contains(Flags::DISCONNECTED) {
@@ -195,7 +227,7 @@ where
         &mut self,
         message: Response<()>,
         body: ResponseBody<B>,
-    ) -> Result<State<S, B>, DispatchError> {
+    ) -> Result<State<S, B, X>, DispatchError> {
         self.framed
             .force_send(Message::Item((message, body.length())))
             .map_err(|err| {
@@ -213,6 +245,15 @@ where
         }
     }
 
+    fn send_continue(&mut self) -> Result<(), DispatchError> {
+        self.framed
+            .force_send(Message::Item((
+                Response::empty(StatusCode::CONTINUE),
+                BodySize::Empty,
+            )))
+            .map_err(|err| DispatchError::Io(err))
+    }
+
     fn poll_response(&mut self) -> Result<(), DispatchError> {
         let mut retry = self.can_read();
         loop {
@@ -226,6 +267,22 @@ where
                         None
                     }
                     None => None,
+                },
+                State::ExpectCall(mut fut) => match fut.poll() {
+                    Ok(Async::Ready(req)) => {
+                        self.send_continue()?;
+                        Some(State::ServiceCall(self.service.call(req)))
+                    }
+                    Ok(Async::NotReady) => {
+                        self.state = State::ExpectCall(fut);
+                        None
+                    }
+                    Err(e) => {
+                        let e = e.into();
+                        let res: Response = e.into();
+                        let (res, body) = res.replace_body(());
+                        Some(self.send_response(res, body.into_body())?)
+                    }
                 },
                 State::ServiceCall(mut fut) => match fut.poll() {
                     Ok(Async::Ready(res)) => {
@@ -289,7 +346,28 @@ where
         Ok(())
     }
 
-    fn handle_request(&mut self, req: Request) -> Result<State<S, B>, DispatchError> {
+    fn handle_request(&mut self, req: Request) -> Result<State<S, B, X>, DispatchError> {
+        // Handle `EXPECT: 100-Continue` header
+        let req = if req.head().expect() {
+            let mut task = self.expect.call(req);
+            match task.poll() {
+                Ok(Async::Ready(req)) => {
+                    self.send_continue()?;
+                    req
+                }
+                Ok(Async::NotReady) => return Ok(State::ExpectCall(task)),
+                Err(e) => {
+                    let e = e.into();
+                    let res: Response = e.into();
+                    let (res, body) = res.replace_body(());
+                    return self.send_response(res, body.into_body());
+                }
+            }
+        } else {
+            req
+        };
+
+        // Call service
         let mut task = self.service.call(req);
         match task.poll() {
             Ok(Async::Ready(res)) => {
@@ -329,10 +407,6 @@ where
                                     req = req1;
                                     self.payload = Some(ps);
                                 }
-                                //MessageType::Stream => {
-                                //    self.unhandled = Some(req);
-                                //    return Ok(updated);
-                                //}
                                 _ => (),
                             }
 
@@ -482,13 +556,15 @@ where
     }
 }
 
-impl<T, S, B> Future for Dispatcher<T, S, B>
+impl<T, S, B, X> Future for Dispatcher<T, S, B, X>
 where
     T: AsyncRead + AsyncWrite,
     S: Service<Request = Request>,
-    S::Error: Debug,
+    S::Error: Into<Error>,
     S::Response: Into<Response<B>>,
     B: MessageBody,
+    X: Service<Request = Request, Response = Request>,
+    X::Error: Into<Error>,
 {
     type Item = ();
     type Error = DispatchError;
@@ -558,6 +634,7 @@ mod tests {
 
     use super::*;
     use crate::error::Error;
+    use crate::h1::ExpectHandler;
 
     struct Buffer {
         buf: Bytes,
@@ -620,6 +697,7 @@ mod tests {
                 CloneableService::new(
                     (|_| ok::<_, Error>(Response::Ok().finish())).into_service(),
                 ),
+                CloneableService::new(ExpectHandler),
             );
             assert!(h1.poll().is_ok());
             assert!(h1.poll().is_ok());
