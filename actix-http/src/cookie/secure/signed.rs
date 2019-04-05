@@ -31,7 +31,7 @@ impl<'a> SignedJar<'a> {
     #[doc(hidden)]
     pub fn new(parent: &'a mut CookieJar, key: &Key) -> SignedJar<'a> {
         SignedJar {
-            parent: parent,
+            parent,
             key: SigningKey::new(HMAC_DIGEST, key.signing()),
         }
     }
