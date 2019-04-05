@@ -3,9 +3,7 @@ use std::marker::PhantomData;
 use std::time::Duration;
 
 use actix_codec::{AsyncRead, AsyncWrite};
-use actix_connect::{
-    default_connector, Connect as TcpConnect, Connection as TcpConnection,
-};
+use actix_connect::{default_connector, Connect as TcpConnect, TcpConnection};
 use actix_service::{apply_fn, Service, ServiceExt};
 use actix_utils::timeout::{TimeoutError, TimeoutService};
 use http::Uri;
