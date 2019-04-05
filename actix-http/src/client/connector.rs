@@ -173,7 +173,9 @@ where
         self
     }
 
-    /// Finish configuration process and create connector service.
+    /// Finish configuration process and create connector service.  
+    /// The Connector builder always concludes by calling `finish()` last in 
+    /// its combinator chain.
     pub fn finish(
         self,
     ) -> impl Service<Request = Uri, Response = impl Connection, Error = ConnectError> + Clone
