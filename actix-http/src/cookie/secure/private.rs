@@ -37,7 +37,7 @@ impl<'a> PrivateJar<'a> {
         let mut key_array = [0u8; KEY_LEN];
         key_array.copy_from_slice(key.encryption());
         PrivateJar {
-            parent: parent,
+            parent,
             key: key_array,
         }
     }

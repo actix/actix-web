@@ -359,7 +359,7 @@ where
     }
 
     fn poll_next(&mut self) -> Poll<Option<Bytes>, Error> {
-        self.stream.poll().map_err(|e| e.into())
+        self.stream.poll().map_err(std::convert::Into::into)
     }
 }
 
