@@ -189,6 +189,7 @@ pub mod client {
     pub use awc::error::{
         ConnectError, InvalidUrl, PayloadError, SendRequestError, WsClientError,
     };
-    pub use awc::{test, Client, ClientBuilder, ClientRequest, ClientResponse,
-                  Connector};
+    pub use awc::{
+        test, Client, ClientBuilder, ClientRequest, ClientResponse, Connector,
+    };
 }

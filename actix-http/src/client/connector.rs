@@ -173,8 +173,8 @@ where
         self
     }
 
-    /// Finish configuration process and create connector service.  
-    /// The Connector builder always concludes by calling `finish()` last in 
+    /// Finish configuration process and create connector service.
+    /// The Connector builder always concludes by calling `finish()` last in
     /// its combinator chain.
     pub fn finish(
         self,
@@ -264,6 +264,15 @@ where
                 ),
             }
         }
+    }
+
+    #[doc(hidden)]
+    #[deprecated(since = "0.1.0-alpha4", note = "please use `.finish()` method")]
+    pub fn service(
+        self,
+    ) -> impl Service<Request = Uri, Response = impl Connection, Error = ConnectError> + Clone
+    {
+        self.finish()
     }
 }
 
