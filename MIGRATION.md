@@ -1,3 +1,58 @@
+## 1.0
+
+* `State` is now `Data`.  You register Data during the App initialization process
+and then access it from handlers either using a Data extractor or using
+HttpRequest's api.
+
+  instead of
+
+  ```rust
+    App.with_state(T)
+  ```
+
+  use App's `data` method
+
+  ```rust
+	App.new()
+       .data(T)
+  ```
+
+  and either use the Data extractor within your handler
+
+  ```rust
+    use actix_web::web::Data;
+
+	fn endpoint_handler(Data<T>)){
+      ...
+    }
+  ```
+
+  .. or access your Data element from the HttpRequest
+
+  ```rust
+	fn endpoint_handler(req: HttpRequest) {
+		let data: Option<Data<T>> = req.app_data::<T>();
+    }
+  ```
+
+
+* AsyncResponder is deprecated.
+
+  instead of
+
+  ```rust
+	use actix_web::AsyncResponder;
+
+    fn endpoint_handler(...) -> impl Future<Item=HttpResponse, Error=Error>{
+		...
+        .responder()
+	}
+  ```
+
+  .. simply omit AsyncResponder and the corresponding responder() finish method
+
+
+
 ## 0.7.15
 
 * The `' '` character is not percent decoded anymore before matching routes. If you need to use it in
