@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 use std::{fmt, io};
 
-use actix_codec::{AsyncRead, AsyncWrite, Framed, FramedParts};
+use actix_codec::{AsyncRead, AsyncWrite};
 use actix_server_config::{Io as ServerIo, Protocol, ServerConfig as SrvConfig};
 use actix_service::{IntoNewService, NewService, Service};
 use actix_utils::cloneable::CloneableService;
@@ -375,13 +375,14 @@ where
                     self.state =
                         State::Handshake(Some((server::handshake(io), cfg, srv)));
                 } else {
-                    let framed = Framed::from_parts(FramedParts::with_read_buf(
+                    self.state = State::H1(h1::Dispatcher::with_timeout(
                         io,
                         h1::Codec::new(cfg.clone()),
+                        cfg,
                         buf,
-                    ));
-                    self.state = State::H1(h1::Dispatcher::with_timeout(
-                        framed, cfg, None, srv, expect,
+                        None,
+                        srv,
+                        expect,
                     ))
                 }
                 self.poll()

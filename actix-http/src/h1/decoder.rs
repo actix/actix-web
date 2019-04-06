@@ -84,7 +84,9 @@ pub(crate) trait MessageType: Sized {
                         header::CONTENT_LENGTH => {
                             if let Ok(s) = value.to_str() {
                                 if let Ok(len) = s.parse::<u64>() {
-                                    content_length = Some(len);
+                                    if len != 0 {
+                                        content_length = Some(len);
+                                    }
                                 } else {
                                     debug!("illegal Content-Length: {:?}", s);
                                     return Err(ParseError::Header);

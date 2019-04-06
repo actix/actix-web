@@ -9,7 +9,7 @@ use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCOD
 use http::{Method, StatusCode, Version};
 
 use super::decoder::{PayloadDecoder, PayloadItem, PayloadType};
-use super::{decoder, encoder, reserve_readbuf};
+use super::{decoder, encoder};
 use super::{Message, MessageType};
 use crate::body::BodySize;
 use crate::config::ServiceConfig;
@@ -31,7 +31,7 @@ const AVERAGE_HEADER_SIZE: usize = 30;
 
 /// HTTP/1 Codec
 pub struct Codec {
-    config: ServiceConfig,
+    pub(crate) config: ServiceConfig,
     decoder: decoder::MessageDecoder<Request>,
     payload: Option<PayloadDecoder>,
     version: Version,
@@ -78,16 +78,25 @@ impl Codec {
         }
     }
 
+    #[inline]
     /// Check if request is upgrade
     pub fn upgrade(&self) -> bool {
         self.ctype == ConnectionType::Upgrade
     }
 
+    #[inline]
     /// Check if last response is keep-alive
     pub fn keepalive(&self) -> bool {
         self.ctype == ConnectionType::KeepAlive
     }
 
+    #[inline]
+    /// Check if keep-alive enabled on server level
+    pub fn keepalive_enabled(&self) -> bool {
+        self.flags.contains(Flags::KEEPALIVE_ENABLED)
+    }
+
+    #[inline]
     /// Check last request's message type
     pub fn message_type(&self) -> MessageType {
         if self.flags.contains(Flags::STREAM) {
@@ -107,10 +116,7 @@ impl Decoder for Codec {
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
         if self.payload.is_some() {
             Ok(match self.payload.as_mut().unwrap().decode(src)? {
-                Some(PayloadItem::Chunk(chunk)) => {
-                    reserve_readbuf(src);
-                    Some(Message::Chunk(Some(chunk)))
-                }
+                Some(PayloadItem::Chunk(chunk)) => Some(Message::Chunk(Some(chunk))),
                 Some(PayloadItem::Eof) => {
                     self.payload.take();
                     Some(Message::Chunk(None))
@@ -135,7 +141,6 @@ impl Decoder for Codec {
                     self.flags.insert(Flags::STREAM);
                 }
             }
-            reserve_readbuf(src);
             Ok(Some(Message::Item(req)))
         } else {
             Ok(None)

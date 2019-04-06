@@ -770,7 +770,7 @@ fn test_reading_deflate_encoding_large_random_ssl() {
                 awc::Connector::new()
                     .timeout(std::time::Duration::from_millis(500))
                     .ssl(builder.build())
-                    .service(),
+                    .finish(),
             )
             .finish()
     });

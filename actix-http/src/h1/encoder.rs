@@ -41,8 +41,6 @@ impl<T: MessageType> Default for MessageEncoder<T> {
 pub(crate) trait MessageType: Sized {
     fn status(&self) -> Option<StatusCode>;
 
-    // fn connection_type(&self) -> Option<ConnectionType>;
-
     fn headers(&self) -> &HeaderMap;
 
     fn chunked(&self) -> bool;
@@ -170,10 +168,6 @@ impl MessageType for Response<()> {
     fn chunked(&self) -> bool {
         self.head().chunked()
     }
-
-    //fn connection_type(&self) -> Option<ConnectionType> {
-    //    self.head().ctype
-    //}
 
     fn headers(&self) -> &HeaderMap {
         &self.head().headers
