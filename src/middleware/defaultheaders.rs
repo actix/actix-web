@@ -131,11 +131,11 @@ where
             // set response headers
             for (key, value) in inner.headers.iter() {
                 if !res.headers().contains_key(key) {
-                    res.headers_mut().insert(key, value.clone());
+                    res.headers_mut().insert(key.clone(), value.clone());
                 }
             }
             // default content-type
-            if inner.ct && !res.headers().contains_key(CONTENT_TYPE) {
+            if inner.ct && !res.headers().contains_key(&CONTENT_TYPE) {
                 res.headers_mut().insert(
                     CONTENT_TYPE,
                     HeaderValue::from_static("application/octet-stream"),

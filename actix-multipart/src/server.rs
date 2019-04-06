@@ -92,7 +92,7 @@ impl Multipart {
 
     /// Extract boundary info from headers.
     fn boundary(headers: &HeaderMap) -> Result<String, MultipartError> {
-        if let Some(content_type) = headers.get(header::CONTENT_TYPE) {
+        if let Some(content_type) = headers.get(&header::CONTENT_TYPE) {
             if let Ok(content_type) = content_type.to_str() {
                 if let Ok(ct) = content_type.parse::<mime::Mime>() {
                     if let Some(boundary) = ct.get_param(mime::BOUNDARY) {
@@ -334,7 +334,7 @@ impl InnerMultipart {
 
             // content type
             let mut mt = mime::APPLICATION_OCTET_STREAM;
-            if let Some(content_type) = headers.get(header::CONTENT_TYPE) {
+            if let Some(content_type) = headers.get(&header::CONTENT_TYPE) {
                 if let Ok(content_type) = content_type.to_str() {
                     if let Ok(ct) = content_type.parse::<mime::Mime>() {
                         mt = ct;
@@ -427,7 +427,7 @@ impl Field {
     pub fn content_disposition(&self) -> Option<ContentDisposition> {
         // RFC 7578: 'Each part MUST contain a Content-Disposition header field
         // where the disposition type is "form-data".'
-        if let Some(content_disposition) = self.headers.get(header::CONTENT_DISPOSITION)
+        if let Some(content_disposition) = self.headers.get(&header::CONTENT_DISPOSITION)
         {
             ContentDisposition::from_raw(content_disposition).ok()
         } else {
@@ -480,7 +480,7 @@ impl InnerField {
         boundary: String,
         headers: &HeaderMap,
     ) -> Result<InnerField, PayloadError> {
-        let len = if let Some(len) = headers.get(header::CONTENT_LENGTH) {
+        let len = if let Some(len) = headers.get(&header::CONTENT_LENGTH) {
             if let Ok(s) = len.to_str() {
                 if let Ok(len) = s.parse::<u64>() {
                     Some(len)

@@ -344,7 +344,7 @@ impl Responder for NamedFile {
         // check last modified
         let not_modified = if !none_match(etag.as_ref(), req) {
             true
-        } else if req.headers().contains_key(header::IF_NONE_MATCH) {
+        } else if req.headers().contains_key(&header::IF_NONE_MATCH) {
             false
         } else if let (Some(ref m), Some(header::IfModifiedSince(ref since))) =
             (last_modified, req.get_header())
@@ -378,7 +378,7 @@ impl Responder for NamedFile {
         let mut offset = 0;
 
         // check for range header
-        if let Some(ranges) = req.headers().get(header::RANGE) {
+        if let Some(ranges) = req.headers().get(&header::RANGE) {
             if let Ok(rangesheader) = ranges.to_str() {
                 if let Ok(rangesvec) = HttpRange::parse(rangesheader, length) {
                     length = rangesvec[0].length;

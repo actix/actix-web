@@ -107,7 +107,7 @@ where
             let mut head = ResponseHead::default();
             head.version = parts.version;
             head.status = parts.status;
-            head.headers = parts.headers;
+            head.headers = parts.headers.into();
 
             Ok((head, payload))
         })

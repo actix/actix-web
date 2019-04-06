@@ -4,7 +4,6 @@
 use std::{fmt, str::FromStr};
 
 use bytes::{Bytes, BytesMut};
-use http::header::GetAll;
 use http::Error as HttpError;
 use mime::Mime;
 
@@ -14,11 +13,16 @@ use crate::error::ParseError;
 use crate::httpmessage::HttpMessage;
 
 mod common;
+pub(crate) mod map;
 mod shared;
 #[doc(hidden)]
 pub use self::common::*;
 #[doc(hidden)]
 pub use self::shared::*;
+
+#[doc(hidden)]
+pub use self::map::GetAll;
+pub use self::map::HeaderMap;
 
 /// A trait for any object that will represent a header field and value.
 pub trait Header
@@ -220,8 +224,8 @@ impl fmt::Write for Writer {
 #[inline]
 #[doc(hidden)]
 /// Reads a comma-delimited raw header into a Vec.
-pub fn from_comma_delimited<T: FromStr>(
-    all: GetAll<HeaderValue>,
+pub fn from_comma_delimited<'a, I: Iterator<Item = &'a HeaderValue> + 'a, T: FromStr>(
+    all: I,
 ) -> Result<Vec<T>, ParseError> {
     let mut result = Vec::new();
     for h in all {
@@ -377,6 +381,17 @@ pub fn http_percent_encode(f: &mut fmt::Formatter, bytes: &[u8]) -> fmt::Result 
     let encoded =
         percent_encoding::percent_encode(bytes, self::percent_encoding_http::HTTP_VALUE);
     fmt::Display::fmt(&encoded, f)
+}
+
+/// Convert http::HeaderMap to a HeaderMap
+impl From<http::HeaderMap> for HeaderMap {
+    fn from(map: http::HeaderMap) -> HeaderMap {
+        let mut new_map = HeaderMap::with_capacity(map.capacity());
+        for (h, v) in map.iter() {
+            new_map.append(h.clone(), v.clone());
+        }
+        new_map
+    }
 }
 
 mod percent_encoding_http {

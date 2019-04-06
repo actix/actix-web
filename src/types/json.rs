@@ -297,7 +297,7 @@ where
         }
 
         let mut len = None;
-        if let Some(l) = req.headers().get(CONTENT_LENGTH) {
+        if let Some(l) = req.headers().get(&CONTENT_LENGTH) {
             if let Ok(s) = l.to_str() {
                 if let Ok(l) = s.parse::<usize>() {
                     len = Some(l)

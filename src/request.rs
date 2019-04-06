@@ -286,10 +286,10 @@ mod tests {
         {
             let cookies = req.cookies().unwrap();
             assert_eq!(cookies.len(), 2);
-            assert_eq!(cookies[0].name(), "cookie1");
-            assert_eq!(cookies[0].value(), "value1");
-            assert_eq!(cookies[1].name(), "cookie2");
-            assert_eq!(cookies[1].value(), "value2");
+            assert_eq!(cookies[0].name(), "cookie2");
+            assert_eq!(cookies[0].value(), "value2");
+            assert_eq!(cookies[1].name(), "cookie1");
+            assert_eq!(cookies[1].value(), "value1");
         }
 
         let cookie = req.cookie("cookie1");

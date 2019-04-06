@@ -396,7 +396,7 @@ impl ClientRequest {
         if self.default_headers {
             // set request host header
             if let Some(host) = self.head.uri.host() {
-                if !self.head.headers.contains_key(header::HOST) {
+                if !self.head.headers.contains_key(&header::HOST) {
                     let mut wrt = BytesMut::with_capacity(host.len() + 5).writer();
 
                     let _ = match self.head.uri.port_u16() {
@@ -414,7 +414,7 @@ impl ClientRequest {
             }
 
             // user agent
-            if !self.head.headers.contains_key(header::USER_AGENT) {
+            if !self.head.headers.contains_key(&header::USER_AGENT) {
                 self.head.headers.insert(
                     header::USER_AGENT,
                     HeaderValue::from_static(concat!("awc/", env!("CARGO_PKG_VERSION"))),

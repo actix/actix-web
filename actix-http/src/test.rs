@@ -4,10 +4,11 @@ use std::str::FromStr;
 
 use bytes::Bytes;
 use http::header::{self, HeaderName, HeaderValue};
-use http::{HeaderMap, HttpTryFrom, Method, Uri, Version};
+use http::{HttpTryFrom, Method, Uri, Version};
 use percent_encoding::{percent_encode, USERINFO_ENCODE_SET};
 
 use crate::cookie::{Cookie, CookieJar};
+use crate::header::HeaderMap;
 use crate::header::{Header, IntoHeaderValue};
 use crate::payload::Payload;
 use crate::Request;

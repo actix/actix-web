@@ -45,10 +45,11 @@ pub mod http {
     // re-exports
     pub use http::header::{HeaderName, HeaderValue};
     pub use http::uri::PathAndQuery;
-    pub use http::{uri, Error, HeaderMap, HttpTryFrom, Uri};
+    pub use http::{uri, Error, HttpTryFrom, Uri};
     pub use http::{Method, StatusCode, Version};
 
     pub use crate::cookie::{Cookie, CookieBuilder};
+    pub use crate::header::HeaderMap;
 
     /// Various http headers
     pub mod header {

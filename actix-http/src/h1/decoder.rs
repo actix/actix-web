@@ -5,11 +5,12 @@ use actix_codec::Decoder;
 use bytes::{Bytes, BytesMut};
 use futures::{Async, Poll};
 use http::header::{HeaderName, HeaderValue};
-use http::{header, HeaderMap, HttpTryFrom, Method, StatusCode, Uri, Version};
+use http::{header, HttpTryFrom, Method, StatusCode, Uri, Version};
 use httparse;
 use log::{debug, error, trace};
 
 use crate::error::ParseError;
+use crate::header::HeaderMap;
 use crate::message::{ConnectionType, ResponseHead};
 use crate::request::Request;
 
@@ -630,6 +631,7 @@ mod tests {
 
     use super::*;
     use crate::error::ParseError;
+    use crate::http::header::{HeaderName, SET_COOKIE};
     use crate::httpmessage::HttpMessage;
 
     impl PayloadType {
@@ -790,7 +792,13 @@ mod tests {
         assert_eq!(req.version(), Version::HTTP_11);
         assert_eq!(*req.method(), Method::GET);
         assert_eq!(req.path(), "/test");
-        assert_eq!(req.headers().get("test").unwrap().as_bytes(), b"value");
+        assert_eq!(
+            req.headers()
+                .get(HeaderName::try_from("test").unwrap())
+                .unwrap()
+                .as_bytes(),
+            b"value"
+        );
     }
 
     #[test]
@@ -805,12 +813,11 @@ mod tests {
 
         let val: Vec<_> = req
             .headers()
-            .get_all("Set-Cookie")
-            .iter()
+            .get_all(SET_COOKIE)
             .map(|v| v.to_str().unwrap().to_owned())
             .collect();
-        assert_eq!(val[0], "c1=cookie1");
-        assert_eq!(val[1], "c2=cookie2");
+        assert_eq!(val[1], "c1=cookie1");
+        assert_eq!(val[0], "c2=cookie2");
     }
 
     #[test]

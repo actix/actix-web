@@ -116,7 +116,7 @@ where
                     head.uri = parts.uri;
                     head.method = parts.method;
                     head.version = parts.version;
-                    head.headers = parts.headers;
+                    head.headers = parts.headers.into();
                     tokio_current_thread::spawn(ServiceResponse::<S::Future, B> {
                         state: ServiceResponseState::ServiceCall(
                             self.service.call(req),

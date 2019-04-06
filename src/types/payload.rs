@@ -313,7 +313,7 @@ where
     /// Create `MessageBody` for request.
     pub fn new(req: &mut T) -> HttpMessageBody<T> {
         let mut len = None;
-        if let Some(l) = req.headers().get(header::CONTENT_LENGTH) {
+        if let Some(l) = req.headers().get(&header::CONTENT_LENGTH) {
             if let Ok(s) = l.to_str() {
                 if let Ok(l) = s.parse::<usize>() {
                     len = Some(l)

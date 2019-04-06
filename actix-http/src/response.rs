@@ -6,8 +6,6 @@ use std::{fmt, io, str};
 use bytes::{BufMut, Bytes, BytesMut};
 use futures::future::{ok, FutureResult, IntoFuture};
 use futures::Stream;
-use http::header::{self, HeaderName, HeaderValue};
-use http::{Error as HttpError, HeaderMap, HttpTryFrom, StatusCode};
 use serde::Serialize;
 use serde_json;
 
@@ -16,11 +14,13 @@ use crate::cookie::{Cookie, CookieJar};
 use crate::error::Error;
 use crate::extensions::Extensions;
 use crate::header::{Header, IntoHeaderValue};
-use crate::message::{ConnectionType, Message, ResponseHead};
+use crate::http::header::{self, HeaderName, HeaderValue};
+use crate::http::{Error as HttpError, HeaderMap, HttpTryFrom, StatusCode};
+use crate::message::{BoxedResponseHead, ConnectionType, ResponseHead};
 
 /// An HTTP Response
 pub struct Response<B = Body> {
-    head: Message<ResponseHead>,
+    head: BoxedResponseHead,
     body: ResponseBody<B>,
     error: Option<Error>,
 }
@@ -41,7 +41,7 @@ impl Response<Body> {
     /// Constructs a response
     #[inline]
     pub fn new(status: StatusCode) -> Response {
-        let mut head: Message<ResponseHead> = Message::new();
+        let mut head = BoxedResponseHead::new();
         head.status = status;
 
         Response {
@@ -93,7 +93,7 @@ impl<B> Response<B> {
     /// Constructs a response with body
     #[inline]
     pub fn with_body(status: StatusCode, body: B) -> Response<B> {
-        let mut head: Message<ResponseHead> = Message::new();
+        let mut head = BoxedResponseHead::new();
         head.status = status;
         Response {
             head,
@@ -136,7 +136,7 @@ impl<B> Response<B> {
     #[inline]
     pub fn cookies(&self) -> CookieIter {
         CookieIter {
-            iter: self.head.headers.get_all(header::SET_COOKIE).iter(),
+            iter: self.head.headers.get_all(header::SET_COOKIE),
         }
     }
 
@@ -158,7 +158,6 @@ impl<B> Response<B> {
         let h = &mut self.head.headers;
         let vals: Vec<HeaderValue> = h
             .get_all(header::SET_COOKIE)
-            .iter()
             .map(|v| v.to_owned())
             .collect();
         h.remove(header::SET_COOKIE);
@@ -286,7 +285,7 @@ impl IntoFuture for Response {
 }
 
 pub struct CookieIter<'a> {
-    iter: header::ValueIter<'a, HeaderValue>,
+    iter: header::GetAll<'a>,
 }
 
 impl<'a> Iterator for CookieIter<'a> {
@@ -320,7 +319,7 @@ impl<'a> io::Write for Writer<'a> {
 /// This type can be used to construct an instance of `Response` through a
 /// builder-like pattern.
 pub struct ResponseBuilder {
-    head: Option<Message<ResponseHead>>,
+    head: Option<BoxedResponseHead>,
     err: Option<HttpError>,
     cookies: Option<CookieJar>,
 }
@@ -328,7 +327,7 @@ pub struct ResponseBuilder {
 impl ResponseBuilder {
     /// Create response builder
     pub fn new(status: StatusCode) -> Self {
-        let mut head: Message<ResponseHead> = Message::new();
+        let mut head = BoxedResponseHead::new();
         head.status = status;
 
         ResponseBuilder {
@@ -701,13 +700,13 @@ impl ResponseBuilder {
 
 #[inline]
 fn parts<'a>(
-    parts: &'a mut Option<Message<ResponseHead>>,
+    parts: &'a mut Option<BoxedResponseHead>,
     err: &Option<HttpError>,
-) -> Option<&'a mut Message<ResponseHead>> {
+) -> Option<&'a mut ResponseHead> {
     if err.is_some() {
         return None;
     }
-    parts.as_mut()
+    parts.as_mut().map(|r| &mut **r)
 }
 
 /// Convert `Response` to a `ResponseBuilder`. Body get dropped.
@@ -740,7 +739,7 @@ impl<'a> From<&'a ResponseHead> for ResponseBuilder {
         let mut jar: Option<CookieJar> = None;
 
         let cookies = CookieIter {
-            iter: head.headers.get_all(header::SET_COOKIE).iter(),
+            iter: head.headers.get_all(header::SET_COOKIE),
         };
         for c in cookies {
             if let Some(ref mut j) = jar {
@@ -752,11 +751,11 @@ impl<'a> From<&'a ResponseHead> for ResponseBuilder {
             }
         }
 
-        let mut msg: Message<ResponseHead> = Message::new();
+        let mut msg = BoxedResponseHead::new();
         msg.version = head.version;
         msg.status = head.status;
         msg.reason = head.reason;
-        msg.headers = head.headers.clone();
+        // msg.headers = head.headers.clone();
         msg.no_chunking(!head.chunked());
 
         ResponseBuilder {
@@ -845,7 +844,7 @@ impl From<BytesMut> for Response {
 mod tests {
     use super::*;
     use crate::body::Body;
-    use crate::http::header::{HeaderValue, CONTENT_TYPE, COOKIE};
+    use crate::http::header::{HeaderValue, CONTENT_TYPE, COOKIE, SET_COOKIE};
 
     #[test]
     fn test_debug() {
@@ -876,13 +875,12 @@ mod tests {
                     .max_age(time::Duration::days(1))
                     .finish(),
             )
-            .del_cookie(&cookies[0])
+            .del_cookie(&cookies[1])
             .finish();
 
         let mut val: Vec<_> = resp
             .headers()
-            .get_all("Set-Cookie")
-            .iter()
+            .get_all(SET_COOKIE)
             .map(|v| v.to_str().unwrap().to_owned())
             .collect();
         val.sort();
@@ -911,9 +909,9 @@ mod tests {
 
         let mut iter = r.cookies();
         let v = iter.next().unwrap();
-        assert_eq!((v.name(), v.value()), ("original", "val100"));
-        let v = iter.next().unwrap();
         assert_eq!((v.name(), v.value()), ("cookie3", "val300"));
+        let v = iter.next().unwrap();
+        assert_eq!((v.name(), v.value()), ("original", "val100"));
     }
 
     #[test]
@@ -1049,6 +1047,7 @@ mod tests {
             resp.headers().get(CONTENT_TYPE).unwrap(),
             HeaderValue::from_static("application/octet-stream")
         );
+
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(resp.body().get_ref(), b"test");
     }

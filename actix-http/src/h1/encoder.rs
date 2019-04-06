@@ -6,15 +6,16 @@ use std::str::FromStr;
 use std::{cmp, fmt, io, mem};
 
 use bytes::{BufMut, Bytes, BytesMut};
-use http::header::{
-    HeaderValue, ACCEPT_ENCODING, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING,
-};
-use http::{HeaderMap, Method, StatusCode, Version};
 
 use crate::body::BodySize;
 use crate::config::ServiceConfig;
+use crate::header::map;
 use crate::header::ContentEncoding;
 use crate::helpers;
+use crate::http::header::{
+    HeaderValue, ACCEPT_ENCODING, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING,
+};
+use crate::http::{HeaderMap, Method, StatusCode, Version};
 use crate::message::{ConnectionType, Head, RequestHead, ResponseHead};
 use crate::request::Request;
 use crate::response::Response;
@@ -109,7 +110,7 @@ pub(crate) trait MessageType: Sized {
         let mut has_date = false;
         let mut remaining = dst.remaining_mut();
         let mut buf = unsafe { &mut *(dst.bytes_mut() as *mut [u8]) };
-        for (key, value) in self.headers() {
+        for (key, value) in self.headers().inner.iter() {
             match *key {
                 CONNECTION => continue,
                 TRANSFER_ENCODING | CONTENT_LENGTH if skip_len => continue,
@@ -118,31 +119,59 @@ pub(crate) trait MessageType: Sized {
                 }
                 _ => (),
             }
-
-            let v = value.as_ref();
             let k = key.as_str().as_bytes();
-            let len = k.len() + v.len() + 4;
-            if len > remaining {
-                unsafe {
-                    dst.advance_mut(pos);
+            match value {
+                map::Value::One(ref val) => {
+                    let v = val.as_ref();
+                    let len = k.len() + v.len() + 4;
+                    if len > remaining {
+                        unsafe {
+                            dst.advance_mut(pos);
+                        }
+                        pos = 0;
+                        dst.reserve(len);
+                        remaining = dst.remaining_mut();
+                        unsafe {
+                            buf = &mut *(dst.bytes_mut() as *mut _);
+                        }
+                    }
+                    buf[pos..pos + k.len()].copy_from_slice(k);
+                    pos += k.len();
+                    buf[pos..pos + 2].copy_from_slice(b": ");
+                    pos += 2;
+                    buf[pos..pos + v.len()].copy_from_slice(v);
+                    pos += v.len();
+                    buf[pos..pos + 2].copy_from_slice(b"\r\n");
+                    pos += 2;
+                    remaining -= len;
                 }
-                pos = 0;
-                dst.reserve(len);
-                remaining = dst.remaining_mut();
-                unsafe {
-                    buf = &mut *(dst.bytes_mut() as *mut _);
+                map::Value::Multi(ref vec) => {
+                    for val in vec {
+                        let v = val.as_ref();
+                        let len = k.len() + v.len() + 4;
+                        if len > remaining {
+                            unsafe {
+                                dst.advance_mut(pos);
+                            }
+                            pos = 0;
+                            dst.reserve(len);
+                            remaining = dst.remaining_mut();
+                            unsafe {
+                                buf = &mut *(dst.bytes_mut() as *mut _);
+                            }
+                        }
+                        buf[pos..pos + k.len()].copy_from_slice(k);
+                        pos += k.len();
+                        buf[pos..pos + 2].copy_from_slice(b": ");
+                        pos += 2;
+                        buf[pos..pos + v.len()].copy_from_slice(v);
+                        pos += v.len();
+                        buf[pos..pos + 2].copy_from_slice(b"\r\n");
+                        pos += 2;
+                        remaining -= len;
+                    }
                 }
             }
-
-            buf[pos..pos + k.len()].copy_from_slice(k);
-            pos += k.len();
-            buf[pos..pos + 2].copy_from_slice(b": ");
-            pos += 2;
-            buf[pos..pos + v.len()].copy_from_slice(v);
-            pos += v.len();
-            buf[pos..pos + 2].copy_from_slice(b"\r\n");
-            pos += 2;
-            remaining -= len;
         }
         unsafe {
             dst.advance_mut(pos);

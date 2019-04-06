@@ -22,8 +22,8 @@ use crate::response::Response;
 bitflags! {
     struct Flags: u8 {
         const HEAD              = 0b0000_0001;
-        const KEEPALIVE_ENABLED = 0b0000_1000;
-        const STREAM            = 0b0001_0000;
+        const KEEPALIVE_ENABLED = 0b0000_0010;
+        const STREAM            = 0b0000_0100;
     }
 }
 
@@ -39,8 +39,8 @@ pub struct Codec {
 
     // encoder part
     flags: Flags,
-    headers_size: u32,
     encoder: encoder::MessageEncoder<Response<()>>,
+    // headers_size: u32,
 }
 
 impl Default for Codec {
@@ -73,7 +73,7 @@ impl Codec {
             ctype: ConnectionType::Close,
 
             flags,
-            headers_size: 0,
+            // headers_size: 0,
             encoder: encoder::MessageEncoder::default(),
         }
     }
@@ -159,37 +159,33 @@ impl Encoder for Codec {
     ) -> Result<(), Self::Error> {
         match item {
             Message::Item((mut res, length)) => {
-                if res.head().status == StatusCode::CONTINUE {
-                    dst.extend_from_slice(b"HTTP/1.1 100 Continue\r\n\r\n");
-                } else {
-                    // set response version
-                    res.head_mut().version = self.version;
+                // set response version
+                res.head_mut().version = self.version;
 
-                    // connection status
-                    self.ctype = if let Some(ct) = res.head().ctype() {
-                        if ct == ConnectionType::KeepAlive {
-                            self.ctype
-                        } else {
-                            ct
-                        }
-                    } else {
+                // connection status
+                self.ctype = if let Some(ct) = res.head().ctype() {
+                    if ct == ConnectionType::KeepAlive {
                         self.ctype
-                    };
+                    } else {
+                        ct
+                    }
+                } else {
+                    self.ctype
+                };
 
-                    // encode message
-                    let len = dst.len();
-                    self.encoder.encode(
-                        dst,
-                        &mut res,
-                        self.flags.contains(Flags::HEAD),
-                        self.flags.contains(Flags::STREAM),
-                        self.version,
-                        length,
-                        self.ctype,
-                        &self.config,
-                    )?;
-                    self.headers_size = (dst.len() - len) as u32;
-                }
+                // encode message
+                let len = dst.len();
+                self.encoder.encode(
+                    dst,
+                    &mut res,
+                    self.flags.contains(Flags::HEAD),
+                    self.flags.contains(Flags::STREAM),
+                    self.version,
+                    length,
+                    self.ctype,
+                    &self.config,
+                )?;
+                // self.headers_size = (dst.len() - len) as u32;
             }
             Message::Chunk(Some(bytes)) => {
                 self.encoder.encode_chunk(bytes.as_ref(), dst)?;

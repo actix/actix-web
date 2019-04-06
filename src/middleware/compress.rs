@@ -109,7 +109,7 @@ where
 
     fn call(&mut self, req: ServiceRequest<P>) -> Self::Future {
         // negotiate content-encoding
-        let encoding = if let Some(val) = req.headers().get(ACCEPT_ENCODING) {
+        let encoding = if let Some(val) = req.headers().get(&ACCEPT_ENCODING) {
             if let Ok(enc) = val.to_str() {
                 AcceptEncoding::parse(enc, self.encoding)
             } else {

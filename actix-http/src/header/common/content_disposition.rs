@@ -444,7 +444,7 @@ impl Header for ContentDisposition {
     }
 
     fn parse<T: crate::HttpMessage>(msg: &T) -> Result<Self, crate::error::ParseError> {
-        if let Some(h) = msg.headers().get(Self::name()) {
+        if let Some(h) = msg.headers().get(&Self::name()) {
             Self::from_raw(&h)
         } else {
             Err(crate::error::ParseError::Header)

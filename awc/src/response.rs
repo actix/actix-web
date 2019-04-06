@@ -46,7 +46,7 @@ impl<S> HttpMessage for ClientResponse<S> {
 
         if self.extensions().get::<Cookies>().is_none() {
             let mut cookies = Vec::new();
-            for hdr in self.headers().get_all(SET_COOKIE) {
+            for hdr in self.headers().get_all(&SET_COOKIE) {
                 let s = std::str::from_utf8(hdr.as_bytes())
                     .map_err(CookieParseError::from)?;
                 cookies.push(Cookie::parse_encoded(s)?.into_owned());
@@ -160,7 +160,7 @@ where
     /// Create `MessageBody` for request.
     pub fn new(res: &mut ClientResponse<S>) -> MessageBody<S> {
         let mut len = None;
-        if let Some(l) = res.headers().get(CONTENT_LENGTH) {
+        if let Some(l) = res.headers().get(&CONTENT_LENGTH) {
             if let Ok(s) = l.to_str() {
                 if let Ok(l) = s.parse::<usize>() {
                     len = Some(l)
@@ -254,7 +254,7 @@ where
         }
 
         let mut len = None;
-        if let Some(l) = req.headers().get(CONTENT_LENGTH) {
+        if let Some(l) = req.headers().get(&CONTENT_LENGTH) {
             if let Ok(s) = l.to_str() {
                 if let Ok(l) = s.parse::<usize>() {
                     len = Some(l)

@@ -14,6 +14,7 @@ use time;
 
 use crate::dev::{BodySize, MessageBody, ResponseBody};
 use crate::error::{Error, Result};
+use crate::http::{HeaderName, HttpTryFrom};
 use crate::service::{ServiceRequest, ServiceResponse};
 use crate::HttpResponse;
 
@@ -288,8 +289,12 @@ impl Format {
 
             if let Some(key) = cap.get(2) {
                 results.push(match cap.get(3).unwrap().as_str() {
-                    "i" => FormatText::RequestHeader(key.as_str().to_owned()),
-                    "o" => FormatText::ResponseHeader(key.as_str().to_owned()),
+                    "i" => FormatText::RequestHeader(
+                        HeaderName::try_from(key.as_str()).unwrap(),
+                    ),
+                    "o" => FormatText::ResponseHeader(
+                        HeaderName::try_from(key.as_str()).unwrap(),
+                    ),
                     "e" => FormatText::EnvironHeader(key.as_str().to_owned()),
                     _ => unreachable!(),
                 })
@@ -332,8 +337,8 @@ pub enum FormatText {
     TimeMillis,
     RemoteAddr,
     UrlPath,
-    RequestHeader(String),
-    ResponseHeader(String),
+    RequestHeader(HeaderName),
+    ResponseHeader(HeaderName),
     EnvironHeader(String),
 }
 

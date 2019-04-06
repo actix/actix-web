@@ -104,7 +104,7 @@ impl Client {
     {
         let mut req = ClientRequest::new(method, url, self.0.clone());
 
-        for (key, value) in &self.0.headers {
+        for (key, value) in self.0.headers.iter() {
             req = req.set_header_if_none(key.clone(), value.clone());
         }
         req
@@ -119,7 +119,7 @@ impl Client {
         Uri: HttpTryFrom<U>,
     {
         let mut req = self.request(head.method.clone(), url);
-        for (key, value) in &head.headers {
+        for (key, value) in head.headers.iter() {
             req = req.set_header_if_none(key.clone(), value.clone());
         }
         req
@@ -187,7 +187,7 @@ impl Client {
         Uri: HttpTryFrom<U>,
     {
         let mut req = ws::WebsocketsRequest::new(url, self.0.clone());
-        for (key, value) in &self.0.headers {
+        for (key, value) in self.0.headers.iter() {
             req.head.headers.insert(key.clone(), value.clone());
         }
         req

@@ -236,7 +236,7 @@ impl WebsocketsRequest {
         let mut slf = if self.default_headers {
             // set request host header
             if let Some(host) = self.head.uri.host() {
-                if !self.head.headers.contains_key(header::HOST) {
+                if !self.head.headers.contains_key(&header::HOST) {
                     let mut wrt = BytesMut::with_capacity(host.len() + 5).writer();
 
                     let _ = match self.head.uri.port_u16() {
@@ -324,7 +324,7 @@ impl WebsocketsRequest {
                     return Err(WsClientError::InvalidResponseStatus(head.status));
                 }
                 // Check for "UPGRADE" to websocket header
-                let has_hdr = if let Some(hdr) = head.headers.get(header::UPGRADE) {
+                let has_hdr = if let Some(hdr) = head.headers.get(&header::UPGRADE) {
                     if let Ok(s) = hdr.to_str() {
                         s.to_ascii_lowercase().contains("websocket")
                     } else {
@@ -338,7 +338,7 @@ impl WebsocketsRequest {
                     return Err(WsClientError::InvalidUpgradeHeader);
                 }
                 // Check for "CONNECTION" header
-                if let Some(conn) = head.headers.get(header::CONNECTION) {
+                if let Some(conn) = head.headers.get(&header::CONNECTION) {
                     if let Ok(s) = conn.to_str() {
                         if !s.to_ascii_lowercase().contains("upgrade") {
                             log::trace!("Invalid connection header: {}", s);
@@ -355,7 +355,7 @@ impl WebsocketsRequest {
                     return Err(WsClientError::MissingConnectionHeader);
                 }
 
-                if let Some(hdr_key) = head.headers.get(header::SEC_WEBSOCKET_ACCEPT) {
+                if let Some(hdr_key) = head.headers.get(&header::SEC_WEBSOCKET_ACCEPT) {
                     let encoded = ws::hash_key(key.as_ref());
                     if hdr_key.as_bytes() != encoded.as_bytes() {
                         log::trace!(

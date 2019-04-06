@@ -31,7 +31,7 @@ impl<B: MessageBody> Encoder<B> {
         head: &mut ResponseHead,
         body: ResponseBody<B>,
     ) -> ResponseBody<Encoder<B>> {
-        let can_encode = !(head.headers().contains_key(CONTENT_ENCODING)
+        let can_encode = !(head.headers().contains_key(&CONTENT_ENCODING)
             || head.status == StatusCode::SWITCHING_PROTOCOLS
             || encoding == ContentEncoding::Identity
             || encoding == ContentEncoding::Auto);

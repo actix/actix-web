@@ -1,9 +1,10 @@
 use std::cell::{Ref, RefMut};
 use std::fmt;
 
-use http::{header, HeaderMap, Method, Uri, Version};
+use http::{header, Method, Uri, Version};
 
 use crate::extensions::Extensions;
+use crate::header::HeaderMap;
 use crate::httpmessage::HttpMessage;
 use crate::message::{Message, RequestHead};
 use crate::payload::{Payload, PayloadStream};
@@ -161,7 +162,7 @@ impl<P> fmt::Debug for Request<P> {
             writeln!(f, "  query: ?{:?}", q)?;
         }
         writeln!(f, "  headers:")?;
-        for (key, val) in self.headers().iter() {
+        for (key, val) in self.headers() {
             writeln!(f, "    {:?}: {:?}", key, val)?;
         }
         Ok(())

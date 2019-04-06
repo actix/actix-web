@@ -584,7 +584,7 @@ struct Inner {
 
 impl Inner {
     fn validate_origin(&self, req: &RequestHead) -> Result<(), CorsError> {
-        if let Some(hdr) = req.headers().get(header::ORIGIN) {
+        if let Some(hdr) = req.headers().get(&header::ORIGIN) {
             if let Ok(origin) = hdr.to_str() {
                 return match self.origins {
                     AllOrSome::All => Ok(()),
@@ -608,7 +608,7 @@ impl Inner {
             AllOrSome::All => {
                 if self.send_wildcard {
                     Some(HeaderValue::from_static("*"))
-                } else if let Some(origin) = req.headers().get(header::ORIGIN) {
+                } else if let Some(origin) = req.headers().get(&header::ORIGIN) {
                     Some(origin.clone())
                 } else {
                     None
@@ -617,7 +617,7 @@ impl Inner {
             AllOrSome::Some(ref origins) => {
                 if let Some(origin) =
                     req.headers()
-                        .get(header::ORIGIN)
+                        .get(&header::ORIGIN)
                         .filter(|o| match o.to_str() {
                             Ok(os) => origins.contains(os),
                             _ => false,
@@ -632,7 +632,7 @@ impl Inner {
     }
 
     fn validate_allowed_method(&self, req: &RequestHead) -> Result<(), CorsError> {
-        if let Some(hdr) = req.headers().get(header::ACCESS_CONTROL_REQUEST_METHOD) {
+        if let Some(hdr) = req.headers().get(&header::ACCESS_CONTROL_REQUEST_METHOD) {
             if let Ok(meth) = hdr.to_str() {
                 if let Ok(method) = Method::try_from(meth) {
                     return self
@@ -653,7 +653,7 @@ impl Inner {
             AllOrSome::All => Ok(()),
             AllOrSome::Some(ref allowed_headers) => {
                 if let Some(hdr) =
-                    req.headers().get(header::ACCESS_CONTROL_REQUEST_HEADERS)
+                    req.headers().get(&header::ACCESS_CONTROL_REQUEST_HEADERS)
                 {
                     if let Ok(headers) = hdr.to_str() {
                         let mut hdrs = HashSet::new();
@@ -720,7 +720,7 @@ where
                     .unwrap(),
                 )
             } else if let Some(hdr) =
-                req.headers().get(header::ACCESS_CONTROL_REQUEST_HEADERS)
+                req.headers().get(&header::ACCESS_CONTROL_REQUEST_HEADERS)
             {
                 Some(hdr.clone())
             } else {
@@ -759,7 +759,7 @@ where
                 .into_body();
 
             Either::A(ok(req.into_response(res)))
-        } else if req.headers().contains_key(header::ORIGIN) {
+        } else if req.headers().contains_key(&header::ORIGIN) {
             // Only check requests with a origin header.
             if let Err(e) = self.inner.validate_origin(req.head()) {
                 return Either::A(ok(req.error_response(e)));
@@ -790,7 +790,7 @@ where
                     }
                     if inner.vary_header {
                         let value =
-                            if let Some(hdr) = res.headers_mut().get(header::VARY) {
+                            if let Some(hdr) = res.headers_mut().get(&header::VARY) {
                                 let mut val: Vec<u8> =
                                     Vec::with_capacity(hdr.as_bytes().len() + 8);
                                 val.extend(hdr.as_bytes());
@@ -893,20 +893,20 @@ mod tests {
         assert_eq!(
             &b"*"[..],
             resp.headers()
-                .get(header::ACCESS_CONTROL_ALLOW_ORIGIN)
+                .get(&header::ACCESS_CONTROL_ALLOW_ORIGIN)
                 .unwrap()
                 .as_bytes()
         );
         assert_eq!(
             &b"3600"[..],
             resp.headers()
-                .get(header::ACCESS_CONTROL_MAX_AGE)
+                .get(&header::ACCESS_CONTROL_MAX_AGE)
                 .unwrap()
                 .as_bytes()
         );
         let hdr = resp
             .headers()
-            .get(header::ACCESS_CONTROL_ALLOW_HEADERS)
+            .get(&header::ACCESS_CONTROL_ALLOW_HEADERS)
             .unwrap()
             .to_str()
             .unwrap();
