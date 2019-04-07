@@ -153,7 +153,7 @@ impl MessageBody for Body {
                 if len == 0 {
                     Ok(Async::Ready(None))
                 } else {
-                    Ok(Async::Ready(Some(bin.split_to(len))))
+                    Ok(Async::Ready(Some(mem::replace(bin, Bytes::new()))))
                 }
             }
             Body::Message(ref mut body) => body.poll_next(),

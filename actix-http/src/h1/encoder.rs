@@ -9,8 +9,7 @@ use bytes::{BufMut, Bytes, BytesMut};
 
 use crate::body::BodySize;
 use crate::config::ServiceConfig;
-use crate::header::map;
-use crate::header::ContentEncoding;
+use crate::header::{map, ContentEncoding};
 use crate::helpers;
 use crate::http::header::{
     HeaderValue, ACCEPT_ENCODING, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING,
@@ -75,32 +74,31 @@ pub(crate) trait MessageType: Sized {
         match length {
             BodySize::Stream => {
                 if chunked {
-                    dst.extend_from_slice(b"\r\ntransfer-encoding: chunked\r\n")
+                    dst.put_slice(b"\r\ntransfer-encoding: chunked\r\n")
                 } else {
                     skip_len = false;
-                    dst.extend_from_slice(b"\r\n");
+                    dst.put_slice(b"\r\n");
                 }
             }
             BodySize::Empty => {
-                dst.extend_from_slice(b"\r\ncontent-length: 0\r\n");
+                dst.put_slice(b"\r\ncontent-length: 0\r\n");
             }
             BodySize::Sized(len) => helpers::write_content_length(len, dst),
             BodySize::Sized64(len) => {
-                dst.extend_from_slice(b"\r\ncontent-length: ");
-                write!(dst.writer(), "{}", len)?;
-                dst.extend_from_slice(b"\r\n");
+                dst.put_slice(b"\r\ncontent-length: ");
+                write!(dst.writer(), "{}\r\n", len)?;
             }
-            BodySize::None => dst.extend_from_slice(b"\r\n"),
+            BodySize::None => dst.put_slice(b"\r\n"),
         }
 
         // Connection
         match ctype {
-            ConnectionType::Upgrade => dst.extend_from_slice(b"connection: upgrade\r\n"),
+            ConnectionType::Upgrade => dst.put_slice(b"connection: upgrade\r\n"),
             ConnectionType::KeepAlive if version < Version::HTTP_11 => {
-                dst.extend_from_slice(b"connection: keep-alive\r\n")
+                dst.put_slice(b"connection: keep-alive\r\n")
             }
             ConnectionType::Close if version >= Version::HTTP_11 => {
-                dst.extend_from_slice(b"connection: close\r\n")
+                dst.put_slice(b"connection: close\r\n")
             }
             _ => (),
         }
@@ -129,7 +127,7 @@ pub(crate) trait MessageType: Sized {
                             dst.advance_mut(pos);
                         }
                         pos = 0;
-                        dst.reserve(len);
+                        dst.reserve(len * 2);
                         remaining = dst.remaining_mut();
                         unsafe {
                             buf = &mut *(dst.bytes_mut() as *mut _);
@@ -154,7 +152,7 @@ pub(crate) trait MessageType: Sized {
                                 dst.advance_mut(pos);
                             }
                             pos = 0;
-                            dst.reserve(len);
+                            dst.reserve(len * 2);
                             remaining = dst.remaining_mut();
                             unsafe {
                                 buf = &mut *(dst.bytes_mut() as *mut _);
@@ -209,7 +207,7 @@ impl MessageType for Response<()> {
 
         // status line
         helpers::write_status_line(head.version, head.status.as_u16(), dst);
-        dst.extend_from_slice(reason);
+        dst.put_slice(reason);
         Ok(())
     }
 }
@@ -228,6 +226,7 @@ impl MessageType for RequestHead {
     }
 
     fn encode_status(&mut self, dst: &mut BytesMut) -> io::Result<()> {
+        dst.reserve(256 + self.headers.len() * AVERAGE_HEADER_SIZE);
         write!(
             Writer(dst),
             "{} {} {}",
