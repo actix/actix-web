@@ -3,6 +3,7 @@ use std::collections::VecDeque;
 use std::rc::Rc;
 
 use bitflags::bitflags;
+use copyless::BoxHelper;
 
 use crate::extensions::Extensions;
 use crate::header::HeaderMap;
@@ -417,7 +418,7 @@ impl BoxedResponsePool {
             BoxedResponseHead { head: Some(head) }
         } else {
             BoxedResponseHead {
-                head: Some(Box::new(ResponseHead::default())),
+                head: Some(Box::alloc().init(ResponseHead::default())),
             }
         }
     }

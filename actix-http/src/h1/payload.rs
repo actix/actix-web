@@ -77,14 +77,6 @@ impl Payload {
     pub fn unread_data(&mut self, data: Bytes) {
         self.inner.borrow_mut().unread_data(data);
     }
-
-    #[inline]
-    /// Set read buffer capacity
-    ///
-    /// Default buffer capacity is 32Kb.
-    pub fn set_read_buffer_capacity(&mut self, cap: usize) {
-        self.inner.borrow_mut().capacity = cap;
-    }
 }
 
 impl Stream for Payload {
@@ -153,7 +145,6 @@ struct Inner {
     err: Option<PayloadError>,
     need_read: bool,
     items: VecDeque<Bytes>,
-    capacity: usize,
     task: Option<Task>,
     io_task: Option<Task>,
 }
@@ -166,7 +157,6 @@ impl Inner {
             err: None,
             items: VecDeque::new(),
             need_read: true,
-            capacity: MAX_BUFFER_SIZE,
             task: None,
             io_task: None,
         }
@@ -186,7 +176,7 @@ impl Inner {
     fn feed_data(&mut self, data: Bytes) {
         self.len += data.len();
         self.items.push_back(data);
-        self.need_read = self.len < self.capacity;
+        self.need_read = self.len < MAX_BUFFER_SIZE;
         if let Some(task) = self.task.take() {
             task.notify()
         }
@@ -200,7 +190,7 @@ impl Inner {
     fn readany(&mut self) -> Poll<Option<Bytes>, PayloadError> {
         if let Some(data) = self.items.pop_front() {
             self.len -= data.len();
-            self.need_read = self.len < self.capacity;
+            self.need_read = self.len < MAX_BUFFER_SIZE;
 
             if self.need_read && self.task.is_none() && !self.eof {
                 self.task = Some(current_task());
