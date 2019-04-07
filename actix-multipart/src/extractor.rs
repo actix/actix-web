@@ -2,10 +2,8 @@
 use bytes::Bytes;
 use futures::Stream;
 
-use actix_web::dev::ServiceFromRequest;
 use actix_web::error::{Error, PayloadError};
-use actix_web::FromRequest;
-use actix_web::HttpMessage;
+use actix_web::{dev::Payload, FromRequest, HttpRequest};
 
 use crate::server::Multipart;
 
@@ -50,8 +48,7 @@ where
     type Future = Result<Multipart, Error>;
 
     #[inline]
-    fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
-        let pl = req.take_payload();
-        Ok(Multipart::new(req.headers(), pl))
+    fn from_request(req: &HttpRequest, payload: &mut Payload<P>) -> Self::Future {
+        Ok(Multipart::new(req.headers(), payload.take()))
     }
 }

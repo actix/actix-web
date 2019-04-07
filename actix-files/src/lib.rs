@@ -10,8 +10,8 @@ use std::{cmp, io};
 use actix_service::boxed::{self, BoxedNewService, BoxedService};
 use actix_service::{IntoNewService, NewService, Service};
 use actix_web::dev::{
-    HttpServiceFactory, Payload, ResourceDef, ServiceConfig, ServiceFromRequest,
-    ServiceRequest, ServiceResponse,
+    HttpServiceFactory, Payload, ResourceDef, ServiceConfig, ServiceRequest,
+    ServiceResponse,
 };
 use actix_web::error::{BlockingError, Error, ErrorInternalServerError};
 use actix_web::http::header::DispositionType;
@@ -551,8 +551,8 @@ impl<P> FromRequest<P> for PathBufWrp {
     type Error = UriSegmentError;
     type Future = Result<Self, Self::Error>;
 
-    fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
-        PathBufWrp::get_pathbuf(req.request().match_info().path())
+    fn from_request(req: &HttpRequest, _: &mut Payload<P>) -> Self::Future {
+        PathBufWrp::get_pathbuf(req.match_info().path())
     }
 }
 

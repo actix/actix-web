@@ -6,8 +6,9 @@ use actix_http::error::Error;
 use serde::de;
 use serde_urlencoded;
 
+use crate::dev::Payload;
 use crate::extract::FromRequest;
-use crate::service::ServiceFromRequest;
+use crate::request::HttpRequest;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
 /// Extract typed information from from the request's query.
@@ -118,8 +119,8 @@ where
     type Future = Result<Self, Error>;
 
     #[inline]
-    fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
-        serde_urlencoded::from_str::<T>(req.request().query_string())
+    fn from_request(req: &HttpRequest, _: &mut Payload<P>) -> Self::Future {
+        serde_urlencoded::from_str::<T>(req.query_string())
             .map(|val| Ok(Query(val)))
             .unwrap_or_else(|e| Err(e.into()))
     }

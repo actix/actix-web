@@ -14,6 +14,8 @@
 
 ### Changed
 
+* `FromRequest` trait refactoring
+
 * Move multipart support to actix-multipart crate
 
 

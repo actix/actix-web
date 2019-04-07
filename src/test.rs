@@ -16,9 +16,9 @@ use futures::future::{lazy, Future};
 
 use crate::config::{AppConfig, AppConfigInner};
 use crate::data::RouteData;
-use crate::dev::Body;
+use crate::dev::{Body, Payload};
 use crate::rmap::ResourceMap;
-use crate::service::{ServiceFromRequest, ServiceRequest, ServiceResponse};
+use crate::service::{ServiceRequest, ServiceResponse};
 use crate::{Error, HttpRequest, HttpResponse};
 
 thread_local! {
@@ -319,6 +319,11 @@ impl TestRequest {
         self
     }
 
+    /// Complete request creation and generate `Request` instance
+    pub fn to_request(mut self) -> Request<PayloadStream> {
+        self.req.finish()
+    }
+
     /// Complete request creation and generate `ServiceRequest` instance
     pub fn to_srv_request(mut self) -> ServiceRequest<PayloadStream> {
         let req = self.req.finish();
@@ -336,36 +341,36 @@ impl TestRequest {
         self.to_srv_request().into_response(res)
     }
 
-    /// Complete request creation and generate `Request` instance
-    pub fn to_request(mut self) -> Request<PayloadStream> {
-        self.req.finish()
-    }
-
     /// Complete request creation and generate `HttpRequest` instance
     pub fn to_http_request(mut self) -> HttpRequest {
         let req = self.req.finish();
 
-        ServiceRequest::new(
+        let mut req = ServiceRequest::new(
             Path::new(Url::new(req.uri().clone())),
             req,
             Rc::new(self.rmap),
             AppConfig::new(self.config),
         )
         .into_parts()
-        .0
+        .0;
+        req.set_route_data(Some(Rc::new(self.route_data)));
+        req
     }
 
-    /// Complete request creation and generate `ServiceFromRequest` instance
-    pub fn to_from(mut self) -> ServiceFromRequest<PayloadStream> {
+    /// Complete request creation and generate `HttpRequest` and `Payload` instances
+    pub fn to_http_parts(mut self) -> (HttpRequest, Payload) {
         let req = self.req.finish();
 
-        let req = ServiceRequest::new(
+        let (mut req, pl) = ServiceRequest::new(
             Path::new(Url::new(req.uri().clone())),
             req,
             Rc::new(self.rmap),
             AppConfig::new(self.config),
-        );
-        ServiceFromRequest::new(req, Some(Rc::new(self.route_data)))
+        )
+        .into_parts();
+
+        req.set_route_data(Some(Rc::new(self.route_data)));
+        (req, pl)
     }
 
     /// Runs the provided future, blocking the current thread until the future

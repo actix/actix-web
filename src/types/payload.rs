@@ -10,9 +10,10 @@ use futures::future::{err, Either, FutureResult};
 use futures::{Future, Poll, Stream};
 use mime::Mime;
 
+use crate::dev;
 use crate::extract::FromRequest;
 use crate::http::header;
-use crate::service::ServiceFromRequest;
+use crate::request::HttpRequest;
 
 /// Payload extractor returns request 's payload stream.
 ///
@@ -92,8 +93,8 @@ where
     type Future = Result<Payload, Error>;
 
     #[inline]
-    fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
-        let pl = match req.take_payload() {
+    fn from_request(_: &HttpRequest, payload: &mut dev::Payload<P>) -> Self::Future {
+        let pl = match payload.take() {
             crate::dev::Payload::Stream(s) => {
                 let pl: Box<dyn Stream<Item = Bytes, Error = PayloadError>> =
                     Box::new(s);
@@ -141,7 +142,7 @@ where
         Either<Box<Future<Item = Bytes, Error = Error>>, FutureResult<Bytes, Error>>;
 
     #[inline]
-    fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
+    fn from_request(req: &HttpRequest, payload: &mut dev::Payload<P>) -> Self::Future {
         let mut tmp;
         let cfg = if let Some(cfg) = req.route_data::<PayloadConfig>() {
             cfg
@@ -155,7 +156,9 @@ where
         }
 
         let limit = cfg.limit;
-        Either::A(Box::new(HttpMessageBody::new(req).limit(limit).from_err()))
+        Either::A(Box::new(
+            HttpMessageBody::new(req, payload).limit(limit).from_err(),
+        ))
     }
 }
 
@@ -194,7 +197,7 @@ where
         Either<Box<Future<Item = String, Error = Error>>, FutureResult<String, Error>>;
 
     #[inline]
-    fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
+    fn from_request(req: &HttpRequest, payload: &mut dev::Payload<P>) -> Self::Future {
         let mut tmp;
         let cfg = if let Some(cfg) = req.route_data::<PayloadConfig>() {
             cfg
@@ -216,7 +219,7 @@ where
         let limit = cfg.limit;
 
         Either::A(Box::new(
-            HttpMessageBody::new(req)
+            HttpMessageBody::new(req, payload)
                 .limit(limit)
                 .from_err()
                 .and_then(move |body| {
@@ -260,7 +263,7 @@ impl PayloadConfig {
         self
     }
 
-    fn check_mimetype<P>(&self, req: &ServiceFromRequest<P>) -> Result<(), Error> {
+    fn check_mimetype(&self, req: &HttpRequest) -> Result<(), Error> {
         // check content-type
         if let Some(ref mt) = self.mimetype {
             match req.mime_type() {
@@ -297,21 +300,20 @@ impl Default for PayloadConfig {
 /// By default only 256Kb payload reads to a memory, then
 /// `PayloadError::Overflow` get returned. Use `MessageBody::limit()`
 /// method to change upper limit.
-pub struct HttpMessageBody<T: HttpMessage> {
+pub struct HttpMessageBody<P> {
     limit: usize,
     length: Option<usize>,
-    stream: actix_http::Payload<T::Stream>,
+    stream: dev::Payload<P>,
     err: Option<PayloadError>,
     fut: Option<Box<Future<Item = Bytes, Error = PayloadError>>>,
 }
 
-impl<T> HttpMessageBody<T>
+impl<P> HttpMessageBody<P>
 where
-    T: HttpMessage,
-    T::Stream: Stream<Item = Bytes, Error = PayloadError>,
+    P: Stream<Item = Bytes, Error = PayloadError>,
 {
     /// Create `MessageBody` for request.
-    pub fn new(req: &mut T) -> HttpMessageBody<T> {
+    pub fn new(req: &HttpRequest, payload: &mut dev::Payload<P>) -> HttpMessageBody<P> {
         let mut len = None;
         if let Some(l) = req.headers().get(&header::CONTENT_LENGTH) {
             if let Ok(s) = l.to_str() {
@@ -326,7 +328,7 @@ where
         }
 
         HttpMessageBody {
-            stream: req.take_payload(),
+            stream: payload.take(),
             limit: 262_144,
             length: len,
             fut: None,
@@ -342,7 +344,7 @@ where
 
     fn err(e: PayloadError) -> Self {
         HttpMessageBody {
-            stream: actix_http::Payload::None,
+            stream: dev::Payload::None,
             limit: 262_144,
             fut: None,
             err: Some(e),
@@ -351,10 +353,9 @@ where
     }
 }
 
-impl<T> Future for HttpMessageBody<T>
+impl<P> Future for HttpMessageBody<P>
 where
-    T: HttpMessage,
-    T::Stream: Stream<Item = Bytes, Error = PayloadError> + 'static,
+    P: Stream<Item = Bytes, Error = PayloadError> + 'static,
 {
     type Item = Bytes;
     type Error = PayloadError;
@@ -403,7 +404,7 @@ mod tests {
 
     #[test]
     fn test_payload_config() {
-        let req = TestRequest::default().to_from();
+        let req = TestRequest::default().to_http_request();
         let cfg = PayloadConfig::default().mimetype(mime::APPLICATION_JSON);
         assert!(cfg.check_mimetype(&req).is_err());
 
@@ -411,62 +412,64 @@ mod tests {
             header::CONTENT_TYPE,
             "application/x-www-form-urlencoded",
         )
-        .to_from();
+        .to_http_request();
         assert!(cfg.check_mimetype(&req).is_err());
 
-        let req =
-            TestRequest::with_header(header::CONTENT_TYPE, "application/json").to_from();
+        let req = TestRequest::with_header(header::CONTENT_TYPE, "application/json")
+            .to_http_request();
         assert!(cfg.check_mimetype(&req).is_ok());
     }
 
     #[test]
     fn test_bytes() {
-        let mut req = TestRequest::with_header(header::CONTENT_LENGTH, "11")
+        let (req, mut pl) = TestRequest::with_header(header::CONTENT_LENGTH, "11")
             .set_payload(Bytes::from_static(b"hello=world"))
-            .to_from();
+            .to_http_parts();
 
-        let s = block_on(Bytes::from_request(&mut req)).unwrap();
+        let s = block_on(Bytes::from_request(&req, &mut pl)).unwrap();
         assert_eq!(s, Bytes::from_static(b"hello=world"));
     }
 
     #[test]
     fn test_string() {
-        let mut req = TestRequest::with_header(header::CONTENT_LENGTH, "11")
+        let (req, mut pl) = TestRequest::with_header(header::CONTENT_LENGTH, "11")
             .set_payload(Bytes::from_static(b"hello=world"))
-            .to_from();
+            .to_http_parts();
 
-        let s = block_on(String::from_request(&mut req)).unwrap();
+        let s = block_on(String::from_request(&req, &mut pl)).unwrap();
         assert_eq!(s, "hello=world");
     }
 
     #[test]
     fn test_message_body() {
-        let mut req =
-            TestRequest::with_header(header::CONTENT_LENGTH, "xxxx").to_request();
-        let res = block_on(HttpMessageBody::new(&mut req));
+        let (req, mut pl) = TestRequest::with_header(header::CONTENT_LENGTH, "xxxx")
+            .to_srv_request()
+            .into_parts();
+        let res = block_on(HttpMessageBody::new(&req, &mut pl));
         match res.err().unwrap() {
             PayloadError::UnknownLength => (),
             _ => unreachable!("error"),
         }
 
-        let mut req =
-            TestRequest::with_header(header::CONTENT_LENGTH, "1000000").to_request();
-        let res = block_on(HttpMessageBody::new(&mut req));
+        let (req, mut pl) = TestRequest::with_header(header::CONTENT_LENGTH, "1000000")
+            .to_srv_request()
+            .into_parts();
+        let res = block_on(HttpMessageBody::new(&req, &mut pl));
         match res.err().unwrap() {
             PayloadError::Overflow => (),
             _ => unreachable!("error"),
         }
 
-        let mut req = TestRequest::default()
+        let (req, mut pl) = TestRequest::default()
             .set_payload(Bytes::from_static(b"test"))
-            .to_request();
-        let res = block_on(HttpMessageBody::new(&mut req));
+            .to_http_parts();
+        let res = block_on(HttpMessageBody::new(&req, &mut pl));
         assert_eq!(res.ok().unwrap(), Bytes::from_static(b"test"));
 
-        let mut req = TestRequest::default()
+        let (req, mut pl) = TestRequest::default()
             .set_payload(Bytes::from_static(b"11111111111111"))
-            .to_request();
-        let res = block_on(HttpMessageBody::new(&mut req).limit(5));
+            .to_http_parts();
+        let res = block_on(HttpMessageBody::new(&req, &mut pl).limit(5));
         match res.err().unwrap() {
             PayloadError::Overflow => (),
             _ => unreachable!("error"),

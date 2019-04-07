@@ -13,7 +13,7 @@ use actix_router::{Path, Resource, Url};
 use futures::future::{ok, FutureResult, IntoFuture};
 
 use crate::config::{AppConfig, ServiceConfig};
-use crate::data::{Data, RouteData};
+use crate::data::Data;
 use crate::request::HttpRequest;
 use crate::rmap::ResourceMap;
 
@@ -171,13 +171,13 @@ impl<P> ServiceRequest<P> {
     /// Service configuration
     #[inline]
     pub fn app_config(&self) -> &AppConfig {
-        self.req.config()
+        self.req.app_config()
     }
 
     /// Get an application data stored with `App::data()` method during
     /// application configuration.
     pub fn app_data<T: 'static>(&self) -> Option<Data<T>> {
-        if let Some(st) = self.req.config().extensions().get::<Data<T>>() {
+        if let Some(st) = self.req.app_config().extensions().get::<Data<T>>() {
             Some(st.clone())
         } else {
             None
@@ -238,92 +238,6 @@ impl<P> fmt::Debug for ServiceRequest<P> {
             writeln!(f, "    {:?}: {:?}", key, val)?;
         }
         Ok(())
-    }
-}
-
-pub struct ServiceFromRequest<P> {
-    req: HttpRequest,
-    payload: Payload<P>,
-    data: Option<Rc<Extensions>>,
-}
-
-impl<P> ServiceFromRequest<P> {
-    pub(crate) fn new(req: ServiceRequest<P>, data: Option<Rc<Extensions>>) -> Self {
-        Self {
-            req: req.req,
-            payload: req.payload,
-            data,
-        }
-    }
-
-    #[inline]
-    /// Get reference to inner HttpRequest
-    pub fn request(&self) -> &HttpRequest {
-        &self.req
-    }
-
-    #[inline]
-    /// Convert this request into a HttpRequest
-    pub fn into_request(self) -> HttpRequest {
-        self.req
-    }
-
-    #[inline]
-    /// Get match information for this request
-    pub fn match_info_mut(&mut self) -> &mut Path<Url> {
-        &mut self.req.path
-    }
-
-    /// Create service response for error
-    #[inline]
-    pub fn error_response<E: Into<Error>>(self, err: E) -> ServiceResponse {
-        ServiceResponse::new(self.req, err.into().into())
-    }
-
-    /// Get an application data stored with `App::data()` method during
-    /// application configuration.
-    pub fn app_data<T: 'static>(&self) -> Option<Data<T>> {
-        if let Some(st) = self.req.config().extensions().get::<Data<T>>() {
-            Some(st.clone())
-        } else {
-            None
-        }
-    }
-
-    /// Load route data. Route data could be set during
-    /// route configuration with `Route::data()` method.
-    pub fn route_data<T: 'static>(&self) -> Option<&RouteData<T>> {
-        if let Some(ref ext) = self.data {
-            ext.get::<RouteData<T>>()
-        } else {
-            None
-        }
-    }
-}
-
-impl<P> HttpMessage for ServiceFromRequest<P> {
-    type Stream = P;
-
-    #[inline]
-    fn headers(&self) -> &HeaderMap {
-        self.req.headers()
-    }
-
-    /// Request extensions
-    #[inline]
-    fn extensions(&self) -> Ref<Extensions> {
-        self.req.head.extensions()
-    }
-
-    /// Mutable reference to a the request's extensions
-    #[inline]
-    fn extensions_mut(&self) -> RefMut<Extensions> {
-        self.req.head.extensions_mut()
-    }
-
-    #[inline]
-    fn take_payload(&mut self) -> Payload<Self::Stream> {
-        std::mem::replace(&mut self.payload, Payload::None)
     }
 }
 

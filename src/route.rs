@@ -11,7 +11,7 @@ use crate::extract::FromRequest;
 use crate::guard::{self, Guard};
 use crate::handler::{AsyncFactory, AsyncHandler, Extract, Factory, Handler};
 use crate::responder::Responder;
-use crate::service::{ServiceFromRequest, ServiceRequest, ServiceResponse};
+use crate::service::{ServiceRequest, ServiceResponse};
 use crate::HttpResponse;
 
 type BoxedRouteService<Req, Res> = Box<
@@ -317,7 +317,7 @@ impl<P: 'static> Route<P> {
 
 struct RouteNewService<P, T>
 where
-    T: NewService<Request = ServiceRequest<P>, Error = (Error, ServiceFromRequest<P>)>,
+    T: NewService<Request = ServiceRequest<P>, Error = (Error, ServiceRequest<P>)>,
 {
     service: T,
     _t: PhantomData<P>,
@@ -328,7 +328,7 @@ where
     T: NewService<
         Request = ServiceRequest<P>,
         Response = ServiceResponse,
-        Error = (Error, ServiceFromRequest<P>),
+        Error = (Error, ServiceRequest<P>),
     >,
     T::Future: 'static,
     T::Service: 'static,
@@ -347,7 +347,7 @@ where
     T: NewService<
         Request = ServiceRequest<P>,
         Response = ServiceResponse,
-        Error = (Error, ServiceFromRequest<P>),
+        Error = (Error, ServiceRequest<P>),
     >,
     T::Future: 'static,
     T::Service: 'static,
@@ -388,7 +388,7 @@ where
     T: Service<
         Request = ServiceRequest<P>,
         Response = ServiceResponse,
-        Error = (Error, ServiceFromRequest<P>),
+        Error = (Error, ServiceRequest<P>),
     >,
 {
     type Request = ServiceRequest<P>;

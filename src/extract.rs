@@ -4,7 +4,8 @@ use actix_http::error::Error;
 use futures::future::ok;
 use futures::{future, Async, Future, IntoFuture, Poll};
 
-use crate::service::ServiceFromRequest;
+use crate::dev::Payload;
+use crate::request::HttpRequest;
 
 /// Trait implemented by types that can be extracted from request.
 ///
@@ -17,7 +18,14 @@ pub trait FromRequest<P>: Sized {
     type Future: IntoFuture<Item = Self, Error = Self::Error>;
 
     /// Convert request to a Self
-    fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future;
+    fn from_request(req: &HttpRequest, payload: &mut Payload<P>) -> Self::Future;
+
+    /// Convert request to a Self
+    ///
+    /// This method uses `Payload::None` as payload stream.
+    fn extract(req: &HttpRequest) -> Self::Future {
+        Self::from_request(req, &mut Payload::None)
+    }
 }
 
 /// Optionally extract a field from the request
@@ -28,7 +36,7 @@ pub trait FromRequest<P>: Sized {
 ///
 /// ```rust
 /// # #[macro_use] extern crate serde_derive;
-/// use actix_web::{web, dev, App, Error, FromRequest};
+/// use actix_web::{web, dev, App, Error, HttpRequest, FromRequest};
 /// use actix_web::error::ErrorBadRequest;
 /// use rand;
 ///
@@ -41,7 +49,7 @@ pub trait FromRequest<P>: Sized {
 ///     type Error = Error;
 ///     type Future = Result<Self, Self::Error>;
 ///
-///     fn from_request(req: &mut dev::ServiceFromRequest<P>) -> Self::Future {
+///     fn from_request(req: &HttpRequest, payload: &mut dev::Payload<P>) -> Self::Future {
 ///         if rand::random() {
 ///             Ok(Thing { name: "thingy".into() })
 ///         } else {
@@ -76,14 +84,18 @@ where
     type Future = Box<Future<Item = Option<T>, Error = Error>>;
 
     #[inline]
-    fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
-        Box::new(T::from_request(req).into_future().then(|r| match r {
-            Ok(v) => future::ok(Some(v)),
-            Err(e) => {
-                log::debug!("Error for Option<T> extractor: {}", e.into());
-                future::ok(None)
-            }
-        }))
+    fn from_request(req: &HttpRequest, payload: &mut Payload<P>) -> Self::Future {
+        Box::new(
+            T::from_request(req, payload)
+                .into_future()
+                .then(|r| match r {
+                    Ok(v) => future::ok(Some(v)),
+                    Err(e) => {
+                        log::debug!("Error for Option<T> extractor: {}", e.into());
+                        future::ok(None)
+                    }
+                }),
+        )
     }
 }
 
@@ -95,7 +107,7 @@ where
 ///
 /// ```rust
 /// # #[macro_use] extern crate serde_derive;
-/// use actix_web::{web, dev, App, Result, Error, FromRequest};
+/// use actix_web::{web, dev, App, Result, Error, HttpRequest, FromRequest};
 /// use actix_web::error::ErrorBadRequest;
 /// use rand;
 ///
@@ -108,7 +120,7 @@ where
 ///     type Error = Error;
 ///     type Future = Result<Thing, Error>;
 ///
-///     fn from_request(req: &mut dev::ServiceFromRequest<P>) -> Self::Future {
+///     fn from_request(req: &HttpRequest, payload: &mut dev::Payload<P>) -> Self::Future {
 ///         if rand::random() {
 ///             Ok(Thing { name: "thingy".into() })
 ///         } else {
@@ -141,11 +153,15 @@ where
     type Future = Box<Future<Item = Result<T, T::Error>, Error = Error>>;
 
     #[inline]
-    fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
-        Box::new(T::from_request(req).into_future().then(|res| match res {
-            Ok(v) => ok(Ok(v)),
-            Err(e) => ok(Err(e)),
-        }))
+    fn from_request(req: &HttpRequest, payload: &mut Payload<P>) -> Self::Future {
+        Box::new(
+            T::from_request(req, payload)
+                .into_future()
+                .then(|res| match res {
+                    Ok(v) => ok(Ok(v)),
+                    Err(e) => ok(Err(e)),
+                }),
+        )
     }
 }
 
@@ -154,7 +170,7 @@ impl<P> FromRequest<P> for () {
     type Error = Error;
     type Future = Result<(), Error>;
 
-    fn from_request(_req: &mut ServiceFromRequest<P>) -> Self::Future {
+    fn from_request(_: &HttpRequest, _: &mut Payload<P>) -> Self::Future {
         Ok(())
     }
 }
@@ -168,10 +184,10 @@ macro_rules! tuple_from_req ({$fut_type:ident, $(($n:tt, $T:ident)),+} => {
         type Error = Error;
         type Future = $fut_type<P, $($T),+>;
 
-        fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
+        fn from_request(req: &HttpRequest, payload: &mut Payload<P>) -> Self::Future {
             $fut_type {
                 items: <($(Option<$T>,)+)>::default(),
-                futs: ($($T::from_request(req).into_future(),)+),
+                futs: ($($T::from_request(req, payload).into_future(),)+),
             }
         }
     }
@@ -247,25 +263,25 @@ mod tests {
 
     #[test]
     fn test_option() {
-        let mut req = TestRequest::with_header(
+        let (req, mut pl) = TestRequest::with_header(
             header::CONTENT_TYPE,
             "application/x-www-form-urlencoded",
         )
         .route_data(FormConfig::default().limit(4096))
-        .to_from();
+        .to_http_parts();
 
-        let r = block_on(Option::<Form<Info>>::from_request(&mut req)).unwrap();
+        let r = block_on(Option::<Form<Info>>::from_request(&req, &mut pl)).unwrap();
         assert_eq!(r, None);
 
-        let mut req = TestRequest::with_header(
+        let (req, mut pl) = TestRequest::with_header(
             header::CONTENT_TYPE,
             "application/x-www-form-urlencoded",
         )
         .header(header::CONTENT_LENGTH, "9")
         .set_payload(Bytes::from_static(b"hello=world"))
-        .to_from();
+        .to_http_parts();
 
-        let r = block_on(Option::<Form<Info>>::from_request(&mut req)).unwrap();
+        let r = block_on(Option::<Form<Info>>::from_request(&req, &mut pl)).unwrap();
         assert_eq!(
             r,
             Some(Form(Info {
@@ -273,29 +289,29 @@ mod tests {
             }))
         );
 
-        let mut req = TestRequest::with_header(
+        let (req, mut pl) = TestRequest::with_header(
             header::CONTENT_TYPE,
             "application/x-www-form-urlencoded",
         )
         .header(header::CONTENT_LENGTH, "9")
         .set_payload(Bytes::from_static(b"bye=world"))
-        .to_from();
+        .to_http_parts();
 
-        let r = block_on(Option::<Form<Info>>::from_request(&mut req)).unwrap();
+        let r = block_on(Option::<Form<Info>>::from_request(&req, &mut pl)).unwrap();
         assert_eq!(r, None);
     }
 
     #[test]
     fn test_result() {
-        let mut req = TestRequest::with_header(
+        let (req, mut pl) = TestRequest::with_header(
             header::CONTENT_TYPE,
             "application/x-www-form-urlencoded",
         )
         .header(header::CONTENT_LENGTH, "11")
         .set_payload(Bytes::from_static(b"hello=world"))
-        .to_from();
+        .to_http_parts();
 
-        let r = block_on(Result::<Form<Info>, Error>::from_request(&mut req))
+        let r = block_on(Result::<Form<Info>, Error>::from_request(&req, &mut pl))
             .unwrap()
             .unwrap();
         assert_eq!(
@@ -305,15 +321,16 @@ mod tests {
             })
         );
 
-        let mut req = TestRequest::with_header(
+        let (req, mut pl) = TestRequest::with_header(
             header::CONTENT_TYPE,
             "application/x-www-form-urlencoded",
         )
         .header(header::CONTENT_LENGTH, "9")
         .set_payload(Bytes::from_static(b"bye=world"))
-        .to_from();
+        .to_http_parts();
 
-        let r = block_on(Result::<Form<Info>, Error>::from_request(&mut req)).unwrap();
+        let r =
+            block_on(Result::<Form<Info>, Error>::from_request(&req, &mut pl)).unwrap();
         assert!(r.is_err());
     }
 
@@ -336,37 +353,38 @@ mod tests {
 
     #[test]
     fn test_request_extract() {
-        let mut req = TestRequest::with_uri("/name/user1/?id=test").to_from();
+        let mut req = TestRequest::with_uri("/name/user1/?id=test").to_srv_request();
 
         let resource = ResourceDef::new("/{key}/{value}/");
         resource.match_path(req.match_info_mut());
 
-        let s = Path::<MyStruct>::from_request(&mut req).unwrap();
+        let (req, mut pl) = req.into_parts();
+        let s = Path::<MyStruct>::from_request(&req, &mut pl).unwrap();
         assert_eq!(s.key, "name");
         assert_eq!(s.value, "user1");
 
-        let s = Path::<(String, String)>::from_request(&mut req).unwrap();
+        let s = Path::<(String, String)>::from_request(&req, &mut pl).unwrap();
         assert_eq!(s.0, "name");
         assert_eq!(s.1, "user1");
 
-        let s = Query::<Id>::from_request(&mut req).unwrap();
+        let s = Query::<Id>::from_request(&req, &mut pl).unwrap();
         assert_eq!(s.id, "test");
 
-        let mut req = TestRequest::with_uri("/name/32/").to_from();
+        let mut req = TestRequest::with_uri("/name/32/").to_srv_request();
         let resource = ResourceDef::new("/{key}/{value}/");
         resource.match_path(req.match_info_mut());
 
-        let s = Path::<Test2>::from_request(&mut req).unwrap();
+        let (req, mut pl) = req.into_parts();
+        let s = Path::<Test2>::from_request(&req, &mut pl).unwrap();
         assert_eq!(s.as_ref().key, "name");
         assert_eq!(s.value, 32);
 
-        let s = Path::<(String, u8)>::from_request(&mut req).unwrap();
+        let s = Path::<(String, u8)>::from_request(&req, &mut pl).unwrap();
         assert_eq!(s.0, "name");
         assert_eq!(s.1, 32);
 
-        let res = Path::<Vec<String>>::from_request(&mut req).unwrap();
+        let res = Path::<Vec<String>>::from_request(&req, &mut pl).unwrap();
         assert_eq!(res[0], "name".to_owned());
         assert_eq!(res[1], "32".to_owned());
     }
-
 }

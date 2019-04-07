@@ -138,9 +138,7 @@ pub mod dev {
     pub use crate::config::{AppConfig, ServiceConfig};
     pub use crate::info::ConnectionInfo;
     pub use crate::rmap::ResourceMap;
-    pub use crate::service::{
-        HttpServiceFactory, ServiceFromRequest, ServiceRequest, ServiceResponse,
-    };
+    pub use crate::service::{HttpServiceFactory, ServiceRequest, ServiceResponse};
     pub use crate::types::form::UrlEncoded;
     pub use crate::types::json::JsonBody;
     pub use crate::types::readlines::Readlines;

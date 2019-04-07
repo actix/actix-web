@@ -6,8 +6,8 @@ use actix_http::error::{Error, ErrorNotFound};
 use actix_router::PathDeserializer;
 use serde::de;
 
+use crate::dev::Payload;
 use crate::request::HttpRequest;
-use crate::service::ServiceFromRequest;
 use crate::FromRequest;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
@@ -65,15 +65,6 @@ impl<T> Path<T> {
     /// Deconstruct to an inner value
     pub fn into_inner(self) -> T {
         self.inner
-    }
-
-    /// Extract path information from a request
-    pub fn extract(req: &HttpRequest) -> Result<Path<T>, de::value::Error>
-    where
-        T: de::DeserializeOwned,
-    {
-        de::Deserialize::deserialize(PathDeserializer::new(req.match_info()))
-            .map(|inner| Path { inner })
     }
 }
 
@@ -169,8 +160,10 @@ where
     type Future = Result<Self, Error>;
 
     #[inline]
-    fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
-        Self::extract(req.request()).map_err(ErrorNotFound)
+    fn from_request(req: &HttpRequest, _: &mut Payload<P>) -> Self::Future {
+        de::Deserialize::deserialize(PathDeserializer::new(req.match_info()))
+            .map(|inner| Path { inner })
+            .map_err(ErrorNotFound)
     }
 }
 
@@ -185,25 +178,30 @@ mod tests {
     fn test_extract_path_single() {
         let resource = ResourceDef::new("/{value}/");
 
-        let mut req = TestRequest::with_uri("/32/").to_from();
+        let mut req = TestRequest::with_uri("/32/").to_srv_request();
         resource.match_path(req.match_info_mut());
 
-        assert_eq!(*Path::<i8>::from_request(&mut req).unwrap(), 32);
+        let (req, mut pl) = req.into_parts();
+        assert_eq!(*Path::<i8>::from_request(&req, &mut pl).unwrap(), 32);
     }
 
     #[test]
     fn test_tuple_extract() {
         let resource = ResourceDef::new("/{key}/{value}/");
 
-        let mut req = TestRequest::with_uri("/name/user1/?id=test").to_from();
+        let mut req = TestRequest::with_uri("/name/user1/?id=test").to_srv_request();
         resource.match_path(req.match_info_mut());
 
-        let res = block_on(<(Path<(String, String)>,)>::from_request(&mut req)).unwrap();
+        let (req, mut pl) = req.into_parts();
+        let res =
+            block_on(<(Path<(String, String)>,)>::from_request(&req, &mut pl)).unwrap();
         assert_eq!((res.0).0, "name");
         assert_eq!((res.0).1, "user1");
 
         let res = block_on(
-            <(Path<(String, String)>, Path<(String, String)>)>::from_request(&mut req),
+            <(Path<(String, String)>, Path<(String, String)>)>::from_request(
+                &req, &mut pl,
+            ),
         )
         .unwrap();
         assert_eq!((res.0).0, "name");
@@ -211,7 +209,7 @@ mod tests {
         assert_eq!((res.1).0, "name");
         assert_eq!((res.1).1, "user1");
 
-        let () = <()>::from_request(&mut req).unwrap();
+        let () = <()>::from_request(&req, &mut pl).unwrap();
     }
 
 }

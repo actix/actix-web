@@ -45,8 +45,8 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use actix_web::dev::{ServiceFromRequest, ServiceRequest, ServiceResponse};
-use actix_web::{Error, FromRequest, HttpMessage};
+use actix_web::dev::{Extensions, Payload, ServiceRequest, ServiceResponse};
+use actix_web::{Error, FromRequest, HttpMessage, HttpRequest};
 use hashbrown::HashMap;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -123,7 +123,7 @@ impl Session {
         data: impl Iterator<Item = (String, String)>,
         req: &mut ServiceRequest<P>,
     ) {
-        let session = Session::get_session(req);
+        let session = Session::get_session(&mut *req.extensions_mut());
         let mut inner = session.0.borrow_mut();
         inner.state.extend(data);
     }
@@ -144,12 +144,12 @@ impl Session {
         }
     }
 
-    fn get_session<R: HttpMessage>(req: R) -> Session {
-        if let Some(s_impl) = req.extensions().get::<Rc<RefCell<SessionInner>>>() {
+    fn get_session(extensions: &mut Extensions) -> Session {
+        if let Some(s_impl) = extensions.get::<Rc<RefCell<SessionInner>>>() {
             return Session(Rc::clone(&s_impl));
         }
         let inner = Rc::new(RefCell::new(SessionInner::default()));
-        req.extensions_mut().insert(inner.clone());
+        extensions.insert(inner.clone());
         Session(inner)
     }
 }
@@ -177,8 +177,8 @@ impl<P> FromRequest<P> for Session {
     type Future = Result<Session, Error>;
 
     #[inline]
-    fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
-        Ok(Session::get_session(req))
+    fn from_request(req: &HttpRequest, _: &mut Payload<P>) -> Self::Future {
+        Ok(Session::get_session(&mut *req.extensions_mut()))
     }
 }
 
@@ -196,7 +196,7 @@ mod tests {
             vec![("key".to_string(), "\"value\"".to_string())].into_iter(),
             &mut req,
         );
-        let session = Session::get_session(&mut req);
+        let session = Session::get_session(&mut *req.extensions_mut());
         let res = session.get::<String>("key").unwrap();
         assert_eq!(res, Some("value".to_string()));
 

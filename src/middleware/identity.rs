@@ -58,10 +58,8 @@ use time::Duration;
 use crate::cookie::{Cookie, CookieJar, Key, SameSite};
 use crate::error::{Error, Result};
 use crate::http::header::{self, HeaderValue};
-use crate::request::HttpRequest;
-use crate::service::{ServiceFromRequest, ServiceRequest, ServiceResponse};
-use crate::FromRequest;
-use crate::HttpMessage;
+use crate::service::{ServiceRequest, ServiceResponse};
+use crate::{dev::Payload, FromRequest, HttpMessage, HttpRequest};
 
 /// The extractor type to obtain your identity from a request.
 ///
@@ -147,8 +145,8 @@ impl<P> FromRequest<P> for Identity {
     type Future = Result<Identity, Error>;
 
     #[inline]
-    fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
-        Ok(Identity(req.request().clone()))
+    fn from_request(req: &HttpRequest, _: &mut Payload<P>) -> Self::Future {
+        Ok(Identity(req.clone()))
     }
 }
 
