@@ -776,7 +776,7 @@ impl PayloadBuffer {
 
 #[cfg(test)]
 mod tests {
-    use actix_http::h1::{Payload, PayloadWriter};
+    use actix_http::h1::Payload;
     use bytes::Bytes;
     use futures::unsync::mpsc;
 

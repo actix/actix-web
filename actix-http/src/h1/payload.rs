@@ -97,58 +97,35 @@ impl Stream for Payload {
     }
 }
 
-impl Clone for Payload {
-    fn clone(&self) -> Payload {
-        Payload {
-            inner: Rc::clone(&self.inner),
-        }
-    }
-}
-
-/// Payload writer interface.
-pub trait PayloadWriter {
-    /// Set stream error.
-    fn set_error(&mut self, err: PayloadError);
-
-    /// Write eof into a stream which closes reading side of a stream.
-    fn feed_eof(&mut self);
-
-    /// Feed bytes into a payload stream
-    fn feed_data(&mut self, data: Bytes);
-
-    /// Need read data
-    fn need_read(&self) -> PayloadStatus;
-}
-
 /// Sender part of the payload stream
 pub struct PayloadSender {
     inner: Weak<RefCell<Inner>>,
 }
 
-impl PayloadWriter for PayloadSender {
+impl PayloadSender {
     #[inline]
-    fn set_error(&mut self, err: PayloadError) {
+    pub fn set_error(&mut self, err: PayloadError) {
         if let Some(shared) = self.inner.upgrade() {
             shared.borrow_mut().set_error(err)
         }
     }
 
     #[inline]
-    fn feed_eof(&mut self) {
+    pub fn feed_eof(&mut self) {
         if let Some(shared) = self.inner.upgrade() {
             shared.borrow_mut().feed_eof()
         }
     }
 
     #[inline]
-    fn feed_data(&mut self, data: Bytes) {
+    pub fn feed_data(&mut self, data: Bytes) {
         if let Some(shared) = self.inner.upgrade() {
             shared.borrow_mut().feed_data(data)
         }
     }
 
     #[inline]
-    fn need_read(&self) -> PayloadStatus {
+    pub fn need_read(&self) -> PayloadStatus {
         // we check need_read only if Payload (other side) is alive,
         // otherwise always return true (consume payload)
         if let Some(shared) = self.inner.upgrade() {

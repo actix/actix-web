@@ -19,7 +19,7 @@ use crate::request::Request;
 use crate::response::Response;
 
 use super::codec::Codec;
-use super::payload::{Payload, PayloadSender, PayloadStatus, PayloadWriter};
+use super::payload::{Payload, PayloadSender, PayloadStatus};
 use super::{Message, MessageType};
 
 const LW_BUFFER_SIZE: usize = 4096;
