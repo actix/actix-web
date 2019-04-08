@@ -133,7 +133,7 @@ where
 ///     let req = test::TestRequest::with_uri("/test").to_request();
 ///
 ///     // Call application
-///     let resp = test::call_succ_service(&mut app, req);
+///     let resp = test::call_success(&mut app, req);
 ///     assert_eq!(resp.status(), StatusCode::OK);
 /// }
 /// ```
