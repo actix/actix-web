@@ -107,7 +107,6 @@ where
             let mut head = ResponseHead::new(parts.status);
             head.version = parts.version;
             head.headers = parts.headers.into();
-
             Ok((head, payload))
         })
         .from_err()

@@ -61,7 +61,6 @@ pub struct ClientRequest {
     pub(crate) head: RequestHead,
     err: Option<HttpError>,
     cookies: Option<CookieJar>,
-    default_headers: bool,
     response_decompress: bool,
     timeout: Option<Duration>,
     config: Rc<ClientConfig>,
@@ -79,7 +78,6 @@ impl ClientRequest {
             err: None,
             cookies: None,
             timeout: None,
-            default_headers: true,
             response_decompress: true,
         }
         .method(method)
@@ -316,13 +314,6 @@ impl ClientRequest {
         self
     }
 
-    /// Do not add default request headers.
-    /// By default `Date` and `User-Agent` headers are set.
-    pub fn no_default_headers(mut self) -> Self {
-        self.default_headers = false;
-        self
-    }
-
     /// Disable automatic decompress of response's body
     pub fn no_decompress(mut self) -> Self {
         self.response_decompress = false;
@@ -392,36 +383,6 @@ impl ClientRequest {
             return Either::A(err(InvalidUrl::UnknownScheme.into()));
         }
 
-        // set default headers
-        if self.default_headers {
-            // set request host header
-            if let Some(host) = self.head.uri.host() {
-                if !self.head.headers.contains_key(&header::HOST) {
-                    let mut wrt = BytesMut::with_capacity(host.len() + 5).writer();
-
-                    let _ = match self.head.uri.port_u16() {
-                        None | Some(80) | Some(443) => write!(wrt, "{}", host),
-                        Some(port) => write!(wrt, "{}:{}", host, port),
-                    };
-
-                    match wrt.get_mut().take().freeze().try_into() {
-                        Ok(value) => {
-                            self.head.headers.insert(header::HOST, value);
-                        }
-                        Err(e) => return Either::A(err(HttpError::from(e).into())),
-                    }
-                }
-            }
-
-            // user agent
-            if !self.head.headers.contains_key(&header::USER_AGENT) {
-                self.head.headers.insert(
-                    header::USER_AGENT,
-                    HeaderValue::from_static(concat!("awc/", env!("CARGO_PKG_VERSION"))),
-                );
-            }
-        }
-
         // set cookies
         if let Some(ref mut jar) = self.cookies {
             let mut cookie = String::new();
@@ -436,7 +397,7 @@ impl ClientRequest {
             );
         }
 
-        let slf = self;
+        let mut slf = self;
 
         // enable br only for https
         #[cfg(any(
@@ -444,25 +405,26 @@ impl ClientRequest {
             feature = "flate2-zlib",
             feature = "flate2-rust"
         ))]
-        let slf = {
-            let https = slf
-                .head
-                .uri
-                .scheme_part()
-                .map(|s| s == &uri::Scheme::HTTPS)
-                .unwrap_or(true);
+        {
+            if slf.response_decompress {
+                let https = slf
+                    .head
+                    .uri
+                    .scheme_part()
+                    .map(|s| s == &uri::Scheme::HTTPS)
+                    .unwrap_or(true);
 
-            if https {
-                slf.set_header_if_none(header::ACCEPT_ENCODING, HTTPS_ENCODING)
-            } else {
-                #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
-                {
-                    slf.set_header_if_none(header::ACCEPT_ENCODING, "gzip, deflate")
-                }
-                #[cfg(not(any(feature = "flate2-zlib", feature = "flate2-rust")))]
-                slf
+                if https {
+                    slf = slf.set_header_if_none(header::ACCEPT_ENCODING, HTTPS_ENCODING)
+                } else {
+                    #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
+                    {
+                        slf = slf
+                            .set_header_if_none(header::ACCEPT_ENCODING, "gzip, deflate")
+                    }
+                };
             }
-        };
+        }
 
         let head = slf.head;
         let config = slf.config.as_ref();

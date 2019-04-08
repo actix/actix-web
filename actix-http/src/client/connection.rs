@@ -12,7 +12,7 @@ use crate::message::{RequestHead, ResponseHead};
 use crate::payload::Payload;
 
 use super::error::SendRequestError;
-use super::pool::Acquired;
+use super::pool::{Acquired, Protocol};
 use super::{h1proto, h2proto};
 
 pub(crate) enum ConnectionType<Io> {
@@ -23,6 +23,8 @@ pub(crate) enum ConnectionType<Io> {
 pub trait Connection {
     type Io: AsyncRead + AsyncWrite;
     type Future: Future<Item = (ResponseHead, Payload), Error = SendRequestError>;
+
+    fn protocol(&self) -> Protocol;
 
     /// Send request and body
     fn send_request<B: MessageBody + 'static>(
@@ -94,6 +96,14 @@ where
     type Io = T;
     type Future = Box<Future<Item = (ResponseHead, Payload), Error = SendRequestError>>;
 
+    fn protocol(&self) -> Protocol {
+        match self.io {
+            Some(ConnectionType::H1(_)) => Protocol::Http1,
+            Some(ConnectionType::H2(_)) => Protocol::Http2,
+            None => Protocol::Http1,
+        }
+    }
+
     fn send_request<B: MessageBody + 'static>(
         mut self,
         head: RequestHead,
@@ -160,6 +170,13 @@ where
 {
     type Io = EitherIo<A, B>;
     type Future = Box<Future<Item = (ResponseHead, Payload), Error = SendRequestError>>;
+
+    fn protocol(&self) -> Protocol {
+        match self {
+            EitherConnection::A(con) => con.protocol(),
+            EitherConnection::B(con) => con.protocol(),
+        }
+    }
 
     fn send_request<RB: MessageBody + 'static>(
         self,

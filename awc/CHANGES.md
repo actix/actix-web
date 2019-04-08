@@ -1,5 +1,12 @@
 # Changes
 
+## [0.1.0-alpha.5] - 2019-04-xx
+
+### Changed
+
+* Do not set any default headers
+
+
 ## [0.1.0-alpha.4] - 2019-04-08
 
 ### Changed

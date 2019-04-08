@@ -21,8 +21,8 @@ use tokio_timer::{sleep, Delay};
 use super::connection::{ConnectionType, IoConnection};
 use super::error::ConnectError;
 
-#[allow(dead_code)]
 #[derive(Clone, Copy, PartialEq)]
+/// Protocol version
 pub enum Protocol {
     Http1,
     Http2,
