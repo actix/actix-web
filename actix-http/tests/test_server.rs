@@ -9,6 +9,7 @@ use actix_service::{fn_cfg_factory, fn_service, NewService};
 use bytes::{Bytes, BytesMut};
 use futures::future::{self, ok, Future};
 use futures::stream::{once, Stream};
+use tokio_timer::sleep;
 
 use actix_http::body::Body;
 use actix_http::error::PayloadError;
@@ -185,11 +186,13 @@ fn test_expect_continue_h1() {
     let srv = TestServer::new(|| {
         HttpService::build()
             .expect(fn_service(|req: Request| {
-                if req.head().uri.query() == Some("yes=") {
-                    Ok(req)
-                } else {
-                    Err(error::ErrorPreconditionFailed("error"))
-                }
+                sleep(Duration::from_millis(20)).then(move |_| {
+                    if req.head().uri.query() == Some("yes=") {
+                        Ok(req)
+                    } else {
+                        Err(error::ErrorPreconditionFailed("error"))
+                    }
+                })
             }))
             .h1(|_| future::ok::<_, ()>(Response::Ok().finish()))
     });
