@@ -31,7 +31,7 @@ pub enum UrlencodedError {
     #[display(fmt = "Can not decode chunked transfer encoding")]
     Chunked,
     /// Payload size is bigger than allowed. (default: 256kB)
-    #[display(fmt = "Urlencoded payload size is bigger than allowed. (default: 256kB)")]
+    #[display(fmt = "Urlencoded payload size is bigger than allowed (default: 256kB)")]
     Overflow,
     /// Payload size is now known
     #[display(fmt = "Payload size is now known")]
@@ -66,7 +66,7 @@ impl ResponseError for UrlencodedError {
 #[derive(Debug, Display, From)]
 pub enum JsonPayloadError {
     /// Payload size is bigger than allowed. (default: 32kB)
-    #[display(fmt = "Json payload size is bigger than allowed.")]
+    #[display(fmt = "Json payload size is bigger than allowed")]
     Overflow,
     /// Content type error
     #[display(fmt = "Content type error")]

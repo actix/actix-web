@@ -365,8 +365,10 @@ mod tests {
     use serde_derive::{Deserialize, Serialize};
 
     use super::*;
+    use crate::error::InternalError;
     use crate::http::header;
     use crate::test::{block_on, TestRequest};
+    use crate::HttpResponse;
 
     #[derive(Serialize, Deserialize, PartialEq, Debug)]
     struct MyObject {
@@ -403,6 +405,37 @@ mod tests {
 
         use crate::responder::tests::BodyTest;
         assert_eq!(resp.body().bin_ref(), b"{\"name\":\"test\"}");
+    }
+
+    #[test]
+    fn test_custom_error_responder() {
+        let (req, mut pl) = TestRequest::default()
+            .header(
+                header::CONTENT_TYPE,
+                header::HeaderValue::from_static("application/json"),
+            )
+            .header(
+                header::CONTENT_LENGTH,
+                header::HeaderValue::from_static("16"),
+            )
+            .set_payload(Bytes::from_static(b"{\"name\": \"test\"}"))
+            .route_data(JsonConfig::default().limit(10).error_handler(|err, _| {
+                let msg = MyObject {
+                    name: "invalid request".to_string(),
+                };
+                let resp = HttpResponse::BadRequest()
+                    .body(serde_json::to_string(&msg).unwrap());
+                InternalError::from_response(err, resp).into()
+            }))
+            .to_http_parts();
+
+        let s = block_on(Json::<MyObject>::from_request(&req, &mut pl));
+        let mut resp = Response::from_error(s.err().unwrap().into());
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+
+        let body = block_on(resp.take_body().concat2()).unwrap();
+        let msg: MyObject = serde_json::from_slice(&body).unwrap();
+        assert_eq!(msg.name, "invalid request");
     }
 
     #[test]
@@ -443,7 +476,7 @@ mod tests {
 
         let s = block_on(Json::<MyObject>::from_request(&req, &mut pl));
         assert!(format!("{}", s.err().unwrap())
-            .contains("Json payload size is bigger than allowed."));
+            .contains("Json payload size is bigger than allowed"));
 
         let (req, mut pl) = TestRequest::default()
             .header(
