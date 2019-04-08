@@ -5,7 +5,7 @@ use std::{net, thread};
 use actix_codec::{AsyncRead, AsyncWrite};
 use actix_http_test::TestServer;
 use actix_server_config::ServerConfig;
-use actix_service::{fn_cfg_factory, NewService};
+use actix_service::{fn_cfg_factory, fn_service, NewService};
 use bytes::{Bytes, BytesMut};
 use futures::future::{self, ok, Future};
 use futures::stream::{once, Stream};
@@ -151,6 +151,60 @@ fn test_h2_body() -> std::io::Result<()> {
     let body = srv.load_body(response).unwrap();
     assert_eq!(&body, data.as_bytes());
     Ok(())
+}
+
+#[test]
+fn test_expect_continue() {
+    let srv = TestServer::new(|| {
+        HttpService::build()
+            .expect(fn_service(|req: Request| {
+                if req.head().uri.query() == Some("yes=") {
+                    Ok(req)
+                } else {
+                    Err(error::ErrorPreconditionFailed("error"))
+                }
+            }))
+            .finish(|_| future::ok::<_, ()>(Response::Ok().finish()))
+    });
+
+    let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
+    let _ = stream.write_all(b"GET /test HTTP/1.1\r\nexpect: 100-continue\r\n\r\n");
+    let mut data = String::new();
+    let _ = stream.read_to_string(&mut data);
+    assert!(data.starts_with("HTTP/1.1 412 Precondition Failed\r\ncontent-length"));
+
+    let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
+    let _ = stream.write_all(b"GET /test?yes= HTTP/1.1\r\nexpect: 100-continue\r\n\r\n");
+    let mut data = String::new();
+    let _ = stream.read_to_string(&mut data);
+    assert!(data.starts_with("HTTP/1.1 100 Continue\r\n\r\nHTTP/1.1 200 OK\r\n"));
+}
+
+#[test]
+fn test_expect_continue_h1() {
+    let srv = TestServer::new(|| {
+        HttpService::build()
+            .expect(fn_service(|req: Request| {
+                if req.head().uri.query() == Some("yes=") {
+                    Ok(req)
+                } else {
+                    Err(error::ErrorPreconditionFailed("error"))
+                }
+            }))
+            .h1(|_| future::ok::<_, ()>(Response::Ok().finish()))
+    });
+
+    let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
+    let _ = stream.write_all(b"GET /test HTTP/1.1\r\nexpect: 100-continue\r\n\r\n");
+    let mut data = String::new();
+    let _ = stream.read_to_string(&mut data);
+    assert!(data.starts_with("HTTP/1.1 412 Precondition Failed\r\ncontent-length"));
+
+    let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
+    let _ = stream.write_all(b"GET /test?yes= HTTP/1.1\r\nexpect: 100-continue\r\n\r\n");
+    let mut data = String::new();
+    let _ = stream.read_to_string(&mut data);
+    assert!(data.starts_with("HTTP/1.1 100 Continue\r\n\r\nHTTP/1.1 200 OK\r\n"));
 }
 
 #[test]

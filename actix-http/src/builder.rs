@@ -87,6 +87,27 @@ where
         self
     }
 
+    /// Provide service for `EXPECT: 100-Continue` support.
+    ///
+    /// Service get called with request that contains `EXPECT` header.
+    /// Service must return request in case of success, in that case
+    /// request will be forwarded to main service.
+    pub fn expect<F, U>(self, expect: F) -> HttpServiceBuilder<T, S, U>
+    where
+        F: IntoNewService<U>,
+        U: NewService<Request = Request, Response = Request>,
+        U::Error: Into<Error>,
+        U::InitError: fmt::Debug,
+    {
+        HttpServiceBuilder {
+            keep_alive: self.keep_alive,
+            client_timeout: self.client_timeout,
+            client_disconnect: self.client_disconnect,
+            expect: expect.into_new_service(),
+            _t: PhantomData,
+        }
+    }
+
     // #[cfg(feature = "ssl")]
     // /// Configure alpn protocols for SslAcceptorBuilder.
     // pub fn configure_openssl(
@@ -142,7 +163,7 @@ where
     }
 
     /// Finish service configuration and create `HttpService` instance.
-    pub fn finish<F, P, B>(self, service: F) -> HttpService<T, P, S, B>
+    pub fn finish<F, P, B>(self, service: F) -> HttpService<T, P, S, B, X>
     where
         B: MessageBody + 'static,
         F: IntoNewService<S, SrvConfig>,
@@ -156,6 +177,6 @@ where
             self.client_timeout,
             self.client_disconnect,
         );
-        HttpService::with_config(cfg, service.into_new_service())
+        HttpService::with_config(cfg, service.into_new_service()).expect(self.expect)
     }
 }
