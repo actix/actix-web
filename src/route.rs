@@ -4,6 +4,7 @@ use std::rc::Rc;
 
 use actix_http::{http::Method, Error, Extensions, Response};
 use actix_service::{NewService, Service};
+use futures::future::{ok, Either, FutureResult};
 use futures::{Async, Future, IntoFuture, Poll};
 
 use crate::data::RouteData;
@@ -19,7 +20,10 @@ type BoxedRouteService<Req, Res> = Box<
         Request = Req,
         Response = Res,
         Error = Error,
-        Future = Box<Future<Item = Res, Error = Error>>,
+        Future = Either<
+            FutureResult<Res, Error>,
+            Box<Future<Item = Res, Error = Error>>,
+        >,
     >,
 >;
 
@@ -50,11 +54,10 @@ impl<P: 'static> Route<P> {
     pub fn new() -> Route<P> {
         let data_ref = Rc::new(RefCell::new(None));
         Route {
-            service: Box::new(RouteNewService::new(
-                Extract::new(data_ref.clone()).and_then(
-                    Handler::new(HttpResponse::NotFound).map_err(|_| panic!()),
-                ),
-            )),
+            service: Box::new(RouteNewService::new(Extract::new(
+                data_ref.clone(),
+                Handler::new(|| HttpResponse::NotFound()),
+            ))),
             guards: Rc::new(Vec::new()),
             data: None,
             data_ref,
@@ -131,7 +134,10 @@ impl<P> Service for RouteService<P> {
     type Request = ServiceRequest<P>;
     type Response = ServiceResponse;
     type Error = Error;
-    type Future = Box<Future<Item = Self::Response, Error = Self::Error>>;
+    type Future = Either<
+        FutureResult<Self::Response, Self::Error>,
+        Box<Future<Item = Self::Response, Error = Self::Error>>,
+    >;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
         self.service.poll_ready()
@@ -235,10 +241,10 @@ impl<P: 'static> Route<P> {
         T: FromRequest<P> + 'static,
         R: Responder + 'static,
     {
-        self.service = Box::new(RouteNewService::new(
-            Extract::new(self.data_ref.clone())
-                .and_then(Handler::new(handler).map_err(|_| panic!())),
-        ));
+        self.service = Box::new(RouteNewService::new(Extract::new(
+            self.data_ref.clone(),
+            Handler::new(handler),
+        )));
         self
     }
 
@@ -277,10 +283,10 @@ impl<P: 'static> Route<P> {
         R::Item: Into<Response>,
         R::Error: Into<Error>,
     {
-        self.service = Box::new(RouteNewService::new(
-            Extract::new(self.data_ref.clone())
-                .and_then(AsyncHandler::new(handler).map_err(|_| panic!())),
-        ));
+        self.service = Box::new(RouteNewService::new(Extract::new(
+            self.data_ref.clone(),
+            AsyncHandler::new(handler),
+        )));
         self
     }
 
@@ -394,17 +400,25 @@ where
     type Request = ServiceRequest<P>;
     type Response = ServiceResponse;
     type Error = Error;
-    type Future = Box<Future<Item = Self::Response, Error = Self::Error>>;
+    type Future = Either<
+        FutureResult<Self::Response, Self::Error>,
+        Box<Future<Item = Self::Response, Error = Self::Error>>,
+    >;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
         self.service.poll_ready().map_err(|(e, _)| e)
     }
 
     fn call(&mut self, req: ServiceRequest<P>) -> Self::Future {
-        Box::new(self.service.call(req).then(|res| match res {
-            Ok(res) => Ok(res),
-            Err((err, req)) => Ok(req.error_response(err)),
-        }))
+        let mut fut = self.service.call(req);
+        match fut.poll() {
+            Ok(Async::Ready(res)) => Either::A(ok(res)),
+            Err((e, req)) => Either::A(ok(req.error_response(e))),
+            Ok(Async::NotReady) => Either::B(Box::new(fut.then(|res| match res {
+                Ok(res) => Ok(res),
+                Err((err, req)) => Ok(req.error_response(err)),
+            }))),
+        }
     }
 }
 

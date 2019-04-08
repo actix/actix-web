@@ -14,6 +14,7 @@ use crate::config::{AppConfig, ServiceConfig};
 use crate::data::{DataFactory, DataFactoryResult};
 use crate::error::Error;
 use crate::guard::Guard;
+use crate::request::{HttpRequest, HttpRequestPool};
 use crate::rmap::ResourceMap;
 use crate::service::{ServiceFactory, ServiceRequest, ServiceResponse};
 
@@ -21,7 +22,10 @@ type Guards = Vec<Box<Guard>>;
 type HttpService<P> = BoxedService<ServiceRequest<P>, ServiceResponse, Error>;
 type HttpNewService<P> =
     BoxedNewService<(), ServiceRequest<P>, ServiceResponse, Error, ()>;
-type BoxedResponse = Box<Future<Item = ServiceResponse, Error = Error>>;
+type BoxedResponse = Either<
+    FutureResult<ServiceResponse, Error>,
+    Box<Future<Item = ServiceResponse, Error = Error>>,
+>;
 
 /// Service factory to convert `Request` to a `ServiceRequest<S>`.
 /// It also executes data factories.
@@ -191,6 +195,7 @@ where
                     chain: self.chain.take().unwrap(),
                     rmap: self.rmap.clone(),
                     config: self.config.clone(),
+                    pool: HttpRequestPool::create(),
                 }
                 .and_then(self.endpoint.take().unwrap()),
             ))
@@ -208,6 +213,7 @@ where
     chain: C,
     rmap: Rc<ResourceMap>,
     config: AppConfig,
+    pool: &'static HttpRequestPool,
 }
 
 impl<C, P> Service for AppInitService<C, P>
@@ -224,13 +230,24 @@ where
     }
 
     fn call(&mut self, req: Request) -> Self::Future {
-        let req = ServiceRequest::new(
-            Path::new(Url::new(req.uri().clone())),
-            req,
-            self.rmap.clone(),
-            self.config.clone(),
-        );
-        self.chain.call(req)
+        let (head, payload) = req.into_parts();
+
+        let req = if let Some(mut req) = self.pool.get_request() {
+            let inner = Rc::get_mut(&mut req.0).unwrap();
+            inner.path.get_mut().update(&head.uri);
+            inner.path.reset();
+            inner.head = head;
+            req
+        } else {
+            HttpRequest::new(
+                Path::new(Url::new(head.uri.clone())),
+                head,
+                self.rmap.clone(),
+                self.config.clone(),
+                self.pool,
+            )
+        };
+        self.chain.call(ServiceRequest::from_parts(req, payload))
     }
 }
 
@@ -353,7 +370,7 @@ impl<P> Service for AppRouting<P> {
     type Request = ServiceRequest<P>;
     type Response = ServiceResponse;
     type Error = Error;
-    type Future = Either<BoxedResponse, FutureResult<Self::Response, Self::Error>>;
+    type Future = BoxedResponse;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
         if self.ready.is_none() {
@@ -376,12 +393,12 @@ impl<P> Service for AppRouting<P> {
         });
 
         if let Some((srv, _info)) = res {
-            Either::A(srv.call(req))
+            srv.call(req)
         } else if let Some(ref mut default) = self.default {
-            Either::A(default.call(req))
+            default.call(req)
         } else {
             let req = req.into_parts().0;
-            Either::B(ok(ServiceResponse::new(req, Response::NotFound().finish())))
+            Either::A(ok(ServiceResponse::new(req, Response::NotFound().finish())))
         }
     }
 }

@@ -218,7 +218,7 @@ where
 {
     fn can_read(&self) -> bool {
         if self.flags.contains(Flags::READ_DISCONNECT) {
-            return false;
+            false
         } else if let Some(ref info) = self.payload {
             info.need_read() == PayloadStatus::Read
         } else {

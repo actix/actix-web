@@ -487,11 +487,8 @@ impl<P> Service for ResourceService<P> {
     type Response = ServiceResponse;
     type Error = Error;
     type Future = Either<
+        FutureResult<ServiceResponse, Error>,
         Box<Future<Item = ServiceResponse, Error = Error>>,
-        Either<
-            Box<Future<Item = Self::Response, Error = Self::Error>>,
-            FutureResult<Self::Response, Self::Error>,
-        >,
     >;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
@@ -501,17 +498,17 @@ impl<P> Service for ResourceService<P> {
     fn call(&mut self, mut req: ServiceRequest<P>) -> Self::Future {
         for route in self.routes.iter_mut() {
             if route.check(&mut req) {
-                return Either::A(route.call(req));
+                return route.call(req);
             }
         }
         if let Some(ref mut default) = self.default {
-            Either::B(Either::A(default.call(req)))
+            default.call(req)
         } else {
             let req = req.into_parts().0;
-            Either::B(Either::B(ok(ServiceResponse::new(
+            Either::A(ok(ServiceResponse::new(
                 req,
                 Response::MethodNotAllowed().finish(),
-            ))))
+            )))
         }
     }
 }

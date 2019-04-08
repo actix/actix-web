@@ -41,11 +41,8 @@ impl Response<Body> {
     /// Constructs a response
     #[inline]
     pub fn new(status: StatusCode) -> Response {
-        let mut head = BoxedResponseHead::new();
-        head.status = status;
-
         Response {
-            head,
+            head: BoxedResponseHead::new(status),
             body: ResponseBody::Body(Body::Empty),
             error: None,
         }
@@ -78,6 +75,16 @@ impl Response<Body> {
 }
 
 impl<B> Response<B> {
+    /// Constructs a response with body
+    #[inline]
+    pub fn with_body(status: StatusCode, body: B) -> Response<B> {
+        Response {
+            head: BoxedResponseHead::new(status),
+            body: ResponseBody::Body(body),
+            error: None,
+        }
+    }
+
     #[inline]
     /// Http message part of the response
     pub fn head(&self) -> &ResponseHead {
@@ -88,18 +95,6 @@ impl<B> Response<B> {
     /// Mutable reference to a http message part of the response
     pub fn head_mut(&mut self) -> &mut ResponseHead {
         &mut *self.head
-    }
-
-    /// Constructs a response with body
-    #[inline]
-    pub fn with_body(status: StatusCode, body: B) -> Response<B> {
-        let mut head = BoxedResponseHead::new();
-        head.status = status;
-        Response {
-            head,
-            body: ResponseBody::Body(body),
-            error: None,
-        }
     }
 
     /// The source `error` for this response
@@ -325,13 +320,11 @@ pub struct ResponseBuilder {
 }
 
 impl ResponseBuilder {
+    #[inline]
     /// Create response builder
     pub fn new(status: StatusCode) -> Self {
-        let mut head = BoxedResponseHead::new();
-        head.status = status;
-
         ResponseBuilder {
-            head: Some(head),
+            head: Some(BoxedResponseHead::new(status)),
             err: None,
             cookies: None,
         }
@@ -555,15 +548,13 @@ impl ResponseBuilder {
     /// }
     /// ```
     pub fn del_cookie<'a>(&mut self, cookie: &Cookie<'a>) -> &mut Self {
-        {
-            if self.cookies.is_none() {
-                self.cookies = Some(CookieJar::new())
-            }
-            let jar = self.cookies.as_mut().unwrap();
-            let cookie = cookie.clone().into_owned();
-            jar.add_original(cookie.clone());
-            jar.remove(cookie);
+        if self.cookies.is_none() {
+            self.cookies = Some(CookieJar::new())
         }
+        let jar = self.cookies.as_mut().unwrap();
+        let cookie = cookie.clone().into_owned();
+        jar.add_original(cookie.clone());
+        jar.remove(cookie);
         self
     }
 
@@ -605,6 +596,7 @@ impl ResponseBuilder {
         head.extensions.borrow_mut()
     }
 
+    #[inline]
     /// Set a body and generate `Response`.
     ///
     /// `ResponseBuilder` can not be used after this call.
@@ -625,9 +617,7 @@ impl ResponseBuilder {
         if let Some(ref jar) = self.cookies {
             for cookie in jar.delta() {
                 match HeaderValue::from_str(&cookie.to_string()) {
-                    Ok(val) => {
-                        let _ = response.headers.append(header::SET_COOKIE, val);
-                    }
+                    Ok(val) => response.headers.append(header::SET_COOKIE, val),
                     Err(e) => return Response::from(Error::from(e)).into_body(),
                 };
             }
@@ -652,6 +642,7 @@ impl ResponseBuilder {
         self.body(Body::from_message(BodyStream::new(stream)))
     }
 
+    #[inline]
     /// Set a json body and generate `Response`
     ///
     /// `ResponseBuilder` can not be used after this call.
@@ -751,11 +742,12 @@ impl<'a> From<&'a ResponseHead> for ResponseBuilder {
             }
         }
 
-        let mut msg = BoxedResponseHead::new();
+        let mut msg = BoxedResponseHead::new(head.status);
         msg.version = head.version;
-        msg.status = head.status;
         msg.reason = head.reason;
-        // msg.headers = head.headers.clone();
+        for (k, v) in &head.headers {
+            msg.headers.append(k.clone(), v.clone());
+        }
         msg.no_chunking(!head.chunked());
 
         ResponseBuilder {

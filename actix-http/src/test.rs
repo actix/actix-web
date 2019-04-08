@@ -178,6 +178,6 @@ impl TestRequest {
 }
 
 #[inline]
-fn parts<'a>(parts: &'a mut Option<Inner>) -> &'a mut Inner {
+fn parts(parts: &mut Option<Inner>) -> &mut Inner {
     parts.as_mut().expect("cannot reuse test request builder")
 }

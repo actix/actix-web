@@ -52,37 +52,21 @@ where
         }
     }
 }
-impl<F, T, R> NewService for Handler<F, T, R>
+
+impl<F, T, R> Clone for Handler<F, T, R>
 where
     F: Factory<T, R>,
     R: Responder,
 {
-    type Request = (T, HttpRequest);
-    type Response = ServiceResponse;
-    type Error = Void;
-    type InitError = ();
-    type Service = HandlerService<F, T, R>;
-    type Future = FutureResult<Self::Service, ()>;
-
-    fn new_service(&self, _: &()) -> Self::Future {
-        ok(HandlerService {
+    fn clone(&self) -> Self {
+        Self {
             hnd: self.hnd.clone(),
             _t: PhantomData,
-        })
+        }
     }
 }
 
-#[doc(hidden)]
-pub struct HandlerService<F, T, R>
-where
-    F: Factory<T, R>,
-    R: Responder,
-{
-    hnd: F,
-    _t: PhantomData<(T, R)>,
-}
-
-impl<F, T, R> Service for HandlerService<F, T, R>
+impl<F, T, R> Service for Handler<F, T, R>
 where
     F: Factory<T, R>,
     R: Responder,
@@ -184,41 +168,23 @@ where
         }
     }
 }
-impl<F, T, R> NewService for AsyncHandler<F, T, R>
+
+impl<F, T, R> Clone for AsyncHandler<F, T, R>
 where
     F: AsyncFactory<T, R>,
     R: IntoFuture,
     R::Item: Into<Response>,
     R::Error: Into<Error>,
 {
-    type Request = (T, HttpRequest);
-    type Response = ServiceResponse;
-    type Error = Error;
-    type InitError = ();
-    type Service = AsyncHandlerService<F, T, R>;
-    type Future = FutureResult<Self::Service, ()>;
-
-    fn new_service(&self, _: &()) -> Self::Future {
-        ok(AsyncHandlerService {
+    fn clone(&self) -> Self {
+        AsyncHandler {
             hnd: self.hnd.clone(),
             _t: PhantomData,
-        })
+        }
     }
 }
 
-#[doc(hidden)]
-pub struct AsyncHandlerService<F, T, R>
-where
-    F: AsyncFactory<T, R>,
-    R: IntoFuture,
-    R::Item: Into<Response>,
-    R::Error: Into<Error>,
-{
-    hnd: F,
-    _t: PhantomData<(T, R)>,
-}
-
-impl<F, T, R> Service for AsyncHandlerService<F, T, R>
+impl<F, T, R> Service for AsyncHandler<F, T, R>
 where
     F: AsyncFactory<T, R>,
     R: IntoFuture,
@@ -227,7 +193,7 @@ where
 {
     type Request = (T, HttpRequest);
     type Response = ServiceResponse;
-    type Error = Error;
+    type Error = Void;
     type Future = AsyncHandlerServiceResponse<R::Future>;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
@@ -255,7 +221,7 @@ where
     T::Error: Into<Error>,
 {
     type Item = ServiceResponse;
-    type Error = Error;
+    type Error = Void;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         match self.fut.poll() {
@@ -276,46 +242,58 @@ where
 }
 
 /// Extract arguments from request
-pub struct Extract<P, T: FromRequest<P>> {
+pub struct Extract<P, T: FromRequest<P>, S> {
     config: Rc<RefCell<Option<Rc<Extensions>>>>,
+    service: S,
     _t: PhantomData<(P, T)>,
 }
 
-impl<P, T: FromRequest<P>> Extract<P, T> {
-    pub fn new(config: Rc<RefCell<Option<Rc<Extensions>>>>) -> Self {
+impl<P, T: FromRequest<P>, S> Extract<P, T, S> {
+    pub fn new(config: Rc<RefCell<Option<Rc<Extensions>>>>, service: S) -> Self {
         Extract {
             config,
+            service,
             _t: PhantomData,
         }
     }
 }
 
-impl<P, T: FromRequest<P>> NewService for Extract<P, T> {
+impl<P, T: FromRequest<P>, S> NewService for Extract<P, T, S>
+where
+    S: Service<Request = (T, HttpRequest), Response = ServiceResponse, Error = Void>
+        + Clone,
+{
     type Request = ServiceRequest<P>;
-    type Response = (T, HttpRequest);
+    type Response = ServiceResponse;
     type Error = (Error, ServiceRequest<P>);
     type InitError = ();
-    type Service = ExtractService<P, T>;
+    type Service = ExtractService<P, T, S>;
     type Future = FutureResult<Self::Service, ()>;
 
     fn new_service(&self, _: &()) -> Self::Future {
         ok(ExtractService {
             _t: PhantomData,
             config: self.config.borrow().clone(),
+            service: self.service.clone(),
         })
     }
 }
 
-pub struct ExtractService<P, T: FromRequest<P>> {
+pub struct ExtractService<P, T: FromRequest<P>, S> {
     config: Option<Rc<Extensions>>,
+    service: S,
     _t: PhantomData<(P, T)>,
 }
 
-impl<P, T: FromRequest<P>> Service for ExtractService<P, T> {
+impl<P, T: FromRequest<P>, S> Service for ExtractService<P, T, S>
+where
+    S: Service<Request = (T, HttpRequest), Response = ServiceResponse, Error = Void>
+        + Clone,
+{
     type Request = ServiceRequest<P>;
-    type Response = (T, HttpRequest);
+    type Response = ServiceResponse;
     type Error = (Error, ServiceRequest<P>);
-    type Future = ExtractResponse<P, T>;
+    type Future = ExtractResponse<P, T, S>;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
         Ok(Async::Ready(()))
@@ -328,28 +306,40 @@ impl<P, T: FromRequest<P>> Service for ExtractService<P, T> {
 
         ExtractResponse {
             fut,
+            fut_s: None,
             req: Some((req, payload)),
+            service: self.service.clone(),
         }
     }
 }
 
-pub struct ExtractResponse<P, T: FromRequest<P>> {
+pub struct ExtractResponse<P, T: FromRequest<P>, S: Service> {
     req: Option<(HttpRequest, Payload<P>)>,
+    service: S,
     fut: <T::Future as IntoFuture>::Future,
+    fut_s: Option<S::Future>,
 }
 
-impl<P, T: FromRequest<P>> Future for ExtractResponse<P, T> {
-    type Item = (T, HttpRequest);
+impl<P, T: FromRequest<P>, S> Future for ExtractResponse<P, T, S>
+where
+    S: Service<Request = (T, HttpRequest), Response = ServiceResponse, Error = Void>,
+{
+    type Item = ServiceResponse;
     type Error = (Error, ServiceRequest<P>);
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        if let Some(ref mut fut) = self.fut_s {
+            return fut.poll().map_err(|_| panic!());
+        }
+
         let item = try_ready!(self.fut.poll().map_err(|e| {
             let (req, payload) = self.req.take().unwrap();
             let req = ServiceRequest::from_parts(req, payload);
             (e.into(), req)
         }));
 
-        Ok(Async::Ready((item, self.req.take().unwrap().0)))
+        self.fut_s = Some(self.service.call((item, self.req.take().unwrap().0)));
+        self.poll()
     }
 }
 

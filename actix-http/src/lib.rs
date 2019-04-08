@@ -1,5 +1,9 @@
 //! Basic http primitives for actix-net framework.
-#![allow(clippy::type_complexity, clippy::new_without_default)]
+#![allow(
+    clippy::type_complexity,
+    clippy::new_without_default,
+    clippy::borrow_interior_mutable_const
+)]
 
 #[macro_use]
 extern crate log;

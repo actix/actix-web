@@ -68,9 +68,9 @@ rust-tls = ["rustls", "actix-server/rust-tls"]
 
 [dependencies]
 actix-codec = "0.1.1"
-actix-service = "0.3.4"
+actix-service = "0.3.6"
 actix-utils = "0.3.4"
-actix-router = "0.1.1"
+actix-router = "0.1.2"
 actix-rt = "0.2.2"
 actix-web-codegen = "0.1.0-alpha.1"
 actix-http = { version = "0.1.0-alpha.3", features=["fail"] }

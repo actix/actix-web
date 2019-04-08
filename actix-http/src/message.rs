@@ -1,5 +1,4 @@
 use std::cell::{Ref, RefCell, RefMut};
-use std::collections::VecDeque;
 use std::rc::Rc;
 
 use bitflags::bitflags;
@@ -171,20 +170,20 @@ pub struct ResponseHead {
     flags: Flags,
 }
 
-impl Default for ResponseHead {
-    fn default() -> ResponseHead {
+impl ResponseHead {
+    /// Create new instance of `ResponseHead` type
+    #[inline]
+    pub fn new(status: StatusCode) -> ResponseHead {
         ResponseHead {
+            status,
             version: Version::default(),
-            status: StatusCode::OK,
             headers: HeaderMap::with_capacity(12),
             reason: None,
             flags: Flags::empty(),
             extensions: RefCell::new(Extensions::new()),
         }
     }
-}
 
-impl ResponseHead {
     /// Message extensions
     #[inline]
     pub fn extensions(&self) -> Ref<Extensions> {
@@ -335,8 +334,8 @@ pub(crate) struct BoxedResponseHead {
 
 impl BoxedResponseHead {
     /// Get new message from the pool of objects
-    pub fn new() -> Self {
-        RESPONSE_POOL.with(|p| p.get_message())
+    pub fn new(status: StatusCode) -> Self {
+        RESPONSE_POOL.with(|p| p.get_message(status))
     }
 }
 
@@ -362,25 +361,25 @@ impl Drop for BoxedResponseHead {
 
 #[doc(hidden)]
 /// Request's objects pool
-pub struct MessagePool<T: Head>(RefCell<VecDeque<Rc<T>>>);
+pub struct MessagePool<T: Head>(RefCell<Vec<Rc<T>>>);
 
 #[doc(hidden)]
 /// Request's objects pool
-pub struct BoxedResponsePool(RefCell<VecDeque<Box<ResponseHead>>>);
+pub struct BoxedResponsePool(RefCell<Vec<Box<ResponseHead>>>);
 
 thread_local!(static REQUEST_POOL: &'static MessagePool<RequestHead> = MessagePool::<RequestHead>::create());
 thread_local!(static RESPONSE_POOL: &'static BoxedResponsePool = BoxedResponsePool::create());
 
 impl<T: Head> MessagePool<T> {
     fn create() -> &'static MessagePool<T> {
-        let pool = MessagePool(RefCell::new(VecDeque::with_capacity(128)));
+        let pool = MessagePool(RefCell::new(Vec::with_capacity(128)));
         Box::leak(Box::new(pool))
     }
 
     /// Get message from the pool
     #[inline]
     fn get_message(&'static self) -> Message<T> {
-        if let Some(mut msg) = self.0.borrow_mut().pop_front() {
+        if let Some(mut msg) = self.0.borrow_mut().pop() {
             if let Some(r) = Rc::get_mut(&mut msg) {
                 r.clear();
             }
@@ -397,28 +396,29 @@ impl<T: Head> MessagePool<T> {
     fn release(&self, msg: Rc<T>) {
         let v = &mut self.0.borrow_mut();
         if v.len() < 128 {
-            v.push_front(msg);
+            v.push(msg);
         }
     }
 }
 
 impl BoxedResponsePool {
     fn create() -> &'static BoxedResponsePool {
-        let pool = BoxedResponsePool(RefCell::new(VecDeque::with_capacity(128)));
+        let pool = BoxedResponsePool(RefCell::new(Vec::with_capacity(128)));
         Box::leak(Box::new(pool))
     }
 
     /// Get message from the pool
     #[inline]
-    fn get_message(&'static self) -> BoxedResponseHead {
-        if let Some(mut head) = self.0.borrow_mut().pop_front() {
+    fn get_message(&'static self, status: StatusCode) -> BoxedResponseHead {
+        if let Some(mut head) = self.0.borrow_mut().pop() {
             head.reason = None;
+            head.status = status;
             head.headers.clear();
             head.flags = Flags::empty();
             BoxedResponseHead { head: Some(head) }
         } else {
             BoxedResponseHead {
-                head: Some(Box::alloc().init(ResponseHead::default())),
+                head: Some(Box::alloc().init(ResponseHead::new(status))),
             }
         }
     }
@@ -428,7 +428,7 @@ impl BoxedResponsePool {
     fn release(&self, msg: Box<ResponseHead>) {
         let v = &mut self.0.borrow_mut();
         if v.len() < 128 {
-            v.push_front(msg);
+            v.push(msg);
         }
     }
 }

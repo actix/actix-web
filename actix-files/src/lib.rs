@@ -423,7 +423,7 @@ impl<P> FilesService<P> {
     > {
         log::debug!("Files: Failed to handle {}: {}", req.path(), e);
         if let Some(ref mut default) = self.default {
-            Either::B(default.call(ServiceRequest::from_parts(req, payload)))
+            default.call(ServiceRequest::from_parts(req, payload))
         } else {
             Either::A(ok(ServiceResponse::from_err(e, req.clone())))
         }
@@ -955,6 +955,7 @@ mod tests {
             .method(Method::POST)
             .to_http_request();
         let resp = file.respond_to(&req).unwrap();
+        println!("RES: {:?}", resp);
         assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
 
         let file = NamedFile::open("Cargo.toml").unwrap();

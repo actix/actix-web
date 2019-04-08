@@ -8,7 +8,7 @@ macro_rules! STATIC_RESP {
     ($name:ident, $status:expr) => {
         #[allow(non_snake_case, missing_docs)]
         pub fn $name() -> ResponseBuilder {
-            Response::build($status)
+            ResponseBuilder::new($status)
         }
     };
 }

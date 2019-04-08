@@ -1,4 +1,4 @@
-use std::cell::{Ref, RefMut};
+use std::cell::{Ref, RefCell, RefMut};
 use std::fmt;
 use std::rc::Rc;
 
@@ -15,29 +15,34 @@ use crate::rmap::ResourceMap;
 
 #[derive(Clone)]
 /// An HTTP Request
-pub struct HttpRequest {
+pub struct HttpRequest(pub(crate) Rc<HttpRequestInner>);
+
+pub(crate) struct HttpRequestInner {
     pub(crate) head: Message<RequestHead>,
     pub(crate) path: Path<Url>,
     rmap: Rc<ResourceMap>,
     config: AppConfig,
     route_data: Option<Rc<Extensions>>,
+    pool: &'static HttpRequestPool,
 }
 
 impl HttpRequest {
     #[inline]
     pub(crate) fn new(
-        head: Message<RequestHead>,
         path: Path<Url>,
+        head: Message<RequestHead>,
         rmap: Rc<ResourceMap>,
         config: AppConfig,
+        pool: &'static HttpRequestPool,
     ) -> HttpRequest {
-        HttpRequest {
+        HttpRequest(Rc::new(HttpRequestInner {
             head,
             path,
             rmap,
             config,
+            pool,
             route_data: None,
-        }
+        }))
     }
 }
 
@@ -45,7 +50,14 @@ impl HttpRequest {
     /// This method returns reference to the request head
     #[inline]
     pub fn head(&self) -> &RequestHead {
-        &self.head
+        &self.0.head
+    }
+
+    /// This method returns muttable reference to the request head.
+    /// panics if multiple references of http request exists.
+    #[inline]
+    pub(crate) fn head_mut(&mut self) -> &mut RequestHead {
+        &mut Rc::get_mut(&mut self.0).unwrap().head
     }
 
     /// Request's uri.
@@ -98,7 +110,12 @@ impl HttpRequest {
     /// access the matched value for that segment.
     #[inline]
     pub fn match_info(&self) -> &Path<Url> {
-        &self.path
+        &self.0.path
+    }
+
+    #[inline]
+    pub(crate) fn match_info_mut(&mut self) -> &mut Path<Url> {
+        &mut Rc::get_mut(&mut self.0).unwrap().path
     }
 
     /// Request extensions
@@ -141,7 +158,7 @@ impl HttpRequest {
         U: IntoIterator<Item = I>,
         I: AsRef<str>,
     {
-        self.rmap.url_for(&self, name, elements)
+        self.0.rmap.url_for(&self, name, elements)
     }
 
     /// Generate url for named resource
@@ -162,13 +179,13 @@ impl HttpRequest {
     /// App config
     #[inline]
     pub fn app_config(&self) -> &AppConfig {
-        &self.config
+        &self.0.config
     }
 
     /// Get an application data stored with `App::data()` method during
     /// application configuration.
     pub fn app_data<T: 'static>(&self) -> Option<Data<T>> {
-        if let Some(st) = self.config.extensions().get::<Data<T>>() {
+        if let Some(st) = self.0.config.extensions().get::<Data<T>>() {
             Some(st.clone())
         } else {
             None
@@ -178,7 +195,7 @@ impl HttpRequest {
     /// Load route data. Route data could be set during
     /// route configuration with `Route::data()` method.
     pub fn route_data<T: 'static>(&self) -> Option<&RouteData<T>> {
-        if let Some(ref ext) = self.route_data {
+        if let Some(ref ext) = self.0.route_data {
             ext.get::<RouteData<T>>()
         } else {
             None
@@ -186,7 +203,7 @@ impl HttpRequest {
     }
 
     pub(crate) fn set_route_data(&mut self, data: Option<Rc<Extensions>>) {
-        self.route_data = data;
+        Rc::get_mut(&mut self.0).unwrap().route_data = data;
     }
 }
 
@@ -202,18 +219,29 @@ impl HttpMessage for HttpRequest {
     /// Request extensions
     #[inline]
     fn extensions(&self) -> Ref<Extensions> {
-        self.head.extensions()
+        self.0.head.extensions()
     }
 
     /// Mutable reference to a the request's extensions
     #[inline]
     fn extensions_mut(&self) -> RefMut<Extensions> {
-        self.head.extensions_mut()
+        self.0.head.extensions_mut()
     }
 
     #[inline]
     fn take_payload(&mut self) -> Payload<Self::Stream> {
         Payload::None
+    }
+}
+
+impl Drop for HttpRequest {
+    fn drop(&mut self) {
+        if Rc::strong_count(&self.0) == 1 {
+            let v = &mut self.0.pool.0.borrow_mut();
+            if v.len() < 128 {
+                v.push(self.0.clone());
+            }
+        }
     }
 }
 
@@ -252,8 +280,8 @@ impl fmt::Debug for HttpRequest {
         writeln!(
             f,
             "\nHttpRequest {:?} {}:{}",
-            self.head.version,
-            self.head.method,
+            self.0.head.version,
+            self.0.head.method,
             self.path()
         )?;
         if !self.query_string().is_empty() {
@@ -267,6 +295,26 @@ impl fmt::Debug for HttpRequest {
             writeln!(f, "    {:?}: {:?}", key, val)?;
         }
         Ok(())
+    }
+}
+
+/// Request's objects pool
+pub(crate) struct HttpRequestPool(RefCell<Vec<Rc<HttpRequestInner>>>);
+
+impl HttpRequestPool {
+    pub(crate) fn create() -> &'static HttpRequestPool {
+        let pool = HttpRequestPool(RefCell::new(Vec::with_capacity(128)));
+        Box::leak(Box::new(pool))
+    }
+
+    /// Get message from the pool
+    #[inline]
+    pub(crate) fn get_request(&self) -> Option<HttpRequest> {
+        if let Some(inner) = self.0.borrow_mut().pop() {
+            Some(HttpRequest(inner))
+        } else {
+            None
+        }
     }
 }
 

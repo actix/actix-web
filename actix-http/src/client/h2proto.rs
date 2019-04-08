@@ -104,9 +104,8 @@ where
             let (parts, body) = resp.into_parts();
             let payload = if head_req { Payload::None } else { body.into() };
 
-            let mut head = ResponseHead::default();
+            let mut head = ResponseHead::new(parts.status);
             head.version = parts.version;
-            head.status = parts.status;
             head.headers = parts.headers.into();
 
             Ok((head, payload))

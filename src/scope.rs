@@ -24,7 +24,10 @@ type Guards = Vec<Box<Guard>>;
 type HttpService<P> = BoxedService<ServiceRequest<P>, ServiceResponse, Error>;
 type HttpNewService<P> =
     BoxedNewService<(), ServiceRequest<P>, ServiceResponse, Error, ()>;
-type BoxedResponse = Box<Future<Item = ServiceResponse, Error = Error>>;
+type BoxedResponse = Either<
+    FutureResult<ServiceResponse, Error>,
+    Box<Future<Item = ServiceResponse, Error = Error>>,
+>;
 
 /// Resources scope.
 ///

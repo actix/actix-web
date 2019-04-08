@@ -3,7 +3,7 @@ use std::fmt::Write as FmtWrite;
 
 use actix_http::cookie::{Cookie, CookieJar};
 use actix_http::http::header::{self, Header, HeaderValue, IntoHeaderValue};
-use actix_http::http::{HeaderName, HttpTryFrom, Version};
+use actix_http::http::{HeaderName, HttpTryFrom, StatusCode, Version};
 use actix_http::{h1, Payload, ResponseHead};
 use bytes::Bytes;
 #[cfg(test)]
@@ -49,7 +49,7 @@ pub struct TestResponse {
 impl Default for TestResponse {
     fn default() -> TestResponse {
         TestResponse {
-            head: ResponseHead::default(),
+            head: ResponseHead::new(StatusCode::OK),
             cookies: CookieJar::new(),
             payload: None,
         }

@@ -73,78 +73,75 @@ pub(crate) trait MessageType: Sized {
             let headers = self.headers_mut();
 
             for idx in raw_headers.iter() {
-                if let Ok(name) = HeaderName::from_bytes(&slice[idx.name.0..idx.name.1])
-                {
-                    // Unsafe: httparse check header value for valid utf-8
-                    let value = unsafe {
-                        HeaderValue::from_shared_unchecked(
-                            slice.slice(idx.value.0, idx.value.1),
-                        )
-                    };
-                    match name {
-                        header::CONTENT_LENGTH => {
-                            if let Ok(s) = value.to_str() {
-                                if let Ok(len) = s.parse::<u64>() {
-                                    if len != 0 {
-                                        content_length = Some(len);
-                                    }
-                                } else {
-                                    debug!("illegal Content-Length: {:?}", s);
-                                    return Err(ParseError::Header);
+                let name =
+                    HeaderName::from_bytes(&slice[idx.name.0..idx.name.1]).unwrap();
+
+                // Unsafe: httparse check header value for valid utf-8
+                let value = unsafe {
+                    HeaderValue::from_shared_unchecked(
+                        slice.slice(idx.value.0, idx.value.1),
+                    )
+                };
+                match name {
+                    header::CONTENT_LENGTH => {
+                        if let Ok(s) = value.to_str() {
+                            if let Ok(len) = s.parse::<u64>() {
+                                if len != 0 {
+                                    content_length = Some(len);
                                 }
                             } else {
-                                debug!("illegal Content-Length: {:?}", value);
+                                debug!("illegal Content-Length: {:?}", s);
                                 return Err(ParseError::Header);
                             }
+                        } else {
+                            debug!("illegal Content-Length: {:?}", value);
+                            return Err(ParseError::Header);
                         }
-                        // transfer-encoding
-                        header::TRANSFER_ENCODING => {
-                            if let Ok(s) = value.to_str().map(|s| s.trim()) {
-                                chunked = s.eq_ignore_ascii_case("chunked");
-                            } else {
-                                return Err(ParseError::Header);
-                            }
+                    }
+                    // transfer-encoding
+                    header::TRANSFER_ENCODING => {
+                        if let Ok(s) = value.to_str().map(|s| s.trim()) {
+                            chunked = s.eq_ignore_ascii_case("chunked");
+                        } else {
+                            return Err(ParseError::Header);
                         }
-                        // connection keep-alive state
-                        header::CONNECTION => {
-                            ka = if let Ok(conn) = value.to_str().map(|conn| conn.trim())
-                            {
-                                if conn.eq_ignore_ascii_case("keep-alive") {
-                                    Some(ConnectionType::KeepAlive)
-                                } else if conn.eq_ignore_ascii_case("close") {
-                                    Some(ConnectionType::Close)
-                                } else if conn.eq_ignore_ascii_case("upgrade") {
-                                    Some(ConnectionType::Upgrade)
-                                } else {
-                                    None
-                                }
+                    }
+                    // connection keep-alive state
+                    header::CONNECTION => {
+                        ka = if let Ok(conn) = value.to_str().map(|conn| conn.trim()) {
+                            if conn.eq_ignore_ascii_case("keep-alive") {
+                                Some(ConnectionType::KeepAlive)
+                            } else if conn.eq_ignore_ascii_case("close") {
+                                Some(ConnectionType::Close)
+                            } else if conn.eq_ignore_ascii_case("upgrade") {
+                                Some(ConnectionType::Upgrade)
                             } else {
                                 None
-                            };
-                        }
-                        header::UPGRADE => {
-                            has_upgrade = true;
-                            // check content-length, some clients (dart)
-                            // sends "content-length: 0" with websocket upgrade
-                            if let Ok(val) = value.to_str().map(|val| val.trim()) {
-                                if val.eq_ignore_ascii_case("websocket") {
-                                    content_length = None;
-                                }
                             }
-                        }
-                        header::EXPECT => {
-                            let bytes = value.as_bytes();
-                            if bytes.len() >= 4 && &bytes[0..4] == b"100-" {
-                                expect = true;
-                            }
-                        }
-                        _ => (),
+                        } else {
+                            None
+                        };
                     }
-
-                    headers.append(name, value);
-                } else {
-                    return Err(ParseError::Header);
+                    header::UPGRADE => {
+                        has_upgrade = true;
+                        // check content-length, some clients (dart)
+                        // sends "content-length: 0" with websocket upgrade
+                        if let Ok(val) = value.to_str().map(|val| val.trim()) {
+                            if val.eq_ignore_ascii_case("websocket") {
+                                content_length = None;
+                            }
+                        }
+                    }
+                    header::EXPECT => {
+                        let bytes = value.as_bytes();
+                        if bytes.len() >= 4 && &bytes[0..4] == b"100-" {
+                            expect = true;
+                        }
+                    }
+                    _ => (),
                 }
+
+                headers.append(name, value);
             }
         }
         self.set_connection_type(ka);
@@ -217,10 +214,10 @@ impl MessageType for Request {
         let mut msg = Request::new();
 
         // convert headers
-        let len = msg.set_headers(&src.split_to(len).freeze(), &headers[..h_len])?;
+        let length = msg.set_headers(&src.split_to(len).freeze(), &headers[..h_len])?;
 
         // payload decoder
-        let decoder = match len {
+        let decoder = match length {
             PayloadLength::Payload(pl) => pl,
             PayloadLength::Upgrade => {
                 // upgrade(websocket)
@@ -287,13 +284,14 @@ impl MessageType for ResponseHead {
             }
         };
 
-        let mut msg = ResponseHead::default();
+        let mut msg = ResponseHead::new(status);
+        msg.version = ver;
 
         // convert headers
-        let len = msg.set_headers(&src.split_to(len).freeze(), &headers[..h_len])?;
+        let length = msg.set_headers(&src.split_to(len).freeze(), &headers[..h_len])?;
 
         // message payload
-        let decoder = if let PayloadLength::Payload(pl) = len {
+        let decoder = if let PayloadLength::Payload(pl) = length {
             pl
         } else if status == StatusCode::SWITCHING_PROTOCOLS {
             // switching protocol or connect
@@ -304,9 +302,6 @@ impl MessageType for ResponseHead {
         } else {
             PayloadType::None
         };
-
-        msg.status = status;
-        msg.version = ver;
 
         Ok(Some((msg, decoder)))
     }

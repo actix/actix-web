@@ -1,13 +1,12 @@
 use std::cell::{Ref, RefMut};
 use std::fmt;
 use std::marker::PhantomData;
-use std::rc::Rc;
 
 use actix_http::body::{Body, MessageBody, ResponseBody};
 use actix_http::http::{HeaderMap, Method, StatusCode, Uri, Version};
 use actix_http::{
-    Error, Extensions, HttpMessage, Payload, PayloadStream, Request, RequestHead,
-    Response, ResponseHead,
+    Error, Extensions, HttpMessage, Payload, PayloadStream, RequestHead, Response,
+    ResponseHead,
 };
 use actix_router::{Path, Resource, Url};
 use futures::future::{ok, FutureResult, IntoFuture};
@@ -15,7 +14,6 @@ use futures::future::{ok, FutureResult, IntoFuture};
 use crate::config::{AppConfig, ServiceConfig};
 use crate::data::Data;
 use crate::request::HttpRequest;
-use crate::rmap::ResourceMap;
 
 pub trait HttpServiceFactory<P> {
     fn register(self, config: &mut ServiceConfig<P>);
@@ -56,19 +54,6 @@ pub struct ServiceRequest<P = PayloadStream> {
 }
 
 impl<P> ServiceRequest<P> {
-    pub(crate) fn new(
-        path: Path<Url>,
-        request: Request<P>,
-        rmap: Rc<ResourceMap>,
-        config: AppConfig,
-    ) -> Self {
-        let (head, payload) = request.into_parts();
-        ServiceRequest {
-            payload,
-            req: HttpRequest::new(head, path, rmap, config),
-        }
-    }
-
     /// Construct service request from parts
     pub fn from_parts(req: HttpRequest, payload: Payload<P>) -> Self {
         ServiceRequest { req, payload }
@@ -95,13 +80,13 @@ impl<P> ServiceRequest<P> {
     /// This method returns reference to the request head
     #[inline]
     pub fn head(&self) -> &RequestHead {
-        &self.req.head
+        &self.req.head()
     }
 
     /// This method returns reference to the request head
     #[inline]
     pub fn head_mut(&mut self) -> &mut RequestHead {
-        &mut self.req.head
+        self.req.head_mut()
     }
 
     /// Request's uri.
@@ -160,12 +145,12 @@ impl<P> ServiceRequest<P> {
     /// access the matched value for that segment.
     #[inline]
     pub fn match_info(&self) -> &Path<Url> {
-        &self.req.path
+        self.req.match_info()
     }
 
     #[inline]
     pub fn match_info_mut(&mut self) -> &mut Path<Url> {
-        &mut self.req.path
+        self.req.match_info_mut()
     }
 
     /// Service configuration
@@ -203,13 +188,13 @@ impl<P> HttpMessage for ServiceRequest<P> {
     /// Request extensions
     #[inline]
     fn extensions(&self) -> Ref<Extensions> {
-        self.req.head.extensions()
+        self.req.extensions()
     }
 
     /// Mutable reference to a the request's extensions
     #[inline]
     fn extensions_mut(&self) -> RefMut<Extensions> {
-        self.req.head.extensions_mut()
+        self.req.extensions_mut()
     }
 
     #[inline]
