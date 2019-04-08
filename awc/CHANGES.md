@@ -1,5 +1,12 @@
 # Changes
 
+## [0.1.0-alpha.4] - 2019-04-08
+
+### Changed
+
+* Update actix-http dependency
+
+
 ## [0.1.0-alpha.3] - 2019-04-02
 
 ### Added

@@ -1,5 +1,9 @@
 # Changes
 
+## [0.1.0-alpha.4] - 2019-04-08
+
+* Update actix-web
+
 ## [0.1.0-alpha.3] - 2019-04-02
 
 * Update actix-web

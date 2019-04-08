@@ -955,7 +955,6 @@ mod tests {
             .method(Method::POST)
             .to_http_request();
         let resp = file.respond_to(&req).unwrap();
-        println!("RES: {:?}", resp);
         assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
 
         let file = NamedFile::open("Cargo.toml").unwrap();
