@@ -73,7 +73,14 @@ fn test_body_gzip() {
         )
     });
 
-    let mut response = srv.block_on(srv.get("/").no_decompress().send()).unwrap();
+    let mut response = srv
+        .block_on(
+            srv.get("/")
+                .no_decompress()
+                .header(ACCEPT_ENCODING, "gzip")
+                .send(),
+        )
+        .unwrap();
     assert!(response.status().is_success());
 
     // read response
@@ -111,7 +118,14 @@ fn test_body_encoding_override() {
     });
 
     // Builder
-    let mut response = srv.block_on(srv.get("/").no_decompress().send()).unwrap();
+    let mut response = srv
+        .block_on(
+            srv.get("/")
+                .no_decompress()
+                .header(ACCEPT_ENCODING, "deflate")
+                .send(),
+        )
+        .unwrap();
     assert!(response.status().is_success());
 
     // read response
@@ -128,6 +142,7 @@ fn test_body_encoding_override() {
         .block_on(
             srv.request(actix_web::http::Method::GET, srv.url("/raw"))
                 .no_decompress()
+                .header(ACCEPT_ENCODING, "deflate")
                 .send(),
         )
         .unwrap();
@@ -161,7 +176,14 @@ fn test_body_gzip_large() {
         )
     });
 
-    let mut response = srv.block_on(srv.get("/").no_decompress().send()).unwrap();
+    let mut response = srv
+        .block_on(
+            srv.get("/")
+                .no_decompress()
+                .header(ACCEPT_ENCODING, "gzip")
+                .send(),
+        )
+        .unwrap();
     assert!(response.status().is_success());
 
     // read response
@@ -195,7 +217,14 @@ fn test_body_gzip_large_random() {
         )
     });
 
-    let mut response = srv.block_on(srv.get("/").no_decompress().send()).unwrap();
+    let mut response = srv
+        .block_on(
+            srv.get("/")
+                .no_decompress()
+                .header(ACCEPT_ENCODING, "gzip")
+                .send(),
+        )
+        .unwrap();
     assert!(response.status().is_success());
 
     // read response
@@ -224,7 +253,14 @@ fn test_body_chunked_implicit() {
         )
     });
 
-    let mut response = srv.block_on(srv.get("/").no_decompress().send()).unwrap();
+    let mut response = srv
+        .block_on(
+            srv.get("/")
+                .no_decompress()
+                .header(ACCEPT_ENCODING, "gzip")
+                .send(),
+        )
+        .unwrap();
     assert!(response.status().is_success());
     assert_eq!(
         response.headers().get(TRANSFER_ENCODING).unwrap(),
@@ -333,7 +369,14 @@ fn test_body_deflate() {
     });
 
     // client request
-    let mut response = srv.block_on(srv.get("/").no_decompress().send()).unwrap();
+    let mut response = srv
+        .block_on(
+            srv.get("/")
+                .header(ACCEPT_ENCODING, "deflate")
+                .no_decompress()
+                .send(),
+        )
+        .unwrap();
     assert!(response.status().is_success());
 
     // read response
