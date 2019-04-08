@@ -16,13 +16,14 @@ use crate::response::Response;
 
 use super::codec::Codec;
 use super::dispatcher::Dispatcher;
-use super::{ExpectHandler, Message};
+use super::{ExpectHandler, Message, UpgradeHandler};
 
 /// `NewService` implementation for HTTP1 transport
-pub struct H1Service<T, P, S, B, X = ExpectHandler> {
+pub struct H1Service<T, P, S, B, X = ExpectHandler, U = UpgradeHandler<T>> {
     srv: S,
     cfg: ServiceConfig,
     expect: X,
+    upgrade: Option<U>,
     _t: PhantomData<(T, P, B)>,
 }
 
@@ -42,6 +43,7 @@ where
             cfg,
             srv: service.into_new_service(),
             expect: ExpectHandler,
+            upgrade: None,
             _t: PhantomData,
         }
     }
@@ -55,12 +57,13 @@ where
             cfg,
             srv: service.into_new_service(),
             expect: ExpectHandler,
+            upgrade: None,
             _t: PhantomData,
         }
     }
 }
 
-impl<T, P, S, B, X> H1Service<T, P, S, B, X>
+impl<T, P, S, B, X, U> H1Service<T, P, S, B, X, U>
 where
     S: NewService<SrvConfig, Request = Request>,
     S::Error: Into<Error>,
@@ -68,22 +71,38 @@ where
     S::InitError: fmt::Debug,
     B: MessageBody,
 {
-    pub fn expect<U>(self, expect: U) -> H1Service<T, P, S, B, U>
+    pub fn expect<X1>(self, expect: X1) -> H1Service<T, P, S, B, X1, U>
     where
-        U: NewService<Request = Request, Response = Request>,
-        U::Error: Into<Error>,
-        U::InitError: fmt::Debug,
+        X1: NewService<Request = Request, Response = Request>,
+        X1::Error: Into<Error>,
+        X1::InitError: fmt::Debug,
     {
         H1Service {
             expect,
             cfg: self.cfg,
             srv: self.srv,
+            upgrade: self.upgrade,
+            _t: PhantomData,
+        }
+    }
+
+    pub fn upgrade<U1>(self, upgrade: Option<U1>) -> H1Service<T, P, S, B, X, U1>
+    where
+        U1: NewService<Request = (Request, Framed<T, Codec>), Response = ()>,
+        U1::Error: fmt::Display,
+        U1::InitError: fmt::Debug,
+    {
+        H1Service {
+            upgrade,
+            cfg: self.cfg,
+            srv: self.srv,
+            expect: self.expect,
             _t: PhantomData,
         }
     }
 }
 
-impl<T, P, S, B, X> NewService<SrvConfig> for H1Service<T, P, S, B, X>
+impl<T, P, S, B, X, U> NewService<SrvConfig> for H1Service<T, P, S, B, X, U>
 where
     T: AsyncRead + AsyncWrite,
     S: NewService<SrvConfig, Request = Request>,
@@ -94,19 +113,24 @@ where
     X: NewService<Request = Request, Response = Request>,
     X::Error: Into<Error>,
     X::InitError: fmt::Debug,
+    U: NewService<Request = (Request, Framed<T, Codec>), Response = ()>,
+    U::Error: fmt::Display,
+    U::InitError: fmt::Debug,
 {
     type Request = Io<T, P>;
     type Response = ();
     type Error = DispatchError;
     type InitError = ();
-    type Service = H1ServiceHandler<T, P, S::Service, B, X::Service>;
-    type Future = H1ServiceResponse<T, P, S, B, X>;
+    type Service = H1ServiceHandler<T, P, S::Service, B, X::Service, U::Service>;
+    type Future = H1ServiceResponse<T, P, S, B, X, U>;
 
     fn new_service(&self, cfg: &SrvConfig) -> Self::Future {
         H1ServiceResponse {
             fut: self.srv.new_service(cfg).into_future(),
             fut_ex: Some(self.expect.new_service(&())),
+            fut_upg: self.upgrade.as_ref().map(|f| f.new_service(&())),
             expect: None,
+            upgrade: None,
             cfg: Some(self.cfg.clone()),
             _t: PhantomData,
         }
@@ -114,7 +138,7 @@ where
 }
 
 #[doc(hidden)]
-pub struct H1ServiceResponse<T, P, S, B, X>
+pub struct H1ServiceResponse<T, P, S, B, X, U>
 where
     S: NewService<SrvConfig, Request = Request>,
     S::Error: Into<Error>,
@@ -122,15 +146,20 @@ where
     X: NewService<Request = Request, Response = Request>,
     X::Error: Into<Error>,
     X::InitError: fmt::Debug,
+    U: NewService<Request = (Request, Framed<T, Codec>), Response = ()>,
+    U::Error: fmt::Display,
+    U::InitError: fmt::Debug,
 {
     fut: S::Future,
     fut_ex: Option<X::Future>,
+    fut_upg: Option<U::Future>,
     expect: Option<X::Service>,
+    upgrade: Option<U::Service>,
     cfg: Option<ServiceConfig>,
     _t: PhantomData<(T, P, B)>,
 }
 
-impl<T, P, S, B, X> Future for H1ServiceResponse<T, P, S, B, X>
+impl<T, P, S, B, X, U> Future for H1ServiceResponse<T, P, S, B, X, U>
 where
     T: AsyncRead + AsyncWrite,
     S: NewService<SrvConfig, Request = Request>,
@@ -141,8 +170,11 @@ where
     X: NewService<Request = Request, Response = Request>,
     X::Error: Into<Error>,
     X::InitError: fmt::Debug,
+    U: NewService<Request = (Request, Framed<T, Codec>), Response = ()>,
+    U::Error: fmt::Display,
+    U::InitError: fmt::Debug,
 {
-    type Item = H1ServiceHandler<T, P, S::Service, B, X::Service>;
+    type Item = H1ServiceHandler<T, P, S::Service, B, X::Service, U::Service>;
     type Error = ();
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
@@ -154,6 +186,14 @@ where
             self.fut_ex.take();
         }
 
+        if let Some(ref mut fut) = self.fut_upg {
+            let upgrade = try_ready!(fut
+                .poll()
+                .map_err(|e| log::error!("Init http service error: {:?}", e)));
+            self.upgrade = Some(upgrade);
+            self.fut_ex.take();
+        }
+
         let service = try_ready!(self
             .fut
             .poll()
@@ -162,19 +202,21 @@ where
             self.cfg.take().unwrap(),
             service,
             self.expect.take().unwrap(),
+            self.upgrade.take(),
         )))
     }
 }
 
 /// `Service` implementation for HTTP1 transport
-pub struct H1ServiceHandler<T, P, S, B, X> {
+pub struct H1ServiceHandler<T, P, S, B, X, U> {
     srv: CloneableService<S>,
     expect: CloneableService<X>,
+    upgrade: Option<CloneableService<U>>,
     cfg: ServiceConfig,
     _t: PhantomData<(T, P, B)>,
 }
 
-impl<T, P, S, B, X> H1ServiceHandler<T, P, S, B, X>
+impl<T, P, S, B, X, U> H1ServiceHandler<T, P, S, B, X, U>
 where
     S: Service<Request = Request>,
     S::Error: Into<Error>,
@@ -182,18 +224,26 @@ where
     B: MessageBody,
     X: Service<Request = Request, Response = Request>,
     X::Error: Into<Error>,
+    U: Service<Request = (Request, Framed<T, Codec>), Response = ()>,
+    U::Error: fmt::Display,
 {
-    fn new(cfg: ServiceConfig, srv: S, expect: X) -> H1ServiceHandler<T, P, S, B, X> {
+    fn new(
+        cfg: ServiceConfig,
+        srv: S,
+        expect: X,
+        upgrade: Option<U>,
+    ) -> H1ServiceHandler<T, P, S, B, X, U> {
         H1ServiceHandler {
             srv: CloneableService::new(srv),
             expect: CloneableService::new(expect),
+            upgrade: upgrade.map(|s| CloneableService::new(s)),
             cfg,
             _t: PhantomData,
         }
     }
 }
 
-impl<T, P, S, B, X> Service for H1ServiceHandler<T, P, S, B, X>
+impl<T, P, S, B, X, U> Service for H1ServiceHandler<T, P, S, B, X, U>
 where
     T: AsyncRead + AsyncWrite,
     S: Service<Request = Request>,
@@ -202,11 +252,13 @@ where
     B: MessageBody,
     X: Service<Request = Request, Response = Request>,
     X::Error: Into<Error>,
+    U: Service<Request = (Request, Framed<T, Codec>), Response = ()>,
+    U::Error: fmt::Display,
 {
     type Request = Io<T, P>;
     type Response = ();
     type Error = DispatchError;
-    type Future = Dispatcher<T, S, B, X>;
+    type Future = Dispatcher<T, S, B, X, U>;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
         let ready = self
@@ -243,6 +295,7 @@ where
             self.cfg.clone(),
             self.srv.clone(),
             self.expect.clone(),
+            self.upgrade.clone(),
         )
     }
 }

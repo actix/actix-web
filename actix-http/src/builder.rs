@@ -1,13 +1,14 @@
 use std::fmt;
 use std::marker::PhantomData;
 
+use actix_codec::Framed;
 use actix_server_config::ServerConfig as SrvConfig;
 use actix_service::{IntoNewService, NewService, Service};
 
 use crate::body::MessageBody;
 use crate::config::{KeepAlive, ServiceConfig};
 use crate::error::Error;
-use crate::h1::{ExpectHandler, H1Service};
+use crate::h1::{Codec, ExpectHandler, H1Service, UpgradeHandler};
 use crate::h2::H2Service;
 use crate::request::Request;
 use crate::response::Response;
@@ -17,15 +18,16 @@ use crate::service::HttpService;
 ///
 /// This type can be used to construct an instance of `http service` through a
 /// builder-like pattern.
-pub struct HttpServiceBuilder<T, S, X = ExpectHandler> {
+pub struct HttpServiceBuilder<T, S, X = ExpectHandler, U = UpgradeHandler<T>> {
     keep_alive: KeepAlive,
     client_timeout: u64,
     client_disconnect: u64,
     expect: X,
+    upgrade: Option<U>,
     _t: PhantomData<(T, S)>,
 }
 
-impl<T, S> HttpServiceBuilder<T, S, ExpectHandler>
+impl<T, S> HttpServiceBuilder<T, S, ExpectHandler, UpgradeHandler<T>>
 where
     S: NewService<SrvConfig, Request = Request>,
     S::Error: Into<Error>,
@@ -38,12 +40,13 @@ where
             client_timeout: 5000,
             client_disconnect: 0,
             expect: ExpectHandler,
+            upgrade: None,
             _t: PhantomData,
         }
     }
 }
 
-impl<T, S, X> HttpServiceBuilder<T, S, X>
+impl<T, S, X, U> HttpServiceBuilder<T, S, X, U>
 where
     S: NewService<SrvConfig, Request = Request>,
     S::Error: Into<Error>,
@@ -51,11 +54,14 @@ where
     X: NewService<Request = Request, Response = Request>,
     X::Error: Into<Error>,
     X::InitError: fmt::Debug,
+    U: NewService<Request = (Request, Framed<T, Codec>), Response = ()>,
+    U::Error: fmt::Display,
+    U::InitError: fmt::Debug,
 {
     /// Set server keep-alive setting.
     ///
     /// By default keep alive is set to a 5 seconds.
-    pub fn keep_alive<U: Into<KeepAlive>>(mut self, val: U) -> Self {
+    pub fn keep_alive<W: Into<KeepAlive>>(mut self, val: W) -> Self {
         self.keep_alive = val.into();
         self
     }
@@ -92,43 +98,25 @@ where
     /// Service get called with request that contains `EXPECT` header.
     /// Service must return request in case of success, in that case
     /// request will be forwarded to main service.
-    pub fn expect<F, U>(self, expect: F) -> HttpServiceBuilder<T, S, U>
+    pub fn expect<F, X1>(self, expect: F) -> HttpServiceBuilder<T, S, X1, U>
     where
-        F: IntoNewService<U>,
-        U: NewService<Request = Request, Response = Request>,
-        U::Error: Into<Error>,
-        U::InitError: fmt::Debug,
+        F: IntoNewService<X1>,
+        X1: NewService<Request = Request, Response = Request>,
+        X1::Error: Into<Error>,
+        X1::InitError: fmt::Debug,
     {
         HttpServiceBuilder {
             keep_alive: self.keep_alive,
             client_timeout: self.client_timeout,
             client_disconnect: self.client_disconnect,
             expect: expect.into_new_service(),
+            upgrade: self.upgrade,
             _t: PhantomData,
         }
     }
 
-    // #[cfg(feature = "ssl")]
-    // /// Configure alpn protocols for SslAcceptorBuilder.
-    // pub fn configure_openssl(
-    //     builder: &mut openssl::ssl::SslAcceptorBuilder,
-    // ) -> io::Result<()> {
-    //     let protos: &[u8] = b"\x02h2";
-    //     builder.set_alpn_select_callback(|_, protos| {
-    //         const H2: &[u8] = b"\x02h2";
-    //         if protos.windows(3).any(|window| window == H2) {
-    //             Ok(b"h2")
-    //         } else {
-    //             Err(openssl::ssl::AlpnError::NOACK)
-    //         }
-    //     });
-    //     builder.set_alpn_protos(&protos)?;
-
-    //     Ok(())
-    // }
-
     /// Finish service configuration and create *http service* for HTTP/1 protocol.
-    pub fn h1<F, P, B>(self, service: F) -> H1Service<T, P, S, B, X>
+    pub fn h1<F, P, B>(self, service: F) -> H1Service<T, P, S, B, X, U>
     where
         B: MessageBody + 'static,
         F: IntoNewService<S, SrvConfig>,
@@ -141,7 +129,9 @@ where
             self.client_timeout,
             self.client_disconnect,
         );
-        H1Service::with_config(cfg, service.into_new_service()).expect(self.expect)
+        H1Service::with_config(cfg, service.into_new_service())
+            .expect(self.expect)
+            .upgrade(self.upgrade)
     }
 
     /// Finish service configuration and create *http service* for HTTP/2 protocol.
@@ -163,7 +153,7 @@ where
     }
 
     /// Finish service configuration and create `HttpService` instance.
-    pub fn finish<F, P, B>(self, service: F) -> HttpService<T, P, S, B, X>
+    pub fn finish<F, P, B>(self, service: F) -> HttpService<T, P, S, B, X, U>
     where
         B: MessageBody + 'static,
         F: IntoNewService<S, SrvConfig>,
@@ -177,6 +167,8 @@ where
             self.client_timeout,
             self.client_disconnect,
         );
-        HttpService::with_config(cfg, service.into_new_service()).expect(self.expect)
+        HttpService::with_config(cfg, service.into_new_service())
+            .expect(self.expect)
+            .upgrade(self.upgrade)
     }
 }

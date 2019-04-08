@@ -295,7 +295,6 @@ where
     type Future = Box<Future<Item = Self::Response, Error = Self::Error>>;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
-        //self.service.poll_ready().map_err(|e| e.into())
         self.service.poll_ready()
     }
 
