@@ -6,7 +6,7 @@ description = "Actix http primitives"
 readme = "README.md"
 keywords = ["actix", "http", "framework", "async", "futures"]
 homepage = "https://actix.rs"
-repository = "https://github.com/actix/actix-http.git"
+repository = "https://github.com/actix/actix-web.git"
 documentation = "https://docs.rs/actix-http/"
 categories = ["network-programming", "asynchronous",
               "web-programming::http-server",
@@ -17,10 +17,6 @@ workspace = ".."
 
 [package.metadata.docs.rs]
 features = ["ssl", "fail", "brotli", "flate2-zlib", "secure-cookies"]
-
-[badges]
-travis-ci = { repository = "actix/actix-web", branch = "master" }
-codecov = { repository = "actix/actix-web", branch = "master", service = "github" }
 
 [lib]
 name = "actix_http"
