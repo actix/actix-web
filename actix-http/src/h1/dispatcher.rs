@@ -824,7 +824,7 @@ mod tests {
 
     use super::*;
     use crate::error::Error;
-    use crate::h1::ExpectHandler;
+    use crate::h1::{ExpectHandler, UpgradeHandler};
 
     struct Buffer {
         buf: Bytes,
@@ -884,25 +884,21 @@ mod tests {
         let _ = sys.block_on(lazy(|| {
             let buf = Buffer::new("GET /test HTTP/1\r\n\r\n");
 
-            let mut h1 = Dispatcher::new(
+            let mut h1 = Dispatcher::<_, _, _, _, UpgradeHandler<Buffer>>::new(
                 buf,
                 ServiceConfig::default(),
                 CloneableService::new(
                     (|_| ok::<_, Error>(Response::Ok().finish())).into_service(),
                 ),
                 CloneableService::new(ExpectHandler),
+                None,
             );
             assert!(h1.poll().is_err());
-            assert!(h1
-                .inner
-                .as_ref()
-                .unwrap()
-                .flags
-                .contains(Flags::READ_DISCONNECT));
-            assert_eq!(
-                &h1.inner.as_ref().unwrap().io.write_buf[..26],
-                b"HTTP/1.1 400 Bad Request\r\n"
-            );
+
+            if let DispatcherState::Normal(ref inner) = h1.inner {
+                assert!(inner.flags.contains(Flags::READ_DISCONNECT));
+                assert_eq!(&inner.io.write_buf[..26], b"HTTP/1.1 400 Bad Request\r\n");
+            }
             ok::<_, ()>(())
         }));
     }
