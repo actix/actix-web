@@ -115,6 +115,27 @@ where
         }
     }
 
+    /// Provide service for custom `Connection: UPGRADE` support.
+    ///
+    /// If service is provided then normal requests handling get halted
+    /// and this service get called with original request and framed object.
+    pub fn upgrade<F, U1>(self, upgrade: F) -> HttpServiceBuilder<T, S, X, U1>
+    where
+        F: IntoNewService<U1>,
+        U1: NewService<Request = (Request, Framed<T, Codec>), Response = ()>,
+        U1::Error: fmt::Display,
+        U1::InitError: fmt::Debug,
+    {
+        HttpServiceBuilder {
+            keep_alive: self.keep_alive,
+            client_timeout: self.client_timeout,
+            client_disconnect: self.client_disconnect,
+            expect: self.expect,
+            upgrade: Some(upgrade.into_new_service()),
+            _t: PhantomData,
+        }
+    }
+
     /// Finish service configuration and create *http service* for HTTP/1 protocol.
     pub fn h1<F, P, B>(self, service: F) -> H1Service<T, P, S, B, X, U>
     where

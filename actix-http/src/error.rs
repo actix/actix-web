@@ -350,6 +350,9 @@ pub enum DispatchError {
     /// Service error
     Service(Error),
 
+    /// Upgrade service error
+    Upgrade,
+
     /// An `io::Error` that occurred while trying to read or write to a network
     /// stream.
     #[display(fmt = "IO error: {}", _0)]

@@ -1,8 +1,17 @@
 # Changes
 
+## [0.1.0-alpha.5] - 2019-04-xx
+
+### Added
+
+* Allow to use custom service for upgrade requests
+
+
 ## [0.1.0-alpha.4] - 2019-04-08
 
 ### Added
+
+* Allow to use custom `Expect` handler
 
 * Add minimal `std::error::Error` impl for `Error`
 
