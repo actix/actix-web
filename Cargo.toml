@@ -29,7 +29,6 @@ members = [
   "awc",
   "actix-http",
   "actix-files",
-  "actix-framed",
   "actix-session",
   "actix-multipart",
   "actix-web-actors",
