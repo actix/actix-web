@@ -96,7 +96,8 @@ impl<T: 'static, P> FromRequest<P> for Data<T> {
         if let Some(st) = req.app_config().extensions().get::<Data<T>>() {
             Ok(st.clone())
         } else {
-            log::debug!("Failed to construct App-level Data extractor");
+            log::debug!("Failed to construct App-level Data extractor. \
+                         Request path: {:?}", req.path());
             Err(ErrorInternalServerError(
                 "App data is not configured, to configure use App::data()",
             ))
