@@ -162,7 +162,10 @@ where
     #[inline]
     fn from_request(req: &HttpRequest, _: &mut Payload<P>) -> Self::Future {
         de::Deserialize::deserialize(PathDeserializer::new(req.match_info()))
-            .map(|inner| Path { inner })
+            .map(|inner| {
+                log::error!("Failed to deserialize during Path extractor");
+                Path { inner }
+            })
             .map_err(ErrorNotFound)
     }
 }

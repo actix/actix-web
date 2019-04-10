@@ -96,6 +96,7 @@ impl<T: 'static, P> FromRequest<P> for Data<T> {
         if let Some(st) = req.app_config().extensions().get::<Data<T>>() {
             Ok(st.clone())
         } else {
+            log::error!("Failed to construct App-level Data extractor");
             Err(ErrorInternalServerError(
                 "App data is not configured, to configure use App::data()",
             ))
@@ -235,6 +236,7 @@ impl<T: 'static, P> FromRequest<P> for RouteData<T> {
         if let Some(st) = req.route_data::<T>() {
             Ok(st.clone())
         } else {
+            log::error!("Failed to construct Route-level Data extractor");
             Err(ErrorInternalServerError(
                 "Route data is not configured, to configure use Route::data()",
             ))

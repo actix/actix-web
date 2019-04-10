@@ -122,6 +122,9 @@ where
     fn from_request(req: &HttpRequest, _: &mut Payload<P>) -> Self::Future {
         serde_urlencoded::from_str::<T>(req.query_string())
             .map(|val| Ok(Query(val)))
-            .unwrap_or_else(|e| Err(e.into()))
+            .unwrap_or_else(|e| {
+                log::error!("Failed during Query extractor deserialization");  
+                Err(e.into())
+            })
     }
 }
