@@ -3,7 +3,7 @@ extern crate proc_macro;
 use std::fmt;
 
 use proc_macro::TokenStream;
-use quote::{quote};
+use quote::quote;
 
 enum ResourceType {
     Async,
@@ -51,9 +51,13 @@ impl fmt::Display for Args {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let ast = &self.ast;
         let guards = format!(".guard(actix_web::guard::{}())", self.guard);
-        let guards = self.extra_guards.iter().fold(guards, |acc, val| format!("{}.guard(actix_web::guard::fn_guard({}))", acc, val));
+        let guards = self.extra_guards.iter().fold(guards, |acc, val| {
+            format!("{}.guard(actix_web::guard::fn_guard({}))", acc, val)
+        });
 
-        write!(f, "
+        write!(
+            f,
+            "
 #[allow(non_camel_case_types)]
 pub struct {name};
 
@@ -65,7 +69,13 @@ impl<P: 'static> actix_web::dev::HttpServiceFactory<P> for {name} {{
 
         actix_web::dev::HttpServiceFactory::register(resource, config)
     }}
-}}", name=self.name, ast=quote!(#ast), path=self.path, guards=guards, to=self.resource_type)
+}}",
+            name = self.name,
+            ast = quote!(#ast),
+            path = self.path,
+            guards = guards,
+            to = self.resource_type
+        )
     }
 }
 
@@ -73,33 +83,41 @@ fn guess_resource_type(typ: &syn::Type) -> ResourceType {
     let mut guess = ResourceType::Sync;
 
     match typ {
-        syn::Type::ImplTrait(typ) => for bound in typ.bounds.iter() {
-            match bound {
-                syn::TypeParamBound::Trait(bound) => {
-                    for bound in bound.path.segments.iter() {
-                        if bound.ident == "Future" {
-                            guess = ResourceType::Async;
-                            break;
-                        } else if bound.ident == "Responder" {
-                            guess = ResourceType::Sync;
-                            break;
+        syn::Type::ImplTrait(typ) => {
+            for bound in typ.bounds.iter() {
+                match bound {
+                    syn::TypeParamBound::Trait(bound) => {
+                        for bound in bound.path.segments.iter() {
+                            if bound.ident == "Future" {
+                                guess = ResourceType::Async;
+                                break;
+                            } else if bound.ident == "Responder" {
+                                guess = ResourceType::Sync;
+                                break;
+                            }
                         }
                     }
-                },
-                _ => (),
+                    _ => (),
+                }
             }
-        },
+        }
         _ => (),
     }
 
     guess
-
 }
 
 impl Args {
-    pub fn new(args: &Vec<syn::NestedMeta>, input: TokenStream, guard: GuardType) -> Self {
+    pub fn new(
+        args: &Vec<syn::NestedMeta>,
+        input: TokenStream,
+        guard: GuardType,
+    ) -> Self {
         if args.is_empty() {
-            panic!("invalid server definition, expected: #[{}(\"some path\")]", guard);
+            panic!(
+                "invalid server definition, expected: #[{}(\"some path\")]",
+                guard
+            );
         }
 
         let ast: syn::ItemFn = syn::parse(input).expect("Parse input as function");
@@ -115,15 +133,20 @@ impl Args {
                     }
                     let fname = quote!(#fname).to_string();
                     path = Some(fname.as_str()[1..fname.len() - 1].to_owned())
-                },
-                syn::NestedMeta::Meta(syn::Meta::NameValue(ident)) => match ident.ident.to_string().to_lowercase().as_str() {
-                    "guard" => match ident.lit {
-                        syn::Lit::Str(ref text) => extra_guards.push(text.value()),
-                        _ => panic!("Attribute guard expects literal string!"),
-                    },
-                    attr => panic!("Unknown attribute key is specified: {}. Allowed: guard", attr)
-                },
-                attr => panic!("Unknown attribute{:?}", attr)
+                }
+                syn::NestedMeta::Meta(syn::Meta::NameValue(ident)) => {
+                    match ident.ident.to_string().to_lowercase().as_str() {
+                        "guard" => match ident.lit {
+                            syn::Lit::Str(ref text) => extra_guards.push(text.value()),
+                            _ => panic!("Attribute guard expects literal string!"),
+                        },
+                        attr => panic!(
+                            "Unknown attribute key is specified: {}. Allowed: guard",
+                            attr
+                        ),
+                    }
+                }
+                attr => panic!("Unknown attribute{:?}", attr),
             }
         }
 
@@ -131,7 +154,9 @@ impl Args {
             ResourceType::Async
         } else {
             match ast.decl.output {
-                syn::ReturnType::Default => panic!("Function {} has no return type. Cannot be used as handler"),
+                syn::ReturnType::Default => {
+                    panic!("Function {} has no return type. Cannot be used as handler")
+                }
                 syn::ReturnType::Type(_, ref typ) => guess_resource_type(typ.as_ref()),
             }
         };
@@ -153,7 +178,7 @@ impl Args {
 
         match text.parse() {
             Ok(res) => res,
-            Err(error) => panic!("Error: {:?}\nGenerated code: {}", error, text)
+            Err(error) => panic!("Error: {:?}\nGenerated code: {}", error, text),
         }
     }
 }

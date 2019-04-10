@@ -241,8 +241,8 @@ impl<B> Drop for StreamLog<B> {
 }
 
 impl<B: MessageBody> MessageBody for StreamLog<B> {
-    fn length(&self) -> BodySize {
-        self.body.length()
+    fn size(&self) -> BodySize {
+        self.body.size()
     }
 
     fn poll_next(&mut self) -> Poll<Option<Bytes>, Error> {

@@ -320,7 +320,7 @@ where
         body: ResponseBody<B>,
     ) -> Result<State<S, B, X>, DispatchError> {
         self.codec
-            .encode(Message::Item((message, body.length())), &mut self.write_buf)
+            .encode(Message::Item((message, body.size())), &mut self.write_buf)
             .map_err(|err| {
                 if let Some(mut payload) = self.payload.take() {
                     payload.set_error(PayloadError::Incomplete(None));
@@ -329,7 +329,7 @@ where
             })?;
 
         self.flags.set(Flags::KEEPALIVE, self.codec.keepalive());
-        match body.length() {
+        match body.size() {
             BodySize::None | BodySize::Empty => Ok(State::None),
             _ => Ok(State::SendPayload(body)),
         }

@@ -210,6 +210,18 @@ impl<B> Response<B> {
         }
     }
 
+    /// Split response and body
+    pub fn into_parts(self) -> (Response<()>, ResponseBody<B>) {
+        (
+            Response {
+                head: self.head,
+                body: ResponseBody::Body(()),
+                error: self.error,
+            },
+            self.body,
+        )
+    }
+
     /// Drop request's body
     pub fn drop_body(self) -> Response<()> {
         Response {
@@ -264,7 +276,7 @@ impl<B: MessageBody> fmt::Debug for Response<B> {
         for (key, val) in self.head.headers.iter() {
             let _ = writeln!(f, "    {:?}: {:?}", key, val);
         }
-        let _ = writeln!(f, "  body: {:?}", self.body.length());
+        let _ = writeln!(f, "  body: {:?}", self.body.size());
         res
     }
 }

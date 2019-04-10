@@ -67,7 +67,7 @@ ssl = ["openssl", "actix-server/ssl", "awc/ssl"]
 rust-tls = ["rustls", "actix-server/rust-tls"]
 
 [dependencies]
-actix-codec = "0.1.1"
+actix-codec = "0.1.2"
 actix-service = "0.3.6"
 actix-utils = "0.3.4"
 actix-router = "0.1.2"

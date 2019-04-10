@@ -79,12 +79,12 @@ enum EncoderBody<B> {
 }
 
 impl<B: MessageBody> MessageBody for Encoder<B> {
-    fn length(&self) -> BodySize {
+    fn size(&self) -> BodySize {
         if self.encoder.is_none() {
             match self.body {
-                EncoderBody::Bytes(ref b) => b.length(),
-                EncoderBody::Stream(ref b) => b.length(),
-                EncoderBody::BoxedStream(ref b) => b.length(),
+                EncoderBody::Bytes(ref b) => b.size(),
+                EncoderBody::Stream(ref b) => b.size(),
+                EncoderBody::BoxedStream(ref b) => b.size(),
             }
         } else {
             BodySize::Stream

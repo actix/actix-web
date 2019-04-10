@@ -27,9 +27,9 @@ where
     T: AsyncRead + AsyncWrite + 'static,
     B: MessageBody,
 {
-    trace!("Sending client request: {:?} {:?}", head, body.length());
+    trace!("Sending client request: {:?} {:?}", head, body.size());
     let head_req = head.method == Method::HEAD;
-    let length = body.length();
+    let length = body.size();
     let eof = match length {
         BodySize::None | BodySize::Empty | BodySize::Sized(0) => true,
         _ => false,

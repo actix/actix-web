@@ -1,8 +1,8 @@
 use actix_http::HttpService;
 use actix_http_test::TestServer;
-use actix_web_codegen::get;
 use actix_web::{http, App, HttpResponse, Responder};
-use futures::{Future, future};
+use actix_web_codegen::get;
+use futures::{future, Future};
 
 //fn guard_head(head: &actix_web::dev::RequestHead) -> bool {
 //    true
@@ -15,15 +15,14 @@ fn test() -> impl Responder {
 }
 
 #[get("/test")]
-fn auto_async() -> impl Future<Item=HttpResponse, Error=actix_web::Error> {
+fn auto_async() -> impl Future<Item = HttpResponse, Error = actix_web::Error> {
     future::ok(HttpResponse::Ok().finish())
 }
 
 #[get("/test")]
-fn auto_sync() -> impl Future<Item=HttpResponse, Error=actix_web::Error> {
+fn auto_sync() -> impl Future<Item = HttpResponse, Error = actix_web::Error> {
     future::ok(HttpResponse::Ok().finish())
 }
-
 
 #[test]
 fn test_body() {

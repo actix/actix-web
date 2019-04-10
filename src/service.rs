@@ -360,7 +360,7 @@ impl<B: MessageBody> fmt::Debug for ServiceResponse<B> {
         for (key, val) in self.response.head().headers.iter() {
             let _ = writeln!(f, "    {:?}: {:?}", key, val);
         }
-        let _ = writeln!(f, "  body: {:?}", self.response.body().length());
+        let _ = writeln!(f, "  body: {:?}", self.response.body().size());
         res
     }
 }

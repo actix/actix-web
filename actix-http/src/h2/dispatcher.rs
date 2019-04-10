@@ -153,10 +153,10 @@ where
     fn prepare_response(
         &self,
         head: &ResponseHead,
-        length: &mut BodySize,
+        size: &mut BodySize,
     ) -> http::Response<()> {
         let mut has_date = false;
-        let mut skip_len = length != &BodySize::Stream;
+        let mut skip_len = size != &BodySize::Stream;
 
         let mut res = http::Response::new(());
         *res.status_mut() = head.status;
@@ -166,14 +166,14 @@ where
         match head.status {
             http::StatusCode::NO_CONTENT
             | http::StatusCode::CONTINUE
-            | http::StatusCode::PROCESSING => *length = BodySize::None,
+            | http::StatusCode::PROCESSING => *size = BodySize::None,
             http::StatusCode::SWITCHING_PROTOCOLS => {
                 skip_len = true;
-                *length = BodySize::Stream;
+                *size = BodySize::Stream;
             }
             _ => (),
         }
-        let _ = match length {
+        let _ = match size {
             BodySize::None | BodySize::Stream => None,
             BodySize::Empty => res
                 .headers_mut()
@@ -229,16 +229,15 @@ where
                         let (res, body) = res.into().replace_body(());
 
                         let mut send = send.take().unwrap();
-                        let mut length = body.length();
-                        let h2_res = self.prepare_response(res.head(), &mut length);
+                        let mut size = body.size();
+                        let h2_res = self.prepare_response(res.head(), &mut size);
 
-                        let stream = send
-                            .send_response(h2_res, length.is_eof())
-                            .map_err(|e| {
+                        let stream =
+                            send.send_response(h2_res, size.is_eof()).map_err(|e| {
                                 trace!("Error sending h2 response: {:?}", e);
                             })?;
 
-                        if length.is_eof() {
+                        if size.is_eof() {
                             Ok(Async::Ready(()))
                         } else {
                             self.state = ServiceResponseState::SendPayload(stream, body);
@@ -251,16 +250,15 @@ where
                         let (res, body) = res.replace_body(());
 
                         let mut send = send.take().unwrap();
-                        let mut length = body.length();
-                        let h2_res = self.prepare_response(res.head(), &mut length);
+                        let mut size = body.size();
+                        let h2_res = self.prepare_response(res.head(), &mut size);
 
-                        let stream = send
-                            .send_response(h2_res, length.is_eof())
-                            .map_err(|e| {
+                        let stream =
+                            send.send_response(h2_res, size.is_eof()).map_err(|e| {
                                 trace!("Error sending h2 response: {:?}", e);
                             })?;
 
-                        if length.is_eof() {
+                        if size.is_eof() {
                             Ok(Async::Ready(()))
                         } else {
                             self.state = ServiceResponseState::SendPayload(

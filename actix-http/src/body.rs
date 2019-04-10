@@ -30,13 +30,13 @@ impl BodySize {
 
 /// Type that provides this trait can be streamed to a peer.
 pub trait MessageBody {
-    fn length(&self) -> BodySize;
+    fn size(&self) -> BodySize;
 
     fn poll_next(&mut self) -> Poll<Option<Bytes>, Error>;
 }
 
 impl MessageBody for () {
-    fn length(&self) -> BodySize {
+    fn size(&self) -> BodySize {
         BodySize::Empty
     }
 
@@ -46,8 +46,8 @@ impl MessageBody for () {
 }
 
 impl<T: MessageBody> MessageBody for Box<T> {
-    fn length(&self) -> BodySize {
-        self.as_ref().length()
+    fn size(&self) -> BodySize {
+        self.as_ref().size()
     }
 
     fn poll_next(&mut self) -> Poll<Option<Bytes>, Error> {
@@ -86,10 +86,10 @@ impl<B: MessageBody> ResponseBody<B> {
 }
 
 impl<B: MessageBody> MessageBody for ResponseBody<B> {
-    fn length(&self) -> BodySize {
+    fn size(&self) -> BodySize {
         match self {
-            ResponseBody::Body(ref body) => body.length(),
-            ResponseBody::Other(ref body) => body.length(),
+            ResponseBody::Body(ref body) => body.size(),
+            ResponseBody::Other(ref body) => body.size(),
         }
     }
 
@@ -135,12 +135,12 @@ impl Body {
 }
 
 impl MessageBody for Body {
-    fn length(&self) -> BodySize {
+    fn size(&self) -> BodySize {
         match self {
             Body::None => BodySize::None,
             Body::Empty => BodySize::Empty,
             Body::Bytes(ref bin) => BodySize::Sized(bin.len()),
-            Body::Message(ref body) => body.length(),
+            Body::Message(ref body) => body.size(),
         }
     }
 
@@ -185,7 +185,7 @@ impl fmt::Debug for Body {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             Body::None => write!(f, "Body::None"),
-            Body::Empty => write!(f, "Body::Zero"),
+            Body::Empty => write!(f, "Body::Empty"),
             Body::Bytes(ref b) => write!(f, "Body::Bytes({:?})", b),
             Body::Message(_) => write!(f, "Body::Message(_)"),
         }
@@ -235,7 +235,7 @@ impl From<BytesMut> for Body {
 }
 
 impl MessageBody for Bytes {
-    fn length(&self) -> BodySize {
+    fn size(&self) -> BodySize {
         BodySize::Sized(self.len())
     }
 
@@ -249,7 +249,7 @@ impl MessageBody for Bytes {
 }
 
 impl MessageBody for BytesMut {
-    fn length(&self) -> BodySize {
+    fn size(&self) -> BodySize {
         BodySize::Sized(self.len())
     }
 
@@ -265,7 +265,7 @@ impl MessageBody for BytesMut {
 }
 
 impl MessageBody for &'static str {
-    fn length(&self) -> BodySize {
+    fn size(&self) -> BodySize {
         BodySize::Sized(self.len())
     }
 
@@ -281,7 +281,7 @@ impl MessageBody for &'static str {
 }
 
 impl MessageBody for &'static [u8] {
-    fn length(&self) -> BodySize {
+    fn size(&self) -> BodySize {
         BodySize::Sized(self.len())
     }
 
@@ -297,7 +297,7 @@ impl MessageBody for &'static [u8] {
 }
 
 impl MessageBody for Vec<u8> {
-    fn length(&self) -> BodySize {
+    fn size(&self) -> BodySize {
         BodySize::Sized(self.len())
     }
 
@@ -314,7 +314,7 @@ impl MessageBody for Vec<u8> {
 }
 
 impl MessageBody for String {
-    fn length(&self) -> BodySize {
+    fn size(&self) -> BodySize {
         BodySize::Sized(self.len())
     }
 
@@ -354,7 +354,7 @@ where
     S: Stream<Item = Bytes, Error = E>,
     E: Into<Error>,
 {
-    fn length(&self) -> BodySize {
+    fn size(&self) -> BodySize {
         BodySize::Stream
     }
 
@@ -383,7 +383,7 @@ impl<S> MessageBody for SizedStream<S>
 where
     S: Stream<Item = Bytes, Error = Error>,
 {
-    fn length(&self) -> BodySize {
+    fn size(&self) -> BodySize {
         BodySize::Sized(self.size)
     }
 
@@ -416,47 +416,117 @@ mod tests {
 
     #[test]
     fn test_static_str() {
-        assert_eq!(Body::from("").length(), BodySize::Sized(0));
-        assert_eq!(Body::from("test").length(), BodySize::Sized(4));
+        assert_eq!(Body::from("").size(), BodySize::Sized(0));
+        assert_eq!(Body::from("test").size(), BodySize::Sized(4));
         assert_eq!(Body::from("test").get_ref(), b"test");
+
+        assert_eq!("test".size(), BodySize::Sized(4));
+        assert_eq!(
+            "test".poll_next().unwrap(),
+            Async::Ready(Some(Bytes::from("test")))
+        );
     }
 
     #[test]
     fn test_static_bytes() {
-        assert_eq!(Body::from(b"test".as_ref()).length(), BodySize::Sized(4));
+        assert_eq!(Body::from(b"test".as_ref()).size(), BodySize::Sized(4));
         assert_eq!(Body::from(b"test".as_ref()).get_ref(), b"test");
         assert_eq!(
-            Body::from_slice(b"test".as_ref()).length(),
+            Body::from_slice(b"test".as_ref()).size(),
             BodySize::Sized(4)
         );
         assert_eq!(Body::from_slice(b"test".as_ref()).get_ref(), b"test");
+
+        assert_eq!((&b"test"[..]).size(), BodySize::Sized(4));
+        assert_eq!(
+            (&b"test"[..]).poll_next().unwrap(),
+            Async::Ready(Some(Bytes::from("test")))
+        );
     }
 
     #[test]
     fn test_vec() {
-        assert_eq!(Body::from(Vec::from("test")).length(), BodySize::Sized(4));
+        assert_eq!(Body::from(Vec::from("test")).size(), BodySize::Sized(4));
         assert_eq!(Body::from(Vec::from("test")).get_ref(), b"test");
+
+        assert_eq!(Vec::from("test").size(), BodySize::Sized(4));
+        assert_eq!(
+            Vec::from("test").poll_next().unwrap(),
+            Async::Ready(Some(Bytes::from("test")))
+        );
     }
 
     #[test]
     fn test_bytes() {
-        assert_eq!(Body::from(Bytes::from("test")).length(), BodySize::Sized(4));
-        assert_eq!(Body::from(Bytes::from("test")).get_ref(), b"test");
-    }
-
-    #[test]
-    fn test_string() {
-        let b = "test".to_owned();
-        assert_eq!(Body::from(b.clone()).length(), BodySize::Sized(4));
+        let mut b = Bytes::from("test");
+        assert_eq!(Body::from(b.clone()).size(), BodySize::Sized(4));
         assert_eq!(Body::from(b.clone()).get_ref(), b"test");
-        assert_eq!(Body::from(&b).length(), BodySize::Sized(4));
-        assert_eq!(Body::from(&b).get_ref(), b"test");
+
+        assert_eq!(b.size(), BodySize::Sized(4));
+        assert_eq!(
+            b.poll_next().unwrap(),
+            Async::Ready(Some(Bytes::from("test")))
+        );
     }
 
     #[test]
     fn test_bytes_mut() {
-        let b = BytesMut::from("test");
-        assert_eq!(Body::from(b.clone()).length(), BodySize::Sized(4));
-        assert_eq!(Body::from(b).get_ref(), b"test");
+        let mut b = BytesMut::from("test");
+        assert_eq!(Body::from(b.clone()).size(), BodySize::Sized(4));
+        assert_eq!(Body::from(b.clone()).get_ref(), b"test");
+
+        assert_eq!(b.size(), BodySize::Sized(4));
+        assert_eq!(
+            b.poll_next().unwrap(),
+            Async::Ready(Some(Bytes::from("test")))
+        );
+    }
+
+    #[test]
+    fn test_string() {
+        let mut b = "test".to_owned();
+        assert_eq!(Body::from(b.clone()).size(), BodySize::Sized(4));
+        assert_eq!(Body::from(b.clone()).get_ref(), b"test");
+        assert_eq!(Body::from(&b).size(), BodySize::Sized(4));
+        assert_eq!(Body::from(&b).get_ref(), b"test");
+
+        assert_eq!(b.size(), BodySize::Sized(4));
+        assert_eq!(
+            b.poll_next().unwrap(),
+            Async::Ready(Some(Bytes::from("test")))
+        );
+    }
+
+    #[test]
+    fn test_unit() {
+        assert_eq!(().size(), BodySize::Empty);
+        assert_eq!(().poll_next().unwrap(), Async::Ready(None));
+    }
+
+    #[test]
+    fn test_box() {
+        let mut val = Box::new(());
+        assert_eq!(val.size(), BodySize::Empty);
+        assert_eq!(val.poll_next().unwrap(), Async::Ready(None));
+    }
+
+    #[test]
+    fn test_body_eq() {
+        assert!(Body::None == Body::None);
+        assert!(Body::None != Body::Empty);
+        assert!(Body::Empty == Body::Empty);
+        assert!(Body::Empty != Body::None);
+        assert!(
+            Body::Bytes(Bytes::from_static(b"1"))
+                == Body::Bytes(Bytes::from_static(b"1"))
+        );
+        assert!(Body::Bytes(Bytes::from_static(b"1")) != Body::None);
+    }
+
+    #[test]
+    fn test_body_debug() {
+        assert!(format!("{:?}", Body::None).contains("Body::None"));
+        assert!(format!("{:?}", Body::Empty).contains("Body::Empty"));
+        assert!(format!("{:?}", Body::Bytes(Bytes::from_static(b"1"))).contains("1"));
     }
 }

@@ -6,6 +6,12 @@
 
 * Allow to use custom service for upgrade requests
 
+* Added `h1::SendResponse` future.
+
+### Changed
+
+* MessageBody::length() renamed to MessageBody::size() for consistency
+
 
 ## [0.1.0-alpha.4] - 2019-04-08
 

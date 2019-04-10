@@ -55,14 +55,14 @@ where
         io: Some(io),
     };
 
-    let len = body.length();
+    let len = body.size();
 
     // create Framed and send reqest
     Framed::new(io, h1::ClientCodec::default())
         .send((head, len).into())
         .from_err()
         // send request body
-        .and_then(move |framed| match body.length() {
+        .and_then(move |framed| match body.size() {
             BodySize::None | BodySize::Empty | BodySize::Sized(0) => {
                 Either::A(ok(framed))
             }
