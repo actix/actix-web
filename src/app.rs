@@ -64,7 +64,7 @@ where
         InitError = (),
     >,
 {
-    /// Set application data. Applicatin data could be accessed
+    /// Set application data. Application data could be accessed
     /// by using `Data<T>` extractor where `T` is data type.
     ///
     /// **Note**: http server accepts an application factory rather than

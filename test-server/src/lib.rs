@@ -107,7 +107,7 @@ impl TestServer {
         TestServerRuntime { addr, rt, client }
     }
 
-    /// Get firat available unused address
+    /// Get first available unused address
     pub fn unused_addr() -> net::SocketAddr {
         let addr: net::SocketAddr = "127.0.0.1:0".parse().unwrap();
         let socket = TcpBuilder::new_v4().unwrap();

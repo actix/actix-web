@@ -1,6 +1,7 @@
+use std::{io, mem, ptr, slice};
+
 use bytes::{BufMut, BytesMut};
 use http::Version;
-use std::{mem, ptr, slice};
 
 const DEC_DIGITS_LUT: &[u8] = b"0001020304050607080910111213141516171819\
       2021222324252627282930313233343536373839\
@@ -164,6 +165,18 @@ pub(crate) fn convert_usize(mut n: usize, bytes: &mut BytesMut) {
             buf_ptr.offset(curr),
             41 - curr as usize,
         ));
+    }
+}
+
+pub(crate) struct Writer<'a>(pub &'a mut BytesMut);
+
+impl<'a> io::Write for Writer<'a> {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.0.extend_from_slice(buf);
+        Ok(buf.len())
+    }
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
     }
 }
 

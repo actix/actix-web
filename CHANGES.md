@@ -18,6 +18,10 @@
 
 * Move multipart support to actix-multipart crate
 
+### Fixed
+
+* Fix body propagation in Response::from_error. #760
+
 
 ## [1.0.0-alpha.3] - 2019-04-02
 
