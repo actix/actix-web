@@ -185,8 +185,11 @@ where
             JsonBody::new(req, payload)
                 .limit(limit)
                 .map_err(move |e| {
-                    log::debug!("Failed to deserialize Json from payload. \
-                                 Request path: {:?}", path);
+                    log::debug!(
+                        "Failed to deserialize Json from payload. \
+                         Request path: {:?}",
+                        path
+                    );
                     if let Some(err) = err {
                         (*err)(e, &req2)
                     } else {

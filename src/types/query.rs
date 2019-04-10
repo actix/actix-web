@@ -123,8 +123,11 @@ where
         serde_urlencoded::from_str::<T>(req.query_string())
             .map(|val| Ok(Query(val)))
             .unwrap_or_else(|e| {
-                log::debug!("Failed during Query extractor deserialization. \
-                             Request path: {:?}", req.path());  
+                log::debug!(
+                    "Failed during Query extractor deserialization. \
+                     Request path: {:?}",
+                    req.path()
+                );
                 Err(e.into())
             })
     }
