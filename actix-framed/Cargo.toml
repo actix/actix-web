@@ -1,0 +1,37 @@
+[package]
+name = "actix-framed"
+version = "0.1.0"
+authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
+description = "Actix framed app server"
+readme = "README.md"
+keywords = ["http", "web", "framework", "async", "futures"]
+homepage = "https://actix.rs"
+repository = "https://github.com/actix/actix-web.git"
+documentation = "https://docs.rs/actix-framed/"
+categories = ["network-programming", "asynchronous",
+              "web-programming::http-server",
+              "web-programming::websocket"]
+license = "MIT/Apache-2.0"
+edition = "2018"
+workspace =".."
+
+[lib]
+name = "actix_framed"
+path = "src/lib.rs"
+
+[dependencies]
+actix-codec = "0.1.2"
+actix-service = "0.3.6"
+actix-utils = "0.3.4"
+actix-router = "0.1.2"
+actix-http = { path = "../actix-http" }
+
+bytes = "0.4"
+futures = "0.1.25"
+log = "0.4"
+
+[dev-dependencies]
+actix-rt = "0.2.2"
+actix-server = { version = "0.4.1", features=["ssl"] }
+actix-connect = { version = "0.1.0", features=["ssl"] }
+actix-http-test = { version = "0.1.0-alpha.3", features=["ssl"] }
