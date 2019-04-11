@@ -1,8 +1,11 @@
 //! Test Various helpers for Actix applications to use during testing.
 use std::fmt::Write as FmtWrite;
+use std::io;
 use std::str::FromStr;
 
-use bytes::Bytes;
+use actix_codec::{AsyncRead, AsyncWrite};
+use bytes::{Buf, Bytes, BytesMut};
+use futures::{Async, Poll};
 use http::header::{self, HeaderName, HeaderValue};
 use http::{HttpTryFrom, Method, Uri, Version};
 use percent_encoding::{percent_encode, USERINFO_ENCODE_SET};
@@ -180,4 +183,68 @@ impl TestRequest {
 #[inline]
 fn parts(parts: &mut Option<Inner>) -> &mut Inner {
     parts.as_mut().expect("cannot reuse test request builder")
+}
+
+/// Async io buffer
+pub struct TestBuffer {
+    pub read_buf: BytesMut,
+    pub write_buf: BytesMut,
+    pub err: Option<io::Error>,
+}
+
+impl TestBuffer {
+    /// Create new TestBuffer instance
+    pub fn new<T>(data: T) -> TestBuffer
+    where
+        BytesMut: From<T>,
+    {
+        TestBuffer {
+            read_buf: BytesMut::from(data),
+            write_buf: BytesMut::new(),
+            err: None,
+        }
+    }
+
+    /// Add extra data to read buffer.
+    pub fn extend_read_buf<T: AsRef<[u8]>>(&mut self, data: T) {
+        self.read_buf.extend_from_slice(data.as_ref())
+    }
+}
+
+impl io::Read for TestBuffer {
+    fn read(&mut self, dst: &mut [u8]) -> Result<usize, io::Error> {
+        if self.read_buf.is_empty() {
+            if self.err.is_some() {
+                Err(self.err.take().unwrap())
+            } else {
+                Err(io::Error::new(io::ErrorKind::WouldBlock, ""))
+            }
+        } else {
+            let size = std::cmp::min(self.read_buf.len(), dst.len());
+            let b = self.read_buf.split_to(size);
+            dst[..size].copy_from_slice(&b);
+            Ok(size)
+        }
+    }
+}
+
+impl io::Write for TestBuffer {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.write_buf.extend(buf);
+        Ok(buf.len())
+    }
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+impl AsyncRead for TestBuffer {}
+
+impl AsyncWrite for TestBuffer {
+    fn shutdown(&mut self) -> Poll<(), io::Error> {
+        Ok(Async::Ready(()))
+    }
+    fn write_buf<B: Buf>(&mut self, _: &mut B) -> Poll<usize, io::Error> {
+        Ok(Async::NotReady)
+    }
 }
