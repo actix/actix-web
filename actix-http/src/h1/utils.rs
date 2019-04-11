@@ -34,35 +34,23 @@ where
     B: MessageBody,
 {
     type Item = Framed<T, Codec>;
-    type Error = (Error, Framed<T, Codec>);
+    type Error = Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         loop {
             let mut body_ready = self.body.is_some();
+            let framed = self.framed.as_mut().unwrap();
 
             // send body
             if self.res.is_none() && self.body.is_some() {
-                while body_ready
-                    && self.body.is_some()
-                    && !self.framed.as_ref().unwrap().is_write_buf_full()
-                {
-                    match self
-                        .body
-                        .as_mut()
-                        .unwrap()
-                        .poll_next()
-                        .map_err(|e| (e, self.framed.take().unwrap()))?
-                    {
+                while body_ready && self.body.is_some() && !framed.is_write_buf_full() {
+                    match self.body.as_mut().unwrap().poll_next()? {
                         Async::Ready(item) => {
                             // body is done
                             if item.is_none() {
                                 let _ = self.body.take();
                             }
-                            self.framed
-                                .as_mut()
-                                .unwrap()
-                                .force_send(Message::Chunk(item))
-                                .map_err(|e| (e.into(), self.framed.take().unwrap()))?;
+                            framed.force_send(Message::Chunk(item))?;
                         }
                         Async::NotReady => body_ready = false,
                     }
@@ -70,14 +58,8 @@ where
             }
 
             // flush write buffer
-            if !self.framed.as_ref().unwrap().is_write_buf_empty() {
-                match self
-                    .framed
-                    .as_mut()
-                    .unwrap()
-                    .poll_complete()
-                    .map_err(|e| (e.into(), self.framed.take().unwrap()))?
-                {
+            if !framed.is_write_buf_empty() {
+                match framed.poll_complete()? {
                     Async::Ready(_) => {
                         if body_ready {
                             continue;
@@ -91,11 +73,7 @@ where
 
             // send response
             if let Some(res) = self.res.take() {
-                self.framed
-                    .as_mut()
-                    .unwrap()
-                    .force_send(res)
-                    .map_err(|e| (e.into(), self.framed.take().unwrap()))?;
+                framed.force_send(res)?;
                 continue;
             }
 
