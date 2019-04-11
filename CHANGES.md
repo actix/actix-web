@@ -1,5 +1,10 @@
 # Changes
 
+### Added
+
+* Added async io `TestBuffer` for testing.
+
+
 ## [1.0.0-alpha.4] - 2019-04-08
 
 ### Added

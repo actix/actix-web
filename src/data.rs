@@ -32,8 +32,9 @@ pub(crate) trait DataFactoryResult {
 /// an application instance. Http server constructs an application
 /// instance for each thread, thus application data must be constructed
 /// multiple times. If you want to share data between different
-/// threads, a shared object should be used, e.g. `Arc`. Application
-/// data does not need to be `Send` or `Sync`.
+/// threads, a shareable object should be used, e.g. `Send + Sync`. Application
+/// data does not need to be `Send` or `Sync`. Internally `Data` instance
+/// uses `Arc`.
 ///
 /// If route data is not set for a handler, using `Data<T>` extractor would
 /// cause *Internal Server Error* response.
