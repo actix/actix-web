@@ -1,4 +1,4 @@
-use std::io;
+use std::{fmt, io};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use actix_http::body::Body;
@@ -101,6 +101,12 @@ impl<T: AsyncRead + AsyncWrite> AsyncSocket for Socket<T> {
 }
 
 pub struct BoxedSocket(Box<dyn AsyncSocket>);
+
+impl fmt::Debug for BoxedSocket {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "BoxedSocket")
+    }
+}
 
 impl io::Read for BoxedSocket {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {

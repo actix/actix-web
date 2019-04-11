@@ -6,6 +6,10 @@
 
 * Do not set any default headers
 
+### Added
+
+* Add Debug impl for BoxedSocket
+
 
 ## [0.1.0-alpha.4] - 2019-04-08
 
