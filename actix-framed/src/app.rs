@@ -23,23 +23,23 @@ pub trait HttpServiceFactory {
 }
 
 /// Application builder
-pub struct App<T, S = ()> {
+pub struct FramedApp<T, S = ()> {
     state: State<S>,
     services: Vec<(String, BoxedHttpNewService<FramedRequest<T, S>>)>,
 }
 
-impl<T: 'static> App<T, ()> {
+impl<T: 'static> FramedApp<T, ()> {
     pub fn new() -> Self {
-        App {
+        FramedApp {
             state: State::new(()),
             services: Vec::new(),
         }
     }
 }
 
-impl<T: 'static, S: 'static> App<T, S> {
-    pub fn with(state: S) -> App<T, S> {
-        App {
+impl<T: 'static, S: 'static> FramedApp<T, S> {
+    pub fn with(state: S) -> FramedApp<T, S> {
+        FramedApp {
             services: Vec::new(),
             state: State::new(state),
         }
@@ -69,13 +69,13 @@ impl<T: 'static, S: 'static> App<T, S> {
     }
 }
 
-impl<T, S> IntoNewService<AppFactory<T, S>> for App<T, S>
+impl<T, S> IntoNewService<FramedAppFactory<T, S>> for FramedApp<T, S>
 where
     T: AsyncRead + AsyncWrite + 'static,
     S: 'static,
 {
-    fn into_new_service(self) -> AppFactory<T, S> {
-        AppFactory {
+    fn into_new_service(self) -> FramedAppFactory<T, S> {
+        FramedAppFactory {
             state: self.state,
             services: Rc::new(self.services),
         }
@@ -83,12 +83,12 @@ where
 }
 
 #[derive(Clone)]
-pub struct AppFactory<T, S> {
+pub struct FramedAppFactory<T, S> {
     state: State<S>,
     services: Rc<Vec<(String, BoxedHttpNewService<FramedRequest<T, S>>)>>,
 }
 
-impl<T, S> NewService for AppFactory<T, S>
+impl<T, S> NewService for FramedAppFactory<T, S>
 where
     T: AsyncRead + AsyncWrite + 'static,
     S: 'static,
@@ -97,7 +97,7 @@ where
     type Response = ();
     type Error = Error;
     type InitError = ();
-    type Service = CloneableService<AppService<T, S>>;
+    type Service = CloneableService<FramedAppService<T, S>>;
     type Future = CreateService<T, S>;
 
     fn new_service(&self, _: &()) -> Self::Future {
@@ -135,7 +135,7 @@ impl<S: 'static, T: 'static> Future for CreateService<T, S>
 where
     T: AsyncRead + AsyncWrite,
 {
-    type Item = CloneableService<AppService<T, S>>;
+    type Item = CloneableService<FramedAppService<T, S>>;
     type Error = ();
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
@@ -174,7 +174,7 @@ where
                     }
                     router
                 });
-            Ok(Async::Ready(CloneableService::new(AppService {
+            Ok(Async::Ready(CloneableService::new(FramedAppService {
                 router: router.finish(),
                 state: self.state.clone(),
             })))
@@ -184,12 +184,12 @@ where
     }
 }
 
-pub struct AppService<T, S> {
+pub struct FramedAppService<T, S> {
     state: State<S>,
     router: Router<BoxedHttpService<FramedRequest<T, S>>>,
 }
 
-impl<S: 'static, T: 'static> Service for AppService<T, S>
+impl<S: 'static, T: 'static> Service for FramedAppService<T, S>
 where
     T: AsyncRead + AsyncWrite,
 {

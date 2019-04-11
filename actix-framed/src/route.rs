@@ -15,54 +15,57 @@ use crate::request::FramedRequest;
 ///
 /// Route uses builder-like pattern for configuration.
 /// If handler is not explicitly set, default *404 Not Found* handler is used.
-pub struct FramedRoute<Io, S, F, R> {
+pub struct FramedRoute<Io, S, F = (), R = ()> {
     handler: F,
     pattern: String,
     methods: Vec<Method>,
     state: PhantomData<(Io, S, R)>,
 }
 
-impl<Io, S> FramedRoute<Io, S, (), ()> {
-    pub fn build(path: &str) -> FramedRouteBuilder<Io, S> {
-        FramedRouteBuilder::new(path)
-    }
-
-    pub fn get(path: &str) -> FramedRouteBuilder<Io, S> {
-        FramedRouteBuilder::new(path).method(Method::GET)
-    }
-
-    pub fn post(path: &str) -> FramedRouteBuilder<Io, S> {
-        FramedRouteBuilder::new(path).method(Method::POST)
-    }
-
-    pub fn put(path: &str) -> FramedRouteBuilder<Io, S> {
-        FramedRouteBuilder::new(path).method(Method::PUT)
-    }
-
-    pub fn delete(path: &str) -> FramedRouteBuilder<Io, S> {
-        FramedRouteBuilder::new(path).method(Method::DELETE)
-    }
-}
-
-impl<Io, S, F, R> FramedRoute<Io, S, F, R>
-where
-    F: FnMut(FramedRequest<Io, S>) -> R + Clone,
-    R: IntoFuture<Item = ()>,
-    R::Future: 'static,
-    R::Error: fmt::Display,
-{
-    pub fn new(pattern: &str, handler: F) -> Self {
+impl<Io, S> FramedRoute<Io, S> {
+    pub fn new(pattern: &str) -> Self {
         FramedRoute {
-            handler,
+            handler: (),
             pattern: pattern.to_string(),
             methods: Vec::new(),
             state: PhantomData,
         }
     }
 
+    pub fn get(path: &str) -> FramedRoute<Io, S> {
+        FramedRoute::new(path).method(Method::GET)
+    }
+
+    pub fn post(path: &str) -> FramedRoute<Io, S> {
+        FramedRoute::new(path).method(Method::POST)
+    }
+
+    pub fn put(path: &str) -> FramedRoute<Io, S> {
+        FramedRoute::new(path).method(Method::PUT)
+    }
+
+    pub fn delete(path: &str) -> FramedRoute<Io, S> {
+        FramedRoute::new(path).method(Method::DELETE)
+    }
+
     pub fn method(mut self, method: Method) -> Self {
         self.methods.push(method);
         self
+    }
+
+    pub fn to<F, R>(self, handler: F) -> FramedRoute<Io, S, F, R>
+    where
+        F: FnMut(FramedRequest<Io, S>) -> R,
+        R: IntoFuture<Item = ()>,
+        R::Future: 'static,
+        R::Error: fmt::Debug,
+    {
+        FramedRoute {
+            handler,
+            pattern: self.pattern,
+            methods: self.methods,
+            state: PhantomData,
+        }
     }
 }
 
@@ -149,41 +152,5 @@ where
             }
             Ok(())
         }))
-    }
-}
-
-pub struct FramedRouteBuilder<Io, S> {
-    pattern: String,
-    methods: Vec<Method>,
-    state: PhantomData<(Io, S)>,
-}
-
-impl<Io, S> FramedRouteBuilder<Io, S> {
-    fn new(path: &str) -> FramedRouteBuilder<Io, S> {
-        FramedRouteBuilder {
-            pattern: path.to_string(),
-            methods: Vec::new(),
-            state: PhantomData,
-        }
-    }
-
-    pub fn method(mut self, method: Method) -> Self {
-        self.methods.push(method);
-        self
-    }
-
-    pub fn to<F, R>(self, handler: F) -> FramedRoute<Io, S, F, R>
-    where
-        F: FnMut(FramedRequest<Io, S>) -> R,
-        R: IntoFuture<Item = ()>,
-        R::Future: 'static,
-        R::Error: fmt::Debug,
-    {
-        FramedRoute {
-            handler,
-            pattern: self.pattern,
-            methods: self.methods,
-            state: PhantomData,
-        }
     }
 }

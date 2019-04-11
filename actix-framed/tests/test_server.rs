@@ -6,7 +6,7 @@ use bytes::{Bytes, BytesMut};
 use futures::future::{self, ok};
 use futures::{Future, Sink, Stream};
 
-use actix_framed::{App, FramedRequest, FramedRoute};
+use actix_framed::{FramedApp, FramedRequest, FramedRoute};
 
 fn ws_service<T: AsyncRead + AsyncWrite>(
     req: FramedRequest<T>,
@@ -40,7 +40,9 @@ fn service(msg: ws::Frame) -> impl Future<Item = ws::Message, Error = Error> {
 fn test_simple() {
     let mut srv = TestServer::new(|| {
         HttpService::build()
-            .upgrade(App::new().service(FramedRoute::get("/index.html").to(ws_service)))
+            .upgrade(
+                FramedApp::new().service(FramedRoute::get("/index.html").to(ws_service)),
+            )
             .finish(|_| future::ok::<_, Error>(Response::NotFound()))
     });
 
