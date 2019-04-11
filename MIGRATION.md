@@ -96,7 +96,7 @@ HttpRequest's api.
   ```
 
 
-* AsyncResponder is deprecated.
+* AsyncResponder is removed.
 
   instead of
 
@@ -142,6 +142,8 @@ HttpRequest's api.
        })
   }
 
+  use
+
   ```rust
   fn index(body: Bytes) -> Responder {
      ...
@@ -163,6 +165,13 @@ HttpRequest's api.
   instead of `use actix_web::multipart::Multipart`
 
   use `use actix_multipart::Multipart`
+
+* Request/response compression/decompression is not enabled by default.
+  To enable use `App::enable_encoding()` method.
+
+* `actix_web::server` module has been removed. To start http server use `actix_web::HttpServer` type
+
+* Actors support have been moved to `actix-web-actors` crate
 
 
 ## 0.7.15
