@@ -153,6 +153,10 @@ impl ResponseError for TimerError {}
 /// `InternalServerError` for `SslError`
 impl ResponseError for openssl::ssl::Error {}
 
+#[cfg(feature = "ssl")]
+/// `InternalServerError` for `SslError`
+impl ResponseError for openssl::ssl::HandshakeError<tokio_tcp::TcpStream> {}
+
 /// Return `BAD_REQUEST` for `de::value::Error`
 impl ResponseError for DeError {
     fn error_response(&self) -> Response {

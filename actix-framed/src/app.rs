@@ -88,7 +88,7 @@ pub struct FramedAppFactory<T, S> {
     services: Rc<Vec<(String, BoxedHttpNewService<FramedRequest<T, S>>)>>,
 }
 
-impl<T, S> NewService for FramedAppFactory<T, S>
+impl<T, S, C> NewService<C> for FramedAppFactory<T, S>
 where
     T: AsyncRead + AsyncWrite + 'static,
     S: 'static,
@@ -100,7 +100,7 @@ where
     type Service = CloneableService<FramedAppService<T, S>>;
     type Future = CreateService<T, S>;
 
-    fn new_service(&self, _: &()) -> Self::Future {
+    fn new_service(&self, _: &C) -> Self::Future {
         CreateService {
             fut: self
                 .services
