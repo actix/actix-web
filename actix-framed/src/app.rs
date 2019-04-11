@@ -206,7 +206,7 @@ where
         let mut path = Path::new(Url::new(req.uri().clone()));
 
         if let Some((srv, _info)) = self.router.recognize_mut(&mut path) {
-            return srv.call(FramedRequest::new(req, framed, self.state.clone()));
+            return srv.call(FramedRequest::new(req, framed, path, self.state.clone()));
         }
         Box::new(
             SendResponse::new(framed, Response::NotFound().finish()).then(|_| Ok(())),

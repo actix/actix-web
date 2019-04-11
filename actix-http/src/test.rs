@@ -205,6 +205,11 @@ impl TestBuffer {
         }
     }
 
+    /// Create new empty TestBuffer instance
+    pub fn empty() -> TestBuffer {
+        TestBuffer::new("")
+    }
+
     /// Add extra data to read buffer.
     pub fn extend_read_buf<T: AsRef<[u8]>>(&mut self, data: T) {
         self.read_buf.extend_from_slice(data.as_ref())
