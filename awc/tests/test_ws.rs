@@ -11,7 +11,7 @@ use futures::future::{ok, Either};
 use futures::{Future, Sink, Stream};
 use tokio_tcp::TcpStream;
 
-use actix_http::{body::BodySize, h1, ws, ResponseError, ServiceConfig};
+use actix_http::{body::BodySize, h1, ws, Request, ResponseError, ServiceConfig};
 
 fn ws_service(req: ws::Frame) -> impl Future<Item = ws::Message, Error = io::Error> {
     match req {
@@ -40,47 +40,49 @@ fn test_simple() {
         fn_service(|io: Io<TcpStream>| Ok(io.into_parts().0))
             .and_then(IntoFramed::new(|| h1::Codec::new(ServiceConfig::default())))
             .and_then(TakeItem::new().map_err(|_| ()))
-            .and_then(|(req, framed): (_, Framed<_, _>)| {
-                // validate request
-                if let Some(h1::Message::Item(req)) = req {
-                    match ws::verify_handshake(&req) {
-                        Err(e) => {
-                            // validation failed
-                            let res = e.error_response();
-                            Either::A(
-                                framed
-                                    .send(h1::Message::Item((
-                                        res.drop_body(),
-                                        BodySize::Empty,
-                                    )))
-                                    .map_err(|_| ())
-                                    .map(|_| ()),
-                            )
+            .and_then(
+                |(req, framed): (Option<h1::Message<Request>>, Framed<_, _>)| {
+                    // validate request
+                    if let Some(h1::Message::Item(req)) = req {
+                        match ws::verify_handshake(req.head()) {
+                            Err(e) => {
+                                // validation failed
+                                let res = e.error_response();
+                                Either::A(
+                                    framed
+                                        .send(h1::Message::Item((
+                                            res.drop_body(),
+                                            BodySize::Empty,
+                                        )))
+                                        .map_err(|_| ())
+                                        .map(|_| ()),
+                                )
+                            }
+                            Ok(_) => {
+                                let res = ws::handshake_response(req.head()).finish();
+                                Either::B(
+                                    // send handshake response
+                                    framed
+                                        .send(h1::Message::Item((
+                                            res.drop_body(),
+                                            BodySize::None,
+                                        )))
+                                        .map_err(|_| ())
+                                        .and_then(|framed| {
+                                            // start websocket service
+                                            let framed =
+                                                framed.into_framed(ws::Codec::new());
+                                            ws::Transport::with(framed, ws_service)
+                                                .map_err(|_| ())
+                                        }),
+                                )
+                            }
                         }
-                        Ok(_) => {
-                            let res = ws::handshake_response(&req).finish();
-                            Either::B(
-                                // send handshake response
-                                framed
-                                    .send(h1::Message::Item((
-                                        res.drop_body(),
-                                        BodySize::None,
-                                    )))
-                                    .map_err(|_| ())
-                                    .and_then(|framed| {
-                                        // start websocket service
-                                        let framed =
-                                            framed.into_framed(ws::Codec::new());
-                                        ws::Transport::with(framed, ws_service)
-                                            .map_err(|_| ())
-                                    }),
-                            )
-                        }
+                    } else {
+                        panic!()
                     }
-                } else {
-                    panic!()
-                }
-            })
+                },
+            )
     });
 
     // client service

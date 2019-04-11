@@ -9,21 +9,18 @@ use derive_more::{Display, From};
 use http::{header, Method, StatusCode};
 
 use crate::error::ResponseError;
-use crate::httpmessage::HttpMessage;
-use crate::request::Request;
+use crate::message::RequestHead;
 use crate::response::{Response, ResponseBuilder};
 
 mod codec;
 mod frame;
 mod mask;
 mod proto;
-mod service;
 mod transport;
 
 pub use self::codec::{Codec, Frame, Message};
 pub use self::frame::Parser;
 pub use self::proto::{hash_key, CloseCode, CloseReason, OpCode};
-pub use self::service::VerifyWebSockets;
 pub use self::transport::Transport;
 
 /// Websocket protocol errors
@@ -112,7 +109,7 @@ impl ResponseError for HandshakeError {
 // /// `protocols` is a sequence of known protocols. On successful handshake,
 // /// the returned response headers contain the first protocol in this list
 // /// which the server also knows.
-pub fn handshake(req: &Request) -> Result<ResponseBuilder, HandshakeError> {
+pub fn handshake(req: &RequestHead) -> Result<ResponseBuilder, HandshakeError> {
     verify_handshake(req)?;
     Ok(handshake_response(req))
 }
@@ -121,9 +118,9 @@ pub fn handshake(req: &Request) -> Result<ResponseBuilder, HandshakeError> {
 // /// `protocols` is a sequence of known protocols. On successful handshake,
 // /// the returned response headers contain the first protocol in this list
 // /// which the server also knows.
-pub fn verify_handshake(req: &Request) -> Result<(), HandshakeError> {
+pub fn verify_handshake(req: &RequestHead) -> Result<(), HandshakeError> {
     // WebSocket accepts only GET
-    if *req.method() != Method::GET {
+    if req.method != Method::GET {
         return Err(HandshakeError::GetMethodRequired);
     }
 
@@ -171,7 +168,7 @@ pub fn verify_handshake(req: &Request) -> Result<(), HandshakeError> {
 /// Create websocket's handshake response
 ///
 /// This function returns handshake `Response`, ready to send to peer.
-pub fn handshake_response(req: &Request) -> ResponseBuilder {
+pub fn handshake_response(req: &RequestHead) -> ResponseBuilder {
     let key = {
         let key = req.headers().get(header::SEC_WEBSOCKET_KEY).unwrap();
         proto::hash_key(key.as_ref())
@@ -195,13 +192,13 @@ mod tests {
         let req = TestRequest::default().method(Method::POST).finish();
         assert_eq!(
             HandshakeError::GetMethodRequired,
-            verify_handshake(&req).err().unwrap()
+            verify_handshake(req.head()).err().unwrap()
         );
 
         let req = TestRequest::default().finish();
         assert_eq!(
             HandshakeError::NoWebsocketUpgrade,
-            verify_handshake(&req).err().unwrap()
+            verify_handshake(req.head()).err().unwrap()
         );
 
         let req = TestRequest::default()
@@ -209,7 +206,7 @@ mod tests {
             .finish();
         assert_eq!(
             HandshakeError::NoWebsocketUpgrade,
-            verify_handshake(&req).err().unwrap()
+            verify_handshake(req.head()).err().unwrap()
         );
 
         let req = TestRequest::default()
@@ -220,7 +217,7 @@ mod tests {
             .finish();
         assert_eq!(
             HandshakeError::NoConnectionUpgrade,
-            verify_handshake(&req).err().unwrap()
+            verify_handshake(req.head()).err().unwrap()
         );
 
         let req = TestRequest::default()
@@ -235,7 +232,7 @@ mod tests {
             .finish();
         assert_eq!(
             HandshakeError::NoVersionHeader,
-            verify_handshake(&req).err().unwrap()
+            verify_handshake(req.head()).err().unwrap()
         );
 
         let req = TestRequest::default()
@@ -254,7 +251,7 @@ mod tests {
             .finish();
         assert_eq!(
             HandshakeError::UnsupportedVersion,
-            verify_handshake(&req).err().unwrap()
+            verify_handshake(req.head()).err().unwrap()
         );
 
         let req = TestRequest::default()
@@ -273,7 +270,7 @@ mod tests {
             .finish();
         assert_eq!(
             HandshakeError::BadWebsocketKey,
-            verify_handshake(&req).err().unwrap()
+            verify_handshake(req.head()).err().unwrap()
         );
 
         let req = TestRequest::default()
@@ -296,7 +293,7 @@ mod tests {
             .finish();
         assert_eq!(
             StatusCode::SWITCHING_PROTOCOLS,
-            handshake_response(&req).finish().status()
+            handshake_response(req.head()).finish().status()
         );
     }
 

@@ -9,7 +9,7 @@ use futures::{Future, Sink, Stream};
 fn ws_service<T: AsyncRead + AsyncWrite>(
     (req, framed): (Request, Framed<T, h1::Codec>),
 ) -> impl Future<Item = (), Error = Error> {
-    let res = ws::handshake(&req).unwrap().message_body(());
+    let res = ws::handshake(req.head()).unwrap().message_body(());
 
     framed
         .send((res, body::BodySize::None).into())

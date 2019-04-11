@@ -12,7 +12,7 @@ fn ws_service<T: AsyncRead + AsyncWrite>(
     req: FramedRequest<T>,
 ) -> impl Future<Item = (), Error = Error> {
     let (req, framed, _) = req.into_parts();
-    let res = ws::handshake(&req).unwrap().message_body(());
+    let res = ws::handshake(req.head()).unwrap().message_body(());
 
     framed
         .send((res, body::BodySize::None).into())

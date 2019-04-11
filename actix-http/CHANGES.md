@@ -12,6 +12,8 @@
 
 * MessageBody::length() renamed to MessageBody::size() for consistency
 
+* ws handshake verification functions take RequestHead instead of Request
+
 
 ## [0.1.0-alpha.4] - 2019-04-08
 
