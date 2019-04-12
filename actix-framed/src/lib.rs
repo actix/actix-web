@@ -4,6 +4,7 @@ mod request;
 mod route;
 mod service;
 mod state;
+pub mod test;
 
 // re-export for convinience
 pub use actix_http::{http, Error, HttpMessage, Response, ResponseError};

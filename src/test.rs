@@ -201,22 +201,12 @@ impl Default for TestRequest {
 impl TestRequest {
     /// Create TestRequest and set request uri
     pub fn with_uri(path: &str) -> TestRequest {
-        TestRequest {
-            req: HttpTestRequest::default().uri(path).take(),
-            rmap: ResourceMap::new(ResourceDef::new("")),
-            config: AppConfigInner::default(),
-            route_data: Extensions::new(),
-        }
+        TestRequest::default().uri(path)
     }
 
     /// Create TestRequest and set header
     pub fn with_hdr<H: Header>(hdr: H) -> TestRequest {
-        TestRequest {
-            req: HttpTestRequest::default().set(hdr).take(),
-            config: AppConfigInner::default(),
-            rmap: ResourceMap::new(ResourceDef::new("")),
-            route_data: Extensions::new(),
-        }
+        TestRequest::default().set(hdr)
     }
 
     /// Create TestRequest and set header
@@ -225,32 +215,17 @@ impl TestRequest {
         HeaderName: HttpTryFrom<K>,
         V: IntoHeaderValue,
     {
-        TestRequest {
-            req: HttpTestRequest::default().header(key, value).take(),
-            config: AppConfigInner::default(),
-            rmap: ResourceMap::new(ResourceDef::new("")),
-            route_data: Extensions::new(),
-        }
+        TestRequest::default().header(key, value)
     }
 
     /// Create TestRequest and set method to `Method::GET`
     pub fn get() -> TestRequest {
-        TestRequest {
-            req: HttpTestRequest::default().method(Method::GET).take(),
-            config: AppConfigInner::default(),
-            rmap: ResourceMap::new(ResourceDef::new("")),
-            route_data: Extensions::new(),
-        }
+        TestRequest::default().method(Method::GET)
     }
 
     /// Create TestRequest and set method to `Method::POST`
     pub fn post() -> TestRequest {
-        TestRequest {
-            req: HttpTestRequest::default().method(Method::POST).take(),
-            config: AppConfigInner::default(),
-            rmap: ResourceMap::new(ResourceDef::new("")),
-            route_data: Extensions::new(),
-        }
+        TestRequest::default().method(Method::POST)
     }
 
     /// Set HTTP version of this request

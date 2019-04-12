@@ -1,4 +1,5 @@
 //! Various helpers for Actix applications to use during testing.
+use std::cell::RefCell;
 use std::sync::mpsc;
 use std::{net, thread, time};
 
@@ -11,6 +12,41 @@ use futures::future::lazy;
 use futures::{Future, Stream};
 use http::Method;
 use net2::TcpBuilder;
+
+thread_local! {
+    static RT: RefCell<Runtime> = {
+        RefCell::new(Runtime::new().unwrap())
+    };
+}
+
+/// Runs the provided future, blocking the current thread until the future
+/// completes.
+///
+/// This function can be used to synchronously block the current thread
+/// until the provided `future` has resolved either successfully or with an
+/// error. The result of the future is then returned from this function
+/// call.
+///
+/// Note that this function is intended to be used only for testing purpose.
+/// This function panics on nested call.
+pub fn block_on<F>(f: F) -> Result<F::Item, F::Error>
+where
+    F: Future,
+{
+    RT.with(move |rt| rt.borrow_mut().block_on(f))
+}
+
+/// Runs the provided function, with runtime enabled.
+///
+/// Note that this function is intended to be used only for testing purpose.
+/// This function panics on nested call.
+pub fn run_on<F, R>(f: F) -> R
+where
+    F: Fn() -> R,
+{
+    RT.with(move |rt| rt.borrow_mut().block_on(lazy(|| Ok::<_, ()>(f()))))
+        .unwrap()
+}
 
 /// The `TestServer` type.
 ///

@@ -123,6 +123,7 @@ impl<Io, S> FramedRequest<Io, S> {
 
 #[cfg(test)]
 mod tests {
+    use actix_http::http::{HeaderName, HeaderValue, HttpTryFrom};
     use actix_http::test::{TestBuffer, TestRequest};
 
     use super::*;
@@ -136,7 +137,7 @@ mod tests {
             .finish();
         let path = Path::new(Url::new(req.uri().clone()));
 
-        let freq = FramedRequest::new(req, framed, path, State::new(10u8));
+        let mut freq = FramedRequest::new(req, framed, path, State::new(10u8));
         assert_eq!(*freq.state(), 10);
         assert_eq!(freq.version(), Version::HTTP_11);
         assert_eq!(freq.method(), Method::GET);
@@ -148,6 +149,15 @@ mod tests {
                 .unwrap()
                 .to_str()
                 .unwrap(),
+            "test"
+        );
+
+        freq.head_mut().headers.insert(
+            HeaderName::try_from("x-hdr").unwrap(),
+            HeaderValue::from_static("test"),
+        );
+        assert_eq!(
+            freq.headers().get("x-hdr").unwrap().to_str().unwrap(),
             "test"
         );
 
