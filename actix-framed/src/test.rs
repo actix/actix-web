@@ -5,6 +5,8 @@ use actix_http::http::header::{Header, HeaderName, IntoHeaderValue};
 use actix_http::http::{HttpTryFrom, Method, Uri, Version};
 use actix_http::test::{TestBuffer, TestRequest as HttpTestRequest};
 use actix_router::{Path, Url};
+use actix_rt::Runtime;
+use futures::IntoFuture;
 
 use crate::{FramedRequest, State};
 
@@ -113,6 +115,16 @@ impl<S> TestRequest<S> {
         self.path.get_mut().update(req.uri());
         let framed = Framed::new(TestBuffer::empty(), Codec::default());
         FramedRequest::new(req, framed, self.path, self.state)
+    }
+
+    /// This method generates `FramedRequest` instance and executes async handler
+    pub fn run<F, R, I, E>(self, f: F) -> Result<I, E>
+    where
+        F: FnOnce(FramedRequest<TestBuffer, S>) -> R,
+        R: IntoFuture<Item = I, Error = E>,
+    {
+        let mut rt = Runtime::new().unwrap();
+        rt.block_on(f(self.finish()).into_future())
     }
 }
 
