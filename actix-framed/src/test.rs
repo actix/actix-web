@@ -9,34 +9,35 @@ use actix_router::{Path, Url};
 use crate::{FramedRequest, State};
 
 /// Test `Request` builder.
-pub struct TestRequest {
+pub struct TestRequest<S = ()> {
     req: HttpTestRequest,
     path: Path<Url>,
+    state: State<S>,
 }
 
-impl Default for TestRequest {
+impl Default for TestRequest<()> {
     fn default() -> TestRequest {
         TestRequest {
             req: HttpTestRequest::default(),
             path: Path::new(Url::new(Uri::default())),
+            state: State::new(()),
         }
     }
 }
 
-#[allow(clippy::wrong_self_convention)]
-impl TestRequest {
+impl TestRequest<()> {
     /// Create TestRequest and set request uri
-    pub fn with_uri(path: &str) -> TestRequest {
+    pub fn with_uri(path: &str) -> Self {
         Self::get().uri(path)
     }
 
     /// Create TestRequest and set header
-    pub fn with_hdr<H: Header>(hdr: H) -> TestRequest {
+    pub fn with_hdr<H: Header>(hdr: H) -> Self {
         Self::default().set(hdr)
     }
 
     /// Create TestRequest and set header
-    pub fn with_header<K, V>(key: K, value: V) -> TestRequest
+    pub fn with_header<K, V>(key: K, value: V) -> Self
     where
         HeaderName: HttpTryFrom<K>,
         V: IntoHeaderValue,
@@ -45,13 +46,25 @@ impl TestRequest {
     }
 
     /// Create TestRequest and set method to `Method::GET`
-    pub fn get() -> TestRequest {
+    pub fn get() -> Self {
         Self::default().method(Method::GET)
     }
 
     /// Create TestRequest and set method to `Method::POST`
-    pub fn post() -> TestRequest {
+    pub fn post() -> Self {
         Self::default().method(Method::POST)
+    }
+}
+
+impl<S> TestRequest<S> {
+    /// Create TestRequest and set request uri
+    pub fn with_state(state: S) -> TestRequest<S> {
+        let req = TestRequest::get();
+        TestRequest {
+            state: State::new(state),
+            req: req.req,
+            path: req.path,
+        }
     }
 
     /// Set HTTP version of this request
@@ -95,16 +108,11 @@ impl TestRequest {
     }
 
     /// Complete request creation and generate `Request` instance
-    pub fn finish(self) -> FramedRequest<TestBuffer, ()> {
-        self.finish_with_state(())
-    }
-
-    /// Complete request creation and generate `Request` instance
-    pub fn finish_with_state<S>(mut self, state: S) -> FramedRequest<TestBuffer, S> {
+    pub fn finish(mut self) -> FramedRequest<TestBuffer, S> {
         let req = self.req.finish();
         self.path.get_mut().update(req.uri());
         let framed = Framed::new(TestBuffer::empty(), Codec::default());
-        FramedRequest::new(req, framed, self.path, State::new(state))
+        FramedRequest::new(req, framed, self.path, self.state)
     }
 }
 
