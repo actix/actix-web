@@ -1,6 +1,6 @@
 [package]
 name = "awc"
-version = "0.1.0-alpha.4"
+version = "0.1.0-alpha.5"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix http client."
 readme = "README.md"
@@ -36,9 +36,9 @@ flate2-zlib = ["actix-http/flate2-zlib"]
 flate2-rust = ["actix-http/flate2-rust"]
 
 [dependencies]
-actix-codec = "0.1.1"
-actix-service = "0.3.4"
-actix-http = "0.1.0-alpha.4"
+actix-codec = "0.1.2"
+actix-service = "0.3.6"
+actix-http = "0.1.0-alpha.5"
 base64 = "0.10.1"
 bytes = "0.4"
 derive_more = "0.14"
@@ -55,8 +55,8 @@ openssl = { version="0.10", optional = true }
 
 [dev-dependencies]
 actix-rt = "0.2.2"
-actix-web = { version = "1.0.0-alpha.4", features=["ssl"] }
-actix-http = { version = "0.1.0-alpha.4", features=["ssl"] }
+actix-web = { version = "1.0.0-alpha.5", features=["ssl"] }
+actix-http = { version = "0.1.0-alpha.5", features=["ssl"] }
 actix-http-test = { version = "0.1.0-alpha.3", features=["ssl"] }
 actix-utils = "0.3.4"
 actix-server = { version = "0.4.1", features=["ssl"] }

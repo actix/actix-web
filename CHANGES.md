@@ -1,8 +1,14 @@
 # Changes
 
+## [1.0.0-alpha.5] - 2019-04-12
+
 ### Added
 
 * Added async io `TestBuffer` for testing.
+
+### Deleted
+
+* Removed native-tls support
 
 
 ## [1.0.0-alpha.4] - 2019-04-08

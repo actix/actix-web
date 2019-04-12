@@ -1,6 +1,6 @@
 [package]
 name = "actix-web"
-version = "1.0.0-alpha.4"
+version = "1.0.0-alpha.5"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix web is a simple, pragmatic and extremely fast web framework for Rust."
 readme = "README.md"
@@ -38,7 +38,7 @@ members = [
 ]
 
 [package.metadata.docs.rs]
-features = ["ssl", "tls", "brotli", "flate2-zlib", "secure-cookies", "client", "rust-tls"]
+features = ["ssl", "brotli", "flate2-zlib", "secure-cookies", "client", "rust-tls"]
 
 [features]
 default = ["brotli", "flate2-zlib", "secure-cookies", "client"]
@@ -58,9 +58,6 @@ flate2-rust = ["actix-http/flate2-rust"]
 # sessions feature, session require "ring" crate and c compiler
 secure-cookies = ["actix-http/secure-cookies"]
 
-# tls
-tls = ["native-tls", "actix-server/ssl"]
-
 # openssl
 ssl = ["openssl", "actix-server/ssl", "awc/ssl"]
 
@@ -74,11 +71,11 @@ actix-utils = "0.3.4"
 actix-router = "0.1.2"
 actix-rt = "0.2.2"
 actix-web-codegen = "0.1.0-alpha.1"
-actix-http = { version = "0.1.0-alpha.4", features=["fail"] }
+actix-http = { version = "0.1.0-alpha.5", features=["fail"] }
 actix-server = "0.4.2"
 actix-server-config = "0.1.0"
 actix-threadpool = "0.1.0"
-awc = { version = "0.1.0-alpha.4", optional = true }
+awc = { version = "0.1.0-alpha.5", optional = true }
 
 bytes = "0.4"
 derive_more = "0.14"
@@ -92,17 +89,16 @@ parking_lot = "0.7"
 regex = "1.0"
 serde = { version = "1.0", features=["derive"] }
 serde_json = "1.0"
-serde_urlencoded = "^0.5.3"
+serde_urlencoded = "0.5.3"
 time = "0.1"
 url = { version="1.7", features=["query_encoding"] }
 
 # ssl support
-native-tls = { version="0.2", optional = true }
 openssl = { version="0.10", optional = true }
 rustls = { version = "^0.15", optional = true }
 
 [dev-dependencies]
-actix-http = { version = "0.1.0-alpha.4", features=["ssl", "brotli", "flate2-zlib"] }
+actix-http = { version = "0.1.0-alpha.5", features=["ssl", "brotli", "flate2-zlib"] }
 actix-http-test = { version = "0.1.0-alpha.3", features=["ssl"] }
 rand = "0.6"
 env_logger = "0.6"
@@ -117,7 +113,6 @@ opt-level = 3
 codegen-units = 1
 
 [patch.crates-io]
-actix = { git = "https://github.com/actix/actix.git" }
 actix-web = { path = "." }
 actix-http = { path = "actix-http" }
 actix-http-test = { path = "test-server" }

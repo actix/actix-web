@@ -67,7 +67,6 @@
 //! ## Package feature
 //!
 //! * `client` - enables http client
-//! * `tls` - enables ssl support via `native-tls` crate
 //! * `ssl` - enables ssl support via `openssl` crate, supports `http/2`
 //! * `rust-tls` - enables ssl support via `rustls` crate, supports `http/2`
 //! * `secure-cookies` - enables secure cookies support, includes `ring` crate as

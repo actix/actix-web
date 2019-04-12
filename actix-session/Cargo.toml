@@ -24,12 +24,12 @@ default = ["cookie-session"]
 cookie-session = ["actix-web/secure-cookies"]
 
 [dependencies]
-actix-web = "1.0.0-alpha.4"
+actix-web = "1.0.0-alpha.5"
 actix-service = "0.3.4"
 bytes = "0.4"
 derive_more = "0.14"
 futures = "0.1.25"
-hashbrown = "0.1.8"
+hashbrown = "0.2.0"
 serde = "1.0"
 serde_json = "1.0"
 time = "0.1"

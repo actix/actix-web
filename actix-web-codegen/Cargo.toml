@@ -16,7 +16,7 @@ quote = "0.6"
 syn = { version = "0.15", features = ["full", "parsing"] }
 
 [dev-dependencies]
-actix-web = { version = "1.0.0-alpha.2" }
-actix-http = { version = "0.1.0-alpha.2", features=["ssl"] }
-actix-http-test = { version = "0.1.0-alpha.2", features=["ssl"] }
+actix-web = { version = "1.0.0-alpha.5" }
+actix-http = { version = "0.1.0-alpha.5", features=["ssl"] }
+actix-http-test = { version = "0.1.0-alpha.3", features=["ssl"] }
 futures = { version = "0.1" }

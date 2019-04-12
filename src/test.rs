@@ -14,6 +14,8 @@ use actix_service::{FnService, IntoNewService, NewService, Service};
 use bytes::Bytes;
 use futures::future::{lazy, Future};
 
+pub use actix_http::test::TestBuffer;
+
 use crate::config::{AppConfig, AppConfigInner};
 use crate::data::RouteData;
 use crate::dev::{Body, Payload};
