@@ -18,8 +18,8 @@ Actix web is a simple, pragmatic and extremely fast web framework for Rust.
 ## Documentation & community resources
 
 * [User Guide](https://actix.rs/docs/)
-* [API Documentation (Development)](https://actix.rs/actix-web/actix_web/)
-* [API Documentation (0.7 Release)](https://docs.rs/actix-web/0.7.19/actix_web/)
+* [API Documentation (1.0)](https://docs.rs/actix-web/)
+* [API Documentation (0.7)](https://docs.rs/actix-web/0.7.19/actix_web/)
 * [Chat on gitter](https://gitter.im/actix/actix)
 * Cargo package: [actix-web](https://crates.io/crates/actix-web)
 * Minimum supported Rust version: 1.32 or later
@@ -36,8 +36,7 @@ fn index(info: web::Path<(u32, String)>) -> impl Responder {
 fn main() -> std::io::Result<()> {
     HttpServer::new(
         || App::new().service(
-              web::resource("/{id}/{name}/index.html")
-                .route(web::get().to(index))))
+              web::resource("/{id}/{name}/index.html").to(index)))
         .bind("127.0.0.1:8080")?
         .run()
 }
