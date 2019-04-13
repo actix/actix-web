@@ -16,6 +16,9 @@ pub enum MultipartError {
     /// Multipart boundary is not found
     #[display(fmt = "Multipart boundary is not found")]
     Boundary,
+    /// Nested multipart is not supported
+    #[display(fmt = "Nested multipart is not supported")]
+    Nested,
     /// Multipart stream is incomplete
     #[display(fmt = "Multipart stream is incomplete")]
     Incomplete,

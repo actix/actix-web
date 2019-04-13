@@ -21,19 +21,13 @@ use crate::server::Multipart;
 ///
 /// fn index(payload: mp::Multipart) -> impl Future<Item = HttpResponse, Error = Error> {
 ///     payload.from_err()               // <- get multipart stream for current request
-///        .and_then(|item| match item { // <- iterate over multipart items
-///            mp::Item::Field(field) => {
-///                // Field in turn is stream of *Bytes* object
-///                Either::A(field.from_err()
-///                          .fold((), |_, chunk| {
-///                              println!("-- CHUNK: \n{:?}", std::str::from_utf8(&chunk));
-///                              Ok::<_, Error>(())
-///                          }))
-///             },
-///             mp::Item::Nested(mp) => {
-///                 // Or item could be nested Multipart stream
-///                 Either::B(ok(()))
-///             }
+///        .and_then(|field| {           // <- iterate over multipart items
+///            // Field in turn is stream of *Bytes* object
+///            field.from_err()
+///                .fold((), |_, chunk| {
+///                    println!("-- CHUNK: \n{:?}", std::str::from_utf8(&chunk));
+///                        Ok::<_, Error>(())
+///                    })
 ///         })
 ///         .fold((), |_, _| Ok::<_, Error>(()))
 ///         .map(|_| HttpResponse::Ok().into())

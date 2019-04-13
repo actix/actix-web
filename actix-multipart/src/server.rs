@@ -32,18 +32,9 @@ pub struct Multipart {
     inner: Option<Rc<RefCell<InnerMultipart>>>,
 }
 
-/// Multipart item
-pub enum Item {
-    /// Multipart field
-    Field(Field),
-    /// Nested multipart stream
-    Nested(Multipart),
-}
-
 enum InnerMultipartItem {
     None,
     Field(Rc<RefCell<InnerField>>),
-    Multipart(Rc<RefCell<InnerMultipart>>),
 }
 
 #[derive(PartialEq, Debug)]
@@ -113,7 +104,7 @@ impl Multipart {
 }
 
 impl Stream for Multipart {
-    type Item = Item;
+    type Item = Field;
     type Error = MultipartError;
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
@@ -245,7 +236,7 @@ impl InnerMultipart {
         Ok(Some(eof))
     }
 
-    fn poll(&mut self, safety: &Safety) -> Poll<Option<Item>, MultipartError> {
+    fn poll(&mut self, safety: &Safety) -> Poll<Option<Field>, MultipartError> {
         if self.state == InnerState::Eof {
             Ok(Async::Ready(None))
         } else {
@@ -262,14 +253,7 @@ impl InnerMultipart {
                                 Async::Ready(None) => true,
                             }
                         }
-                        InnerMultipartItem::Multipart(ref mut multipart) => {
-                            match multipart.borrow_mut().poll(safety)? {
-                                Async::NotReady => return Ok(Async::NotReady),
-                                Async::Ready(Some(_)) => continue,
-                                Async::Ready(None) => true,
-                            }
-                        }
-                        _ => false,
+                        InnerMultipartItem::None => false,
                     };
                     if stop {
                         self.item = InnerMultipartItem::None;
@@ -346,24 +330,7 @@ impl InnerMultipart {
 
             // nested multipart stream
             if mt.type_() == mime::MULTIPART {
-                let inner = if let Some(boundary) = mt.get_param(mime::BOUNDARY) {
-                    Rc::new(RefCell::new(InnerMultipart {
-                        payload: self.payload.clone(),
-                        boundary: boundary.as_str().to_owned(),
-                        state: InnerState::FirstBoundary,
-                        item: InnerMultipartItem::None,
-                    }))
-                } else {
-                    return Err(MultipartError::Boundary);
-                };
-
-                self.item = InnerMultipartItem::Multipart(Rc::clone(&inner));
-
-                Ok(Async::Ready(Some(Item::Nested(Multipart {
-                    safety: safety.clone(),
-                    error: None,
-                    inner: Some(inner),
-                }))))
+                Err(MultipartError::Nested)
             } else {
                 let field = Rc::new(RefCell::new(InnerField::new(
                     self.payload.clone(),
@@ -372,12 +339,12 @@ impl InnerMultipart {
                 )?));
                 self.item = InnerMultipartItem::Field(Rc::clone(&field));
 
-                Ok(Async::Ready(Some(Item::Field(Field::new(
+                Ok(Async::Ready(Some(Field::new(
                     safety.clone(),
                     headers,
                     mt,
                     field,
-                )))))
+                ))))
             }
         }
     }
@@ -864,50 +831,40 @@ mod tests {
 
             let mut multipart = Multipart::new(&headers, payload);
             match multipart.poll().unwrap() {
-                Async::Ready(Some(item)) => match item {
-                    Item::Field(mut field) => {
-                        {
-                            let cd = field.content_disposition().unwrap();
-                            assert_eq!(cd.disposition, DispositionType::FormData);
-                            assert_eq!(
-                                cd.parameters[0],
-                                DispositionParam::Name("file".into())
-                            );
-                        }
-                        assert_eq!(field.content_type().type_(), mime::TEXT);
-                        assert_eq!(field.content_type().subtype(), mime::PLAIN);
+                Async::Ready(Some(mut field)) => {
+                    let cd = field.content_disposition().unwrap();
+                    assert_eq!(cd.disposition, DispositionType::FormData);
+                    assert_eq!(cd.parameters[0], DispositionParam::Name("file".into()));
 
-                        match field.poll().unwrap() {
-                            Async::Ready(Some(chunk)) => assert_eq!(chunk, "test"),
-                            _ => unreachable!(),
-                        }
-                        match field.poll().unwrap() {
-                            Async::Ready(None) => (),
-                            _ => unreachable!(),
-                        }
+                    assert_eq!(field.content_type().type_(), mime::TEXT);
+                    assert_eq!(field.content_type().subtype(), mime::PLAIN);
+
+                    match field.poll().unwrap() {
+                        Async::Ready(Some(chunk)) => assert_eq!(chunk, "test"),
+                        _ => unreachable!(),
                     }
-                    _ => unreachable!(),
-                },
+                    match field.poll().unwrap() {
+                        Async::Ready(None) => (),
+                        _ => unreachable!(),
+                    }
+                }
                 _ => unreachable!(),
             }
 
             match multipart.poll().unwrap() {
-                Async::Ready(Some(item)) => match item {
-                    Item::Field(mut field) => {
-                        assert_eq!(field.content_type().type_(), mime::TEXT);
-                        assert_eq!(field.content_type().subtype(), mime::PLAIN);
+                Async::Ready(Some(mut field)) => {
+                    assert_eq!(field.content_type().type_(), mime::TEXT);
+                    assert_eq!(field.content_type().subtype(), mime::PLAIN);
 
-                        match field.poll() {
-                            Ok(Async::Ready(Some(chunk))) => assert_eq!(chunk, "data"),
-                            _ => unreachable!(),
-                        }
-                        match field.poll() {
-                            Ok(Async::Ready(None)) => (),
-                            _ => unreachable!(),
-                        }
+                    match field.poll() {
+                        Ok(Async::Ready(Some(chunk))) => assert_eq!(chunk, "data"),
+                        _ => unreachable!(),
                     }
-                    _ => unreachable!(),
-                },
+                    match field.poll() {
+                        Ok(Async::Ready(None)) => (),
+                        _ => unreachable!(),
+                    }
+                }
                 _ => unreachable!(),
             }
 

@@ -3,4 +3,4 @@ mod extractor;
 mod server;
 
 pub use self::error::MultipartError;
-pub use self::server::{Field, Item, Multipart};
+pub use self::server::{Field, Multipart};
