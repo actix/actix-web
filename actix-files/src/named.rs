@@ -15,7 +15,7 @@ use actix_web::http::header::{
     self, ContentDisposition, DispositionParam, DispositionType,
 };
 use actix_web::http::{ContentEncoding, Method, StatusCode};
-use actix_web::middleware::encoding::BodyEncoding;
+use actix_web::middleware::BodyEncoding;
 use actix_web::{Error, HttpMessage, HttpRequest, HttpResponse, Responder};
 
 use crate::range::HttpRange;

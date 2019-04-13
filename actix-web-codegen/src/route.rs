@@ -61,8 +61,8 @@ impl fmt::Display for Args {
 #[allow(non_camel_case_types)]
 pub struct {name};
 
-impl<P: 'static> actix_web::dev::HttpServiceFactory<P> for {name} {{
-    fn register(self, config: &mut actix_web::dev::ServiceConfig<P>) {{
+impl actix_web::dev::HttpServiceFactory for {name} {{
+    fn register(self, config: &mut actix_web::dev::ServiceConfig) {{
         {ast}
 
         let resource = actix_web::Resource::new(\"{path}\"){guards}.{to}({name});

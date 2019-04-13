@@ -41,11 +41,11 @@ impl<B> BodyEncoding for Response<B> {
 /// To disable compression set encoding to `ContentEncoding::Identity` value.
 ///
 /// ```rust
-/// use actix_web::{web, middleware::encoding, App, HttpResponse};
+/// use actix_web::{web, middleware, App, HttpResponse};
 ///
 /// fn main() {
 ///     let app = App::new()
-///         .wrap(encoding::Compress::default())
+///         .wrap(middleware::Compress::default())
 ///         .service(
 ///             web::resource("/test")
 ///                 .route(web::get().to(|| HttpResponse::Ok()))
@@ -68,12 +68,12 @@ impl Default for Compress {
     }
 }
 
-impl<S, P, B> Transform<S> for Compress
+impl<S, B> Transform<S> for Compress
 where
     B: MessageBody,
-    S: Service<Request = ServiceRequest<P>, Response = ServiceResponse<B>>,
+    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>>,
 {
-    type Request = ServiceRequest<P>;
+    type Request = ServiceRequest;
     type Response = ServiceResponse<Encoder<B>>;
     type Error = S::Error;
     type InitError = ();
@@ -93,21 +93,21 @@ pub struct CompressMiddleware<S> {
     encoding: ContentEncoding,
 }
 
-impl<S, P, B> Service for CompressMiddleware<S>
+impl<S, B> Service for CompressMiddleware<S>
 where
     B: MessageBody,
-    S: Service<Request = ServiceRequest<P>, Response = ServiceResponse<B>>,
+    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>>,
 {
-    type Request = ServiceRequest<P>;
+    type Request = ServiceRequest;
     type Response = ServiceResponse<Encoder<B>>;
     type Error = S::Error;
-    type Future = CompressResponse<S, P, B>;
+    type Future = CompressResponse<S, B>;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
         self.service.poll_ready()
     }
 
-    fn call(&mut self, req: ServiceRequest<P>) -> Self::Future {
+    fn call(&mut self, req: ServiceRequest) -> Self::Future {
         // negotiate content-encoding
         let encoding = if let Some(val) = req.headers().get(&ACCEPT_ENCODING) {
             if let Ok(enc) = val.to_str() {
@@ -128,20 +128,20 @@ where
 }
 
 #[doc(hidden)]
-pub struct CompressResponse<S, P, B>
+pub struct CompressResponse<S, B>
 where
     S: Service,
     B: MessageBody,
 {
     fut: S::Future,
     encoding: ContentEncoding,
-    _t: PhantomData<(P, B)>,
+    _t: PhantomData<(B)>,
 }
 
-impl<S, P, B> Future for CompressResponse<S, P, B>
+impl<S, B> Future for CompressResponse<S, B>
 where
     B: MessageBody,
-    S: Service<Request = ServiceRequest<P>, Response = ServiceResponse<B>>,
+    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>>,
 {
     type Item = ServiceResponse<Encoder<B>>;
     type Error = S::Error;

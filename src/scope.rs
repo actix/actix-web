@@ -21,9 +21,8 @@ use crate::service::{
 };
 
 type Guards = Vec<Box<Guard>>;
-type HttpService<P> = BoxedService<ServiceRequest<P>, ServiceResponse, Error>;
-type HttpNewService<P> =
-    BoxedNewService<(), ServiceRequest<P>, ServiceResponse, Error, ()>;
+type HttpService = BoxedService<ServiceRequest, ServiceResponse, Error>;
+type HttpNewService = BoxedNewService<(), ServiceRequest, ServiceResponse, Error, ()>;
 type BoxedResponse = Either<
     FutureResult<ServiceResponse, Error>,
     Box<Future<Item = ServiceResponse, Error = Error>>,
@@ -58,18 +57,18 @@ type BoxedResponse = Either<
 ///  * /{project_id}/path2 - `GET` requests
 ///  * /{project_id}/path3 - `HEAD` requests
 ///
-pub struct Scope<P, T = ScopeEndpoint<P>> {
+pub struct Scope<T = ScopeEndpoint> {
     endpoint: T,
     rdef: String,
-    services: Vec<Box<ServiceFactory<P>>>,
+    services: Vec<Box<ServiceFactory>>,
     guards: Vec<Box<Guard>>,
-    default: Rc<RefCell<Option<Rc<HttpNewService<P>>>>>,
-    factory_ref: Rc<RefCell<Option<ScopeFactory<P>>>>,
+    default: Rc<RefCell<Option<Rc<HttpNewService>>>>,
+    factory_ref: Rc<RefCell<Option<ScopeFactory>>>,
 }
 
-impl<P: 'static> Scope<P> {
+impl Scope {
     /// Create a new scope
-    pub fn new(path: &str) -> Scope<P> {
+    pub fn new(path: &str) -> Scope {
         let fref = Rc::new(RefCell::new(None));
         Scope {
             endpoint: ScopeEndpoint::new(fref.clone()),
@@ -82,11 +81,10 @@ impl<P: 'static> Scope<P> {
     }
 }
 
-impl<P, T> Scope<P, T>
+impl<T> Scope<T>
 where
-    P: 'static,
     T: NewService<
-        Request = ServiceRequest<P>,
+        Request = ServiceRequest,
         Response = ServiceResponse,
         Error = Error,
         InitError = (),
@@ -146,7 +144,7 @@ where
     /// ```
     pub fn service<F>(mut self, factory: F) -> Self
     where
-        F: HttpServiceFactory<P> + 'static,
+        F: HttpServiceFactory + 'static,
     {
         self.services
             .push(Box::new(ServiceFactoryWrapper::new(factory)));
@@ -174,7 +172,7 @@ where
     ///     );
     /// }
     /// ```
-    pub fn route(self, path: &str, mut route: Route<P>) -> Self {
+    pub fn route(self, path: &str, mut route: Route) -> Self {
         self.service(
             Resource::new(path)
                 .add_guards(route.take_guards())
@@ -187,9 +185,9 @@ where
     /// If default resource is not registered, app's default resource is being used.
     pub fn default_resource<F, U>(mut self, f: F) -> Self
     where
-        F: FnOnce(Resource<P>) -> Resource<P, U>,
+        F: FnOnce(Resource) -> Resource<U>,
         U: NewService<
-                Request = ServiceRequest<P>,
+                Request = ServiceRequest,
                 Response = ServiceResponse,
                 Error = Error,
                 InitError = (),
@@ -216,9 +214,8 @@ where
         self,
         mw: F,
     ) -> Scope<
-        P,
         impl NewService<
-            Request = ServiceRequest<P>,
+            Request = ServiceRequest,
             Response = ServiceResponse,
             Error = Error,
             InitError = (),
@@ -227,7 +224,7 @@ where
     where
         M: Transform<
             T::Service,
-            Request = ServiceRequest<P>,
+            Request = ServiceRequest,
             Response = ServiceResponse,
             Error = Error,
             InitError = (),
@@ -279,33 +276,31 @@ where
         self,
         mw: F,
     ) -> Scope<
-        P,
         impl NewService<
-            Request = ServiceRequest<P>,
+            Request = ServiceRequest,
             Response = ServiceResponse,
             Error = Error,
             InitError = (),
         >,
     >
     where
-        F: FnMut(ServiceRequest<P>, &mut T::Service) -> R + Clone,
+        F: FnMut(ServiceRequest, &mut T::Service) -> R + Clone,
         R: IntoFuture<Item = ServiceResponse, Error = Error>,
     {
         self.wrap(mw)
     }
 }
 
-impl<P, T> HttpServiceFactory<P> for Scope<P, T>
+impl<T> HttpServiceFactory for Scope<T>
 where
-    P: 'static,
     T: NewService<
-            Request = ServiceRequest<P>,
+            Request = ServiceRequest,
             Response = ServiceResponse,
             Error = Error,
             InitError = (),
         > + 'static,
 {
-    fn register(self, config: &mut ServiceConfig<P>) {
+    fn register(self, config: &mut ServiceConfig) {
         // update default resource if needed
         if self.default.borrow().is_none() {
             *self.default.borrow_mut() = Some(config.default_service());
@@ -350,18 +345,18 @@ where
     }
 }
 
-pub struct ScopeFactory<P> {
-    services: Rc<Vec<(ResourceDef, HttpNewService<P>, RefCell<Option<Guards>>)>>,
-    default: Rc<RefCell<Option<Rc<HttpNewService<P>>>>>,
+pub struct ScopeFactory {
+    services: Rc<Vec<(ResourceDef, HttpNewService, RefCell<Option<Guards>>)>>,
+    default: Rc<RefCell<Option<Rc<HttpNewService>>>>,
 }
 
-impl<P: 'static> NewService for ScopeFactory<P> {
-    type Request = ServiceRequest<P>;
+impl NewService for ScopeFactory {
+    type Request = ServiceRequest;
     type Response = ServiceResponse;
     type Error = Error;
     type InitError = ();
-    type Service = ScopeService<P>;
-    type Future = ScopeFactoryResponse<P>;
+    type Service = ScopeService;
+    type Future = ScopeFactoryResponse;
 
     fn new_service(&self, _: &()) -> Self::Future {
         let default_fut = if let Some(ref default) = *self.default.borrow() {
@@ -390,21 +385,21 @@ impl<P: 'static> NewService for ScopeFactory<P> {
 
 /// Create scope service
 #[doc(hidden)]
-pub struct ScopeFactoryResponse<P> {
-    fut: Vec<CreateScopeServiceItem<P>>,
-    default: Option<HttpService<P>>,
-    default_fut: Option<Box<Future<Item = HttpService<P>, Error = ()>>>,
+pub struct ScopeFactoryResponse {
+    fut: Vec<CreateScopeServiceItem>,
+    default: Option<HttpService>,
+    default_fut: Option<Box<Future<Item = HttpService, Error = ()>>>,
 }
 
-type HttpServiceFut<P> = Box<Future<Item = HttpService<P>, Error = ()>>;
+type HttpServiceFut = Box<Future<Item = HttpService, Error = ()>>;
 
-enum CreateScopeServiceItem<P> {
-    Future(Option<ResourceDef>, Option<Guards>, HttpServiceFut<P>),
-    Service(ResourceDef, Option<Guards>, HttpService<P>),
+enum CreateScopeServiceItem {
+    Future(Option<ResourceDef>, Option<Guards>, HttpServiceFut),
+    Service(ResourceDef, Option<Guards>, HttpService),
 }
 
-impl<P> Future for ScopeFactoryResponse<P> {
-    type Item = ScopeService<P>;
+impl Future for ScopeFactoryResponse {
+    type Item = ScopeService;
     type Error = ();
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
@@ -465,14 +460,14 @@ impl<P> Future for ScopeFactoryResponse<P> {
     }
 }
 
-pub struct ScopeService<P> {
-    router: Router<HttpService<P>, Vec<Box<Guard>>>,
-    default: Option<HttpService<P>>,
-    _ready: Option<(ServiceRequest<P>, ResourceInfo)>,
+pub struct ScopeService {
+    router: Router<HttpService, Vec<Box<Guard>>>,
+    default: Option<HttpService>,
+    _ready: Option<(ServiceRequest, ResourceInfo)>,
 }
 
-impl<P> Service for ScopeService<P> {
-    type Request = ServiceRequest<P>;
+impl Service for ScopeService {
+    type Request = ServiceRequest;
     type Response = ServiceResponse;
     type Error = Error;
     type Future = Either<BoxedResponse, FutureResult<Self::Response, Self::Error>>;
@@ -481,7 +476,7 @@ impl<P> Service for ScopeService<P> {
         Ok(Async::Ready(()))
     }
 
-    fn call(&mut self, mut req: ServiceRequest<P>) -> Self::Future {
+    fn call(&mut self, mut req: ServiceRequest) -> Self::Future {
         let res = self.router.recognize_mut_checked(&mut req, |req, guards| {
             if let Some(ref guards) = guards {
                 for f in guards {
@@ -505,23 +500,23 @@ impl<P> Service for ScopeService<P> {
 }
 
 #[doc(hidden)]
-pub struct ScopeEndpoint<P> {
-    factory: Rc<RefCell<Option<ScopeFactory<P>>>>,
+pub struct ScopeEndpoint {
+    factory: Rc<RefCell<Option<ScopeFactory>>>,
 }
 
-impl<P> ScopeEndpoint<P> {
-    fn new(factory: Rc<RefCell<Option<ScopeFactory<P>>>>) -> Self {
+impl ScopeEndpoint {
+    fn new(factory: Rc<RefCell<Option<ScopeFactory>>>) -> Self {
         ScopeEndpoint { factory }
     }
 }
 
-impl<P: 'static> NewService for ScopeEndpoint<P> {
-    type Request = ServiceRequest<P>;
+impl NewService for ScopeEndpoint {
+    type Request = ServiceRequest;
     type Response = ServiceResponse;
     type Error = Error;
     type InitError = ();
-    type Service = ScopeService<P>;
-    type Future = ScopeFactoryResponse<P>;
+    type Service = ScopeService;
+    type Future = ScopeFactoryResponse;
 
     fn new_service(&self, _: &()) -> Self::Future {
         self.factory.borrow_mut().as_mut().unwrap().new_service(&())
@@ -886,13 +881,13 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
     }
 
-    fn md<S, P, B>(
-        req: ServiceRequest<P>,
+    fn md<S, B>(
+        req: ServiceRequest,
         srv: &mut S,
     ) -> impl IntoFuture<Item = ServiceResponse<B>, Error = Error>
     where
         S: Service<
-            Request = ServiceRequest<P>,
+            Request = ServiceRequest,
             Response = ServiceResponse<B>,
             Error = Error,
         >,

@@ -81,18 +81,14 @@ impl<B> ErrorHandlers<B> {
     }
 }
 
-impl<S, P, B> Transform<S> for ErrorHandlers<B>
+impl<S, B> Transform<S> for ErrorHandlers<B>
 where
-    S: Service<
-        Request = ServiceRequest<P>,
-        Response = ServiceResponse<B>,
-        Error = Error,
-    >,
+    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
     S::Future: 'static,
     S::Error: 'static,
     B: 'static,
 {
-    type Request = ServiceRequest<P>;
+    type Request = ServiceRequest;
     type Response = ServiceResponse<B>;
     type Error = Error;
     type InitError = ();
@@ -113,18 +109,14 @@ pub struct ErrorHandlersMiddleware<S, B> {
     handlers: Rc<HashMap<StatusCode, Box<ErrorHandler<B>>>>,
 }
 
-impl<S, P, B> Service for ErrorHandlersMiddleware<S, B>
+impl<S, B> Service for ErrorHandlersMiddleware<S, B>
 where
-    S: Service<
-        Request = ServiceRequest<P>,
-        Response = ServiceResponse<B>,
-        Error = Error,
-    >,
+    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
     S::Future: 'static,
     S::Error: 'static,
     B: 'static,
 {
-    type Request = ServiceRequest<P>;
+    type Request = ServiceRequest;
     type Response = ServiceResponse<B>;
     type Error = Error;
     type Future = Box<Future<Item = Self::Response, Error = Self::Error>>;
@@ -133,7 +125,7 @@ where
         self.service.poll_ready()
     }
 
-    fn call(&mut self, req: ServiceRequest<P>) -> Self::Future {
+    fn call(&mut self, req: ServiceRequest) -> Self::Future {
         let handlers = self.handlers.clone();
 
         Box::new(self.service.call(req).and_then(move |res| {
@@ -169,7 +161,7 @@ mod tests {
 
     #[test]
     fn test_handler() {
-        let srv = FnService::new(|req: ServiceRequest<_>| {
+        let srv = FnService::new(|req: ServiceRequest| {
             req.into_response(HttpResponse::InternalServerError().finish())
         });
 
@@ -195,7 +187,7 @@ mod tests {
 
     #[test]
     fn test_handler_async() {
-        let srv = FnService::new(|req: ServiceRequest<_>| {
+        let srv = FnService::new(|req: ServiceRequest| {
             req.into_response(HttpResponse::InternalServerError().finish())
         });
 

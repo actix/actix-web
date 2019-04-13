@@ -4,11 +4,6 @@ use actix_web::{http, App, HttpResponse, Responder};
 use actix_web_codegen::get;
 use futures::{future, Future};
 
-//fn guard_head(head: &actix_web::dev::RequestHead) -> bool {
-//    true
-//}
-
-//#[get("/test", guard="guard_head")]
 #[get("/test")]
 fn test() -> impl Responder {
     HttpResponse::Ok()

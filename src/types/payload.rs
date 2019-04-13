@@ -44,7 +44,7 @@ use crate::request::HttpRequest;
 ///     );
 /// }
 /// ```
-pub struct Payload(crate::dev::Payload<Box<Stream<Item = Bytes, Error = PayloadError>>>);
+pub struct Payload(crate::dev::Payload);
 
 impl Stream for Payload {
     type Item = Bytes;
@@ -85,26 +85,13 @@ impl Stream for Payload {
 ///     );
 /// }
 /// ```
-impl<P> FromRequest<P> for Payload
-where
-    P: Stream<Item = Bytes, Error = PayloadError> + 'static,
-{
+impl FromRequest for Payload {
     type Error = Error;
     type Future = Result<Payload, Error>;
 
     #[inline]
-    fn from_request(_: &HttpRequest, payload: &mut dev::Payload<P>) -> Self::Future {
-        let pl = match payload.take() {
-            crate::dev::Payload::Stream(s) => {
-                let pl: Box<dyn Stream<Item = Bytes, Error = PayloadError>> =
-                    Box::new(s);
-                crate::dev::Payload::Stream(pl)
-            }
-            crate::dev::Payload::None => crate::dev::Payload::None,
-            crate::dev::Payload::H1(pl) => crate::dev::Payload::H1(pl),
-            crate::dev::Payload::H2(pl) => crate::dev::Payload::H2(pl),
-        };
-        Ok(Payload(pl))
+    fn from_request(_: &HttpRequest, payload: &mut dev::Payload) -> Self::Future {
+        Ok(Payload(payload.take()))
     }
 }
 
@@ -133,16 +120,13 @@ where
 ///     );
 /// }
 /// ```
-impl<P> FromRequest<P> for Bytes
-where
-    P: Stream<Item = Bytes, Error = PayloadError> + 'static,
-{
+impl FromRequest for Bytes {
     type Error = Error;
     type Future =
         Either<Box<Future<Item = Bytes, Error = Error>>, FutureResult<Bytes, Error>>;
 
     #[inline]
-    fn from_request(req: &HttpRequest, payload: &mut dev::Payload<P>) -> Self::Future {
+    fn from_request(req: &HttpRequest, payload: &mut dev::Payload) -> Self::Future {
         let mut tmp;
         let cfg = if let Some(cfg) = req.route_data::<PayloadConfig>() {
             cfg
@@ -188,16 +172,13 @@ where
 ///     );
 /// }
 /// ```
-impl<P> FromRequest<P> for String
-where
-    P: Stream<Item = Bytes, Error = PayloadError> + 'static,
-{
+impl FromRequest for String {
     type Error = Error;
     type Future =
         Either<Box<Future<Item = String, Error = Error>>, FutureResult<String, Error>>;
 
     #[inline]
-    fn from_request(req: &HttpRequest, payload: &mut dev::Payload<P>) -> Self::Future {
+    fn from_request(req: &HttpRequest, payload: &mut dev::Payload) -> Self::Future {
         let mut tmp;
         let cfg = if let Some(cfg) = req.route_data::<PayloadConfig>() {
             cfg
@@ -300,20 +281,17 @@ impl Default for PayloadConfig {
 /// By default only 256Kb payload reads to a memory, then
 /// `PayloadError::Overflow` get returned. Use `MessageBody::limit()`
 /// method to change upper limit.
-pub struct HttpMessageBody<P> {
+pub struct HttpMessageBody {
     limit: usize,
     length: Option<usize>,
-    stream: dev::Payload<P>,
+    stream: Option<dev::Decompress<dev::Payload>>,
     err: Option<PayloadError>,
     fut: Option<Box<Future<Item = Bytes, Error = PayloadError>>>,
 }
 
-impl<P> HttpMessageBody<P>
-where
-    P: Stream<Item = Bytes, Error = PayloadError>,
-{
+impl HttpMessageBody {
     /// Create `MessageBody` for request.
-    pub fn new(req: &HttpRequest, payload: &mut dev::Payload<P>) -> HttpMessageBody<P> {
+    pub fn new(req: &HttpRequest, payload: &mut dev::Payload) -> HttpMessageBody {
         let mut len = None;
         if let Some(l) = req.headers().get(&header::CONTENT_LENGTH) {
             if let Ok(s) = l.to_str() {
@@ -328,7 +306,7 @@ where
         }
 
         HttpMessageBody {
-            stream: payload.take(),
+            stream: Some(dev::Decompress::from_headers(payload.take(), req.headers())),
             limit: 262_144,
             length: len,
             fut: None,
@@ -344,7 +322,7 @@ where
 
     fn err(e: PayloadError) -> Self {
         HttpMessageBody {
-            stream: dev::Payload::None,
+            stream: None,
             limit: 262_144,
             fut: None,
             err: Some(e),
@@ -353,10 +331,7 @@ where
     }
 }
 
-impl<P> Future for HttpMessageBody<P>
-where
-    P: Stream<Item = Bytes, Error = PayloadError> + 'static,
-{
+impl Future for HttpMessageBody {
     type Item = Bytes;
     type Error = PayloadError;
 
@@ -378,7 +353,9 @@ where
         // future
         let limit = self.limit;
         self.fut = Some(Box::new(
-            std::mem::replace(&mut self.stream, actix_http::Payload::None)
+            self.stream
+                .take()
+                .unwrap()
                 .from_err()
                 .fold(BytesMut::with_capacity(8192), move |mut body, chunk| {
                     if (body.len() + chunk.len()) > limit {

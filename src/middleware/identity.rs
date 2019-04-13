@@ -140,12 +140,12 @@ struct IdentityItem {
 /// }
 /// # fn main() {}
 /// ```
-impl<P> FromRequest<P> for Identity {
+impl FromRequest for Identity {
     type Error = Error;
     type Future = Result<Identity, Error>;
 
     #[inline]
-    fn from_request(req: &HttpRequest, _: &mut Payload<P>) -> Self::Future {
+    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
         Ok(Identity(req.clone()))
     }
 }
@@ -159,7 +159,7 @@ pub trait IdentityPolicy: Sized + 'static {
     type ResponseFuture: IntoFuture<Item = (), Error = Error>;
 
     /// Parse the session from request and load data from a service identity.
-    fn from_request<P>(&self, request: &mut ServiceRequest<P>) -> Self::Future;
+    fn from_request(&self, request: &mut ServiceRequest) -> Self::Future;
 
     /// Write changes to response
     fn to_response<B>(
@@ -198,16 +198,15 @@ impl<T> IdentityService<T> {
     }
 }
 
-impl<S, T, P, B> Transform<S> for IdentityService<T>
+impl<S, T, B> Transform<S> for IdentityService<T>
 where
-    S: Service<Request = ServiceRequest<P>, Response = ServiceResponse<B>> + 'static,
+    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>> + 'static,
     S::Future: 'static,
     S::Error: 'static,
     T: IdentityPolicy,
-    P: 'static,
     B: 'static,
 {
-    type Request = ServiceRequest<P>;
+    type Request = ServiceRequest;
     type Response = ServiceResponse<B>;
     type Error = S::Error;
     type InitError = ();
@@ -228,16 +227,15 @@ pub struct IdentityServiceMiddleware<S, T> {
     service: Rc<RefCell<S>>,
 }
 
-impl<S, T, P, B> Service for IdentityServiceMiddleware<S, T>
+impl<S, T, B> Service for IdentityServiceMiddleware<S, T>
 where
-    P: 'static,
     B: 'static,
-    S: Service<Request = ServiceRequest<P>, Response = ServiceResponse<B>> + 'static,
+    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>> + 'static,
     S::Future: 'static,
     S::Error: 'static,
     T: IdentityPolicy,
 {
-    type Request = ServiceRequest<P>;
+    type Request = ServiceRequest;
     type Response = ServiceResponse<B>;
     type Error = S::Error;
     type Future = Box<Future<Item = Self::Response, Error = Self::Error>>;
@@ -246,7 +244,7 @@ where
         self.service.borrow_mut().poll_ready()
     }
 
-    fn call(&mut self, mut req: ServiceRequest<P>) -> Self::Future {
+    fn call(&mut self, mut req: ServiceRequest) -> Self::Future {
         let srv = self.service.clone();
         let backend = self.backend.clone();
 
@@ -348,7 +346,7 @@ impl CookieIdentityInner {
         Ok(())
     }
 
-    fn load<T>(&self, req: &ServiceRequest<T>) -> Option<String> {
+    fn load(&self, req: &ServiceRequest) -> Option<String> {
         if let Ok(cookies) = req.cookies() {
             for cookie in cookies.iter() {
                 if cookie.name() == self.name {
@@ -445,7 +443,7 @@ impl IdentityPolicy for CookieIdentityPolicy {
     type Future = Result<Option<String>, Error>;
     type ResponseFuture = Result<(), Error>;
 
-    fn from_request<P>(&self, req: &mut ServiceRequest<P>) -> Self::Future {
+    fn from_request(&self, req: &mut ServiceRequest) -> Self::Future {
         Ok(self.0.load(req))
     }
 

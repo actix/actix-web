@@ -1,5 +1,4 @@
 use std::cell::RefCell;
-use std::marker::PhantomData;
 use std::rc::Rc;
 
 use actix_http::{http::Method, Error, Extensions, Response};
@@ -42,16 +41,16 @@ type BoxedRouteNewService<Req, Res> = Box<
 ///
 /// Route uses builder-like pattern for configuration.
 /// If handler is not explicitly set, default *404 Not Found* handler is used.
-pub struct Route<P> {
-    service: BoxedRouteNewService<ServiceRequest<P>, ServiceResponse>,
+pub struct Route {
+    service: BoxedRouteNewService<ServiceRequest, ServiceResponse>,
     guards: Rc<Vec<Box<Guard>>>,
     data: Option<Extensions>,
     data_ref: Rc<RefCell<Option<Rc<Extensions>>>>,
 }
 
-impl<P: 'static> Route<P> {
+impl Route {
     /// Create new route which matches any request.
-    pub fn new() -> Route<P> {
+    pub fn new() -> Route {
         let data_ref = Rc::new(RefCell::new(None));
         Route {
             service: Box::new(RouteNewService::new(Extract::new(
@@ -74,13 +73,13 @@ impl<P: 'static> Route<P> {
     }
 }
 
-impl<P> NewService for Route<P> {
-    type Request = ServiceRequest<P>;
+impl NewService for Route {
+    type Request = ServiceRequest;
     type Response = ServiceResponse;
     type Error = Error;
     type InitError = ();
-    type Service = RouteService<P>;
-    type Future = CreateRouteService<P>;
+    type Service = RouteService;
+    type Future = CreateRouteService;
 
     fn new_service(&self, _: &()) -> Self::Future {
         CreateRouteService {
@@ -90,17 +89,16 @@ impl<P> NewService for Route<P> {
     }
 }
 
-type RouteFuture<P> = Box<
-    Future<Item = BoxedRouteService<ServiceRequest<P>, ServiceResponse>, Error = ()>,
->;
+type RouteFuture =
+    Box<Future<Item = BoxedRouteService<ServiceRequest, ServiceResponse>, Error = ()>>;
 
-pub struct CreateRouteService<P> {
-    fut: RouteFuture<P>,
+pub struct CreateRouteService {
+    fut: RouteFuture,
     guards: Rc<Vec<Box<Guard>>>,
 }
 
-impl<P> Future for CreateRouteService<P> {
-    type Item = RouteService<P>;
+impl Future for CreateRouteService {
+    type Item = RouteService;
     type Error = ();
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
@@ -114,13 +112,13 @@ impl<P> Future for CreateRouteService<P> {
     }
 }
 
-pub struct RouteService<P> {
-    service: BoxedRouteService<ServiceRequest<P>, ServiceResponse>,
+pub struct RouteService {
+    service: BoxedRouteService<ServiceRequest, ServiceResponse>,
     guards: Rc<Vec<Box<Guard>>>,
 }
 
-impl<P> RouteService<P> {
-    pub fn check(&self, req: &mut ServiceRequest<P>) -> bool {
+impl RouteService {
+    pub fn check(&self, req: &mut ServiceRequest) -> bool {
         for f in self.guards.iter() {
             if !f.check(req.head()) {
                 return false;
@@ -130,8 +128,8 @@ impl<P> RouteService<P> {
     }
 }
 
-impl<P> Service for RouteService<P> {
-    type Request = ServiceRequest<P>;
+impl Service for RouteService {
+    type Request = ServiceRequest;
     type Response = ServiceResponse;
     type Error = Error;
     type Future = Either<
@@ -143,12 +141,12 @@ impl<P> Service for RouteService<P> {
         self.service.poll_ready()
     }
 
-    fn call(&mut self, req: ServiceRequest<P>) -> Self::Future {
+    fn call(&mut self, req: ServiceRequest) -> Self::Future {
         self.service.call(req)
     }
 }
 
-impl<P: 'static> Route<P> {
+impl Route {
     /// Add method guard to the route.
     ///
     /// ```rust
@@ -235,10 +233,10 @@ impl<P: 'static> Route<P> {
     ///     );
     /// }
     /// ```
-    pub fn to<F, T, R>(mut self, handler: F) -> Route<P>
+    pub fn to<F, T, R>(mut self, handler: F) -> Route
     where
         F: Factory<T, R> + 'static,
-        T: FromRequest<P> + 'static,
+        T: FromRequest + 'static,
         R: Responder + 'static,
     {
         self.service = Box::new(RouteNewService::new(Extract::new(
@@ -278,7 +276,7 @@ impl<P: 'static> Route<P> {
     pub fn to_async<F, T, R>(mut self, handler: F) -> Self
     where
         F: AsyncFactory<T, R>,
-        T: FromRequest<P> + 'static,
+        T: FromRequest + 'static,
         R: IntoFuture + 'static,
         R::Item: Into<Response>,
         R::Error: Into<Error>,
@@ -321,49 +319,45 @@ impl<P: 'static> Route<P> {
     }
 }
 
-struct RouteNewService<P, T>
+struct RouteNewService<T>
 where
-    T: NewService<Request = ServiceRequest<P>, Error = (Error, ServiceRequest<P>)>,
+    T: NewService<Request = ServiceRequest, Error = (Error, ServiceRequest)>,
 {
     service: T,
-    _t: PhantomData<P>,
 }
 
-impl<P: 'static, T> RouteNewService<P, T>
+impl<T> RouteNewService<T>
 where
     T: NewService<
-        Request = ServiceRequest<P>,
+        Request = ServiceRequest,
         Response = ServiceResponse,
-        Error = (Error, ServiceRequest<P>),
+        Error = (Error, ServiceRequest),
     >,
     T::Future: 'static,
     T::Service: 'static,
     <T::Service as Service>::Future: 'static,
 {
     pub fn new(service: T) -> Self {
-        RouteNewService {
-            service,
-            _t: PhantomData,
-        }
+        RouteNewService { service }
     }
 }
 
-impl<P: 'static, T> NewService for RouteNewService<P, T>
+impl<T> NewService for RouteNewService<T>
 where
     T: NewService<
-        Request = ServiceRequest<P>,
+        Request = ServiceRequest,
         Response = ServiceResponse,
-        Error = (Error, ServiceRequest<P>),
+        Error = (Error, ServiceRequest),
     >,
     T::Future: 'static,
     T::Service: 'static,
     <T::Service as Service>::Future: 'static,
 {
-    type Request = ServiceRequest<P>;
+    type Request = ServiceRequest;
     type Response = ServiceResponse;
     type Error = Error;
     type InitError = ();
-    type Service = BoxedRouteService<ServiceRequest<P>, Self::Response>;
+    type Service = BoxedRouteService<ServiceRequest, Self::Response>;
     type Future = Box<Future<Item = Self::Service, Error = Self::InitError>>;
 
     fn new_service(&self, _: &()) -> Self::Future {
@@ -373,31 +367,27 @@ where
                 .map_err(|_| ())
                 .and_then(|service| {
                     let service: BoxedRouteService<_, _> =
-                        Box::new(RouteServiceWrapper {
-                            service,
-                            _t: PhantomData,
-                        });
+                        Box::new(RouteServiceWrapper { service });
                     Ok(service)
                 }),
         )
     }
 }
 
-struct RouteServiceWrapper<P, T: Service> {
+struct RouteServiceWrapper<T: Service> {
     service: T,
-    _t: PhantomData<P>,
 }
 
-impl<P, T> Service for RouteServiceWrapper<P, T>
+impl<T> Service for RouteServiceWrapper<T>
 where
     T::Future: 'static,
     T: Service<
-        Request = ServiceRequest<P>,
+        Request = ServiceRequest,
         Response = ServiceResponse,
-        Error = (Error, ServiceRequest<P>),
+        Error = (Error, ServiceRequest),
     >,
 {
-    type Request = ServiceRequest<P>;
+    type Request = ServiceRequest;
     type Response = ServiceResponse;
     type Error = Error;
     type Future = Either<
@@ -409,7 +399,7 @@ where
         self.service.poll_ready().map_err(|(e, _)| e)
     }
 
-    fn call(&mut self, req: ServiceRequest<P>) -> Self::Future {
+    fn call(&mut self, req: ServiceRequest) -> Self::Future {
         let mut fut = self.service.call(req);
         match fut.poll() {
             Ok(Async::Ready(res)) => Either::A(ok(res)),

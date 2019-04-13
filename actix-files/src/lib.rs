@@ -32,9 +32,8 @@ use self::error::{FilesError, UriSegmentError};
 pub use crate::named::NamedFile;
 pub use crate::range::HttpRange;
 
-type HttpService<P> = BoxedService<ServiceRequest<P>, ServiceResponse, Error>;
-type HttpNewService<P> =
-    BoxedNewService<(), ServiceRequest<P>, ServiceResponse, Error, ()>;
+type HttpService = BoxedService<ServiceRequest, ServiceResponse, Error>;
+type HttpNewService = BoxedNewService<(), ServiceRequest, ServiceResponse, Error, ()>;
 
 /// Return the MIME type associated with a filename extension (case-insensitive).
 /// If `ext` is empty or no associated type for the extension was found, returns
@@ -225,18 +224,18 @@ type MimeOverride = Fn(&mime::Name) -> DispositionType;
 ///         .service(fs::Files::new("/static", "."));
 /// }
 /// ```
-pub struct Files<S> {
+pub struct Files {
     path: String,
     directory: PathBuf,
     index: Option<String>,
     show_index: bool,
-    default: Rc<RefCell<Option<Rc<HttpNewService<S>>>>>,
+    default: Rc<RefCell<Option<Rc<HttpNewService>>>>,
     renderer: Rc<DirectoryRenderer>,
     mime_override: Option<Rc<MimeOverride>>,
     file_flags: named::Flags,
 }
 
-impl<S> Clone for Files<S> {
+impl Clone for Files {
     fn clone(&self) -> Self {
         Self {
             directory: self.directory.clone(),
@@ -251,13 +250,13 @@ impl<S> Clone for Files<S> {
     }
 }
 
-impl<S: 'static> Files<S> {
+impl Files {
     /// Create new `Files` instance for specified base directory.
     ///
     /// `File` uses `ThreadPool` for blocking filesystem operations.
     /// By default pool with 5x threads of available cpus is used.
     /// Pool size can be changed by setting ACTIX_CPU_POOL environment variable.
-    pub fn new<T: Into<PathBuf>>(path: &str, dir: T) -> Files<S> {
+    pub fn new<T: Into<PathBuf>>(path: &str, dir: T) -> Files {
         let dir = dir.into().canonicalize().unwrap_or_else(|_| PathBuf::new());
         if !dir.is_dir() {
             log::error!("Specified path is not a directory");
@@ -335,7 +334,7 @@ impl<S: 'static> Files<S> {
     where
         F: IntoNewService<U>,
         U: NewService<
-                Request = ServiceRequest<S>,
+                Request = ServiceRequest,
                 Response = ServiceResponse,
                 Error = Error,
             > + 'static,
@@ -349,11 +348,8 @@ impl<S: 'static> Files<S> {
     }
 }
 
-impl<P> HttpServiceFactory<P> for Files<P>
-where
-    P: 'static,
-{
-    fn register(self, config: &mut ServiceConfig<P>) {
+impl HttpServiceFactory for Files {
+    fn register(self, config: &mut ServiceConfig) {
         if self.default.borrow().is_none() {
             *self.default.borrow_mut() = Some(config.default_service());
         }
@@ -366,11 +362,11 @@ where
     }
 }
 
-impl<P: 'static> NewService for Files<P> {
-    type Request = ServiceRequest<P>;
+impl NewService for Files {
+    type Request = ServiceRequest;
     type Response = ServiceResponse;
     type Error = Error;
-    type Service = FilesService<P>;
+    type Service = FilesService;
     type InitError = ();
     type Future = Box<Future<Item = Self::Service, Error = Self::InitError>>;
 
@@ -401,22 +397,22 @@ impl<P: 'static> NewService for Files<P> {
     }
 }
 
-pub struct FilesService<P> {
+pub struct FilesService {
     directory: PathBuf,
     index: Option<String>,
     show_index: bool,
-    default: Option<HttpService<P>>,
+    default: Option<HttpService>,
     renderer: Rc<DirectoryRenderer>,
     mime_override: Option<Rc<MimeOverride>>,
     file_flags: named::Flags,
 }
 
-impl<P> FilesService<P> {
+impl FilesService {
     fn handle_err(
         &mut self,
         e: io::Error,
         req: HttpRequest,
-        payload: Payload<P>,
+        payload: Payload,
     ) -> Either<
         FutureResult<ServiceResponse, Error>,
         Box<Future<Item = ServiceResponse, Error = Error>>,
@@ -430,8 +426,8 @@ impl<P> FilesService<P> {
     }
 }
 
-impl<P> Service for FilesService<P> {
-    type Request = ServiceRequest<P>;
+impl Service for FilesService {
+    type Request = ServiceRequest;
     type Response = ServiceResponse;
     type Error = Error;
     type Future = Either<
@@ -443,7 +439,7 @@ impl<P> Service for FilesService<P> {
         Ok(Async::Ready(()))
     }
 
-    fn call(&mut self, req: ServiceRequest<P>) -> Self::Future {
+    fn call(&mut self, req: ServiceRequest) -> Self::Future {
         let (req, pl) = req.into_parts();
 
         let real_path = match PathBufWrp::get_pathbuf(req.match_info().path()) {
@@ -547,11 +543,11 @@ impl PathBufWrp {
     }
 }
 
-impl<P> FromRequest<P> for PathBufWrp {
+impl FromRequest for PathBufWrp {
     type Error = UriSegmentError;
     type Future = Result<Self, Self::Error>;
 
-    fn from_request(req: &HttpRequest, _: &mut Payload<P>) -> Self::Future {
+    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
         PathBufWrp::get_pathbuf(req.match_info().path())
     }
 }
@@ -570,6 +566,7 @@ mod tests {
         self, ContentDisposition, DispositionParam, DispositionType,
     };
     use actix_web::http::{Method, StatusCode};
+    use actix_web::middleware::Compress;
     use actix_web::test::{self, TestRequest};
     use actix_web::App;
 
@@ -965,7 +962,7 @@ mod tests {
 
     #[test]
     fn test_named_file_content_encoding() {
-        let mut srv = test::init_service(App::new().enable_encoding().service(
+        let mut srv = test::init_service(App::new().wrap(Compress::default()).service(
             web::resource("/").to(|| {
                 NamedFile::open("Cargo.toml")
                     .unwrap()
@@ -984,7 +981,7 @@ mod tests {
 
     #[test]
     fn test_named_file_content_encoding_gzip() {
-        let mut srv = test::init_service(App::new().enable_encoding().service(
+        let mut srv = test::init_service(App::new().wrap(Compress::default()).service(
             web::resource("/").to(|| {
                 NamedFile::open("Cargo.toml")
                     .unwrap()
@@ -1053,15 +1050,15 @@ mod tests {
 
     #[test]
     fn test_static_files_bad_directory() {
-        let _st: Files<()> = Files::new("/", "missing");
-        let _st: Files<()> = Files::new("/", "Cargo.toml");
+        let _st: Files = Files::new("/", "missing");
+        let _st: Files = Files::new("/", "Cargo.toml");
     }
 
     #[test]
     fn test_default_handler_file_missing() {
         let mut st = test::block_on(
             Files::new("/", ".")
-                .default_handler(|req: ServiceRequest<_>| {
+                .default_handler(|req: ServiceRequest| {
                     Ok(req.into_response(HttpResponse::Ok().body("default content")))
                 })
                 .new_service(&()),

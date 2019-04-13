@@ -475,9 +475,9 @@ fn cors<'a>(
     parts.as_mut()
 }
 
-impl<S, P, B> IntoTransform<CorsFactory, S> for Cors
+impl<S, B> IntoTransform<CorsFactory, S> for Cors
 where
-    S: Service<Request = ServiceRequest<P>, Response = ServiceResponse<B>>,
+    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>>,
     S::Future: 'static,
     S::Error: 'static,
     B: 'static,
@@ -537,14 +537,14 @@ pub struct CorsFactory {
     inner: Rc<Inner>,
 }
 
-impl<S, P, B> Transform<S> for CorsFactory
+impl<S, B> Transform<S> for CorsFactory
 where
-    S: Service<Request = ServiceRequest<P>, Response = ServiceResponse<B>>,
+    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>>,
     S::Future: 'static,
     S::Error: 'static,
     B: 'static,
 {
-    type Request = ServiceRequest<P>;
+    type Request = ServiceRequest;
     type Response = ServiceResponse<B>;
     type Error = S::Error;
     type InitError = ();
@@ -678,14 +678,14 @@ impl Inner {
     }
 }
 
-impl<S, P, B> Service for CorsMiddleware<S>
+impl<S, B> Service for CorsMiddleware<S>
 where
-    S: Service<Request = ServiceRequest<P>, Response = ServiceResponse<B>>,
+    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>>,
     S::Future: 'static,
     S::Error: 'static,
     B: 'static,
 {
-    type Request = ServiceRequest<P>;
+    type Request = ServiceRequest;
     type Response = ServiceResponse<B>;
     type Error = S::Error;
     type Future = Either<
@@ -697,7 +697,7 @@ where
         self.service.poll_ready()
     }
 
-    fn call(&mut self, req: ServiceRequest<P>) -> Self::Future {
+    fn call(&mut self, req: ServiceRequest) -> Self::Future {
         if self.inner.preflight && Method::OPTIONS == *req.method() {
             if let Err(e) = self
                 .inner
@@ -815,13 +815,12 @@ mod tests {
     use actix_service::{FnService, Transform};
 
     use super::*;
-    use crate::dev::PayloadStream;
     use crate::test::{self, block_on, TestRequest};
 
     impl Cors {
-        fn finish<S, P, B>(self, srv: S) -> CorsMiddleware<S>
+        fn finish<S, B>(self, srv: S) -> CorsMiddleware<S>
         where
-            S: Service<Request = ServiceRequest<P>, Response = ServiceResponse<B>>
+            S: Service<Request = ServiceRequest, Response = ServiceResponse<B>>
                 + 'static,
             S::Future: 'static,
             S::Error: 'static,
@@ -1057,7 +1056,7 @@ mod tests {
             .allowed_headers(exposed_headers.clone())
             .expose_headers(exposed_headers.clone())
             .allowed_header(header::CONTENT_TYPE)
-            .finish(FnService::new(move |req: ServiceRequest<PayloadStream>| {
+            .finish(FnService::new(move |req: ServiceRequest| {
                 req.into_response(
                     HttpResponse::Ok().header(header::VARY, "Accept").finish(),
                 )

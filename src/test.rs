@@ -6,7 +6,7 @@ use actix_http::cookie::Cookie;
 use actix_http::http::header::{Header, HeaderName, IntoHeaderValue};
 use actix_http::http::{HttpTryFrom, Method, StatusCode, Version};
 use actix_http::test::TestRequest as HttpTestRequest;
-use actix_http::{Extensions, PayloadStream, Request};
+use actix_http::{Extensions, Request};
 use actix_router::{Path, ResourceDef, Url};
 use actix_rt::Runtime;
 use actix_server_config::ServerConfig;
@@ -60,23 +60,18 @@ where
 }
 
 /// Create service that always responds with `HttpResponse::Ok()`
-pub fn ok_service() -> impl Service<
-    Request = ServiceRequest<PayloadStream>,
-    Response = ServiceResponse<Body>,
-    Error = Error,
-> {
+pub fn ok_service(
+) -> impl Service<Request = ServiceRequest, Response = ServiceResponse<Body>, Error = Error>
+{
     default_service(StatusCode::OK)
 }
 
 /// Create service that responds with response with specified status code
 pub fn default_service(
     status_code: StatusCode,
-) -> impl Service<
-    Request = ServiceRequest<PayloadStream>,
-    Response = ServiceResponse<Body>,
-    Error = Error,
-> {
-    FnService::new(move |req: ServiceRequest<PayloadStream>| {
+) -> impl Service<Request = ServiceRequest, Response = ServiceResponse<Body>, Error = Error>
+{
+    FnService::new(move |req: ServiceRequest| {
         req.into_response(HttpResponse::build(status_code).finish())
     })
 }
@@ -298,12 +293,12 @@ impl TestRequest {
     }
 
     /// Complete request creation and generate `Request` instance
-    pub fn to_request(mut self) -> Request<PayloadStream> {
+    pub fn to_request(mut self) -> Request {
         self.req.finish()
     }
 
     /// Complete request creation and generate `ServiceRequest` instance
-    pub fn to_srv_request(mut self) -> ServiceRequest<PayloadStream> {
+    pub fn to_srv_request(mut self) -> ServiceRequest {
         let (head, payload) = self.req.finish().into_parts();
 
         let req = HttpRequest::new(

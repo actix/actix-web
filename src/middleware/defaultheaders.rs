@@ -85,12 +85,12 @@ impl DefaultHeaders {
     }
 }
 
-impl<S, P, B> Transform<S> for DefaultHeaders
+impl<S, B> Transform<S> for DefaultHeaders
 where
-    S: Service<Request = ServiceRequest<P>, Response = ServiceResponse<B>>,
+    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>>,
     S::Future: 'static,
 {
-    type Request = ServiceRequest<P>;
+    type Request = ServiceRequest;
     type Response = ServiceResponse<B>;
     type Error = S::Error;
     type InitError = ();
@@ -110,12 +110,12 @@ pub struct DefaultHeadersMiddleware<S> {
     inner: Rc<Inner>,
 }
 
-impl<S, P, B> Service for DefaultHeadersMiddleware<S>
+impl<S, B> Service for DefaultHeadersMiddleware<S>
 where
-    S: Service<Request = ServiceRequest<P>, Response = ServiceResponse<B>>,
+    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>>,
     S::Future: 'static,
 {
-    type Request = ServiceRequest<P>;
+    type Request = ServiceRequest;
     type Response = ServiceResponse<B>;
     type Error = S::Error;
     type Future = Box<Future<Item = Self::Response, Error = Self::Error>>;
@@ -124,7 +124,7 @@ where
         self.service.poll_ready()
     }
 
-    fn call(&mut self, req: ServiceRequest<P>) -> Self::Future {
+    fn call(&mut self, req: ServiceRequest) -> Self::Future {
         let inner = self.inner.clone();
 
         Box::new(self.service.call(req).map(move |mut res| {
@@ -171,7 +171,7 @@ mod tests {
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0001");
 
         let req = TestRequest::default().to_srv_request();
-        let srv = FnService::new(|req: ServiceRequest<_>| {
+        let srv = FnService::new(|req: ServiceRequest| {
             req.into_response(HttpResponse::Ok().header(CONTENT_TYPE, "0002").finish())
         });
         let mut mw = block_on(
@@ -186,7 +186,7 @@ mod tests {
 
     #[test]
     fn test_content_type() {
-        let srv = FnService::new(|req: ServiceRequest<_>| {
+        let srv = FnService::new(|req: ServiceRequest| {
             req.into_response(HttpResponse::Ok().finish())
         });
         let mut mw =

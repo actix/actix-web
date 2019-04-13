@@ -1,6 +1,5 @@
 use std::cell::{Ref, RefMut};
 use std::fmt;
-use std::marker::PhantomData;
 
 use actix_http::body::{Body, MessageBody, ResponseBody};
 use actix_http::http::{HeaderMap, Method, StatusCode, Uri, Version};
@@ -15,52 +14,50 @@ use crate::config::{AppConfig, ServiceConfig};
 use crate::data::Data;
 use crate::request::HttpRequest;
 
-pub trait HttpServiceFactory<P> {
-    fn register(self, config: &mut ServiceConfig<P>);
+pub trait HttpServiceFactory {
+    fn register(self, config: &mut ServiceConfig);
 }
 
-pub(crate) trait ServiceFactory<P> {
-    fn register(&mut self, config: &mut ServiceConfig<P>);
+pub(crate) trait ServiceFactory {
+    fn register(&mut self, config: &mut ServiceConfig);
 }
 
-pub(crate) struct ServiceFactoryWrapper<T, P> {
+pub(crate) struct ServiceFactoryWrapper<T> {
     factory: Option<T>,
-    _t: PhantomData<P>,
 }
 
-impl<T, P> ServiceFactoryWrapper<T, P> {
+impl<T> ServiceFactoryWrapper<T> {
     pub fn new(factory: T) -> Self {
         Self {
             factory: Some(factory),
-            _t: PhantomData,
         }
     }
 }
 
-impl<T, P> ServiceFactory<P> for ServiceFactoryWrapper<T, P>
+impl<T> ServiceFactory for ServiceFactoryWrapper<T>
 where
-    T: HttpServiceFactory<P>,
+    T: HttpServiceFactory,
 {
-    fn register(&mut self, config: &mut ServiceConfig<P>) {
+    fn register(&mut self, config: &mut ServiceConfig) {
         if let Some(item) = self.factory.take() {
             item.register(config)
         }
     }
 }
 
-pub struct ServiceRequest<P = PayloadStream> {
+pub struct ServiceRequest {
     req: HttpRequest,
-    payload: Payload<P>,
+    payload: Payload,
 }
 
-impl<P> ServiceRequest<P> {
+impl ServiceRequest {
     /// Construct service request from parts
-    pub fn from_parts(req: HttpRequest, payload: Payload<P>) -> Self {
+    pub fn from_parts(req: HttpRequest, payload: Payload) -> Self {
         ServiceRequest { req, payload }
     }
 
     /// Deconstruct request into parts
-    pub fn into_parts(self) -> (HttpRequest, Payload<P>) {
+    pub fn into_parts(self) -> (HttpRequest, Payload) {
         (self.req, self.payload)
     }
 
@@ -170,14 +167,14 @@ impl<P> ServiceRequest<P> {
     }
 }
 
-impl<P> Resource<Url> for ServiceRequest<P> {
+impl Resource<Url> for ServiceRequest {
     fn resource_path(&mut self) -> &mut Path<Url> {
         self.match_info_mut()
     }
 }
 
-impl<P> HttpMessage for ServiceRequest<P> {
-    type Stream = P;
+impl HttpMessage for ServiceRequest {
+    type Stream = PayloadStream;
 
     #[inline]
     /// Returns Request's headers.
@@ -203,7 +200,7 @@ impl<P> HttpMessage for ServiceRequest<P> {
     }
 }
 
-impl<P> fmt::Debug for ServiceRequest<P> {
+impl fmt::Debug for ServiceRequest {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         writeln!(
             f,

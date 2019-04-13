@@ -88,12 +88,12 @@ impl<T> Clone for Data<T> {
     }
 }
 
-impl<T: 'static, P> FromRequest<P> for Data<T> {
+impl<T: 'static> FromRequest for Data<T> {
     type Error = Error;
     type Future = Result<Self, Error>;
 
     #[inline]
-    fn from_request(req: &HttpRequest, _: &mut Payload<P>) -> Self::Future {
+    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
         if let Some(st) = req.app_config().extensions().get::<Data<T>>() {
             Ok(st.clone())
         } else {
@@ -232,12 +232,12 @@ impl<T> Clone for RouteData<T> {
     }
 }
 
-impl<T: 'static, P> FromRequest<P> for RouteData<T> {
+impl<T: 'static> FromRequest for RouteData<T> {
     type Error = Error;
     type Future = Result<Self, Error>;
 
     #[inline]
-    fn from_request(req: &HttpRequest, _: &mut Payload<P>) -> Self::Future {
+    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
         if let Some(st) = req.route_data::<T>() {
             Ok(st.clone())
         } else {

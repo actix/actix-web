@@ -1,14 +1,6 @@
 //! Middlewares
-#[cfg(any(feature = "brotli", feature = "flate2-zlib", feature = "flate2-rust"))]
 mod compress;
-#[cfg(any(feature = "brotli", feature = "flate2-zlib", feature = "flate2-rust"))]
-mod decompress;
-#[cfg(any(feature = "brotli", feature = "flate2-zlib", feature = "flate2-rust"))]
-pub mod encoding {
-    //! Middlewares for compressing/decompressing payloads.
-    pub use super::compress::{BodyEncoding, Compress};
-    pub use super::decompress::Decompress;
-}
+pub use self::compress::{BodyEncoding, Compress};
 
 pub mod cors;
 mod defaultheaders;

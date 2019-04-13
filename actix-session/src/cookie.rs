@@ -120,7 +120,7 @@ impl CookieSessionInner {
         Ok(())
     }
 
-    fn load<P>(&self, req: &ServiceRequest<P>) -> HashMap<String, String> {
+    fn load(&self, req: &ServiceRequest) -> HashMap<String, String> {
         if let Ok(cookies) = req.cookies() {
             for cookie in cookies.iter() {
                 if cookie.name() == self.name {
@@ -256,13 +256,13 @@ impl CookieSession {
     }
 }
 
-impl<S, P, B: 'static> Transform<S> for CookieSession
+impl<S, B: 'static> Transform<S> for CookieSession
 where
-    S: Service<Request = ServiceRequest<P>, Response = ServiceResponse<B>>,
+    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>>,
     S::Future: 'static,
     S::Error: 'static,
 {
-    type Request = ServiceRequest<P>;
+    type Request = ServiceRequest;
     type Response = ServiceResponse<B>;
     type Error = S::Error;
     type InitError = ();
@@ -283,13 +283,13 @@ pub struct CookieSessionMiddleware<S> {
     inner: Rc<CookieSessionInner>,
 }
 
-impl<S, P, B: 'static> Service for CookieSessionMiddleware<S>
+impl<S, B: 'static> Service for CookieSessionMiddleware<S>
 where
-    S: Service<Request = ServiceRequest<P>, Response = ServiceResponse<B>>,
+    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>>,
     S::Future: 'static,
     S::Error: 'static,
 {
-    type Request = ServiceRequest<P>;
+    type Request = ServiceRequest;
     type Response = ServiceResponse<B>;
     type Error = S::Error;
     type Future = Box<Future<Item = Self::Response, Error = Self::Error>>;
@@ -298,7 +298,7 @@ where
         self.service.poll_ready()
     }
 
-    fn call(&mut self, mut req: ServiceRequest<P>) -> Self::Future {
+    fn call(&mut self, mut req: ServiceRequest) -> Self::Future {
         let inner = self.inner.clone();
         let state = self.inner.load(&req);
         Session::set_session(state.into_iter(), &mut req);

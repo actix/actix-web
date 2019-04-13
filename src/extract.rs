@@ -10,7 +10,7 @@ use crate::request::HttpRequest;
 /// Trait implemented by types that can be extracted from request.
 ///
 /// Types that implement this trait can be used with `Route` handlers.
-pub trait FromRequest<P>: Sized {
+pub trait FromRequest: Sized {
     /// The associated error which can be returned.
     type Error: Into<Error>;
 
@@ -18,7 +18,7 @@ pub trait FromRequest<P>: Sized {
     type Future: IntoFuture<Item = Self, Error = Self::Error>;
 
     /// Convert request to a Self
-    fn from_request(req: &HttpRequest, payload: &mut Payload<P>) -> Self::Future;
+    fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future;
 
     /// Convert request to a Self
     ///
@@ -45,11 +45,11 @@ pub trait FromRequest<P>: Sized {
 ///     name: String
 /// }
 ///
-/// impl<P> FromRequest<P> for Thing {
+/// impl FromRequest for Thing {
 ///     type Error = Error;
 ///     type Future = Result<Self, Self::Error>;
 ///
-///     fn from_request(req: &HttpRequest, payload: &mut dev::Payload<P>) -> Self::Future {
+///     fn from_request(req: &HttpRequest, payload: &mut dev::Payload) -> Self::Future {
 ///         if rand::random() {
 ///             Ok(Thing { name: "thingy".into() })
 ///         } else {
@@ -75,16 +75,16 @@ pub trait FromRequest<P>: Sized {
 ///     );
 /// }
 /// ```
-impl<T: 'static, P> FromRequest<P> for Option<T>
+impl<T: 'static> FromRequest for Option<T>
 where
-    T: FromRequest<P>,
+    T: FromRequest,
     T::Future: 'static,
 {
     type Error = Error;
     type Future = Box<Future<Item = Option<T>, Error = Error>>;
 
     #[inline]
-    fn from_request(req: &HttpRequest, payload: &mut Payload<P>) -> Self::Future {
+    fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         Box::new(
             T::from_request(req, payload)
                 .into_future()
@@ -116,11 +116,11 @@ where
 ///     name: String
 /// }
 ///
-/// impl<P> FromRequest<P> for Thing {
+/// impl FromRequest for Thing {
 ///     type Error = Error;
 ///     type Future = Result<Thing, Error>;
 ///
-///     fn from_request(req: &HttpRequest, payload: &mut dev::Payload<P>) -> Self::Future {
+///     fn from_request(req: &HttpRequest, payload: &mut dev::Payload) -> Self::Future {
 ///         if rand::random() {
 ///             Ok(Thing { name: "thingy".into() })
 ///         } else {
@@ -143,9 +143,9 @@ where
 ///     );
 /// }
 /// ```
-impl<T: 'static, P> FromRequest<P> for Result<T, T::Error>
+impl<T: 'static> FromRequest for Result<T, T::Error>
 where
-    T: FromRequest<P>,
+    T: FromRequest,
     T::Future: 'static,
     T::Error: 'static,
 {
@@ -153,7 +153,7 @@ where
     type Future = Box<Future<Item = Result<T, T::Error>, Error = Error>>;
 
     #[inline]
-    fn from_request(req: &HttpRequest, payload: &mut Payload<P>) -> Self::Future {
+    fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         Box::new(
             T::from_request(req, payload)
                 .into_future()
@@ -166,11 +166,11 @@ where
 }
 
 #[doc(hidden)]
-impl<P> FromRequest<P> for () {
+impl FromRequest for () {
     type Error = Error;
     type Future = Result<(), Error>;
 
-    fn from_request(_: &HttpRequest, _: &mut Payload<P>) -> Self::Future {
+    fn from_request(_: &HttpRequest, _: &mut Payload) -> Self::Future {
         Ok(())
     }
 }
@@ -179,12 +179,12 @@ macro_rules! tuple_from_req ({$fut_type:ident, $(($n:tt, $T:ident)),+} => {
 
     /// FromRequest implementation for tuple
     #[doc(hidden)]
-    impl<P, $($T: FromRequest<P> + 'static),+> FromRequest<P> for ($($T,)+)
+    impl<$($T: FromRequest + 'static),+> FromRequest for ($($T,)+)
     {
         type Error = Error;
-        type Future = $fut_type<P, $($T),+>;
+        type Future = $fut_type<$($T),+>;
 
-        fn from_request(req: &HttpRequest, payload: &mut Payload<P>) -> Self::Future {
+        fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
             $fut_type {
                 items: <($(Option<$T>,)+)>::default(),
                 futs: ($($T::from_request(req, payload).into_future(),)+),
@@ -193,12 +193,12 @@ macro_rules! tuple_from_req ({$fut_type:ident, $(($n:tt, $T:ident)),+} => {
     }
 
     #[doc(hidden)]
-    pub struct $fut_type<P, $($T: FromRequest<P>),+> {
+    pub struct $fut_type<$($T: FromRequest),+> {
         items: ($(Option<$T>,)+),
         futs: ($(<$T::Future as futures::IntoFuture>::Future,)+),
     }
 
-    impl<P, $($T: FromRequest<P>),+> Future for $fut_type<P, $($T),+>
+    impl<$($T: FromRequest),+> Future for $fut_type<$($T),+>
     {
         type Item = ($($T,)+);
         type Error = Error;

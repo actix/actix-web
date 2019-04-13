@@ -1,5 +1,15 @@
 # Changes
 
+## [1.0.0-alpha.6] - 2019-04-xx
+
+### Changed
+
+* Remove generic type for request payload, always use default.
+
+* Removed `Decompress` middleware. Bytes, String, Json, Form extractors
+  automatically decompress payload.
+
+
 ## [1.0.0-alpha.5] - 2019-04-12
 
 ### Added

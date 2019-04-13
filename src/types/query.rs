@@ -111,7 +111,7 @@ impl<T: fmt::Display> fmt::Display for Query<T> {
 ///            .route(web::get().to(index))); // <- use `Query` extractor
 /// }
 /// ```
-impl<T, P> FromRequest<P> for Query<T>
+impl<T> FromRequest for Query<T>
 where
     T: de::DeserializeOwned,
 {
@@ -119,7 +119,7 @@ where
     type Future = Result<Self, Error>;
 
     #[inline]
-    fn from_request(req: &HttpRequest, _: &mut Payload<P>) -> Self::Future {
+    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
         serde_urlencoded::from_str::<T>(req.query_string())
             .map(|val| Ok(Query(val)))
             .unwrap_or_else(|e| {

@@ -114,12 +114,12 @@ impl Default for Logger {
     }
 }
 
-impl<S, P, B> Transform<S> for Logger
+impl<S, B> Transform<S> for Logger
 where
-    S: Service<Request = ServiceRequest<P>, Response = ServiceResponse<B>>,
+    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>>,
     B: MessageBody,
 {
-    type Request = ServiceRequest<P>;
+    type Request = ServiceRequest;
     type Response = ServiceResponse<StreamLog<B>>;
     type Error = S::Error;
     type InitError = ();
@@ -140,21 +140,21 @@ pub struct LoggerMiddleware<S> {
     service: S,
 }
 
-impl<S, P, B> Service for LoggerMiddleware<S>
+impl<S, B> Service for LoggerMiddleware<S>
 where
-    S: Service<Request = ServiceRequest<P>, Response = ServiceResponse<B>>,
+    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>>,
     B: MessageBody,
 {
-    type Request = ServiceRequest<P>;
+    type Request = ServiceRequest;
     type Response = ServiceResponse<StreamLog<B>>;
     type Error = S::Error;
-    type Future = LoggerResponse<S, P, B>;
+    type Future = LoggerResponse<S, B>;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
         self.service.poll_ready()
     }
 
-    fn call(&mut self, req: ServiceRequest<P>) -> Self::Future {
+    fn call(&mut self, req: ServiceRequest) -> Self::Future {
         if self.inner.exclude.contains(req.path()) {
             LoggerResponse {
                 fut: self.service.call(req),
@@ -180,7 +180,7 @@ where
 }
 
 #[doc(hidden)]
-pub struct LoggerResponse<S, P, B>
+pub struct LoggerResponse<S, B>
 where
     B: MessageBody,
     S: Service,
@@ -188,13 +188,13 @@ where
     fut: S::Future,
     time: time::Tm,
     format: Option<Format>,
-    _t: PhantomData<(P, B)>,
+    _t: PhantomData<(B,)>,
 }
 
-impl<S, P, B> Future for LoggerResponse<S, P, B>
+impl<S, B> Future for LoggerResponse<S, B>
 where
     B: MessageBody,
-    S: Service<Request = ServiceRequest<P>, Response = ServiceResponse<B>>,
+    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>>,
 {
     type Item = ServiceResponse<StreamLog<B>>;
     type Error = S::Error;
@@ -402,7 +402,7 @@ impl FormatText {
         }
     }
 
-    fn render_request<P>(&mut self, now: time::Tm, req: &ServiceRequest<P>) {
+    fn render_request(&mut self, now: time::Tm, req: &ServiceRequest) {
         match *self {
             FormatText::RequestLine => {
                 *self = if req.query_string().is_empty() {
@@ -464,7 +464,7 @@ mod tests {
 
     #[test]
     fn test_logger() {
-        let srv = FnService::new(|req: ServiceRequest<_>| {
+        let srv = FnService::new(|req: ServiceRequest| {
             req.into_response(
                 HttpResponse::build(StatusCode::OK)
                     .header("X-Test", "ttt")

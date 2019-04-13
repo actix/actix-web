@@ -1,9 +1,5 @@
 //! Multipart payload support
-use bytes::Bytes;
-use futures::Stream;
-
-use actix_web::error::{Error, PayloadError};
-use actix_web::{dev::Payload, FromRequest, HttpRequest};
+use actix_web::{dev::Payload, Error, FromRequest, HttpRequest};
 
 use crate::server::Multipart;
 
@@ -34,15 +30,12 @@ use crate::server::Multipart;
 /// }
 /// # fn main() {}
 /// ```
-impl<P> FromRequest<P> for Multipart
-where
-    P: Stream<Item = Bytes, Error = PayloadError> + 'static,
-{
+impl FromRequest for Multipart {
     type Error = Error;
     type Future = Result<Multipart, Error>;
 
     #[inline]
-    fn from_request(req: &HttpRequest, payload: &mut Payload<P>) -> Self::Future {
+    fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         Ok(Multipart::new(req.headers(), payload.take()))
     }
 }

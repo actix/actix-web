@@ -265,12 +265,12 @@ impl Drop for HttpRequest {
 ///     );
 /// }
 /// ```
-impl<P> FromRequest<P> for HttpRequest {
+impl FromRequest for HttpRequest {
     type Error = Error;
     type Future = Result<Self, Error>;
 
     #[inline]
-    fn from_request(req: &HttpRequest, _: &mut Payload<P>) -> Self::Future {
+    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
         Ok(req.clone())
     }
 }

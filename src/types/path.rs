@@ -152,7 +152,7 @@ impl<T: fmt::Display> fmt::Display for Path<T> {
 ///     );
 /// }
 /// ```
-impl<T, P> FromRequest<P> for Path<T>
+impl<T> FromRequest for Path<T>
 where
     T: de::DeserializeOwned,
 {
@@ -160,7 +160,7 @@ where
     type Future = Result<Self, Error>;
 
     #[inline]
-    fn from_request(req: &HttpRequest, _: &mut Payload<P>) -> Self::Future {
+    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
         de::Deserialize::deserialize(PathDeserializer::new(req.match_info()))
             .map(|inner| Path { inner })
             .map_err(ErrorNotFound)

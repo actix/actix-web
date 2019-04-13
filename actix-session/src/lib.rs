@@ -119,9 +119,9 @@ impl Session {
         inner.state.clear()
     }
 
-    pub fn set_session<P>(
+    pub fn set_session(
         data: impl Iterator<Item = (String, String)>,
-        req: &mut ServiceRequest<P>,
+        req: &mut ServiceRequest,
     ) {
         let session = Session::get_session(&mut *req.extensions_mut());
         let mut inner = session.0.borrow_mut();
@@ -172,12 +172,12 @@ impl Session {
 /// }
 /// # fn main() {}
 /// ```
-impl<P> FromRequest<P> for Session {
+impl FromRequest for Session {
     type Error = Error;
     type Future = Result<Session, Error>;
 
     #[inline]
-    fn from_request(req: &HttpRequest, _: &mut Payload<P>) -> Self::Future {
+    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
         Ok(Session::get_session(&mut *req.extensions_mut()))
     }
 }

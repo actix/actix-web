@@ -3,15 +3,15 @@
 use std::rc::Rc;
 use std::{fmt, ops};
 
-use actix_http::error::{Error, PayloadError};
-use actix_http::{HttpMessage, Payload};
-use bytes::{Bytes, BytesMut};
+use actix_http::{Error, HttpMessage, Payload};
+use bytes::BytesMut;
 use encoding::all::UTF_8;
 use encoding::types::{DecoderTrap, Encoding};
 use encoding::EncodingRef;
 use futures::{Future, Poll, Stream};
 use serde::de::DeserializeOwned;
 
+use crate::dev::Decompress;
 use crate::error::UrlencodedError;
 use crate::extract::FromRequest;
 use crate::http::header::CONTENT_LENGTH;
@@ -69,16 +69,15 @@ impl<T> ops::DerefMut for Form<T> {
     }
 }
 
-impl<T, P> FromRequest<P> for Form<T>
+impl<T> FromRequest for Form<T>
 where
     T: DeserializeOwned + 'static,
-    P: Stream<Item = Bytes, Error = crate::error::PayloadError> + 'static,
 {
     type Error = Error;
     type Future = Box<Future<Item = Self, Error = Error>>;
 
     #[inline]
-    fn from_request(req: &HttpRequest, payload: &mut Payload<P>) -> Self::Future {
+    fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         let req2 = req.clone();
         let (limit, err) = req
             .route_data::<FormConfig>()
@@ -182,8 +181,8 @@ impl Default for FormConfig {
 /// * content type is not `application/x-www-form-urlencoded`
 /// * content-length is greater than 32k
 ///
-pub struct UrlEncoded<P, U> {
-    stream: Payload<P>,
+pub struct UrlEncoded<U> {
+    stream: Option<Decompress<Payload>>,
     limit: usize,
     length: Option<usize>,
     encoding: EncodingRef,
@@ -191,12 +190,9 @@ pub struct UrlEncoded<P, U> {
     fut: Option<Box<Future<Item = U, Error = UrlencodedError>>>,
 }
 
-impl<P, U> UrlEncoded<P, U>
-where
-    P: Stream<Item = Bytes, Error = PayloadError>,
-{
+impl<U> UrlEncoded<U> {
     /// Create a new future to URL encode a request
-    pub fn new(req: &HttpRequest, payload: &mut Payload<P>) -> UrlEncoded<P, U> {
+    pub fn new(req: &HttpRequest, payload: &mut Payload) -> UrlEncoded<U> {
         // check content type
         if req.content_type().to_lowercase() != "application/x-www-form-urlencoded" {
             return Self::err(UrlencodedError::ContentType);
@@ -219,9 +215,10 @@ where
             }
         };
 
+        let payload = Decompress::from_headers(payload.take(), req.headers());
         UrlEncoded {
             encoding,
-            stream: payload.take(),
+            stream: Some(payload),
             limit: 32_768,
             length: len,
             fut: None,
@@ -231,7 +228,7 @@ where
 
     fn err(e: UrlencodedError) -> Self {
         UrlEncoded {
-            stream: Payload::None,
+            stream: None,
             limit: 32_768,
             fut: None,
             err: Some(e),
@@ -247,9 +244,8 @@ where
     }
 }
 
-impl<P, U> Future for UrlEncoded<P, U>
+impl<U> Future for UrlEncoded<U>
 where
-    P: Stream<Item = Bytes, Error = PayloadError> + 'static,
     U: DeserializeOwned + 'static,
 {
     type Item = U;
@@ -274,7 +270,10 @@ where
 
         // future
         let encoding = self.encoding;
-        let fut = std::mem::replace(&mut self.stream, Payload::None)
+        let fut = self
+            .stream
+            .take()
+            .unwrap()
             .from_err()
             .fold(BytesMut::with_capacity(8192), move |mut body, chunk| {
                 if (body.len() + chunk.len()) > limit {
@@ -355,20 +354,20 @@ mod tests {
             TestRequest::with_header(CONTENT_TYPE, "application/x-www-form-urlencoded")
                 .header(CONTENT_LENGTH, "xxxx")
                 .to_http_parts();
-        let info = block_on(UrlEncoded::<_, Info>::new(&req, &mut pl));
+        let info = block_on(UrlEncoded::<Info>::new(&req, &mut pl));
         assert!(eq(info.err().unwrap(), UrlencodedError::UnknownLength));
 
         let (req, mut pl) =
             TestRequest::with_header(CONTENT_TYPE, "application/x-www-form-urlencoded")
                 .header(CONTENT_LENGTH, "1000000")
                 .to_http_parts();
-        let info = block_on(UrlEncoded::<_, Info>::new(&req, &mut pl));
+        let info = block_on(UrlEncoded::<Info>::new(&req, &mut pl));
         assert!(eq(info.err().unwrap(), UrlencodedError::Overflow));
 
         let (req, mut pl) = TestRequest::with_header(CONTENT_TYPE, "text/plain")
             .header(CONTENT_LENGTH, "10")
             .to_http_parts();
-        let info = block_on(UrlEncoded::<_, Info>::new(&req, &mut pl));
+        let info = block_on(UrlEncoded::<Info>::new(&req, &mut pl));
         assert!(eq(info.err().unwrap(), UrlencodedError::ContentType));
     }
 
@@ -380,7 +379,7 @@ mod tests {
                 .set_payload(Bytes::from_static(b"hello=world"))
                 .to_http_parts();
 
-        let info = block_on(UrlEncoded::<_, Info>::new(&req, &mut pl)).unwrap();
+        let info = block_on(UrlEncoded::<Info>::new(&req, &mut pl)).unwrap();
         assert_eq!(
             info,
             Info {
@@ -396,7 +395,7 @@ mod tests {
         .set_payload(Bytes::from_static(b"hello=world"))
         .to_http_parts();
 
-        let info = block_on(UrlEncoded::<_, Info>::new(&req, &mut pl)).unwrap();
+        let info = block_on(UrlEncoded::<Info>::new(&req, &mut pl)).unwrap();
         assert_eq!(
             info,
             Info {

@@ -19,25 +19,25 @@ use crate::service::{
 };
 
 type Guards = Vec<Box<Guard>>;
-type HttpNewService<P> =
-    boxed::BoxedNewService<(), ServiceRequest<P>, ServiceResponse, Error, ()>;
+type HttpNewService =
+    boxed::BoxedNewService<(), ServiceRequest, ServiceResponse, Error, ()>;
 
 /// Application configuration
-pub struct ServiceConfig<P> {
+pub struct ServiceConfig {
     config: AppConfig,
     root: bool,
-    default: Rc<HttpNewService<P>>,
+    default: Rc<HttpNewService>,
     services: Vec<(
         ResourceDef,
-        HttpNewService<P>,
+        HttpNewService,
         Option<Guards>,
         Option<Rc<ResourceMap>>,
     )>,
 }
 
-impl<P: 'static> ServiceConfig<P> {
+impl ServiceConfig {
     /// Crate server settings instance
-    pub(crate) fn new(config: AppConfig, default: Rc<HttpNewService<P>>) -> Self {
+    pub(crate) fn new(config: AppConfig, default: Rc<HttpNewService>) -> Self {
         ServiceConfig {
             config,
             default,
@@ -55,7 +55,7 @@ impl<P: 'static> ServiceConfig<P> {
         self,
     ) -> Vec<(
         ResourceDef,
-        HttpNewService<P>,
+        HttpNewService,
         Option<Guards>,
         Option<Rc<ResourceMap>>,
     )> {
@@ -77,7 +77,7 @@ impl<P: 'static> ServiceConfig<P> {
     }
 
     /// Default resource
-    pub fn default_service(&self) -> Rc<HttpNewService<P>> {
+    pub fn default_service(&self) -> Rc<HttpNewService> {
         self.default.clone()
     }
 
@@ -90,7 +90,7 @@ impl<P: 'static> ServiceConfig<P> {
     ) where
         F: IntoNewService<S>,
         S: NewService<
-                Request = ServiceRequest<P>,
+                Request = ServiceRequest,
                 Response = ServiceResponse,
                 Error = Error,
                 InitError = (),
@@ -169,13 +169,13 @@ impl Default for AppConfigInner {
 /// Part of application configuration could be offloaded
 /// to set of external methods. This could help with
 /// modularization of big application configuration.
-pub struct RouterConfig<P: 'static> {
-    pub(crate) services: Vec<Box<ServiceFactory<P>>>,
+pub struct RouterConfig {
+    pub(crate) services: Vec<Box<ServiceFactory>>,
     pub(crate) data: Vec<Box<DataFactory>>,
     pub(crate) external: Vec<ResourceDef>,
 }
 
-impl<P: 'static> RouterConfig<P> {
+impl RouterConfig {
     pub(crate) fn new() -> Self {
         Self {
             services: Vec::new(),
@@ -211,7 +211,7 @@ impl<P: 'static> RouterConfig<P> {
     /// Configure route for a specific path.
     ///
     /// This is same as `App::route()` method.
-    pub fn route(&mut self, path: &str, mut route: Route<P>) -> &mut Self {
+    pub fn route(&mut self, path: &str, mut route: Route) -> &mut Self {
         self.service(
             Resource::new(path)
                 .add_guards(route.take_guards())
@@ -224,7 +224,7 @@ impl<P: 'static> RouterConfig<P> {
     /// This is same as `App::service()` method.
     pub fn service<F>(&mut self, factory: F) -> &mut Self
     where
-        F: HttpServiceFactory<P> + 'static,
+        F: HttpServiceFactory + 'static,
     {
         self.services
             .push(Box::new(ServiceFactoryWrapper::new(factory)));
@@ -261,7 +261,7 @@ mod tests {
 
     #[test]
     fn test_data() {
-        let cfg = |cfg: &mut RouterConfig<_>| {
+        let cfg = |cfg: &mut RouterConfig| {
             cfg.data(10usize);
         };
 
@@ -276,7 +276,7 @@ mod tests {
 
     #[test]
     fn test_data_factory() {
-        let cfg = |cfg: &mut RouterConfig<_>| {
+        let cfg = |cfg: &mut RouterConfig| {
             cfg.data_factory(|| Ok::<_, ()>(10usize));
         };
 
@@ -288,7 +288,7 @@ mod tests {
         let resp = block_on(srv.call(req)).unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
 
-        let cfg2 = |cfg: &mut RouterConfig<_>| {
+        let cfg2 = |cfg: &mut RouterConfig| {
             cfg.data_factory(|| Ok::<_, ()>(10u32));
         };
         let mut srv = init_service(

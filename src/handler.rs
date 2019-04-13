@@ -242,13 +242,13 @@ where
 }
 
 /// Extract arguments from request
-pub struct Extract<P, T: FromRequest<P>, S> {
+pub struct Extract<T: FromRequest, S> {
     config: Rc<RefCell<Option<Rc<Extensions>>>>,
     service: S,
-    _t: PhantomData<(P, T)>,
+    _t: PhantomData<T>,
 }
 
-impl<P, T: FromRequest<P>, S> Extract<P, T, S> {
+impl<T: FromRequest, S> Extract<T, S> {
     pub fn new(config: Rc<RefCell<Option<Rc<Extensions>>>>, service: S) -> Self {
         Extract {
             config,
@@ -258,16 +258,16 @@ impl<P, T: FromRequest<P>, S> Extract<P, T, S> {
     }
 }
 
-impl<P, T: FromRequest<P>, S> NewService for Extract<P, T, S>
+impl<T: FromRequest, S> NewService for Extract<T, S>
 where
     S: Service<Request = (T, HttpRequest), Response = ServiceResponse, Error = Void>
         + Clone,
 {
-    type Request = ServiceRequest<P>;
+    type Request = ServiceRequest;
     type Response = ServiceResponse;
-    type Error = (Error, ServiceRequest<P>);
+    type Error = (Error, ServiceRequest);
     type InitError = ();
-    type Service = ExtractService<P, T, S>;
+    type Service = ExtractService<T, S>;
     type Future = FutureResult<Self::Service, ()>;
 
     fn new_service(&self, _: &()) -> Self::Future {
@@ -279,27 +279,27 @@ where
     }
 }
 
-pub struct ExtractService<P, T: FromRequest<P>, S> {
+pub struct ExtractService<T: FromRequest, S> {
     config: Option<Rc<Extensions>>,
     service: S,
-    _t: PhantomData<(P, T)>,
+    _t: PhantomData<T>,
 }
 
-impl<P, T: FromRequest<P>, S> Service for ExtractService<P, T, S>
+impl<T: FromRequest, S> Service for ExtractService<T, S>
 where
     S: Service<Request = (T, HttpRequest), Response = ServiceResponse, Error = Void>
         + Clone,
 {
-    type Request = ServiceRequest<P>;
+    type Request = ServiceRequest;
     type Response = ServiceResponse;
-    type Error = (Error, ServiceRequest<P>);
-    type Future = ExtractResponse<P, T, S>;
+    type Error = (Error, ServiceRequest);
+    type Future = ExtractResponse<T, S>;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
         Ok(Async::Ready(()))
     }
 
-    fn call(&mut self, req: ServiceRequest<P>) -> Self::Future {
+    fn call(&mut self, req: ServiceRequest) -> Self::Future {
         let (mut req, mut payload) = req.into_parts();
         req.set_route_data(self.config.clone());
         let fut = T::from_request(&req, &mut payload).into_future();
@@ -313,19 +313,19 @@ where
     }
 }
 
-pub struct ExtractResponse<P, T: FromRequest<P>, S: Service> {
-    req: Option<(HttpRequest, Payload<P>)>,
+pub struct ExtractResponse<T: FromRequest, S: Service> {
+    req: Option<(HttpRequest, Payload)>,
     service: S,
     fut: <T::Future as IntoFuture>::Future,
     fut_s: Option<S::Future>,
 }
 
-impl<P, T: FromRequest<P>, S> Future for ExtractResponse<P, T, S>
+impl<T: FromRequest, S> Future for ExtractResponse<T, S>
 where
     S: Service<Request = (T, HttpRequest), Response = ServiceResponse, Error = Void>,
 {
     type Item = ServiceResponse;
-    type Error = (Error, ServiceRequest<P>);
+    type Error = (Error, ServiceRequest);
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         if let Some(ref mut fut) = self.fut_s {

@@ -133,7 +133,6 @@ pub mod dev {
     //! use actix_web::dev::*;
     //! ```
 
-    pub use crate::app::AppRouter;
     pub use crate::config::{AppConfig, ServiceConfig};
     pub use crate::info::ConnectionInfo;
     pub use crate::rmap::ResourceMap;
@@ -143,6 +142,7 @@ pub mod dev {
     pub use crate::types::readlines::Readlines;
 
     pub use actix_http::body::{Body, BodySize, MessageBody, ResponseBody};
+    pub use actix_http::encoding::Decoder as Decompress;
     pub use actix_http::ResponseBuilder as HttpResponseBuilder;
     pub use actix_http::{
         Extensions, Payload, PayloadStream, RequestHead, ResponseHead,
