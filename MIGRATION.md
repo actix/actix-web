@@ -1,7 +1,7 @@
 ## 1.0
 
 * Resource registration. 1.0 version uses generalized resource
-registration via `.service()` method.
+  registration via `.service()` method.
 
   instead of
 
@@ -44,9 +44,41 @@ registration via `.service()` method.
       );
   ```
 
+* `.with()`, `.with_async()` registration methods have been renamed to `.to()` and `.to_async()`.
+
+  instead of
+
+  ```rust
+    App.new().resource("/welcome", |r| r.with(welcome))
+  ```
+
+  use `.to()` or `.to_async()` methods
+
+  ```rust
+    App.new().service(web::resource("/welcome").to(welcome))
+  ```
+
+* Passing arguments to handler with extractors, multiple arguments are allowed
+
+  instead of
+
+  ```rust
+  fn welcome((body, req): (Bytes, HttpRequest)) -> ... {
+    ...
+  }
+  ```
+
+  use multiple arguments
+
+  ```rust
+  fn welcome(body: Bytes, req: HttpRequest) -> ... {
+    ...
+  }
+  ```
+
 * `.f()`, `.a()` and `.h()` handler registration methods have been removed.
-Use `.to()` for handlers and `.to_async()` for async handlers. Handler function
-must use extractors.
+  Use `.to()` for handlers and `.to_async()` for async handlers. Handler function
+  must use extractors.
 
   instead of
 
@@ -61,8 +93,8 @@ must use extractors.
   ```
 
 * `State` is now `Data`.  You register Data during the App initialization process
-and then access it from handlers either using a Data extractor or using
-HttpRequest's api.
+  and then access it from handlers either using a Data extractor or using
+  HttpRequest's api.
 
   instead of
 
