@@ -141,6 +141,7 @@ struct IdentityItem {
 /// # fn main() {}
 /// ```
 impl FromRequest for Identity {
+    type Config = ();
     type Error = Error;
     type Future = Result<Identity, Error>;
 

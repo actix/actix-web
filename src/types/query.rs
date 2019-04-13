@@ -115,6 +115,7 @@ impl<T> FromRequest for Query<T>
 where
     T: de::DeserializeOwned,
 {
+    type Config = ();
     type Error = Error;
     type Future = Result<Self, Error>;
 

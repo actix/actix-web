@@ -17,6 +17,9 @@ pub trait FromRequest: Sized {
     /// Future that resolves to a Self
     type Future: IntoFuture<Item = Self, Error = Self::Error>;
 
+    /// Configuration for this extractor
+    type Config: Default + 'static;
+
     /// Convert request to a Self
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future;
 
@@ -25,6 +28,14 @@ pub trait FromRequest: Sized {
     /// This method uses `Payload::None` as payload stream.
     fn extract(req: &HttpRequest) -> Self::Future {
         Self::from_request(req, &mut Payload::None)
+    }
+
+    /// Create and configure config instance.
+    fn configure<F>(f: F) -> Self::Config
+    where
+        F: FnOnce(Self::Config) -> Self::Config,
+    {
+        f(Self::Config::default())
     }
 }
 
@@ -48,6 +59,7 @@ pub trait FromRequest: Sized {
 /// impl FromRequest for Thing {
 ///     type Error = Error;
 ///     type Future = Result<Self, Self::Error>;
+///     type Config = ();
 ///
 ///     fn from_request(req: &HttpRequest, payload: &mut dev::Payload) -> Self::Future {
 ///         if rand::random() {
@@ -80,6 +92,7 @@ where
     T: FromRequest,
     T::Future: 'static,
 {
+    type Config = T::Config;
     type Error = Error;
     type Future = Box<Future<Item = Option<T>, Error = Error>>;
 
@@ -119,6 +132,7 @@ where
 /// impl FromRequest for Thing {
 ///     type Error = Error;
 ///     type Future = Result<Thing, Error>;
+///     type Config = ();
 ///
 ///     fn from_request(req: &HttpRequest, payload: &mut dev::Payload) -> Self::Future {
 ///         if rand::random() {
@@ -149,6 +163,7 @@ where
     T::Future: 'static,
     T::Error: 'static,
 {
+    type Config = T::Config;
     type Error = Error;
     type Future = Box<Future<Item = Result<T, T::Error>, Error = Error>>;
 
@@ -167,6 +182,7 @@ where
 
 #[doc(hidden)]
 impl FromRequest for () {
+    type Config = ();
     type Error = Error;
     type Future = Result<(), Error>;
 
@@ -183,6 +199,7 @@ macro_rules! tuple_from_req ({$fut_type:ident, $(($n:tt, $T:ident)),+} => {
     {
         type Error = Error;
         type Future = $fut_type<$($T),+>;
+        type Config = ($($T::Config),+);
 
         fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
             $fut_type {

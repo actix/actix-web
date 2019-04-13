@@ -156,6 +156,7 @@ impl<T> FromRequest for Path<T>
 where
     T: de::DeserializeOwned,
 {
+    type Config = ();
     type Error = Error;
     type Future = Result<Self, Error>;
 

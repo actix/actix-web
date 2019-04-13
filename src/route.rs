@@ -292,7 +292,7 @@ impl Route {
     /// configuration or specific state available via `RouteData<T>` extractor.
     ///
     /// ```rust
-    /// use actix_web::{web, App};
+    /// use actix_web::{web, App, FromRequest};
     ///
     /// /// extract text data from request
     /// fn index(body: String) -> String {
@@ -304,13 +304,15 @@ impl Route {
     ///         web::resource("/index.html").route(
     ///             web::get()
     ///                // limit size of the payload
-    ///                .data(web::PayloadConfig::new(4096))
+    ///                .data(String::configure(|cfg| {
+    ///                    cfg.limit(4096)
+    ///                }))
     ///                // register handler
     ///                .to(index)
     ///         ));
     /// }
     /// ```
-    pub fn data<C: 'static>(mut self, data: C) -> Self {
+    pub fn data<T: 'static>(mut self, data: T) -> Self {
         if self.data.is_none() {
             self.data = Some(Extensions::new());
         }

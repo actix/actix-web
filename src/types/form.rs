@@ -73,6 +73,7 @@ impl<T> FromRequest for Form<T>
 where
     T: DeserializeOwned + 'static,
 {
+    type Config = FormConfig;
     type Error = Error;
     type Future = Box<Future<Item = Self, Error = Error>>;
 
@@ -115,7 +116,7 @@ impl<T: fmt::Display> fmt::Display for Form<T> {
 ///
 /// ```rust
 /// #[macro_use] extern crate serde_derive;
-/// use actix_web::{web, App, Result};
+/// use actix_web::{web, App, FromRequest, Result};
 ///
 /// #[derive(Deserialize)]
 /// struct FormData {
@@ -133,7 +134,9 @@ impl<T: fmt::Display> fmt::Display for Form<T> {
 ///         web::resource("/index.html")
 ///             .route(web::get()
 ///                 // change `Form` extractor configuration
-///                 .data(web::FormConfig::default().limit(4097))
+///                 .data(
+///                     web::Form::<FormData>::configure(|cfg| cfg.limit(4097))
+///                 )
 ///                 .to(index))
 ///     );
 /// }

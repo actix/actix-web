@@ -9,6 +9,8 @@
 * Removed `Decompress` middleware. Bytes, String, Json, Form extractors
   automatically decompress payload.
 
+* Make extractor config type explicit. Add `FromRequest::Config` associated type.
+
 
 ## [1.0.0-alpha.5] - 2019-04-12
 

@@ -86,6 +86,7 @@ impl Stream for Payload {
 /// }
 /// ```
 impl FromRequest for Payload {
+    type Config = PayloadConfig;
     type Error = Error;
     type Future = Result<Payload, Error>;
 
@@ -121,6 +122,7 @@ impl FromRequest for Payload {
 /// }
 /// ```
 impl FromRequest for Bytes {
+    type Config = PayloadConfig;
     type Error = Error;
     type Future =
         Either<Box<Future<Item = Bytes, Error = Error>>, FutureResult<Bytes, Error>>;
@@ -156,7 +158,7 @@ impl FromRequest for Bytes {
 /// ## Example
 ///
 /// ```rust
-/// use actix_web::{web, App};
+/// use actix_web::{web, App, FromRequest};
 ///
 /// /// extract text data from request
 /// fn index(text: String) -> String {
@@ -167,12 +169,15 @@ impl FromRequest for Bytes {
 ///     let app = App::new().service(
 ///         web::resource("/index.html").route(
 ///             web::get()
-///                .data(web::PayloadConfig::new(4096)) // <- limit size of the payload
+///                .data(String::configure(|cfg| {  // <- limit size of the payload
+///                    cfg.limit(4096)
+///                 }))
 ///                .to(index))  // <- register handler with extractor params
 ///     );
 /// }
 /// ```
 impl FromRequest for String {
+    type Config = PayloadConfig;
     type Error = Error;
     type Future =
         Either<Box<Future<Item = String, Error = Error>>, FutureResult<String, Error>>;
@@ -228,7 +233,9 @@ pub struct PayloadConfig {
 impl PayloadConfig {
     /// Create `PayloadConfig` instance and set max size of payload.
     pub fn new(limit: usize) -> Self {
-        Self::default().limit(limit)
+        let mut cfg = Self::default();
+        cfg.limit = limit;
+        cfg
     }
 
     /// Change max size of payload. By default max size is 256Kb

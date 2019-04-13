@@ -546,6 +546,7 @@ impl PathBufWrp {
 impl FromRequest for PathBufWrp {
     type Error = UriSegmentError;
     type Future = Result<Self, Self::Error>;
+    type Config = ();
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
         PathBufWrp::get_pathbuf(req.match_info().path())

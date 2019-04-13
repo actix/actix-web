@@ -16,10 +16,8 @@ use flate2::Compression;
 use futures::stream::once;
 use rand::{distributions::Alphanumeric, Rng};
 
-use actix_web::{http, test, web, App, HttpResponse, HttpServer};
-
-#[cfg(any(feature = "brotli", feature = "flate2-zlib", feature = "flate2-rust"))]
 use actix_web::middleware::{BodyEncoding, Compress};
+use actix_web::{http, test, web, App, HttpResponse, HttpServer};
 
 const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
                    Hello World Hello World Hello World Hello World Hello World \

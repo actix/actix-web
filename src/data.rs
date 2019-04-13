@@ -89,6 +89,7 @@ impl<T> Clone for Data<T> {
 }
 
 impl<T: 'static> FromRequest for Data<T> {
+    type Config = ();
     type Error = Error;
     type Future = Result<Self, Error>;
 
@@ -233,6 +234,7 @@ impl<T> Clone for RouteData<T> {
 }
 
 impl<T: 'static> FromRequest for RouteData<T> {
+    type Config = ();
     type Error = Error;
     type Future = Result<Self, Error>;
 

@@ -168,6 +168,7 @@ impl<T> FromRequest for Json<T>
 where
     T: DeserializeOwned + 'static,
 {
+    type Config = JsonConfig;
     type Error = Error;
     type Future = Box<Future<Item = Self, Error = Error>>;
 
@@ -205,7 +206,7 @@ where
 ///
 /// ```rust
 /// #[macro_use] extern crate serde_derive;
-/// use actix_web::{error, web, App, HttpResponse};
+/// use actix_web::{error, web, App, FromRequest, HttpResponse};
 ///
 /// #[derive(Deserialize)]
 /// struct Info {
@@ -222,11 +223,13 @@ where
 ///         web::resource("/index.html").route(
 ///             web::post().data(
 ///                 // change json extractor configuration
-///                 web::JsonConfig::default().limit(4096)
-///                     .error_handler(|err, req| {  // <- create custom error response
-///                         error::InternalError::from_response(
-///                             err, HttpResponse::Conflict().finish()).into()
-///                     }))
+///                 web::Json::<Info>::configure(|cfg| {
+///                     cfg.limit(4096)
+///                        .error_handler(|err, req| {  // <- create custom error response
+///                             error::InternalError::from_response(
+///                                 err, HttpResponse::Conflict().finish()).into()
+///                        })
+///                 }))
 ///                 .to(index))
 ///     );
 /// }
