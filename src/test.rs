@@ -12,10 +12,7 @@ use actix_rt::Runtime;
 use actix_server_config::ServerConfig;
 use actix_service::{FnService, IntoNewService, NewService, Service};
 use bytes::{Bytes, BytesMut};
-use futures::{
-    future::{lazy, ok, Future},
-    stream::Stream,
-};
+use futures::{future::{lazy, ok, Future}, stream::Stream};
 use serde::de::DeserializeOwned;
 use serde_json;
 
@@ -373,12 +370,12 @@ impl TestRequest {
     /// This function blocks the current thread until futures complete.
     ///
     /// ```rust
-	/// use actix_web::{App, test};
-	///
-    /// let mut app = test::init_service(App::new());
-	/// let payload = r#"{"id":"12345","name":"Nikolay Kim"}"#.as_bytes();
+    /// use actix_web::{App, test};
     ///
-	/// let req = test::TestRequest::post()
+    /// let mut app = test::init_service(App::new());
+    /// let payload = r#"{"id":"12345","name":"Nikolay Kim"}"#.as_bytes();
+    ///
+    /// let req = test::TestRequest::post()
     ///                 .uri("/people")
     ///                 .header(header::CONTENT_TYPE, "application/json")
     ///                 .set_payload(payload)
