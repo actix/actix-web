@@ -1,6 +1,6 @@
 [package]
 name = "awc"
-version = "0.1.0-alpha.5"
+version = "0.1.0-alpha.6"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix http client."
 readme = "README.md"
@@ -55,7 +55,7 @@ openssl = { version="0.10", optional = true }
 
 [dev-dependencies]
 actix-rt = "0.2.2"
-actix-web = { version = "1.0.0-alpha.5", features=["ssl"] }
+actix-web = { version = "1.0.0-alpha.6", features=["ssl"] }
 actix-http = { version = "0.1.0-alpha.5", features=["ssl"] }
 actix-http-test = { version = "0.1.0-alpha.3", features=["ssl"] }
 actix-utils = "0.3.4"
