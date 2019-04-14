@@ -11,14 +11,16 @@ use actix_router::{Path, ResourceDef, Url};
 use actix_rt::Runtime;
 use actix_server_config::ServerConfig;
 use actix_service::{FnService, IntoNewService, NewService, Service};
-use bytes::Bytes;
-use futures::future::{lazy, Future};
+use bytes::{Bytes, BytesMut};
+use futures::{future::{lazy, ok, Future}, stream::Stream};
+use serde::de::DeserializeOwned;
+use serde_json;
 
 pub use actix_http::test::TestBuffer;
 
 use crate::config::{AppConfig, AppConfigInner};
 use crate::data::RouteData;
-use crate::dev::{Body, Payload};
+use crate::dev::{Body, MessageBody, Payload};
 use crate::request::HttpRequestPool;
 use crate::rmap::ResourceMap;
 use crate::service::{ServiceRequest, ServiceResponse};
@@ -362,5 +364,56 @@ impl TestRequest {
         F: Future,
     {
         block_on(f)
+    }
+
+    /// Helper function that returns a deserialized response body of a TestRequest
+    /// This function blocks the current thread until futures complete.
+    ///
+    /// ```rust
+    /// use actix_web::{App, test, web, HttpResponse, http::header};
+    /// use serde::{Serialize, Deserialize};
+    /// 
+    /// #[derive(Serialize, Deserialize)]
+    /// pub struct Person { id: String, name: String }
+    /// 
+    /// #[test]
+    /// fn test_add_person() {
+    ///     let mut app = test::init_service(App::new().service(
+    ///                              web::resource("/people")
+    ///                                .route(web::post().to(|person: web::Json<Person>| {
+    ///                                       HttpResponse::Ok()
+    ///                                          .json(person.into_inner())})
+    ///                                 )));
+    /// 
+    ///     let payload = r#"{"id":"12345","name":"Nikolay Kim"}"#.as_bytes();
+    /// 
+    ///     let req = test::TestRequest::post()
+    ///                      .uri("/people")
+    ///                      .header(header::CONTENT_TYPE, "application/json")
+    ///                      .set_payload(payload)
+    ///                      .to_request();
+    /// 
+    ///     let result: Person = test::read_response_json(&mut app, req);
+    /// }
+    /// ```
+    pub fn read_response_json<S, B, T>(app: &mut S, req: Request) -> T
+    where
+        S: Service<Request = Request, Response = ServiceResponse<B>, Error = Error>,
+        B: MessageBody,
+        T: DeserializeOwned,
+    {
+        block_on(app.call(req).and_then(|mut resp: ServiceResponse<B>| {
+            resp.take_body()
+                .fold(BytesMut::new(), move |mut body, chunk| {
+                    body.extend_from_slice(&chunk);
+                    Ok::<_, Error>(body)
+                })
+                .and_then(|body: BytesMut| {
+                    ok(serde_json::from_slice(&body).unwrap_or_else(|_| {
+                        panic!("read_response_json failed during deserialization")
+                    }))
+                })
+        }))
+        .unwrap_or_else(|_| panic!("read_response_json failed at block_on unwrap"))
     }
 }
