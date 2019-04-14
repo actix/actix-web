@@ -396,10 +396,10 @@ impl TestRequest {
     ///     let result: Person = test::read_response_json(&mut app, req);
     /// }
     /// ```
-    pub fn read_response_json<S, R, B, T>(app: &mut S, req: R) -> T
+    pub fn read_response_json<S, B, T>(app: &mut S, req: Request) -> T
     where
+        S: Service<Request = Request, Response = ServiceResponse<B>, Error = Error>,
         B: MessageBody,
-        S: Service<Request = R, Response = ServiceResponse<B>, Error = Error>,
         T: DeserializeOwned,
     {
         block_on(app.call(req).and_then(|mut resp: ServiceResponse<B>| {
