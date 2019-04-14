@@ -1,13 +1,11 @@
 //! Websockets client
 use std::fmt::Write as FmtWrite;
-use std::io::Write;
 use std::rc::Rc;
 use std::{fmt, str};
 
 use actix_codec::Framed;
 use actix_http::cookie::{Cookie, CookieJar};
 use actix_http::{ws, Payload, RequestHead};
-use bytes::{BufMut, BytesMut};
 use futures::future::{err, Either, Future};
 use percent_encoding::{percent_encode, USERINFO_ENCODE_SET};
 use tokio_timer::Timeout;
@@ -33,7 +31,6 @@ pub struct WebsocketsRequest {
     protocols: Option<String>,
     max_size: usize,
     server_mode: bool,
-    default_headers: bool,
     cookies: Option<CookieJar>,
     config: Rc<ClientConfig>,
 }
@@ -63,7 +60,6 @@ impl WebsocketsRequest {
             max_size: 65_536,
             server_mode: false,
             cookies: None,
-            default_headers: true,
         }
     }
 
@@ -116,13 +112,6 @@ impl WebsocketsRequest {
     /// Disable payload masking. By default ws client masks frame payload.
     pub fn server_mode(mut self) -> Self {
         self.server_mode = true;
-        self
-    }
-
-    /// Do not add default request headers.
-    /// By default `Date` and `User-Agent` headers are set.
-    pub fn no_default_headers(mut self) -> Self {
-        self.default_headers = false;
         self
     }
 
@@ -188,10 +177,9 @@ impl WebsocketsRequest {
     }
 
     /// Set HTTP basic authorization header
-    pub fn basic_auth<U, P>(self, username: U, password: Option<P>) -> Self
+    pub fn basic_auth<U>(self, username: U, password: Option<&str>) -> Self
     where
         U: fmt::Display,
-        P: fmt::Display,
     {
         let auth = match password {
             Some(password) => format!("{}:{}", username, password),
@@ -232,67 +220,36 @@ impl WebsocketsRequest {
             return Either::A(err(InvalidUrl::UnknownScheme.into()));
         }
 
-        // set default headers
-        let mut slf = if self.default_headers {
-            // set request host header
-            if let Some(host) = self.head.uri.host() {
-                if !self.head.headers.contains_key(&header::HOST) {
-                    let mut wrt = BytesMut::with_capacity(host.len() + 5).writer();
-
-                    let _ = match self.head.uri.port_u16() {
-                        None | Some(80) | Some(443) => write!(wrt, "{}", host),
-                        Some(port) => write!(wrt, "{}:{}", host, port),
-                    };
-
-                    match wrt.get_mut().take().freeze().try_into() {
-                        Ok(value) => {
-                            self.head.headers.insert(header::HOST, value);
-                        }
-                        Err(e) => return Either::A(err(HttpError::from(e).into())),
-                    }
-                }
-            }
-
-            // user agent
-            self.set_header_if_none(
-                header::USER_AGENT,
-                concat!("awc/", env!("CARGO_PKG_VERSION")),
-            )
-        } else {
-            self
-        };
-
-        let mut head = slf.head;
-
         // set cookies
-        if let Some(ref mut jar) = slf.cookies {
+        if let Some(ref mut jar) = self.cookies {
             let mut cookie = String::new();
             for c in jar.delta() {
                 let name = percent_encode(c.name().as_bytes(), USERINFO_ENCODE_SET);
                 let value = percent_encode(c.value().as_bytes(), USERINFO_ENCODE_SET);
                 let _ = write!(&mut cookie, "; {}={}", name, value);
             }
-            head.headers.insert(
+            self.head.headers.insert(
                 header::COOKIE,
                 HeaderValue::from_str(&cookie.as_str()[2..]).unwrap(),
             );
         }
 
         // origin
-        if let Some(origin) = slf.origin.take() {
-            head.headers.insert(header::ORIGIN, origin);
+        if let Some(origin) = self.origin.take() {
+            self.head.headers.insert(header::ORIGIN, origin);
         }
 
-        head.set_connection_type(ConnectionType::Upgrade);
-        head.headers
+        self.head.set_connection_type(ConnectionType::Upgrade);
+        self.head
+            .headers
             .insert(header::UPGRADE, HeaderValue::from_static("websocket"));
-        head.headers.insert(
+        self.head.headers.insert(
             header::SEC_WEBSOCKET_VERSION,
             HeaderValue::from_static("13"),
         );
 
-        if let Some(protocols) = slf.protocols.take() {
-            head.headers.insert(
+        if let Some(protocols) = self.protocols.take() {
+            self.head.headers.insert(
                 header::SEC_WEBSOCKET_PROTOCOL,
                 HeaderValue::try_from(protocols.as_str()).unwrap(),
             );
@@ -304,15 +261,16 @@ impl WebsocketsRequest {
         let sec_key: [u8; 16] = rand::random();
         let key = base64::encode(&sec_key);
 
-        head.headers.insert(
+        self.head.headers.insert(
             header::SEC_WEBSOCKET_KEY,
             HeaderValue::try_from(key.as_str()).unwrap(),
         );
 
-        let max_size = slf.max_size;
-        let server_mode = slf.server_mode;
+        let head = self.head;
+        let max_size = self.max_size;
+        let server_mode = self.server_mode;
 
-        let fut = slf
+        let fut = self
             .config
             .connector
             .borrow_mut()
@@ -387,7 +345,7 @@ impl WebsocketsRequest {
             });
 
         // set request timeout
-        if let Some(timeout) = slf.config.timeout {
+        if let Some(timeout) = self.config.timeout {
             Either::B(Either::A(Timeout::new(fut, timeout).map_err(|e| {
                 if let Some(e) = e.into_inner() {
                     e
@@ -398,5 +356,109 @@ impl WebsocketsRequest {
         } else {
             Either::B(Either::B(fut))
         }
+    }
+}
+
+impl fmt::Debug for WebsocketsRequest {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        writeln!(
+            f,
+            "\nWebsocketsRequest {}:{}",
+            self.head.method, self.head.uri
+        )?;
+        writeln!(f, "  headers:")?;
+        for (key, val) in self.head.headers.iter() {
+            writeln!(f, "    {:?}: {:?}", key, val)?;
+        }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Client;
+
+    #[test]
+    fn test_debug() {
+        let request = Client::new().ws("/").header("x-test", "111");
+        let repr = format!("{:?}", request);
+        assert!(repr.contains("WebsocketsRequest"));
+        assert!(repr.contains("x-test"));
+    }
+
+    #[test]
+    fn test_header_override() {
+        let req = Client::build()
+            .header(header::CONTENT_TYPE, "111")
+            .finish()
+            .ws("/")
+            .set_header(header::CONTENT_TYPE, "222");
+
+        assert_eq!(
+            req.head
+                .headers
+                .get(header::CONTENT_TYPE)
+                .unwrap()
+                .to_str()
+                .unwrap(),
+            "222"
+        );
+    }
+
+    #[test]
+    fn basic_auth() {
+        let req = Client::new()
+            .ws("/")
+            .basic_auth("username", Some("password"));
+        assert_eq!(
+            req.head
+                .headers
+                .get(header::AUTHORIZATION)
+                .unwrap()
+                .to_str()
+                .unwrap(),
+            "Basic dXNlcm5hbWU6cGFzc3dvcmQ="
+        );
+
+        let req = Client::new().ws("/").basic_auth("username", None);
+        assert_eq!(
+            req.head
+                .headers
+                .get(header::AUTHORIZATION)
+                .unwrap()
+                .to_str()
+                .unwrap(),
+            "Basic dXNlcm5hbWU="
+        );
+    }
+
+    #[test]
+    fn bearer_auth() {
+        let req = Client::new().ws("/").bearer_auth("someS3cr3tAutht0k3n");
+        assert_eq!(
+            req.head
+                .headers
+                .get(header::AUTHORIZATION)
+                .unwrap()
+                .to_str()
+                .unwrap(),
+            "Bearer someS3cr3tAutht0k3n"
+        );
+    }
+
+    #[test]
+    fn basics() {
+        let req = Client::new()
+            .ws("/")
+            .origin("test-origin")
+            .max_frame_size(100)
+            .server_mode()
+            .protocols(&["v1", "v2"])
+            .cookie(Cookie::build("cookie1", "value1").finish());
+        assert_eq!(req.origin.unwrap().to_str().unwrap(), "test-origin");
+        assert_eq!(req.max_size, 100);
+        assert_eq!(req.server_mode, true);
+        assert_eq!(req.protocols, Some("v1,v2".to_string()));
     }
 }

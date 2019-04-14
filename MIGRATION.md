@@ -182,6 +182,8 @@
   }
   ```
 
+* `actix_web::server` module has been removed. To start http server use `actix_web::HttpServer` type
+
 * StaticFiles and NamedFile has been move to separate create.
 
   instead of `use actix_web::fs::StaticFile`
@@ -198,10 +200,10 @@
 
   use `use actix_multipart::Multipart`
 
-* Request/response compression/decompression is not enabled by default.
-  To enable use `App::enable_encoding()` method.
+* Response compression is not enabled by default.
+  To enable, use `Compress` middleware, `App::new().wrap(Compress::default())`.
 
-* `actix_web::server` module has been removed. To start http server use `actix_web::HttpServer` type
+* Session middleware moved to actix-session crate
 
 * Actors support have been moved to `actix-web-actors` crate
 

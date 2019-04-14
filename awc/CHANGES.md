@@ -1,5 +1,12 @@
 # Changes
 
+## [0.1.0-alpha.6] - 2019-04-xx
+
+### Changed
+
+* Do not set default headers for websocket request
+
+
 ## [0.1.0-alpha.5] - 2019-04-12
 
 ### Changed

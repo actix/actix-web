@@ -10,6 +10,7 @@ use rand::Rng;
 
 use actix_http::HttpService;
 use actix_http_test::TestServer;
+use actix_web::http::Cookie;
 use actix_web::{http::header, web, App, Error, HttpMessage, HttpRequest, HttpResponse};
 use awc::error::SendRequestError;
 
@@ -406,7 +407,6 @@ fn test_client_brotli_encoding() {
 
 #[test]
 fn test_client_cookie_handling() {
-    use actix_web::http::Cookie;
     fn err() -> Error {
         use std::io::{Error as IoError, ErrorKind};
         // stub some generic error
@@ -467,36 +467,6 @@ fn test_client_cookie_handling() {
     let c2 = response.cookie("cookie2").expect("Missing cookie2");
     assert_eq!(c2, cookie2);
 }
-
-// #[test]
-// fn test_default_headers() {
-//     let srv = test::TestServer::new(|app| app.handler(|_| HttpResponse::Ok().body(STR)));
-
-//     let request = srv.get("/").finish().unwrap();
-//     let repr = format!("{:?}", request);
-//     assert!(repr.contains("\"accept-encoding\": \"gzip, deflate\""));
-//     assert!(repr.contains(concat!(
-//         "\"user-agent\": \"actix-web/",
-//         env!("CARGO_PKG_VERSION"),
-//         "\""
-//     )));
-
-//     let request_override = srv
-//         .get("/")
-//         .header("User-Agent", "test")
-//         .header("Accept-Encoding", "over_test")
-//         .finish()
-//         .unwrap();
-//     let repr_override = format!("{:?}", request_override);
-//     assert!(repr_override.contains("\"user-agent\": \"test\""));
-//     assert!(repr_override.contains("\"accept-encoding\": \"over_test\""));
-//     assert!(!repr_override.contains("\"accept-encoding\": \"gzip, deflate\""));
-//     assert!(!repr_override.contains(concat!(
-//         "\"user-agent\": \"Actix-web/",
-//         env!("CARGO_PKG_VERSION"),
-//         "\""
-//     )));
-// }
 
 // #[test]
 // fn client_read_until_eof() {
