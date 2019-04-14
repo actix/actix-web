@@ -371,17 +371,30 @@ impl TestRequest {
     ///
     /// ```rust
     /// use actix_web::{App, test};
-    ///
-    /// let mut app = test::init_service(App::new());
-    /// let payload = r#"{"id":"12345","name":"Nikolay Kim"}"#.as_bytes();
-    ///
-    /// let req = test::TestRequest::post()
-    ///                 .uri("/people")
-    ///                 .header(header::CONTENT_TYPE, "application/json")
-    ///                 .set_payload(payload)
-    ///                 .to_request();
-    ///
-    /// let result = read_response_json<_, _, _, serde_json::Value>(&mut app, req);
+    /// use serde::{Serialize, Deserialize};
+    /// 
+    /// #[derive(Serialize, Deserialize)]
+    /// pub struct Person { id: String, name: String }
+    /// 
+    /// #[test]
+    /// fn test_add_person() {
+    ///     let mut app = test::init_service(App::new().service(
+    ///                              web::resource("/people")
+    ///                                .route(web::post().to(|person: Json<Person>| {
+    ///                                       HttpResponse::Ok()
+    ///                                          .json(person.into_inner())})
+    ///                                 )));
+    /// 
+    ///     let payload = r#"{"id":"12345","name":"Nikolay Kim"}"#.as_bytes();
+    /// 
+    ///     let req = test::TestRequest::post()
+    ///                      .uri("/people")
+    ///                      .header(header::CONTENT_TYPE, "application/json")
+    ///                      .set_payload(payload)
+    ///                      .to_request();
+    /// 
+    ///     let result = read_response_json<_, _, _, Person>(&mut app, req);
+    /// }
     /// ```
     pub fn read_response_json<S, R, B, T>(app: &mut S, req: R) -> T
     where
