@@ -36,9 +36,9 @@ fn main() -> std::io::Result<()> {
                     .wrap(
                         middleware::DefaultHeaders::new().header("X-Version-R2", "0.3"),
                     )
-                    .default_resource(|r| {
-                        r.route(web::route().to(|| HttpResponse::MethodNotAllowed()))
-                    })
+                    .default_service(
+                        web::route().to(|| HttpResponse::MethodNotAllowed()),
+                    )
                     .route(web::get().to_async(index_async)),
             )
             .service(web::resource("/test1.html").to(|| "Test\r\n"))

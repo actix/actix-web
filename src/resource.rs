@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::fmt;
 use std::rc::Rc;
 
 use actix_http::{Error, Response};
@@ -313,22 +314,24 @@ where
         self.wrap(mw)
     }
 
-    /// Default resource to be used if no matching route could be found.
+    /// Default service to be used if no matching route could be found.
     /// By default *405* response get returned. Resource does not use
     /// default handler from `App` or `Scope`.
-    pub fn default_resource<F, R, U>(mut self, f: F) -> Self
+    pub fn default_service<F, U>(mut self, f: F) -> Self
     where
-        F: FnOnce(Resource) -> R,
-        R: IntoNewService<U>,
+        F: IntoNewService<U>,
         U: NewService<
                 Request = ServiceRequest,
                 Response = ServiceResponse,
                 Error = Error,
             > + 'static,
+        U::InitError: fmt::Debug,
     {
         // create and configure default resource
         self.default = Rc::new(RefCell::new(Some(Rc::new(boxed::new_service(
-            f(Resource::new("")).into_new_service().map_init_err(|_| ()),
+            f.into_new_service().map_init_err(|e| {
+                log::error!("Can not construct default service: {:?}", e)
+            }),
         )))));
 
         self
@@ -626,7 +629,9 @@ mod tests {
                 .service(
                     web::resource("/test").route(web::get().to(|| HttpResponse::Ok())),
                 )
-                .default_resource(|r| r.to(|| HttpResponse::BadRequest())),
+                .default_service(|r: ServiceRequest| {
+                    r.into_response(HttpResponse::BadRequest())
+                }),
         );
         let req = TestRequest::with_uri("/test").to_request();
         let resp = call_success(&mut srv, req);
@@ -642,7 +647,9 @@ mod tests {
             App::new().service(
                 web::resource("/test")
                     .route(web::get().to(|| HttpResponse::Ok()))
-                    .default_resource(|r| r.to(|| HttpResponse::BadRequest())),
+                    .default_service(|r: ServiceRequest| {
+                        r.into_response(HttpResponse::BadRequest())
+                    }),
             ),
         );
 

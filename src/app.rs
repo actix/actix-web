@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::fmt;
 use std::marker::PhantomData;
 use std::rc::Rc;
 
@@ -207,20 +208,56 @@ where
         self
     }
 
-    /// Default resource to be used if no matching resource could be found.
-    pub fn default_resource<F, U>(mut self, f: F) -> Self
+    /// Default service to be used if no matching resource could be found.
+    ///
+    /// It is possible to use services like `Resource`, `Route`.
+    ///
+    /// ```rust
+    /// use actix_web::{web, App, HttpResponse};
+    ///
+    /// fn index() -> &'static str {
+    ///     "Welcome!"
+    /// }
+    ///
+    /// fn main() {
+    ///     let app = App::new()
+    ///         .service(
+    ///             web::resource("/index.html").route(web::get().to(index)))
+    ///         .default_service(
+    ///             web::route().to(|| HttpResponse::NotFound()));
+    /// }
+    /// ```
+    ///
+    /// It is also possible to use static files as default service.
+    ///
+    /// ```rust
+    /// use actix_files::Files;
+    /// use actix_web::{web, App, HttpResponse};
+    ///
+    /// fn main() {
+    ///     let app = App::new()
+    ///         .service(
+    ///             web::resource("/index.html").to(|| HttpResponse::Ok()))
+    ///         .default_service(
+    ///             Files::new("", "./static")
+    ///         );
+    /// }
+    /// ```
+    pub fn default_service<F, U>(mut self, f: F) -> Self
     where
-        F: FnOnce(Resource) -> Resource<U>,
+        F: IntoNewService<U>,
         U: NewService<
                 Request = ServiceRequest,
                 Response = ServiceResponse,
                 Error = Error,
-                InitError = (),
             > + 'static,
+        U::InitError: fmt::Debug,
     {
         // create and configure default resource
         self.default = Some(Rc::new(boxed::new_service(
-            f(Resource::new("")).into_new_service().map_init_err(|_| ()),
+            f.into_new_service().map_init_err(|e| {
+                log::error!("Can not construct default service: {:?}", e)
+            }),
         )));
 
         self
@@ -420,10 +457,14 @@ mod tests {
                 .service(web::resource("/test").to(|| HttpResponse::Ok()))
                 .service(
                     web::resource("/test2")
-                        .default_resource(|r| r.to(|| HttpResponse::Created()))
+                        .default_service(|r: ServiceRequest| {
+                            r.into_response(HttpResponse::Created())
+                        })
                         .route(web::get().to(|| HttpResponse::Ok())),
                 )
-                .default_resource(|r| r.to(|| HttpResponse::MethodNotAllowed())),
+                .default_service(|r: ServiceRequest| {
+                    r.into_response(HttpResponse::MethodNotAllowed())
+                }),
         );
 
         let req = TestRequest::with_uri("/blah").to_request();

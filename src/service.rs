@@ -63,8 +63,8 @@ impl ServiceRequest {
 
     /// Create service response
     #[inline]
-    pub fn into_response<B>(self, res: Response<B>) -> ServiceResponse<B> {
-        ServiceResponse::new(self.req, res)
+    pub fn into_response<B, R: Into<Response<B>>>(self, res: R) -> ServiceResponse<B> {
+        ServiceResponse::new(self.req, res.into())
     }
 
     /// Create service response for error

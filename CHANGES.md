@@ -4,6 +4,8 @@
 
 ### Changed
 
+* Allow to use any service as default service.
+
 * Remove generic type for request payload, always use default.
 
 * Removed `Decompress` middleware. Bytes, String, Json, Form extractors

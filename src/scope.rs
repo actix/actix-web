@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::fmt;
 use std::rc::Rc;
 
 use actix_http::Response;
@@ -180,22 +181,24 @@ where
         )
     }
 
-    /// Default resource to be used if no matching route could be found.
+    /// Default service to be used if no matching route could be found.
     ///
     /// If default resource is not registered, app's default resource is being used.
-    pub fn default_resource<F, U>(mut self, f: F) -> Self
+    pub fn default_service<F, U>(mut self, f: F) -> Self
     where
-        F: FnOnce(Resource) -> Resource<U>,
+        F: IntoNewService<U>,
         U: NewService<
                 Request = ServiceRequest,
                 Response = ServiceResponse,
                 Error = Error,
-                InitError = (),
             > + 'static,
+        U::InitError: fmt::Debug,
     {
         // create and configure default resource
         self.default = Rc::new(RefCell::new(Some(Rc::new(boxed::new_service(
-            f(Resource::new("")).into_new_service().map_init_err(|_| ()),
+            f.into_new_service().map_init_err(|e| {
+                log::error!("Can not construct default service: {:?}", e)
+            }),
         )))));
 
         self
@@ -843,7 +846,9 @@ mod tests {
             App::new().service(
                 web::scope("/app")
                     .service(web::resource("/path1").to(|| HttpResponse::Ok()))
-                    .default_resource(|r| r.to(|| HttpResponse::BadRequest())),
+                    .default_service(|r: ServiceRequest| {
+                        r.into_response(HttpResponse::BadRequest())
+                    }),
             ),
         );
 
@@ -860,12 +865,13 @@ mod tests {
     fn test_default_resource_propagation() {
         let mut srv = init_service(
             App::new()
-                .service(
-                    web::scope("/app1")
-                        .default_resource(|r| r.to(|| HttpResponse::BadRequest())),
-                )
+                .service(web::scope("/app1").default_service(
+                    web::resource("").to(|| HttpResponse::BadRequest()),
+                ))
                 .service(web::scope("/app2"))
-                .default_resource(|r| r.to(|| HttpResponse::MethodNotAllowed())),
+                .default_service(|r: ServiceRequest| {
+                    r.into_response(HttpResponse::MethodNotAllowed())
+                }),
         );
 
         let req = TestRequest::with_uri("/non-exist").to_request();
