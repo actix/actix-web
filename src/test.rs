@@ -370,7 +370,7 @@ impl TestRequest {
     /// This function blocks the current thread until futures complete.
     ///
     /// ```rust
-    /// use actix_web::{App, test};
+    /// use actix_web::{App, test, web, HttpResponse, http::header};
     /// use serde::{Serialize, Deserialize};
     /// 
     /// #[derive(Serialize, Deserialize)]
@@ -380,7 +380,7 @@ impl TestRequest {
     /// fn test_add_person() {
     ///     let mut app = test::init_service(App::new().service(
     ///                              web::resource("/people")
-    ///                                .route(web::post().to(|person: Json<Person>| {
+    ///                                .route(web::post().to(|person: web::Json<Person>| {
     ///                                       HttpResponse::Ok()
     ///                                          .json(person.into_inner())})
     ///                                 )));
@@ -393,7 +393,7 @@ impl TestRequest {
     ///                      .set_payload(payload)
     ///                      .to_request();
     /// 
-    ///     let result = test::read_response_json<_, _, _, Person>(&mut app, req);
+    ///     let result = test::read_response_json::<_, _, _, Person>(&mut app, req);
     /// }
     /// ```
     pub fn read_response_json<S, R, B, T>(app: &mut S, req: R) -> T
