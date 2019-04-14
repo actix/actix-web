@@ -393,7 +393,7 @@ impl TestRequest {
     ///                      .set_payload(payload)
     ///                      .to_request();
     /// 
-    ///     let result = read_response_json<_, _, _, Person>(&mut app, req);
+    ///     let result = test::read_response_json<_, _, _, Person>(&mut app, req);
     /// }
     /// ```
     pub fn read_response_json<S, R, B, T>(app: &mut S, req: R) -> T

@@ -306,7 +306,9 @@ impl WebsocketsRequest {
                         }
                     } else {
                         log::trace!("Invalid connection header: {:?}", conn);
-                        return Err(WsClientError::InvalidConnectionHeader(conn.clone()));
+                        return Err(WsClientError::InvalidConnectionHeader(
+                            conn.clone(),
+                        ));
                     }
                 } else {
                     log::trace!("Missing connection header");
