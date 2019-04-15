@@ -60,6 +60,7 @@ impl Response {
     STATIC_RESP!(UnsupportedMediaType, StatusCode::UNSUPPORTED_MEDIA_TYPE);
     STATIC_RESP!(RangeNotSatisfiable, StatusCode::RANGE_NOT_SATISFIABLE);
     STATIC_RESP!(ExpectationFailed, StatusCode::EXPECTATION_FAILED);
+    STATIC_RESP!(UnprocessableEntity, StatusCode::UNPROCESSABLE_ENTITY);
 
     STATIC_RESP!(InternalServerError, StatusCode::INTERNAL_SERVER_ERROR);
     STATIC_RESP!(NotImplemented, StatusCode::NOT_IMPLEMENTED);
