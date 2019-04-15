@@ -853,6 +853,17 @@ mod tests {
     }
 
     #[test]
+    fn default() {
+        let mut cors =
+            block_on(Cors::default().new_transform(test::ok_service())).unwrap();
+        let req = TestRequest::with_header("Origin", "https://www.example.com")
+            .to_srv_request();
+
+        let resp = test::call_success(&mut cors, req);
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[test]
     fn test_preflight() {
         let mut cors = Cors::new()
             .send_wildcard()

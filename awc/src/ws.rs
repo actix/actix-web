@@ -455,10 +455,20 @@ mod tests {
             .max_frame_size(100)
             .server_mode()
             .protocols(&["v1", "v2"])
+            .set_header_if_none(header::CONTENT_TYPE, "json")
+            .set_header_if_none(header::CONTENT_TYPE, "text")
             .cookie(Cookie::build("cookie1", "value1").finish());
-        assert_eq!(req.origin.unwrap().to_str().unwrap(), "test-origin");
+        assert_eq!(
+            req.origin.as_ref().unwrap().to_str().unwrap(),
+            "test-origin"
+        );
         assert_eq!(req.max_size, 100);
         assert_eq!(req.server_mode, true);
         assert_eq!(req.protocols, Some("v1,v2".to_string()));
+        assert_eq!(
+            req.head.headers.get(header::CONTENT_TYPE).unwrap(),
+            header::HeaderValue::from_static("json")
+        );
+        let _ = req.connect();
     }
 }

@@ -544,6 +544,8 @@ impl fmt::Debug for ClientRequest {
 
 #[cfg(test)]
 mod tests {
+    use std::time::SystemTime;
+
     use super::*;
     use crate::Client;
 
@@ -553,6 +555,21 @@ mod tests {
         let repr = format!("{:?}", request);
         assert!(repr.contains("ClientRequest"));
         assert!(repr.contains("x-test"));
+    }
+
+    #[test]
+    fn test_basics() {
+        let mut req = Client::new()
+            .put("/")
+            .version(Version::HTTP_2)
+            .set(header::Date(SystemTime::now().into()))
+            .content_type("plain/text")
+            .content_length(100);
+        assert!(req.headers().contains_key(header::CONTENT_TYPE));
+        assert!(req.headers().contains_key(header::DATE));
+        assert_eq!(req.head.version, Version::HTTP_2);
+        let _ = req.headers_mut();
+        let _ = req.send_body("");
     }
 
     #[test]
