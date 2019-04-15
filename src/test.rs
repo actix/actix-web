@@ -324,10 +324,18 @@ impl TestRequest {
     pub fn get() -> TestRequest {
         TestRequest::default().method(Method::GET)
     }
+    
+    pub fn patch() -> TestRequest {
+        TestRequest::default().method(Method::PATCH)
+    }
 
     /// Create TestRequest and set method to `Method::POST`
     pub fn post() -> TestRequest {
         TestRequest::default().method(Method::POST)
+    }
+    
+    pub fn put() -> TestRequest {
+        TestRequest::default().method(Method::PUT)
     }
 
     /// Set HTTP version of this request
