@@ -1,8 +1,9 @@
-use std::io::Write;
+use std::io::{Read, Write};
 use std::time::Duration;
 
 use brotli2::write::BrotliEncoder;
 use bytes::Bytes;
+use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
 use flate2::Compression;
 use futures::future::Future;
@@ -11,6 +12,7 @@ use rand::Rng;
 use actix_http::HttpService;
 use actix_http_test::TestServer;
 use actix_web::http::Cookie;
+use actix_web::middleware::{BodyEncoding, Compress};
 use actix_web::{http::header, web, App, Error, HttpMessage, HttpRequest, HttpResponse};
 use awc::error::SendRequestError;
 
@@ -95,11 +97,9 @@ fn test_timeout_override() {
         ))))
     });
 
-    let client = srv.execute(|| {
-        awc::Client::build()
-            .timeout(Duration::from_millis(50000))
-            .finish()
-    });
+    let client = awc::Client::build()
+        .timeout(Duration::from_millis(50000))
+        .finish();
     let request = client
         .get(srv.url("/"))
         .timeout(Duration::from_millis(50))
@@ -110,58 +110,77 @@ fn test_timeout_override() {
     }
 }
 
-// #[test]
-// fn test_connection_close() {
-//     let mut srv =
-//         test::TestServer::new(|app| app.handler(|_| HttpResponse::Ok().body(STR)));
+#[test]
+fn test_connection_close() {
+    let mut srv = TestServer::new(|| {
+        HttpService::new(
+            App::new().service(web::resource("/").to(|| HttpResponse::Ok())),
+        )
+    });
 
-//     let request = srv.get("/").header("Connection", "close").finish().unwrap();
-//     let response = srv.execute(request.send()).unwrap();
-//     assert!(response.status().is_success());
-// }
+    let res = srv
+        .block_on(awc::Client::new().get(srv.url("/")).force_close().send())
+        .unwrap();
+    assert!(res.status().is_success());
+}
 
-// #[test]
-// fn test_with_query_parameter() {
-//     let mut srv = test::TestServer::new(|app| {
-//         app.handler(|req: &HttpRequest| match req.query().get("qp") {
-//             Some(_) => HttpResponse::Ok().finish(),
-//             None => HttpResponse::BadRequest().finish(),
-//         })
-//     });
+#[test]
+fn test_with_query_parameter() {
+    let mut srv = TestServer::new(|| {
+        HttpService::new(App::new().service(web::resource("/").to(
+            |req: HttpRequest| {
+                if req.query_string().contains("qp") {
+                    HttpResponse::Ok()
+                } else {
+                    HttpResponse::BadRequest()
+                }
+            },
+        )))
+    });
 
-//     let request = srv.get("/").uri(srv.url("/?qp=5").as_str()).finish().unwrap();
+    let res = srv
+        .block_on(awc::Client::new().get(srv.url("/?qp=5")).send())
+        .unwrap();
+    assert!(res.status().is_success());
+}
 
-//     let response = srv.execute(request.send()).unwrap();
-//     assert!(response.status().is_success());
-// }
+#[test]
+fn test_no_decompress() {
+    let mut srv = TestServer::new(|| {
+        HttpService::new(App::new().wrap(Compress::default()).service(
+            web::resource("/").route(web::to(|| {
+                let mut res = HttpResponse::Ok().body(STR);
+                res.encoding(header::ContentEncoding::Gzip);
+                res
+            })),
+        ))
+    });
 
-// #[test]
-// fn test_no_decompress() {
-//     let mut srv =
-//         test::TestServer::new(|app| app.handler(|_| HttpResponse::Ok().body(STR)));
+    let mut res = srv
+        .block_on(awc::Client::new().get(srv.url("/")).no_decompress().send())
+        .unwrap();
+    assert!(res.status().is_success());
 
-//     let request = srv.get("/").disable_decompress().finish().unwrap();
-//     let response = srv.execute(request.send()).unwrap();
-//     assert!(response.status().is_success());
+    // read response
+    let bytes = srv.block_on(res.body()).unwrap();
 
-//     // read response
-//     let bytes = srv.execute(response.body()).unwrap();
+    let mut e = GzDecoder::new(&bytes[..]);
+    let mut dec = Vec::new();
+    e.read_to_end(&mut dec).unwrap();
+    assert_eq!(Bytes::from(dec), Bytes::from_static(STR.as_ref()));
 
-//     let mut e = GzDecoder::new(&bytes[..]);
-//     let mut dec = Vec::new();
-//     e.read_to_end(&mut dec).unwrap();
-//     assert_eq!(Bytes::from(dec), Bytes::from_static(STR.as_ref()));
+    // POST
+    let mut res = srv
+        .block_on(awc::Client::new().post(srv.url("/")).no_decompress().send())
+        .unwrap();
+    assert!(res.status().is_success());
 
-//     // POST
-//     let request = srv.post().disable_decompress().finish().unwrap();
-//     let response = srv.execute(request.send()).unwrap();
-
-//     let bytes = srv.execute(response.body()).unwrap();
-//     let mut e = GzDecoder::new(&bytes[..]);
-//     let mut dec = Vec::new();
-//     e.read_to_end(&mut dec).unwrap();
-//     assert_eq!(Bytes::from(dec), Bytes::from_static(STR.as_ref()));
-// }
+    let bytes = srv.block_on(res.body()).unwrap();
+    let mut e = GzDecoder::new(&bytes[..]);
+    let mut dec = Vec::new();
+    e.read_to_end(&mut dec).unwrap();
+    assert_eq!(Bytes::from(dec), Bytes::from_static(STR.as_ref()));
+}
 
 #[test]
 fn test_client_gzip_encoding() {
