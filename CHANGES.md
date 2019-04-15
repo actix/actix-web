@@ -1,5 +1,17 @@
 # Changes
 
+## [1.0.0-alpha.7] - 2019-04-xx
+
+### Added
+
+* Added helper functions for reading test response body,
+ `test::read_response()` and test::read_response_json()`
+
+### Fixed
+
+* Fixed `TestRequest::app_data()`
+
+
 ## [1.0.0-alpha.6] - 2019-04-14
 
 ### Changed

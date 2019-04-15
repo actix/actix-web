@@ -103,7 +103,7 @@ pub fn route() -> Route {
 ///  * /{project_id}
 ///
 pub fn get() -> Route {
-    Route::new().method(Method::GET)
+    method(Method::GET)
 }
 
 /// Create *route* with `POST` method guard.
@@ -123,7 +123,7 @@ pub fn get() -> Route {
 ///  * /{project_id}
 ///
 pub fn post() -> Route {
-    Route::new().method(Method::POST)
+    method(Method::POST)
 }
 
 /// Create *route* with `PUT` method guard.
@@ -143,7 +143,7 @@ pub fn post() -> Route {
 ///  * /{project_id}
 ///
 pub fn put() -> Route {
-    Route::new().method(Method::PUT)
+    method(Method::PUT)
 }
 
 /// Create *route* with `PATCH` method guard.
@@ -163,7 +163,7 @@ pub fn put() -> Route {
 ///  * /{project_id}
 ///
 pub fn patch() -> Route {
-    Route::new().method(Method::PATCH)
+    method(Method::PATCH)
 }
 
 /// Create *route* with `DELETE` method guard.
@@ -183,7 +183,7 @@ pub fn patch() -> Route {
 ///  * /{project_id}
 ///
 pub fn delete() -> Route {
-    Route::new().method(Method::DELETE)
+    method(Method::DELETE)
 }
 
 /// Create *route* with `HEAD` method guard.
@@ -203,7 +203,7 @@ pub fn delete() -> Route {
 ///  * /{project_id}
 ///
 pub fn head() -> Route {
-    Route::new().method(Method::HEAD)
+    method(Method::HEAD)
 }
 
 /// Create *route* and add method guard.

@@ -61,6 +61,7 @@ pub(crate) trait DataFactoryResult {
 ///                 web::get().to(index)));
 /// }
 /// ```
+#[derive(Debug)]
 pub struct Data<T>(Arc<T>);
 
 impl<T> Data<T> {
