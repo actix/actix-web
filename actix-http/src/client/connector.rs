@@ -57,8 +57,7 @@ impl Connector<(), ()> {
         let ssl = {
             #[cfg(feature = "ssl")]
             {
-                use log::error;
-                use openssl::ssl::{SslConnector, SslMethod};
+                use openssl::ssl::SslMethod;
 
                 let mut ssl = SslConnector::builder(SslMethod::tls()).unwrap();
                 let _ = ssl
