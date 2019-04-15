@@ -10,16 +10,16 @@ use actix_http::{
 use actix_router::{Path, Resource, Url};
 use futures::future::{ok, FutureResult, IntoFuture};
 
-use crate::config::{AppConfig, ServiceConfig};
+use crate::config::{AppConfig, AppService};
 use crate::data::Data;
 use crate::request::HttpRequest;
 
 pub trait HttpServiceFactory {
-    fn register(self, config: &mut ServiceConfig);
+    fn register(self, config: &mut AppService);
 }
 
 pub(crate) trait ServiceFactory {
-    fn register(&mut self, config: &mut ServiceConfig);
+    fn register(&mut self, config: &mut AppService);
 }
 
 pub(crate) struct ServiceFactoryWrapper<T> {
@@ -38,7 +38,7 @@ impl<T> ServiceFactory for ServiceFactoryWrapper<T>
 where
     T: HttpServiceFactory,
 {
-    fn register(&mut self, config: &mut ServiceConfig) {
+    fn register(&mut self, config: &mut AppService) {
         if let Some(item) = self.factory.take() {
             item.register(config)
         }

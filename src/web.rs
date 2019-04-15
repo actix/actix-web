@@ -13,7 +13,7 @@ use crate::responder::Responder;
 use crate::route::Route;
 use crate::scope::Scope;
 
-pub use crate::config::RouterConfig;
+pub use crate::config::ServiceConfig;
 pub use crate::data::{Data, RouteData};
 pub use crate::request::HttpRequest;
 pub use crate::types::*;

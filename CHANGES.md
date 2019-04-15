@@ -7,6 +7,10 @@
 * Added helper functions for reading test response body,
  `test::read_response()` and test::read_response_json()`
 
+### Changed
+
+* Rename `RouterConfig` to `ServiceConfig`
+
 ### Fixed
 
 * Fixed `TestRequest::app_data()`

@@ -12,7 +12,7 @@ use actix_service::{
 use futures::IntoFuture;
 
 use crate::app_service::{AppEntry, AppInit, AppRoutingFactory};
-use crate::config::{AppConfig, AppConfigInner, RouterConfig};
+use crate::config::{AppConfig, AppConfigInner, ServiceConfig};
 use crate::data::{Data, DataFactory};
 use crate::dev::ResourceDef;
 use crate::error::Error;
@@ -125,7 +125,7 @@ where
     /// use actix_web::{web, middleware, App, HttpResponse};
     ///
     /// // this function could be located in different module
-    /// fn config(cfg: &mut web::RouterConfig) {
+    /// fn config(cfg: &mut web::ServiceConfig) {
     ///     cfg.service(web::resource("/test")
     ///         .route(web::get().to(|| HttpResponse::Ok()))
     ///         .route(web::head().to(|| HttpResponse::MethodNotAllowed()))
@@ -141,9 +141,9 @@ where
     /// ```
     pub fn configure<F>(mut self, f: F) -> Self
     where
-        F: Fn(&mut RouterConfig),
+        F: Fn(&mut ServiceConfig),
     {
-        let mut cfg = RouterConfig::new();
+        let mut cfg = ServiceConfig::new();
         f(&mut cfg);
         self.data.extend(cfg.data);
         self.services.extend(cfg.services);

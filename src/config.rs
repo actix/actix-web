@@ -23,7 +23,7 @@ type HttpNewService =
     boxed::BoxedNewService<(), ServiceRequest, ServiceResponse, Error, ()>;
 
 /// Application configuration
-pub struct ServiceConfig {
+pub struct AppService {
     config: AppConfig,
     root: bool,
     default: Rc<HttpNewService>,
@@ -35,10 +35,10 @@ pub struct ServiceConfig {
     )>,
 }
 
-impl ServiceConfig {
+impl AppService {
     /// Crate server settings instance
     pub(crate) fn new(config: AppConfig, default: Rc<HttpNewService>) -> Self {
-        ServiceConfig {
+        AppService {
             config,
             default,
             root: true,
@@ -63,7 +63,7 @@ impl ServiceConfig {
     }
 
     pub(crate) fn clone_config(&self) -> Self {
-        ServiceConfig {
+        AppService {
             config: self.config.clone(),
             default: self.default.clone(),
             services: Vec::new(),
@@ -165,17 +165,17 @@ impl Default for AppConfigInner {
     }
 }
 
-/// Router config. It is used for external configuration.
+/// Service config is used for external configuration.
 /// Part of application configuration could be offloaded
 /// to set of external methods. This could help with
 /// modularization of big application configuration.
-pub struct RouterConfig {
+pub struct ServiceConfig {
     pub(crate) services: Vec<Box<ServiceFactory>>,
     pub(crate) data: Vec<Box<DataFactory>>,
     pub(crate) external: Vec<ResourceDef>,
 }
 
-impl RouterConfig {
+impl ServiceConfig {
     pub(crate) fn new() -> Self {
         Self {
             services: Vec::new(),
@@ -261,7 +261,7 @@ mod tests {
 
     #[test]
     fn test_data() {
-        let cfg = |cfg: &mut RouterConfig| {
+        let cfg = |cfg: &mut ServiceConfig| {
             cfg.data(10usize);
         };
 
@@ -276,7 +276,7 @@ mod tests {
 
     #[test]
     fn test_data_factory() {
-        let cfg = |cfg: &mut RouterConfig| {
+        let cfg = |cfg: &mut ServiceConfig| {
             cfg.data_factory(|| Ok::<_, ()>(10usize));
         };
 
@@ -288,7 +288,7 @@ mod tests {
         let resp = block_on(srv.call(req)).unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
 
-        let cfg2 = |cfg: &mut RouterConfig| {
+        let cfg2 = |cfg: &mut ServiceConfig| {
             cfg.data_factory(|| Ok::<_, ()>(10u32));
         };
         let mut srv = init_service(

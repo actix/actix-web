@@ -10,7 +10,7 @@ use actix_service::{fn_service, NewService, Service};
 use futures::future::{ok, Either, FutureResult};
 use futures::{Async, Future, Poll};
 
-use crate::config::{AppConfig, ServiceConfig};
+use crate::config::{AppConfig, AppService};
 use crate::data::{DataFactory, DataFactoryResult};
 use crate::error::Error;
 use crate::guard::Guard;
@@ -77,8 +77,7 @@ where
             loc_cfg.addr = cfg.local_addr();
         }
 
-        let mut config =
-            ServiceConfig::new(self.config.borrow().clone(), default.clone());
+        let mut config = AppService::new(self.config.borrow().clone(), default.clone());
 
         // register services
         std::mem::replace(&mut *self.services.borrow_mut(), Vec::new())

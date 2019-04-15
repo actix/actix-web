@@ -133,7 +133,7 @@ pub mod dev {
     //! use actix_web::dev::*;
     //! ```
 
-    pub use crate::config::{AppConfig, ServiceConfig};
+    pub use crate::config::{AppConfig, AppService};
     pub use crate::info::ConnectionInfo;
     pub use crate::rmap::ResourceMap;
     pub use crate::service::{HttpServiceFactory, ServiceRequest, ServiceResponse};

@@ -62,7 +62,7 @@ impl fmt::Display for Args {
 pub struct {name};
 
 impl actix_web::dev::HttpServiceFactory for {name} {{
-    fn register(self, config: &mut actix_web::dev::ServiceConfig) {{
+    fn register(self, config: &mut actix_web::dev::AppService) {{
         {ast}
 
         let resource = actix_web::Resource::new(\"{path}\"){guards}.{to}({name});

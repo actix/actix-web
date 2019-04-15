@@ -11,7 +11,7 @@ use actix_service::{
 use futures::future::{ok, Either, Future, FutureResult};
 use futures::{Async, IntoFuture, Poll};
 
-use crate::dev::{HttpServiceFactory, ServiceConfig};
+use crate::dev::{AppService, HttpServiceFactory};
 use crate::error::Error;
 use crate::guard::Guard;
 use crate::resource::Resource;
@@ -303,7 +303,7 @@ where
             InitError = (),
         > + 'static,
 {
-    fn register(self, config: &mut ServiceConfig) {
+    fn register(self, config: &mut AppService) {
         // update default resource if needed
         if self.default.borrow().is_none() {
             *self.default.borrow_mut() = Some(config.default_service());

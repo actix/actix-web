@@ -10,7 +10,7 @@ use std::{cmp, io};
 use actix_service::boxed::{self, BoxedNewService, BoxedService};
 use actix_service::{IntoNewService, NewService, Service};
 use actix_web::dev::{
-    HttpServiceFactory, Payload, ResourceDef, ServiceConfig, ServiceRequest,
+    AppService, HttpServiceFactory, Payload, ResourceDef, ServiceRequest,
     ServiceResponse,
 };
 use actix_web::error::{BlockingError, Error, ErrorInternalServerError};
@@ -349,7 +349,7 @@ impl Files {
 }
 
 impl HttpServiceFactory for Files {
-    fn register(self, config: &mut ServiceConfig) {
+    fn register(self, config: &mut AppService) {
         if self.default.borrow().is_none() {
             *self.default.borrow_mut() = Some(config.default_service());
         }

@@ -10,7 +10,7 @@ use actix_service::{
 use futures::future::{ok, Either, FutureResult};
 use futures::{Async, Future, IntoFuture, Poll};
 
-use crate::dev::{insert_slash, HttpServiceFactory, ResourceDef, ServiceConfig};
+use crate::dev::{insert_slash, AppService, HttpServiceFactory, ResourceDef};
 use crate::extract::FromRequest;
 use crate::guard::Guard;
 use crate::handler::{AsyncFactory, Factory};
@@ -347,7 +347,7 @@ where
             InitError = (),
         > + 'static,
 {
-    fn register(mut self, config: &mut ServiceConfig) {
+    fn register(mut self, config: &mut AppService) {
         let guards = if self.guards.is_empty() {
             None
         } else {
