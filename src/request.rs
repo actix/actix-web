@@ -324,7 +324,7 @@ mod tests {
     use super::*;
     use crate::dev::{ResourceDef, ResourceMap};
     use crate::http::{header, StatusCode};
-    use crate::test::{call_success, init_service, TestRequest};
+    use crate::test::{call_service, init_service, TestRequest};
     use crate::{web, App, HttpResponse};
 
     #[test]
@@ -453,7 +453,7 @@ mod tests {
         ));
 
         let req = TestRequest::default().to_request();
-        let resp = call_success(&mut srv, req);
+        let resp = call_service(&mut srv, req);
         assert_eq!(resp.status(), StatusCode::OK);
 
         let mut srv = init_service(App::new().data(10u32).service(
@@ -467,7 +467,7 @@ mod tests {
         ));
 
         let req = TestRequest::default().to_request();
-        let resp = call_success(&mut srv, req);
+        let resp = call_service(&mut srv, req);
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
     }
 }

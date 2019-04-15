@@ -11,6 +11,8 @@
 
 * Rename `RouterConfig` to `ServiceConfig`
 
+* Rename `test::call_success` to `test::call_service`
+
 ### Fixed
 
 * Fixed `TestRequest::app_data()`

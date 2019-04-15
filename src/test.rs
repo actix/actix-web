@@ -137,11 +137,11 @@ where
 ///     let req = test::TestRequest::with_uri("/test").to_request();
 ///
 ///     // Call application
-///     let resp = test::call_success(&mut app, req);
+///     let resp = test::call_service(&mut app, req);
 ///     assert_eq!(resp.status(), StatusCode::OK);
 /// }
 /// ```
-pub fn call_success<S, R, B, E>(app: &mut S, req: R) -> S::Response
+pub fn call_service<S, R, B, E>(app: &mut S, req: R) -> S::Response
 where
     S: Service<Request = R, Response = ServiceResponse<B>, Error = E>,
     E: std::fmt::Debug,

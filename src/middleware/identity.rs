@@ -500,15 +500,15 @@ mod tests {
                 })),
         );
         let resp =
-            test::call_success(&mut srv, TestRequest::with_uri("/index").to_request());
+            test::call_service(&mut srv, TestRequest::with_uri("/index").to_request());
         assert_eq!(resp.status(), StatusCode::OK);
 
         let resp =
-            test::call_success(&mut srv, TestRequest::with_uri("/login").to_request());
+            test::call_service(&mut srv, TestRequest::with_uri("/login").to_request());
         assert_eq!(resp.status(), StatusCode::OK);
         let c = resp.response().cookies().next().unwrap().to_owned();
 
-        let resp = test::call_success(
+        let resp = test::call_service(
             &mut srv,
             TestRequest::with_uri("/index")
                 .cookie(c.clone())
@@ -516,7 +516,7 @@ mod tests {
         );
         assert_eq!(resp.status(), StatusCode::CREATED);
 
-        let resp = test::call_success(
+        let resp = test::call_service(
             &mut srv,
             TestRequest::with_uri("/logout")
                 .cookie(c.clone())

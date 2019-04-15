@@ -545,7 +545,7 @@ mod tests {
 
     use crate::http::{header, HeaderValue, Method, StatusCode};
     use crate::service::{ServiceRequest, ServiceResponse};
-    use crate::test::{call_success, init_service, TestRequest};
+    use crate::test::{call_service, init_service, TestRequest};
     use crate::{web, App, Error, HttpResponse};
 
     fn md<S, B>(
@@ -577,7 +577,7 @@ mod tests {
             ),
         );
         let req = TestRequest::with_uri("/test").to_request();
-        let resp = call_success(&mut srv, req);
+        let resp = call_service(&mut srv, req);
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(
             resp.headers().get(header::CONTENT_TYPE).unwrap(),
@@ -603,7 +603,7 @@ mod tests {
             ),
         );
         let req = TestRequest::with_uri("/test").to_request();
-        let resp = call_success(&mut srv, req);
+        let resp = call_service(&mut srv, req);
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(
             resp.headers().get(header::CONTENT_TYPE).unwrap(),
@@ -618,7 +618,7 @@ mod tests {
                 sleep(Duration::from_millis(100)).then(|_| HttpResponse::Ok())
             })));
         let req = TestRequest::with_uri("/test").to_request();
-        let resp = call_success(&mut srv, req);
+        let resp = call_service(&mut srv, req);
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
@@ -634,13 +634,13 @@ mod tests {
                 }),
         );
         let req = TestRequest::with_uri("/test").to_request();
-        let resp = call_success(&mut srv, req);
+        let resp = call_service(&mut srv, req);
         assert_eq!(resp.status(), StatusCode::OK);
 
         let req = TestRequest::with_uri("/test")
             .method(Method::POST)
             .to_request();
-        let resp = call_success(&mut srv, req);
+        let resp = call_service(&mut srv, req);
         assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
 
         let mut srv = init_service(
@@ -654,13 +654,13 @@ mod tests {
         );
 
         let req = TestRequest::with_uri("/test").to_request();
-        let resp = call_success(&mut srv, req);
+        let resp = call_service(&mut srv, req);
         assert_eq!(resp.status(), StatusCode::OK);
 
         let req = TestRequest::with_uri("/test")
             .method(Method::POST)
             .to_request();
-        let resp = call_success(&mut srv, req);
+        let resp = call_service(&mut srv, req);
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
     }
 }

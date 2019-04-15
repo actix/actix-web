@@ -436,7 +436,7 @@ mod tests {
     use super::*;
     use crate::http::{header, HeaderValue, Method, StatusCode};
     use crate::service::{ServiceRequest, ServiceResponse};
-    use crate::test::{block_on, call_success, init_service, TestRequest};
+    use crate::test::{block_on, call_service, init_service, TestRequest};
     use crate::{web, Error, HttpResponse};
 
     #[test]
@@ -527,7 +527,7 @@ mod tests {
                 .route("/test", web::get().to(|| HttpResponse::Ok())),
         );
         let req = TestRequest::with_uri("/test").to_request();
-        let resp = call_success(&mut srv, req);
+        let resp = call_service(&mut srv, req);
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(
             resp.headers().get(header::CONTENT_TYPE).unwrap(),
@@ -543,7 +543,7 @@ mod tests {
                 .wrap(md),
         );
         let req = TestRequest::with_uri("/test").to_request();
-        let resp = call_success(&mut srv, req);
+        let resp = call_service(&mut srv, req);
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(
             resp.headers().get(header::CONTENT_TYPE).unwrap(),
@@ -567,7 +567,7 @@ mod tests {
                 .service(web::resource("/test").to(|| HttpResponse::Ok())),
         );
         let req = TestRequest::with_uri("/test").to_request();
-        let resp = call_success(&mut srv, req);
+        let resp = call_service(&mut srv, req);
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(
             resp.headers().get(header::CONTENT_TYPE).unwrap(),
@@ -591,7 +591,7 @@ mod tests {
                 }),
         );
         let req = TestRequest::with_uri("/test").to_request();
-        let resp = call_success(&mut srv, req);
+        let resp = call_service(&mut srv, req);
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(
             resp.headers().get(header::CONTENT_TYPE).unwrap(),

@@ -255,8 +255,8 @@ mod tests {
     use actix_service::Service;
 
     use super::*;
-    use crate::http::StatusCode;
-    use crate::test::{block_on, init_service, TestRequest};
+    use crate::http::{Method, StatusCode};
+    use crate::test::{block_on, call_service, init_service, TestRequest};
     use crate::{web, App, HttpResponse};
 
     #[test]
@@ -299,5 +299,27 @@ mod tests {
         let req = TestRequest::default().to_request();
         let resp = block_on(srv.call(req)).unwrap();
         assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    #[test]
+    fn test_service() {
+        let mut srv = init_service(App::new().configure(|cfg| {
+            cfg.service(
+                web::resource("/test").route(web::get().to(|| HttpResponse::Created())),
+            )
+            .route("/index.html", web::get().to(|| HttpResponse::Ok()));
+        }));
+
+        let req = TestRequest::with_uri("/test")
+            .method(Method::GET)
+            .to_request();
+        let resp = call_service(&mut srv, req);
+        assert_eq!(resp.status(), StatusCode::CREATED);
+
+        let req = TestRequest::with_uri("/index.html")
+            .method(Method::GET)
+            .to_request();
+        let resp = call_service(&mut srv, req);
+        assert_eq!(resp.status(), StatusCode::OK);
     }
 }

@@ -535,7 +535,7 @@ mod tests {
     use crate::dev::{Body, ResponseBody};
     use crate::http::{header, HeaderValue, Method, StatusCode};
     use crate::service::{ServiceRequest, ServiceResponse};
-    use crate::test::{block_on, call_success, init_service, TestRequest};
+    use crate::test::{block_on, call_service, init_service, TestRequest};
     use crate::{guard, web, App, Error, HttpRequest, HttpResponse};
 
     #[test]
@@ -912,7 +912,7 @@ mod tests {
                 web::resource("/test").route(web::get().to(|| HttpResponse::Ok())),
             )));
         let req = TestRequest::with_uri("/app/test").to_request();
-        let resp = call_success(&mut srv, req);
+        let resp = call_service(&mut srv, req);
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(
             resp.headers().get(header::CONTENT_TYPE).unwrap(),
@@ -938,7 +938,7 @@ mod tests {
             ),
         );
         let req = TestRequest::with_uri("/app/test").to_request();
-        let resp = call_success(&mut srv, req);
+        let resp = call_service(&mut srv, req);
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(
             resp.headers().get(header::CONTENT_TYPE).unwrap(),
