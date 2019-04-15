@@ -199,7 +199,7 @@ mod tests {
 
     use actix::Actor;
     use actix_web::http::StatusCode;
-    use actix_web::test::{block_on, call_success, init_service, TestRequest};
+    use actix_web::test::{block_on, call_service, init_service, TestRequest};
     use actix_web::{web, App, HttpResponse};
     use bytes::{Bytes, BytesMut};
 
@@ -237,7 +237,7 @@ mod tests {
             })));
 
         let req = TestRequest::with_uri("/test").to_request();
-        let mut resp = call_success(&mut srv, req);
+        let mut resp = call_service(&mut srv, req);
         assert_eq!(resp.status(), StatusCode::OK);
 
         let body = block_on(resp.take_body().fold(

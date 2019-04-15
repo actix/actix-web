@@ -775,7 +775,7 @@ mod tests {
         );
 
         let request = TestRequest::get().uri("/").to_request();
-        let response = test::call_success(&mut srv, request);
+        let response = test::call_service(&mut srv, request);
         assert_eq!(response.status(), StatusCode::OK);
 
         let content_disposition = response
@@ -799,7 +799,7 @@ mod tests {
             .uri("/t%65st/Cargo.toml")
             .header(header::RANGE, "bytes=10-20")
             .to_request();
-        let response = test::call_success(&mut srv, request);
+        let response = test::call_service(&mut srv, request);
         assert_eq!(response.status(), StatusCode::PARTIAL_CONTENT);
 
         // Invalid range header
@@ -807,7 +807,7 @@ mod tests {
             .uri("/t%65st/Cargo.toml")
             .header(header::RANGE, "bytes=1-0")
             .to_request();
-        let response = test::call_success(&mut srv, request);
+        let response = test::call_service(&mut srv, request);
 
         assert_eq!(response.status(), StatusCode::RANGE_NOT_SATISFIABLE);
     }
@@ -824,7 +824,7 @@ mod tests {
             .header(header::RANGE, "bytes=10-20")
             .to_request();
 
-        let response = test::call_success(&mut srv, request);
+        let response = test::call_service(&mut srv, request);
         let contentrange = response
             .headers()
             .get(header::CONTENT_RANGE)
@@ -839,7 +839,7 @@ mod tests {
             .uri("/t%65st/tests/test.binary")
             .header(header::RANGE, "bytes=10-5")
             .to_request();
-        let response = test::call_success(&mut srv, request);
+        let response = test::call_service(&mut srv, request);
 
         let contentrange = response
             .headers()
@@ -862,7 +862,7 @@ mod tests {
             .uri("/t%65st/tests/test.binary")
             .header(header::RANGE, "bytes=10-20")
             .to_request();
-        let response = test::call_success(&mut srv, request);
+        let response = test::call_service(&mut srv, request);
 
         let contentlength = response
             .headers()
@@ -878,7 +878,7 @@ mod tests {
             .uri("/t%65st/tests/test.binary")
             .header(header::RANGE, "bytes=10-8")
             .to_request();
-        let response = test::call_success(&mut srv, request);
+        let response = test::call_service(&mut srv, request);
         assert_eq!(response.status(), StatusCode::RANGE_NOT_SATISFIABLE);
 
         // Without range header
@@ -886,7 +886,7 @@ mod tests {
             .uri("/t%65st/tests/test.binary")
             // .no_default_headers()
             .to_request();
-        let response = test::call_success(&mut srv, request);
+        let response = test::call_service(&mut srv, request);
 
         let contentlength = response
             .headers()
@@ -901,7 +901,7 @@ mod tests {
         let request = TestRequest::get()
             .uri("/t%65st/tests/test.binary")
             .to_request();
-        let mut response = test::call_success(&mut srv, request);
+        let mut response = test::call_service(&mut srv, request);
 
         // with enabled compression
         // {
@@ -932,7 +932,7 @@ mod tests {
         let request = TestRequest::get()
             .uri("/tests/test%20space.binary")
             .to_request();
-        let mut response = test::call_success(&mut srv, request);
+        let mut response = test::call_service(&mut srv, request);
         assert_eq!(response.status(), StatusCode::OK);
 
         let bytes =
@@ -975,7 +975,7 @@ mod tests {
             .uri("/")
             .header(header::ACCEPT_ENCODING, "gzip")
             .to_request();
-        let res = test::call_success(&mut srv, request);
+        let res = test::call_service(&mut srv, request);
         assert_eq!(res.status(), StatusCode::OK);
         assert!(!res.headers().contains_key(header::CONTENT_ENCODING));
     }
@@ -994,7 +994,7 @@ mod tests {
             .uri("/")
             .header(header::ACCEPT_ENCODING, "gzip")
             .to_request();
-        let res = test::call_success(&mut srv, request);
+        let res = test::call_service(&mut srv, request);
         assert_eq!(res.status(), StatusCode::OK);
         assert_eq!(
             res.headers()
@@ -1021,20 +1021,20 @@ mod tests {
         );
         let req = TestRequest::with_uri("/missing").to_request();
 
-        let resp = test::call_success(&mut srv, req);
+        let resp = test::call_service(&mut srv, req);
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 
         let mut srv = test::init_service(App::new().service(Files::new("/", ".")));
 
         let req = TestRequest::default().to_request();
-        let resp = test::call_success(&mut srv, req);
+        let resp = test::call_service(&mut srv, req);
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 
         let mut srv = test::init_service(
             App::new().service(Files::new("/", ".").show_files_listing()),
         );
         let req = TestRequest::with_uri("/tests").to_request();
-        let mut resp = test::call_success(&mut srv, req);
+        let mut resp = test::call_service(&mut srv, req);
         assert_eq!(
             resp.headers().get(header::CONTENT_TYPE).unwrap(),
             "text/html; charset=utf-8"
@@ -1067,7 +1067,7 @@ mod tests {
         .unwrap();
         let req = TestRequest::with_uri("/missing").to_srv_request();
 
-        let mut resp = test::call_success(&mut st, req);
+        let mut resp = test::call_service(&mut st, req);
         assert_eq!(resp.status(), StatusCode::OK);
         let bytes =
             test::block_on(resp.take_body().fold(BytesMut::new(), |mut b, c| {
