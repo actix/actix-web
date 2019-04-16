@@ -26,7 +26,7 @@ path = "src/lib.rs"
 default = []
 
 # openssl
-ssl = ["openssl", "actix-connect/ssl", "actix-server-config/ssl"]
+ssl = ["openssl", "actix-connect/ssl"]
 
 # brotli encoding, requires c compiler
 brotli = ["brotli2"]
