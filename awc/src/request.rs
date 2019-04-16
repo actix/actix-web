@@ -333,24 +333,26 @@ impl ClientRequest {
     /// value is `true`.
     pub fn if_true<F>(mut self, value: bool, f: F) -> Self
     where
-        F: FnOnce(&mut ClientRequest),
+        F: FnOnce(ClientRequest) -> ClientRequest,
     {
         if value {
-            f(&mut self);
+            f(self)
+        } else {
+            self
         }
-        self
     }
 
     /// This method calls provided closure with builder reference if
     /// value is `Some`.
     pub fn if_some<T, F>(mut self, value: Option<T>, f: F) -> Self
     where
-        F: FnOnce(T, &mut ClientRequest),
+        F: FnOnce(T, ClientRequest) -> ClientRequest,
     {
         if let Some(val) = value {
-            f(val, &mut self);
+            f(val, self)
+        } else {
+            self
         }
-        self
     }
 
     /// Complete request construction and send body.
