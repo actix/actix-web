@@ -1,6 +1,6 @@
 use std::cell::{Ref, RefCell, RefMut};
-use std::fmt;
 use std::rc::Rc;
+use std::{fmt, net};
 
 use actix_http::http::{HeaderMap, Method, Uri, Version};
 use actix_http::{Error, Extensions, HttpMessage, Message, Payload, RequestHead};
@@ -168,6 +168,17 @@ impl HttpRequest {
     pub fn url_for_static(&self, name: &str) -> Result<url::Url, UrlGenerationError> {
         const NO_PARAMS: [&str; 0] = [];
         self.url_for(name, &NO_PARAMS)
+    }
+
+    /// Peer socket address
+    ///
+    /// Peer address is actual socket address, if proxy is used in front of
+    /// actix http server, then peer address would be address of this proxy.
+    ///
+    /// To get client connection information `.connection_info()` should be used.
+    #[inline]
+    pub fn peer_addr(&self) -> Option<net::SocketAddr> {
+        self.head().peer_addr
     }
 
     /// Get *ConnectionInfo* for the current request.
