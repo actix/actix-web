@@ -1,6 +1,6 @@
 #![allow(unused_imports, unused_variables, dead_code)]
-use std::fmt;
-use std::io::{self, Write};
+use std::io::Write;
+use std::{fmt, io, net};
 
 use actix_codec::{Decoder, Encoder};
 use bitflags::bitflags;
@@ -40,7 +40,6 @@ pub struct Codec {
     // encoder part
     flags: Flags,
     encoder: encoder::MessageEncoder<Response<()>>,
-    // headers_size: u32,
 }
 
 impl Default for Codec {
@@ -67,13 +66,11 @@ impl Codec {
         };
         Codec {
             config,
+            flags,
             decoder: decoder::MessageDecoder::default(),
             payload: None,
             version: Version::HTTP_11,
             ctype: ConnectionType::Close,
-
-            flags,
-            // headers_size: 0,
             encoder: encoder::MessageEncoder::default(),
         }
     }

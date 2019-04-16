@@ -1,5 +1,5 @@
 use std::cell::{Ref, RefMut};
-use std::fmt;
+use std::{fmt, net};
 
 use http::{header, Method, Uri, Version};
 
@@ -139,6 +139,7 @@ impl<P> Request<P> {
     }
 
     /// Check if request requires connection upgrade
+    #[inline]
     pub fn upgrade(&self) -> bool {
         if let Some(conn) = self.head().headers.get(header::CONNECTION) {
             if let Ok(s) = conn.to_str() {
@@ -146,6 +147,15 @@ impl<P> Request<P> {
             }
         }
         self.head().method == Method::CONNECT
+    }
+
+    /// Peer socket address
+    ///
+    /// Peer address is actual socket address, if proxy is used in front of
+    /// actix http server, then peer address would be address of this proxy.
+    #[inline]
+    pub fn peer_addr(&self) -> Option<net::SocketAddr> {
+        self.head().peer_addr
     }
 }
 

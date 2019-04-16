@@ -35,7 +35,10 @@ fn test_h1() {
             .keep_alive(KeepAlive::Disabled)
             .client_timeout(1000)
             .client_disconnect(1000)
-            .h1(|_| future::ok::<_, ()>(Response::Ok().finish()))
+            .h1(|req: Request| {
+                assert!(req.peer_addr().is_some());
+                future::ok::<_, ()>(Response::Ok().finish())
+            })
     });
 
     let response = srv.block_on(srv.get("/").send()).unwrap();
@@ -50,6 +53,7 @@ fn test_h1_2() {
             .client_timeout(1000)
             .client_disconnect(1000)
             .finish(|req: Request| {
+                assert!(req.peer_addr().is_some());
                 assert_eq!(req.version(), http::Version::HTTP_11);
                 future::ok::<_, ()>(Response::Ok().finish())
             })
@@ -115,6 +119,7 @@ fn test_h2_1() -> std::io::Result<()> {
             .and_then(
                 HttpService::build()
                     .finish(|req: Request| {
+                        assert!(req.peer_addr().is_some());
                         assert_eq!(req.version(), http::Version::HTTP_2);
                         future::ok::<_, Error>(Response::Ok().finish())
                     })

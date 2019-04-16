@@ -1,9 +1,10 @@
 use std::collections::VecDeque;
 use std::marker::PhantomData;
 use std::time::Instant;
-use std::{fmt, mem};
+use std::{fmt, mem, net};
 
 use actix_codec::{AsyncRead, AsyncWrite};
+use actix_server_config::IoStream;
 use actix_service::Service;
 use actix_utils::cloneable::CloneableService;
 use bitflags::bitflags;
@@ -29,14 +30,11 @@ use crate::response::Response;
 const CHUNK_SIZE: usize = 16_384;
 
 /// Dispatcher for HTTP/2 protocol
-pub struct Dispatcher<
-    T: AsyncRead + AsyncWrite,
-    S: Service<Request = Request>,
-    B: MessageBody,
-> {
+pub struct Dispatcher<T: IoStream, S: Service<Request = Request>, B: MessageBody> {
     service: CloneableService<S>,
     connection: Connection<T, Bytes>,
     config: ServiceConfig,
+    peer_addr: Option<net::SocketAddr>,
     ka_expire: Instant,
     ka_timer: Option<Delay>,
     _t: PhantomData<B>,
@@ -44,7 +42,7 @@ pub struct Dispatcher<
 
 impl<T, S, B> Dispatcher<T, S, B>
 where
-    T: AsyncRead + AsyncWrite,
+    T: IoStream,
     S: Service<Request = Request>,
     S::Error: Into<Error>,
     S::Future: 'static,
@@ -56,6 +54,7 @@ where
         connection: Connection<T, Bytes>,
         config: ServiceConfig,
         timeout: Option<Delay>,
+        peer_addr: Option<net::SocketAddr>,
     ) -> Self {
         // let keepalive = config.keep_alive_enabled();
         // let flags = if keepalive {
@@ -76,9 +75,10 @@ where
         Dispatcher {
             service,
             config,
+            peer_addr,
+            connection,
             ka_expire,
             ka_timer,
-            connection,
             _t: PhantomData,
         }
     }
@@ -86,7 +86,7 @@ where
 
 impl<T, S, B> Future for Dispatcher<T, S, B>
 where
-    T: AsyncRead + AsyncWrite,
+    T: IoStream,
     S: Service<Request = Request>,
     S::Error: Into<Error>,
     S::Future: 'static,
@@ -117,6 +117,7 @@ where
                     head.method = parts.method;
                     head.version = parts.version;
                     head.headers = parts.headers.into();
+                    head.peer_addr = self.peer_addr;
                     tokio_current_thread::spawn(ServiceResponse::<S::Future, B> {
                         state: ServiceResponseState::ServiceCall(
                             self.service.call(req),

@@ -1,8 +1,9 @@
 use std::collections::VecDeque;
 use std::time::Instant;
-use std::{fmt, io};
+use std::{fmt, io, net};
 
-use actix_codec::{AsyncRead, AsyncWrite, Decoder, Encoder, Framed, FramedParts};
+use actix_codec::{Decoder, Encoder, Framed, FramedParts};
+use actix_server_config::IoStream;
 use actix_service::Service;
 use actix_utils::cloneable::CloneableService;
 use bitflags::bitflags;
@@ -81,6 +82,7 @@ where
     expect: CloneableService<X>,
     upgrade: Option<CloneableService<U>>,
     flags: Flags,
+    peer_addr: Option<net::SocketAddr>,
     error: Option<DispatchError>,
 
     state: State<S, B, X>,
@@ -161,7 +163,7 @@ impl PartialEq for PollResponse {
 
 impl<T, S, B, X, U> Dispatcher<T, S, B, X, U>
 where
-    T: AsyncRead + AsyncWrite,
+    T: IoStream,
     S: Service<Request = Request>,
     S::Error: Into<Error>,
     S::Response: Into<Response<B>>,
@@ -220,14 +222,15 @@ where
 
         Dispatcher {
             inner: DispatcherState::Normal(InnerDispatcher {
-                io,
-                codec,
-                read_buf,
                 write_buf: BytesMut::with_capacity(HW_BUFFER_SIZE),
                 payload: None,
                 state: State::None,
                 error: None,
+                peer_addr: io.peer_addr(),
                 messages: VecDeque::new(),
+                io,
+                codec,
+                read_buf,
                 service,
                 expect,
                 upgrade,
@@ -241,7 +244,7 @@ where
 
 impl<T, S, B, X, U> InnerDispatcher<T, S, B, X, U>
 where
-    T: AsyncRead + AsyncWrite,
+    T: IoStream,
     S: Service<Request = Request>,
     S::Error: Into<Error>,
     S::Response: Into<Response<B>>,
@@ -490,6 +493,7 @@ where
                     match msg {
                         Message::Item(mut req) => {
                             let pl = self.codec.message_type();
+                            req.head_mut().peer_addr = self.peer_addr;
 
                             if pl == MessageType::Stream && self.upgrade.is_some() {
                                 self.messages.push_back(DispatcherMessage::Upgrade(req));
@@ -649,7 +653,7 @@ where
 
 impl<T, S, B, X, U> Future for Dispatcher<T, S, B, X, U>
 where
-    T: AsyncRead + AsyncWrite,
+    T: IoStream,
     S: Service<Request = Request>,
     S::Error: Into<Error>,
     S::Response: Into<Response<B>>,

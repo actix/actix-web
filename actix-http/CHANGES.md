@@ -1,6 +1,10 @@
 # Changes
 
-## [0.1.0] - 2019-04-xx
+## [0.1.0] - 2019-04-16
+
+### Added
+
+* Expose peer addr via `Request::peer_addr()` and `RequestHead::peer_addr`
 
 ### Changed
 
