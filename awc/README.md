@@ -7,15 +7,15 @@ An HTTP Client
 * [User Guide](https://actix.rs/docs/)
 * [API Documentation](https://docs.rs/awc/)
 * [Chat on gitter](https://gitter.im/actix/actix)
-* Cargo package: [actix-http](https://crates.io/crates/awc)
+* Cargo package: [awc](https://crates.io/crates/awc)
 * Minimum supported Rust version: 1.33 or later
 
 ## Example
 
 ```rust
-# use futures::future::{Future, lazy};
 use actix_rt::System;
 use awc::Client;
+use futures::future::{Future, lazy};
 
 fn main() {
     System::new("test").block_on(lazy(|| {
