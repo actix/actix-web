@@ -8,6 +8,8 @@
 
 ### Changed
 
+* `actix_http::encoding` always available
+
 * use trust-dns-resolver 0.11.0
 
 
