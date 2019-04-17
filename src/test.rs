@@ -58,7 +58,7 @@ where
 /// This function panics on nested call.
 pub fn run_on<F, R>(f: F) -> R
 where
-    F: Fn() -> R,
+    F: FnOnce() -> R,
 {
     RT.with(move |rt| rt.borrow_mut().block_on(lazy(|| Ok::<_, ()>(f()))))
         .unwrap()
@@ -117,7 +117,9 @@ where
     S::InitError: std::fmt::Debug,
 {
     let cfg = ServerConfig::new("127.0.0.1:8080".parse().unwrap());
-    block_on(app.into_new_service().new_service(&cfg)).unwrap()
+    let srv = app.into_new_service();
+    let fut = run_on(move || srv.new_service(&cfg));
+    block_on(fut).unwrap()
 }
 
 /// Calls service and waits for response future completion.
@@ -146,7 +148,7 @@ where
     S: Service<Request = R, Response = ServiceResponse<B>, Error = E>,
     E: std::fmt::Debug,
 {
-    block_on(app.call(req)).unwrap()
+    block_on(run_on(move || app.call(req))).unwrap()
 }
 
 /// Helper function that returns a response body of a TestRequest
@@ -178,13 +180,15 @@ where
     S: Service<Request = Request, Response = ServiceResponse<B>, Error = Error>,
     B: MessageBody,
 {
-    block_on(app.call(req).and_then(|mut resp: ServiceResponse<B>| {
-        resp.take_body()
-            .fold(BytesMut::new(), move |mut body, chunk| {
-                body.extend_from_slice(&chunk);
-                Ok::<_, Error>(body)
-            })
-            .map(|body: BytesMut| body.freeze())
+    block_on(run_on(move || {
+        app.call(req).and_then(|mut resp: ServiceResponse<B>| {
+            resp.take_body()
+                .fold(BytesMut::new(), move |mut body, chunk| {
+                    body.extend_from_slice(&chunk);
+                    Ok::<_, Error>(body)
+                })
+                .map(|body: BytesMut| body.freeze())
+        })
     }))
     .unwrap_or_else(|_| panic!("read_response failed at block_on unwrap"))
 }
@@ -229,17 +233,19 @@ where
     B: MessageBody,
     T: DeserializeOwned,
 {
-    block_on(app.call(req).and_then(|mut resp: ServiceResponse<B>| {
-        resp.take_body()
-            .fold(BytesMut::new(), move |mut body, chunk| {
-                body.extend_from_slice(&chunk);
-                Ok::<_, Error>(body)
-            })
-            .and_then(|body: BytesMut| {
-                ok(serde_json::from_slice(&body).unwrap_or_else(|_| {
-                    panic!("read_response_json failed during deserialization")
-                }))
-            })
+    block_on(run_on(move || {
+        app.call(req).and_then(|mut resp: ServiceResponse<B>| {
+            resp.take_body()
+                .fold(BytesMut::new(), move |mut body, chunk| {
+                    body.extend_from_slice(&chunk);
+                    Ok::<_, Error>(body)
+                })
+                .and_then(|body: BytesMut| {
+                    ok(serde_json::from_slice(&body).unwrap_or_else(|_| {
+                        panic!("read_response_json failed during deserialization")
+                    }))
+                })
+        })
     }))
     .unwrap_or_else(|_| panic!("read_response_json failed at block_on unwrap"))
 }
@@ -459,23 +465,6 @@ impl TestRequest {
         );
         req.set_route_data(Some(Rc::new(self.route_data)));
         (req, payload)
-    }
-
-    /// Runs the provided future, blocking the current thread until the future
-    /// completes.
-    ///
-    /// This function can be used to synchronously block the current thread
-    /// until the provided `future` has resolved either successfully or with an
-    /// error. The result of the future is then returned from this function
-    /// call.
-    ///
-    /// Note that this function is intended to be used only for testing purpose.
-    /// This function panics on nested call.
-    pub fn block_on<F>(f: F) -> Result<F::Item, F::Error>
-    where
-        F: Future,
-    {
-        block_on(f)
     }
 }
 

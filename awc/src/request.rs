@@ -331,7 +331,7 @@ impl ClientRequest {
 
     /// This method calls provided closure with builder reference if
     /// value is `true`.
-    pub fn if_true<F>(mut self, value: bool, f: F) -> Self
+    pub fn if_true<F>(self, value: bool, f: F) -> Self
     where
         F: FnOnce(ClientRequest) -> ClientRequest,
     {
@@ -344,7 +344,7 @@ impl ClientRequest {
 
     /// This method calls provided closure with builder reference if
     /// value is `Some`.
-    pub fn if_some<T, F>(mut self, value: Option<T>, f: F) -> Self
+    pub fn if_some<T, F>(self, value: Option<T>, f: F) -> Self
     where
         F: FnOnce(T, ClientRequest) -> ClientRequest,
     {
