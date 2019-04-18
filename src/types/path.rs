@@ -171,9 +171,24 @@ where
 #[cfg(test)]
 mod tests {
     use actix_router::ResourceDef;
+    use derive_more::Display;
+    use serde_derive::Deserialize;
 
     use super::*;
     use crate::test::{block_on, TestRequest};
+
+    #[derive(Deserialize, Debug, Display)]
+    #[display(fmt = "MyStruct({}, {})", key, value)]
+    struct MyStruct {
+        key: String,
+        value: String,
+    }
+
+    #[derive(Deserialize)]
+    struct Test2 {
+        key: String,
+        value: u32,
+    }
 
     #[test]
     fn test_extract_path_single() {
@@ -184,6 +199,7 @@ mod tests {
 
         let (req, mut pl) = req.into_parts();
         assert_eq!(*Path::<i8>::from_request(&req, &mut pl).unwrap(), 32);
+        assert!(Path::<MyStruct>::from_request(&req, &mut pl).is_err());
     }
 
     #[test]
@@ -211,6 +227,48 @@ mod tests {
         assert_eq!((res.1).1, "user1");
 
         let () = <()>::from_request(&req, &mut pl).unwrap();
+    }
+
+    #[test]
+    fn test_request_extract() {
+        let mut req = TestRequest::with_uri("/name/user1/?id=test").to_srv_request();
+
+        let resource = ResourceDef::new("/{key}/{value}/");
+        resource.match_path(req.match_info_mut());
+
+        let (req, mut pl) = req.into_parts();
+        let mut s = Path::<MyStruct>::from_request(&req, &mut pl).unwrap();
+        assert_eq!(s.key, "name");
+        assert_eq!(s.value, "user1");
+        s.value = "user2".to_string();
+        assert_eq!(s.value, "user2");
+        assert_eq!(
+            format!("{}, {:?}", s, s),
+            "MyStruct(name, user2), MyStruct { key: \"name\", value: \"user2\" }"
+        );
+        let s = s.into_inner();
+        assert_eq!(s.value, "user2");
+
+        let s = Path::<(String, String)>::from_request(&req, &mut pl).unwrap();
+        assert_eq!(s.0, "name");
+        assert_eq!(s.1, "user1");
+
+        let mut req = TestRequest::with_uri("/name/32/").to_srv_request();
+        let resource = ResourceDef::new("/{key}/{value}/");
+        resource.match_path(req.match_info_mut());
+
+        let (req, mut pl) = req.into_parts();
+        let s = Path::<Test2>::from_request(&req, &mut pl).unwrap();
+        assert_eq!(s.as_ref().key, "name");
+        assert_eq!(s.value, 32);
+
+        let s = Path::<(String, u8)>::from_request(&req, &mut pl).unwrap();
+        assert_eq!(s.0, "name");
+        assert_eq!(s.1, 32);
+
+        let res = Path::<Vec<String>>::from_request(&req, &mut pl).unwrap();
+        assert_eq!(res[0], "name".to_owned());
+        assert_eq!(res[1], "32".to_owned());
     }
 
 }

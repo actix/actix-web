@@ -133,3 +133,35 @@ where
             })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use derive_more::Display;
+    use serde_derive::Deserialize;
+
+    use super::*;
+    use crate::test::TestRequest;
+
+    #[derive(Deserialize, Debug, Display)]
+    struct Id {
+        id: String,
+    }
+
+    #[test]
+    fn test_request_extract() {
+        let req = TestRequest::with_uri("/name/user1/").to_srv_request();
+        let (req, mut pl) = req.into_parts();
+        assert!(Query::<Id>::from_request(&req, &mut pl).is_err());
+
+        let req = TestRequest::with_uri("/name/user1/?id=test").to_srv_request();
+        let (req, mut pl) = req.into_parts();
+
+        let mut s = Query::<Id>::from_request(&req, &mut pl).unwrap();
+        assert_eq!(s.id, "test");
+        assert_eq!(format!("{}, {:?}", s, s), "test, Id { id: \"test\" }");
+
+        s.id = "test1".to_string();
+        let s = s.into_inner();
+        assert_eq!(s.id, "test1");
+    }
+}
