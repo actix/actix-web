@@ -178,3 +178,28 @@ impl<P> fmt::Debug for Request<P> {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use http::HttpTryFrom;
+
+    #[test]
+    fn test_basics() {
+        let msg = Message::new();
+        let mut req = Request::from(msg);
+        req.headers_mut().insert(
+            header::CONTENT_TYPE,
+            header::HeaderValue::from_static("text/plain"),
+        );
+        assert!(req.headers().contains_key(header::CONTENT_TYPE));
+
+        *req.uri_mut() = Uri::try_from("/index.html?q=1").unwrap();
+        assert_eq!(req.uri().path(), "/index.html");
+        assert_eq!(req.uri().query(), Some("q=1"));
+
+        let s = format!("{:?}", req);
+        println!("T: {:?}", s);
+        assert!(s.contains("Request HTTP/1.1 GET:/index.html"));
+    }
+}
