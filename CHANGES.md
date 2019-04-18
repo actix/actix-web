@@ -1,11 +1,13 @@
 # Changes
 
-## [1.0.0-alpha.7] - 2019-04-xx
+## [1.0.0-beta.1] - 2019-04-xx
 
 ### Added
 
-* Added helper functions for reading test response body,
+* Add helper functions for reading test response body,
  `test::read_response()` and test::read_response_json()`
+
+* Add `.peer_addr()` #744
 
 ### Changed
 

@@ -1,8 +1,8 @@
 use std::fmt;
 use std::marker::PhantomData;
 
-use actix_codec::{AsyncRead, AsyncWrite, Framed};
-use actix_server_config::{Io, ServerConfig as SrvConfig};
+use actix_codec::Framed;
+use actix_server_config::{Io, IoStream, ServerConfig as SrvConfig};
 use actix_service::{IntoNewService, NewService, Service};
 use actix_utils::cloneable::CloneableService;
 use futures::future::{ok, FutureResult};
@@ -104,7 +104,7 @@ where
 
 impl<T, P, S, B, X, U> NewService<SrvConfig> for H1Service<T, P, S, B, X, U>
 where
-    T: AsyncRead + AsyncWrite,
+    T: IoStream,
     S: NewService<SrvConfig, Request = Request>,
     S::Error: Into<Error>,
     S::Response: Into<Response<B>>,
@@ -161,7 +161,7 @@ where
 
 impl<T, P, S, B, X, U> Future for H1ServiceResponse<T, P, S, B, X, U>
 where
-    T: AsyncRead + AsyncWrite,
+    T: IoStream,
     S: NewService<SrvConfig, Request = Request>,
     S::Error: Into<Error>,
     S::Response: Into<Response<B>>,
@@ -245,7 +245,7 @@ where
 
 impl<T, P, S, B, X, U> Service for H1ServiceHandler<T, P, S, B, X, U>
 where
-    T: AsyncRead + AsyncWrite,
+    T: IoStream,
     S: Service<Request = Request>,
     S::Error: Into<Error>,
     S::Response: Into<Response<B>>,
@@ -309,7 +309,7 @@ pub struct OneRequest<T, P> {
 
 impl<T, P> OneRequest<T, P>
 where
-    T: AsyncRead + AsyncWrite,
+    T: IoStream,
 {
     /// Create new `H1SimpleService` instance.
     pub fn new() -> Self {
@@ -322,7 +322,7 @@ where
 
 impl<T, P> NewService<SrvConfig> for OneRequest<T, P>
 where
-    T: AsyncRead + AsyncWrite,
+    T: IoStream,
 {
     type Request = Io<T, P>;
     type Response = (Request, Framed<T, Codec>);
@@ -348,7 +348,7 @@ pub struct OneRequestService<T, P> {
 
 impl<T, P> Service for OneRequestService<T, P>
 where
-    T: AsyncRead + AsyncWrite,
+    T: IoStream,
 {
     type Request = Io<T, P>;
     type Response = (Request, Framed<T, Codec>);
@@ -372,14 +372,14 @@ where
 #[doc(hidden)]
 pub struct OneRequestServiceResponse<T>
 where
-    T: AsyncRead + AsyncWrite,
+    T: IoStream,
 {
     framed: Option<Framed<T, Codec>>,
 }
 
 impl<T> Future for OneRequestServiceResponse<T>
 where
-    T: AsyncRead + AsyncWrite,
+    T: IoStream,
 {
     type Item = (Request, Framed<T, Codec>);
     type Error = ParseError;

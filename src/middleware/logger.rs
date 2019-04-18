@@ -363,13 +363,6 @@ impl FormatText {
                 let rt = (rt.num_nanoseconds().unwrap_or(0) as f64) / 1_000_000.0;
                 fmt.write_fmt(format_args!("{:.6}", rt))
             }
-            // FormatText::RemoteAddr => {
-            //     if let Some(remote) = req.connection_info().remote() {
-            //         return remote.fmt(fmt);
-            //     } else {
-            //         "-".fmt(fmt)
-            //     }
-            // }
             FormatText::EnvironHeader(ref name) => {
                 if let Ok(val) = env::var(name) {
                     fmt.write_fmt(format_args!("{}", val))
@@ -440,6 +433,14 @@ impl FormatText {
                     "-"
                 };
                 *self = FormatText::Str(s.to_string());
+            }
+            FormatText::RemoteAddr => {
+                let s = if let Some(remote) = req.connection_info().remote() {
+                    FormatText::Str(remote.to_string())
+                } else {
+                    FormatText::Str("-".to_string())
+                };
+                *self = s;
             }
             _ => (),
         }

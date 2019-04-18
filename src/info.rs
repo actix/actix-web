@@ -30,7 +30,7 @@ impl ConnectionInfo {
         let mut host = None;
         let mut scheme = None;
         let mut remote = None;
-        let peer = None;
+        let mut peer = None;
 
         // load forwarded header
         for hdr in req.headers.get_all(&header::FORWARDED) {
@@ -116,10 +116,10 @@ impl ConnectionInfo {
                     remote = h.split(',').next().map(|v| v.trim());
                 }
             }
-            // if remote.is_none() {
-            // get peeraddr from socketaddr
-            // peer = req.peer_addr().map(|addr| format!("{}", addr));
-            // }
+            if remote.is_none() {
+                // get peeraddr from socketaddr
+                peer = req.peer_addr.map(|addr| format!("{}", addr));
+            }
         }
 
         ConnectionInfo {

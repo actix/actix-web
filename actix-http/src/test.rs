@@ -4,6 +4,7 @@ use std::io;
 use std::str::FromStr;
 
 use actix_codec::{AsyncRead, AsyncWrite};
+use actix_server_config::IoStream;
 use bytes::{Buf, Bytes, BytesMut};
 use futures::{Async, Poll};
 use http::header::{self, HeaderName, HeaderValue};
@@ -251,5 +252,19 @@ impl AsyncWrite for TestBuffer {
     }
     fn write_buf<B: Buf>(&mut self, _: &mut B) -> Poll<usize, io::Error> {
         Ok(Async::NotReady)
+    }
+}
+
+impl IoStream for TestBuffer {
+    fn set_nodelay(&mut self, _nodelay: bool) -> io::Result<()> {
+        Ok(())
+    }
+
+    fn set_linger(&mut self, _dur: Option<std::time::Duration>) -> io::Result<()> {
+        Ok(())
+    }
+
+    fn set_keepalive(&mut self, _dur: Option<std::time::Duration>) -> io::Result<()> {
+        Ok(())
     }
 }

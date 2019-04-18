@@ -1,8 +1,10 @@
 use std::marker::PhantomData;
-use std::{fmt, io};
+use std::{fmt, io, net};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
-use actix_server_config::{Io as ServerIo, Protocol, ServerConfig as SrvConfig};
+use actix_server_config::{
+    Io as ServerIo, IoStream, Protocol, ServerConfig as SrvConfig,
+};
 use actix_service::{IntoNewService, NewService, Service};
 use actix_utils::cloneable::CloneableService;
 use bytes::{Buf, BufMut, Bytes, BytesMut};
@@ -128,7 +130,7 @@ where
 
 impl<T, P, S, B, X, U> NewService<SrvConfig> for HttpService<T, P, S, B, X, U>
 where
-    T: AsyncRead + AsyncWrite,
+    T: IoStream,
     S: NewService<SrvConfig, Request = Request>,
     S::Error: Into<Error>,
     S::InitError: fmt::Debug,
@@ -182,7 +184,7 @@ pub struct HttpServiceResponse<
 
 impl<T, P, S, B, X, U> Future for HttpServiceResponse<T, P, S, B, X, U>
 where
-    T: AsyncRead + AsyncWrite,
+    T: IoStream,
     S: NewService<SrvConfig, Request = Request>,
     S::Error: Into<Error>,
     S::InitError: fmt::Debug,
@@ -268,7 +270,7 @@ where
 
 impl<T, P, S, B, X, U> Service for HttpServiceHandler<T, P, S, B, X, U>
 where
-    T: AsyncRead + AsyncWrite,
+    T: IoStream,
     S: Service<Request = Request>,
     S::Error: Into<Error>,
     S::Future: 'static,
@@ -317,6 +319,7 @@ where
         let (io, _, proto) = req.into_parts();
         match proto {
             Protocol::Http2 => {
+                let peer_addr = io.peer_addr();
                 let io = Io {
                     inner: io,
                     unread: None,
@@ -326,6 +329,7 @@ where
                         server::handshake(io),
                         self.cfg.clone(),
                         self.srv.clone(),
+                        peer_addr,
                     ))),
                 }
             }
@@ -357,7 +361,7 @@ where
     S: Service<Request = Request>,
     S::Future: 'static,
     S::Error: Into<Error>,
-    T: AsyncRead + AsyncWrite,
+    T: IoStream,
     B: MessageBody,
     X: Service<Request = Request, Response = Request>,
     X::Error: Into<Error>,
@@ -376,12 +380,19 @@ where
             Option<CloneableService<U>>,
         )>,
     ),
-    Handshake(Option<(Handshake<Io<T>, Bytes>, ServiceConfig, CloneableService<S>)>),
+    Handshake(
+        Option<(
+            Handshake<Io<T>, Bytes>,
+            ServiceConfig,
+            CloneableService<S>,
+            Option<net::SocketAddr>,
+        )>,
+    ),
 }
 
 pub struct HttpServiceHandlerResponse<T, S, B, X, U>
 where
-    T: AsyncRead + AsyncWrite,
+    T: IoStream,
     S: Service<Request = Request>,
     S::Error: Into<Error>,
     S::Future: 'static,
@@ -399,7 +410,7 @@ const HTTP2_PREFACE: [u8; 14] = *b"PRI * HTTP/2.0";
 
 impl<T, S, B, X, U> Future for HttpServiceHandlerResponse<T, S, B, X, U>
 where
-    T: AsyncRead + AsyncWrite,
+    T: IoStream,
     S: Service<Request = Request>,
     S::Error: Into<Error>,
     S::Future: 'static,
@@ -437,12 +448,17 @@ where
                 }
                 let (io, buf, cfg, srv, expect, upgrade) = data.take().unwrap();
                 if buf[..14] == HTTP2_PREFACE[..] {
+                    let peer_addr = io.peer_addr();
                     let io = Io {
                         inner: io,
                         unread: Some(buf),
                     };
-                    self.state =
-                        State::Handshake(Some((server::handshake(io), cfg, srv)));
+                    self.state = State::Handshake(Some((
+                        server::handshake(io),
+                        cfg,
+                        srv,
+                        peer_addr,
+                    )));
                 } else {
                     self.state = State::H1(h1::Dispatcher::with_timeout(
                         io,
@@ -470,8 +486,8 @@ where
                 } else {
                     panic!()
                 };
-                let (_, cfg, srv) = data.take().unwrap();
-                self.state = State::H2(Dispatcher::new(srv, conn, cfg, None));
+                let (_, cfg, srv, peer_addr) = data.take().unwrap();
+                self.state = State::H2(Dispatcher::new(srv, conn, cfg, None, peer_addr));
                 self.poll()
             }
         }
@@ -521,5 +537,27 @@ impl<T: AsyncWrite> AsyncWrite for Io<T> {
     }
     fn write_buf<B: Buf>(&mut self, buf: &mut B) -> Poll<usize, io::Error> {
         self.inner.write_buf(buf)
+    }
+}
+
+impl<T: IoStream> IoStream for Io<T> {
+    #[inline]
+    fn peer_addr(&self) -> Option<net::SocketAddr> {
+        self.inner.peer_addr()
+    }
+
+    #[inline]
+    fn set_nodelay(&mut self, nodelay: bool) -> io::Result<()> {
+        self.inner.set_nodelay(nodelay)
+    }
+
+    #[inline]
+    fn set_linger(&mut self, dur: Option<std::time::Duration>) -> io::Result<()> {
+        self.inner.set_linger(dur)
+    }
+
+    #[inline]
+    fn set_keepalive(&mut self, dur: Option<std::time::Duration>) -> io::Result<()> {
+        self.inner.set_keepalive(dur)
     }
 }

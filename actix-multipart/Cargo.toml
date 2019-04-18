@@ -18,7 +18,7 @@ name = "actix_multipart"
 path = "src/lib.rs"
 
 [dependencies]
-actix-web = "1.0.0-alpha.3"
+actix-web = "1.0.0-alpha.6"
 actix-service = "0.3.4"
 bytes = "0.4"
 derive_more = "0.14"
@@ -31,4 +31,4 @@ twoway = "0.2"
 
 [dev-dependencies]
 actix-rt = "0.2.2"
-actix-http = "0.1.0-alpha.3"
+actix-http = "0.1.0"

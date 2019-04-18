@@ -1,4 +1,5 @@
 use std::cell::{Ref, RefCell, RefMut};
+use std::net;
 use std::rc::Rc;
 
 use bitflags::bitflags;
@@ -43,6 +44,7 @@ pub struct RequestHead {
     pub version: Version,
     pub headers: HeaderMap,
     pub extensions: RefCell<Extensions>,
+    pub peer_addr: Option<net::SocketAddr>,
     flags: Flags,
 }
 
@@ -54,6 +56,7 @@ impl Default for RequestHead {
             version: Version::HTTP_11,
             headers: HeaderMap::with_capacity(16),
             flags: Flags::empty(),
+            peer_addr: None,
             extensions: RefCell::new(Extensions::new()),
         }
     }

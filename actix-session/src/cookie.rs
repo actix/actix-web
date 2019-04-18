@@ -17,6 +17,7 @@
 
 use std::collections::HashMap;
 use std::rc::Rc;
+use std::time::Duration;
 
 use actix_service::{Service, Transform};
 use actix_web::cookie::{Cookie, CookieJar, Key, SameSite};
@@ -27,7 +28,6 @@ use derive_more::{Display, From};
 use futures::future::{ok, Future, FutureResult};
 use futures::Poll;
 use serde_json::error::Error as JsonError;
-use time::Duration;
 
 use crate::Session;
 
@@ -98,7 +98,7 @@ impl CookieSessionInner {
         }
 
         if let Some(max_age) = self.max_age {
-            cookie.set_max_age(max_age);
+            cookie.set_max_age(time::Duration::from_std(max_age).unwrap());
         }
 
         if let Some(same_site) = self.same_site {
@@ -317,12 +317,33 @@ where
 mod tests {
     use super::*;
     use actix_web::{test, web, App};
+    use bytes::Bytes;
 
     #[test]
     fn cookie_session() {
         let mut app = test::init_service(
             App::new()
                 .wrap(CookieSession::signed(&[0; 32]).secure(false))
+                .service(web::resource("/").to(|ses: Session| {
+                    let _ = ses.set("counter", 100);
+                    "test"
+                })),
+        );
+
+        let request = test::TestRequest::get().to_request();
+        let response = test::block_on(app.call(request)).unwrap();
+        assert!(response
+            .response()
+            .cookies()
+            .find(|c| c.name() == "actix-session")
+            .is_some());
+    }
+
+    #[test]
+    fn private_cookie() {
+        let mut app = test::init_service(
+            App::new()
+                .wrap(CookieSession::private(&[0; 32]).secure(false))
                 .service(web::resource("/").to(|ses: Session| {
                     let _ = ses.set("counter", 100);
                     "test"
@@ -356,5 +377,45 @@ mod tests {
             .cookies()
             .find(|c| c.name() == "actix-session")
             .is_some());
+    }
+
+    #[test]
+    fn basics() {
+        let mut app = test::init_service(
+            App::new()
+                .wrap(
+                    CookieSession::signed(&[0; 32])
+                        .path("/test/")
+                        .name("actix-test")
+                        .domain("localhost")
+                        .http_only(true)
+                        .same_site(SameSite::Lax)
+                        .max_age(Duration::from_secs(100)),
+                )
+                .service(web::resource("/").to(|ses: Session| {
+                    let _ = ses.set("counter", 100);
+                    "test"
+                }))
+                .service(web::resource("/test/").to(|ses: Session| {
+                    let val: usize = ses.get("counter").unwrap().unwrap();
+                    format!("counter: {}", val)
+                })),
+        );
+
+        let request = test::TestRequest::get().to_request();
+        let response = test::block_on(app.call(request)).unwrap();
+        let cookie = response
+            .response()
+            .cookies()
+            .find(|c| c.name() == "actix-test")
+            .unwrap()
+            .clone();
+        assert_eq!(cookie.path().unwrap(), "/test/");
+
+        let request = test::TestRequest::with_uri("/test/")
+            .cookie(cookie)
+            .to_request();
+        let body = test::read_response(&mut app, request);
+        assert_eq!(body, Bytes::from_static(b"counter: 100"));
     }
 }
