@@ -335,6 +335,16 @@ impl TestRequest {
     pub fn post() -> TestRequest {
         TestRequest::default().method(Method::POST)
     }
+    
+    /// Create TestRequest and set method to `Method::PUT`
+    pub fn put() -> TestRequest {
+        TestRequest::default().method(Method::PUT)
+    }
+    
+    /// Create TestRequest and set method to `Method::PATCH`
+    pub fn patch() -> TestRequest {
+        TestRequest::default().method(Method::PATCH)
+    }
 
     /// Set HTTP version of this request
     pub fn version(mut self, ver: Version) -> Self {
@@ -491,6 +501,34 @@ mod tests {
         let data = req.app_data::<u32>().unwrap();
         assert_eq!(*data, 10);
         assert_eq!(*data.get_ref(), 10);
+    }
+
+    #[test]
+    fn test_request_methods() {
+        let mut app = init_service(
+            App::new().service(
+                web::resource("/index.html")
+                    .route(web::put().to(|| HttpResponse::Ok().body("put!")))
+                    .route(web::patch().to(|| HttpResponse::Ok().body("patch!"))),
+            ),
+        );
+
+        let put_req = TestRequest::put()
+            .uri("/index.html")
+            .header(header::CONTENT_TYPE, "application/json")
+            .to_request();
+
+        let result = read_response(&mut app, put_req);
+        assert_eq!(result, Bytes::from_static(b"put!"));
+
+
+        let patch_req = TestRequest::patch()
+            .uri("/index.html")
+            .header(header::CONTENT_TYPE, "application/json")
+            .to_request();
+
+        let result = read_response(&mut app, patch_req);
+        assert_eq!(result, Bytes::from_static(b"patch!"));
     }
 
     #[test]
