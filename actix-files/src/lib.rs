@@ -411,17 +411,16 @@ impl FilesService {
     fn handle_err(
         &mut self,
         e: io::Error,
-        req: HttpRequest,
-        payload: Payload,
+        req: ServiceRequest,
     ) -> Either<
         FutureResult<ServiceResponse, Error>,
         Box<Future<Item = ServiceResponse, Error = Error>>,
     > {
         log::debug!("Files: Failed to handle {}: {}", req.path(), e);
         if let Some(ref mut default) = self.default {
-            default.call(ServiceRequest::from_parts(req, payload))
+            default.call(req)
         } else {
-            Either::A(ok(ServiceResponse::from_err(e, req.clone())))
+            Either::A(ok(req.error_response(e)))
         }
     }
 }
@@ -440,17 +439,17 @@ impl Service for FilesService {
     }
 
     fn call(&mut self, req: ServiceRequest) -> Self::Future {
-        let (req, pl) = req.into_parts();
+        // let (req, pl) = req.into_parts();
 
         let real_path = match PathBufWrp::get_pathbuf(req.match_info().path()) {
             Ok(item) => item,
-            Err(e) => return Either::A(ok(ServiceResponse::from_err(e, req.clone()))),
+            Err(e) => return Either::A(ok(req.error_response(e))),
         };
 
         // full filepath
         let path = match self.directory.join(&real_path.0).canonicalize() {
             Ok(path) => path,
-            Err(e) => return self.handle_err(e, req, pl),
+            Err(e) => return self.handle_err(e, req),
         };
 
         if path.is_dir() {
@@ -466,24 +465,26 @@ impl Service for FilesService {
                         }
 
                         named_file.flags = self.file_flags;
+                        let (req, _) = req.into_parts();
                         Either::A(ok(match named_file.respond_to(&req) {
-                            Ok(item) => ServiceResponse::new(req.clone(), item),
-                            Err(e) => ServiceResponse::from_err(e, req.clone()),
+                            Ok(item) => ServiceResponse::new(req, item),
+                            Err(e) => ServiceResponse::from_err(e, req),
                         }))
                     }
-                    Err(e) => return self.handle_err(e, req, pl),
+                    Err(e) => return self.handle_err(e, req),
                 }
             } else if self.show_index {
                 let dir = Directory::new(self.directory.clone(), path);
+                let (req, _) = req.into_parts();
                 let x = (self.renderer)(&dir, &req);
                 match x {
                     Ok(resp) => Either::A(ok(resp)),
-                    Err(e) => return self.handle_err(e, req, pl),
+                    Err(e) => return Either::A(ok(ServiceResponse::from_err(e, req))),
                 }
             } else {
                 Either::A(ok(ServiceResponse::from_err(
                     FilesError::IsDirectory,
-                    req.clone(),
+                    req.into_parts().0,
                 )))
             }
         } else {
@@ -496,16 +497,15 @@ impl Service for FilesService {
                     }
 
                     named_file.flags = self.file_flags;
+                    let (req, _) = req.into_parts();
                     match named_file.respond_to(&req) {
                         Ok(item) => {
                             Either::A(ok(ServiceResponse::new(req.clone(), item)))
                         }
-                        Err(e) => {
-                            Either::A(ok(ServiceResponse::from_err(e, req.clone())))
-                        }
+                        Err(e) => Either::A(ok(ServiceResponse::from_err(e, req))),
                     }
                 }
-                Err(e) => self.handle_err(e, req, pl),
+                Err(e) => self.handle_err(e, req),
             }
         }
     }
