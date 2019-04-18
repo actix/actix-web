@@ -15,6 +15,8 @@
 
 * Rename `test::call_success` to `test::call_service`
 
+* Removed `ServiceRequest::from_parts()` as it is unsafe to create from parts.
+
 ### Fixed
 
 * Fixed `TestRequest::app_data()`

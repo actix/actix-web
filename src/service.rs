@@ -53,7 +53,7 @@ pub struct ServiceRequest {
 
 impl ServiceRequest {
     /// Construct service request from parts
-    pub fn from_parts(req: HttpRequest, payload: Payload) -> Self {
+    pub(crate) fn from_parts(req: HttpRequest, payload: Payload) -> Self {
         ServiceRequest { req, payload }
     }
 
