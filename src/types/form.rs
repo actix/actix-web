@@ -331,10 +331,6 @@ mod tests {
 
     fn eq(err: UrlencodedError, other: UrlencodedError) -> bool {
         match err {
-            UrlencodedError::Chunked => match other {
-                UrlencodedError::Chunked => true,
-                _ => false,
-            },
             UrlencodedError::Overflow => match other {
                 UrlencodedError::Overflow => true,
                 _ => false,

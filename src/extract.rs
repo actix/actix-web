@@ -265,13 +265,12 @@ tuple_from_req!(TupleFromRequest10, (0, A), (1, B), (2, C), (3, D), (4, E), (5, 
 #[cfg(test)]
 mod tests {
     use actix_http::http::header;
-    use actix_router::ResourceDef;
     use bytes::Bytes;
     use serde_derive::Deserialize;
 
     use super::*;
     use crate::test::{block_on, TestRequest};
-    use crate::types::{Form, FormConfig, Path, Query};
+    use crate::types::{Form, FormConfig};
 
     #[derive(Deserialize, Debug, PartialEq)]
     struct Info {
@@ -349,59 +348,5 @@ mod tests {
         let r =
             block_on(Result::<Form<Info>, Error>::from_request(&req, &mut pl)).unwrap();
         assert!(r.is_err());
-    }
-
-    #[derive(Deserialize)]
-    struct MyStruct {
-        key: String,
-        value: String,
-    }
-
-    #[derive(Deserialize)]
-    struct Id {
-        id: String,
-    }
-
-    #[derive(Deserialize)]
-    struct Test2 {
-        key: String,
-        value: u32,
-    }
-
-    #[test]
-    fn test_request_extract() {
-        let mut req = TestRequest::with_uri("/name/user1/?id=test").to_srv_request();
-
-        let resource = ResourceDef::new("/{key}/{value}/");
-        resource.match_path(req.match_info_mut());
-
-        let (req, mut pl) = req.into_parts();
-        let s = Path::<MyStruct>::from_request(&req, &mut pl).unwrap();
-        assert_eq!(s.key, "name");
-        assert_eq!(s.value, "user1");
-
-        let s = Path::<(String, String)>::from_request(&req, &mut pl).unwrap();
-        assert_eq!(s.0, "name");
-        assert_eq!(s.1, "user1");
-
-        let s = Query::<Id>::from_request(&req, &mut pl).unwrap();
-        assert_eq!(s.id, "test");
-
-        let mut req = TestRequest::with_uri("/name/32/").to_srv_request();
-        let resource = ResourceDef::new("/{key}/{value}/");
-        resource.match_path(req.match_info_mut());
-
-        let (req, mut pl) = req.into_parts();
-        let s = Path::<Test2>::from_request(&req, &mut pl).unwrap();
-        assert_eq!(s.as_ref().key, "name");
-        assert_eq!(s.value, 32);
-
-        let s = Path::<(String, u8)>::from_request(&req, &mut pl).unwrap();
-        assert_eq!(s.0, "name");
-        assert_eq!(s.1, 32);
-
-        let res = Path::<Vec<String>>::from_request(&req, &mut pl).unwrap();
-        assert_eq!(res[0], "name".to_owned());
-        assert_eq!(res[1], "32".to_owned());
     }
 }
