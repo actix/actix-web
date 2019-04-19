@@ -128,7 +128,7 @@
   ```
 
 
-* AsyncResponder is removed.
+* AsyncResponder is removed, use `.to_async()` registration method and `impl Future<>` as result type.
 
   instead of
 
