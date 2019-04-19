@@ -427,9 +427,14 @@ impl CookieIdentityPolicy {
         self
     }
 
-    /// Sets the `max-age` field in the session cookie being built.
-    pub fn max_age(mut self, value: Duration) -> CookieIdentityPolicy {
+    /// Sets the `max-age` field in the session cookie being built with `chrono::Duration`.
+    pub fn max_age_time(mut self, value: Duration) -> CookieIdentityPolicy {
         Rc::get_mut(&mut self.0).unwrap().max_age = Some(value);
+        self
+    }
+    /// Sets the `max-age` field in the session cookie being built with given number of seconds.
+    pub fn max_age(mut self, seconds: isize) -> CookieIdentityPolicy {
+        Rc::get_mut(&mut self.0).unwrap().max_age = Some(Duration::seconds(seconds as i64));
         self
     }
 
@@ -525,8 +530,9 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
         assert!(resp.headers().contains_key(header::SET_COOKIE))
     }
+
     #[test]
-    fn test_identity_max_age() {
+    fn test_identity_max_age_time() {
         let duration = Duration::days(1);
         let mut srv = test::init_service(
             App::new()
@@ -535,7 +541,7 @@ mod tests {
                         .domain("www.rust-lang.org")
                         .name("actix_auth")
                         .path("/")
-                        .max_age(duration)
+                        .max_age_time(duration)
                         .secure(true),
                 ))
                 .service(web::resource("/login").to(|id: Identity| {
@@ -549,5 +555,31 @@ mod tests {
         assert!(resp.headers().contains_key(header::SET_COOKIE));
         let c = resp.response().cookies().next().unwrap().to_owned();
         assert_eq!(duration, c.max_age().unwrap());
+    }
+
+    #[test]
+    fn test_identity_max_age() {
+        let seconds = 60isize;
+        let mut srv = test::init_service(
+            App::new()
+                .wrap(IdentityService::new(
+                    CookieIdentityPolicy::new(&[0; 32])
+                        .domain("www.rust-lang.org")
+                        .name("actix_auth")
+                        .path("/")
+                        .max_age(seconds)
+                        .secure(true),
+                ))
+                .service(web::resource("/login").to(|id: Identity| {
+                    id.remember("test".to_string());
+                    HttpResponse::Ok()
+                }))
+        );
+        let resp =
+            test::call_service(&mut srv, TestRequest::with_uri("/login").to_request());
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert!(resp.headers().contains_key(header::SET_COOKIE));
+        let c = resp.response().cookies().next().unwrap().to_owned();
+        assert_eq!(Duration::seconds(seconds as i64), c.max_age().unwrap());
     }
 }
