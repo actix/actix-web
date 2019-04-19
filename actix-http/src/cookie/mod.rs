@@ -66,7 +66,8 @@ use std::fmt;
 use std::str::FromStr;
 
 use percent_encoding::{percent_encode, USERINFO_ENCODE_SET};
-use time::{Duration, Tm};
+use time::Tm;
+use chrono::Duration;
 
 pub use self::builder::CookieBuilder;
 pub use self::draft::*;
@@ -624,7 +625,7 @@ impl<'c> Cookie<'c> {
     ///
     /// ```rust
     /// use actix_http::cookie::Cookie;
-    /// use time::Duration;
+    /// use chrono::Duration;
     ///
     /// # fn main() {
     /// let mut c = Cookie::new("name", "value");
@@ -703,7 +704,7 @@ impl<'c> Cookie<'c> {
     ///
     /// ```rust
     /// use actix_http::cookie::Cookie;
-    /// use time::Duration;
+    /// use chrono::Duration;
     ///
     /// # fn main() {
     /// let mut c = Cookie::new("foo", "bar");
@@ -977,7 +978,8 @@ impl<'a, 'b> PartialEq<Cookie<'b>> for Cookie<'a> {
 #[cfg(test)]
 mod tests {
     use super::{Cookie, SameSite};
-    use time::{strptime, Duration};
+    use time::strptime;
+    use chrono::Duration;
 
     #[test]
     fn format() {

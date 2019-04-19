@@ -93,6 +93,7 @@ flate2 = { version="1.0.7", optional = true, default-features = false }
 # optional deps
 failure = { version = "0.1.5", optional = true }
 openssl = { version="0.10", optional = true }
+chrono = "0.4.6"
 
 [dev-dependencies]
 actix-rt = "0.2.2"
