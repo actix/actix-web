@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 
-use time::{Duration, Tm};
+use time::Tm;
+use chrono::Duration;
 
 use super::{Cookie, SameSite};
 
@@ -16,7 +17,7 @@ use super::{Cookie, SameSite};
 ///
 /// ```rust
 /// use actix_http::cookie::Cookie;
-/// use time::Duration;
+/// use chrono::Duration;
 ///
 /// # fn main() {
 /// let cookie: Cookie = Cookie::build("name", "value")
@@ -200,7 +201,7 @@ impl CookieBuilder {
     ///
     /// ```rust
     /// use actix_http::cookie::Cookie;
-    /// use time::Duration;
+    /// use chrono::Duration;
     ///
     /// # fn main() {
     /// let c = Cookie::build("foo", "bar")

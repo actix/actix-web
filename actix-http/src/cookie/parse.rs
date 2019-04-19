@@ -6,7 +6,7 @@ use std::fmt;
 use std::str::Utf8Error;
 
 use percent_encoding::percent_decode;
-use time::{self, Duration};
+use chrono::Duration;
 
 use super::{Cookie, CookieStr, SameSite};
 
@@ -220,7 +220,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::{Cookie, SameSite};
-    use time::{strptime, Duration};
+    use time::strptime;
+    use chrono::Duration;
 
     macro_rules! assert_eq_parse {
         ($string:expr, $expected:expr) => {

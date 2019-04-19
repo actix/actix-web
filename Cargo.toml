@@ -15,6 +15,9 @@ license = "MIT/Apache-2.0"
 exclude = [".gitignore", ".travis.yml", ".cargo/config", "appveyor.yml"]
 edition = "2018"
 
+[package.metadata.docs.rs]
+features = ["ssl", "brotli", "flate2-zlib", "secure-cookies", "client", "rust-tls"]
+
 [badges]
 travis-ci = { repository = "actix/actix-web", branch = "master" }
 codecov = { repository = "actix/actix-web", branch = "master", service = "github" }
@@ -36,9 +39,6 @@ members = [
   "actix-web-codegen",
   "test-server",
 ]
-
-[package.metadata.docs.rs]
-features = ["ssl", "brotli", "flate2-zlib", "secure-cookies", "client", "rust-tls"]
 
 [features]
 default = ["brotli", "flate2-zlib", "secure-cookies", "client"]
@@ -96,6 +96,7 @@ url = { version="1.7", features=["query_encoding"] }
 # ssl support
 openssl = { version="0.10", optional = true }
 rustls = { version = "^0.15", optional = true }
+chrono = "0.4.6"
 
 [dev-dependencies]
 actix-http = { version = "0.1.0", features=["ssl", "brotli", "flate2-zlib"] }

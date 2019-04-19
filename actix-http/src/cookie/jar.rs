@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::mem::replace;
 
-use time::{self, Duration};
+use chrono::Duration;
 
 use super::delta::DeltaCookie;
 use super::Cookie;
@@ -188,7 +188,7 @@ impl CookieJar {
     ///
     /// ```rust
     /// use actix_http::cookie::{CookieJar, Cookie};
-    /// use time::Duration;
+    /// use chrono::Duration;
     ///
     /// # fn main() {
     /// let mut jar = CookieJar::new();
@@ -241,7 +241,7 @@ impl CookieJar {
     ///
     /// ```rust
     /// use actix_http::cookie::{CookieJar, Cookie};
-    /// use time::Duration;
+    /// use chrono::Duration;
     ///
     /// # fn main() {
     /// let mut jar = CookieJar::new();
@@ -538,7 +538,7 @@ mod test {
     #[cfg(feature = "secure-cookies")]
     fn delta() {
         use std::collections::HashMap;
-        use time::Duration;
+        use chrono::Duration;
 
         let mut c = CookieJar::new();
 
