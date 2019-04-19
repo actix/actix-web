@@ -1,5 +1,5 @@
 use actix_codec::{AsyncRead, AsyncWrite};
-use actix_http::{body, ws, Error, HttpService, Response};
+use actix_http::{body, http::StatusCode, ws, Error, HttpService, Response};
 use actix_http_test::TestServer;
 use actix_service::{IntoNewService, NewService};
 use actix_utils::framed::FramedTransport;
@@ -99,6 +99,11 @@ fn test_service() {
         )
     });
 
+    // non ws request
+    let res = srv.block_on(srv.get("/index.html").send()).unwrap();
+    assert_eq!(res.status(), StatusCode::BAD_REQUEST);
+
+    // not found
     assert!(srv.ws_at("/test").is_err());
 
     // client service

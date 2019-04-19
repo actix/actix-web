@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::time::Duration;
 
@@ -61,6 +62,38 @@ fn test_simple() {
     // read response
     let bytes = srv.block_on(response.body()).unwrap();
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
+}
+
+#[test]
+fn test_json() {
+    let mut srv = TestServer::new(|| {
+        HttpService::new(App::new().service(
+            web::resource("/").route(web::to(|_: web::Json<String>| HttpResponse::Ok())),
+        ))
+    });
+
+    let request = srv
+        .get("/")
+        .header("x-test", "111")
+        .send_json(&"TEST".to_string());
+    let response = srv.block_on(request).unwrap();
+    assert!(response.status().is_success());
+}
+
+#[test]
+fn test_form() {
+    let mut srv = TestServer::new(|| {
+        HttpService::new(App::new().service(web::resource("/").route(web::to(
+            |_: web::Form<HashMap<String, String>>| HttpResponse::Ok(),
+        ))))
+    });
+
+    let mut data = HashMap::new();
+    let _ = data.insert("key".to_string(), "TEST".to_string());
+
+    let request = srv.get("/").header("x-test", "111").send_form(&data);
+    let response = srv.block_on(request).unwrap();
+    assert!(response.status().is_success());
 }
 
 #[test]

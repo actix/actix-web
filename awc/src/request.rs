@@ -566,9 +566,21 @@ mod tests {
             .version(Version::HTTP_2)
             .set(header::Date(SystemTime::now().into()))
             .content_type("plain/text")
+            .if_true(true, |req| req.header(header::SERVER, "awc"))
+            .if_true(false, |req| req.header(header::EXPECT, "awc"))
+            .if_some(Some("server"), |val, req| {
+                req.header(header::USER_AGENT, val)
+            })
+            .if_some(Option::<&str>::None, |_, req| {
+                req.header(header::ALLOW, "1")
+            })
             .content_length(100);
         assert!(req.headers().contains_key(header::CONTENT_TYPE));
         assert!(req.headers().contains_key(header::DATE));
+        assert!(req.headers().contains_key(header::SERVER));
+        assert!(req.headers().contains_key(header::USER_AGENT));
+        assert!(!req.headers().contains_key(header::ALLOW));
+        assert!(!req.headers().contains_key(header::EXPECT));
         assert_eq!(req.head.version, Version::HTTP_2);
         let _ = req.headers_mut();
         let _ = req.send_body("");
