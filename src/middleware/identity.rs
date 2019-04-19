@@ -53,7 +53,7 @@ use std::rc::Rc;
 use actix_service::{Service, Transform};
 use futures::future::{ok, Either, FutureResult};
 use futures::{Future, IntoFuture, Poll};
-use time::Duration;
+use chrono::Duration;
 
 use crate::cookie::{Cookie, CookieJar, Key, SameSite};
 use crate::error::{Error, Result};
@@ -524,5 +524,30 @@ mod tests {
         );
         assert_eq!(resp.status(), StatusCode::OK);
         assert!(resp.headers().contains_key(header::SET_COOKIE))
+    }
+    #[test]
+    fn test_identity_max_age() {
+        let duration = Duration::days(1);
+        let mut srv = test::init_service(
+            App::new()
+                .wrap(IdentityService::new(
+                    CookieIdentityPolicy::new(&[0; 32])
+                        .domain("www.rust-lang.org")
+                        .name("actix_auth")
+                        .path("/")
+                        .max_age(duration)
+                        .secure(true),
+                ))
+                .service(web::resource("/login").to(|id: Identity| {
+                    id.remember("test".to_string());
+                    HttpResponse::Ok()
+                }))
+        );
+        let resp =
+            test::call_service(&mut srv, TestRequest::with_uri("/login").to_request());
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert!(resp.headers().contains_key(header::SET_COOKIE));
+        let c = resp.response().cookies().next().unwrap().to_owned();
+        assert_eq!(duration, c.max_age().unwrap());
     }
 }
