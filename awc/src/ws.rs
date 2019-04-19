@@ -445,30 +445,41 @@ mod tests {
                 .unwrap(),
             "Bearer someS3cr3tAutht0k3n"
         );
+        let _ = req.connect();
     }
 
     #[test]
     fn basics() {
-        let req = Client::new()
-            .ws("/")
-            .origin("test-origin")
-            .max_frame_size(100)
-            .server_mode()
-            .protocols(&["v1", "v2"])
-            .set_header_if_none(header::CONTENT_TYPE, "json")
-            .set_header_if_none(header::CONTENT_TYPE, "text")
-            .cookie(Cookie::build("cookie1", "value1").finish());
-        assert_eq!(
-            req.origin.as_ref().unwrap().to_str().unwrap(),
-            "test-origin"
-        );
-        assert_eq!(req.max_size, 100);
-        assert_eq!(req.server_mode, true);
-        assert_eq!(req.protocols, Some("v1,v2".to_string()));
-        assert_eq!(
-            req.head.headers.get(header::CONTENT_TYPE).unwrap(),
-            header::HeaderValue::from_static("json")
-        );
-        let _ = req.connect();
+        actix_http_test::run_on(|| {
+            let req = Client::new()
+                .ws("http://localhost/")
+                .origin("test-origin")
+                .max_frame_size(100)
+                .server_mode()
+                .protocols(&["v1", "v2"])
+                .set_header_if_none(header::CONTENT_TYPE, "json")
+                .set_header_if_none(header::CONTENT_TYPE, "text")
+                .cookie(Cookie::build("cookie1", "value1").finish());
+            assert_eq!(
+                req.origin.as_ref().unwrap().to_str().unwrap(),
+                "test-origin"
+            );
+            assert_eq!(req.max_size, 100);
+            assert_eq!(req.server_mode, true);
+            assert_eq!(req.protocols, Some("v1,v2".to_string()));
+            assert_eq!(
+                req.head.headers.get(header::CONTENT_TYPE).unwrap(),
+                header::HeaderValue::from_static("json")
+            );
+            let _ = req.connect();
+        });
+
+        assert!(Client::new().ws("/").connect().poll().is_err());
+        assert!(Client::new().ws("http:///test").connect().poll().is_err());
+        assert!(Client::new()
+            .ws("hmm://test.com/")
+            .connect()
+            .poll()
+            .is_err());
     }
 }
