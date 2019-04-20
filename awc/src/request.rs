@@ -1,8 +1,8 @@
-use std::fmt;
 use std::fmt::Write as FmtWrite;
 use std::io::Write;
 use std::rc::Rc;
 use std::time::Duration;
+use std::{fmt, net};
 
 use bytes::{BufMut, Bytes, BytesMut};
 use futures::future::{err, Either};
@@ -60,6 +60,7 @@ const HTTPS_ENCODING: &str = "gzip, deflate";
 pub struct ClientRequest {
     pub(crate) head: RequestHead,
     err: Option<HttpError>,
+    addr: Option<net::SocketAddr>,
     cookies: Option<CookieJar>,
     response_decompress: bool,
     timeout: Option<Duration>,
@@ -76,6 +77,7 @@ impl ClientRequest {
             config,
             head: RequestHead::default(),
             err: None,
+            addr: None,
             cookies: None,
             timeout: None,
             response_decompress: true,
@@ -94,6 +96,15 @@ impl ClientRequest {
             Ok(uri) => self.head.uri = uri,
             Err(e) => self.err = Some(e.into()),
         }
+        self
+    }
+
+    /// Set socket address of the server.
+    ///
+    /// This address is used for connection. If address is not
+    /// provided url's host name get resolved.
+    pub fn address(mut self, addr: net::SocketAddr) -> Self {
+        self.addr = Some(addr);
         self
     }
 
@@ -435,7 +446,7 @@ impl ClientRequest {
         let fut = config
             .connector
             .borrow_mut()
-            .send_request(head, body.into())
+            .send_request(head, body.into(), slf.addr)
             .map(move |res| {
                 res.map_body(|head, payload| {
                     if response_decompress {

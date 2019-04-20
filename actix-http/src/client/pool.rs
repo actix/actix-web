@@ -13,13 +13,14 @@ use futures::unsync::oneshot;
 use futures::{Async, Future, Poll};
 use h2::client::{handshake, Handshake};
 use hashbrown::HashMap;
-use http::uri::{Authority, Uri};
+use http::uri::Authority;
 use indexmap::IndexSet;
 use slab::Slab;
 use tokio_timer::{sleep, Delay};
 
 use super::connection::{ConnectionType, IoConnection};
 use super::error::ConnectError;
+use super::Connect;
 
 #[derive(Clone, Copy, PartialEq)]
 /// Protocol version
@@ -48,7 +49,7 @@ pub(crate) struct ConnectionPool<T, Io: AsyncRead + AsyncWrite + 'static>(
 impl<T, Io> ConnectionPool<T, Io>
 where
     Io: AsyncRead + AsyncWrite + 'static,
-    T: Service<Request = Uri, Response = (Io, Protocol), Error = ConnectError>,
+    T: Service<Request = Connect, Response = (Io, Protocol), Error = ConnectError>,
 {
     pub(crate) fn new(
         connector: T,
@@ -87,9 +88,9 @@ where
 impl<T, Io> Service for ConnectionPool<T, Io>
 where
     Io: AsyncRead + AsyncWrite + 'static,
-    T: Service<Request = Uri, Response = (Io, Protocol), Error = ConnectError>,
+    T: Service<Request = Connect, Response = (Io, Protocol), Error = ConnectError>,
 {
-    type Request = Uri;
+    type Request = Connect;
     type Response = IoConnection<Io>;
     type Error = ConnectError;
     type Future = Either<
@@ -101,8 +102,8 @@ where
         self.0.poll_ready()
     }
 
-    fn call(&mut self, req: Uri) -> Self::Future {
-        let key = if let Some(authority) = req.authority_part() {
+    fn call(&mut self, req: Connect) -> Self::Future {
+        let key = if let Some(authority) = req.uri.authority_part() {
             authority.clone().into()
         } else {
             return Either::A(err(ConnectError::Unresolverd));
@@ -292,7 +293,10 @@ pub(crate) struct Inner<Io> {
     limit: usize,
     acquired: usize,
     available: HashMap<Key, VecDeque<AvailableConnection<Io>>>,
-    waiters: Slab<(Uri, oneshot::Sender<Result<IoConnection<Io>, ConnectError>>)>,
+    waiters: Slab<(
+        Connect,
+        oneshot::Sender<Result<IoConnection<Io>, ConnectError>>,
+    )>,
     waiters_queue: IndexSet<(Key, usize)>,
     task: AtomicTask,
 }
@@ -331,14 +335,14 @@ where
     /// connection is not available, wait
     fn wait_for(
         &mut self,
-        connect: Uri,
+        connect: Connect,
     ) -> (
         oneshot::Receiver<Result<IoConnection<Io>, ConnectError>>,
         usize,
     ) {
         let (tx, rx) = oneshot::channel();
 
-        let key: Key = connect.authority_part().unwrap().clone().into();
+        let key: Key = connect.uri.authority_part().unwrap().clone().into();
         let entry = self.waiters.vacant_entry();
         let token = entry.key();
         entry.insert((connect, tx));

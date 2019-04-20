@@ -1,6 +1,10 @@
 # Changes
 
-## [0.1.1] - 2019-04-xx
+## [0.1.1] - 2019-04-19
+
+### Added
+
+* Allow to specify server address for http and ws requests.
 
 ### Changed
 

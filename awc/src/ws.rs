@@ -1,5 +1,6 @@
 //! Websockets client
 use std::fmt::Write as FmtWrite;
+use std::net::SocketAddr;
 use std::rc::Rc;
 use std::{fmt, str};
 
@@ -29,6 +30,7 @@ pub struct WebsocketsRequest {
     err: Option<HttpError>,
     origin: Option<HeaderValue>,
     protocols: Option<String>,
+    addr: Option<SocketAddr>,
     max_size: usize,
     server_mode: bool,
     cookies: Option<CookieJar>,
@@ -55,12 +57,22 @@ impl WebsocketsRequest {
             head,
             err,
             config,
+            addr: None,
             origin: None,
             protocols: None,
             max_size: 65_536,
             server_mode: false,
             cookies: None,
         }
+    }
+
+    /// Set socket address of the server.
+    ///
+    /// This address is used for connection. If address is not
+    /// provided url's host name get resolved.
+    pub fn address(mut self, addr: SocketAddr) -> Self {
+        self.addr = Some(addr);
+        self
     }
 
     /// Set supported websocket protocols
@@ -274,7 +286,7 @@ impl WebsocketsRequest {
             .config
             .connector
             .borrow_mut()
-            .open_tunnel(head)
+            .open_tunnel(head, self.addr)
             .from_err()
             .and_then(move |(head, framed)| {
                 // verify response

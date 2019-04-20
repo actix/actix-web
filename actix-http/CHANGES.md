@@ -8,6 +8,8 @@
 
 * Cookie::max_age_time() accepts value in time::Duration
 
+* Allow to specify server address for client connector
+
 
 ## [0.1.0] - 2019-04-16
 

@@ -1,10 +1,12 @@
-use std::{fmt, io};
+use std::{fmt, io, net};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use actix_http::body::Body;
-use actix_http::client::{ConnectError, Connection, SendRequestError};
+use actix_http::client::{
+    Connect as ClientConnect, ConnectError, Connection, SendRequestError,
+};
 use actix_http::h1::ClientCodec;
-use actix_http::{http, RequestHead, ResponseHead};
+use actix_http::{RequestHead, ResponseHead};
 use actix_service::Service;
 use futures::{Future, Poll};
 
@@ -17,12 +19,14 @@ pub(crate) trait Connect {
         &mut self,
         head: RequestHead,
         body: Body,
+        addr: Option<net::SocketAddr>,
     ) -> Box<Future<Item = ClientResponse, Error = SendRequestError>>;
 
     /// Send request, returns Response and Framed
     fn open_tunnel(
         &mut self,
         head: RequestHead,
+        addr: Option<net::SocketAddr>,
     ) -> Box<
         Future<
             Item = (ResponseHead, Framed<BoxedSocket, ClientCodec>),
@@ -33,7 +37,7 @@ pub(crate) trait Connect {
 
 impl<T> Connect for ConnectorWrapper<T>
 where
-    T: Service<Request = http::Uri, Error = ConnectError>,
+    T: Service<Request = ClientConnect, Error = ConnectError>,
     T::Response: Connection,
     <T::Response as Connection>::Io: 'static,
     <T::Response as Connection>::Future: 'static,
@@ -44,11 +48,15 @@ where
         &mut self,
         head: RequestHead,
         body: Body,
+        addr: Option<net::SocketAddr>,
     ) -> Box<Future<Item = ClientResponse, Error = SendRequestError>> {
         Box::new(
             self.0
                 // connect to the host
-                .call(head.uri.clone())
+                .call(ClientConnect {
+                    uri: head.uri.clone(),
+                    addr,
+                })
                 .from_err()
                 // send request
                 .and_then(move |connection| connection.send_request(head, body))
@@ -59,6 +67,7 @@ where
     fn open_tunnel(
         &mut self,
         head: RequestHead,
+        addr: Option<net::SocketAddr>,
     ) -> Box<
         Future<
             Item = (ResponseHead, Framed<BoxedSocket, ClientCodec>),
@@ -68,7 +77,10 @@ where
         Box::new(
             self.0
                 // connect to the host
-                .call(head.uri.clone())
+                .call(ClientConnect {
+                    uri: head.uri.clone(),
+                    addr,
+                })
                 .from_err()
                 // send request
                 .and_then(move |connection| connection.open_tunnel(head))

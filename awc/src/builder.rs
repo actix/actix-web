@@ -3,8 +3,8 @@ use std::fmt;
 use std::rc::Rc;
 use std::time::Duration;
 
-use actix_http::client::{ConnectError, Connection, Connector};
-use actix_http::http::{header, HeaderMap, HeaderName, HttpTryFrom, Uri};
+use actix_http::client::{Connect, ConnectError, Connection, Connector};
+use actix_http::http::{header, HeaderMap, HeaderName, HttpTryFrom};
 use actix_service::Service;
 
 use crate::connect::ConnectorWrapper;
@@ -40,7 +40,7 @@ impl ClientBuilder {
     /// Use custom connector service.
     pub fn connector<T>(mut self, connector: T) -> Self
     where
-        T: Service<Request = Uri, Error = ConnectError> + 'static,
+        T: Service<Request = Connect, Error = ConnectError> + 'static,
         T::Response: Connection,
         <T::Response as Connection>::Future: 'static,
         T::Future: 'static,
