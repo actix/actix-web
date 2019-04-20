@@ -9,6 +9,8 @@
 
 * Add `.peer_addr()` #744
 
+* Add `NormalizePath` middleware
+
 ### Changed
 
 * Rename `RouterConfig` to `ServiceConfig`
