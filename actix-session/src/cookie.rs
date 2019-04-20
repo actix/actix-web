@@ -17,7 +17,6 @@
 
 use std::collections::HashMap;
 use std::rc::Rc;
-use std::time::Duration;
 
 use actix_service::{Service, Transform};
 use actix_web::cookie::{Cookie, CookieJar, Key, SameSite};
@@ -57,7 +56,7 @@ struct CookieSessionInner {
     domain: Option<String>,
     secure: bool,
     http_only: bool,
-    max_age: Option<Duration>,
+    max_age: Option<time::Duration>,
     same_site: Option<SameSite>,
 }
 
@@ -98,7 +97,7 @@ impl CookieSessionInner {
         }
 
         if let Some(max_age) = self.max_age {
-            cookie.set_max_age(time::Duration::from_std(max_age).unwrap());
+            cookie.set_max_age(max_age);
         }
 
         if let Some(same_site) = self.same_site {
@@ -250,7 +249,12 @@ impl CookieSession {
     }
 
     /// Sets the `max-age` field in the session cookie being built.
-    pub fn max_age(mut self, value: Duration) -> CookieSession {
+    pub fn max_age(self, seconds: i64) -> CookieSession {
+        self.max_age_time(time::Duration::seconds(seconds))
+    }
+
+    /// Sets the `max-age` field in the session cookie being built.
+    pub fn max_age_time(mut self, value: time::Duration) -> CookieSession {
         Rc::get_mut(&mut self.0).unwrap().max_age = Some(value);
         self
     }
@@ -390,7 +394,7 @@ mod tests {
                         .domain("localhost")
                         .http_only(true)
                         .same_site(SameSite::Lax)
-                        .max_age(Duration::from_secs(100)),
+                        .max_age(100),
                 )
                 .service(web::resource("/").to(|ses: Session| {
                     let _ = ses.set("counter", 100);

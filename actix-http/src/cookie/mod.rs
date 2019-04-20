@@ -65,9 +65,9 @@ use std::borrow::Cow;
 use std::fmt;
 use std::str::FromStr;
 
+use chrono::Duration;
 use percent_encoding::{percent_encode, USERINFO_ENCODE_SET};
 use time::Tm;
-use chrono::Duration;
 
 pub use self::builder::CookieBuilder;
 pub use self::draft::*;
@@ -979,7 +979,6 @@ impl<'a, 'b> PartialEq<Cookie<'b>> for Cookie<'a> {
 mod tests {
     use super::{Cookie, SameSite};
     use time::strptime;
-    use chrono::Duration;
 
     #[test]
     fn format() {
@@ -989,9 +988,7 @@ mod tests {
         let cookie = Cookie::build("foo", "bar").http_only(true).finish();
         assert_eq!(&cookie.to_string(), "foo=bar; HttpOnly");
 
-        let cookie = Cookie::build("foo", "bar")
-            .max_age(Duration::seconds(10))
-            .finish();
+        let cookie = Cookie::build("foo", "bar").max_age(10).finish();
         assert_eq!(&cookie.to_string(), "foo=bar; Max-Age=10");
 
         let cookie = Cookie::build("foo", "bar").secure(true).finish();

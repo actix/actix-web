@@ -1,8 +1,8 @@
 //! `Middleware` to normalize request's URI
 
-use regex::Regex;
 use actix_service::{Service, Transform};
 use futures::future::{self, FutureResult};
+use regex::Regex;
 
 use crate::service::{ServiceRequest, ServiceResponse};
 
@@ -28,7 +28,7 @@ where
     fn new_transform(&self, service: S) -> Self::Future {
         future::ok(NormalizePathNormalization {
             service,
-            merge_slash: Regex::new("//+").unwrap()
+            merge_slash: Regex::new("//+").unwrap(),
         })
     }
 }
@@ -72,7 +72,6 @@ mod tests {
 
     use super::*;
     use crate::dev::ServiceRequest;
-    use crate::http::header::CONTENT_TYPE;
     use crate::test::{block_on, TestRequest};
     use crate::HttpResponse;
 

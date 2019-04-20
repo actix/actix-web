@@ -1,5 +1,14 @@
 # Changes
 
+## [0.1.1] - 2019-04-19
+
+### Changes
+
+* Cookie::max_age() accepts value in seconds
+
+* Cookie::max_age_time() accepts value in time::Duration
+
+
 ## [0.1.0] - 2019-04-16
 
 ### Added

@@ -90,13 +90,12 @@ regex = "1.0"
 serde = { version = "1.0", features=["derive"] }
 serde_json = "1.0"
 serde_urlencoded = "0.5.3"
-time = "0.1"
+time = "0.1.42"
 url = { version="1.7", features=["query_encoding"] }
 
 # ssl support
 openssl = { version="0.10", optional = true }
 rustls = { version = "^0.15", optional = true }
-chrono = "0.4.6"
 
 [dev-dependencies]
 actix-http = { version = "0.1.0", features=["ssl", "brotli", "flate2-zlib"] }

@@ -335,12 +335,12 @@ impl TestRequest {
     pub fn post() -> TestRequest {
         TestRequest::default().method(Method::POST)
     }
-    
+
     /// Create TestRequest and set method to `Method::PUT`
     pub fn put() -> TestRequest {
         TestRequest::default().method(Method::PUT)
     }
-    
+
     /// Create TestRequest and set method to `Method::PATCH`
     pub fn patch() -> TestRequest {
         TestRequest::default().method(Method::PATCH)
@@ -520,7 +520,6 @@ mod tests {
 
         let result = read_response(&mut app, put_req);
         assert_eq!(result, Bytes::from_static(b"put!"));
-
 
         let patch_req = TestRequest::patch()
             .uri("/index.html")

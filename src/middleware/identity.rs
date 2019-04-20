@@ -53,7 +53,7 @@ use std::rc::Rc;
 use actix_service::{Service, Transform};
 use futures::future::{ok, Either, FutureResult};
 use futures::{Future, IntoFuture, Poll};
-use chrono::Duration;
+use time::Duration;
 
 use crate::cookie::{Cookie, CookieJar, Key, SameSite};
 use crate::error::{Error, Result};
@@ -427,14 +427,14 @@ impl CookieIdentityPolicy {
         self
     }
 
+    /// Sets the `max-age` field in the session cookie being built with given number of seconds.
+    pub fn max_age(self, seconds: i64) -> CookieIdentityPolicy {
+        self.max_age_time(Duration::seconds(seconds))
+    }
+
     /// Sets the `max-age` field in the session cookie being built with `chrono::Duration`.
     pub fn max_age_time(mut self, value: Duration) -> CookieIdentityPolicy {
         Rc::get_mut(&mut self.0).unwrap().max_age = Some(value);
-        self
-    }
-    /// Sets the `max-age` field in the session cookie being built with given number of seconds.
-    pub fn max_age(mut self, seconds: isize) -> CookieIdentityPolicy {
-        Rc::get_mut(&mut self.0).unwrap().max_age = Some(Duration::seconds(seconds as i64));
         self
     }
 
@@ -547,7 +547,7 @@ mod tests {
                 .service(web::resource("/login").to(|id: Identity| {
                     id.remember("test".to_string());
                     HttpResponse::Ok()
-                }))
+                })),
         );
         let resp =
             test::call_service(&mut srv, TestRequest::with_uri("/login").to_request());
@@ -559,7 +559,7 @@ mod tests {
 
     #[test]
     fn test_identity_max_age() {
-        let seconds = 60isize;
+        let seconds = 60;
         let mut srv = test::init_service(
             App::new()
                 .wrap(IdentityService::new(
@@ -573,7 +573,7 @@ mod tests {
                 .service(web::resource("/login").to(|id: Identity| {
                     id.remember("test".to_string());
                     HttpResponse::Ok()
-                }))
+                })),
         );
         let resp =
             test::call_service(&mut srv, TestRequest::with_uri("/login").to_request());

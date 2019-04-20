@@ -5,8 +5,8 @@ use std::error::Error;
 use std::fmt;
 use std::str::Utf8Error;
 
-use percent_encoding::percent_decode;
 use chrono::Duration;
+use percent_encoding::percent_decode;
 
 use super::{Cookie, CookieStr, SameSite};
 
@@ -220,8 +220,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::{Cookie, SameSite};
-    use time::strptime;
     use chrono::Duration;
+    use time::strptime;
 
     macro_rules! assert_eq_parse {
         ($string:expr, $expected:expr) => {
@@ -419,9 +419,7 @@ mod tests {
     #[test]
     fn do_not_panic_on_large_max_ages() {
         let max_seconds = Duration::max_value().num_seconds();
-        let expected = Cookie::build("foo", "bar")
-            .max_age(Duration::seconds(max_seconds))
-            .finish();
+        let expected = Cookie::build("foo", "bar").max_age(max_seconds).finish();
         assert_eq_parse!(format!(" foo=bar; Max-Age={:?}", max_seconds + 1), expected);
     }
 }

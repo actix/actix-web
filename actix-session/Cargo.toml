@@ -32,7 +32,7 @@ futures = "0.1.25"
 hashbrown = "0.2.0"
 serde = "1.0"
 serde_json = "1.0"
-time = "0.1"
+time = "0.1.42"
 
 [dev-dependencies]
 actix-rt = "0.2.2"

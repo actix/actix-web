@@ -17,6 +17,8 @@
 
 * Removed `ServiceRequest::from_parts()` as it is unsafe to create from parts.
 
+* `CookieIdentityPolicy::max_age()` accepts value in seconds
+
 ### Fixed
 
 * Fixed `TestRequest::app_data()`
