@@ -319,8 +319,8 @@ mod connect_impl {
             self.tcp_pool.poll_ready()
         }
 
-        fn call(&mut self, req: Uri) -> Self::Future {
-            match req.scheme_str() {
+        fn call(&mut self, req: Connect) -> Self::Future {
+            match req.uri.scheme_str() {
                 Some("https") | Some("wss") => {
                     Either::B(err(ConnectError::SslIsNotSupported))
                 }
