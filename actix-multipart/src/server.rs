@@ -528,7 +528,6 @@ impl InnerField {
                 } else {
                     if &payload.buf[b_len..b_size] == boundary.as_bytes() {
                         // found boundary
-                        payload.buf.split_to(b_size);
                         return Ok(Async::Ready(None));
                     } else {
                         pos = b_size;
@@ -842,6 +841,78 @@ mod tests {
                  test\r\n\
                  --abbc761f78ff4d7cb7573b5a23f96ef0\r\n\
                  Content-Type: text/plain; charset=utf-8\r\nContent-Length: 4\r\n\r\n\
+                 data\r\n\
+                 --abbc761f78ff4d7cb7573b5a23f96ef0--\r\n",
+            );
+            sender.unbounded_send(Ok(bytes)).unwrap();
+
+            let mut headers = HeaderMap::new();
+            headers.insert(
+                header::CONTENT_TYPE,
+                header::HeaderValue::from_static(
+                    "multipart/mixed; boundary=\"abbc761f78ff4d7cb7573b5a23f96ef0\"",
+                ),
+            );
+
+            let mut multipart = Multipart::new(&headers, payload);
+            match multipart.poll().unwrap() {
+                Async::Ready(Some(mut field)) => {
+                    let cd = field.content_disposition().unwrap();
+                    assert_eq!(cd.disposition, DispositionType::FormData);
+                    assert_eq!(cd.parameters[0], DispositionParam::Name("file".into()));
+
+                    assert_eq!(field.content_type().type_(), mime::TEXT);
+                    assert_eq!(field.content_type().subtype(), mime::PLAIN);
+
+                    match field.poll().unwrap() {
+                        Async::Ready(Some(chunk)) => assert_eq!(chunk, "test"),
+                        _ => unreachable!(),
+                    }
+                    match field.poll().unwrap() {
+                        Async::Ready(None) => (),
+                        _ => unreachable!(),
+                    }
+                }
+                _ => unreachable!(),
+            }
+
+            match multipart.poll().unwrap() {
+                Async::Ready(Some(mut field)) => {
+                    assert_eq!(field.content_type().type_(), mime::TEXT);
+                    assert_eq!(field.content_type().subtype(), mime::PLAIN);
+
+                    match field.poll() {
+                        Ok(Async::Ready(Some(chunk))) => assert_eq!(chunk, "data"),
+                        _ => unreachable!(),
+                    }
+                    match field.poll() {
+                        Ok(Async::Ready(None)) => (),
+                        _ => unreachable!(),
+                    }
+                }
+                _ => unreachable!(),
+            }
+
+            match multipart.poll().unwrap() {
+                Async::Ready(None) => (),
+                _ => unreachable!(),
+            }
+        });
+    }
+
+    #[test]
+    fn test_stream() {
+        run_on(|| {
+            let (sender, payload) = create_stream();
+
+            let bytes = Bytes::from(
+                "testasdadsad\r\n\
+                 --abbc761f78ff4d7cb7573b5a23f96ef0\r\n\
+                 Content-Disposition: form-data; name=\"file\"; filename=\"fn.txt\"\r\n\
+                 Content-Type: text/plain; charset=utf-8\r\n\r\n\
+                 test\r\n\
+                 --abbc761f78ff4d7cb7573b5a23f96ef0\r\n\
+                 Content-Type: text/plain; charset=utf-8\r\n\r\n\
                  data\r\n\
                  --abbc761f78ff4d7cb7573b5a23f96ef0--\r\n",
             );
