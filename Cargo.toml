@@ -70,7 +70,7 @@ actix-service = "0.3.6"
 actix-utils = "0.3.4"
 actix-router = "0.1.2"
 actix-rt = "0.2.2"
-actix-web-codegen = "0.1.0-alpha.6"
+actix-web-codegen = "0.1.0-beta.1"
 actix-http = { version = "0.1.1", features=["fail"] }
 actix-server = "0.4.3"
 actix-server-config = "0.1.1"
@@ -100,7 +100,7 @@ rustls = { version = "^0.15", optional = true }
 [dev-dependencies]
 actix-http = { version = "0.1.1", features=["ssl", "brotli", "flate2-zlib"] }
 actix-http-test = { version = "0.1.0", features=["ssl"] }
-actix-files = { version = "0.1.0-alpha.6" }
+actix-files = { version = "0.1.0-beta.1" }
 rand = "0.6"
 env_logger = "0.6"
 serde_derive = "1.0"

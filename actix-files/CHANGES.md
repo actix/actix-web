@@ -1,5 +1,9 @@
 # Changes
 
+## [0.1.0-beta.1] - 2019-04-20
+
+* Update actix-web to beta.1
+
 ## [0.1.0-alpha.6] - 2019-04-14
 
 * Update actix-web to alpha6
