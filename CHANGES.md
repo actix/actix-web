@@ -1,5 +1,14 @@
 # Changes
 
+### Added
+
+* Add helper functions for reading response body `test::read_body()`
+
+### Changed
+
+* `.to_async()` handler can return `Responder` type #792
+
+
 ## [1.0.0-beta.1] - 2019-04-20
 
 ### Added

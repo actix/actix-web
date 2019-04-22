@@ -193,6 +193,46 @@ where
     .unwrap_or_else(|_| panic!("read_response failed at block_on unwrap"))
 }
 
+/// Helper function that returns a response body of a ServiceResponse.
+/// This function blocks the current thread until futures complete.
+///
+/// ```rust
+/// use actix_web::{test, web, App, HttpResponse, http::header};
+/// use bytes::Bytes;
+///
+/// #[test]
+/// fn test_index() {
+///     let mut app = test::init_service(
+///         App::new().service(
+///             web::resource("/index.html")
+///                 .route(web::post().to(
+///                     || HttpResponse::Ok().body("welcome!")))));
+///
+///     let req = test::TestRequest::post()
+///         .uri("/index.html")
+///         .header(header::CONTENT_TYPE, "application/json")
+///         .to_request();
+///
+///     let resp = call_service(&mut srv, req);
+///     let result = test::read_body(resp);
+///     assert_eq!(result, Bytes::from_static(b"welcome!"));
+/// }
+/// ```
+pub fn read_body<B>(mut res: ServiceResponse<B>) -> Bytes
+where
+    B: MessageBody,
+{
+    block_on(run_on(move || {
+        res.take_body()
+            .fold(BytesMut::new(), move |mut body, chunk| {
+                body.extend_from_slice(&chunk);
+                Ok::<_, Error>(body)
+            })
+            .map(|body: BytesMut| body.freeze())
+    }))
+    .unwrap_or_else(|_| panic!("read_response failed at block_on unwrap"))
+}
+
 /// Helper function that returns a deserialized response body of a TestRequest
 /// This function blocks the current thread until futures complete.
 ///
