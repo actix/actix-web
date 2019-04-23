@@ -113,31 +113,31 @@ where
         match self.1.as_ref().borrow_mut().acquire(&key) {
             Acquire::Acquired(io, created) => {
                 // use existing connection
-                Either::A(ok(IoConnection::new(
+                return Either::A(ok(IoConnection::new(
                     io,
                     created,
                     Some(Acquired(key, Some(self.1.clone()))),
-                )))
-            }
-            Acquire::NotAvailable => {
-                // connection is not available, wait
-                let (rx, token) = self.1.as_ref().borrow_mut().wait_for(req);
-                Either::B(Either::A(WaitForConnection {
-                    rx,
-                    key,
-                    token,
-                    inner: Some(self.1.clone()),
-                }))
+                )));
             }
             Acquire::Available => {
                 // open new connection
-                Either::B(Either::B(OpenConnection::new(
+                return Either::B(Either::B(OpenConnection::new(
                     key,
                     self.1.clone(),
                     self.0.call(req),
-                )))
+                )));
             }
+            _ => (),
         }
+
+        // connection is not available, wait
+        let (rx, token) = self.1.as_ref().borrow_mut().wait_for(req);
+        Either::B(Either::A(WaitForConnection {
+            rx,
+            key,
+            token,
+            inner: Some(self.1.clone()),
+        }))
     }
 }
 

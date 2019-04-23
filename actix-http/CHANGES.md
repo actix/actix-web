@@ -1,5 +1,12 @@
 # Changes
 
+## [0.1.2] - 2019-04-23
+
+### Fixed
+
+* Fix BorrowMutError panic in client connector #793
+
+
 ## [0.1.1] - 2019-04-19
 
 ### Changes
