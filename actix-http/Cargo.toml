@@ -1,6 +1,6 @@
 [package]
 name = "actix-http"
-version = "0.1.2"
+version = "0.1.3"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix http primitives"
 readme = "README.md"
