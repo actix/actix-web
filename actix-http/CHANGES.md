@@ -1,5 +1,14 @@
 # Changes
 
+## [0.1.3] - 2019-04-23
+
+### Fixed
+
+* Fix http client pool management
+
+* Fix http client wait queue management #794
+
+
 ## [0.1.2] - 2019-04-23
 
 ### Fixed

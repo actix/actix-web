@@ -114,7 +114,8 @@ where
             Request = TcpConnect<Uri>,
             Response = TcpConnection<Uri, U>,
             Error = actix_connect::ConnectError,
-        > + Clone,
+        > + Clone
+        + 'static,
 {
     /// Connection timeout, i.e. max time to connect to remote host including dns name resolution.
     /// Set to 1 second by default.
@@ -284,7 +285,9 @@ mod connect_impl {
     pub(crate) struct InnerConnector<T, Io>
     where
         Io: AsyncRead + AsyncWrite + 'static,
-        T: Service<Request = Connect, Response = (Io, Protocol), Error = ConnectError>,
+        T: Service<Request = Connect, Response = (Io, Protocol), Error = ConnectError>
+            + Clone
+            + 'static,
     {
         pub(crate) tcp_pool: ConnectionPool<T, Io>,
     }
@@ -293,7 +296,8 @@ mod connect_impl {
     where
         Io: AsyncRead + AsyncWrite + 'static,
         T: Service<Request = Connect, Response = (Io, Protocol), Error = ConnectError>
-            + Clone,
+            + Clone
+            + 'static,
     {
         fn clone(&self) -> Self {
             InnerConnector {
@@ -305,7 +309,9 @@ mod connect_impl {
     impl<T, Io> Service for InnerConnector<T, Io>
     where
         Io: AsyncRead + AsyncWrite + 'static,
-        T: Service<Request = Connect, Response = (Io, Protocol), Error = ConnectError>,
+        T: Service<Request = Connect, Response = (Io, Protocol), Error = ConnectError>
+            + Clone
+            + 'static,
     {
         type Request = Connect;
         type Response = IoConnection<Io>;
@@ -356,9 +362,11 @@ mod connect_impl {
         Io1: AsyncRead + AsyncWrite + 'static,
         Io2: AsyncRead + AsyncWrite + 'static,
         T1: Service<Request = Connect, Response = (Io1, Protocol), Error = ConnectError>
-            + Clone,
+            + Clone
+            + 'static,
         T2: Service<Request = Connect, Response = (Io2, Protocol), Error = ConnectError>
-            + Clone,
+            + Clone
+            + 'static,
     {
         fn clone(&self) -> Self {
             InnerConnector {
@@ -372,8 +380,12 @@ mod connect_impl {
     where
         Io1: AsyncRead + AsyncWrite + 'static,
         Io2: AsyncRead + AsyncWrite + 'static,
-        T1: Service<Request = Connect, Response = (Io1, Protocol), Error = ConnectError>,
-        T2: Service<Request = Connect, Response = (Io2, Protocol), Error = ConnectError>,
+        T1: Service<Request = Connect, Response = (Io1, Protocol), Error = ConnectError>
+            + Clone
+            + 'static,
+        T2: Service<Request = Connect, Response = (Io2, Protocol), Error = ConnectError>
+            + Clone
+            + 'static,
     {
         type Request = Connect;
         type Response = EitherConnection<Io1, Io2>;
@@ -409,7 +421,9 @@ mod connect_impl {
     pub(crate) struct InnerConnectorResponseA<T, Io1, Io2>
     where
         Io1: AsyncRead + AsyncWrite + 'static,
-        T: Service<Request = Connect, Response = (Io1, Protocol), Error = ConnectError>,
+        T: Service<Request = Connect, Response = (Io1, Protocol), Error = ConnectError>
+            + Clone
+            + 'static,
     {
         fut: <ConnectionPool<T, Io1> as Service>::Future,
         _t: PhantomData<Io2>,
@@ -417,7 +431,9 @@ mod connect_impl {
 
     impl<T, Io1, Io2> Future for InnerConnectorResponseA<T, Io1, Io2>
     where
-        T: Service<Request = Connect, Response = (Io1, Protocol), Error = ConnectError>,
+        T: Service<Request = Connect, Response = (Io1, Protocol), Error = ConnectError>
+            + Clone
+            + 'static,
         Io1: AsyncRead + AsyncWrite + 'static,
         Io2: AsyncRead + AsyncWrite + 'static,
     {
@@ -435,7 +451,9 @@ mod connect_impl {
     pub(crate) struct InnerConnectorResponseB<T, Io1, Io2>
     where
         Io2: AsyncRead + AsyncWrite + 'static,
-        T: Service<Request = Connect, Response = (Io2, Protocol), Error = ConnectError>,
+        T: Service<Request = Connect, Response = (Io2, Protocol), Error = ConnectError>
+            + Clone
+            + 'static,
     {
         fut: <ConnectionPool<T, Io2> as Service>::Future,
         _t: PhantomData<Io1>,
@@ -443,7 +461,9 @@ mod connect_impl {
 
     impl<T, Io1, Io2> Future for InnerConnectorResponseB<T, Io1, Io2>
     where
-        T: Service<Request = Connect, Response = (Io2, Protocol), Error = ConnectError>,
+        T: Service<Request = Connect, Response = (Io2, Protocol), Error = ConnectError>
+            + Clone
+            + 'static,
         Io1: AsyncRead + AsyncWrite + 'static,
         Io2: AsyncRead + AsyncWrite + 'static,
     {
