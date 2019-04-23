@@ -4,6 +4,9 @@
 
 * Add helper functions for reading response body `test::read_body()`
 
+* Added support for `remainder match` (i.e "/path/{tail}*")
+
+
 ### Changed
 
 * `.to_async()` handler can return `Responder` type #792
