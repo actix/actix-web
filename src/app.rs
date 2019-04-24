@@ -431,13 +431,14 @@ where
 #[cfg(test)]
 mod tests {
     use actix_service::Service;
+    use bytes::Bytes;
     use futures::{Future, IntoFuture};
 
     use super::*;
     use crate::http::{header, HeaderValue, Method, StatusCode};
     use crate::service::{ServiceRequest, ServiceResponse};
-    use crate::test::{block_on, call_service, init_service, TestRequest};
-    use crate::{web, Error, HttpResponse};
+    use crate::test::{block_on, call_service, init_service, read_body, TestRequest};
+    use crate::{web, Error, HttpRequest, HttpResponse};
 
     #[test]
     fn test_default_resource() {
@@ -597,5 +598,27 @@ mod tests {
             resp.headers().get(header::CONTENT_TYPE).unwrap(),
             HeaderValue::from_static("0001")
         );
+    }
+
+    #[test]
+    fn test_external_resource() {
+        let mut srv = init_service(
+            App::new()
+                .external_resource("youtube", "https://youtube.com/watch/{video_id}")
+                .route(
+                    "/test",
+                    web::get().to(|req: HttpRequest| {
+                        HttpResponse::Ok().body(format!(
+                            "{}",
+                            req.url_for("youtube", &["12345"]).unwrap()
+                        ))
+                    }),
+                ),
+        );
+        let req = TestRequest::with_uri("/test").to_request();
+        let resp = call_service(&mut srv, req);
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = read_body(resp);
+        assert_eq!(body, Bytes::from_static(b"https://youtube.com/watch/12345"));
     }
 }

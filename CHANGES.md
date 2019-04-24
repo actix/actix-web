@@ -12,6 +12,11 @@
 * `.to_async()` handler can return `Responder` type #792
 
 
+### Fixed
+
+* Fix async web::Data factory handling
+
+
 ## [1.0.0-beta.1] - 2019-04-20
 
 ### Added

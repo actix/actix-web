@@ -253,11 +253,14 @@ impl ServiceConfig {
 #[cfg(test)]
 mod tests {
     use actix_service::Service;
+    use bytes::Bytes;
+    use futures::Future;
+    use tokio_timer::sleep;
 
     use super::*;
     use crate::http::{Method, StatusCode};
-    use crate::test::{block_on, call_service, init_service, TestRequest};
-    use crate::{web, App, HttpResponse};
+    use crate::test::{block_on, call_service, init_service, read_body, TestRequest};
+    use crate::{web, App, HttpRequest, HttpResponse};
 
     #[test]
     fn test_data() {
@@ -277,7 +280,12 @@ mod tests {
     #[test]
     fn test_data_factory() {
         let cfg = |cfg: &mut ServiceConfig| {
-            cfg.data_factory(|| Ok::<_, ()>(10usize));
+            cfg.data_factory(|| {
+                sleep(std::time::Duration::from_millis(50)).then(|_| {
+                    println!("READY");
+                    Ok::<_, ()>(10usize)
+                })
+            });
         };
 
         let mut srv =
@@ -299,6 +307,33 @@ mod tests {
         let req = TestRequest::default().to_request();
         let resp = block_on(srv.call(req)).unwrap();
         assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    #[test]
+    fn test_external_resource() {
+        let mut srv = init_service(
+            App::new()
+                .configure(|cfg| {
+                    cfg.external_resource(
+                        "youtube",
+                        "https://youtube.com/watch/{video_id}",
+                    );
+                })
+                .route(
+                    "/test",
+                    web::get().to(|req: HttpRequest| {
+                        HttpResponse::Ok().body(format!(
+                            "{}",
+                            req.url_for("youtube", &["12345"]).unwrap()
+                        ))
+                    }),
+                ),
+        );
+        let req = TestRequest::with_uri("/test").to_request();
+        let resp = call_service(&mut srv, req);
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = read_body(resp);
+        assert_eq!(body, Bytes::from_static(b"https://youtube.com/watch/12345"));
     }
 
     #[test]
