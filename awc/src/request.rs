@@ -235,17 +235,10 @@ impl ClientRequest {
         self
     }
 
-    /// Is to uppercase headers with Camel-Case.
-    /// Befault is `false`
+    /// Send headers in `Camel-Case` form.
     #[inline]
-    pub fn upper_camel_case_headers(&self) -> bool {
-        self.head.upper_camel_case_headers()
-    }
-
-    /// Set `true` to send headers which are uppercased with Camel-Case.
-    #[inline]
-    pub fn set_upper_camel_case_headers(&mut self, value: bool) -> &mut Self {
-        self.head.set_upper_camel_case_headers(value);
+    pub fn camel_case(mut self) -> Self {
+        self.head.set_camel_case_headers(true);
         self
     }
 

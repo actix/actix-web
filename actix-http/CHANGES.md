@@ -1,5 +1,10 @@
 # Changes
 
+### Added
+
+* Allow to render h1 request headers in `Camel-Case`
+
+
 ## [0.1.3] - 2019-04-23
 
 ### Fixed

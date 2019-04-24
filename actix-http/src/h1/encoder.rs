@@ -43,7 +43,7 @@ pub(crate) trait MessageType: Sized {
 
     fn headers(&self) -> &HeaderMap;
 
-    fn upper_camel_case(&self) -> bool {
+    fn camel_case(&self) -> bool {
         false
     }
 
@@ -61,6 +61,7 @@ pub(crate) trait MessageType: Sized {
     ) -> io::Result<()> {
         let chunked = self.chunked();
         let mut skip_len = length != BodySize::Stream;
+        let camel_case = self.camel_case();
 
         // Content length
         if let Some(status) = self.status() {
@@ -78,18 +79,30 @@ pub(crate) trait MessageType: Sized {
         match length {
             BodySize::Stream => {
                 if chunked {
-                    dst.put_slice(b"\r\ntransfer-encoding: chunked\r\n")
+                    if camel_case {
+                        dst.put_slice(b"\r\nTransfer-Encoding: chunked\r\n")
+                    } else {
+                        dst.put_slice(b"\r\nTransfer-Encoding: chunked\r\n")
+                    }
                 } else {
                     skip_len = false;
                     dst.put_slice(b"\r\n");
                 }
             }
             BodySize::Empty => {
-                dst.put_slice(b"\r\ncontent-length: 0\r\n");
+                if camel_case {
+                    dst.put_slice(b"\r\nContent-Length: 0\r\n");
+                } else {
+                    dst.put_slice(b"\r\ncontent-length: 0\r\n");
+                }
             }
             BodySize::Sized(len) => helpers::write_content_length(len, dst),
             BodySize::Sized64(len) => {
-                dst.put_slice(b"\r\ncontent-length: ");
+                if camel_case {
+                    dst.put_slice(b"\r\nContent-Length: ");
+                } else {
+                    dst.put_slice(b"\r\ncontent-length: ");
+                }
                 write!(dst.writer(), "{}\r\n", len)?;
             }
             BodySize::None => dst.put_slice(b"\r\n"),
@@ -99,10 +112,18 @@ pub(crate) trait MessageType: Sized {
         match ctype {
             ConnectionType::Upgrade => dst.put_slice(b"connection: upgrade\r\n"),
             ConnectionType::KeepAlive if version < Version::HTTP_11 => {
-                dst.put_slice(b"connection: keep-alive\r\n")
+                if camel_case {
+                    dst.put_slice(b"Connection: keep-alive\r\n")
+                } else {
+                    dst.put_slice(b"connection: keep-alive\r\n")
+                }
             }
             ConnectionType::Close if version >= Version::HTTP_11 => {
-                dst.put_slice(b"connection: close\r\n")
+                if camel_case {
+                    dst.put_slice(b"Connection: close\r\n")
+                } else {
+                    dst.put_slice(b"connection: close\r\n")
+                }
             }
             _ => (),
         }
@@ -137,7 +158,12 @@ pub(crate) trait MessageType: Sized {
                             buf = &mut *(dst.bytes_mut() as *mut _);
                         }
                     }
-                    buf[pos..pos + k.len()].copy_from_slice(k);
+                    // use upper Camel-Case
+                    if camel_case {
+                        write_camel_case(k, &mut buf[pos..pos + k.len()]);
+                    } else {
+                        buf[pos..pos + k.len()].copy_from_slice(k);
+                    }
                     pos += k.len();
                     buf[pos..pos + 2].copy_from_slice(b": ");
                     pos += 2;
@@ -162,7 +188,12 @@ pub(crate) trait MessageType: Sized {
                                 buf = &mut *(dst.bytes_mut() as *mut _);
                             }
                         }
-                        buf[pos..pos + k.len()].copy_from_slice(k);
+                        // use upper Camel-Case
+                        if camel_case {
+                            write_camel_case(k, &mut buf[pos..pos + k.len()]);
+                        } else {
+                            buf[pos..pos + k.len()].copy_from_slice(k);
+                        }
                         pos += k.len();
                         buf[pos..pos + 2].copy_from_slice(b": ");
                         pos += 2;
@@ -225,8 +256,8 @@ impl MessageType for RequestHead {
         self.chunked()
     }
 
-    fn upper_camel_case(&self) -> bool {
-        self.upper_camel_case_headers()
+    fn camel_case(&self) -> bool {
+        RequestHead::camel_case_headers(self)
     }
 
     fn headers(&self) -> &HeaderMap {
@@ -426,7 +457,7 @@ impl<'a> io::Write for Writer<'a> {
     }
 }
 
-fn write_upper_camel_case(value: &[u8], buffer: &mut [u8]) {
+fn write_camel_case(value: &[u8], buffer: &mut [u8]) {
     let mut index = 0;
     let key = value;
     let mut key_iter = key.iter();
@@ -456,8 +487,10 @@ fn write_upper_camel_case(value: &[u8], buffer: &mut [u8]) {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use bytes::Bytes;
+
+    use super::*;
+    use crate::http::header::{HeaderValue, CONTENT_TYPE};
 
     #[test]
     fn test_chunked_te() {
@@ -470,6 +503,66 @@ mod tests {
         assert_eq!(
             bytes.take().freeze(),
             Bytes::from_static(b"4\r\ntest\r\n0\r\n\r\n")
+        );
+    }
+
+    #[test]
+    fn test_camel_case() {
+        let mut bytes = BytesMut::with_capacity(2048);
+        let mut head = RequestHead::default();
+        head.set_camel_case_headers(true);
+        head.headers.insert(DATE, HeaderValue::from_static("date"));
+        head.headers
+            .insert(CONTENT_TYPE, HeaderValue::from_static("plain/text"));
+
+        let _ = head.encode_headers(
+            &mut bytes,
+            Version::HTTP_11,
+            BodySize::Empty,
+            ConnectionType::Close,
+            &ServiceConfig::default(),
+        );
+        assert_eq!(
+            bytes.take().freeze(),
+            Bytes::from_static(b"\r\nContent-Length: 0\r\nConnection: close\r\nDate: date\r\nContent-Type: plain/text\r\n\r\n")
+        );
+
+        let _ = head.encode_headers(
+            &mut bytes,
+            Version::HTTP_11,
+            BodySize::Stream,
+            ConnectionType::KeepAlive,
+            &ServiceConfig::default(),
+        );
+        assert_eq!(
+            bytes.take().freeze(),
+            Bytes::from_static(b"\r\nTransfer-Encoding: chunked\r\nDate: date\r\nContent-Type: plain/text\r\n\r\n")
+        );
+
+        let _ = head.encode_headers(
+            &mut bytes,
+            Version::HTTP_11,
+            BodySize::Sized64(100),
+            ConnectionType::KeepAlive,
+            &ServiceConfig::default(),
+        );
+        assert_eq!(
+            bytes.take().freeze(),
+            Bytes::from_static(b"\r\nContent-Length: 100\r\nDate: date\r\nContent-Type: plain/text\r\n\r\n")
+        );
+
+        head.headers
+            .append(CONTENT_TYPE, HeaderValue::from_static("xml"));
+        let _ = head.encode_headers(
+            &mut bytes,
+            Version::HTTP_11,
+            BodySize::Stream,
+            ConnectionType::KeepAlive,
+            &ServiceConfig::default(),
+        );
+        assert_eq!(
+            bytes.take().freeze(),
+            Bytes::from_static(b"\r\nTransfer-Encoding: chunked\r\nDate: date\r\nContent-Type: xml\r\nContent-Type: plain/text\r\n\r\n")
         );
     }
 }
