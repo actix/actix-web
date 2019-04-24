@@ -90,6 +90,10 @@ fn test_simple() {
     // read response
     let bytes = srv.block_on(response.body()).unwrap();
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
+
+    // camel case
+    let response = srv.block_on(srv.post("/").camel_case().send()).unwrap();
+    assert!(response.status().is_success());
 }
 
 #[test]

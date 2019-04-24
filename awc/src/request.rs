@@ -235,6 +235,13 @@ impl ClientRequest {
         self
     }
 
+    /// Send headers in `Camel-Case` form.
+    #[inline]
+    pub fn camel_case(mut self) -> Self {
+        self.head.set_camel_case_headers(true);
+        self
+    }
+
     /// Force close connection instead of returning it back to connections pool.
     /// This setting affect only http/1 connections.
     #[inline]

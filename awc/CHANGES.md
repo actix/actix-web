@@ -1,5 +1,9 @@
 # Changes
 
+### Added
+
+* Allow to send headers in `Camel-Case` form.
+
 ## [0.1.1] - 2019-04-19
 
 ### Added
