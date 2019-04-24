@@ -1,5 +1,7 @@
 # Changes
 
+## [1.0.0-beta.2] - 2019-04-24
+
 ### Added
 
 * Extend `Responder` trait, allow to override status code and headers.
