@@ -12,6 +12,8 @@
 
 * Extend `Responder` trait, allow to override status code and headers.
 
+* Store visit and login timestamp in the identity cookie #502
+
 ### Changed
 
 * `.to_async()` handler can return `Responder` type #792

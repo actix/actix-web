@@ -512,12 +512,16 @@ impl CookieIdentityPolicy {
     }
 
     /// Accepts only users whose cookie has been seen before the given deadline
+    ///
+    /// By default visit deadline is disabled.
     pub fn visit_deadline(mut self, value: Duration) -> CookieIdentityPolicy {
         Rc::get_mut(&mut self.0).unwrap().visit_deadline = Some(value);
         self
     }
 
     /// Accepts only users which has been authenticated before the given deadline
+    ///
+    /// By default login deadline is disabled.
     pub fn login_deadline(mut self, value: Duration) -> CookieIdentityPolicy {
         Rc::get_mut(&mut self.0).unwrap().login_deadline = Some(value);
         self
