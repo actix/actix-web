@@ -27,6 +27,7 @@ bitflags! {
         const UPGRADE     = 0b0000_0100;
         const EXPECT      = 0b0000_1000;
         const NO_CHUNKING = 0b0001_0000;
+        const CAMEL_CASE  = 0b0010_0000;
     }
 }
 
@@ -95,6 +96,23 @@ impl RequestHead {
     /// Mutable reference to the message headers.
     pub fn headers_mut(&mut self) -> &mut HeaderMap {
         &mut self.headers
+    }
+
+    /// Is to uppercase headers with Camel-Case.
+    /// Befault is `false`
+    #[inline]
+    pub fn upper_camel_case_headers(&self) -> bool {
+        self.flags.contains(Flags::CAMEL_CASE)
+    }
+
+    /// Set `true` to send headers which are uppercased with Camel-Case.
+    #[inline]
+    pub fn set_upper_camel_case_headers(&mut self, val: bool) {
+        if val {
+            self.flags.insert(Flags::CAMEL_CASE);
+        } else {
+            self.flags.remove(Flags::CAMEL_CASE);
+        }
     }
 
     #[inline]

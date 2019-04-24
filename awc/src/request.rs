@@ -235,6 +235,20 @@ impl ClientRequest {
         self
     }
 
+    /// Is to uppercase headers with Camel-Case.
+    /// Befault is `false`
+    #[inline]
+    pub fn upper_camel_case_headers(&self) -> bool {
+        self.head.upper_camel_case_headers()
+    }
+
+    /// Set `true` to send headers which are uppercased with Camel-Case.
+    #[inline]
+    pub fn set_upper_camel_case_headers(&mut self, value: bool) -> &mut Self {
+        self.head.set_upper_camel_case_headers(value);
+        self
+    }
+
     /// Force close connection instead of returning it back to connections pool.
     /// This setting affect only http/1 connections.
     #[inline]
