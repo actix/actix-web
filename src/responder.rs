@@ -23,7 +23,7 @@ pub trait Responder {
     /// Convert itself to `AsyncResult` or `Error`.
     fn respond_to(self, req: &HttpRequest) -> Self::Future;
 
-    /// Override a status code for a responder.
+    /// Override a status code for a Responder.
     ///
     /// ```rust
     /// use actix_web::{HttpRequest, Responder, http::StatusCode};
@@ -40,7 +40,7 @@ pub trait Responder {
         CustomResponder::new(self).with_status(status)
     }
 
-    /// Add extra header to the responder's response.
+    /// Add header to the Responder's response.
     ///
     /// ```rust
     /// use actix_web::{web, HttpRequest, Responder};
@@ -221,7 +221,7 @@ impl<T: Responder> CustomResponder<T> {
         }
     }
 
-    /// Override a status code for the responder's response.
+    /// Override a status code for the Responder's response.
     ///
     /// ```rust
     /// use actix_web::{HttpRequest, Responder, http::StatusCode};
@@ -236,7 +236,7 @@ impl<T: Responder> CustomResponder<T> {
         self
     }
 
-    /// Add extra header to the responder's response.
+    /// Add header to the Responder's response.
     ///
     /// ```rust
     /// use actix_web::{web, HttpRequest, Responder};
