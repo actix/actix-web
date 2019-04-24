@@ -300,7 +300,13 @@ impl MessageType for ResponseHead {
             error!("MAX_BUFFER_SIZE unprocessed data reached, closing");
             return Err(ParseError::TooLarge);
         } else {
-            PayloadType::None
+            // for HTTP/1.0 read to eof and close connection
+            if msg.version == Version::HTTP_10 {
+                msg.set_connection_type(ConnectionType::Close);
+                PayloadType::Payload(PayloadDecoder::eof())
+            } else {
+                PayloadType::None
+            }
         };
 
         Ok(Some((msg, decoder)))
@@ -331,7 +337,7 @@ impl HeaderIndex {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 /// Http payload item
 pub enum PayloadItem {
     Chunk(Bytes),
@@ -1190,5 +1196,17 @@ mod tests {
         assert_eq!(chunk, Bytes::from_static(b"line"));
         let msg = pl.decode(&mut buf).unwrap().unwrap();
         assert!(msg.eof());
+    }
+
+    #[test]
+    fn test_response_http10_read_until_eof() {
+        let mut buf = BytesMut::from(&"HTTP/1.0 200 Ok\r\n\r\ntest data"[..]);
+
+        let mut reader = MessageDecoder::<ResponseHead>::default();
+        let (_msg, pl) = reader.decode(&mut buf).unwrap().unwrap();
+        let mut pl = pl.unwrap();
+
+        let chunk = pl.decode(&mut buf).unwrap().unwrap();
+        assert_eq!(chunk, PayloadItem::Chunk(Bytes::from_static(b"test data")));
     }
 }

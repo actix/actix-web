@@ -4,6 +4,10 @@
 
 * Allow to render h1 request headers in `Camel-Case`
 
+### Fixed
+
+* Read until eof for http/1.0 responses #771
+
 
 ## [0.1.3] - 2019-04-23
 
