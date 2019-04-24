@@ -2,6 +2,8 @@
 
 ### Added
 
+* Extend `Responder` trait, allow to override status code and headers.
+
 * Add helper functions for reading response body `test::read_body()`
 
 * Added support for `remainder match` (i.e "/path/{tail}*")
