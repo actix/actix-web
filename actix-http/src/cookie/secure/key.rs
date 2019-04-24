@@ -68,8 +68,8 @@ impl Key {
         encryption_key.copy_from_slice(&both_keys[SIGNED_KEY_LEN..]);
 
         Key {
-            signing_key: signing_key,
-            encryption_key: encryption_key,
+            signing_key,
+            encryption_key,
         }
     }
 

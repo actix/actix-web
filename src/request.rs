@@ -1,42 +1,48 @@
-use std::cell::{Ref, RefMut};
-use std::fmt;
+use std::cell::{Ref, RefCell, RefMut};
 use std::rc::Rc;
+use std::{fmt, net};
 
 use actix_http::http::{HeaderMap, Method, Uri, Version};
 use actix_http::{Error, Extensions, HttpMessage, Message, Payload, RequestHead};
 use actix_router::{Path, Url};
 
 use crate::config::AppConfig;
-use crate::data::Data;
+use crate::data::{Data, RouteData};
 use crate::error::UrlGenerationError;
 use crate::extract::FromRequest;
 use crate::info::ConnectionInfo;
 use crate::rmap::ResourceMap;
-use crate::service::ServiceFromRequest;
 
 #[derive(Clone)]
 /// An HTTP Request
-pub struct HttpRequest {
+pub struct HttpRequest(pub(crate) Rc<HttpRequestInner>);
+
+pub(crate) struct HttpRequestInner {
     pub(crate) head: Message<RequestHead>,
     pub(crate) path: Path<Url>,
     rmap: Rc<ResourceMap>,
     config: AppConfig,
+    route_data: Option<Rc<Extensions>>,
+    pool: &'static HttpRequestPool,
 }
 
 impl HttpRequest {
     #[inline]
     pub(crate) fn new(
-        head: Message<RequestHead>,
         path: Path<Url>,
+        head: Message<RequestHead>,
         rmap: Rc<ResourceMap>,
         config: AppConfig,
+        pool: &'static HttpRequestPool,
     ) -> HttpRequest {
-        HttpRequest {
+        HttpRequest(Rc::new(HttpRequestInner {
             head,
             path,
             rmap,
             config,
-        }
+            pool,
+            route_data: None,
+        }))
     }
 }
 
@@ -44,7 +50,14 @@ impl HttpRequest {
     /// This method returns reference to the request head
     #[inline]
     pub fn head(&self) -> &RequestHead {
-        &self.head
+        &self.0.head
+    }
+
+    /// This method returns muttable reference to the request head.
+    /// panics if multiple references of http request exists.
+    #[inline]
+    pub(crate) fn head_mut(&mut self) -> &mut RequestHead {
+        &mut Rc::get_mut(&mut self.0).unwrap().head
     }
 
     /// Request's uri.
@@ -97,23 +110,12 @@ impl HttpRequest {
     /// access the matched value for that segment.
     #[inline]
     pub fn match_info(&self) -> &Path<Url> {
-        &self.path
+        &self.0.path
     }
 
-    /// App config
     #[inline]
-    pub fn config(&self) -> &AppConfig {
-        &self.config
-    }
-
-    /// Get an application data stored with `App::data()` method during
-    /// application configuration.
-    pub fn app_data<T: 'static>(&self) -> Option<Data<T>> {
-        if let Some(st) = self.config.extensions().get::<Data<T>>() {
-            Some(st.clone())
-        } else {
-            None
-        }
+    pub(crate) fn match_info_mut(&mut self) -> &mut Path<Url> {
+        &mut Rc::get_mut(&mut self.0).unwrap().path
     }
 
     /// Request extensions
@@ -156,7 +158,7 @@ impl HttpRequest {
         U: IntoIterator<Item = I>,
         I: AsRef<str>,
     {
-        self.rmap.url_for(&self, name, elements)
+        self.0.rmap.url_for(&self, name, elements)
     }
 
     /// Generate url for named resource
@@ -168,10 +170,51 @@ impl HttpRequest {
         self.url_for(name, &NO_PARAMS)
     }
 
+    /// Peer socket address
+    ///
+    /// Peer address is actual socket address, if proxy is used in front of
+    /// actix http server, then peer address would be address of this proxy.
+    ///
+    /// To get client connection information `.connection_info()` should be used.
+    #[inline]
+    pub fn peer_addr(&self) -> Option<net::SocketAddr> {
+        self.head().peer_addr
+    }
+
     /// Get *ConnectionInfo* for the current request.
     #[inline]
     pub fn connection_info(&self) -> Ref<ConnectionInfo> {
-        ConnectionInfo::get(self.head(), &*self.config())
+        ConnectionInfo::get(self.head(), &*self.app_config())
+    }
+
+    /// App config
+    #[inline]
+    pub fn app_config(&self) -> &AppConfig {
+        &self.0.config
+    }
+
+    /// Get an application data stored with `App::data()` method during
+    /// application configuration.
+    pub fn app_data<T: 'static>(&self) -> Option<Data<T>> {
+        if let Some(st) = self.0.config.extensions().get::<Data<T>>() {
+            Some(st.clone())
+        } else {
+            None
+        }
+    }
+
+    /// Load route data. Route data could be set during
+    /// route configuration with `Route::data()` method.
+    pub fn route_data<T: 'static>(&self) -> Option<&RouteData<T>> {
+        if let Some(ref ext) = self.0.route_data {
+            ext.get::<RouteData<T>>()
+        } else {
+            None
+        }
+    }
+
+    pub(crate) fn set_route_data(&mut self, data: Option<Rc<Extensions>>) {
+        Rc::get_mut(&mut self.0).unwrap().route_data = data;
     }
 }
 
@@ -187,18 +230,29 @@ impl HttpMessage for HttpRequest {
     /// Request extensions
     #[inline]
     fn extensions(&self) -> Ref<Extensions> {
-        self.head.extensions()
+        self.0.head.extensions()
     }
 
     /// Mutable reference to a the request's extensions
     #[inline]
     fn extensions_mut(&self) -> RefMut<Extensions> {
-        self.head.extensions_mut()
+        self.0.head.extensions_mut()
     }
 
     #[inline]
     fn take_payload(&mut self) -> Payload<Self::Stream> {
         Payload::None
+    }
+}
+
+impl Drop for HttpRequest {
+    fn drop(&mut self) {
+        if Rc::strong_count(&self.0) == 1 {
+            let v = &mut self.0.pool.0.borrow_mut();
+            if v.len() < 128 {
+                v.push(self.0.clone());
+            }
+        }
     }
 }
 
@@ -222,13 +276,14 @@ impl HttpMessage for HttpRequest {
 ///     );
 /// }
 /// ```
-impl<P> FromRequest<P> for HttpRequest {
+impl FromRequest for HttpRequest {
+    type Config = ();
     type Error = Error;
     type Future = Result<Self, Error>;
 
     #[inline]
-    fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
-        Ok(req.request().clone())
+    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
+        Ok(req.clone())
     }
 }
 
@@ -237,8 +292,8 @@ impl fmt::Debug for HttpRequest {
         writeln!(
             f,
             "\nHttpRequest {:?} {}:{}",
-            self.head.version,
-            self.head.method,
+            self.0.head.version,
+            self.0.head.method,
             self.path()
         )?;
         if !self.query_string().is_empty() {
@@ -255,12 +310,32 @@ impl fmt::Debug for HttpRequest {
     }
 }
 
+/// Request's objects pool
+pub(crate) struct HttpRequestPool(RefCell<Vec<Rc<HttpRequestInner>>>);
+
+impl HttpRequestPool {
+    pub(crate) fn create() -> &'static HttpRequestPool {
+        let pool = HttpRequestPool(RefCell::new(Vec::with_capacity(128)));
+        Box::leak(Box::new(pool))
+    }
+
+    /// Get message from the pool
+    #[inline]
+    pub(crate) fn get_request(&self) -> Option<HttpRequest> {
+        if let Some(inner) = self.0.borrow_mut().pop() {
+            Some(HttpRequest(inner))
+        } else {
+            None
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::dev::{ResourceDef, ResourceMap};
     use crate::http::{header, StatusCode};
-    use crate::test::{call_success, init_service, TestRequest};
+    use crate::test::{call_service, init_service, TestRequest};
     use crate::{web, App, HttpResponse};
 
     #[test]
@@ -286,10 +361,10 @@ mod tests {
         {
             let cookies = req.cookies().unwrap();
             assert_eq!(cookies.len(), 2);
-            assert_eq!(cookies[0].name(), "cookie1");
-            assert_eq!(cookies[0].value(), "value1");
-            assert_eq!(cookies[1].name(), "cookie2");
-            assert_eq!(cookies[1].value(), "value2");
+            assert_eq!(cookies[0].name(), "cookie2");
+            assert_eq!(cookies[0].value(), "value2");
+            assert_eq!(cookies[1].name(), "cookie1");
+            assert_eq!(cookies[1].value(), "value1");
         }
 
         let cookie = req.cookie("cookie1");
@@ -389,7 +464,7 @@ mod tests {
         ));
 
         let req = TestRequest::default().to_request();
-        let resp = call_success(&mut srv, req);
+        let resp = call_service(&mut srv, req);
         assert_eq!(resp.status(), StatusCode::OK);
 
         let mut srv = init_service(App::new().data(10u32).service(
@@ -403,7 +478,7 @@ mod tests {
         ));
 
         let req = TestRequest::default().to_request();
-        let resp = call_success(&mut srv, req);
+        let resp = call_service(&mut srv, req);
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
     }
 }

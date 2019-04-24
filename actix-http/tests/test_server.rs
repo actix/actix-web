@@ -5,10 +5,11 @@ use std::{net, thread};
 use actix_codec::{AsyncRead, AsyncWrite};
 use actix_http_test::TestServer;
 use actix_server_config::ServerConfig;
-use actix_service::{fn_cfg_factory, NewService};
+use actix_service::{fn_cfg_factory, fn_service, NewService};
 use bytes::{Bytes, BytesMut};
 use futures::future::{self, ok, Future};
 use futures::stream::{once, Stream};
+use tokio_timer::sleep;
 
 use actix_http::body::Body;
 use actix_http::error::PayloadError;
@@ -34,7 +35,10 @@ fn test_h1() {
             .keep_alive(KeepAlive::Disabled)
             .client_timeout(1000)
             .client_disconnect(1000)
-            .h1(|_| future::ok::<_, ()>(Response::Ok().finish()))
+            .h1(|req: Request| {
+                assert!(req.peer_addr().is_some());
+                future::ok::<_, ()>(Response::Ok().finish())
+            })
     });
 
     let response = srv.block_on(srv.get("/").send()).unwrap();
@@ -49,6 +53,7 @@ fn test_h1_2() {
             .client_timeout(1000)
             .client_disconnect(1000)
             .finish(|req: Request| {
+                assert!(req.peer_addr().is_some());
                 assert_eq!(req.version(), http::Version::HTTP_11);
                 future::ok::<_, ()>(Response::Ok().finish())
             })
@@ -114,6 +119,7 @@ fn test_h2_1() -> std::io::Result<()> {
             .and_then(
                 HttpService::build()
                     .finish(|req: Request| {
+                        assert!(req.peer_addr().is_some());
                         assert_eq!(req.version(), http::Version::HTTP_2);
                         future::ok::<_, Error>(Response::Ok().finish())
                     })
@@ -151,6 +157,62 @@ fn test_h2_body() -> std::io::Result<()> {
     let body = srv.load_body(response).unwrap();
     assert_eq!(&body, data.as_bytes());
     Ok(())
+}
+
+#[test]
+fn test_expect_continue() {
+    let srv = TestServer::new(|| {
+        HttpService::build()
+            .expect(fn_service(|req: Request| {
+                if req.head().uri.query() == Some("yes=") {
+                    Ok(req)
+                } else {
+                    Err(error::ErrorPreconditionFailed("error"))
+                }
+            }))
+            .finish(|_| future::ok::<_, ()>(Response::Ok().finish()))
+    });
+
+    let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
+    let _ = stream.write_all(b"GET /test HTTP/1.1\r\nexpect: 100-continue\r\n\r\n");
+    let mut data = String::new();
+    let _ = stream.read_to_string(&mut data);
+    assert!(data.starts_with("HTTP/1.1 412 Precondition Failed\r\ncontent-length"));
+
+    let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
+    let _ = stream.write_all(b"GET /test?yes= HTTP/1.1\r\nexpect: 100-continue\r\n\r\n");
+    let mut data = String::new();
+    let _ = stream.read_to_string(&mut data);
+    assert!(data.starts_with("HTTP/1.1 100 Continue\r\n\r\nHTTP/1.1 200 OK\r\n"));
+}
+
+#[test]
+fn test_expect_continue_h1() {
+    let srv = TestServer::new(|| {
+        HttpService::build()
+            .expect(fn_service(|req: Request| {
+                sleep(Duration::from_millis(20)).then(move |_| {
+                    if req.head().uri.query() == Some("yes=") {
+                        Ok(req)
+                    } else {
+                        Err(error::ErrorPreconditionFailed("error"))
+                    }
+                })
+            }))
+            .h1(|_| future::ok::<_, ()>(Response::Ok().finish()))
+    });
+
+    let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
+    let _ = stream.write_all(b"GET /test HTTP/1.1\r\nexpect: 100-continue\r\n\r\n");
+    let mut data = String::new();
+    let _ = stream.read_to_string(&mut data);
+    assert!(data.starts_with("HTTP/1.1 412 Precondition Failed\r\ncontent-length"));
+
+    let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
+    let _ = stream.write_all(b"GET /test?yes= HTTP/1.1\r\nexpect: 100-continue\r\n\r\n");
+    let mut data = String::new();
+    let _ = stream.read_to_string(&mut data);
+    assert!(data.starts_with("HTTP/1.1 100 Continue\r\n\r\nHTTP/1.1 200 OK\r\n"));
 }
 
 #[test]
@@ -867,7 +929,7 @@ fn test_h1_response_http_error_handling() {
 
     // read response
     let bytes = srv.load_body(response).unwrap();
-    assert!(bytes.is_empty());
+    assert_eq!(bytes, Bytes::from_static(b"failed to parse header value"));
 }
 
 #[cfg(feature = "ssl")]
@@ -900,7 +962,7 @@ fn test_h2_response_http_error_handling() {
 
     // read response
     let bytes = srv.load_body(response).unwrap();
-    assert!(bytes.is_empty());
+    assert_eq!(bytes, Bytes::from_static(b"failed to parse header value"));
 }
 
 #[test]
@@ -911,11 +973,11 @@ fn test_h1_service_error() {
     });
 
     let response = srv.block_on(srv.get("/").send()).unwrap();
-    assert_eq!(response.status(), http::StatusCode::INTERNAL_SERVER_ERROR);
+    assert_eq!(response.status(), http::StatusCode::BAD_REQUEST);
 
     // read response
     let bytes = srv.load_body(response).unwrap();
-    assert!(bytes.is_empty());
+    assert_eq!(bytes, Bytes::from_static(b"error"));
 }
 
 #[cfg(feature = "ssl")]

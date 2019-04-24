@@ -1,5 +1,9 @@
 //! Basic http primitives for actix-net framework.
-#![allow(clippy::type_complexity, clippy::new_without_default)]
+#![allow(
+    clippy::type_complexity,
+    clippy::new_without_default,
+    clippy::borrow_interior_mutable_const
+)]
 
 #[macro_use]
 extern crate log;
@@ -8,7 +12,6 @@ pub mod body;
 mod builder;
 pub mod client;
 mod config;
-#[cfg(any(feature = "flate2-zlib", feature = "flate2-rust", feature = "brotli"))]
 pub mod encoding;
 mod extensions;
 mod header;
@@ -37,7 +40,7 @@ pub use self::message::{Message, RequestHead, ResponseHead};
 pub use self::payload::{Payload, PayloadStream};
 pub use self::request::Request;
 pub use self::response::{Response, ResponseBuilder};
-pub use self::service::{HttpService, SendError, SendResponse};
+pub use self::service::HttpService;
 
 pub mod http {
     //! Various HTTP related types
@@ -45,10 +48,11 @@ pub mod http {
     // re-exports
     pub use http::header::{HeaderName, HeaderValue};
     pub use http::uri::PathAndQuery;
-    pub use http::{uri, Error, HeaderMap, HttpTryFrom, Uri};
+    pub use http::{uri, Error, HttpTryFrom, Uri};
     pub use http::{Method, StatusCode, Version};
 
     pub use crate::cookie::{Cookie, CookieBuilder};
+    pub use crate::header::HeaderMap;
 
     /// Various http headers
     pub mod header {

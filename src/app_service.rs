@@ -6,55 +6,50 @@ use actix_http::{Request, Response};
 use actix_router::{Path, ResourceDef, ResourceInfo, Router, Url};
 use actix_server_config::ServerConfig;
 use actix_service::boxed::{self, BoxedNewService, BoxedService};
-use actix_service::{fn_service, AndThen, NewService, Service, ServiceExt};
+use actix_service::{fn_service, NewService, Service};
 use futures::future::{ok, Either, FutureResult};
 use futures::{Async, Future, Poll};
 
-use crate::config::{AppConfig, ServiceConfig};
+use crate::config::{AppConfig, AppService};
 use crate::data::{DataFactory, DataFactoryResult};
 use crate::error::Error;
 use crate::guard::Guard;
+use crate::request::{HttpRequest, HttpRequestPool};
 use crate::rmap::ResourceMap;
 use crate::service::{ServiceFactory, ServiceRequest, ServiceResponse};
 
 type Guards = Vec<Box<Guard>>;
-type HttpService<P> = BoxedService<ServiceRequest<P>, ServiceResponse, Error>;
-type HttpNewService<P> =
-    BoxedNewService<(), ServiceRequest<P>, ServiceResponse, Error, ()>;
-type BoxedResponse = Box<Future<Item = ServiceResponse, Error = Error>>;
+type HttpService = BoxedService<ServiceRequest, ServiceResponse, Error>;
+type HttpNewService = BoxedNewService<(), ServiceRequest, ServiceResponse, Error, ()>;
+type BoxedResponse = Either<
+    FutureResult<ServiceResponse, Error>,
+    Box<Future<Item = ServiceResponse, Error = Error>>,
+>;
 
 /// Service factory to convert `Request` to a `ServiceRequest<S>`.
 /// It also executes data factories.
-pub struct AppInit<C, T, P, B>
+pub struct AppInit<T, B>
 where
-    C: NewService<Request = ServiceRequest, Response = ServiceRequest<P>>,
     T: NewService<
-        Request = ServiceRequest<P>,
+        Request = ServiceRequest,
         Response = ServiceResponse<B>,
         Error = Error,
         InitError = (),
     >,
 {
-    pub(crate) chain: C,
     pub(crate) endpoint: T,
     pub(crate) data: Vec<Box<DataFactory>>,
     pub(crate) config: RefCell<AppConfig>,
-    pub(crate) services: RefCell<Vec<Box<ServiceFactory<P>>>>,
-    pub(crate) default: Option<Rc<HttpNewService<P>>>,
-    pub(crate) factory_ref: Rc<RefCell<Option<AppRoutingFactory<P>>>>,
+    pub(crate) services: RefCell<Vec<Box<ServiceFactory>>>,
+    pub(crate) default: Option<Rc<HttpNewService>>,
+    pub(crate) factory_ref: Rc<RefCell<Option<AppRoutingFactory>>>,
     pub(crate) external: RefCell<Vec<ResourceDef>>,
 }
 
-impl<C, T, P: 'static, B> NewService<ServerConfig> for AppInit<C, T, P, B>
+impl<T, B> NewService<ServerConfig> for AppInit<T, B>
 where
-    C: NewService<
-        Request = ServiceRequest,
-        Response = ServiceRequest<P>,
-        Error = Error,
-        InitError = (),
-    >,
     T: NewService<
-        Request = ServiceRequest<P>,
+        Request = ServiceRequest,
         Response = ServiceResponse<B>,
         Error = Error,
         InitError = (),
@@ -62,15 +57,15 @@ where
 {
     type Request = Request;
     type Response = ServiceResponse<B>;
-    type Error = C::Error;
-    type InitError = C::InitError;
-    type Service = AndThen<AppInitService<C::Service, P>, T::Service>;
-    type Future = AppInitResult<C, T, P, B>;
+    type Error = T::Error;
+    type InitError = T::InitError;
+    type Service = AppInitService<T::Service, B>;
+    type Future = AppInitResult<T, B>;
 
     fn new_service(&self, cfg: &ServerConfig) -> Self::Future {
         // update resource default service
         let default = self.default.clone().unwrap_or_else(|| {
-            Rc::new(boxed::new_service(fn_service(|req: ServiceRequest<P>| {
+            Rc::new(boxed::new_service(fn_service(|req: ServiceRequest| {
                 Ok(req.into_response(Response::NotFound().finish()))
             })))
         });
@@ -82,8 +77,7 @@ where
             loc_cfg.addr = cfg.local_addr();
         }
 
-        let mut config =
-            ServiceConfig::new(self.config.borrow().clone(), default.clone());
+        let mut config = AppService::new(self.config.borrow().clone(), default.clone());
 
         // register services
         std::mem::replace(&mut *self.services.borrow_mut(), Vec::new())
@@ -117,8 +111,6 @@ where
         rmap.finish(rmap.clone());
 
         AppInitResult {
-            chain: None,
-            chain_fut: self.chain.new_service(&()),
             endpoint: None,
             endpoint_fut: self.endpoint.new_service(&()),
             data: self.data.iter().map(|s| s.construct()).collect(),
@@ -129,38 +121,29 @@ where
     }
 }
 
-pub struct AppInitResult<C, T, P, B>
+pub struct AppInitResult<T, B>
 where
-    C: NewService,
     T: NewService,
 {
-    chain: Option<C::Service>,
     endpoint: Option<T::Service>,
-    chain_fut: C::Future,
     endpoint_fut: T::Future,
     rmap: Rc<ResourceMap>,
     data: Vec<Box<DataFactoryResult>>,
     config: AppConfig,
-    _t: PhantomData<(P, B)>,
+    _t: PhantomData<B>,
 }
 
-impl<C, T, P, B> Future for AppInitResult<C, T, P, B>
+impl<T, B> Future for AppInitResult<T, B>
 where
-    C: NewService<
-        Request = ServiceRequest,
-        Response = ServiceRequest<P>,
-        Error = Error,
-        InitError = (),
-    >,
     T: NewService<
-        Request = ServiceRequest<P>,
+        Request = ServiceRequest,
         Response = ServiceResponse<B>,
         Error = Error,
         InitError = (),
     >,
 {
-    type Item = AndThen<AppInitService<C::Service, P>, T::Service>;
-    type Error = C::InitError;
+    type Item = AppInitService<T::Service, B>;
+    type Error = T::InitError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         let mut idx = 0;
@@ -173,27 +156,19 @@ where
             }
         }
 
-        if self.chain.is_none() {
-            if let Async::Ready(srv) = self.chain_fut.poll()? {
-                self.chain = Some(srv);
-            }
-        }
-
         if self.endpoint.is_none() {
             if let Async::Ready(srv) = self.endpoint_fut.poll()? {
                 self.endpoint = Some(srv);
             }
         }
 
-        if self.chain.is_some() && self.endpoint.is_some() {
-            Ok(Async::Ready(
-                AppInitService {
-                    chain: self.chain.take().unwrap(),
-                    rmap: self.rmap.clone(),
-                    config: self.config.clone(),
-                }
-                .and_then(self.endpoint.take().unwrap()),
-            ))
+        if self.endpoint.is_some() && self.data.is_empty() {
+            Ok(Async::Ready(AppInitService {
+                service: self.endpoint.take().unwrap(),
+                rmap: self.rmap.clone(),
+                config: self.config.clone(),
+                pool: HttpRequestPool::create(),
+            }))
         } else {
             Ok(Async::NotReady)
         }
@@ -201,51 +176,63 @@ where
 }
 
 /// Service to convert `Request` to a `ServiceRequest<S>`
-pub struct AppInitService<C, P>
+pub struct AppInitService<T: Service, B>
 where
-    C: Service<Request = ServiceRequest, Response = ServiceRequest<P>, Error = Error>,
+    T: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
 {
-    chain: C,
+    service: T,
     rmap: Rc<ResourceMap>,
     config: AppConfig,
+    pool: &'static HttpRequestPool,
 }
 
-impl<C, P> Service for AppInitService<C, P>
+impl<T, B> Service for AppInitService<T, B>
 where
-    C: Service<Request = ServiceRequest, Response = ServiceRequest<P>, Error = Error>,
+    T: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
 {
     type Request = Request;
-    type Response = ServiceRequest<P>;
-    type Error = C::Error;
-    type Future = C::Future;
+    type Response = ServiceResponse<B>;
+    type Error = T::Error;
+    type Future = T::Future;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
-        self.chain.poll_ready()
+        self.service.poll_ready()
     }
 
     fn call(&mut self, req: Request) -> Self::Future {
-        let req = ServiceRequest::new(
-            Path::new(Url::new(req.uri().clone())),
-            req,
-            self.rmap.clone(),
-            self.config.clone(),
-        );
-        self.chain.call(req)
+        let (head, payload) = req.into_parts();
+
+        let req = if let Some(mut req) = self.pool.get_request() {
+            let inner = Rc::get_mut(&mut req.0).unwrap();
+            inner.path.get_mut().update(&head.uri);
+            inner.path.reset();
+            inner.head = head;
+            req
+        } else {
+            HttpRequest::new(
+                Path::new(Url::new(head.uri.clone())),
+                head,
+                self.rmap.clone(),
+                self.config.clone(),
+                self.pool,
+            )
+        };
+        self.service.call(ServiceRequest::from_parts(req, payload))
     }
 }
 
-pub struct AppRoutingFactory<P> {
-    services: Rc<Vec<(ResourceDef, HttpNewService<P>, RefCell<Option<Guards>>)>>,
-    default: Rc<HttpNewService<P>>,
+pub struct AppRoutingFactory {
+    services: Rc<Vec<(ResourceDef, HttpNewService, RefCell<Option<Guards>>)>>,
+    default: Rc<HttpNewService>,
 }
 
-impl<P: 'static> NewService for AppRoutingFactory<P> {
-    type Request = ServiceRequest<P>;
+impl NewService for AppRoutingFactory {
+    type Request = ServiceRequest;
     type Response = ServiceResponse;
     type Error = Error;
     type InitError = ();
-    type Service = AppRouting<P>;
-    type Future = AppRoutingFactoryResponse<P>;
+    type Service = AppRouting;
+    type Future = AppRoutingFactoryResponse;
 
     fn new_service(&self, _: &()) -> Self::Future {
         AppRoutingFactoryResponse {
@@ -266,23 +253,23 @@ impl<P: 'static> NewService for AppRoutingFactory<P> {
     }
 }
 
-type HttpServiceFut<P> = Box<Future<Item = HttpService<P>, Error = ()>>;
+type HttpServiceFut = Box<Future<Item = HttpService, Error = ()>>;
 
 /// Create app service
 #[doc(hidden)]
-pub struct AppRoutingFactoryResponse<P> {
-    fut: Vec<CreateAppRoutingItem<P>>,
-    default: Option<HttpService<P>>,
-    default_fut: Option<Box<Future<Item = HttpService<P>, Error = ()>>>,
+pub struct AppRoutingFactoryResponse {
+    fut: Vec<CreateAppRoutingItem>,
+    default: Option<HttpService>,
+    default_fut: Option<Box<Future<Item = HttpService, Error = ()>>>,
 }
 
-enum CreateAppRoutingItem<P> {
-    Future(Option<ResourceDef>, Option<Guards>, HttpServiceFut<P>),
-    Service(ResourceDef, Option<Guards>, HttpService<P>),
+enum CreateAppRoutingItem {
+    Future(Option<ResourceDef>, Option<Guards>, HttpServiceFut),
+    Service(ResourceDef, Option<Guards>, HttpService),
 }
 
-impl<P> Future for AppRoutingFactoryResponse<P> {
-    type Item = AppRouting<P>;
+impl Future for AppRoutingFactoryResponse {
+    type Item = AppRouting;
     type Error = ();
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
@@ -343,17 +330,17 @@ impl<P> Future for AppRoutingFactoryResponse<P> {
     }
 }
 
-pub struct AppRouting<P> {
-    router: Router<HttpService<P>, Guards>,
-    ready: Option<(ServiceRequest<P>, ResourceInfo)>,
-    default: Option<HttpService<P>>,
+pub struct AppRouting {
+    router: Router<HttpService, Guards>,
+    ready: Option<(ServiceRequest, ResourceInfo)>,
+    default: Option<HttpService>,
 }
 
-impl<P> Service for AppRouting<P> {
-    type Request = ServiceRequest<P>;
+impl Service for AppRouting {
+    type Request = ServiceRequest;
     type Response = ServiceResponse;
     type Error = Error;
-    type Future = Either<BoxedResponse, FutureResult<Self::Response, Self::Error>>;
+    type Future = BoxedResponse;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
         if self.ready.is_none() {
@@ -363,7 +350,7 @@ impl<P> Service for AppRouting<P> {
         }
     }
 
-    fn call(&mut self, mut req: ServiceRequest<P>) -> Self::Future {
+    fn call(&mut self, mut req: ServiceRequest) -> Self::Future {
         let res = self.router.recognize_mut_checked(&mut req, |req, guards| {
             if let Some(ref guards) = guards {
                 for f in guards {
@@ -376,69 +363,36 @@ impl<P> Service for AppRouting<P> {
         });
 
         if let Some((srv, _info)) = res {
-            Either::A(srv.call(req))
+            srv.call(req)
         } else if let Some(ref mut default) = self.default {
-            Either::A(default.call(req))
+            default.call(req)
         } else {
             let req = req.into_parts().0;
-            Either::B(ok(ServiceResponse::new(req, Response::NotFound().finish())))
+            Either::A(ok(ServiceResponse::new(req, Response::NotFound().finish())))
         }
     }
 }
 
 /// Wrapper service for routing
-pub struct AppEntry<P> {
-    factory: Rc<RefCell<Option<AppRoutingFactory<P>>>>,
+pub struct AppEntry {
+    factory: Rc<RefCell<Option<AppRoutingFactory>>>,
 }
 
-impl<P> AppEntry<P> {
-    pub fn new(factory: Rc<RefCell<Option<AppRoutingFactory<P>>>>) -> Self {
+impl AppEntry {
+    pub fn new(factory: Rc<RefCell<Option<AppRoutingFactory>>>) -> Self {
         AppEntry { factory }
     }
 }
 
-impl<P: 'static> NewService for AppEntry<P> {
-    type Request = ServiceRequest<P>;
+impl NewService for AppEntry {
+    type Request = ServiceRequest;
     type Response = ServiceResponse;
     type Error = Error;
     type InitError = ();
-    type Service = AppRouting<P>;
-    type Future = AppRoutingFactoryResponse<P>;
+    type Service = AppRouting;
+    type Future = AppRoutingFactoryResponse;
 
     fn new_service(&self, _: &()) -> Self::Future {
         self.factory.borrow_mut().as_mut().unwrap().new_service(&())
-    }
-}
-
-#[doc(hidden)]
-pub struct AppChain;
-
-impl NewService for AppChain {
-    type Request = ServiceRequest;
-    type Response = ServiceRequest;
-    type Error = Error;
-    type InitError = ();
-    type Service = AppChain;
-    type Future = FutureResult<Self::Service, Self::InitError>;
-
-    fn new_service(&self, _: &()) -> Self::Future {
-        ok(AppChain)
-    }
-}
-
-impl Service for AppChain {
-    type Request = ServiceRequest;
-    type Response = ServiceRequest;
-    type Error = Error;
-    type Future = FutureResult<Self::Response, Self::Error>;
-
-    #[inline]
-    fn poll_ready(&mut self) -> Poll<(), Self::Error> {
-        Ok(Async::Ready(()))
-    }
-
-    #[inline]
-    fn call(&mut self, req: ServiceRequest) -> Self::Future {
-        ok(req)
     }
 }

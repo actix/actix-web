@@ -50,7 +50,7 @@ pub fn handshake(req: &HttpRequest) -> Result<HttpResponseBuilder, HandshakeErro
     }
 
     // Check for "UPGRADE" to websocket header
-    let has_hdr = if let Some(hdr) = req.headers().get(header::UPGRADE) {
+    let has_hdr = if let Some(hdr) = req.headers().get(&header::UPGRADE) {
         if let Ok(s) = hdr.to_str() {
             s.to_ascii_lowercase().contains("websocket")
         } else {
@@ -69,11 +69,11 @@ pub fn handshake(req: &HttpRequest) -> Result<HttpResponseBuilder, HandshakeErro
     }
 
     // check supported version
-    if !req.headers().contains_key(header::SEC_WEBSOCKET_VERSION) {
+    if !req.headers().contains_key(&header::SEC_WEBSOCKET_VERSION) {
         return Err(HandshakeError::NoVersionHeader);
     }
     let supported_ver = {
-        if let Some(hdr) = req.headers().get(header::SEC_WEBSOCKET_VERSION) {
+        if let Some(hdr) = req.headers().get(&header::SEC_WEBSOCKET_VERSION) {
             hdr == "13" || hdr == "8" || hdr == "7"
         } else {
             false
@@ -84,11 +84,11 @@ pub fn handshake(req: &HttpRequest) -> Result<HttpResponseBuilder, HandshakeErro
     }
 
     // check client handshake for validity
-    if !req.headers().contains_key(header::SEC_WEBSOCKET_KEY) {
+    if !req.headers().contains_key(&header::SEC_WEBSOCKET_KEY) {
         return Err(HandshakeError::BadWebsocketKey);
     }
     let key = {
-        let key = req.headers().get(header::SEC_WEBSOCKET_KEY).unwrap();
+        let key = req.headers().get(&header::SEC_WEBSOCKET_KEY).unwrap();
         hash_key(key.as_ref())
     };
 

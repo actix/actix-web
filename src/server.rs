@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 use std::{fmt, io, net};
 
-use actix_http::{body::MessageBody, HttpService, KeepAlive, Request, Response};
+use actix_http::{body::MessageBody, Error, HttpService, KeepAlive, Request, Response};
 use actix_rt::System;
 use actix_server::{Server, ServerBuilder};
 use actix_server_config::ServerConfig;
@@ -53,7 +53,8 @@ where
     F: Fn() -> I + Send + Clone + 'static,
     I: IntoNewService<S, ServerConfig>,
     S: NewService<ServerConfig, Request = Request>,
-    S::Error: fmt::Debug,
+    S::Error: Into<Error>,
+    S::InitError: fmt::Debug,
     S::Response: Into<Response<B>>,
     S::Service: 'static,
     B: MessageBody,
@@ -72,7 +73,8 @@ where
     F: Fn() -> I + Send + Clone + 'static,
     I: IntoNewService<S, ServerConfig>,
     S: NewService<ServerConfig, Request = Request>,
-    S::Error: fmt::Debug + 'static,
+    S::Error: Into<Error>,
+    S::InitError: fmt::Debug,
     S::Response: Into<Response<B>>,
     S::Service: 'static,
     B: MessageBody + 'static,
@@ -442,7 +444,8 @@ where
     F: Fn() -> I + Send + Clone + 'static,
     I: IntoNewService<S, ServerConfig>,
     S: NewService<ServerConfig, Request = Request>,
-    S::Error: fmt::Debug,
+    S::Error: Into<Error>,
+    S::InitError: fmt::Debug,
     S::Response: Into<Response<B>>,
     S::Service: 'static,
     B: MessageBody,

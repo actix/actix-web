@@ -6,15 +6,15 @@ use std::str::FromStr;
 use std::{cmp, fmt, io, mem};
 
 use bytes::{BufMut, Bytes, BytesMut};
-use http::header::{
-    HeaderValue, ACCEPT_ENCODING, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING,
-};
-use http::{HeaderMap, Method, StatusCode, Version};
 
 use crate::body::BodySize;
 use crate::config::ServiceConfig;
-use crate::header::ContentEncoding;
+use crate::header::{map, ContentEncoding};
 use crate::helpers;
+use crate::http::header::{
+    HeaderValue, ACCEPT_ENCODING, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING,
+};
+use crate::http::{HeaderMap, Method, StatusCode, Version};
 use crate::message::{ConnectionType, Head, RequestHead, ResponseHead};
 use crate::request::Request;
 use crate::response::Response;
@@ -40,8 +40,6 @@ impl<T: MessageType> Default for MessageEncoder<T> {
 
 pub(crate) trait MessageType: Sized {
     fn status(&self) -> Option<StatusCode>;
-
-    // fn connection_type(&self) -> Option<ConnectionType>;
 
     fn headers(&self) -> &HeaderMap;
 
@@ -80,32 +78,31 @@ pub(crate) trait MessageType: Sized {
         match length {
             BodySize::Stream => {
                 if chunked {
-                    dst.extend_from_slice(b"\r\ntransfer-encoding: chunked\r\n")
+                    dst.put_slice(b"\r\ntransfer-encoding: chunked\r\n")
                 } else {
                     skip_len = false;
-                    dst.extend_from_slice(b"\r\n");
+                    dst.put_slice(b"\r\n");
                 }
             }
             BodySize::Empty => {
-                dst.extend_from_slice(b"\r\ncontent-length: 0\r\n");
+                dst.put_slice(b"\r\ncontent-length: 0\r\n");
             }
             BodySize::Sized(len) => helpers::write_content_length(len, dst),
             BodySize::Sized64(len) => {
-                dst.extend_from_slice(b"\r\ncontent-length: ");
-                write!(dst.writer(), "{}", len)?;
-                dst.extend_from_slice(b"\r\n");
+                dst.put_slice(b"\r\ncontent-length: ");
+                write!(dst.writer(), "{}\r\n", len)?;
             }
-            BodySize::None => dst.extend_from_slice(b"\r\n"),
+            BodySize::None => dst.put_slice(b"\r\n"),
         }
 
         // Connection
         match ctype {
-            ConnectionType::Upgrade => dst.extend_from_slice(b"connection: upgrade\r\n"),
+            ConnectionType::Upgrade => dst.put_slice(b"connection: upgrade\r\n"),
             ConnectionType::KeepAlive if version < Version::HTTP_11 => {
-                dst.extend_from_slice(b"connection: keep-alive\r\n")
+                dst.put_slice(b"connection: keep-alive\r\n")
             }
             ConnectionType::Close if version >= Version::HTTP_11 => {
-                dst.extend_from_slice(b"connection: close\r\n")
+                dst.put_slice(b"connection: close\r\n")
             }
             _ => (),
         }
@@ -115,7 +112,7 @@ pub(crate) trait MessageType: Sized {
         let mut has_date = false;
         let mut remaining = dst.remaining_mut();
         let mut buf = unsafe { &mut *(dst.bytes_mut() as *mut [u8]) };
-        for (key, value) in self.headers() {
+        for (key, value) in self.headers().inner.iter() {
             match *key {
                 CONNECTION => continue,
                 TRANSFER_ENCODING | CONTENT_LENGTH if skip_len => continue,
@@ -124,38 +121,59 @@ pub(crate) trait MessageType: Sized {
                 }
                 _ => (),
             }
-
-            let v = value.as_ref();
             let k = key.as_str().as_bytes();
-            let len = k.len() + v.len() + 4;
-            if len > remaining {
-                unsafe {
-                    dst.advance_mut(pos);
+            match value {
+                map::Value::One(ref val) => {
+                    let v = val.as_ref();
+                    let len = k.len() + v.len() + 4;
+                    if len > remaining {
+                        unsafe {
+                            dst.advance_mut(pos);
+                        }
+                        pos = 0;
+                        dst.reserve(len * 2);
+                        remaining = dst.remaining_mut();
+                        unsafe {
+                            buf = &mut *(dst.bytes_mut() as *mut _);
+                        }
+                    }
+                    buf[pos..pos + k.len()].copy_from_slice(k);
+                    pos += k.len();
+                    buf[pos..pos + 2].copy_from_slice(b": ");
+                    pos += 2;
+                    buf[pos..pos + v.len()].copy_from_slice(v);
+                    pos += v.len();
+                    buf[pos..pos + 2].copy_from_slice(b"\r\n");
+                    pos += 2;
+                    remaining -= len;
                 }
-                pos = 0;
-                dst.reserve(len);
-                remaining = dst.remaining_mut();
-                unsafe {
-                    buf = &mut *(dst.bytes_mut() as *mut _);
+                map::Value::Multi(ref vec) => {
+                    for val in vec {
+                        let v = val.as_ref();
+                        let len = k.len() + v.len() + 4;
+                        if len > remaining {
+                            unsafe {
+                                dst.advance_mut(pos);
+                            }
+                            pos = 0;
+                            dst.reserve(len * 2);
+                            remaining = dst.remaining_mut();
+                            unsafe {
+                                buf = &mut *(dst.bytes_mut() as *mut _);
+                            }
+                        }
+                        buf[pos..pos + k.len()].copy_from_slice(k);
+                        pos += k.len();
+                        buf[pos..pos + 2].copy_from_slice(b": ");
+                        pos += 2;
+                        buf[pos..pos + v.len()].copy_from_slice(v);
+                        pos += v.len();
+                        buf[pos..pos + 2].copy_from_slice(b"\r\n");
+                        pos += 2;
+                        remaining -= len;
+                    }
                 }
             }
-
-            buf[pos..pos + k.len()].copy_from_slice(k);
-            pos += k.len();
-            buf[pos..pos + 2].copy_from_slice(b": ");
-            pos += 2;
-
-            // use upper Camel-Case
-            if self.upper_camel_case() {
-                write_upper_camel_case(v, &mut buf[pos..pos + v.len()]);
-            } else {
-                buf[pos..pos + v.len()].copy_from_slice(v);
-            }
-            pos += v.len();
-
-            buf[pos..pos + 2].copy_from_slice(b"\r\n");
-            pos += 2;
-            remaining -= len;
         }
         unsafe {
             dst.advance_mut(pos);
@@ -182,10 +200,6 @@ impl MessageType for Response<()> {
         self.head().chunked()
     }
 
-    //fn connection_type(&self) -> Option<ConnectionType> {
-    //    self.head().ctype
-    //}
-
     fn headers(&self) -> &HeaderMap {
         &self.head().headers
     }
@@ -197,7 +211,7 @@ impl MessageType for Response<()> {
 
         // status line
         helpers::write_status_line(head.version, head.status.as_u16(), dst);
-        dst.extend_from_slice(reason);
+        dst.put_slice(reason);
         Ok(())
     }
 }
@@ -220,6 +234,7 @@ impl MessageType for RequestHead {
     }
 
     fn encode_status(&mut self, dst: &mut BytesMut) -> io::Result<()> {
+        dst.reserve(256 + self.headers.len() * AVERAGE_HEADER_SIZE);
         write!(
             Writer(dst),
             "{} {} {}",

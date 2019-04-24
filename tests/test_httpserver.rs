@@ -61,7 +61,7 @@ fn test_start() {
                     .connector(
                         client::Connector::new()
                             .timeout(Duration::from_millis(100))
-                            .service(),
+                            .finish(),
                     )
                     .finish(),
             )
@@ -136,7 +136,7 @@ fn test_start_ssl() {
                     awc::Connector::new()
                         .ssl(builder.build())
                         .timeout(Duration::from_millis(100))
-                        .service(),
+                        .finish(),
                 )
                 .finish(),
         )

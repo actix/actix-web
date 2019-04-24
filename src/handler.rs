@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::marker::PhantomData;
 use std::rc::Rc;
 
-use actix_http::{Error, Extensions, Response};
+use actix_http::{Error, Extensions, Payload, Response};
 use actix_service::{NewService, Service, Void};
 use futures::future::{ok, FutureResult};
 use futures::{try_ready, Async, Future, IntoFuture, Poll};
@@ -10,7 +10,7 @@ use futures::{try_ready, Async, Future, IntoFuture, Poll};
 use crate::extract::FromRequest;
 use crate::request::HttpRequest;
 use crate::responder::Responder;
-use crate::service::{ServiceFromRequest, ServiceRequest, ServiceResponse};
+use crate::service::{ServiceRequest, ServiceResponse};
 
 /// Handler converter factory
 pub trait Factory<T, R>: Clone
@@ -22,8 +22,8 @@ where
 
 impl<F, R> Factory<(), R> for F
 where
-    F: Fn() -> R + Clone + 'static,
-    R: Responder + 'static,
+    F: Fn() -> R + Clone,
+    R: Responder,
 {
     fn call(&self, _: ()) -> R {
         (self)()
@@ -52,40 +52,24 @@ where
         }
     }
 }
-impl<F, T, R> NewService for Handler<F, T, R>
+
+impl<F, T, R> Clone for Handler<F, T, R>
 where
     F: Factory<T, R>,
-    R: Responder + 'static,
+    R: Responder,
 {
-    type Request = (T, HttpRequest);
-    type Response = ServiceResponse;
-    type Error = Void;
-    type InitError = ();
-    type Service = HandlerService<F, T, R>;
-    type Future = FutureResult<Self::Service, ()>;
-
-    fn new_service(&self, _: &()) -> Self::Future {
-        ok(HandlerService {
+    fn clone(&self) -> Self {
+        Self {
             hnd: self.hnd.clone(),
             _t: PhantomData,
-        })
+        }
     }
 }
 
-#[doc(hidden)]
-pub struct HandlerService<F, T, R>
+impl<F, T, R> Service for Handler<F, T, R>
 where
     F: Factory<T, R>,
-    R: Responder + 'static,
-{
-    hnd: F,
-    _t: PhantomData<(T, R)>,
-}
-
-impl<F, T, R> Service for HandlerService<F, T, R>
-where
-    F: Factory<T, R>,
-    R: Responder + 'static,
+    R: Responder,
 {
     type Request = (T, HttpRequest);
     type Response = ServiceResponse;
@@ -140,7 +124,7 @@ where
 pub trait AsyncFactory<T, R>: Clone + 'static
 where
     R: IntoFuture,
-    R::Item: Into<Response>,
+    R::Item: Responder,
     R::Error: Into<Error>,
 {
     fn call(&self, param: T) -> R;
@@ -150,7 +134,7 @@ impl<F, R> AsyncFactory<(), R> for F
 where
     F: Fn() -> R + Clone + 'static,
     R: IntoFuture,
-    R::Item: Into<Response>,
+    R::Item: Responder,
     R::Error: Into<Error>,
 {
     fn call(&self, _: ()) -> R {
@@ -163,7 +147,7 @@ pub struct AsyncHandler<F, T, R>
 where
     F: AsyncFactory<T, R>,
     R: IntoFuture,
-    R::Item: Into<Response>,
+    R::Item: Responder,
     R::Error: Into<Error>,
 {
     hnd: F,
@@ -174,7 +158,7 @@ impl<F, T, R> AsyncHandler<F, T, R>
 where
     F: AsyncFactory<T, R>,
     R: IntoFuture,
-    R::Item: Into<Response>,
+    R::Item: Responder,
     R::Error: Into<Error>,
 {
     pub fn new(hnd: F) -> Self {
@@ -184,50 +168,32 @@ where
         }
     }
 }
-impl<F, T, R> NewService for AsyncHandler<F, T, R>
+
+impl<F, T, R> Clone for AsyncHandler<F, T, R>
 where
     F: AsyncFactory<T, R>,
     R: IntoFuture,
-    R::Item: Into<Response>,
+    R::Item: Responder,
     R::Error: Into<Error>,
 {
-    type Request = (T, HttpRequest);
-    type Response = ServiceResponse;
-    type Error = Error;
-    type InitError = ();
-    type Service = AsyncHandlerService<F, T, R>;
-    type Future = FutureResult<Self::Service, ()>;
-
-    fn new_service(&self, _: &()) -> Self::Future {
-        ok(AsyncHandlerService {
+    fn clone(&self) -> Self {
+        AsyncHandler {
             hnd: self.hnd.clone(),
             _t: PhantomData,
-        })
+        }
     }
 }
 
-#[doc(hidden)]
-pub struct AsyncHandlerService<F, T, R>
+impl<F, T, R> Service for AsyncHandler<F, T, R>
 where
     F: AsyncFactory<T, R>,
     R: IntoFuture,
-    R::Item: Into<Response>,
-    R::Error: Into<Error>,
-{
-    hnd: F,
-    _t: PhantomData<(T, R)>,
-}
-
-impl<F, T, R> Service for AsyncHandlerService<F, T, R>
-where
-    F: AsyncFactory<T, R>,
-    R: IntoFuture,
-    R::Item: Into<Response>,
+    R::Item: Responder,
     R::Error: Into<Error>,
 {
     type Request = (T, HttpRequest);
     type Response = ServiceResponse;
-    type Error = Error;
+    type Error = Void;
     type Future = AsyncHandlerServiceResponse<R::Future>;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
@@ -237,32 +203,56 @@ where
     fn call(&mut self, (param, req): (T, HttpRequest)) -> Self::Future {
         AsyncHandlerServiceResponse {
             fut: self.hnd.call(param).into_future(),
+            fut2: None,
             req: Some(req),
         }
     }
 }
 
 #[doc(hidden)]
-pub struct AsyncHandlerServiceResponse<T> {
+pub struct AsyncHandlerServiceResponse<T>
+where
+    T: Future,
+    T::Item: Responder,
+{
     fut: T,
+    fut2: Option<<<T::Item as Responder>::Future as IntoFuture>::Future>,
     req: Option<HttpRequest>,
 }
 
 impl<T> Future for AsyncHandlerServiceResponse<T>
 where
     T: Future,
-    T::Item: Into<Response>,
+    T::Item: Responder,
     T::Error: Into<Error>,
 {
     type Item = ServiceResponse;
-    type Error = Error;
+    type Error = Void;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        if let Some(ref mut fut) = self.fut2 {
+            return match fut.poll() {
+                Ok(Async::Ready(res)) => Ok(Async::Ready(ServiceResponse::new(
+                    self.req.take().unwrap(),
+                    res,
+                ))),
+                Ok(Async::NotReady) => Ok(Async::NotReady),
+                Err(e) => {
+                    let res: Response = e.into().into();
+                    Ok(Async::Ready(ServiceResponse::new(
+                        self.req.take().unwrap(),
+                        res,
+                    )))
+                }
+            };
+        }
+
         match self.fut.poll() {
-            Ok(Async::Ready(res)) => Ok(Async::Ready(ServiceResponse::new(
-                self.req.take().unwrap(),
-                res.into(),
-            ))),
+            Ok(Async::Ready(res)) => {
+                self.fut2 =
+                    Some(res.respond_to(self.req.as_ref().unwrap()).into_future());
+                return self.poll();
+            }
             Ok(Async::NotReady) => Ok(Async::NotReady),
             Err(e) => {
                 let res: Response = e.into().into();
@@ -276,87 +266,112 @@ where
 }
 
 /// Extract arguments from request
-pub struct Extract<P, T: FromRequest<P>> {
+pub struct Extract<T: FromRequest, S> {
     config: Rc<RefCell<Option<Rc<Extensions>>>>,
-    _t: PhantomData<(P, T)>,
+    service: S,
+    _t: PhantomData<T>,
 }
 
-impl<P, T: FromRequest<P>> Extract<P, T> {
-    pub fn new(config: Rc<RefCell<Option<Rc<Extensions>>>>) -> Self {
+impl<T: FromRequest, S> Extract<T, S> {
+    pub fn new(config: Rc<RefCell<Option<Rc<Extensions>>>>, service: S) -> Self {
         Extract {
             config,
+            service,
             _t: PhantomData,
         }
     }
 }
 
-impl<P, T: FromRequest<P>> NewService for Extract<P, T> {
-    type Request = ServiceRequest<P>;
-    type Response = (T, HttpRequest);
-    type Error = (Error, ServiceFromRequest<P>);
+impl<T: FromRequest, S> NewService for Extract<T, S>
+where
+    S: Service<Request = (T, HttpRequest), Response = ServiceResponse, Error = Void>
+        + Clone,
+{
+    type Request = ServiceRequest;
+    type Response = ServiceResponse;
+    type Error = (Error, ServiceRequest);
     type InitError = ();
-    type Service = ExtractService<P, T>;
+    type Service = ExtractService<T, S>;
     type Future = FutureResult<Self::Service, ()>;
 
     fn new_service(&self, _: &()) -> Self::Future {
         ok(ExtractService {
             _t: PhantomData,
             config: self.config.borrow().clone(),
+            service: self.service.clone(),
         })
     }
 }
 
-pub struct ExtractService<P, T: FromRequest<P>> {
+pub struct ExtractService<T: FromRequest, S> {
     config: Option<Rc<Extensions>>,
-    _t: PhantomData<(P, T)>,
+    service: S,
+    _t: PhantomData<T>,
 }
 
-impl<P, T: FromRequest<P>> Service for ExtractService<P, T> {
-    type Request = ServiceRequest<P>;
-    type Response = (T, HttpRequest);
-    type Error = (Error, ServiceFromRequest<P>);
-    type Future = ExtractResponse<P, T>;
+impl<T: FromRequest, S> Service for ExtractService<T, S>
+where
+    S: Service<Request = (T, HttpRequest), Response = ServiceResponse, Error = Void>
+        + Clone,
+{
+    type Request = ServiceRequest;
+    type Response = ServiceResponse;
+    type Error = (Error, ServiceRequest);
+    type Future = ExtractResponse<T, S>;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
         Ok(Async::Ready(()))
     }
 
-    fn call(&mut self, req: ServiceRequest<P>) -> Self::Future {
-        let mut req = ServiceFromRequest::new(req, self.config.clone());
+    fn call(&mut self, req: ServiceRequest) -> Self::Future {
+        let (mut req, mut payload) = req.into_parts();
+        req.set_route_data(self.config.clone());
+        let fut = T::from_request(&req, &mut payload).into_future();
+
         ExtractResponse {
-            fut: T::from_request(&mut req).into_future(),
-            req: Some(req),
+            fut,
+            fut_s: None,
+            req: Some((req, payload)),
+            service: self.service.clone(),
         }
     }
 }
 
-pub struct ExtractResponse<P, T: FromRequest<P>> {
-    req: Option<ServiceFromRequest<P>>,
+pub struct ExtractResponse<T: FromRequest, S: Service> {
+    req: Option<(HttpRequest, Payload)>,
+    service: S,
     fut: <T::Future as IntoFuture>::Future,
+    fut_s: Option<S::Future>,
 }
 
-impl<P, T: FromRequest<P>> Future for ExtractResponse<P, T> {
-    type Item = (T, HttpRequest);
-    type Error = (Error, ServiceFromRequest<P>);
+impl<T: FromRequest, S> Future for ExtractResponse<T, S>
+where
+    S: Service<Request = (T, HttpRequest), Response = ServiceResponse, Error = Void>,
+{
+    type Item = ServiceResponse;
+    type Error = (Error, ServiceRequest);
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        let item = try_ready!(self
-            .fut
-            .poll()
-            .map_err(|e| (e.into(), self.req.take().unwrap())));
+        if let Some(ref mut fut) = self.fut_s {
+            return fut.poll().map_err(|_| panic!());
+        }
 
-        let req = self.req.take().unwrap();
-        let req = req.into_request();
+        let item = try_ready!(self.fut.poll().map_err(|e| {
+            let (req, payload) = self.req.take().unwrap();
+            let req = ServiceRequest::from_parts(req, payload);
+            (e.into(), req)
+        }));
 
-        Ok(Async::Ready((item, req)))
+        self.fut_s = Some(self.service.call((item, self.req.take().unwrap().0)));
+        self.poll()
     }
 }
 
 /// FromRequest trait impl for tuples
 macro_rules! factory_tuple ({ $(($n:tt, $T:ident)),+} => {
     impl<Func, $($T,)+ Res> Factory<($($T,)+), Res> for Func
-    where Func: Fn($($T,)+) -> Res + Clone + 'static,
-          Res: Responder + 'static,
+    where Func: Fn($($T,)+) -> Res + Clone,
+          Res: Responder,
     {
         fn call(&self, param: ($($T,)+)) -> Res {
             (self)($(param.$n,)+)
@@ -365,8 +380,8 @@ macro_rules! factory_tuple ({ $(($n:tt, $T:ident)),+} => {
 
     impl<Func, $($T,)+ Res> AsyncFactory<($($T,)+), Res> for Func
     where Func: Fn($($T,)+) -> Res + Clone + 'static,
-          Res: IntoFuture + 'static,
-          Res::Item: Into<Response>,
+          Res: IntoFuture,
+          Res::Item: Responder,
           Res::Error: Into<Error>,
     {
         fn call(&self, param: ($($T,)+)) -> Res {

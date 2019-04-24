@@ -15,7 +15,7 @@ use actix_web::http::header::{
     self, ContentDisposition, DispositionParam, DispositionType,
 };
 use actix_web::http::{ContentEncoding, Method, StatusCode};
-use actix_web::middleware::encoding::BodyEncoding;
+use actix_web::middleware::BodyEncoding;
 use actix_web::{Error, HttpMessage, HttpRequest, HttpResponse, Responder};
 
 use crate::range::HttpRange;
@@ -296,10 +296,9 @@ impl Responder for NamedFile {
                     header::CONTENT_DISPOSITION,
                     self.content_disposition.to_string(),
                 );
-            // TODO blocking by compressing
-            // if let Some(current_encoding) = self.encoding {
-            //     resp.content_encoding(current_encoding);
-            // }
+            if let Some(current_encoding) = self.encoding {
+                resp.encoding(current_encoding);
+            }
             let reader = ChunkedReadFile {
                 size: self.md.len(),
                 offset: 0,
@@ -345,7 +344,7 @@ impl Responder for NamedFile {
         // check last modified
         let not_modified = if !none_match(etag.as_ref(), req) {
             true
-        } else if req.headers().contains_key(header::IF_NONE_MATCH) {
+        } else if req.headers().contains_key(&header::IF_NONE_MATCH) {
             false
         } else if let (Some(ref m), Some(header::IfModifiedSince(ref since))) =
             (last_modified, req.get_header())
@@ -379,7 +378,7 @@ impl Responder for NamedFile {
         let mut offset = 0;
 
         // check for range header
-        if let Some(ranges) = req.headers().get(header::RANGE) {
+        if let Some(ranges) = req.headers().get(&header::RANGE) {
             if let Ok(rangesheader) = ranges.to_str() {
                 if let Ok(rangesvec) = HttpRange::parse(rangesheader, length) {
                     length = rangesvec[0].length;

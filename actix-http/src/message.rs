@@ -1,11 +1,13 @@
 use std::cell::{Ref, RefCell, RefMut};
-use std::collections::VecDeque;
+use std::net;
 use std::rc::Rc;
 
 use bitflags::bitflags;
+use copyless::BoxHelper;
 
 use crate::extensions::Extensions;
-use crate::http::{header, HeaderMap, Method, StatusCode, Uri, Version};
+use crate::header::HeaderMap;
+use crate::http::{header, Method, StatusCode, Uri, Version};
 
 /// Represents various types of connection
 #[derive(Copy, Clone, PartialEq, Debug)]
@@ -23,8 +25,9 @@ bitflags! {
         const CLOSE       = 0b0000_0001;
         const KEEP_ALIVE  = 0b0000_0010;
         const UPGRADE     = 0b0000_0100;
-        const NO_CHUNKING = 0b0000_1000;
-        const CAMEL_CASE  = 0b0001_0000;
+        const EXPECT      = 0b0000_1000;
+        const NO_CHUNKING = 0b0001_0000;
+        const CAMEL_CASE  = 0b0010_0000;
     }
 }
 
@@ -42,6 +45,7 @@ pub struct RequestHead {
     pub version: Version,
     pub headers: HeaderMap,
     pub extensions: RefCell<Extensions>,
+    pub peer_addr: Option<net::SocketAddr>,
     flags: Flags,
 }
 
@@ -53,6 +57,7 @@ impl Default for RequestHead {
             version: Version::HTTP_11,
             headers: HeaderMap::with_capacity(16),
             flags: Flags::empty(),
+            peer_addr: None,
             extensions: RefCell::new(Extensions::new()),
         }
     }
@@ -163,6 +168,17 @@ impl RequestHead {
             self.flags.remove(Flags::NO_CHUNKING);
         }
     }
+
+    #[inline]
+    /// Request contains `EXPECT` header
+    pub fn expect(&self) -> bool {
+        self.flags.contains(Flags::EXPECT)
+    }
+
+    #[inline]
+    pub(crate) fn set_expect(&mut self) {
+        self.flags.insert(Flags::EXPECT);
+    }
 }
 
 #[derive(Debug)]
@@ -175,32 +191,20 @@ pub struct ResponseHead {
     flags: Flags,
 }
 
-impl Default for ResponseHead {
-    fn default() -> ResponseHead {
+impl ResponseHead {
+    /// Create new instance of `ResponseHead` type
+    #[inline]
+    pub fn new(status: StatusCode) -> ResponseHead {
         ResponseHead {
+            status,
             version: Version::default(),
-            status: StatusCode::OK,
-            headers: HeaderMap::with_capacity(16),
+            headers: HeaderMap::with_capacity(12),
             reason: None,
             flags: Flags::empty(),
             extensions: RefCell::new(Extensions::new()),
         }
     }
-}
 
-impl Head for ResponseHead {
-    fn clear(&mut self) {
-        self.reason = None;
-        self.flags = Flags::empty();
-        self.headers.clear();
-    }
-
-    fn pool() -> &'static MessagePool<Self> {
-        RESPONSE_POOL.with(|p| *p)
-    }
-}
-
-impl ResponseHead {
     /// Message extensions
     #[inline]
     pub fn extensions(&self) -> Ref<Extensions> {
@@ -306,7 +310,6 @@ impl ResponseHead {
 
 pub struct Message<T: Head> {
     head: Rc<T>,
-    pool: &'static MessagePool<T>,
 }
 
 impl<T: Head> Message<T> {
@@ -320,7 +323,6 @@ impl<T: Head> Clone for Message<T> {
     fn clone(&self) -> Self {
         Message {
             head: self.head.clone(),
-            pool: self.pool,
         }
     }
 }
@@ -342,39 +344,70 @@ impl<T: Head> std::ops::DerefMut for Message<T> {
 impl<T: Head> Drop for Message<T> {
     fn drop(&mut self) {
         if Rc::strong_count(&self.head) == 1 {
-            self.pool.release(self.head.clone());
+            T::pool().release(self.head.clone());
         }
+    }
+}
+
+pub(crate) struct BoxedResponseHead {
+    head: Option<Box<ResponseHead>>,
+}
+
+impl BoxedResponseHead {
+    /// Get new message from the pool of objects
+    pub fn new(status: StatusCode) -> Self {
+        RESPONSE_POOL.with(|p| p.get_message(status))
+    }
+}
+
+impl std::ops::Deref for BoxedResponseHead {
+    type Target = ResponseHead;
+
+    fn deref(&self) -> &Self::Target {
+        self.head.as_ref().unwrap()
+    }
+}
+
+impl std::ops::DerefMut for BoxedResponseHead {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.head.as_mut().unwrap()
+    }
+}
+
+impl Drop for BoxedResponseHead {
+    fn drop(&mut self) {
+        RESPONSE_POOL.with(|p| p.release(self.head.take().unwrap()))
     }
 }
 
 #[doc(hidden)]
 /// Request's objects pool
-pub struct MessagePool<T: Head>(RefCell<VecDeque<Rc<T>>>);
+pub struct MessagePool<T: Head>(RefCell<Vec<Rc<T>>>);
+
+#[doc(hidden)]
+/// Request's objects pool
+pub struct BoxedResponsePool(RefCell<Vec<Box<ResponseHead>>>);
 
 thread_local!(static REQUEST_POOL: &'static MessagePool<RequestHead> = MessagePool::<RequestHead>::create());
-thread_local!(static RESPONSE_POOL: &'static MessagePool<ResponseHead> = MessagePool::<ResponseHead>::create());
+thread_local!(static RESPONSE_POOL: &'static BoxedResponsePool = BoxedResponsePool::create());
 
 impl<T: Head> MessagePool<T> {
     fn create() -> &'static MessagePool<T> {
-        let pool = MessagePool(RefCell::new(VecDeque::with_capacity(128)));
+        let pool = MessagePool(RefCell::new(Vec::with_capacity(128)));
         Box::leak(Box::new(pool))
     }
 
     /// Get message from the pool
     #[inline]
     fn get_message(&'static self) -> Message<T> {
-        if let Some(mut msg) = self.0.borrow_mut().pop_front() {
+        if let Some(mut msg) = self.0.borrow_mut().pop() {
             if let Some(r) = Rc::get_mut(&mut msg) {
                 r.clear();
             }
-            Message {
-                head: msg,
-                pool: self,
-            }
+            Message { head: msg }
         } else {
             Message {
                 head: Rc::new(T::default()),
-                pool: self,
             }
         }
     }
@@ -384,7 +417,39 @@ impl<T: Head> MessagePool<T> {
     fn release(&self, msg: Rc<T>) {
         let v = &mut self.0.borrow_mut();
         if v.len() < 128 {
-            v.push_front(msg);
+            v.push(msg);
+        }
+    }
+}
+
+impl BoxedResponsePool {
+    fn create() -> &'static BoxedResponsePool {
+        let pool = BoxedResponsePool(RefCell::new(Vec::with_capacity(128)));
+        Box::leak(Box::new(pool))
+    }
+
+    /// Get message from the pool
+    #[inline]
+    fn get_message(&'static self, status: StatusCode) -> BoxedResponseHead {
+        if let Some(mut head) = self.0.borrow_mut().pop() {
+            head.reason = None;
+            head.status = status;
+            head.headers.clear();
+            head.flags = Flags::empty();
+            BoxedResponseHead { head: Some(head) }
+        } else {
+            BoxedResponseHead {
+                head: Some(Box::alloc().init(ResponseHead::new(status))),
+            }
+        }
+    }
+
+    #[inline]
+    /// Release request instance
+    fn release(&self, msg: Box<ResponseHead>) {
+        let v = &mut self.0.borrow_mut();
+        if v.len() < 128 {
+            v.push(msg);
         }
     }
 }

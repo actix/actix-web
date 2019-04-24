@@ -27,7 +27,6 @@ use derive_more::{Display, From};
 use futures::future::{ok, Future, FutureResult};
 use futures::Poll;
 use serde_json::error::Error as JsonError;
-use time::Duration;
 
 use crate::Session;
 
@@ -57,7 +56,7 @@ struct CookieSessionInner {
     domain: Option<String>,
     secure: bool,
     http_only: bool,
-    max_age: Option<Duration>,
+    max_age: Option<time::Duration>,
     same_site: Option<SameSite>,
 }
 
@@ -120,7 +119,7 @@ impl CookieSessionInner {
         Ok(())
     }
 
-    fn load<P>(&self, req: &ServiceRequest<P>) -> HashMap<String, String> {
+    fn load(&self, req: &ServiceRequest) -> HashMap<String, String> {
         if let Ok(cookies) = req.cookies() {
             for cookie in cookies.iter() {
                 if cookie.name() == self.name {
@@ -250,19 +249,24 @@ impl CookieSession {
     }
 
     /// Sets the `max-age` field in the session cookie being built.
-    pub fn max_age(mut self, value: Duration) -> CookieSession {
+    pub fn max_age(self, seconds: i64) -> CookieSession {
+        self.max_age_time(time::Duration::seconds(seconds))
+    }
+
+    /// Sets the `max-age` field in the session cookie being built.
+    pub fn max_age_time(mut self, value: time::Duration) -> CookieSession {
         Rc::get_mut(&mut self.0).unwrap().max_age = Some(value);
         self
     }
 }
 
-impl<S, P, B: 'static> Transform<S> for CookieSession
+impl<S, B: 'static> Transform<S> for CookieSession
 where
-    S: Service<Request = ServiceRequest<P>, Response = ServiceResponse<B>>,
+    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>>,
     S::Future: 'static,
     S::Error: 'static,
 {
-    type Request = ServiceRequest<P>;
+    type Request = ServiceRequest;
     type Response = ServiceResponse<B>;
     type Error = S::Error;
     type InitError = ();
@@ -283,23 +287,22 @@ pub struct CookieSessionMiddleware<S> {
     inner: Rc<CookieSessionInner>,
 }
 
-impl<S, P, B: 'static> Service for CookieSessionMiddleware<S>
+impl<S, B: 'static> Service for CookieSessionMiddleware<S>
 where
-    S: Service<Request = ServiceRequest<P>, Response = ServiceResponse<B>>,
+    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>>,
     S::Future: 'static,
     S::Error: 'static,
 {
-    type Request = ServiceRequest<P>;
+    type Request = ServiceRequest;
     type Response = ServiceResponse<B>;
     type Error = S::Error;
     type Future = Box<Future<Item = Self::Response, Error = Self::Error>>;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
-        //self.service.poll_ready().map_err(|e| e.into())
         self.service.poll_ready()
     }
 
-    fn call(&mut self, mut req: ServiceRequest<P>) -> Self::Future {
+    fn call(&mut self, mut req: ServiceRequest) -> Self::Future {
         let inner = self.inner.clone();
         let state = self.inner.load(&req);
         Session::set_session(state.into_iter(), &mut req);
@@ -318,12 +321,33 @@ where
 mod tests {
     use super::*;
     use actix_web::{test, web, App};
+    use bytes::Bytes;
 
     #[test]
     fn cookie_session() {
         let mut app = test::init_service(
             App::new()
                 .wrap(CookieSession::signed(&[0; 32]).secure(false))
+                .service(web::resource("/").to(|ses: Session| {
+                    let _ = ses.set("counter", 100);
+                    "test"
+                })),
+        );
+
+        let request = test::TestRequest::get().to_request();
+        let response = test::block_on(app.call(request)).unwrap();
+        assert!(response
+            .response()
+            .cookies()
+            .find(|c| c.name() == "actix-session")
+            .is_some());
+    }
+
+    #[test]
+    fn private_cookie() {
+        let mut app = test::init_service(
+            App::new()
+                .wrap(CookieSession::private(&[0; 32]).secure(false))
                 .service(web::resource("/").to(|ses: Session| {
                     let _ = ses.set("counter", 100);
                     "test"
@@ -357,5 +381,45 @@ mod tests {
             .cookies()
             .find(|c| c.name() == "actix-session")
             .is_some());
+    }
+
+    #[test]
+    fn basics() {
+        let mut app = test::init_service(
+            App::new()
+                .wrap(
+                    CookieSession::signed(&[0; 32])
+                        .path("/test/")
+                        .name("actix-test")
+                        .domain("localhost")
+                        .http_only(true)
+                        .same_site(SameSite::Lax)
+                        .max_age(100),
+                )
+                .service(web::resource("/").to(|ses: Session| {
+                    let _ = ses.set("counter", 100);
+                    "test"
+                }))
+                .service(web::resource("/test/").to(|ses: Session| {
+                    let val: usize = ses.get("counter").unwrap().unwrap();
+                    format!("counter: {}", val)
+                })),
+        );
+
+        let request = test::TestRequest::get().to_request();
+        let response = test::block_on(app.call(request)).unwrap();
+        let cookie = response
+            .response()
+            .cookies()
+            .find(|c| c.name() == "actix-test")
+            .unwrap()
+            .clone();
+        assert_eq!(cookie.path().unwrap(), "/test/");
+
+        let request = test::TestRequest::with_uri("/test/")
+            .cookie(cookie)
+            .to_request();
+        let body = test::read_response(&mut app, request);
+        assert_eq!(body, Bytes::from_static(b"counter: 100"));
     }
 }

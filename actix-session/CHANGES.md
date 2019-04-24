@@ -1,5 +1,19 @@
 # Changes
 
+## [0.1.0-beta.1] - 2019-04-20
+
+* Update actix-web to beta.1
+
+* `CookieSession::max_age()` accepts value in seconds
+
+## [0.1.0-alpha.6] - 2019-04-14
+
+* Update actix-web alpha.6
+
+## [0.1.0-alpha.4] - 2019-04-08
+
+* Update actix-web
+
 ## [0.1.0-alpha.3] - 2019-04-02
 
 * Update actix-web

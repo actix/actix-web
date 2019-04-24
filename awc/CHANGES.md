@@ -1,5 +1,46 @@
 # Changes
 
+## [0.1.1] - 2019-04-19
+
+### Added
+
+* Allow to specify server address for http and ws requests.
+
+### Changed
+
+* `ClientRequest::if_true()` and `ClientRequest::if_some()` use instance instead of ref
+
+
+## [0.1.0] - 2019-04-16
+
+* No changes
+
+
+## [0.1.0-alpha.6] - 2019-04-14
+
+### Changed
+
+* Do not set default headers for websocket request
+
+
+## [0.1.0-alpha.5] - 2019-04-12
+
+### Changed
+
+* Do not set any default headers
+
+### Added
+
+* Add Debug impl for BoxedSocket
+
+
+## [0.1.0-alpha.4] - 2019-04-08
+
+### Changed
+
+* Update actix-http dependency
+
+
 ## [0.1.0-alpha.3] - 2019-04-02
 
 ### Added

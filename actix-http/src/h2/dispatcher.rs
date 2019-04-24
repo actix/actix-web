@@ -1,9 +1,10 @@
 use std::collections::VecDeque;
 use std::marker::PhantomData;
 use std::time::Instant;
-use std::{fmt, mem};
+use std::{fmt, mem, net};
 
 use actix_codec::{AsyncRead, AsyncWrite};
+use actix_server_config::IoStream;
 use actix_service::Service;
 use actix_utils::cloneable::CloneableService;
 use bitflags::bitflags;
@@ -29,14 +30,11 @@ use crate::response::Response;
 const CHUNK_SIZE: usize = 16_384;
 
 /// Dispatcher for HTTP/2 protocol
-pub struct Dispatcher<
-    T: AsyncRead + AsyncWrite,
-    S: Service<Request = Request> + 'static,
-    B: MessageBody,
-> {
+pub struct Dispatcher<T: IoStream, S: Service<Request = Request>, B: MessageBody> {
     service: CloneableService<S>,
     connection: Connection<T, Bytes>,
     config: ServiceConfig,
+    peer_addr: Option<net::SocketAddr>,
     ka_expire: Instant,
     ka_timer: Option<Delay>,
     _t: PhantomData<B>,
@@ -44,9 +42,10 @@ pub struct Dispatcher<
 
 impl<T, S, B> Dispatcher<T, S, B>
 where
-    T: AsyncRead + AsyncWrite,
-    S: Service<Request = Request> + 'static,
-    S::Error: fmt::Debug,
+    T: IoStream,
+    S: Service<Request = Request>,
+    S::Error: Into<Error>,
+    S::Future: 'static,
     S::Response: Into<Response<B>>,
     B: MessageBody + 'static,
 {
@@ -55,6 +54,7 @@ where
         connection: Connection<T, Bytes>,
         config: ServiceConfig,
         timeout: Option<Delay>,
+        peer_addr: Option<net::SocketAddr>,
     ) -> Self {
         // let keepalive = config.keep_alive_enabled();
         // let flags = if keepalive {
@@ -75,9 +75,10 @@ where
         Dispatcher {
             service,
             config,
+            peer_addr,
+            connection,
             ka_expire,
             ka_timer,
-            connection,
             _t: PhantomData,
         }
     }
@@ -85,9 +86,10 @@ where
 
 impl<T, S, B> Future for Dispatcher<T, S, B>
 where
-    T: AsyncRead + AsyncWrite,
-    S: Service<Request = Request> + 'static,
-    S::Error: fmt::Debug,
+    T: IoStream,
+    S: Service<Request = Request>,
+    S::Error: Into<Error>,
+    S::Future: 'static,
     S::Response: Into<Response<B>>,
     B: MessageBody + 'static,
 {
@@ -114,8 +116,9 @@ where
                     head.uri = parts.uri;
                     head.method = parts.method;
                     head.version = parts.version;
-                    head.headers = parts.headers;
-                    tokio_current_thread::spawn(ServiceResponse::<S, B> {
+                    head.headers = parts.headers.into();
+                    head.peer_addr = self.peer_addr;
+                    tokio_current_thread::spawn(ServiceResponse::<S::Future, B> {
                         state: ServiceResponseState::ServiceCall(
                             self.service.call(req),
                             Some(res),
@@ -130,31 +133,31 @@ where
     }
 }
 
-struct ServiceResponse<S: Service, B> {
-    state: ServiceResponseState<S, B>,
+struct ServiceResponse<F, B> {
+    state: ServiceResponseState<F, B>,
     config: ServiceConfig,
     buffer: Option<Bytes>,
 }
 
-enum ServiceResponseState<S: Service, B> {
-    ServiceCall(S::Future, Option<SendResponse<Bytes>>),
+enum ServiceResponseState<F, B> {
+    ServiceCall(F, Option<SendResponse<Bytes>>),
     SendPayload(SendStream<Bytes>, ResponseBody<B>),
 }
 
-impl<S, B> ServiceResponse<S, B>
+impl<F, B> ServiceResponse<F, B>
 where
-    S: Service<Request = Request> + 'static,
-    S::Error: fmt::Debug,
-    S::Response: Into<Response<B>>,
+    F: Future,
+    F::Error: Into<Error>,
+    F::Item: Into<Response<B>>,
     B: MessageBody + 'static,
 {
     fn prepare_response(
         &self,
         head: &ResponseHead,
-        length: &mut BodySize,
+        size: &mut BodySize,
     ) -> http::Response<()> {
         let mut has_date = false;
-        let mut skip_len = length != &BodySize::Stream;
+        let mut skip_len = size != &BodySize::Stream;
 
         let mut res = http::Response::new(());
         *res.status_mut() = head.status;
@@ -164,14 +167,14 @@ where
         match head.status {
             http::StatusCode::NO_CONTENT
             | http::StatusCode::CONTINUE
-            | http::StatusCode::PROCESSING => *length = BodySize::None,
+            | http::StatusCode::PROCESSING => *size = BodySize::None,
             http::StatusCode::SWITCHING_PROTOCOLS => {
                 skip_len = true;
-                *length = BodySize::Stream;
+                *size = BodySize::Stream;
             }
             _ => (),
         }
-        let _ = match length {
+        let _ = match size {
             BodySize::None | BodySize::Stream => None,
             BodySize::Empty => res
                 .headers_mut()
@@ -209,11 +212,11 @@ where
     }
 }
 
-impl<S, B> Future for ServiceResponse<S, B>
+impl<F, B> Future for ServiceResponse<F, B>
 where
-    S: Service<Request = Request> + 'static,
-    S::Error: fmt::Debug,
-    S::Response: Into<Response<B>>,
+    F: Future,
+    F::Error: Into<Error>,
+    F::Item: Into<Response<B>>,
     B: MessageBody + 'static,
 {
     type Item = ();
@@ -227,16 +230,15 @@ where
                         let (res, body) = res.into().replace_body(());
 
                         let mut send = send.take().unwrap();
-                        let mut length = body.length();
-                        let h2_res = self.prepare_response(res.head(), &mut length);
+                        let mut size = body.size();
+                        let h2_res = self.prepare_response(res.head(), &mut size);
 
-                        let stream = send
-                            .send_response(h2_res, length.is_eof())
-                            .map_err(|e| {
+                        let stream =
+                            send.send_response(h2_res, size.is_eof()).map_err(|e| {
                                 trace!("Error sending h2 response: {:?}", e);
                             })?;
 
-                        if length.is_eof() {
+                        if size.is_eof() {
                             Ok(Async::Ready(()))
                         } else {
                             self.state = ServiceResponseState::SendPayload(stream, body);
@@ -249,16 +251,15 @@ where
                         let (res, body) = res.replace_body(());
 
                         let mut send = send.take().unwrap();
-                        let mut length = body.length();
-                        let h2_res = self.prepare_response(res.head(), &mut length);
+                        let mut size = body.size();
+                        let h2_res = self.prepare_response(res.head(), &mut size);
 
-                        let stream = send
-                            .send_response(h2_res, length.is_eof())
-                            .map_err(|e| {
+                        let stream =
+                            send.send_response(h2_res, size.is_eof()).map_err(|e| {
                                 trace!("Error sending h2 response: {:?}", e);
                             })?;
 
-                        if length.is_eof() {
+                        if size.is_eof() {
                             Ok(Async::Ready(()))
                         } else {
                             self.state = ServiceResponseState::SendPayload(

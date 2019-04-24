@@ -1,118 +1,94 @@
 #![recursion_limit = "512"]
+//! Actix-web codegen module
+//!
+//! Generators for routes and scopes
+//!
+//! ## Route
+//!
+//! Macros:
+//!
+//! - [get](attr.get.html)
+//! - [post](attr.post.html)
+//! - [put](attr.put.html)
+//! - [delete](attr.delete.html)
+//!
+//! ### Attributes:
+//!
+//! - `"path"` - Raw literal string with path for which to register handle. Mandatory.
+//! - `guard="function_name"` - Registers function as guard using `actix_web::guard::fn_guard`
+//!
+//! ## Notes
+//!
+//! Function name can be specified as any expression that is going to be accessible to the generate
+//! code (e.g `my_guard` or `my_module::my_guard`)
+//!
+//! ## Example:
+//!
+//! ```rust
+//! use actix_web::HttpResponse;
+//! use actix_web_codegen::get;
+//! use futures::{future, Future};
+//!
+//! #[get("/test")]
+//! fn async_test() -> impl Future<Item=HttpResponse, Error=actix_web::Error> {
+//!     future::ok(HttpResponse::Ok().finish())
+//! }
+//! ```
 
 extern crate proc_macro;
 
+mod route;
+
 use proc_macro::TokenStream;
-use quote::quote;
 use syn::parse_macro_input;
 
-/// #[get("path")] attribute
+/// Creates route handler with `GET` method guard.
+///
+/// Syntax: `#[get("path"[, attributes])]`
+///
+/// ## Attributes:
+///
+/// - `"path"` - Raw literal string with path for which to register handler. Mandatory.
+/// - `guard="function_name"` - Registers function as guard using `actix_web::guard::fn_guard`
 #[proc_macro_attribute]
 pub fn get(args: TokenStream, input: TokenStream) -> TokenStream {
     let args = parse_macro_input!(args as syn::AttributeArgs);
-    if args.is_empty() {
-        panic!("invalid server definition, expected: #[get(\"some path\")]");
-    }
-
-    // path
-    let path = match args[0] {
-        syn::NestedMeta::Literal(syn::Lit::Str(ref fname)) => {
-            let fname = quote!(#fname).to_string();
-            fname.as_str()[1..fname.len() - 1].to_owned()
-        }
-        _ => panic!("resource path"),
-    };
-
-    let ast: syn::ItemFn = syn::parse(input).unwrap();
-    let name = ast.ident.clone();
-
-    (quote! {
-        #[allow(non_camel_case_types)]
-        struct #name;
-
-        impl<P: 'static> actix_web::dev::HttpServiceFactory<P> for #name {
-            fn register(self, config: &mut actix_web::dev::ServiceConfig<P>) {
-                #ast
-                actix_web::dev::HttpServiceFactory::register(
-                    actix_web::Resource::new(#path)
-                        .guard(actix_web::guard::Get())
-                        .to(#name), config);
-            }
-        }
-    })
-    .into()
+    let gen = route::Args::new(&args, input, route::GuardType::Get);
+    gen.generate()
 }
 
-/// #[post("path")] attribute
+/// Creates route handler with `POST` method guard.
+///
+/// Syntax: `#[post("path"[, attributes])]`
+///
+/// Attributes are the same as in [get](attr.get.html)
 #[proc_macro_attribute]
 pub fn post(args: TokenStream, input: TokenStream) -> TokenStream {
     let args = parse_macro_input!(args as syn::AttributeArgs);
-    if args.is_empty() {
-        panic!("invalid server definition, expected: #[post(\"some path\")]");
-    }
-
-    // path
-    let path = match args[0] {
-        syn::NestedMeta::Literal(syn::Lit::Str(ref fname)) => {
-            let fname = quote!(#fname).to_string();
-            fname.as_str()[1..fname.len() - 1].to_owned()
-        }
-        _ => panic!("resource path"),
-    };
-
-    let ast: syn::ItemFn = syn::parse(input).unwrap();
-    let name = ast.ident.clone();
-
-    (quote! {
-        #[allow(non_camel_case_types)]
-        struct #name;
-
-        impl<P: 'static> actix_web::dev::HttpServiceFactory<P> for #name {
-            fn register(self, config: &mut actix_web::dev::ServiceConfig<P>) {
-                #ast
-                actix_web::dev::HttpServiceFactory::register(
-                    actix_web::Resource::new(#path)
-                        .guard(actix_web::guard::Post())
-                        .to(#name), config);
-            }
-        }
-    })
-    .into()
+    let gen = route::Args::new(&args, input, route::GuardType::Post);
+    gen.generate()
 }
 
-/// #[put("path")] attribute
+/// Creates route handler with `PUT` method guard.
+///
+/// Syntax: `#[put("path"[, attributes])]`
+///
+/// Attributes are the same as in [get](attr.get.html)
 #[proc_macro_attribute]
 pub fn put(args: TokenStream, input: TokenStream) -> TokenStream {
     let args = parse_macro_input!(args as syn::AttributeArgs);
-    if args.is_empty() {
-        panic!("invalid server definition, expected: #[put(\"some path\")]");
-    }
+    let gen = route::Args::new(&args, input, route::GuardType::Put);
+    gen.generate()
+}
 
-    // path
-    let path = match args[0] {
-        syn::NestedMeta::Literal(syn::Lit::Str(ref fname)) => {
-            let fname = quote!(#fname).to_string();
-            fname.as_str()[1..fname.len() - 1].to_owned()
-        }
-        _ => panic!("resource path"),
-    };
-
-    let ast: syn::ItemFn = syn::parse(input).unwrap();
-    let name = ast.ident.clone();
-
-    (quote! {
-        #[allow(non_camel_case_types)]
-        struct #name;
-
-        impl<P: 'static> actix_web::dev::HttpServiceFactory<P> for #name {
-            fn register(self, config: &mut actix_web::dev::ServiceConfig<P>) {
-                #ast
-                actix_web::dev::HttpServiceFactory::register(
-                    actix_web::Resource::new(#path)
-                        .guard(actix_web::guard::Put())
-                        .to(#name), config);
-            }
-        }
-    })
-    .into()
+/// Creates route handler with `DELETE` method guard.
+///
+/// Syntax: `#[delete("path"[, attributes])]`
+///
+/// Attributes are the same as in [get](attr.get.html)
+#[proc_macro_attribute]
+pub fn delete(args: TokenStream, input: TokenStream) -> TokenStream {
+    let args = parse_macro_input!(args as syn::AttributeArgs);
+    let gen = route::Args::new(&args, input, route::GuardType::Delete);
+    gen.generate()
 }

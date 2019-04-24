@@ -14,6 +14,7 @@ use tokio_tcp::TcpStream;
 use super::connection::Connection;
 use super::error::ConnectError;
 use super::pool::{ConnectionPool, Protocol};
+use super::Connect;
 
 #[cfg(feature = "ssl")]
 use openssl::ssl::SslConnector;
@@ -21,8 +22,18 @@ use openssl::ssl::SslConnector;
 #[cfg(not(feature = "ssl"))]
 type SslConnector = ();
 
-/// Http client connector builde instance.
-/// `Connector` type uses builder-like pattern for connector service construction.
+/// Manages http client network connectivity
+/// The `Connector` type uses a builder-like combinator pattern for service
+/// construction that finishes by calling the `.finish()` method.
+///
+/// ```rust,ignore
+/// use std::time::Duration;
+/// use actix_http::client::Connector;
+///
+/// let connector = Connector::new()
+///      .timeout(Duration::from_secs(5))
+///      .finish();
+/// ```
 pub struct Connector<T, U> {
     connector: T,
     timeout: Duration,
@@ -47,8 +58,7 @@ impl Connector<(), ()> {
         let ssl = {
             #[cfg(feature = "ssl")]
             {
-                use log::error;
-                use openssl::ssl::{SslConnector, SslMethod};
+                use openssl::ssl::SslMethod;
 
                 let mut ssl = SslConnector::builder(SslMethod::tls()).unwrap();
                 let _ = ssl
@@ -104,7 +114,8 @@ where
             Request = TcpConnect<Uri>,
             Response = TcpConnection<Uri, U>,
             Error = actix_connect::ConnectError,
-        > + Clone,
+        > + Clone
+        + 'static,
 {
     /// Connection timeout, i.e. max time to connect to remote host including dns name resolution.
     /// Set to 1 second by default.
@@ -164,17 +175,21 @@ where
     }
 
     /// Finish configuration process and create connector service.
-    pub fn service(
+    /// The Connector builder always concludes by calling `finish()` last in
+    /// its combinator chain.
+    pub fn finish(
         self,
-    ) -> impl Service<Request = Uri, Response = impl Connection, Error = ConnectError> + Clone
-    {
+    ) -> impl Service<Request = Connect, Response = impl Connection, Error = ConnectError>
+                 + Clone {
         #[cfg(not(feature = "ssl"))]
         {
             let connector = TimeoutService::new(
                 self.timeout,
-                apply_fn(self.connector, |msg: Uri, srv| srv.call(msg.into()))
-                    .map_err(ConnectError::from)
-                    .map(|stream| (stream.into_parts().0, Protocol::Http1)),
+                apply_fn(self.connector, |msg: Connect, srv| {
+                    srv.call(TcpConnect::new(msg.uri).set_addr(msg.addr))
+                })
+                .map_err(ConnectError::from)
+                .map(|stream| (stream.into_parts().0, Protocol::Http1)),
             )
             .map_err(|e| match e {
                 TimeoutError::Service(e) => e,
@@ -198,26 +213,28 @@ where
 
             let ssl_service = TimeoutService::new(
                 self.timeout,
-                apply_fn(self.connector.clone(), |msg: Uri, srv| srv.call(msg.into()))
-                    .map_err(ConnectError::from)
-                    .and_then(
-                        OpensslConnector::service(self.ssl)
-                            .map_err(ConnectError::from)
-                            .map(|stream| {
-                                let sock = stream.into_parts().0;
-                                let h2 = sock
-                                    .get_ref()
-                                    .ssl()
-                                    .selected_alpn_protocol()
-                                    .map(|protos| protos.windows(2).any(|w| w == H2))
-                                    .unwrap_or(false);
-                                if h2 {
-                                    (sock, Protocol::Http2)
-                                } else {
-                                    (sock, Protocol::Http1)
-                                }
-                            }),
-                    ),
+                apply_fn(self.connector.clone(), |msg: Connect, srv| {
+                    srv.call(TcpConnect::new(msg.uri).set_addr(msg.addr))
+                })
+                .map_err(ConnectError::from)
+                .and_then(
+                    OpensslConnector::service(self.ssl)
+                        .map_err(ConnectError::from)
+                        .map(|stream| {
+                            let sock = stream.into_parts().0;
+                            let h2 = sock
+                                .get_ref()
+                                .ssl()
+                                .selected_alpn_protocol()
+                                .map(|protos| protos.windows(2).any(|w| w == H2))
+                                .unwrap_or(false);
+                            if h2 {
+                                (sock, Protocol::Http2)
+                            } else {
+                                (sock, Protocol::Http1)
+                            }
+                        }),
+                ),
             )
             .map_err(|e| match e {
                 TimeoutError::Service(e) => e,
@@ -226,9 +243,11 @@ where
 
             let tcp_service = TimeoutService::new(
                 self.timeout,
-                apply_fn(self.connector.clone(), |msg: Uri, srv| srv.call(msg.into()))
-                    .map_err(ConnectError::from)
-                    .map(|stream| (stream.into_parts().0, Protocol::Http1)),
+                apply_fn(self.connector.clone(), |msg: Connect, srv| {
+                    srv.call(TcpConnect::new(msg.uri).set_addr(msg.addr))
+                })
+                .map_err(ConnectError::from)
+                .map(|stream| (stream.into_parts().0, Protocol::Http1)),
             )
             .map_err(|e| match e {
                 TimeoutError::Service(e) => e,
@@ -266,7 +285,9 @@ mod connect_impl {
     pub(crate) struct InnerConnector<T, Io>
     where
         Io: AsyncRead + AsyncWrite + 'static,
-        T: Service<Request = Uri, Response = (Io, Protocol), Error = ConnectError>,
+        T: Service<Request = Connect, Response = (Io, Protocol), Error = ConnectError>
+            + Clone
+            + 'static,
     {
         pub(crate) tcp_pool: ConnectionPool<T, Io>,
     }
@@ -274,8 +295,9 @@ mod connect_impl {
     impl<T, Io> Clone for InnerConnector<T, Io>
     where
         Io: AsyncRead + AsyncWrite + 'static,
-        T: Service<Request = Uri, Response = (Io, Protocol), Error = ConnectError>
-            + Clone,
+        T: Service<Request = Connect, Response = (Io, Protocol), Error = ConnectError>
+            + Clone
+            + 'static,
     {
         fn clone(&self) -> Self {
             InnerConnector {
@@ -287,9 +309,11 @@ mod connect_impl {
     impl<T, Io> Service for InnerConnector<T, Io>
     where
         Io: AsyncRead + AsyncWrite + 'static,
-        T: Service<Request = Uri, Response = (Io, Protocol), Error = ConnectError>,
+        T: Service<Request = Connect, Response = (Io, Protocol), Error = ConnectError>
+            + Clone
+            + 'static,
     {
-        type Request = Uri;
+        type Request = Connect;
         type Response = IoConnection<Io>;
         type Error = ConnectError;
         type Future = Either<
@@ -301,8 +325,8 @@ mod connect_impl {
             self.tcp_pool.poll_ready()
         }
 
-        fn call(&mut self, req: Uri) -> Self::Future {
-            match req.scheme_str() {
+        fn call(&mut self, req: Connect) -> Self::Future {
+            match req.uri.scheme_str() {
                 Some("https") | Some("wss") => {
                     Either::B(err(ConnectError::SslIsNotSupported))
                 }
@@ -326,8 +350,8 @@ mod connect_impl {
     where
         Io1: AsyncRead + AsyncWrite + 'static,
         Io2: AsyncRead + AsyncWrite + 'static,
-        T1: Service<Request = Uri, Response = (Io1, Protocol), Error = ConnectError>,
-        T2: Service<Request = Uri, Response = (Io2, Protocol), Error = ConnectError>,
+        T1: Service<Request = Connect, Response = (Io1, Protocol), Error = ConnectError>,
+        T2: Service<Request = Connect, Response = (Io2, Protocol), Error = ConnectError>,
     {
         pub(crate) tcp_pool: ConnectionPool<T1, Io1>,
         pub(crate) ssl_pool: ConnectionPool<T2, Io2>,
@@ -337,10 +361,12 @@ mod connect_impl {
     where
         Io1: AsyncRead + AsyncWrite + 'static,
         Io2: AsyncRead + AsyncWrite + 'static,
-        T1: Service<Request = Uri, Response = (Io1, Protocol), Error = ConnectError>
-            + Clone,
-        T2: Service<Request = Uri, Response = (Io2, Protocol), Error = ConnectError>
-            + Clone,
+        T1: Service<Request = Connect, Response = (Io1, Protocol), Error = ConnectError>
+            + Clone
+            + 'static,
+        T2: Service<Request = Connect, Response = (Io2, Protocol), Error = ConnectError>
+            + Clone
+            + 'static,
     {
         fn clone(&self) -> Self {
             InnerConnector {
@@ -354,10 +380,14 @@ mod connect_impl {
     where
         Io1: AsyncRead + AsyncWrite + 'static,
         Io2: AsyncRead + AsyncWrite + 'static,
-        T1: Service<Request = Uri, Response = (Io1, Protocol), Error = ConnectError>,
-        T2: Service<Request = Uri, Response = (Io2, Protocol), Error = ConnectError>,
+        T1: Service<Request = Connect, Response = (Io1, Protocol), Error = ConnectError>
+            + Clone
+            + 'static,
+        T2: Service<Request = Connect, Response = (Io2, Protocol), Error = ConnectError>
+            + Clone
+            + 'static,
     {
-        type Request = Uri;
+        type Request = Connect;
         type Response = EitherConnection<Io1, Io2>;
         type Error = ConnectError;
         type Future = Either<
@@ -372,8 +402,8 @@ mod connect_impl {
             self.tcp_pool.poll_ready()
         }
 
-        fn call(&mut self, req: Uri) -> Self::Future {
-            match req.scheme_str() {
+        fn call(&mut self, req: Connect) -> Self::Future {
+            match req.uri.scheme_str() {
                 Some("https") | Some("wss") => {
                     Either::B(Either::B(InnerConnectorResponseB {
                         fut: self.ssl_pool.call(req),
@@ -391,7 +421,9 @@ mod connect_impl {
     pub(crate) struct InnerConnectorResponseA<T, Io1, Io2>
     where
         Io1: AsyncRead + AsyncWrite + 'static,
-        T: Service<Request = Uri, Response = (Io1, Protocol), Error = ConnectError>,
+        T: Service<Request = Connect, Response = (Io1, Protocol), Error = ConnectError>
+            + Clone
+            + 'static,
     {
         fut: <ConnectionPool<T, Io1> as Service>::Future,
         _t: PhantomData<Io2>,
@@ -399,7 +431,9 @@ mod connect_impl {
 
     impl<T, Io1, Io2> Future for InnerConnectorResponseA<T, Io1, Io2>
     where
-        T: Service<Request = Uri, Response = (Io1, Protocol), Error = ConnectError>,
+        T: Service<Request = Connect, Response = (Io1, Protocol), Error = ConnectError>
+            + Clone
+            + 'static,
         Io1: AsyncRead + AsyncWrite + 'static,
         Io2: AsyncRead + AsyncWrite + 'static,
     {
@@ -417,7 +451,9 @@ mod connect_impl {
     pub(crate) struct InnerConnectorResponseB<T, Io1, Io2>
     where
         Io2: AsyncRead + AsyncWrite + 'static,
-        T: Service<Request = Uri, Response = (Io2, Protocol), Error = ConnectError>,
+        T: Service<Request = Connect, Response = (Io2, Protocol), Error = ConnectError>
+            + Clone
+            + 'static,
     {
         fut: <ConnectionPool<T, Io2> as Service>::Future,
         _t: PhantomData<Io1>,
@@ -425,7 +461,9 @@ mod connect_impl {
 
     impl<T, Io1, Io2> Future for InnerConnectorResponseB<T, Io1, Io2>
     where
-        T: Service<Request = Uri, Response = (Io2, Protocol), Error = ConnectError>,
+        T: Service<Request = Connect, Response = (Io2, Protocol), Error = ConnectError>
+            + Clone
+            + 'static,
         Io1: AsyncRead + AsyncWrite + 'static,
         Io2: AsyncRead + AsyncWrite + 'static,
     {

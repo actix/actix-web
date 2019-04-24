@@ -30,10 +30,10 @@ impl ConnectionInfo {
         let mut host = None;
         let mut scheme = None;
         let mut remote = None;
-        let peer = None;
+        let mut peer = None;
 
         // load forwarded header
-        for hdr in req.headers.get_all(header::FORWARDED) {
+        for hdr in req.headers.get_all(&header::FORWARDED) {
             if let Ok(val) = hdr.to_str() {
                 for pair in val.split(';') {
                     for el in pair.split(',') {
@@ -69,7 +69,7 @@ impl ConnectionInfo {
         if scheme.is_none() {
             if let Some(h) = req
                 .headers
-                .get(HeaderName::from_lowercase(X_FORWARDED_PROTO).unwrap())
+                .get(&HeaderName::from_lowercase(X_FORWARDED_PROTO).unwrap())
             {
                 if let Ok(h) = h.to_str() {
                     scheme = h.split(',').next().map(|v| v.trim());
@@ -87,14 +87,14 @@ impl ConnectionInfo {
         if host.is_none() {
             if let Some(h) = req
                 .headers
-                .get(HeaderName::from_lowercase(X_FORWARDED_HOST).unwrap())
+                .get(&HeaderName::from_lowercase(X_FORWARDED_HOST).unwrap())
             {
                 if let Ok(h) = h.to_str() {
                     host = h.split(',').next().map(|v| v.trim());
                 }
             }
             if host.is_none() {
-                if let Some(h) = req.headers.get(header::HOST) {
+                if let Some(h) = req.headers.get(&header::HOST) {
                     host = h.to_str().ok();
                 }
                 if host.is_none() {
@@ -110,16 +110,16 @@ impl ConnectionInfo {
         if remote.is_none() {
             if let Some(h) = req
                 .headers
-                .get(HeaderName::from_lowercase(X_FORWARDED_FOR).unwrap())
+                .get(&HeaderName::from_lowercase(X_FORWARDED_FOR).unwrap())
             {
                 if let Ok(h) = h.to_str() {
                     remote = h.split(',').next().map(|v| v.trim());
                 }
             }
-            // if remote.is_none() {
-            // get peeraddr from socketaddr
-            // peer = req.peer_addr().map(|addr| format!("{}", addr));
-            // }
+            if remote.is_none() {
+                // get peeraddr from socketaddr
+                peer = req.peer_addr.map(|addr| format!("{}", addr));
+            }
         }
 
         ConnectionInfo {

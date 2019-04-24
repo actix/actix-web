@@ -1,12 +1,14 @@
+use std::io::Write;
 use std::{io, time};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
-use bytes::Bytes;
+use bytes::{BufMut, Bytes, BytesMut};
 use futures::future::{ok, Either};
 use futures::{Async, Future, Poll, Sink, Stream};
 
 use crate::error::PayloadError;
 use crate::h1;
+use crate::http::header::{IntoHeaderValue, HOST};
 use crate::message::{RequestHead, ResponseHead};
 use crate::payload::{Payload, PayloadStream};
 
@@ -17,7 +19,7 @@ use crate::body::{BodySize, MessageBody};
 
 pub(crate) fn send_request<T, B>(
     io: T,
-    head: RequestHead,
+    mut head: RequestHead,
     body: B,
     created: time::Instant,
     pool: Option<Acquired<T>>,
@@ -26,20 +28,41 @@ where
     T: AsyncRead + AsyncWrite + 'static,
     B: MessageBody,
 {
+    // set request host header
+    if !head.headers.contains_key(HOST) {
+        if let Some(host) = head.uri.host() {
+            let mut wrt = BytesMut::with_capacity(host.len() + 5).writer();
+
+            let _ = match head.uri.port_u16() {
+                None | Some(80) | Some(443) => write!(wrt, "{}", host),
+                Some(port) => write!(wrt, "{}:{}", host, port),
+            };
+
+            match wrt.get_mut().take().freeze().try_into() {
+                Ok(value) => {
+                    head.headers.insert(HOST, value);
+                }
+                Err(e) => {
+                    log::error!("Can not set HOST header {}", e);
+                }
+            }
+        }
+    }
+
     let io = H1Connection {
         created,
         pool,
         io: Some(io),
     };
 
-    let len = body.length();
+    let len = body.size();
 
     // create Framed and send reqest
     Framed::new(io, h1::ClientCodec::default())
         .send((head, len).into())
         .from_err()
         // send request body
-        .and_then(move |framed| match body.length() {
+        .and_then(move |framed| match body.size() {
             BodySize::None | BodySize::Empty | BodySize::Sized(0) => {
                 Either::A(ok(framed))
             }
@@ -251,7 +274,7 @@ impl<Io: ConnectionLifetime> Stream for PlStream<Io> {
                     Ok(Async::Ready(Some(chunk)))
                 } else {
                     let framed = self.framed.take().unwrap();
-                    let force_close = framed.get_codec().keepalive();
+                    let force_close = !framed.get_codec().keepalive();
                     release_connection(framed, force_close);
                     Ok(Async::Ready(None))
                 }

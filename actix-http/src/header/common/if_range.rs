@@ -73,12 +73,12 @@ impl Header for IfRange {
         T: HttpMessage,
     {
         let etag: Result<EntityTag, _> =
-            from_one_raw_str(msg.headers().get(header::IF_RANGE));
+            from_one_raw_str(msg.headers().get(&header::IF_RANGE));
         if let Ok(etag) = etag {
             return Ok(IfRange::EntityTag(etag));
         }
         let date: Result<HttpDate, _> =
-            from_one_raw_str(msg.headers().get(header::IF_RANGE));
+            from_one_raw_str(msg.headers().get(&header::IF_RANGE));
         if let Ok(date) = date {
             return Ok(IfRange::Date(date));
         }

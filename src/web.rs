@@ -1,5 +1,5 @@
 //! Essentials helper functions and types for application registration.
-use actix_http::{http::Method, Response};
+use actix_http::http::Method;
 use futures::{Future, IntoFuture};
 
 pub use actix_http::Response as HttpResponse;
@@ -13,6 +13,7 @@ use crate::responder::Responder;
 use crate::route::Route;
 use crate::scope::Scope;
 
+pub use crate::config::ServiceConfig;
 pub use crate::data::{Data, RouteData};
 pub use crate::request::HttpRequest;
 pub use crate::types::*;
@@ -49,7 +50,7 @@ pub use crate::types::*;
 ///     );
 /// }
 /// ```
-pub fn resource<P: 'static>(path: &str) -> Resource<P> {
+pub fn resource(path: &str) -> Resource {
     Resource::new(path)
 }
 
@@ -76,12 +77,12 @@ pub fn resource<P: 'static>(path: &str) -> Resource<P> {
 ///  * /{project_id}/path2
 ///  * /{project_id}/path3
 ///
-pub fn scope<P: 'static>(path: &str) -> Scope<P> {
+pub fn scope(path: &str) -> Scope {
     Scope::new(path)
 }
 
 /// Create *route* without configuration.
-pub fn route<P: 'static>() -> Route<P> {
+pub fn route() -> Route {
     Route::new()
 }
 
@@ -101,8 +102,8 @@ pub fn route<P: 'static>() -> Route<P> {
 /// In the above example, one `GET` route get added:
 ///  * /{project_id}
 ///
-pub fn get<P: 'static>() -> Route<P> {
-    Route::new().method(Method::GET)
+pub fn get() -> Route {
+    method(Method::GET)
 }
 
 /// Create *route* with `POST` method guard.
@@ -121,8 +122,8 @@ pub fn get<P: 'static>() -> Route<P> {
 /// In the above example, one `POST` route get added:
 ///  * /{project_id}
 ///
-pub fn post<P: 'static>() -> Route<P> {
-    Route::new().method(Method::POST)
+pub fn post() -> Route {
+    method(Method::POST)
 }
 
 /// Create *route* with `PUT` method guard.
@@ -141,8 +142,8 @@ pub fn post<P: 'static>() -> Route<P> {
 /// In the above example, one `PUT` route get added:
 ///  * /{project_id}
 ///
-pub fn put<P: 'static>() -> Route<P> {
-    Route::new().method(Method::PUT)
+pub fn put() -> Route {
+    method(Method::PUT)
 }
 
 /// Create *route* with `PATCH` method guard.
@@ -161,8 +162,8 @@ pub fn put<P: 'static>() -> Route<P> {
 /// In the above example, one `PATCH` route get added:
 ///  * /{project_id}
 ///
-pub fn patch<P: 'static>() -> Route<P> {
-    Route::new().method(Method::PATCH)
+pub fn patch() -> Route {
+    method(Method::PATCH)
 }
 
 /// Create *route* with `DELETE` method guard.
@@ -181,8 +182,8 @@ pub fn patch<P: 'static>() -> Route<P> {
 /// In the above example, one `DELETE` route get added:
 ///  * /{project_id}
 ///
-pub fn delete<P: 'static>() -> Route<P> {
-    Route::new().method(Method::DELETE)
+pub fn delete() -> Route {
+    method(Method::DELETE)
 }
 
 /// Create *route* with `HEAD` method guard.
@@ -201,8 +202,8 @@ pub fn delete<P: 'static>() -> Route<P> {
 /// In the above example, one `HEAD` route get added:
 ///  * /{project_id}
 ///
-pub fn head<P: 'static>() -> Route<P> {
-    Route::new().method(Method::HEAD)
+pub fn head() -> Route {
+    method(Method::HEAD)
 }
 
 /// Create *route* and add method guard.
@@ -221,7 +222,7 @@ pub fn head<P: 'static>() -> Route<P> {
 /// In the above example, one `GET` route get added:
 ///  * /{project_id}
 ///
-pub fn method<P: 'static>(method: Method) -> Route<P> {
+pub fn method(method: Method) -> Route {
     Route::new().method(method)
 }
 
@@ -239,10 +240,10 @@ pub fn method<P: 'static>(method: Method) -> Route<P> {
 ///         web::to(index))
 /// );
 /// ```
-pub fn to<F, I, R, P: 'static>(handler: F) -> Route<P>
+pub fn to<F, I, R>(handler: F) -> Route
 where
     F: Factory<I, R> + 'static,
-    I: FromRequest<P> + 'static,
+    I: FromRequest + 'static,
     R: Responder + 'static,
 {
     Route::new().to(handler)
@@ -262,12 +263,12 @@ where
 ///     web::to_async(index))
 /// );
 /// ```
-pub fn to_async<F, I, R, P: 'static>(handler: F) -> Route<P>
+pub fn to_async<F, I, R>(handler: F) -> Route
 where
     F: AsyncFactory<I, R>,
-    I: FromRequest<P> + 'static,
+    I: FromRequest + 'static,
     R: IntoFuture + 'static,
-    R::Item: Into<Response>,
+    R::Item: Responder,
     R::Error: Into<Error>,
 {
     Route::new().to_async(handler)

@@ -5,33 +5,40 @@ use std::rc::Rc;
 use actix_http::Extensions;
 use actix_router::ResourceDef;
 use actix_service::{boxed, IntoNewService, NewService};
+use futures::IntoFuture;
 
+use crate::data::{Data, DataFactory};
 use crate::error::Error;
 use crate::guard::Guard;
+use crate::resource::Resource;
 use crate::rmap::ResourceMap;
-use crate::service::{ServiceRequest, ServiceResponse};
+use crate::route::Route;
+use crate::service::{
+    HttpServiceFactory, ServiceFactory, ServiceFactoryWrapper, ServiceRequest,
+    ServiceResponse,
+};
 
 type Guards = Vec<Box<Guard>>;
-type HttpNewService<P> =
-    boxed::BoxedNewService<(), ServiceRequest<P>, ServiceResponse, Error, ()>;
+type HttpNewService =
+    boxed::BoxedNewService<(), ServiceRequest, ServiceResponse, Error, ()>;
 
 /// Application configuration
-pub struct ServiceConfig<P> {
+pub struct AppService {
     config: AppConfig,
     root: bool,
-    default: Rc<HttpNewService<P>>,
+    default: Rc<HttpNewService>,
     services: Vec<(
         ResourceDef,
-        HttpNewService<P>,
+        HttpNewService,
         Option<Guards>,
         Option<Rc<ResourceMap>>,
     )>,
 }
 
-impl<P: 'static> ServiceConfig<P> {
+impl AppService {
     /// Crate server settings instance
-    pub(crate) fn new(config: AppConfig, default: Rc<HttpNewService<P>>) -> Self {
-        ServiceConfig {
+    pub(crate) fn new(config: AppConfig, default: Rc<HttpNewService>) -> Self {
+        AppService {
             config,
             default,
             root: true,
@@ -48,7 +55,7 @@ impl<P: 'static> ServiceConfig<P> {
         self,
     ) -> Vec<(
         ResourceDef,
-        HttpNewService<P>,
+        HttpNewService,
         Option<Guards>,
         Option<Rc<ResourceMap>>,
     )> {
@@ -56,7 +63,7 @@ impl<P: 'static> ServiceConfig<P> {
     }
 
     pub(crate) fn clone_config(&self) -> Self {
-        ServiceConfig {
+        AppService {
             config: self.config.clone(),
             default: self.default.clone(),
             services: Vec::new(),
@@ -70,7 +77,7 @@ impl<P: 'static> ServiceConfig<P> {
     }
 
     /// Default resource
-    pub fn default_service(&self) -> Rc<HttpNewService<P>> {
+    pub fn default_service(&self) -> Rc<HttpNewService> {
         self.default.clone()
     }
 
@@ -83,7 +90,7 @@ impl<P: 'static> ServiceConfig<P> {
     ) where
         F: IntoNewService<S>,
         S: NewService<
-                Request = ServiceRequest<P>,
+                Request = ServiceRequest,
                 Response = ServiceResponse,
                 Error = Error,
                 InitError = (),
@@ -155,5 +162,199 @@ impl Default for AppConfigInner {
             rmap: ResourceMap::new(ResourceDef::new("")),
             extensions: RefCell::new(Extensions::new()),
         }
+    }
+}
+
+/// Service config is used for external configuration.
+/// Part of application configuration could be offloaded
+/// to set of external methods. This could help with
+/// modularization of big application configuration.
+pub struct ServiceConfig {
+    pub(crate) services: Vec<Box<ServiceFactory>>,
+    pub(crate) data: Vec<Box<DataFactory>>,
+    pub(crate) external: Vec<ResourceDef>,
+}
+
+impl ServiceConfig {
+    pub(crate) fn new() -> Self {
+        Self {
+            services: Vec::new(),
+            data: Vec::new(),
+            external: Vec::new(),
+        }
+    }
+
+    /// Set application data. Applicatin data could be accessed
+    /// by using `Data<T>` extractor where `T` is data type.
+    ///
+    /// This is same as `App::data()` method.
+    pub fn data<S: 'static>(&mut self, data: S) -> &mut Self {
+        self.data.push(Box::new(Data::new(data)));
+        self
+    }
+
+    /// Set application data factory. This function is
+    /// similar to `.data()` but it accepts data factory. Data object get
+    /// constructed asynchronously during application initialization.
+    ///
+    /// This is same as `App::data_dactory()` method.
+    pub fn data_factory<F, R>(&mut self, data: F) -> &mut Self
+    where
+        F: Fn() -> R + 'static,
+        R: IntoFuture + 'static,
+        R::Error: std::fmt::Debug,
+    {
+        self.data.push(Box::new(data));
+        self
+    }
+
+    /// Configure route for a specific path.
+    ///
+    /// This is same as `App::route()` method.
+    pub fn route(&mut self, path: &str, mut route: Route) -> &mut Self {
+        self.service(
+            Resource::new(path)
+                .add_guards(route.take_guards())
+                .route(route),
+        )
+    }
+
+    /// Register http service.
+    ///
+    /// This is same as `App::service()` method.
+    pub fn service<F>(&mut self, factory: F) -> &mut Self
+    where
+        F: HttpServiceFactory + 'static,
+    {
+        self.services
+            .push(Box::new(ServiceFactoryWrapper::new(factory)));
+        self
+    }
+
+    /// Register an external resource.
+    ///
+    /// External resources are useful for URL generation purposes only
+    /// and are never considered for matching at request time. Calls to
+    /// `HttpRequest::url_for()` will work as expected.
+    ///
+    /// This is same as `App::external_service()` method.
+    pub fn external_resource<N, U>(&mut self, name: N, url: U) -> &mut Self
+    where
+        N: AsRef<str>,
+        U: AsRef<str>,
+    {
+        let mut rdef = ResourceDef::new(url.as_ref());
+        *rdef.name_mut() = name.as_ref().to_string();
+        self.external.push(rdef);
+        self
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use actix_service::Service;
+    use bytes::Bytes;
+    use futures::Future;
+    use tokio_timer::sleep;
+
+    use super::*;
+    use crate::http::{Method, StatusCode};
+    use crate::test::{block_on, call_service, init_service, read_body, TestRequest};
+    use crate::{web, App, HttpRequest, HttpResponse};
+
+    #[test]
+    fn test_data() {
+        let cfg = |cfg: &mut ServiceConfig| {
+            cfg.data(10usize);
+        };
+
+        let mut srv =
+            init_service(App::new().configure(cfg).service(
+                web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()),
+            ));
+        let req = TestRequest::default().to_request();
+        let resp = block_on(srv.call(req)).unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[test]
+    fn test_data_factory() {
+        let cfg = |cfg: &mut ServiceConfig| {
+            cfg.data_factory(|| {
+                sleep(std::time::Duration::from_millis(50)).then(|_| {
+                    println!("READY");
+                    Ok::<_, ()>(10usize)
+                })
+            });
+        };
+
+        let mut srv =
+            init_service(App::new().configure(cfg).service(
+                web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()),
+            ));
+        let req = TestRequest::default().to_request();
+        let resp = block_on(srv.call(req)).unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let cfg2 = |cfg: &mut ServiceConfig| {
+            cfg.data_factory(|| Ok::<_, ()>(10u32));
+        };
+        let mut srv = init_service(
+            App::new()
+                .service(web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()))
+                .configure(cfg2),
+        );
+        let req = TestRequest::default().to_request();
+        let resp = block_on(srv.call(req)).unwrap();
+        assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    #[test]
+    fn test_external_resource() {
+        let mut srv = init_service(
+            App::new()
+                .configure(|cfg| {
+                    cfg.external_resource(
+                        "youtube",
+                        "https://youtube.com/watch/{video_id}",
+                    );
+                })
+                .route(
+                    "/test",
+                    web::get().to(|req: HttpRequest| {
+                        HttpResponse::Ok().body(format!(
+                            "{}",
+                            req.url_for("youtube", &["12345"]).unwrap()
+                        ))
+                    }),
+                ),
+        );
+        let req = TestRequest::with_uri("/test").to_request();
+        let resp = call_service(&mut srv, req);
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = read_body(resp);
+        assert_eq!(body, Bytes::from_static(b"https://youtube.com/watch/12345"));
+    }
+
+    #[test]
+    fn test_service() {
+        let mut srv = init_service(App::new().configure(|cfg| {
+            cfg.service(
+                web::resource("/test").route(web::get().to(|| HttpResponse::Created())),
+            )
+            .route("/index.html", web::get().to(|| HttpResponse::Ok()));
+        }));
+
+        let req = TestRequest::with_uri("/test")
+            .method(Method::GET)
+            .to_request();
+        let resp = call_service(&mut srv, req);
+        assert_eq!(resp.status(), StatusCode::CREATED);
+
+        let req = TestRequest::with_uri("/index.html")
+            .method(Method::GET)
+            .to_request();
+        let resp = call_service(&mut srv, req);
+        assert_eq!(resp.status(), StatusCode::OK);
     }
 }

@@ -1,5 +1,15 @@
 # Changes
 
+## [0.1.1] - 2019-04-24
+
+* Always make new connection for http client
+
+
+## [0.1.0] - 2019-04-16
+
+* No changes
+
+
 ## [0.1.0-alpha.3] - 2019-04-02
 
 * Request functions accept path #743

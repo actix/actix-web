@@ -475,10 +475,11 @@ fn cors<'a>(
     parts.as_mut()
 }
 
-impl<S, P, B> IntoTransform<CorsFactory, S> for Cors
+impl<S, B> IntoTransform<CorsFactory, S> for Cors
 where
-    S: Service<Request = ServiceRequest<P>, Response = ServiceResponse<B>> + 'static,
-    P: 'static,
+    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>>,
+    S::Future: 'static,
+    S::Error: 'static,
     B: 'static,
 {
     fn into_transform(self) -> CorsFactory {
@@ -536,15 +537,14 @@ pub struct CorsFactory {
     inner: Rc<Inner>,
 }
 
-impl<S, P, B> Transform<S> for CorsFactory
+impl<S, B> Transform<S> for CorsFactory
 where
-    S: Service<Request = ServiceRequest<P>, Response = ServiceResponse<B>>,
+    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>>,
     S::Future: 'static,
     S::Error: 'static,
-    P: 'static,
     B: 'static,
 {
-    type Request = ServiceRequest<P>;
+    type Request = ServiceRequest;
     type Response = ServiceResponse<B>;
     type Error = S::Error;
     type InitError = ();
@@ -584,7 +584,7 @@ struct Inner {
 
 impl Inner {
     fn validate_origin(&self, req: &RequestHead) -> Result<(), CorsError> {
-        if let Some(hdr) = req.headers().get(header::ORIGIN) {
+        if let Some(hdr) = req.headers().get(&header::ORIGIN) {
             if let Ok(origin) = hdr.to_str() {
                 return match self.origins {
                     AllOrSome::All => Ok(()),
@@ -608,7 +608,7 @@ impl Inner {
             AllOrSome::All => {
                 if self.send_wildcard {
                     Some(HeaderValue::from_static("*"))
-                } else if let Some(origin) = req.headers().get(header::ORIGIN) {
+                } else if let Some(origin) = req.headers().get(&header::ORIGIN) {
                     Some(origin.clone())
                 } else {
                     None
@@ -617,7 +617,7 @@ impl Inner {
             AllOrSome::Some(ref origins) => {
                 if let Some(origin) =
                     req.headers()
-                        .get(header::ORIGIN)
+                        .get(&header::ORIGIN)
                         .filter(|o| match o.to_str() {
                             Ok(os) => origins.contains(os),
                             _ => false,
@@ -632,7 +632,7 @@ impl Inner {
     }
 
     fn validate_allowed_method(&self, req: &RequestHead) -> Result<(), CorsError> {
-        if let Some(hdr) = req.headers().get(header::ACCESS_CONTROL_REQUEST_METHOD) {
+        if let Some(hdr) = req.headers().get(&header::ACCESS_CONTROL_REQUEST_METHOD) {
             if let Ok(meth) = hdr.to_str() {
                 if let Ok(method) = Method::try_from(meth) {
                     return self
@@ -653,7 +653,7 @@ impl Inner {
             AllOrSome::All => Ok(()),
             AllOrSome::Some(ref allowed_headers) => {
                 if let Some(hdr) =
-                    req.headers().get(header::ACCESS_CONTROL_REQUEST_HEADERS)
+                    req.headers().get(&header::ACCESS_CONTROL_REQUEST_HEADERS)
                 {
                     if let Ok(headers) = hdr.to_str() {
                         let mut hdrs = HashSet::new();
@@ -678,15 +678,14 @@ impl Inner {
     }
 }
 
-impl<S, P, B> Service for CorsMiddleware<S>
+impl<S, B> Service for CorsMiddleware<S>
 where
-    S: Service<Request = ServiceRequest<P>, Response = ServiceResponse<B>>,
+    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>>,
     S::Future: 'static,
     S::Error: 'static,
-    P: 'static,
     B: 'static,
 {
-    type Request = ServiceRequest<P>;
+    type Request = ServiceRequest;
     type Response = ServiceResponse<B>;
     type Error = S::Error;
     type Future = Either<
@@ -698,7 +697,7 @@ where
         self.service.poll_ready()
     }
 
-    fn call(&mut self, req: ServiceRequest<P>) -> Self::Future {
+    fn call(&mut self, req: ServiceRequest) -> Self::Future {
         if self.inner.preflight && Method::OPTIONS == *req.method() {
             if let Err(e) = self
                 .inner
@@ -721,7 +720,7 @@ where
                     .unwrap(),
                 )
             } else if let Some(hdr) =
-                req.headers().get(header::ACCESS_CONTROL_REQUEST_HEADERS)
+                req.headers().get(&header::ACCESS_CONTROL_REQUEST_HEADERS)
             {
                 Some(hdr.clone())
             } else {
@@ -760,7 +759,7 @@ where
                 .into_body();
 
             Either::A(ok(req.into_response(res)))
-        } else if req.headers().contains_key(header::ORIGIN) {
+        } else if req.headers().contains_key(&header::ORIGIN) {
             // Only check requests with a origin header.
             if let Err(e) = self.inner.validate_origin(req.head()) {
                 return Either::A(ok(req.error_response(e)));
@@ -791,7 +790,7 @@ where
                     }
                     if inner.vary_header {
                         let value =
-                            if let Some(hdr) = res.headers_mut().get(header::VARY) {
+                            if let Some(hdr) = res.headers_mut().get(&header::VARY) {
                                 let mut val: Vec<u8> =
                                     Vec::with_capacity(hdr.as_bytes().len() + 8);
                                 val.extend(hdr.as_bytes());
@@ -816,17 +815,15 @@ mod tests {
     use actix_service::{FnService, Transform};
 
     use super::*;
-    use crate::dev::PayloadStream;
     use crate::test::{self, block_on, TestRequest};
 
     impl Cors {
-        fn finish<S, P, B>(self, srv: S) -> CorsMiddleware<S>
+        fn finish<S, B>(self, srv: S) -> CorsMiddleware<S>
         where
-            S: Service<Request = ServiceRequest<P>, Response = ServiceResponse<B>>
+            S: Service<Request = ServiceRequest, Response = ServiceResponse<B>>
                 + 'static,
             S::Future: 'static,
             S::Error: 'static,
-            P: 'static,
             B: 'static,
         {
             block_on(
@@ -851,7 +848,18 @@ mod tests {
         let req = TestRequest::with_header("Origin", "https://www.example.com")
             .to_srv_request();
 
-        let resp = test::call_success(&mut cors, req);
+        let resp = test::call_service(&mut cors, req);
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[test]
+    fn default() {
+        let mut cors =
+            block_on(Cors::default().new_transform(test::ok_service())).unwrap();
+        let req = TestRequest::with_header("Origin", "https://www.example.com")
+            .to_srv_request();
+
+        let resp = test::call_service(&mut cors, req);
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
@@ -871,7 +879,7 @@ mod tests {
 
         assert!(cors.inner.validate_allowed_method(req.head()).is_err());
         assert!(cors.inner.validate_allowed_headers(req.head()).is_err());
-        let resp = test::call_success(&mut cors, req);
+        let resp = test::call_service(&mut cors, req);
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 
         let req = TestRequest::with_header("Origin", "https://www.example.com")
@@ -891,24 +899,24 @@ mod tests {
             .method(Method::OPTIONS)
             .to_srv_request();
 
-        let resp = test::call_success(&mut cors, req);
+        let resp = test::call_service(&mut cors, req);
         assert_eq!(
             &b"*"[..],
             resp.headers()
-                .get(header::ACCESS_CONTROL_ALLOW_ORIGIN)
+                .get(&header::ACCESS_CONTROL_ALLOW_ORIGIN)
                 .unwrap()
                 .as_bytes()
         );
         assert_eq!(
             &b"3600"[..],
             resp.headers()
-                .get(header::ACCESS_CONTROL_MAX_AGE)
+                .get(&header::ACCESS_CONTROL_MAX_AGE)
                 .unwrap()
                 .as_bytes()
         );
         let hdr = resp
             .headers()
-            .get(header::ACCESS_CONTROL_ALLOW_HEADERS)
+            .get(&header::ACCESS_CONTROL_ALLOW_HEADERS)
             .unwrap()
             .to_str()
             .unwrap();
@@ -937,7 +945,7 @@ mod tests {
             .method(Method::OPTIONS)
             .to_srv_request();
 
-        let resp = test::call_success(&mut cors, req);
+        let resp = test::call_service(&mut cors, req);
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
@@ -976,7 +984,7 @@ mod tests {
             .method(Method::GET)
             .to_srv_request();
 
-        let resp = test::call_success(&mut cors, req);
+        let resp = test::call_service(&mut cors, req);
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
@@ -985,7 +993,7 @@ mod tests {
         let mut cors = Cors::new().disable_preflight().finish(test::ok_service());
 
         let req = TestRequest::default().method(Method::GET).to_srv_request();
-        let resp = test::call_success(&mut cors, req);
+        let resp = test::call_service(&mut cors, req);
         assert!(resp
             .headers()
             .get(header::ACCESS_CONTROL_ALLOW_ORIGIN)
@@ -994,7 +1002,7 @@ mod tests {
         let req = TestRequest::with_header("Origin", "https://www.example.com")
             .method(Method::OPTIONS)
             .to_srv_request();
-        let resp = test::call_success(&mut cors, req);
+        let resp = test::call_service(&mut cors, req);
         assert_eq!(
             &b"https://www.example.com"[..],
             resp.headers()
@@ -1021,7 +1029,7 @@ mod tests {
             .method(Method::OPTIONS)
             .to_srv_request();
 
-        let resp = test::call_success(&mut cors, req);
+        let resp = test::call_service(&mut cors, req);
         assert_eq!(
             &b"*"[..],
             resp.headers()
@@ -1059,7 +1067,7 @@ mod tests {
             .allowed_headers(exposed_headers.clone())
             .expose_headers(exposed_headers.clone())
             .allowed_header(header::CONTENT_TYPE)
-            .finish(FnService::new(move |req: ServiceRequest<PayloadStream>| {
+            .finish(FnService::new(move |req: ServiceRequest| {
                 req.into_response(
                     HttpResponse::Ok().header(header::VARY, "Accept").finish(),
                 )
@@ -1067,7 +1075,7 @@ mod tests {
         let req = TestRequest::with_header("Origin", "https://www.example.com")
             .method(Method::OPTIONS)
             .to_srv_request();
-        let resp = test::call_success(&mut cors, req);
+        let resp = test::call_service(&mut cors, req);
         assert_eq!(
             &b"Accept, Origin"[..],
             resp.headers().get(header::VARY).unwrap().as_bytes()
@@ -1083,7 +1091,7 @@ mod tests {
             .method(Method::OPTIONS)
             .header(header::ACCESS_CONTROL_REQUEST_METHOD, "POST")
             .to_srv_request();
-        let resp = test::call_success(&mut cors, req);
+        let resp = test::call_service(&mut cors, req);
 
         let origins_str = resp
             .headers()
@@ -1107,7 +1115,7 @@ mod tests {
             .method(Method::GET)
             .to_srv_request();
 
-        let resp = test::call_success(&mut cors, req);
+        let resp = test::call_service(&mut cors, req);
         assert_eq!(
             &b"https://example.com"[..],
             resp.headers()
@@ -1120,7 +1128,7 @@ mod tests {
             .method(Method::GET)
             .to_srv_request();
 
-        let resp = test::call_success(&mut cors, req);
+        let resp = test::call_service(&mut cors, req);
         assert_eq!(
             &b"https://example.org"[..],
             resp.headers()
@@ -1143,7 +1151,7 @@ mod tests {
             .method(Method::OPTIONS)
             .to_srv_request();
 
-        let resp = test::call_success(&mut cors, req);
+        let resp = test::call_service(&mut cors, req);
         assert_eq!(
             &b"https://example.com"[..],
             resp.headers()
@@ -1157,7 +1165,7 @@ mod tests {
             .method(Method::OPTIONS)
             .to_srv_request();
 
-        let resp = test::call_success(&mut cors, req);
+        let resp = test::call_service(&mut cors, req);
         assert_eq!(
             &b"https://example.org"[..],
             resp.headers()

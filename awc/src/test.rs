@@ -3,7 +3,7 @@ use std::fmt::Write as FmtWrite;
 
 use actix_http::cookie::{Cookie, CookieJar};
 use actix_http::http::header::{self, Header, HeaderValue, IntoHeaderValue};
-use actix_http::http::{HeaderName, HttpTryFrom, Version};
+use actix_http::http::{HeaderName, HttpTryFrom, StatusCode, Version};
 use actix_http::{h1, Payload, ResponseHead};
 use bytes::Bytes;
 #[cfg(test)]
@@ -49,7 +49,7 @@ pub struct TestResponse {
 impl Default for TestResponse {
     fn default() -> TestResponse {
         TestResponse {
-            head: ResponseHead::default(),
+            head: ResponseHead::new(StatusCode::OK),
             cookies: CookieJar::new(),
             payload: None,
         }
@@ -132,5 +132,25 @@ impl TestResponse {
         } else {
             ClientResponse::new(head, h1::Payload::empty().into())
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::SystemTime;
+
+    use super::*;
+    use crate::{cookie, http::header};
+
+    #[test]
+    fn test_basics() {
+        let res = TestResponse::default()
+            .version(Version::HTTP_2)
+            .set(header::Date(SystemTime::now().into()))
+            .cookie(cookie::Cookie::build("name", "value").finish())
+            .finish();
+        assert!(res.headers().contains_key(header::SET_COOKIE));
+        assert!(res.headers().contains_key(header::DATE));
+        assert_eq!(res.version(), Version::HTTP_2);
     }
 }

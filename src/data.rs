@@ -5,8 +5,9 @@ use actix_http::error::{Error, ErrorInternalServerError};
 use actix_http::Extensions;
 use futures::{Async, Future, IntoFuture, Poll};
 
+use crate::dev::Payload;
 use crate::extract::FromRequest;
-use crate::service::ServiceFromRequest;
+use crate::request::HttpRequest;
 
 /// Application data factory
 pub(crate) trait DataFactory {
@@ -24,15 +25,16 @@ pub(crate) trait DataFactoryResult {
 /// during application configuration process
 /// with `App::data()` method.
 ///
-/// Applicatin data could be accessed by using `Data<T>`
+/// Application data could be accessed by using `Data<T>`
 /// extractor where `T` is data type.
 ///
 /// **Note**: http server accepts an application factory rather than
 /// an application instance. Http server constructs an application
 /// instance for each thread, thus application data must be constructed
 /// multiple times. If you want to share data between different
-/// threads, a shared object should be used, e.g. `Arc`. Application
-/// data does not need to be `Send` or `Sync`.
+/// threads, a shareable object should be used, e.g. `Send + Sync`. Application
+/// data does not need to be `Send` or `Sync`. Internally `Data` instance
+/// uses `Arc`.
 ///
 /// If route data is not set for a handler, using `Data<T>` extractor would
 /// cause *Internal Server Error* response.
@@ -59,6 +61,7 @@ pub(crate) trait DataFactoryResult {
 ///                 web::get().to(index)));
 /// }
 /// ```
+#[derive(Debug)]
 pub struct Data<T>(Arc<T>);
 
 impl<T> Data<T> {
@@ -86,15 +89,21 @@ impl<T> Clone for Data<T> {
     }
 }
 
-impl<T: 'static, P> FromRequest<P> for Data<T> {
+impl<T: 'static> FromRequest for Data<T> {
+    type Config = ();
     type Error = Error;
     type Future = Result<Self, Error>;
 
     #[inline]
-    fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
-        if let Some(st) = req.request().config().extensions().get::<Data<T>>() {
+    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
+        if let Some(st) = req.app_config().extensions().get::<Data<T>>() {
             Ok(st.clone())
         } else {
+            log::debug!(
+                "Failed to construct App-level Data extractor. \
+                 Request path: {:?}",
+                req.path()
+            );
             Err(ErrorInternalServerError(
                 "App data is not configured, to configure use App::data()",
             ))
@@ -225,15 +234,17 @@ impl<T> Clone for RouteData<T> {
     }
 }
 
-impl<T: 'static, P> FromRequest<P> for RouteData<T> {
+impl<T: 'static> FromRequest for RouteData<T> {
+    type Config = ();
     type Error = Error;
     type Future = Result<Self, Error>;
 
     #[inline]
-    fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
+    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
         if let Some(st) = req.route_data::<T>() {
             Ok(st.clone())
         } else {
+            log::debug!("Failed to construct Route-level Data extractor");
             Err(ErrorInternalServerError(
                 "Route data is not configured, to configure use Route::data()",
             ))

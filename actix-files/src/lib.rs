@@ -10,8 +10,8 @@ use std::{cmp, io};
 use actix_service::boxed::{self, BoxedNewService, BoxedService};
 use actix_service::{IntoNewService, NewService, Service};
 use actix_web::dev::{
-    HttpServiceFactory, Payload, ResourceDef, ServiceConfig, ServiceFromRequest,
-    ServiceRequest, ServiceResponse,
+    AppService, HttpServiceFactory, Payload, ResourceDef, ServiceRequest,
+    ServiceResponse,
 };
 use actix_web::error::{BlockingError, Error, ErrorInternalServerError};
 use actix_web::http::header::DispositionType;
@@ -32,9 +32,8 @@ use self::error::{FilesError, UriSegmentError};
 pub use crate::named::NamedFile;
 pub use crate::range::HttpRange;
 
-type HttpService<P> = BoxedService<ServiceRequest<P>, ServiceResponse, Error>;
-type HttpNewService<P> =
-    BoxedNewService<(), ServiceRequest<P>, ServiceResponse, Error, ()>;
+type HttpService = BoxedService<ServiceRequest, ServiceResponse, Error>;
+type HttpNewService = BoxedNewService<(), ServiceRequest, ServiceResponse, Error, ()>;
 
 /// Return the MIME type associated with a filename extension (case-insensitive).
 /// If `ext` is empty or no associated type for the extension was found, returns
@@ -225,18 +224,18 @@ type MimeOverride = Fn(&mime::Name) -> DispositionType;
 ///         .service(fs::Files::new("/static", "."));
 /// }
 /// ```
-pub struct Files<S> {
+pub struct Files {
     path: String,
     directory: PathBuf,
     index: Option<String>,
     show_index: bool,
-    default: Rc<RefCell<Option<Rc<HttpNewService<S>>>>>,
+    default: Rc<RefCell<Option<Rc<HttpNewService>>>>,
     renderer: Rc<DirectoryRenderer>,
     mime_override: Option<Rc<MimeOverride>>,
     file_flags: named::Flags,
 }
 
-impl<S> Clone for Files<S> {
+impl Clone for Files {
     fn clone(&self) -> Self {
         Self {
             directory: self.directory.clone(),
@@ -251,13 +250,13 @@ impl<S> Clone for Files<S> {
     }
 }
 
-impl<S: 'static> Files<S> {
+impl Files {
     /// Create new `Files` instance for specified base directory.
     ///
     /// `File` uses `ThreadPool` for blocking filesystem operations.
     /// By default pool with 5x threads of available cpus is used.
     /// Pool size can be changed by setting ACTIX_CPU_POOL environment variable.
-    pub fn new<T: Into<PathBuf>>(path: &str, dir: T) -> Files<S> {
+    pub fn new<T: Into<PathBuf>>(path: &str, dir: T) -> Files {
         let dir = dir.into().canonicalize().unwrap_or_else(|_| PathBuf::new());
         if !dir.is_dir() {
             log::error!("Specified path is not a directory");
@@ -335,7 +334,7 @@ impl<S: 'static> Files<S> {
     where
         F: IntoNewService<U>,
         U: NewService<
-                Request = ServiceRequest<S>,
+                Request = ServiceRequest,
                 Response = ServiceResponse,
                 Error = Error,
             > + 'static,
@@ -349,11 +348,8 @@ impl<S: 'static> Files<S> {
     }
 }
 
-impl<P> HttpServiceFactory<P> for Files<P>
-where
-    P: 'static,
-{
-    fn register(self, config: &mut ServiceConfig<P>) {
+impl HttpServiceFactory for Files {
+    fn register(self, config: &mut AppService) {
         if self.default.borrow().is_none() {
             *self.default.borrow_mut() = Some(config.default_service());
         }
@@ -366,11 +362,11 @@ where
     }
 }
 
-impl<P: 'static> NewService for Files<P> {
-    type Request = ServiceRequest<P>;
+impl NewService for Files {
+    type Request = ServiceRequest;
     type Response = ServiceResponse;
     type Error = Error;
-    type Service = FilesService<P>;
+    type Service = FilesService;
     type InitError = ();
     type Future = Box<Future<Item = Self::Service, Error = Self::InitError>>;
 
@@ -401,37 +397,36 @@ impl<P: 'static> NewService for Files<P> {
     }
 }
 
-pub struct FilesService<P> {
+pub struct FilesService {
     directory: PathBuf,
     index: Option<String>,
     show_index: bool,
-    default: Option<HttpService<P>>,
+    default: Option<HttpService>,
     renderer: Rc<DirectoryRenderer>,
     mime_override: Option<Rc<MimeOverride>>,
     file_flags: named::Flags,
 }
 
-impl<P> FilesService<P> {
+impl FilesService {
     fn handle_err(
         &mut self,
         e: io::Error,
-        req: HttpRequest,
-        payload: Payload<P>,
+        req: ServiceRequest,
     ) -> Either<
         FutureResult<ServiceResponse, Error>,
         Box<Future<Item = ServiceResponse, Error = Error>>,
     > {
         log::debug!("Files: Failed to handle {}: {}", req.path(), e);
         if let Some(ref mut default) = self.default {
-            Either::B(default.call(ServiceRequest::from_parts(req, payload)))
+            default.call(req)
         } else {
-            Either::A(ok(ServiceResponse::from_err(e, req.clone())))
+            Either::A(ok(req.error_response(e)))
         }
     }
 }
 
-impl<P> Service for FilesService<P> {
-    type Request = ServiceRequest<P>;
+impl Service for FilesService {
+    type Request = ServiceRequest;
     type Response = ServiceResponse;
     type Error = Error;
     type Future = Either<
@@ -443,18 +438,18 @@ impl<P> Service for FilesService<P> {
         Ok(Async::Ready(()))
     }
 
-    fn call(&mut self, req: ServiceRequest<P>) -> Self::Future {
-        let (req, pl) = req.into_parts();
+    fn call(&mut self, req: ServiceRequest) -> Self::Future {
+        // let (req, pl) = req.into_parts();
 
         let real_path = match PathBufWrp::get_pathbuf(req.match_info().path()) {
             Ok(item) => item,
-            Err(e) => return Either::A(ok(ServiceResponse::from_err(e, req.clone()))),
+            Err(e) => return Either::A(ok(req.error_response(e))),
         };
 
         // full filepath
         let path = match self.directory.join(&real_path.0).canonicalize() {
             Ok(path) => path,
-            Err(e) => return self.handle_err(e, req, pl),
+            Err(e) => return self.handle_err(e, req),
         };
 
         if path.is_dir() {
@@ -470,24 +465,26 @@ impl<P> Service for FilesService<P> {
                         }
 
                         named_file.flags = self.file_flags;
+                        let (req, _) = req.into_parts();
                         Either::A(ok(match named_file.respond_to(&req) {
-                            Ok(item) => ServiceResponse::new(req.clone(), item),
-                            Err(e) => ServiceResponse::from_err(e, req.clone()),
+                            Ok(item) => ServiceResponse::new(req, item),
+                            Err(e) => ServiceResponse::from_err(e, req),
                         }))
                     }
-                    Err(e) => return self.handle_err(e, req, pl),
+                    Err(e) => return self.handle_err(e, req),
                 }
             } else if self.show_index {
                 let dir = Directory::new(self.directory.clone(), path);
+                let (req, _) = req.into_parts();
                 let x = (self.renderer)(&dir, &req);
                 match x {
                     Ok(resp) => Either::A(ok(resp)),
-                    Err(e) => return self.handle_err(e, req, pl),
+                    Err(e) => return Either::A(ok(ServiceResponse::from_err(e, req))),
                 }
             } else {
                 Either::A(ok(ServiceResponse::from_err(
                     FilesError::IsDirectory,
-                    req.clone(),
+                    req.into_parts().0,
                 )))
             }
         } else {
@@ -500,16 +497,15 @@ impl<P> Service for FilesService<P> {
                     }
 
                     named_file.flags = self.file_flags;
+                    let (req, _) = req.into_parts();
                     match named_file.respond_to(&req) {
                         Ok(item) => {
                             Either::A(ok(ServiceResponse::new(req.clone(), item)))
                         }
-                        Err(e) => {
-                            Either::A(ok(ServiceResponse::from_err(e, req.clone())))
-                        }
+                        Err(e) => Either::A(ok(ServiceResponse::from_err(e, req))),
                     }
                 }
-                Err(e) => self.handle_err(e, req, pl),
+                Err(e) => self.handle_err(e, req),
             }
         }
     }
@@ -547,12 +543,13 @@ impl PathBufWrp {
     }
 }
 
-impl<P> FromRequest<P> for PathBufWrp {
+impl FromRequest for PathBufWrp {
     type Error = UriSegmentError;
     type Future = Result<Self, Self::Error>;
+    type Config = ();
 
-    fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
-        PathBufWrp::get_pathbuf(req.request().match_info().path())
+    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
+        PathBufWrp::get_pathbuf(req.match_info().path())
     }
 }
 
@@ -570,6 +567,7 @@ mod tests {
         self, ContentDisposition, DispositionParam, DispositionType,
     };
     use actix_web::http::{Method, StatusCode};
+    use actix_web::middleware::Compress;
     use actix_web::test::{self, TestRequest};
     use actix_web::App;
 
@@ -777,7 +775,7 @@ mod tests {
         );
 
         let request = TestRequest::get().uri("/").to_request();
-        let response = test::call_success(&mut srv, request);
+        let response = test::call_service(&mut srv, request);
         assert_eq!(response.status(), StatusCode::OK);
 
         let content_disposition = response
@@ -801,7 +799,7 @@ mod tests {
             .uri("/t%65st/Cargo.toml")
             .header(header::RANGE, "bytes=10-20")
             .to_request();
-        let response = test::call_success(&mut srv, request);
+        let response = test::call_service(&mut srv, request);
         assert_eq!(response.status(), StatusCode::PARTIAL_CONTENT);
 
         // Invalid range header
@@ -809,7 +807,7 @@ mod tests {
             .uri("/t%65st/Cargo.toml")
             .header(header::RANGE, "bytes=1-0")
             .to_request();
-        let response = test::call_success(&mut srv, request);
+        let response = test::call_service(&mut srv, request);
 
         assert_eq!(response.status(), StatusCode::RANGE_NOT_SATISFIABLE);
     }
@@ -826,7 +824,7 @@ mod tests {
             .header(header::RANGE, "bytes=10-20")
             .to_request();
 
-        let response = test::call_success(&mut srv, request);
+        let response = test::call_service(&mut srv, request);
         let contentrange = response
             .headers()
             .get(header::CONTENT_RANGE)
@@ -841,7 +839,7 @@ mod tests {
             .uri("/t%65st/tests/test.binary")
             .header(header::RANGE, "bytes=10-5")
             .to_request();
-        let response = test::call_success(&mut srv, request);
+        let response = test::call_service(&mut srv, request);
 
         let contentrange = response
             .headers()
@@ -864,7 +862,7 @@ mod tests {
             .uri("/t%65st/tests/test.binary")
             .header(header::RANGE, "bytes=10-20")
             .to_request();
-        let response = test::call_success(&mut srv, request);
+        let response = test::call_service(&mut srv, request);
 
         let contentlength = response
             .headers()
@@ -880,7 +878,7 @@ mod tests {
             .uri("/t%65st/tests/test.binary")
             .header(header::RANGE, "bytes=10-8")
             .to_request();
-        let response = test::call_success(&mut srv, request);
+        let response = test::call_service(&mut srv, request);
         assert_eq!(response.status(), StatusCode::RANGE_NOT_SATISFIABLE);
 
         // Without range header
@@ -888,7 +886,7 @@ mod tests {
             .uri("/t%65st/tests/test.binary")
             // .no_default_headers()
             .to_request();
-        let response = test::call_success(&mut srv, request);
+        let response = test::call_service(&mut srv, request);
 
         let contentlength = response
             .headers()
@@ -903,7 +901,7 @@ mod tests {
         let request = TestRequest::get()
             .uri("/t%65st/tests/test.binary")
             .to_request();
-        let mut response = test::call_success(&mut srv, request);
+        let mut response = test::call_service(&mut srv, request);
 
         // with enabled compression
         // {
@@ -934,7 +932,7 @@ mod tests {
         let request = TestRequest::get()
             .uri("/tests/test%20space.binary")
             .to_request();
-        let mut response = test::call_success(&mut srv, request);
+        let mut response = test::call_service(&mut srv, request);
         assert_eq!(response.status(), StatusCode::OK);
 
         let bytes =
@@ -965,7 +963,7 @@ mod tests {
 
     #[test]
     fn test_named_file_content_encoding() {
-        let mut srv = test::init_service(App::new().enable_encoding().service(
+        let mut srv = test::init_service(App::new().wrap(Compress::default()).service(
             web::resource("/").to(|| {
                 NamedFile::open("Cargo.toml")
                     .unwrap()
@@ -977,16 +975,34 @@ mod tests {
             .uri("/")
             .header(header::ACCEPT_ENCODING, "gzip")
             .to_request();
-        let res = test::call_success(&mut srv, request);
+        let res = test::call_service(&mut srv, request);
         assert_eq!(res.status(), StatusCode::OK);
+        assert!(!res.headers().contains_key(header::CONTENT_ENCODING));
+    }
 
+    #[test]
+    fn test_named_file_content_encoding_gzip() {
+        let mut srv = test::init_service(App::new().wrap(Compress::default()).service(
+            web::resource("/").to(|| {
+                NamedFile::open("Cargo.toml")
+                    .unwrap()
+                    .set_content_encoding(header::ContentEncoding::Gzip)
+            }),
+        ));
+
+        let request = TestRequest::get()
+            .uri("/")
+            .header(header::ACCEPT_ENCODING, "gzip")
+            .to_request();
+        let res = test::call_service(&mut srv, request);
+        assert_eq!(res.status(), StatusCode::OK);
         assert_eq!(
             res.headers()
                 .get(header::CONTENT_ENCODING)
                 .unwrap()
                 .to_str()
                 .unwrap(),
-            "identity"
+            "gzip"
         );
     }
 
@@ -1005,20 +1021,20 @@ mod tests {
         );
         let req = TestRequest::with_uri("/missing").to_request();
 
-        let resp = test::call_success(&mut srv, req);
+        let resp = test::call_service(&mut srv, req);
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 
         let mut srv = test::init_service(App::new().service(Files::new("/", ".")));
 
         let req = TestRequest::default().to_request();
-        let resp = test::call_success(&mut srv, req);
+        let resp = test::call_service(&mut srv, req);
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 
         let mut srv = test::init_service(
             App::new().service(Files::new("/", ".").show_files_listing()),
         );
         let req = TestRequest::with_uri("/tests").to_request();
-        let mut resp = test::call_success(&mut srv, req);
+        let mut resp = test::call_service(&mut srv, req);
         assert_eq!(
             resp.headers().get(header::CONTENT_TYPE).unwrap(),
             "text/html; charset=utf-8"
@@ -1035,15 +1051,15 @@ mod tests {
 
     #[test]
     fn test_static_files_bad_directory() {
-        let _st: Files<()> = Files::new("/", "missing");
-        let _st: Files<()> = Files::new("/", "Cargo.toml");
+        let _st: Files = Files::new("/", "missing");
+        let _st: Files = Files::new("/", "Cargo.toml");
     }
 
     #[test]
     fn test_default_handler_file_missing() {
         let mut st = test::block_on(
             Files::new("/", ".")
-                .default_handler(|req: ServiceRequest<_>| {
+                .default_handler(|req: ServiceRequest| {
                     Ok(req.into_response(HttpResponse::Ok().body("default content")))
                 })
                 .new_service(&()),
@@ -1051,7 +1067,7 @@ mod tests {
         .unwrap();
         let req = TestRequest::with_uri("/missing").to_srv_request();
 
-        let mut resp = test::call_success(&mut st, req);
+        let mut resp = test::call_service(&mut st, req);
         assert_eq!(resp.status(), StatusCode::OK);
         let bytes =
             test::block_on(resp.take_body().fold(BytesMut::new(), |mut b, c| {

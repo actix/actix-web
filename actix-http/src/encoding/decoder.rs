@@ -55,7 +55,7 @@ where
     #[inline]
     pub fn from_headers(stream: S, headers: &HeaderMap) -> Decoder<S> {
         // check content-encoding
-        let encoding = if let Some(enc) = headers.get(CONTENT_ENCODING) {
+        let encoding = if let Some(enc) = headers.get(&CONTENT_ENCODING) {
             if let Ok(enc) = enc.to_str() {
                 ContentEncoding::from(enc)
             } else {

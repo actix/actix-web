@@ -1,9 +1,9 @@
 use std::cell::RefCell;
-use std::marker::PhantomData;
 use std::rc::Rc;
 
-use actix_http::{http::Method, Error, Extensions, Response};
+use actix_http::{http::Method, Error, Extensions};
 use actix_service::{NewService, Service};
+use futures::future::{ok, Either, FutureResult};
 use futures::{Async, Future, IntoFuture, Poll};
 
 use crate::data::RouteData;
@@ -11,7 +11,7 @@ use crate::extract::FromRequest;
 use crate::guard::{self, Guard};
 use crate::handler::{AsyncFactory, AsyncHandler, Extract, Factory, Handler};
 use crate::responder::Responder;
-use crate::service::{ServiceFromRequest, ServiceRequest, ServiceResponse};
+use crate::service::{ServiceRequest, ServiceResponse};
 use crate::HttpResponse;
 
 type BoxedRouteService<Req, Res> = Box<
@@ -19,7 +19,10 @@ type BoxedRouteService<Req, Res> = Box<
         Request = Req,
         Response = Res,
         Error = Error,
-        Future = Box<Future<Item = Res, Error = Error>>,
+        Future = Either<
+            FutureResult<Res, Error>,
+            Box<Future<Item = Res, Error = Error>>,
+        >,
     >,
 >;
 
@@ -38,23 +41,22 @@ type BoxedRouteNewService<Req, Res> = Box<
 ///
 /// Route uses builder-like pattern for configuration.
 /// If handler is not explicitly set, default *404 Not Found* handler is used.
-pub struct Route<P> {
-    service: BoxedRouteNewService<ServiceRequest<P>, ServiceResponse>,
+pub struct Route {
+    service: BoxedRouteNewService<ServiceRequest, ServiceResponse>,
     guards: Rc<Vec<Box<Guard>>>,
     data: Option<Extensions>,
     data_ref: Rc<RefCell<Option<Rc<Extensions>>>>,
 }
 
-impl<P: 'static> Route<P> {
+impl Route {
     /// Create new route which matches any request.
-    pub fn new() -> Route<P> {
+    pub fn new() -> Route {
         let data_ref = Rc::new(RefCell::new(None));
         Route {
-            service: Box::new(RouteNewService::new(
-                Extract::new(data_ref.clone()).and_then(
-                    Handler::new(HttpResponse::NotFound).map_err(|_| panic!()),
-                ),
-            )),
+            service: Box::new(RouteNewService::new(Extract::new(
+                data_ref.clone(),
+                Handler::new(|| HttpResponse::NotFound()),
+            ))),
             guards: Rc::new(Vec::new()),
             data: None,
             data_ref,
@@ -71,13 +73,13 @@ impl<P: 'static> Route<P> {
     }
 }
 
-impl<P> NewService for Route<P> {
-    type Request = ServiceRequest<P>;
+impl NewService for Route {
+    type Request = ServiceRequest;
     type Response = ServiceResponse;
     type Error = Error;
     type InitError = ();
-    type Service = RouteService<P>;
-    type Future = CreateRouteService<P>;
+    type Service = RouteService;
+    type Future = CreateRouteService;
 
     fn new_service(&self, _: &()) -> Self::Future {
         CreateRouteService {
@@ -87,17 +89,16 @@ impl<P> NewService for Route<P> {
     }
 }
 
-type RouteFuture<P> = Box<
-    Future<Item = BoxedRouteService<ServiceRequest<P>, ServiceResponse>, Error = ()>,
->;
+type RouteFuture =
+    Box<Future<Item = BoxedRouteService<ServiceRequest, ServiceResponse>, Error = ()>>;
 
-pub struct CreateRouteService<P> {
-    fut: RouteFuture<P>,
+pub struct CreateRouteService {
+    fut: RouteFuture,
     guards: Rc<Vec<Box<Guard>>>,
 }
 
-impl<P> Future for CreateRouteService<P> {
-    type Item = RouteService<P>;
+impl Future for CreateRouteService {
+    type Item = RouteService;
     type Error = ();
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
@@ -111,13 +112,13 @@ impl<P> Future for CreateRouteService<P> {
     }
 }
 
-pub struct RouteService<P> {
-    service: BoxedRouteService<ServiceRequest<P>, ServiceResponse>,
+pub struct RouteService {
+    service: BoxedRouteService<ServiceRequest, ServiceResponse>,
     guards: Rc<Vec<Box<Guard>>>,
 }
 
-impl<P> RouteService<P> {
-    pub fn check(&self, req: &mut ServiceRequest<P>) -> bool {
+impl RouteService {
+    pub fn check(&self, req: &mut ServiceRequest) -> bool {
         for f in self.guards.iter() {
             if !f.check(req.head()) {
                 return false;
@@ -127,22 +128,25 @@ impl<P> RouteService<P> {
     }
 }
 
-impl<P> Service for RouteService<P> {
-    type Request = ServiceRequest<P>;
+impl Service for RouteService {
+    type Request = ServiceRequest;
     type Response = ServiceResponse;
     type Error = Error;
-    type Future = Box<Future<Item = Self::Response, Error = Self::Error>>;
+    type Future = Either<
+        FutureResult<Self::Response, Self::Error>,
+        Box<Future<Item = Self::Response, Error = Self::Error>>,
+    >;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
         self.service.poll_ready()
     }
 
-    fn call(&mut self, req: ServiceRequest<P>) -> Self::Future {
+    fn call(&mut self, req: ServiceRequest) -> Self::Future {
         self.service.call(req)
     }
 }
 
-impl<P: 'static> Route<P> {
+impl Route {
     /// Add method guard to the route.
     ///
     /// ```rust
@@ -229,16 +233,16 @@ impl<P: 'static> Route<P> {
     ///     );
     /// }
     /// ```
-    pub fn to<F, T, R>(mut self, handler: F) -> Route<P>
+    pub fn to<F, T, R>(mut self, handler: F) -> Route
     where
         F: Factory<T, R> + 'static,
-        T: FromRequest<P> + 'static,
+        T: FromRequest + 'static,
         R: Responder + 'static,
     {
-        self.service = Box::new(RouteNewService::new(
-            Extract::new(self.data_ref.clone())
-                .and_then(Handler::new(handler).map_err(|_| panic!())),
-        ));
+        self.service = Box::new(RouteNewService::new(Extract::new(
+            self.data_ref.clone(),
+            Handler::new(handler),
+        )));
         self
     }
 
@@ -272,15 +276,15 @@ impl<P: 'static> Route<P> {
     pub fn to_async<F, T, R>(mut self, handler: F) -> Self
     where
         F: AsyncFactory<T, R>,
-        T: FromRequest<P> + 'static,
+        T: FromRequest + 'static,
         R: IntoFuture + 'static,
-        R::Item: Into<Response>,
+        R::Item: Responder,
         R::Error: Into<Error>,
     {
-        self.service = Box::new(RouteNewService::new(
-            Extract::new(self.data_ref.clone())
-                .and_then(AsyncHandler::new(handler).map_err(|_| panic!())),
-        ));
+        self.service = Box::new(RouteNewService::new(Extract::new(
+            self.data_ref.clone(),
+            AsyncHandler::new(handler),
+        )));
         self
     }
 
@@ -288,7 +292,7 @@ impl<P: 'static> Route<P> {
     /// configuration or specific state available via `RouteData<T>` extractor.
     ///
     /// ```rust
-    /// use actix_web::{web, App};
+    /// use actix_web::{web, App, FromRequest};
     ///
     /// /// extract text data from request
     /// fn index(body: String) -> String {
@@ -300,13 +304,15 @@ impl<P: 'static> Route<P> {
     ///         web::resource("/index.html").route(
     ///             web::get()
     ///                // limit size of the payload
-    ///                .data(web::PayloadConfig::new(4096))
+    ///                .data(String::configure(|cfg| {
+    ///                    cfg.limit(4096)
+    ///                }))
     ///                // register handler
     ///                .to(index)
     ///         ));
     /// }
     /// ```
-    pub fn data<C: 'static>(mut self, data: C) -> Self {
+    pub fn data<T: 'static>(mut self, data: T) -> Self {
         if self.data.is_none() {
             self.data = Some(Extensions::new());
         }
@@ -315,49 +321,45 @@ impl<P: 'static> Route<P> {
     }
 }
 
-struct RouteNewService<P, T>
+struct RouteNewService<T>
 where
-    T: NewService<Request = ServiceRequest<P>, Error = (Error, ServiceFromRequest<P>)>,
+    T: NewService<Request = ServiceRequest, Error = (Error, ServiceRequest)>,
 {
     service: T,
-    _t: PhantomData<P>,
 }
 
-impl<P: 'static, T> RouteNewService<P, T>
+impl<T> RouteNewService<T>
 where
     T: NewService<
-        Request = ServiceRequest<P>,
+        Request = ServiceRequest,
         Response = ServiceResponse,
-        Error = (Error, ServiceFromRequest<P>),
+        Error = (Error, ServiceRequest),
     >,
     T::Future: 'static,
     T::Service: 'static,
     <T::Service as Service>::Future: 'static,
 {
     pub fn new(service: T) -> Self {
-        RouteNewService {
-            service,
-            _t: PhantomData,
-        }
+        RouteNewService { service }
     }
 }
 
-impl<P: 'static, T> NewService for RouteNewService<P, T>
+impl<T> NewService for RouteNewService<T>
 where
     T: NewService<
-        Request = ServiceRequest<P>,
+        Request = ServiceRequest,
         Response = ServiceResponse,
-        Error = (Error, ServiceFromRequest<P>),
+        Error = (Error, ServiceRequest),
     >,
     T::Future: 'static,
     T::Service: 'static,
     <T::Service as Service>::Future: 'static,
 {
-    type Request = ServiceRequest<P>;
+    type Request = ServiceRequest;
     type Response = ServiceResponse;
     type Error = Error;
     type InitError = ();
-    type Service = BoxedRouteService<ServiceRequest<P>, Self::Response>;
+    type Service = BoxedRouteService<ServiceRequest, Self::Response>;
     type Future = Box<Future<Item = Self::Service, Error = Self::InitError>>;
 
     fn new_service(&self, _: &()) -> Self::Future {
@@ -367,44 +369,48 @@ where
                 .map_err(|_| ())
                 .and_then(|service| {
                     let service: BoxedRouteService<_, _> =
-                        Box::new(RouteServiceWrapper {
-                            service,
-                            _t: PhantomData,
-                        });
+                        Box::new(RouteServiceWrapper { service });
                     Ok(service)
                 }),
         )
     }
 }
 
-struct RouteServiceWrapper<P, T: Service> {
+struct RouteServiceWrapper<T: Service> {
     service: T,
-    _t: PhantomData<P>,
 }
 
-impl<P, T> Service for RouteServiceWrapper<P, T>
+impl<T> Service for RouteServiceWrapper<T>
 where
     T::Future: 'static,
     T: Service<
-        Request = ServiceRequest<P>,
+        Request = ServiceRequest,
         Response = ServiceResponse,
-        Error = (Error, ServiceFromRequest<P>),
+        Error = (Error, ServiceRequest),
     >,
 {
-    type Request = ServiceRequest<P>;
+    type Request = ServiceRequest;
     type Response = ServiceResponse;
     type Error = Error;
-    type Future = Box<Future<Item = Self::Response, Error = Self::Error>>;
+    type Future = Either<
+        FutureResult<Self::Response, Self::Error>,
+        Box<Future<Item = Self::Response, Error = Self::Error>>,
+    >;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
         self.service.poll_ready().map_err(|(e, _)| e)
     }
 
-    fn call(&mut self, req: ServiceRequest<P>) -> Self::Future {
-        Box::new(self.service.call(req).then(|res| match res {
-            Ok(res) => Ok(res),
-            Err((err, req)) => Ok(req.error_response(err)),
-        }))
+    fn call(&mut self, req: ServiceRequest) -> Self::Future {
+        let mut fut = self.service.call(req);
+        match fut.poll() {
+            Ok(Async::Ready(res)) => Either::A(ok(res)),
+            Err((e, req)) => Either::A(ok(req.error_response(e))),
+            Ok(Async::NotReady) => Either::B(Box::new(fut.then(|res| match res {
+                Ok(res) => Ok(res),
+                Err((err, req)) => Ok(req.error_response(err)),
+            }))),
+        }
     }
 }
 
@@ -412,18 +418,25 @@ where
 mod tests {
     use std::time::Duration;
 
+    use bytes::Bytes;
     use futures::Future;
+    use serde_derive::Serialize;
     use tokio_timer::sleep;
 
     use crate::http::{Method, StatusCode};
-    use crate::test::{call_success, init_service, TestRequest};
+    use crate::test::{call_service, init_service, read_body, TestRequest};
     use crate::{error, web, App, HttpResponse};
+
+    #[derive(Serialize, PartialEq, Debug)]
+    struct MyObject {
+        name: String,
+    }
 
     #[test]
     fn test_route() {
-        let mut srv =
-            init_service(
-                App::new().service(
+        let mut srv = init_service(
+            App::new()
+                .service(
                     web::resource("/test")
                         .route(web::get().to(|| HttpResponse::Ok()))
                         .route(web::put().to(|| {
@@ -438,37 +451,51 @@ mod tests {
                                 Err::<HttpResponse, _>(error::ErrorBadRequest("err"))
                             })
                         })),
-                ),
-            );
+                )
+                .service(web::resource("/json").route(web::get().to_async(|| {
+                    sleep(Duration::from_millis(25)).then(|_| {
+                        Ok::<_, crate::Error>(web::Json(MyObject {
+                            name: "test".to_string(),
+                        }))
+                    })
+                }))),
+        );
 
         let req = TestRequest::with_uri("/test")
             .method(Method::GET)
             .to_request();
-        let resp = call_success(&mut srv, req);
+        let resp = call_service(&mut srv, req);
         assert_eq!(resp.status(), StatusCode::OK);
 
         let req = TestRequest::with_uri("/test")
             .method(Method::POST)
             .to_request();
-        let resp = call_success(&mut srv, req);
+        let resp = call_service(&mut srv, req);
         assert_eq!(resp.status(), StatusCode::CREATED);
 
         let req = TestRequest::with_uri("/test")
             .method(Method::PUT)
             .to_request();
-        let resp = call_success(&mut srv, req);
+        let resp = call_service(&mut srv, req);
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 
         let req = TestRequest::with_uri("/test")
             .method(Method::DELETE)
             .to_request();
-        let resp = call_success(&mut srv, req);
+        let resp = call_service(&mut srv, req);
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 
         let req = TestRequest::with_uri("/test")
             .method(Method::HEAD)
             .to_request();
-        let resp = call_success(&mut srv, req);
+        let resp = call_service(&mut srv, req);
         assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
+
+        let req = TestRequest::with_uri("/json").to_request();
+        let resp = call_service(&mut srv, req);
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let body = read_body(resp);
+        assert_eq!(body, Bytes::from_static(b"{\"name\":\"test\"}"));
     }
 }

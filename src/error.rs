@@ -31,7 +31,7 @@ pub enum UrlencodedError {
     #[display(fmt = "Can not decode chunked transfer encoding")]
     Chunked,
     /// Payload size is bigger than allowed. (default: 256kB)
-    #[display(fmt = "Urlencoded payload size is bigger than allowed. (default: 256kB)")]
+    #[display(fmt = "Urlencoded payload size is bigger than allowed (default: 256kB)")]
     Overflow,
     /// Payload size is now known
     #[display(fmt = "Payload size is now known")]
@@ -66,7 +66,7 @@ impl ResponseError for UrlencodedError {
 #[derive(Debug, Display, From)]
 pub enum JsonPayloadError {
     /// Payload size is bigger than allowed. (default: 32kB)
-    #[display(fmt = "Json payload size is bigger than allowed.")]
+    #[display(fmt = "Json payload size is bigger than allowed")]
     Overflow,
     /// Content type error
     #[display(fmt = "Content type error")]
@@ -121,36 +121,6 @@ impl ResponseError for ReadlinesError {
     }
 }
 
-/// A set of errors that can occur during parsing multipart streams
-#[derive(Debug, Display, From)]
-pub enum MultipartError {
-    /// Content-Type header is not found
-    #[display(fmt = "No Content-type header found")]
-    NoContentType,
-    /// Can not parse Content-Type header
-    #[display(fmt = "Can not parse Content-Type header")]
-    ParseContentType,
-    /// Multipart boundary is not found
-    #[display(fmt = "Multipart boundary is not found")]
-    Boundary,
-    /// Multipart stream is incomplete
-    #[display(fmt = "Multipart stream is incomplete")]
-    Incomplete,
-    /// Error during field parsing
-    #[display(fmt = "{}", _0)]
-    Parse(ParseError),
-    /// Payload error
-    #[display(fmt = "{}", _0)]
-    Payload(PayloadError),
-}
-
-/// Return `BadRequest` for `MultipartError`
-impl ResponseError for MultipartError {
-    fn error_response(&self) -> HttpResponse {
-        HttpResponse::new(StatusCode::BAD_REQUEST)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -178,12 +148,6 @@ mod tests {
         let resp: HttpResponse = ReadlinesError::LimitOverflow.error_response();
         assert_eq!(resp.status(), StatusCode::PAYLOAD_TOO_LARGE);
         let resp: HttpResponse = ReadlinesError::EncodingError.error_response();
-        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-    }
-
-    #[test]
-    fn test_multipart_error() {
-        let resp: HttpResponse = MultipartError::Boundary.error_response();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
     }
 }

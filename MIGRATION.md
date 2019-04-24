@@ -1,3 +1,213 @@
+## 1.0
+
+* Resource registration. 1.0 version uses generalized resource
+  registration via `.service()` method.
+
+  instead of
+
+  ```rust
+    App.new().resource("/welcome", |r| r.f(welcome))
+  ```
+
+  use App's or Scope's `.service()` method. `.service()` method accepts
+  object that implements `HttpServiceFactory` trait. By default
+  actix-web provides `Resource` and `Scope` services.
+
+  ```rust
+    App.new().service(
+        web::resource("/welcome")
+            .route(web::get().to(welcome))
+            .route(web::post().to(post_handler))
+  ```
+
+* Scope registration.
+
+  instead of
+
+  ```rust
+      let app = App::new().scope("/{project_id}", |scope| {
+            scope
+                .resource("/path1", |r| r.f(|_| HttpResponse::Ok()))
+                .resource("/path2", |r| r.f(|_| HttpResponse::Ok()))
+                .resource("/path3", |r| r.f(|_| HttpResponse::MethodNotAllowed()))
+      });
+  ```
+
+  use `.service()` for registration and `web::scope()` as scope object factory.
+
+  ```rust
+      let app = App::new().service(
+          web::scope("/{project_id}")
+              .service(web::resource("/path1").to(|| HttpResponse::Ok()))
+              .service(web::resource("/path2").to(|| HttpResponse::Ok()))
+              .service(web::resource("/path3").to(|| HttpResponse::MethodNotAllowed()))
+      );
+  ```
+
+* `.with()`, `.with_async()` registration methods have been renamed to `.to()` and `.to_async()`.
+
+  instead of
+
+  ```rust
+    App.new().resource("/welcome", |r| r.with(welcome))
+  ```
+
+  use `.to()` or `.to_async()` methods
+
+  ```rust
+    App.new().service(web::resource("/welcome").to(welcome))
+  ```
+
+* Passing arguments to handler with extractors, multiple arguments are allowed
+
+  instead of
+
+  ```rust
+  fn welcome((body, req): (Bytes, HttpRequest)) -> ... {
+    ...
+  }
+  ```
+
+  use multiple arguments
+
+  ```rust
+  fn welcome(body: Bytes, req: HttpRequest) -> ... {
+    ...
+  }
+  ```
+
+* `.f()`, `.a()` and `.h()` handler registration methods have been removed.
+  Use `.to()` for handlers and `.to_async()` for async handlers. Handler function
+  must use extractors.
+
+  instead of
+
+  ```rust
+    App.new().resource("/welcome", |r| r.f(welcome))
+  ```
+
+  use App's `to()` or `to_async()` methods
+
+  ```rust
+    App.new().service(web::resource("/welcome").to(welcome))
+  ```
+
+* `State` is now `Data`.  You register Data during the App initialization process
+  and then access it from handlers either using a Data extractor or using
+  HttpRequest's api.
+
+  instead of
+
+  ```rust
+    App.with_state(T)
+  ```
+
+  use App's `data` method
+
+  ```rust
+	App.new()
+       .data(T)
+  ```
+
+  and either use the Data extractor within your handler
+
+  ```rust
+    use actix_web::web::Data;
+
+	fn endpoint_handler(Data<T>)){
+      ...
+    }
+  ```
+
+  .. or access your Data element from the HttpRequest
+
+  ```rust
+	fn endpoint_handler(req: HttpRequest) {
+		let data: Option<Data<T>> = req.app_data::<T>();
+    }
+  ```
+
+
+* AsyncResponder is removed, use `.to_async()` registration method and `impl Future<>` as result type.
+
+  instead of
+
+  ```rust
+	use actix_web::AsyncResponder;
+
+    fn endpoint_handler(...) -> impl Future<Item=HttpResponse, Error=Error>{
+		...
+        .responder()
+	}
+  ```
+
+  .. simply omit AsyncResponder and the corresponding responder() finish method
+
+
+* Middleware
+
+  instead of
+
+  ```rust
+      let app = App::new()
+           .middleware(middleware::Logger::default())
+  ```
+
+  use `.wrap()` method
+
+  ```rust
+      let app = App::new()
+           .wrap(middleware::Logger::default())
+           .route("/index.html", web::get().to(index));
+  ```
+
+* `HttpRequest::body()`, `HttpRequest::urlencoded()`, `HttpRequest::json()`, `HttpRequest::multipart()`
+  method have been removed. Use `Bytes`, `String`, `Form`, `Json`, `Multipart` extractors instead.
+
+  instead if
+
+  ```rust
+  fn index(req: &HttpRequest) -> Responder {
+     req.body()
+       .and_then(|body| {
+          ...
+       })
+  }
+
+  use
+
+  ```rust
+  fn index(body: Bytes) -> Responder {
+     ...
+  }
+  ```
+
+* `actix_web::server` module has been removed. To start http server use `actix_web::HttpServer` type
+
+* StaticFiles and NamedFile has been move to separate create.
+
+  instead of `use actix_web::fs::StaticFile`
+
+  use `use actix_files::Files`
+
+  instead of `use actix_web::fs::Namedfile`
+
+  use `use actix_files::NamedFile`
+
+* Multipart has been move to separate create.
+
+  instead of `use actix_web::multipart::Multipart`
+
+  use `use actix_multipart::Multipart`
+
+* Response compression is not enabled by default.
+  To enable, use `Compress` middleware, `App::new().wrap(Compress::default())`.
+
+* Session middleware moved to actix-session crate
+
+* Actors support have been moved to `actix-web-actors` crate
+
+
 ## 0.7.15
 
 * The `' '` character is not percent decoded anymore before matching routes. If you need to use it in

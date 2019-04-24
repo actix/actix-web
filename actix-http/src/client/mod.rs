@@ -1,4 +1,6 @@
 //! Http client api
+use http::Uri;
+
 mod connection;
 mod connector;
 mod error;
@@ -9,3 +11,10 @@ mod pool;
 pub use self::connection::Connection;
 pub use self::connector::Connector;
 pub use self::error::{ConnectError, InvalidUrl, SendRequestError};
+pub use self::pool::Protocol;
+
+#[derive(Clone)]
+pub struct Connect {
+    pub uri: Uri,
+    pub addr: Option<std::net::SocketAddr>,
+}

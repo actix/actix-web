@@ -4,13 +4,13 @@ use std::str;
 use encoding::all::UTF_8;
 use encoding::label::encoding_from_whatwg_label;
 use encoding::EncodingRef;
-use http::{header, HeaderMap};
+use http::header;
 use mime::Mime;
 
 use crate::cookie::Cookie;
 use crate::error::{ContentTypeError, CookieParseError, ParseError};
 use crate::extensions::Extensions;
-use crate::header::Header;
+use crate::header::{Header, HeaderMap};
 use crate::payload::Payload;
 
 struct Cookies(Vec<Cookie<'static>>);

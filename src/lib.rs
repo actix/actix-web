@@ -67,7 +67,6 @@
 //! ## Package feature
 //!
 //! * `client` - enables http client
-//! * `tls` - enables ssl support via `native-tls` crate
 //! * `ssl` - enables ssl support via `openssl` crate, supports `http/2`
 //! * `rust-tls` - enables ssl support via `rustls` crate, supports `http/2`
 //! * `secure-cookies` - enables secure cookies support, includes `ring` crate as
@@ -134,19 +133,16 @@ pub mod dev {
     //! use actix_web::dev::*;
     //! ```
 
-    pub use crate::app::AppRouter;
-    pub use crate::config::{AppConfig, ServiceConfig};
+    pub use crate::config::{AppConfig, AppService};
     pub use crate::info::ConnectionInfo;
     pub use crate::rmap::ResourceMap;
-    pub use crate::service::{
-        HttpServiceFactory, ServiceFromRequest, ServiceRequest, ServiceResponse,
-    };
+    pub use crate::service::{HttpServiceFactory, ServiceRequest, ServiceResponse};
     pub use crate::types::form::UrlEncoded;
     pub use crate::types::json::JsonBody;
-    pub use crate::types::payload::HttpMessageBody;
     pub use crate::types::readlines::Readlines;
 
     pub use actix_http::body::{Body, BodySize, MessageBody, ResponseBody};
+    pub use actix_http::encoding::Decoder as Decompress;
     pub use actix_http::ResponseBuilder as HttpResponseBuilder;
     pub use actix_http::{
         Extensions, Payload, PayloadStream, RequestHead, ResponseHead,
@@ -190,5 +186,7 @@ pub mod client {
     pub use awc::error::{
         ConnectError, InvalidUrl, PayloadError, SendRequestError, WsClientError,
     };
-    pub use awc::{test, Client, ClientBuilder, ClientRequest, ClientResponse};
+    pub use awc::{
+        test, Client, ClientBuilder, ClientRequest, ClientResponse, Connector,
+    };
 }

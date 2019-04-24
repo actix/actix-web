@@ -4,21 +4,29 @@ use std::rc::Rc;
 
 use actix_http::cookie::Cookie;
 use actix_http::http::header::{Header, HeaderName, IntoHeaderValue};
-use actix_http::http::{HttpTryFrom, Method, StatusCode, Version};
+use actix_http::http::{HttpTryFrom, Method, StatusCode, Uri, Version};
 use actix_http::test::TestRequest as HttpTestRequest;
-use actix_http::{Extensions, PayloadStream, Request};
+use actix_http::{Extensions, Request};
 use actix_router::{Path, ResourceDef, Url};
 use actix_rt::Runtime;
 use actix_server_config::ServerConfig;
 use actix_service::{FnService, IntoNewService, NewService, Service};
-use bytes::Bytes;
-use futures::future::{lazy, Future};
+use bytes::{Bytes, BytesMut};
+use futures::{
+    future::{lazy, ok, Future},
+    stream::Stream,
+};
+use serde::de::DeserializeOwned;
+use serde_json;
+
+pub use actix_http::test::TestBuffer;
 
 use crate::config::{AppConfig, AppConfigInner};
-use crate::data::RouteData;
-use crate::dev::Body;
+use crate::data::{Data, RouteData};
+use crate::dev::{Body, MessageBody, Payload};
+use crate::request::HttpRequestPool;
 use crate::rmap::ResourceMap;
-use crate::service::{ServiceFromRequest, ServiceRequest, ServiceResponse};
+use crate::service::{ServiceRequest, ServiceResponse};
 use crate::{Error, HttpRequest, HttpResponse};
 
 thread_local! {
@@ -50,30 +58,25 @@ where
 /// This function panics on nested call.
 pub fn run_on<F, R>(f: F) -> R
 where
-    F: Fn() -> R,
+    F: FnOnce() -> R,
 {
     RT.with(move |rt| rt.borrow_mut().block_on(lazy(|| Ok::<_, ()>(f()))))
         .unwrap()
 }
 
 /// Create service that always responds with `HttpResponse::Ok()`
-pub fn ok_service() -> impl Service<
-    Request = ServiceRequest<PayloadStream>,
-    Response = ServiceResponse<Body>,
-    Error = Error,
-> {
+pub fn ok_service(
+) -> impl Service<Request = ServiceRequest, Response = ServiceResponse<Body>, Error = Error>
+{
     default_service(StatusCode::OK)
 }
 
 /// Create service that responds with response with specified status code
 pub fn default_service(
     status_code: StatusCode,
-) -> impl Service<
-    Request = ServiceRequest<PayloadStream>,
-    Response = ServiceResponse<Body>,
-    Error = Error,
-> {
-    FnService::new(move |req: ServiceRequest<PayloadStream>| {
+) -> impl Service<Request = ServiceRequest, Response = ServiceResponse<Body>, Error = Error>
+{
+    FnService::new(move |req: ServiceRequest| {
         req.into_response(HttpResponse::build(status_code).finish())
     })
 }
@@ -81,11 +84,12 @@ pub fn default_service(
 /// This method accepts application builder instance, and constructs
 /// service.
 ///
-/// ```rust,ignore
+/// ```rust
 /// use actix_service::Service;
 /// use actix_web::{test, web, App, HttpResponse, http::StatusCode};
 ///
-/// fn main() {
+/// #[test]
+/// fn test_init_service() {
 ///     let mut app = test::init_service(
 ///         App::new()
 ///             .service(web::resource("/test").to(|| HttpResponse::Ok()))
@@ -113,16 +117,19 @@ where
     S::InitError: std::fmt::Debug,
 {
     let cfg = ServerConfig::new("127.0.0.1:8080".parse().unwrap());
-    block_on(app.into_new_service().new_service(&cfg)).unwrap()
+    let srv = app.into_new_service();
+    let fut = run_on(move || srv.new_service(&cfg));
+    block_on(fut).unwrap()
 }
 
 /// Calls service and waits for response future completion.
 ///
-/// ```rust,ignore
+/// ```rust
 /// use actix_web::{test, App, HttpResponse, http::StatusCode};
 /// use actix_service::Service;
 ///
-/// fn main() {
+/// #[test]
+/// fn test_response() {
 ///     let mut app = test::init_service(
 ///         App::new()
 ///             .service(web::resource("/test").to(|| HttpResponse::Ok()))
@@ -132,16 +139,155 @@ where
 ///     let req = test::TestRequest::with_uri("/test").to_request();
 ///
 ///     // Call application
-///     let resp = test::call_succ_service(&mut app, req);
+///     let resp = test::call_service(&mut app, req);
 ///     assert_eq!(resp.status(), StatusCode::OK);
 /// }
 /// ```
-pub fn call_success<S, R, B, E>(app: &mut S, req: R) -> S::Response
+pub fn call_service<S, R, B, E>(app: &mut S, req: R) -> S::Response
 where
     S: Service<Request = R, Response = ServiceResponse<B>, Error = E>,
     E: std::fmt::Debug,
 {
-    block_on(app.call(req)).unwrap()
+    block_on(run_on(move || app.call(req))).unwrap()
+}
+
+/// Helper function that returns a response body of a TestRequest
+/// This function blocks the current thread until futures complete.
+///
+/// ```rust
+/// use actix_web::{test, web, App, HttpResponse, http::header};
+/// use bytes::Bytes;
+///
+/// #[test]
+/// fn test_index() {
+///     let mut app = test::init_service(
+///         App::new().service(
+///             web::resource("/index.html")
+///                 .route(web::post().to(
+///                     || HttpResponse::Ok().body("welcome!")))));
+///
+///     let req = test::TestRequest::post()
+///         .uri("/index.html")
+///         .header(header::CONTENT_TYPE, "application/json")
+///         .to_request();
+///
+///     let result = test::read_response(&mut app, req);
+///     assert_eq!(result, Bytes::from_static(b"welcome!"));
+/// }
+/// ```
+pub fn read_response<S, B>(app: &mut S, req: Request) -> Bytes
+where
+    S: Service<Request = Request, Response = ServiceResponse<B>, Error = Error>,
+    B: MessageBody,
+{
+    block_on(run_on(move || {
+        app.call(req).and_then(|mut resp: ServiceResponse<B>| {
+            resp.take_body()
+                .fold(BytesMut::new(), move |mut body, chunk| {
+                    body.extend_from_slice(&chunk);
+                    Ok::<_, Error>(body)
+                })
+                .map(|body: BytesMut| body.freeze())
+        })
+    }))
+    .unwrap_or_else(|_| panic!("read_response failed at block_on unwrap"))
+}
+
+/// Helper function that returns a response body of a ServiceResponse.
+/// This function blocks the current thread until futures complete.
+///
+/// ```rust
+/// use actix_web::{test, web, App, HttpResponse, http::header};
+/// use bytes::Bytes;
+///
+/// #[test]
+/// fn test_index() {
+///     let mut app = test::init_service(
+///         App::new().service(
+///             web::resource("/index.html")
+///                 .route(web::post().to(
+///                     || HttpResponse::Ok().body("welcome!")))));
+///
+///     let req = test::TestRequest::post()
+///         .uri("/index.html")
+///         .header(header::CONTENT_TYPE, "application/json")
+///         .to_request();
+///
+///     let resp = call_service(&mut srv, req);
+///     let result = test::read_body(resp);
+///     assert_eq!(result, Bytes::from_static(b"welcome!"));
+/// }
+/// ```
+pub fn read_body<B>(mut res: ServiceResponse<B>) -> Bytes
+where
+    B: MessageBody,
+{
+    block_on(run_on(move || {
+        res.take_body()
+            .fold(BytesMut::new(), move |mut body, chunk| {
+                body.extend_from_slice(&chunk);
+                Ok::<_, Error>(body)
+            })
+            .map(|body: BytesMut| body.freeze())
+    }))
+    .unwrap_or_else(|_| panic!("read_response failed at block_on unwrap"))
+}
+
+/// Helper function that returns a deserialized response body of a TestRequest
+/// This function blocks the current thread until futures complete.
+///
+/// ```rust
+/// use actix_web::{App, test, web, HttpResponse, http::header};
+/// use serde::{Serialize, Deserialize};
+///
+/// #[derive(Serialize, Deserialize)]
+/// pub struct Person {
+///     id: String,
+///     name: String
+/// }
+///
+/// #[test]
+/// fn test_add_person() {
+///     let mut app = test::init_service(
+///         App::new().service(
+///             web::resource("/people")
+///                 .route(web::post().to(|person: web::Json<Person>| {
+///                     HttpResponse::Ok()
+///                         .json(person.into_inner())})
+///                     )));
+///
+///     let payload = r#"{"id":"12345","name":"User name"}"#.as_bytes();
+///
+///     let req = test::TestRequest::post()
+///         .uri("/people")
+///         .header(header::CONTENT_TYPE, "application/json")
+///         .set_payload(payload)
+///         .to_request();
+///
+///     let result: Person = test::read_response_json(&mut app, req);
+/// }
+/// ```
+pub fn read_response_json<S, B, T>(app: &mut S, req: Request) -> T
+where
+    S: Service<Request = Request, Response = ServiceResponse<B>, Error = Error>,
+    B: MessageBody,
+    T: DeserializeOwned,
+{
+    block_on(run_on(move || {
+        app.call(req).and_then(|mut resp: ServiceResponse<B>| {
+            resp.take_body()
+                .fold(BytesMut::new(), move |mut body, chunk| {
+                    body.extend_from_slice(&chunk);
+                    Ok::<_, Error>(body)
+                })
+                .and_then(|body: BytesMut| {
+                    ok(serde_json::from_slice(&body).unwrap_or_else(|_| {
+                        panic!("read_response_json failed during deserialization")
+                    }))
+                })
+        })
+    }))
+    .unwrap_or_else(|_| panic!("read_response_json failed at block_on unwrap"))
 }
 
 /// Test `Request` builder.
@@ -153,7 +299,7 @@ where
 ///  * `TestRequest::to_from` creates `ServiceFromRequest` instance, which is used for testing extractors.
 ///  * `TestRequest::to_http_request` creates `HttpRequest` instance, which is used for testing handlers.
 ///
-/// ```rust,ignore
+/// ```rust
 /// # use futures::IntoFuture;
 /// use actix_web::{test, HttpRequest, HttpResponse, HttpMessage};
 /// use actix_web::http::{header, StatusCode};
@@ -166,7 +312,8 @@ where
 ///     }
 /// }
 ///
-/// fn main() {
+/// #[test]
+/// fn test_index() {
 ///     let req = test::TestRequest::with_header("content-type", "text/plain")
 ///         .to_http_request();
 ///
@@ -183,6 +330,7 @@ pub struct TestRequest {
     rmap: ResourceMap,
     config: AppConfigInner,
     route_data: Extensions,
+    path: Path<Url>,
 }
 
 impl Default for TestRequest {
@@ -192,6 +340,7 @@ impl Default for TestRequest {
             rmap: ResourceMap::new(ResourceDef::new("")),
             config: AppConfigInner::default(),
             route_data: Extensions::new(),
+            path: Path::new(Url::new(Uri::default())),
         }
     }
 }
@@ -200,22 +349,12 @@ impl Default for TestRequest {
 impl TestRequest {
     /// Create TestRequest and set request uri
     pub fn with_uri(path: &str) -> TestRequest {
-        TestRequest {
-            req: HttpTestRequest::default().uri(path).take(),
-            rmap: ResourceMap::new(ResourceDef::new("")),
-            config: AppConfigInner::default(),
-            route_data: Extensions::new(),
-        }
+        TestRequest::default().uri(path)
     }
 
     /// Create TestRequest and set header
     pub fn with_hdr<H: Header>(hdr: H) -> TestRequest {
-        TestRequest {
-            req: HttpTestRequest::default().set(hdr).take(),
-            config: AppConfigInner::default(),
-            rmap: ResourceMap::new(ResourceDef::new("")),
-            route_data: Extensions::new(),
-        }
+        TestRequest::default().set(hdr)
     }
 
     /// Create TestRequest and set header
@@ -224,32 +363,27 @@ impl TestRequest {
         HeaderName: HttpTryFrom<K>,
         V: IntoHeaderValue,
     {
-        TestRequest {
-            req: HttpTestRequest::default().header(key, value).take(),
-            config: AppConfigInner::default(),
-            rmap: ResourceMap::new(ResourceDef::new("")),
-            route_data: Extensions::new(),
-        }
+        TestRequest::default().header(key, value)
     }
 
     /// Create TestRequest and set method to `Method::GET`
     pub fn get() -> TestRequest {
-        TestRequest {
-            req: HttpTestRequest::default().method(Method::GET).take(),
-            config: AppConfigInner::default(),
-            rmap: ResourceMap::new(ResourceDef::new("")),
-            route_data: Extensions::new(),
-        }
+        TestRequest::default().method(Method::GET)
     }
 
     /// Create TestRequest and set method to `Method::POST`
     pub fn post() -> TestRequest {
-        TestRequest {
-            req: HttpTestRequest::default().method(Method::POST).take(),
-            config: AppConfigInner::default(),
-            rmap: ResourceMap::new(ResourceDef::new("")),
-            route_data: Extensions::new(),
-        }
+        TestRequest::default().method(Method::POST)
+    }
+
+    /// Create TestRequest and set method to `Method::PUT`
+    pub fn put() -> TestRequest {
+        TestRequest::default().method(Method::PUT)
+    }
+
+    /// Create TestRequest and set method to `Method::PATCH`
+    pub fn patch() -> TestRequest {
+        TestRequest::default().method(Method::PATCH)
     }
 
     /// Set HTTP version of this request
@@ -292,6 +426,12 @@ impl TestRequest {
         self
     }
 
+    /// Set request path pattern parameter
+    pub fn param(mut self, name: &'static str, value: &'static str) -> Self {
+        self.path.add_static(name, value);
+        self
+    }
+
     /// Set request payload
     pub fn set_payload<B: Into<Bytes>>(mut self, data: B) -> Self {
         self.req.set_payload(data);
@@ -301,7 +441,7 @@ impl TestRequest {
     /// Set application data. This is equivalent of `App::data()` method
     /// for testing purpose.
     pub fn app_data<T: 'static>(self, data: T) -> Self {
-        self.config.extensions.borrow_mut().insert(data);
+        self.config.extensions.borrow_mut().insert(Data::new(data));
         self
     }
 
@@ -319,16 +459,25 @@ impl TestRequest {
         self
     }
 
-    /// Complete request creation and generate `ServiceRequest` instance
-    pub fn to_srv_request(mut self) -> ServiceRequest<PayloadStream> {
-        let req = self.req.finish();
+    /// Complete request creation and generate `Request` instance
+    pub fn to_request(mut self) -> Request {
+        self.req.finish()
+    }
 
-        ServiceRequest::new(
-            Path::new(Url::new(req.uri().clone())),
-            req,
+    /// Complete request creation and generate `ServiceRequest` instance
+    pub fn to_srv_request(mut self) -> ServiceRequest {
+        let (head, payload) = self.req.finish().into_parts();
+        self.path.get_mut().update(&head.uri);
+
+        let req = HttpRequest::new(
+            self.path,
+            head,
             Rc::new(self.rmap),
             AppConfig::new(self.config),
-        )
+            HttpRequestPool::create(),
+        );
+
+        ServiceRequest::from_parts(req, payload)
     }
 
     /// Complete request creation and generate `ServiceResponse` instance
@@ -336,52 +485,132 @@ impl TestRequest {
         self.to_srv_request().into_response(res)
     }
 
-    /// Complete request creation and generate `Request` instance
-    pub fn to_request(mut self) -> Request<PayloadStream> {
-        self.req.finish()
-    }
-
     /// Complete request creation and generate `HttpRequest` instance
     pub fn to_http_request(mut self) -> HttpRequest {
-        let req = self.req.finish();
+        let (head, _) = self.req.finish().into_parts();
+        self.path.get_mut().update(&head.uri);
 
-        ServiceRequest::new(
-            Path::new(Url::new(req.uri().clone())),
-            req,
+        let mut req = HttpRequest::new(
+            self.path,
+            head,
             Rc::new(self.rmap),
             AppConfig::new(self.config),
-        )
-        .into_parts()
-        .0
-    }
-
-    /// Complete request creation and generate `ServiceFromRequest` instance
-    pub fn to_from(mut self) -> ServiceFromRequest<PayloadStream> {
-        let req = self.req.finish();
-
-        let req = ServiceRequest::new(
-            Path::new(Url::new(req.uri().clone())),
-            req,
-            Rc::new(self.rmap),
-            AppConfig::new(self.config),
+            HttpRequestPool::create(),
         );
-        ServiceFromRequest::new(req, Some(Rc::new(self.route_data)))
+        req.set_route_data(Some(Rc::new(self.route_data)));
+        req
     }
 
-    /// Runs the provided future, blocking the current thread until the future
-    /// completes.
-    ///
-    /// This function can be used to synchronously block the current thread
-    /// until the provided `future` has resolved either successfully or with an
-    /// error. The result of the future is then returned from this function
-    /// call.
-    ///
-    /// Note that this function is intended to be used only for testing purpose.
-    /// This function panics on nested call.
-    pub fn block_on<F>(f: F) -> Result<F::Item, F::Error>
-    where
-        F: Future,
-    {
-        block_on(f)
+    /// Complete request creation and generate `HttpRequest` and `Payload` instances
+    pub fn to_http_parts(mut self) -> (HttpRequest, Payload) {
+        let (head, payload) = self.req.finish().into_parts();
+        self.path.get_mut().update(&head.uri);
+
+        let mut req = HttpRequest::new(
+            self.path,
+            head,
+            Rc::new(self.rmap),
+            AppConfig::new(self.config),
+            HttpRequestPool::create(),
+        );
+        req.set_route_data(Some(Rc::new(self.route_data)));
+        (req, payload)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use serde::{Deserialize, Serialize};
+    use std::time::SystemTime;
+
+    use super::*;
+    use crate::{http::header, web, App, HttpResponse};
+
+    #[test]
+    fn test_basics() {
+        let req = TestRequest::with_hdr(header::ContentType::json())
+            .version(Version::HTTP_2)
+            .set(header::Date(SystemTime::now().into()))
+            .param("test", "123")
+            .app_data(10u32)
+            .to_http_request();
+        assert!(req.headers().contains_key(header::CONTENT_TYPE));
+        assert!(req.headers().contains_key(header::DATE));
+        assert_eq!(&req.match_info()["test"], "123");
+        assert_eq!(req.version(), Version::HTTP_2);
+        let data = req.app_data::<u32>().unwrap();
+        assert_eq!(*data, 10);
+        assert_eq!(*data.get_ref(), 10);
+    }
+
+    #[test]
+    fn test_request_methods() {
+        let mut app = init_service(
+            App::new().service(
+                web::resource("/index.html")
+                    .route(web::put().to(|| HttpResponse::Ok().body("put!")))
+                    .route(web::patch().to(|| HttpResponse::Ok().body("patch!"))),
+            ),
+        );
+
+        let put_req = TestRequest::put()
+            .uri("/index.html")
+            .header(header::CONTENT_TYPE, "application/json")
+            .to_request();
+
+        let result = read_response(&mut app, put_req);
+        assert_eq!(result, Bytes::from_static(b"put!"));
+
+        let patch_req = TestRequest::patch()
+            .uri("/index.html")
+            .header(header::CONTENT_TYPE, "application/json")
+            .to_request();
+
+        let result = read_response(&mut app, patch_req);
+        assert_eq!(result, Bytes::from_static(b"patch!"));
+    }
+
+    #[test]
+    fn test_response() {
+        let mut app = init_service(
+            App::new().service(
+                web::resource("/index.html")
+                    .route(web::post().to(|| HttpResponse::Ok().body("welcome!"))),
+            ),
+        );
+
+        let req = TestRequest::post()
+            .uri("/index.html")
+            .header(header::CONTENT_TYPE, "application/json")
+            .to_request();
+
+        let result = read_response(&mut app, req);
+        assert_eq!(result, Bytes::from_static(b"welcome!"));
+    }
+
+    #[derive(Serialize, Deserialize)]
+    pub struct Person {
+        id: String,
+        name: String,
+    }
+
+    #[test]
+    fn test_response_json() {
+        let mut app = init_service(App::new().service(web::resource("/people").route(
+            web::post().to(|person: web::Json<Person>| {
+                HttpResponse::Ok().json(person.into_inner())
+            }),
+        )));
+
+        let payload = r#"{"id":"12345","name":"User name"}"#.as_bytes();
+
+        let req = TestRequest::post()
+            .uri("/people")
+            .header(header::CONTENT_TYPE, "application/json")
+            .set_payload(payload)
+            .to_request();
+
+        let result: Person = read_response_json(&mut app, req);
+        assert_eq!(&result.id, "12345");
     }
 }

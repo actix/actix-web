@@ -64,7 +64,7 @@ impl Header for CacheControl {
     where
         T: crate::HttpMessage,
     {
-        let directives = from_comma_delimited(msg.headers().get_all(Self::name()))?;
+        let directives = from_comma_delimited(msg.headers().get_all(&Self::name()))?;
         if !directives.is_empty() {
             Ok(CacheControl(directives))
         } else {

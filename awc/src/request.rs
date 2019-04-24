@@ -1,8 +1,8 @@
-use std::fmt;
 use std::fmt::Write as FmtWrite;
 use std::io::Write;
 use std::rc::Rc;
 use std::time::Duration;
+use std::{fmt, net};
 
 use bytes::{BufMut, Bytes, BytesMut};
 use futures::future::{err, Either};
@@ -60,8 +60,8 @@ const HTTPS_ENCODING: &str = "gzip, deflate";
 pub struct ClientRequest {
     pub(crate) head: RequestHead,
     err: Option<HttpError>,
+    addr: Option<net::SocketAddr>,
     cookies: Option<CookieJar>,
-    default_headers: bool,
     response_decompress: bool,
     timeout: Option<Duration>,
     config: Rc<ClientConfig>,
@@ -77,9 +77,9 @@ impl ClientRequest {
             config,
             head: RequestHead::default(),
             err: None,
+            addr: None,
             cookies: None,
             timeout: None,
-            default_headers: true,
             response_decompress: true,
         }
         .method(method)
@@ -96,6 +96,15 @@ impl ClientRequest {
             Ok(uri) => self.head.uri = uri,
             Err(e) => self.err = Some(e.into()),
         }
+        self
+    }
+
+    /// Set socket address of the server.
+    ///
+    /// This address is used for connection. If address is not
+    /// provided url's host name get resolved.
+    pub fn address(mut self, addr: net::SocketAddr) -> Self {
+        self.addr = Some(addr);
         self
     }
 
@@ -330,13 +339,6 @@ impl ClientRequest {
         self
     }
 
-    /// Do not add default request headers.
-    /// By default `Date` and `User-Agent` headers are set.
-    pub fn no_default_headers(mut self) -> Self {
-        self.default_headers = false;
-        self
-    }
-
     /// Disable automatic decompress of response's body
     pub fn no_decompress(mut self) -> Self {
         self.response_decompress = false;
@@ -354,26 +356,28 @@ impl ClientRequest {
 
     /// This method calls provided closure with builder reference if
     /// value is `true`.
-    pub fn if_true<F>(mut self, value: bool, f: F) -> Self
+    pub fn if_true<F>(self, value: bool, f: F) -> Self
     where
-        F: FnOnce(&mut ClientRequest),
+        F: FnOnce(ClientRequest) -> ClientRequest,
     {
         if value {
-            f(&mut self);
+            f(self)
+        } else {
+            self
         }
-        self
     }
 
     /// This method calls provided closure with builder reference if
     /// value is `Some`.
-    pub fn if_some<T, F>(mut self, value: Option<T>, f: F) -> Self
+    pub fn if_some<T, F>(self, value: Option<T>, f: F) -> Self
     where
-        F: FnOnce(T, &mut ClientRequest),
+        F: FnOnce(T, ClientRequest) -> ClientRequest,
     {
         if let Some(val) = value {
-            f(val, &mut self);
+            f(val, self)
+        } else {
+            self
         }
-        self
     }
 
     /// Complete request construction and send body.
@@ -406,36 +410,6 @@ impl ClientRequest {
             return Either::A(err(InvalidUrl::UnknownScheme.into()));
         }
 
-        // set default headers
-        if self.default_headers {
-            // set request host header
-            if let Some(host) = self.head.uri.host() {
-                if !self.head.headers.contains_key(header::HOST) {
-                    let mut wrt = BytesMut::with_capacity(host.len() + 5).writer();
-
-                    let _ = match self.head.uri.port_u16() {
-                        None | Some(80) | Some(443) => write!(wrt, "{}", host),
-                        Some(port) => write!(wrt, "{}:{}", host, port),
-                    };
-
-                    match wrt.get_mut().take().freeze().try_into() {
-                        Ok(value) => {
-                            self.head.headers.insert(header::HOST, value);
-                        }
-                        Err(e) => return Either::A(err(HttpError::from(e).into())),
-                    }
-                }
-            }
-
-            // user agent
-            if !self.head.headers.contains_key(&header::USER_AGENT) {
-                self.head.headers.insert(
-                    header::USER_AGENT,
-                    HeaderValue::from_static(concat!("awc/", env!("CARGO_PKG_VERSION"))),
-                );
-            }
-        }
-
         // set cookies
         if let Some(ref mut jar) = self.cookies {
             let mut cookie = String::new();
@@ -450,7 +424,7 @@ impl ClientRequest {
             );
         }
 
-        let slf = self;
+        let mut slf = self;
 
         // enable br only for https
         #[cfg(any(
@@ -458,25 +432,26 @@ impl ClientRequest {
             feature = "flate2-zlib",
             feature = "flate2-rust"
         ))]
-        let slf = {
-            let https = slf
-                .head
-                .uri
-                .scheme_part()
-                .map(|s| s == &uri::Scheme::HTTPS)
-                .unwrap_or(true);
+        {
+            if slf.response_decompress {
+                let https = slf
+                    .head
+                    .uri
+                    .scheme_part()
+                    .map(|s| s == &uri::Scheme::HTTPS)
+                    .unwrap_or(true);
 
-            if https {
-                slf.set_header_if_none(header::ACCEPT_ENCODING, HTTPS_ENCODING)
-            } else {
-                #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
-                {
-                    slf.set_header_if_none(header::ACCEPT_ENCODING, "gzip, deflate")
-                }
-                #[cfg(not(any(feature = "flate2-zlib", feature = "flate2-rust")))]
-                slf
+                if https {
+                    slf = slf.set_header_if_none(header::ACCEPT_ENCODING, HTTPS_ENCODING)
+                } else {
+                    #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
+                    {
+                        slf = slf
+                            .set_header_if_none(header::ACCEPT_ENCODING, "gzip, deflate")
+                    }
+                };
             }
-        };
+        }
 
         let head = slf.head;
         let config = slf.config.as_ref();
@@ -485,7 +460,7 @@ impl ClientRequest {
         let fut = config
             .connector
             .borrow_mut()
-            .send_request(head, body.into())
+            .send_request(head, body.into(), slf.addr)
             .map(move |res| {
                 res.map_body(|head, payload| {
                     if response_decompress {
@@ -596,102 +571,121 @@ impl fmt::Debug for ClientRequest {
 
 #[cfg(test)]
 mod tests {
+    use std::time::SystemTime;
+
     use super::*;
-    use crate::{test, Client};
+    use crate::Client;
 
     #[test]
     fn test_debug() {
-        test::run_on(|| {
-            let request = Client::new().get("/").header("x-test", "111");
-            let repr = format!("{:?}", request);
-            assert!(repr.contains("ClientRequest"));
-            assert!(repr.contains("x-test"));
-        })
+        let request = Client::new().get("/").header("x-test", "111");
+        let repr = format!("{:?}", request);
+        assert!(repr.contains("ClientRequest"));
+        assert!(repr.contains("x-test"));
+    }
+
+    #[test]
+    fn test_basics() {
+        let mut req = Client::new()
+            .put("/")
+            .version(Version::HTTP_2)
+            .set(header::Date(SystemTime::now().into()))
+            .content_type("plain/text")
+            .if_true(true, |req| req.header(header::SERVER, "awc"))
+            .if_true(false, |req| req.header(header::EXPECT, "awc"))
+            .if_some(Some("server"), |val, req| {
+                req.header(header::USER_AGENT, val)
+            })
+            .if_some(Option::<&str>::None, |_, req| {
+                req.header(header::ALLOW, "1")
+            })
+            .content_length(100);
+        assert!(req.headers().contains_key(header::CONTENT_TYPE));
+        assert!(req.headers().contains_key(header::DATE));
+        assert!(req.headers().contains_key(header::SERVER));
+        assert!(req.headers().contains_key(header::USER_AGENT));
+        assert!(!req.headers().contains_key(header::ALLOW));
+        assert!(!req.headers().contains_key(header::EXPECT));
+        assert_eq!(req.head.version, Version::HTTP_2);
+        let _ = req.headers_mut();
+        let _ = req.send_body("");
     }
 
     #[test]
     fn test_client_header() {
-        test::run_on(|| {
-            let req = Client::build()
-                .header(header::CONTENT_TYPE, "111")
-                .finish()
-                .get("/");
+        let req = Client::build()
+            .header(header::CONTENT_TYPE, "111")
+            .finish()
+            .get("/");
 
-            assert_eq!(
-                req.head
-                    .headers
-                    .get(header::CONTENT_TYPE)
-                    .unwrap()
-                    .to_str()
-                    .unwrap(),
-                "111"
-            );
-        })
+        assert_eq!(
+            req.head
+                .headers
+                .get(header::CONTENT_TYPE)
+                .unwrap()
+                .to_str()
+                .unwrap(),
+            "111"
+        );
     }
 
     #[test]
     fn test_client_header_override() {
-        test::run_on(|| {
-            let req = Client::build()
-                .header(header::CONTENT_TYPE, "111")
-                .finish()
-                .get("/")
-                .set_header(header::CONTENT_TYPE, "222");
+        let req = Client::build()
+            .header(header::CONTENT_TYPE, "111")
+            .finish()
+            .get("/")
+            .set_header(header::CONTENT_TYPE, "222");
 
-            assert_eq!(
-                req.head
-                    .headers
-                    .get(header::CONTENT_TYPE)
-                    .unwrap()
-                    .to_str()
-                    .unwrap(),
-                "222"
-            );
-        })
+        assert_eq!(
+            req.head
+                .headers
+                .get(header::CONTENT_TYPE)
+                .unwrap()
+                .to_str()
+                .unwrap(),
+            "222"
+        );
     }
 
     #[test]
     fn client_basic_auth() {
-        test::run_on(|| {
-            let req = Client::new()
-                .get("/")
-                .basic_auth("username", Some("password"));
-            assert_eq!(
-                req.head
-                    .headers
-                    .get(header::AUTHORIZATION)
-                    .unwrap()
-                    .to_str()
-                    .unwrap(),
-                "Basic dXNlcm5hbWU6cGFzc3dvcmQ="
-            );
+        let req = Client::new()
+            .get("/")
+            .basic_auth("username", Some("password"));
+        assert_eq!(
+            req.head
+                .headers
+                .get(header::AUTHORIZATION)
+                .unwrap()
+                .to_str()
+                .unwrap(),
+            "Basic dXNlcm5hbWU6cGFzc3dvcmQ="
+        );
 
-            let req = Client::new().get("/").basic_auth("username", None);
-            assert_eq!(
-                req.head
-                    .headers
-                    .get(header::AUTHORIZATION)
-                    .unwrap()
-                    .to_str()
-                    .unwrap(),
-                "Basic dXNlcm5hbWU="
-            );
-        });
+        let req = Client::new().get("/").basic_auth("username", None);
+        assert_eq!(
+            req.head
+                .headers
+                .get(header::AUTHORIZATION)
+                .unwrap()
+                .to_str()
+                .unwrap(),
+            "Basic dXNlcm5hbWU="
+        );
     }
 
     #[test]
     fn client_bearer_auth() {
-        test::run_on(|| {
-            let req = Client::new().get("/").bearer_auth("someS3cr3tAutht0k3n");
-            assert_eq!(
-                req.head
-                    .headers
-                    .get(header::AUTHORIZATION)
-                    .unwrap()
-                    .to_str()
-                    .unwrap(),
-                "Bearer someS3cr3tAutht0k3n"
-            );
-        })
+        let req = Client::new().get("/").bearer_auth("someS3cr3tAutht0k3n");
+        assert_eq!(
+            req.head
+                .headers
+                .get(header::AUTHORIZATION)
+                .unwrap()
+                .to_str()
+                .unwrap(),
+            "Bearer someS3cr3tAutht0k3n"
+        );
     }
 }

@@ -53,6 +53,7 @@ where
     type Item = Bytes;
     type Error = PayloadError;
 
+    #[inline]
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
         match self {
             Payload::None => Ok(Async::Ready(None)),

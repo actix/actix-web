@@ -65,8 +65,9 @@ use std::borrow::Cow;
 use std::fmt;
 use std::str::FromStr;
 
+use chrono::Duration;
 use percent_encoding::{percent_encode, USERINFO_ENCODE_SET};
-use time::{Duration, Tm};
+use time::Tm;
 
 pub use self::builder::CookieBuilder;
 pub use self::draft::*;
@@ -624,7 +625,7 @@ impl<'c> Cookie<'c> {
     ///
     /// ```rust
     /// use actix_http::cookie::Cookie;
-    /// use time::Duration;
+    /// use chrono::Duration;
     ///
     /// # fn main() {
     /// let mut c = Cookie::new("name", "value");
@@ -703,7 +704,7 @@ impl<'c> Cookie<'c> {
     ///
     /// ```rust
     /// use actix_http::cookie::Cookie;
-    /// use time::Duration;
+    /// use chrono::Duration;
     ///
     /// # fn main() {
     /// let mut c = Cookie::new("foo", "bar");
@@ -977,7 +978,7 @@ impl<'a, 'b> PartialEq<Cookie<'b>> for Cookie<'a> {
 #[cfg(test)]
 mod tests {
     use super::{Cookie, SameSite};
-    use time::{strptime, Duration};
+    use time::strptime;
 
     #[test]
     fn format() {
@@ -987,9 +988,7 @@ mod tests {
         let cookie = Cookie::build("foo", "bar").http_only(true).finish();
         assert_eq!(&cookie.to_string(), "foo=bar; HttpOnly");
 
-        let cookie = Cookie::build("foo", "bar")
-            .max_age(Duration::seconds(10))
-            .finish();
+        let cookie = Cookie::build("foo", "bar").max_age(10).finish();
         assert_eq!(&cookie.to_string(), "foo=bar; Max-Age=10");
 
         let cookie = Cookie::build("foo", "bar").secure(true).finish();

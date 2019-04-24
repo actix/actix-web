@@ -58,10 +58,8 @@ use time::Duration;
 use crate::cookie::{Cookie, CookieJar, Key, SameSite};
 use crate::error::{Error, Result};
 use crate::http::header::{self, HeaderValue};
-use crate::request::HttpRequest;
-use crate::service::{ServiceFromRequest, ServiceRequest, ServiceResponse};
-use crate::FromRequest;
-use crate::HttpMessage;
+use crate::service::{ServiceRequest, ServiceResponse};
+use crate::{dev::Payload, FromRequest, HttpMessage, HttpRequest};
 
 /// The extractor type to obtain your identity from a request.
 ///
@@ -142,13 +140,14 @@ struct IdentityItem {
 /// }
 /// # fn main() {}
 /// ```
-impl<P> FromRequest<P> for Identity {
+impl FromRequest for Identity {
+    type Config = ();
     type Error = Error;
     type Future = Result<Identity, Error>;
 
     #[inline]
-    fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
-        Ok(Identity(req.request().clone()))
+    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
+        Ok(Identity(req.clone()))
     }
 }
 
@@ -161,7 +160,7 @@ pub trait IdentityPolicy: Sized + 'static {
     type ResponseFuture: IntoFuture<Item = (), Error = Error>;
 
     /// Parse the session from request and load data from a service identity.
-    fn from_request<P>(&self, request: &mut ServiceRequest<P>) -> Self::Future;
+    fn from_request(&self, request: &mut ServiceRequest) -> Self::Future;
 
     /// Write changes to response
     fn to_response<B>(
@@ -200,15 +199,15 @@ impl<T> IdentityService<T> {
     }
 }
 
-impl<S, T, P, B> Transform<S> for IdentityService<T>
+impl<S, T, B> Transform<S> for IdentityService<T>
 where
-    P: 'static,
-    S: Service<Request = ServiceRequest<P>, Response = ServiceResponse<B>> + 'static,
+    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>> + 'static,
     S::Future: 'static,
+    S::Error: 'static,
     T: IdentityPolicy,
     B: 'static,
 {
-    type Request = ServiceRequest<P>;
+    type Request = ServiceRequest;
     type Response = ServiceResponse<B>;
     type Error = S::Error;
     type InitError = ();
@@ -229,15 +228,15 @@ pub struct IdentityServiceMiddleware<S, T> {
     service: Rc<RefCell<S>>,
 }
 
-impl<S, T, P, B> Service for IdentityServiceMiddleware<S, T>
+impl<S, T, B> Service for IdentityServiceMiddleware<S, T>
 where
-    P: 'static,
     B: 'static,
-    S: Service<Request = ServiceRequest<P>, Response = ServiceResponse<B>> + 'static,
+    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>> + 'static,
     S::Future: 'static,
+    S::Error: 'static,
     T: IdentityPolicy,
 {
-    type Request = ServiceRequest<P>;
+    type Request = ServiceRequest;
     type Response = ServiceResponse<B>;
     type Error = S::Error;
     type Future = Box<Future<Item = Self::Response, Error = Self::Error>>;
@@ -246,7 +245,7 @@ where
         self.service.borrow_mut().poll_ready()
     }
 
-    fn call(&mut self, mut req: ServiceRequest<P>) -> Self::Future {
+    fn call(&mut self, mut req: ServiceRequest) -> Self::Future {
         let srv = self.service.clone();
         let backend = self.backend.clone();
 
@@ -348,7 +347,7 @@ impl CookieIdentityInner {
         Ok(())
     }
 
-    fn load<T>(&self, req: &ServiceRequest<T>) -> Option<String> {
+    fn load(&self, req: &ServiceRequest) -> Option<String> {
         if let Ok(cookies) = req.cookies() {
             for cookie in cookies.iter() {
                 if cookie.name() == self.name {
@@ -428,8 +427,13 @@ impl CookieIdentityPolicy {
         self
     }
 
-    /// Sets the `max-age` field in the session cookie being built.
-    pub fn max_age(mut self, value: Duration) -> CookieIdentityPolicy {
+    /// Sets the `max-age` field in the session cookie being built with given number of seconds.
+    pub fn max_age(self, seconds: i64) -> CookieIdentityPolicy {
+        self.max_age_time(Duration::seconds(seconds))
+    }
+
+    /// Sets the `max-age` field in the session cookie being built with `chrono::Duration`.
+    pub fn max_age_time(mut self, value: Duration) -> CookieIdentityPolicy {
         Rc::get_mut(&mut self.0).unwrap().max_age = Some(value);
         self
     }
@@ -445,7 +449,7 @@ impl IdentityPolicy for CookieIdentityPolicy {
     type Future = Result<Option<String>, Error>;
     type ResponseFuture = Result<(), Error>;
 
-    fn from_request<P>(&self, req: &mut ServiceRequest<P>) -> Self::Future {
+    fn from_request(&self, req: &mut ServiceRequest) -> Self::Future {
         Ok(self.0.load(req))
     }
 
@@ -501,15 +505,15 @@ mod tests {
                 })),
         );
         let resp =
-            test::call_success(&mut srv, TestRequest::with_uri("/index").to_request());
+            test::call_service(&mut srv, TestRequest::with_uri("/index").to_request());
         assert_eq!(resp.status(), StatusCode::OK);
 
         let resp =
-            test::call_success(&mut srv, TestRequest::with_uri("/login").to_request());
+            test::call_service(&mut srv, TestRequest::with_uri("/login").to_request());
         assert_eq!(resp.status(), StatusCode::OK);
         let c = resp.response().cookies().next().unwrap().to_owned();
 
-        let resp = test::call_success(
+        let resp = test::call_service(
             &mut srv,
             TestRequest::with_uri("/index")
                 .cookie(c.clone())
@@ -517,7 +521,7 @@ mod tests {
         );
         assert_eq!(resp.status(), StatusCode::CREATED);
 
-        let resp = test::call_success(
+        let resp = test::call_service(
             &mut srv,
             TestRequest::with_uri("/logout")
                 .cookie(c.clone())
@@ -525,5 +529,57 @@ mod tests {
         );
         assert_eq!(resp.status(), StatusCode::OK);
         assert!(resp.headers().contains_key(header::SET_COOKIE))
+    }
+
+    #[test]
+    fn test_identity_max_age_time() {
+        let duration = Duration::days(1);
+        let mut srv = test::init_service(
+            App::new()
+                .wrap(IdentityService::new(
+                    CookieIdentityPolicy::new(&[0; 32])
+                        .domain("www.rust-lang.org")
+                        .name("actix_auth")
+                        .path("/")
+                        .max_age_time(duration)
+                        .secure(true),
+                ))
+                .service(web::resource("/login").to(|id: Identity| {
+                    id.remember("test".to_string());
+                    HttpResponse::Ok()
+                })),
+        );
+        let resp =
+            test::call_service(&mut srv, TestRequest::with_uri("/login").to_request());
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert!(resp.headers().contains_key(header::SET_COOKIE));
+        let c = resp.response().cookies().next().unwrap().to_owned();
+        assert_eq!(duration, c.max_age().unwrap());
+    }
+
+    #[test]
+    fn test_identity_max_age() {
+        let seconds = 60;
+        let mut srv = test::init_service(
+            App::new()
+                .wrap(IdentityService::new(
+                    CookieIdentityPolicy::new(&[0; 32])
+                        .domain("www.rust-lang.org")
+                        .name("actix_auth")
+                        .path("/")
+                        .max_age(seconds)
+                        .secure(true),
+                ))
+                .service(web::resource("/login").to(|id: Identity| {
+                    id.remember("test".to_string());
+                    HttpResponse::Ok()
+                })),
+        );
+        let resp =
+            test::call_service(&mut srv, TestRequest::with_uri("/login").to_request());
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert!(resp.headers().contains_key(header::SET_COOKIE));
+        let c = resp.response().cookies().next().unwrap().to_owned();
+        assert_eq!(Duration::seconds(seconds as i64), c.max_age().unwrap());
     }
 }

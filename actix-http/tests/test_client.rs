@@ -31,9 +31,7 @@ const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
 fn test_h1_v2() {
     env_logger::init();
     let mut srv = TestServer::new(move || {
-        HttpService::build()
-            .finish(|_| future::ok::<_, ()>(Response::Ok().body(STR)))
-            .map(|_| ())
+        HttpService::build().finish(|_| future::ok::<_, ()>(Response::Ok().body(STR)))
     });
     let response = srv.block_on(srv.get("/").send()).unwrap();
     assert!(response.status().is_success());
@@ -61,7 +59,9 @@ fn test_connection_close() {
             .finish(|_| ok::<_, ()>(Response::Ok().body(STR)))
             .map(|_| ())
     });
+    println!("REQ: {:?}", srv.get("/").force_close());
     let response = srv.block_on(srv.get("/").force_close().send()).unwrap();
+    println!("RES: {:?}", response);
     assert!(response.status().is_success());
 }
 

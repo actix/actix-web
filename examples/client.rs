@@ -1,7 +1,6 @@
 use actix_http::Error;
 use actix_rt::System;
-use bytes::BytesMut;
-use futures::{future::lazy, Future, Stream};
+use futures::{future::lazy, Future};
 
 fn main() -> Result<(), Error> {
     std::env::set_var("RUST_LOG", "actix_http=trace");
@@ -13,17 +12,14 @@ fn main() -> Result<(), Error> {
             .header("User-Agent", "Actix-web")
             .send() // <- Send http request
             .from_err()
-            .and_then(|response| {
+            .and_then(|mut response| {
                 // <- server http response
                 println!("Response: {:?}", response);
 
                 // read response body
                 response
+                    .body()
                     .from_err()
-                    .fold(BytesMut::new(), move |mut acc, chunk| {
-                        acc.extend_from_slice(&chunk);
-                        Ok::<_, Error>(acc)
-                    })
                     .map(|body| println!("Downloaded: {:?} bytes", body.len()))
             })
     }))

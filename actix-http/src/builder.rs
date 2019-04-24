@@ -1,49 +1,67 @@
-use std::fmt::Debug;
+use std::fmt;
 use std::marker::PhantomData;
 
+use actix_codec::Framed;
 use actix_server_config::ServerConfig as SrvConfig;
-use actix_service::{IntoNewService, NewService};
+use actix_service::{IntoNewService, NewService, Service};
 
 use crate::body::MessageBody;
 use crate::config::{KeepAlive, ServiceConfig};
+use crate::error::Error;
+use crate::h1::{Codec, ExpectHandler, H1Service, UpgradeHandler};
+use crate::h2::H2Service;
 use crate::request::Request;
 use crate::response::Response;
-
-use crate::h1::H1Service;
-use crate::h2::H2Service;
 use crate::service::HttpService;
 
 /// A http service builder
 ///
 /// This type can be used to construct an instance of `http service` through a
 /// builder-like pattern.
-pub struct HttpServiceBuilder<T, S> {
+pub struct HttpServiceBuilder<T, S, X = ExpectHandler, U = UpgradeHandler<T>> {
     keep_alive: KeepAlive,
     client_timeout: u64,
     client_disconnect: u64,
+    expect: X,
+    upgrade: Option<U>,
     _t: PhantomData<(T, S)>,
 }
 
-impl<T, S> HttpServiceBuilder<T, S>
+impl<T, S> HttpServiceBuilder<T, S, ExpectHandler, UpgradeHandler<T>>
 where
     S: NewService<SrvConfig, Request = Request>,
-    S::Error: Debug + 'static,
-    S::Service: 'static,
+    S::Error: Into<Error>,
+    S::InitError: fmt::Debug,
 {
     /// Create instance of `ServiceConfigBuilder`
-    pub fn new() -> HttpServiceBuilder<T, S> {
+    pub fn new() -> Self {
         HttpServiceBuilder {
             keep_alive: KeepAlive::Timeout(5),
             client_timeout: 5000,
             client_disconnect: 0,
+            expect: ExpectHandler,
+            upgrade: None,
             _t: PhantomData,
         }
     }
+}
 
+impl<T, S, X, U> HttpServiceBuilder<T, S, X, U>
+where
+    S: NewService<SrvConfig, Request = Request>,
+    S::Error: Into<Error>,
+    S::InitError: fmt::Debug,
+    X: NewService<Request = Request, Response = Request>,
+    X::Error: Into<Error>,
+    X::InitError: fmt::Debug,
+    U: NewService<Request = (Request, Framed<T, Codec>), Response = ()>,
+    U::Error: fmt::Display,
+    U::InitError: fmt::Debug,
+{
     /// Set server keep-alive setting.
     ///
     /// By default keep alive is set to a 5 seconds.
-    pub fn keep_alive<U: Into<KeepAlive>>(mut self, val: U) -> Self {
+    pub fn keep_alive<W: Into<KeepAlive>>(mut self, val: W) -> Self {
         self.keep_alive = val.into();
         self
     }
@@ -75,30 +93,56 @@ where
         self
     }
 
-    // #[cfg(feature = "ssl")]
-    // /// Configure alpn protocols for SslAcceptorBuilder.
-    // pub fn configure_openssl(
-    //     builder: &mut openssl::ssl::SslAcceptorBuilder,
-    // ) -> io::Result<()> {
-    //     let protos: &[u8] = b"\x02h2";
-    //     builder.set_alpn_select_callback(|_, protos| {
-    //         const H2: &[u8] = b"\x02h2";
-    //         if protos.windows(3).any(|window| window == H2) {
-    //             Ok(b"h2")
-    //         } else {
-    //             Err(openssl::ssl::AlpnError::NOACK)
-    //         }
-    //     });
-    //     builder.set_alpn_protos(&protos)?;
+    /// Provide service for `EXPECT: 100-Continue` support.
+    ///
+    /// Service get called with request that contains `EXPECT` header.
+    /// Service must return request in case of success, in that case
+    /// request will be forwarded to main service.
+    pub fn expect<F, X1>(self, expect: F) -> HttpServiceBuilder<T, S, X1, U>
+    where
+        F: IntoNewService<X1>,
+        X1: NewService<Request = Request, Response = Request>,
+        X1::Error: Into<Error>,
+        X1::InitError: fmt::Debug,
+    {
+        HttpServiceBuilder {
+            keep_alive: self.keep_alive,
+            client_timeout: self.client_timeout,
+            client_disconnect: self.client_disconnect,
+            expect: expect.into_new_service(),
+            upgrade: self.upgrade,
+            _t: PhantomData,
+        }
+    }
 
-    //     Ok(())
-    // }
+    /// Provide service for custom `Connection: UPGRADE` support.
+    ///
+    /// If service is provided then normal requests handling get halted
+    /// and this service get called with original request and framed object.
+    pub fn upgrade<F, U1>(self, upgrade: F) -> HttpServiceBuilder<T, S, X, U1>
+    where
+        F: IntoNewService<U1>,
+        U1: NewService<Request = (Request, Framed<T, Codec>), Response = ()>,
+        U1::Error: fmt::Display,
+        U1::InitError: fmt::Debug,
+    {
+        HttpServiceBuilder {
+            keep_alive: self.keep_alive,
+            client_timeout: self.client_timeout,
+            client_disconnect: self.client_disconnect,
+            expect: self.expect,
+            upgrade: Some(upgrade.into_new_service()),
+            _t: PhantomData,
+        }
+    }
 
     /// Finish service configuration and create *http service* for HTTP/1 protocol.
-    pub fn h1<F, P, B>(self, service: F) -> H1Service<T, P, S, B>
+    pub fn h1<F, P, B>(self, service: F) -> H1Service<T, P, S, B, X, U>
     where
         B: MessageBody + 'static,
         F: IntoNewService<S, SrvConfig>,
+        S::Error: Into<Error>,
+        S::InitError: fmt::Debug,
         S::Response: Into<Response<B>>,
     {
         let cfg = ServiceConfig::new(
@@ -107,6 +151,8 @@ where
             self.client_disconnect,
         );
         H1Service::with_config(cfg, service.into_new_service())
+            .expect(self.expect)
+            .upgrade(self.upgrade)
     }
 
     /// Finish service configuration and create *http service* for HTTP/2 protocol.
@@ -114,7 +160,10 @@ where
     where
         B: MessageBody + 'static,
         F: IntoNewService<S, SrvConfig>,
+        S::Error: Into<Error>,
+        S::InitError: fmt::Debug,
         S::Response: Into<Response<B>>,
+        <S::Service as Service>::Future: 'static,
     {
         let cfg = ServiceConfig::new(
             self.keep_alive,
@@ -125,11 +174,14 @@ where
     }
 
     /// Finish service configuration and create `HttpService` instance.
-    pub fn finish<F, P, B>(self, service: F) -> HttpService<T, P, S, B>
+    pub fn finish<F, P, B>(self, service: F) -> HttpService<T, P, S, B, X, U>
     where
         B: MessageBody + 'static,
         F: IntoNewService<S, SrvConfig>,
+        S::Error: Into<Error>,
+        S::InitError: fmt::Debug,
         S::Response: Into<Response<B>>,
+        <S::Service as Service>::Future: 'static,
     {
         let cfg = ServiceConfig::new(
             self.keep_alive,
@@ -137,5 +189,7 @@ where
             self.client_disconnect,
         );
         HttpService::with_config(cfg, service.into_new_service())
+            .expect(self.expect)
+            .upgrade(self.upgrade)
     }
 }

@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 
-use time::{Duration, Tm};
+use chrono::Duration;
+use time::Tm;
 
 use super::{Cookie, SameSite};
 
@@ -16,7 +17,6 @@ use super::{Cookie, SameSite};
 ///
 /// ```rust
 /// use actix_http::cookie::Cookie;
-/// use time::Duration;
 ///
 /// # fn main() {
 /// let cookie: Cookie = Cookie::build("name", "value")
@@ -24,7 +24,7 @@ use super::{Cookie, SameSite};
 ///     .path("/")
 ///     .secure(true)
 ///     .http_only(true)
-///     .max_age(Duration::days(1))
+///     .max_age(84600)
 ///     .finish();
 /// # }
 /// ```
@@ -79,6 +79,26 @@ impl CookieBuilder {
         self
     }
 
+    /// Sets the `max_age` field in seconds in the cookie being built.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use actix_http::cookie::Cookie;
+    ///
+    /// # fn main() {
+    /// let c = Cookie::build("foo", "bar")
+    ///     .max_age(1800)
+    ///     .finish();
+    ///
+    /// assert_eq!(c.max_age(), Some(time::Duration::seconds(30 * 60)));
+    /// # }
+    /// ```
+    #[inline]
+    pub fn max_age(self, seconds: i64) -> CookieBuilder {
+        self.max_age_time(Duration::seconds(seconds))
+    }
+
     /// Sets the `max_age` field in the cookie being built.
     ///
     /// # Example
@@ -88,14 +108,14 @@ impl CookieBuilder {
     ///
     /// # fn main() {
     /// let c = Cookie::build("foo", "bar")
-    ///     .max_age(time::Duration::minutes(30))
+    ///     .max_age_time(time::Duration::minutes(30))
     ///     .finish();
     ///
     /// assert_eq!(c.max_age(), Some(time::Duration::seconds(30 * 60)));
     /// # }
     /// ```
     #[inline]
-    pub fn max_age(mut self, value: Duration) -> CookieBuilder {
+    pub fn max_age_time(mut self, value: Duration) -> CookieBuilder {
         self.cookie.set_max_age(value);
         self
     }
@@ -200,7 +220,7 @@ impl CookieBuilder {
     ///
     /// ```rust
     /// use actix_http::cookie::Cookie;
-    /// use time::Duration;
+    /// use chrono::Duration;
     ///
     /// # fn main() {
     /// let c = Cookie::build("foo", "bar")

@@ -5,11 +5,12 @@ use actix_codec::Decoder;
 use bytes::{Bytes, BytesMut};
 use futures::{Async, Poll};
 use http::header::{HeaderName, HeaderValue};
-use http::{header, HeaderMap, HttpTryFrom, Method, StatusCode, Uri, Version};
+use http::{header, HttpTryFrom, Method, StatusCode, Uri, Version};
 use httparse;
 use log::{debug, error, trace};
 
 use crate::error::ParseError;
+use crate::header::HeaderMap;
 use crate::message::{ConnectionType, ResponseHead};
 use crate::request::Request;
 
@@ -51,6 +52,8 @@ pub(crate) enum PayloadLength {
 pub(crate) trait MessageType: Sized {
     fn set_connection_type(&mut self, ctype: Option<ConnectionType>);
 
+    fn set_expect(&mut self);
+
     fn headers_mut(&mut self) -> &mut HeaderMap;
 
     fn decode(src: &mut BytesMut) -> Result<Option<(Self, PayloadType)>, ParseError>;
@@ -62,6 +65,7 @@ pub(crate) trait MessageType: Sized {
     ) -> Result<PayloadLength, ParseError> {
         let mut ka = None;
         let mut has_upgrade = false;
+        let mut expect = false;
         let mut chunked = false;
         let mut content_length = None;
 
@@ -69,73 +73,81 @@ pub(crate) trait MessageType: Sized {
             let headers = self.headers_mut();
 
             for idx in raw_headers.iter() {
-                if let Ok(name) = HeaderName::from_bytes(&slice[idx.name.0..idx.name.1])
-                {
-                    // Unsafe: httparse check header value for valid utf-8
-                    let value = unsafe {
-                        HeaderValue::from_shared_unchecked(
-                            slice.slice(idx.value.0, idx.value.1),
-                        )
-                    };
-                    match name {
-                        header::CONTENT_LENGTH => {
-                            if let Ok(s) = value.to_str() {
-                                if let Ok(len) = s.parse::<u64>() {
+                let name =
+                    HeaderName::from_bytes(&slice[idx.name.0..idx.name.1]).unwrap();
+
+                // Unsafe: httparse check header value for valid utf-8
+                let value = unsafe {
+                    HeaderValue::from_shared_unchecked(
+                        slice.slice(idx.value.0, idx.value.1),
+                    )
+                };
+                match name {
+                    header::CONTENT_LENGTH => {
+                        if let Ok(s) = value.to_str() {
+                            if let Ok(len) = s.parse::<u64>() {
+                                if len != 0 {
                                     content_length = Some(len);
-                                } else {
-                                    debug!("illegal Content-Length: {:?}", s);
-                                    return Err(ParseError::Header);
                                 }
                             } else {
-                                debug!("illegal Content-Length: {:?}", value);
+                                debug!("illegal Content-Length: {:?}", s);
                                 return Err(ParseError::Header);
                             }
+                        } else {
+                            debug!("illegal Content-Length: {:?}", value);
+                            return Err(ParseError::Header);
                         }
-                        // transfer-encoding
-                        header::TRANSFER_ENCODING => {
-                            if let Ok(s) = value.to_str().map(|s| s.trim()) {
-                                chunked = s.eq_ignore_ascii_case("chunked");
-                            } else {
-                                return Err(ParseError::Header);
-                            }
+                    }
+                    // transfer-encoding
+                    header::TRANSFER_ENCODING => {
+                        if let Ok(s) = value.to_str().map(|s| s.trim()) {
+                            chunked = s.eq_ignore_ascii_case("chunked");
+                        } else {
+                            return Err(ParseError::Header);
                         }
-                        // connection keep-alive state
-                        header::CONNECTION => {
-                            ka = if let Ok(conn) = value.to_str().map(|conn| conn.trim())
-                            {
-                                if conn.eq_ignore_ascii_case("keep-alive") {
-                                    Some(ConnectionType::KeepAlive)
-                                } else if conn.eq_ignore_ascii_case("close") {
-                                    Some(ConnectionType::Close)
-                                } else if conn.eq_ignore_ascii_case("upgrade") {
-                                    Some(ConnectionType::Upgrade)
-                                } else {
-                                    None
-                                }
+                    }
+                    // connection keep-alive state
+                    header::CONNECTION => {
+                        ka = if let Ok(conn) = value.to_str().map(|conn| conn.trim()) {
+                            if conn.eq_ignore_ascii_case("keep-alive") {
+                                Some(ConnectionType::KeepAlive)
+                            } else if conn.eq_ignore_ascii_case("close") {
+                                Some(ConnectionType::Close)
+                            } else if conn.eq_ignore_ascii_case("upgrade") {
+                                Some(ConnectionType::Upgrade)
                             } else {
                                 None
-                            };
-                        }
-                        header::UPGRADE => {
-                            has_upgrade = true;
-                            // check content-length, some clients (dart)
-                            // sends "content-length: 0" with websocket upgrade
-                            if let Ok(val) = value.to_str().map(|val| val.trim()) {
-                                if val.eq_ignore_ascii_case("websocket") {
-                                    content_length = None;
-                                }
+                            }
+                        } else {
+                            None
+                        };
+                    }
+                    header::UPGRADE => {
+                        has_upgrade = true;
+                        // check content-length, some clients (dart)
+                        // sends "content-length: 0" with websocket upgrade
+                        if let Ok(val) = value.to_str().map(|val| val.trim()) {
+                            if val.eq_ignore_ascii_case("websocket") {
+                                content_length = None;
                             }
                         }
-                        _ => (),
                     }
-
-                    headers.append(name, value);
-                } else {
-                    return Err(ParseError::Header);
+                    header::EXPECT => {
+                        let bytes = value.as_bytes();
+                        if bytes.len() >= 4 && &bytes[0..4] == b"100-" {
+                            expect = true;
+                        }
+                    }
+                    _ => (),
                 }
+
+                headers.append(name, value);
             }
         }
         self.set_connection_type(ka);
+        if expect {
+            self.set_expect()
+        }
 
         // https://tools.ietf.org/html/rfc7230#section-3.3.3
         if chunked {
@@ -161,6 +173,10 @@ impl MessageType for Request {
         if let Some(ctype) = ctype {
             self.head_mut().set_connection_type(ctype);
         }
+    }
+
+    fn set_expect(&mut self) {
+        self.head_mut().set_expect();
     }
 
     fn headers_mut(&mut self) -> &mut HeaderMap {
@@ -198,10 +214,10 @@ impl MessageType for Request {
         let mut msg = Request::new();
 
         // convert headers
-        let len = msg.set_headers(&src.split_to(len).freeze(), &headers[..h_len])?;
+        let length = msg.set_headers(&src.split_to(len).freeze(), &headers[..h_len])?;
 
         // payload decoder
-        let decoder = match len {
+        let decoder = match length {
             PayloadLength::Payload(pl) => pl,
             PayloadLength::Upgrade => {
                 // upgrade(websocket)
@@ -235,6 +251,8 @@ impl MessageType for ResponseHead {
         }
     }
 
+    fn set_expect(&mut self) {}
+
     fn headers_mut(&mut self) -> &mut HeaderMap {
         &mut self.headers
     }
@@ -266,13 +284,14 @@ impl MessageType for ResponseHead {
             }
         };
 
-        let mut msg = ResponseHead::default();
+        let mut msg = ResponseHead::new(status);
+        msg.version = ver;
 
         // convert headers
-        let len = msg.set_headers(&src.split_to(len).freeze(), &headers[..h_len])?;
+        let length = msg.set_headers(&src.split_to(len).freeze(), &headers[..h_len])?;
 
         // message payload
-        let decoder = if let PayloadLength::Payload(pl) = len {
+        let decoder = if let PayloadLength::Payload(pl) = length {
             pl
         } else if status == StatusCode::SWITCHING_PROTOCOLS {
             // switching protocol or connect
@@ -283,9 +302,6 @@ impl MessageType for ResponseHead {
         } else {
             PayloadType::None
         };
-
-        msg.status = status;
-        msg.version = ver;
 
         Ok(Some((msg, decoder)))
     }
@@ -610,6 +626,7 @@ mod tests {
 
     use super::*;
     use crate::error::ParseError;
+    use crate::http::header::{HeaderName, SET_COOKIE};
     use crate::httpmessage::HttpMessage;
 
     impl PayloadType {
@@ -770,7 +787,13 @@ mod tests {
         assert_eq!(req.version(), Version::HTTP_11);
         assert_eq!(*req.method(), Method::GET);
         assert_eq!(req.path(), "/test");
-        assert_eq!(req.headers().get("test").unwrap().as_bytes(), b"value");
+        assert_eq!(
+            req.headers()
+                .get(HeaderName::try_from("test").unwrap())
+                .unwrap()
+                .as_bytes(),
+            b"value"
+        );
     }
 
     #[test]
@@ -785,12 +808,11 @@ mod tests {
 
         let val: Vec<_> = req
             .headers()
-            .get_all("Set-Cookie")
-            .iter()
+            .get_all(SET_COOKIE)
             .map(|v| v.to_str().unwrap().to_owned())
             .collect();
-        assert_eq!(val[0], "c1=cookie1");
-        assert_eq!(val[1], "c2=cookie2");
+        assert_eq!(val[1], "c1=cookie1");
+        assert_eq!(val[0], "c2=cookie2");
     }
 
     #[test]

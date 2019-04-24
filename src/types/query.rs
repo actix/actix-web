@@ -6,8 +6,9 @@ use actix_http::error::Error;
 use serde::de;
 use serde_urlencoded;
 
+use crate::dev::Payload;
 use crate::extract::FromRequest;
-use crate::service::ServiceFromRequest;
+use crate::request::HttpRequest;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
 /// Extract typed information from from the request's query.
@@ -110,17 +111,57 @@ impl<T: fmt::Display> fmt::Display for Query<T> {
 ///            .route(web::get().to(index))); // <- use `Query` extractor
 /// }
 /// ```
-impl<T, P> FromRequest<P> for Query<T>
+impl<T> FromRequest for Query<T>
 where
     T: de::DeserializeOwned,
 {
+    type Config = ();
     type Error = Error;
     type Future = Result<Self, Error>;
 
     #[inline]
-    fn from_request(req: &mut ServiceFromRequest<P>) -> Self::Future {
-        serde_urlencoded::from_str::<T>(req.request().query_string())
+    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
+        serde_urlencoded::from_str::<T>(req.query_string())
             .map(|val| Ok(Query(val)))
-            .unwrap_or_else(|e| Err(e.into()))
+            .unwrap_or_else(|e| {
+                log::debug!(
+                    "Failed during Query extractor deserialization. \
+                     Request path: {:?}",
+                    req.path()
+                );
+                Err(e.into())
+            })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use derive_more::Display;
+    use serde_derive::Deserialize;
+
+    use super::*;
+    use crate::test::TestRequest;
+
+    #[derive(Deserialize, Debug, Display)]
+    struct Id {
+        id: String,
+    }
+
+    #[test]
+    fn test_request_extract() {
+        let req = TestRequest::with_uri("/name/user1/").to_srv_request();
+        let (req, mut pl) = req.into_parts();
+        assert!(Query::<Id>::from_request(&req, &mut pl).is_err());
+
+        let req = TestRequest::with_uri("/name/user1/?id=test").to_srv_request();
+        let (req, mut pl) = req.into_parts();
+
+        let mut s = Query::<Id>::from_request(&req, &mut pl).unwrap();
+        assert_eq!(s.id, "test");
+        assert_eq!(format!("{}, {:?}", s, s), "test, Id { id: \"test\" }");
+
+        s.id = "test1".to_string();
+        let s = s.into_inner();
+        assert_eq!(s.id, "test1");
     }
 }

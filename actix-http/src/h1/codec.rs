@@ -1,6 +1,6 @@
 #![allow(unused_imports, unused_variables, dead_code)]
-use std::fmt;
-use std::io::{self, Write};
+use std::io::Write;
+use std::{fmt, io, net};
 
 use actix_codec::{Decoder, Encoder};
 use bitflags::bitflags;
@@ -9,7 +9,7 @@ use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCOD
 use http::{Method, StatusCode, Version};
 
 use super::decoder::{PayloadDecoder, PayloadItem, PayloadType};
-use super::{decoder, encoder, reserve_readbuf};
+use super::{decoder, encoder};
 use super::{Message, MessageType};
 use crate::body::BodySize;
 use crate::config::ServiceConfig;
@@ -22,8 +22,8 @@ use crate::response::Response;
 bitflags! {
     struct Flags: u8 {
         const HEAD              = 0b0000_0001;
-        const KEEPALIVE_ENABLED = 0b0000_1000;
-        const STREAM            = 0b0001_0000;
+        const KEEPALIVE_ENABLED = 0b0000_0010;
+        const STREAM            = 0b0000_0100;
     }
 }
 
@@ -31,7 +31,7 @@ const AVERAGE_HEADER_SIZE: usize = 30;
 
 /// HTTP/1 Codec
 pub struct Codec {
-    config: ServiceConfig,
+    pub(crate) config: ServiceConfig,
     decoder: decoder::MessageDecoder<Request>,
     payload: Option<PayloadDecoder>,
     version: Version,
@@ -39,7 +39,6 @@ pub struct Codec {
 
     // encoder part
     flags: Flags,
-    headers_size: u32,
     encoder: encoder::MessageEncoder<Response<()>>,
 }
 
@@ -67,27 +66,34 @@ impl Codec {
         };
         Codec {
             config,
+            flags,
             decoder: decoder::MessageDecoder::default(),
             payload: None,
             version: Version::HTTP_11,
             ctype: ConnectionType::Close,
-
-            flags,
-            headers_size: 0,
             encoder: encoder::MessageEncoder::default(),
         }
     }
 
+    #[inline]
     /// Check if request is upgrade
     pub fn upgrade(&self) -> bool {
         self.ctype == ConnectionType::Upgrade
     }
 
+    #[inline]
     /// Check if last response is keep-alive
     pub fn keepalive(&self) -> bool {
         self.ctype == ConnectionType::KeepAlive
     }
 
+    #[inline]
+    /// Check if keep-alive enabled on server level
+    pub fn keepalive_enabled(&self) -> bool {
+        self.flags.contains(Flags::KEEPALIVE_ENABLED)
+    }
+
+    #[inline]
     /// Check last request's message type
     pub fn message_type(&self) -> MessageType {
         if self.flags.contains(Flags::STREAM) {
@@ -107,10 +113,7 @@ impl Decoder for Codec {
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
         if self.payload.is_some() {
             Ok(match self.payload.as_mut().unwrap().decode(src)? {
-                Some(PayloadItem::Chunk(chunk)) => {
-                    reserve_readbuf(src);
-                    Some(Message::Chunk(Some(chunk)))
-                }
+                Some(PayloadItem::Chunk(chunk)) => Some(Message::Chunk(Some(chunk))),
                 Some(PayloadItem::Eof) => {
                     self.payload.take();
                     Some(Message::Chunk(None))
@@ -135,7 +138,6 @@ impl Decoder for Codec {
                     self.flags.insert(Flags::STREAM);
                 }
             }
-            reserve_readbuf(src);
             Ok(Some(Message::Item(req)))
         } else {
             Ok(None)
@@ -180,7 +182,7 @@ impl Encoder for Codec {
                     self.ctype,
                     &self.config,
                 )?;
-                self.headers_size = (dst.len() - len) as u32;
+                // self.headers_size = (dst.len() - len) as u32;
             }
             Message::Chunk(Some(bytes)) => {
                 self.encoder.encode_chunk(bytes.as_ref(), dst)?;

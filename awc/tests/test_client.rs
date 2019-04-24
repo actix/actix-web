@@ -1,15 +1,23 @@
-use std::io::Write;
+use std::collections::HashMap;
+use std::io::{Read, Write};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 
 use brotli2::write::BrotliEncoder;
 use bytes::Bytes;
+use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
 use flate2::Compression;
-use futures::future::Future;
+use futures::Future;
 use rand::Rng;
 
+use actix_codec::{AsyncRead, AsyncWrite};
 use actix_http::HttpService;
 use actix_http_test::TestServer;
+use actix_service::{fn_service, NewService};
+use actix_web::http::{Cookie, Version};
+use actix_web::middleware::{BodyEncoding, Compress};
 use actix_web::{http::header, web, App, Error, HttpMessage, HttpRequest, HttpResponse};
 use awc::error::SendRequestError;
 
@@ -35,6 +43,30 @@ const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
                    Hello World Hello World Hello World Hello World Hello World \
                    Hello World Hello World Hello World Hello World Hello World";
 
+#[cfg(feature = "ssl")]
+fn ssl_acceptor<T: AsyncRead + AsyncWrite>(
+) -> std::io::Result<actix_server::ssl::OpensslAcceptor<T, ()>> {
+    use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
+    // load ssl keys
+    let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
+    builder
+        .set_private_key_file("../tests/key.pem", SslFiletype::PEM)
+        .unwrap();
+    builder
+        .set_certificate_chain_file("../tests/cert.pem")
+        .unwrap();
+    builder.set_alpn_select_callback(|_, protos| {
+        const H2: &[u8] = b"\x02h2";
+        if protos.windows(3).any(|window| window == H2) {
+            Ok(b"h2")
+        } else {
+            Err(openssl::ssl::AlpnError::NOACK)
+        }
+    });
+    builder.set_alpn_protos(b"\x02h2")?;
+    Ok(actix_server::ssl::OpensslAcceptor::new(builder.build()))
+}
+
 #[test]
 fn test_simple() {
     let mut srv =
@@ -58,6 +90,38 @@ fn test_simple() {
     // read response
     let bytes = srv.block_on(response.body()).unwrap();
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
+}
+
+#[test]
+fn test_json() {
+    let mut srv = TestServer::new(|| {
+        HttpService::new(App::new().service(
+            web::resource("/").route(web::to(|_: web::Json<String>| HttpResponse::Ok())),
+        ))
+    });
+
+    let request = srv
+        .get("/")
+        .header("x-test", "111")
+        .send_json(&"TEST".to_string());
+    let response = srv.block_on(request).unwrap();
+    assert!(response.status().is_success());
+}
+
+#[test]
+fn test_form() {
+    let mut srv = TestServer::new(|| {
+        HttpService::new(App::new().service(web::resource("/").route(web::to(
+            |_: web::Form<HashMap<String, String>>| HttpResponse::Ok(),
+        ))))
+    });
+
+    let mut data = HashMap::new();
+    let _ = data.insert("key".to_string(), "TEST".to_string());
+
+    let request = srv.get("/").header("x-test", "111").send_form(&data);
+    let response = srv.block_on(request).unwrap();
+    assert!(response.status().is_success());
 }
 
 #[test]
@@ -94,11 +158,9 @@ fn test_timeout_override() {
         ))))
     });
 
-    let client = srv.execute(|| {
-        awc::Client::build()
-            .timeout(Duration::from_millis(50000))
-            .finish()
-    });
+    let client = awc::Client::build()
+        .timeout(Duration::from_millis(50000))
+        .finish();
     let request = client
         .get(srv.url("/"))
         .timeout(Duration::from_millis(50))
@@ -109,58 +171,309 @@ fn test_timeout_override() {
     }
 }
 
-// #[test]
-// fn test_connection_close() {
-//     let mut srv =
-//         test::TestServer::new(|app| app.handler(|_| HttpResponse::Ok().body(STR)));
+#[test]
+fn test_connection_reuse() {
+    let num = Arc::new(AtomicUsize::new(0));
+    let num2 = num.clone();
 
-//     let request = srv.get("/").header("Connection", "close").finish().unwrap();
-//     let response = srv.execute(request.send()).unwrap();
-//     assert!(response.status().is_success());
-// }
+    let mut srv = TestServer::new(move || {
+        let num2 = num2.clone();
+        fn_service(move |io| {
+            num2.fetch_add(1, Ordering::Relaxed);
+            Ok(io)
+        })
+        .and_then(HttpService::new(
+            App::new().service(web::resource("/").route(web::to(|| HttpResponse::Ok()))),
+        ))
+    });
 
-// #[test]
-// fn test_with_query_parameter() {
-//     let mut srv = test::TestServer::new(|app| {
-//         app.handler(|req: &HttpRequest| match req.query().get("qp") {
-//             Some(_) => HttpResponse::Ok().finish(),
-//             None => HttpResponse::BadRequest().finish(),
-//         })
-//     });
+    let client = awc::Client::default();
 
-//     let request = srv.get("/").uri(srv.url("/?qp=5").as_str()).finish().unwrap();
+    // req 1
+    let request = client.get(srv.url("/")).send();
+    let response = srv.block_on(request).unwrap();
+    assert!(response.status().is_success());
 
-//     let response = srv.execute(request.send()).unwrap();
-//     assert!(response.status().is_success());
-// }
+    // req 2
+    let req = client.post(srv.url("/"));
+    let response = srv.block_on_fn(move || req.send()).unwrap();
+    assert!(response.status().is_success());
 
-// #[test]
-// fn test_no_decompress() {
-//     let mut srv =
-//         test::TestServer::new(|app| app.handler(|_| HttpResponse::Ok().body(STR)));
+    // one connection
+    assert_eq!(num.load(Ordering::Relaxed), 1);
+}
 
-//     let request = srv.get("/").disable_decompress().finish().unwrap();
-//     let response = srv.execute(request.send()).unwrap();
-//     assert!(response.status().is_success());
+#[cfg(feature = "ssl")]
+#[test]
+fn test_connection_reuse_h2() {
+    let openssl = ssl_acceptor().unwrap();
+    let num = Arc::new(AtomicUsize::new(0));
+    let num2 = num.clone();
 
-//     // read response
-//     let bytes = srv.execute(response.body()).unwrap();
+    let mut srv = TestServer::new(move || {
+        let num2 = num2.clone();
+        fn_service(move |io| {
+            num2.fetch_add(1, Ordering::Relaxed);
+            Ok(io)
+        })
+        .and_then(
+            openssl
+                .clone()
+                .map_err(|e| println!("Openssl error: {}", e)),
+        )
+        .and_then(
+            HttpService::build()
+                .h2(App::new()
+                    .service(web::resource("/").route(web::to(|| HttpResponse::Ok()))))
+                .map_err(|_| ()),
+        )
+    });
 
-//     let mut e = GzDecoder::new(&bytes[..]);
-//     let mut dec = Vec::new();
-//     e.read_to_end(&mut dec).unwrap();
-//     assert_eq!(Bytes::from(dec), Bytes::from_static(STR.as_ref()));
+    // disable ssl verification
+    use openssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
 
-//     // POST
-//     let request = srv.post().disable_decompress().finish().unwrap();
-//     let response = srv.execute(request.send()).unwrap();
+    let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
+    builder.set_verify(SslVerifyMode::NONE);
+    let _ = builder
+        .set_alpn_protos(b"\x02h2\x08http/1.1")
+        .map_err(|e| log::error!("Can not set alpn protocol: {:?}", e));
 
-//     let bytes = srv.execute(response.body()).unwrap();
-//     let mut e = GzDecoder::new(&bytes[..]);
-//     let mut dec = Vec::new();
-//     e.read_to_end(&mut dec).unwrap();
-//     assert_eq!(Bytes::from(dec), Bytes::from_static(STR.as_ref()));
-// }
+    let client = awc::Client::build()
+        .connector(awc::Connector::new().ssl(builder.build()).finish())
+        .finish();
+
+    // req 1
+    let request = client.get(srv.surl("/")).send();
+    let response = srv.block_on(request).unwrap();
+    assert!(response.status().is_success());
+
+    // req 2
+    let req = client.post(srv.surl("/"));
+    let response = srv.block_on_fn(move || req.send()).unwrap();
+    assert!(response.status().is_success());
+    assert_eq!(response.version(), Version::HTTP_2);
+
+    // one connection
+    assert_eq!(num.load(Ordering::Relaxed), 1);
+}
+
+#[test]
+fn test_connection_force_close() {
+    let num = Arc::new(AtomicUsize::new(0));
+    let num2 = num.clone();
+
+    let mut srv = TestServer::new(move || {
+        let num2 = num2.clone();
+        fn_service(move |io| {
+            num2.fetch_add(1, Ordering::Relaxed);
+            Ok(io)
+        })
+        .and_then(HttpService::new(
+            App::new().service(web::resource("/").route(web::to(|| HttpResponse::Ok()))),
+        ))
+    });
+
+    let client = awc::Client::default();
+
+    // req 1
+    let request = client.get(srv.url("/")).force_close().send();
+    let response = srv.block_on(request).unwrap();
+    assert!(response.status().is_success());
+
+    // req 2
+    let req = client.post(srv.url("/")).force_close();
+    let response = srv.block_on_fn(move || req.send()).unwrap();
+    assert!(response.status().is_success());
+
+    // two connection
+    assert_eq!(num.load(Ordering::Relaxed), 2);
+}
+
+#[test]
+fn test_connection_server_close() {
+    let num = Arc::new(AtomicUsize::new(0));
+    let num2 = num.clone();
+
+    let mut srv = TestServer::new(move || {
+        let num2 = num2.clone();
+        fn_service(move |io| {
+            num2.fetch_add(1, Ordering::Relaxed);
+            Ok(io)
+        })
+        .and_then(HttpService::new(
+            App::new().service(
+                web::resource("/")
+                    .route(web::to(|| HttpResponse::Ok().force_close().finish())),
+            ),
+        ))
+    });
+
+    let client = awc::Client::default();
+
+    // req 1
+    let request = client.get(srv.url("/")).send();
+    let response = srv.block_on(request).unwrap();
+    assert!(response.status().is_success());
+
+    // req 2
+    let req = client.post(srv.url("/"));
+    let response = srv.block_on_fn(move || req.send()).unwrap();
+    assert!(response.status().is_success());
+
+    // two connection
+    assert_eq!(num.load(Ordering::Relaxed), 2);
+}
+
+#[test]
+fn test_connection_wait_queue() {
+    let num = Arc::new(AtomicUsize::new(0));
+    let num2 = num.clone();
+
+    let mut srv = TestServer::new(move || {
+        let num2 = num2.clone();
+        fn_service(move |io| {
+            num2.fetch_add(1, Ordering::Relaxed);
+            Ok(io)
+        })
+        .and_then(HttpService::new(App::new().service(
+            web::resource("/").route(web::to(|| HttpResponse::Ok().body(STR))),
+        )))
+    });
+
+    let client = awc::Client::build()
+        .connector(awc::Connector::new().limit(1).finish())
+        .finish();
+
+    // req 1
+    let request = client.get(srv.url("/")).send();
+    let mut response = srv.block_on(request).unwrap();
+    assert!(response.status().is_success());
+
+    // req 2
+    let req2 = client.post(srv.url("/"));
+    let req2_fut = srv.execute(move || {
+        let mut fut = req2.send();
+        assert!(fut.poll().unwrap().is_not_ready());
+        fut
+    });
+
+    // read response 1
+    let bytes = srv.block_on(response.body()).unwrap();
+    assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
+
+    // req 2
+    let response = srv.block_on(req2_fut).unwrap();
+    assert!(response.status().is_success());
+
+    // two connection
+    assert_eq!(num.load(Ordering::Relaxed), 1);
+}
+
+#[test]
+fn test_connection_wait_queue_force_close() {
+    let num = Arc::new(AtomicUsize::new(0));
+    let num2 = num.clone();
+
+    let mut srv = TestServer::new(move || {
+        let num2 = num2.clone();
+        fn_service(move |io| {
+            num2.fetch_add(1, Ordering::Relaxed);
+            Ok(io)
+        })
+        .and_then(HttpService::new(
+            App::new().service(
+                web::resource("/")
+                    .route(web::to(|| HttpResponse::Ok().force_close().body(STR))),
+            ),
+        ))
+    });
+
+    let client = awc::Client::build()
+        .connector(awc::Connector::new().limit(1).finish())
+        .finish();
+
+    // req 1
+    let request = client.get(srv.url("/")).send();
+    let mut response = srv.block_on(request).unwrap();
+    assert!(response.status().is_success());
+
+    // req 2
+    let req2 = client.post(srv.url("/"));
+    let req2_fut = srv.execute(move || {
+        let mut fut = req2.send();
+        assert!(fut.poll().unwrap().is_not_ready());
+        fut
+    });
+
+    // read response 1
+    let bytes = srv.block_on(response.body()).unwrap();
+    assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
+
+    // req 2
+    let response = srv.block_on(req2_fut).unwrap();
+    assert!(response.status().is_success());
+
+    // two connection
+    assert_eq!(num.load(Ordering::Relaxed), 2);
+}
+
+#[test]
+fn test_with_query_parameter() {
+    let mut srv = TestServer::new(|| {
+        HttpService::new(App::new().service(web::resource("/").to(
+            |req: HttpRequest| {
+                if req.query_string().contains("qp") {
+                    HttpResponse::Ok()
+                } else {
+                    HttpResponse::BadRequest()
+                }
+            },
+        )))
+    });
+
+    let res = srv
+        .block_on(awc::Client::new().get(srv.url("/?qp=5")).send())
+        .unwrap();
+    assert!(res.status().is_success());
+}
+
+#[test]
+fn test_no_decompress() {
+    let mut srv = TestServer::new(|| {
+        HttpService::new(App::new().wrap(Compress::default()).service(
+            web::resource("/").route(web::to(|| {
+                let mut res = HttpResponse::Ok().body(STR);
+                res.encoding(header::ContentEncoding::Gzip);
+                res
+            })),
+        ))
+    });
+
+    let mut res = srv
+        .block_on(awc::Client::new().get(srv.url("/")).no_decompress().send())
+        .unwrap();
+    assert!(res.status().is_success());
+
+    // read response
+    let bytes = srv.block_on(res.body()).unwrap();
+
+    let mut e = GzDecoder::new(&bytes[..]);
+    let mut dec = Vec::new();
+    e.read_to_end(&mut dec).unwrap();
+    assert_eq!(Bytes::from(dec), Bytes::from_static(STR.as_ref()));
+
+    // POST
+    let mut res = srv
+        .block_on(awc::Client::new().post(srv.url("/")).no_decompress().send())
+        .unwrap();
+    assert!(res.status().is_success());
+
+    let bytes = srv.block_on(res.body()).unwrap();
+    let mut e = GzDecoder::new(&bytes[..]);
+    let mut dec = Vec::new();
+    e.read_to_end(&mut dec).unwrap();
+    assert_eq!(Bytes::from(dec), Bytes::from_static(STR.as_ref()));
+}
 
 #[test]
 fn test_client_gzip_encoding() {
@@ -406,7 +719,6 @@ fn test_client_brotli_encoding() {
 
 #[test]
 fn test_client_cookie_handling() {
-    use actix_web::http::Cookie;
     fn err() -> Error {
         use std::io::{Error as IoError, ErrorKind};
         // stub some generic error
@@ -467,36 +779,6 @@ fn test_client_cookie_handling() {
     let c2 = response.cookie("cookie2").expect("Missing cookie2");
     assert_eq!(c2, cookie2);
 }
-
-// #[test]
-// fn test_default_headers() {
-//     let srv = test::TestServer::new(|app| app.handler(|_| HttpResponse::Ok().body(STR)));
-
-//     let request = srv.get("/").finish().unwrap();
-//     let repr = format!("{:?}", request);
-//     assert!(repr.contains("\"accept-encoding\": \"gzip, deflate\""));
-//     assert!(repr.contains(concat!(
-//         "\"user-agent\": \"actix-web/",
-//         env!("CARGO_PKG_VERSION"),
-//         "\""
-//     )));
-
-//     let request_override = srv
-//         .get("/")
-//         .header("User-Agent", "test")
-//         .header("Accept-Encoding", "over_test")
-//         .finish()
-//         .unwrap();
-//     let repr_override = format!("{:?}", request_override);
-//     assert!(repr_override.contains("\"user-agent\": \"test\""));
-//     assert!(repr_override.contains("\"accept-encoding\": \"over_test\""));
-//     assert!(!repr_override.contains("\"accept-encoding\": \"gzip, deflate\""));
-//     assert!(!repr_override.contains(concat!(
-//         "\"user-agent\": \"Actix-web/",
-//         env!("CARGO_PKG_VERSION"),
-//         "\""
-//     )));
-// }
 
 // #[test]
 // fn client_read_until_eof() {
