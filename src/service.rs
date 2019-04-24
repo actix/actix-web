@@ -7,11 +7,14 @@ use actix_http::{
     Error, Extensions, HttpMessage, Payload, PayloadStream, RequestHead, Response,
     ResponseHead,
 };
-use actix_router::{Path, Resource, Url};
+use actix_router::{Path, Resource, ResourceDef, Url};
+use actix_service::{IntoNewService, NewService};
 use futures::future::{ok, FutureResult, IntoFuture};
 
 use crate::config::{AppConfig, AppService};
 use crate::data::Data;
+use crate::dev::insert_slash;
+use crate::guard::Guard;
 use crate::info::ConnectionInfo;
 use crate::request::HttpRequest;
 
@@ -380,10 +383,136 @@ impl<B: MessageBody> fmt::Debug for ServiceResponse<B> {
     }
 }
 
+pub struct WebService {
+    rdef: String,
+    name: Option<String>,
+    guards: Vec<Box<Guard>>,
+}
+
+impl WebService {
+    /// Create new `WebService` instance.
+    pub fn new(path: &str) -> Self {
+        WebService {
+            rdef: path.to_string(),
+            name: None,
+            guards: Vec::new(),
+        }
+    }
+
+    /// Set service name.
+    ///
+    /// Name is used for url generation.
+    pub fn name(mut self, name: &str) -> Self {
+        self.name = Some(name.to_string());
+        self
+    }
+
+    /// Add match guard to a web service.
+    ///
+    /// ```rust
+    /// use actix_web::{web, guard, dev, App, HttpResponse};
+    ///
+    /// fn index(req: dev::ServiceRequest) -> dev::ServiceResponse {
+    ///     req.into_response(HttpResponse::Ok().finish())
+    /// }
+    ///
+    /// fn main() {
+    ///     let app = App::new()
+    ///         .service(
+    ///             web::service("/app")
+    ///                 .guard(guard::Header("content-type", "text/plain"))
+    ///                 .finish(index)
+    ///         );
+    /// }
+    /// ```
+    pub fn guard<G: Guard + 'static>(mut self, guard: G) -> Self {
+        self.guards.push(Box::new(guard));
+        self
+    }
+
+    /// Set a service factory implementation and generate web service.
+    pub fn finish<T, F>(self, service: F) -> impl HttpServiceFactory
+    where
+        F: IntoNewService<T>,
+        T: NewService<
+                Request = ServiceRequest,
+                Response = ServiceResponse,
+                Error = Error,
+                InitError = (),
+            > + 'static,
+    {
+        WebServiceImpl {
+            srv: service.into_new_service(),
+            rdef: self.rdef,
+            name: self.name,
+            guards: self.guards,
+        }
+    }
+}
+
+struct WebServiceImpl<T> {
+    srv: T,
+    rdef: String,
+    name: Option<String>,
+    guards: Vec<Box<Guard>>,
+}
+
+impl<T> HttpServiceFactory for WebServiceImpl<T>
+where
+    T: NewService<
+            Request = ServiceRequest,
+            Response = ServiceResponse,
+            Error = Error,
+            InitError = (),
+        > + 'static,
+{
+    fn register(mut self, config: &mut AppService) {
+        let guards = if self.guards.is_empty() {
+            None
+        } else {
+            Some(std::mem::replace(&mut self.guards, Vec::new()))
+        };
+
+        let mut rdef = if config.is_root() || !self.rdef.is_empty() {
+            ResourceDef::new(&insert_slash(&self.rdef))
+        } else {
+            ResourceDef::new(&self.rdef)
+        };
+        if let Some(ref name) = self.name {
+            *rdef.name_mut() = name.clone();
+        }
+        config.register_service(rdef, guards, self.srv, None)
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::test::TestRequest;
-    use crate::HttpResponse;
+    use super::*;
+    use crate::test::{call_service, init_service, TestRequest};
+    use crate::{guard, http, web, App, HttpResponse};
+
+    #[test]
+    fn test_service() {
+        let mut srv = init_service(
+            App::new().service(web::service("/test").name("test").finish(
+                |req: ServiceRequest| req.into_response(HttpResponse::Ok().finish()),
+            )),
+        );
+        let req = TestRequest::with_uri("/test").to_request();
+        let resp = call_service(&mut srv, req);
+        assert_eq!(resp.status(), http::StatusCode::OK);
+
+        let mut srv = init_service(
+            App::new().service(web::service("/test").guard(guard::Get()).finish(
+                |req: ServiceRequest| req.into_response(HttpResponse::Ok().finish()),
+            )),
+        );
+        let req = TestRequest::with_uri("/test")
+            .method(http::Method::PUT)
+            .to_request();
+        let resp = call_service(&mut srv, req);
+        assert_eq!(resp.status(), http::StatusCode::NOT_FOUND);
+    }
 
     #[test]
     fn test_fmt_debug() {

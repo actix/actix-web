@@ -4,17 +4,17 @@
 
 ### Added
 
-* Extend `Responder` trait, allow to override status code and headers.
+* Add raw services support via `web::service()`
 
 * Add helper functions for reading response body `test::read_body()`
 
-* Added support for `remainder match` (i.e "/path/{tail}*")
+* Add support for `remainder match` (i.e "/path/{tail}*")
 
+* Extend `Responder` trait, allow to override status code and headers.
 
 ### Changed
 
 * `.to_async()` handler can return `Responder` type #792
-
 
 ### Fixed
 

@@ -12,6 +12,7 @@ use crate::resource::Resource;
 use crate::responder::Responder;
 use crate::route::Route;
 use crate::scope::Scope;
+use crate::service::WebService;
 
 pub use crate::config::ServiceConfig;
 pub use crate::data::{Data, RouteData};
@@ -272,6 +273,28 @@ where
     R::Error: Into<Error>,
 {
     Route::new().to_async(handler)
+}
+
+/// Create raw service for a specific path.
+///
+/// ```rust
+/// # extern crate actix_web;
+/// use actix_web::{dev, web, guard, App, HttpResponse};
+///
+/// fn my_service(req: dev::ServiceRequest) -> dev::ServiceResponse {
+///     req.into_response(HttpResponse::Ok().finish())
+/// }
+///
+/// fn main() {
+///     let app = App::new().service(
+///         web::service("/users/*")
+///             .guard(guard::Header("content-type", "text/plain"))
+///             .finish(my_service)
+///     );
+/// }
+/// ```
+pub fn service(path: &str) -> WebService {
+    WebService::new(path)
 }
 
 /// Execute blocking function on a thread pool, returns future that resolves
