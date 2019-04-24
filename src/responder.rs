@@ -1,8 +1,12 @@
 use actix_http::error::InternalError;
-use actix_http::{http::StatusCode, Error, Response, ResponseBuilder};
+use actix_http::http::{
+    header::IntoHeaderValue, Error as HttpError, HeaderMap, HeaderName, HttpTryFrom,
+    StatusCode,
+};
+use actix_http::{Error, Response, ResponseBuilder};
 use bytes::{Bytes, BytesMut};
 use futures::future::{err, ok, Either as EitherFuture, FutureResult};
-use futures::{Future, IntoFuture, Poll};
+use futures::{try_ready, Async, Future, IntoFuture, Poll};
 
 use crate::request::HttpRequest;
 
@@ -18,6 +22,51 @@ pub trait Responder {
 
     /// Convert itself to `AsyncResult` or `Error`.
     fn respond_to(self, req: &HttpRequest) -> Self::Future;
+
+    /// Override a status code for a responder.
+    ///
+    /// ```rust
+    /// use actix_web::{HttpRequest, Responder, http::StatusCode};
+    ///
+    /// fn index(req: HttpRequest) -> impl Responder {
+    ///     "Welcome!".with_status(StatusCode::OK)
+    /// }
+    /// # fn main() {}
+    /// ```
+    fn with_status(self, status: StatusCode) -> CustomResponder<Self>
+    where
+        Self: Sized,
+    {
+        CustomResponder::new(self).with_status(status)
+    }
+
+    /// Add extra header to the responder's response.
+    ///
+    /// ```rust
+    /// use actix_web::{web, HttpRequest, Responder};
+    /// use serde::Serialize;
+    ///
+    /// #[derive(Serialize)]
+    /// struct MyObj {
+    ///     name: String,
+    /// }
+    ///
+    /// fn index(req: HttpRequest) -> impl Responder {
+    ///     web::Json(
+    ///         MyObj{name: "Name".to_string()}
+    ///     )
+    ///     .with_header("x-version", "1.2.3")
+    /// }
+    /// # fn main() {}
+    /// ```
+    fn with_header<K, V>(self, key: K, value: V) -> CustomResponder<Self>
+    where
+        Self: Sized,
+        HeaderName: HttpTryFrom<K>,
+        V: IntoHeaderValue,
+    {
+        CustomResponder::new(self).with_header(key, value)
+    }
 }
 
 impl Responder for Response {
@@ -151,6 +200,117 @@ impl Responder for BytesMut {
         ok(Response::build(StatusCode::OK)
             .content_type("application/octet-stream")
             .body(self))
+    }
+}
+
+/// Allows to override status code and headers for a responder.
+pub struct CustomResponder<T> {
+    responder: T,
+    status: Option<StatusCode>,
+    headers: Option<HeaderMap>,
+    error: Option<HttpError>,
+}
+
+impl<T: Responder> CustomResponder<T> {
+    fn new(responder: T) -> Self {
+        CustomResponder {
+            responder,
+            status: None,
+            headers: None,
+            error: None,
+        }
+    }
+
+    /// Override a status code for the responder's response.
+    ///
+    /// ```rust
+    /// use actix_web::{HttpRequest, Responder, http::StatusCode};
+    ///
+    /// fn index(req: HttpRequest) -> impl Responder {
+    ///     "Welcome!".with_status(StatusCode::OK)
+    /// }
+    /// # fn main() {}
+    /// ```
+    pub fn with_status(mut self, status: StatusCode) -> Self {
+        self.status = Some(status);
+        self
+    }
+
+    /// Add extra header to the responder's response.
+    ///
+    /// ```rust
+    /// use actix_web::{web, HttpRequest, Responder};
+    /// use serde::Serialize;
+    ///
+    /// #[derive(Serialize)]
+    /// struct MyObj {
+    ///     name: String,
+    /// }
+    ///
+    /// fn index(req: HttpRequest) -> impl Responder {
+    ///     web::Json(
+    ///         MyObj{name: "Name".to_string()}
+    ///     )
+    ///     .with_header("x-version", "1.2.3")
+    /// }
+    /// # fn main() {}
+    /// ```
+    pub fn with_header<K, V>(mut self, key: K, value: V) -> Self
+    where
+        HeaderName: HttpTryFrom<K>,
+        V: IntoHeaderValue,
+    {
+        if self.headers.is_none() {
+            self.headers = Some(HeaderMap::new());
+        }
+
+        match HeaderName::try_from(key) {
+            Ok(key) => match value.try_into() {
+                Ok(value) => {
+                    self.headers.as_mut().unwrap().append(key, value);
+                }
+                Err(e) => self.error = Some(e.into()),
+            },
+            Err(e) => self.error = Some(e.into()),
+        };
+        self
+    }
+}
+
+impl<T: Responder> Responder for CustomResponder<T> {
+    type Error = T::Error;
+    type Future = CustomResponderFut<T>;
+
+    fn respond_to(self, req: &HttpRequest) -> Self::Future {
+        CustomResponderFut {
+            fut: self.responder.respond_to(req).into_future(),
+            status: self.status,
+            headers: self.headers,
+        }
+    }
+}
+
+pub struct CustomResponderFut<T: Responder> {
+    fut: <T::Future as IntoFuture>::Future,
+    status: Option<StatusCode>,
+    headers: Option<HeaderMap>,
+}
+
+impl<T: Responder> Future for CustomResponderFut<T> {
+    type Item = Response;
+    type Error = T::Error;
+
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        let mut res = try_ready!(self.fut.poll());
+        if let Some(status) = self.status {
+            *res.status_mut() = status;
+        }
+        if let Some(ref headers) = self.headers {
+            for (k, v) in headers {
+                res.headers_mut().insert(k.clone(), v.clone());
+            }
+        }
+        Ok(Async::Ready(res))
     }
 }
 
@@ -434,5 +594,34 @@ pub(crate) mod tests {
                 .respond_to(&req),
         );
         assert!(res.is_err());
+    }
+
+    #[test]
+    fn test_custom_responder() {
+        let req = TestRequest::default().to_http_request();
+        let res = block_on(
+            "test"
+                .to_string()
+                .with_status(StatusCode::BAD_REQUEST)
+                .respond_to(&req),
+        )
+        .unwrap();
+        assert_eq!(res.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(res.body().bin_ref(), b"test");
+
+        let res = block_on(
+            "test"
+                .to_string()
+                .with_header("content-type", "json")
+                .respond_to(&req),
+        )
+        .unwrap();
+
+        assert_eq!(res.status(), StatusCode::OK);
+        assert_eq!(res.body().bin_ref(), b"test");
+        assert_eq!(
+            res.headers().get(CONTENT_TYPE).unwrap(),
+            HeaderValue::from_static("json")
+        );
     }
 }

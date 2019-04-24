@@ -124,7 +124,7 @@ where
 pub trait AsyncFactory<T, R>: Clone + 'static
 where
     R: IntoFuture,
-    R::Item: Into<Response>,
+    R::Item: Responder,
     R::Error: Into<Error>,
 {
     fn call(&self, param: T) -> R;
@@ -134,7 +134,7 @@ impl<F, R> AsyncFactory<(), R> for F
 where
     F: Fn() -> R + Clone + 'static,
     R: IntoFuture,
-    R::Item: Into<Response>,
+    R::Item: Responder,
     R::Error: Into<Error>,
 {
     fn call(&self, _: ()) -> R {
@@ -147,7 +147,7 @@ pub struct AsyncHandler<F, T, R>
 where
     F: AsyncFactory<T, R>,
     R: IntoFuture,
-    R::Item: Into<Response>,
+    R::Item: Responder,
     R::Error: Into<Error>,
 {
     hnd: F,
@@ -158,7 +158,7 @@ impl<F, T, R> AsyncHandler<F, T, R>
 where
     F: AsyncFactory<T, R>,
     R: IntoFuture,
-    R::Item: Into<Response>,
+    R::Item: Responder,
     R::Error: Into<Error>,
 {
     pub fn new(hnd: F) -> Self {
@@ -173,7 +173,7 @@ impl<F, T, R> Clone for AsyncHandler<F, T, R>
 where
     F: AsyncFactory<T, R>,
     R: IntoFuture,
-    R::Item: Into<Response>,
+    R::Item: Responder,
     R::Error: Into<Error>,
 {
     fn clone(&self) -> Self {
@@ -188,7 +188,7 @@ impl<F, T, R> Service for AsyncHandler<F, T, R>
 where
     F: AsyncFactory<T, R>,
     R: IntoFuture,
-    R::Item: Into<Response>,
+    R::Item: Responder,
     R::Error: Into<Error>,
 {
     type Request = (T, HttpRequest);
@@ -203,32 +203,56 @@ where
     fn call(&mut self, (param, req): (T, HttpRequest)) -> Self::Future {
         AsyncHandlerServiceResponse {
             fut: self.hnd.call(param).into_future(),
+            fut2: None,
             req: Some(req),
         }
     }
 }
 
 #[doc(hidden)]
-pub struct AsyncHandlerServiceResponse<T> {
+pub struct AsyncHandlerServiceResponse<T>
+where
+    T: Future,
+    T::Item: Responder,
+{
     fut: T,
+    fut2: Option<<<T::Item as Responder>::Future as IntoFuture>::Future>,
     req: Option<HttpRequest>,
 }
 
 impl<T> Future for AsyncHandlerServiceResponse<T>
 where
     T: Future,
-    T::Item: Into<Response>,
+    T::Item: Responder,
     T::Error: Into<Error>,
 {
     type Item = ServiceResponse;
     type Error = Void;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        if let Some(ref mut fut) = self.fut2 {
+            return match fut.poll() {
+                Ok(Async::Ready(res)) => Ok(Async::Ready(ServiceResponse::new(
+                    self.req.take().unwrap(),
+                    res,
+                ))),
+                Ok(Async::NotReady) => Ok(Async::NotReady),
+                Err(e) => {
+                    let res: Response = e.into().into();
+                    Ok(Async::Ready(ServiceResponse::new(
+                        self.req.take().unwrap(),
+                        res,
+                    )))
+                }
+            };
+        }
+
         match self.fut.poll() {
-            Ok(Async::Ready(res)) => Ok(Async::Ready(ServiceResponse::new(
-                self.req.take().unwrap(),
-                res.into(),
-            ))),
+            Ok(Async::Ready(res)) => {
+                self.fut2 =
+                    Some(res.respond_to(self.req.as_ref().unwrap()).into_future());
+                return self.poll();
+            }
             Ok(Async::NotReady) => Ok(Async::NotReady),
             Err(e) => {
                 let res: Response = e.into().into();
@@ -357,7 +381,7 @@ macro_rules! factory_tuple ({ $(($n:tt, $T:ident)),+} => {
     impl<Func, $($T,)+ Res> AsyncFactory<($($T,)+), Res> for Func
     where Func: Fn($($T,)+) -> Res + Clone + 'static,
           Res: IntoFuture,
-          Res::Item: Into<Response>,
+          Res::Item: Responder,
           Res::Error: Into<Error>,
     {
         fn call(&self, param: ($($T,)+)) -> Res {

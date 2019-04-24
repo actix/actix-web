@@ -162,7 +162,7 @@ where
             }
         }
 
-        if self.endpoint.is_some() {
+        if self.endpoint.is_some() && self.data.is_empty() {
             Ok(Async::Ready(AppInitService {
                 service: self.endpoint.take().unwrap(),
                 rmap: self.rmap.clone(),

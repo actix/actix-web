@@ -274,7 +274,7 @@ impl<Io: ConnectionLifetime> Stream for PlStream<Io> {
                     Ok(Async::Ready(Some(chunk)))
                 } else {
                     let framed = self.framed.take().unwrap();
-                    let force_close = framed.get_codec().keepalive();
+                    let force_close = !framed.get_codec().keepalive();
                     release_connection(framed, force_close);
                     Ok(Async::Ready(None))
                 }

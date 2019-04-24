@@ -1,6 +1,25 @@
 # Changes
 
-## [1.0.0-beta.1] - 2019-04-xx
+### Added
+
+* Extend `Responder` trait, allow to override status code and headers.
+
+* Add helper functions for reading response body `test::read_body()`
+
+* Added support for `remainder match` (i.e "/path/{tail}*")
+
+
+### Changed
+
+* `.to_async()` handler can return `Responder` type #792
+
+
+### Fixed
+
+* Fix async web::Data factory handling
+
+
+## [1.0.0-beta.1] - 2019-04-20
 
 ### Added
 
@@ -8,6 +27,8 @@
  `test::read_response()` and test::read_response_json()`
 
 * Add `.peer_addr()` #744
+
+* Add `NormalizePath` middleware
 
 ### Changed
 

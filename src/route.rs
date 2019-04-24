@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use actix_http::{http::Method, Error, Extensions, Response};
+use actix_http::{http::Method, Error, Extensions};
 use actix_service::{NewService, Service};
 use futures::future::{ok, Either, FutureResult};
 use futures::{Async, Future, IntoFuture, Poll};
@@ -278,7 +278,7 @@ impl Route {
         F: AsyncFactory<T, R>,
         T: FromRequest + 'static,
         R: IntoFuture + 'static,
-        R::Item: Into<Response>,
+        R::Item: Responder,
         R::Error: Into<Error>,
     {
         self.service = Box::new(RouteNewService::new(Extract::new(
@@ -418,18 +418,25 @@ where
 mod tests {
     use std::time::Duration;
 
+    use bytes::Bytes;
     use futures::Future;
+    use serde_derive::Serialize;
     use tokio_timer::sleep;
 
     use crate::http::{Method, StatusCode};
-    use crate::test::{call_service, init_service, TestRequest};
+    use crate::test::{call_service, init_service, read_body, TestRequest};
     use crate::{error, web, App, HttpResponse};
+
+    #[derive(Serialize, PartialEq, Debug)]
+    struct MyObject {
+        name: String,
+    }
 
     #[test]
     fn test_route() {
-        let mut srv =
-            init_service(
-                App::new().service(
+        let mut srv = init_service(
+            App::new()
+                .service(
                     web::resource("/test")
                         .route(web::get().to(|| HttpResponse::Ok()))
                         .route(web::put().to(|| {
@@ -444,8 +451,15 @@ mod tests {
                                 Err::<HttpResponse, _>(error::ErrorBadRequest("err"))
                             })
                         })),
-                ),
-            );
+                )
+                .service(web::resource("/json").route(web::get().to_async(|| {
+                    sleep(Duration::from_millis(25)).then(|_| {
+                        Ok::<_, crate::Error>(web::Json(MyObject {
+                            name: "test".to_string(),
+                        }))
+                    })
+                }))),
+        );
 
         let req = TestRequest::with_uri("/test")
             .method(Method::GET)
@@ -476,5 +490,12 @@ mod tests {
             .to_request();
         let resp = call_service(&mut srv, req);
         assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
+
+        let req = TestRequest::with_uri("/json").to_request();
+        let resp = call_service(&mut srv, req);
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let body = read_body(resp);
+        assert_eq!(body, Bytes::from_static(b"{\"name\":\"test\"}"));
     }
 }

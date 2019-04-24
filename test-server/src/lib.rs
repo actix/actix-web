@@ -124,6 +124,7 @@ impl TestServer {
                             |e| log::error!("Can not set alpn protocol: {:?}", e),
                         );
                         Connector::new()
+                            .conn_lifetime(time::Duration::from_secs(0))
                             .timeout(time::Duration::from_millis(500))
                             .ssl(builder.build())
                             .finish()
@@ -131,6 +132,7 @@ impl TestServer {
                     #[cfg(not(feature = "ssl"))]
                     {
                         Connector::new()
+                            .conn_lifetime(time::Duration::from_secs(0))
                             .timeout(time::Duration::from_millis(500))
                             .finish()
                     }
@@ -161,6 +163,15 @@ impl TestServerRuntime {
         F: Future<Item = I, Error = E>,
     {
         self.rt.block_on(fut)
+    }
+
+    /// Execute future on current core
+    pub fn block_on_fn<F, R>(&mut self, f: F) -> Result<R::Item, R::Error>
+    where
+        F: FnOnce() -> R,
+        R: Future,
+    {
+        self.rt.block_on(lazy(|| f()))
     }
 
     /// Execute function on current core

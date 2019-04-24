@@ -1,5 +1,10 @@
 # Changes
 
+## [0.1.1] - 2019-04-24
+
+* Always make new connection for http client
+
+
 ## [0.1.0] - 2019-04-16
 
 * No changes

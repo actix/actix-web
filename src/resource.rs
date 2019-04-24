@@ -217,7 +217,7 @@ where
         F: AsyncFactory<I, R>,
         I: FromRequest + 'static,
         R: IntoFuture + 'static,
-        R::Item: Into<Response>,
+        R::Item: Responder,
         R::Error: Into<Error>,
     {
         self.routes.push(Route::new().to_async(handler));
