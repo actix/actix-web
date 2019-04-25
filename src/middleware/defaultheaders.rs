@@ -8,6 +8,7 @@ use futures::{Future, Poll};
 use crate::http::header::{HeaderName, HeaderValue, CONTENT_TYPE};
 use crate::http::{HeaderMap, HttpTryFrom};
 use crate::service::{ServiceRequest, ServiceResponse};
+use crate::Error;
 
 /// `Middleware` for setting default response headers.
 ///
@@ -87,12 +88,12 @@ impl DefaultHeaders {
 
 impl<S, B> Transform<S> for DefaultHeaders
 where
-    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>>,
+    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
     S::Future: 'static,
 {
     type Request = ServiceRequest;
     type Response = ServiceResponse<B>;
-    type Error = S::Error;
+    type Error = Error;
     type InitError = ();
     type Transform = DefaultHeadersMiddleware<S>;
     type Future = FutureResult<Self::Transform, Self::InitError>;
@@ -112,12 +113,12 @@ pub struct DefaultHeadersMiddleware<S> {
 
 impl<S, B> Service for DefaultHeadersMiddleware<S>
 where
-    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>>,
+    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
     S::Future: 'static,
 {
     type Request = ServiceRequest;
     type Response = ServiceResponse<B>;
-    type Error = S::Error;
+    type Error = Error;
     type Future = Box<Future<Item = Self::Response, Error = Self::Error>>;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {

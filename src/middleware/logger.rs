@@ -116,12 +116,12 @@ impl Default for Logger {
 
 impl<S, B> Transform<S> for Logger
 where
-    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>>,
+    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
     B: MessageBody,
 {
     type Request = ServiceRequest;
     type Response = ServiceResponse<StreamLog<B>>;
-    type Error = S::Error;
+    type Error = Error;
     type InitError = ();
     type Transform = LoggerMiddleware<S>;
     type Future = FutureResult<Self::Transform, Self::InitError>;
@@ -142,12 +142,12 @@ pub struct LoggerMiddleware<S> {
 
 impl<S, B> Service for LoggerMiddleware<S>
 where
-    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>>,
+    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
     B: MessageBody,
 {
     type Request = ServiceRequest;
     type Response = ServiceResponse<StreamLog<B>>;
-    type Error = S::Error;
+    type Error = Error;
     type Future = LoggerResponse<S, B>;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
@@ -194,10 +194,10 @@ where
 impl<S, B> Future for LoggerResponse<S, B>
 where
     B: MessageBody,
-    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>>,
+    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
 {
     type Item = ServiceResponse<StreamLog<B>>;
-    type Error = S::Error;
+    type Error = Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         let res = futures::try_ready!(self.fut.poll());

@@ -203,15 +203,15 @@ impl<T> IdentityService<T> {
 
 impl<S, T, B> Transform<S> for IdentityService<T>
 where
-    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>> + 'static,
+    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>
+        + 'static,
     S::Future: 'static,
-    S::Error: 'static,
     T: IdentityPolicy,
     B: 'static,
 {
     type Request = ServiceRequest;
     type Response = ServiceResponse<B>;
-    type Error = S::Error;
+    type Error = Error;
     type InitError = ();
     type Transform = IdentityServiceMiddleware<S, T>;
     type Future = FutureResult<Self::Transform, Self::InitError>;
@@ -233,14 +233,14 @@ pub struct IdentityServiceMiddleware<S, T> {
 impl<S, T, B> Service for IdentityServiceMiddleware<S, T>
 where
     B: 'static,
-    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>> + 'static,
+    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>
+        + 'static,
     S::Future: 'static,
-    S::Error: 'static,
     T: IdentityPolicy,
 {
     type Request = ServiceRequest;
     type Response = ServiceResponse<B>;
-    type Error = S::Error;
+    type Error = Error;
     type Future = Box<Future<Item = Self::Response, Error = Self::Error>>;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {

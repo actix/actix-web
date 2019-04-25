@@ -85,7 +85,6 @@ impl<S, B> Transform<S> for ErrorHandlers<B>
 where
     S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
     S::Future: 'static,
-    S::Error: 'static,
     B: 'static,
 {
     type Request = ServiceRequest;
@@ -113,7 +112,6 @@ impl<S, B> Service for ErrorHandlersMiddleware<S, B>
 where
     S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
     S::Future: 'static,
-    S::Error: 'static,
     B: 'static,
 {
     type Request = ServiceRequest;

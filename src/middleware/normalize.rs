@@ -5,6 +5,7 @@ use futures::future::{self, FutureResult};
 use regex::Regex;
 
 use crate::service::{ServiceRequest, ServiceResponse};
+use crate::Error;
 
 #[derive(Default, Clone, Copy)]
 /// `Middleware` to normalize request's URI in place
@@ -16,11 +17,11 @@ pub struct NormalizePath;
 
 impl<S> Transform<S> for NormalizePath
 where
-    S: Service<Request = ServiceRequest, Response = ServiceResponse>,
+    S: Service<Request = ServiceRequest, Response = ServiceResponse, Error = Error>,
 {
     type Request = ServiceRequest;
     type Response = ServiceResponse;
-    type Error = S::Error;
+    type Error = Error;
     type InitError = ();
     type Transform = NormalizePathNormalization<S>;
     type Future = FutureResult<Self::Transform, Self::InitError>;
@@ -40,11 +41,11 @@ pub struct NormalizePathNormalization<S> {
 
 impl<S> Service for NormalizePathNormalization<S>
 where
-    S: Service<Request = ServiceRequest, Response = ServiceResponse>,
+    S: Service<Request = ServiceRequest, Response = ServiceResponse, Error = Error>,
 {
     type Request = ServiceRequest;
     type Response = ServiceResponse;
-    type Error = S::Error;
+    type Error = Error;
     type Future = S::Future;
 
     fn poll_ready(&mut self) -> futures::Poll<(), Self::Error> {

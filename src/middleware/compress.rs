@@ -6,7 +6,7 @@ use std::str::FromStr;
 use actix_http::body::MessageBody;
 use actix_http::encoding::Encoder;
 use actix_http::http::header::{ContentEncoding, ACCEPT_ENCODING};
-use actix_http::{Response, ResponseBuilder};
+use actix_http::{Error, Response, ResponseBuilder};
 use actix_service::{Service, Transform};
 use futures::future::{ok, FutureResult};
 use futures::{Async, Future, Poll};
@@ -71,11 +71,11 @@ impl Default for Compress {
 impl<S, B> Transform<S> for Compress
 where
     B: MessageBody,
-    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>>,
+    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
 {
     type Request = ServiceRequest;
     type Response = ServiceResponse<Encoder<B>>;
-    type Error = S::Error;
+    type Error = Error;
     type InitError = ();
     type Transform = CompressMiddleware<S>;
     type Future = FutureResult<Self::Transform, Self::InitError>;
@@ -96,11 +96,11 @@ pub struct CompressMiddleware<S> {
 impl<S, B> Service for CompressMiddleware<S>
 where
     B: MessageBody,
-    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>>,
+    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
 {
     type Request = ServiceRequest;
     type Response = ServiceResponse<Encoder<B>>;
-    type Error = S::Error;
+    type Error = Error;
     type Future = CompressResponse<S, B>;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
@@ -141,10 +141,10 @@ where
 impl<S, B> Future for CompressResponse<S, B>
 where
     B: MessageBody,
-    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>>,
+    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
 {
     type Item = ServiceResponse<Encoder<B>>;
-    type Error = S::Error;
+    type Error = Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         let resp = futures::try_ready!(self.fut.poll());

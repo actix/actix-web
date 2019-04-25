@@ -47,7 +47,7 @@ use futures::future::{ok, Either, Future, FutureResult};
 use futures::Poll;
 
 use crate::dev::RequestHead;
-use crate::error::{ResponseError, Result};
+use crate::error::{Error, ResponseError, Result};
 use crate::http::header::{self, HeaderName, HeaderValue};
 use crate::http::{self, HttpTryFrom, Method, StatusCode, Uri};
 use crate::service::{ServiceRequest, ServiceResponse};
@@ -477,9 +477,8 @@ fn cors<'a>(
 
 impl<S, B> IntoTransform<CorsFactory, S> for Cors
 where
-    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>>,
+    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
     S::Future: 'static,
-    S::Error: 'static,
     B: 'static,
 {
     fn into_transform(self) -> CorsFactory {
@@ -539,14 +538,13 @@ pub struct CorsFactory {
 
 impl<S, B> Transform<S> for CorsFactory
 where
-    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>>,
+    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
     S::Future: 'static,
-    S::Error: 'static,
     B: 'static,
 {
     type Request = ServiceRequest;
     type Response = ServiceResponse<B>;
-    type Error = S::Error;
+    type Error = Error;
     type InitError = ();
     type Transform = CorsMiddleware<S>;
     type Future = FutureResult<Self::Transform, Self::InitError>;
@@ -680,17 +678,16 @@ impl Inner {
 
 impl<S, B> Service for CorsMiddleware<S>
 where
-    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>>,
+    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
     S::Future: 'static,
-    S::Error: 'static,
     B: 'static,
 {
     type Request = ServiceRequest;
     type Response = ServiceResponse<B>;
-    type Error = S::Error;
+    type Error = Error;
     type Future = Either<
-        FutureResult<Self::Response, Self::Error>,
-        Either<S::Future, Box<Future<Item = Self::Response, Error = Self::Error>>>,
+        FutureResult<Self::Response, Error>,
+        Either<S::Future, Box<Future<Item = Self::Response, Error = Error>>>,
     >;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
@@ -820,10 +817,12 @@ mod tests {
     impl Cors {
         fn finish<S, B>(self, srv: S) -> CorsMiddleware<S>
         where
-            S: Service<Request = ServiceRequest, Response = ServiceResponse<B>>
-                + 'static,
+            S: Service<
+                    Request = ServiceRequest,
+                    Response = ServiceResponse<B>,
+                    Error = Error,
+                > + 'static,
             S::Future: 'static,
-            S::Error: 'static,
             B: 'static,
         {
             block_on(
