@@ -79,6 +79,23 @@ pub use crate::cookie::CookieSession;
 /// ```
 pub struct Session(Rc<RefCell<SessionInner>>);
 
+/// Helper trait that allows to get session
+pub trait UserSession {
+    fn get_session(&mut self) -> Session;
+}
+
+impl UserSession for HttpRequest {
+    fn get_session(&mut self) -> Session {
+        Session::get_session(&mut *self.extensions_mut())
+    }
+}
+
+impl UserSession for ServiceRequest {
+    fn get_session(&mut self) -> Session {
+        Session::get_session(&mut *self.extensions_mut())
+    }
+}
+
 #[derive(Default)]
 struct SessionInner {
     state: HashMap<String, String>,
@@ -207,5 +224,19 @@ mod tests {
         let mut res = req.into_response(HttpResponse::Ok().finish());
         let changes: Vec<_> = Session::get_changes(&mut res).unwrap().collect();
         assert_eq!(changes, [("key2".to_string(), "\"value2\"".to_string())]);
+    }
+
+    #[test]
+    fn get_session() {
+        let mut req = test::TestRequest::default().to_srv_request();
+
+        Session::set_session(
+            vec![("key".to_string(), "\"value\"".to_string())].into_iter(),
+            &mut req,
+        );
+
+        let session = req.get_session();
+        let res = session.get::<String>("key").unwrap();
+        assert_eq!(res, Some("value".to_string()));
     }
 }
