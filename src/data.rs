@@ -33,29 +33,33 @@ pub(crate) trait DataFactoryResult {
 /// instance for each thread, thus application data must be constructed
 /// multiple times. If you want to share data between different
 /// threads, a shareable object should be used, e.g. `Send + Sync`. Application
-/// data does not need to be `Send` or `Sync`. Internally `Data` instance
-/// uses `Arc`.
+/// data does not need to be `Send` or `Sync`. Internally `Data` type
+/// uses `Arc`. if your data implements `Send` + `Sync` traits you can
+/// use `web::Data::new()` and avoid double `Arc`.
 ///
 /// If route data is not set for a handler, using `Data<T>` extractor would
 /// cause *Internal Server Error* response.
 ///
 /// ```rust
-/// use std::cell::Cell;
+/// use std::sync::Mutex;
 /// use actix_web::{web, App};
 ///
 /// struct MyData {
-///     counter: Cell<usize>,
+///     counter: usize,
 /// }
 ///
 /// /// Use `Data<T>` extractor to access data in handler.
-/// fn index(data: web::Data<MyData>) {
-///     data.counter.set(data.counter.get() + 1);
+/// fn index(data: web::Data<Mutex<MyData>>) {
+///     let mut data = data.lock().unwrap();
+///     data.counter += 1;
 /// }
 ///
 /// fn main() {
+///     let data = web::Data::new(Mutex::new(MyData{ counter: 0 }));
+///
 ///     let app = App::new()
 ///         // Store `MyData` in application storage.
-///         .data(MyData{ counter: Cell::new(0) })
+///         .data(data.clone())
 ///         .service(
 ///             web::resource("/index.html").route(
 ///                 web::get().to(index)));
@@ -65,7 +69,12 @@ pub(crate) trait DataFactoryResult {
 pub struct Data<T>(Arc<T>);
 
 impl<T> Data<T> {
-    pub(crate) fn new(state: T) -> Data<T> {
+    /// Create new `Data` instance.
+    ///
+    /// Internally `Data` type uses `Arc`. if your data implements
+    /// `Send` + `Sync` traits you can use `web::Data::new()` and
+    /// avoid double `Arc`.
+    pub fn new(state: T) -> Data<T> {
         Data(Arc::new(state))
     }
 
@@ -86,6 +95,12 @@ impl<T> Deref for Data<T> {
 impl<T> Clone for Data<T> {
     fn clone(&self) -> Data<T> {
         Data(self.0.clone())
+    }
+}
+
+impl<T> From<T> for Data<T> {
+    fn from(data: T) -> Self {
+        Data::new(data)
     }
 }
 

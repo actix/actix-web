@@ -555,7 +555,7 @@ mod tests {
                 web::resource("/index.html")
                     .route(web::put().to(|| HttpResponse::Ok().body("put!")))
                     .route(web::patch().to(|| HttpResponse::Ok().body("patch!")))
-                    .route(web::delete().to(|| HttpResponse::Ok().body("delete!")))
+                    .route(web::delete().to(|| HttpResponse::Ok().body("delete!"))),
             ),
         );
 
@@ -575,9 +575,7 @@ mod tests {
         let result = read_response(&mut app, patch_req);
         assert_eq!(result, Bytes::from_static(b"patch!"));
 
-        let delete_req = TestRequest::delete()
-            .uri("/index.html")
-            .to_request();
+        let delete_req = TestRequest::delete().uri("/index.html").to_request();
         let result = read_response(&mut app, delete_req);
         assert_eq!(result, Bytes::from_static(b"delete!"));
     }

@@ -1,5 +1,10 @@
 # Changes
 
+### Changed
+
+* Allow to construct `Data` instances to avoid double `Arc` for `Send + Sync` types.
+
+
 ## [1.0.0-beta.2] - 2019-04-24
 
 ### Added
