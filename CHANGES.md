@@ -4,7 +4,6 @@
 
 * Add helper function for executing futures `test::block_fn()`
 
-
 ### Changed
 
 * Allow to construct `Data` instances to avoid double `Arc` for `Send + Sync` types.

@@ -640,4 +640,24 @@ mod tests {
         let result: Person = read_response_json(&mut app, req);
         assert_eq!(&result.id, "12345");
     }
+
+    #[test]
+    fn test_async_with_block() {
+        fn async_with_block() -> impl Future<Item = HttpResponse, Error = Error> {
+            web::block(move || Some(4).ok_or("wrong")).then(|res| match res {
+                Ok(value) => HttpResponse::Ok()
+                    .content_type("text/plain")
+                    .body(format!("Async with block value: {}", value)),
+                Err(_) => panic!("Unexpected"),
+            })
+        }
+
+        let mut app = init_service(
+            App::new().service(web::resource("/index.html").to_async(async_with_block)),
+        );
+
+        let req = TestRequest::post().uri("/index.html").to_request();
+        let res = block_on(app.call(req)).unwrap();
+        assert!(res.status().is_success());
+    }
 }
