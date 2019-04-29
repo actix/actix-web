@@ -28,9 +28,23 @@ use crate::service::{ServiceRequest, ServiceResponse};
 use crate::{Error, HttpRequest, HttpResponse};
 
 thread_local! {
-    static RT: RefCell<Runtime> = {
-        RefCell::new(Runtime::new().unwrap())
+    static RT: RefCell<Inner> = {
+        RefCell::new(Inner(Some(Runtime::new().unwrap())))
     };
+}
+
+struct Inner(Option<Runtime>);
+
+impl Inner {
+    fn get_mut(&mut self) -> &mut Runtime {
+        self.0.as_mut().unwrap()
+    }
+}
+
+impl Drop for Inner {
+    fn drop(&mut self) {
+        std::mem::forget(self.0.take().unwrap())
+    }
 }
 
 /// Runs the provided future, blocking the current thread until the future
@@ -47,7 +61,7 @@ pub fn block_on<F>(f: F) -> Result<F::Item, F::Error>
 where
     F: Future,
 {
-    RT.with(move |rt| rt.borrow_mut().block_on(f))
+    RT.with(move |rt| rt.borrow_mut().get_mut().block_on(f))
 }
 
 /// Runs the provided function, blocking the current thread until the resul
@@ -65,7 +79,7 @@ where
     F: FnOnce() -> R,
     R: IntoFuture,
 {
-    RT.with(move |rt| rt.borrow_mut().block_on(f().into_future()))
+    RT.with(move |rt| rt.borrow_mut().get_mut().block_on(lazy(|| f())))
 }
 
 #[doc(hidden)]
@@ -77,8 +91,12 @@ pub fn run_on<F, R>(f: F) -> R
 where
     F: FnOnce() -> R,
 {
-    RT.with(move |rt| rt.borrow_mut().block_on(lazy(|| Ok::<_, ()>(f()))))
-        .unwrap()
+    RT.with(move |rt| {
+        rt.borrow_mut()
+            .get_mut()
+            .block_on(lazy(|| Ok::<_, ()>(f())))
+    })
+    .unwrap()
 }
 
 /// Create service that always responds with `HttpResponse::Ok()`
@@ -657,7 +675,7 @@ mod tests {
         );
 
         let req = TestRequest::post().uri("/index.html").to_request();
-        let res = block_on(app.call(req)).unwrap();
+        let res = block_fn(|| app.call(req)).unwrap();
         assert!(res.status().is_success());
     }
 }
