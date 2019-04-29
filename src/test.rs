@@ -386,6 +386,11 @@ impl TestRequest {
         TestRequest::default().method(Method::PATCH)
     }
 
+    /// Create TestRequest and set method to `Method::DELETE`
+    pub fn delete() -> TestRequest {
+        TestRequest::default().method(Method::DELETE)
+    }
+
     /// Set HTTP version of this request
     pub fn version(mut self, ver: Version) -> Self {
         self.req.version(ver);
@@ -549,7 +554,8 @@ mod tests {
             App::new().service(
                 web::resource("/index.html")
                     .route(web::put().to(|| HttpResponse::Ok().body("put!")))
-                    .route(web::patch().to(|| HttpResponse::Ok().body("patch!"))),
+                    .route(web::patch().to(|| HttpResponse::Ok().body("patch!")))
+                    .route(web::delete().to(|| HttpResponse::Ok().body("delete!")))
             ),
         );
 
@@ -568,6 +574,12 @@ mod tests {
 
         let result = read_response(&mut app, patch_req);
         assert_eq!(result, Bytes::from_static(b"patch!"));
+
+        let delete_req = TestRequest::delete()
+            .uri("/index.html")
+            .to_request();
+        let result = read_response(&mut app, delete_req);
+        assert_eq!(result, Bytes::from_static(b"delete!"));
     }
 
     #[test]

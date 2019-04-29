@@ -301,7 +301,15 @@ where
     /// lifecycle (request -> response), modifying request/response as
     /// necessary, across all requests managed by the *Application*.
     ///
-    /// Use middleware when you need to read or modify *every* request or response in some way.
+    /// Use middleware when you need to read or modify *every* request or 
+    /// response in some way.
+    ///
+    /// Notice that the keyword for registering middleware is `wrap`. As you 
+    /// register middleware using `wrap` in the App builder,  imagine wrapping
+    /// layers around an inner App.  The first middleware layer exposed to a
+    /// Request is the outermost layer-- the *last* registered in
+    /// the builder chain.  Consequently, the *first* middleware registered 
+    /// in the builder chain is the *last* to execute during request processing.
     ///
     /// ```rust
     /// use actix_service::Service;
