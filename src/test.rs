@@ -12,10 +12,8 @@ use actix_rt::Runtime;
 use actix_server_config::ServerConfig;
 use actix_service::{FnService, IntoNewService, NewService, Service};
 use bytes::{Bytes, BytesMut};
-use futures::{
-    future::{lazy, ok, Future},
-    stream::Stream,
-};
+use futures::future::{lazy, ok, Future, IntoFuture};
+use futures::Stream;
 use serde::de::DeserializeOwned;
 use serde_json;
 
@@ -52,6 +50,25 @@ where
     RT.with(move |rt| rt.borrow_mut().block_on(f))
 }
 
+/// Runs the provided function, blocking the current thread until the resul
+/// future completes.
+///
+/// This function can be used to synchronously block the current thread
+/// until the provided `future` has resolved either successfully or with an
+/// error. The result of the future is then returned from this function
+/// call.
+///
+/// Note that this function is intended to be used only for testing purpose.
+/// This function panics on nested call.
+pub fn block_fn<F, R>(f: F) -> Result<R::Item, R::Error>
+where
+    F: FnOnce() -> R,
+    R: IntoFuture,
+{
+    RT.with(move |rt| rt.borrow_mut().block_on(f().into_future()))
+}
+
+#[doc(hidden)]
 /// Runs the provided function, with runtime enabled.
 ///
 /// Note that this function is intended to be used only for testing purpose.
