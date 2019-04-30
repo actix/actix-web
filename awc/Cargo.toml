@@ -8,10 +8,13 @@ keywords = ["actix", "http", "framework", "async", "web"]
 homepage = "https://actix.rs"
 repository = "https://github.com/actix/actix-web.git"
 documentation = "https://docs.rs/awc/"
+categories = ["network-programming", "asynchronous",
+              "web-programming::http-client",
+              "web-programming::websocket"]
 license = "MIT/Apache-2.0"
 exclude = [".gitignore", ".travis.yml", ".cargo/config", "appveyor.yml"]
-workspace = ".."
 edition = "2018"
+workspace = ".."
 
 [lib]
 name = "awc"
