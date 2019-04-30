@@ -59,9 +59,9 @@ impl Drop for Inner {
 /// This function panics on nested call.
 pub fn block_on<F>(f: F) -> Result<F::Item, F::Error>
 where
-    F: Future,
+    F: IntoFuture,
 {
-    RT.with(move |rt| rt.borrow_mut().get_mut().block_on(f))
+    RT.with(move |rt| rt.borrow_mut().get_mut().block_on(f.into_future()))
 }
 
 /// Runs the provided function, blocking the current thread until the resul
@@ -330,12 +330,11 @@ where
 /// For unit testing, actix provides a request builder type and a simple handler runner. TestRequest implements a builder-like pattern.
 /// You can generate various types of request via TestRequest's methods:
 ///  * `TestRequest::to_request` creates `actix_http::Request` instance.
-///  * `TestRequest::to_service` creates `ServiceRequest` instance, which is used for testing middlewares and chain adapters.
-///  * `TestRequest::to_from` creates `ServiceFromRequest` instance, which is used for testing extractors.
+///  * `TestRequest::to_srv_request` creates `ServiceRequest` instance, which is used for testing middlewares and chain adapters.
+///  * `TestRequest::to_srv_response` creates `ServiceResponse` instance.
 ///  * `TestRequest::to_http_request` creates `HttpRequest` instance, which is used for testing handlers.
 ///
 /// ```rust
-/// # use futures::IntoFuture;
 /// use actix_web::{test, HttpRequest, HttpResponse, HttpMessage};
 /// use actix_web::http::{header, StatusCode};
 ///
@@ -352,11 +351,11 @@ where
 ///     let req = test::TestRequest::with_header("content-type", "text/plain")
 ///         .to_http_request();
 ///
-///     let resp = test::block_on(index(req).into_future()).unwrap();
+///     let resp = test::block_on(index(req)).unwrap();
 ///     assert_eq!(resp.status(), StatusCode::OK);
 ///
 ///     let req = test::TestRequest::default().to_http_request();
-///     let resp = test::block_on(index(req).into_future()).unwrap();
+///     let resp = test::block_on(index(req)).unwrap();
 ///     assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 /// }
 /// ```
