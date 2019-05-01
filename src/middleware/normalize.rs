@@ -13,14 +13,30 @@ use crate::Error;
 /// Performs following:
 ///
 /// - Merges multiple slashes into one.
+///
+/// ```rust
+/// use actix_web::{web, http, middleware, App, HttpResponse};
+///
+/// fn main() {
+///     let app = App::new()
+///         .wrap(middleware::NormalizePath)
+///         .service(
+///             web::resource("/test")
+///                 .route(web::get().to(|| HttpResponse::Ok()))
+///                 .route(web::method(http::Method::HEAD).to(|| HttpResponse::MethodNotAllowed()))
+///         );
+/// }
+/// ```
+
 pub struct NormalizePath;
 
-impl<S> Transform<S> for NormalizePath
+impl<S, B> Transform<S> for NormalizePath
 where
-    S: Service<Request = ServiceRequest, Response = ServiceResponse, Error = Error>,
+    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    S::Future: 'static,
 {
     type Request = ServiceRequest;
-    type Response = ServiceResponse;
+    type Response = ServiceResponse<B>;
     type Error = Error;
     type InitError = ();
     type Transform = NormalizePathNormalization<S>;
@@ -39,12 +55,13 @@ pub struct NormalizePathNormalization<S> {
     merge_slash: Regex,
 }
 
-impl<S> Service for NormalizePathNormalization<S>
+impl<S, B> Service for NormalizePathNormalization<S>
 where
-    S: Service<Request = ServiceRequest, Response = ServiceResponse, Error = Error>,
+    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    S::Future: 'static,
 {
     type Request = ServiceRequest;
-    type Response = ServiceResponse;
+    type Response = ServiceResponse<B>;
     type Error = Error;
     type Future = S::Future;
 
