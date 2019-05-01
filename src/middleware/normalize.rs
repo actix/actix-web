@@ -1,6 +1,8 @@
 //! `Middleware` to normalize request's URI
 
+use actix_http::http::{HttpTryFrom, PathAndQuery, Uri};
 use actix_service::{Service, Transform};
+use bytes::Bytes;
 use futures::future::{self, FutureResult};
 use regex::Regex;
 
@@ -77,7 +79,19 @@ where
         let path = self.merge_slash.replace_all(path, "/");
 
         if original_len != path.len() {
-            head.uri = path.parse().unwrap();
+            let mut parts = head.uri.clone().into_parts();
+            let pq = parts.path_and_query.as_ref().unwrap();
+
+            let path = if let Some(q) = pq.query() {
+                Bytes::from(format!("{}?{}", path, q))
+            } else {
+                Bytes::from(path.as_ref())
+            };
+            parts.path_and_query = Some(PathAndQuery::try_from(path).unwrap());
+
+            let uri = Uri::from_parts(parts).unwrap();
+            req.match_info_mut().get_mut().update(&uri);
+            req.head_mut().uri = uri;
         }
 
         self.service.call(req)
@@ -90,8 +104,21 @@ mod tests {
 
     use super::*;
     use crate::dev::ServiceRequest;
-    use crate::test::{block_on, TestRequest};
-    use crate::HttpResponse;
+    use crate::test::{block_on, call_service, init_service, TestRequest};
+    use crate::{web, App, HttpResponse};
+
+    #[test]
+    fn test_wrap() {
+        let mut app = init_service(
+            App::new()
+                .wrap(NormalizePath::default())
+                .service(web::resource("/v1/something/").to(|| HttpResponse::Ok())),
+        );
+
+        let req = TestRequest::with_uri("/v1//something////").to_request();
+        let res = call_service(&mut app, req);
+        assert!(res.status().is_success());
+    }
 
     #[test]
     fn test_in_place_normalization() {
