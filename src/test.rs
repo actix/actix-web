@@ -677,4 +677,25 @@ mod tests {
         let res = block_fn(|| app.call(req)).unwrap();
         assert!(res.status().is_success());
     }
+
+    #[test]
+    fn test_route_data() {
+        let req = TestRequest::get().route_data(Person { id: "12345".to_string(), name: "User name".to_string()}).uri("/people").to_http_request();
+        let extensions = req.extensions();
+        let person = extensions.get::<Person>();
+        assert!(person.is_some());
+        let person = person.expect("Person wasn't returned");
+        assert_eq!(person.id, "12345");
+        assert_eq!(person.name, "User name");
+    }
+
+   #[test]
+    fn test_app_data() {
+        let req = TestRequest::get().app_data(Person { id: "12345".to_string(), name: "User name".to_string()}).uri("/people").to_http_request();
+        let person = req.app_data::<Person>();
+        assert!(person.is_some());
+        let person = person.expect("Person wasn't returned");
+        assert_eq!(person.id, "12345");
+        assert_eq!(person.name, "User name");
+    }
 }
