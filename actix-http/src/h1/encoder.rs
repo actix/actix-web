@@ -82,7 +82,7 @@ pub(crate) trait MessageType: Sized {
                     if camel_case {
                         dst.put_slice(b"\r\nTransfer-Encoding: chunked\r\n")
                     } else {
-                        dst.put_slice(b"\r\nTransfer-Encoding: chunked\r\n")
+                        dst.put_slice(b"\r\ntransfer-encoding: chunked\r\n")
                     }
                 } else {
                     skip_len = false;
@@ -563,6 +563,19 @@ mod tests {
         assert_eq!(
             bytes.take().freeze(),
             Bytes::from_static(b"\r\nTransfer-Encoding: chunked\r\nDate: date\r\nContent-Type: xml\r\nContent-Type: plain/text\r\n\r\n")
+        );
+
+        head.set_camel_case_headers(false);
+        let _ = head.encode_headers(
+            &mut bytes,
+            Version::HTTP_11,
+            BodySize::Stream,
+            ConnectionType::KeepAlive,
+            &ServiceConfig::default(),
+        );
+        assert_eq!(
+            bytes.take().freeze(),
+            Bytes::from_static(b"\r\ntransfer-encoding: chunked\r\ndate: date\r\ncontent-type: xml\r\ncontent-type: plain/text\r\n\r\n")
         );
     }
 }
