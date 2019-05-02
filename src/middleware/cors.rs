@@ -81,13 +81,6 @@ pub enum CorsError {
         fmt = "The request header `Access-Control-Request-Headers`  has an invalid value"
     )]
     BadRequestHeaders,
-    /// The request header `Access-Control-Request-Headers`  is required but is
-    /// missing.
-    #[display(
-        fmt = "The request header `Access-Control-Request-Headers`  is required but is
-                     missing"
-    )]
-    MissingRequestHeaders,
     /// Origin is not allowed to make this request
     #[display(fmt = "Origin is not allowed to make this request")]
     OriginNotAllowed,
@@ -661,15 +654,18 @@ impl Inner {
                                 Err(_) => return Err(CorsError::BadRequestHeaders),
                             };
                         }
-
-                        if !hdrs.is_empty() && !hdrs.is_subset(allowed_headers) {
-                            return Err(CorsError::HeadersNotAllowed);
+                        // `Access-Control-Request-Headers` must contain 1 or more
+                        // `field-name`.
+                        if !hdrs.is_empty() {
+                            if !hdrs.is_subset(allowed_headers) {
+                                return Err(CorsError::HeadersNotAllowed);
+                            }
+                            return Ok(());
                         }
-                        return Ok(());
                     }
                     Err(CorsError::BadRequestHeaders)
                 } else {
-                    Err(CorsError::MissingRequestHeaders)
+                    return Ok(());
                 }
             }
         }
@@ -874,6 +870,10 @@ mod tests {
 
         let req = TestRequest::with_header("Origin", "https://www.example.com")
             .method(Method::OPTIONS)
+            .header(
+                header::ACCESS_CONTROL_REQUEST_HEADERS,
+                "X-Not-Allowed",
+            )
             .to_srv_request();
 
         assert!(cors.inner.validate_allowed_method(req.head()).is_err());
@@ -887,7 +887,7 @@ mod tests {
             .to_srv_request();
 
         assert!(cors.inner.validate_allowed_method(req.head()).is_err());
-        assert!(cors.inner.validate_allowed_headers(req.head()).is_err());
+        assert!(cors.inner.validate_allowed_headers(req.head()).is_ok());
 
         let req = TestRequest::with_header("Origin", "https://www.example.com")
             .header(header::ACCESS_CONTROL_REQUEST_METHOD, "POST")
