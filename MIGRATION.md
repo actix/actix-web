@@ -164,7 +164,7 @@
 * `HttpRequest::body()`, `HttpRequest::urlencoded()`, `HttpRequest::json()`, `HttpRequest::multipart()`
   method have been removed. Use `Bytes`, `String`, `Form`, `Json`, `Multipart` extractors instead.
 
-  instead if
+  instead of
 
   ```rust
   fn index(req: &HttpRequest) -> Responder {
@@ -173,6 +173,7 @@
           ...
        })
   }
+  ```
 
   use
 
