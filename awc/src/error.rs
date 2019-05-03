@@ -65,7 +65,7 @@ pub enum JsonPayloadError {
     Payload(PayloadError),
 }
 
-/// Return `InternlaServerError` for `JsonPayloadError`
+/// Return `InternalServerError` for `JsonPayloadError`
 impl ResponseError for JsonPayloadError {
     fn error_response(&self) -> Response {
         Response::new(StatusCode::INTERNAL_SERVER_ERROR)
