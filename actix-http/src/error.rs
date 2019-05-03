@@ -137,7 +137,7 @@ impl<E: ResponseError> ResponseError for TimeoutError<E> {
 #[display(fmt = "UnknownError")]
 struct UnitError;
 
-/// `InternalServerError` for `JsonError`
+/// `InternalServerError` for `UnitError`
 impl ResponseError for UnitError {}
 
 /// `InternalServerError` for `JsonError`
