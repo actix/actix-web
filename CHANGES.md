@@ -6,6 +6,8 @@
 
 ### Changed
 
+* CORS handling without headers #702
+
 * Allow to construct `Data` instances to avoid double `Arc` for `Send + Sync` types.
 
 ### Fixed
