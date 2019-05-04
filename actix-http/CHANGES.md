@@ -1,5 +1,12 @@
 # Changes
 
+## [0.1.5] - 2019-05-xx
+
+### Fixed
+
+* Clean up response extensions in response pool #817
+
+
 ## [0.1.4] - 2019-04-24
 
 ### Added

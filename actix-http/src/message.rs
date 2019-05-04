@@ -449,6 +449,7 @@ impl BoxedResponsePool {
     fn release(&self, msg: Box<ResponseHead>) {
         let v = &mut self.0.borrow_mut();
         if v.len() < 128 {
+            msg.extensions.borrow_mut().clear();
             v.push(msg);
         }
     }

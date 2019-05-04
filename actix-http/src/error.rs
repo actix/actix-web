@@ -137,7 +137,7 @@ impl<E: ResponseError> ResponseError for TimeoutError<E> {
 #[display(fmt = "UnknownError")]
 struct UnitError;
 
-/// `InternalServerError` for `JsonError`
+/// `InternalServerError` for `UnitError`
 impl ResponseError for UnitError {}
 
 /// `InternalServerError` for `JsonError`
@@ -150,11 +150,11 @@ impl ResponseError for FormError {}
 impl ResponseError for TimerError {}
 
 #[cfg(feature = "ssl")]
-/// `InternalServerError` for `SslError`
+/// `InternalServerError` for `openssl::ssl::Error`
 impl ResponseError for openssl::ssl::Error {}
 
 #[cfg(feature = "ssl")]
-/// `InternalServerError` for `SslError`
+/// `InternalServerError` for `openssl::ssl::HandshakeError`
 impl ResponseError for openssl::ssl::HandshakeError<tokio_tcp::TcpStream> {}
 
 /// Return `BAD_REQUEST` for `de::value::Error`
