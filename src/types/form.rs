@@ -81,7 +81,7 @@ where
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         let req2 = req.clone();
         let (limit, err) = req
-            .route_data::<FormConfig>()
+            .app_data::<FormConfig>()
             .map(|c| (c.limit, c.ehandler.clone()))
             .unwrap_or((16384, None));
 
@@ -132,12 +132,11 @@ impl<T: fmt::Display> fmt::Display for Form<T> {
 /// fn main() {
 ///     let app = App::new().service(
 ///         web::resource("/index.html")
-///             .route(web::get()
-///                 // change `Form` extractor configuration
-///                 .data(
-///                     web::Form::<FormData>::configure(|cfg| cfg.limit(4097))
-///                 )
-///                 .to(index))
+///             // change `Form` extractor configuration
+///             .data(
+///                 web::Form::<FormData>::configure(|cfg| cfg.limit(4097))
+///             )
+///             .route(web::get().to(index))
 ///     );
 /// }
 /// ```

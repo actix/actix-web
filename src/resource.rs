@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::fmt;
 use std::rc::Rc;
 
-use actix_http::{Error, Response};
+use actix_http::{Error, Extensions, Response};
 use actix_service::boxed::{self, BoxedNewService, BoxedService};
 use actix_service::{
     apply_transform, IntoNewService, IntoTransform, NewService, Service, Transform,
@@ -10,6 +10,7 @@ use actix_service::{
 use futures::future::{ok, Either, FutureResult};
 use futures::{Async, Future, IntoFuture, Poll};
 
+use crate::data::Data;
 use crate::dev::{insert_slash, AppService, HttpServiceFactory, ResourceDef};
 use crate::extract::FromRequest;
 use crate::guard::Guard;
@@ -48,6 +49,7 @@ pub struct Resource<T = ResourceEndpoint> {
     rdef: String,
     name: Option<String>,
     routes: Vec<Route>,
+    data: Option<Extensions>,
     guards: Vec<Box<Guard>>,
     default: Rc<RefCell<Option<Rc<HttpNewService>>>>,
     factory_ref: Rc<RefCell<Option<ResourceFactory>>>,
@@ -64,6 +66,7 @@ impl Resource {
             endpoint: ResourceEndpoint::new(fref.clone()),
             factory_ref: fref,
             guards: Vec::new(),
+            data: None,
             default: Rc::new(RefCell::new(None)),
         }
     }
@@ -154,7 +157,42 @@ where
     /// # fn delete_handler() {}
     /// ```
     pub fn route(mut self, route: Route) -> Self {
-        self.routes.push(route.finish());
+        self.routes.push(route);
+        self
+    }
+
+    /// Provide resource specific data. This method allows to add extractor
+    /// configuration or specific state available via `Data<T>` extractor.
+    /// Provided data is available for all routes registered for the current resource.
+    /// Resource data overrides data registered by `App::data()` method.
+    ///
+    /// ```rust
+    /// use actix_web::{web, App, FromRequest};
+    ///
+    /// /// extract text data from request
+    /// fn index(body: String) -> String {
+    ///     format!("Body {}!", body)
+    /// }
+    ///
+    /// fn main() {
+    ///     let app = App::new().service(
+    ///         web::resource("/index.html")
+    ///           // limit size of the payload
+    ///           .data(String::configure(|cfg| {
+    ///                cfg.limit(4096)
+    ///           }))
+    ///           .route(
+    ///               web::get()
+    ///                  // register handler
+    ///                  .to(index)
+    ///           ));
+    /// }
+    /// ```
+    pub fn data<U: 'static>(mut self, data: U) -> Self {
+        if self.data.is_none() {
+            self.data = Some(Extensions::new());
+        }
+        self.data.as_mut().unwrap().insert(Data::new(data));
         self
     }
 
@@ -260,6 +298,7 @@ where
             guards: self.guards,
             routes: self.routes,
             default: self.default,
+            data: self.data,
             factory_ref: self.factory_ref,
         }
     }
@@ -361,6 +400,10 @@ where
         if let Some(ref name) = self.name {
             *rdef.name_mut() = name.clone();
         }
+        // custom app data storage
+        if let Some(ref mut ext) = self.data {
+            config.set_route_data(ext);
+        }
         config.register_service(rdef, guards, self, None)
     }
 }
@@ -377,6 +420,7 @@ where
     fn into_new_service(self) -> T {
         *self.factory_ref.borrow_mut() = Some(ResourceFactory {
             routes: self.routes,
+            data: self.data.map(|data| Rc::new(data)),
             default: self.default,
         });
 
@@ -386,6 +430,7 @@ where
 
 pub struct ResourceFactory {
     routes: Vec<Route>,
+    data: Option<Rc<Extensions>>,
     default: Rc<RefCell<Option<Rc<HttpNewService>>>>,
 }
 
@@ -410,6 +455,7 @@ impl NewService for ResourceFactory {
                 .iter()
                 .map(|route| CreateRouteServiceItem::Future(route.new_service(&())))
                 .collect(),
+            data: self.data.clone(),
             default: None,
             default_fut,
         }
@@ -423,6 +469,7 @@ enum CreateRouteServiceItem {
 
 pub struct CreateResourceService {
     fut: Vec<CreateRouteServiceItem>,
+    data: Option<Rc<Extensions>>,
     default: Option<HttpService>,
     default_fut: Option<Box<Future<Item = HttpService, Error = ()>>>,
 }
@@ -467,6 +514,7 @@ impl Future for CreateResourceService {
                 .collect();
             Ok(Async::Ready(ResourceService {
                 routes,
+                data: self.data.clone(),
                 default: self.default.take(),
             }))
         } else {
@@ -477,6 +525,7 @@ impl Future for CreateResourceService {
 
 pub struct ResourceService {
     routes: Vec<RouteService>,
+    data: Option<Rc<Extensions>>,
     default: Option<HttpService>,
 }
 
@@ -496,6 +545,9 @@ impl Service for ResourceService {
     fn call(&mut self, mut req: ServiceRequest) -> Self::Future {
         for route in self.routes.iter_mut() {
             if route.check(&mut req) {
+                if let Some(ref data) = self.data {
+                    req.set_data_container(data.clone());
+                }
                 return route.call(req);
             }
         }

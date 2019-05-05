@@ -1,12 +1,10 @@
-use std::cell::RefCell;
 use std::rc::Rc;
 
-use actix_http::{http::Method, Error, Extensions};
+use actix_http::{http::Method, Error};
 use actix_service::{NewService, Service};
 use futures::future::{ok, Either, FutureResult};
 use futures::{Async, Future, IntoFuture, Poll};
 
-use crate::data::RouteData;
 use crate::extract::FromRequest;
 use crate::guard::{self, Guard};
 use crate::handler::{AsyncFactory, AsyncHandler, Extract, Factory, Handler};
@@ -44,28 +42,17 @@ type BoxedRouteNewService<Req, Res> = Box<
 pub struct Route {
     service: BoxedRouteNewService<ServiceRequest, ServiceResponse>,
     guards: Rc<Vec<Box<Guard>>>,
-    data: Option<Extensions>,
-    data_ref: Rc<RefCell<Option<Rc<Extensions>>>>,
 }
 
 impl Route {
     /// Create new route which matches any request.
     pub fn new() -> Route {
-        let data_ref = Rc::new(RefCell::new(None));
         Route {
-            service: Box::new(RouteNewService::new(Extract::new(
-                data_ref.clone(),
-                Handler::new(|| HttpResponse::NotFound()),
-            ))),
+            service: Box::new(RouteNewService::new(Extract::new(Handler::new(|| {
+                HttpResponse::NotFound()
+            })))),
             guards: Rc::new(Vec::new()),
-            data: None,
-            data_ref,
         }
-    }
-
-    pub(crate) fn finish(mut self) -> Self {
-        *self.data_ref.borrow_mut() = self.data.take().map(Rc::new);
-        self
     }
 
     pub(crate) fn take_guards(&mut self) -> Vec<Box<Guard>> {
@@ -239,10 +226,8 @@ impl Route {
         T: FromRequest + 'static,
         R: Responder + 'static,
     {
-        self.service = Box::new(RouteNewService::new(Extract::new(
-            self.data_ref.clone(),
-            Handler::new(handler),
-        )));
+        self.service =
+            Box::new(RouteNewService::new(Extract::new(Handler::new(handler))));
         self
     }
 
@@ -281,42 +266,9 @@ impl Route {
         R::Item: Responder,
         R::Error: Into<Error>,
     {
-        self.service = Box::new(RouteNewService::new(Extract::new(
-            self.data_ref.clone(),
-            AsyncHandler::new(handler),
-        )));
-        self
-    }
-
-    /// Provide route specific data. This method allows to add extractor
-    /// configuration or specific state available via `RouteData<T>` extractor.
-    ///
-    /// ```rust
-    /// use actix_web::{web, App, FromRequest};
-    ///
-    /// /// extract text data from request
-    /// fn index(body: String) -> String {
-    ///     format!("Body {}!", body)
-    /// }
-    ///
-    /// fn main() {
-    ///     let app = App::new().service(
-    ///         web::resource("/index.html").route(
-    ///             web::get()
-    ///                // limit size of the payload
-    ///                .data(String::configure(|cfg| {
-    ///                    cfg.limit(4096)
-    ///                }))
-    ///                // register handler
-    ///                .to(index)
-    ///         ));
-    /// }
-    /// ```
-    pub fn data<T: 'static>(mut self, data: T) -> Self {
-        if self.data.is_none() {
-            self.data = Some(Extensions::new());
-        }
-        self.data.as_mut().unwrap().insert(RouteData::new(data));
+        self.service = Box::new(RouteNewService::new(Extract::new(AsyncHandler::new(
+            handler,
+        ))));
         self
     }
 }

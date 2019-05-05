@@ -322,6 +322,7 @@ where
             default: self.default.clone(),
             services: Rc::new(
                 cfg.into_services()
+                    .1
                     .into_iter()
                     .map(|(mut rdef, srv, guards, nested)| {
                         rmap.add(&mut rdef, nested);

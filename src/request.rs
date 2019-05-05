@@ -7,7 +7,7 @@ use actix_http::{Error, Extensions, HttpMessage, Message, Payload, RequestHead};
 use actix_router::{Path, Url};
 
 use crate::config::AppConfig;
-use crate::data::{Data, RouteData};
+use crate::data::Data;
 use crate::error::UrlGenerationError;
 use crate::extract::FromRequest;
 use crate::info::ConnectionInfo;
@@ -20,9 +20,9 @@ pub struct HttpRequest(pub(crate) Rc<HttpRequestInner>);
 pub(crate) struct HttpRequestInner {
     pub(crate) head: Message<RequestHead>,
     pub(crate) path: Path<Url>,
+    pub(crate) app_data: Rc<Extensions>,
     rmap: Rc<ResourceMap>,
     config: AppConfig,
-    route_data: Option<Rc<Extensions>>,
     pool: &'static HttpRequestPool,
 }
 
@@ -33,6 +33,7 @@ impl HttpRequest {
         head: Message<RequestHead>,
         rmap: Rc<ResourceMap>,
         config: AppConfig,
+        app_data: Rc<Extensions>,
         pool: &'static HttpRequestPool,
     ) -> HttpRequest {
         HttpRequest(Rc::new(HttpRequestInner {
@@ -40,8 +41,8 @@ impl HttpRequest {
             path,
             rmap,
             config,
+            app_data,
             pool,
-            route_data: None,
         }))
     }
 }
@@ -195,26 +196,22 @@ impl HttpRequest {
 
     /// Get an application data stored with `App::data()` method during
     /// application configuration.
-    pub fn app_data<T: 'static>(&self) -> Option<Data<T>> {
-        if let Some(st) = self.0.config.extensions().get::<Data<T>>() {
+    pub fn app_data<T: 'static>(&self) -> Option<&T> {
+        if let Some(st) = self.0.app_data.get::<Data<T>>() {
+            Some(&st)
+        } else {
+            None
+        }
+    }
+
+    /// Get an application data stored with `App::data()` method during
+    /// application configuration.
+    pub fn get_app_data<T: 'static>(&self) -> Option<Data<T>> {
+        if let Some(st) = self.0.app_data.get::<Data<T>>() {
             Some(st.clone())
         } else {
             None
         }
-    }
-
-    /// Load route data. Route data could be set during
-    /// route configuration with `Route::data()` method.
-    pub fn route_data<T: 'static>(&self) -> Option<&RouteData<T>> {
-        if let Some(ref ext) = self.0.route_data {
-            ext.get::<RouteData<T>>()
-        } else {
-            None
-        }
-    }
-
-    pub(crate) fn set_route_data(&mut self, data: Option<Rc<Extensions>>) {
-        Rc::get_mut(&mut self.0).unwrap().route_data = data;
     }
 }
 

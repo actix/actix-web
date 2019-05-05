@@ -870,10 +870,7 @@ mod tests {
 
         let req = TestRequest::with_header("Origin", "https://www.example.com")
             .method(Method::OPTIONS)
-            .header(
-                header::ACCESS_CONTROL_REQUEST_HEADERS,
-                "X-Not-Allowed",
-            )
+            .header(header::ACCESS_CONTROL_REQUEST_HEADERS, "X-Not-Allowed")
             .to_srv_request();
 
         assert!(cors.inner.validate_allowed_method(req.head()).is_err());

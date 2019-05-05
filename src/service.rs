@@ -1,4 +1,5 @@
 use std::cell::{Ref, RefMut};
+use std::rc::Rc;
 use std::{fmt, net};
 
 use actix_http::body::{Body, MessageBody, ResponseBody};
@@ -180,11 +181,17 @@ impl ServiceRequest {
     /// Get an application data stored with `App::data()` method during
     /// application configuration.
     pub fn app_data<T: 'static>(&self) -> Option<Data<T>> {
-        if let Some(st) = self.req.app_config().extensions().get::<Data<T>>() {
+        if let Some(st) = self.req.0.app_data.get::<Data<T>>() {
             Some(st.clone())
         } else {
             None
         }
+    }
+
+    #[doc(hidden)]
+    /// Set new app data container
+    pub fn set_data_container(&mut self, extensions: Rc<Extensions>) {
+        Rc::get_mut(&mut self.req.0).unwrap().app_data = extensions;
     }
 }
 

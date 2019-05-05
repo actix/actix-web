@@ -2,11 +2,10 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use actix_http::cookie::Cookie;
 use actix_http::http::header::{Header, HeaderName, IntoHeaderValue};
 use actix_http::http::{HttpTryFrom, Method, StatusCode, Uri, Version};
 use actix_http::test::TestRequest as HttpTestRequest;
-use actix_http::{Extensions, Request};
+use actix_http::{cookie::Cookie, Extensions, Request};
 use actix_router::{Path, ResourceDef, Url};
 use actix_rt::Runtime;
 use actix_server_config::ServerConfig;
@@ -20,7 +19,7 @@ use serde_json;
 pub use actix_http::test::TestBuffer;
 
 use crate::config::{AppConfig, AppConfigInner};
-use crate::data::{Data, RouteData};
+use crate::data::Data;
 use crate::dev::{Body, MessageBody, Payload};
 use crate::request::HttpRequestPool;
 use crate::rmap::ResourceMap;
@@ -363,8 +362,8 @@ pub struct TestRequest {
     req: HttpTestRequest,
     rmap: ResourceMap,
     config: AppConfigInner,
-    route_data: Extensions,
     path: Path<Url>,
+    app_data: Extensions,
 }
 
 impl Default for TestRequest {
@@ -373,8 +372,8 @@ impl Default for TestRequest {
             req: HttpTestRequest::default(),
             rmap: ResourceMap::new(ResourceDef::new("")),
             config: AppConfigInner::default(),
-            route_data: Extensions::new(),
             path: Path::new(Url::new(Uri::default())),
+            app_data: Extensions::new(),
         }
     }
 }
@@ -479,15 +478,8 @@ impl TestRequest {
 
     /// Set application data. This is equivalent of `App::data()` method
     /// for testing purpose.
-    pub fn app_data<T: 'static>(self, data: T) -> Self {
-        self.config.extensions.borrow_mut().insert(Data::new(data));
-        self
-    }
-
-    /// Set route data. This is equivalent of `Route::data()` method
-    /// for testing purpose.
-    pub fn route_data<T: 'static>(mut self, data: T) -> Self {
-        self.route_data.insert(RouteData::new(data));
+    pub fn data<T: 'static>(mut self, data: T) -> Self {
+        self.app_data.insert(Data::new(data));
         self
     }
 
@@ -513,6 +505,7 @@ impl TestRequest {
             head,
             Rc::new(self.rmap),
             AppConfig::new(self.config),
+            Rc::new(self.app_data),
             HttpRequestPool::create(),
         );
 
@@ -529,15 +522,14 @@ impl TestRequest {
         let (head, _) = self.req.finish().into_parts();
         self.path.get_mut().update(&head.uri);
 
-        let mut req = HttpRequest::new(
+        HttpRequest::new(
             self.path,
             head,
             Rc::new(self.rmap),
             AppConfig::new(self.config),
+            Rc::new(self.app_data),
             HttpRequestPool::create(),
-        );
-        req.set_route_data(Some(Rc::new(self.route_data)));
-        req
+        )
     }
 
     /// Complete request creation and generate `HttpRequest` and `Payload` instances
@@ -545,14 +537,15 @@ impl TestRequest {
         let (head, payload) = self.req.finish().into_parts();
         self.path.get_mut().update(&head.uri);
 
-        let mut req = HttpRequest::new(
+        let req = HttpRequest::new(
             self.path,
             head,
             Rc::new(self.rmap),
             AppConfig::new(self.config),
+            Rc::new(self.app_data),
             HttpRequestPool::create(),
         );
-        req.set_route_data(Some(Rc::new(self.route_data)));
+
         (req, payload)
     }
 }
@@ -571,15 +564,20 @@ mod tests {
             .version(Version::HTTP_2)
             .set(header::Date(SystemTime::now().into()))
             .param("test", "123")
-            .app_data(10u32)
+            .data(10u32)
             .to_http_request();
         assert!(req.headers().contains_key(header::CONTENT_TYPE));
         assert!(req.headers().contains_key(header::DATE));
         assert_eq!(&req.match_info()["test"], "123");
         assert_eq!(req.version(), Version::HTTP_2);
-        let data = req.app_data::<u32>().unwrap();
+        let data = req.get_app_data::<u32>().unwrap();
+        assert!(req.get_app_data::<u64>().is_none());
         assert_eq!(*data, 10);
         assert_eq!(*data.get_ref(), 10);
+
+        assert!(req.app_data::<u64>().is_none());
+        let data = req.app_data::<u32>().unwrap();
+        assert_eq!(*data, 10);
     }
 
     #[test]

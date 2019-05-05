@@ -130,7 +130,7 @@ impl FromRequest for Bytes {
     #[inline]
     fn from_request(req: &HttpRequest, payload: &mut dev::Payload) -> Self::Future {
         let mut tmp;
-        let cfg = if let Some(cfg) = req.route_data::<PayloadConfig>() {
+        let cfg = if let Some(cfg) = req.app_data::<PayloadConfig>() {
             cfg
         } else {
             tmp = PayloadConfig::default();
@@ -167,12 +167,11 @@ impl FromRequest for Bytes {
 ///
 /// fn main() {
 ///     let app = App::new().service(
-///         web::resource("/index.html").route(
-///             web::get()
-///                .data(String::configure(|cfg| {  // <- limit size of the payload
-///                    cfg.limit(4096)
-///                 }))
-///                .to(index))  // <- register handler with extractor params
+///         web::resource("/index.html")
+///             .data(String::configure(|cfg| {  // <- limit size of the payload
+///                 cfg.limit(4096)
+///             }))
+///             .route(web::get().to(index))  // <- register handler with extractor params
 ///     );
 /// }
 /// ```
@@ -185,7 +184,7 @@ impl FromRequest for String {
     #[inline]
     fn from_request(req: &HttpRequest, payload: &mut dev::Payload) -> Self::Future {
         let mut tmp;
-        let cfg = if let Some(cfg) = req.route_data::<PayloadConfig>() {
+        let cfg = if let Some(cfg) = req.app_data::<PayloadConfig>() {
             cfg
         } else {
             tmp = PayloadConfig::default();

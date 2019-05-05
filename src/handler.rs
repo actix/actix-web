@@ -1,8 +1,6 @@
-use std::cell::RefCell;
 use std::marker::PhantomData;
-use std::rc::Rc;
 
-use actix_http::{Error, Extensions, Payload, Response};
+use actix_http::{Error, Payload, Response};
 use actix_service::{NewService, Service, Void};
 use futures::future::{ok, FutureResult};
 use futures::{try_ready, Async, Future, IntoFuture, Poll};
@@ -267,15 +265,13 @@ where
 
 /// Extract arguments from request
 pub struct Extract<T: FromRequest, S> {
-    config: Rc<RefCell<Option<Rc<Extensions>>>>,
     service: S,
     _t: PhantomData<T>,
 }
 
 impl<T: FromRequest, S> Extract<T, S> {
-    pub fn new(config: Rc<RefCell<Option<Rc<Extensions>>>>, service: S) -> Self {
+    pub fn new(service: S) -> Self {
         Extract {
-            config,
             service,
             _t: PhantomData,
         }
@@ -297,14 +293,12 @@ where
     fn new_service(&self, _: &()) -> Self::Future {
         ok(ExtractService {
             _t: PhantomData,
-            config: self.config.borrow().clone(),
             service: self.service.clone(),
         })
     }
 }
 
 pub struct ExtractService<T: FromRequest, S> {
-    config: Option<Rc<Extensions>>,
     service: S,
     _t: PhantomData<T>,
 }
@@ -324,8 +318,7 @@ where
     }
 
     fn call(&mut self, req: ServiceRequest) -> Self::Future {
-        let (mut req, mut payload) = req.into_parts();
-        req.set_route_data(self.config.clone());
+        let (req, mut payload) = req.into_parts();
         let fut = T::from_request(&req, &mut payload).into_future();
 
         ExtractResponse {

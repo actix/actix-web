@@ -1,10 +1,18 @@
 # Changes
 
+## [1.0.0-beta.3] - 2019-05-04
+
 ### Added
 
 * Add helper function for executing futures `test::block_fn()`
 
 ### Changed
+
+* Extractor configuration could be registered with `App::data()`
+  or with `Resource::data()` #775
+
+* Route data is unified with app data, `Route::data()` moved to resource
+  level to `Resource::data()`
 
 * CORS handling without headers #702
 
@@ -13,6 +21,10 @@
 ### Fixed
 
 * Fix `NormalizePath` middleware impl #806
+
+### Deleted
+
+* `App::data_factory()` is deleted.
 
 
 ## [1.0.0-beta.2] - 2019-04-24
