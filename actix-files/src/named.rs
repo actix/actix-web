@@ -66,6 +66,7 @@ impl NamedFile {
     ///     let mut file = File::create("foo.txt")?;
     ///     file.write_all(b"Hello, world!")?;
     ///     let named_file = NamedFile::from_file(file, "bar.txt")?;
+    ///     # std::fs::remove_file("foo.txt");
     ///     Ok(())
     /// }
     /// ```
