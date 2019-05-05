@@ -92,6 +92,36 @@
     App.new().service(web::resource("/welcome").to(welcome))
   ```
 
+* `HttpRequest` does not provide access to request's payload stream.
+
+  instead of
+
+  ```rust
+fn index(req: &HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
+    req
+       .payload()
+       .from_err()
+       .fold((), |_, chunk| {
+            ...
+        })
+       .map(|_| HttpResponse::Ok().finish())
+       .responder()
+}
+   ```
+
+   use `Payload` extractor
+
+  ```rust
+fn index(stream: web::Payload) -> impl Future<Item=HttpResponse, Error=Error> {
+    stream
+       .from_err()
+       .fold((), |_, chunk| {
+            ...
+        })
+       .map(|_| HttpResponse::Ok().finish())
+}
+   ```
+
 * `State` is now `Data`.  You register Data during the App initialization process
   and then access it from handlers either using a Data extractor or using
   HttpRequest's api.
