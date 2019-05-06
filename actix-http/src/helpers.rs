@@ -1,4 +1,4 @@
-use std::{io, mem, ptr, slice};
+use std::{io, ptr};
 
 use bytes::{BufMut, BytesMut};
 use http::Version;
@@ -12,9 +12,7 @@ const DEC_DIGITS_LUT: &[u8] = b"0001020304050607080910111213141516171819\
 pub(crate) const STATUS_LINE_BUF_SIZE: usize = 13;
 
 pub(crate) fn write_status_line(version: Version, mut n: u16, bytes: &mut BytesMut) {
-    let mut buf: [u8; STATUS_LINE_BUF_SIZE] = [
-        b'H', b'T', b'T', b'P', b'/', b'1', b'.', b'1', b' ', b' ', b' ', b' ', b' ',
-    ];
+    let mut buf: [u8; STATUS_LINE_BUF_SIZE] = *b"HTTP/1.1 000 ";
     match version {
         Version::HTTP_2 => buf[5] = b'2',
         Version::HTTP_10 => buf[7] = b'0',
@@ -25,57 +23,27 @@ pub(crate) fn write_status_line(version: Version, mut n: u16, bytes: &mut BytesM
         _ => (),
     }
 
-    let mut curr: isize = 12;
-    let buf_ptr = buf.as_mut_ptr();
-    let lut_ptr = DEC_DIGITS_LUT.as_ptr();
-    let four = n > 999;
-
-    // decode 2 more chars, if > 2 chars
-    let d1 = (n % 100) << 1;
+    // decode least significant 2 chars
+    let d1 = ((n % 100) * 2) as usize;
     n /= 100;
-    curr -= 2;
-    unsafe {
-        ptr::copy_nonoverlapping(lut_ptr.offset(d1 as isize), buf_ptr.offset(curr), 2);
-    }
 
-    // decode last 1 or 2 chars
-    if n < 10 {
-        curr -= 1;
-        unsafe {
-            *buf_ptr.offset(curr) = (n as u8) + b'0';
-        }
-    } else {
-        let d1 = n << 1;
-        curr -= 2;
-        unsafe {
-            ptr::copy_nonoverlapping(
-                lut_ptr.offset(d1 as isize),
-                buf_ptr.offset(curr),
-                2,
-            );
-        }
-    }
+    buf[10] = DEC_DIGITS_LUT[d1];
+    buf[11] = DEC_DIGITS_LUT[d1+1];
+
+    // decode last (most significant) char
+    buf[9] = (n as u8) + b'0';
 
     bytes.put_slice(&buf);
-    if four {
-        bytes.put(b' ');
-    }
 }
 
 /// NOTE: bytes object has to contain enough space
 pub fn write_content_length(mut n: usize, bytes: &mut BytesMut) {
     if n < 10 {
-        let mut buf: [u8; 21] = [
-            b'\r', b'\n', b'c', b'o', b'n', b't', b'e', b'n', b't', b'-', b'l', b'e',
-            b'n', b'g', b't', b'h', b':', b' ', b'0', b'\r', b'\n',
-        ];
+        let mut buf: [u8; 21] = *b"\r\ncontent-length: 0\r\n";
         buf[18] = (n as u8) + b'0';
         bytes.put_slice(&buf);
     } else if n < 100 {
-        let mut buf: [u8; 22] = [
-            b'\r', b'\n', b'c', b'o', b'n', b't', b'e', b'n', b't', b'-', b'l', b'e',
-            b'n', b'g', b't', b'h', b':', b' ', b'0', b'0', b'\r', b'\n',
-        ];
+        let mut buf: [u8; 22] = *b"\r\ncontent-length: 00\r\n";
         let d1 = n << 1;
         unsafe {
             ptr::copy_nonoverlapping(
@@ -86,10 +54,7 @@ pub fn write_content_length(mut n: usize, bytes: &mut BytesMut) {
         }
         bytes.put_slice(&buf);
     } else if n < 1000 {
-        let mut buf: [u8; 23] = [
-            b'\r', b'\n', b'c', b'o', b'n', b't', b'e', b'n', b't', b'-', b'l', b'e',
-            b'n', b'g', b't', b'h', b':', b' ', b'0', b'0', b'0', b'\r', b'\n',
-        ];
+        let mut buf: [u8; 23] = *b"\r\ncontent-length: 000\r\n";
         // decode 2 more chars, if > 2 chars
         let d1 = (n % 100) << 1;
         n /= 100;
@@ -106,65 +71,8 @@ pub fn write_content_length(mut n: usize, bytes: &mut BytesMut) {
 
         bytes.put_slice(&buf);
     } else {
-        bytes.put_slice(b"\r\ncontent-length: ");
-        convert_usize(n, bytes);
-    }
-}
-
-pub(crate) fn convert_usize(mut n: usize, bytes: &mut BytesMut) {
-    let mut curr: isize = 39;
-    let mut buf: [u8; 41] = unsafe { mem::uninitialized() };
-    buf[39] = b'\r';
-    buf[40] = b'\n';
-    let buf_ptr = buf.as_mut_ptr();
-    let lut_ptr = DEC_DIGITS_LUT.as_ptr();
-
-    // eagerly decode 4 characters at a time
-    while n >= 10_000 {
-        let rem = (n % 10_000) as isize;
-        n /= 10_000;
-
-        let d1 = (rem / 100) << 1;
-        let d2 = (rem % 100) << 1;
-        curr -= 4;
-        unsafe {
-            ptr::copy_nonoverlapping(lut_ptr.offset(d1), buf_ptr.offset(curr), 2);
-            ptr::copy_nonoverlapping(lut_ptr.offset(d2), buf_ptr.offset(curr + 2), 2);
-        }
-    }
-
-    // if we reach here numbers are <= 9999, so at most 4 chars long
-    let mut n = n as isize; // possibly reduce 64bit math
-
-    // decode 2 more chars, if > 2 chars
-    if n >= 100 {
-        let d1 = (n % 100) << 1;
-        n /= 100;
-        curr -= 2;
-        unsafe {
-            ptr::copy_nonoverlapping(lut_ptr.offset(d1), buf_ptr.offset(curr), 2);
-        }
-    }
-
-    // decode last 1 or 2 chars
-    if n < 10 {
-        curr -= 1;
-        unsafe {
-            *buf_ptr.offset(curr) = (n as u8) + b'0';
-        }
-    } else {
-        let d1 = n << 1;
-        curr -= 2;
-        unsafe {
-            ptr::copy_nonoverlapping(lut_ptr.offset(d1), buf_ptr.offset(curr), 2);
-        }
-    }
-
-    unsafe {
-        bytes.extend_from_slice(slice::from_raw_parts(
-            buf_ptr.offset(curr),
-            41 - curr as usize,
-        ));
+        use std::fmt::Write;
+        let _ignored = write!(bytes, "\r\ncontent-length: {}\r\n", n);
     }
 }
 
