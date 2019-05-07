@@ -128,7 +128,7 @@ where
     /// ```
     pub fn configure<F>(mut self, f: F) -> Self
     where
-        F: Fn(&mut ServiceConfig),
+        F: FnOnce(&mut ServiceConfig),
     {
         let mut cfg = ServiceConfig::new();
         f(&mut cfg);
