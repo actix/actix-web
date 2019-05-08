@@ -124,7 +124,7 @@ where
     #[inline]
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
         let error_handler = req
-            .app_data::<QueryConfig>()
+            .app_data::<Self::Config>()
             .map(|c| c.ehandler.clone())
             .unwrap_or(None);
 
