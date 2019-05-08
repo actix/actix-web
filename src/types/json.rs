@@ -236,7 +236,7 @@ where
 #[derive(Clone)]
 pub struct JsonConfig {
     limit: usize,
-    ehandler: Option<Arc<dyn Fn(JsonPayloadError, &HttpRequest) -> Error + Send>>,
+    ehandler: Option<Arc<dyn Fn(JsonPayloadError, &HttpRequest) -> Error + Send + Sync>>,
 }
 
 impl JsonConfig {
@@ -249,7 +249,7 @@ impl JsonConfig {
     /// Set custom error handler
     pub fn error_handler<F>(mut self, f: F) -> Self
     where
-        F: Fn(JsonPayloadError, &HttpRequest) -> Error + Send + 'static,
+        F: Fn(JsonPayloadError, &HttpRequest) -> Error + Send + Sync + 'static,
     {
         self.ehandler = Some(Arc::new(f));
         self
