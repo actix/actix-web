@@ -1,6 +1,6 @@
 //! Json extractor/responder
 
-use std::rc::Rc;
+use std::sync::Arc;
 use std::{fmt, ops};
 
 use bytes::BytesMut;
@@ -236,7 +236,7 @@ where
 #[derive(Clone)]
 pub struct JsonConfig {
     limit: usize,
-    ehandler: Option<Rc<Fn(JsonPayloadError, &HttpRequest) -> Error>>,
+    ehandler: Option<Arc<Fn(JsonPayloadError, &HttpRequest) -> Error>>,
 }
 
 impl JsonConfig {
@@ -251,7 +251,7 @@ impl JsonConfig {
     where
         F: Fn(JsonPayloadError, &HttpRequest) -> Error + 'static,
     {
-        self.ehandler = Some(Rc::new(f));
+        self.ehandler = Some(Arc::new(f));
         self
     }
 }
