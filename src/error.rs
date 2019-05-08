@@ -6,6 +6,7 @@ use url::ParseError as UrlParseError;
 
 use crate::http::StatusCode;
 use crate::HttpResponse;
+use serde_urlencoded::de;
 
 /// Errors which can occur when attempting to generate resource uri.
 #[derive(Debug, PartialEq, Display, From)]
@@ -91,6 +92,23 @@ impl ResponseError for JsonPayloadError {
     }
 }
 
+/// A set of errors that can occur during parsing query strings
+#[derive(Debug, Display, From)]
+pub enum QueryPayloadError {
+    /// Deserialize error
+    #[display(fmt = "Query deserialize error: {}", _0)]
+    Deserialize(de::Error),
+}
+
+/// Return `BadRequest` for `QueryPayloadError`
+impl ResponseError for QueryPayloadError {
+    fn error_response(&self) -> HttpResponse {
+        match *self {
+            QueryPayloadError::Deserialize(_) => HttpResponse::new(StatusCode::BAD_REQUEST),
+        }
+    }
+}
+
 /// Error type returned when reading body as lines.
 #[derive(From, Display, Debug)]
 pub enum ReadlinesError {
@@ -140,6 +158,12 @@ mod tests {
         let resp: HttpResponse = JsonPayloadError::Overflow.error_response();
         assert_eq!(resp.status(), StatusCode::PAYLOAD_TOO_LARGE);
         let resp: HttpResponse = JsonPayloadError::ContentType.error_response();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[test]
+    fn test_query_payload_error() {
+        let resp: HttpResponse = QueryPayloadError::Deserialize(serde_urlencoded::from_str::<i32>("bad query").unwrap_err()).error_response();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
     }
 
