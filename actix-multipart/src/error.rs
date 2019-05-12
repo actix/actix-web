@@ -28,6 +28,9 @@ pub enum MultipartError {
     /// Payload error
     #[display(fmt = "{}", _0)]
     Payload(PayloadError),
+    /// Not consumed
+    #[display(fmt = "Multipart stream is not consumed")]
+    NotConsumed,
 }
 
 /// Return `BadRequest` for `MultipartError`
