@@ -1,5 +1,10 @@
 # Changes
 
+### Changes
+
+* `App::configure` take an `FnOnce` instead of `Fn`
+
+
 ## [1.0.0-beta.3] - 2019-05-04
 
 ### Added
