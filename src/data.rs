@@ -129,7 +129,6 @@ impl<T: 'static> DataFactory for Data<T> {
 #[cfg(test)]
 mod tests {
     use actix_service::Service;
-    use std::sync::Mutex;
 
     use crate::http::StatusCode;
     use crate::test::{block_on, init_service, TestRequest};

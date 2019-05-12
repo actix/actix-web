@@ -60,7 +60,7 @@ openssl = { version="0.10", optional = true }
 actix-rt = "0.2.2"
 actix-web = { version = "1.0.0-beta.1", features=["ssl"] }
 actix-http = { version = "0.2.0", features=["ssl"] }
-actix-http-test = { version = "0.1.1", features=["ssl"] }
+actix-http-test = { version = "0.2.0", features=["ssl"] }
 actix-utils = "0.4.0"
 actix-server = { version = "0.5.0", features=["ssl"] }
 brotli2 = { version="0.3.2" }

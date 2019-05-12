@@ -1,5 +1,10 @@
 # Changes
 
+## [0.2.0] - 2019-05-12
+
+* Update dependencies
+
+
 ## [0.1.0] - 2019-04-16
 
 * Update tests
