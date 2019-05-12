@@ -93,12 +93,6 @@ impl<T> Clone for Data<T> {
     }
 }
 
-impl<T> From<T> for Data<T> {
-    fn from(data: T) -> Self {
-        Data::new(data)
-    }
-}
-
 impl<T: 'static> FromRequest for Data<T> {
     type Config = ();
     type Error = Error;
@@ -135,6 +129,7 @@ impl<T: 'static> DataFactory for Data<T> {
 #[cfg(test)]
 mod tests {
     use actix_service::Service;
+    use std::sync::Mutex;
 
     use crate::http::StatusCode;
     use crate::test::{block_on, init_service, TestRequest};

@@ -407,7 +407,7 @@ where
         }
         // custom app data storage
         if let Some(ref mut ext) = self.data {
-            config.set_route_data(ext);
+            config.set_service_data(ext);
         }
         config.register_service(rdef, guards, self, None)
     }

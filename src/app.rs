@@ -95,8 +95,8 @@ where
     ///                 web::get().to(index)));
     /// }
     /// ```
-    pub fn data<U: Into<Data<U>> + 'static>(mut self, data: U) -> Self {
-        self.data.push(Box::new(data.into()));
+    pub fn data<U: 'static>(mut self, data: U) -> Self {
+        self.data.push(Box::new(Data::new(data)));
         self
     }
 

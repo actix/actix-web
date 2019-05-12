@@ -31,7 +31,7 @@ pub struct AppService {
         Option<Guards>,
         Option<Rc<ResourceMap>>,
     )>,
-    route_data: Rc<Vec<Box<DataFactory>>>,
+    service_data: Rc<Vec<Box<DataFactory>>>,
 }
 
 impl AppService {
@@ -39,12 +39,12 @@ impl AppService {
     pub(crate) fn new(
         config: AppConfig,
         default: Rc<HttpNewService>,
-        route_data: Rc<Vec<Box<DataFactory>>>,
+        service_data: Rc<Vec<Box<DataFactory>>>,
     ) -> Self {
         AppService {
             config,
             default,
-            route_data,
+            service_data,
             root: true,
             services: Vec::new(),
         }
@@ -75,7 +75,7 @@ impl AppService {
             default: self.default.clone(),
             services: Vec::new(),
             root: false,
-            route_data: self.route_data.clone(),
+            service_data: self.service_data.clone(),
         }
     }
 
@@ -90,11 +90,11 @@ impl AppService {
     }
 
     /// Set global route data
-    pub fn set_route_data(&self, extensions: &mut Extensions) -> bool {
-        for f in self.route_data.iter() {
+    pub fn set_service_data(&self, extensions: &mut Extensions) -> bool {
+        for f in self.service_data.iter() {
             f.create(extensions);
         }
-        !self.route_data.is_empty()
+        !self.service_data.is_empty()
     }
 
     /// Register http service
@@ -192,8 +192,8 @@ impl ServiceConfig {
     /// by using `Data<T>` extractor where `T` is data type.
     ///
     /// This is same as `App::data()` method.
-    pub fn data<S: Into<Data<S>> + 'static>(&mut self, data: S) -> &mut Self {
-        self.data.push(Box::new(data.into()));
+    pub fn data<S: 'static>(&mut self, data: S) -> &mut Self {
+        self.data.push(Box::new(Data::new(data)));
         self
     }
 

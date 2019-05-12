@@ -1,5 +1,11 @@
 # Changes
 
+## [1.0.0-beta.4] - 2019-05-xx
+
+### Add
+
+* Allow to set/override app data on scope level
+
 ### Changes
 
 * `App::configure` take an `FnOnce` instead of `Fn`
