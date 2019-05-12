@@ -66,13 +66,13 @@ rust-tls = ["rustls", "actix-server/rust-tls"]
 
 [dependencies]
 actix-codec = "0.1.2"
-actix-service = "0.3.6"
-actix-utils = "0.3.4"
+actix-service = "0.4.0"
+actix-utils = "0.4.0"
 actix-router = "0.1.3"
 actix-rt = "0.2.2"
 actix-web-codegen = "0.1.0-beta.1"
 actix-http = { version = "0.1.5", features=["fail"] }
-actix-server = "0.4.3"
+actix-server = "0.5.0"
 actix-server-config = "0.1.1"
 actix-threadpool = "0.1.0"
 actix = { version = "0.8.1", features=["http"], optional = true }
@@ -101,7 +101,7 @@ rustls = { version = "^0.15", optional = true }
 [dev-dependencies]
 actix-http = { version = "0.1.5", features=["ssl", "brotli", "flate2-zlib"] }
 actix-http-test = { version = "0.1.1", features=["ssl"] }
-actix-files = { version = "0.1.0-beta.1" }
+actix-files = { version = "0.1.0-betsa.1" }
 rand = "0.6"
 env_logger = "0.6"
 serde_derive = "1.0"
@@ -121,5 +121,8 @@ actix-http-test = { path = "test-server" }
 actix-web-codegen = { path = "actix-web-codegen" }
 actix-web-actors = { path = "actix-web-actors" }
 actix-session = { path = "actix-session" }
-actix-files = { path = "actix-files" }
 awc = { path = "awc" }
+
+actix-files = { path = "actix-files" }
+actix-framed = { path = "actix-framed" }
+actix-multipart = { path = "actix-multipart" }

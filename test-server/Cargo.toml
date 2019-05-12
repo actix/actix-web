@@ -32,9 +32,9 @@ ssl = ["openssl", "actix-server/ssl", "awc/ssl"]
 [dependencies]
 actix-codec = "0.1.2"
 actix-rt = "0.2.2"
-actix-service = "0.3.6"
-actix-server = "0.4.3"
-actix-utils = "0.3.5"
+actix-service = "0.4.0"
+actix-server = "0.5.0"
+actix-utils = "0.4.0"
 awc = "0.1.1"
 
 base64 = "0.10"

@@ -334,6 +334,7 @@ impl Files {
     where
         F: IntoNewService<U>,
         U: NewService<
+                Config = (),
                 Request = ServiceRequest,
                 Response = ServiceResponse,
                 Error = Error,
@@ -363,6 +364,7 @@ impl HttpServiceFactory for Files {
 }
 
 impl NewService for Files {
+    type Config = ();
     type Request = ServiceRequest;
     type Response = ServiceResponse;
     type Error = Error;

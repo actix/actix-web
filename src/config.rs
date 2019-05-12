@@ -107,6 +107,7 @@ impl AppService {
     ) where
         F: IntoNewService<S>,
         S: NewService<
+                Config = (),
                 Request = ServiceRequest,
                 Response = ServiceResponse,
                 Error = Error,

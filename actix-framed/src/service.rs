@@ -12,22 +12,23 @@ use futures::{Async, Future, IntoFuture, Poll, Sink};
 
 /// Service that verifies incoming request if it is valid websocket
 /// upgrade request. In case of error returns `HandshakeError`
-pub struct VerifyWebSockets<T> {
-    _t: PhantomData<T>,
+pub struct VerifyWebSockets<T, C> {
+    _t: PhantomData<(T, C)>,
 }
 
-impl<T> Default for VerifyWebSockets<T> {
+impl<T, C> Default for VerifyWebSockets<T, C> {
     fn default() -> Self {
         VerifyWebSockets { _t: PhantomData }
     }
 }
 
-impl<T, C> NewService<C> for VerifyWebSockets<T> {
+impl<T, C> NewService for VerifyWebSockets<T, C> {
+    type Config = C;
     type Request = (Request, Framed<T, Codec>);
     type Response = (Request, Framed<T, Codec>);
     type Error = (HandshakeError, Framed<T, Codec>);
     type InitError = ();
-    type Service = VerifyWebSockets<T>;
+    type Service = VerifyWebSockets<T, C>;
     type Future = FutureResult<Self::Service, Self::InitError>;
 
     fn new_service(&self, _: &C) -> Self::Future {
@@ -35,7 +36,7 @@ impl<T, C> NewService<C> for VerifyWebSockets<T> {
     }
 }
 
-impl<T> Service for VerifyWebSockets<T> {
+impl<T, C> Service for VerifyWebSockets<T, C> {
     type Request = (Request, Framed<T, Codec>);
     type Response = (Request, Framed<T, Codec>);
     type Error = (HandshakeError, Framed<T, Codec>);
@@ -54,9 +55,9 @@ impl<T> Service for VerifyWebSockets<T> {
 }
 
 /// Send http/1 error response
-pub struct SendError<T, R, E>(PhantomData<(T, R, E)>);
+pub struct SendError<T, R, E, C>(PhantomData<(T, R, E, C)>);
 
-impl<T, R, E> Default for SendError<T, R, E>
+impl<T, R, E, C> Default for SendError<T, R, E, C>
 where
     T: AsyncRead + AsyncWrite,
     E: ResponseError,
@@ -66,17 +67,18 @@ where
     }
 }
 
-impl<T, R, E, C> NewService<C> for SendError<T, R, E>
+impl<T, R, E, C> NewService for SendError<T, R, E, C>
 where
     T: AsyncRead + AsyncWrite + 'static,
     R: 'static,
     E: ResponseError + 'static,
 {
+    type Config = C;
     type Request = Result<R, (E, Framed<T, Codec>)>;
     type Response = R;
     type Error = (E, Framed<T, Codec>);
     type InitError = ();
-    type Service = SendError<T, R, E>;
+    type Service = SendError<T, R, E, C>;
     type Future = FutureResult<Self::Service, Self::InitError>;
 
     fn new_service(&self, _: &C) -> Self::Future {
@@ -84,7 +86,7 @@ where
     }
 }
 
-impl<T, R, E> Service for SendError<T, R, E>
+impl<T, R, E, C> Service for SendError<T, R, E, C>
 where
     T: AsyncRead + AsyncWrite + 'static,
     R: 'static,

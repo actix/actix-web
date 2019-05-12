@@ -21,11 +21,12 @@ path = "src/lib.rs"
 
 [dependencies]
 actix-codec = "0.1.2"
-actix-service = "0.3.6"
-actix-utils = "0.3.4"
+actix-service = "0.4.0"
+actix-utils = "0.4.0"
 actix-router = "0.1.2"
 actix-rt = "0.2.2"
 actix-http = "0.1.0"
+actix-server-config = "0.1.1"
 
 bytes = "0.4"
 futures = "0.1.25"

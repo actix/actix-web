@@ -106,6 +106,7 @@ where
     R::Future: 'static,
     R::Error: fmt::Display,
 {
+    type Config = ();
     type Request = FramedRequest<Io, S>;
     type Response = ();
     type Error = Error;

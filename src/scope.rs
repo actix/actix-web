@@ -6,7 +6,7 @@ use actix_http::Response;
 use actix_router::{ResourceDef, ResourceInfo, Router};
 use actix_service::boxed::{self, BoxedNewService, BoxedService};
 use actix_service::{
-    ApplyTransform, IntoNewService, IntoTransform, NewService, Service, Transform,
+    apply_transform, IntoNewService, IntoTransform, NewService, Service, Transform,
 };
 use futures::future::{ok, Either, Future, FutureResult};
 use futures::{Async, IntoFuture, Poll};
@@ -85,6 +85,7 @@ impl Scope {
 impl<T> Scope<T>
 where
     T: NewService<
+        Config = (),
         Request = ServiceRequest,
         Response = ServiceResponse,
         Error = Error,
@@ -188,6 +189,7 @@ where
     where
         F: IntoNewService<U>,
         U: NewService<
+                Config = (),
                 Request = ServiceRequest,
                 Response = ServiceResponse,
                 Error = Error,
@@ -218,6 +220,7 @@ where
         mw: F,
     ) -> Scope<
         impl NewService<
+            Config = (),
             Request = ServiceRequest,
             Response = ServiceResponse,
             Error = Error,
@@ -234,7 +237,7 @@ where
         >,
         F: IntoTransform<M, T::Service>,
     {
-        let endpoint = ApplyTransform::new(mw, self.endpoint);
+        let endpoint = apply_transform(mw, self.endpoint);
         Scope {
             endpoint,
             rdef: self.rdef,
@@ -280,6 +283,7 @@ where
         mw: F,
     ) -> Scope<
         impl NewService<
+            Config = (),
             Request = ServiceRequest,
             Response = ServiceResponse,
             Error = Error,
@@ -297,6 +301,7 @@ where
 impl<T> HttpServiceFactory for Scope<T>
 where
     T: NewService<
+            Config = (),
             Request = ServiceRequest,
             Response = ServiceResponse,
             Error = Error,
@@ -355,6 +360,7 @@ pub struct ScopeFactory {
 }
 
 impl NewService for ScopeFactory {
+    type Config = ();
     type Request = ServiceRequest;
     type Response = ServiceResponse;
     type Error = Error;
@@ -515,6 +521,7 @@ impl ScopeEndpoint {
 }
 
 impl NewService for ScopeEndpoint {
+    type Config = ();
     type Request = ServiceRequest;
     type Response = ServiceResponse;
     type Error = Error;

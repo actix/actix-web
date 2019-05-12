@@ -19,7 +19,7 @@ path = "src/lib.rs"
 
 [dependencies]
 actix-web = "1.0.0-beta.1"
-actix-service = "0.3.6"
+actix-service = "0.4.0"
 bytes = "0.4"
 derive_more = "0.14"
 httparse = "1.3"

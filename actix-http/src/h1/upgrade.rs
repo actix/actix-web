@@ -1,6 +1,7 @@
 use std::marker::PhantomData;
 
 use actix_codec::Framed;
+use actix_server_config::ServerConfig;
 use actix_service::{NewService, Service};
 use futures::future::FutureResult;
 use futures::{Async, Poll};
@@ -12,6 +13,7 @@ use crate::request::Request;
 pub struct UpgradeHandler<T>(PhantomData<T>);
 
 impl<T> NewService for UpgradeHandler<T> {
+    type Config = ServerConfig;
     type Request = (Request, Framed<T, Codec>);
     type Response = ();
     type Error = Error;
@@ -19,7 +21,7 @@ impl<T> NewService for UpgradeHandler<T> {
     type InitError = Error;
     type Future = FutureResult<Self::Service, Self::InitError>;
 
-    fn new_service(&self, _: &()) -> Self::Future {
+    fn new_service(&self, _: &ServerConfig) -> Self::Future {
         unimplemented!()
     }
 }

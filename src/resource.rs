@@ -75,6 +75,7 @@ impl Resource {
 impl<T> Resource<T>
 where
     T: NewService<
+        Config = (),
         Request = ServiceRequest,
         Response = ServiceResponse,
         Error = Error,
@@ -274,6 +275,7 @@ where
         mw: F,
     ) -> Resource<
         impl NewService<
+            Config = (),
             Request = ServiceRequest,
             Response = ServiceResponse,
             Error = Error,
@@ -340,6 +342,7 @@ where
         mw: F,
     ) -> Resource<
         impl NewService<
+            Config = (),
             Request = ServiceRequest,
             Response = ServiceResponse,
             Error = Error,
@@ -360,6 +363,7 @@ where
     where
         F: IntoNewService<U>,
         U: NewService<
+                Config = (),
                 Request = ServiceRequest,
                 Response = ServiceResponse,
                 Error = Error,
@@ -380,6 +384,7 @@ where
 impl<T> HttpServiceFactory for Resource<T>
 where
     T: NewService<
+            Config = (),
             Request = ServiceRequest,
             Response = ServiceResponse,
             Error = Error,
@@ -411,6 +416,7 @@ where
 impl<T> IntoNewService<T> for Resource<T>
 where
     T: NewService<
+        Config = (),
         Request = ServiceRequest,
         Response = ServiceResponse,
         Error = Error,
@@ -435,6 +441,7 @@ pub struct ResourceFactory {
 }
 
 impl NewService for ResourceFactory {
+    type Config = ();
     type Request = ServiceRequest;
     type Response = ServiceResponse;
     type Error = Error;
@@ -575,6 +582,7 @@ impl ResourceEndpoint {
 }
 
 impl NewService for ResourceEndpoint {
+    type Config = ();
     type Request = ServiceRequest;
     type Response = ServiceResponse;
     type Error = Error;

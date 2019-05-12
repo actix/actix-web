@@ -140,51 +140,46 @@ impl ClientBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test;
 
     #[test]
     fn client_basic_auth() {
-        test::run_on(|| {
-            let client = ClientBuilder::new().basic_auth("username", Some("password"));
-            assert_eq!(
-                client
-                    .config
-                    .headers
-                    .get(header::AUTHORIZATION)
-                    .unwrap()
-                    .to_str()
-                    .unwrap(),
-                "Basic dXNlcm5hbWU6cGFzc3dvcmQ="
-            );
+        let client = ClientBuilder::new().basic_auth("username", Some("password"));
+        assert_eq!(
+            client
+                .config
+                .headers
+                .get(header::AUTHORIZATION)
+                .unwrap()
+                .to_str()
+                .unwrap(),
+            "Basic dXNlcm5hbWU6cGFzc3dvcmQ="
+        );
 
-            let client = ClientBuilder::new().basic_auth("username", None);
-            assert_eq!(
-                client
-                    .config
-                    .headers
-                    .get(header::AUTHORIZATION)
-                    .unwrap()
-                    .to_str()
-                    .unwrap(),
-                "Basic dXNlcm5hbWU="
-            );
-        });
+        let client = ClientBuilder::new().basic_auth("username", None);
+        assert_eq!(
+            client
+                .config
+                .headers
+                .get(header::AUTHORIZATION)
+                .unwrap()
+                .to_str()
+                .unwrap(),
+            "Basic dXNlcm5hbWU="
+        );
     }
 
     #[test]
     fn client_bearer_auth() {
-        test::run_on(|| {
-            let client = ClientBuilder::new().bearer_auth("someS3cr3tAutht0k3n");
-            assert_eq!(
-                client
-                    .config
-                    .headers
-                    .get(header::AUTHORIZATION)
-                    .unwrap()
-                    .to_str()
-                    .unwrap(),
-                "Bearer someS3cr3tAutht0k3n"
-            );
-        })
+        let client = ClientBuilder::new().bearer_auth("someS3cr3tAutht0k3n");
+        assert_eq!(
+            client
+                .config
+                .headers
+                .get(header::AUTHORIZATION)
+                .unwrap()
+                .to_str()
+                .unwrap(),
+            "Bearer someS3cr3tAutht0k3n"
+        );
     }
 }

@@ -4,7 +4,6 @@ use std::marker::PhantomData;
 use std::rc::Rc;
 
 use actix_http::body::{Body, MessageBody};
-use actix_server_config::ServerConfig;
 use actix_service::boxed::{self, BoxedNewService};
 use actix_service::{
     apply_transform, IntoNewService, IntoTransform, NewService, Transform,
@@ -59,6 +58,7 @@ impl<T, B> App<T, B>
 where
     B: MessageBody,
     T: NewService<
+        Config = (),
         Request = ServiceRequest,
         Response = ServiceResponse<B>,
         Error = Error,
@@ -234,6 +234,7 @@ where
     where
         F: IntoNewService<U>,
         U: NewService<
+                Config = (),
                 Request = ServiceRequest,
                 Response = ServiceResponse,
                 Error = Error,
@@ -319,6 +320,7 @@ where
         mw: F,
     ) -> App<
         impl NewService<
+            Config = (),
             Request = ServiceRequest,
             Response = ServiceResponse<B1>,
             Error = Error,
@@ -384,6 +386,7 @@ where
         mw: F,
     ) -> App<
         impl NewService<
+            Config = (),
             Request = ServiceRequest,
             Response = ServiceResponse<B1>,
             Error = Error,
@@ -400,10 +403,11 @@ where
     }
 }
 
-impl<T, B> IntoNewService<AppInit<T, B>, ServerConfig> for App<T, B>
+impl<T, B> IntoNewService<AppInit<T, B>> for App<T, B>
 where
     B: MessageBody,
     T: NewService<
+        Config = (),
         Request = ServiceRequest,
         Response = ServiceResponse<B>,
         Error = Error,

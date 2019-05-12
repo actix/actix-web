@@ -51,8 +51,8 @@ struct Config {
 pub struct HttpServer<F, I, S, B>
 where
     F: Fn() -> I + Send + Clone + 'static,
-    I: IntoNewService<S, ServerConfig>,
-    S: NewService<ServerConfig, Request = Request>,
+    I: IntoNewService<S>,
+    S: NewService<Config = ServerConfig, Request = Request>,
     S::Error: Into<Error>,
     S::InitError: fmt::Debug,
     S::Response: Into<Response<B>>,
@@ -71,8 +71,8 @@ where
 impl<F, I, S, B> HttpServer<F, I, S, B>
 where
     F: Fn() -> I + Send + Clone + 'static,
-    I: IntoNewService<S, ServerConfig>,
-    S: NewService<ServerConfig, Request = Request>,
+    I: IntoNewService<S>,
+    S: NewService<Config = ServerConfig, Request = Request>,
     S::Error: Into<Error>,
     S::InitError: fmt::Debug,
     S::Response: Into<Response<B>>,
@@ -442,8 +442,8 @@ where
 impl<F, I, S, B> HttpServer<F, I, S, B>
 where
     F: Fn() -> I + Send + Clone + 'static,
-    I: IntoNewService<S, ServerConfig>,
-    S: NewService<ServerConfig, Request = Request>,
+    I: IntoNewService<S>,
+    S: NewService<Config = ServerConfig, Request = Request>,
     S::Error: Into<Error>,
     S::InitError: fmt::Debug,
     S::Response: Into<Response<B>>,
