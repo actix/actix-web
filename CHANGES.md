@@ -3,7 +3,7 @@
 ### Changes
 
 * `App::configure` take an `FnOnce` instead of `Fn`
-
+* `JsonConfig` is now `Send + Sync`, this implies that `error_handler` must be `Send + Sync` too.
 
 ## [1.0.0-beta.3] - 2019-05-04
 
