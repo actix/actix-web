@@ -1,5 +1,18 @@
 # Changes
 
+## [1.0.0-beta.4] - 2019-05-12
+
+### Add
+
+* Allow to set/override app data on scope level
+
+### Changes
+
+* `App::configure` take an `FnOnce` instead of `Fn`
+
+* Upgrade actix-net crates
+
+
 ## [1.0.0-beta.3] - 2019-05-04
 
 ### Added

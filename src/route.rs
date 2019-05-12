@@ -26,6 +26,7 @@ type BoxedRouteService<Req, Res> = Box<
 
 type BoxedRouteNewService<Req, Res> = Box<
     NewService<
+        Config = (),
         Request = Req,
         Response = Res,
         Error = Error,
@@ -61,6 +62,7 @@ impl Route {
 }
 
 impl NewService for Route {
+    type Config = ();
     type Request = ServiceRequest;
     type Response = ServiceResponse;
     type Error = Error;
@@ -283,6 +285,7 @@ where
 impl<T> RouteNewService<T>
 where
     T: NewService<
+        Config = (),
         Request = ServiceRequest,
         Response = ServiceResponse,
         Error = (Error, ServiceRequest),
@@ -299,6 +302,7 @@ where
 impl<T> NewService for RouteNewService<T>
 where
     T: NewService<
+        Config = (),
         Request = ServiceRequest,
         Response = ServiceResponse,
         Error = (Error, ServiceRequest),
@@ -307,6 +311,7 @@ where
     T::Service: 'static,
     <T::Service as Service>::Future: 'static,
 {
+    type Config = ();
     type Request = ServiceRequest;
     type Response = ServiceResponse;
     type Error = Error;

@@ -6,38 +6,9 @@ use actix_http::http::header::{self, Header, HeaderValue, IntoHeaderValue};
 use actix_http::http::{HeaderName, HttpTryFrom, StatusCode, Version};
 use actix_http::{h1, Payload, ResponseHead};
 use bytes::Bytes;
-#[cfg(test)]
-use futures::Future;
 use percent_encoding::{percent_encode, USERINFO_ENCODE_SET};
 
 use crate::ClientResponse;
-
-#[cfg(test)]
-thread_local! {
-    static RT: std::cell::RefCell<actix_rt::Runtime> = {
-        std::cell::RefCell::new(actix_rt::Runtime::new().unwrap())
-    };
-}
-
-#[cfg(test)]
-pub(crate) fn run_on<F, R>(f: F) -> R
-where
-    F: Fn() -> R,
-{
-    RT.with(move |rt| {
-        rt.borrow_mut()
-            .block_on(futures::future::lazy(|| Ok::<_, ()>(f())))
-    })
-    .unwrap()
-}
-
-#[cfg(test)]
-pub(crate) fn block_on<F>(f: F) -> Result<F::Item, F::Error>
-where
-    F: Future,
-{
-    RT.with(move |rt| rt.borrow_mut().block_on(f))
-}
 
 /// Test `ClientResponse` builder
 pub struct TestResponse {

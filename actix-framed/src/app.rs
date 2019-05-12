@@ -4,6 +4,7 @@ use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use actix_http::h1::{Codec, SendResponse};
 use actix_http::{Error, Request, Response};
 use actix_router::{Path, Router, Url};
+use actix_server_config::ServerConfig;
 use actix_service::{IntoNewService, NewService, Service};
 use actix_utils::cloneable::CloneableService;
 use futures::{Async, Future, Poll};
@@ -49,6 +50,7 @@ impl<T: 'static, S: 'static> FramedApp<T, S> {
     where
         U: HttpServiceFactory,
         U::Factory: NewService<
+                Config = (),
                 Request = FramedRequest<T, S>,
                 Response = (),
                 Error = Error,
@@ -88,11 +90,12 @@ pub struct FramedAppFactory<T, S> {
     services: Rc<Vec<(String, BoxedHttpNewService<FramedRequest<T, S>>)>>,
 }
 
-impl<T, S, C> NewService<C> for FramedAppFactory<T, S>
+impl<T, S> NewService for FramedAppFactory<T, S>
 where
     T: AsyncRead + AsyncWrite + 'static,
     S: 'static,
 {
+    type Config = ServerConfig;
     type Request = (Request, Framed<T, Codec>);
     type Response = ();
     type Error = Error;
@@ -100,7 +103,7 @@ where
     type Service = CloneableService<FramedAppService<T, S>>;
     type Future = CreateService<T, S>;
 
-    fn new_service(&self, _: &C) -> Self::Future {
+    fn new_service(&self, _: &ServerConfig) -> Self::Future {
         CreateService {
             fut: self
                 .services

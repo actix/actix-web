@@ -805,14 +805,15 @@ where
 
 #[cfg(test)]
 mod tests {
-    use actix_service::{FnService, Transform};
+    use actix_service::{IntoService, Transform};
 
     use super::*;
     use crate::test::{self, block_on, TestRequest};
 
     impl Cors {
-        fn finish<S, B>(self, srv: S) -> CorsMiddleware<S>
+        fn finish<F, S, B>(self, srv: F) -> CorsMiddleware<S>
         where
+            F: IntoService<S>,
             S: Service<
                     Request = ServiceRequest,
                     Response = ServiceResponse<B>,
@@ -822,7 +823,8 @@ mod tests {
             B: 'static,
         {
             block_on(
-                IntoTransform::<CorsFactory, S>::into_transform(self).new_transform(srv),
+                IntoTransform::<CorsFactory, S>::into_transform(self)
+                    .new_transform(srv.into_service()),
             )
             .unwrap()
         }
@@ -1063,11 +1065,11 @@ mod tests {
             .allowed_headers(exposed_headers.clone())
             .expose_headers(exposed_headers.clone())
             .allowed_header(header::CONTENT_TYPE)
-            .finish(FnService::new(move |req: ServiceRequest| {
+            .finish(|req: ServiceRequest| {
                 req.into_response(
                     HttpResponse::Ok().header(header::VARY, "Accept").finish(),
                 )
-            }));
+            });
         let req = TestRequest::with_header("Origin", "https://www.example.com")
             .method(Method::OPTIONS)
             .to_srv_request();

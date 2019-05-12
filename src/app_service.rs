@@ -6,7 +6,7 @@ use actix_http::{Extensions, Request, Response};
 use actix_router::{Path, ResourceDef, ResourceInfo, Router, Url};
 use actix_server_config::ServerConfig;
 use actix_service::boxed::{self, BoxedNewService, BoxedService};
-use actix_service::{fn_service, NewService, Service};
+use actix_service::{service_fn, NewService, Service};
 use futures::future::{ok, Either, FutureResult};
 use futures::{Async, Future, Poll};
 
@@ -31,6 +31,7 @@ type BoxedResponse = Either<
 pub struct AppInit<T, B>
 where
     T: NewService<
+        Config = (),
         Request = ServiceRequest,
         Response = ServiceResponse<B>,
         Error = Error,
@@ -46,15 +47,17 @@ where
     pub(crate) external: RefCell<Vec<ResourceDef>>,
 }
 
-impl<T, B> NewService<ServerConfig> for AppInit<T, B>
+impl<T, B> NewService for AppInit<T, B>
 where
     T: NewService<
+        Config = (),
         Request = ServiceRequest,
         Response = ServiceResponse<B>,
         Error = Error,
         InitError = (),
     >,
 {
+    type Config = ServerConfig;
     type Request = Request;
     type Response = ServiceResponse<B>;
     type Error = T::Error;
@@ -65,7 +68,7 @@ where
     fn new_service(&self, cfg: &ServerConfig) -> Self::Future {
         // update resource default service
         let default = self.default.clone().unwrap_or_else(|| {
-            Rc::new(boxed::new_service(fn_service(|req: ServiceRequest| {
+            Rc::new(boxed::new_service(service_fn(|req: ServiceRequest| {
                 Ok(req.into_response(Response::NotFound().finish()))
             })))
         });
@@ -148,6 +151,7 @@ where
 impl<T, B> Future for AppInitResult<T, B>
 where
     T: NewService<
+        Config = (),
         Request = ServiceRequest,
         Response = ServiceResponse<B>,
         Error = Error,
@@ -233,6 +237,7 @@ pub struct AppRoutingFactory {
 }
 
 impl NewService for AppRoutingFactory {
+    type Config = ();
     type Request = ServiceRequest;
     type Response = ServiceResponse;
     type Error = Error;
@@ -391,6 +396,7 @@ impl AppEntry {
 }
 
 impl NewService for AppEntry {
+    type Config = ();
     type Request = ServiceRequest;
     type Response = ServiceResponse;
     type Error = Error;

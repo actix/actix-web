@@ -93,12 +93,6 @@ impl<T> Clone for Data<T> {
     }
 }
 
-impl<T> From<T> for Data<T> {
-    fn from(data: T) -> Self {
-        Data::new(data)
-    }
-}
-
 impl<T: 'static> FromRequest for Data<T> {
     type Config = ();
     type Error = Error;

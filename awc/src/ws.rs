@@ -318,7 +318,9 @@ impl WebsocketsRequest {
                         }
                     } else {
                         log::trace!("Invalid connection header: {:?}", conn);
-                        return Err(WsClientError::InvalidConnectionHeader(conn.clone()));
+                        return Err(WsClientError::InvalidConnectionHeader(
+                            conn.clone(),
+                        ));
                     }
                 } else {
                     log::trace!("Missing connection header");
@@ -462,29 +464,28 @@ mod tests {
 
     #[test]
     fn basics() {
-        actix_http_test::run_on(|| {
-            let req = Client::new()
-                .ws("http://localhost/")
-                .origin("test-origin")
-                .max_frame_size(100)
-                .server_mode()
-                .protocols(&["v1", "v2"])
-                .set_header_if_none(header::CONTENT_TYPE, "json")
-                .set_header_if_none(header::CONTENT_TYPE, "text")
-                .cookie(Cookie::build("cookie1", "value1").finish());
-            assert_eq!(
-                req.origin.as_ref().unwrap().to_str().unwrap(),
-                "test-origin"
-            );
-            assert_eq!(req.max_size, 100);
-            assert_eq!(req.server_mode, true);
-            assert_eq!(req.protocols, Some("v1,v2".to_string()));
-            assert_eq!(
-                req.head.headers.get(header::CONTENT_TYPE).unwrap(),
-                header::HeaderValue::from_static("json")
-            );
-            let _ = req.connect();
-        });
+        let req = Client::new()
+            .ws("http://localhost/")
+            .origin("test-origin")
+            .max_frame_size(100)
+            .server_mode()
+            .protocols(&["v1", "v2"])
+            .set_header_if_none(header::CONTENT_TYPE, "json")
+            .set_header_if_none(header::CONTENT_TYPE, "text")
+            .cookie(Cookie::build("cookie1", "value1").finish());
+        assert_eq!(
+            req.origin.as_ref().unwrap().to_str().unwrap(),
+            "test-origin"
+        );
+        assert_eq!(req.max_size, 100);
+        assert_eq!(req.server_mode, true);
+        assert_eq!(req.protocols, Some("v1,v2".to_string()));
+        assert_eq!(
+            req.head.headers.get(header::CONTENT_TYPE).unwrap(),
+            header::HeaderValue::from_static("json")
+        );
+
+        let _ = actix_http_test::block_fn(move || req.connect());
 
         assert!(Client::new().ws("/").connect().poll().is_err());
         assert!(Client::new().ws("http:///test").connect().poll().is_err());

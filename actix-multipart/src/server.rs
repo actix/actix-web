@@ -1,5 +1,5 @@
 //! Multipart payload support
-use std::cell::{RefCell, UnsafeCell};
+use std::cell::{Cell, RefCell, UnsafeCell};
 use std::marker::PhantomData;
 use std::rc::Rc;
 use std::{cmp, fmt};
@@ -116,6 +116,8 @@ impl Stream for Multipart {
                 payload.poll_stream()?;
             }
             inner.poll(&self.safety)
+        } else if !self.safety.is_clean() {
+            Err(MultipartError::NotConsumed)
         } else {
             Ok(Async::NotReady)
         }
@@ -415,6 +417,8 @@ impl Stream for Field {
             }
 
             inner.poll(&self.safety)
+        } else if !self.safety.is_clean() {
+            return Err(MultipartError::NotConsumed);
         } else {
             Ok(Async::NotReady)
         }
@@ -655,6 +659,7 @@ struct Safety {
     task: Option<Task>,
     level: usize,
     payload: Rc<PhantomData<bool>>,
+    clean: Rc<Cell<bool>>,
 }
 
 impl Safety {
@@ -663,12 +668,17 @@ impl Safety {
         Safety {
             task: None,
             level: Rc::strong_count(&payload),
+            clean: Rc::new(Cell::new(true)),
             payload,
         }
     }
 
     fn current(&self) -> bool {
-        Rc::strong_count(&self.payload) == self.level
+        Rc::strong_count(&self.payload) == self.level && self.clean.get()
+    }
+
+    fn is_clean(&self) -> bool {
+        self.clean.get()
     }
 }
 
@@ -678,6 +688,7 @@ impl Clone for Safety {
         Safety {
             task: Some(current_task()),
             level: Rc::strong_count(&payload),
+            clean: self.clean.clone(),
             payload,
         }
     }
@@ -687,7 +698,7 @@ impl Drop for Safety {
     fn drop(&mut self) {
         // parent task is dead
         if Rc::strong_count(&self.payload) != self.level {
-            panic!("Safety get dropped but it is not from top-most task");
+            self.clean.set(true);
         }
         if let Some(task) = self.task.take() {
             task.notify()

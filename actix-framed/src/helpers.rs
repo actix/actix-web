@@ -13,6 +13,7 @@ pub(crate) type BoxedHttpService<Req> = Box<
 
 pub(crate) type BoxedHttpNewService<Req> = Box<
     NewService<
+        Config = (),
         Request = Req,
         Response = (),
         Error = Error,
@@ -39,12 +40,13 @@ where
 
 impl<T> NewService for HttpNewService<T>
 where
-    T: NewService<Response = (), Error = Error>,
+    T: NewService<Config = (), Response = (), Error = Error>,
     T::Request: 'static,
     T::Future: 'static,
     T::Service: Service<Future = Box<Future<Item = (), Error = Error>>> + 'static,
     <T::Service as Service>::Future: 'static,
 {
+    type Config = ();
     type Request = T::Request;
     type Response = ();
     type Error = Error;
