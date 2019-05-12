@@ -176,7 +176,7 @@ where
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         let req2 = req.clone();
         let (limit, err) = req
-            .app_data::<JsonConfig>()
+            .app_data::<Self::Config>()
             .map(|c| (c.limit, c.ehandler.clone()))
             .unwrap_or((32768, None));
 
