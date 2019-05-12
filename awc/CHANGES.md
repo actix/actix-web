@@ -1,8 +1,14 @@
 # Changes
 
+## [0.2.0] - 2019-05-12
+
 ### Added
 
 * Allow to send headers in `Camel-Case` form.
+
+### Changed
+
+* Upgrade actix-http dependency.
 
 
 ## [0.1.1] - 2019-04-19
