@@ -168,9 +168,9 @@ impl<T> FromRequest for Json<T>
 where
     T: DeserializeOwned + 'static,
 {
-    type Config = JsonConfig;
     type Error = Error;
     type Future = Box<Future<Item = Self, Error = Error>>;
+    type Config = JsonConfig;
 
     #[inline]
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
