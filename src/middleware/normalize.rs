@@ -100,7 +100,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use actix_service::FnService;
+    use actix_service::IntoService;
 
     use super::*;
     use crate::dev::ServiceRequest;
@@ -122,12 +122,13 @@ mod tests {
 
     #[test]
     fn test_in_place_normalization() {
-        let srv = FnService::new(|req: ServiceRequest| {
+        let srv = |req: ServiceRequest| {
             assert_eq!("/v1/something/", req.path());
             req.into_response(HttpResponse::Ok().finish())
-        });
+        };
 
-        let mut normalize = block_on(NormalizePath.new_transform(srv)).unwrap();
+        let mut normalize =
+            block_on(NormalizePath.new_transform(srv.into_service())).unwrap();
 
         let req = TestRequest::with_uri("/v1//something////").to_srv_request();
         let res = block_on(normalize.call(req)).unwrap();
@@ -138,12 +139,13 @@ mod tests {
     fn should_normalize_nothing() {
         const URI: &str = "/v1/something/";
 
-        let srv = FnService::new(|req: ServiceRequest| {
+        let srv = |req: ServiceRequest| {
             assert_eq!(URI, req.path());
             req.into_response(HttpResponse::Ok().finish())
-        });
+        };
 
-        let mut normalize = block_on(NormalizePath.new_transform(srv)).unwrap();
+        let mut normalize =
+            block_on(NormalizePath.new_transform(srv.into_service())).unwrap();
 
         let req = TestRequest::with_uri(URI).to_srv_request();
         let res = block_on(normalize.call(req)).unwrap();

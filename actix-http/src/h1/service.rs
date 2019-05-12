@@ -29,14 +29,14 @@ pub struct H1Service<T, P, S, B, X = ExpectHandler, U = UpgradeHandler<T>> {
 
 impl<T, P, S, B> H1Service<T, P, S, B>
 where
-    S: NewService<SrvConfig, Request = Request>,
+    S: NewService<Config = SrvConfig, Request = Request>,
     S::Error: Into<Error>,
     S::InitError: fmt::Debug,
     S::Response: Into<Response<B>>,
     B: MessageBody,
 {
     /// Create new `HttpService` instance with default config.
-    pub fn new<F: IntoNewService<S, SrvConfig>>(service: F) -> Self {
+    pub fn new<F: IntoNewService<S>>(service: F) -> Self {
         let cfg = ServiceConfig::new(KeepAlive::Timeout(5), 5000, 0);
 
         H1Service {
@@ -49,10 +49,7 @@ where
     }
 
     /// Create new `HttpService` instance with config.
-    pub fn with_config<F: IntoNewService<S, SrvConfig>>(
-        cfg: ServiceConfig,
-        service: F,
-    ) -> Self {
+    pub fn with_config<F: IntoNewService<S>>(cfg: ServiceConfig, service: F) -> Self {
         H1Service {
             cfg,
             srv: service.into_new_service(),
@@ -65,7 +62,7 @@ where
 
 impl<T, P, S, B, X, U> H1Service<T, P, S, B, X, U>
 where
-    S: NewService<SrvConfig, Request = Request>,
+    S: NewService<Config = SrvConfig, Request = Request>,
     S::Error: Into<Error>,
     S::Response: Into<Response<B>>,
     S::InitError: fmt::Debug,
@@ -102,21 +99,26 @@ where
     }
 }
 
-impl<T, P, S, B, X, U> NewService<SrvConfig> for H1Service<T, P, S, B, X, U>
+impl<T, P, S, B, X, U> NewService for H1Service<T, P, S, B, X, U>
 where
     T: IoStream,
-    S: NewService<SrvConfig, Request = Request>,
+    S: NewService<Config = SrvConfig, Request = Request>,
     S::Error: Into<Error>,
     S::Response: Into<Response<B>>,
     S::InitError: fmt::Debug,
     B: MessageBody,
-    X: NewService<Request = Request, Response = Request>,
+    X: NewService<Config = SrvConfig, Request = Request, Response = Request>,
     X::Error: Into<Error>,
     X::InitError: fmt::Debug,
-    U: NewService<Request = (Request, Framed<T, Codec>), Response = ()>,
+    U: NewService<
+        Config = SrvConfig,
+        Request = (Request, Framed<T, Codec>),
+        Response = (),
+    >,
     U::Error: fmt::Display,
     U::InitError: fmt::Debug,
 {
+    type Config = SrvConfig;
     type Request = Io<T, P>;
     type Response = ();
     type Error = DispatchError;
@@ -127,8 +129,8 @@ where
     fn new_service(&self, cfg: &SrvConfig) -> Self::Future {
         H1ServiceResponse {
             fut: self.srv.new_service(cfg).into_future(),
-            fut_ex: Some(self.expect.new_service(&())),
-            fut_upg: self.upgrade.as_ref().map(|f| f.new_service(&())),
+            fut_ex: Some(self.expect.new_service(cfg)),
+            fut_upg: self.upgrade.as_ref().map(|f| f.new_service(cfg)),
             expect: None,
             upgrade: None,
             cfg: Some(self.cfg.clone()),
@@ -140,7 +142,7 @@ where
 #[doc(hidden)]
 pub struct H1ServiceResponse<T, P, S, B, X, U>
 where
-    S: NewService<SrvConfig, Request = Request>,
+    S: NewService<Request = Request>,
     S::Error: Into<Error>,
     S::InitError: fmt::Debug,
     X: NewService<Request = Request, Response = Request>,
@@ -162,7 +164,7 @@ where
 impl<T, P, S, B, X, U> Future for H1ServiceResponse<T, P, S, B, X, U>
 where
     T: IoStream,
-    S: NewService<SrvConfig, Request = Request>,
+    S: NewService<Request = Request>,
     S::Error: Into<Error>,
     S::Response: Into<Response<B>>,
     S::InitError: fmt::Debug,
@@ -320,10 +322,11 @@ where
     }
 }
 
-impl<T, P> NewService<SrvConfig> for OneRequest<T, P>
+impl<T, P> NewService for OneRequest<T, P>
 where
     T: IoStream,
 {
+    type Config = SrvConfig;
     type Request = Io<T, P>;
     type Response = (Request, Framed<T, Codec>);
     type Error = ParseError;

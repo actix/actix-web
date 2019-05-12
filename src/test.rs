@@ -9,7 +9,7 @@ use actix_http::{cookie::Cookie, Extensions, Request};
 use actix_router::{Path, ResourceDef, Url};
 use actix_rt::Runtime;
 use actix_server_config::ServerConfig;
-use actix_service::{FnService, IntoNewService, NewService, Service};
+use actix_service::{IntoNewService, IntoService, NewService, Service};
 use bytes::{Bytes, BytesMut};
 use futures::future::{lazy, ok, Future, IntoFuture};
 use futures::Stream;
@@ -110,9 +110,10 @@ pub fn default_service(
     status_code: StatusCode,
 ) -> impl Service<Request = ServiceRequest, Response = ServiceResponse<Body>, Error = Error>
 {
-    FnService::new(move |req: ServiceRequest| {
+    (move |req: ServiceRequest| {
         req.into_response(HttpResponse::build(status_code).finish())
     })
+    .into_service()
 }
 
 /// This method accepts application builder instance, and constructs
@@ -141,9 +142,9 @@ pub fn init_service<R, S, B, E>(
     app: R,
 ) -> impl Service<Request = Request, Response = ServiceResponse<B>, Error = E>
 where
-    R: IntoNewService<S, ServerConfig>,
+    R: IntoNewService<S>,
     S: NewService<
-        ServerConfig,
+        Config = ServerConfig,
         Request = Request,
         Response = ServiceResponse<B>,
         Error = E,

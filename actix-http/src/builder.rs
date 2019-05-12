@@ -29,7 +29,7 @@ pub struct HttpServiceBuilder<T, S, X = ExpectHandler, U = UpgradeHandler<T>> {
 
 impl<T, S> HttpServiceBuilder<T, S, ExpectHandler, UpgradeHandler<T>>
 where
-    S: NewService<SrvConfig, Request = Request>,
+    S: NewService<Config = SrvConfig, Request = Request>,
     S::Error: Into<Error>,
     S::InitError: fmt::Debug,
 {
@@ -48,13 +48,17 @@ where
 
 impl<T, S, X, U> HttpServiceBuilder<T, S, X, U>
 where
-    S: NewService<SrvConfig, Request = Request>,
+    S: NewService<Config = SrvConfig, Request = Request>,
     S::Error: Into<Error>,
     S::InitError: fmt::Debug,
-    X: NewService<Request = Request, Response = Request>,
+    X: NewService<Config = SrvConfig, Request = Request, Response = Request>,
     X::Error: Into<Error>,
     X::InitError: fmt::Debug,
-    U: NewService<Request = (Request, Framed<T, Codec>), Response = ()>,
+    U: NewService<
+        Config = SrvConfig,
+        Request = (Request, Framed<T, Codec>),
+        Response = (),
+    >,
     U::Error: fmt::Display,
     U::InitError: fmt::Debug,
 {
@@ -101,7 +105,7 @@ where
     pub fn expect<F, X1>(self, expect: F) -> HttpServiceBuilder<T, S, X1, U>
     where
         F: IntoNewService<X1>,
-        X1: NewService<Request = Request, Response = Request>,
+        X1: NewService<Config = SrvConfig, Request = Request, Response = Request>,
         X1::Error: Into<Error>,
         X1::InitError: fmt::Debug,
     {
@@ -122,7 +126,11 @@ where
     pub fn upgrade<F, U1>(self, upgrade: F) -> HttpServiceBuilder<T, S, X, U1>
     where
         F: IntoNewService<U1>,
-        U1: NewService<Request = (Request, Framed<T, Codec>), Response = ()>,
+        U1: NewService<
+            Config = SrvConfig,
+            Request = (Request, Framed<T, Codec>),
+            Response = (),
+        >,
         U1::Error: fmt::Display,
         U1::InitError: fmt::Debug,
     {
@@ -140,7 +148,7 @@ where
     pub fn h1<F, P, B>(self, service: F) -> H1Service<T, P, S, B, X, U>
     where
         B: MessageBody + 'static,
-        F: IntoNewService<S, SrvConfig>,
+        F: IntoNewService<S>,
         S::Error: Into<Error>,
         S::InitError: fmt::Debug,
         S::Response: Into<Response<B>>,
@@ -159,7 +167,7 @@ where
     pub fn h2<F, P, B>(self, service: F) -> H2Service<T, P, S, B>
     where
         B: MessageBody + 'static,
-        F: IntoNewService<S, SrvConfig>,
+        F: IntoNewService<S>,
         S::Error: Into<Error>,
         S::InitError: fmt::Debug,
         S::Response: Into<Response<B>>,
@@ -177,7 +185,7 @@ where
     pub fn finish<F, P, B>(self, service: F) -> HttpService<T, P, S, B, X, U>
     where
         B: MessageBody + 'static,
-        F: IntoNewService<S, SrvConfig>,
+        F: IntoNewService<S>,
         S::Error: Into<Error>,
         S::InitError: fmt::Debug,
         S::Response: Into<Response<B>>,

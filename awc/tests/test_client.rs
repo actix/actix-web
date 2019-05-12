@@ -15,7 +15,7 @@ use rand::Rng;
 use actix_codec::{AsyncRead, AsyncWrite};
 use actix_http::HttpService;
 use actix_http_test::TestServer;
-use actix_service::{fn_service, NewService};
+use actix_service::{service_fn, NewService};
 use actix_web::http::{Cookie, Version};
 use actix_web::middleware::{BodyEncoding, Compress};
 use actix_web::{http::header, web, App, Error, HttpMessage, HttpRequest, HttpResponse};
@@ -182,7 +182,7 @@ fn test_connection_reuse() {
 
     let mut srv = TestServer::new(move || {
         let num2 = num2.clone();
-        fn_service(move |io| {
+        service_fn(move |io| {
             num2.fetch_add(1, Ordering::Relaxed);
             Ok(io)
         })
@@ -216,7 +216,7 @@ fn test_connection_reuse_h2() {
 
     let mut srv = TestServer::new(move || {
         let num2 = num2.clone();
-        fn_service(move |io| {
+        service_fn(move |io| {
             num2.fetch_add(1, Ordering::Relaxed);
             Ok(io)
         })
@@ -268,7 +268,7 @@ fn test_connection_force_close() {
 
     let mut srv = TestServer::new(move || {
         let num2 = num2.clone();
-        fn_service(move |io| {
+        service_fn(move |io| {
             num2.fetch_add(1, Ordering::Relaxed);
             Ok(io)
         })
@@ -300,7 +300,7 @@ fn test_connection_server_close() {
 
     let mut srv = TestServer::new(move || {
         let num2 = num2.clone();
-        fn_service(move |io| {
+        service_fn(move |io| {
             num2.fetch_add(1, Ordering::Relaxed);
             Ok(io)
         })
@@ -335,7 +335,7 @@ fn test_connection_wait_queue() {
 
     let mut srv = TestServer::new(move || {
         let num2 = num2.clone();
-        fn_service(move |io| {
+        service_fn(move |io| {
             num2.fetch_add(1, Ordering::Relaxed);
             Ok(io)
         })
@@ -380,7 +380,7 @@ fn test_connection_wait_queue_force_close() {
 
     let mut srv = TestServer::new(move || {
         let num2 = num2.clone();
-        fn_service(move |io| {
+        service_fn(move |io| {
             num2.fetch_add(1, Ordering::Relaxed);
             Ok(io)
         })

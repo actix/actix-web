@@ -442,6 +442,7 @@ impl WebService {
     where
         F: IntoNewService<T>,
         T: NewService<
+                Config = (),
                 Request = ServiceRequest,
                 Response = ServiceResponse,
                 Error = Error,
@@ -467,6 +468,7 @@ struct WebServiceImpl<T> {
 impl<T> HttpServiceFactory for WebServiceImpl<T>
 where
     T: NewService<
+            Config = (),
             Request = ServiceRequest,
             Response = ServiceResponse,
             Error = Error,

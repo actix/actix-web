@@ -9,14 +9,28 @@ use actix_server::{Server, StreamServiceFactory};
 use awc::{error::PayloadError, ws, Client, ClientRequest, ClientResponse, Connector};
 use bytes::Bytes;
 use futures::future::lazy;
-use futures::{Future, Stream};
+use futures::{Future, IntoFuture, Stream};
 use http::Method;
 use net2::TcpBuilder;
 
 thread_local! {
-    static RT: RefCell<Runtime> = {
-        RefCell::new(Runtime::new().unwrap())
+    static RT: RefCell<Inner> = {
+        RefCell::new(Inner(Some(Runtime::new().unwrap())))
     };
+}
+
+struct Inner(Option<Runtime>);
+
+impl Inner {
+    fn get_mut(&mut self) -> &mut Runtime {
+        self.0.as_mut().unwrap()
+    }
+}
+
+impl Drop for Inner {
+    fn drop(&mut self) {
+        std::mem::forget(self.0.take().unwrap())
+    }
 }
 
 /// Runs the provided future, blocking the current thread until the future
@@ -31,21 +45,27 @@ thread_local! {
 /// This function panics on nested call.
 pub fn block_on<F>(f: F) -> Result<F::Item, F::Error>
 where
-    F: Future,
+    F: IntoFuture,
 {
-    RT.with(move |rt| rt.borrow_mut().block_on(f))
+    RT.with(move |rt| rt.borrow_mut().get_mut().block_on(f.into_future()))
 }
 
-/// Runs the provided function, with runtime enabled.
+/// Runs the provided function, blocking the current thread until the resul
+/// future completes.
+///
+/// This function can be used to synchronously block the current thread
+/// until the provided `future` has resolved either successfully or with an
+/// error. The result of the future is then returned from this function
+/// call.
 ///
 /// Note that this function is intended to be used only for testing purpose.
 /// This function panics on nested call.
-pub fn run_on<F, R>(f: F) -> R
+pub fn block_fn<F, R>(f: F) -> Result<R::Item, R::Error>
 where
-    F: Fn() -> R,
+    F: FnOnce() -> R,
+    R: IntoFuture,
 {
-    RT.with(move |rt| rt.borrow_mut().block_on(lazy(|| Ok::<_, ()>(f()))))
-        .unwrap()
+    RT.with(move |rt| rt.borrow_mut().get_mut().block_on(lazy(|| f())))
 }
 
 /// The `TestServer` type.

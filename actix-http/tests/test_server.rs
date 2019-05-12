@@ -5,7 +5,7 @@ use std::{net, thread};
 use actix_codec::{AsyncRead, AsyncWrite};
 use actix_http_test::TestServer;
 use actix_server_config::ServerConfig;
-use actix_service::{fn_cfg_factory, fn_service, NewService};
+use actix_service::{new_service_cfg, service_fn, NewService};
 use bytes::{Bytes, BytesMut};
 use futures::future::{self, ok, Future};
 use futures::stream::{once, Stream};
@@ -163,7 +163,7 @@ fn test_h2_body() -> std::io::Result<()> {
 fn test_expect_continue() {
     let srv = TestServer::new(|| {
         HttpService::build()
-            .expect(fn_service(|req: Request| {
+            .expect(service_fn(|req: Request| {
                 if req.head().uri.query() == Some("yes=") {
                     Ok(req)
                 } else {
@@ -190,7 +190,7 @@ fn test_expect_continue() {
 fn test_expect_continue_h1() {
     let srv = TestServer::new(|| {
         HttpService::build()
-            .expect(fn_service(|req: Request| {
+            .expect(service_fn(|req: Request| {
                 sleep(Duration::from_millis(20)).then(move |_| {
                     if req.head().uri.query() == Some("yes=") {
                         Ok(req)
@@ -912,7 +912,7 @@ fn test_h1_body_chunked_implicit() {
 #[test]
 fn test_h1_response_http_error_handling() {
     let mut srv = TestServer::new(|| {
-        HttpService::build().h1(fn_cfg_factory(|_: &ServerConfig| {
+        HttpService::build().h1(new_service_cfg(|_: &ServerConfig| {
             Ok::<_, ()>(|_| {
                 let broken_header = Bytes::from_static(b"\0\0\0");
                 ok::<_, ()>(
@@ -943,7 +943,7 @@ fn test_h2_response_http_error_handling() {
             .map_err(|e| println!("Openssl error: {}", e))
             .and_then(
                 HttpService::build()
-                    .h2(fn_cfg_factory(|_: &ServerConfig| {
+                    .h2(new_service_cfg(|_: &ServerConfig| {
                         Ok::<_, ()>(|_| {
                             let broken_header = Bytes::from_static(b"\0\0\0");
                             ok::<_, ()>(

@@ -457,7 +457,7 @@ impl<'a> fmt::Display for FormatDisplay<'a> {
 
 #[cfg(test)]
 mod tests {
-    use actix_service::{FnService, Service, Transform};
+    use actix_service::{IntoService, Service, Transform};
 
     use super::*;
     use crate::http::{header, StatusCode};
@@ -465,16 +465,16 @@ mod tests {
 
     #[test]
     fn test_logger() {
-        let srv = FnService::new(|req: ServiceRequest| {
+        let srv = |req: ServiceRequest| {
             req.into_response(
                 HttpResponse::build(StatusCode::OK)
                     .header("X-Test", "ttt")
                     .finish(),
             )
-        });
+        };
         let logger = Logger::new("%% %{User-Agent}i %{X-Test}o %{HOME}e %D test");
 
-        let mut srv = block_on(logger.new_transform(srv)).unwrap();
+        let mut srv = block_on(logger.new_transform(srv.into_service())).unwrap();
 
         let req = TestRequest::with_header(
             header::USER_AGENT,
