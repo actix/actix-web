@@ -1,7 +1,7 @@
 use actix_http::HttpService;
 use actix_http_test::TestServer;
-use actix_web::{http, App, HttpResponse, Responder};
-use actix_web_codegen::{get, post, put};
+use actix_web::{http, App, HttpResponse, Responder, web::{Path}};
+use actix_web_codegen::{get, post, put, delete};
 use futures::{future, Future};
 
 #[get("/test")]
@@ -27,6 +27,45 @@ fn auto_async() -> impl Future<Item = HttpResponse, Error = actix_web::Error> {
 #[get("/test")]
 fn auto_sync() -> impl Future<Item = HttpResponse, Error = actix_web::Error> {
     future::ok(HttpResponse::Ok().finish())
+}
+
+#[put("/test/{param}")]
+fn put_param_test(_: Path<String>) -> impl Responder {
+    HttpResponse::Created()
+}
+
+#[delete("/test/{param}")]
+fn delete_param_test(_: Path<String>) -> impl Responder {
+    HttpResponse::NoContent()
+}
+
+#[get("/test/{param}")]
+fn get_param_test(_: Path<String>) -> impl Responder {
+    HttpResponse::Ok()
+}
+
+#[test]
+fn test_params() {
+    let mut srv = TestServer::new(|| {
+        HttpService::new(
+            App::new()
+                .service(get_param_test)
+                .service(put_param_test)
+                .service(delete_param_test),
+        )
+    });
+
+    let request = srv.request(http::Method::GET, srv.url("/test/it"));
+    let response = srv.block_on(request.send()).unwrap();
+    assert_eq!(response.status(), http::StatusCode::OK);
+
+    let request = srv.request(http::Method::PUT, srv.url("/test/it"));
+    let response = srv.block_on(request.send()).unwrap();
+    assert_eq!(response.status(), http::StatusCode::CREATED);
+
+    let request = srv.request(http::Method::DELETE, srv.url("/test/it"));
+    let response = srv.block_on(request.send()).unwrap();
+    assert_eq!(response.status(), http::StatusCode::NO_CONTENT);
 }
 
 #[test]
