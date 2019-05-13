@@ -1,5 +1,9 @@
 # Changes
 
+### Add
+
+* `QueryConfig`, similar to `JsonConfig` for customizing error handling of query extractors.
+
 ### Changes
 
 * `JsonConfig` is now `Send + Sync`, this implies that `error_handler` must be `Send + Sync` too.
