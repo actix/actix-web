@@ -1,6 +1,6 @@
 //! Json extractor/responder
 
-use std::rc::Rc;
+use std::sync::Arc;
 use std::{fmt, ops};
 
 use bytes::BytesMut;
@@ -168,15 +168,15 @@ impl<T> FromRequest for Json<T>
 where
     T: DeserializeOwned + 'static,
 {
-    type Config = JsonConfig;
     type Error = Error;
     type Future = Box<Future<Item = Self, Error = Error>>;
+    type Config = JsonConfig;
 
     #[inline]
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         let req2 = req.clone();
         let (limit, err) = req
-            .app_data::<JsonConfig>()
+            .app_data::<Self::Config>()
             .map(|c| (c.limit, c.ehandler.clone()))
             .unwrap_or((32768, None));
 
@@ -236,7 +236,7 @@ where
 #[derive(Clone)]
 pub struct JsonConfig {
     limit: usize,
-    ehandler: Option<Rc<Fn(JsonPayloadError, &HttpRequest) -> Error>>,
+    ehandler: Option<Arc<dyn Fn(JsonPayloadError, &HttpRequest) -> Error + Send + Sync>>,
 }
 
 impl JsonConfig {
@@ -249,9 +249,9 @@ impl JsonConfig {
     /// Set custom error handler
     pub fn error_handler<F>(mut self, f: F) -> Self
     where
-        F: Fn(JsonPayloadError, &HttpRequest) -> Error + 'static,
+        F: Fn(JsonPayloadError, &HttpRequest) -> Error + Send + Sync + 'static,
     {
-        self.ehandler = Some(Rc::new(f));
+        self.ehandler = Some(Arc::new(f));
         self
     }
 }
