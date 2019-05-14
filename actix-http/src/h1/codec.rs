@@ -31,7 +31,7 @@ const AVERAGE_HEADER_SIZE: usize = 30;
 
 /// HTTP/1 Codec
 pub struct Codec {
-    pub(crate) config: ServiceConfig,
+    config: ServiceConfig,
     decoder: decoder::MessageDecoder<Request>,
     payload: Option<PayloadDecoder>,
     version: Version,
@@ -103,6 +103,11 @@ impl Codec {
         } else {
             MessageType::Payload
         }
+    }
+
+    #[inline]
+    pub fn config(&self) -> &ServiceConfig {
+        &self.config
     }
 }
 
