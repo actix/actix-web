@@ -1,4 +1,5 @@
 use std::net::{Shutdown, SocketAddr};
+use std::rc::Rc;
 use std::{io, time};
 
 use actix_net::ssl;
@@ -6,6 +7,7 @@ use openssl::ssl::{AlpnError, SslAcceptor, SslAcceptorBuilder};
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_openssl::SslStream;
 
+use extensions::Extensions;
 use server::{IoStream, ServerFlags};
 
 /// Support `SSL` connections via openssl package
@@ -83,5 +85,15 @@ impl<T: IoStream> IoStream for SslStream<T> {
     #[inline]
     fn set_keepalive(&mut self, dur: Option<time::Duration>) -> io::Result<()> {
         self.get_mut().get_mut().set_keepalive(dur)
+    }
+
+    fn extensions(&self) -> Option<Rc<Extensions>> {
+        if let Some(x509) = self.get_ref().ssl().peer_certificate() {
+            let mut extensions = Extensions::new();
+            extensions.insert(x509);
+            Some(Rc::new(extensions))
+        } else {
+            None
+        }
     }
 }
