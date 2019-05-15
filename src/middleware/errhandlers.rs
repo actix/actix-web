@@ -142,7 +142,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use actix_service::FnService;
+    use actix_service::IntoService;
     use futures::future::ok;
 
     use super::*;
@@ -159,14 +159,14 @@ mod tests {
 
     #[test]
     fn test_handler() {
-        let srv = FnService::new(|req: ServiceRequest| {
+        let srv = |req: ServiceRequest| {
             req.into_response(HttpResponse::InternalServerError().finish())
-        });
+        };
 
         let mut mw = test::block_on(
             ErrorHandlers::new()
                 .handler(StatusCode::INTERNAL_SERVER_ERROR, render_500)
-                .new_transform(srv),
+                .new_transform(srv.into_service()),
         )
         .unwrap();
 
@@ -185,14 +185,14 @@ mod tests {
 
     #[test]
     fn test_handler_async() {
-        let srv = FnService::new(|req: ServiceRequest| {
+        let srv = |req: ServiceRequest| {
             req.into_response(HttpResponse::InternalServerError().finish())
-        });
+        };
 
         let mut mw = test::block_on(
             ErrorHandlers::new()
                 .handler(StatusCode::INTERNAL_SERVER_ERROR, render_500_async)
-                .new_transform(srv),
+                .new_transform(srv.into_service()),
         )
         .unwrap();
 

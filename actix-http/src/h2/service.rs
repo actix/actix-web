@@ -31,14 +31,14 @@ pub struct H2Service<T, P, S, B> {
 
 impl<T, P, S, B> H2Service<T, P, S, B>
 where
-    S: NewService<SrvConfig, Request = Request>,
+    S: NewService<Config = SrvConfig, Request = Request>,
     S::Error: Into<Error>,
     S::Response: Into<Response<B>>,
     <S::Service as Service>::Future: 'static,
     B: MessageBody + 'static,
 {
     /// Create new `HttpService` instance.
-    pub fn new<F: IntoNewService<S, SrvConfig>>(service: F) -> Self {
+    pub fn new<F: IntoNewService<S>>(service: F) -> Self {
         let cfg = ServiceConfig::new(KeepAlive::Timeout(5), 5000, 0);
 
         H2Service {
@@ -49,10 +49,7 @@ where
     }
 
     /// Create new `HttpService` instance with config.
-    pub fn with_config<F: IntoNewService<S, SrvConfig>>(
-        cfg: ServiceConfig,
-        service: F,
-    ) -> Self {
+    pub fn with_config<F: IntoNewService<S>>(cfg: ServiceConfig, service: F) -> Self {
         H2Service {
             cfg,
             srv: service.into_new_service(),
@@ -61,15 +58,16 @@ where
     }
 }
 
-impl<T, P, S, B> NewService<SrvConfig> for H2Service<T, P, S, B>
+impl<T, P, S, B> NewService for H2Service<T, P, S, B>
 where
     T: IoStream,
-    S: NewService<SrvConfig, Request = Request>,
+    S: NewService<Config = SrvConfig, Request = Request>,
     S::Error: Into<Error>,
     S::Response: Into<Response<B>>,
     <S::Service as Service>::Future: 'static,
     B: MessageBody + 'static,
 {
+    type Config = SrvConfig;
     type Request = Io<T, P>;
     type Response = ();
     type Error = DispatchError;
@@ -87,7 +85,7 @@ where
 }
 
 #[doc(hidden)]
-pub struct H2ServiceResponse<T, P, S: NewService<SrvConfig, Request = Request>, B> {
+pub struct H2ServiceResponse<T, P, S: NewService, B> {
     fut: <S::Future as IntoFuture>::Future,
     cfg: Option<ServiceConfig>,
     _t: PhantomData<(T, P, B)>,
@@ -96,7 +94,7 @@ pub struct H2ServiceResponse<T, P, S: NewService<SrvConfig, Request = Request>, 
 impl<T, P, S, B> Future for H2ServiceResponse<T, P, S, B>
 where
     T: IoStream,
-    S: NewService<SrvConfig, Request = Request>,
+    S: NewService<Config = SrvConfig, Request = Request>,
     S::Error: Into<Error>,
     S::Response: Into<Response<B>>,
     <S::Service as Service>::Future: 'static,

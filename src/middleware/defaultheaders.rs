@@ -150,7 +150,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use actix_service::FnService;
+    use actix_service::IntoService;
 
     use super::*;
     use crate::dev::ServiceRequest;
@@ -172,13 +172,13 @@ mod tests {
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0001");
 
         let req = TestRequest::default().to_srv_request();
-        let srv = FnService::new(|req: ServiceRequest| {
+        let srv = |req: ServiceRequest| {
             req.into_response(HttpResponse::Ok().header(CONTENT_TYPE, "0002").finish())
-        });
+        };
         let mut mw = block_on(
             DefaultHeaders::new()
                 .header(CONTENT_TYPE, "0001")
-                .new_transform(srv),
+                .new_transform(srv.into_service()),
         )
         .unwrap();
         let resp = block_on(mw.call(req)).unwrap();
@@ -187,11 +187,13 @@ mod tests {
 
     #[test]
     fn test_content_type() {
-        let srv = FnService::new(|req: ServiceRequest| {
-            req.into_response(HttpResponse::Ok().finish())
-        });
-        let mut mw =
-            block_on(DefaultHeaders::new().content_type().new_transform(srv)).unwrap();
+        let srv = |req: ServiceRequest| req.into_response(HttpResponse::Ok().finish());
+        let mut mw = block_on(
+            DefaultHeaders::new()
+                .content_type()
+                .new_transform(srv.into_service()),
+        )
+        .unwrap();
 
         let req = TestRequest::default().to_srv_request();
         let resp = block_on(mw.call(req)).unwrap();

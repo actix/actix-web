@@ -1,5 +1,6 @@
 //! Query extractor
 
+use std::sync::Arc;
 use std::{fmt, ops};
 
 use actix_http::error::Error;
@@ -9,6 +10,7 @@ use serde_urlencoded;
 use crate::dev::Payload;
 use crate::extract::FromRequest;
 use crate::request::HttpRequest;
+use crate::error::QueryPayloadError;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
 /// Extract typed information from from the request's query.
@@ -115,22 +117,90 @@ impl<T> FromRequest for Query<T>
 where
     T: de::DeserializeOwned,
 {
-    type Config = ();
     type Error = Error;
     type Future = Result<Self, Error>;
+    type Config = QueryConfig;
 
     #[inline]
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
+        let error_handler = req
+            .app_data::<Self::Config>()
+            .map(|c| c.ehandler.clone())
+            .unwrap_or(None);
+
         serde_urlencoded::from_str::<T>(req.query_string())
             .map(|val| Ok(Query(val)))
-            .unwrap_or_else(|e| {
+            .unwrap_or_else(move |e| {
+                let e = QueryPayloadError::Deserialize(e);
+
                 log::debug!(
                     "Failed during Query extractor deserialization. \
                      Request path: {:?}",
                     req.path()
                 );
-                Err(e.into())
+
+                let e = if let Some(error_handler) = error_handler {
+                    (error_handler)(e, req)
+                } else {
+                    e.into()
+                };
+
+                Err(e)
             })
+    }
+}
+
+/// Query extractor configuration
+///
+/// ```rust
+/// #[macro_use] extern crate serde_derive;
+/// use actix_web::{error, web, App, FromRequest, HttpResponse};
+///
+/// #[derive(Deserialize)]
+/// struct Info {
+///     username: String,
+/// }
+///
+/// /// deserialize `Info` from request's querystring
+/// fn index(info: web::Query<Info>) -> String {
+///     format!("Welcome {}!", info.username)
+/// }
+///
+/// fn main() {
+///     let app = App::new().service(
+///         web::resource("/index.html").data(
+///             // change query extractor configuration
+///             web::Query::<Info>::configure(|cfg| {
+///                 cfg.error_handler(|err, req| {  // <- create custom error response
+///                     error::InternalError::from_response(
+///                         err, HttpResponse::Conflict().finish()).into()
+///                 })
+///             }))
+///             .route(web::post().to(index))
+///     );
+/// }
+/// ```
+#[derive(Clone)]
+pub struct QueryConfig {
+    ehandler: Option<Arc<Fn(QueryPayloadError, &HttpRequest) -> Error + Send + Sync>>,
+}
+
+impl QueryConfig {
+    /// Set custom error handler
+    pub fn error_handler<F>(mut self, f: F) -> Self
+        where
+            F: Fn(QueryPayloadError, &HttpRequest) -> Error + Send + Sync + 'static,
+    {
+        self.ehandler = Some(Arc::new(f));
+        self
+    }
+}
+
+impl Default for QueryConfig {
+    fn default() -> Self {
+        QueryConfig {
+            ehandler: None,
+        }
     }
 }
 
@@ -138,9 +208,12 @@ where
 mod tests {
     use derive_more::Display;
     use serde_derive::Deserialize;
+    use actix_http::http::StatusCode;
 
     use super::*;
     use crate::test::TestRequest;
+    use crate::error::InternalError;
+    use crate::HttpResponse;
 
     #[derive(Deserialize, Debug, Display)]
     struct Id {
@@ -163,5 +236,20 @@ mod tests {
         s.id = "test1".to_string();
         let s = s.into_inner();
         assert_eq!(s.id, "test1");
+    }
+
+    #[test]
+    fn test_custom_error_responder() {
+        let req = TestRequest::with_uri("/name/user1/")
+            .data(QueryConfig::default().error_handler(|e, _| {
+                let resp = HttpResponse::UnprocessableEntity().finish();
+                InternalError::from_response(e, resp).into()
+            })).to_srv_request();
+
+        let (req, mut pl) = req.into_parts();
+        let query = Query::<Id>::from_request(&req, &mut pl);
+
+        assert!(query.is_err());
+        assert_eq!(query.unwrap_err().as_response_error().error_response().status(), StatusCode::UNPROCESSABLE_ENTITY);
     }
 }

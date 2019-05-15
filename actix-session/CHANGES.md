@@ -1,5 +1,9 @@
 # Changes
 
+## [0.1.0-beta.4] - 2019-05-12
+
+* Use actix-web 1.0.0-beta.4
+
 ## [0.1.0-beta.2] - 2019-04-28
 
 * Add helper trait `UserSession` which allows to get session for ServiceRequest and HttpRequest

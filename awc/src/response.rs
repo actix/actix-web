@@ -347,10 +347,11 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use actix_http_test::block_on;
     use futures::Async;
     use serde::{Deserialize, Serialize};
 
-    use crate::{http::header, test::block_on, test::TestResponse};
+    use crate::{http::header, test::TestResponse};
 
     #[test]
     fn test_body() {

@@ -2,15 +2,16 @@ use std::cell::RefCell;
 use std::fmt;
 use std::rc::Rc;
 
-use actix_http::Response;
+use actix_http::{Extensions, Response};
 use actix_router::{ResourceDef, ResourceInfo, Router};
 use actix_service::boxed::{self, BoxedNewService, BoxedService};
 use actix_service::{
-    ApplyTransform, IntoNewService, IntoTransform, NewService, Service, Transform,
+    apply_transform, IntoNewService, IntoTransform, NewService, Service, Transform,
 };
 use futures::future::{ok, Either, Future, FutureResult};
 use futures::{Async, IntoFuture, Poll};
 
+use crate::data::Data;
 use crate::dev::{AppService, HttpServiceFactory};
 use crate::error::Error;
 use crate::guard::Guard;
@@ -61,6 +62,7 @@ type BoxedResponse = Either<
 pub struct Scope<T = ScopeEndpoint> {
     endpoint: T,
     rdef: String,
+    data: Option<Extensions>,
     services: Vec<Box<ServiceFactory>>,
     guards: Vec<Box<Guard>>,
     default: Rc<RefCell<Option<Rc<HttpNewService>>>>,
@@ -74,6 +76,7 @@ impl Scope {
         Scope {
             endpoint: ScopeEndpoint::new(fref.clone()),
             rdef: path.to_string(),
+            data: None,
             guards: Vec::new(),
             services: Vec::new(),
             default: Rc::new(RefCell::new(None)),
@@ -85,6 +88,7 @@ impl Scope {
 impl<T> Scope<T>
 where
     T: NewService<
+        Config = (),
         Request = ServiceRequest,
         Response = ServiceResponse,
         Error = Error,
@@ -113,6 +117,39 @@ where
     /// ```
     pub fn guard<G: Guard + 'static>(mut self, guard: G) -> Self {
         self.guards.push(Box::new(guard));
+        self
+    }
+
+    /// Set or override application data. Application data could be accessed
+    /// by using `Data<T>` extractor where `T` is data type.
+    ///
+    /// ```rust
+    /// use std::cell::Cell;
+    /// use actix_web::{web, App};
+    ///
+    /// struct MyData {
+    ///     counter: Cell<usize>,
+    /// }
+    ///
+    /// fn index(data: web::Data<MyData>) {
+    ///     data.counter.set(data.counter.get() + 1);
+    /// }
+    ///
+    /// fn main() {
+    ///     let app = App::new().service(
+    ///         web::scope("/app")
+    ///             .data(MyData{ counter: Cell::new(0) })
+    ///             .service(
+    ///                 web::resource("/index.html").route(
+    ///                     web::get().to(index)))
+    ///     );
+    /// }
+    /// ```
+    pub fn data<U: 'static>(mut self, data: U) -> Self {
+        if self.data.is_none() {
+            self.data = Some(Extensions::new());
+        }
+        self.data.as_mut().unwrap().insert(Data::new(data));
         self
     }
 
@@ -188,6 +225,7 @@ where
     where
         F: IntoNewService<U>,
         U: NewService<
+                Config = (),
                 Request = ServiceRequest,
                 Response = ServiceResponse,
                 Error = Error,
@@ -218,6 +256,7 @@ where
         mw: F,
     ) -> Scope<
         impl NewService<
+            Config = (),
             Request = ServiceRequest,
             Response = ServiceResponse,
             Error = Error,
@@ -234,10 +273,11 @@ where
         >,
         F: IntoTransform<M, T::Service>,
     {
-        let endpoint = ApplyTransform::new(mw, self.endpoint);
+        let endpoint = apply_transform(mw, self.endpoint);
         Scope {
             endpoint,
             rdef: self.rdef,
+            data: self.data,
             guards: self.guards,
             services: self.services,
             default: self.default,
@@ -280,6 +320,7 @@ where
         mw: F,
     ) -> Scope<
         impl NewService<
+            Config = (),
             Request = ServiceRequest,
             Response = ServiceResponse,
             Error = Error,
@@ -297,13 +338,14 @@ where
 impl<T> HttpServiceFactory for Scope<T>
 where
     T: NewService<
+            Config = (),
             Request = ServiceRequest,
             Response = ServiceResponse,
             Error = Error,
             InitError = (),
         > + 'static,
 {
-    fn register(self, config: &mut AppService) {
+    fn register(mut self, config: &mut AppService) {
         // update default resource if needed
         if self.default.borrow().is_none() {
             *self.default.borrow_mut() = Some(config.default_service());
@@ -317,8 +359,14 @@ where
 
         let mut rmap = ResourceMap::new(ResourceDef::root_prefix(&self.rdef));
 
+        // custom app data storage
+        if let Some(ref mut ext) = self.data {
+            config.set_service_data(ext);
+        }
+
         // complete scope pipeline creation
         *self.factory_ref.borrow_mut() = Some(ScopeFactory {
+            data: self.data.take().map(|data| Rc::new(data)),
             default: self.default.clone(),
             services: Rc::new(
                 cfg.into_services()
@@ -350,11 +398,13 @@ where
 }
 
 pub struct ScopeFactory {
+    data: Option<Rc<Extensions>>,
     services: Rc<Vec<(ResourceDef, HttpNewService, RefCell<Option<Guards>>)>>,
     default: Rc<RefCell<Option<Rc<HttpNewService>>>>,
 }
 
 impl NewService for ScopeFactory {
+    type Config = ();
     type Request = ServiceRequest;
     type Response = ServiceResponse;
     type Error = Error;
@@ -382,6 +432,7 @@ impl NewService for ScopeFactory {
                 })
                 .collect(),
             default: None,
+            data: self.data.clone(),
             default_fut,
         }
     }
@@ -391,6 +442,7 @@ impl NewService for ScopeFactory {
 #[doc(hidden)]
 pub struct ScopeFactoryResponse {
     fut: Vec<CreateScopeServiceItem>,
+    data: Option<Rc<Extensions>>,
     default: Option<HttpService>,
     default_fut: Option<Box<Future<Item = HttpService, Error = ()>>>,
 }
@@ -454,6 +506,7 @@ impl Future for ScopeFactoryResponse {
                     router
                 });
             Ok(Async::Ready(ScopeService {
+                data: self.data.clone(),
                 router: router.finish(),
                 default: self.default.take(),
                 _ready: None,
@@ -465,6 +518,7 @@ impl Future for ScopeFactoryResponse {
 }
 
 pub struct ScopeService {
+    data: Option<Rc<Extensions>>,
     router: Router<HttpService, Vec<Box<Guard>>>,
     default: Option<HttpService>,
     _ready: Option<(ServiceRequest, ResourceInfo)>,
@@ -493,6 +547,9 @@ impl Service for ScopeService {
         });
 
         if let Some((srv, _info)) = res {
+            if let Some(ref data) = self.data {
+                req.set_data_container(data.clone());
+            }
             Either::A(srv.call(req))
         } else if let Some(ref mut default) = self.default {
             Either::A(default.call(req))
@@ -515,6 +572,7 @@ impl ScopeEndpoint {
 }
 
 impl NewService for ScopeEndpoint {
+    type Config = ();
     type Request = ServiceRequest;
     type Response = ServiceResponse;
     type Error = Error;
@@ -945,5 +1003,23 @@ mod tests {
             resp.headers().get(header::CONTENT_TYPE).unwrap(),
             HeaderValue::from_static("0001")
         );
+    }
+
+    #[test]
+    fn test_override_data() {
+        let mut srv = init_service(App::new().data(1usize).service(
+            web::scope("app").data(10usize).route(
+                "/t",
+                web::get().to(|data: web::Data<usize>| {
+                    assert_eq!(*data, 10);
+                    let _ = data.clone();
+                    HttpResponse::Ok()
+                }),
+            ),
+        ));
+
+        let req = TestRequest::with_uri("/app/t").to_request();
+        let resp = call_service(&mut srv, req);
+        assert_eq!(resp.status(), StatusCode::OK);
     }
 }

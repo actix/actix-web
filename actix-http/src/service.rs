@@ -30,7 +30,7 @@ pub struct HttpService<T, P, S, B, X = h1::ExpectHandler, U = h1::UpgradeHandler
 
 impl<T, S, B> HttpService<T, (), S, B>
 where
-    S: NewService<SrvConfig, Request = Request>,
+    S: NewService<Config = SrvConfig, Request = Request>,
     S::Error: Into<Error>,
     S::InitError: fmt::Debug,
     S::Response: Into<Response<B>>,
@@ -45,7 +45,7 @@ where
 
 impl<T, P, S, B> HttpService<T, P, S, B>
 where
-    S: NewService<SrvConfig, Request = Request>,
+    S: NewService<Config = SrvConfig, Request = Request>,
     S::Error: Into<Error>,
     S::InitError: fmt::Debug,
     S::Response: Into<Response<B>>,
@@ -53,7 +53,7 @@ where
     B: MessageBody + 'static,
 {
     /// Create new `HttpService` instance.
-    pub fn new<F: IntoNewService<S, SrvConfig>>(service: F) -> Self {
+    pub fn new<F: IntoNewService<S>>(service: F) -> Self {
         let cfg = ServiceConfig::new(KeepAlive::Timeout(5), 5000, 0);
 
         HttpService {
@@ -66,7 +66,7 @@ where
     }
 
     /// Create new `HttpService` instance with config.
-    pub(crate) fn with_config<F: IntoNewService<S, SrvConfig>>(
+    pub(crate) fn with_config<F: IntoNewService<S>>(
         cfg: ServiceConfig,
         service: F,
     ) -> Self {
@@ -82,7 +82,7 @@ where
 
 impl<T, P, S, B, X, U> HttpService<T, P, S, B, X, U>
 where
-    S: NewService<SrvConfig, Request = Request>,
+    S: NewService<Config = SrvConfig, Request = Request>,
     S::Error: Into<Error>,
     S::InitError: fmt::Debug,
     S::Response: Into<Response<B>>,
@@ -95,7 +95,7 @@ where
     /// request will be forwarded to main service.
     pub fn expect<X1>(self, expect: X1) -> HttpService<T, P, S, B, X1, U>
     where
-        X1: NewService<Request = Request, Response = Request>,
+        X1: NewService<Config = SrvConfig, Request = Request, Response = Request>,
         X1::Error: Into<Error>,
         X1::InitError: fmt::Debug,
     {
@@ -114,7 +114,11 @@ where
     /// and this service get called with original request and framed object.
     pub fn upgrade<U1>(self, upgrade: Option<U1>) -> HttpService<T, P, S, B, X, U1>
     where
-        U1: NewService<Request = (Request, Framed<T, h1::Codec>), Response = ()>,
+        U1: NewService<
+            Config = SrvConfig,
+            Request = (Request, Framed<T, h1::Codec>),
+            Response = (),
+        >,
         U1::Error: fmt::Display,
         U1::InitError: fmt::Debug,
     {
@@ -128,22 +132,27 @@ where
     }
 }
 
-impl<T, P, S, B, X, U> NewService<SrvConfig> for HttpService<T, P, S, B, X, U>
+impl<T, P, S, B, X, U> NewService for HttpService<T, P, S, B, X, U>
 where
     T: IoStream,
-    S: NewService<SrvConfig, Request = Request>,
+    S: NewService<Config = SrvConfig, Request = Request>,
     S::Error: Into<Error>,
     S::InitError: fmt::Debug,
     S::Response: Into<Response<B>>,
     <S::Service as Service>::Future: 'static,
     B: MessageBody + 'static,
-    X: NewService<Request = Request, Response = Request>,
+    X: NewService<Config = SrvConfig, Request = Request, Response = Request>,
     X::Error: Into<Error>,
     X::InitError: fmt::Debug,
-    U: NewService<Request = (Request, Framed<T, h1::Codec>), Response = ()>,
+    U: NewService<
+        Config = SrvConfig,
+        Request = (Request, Framed<T, h1::Codec>),
+        Response = (),
+    >,
     U::Error: fmt::Display,
     U::InitError: fmt::Debug,
 {
+    type Config = SrvConfig;
     type Request = ServerIo<T, P>;
     type Response = ();
     type Error = DispatchError;
@@ -154,8 +163,8 @@ where
     fn new_service(&self, cfg: &SrvConfig) -> Self::Future {
         HttpServiceResponse {
             fut: self.srv.new_service(cfg).into_future(),
-            fut_ex: Some(self.expect.new_service(&())),
-            fut_upg: self.upgrade.as_ref().map(|f| f.new_service(&())),
+            fut_ex: Some(self.expect.new_service(cfg)),
+            fut_upg: self.upgrade.as_ref().map(|f| f.new_service(cfg)),
             expect: None,
             upgrade: None,
             cfg: Some(self.cfg.clone()),
@@ -165,14 +174,7 @@ where
 }
 
 #[doc(hidden)]
-pub struct HttpServiceResponse<
-    T,
-    P,
-    S: NewService<SrvConfig>,
-    B,
-    X: NewService,
-    U: NewService,
-> {
+pub struct HttpServiceResponse<T, P, S: NewService, B, X: NewService, U: NewService> {
     fut: S::Future,
     fut_ex: Option<X::Future>,
     fut_upg: Option<U::Future>,
@@ -185,7 +187,7 @@ pub struct HttpServiceResponse<
 impl<T, P, S, B, X, U> Future for HttpServiceResponse<T, P, S, B, X, U>
 where
     T: IoStream,
-    S: NewService<SrvConfig, Request = Request>,
+    S: NewService<Request = Request>,
     S::Error: Into<Error>,
     S::InitError: fmt::Debug,
     S::Response: Into<Response<B>>,

@@ -1,5 +1,9 @@
 # Changes
 
+## [0.2.0] - 2019-05-12
+
+* Update awc and actix-http deps
+
 ## [0.1.1] - 2019-04-24
 
 * Always make new connection for http client

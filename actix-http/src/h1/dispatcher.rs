@@ -567,7 +567,7 @@ where
         }
 
         if updated && self.ka_timer.is_some() {
-            if let Some(expire) = self.codec.config.keep_alive_expire() {
+            if let Some(expire) = self.codec.config().keep_alive_expire() {
                 self.ka_expire = expire;
             }
         }
@@ -579,7 +579,7 @@ where
         if self.ka_timer.is_none() {
             // shutdown timeout
             if self.flags.contains(Flags::SHUTDOWN) {
-                if let Some(interval) = self.codec.config.client_disconnect_timer() {
+                if let Some(interval) = self.codec.config().client_disconnect_timer() {
                     self.ka_timer = Some(Delay::new(interval));
                 } else {
                     self.flags.insert(Flags::READ_DISCONNECT);
@@ -607,7 +607,7 @@ where
 
                             // start shutdown timer
                             if let Some(deadline) =
-                                self.codec.config.client_disconnect_timer()
+                                self.codec.config().client_disconnect_timer()
                             {
                                 if let Some(timer) = self.ka_timer.as_mut() {
                                     timer.reset(deadline);
@@ -632,7 +632,8 @@ where
                             self.flags.insert(Flags::STARTED | Flags::SHUTDOWN);
                             self.state = State::None;
                         }
-                    } else if let Some(deadline) = self.codec.config.keep_alive_expire()
+                    } else if let Some(deadline) =
+                        self.codec.config().keep_alive_expire()
                     {
                         if let Some(timer) = self.ka_timer.as_mut() {
                             timer.reset(deadline);

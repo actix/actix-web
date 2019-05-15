@@ -158,7 +158,8 @@ impl ServiceConfig {
         self.0.timer.now()
     }
 
-    pub(crate) fn set_date(&self, dst: &mut BytesMut) {
+    #[doc(hidden)]
+    pub fn set_date(&self, dst: &mut BytesMut) {
         let mut buf: [u8; 39] = [0; 39];
         buf[..6].copy_from_slice(b"date: ");
         buf[6..35].copy_from_slice(&self.0.timer.date().bytes);
