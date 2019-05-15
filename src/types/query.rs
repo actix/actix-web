@@ -8,9 +8,9 @@ use serde::de;
 use serde_urlencoded;
 
 use crate::dev::Payload;
+use crate::error::QueryPayloadError;
 use crate::extract::FromRequest;
 use crate::request::HttpRequest;
-use crate::error::QueryPayloadError;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
 /// Extract typed information from from the request's query.
@@ -188,8 +188,8 @@ pub struct QueryConfig {
 impl QueryConfig {
     /// Set custom error handler
     pub fn error_handler<F>(mut self, f: F) -> Self
-        where
-            F: Fn(QueryPayloadError, &HttpRequest) -> Error + Send + Sync + 'static,
+    where
+        F: Fn(QueryPayloadError, &HttpRequest) -> Error + Send + Sync + 'static,
     {
         self.ehandler = Some(Arc::new(f));
         self
@@ -198,21 +198,19 @@ impl QueryConfig {
 
 impl Default for QueryConfig {
     fn default() -> Self {
-        QueryConfig {
-            ehandler: None,
-        }
+        QueryConfig { ehandler: None }
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use actix_http::http::StatusCode;
     use derive_more::Display;
     use serde_derive::Deserialize;
-    use actix_http::http::StatusCode;
 
     use super::*;
-    use crate::test::TestRequest;
     use crate::error::InternalError;
+    use crate::test::TestRequest;
     use crate::HttpResponse;
 
     #[derive(Deserialize, Debug, Display)]
@@ -244,12 +242,20 @@ mod tests {
             .data(QueryConfig::default().error_handler(|e, _| {
                 let resp = HttpResponse::UnprocessableEntity().finish();
                 InternalError::from_response(e, resp).into()
-            })).to_srv_request();
+            }))
+            .to_srv_request();
 
         let (req, mut pl) = req.into_parts();
         let query = Query::<Id>::from_request(&req, &mut pl);
 
         assert!(query.is_err());
-        assert_eq!(query.unwrap_err().as_response_error().error_response().status(), StatusCode::UNPROCESSABLE_ENTITY);
+        assert_eq!(
+            query
+                .unwrap_err()
+                .as_response_error()
+                .error_response()
+                .status(),
+            StatusCode::UNPROCESSABLE_ENTITY
+        );
     }
 }

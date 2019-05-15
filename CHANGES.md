@@ -1,5 +1,7 @@
 # Changes
 
+## [1.0.0-rc.1] - 2019-05-xx
+
 ### Add
 
 * `QueryConfig`, similar to `JsonConfig` for customizing error handling of query extractors.
@@ -7,6 +9,11 @@
 ### Changes
 
 * `JsonConfig` is now `Send + Sync`, this implies that `error_handler` must be `Send + Sync` too.
+
+### Fixed
+
+* Codegen with parameters in the path only resolves the first registered endpoint #841
+
 
 ## [1.0.0-beta.4] - 2019-05-12
 

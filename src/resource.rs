@@ -606,7 +606,7 @@ mod tests {
     use crate::http::{header, HeaderValue, Method, StatusCode};
     use crate::service::{ServiceRequest, ServiceResponse};
     use crate::test::{call_service, init_service, TestRequest};
-    use crate::{web, App, Error, HttpResponse};
+    use crate::{guard, web, App, Error, HttpResponse};
 
     fn md<S, B>(
         req: ServiceRequest,
@@ -723,4 +723,45 @@ mod tests {
         let resp = call_service(&mut srv, req);
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
     }
+
+    #[test]
+    fn test_resource_guards() {
+        let mut srv = init_service(
+            App::new()
+                .service(
+                    web::resource("/test/{p}")
+                        .guard(guard::Get())
+                        .to(|| HttpResponse::Ok()),
+                )
+                .service(
+                    web::resource("/test/{p}")
+                        .guard(guard::Put())
+                        .to(|| HttpResponse::Created()),
+                )
+                .service(
+                    web::resource("/test/{p}")
+                        .guard(guard::Delete())
+                        .to(|| HttpResponse::NoContent()),
+                ),
+        );
+
+        let req = TestRequest::with_uri("/test/it")
+            .method(Method::GET)
+            .to_request();
+        let resp = call_service(&mut srv, req);
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let req = TestRequest::with_uri("/test/it")
+            .method(Method::PUT)
+            .to_request();
+        let resp = call_service(&mut srv, req);
+        assert_eq!(resp.status(), StatusCode::CREATED);
+
+        let req = TestRequest::with_uri("/test/it")
+            .method(Method::DELETE)
+            .to_request();
+        let resp = call_service(&mut srv, req);
+        assert_eq!(resp.status(), StatusCode::NO_CONTENT);
+    }
+
 }
