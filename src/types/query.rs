@@ -52,6 +52,16 @@ impl<T> Query<T> {
     pub fn into_inner(self) -> T {
         self.0
     }
+
+    /// Get query parameters from the path
+    pub fn from_query(query_str: &str) -> Result<Self, QueryPayloadError>
+    where
+        T: de::DeserializeOwned,
+    {
+        serde_urlencoded::from_str::<T>(query_str)
+            .map(|val| Ok(Query(val)))
+            .unwrap_or_else(move |e| Err(QueryPayloadError::Deserialize(e)))
+    }
 }
 
 impl<T> ops::Deref for Query<T> {
@@ -216,6 +226,22 @@ mod tests {
     #[derive(Deserialize, Debug, Display)]
     struct Id {
         id: String,
+    }
+
+    #[test]
+    fn test_service_request_extract() {
+        let req = TestRequest::with_uri("/name/user1/").to_srv_request();
+        assert!(Query::<Id>::from_query(&req.query_string()).is_err());
+
+        let req = TestRequest::with_uri("/name/user1/?id=test").to_srv_request();
+        let mut s = Query::<Id>::from_query(&req.query_string()).unwrap();
+
+        assert_eq!(s.id, "test");
+        assert_eq!(format!("{}, {:?}", s, s), "test, Id { id: \"test\" }");
+
+        s.id = "test1".to_string();
+        let s = s.into_inner();
+        assert_eq!(s.id, "test1");
     }
 
     #[test]

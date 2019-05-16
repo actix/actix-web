@@ -4,6 +4,7 @@
 
 ### Add
 
+* Add `Query<T>::from_query()` to extract parameters from a query string. #846
 * `QueryConfig`, similar to `JsonConfig` for customizing error handling of query extractors.
 
 ### Changes
