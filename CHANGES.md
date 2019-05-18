@@ -6,6 +6,8 @@
 
 * Add `Query<T>::from_query()` to extract parameters from a query string. #846
 * `QueryConfig`, similar to `JsonConfig` for customizing error handling of query extractors.
+* Add `test::TestRequest::set_json` convenience method to automatically
+  serialize data and set header in test requests.
 
 ### Changes
 
