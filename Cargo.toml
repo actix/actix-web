@@ -1,6 +1,6 @@
 [package]
 name = "actix-web"
-version = "1.0.0-beta.5"
+version = "1.0.0-rc"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix web is a simple, pragmatic and extremely fast web framework for Rust."
 readme = "README.md"
@@ -41,7 +41,7 @@ members = [
 ]
 
 [features]
-default = ["brotli", "flate2-zlib", "secure-cookies", "client"]
+default = ["brotli", "flate2-zlib", "secure-cookies", "client", "fail"]
 
 # http client
 client = ["awc"]
@@ -58,6 +58,8 @@ flate2-rust = ["actix-http/flate2-rust"]
 # sessions feature, session require "ring" crate and c compiler
 secure-cookies = ["actix-http/secure-cookies"]
 
+fail = ["actix-http/fail"]
+
 # openssl
 ssl = ["openssl", "actix-server/ssl", "awc/ssl"]
 
@@ -67,21 +69,20 @@ rust-tls = ["rustls", "actix-server/rust-tls"]
 [dependencies]
 actix-codec = "0.1.2"
 actix-service = "0.4.0"
-actix-utils = "0.4.0"
+actix-utils = "0.4.1"
 actix-router = "0.1.5"
 actix-rt = "0.2.2"
 actix-web-codegen = "0.1.0-beta.1"
-actix-http = { version = "0.2.0", features=["fail"] }
+actix-http = "0.2.0"
 actix-server = "0.5.0"
 actix-server-config = "0.1.1"
 actix-threadpool = "0.1.0"
-actix = { version = "0.8.1", features=["http"], optional = true }
 awc = { version = "0.2.0", optional = true }
 
 bytes = "0.4"
 derive_more = "0.14"
 encoding = "0.2"
-futures = "0.1"
+futures = "0.1.25"
 hashbrown = "0.3.0"
 log = "0.4"
 mime = "0.3"
@@ -96,7 +97,7 @@ url = { version="1.7", features=["query_encoding"] }
 
 # ssl support
 openssl = { version="0.10", optional = true }
-rustls = { version = "^0.15", optional = true }
+rustls = { version = "0.15", optional = true }
 
 [dev-dependencies]
 actix-http = { version = "0.2.0", features=["ssl", "brotli", "flate2-zlib"] }

@@ -1,6 +1,6 @@
 # Changes
 
-## [1.0.0-rc.1] - 2019-05-xx
+## [1.0.0-rc] - 2019-05-xx
 
 ### Add
 
@@ -26,6 +26,7 @@
 
 * `App::configure` take an `FnOnce` instead of `Fn`
 * Upgrade actix-net crates
+
 
 ## [1.0.0-beta.3] - 2019-05-04
 
