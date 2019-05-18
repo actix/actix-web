@@ -207,7 +207,7 @@ where
     /// dropped.
     ///
     /// By default shutdown timeout sets to 30 seconds.
-    pub fn shutdown_timeout(mut self, sec: u16) -> Self {
+    pub fn shutdown_timeout(mut self, sec: u64) -> Self {
         self.builder = Some(self.builder.take().unwrap().shutdown_timeout(sec));
         self
     }
