@@ -1,5 +1,9 @@
 # Changes
 
+## [0.1.0] - 2019-05-18
+
+* Use actix-web 1.0.0-rc
+
 ## [0.1.0-beta.4] - 2019-05-12
 
 * Use actix-web 1.0.0-beta.4
