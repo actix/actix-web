@@ -2,7 +2,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use actix_http::http::header::{Header, HeaderName, IntoHeaderValue};
+use actix_http::http::header::{ContentType, Header, HeaderName, IntoHeaderValue};
 use actix_http::http::{HttpTryFrom, Method, StatusCode, Uri, Version};
 use actix_http::test::TestRequest as HttpTestRequest;
 use actix_http::{cookie::Cookie, Extensions, Request};
@@ -13,6 +13,7 @@ use actix_service::{IntoNewService, IntoService, NewService, Service};
 use bytes::{Bytes, BytesMut};
 use futures::future::{lazy, ok, Future, IntoFuture};
 use futures::Stream;
+use serde::Serialize;
 use serde::de::DeserializeOwned;
 use serde_json;
 
@@ -477,6 +478,15 @@ impl TestRequest {
         self
     }
 
+    /// Serialize `data` to JSON and set it as the request payload. The `Content-Type` header is
+    /// set to `application/json`.
+    pub fn set_json<T: Serialize>(mut self, data: &T) -> Self {
+        let bytes = serde_json::to_string(data).expect("Failed to serialize test data to json");
+        self.req.set_payload(bytes);
+        self.req.set(ContentType::json());
+        self
+    }
+
     /// Set application data. This is equivalent of `App::data()` method
     /// for testing purpose.
     pub fn data<T: 'static>(mut self, data: T) -> Self {
@@ -553,6 +563,7 @@ impl TestRequest {
 
 #[cfg(test)]
 mod tests {
+    use actix_http::httpmessage::HttpMessage;
     use serde::{Deserialize, Serialize};
     use std::time::SystemTime;
 
@@ -655,6 +666,28 @@ mod tests {
 
         let result: Person = read_response_json(&mut app, req);
         assert_eq!(&result.id, "12345");
+    }
+
+    #[test]
+    fn test_request_response_json() {
+        let mut app = init_service(App::new().service(web::resource("/people").route(
+            web::post().to(|person: web::Json<Person>| {
+                HttpResponse::Ok().json(person.into_inner())
+            }),
+        )));
+
+        let payload = Person {id: "12345".to_string(), name: "User name".to_string() };
+
+        let req = TestRequest::post()
+            .uri("/people")
+            .set_json(&payload)
+            .to_request();
+
+        assert_eq!(req.content_type(), "application/json");
+
+        let result: Person = read_response_json(&mut app, req);
+        assert_eq!(&result.id, "12345");
+        assert_eq!(&result.name, "User name");
     }
 
     #[test]
