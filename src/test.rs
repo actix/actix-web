@@ -249,7 +249,7 @@ where
 ///         .header(header::CONTENT_TYPE, "application/json")
 ///         .to_request();
 ///
-///     let resp = call_service(&mut srv, req);
+///     let resp = test::call_service(&mut app, req);
 ///     let result = test::read_body(resp);
 ///     assert_eq!(result, Bytes::from_static(b"welcome!"));
 /// }
