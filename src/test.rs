@@ -13,8 +13,8 @@ use actix_service::{IntoNewService, IntoService, NewService, Service};
 use bytes::{Bytes, BytesMut};
 use futures::future::{lazy, ok, Future, IntoFuture};
 use futures::Stream;
-use serde::Serialize;
 use serde::de::DeserializeOwned;
+use serde::Serialize;
 use serde_json;
 
 pub use actix_http::test::TestBuffer;
@@ -481,7 +481,8 @@ impl TestRequest {
     /// Serialize `data` to JSON and set it as the request payload. The `Content-Type` header is
     /// set to `application/json`.
     pub fn set_json<T: Serialize>(mut self, data: &T) -> Self {
-        let bytes = serde_json::to_string(data).expect("Failed to serialize test data to json");
+        let bytes =
+            serde_json::to_string(data).expect("Failed to serialize test data to json");
         self.req.set_payload(bytes);
         self.req.set(ContentType::json());
         self
@@ -676,7 +677,10 @@ mod tests {
             }),
         )));
 
-        let payload = Person {id: "12345".to_string(), name: "User name".to_string() };
+        let payload = Person {
+            id: "12345".to_string(),
+            name: "User name".to_string(),
+        };
 
         let req = TestRequest::post()
             .uri("/people")

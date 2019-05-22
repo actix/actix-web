@@ -183,7 +183,7 @@ where
 }
 
 /// Service to convert `Request` to a `ServiceRequest<S>`
-pub struct AppInitService<T: Service, B>
+pub struct AppInitService<T, B>
 where
     T: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
 {
@@ -228,6 +228,16 @@ where
             )
         };
         self.service.call(ServiceRequest::from_parts(req, payload))
+    }
+}
+
+impl<T, B> Drop for AppInitService<T, B>
+where
+    T: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+{
+    fn drop(&mut self) {
+        self.pool.clear();
+        println!("DROP: APP-INIT-ENTRY");
     }
 }
 
@@ -406,5 +416,40 @@ impl NewService for AppEntry {
 
     fn new_service(&self, _: &()) -> Self::Future {
         self.factory.borrow_mut().as_mut().unwrap().new_service(&())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use actix_service::Service;
+    use std::sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    };
+
+    use crate::{test, web, App, HttpResponse};
+
+    struct DropData(Arc<AtomicBool>);
+
+    impl Drop for DropData {
+        fn drop(&mut self) {
+            self.0.store(true, Ordering::Relaxed);
+            println!("Dropping!");
+        }
+    }
+
+    #[test]
+    fn drop_data() {
+        let data = Arc::new(AtomicBool::new(false));
+        {
+            let mut app = test::init_service(
+                App::new()
+                    .data(DropData(data.clone()))
+                    .service(web::resource("/test").to(|| HttpResponse::Ok())),
+            );
+            let req = test::TestRequest::with_uri("/test").to_request();
+            let resp = test::block_on(app.call(req)).unwrap();
+        }
+        assert!(data.load(Ordering::Relaxed));
     }
 }

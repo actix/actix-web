@@ -325,6 +325,10 @@ impl HttpRequestPool {
             None
         }
     }
+
+    pub(crate) fn clear(&self) {
+        self.0.borrow_mut().clear()
+    }
 }
 
 #[cfg(test)]

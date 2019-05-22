@@ -1,13 +1,23 @@
 # Changes
 
+## [1.0.0] - 2019-05-xx
+
+### Add
+
+* Add `test::TestRequest::set_json()` convenience method to automatically
+  serialize data and set header in test requests.
+
+### Fixed
+
+* Clear http requests pool on app service drop #860
+
+
 ## [1.0.0-rc] - 2019-05-18
 
 ### Add
 
 * Add `Query<T>::from_query()` to extract parameters from a query string. #846
 * `QueryConfig`, similar to `JsonConfig` for customizing error handling of query extractors.
-* Add `test::TestRequest::set_json` convenience method to automatically
-  serialize data and set header in test requests.
 
 ### Changes
 
