@@ -20,6 +20,7 @@ pub struct HttpRequest(pub(crate) Rc<HttpRequestInner>);
 pub(crate) struct HttpRequestInner {
     pub(crate) head: Message<RequestHead>,
     pub(crate) path: Path<Url>,
+    pub(crate) payload: Payload,
     pub(crate) app_data: Rc<Extensions>,
     rmap: Rc<ResourceMap>,
     config: AppConfig,
@@ -31,6 +32,7 @@ impl HttpRequest {
     pub(crate) fn new(
         path: Path<Url>,
         head: Message<RequestHead>,
+        payload: Payload,
         rmap: Rc<ResourceMap>,
         config: AppConfig,
         app_data: Rc<Extensions>,
@@ -39,6 +41,7 @@ impl HttpRequest {
         HttpRequest(Rc::new(HttpRequestInner {
             head,
             path,
+            payload,
             rmap,
             config,
             app_data,

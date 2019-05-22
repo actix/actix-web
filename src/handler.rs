@@ -1,7 +1,7 @@
 use std::convert::Infallible;
 use std::marker::PhantomData;
 
-use actix_http::{Error, Payload, Response};
+use actix_http::{Error, Response};
 use actix_service::{NewService, Service};
 use futures::future::{ok, FutureResult};
 use futures::{try_ready, Async, Future, IntoFuture, Poll};
@@ -331,15 +331,15 @@ where
 
         ExtractResponse {
             fut,
+            req,
             fut_s: None,
-            req: Some((req, payload)),
             service: self.service.clone(),
         }
     }
 }
 
 pub struct ExtractResponse<T: FromRequest, S: Service> {
-    req: Option<(HttpRequest, Payload)>,
+    req: HttpRequest,
     service: S,
     fut: <T::Future as IntoFuture>::Future,
     fut_s: Option<S::Future>,
@@ -362,12 +362,11 @@ where
         }
 
         let item = try_ready!(self.fut.poll().map_err(|e| {
-            let (req, payload) = self.req.take().unwrap();
-            let req = ServiceRequest::from_parts(req, payload);
+            let req = ServiceRequest::new(self.req.clone());
             (e.into(), req)
         }));
 
-        self.fut_s = Some(self.service.call((item, self.req.take().unwrap().0)));
+        self.fut_s = Some(self.service.call((item, self.req.clone())));
         self.poll()
     }
 }

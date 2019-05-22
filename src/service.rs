@@ -50,45 +50,46 @@ where
     }
 }
 
-pub struct ServiceRequest {
-    req: HttpRequest,
-    payload: Payload,
-}
+/// An service http request
+///
+/// ServiceRequest allows mutable access to request's internal structures
+pub struct ServiceRequest(HttpRequest);
 
 impl ServiceRequest {
-    /// Construct service request from parts
-    pub(crate) fn from_parts(req: HttpRequest, payload: Payload) -> Self {
-        ServiceRequest { req, payload }
+    /// Construct service request
+    pub(crate) fn new(req: HttpRequest) -> Self {
+        ServiceRequest(req)
     }
 
     /// Deconstruct request into parts
-    pub fn into_parts(self) -> (HttpRequest, Payload) {
-        (self.req, self.payload)
+    pub fn into_parts(mut self) -> (HttpRequest, Payload) {
+        let pl = Rc::get_mut(&mut (self.0).0).unwrap().payload.take();
+        (self.0, pl)
     }
 
     /// Create service response
     #[inline]
     pub fn into_response<B, R: Into<Response<B>>>(self, res: R) -> ServiceResponse<B> {
-        ServiceResponse::new(self.req, res.into())
+        ServiceResponse::new(self.0, res.into())
     }
 
     /// Create service response for error
     #[inline]
     pub fn error_response<B, E: Into<Error>>(self, err: E) -> ServiceResponse<B> {
         let res: Response = err.into().into();
-        ServiceResponse::new(self.req, res.into_body())
+        ServiceResponse::new(self.0, res.into_body())
     }
 
     /// This method returns reference to the request head
     #[inline]
     pub fn head(&self) -> &RequestHead {
-        &self.req.head()
+        &self.0.head()
     }
 
     /// This method returns reference to the request head
     #[inline]
     pub fn head_mut(&mut self) -> &mut RequestHead {
-        self.req.head_mut()
+        self.0.head_mut()
     }
 
     /// Request's uri.
@@ -164,24 +165,24 @@ impl ServiceRequest {
     /// access the matched value for that segment.
     #[inline]
     pub fn match_info(&self) -> &Path<Url> {
-        self.req.match_info()
+        self.0.match_info()
     }
 
     #[inline]
     pub fn match_info_mut(&mut self) -> &mut Path<Url> {
-        self.req.match_info_mut()
+        self.0.match_info_mut()
     }
 
     /// Service configuration
     #[inline]
     pub fn app_config(&self) -> &AppConfig {
-        self.req.app_config()
+        self.0.app_config()
     }
 
     /// Get an application data stored with `App::data()` method during
     /// application configuration.
     pub fn app_data<T: 'static>(&self) -> Option<Data<T>> {
-        if let Some(st) = self.req.0.app_data.get::<Data<T>>() {
+        if let Some(st) = (self.0).0.app_data.get::<Data<T>>() {
             Some(st.clone())
         } else {
             None
@@ -191,7 +192,7 @@ impl ServiceRequest {
     #[doc(hidden)]
     /// Set new app data container
     pub fn set_data_container(&mut self, extensions: Rc<Extensions>) {
-        Rc::get_mut(&mut self.req.0).unwrap().app_data = extensions;
+        Rc::get_mut(&mut (self.0).0).unwrap().app_data = extensions;
     }
 }
 
@@ -213,18 +214,18 @@ impl HttpMessage for ServiceRequest {
     /// Request extensions
     #[inline]
     fn extensions(&self) -> Ref<Extensions> {
-        self.req.extensions()
+        self.0.extensions()
     }
 
     /// Mutable reference to a the request's extensions
     #[inline]
     fn extensions_mut(&self) -> RefMut<Extensions> {
-        self.req.extensions_mut()
+        self.0.extensions_mut()
     }
 
     #[inline]
     fn take_payload(&mut self) -> Payload<Self::Stream> {
-        std::mem::replace(&mut self.payload, Payload::None)
+        Rc::get_mut(&mut (self.0).0).unwrap().payload.take()
     }
 }
 

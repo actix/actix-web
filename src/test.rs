@@ -512,16 +512,15 @@ impl TestRequest {
         let (head, payload) = self.req.finish().into_parts();
         self.path.get_mut().update(&head.uri);
 
-        let req = HttpRequest::new(
+        ServiceRequest::new(HttpRequest::new(
             self.path,
             head,
+            payload,
             Rc::new(self.rmap),
             AppConfig::new(self.config),
             Rc::new(self.app_data),
             HttpRequestPool::create(),
-        );
-
-        ServiceRequest::from_parts(req, payload)
+        ))
     }
 
     /// Complete request creation and generate `ServiceResponse` instance
@@ -531,12 +530,13 @@ impl TestRequest {
 
     /// Complete request creation and generate `HttpRequest` instance
     pub fn to_http_request(mut self) -> HttpRequest {
-        let (head, _) = self.req.finish().into_parts();
+        let (head, payload) = self.req.finish().into_parts();
         self.path.get_mut().update(&head.uri);
 
         HttpRequest::new(
             self.path,
             head,
+            payload,
             Rc::new(self.rmap),
             AppConfig::new(self.config),
             Rc::new(self.app_data),
@@ -552,6 +552,7 @@ impl TestRequest {
         let req = HttpRequest::new(
             self.path,
             head,
+            Payload::None,
             Rc::new(self.rmap),
             AppConfig::new(self.config),
             Rc::new(self.app_data),

@@ -215,19 +215,21 @@ where
             inner.path.get_mut().update(&head.uri);
             inner.path.reset();
             inner.head = head;
+            inner.payload = payload;
             inner.app_data = self.data.clone();
             req
         } else {
             HttpRequest::new(
                 Path::new(Url::new(head.uri.clone())),
                 head,
+                payload,
                 self.rmap.clone(),
                 self.config.clone(),
                 self.data.clone(),
                 self.pool,
             )
         };
-        self.service.call(ServiceRequest::from_parts(req, payload))
+        self.service.call(ServiceRequest::new(req))
     }
 }
 
