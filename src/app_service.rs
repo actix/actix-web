@@ -448,7 +448,7 @@ mod tests {
                     .service(web::resource("/test").to(|| HttpResponse::Ok())),
             );
             let req = test::TestRequest::with_uri("/test").to_request();
-            let resp = test::block_on(app.call(req)).unwrap();
+            let _ = test::block_on(app.call(req)).unwrap();
         }
         assert!(data.load(Ordering::Relaxed));
     }
