@@ -64,7 +64,7 @@ where
     config: Arc<Mutex<Config>>,
     backlog: i32,
     sockets: Vec<Socket>,
-    builder: Option<ServerBuilder>,
+    builder: ServerBuilder,
     _t: PhantomData<(S, B)>,
 }
 
@@ -91,7 +91,7 @@ where
             })),
             backlog: 1024,
             sockets: Vec::new(),
-            builder: Some(ServerBuilder::default()),
+            builder: ServerBuilder::default(),
             _t: PhantomData,
         }
     }
@@ -101,7 +101,7 @@ where
     /// By default http server uses number of available logical cpu as threads
     /// count.
     pub fn workers(mut self, num: usize) -> Self {
-        self.builder = Some(self.builder.take().unwrap().workers(num));
+        self.builder = self.builder.workers(num);
         self
     }
 
@@ -117,7 +117,7 @@ where
     /// This method should be called before `bind()` method call.
     pub fn backlog(mut self, backlog: i32) -> Self {
         self.backlog = backlog;
-        self.builder = Some(self.builder.take().unwrap().backlog(backlog));
+        self.builder = self.builder.backlog(backlog);
         self
     }
 
@@ -128,7 +128,7 @@ where
     ///
     /// By default max connections is set to a 25k.
     pub fn maxconn(mut self, num: usize) -> Self {
-        self.builder = Some(self.builder.take().unwrap().maxconn(num));
+        self.builder = self.builder.maxconn(num);
         self
     }
 
@@ -139,7 +139,7 @@ where
     ///
     /// By default max connections is set to a 256.
     pub fn maxconnrate(mut self, num: usize) -> Self {
-        self.builder = Some(self.builder.take().unwrap().maxconnrate(num));
+        self.builder = self.builder.maxconnrate(num);
         self
     }
 
@@ -190,13 +190,13 @@ where
 
     /// Stop actix system.
     pub fn system_exit(mut self) -> Self {
-        self.builder = Some(self.builder.take().unwrap().system_exit());
+        self.builder = self.builder.system_exit();
         self
     }
 
     /// Disable signal handling
     pub fn disable_signals(mut self) -> Self {
-        self.builder = Some(self.builder.take().unwrap().disable_signals());
+        self.builder = self.builder.disable_signals();
         self
     }
 
@@ -208,7 +208,7 @@ where
     ///
     /// By default shutdown timeout sets to 30 seconds.
     pub fn shutdown_timeout(mut self, sec: u64) -> Self {
-        self.builder = Some(self.builder.take().unwrap().shutdown_timeout(sec));
+        self.builder = self.builder.shutdown_timeout(sec);
         self
     }
 
@@ -240,7 +240,7 @@ where
             scheme: "http",
         });
 
-        self.builder = Some(self.builder.take().unwrap().listen(
+        self.builder = self.builder.listen(
             format!("actix-web-service-{}", addr),
             lst,
             move || {
@@ -250,8 +250,7 @@ where
                     .client_timeout(c.client_timeout)
                     .finish(factory())
             },
-        )?);
-
+        )?;
         Ok(self)
     }
 
@@ -260,20 +259,19 @@ where
     ///
     /// This method sets alpn protocols to "h2" and "http/1.1"
     pub fn listen_ssl(
-        mut self,
+        self,
         lst: net::TcpListener,
         builder: SslAcceptorBuilder,
     ) -> io::Result<Self> {
-        self.listen_ssl_inner(lst, openssl_acceptor(builder)?)?;
-        Ok(self)
+        self.listen_ssl_inner(lst, openssl_acceptor(builder)?)
     }
 
     #[cfg(feature = "ssl")]
     fn listen_ssl_inner(
-        &mut self,
+        mut self,
         lst: net::TcpListener,
         acceptor: SslAcceptor,
-    ) -> io::Result<()> {
+    ) -> io::Result<Self> {
         use actix_server::ssl::{OpensslAcceptor, SslError};
 
         let acceptor = OpensslAcceptor::new(acceptor);
@@ -285,7 +283,7 @@ where
             scheme: "https",
         });
 
-        self.builder = Some(self.builder.take().unwrap().listen(
+        self.builder = self.builder.listen(
             format!("actix-web-service-{}", addr),
             lst,
             move || {
@@ -300,8 +298,8 @@ where
                         .map_init_err(|_| ()),
                 )
             },
-        )?);
-        Ok(())
+        )?;
+        Ok(self)
     }
 
     #[cfg(feature = "rust-tls")]
@@ -309,20 +307,19 @@ where
     ///
     /// This method sets alpn protocols to "h2" and "http/1.1"
     pub fn listen_rustls(
-        mut self,
+        self,
         lst: net::TcpListener,
         config: RustlsServerConfig,
     ) -> io::Result<Self> {
-        self.listen_rustls_inner(lst, config)?;
-        Ok(self)
+        self.listen_rustls_inner(lst, config)
     }
 
     #[cfg(feature = "rust-tls")]
     fn listen_rustls_inner(
-        &mut self,
+        mut self,
         lst: net::TcpListener,
         mut config: RustlsServerConfig,
-    ) -> io::Result<()> {
+    ) -> io::Result<Self> {
         use actix_server::ssl::{RustlsAcceptor, SslError};
 
         let protos = vec!["h2".to_string().into(), "http/1.1".to_string().into()];
@@ -337,7 +334,7 @@ where
             scheme: "https",
         });
 
-        self.builder = Some(self.builder.take().unwrap().listen(
+        self.builder = self.builder.listen(
             format!("actix-web-service-{}", addr),
             lst,
             move || {
@@ -352,8 +349,8 @@ where
                         .map_init_err(|_| ()),
                 )
             },
-        )?);
-        Ok(())
+        )?;
+        Ok(self)
     }
 
     /// The socket address to bind
@@ -416,7 +413,7 @@ where
         let acceptor = openssl_acceptor(builder)?;
 
         for lst in sockets {
-            self.listen_ssl_inner(lst, acceptor.clone())?;
+            self = self.listen_ssl_inner(lst, acceptor.clone())?;
         }
 
         Ok(self)
@@ -433,7 +430,7 @@ where
     ) -> io::Result<Self> {
         let sockets = self.bind2(addr)?;
         for lst in sockets {
-            self.listen_rustls_inner(lst, config.clone())?;
+            self = self.listen_rustls_inner(lst, config.clone())?;
         }
         Ok(self)
     }
@@ -473,8 +470,8 @@ where
     ///    sys.run()  // <- Run actix system, this method starts all async processes
     /// }
     /// ```
-    pub fn start(mut self) -> Server {
-        self.builder.take().unwrap().start()
+    pub fn start(self) -> Server {
+        self.builder.start()
     }
 
     /// Spawn new thread and start listening for incoming connections.

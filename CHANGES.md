@@ -9,6 +9,10 @@
 * Add `test::TestRequest::set_json()` convenience method to automatically
   serialize data and set header in test requests.
 
+### Changes
+
+* Drop an unnecessary `Option<_>` indirection around `ServerBuilder` from `HttpServer`. #863
+
 ### Fixed
 
 * Clear http requests pool on app service drop #860
