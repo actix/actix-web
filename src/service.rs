@@ -189,6 +189,11 @@ impl ServiceRequest {
         }
     }
 
+    /// Set request payload.
+    pub fn set_payload(&mut self, payload: Payload) {
+        Rc::get_mut(&mut (self.0).0).unwrap().payload = payload;
+    }
+
     #[doc(hidden)]
     /// Set new app data container
     pub fn set_data_container(&mut self, extensions: Rc<Extensions>) {

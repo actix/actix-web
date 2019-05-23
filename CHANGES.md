@@ -4,6 +4,8 @@
 
 ### Add
 
+* Add `ServiceRequest::set_payload()` method.
+
 * Add `test::TestRequest::set_json()` convenience method to automatically
   serialize data and set header in test requests.
 
