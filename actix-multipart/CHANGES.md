@@ -1,5 +1,9 @@
 # Changes
 
+## [0.1.0] - 2019-05-18
+
+* Release
+
 ## [0.1.0-beta.4] - 2019-05-12
 
 * Handle cancellation of uploads #834 #736

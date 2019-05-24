@@ -104,7 +104,9 @@ pub enum QueryPayloadError {
 impl ResponseError for QueryPayloadError {
     fn error_response(&self) -> HttpResponse {
         match *self {
-            QueryPayloadError::Deserialize(_) => HttpResponse::new(StatusCode::BAD_REQUEST),
+            QueryPayloadError::Deserialize(_) => {
+                HttpResponse::new(StatusCode::BAD_REQUEST)
+            }
         }
     }
 }
@@ -163,7 +165,10 @@ mod tests {
 
     #[test]
     fn test_query_payload_error() {
-        let resp: HttpResponse = QueryPayloadError::Deserialize(serde_urlencoded::from_str::<i32>("bad query").unwrap_err()).error_response();
+        let resp: HttpResponse = QueryPayloadError::Deserialize(
+            serde_urlencoded::from_str::<i32>("bad query").unwrap_err(),
+        )
+        .error_response();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
     }
 

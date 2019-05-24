@@ -1,5 +1,10 @@
 # Changes
 
+## [0.1.0] - 2019-05-xx
+
+* NamedFile last-modified check always fails due to nano-seconds
+  in file modified date #820
+
 ## [0.1.0-beta.4] - 2019-05-12
 
 * Update actix-web to beta.4

@@ -1,5 +1,9 @@
 # Changes
 
+## [0.1.0] - 2019-05-18
+
+* Release
+
 ## [0.1.0-beta.1] - 2019-04-20
 
 * Gen code for actix-web 1.0.0-beta.1

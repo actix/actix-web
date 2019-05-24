@@ -151,6 +151,7 @@ pub mod dev {
     };
     pub use actix_router::{Path, ResourceDef, ResourcePath, Url};
     pub use actix_server::Server;
+    pub use actix_service::{Service, Transform};
 
     pub(crate) fn insert_slash(path: &str) -> String {
         let mut path = path.to_owned();

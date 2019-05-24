@@ -8,9 +8,9 @@ use serde::de;
 use serde_urlencoded;
 
 use crate::dev::Payload;
+use crate::error::QueryPayloadError;
 use crate::extract::FromRequest;
 use crate::request::HttpRequest;
-use crate::error::QueryPayloadError;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
 /// Extract typed information from from the request's query.
@@ -51,6 +51,16 @@ impl<T> Query<T> {
     /// Deconstruct to a inner value
     pub fn into_inner(self) -> T {
         self.0
+    }
+
+    /// Get query parameters from the path
+    pub fn from_query(query_str: &str) -> Result<Self, QueryPayloadError>
+    where
+        T: de::DeserializeOwned,
+    {
+        serde_urlencoded::from_str::<T>(query_str)
+            .map(|val| Ok(Query(val)))
+            .unwrap_or_else(move |e| Err(QueryPayloadError::Deserialize(e)))
     }
 }
 
@@ -188,8 +198,8 @@ pub struct QueryConfig {
 impl QueryConfig {
     /// Set custom error handler
     pub fn error_handler<F>(mut self, f: F) -> Self
-        where
-            F: Fn(QueryPayloadError, &HttpRequest) -> Error + Send + Sync + 'static,
+    where
+        F: Fn(QueryPayloadError, &HttpRequest) -> Error + Send + Sync + 'static,
     {
         self.ehandler = Some(Arc::new(f));
         self
@@ -198,26 +208,40 @@ impl QueryConfig {
 
 impl Default for QueryConfig {
     fn default() -> Self {
-        QueryConfig {
-            ehandler: None,
-        }
+        QueryConfig { ehandler: None }
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use actix_http::http::StatusCode;
     use derive_more::Display;
     use serde_derive::Deserialize;
-    use actix_http::http::StatusCode;
 
     use super::*;
-    use crate::test::TestRequest;
     use crate::error::InternalError;
+    use crate::test::TestRequest;
     use crate::HttpResponse;
 
     #[derive(Deserialize, Debug, Display)]
     struct Id {
         id: String,
+    }
+
+    #[test]
+    fn test_service_request_extract() {
+        let req = TestRequest::with_uri("/name/user1/").to_srv_request();
+        assert!(Query::<Id>::from_query(&req.query_string()).is_err());
+
+        let req = TestRequest::with_uri("/name/user1/?id=test").to_srv_request();
+        let mut s = Query::<Id>::from_query(&req.query_string()).unwrap();
+
+        assert_eq!(s.id, "test");
+        assert_eq!(format!("{}, {:?}", s, s), "test, Id { id: \"test\" }");
+
+        s.id = "test1".to_string();
+        let s = s.into_inner();
+        assert_eq!(s.id, "test1");
     }
 
     #[test]
@@ -244,12 +268,20 @@ mod tests {
             .data(QueryConfig::default().error_handler(|e, _| {
                 let resp = HttpResponse::UnprocessableEntity().finish();
                 InternalError::from_response(e, resp).into()
-            })).to_srv_request();
+            }))
+            .to_srv_request();
 
         let (req, mut pl) = req.into_parts();
         let query = Query::<Id>::from_request(&req, &mut pl);
 
         assert!(query.is_err());
-        assert_eq!(query.unwrap_err().as_response_error().error_response().status(), StatusCode::UNPROCESSABLE_ENTITY);
+        assert_eq!(
+            query
+                .unwrap_err()
+                .as_response_error()
+                .error_response()
+                .status(),
+            StatusCode::UNPROCESSABLE_ENTITY
+        );
     }
 }
