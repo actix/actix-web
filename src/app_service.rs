@@ -239,7 +239,6 @@ where
 {
     fn drop(&mut self) {
         self.pool.clear();
-        println!("DROP: APP-INIT-ENTRY");
     }
 }
 
@@ -436,7 +435,6 @@ mod tests {
     impl Drop for DropData {
         fn drop(&mut self) {
             self.0.store(true, Ordering::Relaxed);
-            println!("Dropping!");
         }
     }
 
