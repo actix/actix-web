@@ -1,6 +1,6 @@
 # Changes
 
-## [0.1.0] - 2019-05-xx
+## [0.1.0] - 2019-05-25
 
 * NamedFile last-modified check always fails due to nano-seconds
   in file modified date #820

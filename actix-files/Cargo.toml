@@ -1,6 +1,6 @@
 [package]
 name = "actix-files"
-version = "0.1.0-beta.4"
+version = "0.1.0"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Static files support for actix web."
 readme = "README.md"
@@ -31,4 +31,4 @@ percent-encoding = "1.0"
 v_htmlescape = "0.4"
 
 [dev-dependencies]
-actix-web = { version = "1.0.0-beta.5", features=["ssl"] }
+actix-web = { version = "1.0.0-rc", features=["ssl"] }
