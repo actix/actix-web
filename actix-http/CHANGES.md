@@ -1,5 +1,12 @@
 # Changes
 
+## [0.2.1] - 2019-05-2
+
+### Fixed
+
+* Handle socket read disconnect
+
+
 ## [0.2.0] - 2019-05-12
 
 ### Changed

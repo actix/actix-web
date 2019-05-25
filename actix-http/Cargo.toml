@@ -1,6 +1,6 @@
 [package]
 name = "actix-http"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix http primitives"
 readme = "README.md"
@@ -47,7 +47,7 @@ secure-cookies = ["ring"]
 actix-service = "0.4.0"
 actix-codec = "0.1.2"
 actix-connect = "0.2.0"
-actix-utils = "0.4.0"
+actix-utils = "0.4.1"
 actix-server-config = "0.1.1"
 actix-threadpool = "0.1.0"
 

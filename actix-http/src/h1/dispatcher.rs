@@ -583,6 +583,9 @@ where
                     self.ka_timer = Some(Delay::new(interval));
                 } else {
                     self.flags.insert(Flags::READ_DISCONNECT);
+                    if let Some(mut payload) = self.payload.take() {
+                        payload.set_error(PayloadError::Incomplete(None));
+                    }
                     return Ok(());
                 }
             } else {
@@ -694,7 +697,10 @@ where
                         if let Some(true) =
                             read_available(&mut inner.io, &mut inner.read_buf)?
                         {
-                            inner.flags.insert(Flags::READ_DISCONNECT)
+                            inner.flags.insert(Flags::READ_DISCONNECT);
+                            if let Some(mut payload) = inner.payload.take() {
+                                payload.feed_eof();
+                            }
                         }
                     }
 
