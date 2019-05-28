@@ -799,7 +799,7 @@ where
         match read {
             Ok(n) => {
                 if n == 0 {
-                    return Ok(Some(true));
+                    return Ok(Some(false));
                 } else {
                     read_some = true;
                     unsafe {
