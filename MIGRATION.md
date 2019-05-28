@@ -238,6 +238,17 @@
 
 * Actors support have been moved to `actix-web-actors` crate
 
+* Custom Error
+
+  Instead of error_response method alone, ResponseError now provides two methods: error_response and render_response respectively. Where, error_response creates the error response and render_response returns the error response to the caller. 
+
+  Simplest migration from 0.7 to 1.0 shall include below method to the custom implementation of ResponseError:
+
+  ```rust
+  fn render_response(&self) -> HttpResponse {
+    self.error_response()
+  }
+  ```
 
 ## 0.7.15
 
