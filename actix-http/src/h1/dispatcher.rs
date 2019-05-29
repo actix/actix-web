@@ -693,18 +693,20 @@ where
                     }
                 } else {
                     // read socket into a buf
-                    if !inner.flags.contains(Flags::READ_DISCONNECT) {
-                        if let Some(true) =
-                            read_available(&mut inner.io, &mut inner.read_buf)?
-                        {
-                            inner.flags.insert(Flags::READ_DISCONNECT);
-                            if let Some(mut payload) = inner.payload.take() {
-                                payload.feed_eof();
-                            }
-                        }
-                    }
+                    let should_disconnect = if !inner.flags.contains(Flags::READ_DISCONNECT) {
+                        read_available(&mut inner.io, &mut inner.read_buf)?
+                    } else {
+                        None
+                    };
 
                     inner.poll_request()?;
+                    if let Some(true) = should_disconnect {
+                        inner.flags.insert(Flags::READ_DISCONNECT);
+                        if let Some(mut payload) = inner.payload.take() {
+                            payload.feed_eof();
+                        }
+                    };
+
                     loop {
                         if inner.write_buf.remaining_mut() < LW_BUFFER_SIZE {
                             inner.write_buf.reserve(HW_BUFFER_SIZE);
