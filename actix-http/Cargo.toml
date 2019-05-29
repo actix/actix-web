@@ -81,7 +81,7 @@ time = "0.1.42"
 tokio-tcp = "0.1.3"
 tokio-timer = "0.2.8"
 tokio-current-thread = "0.1"
-trust-dns-resolver = { version="0.11.0", default-features = false }
+trust-dns-resolver = { version="0.11.1", default-features = false }
 
 # for secure cookie
 ring = { version = "0.14.6", optional = true }
