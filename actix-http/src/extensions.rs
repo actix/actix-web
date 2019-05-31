@@ -73,7 +73,7 @@ impl Extensions {
         self.map.clear();
     }
 
-    pub fn into_iter(&self) -> IntoIter<TypeId, Box<Any>> {
+    pub fn into_iter(self) -> IntoIter<TypeId, Box<Any>> {
         self.map.into_iter()
     }
 
