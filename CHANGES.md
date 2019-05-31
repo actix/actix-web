@@ -15,6 +15,8 @@
 
 ### Fixed
 
+* Fix Logger request time format, and use rfc3339. #867
+
 * Clear http requests pool on app service drop #860
 
 
