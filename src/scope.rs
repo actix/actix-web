@@ -1085,13 +1085,33 @@ mod tests {
         let mut srv = init_service(
             App::new().service(
                 web::scope("/app")
-                    .configure(||{
-
+                    .configure(|s|{
+                        s.route("/path1", web::get().to(||HttpResponse::Ok()));
                     })
             ),
         );
 
         let req = TestRequest::with_uri("/app/path1").to_request();
+        let resp = block_on(srv.call(req)).unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[test]
+    fn test_scope_config_2() {
+        let mut srv = init_service(
+            App::new().service(
+                web::scope("/app")
+                    .configure(|s|{
+                        s.service(
+                        web::scope("/v1")
+                            .configure(|s|{
+                                s.route("/", web::get().to(||HttpResponse::Ok()));
+                            }));
+                    })
+            ),
+        );
+
+        let req = TestRequest::with_uri("/app/v1/").to_request();
         let resp = block_on(srv.call(req)).unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
     }
