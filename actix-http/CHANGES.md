@@ -1,5 +1,12 @@
 # Changes
 
+## [0.2.2] - 2019-05-29
+
+### Fixed
+
+* Parse incoming stream before closing stream on disconnect #868
+
+
 ## [0.2.1] - 2019-05-25
 
 ### Fixed
