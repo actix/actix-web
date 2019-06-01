@@ -1,5 +1,9 @@
 # Changes
 
+## [0.1.1] - 2019-06-01
+
+* Static files are incorrectly served as both chunked and with length #812
+
 ## [0.1.0] - 2019-05-25
 
 * NamedFile last-modified check always fails due to nano-seconds
