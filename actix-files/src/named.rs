@@ -11,6 +11,7 @@ use bitflags::bitflags;
 use mime;
 use mime_guess::guess_mime_type;
 
+use actix_http::body::SizedStream;
 use actix_web::http::header::{
     self, ContentDisposition, DispositionParam, DispositionType,
 };
@@ -434,7 +435,7 @@ impl Responder for NamedFile {
             if offset != 0 || length != self.md.len() {
                 return Ok(resp.status(StatusCode::PARTIAL_CONTENT).streaming(reader));
             };
-            Ok(resp.streaming(reader))
+            Ok(resp.body(SizedStream::new(length, reader)))
         }
     }
 }
