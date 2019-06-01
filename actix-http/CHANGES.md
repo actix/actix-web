@@ -1,5 +1,15 @@
 # Changes
 
+### Added
+
+* Debug impl for ResponseBuilder
+
+* From SizedStream and BodyStream for Body
+
+### Changed
+
+* SizedStream accepts u64
+
 ## [0.2.2] - 2019-05-29
 
 ### Fixed

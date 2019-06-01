@@ -12,7 +12,6 @@ use futures::stream::{once, Stream};
 use regex::Regex;
 use tokio_timer::sleep;
 
-use actix_http::body::Body;
 use actix_http::error::PayloadError;
 use actix_http::{
     body, error, http, http::header, Error, HttpService, KeepAlive, Request, Response,
@@ -218,30 +217,28 @@ fn test_expect_continue_h1() {
 
 #[test]
 fn test_chunked_payload() {
-    let chunk_sizes = vec![ 32768, 32, 32768 ];
+    let chunk_sizes = vec![32768, 32, 32768];
     let total_size: usize = chunk_sizes.iter().sum();
 
     let srv = TestServer::new(|| {
-        HttpService::build()
-            .h1(|mut request: Request| {
-                request.take_payload()
-                    .map_err(|e| panic!(format!("Error reading payload: {}", e)))
-                    .fold(0usize, |acc, chunk| {
-                        future::ok::<_, ()>(acc + chunk.len())
-                    })
-                    .map(|req_size| {
-                        Response::Ok().body(format!("size={}", req_size))
-                    })
-            })
+        HttpService::build().h1(|mut request: Request| {
+            request
+                .take_payload()
+                .map_err(|e| panic!(format!("Error reading payload: {}", e)))
+                .fold(0usize, |acc, chunk| future::ok::<_, ()>(acc + chunk.len()))
+                .map(|req_size| Response::Ok().body(format!("size={}", req_size)))
+        })
     });
 
     let returned_size = {
         let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
-        let _ = stream.write_all(b"POST /test HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n");
+        let _ = stream
+            .write_all(b"POST /test HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n");
 
         for chunk_size in chunk_sizes.iter() {
             let mut bytes = Vec::new();
-            let random_bytes: Vec<u8> = (0..*chunk_size).map(|_| rand::random::<u8>()).collect();
+            let random_bytes: Vec<u8> =
+                (0..*chunk_size).map(|_| rand::random::<u8>()).collect();
 
             bytes.extend(format!("{:X}\r\n", chunk_size).as_bytes());
             bytes.extend(&random_bytes[..]);
@@ -826,8 +823,7 @@ fn test_h1_body_length() {
         HttpService::build().h1(|_| {
             let body = once(Ok(Bytes::from_static(STR.as_ref())));
             ok::<_, ()>(
-                Response::Ok()
-                    .body(Body::from_message(body::SizedStream::new(STR.len(), body))),
+                Response::Ok().body(body::SizedStream::new(STR.len() as u64, body)),
             )
         })
     });
@@ -852,9 +848,10 @@ fn test_h2_body_length() {
                 HttpService::build()
                     .h2(|_| {
                         let body = once(Ok(Bytes::from_static(STR.as_ref())));
-                        ok::<_, ()>(Response::Ok().body(Body::from_message(
-                            body::SizedStream::new(STR.len(), body),
-                        )))
+                        ok::<_, ()>(
+                            Response::Ok()
+                                .body(body::SizedStream::new(STR.len() as u64, body)),
+                        )
                     })
                     .map_err(|_| ()),
             )
