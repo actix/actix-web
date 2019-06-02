@@ -1,5 +1,7 @@
 # Changes
 
+## [0.2.3] - 2019-06-02
+
 ### Added
 
 * Debug impl for ResponseBuilder
@@ -8,7 +10,8 @@
 
 ### Changed
 
-* SizedStream accepts u64
+* SizedStream uses u64
+
 
 ## [0.2.2] - 2019-05-29
 
