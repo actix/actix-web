@@ -1,5 +1,9 @@
 # Changes
 
+## [0.1.2] - 2019-06-02
+
+* Fix boundary parsing #876
+
 ## [0.1.1] - 2019-05-25
 
 * Fix disconnect handling #834
