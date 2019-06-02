@@ -537,8 +537,6 @@ impl InnerField {
                     if &payload.buf[b_len..b_size] == boundary.as_bytes() {
                         // found boundary
                         return Ok(Async::Ready(None));
-                    } else {
-                        pos = b_size;
                     }
                 }
             }
@@ -576,7 +574,7 @@ impl InnerField {
                     }
                 }
             } else {
-                return Ok(Async::Ready(Some(payload.buf.take().freeze())));
+                Ok(Async::Ready(Some(payload.buf.take().freeze())))
             };
         }
     }

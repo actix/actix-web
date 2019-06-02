@@ -1,6 +1,6 @@
 [package]
 name = "actix-multipart"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Multipart support for actix web framework."
 readme = "README.md"
@@ -31,4 +31,4 @@ twoway = "0.2"
 
 [dev-dependencies]
 actix-rt = "0.2.2"
-actix-http = "0.2.0"
+actix-http = "0.2.2"
