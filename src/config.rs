@@ -15,7 +15,6 @@ use crate::service::{
     HttpServiceFactory, ServiceFactory, ServiceFactoryWrapper, ServiceRequest,
     ServiceResponse,
 };
-use core::borrow::{Borrow, BorrowMut};
 
 type Guards = Vec<Box<Guard>>;
 type HttpNewService =
@@ -236,58 +235,6 @@ impl ServiceConfig {
         let mut rdef = ResourceDef::new(url.as_ref());
         *rdef.name_mut() = name.as_ref().to_string();
         self.external.push(rdef);
-        self
-    }
-}
-
-pub struct ScopeConfig {
-    pub(crate) services: Vec<Box<ServiceFactory>>,
-    pub(crate) guards: Vec<Box<Guard>>,
-    pub(crate) data: Option<Extensions>,
-}
-
-impl ScopeConfig {
-    pub(crate) fn new() -> Self {
-        Self {
-            services: Vec::new(),
-            guards: Vec::new(),
-            data: Some(Extensions::new()),
-        }
-    }
-
-    /// Set application data. Application data could be accessed
-    /// by using `Data<T>` extractor where `T` is data type.
-    ///
-    /// This is same as `App::data()` method.
-    pub fn data<S: 'static>(&mut self, data: S) -> &mut Self {
-        if self.data.is_none() {
-            self.data = Some(Extensions::new());
-        }
-
-        self.data.as_mut().unwrap().insert(data);
-        self
-    }
-
-    /// Configure route for a specific path.
-    ///
-    /// This is same as `App::route()` method.
-    pub fn route(&mut self, path: &str, mut route: Route) -> &mut Self {
-        self.service(
-            Resource::new(path)
-                .add_guards(route.take_guards())
-                .route(route),
-        )
-    }
-
-    /// Register http service.
-    ///
-    /// This is same as `App::service()` method.
-    pub fn service<F>(&mut self, factory: F) -> &mut Self
-        where
-            F: HttpServiceFactory + 'static,
-    {
-        self.services
-            .push(Box::new(ServiceFactoryWrapper::new(factory)));
         self
     }
 }

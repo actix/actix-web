@@ -21,7 +21,7 @@ use crate::route::Route;
 use crate::service::{
     ServiceFactory, ServiceFactoryWrapper, ServiceRequest, ServiceResponse,
 };
-use crate::config::ScopeConfig;
+use crate::config::ServiceConfig;
 
 type Guards = Vec<Box<Guard>>;
 type HttpService = BoxedService<ServiceRequest, ServiceResponse, Error>;
@@ -117,25 +117,22 @@ impl Scope {
     /// ```
     pub fn configure<F>(mut self, f: F) -> Self
         where
-            F: FnOnce(&mut ScopeConfig),
+            F: FnOnce(&mut ServiceConfig),
     {
-        let mut cfg = ScopeConfig::new();
+        let mut cfg = ServiceConfig::new();
         f(&mut cfg);
         self.services.extend(cfg.services);
-        self.guards.extend(cfg.guards);
-        //self.data.extend(cfg.data);
 
-        if cfg.data.is_some() {
+        if !cfg.data.is_empty() {
             if (&self).data.is_some() {
 
-                let mut new_data = Extensions::from(cfg.data.unwrap());
+                let mut data = self.data.unwrap();
 
-                let old_data = Extensions::from(self.data.take().unwrap());
-                for value in old_data.into_iter() {
-                    new_data.insert(value);
+                for value in cfg.data.iter() {
+                    value.create(&mut data);
                 }
 
-                self.data = Some(new_data);
+                self.data = Some(data);
             }
         }
         self

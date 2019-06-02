@@ -14,7 +14,6 @@ use crate::route::Route;
 use crate::scope::Scope;
 use crate::service::WebService;
 
-pub use crate::config::ScopeConfig;
 pub use crate::config::ServiceConfig;
 pub use crate::data::Data;
 pub use crate::request::HttpRequest;
