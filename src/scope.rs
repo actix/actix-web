@@ -21,6 +21,7 @@ use crate::route::Route;
 use crate::service::{
     ServiceFactory, ServiceFactoryWrapper, ServiceRequest, ServiceResponse,
 };
+use crate::config::ServiceConfig;
 
 type Guards = Vec<Box<Guard>>;
 type HttpService = BoxedService<ServiceRequest, ServiceResponse, Error>;
@@ -82,6 +83,56 @@ impl Scope {
             default: Rc::new(RefCell::new(None)),
             factory_ref: fref,
         }
+    }
+
+
+    /// Run external configuration as part of the scope building
+    /// process
+    ///
+    /// This function is useful for moving parts of configuration to a
+    /// different module or even library. For example,
+    /// some of the resource's configuration could be moved to different module.
+    ///
+    /// ```rust
+    /// # extern crate actix_web;
+    /// use actix_web::{web, middleware, App, HttpResponse};
+    ///
+    /// // this function could be located in different module
+    /// fn config(cfg: &mut web::ServiceConfig) {
+    ///     cfg.service(web::resource("/test")
+    ///         .route(web::get().to(|| HttpResponse::Ok()))
+    ///         .route(web::head().to(|| HttpResponse::MethodNotAllowed()))
+    ///     );
+    /// }
+    ///
+    /// fn main() {
+    ///     let app = App::new()
+    ///         .wrap(middleware::Logger::default())
+    ///         .service(
+    ///             web::scope("/api")
+    ///                 .configure(config)
+    ///         )
+    ///         .route("/index.html", web::get().to(|| HttpResponse::Ok()));
+    /// }
+    /// ```
+    pub fn configure<F>(mut self, f: F) -> Self
+        where
+            F: FnOnce(&mut ServiceConfig),
+    {
+        let mut cfg = ServiceConfig::new();
+        f(&mut cfg);
+        self.services.extend(cfg.services);
+
+        if !cfg.data.is_empty() {
+            let mut data = self.data.unwrap_or(Extensions::new());
+
+            for value in cfg.data.iter() {
+                value.create(&mut data);
+            }
+
+            self.data = Some(data);
+        }
+        self
     }
 }
 
@@ -1020,6 +1071,42 @@ mod tests {
 
         let req = TestRequest::with_uri("/app/t").to_request();
         let resp = call_service(&mut srv, req);
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[test]
+    fn test_scope_config() {
+        let mut srv = init_service(
+            App::new().service(
+                web::scope("/app")
+                    .configure(|s|{
+                        s.route("/path1", web::get().to(||HttpResponse::Ok()));
+                    })
+            ),
+        );
+
+        let req = TestRequest::with_uri("/app/path1").to_request();
+        let resp = block_on(srv.call(req)).unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[test]
+    fn test_scope_config_2() {
+        let mut srv = init_service(
+            App::new().service(
+                web::scope("/app")
+                    .configure(|s|{
+                        s.service(
+                        web::scope("/v1")
+                            .configure(|s|{
+                                s.route("/", web::get().to(||HttpResponse::Ok()));
+                            }));
+                    })
+            ),
+        );
+
+        let req = TestRequest::with_uri("/app/v1/").to_request();
+        let resp = block_on(srv.call(req)).unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
     }
 }
