@@ -19,6 +19,26 @@ fn post_test() -> impl Responder {
     HttpResponse::NoContent()
 }
 
+#[head("/test")]
+fn head_test() -> impl Responder {
+    HttpResponse::Ok()
+}
+
+#[connect("/test")]
+fn connect_test() -> impl Responder {
+    HttpResponse::Ok()
+}
+
+#[options("/test")]
+fn options_test() -> impl Responder {
+    HttpResponse::Ok()
+}
+
+#[trace("/test")]
+fn trace_test() -> impl Responder {
+    HttpResponse::Ok()
+}
+
 #[get("/test")]
 fn auto_async() -> impl Future<Item = HttpResponse, Error = actix_web::Error> {
     future::ok(HttpResponse::Ok().finish())
@@ -75,10 +95,30 @@ fn test_body() {
             App::new()
                 .service(post_test)
                 .service(put_test)
+                .service(head_test)
+                .service(connect_test)
+                .service(options_test)
+                .service(trace_test)
                 .service(test),
         )
     });
     let request = srv.request(http::Method::GET, srv.url("/test"));
+    let response = srv.block_on(request.send()).unwrap();
+    assert!(response.status().is_success());
+
+    let request = srv.request(http::Method::HEAD, srv.url("/test"));
+    let response = srv.block_on(request.send()).unwrap();
+    assert!(response.status().is_success());
+
+    let request = srv.request(http::Method::CONNECT, srv.url("/test"));
+    let response = srv.block_on(request.send()).unwrap();
+    assert!(response.status().is_success());
+
+    let request = srv.request(http::Method::OPTIONS, srv.url("/test"));
+    let response = srv.block_on(request.send()).unwrap();
+    assert!(response.status().is_success());
+
+    let request = srv.request(http::Method::TRACE, srv.url("/test"));
     let response = srv.block_on(request.send()).unwrap();
     assert!(response.status().is_success());
 

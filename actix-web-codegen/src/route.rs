@@ -25,6 +25,10 @@ pub enum GuardType {
     Post,
     Put,
     Delete,
+    Head,
+    Connect,
+    Options,
+    Trace
 }
 
 impl fmt::Display for GuardType {
@@ -34,6 +38,10 @@ impl fmt::Display for GuardType {
             &GuardType::Post => write!(f, "Post"),
             &GuardType::Put => write!(f, "Put"),
             &GuardType::Delete => write!(f, "Delete"),
+            &GuardType::Head => write!(f, "Head"),
+            &GuardType::Connect => write!(f, "Connect"),
+            &GuardType::Options => write!(f, "Options"),
+            &GuardType::Trace => write!(f, "Trace"),
         }
     }
 }

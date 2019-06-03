@@ -11,6 +11,10 @@
 //! - [post](attr.post.html)
 //! - [put](attr.put.html)
 //! - [delete](attr.delete.html)
+//! - [head](attr.head.html)
+//! - [connect](attr.connect.html)
+//! - [options](attr.options.html)
+//! - [trace](attr.trace.html)
 //!
 //! ### Attributes:
 //!
@@ -90,5 +94,53 @@ pub fn put(args: TokenStream, input: TokenStream) -> TokenStream {
 pub fn delete(args: TokenStream, input: TokenStream) -> TokenStream {
     let args = parse_macro_input!(args as syn::AttributeArgs);
     let gen = route::Args::new(&args, input, route::GuardType::Delete);
+    gen.generate()
+}
+
+/// Creates route handler with `HEAD` method guard.
+///
+/// Syntax: `#[head("path"[, attributes])]`
+///
+/// Attributes are the same as in [head](attr.head.html)
+#[proc_macro_attribute]
+pub fn head(args: TokenStream, input: TokenStream) -> TokenStream {
+    let args = parse_macro_input!(args as syn::AttributeArgs);
+    let gen = route::Args::new(&args, input, route::GuardType::Head);
+    gen.generate()
+}
+
+/// Creates route handler with `CONNECT` method guard.
+///
+/// Syntax: `#[connect("path"[, attributes])]`
+///
+/// Attributes are the same as in [connect](attr.connect.html)
+#[proc_macro_attribute]
+pub fn connect(args: TokenStream, input: TokenStream) -> TokenStream {
+    let args = parse_macro_input!(args as syn::AttributeArgs);
+    let gen = route::Args::new(&args, input, route::GuardType::Connect);
+    gen.generate()
+}
+
+/// Creates route handler with `OPTIONS` method guard.
+///
+/// Syntax: `#[options("path"[, attributes])]`
+///
+/// Attributes are the same as in [options](attr.options.html)
+#[proc_macro_attribute]
+pub fn options(args: TokenStream, input: TokenStream) -> TokenStream {
+    let args = parse_macro_input!(args as syn::AttributeArgs);
+    let gen = route::Args::new(&args, input, route::GuardType::Options);
+    gen.generate()
+}
+
+/// Creates route handler with `TRACE` method guard.
+///
+/// Syntax: `#[trace("path"[, attributes])]`
+///
+/// Attributes are the same as in [trace](attr.trace.html)
+#[proc_macro_attribute]
+pub fn trace(args: TokenStream, input: TokenStream) -> TokenStream {
+    let args = parse_macro_input!(args as syn::AttributeArgs);
+    let gen = route::Args::new(&args, input, route::GuardType::Trace);
     gen.generate()
 }
