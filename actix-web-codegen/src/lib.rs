@@ -15,6 +15,7 @@
 //! - [connect](attr.connect.html)
 //! - [options](attr.options.html)
 //! - [trace](attr.trace.html)
+//! - [patch](attr.patch.html)
 //!
 //! ### Attributes:
 //!
@@ -142,5 +143,17 @@ pub fn options(args: TokenStream, input: TokenStream) -> TokenStream {
 pub fn trace(args: TokenStream, input: TokenStream) -> TokenStream {
     let args = parse_macro_input!(args as syn::AttributeArgs);
     let gen = route::Args::new(&args, input, route::GuardType::Trace);
+    gen.generate()
+}
+
+/// Creates route handler with `PATCH` method guard.
+///
+/// Syntax: `#[patch("path"[, attributes])]`
+///
+/// Attributes are the same as in [patch](attr.patch.html)
+#[proc_macro_attribute]
+pub fn patch(args: TokenStream, input: TokenStream) -> TokenStream {
+    let args = parse_macro_input!(args as syn::AttributeArgs);
+    let gen = route::Args::new(&args, input, route::GuardType::Patch);
     gen.generate()
 }

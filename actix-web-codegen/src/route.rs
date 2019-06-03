@@ -28,7 +28,8 @@ pub enum GuardType {
     Head,
     Connect,
     Options,
-    Trace
+    Trace,
+    Patch
 }
 
 impl fmt::Display for GuardType {
@@ -42,6 +43,7 @@ impl fmt::Display for GuardType {
             &GuardType::Connect => write!(f, "Connect"),
             &GuardType::Options => write!(f, "Options"),
             &GuardType::Trace => write!(f, "Trace"),
+            &GuardType::Patch => write!(f, "Patch"),
         }
     }
 }

@@ -1,7 +1,7 @@
 use actix_http::HttpService;
 use actix_http_test::TestServer;
 use actix_web::{http, web::Path, App, HttpResponse, Responder};
-use actix_web_codegen::{delete, get, post, put, head, connect, options, trace};
+use actix_web_codegen::{delete, get, post, put, patch, head, connect, options, trace};
 use futures::{future, Future};
 
 #[get("/test")]
@@ -12,6 +12,11 @@ fn test() -> impl Responder {
 #[put("/test")]
 fn put_test() -> impl Responder {
     HttpResponse::Created()
+}
+
+#[patch("/test")]
+fn patch_test() -> impl Responder {
+    HttpResponse::Ok()
 }
 
 #[post("/test")]
@@ -99,6 +104,7 @@ fn test_body() {
                 .service(connect_test)
                 .service(options_test)
                 .service(trace_test)
+                .service(patch_test)
                 .service(test),
         )
     });
@@ -119,6 +125,10 @@ fn test_body() {
     assert!(response.status().is_success());
 
     let request = srv.request(http::Method::TRACE, srv.url("/test"));
+    let response = srv.block_on(request.send()).unwrap();
+    assert!(response.status().is_success());
+
+    let request = srv.request(http::Method::PATCH, srv.url("/test"));
     let response = srv.block_on(request.send()).unwrap();
     assert!(response.status().is_success());
 
