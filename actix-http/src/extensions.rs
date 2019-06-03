@@ -2,8 +2,6 @@ use std::any::{Any, TypeId};
 use std::fmt;
 
 use hashbrown::HashMap;
-use hashbrown::hash_map::{Keys, Values};
-use hashbrown::hash_map::IntoIter;
 
 #[derive(Default)]
 /// A type map of request extensions.
@@ -17,14 +15,6 @@ impl Extensions {
     pub fn new() -> Extensions {
         Extensions {
             map: HashMap::default(),
-        }
-    }
-
-    /// Create `Extensions` with the provided content
-    #[inline]
-    pub fn from(e: Extensions) -> Extensions{
-        Extensions {
-            map: HashMap::from(e.map)
         }
     }
 
@@ -71,18 +61,6 @@ impl Extensions {
     #[inline]
     pub fn clear(&mut self) {
         self.map.clear();
-    }
-
-    pub fn into_iter(self) -> IntoIter<TypeId, Box<Any>> {
-        self.map.into_iter()
-    }
-
-    pub fn keys(& self) -> Keys<TypeId, Box<Any>> {
-        self.map.keys()
-    }
-
-    pub fn values(& self) -> Values<TypeId, Box<Any>> {
-        self.map.values()
     }
 }
 
