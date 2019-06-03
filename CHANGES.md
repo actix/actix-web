@@ -1,8 +1,10 @@
 # Changes
 
-## [1.0.0] - 2019-05-xx
+## [1.0.0] - 2019-06-xx
 
 ### Add
+
+* Add `Scope::configure()` method.
 
 * Add `ServiceRequest::set_payload()` method.
 

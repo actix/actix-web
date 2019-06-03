@@ -102,7 +102,7 @@ rustls = { version = "0.15", optional = true }
 [dev-dependencies]
 actix-http = { version = "0.2.2", features=["ssl", "brotli", "flate2-zlib"] }
 actix-http-test = { version = "0.2.0", features=["ssl"] }
-actix-files = { version = "0.1.0" }
+actix-files = { version = "0.1.1" }
 rand = "0.6"
 env_logger = "0.6"
 serde_derive = "1.0"
