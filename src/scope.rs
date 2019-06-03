@@ -124,16 +124,13 @@ impl Scope {
         self.services.extend(cfg.services);
 
         if !cfg.data.is_empty() {
-            if (&self).data.is_some() {
+            let mut data = self.data.unwrap_or(Extensions::new());
 
-                let mut data = self.data.unwrap();
-
-                for value in cfg.data.iter() {
-                    value.create(&mut data);
-                }
-
-                self.data = Some(data);
+            for value in cfg.data.iter() {
+                value.create(&mut data);
             }
+
+            self.data = Some(data);
         }
         self
     }
