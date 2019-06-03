@@ -52,7 +52,9 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use serde_json;
 
+#[cfg(feature = "cookie-session")]
 mod cookie;
+#[cfg(feature = "cookie-session")]
 pub use crate::cookie::CookieSession;
 
 /// The high-level interface you use to modify session data.

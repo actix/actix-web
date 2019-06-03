@@ -1,5 +1,9 @@
 # Changes
 
+## [0.1.1] - 2019-06-03
+
+* Fix optional cookie session support
+
 ## [0.1.0] - 2019-05-18
 
 * Use actix-web 1.0.0-rc
