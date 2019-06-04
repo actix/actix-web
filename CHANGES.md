@@ -10,6 +10,8 @@
 
 * Add `test::TestRequest::set_json()` convenience method to automatically
   serialize data and set header in test requests.
+  
+* Add codegen now supports head, options, trace, connect and patch http methods
 
 ### Changes
 
