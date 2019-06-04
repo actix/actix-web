@@ -80,6 +80,12 @@ impl ServiceRequest {
         ServiceResponse::new(self.0, res.into_body())
     }
 
+    /// This method returns reference to the request
+    #[inline]
+    pub fn request(&self) -> &HttpRequest {
+        &self.0
+    }
+
     /// This method returns reference to the request head
     #[inline]
     pub fn head(&self) -> &RequestHead {
