@@ -1,5 +1,9 @@
 # Changes
 
+## [0.1.3] - 2019-06-06
+
+* Fix ring dependency from actix-web default features for #741.
+
 ## [0.1.2] - 2019-06-02
 
 * Fix boundary parsing #876
