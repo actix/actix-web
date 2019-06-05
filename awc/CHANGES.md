@@ -1,5 +1,11 @@
 # Changes
 
+## [0.2.1] - 2019-06-05
+
+### Added
+
+* Add license files
+
 ## [0.2.0] - 2019-05-12
 
 ### Added

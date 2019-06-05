@@ -76,7 +76,7 @@ actix-web-codegen = "0.1.2"
 actix-http = "0.2.3"
 actix-server = "0.5.1"
 actix-server-config = "0.1.1"
-actix-threadpool = "0.1.0"
+actix-threadpool = "0.1.1"
 awc = { version = "0.2.0", optional = true }
 
 bytes = "0.4"
