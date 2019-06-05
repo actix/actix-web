@@ -100,6 +100,13 @@ where
         self
     }
 
+    /// Set application data. Application data could be accessed
+    /// by using `Data<T>` extractor where `T` is data type.
+    pub fn register_data<U: 'static>(mut self, data: Data<U>) -> Self {
+        self.data.push(Box::new(data));
+        self
+    }
+
     /// Run external configuration as part of the application building
     /// process
     ///
