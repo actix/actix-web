@@ -1,7 +1,7 @@
 use actix_http::HttpService;
 use actix_http_test::TestServer;
 use actix_web::{http, web::Path, App, HttpResponse, Responder};
-use actix_web_codegen::{delete, get, post, put, patch, head, connect, options, trace};
+use actix_web_codegen::{connect, delete, get, head, options, patch, post, put, trace};
 use futures::{future, Future};
 
 #[get("/test")]

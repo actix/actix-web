@@ -29,7 +29,7 @@ pub enum GuardType {
     Connect,
     Options,
     Trace,
-    Patch
+    Patch,
 }
 
 impl fmt::Display for GuardType {

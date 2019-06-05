@@ -693,11 +693,12 @@ where
                     }
                 } else {
                     // read socket into a buf
-                    let should_disconnect = if !inner.flags.contains(Flags::READ_DISCONNECT) {
-                        read_available(&mut inner.io, &mut inner.read_buf)?
-                    } else {
-                        None
-                    };
+                    let should_disconnect =
+                        if !inner.flags.contains(Flags::READ_DISCONNECT) {
+                            read_available(&mut inner.io, &mut inner.read_buf)?
+                        } else {
+                            None
+                        };
 
                     inner.poll_request()?;
                     if let Some(true) = should_disconnect {
