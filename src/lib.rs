@@ -66,15 +66,15 @@
 //!
 //! ## Package feature
 //!
-//! * `client` - enables http client
+//! * `client` - enables http client (default enabled)
 //! * `ssl` - enables ssl support via `openssl` crate, supports `http/2`
 //! * `rust-tls` - enables ssl support via `rustls` crate, supports `http/2`
 //! * `secure-cookies` - enables secure cookies support, includes `ring` crate as
-//!   dependency
+//!   dependency (default enabled)
 //! * `brotli` - enables `brotli` compression support, requires `c`
-//!   compiler
+//!   compiler (default enabled)
 //! * `flate2-zlib` - enables `gzip`, `deflate` compression support, requires
-//!   `c` compiler
+//!   `c` compiler (default enabled)
 //! * `flate2-rust` - experimental rust based implementation for
 //!   `gzip`, `deflate` compression.
 //!
