@@ -1,5 +1,9 @@
 # Changes
 
+## [0.1.2] - 2019-06-06
+
+* Fix ring dependency from actix-web default features for #741.
+
 ## [0.1.1] - 2019-06-01
 
 * Static files are incorrectly served as both chunked and with length #812
