@@ -764,6 +764,25 @@ impl IntoFuture for ResponseBuilder {
     }
 }
 
+impl fmt::Debug for ResponseBuilder {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let head = self.head.as_ref().unwrap();
+
+        let res = writeln!(
+            f,
+            "\nResponseBuilder {:?} {}{}",
+            head.version,
+            head.status,
+            head.reason.unwrap_or(""),
+        );
+        let _ = writeln!(f, "  headers:");
+        for (key, val) in head.headers.iter() {
+            let _ = writeln!(f, "    {:?}: {:?}", key, val);
+        }
+        res
+    }
+}
+
 /// Helper converters
 impl<I: Into<Response>, E: Into<Error>> From<Result<I, E>> for Response {
     fn from(res: Result<I, E>) -> Self {

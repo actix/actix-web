@@ -66,15 +66,15 @@
 //!
 //! ## Package feature
 //!
-//! * `client` - enables http client
+//! * `client` - enables http client (default enabled)
 //! * `ssl` - enables ssl support via `openssl` crate, supports `http/2`
 //! * `rust-tls` - enables ssl support via `rustls` crate, supports `http/2`
 //! * `secure-cookies` - enables secure cookies support, includes `ring` crate as
-//!   dependency
+//!   dependency (default enabled)
 //! * `brotli` - enables `brotli` compression support, requires `c`
-//!   compiler
+//!   compiler (default enabled)
 //! * `flate2-zlib` - enables `gzip`, `deflate` compression support, requires
-//!   `c` compiler
+//!   `c` compiler (default enabled)
 //! * `flate2-rust` - experimental rust based implementation for
 //!   `gzip`, `deflate` compression.
 //!
@@ -111,7 +111,7 @@ pub use actix_web_codegen::*;
 
 // re-export for convenience
 pub use actix_http::Response as HttpResponse;
-pub use actix_http::{cookie, http, Error, HttpMessage, ResponseError, Result};
+pub use actix_http::{body, cookie, http, Error, HttpMessage, ResponseError, Result};
 
 pub use crate::app::App;
 pub use crate::extract::FromRequest;
@@ -143,7 +143,7 @@ pub mod dev {
     pub use crate::types::json::JsonBody;
     pub use crate::types::readlines::Readlines;
 
-    pub use actix_http::body::{Body, BodySize, MessageBody, ResponseBody};
+    pub use actix_http::body::{Body, BodySize, MessageBody, ResponseBody, SizedStream};
     pub use actix_http::encoding::Decoder as Decompress;
     pub use actix_http::ResponseBuilder as HttpResponseBuilder;
     pub use actix_http::{

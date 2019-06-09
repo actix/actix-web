@@ -53,7 +53,7 @@ use crate::HttpResponse;
 ///
 /// `%a`  Remote IP-address (IP-address of proxy if using reverse proxy)
 ///
-/// `%t`  Time when the request was started to process
+/// `%t`  Time when the request was started to process (in rfc3339 format)
 ///
 /// `%r`  First line of request
 ///
@@ -417,10 +417,7 @@ impl FormatText {
             }
             FormatText::UrlPath => *self = FormatText::Str(format!("{}", req.path())),
             FormatText::RequestTime => {
-                *self = FormatText::Str(format!(
-                    "{:?}",
-                    now.strftime("[%d/%b/%Y:%H:%M:%S %z]").unwrap()
-                ))
+                *self = FormatText::Str(format!("{}", now.rfc3339()))
             }
             FormatText::RequestHeader(ref name) => {
                 let s = if let Some(val) = req.headers().get(name) {
@@ -546,5 +543,30 @@ mod tests {
         assert!(s.contains("GET / HTTP/1.1"));
         assert!(s.contains("200 1024"));
         assert!(s.contains("ACTIX-WEB"));
+    }
+
+    #[test]
+    fn test_request_time_format() {
+        let mut format = Format::new("%t");
+        let req = TestRequest::default().to_srv_request();
+
+        let now = time::now();
+        for unit in &mut format.0 {
+            unit.render_request(now, &req);
+        }
+
+        let resp = HttpResponse::build(StatusCode::OK).force_close().finish();
+        for unit in &mut format.0 {
+            unit.render_response(&resp);
+        }
+
+        let render = |fmt: &mut Formatter| {
+            for unit in &format.0 {
+                unit.render(fmt, 1024, now)?;
+            }
+            Ok(())
+        };
+        let s = format!("{}", FormatDisplay(&render));
+        assert!(s.contains(&format!("{}", now.rfc3339())));
     }
 }

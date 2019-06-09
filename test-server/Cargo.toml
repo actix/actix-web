@@ -1,6 +1,6 @@
 [package]
 name = "actix-http-test"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix http test server"
 readme = "README.md"
@@ -33,9 +33,9 @@ ssl = ["openssl", "actix-server/ssl", "awc/ssl"]
 actix-codec = "0.1.2"
 actix-rt = "0.2.2"
 actix-service = "0.4.0"
-actix-server = "0.5.0"
-actix-utils = "0.4.0"
-awc = "0.2.0"
+actix-server = "0.5.1"
+actix-utils = "0.4.1"
+awc = "0.2.1"
 
 base64 = "0.10"
 bytes = "0.4"
@@ -55,5 +55,5 @@ tokio-timer = "0.2"
 openssl = { version="0.10", optional = true }
 
 [dev-dependencies]
-actix-web = "1.0.0-beta.4"
-actix-http = "0.2.0"
+actix-web = "1.0.0-rc"
+actix-http = "0.2.3"

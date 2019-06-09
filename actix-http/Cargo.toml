@@ -1,6 +1,6 @@
 [package]
 name = "actix-http"
-version = "0.2.0"
+version = "0.2.3"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix http primitives"
 readme = "README.md"
@@ -47,7 +47,7 @@ secure-cookies = ["ring"]
 actix-service = "0.4.0"
 actix-codec = "0.1.2"
 actix-connect = "0.2.0"
-actix-utils = "0.4.0"
+actix-utils = "0.4.1"
 actix-server-config = "0.1.1"
 actix-threadpool = "0.1.0"
 
@@ -81,7 +81,7 @@ time = "0.1.42"
 tokio-tcp = "0.1.3"
 tokio-timer = "0.2.8"
 tokio-current-thread = "0.1"
-trust-dns-resolver = { version="0.11.0", default-features = false }
+trust-dns-resolver = { version="0.11.1", default-features = false }
 
 # for secure cookie
 ring = { version = "0.14.6", optional = true }

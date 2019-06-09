@@ -234,6 +234,25 @@ impl From<BytesMut> for Body {
     }
 }
 
+impl<S> From<SizedStream<S>> for Body
+where
+    S: Stream<Item = Bytes, Error = Error> + 'static,
+{
+    fn from(s: SizedStream<S>) -> Body {
+        Body::from_message(s)
+    }
+}
+
+impl<S, E> From<BodyStream<S, E>> for Body
+where
+    S: Stream<Item = Bytes, Error = E> + 'static,
+    E: Into<Error> + 'static,
+{
+    fn from(s: BodyStream<S, E>) -> Body {
+        Body::from_message(s)
+    }
+}
+
 impl MessageBody for Bytes {
     fn size(&self) -> BodySize {
         BodySize::Sized(self.len())
@@ -366,7 +385,7 @@ where
 /// Type represent streaming body. This body implementation should be used
 /// if total size of stream is known. Data get sent as is without using transfer encoding.
 pub struct SizedStream<S> {
-    size: usize,
+    size: u64,
     stream: S,
 }
 
@@ -374,7 +393,7 @@ impl<S> SizedStream<S>
 where
     S: Stream<Item = Bytes, Error = Error>,
 {
-    pub fn new(size: usize, stream: S) -> Self {
+    pub fn new(size: u64, stream: S) -> Self {
         SizedStream { size, stream }
     }
 }
@@ -384,7 +403,7 @@ where
     S: Stream<Item = Bytes, Error = Error>,
 {
     fn size(&self) -> BodySize {
-        BodySize::Sized(self.size)
+        BodySize::Sized64(self.size)
     }
 
     fn poll_next(&mut self) -> Poll<Option<Bytes>, Error> {

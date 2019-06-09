@@ -1,6 +1,6 @@
 [package]
 name = "actix-session"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Session for actix web framework."
 readme = "README.md"

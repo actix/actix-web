@@ -1,19 +1,25 @@
 # Changes
 
-## [1.0.0] - 2019-05-xx
+## [1.0.0] - 2019-06-05
 
 ### Add
+
+* Add `Scope::configure()` method.
 
 * Add `ServiceRequest::set_payload()` method.
 
 * Add `test::TestRequest::set_json()` convenience method to automatically
   serialize data and set header in test requests.
 
+* Add macros for head, options, trace, connect and patch http methods
+
 ### Changes
 
 * Drop an unnecessary `Option<_>` indirection around `ServerBuilder` from `HttpServer`. #863
 
 ### Fixed
+
+* Fix Logger request time format, and use rfc3339. #867
 
 * Clear http requests pool on app service drop #860
 

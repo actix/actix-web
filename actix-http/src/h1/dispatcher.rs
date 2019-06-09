@@ -583,6 +583,9 @@ where
                     self.ka_timer = Some(Delay::new(interval));
                 } else {
                     self.flags.insert(Flags::READ_DISCONNECT);
+                    if let Some(mut payload) = self.payload.take() {
+                        payload.set_error(PayloadError::Incomplete(None));
+                    }
                     return Ok(());
                 }
             } else {
@@ -690,15 +693,21 @@ where
                     }
                 } else {
                     // read socket into a buf
-                    if !inner.flags.contains(Flags::READ_DISCONNECT) {
-                        if let Some(true) =
+                    let should_disconnect =
+                        if !inner.flags.contains(Flags::READ_DISCONNECT) {
                             read_available(&mut inner.io, &mut inner.read_buf)?
-                        {
-                            inner.flags.insert(Flags::READ_DISCONNECT)
-                        }
-                    }
+                        } else {
+                            None
+                        };
 
                     inner.poll_request()?;
+                    if let Some(true) = should_disconnect {
+                        inner.flags.insert(Flags::READ_DISCONNECT);
+                        if let Some(mut payload) = inner.payload.take() {
+                            payload.feed_eof();
+                        }
+                    };
+
                     loop {
                         if inner.write_buf.remaining_mut() < LW_BUFFER_SIZE {
                             inner.write_buf.reserve(HW_BUFFER_SIZE);

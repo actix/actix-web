@@ -9,9 +9,9 @@ use actix_service::{new_service_cfg, service_fn, NewService};
 use bytes::{Bytes, BytesMut};
 use futures::future::{self, ok, Future};
 use futures::stream::{once, Stream};
+use regex::Regex;
 use tokio_timer::sleep;
 
-use actix_http::body::Body;
 use actix_http::error::PayloadError;
 use actix_http::{
     body, error, http, http::header, Error, HttpService, KeepAlive, Request, Response,
@@ -213,6 +213,54 @@ fn test_expect_continue_h1() {
     let mut data = String::new();
     let _ = stream.read_to_string(&mut data);
     assert!(data.starts_with("HTTP/1.1 100 Continue\r\n\r\nHTTP/1.1 200 OK\r\n"));
+}
+
+#[test]
+fn test_chunked_payload() {
+    let chunk_sizes = vec![32768, 32, 32768];
+    let total_size: usize = chunk_sizes.iter().sum();
+
+    let srv = TestServer::new(|| {
+        HttpService::build().h1(|mut request: Request| {
+            request
+                .take_payload()
+                .map_err(|e| panic!(format!("Error reading payload: {}", e)))
+                .fold(0usize, |acc, chunk| future::ok::<_, ()>(acc + chunk.len()))
+                .map(|req_size| Response::Ok().body(format!("size={}", req_size)))
+        })
+    });
+
+    let returned_size = {
+        let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
+        let _ = stream
+            .write_all(b"POST /test HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n");
+
+        for chunk_size in chunk_sizes.iter() {
+            let mut bytes = Vec::new();
+            let random_bytes: Vec<u8> =
+                (0..*chunk_size).map(|_| rand::random::<u8>()).collect();
+
+            bytes.extend(format!("{:X}\r\n", chunk_size).as_bytes());
+            bytes.extend(&random_bytes[..]);
+            bytes.extend(b"\r\n");
+            let _ = stream.write_all(&bytes);
+        }
+
+        let _ = stream.write_all(b"0\r\n\r\n");
+        stream.shutdown(net::Shutdown::Write).unwrap();
+
+        let mut data = String::new();
+        let _ = stream.read_to_string(&mut data);
+
+        let re = Regex::new(r"size=(\d+)").unwrap();
+        let size: usize = match re.captures(&data) {
+            Some(caps) => caps.get(1).unwrap().as_str().parse().unwrap(),
+            None => panic!(format!("Failed to find size in HTTP Response: {}", data)),
+        };
+        size
+    };
+
+    assert_eq!(returned_size, total_size);
 }
 
 #[test]
@@ -775,8 +823,7 @@ fn test_h1_body_length() {
         HttpService::build().h1(|_| {
             let body = once(Ok(Bytes::from_static(STR.as_ref())));
             ok::<_, ()>(
-                Response::Ok()
-                    .body(Body::from_message(body::SizedStream::new(STR.len(), body))),
+                Response::Ok().body(body::SizedStream::new(STR.len() as u64, body)),
             )
         })
     });
@@ -801,9 +848,10 @@ fn test_h2_body_length() {
                 HttpService::build()
                     .h2(|_| {
                         let body = once(Ok(Bytes::from_static(STR.as_ref())));
-                        ok::<_, ()>(Response::Ok().body(Body::from_message(
-                            body::SizedStream::new(STR.len(), body),
-                        )))
+                        ok::<_, ()>(
+                            Response::Ok()
+                                .body(body::SizedStream::new(STR.len() as u64, body)),
+                        )
                     })
                     .map_err(|_| ()),
             )
