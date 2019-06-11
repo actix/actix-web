@@ -133,7 +133,8 @@ struct IdentityItem {
     changed: bool,
 }
 
-/// Helper trait that allows to get Identity
+/// Helper trait that allows to get Identity.
+/// It could be used in middleware but identity policy must be set before any other middleware that needs identity
 pub trait RequestIdentity {
     fn get_identity(&self) -> Option<String>;
 }
