@@ -255,6 +255,16 @@ impl TestServerRuntime {
         self.client.head(self.surl(path.as_ref()).as_str())
     }
 
+    /// Create `PUT` request
+    pub fn put<S: AsRef<str>>(&self, path: S) -> ClientRequest {
+        self.client.put(self.url(path.as_ref()).as_str())
+    }
+
+    /// Create https `PUT` request
+    pub fn sput<S: AsRef<str>>(&self, path: S) -> ClientRequest {
+        self.client.put(self.surl(path.as_ref()).as_str())
+    }
+
     /// Connect to test http server
     pub fn request<S: AsRef<str>>(&self, method: Method, path: S) -> ClientRequest {
         self.client.request(method, path.as_ref())
