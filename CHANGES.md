@@ -1,5 +1,16 @@
 # Changes
 
+## [1.0.x] - 2019-xx-xx
+
+### Add
+
+* Add `middleware::identity::RequestIdentity` trait to `get_identity` from `HttpMessage`.
+
+### Changes
+
+### Fixed
+
+
 ## [1.0.0] - 2019-06-05
 
 ### Add

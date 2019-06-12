@@ -61,7 +61,10 @@ use crate::cookie::{Cookie, CookieJar, Key, SameSite};
 use crate::error::{Error, Result};
 use crate::http::header::{self, HeaderValue};
 use crate::service::{ServiceRequest, ServiceResponse};
-use crate::{dev::Payload, FromRequest, HttpMessage, HttpRequest};
+use crate::{
+    dev::{Extensions, Payload},
+    FromRequest, HttpMessage, HttpRequest,
+};
 
 /// The extractor type to obtain your identity from a request.
 ///
@@ -96,11 +99,7 @@ impl Identity {
     /// Return the claimed identity of the user associated request or
     /// ``None`` if no identity can be found associated with the request.
     pub fn identity(&self) -> Option<String> {
-        if let Some(id) = self.0.extensions().get::<IdentityItem>() {
-            id.id.clone()
-        } else {
-            None
-        }
+        Identity::get_identity(&self.0.extensions())
     }
 
     /// Remember identity.
@@ -119,11 +118,34 @@ impl Identity {
             id.changed = true;
         }
     }
+
+    fn get_identity(extensions: &Extensions) -> Option<String> {
+        if let Some(id) = extensions.get::<IdentityItem>() {
+            id.id.clone()
+        } else {
+            None
+        }
+    }
 }
 
 struct IdentityItem {
     id: Option<String>,
     changed: bool,
+}
+
+/// Helper trait that allows to get Identity.
+/// It could be used in middleware but identity policy must be set before any other middleware that needs identity
+pub trait RequestIdentity {
+    fn get_identity(&self) -> Option<String>;
+}
+
+impl<T> RequestIdentity for T
+where
+    T: HttpMessage,
+{
+    fn get_identity(&self) -> Option<String> {
+        Identity::get_identity(&self.extensions())
+    }
 }
 
 /// Extractor implementation for Identity type.
