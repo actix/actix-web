@@ -15,7 +15,7 @@
   ```
 
 
-## 1.0
+## 1.0.0
 
 * Resource registration. 1.0 version uses generalized resource
   registration via `.service()` method.

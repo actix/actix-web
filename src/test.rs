@@ -7,7 +7,7 @@ use actix_http::http::{HttpTryFrom, Method, StatusCode, Uri, Version};
 use actix_http::test::TestRequest as HttpTestRequest;
 use actix_http::{cookie::Cookie, Extensions, Request};
 use actix_router::{Path, ResourceDef, Url};
-use actix_rt::Runtime;
+use actix_rt::{System, SystemRunner};
 use actix_server_config::ServerConfig;
 use actix_service::{IntoNewService, IntoService, NewService, Service};
 use bytes::{Bytes, BytesMut};
@@ -29,14 +29,14 @@ use crate::{Error, HttpRequest, HttpResponse};
 
 thread_local! {
     static RT: RefCell<Inner> = {
-        RefCell::new(Inner(Some(Runtime::new().unwrap())))
+        RefCell::new(Inner(Some(System::builder().build())))
     };
 }
 
-struct Inner(Option<Runtime>);
+struct Inner(Option<SystemRunner>);
 
 impl Inner {
-    fn get_mut(&mut self) -> &mut Runtime {
+    fn get_mut(&mut self) -> &mut SystemRunner {
         self.0.as_mut().unwrap()
     }
 }
@@ -709,6 +709,44 @@ mod tests {
         let mut app = init_service(
             App::new().service(web::resource("/index.html").to_async(async_with_block)),
         );
+
+        let req = TestRequest::post().uri("/index.html").to_request();
+        let res = block_fn(|| app.call(req)).unwrap();
+        assert!(res.status().is_success());
+    }
+
+    #[test]
+    fn test_actor() {
+        use actix::Actor;
+
+        struct MyActor;
+
+        struct Num(usize);
+        impl actix::Message for Num {
+            type Result = usize;
+        }
+        impl actix::Actor for MyActor {
+            type Context = actix::Context<Self>;
+        }
+        impl actix::Handler<Num> for MyActor {
+            type Result = usize;
+            fn handle(&mut self, msg: Num, _: &mut Self::Context) -> Self::Result {
+                msg.0
+            }
+        }
+
+        let addr = run_on(|| MyActor.start());
+        let mut app = init_service(App::new().service(
+            web::resource("/index.html").to_async(move || {
+                addr.send(Num(1)).from_err().and_then(|res| {
+                    if res == 1 {
+                        HttpResponse::Ok()
+                    } else {
+                        HttpResponse::BadRequest()
+                    }
+                })
+            }),
+        ));
 
         let req = TestRequest::post().uri("/index.html").to_request();
         let res = block_fn(|| app.call(req)).unwrap();

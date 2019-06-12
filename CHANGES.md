@@ -12,6 +12,8 @@
 
 * Move identity middleware to `actix-identity` crate.
 
+* Allow to test an app that uses async actors #897
+
 
 ## [1.0.0] - 2019-06-05
 
