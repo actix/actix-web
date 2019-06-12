@@ -27,3 +27,4 @@ time = "0.1.42"
 [dev-dependencies]
 actix-rt = "0.2.2"
 actix-http = "0.2.3"
+bytes = "0.4"

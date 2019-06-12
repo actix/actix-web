@@ -14,6 +14,8 @@
 
 * Allow to test an app that uses async actors #897
 
+* Re-apply patch from #637 #894
+
 
 ## [1.0.0] - 2019-06-05
 

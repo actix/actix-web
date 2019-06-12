@@ -175,15 +175,15 @@ where
     #[inline]
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         let req2 = req.clone();
-        let (limit, err) = req
+        let (limit, err, ctype) = req
             .app_data::<Self::Config>()
-            .map(|c| (c.limit, c.ehandler.clone()))
-            .unwrap_or((32768, None));
+            .map(|c| (c.limit, c.ehandler.clone(), c.content_type.clone()))
+            .unwrap_or((32768, None, None));
 
         let path = req.path().to_string();
 
         Box::new(
-            JsonBody::new(req, payload)
+            JsonBody::new(req, payload, ctype)
                 .limit(limit)
                 .map_err(move |e| {
                     log::debug!(
@@ -224,6 +224,9 @@ where
 ///             // change json extractor configuration
 ///             web::Json::<Info>::configure(|cfg| {
 ///                 cfg.limit(4096)
+///                    .content_type(|mime| {  // <- accept text/plain content type
+///                         mime.type_() == mime::TEXT && mime.subtype() == mime::PLAIN
+///                    })
 ///                    .error_handler(|err, req| {  // <- create custom error response
 ///                         error::InternalError::from_response(
 ///                             err, HttpResponse::Conflict().finish()).into()
@@ -237,6 +240,7 @@ where
 pub struct JsonConfig {
     limit: usize,
     ehandler: Option<Arc<dyn Fn(JsonPayloadError, &HttpRequest) -> Error + Send + Sync>>,
+    content_type: Option<Arc<dyn Fn(mime::Mime) -> bool + Send + Sync>>,
 }
 
 impl JsonConfig {
@@ -254,6 +258,15 @@ impl JsonConfig {
         self.ehandler = Some(Arc::new(f));
         self
     }
+
+    /// Set predicate for allowed content types
+    pub fn content_type<F>(mut self, predicate: F) -> Self
+    where
+        F: Fn(mime::Mime) -> bool + Send + Sync + 'static,
+    {
+        self.content_type = Some(Arc::new(predicate));
+        self
+    }
 }
 
 impl Default for JsonConfig {
@@ -261,6 +274,7 @@ impl Default for JsonConfig {
         JsonConfig {
             limit: 32768,
             ehandler: None,
+            content_type: None,
         }
     }
 }
@@ -271,6 +285,7 @@ impl Default for JsonConfig {
 /// Returns error:
 ///
 /// * content type is not `application/json`
+///   (unless specified in [`JsonConfig`](struct.JsonConfig.html))
 /// * content length is greater than 256k
 pub struct JsonBody<U> {
     limit: usize,
@@ -285,13 +300,20 @@ where
     U: DeserializeOwned + 'static,
 {
     /// Create `JsonBody` for request.
-    pub fn new(req: &HttpRequest, payload: &mut Payload) -> Self {
+    pub fn new(
+        req: &HttpRequest,
+        payload: &mut Payload,
+        ctype: Option<Arc<dyn Fn(mime::Mime) -> bool + Send + Sync>>,
+    ) -> Self {
         // check content-type
         let json = if let Ok(Some(mime)) = req.mime_type() {
-            mime.subtype() == mime::JSON || mime.suffix() == Some(mime::JSON)
+            mime.subtype() == mime::JSON
+                || mime.suffix() == Some(mime::JSON)
+                || ctype.as_ref().map_or(false, |predicate| predicate(mime))
         } else {
             false
         };
+
         if !json {
             return JsonBody {
                 limit: 262_144,
@@ -512,7 +534,7 @@ mod tests {
     #[test]
     fn test_json_body() {
         let (req, mut pl) = TestRequest::default().to_http_parts();
-        let json = block_on(JsonBody::<MyObject>::new(&req, &mut pl));
+        let json = block_on(JsonBody::<MyObject>::new(&req, &mut pl, None));
         assert!(json_eq(json.err().unwrap(), JsonPayloadError::ContentType));
 
         let (req, mut pl) = TestRequest::default()
@@ -521,7 +543,7 @@ mod tests {
                 header::HeaderValue::from_static("application/text"),
             )
             .to_http_parts();
-        let json = block_on(JsonBody::<MyObject>::new(&req, &mut pl));
+        let json = block_on(JsonBody::<MyObject>::new(&req, &mut pl, None));
         assert!(json_eq(json.err().unwrap(), JsonPayloadError::ContentType));
 
         let (req, mut pl) = TestRequest::default()
@@ -535,7 +557,7 @@ mod tests {
             )
             .to_http_parts();
 
-        let json = block_on(JsonBody::<MyObject>::new(&req, &mut pl).limit(100));
+        let json = block_on(JsonBody::<MyObject>::new(&req, &mut pl, None).limit(100));
         assert!(json_eq(json.err().unwrap(), JsonPayloadError::Overflow));
 
         let (req, mut pl) = TestRequest::default()
@@ -550,12 +572,70 @@ mod tests {
             .set_payload(Bytes::from_static(b"{\"name\": \"test\"}"))
             .to_http_parts();
 
-        let json = block_on(JsonBody::<MyObject>::new(&req, &mut pl));
+        let json = block_on(JsonBody::<MyObject>::new(&req, &mut pl, None));
         assert_eq!(
             json.ok().unwrap(),
             MyObject {
                 name: "test".to_owned()
             }
         );
+    }
+
+    #[test]
+    fn test_with_json_and_bad_content_type() {
+        let (req, mut pl) = TestRequest::with_header(
+            header::CONTENT_TYPE,
+            header::HeaderValue::from_static("text/plain"),
+        )
+        .header(
+            header::CONTENT_LENGTH,
+            header::HeaderValue::from_static("16"),
+        )
+        .set_payload(Bytes::from_static(b"{\"name\": \"test\"}"))
+        .data(JsonConfig::default().limit(4096))
+        .to_http_parts();
+
+        let s = block_on(Json::<MyObject>::from_request(&req, &mut pl));
+        assert!(s.is_err())
+    }
+
+    #[test]
+    fn test_with_json_and_good_custom_content_type() {
+        let (req, mut pl) = TestRequest::with_header(
+            header::CONTENT_TYPE,
+            header::HeaderValue::from_static("text/plain"),
+        )
+        .header(
+            header::CONTENT_LENGTH,
+            header::HeaderValue::from_static("16"),
+        )
+        .set_payload(Bytes::from_static(b"{\"name\": \"test\"}"))
+        .data(JsonConfig::default().content_type(|mime: mime::Mime| {
+            mime.type_() == mime::TEXT && mime.subtype() == mime::PLAIN
+        }))
+        .to_http_parts();
+
+        let s = block_on(Json::<MyObject>::from_request(&req, &mut pl));
+        assert!(s.is_ok())
+    }
+
+    #[test]
+    fn test_with_json_and_bad_custom_content_type() {
+        let (req, mut pl) = TestRequest::with_header(
+            header::CONTENT_TYPE,
+            header::HeaderValue::from_static("text/html"),
+        )
+        .header(
+            header::CONTENT_LENGTH,
+            header::HeaderValue::from_static("16"),
+        )
+        .set_payload(Bytes::from_static(b"{\"name\": \"test\"}"))
+        .data(JsonConfig::default().content_type(|mime: mime::Mime| {
+            mime.type_() == mime::TEXT && mime.subtype() == mime::PLAIN
+        }))
+        .to_http_parts();
+
+        let s = block_on(Json::<MyObject>::from_request(&req, &mut pl));
+        assert!(s.is_err())
     }
 }
