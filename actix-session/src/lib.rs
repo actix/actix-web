@@ -130,25 +130,31 @@ impl Session {
     /// Set a `value` from the session.
     pub fn set<T: Serialize>(&self, key: &str, value: T) -> Result<(), Error> {
         let mut inner = self.0.borrow_mut();
-        inner.status = SessionStatus::Changed;
-        inner
-            .state
-            .insert(key.to_owned(), serde_json::to_string(&value)?);
+        if inner.status != SessionStatus::Purged {
+            inner.status = SessionStatus::Changed;
+            inner
+                .state
+                .insert(key.to_owned(), serde_json::to_string(&value)?);
+        }
         Ok(())
     }
 
     /// Remove value from the session.
     pub fn remove(&self, key: &str) {
         let mut inner = self.0.borrow_mut();
-        inner.status = SessionStatus::Changed;
-        inner.state.remove(key);
+        if inner.status != SessionStatus::Purged {
+            inner.status = SessionStatus::Changed;
+            inner.state.remove(key);
+        }
     }
 
     /// Clear the session.
     pub fn clear(&self) {
         let mut inner = self.0.borrow_mut();
-        inner.status = SessionStatus::Changed;
-        inner.state.clear()
+        if inner.status != SessionStatus::Purged {
+            inner.status = SessionStatus::Changed;
+            inner.state.clear()
+        }
     }
 
     /// Removes session, both client and server side.
@@ -161,7 +167,9 @@ impl Session {
     /// Renews the session key, assigning existing session state to new key.
     pub fn renew(&self) {
         let mut inner = self.0.borrow_mut();
-        inner.status = SessionStatus::Renewed;
+        if inner.status != SessionStatus::Purged {
+            inner.status = SessionStatus::Renewed;
+        }
     }
 
     pub fn set_session(
