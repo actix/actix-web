@@ -205,7 +205,7 @@ where
 ///
 /// // deserialize `Info` from request's path
 /// fn index(folder: web::Path<Folder>) -> String {
-///     format!("Selected folder: {}!", folder)
+///     format!("Selected folder: {:?}!", folder)
 /// }
 ///
 /// fn main() {
