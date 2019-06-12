@@ -8,7 +8,7 @@ use actix_router::PathDeserializer;
 use serde::de;
 
 use crate::dev::Payload;
-use crate::error::PathPayloadError;
+use crate::error::PathError;
 use crate::request::HttpRequest;
 use crate::FromRequest;
 
@@ -178,7 +178,7 @@ where
                     req.path()
                 );
                 if let Some(error_handler) = error_handler {
-                    let e = PathPayloadError::Deserialize(e);
+                    let e = PathError::Deserialize(e);
                     (error_handler)(e, req)
                 } else {
                     ErrorNotFound(e)
@@ -190,48 +190,48 @@ where
 /// Path extractor configuration
 ///
 /// ```rust
-// #[macro_use]
-// extern crate serde_derive;
-// use actix_web::web::PathConfig;
-// use actix_web::{error, web, App, FromRequest, HttpResponse};
-
-// #[derive(Deserialize, Debug)]
-// enum Folder {
-//     #[serde(rename = "inbox")]
-//     Inbox,
-//     #[serde(rename = "outbox")]
-//     Outbox,
-// }
-
-// /// deserialize `Info` from request's path
-// fn index(folder: web::Path<Folder>) -> String {
-//     format!("Selected folder: {}!", folder)
-// }
-
-// fn main() {
-//     let app = App::new().service(
-//         web::resource("messages/{folder}")
-//             .data(PathConfig::default().error_handler(|err, req| {
-//                 error::InternalError::from_response(
-//                     err,
-//                     HttpResponse::Conflict().finish(),
-//                 )
-//                 .into()
-//             }))
-//             .route(web::post().to(index)),
-//     );
-// }
+/// # #[macro_use]
+/// # extern crate serde_derive;
+/// use actix_web::web::PathConfig;
+/// use actix_web::{error, web, App, FromRequest, HttpResponse};
+///
+/// #[derive(Deserialize, Debug)]
+/// enum Folder {
+///     #[serde(rename = "inbox")]
+///     Inbox,
+///     #[serde(rename = "outbox")]
+///     Outbox,
+/// }
+///
+/// // deserialize `Info` from request's path
+/// fn index(folder: web::Path<Folder>) -> String {
+///     format!("Selected folder: {}!", folder)
+/// }
+///
+/// fn main() {
+///     let app = App::new().service(
+///         web::resource("/messages/{folder}")
+///             .data(PathConfig::default().error_handler(|err, req| {
+///                 error::InternalError::from_response(
+///                     err,
+///                     HttpResponse::Conflict().finish(),
+///                 )
+///                 .into()
+///             }))
+///             .route(web::post().to(index)),
+///     );
+/// }
 /// ```
 #[derive(Clone)]
 pub struct PathConfig {
-    ehandler: Option<Arc<Fn(PathPayloadError, &HttpRequest) -> Error + Send + Sync>>,
+    ehandler: Option<Arc<Fn(PathError, &HttpRequest) -> Error + Send + Sync>>,
 }
 
 impl PathConfig {
     /// Set custom error handler
     pub fn error_handler<F>(mut self, f: F) -> Self
     where
-        F: Fn(PathPayloadError, &HttpRequest) -> Error + Send + Sync + 'static,
+        F: Fn(PathError, &HttpRequest) -> Error + Send + Sync + 'static,
     {
         self.ehandler = Some(Arc::new(f));
         self
@@ -252,6 +252,7 @@ mod tests {
 
     use super::*;
     use crate::test::{block_on, TestRequest};
+    use crate::{error, http, HttpResponse};
 
     #[derive(Deserialize, Debug, Display)]
     #[display(fmt = "MyStruct({}, {})", key, value)]
@@ -347,4 +348,21 @@ mod tests {
         assert_eq!(res[1], "32".to_owned());
     }
 
+    #[test]
+    fn test_custom_err_handler() {
+        let (req, mut pl) = TestRequest::with_uri("/name/user1/")
+            .data(PathConfig::default().error_handler(|err, _| {
+                error::InternalError::from_response(
+                    err,
+                    HttpResponse::Conflict().finish(),
+                )
+                .into()
+            }))
+            .to_http_parts();
+
+        let s = block_on(Path::<(usize,)>::from_request(&req, &mut pl)).unwrap_err();
+        let res: HttpResponse = s.into();
+
+        assert_eq!(res.status(), http::StatusCode::CONFLICT);
+    }
 }

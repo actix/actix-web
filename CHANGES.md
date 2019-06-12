@@ -4,6 +4,8 @@
 
 ### Add
 
+* Add support for PathConfig #903
+
 * Add `middleware::identity::RequestIdentity` trait to `get_identity` from `HttpMessage`.
 
 ### Changes
