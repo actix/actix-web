@@ -1,3 +1,20 @@
+## 1.0.1
+
+* Identity middleware has been moved to `actix-identity` crate
+
+  instead of
+
+  ```rust
+  use actix_web::middleware::identity::{Identity, CookieIdentityPolicy, IdentityService};
+  ```
+
+  use
+
+  ```rust
+  use actix_identity::{Identity, CookieIdentityPolicy, IdentityService};
+  ```
+
+
 ## 1.0
 
 * Resource registration. 1.0 version uses generalized resource

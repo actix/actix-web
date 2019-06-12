@@ -70,7 +70,7 @@
 //! * `ssl` - enables ssl support via `openssl` crate, supports `http/2`
 //! * `rust-tls` - enables ssl support via `rustls` crate, supports `http/2`
 //! * `secure-cookies` - enables secure cookies support, includes `ring` crate as
-//!   dependency (default enabled)
+//!   dependency
 //! * `brotli` - enables `brotli` compression support, requires `c`
 //!   compiler (default enabled)
 //! * `flate2-zlib` - enables `gzip`, `deflate` compression support, requires

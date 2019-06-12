@@ -1,6 +1,6 @@
 # Changes
 
-## [1.0.x] - 2019-xx-xx
+## [1.0.1] - 2019-06-xx
 
 ### Add
 
@@ -8,7 +8,9 @@
 
 ### Changes
 
-### Fixed
+* Disable default feature `secure-cookies`.
+
+* Move identity middleware to `actix-identity` crate.
 
 
 ## [1.0.0] - 2019-06-05

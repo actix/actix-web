@@ -34,6 +34,7 @@ members = [
   "actix-files",
   "actix-framed",
   "actix-session",
+  "actix-identity",
   "actix-multipart",
   "actix-web-actors",
   "actix-web-codegen",
@@ -41,7 +42,7 @@ members = [
 ]
 
 [features]
-default = ["brotli", "flate2-zlib", "secure-cookies", "client", "fail"]
+default = ["brotli", "flate2-zlib", "client", "fail"]
 
 # http client
 client = ["awc"]
@@ -77,7 +78,7 @@ actix-http = "0.2.3"
 actix-server = "0.5.1"
 actix-server-config = "0.1.1"
 actix-threadpool = "0.1.1"
-awc = { version = "0.2.0", optional = true }
+awc = { version = "0.2.1", optional = true }
 
 bytes = "0.4"
 derive_more = "0.14"

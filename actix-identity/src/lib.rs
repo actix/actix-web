@@ -10,12 +10,11 @@
 //! uses cookies as identity storage.
 //!
 //! To access current request identity
-//! [**Identity**](trait.Identity.html) extractor should be used.
+//! [**Identity**](struct.Identity.html) extractor should be used.
 //!
 //! ```rust
-//! use actix_web::middleware::identity::Identity;
-//! use actix_web::middleware::identity::{CookieIdentityPolicy, IdentityService};
 //! use actix_web::*;
+//! use actix_identity::{Identity, CookieIdentityPolicy, IdentityService};
 //!
 //! fn index(id: Identity) -> String {
 //!     // access request identity
@@ -39,7 +38,7 @@
 //! fn main() {
 //!     let app = App::new().wrap(IdentityService::new(
 //!         // <- create identity middleware
-//!         CookieIdentityPolicy::new(&[0; 32])    // <- create cookie session backend
+//!         CookieIdentityPolicy::new(&[0; 32])    // <- create cookie identity policy
 //!               .name("auth-cookie")
 //!               .secure(false)))
 //!         .service(web::resource("/index.html").to(index))
@@ -57,20 +56,17 @@ use futures::{Future, IntoFuture, Poll};
 use serde::{Deserialize, Serialize};
 use time::Duration;
 
-use crate::cookie::{Cookie, CookieJar, Key, SameSite};
-use crate::error::{Error, Result};
-use crate::http::header::{self, HeaderValue};
-use crate::service::{ServiceRequest, ServiceResponse};
-use crate::{
-    dev::{Extensions, Payload},
-    FromRequest, HttpMessage, HttpRequest,
-};
+use actix_web::cookie::{Cookie, CookieJar, Key, SameSite};
+use actix_web::dev::{Extensions, Payload, ServiceRequest, ServiceResponse};
+use actix_web::error::{Error, Result};
+use actix_web::http::header::{self, HeaderValue};
+use actix_web::{FromRequest, HttpMessage, HttpRequest};
 
 /// The extractor type to obtain your identity from a request.
 ///
 /// ```rust
 /// use actix_web::*;
-/// use actix_web::middleware::identity::Identity;
+/// use actix_identity::Identity;
 ///
 /// fn index(id: Identity) -> Result<String> {
 ///     // access request identity
@@ -134,7 +130,9 @@ struct IdentityItem {
 }
 
 /// Helper trait that allows to get Identity.
+///
 /// It could be used in middleware but identity policy must be set before any other middleware that needs identity
+/// RequestIdentity is implemented both for `ServiceRequest` and `HttpRequest`.
 pub trait RequestIdentity {
     fn get_identity(&self) -> Option<String>;
 }
@@ -152,7 +150,7 @@ where
 ///
 /// ```rust
 /// # use actix_web::*;
-/// use actix_web::middleware::identity::Identity;
+/// use actix_identity::Identity;
 ///
 /// fn index(id: Identity) -> String {
 ///     // access request identity
@@ -199,7 +197,7 @@ pub trait IdentityPolicy: Sized + 'static {
 ///
 /// ```rust
 /// use actix_web::App;
-/// use actix_web::middleware::identity::{CookieIdentityPolicy, IdentityService};
+/// use actix_identity::{CookieIdentityPolicy, IdentityService};
 ///
 /// fn main() {
 ///     let app = App::new().wrap(IdentityService::new(
@@ -464,9 +462,8 @@ impl CookieIdentityInner {
 /// # Example
 ///
 /// ```rust
-/// # extern crate actix_web;
-/// use actix_web::middleware::identity::{CookieIdentityPolicy, IdentityService};
 /// use actix_web::App;
+/// use actix_identity::{CookieIdentityPolicy, IdentityService};
 ///
 /// fn main() {
 ///     let app = App::new().wrap(IdentityService::new(
@@ -612,12 +609,12 @@ impl IdentityPolicy for CookieIdentityPolicy {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::http::StatusCode;
-    use crate::test::{self, TestRequest};
-    use crate::{web, App, HttpResponse};
-
     use std::borrow::Borrow;
+
+    use super::*;
+    use actix_web::http::StatusCode;
+    use actix_web::test::{self, TestRequest};
+    use actix_web::{web, App, Error, HttpResponse};
 
     const COOKIE_KEY_MASTER: [u8; 32] = [0; 32];
     const COOKIE_NAME: &'static str = "actix_auth";
@@ -739,8 +736,8 @@ mod tests {
         f: F,
     ) -> impl actix_service::Service<
         Request = actix_http::Request,
-        Response = ServiceResponse<actix_http::body::Body>,
-        Error = actix_http::Error,
+        Response = ServiceResponse<actix_web::body::Body>,
+        Error = Error,
     > {
         test::init_service(
             App::new()
