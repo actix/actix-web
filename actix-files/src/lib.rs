@@ -927,6 +927,29 @@ mod tests {
     }
 
     #[test]
+    fn test_head_content_length_headers() {
+        let mut srv = test::init_service(
+            App::new().service(Files::new("test", ".").index_file("tests/test.binary")),
+        );
+
+        // Valid range header
+        let request = TestRequest::default()
+            .method(Method::HEAD)
+            .uri("/t%65st/tests/test.binary")
+            .to_request();
+        let response = test::call_service(&mut srv, request);
+
+        let contentlength = response
+            .headers()
+            .get(header::CONTENT_LENGTH)
+            .unwrap()
+            .to_str()
+            .unwrap();
+
+        assert_eq!(contentlength, "100");
+    }
+
+    #[test]
     fn test_static_files_with_spaces() {
         let mut srv = test::init_service(
             App::new().service(Files::new("/", ".").index_file("Cargo.toml")),
