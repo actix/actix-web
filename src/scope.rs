@@ -1135,4 +1135,24 @@ mod tests {
         let body = read_body(resp);
         assert_eq!(body, &b"https://youtube.com/watch/xxxxxx"[..]);
     }
+
+    #[test]
+    fn test_url_for_nested() {
+        let mut srv = init_service(App::new().service(web::scope("/a").service(
+            web::scope("/b").service(web::resource("/c/{stuff}").name("c").route(
+                web::get().to(|req: HttpRequest| {
+                    HttpResponse::Ok()
+                        .body(format!("{}", req.url_for("c", &["12345"]).unwrap()))
+                }),
+            )),
+        )));
+        let req = TestRequest::with_uri("/a/b/c/test").to_request();
+        let resp = call_service(&mut srv, req);
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = read_body(resp);
+        assert_eq!(
+            body,
+            Bytes::from_static(b"http://localhost:8080/a/b/c/12345")
+        );
+    }
 }

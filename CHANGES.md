@@ -20,6 +20,10 @@
 
 * Re-apply patch from #637 #894
 
+### Fixed
+
+* HttpRequest::url_for is broken with nested scopes #915
+
 
 ## [1.0.0] - 2019-06-05
 
