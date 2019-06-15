@@ -10,9 +10,11 @@
 
 ### Changes
 
-* Disable default feature `secure-cookies`.
+* Move cors middleware to `actix-cors` crate.
 
 * Move identity middleware to `actix-identity` crate.
+
+* Disable default feature `secure-cookies`.
 
 * Allow to test an app that uses async actors #897
 
