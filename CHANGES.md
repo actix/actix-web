@@ -10,13 +10,19 @@
 
 ### Changes
 
-* Disable default feature `secure-cookies`.
+* Move cors middleware to `actix-cors` crate.
 
 * Move identity middleware to `actix-identity` crate.
+
+* Disable default feature `secure-cookies`.
 
 * Allow to test an app that uses async actors #897
 
 * Re-apply patch from #637 #894
+
+### Fixed
+
+* HttpRequest::url_for is broken with nested scopes #915
 
 
 ## [1.0.0] - 2019-06-05

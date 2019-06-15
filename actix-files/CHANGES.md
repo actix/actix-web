@@ -1,8 +1,10 @@
 # Changes
 
-## [0.1.2] - 2019-06-06
+## [0.1.2] - 2019-06-13
 
-* Fix ring dependency from actix-web default features for #741.
+* Content-Length is 0 for NamedFile HEAD request #914
+
+* Fix ring dependency from actix-web default features for #741
 
 ## [0.1.1] - 2019-06-01
 

@@ -1,5 +1,19 @@
 ## 1.0.1
 
+* Cors middleware has been moved to `actix-cors` crate
+
+  instead of
+
+  ```rust
+  use actix_web::middleware::cors::Cors;
+  ```
+
+  use
+
+  ```rust
+  use actix_cors::Cors;
+  ```
+
 * Identity middleware has been moved to `actix-identity` crate
 
   instead of

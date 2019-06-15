@@ -225,7 +225,6 @@ where
     /// It is also possible to use static files as default service.
     ///
     /// ```rust
-    /// use actix_files::Files;
     /// use actix_web::{web, App, HttpResponse};
     ///
     /// fn main() {
@@ -233,7 +232,7 @@ where
     ///         .service(
     ///             web::resource("/index.html").to(|| HttpResponse::Ok()))
     ///         .default_service(
-    ///             Files::new("", "./static")
+    ///             web::to(|| HttpResponse::NotFound())
     ///         );
     /// }
     /// ```

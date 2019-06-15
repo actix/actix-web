@@ -422,20 +422,16 @@ impl Responder for NamedFile {
             return Ok(resp.status(StatusCode::NOT_MODIFIED).finish());
         }
 
-        if *req.method() == Method::HEAD {
-            Ok(resp.finish())
-        } else {
-            let reader = ChunkedReadFile {
-                offset,
-                size: length,
-                file: Some(self.file),
-                fut: None,
-                counter: 0,
-            };
-            if offset != 0 || length != self.md.len() {
-                return Ok(resp.status(StatusCode::PARTIAL_CONTENT).streaming(reader));
-            };
-            Ok(resp.body(SizedStream::new(length, reader)))
-        }
+        let reader = ChunkedReadFile {
+            offset,
+            size: length,
+            file: Some(self.file),
+            fut: None,
+            counter: 0,
+        };
+        if offset != 0 || length != self.md.len() {
+            return Ok(resp.status(StatusCode::PARTIAL_CONTENT).streaming(reader));
+        };
+        Ok(resp.body(SizedStream::new(length, reader)))
     }
 }
