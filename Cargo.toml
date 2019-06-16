@@ -73,12 +73,12 @@ depracated = ["actix-cors", "actix-identity"]
 
 [dependencies]
 actix-codec = "0.1.2"
-actix-service = "0.4.0"
+actix-service = "0.4.1"
 actix-utils = "0.4.1"
 actix-router = "0.1.5"
 actix-rt = "0.2.2"
 actix-web-codegen = "0.1.2"
-actix-http = "0.2.3"
+actix-http = "0.2.4"
 actix-server = "0.5.1"
 actix-server-config = "0.1.1"
 actix-threadpool = "0.1.1"
@@ -110,7 +110,7 @@ rustls = { version = "0.15", optional = true }
 
 [dev-dependencies]
 actix = { version = "0.8.3" }
-actix-http = { version = "0.2.3", features=["ssl", "brotli", "flate2-zlib"] }
+actix-http = { version = "0.2.4", features=["ssl", "brotli", "flate2-zlib"] }
 actix-http-test = { version = "0.2.0", features=["ssl"] }
 rand = "0.6"
 env_logger = "0.6"
