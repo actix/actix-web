@@ -89,10 +89,10 @@ actix-cors = { version = "0.1.0", optional = true }
 actix-identity = { version = "0.1.0", optional = true  }
 
 bytes = "0.4"
-derive_more = "0.14"
+derive_more = "0.15.0"
 encoding = "0.2"
 futures = "0.1.25"
-hashbrown = "0.3.1"
+hashbrown = "0.5.0"
 log = "0.4"
 mime = "0.3"
 net2 = "0.2.33"

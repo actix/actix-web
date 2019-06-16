@@ -1,5 +1,12 @@
 # Changes
 
+## [0.2.4] - 2019-06-16
+
+### Fixed
+
+* Do not compress NoContent (204) responses #918
+
+
 ## [0.2.3] - 2019-06-02
 
 ### Added

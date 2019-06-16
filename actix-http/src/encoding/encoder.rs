@@ -33,6 +33,7 @@ impl<B: MessageBody> Encoder<B> {
     ) -> ResponseBody<Encoder<B>> {
         let can_encode = !(head.headers().contains_key(&CONTENT_ENCODING)
             || head.status == StatusCode::SWITCHING_PROTOCOLS
+            || head.status == StatusCode::NO_CONTENT
             || encoding == ContentEncoding::Identity
             || encoding == ContentEncoding::Auto);
 
@@ -122,6 +123,7 @@ impl<B: MessageBody> MessageBody for Encoder<B> {
                 Async::NotReady => return Ok(Async::NotReady),
                 Async::Ready(Some(chunk)) => {
                     if let Some(mut encoder) = self.encoder.take() {
+                        self.encoded += chunk.len();
                         if chunk.len() < INPLACE {
                             encoder.write(&chunk)?;
                             let chunk = encoder.take();
