@@ -123,7 +123,6 @@ impl<B: MessageBody> MessageBody for Encoder<B> {
                 Async::NotReady => return Ok(Async::NotReady),
                 Async::Ready(Some(chunk)) => {
                     if let Some(mut encoder) = self.encoder.take() {
-                        self.encoded += chunk.len();
                         if chunk.len() < INPLACE {
                             encoder.write(&chunk)?;
                             let chunk = encoder.take();
