@@ -1,5 +1,14 @@
 # Changes
 
+## [1.0.2] - 2019-06-17
+
+### Changes
+
+* Move cors middleware to `actix-cors` crate.
+
+* Move identity middleware to `actix-identity` crate.
+
+
 ## [1.0.1] - 2019-06-17
 
 ### Add
