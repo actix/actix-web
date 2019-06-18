@@ -1,8 +1,14 @@
 # Changes
 
+## [1.0.3] - unreleased
+
+### Changed
+
+*  Use `encoding_rs` crate instead of unmaintained `encoding` crate
+
 ## [1.0.2] - 2019-06-17
 
-### Changes
+### Changed
 
 * Move cors middleware to `actix-cors` crate.
 
@@ -17,7 +23,7 @@
 
 * Add `middleware::identity::RequestIdentity` trait to `get_identity` from `HttpMessage`.
 
-### Changes
+### Changed
 
 * Move cors middleware to `actix-cors` crate.
 
@@ -47,7 +53,7 @@
 
 * Add macros for head, options, trace, connect and patch http methods
 
-### Changes
+### Changed
 
 * Drop an unnecessary `Option<_>` indirection around `ServerBuilder` from `HttpServer`. #863
 
@@ -65,7 +71,7 @@
 * Add `Query<T>::from_query()` to extract parameters from a query string. #846
 * `QueryConfig`, similar to `JsonConfig` for customizing error handling of query extractors.
 
-### Changes
+### Changed
 
 * `JsonConfig` is now `Send + Sync`, this implies that `error_handler` must be `Send + Sync` too.
 
@@ -80,7 +86,7 @@
 
 * Allow to set/override app data on scope level
 
-### Changes
+### Changed
 
 * `App::configure` take an `FnOnce` instead of `Fn`
 * Upgrade actix-net crates
