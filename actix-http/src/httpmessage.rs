@@ -1,9 +1,7 @@
 use std::cell::{Ref, RefMut};
 use std::str;
 
-use encoding::all::UTF_8;
-use encoding::label::encoding_from_whatwg_label;
-use encoding::EncodingRef;
+use encoding_rs::{Encoding, UTF_8};
 use http::header;
 use mime::Mime;
 
@@ -59,10 +57,12 @@ pub trait HttpMessage: Sized {
     /// Get content type encoding
     ///
     /// UTF-8 is used by default, If request charset is not set.
-    fn encoding(&self) -> Result<EncodingRef, ContentTypeError> {
+    fn encoding(&self) -> Result<&'static Encoding, ContentTypeError> {
         if let Some(mime_type) = self.mime_type()? {
             if let Some(charset) = mime_type.get_param("charset") {
-                if let Some(enc) = encoding_from_whatwg_label(charset.as_str()) {
+                if let Some(enc) =
+                    Encoding::for_label_no_replacement(charset.as_str().as_bytes())
+                {
                     Ok(enc)
                 } else {
                     Err(ContentTypeError::UnknownEncoding)
@@ -166,8 +166,7 @@ where
 #[cfg(test)]
 mod tests {
     use bytes::Bytes;
-    use encoding::all::ISO_8859_2;
-    use encoding::Encoding;
+    use encoding_rs::ISO_8859_2;
     use mime;
 
     use super::*;
@@ -223,7 +222,7 @@ mod tests {
             "application/json; charset=ISO-8859-2",
         )
         .finish();
-        assert_eq!(ISO_8859_2.name(), req.encoding().unwrap().name());
+        assert_eq!(ISO_8859_2, req.encoding().unwrap());
     }
 
     #[test]
