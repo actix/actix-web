@@ -27,12 +27,22 @@ use futures::{Async, Future, Poll, Stream};
 
 /// Do websocket handshake and start ws actor.
 pub fn start<A, T>(actor: A, req: &HttpRequest, stream: T) -> Result<HttpResponse, Error>
-where
-    A: Actor<Context = WebsocketContext<A>> + StreamHandler<Message, ProtocolError>,
-    T: Stream<Item = Bytes, Error = PayloadError> + 'static,
+    where
+        A: Actor<Context = WebsocketContext<A>> + StreamHandler<Message, ProtocolError>,
+        T: Stream<Item = Bytes, Error = PayloadError> + 'static,
 {
     let mut res = handshake(req)?;
     Ok(res.streaming(WebsocketContext::create(actor, stream)))
+}
+
+/// Do websocket handshake and start ws actor with provided limit.
+pub fn start_with_limit<A, T>(actor: A, req: &HttpRequest, stream: T, limit: usize) -> Result<HttpResponse, Error>
+    where
+        A: Actor<Context = WebsocketContext<A>> + StreamHandler<Message, ProtocolError>,
+        T: Stream<Item = Bytes, Error = PayloadError> + 'static,
+{
+    let mut res = handshake(req)?;
+    Ok(res.streaming(WebsocketContext::create_with_limit(actor, stream, limit)))
 }
 
 /// Prepare `WebSocket` handshake response.
@@ -101,16 +111,16 @@ pub fn handshake(req: &HttpRequest) -> Result<HttpResponseBuilder, HandshakeErro
 
 /// Execution context for `WebSockets` actors
 pub struct WebsocketContext<A>
-where
-    A: Actor<Context = WebsocketContext<A>>,
+    where
+        A: Actor<Context = WebsocketContext<A>>,
 {
     inner: ContextParts<A>,
     messages: VecDeque<Option<Message>>,
 }
 
 impl<A> ActorContext for WebsocketContext<A>
-where
-    A: Actor<Context = Self>,
+    where
+        A: Actor<Context = Self>,
 {
     fn stop(&mut self) {
         self.inner.stop();
@@ -126,19 +136,19 @@ where
 }
 
 impl<A> AsyncContext<A> for WebsocketContext<A>
-where
-    A: Actor<Context = Self>,
+    where
+        A: Actor<Context = Self>,
 {
     fn spawn<F>(&mut self, fut: F) -> SpawnHandle
-    where
-        F: ActorFuture<Item = (), Error = (), Actor = A> + 'static,
+        where
+            F: ActorFuture<Item = (), Error = (), Actor = A> + 'static,
     {
         self.inner.spawn(fut)
     }
 
     fn wait<F>(&mut self, fut: F)
-    where
-        F: ActorFuture<Item = (), Error = (), Actor = A> + 'static,
+        where
+            F: ActorFuture<Item = (), Error = (), Actor = A> + 'static,
     {
         self.inner.wait(fut)
     }
@@ -162,24 +172,34 @@ where
 }
 
 impl<A> WebsocketContext<A>
-where
-    A: Actor<Context = Self>,
+    where
+        A: Actor<Context = Self>,
 {
     #[inline]
     /// Create a new Websocket context from a request and an actor
     pub fn create<S>(actor: A, stream: S) -> impl Stream<Item = Bytes, Error = Error>
-    where
-        A: StreamHandler<Message, ProtocolError>,
-        S: Stream<Item = Bytes, Error = PayloadError> + 'static,
+        where
+            A: StreamHandler<Message, ProtocolError>,
+            S: Stream<Item = Bytes, Error = PayloadError> + 'static,
+    {
+        WebsocketContext::create_with_limit(actor, stream, 65_536)
+    }
+
+    #[inline]
+    /// Create a new Websocket context from a request, an actor, and a limit
+    pub fn create_with_limit<S>(actor: A, stream: S, limit: usize) -> impl Stream<Item = Bytes, Error = Error>
+        where
+            A: StreamHandler<Message, ProtocolError>,
+            S: Stream<Item = Bytes, Error = PayloadError> + 'static,
     {
         let mb = Mailbox::default();
         let mut ctx = WebsocketContext {
             inner: ContextParts::new(mb.sender_producer()),
             messages: VecDeque::new(),
         };
-        ctx.add_stream(WsStream::new(stream));
+        ctx.add_stream(WsStream::new(stream, limit));
 
-        WebsocketContextFut::new(ctx, actor, mb)
+        WebsocketContextFut::new(ctx, actor, mb, limit)
     }
 
     /// Create a new Websocket context
@@ -187,27 +207,41 @@ where
         stream: S,
         f: F,
     ) -> impl Stream<Item = Bytes, Error = Error>
-    where
-        F: FnOnce(&mut Self) -> A + 'static,
-        A: StreamHandler<Message, ProtocolError>,
-        S: Stream<Item = Bytes, Error = PayloadError> + 'static,
+        where
+            F: FnOnce(&mut Self) -> A + 'static,
+            A: StreamHandler<Message, ProtocolError>,
+            S: Stream<Item = Bytes, Error = PayloadError> + 'static,
+    {
+        WebsocketContext::with_factory_codec(stream, f, 65_536)
+    }
+
+    /// Create a new Websocket context with a limit
+    pub fn with_factory_codec<S, F>(
+        stream: S,
+        f: F,
+        limit: usize,
+    ) -> impl Stream<Item = Bytes, Error = Error>
+        where
+            F: FnOnce(&mut Self) -> A + 'static,
+            A: StreamHandler<Message, ProtocolError>,
+            S: Stream<Item = Bytes, Error = PayloadError> + 'static,
     {
         let mb = Mailbox::default();
         let mut ctx = WebsocketContext {
             inner: ContextParts::new(mb.sender_producer()),
             messages: VecDeque::new(),
         };
-        ctx.add_stream(WsStream::new(stream));
+        ctx.add_stream(WsStream::new(stream, limit));
 
         let act = f(&mut ctx);
 
-        WebsocketContextFut::new(ctx, act, mb)
+        WebsocketContextFut::new(ctx, act, mb, limit)
     }
 }
 
 impl<A> WebsocketContext<A>
-where
-    A: Actor<Context = Self>,
+    where
+        A: Actor<Context = Self>,
 {
     /// Write payload
     ///
@@ -266,8 +300,8 @@ where
 }
 
 impl<A> AsyncContextParts<A> for WebsocketContext<A>
-where
-    A: Actor<Context = Self>,
+    where
+        A: Actor<Context = Self>,
 {
     fn parts(&mut self) -> &mut ContextParts<A> {
         &mut self.inner
@@ -275,8 +309,8 @@ where
 }
 
 struct WebsocketContextFut<A>
-where
-    A: Actor<Context = WebsocketContext<A>>,
+    where
+        A: Actor<Context = WebsocketContext<A>>,
 {
     fut: ContextFut<A, WebsocketContext<A>>,
     encoder: Codec,
@@ -285,14 +319,14 @@ where
 }
 
 impl<A> WebsocketContextFut<A>
-where
-    A: Actor<Context = WebsocketContext<A>>,
+    where
+        A: Actor<Context = WebsocketContext<A>>,
 {
-    fn new(ctx: WebsocketContext<A>, act: A, mailbox: Mailbox<A>) -> Self {
+    fn new(ctx: WebsocketContext<A>, act: A, mailbox: Mailbox<A>, limit: usize) -> Self {
         let fut = ContextFut::new(ctx, act, mailbox);
         WebsocketContextFut {
             fut,
-            encoder: Codec::new(),
+            encoder: Codec::new().max_size(limit),
             buf: BytesMut::new(),
             closed: false,
         }
@@ -300,8 +334,8 @@ where
 }
 
 impl<A> Stream for WebsocketContextFut<A>
-where
-    A: Actor<Context = WebsocketContext<A>>,
+    where
+        A: Actor<Context = WebsocketContext<A>>,
 {
     type Item = Bytes;
     type Error = Error;
@@ -332,10 +366,10 @@ where
 }
 
 impl<A, M> ToEnvelope<A, M> for WebsocketContext<A>
-where
-    A: Actor<Context = WebsocketContext<A>> + Handler<M>,
-    M: ActixMessage + Send + 'static,
-    M::Result: Send,
+    where
+        A: Actor<Context = WebsocketContext<A>> + Handler<M>,
+        M: ActixMessage + Send + 'static,
+        M::Result: Send,
 {
     fn pack(msg: M, tx: Option<Sender<M::Result>>) -> Envelope<A> {
         Envelope::new(msg, tx)
@@ -350,13 +384,13 @@ struct WsStream<S> {
 }
 
 impl<S> WsStream<S>
-where
-    S: Stream<Item = Bytes, Error = PayloadError>,
+    where
+        S: Stream<Item = Bytes, Error = PayloadError>,
 {
-    fn new(stream: S) -> Self {
+    fn new(stream: S, limit: usize) -> Self {
         Self {
             stream,
-            decoder: Codec::new(),
+            decoder: Codec::new().max_size(limit),
             buf: BytesMut::new(),
             closed: false,
         }
@@ -364,8 +398,8 @@ where
 }
 
 impl<S> Stream for WsStream<S>
-where
-    S: Stream<Item = Bytes, Error = PayloadError>,
+    where
+        S: Stream<Item = Bytes, Error = PayloadError>,
 {
     type Item = Message;
     type Error = ProtocolError;
