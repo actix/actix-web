@@ -4,8 +4,7 @@ use std::str;
 use actix_http::error::{Error, ErrorBadRequest, PayloadError};
 use actix_http::HttpMessage;
 use bytes::{Bytes, BytesMut};
-use encoding::all::UTF_8;
-use encoding::types::{DecoderTrap, Encoding};
+use encoding_rs::UTF_8;
 use futures::future::{err, Either, FutureResult};
 use futures::{Future, Poll, Stream};
 use mime::Mime;
@@ -208,15 +207,15 @@ impl FromRequest for String {
                 .limit(limit)
                 .from_err()
                 .and_then(move |body| {
-                    let enc: *const Encoding = encoding as *const Encoding;
-                    if enc == UTF_8 {
+                    if encoding == UTF_8 {
                         Ok(str::from_utf8(body.as_ref())
                             .map_err(|_| ErrorBadRequest("Can not decode body"))?
                             .to_owned())
                     } else {
                         Ok(encoding
-                            .decode(&body, DecoderTrap::Strict)
-                            .map_err(|_| ErrorBadRequest("Can not decode body"))?)
+                            .decode_without_bom_handling_and_without_replacement(&body)
+                            .map(|s| s.into_owned())
+                            .ok_or_else(|| ErrorBadRequest("Can not decode body"))?)
                     }
                 }),
         ))
