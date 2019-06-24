@@ -73,7 +73,7 @@ impl<T> Data<T> {
         Data(Arc::new(state))
     }
 
-    /// Get referecnce to inner app data.
+    /// Get reference to inner app data.
     pub fn get_ref(&self) -> &T {
         self.0.as_ref()
     }

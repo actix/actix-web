@@ -1,5 +1,9 @@
 # Changes
 
+## [0.2.2] - 2019-06-16
+
+* Add .put() and .sput() methods
+
 ## [0.2.1] - 2019-06-05
 
 * Add license files

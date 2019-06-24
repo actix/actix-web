@@ -19,5 +19,5 @@ path = "src/lib.rs"
 [dependencies]
 actix-web = "1.0.0"
 actix-service = "0.4.0"
-derive_more = "0.14.1"
+derive_more = "0.15.0"
 futures = "0.1.25"

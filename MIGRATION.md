@@ -31,6 +31,64 @@
 
 ## 1.0.0
 
+* Extractor configuration. In version 1.0 this is handled with the new `Data` mechanism for both setting and retrieving the configuration
+
+  instead of
+    
+  ```rust
+    
+  #[derive(Default)]
+  struct ExtractorConfig {
+     config: String,
+  }
+    
+  impl FromRequest for YourExtractor {
+     type Config = ExtractorConfig;
+     type Result = Result<YourExtractor, Error>;
+  
+     fn from_request(req: &HttpRequest, cfg: &Self::Config) -> Self::Result {
+         println!("use the config: {:?}", cfg.config);
+         ...
+     }
+  }
+    
+  App::new().resource("/route_with_config", |r| {
+     r.post().with_config(handler_fn, |cfg| {
+         cfg.0.config = "test".to_string();
+     })
+  })
+    
+  ```
+    
+  use the HttpRequest to get the configuration like any other `Data` with `req.app_data::<C>()` and set it with the `data()` method on the `resource`
+    
+  ```rust
+  #[derive(Default)]
+  struct ExtractorConfig {
+     config: String,
+  }
+    
+  impl FromRequest for YourExtractor {
+     type Error = Error;
+     type Future = Result<Self, Self::Error>;
+     type Config = ExtractorConfig;
+    
+     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
+         let cfg = req.app_data::<ExtractorConfig>();
+         println!("config data?: {:?}", cfg.unwrap().role);
+         ...
+     }
+  }
+    
+  App::new().service(
+     resource("/route_with_config")
+         .data(ExtractorConfig {
+             config: "test".to_string(),
+         })
+         .route(post().to(handler_fn)),
+  )
+  ```
+  
 * Resource registration. 1.0 version uses generalized resource
   registration via `.service()` method.
 

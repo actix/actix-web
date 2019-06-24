@@ -1,6 +1,6 @@
 [package]
 name = "actix-web"
-version = "1.0.0"
+version = "1.0.2"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix web is a simple, pragmatic and extremely fast web framework for Rust."
 readme = "README.md"
@@ -43,7 +43,7 @@ members = [
 ]
 
 [features]
-default = ["brotli", "flate2-zlib", "client", "fail", "depracated"]
+default = ["brotli", "flate2-zlib", "client", "fail"]
 
 # http client
 client = ["awc"]
@@ -68,31 +68,24 @@ ssl = ["openssl", "actix-server/ssl", "awc/ssl"]
 # rustls
 rust-tls = ["rustls", "actix-server/rust-tls"]
 
-# deprecated middlewares
-depracated = ["actix-cors", "actix-identity"]
-
 [dependencies]
 actix-codec = "0.1.2"
-actix-service = "0.4.0"
+actix-service = "0.4.1"
 actix-utils = "0.4.1"
 actix-router = "0.1.5"
 actix-rt = "0.2.2"
 actix-web-codegen = "0.1.2"
-actix-http = "0.2.3"
+actix-http = "0.2.4"
 actix-server = "0.5.1"
 actix-server-config = "0.1.1"
 actix-threadpool = "0.1.1"
 awc = { version = "0.2.1", optional = true }
 
-# deprecated middlewares
-actix-cors = { version = "0.1.0", optional = true }
-actix-identity = { version = "0.1.0", optional = true  }
-
 bytes = "0.4"
-derive_more = "0.14"
-encoding = "0.2"
+derive_more = "0.15.0"
+encoding_rs = "0.8"
 futures = "0.1.25"
-hashbrown = "0.3.1"
+hashbrown = "0.5.0"
 log = "0.4"
 mime = "0.3"
 net2 = "0.2.33"
@@ -110,8 +103,8 @@ rustls = { version = "0.15", optional = true }
 
 [dev-dependencies]
 actix = { version = "0.8.3" }
-actix-http = { version = "0.2.3", features=["ssl", "brotli", "flate2-zlib"] }
-actix-http-test = { version = "0.2.0", features=["ssl"] }
+actix-http = { version = "0.2.4", features=["ssl", "brotli", "flate2-zlib"] }
+actix-http-test = { version = "0.2.2", features=["ssl"] }
 rand = "0.6"
 env_logger = "0.6"
 serde_derive = "1.0"
@@ -125,7 +118,7 @@ opt-level = 3
 codegen-units = 1
 
 [patch.crates-io]
-# actix-web = { path = "." }
+actix-web = { path = "." }
 actix-http = { path = "actix-http" }
 actix-http-test = { path = "test-server" }
 actix-web-codegen = { path = "actix-web-codegen" }

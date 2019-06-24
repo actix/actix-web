@@ -1,5 +1,18 @@
 # Changes
 
+## [0.2.5] - unreleased
+
+### Changed
+
+*  Use `encoding_rs` crate instead of unmaintained `encoding` crate
+
+## [0.2.4] - 2019-06-16
+
+### Fixed
+
+* Do not compress NoContent (204) responses #918
+
+
 ## [0.2.3] - 2019-06-02
 
 ### Added
@@ -76,7 +89,7 @@
 
 ## [0.1.1] - 2019-04-19
 
-### Changes
+### Changed
 
 * Cookie::max_age() accepts value in seconds
 
