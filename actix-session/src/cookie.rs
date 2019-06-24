@@ -308,7 +308,7 @@ where
         Session::set_session(state.into_iter(), &mut req);
 
         Box::new(self.service.call(req).map(move |mut res| {
-            if let Some(state) = Session::get_changes(&mut res) {
+            if let (_status, Some(state)) = Session::get_changes(&mut res) {
                 res.checked_expr(|res| inner.set_cookie(res, state))
             } else {
                 res
