@@ -130,8 +130,8 @@ where
     A: Actor<Context = Self>,
 {
     fn spawn<F>(&mut self, fut: F) -> SpawnHandle
-        where
-            F: ActorFuture<Item = (), Error = (), Actor = A> + 'static,
+    where
+        F: ActorFuture<Item = (), Error = (), Actor = A> + 'static,
     {
         self.inner.spawn(fut)
     }
@@ -292,8 +292,8 @@ where
 }
 
 struct WebsocketContextFut<A>
-    where
-        A: Actor<Context = WebsocketContext<A>>,
+where
+    A: Actor<Context = WebsocketContext<A>>,
 {
     fut: ContextFut<A, WebsocketContext<A>>,
     encoder: Codec,
