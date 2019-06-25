@@ -27,7 +27,7 @@ type HttpNewService = BoxedNewService<(), ServiceRequest, ServiceResponse, Error
 /// Resource in turn has at least one route.
 /// Route consists of an handlers objects and list of guards
 /// (objects that implement `Guard` trait).
-/// Resources and rouets uses builder-like pattern for configuration.
+/// Resources and routes uses builder-like pattern for configuration.
 /// During request handling, resource object iterate through all routes
 /// and check guards for specific route, if request matches all
 /// guards, route considered matched and route handler get called.
