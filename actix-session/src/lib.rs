@@ -101,7 +101,6 @@ impl UserSession for ServiceRequest {
 #[derive(Default)]
 struct SessionInner {
     state: HashMap<String, String>,
-    changed: bool,
 }
 
 impl Session {
@@ -117,7 +116,6 @@ impl Session {
     /// Set a `value` from the session.
     pub fn set<T: Serialize>(&self, key: &str, value: T) -> Result<(), Error> {
         let mut inner = self.0.borrow_mut();
-        inner.changed = true;
         inner
             .state
             .insert(key.to_owned(), serde_json::to_string(&value)?);
@@ -127,14 +125,12 @@ impl Session {
     /// Remove value from the session.
     pub fn remove(&self, key: &str) {
         let mut inner = self.0.borrow_mut();
-        inner.changed = true;
         inner.state.remove(key);
     }
 
     /// Clear the session.
     pub fn clear(&self) {
         let mut inner = self.0.borrow_mut();
-        inner.changed = true;
         inner.state.clear()
     }
 
