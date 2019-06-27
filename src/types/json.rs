@@ -180,16 +180,14 @@ where
             .map(|c| (c.limit, c.ehandler.clone(), c.content_type.clone()))
             .unwrap_or((32768, None, None));
 
-        let path = req.path().to_string();
-
         Box::new(
             JsonBody::new(req, payload, ctype)
                 .limit(limit)
                 .map_err(move |e| {
                     log::debug!(
                         "Failed to deserialize Json from payload. \
-                         Request path: {:?}",
-                        path
+                         Request path: {}",
+                        req2.path()
                     );
                     if let Some(err) = err {
                         (*err)(e, &req2)
