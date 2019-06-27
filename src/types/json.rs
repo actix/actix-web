@@ -322,14 +322,11 @@ where
             };
         }
 
-        let mut len = None;
-        if let Some(l) = req.headers().get(&CONTENT_LENGTH) {
-            if let Ok(s) = l.to_str() {
-                if let Ok(l) = s.parse::<usize>() {
-                    len = Some(l)
-                }
-            }
-        }
+        let len = req
+            .headers()
+            .get(&CONTENT_LENGTH)
+            .and_then(|l| l.to_str().ok())
+            .and_then(|s| s.parse::<usize>().ok());
         let payload = Decompress::from_headers(payload.take(), req.headers());
 
         JsonBody {
