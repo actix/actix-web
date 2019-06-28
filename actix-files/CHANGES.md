@@ -1,5 +1,10 @@
 # Changes
 
+## [0.1.3] - 2019-06-28
+
+* Do not set `Content-Length` header, let actix-http set it #930
+
+
 ## [0.1.2] - 2019-06-13
 
 * Content-Length is 0 for NamedFile HEAD request #914

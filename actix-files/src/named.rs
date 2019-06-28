@@ -414,8 +414,6 @@ impl Responder for NamedFile {
             };
         };
 
-        resp.header(header::CONTENT_LENGTH, format!("{}", length));
-
         if precondition_failed {
             return Ok(resp.status(StatusCode::PRECONDITION_FAILED).finish());
         } else if not_modified {
