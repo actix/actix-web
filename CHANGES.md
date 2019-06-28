@@ -2,9 +2,14 @@
 
 ## [1.0.3] - unreleased
 
+### Added
+
+* Support asynchronous data factories #850
+
 ### Changed
 
 *  Use `encoding_rs` crate instead of unmaintained `encoding` crate
+
 
 ## [1.0.2] - 2019-06-17
 
@@ -17,7 +22,7 @@
 
 ## [1.0.1] - 2019-06-17
 
-### Add
+### Added
 
 * Add support for PathConfig #903
 
@@ -42,7 +47,7 @@
 
 ## [1.0.0] - 2019-06-05
 
-### Add
+### Added
 
 * Add `Scope::configure()` method.
 

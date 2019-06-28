@@ -25,6 +25,7 @@ type BoxedResponse = Either<
     FutureResult<ServiceResponse, Error>,
     Box<Future<Item = ServiceResponse, Error = Error>>,
 >;
+type FnDataFactory = Box<Fn() -> Box<dyn Future<Item = Box<DataFactory>, Error = ()>>>;
 
 /// Service factory to convert `Request` to a `ServiceRequest<S>`.
 /// It also executes data factories.
@@ -40,6 +41,7 @@ where
 {
     pub(crate) endpoint: T,
     pub(crate) data: Rc<Vec<Box<DataFactory>>>,
+    pub(crate) data_factories: Rc<Vec<FnDataFactory>>,
     pub(crate) config: RefCell<AppConfig>,
     pub(crate) services: Rc<RefCell<Vec<Box<ServiceFactory>>>>,
     pub(crate) default: Option<Rc<HttpNewService>>,
@@ -119,16 +121,12 @@ where
         let rmap = Rc::new(rmap);
         rmap.finish(rmap.clone());
 
-        // create app data container
-        let mut data = Extensions::new();
-        for f in self.data.iter() {
-            f.create(&mut data);
-        }
-
         AppInitResult {
             endpoint: None,
             endpoint_fut: self.endpoint.new_service(&()),
-            data: Rc::new(data),
+            data: self.data.clone(),
+            data_factories: Vec::new(),
+            data_factories_fut: self.data_factories.iter().map(|f| f()).collect(),
             config,
             rmap,
             _t: PhantomData,
@@ -144,7 +142,9 @@ where
     endpoint_fut: T::Future,
     rmap: Rc<ResourceMap>,
     config: AppConfig,
-    data: Rc<Extensions>,
+    data: Rc<Vec<Box<DataFactory>>>,
+    data_factories: Vec<Box<DataFactory>>,
+    data_factories_fut: Vec<Box<dyn Future<Item = Box<DataFactory>, Error = ()>>>,
     _t: PhantomData<B>,
 }
 
@@ -159,21 +159,43 @@ where
     >,
 {
     type Item = AppInitService<T::Service, B>;
-    type Error = T::InitError;
+    type Error = ();
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        // async data factories
+        let mut idx = 0;
+        while idx < self.data_factories_fut.len() {
+            match self.data_factories_fut[idx].poll()? {
+                Async::Ready(f) => {
+                    self.data_factories.push(f);
+                    self.data_factories_fut.remove(idx);
+                }
+                Async::NotReady => idx += 1,
+            }
+        }
+
         if self.endpoint.is_none() {
             if let Async::Ready(srv) = self.endpoint_fut.poll()? {
                 self.endpoint = Some(srv);
             }
         }
 
-        if self.endpoint.is_some() {
+        if self.endpoint.is_some() && self.data_factories_fut.is_empty() {
+            // create app data container
+            let mut data = Extensions::new();
+            for f in self.data.iter() {
+                f.create(&mut data);
+            }
+
+            for f in &self.data_factories {
+                f.create(&mut data);
+            }
+
             Ok(Async::Ready(AppInitService {
                 service: self.endpoint.take().unwrap(),
                 rmap: self.rmap.clone(),
                 config: self.config.clone(),
-                data: self.data.clone(),
+                data: Rc::new(data),
                 pool: HttpRequestPool::create(),
             }))
         } else {
