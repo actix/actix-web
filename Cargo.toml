@@ -1,6 +1,6 @@
 [package]
 name = "actix-web"
-version = "1.0.2"
+version = "1.0.3"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix web is a simple, pragmatic and extremely fast web framework for Rust."
 readme = "README.md"
@@ -71,11 +71,11 @@ rust-tls = ["rustls", "actix-server/rust-tls"]
 [dependencies]
 actix-codec = "0.1.2"
 actix-service = "0.4.1"
-actix-utils = "0.4.1"
+actix-utils = "0.4.2"
 actix-router = "0.1.5"
-actix-rt = "0.2.2"
+actix-rt = "0.2.3"
 actix-web-codegen = "0.1.2"
-actix-http = "0.2.4"
+actix-http = "0.2.5"
 actix-server = "0.5.1"
 actix-server-config = "0.1.1"
 actix-threadpool = "0.1.1"
@@ -103,7 +103,7 @@ rustls = { version = "0.15", optional = true }
 
 [dev-dependencies]
 actix = { version = "0.8.3" }
-actix-http = { version = "0.2.4", features=["ssl", "brotli", "flate2-zlib"] }
+actix-http = { version = "0.2.5", features=["ssl", "brotli", "flate2-zlib"] }
 actix-http-test = { version = "0.2.2", features=["ssl"] }
 rand = "0.6"
 env_logger = "0.6"

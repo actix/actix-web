@@ -1,6 +1,6 @@
 # Changes
 
-## [1.0.3] - unreleased
+## [1.0.3] - 2019-06-28
 
 ### Added
 
