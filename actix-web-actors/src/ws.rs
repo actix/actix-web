@@ -184,10 +184,14 @@ where
 
     #[inline]
     /// Create a new Websocket context from a request, an actor, and a codec
-    pub fn with_codec<S>(actor: A, stream: S, codec: Codec) -> impl Stream<Item = Bytes, Error = Error>
-        where
-            A: StreamHandler<Message, ProtocolError>,
-            S: Stream<Item = Bytes, Error = PayloadError> + 'static,
+    pub fn with_codec<S>(
+        actor: A,
+        stream: S,
+        codec: Codec,
+    ) -> impl Stream<Item = Bytes, Error = Error>
+    where
+        A: StreamHandler<Message, ProtocolError>,
+        S: Stream<Item = Bytes, Error = PayloadError> + 'static,
     {
         let mb = Mailbox::default();
         let mut ctx = WebsocketContext {

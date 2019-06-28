@@ -1,5 +1,9 @@
 # Changes
 
+## [1.0.1] - 2019-06-28
+
+* Allow to use custom ws codec with `WebsocketContext` #925
+
 ## [1.0.0] - 2019-05-29
 
 * Update actix-http and actix-web

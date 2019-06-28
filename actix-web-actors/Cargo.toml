@@ -1,6 +1,6 @@
 [package]
 name = "actix-web-actors"
-version = "1.0.0"
+version = "1.0.1"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix actors support for actix web framework."
 readme = "README.md"
@@ -19,7 +19,7 @@ path = "src/lib.rs"
 
 [dependencies]
 actix = "0.8.3"
-actix-web = "1.0.0"
+actix-web = "1.0.2"
 actix-http = "0.2.4"
 actix-codec = "0.1.2"
 bytes = "0.4"
