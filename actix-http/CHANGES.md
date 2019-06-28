@@ -4,7 +4,10 @@
 
 ### Changed
 
-*  Use `encoding_rs` crate instead of unmaintained `encoding` crate
+* Use `encoding_rs` crate instead of unmaintained `encoding` crate
+
+* Add `Copy` and `Clone` impls for `ws::Codec`
+
 
 ## [0.2.4] - 2019-06-16
 
