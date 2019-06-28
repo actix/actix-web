@@ -1,6 +1,10 @@
 # Changes
 
-## [0.2.5] - unreleased
+## [0.2.5] - 2019-06-28
+
+### Added
+
+* Add `on-connect` callback, `HttpServiceBuilder::on_connect()` #946
 
 ### Changed
 

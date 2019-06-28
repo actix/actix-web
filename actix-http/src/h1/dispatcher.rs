@@ -16,6 +16,8 @@ use crate::body::{Body, BodySize, MessageBody, ResponseBody};
 use crate::config::ServiceConfig;
 use crate::error::{DispatchError, Error};
 use crate::error::{ParseError, PayloadError};
+use crate::helpers::DataFactory;
+use crate::httpmessage::HttpMessage;
 use crate::request::Request;
 use crate::response::Response;
 
@@ -81,6 +83,7 @@ where
     service: CloneableService<S>,
     expect: CloneableService<X>,
     upgrade: Option<CloneableService<U>>,
+    on_connect: Option<Box<dyn DataFactory>>,
     flags: Flags,
     peer_addr: Option<net::SocketAddr>,
     error: Option<DispatchError>,
@@ -174,12 +177,13 @@ where
     U::Error: fmt::Display,
 {
     /// Create http/1 dispatcher.
-    pub fn new(
+    pub(crate) fn new(
         stream: T,
         config: ServiceConfig,
         service: CloneableService<S>,
         expect: CloneableService<X>,
         upgrade: Option<CloneableService<U>>,
+        on_connect: Option<Box<dyn DataFactory>>,
     ) -> Self {
         Dispatcher::with_timeout(
             stream,
@@ -190,11 +194,12 @@ where
             service,
             expect,
             upgrade,
+            on_connect,
         )
     }
 
     /// Create http/1 dispatcher with slow request timeout.
-    pub fn with_timeout(
+    pub(crate) fn with_timeout(
         io: T,
         codec: Codec,
         config: ServiceConfig,
@@ -203,6 +208,7 @@ where
         service: CloneableService<S>,
         expect: CloneableService<X>,
         upgrade: Option<CloneableService<U>>,
+        on_connect: Option<Box<dyn DataFactory>>,
     ) -> Self {
         let keepalive = config.keep_alive_enabled();
         let flags = if keepalive {
@@ -234,6 +240,7 @@ where
                 service,
                 expect,
                 upgrade,
+                on_connect,
                 flags,
                 ka_expire,
                 ka_timer,
@@ -494,6 +501,11 @@ where
                         Message::Item(mut req) => {
                             let pl = self.codec.message_type();
                             req.head_mut().peer_addr = self.peer_addr;
+
+                            // on_connect data
+                            if let Some(ref on_connect) = self.on_connect {
+                                on_connect.set(&mut req.extensions_mut());
+                            }
 
                             if pl == MessageType::Stream && self.upgrade.is_some() {
                                 self.messages.push_back(DispatcherMessage::Upgrade(req));
@@ -850,6 +862,7 @@ mod tests {
                     (|_| ok::<_, Error>(Response::Ok().finish())).into_service(),
                 ),
                 CloneableService::new(ExpectHandler),
+                None,
                 None,
             );
             assert!(h1.poll().is_err());

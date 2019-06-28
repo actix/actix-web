@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 use std::marker::PhantomData;
-use std::{io, net};
+use std::{io, net, rc};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use actix_server_config::{Io, IoStream, ServerConfig as SrvConfig};
@@ -16,6 +16,7 @@ use log::error;
 use crate::body::MessageBody;
 use crate::config::{KeepAlive, ServiceConfig};
 use crate::error::{DispatchError, Error, ParseError, ResponseError};
+use crate::helpers::DataFactory;
 use crate::payload::Payload;
 use crate::request::Request;
 use crate::response::Response;
@@ -26,6 +27,7 @@ use super::dispatcher::Dispatcher;
 pub struct H2Service<T, P, S, B> {
     srv: S,
     cfg: ServiceConfig,
+    on_connect: Option<rc::Rc<Fn(&T) -> Box<dyn DataFactory>>>,
     _t: PhantomData<(T, P, B)>,
 }
 
@@ -43,6 +45,7 @@ where
 
         H2Service {
             cfg,
+            on_connect: None,
             srv: service.into_new_service(),
             _t: PhantomData,
         }
@@ -52,9 +55,19 @@ where
     pub fn with_config<F: IntoNewService<S>>(cfg: ServiceConfig, service: F) -> Self {
         H2Service {
             cfg,
+            on_connect: None,
             srv: service.into_new_service(),
             _t: PhantomData,
         }
+    }
+
+    /// Set on connect callback.
+    pub(crate) fn on_connect(
+        mut self,
+        f: Option<rc::Rc<Fn(&T) -> Box<dyn DataFactory>>>,
+    ) -> Self {
+        self.on_connect = f;
+        self
     }
 }
 
@@ -79,6 +92,7 @@ where
         H2ServiceResponse {
             fut: self.srv.new_service(cfg).into_future(),
             cfg: Some(self.cfg.clone()),
+            on_connect: self.on_connect.clone(),
             _t: PhantomData,
         }
     }
@@ -88,6 +102,7 @@ where
 pub struct H2ServiceResponse<T, P, S: NewService, B> {
     fut: <S::Future as IntoFuture>::Future,
     cfg: Option<ServiceConfig>,
+    on_connect: Option<rc::Rc<Fn(&T) -> Box<dyn DataFactory>>>,
     _t: PhantomData<(T, P, B)>,
 }
 
@@ -107,6 +122,7 @@ where
         let service = try_ready!(self.fut.poll());
         Ok(Async::Ready(H2ServiceHandler::new(
             self.cfg.take().unwrap(),
+            self.on_connect.clone(),
             service,
         )))
     }
@@ -116,6 +132,7 @@ where
 pub struct H2ServiceHandler<T, P, S, B> {
     srv: CloneableService<S>,
     cfg: ServiceConfig,
+    on_connect: Option<rc::Rc<Fn(&T) -> Box<dyn DataFactory>>>,
     _t: PhantomData<(T, P, B)>,
 }
 
@@ -127,9 +144,14 @@ where
     S::Response: Into<Response<B>>,
     B: MessageBody + 'static,
 {
-    fn new(cfg: ServiceConfig, srv: S) -> H2ServiceHandler<T, P, S, B> {
+    fn new(
+        cfg: ServiceConfig,
+        on_connect: Option<rc::Rc<Fn(&T) -> Box<dyn DataFactory>>>,
+        srv: S,
+    ) -> H2ServiceHandler<T, P, S, B> {
         H2ServiceHandler {
             cfg,
+            on_connect,
             srv: CloneableService::new(srv),
             _t: PhantomData,
         }
@@ -161,11 +183,18 @@ where
     fn call(&mut self, req: Self::Request) -> Self::Future {
         let io = req.into_parts().0;
         let peer_addr = io.peer_addr();
+        let on_connect = if let Some(ref on_connect) = self.on_connect {
+            Some(on_connect(&io))
+        } else {
+            None
+        };
+
         H2ServiceHandlerResponse {
             state: State::Handshake(
                 Some(self.srv.clone()),
                 Some(self.cfg.clone()),
                 peer_addr,
+                on_connect,
                 server::handshake(io),
             ),
         }
@@ -181,6 +210,7 @@ where
         Option<CloneableService<S>>,
         Option<ServiceConfig>,
         Option<net::SocketAddr>,
+        Option<Box<dyn DataFactory>>,
         Handshake<T, Bytes>,
     ),
 }
@@ -216,12 +246,14 @@ where
                 ref mut srv,
                 ref mut config,
                 ref peer_addr,
+                ref mut on_connect,
                 ref mut handshake,
             ) => match handshake.poll() {
                 Ok(Async::Ready(conn)) => {
                     self.state = State::Incoming(Dispatcher::new(
                         srv.take().unwrap(),
                         conn,
+                        on_connect.take(),
                         config.take().unwrap(),
                         None,
                         peer_addr.clone(),
