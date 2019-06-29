@@ -28,7 +28,7 @@ use futures::future::{ok, Future, FutureResult};
 use futures::Poll;
 use serde_json::error::Error as JsonError;
 
-use crate::Session;
+use crate::{Session, SessionStatus};
 
 /// Errors that can occur during handling cookie session
 #[derive(Debug, From, Display)]
@@ -308,10 +308,10 @@ where
         Session::set_session(state.into_iter(), &mut req);
 
         Box::new(self.service.call(req).map(move |mut res| {
-            if let (_status, Some(state)) = Session::get_changes(&mut res) {
-                res.checked_expr(|res| inner.set_cookie(res, state))
-            } else {
-                res
+            match Session::get_changes(&mut res) {
+                (SessionStatus::Changed, Some(state)) =>
+                    res.checked_expr(|res| inner.set_cookie(res, state)),
+                _ => res
             }
         }))
     }
