@@ -1,5 +1,12 @@
 # Changes
 
+## [0.2.2] - TBD
+
+### Changed
+
+* Always append a colon after username in basic auth
+
+
 ## [0.2.1] - 2019-06-05
 
 ### Added
