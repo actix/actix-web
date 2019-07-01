@@ -1,5 +1,11 @@
 # Changes
 
+## [0.2.2] - TBD
+
+### Changed
+
+* Upgrade `rand` dependency version to 0.7
+
 ## [0.2.1] - 2019-06-05
 
 ### Added
