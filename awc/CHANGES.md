@@ -6,6 +6,8 @@
 
 * Always append a colon after username in basic auth
 
+* Upgrade `rand` dependency version to 0.7
+
 
 ## [0.2.1] - 2019-06-05
 
