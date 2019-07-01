@@ -3,7 +3,7 @@ sudo: required
 dist: trusty
 
 cache:
-  cargo: true
+  # cargo: true
   apt: true
 
 matrix:
