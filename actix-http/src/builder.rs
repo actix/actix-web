@@ -1,5 +1,6 @@
 use std::fmt;
 use std::marker::PhantomData;
+use std::rc::Rc;
 
 use actix_codec::Framed;
 use actix_server_config::ServerConfig as SrvConfig;
@@ -10,6 +11,7 @@ use crate::config::{KeepAlive, ServiceConfig};
 use crate::error::Error;
 use crate::h1::{Codec, ExpectHandler, H1Service, UpgradeHandler};
 use crate::h2::H2Service;
+use crate::helpers::{Data, DataFactory};
 use crate::request::Request;
 use crate::response::Response;
 use crate::service::HttpService;
@@ -24,6 +26,7 @@ pub struct HttpServiceBuilder<T, S, X = ExpectHandler, U = UpgradeHandler<T>> {
     client_disconnect: u64,
     expect: X,
     upgrade: Option<U>,
+    on_connect: Option<Rc<Fn(&T) -> Box<dyn DataFactory>>>,
     _t: PhantomData<(T, S)>,
 }
 
@@ -41,6 +44,7 @@ where
             client_disconnect: 0,
             expect: ExpectHandler,
             upgrade: None,
+            on_connect: None,
             _t: PhantomData,
         }
     }
@@ -115,6 +119,7 @@ where
             client_disconnect: self.client_disconnect,
             expect: expect.into_new_service(),
             upgrade: self.upgrade,
+            on_connect: self.on_connect,
             _t: PhantomData,
         }
     }
@@ -140,8 +145,22 @@ where
             client_disconnect: self.client_disconnect,
             expect: self.expect,
             upgrade: Some(upgrade.into_new_service()),
+            on_connect: self.on_connect,
             _t: PhantomData,
         }
+    }
+
+    /// Set on-connect callback.
+    ///
+    /// It get called once per connection and result of the call
+    /// get stored to the request's extensions.
+    pub fn on_connect<F, I>(mut self, f: F) -> Self
+    where
+        F: Fn(&T) -> I + 'static,
+        I: Clone + 'static,
+    {
+        self.on_connect = Some(Rc::new(move |io| Box::new(Data(f(io)))));
+        self
     }
 
     /// Finish service configuration and create *http service* for HTTP/1 protocol.
@@ -161,6 +180,7 @@ where
         H1Service::with_config(cfg, service.into_new_service())
             .expect(self.expect)
             .upgrade(self.upgrade)
+            .on_connect(self.on_connect)
     }
 
     /// Finish service configuration and create *http service* for HTTP/2 protocol.
@@ -199,5 +219,6 @@ where
         HttpService::with_config(cfg, service.into_new_service())
             .expect(self.expect)
             .upgrade(self.upgrade)
+            .on_connect(self.on_connect)
     }
 }

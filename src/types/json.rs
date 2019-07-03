@@ -180,16 +180,14 @@ where
             .map(|c| (c.limit, c.ehandler.clone(), c.content_type.clone()))
             .unwrap_or((32768, None, None));
 
-        let path = req.path().to_string();
-
         Box::new(
             JsonBody::new(req, payload, ctype)
                 .limit(limit)
                 .map_err(move |e| {
                     log::debug!(
                         "Failed to deserialize Json from payload. \
-                         Request path: {:?}",
-                        path
+                         Request path: {}",
+                        req2.path()
                     );
                     if let Some(err) = err {
                         (*err)(e, &req2)
@@ -324,14 +322,11 @@ where
             };
         }
 
-        let mut len = None;
-        if let Some(l) = req.headers().get(&CONTENT_LENGTH) {
-            if let Ok(s) = l.to_str() {
-                if let Ok(l) = s.parse::<usize>() {
-                    len = Some(l)
-                }
-            }
-        }
+        let len = req
+            .headers()
+            .get(&CONTENT_LENGTH)
+            .and_then(|l| l.to_str().ok())
+            .and_then(|s| s.parse::<usize>().ok());
         let payload = Decompress::from_headers(payload.take(), req.headers());
 
         JsonBody {

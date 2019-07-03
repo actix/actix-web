@@ -177,9 +177,30 @@ where
             inner: ContextParts::new(mb.sender_producer()),
             messages: VecDeque::new(),
         };
-        ctx.add_stream(WsStream::new(stream));
+        ctx.add_stream(WsStream::new(stream, Codec::new()));
 
-        WebsocketContextFut::new(ctx, actor, mb)
+        WebsocketContextFut::new(ctx, actor, mb, Codec::new())
+    }
+
+    #[inline]
+    /// Create a new Websocket context from a request, an actor, and a codec
+    pub fn with_codec<S>(
+        actor: A,
+        stream: S,
+        codec: Codec,
+    ) -> impl Stream<Item = Bytes, Error = Error>
+    where
+        A: StreamHandler<Message, ProtocolError>,
+        S: Stream<Item = Bytes, Error = PayloadError> + 'static,
+    {
+        let mb = Mailbox::default();
+        let mut ctx = WebsocketContext {
+            inner: ContextParts::new(mb.sender_producer()),
+            messages: VecDeque::new(),
+        };
+        ctx.add_stream(WsStream::new(stream, codec));
+
+        WebsocketContextFut::new(ctx, actor, mb, codec)
     }
 
     /// Create a new Websocket context
@@ -197,11 +218,11 @@ where
             inner: ContextParts::new(mb.sender_producer()),
             messages: VecDeque::new(),
         };
-        ctx.add_stream(WsStream::new(stream));
+        ctx.add_stream(WsStream::new(stream, Codec::new()));
 
         let act = f(&mut ctx);
 
-        WebsocketContextFut::new(ctx, act, mb)
+        WebsocketContextFut::new(ctx, act, mb, Codec::new())
     }
 }
 
@@ -288,11 +309,11 @@ impl<A> WebsocketContextFut<A>
 where
     A: Actor<Context = WebsocketContext<A>>,
 {
-    fn new(ctx: WebsocketContext<A>, act: A, mailbox: Mailbox<A>) -> Self {
+    fn new(ctx: WebsocketContext<A>, act: A, mailbox: Mailbox<A>, codec: Codec) -> Self {
         let fut = ContextFut::new(ctx, act, mailbox);
         WebsocketContextFut {
             fut,
-            encoder: Codec::new(),
+            encoder: codec,
             buf: BytesMut::new(),
             closed: false,
         }
@@ -353,10 +374,10 @@ impl<S> WsStream<S>
 where
     S: Stream<Item = Bytes, Error = PayloadError>,
 {
-    fn new(stream: S) -> Self {
+    fn new(stream: S, codec: Codec) -> Self {
         Self {
             stream,
-            decoder: Codec::new(),
+            decoder: codec,
             buf: BytesMut::new(),
             closed: false,
         }

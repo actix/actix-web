@@ -1,10 +1,23 @@
 # Changes
 
-## [0.2.5] - unreleased
+## [0.2.6] - TBD
 
 ### Changed
 
-*  Use `encoding_rs` crate instead of unmaintained `encoding` crate
+* Upgrade `rand` dependency version to 0.7
+
+## [0.2.5] - 2019-06-28
+
+### Added
+
+* Add `on-connect` callback, `HttpServiceBuilder::on_connect()` #946
+
+### Changed
+
+* Use `encoding_rs` crate instead of unmaintained `encoding` crate
+
+* Add `Copy` and `Clone` impls for `ws::Codec`
+
 
 ## [0.2.4] - 2019-06-16
 

@@ -3,7 +3,7 @@
 ## Documentation & community resources
 
 * [User Guide](https://actix.rs/docs/)
-* [API Documentation](https://docs.rs/actix-identity/)
+* [API Documentation](https://docs.rs/actix-cors/)
 * [Chat on gitter](https://gitter.im/actix/actix)
-* Cargo package: [actix-session](https://crates.io/crates/actix-identity)
+* Cargo package: [actix-cors](https://crates.io/crates/actix-cors)
 * Minimum supported Rust version: 1.34 or later

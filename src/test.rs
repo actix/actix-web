@@ -64,7 +64,7 @@ where
     RT.with(move |rt| rt.borrow_mut().get_mut().block_on(f.into_future()))
 }
 
-/// Runs the provided function, blocking the current thread until the resul
+/// Runs the provided function, blocking the current thread until the result
 /// future completes.
 ///
 /// This function can be used to synchronously block the current thread

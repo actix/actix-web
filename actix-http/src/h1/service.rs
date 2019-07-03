@@ -1,5 +1,6 @@
 use std::fmt;
 use std::marker::PhantomData;
+use std::rc::Rc;
 
 use actix_codec::Framed;
 use actix_server_config::{Io, IoStream, ServerConfig as SrvConfig};
@@ -11,6 +12,7 @@ use futures::{try_ready, Async, Future, IntoFuture, Poll, Stream};
 use crate::body::MessageBody;
 use crate::config::{KeepAlive, ServiceConfig};
 use crate::error::{DispatchError, Error, ParseError};
+use crate::helpers::DataFactory;
 use crate::request::Request;
 use crate::response::Response;
 
@@ -24,6 +26,7 @@ pub struct H1Service<T, P, S, B, X = ExpectHandler, U = UpgradeHandler<T>> {
     cfg: ServiceConfig,
     expect: X,
     upgrade: Option<U>,
+    on_connect: Option<Rc<Fn(&T) -> Box<dyn DataFactory>>>,
     _t: PhantomData<(T, P, B)>,
 }
 
@@ -44,6 +47,7 @@ where
             srv: service.into_new_service(),
             expect: ExpectHandler,
             upgrade: None,
+            on_connect: None,
             _t: PhantomData,
         }
     }
@@ -55,6 +59,7 @@ where
             srv: service.into_new_service(),
             expect: ExpectHandler,
             upgrade: None,
+            on_connect: None,
             _t: PhantomData,
         }
     }
@@ -79,6 +84,7 @@ where
             cfg: self.cfg,
             srv: self.srv,
             upgrade: self.upgrade,
+            on_connect: self.on_connect,
             _t: PhantomData,
         }
     }
@@ -94,8 +100,18 @@ where
             cfg: self.cfg,
             srv: self.srv,
             expect: self.expect,
+            on_connect: self.on_connect,
             _t: PhantomData,
         }
+    }
+
+    /// Set on connect callback.
+    pub(crate) fn on_connect(
+        mut self,
+        f: Option<Rc<Fn(&T) -> Box<dyn DataFactory>>>,
+    ) -> Self {
+        self.on_connect = f;
+        self
     }
 }
 
@@ -133,6 +149,7 @@ where
             fut_upg: self.upgrade.as_ref().map(|f| f.new_service(cfg)),
             expect: None,
             upgrade: None,
+            on_connect: self.on_connect.clone(),
             cfg: Some(self.cfg.clone()),
             _t: PhantomData,
         }
@@ -157,6 +174,7 @@ where
     fut_upg: Option<U::Future>,
     expect: Option<X::Service>,
     upgrade: Option<U::Service>,
+    on_connect: Option<Rc<Fn(&T) -> Box<dyn DataFactory>>>,
     cfg: Option<ServiceConfig>,
     _t: PhantomData<(T, P, B)>,
 }
@@ -205,6 +223,7 @@ where
             service,
             self.expect.take().unwrap(),
             self.upgrade.take(),
+            self.on_connect.clone(),
         )))
     }
 }
@@ -214,6 +233,7 @@ pub struct H1ServiceHandler<T, P, S, B, X, U> {
     srv: CloneableService<S>,
     expect: CloneableService<X>,
     upgrade: Option<CloneableService<U>>,
+    on_connect: Option<Rc<Fn(&T) -> Box<dyn DataFactory>>>,
     cfg: ServiceConfig,
     _t: PhantomData<(T, P, B)>,
 }
@@ -234,12 +254,14 @@ where
         srv: S,
         expect: X,
         upgrade: Option<U>,
+        on_connect: Option<Rc<Fn(&T) -> Box<dyn DataFactory>>>,
     ) -> H1ServiceHandler<T, P, S, B, X, U> {
         H1ServiceHandler {
             srv: CloneableService::new(srv),
             expect: CloneableService::new(expect),
             upgrade: upgrade.map(|s| CloneableService::new(s)),
             cfg,
+            on_connect,
             _t: PhantomData,
         }
     }
@@ -292,12 +314,21 @@ where
     }
 
     fn call(&mut self, req: Self::Request) -> Self::Future {
+        let io = req.into_parts().0;
+
+        let on_connect = if let Some(ref on_connect) = self.on_connect {
+            Some(on_connect(&io))
+        } else {
+            None
+        };
+
         Dispatcher::new(
-            req.into_parts().0,
+            io,
             self.cfg.clone(),
             self.srv.clone(),
             self.expect.clone(),
             self.upgrade.clone(),
+            on_connect,
         )
     }
 }
