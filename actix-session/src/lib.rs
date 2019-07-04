@@ -98,10 +98,23 @@ impl UserSession for ServiceRequest {
     }
 }
 
+#[derive(PartialEq, Clone, Debug)]
+pub enum SessionStatus {
+    Changed,
+    Purged,
+    Renewed,
+    Unchanged
+}
+impl Default for SessionStatus {
+    fn default() -> SessionStatus {
+        SessionStatus::Unchanged
+    }
+}
+
 #[derive(Default)]
 struct SessionInner {
     state: HashMap<String, String>,
-    changed: bool,
+    pub status: SessionStatus,
 }
 
 impl Session {
@@ -117,25 +130,46 @@ impl Session {
     /// Set a `value` from the session.
     pub fn set<T: Serialize>(&self, key: &str, value: T) -> Result<(), Error> {
         let mut inner = self.0.borrow_mut();
-        inner.changed = true;
-        inner
-            .state
-            .insert(key.to_owned(), serde_json::to_string(&value)?);
+        if inner.status != SessionStatus::Purged {
+            inner.status = SessionStatus::Changed;
+            inner
+                .state
+                .insert(key.to_owned(), serde_json::to_string(&value)?);
+        }
         Ok(())
     }
 
     /// Remove value from the session.
     pub fn remove(&self, key: &str) {
         let mut inner = self.0.borrow_mut();
-        inner.changed = true;
-        inner.state.remove(key);
+        if inner.status != SessionStatus::Purged {
+            inner.status = SessionStatus::Changed;
+            inner.state.remove(key);
+        }
     }
 
     /// Clear the session.
     pub fn clear(&self) {
         let mut inner = self.0.borrow_mut();
-        inner.changed = true;
-        inner.state.clear()
+        if inner.status != SessionStatus::Purged {
+            inner.status = SessionStatus::Changed;
+            inner.state.clear()
+        }
+    }
+
+    /// Removes session, both client and server side.
+    pub fn purge(&self) {
+        let mut inner = self.0.borrow_mut();
+        inner.status = SessionStatus::Purged;
+        inner.state.clear();
+    }
+
+    /// Renews the session key, assigning existing session state to new key.
+    pub fn renew(&self) {
+        let mut inner = self.0.borrow_mut();
+        if inner.status != SessionStatus::Purged {
+            inner.status = SessionStatus::Renewed;
+        }
     }
 
     pub fn set_session(
@@ -149,7 +183,7 @@ impl Session {
 
     pub fn get_changes<B>(
         res: &mut ServiceResponse<B>,
-    ) -> Option<impl Iterator<Item = (String, String)>> {
+    ) -> (SessionStatus, Option<impl Iterator<Item = (String, String)>>) {
         if let Some(s_impl) = res
             .request()
             .extensions()
@@ -157,9 +191,9 @@ impl Session {
         {
             let state =
                 std::mem::replace(&mut s_impl.borrow_mut().state, HashMap::new());
-            Some(state.into_iter())
+            (s_impl.borrow().status.clone(), Some(state.into_iter()))
         } else {
-            None
+            (SessionStatus::Unchanged, None)
         }
     }
 
@@ -224,7 +258,8 @@ mod tests {
         session.remove("key");
 
         let mut res = req.into_response(HttpResponse::Ok().finish());
-        let changes: Vec<_> = Session::get_changes(&mut res).unwrap().collect();
+        let (_status, state) = Session::get_changes(&mut res);
+        let changes: Vec<_> = state.unwrap().collect();
         assert_eq!(changes, [("key2".to_string(), "\"value2\"".to_string())]);
     }
 
@@ -240,5 +275,24 @@ mod tests {
         let session = req.get_session();
         let res = session.get::<String>("key").unwrap();
         assert_eq!(res, Some("value".to_string()));
+    }
+
+    #[test]
+    fn purge_session() {
+        let mut req = test::TestRequest::default().to_srv_request();
+        let session = Session::get_session(&mut *req.extensions_mut());
+        assert_eq!(session.0.borrow().status, SessionStatus::Unchanged);
+        session.purge();
+        assert_eq!(session.0.borrow().status, SessionStatus::Purged);
+    }
+
+
+    #[test]
+    fn renew_session() {
+        let mut req = test::TestRequest::default().to_srv_request();
+        let session = Session::get_session(&mut *req.extensions_mut());
+        assert_eq!(session.0.borrow().status, SessionStatus::Unchanged);
+        session.renew();
+        assert_eq!(session.0.borrow().status, SessionStatus::Renewed);
     }
 }

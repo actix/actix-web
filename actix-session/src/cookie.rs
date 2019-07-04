@@ -28,7 +28,7 @@ use futures::future::{ok, Future, FutureResult};
 use futures::Poll;
 use serde_json::error::Error as JsonError;
 
-use crate::Session;
+use crate::{Session, SessionStatus};
 
 /// Errors that can occur during handling cookie session
 #[derive(Debug, From, Display)]
@@ -119,7 +119,21 @@ impl CookieSessionInner {
         Ok(())
     }
 
-    fn load(&self, req: &ServiceRequest) -> HashMap<String, String> {
+    /// invalidates session cookie
+    fn remove_cookie<B>(&self, res: &mut ServiceResponse<B>)
+                    -> Result<(), Error> {
+        let mut cookie = Cookie::named(self.name.clone());
+        cookie.set_value("");
+        cookie.set_max_age(time::Duration::seconds(0));
+        cookie.set_expires(time::now() - time::Duration::days(365));
+
+        let val = HeaderValue::from_str(&cookie.to_string())?;
+        res.headers_mut().append(SET_COOKIE, val);
+
+        Ok(())
+    }
+
+    fn load(&self, req: &ServiceRequest) -> (bool, HashMap<String, String>) {
         if let Ok(cookies) = req.cookies() {
             for cookie in cookies.iter() {
                 if cookie.name() == self.name {
@@ -134,13 +148,13 @@ impl CookieSessionInner {
                     };
                     if let Some(cookie) = cookie_opt {
                         if let Ok(val) = serde_json::from_str(cookie.value()) {
-                            return val;
+                            return (false, val);
                         }
                     }
                 }
             }
         }
-        HashMap::new()
+        (true, HashMap::new())
     }
 }
 
@@ -302,16 +316,34 @@ where
         self.service.poll_ready()
     }
 
+    /// On first request, a new session cookie is returned in response, regardless
+    /// of whether any session state is set.  With subsequent requests, if the 
+    /// session state changes, then set-cookie is returned in response.  As
+    /// a user logs out, call session.purge() to set SessionStatus accordingly
+    /// and this will trigger removal of the session cookie in the response.
     fn call(&mut self, mut req: ServiceRequest) -> Self::Future {
         let inner = self.inner.clone();
-        let state = self.inner.load(&req);
+        let (is_new, state) = self.inner.load(&req);
         Session::set_session(state.into_iter(), &mut req);
 
         Box::new(self.service.call(req).map(move |mut res| {
-            if let Some(state) = Session::get_changes(&mut res) {
-                res.checked_expr(|res| inner.set_cookie(res, state))
-            } else {
-                res
+            match Session::get_changes(&mut res) {
+                (SessionStatus::Changed, Some(state))
+                 | (SessionStatus::Renewed, Some(state)) => 
+                    res.checked_expr(|res| inner.set_cookie(res, state)),
+                (SessionStatus::Unchanged, _) =>
+                    // set a new session cookie upon first request (new client)
+                    if is_new {
+                        let state: HashMap<String, String> = HashMap::new();
+                        res.checked_expr(|res| inner.set_cookie(res, state.into_iter()))
+                    } else {
+                        res
+                    },
+                (SessionStatus::Purged, _) => {
+				    inner.remove_cookie(&mut res);
+					res
+				},
+                _ => res
             }
         }))
     }
