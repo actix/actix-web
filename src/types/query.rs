@@ -13,7 +13,7 @@ use crate::extract::FromRequest;
 use crate::request::HttpRequest;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
-/// Extract typed information from from the request's query.
+/// Extract typed information from the request's query.
 ///
 /// ## Example
 ///
@@ -90,7 +90,7 @@ impl<T: fmt::Display> fmt::Display for Query<T> {
     }
 }
 
-/// Extract typed information from from the request's query.
+/// Extract typed information from the request's query.
 ///
 /// ## Example
 ///
