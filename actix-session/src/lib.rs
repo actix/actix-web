@@ -103,7 +103,7 @@ pub enum SessionStatus {
     Changed,
     Purged,
     Renewed,
-    Unchanged
+    Unchanged,
 }
 impl Default for SessionStatus {
     fn default() -> SessionStatus {
@@ -183,7 +183,10 @@ impl Session {
 
     pub fn get_changes<B>(
         res: &mut ServiceResponse<B>,
-    ) -> (SessionStatus, Option<impl Iterator<Item = (String, String)>>) {
+    ) -> (
+        SessionStatus,
+        Option<impl Iterator<Item = (String, String)>>,
+    ) {
         if let Some(s_impl) = res
             .request()
             .extensions()
@@ -285,7 +288,6 @@ mod tests {
         session.purge();
         assert_eq!(session.0.borrow().status, SessionStatus::Purged);
     }
-
 
     #[test]
     fn renew_session() {

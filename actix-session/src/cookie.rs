@@ -120,8 +120,7 @@ impl CookieSessionInner {
     }
 
     /// invalidates session cookie
-    fn remove_cookie<B>(&self, res: &mut ServiceResponse<B>)
-                    -> Result<(), Error> {
+    fn remove_cookie<B>(&self, res: &mut ServiceResponse<B>) -> Result<(), Error> {
         let mut cookie = Cookie::named(self.name.clone());
         cookie.set_value("");
         cookie.set_max_age(time::Duration::seconds(0));
@@ -317,7 +316,7 @@ where
     }
 
     /// On first request, a new session cookie is returned in response, regardless
-    /// of whether any session state is set.  With subsequent requests, if the 
+    /// of whether any session state is set.  With subsequent requests, if the
     /// session state changes, then set-cookie is returned in response.  As
     /// a user logs out, call session.purge() to set SessionStatus accordingly
     /// and this will trigger removal of the session cookie in the response.
@@ -329,21 +328,24 @@ where
         Box::new(self.service.call(req).map(move |mut res| {
             match Session::get_changes(&mut res) {
                 (SessionStatus::Changed, Some(state))
-                 | (SessionStatus::Renewed, Some(state)) => 
-                    res.checked_expr(|res| inner.set_cookie(res, state)),
+                | (SessionStatus::Renewed, Some(state)) => {
+                    res.checked_expr(|res| inner.set_cookie(res, state))
+                }
                 (SessionStatus::Unchanged, _) =>
-                    // set a new session cookie upon first request (new client)
+                // set a new session cookie upon first request (new client)
+                {
                     if is_new {
                         let state: HashMap<String, String> = HashMap::new();
                         res.checked_expr(|res| inner.set_cookie(res, state.into_iter()))
                     } else {
                         res
-                    },
+                    }
+                }
                 (SessionStatus::Purged, _) => {
-				    inner.remove_cookie(&mut res);
-					res
-				},
-                _ => res
+                    inner.remove_cookie(&mut res);
+                    res
+                }
+                _ => res,
             }
         }))
     }
