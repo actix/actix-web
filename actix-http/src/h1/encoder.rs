@@ -4,6 +4,7 @@ use std::io::Write;
 use std::marker::PhantomData;
 use std::str::FromStr;
 use std::{cmp, fmt, io, mem};
+use std::rc::Rc;
 
 use bytes::{BufMut, Bytes, BytesMut};
 
@@ -247,31 +248,32 @@ impl MessageType for Response<()> {
     }
 }
 
-impl MessageType for RequestHead {
+impl MessageType for (Rc<RequestHead>, Option<HeaderMap>) {
     fn status(&self) -> Option<StatusCode> {
         None
     }
 
     fn chunked(&self) -> bool {
-        self.chunked()
+        self.0.chunked()
     }
 
     fn camel_case(&self) -> bool {
-        RequestHead::camel_case_headers(self)
+        RequestHead::camel_case_headers(&self.0)
     }
 
     fn headers(&self) -> &HeaderMap {
-        &self.headers
+        &self.0.headers
     }
 
     fn encode_status(&mut self, dst: &mut BytesMut) -> io::Result<()> {
-        dst.reserve(256 + self.headers.len() * AVERAGE_HEADER_SIZE);
+        let head = &self.0;
+        dst.reserve(256 + head.headers.len() * AVERAGE_HEADER_SIZE);
         write!(
             Writer(dst),
             "{} {} {}",
-            self.method,
-            self.uri.path_and_query().map(|u| u.as_str()).unwrap_or("/"),
-            match self.version {
+            head.method,
+            head.uri.path_and_query().map(|u| u.as_str()).unwrap_or("/"),
+            match head.version {
                 Version::HTTP_09 => "HTTP/0.9",
                 Version::HTTP_10 => "HTTP/1.0",
                 Version::HTTP_11 => "HTTP/1.1",

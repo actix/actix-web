@@ -286,7 +286,7 @@ impl WebsocketsRequest {
             .config
             .connector
             .borrow_mut()
-            .open_tunnel(head, self.addr)
+            .open_tunnel(Rc::new(head), None, self.addr)
             .from_err()
             .and_then(move |(head, framed)| {
                 // verify response

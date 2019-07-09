@@ -1,5 +1,6 @@
 #![allow(unused_imports, unused_variables, dead_code)]
 use std::io::{self, Write};
+use std::rc::Rc;
 
 use actix_codec::{Decoder, Encoder};
 use bitflags::bitflags;
@@ -17,6 +18,7 @@ use crate::config::ServiceConfig;
 use crate::error::{ParseError, PayloadError};
 use crate::helpers;
 use crate::message::{ConnectionType, Head, MessagePool, RequestHead, ResponseHead};
+use crate::header::HeaderMap;
 
 bitflags! {
     struct Flags: u8 {
@@ -48,7 +50,7 @@ struct ClientCodecInner {
     // encoder part
     flags: Flags,
     headers_size: u32,
-    encoder: encoder::MessageEncoder<RequestHead>,
+    encoder: encoder::MessageEncoder<(Rc<RequestHead>, Option<HeaderMap>)>,
 }
 
 impl Default for ClientCodec {
@@ -183,7 +185,7 @@ impl Decoder for ClientPayloadCodec {
 }
 
 impl Encoder for ClientCodec {
-    type Item = Message<(RequestHead, BodySize)>;
+    type Item = Message<(Rc<RequestHead>, Option<HeaderMap>, BodySize)>;
     type Error = io::Error;
 
     fn encode(
@@ -192,13 +194,13 @@ impl Encoder for ClientCodec {
         dst: &mut BytesMut,
     ) -> Result<(), Self::Error> {
         match item {
-            Message::Item((mut msg, length)) => {
+            Message::Item((head, additional_headers, length)) => {
                 let inner = &mut self.inner;
-                inner.version = msg.version;
-                inner.flags.set(Flags::HEAD, msg.method == Method::HEAD);
+                inner.version = head.version;
+                inner.flags.set(Flags::HEAD, head.method == Method::HEAD);
 
                 // connection status
-                inner.ctype = match msg.connection_type() {
+                inner.ctype = match head.connection_type() {
                     ConnectionType::KeepAlive => {
                         if inner.flags.contains(Flags::KEEPALIVE_ENABLED) {
                             ConnectionType::KeepAlive
@@ -212,7 +214,7 @@ impl Encoder for ClientCodec {
 
                 inner.encoder.encode(
                     dst,
-                    &mut msg,
+                    &mut (head, additional_headers),
                     false,
                     false,
                     inner.version,

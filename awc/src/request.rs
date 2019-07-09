@@ -453,7 +453,7 @@ impl ClientRequest {
         let fut = config
             .connector
             .borrow_mut()
-            .send_request(head, body.into(), slf.addr)
+            .send_request(Rc::new(head), None, body.into(), slf.addr)
             .map(move |res| {
                 res.map_body(|head, payload| {
                     if response_decompress {

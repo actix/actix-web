@@ -1,4 +1,5 @@
 use std::time;
+use std::rc::Rc;
 
 use actix_codec::{AsyncRead, AsyncWrite};
 use bytes::Bytes;
@@ -11,6 +12,7 @@ use http::{request::Request, HttpTryFrom, Method, Version};
 use crate::body::{BodySize, MessageBody};
 use crate::message::{RequestHead, ResponseHead};
 use crate::payload::Payload;
+use crate::header::HeaderMap;
 
 use super::connection::{ConnectionType, IoConnection};
 use super::error::SendRequestError;
@@ -18,7 +20,8 @@ use super::pool::Acquired;
 
 pub(crate) fn send_request<T, B>(
     io: SendRequest<Bytes>,
-    head: RequestHead,
+    head: Rc<RequestHead>,
+    additional_headers: Option<HeaderMap>,
     body: B,
     created: time::Instant,
     pool: Option<Acquired<T>>,
@@ -39,8 +42,8 @@ where
         .map_err(SendRequestError::from)
         .and_then(move |mut io| {
             let mut req = Request::new(());
-            *req.uri_mut() = head.uri;
-            *req.method_mut() = head.method;
+            *req.uri_mut() = head.uri.clone();
+            *req.method_mut() = head.method.clone();
             *req.version_mut() = Version::HTTP_2;
 
             let mut skip_len = true;
@@ -66,8 +69,16 @@ where
                 ),
             };
 
+            // merging headers from head and additional headers. HeaderMap::new() does not allocate.
+            let additional_headers = additional_headers.unwrap_or(HeaderMap::new());
+            let headers = head.headers.iter()
+                .filter(|(name, _)| {
+                    !additional_headers.contains_key(*name)
+                })
+                .chain(additional_headers.iter());
+
             // copy headers
-            for (key, value) in head.headers.iter() {
+            for (key, value) in headers {
                 match *key {
                     CONNECTION | TRANSFER_ENCODING => continue, // http2 specific
                     CONTENT_LENGTH if skip_len => continue,
