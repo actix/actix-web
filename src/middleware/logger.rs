@@ -415,9 +415,9 @@ impl FormatText {
                     ))
                 };
             }
-            FormatText::UrlPath => *self = FormatText::Str(format!("{}", req.path())),
+            FormatText::UrlPath => *self = FormatText::Str(req.path().to_string()),
             FormatText::RequestTime => {
-                *self = FormatText::Str(format!("{}", now.rfc3339()))
+                *self = FormatText::Str(now.rfc3339().to_string())
             }
             FormatText::RequestHeader(ref name) => {
                 let s = if let Some(val) = req.headers().get(name) {

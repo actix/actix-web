@@ -298,6 +298,7 @@ where
     U: DeserializeOwned + 'static,
 {
     /// Create `JsonBody` for request.
+    #[allow(clippy::borrow_interior_mutable_const)]
     pub fn new(
         req: &HttpRequest,
         payload: &mut Payload,

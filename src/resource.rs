@@ -426,7 +426,7 @@ where
     fn into_new_service(self) -> T {
         *self.factory_ref.borrow_mut() = Some(ResourceFactory {
             routes: self.routes,
-            data: self.data.map(|data| Rc::new(data)),
+            data: self.data.map(Rc::new),
             default: self.default,
         });
 
