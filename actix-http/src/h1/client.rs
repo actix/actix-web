@@ -194,7 +194,7 @@ impl Encoder for ClientCodec {
         dst: &mut BytesMut,
     ) -> Result<(), Self::Error> {
         match item {
-            Message::Item((head, additional_headers, length)) => {
+            Message::Item((head, extra_headers, length)) => {
                 let inner = &mut self.inner;
                 inner.version = head.version;
                 inner.flags.set(Flags::HEAD, head.method == Method::HEAD);
@@ -214,7 +214,7 @@ impl Encoder for ClientCodec {
 
                 inner.encoder.encode(
                     dst,
-                    &mut (head, additional_headers),
+                    &mut (head, extra_headers),
                     false,
                     false,
                     inner.version,

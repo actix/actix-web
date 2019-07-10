@@ -44,6 +44,8 @@ pub(crate) trait MessageType: Sized {
 
     fn headers(&self) -> &HeaderMap;
 
+    fn extra_headers(&self) -> Option<&HeaderMap>;
+
     fn camel_case(&self) -> bool {
         false
     }
@@ -129,12 +131,21 @@ pub(crate) trait MessageType: Sized {
             _ => (),
         }
 
+        // merging headers from head and extra headers. HeaderMap::new() does not allocate.
+        let empty_headers = HeaderMap::new();
+        let extra_headers = self.extra_headers().unwrap_or(&empty_headers);
+        let headers = self.headers().inner.iter()
+            .filter(|(name, _)| {
+                !extra_headers.contains_key(*name)
+            })
+            .chain(extra_headers.inner.iter());
+
         // write headers
         let mut pos = 0;
         let mut has_date = false;
         let mut remaining = dst.remaining_mut();
         let mut buf = unsafe { &mut *(dst.bytes_mut() as *mut [u8]) };
-        for (key, value) in self.headers().inner.iter() {
+        for (key, value) in headers {
             match *key {
                 CONNECTION => continue,
                 TRANSFER_ENCODING | CONTENT_LENGTH if skip_len => continue,
@@ -236,6 +247,10 @@ impl MessageType for Response<()> {
         &self.head().headers
     }
 
+    fn extra_headers(&self) -> Option<&HeaderMap> {
+        None
+    }
+
     fn encode_status(&mut self, dst: &mut BytesMut) -> io::Result<()> {
         let head = self.head();
         let reason = head.reason().as_bytes();
@@ -263,6 +278,10 @@ impl MessageType for (Rc<RequestHead>, Option<HeaderMap>) {
 
     fn headers(&self) -> &HeaderMap {
         &self.0.headers
+    }
+
+    fn extra_headers(&self) -> Option<&HeaderMap> {
+        self.1.as_ref()
     }
 
     fn encode_status(&mut self, dst: &mut BytesMut) -> io::Result<()> {

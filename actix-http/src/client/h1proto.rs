@@ -22,7 +22,7 @@ use crate::body::{BodySize, MessageBody};
 pub(crate) fn send_request<T, B>(
     io: T,
     head: Rc<RequestHead>,
-    additional_headers: Option<HeaderMap>,
+    extra_headers: Option<HeaderMap>,
     body: B,
     created: time::Instant,
     pool: Option<Acquired<T>>,
@@ -32,7 +32,7 @@ where
     B: MessageBody,
 {
     // set request host header
-    let additional_headers = if !head.headers.contains_key(HOST) && !additional_headers.iter().any(|h| h.contains_key(HOST)) {
+    let extra_headers = if !head.headers.contains_key(HOST) && !extra_headers.iter().any(|h| h.contains_key(HOST)) {
         if let Some(host) = head.uri.host() {
             let mut wrt = BytesMut::with_capacity(host.len() + 5).writer();
 
@@ -43,22 +43,22 @@ where
 
             match wrt.get_mut().take().freeze().try_into() {
                 Ok(value) => {
-                    let mut headers = additional_headers.unwrap_or(HeaderMap::new());
+                    let mut headers = extra_headers.unwrap_or(HeaderMap::new());
                     headers.insert(HOST, value);
                     Some(headers)
                 }
                 Err(e) => {
                     log::error!("Can not set HOST header {}", e);
-                    additional_headers
+                    extra_headers
                 }
             }
         }
         else {
-            additional_headers
+            extra_headers
         }
     }
     else {
-        additional_headers
+        extra_headers
     };
 
     let io = H1Connection {
@@ -71,7 +71,7 @@ where
 
     // create Framed and send reqest
     Framed::new(io, h1::ClientCodec::default())
-        .send((head, additional_headers, len).into())
+        .send((head, extra_headers, len).into())
         .from_err()
         // send request body
         .and_then(move |framed| match body.size() {
@@ -108,14 +108,14 @@ where
 pub(crate) fn open_tunnel<T>(
     io: T,
     head: Rc<RequestHead>,
-    additional_headers: Option<HeaderMap>,
+    extra_headers: Option<HeaderMap>,
 ) -> impl Future<Item = (ResponseHead, Framed<T, h1::ClientCodec>), Error = SendRequestError>
 where
     T: AsyncRead + AsyncWrite + 'static,
 {
     // create Framed and send reqest
     Framed::new(io, h1::ClientCodec::default())
-        .send((head, additional_headers, BodySize::None).into())
+        .send((head, extra_headers, BodySize::None).into())
         .from_err()
         // read response
         .and_then(|framed| {

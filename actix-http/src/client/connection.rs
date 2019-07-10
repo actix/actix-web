@@ -32,7 +32,7 @@ pub trait Connection {
     fn send_request<B: MessageBody + 'static>(
         self,
         head: Rc<RequestHead>,
-        additional_headers: Option<HeaderMap>,
+        extra_headers: Option<HeaderMap>,
         body: B,
     ) -> Self::Future;
 
@@ -44,7 +44,7 @@ pub trait Connection {
     /// Send request, returns Response and Framed
     fn open_tunnel(self,
         head: Rc<RequestHead>,
-        additional_headers: Option<HeaderMap>,
+        extra_headers: Option<HeaderMap>,
     ) -> Self::TunnelFuture;
 }
 
@@ -113,14 +113,14 @@ where
     fn send_request<B: MessageBody + 'static>(
         mut self,
         head: Rc<RequestHead>,
-        additional_headers: Option<HeaderMap>,
+        extra_headers: Option<HeaderMap>,
         body: B,
     ) -> Self::Future {
         match self.io.take().unwrap() {
             ConnectionType::H1(io) => Box::new(h1proto::send_request(
                 io,
                 head,
-                additional_headers,
+                extra_headers,
                 body,
                 self.created,
                 self.pool,
@@ -128,7 +128,7 @@ where
             ConnectionType::H2(io) => Box::new(h2proto::send_request(
                 io,
                 head,
-                additional_headers,
+                extra_headers,
                 body,
                 self.created,
                 self.pool,
@@ -147,10 +147,10 @@ where
     >;
 
     /// Send request, returns Response and Framed
-    fn open_tunnel(mut self, head: Rc<RequestHead>, additional_headers: Option<HeaderMap>) -> Self::TunnelFuture {
+    fn open_tunnel(mut self, head: Rc<RequestHead>, extra_headers: Option<HeaderMap>) -> Self::TunnelFuture {
         match self.io.take().unwrap() {
             ConnectionType::H1(io) => {
-                Either::A(Box::new(h1proto::open_tunnel(io, head, additional_headers)))
+                Either::A(Box::new(h1proto::open_tunnel(io, head, extra_headers)))
             }
             ConnectionType::H2(io) => {
                 if let Some(mut pool) = self.pool.take() {
@@ -190,12 +190,12 @@ where
     fn send_request<RB: MessageBody + 'static>(
         self,
         head: Rc<RequestHead>,
-        additional_headers: Option<HeaderMap>,
+        extra_headers: Option<HeaderMap>,
         body: RB,
     ) -> Self::Future {
         match self {
-            EitherConnection::A(con) => con.send_request(head, additional_headers, body),
-            EitherConnection::B(con) => con.send_request(head, additional_headers, body),
+            EitherConnection::A(con) => con.send_request(head, extra_headers, body),
+            EitherConnection::B(con) => con.send_request(head, extra_headers, body),
         }
     }
 
@@ -207,14 +207,14 @@ where
     >;
 
     /// Send request, returns Response and Framed
-    fn open_tunnel(self, head: Rc<RequestHead>, additional_headers: Option<HeaderMap>) -> Self::TunnelFuture {
+    fn open_tunnel(self, head: Rc<RequestHead>, extra_headers: Option<HeaderMap>) -> Self::TunnelFuture {
         match self {
             EitherConnection::A(con) => Box::new(
-                con.open_tunnel(head, additional_headers)
+                con.open_tunnel(head, extra_headers)
                     .map(|(head, framed)| (head, framed.map_io(EitherIo::A))),
             ),
             EitherConnection::B(con) => Box::new(
-                con.open_tunnel(head, additional_headers)
+                con.open_tunnel(head, extra_headers)
                     .map(|(head, framed)| (head, framed.map_io(EitherIo::B))),
             ),
         }

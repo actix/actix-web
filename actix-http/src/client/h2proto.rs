@@ -21,7 +21,7 @@ use super::pool::Acquired;
 pub(crate) fn send_request<T, B>(
     io: SendRequest<Bytes>,
     head: Rc<RequestHead>,
-    additional_headers: Option<HeaderMap>,
+    extra_headers: Option<HeaderMap>,
     body: B,
     created: time::Instant,
     pool: Option<Acquired<T>>,
@@ -69,13 +69,13 @@ where
                 ),
             };
 
-            // merging headers from head and additional headers. HeaderMap::new() does not allocate.
-            let additional_headers = additional_headers.unwrap_or(HeaderMap::new());
+            // merging headers from head and extra headers. HeaderMap::new() does not allocate.
+            let extra_headers = extra_headers.unwrap_or(HeaderMap::new());
             let headers = head.headers.iter()
                 .filter(|(name, _)| {
-                    !additional_headers.contains_key(*name)
+                    !extra_headers.contains_key(*name)
                 })
-                .chain(additional_headers.iter());
+                .chain(extra_headers.iter());
 
             // copy headers
             for (key, value) in headers {
