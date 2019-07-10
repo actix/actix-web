@@ -466,16 +466,18 @@ where
             State::Unknown(ref mut data) => {
                 if let Some(ref mut item) = data {
                     loop {
-                        unsafe {
-                            let b = item.1.bytes_mut();
-                            let n = try_ready!(item.0.poll_read(b));
-                            if n == 0 {
-                                return Ok(Async::Ready(()));
-                            }
-                            item.1.advance_mut(n);
-                            if item.1.len() >= HTTP2_PREFACE.len() {
-                                break;
-                            }
+                        // Safety - we only write to the returned slice.
+                        let b = unsafe { item.1.bytes_mut() };
+                        let n = try_ready!(item.0.poll_read(b));
+                        if n == 0 {
+                            return Ok(Async::Ready(()));
+                        }
+                        // Safety - we know that 'n' bytes have
+                        // been initialized via the contract of
+                        // 'poll_read'
+                        unsafe { item.1.advance_mut(n) };
+                        if item.1.len() >= HTTP2_PREFACE.len() {
+                            break;
                         }
                     }
                 } else {
