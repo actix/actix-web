@@ -1,4 +1,4 @@
-use std::cell::UnsafeCell;
+use std::cell::Cell;
 use std::fmt;
 use std::fmt::Write;
 use std::rc::Rc;
@@ -172,6 +172,7 @@ impl ServiceConfig {
     }
 }
 
+#[derive(Copy, Clone)]
 struct Date {
     bytes: [u8; DATE_VALUE_LENGTH],
     pos: usize,
@@ -205,28 +206,28 @@ impl fmt::Write for Date {
 struct DateService(Rc<DateServiceInner>);
 
 struct DateServiceInner {
-    current: UnsafeCell<Option<(Date, Instant)>>,
+    current: Cell<Option<(Date, Instant)>>,
 }
 
 impl DateServiceInner {
     fn new() -> Self {
         DateServiceInner {
-            current: UnsafeCell::new(None),
+            current: Cell::new(None),
         }
     }
 
-    fn get_ref(&self) -> &Option<(Date, Instant)> {
-        unsafe { &*self.current.get() }
+    fn get(&self) -> Option<(Date, Instant)> {
+        self.current.get()
     }
 
     fn reset(&self) {
-        unsafe { (&mut *self.current.get()).take() };
+        self.current.set(None);
     }
 
     fn update(&self) {
         let now = Instant::now();
         let date = Date::new();
-        *(unsafe { &mut *self.current.get() }) = Some((date, now));
+        self.current.set(Some((date, now)));
     }
 }
 
@@ -236,7 +237,7 @@ impl DateService {
     }
 
     fn check_date(&self) {
-        if self.0.get_ref().is_none() {
+        if self.0.get().is_none() {
             self.0.update();
 
             // periodic date update
@@ -252,14 +253,13 @@ impl DateService {
 
     fn now(&self) -> Instant {
         self.check_date();
-        self.0.get_ref().as_ref().unwrap().1
+        self.0.get().unwrap().1
     }
 
-    fn date(&self) -> &Date {
+    fn date(&self) -> Date {
         self.check_date();
 
-        let item = self.0.get_ref().as_ref().unwrap();
-        &item.0
+        self.0.get().unwrap().0
     }
 }
 
