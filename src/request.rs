@@ -186,6 +186,9 @@ impl HttpRequest {
     }
 
     /// Get *ConnectionInfo* for the current request.
+    ///
+    /// This method panics if request's extensions container is already
+    /// borrowed.
     #[inline]
     pub fn connection_info(&self) -> Ref<ConnectionInfo> {
         ConnectionInfo::get(self.head(), &*self.app_config())
