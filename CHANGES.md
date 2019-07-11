@@ -2,6 +2,10 @@
 
 ## [1.0.4] - TBD
 
+### Added
+
+* Add `Responder` impl for `(T, StatusCode) where T: Responder`
+
 ### Changed
 
 * Upgrade `rand` dependency version to 0.7
