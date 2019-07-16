@@ -1,5 +1,9 @@
 # Changes
 
+## [0.2.3] - 2019-07-16
+
+* Add `delete`, `options`, `patch` methods to `TestServerRunner`
+
 ## [0.2.2] - 2019-06-16
 
 * Add .put() and .sput() methods

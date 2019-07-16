@@ -5,7 +5,6 @@
 ### Added
 
 * Add `Responder` impl for `(T, StatusCode) where T: Responder`
-* Add `delete`, `options`, `patch` methods to `TestServerRunner`
 
 ### Changed
 

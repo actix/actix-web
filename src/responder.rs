@@ -644,10 +644,9 @@ pub(crate) mod tests {
     #[test]
     fn test_tuple_responder_with_status_code() {
         let req = TestRequest::default().to_http_request();
-        let res = block_on(
-            ("test".to_string(), StatusCode::BAD_REQUEST).respond_to(&req)
-        )
-        .unwrap();
+        let res =
+            block_on(("test".to_string(), StatusCode::BAD_REQUEST).respond_to(&req))
+                .unwrap();
         assert_eq!(res.status(), StatusCode::BAD_REQUEST);
         assert_eq!(res.body().bin_ref(), b"test");
 
@@ -655,7 +654,7 @@ pub(crate) mod tests {
         let res = block_on(
             ("test".to_string(), StatusCode::OK)
                 .with_header("content-type", "json")
-                .respond_to(&req)
+                .respond_to(&req),
         )
         .unwrap();
         assert_eq!(res.status(), StatusCode::OK);
