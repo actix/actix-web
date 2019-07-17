@@ -1,10 +1,13 @@
 # Changes
 
-## [0.2.6] - TBD
+## [0.2.6] - 2019-07-17
 
 ### Changed
 
+* Replace `ClonableService` with local copy
+
 * Upgrade `rand` dependency version to 0.7
+
 
 ## [0.2.5] - 2019-06-28
 

@@ -25,7 +25,11 @@ impl ConnectionInfo {
         Ref::map(req.extensions(), |e| e.get().unwrap())
     }
 
-    #[allow(clippy::cyclomatic_complexity, clippy::cognitive_complexity, clippy::borrow_interior_mutable_const)]
+    #[allow(
+        clippy::cyclomatic_complexity,
+        clippy::cognitive_complexity,
+        clippy::borrow_interior_mutable_const
+    )]
     fn new(req: &RequestHead, cfg: &AppConfig) -> ConnectionInfo {
         let mut host = None;
         let mut scheme = None;

@@ -46,10 +46,10 @@ secure-cookies = ["ring"]
 [dependencies]
 actix-service = "0.4.1"
 actix-codec = "0.1.2"
-actix-connect = "0.2.0"
-actix-utils = "0.4.2"
+actix-connect = "0.2.1"
+actix-utils = "0.4.4"
 actix-server-config = "0.1.1"
-actix-threadpool = "0.1.0"
+actix-threadpool = "0.1.1"
 
 base64 = "0.10"
 bitflags = "1.0"

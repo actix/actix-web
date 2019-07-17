@@ -47,10 +47,7 @@ impl Into<u8> for OpCode {
             Ping => 9,
             Pong => 10,
             Bad => {
-                debug_assert!(
-                    false,
-                    "Attempted to convert invalid opcode to u8. This is a bug."
-                );
+                log::error!("Attempted to convert invalid opcode to u8. This is a bug.");
                 8 // if this somehow happens, a close frame will help us tear down quickly
             }
         }

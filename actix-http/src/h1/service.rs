@@ -5,11 +5,11 @@ use std::rc::Rc;
 use actix_codec::Framed;
 use actix_server_config::{Io, IoStream, ServerConfig as SrvConfig};
 use actix_service::{IntoNewService, NewService, Service};
-use actix_utils::cloneable::CloneableService;
 use futures::future::{ok, FutureResult};
 use futures::{try_ready, Async, Future, IntoFuture, Poll, Stream};
 
 use crate::body::MessageBody;
+use crate::cloneable::CloneableService;
 use crate::config::{KeepAlive, ServiceConfig};
 use crate::error::{DispatchError, Error, ParseError};
 use crate::helpers::DataFactory;
@@ -259,7 +259,7 @@ where
         H1ServiceHandler {
             srv: CloneableService::new(srv),
             expect: CloneableService::new(expect),
-            upgrade: upgrade.map(|s| CloneableService::new(s)),
+            upgrade: upgrade.map(CloneableService::new),
             cfg,
             on_connect,
             _t: PhantomData,

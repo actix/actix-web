@@ -6,13 +6,13 @@ use actix_server_config::{
     Io as ServerIo, IoStream, Protocol, ServerConfig as SrvConfig,
 };
 use actix_service::{IntoNewService, NewService, Service};
-use actix_utils::cloneable::CloneableService;
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use futures::{try_ready, Async, Future, IntoFuture, Poll};
 use h2::server::{self, Handshake};
 
 use crate::body::MessageBody;
 use crate::builder::HttpServiceBuilder;
+use crate::cloneable::CloneableService;
 use crate::config::{KeepAlive, ServiceConfig};
 use crate::error::{DispatchError, Error};
 use crate::helpers::DataFactory;
@@ -285,7 +285,7 @@ where
             on_connect,
             srv: CloneableService::new(srv),
             expect: CloneableService::new(expect),
-            upgrade: upgrade.map(|s| CloneableService::new(s)),
+            upgrade: upgrade.map(CloneableService::new),
             _t: PhantomData,
         }
     }

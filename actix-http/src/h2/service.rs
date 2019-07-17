@@ -5,7 +5,6 @@ use std::{io, net, rc};
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use actix_server_config::{Io, IoStream, ServerConfig as SrvConfig};
 use actix_service::{IntoNewService, NewService, Service};
-use actix_utils::cloneable::CloneableService;
 use bytes::Bytes;
 use futures::future::{ok, FutureResult};
 use futures::{try_ready, Async, Future, IntoFuture, Poll, Stream};
@@ -14,6 +13,7 @@ use h2::RecvStream;
 use log::error;
 
 use crate::body::MessageBody;
+use crate::cloneable::CloneableService;
 use crate::config::{KeepAlive, ServiceConfig};
 use crate::error::{DispatchError, Error, ParseError, ResponseError};
 use crate::helpers::DataFactory;
@@ -256,7 +256,7 @@ where
                         on_connect.take(),
                         config.take().unwrap(),
                         None,
-                        peer_addr.clone(),
+                        *peer_addr,
                     ));
                     self.poll()
                 }
