@@ -1,5 +1,5 @@
 //! Multipart payload support
-use std::cell::{Cell, RefCell, UnsafeCell};
+use std::cell::{Cell, RefCell, RefMut};
 use std::marker::PhantomData;
 use std::rc::Rc;
 use std::{cmp, fmt};
@@ -112,7 +112,7 @@ impl Stream for Multipart {
             Err(err)
         } else if self.safety.current() {
             let mut inner = self.inner.as_mut().unwrap().borrow_mut();
-            if let Some(payload) = inner.payload.get_mut(&self.safety) {
+            if let Some(mut payload) = inner.payload.get_mut(&self.safety) {
                 payload.poll_stream()?;
             }
             inner.poll(&self.safety)
@@ -265,12 +265,12 @@ impl InnerMultipart {
                 }
             }
 
-            let headers = if let Some(payload) = self.payload.get_mut(safety) {
+            let headers = if let Some(mut payload) = self.payload.get_mut(safety) {
                 match self.state {
                     // read until first boundary
                     InnerState::FirstBoundary => {
                         match InnerMultipart::skip_until_boundary(
-                            payload,
+                            &mut *payload,
                             &self.boundary,
                         )? {
                             Some(eof) => {
@@ -286,7 +286,7 @@ impl InnerMultipart {
                     }
                     // read boundary
                     InnerState::Boundary => {
-                        match InnerMultipart::read_boundary(payload, &self.boundary)? {
+                        match InnerMultipart::read_boundary(&mut *payload, &self.boundary)? {
                             None => return Ok(Async::NotReady),
                             Some(eof) => {
                                 if eof {
@@ -303,7 +303,7 @@ impl InnerMultipart {
 
                 // read field headers for next field
                 if self.state == InnerState::Headers {
-                    if let Some(headers) = InnerMultipart::read_headers(payload)? {
+                    if let Some(headers) = InnerMultipart::read_headers(&mut *payload)? {
                         self.state = InnerState::Boundary;
                         headers
                     } else {
@@ -411,7 +411,7 @@ impl Stream for Field {
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
         if self.safety.current() {
             let mut inner = self.inner.borrow_mut();
-            if let Some(payload) = inner.payload.as_ref().unwrap().get_mut(&self.safety)
+            if let Some(mut payload) = inner.payload.as_ref().unwrap().get_mut(&self.safety)
             {
                 payload.poll_stream()?;
             }
@@ -582,12 +582,12 @@ impl InnerField {
             return Ok(Async::Ready(None));
         }
 
-        let result = if let Some(payload) = self.payload.as_ref().unwrap().get_mut(s) {
+        let result = if let Some(mut payload) = self.payload.as_ref().unwrap().get_mut(s) {
             if !self.eof {
                 let res = if let Some(ref mut len) = self.length {
-                    InnerField::read_len(payload, len)?
+                    InnerField::read_len(&mut *payload, len)?
                 } else {
-                    InnerField::read_stream(payload, &self.boundary)?
+                    InnerField::read_stream(&mut *payload, &self.boundary)?
                 };
 
                 match res {
@@ -618,7 +618,7 @@ impl InnerField {
 }
 
 struct PayloadRef {
-    payload: Rc<UnsafeCell<PayloadBuffer>>,
+    payload: Rc<RefCell<PayloadBuffer>>,
 }
 
 impl PayloadRef {
@@ -628,15 +628,12 @@ impl PayloadRef {
         }
     }
 
-    fn get_mut<'a, 'b>(&'a self, s: &'b Safety) -> Option<&'a mut PayloadBuffer>
+    fn get_mut<'a, 'b>(&'a self, s: &'b Safety) -> Option<RefMut<'a, PayloadBuffer>>
     where
         'a: 'b,
     {
-        // Unsafe: Invariant is inforced by Safety Safety is used as ref counter,
-        // only top most ref can have mutable access to payload.
         if s.current() {
-            let payload: &mut PayloadBuffer = unsafe { &mut *self.payload.get() };
-            Some(payload)
+            Some(self.payload.borrow_mut())
         } else {
             None
         }
