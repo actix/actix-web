@@ -107,7 +107,7 @@ impl Stream for ChunkedReadFile {
 }
 
 type DirectoryRenderer =
-    Fn(&Directory, &HttpRequest) -> Result<ServiceResponse, io::Error>;
+    dyn Fn(&Directory, &HttpRequest) -> Result<ServiceResponse, io::Error>;
 
 /// A directory; responds with the generated directory listing.
 #[derive(Debug)]
@@ -211,7 +211,7 @@ fn directory_listing(
     ))
 }
 
-type MimeOverride = Fn(&mime::Name) -> DispositionType;
+type MimeOverride = dyn Fn(&mime::Name) -> DispositionType;
 
 /// Static files handling
 ///
@@ -475,7 +475,7 @@ impl Service for FilesService {
                             Err(e) => ServiceResponse::from_err(e, req),
                         }))
                     }
-                    Err(e) => return self.handle_err(e, req),
+                    Err(e) => self.handle_err(e, req),
                 }
             } else if self.show_index {
                 let dir = Directory::new(self.directory.clone(), path);
@@ -483,7 +483,7 @@ impl Service for FilesService {
                 let x = (self.renderer)(&dir, &req);
                 match x {
                     Ok(resp) => Either::A(ok(resp)),
-                    Err(e) => return Either::A(ok(ServiceResponse::from_err(e, req))),
+                    Err(e) => Either::A(ok(ServiceResponse::from_err(e, req))),
                 }
             } else {
                 Either::A(ok(ServiceResponse::from_err(
@@ -857,7 +857,7 @@ mod tests {
 
     #[test]
     fn test_named_file_content_length_headers() {
-        use actix_web::body::{MessageBody, ResponseBody};
+        // use actix_web::body::{MessageBody, ResponseBody};
 
         let mut srv = test::init_service(
             App::new().service(Files::new("test", ".").index_file("tests/test.binary")),
@@ -868,7 +868,7 @@ mod tests {
             .uri("/t%65st/tests/test.binary")
             .header(header::RANGE, "bytes=10-20")
             .to_request();
-        let response = test::call_service(&mut srv, request);
+        let _response = test::call_service(&mut srv, request);
 
         // let contentlength = response
         //     .headers()
@@ -891,7 +891,7 @@ mod tests {
             .uri("/t%65st/tests/test.binary")
             // .no_default_headers()
             .to_request();
-        let response = test::call_service(&mut srv, request);
+        let _response = test::call_service(&mut srv, request);
 
         // let contentlength = response
         //     .headers()
@@ -939,7 +939,7 @@ mod tests {
             .method(Method::HEAD)
             .uri("/t%65st/tests/test.binary")
             .to_request();
-        let response = test::call_service(&mut srv, request);
+        let _response = test::call_service(&mut srv, request);
 
         // TODO: fix check
         // let contentlength = response

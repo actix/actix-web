@@ -50,7 +50,7 @@ pub struct Resource<T = ResourceEndpoint> {
     name: Option<String>,
     routes: Vec<Route>,
     data: Option<Extensions>,
-    guards: Vec<Box<Guard>>,
+    guards: Vec<Box<dyn Guard>>,
     default: Rc<RefCell<Option<Rc<HttpNewService>>>>,
     factory_ref: Rc<RefCell<Option<ResourceFactory>>>,
 }
@@ -118,7 +118,7 @@ where
         self
     }
 
-    pub(crate) fn add_guards(mut self, guards: Vec<Box<Guard>>) -> Self {
+    pub(crate) fn add_guards(mut self, guards: Vec<Box<dyn Guard>>) -> Self {
         self.guards.extend(guards);
         self
     }

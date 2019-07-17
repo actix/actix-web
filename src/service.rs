@@ -407,7 +407,7 @@ impl<B: MessageBody> fmt::Debug for ServiceResponse<B> {
 pub struct WebService {
     rdef: String,
     name: Option<String>,
-    guards: Vec<Box<Guard>>,
+    guards: Vec<Box<dyn Guard>>,
 }
 
 impl WebService {
@@ -476,7 +476,7 @@ struct WebServiceImpl<T> {
     srv: T,
     rdef: String,
     name: Option<String>,
-    guards: Vec<Box<Guard>>,
+    guards: Vec<Box<dyn Guard>>,
 }
 
 impl<T> HttpServiceFactory for WebServiceImpl<T>

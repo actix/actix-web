@@ -130,7 +130,7 @@ where
 
     type TunnelFuture = Either<
         Box<
-            Future<
+            dyn Future<
                 Item = (ResponseHead, Framed<Self::Io, ClientCodec>),
                 Error = SendRequestError,
             >,
@@ -192,7 +192,7 @@ where
     }
 
     type TunnelFuture = Box<
-        Future<
+        dyn Future<
             Item = (ResponseHead, Framed<Self::Io, ClientCodec>),
             Error = SendRequestError,
         >,

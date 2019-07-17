@@ -587,10 +587,10 @@ impl Inner {
             }
             Err(CorsError::BadOrigin)
         } else {
-            return match self.origins {
+            match self.origins {
                 AllOrSome::All => Ok(()),
                 _ => Err(CorsError::MissingOrigin),
-            };
+            }
         }
     }
 
@@ -665,7 +665,7 @@ impl Inner {
                     }
                     Err(CorsError::BadRequestHeaders)
                 } else {
-                    return Ok(());
+                    Ok(())
                 }
             }
         }

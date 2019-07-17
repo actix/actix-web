@@ -13,7 +13,7 @@ use crate::service::{ServiceRequest, ServiceResponse};
 use crate::HttpResponse;
 
 type BoxedRouteService<Req, Res> = Box<
-    Service<
+    dyn Service<
         Request = Req,
         Response = Res,
         Error = Error,
@@ -25,7 +25,7 @@ type BoxedRouteService<Req, Res> = Box<
 >;
 
 type BoxedRouteNewService<Req, Res> = Box<
-    NewService<
+    dyn NewService<
         Config = (),
         Request = Req,
         Response = Res,
@@ -42,7 +42,7 @@ type BoxedRouteNewService<Req, Res> = Box<
 /// If handler is not explicitly set, default *404 Not Found* handler is used.
 pub struct Route {
     service: BoxedRouteNewService<ServiceRequest, ServiceResponse>,
-    guards: Rc<Vec<Box<Guard>>>,
+    guards: Rc<Vec<Box<dyn Guard>>>,
 }
 
 impl Route {
@@ -56,7 +56,7 @@ impl Route {
         }
     }
 
-    pub(crate) fn take_guards(&mut self) -> Vec<Box<Guard>> {
+    pub(crate) fn take_guards(&mut self) -> Vec<Box<dyn Guard>> {
         std::mem::replace(Rc::get_mut(&mut self.guards).unwrap(), Vec::new())
     }
 }
@@ -84,7 +84,7 @@ type RouteFuture = Box<
 
 pub struct CreateRouteService {
     fut: RouteFuture,
-    guards: Rc<Vec<Box<Guard>>>,
+    guards: Rc<Vec<Box<dyn Guard>>>,
 }
 
 impl Future for CreateRouteService {
@@ -104,7 +104,7 @@ impl Future for CreateRouteService {
 
 pub struct RouteService {
     service: BoxedRouteService<ServiceRequest, ServiceResponse>,
-    guards: Rc<Vec<Box<Guard>>>,
+    guards: Rc<Vec<Box<dyn Guard>>>,
 }
 
 impl RouteService {

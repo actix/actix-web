@@ -141,7 +141,7 @@ impl<T: fmt::Display> fmt::Display for Form<T> {
 #[derive(Clone)]
 pub struct FormConfig {
     limit: usize,
-    ehandler: Option<Rc<Fn(UrlencodedError, &HttpRequest) -> Error>>,
+    ehandler: Option<Rc<dyn Fn(UrlencodedError, &HttpRequest) -> Error>>,
 }
 
 impl FormConfig {

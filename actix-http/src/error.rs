@@ -43,12 +43,12 @@ pub type Result<T, E = Error> = result::Result<T, E>;
 /// if you have access to an actix `Error` you can always get a
 /// `ResponseError` reference from it.
 pub struct Error {
-    cause: Box<ResponseError>,
+    cause: Box<dyn ResponseError>,
 }
 
 impl Error {
     /// Returns the reference to the underlying `ResponseError`.
-    pub fn as_response_error(&self) -> &ResponseError {
+    pub fn as_response_error(&self) -> &dyn ResponseError {
         self.cause.as_ref()
     }
 }

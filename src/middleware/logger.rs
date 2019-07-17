@@ -444,7 +444,9 @@ impl FormatText {
     }
 }
 
-pub(crate) struct FormatDisplay<'a>(&'a Fn(&mut Formatter) -> Result<(), fmt::Error>);
+pub(crate) struct FormatDisplay<'a>(
+    &'a dyn Fn(&mut Formatter) -> Result<(), fmt::Error>,
+);
 
 impl<'a> fmt::Display for FormatDisplay<'a> {
     fn fmt(&self, fmt: &mut Formatter) -> Result<(), fmt::Error> {

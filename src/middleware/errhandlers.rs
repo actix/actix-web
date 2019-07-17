@@ -18,7 +18,7 @@ pub enum ErrorHandlerResponse<B> {
     Future(Box<dyn Future<Item = ServiceResponse<B>, Error = Error>>),
 }
 
-type ErrorHandler<B> = Fn(ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>>;
+type ErrorHandler<B> = dyn Fn(ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>>;
 
 /// `Middleware` for allowing custom handlers for responses.
 ///

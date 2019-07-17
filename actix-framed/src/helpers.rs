@@ -3,7 +3,7 @@ use actix_service::{NewService, Service};
 use futures::{Future, Poll};
 
 pub(crate) type BoxedHttpService<Req> = Box<
-    Service<
+    dyn Service<
         Request = Req,
         Response = (),
         Error = Error,
@@ -12,7 +12,7 @@ pub(crate) type BoxedHttpService<Req> = Box<
 >;
 
 pub(crate) type BoxedHttpNewService<Req> = Box<
-    NewService<
+    dyn NewService<
         Config = (),
         Request = Req,
         Response = (),

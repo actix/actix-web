@@ -18,14 +18,15 @@ use crate::request::{HttpRequest, HttpRequestPool};
 use crate::rmap::ResourceMap;
 use crate::service::{ServiceFactory, ServiceRequest, ServiceResponse};
 
-type Guards = Vec<Box<Guard>>;
+type Guards = Vec<Box<dyn Guard>>;
 type HttpService = BoxedService<ServiceRequest, ServiceResponse, Error>;
 type HttpNewService = BoxedNewService<(), ServiceRequest, ServiceResponse, Error, ()>;
 type BoxedResponse = Either<
     FutureResult<ServiceResponse, Error>,
     Box<dyn Future<Item = ServiceResponse, Error = Error>>,
 >;
-type FnDataFactory = Box<Fn() -> Box<dyn Future<Item = Box<DataFactory>, Error = ()>>>;
+type FnDataFactory =
+    Box<dyn Fn() -> Box<dyn Future<Item = Box<dyn DataFactory>, Error = ()>>>;
 
 /// Service factory to convert `Request` to a `ServiceRequest<S>`.
 /// It also executes data factories.
@@ -40,10 +41,10 @@ where
     >,
 {
     pub(crate) endpoint: T,
-    pub(crate) data: Rc<Vec<Box<DataFactory>>>,
+    pub(crate) data: Rc<Vec<Box<dyn DataFactory>>>,
     pub(crate) data_factories: Rc<Vec<FnDataFactory>>,
     pub(crate) config: RefCell<AppConfig>,
-    pub(crate) services: Rc<RefCell<Vec<Box<ServiceFactory>>>>,
+    pub(crate) services: Rc<RefCell<Vec<Box<dyn ServiceFactory>>>>,
     pub(crate) default: Option<Rc<HttpNewService>>,
     pub(crate) factory_ref: Rc<RefCell<Option<AppRoutingFactory>>>,
     pub(crate) external: RefCell<Vec<ResourceDef>>,
@@ -142,9 +143,9 @@ where
     endpoint_fut: T::Future,
     rmap: Rc<ResourceMap>,
     config: AppConfig,
-    data: Rc<Vec<Box<DataFactory>>>,
-    data_factories: Vec<Box<DataFactory>>,
-    data_factories_fut: Vec<Box<dyn Future<Item = Box<DataFactory>, Error = ()>>>,
+    data: Rc<Vec<Box<dyn DataFactory>>>,
+    data_factories: Vec<Box<dyn DataFactory>>,
+    data_factories_fut: Vec<Box<dyn Future<Item = Box<dyn DataFactory>, Error = ()>>>,
     _t: PhantomData<B>,
 }
 

@@ -283,7 +283,7 @@ where
                                 res.request().extensions_mut().remove::<IdentityItem>();
 
                             if let Some(id) = id {
-                                return Either::A(
+                                Either::A(
                                     backend
                                         .to_response(id.id, id.changed, &mut res)
                                         .into_future()
@@ -291,7 +291,7 @@ where
                                             Ok(_) => Ok(res),
                                             Err(e) => Ok(res.error_response(e)),
                                         }),
-                                );
+                                )
                             } else {
                                 Either::B(ok(res))
                             }

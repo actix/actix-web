@@ -26,7 +26,7 @@ pub struct HttpService<T, P, S, B, X = h1::ExpectHandler, U = h1::UpgradeHandler
     cfg: ServiceConfig,
     expect: X,
     upgrade: Option<U>,
-    on_connect: Option<rc::Rc<Fn(&T) -> Box<dyn DataFactory>>>,
+    on_connect: Option<rc::Rc<dyn Fn(&T) -> Box<dyn DataFactory>>>,
     _t: PhantomData<(T, P, B)>,
 }
 
@@ -140,7 +140,7 @@ where
     /// Set on connect callback.
     pub(crate) fn on_connect(
         mut self,
-        f: Option<rc::Rc<Fn(&T) -> Box<dyn DataFactory>>>,
+        f: Option<rc::Rc<dyn Fn(&T) -> Box<dyn DataFactory>>>,
     ) -> Self {
         self.on_connect = f;
         self
@@ -196,7 +196,7 @@ pub struct HttpServiceResponse<T, P, S: NewService, B, X: NewService, U: NewServ
     fut_upg: Option<U::Future>,
     expect: Option<X::Service>,
     upgrade: Option<U::Service>,
-    on_connect: Option<rc::Rc<Fn(&T) -> Box<dyn DataFactory>>>,
+    on_connect: Option<rc::Rc<dyn Fn(&T) -> Box<dyn DataFactory>>>,
     cfg: Option<ServiceConfig>,
     _t: PhantomData<(T, P, B)>,
 }
@@ -257,7 +257,7 @@ pub struct HttpServiceHandler<T, P, S, B, X, U> {
     expect: CloneableService<X>,
     upgrade: Option<CloneableService<U>>,
     cfg: ServiceConfig,
-    on_connect: Option<rc::Rc<Fn(&T) -> Box<dyn DataFactory>>>,
+    on_connect: Option<rc::Rc<dyn Fn(&T) -> Box<dyn DataFactory>>>,
     _t: PhantomData<(T, P, B, X)>,
 }
 
@@ -278,7 +278,7 @@ where
         srv: S,
         expect: X,
         upgrade: Option<U>,
-        on_connect: Option<rc::Rc<Fn(&T) -> Box<dyn DataFactory>>>,
+        on_connect: Option<rc::Rc<dyn Fn(&T) -> Box<dyn DataFactory>>>,
     ) -> HttpServiceHandler<T, P, S, B, X, U> {
         HttpServiceHandler {
             cfg,

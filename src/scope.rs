@@ -23,7 +23,7 @@ use crate::service::{
     ServiceFactory, ServiceFactoryWrapper, ServiceRequest, ServiceResponse,
 };
 
-type Guards = Vec<Box<Guard>>;
+type Guards = Vec<Box<dyn Guard>>;
 type HttpService = BoxedService<ServiceRequest, ServiceResponse, Error>;
 type HttpNewService = BoxedNewService<(), ServiceRequest, ServiceResponse, Error, ()>;
 type BoxedResponse = Either<
@@ -64,8 +64,8 @@ pub struct Scope<T = ScopeEndpoint> {
     endpoint: T,
     rdef: String,
     data: Option<Extensions>,
-    services: Vec<Box<ServiceFactory>>,
-    guards: Vec<Box<Guard>>,
+    services: Vec<Box<dyn ServiceFactory>>,
+    guards: Vec<Box<dyn Guard>>,
     default: Rc<RefCell<Option<Rc<HttpNewService>>>>,
     external: Vec<ResourceDef>,
     factory_ref: Rc<RefCell<Option<ScopeFactory>>>,
@@ -578,7 +578,7 @@ impl Future for ScopeFactoryResponse {
 
 pub struct ScopeService {
     data: Option<Rc<Extensions>>,
-    router: Router<HttpService, Vec<Box<Guard>>>,
+    router: Router<HttpService, Vec<Box<dyn Guard>>>,
     default: Option<HttpService>,
     _ready: Option<(ServiceRequest, ResourceInfo)>,
 }
