@@ -100,7 +100,7 @@ pub fn Any<F: Guard + 'static>(guard: F) -> AnyGuard {
 }
 
 /// Matches if any of supplied guards matche.
-pub struct AnyGuard(Vec<Box<Guard>>);
+pub struct AnyGuard(Vec<Box<dyn Guard>>);
 
 impl AnyGuard {
     /// Add guard to a list of guards to check
@@ -140,7 +140,7 @@ pub fn All<F: Guard + 'static>(guard: F) -> AllGuard {
 }
 
 /// Matches if all of supplied guards.
-pub struct AllGuard(Vec<Box<Guard>>);
+pub struct AllGuard(Vec<Box<dyn Guard>>);
 
 impl AllGuard {
     /// Add new guard to the list of guards to check
@@ -167,7 +167,7 @@ pub fn Not<F: Guard + 'static>(guard: F) -> NotGuard {
 }
 
 #[doc(hidden)]
-pub struct NotGuard(Box<Guard>);
+pub struct NotGuard(Box<dyn Guard>);
 
 impl Guard for NotGuard {
     fn check(&self, request: &RequestHead) -> bool {

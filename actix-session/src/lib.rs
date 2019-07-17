@@ -282,7 +282,7 @@ mod tests {
 
     #[test]
     fn purge_session() {
-        let mut req = test::TestRequest::default().to_srv_request();
+        let req = test::TestRequest::default().to_srv_request();
         let session = Session::get_session(&mut *req.extensions_mut());
         assert_eq!(session.0.borrow().status, SessionStatus::Unchanged);
         session.purge();
@@ -291,7 +291,7 @@ mod tests {
 
     #[test]
     fn renew_session() {
-        let mut req = test::TestRequest::default().to_srv_request();
+        let req = test::TestRequest::default().to_srv_request();
         let session = Session::get_session(&mut *req.extensions_mut());
         assert_eq!(session.0.borrow().status, SessionStatus::Unchanged);
         session.renew();

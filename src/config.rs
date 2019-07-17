@@ -16,7 +16,7 @@ use crate::service::{
     ServiceResponse,
 };
 
-type Guards = Vec<Box<Guard>>;
+type Guards = Vec<Box<dyn Guard>>;
 type HttpNewService =
     boxed::BoxedNewService<(), ServiceRequest, ServiceResponse, Error, ()>;
 
@@ -31,7 +31,7 @@ pub struct AppService {
         Option<Guards>,
         Option<Rc<ResourceMap>>,
     )>,
-    service_data: Rc<Vec<Box<DataFactory>>>,
+    service_data: Rc<Vec<Box<dyn DataFactory>>>,
 }
 
 impl AppService {
@@ -39,7 +39,7 @@ impl AppService {
     pub(crate) fn new(
         config: AppConfig,
         default: Rc<HttpNewService>,
-        service_data: Rc<Vec<Box<DataFactory>>>,
+        service_data: Rc<Vec<Box<dyn DataFactory>>>,
     ) -> Self {
         AppService {
             config,
@@ -101,7 +101,7 @@ impl AppService {
     pub fn register_service<F, S>(
         &mut self,
         rdef: ResourceDef,
-        guards: Option<Vec<Box<Guard>>>,
+        guards: Option<Vec<Box<dyn Guard>>>,
         service: F,
         nested: Option<Rc<ResourceMap>>,
     ) where
@@ -174,8 +174,8 @@ impl Default for AppConfigInner {
 /// to set of external methods. This could help with
 /// modularization of big application configuration.
 pub struct ServiceConfig {
-    pub(crate) services: Vec<Box<ServiceFactory>>,
-    pub(crate) data: Vec<Box<DataFactory>>,
+    pub(crate) services: Vec<Box<dyn ServiceFactory>>,
+    pub(crate) data: Vec<Box<dyn DataFactory>>,
     pub(crate) external: Vec<ResourceDef>,
 }
 

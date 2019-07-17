@@ -23,16 +23,17 @@ use crate::service::{
 };
 
 type HttpNewService = BoxedNewService<(), ServiceRequest, ServiceResponse, Error, ()>;
-type FnDataFactory = Box<Fn() -> Box<dyn Future<Item = Box<DataFactory>, Error = ()>>>;
+type FnDataFactory =
+    Box<dyn Fn() -> Box<dyn Future<Item = Box<dyn DataFactory>, Error = ()>>>;
 
 /// Application builder - structure that follows the builder pattern
 /// for building application instances.
 pub struct App<T, B> {
     endpoint: T,
-    services: Vec<Box<ServiceFactory>>,
+    services: Vec<Box<dyn ServiceFactory>>,
     default: Option<Rc<HttpNewService>>,
     factory_ref: Rc<RefCell<Option<AppRoutingFactory>>>,
-    data: Vec<Box<DataFactory>>,
+    data: Vec<Box<dyn DataFactory>>,
     data_factories: Vec<FnDataFactory>,
     config: AppConfigInner,
     external: Vec<ResourceDef>,

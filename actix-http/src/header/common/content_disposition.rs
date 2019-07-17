@@ -70,6 +70,7 @@ impl<'a> From<&'a str> for DispositionType {
 /// assert_eq!(param.as_filename().unwrap(), "sample.txt");
 /// ```
 #[derive(Clone, Debug, PartialEq)]
+#[allow(clippy::large_enum_variant)]
 pub enum DispositionParam {
     /// For [`DispositionType::FormData`] (i.e. *multipart/form-data*), the name of an field from
     /// the form.
@@ -719,8 +720,10 @@ mod tests {
         };
         assert_eq!(a, b);
 
-        let a =
-            HeaderValue::from_str("form-data; name=upload; filename=\"余固知謇謇之為患兮，忍而不能舍也.pptx\"").unwrap();
+        let a = HeaderValue::from_str(
+            "form-data; name=upload; filename=\"余固知謇謇之為患兮，忍而不能舍也.pptx\"",
+        )
+        .unwrap();
         let a: ContentDisposition = ContentDisposition::from_raw(&a).unwrap();
         let b = ContentDisposition {
             disposition: DispositionType::FormData,

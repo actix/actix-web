@@ -192,7 +192,8 @@ where
 /// ```
 #[derive(Clone)]
 pub struct QueryConfig {
-    ehandler: Option<Arc<Fn(QueryPayloadError, &HttpRequest) -> Error + Send + Sync>>,
+    ehandler:
+        Option<Arc<dyn Fn(QueryPayloadError, &HttpRequest) -> Error + Send + Sync>>,
 }
 
 impl QueryConfig {

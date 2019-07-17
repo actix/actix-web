@@ -1,10 +1,18 @@
 # Changes
 
-## [1.0.4] - TBD
+## [1.0.4] - 2019-07-17
+
+### Added
+
+* Add `Responder` impl for `(T, StatusCode) where T: Responder`
+
+* Allow to access app's resource map via
+  `ServiceRequest::resource_map()` and `HttpRequest::resource_map()` methods.
 
 ### Changed
 
 * Upgrade `rand` dependency version to 0.7
+
 
 ## [1.0.3] - 2019-06-28
 

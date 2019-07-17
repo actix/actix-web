@@ -5,7 +5,6 @@ use std::{io, net, rc};
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use actix_server_config::{Io, IoStream, ServerConfig as SrvConfig};
 use actix_service::{IntoNewService, NewService, Service};
-use actix_utils::cloneable::CloneableService;
 use bytes::Bytes;
 use futures::future::{ok, FutureResult};
 use futures::{try_ready, Async, Future, IntoFuture, Poll, Stream};
@@ -14,6 +13,7 @@ use h2::RecvStream;
 use log::error;
 
 use crate::body::MessageBody;
+use crate::cloneable::CloneableService;
 use crate::config::{KeepAlive, ServiceConfig};
 use crate::error::{DispatchError, Error, ParseError, ResponseError};
 use crate::helpers::DataFactory;
@@ -27,7 +27,7 @@ use super::dispatcher::Dispatcher;
 pub struct H2Service<T, P, S, B> {
     srv: S,
     cfg: ServiceConfig,
-    on_connect: Option<rc::Rc<Fn(&T) -> Box<dyn DataFactory>>>,
+    on_connect: Option<rc::Rc<dyn Fn(&T) -> Box<dyn DataFactory>>>,
     _t: PhantomData<(T, P, B)>,
 }
 
@@ -64,7 +64,7 @@ where
     /// Set on connect callback.
     pub(crate) fn on_connect(
         mut self,
-        f: Option<rc::Rc<Fn(&T) -> Box<dyn DataFactory>>>,
+        f: Option<rc::Rc<dyn Fn(&T) -> Box<dyn DataFactory>>>,
     ) -> Self {
         self.on_connect = f;
         self
@@ -102,7 +102,7 @@ where
 pub struct H2ServiceResponse<T, P, S: NewService, B> {
     fut: <S::Future as IntoFuture>::Future,
     cfg: Option<ServiceConfig>,
-    on_connect: Option<rc::Rc<Fn(&T) -> Box<dyn DataFactory>>>,
+    on_connect: Option<rc::Rc<dyn Fn(&T) -> Box<dyn DataFactory>>>,
     _t: PhantomData<(T, P, B)>,
 }
 
@@ -132,7 +132,7 @@ where
 pub struct H2ServiceHandler<T, P, S, B> {
     srv: CloneableService<S>,
     cfg: ServiceConfig,
-    on_connect: Option<rc::Rc<Fn(&T) -> Box<dyn DataFactory>>>,
+    on_connect: Option<rc::Rc<dyn Fn(&T) -> Box<dyn DataFactory>>>,
     _t: PhantomData<(T, P, B)>,
 }
 
@@ -146,7 +146,7 @@ where
 {
     fn new(
         cfg: ServiceConfig,
-        on_connect: Option<rc::Rc<Fn(&T) -> Box<dyn DataFactory>>>,
+        on_connect: Option<rc::Rc<dyn Fn(&T) -> Box<dyn DataFactory>>>,
         srv: S,
     ) -> H2ServiceHandler<T, P, S, B> {
         H2ServiceHandler {
@@ -256,7 +256,7 @@ where
                         on_connect.take(),
                         config.take().unwrap(),
                         None,
-                        peer_addr.clone(),
+                        *peer_addr,
                     ));
                     self.poll()
                 }

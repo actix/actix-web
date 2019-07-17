@@ -123,7 +123,7 @@ impl ResourceMap {
         I: AsRef<str>,
     {
         if let Some(pattern) = self.named.get(name) {
-            if pattern.pattern().starts_with("/") {
+            if pattern.pattern().starts_with('/') {
                 self.fill_root(path, elements)?;
             }
             if pattern.resource_path(path, elements) {

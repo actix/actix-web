@@ -6,7 +6,7 @@ use crate::cookie::{Cookie, CookieJar};
 
 // Keep these in sync, and keep the key len synced with the `signed` docs as
 // well as the `KEYS_INFO` const in secure::Key.
-static HMAC_DIGEST: &'static Algorithm = &SHA256;
+static HMAC_DIGEST: &Algorithm = &SHA256;
 const BASE64_DIGEST_LEN: usize = 44;
 pub const KEY_LEN: usize = 32;
 

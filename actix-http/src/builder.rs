@@ -26,7 +26,7 @@ pub struct HttpServiceBuilder<T, S, X = ExpectHandler, U = UpgradeHandler<T>> {
     client_disconnect: u64,
     expect: X,
     upgrade: Option<U>,
-    on_connect: Option<Rc<Fn(&T) -> Box<dyn DataFactory>>>,
+    on_connect: Option<Rc<dyn Fn(&T) -> Box<dyn DataFactory>>>,
     _t: PhantomData<(T, S)>,
 }
 

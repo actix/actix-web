@@ -224,7 +224,7 @@ where
 /// ```
 #[derive(Clone)]
 pub struct PathConfig {
-    ehandler: Option<Arc<Fn(PathError, &HttpRequest) -> Error + Send + Sync>>,
+    ehandler: Option<Arc<dyn Fn(PathError, &HttpRequest) -> Error + Send + Sync>>,
 }
 
 impl PathConfig {

@@ -10,7 +10,7 @@ use crate::cookie::{Cookie, CookieJar};
 
 // Keep these in sync, and keep the key len synced with the `private` docs as
 // well as the `KEYS_INFO` const in secure::Key.
-static ALGO: &'static Algorithm = &AES_256_GCM;
+static ALGO: &Algorithm = &AES_256_GCM;
 const NONCE_LEN: usize = 12;
 pub const KEY_LEN: usize = 32;
 

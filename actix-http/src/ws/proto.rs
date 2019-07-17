@@ -47,10 +47,7 @@ impl Into<u8> for OpCode {
             Ping => 9,
             Pong => 10,
             Bad => {
-                debug_assert!(
-                    false,
-                    "Attempted to convert invalid opcode to u8. This is a bug."
-                );
+                log::error!("Attempted to convert invalid opcode to u8. This is a bug.");
                 8 // if this somehow happens, a close frame will help us tear down quickly
             }
         }
@@ -206,7 +203,7 @@ impl<T: Into<String>> From<(CloseCode, T)> for CloseReason {
     }
 }
 
-static WS_GUID: &'static str = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+static WS_GUID: &str = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 
 // TODO: hash is always same size, we dont need String
 pub fn hash_key(key: &[u8]) -> String {

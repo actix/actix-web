@@ -288,13 +288,13 @@ where
             lst,
             move || {
                 let c = cfg.lock();
-                acceptor.clone().map_err(|e| SslError::Ssl(e)).and_then(
+                acceptor.clone().map_err(SslError::Ssl).and_then(
                     HttpService::build()
                         .keep_alive(c.keep_alive)
                         .client_timeout(c.client_timeout)
                         .client_disconnect(c.client_shutdown)
                         .finish(factory())
-                        .map_err(|e| SslError::Service(e))
+                        .map_err(SslError::Service)
                         .map_init_err(|_| ()),
                 )
             },
@@ -339,13 +339,13 @@ where
             lst,
             move || {
                 let c = cfg.lock();
-                acceptor.clone().map_err(|e| SslError::Ssl(e)).and_then(
+                acceptor.clone().map_err(SslError::Ssl).and_then(
                     HttpService::build()
                         .keep_alive(c.keep_alive)
                         .client_timeout(c.client_timeout)
                         .client_disconnect(c.client_shutdown)
                         .finish(factory())
-                        .map_err(|e| SslError::Service(e))
+                        .map_err(SslError::Service)
                         .map_init_err(|_| ()),
                 )
             },

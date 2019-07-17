@@ -185,9 +185,7 @@ impl ClientRequest {
     {
         match HeaderName::try_from(key) {
             Ok(key) => match value.try_into() {
-                Ok(value) => {
-                    let _ = self.head.headers.append(key, value);
-                }
+                Ok(value) => self.head.headers.append(key, value),
                 Err(e) => self.err = Some(e.into()),
             },
             Err(e) => self.err = Some(e.into()),
@@ -203,9 +201,7 @@ impl ClientRequest {
     {
         match HeaderName::try_from(key) {
             Ok(key) => match value.try_into() {
-                Ok(value) => {
-                    let _ = self.head.headers.insert(key, value);
-                }
+                Ok(value) => self.head.headers.insert(key, value),
                 Err(e) => self.err = Some(e.into()),
             },
             Err(e) => self.err = Some(e.into()),
@@ -223,9 +219,7 @@ impl ClientRequest {
             Ok(key) => {
                 if !self.head.headers.contains_key(&key) {
                     match value.try_into() {
-                        Ok(value) => {
-                            let _ = self.head.headers.insert(key, value);
-                        }
+                        Ok(value) => self.head.headers.insert(key, value),
                         Err(e) => self.err = Some(e.into()),
                     }
                 }
@@ -257,9 +251,7 @@ impl ClientRequest {
         HeaderValue: HttpTryFrom<V>,
     {
         match HeaderValue::try_from(value) {
-            Ok(value) => {
-                let _ = self.head.headers.insert(header::CONTENT_TYPE, value);
-            }
+            Ok(value) => self.head.headers.insert(header::CONTENT_TYPE, value),
             Err(e) => self.err = Some(e.into()),
         }
         self
@@ -321,7 +313,7 @@ impl ClientRequest {
     ///     }));
     /// }
     /// ```
-    pub fn cookie<'c>(mut self, cookie: Cookie<'c>) -> Self {
+    pub fn cookie(mut self, cookie: Cookie<'_>) -> Self {
         if self.cookies.is_none() {
             let mut jar = CookieJar::new();
             jar.add(cookie.into_owned());
@@ -465,7 +457,7 @@ impl ClientRequest {
             });
 
         // set request timeout
-        if let Some(timeout) = slf.timeout.or_else(|| config.timeout.clone()) {
+        if let Some(timeout) = slf.timeout.or_else(|| config.timeout) {
             Either::B(Either::A(Timeout::new(fut, timeout).map_err(|e| {
                 if let Some(e) = e.into_inner() {
                     e

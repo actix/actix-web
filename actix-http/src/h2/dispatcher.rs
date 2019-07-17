@@ -6,7 +6,6 @@ use std::{fmt, mem, net};
 use actix_codec::{AsyncRead, AsyncWrite};
 use actix_server_config::IoStream;
 use actix_service::Service;
-use actix_utils::cloneable::CloneableService;
 use bitflags::bitflags;
 use bytes::{Bytes, BytesMut};
 use futures::{try_ready, Async, Future, Poll, Sink, Stream};
@@ -20,6 +19,7 @@ use log::{debug, error, trace};
 use tokio_timer::Delay;
 
 use crate::body::{Body, BodySize, MessageBody, ResponseBody};
+use crate::cloneable::CloneableService;
 use crate::config::ServiceConfig;
 use crate::error::{DispatchError, Error, ParseError, PayloadError, ResponseError};
 use crate::helpers::DataFactory;

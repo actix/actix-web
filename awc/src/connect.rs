@@ -20,7 +20,7 @@ pub(crate) trait Connect {
         head: RequestHead,
         body: Body,
         addr: Option<net::SocketAddr>,
-    ) -> Box<Future<Item = ClientResponse, Error = SendRequestError>>;
+    ) -> Box<dyn Future<Item = ClientResponse, Error = SendRequestError>>;
 
     /// Send request, returns Response and Framed
     fn open_tunnel(
@@ -28,7 +28,7 @@ pub(crate) trait Connect {
         head: RequestHead,
         addr: Option<net::SocketAddr>,
     ) -> Box<
-        Future<
+        dyn Future<
             Item = (ResponseHead, Framed<BoxedSocket, ClientCodec>),
             Error = SendRequestError,
         >,
@@ -49,7 +49,7 @@ where
         head: RequestHead,
         body: Body,
         addr: Option<net::SocketAddr>,
-    ) -> Box<Future<Item = ClientResponse, Error = SendRequestError>> {
+    ) -> Box<dyn Future<Item = ClientResponse, Error = SendRequestError>> {
         Box::new(
             self.0
                 // connect to the host
@@ -69,7 +69,7 @@ where
         head: RequestHead,
         addr: Option<net::SocketAddr>,
     ) -> Box<
-        Future<
+        dyn Future<
             Item = (ResponseHead, Framed<BoxedSocket, ClientCodec>),
             Error = SendRequestError,
         >,
@@ -93,21 +93,21 @@ where
 }
 
 trait AsyncSocket {
-    fn as_read(&self) -> &AsyncRead;
-    fn as_read_mut(&mut self) -> &mut AsyncRead;
-    fn as_write(&mut self) -> &mut AsyncWrite;
+    fn as_read(&self) -> &dyn AsyncRead;
+    fn as_read_mut(&mut self) -> &mut dyn AsyncRead;
+    fn as_write(&mut self) -> &mut dyn AsyncWrite;
 }
 
 struct Socket<T: AsyncRead + AsyncWrite>(T);
 
 impl<T: AsyncRead + AsyncWrite> AsyncSocket for Socket<T> {
-    fn as_read(&self) -> &AsyncRead {
+    fn as_read(&self) -> &dyn AsyncRead {
         &self.0
     }
-    fn as_read_mut(&mut self) -> &mut AsyncRead {
+    fn as_read_mut(&mut self) -> &mut dyn AsyncRead {
         &mut self.0
     }
-    fn as_write(&mut self) -> &mut AsyncWrite {
+    fn as_write(&mut self) -> &mut dyn AsyncWrite {
         &mut self.0
     }
 }

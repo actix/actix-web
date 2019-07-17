@@ -65,7 +65,7 @@ where
     F: FnOnce() -> R,
     R: IntoFuture,
 {
-    RT.with(move |rt| rt.borrow_mut().get_mut().block_on(lazy(|| f())))
+    RT.with(move |rt| rt.borrow_mut().get_mut().block_on(lazy(f)))
 }
 
 /// The `TestServer` type.
@@ -107,6 +107,7 @@ pub struct TestServerRuntime {
 }
 
 impl TestServer {
+    #[allow(clippy::new_ret_no_self)]
     /// Start new test server with application factory
     pub fn new<F: StreamServiceFactory>(factory: F) -> TestServerRuntime {
         let (tx, rx) = mpsc::channel();
@@ -191,7 +192,7 @@ impl TestServerRuntime {
         F: FnOnce() -> R,
         R: Future,
     {
-        self.rt.block_on(lazy(|| f()))
+        self.rt.block_on(lazy(f))
     }
 
     /// Execute function on current core
@@ -263,6 +264,36 @@ impl TestServerRuntime {
     /// Create https `PUT` request
     pub fn sput<S: AsRef<str>>(&self, path: S) -> ClientRequest {
         self.client.put(self.surl(path.as_ref()).as_str())
+    }
+
+    /// Create `PATCH` request
+    pub fn patch<S: AsRef<str>>(&self, path: S) -> ClientRequest {
+        self.client.patch(self.url(path.as_ref()).as_str())
+    }
+
+    /// Create https `PATCH` request
+    pub fn spatch<S: AsRef<str>>(&self, path: S) -> ClientRequest {
+        self.client.patch(self.surl(path.as_ref()).as_str())
+    }
+
+    /// Create `DELETE` request
+    pub fn delete<S: AsRef<str>>(&self, path: S) -> ClientRequest {
+        self.client.delete(self.url(path.as_ref()).as_str())
+    }
+
+    /// Create https `DELETE` request
+    pub fn sdelete<S: AsRef<str>>(&self, path: S) -> ClientRequest {
+        self.client.delete(self.surl(path.as_ref()).as_str())
+    }
+
+    /// Create `OPTIONS` request
+    pub fn options<S: AsRef<str>>(&self, path: S) -> ClientRequest {
+        self.client.options(self.url(path.as_ref()).as_str())
+    }
+
+    /// Create https `OPTIONS` request
+    pub fn soptions<S: AsRef<str>>(&self, path: S) -> ClientRequest {
+        self.client.options(self.surl(path.as_ref()).as_str())
     }
 
     /// Connect to test http server

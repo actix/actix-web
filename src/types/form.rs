@@ -73,7 +73,7 @@ where
 {
     type Config = FormConfig;
     type Error = Error;
-    type Future = Box<Future<Item = Self, Error = Error>>;
+    type Future = Box<dyn Future<Item = Self, Error = Error>>;
 
     #[inline]
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
@@ -141,7 +141,7 @@ impl<T: fmt::Display> fmt::Display for Form<T> {
 #[derive(Clone)]
 pub struct FormConfig {
     limit: usize,
-    ehandler: Option<Rc<Fn(UrlencodedError, &HttpRequest) -> Error>>,
+    ehandler: Option<Rc<dyn Fn(UrlencodedError, &HttpRequest) -> Error>>,
 }
 
 impl FormConfig {
@@ -187,7 +187,7 @@ pub struct UrlEncoded<U> {
     length: Option<usize>,
     encoding: &'static Encoding,
     err: Option<UrlencodedError>,
-    fut: Option<Box<Future<Item = U, Error = UrlencodedError>>>,
+    fut: Option<Box<dyn Future<Item = U, Error = UrlencodedError>>>,
 }
 
 impl<U> UrlEncoded<U> {

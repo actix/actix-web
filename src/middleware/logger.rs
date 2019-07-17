@@ -415,9 +415,9 @@ impl FormatText {
                     ))
                 };
             }
-            FormatText::UrlPath => *self = FormatText::Str(format!("{}", req.path())),
+            FormatText::UrlPath => *self = FormatText::Str(req.path().to_string()),
             FormatText::RequestTime => {
-                *self = FormatText::Str(format!("{}", now.rfc3339()))
+                *self = FormatText::Str(now.rfc3339().to_string())
             }
             FormatText::RequestHeader(ref name) => {
                 let s = if let Some(val) = req.headers().get(name) {
@@ -444,7 +444,9 @@ impl FormatText {
     }
 }
 
-pub(crate) struct FormatDisplay<'a>(&'a Fn(&mut Formatter) -> Result<(), fmt::Error>);
+pub(crate) struct FormatDisplay<'a>(
+    &'a dyn Fn(&mut Formatter) -> Result<(), fmt::Error>,
+);
 
 impl<'a> fmt::Display for FormatDisplay<'a> {
     fn fmt(&self, fmt: &mut Formatter) -> Result<(), fmt::Error> {

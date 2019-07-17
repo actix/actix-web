@@ -261,7 +261,7 @@ where
     type Request = ServiceRequest;
     type Response = ServiceResponse<B>;
     type Error = Error;
-    type Future = Box<Future<Item = Self::Response, Error = Self::Error>>;
+    type Future = Box<dyn Future<Item = Self::Response, Error = Self::Error>>;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
         self.service.borrow_mut().poll_ready()
@@ -283,7 +283,7 @@ where
                                 res.request().extensions_mut().remove::<IdentityItem>();
 
                             if let Some(id) = id {
-                                return Either::A(
+                                Either::A(
                                     backend
                                         .to_response(id.id, id.changed, &mut res)
                                         .into_future()
@@ -291,7 +291,7 @@ where
                                             Ok(_) => Ok(res),
                                             Err(e) => Ok(res.error_response(e)),
                                         }),
-                                );
+                                )
                             } else {
                                 Either::B(ok(res))
                             }
@@ -333,8 +333,7 @@ struct CookieIdentityExtention {
 
 impl CookieIdentityInner {
     fn new(key: &[u8]) -> CookieIdentityInner {
-        let key_v2: Vec<u8> =
-            key.iter().chain([1, 0, 0, 0].iter()).map(|e| *e).collect();
+        let key_v2: Vec<u8> = key.iter().chain([1, 0, 0, 0].iter()).cloned().collect();
         CookieIdentityInner {
             key: Key::from_master(key),
             key_v2: Key::from_master(&key_v2),
@@ -585,13 +584,14 @@ impl IdentityPolicy for CookieIdentityPolicy {
             )
         } else if self.0.always_update_cookie() && id.is_some() {
             let visit_timestamp = SystemTime::now();
-            let mut login_timestamp = None;
-            if self.0.requires_oob_data() {
+            let login_timestamp = if self.0.requires_oob_data() {
                 let CookieIdentityExtention {
                     login_timestamp: lt,
                 } = res.request().extensions_mut().remove().unwrap();
-                login_timestamp = lt;
-            }
+                lt
+            } else {
+                None
+            };
             self.0.set_cookie(
                 res,
                 Some(CookieValue {

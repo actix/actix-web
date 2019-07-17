@@ -418,7 +418,7 @@ impl Stream for Field {
 
             inner.poll(&self.safety)
         } else if !self.safety.is_clean() {
-            return Err(MultipartError::NotConsumed);
+            Err(MultipartError::NotConsumed)
         } else {
             Ok(Async::NotReady)
         }
@@ -533,11 +533,9 @@ impl InnerField {
                 let b_size = boundary.len() + b_len;
                 if len < b_size {
                     return Ok(Async::NotReady);
-                } else {
-                    if &payload.buf[b_len..b_size] == boundary.as_bytes() {
-                        // found boundary
-                        return Ok(Async::Ready(None));
-                    }
+                } else if &payload.buf[b_len..b_size] == boundary.as_bytes() {
+                    // found boundary
+                    return Ok(Async::Ready(None));
                 }
             }
         }
@@ -557,7 +555,7 @@ impl InnerField {
                     // check boundary
                     if (&payload.buf[cur..cur + 2] == b"\r\n"
                         && &payload.buf[cur + 2..cur + 4] == b"--")
-                        || (&payload.buf[cur..cur + 1] == b"\r"
+                        || (&payload.buf[cur..=cur] == b"\r"
                             && &payload.buf[cur + 1..cur + 3] == b"--")
                     {
                         if cur != 0 {
