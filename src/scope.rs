@@ -195,7 +195,7 @@ where
         self.external.extend(cfg.external);
 
         if !cfg.data.is_empty() {
-            let mut data = self.data.unwrap_or_else(|| Extensions::new());
+            let mut data = self.data.unwrap_or_else(Extensions::new);
 
             for value in cfg.data.iter() {
                 value.create(&mut data);
@@ -425,7 +425,7 @@ where
 
         // complete scope pipeline creation
         *self.factory_ref.borrow_mut() = Some(ScopeFactory {
-            data: self.data.take().map(|data| Rc::new(data)),
+            data: self.data.take().map(Rc::new),
             default: self.default.clone(),
             services: Rc::new(
                 cfg.into_services()

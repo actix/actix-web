@@ -134,6 +134,8 @@ pub mod dev {
     //! ```
 
     pub use crate::config::{AppConfig, AppService};
+    #[doc(hidden)]
+    pub use crate::handler::{AsyncFactory, Factory};
     pub use crate::info::ConnectionInfo;
     pub use crate::rmap::ResourceMap;
     pub use crate::service::{

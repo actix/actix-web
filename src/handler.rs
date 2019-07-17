@@ -250,7 +250,7 @@ where
             Ok(Async::Ready(res)) => {
                 self.fut2 =
                     Some(res.respond_to(self.req.as_ref().unwrap()).into_future());
-                return self.poll();
+                self.poll()
             }
             Ok(Async::NotReady) => Ok(Async::NotReady),
             Err(e) => {
