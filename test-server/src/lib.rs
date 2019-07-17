@@ -65,7 +65,7 @@ where
     F: FnOnce() -> R,
     R: IntoFuture,
 {
-    RT.with(move |rt| rt.borrow_mut().get_mut().block_on(lazy(|| f())))
+    RT.with(move |rt| rt.borrow_mut().get_mut().block_on(lazy(f)))
 }
 
 /// The `TestServer` type.
@@ -107,6 +107,7 @@ pub struct TestServerRuntime {
 }
 
 impl TestServer {
+    #[allow(clippy::new_ret_no_self)]
     /// Start new test server with application factory
     pub fn new<F: StreamServiceFactory>(factory: F) -> TestServerRuntime {
         let (tx, rx) = mpsc::channel();
@@ -191,7 +192,7 @@ impl TestServerRuntime {
         F: FnOnce() -> R,
         R: Future,
     {
-        self.rt.block_on(lazy(|| f()))
+        self.rt.block_on(lazy(f))
     }
 
     /// Execute function on current core

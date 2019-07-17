@@ -1,3 +1,4 @@
+#![allow(clippy::borrow_interior_mutable_const, clippy::type_complexity)]
 //! Cross-origin resource sharing (CORS) for Actix applications
 //!
 //! CORS middleware could be used with application and with resource.
@@ -162,6 +163,7 @@ impl<T> AllOrSome<T> {
 ///     .max_age(3600);
 /// # }
 /// ```
+#[derive(Default)]
 pub struct Cors {
     cors: Option<Inner>,
     methods: bool,

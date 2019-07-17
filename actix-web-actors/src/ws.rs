@@ -435,7 +435,7 @@ where
                         }
                     }
                     Frame::Binary(data) => Message::Binary(
-                        data.map(|b| b.freeze()).unwrap_or_else(|| Bytes::new()),
+                        data.map(|b| b.freeze()).unwrap_or_else(Bytes::new),
                     ),
                     Frame::Ping(s) => Message::Ping(s),
                     Frame::Pong(s) => Message::Pong(s),

@@ -342,7 +342,7 @@ where
                     }
                 }
                 (SessionStatus::Purged, _) => {
-                    inner.remove_cookie(&mut res);
+                    let _ = inner.remove_cookie(&mut res);
                     res
                 }
                 _ => res,

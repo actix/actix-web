@@ -1,3 +1,5 @@
+#![allow(clippy::borrow_interior_mutable_const, clippy::type_complexity)]
+
 //! Static files support
 use std::cell::RefCell;
 use std::fmt::Write;
@@ -57,7 +59,7 @@ pub struct ChunkedReadFile {
 fn handle_error(err: BlockingError<io::Error>) -> Error {
     match err {
         BlockingError::Error(err) => err.into(),
-        BlockingError::Canceled => ErrorInternalServerError("Unexpected error").into(),
+        BlockingError::Canceled => ErrorInternalServerError("Unexpected error"),
     }
 }
 

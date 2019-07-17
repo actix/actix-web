@@ -298,7 +298,6 @@ pub struct HttpMessageBody {
 
 impl HttpMessageBody {
     /// Create `MessageBody` for request.
-    #[allow(clippy::borrow_interior_mutable_const)]
     pub fn new(req: &HttpRequest, payload: &mut dev::Payload) -> HttpMessageBody {
         let mut len = None;
         if let Some(l) = req.headers().get(&header::CONTENT_LENGTH) {

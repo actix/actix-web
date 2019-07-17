@@ -125,7 +125,6 @@ where
         self.service.poll_ready()
     }
 
-    #[allow(clippy::borrow_interior_mutable_const)]
     fn call(&mut self, req: ServiceRequest) -> Self::Future {
         let inner = self.inner.clone();
 

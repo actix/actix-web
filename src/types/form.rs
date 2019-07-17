@@ -192,7 +192,6 @@ pub struct UrlEncoded<U> {
 
 impl<U> UrlEncoded<U> {
     /// Create a new future to URL encode a request
-    #[allow(clippy::borrow_interior_mutable_const)]
     pub fn new(req: &HttpRequest, payload: &mut Payload) -> UrlEncoded<U> {
         // check content type
         if req.content_type().to_lowercase() != "application/x-www-form-urlencoded" {

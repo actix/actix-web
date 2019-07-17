@@ -1,3 +1,4 @@
+#![allow(clippy::borrow_interior_mutable_const)]
 //! An HTTP Client
 //!
 //! ```rust
