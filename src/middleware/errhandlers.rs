@@ -15,7 +15,7 @@ pub enum ErrorHandlerResponse<B> {
     /// New http response got generated
     Response(ServiceResponse<B>),
     /// Result is a future that resolves to a new http response
-    Future(Box<Future<Item = ServiceResponse<B>, Error = Error>>),
+    Future(Box<dyn Future<Item = ServiceResponse<B>, Error = Error>>),
 }
 
 type ErrorHandler<B> = Fn(ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>>;
@@ -117,7 +117,7 @@ where
     type Request = ServiceRequest;
     type Response = ServiceResponse<B>;
     type Error = Error;
-    type Future = Box<Future<Item = Self::Response, Error = Self::Error>>;
+    type Future = Box<dyn Future<Item = Self::Response, Error = Self::Error>>;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
         self.service.poll_ready()

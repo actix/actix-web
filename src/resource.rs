@@ -245,7 +245,7 @@ where
     /// ```rust
     /// # use actix_web::*;
     /// # use futures::future::Future;
-    /// # fn index(req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
+    /// # fn index(req: HttpRequest) -> Box<dyn Future<Item=HttpResponse, Error=Error>> {
     /// #     unimplemented!()
     /// # }
     /// App::new().service(web::resource("/").route(web::route().to_async(index)));
@@ -478,7 +478,7 @@ pub struct CreateResourceService {
     fut: Vec<CreateRouteServiceItem>,
     data: Option<Rc<Extensions>>,
     default: Option<HttpService>,
-    default_fut: Option<Box<Future<Item = HttpService, Error = ()>>>,
+    default_fut: Option<Box<dyn Future<Item = HttpService, Error = ()>>>,
 }
 
 impl Future for CreateResourceService {
@@ -542,7 +542,7 @@ impl Service for ResourceService {
     type Error = Error;
     type Future = Either<
         FutureResult<ServiceResponse, Error>,
-        Box<Future<Item = ServiceResponse, Error = Error>>,
+        Box<dyn Future<Item = ServiceResponse, Error = Error>>,
     >;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {

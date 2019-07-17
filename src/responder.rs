@@ -337,7 +337,7 @@ impl<T: Responder> Future for CustomResponderFut<T> {
 /// use actix_web::{Either, Error, HttpResponse};
 ///
 /// type RegisterResult =
-///     Either<HttpResponse, Box<Future<Item = HttpResponse, Error = Error>>>;
+///     Either<HttpResponse, Box<dyn Future<Item = HttpResponse, Error = Error>>>;
 ///
 /// fn index() -> RegisterResult {
 ///     if is_a_variant() {
@@ -411,13 +411,13 @@ where
     }
 }
 
-impl<I, E> Responder for Box<Future<Item = I, Error = E>>
+impl<I, E> Responder for Box<dyn Future<Item = I, Error = E>>
 where
     I: Responder + 'static,
     E: Into<Error> + 'static,
 {
     type Error = Error;
-    type Future = Box<Future<Item = Response, Error = Error>>;
+    type Future = Box<dyn Future<Item = Response, Error = Error>>;
 
     #[inline]
     fn respond_to(self, req: &HttpRequest) -> Self::Future {

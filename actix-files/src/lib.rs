@@ -50,7 +50,7 @@ pub struct ChunkedReadFile {
     size: u64,
     offset: u64,
     file: Option<File>,
-    fut: Option<Box<Future<Item = (File, Bytes), Error = BlockingError<io::Error>>>>,
+    fut: Option<Box<dyn Future<Item = (File, Bytes), Error = BlockingError<io::Error>>>>,
     counter: u64,
 }
 
@@ -370,7 +370,7 @@ impl NewService for Files {
     type Error = Error;
     type Service = FilesService;
     type InitError = ();
-    type Future = Box<Future<Item = Self::Service, Error = Self::InitError>>;
+    type Future = Box<dyn Future<Item = Self::Service, Error = Self::InitError>>;
 
     fn new_service(&self, _: &()) -> Self::Future {
         let mut srv = FilesService {
@@ -416,7 +416,7 @@ impl FilesService {
         req: ServiceRequest,
     ) -> Either<
         FutureResult<ServiceResponse, Error>,
-        Box<Future<Item = ServiceResponse, Error = Error>>,
+        Box<dyn Future<Item = ServiceResponse, Error = Error>>,
     > {
         log::debug!("Files: Failed to handle {}: {}", req.path(), e);
         if let Some(ref mut default) = self.default {
@@ -433,7 +433,7 @@ impl Service for FilesService {
     type Error = Error;
     type Future = Either<
         FutureResult<Self::Response, Self::Error>,
-        Box<Future<Item = Self::Response, Error = Self::Error>>,
+        Box<dyn Future<Item = Self::Response, Error = Self::Error>>,
     >;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {

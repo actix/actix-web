@@ -169,7 +169,7 @@ where
     T: DeserializeOwned + 'static,
 {
     type Error = Error;
-    type Future = Box<Future<Item = Self, Error = Error>>;
+    type Future = Box<dyn Future<Item = Self, Error = Error>>;
     type Config = JsonConfig;
 
     #[inline]
@@ -290,7 +290,7 @@ pub struct JsonBody<U> {
     length: Option<usize>,
     stream: Option<Decompress<Payload>>,
     err: Option<JsonPayloadError>,
-    fut: Option<Box<Future<Item = U, Error = JsonPayloadError>>>,
+    fut: Option<Box<dyn Future<Item = U, Error = JsonPayloadError>>>,
 }
 
 impl<U> JsonBody<U>

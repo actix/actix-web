@@ -28,7 +28,7 @@ type HttpService = BoxedService<ServiceRequest, ServiceResponse, Error>;
 type HttpNewService = BoxedNewService<(), ServiceRequest, ServiceResponse, Error, ()>;
 type BoxedResponse = Either<
     FutureResult<ServiceResponse, Error>,
-    Box<Future<Item = ServiceResponse, Error = Error>>,
+    Box<dyn Future<Item = ServiceResponse, Error = Error>>,
 >;
 
 /// Resources scope.
@@ -503,10 +503,10 @@ pub struct ScopeFactoryResponse {
     fut: Vec<CreateScopeServiceItem>,
     data: Option<Rc<Extensions>>,
     default: Option<HttpService>,
-    default_fut: Option<Box<Future<Item = HttpService, Error = ()>>>,
+    default_fut: Option<Box<dyn Future<Item = HttpService, Error = ()>>>,
 }
 
-type HttpServiceFut = Box<Future<Item = HttpService, Error = ()>>;
+type HttpServiceFut = Box<dyn Future<Item = HttpService, Error = ()>>;
 
 enum CreateScopeServiceItem {
     Future(Option<ResourceDef>, Option<Guards>, HttpServiceFut),

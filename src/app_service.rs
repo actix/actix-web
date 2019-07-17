@@ -23,7 +23,7 @@ type HttpService = BoxedService<ServiceRequest, ServiceResponse, Error>;
 type HttpNewService = BoxedNewService<(), ServiceRequest, ServiceResponse, Error, ()>;
 type BoxedResponse = Either<
     FutureResult<ServiceResponse, Error>,
-    Box<Future<Item = ServiceResponse, Error = Error>>,
+    Box<dyn Future<Item = ServiceResponse, Error = Error>>,
 >;
 type FnDataFactory = Box<Fn() -> Box<dyn Future<Item = Box<DataFactory>, Error = ()>>>;
 
@@ -297,14 +297,14 @@ impl NewService for AppRoutingFactory {
     }
 }
 
-type HttpServiceFut = Box<Future<Item = HttpService, Error = ()>>;
+type HttpServiceFut = Box<dyn Future<Item = HttpService, Error = ()>>;
 
 /// Create app service
 #[doc(hidden)]
 pub struct AppRoutingFactoryResponse {
     fut: Vec<CreateAppRoutingItem>,
     default: Option<HttpService>,
-    default_fut: Option<Box<Future<Item = HttpService, Error = ()>>>,
+    default_fut: Option<Box<dyn Future<Item = HttpService, Error = ()>>>,
 }
 
 enum CreateAppRoutingItem {

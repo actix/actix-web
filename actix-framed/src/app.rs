@@ -13,7 +13,7 @@ use crate::helpers::{BoxedHttpNewService, BoxedHttpService, HttpNewService};
 use crate::request::FramedRequest;
 use crate::state::State;
 
-type BoxedResponse = Box<Future<Item = (), Error = Error>>;
+type BoxedResponse = Box<dyn Future<Item = (), Error = Error>>;
 
 pub trait HttpServiceFactory {
     type Factory: NewService;
@@ -61,7 +61,7 @@ impl<T: 'static, S: 'static> FramedApp<T, S> {
             Request = FramedRequest<T, S>,
             Response = (),
             Error = Error,
-            Future = Box<Future<Item = (), Error = Error>>,
+            Future = Box<dyn Future<Item = (), Error = Error>>,
         >,
     {
         let path = factory.path().to_string();
@@ -129,7 +129,7 @@ pub struct CreateService<T, S> {
 enum CreateServiceItem<T, S> {
     Future(
         Option<String>,
-        Box<Future<Item = BoxedHttpService<FramedRequest<T, S>>, Error = ()>>,
+        Box<dyn Future<Item = BoxedHttpService<FramedRequest<T, S>>, Error = ()>>,
     ),
     Service(String, BoxedHttpService<FramedRequest<T, S>>),
 }

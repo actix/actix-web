@@ -20,7 +20,7 @@ pub(crate) trait Connect {
         head: RequestHead,
         body: Body,
         addr: Option<net::SocketAddr>,
-    ) -> Box<Future<Item = ClientResponse, Error = SendRequestError>>;
+    ) -> Box<dyn Future<Item = ClientResponse, Error = SendRequestError>>;
 
     /// Send request, returns Response and Framed
     fn open_tunnel(
@@ -49,7 +49,7 @@ where
         head: RequestHead,
         body: Body,
         addr: Option<net::SocketAddr>,
-    ) -> Box<Future<Item = ClientResponse, Error = SendRequestError>> {
+    ) -> Box<dyn Future<Item = ClientResponse, Error = SendRequestError>> {
         Box::new(
             self.0
                 // connect to the host

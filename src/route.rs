@@ -19,7 +19,7 @@ type BoxedRouteService<Req, Res> = Box<
         Error = Error,
         Future = Either<
             FutureResult<Res, Error>,
-            Box<Future<Item = Res, Error = Error>>,
+            Box<dyn Future<Item = Res, Error = Error>>,
         >,
     >,
 >;
@@ -32,7 +32,7 @@ type BoxedRouteNewService<Req, Res> = Box<
         Error = Error,
         InitError = (),
         Service = BoxedRouteService<Req, Res>,
-        Future = Box<Future<Item = BoxedRouteService<Req, Res>, Error = ()>>,
+        Future = Box<dyn Future<Item = BoxedRouteService<Req, Res>, Error = ()>>,
     >,
 >;
 
@@ -78,8 +78,9 @@ impl NewService for Route {
     }
 }
 
-type RouteFuture =
-    Box<Future<Item = BoxedRouteService<ServiceRequest, ServiceResponse>, Error = ()>>;
+type RouteFuture = Box<
+    dyn Future<Item = BoxedRouteService<ServiceRequest, ServiceResponse>, Error = ()>,
+>;
 
 pub struct CreateRouteService {
     fut: RouteFuture,
@@ -123,7 +124,7 @@ impl Service for RouteService {
     type Error = Error;
     type Future = Either<
         FutureResult<Self::Response, Self::Error>,
-        Box<Future<Item = Self::Response, Error = Self::Error>>,
+        Box<dyn Future<Item = Self::Response, Error = Self::Error>>,
     >;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
@@ -317,7 +318,7 @@ where
     type Error = Error;
     type InitError = ();
     type Service = BoxedRouteService<ServiceRequest, Self::Response>;
-    type Future = Box<Future<Item = Self::Service, Error = Self::InitError>>;
+    type Future = Box<dyn Future<Item = Self::Service, Error = Self::InitError>>;
 
     fn new_service(&self, _: &()) -> Self::Future {
         Box::new(
@@ -351,7 +352,7 @@ where
     type Error = Error;
     type Future = Either<
         FutureResult<Self::Response, Self::Error>,
-        Box<Future<Item = Self::Response, Error = Self::Error>>,
+        Box<dyn Future<Item = Self::Response, Error = Self::Error>>,
     >;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
