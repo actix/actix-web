@@ -4,6 +4,9 @@
 
 * Allow to use custom ws codec with `WebsocketContext` #925
 
+* Add `ws::start_with_addr()`, returning the address of the created actor, along
+  with the `HttpResponse`.
+
 ## [1.0.0] - 2019-05-29
 
 * Update actix-http and actix-web
