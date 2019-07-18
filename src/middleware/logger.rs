@@ -15,7 +15,7 @@ use time;
 
 use crate::dev::{BodySize, MessageBody, ResponseBody};
 use crate::error::{Error, Result};
-use crate::http::{HeaderName, HttpTryFrom};
+use crate::http::{HeaderName, HttpTryFrom, StatusCode};
 use crate::service::{ServiceRequest, ServiceResponse};
 use crate::HttpResponse;
 
@@ -204,7 +204,9 @@ where
         let res = futures::try_ready!(self.fut.poll());
 
         if let Some(error) = res.response().error() {
-            debug!("Error in response: {:?}", error);
+            if res.response().head().status != StatusCode::INTERNAL_SERVER_ERROR {
+                debug!("Error in response: {:?}", error);
+            }
         }
 
         if let Some(ref mut format) = self.format {
