@@ -1,10 +1,10 @@
 //! Error and Result module
+use std::any::TypeId;
 use std::cell::RefCell;
 use std::io::Write;
 use std::str::Utf8Error;
 use std::string::FromUtf8Error;
 use std::{fmt, io, result};
-use std::any::TypeId;
 
 pub use actix_threadpool::BlockingError;
 use actix_utils::timeout::TimeoutError;
@@ -81,7 +81,10 @@ pub trait ResponseError: fmt::Debug + fmt::Display {
     }
 
     #[doc(hidden)]
-    fn __private_get_type_id__(&self) -> TypeId where Self: 'static {
+    fn __private_get_type_id__(&self) -> TypeId
+    where
+        Self: 'static,
+    {
         TypeId::of::<Self>()
     }
 }

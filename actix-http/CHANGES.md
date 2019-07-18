@@ -1,5 +1,12 @@
 # Changes
 
+## [0.2.7] - 2019-07-18
+
+### Added
+
+* Add support for downcasting response errors #986
+
+
 ## [0.2.6] - 2019-07-17
 
 ### Changed
