@@ -434,6 +434,38 @@ where
         }
         Ok(self)
     }
+
+    #[cfg(feature = "uds")]
+    /// Start listening for incoming unix domain connections.
+    ///
+    /// This method is available with `uds` feature.
+    pub fn bind_uds<A>(mut self, addr: A) -> io::Result<Self>
+    where
+        A: AsRef<std::path::Path>,
+    {
+        let cfg = self.config.clone();
+        let factory = self.factory.clone();
+        self.sockets.push(Socket {
+            scheme: "http",
+            addr: net::SocketAddr::new(
+                net::IpAddr::V4(net::Ipv4Addr::new(127, 0, 0, 1)),
+                8080,
+            ),
+        });
+
+        self.builder = self.builder.bind_uds(
+            format!("actix-web-service-{:?}", addr.as_ref()),
+            addr,
+            move || {
+                let c = cfg.lock();
+                HttpService::build()
+                    .keep_alive(c.keep_alive)
+                    .client_timeout(c.client_timeout)
+                    .finish(factory())
+            },
+        )?;
+        Ok(self)
+    }
 }
 
 impl<F, I, S, B> HttpServer<F, I, S, B>

@@ -78,6 +78,7 @@
 //!   `c` compiler (default enabled)
 //! * `flate2-rust` - experimental rust based implementation for
 //!   `gzip`, `deflate` compression.
+//! * `uds` - Unix domain support, enables `HttpServer::bind_uds()` method.
 //!
 #![allow(clippy::type_complexity, clippy::new_without_default)]
 

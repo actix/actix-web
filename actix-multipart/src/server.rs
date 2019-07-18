@@ -286,7 +286,10 @@ impl InnerMultipart {
                     }
                     // read boundary
                     InnerState::Boundary => {
-                        match InnerMultipart::read_boundary(&mut *payload, &self.boundary)? {
+                        match InnerMultipart::read_boundary(
+                            &mut *payload,
+                            &self.boundary,
+                        )? {
                             None => return Ok(Async::NotReady),
                             Some(eof) => {
                                 if eof {
@@ -411,7 +414,8 @@ impl Stream for Field {
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
         if self.safety.current() {
             let mut inner = self.inner.borrow_mut();
-            if let Some(mut payload) = inner.payload.as_ref().unwrap().get_mut(&self.safety)
+            if let Some(mut payload) =
+                inner.payload.as_ref().unwrap().get_mut(&self.safety)
             {
                 payload.poll_stream()?;
             }
@@ -582,7 +586,8 @@ impl InnerField {
             return Ok(Async::Ready(None));
         }
 
-        let result = if let Some(mut payload) = self.payload.as_ref().unwrap().get_mut(s) {
+        let result = if let Some(mut payload) = self.payload.as_ref().unwrap().get_mut(s)
+        {
             if !self.eof {
                 let res = if let Some(ref mut len) = self.length {
                     InnerField::read_len(&mut *payload, len)?

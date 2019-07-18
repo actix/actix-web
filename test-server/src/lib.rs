@@ -12,6 +12,7 @@ use futures::future::lazy;
 use futures::{Future, IntoFuture, Stream};
 use http::Method;
 use net2::TcpBuilder;
+use tokio_tcp::TcpStream;
 
 thread_local! {
     static RT: RefCell<Inner> = {
@@ -109,7 +110,7 @@ pub struct TestServerRuntime {
 impl TestServer {
     #[allow(clippy::new_ret_no_self)]
     /// Start new test server with application factory
-    pub fn new<F: StreamServiceFactory>(factory: F) -> TestServerRuntime {
+    pub fn new<F: StreamServiceFactory<TcpStream>>(factory: F) -> TestServerRuntime {
         let (tx, rx) = mpsc::channel();
 
         // run server in separate thread

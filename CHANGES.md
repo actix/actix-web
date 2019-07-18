@@ -1,8 +1,10 @@
 # Changes
 
-## [1.0.5] - ?
+## [1.0.5] - 2019-07-xx
 
 ### Added
+
+* Unix domain sockets (HttpServer::bind_uds) #92
 
 * Actix now logs errors resulting in "internal server error" responses always, with the `error`
   logging level
@@ -10,6 +12,7 @@
 ### Fixed
 
 * Restored logging of errors through the `Logger` middleware
+
 
 ## [1.0.4] - 2019-07-17
 
