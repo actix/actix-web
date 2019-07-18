@@ -4,6 +4,7 @@ use std::io::Write;
 use std::str::Utf8Error;
 use std::string::FromUtf8Error;
 use std::{fmt, io, result};
+use std::any::TypeId;
 
 pub use actix_threadpool::BlockingError;
 use actix_utils::timeout::TimeoutError;
@@ -51,6 +52,11 @@ impl Error {
     pub fn as_response_error(&self) -> &dyn ResponseError {
         self.cause.as_ref()
     }
+
+    /// Similar to `as_response_error` but downcasts.
+    pub fn as_error<T: ResponseError + 'static>(&self) -> Option<&T> {
+        ResponseError::downcast_ref(self.cause.as_ref())
+    }
 }
 
 /// Error that can be converted to `Response`
@@ -72,6 +78,22 @@ pub trait ResponseError: fmt::Debug + fmt::Display {
             header::HeaderValue::from_static("text/plain"),
         );
         resp.set_body(Body::from(buf))
+    }
+
+    #[doc(hidden)]
+    fn __private_get_type_id__(&self) -> TypeId where Self: 'static {
+        TypeId::of::<Self>()
+    }
+}
+
+impl ResponseError + 'static {
+    /// Downcasts a response error to a specific type.
+    pub fn downcast_ref<T: ResponseError + 'static>(&self) -> Option<&T> {
+        if self.__private_get_type_id__() == TypeId::of::<T>() {
+            unsafe { Some(&*(self as *const ResponseError as *const T)) }
+        } else {
+            None
+        }
     }
 }
 
@@ -1042,6 +1064,16 @@ mod tests {
             InternalError::from_response(ParseError::Method, Response::Ok().into());
         let resp: Response = err.error_response();
         assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[test]
+    fn test_error_casting() {
+        let err = PayloadError::Overflow;
+        let resp_err: &ResponseError = &err;
+        let err = resp_err.downcast_ref::<PayloadError>().unwrap();
+        assert_eq!(err.to_string(), "A payload reached size limit.");
+        let not_err = resp_err.downcast_ref::<ContentTypeError>();
+        assert!(not_err.is_none());
     }
 
     #[test]
