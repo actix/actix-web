@@ -1,5 +1,16 @@
 # Changes
 
+## [1.0.5] - ?
+
+### Added
+
+* Actix now logs errors resulting in "internal server error" responses always, with the `error`
+  logging level
+
+### Fixed
+
+* Restored logging of errors through the `Logger` middleware
+
 ## [1.0.4] - 2019-07-17
 
 ### Added
