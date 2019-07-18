@@ -1067,6 +1067,16 @@ mod tests {
     }
 
     #[test]
+    fn test_error_casting() {
+        let err = PayloadError::Overflow;
+        let resp_err: &ResponseError = &err;
+        let err = resp_err.downcast_ref::<PayloadError>().unwrap();
+        assert_eq!(err.to_string(), "A payload reached size limit.");
+        let not_err = resp_err.downcast_ref::<ContentTypeError>();
+        assert!(not_err.is_none());
+    }
+
+    #[test]
     fn test_error_helpers() {
         let r: Response = ErrorBadRequest("err").into();
         assert_eq!(r.status(), StatusCode::BAD_REQUEST);
