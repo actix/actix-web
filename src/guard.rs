@@ -341,21 +341,64 @@ mod tests {
         assert!(!pred.check(req.head()));
     }
 
-    // #[test]
-    // fn test_host() {
-    //     let req = TestServiceRequest::default()
-    //         .header(
-    //             header::HOST,
-    //             header::HeaderValue::from_static("www.rust-lang.org"),
-    //         )
-    //         .request();
+    #[test]
+    fn test_host() {
+        let req = TestRequest::default()
+            .header(
+                header::HOST,
+                header::HeaderValue::from_static("www.rust-lang.org"),
+            )
+            .to_http_request();
 
-    //     let pred = Host("www.rust-lang.org");
-    //     assert!(pred.check(&req));
+        let pred = Host("www.rust-lang.org");
+        assert!(pred.check(req.head()));
 
-    //     let pred = Host("localhost");
-    //     assert!(!pred.check(&req));
-    // }
+        let pred = Host("www.rust-lang.org").scheme("https");
+        assert!(pred.check(req.head()));
+
+        let pred = Host("blog.rust-lang.org");
+        assert!(!pred.check(req.head()));
+
+        let pred = Host("blog.rust-lang.org").scheme("https");
+        assert!(!pred.check(req.head()));
+
+        let pred = Host("crates.io");
+        assert!(!pred.check(req.head()));
+
+        let pred = Host("localhost");
+        assert!(!pred.check(req.head()));
+    }
+
+    #[test]
+    fn test_host_scheme() {
+        let req = TestRequest::default()
+            .header(
+                header::HOST,
+                header::HeaderValue::from_static("https://www.rust-lang.org"),
+            )
+            .to_http_request();
+
+        let pred = Host("www.rust-lang.org").scheme("https");
+        assert!(pred.check(req.head()));
+
+        let pred = Host("www.rust-lang.org");
+        assert!(pred.check(req.head()));
+
+        let pred = Host("www.rust-lang.org").scheme("http");
+        assert!(!pred.check(req.head()));
+
+        let pred = Host("blog.rust-lang.org");
+        assert!(!pred.check(req.head()));
+
+        let pred = Host("blog.rust-lang.org").scheme("https");
+        assert!(!pred.check(req.head()));
+
+        let pred = Host("crates.io").scheme("https");
+        assert!(!pred.check(req.head()));
+
+        let pred = Host("localhost");
+        assert!(!pred.check(req.head()));
+    }
 
     #[test]
     fn test_methods() {
