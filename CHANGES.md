@@ -1,5 +1,12 @@
 # Changes
 
+## [1.0.6] - 2019-xx-xx
+
+### Added
+
+* Re-implement Host predicate (#989)
+
+
 ## [1.0.5] - 2019-07-18
 
 ### Added
