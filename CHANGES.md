@@ -6,6 +6,10 @@
 
 * Re-implement Host predicate (#989)
 
+### Changed
+
+* `Query` payload made `pub`. Allows user to pattern-match the payload.
+
 
 ## [1.0.5] - 2019-07-18
 
