@@ -12,8 +12,11 @@ use crate::error::QueryPayloadError;
 use crate::extract::FromRequest;
 use crate::request::HttpRequest;
 
-#[derive(PartialEq, Eq, PartialOrd, Ord)]
 /// Extract typed information from the request's query.
+///
+/// **Note**: A query string consists of unordered `key=value` pairs, therefore it cannot
+/// be decoded into any type which depends upon data ordering e.g. tuples or tuple-structs.
+/// Attempts to do so will *fail at runtime*.
 ///
 /// ## Example
 ///
@@ -33,10 +36,10 @@ use crate::request::HttpRequest;
 ///    response_type: ResponseType,
 /// }
 ///
-/// // Use `Query` extractor for query information.
-/// // This handler get called only if request's query contains `username` field
-/// // The correct request for this handler would be `/index.html?id=64&response_type=Code"`
-/// fn index(info: web::Query<AuthRequest>) -> String {
+/// // Use `Query` extractor for query information (and destructure it within the signature).
+/// // This handler gets called only if the request's query string contains a `username` field.
+/// // The correct request for this handler would be `/index.html?id=64&response_type=Code"`.
+/// fn index(web::Query(info): web::Query<AuthRequest>) -> String {
 ///     format!("Authorization request for client with id={} and type={:?}!", info.id, info.response_type)
 /// }
 ///
@@ -45,7 +48,8 @@ use crate::request::HttpRequest;
 ///        web::resource("/index.html").route(web::get().to(index))); // <- use `Query` extractor
 /// }
 /// ```
-pub struct Query<T>(T);
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
+pub struct Query<T>(pub T);
 
 impl<T> Query<T> {
     /// Deconstruct to a inner value
@@ -161,6 +165,8 @@ where
 }
 
 /// Query extractor configuration
+///
+/// ## Example
 ///
 /// ```rust
 /// #[macro_use] extern crate serde_derive;

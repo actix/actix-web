@@ -1,6 +1,6 @@
 [package]
 name = "actix-web"
-version = "1.0.4"
+version = "1.0.5"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix web is a simple, pragmatic and extremely fast web framework for Rust."
 readme = "README.md"
@@ -16,7 +16,7 @@ exclude = [".gitignore", ".travis.yml", ".cargo/config", "appveyor.yml"]
 edition = "2018"
 
 [package.metadata.docs.rs]
-features = ["ssl", "brotli", "flate2-zlib", "secure-cookies", "client", "rust-tls"]
+features = ["ssl", "brotli", "flate2-zlib", "secure-cookies", "client", "rust-tls", "uds"]
 
 [badges]
 travis-ci = { repository = "actix/actix-web", branch = "master" }
@@ -68,6 +68,9 @@ ssl = ["openssl", "actix-server/ssl", "awc/ssl"]
 # rustls
 rust-tls = ["rustls", "actix-server/rust-tls"]
 
+# unix domain sockets support
+uds = ["actix-server/uds"]
+
 [dependencies]
 actix-codec = "0.1.2"
 actix-service = "0.4.1"
@@ -75,11 +78,11 @@ actix-utils = "0.4.4"
 actix-router = "0.1.5"
 actix-rt = "0.2.4"
 actix-web-codegen = "0.1.2"
-actix-http = "0.2.6"
-actix-server = "0.5.1"
-actix-server-config = "0.1.1"
+actix-http = "0.2.7"
+actix-server = "0.6.0"
+actix-server-config = "0.1.2"
 actix-threadpool = "0.1.1"
-awc = { version = "0.2.1", optional = true }
+awc = { version = "0.2.2", optional = true }
 
 bytes = "0.4"
 derive_more = "0.15.0"
@@ -104,7 +107,7 @@ rustls = { version = "0.15", optional = true }
 [dev-dependencies]
 actix = { version = "0.8.3" }
 actix-http = { version = "0.2.5", features=["ssl", "brotli", "flate2-zlib"] }
-actix-http-test = { version = "0.2.2", features=["ssl"] }
+actix-http-test = { version = "0.2.4", features=["ssl"] }
 rand = "0.7"
 env_logger = "0.6"
 serde_derive = "1.0"

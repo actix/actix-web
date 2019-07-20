@@ -1,6 +1,6 @@
 [package]
 name = "actix-http"
-version = "0.2.6"
+version = "0.2.7"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix http primitives"
 readme = "README.md"
@@ -48,7 +48,7 @@ actix-service = "0.4.1"
 actix-codec = "0.1.2"
 actix-connect = "0.2.1"
 actix-utils = "0.4.4"
-actix-server-config = "0.1.1"
+actix-server-config = "0.1.2"
 actix-threadpool = "0.1.1"
 
 base64 = "0.10"
@@ -97,9 +97,9 @@ chrono = "0.4.6"
 
 [dev-dependencies]
 actix-rt = "0.2.2"
-actix-server = { version = "0.5.0", features=["ssl"] }
+actix-server = { version = "0.6.0", features=["ssl"] }
 actix-connect = { version = "0.2.0", features=["ssl"] }
-actix-http-test = { version = "0.2.0", features=["ssl"] }
+actix-http-test = { version = "0.2.4", features=["ssl"] }
 env_logger = "0.6"
 serde_derive = "1.0"
 openssl = { version="0.10" }

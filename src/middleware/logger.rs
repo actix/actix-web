@@ -9,12 +9,13 @@ use actix_service::{Service, Transform};
 use bytes::Bytes;
 use futures::future::{ok, FutureResult};
 use futures::{Async, Future, Poll};
+use log::debug;
 use regex::Regex;
 use time;
 
 use crate::dev::{BodySize, MessageBody, ResponseBody};
 use crate::error::{Error, Result};
-use crate::http::{HeaderName, HttpTryFrom};
+use crate::http::{HeaderName, HttpTryFrom, StatusCode};
 use crate::service::{ServiceRequest, ServiceResponse};
 use crate::HttpResponse;
 
@@ -201,6 +202,12 @@ where
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         let res = futures::try_ready!(self.fut.poll());
+
+        if let Some(error) = res.response().error() {
+            if res.response().head().status != StatusCode::INTERNAL_SERVER_ERROR {
+                debug!("Error in response: {:?}", error);
+            }
+        }
 
         if let Some(ref mut format) = self.format {
             for unit in &mut format.0 {

@@ -1,5 +1,30 @@
 # Changes
 
+## [1.0.6] - 2019-xx-xx
+
+### Added
+
+* Re-implement Host predicate (#989)
+
+### Changed
+
+* `Query` payload made `pub`. Allows user to pattern-match the payload.
+
+
+## [1.0.5] - 2019-07-18
+
+### Added
+
+* Unix domain sockets (HttpServer::bind_uds) #92
+
+* Actix now logs errors resulting in "internal server error" responses always, with the `error`
+  logging level
+
+### Fixed
+
+* Restored logging of errors through the `Logger` middleware
+
+
 ## [1.0.4] - 2019-07-17
 
 ### Added
