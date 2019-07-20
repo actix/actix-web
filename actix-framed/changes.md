@@ -1,5 +1,10 @@
 # Changes
 
+## [0.2.1] - 2019-07-20
+
+* Remove unneeded actix-utils dependency
+
+
 ## [0.2.0] - 2019-05-12
 
 * Update dependencies
