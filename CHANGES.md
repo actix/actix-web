@@ -6,6 +6,8 @@
 
 * Re-implement Host predicate (#989)
 
+* Form immplements Responder, returning a `application/x-www-form-urlencoded` response
+
 ### Changed
 
 * `Query` payload made `pub`. Allows user to pattern-match the payload.
