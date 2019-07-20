@@ -5,9 +5,7 @@ use std::{fmt, ops};
 
 use actix_http::{Error, HttpMessage, Payload};
 use bytes::BytesMut;
-use encoding::all::UTF_8;
-use encoding::types::{DecoderTrap, Encoding};
-use encoding::EncodingRef;
+use encoding_rs::{Encoding, UTF_8};
 use futures::{Future, Poll, Stream};
 use serde::de::DeserializeOwned;
 
@@ -75,7 +73,7 @@ where
 {
     type Config = FormConfig;
     type Error = Error;
-    type Future = Box<Future<Item = Self, Error = Error>>;
+    type Future = Box<dyn Future<Item = Self, Error = Error>>;
 
     #[inline]
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
@@ -143,7 +141,7 @@ impl<T: fmt::Display> fmt::Display for Form<T> {
 #[derive(Clone)]
 pub struct FormConfig {
     limit: usize,
-    ehandler: Option<Rc<Fn(UrlencodedError, &HttpRequest) -> Error>>,
+    ehandler: Option<Rc<dyn Fn(UrlencodedError, &HttpRequest) -> Error>>,
 }
 
 impl FormConfig {
@@ -187,9 +185,9 @@ pub struct UrlEncoded<U> {
     stream: Option<Decompress<Payload>>,
     limit: usize,
     length: Option<usize>,
-    encoding: EncodingRef,
+    encoding: &'static Encoding,
     err: Option<UrlencodedError>,
-    fut: Option<Box<Future<Item = U, Error = UrlencodedError>>>,
+    fut: Option<Box<dyn Future<Item = U, Error = UrlencodedError>>>,
 }
 
 impl<U> UrlEncoded<U> {
@@ -286,13 +284,14 @@ where
                 }
             })
             .and_then(move |body| {
-                if (encoding as *const Encoding) == UTF_8 {
+                if encoding == UTF_8 {
                     serde_urlencoded::from_bytes::<U>(&body)
                         .map_err(|_| UrlencodedError::Parse)
                 } else {
                     let body = encoding
-                        .decode(&body, DecoderTrap::Strict)
-                        .map_err(|_| UrlencodedError::Parse)?;
+                        .decode_without_bom_handling_and_without_replacement(&body)
+                        .map(|s| s.into_owned())
+                        .ok_or(UrlencodedError::Parse)?;
                     serde_urlencoded::from_str::<U>(&body)
                         .map_err(|_| UrlencodedError::Parse)
                 }

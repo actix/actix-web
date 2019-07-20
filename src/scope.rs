@@ -23,12 +23,12 @@ use crate::service::{
     ServiceFactory, ServiceFactoryWrapper, ServiceRequest, ServiceResponse,
 };
 
-type Guards = Vec<Box<Guard>>;
+type Guards = Vec<Box<dyn Guard>>;
 type HttpService = BoxedService<ServiceRequest, ServiceResponse, Error>;
 type HttpNewService = BoxedNewService<(), ServiceRequest, ServiceResponse, Error, ()>;
 type BoxedResponse = Either<
     FutureResult<ServiceResponse, Error>,
-    Box<Future<Item = ServiceResponse, Error = Error>>,
+    Box<dyn Future<Item = ServiceResponse, Error = Error>>,
 >;
 
 /// Resources scope.
@@ -64,8 +64,8 @@ pub struct Scope<T = ScopeEndpoint> {
     endpoint: T,
     rdef: String,
     data: Option<Extensions>,
-    services: Vec<Box<ServiceFactory>>,
-    guards: Vec<Box<Guard>>,
+    services: Vec<Box<dyn ServiceFactory>>,
+    guards: Vec<Box<dyn Guard>>,
     default: Rc<RefCell<Option<Rc<HttpNewService>>>>,
     external: Vec<ResourceDef>,
     factory_ref: Rc<RefCell<Option<ScopeFactory>>>,
@@ -195,7 +195,7 @@ where
         self.external.extend(cfg.external);
 
         if !cfg.data.is_empty() {
-            let mut data = self.data.unwrap_or_else(|| Extensions::new());
+            let mut data = self.data.unwrap_or_else(Extensions::new);
 
             for value in cfg.data.iter() {
                 value.create(&mut data);
@@ -425,7 +425,7 @@ where
 
         // complete scope pipeline creation
         *self.factory_ref.borrow_mut() = Some(ScopeFactory {
-            data: self.data.take().map(|data| Rc::new(data)),
+            data: self.data.take().map(Rc::new),
             default: self.default.clone(),
             services: Rc::new(
                 cfg.into_services()
@@ -503,10 +503,10 @@ pub struct ScopeFactoryResponse {
     fut: Vec<CreateScopeServiceItem>,
     data: Option<Rc<Extensions>>,
     default: Option<HttpService>,
-    default_fut: Option<Box<Future<Item = HttpService, Error = ()>>>,
+    default_fut: Option<Box<dyn Future<Item = HttpService, Error = ()>>>,
 }
 
-type HttpServiceFut = Box<Future<Item = HttpService, Error = ()>>;
+type HttpServiceFut = Box<dyn Future<Item = HttpService, Error = ()>>;
 
 enum CreateScopeServiceItem {
     Future(Option<ResourceDef>, Option<Guards>, HttpServiceFut),
@@ -578,7 +578,7 @@ impl Future for ScopeFactoryResponse {
 
 pub struct ScopeService {
     data: Option<Rc<Extensions>>,
-    router: Router<HttpService, Vec<Box<Guard>>>,
+    router: Router<HttpService, Vec<Box<dyn Guard>>>,
     default: Option<HttpService>,
     _ready: Option<(ServiceRequest, ResourceInfo)>,
 }
@@ -1134,5 +1134,25 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
         let body = read_body(resp);
         assert_eq!(body, &b"https://youtube.com/watch/xxxxxx"[..]);
+    }
+
+    #[test]
+    fn test_url_for_nested() {
+        let mut srv = init_service(App::new().service(web::scope("/a").service(
+            web::scope("/b").service(web::resource("/c/{stuff}").name("c").route(
+                web::get().to(|req: HttpRequest| {
+                    HttpResponse::Ok()
+                        .body(format!("{}", req.url_for("c", &["12345"]).unwrap()))
+                }),
+            )),
+        )));
+        let req = TestRequest::with_uri("/a/b/c/test").to_request();
+        let resp = call_service(&mut srv, req);
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = read_body(resp);
+        assert_eq!(
+            body,
+            Bytes::from_static(b"http://localhost:8080/a/b/c/12345")
+        );
     }
 }

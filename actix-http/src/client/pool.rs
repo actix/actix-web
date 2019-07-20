@@ -427,7 +427,9 @@ where
 
     fn check_availibility(&self) {
         if !self.waiters_queue.is_empty() && self.acquired < self.limit {
-            self.task.as_ref().map(|t| t.notify());
+            if let Some(t) = self.task.as_ref() {
+                t.notify()
+            }
         }
     }
 }

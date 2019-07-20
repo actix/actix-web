@@ -1,5 +1,17 @@
 # Changes
 
+## [0.2.4] - 2019-07-18
+
+* Update actix-server to 0.6
+
+## [0.2.3] - 2019-07-16
+
+* Add `delete`, `options`, `patch` methods to `TestServerRunner`
+
+## [0.2.2] - 2019-06-16
+
+* Add .put() and .sput() methods
+
 ## [0.2.1] - 2019-06-05
 
 * Add license files

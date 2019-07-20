@@ -3,6 +3,8 @@ use std::{io, mem, ptr, slice};
 use bytes::{BufMut, BytesMut};
 use http::Version;
 
+use crate::extensions::Extensions;
+
 const DEC_DIGITS_LUT: &[u8] = b"0001020304050607080910111213141516171819\
       2021222324252627282930313233343536373839\
       4041424344454647484950515253545556575859\
@@ -177,6 +179,18 @@ impl<'a> io::Write for Writer<'a> {
     }
     fn flush(&mut self) -> io::Result<()> {
         Ok(())
+    }
+}
+
+pub(crate) trait DataFactory {
+    fn set(&self, ext: &mut Extensions);
+}
+
+pub(crate) struct Data<T>(pub(crate) T);
+
+impl<T: Clone + 'static> DataFactory for Data<T> {
+    fn set(&self, ext: &mut Extensions) {
+        ext.insert(self.0.clone())
     }
 }
 

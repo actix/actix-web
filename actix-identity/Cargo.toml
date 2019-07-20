@@ -1,0 +1,30 @@
+[package]
+name = "actix-identity"
+version = "0.1.0"
+authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
+description = "Identity service for actix web framework."
+readme = "README.md"
+keywords = ["http", "web", "framework", "async", "futures"]
+homepage = "https://actix.rs"
+repository = "https://github.com/actix/actix-web.git"
+documentation = "https://docs.rs/actix-identity/"
+license = "MIT/Apache-2.0"
+edition = "2018"
+workspace = ".."
+
+[lib]
+name = "actix_identity"
+path = "src/lib.rs"
+
+[dependencies]
+actix-web = { version = "1.0.0", default-features = false, features = ["secure-cookies"] }
+actix-service = "0.4.0"
+futures = "0.1.25"
+serde = "1.0"
+serde_json = "1.0"
+time = "0.1.42"
+
+[dev-dependencies]
+actix-rt = "0.2.2"
+actix-http = "0.2.3"
+bytes = "0.4"

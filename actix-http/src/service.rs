@@ -1,20 +1,21 @@
 use std::marker::PhantomData;
-use std::{fmt, io, net};
+use std::{fmt, io, net, rc};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use actix_server_config::{
     Io as ServerIo, IoStream, Protocol, ServerConfig as SrvConfig,
 };
 use actix_service::{IntoNewService, NewService, Service};
-use actix_utils::cloneable::CloneableService;
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use futures::{try_ready, Async, Future, IntoFuture, Poll};
 use h2::server::{self, Handshake};
 
 use crate::body::MessageBody;
 use crate::builder::HttpServiceBuilder;
+use crate::cloneable::CloneableService;
 use crate::config::{KeepAlive, ServiceConfig};
 use crate::error::{DispatchError, Error};
+use crate::helpers::DataFactory;
 use crate::request::Request;
 use crate::response::Response;
 use crate::{h1, h2::Dispatcher};
@@ -25,6 +26,7 @@ pub struct HttpService<T, P, S, B, X = h1::ExpectHandler, U = h1::UpgradeHandler
     cfg: ServiceConfig,
     expect: X,
     upgrade: Option<U>,
+    on_connect: Option<rc::Rc<dyn Fn(&T) -> Box<dyn DataFactory>>>,
     _t: PhantomData<(T, P, B)>,
 }
 
@@ -61,6 +63,7 @@ where
             srv: service.into_new_service(),
             expect: h1::ExpectHandler,
             upgrade: None,
+            on_connect: None,
             _t: PhantomData,
         }
     }
@@ -75,6 +78,7 @@ where
             srv: service.into_new_service(),
             expect: h1::ExpectHandler,
             upgrade: None,
+            on_connect: None,
             _t: PhantomData,
         }
     }
@@ -104,6 +108,7 @@ where
             cfg: self.cfg,
             srv: self.srv,
             upgrade: self.upgrade,
+            on_connect: self.on_connect,
             _t: PhantomData,
         }
     }
@@ -127,8 +132,18 @@ where
             cfg: self.cfg,
             srv: self.srv,
             expect: self.expect,
+            on_connect: self.on_connect,
             _t: PhantomData,
         }
+    }
+
+    /// Set on connect callback.
+    pub(crate) fn on_connect(
+        mut self,
+        f: Option<rc::Rc<dyn Fn(&T) -> Box<dyn DataFactory>>>,
+    ) -> Self {
+        self.on_connect = f;
+        self
     }
 }
 
@@ -167,6 +182,7 @@ where
             fut_upg: self.upgrade.as_ref().map(|f| f.new_service(cfg)),
             expect: None,
             upgrade: None,
+            on_connect: self.on_connect.clone(),
             cfg: Some(self.cfg.clone()),
             _t: PhantomData,
         }
@@ -180,6 +196,7 @@ pub struct HttpServiceResponse<T, P, S: NewService, B, X: NewService, U: NewServ
     fut_upg: Option<U::Future>,
     expect: Option<X::Service>,
     upgrade: Option<U::Service>,
+    on_connect: Option<rc::Rc<dyn Fn(&T) -> Box<dyn DataFactory>>>,
     cfg: Option<ServiceConfig>,
     _t: PhantomData<(T, P, B)>,
 }
@@ -229,6 +246,7 @@ where
             service,
             self.expect.take().unwrap(),
             self.upgrade.take(),
+            self.on_connect.clone(),
         )))
     }
 }
@@ -239,6 +257,7 @@ pub struct HttpServiceHandler<T, P, S, B, X, U> {
     expect: CloneableService<X>,
     upgrade: Option<CloneableService<U>>,
     cfg: ServiceConfig,
+    on_connect: Option<rc::Rc<dyn Fn(&T) -> Box<dyn DataFactory>>>,
     _t: PhantomData<(T, P, B, X)>,
 }
 
@@ -259,12 +278,14 @@ where
         srv: S,
         expect: X,
         upgrade: Option<U>,
+        on_connect: Option<rc::Rc<dyn Fn(&T) -> Box<dyn DataFactory>>>,
     ) -> HttpServiceHandler<T, P, S, B, X, U> {
         HttpServiceHandler {
             cfg,
+            on_connect,
             srv: CloneableService::new(srv),
             expect: CloneableService::new(expect),
-            upgrade: upgrade.map(|s| CloneableService::new(s)),
+            upgrade: upgrade.map(CloneableService::new),
             _t: PhantomData,
         }
     }
@@ -319,6 +340,13 @@ where
 
     fn call(&mut self, req: Self::Request) -> Self::Future {
         let (io, _, proto) = req.into_parts();
+
+        let on_connect = if let Some(ref on_connect) = self.on_connect {
+            Some(on_connect(&io))
+        } else {
+            None
+        };
+
         match proto {
             Protocol::Http2 => {
                 let peer_addr = io.peer_addr();
@@ -332,6 +360,7 @@ where
                         self.cfg.clone(),
                         self.srv.clone(),
                         peer_addr,
+                        on_connect,
                     ))),
                 }
             }
@@ -342,6 +371,7 @@ where
                     self.srv.clone(),
                     self.expect.clone(),
                     self.upgrade.clone(),
+                    on_connect,
                 )),
             },
             _ => HttpServiceHandlerResponse {
@@ -352,6 +382,7 @@ where
                     self.srv.clone(),
                     self.expect.clone(),
                     self.upgrade.clone(),
+                    on_connect,
                 ))),
             },
         }
@@ -380,6 +411,7 @@ where
             CloneableService<S>,
             CloneableService<X>,
             Option<CloneableService<U>>,
+            Option<Box<dyn DataFactory>>,
         )>,
     ),
     Handshake(
@@ -388,6 +420,7 @@ where
             ServiceConfig,
             CloneableService<S>,
             Option<net::SocketAddr>,
+            Option<Box<dyn DataFactory>>,
         )>,
     ),
 }
@@ -433,22 +466,25 @@ where
             State::Unknown(ref mut data) => {
                 if let Some(ref mut item) = data {
                     loop {
-                        unsafe {
-                            let b = item.1.bytes_mut();
-                            let n = try_ready!(item.0.poll_read(b));
-                            if n == 0 {
-                                return Ok(Async::Ready(()));
-                            }
-                            item.1.advance_mut(n);
-                            if item.1.len() >= HTTP2_PREFACE.len() {
-                                break;
-                            }
+                        // Safety - we only write to the returned slice.
+                        let b = unsafe { item.1.bytes_mut() };
+                        let n = try_ready!(item.0.poll_read(b));
+                        if n == 0 {
+                            return Ok(Async::Ready(()));
+                        }
+                        // Safety - we know that 'n' bytes have
+                        // been initialized via the contract of
+                        // 'poll_read'
+                        unsafe { item.1.advance_mut(n) };
+                        if item.1.len() >= HTTP2_PREFACE.len() {
+                            break;
                         }
                     }
                 } else {
                     panic!()
                 }
-                let (io, buf, cfg, srv, expect, upgrade) = data.take().unwrap();
+                let (io, buf, cfg, srv, expect, upgrade, on_connect) =
+                    data.take().unwrap();
                 if buf[..14] == HTTP2_PREFACE[..] {
                     let peer_addr = io.peer_addr();
                     let io = Io {
@@ -460,6 +496,7 @@ where
                         cfg,
                         srv,
                         peer_addr,
+                        on_connect,
                     )));
                 } else {
                     self.state = State::H1(h1::Dispatcher::with_timeout(
@@ -471,6 +508,7 @@ where
                         srv,
                         expect,
                         upgrade,
+                        on_connect,
                     ))
                 }
                 self.poll()
@@ -488,8 +526,10 @@ where
                 } else {
                     panic!()
                 };
-                let (_, cfg, srv, peer_addr) = data.take().unwrap();
-                self.state = State::H2(Dispatcher::new(srv, conn, cfg, None, peer_addr));
+                let (_, cfg, srv, peer_addr, on_connect) = data.take().unwrap();
+                self.state = State::H2(Dispatcher::new(
+                    srv, conn, on_connect, cfg, None, peer_addr,
+                ));
                 self.poll()
             }
         }

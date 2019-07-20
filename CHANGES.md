@@ -1,8 +1,92 @@
 # Changes
 
+## [1.0.6] - 2019-xx-xx
+
+### Added
+
+* Re-implement Host predicate (#989)
+
+### Changed
+
+* `Query` payload made `pub`. Allows user to pattern-match the payload.
+
+
+## [1.0.5] - 2019-07-18
+
+### Added
+
+* Unix domain sockets (HttpServer::bind_uds) #92
+
+* Actix now logs errors resulting in "internal server error" responses always, with the `error`
+  logging level
+
+### Fixed
+
+* Restored logging of errors through the `Logger` middleware
+
+
+## [1.0.4] - 2019-07-17
+
+### Added
+
+* Add `Responder` impl for `(T, StatusCode) where T: Responder`
+
+* Allow to access app's resource map via
+  `ServiceRequest::resource_map()` and `HttpRequest::resource_map()` methods.
+
+### Changed
+
+* Upgrade `rand` dependency version to 0.7
+
+
+## [1.0.3] - 2019-06-28
+
+### Added
+
+* Support asynchronous data factories #850
+
+### Changed
+
+*  Use `encoding_rs` crate instead of unmaintained `encoding` crate
+
+
+## [1.0.2] - 2019-06-17
+
+### Changed
+
+* Move cors middleware to `actix-cors` crate.
+
+* Move identity middleware to `actix-identity` crate.
+
+
+## [1.0.1] - 2019-06-17
+
+### Added
+
+* Add support for PathConfig #903
+
+* Add `middleware::identity::RequestIdentity` trait to `get_identity` from `HttpMessage`.
+
+### Changed
+
+* Move cors middleware to `actix-cors` crate.
+
+* Move identity middleware to `actix-identity` crate.
+
+* Disable default feature `secure-cookies`.
+
+* Allow to test an app that uses async actors #897
+
+* Re-apply patch from #637 #894
+
+### Fixed
+
+* HttpRequest::url_for is broken with nested scopes #915
+
+
 ## [1.0.0] - 2019-06-05
 
-### Add
+### Added
 
 * Add `Scope::configure()` method.
 
@@ -13,7 +97,7 @@
 
 * Add macros for head, options, trace, connect and patch http methods
 
-### Changes
+### Changed
 
 * Drop an unnecessary `Option<_>` indirection around `ServerBuilder` from `HttpServer`. #863
 
@@ -31,7 +115,7 @@
 * Add `Query<T>::from_query()` to extract parameters from a query string. #846
 * `QueryConfig`, similar to `JsonConfig` for customizing error handling of query extractors.
 
-### Changes
+### Changed
 
 * `JsonConfig` is now `Send + Sync`, this implies that `error_handler` must be `Send + Sync` too.
 
@@ -46,7 +130,7 @@
 
 * Allow to set/override app data on scope level
 
-### Changes
+### Changed
 
 * `App::configure` take an `FnOnce` instead of `Fn`
 * Upgrade actix-net crates

@@ -92,6 +92,23 @@ impl ResponseError for JsonPayloadError {
     }
 }
 
+/// A set of errors that can occur during parsing request paths
+#[derive(Debug, Display, From)]
+pub enum PathError {
+    /// Deserialize error
+    #[display(fmt = "Path deserialize error: {}", _0)]
+    Deserialize(de::Error),
+}
+
+/// Return `BadRequest` for `PathError`
+impl ResponseError for PathError {
+    fn error_response(&self) -> HttpResponse {
+        match *self {
+            PathError::Deserialize(_) => HttpResponse::new(StatusCode::BAD_REQUEST),
+        }
+    }
+}
+
 /// A set of errors that can occur during parsing query strings
 #[derive(Debug, Display, From)]
 pub enum QueryPayloadError {

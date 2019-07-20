@@ -1,5 +1,41 @@
 # Changes
 
+## [0.2.7] - 2019-07-18
+
+### Added
+
+* Add support for downcasting response errors #986
+
+
+## [0.2.6] - 2019-07-17
+
+### Changed
+
+* Replace `ClonableService` with local copy
+
+* Upgrade `rand` dependency version to 0.7
+
+
+## [0.2.5] - 2019-06-28
+
+### Added
+
+* Add `on-connect` callback, `HttpServiceBuilder::on_connect()` #946
+
+### Changed
+
+* Use `encoding_rs` crate instead of unmaintained `encoding` crate
+
+* Add `Copy` and `Clone` impls for `ws::Codec`
+
+
+## [0.2.4] - 2019-06-16
+
+### Fixed
+
+* Do not compress NoContent (204) responses #918
+
+
 ## [0.2.3] - 2019-06-02
 
 ### Added
@@ -76,7 +112,7 @@
 
 ## [0.1.1] - 2019-04-19
 
-### Changes
+### Changed
 
 * Cookie::max_age() accepts value in seconds
 

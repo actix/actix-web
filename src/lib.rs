@@ -1,3 +1,4 @@
+#![allow(clippy::borrow_interior_mutable_const)]
 //! Actix web is a small, pragmatic, and extremely fast web framework
 //! for Rust.
 //!
@@ -70,13 +71,14 @@
 //! * `ssl` - enables ssl support via `openssl` crate, supports `http/2`
 //! * `rust-tls` - enables ssl support via `rustls` crate, supports `http/2`
 //! * `secure-cookies` - enables secure cookies support, includes `ring` crate as
-//!   dependency (default enabled)
+//!   dependency
 //! * `brotli` - enables `brotli` compression support, requires `c`
 //!   compiler (default enabled)
 //! * `flate2-zlib` - enables `gzip`, `deflate` compression support, requires
 //!   `c` compiler (default enabled)
 //! * `flate2-rust` - experimental rust based implementation for
 //!   `gzip`, `deflate` compression.
+//! * `uds` - Unix domain support, enables `HttpServer::bind_uds()` method.
 //!
 #![allow(clippy::type_complexity, clippy::new_without_default)]
 
@@ -134,6 +136,8 @@ pub mod dev {
     //! ```
 
     pub use crate::config::{AppConfig, AppService};
+    #[doc(hidden)]
+    pub use crate::handler::{AsyncFactory, Factory};
     pub use crate::info::ConnectionInfo;
     pub use crate::rmap::ResourceMap;
     pub use crate::service::{

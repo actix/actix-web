@@ -37,7 +37,7 @@ pub enum Frame {
     Close(Option<CloseReason>),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 /// WebSockets protocol codec
 pub struct Codec {
     max_size: usize,

@@ -24,8 +24,8 @@ use crate::ChunkedReadFile;
 
 bitflags! {
     pub(crate) struct Flags: u32 {
-        const ETAG = 0b00000001;
-        const LAST_MD = 0b00000010;
+        const ETAG = 0b0000_0001;
+        const LAST_MD = 0b0000_0010;
     }
 }
 
@@ -311,8 +311,8 @@ impl Responder for NamedFile {
             return Ok(resp.streaming(reader));
         }
 
-        match req.method() {
-            &Method::HEAD | &Method::GET => (),
+        match *req.method() {
+            Method::HEAD | Method::GET => (),
             _ => {
                 return Ok(HttpResponse::MethodNotAllowed()
                     .header(header::CONTENT_TYPE, "text/plain")
@@ -414,28 +414,22 @@ impl Responder for NamedFile {
             };
         };
 
-        resp.header(header::CONTENT_LENGTH, format!("{}", length));
-
         if precondition_failed {
             return Ok(resp.status(StatusCode::PRECONDITION_FAILED).finish());
         } else if not_modified {
             return Ok(resp.status(StatusCode::NOT_MODIFIED).finish());
         }
 
-        if *req.method() == Method::HEAD {
-            Ok(resp.finish())
-        } else {
-            let reader = ChunkedReadFile {
-                offset,
-                size: length,
-                file: Some(self.file),
-                fut: None,
-                counter: 0,
-            };
-            if offset != 0 || length != self.md.len() {
-                return Ok(resp.status(StatusCode::PARTIAL_CONTENT).streaming(reader));
-            };
-            Ok(resp.body(SizedStream::new(length, reader)))
-        }
+        let reader = ChunkedReadFile {
+            offset,
+            size: length,
+            file: Some(self.file),
+            fut: None,
+            counter: 0,
+        };
+        if offset != 0 || length != self.md.len() {
+            return Ok(resp.status(StatusCode::PARTIAL_CONTENT).streaming(reader));
+        };
+        Ok(resp.body(SizedStream::new(length, reader)))
     }
 }

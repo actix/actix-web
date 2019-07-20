@@ -1,3 +1,4 @@
+#![allow(clippy::borrow_interior_mutable_const, clippy::type_complexity)]
 //! Cross-origin resource sharing (CORS) for Actix applications
 //!
 //! CORS middleware could be used with application and with resource.
@@ -7,7 +8,7 @@
 //! # Example
 //!
 //! ```rust
-//! use actix_web::middleware::cors::Cors;
+//! use actix_cors::Cors;
 //! use actix_web::{http, web, App, HttpRequest, HttpResponse, HttpServer};
 //!
 //! fn index(req: HttpRequest) -> &'static str {
@@ -42,16 +43,14 @@ use std::iter::FromIterator;
 use std::rc::Rc;
 
 use actix_service::{IntoTransform, Service, Transform};
+use actix_web::dev::{RequestHead, ServiceRequest, ServiceResponse};
+use actix_web::error::{Error, ResponseError, Result};
+use actix_web::http::header::{self, HeaderName, HeaderValue};
+use actix_web::http::{self, HttpTryFrom, Method, StatusCode, Uri};
+use actix_web::HttpResponse;
 use derive_more::Display;
 use futures::future::{ok, Either, Future, FutureResult};
 use futures::Poll;
-
-use crate::dev::RequestHead;
-use crate::error::{Error, ResponseError, Result};
-use crate::http::header::{self, HeaderName, HeaderValue};
-use crate::http::{self, HttpTryFrom, Method, StatusCode, Uri};
-use crate::service::{ServiceRequest, ServiceResponse};
-use crate::HttpResponse;
 
 /// A set of errors that can occur during processing CORS
 #[derive(Debug, Display)]
@@ -152,11 +151,11 @@ impl<T> AllOrSome<T> {
 /// # Example
 ///
 /// ```rust
+/// use actix_cors::Cors;
 /// use actix_web::http::header;
-/// use actix_web::middleware::cors;
 ///
 /// # fn main() {
-/// let cors = cors::Cors::new()
+/// let cors = Cors::new()
 ///     .allowed_origin("https://www.rust-lang.org/")
 ///     .allowed_methods(vec!["GET", "POST"])
 ///     .allowed_headers(vec![header::AUTHORIZATION, header::ACCEPT])
@@ -164,6 +163,7 @@ impl<T> AllOrSome<T> {
 ///     .max_age(3600);
 /// # }
 /// ```
+#[derive(Default)]
 pub struct Cors {
     cors: Option<Inner>,
     methods: bool,
@@ -587,10 +587,10 @@ impl Inner {
             }
             Err(CorsError::BadOrigin)
         } else {
-            return match self.origins {
+            match self.origins {
                 AllOrSome::All => Ok(()),
                 _ => Err(CorsError::MissingOrigin),
-            };
+            }
         }
     }
 
@@ -665,7 +665,7 @@ impl Inner {
                     }
                     Err(CorsError::BadRequestHeaders)
                 } else {
-                    return Ok(());
+                    Ok(())
                 }
             }
         }
@@ -683,7 +683,7 @@ where
     type Error = Error;
     type Future = Either<
         FutureResult<Self::Response, Error>,
-        Either<S::Future, Box<Future<Item = Self::Response, Error = Error>>>,
+        Either<S::Future, Box<dyn Future<Item = Self::Response, Error = Error>>>,
     >;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
@@ -806,9 +806,9 @@ where
 #[cfg(test)]
 mod tests {
     use actix_service::{IntoService, Transform};
+    use actix_web::test::{self, block_on, TestRequest};
 
     use super::*;
-    use crate::test::{self, block_on, TestRequest};
 
     impl Cors {
         fn finish<F, S, B>(self, srv: F) -> CorsMiddleware<S>

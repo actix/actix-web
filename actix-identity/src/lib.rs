@@ -10,12 +10,11 @@
 //! uses cookies as identity storage.
 //!
 //! To access current request identity
-//! [**Identity**](trait.Identity.html) extractor should be used.
+//! [**Identity**](struct.Identity.html) extractor should be used.
 //!
 //! ```rust
-//! use actix_web::middleware::identity::Identity;
-//! use actix_web::middleware::identity::{CookieIdentityPolicy, IdentityService};
 //! use actix_web::*;
+//! use actix_identity::{Identity, CookieIdentityPolicy, IdentityService};
 //!
 //! fn index(id: Identity) -> String {
 //!     // access request identity
@@ -39,7 +38,7 @@
 //! fn main() {
 //!     let app = App::new().wrap(IdentityService::new(
 //!         // <- create identity middleware
-//!         CookieIdentityPolicy::new(&[0; 32])    // <- create cookie session backend
+//!         CookieIdentityPolicy::new(&[0; 32])    // <- create cookie identity policy
 //!               .name("auth-cookie")
 //!               .secure(false)))
 //!         .service(web::resource("/index.html").to(index))
@@ -57,17 +56,17 @@ use futures::{Future, IntoFuture, Poll};
 use serde::{Deserialize, Serialize};
 use time::Duration;
 
-use crate::cookie::{Cookie, CookieJar, Key, SameSite};
-use crate::error::{Error, Result};
-use crate::http::header::{self, HeaderValue};
-use crate::service::{ServiceRequest, ServiceResponse};
-use crate::{dev::Payload, FromRequest, HttpMessage, HttpRequest};
+use actix_web::cookie::{Cookie, CookieJar, Key, SameSite};
+use actix_web::dev::{Extensions, Payload, ServiceRequest, ServiceResponse};
+use actix_web::error::{Error, Result};
+use actix_web::http::header::{self, HeaderValue};
+use actix_web::{FromRequest, HttpMessage, HttpRequest};
 
 /// The extractor type to obtain your identity from a request.
 ///
 /// ```rust
 /// use actix_web::*;
-/// use actix_web::middleware::identity::Identity;
+/// use actix_identity::Identity;
 ///
 /// fn index(id: Identity) -> Result<String> {
 ///     // access request identity
@@ -96,11 +95,7 @@ impl Identity {
     /// Return the claimed identity of the user associated request or
     /// ``None`` if no identity can be found associated with the request.
     pub fn identity(&self) -> Option<String> {
-        if let Some(id) = self.0.extensions().get::<IdentityItem>() {
-            id.id.clone()
-        } else {
-            None
-        }
+        Identity::get_identity(&self.0.extensions())
     }
 
     /// Remember identity.
@@ -119,6 +114,14 @@ impl Identity {
             id.changed = true;
         }
     }
+
+    fn get_identity(extensions: &Extensions) -> Option<String> {
+        if let Some(id) = extensions.get::<IdentityItem>() {
+            id.id.clone()
+        } else {
+            None
+        }
+    }
 }
 
 struct IdentityItem {
@@ -126,11 +129,28 @@ struct IdentityItem {
     changed: bool,
 }
 
+/// Helper trait that allows to get Identity.
+///
+/// It could be used in middleware but identity policy must be set before any other middleware that needs identity
+/// RequestIdentity is implemented both for `ServiceRequest` and `HttpRequest`.
+pub trait RequestIdentity {
+    fn get_identity(&self) -> Option<String>;
+}
+
+impl<T> RequestIdentity for T
+where
+    T: HttpMessage,
+{
+    fn get_identity(&self) -> Option<String> {
+        Identity::get_identity(&self.extensions())
+    }
+}
+
 /// Extractor implementation for Identity type.
 ///
 /// ```rust
 /// # use actix_web::*;
-/// use actix_web::middleware::identity::Identity;
+/// use actix_identity::Identity;
 ///
 /// fn index(id: Identity) -> String {
 ///     // access request identity
@@ -177,7 +197,7 @@ pub trait IdentityPolicy: Sized + 'static {
 ///
 /// ```rust
 /// use actix_web::App;
-/// use actix_web::middleware::identity::{CookieIdentityPolicy, IdentityService};
+/// use actix_identity::{CookieIdentityPolicy, IdentityService};
 ///
 /// fn main() {
 ///     let app = App::new().wrap(IdentityService::new(
@@ -241,7 +261,7 @@ where
     type Request = ServiceRequest;
     type Response = ServiceResponse<B>;
     type Error = Error;
-    type Future = Box<Future<Item = Self::Response, Error = Self::Error>>;
+    type Future = Box<dyn Future<Item = Self::Response, Error = Self::Error>>;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
         self.service.borrow_mut().poll_ready()
@@ -263,7 +283,7 @@ where
                                 res.request().extensions_mut().remove::<IdentityItem>();
 
                             if let Some(id) = id {
-                                return Either::A(
+                                Either::A(
                                     backend
                                         .to_response(id.id, id.changed, &mut res)
                                         .into_future()
@@ -271,7 +291,7 @@ where
                                             Ok(_) => Ok(res),
                                             Err(e) => Ok(res.error_response(e)),
                                         }),
-                                );
+                                )
                             } else {
                                 Either::B(ok(res))
                             }
@@ -313,8 +333,7 @@ struct CookieIdentityExtention {
 
 impl CookieIdentityInner {
     fn new(key: &[u8]) -> CookieIdentityInner {
-        let key_v2: Vec<u8> =
-            key.iter().chain([1, 0, 0, 0].iter()).map(|e| *e).collect();
+        let key_v2: Vec<u8> = key.iter().chain([1, 0, 0, 0].iter()).cloned().collect();
         CookieIdentityInner {
             key: Key::from_master(key),
             key_v2: Key::from_master(&key_v2),
@@ -442,9 +461,8 @@ impl CookieIdentityInner {
 /// # Example
 ///
 /// ```rust
-/// # extern crate actix_web;
-/// use actix_web::middleware::identity::{CookieIdentityPolicy, IdentityService};
 /// use actix_web::App;
+/// use actix_identity::{CookieIdentityPolicy, IdentityService};
 ///
 /// fn main() {
 ///     let app = App::new().wrap(IdentityService::new(
@@ -566,13 +584,14 @@ impl IdentityPolicy for CookieIdentityPolicy {
             )
         } else if self.0.always_update_cookie() && id.is_some() {
             let visit_timestamp = SystemTime::now();
-            let mut login_timestamp = None;
-            if self.0.requires_oob_data() {
+            let login_timestamp = if self.0.requires_oob_data() {
                 let CookieIdentityExtention {
                     login_timestamp: lt,
                 } = res.request().extensions_mut().remove().unwrap();
-                login_timestamp = lt;
-            }
+                lt
+            } else {
+                None
+            };
             self.0.set_cookie(
                 res,
                 Some(CookieValue {
@@ -590,12 +609,12 @@ impl IdentityPolicy for CookieIdentityPolicy {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::http::StatusCode;
-    use crate::test::{self, TestRequest};
-    use crate::{web, App, HttpResponse};
-
     use std::borrow::Borrow;
+
+    use super::*;
+    use actix_web::http::StatusCode;
+    use actix_web::test::{self, TestRequest};
+    use actix_web::{web, App, Error, HttpResponse};
 
     const COOKIE_KEY_MASTER: [u8; 32] = [0; 32];
     const COOKIE_NAME: &'static str = "actix_auth";
@@ -717,8 +736,8 @@ mod tests {
         f: F,
     ) -> impl actix_service::Service<
         Request = actix_http::Request,
-        Response = ServiceResponse<actix_http::body::Body>,
-        Error = actix_http::Error,
+        Response = ServiceResponse<actix_web::body::Body>,
+        Error = Error,
     > {
         test::init_service(
             App::new()

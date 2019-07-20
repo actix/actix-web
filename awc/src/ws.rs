@@ -90,7 +90,7 @@ impl WebsocketsRequest {
     }
 
     /// Set a cookie
-    pub fn cookie<'c>(mut self, cookie: Cookie<'c>) -> Self {
+    pub fn cookie(mut self, cookie: Cookie<'_>) -> Self {
         if self.cookies.is_none() {
             let mut jar = CookieJar::new();
             jar.add(cookie.into_owned());
@@ -195,7 +195,7 @@ impl WebsocketsRequest {
     {
         let auth = match password {
             Some(password) => format!("{}:{}", username, password),
-            None => format!("{}", username),
+            None => format!("{}:", username),
         };
         self.header(AUTHORIZATION, format!("Basic {}", base64::encode(&auth)))
     }
@@ -443,7 +443,7 @@ mod tests {
                 .unwrap()
                 .to_str()
                 .unwrap(),
-            "Basic dXNlcm5hbWU="
+            "Basic dXNlcm5hbWU6"
         );
     }
 

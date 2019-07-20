@@ -4,8 +4,7 @@ use std::str;
 use actix_http::error::{Error, ErrorBadRequest, PayloadError};
 use actix_http::HttpMessage;
 use bytes::{Bytes, BytesMut};
-use encoding::all::UTF_8;
-use encoding::types::{DecoderTrap, Encoding};
+use encoding_rs::UTF_8;
 use futures::future::{err, Either, FutureResult};
 use futures::{Future, Poll, Stream};
 use mime::Mime;
@@ -125,11 +124,11 @@ impl FromRequest for Bytes {
     type Config = PayloadConfig;
     type Error = Error;
     type Future =
-        Either<Box<Future<Item = Bytes, Error = Error>>, FutureResult<Bytes, Error>>;
+        Either<Box<dyn Future<Item = Bytes, Error = Error>>, FutureResult<Bytes, Error>>;
 
     #[inline]
     fn from_request(req: &HttpRequest, payload: &mut dev::Payload) -> Self::Future {
-        let mut tmp;
+        let tmp;
         let cfg = if let Some(cfg) = req.app_data::<PayloadConfig>() {
             cfg
         } else {
@@ -178,12 +177,14 @@ impl FromRequest for Bytes {
 impl FromRequest for String {
     type Config = PayloadConfig;
     type Error = Error;
-    type Future =
-        Either<Box<Future<Item = String, Error = Error>>, FutureResult<String, Error>>;
+    type Future = Either<
+        Box<dyn Future<Item = String, Error = Error>>,
+        FutureResult<String, Error>,
+    >;
 
     #[inline]
     fn from_request(req: &HttpRequest, payload: &mut dev::Payload) -> Self::Future {
-        let mut tmp;
+        let tmp;
         let cfg = if let Some(cfg) = req.app_data::<PayloadConfig>() {
             cfg
         } else {
@@ -208,15 +209,15 @@ impl FromRequest for String {
                 .limit(limit)
                 .from_err()
                 .and_then(move |body| {
-                    let enc: *const Encoding = encoding as *const Encoding;
-                    if enc == UTF_8 {
+                    if encoding == UTF_8 {
                         Ok(str::from_utf8(body.as_ref())
                             .map_err(|_| ErrorBadRequest("Can not decode body"))?
                             .to_owned())
                     } else {
                         Ok(encoding
-                            .decode(&body, DecoderTrap::Strict)
-                            .map_err(|_| ErrorBadRequest("Can not decode body"))?)
+                            .decode_without_bom_handling_and_without_replacement(&body)
+                            .map(|s| s.into_owned())
+                            .ok_or_else(|| ErrorBadRequest("Can not decode body"))?)
                     }
                 }),
         ))
@@ -292,7 +293,7 @@ pub struct HttpMessageBody {
     length: Option<usize>,
     stream: Option<dev::Decompress<dev::Payload>>,
     err: Option<PayloadError>,
-    fut: Option<Box<Future<Item = Bytes, Error = PayloadError>>>,
+    fut: Option<Box<dyn Future<Item = Bytes, Error = PayloadError>>>,
 }
 
 impl HttpMessageBody {

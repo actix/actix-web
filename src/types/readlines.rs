@@ -1,9 +1,8 @@
+use std::borrow::Cow;
 use std::str;
 
 use bytes::{Bytes, BytesMut};
-use encoding::all::UTF_8;
-use encoding::types::{DecoderTrap, Encoding};
-use encoding::EncodingRef;
+use encoding_rs::{Encoding, UTF_8};
 use futures::{Async, Poll, Stream};
 
 use crate::dev::Payload;
@@ -16,7 +15,7 @@ pub struct Readlines<T: HttpMessage> {
     buff: BytesMut,
     limit: usize,
     checked_buff: bool,
-    encoding: EncodingRef,
+    encoding: &'static Encoding,
     err: Option<ReadlinesError>,
 }
 
@@ -87,15 +86,17 @@ where
                 if ind + 1 > self.limit {
                     return Err(ReadlinesError::LimitOverflow);
                 }
-                let enc: *const Encoding = self.encoding as *const Encoding;
-                let line = if enc == UTF_8 {
+                let line = if self.encoding == UTF_8 {
                     str::from_utf8(&self.buff.split_to(ind + 1))
                         .map_err(|_| ReadlinesError::EncodingError)?
                         .to_owned()
                 } else {
                     self.encoding
-                        .decode(&self.buff.split_to(ind + 1), DecoderTrap::Strict)
-                        .map_err(|_| ReadlinesError::EncodingError)?
+                        .decode_without_bom_handling_and_without_replacement(
+                            &self.buff.split_to(ind + 1),
+                        )
+                        .map(Cow::into_owned)
+                        .ok_or(ReadlinesError::EncodingError)?
                 };
                 return Ok(Async::Ready(Some(line)));
             }
@@ -117,15 +118,17 @@ where
                     if ind + 1 > self.limit {
                         return Err(ReadlinesError::LimitOverflow);
                     }
-                    let enc: *const Encoding = self.encoding as *const Encoding;
-                    let line = if enc == UTF_8 {
+                    let line = if self.encoding == UTF_8 {
                         str::from_utf8(&bytes.split_to(ind + 1))
                             .map_err(|_| ReadlinesError::EncodingError)?
                             .to_owned()
                     } else {
                         self.encoding
-                            .decode(&bytes.split_to(ind + 1), DecoderTrap::Strict)
-                            .map_err(|_| ReadlinesError::EncodingError)?
+                            .decode_without_bom_handling_and_without_replacement(
+                                &bytes.split_to(ind + 1),
+                            )
+                            .map(Cow::into_owned)
+                            .ok_or(ReadlinesError::EncodingError)?
                     };
                     // extend buffer with rest of the bytes;
                     self.buff.extend_from_slice(&bytes);
@@ -143,15 +146,15 @@ where
                 if self.buff.len() > self.limit {
                     return Err(ReadlinesError::LimitOverflow);
                 }
-                let enc: *const Encoding = self.encoding as *const Encoding;
-                let line = if enc == UTF_8 {
+                let line = if self.encoding == UTF_8 {
                     str::from_utf8(&self.buff)
                         .map_err(|_| ReadlinesError::EncodingError)?
                         .to_owned()
                 } else {
                     self.encoding
-                        .decode(&self.buff, DecoderTrap::Strict)
-                        .map_err(|_| ReadlinesError::EncodingError)?
+                        .decode_without_bom_handling_and_without_replacement(&self.buff)
+                        .map(Cow::into_owned)
+                        .ok_or(ReadlinesError::EncodingError)?
                 };
                 self.buff.clear();
                 Ok(Async::Ready(Some(line)))

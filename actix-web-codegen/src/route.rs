@@ -12,9 +12,9 @@ enum ResourceType {
 
 impl fmt::Display for ResourceType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            &ResourceType::Async => write!(f, "to_async"),
-            &ResourceType::Sync => write!(f, "to"),
+        match *self {
+            ResourceType::Async => write!(f, "to_async"),
+            ResourceType::Sync => write!(f, "to"),
         }
     }
 }
@@ -34,16 +34,16 @@ pub enum GuardType {
 
 impl fmt::Display for GuardType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            &GuardType::Get => write!(f, "Get"),
-            &GuardType::Post => write!(f, "Post"),
-            &GuardType::Put => write!(f, "Put"),
-            &GuardType::Delete => write!(f, "Delete"),
-            &GuardType::Head => write!(f, "Head"),
-            &GuardType::Connect => write!(f, "Connect"),
-            &GuardType::Options => write!(f, "Options"),
-            &GuardType::Trace => write!(f, "Trace"),
-            &GuardType::Patch => write!(f, "Patch"),
+        match *self {
+            GuardType::Get => write!(f, "Get"),
+            GuardType::Post => write!(f, "Post"),
+            GuardType::Put => write!(f, "Put"),
+            GuardType::Delete => write!(f, "Delete"),
+            GuardType::Head => write!(f, "Head"),
+            GuardType::Connect => write!(f, "Connect"),
+            GuardType::Options => write!(f, "Options"),
+            GuardType::Trace => write!(f, "Trace"),
+            GuardType::Patch => write!(f, "Patch"),
         }
     }
 }
@@ -92,37 +92,27 @@ impl actix_web::dev::HttpServiceFactory for {name} {{
 fn guess_resource_type(typ: &syn::Type) -> ResourceType {
     let mut guess = ResourceType::Sync;
 
-    match typ {
-        syn::Type::ImplTrait(typ) => {
-            for bound in typ.bounds.iter() {
-                match bound {
-                    syn::TypeParamBound::Trait(bound) => {
-                        for bound in bound.path.segments.iter() {
-                            if bound.ident == "Future" {
-                                guess = ResourceType::Async;
-                                break;
-                            } else if bound.ident == "Responder" {
-                                guess = ResourceType::Sync;
-                                break;
-                            }
-                        }
+    if let syn::Type::ImplTrait(typ) = typ {
+        for bound in typ.bounds.iter() {
+            if let syn::TypeParamBound::Trait(bound) = bound {
+                for bound in bound.path.segments.iter() {
+                    if bound.ident == "Future" {
+                        guess = ResourceType::Async;
+                        break;
+                    } else if bound.ident == "Responder" {
+                        guess = ResourceType::Sync;
+                        break;
                     }
-                    _ => (),
                 }
             }
         }
-        _ => (),
     }
 
     guess
 }
 
 impl Args {
-    pub fn new(
-        args: &Vec<syn::NestedMeta>,
-        input: TokenStream,
-        guard: GuardType,
-    ) -> Self {
+    pub fn new(args: &[syn::NestedMeta], input: TokenStream, guard: GuardType) -> Self {
         if args.is_empty() {
             panic!(
                 "invalid server definition, expected: #[{}(\"some path\")]",
@@ -164,9 +154,10 @@ impl Args {
             ResourceType::Async
         } else {
             match ast.decl.output {
-                syn::ReturnType::Default => {
-                    panic!("Function {} has no return type. Cannot be used as handler")
-                }
+                syn::ReturnType::Default => panic!(
+                    "Function {} has no return type. Cannot be used as handler",
+                    name
+                ),
                 syn::ReturnType::Type(_, ref typ) => guess_resource_type(typ.as_ref()),
             }
         };

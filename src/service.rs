@@ -18,6 +18,7 @@ use crate::dev::insert_slash;
 use crate::guard::Guard;
 use crate::info::ConnectionInfo;
 use crate::request::HttpRequest;
+use crate::rmap::ResourceMap;
 
 pub trait HttpServiceFactory {
     fn register(self, config: &mut AppService);
@@ -169,8 +170,15 @@ impl ServiceRequest {
     }
 
     #[inline]
+    /// Get a mutable reference to the Path parameters.
     pub fn match_info_mut(&mut self) -> &mut Path<Url> {
         self.0.match_info_mut()
+    }
+
+    #[inline]
+    /// Get a reference to a `ResourceMap` of current application.
+    pub fn resource_map(&self) -> &ResourceMap {
+        self.0.resource_map()
     }
 
     /// Service configuration
@@ -399,7 +407,7 @@ impl<B: MessageBody> fmt::Debug for ServiceResponse<B> {
 pub struct WebService {
     rdef: String,
     name: Option<String>,
-    guards: Vec<Box<Guard>>,
+    guards: Vec<Box<dyn Guard>>,
 }
 
 impl WebService {
@@ -468,7 +476,7 @@ struct WebServiceImpl<T> {
     srv: T,
     rdef: String,
     name: Option<String>,
-    guards: Vec<Box<Guard>>,
+    guards: Vec<Box<dyn Guard>>,
 }
 
 impl<T> HttpServiceFactory for WebServiceImpl<T>

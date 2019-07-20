@@ -137,6 +137,22 @@ impl Responder for () {
     }
 }
 
+impl<T> Responder for (T, StatusCode)
+where
+    T: Responder,
+{
+    type Error = T::Error;
+    type Future = CustomResponderFut<T>;
+
+    fn respond_to(self, req: &HttpRequest) -> Self::Future {
+        CustomResponderFut {
+            fut: self.0.respond_to(req).into_future(),
+            status: Some(self.1),
+            headers: None,
+        }
+    }
+}
+
 impl Responder for &'static str {
     type Error = Error;
     type Future = FutureResult<Response, Error>;
@@ -321,7 +337,7 @@ impl<T: Responder> Future for CustomResponderFut<T> {
 /// use actix_web::{Either, Error, HttpResponse};
 ///
 /// type RegisterResult =
-///     Either<HttpResponse, Box<Future<Item = HttpResponse, Error = Error>>>;
+///     Either<HttpResponse, Box<dyn Future<Item = HttpResponse, Error = Error>>>;
 ///
 /// fn index() -> RegisterResult {
 ///     if is_a_variant() {
@@ -395,13 +411,13 @@ where
     }
 }
 
-impl<I, E> Responder for Box<Future<Item = I, Error = E>>
+impl<I, E> Responder for Box<dyn Future<Item = I, Error = E>>
 where
     I: Responder + 'static,
     E: Into<Error> + 'static,
 {
     type Error = Error;
-    type Future = Box<Future<Item = Response, Error = Error>>;
+    type Future = Box<dyn Future<Item = Response, Error = Error>>;
 
     #[inline]
     fn respond_to(self, req: &HttpRequest) -> Self::Future {
@@ -617,6 +633,30 @@ pub(crate) mod tests {
         )
         .unwrap();
 
+        assert_eq!(res.status(), StatusCode::OK);
+        assert_eq!(res.body().bin_ref(), b"test");
+        assert_eq!(
+            res.headers().get(CONTENT_TYPE).unwrap(),
+            HeaderValue::from_static("json")
+        );
+    }
+
+    #[test]
+    fn test_tuple_responder_with_status_code() {
+        let req = TestRequest::default().to_http_request();
+        let res =
+            block_on(("test".to_string(), StatusCode::BAD_REQUEST).respond_to(&req))
+                .unwrap();
+        assert_eq!(res.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(res.body().bin_ref(), b"test");
+
+        let req = TestRequest::default().to_http_request();
+        let res = block_on(
+            ("test".to_string(), StatusCode::OK)
+                .with_header("content-type", "json")
+                .respond_to(&req),
+        )
+        .unwrap();
         assert_eq!(res.status(), StatusCode::OK);
         assert_eq!(res.body().bin_ref(), b"test");
         assert_eq!(

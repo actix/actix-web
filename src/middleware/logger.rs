@@ -9,12 +9,13 @@ use actix_service::{Service, Transform};
 use bytes::Bytes;
 use futures::future::{ok, FutureResult};
 use futures::{Async, Future, Poll};
+use log::debug;
 use regex::Regex;
 use time;
 
 use crate::dev::{BodySize, MessageBody, ResponseBody};
 use crate::error::{Error, Result};
-use crate::http::{HeaderName, HttpTryFrom};
+use crate::http::{HeaderName, HttpTryFrom, StatusCode};
 use crate::service::{ServiceRequest, ServiceResponse};
 use crate::HttpResponse;
 
@@ -201,6 +202,12 @@ where
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         let res = futures::try_ready!(self.fut.poll());
+
+        if let Some(error) = res.response().error() {
+            if res.response().head().status != StatusCode::INTERNAL_SERVER_ERROR {
+                debug!("Error in response: {:?}", error);
+            }
+        }
 
         if let Some(ref mut format) = self.format {
             for unit in &mut format.0 {
@@ -415,9 +422,9 @@ impl FormatText {
                     ))
                 };
             }
-            FormatText::UrlPath => *self = FormatText::Str(format!("{}", req.path())),
+            FormatText::UrlPath => *self = FormatText::Str(req.path().to_string()),
             FormatText::RequestTime => {
-                *self = FormatText::Str(format!("{}", now.rfc3339()))
+                *self = FormatText::Str(now.rfc3339().to_string())
             }
             FormatText::RequestHeader(ref name) => {
                 let s = if let Some(val) = req.headers().get(name) {
@@ -444,7 +451,9 @@ impl FormatText {
     }
 }
 
-pub(crate) struct FormatDisplay<'a>(&'a Fn(&mut Formatter) -> Result<(), fmt::Error>);
+pub(crate) struct FormatDisplay<'a>(
+    &'a dyn Fn(&mut Formatter) -> Result<(), fmt::Error>,
+);
 
 impl<'a> fmt::Display for FormatDisplay<'a> {
     fn fmt(&self, fmt: &mut Formatter) -> Result<(), fmt::Error> {

@@ -68,7 +68,7 @@ impl TestResponse {
     }
 
     /// Set cookie for this response
-    pub fn cookie<'a>(mut self, cookie: Cookie<'a>) -> Self {
+    pub fn cookie(mut self, cookie: Cookie<'_>) -> Self {
         self.cookies.add(cookie.into_owned());
         self
     }

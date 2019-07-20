@@ -6,8 +6,8 @@ use ring::rand::{SecureRandom, SystemRandom};
 use super::private::KEY_LEN as PRIVATE_KEY_LEN;
 use super::signed::KEY_LEN as SIGNED_KEY_LEN;
 
-static HKDF_DIGEST: &'static Algorithm = &SHA256;
-const KEYS_INFO: &'static str = "COOKIE;SIGNED:HMAC-SHA256;PRIVATE:AEAD-AES-256-GCM";
+static HKDF_DIGEST: &Algorithm = &SHA256;
+const KEYS_INFO: &str = "COOKIE;SIGNED:HMAC-SHA256;PRIVATE:AEAD-AES-256-GCM";
 
 /// A cryptographic master key for use with `Signed` and/or `Private` jars.
 ///

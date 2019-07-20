@@ -3,7 +3,7 @@ sudo: required
 dist: trusty
 
 cache:
-  cargo: true
+  # cargo: true
   apt: true
 
 matrix:
@@ -26,7 +26,7 @@ before_install:
 
 before_cache: |
   if [[ "$TRAVIS_RUST_VERSION" == "nightly-2019-04-02" ]]; then
-    RUSTFLAGS="--cfg procmacro2_semver_exempt" cargo install cargo-tarpaulin
+    RUSTFLAGS="--cfg procmacro2_semver_exempt" cargo install --version 0.6.11 cargo-tarpaulin
   fi
 
 # Add clippy

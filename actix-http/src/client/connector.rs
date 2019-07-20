@@ -47,6 +47,7 @@ pub struct Connector<T, U> {
 }
 
 impl Connector<(), ()> {
+    #[allow(clippy::new_ret_no_self)]
     pub fn new() -> Connector<
         impl Service<
                 Request = TcpConnect<Uri>,

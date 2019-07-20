@@ -13,26 +13,26 @@ use crate::service::{ServiceRequest, ServiceResponse};
 use crate::HttpResponse;
 
 type BoxedRouteService<Req, Res> = Box<
-    Service<
+    dyn Service<
         Request = Req,
         Response = Res,
         Error = Error,
         Future = Either<
             FutureResult<Res, Error>,
-            Box<Future<Item = Res, Error = Error>>,
+            Box<dyn Future<Item = Res, Error = Error>>,
         >,
     >,
 >;
 
 type BoxedRouteNewService<Req, Res> = Box<
-    NewService<
+    dyn NewService<
         Config = (),
         Request = Req,
         Response = Res,
         Error = Error,
         InitError = (),
         Service = BoxedRouteService<Req, Res>,
-        Future = Box<Future<Item = BoxedRouteService<Req, Res>, Error = ()>>,
+        Future = Box<dyn Future<Item = BoxedRouteService<Req, Res>, Error = ()>>,
     >,
 >;
 
@@ -42,7 +42,7 @@ type BoxedRouteNewService<Req, Res> = Box<
 /// If handler is not explicitly set, default *404 Not Found* handler is used.
 pub struct Route {
     service: BoxedRouteNewService<ServiceRequest, ServiceResponse>,
-    guards: Rc<Vec<Box<Guard>>>,
+    guards: Rc<Vec<Box<dyn Guard>>>,
 }
 
 impl Route {
@@ -56,7 +56,7 @@ impl Route {
         }
     }
 
-    pub(crate) fn take_guards(&mut self) -> Vec<Box<Guard>> {
+    pub(crate) fn take_guards(&mut self) -> Vec<Box<dyn Guard>> {
         std::mem::replace(Rc::get_mut(&mut self.guards).unwrap(), Vec::new())
     }
 }
@@ -78,12 +78,13 @@ impl NewService for Route {
     }
 }
 
-type RouteFuture =
-    Box<Future<Item = BoxedRouteService<ServiceRequest, ServiceResponse>, Error = ()>>;
+type RouteFuture = Box<
+    dyn Future<Item = BoxedRouteService<ServiceRequest, ServiceResponse>, Error = ()>,
+>;
 
 pub struct CreateRouteService {
     fut: RouteFuture,
-    guards: Rc<Vec<Box<Guard>>>,
+    guards: Rc<Vec<Box<dyn Guard>>>,
 }
 
 impl Future for CreateRouteService {
@@ -103,7 +104,7 @@ impl Future for CreateRouteService {
 
 pub struct RouteService {
     service: BoxedRouteService<ServiceRequest, ServiceResponse>,
-    guards: Rc<Vec<Box<Guard>>>,
+    guards: Rc<Vec<Box<dyn Guard>>>,
 }
 
 impl RouteService {
@@ -123,7 +124,7 @@ impl Service for RouteService {
     type Error = Error;
     type Future = Either<
         FutureResult<Self::Response, Self::Error>,
-        Box<Future<Item = Self::Response, Error = Self::Error>>,
+        Box<dyn Future<Item = Self::Response, Error = Self::Error>>,
     >;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
@@ -317,7 +318,7 @@ where
     type Error = Error;
     type InitError = ();
     type Service = BoxedRouteService<ServiceRequest, Self::Response>;
-    type Future = Box<Future<Item = Self::Service, Error = Self::InitError>>;
+    type Future = Box<dyn Future<Item = Self::Service, Error = Self::InitError>>;
 
     fn new_service(&self, _: &()) -> Self::Future {
         Box::new(
@@ -351,7 +352,7 @@ where
     type Error = Error;
     type Future = Either<
         FutureResult<Self::Response, Self::Error>,
-        Box<Future<Item = Self::Response, Error = Self::Error>>,
+        Box<dyn Future<Item = Self::Response, Error = Self::Error>>,
     >;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {

@@ -94,7 +94,7 @@ where
 {
     type Config = T::Config;
     type Error = Error;
-    type Future = Box<Future<Item = Option<T>, Error = Error>>;
+    type Future = Box<dyn Future<Item = Option<T>, Error = Error>>;
 
     #[inline]
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
@@ -165,7 +165,7 @@ where
 {
     type Config = T::Config;
     type Error = Error;
-    type Future = Box<Future<Item = Result<T, T::Error>, Error = Error>>;
+    type Future = Box<dyn Future<Item = Result<T, T::Error>, Error = Error>>;
 
     #[inline]
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {

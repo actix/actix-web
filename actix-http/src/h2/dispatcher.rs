@@ -6,7 +6,6 @@ use std::{fmt, mem, net};
 use actix_codec::{AsyncRead, AsyncWrite};
 use actix_server_config::IoStream;
 use actix_service::Service;
-use actix_utils::cloneable::CloneableService;
 use bitflags::bitflags;
 use bytes::{Bytes, BytesMut};
 use futures::{try_ready, Async, Future, Poll, Sink, Stream};
@@ -20,8 +19,10 @@ use log::{debug, error, trace};
 use tokio_timer::Delay;
 
 use crate::body::{Body, BodySize, MessageBody, ResponseBody};
+use crate::cloneable::CloneableService;
 use crate::config::ServiceConfig;
 use crate::error::{DispatchError, Error, ParseError, PayloadError, ResponseError};
+use crate::helpers::DataFactory;
 use crate::message::ResponseHead;
 use crate::payload::Payload;
 use crate::request::Request;
@@ -33,6 +34,7 @@ const CHUNK_SIZE: usize = 16_384;
 pub struct Dispatcher<T: IoStream, S: Service<Request = Request>, B: MessageBody> {
     service: CloneableService<S>,
     connection: Connection<T, Bytes>,
+    on_connect: Option<Box<dyn DataFactory>>,
     config: ServiceConfig,
     peer_addr: Option<net::SocketAddr>,
     ka_expire: Instant,
@@ -49,9 +51,10 @@ where
     S::Response: Into<Response<B>>,
     B: MessageBody + 'static,
 {
-    pub fn new(
+    pub(crate) fn new(
         service: CloneableService<S>,
         connection: Connection<T, Bytes>,
+        on_connect: Option<Box<dyn DataFactory>>,
         config: ServiceConfig,
         timeout: Option<Delay>,
         peer_addr: Option<net::SocketAddr>,
@@ -77,6 +80,7 @@ where
             config,
             peer_addr,
             connection,
+            on_connect,
             ka_expire,
             ka_timer,
             _t: PhantomData,

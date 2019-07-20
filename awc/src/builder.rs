@@ -21,6 +21,12 @@ pub struct ClientBuilder {
     max_redirects: usize,
 }
 
+impl Default for ClientBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ClientBuilder {
     pub fn new() -> Self {
         ClientBuilder {
@@ -115,7 +121,7 @@ impl ClientBuilder {
     {
         let auth = match password {
             Some(password) => format!("{}:{}", username, password),
-            None => format!("{}", username),
+            None => format!("{}:", username),
         };
         self.header(
             header::AUTHORIZATION,
@@ -164,7 +170,7 @@ mod tests {
                 .unwrap()
                 .to_str()
                 .unwrap(),
-            "Basic dXNlcm5hbWU="
+            "Basic dXNlcm5hbWU6"
         );
     }
 

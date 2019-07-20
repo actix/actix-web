@@ -38,7 +38,8 @@ impl ResourceMap {
     pub(crate) fn finish(&self, current: Rc<ResourceMap>) {
         for (_, nested) in &self.patterns {
             if let Some(ref nested) = nested {
-                *nested.parent.borrow_mut() = Some(current.clone())
+                *nested.parent.borrow_mut() = Some(current.clone());
+                nested.finish(nested.clone());
             }
         }
     }
@@ -122,7 +123,7 @@ impl ResourceMap {
         I: AsRef<str>,
     {
         if let Some(pattern) = self.named.get(name) {
-            if pattern.pattern().starts_with("/") {
+            if pattern.pattern().starts_with('/') {
                 self.fill_root(path, elements)?;
             }
             if pattern.resource_path(path, elements) {

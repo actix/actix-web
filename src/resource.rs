@@ -27,7 +27,7 @@ type HttpNewService = BoxedNewService<(), ServiceRequest, ServiceResponse, Error
 /// Resource in turn has at least one route.
 /// Route consists of an handlers objects and list of guards
 /// (objects that implement `Guard` trait).
-/// Resources and rouets uses builder-like pattern for configuration.
+/// Resources and routes uses builder-like pattern for configuration.
 /// During request handling, resource object iterate through all routes
 /// and check guards for specific route, if request matches all
 /// guards, route considered matched and route handler get called.
@@ -50,7 +50,7 @@ pub struct Resource<T = ResourceEndpoint> {
     name: Option<String>,
     routes: Vec<Route>,
     data: Option<Extensions>,
-    guards: Vec<Box<Guard>>,
+    guards: Vec<Box<dyn Guard>>,
     default: Rc<RefCell<Option<Rc<HttpNewService>>>>,
     factory_ref: Rc<RefCell<Option<ResourceFactory>>>,
 }
@@ -118,7 +118,7 @@ where
         self
     }
 
-    pub(crate) fn add_guards(mut self, guards: Vec<Box<Guard>>) -> Self {
+    pub(crate) fn add_guards(mut self, guards: Vec<Box<dyn Guard>>) -> Self {
         self.guards.extend(guards);
         self
     }
@@ -245,7 +245,7 @@ where
     /// ```rust
     /// # use actix_web::*;
     /// # use futures::future::Future;
-    /// # fn index(req: HttpRequest) -> Box<Future<Item=HttpResponse, Error=Error>> {
+    /// # fn index(req: HttpRequest) -> Box<dyn Future<Item=HttpResponse, Error=Error>> {
     /// #     unimplemented!()
     /// # }
     /// App::new().service(web::resource("/").route(web::route().to_async(index)));
@@ -426,7 +426,7 @@ where
     fn into_new_service(self) -> T {
         *self.factory_ref.borrow_mut() = Some(ResourceFactory {
             routes: self.routes,
-            data: self.data.map(|data| Rc::new(data)),
+            data: self.data.map(Rc::new),
             default: self.default,
         });
 
@@ -478,7 +478,7 @@ pub struct CreateResourceService {
     fut: Vec<CreateRouteServiceItem>,
     data: Option<Rc<Extensions>>,
     default: Option<HttpService>,
-    default_fut: Option<Box<Future<Item = HttpService, Error = ()>>>,
+    default_fut: Option<Box<dyn Future<Item = HttpService, Error = ()>>>,
 }
 
 impl Future for CreateResourceService {
@@ -542,7 +542,7 @@ impl Service for ResourceService {
     type Error = Error;
     type Future = Either<
         FutureResult<ServiceResponse, Error>,
-        Box<Future<Item = ServiceResponse, Error = Error>>,
+        Box<dyn Future<Item = ServiceResponse, Error = Error>>,
     >;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {

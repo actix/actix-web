@@ -385,6 +385,7 @@ impl Drop for BoxedResponseHead {
 pub struct MessagePool<T: Head>(RefCell<Vec<Rc<T>>>);
 
 #[doc(hidden)]
+#[allow(clippy::vec_box)]
 /// Request's objects pool
 pub struct BoxedResponsePool(RefCell<Vec<Box<ResponseHead>>>);
 
