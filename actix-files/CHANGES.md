@@ -1,5 +1,10 @@
 # Changes
 
+## [0.1.4] - 2019-07-20
+
+* Allow to disable `Content-Disposition` header #686
+
+
 ## [0.1.3] - 2019-06-28
 
 * Do not set `Content-Length` header, let actix-http set it #930

@@ -314,20 +314,29 @@ impl Files {
     }
 
     #[inline]
-    ///Specifies whether to use ETag or not.
+    /// Specifies whether to use ETag or not.
     ///
-    ///Default is true.
+    /// Default is true.
     pub fn use_etag(mut self, value: bool) -> Self {
         self.file_flags.set(named::Flags::ETAG, value);
         self
     }
 
     #[inline]
-    ///Specifies whether to use Last-Modified or not.
+    /// Specifies whether to use Last-Modified or not.
     ///
-    ///Default is true.
+    /// Default is true.
     pub fn use_last_modified(mut self, value: bool) -> Self {
         self.file_flags.set(named::Flags::LAST_MD, value);
+        self
+    }
+
+    /// Disable `Content-Disposition` header.
+    ///
+    /// By default Content-Disposition` header is enabled.
+    #[inline]
+    pub fn disable_content_disposition(mut self) -> Self {
+        self.file_flags.remove(named::Flags::CONTENT_DISPOSITION);
         self
     }
 
@@ -636,6 +645,33 @@ mod tests {
             resp.headers().get(header::CONTENT_DISPOSITION).unwrap(),
             "inline; filename=\"Cargo.toml\""
         );
+    }
+
+    #[test]
+    fn test_named_file_content_disposition() {
+        assert!(NamedFile::open("test--").is_err());
+        let mut file = NamedFile::open("Cargo.toml").unwrap();
+        {
+            file.file();
+            let _f: &File = &file;
+        }
+        {
+            let _f: &mut File = &mut file;
+        }
+
+        let req = TestRequest::default().to_http_request();
+        let resp = file.respond_to(&req).unwrap();
+        assert_eq!(
+            resp.headers().get(header::CONTENT_DISPOSITION).unwrap(),
+            "inline; filename=\"Cargo.toml\""
+        );
+
+        let file = NamedFile::open("Cargo.toml")
+            .unwrap()
+            .disable_content_disposition();
+        let req = TestRequest::default().to_http_request();
+        let resp = file.respond_to(&req).unwrap();
+        assert!(resp.headers().get(header::CONTENT_DISPOSITION).is_none());
     }
 
     #[test]

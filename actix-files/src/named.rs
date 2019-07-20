@@ -23,9 +23,10 @@ use crate::range::HttpRange;
 use crate::ChunkedReadFile;
 
 bitflags! {
-    pub(crate) struct Flags: u32 {
+    pub(crate) struct Flags: u8 {
         const ETAG = 0b0000_0001;
         const LAST_MD = 0b0000_0010;
+        const CONTENT_DISPOSITION = 0b0000_0100;
     }
 }
 
@@ -40,13 +41,13 @@ impl Default for Flags {
 pub struct NamedFile {
     path: PathBuf,
     file: File,
+    modified: Option<SystemTime>,
+    pub(crate) md: Metadata,
+    pub(crate) flags: Flags,
+    pub(crate) status_code: StatusCode,
     pub(crate) content_type: mime::Mime,
     pub(crate) content_disposition: header::ContentDisposition,
-    pub(crate) md: Metadata,
-    modified: Option<SystemTime>,
     pub(crate) encoding: Option<ContentEncoding>,
-    pub(crate) status_code: StatusCode,
-    pub(crate) flags: Flags,
 }
 
 impl NamedFile {
@@ -172,11 +173,21 @@ impl NamedFile {
     /// sent to the peer. By default the disposition is `inline` for text,
     /// image, and video content types, and `attachment` otherwise, and
     /// the filename is taken from the path provided in the `open` method
-    /// after converting it to UTF-8 using
+    /// after converting it to UTF-8 using.
     /// [to_string_lossy](https://doc.rust-lang.org/std/ffi/struct.OsStr.html#method.to_string_lossy).
     #[inline]
     pub fn set_content_disposition(mut self, cd: header::ContentDisposition) -> Self {
         self.content_disposition = cd;
+        self.flags.insert(Flags::CONTENT_DISPOSITION);
+        self
+    }
+
+    /// Disable `Content-Disposition` header.
+    ///
+    /// By default Content-Disposition` header is enabled.
+    #[inline]
+    pub fn disable_content_disposition(mut self) -> Self {
+        self.flags.remove(Flags::CONTENT_DISPOSITION);
         self
     }
 
@@ -294,10 +305,12 @@ impl Responder for NamedFile {
         if self.status_code != StatusCode::OK {
             let mut resp = HttpResponse::build(self.status_code);
             resp.set(header::ContentType(self.content_type.clone()))
-                .header(
-                    header::CONTENT_DISPOSITION,
-                    self.content_disposition.to_string(),
-                );
+                .if_true(self.flags.contains(Flags::CONTENT_DISPOSITION), |res| {
+                    res.header(
+                        header::CONTENT_DISPOSITION,
+                        self.content_disposition.to_string(),
+                    );
+                });
             if let Some(current_encoding) = self.encoding {
                 resp.encoding(current_encoding);
             }
@@ -368,10 +381,12 @@ impl Responder for NamedFile {
 
         let mut resp = HttpResponse::build(self.status_code);
         resp.set(header::ContentType(self.content_type.clone()))
-            .header(
-                header::CONTENT_DISPOSITION,
-                self.content_disposition.to_string(),
-            );
+            .if_true(self.flags.contains(Flags::CONTENT_DISPOSITION), |res| {
+                res.header(
+                    header::CONTENT_DISPOSITION,
+                    self.content_disposition.to_string(),
+                );
+            });
         // default compressing
         if let Some(current_encoding) = self.encoding {
             resp.encoding(current_encoding);
