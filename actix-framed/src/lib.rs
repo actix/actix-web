@@ -1,9 +1,4 @@
-#![allow(
-    clippy::type_complexity,
-    clippy::new_without_default,
-    dead_code,
-    deprecated
-)]
+#![allow(clippy::type_complexity, clippy::new_without_default, dead_code)]
 mod app;
 mod helpers;
 mod request;

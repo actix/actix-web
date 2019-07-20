@@ -6,7 +6,6 @@ use actix_http::{Error, Request, Response};
 use actix_router::{Path, Router, Url};
 use actix_server_config::ServerConfig;
 use actix_service::{IntoNewService, NewService, Service};
-use actix_utils::cloneable::CloneableService;
 use futures::{Async, Future, Poll};
 
 use crate::helpers::{BoxedHttpNewService, BoxedHttpService, HttpNewService};
@@ -100,7 +99,7 @@ where
     type Response = ();
     type Error = Error;
     type InitError = ();
-    type Service = CloneableService<FramedAppService<T, S>>;
+    type Service = FramedAppService<T, S>;
     type Future = CreateService<T, S>;
 
     fn new_service(&self, _: &ServerConfig) -> Self::Future {
@@ -138,7 +137,7 @@ impl<S: 'static, T: 'static> Future for CreateService<T, S>
 where
     T: AsyncRead + AsyncWrite,
 {
-    type Item = CloneableService<FramedAppService<T, S>>;
+    type Item = FramedAppService<T, S>;
     type Error = ();
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
@@ -177,10 +176,10 @@ where
                     }
                     router
                 });
-            Ok(Async::Ready(CloneableService::new(FramedAppService {
+            Ok(Async::Ready(FramedAppService {
                 router: router.finish(),
                 state: self.state.clone(),
-            })))
+            }))
         } else {
             Ok(Async::NotReady)
         }
