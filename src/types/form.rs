@@ -3,20 +3,29 @@
 use std::rc::Rc;
 use std::{fmt, ops};
 
-use actix_http::{Error, HttpMessage, Payload};
+use actix_http::{Error, HttpMessage, Payload, Response};
 use bytes::BytesMut;
 use encoding_rs::{Encoding, UTF_8};
 use futures::{Future, Poll, Stream};
 use serde::de::DeserializeOwned;
+use serde::Serialize;
 
 use crate::dev::Decompress;
 use crate::error::UrlencodedError;
 use crate::extract::FromRequest;
-use crate::http::header::CONTENT_LENGTH;
+use crate::http::{
+    header::{ContentType, CONTENT_LENGTH},
+    StatusCode,
+};
 use crate::request::HttpRequest;
+use crate::responder::Responder;
 
-#[derive(PartialEq, Eq, PartialOrd, Ord)]
-/// Extract typed information from the request's body.
+/// Form data helper (`application/x-www-form-urlencoded`)
+///
+/// Can be use to extract url-encoded data from the request body,
+/// or send url-encoded data as the response.
+///
+/// ## Extract
 ///
 /// To extract typed information from request's body, the type `T` must
 /// implement the `Deserialize` trait from *serde*.
@@ -24,8 +33,7 @@ use crate::request::HttpRequest;
 /// [**FormConfig**](struct.FormConfig.html) allows to configure extraction
 /// process.
 ///
-/// ## Example
-///
+/// ### Example
 /// ```rust
 /// # extern crate actix_web;
 /// #[macro_use] extern crate serde_derive;
@@ -44,6 +52,36 @@ use crate::request::HttpRequest;
 /// }
 /// # fn main() {}
 /// ```
+///
+/// ## Respond
+///
+/// The `Form` type also allows you to respond with well-formed url-encoded data:
+/// simply return a value of type Form<T> where T is the type to be url-encoded.
+/// The type  must implement `serde::Serialize`;
+///
+/// ### Example
+/// ```rust
+/// # #[macro_use] extern crate serde_derive;
+/// # use actix_web::*;
+/// #
+/// #[derive(Serialize)]
+/// struct SomeForm {
+///     name: String,
+///     age: u8
+/// }
+///
+/// // Will return a 200 response with header
+/// // `Content-Type: application/x-www-form-urlencoded`
+/// // and body "name=actix&age=123"
+/// fn index() -> web::Form<SomeForm> {
+///     web::Form(SomeForm {
+///         name: "actix".into(),
+///         age: 123
+///     })
+/// }
+/// # fn main() {}
+/// ```
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
 pub struct Form<T>(pub T);
 
 impl<T> Form<T> {
@@ -107,6 +145,22 @@ impl<T: fmt::Debug> fmt::Debug for Form<T> {
 impl<T: fmt::Display> fmt::Display for Form<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.0.fmt(f)
+    }
+}
+
+impl<T: Serialize> Responder for Form<T> {
+    type Error = Error;
+    type Future = Result<Response, Error>;
+
+    fn respond_to(self, _: &HttpRequest) -> Self::Future {
+        let body = match serde_urlencoded::to_string(&self.0) {
+            Ok(body) => body,
+            Err(e) => return Err(e.into()),
+        };
+
+        Ok(Response::build(StatusCode::OK)
+            .set(ContentType::form_url_encoded())
+            .body(body))
     }
 }
 
@@ -304,15 +358,16 @@ where
 #[cfg(test)]
 mod tests {
     use bytes::Bytes;
-    use serde::Deserialize;
+    use serde::{Deserialize, Serialize};
 
     use super::*;
-    use crate::http::header::CONTENT_TYPE;
+    use crate::http::header::{HeaderValue, CONTENT_TYPE};
     use crate::test::{block_on, TestRequest};
 
-    #[derive(Deserialize, Debug, PartialEq)]
+    #[derive(Deserialize, Serialize, Debug, PartialEq)]
     struct Info {
         hello: String,
+        counter: i64,
     }
 
     #[test]
@@ -320,11 +375,17 @@ mod tests {
         let (req, mut pl) =
             TestRequest::with_header(CONTENT_TYPE, "application/x-www-form-urlencoded")
                 .header(CONTENT_LENGTH, "11")
-                .set_payload(Bytes::from_static(b"hello=world"))
+                .set_payload(Bytes::from_static(b"hello=world&counter=123"))
                 .to_http_parts();
 
-        let s = block_on(Form::<Info>::from_request(&req, &mut pl)).unwrap();
-        assert_eq!(s.hello, "world");
+        let Form(s) = block_on(Form::<Info>::from_request(&req, &mut pl)).unwrap();
+        assert_eq!(
+            s,
+            Info {
+                hello: "world".into(),
+                counter: 123
+            }
+        );
     }
 
     fn eq(err: UrlencodedError, other: UrlencodedError) -> bool {
@@ -373,14 +434,15 @@ mod tests {
         let (req, mut pl) =
             TestRequest::with_header(CONTENT_TYPE, "application/x-www-form-urlencoded")
                 .header(CONTENT_LENGTH, "11")
-                .set_payload(Bytes::from_static(b"hello=world"))
+                .set_payload(Bytes::from_static(b"hello=world&counter=123"))
                 .to_http_parts();
 
         let info = block_on(UrlEncoded::<Info>::new(&req, &mut pl)).unwrap();
         assert_eq!(
             info,
             Info {
-                hello: "world".to_owned()
+                hello: "world".to_owned(),
+                counter: 123
             }
         );
 
@@ -389,15 +451,36 @@ mod tests {
             "application/x-www-form-urlencoded; charset=utf-8",
         )
         .header(CONTENT_LENGTH, "11")
-        .set_payload(Bytes::from_static(b"hello=world"))
+        .set_payload(Bytes::from_static(b"hello=world&counter=123"))
         .to_http_parts();
 
         let info = block_on(UrlEncoded::<Info>::new(&req, &mut pl)).unwrap();
         assert_eq!(
             info,
             Info {
-                hello: "world".to_owned()
+                hello: "world".to_owned(),
+                counter: 123
             }
         );
     }
+
+    #[test]
+    fn test_responder() {
+        let req = TestRequest::default().to_http_request();
+
+        let form = Form(Info {
+            hello: "world".to_string(),
+            counter: 123,
+        });
+        let resp = form.respond_to(&req).unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(
+            resp.headers().get(CONTENT_TYPE).unwrap(),
+            HeaderValue::from_static("application/x-www-form-urlencoded")
+        );
+
+        use crate::responder::tests::BodyTest;
+        assert_eq!(resp.body().bin_ref(), b"hello=world&counter=123");
+    }
+
 }
