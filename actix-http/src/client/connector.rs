@@ -19,11 +19,11 @@ use super::Connect;
 #[cfg(feature = "ssl")]
 use openssl::ssl::SslConnector;
 
-#[cfg(feature = "rust-tls")]
+#[cfg(all(not(feature = "ssl"), feature = "rust-tls"))]
 use rustls::{Session, ClientConfig};
-#[cfg(feature = "rust-tls")]
+#[cfg(all(not(feature = "ssl"), feature = "rust-tls"))]
 use std::sync::Arc;
-#[cfg(feature = "rust-tls")]
+#[cfg(all(not(feature = "ssl"), feature = "rust-tls"))]
 type SslConnector = Arc<ClientConfig>;
 
 #[cfg(all(not(feature = "ssl"), not(feature = "rust-tls")))]
@@ -74,7 +74,7 @@ impl Connector<(), ()> {
                     .map_err(|e| error!("Can not set alpn protocol: {:?}", e));
                 ssl.build()
             }
-            #[cfg(feature = "rust-tls")]
+            #[cfg(all(not(feature = "ssl"), feature = "rust-tls"))]
             {
                 let protos = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
                 let mut config = ClientConfig::new();
@@ -287,7 +287,7 @@ where
                 ),
             }
         }
-        #[cfg(feature = "rust-tls")]
+        #[cfg(all(not(feature = "ssl"), feature = "rust-tls"))]
         {
             const H2: &[u8] = b"h2";
             use actix_connect::ssl::RustlsConnector;
@@ -560,7 +560,7 @@ mod connect_impl {
     }
 }
 
-#[cfg(feature = "rust-tls")]
+#[cfg(all(not(feature = "ssl"), feature = "rust-tls"))]
 mod connect_impl {
     use std::marker::PhantomData;
 
