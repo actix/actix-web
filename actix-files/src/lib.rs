@@ -261,7 +261,7 @@ impl Files {
     pub fn new<T: Into<PathBuf>>(path: &str, dir: T) -> Files {
         let dir = dir.into().canonicalize().unwrap_or_else(|_| PathBuf::new());
         if !dir.is_dir() {
-            log::error!("Specified path is not a directory");
+            log::error!("Specified path is not a directory: {:?}", dir);
         }
 
         Files {
