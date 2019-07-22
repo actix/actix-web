@@ -1,5 +1,11 @@
 # Changes
 
+## [0.2.8] - 2019-07-xx
+
+### Fixed
+
+* Invalid response with compression middleware enabled, but compression-related features disabled #997
+
 ## [0.2.7] - 2019-07-18
 
 ### Added
