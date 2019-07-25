@@ -133,7 +133,7 @@ impl AppConfig {
 
     /// Set server host name.
     ///
-    /// Host name is used by application router aa a hostname for url
+    /// Host name is used by application router as a hostname for url
     /// generation. Check [ConnectionInfo](./dev/struct.ConnectionInfo.
     /// html#method.host) documentation for more information.
     ///
