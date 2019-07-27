@@ -20,6 +20,10 @@ use super::Connect;
 use openssl::ssl::SslConnector;
 
 #[cfg(feature = "rust-tls")]
+use rustls::ClientConfig;
+#[cfg(feature = "rust-tls")]
+use std::sync::Arc;
+#[cfg(feature = "rust-tls")]
 type SslConnector = Arc<ClientConfig>;
 
 #[cfg(not(any(feature = "ssl", feature = "rust-tls")))]
@@ -72,9 +76,6 @@ impl Connector<(), ()> {
             }
             #[cfg(feature = "rust-tls")]
             {
-                use rustls::{Session, ClientConfig};
-                use std::sync::Arc;
-
                 let protos = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
                 let mut config = ClientConfig::new();
                 config.set_protocols(&protos);
@@ -290,6 +291,7 @@ where
         {
             const H2: &[u8] = b"h2";
             use actix_connect::ssl::RustlsConnector;
+            use rustls::Session;
 
             let ssl_service = TimeoutService::new(
                 self.timeout,
