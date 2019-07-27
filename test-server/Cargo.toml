@@ -28,6 +28,7 @@ default = []
 
 # openssl
 ssl = ["openssl", "actix-server/ssl", "awc/ssl"]
+rust-tls = ["rustls", "webpki", "actix-server/rust-tls", "awc/rust-tls"]
 
 [dependencies]
 actix-codec = "0.1.2"
@@ -53,7 +54,5 @@ time = "0.1"
 tokio-tcp = "0.1"
 tokio-timer = "0.2"
 openssl = { version="0.10", optional = true }
-
-[dev-dependencies]
-actix-web = "1.0.0"
-actix-http = "0.2.4"
+rustls = { version = "0.15.2", optional = true, features = ["dangerous_configuration"] }
+webpki = { version = "0.19", optional = true }

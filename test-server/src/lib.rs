@@ -67,6 +67,21 @@ where
     R: IntoFuture,
 {
     RT.with(move |rt| rt.borrow_mut().get_mut().block_on(lazy(f)))
+}    pub struct NoCertificateVerification {}
+
+#[cfg(feature = "rust-tls")]
+mod danger {
+    pub struct NoCertificateVerification {}
+
+    impl rustls::ServerCertVerifier for NoCertificateVerification {
+        fn verify_server_cert(&self,
+                              _roots: &rustls::RootCertStore,
+                              _presented_certs: &[rustls::Certificate],
+                              _dns_name: webpki::DNSNameRef<'_>,
+                              _ocsp: &[u8]) -> Result<rustls::ServerCertVerified, rustls::TLSError> {
+            Ok(rustls::ServerCertVerified::assertion())
+        }
+    }
 }
 
 /// The `TestServer` type.
@@ -151,7 +166,23 @@ impl TestServer {
                             .ssl(builder.build())
                             .finish()
                     }
-                    #[cfg(not(feature = "ssl"))]
+                    #[cfg(feature = "rust-tls")]
+                    {
+                        use rustls::ClientConfig;
+                        use std::sync::Arc;
+
+                        let mut config = ClientConfig::new();
+                        let protos = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
+                        config.set_protocols(&protos);
+                        config.dangerous().set_certificate_verifier(Arc::new(danger::NoCertificateVerification{}));
+
+                        Connector::new()
+                            .conn_lifetime(time::Duration::from_secs(0))
+                            .timeout(time::Duration::from_millis(500))
+                            .ssl(Arc::new(config))
+                            .finish()
+                    }
+                    #[cfg(not(any(feature = "ssl", feature = "rust-tls")))]
                     {
                         Connector::new()
                             .conn_lifetime(time::Duration::from_secs(0))
