@@ -19,14 +19,10 @@ use super::Connect;
 #[cfg(feature = "ssl")]
 use openssl::ssl::SslConnector;
 
-#[cfg(all(not(feature = "ssl"), feature = "rust-tls"))]
-use rustls::{Session, ClientConfig};
-#[cfg(all(not(feature = "ssl"), feature = "rust-tls"))]
-use std::sync::Arc;
-#[cfg(all(not(feature = "ssl"), feature = "rust-tls"))]
+#[cfg(feature = "rust-tls")]
 type SslConnector = Arc<ClientConfig>;
 
-#[cfg(all(not(feature = "ssl"), not(feature = "rust-tls")))]
+#[cfg(not(any(feature = "ssl", feature = "rust-tls")))]
 type SslConnector = ();
 
 /// Manages http client network connectivity
@@ -74,15 +70,18 @@ impl Connector<(), ()> {
                     .map_err(|e| error!("Can not set alpn protocol: {:?}", e));
                 ssl.build()
             }
-            #[cfg(all(not(feature = "ssl"), feature = "rust-tls"))]
+            #[cfg(feature = "rust-tls")]
             {
+                use rustls::{Session, ClientConfig};
+                use std::sync::Arc;
+
                 let protos = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
                 let mut config = ClientConfig::new();
                 config.set_protocols(&protos);
                 config.root_store.add_server_trust_anchors(&webpki_roots::TLS_SERVER_ROOTS);
                 Arc::new(config)
             }
-            #[cfg(all(not(feature = "ssl"), not(feature = "rust-tls")))]
+            #[cfg(not(any(feature = "ssl", feature = "rust-tls")))]
             {}
         };
 
@@ -140,7 +139,7 @@ where
         self
     }
 
-    #[cfg(feature = "ssl")]
+    #[cfg(any(feature = "ssl", feature = "rust-tls"))]
     /// Use custom `SslConnector` instance.
     pub fn ssl(mut self, connector: SslConnector) -> Self {
         self.ssl = connector;
@@ -197,7 +196,7 @@ where
         self,
     ) -> impl Service<Request = Connect, Response = impl Connection, Error = ConnectError>
                  + Clone {
-        #[cfg(all(not(feature = "ssl"), not(feature = "rust-tls")))]
+        #[cfg(not(any(feature = "ssl", feature = "rust-tls")))]
         {
             let connector = TimeoutService::new(
                 self.timeout,
@@ -287,7 +286,7 @@ where
                 ),
             }
         }
-        #[cfg(all(not(feature = "ssl"), feature = "rust-tls"))]
+        #[cfg(feature = "rust-tls")]
         {
             const H2: &[u8] = b"h2";
             use actix_connect::ssl::RustlsConnector;
@@ -355,7 +354,7 @@ where
     }
 }
 
-#[cfg(all(not(feature = "ssl"), not(feature = "rust-tls")))]
+#[cfg(not(any(feature = "ssl", feature = "rust-tls")))]
 mod connect_impl {
     use futures::future::{err, Either, FutureResult};
     use futures::Poll;
@@ -417,150 +416,7 @@ mod connect_impl {
     }
 }
 
-#[cfg(feature = "ssl")]
-mod connect_impl {
-    use std::marker::PhantomData;
-
-    use futures::future::{Either, FutureResult};
-    use futures::{Async, Future, Poll};
-
-    use super::*;
-    use crate::client::connection::EitherConnection;
-
-    pub(crate) struct InnerConnector<T1, T2, Io1, Io2>
-    where
-        Io1: AsyncRead + AsyncWrite + 'static,
-        Io2: AsyncRead + AsyncWrite + 'static,
-        T1: Service<Request = Connect, Response = (Io1, Protocol), Error = ConnectError>,
-        T2: Service<Request = Connect, Response = (Io2, Protocol), Error = ConnectError>,
-    {
-        pub(crate) tcp_pool: ConnectionPool<T1, Io1>,
-        pub(crate) ssl_pool: ConnectionPool<T2, Io2>,
-    }
-
-    impl<T1, T2, Io1, Io2> Clone for InnerConnector<T1, T2, Io1, Io2>
-    where
-        Io1: AsyncRead + AsyncWrite + 'static,
-        Io2: AsyncRead + AsyncWrite + 'static,
-        T1: Service<Request = Connect, Response = (Io1, Protocol), Error = ConnectError>
-            + Clone
-            + 'static,
-        T2: Service<Request = Connect, Response = (Io2, Protocol), Error = ConnectError>
-            + Clone
-            + 'static,
-    {
-        fn clone(&self) -> Self {
-            InnerConnector {
-                tcp_pool: self.tcp_pool.clone(),
-                ssl_pool: self.ssl_pool.clone(),
-            }
-        }
-    }
-
-    impl<T1, T2, Io1, Io2> Service for InnerConnector<T1, T2, Io1, Io2>
-    where
-        Io1: AsyncRead + AsyncWrite + 'static,
-        Io2: AsyncRead + AsyncWrite + 'static,
-        T1: Service<Request = Connect, Response = (Io1, Protocol), Error = ConnectError>
-            + Clone
-            + 'static,
-        T2: Service<Request = Connect, Response = (Io2, Protocol), Error = ConnectError>
-            + Clone
-            + 'static,
-    {
-        type Request = Connect;
-        type Response = EitherConnection<Io1, Io2>;
-        type Error = ConnectError;
-        type Future = Either<
-            FutureResult<Self::Response, Self::Error>,
-            Either<
-                InnerConnectorResponseA<T1, Io1, Io2>,
-                InnerConnectorResponseB<T2, Io1, Io2>,
-            >,
-        >;
-
-        fn poll_ready(&mut self) -> Poll<(), Self::Error> {
-            self.tcp_pool.poll_ready()
-        }
-
-        fn call(&mut self, req: Connect) -> Self::Future {
-            match req.uri.scheme_str() {
-                Some("https") | Some("wss") => {
-                    Either::B(Either::B(InnerConnectorResponseB {
-                        fut: self.ssl_pool.call(req),
-                        _t: PhantomData,
-                    }))
-                }
-                _ => Either::B(Either::A(InnerConnectorResponseA {
-                    fut: self.tcp_pool.call(req),
-                    _t: PhantomData,
-                })),
-            }
-        }
-    }
-
-    pub(crate) struct InnerConnectorResponseA<T, Io1, Io2>
-    where
-        Io1: AsyncRead + AsyncWrite + 'static,
-        T: Service<Request = Connect, Response = (Io1, Protocol), Error = ConnectError>
-            + Clone
-            + 'static,
-    {
-        fut: <ConnectionPool<T, Io1> as Service>::Future,
-        _t: PhantomData<Io2>,
-    }
-
-    impl<T, Io1, Io2> Future for InnerConnectorResponseA<T, Io1, Io2>
-    where
-        T: Service<Request = Connect, Response = (Io1, Protocol), Error = ConnectError>
-            + Clone
-            + 'static,
-        Io1: AsyncRead + AsyncWrite + 'static,
-        Io2: AsyncRead + AsyncWrite + 'static,
-    {
-        type Item = EitherConnection<Io1, Io2>;
-        type Error = ConnectError;
-
-        fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-            match self.fut.poll()? {
-                Async::NotReady => Ok(Async::NotReady),
-                Async::Ready(res) => Ok(Async::Ready(EitherConnection::A(res))),
-            }
-        }
-    }
-
-    pub(crate) struct InnerConnectorResponseB<T, Io1, Io2>
-    where
-        Io2: AsyncRead + AsyncWrite + 'static,
-        T: Service<Request = Connect, Response = (Io2, Protocol), Error = ConnectError>
-            + Clone
-            + 'static,
-    {
-        fut: <ConnectionPool<T, Io2> as Service>::Future,
-        _t: PhantomData<Io1>,
-    }
-
-    impl<T, Io1, Io2> Future for InnerConnectorResponseB<T, Io1, Io2>
-    where
-        T: Service<Request = Connect, Response = (Io2, Protocol), Error = ConnectError>
-            + Clone
-            + 'static,
-        Io1: AsyncRead + AsyncWrite + 'static,
-        Io2: AsyncRead + AsyncWrite + 'static,
-    {
-        type Item = EitherConnection<Io1, Io2>;
-        type Error = ConnectError;
-
-        fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-            match self.fut.poll()? {
-                Async::NotReady => Ok(Async::NotReady),
-                Async::Ready(res) => Ok(Async::Ready(EitherConnection::B(res))),
-            }
-        }
-    }
-}
-
-#[cfg(all(not(feature = "ssl"), feature = "rust-tls"))]
+#[cfg(any(feature = "ssl", feature = "rust-tls"))]
 mod connect_impl {
     use std::marker::PhantomData;
 
