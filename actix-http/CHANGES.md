@@ -2,6 +2,10 @@
 
 ## [0.2.8] - 2019-07-xx
 
+### Changed
+
+* Add `Clone` impl for `HeaderMap`
+
 ### Fixed
 
 * Invalid response with compression middleware enabled, but compression-related features disabled #997
