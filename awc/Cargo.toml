@@ -41,6 +41,10 @@ flate2-zlib = ["actix-http/flate2-zlib"]
 # rust backend for flate2 crate
 flate2-rust = ["actix-http/flate2-rust"]
 
+# only for tests
+dev-ssl = ["ssl", "actix-http-test/ssl", "actix-server/ssl", "actix-http/ssl"]
+dev-rustls = ["rust-tls", "actix-http-test/rust-tls", "actix-server/rust-tls", "actix-http/rust-tls"]
+
 [dependencies]
 actix-codec = "0.1.2"
 actix-service = "0.4.1"
@@ -71,3 +75,4 @@ flate2 = "1.0.2"
 env_logger = "0.6"
 rand = "0.7"
 tokio-tcp = "0.1"
+webpki = "0.19"
