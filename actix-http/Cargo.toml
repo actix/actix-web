@@ -44,10 +44,14 @@ fail = ["failure"]
 # support for secure cookies
 secure-cookies = ["ring"]
 
+# only for tests
+dev-ssl = ["ssl", "actix-http-test/ssl", "actix-server/ssl"]
+dev-rustls = ["rust-tls", "actix-http-test/rust-tls", "actix-server/rust-tls"]
+
 [dependencies]
 actix-service = "0.4.1"
 actix-codec = "0.1.2"
-actix-connect = "0.2.1"
+actix-connect = "0.2.2"
 actix-utils = "0.4.4"
 actix-server-config = "0.1.2"
 actix-threadpool = "0.1.1"
@@ -100,10 +104,8 @@ chrono = "0.4.6"
 
 [dev-dependencies]
 actix-rt = "0.2.2"
-actix-server = { version = "0.6.0", features=["ssl"] }
-actix-connect = { version = "0.2.0", features=["ssl"] }
-actix-http-test = { version = "0.2.4", features=["ssl"] }
+actix-server = "0.6.0"
+actix-http-test = "0.2.4"
 env_logger = "0.6"
 serde_derive = "1.0"
-openssl = { version="0.10" }
-tokio-tcp = "0.1"
+openssl = "0.10"

@@ -32,6 +32,7 @@ rust-tls = ["rustls", "webpki", "actix-server/rust-tls", "awc/rust-tls"]
 
 [dependencies]
 actix-codec = "0.1.2"
+actix-connect = "0.2"
 actix-rt = "0.2.2"
 actix-service = "0.4.1"
 actix-server = "0.6.0"
