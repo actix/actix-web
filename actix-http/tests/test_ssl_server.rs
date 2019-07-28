@@ -1,24 +1,19 @@
 #![cfg(feature = "ssl")]
-
 use actix_codec::{AsyncRead, AsyncWrite};
+use actix_http::error::{ErrorBadRequest, PayloadError};
+use actix_http::http::header::{self, HeaderName, HeaderValue};
+use actix_http::http::{Method, StatusCode, Version};
+use actix_http::{body, Error, HttpService, Request, Response};
 use actix_http_test::TestServer;
+use actix_server::ssl::OpensslAcceptor;
 use actix_server_config::ServerConfig;
 use actix_service::{new_service_cfg, NewService};
-use bytes::{Bytes, BytesMut};
-use futures::future::{self, ok, Future};
-use futures::stream::{once, Stream};
-use actix_http::http::{
-    header::{HeaderName, HeaderValue},
-    StatusCode,
-};
 
-use actix_http::error::PayloadError;
-use actix_http::{
-    body, error, http, http::header, Error, HttpService, Request, Response,
-};
-use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod, AlpnError};
+use bytes::{Bytes, BytesMut};
+use futures::future::{ok, Future};
+use futures::stream::{once, Stream};
+use openssl::ssl::{AlpnError, SslAcceptor, SslFiletype, SslMethod};
 use std::io::Result;
-use actix_server::ssl::OpensslAcceptor;
 
 fn load_body<S>(stream: S) -> impl Future<Item = BytesMut, Error = PayloadError>
 where
@@ -60,7 +55,7 @@ fn test_h2() -> Result<()> {
             .map_err(|e| println!("Openssl error: {}", e))
             .and_then(
                 HttpService::build()
-                    .h2(|_| future::ok::<_, Error>(Response::Ok().finish()))
+                    .h2(|_| ok::<_, Error>(Response::Ok().finish()))
                     .map_err(|_| ()),
             )
     });
@@ -81,8 +76,8 @@ fn test_h2_1() -> Result<()> {
                 HttpService::build()
                     .finish(|req: Request| {
                         assert!(req.peer_addr().is_some());
-                        assert_eq!(req.version(), http::Version::HTTP_2);
-                        future::ok::<_, Error>(Response::Ok().finish())
+                        assert_eq!(req.version(), Version::HTTP_2);
+                        ok::<_, Error>(Response::Ok().finish())
                     })
                     .map_err(|_| ()),
             )
@@ -139,7 +134,7 @@ fn test_h2_content_length() {
                             StatusCode::OK,
                             StatusCode::NOT_FOUND,
                         ];
-                        future::ok::<_, ()>(Response::new(statuses[indx]))
+                        ok::<_, ()>(Response::new(statuses[indx]))
                     })
                     .map_err(|_| ()),
             )
@@ -151,13 +146,13 @@ fn test_h2_content_length() {
     {
         for i in 0..4 {
             let req = srv
-                .request(http::Method::GET, srv.surl(&format!("/{}", i)))
+                .request(Method::GET, srv.surl(&format!("/{}", i)))
                 .send();
             let response = srv.block_on(req).unwrap();
             assert_eq!(response.headers().get(&header), None);
 
             let req = srv
-                .request(http::Method::HEAD, srv.surl(&format!("/{}", i)))
+                .request(Method::HEAD, srv.surl(&format!("/{}", i)))
                 .send();
             let response = srv.block_on(req).unwrap();
             assert_eq!(response.headers().get(&header), None);
@@ -165,7 +160,7 @@ fn test_h2_content_length() {
 
         for i in 4..6 {
             let req = srv
-                .request(http::Method::GET, srv.surl(&format!("/{}", i)))
+                .request(Method::GET, srv.surl(&format!("/{}", i)))
                 .send();
             let response = srv.block_on(req).unwrap();
             assert_eq!(response.headers().get(&header), Some(&value));
@@ -205,7 +200,7 @@ fn test_h2_headers() {
                         TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST ",
                 );
             }
-            future::ok::<_, ()>(builder.body(data.clone()))
+            ok::<_, ()>(builder.body(data.clone()))
         }).map_err(|_| ()))
     });
 
@@ -248,7 +243,7 @@ fn test_h2_body2() {
             .map_err(|e| println!("Openssl error: {}", e))
             .and_then(
                 HttpService::build()
-                    .h2(|_| future::ok::<_, ()>(Response::Ok().body(STR)))
+                    .h2(|_| ok::<_, ()>(Response::Ok().body(STR)))
                     .map_err(|_| ()),
             )
     });
@@ -277,13 +272,10 @@ fn test_h2_head_empty() {
 
     let response = srv.block_on(srv.shead("/").send()).unwrap();
     assert!(response.status().is_success());
-    assert_eq!(response.version(), http::Version::HTTP_2);
+    assert_eq!(response.version(), Version::HTTP_2);
 
     {
-        let len = response
-            .headers()
-            .get(http::header::CONTENT_LENGTH)
-            .unwrap();
+        let len = response.headers().get(header::CONTENT_LENGTH).unwrap();
         assert_eq!(format!("{}", STR.len()), len.to_str().unwrap());
     }
 
@@ -314,10 +306,7 @@ fn test_h2_head_binary() {
     assert!(response.status().is_success());
 
     {
-        let len = response
-            .headers()
-            .get(http::header::CONTENT_LENGTH)
-            .unwrap();
+        let len = response.headers().get(header::CONTENT_LENGTH).unwrap();
         assert_eq!(format!("{}", STR.len()), len.to_str().unwrap());
     }
 
@@ -344,10 +333,7 @@ fn test_h2_head_binary2() {
     assert!(response.status().is_success());
 
     {
-        let len = response
-            .headers()
-            .get(http::header::CONTENT_LENGTH)
-            .unwrap();
+        let len = response.headers().get(header::CONTENT_LENGTH).unwrap();
         assert_eq!(format!("{}", STR.len()), len.to_str().unwrap());
     }
 }
@@ -428,7 +414,7 @@ fn test_h2_response_http_error_handling() {
                             let broken_header = Bytes::from_static(b"\0\0\0");
                             ok::<_, ()>(
                                 Response::Ok()
-                                    .header(http::header::CONTENT_TYPE, broken_header)
+                                    .header(header::CONTENT_TYPE, broken_header)
                                     .body(STR),
                             )
                         })
@@ -438,7 +424,7 @@ fn test_h2_response_http_error_handling() {
     });
 
     let response = srv.block_on(srv.sget("/").send()).unwrap();
-    assert_eq!(response.status(), http::StatusCode::INTERNAL_SERVER_ERROR);
+    assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
 
     // read response
     let bytes = srv.load_body(response).unwrap();
@@ -455,13 +441,13 @@ fn test_h2_service_error() {
             .map_err(|e| println!("Openssl error: {}", e))
             .and_then(
                 HttpService::build()
-                    .h2(|_| Err::<Response, Error>(error::ErrorBadRequest("error")))
+                    .h2(|_| Err::<Response, Error>(ErrorBadRequest("error")))
                     .map_err(|_| ()),
             )
     });
 
     let response = srv.block_on(srv.sget("/").send()).unwrap();
-    assert_eq!(response.status(), http::StatusCode::INTERNAL_SERVER_ERROR);
+    assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
 
     // read response
     let bytes = srv.load_body(response).unwrap();

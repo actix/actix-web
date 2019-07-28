@@ -1,24 +1,22 @@
 #![cfg(feature = "rust-tls")]
-
 use actix_codec::{AsyncRead, AsyncWrite};
+use actix_http::error::PayloadError;
+use actix_http::http::header::{self, HeaderName, HeaderValue};
+use actix_http::http::{Method, StatusCode, Version};
+use actix_http::{body, error, Error, HttpService, Request, Response};
 use actix_http_test::TestServer;
+use actix_server::ssl::RustlsAcceptor;
 use actix_server_config::ServerConfig;
 use actix_service::{new_service_cfg, NewService};
+
 use bytes::{Bytes, BytesMut};
 use futures::future::{self, ok, Future};
 use futures::stream::{once, Stream};
-
-use actix_http::error::PayloadError;
-use actix_http::{
-    body, error, http, http::header, Error, HttpService, Request, Response,
-};
+use rustls::{internal::pemfile, NoClientAuth};
 
 use std::fs::File;
-use rustls::{internal::pemfile, NoClientAuth};
-use std::io::BufReader;
+use std::io::{BufReader, Result};
 use std::sync::Arc;
-use std::io::Result;
-use actix_server::ssl::RustlsAcceptor
 
 fn load_body<S>(stream: S) -> impl Future<Item = BytesMut, Error = PayloadError>
 where
@@ -35,10 +33,15 @@ fn ssl_acceptor<T: AsyncRead + AsyncWrite>() -> Result<RustlsAcceptor<T, ()>> {
     // load ssl keys
     let mut key_file = BufReader::new(File::open("tests/key.pem").expect("key file"));
     let mut cert_file = BufReader::new(File::open("tests/cert.pem").expect("cert file"));
-    let key_der = pemfile::pkcs8_private_keys(&mut key_file).expect("key der").pop().expect("key not found");
+    let key_der = pemfile::pkcs8_private_keys(&mut key_file)
+        .expect("key der")
+        .pop()
+        .expect("key not found");
     let cert_chain = pemfile::certs(&mut cert_file).expect("cert chain");
     let mut builder = ServerConfig::new(Arc::new(NoClientAuth));
-    builder.set_single_cert(cert_chain, key_der).expect("set single cert");
+    builder
+        .set_single_cert(cert_chain, key_der)
+        .expect("set single cert");
     let protos = vec![b"h2".to_vec()];
     builder.set_protocols(&protos);
     Ok(RustlsAcceptor::new(builder))
@@ -74,7 +77,7 @@ fn test_h2_1() -> Result<()> {
                 HttpService::build()
                     .finish(|req: Request| {
                         assert!(req.peer_addr().is_some());
-                        assert_eq!(req.version(), http::Version::HTTP_2);
+                        assert_eq!(req.version(), Version::HTTP_2);
                         future::ok::<_, Error>(Response::Ok().finish())
                     })
                     .map_err(|_| ()),
@@ -114,10 +117,6 @@ fn test_h2_body() -> Result<()> {
 
 #[test]
 fn test_h2_content_length() {
-    use actix_http::http::{
-        header::{HeaderName, HeaderValue},
-        StatusCode,
-    };
     let rustls = ssl_acceptor().unwrap();
 
     let mut srv = TestServer::new(move || {
@@ -148,13 +147,13 @@ fn test_h2_content_length() {
     {
         for i in 0..4 {
             let req = srv
-                .request(http::Method::GET, srv.surl(&format!("/{}", i)))
+                .request(Method::GET, srv.surl(&format!("/{}", i)))
                 .send();
             let response = srv.block_on(req).unwrap();
             assert_eq!(response.headers().get(&header), None);
 
             let req = srv
-                .request(http::Method::HEAD, srv.surl(&format!("/{}", i)))
+                .request(Method::HEAD, srv.surl(&format!("/{}", i)))
                 .send();
             let response = srv.block_on(req).unwrap();
             assert_eq!(response.headers().get(&header), None);
@@ -162,7 +161,7 @@ fn test_h2_content_length() {
 
         for i in 4..6 {
             let req = srv
-                .request(http::Method::GET, srv.surl(&format!("/{}", i)))
+                .request(Method::GET, srv.surl(&format!("/{}", i)))
                 .send();
             let response = srv.block_on(req).unwrap();
             assert_eq!(response.headers().get(&header), Some(&value));
@@ -274,7 +273,7 @@ fn test_h2_head_empty() {
 
     let response = srv.block_on(srv.shead("/").send()).unwrap();
     assert!(response.status().is_success());
-    assert_eq!(response.version(), http::Version::HTTP_2);
+    assert_eq!(response.version(), Version::HTTP_2);
 
     {
         let len = response

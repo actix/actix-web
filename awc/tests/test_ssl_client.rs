@@ -1,14 +1,14 @@
 #![cfg(feature = "ssl")]
-use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod, SslConnector, SslVerifyMode};
-use actix_server::ssl::OpensslAcceptor;
+use openssl::ssl::{SslAcceptor, SslConnector, SslFiletype, SslMethod, SslVerifyMode};
 
+use std::io::Result;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
-use std::io::Result;
 
 use actix_codec::{AsyncRead, AsyncWrite};
 use actix_http::HttpService;
 use actix_http_test::TestServer;
+use actix_server::ssl::OpensslAcceptor;
 use actix_service::{service_fn, NewService};
 use actix_web::http::Version;
 use actix_web::{web, App, HttpResponse};

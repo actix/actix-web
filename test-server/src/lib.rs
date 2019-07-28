@@ -67,18 +67,20 @@ where
     R: IntoFuture,
 {
     RT.with(move |rt| rt.borrow_mut().get_mut().block_on(lazy(f)))
-}    pub struct NoCertificateVerification {}
+}
 
 #[cfg(feature = "rust-tls")]
 mod danger {
     pub struct NoCertificateVerification {}
 
     impl rustls::ServerCertVerifier for NoCertificateVerification {
-        fn verify_server_cert(&self,
-                              _roots: &rustls::RootCertStore,
-                              _presented_certs: &[rustls::Certificate],
-                              _dns_name: webpki::DNSNameRef<'_>,
-                              _ocsp: &[u8]) -> Result<rustls::ServerCertVerified, rustls::TLSError> {
+        fn verify_server_cert(
+            &self,
+            _roots: &rustls::RootCertStore,
+            _presented_certs: &[rustls::Certificate],
+            _dns_name: webpki::DNSNameRef<'_>,
+            _ocsp: &[u8],
+        ) -> Result<rustls::ServerCertVerified, rustls::TLSError> {
             Ok(rustls::ServerCertVerified::assertion())
         }
     }
@@ -174,7 +176,9 @@ impl TestServer {
                         let mut config = ClientConfig::new();
                         let protos = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
                         config.set_protocols(&protos);
-                        config.dangerous().set_certificate_verifier(Arc::new(danger::NoCertificateVerification{}));
+                        config.dangerous().set_certificate_verifier(Arc::new(
+                            danger::NoCertificateVerification {},
+                        ));
 
                         Connector::new()
                             .conn_lifetime(time::Duration::from_secs(0))
@@ -194,9 +198,10 @@ impl TestServer {
                 Ok::<Client, ()>(Client::build().connector(connector).finish())
             }))
             .unwrap();
-        rt.block_on(lazy(||
-                         Ok::<_, ()>(actix_connect::start_default_resolver())
-        )).unwrap();
+        rt.block_on(lazy(
+            || Ok::<_, ()>(actix_connect::start_default_resolver()),
+        ))
+        .unwrap();
         System::set_current(system);
         TestServerRuntime { addr, rt, client }
     }

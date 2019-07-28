@@ -79,7 +79,9 @@ impl Connector<(), ()> {
                 let protos = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
                 let mut config = ClientConfig::new();
                 config.set_protocols(&protos);
-                config.root_store.add_server_trust_anchors(&webpki_roots::TLS_SERVER_ROOTS);
+                config
+                    .root_store
+                    .add_server_trust_anchors(&webpki_roots::TLS_SERVER_ROOTS);
                 Arc::new(config)
             }
             #[cfg(not(any(feature = "ssl", feature = "rust-tls")))]
