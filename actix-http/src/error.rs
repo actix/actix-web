@@ -89,11 +89,11 @@ pub trait ResponseError: fmt::Debug + fmt::Display {
     }
 }
 
-impl ResponseError + 'static {
+impl dyn ResponseError + 'static {
     /// Downcasts a response error to a specific type.
     pub fn downcast_ref<T: ResponseError + 'static>(&self) -> Option<&T> {
         if self.__private_get_type_id__() == TypeId::of::<T>() {
-            unsafe { Some(&*(self as *const ResponseError as *const T)) }
+            unsafe { Some(&*(self as *const dyn ResponseError as *const T)) }
         } else {
             None
         }
