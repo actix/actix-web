@@ -29,10 +29,10 @@ fn ssl_acceptor<T: AsyncRead + AsyncWrite>() -> Result<OpensslAcceptor<T, ()>> {
     // load ssl keys
     let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
     builder
-        .set_private_key_file("tests/key.pem", SslFiletype::PEM)
+        .set_private_key_file("../tests/key.pem", SslFiletype::PEM)
         .unwrap();
     builder
-        .set_certificate_chain_file("tests/cert.pem")
+        .set_certificate_chain_file("../tests/cert.pem")
         .unwrap();
     builder.set_alpn_select_callback(|_, protos| {
         const H2: &[u8] = b"\x02h2";

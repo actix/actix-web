@@ -31,6 +31,6 @@ bytes = "0.4"
 futures = "0.1.25"
 log = "0.4"
 
-# [dev-dependencies]
-# actix-http-test = "0.2.4"
-# actix-utils = "0.4.4"
+[dev-dependencies]
+actix-http-test = "0.2.4"
+actix-utils = "0.4.4"

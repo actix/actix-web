@@ -25,6 +25,5 @@ actix-codec = "0.1.2"
 bytes = "0.4"
 futures = "0.1.25"
 
-# [dev-dependencies]
-# env_logger = "0.6"
-# actix-http-test = { version = "0.2.4", features=["ssl"] }
+[dev-dependencies]
+actix-http-test = "0.2.4"

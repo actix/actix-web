@@ -12,11 +12,10 @@ use actix_service::{new_service_cfg, NewService};
 use bytes::{Bytes, BytesMut};
 use futures::future::{self, ok, Future};
 use futures::stream::{once, Stream};
-use rustls::NoClientAuth;
+use rustls::{NoClientAuth, ServerConfig as RustlsServerConfig, internal::pemfile::{certs, pkcs8_private_keys}};
 
 use std::fs::File;
 use std::io::{BufReader, Result};
-use std::sync::Arc;
 
 fn load_body<S>(stream: S) -> impl Future<Item = BytesMut, Error = PayloadError>
 where
@@ -29,9 +28,8 @@ where
 }
 
 fn ssl_acceptor<T: AsyncRead + AsyncWrite>() -> Result<RustlsAcceptor<T, ()>> {
-    use rustls::{ServerConfig, internal::pemfile::{certs, pkcs8}};
     // load ssl keys
-    let mut config = ServerConfig::new(NoClientAuth::new());
+    let mut config = RustlsServerConfig::new(NoClientAuth::new());
     let cert_file = &mut BufReader::new(File::open("tests/cert.pem").unwrap());
     let key_file = &mut BufReader::new(File::open("tests/key.pem").unwrap());
     let cert_chain = certs(cert_file).unwrap();

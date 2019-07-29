@@ -237,10 +237,10 @@ where
             const H2: &[u8] = b"h2";
             #[cfg(feature = "ssl")]
             use actix_connect::ssl::OpensslConnector;
-            #[cfg(feature = "rustls")]
+            #[cfg(feature = "rust-tls")]
             use actix_connect::ssl::RustlsConnector;
             use actix_service::boxed::service;
-            #[cfg(feature = "rustls")]
+            #[cfg(feature = "rust-tls")]
             use rustls::Session;
 
             let ssl_service = TimeoutService::new(
@@ -269,7 +269,7 @@ where
                                 }
                             }),
                     ),
-                    #[cfg(feature = "rustls")]
+                    #[cfg(feature = "rust-tls")]
                     SslConnector::Rustls(ssl) => service(
                         RustlsConnector::service(ssl)
                             .map_err(ConnectError::from)

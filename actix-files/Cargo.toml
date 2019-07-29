@@ -30,3 +30,6 @@ mime = "0.3"
 mime_guess = "2.0.0-alpha"
 percent-encoding = "1.0"
 v_htmlescape = "0.4"
+
+[dev-dependencies]
+actix-web = { version = "1.0.2", features = ["flate2-zlib"] }

@@ -1,5 +1,5 @@
-#![cfg(feature = "rustls")]
-use rustls::{internal::pemfile, ClientConfig, NoClientAuth};
+#![cfg(feature = "rust-tls")]
+use rustls::{internal::pemfile::{certs, pkcs8_private_keys}, ClientConfig, NoClientAuth};
 
 use std::fs::File;
 use std::io::{BufReader, Result};
@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
 use actix_codec::{AsyncRead, AsyncWrite};
-use actix_http::HttpService;
+use actix_http::{HttpService, client::SslConnector::Rustls};
 use actix_http_test::TestServer;
 use actix_server::ssl::RustlsAcceptor;
 use actix_service::{service_fn, NewService};
@@ -15,11 +15,11 @@ use actix_web::http::Version;
 use actix_web::{web, App, HttpResponse};
 
 fn ssl_acceptor<T: AsyncRead + AsyncWrite>() -> Result<RustlsAcceptor<T, ()>> {
-    use rustls::{ServerConfig, internal::pemfile::{certs, pkcs8}};
+    use rustls::{ServerConfig};
     // load ssl keys
     let mut config = ServerConfig::new(NoClientAuth::new());
-    let cert_file = &mut BufReader::new(File::open("tests/cert.pem").unwrap());
-    let key_file = &mut BufReader::new(File::open("tests/key.pem").unwrap());
+    let cert_file = &mut BufReader::new(File::open("../tests/cert.pem").unwrap());
+    let key_file = &mut BufReader::new(File::open("../tests/key.pem").unwrap());
     let cert_chain = certs(cert_file).unwrap();
     let mut keys = pkcs8_private_keys(key_file).unwrap();
     config.set_single_cert(cert_chain, keys.remove(0)).unwrap();
@@ -66,8 +66,6 @@ fn test_connection_reuse_h2() {
     });
 
     // disable ssl verification
-    // use rustls::ssl::{SslConnector, SslMethod, SslVerifyMode};
-
     let mut config = ClientConfig::new();
     let protos = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
     config.set_protocols(&protos);
@@ -76,7 +74,7 @@ fn test_connection_reuse_h2() {
         .set_certificate_verifier(Arc::new(danger::NoCertificateVerification {}));
 
     let client = awc::Client::build()
-        .connector(awc::Connector::new().ssl(Arc::new(config)).finish())
+        .connector(awc::Connector::new().ssl(Rustls(Arc::new(config))).finish())
         .finish();
 
     // req 1
