@@ -15,23 +15,17 @@ use actix_web::http::Version;
 use actix_web::{web, App, HttpResponse};
 
 fn ssl_acceptor<T: AsyncRead + AsyncWrite>() -> Result<RustlsAcceptor<T, ()>> {
-    use rustls::ServerConfig;
+    use rustls::{ServerConfig, internal::pemfile::{certs, pkcs8}};
     // load ssl keys
-    let mut key_file = BufReader::new(File::open("../tests/key.pem").expect("key file"));
-    let mut cert_file =
-        BufReader::new(File::open("../tests/cert.pem").expect("cert file"));
-    let key_der = pemfile::pkcs8_private_keys(&mut key_file)
-        .expect("key der")
-        .pop()
-        .expect("key not found");
-    let cert_chain = pemfile::certs(&mut cert_file).expect("cert chain");
-    let mut builder = ServerConfig::new(Arc::new(NoClientAuth));
-    builder
-        .set_single_cert(cert_chain, key_der)
-        .expect("set single cert");
+    let mut config = ServerConfig::new(NoClientAuth::new());
+    let cert_file = &mut BufReader::new(File::open("tests/cert.pem").unwrap());
+    let key_file = &mut BufReader::new(File::open("tests/key.pem").unwrap());
+    let cert_chain = certs(cert_file).unwrap();
+    let mut keys = pkcs8_private_keys(key_file).unwrap();
+    config.set_single_cert(cert_chain, keys.remove(0)).unwrap();
     let protos = vec![b"h2".to_vec()];
-    builder.set_protocols(&protos);
-    Ok(RustlsAcceptor::new(builder))
+    config.set_protocols(&protos);
+    Ok(RustlsAcceptor::new(config))
 }
 
 mod danger {

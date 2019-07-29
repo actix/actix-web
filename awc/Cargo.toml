@@ -42,8 +42,8 @@ flate2-zlib = ["actix-http/flate2-zlib"]
 flate2-rust = ["actix-http/flate2-rust"]
 
 # only for tests
-dev-ssl = ["ssl", "actix-http-test/ssl", "actix-server/ssl", "actix-http/ssl"]
-dev-rustls = ["rust-tls", "actix-http-test/rust-tls", "actix-server/rust-tls", "actix-http/rust-tls"]
+# dev-ssl = ["ssl", "actix-http-test/ssl", "actix-server/ssl", "actix-http/ssl"]
+# dev-rust-tls = ["rust-tls", "actix-http-test/rust-tls", "actix-server/rust-tls", "actix-http/rust-tls"]
 
 [dependencies]
 actix-codec = "0.1.2"
@@ -64,15 +64,15 @@ tokio-timer = "0.2.8"
 openssl = { version="0.10", optional = true }
 rustls = { version = "0.15.2", optional = true }
 
-[dev-dependencies]
-actix-rt = "0.2.2"
-actix-web = "1.0.0"
-actix-http-test = "0.2.0"
-actix-utils = "0.4.1"
-actix-server = "0.5.1"
-brotli2 = "0.3.2"
-flate2 = "1.0.2"
-env_logger = "0.6"
-rand = "0.7"
-tokio-tcp = "0.1"
-webpki = "0.19"
+# [dev-dependencies]
+# actix-rt = "0.2.2"
+# actix-web = "1.0.0"
+# actix-http-test = "0.2.0"
+# actix-utils = "0.4.1"
+# actix-server = "0.5.1"
+# brotli2 = "0.3.2"
+# flate2 = "1.0.2"
+# env_logger = "0.6"
+# rand = "0.7"
+# tokio-tcp = "0.1"
+# webpki = "0.19"

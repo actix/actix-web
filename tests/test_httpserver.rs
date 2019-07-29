@@ -124,6 +124,7 @@ fn test_start_ssl() {
 
     let client = test::run_on(|| {
         use openssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
+        use actix_http::client::SslConnector::Openssl;
         let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
         builder.set_verify(SslVerifyMode::NONE);
         let _ = builder
@@ -134,7 +135,7 @@ fn test_start_ssl() {
             awc::Client::build()
                 .connector(
                     awc::Connector::new()
-                        .ssl(builder.build())
+                        .ssl(Openssl(builder.build()))
                         .timeout(Duration::from_millis(100))
                         .finish(),
                 )

@@ -27,8 +27,8 @@ path = "src/lib.rs"
 default = []
 
 # openssl
-ssl = ["openssl", "actix-server/ssl", "awc/ssl"]
-rust-tls = ["rustls", "webpki", "actix-server/rust-tls", "awc/rust-tls"]
+ssl = ["openssl", "actix-server/ssl", "awc/ssl", "actix-http/ssl"]
+rust-tls = ["rustls", "webpki", "actix-server/rust-tls", "awc/rust-tls", "actix-http/rust-tls"]
 
 [dependencies]
 actix-codec = "0.1.2"
@@ -37,6 +37,7 @@ actix-rt = "0.2.2"
 actix-service = "0.4.1"
 actix-server = "0.6.0"
 actix-utils = "0.4.1"
+actix-http = "0.2.7"
 awc = "0.2.2"
 
 base64 = "0.10"
