@@ -9,12 +9,12 @@ use http::HttpTryFrom;
 /// `HeaderMap` is an multimap of [`HeaderName`] to values.
 ///
 /// [`HeaderName`]: struct.HeaderName.html
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct HeaderMap {
     pub(crate) inner: HashMap<HeaderName, Value>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) enum Value {
     One(HeaderValue),
     Multi(Vec<HeaderValue>),
