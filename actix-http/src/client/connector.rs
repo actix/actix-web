@@ -25,14 +25,14 @@ use rustls::ClientConfig;
 use std::sync::Arc;
 
 #[cfg(any(feature = "ssl", feature = "rust-tls"))]
-pub enum SslConnector {
+enum SslConnector {
     #[cfg(feature = "ssl")]
     Openssl(OpensslConnector),
     #[cfg(feature = "rust-tls")]
     Rustls(Arc<ClientConfig>),
 }
 #[cfg(not(any(feature = "ssl", feature = "rust-tls")))]
-pub type SslConnector = ();
+type SslConnector = ();
 
 /// Manages http client network connectivity
 /// The `Connector` type uses a builder-like combinator pattern for service
@@ -150,10 +150,16 @@ where
         self
     }
 
-    #[cfg(any(feature = "ssl", feature = "rust-tls"))]
+    #[cfg(feature = "ssl")]
     /// Use custom `SslConnector` instance.
-    pub fn ssl(mut self, connector: SslConnector) -> Self {
-        self.ssl = connector;
+    pub fn ssl(mut self, connector: OpensslConnector) -> Self {
+        self.ssl = SslConnector::Openssl(connector);
+        self
+    }
+
+    #[cfg(feature = "rust-tls")]
+    pub fn rustls(mut self, connector: Arc<ClientConfig>) -> Self {
+        self.ssl = SslConnector::Rustls(connector);
         self
     }
 
@@ -325,76 +331,6 @@ where
                 ),
             }
         }
-        // #[cfg(feature = "rust-tls")]
-        // {
-        //     const H2: &[u8] = b"h2";
-        //     use actix_connect::ssl::RustlsConnector;
-        //     use rustls::Session;
-        //     let ssl = match self.ssl {
-        //         SslConnector::Rustls(ssl) => ssl,
-        //         _ => unimplemented!(),
-        //     };
-
-        //     let ssl_service = TimeoutService::new(
-        //         self.timeout,
-        //         apply_fn(self.connector.clone(), |msg: Connect, srv| {
-        //             srv.call(TcpConnect::new(msg.uri).set_addr(msg.addr))
-        //         })
-        //         .map_err(ConnectError::from)
-        //         .and_then(
-        //             RustlsConnector::service(ssl)
-        //                 .map_err(ConnectError::from)
-        //                 .map(|stream| {
-        //                     let sock = stream.into_parts().0;
-        //                     let h2 = sock
-        //                         .get_ref()
-        //                         .1
-        //                         .get_alpn_protocol()
-        //                         .map(|protos| protos.windows(2).any(|w| w == H2))
-        //                         .unwrap_or(false);
-        //                     if h2 {
-        //                         (sock, Protocol::Http2)
-        //                     } else {
-        //                         (sock, Protocol::Http1)
-        //                     }
-        //                 }),
-        //         ),
-        //     )
-        //     .map_err(|e| match e {
-        //         TimeoutError::Service(e) => e,
-        //         TimeoutError::Timeout => ConnectError::Timeout,
-        //     });
-
-        //     let tcp_service = TimeoutService::new(
-        //         self.timeout,
-        //         apply_fn(self.connector.clone(), |msg: Connect, srv| {
-        //             srv.call(TcpConnect::new(msg.uri).set_addr(msg.addr))
-        //         })
-        //         .map_err(ConnectError::from)
-        //         .map(|stream| (stream.into_parts().0, Protocol::Http1)),
-        //     )
-        //     .map_err(|e| match e {
-        //         TimeoutError::Service(e) => e,
-        //         TimeoutError::Timeout => ConnectError::Timeout,
-        //     });
-
-        //     connect_impl::InnerConnector {
-        //         tcp_pool: ConnectionPool::new(
-        //             tcp_service,
-        //             self.conn_lifetime,
-        //             self.conn_keep_alive,
-        //             None,
-        //             self.limit,
-        //         ),
-        //         ssl_pool: Some(ConnectionPool::new(
-        //             ssl_service,
-        //             self.conn_lifetime,
-        //             self.conn_keep_alive,
-        //             Some(self.disconnect_timeout),
-        //             self.limit,
-        //         )),
-        //     }
-        // }
     }
 }
 

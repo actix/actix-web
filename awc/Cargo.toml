@@ -1,6 +1,6 @@
 [package]
 name = "awc"
-version = "0.2.2"
+version = "0.2.3"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix http client."
 readme = "README.md"
@@ -44,7 +44,7 @@ flate2-rust = ["actix-http/flate2-rust"]
 [dependencies]
 actix-codec = "0.1.2"
 actix-service = "0.4.1"
-actix-http = "0.2.4"
+actix-http = "0.2.8"
 base64 = "0.10.1"
 bytes = "0.4"
 derive_more = "0.15.0"

@@ -154,7 +154,6 @@ impl TestServer {
                 let connector = {
                     #[cfg(feature = "ssl")]
                     {
-                        use actix_http::client::SslConnector::Openssl;
                         use openssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
 
                         let mut builder =
@@ -166,12 +165,11 @@ impl TestServer {
                         Connector::new()
                             .conn_lifetime(time::Duration::from_secs(0))
                             .timeout(time::Duration::from_millis(500))
-                            .ssl(Openssl(builder.build()))
+                            .ssl(builder.build())
                             .finish()
                     }
                     #[cfg(all(not(feature = "ssl"), feature = "rust-tls"))]
                     {
-                        use actix_http::client::SslConnector::Rustls;
                         use rustls::ClientConfig;
                         use std::sync::Arc;
 
@@ -185,7 +183,7 @@ impl TestServer {
                         Connector::new()
                             .conn_lifetime(time::Duration::from_secs(0))
                             .timeout(time::Duration::from_millis(500))
-                            .ssl(Rustls(Arc::new(config)))
+                            .rustls(Arc::new(config))
                             .finish()
                     }
                     #[cfg(not(any(feature = "ssl", feature = "rust-tls")))]

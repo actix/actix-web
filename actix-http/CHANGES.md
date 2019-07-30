@@ -5,6 +5,7 @@
 ### Changed
 
 * Add `Clone` impl for `HeaderMap`
+* Add `rustls` support
 
 ### Fixed
 

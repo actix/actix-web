@@ -786,7 +786,6 @@ fn test_reading_deflate_encoding_large_random_ssl() {
     use rustls::{NoClientAuth, ServerConfig};
     use std::fs::File;
     use std::io::BufReader;
-    use actix_http::client::SslConnector::Openssl;
 
     let addr = TestServer::unused_addr();
     let (tx, rx) = mpsc::channel();
@@ -836,7 +835,7 @@ fn test_reading_deflate_encoding_large_random_ssl() {
             .connector(
                 awc::Connector::new()
                     .timeout(std::time::Duration::from_millis(500))
-                    .ssl(Openssl(builder.build()))
+                    .ssl(builder.build())
                     .finish(),
             )
             .finish()

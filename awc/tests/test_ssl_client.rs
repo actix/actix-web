@@ -6,7 +6,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
 use actix_codec::{AsyncRead, AsyncWrite};
-use actix_http::{HttpService, client::SslConnector::Openssl};
+use actix_http::HttpService;
 use actix_http_test::TestServer;
 use actix_server::ssl::OpensslAcceptor;
 use actix_service::{service_fn, NewService};
@@ -67,7 +67,7 @@ fn test_connection_reuse_h2() {
         .map_err(|e| log::error!("Can not set alpn protocol: {:?}", e));
 
     let client = awc::Client::build()
-        .connector(awc::Connector::new().ssl(Openssl(builder.build())).finish())
+        .connector(awc::Connector::new().ssl(builder.build()).finish())
         .finish();
 
     // req 1

@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
 use actix_codec::{AsyncRead, AsyncWrite};
-use actix_http::{HttpService, client::SslConnector::Rustls};
+use actix_http::HttpService;
 use actix_http_test::TestServer;
 use actix_server::ssl::RustlsAcceptor;
 use actix_service::{service_fn, NewService};
@@ -74,7 +74,7 @@ fn test_connection_reuse_h2() {
         .set_certificate_verifier(Arc::new(danger::NoCertificateVerification {}));
 
     let client = awc::Client::build()
-        .connector(awc::Connector::new().ssl(Rustls(Arc::new(config))).finish())
+        .connector(awc::Connector::new().rustls(Arc::new(config)).finish())
         .finish();
 
     // req 1
