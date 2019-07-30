@@ -4,7 +4,10 @@
 
 ### Fixed
 
+* awc client panic #1016
+
 * Invalid response with compression middleware enabled, but compression-related features disabled #997
+
 
 ## [0.2.7] - 2019-07-18
 

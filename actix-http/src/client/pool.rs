@@ -305,10 +305,12 @@ pub(crate) struct Inner<Io> {
     limit: usize,
     acquired: usize,
     available: HashMap<Key, VecDeque<AvailableConnection<Io>>>,
-    waiters: Slab<(
-        Connect,
-        oneshot::Sender<Result<IoConnection<Io>, ConnectError>>,
-    )>,
+    waiters: Slab<
+        Option<(
+            Connect,
+            oneshot::Sender<Result<IoConnection<Io>, ConnectError>>,
+        )>,
+    >,
     waiters_queue: IndexSet<(Key, usize)>,
     task: Option<AtomicTask>,
 }
@@ -346,7 +348,7 @@ where
         let key: Key = connect.uri.authority_part().unwrap().clone().into();
         let entry = self.waiters.vacant_entry();
         let token = entry.key();
-        entry.insert((connect, tx));
+        entry.insert(Some((connect, tx)));
         assert!(self.waiters_queue.insert((key, token)));
 
         (rx, token, self.task.is_some())
@@ -499,10 +501,14 @@ where
                     break;
                 }
             };
+            if inner.waiters.get(token).unwrap().is_none() {
+                continue;
+            }
+
             match inner.acquire(&key) {
                 Acquire::NotAvailable => break,
                 Acquire::Acquired(io, created) => {
-                    let (_, tx) = inner.waiters.remove(token);
+                    let tx = inner.waiters.get_mut(token).unwrap().take().unwrap().1;
                     if let Err(conn) = tx.send(Ok(IoConnection::new(
                         io,
                         created,
@@ -513,7 +519,8 @@ where
                     }
                 }
                 Acquire::Available => {
-                    let (connect, tx) = inner.waiters.remove(token);
+                    let (connect, tx) =
+                        inner.waiters.get_mut(token).unwrap().take().unwrap();
                     OpenWaitingConnection::spawn(
                         key.clone(),
                         tx,
