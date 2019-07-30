@@ -2,6 +2,10 @@
 
 ## [0.2.8] - 2019-07-xx
 
+### Changed
+
+* Add `Clone` impl for `HeaderMap`
+
 ### Fixed
 
 * awc client panic #1016
