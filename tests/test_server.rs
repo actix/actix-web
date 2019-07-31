@@ -16,6 +16,7 @@ use flate2::Compression;
 use futures::stream::once;
 use rand::{distributions::Alphanumeric, Rng};
 
+use actix_connect::start_default_resolver;
 use actix_web::middleware::{BodyEncoding, Compress};
 use actix_web::{dev, http, test, web, App, HttpResponse, HttpServer};
 
@@ -782,7 +783,7 @@ fn test_brotli_encoding_large() {
 #[test]
 fn test_reading_deflate_encoding_large_random_ssl() {
     use openssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
-    use rustls::internal::pemfile::{certs, rsa_private_keys};
+    use rustls::internal::pemfile::{certs, pkcs8_private_keys};
     use rustls::{NoClientAuth, ServerConfig};
     use std::fs::File;
     use std::io::BufReader;
@@ -803,7 +804,7 @@ fn test_reading_deflate_encoding_large_random_ssl() {
         let cert_file = &mut BufReader::new(File::open("tests/cert.pem").unwrap());
         let key_file = &mut BufReader::new(File::open("tests/key.pem").unwrap());
         let cert_chain = certs(cert_file).unwrap();
-        let mut keys = rsa_private_keys(key_file).unwrap();
+        let mut keys = pkcs8_private_keys(key_file).unwrap();
         config.set_single_cert(cert_chain, keys.remove(0)).unwrap();
 
         let srv = HttpServer::new(|| {
@@ -823,6 +824,7 @@ fn test_reading_deflate_encoding_large_random_ssl() {
         let _ = sys.run();
     });
     let (srv, _sys) = rx.recv().unwrap();
+    test::block_on(futures::lazy(|| Ok::<_, ()>(start_default_resolver()))).unwrap();
     let client = test::run_on(|| {
         let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
         builder.set_verify(SslVerifyMode::NONE);
@@ -844,19 +846,18 @@ fn test_reading_deflate_encoding_large_random_ssl() {
     let enc = e.finish().unwrap();
 
     // client request
-    let _req = client
-        .post(format!("https://{}/", addr))
+    let req = client
+        .post(format!("https://localhost:{}/", addr.port()))
         .header(http::header::CONTENT_ENCODING, "deflate")
         .send_body(enc);
 
-    // TODO: fix
-    // let response = test::block_on(req).unwrap();
-    // assert!(response.status().is_success());
+    let mut response = test::block_on(req).unwrap();
+    assert!(response.status().is_success());
 
     // read response
-    // let bytes = test::block_on(response.body()).unwrap();
-    // assert_eq!(bytes.len(), data.len());
-    // assert_eq!(bytes, Bytes::from(data));
+    let bytes = test::block_on(response.body()).unwrap();
+    assert_eq!(bytes.len(), data.len());
+    assert_eq!(bytes, Bytes::from(data));
 
     // stop
     let _ = srv.stop(false);

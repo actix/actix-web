@@ -163,6 +163,10 @@ impl TestServer {
                 Ok::<Client, ()>(Client::build().connector(connector).finish())
             }))
             .unwrap();
+        rt.block_on(lazy(
+            || Ok::<_, ()>(actix_connect::start_default_resolver()),
+        ))
+        .unwrap();
         System::set_current(system);
         TestServerRuntime { addr, rt, client }
     }
@@ -212,18 +216,18 @@ impl TestServerRuntime {
     /// Construct test server url
     pub fn url(&self, uri: &str) -> String {
         if uri.starts_with('/') {
-            format!("http://127.0.0.1:{}{}", self.addr.port(), uri)
+            format!("http://localhost:{}{}", self.addr.port(), uri)
         } else {
-            format!("http://127.0.0.1:{}/{}", self.addr.port(), uri)
+            format!("http://localhost:{}/{}", self.addr.port(), uri)
         }
     }
 
     /// Construct test https server url
     pub fn surl(&self, uri: &str) -> String {
         if uri.starts_with('/') {
-            format!("https://127.0.0.1:{}{}", self.addr.port(), uri)
+            format!("https://localhost:{}{}", self.addr.port(), uri)
         } else {
-            format!("https://127.0.0.1:{}/{}", self.addr.port(), uri)
+            format!("https://localhost:{}/{}", self.addr.port(), uri)
         }
     }
 

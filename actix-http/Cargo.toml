@@ -1,6 +1,6 @@
 [package]
 name = "actix-http"
-version = "0.2.7"
+version = "0.2.8"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix http primitives"
 readme = "README.md"
@@ -27,6 +27,7 @@ default = []
 
 # openssl
 ssl = ["openssl", "actix-connect/ssl"]
+rust-tls = ["rustls", "webpki-roots", "actix-connect/rust-tls"]
 
 # brotli encoding, requires c compiler
 brotli = ["brotli2"]
@@ -46,7 +47,7 @@ secure-cookies = ["ring"]
 [dependencies]
 actix-service = "0.4.1"
 actix-codec = "0.1.2"
-actix-connect = "0.2.1"
+actix-connect = "0.2.2"
 actix-utils = "0.4.4"
 actix-server-config = "0.1.2"
 actix-threadpool = "0.1.1"
@@ -93,6 +94,8 @@ flate2 = { version="1.0.7", optional = true, default-features = false }
 # optional deps
 failure = { version = "0.1.5", optional = true }
 openssl = { version="0.10", optional = true }
+rustls = { version = "0.15.2", optional = true }
+webpki-roots = { version = "0.16", optional = true }
 chrono = "0.4.6"
 
 [dev-dependencies]

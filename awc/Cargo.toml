@@ -1,6 +1,6 @@
 [package]
 name = "awc"
-version = "0.2.2"
+version = "0.2.3"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix http client."
 readme = "README.md"
@@ -29,6 +29,9 @@ default = ["brotli", "flate2-zlib"]
 # openssl
 ssl = ["openssl", "actix-http/ssl"]
 
+# rustls
+rust-tls = ["rustls", "actix-http/rust-tls"]
+
 # brotli encoding, requires c compiler
 brotli = ["actix-http/brotli"]
 
@@ -41,7 +44,7 @@ flate2-rust = ["actix-http/flate2-rust"]
 [dependencies]
 actix-codec = "0.1.2"
 actix-service = "0.4.1"
-actix-http = "0.2.4"
+actix-http = "0.2.8"
 base64 = "0.10.1"
 bytes = "0.4"
 derive_more = "0.15.0"
@@ -55,6 +58,7 @@ serde_json = "1.0"
 serde_urlencoded = "0.5.3"
 tokio-timer = "0.2.8"
 openssl = { version="0.10", optional = true }
+rustls = { version = "0.15.2", optional = true }
 
 [dev-dependencies]
 actix-rt = "0.2.2"
@@ -62,9 +66,11 @@ actix-web = { version = "1.0.0", features=["ssl"] }
 actix-http = { version = "0.2.4", features=["ssl"] }
 actix-http-test = { version = "0.2.0", features=["ssl"] }
 actix-utils = "0.4.1"
-actix-server = { version = "0.5.1", features=["ssl"] }
+actix-server = { version = "0.6.0", features=["ssl", "rust-tls"] }
 brotli2 = { version="0.3.2" }
 flate2 = { version="1.0.2" }
 env_logger = "0.6"
 rand = "0.7"
 tokio-tcp = "0.1"
+webpki = "0.19"
+rustls = { version = "0.15.2", features = ["dangerous_configuration"] }

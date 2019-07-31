@@ -105,9 +105,9 @@ openssl = { version="0.10", optional = true }
 rustls = { version = "0.15", optional = true }
 
 [dev-dependencies]
-actix = { version = "0.8.3" }
-actix-http = { version = "0.2.5", features=["ssl", "brotli", "flate2-zlib"] }
-actix-http-test = { version = "0.2.4", features=["ssl"] }
+actix = "0.8.3"
+actix-connect = "0.2.2"
+actix-http-test = "0.2.4"
 rand = "0.7"
 env_logger = "0.6"
 serde_derive = "1.0"

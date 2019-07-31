@@ -20,6 +20,7 @@ fn no_params() -> &'static str {
     "Hello world!\r\n"
 }
 
+#[cfg(feature = "uds")]
 fn main() -> std::io::Result<()> {
     std::env::set_var("RUST_LOG", "actix_server=info,actix_web=info");
     env_logger::init();
@@ -47,3 +48,6 @@ fn main() -> std::io::Result<()> {
     .workers(1)
     .run()
 }
+
+#[cfg(not(feature = "uds"))]
+fn main() {}

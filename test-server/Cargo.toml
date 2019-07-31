@@ -36,6 +36,7 @@ actix-service = "0.4.1"
 actix-server = "0.6.0"
 actix-utils = "0.4.1"
 awc = "0.2.2"
+actix-connect = "0.2.2"
 
 base64 = "0.10"
 bytes = "0.4"
