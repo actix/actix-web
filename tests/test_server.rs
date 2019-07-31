@@ -16,6 +16,7 @@ use flate2::Compression;
 use futures::stream::once;
 use rand::{distributions::Alphanumeric, Rng};
 
+use actix_connect::start_default_resolver;
 use actix_web::middleware::{BodyEncoding, Compress};
 use actix_web::{dev, http, test, web, App, HttpResponse, HttpServer};
 
@@ -823,9 +824,7 @@ fn test_reading_deflate_encoding_large_random_ssl() {
         let _ = sys.run();
     });
     let (srv, _sys) = rx.recv().unwrap();
-    test::block_on(futures::lazy(
-        || Ok::<_, ()>(actix_connect::start_default_resolver()),
-    )).unwrap();
+    test::block_on(futures::lazy(|| Ok::<_, ()>(start_default_resolver()))).unwrap();
     let client = test::run_on(|| {
         let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
         builder.set_verify(SslVerifyMode::NONE);

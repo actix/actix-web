@@ -50,5 +50,4 @@ fn main() -> std::io::Result<()> {
 }
 
 #[cfg(not(feature = "uds"))]
-fn main() {
-}
+fn main() {}

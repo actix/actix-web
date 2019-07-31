@@ -1,5 +1,8 @@
 #![cfg(feature = "rust-tls")]
-use rustls::{internal::pemfile::{certs, pkcs8_private_keys}, ClientConfig, NoClientAuth};
+use rustls::{
+    internal::pemfile::{certs, pkcs8_private_keys},
+    ClientConfig, NoClientAuth,
+};
 
 use std::fs::File;
 use std::io::{BufReader, Result};
@@ -15,7 +18,7 @@ use actix_web::http::Version;
 use actix_web::{web, App, HttpResponse};
 
 fn ssl_acceptor<T: AsyncRead + AsyncWrite>() -> Result<RustlsAcceptor<T, ()>> {
-    use rustls::{ServerConfig};
+    use rustls::ServerConfig;
     // load ssl keys
     let mut config = ServerConfig::new(NoClientAuth::new());
     let cert_file = &mut BufReader::new(File::open("../tests/cert.pem").unwrap());

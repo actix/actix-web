@@ -166,7 +166,7 @@ impl TestServer {
         rt.block_on(lazy(
             || Ok::<_, ()>(actix_connect::start_default_resolver()),
         ))
-            .unwrap();
+        .unwrap();
         System::set_current(system);
         TestServerRuntime { addr, rt, client }
     }

@@ -12,7 +12,10 @@ use actix_service::{new_service_cfg, NewService};
 use bytes::{Bytes, BytesMut};
 use futures::future::{self, ok, Future};
 use futures::stream::{once, Stream};
-use rustls::{NoClientAuth, ServerConfig as RustlsServerConfig, internal::pemfile::{certs, pkcs8_private_keys}};
+use rustls::{
+    internal::pemfile::{certs, pkcs8_private_keys},
+    NoClientAuth, ServerConfig as RustlsServerConfig,
+};
 
 use std::fs::File;
 use std::io::{BufReader, Result};
