@@ -32,4 +32,4 @@ percent-encoding = "1.0"
 v_htmlescape = "0.4"
 
 [dev-dependencies]
-actix-web = { version = "1.0.2", features = ["flate2-zlib"] }
+actix-web = { version = "1.0.2", features=["ssl"] }

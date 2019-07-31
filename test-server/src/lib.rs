@@ -69,23 +69,6 @@ where
     RT.with(move |rt| rt.borrow_mut().get_mut().block_on(lazy(f)))
 }
 
-#[cfg(feature = "rust-tls")]
-mod danger {
-    pub struct NoCertificateVerification {}
-
-    impl rustls::ServerCertVerifier for NoCertificateVerification {
-        fn verify_server_cert(
-            &self,
-            _roots: &rustls::RootCertStore,
-            _presented_certs: &[rustls::Certificate],
-            _dns_name: webpki::DNSNameRef<'_>,
-            _ocsp: &[u8],
-        ) -> Result<rustls::ServerCertVerified, rustls::TLSError> {
-            Ok(rustls::ServerCertVerified::assertion())
-        }
-    }
-}
-
 /// The `TestServer` type.
 ///
 /// `TestServer` is very simple test server that simplify process of writing
@@ -168,25 +151,7 @@ impl TestServer {
                             .ssl(builder.build())
                             .finish()
                     }
-                    #[cfg(all(not(feature = "ssl"), feature = "rust-tls"))]
-                    {
-                        use rustls::ClientConfig;
-                        use std::sync::Arc;
-
-                        let mut config = ClientConfig::new();
-                        let protos = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
-                        config.set_protocols(&protos);
-                        config.dangerous().set_certificate_verifier(Arc::new(
-                            danger::NoCertificateVerification {},
-                        ));
-
-                        Connector::new()
-                            .conn_lifetime(time::Duration::from_secs(0))
-                            .timeout(time::Duration::from_millis(500))
-                            .rustls(Arc::new(config))
-                            .finish()
-                    }
-                    #[cfg(not(any(feature = "ssl", feature = "rust-tls")))]
+                    #[cfg(not(feature = "ssl"))]
                     {
                         Connector::new()
                             .conn_lifetime(time::Duration::from_secs(0))
@@ -201,7 +166,7 @@ impl TestServer {
         rt.block_on(lazy(
             || Ok::<_, ()>(actix_connect::start_default_resolver()),
         ))
-        .unwrap();
+            .unwrap();
         System::set_current(system);
         TestServerRuntime { addr, rt, client }
     }

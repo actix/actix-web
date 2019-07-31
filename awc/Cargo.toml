@@ -62,9 +62,15 @@ rustls = { version = "0.15.2", optional = true }
 
 [dev-dependencies]
 actix-rt = "0.2.2"
-actix-web = "1.0.0"
-actix-http-test = { version = "0.2.4", features = ["ssl", "rust-tls"] }
-actix-server = "0.6.0"
-brotli2 = "0.3.2"
-flate2 = "1.0.2"
+actix-web = { version = "1.0.0", features=["ssl"] }
+actix-http = { version = "0.2.4", features=["ssl"] }
+actix-http-test = { version = "0.2.0", features=["ssl"] }
+actix-utils = "0.4.1"
+actix-server = { version = "0.6.0", features=["ssl", "rust-tls"] }
+brotli2 = { version="0.3.2" }
+flate2 = { version="1.0.2" }
+env_logger = "0.6"
+rand = "0.7"
+tokio-tcp = "0.1"
 webpki = "0.19"
+rustls = { version = "0.15.2", features = ["dangerous_configuration"] }

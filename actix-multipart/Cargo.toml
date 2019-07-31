@@ -30,4 +30,5 @@ time = "0.1"
 twoway = "0.2"
 
 [dev-dependencies]
+actix-rt = "0.2.2"
 actix-http = "0.2.4"
