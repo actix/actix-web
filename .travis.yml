@@ -37,6 +37,8 @@ script:
   - cargo update
   - cargo check --all --no-default-features
   - cargo test --all-features --all -- --nocapture
+  - cd actix-http; cargo test --no-default-features --features="rust-tls" -- --nocapture; cd ..
+  - cd awc; cargo test --no-default-features --features="rust-tls" -- --nocapture; cd ..
 
 # Upload docs
 after_success:

@@ -102,7 +102,7 @@ chrono = "0.4.6"
 
 [dev-dependencies]
 actix-rt = "0.2.2"
-actix-server = { version = "0.6.0", features=["ssl"] }
+actix-server = { version = "0.6.0", features=["ssl", "rust-tls"] }
 actix-connect = { version = "0.2.0", features=["ssl"] }
 actix-http-test = { version = "0.2.4", features=["ssl"] }
 env_logger = "0.6"
