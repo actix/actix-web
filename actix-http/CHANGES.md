@@ -1,11 +1,12 @@
 # Changes
 
-## [0.2.8] - 2019-07-xx
+## [0.2.8] - 2019-08-01
 
-### Changed
+### Added
+
+* Add `rustls` support
 
 * Add `Clone` impl for `HeaderMap`
-* Add `rustls` support
 
 ### Fixed
 

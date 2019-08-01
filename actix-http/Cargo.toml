@@ -27,6 +27,8 @@ default = []
 
 # openssl
 ssl = ["openssl", "actix-connect/ssl"]
+
+# rustls support
 rust-tls = ["rustls", "webpki-roots", "actix-connect/rust-tls"]
 
 # brotli encoding, requires c compiler
