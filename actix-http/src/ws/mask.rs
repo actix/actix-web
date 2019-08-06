@@ -105,7 +105,6 @@ fn align_buf(buf: &mut [u8]) -> (ShortSlice, &mut [u64], ShortSlice) {
 #[cfg(test)]
 mod tests {
     use super::apply_mask;
-    use byteorder::{ByteOrder, LittleEndian};
 
     /// A safe unoptimized mask application.
     fn apply_mask_fallback(buf: &mut [u8], mask: &[u8; 4]) {
@@ -117,7 +116,7 @@ mod tests {
     #[test]
     fn test_apply_mask() {
         let mask = [0x6d, 0xb6, 0xb2, 0x80];
-        let mask_u32: u32 = LittleEndian::read_u32(&mask);
+        let mask_u32 = u32::from_le_bytes(mask);
 
         let unmasked = vec![
             0xf3, 0x00, 0x01, 0x02, 0x03, 0x80, 0x81, 0x82, 0xff, 0xfe, 0x00, 0x17,
