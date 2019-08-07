@@ -1,5 +1,12 @@
 # Changes
 
+## [0.2.9] - 2019-08-xx
+
+### Changed
+
+* Dropped the `byteorder`-dependency in favor of `stdlib`-implementation
+
+
 ## [0.2.8] - 2019-08-01
 
 ### Added
