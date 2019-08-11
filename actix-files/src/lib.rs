@@ -22,7 +22,7 @@ use bytes::Bytes;
 use futures::future::{ok, Either, FutureResult};
 use futures::{Async, Future, Poll, Stream};
 use mime;
-use mime_guess::get_mime_type;
+use mime_guess::from_ext;
 use percent_encoding::{utf8_percent_encode, DEFAULT_ENCODE_SET};
 use v_htmlescape::escape as escape_html_entity;
 
@@ -42,7 +42,7 @@ type HttpNewService = BoxedNewService<(), ServiceRequest, ServiceResponse, Error
 /// the type `application/octet-stream`.
 #[inline]
 pub fn file_extension_to_mime(ext: &str) -> mime::Mime {
-    get_mime_type(ext)
+    from_ext(ext).first_or_octet_stream()
 }
 
 #[doc(hidden)]
