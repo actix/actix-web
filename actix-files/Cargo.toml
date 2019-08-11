@@ -27,7 +27,7 @@ futures = "0.1.25"
 derive_more = "0.15.0"
 log = "0.4"
 mime = "0.3"
-mime_guess = "2.0.0-alpha"
+mime_guess = "2.0.1"
 percent-encoding = "1.0"
 v_htmlescape = "0.4"
 
