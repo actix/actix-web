@@ -1,5 +1,9 @@
 # Changes
 
+## [0.1.5] - unreleased
+
+* Bump up `mime_guess` crate version to 2.0.1
+
 ## [0.1.4] - 2019-07-20
 
 * Allow to disable `Content-Disposition` header #686
