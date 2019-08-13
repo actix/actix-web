@@ -1,10 +1,14 @@
 # Changes
 
-## [0.2.9] - 2019-08-xx
+## [0.2.9] - 2019-08-13
 
 ### Changed
 
 * Dropped the `byteorder`-dependency in favor of `stdlib`-implementation
+
+### Fixed
+
+* Fixed a panic in the HTTP2 handshake in client HTTP requests (#1031)
 
 
 ## [0.2.8] - 2019-08-01
