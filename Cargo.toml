@@ -82,7 +82,7 @@ actix-http = "0.2.9"
 actix-server = "0.6.0"
 actix-server-config = "0.1.2"
 actix-threadpool = "0.1.1"
-awc = { version = "0.2.2", optional = true }
+awc = { version = "0.2.4", optional = true }
 
 bytes = "0.4"
 derive_more = "0.15.0"
