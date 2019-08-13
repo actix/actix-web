@@ -7,13 +7,13 @@ use std::{fmt, net};
 use bytes::{BufMut, Bytes, BytesMut};
 use futures::future::{err, Either};
 use futures::{Future, Stream};
-use percent_encoding::{percent_encode, USERINFO_ENCODE_SET};
+use percent_encoding::percent_encode;
 use serde::Serialize;
 use serde_json;
 use tokio_timer::Timeout;
 
 use actix_http::body::{Body, BodyStream};
-use actix_http::cookie::{Cookie, CookieJar};
+use actix_http::cookie::{Cookie, CookieJar, USERINFO};
 use actix_http::encoding::Decoder;
 use actix_http::http::header::{self, ContentEncoding, Header, IntoHeaderValue};
 use actix_http::http::{
@@ -399,8 +399,8 @@ impl ClientRequest {
         if let Some(ref mut jar) = self.cookies {
             let mut cookie = String::new();
             for c in jar.delta() {
-                let name = percent_encode(c.name().as_bytes(), USERINFO_ENCODE_SET);
-                let value = percent_encode(c.value().as_bytes(), USERINFO_ENCODE_SET);
+                let name = percent_encode(c.name().as_bytes(), USERINFO);
+                let value = percent_encode(c.value().as_bytes(), USERINFO);
                 let _ = write!(&mut cookie, "; {}={}", name, value);
             }
             self.head.headers.insert(

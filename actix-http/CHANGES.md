@@ -6,6 +6,10 @@
 
 * Dropped the `byteorder`-dependency in favor of `stdlib`-implementation
 
+* Update percent-encoding to 2.1
+
+* Update serde_urlencoded to 0.6.1
+
 ### Fixed
 
 * Fixed a panic in the HTTP2 handshake in client HTTP requests (#1031)

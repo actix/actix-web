@@ -51,11 +51,11 @@ derive_more = "0.15.0"
 futures = "0.1.25"
 log =" 0.4"
 mime = "0.3"
-percent-encoding = "1.0"
+percent-encoding = "2.1"
 rand = "0.7"
 serde = "1.0"
 serde_json = "1.0"
-serde_urlencoded = "0.5.3"
+serde_urlencoded = "0.6.1"
 tokio-timer = "0.2.8"
 openssl = { version="0.10", optional = true }
 rustls = { version = "0.15.2", optional = true }

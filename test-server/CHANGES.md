@@ -1,5 +1,11 @@
 # Changes
 
+
+### Changed
+
+* Update serde_urlencoded to "0.6.1"
+
+
 ## [0.2.4] - 2019-07-18
 
 * Update actix-server to 0.6

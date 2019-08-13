@@ -1,12 +1,12 @@
 //! Test helpers for actix http client to use during testing.
 use std::fmt::Write as FmtWrite;
 
-use actix_http::cookie::{Cookie, CookieJar};
+use actix_http::cookie::{Cookie, CookieJar, USERINFO};
 use actix_http::http::header::{self, Header, HeaderValue, IntoHeaderValue};
 use actix_http::http::{HeaderName, HttpTryFrom, StatusCode, Version};
 use actix_http::{h1, Payload, ResponseHead};
 use bytes::Bytes;
-use percent_encoding::{percent_encode, USERINFO_ENCODE_SET};
+use percent_encoding::percent_encode;
 
 use crate::ClientResponse;
 
@@ -87,8 +87,8 @@ impl TestResponse {
 
         let mut cookie = String::new();
         for c in self.cookies.delta() {
-            let name = percent_encode(c.name().as_bytes(), USERINFO_ENCODE_SET);
-            let value = percent_encode(c.value().as_bytes(), USERINFO_ENCODE_SET);
+            let name = percent_encode(c.name().as_bytes(), USERINFO);
+            let value = percent_encode(c.value().as_bytes(), USERINFO);
             let _ = write!(&mut cookie, "; {}={}", name, value);
         }
         if !cookie.is_empty() {

@@ -1,5 +1,14 @@
 # Changes
 
+## [0.2.4] - 2019-xx-xx
+
+### Changed
+
+* Update percent-encoding to "2.1"
+
+* Update serde_urlencoded to "0.6.1"
+
+
 ## [0.2.3] - 2019-08-01
 
 ### Added
