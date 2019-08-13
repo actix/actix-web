@@ -44,7 +44,7 @@ flate2-rust = ["actix-http/flate2-rust"]
 [dependencies]
 actix-codec = "0.1.2"
 actix-service = "0.4.1"
-actix-http = "0.2.8"
+actix-http = "0.2.9"
 base64 = "0.10.1"
 bytes = "0.4"
 derive_more = "0.15.0"

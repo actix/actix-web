@@ -12,7 +12,9 @@
 
 * `Query` payload made `pub`. Allows user to pattern-match the payload.
 
-* Update serde_urlencoded to "0.6.1"
+* Update serde_urlencoded to 0.6.1
+
+* Update url to 2.1
 
 
 ## [1.0.5] - 2019-07-18

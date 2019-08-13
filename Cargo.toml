@@ -78,7 +78,7 @@ actix-utils = "0.4.4"
 actix-router = "0.1.5"
 actix-rt = "0.2.4"
 actix-web-codegen = "0.1.2"
-actix-http = "0.2.7"
+actix-http = "0.2.9"
 actix-server = "0.6.0"
 actix-server-config = "0.1.2"
 actix-threadpool = "0.1.1"
@@ -98,7 +98,7 @@ serde = { version = "1.0", features=["derive"] }
 serde_json = "1.0"
 serde_urlencoded = "0.6.1"
 time = "0.1.42"
-url = { version="1.7", features=["query_encoding"] }
+url = "2.1"
 
 # ssl support
 openssl = { version="0.10", optional = true }
