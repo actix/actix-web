@@ -590,6 +590,29 @@ where
     type Error = ();
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        if let Some(ref mut h2) = self.h2 {
+            return match h2.poll() {
+                Ok(Async::Ready((snd, connection))) => {
+                    tokio_current_thread::spawn(connection.map_err(|_| ()));
+                    let rx = self.rx.take().unwrap();
+                    let _ = rx.send(Ok(IoConnection::new(
+                        ConnectionType::H2(snd),
+                        Instant::now(),
+                        Some(Acquired(self.key.clone(), self.inner.take())),
+                    )));
+                    Ok(Async::Ready(()))
+                }
+                Ok(Async::NotReady) => Ok(Async::NotReady),
+                Err(err) => {
+                    let _ = self.inner.take();
+                    if let Some(rx) = self.rx.take() {
+                        let _ = rx.send(Err(ConnectError::H2(err)));
+                    }
+                    Err(())
+                }
+            };
+        }
+
         match self.fut.poll() {
             Err(err) => {
                 let _ = self.inner.take();
