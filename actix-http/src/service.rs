@@ -6,13 +6,13 @@ use actix_server_config::{
     Io as ServerIo, IoStream, Protocol, ServerConfig as SrvConfig,
 };
 use actix_service::{IntoNewService, NewService, Service};
-use actix_utils::cloneable::CloneableService;
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use futures::{try_ready, Async, Future, IntoFuture, Poll};
 use h2::server::{self, Handshake};
 
 use crate::body::MessageBody;
 use crate::builder::HttpServiceBuilder;
+use crate::cloneable::CloneableService;
 use crate::config::{KeepAlive, ServiceConfig};
 use crate::error::{DispatchError, Error};
 use crate::helpers::DataFactory;
@@ -26,7 +26,7 @@ pub struct HttpService<T, P, S, B, X = h1::ExpectHandler, U = h1::UpgradeHandler
     cfg: ServiceConfig,
     expect: X,
     upgrade: Option<U>,
-    on_connect: Option<rc::Rc<Fn(&T) -> Box<dyn DataFactory>>>,
+    on_connect: Option<rc::Rc<dyn Fn(&T) -> Box<dyn DataFactory>>>,
     _t: PhantomData<(T, P, B)>,
 }
 
@@ -140,7 +140,7 @@ where
     /// Set on connect callback.
     pub(crate) fn on_connect(
         mut self,
-        f: Option<rc::Rc<Fn(&T) -> Box<dyn DataFactory>>>,
+        f: Option<rc::Rc<dyn Fn(&T) -> Box<dyn DataFactory>>>,
     ) -> Self {
         self.on_connect = f;
         self
@@ -196,7 +196,7 @@ pub struct HttpServiceResponse<T, P, S: NewService, B, X: NewService, U: NewServ
     fut_upg: Option<U::Future>,
     expect: Option<X::Service>,
     upgrade: Option<U::Service>,
-    on_connect: Option<rc::Rc<Fn(&T) -> Box<dyn DataFactory>>>,
+    on_connect: Option<rc::Rc<dyn Fn(&T) -> Box<dyn DataFactory>>>,
     cfg: Option<ServiceConfig>,
     _t: PhantomData<(T, P, B)>,
 }
@@ -257,7 +257,7 @@ pub struct HttpServiceHandler<T, P, S, B, X, U> {
     expect: CloneableService<X>,
     upgrade: Option<CloneableService<U>>,
     cfg: ServiceConfig,
-    on_connect: Option<rc::Rc<Fn(&T) -> Box<dyn DataFactory>>>,
+    on_connect: Option<rc::Rc<dyn Fn(&T) -> Box<dyn DataFactory>>>,
     _t: PhantomData<(T, P, B, X)>,
 }
 
@@ -278,14 +278,14 @@ where
         srv: S,
         expect: X,
         upgrade: Option<U>,
-        on_connect: Option<rc::Rc<Fn(&T) -> Box<dyn DataFactory>>>,
+        on_connect: Option<rc::Rc<dyn Fn(&T) -> Box<dyn DataFactory>>>,
     ) -> HttpServiceHandler<T, P, S, B, X, U> {
         HttpServiceHandler {
             cfg,
             on_connect,
             srv: CloneableService::new(srv),
             expect: CloneableService::new(expect),
-            upgrade: upgrade.map(|s| CloneableService::new(s)),
+            upgrade: upgrade.map(CloneableService::new),
             _t: PhantomData,
         }
     }
@@ -466,16 +466,18 @@ where
             State::Unknown(ref mut data) => {
                 if let Some(ref mut item) = data {
                     loop {
-                        unsafe {
-                            let b = item.1.bytes_mut();
-                            let n = try_ready!(item.0.poll_read(b));
-                            if n == 0 {
-                                return Ok(Async::Ready(()));
-                            }
-                            item.1.advance_mut(n);
-                            if item.1.len() >= HTTP2_PREFACE.len() {
-                                break;
-                            }
+                        // Safety - we only write to the returned slice.
+                        let b = unsafe { item.1.bytes_mut() };
+                        let n = try_ready!(item.0.poll_read(b));
+                        if n == 0 {
+                            return Ok(Async::Ready(()));
+                        }
+                        // Safety - we know that 'n' bytes have
+                        // been initialized via the contract of
+                        // 'poll_read'
+                        unsafe { item.1.advance_mut(n) };
+                        if item.1.len() >= HTTP2_PREFACE.len() {
+                            break;
                         }
                     }
                 } else {

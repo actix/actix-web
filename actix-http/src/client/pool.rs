@@ -305,10 +305,12 @@ pub(crate) struct Inner<Io> {
     limit: usize,
     acquired: usize,
     available: HashMap<Key, VecDeque<AvailableConnection<Io>>>,
-    waiters: Slab<(
-        Connect,
-        oneshot::Sender<Result<IoConnection<Io>, ConnectError>>,
-    )>,
+    waiters: Slab<
+        Option<(
+            Connect,
+            oneshot::Sender<Result<IoConnection<Io>, ConnectError>>,
+        )>,
+    >,
     waiters_queue: IndexSet<(Key, usize)>,
     task: Option<AtomicTask>,
 }
@@ -346,7 +348,7 @@ where
         let key: Key = connect.uri.authority_part().unwrap().clone().into();
         let entry = self.waiters.vacant_entry();
         let token = entry.key();
-        entry.insert((connect, tx));
+        entry.insert(Some((connect, tx)));
         assert!(self.waiters_queue.insert((key, token)));
 
         (rx, token, self.task.is_some())
@@ -427,7 +429,9 @@ where
 
     fn check_availibility(&self) {
         if !self.waiters_queue.is_empty() && self.acquired < self.limit {
-            self.task.as_ref().map(|t| t.notify());
+            if let Some(t) = self.task.as_ref() {
+                t.notify()
+            }
         }
     }
 }
@@ -497,10 +501,14 @@ where
                     break;
                 }
             };
+            if inner.waiters.get(token).unwrap().is_none() {
+                continue;
+            }
+
             match inner.acquire(&key) {
                 Acquire::NotAvailable => break,
                 Acquire::Acquired(io, created) => {
-                    let (_, tx) = inner.waiters.remove(token);
+                    let tx = inner.waiters.get_mut(token).unwrap().take().unwrap().1;
                     if let Err(conn) = tx.send(Ok(IoConnection::new(
                         io,
                         created,
@@ -511,7 +519,8 @@ where
                     }
                 }
                 Acquire::Available => {
-                    let (connect, tx) = inner.waiters.remove(token);
+                    let (connect, tx) =
+                        inner.waiters.get_mut(token).unwrap().take().unwrap();
                     OpenWaitingConnection::spawn(
                         key.clone(),
                         tx,
@@ -581,6 +590,29 @@ where
     type Error = ();
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        if let Some(ref mut h2) = self.h2 {
+            return match h2.poll() {
+                Ok(Async::Ready((snd, connection))) => {
+                    tokio_current_thread::spawn(connection.map_err(|_| ()));
+                    let rx = self.rx.take().unwrap();
+                    let _ = rx.send(Ok(IoConnection::new(
+                        ConnectionType::H2(snd),
+                        Instant::now(),
+                        Some(Acquired(self.key.clone(), self.inner.take())),
+                    )));
+                    Ok(Async::Ready(()))
+                }
+                Ok(Async::NotReady) => Ok(Async::NotReady),
+                Err(err) => {
+                    let _ = self.inner.take();
+                    if let Some(rx) = self.rx.take() {
+                        let _ = rx.send(Err(ConnectError::H2(err)));
+                    }
+                    Err(())
+                }
+            };
+        }
+
         match self.fut.poll() {
             Err(err) => {
                 let _ = self.inner.take();

@@ -5,11 +5,11 @@ use std::rc::Rc;
 use actix_codec::Framed;
 use actix_server_config::{Io, IoStream, ServerConfig as SrvConfig};
 use actix_service::{IntoNewService, NewService, Service};
-use actix_utils::cloneable::CloneableService;
 use futures::future::{ok, FutureResult};
 use futures::{try_ready, Async, Future, IntoFuture, Poll, Stream};
 
 use crate::body::MessageBody;
+use crate::cloneable::CloneableService;
 use crate::config::{KeepAlive, ServiceConfig};
 use crate::error::{DispatchError, Error, ParseError};
 use crate::helpers::DataFactory;
@@ -26,7 +26,7 @@ pub struct H1Service<T, P, S, B, X = ExpectHandler, U = UpgradeHandler<T>> {
     cfg: ServiceConfig,
     expect: X,
     upgrade: Option<U>,
-    on_connect: Option<Rc<Fn(&T) -> Box<dyn DataFactory>>>,
+    on_connect: Option<Rc<dyn Fn(&T) -> Box<dyn DataFactory>>>,
     _t: PhantomData<(T, P, B)>,
 }
 
@@ -108,7 +108,7 @@ where
     /// Set on connect callback.
     pub(crate) fn on_connect(
         mut self,
-        f: Option<Rc<Fn(&T) -> Box<dyn DataFactory>>>,
+        f: Option<Rc<dyn Fn(&T) -> Box<dyn DataFactory>>>,
     ) -> Self {
         self.on_connect = f;
         self
@@ -174,7 +174,7 @@ where
     fut_upg: Option<U::Future>,
     expect: Option<X::Service>,
     upgrade: Option<U::Service>,
-    on_connect: Option<Rc<Fn(&T) -> Box<dyn DataFactory>>>,
+    on_connect: Option<Rc<dyn Fn(&T) -> Box<dyn DataFactory>>>,
     cfg: Option<ServiceConfig>,
     _t: PhantomData<(T, P, B)>,
 }
@@ -233,7 +233,7 @@ pub struct H1ServiceHandler<T, P, S, B, X, U> {
     srv: CloneableService<S>,
     expect: CloneableService<X>,
     upgrade: Option<CloneableService<U>>,
-    on_connect: Option<Rc<Fn(&T) -> Box<dyn DataFactory>>>,
+    on_connect: Option<Rc<dyn Fn(&T) -> Box<dyn DataFactory>>>,
     cfg: ServiceConfig,
     _t: PhantomData<(T, P, B)>,
 }
@@ -254,12 +254,12 @@ where
         srv: S,
         expect: X,
         upgrade: Option<U>,
-        on_connect: Option<Rc<Fn(&T) -> Box<dyn DataFactory>>>,
+        on_connect: Option<Rc<dyn Fn(&T) -> Box<dyn DataFactory>>>,
     ) -> H1ServiceHandler<T, P, S, B, X, U> {
         H1ServiceHandler {
             srv: CloneableService::new(srv),
             expect: CloneableService::new(expect),
-            upgrade: upgrade.map(|s| CloneableService::new(s)),
+            upgrade: upgrade.map(CloneableService::new),
             cfg,
             on_connect,
             _t: PhantomData,

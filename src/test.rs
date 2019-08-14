@@ -79,7 +79,7 @@ where
     F: FnOnce() -> R,
     R: IntoFuture,
 {
-    RT.with(move |rt| rt.borrow_mut().get_mut().block_on(lazy(|| f())))
+    RT.with(move |rt| rt.borrow_mut().get_mut().block_on(lazy(f)))
 }
 
 #[doc(hidden)]

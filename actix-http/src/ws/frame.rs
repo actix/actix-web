@@ -1,4 +1,5 @@
-use byteorder::{ByteOrder, LittleEndian, NetworkEndian};
+use std::convert::TryFrom;
+
 use bytes::{BufMut, Bytes, BytesMut};
 use log::debug;
 use rand;
@@ -48,14 +49,16 @@ impl Parser {
             if chunk_len < 4 {
                 return Ok(None);
             }
-            let len = NetworkEndian::read_uint(&src[idx..], 2) as usize;
+            let len = usize::from(u16::from_be_bytes(
+                TryFrom::try_from(&src[idx..idx + 2]).unwrap(),
+            ));
             idx += 2;
             len
         } else if len == 127 {
             if chunk_len < 10 {
                 return Ok(None);
             }
-            let len = NetworkEndian::read_uint(&src[idx..], 8);
+            let len = u64::from_be_bytes(TryFrom::try_from(&src[idx..idx + 8]).unwrap());
             if len > max_size as u64 {
                 return Err(ProtocolError::Overflow);
             }
@@ -75,10 +78,10 @@ impl Parser {
                 return Ok(None);
             }
 
-            let mask: &[u8] = &src[idx..idx + 4];
-            let mask_u32 = LittleEndian::read_u32(mask);
+            let mask =
+                u32::from_le_bytes(TryFrom::try_from(&src[idx..idx + 4]).unwrap());
             idx += 4;
-            Some(mask_u32)
+            Some(mask)
         } else {
             None
         };
@@ -137,7 +140,7 @@ impl Parser {
     /// Parse the payload of a close frame.
     pub fn parse_close_payload(payload: &[u8]) -> Option<CloseReason> {
         if payload.len() >= 2 {
-            let raw_code = NetworkEndian::read_u16(payload);
+            let raw_code = u16::from_be_bytes(TryFrom::try_from(&payload[..2]).unwrap());
             let code = CloseCode::from(raw_code);
             let description = if payload.len() > 2 {
                 Some(String::from_utf8_lossy(&payload[2..]).into())
@@ -201,10 +204,7 @@ impl Parser {
         let payload = match reason {
             None => Vec::new(),
             Some(reason) => {
-                let mut code_bytes = [0; 2];
-                NetworkEndian::write_u16(&mut code_bytes, reason.code.into());
-
-                let mut payload = Vec::from(&code_bytes[..]);
+                let mut payload = Into::<u16>::into(reason.code).to_be_bytes().to_vec();
                 if let Some(description) = reason.description {
                     payload.extend(description.as_bytes());
                 }

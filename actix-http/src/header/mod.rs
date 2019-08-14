@@ -6,6 +6,7 @@ use std::{fmt, str::FromStr};
 use bytes::{Bytes, BytesMut};
 use http::Error as HttpError;
 use mime::Mime;
+use percent_encoding::{AsciiSet, CONTROLS};
 
 pub use http::header::*;
 
@@ -361,10 +362,8 @@ pub fn parse_extended_value(
 
 impl fmt::Display for ExtendedValue {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let encoded_value = percent_encoding::percent_encode(
-            &self.value[..],
-            self::percent_encoding_http::HTTP_VALUE,
-        );
+        let encoded_value =
+            percent_encoding::percent_encode(&self.value[..], HTTP_VALUE);
         if let Some(ref lang) = self.language_tag {
             write!(f, "{}'{}'{}", self.charset, lang, encoded_value)
         } else {
@@ -378,8 +377,7 @@ impl fmt::Display for ExtendedValue {
 ///
 /// [url]: https://tools.ietf.org/html/rfc5987#section-3.2
 pub fn http_percent_encode(f: &mut fmt::Formatter, bytes: &[u8]) -> fmt::Result {
-    let encoded =
-        percent_encoding::percent_encode(bytes, self::percent_encoding_http::HTTP_VALUE);
+    let encoded = percent_encoding::percent_encode(bytes, HTTP_VALUE);
     fmt::Display::fmt(&encoded, f)
 }
 
@@ -394,20 +392,29 @@ impl From<http::HeaderMap> for HeaderMap {
     }
 }
 
-mod percent_encoding_http {
-    use percent_encoding::{self, define_encode_set};
-
-    // internal module because macro is hard-coded to make a public item
-    // but we don't want to public export this item
-    define_encode_set! {
-        // This encode set is used for HTTP header values and is defined at
-        // https://tools.ietf.org/html/rfc5987#section-3.2
-        pub HTTP_VALUE = [percent_encoding::SIMPLE_ENCODE_SET] | {
-            ' ', '"', '%', '\'', '(', ')', '*', ',', '/', ':', ';', '<', '-', '>', '?',
-            '[', '\\', ']', '{', '}'
-        }
-    }
-}
+// This encode set is used for HTTP header values and is defined at
+// https://tools.ietf.org/html/rfc5987#section-3.2
+pub(crate) const HTTP_VALUE: &AsciiSet = &CONTROLS
+    .add(b' ')
+    .add(b'"')
+    .add(b'%')
+    .add(b'\'')
+    .add(b'(')
+    .add(b')')
+    .add(b'*')
+    .add(b',')
+    .add(b'/')
+    .add(b':')
+    .add(b';')
+    .add(b'<')
+    .add(b'-')
+    .add(b'>')
+    .add(b'?')
+    .add(b'[')
+    .add(b'\\')
+    .add(b']')
+    .add(b'{')
+    .add(b'}');
 
 #[cfg(test)]
 mod tests {

@@ -1,3 +1,4 @@
+#![allow(clippy::borrow_interior_mutable_const, clippy::type_complexity)]
 //! Cross-origin resource sharing (CORS) for Actix applications
 //!
 //! CORS middleware could be used with application and with resource.
@@ -162,6 +163,7 @@ impl<T> AllOrSome<T> {
 ///     .max_age(3600);
 /// # }
 /// ```
+#[derive(Default)]
 pub struct Cors {
     cors: Option<Inner>,
     methods: bool,
@@ -585,10 +587,10 @@ impl Inner {
             }
             Err(CorsError::BadOrigin)
         } else {
-            return match self.origins {
+            match self.origins {
                 AllOrSome::All => Ok(()),
                 _ => Err(CorsError::MissingOrigin),
-            };
+            }
         }
     }
 
@@ -663,7 +665,7 @@ impl Inner {
                     }
                     Err(CorsError::BadRequestHeaders)
                 } else {
-                    return Ok(());
+                    Ok(())
                 }
             }
         }
@@ -681,7 +683,7 @@ where
     type Error = Error;
     type Future = Either<
         FutureResult<Self::Response, Error>,
-        Either<S::Future, Box<Future<Item = Self::Response, Error = Error>>>,
+        Either<S::Future, Box<dyn Future<Item = Self::Response, Error = Error>>>,
     >;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {

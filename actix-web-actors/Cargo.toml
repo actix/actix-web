@@ -1,6 +1,6 @@
 [package]
 name = "actix-web-actors"
-version = "1.0.1"
+version = "1.0.2"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix actors support for actix web framework."
 readme = "README.md"
@@ -27,4 +27,4 @@ futures = "0.1.25"
 
 [dev-dependencies]
 env_logger = "0.6"
-actix-http-test = { version = "0.2.0", features=["ssl"] }
+actix-http-test = { version = "0.2.4", features=["ssl"] }

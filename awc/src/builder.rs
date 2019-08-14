@@ -21,6 +21,12 @@ pub struct ClientBuilder {
     max_redirects: usize,
 }
 
+impl Default for ClientBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ClientBuilder {
     pub fn new() -> Self {
         ClientBuilder {

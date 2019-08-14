@@ -1,10 +1,49 @@
 # Changes
 
-## [1.0.4] - TBD
+## [1.0.6] - 2019-xx-xx
+
+### Added
+
+* Re-implement Host predicate (#989)
+
+* Form immplements Responder, returning a `application/x-www-form-urlencoded` response
+
+### Changed
+
+* `Query` payload made `pub`. Allows user to pattern-match the payload.
+
+* Update serde_urlencoded to 0.6.1
+
+* Update url to 2.1
+
+
+## [1.0.5] - 2019-07-18
+
+### Added
+
+* Unix domain sockets (HttpServer::bind_uds) #92
+
+* Actix now logs errors resulting in "internal server error" responses always, with the `error`
+  logging level
+
+### Fixed
+
+* Restored logging of errors through the `Logger` middleware
+
+
+## [1.0.4] - 2019-07-17
+
+### Added
+
+* Add `Responder` impl for `(T, StatusCode) where T: Responder`
+
+* Allow to access app's resource map via
+  `ServiceRequest::resource_map()` and `HttpRequest::resource_map()` methods.
 
 ### Changed
 
 * Upgrade `rand` dependency version to 0.7
+
 
 ## [1.0.3] - 2019-06-28
 

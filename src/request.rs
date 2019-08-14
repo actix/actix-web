@@ -174,6 +174,12 @@ impl HttpRequest {
         self.url_for(name, &NO_PARAMS)
     }
 
+    #[inline]
+    /// Get a reference to a `ResourceMap` of current application.
+    pub fn resource_map(&self) -> &ResourceMap {
+        &self.0.rmap
+    }
+
     /// Peer socket address
     ///
     /// Peer address is actual socket address, if proxy is used in front of
@@ -186,6 +192,9 @@ impl HttpRequest {
     }
 
     /// Get *ConnectionInfo* for the current request.
+    ///
+    /// This method panics if request's extensions container is already
+    /// borrowed.
     #[inline]
     pub fn connection_info(&self) -> Ref<ConnectionInfo> {
         ConnectionInfo::get(self.head(), &*self.app_config())

@@ -1,3 +1,4 @@
+#![allow(clippy::borrow_interior_mutable_const)]
 //! Actix web is a small, pragmatic, and extremely fast web framework
 //! for Rust.
 //!
@@ -60,9 +61,9 @@
 //! * Configurable request routing
 //! * Multipart streams
 //! * SSL support with OpenSSL or `native-tls`
-//! * Middlewares (`Logger`, `Session`, `CORS`, `CSRF`, `DefaultHeaders`)
+//! * Middlewares (`Logger`, `Session`, `CORS`, `DefaultHeaders`)
 //! * Supports [Actix actor framework](https://github.com/actix/actix)
-//! * Supported Rust version: 1.31 or later
+//! * Supported Rust version: 1.36 or later
 //!
 //! ## Package feature
 //!
@@ -77,6 +78,7 @@
 //!   `c` compiler (default enabled)
 //! * `flate2-rust` - experimental rust based implementation for
 //!   `gzip`, `deflate` compression.
+//! * `uds` - Unix domain support, enables `HttpServer::bind_uds()` method.
 //!
 #![allow(clippy::type_complexity, clippy::new_without_default)]
 
@@ -134,6 +136,8 @@ pub mod dev {
     //! ```
 
     pub use crate::config::{AppConfig, AppService};
+    #[doc(hidden)]
+    pub use crate::handler::{AsyncFactory, Factory};
     pub use crate::info::ConnectionInfo;
     pub use crate::rmap::ResourceMap;
     pub use crate::service::{

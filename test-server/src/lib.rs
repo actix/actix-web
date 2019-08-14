@@ -12,6 +12,7 @@ use futures::future::lazy;
 use futures::{Future, IntoFuture, Stream};
 use http::Method;
 use net2::TcpBuilder;
+use tokio_tcp::TcpStream;
 
 thread_local! {
     static RT: RefCell<Inner> = {
@@ -65,7 +66,7 @@ where
     F: FnOnce() -> R,
     R: IntoFuture,
 {
-    RT.with(move |rt| rt.borrow_mut().get_mut().block_on(lazy(|| f())))
+    RT.with(move |rt| rt.borrow_mut().get_mut().block_on(lazy(f)))
 }
 
 /// The `TestServer` type.
@@ -107,8 +108,9 @@ pub struct TestServerRuntime {
 }
 
 impl TestServer {
+    #[allow(clippy::new_ret_no_self)]
     /// Start new test server with application factory
-    pub fn new<F: StreamServiceFactory>(factory: F) -> TestServerRuntime {
+    pub fn new<F: StreamServiceFactory<TcpStream>>(factory: F) -> TestServerRuntime {
         let (tx, rx) = mpsc::channel();
 
         // run server in separate thread
@@ -161,6 +163,10 @@ impl TestServer {
                 Ok::<Client, ()>(Client::build().connector(connector).finish())
             }))
             .unwrap();
+        rt.block_on(lazy(
+            || Ok::<_, ()>(actix_connect::start_default_resolver()),
+        ))
+        .unwrap();
         System::set_current(system);
         TestServerRuntime { addr, rt, client }
     }
@@ -191,7 +197,7 @@ impl TestServerRuntime {
         F: FnOnce() -> R,
         R: Future,
     {
-        self.rt.block_on(lazy(|| f()))
+        self.rt.block_on(lazy(f))
     }
 
     /// Execute function on current core
@@ -210,18 +216,18 @@ impl TestServerRuntime {
     /// Construct test server url
     pub fn url(&self, uri: &str) -> String {
         if uri.starts_with('/') {
-            format!("http://127.0.0.1:{}{}", self.addr.port(), uri)
+            format!("http://localhost:{}{}", self.addr.port(), uri)
         } else {
-            format!("http://127.0.0.1:{}/{}", self.addr.port(), uri)
+            format!("http://localhost:{}/{}", self.addr.port(), uri)
         }
     }
 
     /// Construct test https server url
     pub fn surl(&self, uri: &str) -> String {
         if uri.starts_with('/') {
-            format!("https://127.0.0.1:{}{}", self.addr.port(), uri)
+            format!("https://localhost:{}{}", self.addr.port(), uri)
         } else {
-            format!("https://127.0.0.1:{}/{}", self.addr.port(), uri)
+            format!("https://localhost:{}/{}", self.addr.port(), uri)
         }
     }
 
@@ -263,6 +269,36 @@ impl TestServerRuntime {
     /// Create https `PUT` request
     pub fn sput<S: AsRef<str>>(&self, path: S) -> ClientRequest {
         self.client.put(self.surl(path.as_ref()).as_str())
+    }
+
+    /// Create `PATCH` request
+    pub fn patch<S: AsRef<str>>(&self, path: S) -> ClientRequest {
+        self.client.patch(self.url(path.as_ref()).as_str())
+    }
+
+    /// Create https `PATCH` request
+    pub fn spatch<S: AsRef<str>>(&self, path: S) -> ClientRequest {
+        self.client.patch(self.surl(path.as_ref()).as_str())
+    }
+
+    /// Create `DELETE` request
+    pub fn delete<S: AsRef<str>>(&self, path: S) -> ClientRequest {
+        self.client.delete(self.url(path.as_ref()).as_str())
+    }
+
+    /// Create https `DELETE` request
+    pub fn sdelete<S: AsRef<str>>(&self, path: S) -> ClientRequest {
+        self.client.delete(self.surl(path.as_ref()).as_str())
+    }
+
+    /// Create `OPTIONS` request
+    pub fn options<S: AsRef<str>>(&self, path: S) -> ClientRequest {
+        self.client.options(self.url(path.as_ref()).as_str())
+    }
+
+    /// Create https `OPTIONS` request
+    pub fn soptions<S: AsRef<str>>(&self, path: S) -> ClientRequest {
+        self.client.options(self.surl(path.as_ref()).as_str())
     }
 
     /// Connect to test http server

@@ -1,3 +1,5 @@
+#![allow(clippy::borrow_interior_mutable_const, clippy::type_complexity)]
+
 //! Static files support
 use std::cell::RefCell;
 use std::fmt::Write;
@@ -20,8 +22,8 @@ use bytes::Bytes;
 use futures::future::{ok, Either, FutureResult};
 use futures::{Async, Future, Poll, Stream};
 use mime;
-use mime_guess::get_mime_type;
-use percent_encoding::{utf8_percent_encode, DEFAULT_ENCODE_SET};
+use mime_guess::from_ext;
+use percent_encoding::{utf8_percent_encode, CONTROLS};
 use v_htmlescape::escape as escape_html_entity;
 
 mod error;
@@ -40,7 +42,7 @@ type HttpNewService = BoxedNewService<(), ServiceRequest, ServiceResponse, Error
 /// the type `application/octet-stream`.
 #[inline]
 pub fn file_extension_to_mime(ext: &str) -> mime::Mime {
-    get_mime_type(ext)
+    from_ext(ext).first_or_octet_stream()
 }
 
 #[doc(hidden)]
@@ -50,14 +52,14 @@ pub struct ChunkedReadFile {
     size: u64,
     offset: u64,
     file: Option<File>,
-    fut: Option<Box<Future<Item = (File, Bytes), Error = BlockingError<io::Error>>>>,
+    fut: Option<Box<dyn Future<Item = (File, Bytes), Error = BlockingError<io::Error>>>>,
     counter: u64,
 }
 
 fn handle_error(err: BlockingError<io::Error>) -> Error {
     match err {
         BlockingError::Error(err) => err.into(),
-        BlockingError::Canceled => ErrorInternalServerError("Unexpected error").into(),
+        BlockingError::Canceled => ErrorInternalServerError("Unexpected error"),
     }
 }
 
@@ -105,7 +107,7 @@ impl Stream for ChunkedReadFile {
 }
 
 type DirectoryRenderer =
-    Fn(&Directory, &HttpRequest) -> Result<ServiceResponse, io::Error>;
+    dyn Fn(&Directory, &HttpRequest) -> Result<ServiceResponse, io::Error>;
 
 /// A directory; responds with the generated directory listing.
 #[derive(Debug)]
@@ -142,7 +144,7 @@ impl Directory {
 // show file url as relative to static path
 macro_rules! encode_file_url {
     ($path:ident) => {
-        utf8_percent_encode(&$path.to_string_lossy(), DEFAULT_ENCODE_SET)
+        utf8_percent_encode(&$path.to_string_lossy(), CONTROLS)
     };
 }
 
@@ -209,7 +211,7 @@ fn directory_listing(
     ))
 }
 
-type MimeOverride = Fn(&mime::Name) -> DispositionType;
+type MimeOverride = dyn Fn(&mime::Name) -> DispositionType;
 
 /// Static files handling
 ///
@@ -259,7 +261,7 @@ impl Files {
     pub fn new<T: Into<PathBuf>>(path: &str, dir: T) -> Files {
         let dir = dir.into().canonicalize().unwrap_or_else(|_| PathBuf::new());
         if !dir.is_dir() {
-            log::error!("Specified path is not a directory");
+            log::error!("Specified path is not a directory: {:?}", dir);
         }
 
         Files {
@@ -312,20 +314,29 @@ impl Files {
     }
 
     #[inline]
-    ///Specifies whether to use ETag or not.
+    /// Specifies whether to use ETag or not.
     ///
-    ///Default is true.
+    /// Default is true.
     pub fn use_etag(mut self, value: bool) -> Self {
         self.file_flags.set(named::Flags::ETAG, value);
         self
     }
 
     #[inline]
-    ///Specifies whether to use Last-Modified or not.
+    /// Specifies whether to use Last-Modified or not.
     ///
-    ///Default is true.
+    /// Default is true.
     pub fn use_last_modified(mut self, value: bool) -> Self {
         self.file_flags.set(named::Flags::LAST_MD, value);
+        self
+    }
+
+    /// Disable `Content-Disposition` header.
+    ///
+    /// By default Content-Disposition` header is enabled.
+    #[inline]
+    pub fn disable_content_disposition(mut self) -> Self {
+        self.file_flags.remove(named::Flags::CONTENT_DISPOSITION);
         self
     }
 
@@ -370,7 +381,7 @@ impl NewService for Files {
     type Error = Error;
     type Service = FilesService;
     type InitError = ();
-    type Future = Box<Future<Item = Self::Service, Error = Self::InitError>>;
+    type Future = Box<dyn Future<Item = Self::Service, Error = Self::InitError>>;
 
     fn new_service(&self, _: &()) -> Self::Future {
         let mut srv = FilesService {
@@ -416,7 +427,7 @@ impl FilesService {
         req: ServiceRequest,
     ) -> Either<
         FutureResult<ServiceResponse, Error>,
-        Box<Future<Item = ServiceResponse, Error = Error>>,
+        Box<dyn Future<Item = ServiceResponse, Error = Error>>,
     > {
         log::debug!("Files: Failed to handle {}: {}", req.path(), e);
         if let Some(ref mut default) = self.default {
@@ -433,7 +444,7 @@ impl Service for FilesService {
     type Error = Error;
     type Future = Either<
         FutureResult<Self::Response, Self::Error>,
-        Box<Future<Item = Self::Response, Error = Self::Error>>,
+        Box<dyn Future<Item = Self::Response, Error = Self::Error>>,
     >;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
@@ -473,7 +484,7 @@ impl Service for FilesService {
                             Err(e) => ServiceResponse::from_err(e, req),
                         }))
                     }
-                    Err(e) => return self.handle_err(e, req),
+                    Err(e) => self.handle_err(e, req),
                 }
             } else if self.show_index {
                 let dir = Directory::new(self.directory.clone(), path);
@@ -481,7 +492,7 @@ impl Service for FilesService {
                 let x = (self.renderer)(&dir, &req);
                 match x {
                     Ok(resp) => Either::A(ok(resp)),
-                    Err(e) => return Either::A(ok(ServiceResponse::from_err(e, req))),
+                    Err(e) => Either::A(ok(ServiceResponse::from_err(e, req))),
                 }
             } else {
                 Either::A(ok(ServiceResponse::from_err(
@@ -634,6 +645,33 @@ mod tests {
             resp.headers().get(header::CONTENT_DISPOSITION).unwrap(),
             "inline; filename=\"Cargo.toml\""
         );
+    }
+
+    #[test]
+    fn test_named_file_content_disposition() {
+        assert!(NamedFile::open("test--").is_err());
+        let mut file = NamedFile::open("Cargo.toml").unwrap();
+        {
+            file.file();
+            let _f: &File = &file;
+        }
+        {
+            let _f: &mut File = &mut file;
+        }
+
+        let req = TestRequest::default().to_http_request();
+        let resp = file.respond_to(&req).unwrap();
+        assert_eq!(
+            resp.headers().get(header::CONTENT_DISPOSITION).unwrap(),
+            "inline; filename=\"Cargo.toml\""
+        );
+
+        let file = NamedFile::open("Cargo.toml")
+            .unwrap()
+            .disable_content_disposition();
+        let req = TestRequest::default().to_http_request();
+        let resp = file.respond_to(&req).unwrap();
+        assert!(resp.headers().get(header::CONTENT_DISPOSITION).is_none());
     }
 
     #[test]
@@ -855,7 +893,7 @@ mod tests {
 
     #[test]
     fn test_named_file_content_length_headers() {
-        use actix_web::body::{MessageBody, ResponseBody};
+        // use actix_web::body::{MessageBody, ResponseBody};
 
         let mut srv = test::init_service(
             App::new().service(Files::new("test", ".").index_file("tests/test.binary")),
@@ -866,7 +904,7 @@ mod tests {
             .uri("/t%65st/tests/test.binary")
             .header(header::RANGE, "bytes=10-20")
             .to_request();
-        let response = test::call_service(&mut srv, request);
+        let _response = test::call_service(&mut srv, request);
 
         // let contentlength = response
         //     .headers()
@@ -889,7 +927,7 @@ mod tests {
             .uri("/t%65st/tests/test.binary")
             // .no_default_headers()
             .to_request();
-        let response = test::call_service(&mut srv, request);
+        let _response = test::call_service(&mut srv, request);
 
         // let contentlength = response
         //     .headers()
@@ -937,7 +975,7 @@ mod tests {
             .method(Method::HEAD)
             .uri("/t%65st/tests/test.binary")
             .to_request();
-        let response = test::call_service(&mut srv, request);
+        let _response = test::call_service(&mut srv, request);
 
         // TODO: fix check
         // let contentlength = response

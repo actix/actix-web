@@ -162,16 +162,21 @@ impl ServiceConfig {
     pub fn set_date(&self, dst: &mut BytesMut) {
         let mut buf: [u8; 39] = [0; 39];
         buf[..6].copy_from_slice(b"date: ");
-        buf[6..35].copy_from_slice(&self.0.timer.date().bytes);
+        self.0
+            .timer
+            .set_date(|date| buf[6..35].copy_from_slice(&date.bytes));
         buf[35..].copy_from_slice(b"\r\n\r\n");
         dst.extend_from_slice(&buf);
     }
 
     pub(crate) fn set_date_header(&self, dst: &mut BytesMut) {
-        dst.extend_from_slice(&self.0.timer.date().bytes);
+        self.0
+            .timer
+            .set_date(|date| dst.extend_from_slice(&date.bytes));
     }
 }
 
+#[derive(Copy, Clone)]
 struct Date {
     bytes: [u8; DATE_VALUE_LENGTH],
     pos: usize,
@@ -215,10 +220,6 @@ impl DateServiceInner {
         }
     }
 
-    fn get_ref(&self) -> &Option<(Date, Instant)> {
-        unsafe { &*self.current.get() }
-    }
-
     fn reset(&self) {
         unsafe { (&mut *self.current.get()).take() };
     }
@@ -236,7 +237,7 @@ impl DateService {
     }
 
     fn check_date(&self) {
-        if self.0.get_ref().is_none() {
+        if unsafe { (&*self.0.current.get()).is_none() } {
             self.0.update();
 
             // periodic date update
@@ -252,14 +253,12 @@ impl DateService {
 
     fn now(&self) -> Instant {
         self.check_date();
-        self.0.get_ref().as_ref().unwrap().1
+        unsafe { (&*self.0.current.get()).as_ref().unwrap().1 }
     }
 
-    fn date(&self) -> &Date {
+    fn set_date<F: FnMut(&Date)>(&self, mut f: F) {
         self.check_date();
-
-        let item = self.0.get_ref().as_ref().unwrap();
-        &item.0
+        f(&unsafe { (&*self.0.current.get()).as_ref().unwrap().0 })
     }
 }
 

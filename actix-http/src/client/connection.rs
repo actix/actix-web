@@ -100,7 +100,8 @@ where
     T: AsyncRead + AsyncWrite + 'static,
 {
     type Io = T;
-    type Future = Box<Future<Item = (ResponseHead, Payload), Error = SendRequestError>>;
+    type Future =
+        Box<dyn Future<Item = (ResponseHead, Payload), Error = SendRequestError>>;
 
     fn protocol(&self) -> Protocol {
         match self.io {
@@ -138,7 +139,7 @@ where
 
     type TunnelFuture = Either<
         Box<
-            Future<
+            dyn Future<
                 Item = (ResponseHead, Framed<Self::Io, ClientCodec>),
                 Error = SendRequestError,
             >,
@@ -178,7 +179,8 @@ where
     B: AsyncRead + AsyncWrite + 'static,
 {
     type Io = EitherIo<A, B>;
-    type Future = Box<Future<Item = (ResponseHead, Payload), Error = SendRequestError>>;
+    type Future =
+        Box<dyn Future<Item = (ResponseHead, Payload), Error = SendRequestError>>;
 
     fn protocol(&self) -> Protocol {
         match self {
@@ -200,7 +202,7 @@ where
     }
 
     type TunnelFuture = Box<
-        Future<
+        dyn Future<
             Item = (ResponseHead, Framed<Self::Io, ClientCodec>),
             Error = SendRequestError,
         >,

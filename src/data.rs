@@ -118,7 +118,7 @@ impl<T: 'static> FromRequest for Data<T> {
 impl<T: 'static> DataFactory for Data<T> {
     fn create(&self, extensions: &mut Extensions) -> bool {
         if !extensions.contains::<Data<T>>() {
-            let _ = extensions.insert(Data(self.0.clone()));
+            extensions.insert(Data(self.0.clone()));
             true
         } else {
             false

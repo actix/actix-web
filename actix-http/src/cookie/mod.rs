@@ -66,7 +66,7 @@ use std::fmt;
 use std::str::FromStr;
 
 use chrono::Duration;
-use percent_encoding::{percent_encode, USERINFO_ENCODE_SET};
+use percent_encoding::{percent_encode, AsciiSet, CONTROLS};
 use time::Tm;
 
 pub use self::builder::CookieBuilder;
@@ -74,6 +74,25 @@ pub use self::draft::*;
 pub use self::jar::{CookieJar, Delta, Iter};
 use self::parse::parse_cookie;
 pub use self::parse::ParseError;
+
+/// https://url.spec.whatwg.org/#fragment-percent-encode-set
+const FRAGMENT: &AsciiSet = &CONTROLS.add(b' ').add(b'"').add(b'<').add(b'>').add(b'`');
+
+/// https://url.spec.whatwg.org/#path-percent-encode-set
+const PATH: &AsciiSet = &FRAGMENT.add(b'#').add(b'?').add(b'{').add(b'}');
+
+/// https://url.spec.whatwg.org/#userinfo-percent-encode-set
+pub const USERINFO: &AsciiSet = &PATH
+    .add(b'/')
+    .add(b':')
+    .add(b';')
+    .add(b'=')
+    .add(b'@')
+    .add(b'[')
+    .add(b'\\')
+    .add(b']')
+    .add(b'^')
+    .add(b'|');
 
 #[derive(Debug, Clone)]
 enum CookieStr {
@@ -104,6 +123,7 @@ impl CookieStr {
         }
     }
 
+    #[allow(clippy::ptr_arg)]
     fn to_raw_str<'s, 'c: 's>(&'s self, string: &'s Cow<'c, str>) -> Option<&'c str> {
         match *self {
             CookieStr::Indexed(i, j) => match *string {
@@ -909,8 +929,8 @@ pub struct EncodedCookie<'a, 'c: 'a>(&'a Cookie<'c>);
 impl<'a, 'c: 'a> fmt::Display for EncodedCookie<'a, 'c> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         // Percent-encode the name and value.
-        let name = percent_encode(self.0.name().as_bytes(), USERINFO_ENCODE_SET);
-        let value = percent_encode(self.0.value().as_bytes(), USERINFO_ENCODE_SET);
+        let name = percent_encode(self.0.name().as_bytes(), USERINFO);
+        let value = percent_encode(self.0.value().as_bytes(), USERINFO);
 
         // Write out the name/value pair and the cookie's parameters.
         write!(f, "{}={}", name, value)?;

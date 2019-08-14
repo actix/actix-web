@@ -180,7 +180,7 @@ where
 
     /// Set server host name.
     ///
-    /// Host name is used by application router aa a hostname for url
+    /// Host name is used by application router as a hostname for url
     /// generation. Check [ConnectionInfo](./dev/struct.ConnectionInfo.
     /// html#method.host) documentation for more information.
     pub fn server_hostname<T: AsRef<str>>(mut self, val: T) -> Self {
@@ -288,13 +288,13 @@ where
             lst,
             move || {
                 let c = cfg.lock();
-                acceptor.clone().map_err(|e| SslError::Ssl(e)).and_then(
+                acceptor.clone().map_err(SslError::Ssl).and_then(
                     HttpService::build()
                         .keep_alive(c.keep_alive)
                         .client_timeout(c.client_timeout)
                         .client_disconnect(c.client_shutdown)
                         .finish(factory())
-                        .map_err(|e| SslError::Service(e))
+                        .map_err(SslError::Service)
                         .map_init_err(|_| ()),
                 )
             },
@@ -339,13 +339,13 @@ where
             lst,
             move || {
                 let c = cfg.lock();
-                acceptor.clone().map_err(|e| SslError::Ssl(e)).and_then(
+                acceptor.clone().map_err(SslError::Ssl).and_then(
                     HttpService::build()
                         .keep_alive(c.keep_alive)
                         .client_timeout(c.client_timeout)
                         .client_disconnect(c.client_shutdown)
                         .finish(factory())
-                        .map_err(|e| SslError::Service(e))
+                        .map_err(SslError::Service)
                         .map_init_err(|_| ()),
                 )
             },
@@ -432,6 +432,38 @@ where
         for lst in sockets {
             self = self.listen_rustls_inner(lst, config.clone())?;
         }
+        Ok(self)
+    }
+
+    #[cfg(feature = "uds")]
+    /// Start listening for incoming unix domain connections.
+    ///
+    /// This method is available with `uds` feature.
+    pub fn bind_uds<A>(mut self, addr: A) -> io::Result<Self>
+    where
+        A: AsRef<std::path::Path>,
+    {
+        let cfg = self.config.clone();
+        let factory = self.factory.clone();
+        self.sockets.push(Socket {
+            scheme: "http",
+            addr: net::SocketAddr::new(
+                net::IpAddr::V4(net::Ipv4Addr::new(127, 0, 0, 1)),
+                8080,
+            ),
+        });
+
+        self.builder = self.builder.bind_uds(
+            format!("actix-web-service-{:?}", addr.as_ref()),
+            addr,
+            move || {
+                let c = cfg.lock();
+                HttpService::build()
+                    .keep_alive(c.keep_alive)
+                    .client_timeout(c.client_timeout)
+                    .finish(factory())
+            },
+        )?;
         Ok(self)
     }
 }

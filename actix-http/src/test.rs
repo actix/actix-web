@@ -9,9 +9,9 @@ use bytes::{Buf, Bytes, BytesMut};
 use futures::{Async, Poll};
 use http::header::{self, HeaderName, HeaderValue};
 use http::{HttpTryFrom, Method, Uri, Version};
-use percent_encoding::{percent_encode, USERINFO_ENCODE_SET};
+use percent_encoding::percent_encode;
 
-use crate::cookie::{Cookie, CookieJar};
+use crate::cookie::{Cookie, CookieJar, USERINFO};
 use crate::header::HeaderMap;
 use crate::header::{Header, IntoHeaderValue};
 use crate::payload::Payload;
@@ -166,8 +166,8 @@ impl TestRequest {
 
         let mut cookie = String::new();
         for c in inner.cookies.delta() {
-            let name = percent_encode(c.name().as_bytes(), USERINFO_ENCODE_SET);
-            let value = percent_encode(c.value().as_bytes(), USERINFO_ENCODE_SET);
+            let name = percent_encode(c.name().as_bytes(), USERINFO);
+            let value = percent_encode(c.value().as_bytes(), USERINFO);
             let _ = write!(&mut cookie, "; {}={}", name, value);
         }
         if !cookie.is_empty() {

@@ -1,4 +1,5 @@
 //! Error and Result module
+use std::any::TypeId;
 use std::cell::RefCell;
 use std::io::Write;
 use std::str::Utf8Error;
@@ -43,13 +44,18 @@ pub type Result<T, E = Error> = result::Result<T, E>;
 /// if you have access to an actix `Error` you can always get a
 /// `ResponseError` reference from it.
 pub struct Error {
-    cause: Box<ResponseError>,
+    cause: Box<dyn ResponseError>,
 }
 
 impl Error {
     /// Returns the reference to the underlying `ResponseError`.
-    pub fn as_response_error(&self) -> &ResponseError {
+    pub fn as_response_error(&self) -> &dyn ResponseError {
         self.cause.as_ref()
+    }
+
+    /// Similar to `as_response_error` but downcasts.
+    pub fn as_error<T: ResponseError + 'static>(&self) -> Option<&T> {
+        ResponseError::downcast_ref(self.cause.as_ref())
     }
 }
 
@@ -72,6 +78,25 @@ pub trait ResponseError: fmt::Debug + fmt::Display {
             header::HeaderValue::from_static("text/plain"),
         );
         resp.set_body(Body::from(buf))
+    }
+
+    #[doc(hidden)]
+    fn __private_get_type_id__(&self) -> TypeId
+    where
+        Self: 'static,
+    {
+        TypeId::of::<Self>()
+    }
+}
+
+impl dyn ResponseError + 'static {
+    /// Downcasts a response error to a specific type.
+    pub fn downcast_ref<T: ResponseError + 'static>(&self) -> Option<&T> {
+        if self.__private_get_type_id__() == TypeId::of::<T>() {
+            unsafe { Some(&*(self as *const dyn ResponseError as *const T)) }
+        } else {
+            None
+        }
     }
 }
 
@@ -1042,6 +1067,16 @@ mod tests {
             InternalError::from_response(ParseError::Method, Response::Ok().into());
         let resp: Response = err.error_response();
         assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[test]
+    fn test_error_casting() {
+        let err = PayloadError::Overflow;
+        let resp_err: &ResponseError = &err;
+        let err = resp_err.downcast_ref::<PayloadError>().unwrap();
+        assert_eq!(err.to_string(), "A payload reached size limit.");
+        let not_err = resp_err.downcast_ref::<ContentTypeError>();
+        assert!(not_err.is_none());
     }
 
     #[test]

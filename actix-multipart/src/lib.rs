@@ -1,3 +1,5 @@
+#![allow(clippy::borrow_interior_mutable_const)]
+
 mod error;
 mod extractor;
 mod server;

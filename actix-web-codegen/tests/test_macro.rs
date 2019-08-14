@@ -142,7 +142,6 @@ fn test_body() {
     assert!(response.status().is_success());
     assert_eq!(response.status(), http::StatusCode::NO_CONTENT);
 
-    let mut srv = TestServer::new(|| HttpService::new(App::new().service(auto_sync)));
     let request = srv.request(http::Method::GET, srv.url("/test"));
     let response = srv.block_on(request.send()).unwrap();
     assert!(response.status().is_success());

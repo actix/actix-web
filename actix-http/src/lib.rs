@@ -1,8 +1,10 @@
 //! Basic http primitives for actix-net framework.
 #![allow(
     clippy::type_complexity,
+    clippy::too_many_arguments,
     clippy::new_without_default,
-    clippy::borrow_interior_mutable_const
+    clippy::borrow_interior_mutable_const,
+    clippy::write_with_newline
 )]
 
 #[macro_use]
@@ -11,6 +13,7 @@ extern crate log;
 pub mod body;
 mod builder;
 pub mod client;
+mod cloneable;
 mod config;
 pub mod encoding;
 mod extensions;

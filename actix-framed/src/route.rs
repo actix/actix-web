@@ -140,7 +140,7 @@ where
     type Request = FramedRequest<Io, S>;
     type Response = ();
     type Error = Error;
-    type Future = Box<Future<Item = (), Error = Error>>;
+    type Future = Box<dyn Future<Item = (), Error = Error>>;
 
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
         Ok(Async::Ready(()))

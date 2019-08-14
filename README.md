@@ -22,7 +22,7 @@ Actix web is a simple, pragmatic and extremely fast web framework for Rust.
 * [API Documentation (0.7)](https://docs.rs/actix-web/0.7.19/actix_web/)
 * [Chat on gitter](https://gitter.im/actix/actix)
 * Cargo package: [actix-web](https://crates.io/crates/actix-web)
-* Minimum supported Rust version: 1.34 or later
+* Minimum supported Rust version: 1.36 or later
 
 ## Example
 
@@ -61,7 +61,7 @@ You may consider checking out
 
 ## Benchmarks
 
-* [TechEmpower Framework Benchmark](https://www.techempower.com/benchmarks/#section=data-r16&hw=ph&test=plaintext)
+* [TechEmpower Framework Benchmark](https://www.techempower.com/benchmarks/#section=data-r18)
 
 ## License
 
