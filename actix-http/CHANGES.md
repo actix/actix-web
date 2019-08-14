@@ -1,5 +1,11 @@
 # Changes
 
+## [0.2.10] - unreleased
+
+### Fixed
+
+* Add flate2/libc feature for flate2-zlib to fix compliation issue
+
 ## [0.2.9] - 2019-08-13
 
 ### Changed
