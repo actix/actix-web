@@ -482,5 +482,4 @@ mod tests {
         use crate::responder::tests::BodyTest;
         assert_eq!(resp.body().bin_ref(), b"hello=world&counter=123");
     }
-
 }

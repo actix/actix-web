@@ -151,5 +151,4 @@ mod tests {
         let res = block_on(normalize.call(req)).unwrap();
         assert!(res.status().is_success());
     }
-
 }

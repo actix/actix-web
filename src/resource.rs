@@ -763,5 +763,4 @@ mod tests {
         let resp = call_service(&mut srv, req);
         assert_eq!(resp.status(), StatusCode::NO_CONTENT);
     }
-
 }
