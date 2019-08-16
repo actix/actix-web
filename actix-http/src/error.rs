@@ -1072,7 +1072,7 @@ mod tests {
     #[test]
     fn test_error_casting() {
         let err = PayloadError::Overflow;
-        let resp_err: &ResponseError = &err;
+        let resp_err: &dyn ResponseError = &err;
         let err = resp_err.downcast_ref::<PayloadError>().unwrap();
         assert_eq!(err.to_string(), "A payload reached size limit.");
         let not_err = resp_err.downcast_ref::<ContentTypeError>();
