@@ -1,6 +1,6 @@
 # Changes
 
-## [0.1.3] - 2019-06-06
+## [0.1.3] - 2019-08-18
 
 * Fix ring dependency from actix-web default features for #741.
 
