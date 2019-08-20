@@ -781,7 +781,7 @@ impl PayloadBuffer {
     /// Read bytes until new line delimiter or eof
     pub fn readline_or_eof(&mut self) -> Result<Option<Bytes>, MultipartError> {
         match self.readline() {
-            Err(MultipartError::Incomplete) => Ok(Some(self.buf.take().freeze())),
+            Err(MultipartError::Incomplete) if self.eof => Ok(Some(self.buf.take().freeze())),
             line => line
         }
     }
