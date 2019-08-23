@@ -8,6 +8,8 @@
 
 * Form immplements Responder, returning a `application/x-www-form-urlencoded` response
 
+* Add `into_inner` to `Data`
+
 ### Changed
 
 * `Query` payload made `pub`. Allows user to pattern-match the payload.
