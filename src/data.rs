@@ -77,6 +77,11 @@ impl<T> Data<T> {
     pub fn get_ref(&self) -> &T {
         self.0.as_ref()
     }
+
+    /// Convert to the internal Arc<T>
+    pub fn into_inner(self) -> Arc<T> {
+        self.0
+    }
 }
 
 impl<T> Deref for Data<T> {

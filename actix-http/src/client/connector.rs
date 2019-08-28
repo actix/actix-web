@@ -269,9 +269,9 @@ where
                                     .map(|protos| protos.windows(2).any(|w| w == H2))
                                     .unwrap_or(false);
                                 if h2 {
-                                    (Box::new(sock) as Box<Io>, Protocol::Http2)
+                                    (Box::new(sock) as Box<dyn Io>, Protocol::Http2)
                                 } else {
-                                    (Box::new(sock) as Box<Io>, Protocol::Http1)
+                                    (Box::new(sock) as Box<dyn Io>, Protocol::Http1)
                                 }
                             }),
                     ),
@@ -288,9 +288,9 @@ where
                                     .map(|protos| protos.windows(2).any(|w| w == H2))
                                     .unwrap_or(false);
                                 if h2 {
-                                    (Box::new(sock) as Box<Io>, Protocol::Http2)
+                                    (Box::new(sock) as Box<dyn Io>, Protocol::Http2)
                                 } else {
-                                    (Box::new(sock) as Box<Io>, Protocol::Http1)
+                                    (Box::new(sock) as Box<dyn Io>, Protocol::Http1)
                                 }
                             }),
                     ),
