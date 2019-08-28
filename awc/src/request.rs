@@ -98,7 +98,7 @@ impl ClientRequest {
         }
         self
     }
-    
+
     /// Get HTTP URI of request
     pub fn get_uri(&self) -> &Uri {
         &self.head.uri
