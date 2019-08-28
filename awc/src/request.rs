@@ -98,6 +98,11 @@ impl ClientRequest {
         }
         self
     }
+    
+    /// Get HTTP URI of request
+    pub fn get_uri(&self) -> &Uri {
+        &self.head.uri
+    }
 
     /// Set socket address of the server.
     ///
@@ -113,6 +118,11 @@ impl ClientRequest {
     pub fn method(mut self, method: Method) -> Self {
         self.head.method = method;
         self
+    }
+
+    /// Get HTTP method of this request
+    pub fn get_method(&self) -> &Method {
+        &self.head.method
     }
 
     #[doc(hidden)]
@@ -561,6 +571,21 @@ pub struct FrozenClientRequest {
 }
 
 impl FrozenClientRequest {
+    /// Get HTTP URI of request
+    pub fn get_uri(&self) -> &Uri {
+        &self.head.uri
+    }
+
+    /// Get HTTP method of this request
+    pub fn get_method(&self) -> &Method {
+        &self.head.method
+    }
+
+    /// Returns request's headers.
+    pub fn headers(&self) -> &HeaderMap {
+        &self.head.headers
+    }
+
     /// Send body with optional extra headers.
     /// Extra headers will override corresponding existing headers in a frozen request.
     pub fn send_body<B>(
