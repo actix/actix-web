@@ -10,6 +10,9 @@
 
 * Add `into_inner` to `Data`
 
+* Add `test::TestRequest::set_form()` convenience method to automatically serialize data and set
+  the header in test requests.
+
 ### Changed
 
 * `Query` payload made `pub`. Allows user to pattern-match the payload.

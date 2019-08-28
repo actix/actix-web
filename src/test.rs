@@ -478,6 +478,16 @@ impl TestRequest {
         self
     }
 
+    /// Serialize `data` to a URL encoded form and set it as the request payload. The `Content-Type`
+    /// header is set to `application/x-www-form-urlencoded`.
+    pub fn set_form<T: Serialize>(mut self, data: &T) -> Self {
+        let bytes = serde_urlencoded::to_string(data)
+            .expect("Failed to serialize test data as a urlencoded form");
+        self.req.set_payload(bytes);
+        self.req.set(ContentType::form_url_encoded());
+        self
+    }
+
     /// Serialize `data` to JSON and set it as the request payload. The `Content-Type` header is
     /// set to `application/json`.
     pub fn set_json<T: Serialize>(mut self, data: &T) -> Self {
@@ -668,6 +678,31 @@ mod tests {
 
         let result: Person = read_response_json(&mut app, req);
         assert_eq!(&result.id, "12345");
+    }
+
+    #[test]
+    fn test_request_response_form() {
+        let mut app = init_service(App::new().service(web::resource("/people").route(
+            web::post().to(|person: web::Form<Person>| {
+                HttpResponse::Ok().json(person.into_inner())
+            }),
+        )));
+
+        let payload = Person {
+            id: "12345".to_string(),
+            name: "User name".to_string(),
+        };
+
+        let req = TestRequest::post()
+            .uri("/people")
+            .set_form(&payload)
+            .to_request();
+
+        assert_eq!(req.content_type(), "application/x-www-form-urlencoded");
+
+        let result: Person = read_response_json(&mut app, req);
+        assert_eq!(&result.id, "12345");
+        assert_eq!(&result.name, "User name");
     }
 
     #[test]
