@@ -1,6 +1,6 @@
 # Changes
 
-## [1.0.6] - 2019-xx-xx
+## [1.0.6] - 2019-08-28
 
 ### Added
 
@@ -16,6 +16,8 @@
 ### Changed
 
 * `Query` payload made `pub`. Allows user to pattern-match the payload.
+
+* Enable `rust-tls` feature for client #1045
 
 * Update serde_urlencoded to 0.6.1
 

@@ -1,6 +1,6 @@
 [package]
 name = "actix-web"
-version = "1.0.5"
+version = "1.0.6"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix web is a simple, pragmatic and extremely fast web framework for Rust."
 readme = "README.md"
@@ -66,7 +66,7 @@ fail = ["actix-http/fail"]
 ssl = ["openssl", "actix-server/ssl", "awc/ssl"]
 
 # rustls
-rust-tls = ["rustls", "actix-server/rust-tls"]
+rust-tls = ["rustls", "actix-server/rust-tls", "awc/rust-tls"]
 
 # unix domain sockets support
 uds = ["actix-server/uds"]
