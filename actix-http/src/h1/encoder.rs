@@ -509,9 +509,11 @@ fn write_camel_case(value: &[u8], buffer: &mut [u8]) {
 #[cfg(test)]
 mod tests {
     use bytes::Bytes;
+    //use std::rc::Rc;
 
     use super::*;
     use crate::http::header::{HeaderValue, CONTENT_TYPE};
+    use http::header::AUTHORIZATION;
 
     #[test]
     fn test_chunked_te() {
@@ -536,7 +538,9 @@ mod tests {
         head.headers
             .insert(CONTENT_TYPE, HeaderValue::from_static("plain/text"));
 
-        let _ = head.encode_headers(
+        let mut head_with_extra = (Rc::new(head), None);
+
+        let _ = head_with_extra.encode_headers(
             &mut bytes,
             Version::HTTP_11,
             BodySize::Empty,
@@ -548,7 +552,7 @@ mod tests {
             Bytes::from_static(b"\r\nContent-Length: 0\r\nConnection: close\r\nDate: date\r\nContent-Type: plain/text\r\n\r\n")
         );
 
-        let _ = head.encode_headers(
+        let _ = head_with_extra.encode_headers(
             &mut bytes,
             Version::HTTP_11,
             BodySize::Stream,
@@ -560,7 +564,7 @@ mod tests {
             Bytes::from_static(b"\r\nTransfer-Encoding: chunked\r\nDate: date\r\nContent-Type: plain/text\r\n\r\n")
         );
 
-        let _ = head.encode_headers(
+        let _ = head_with_extra.encode_headers(
             &mut bytes,
             Version::HTTP_11,
             BodySize::Sized64(100),
@@ -572,22 +576,17 @@ mod tests {
             Bytes::from_static(b"\r\nContent-Length: 100\r\nDate: date\r\nContent-Type: plain/text\r\n\r\n")
         );
 
+        let mut head = RequestHead::default();
+        head.set_camel_case_headers(false);
+        head.headers.insert(DATE, HeaderValue::from_static("date"));
+        head.headers
+            .insert(CONTENT_TYPE, HeaderValue::from_static("plain/text"));
         head.headers
             .append(CONTENT_TYPE, HeaderValue::from_static("xml"));
-        let _ = head.encode_headers(
-            &mut bytes,
-            Version::HTTP_11,
-            BodySize::Stream,
-            ConnectionType::KeepAlive,
-            &ServiceConfig::default(),
-        );
-        assert_eq!(
-            bytes.take().freeze(),
-            Bytes::from_static(b"\r\nTransfer-Encoding: chunked\r\nDate: date\r\nContent-Type: xml\r\nContent-Type: plain/text\r\n\r\n")
-        );
 
-        head.set_camel_case_headers(false);
-        let _ = head.encode_headers(
+        let mut head_with_extra = (Rc::new(head), None);
+
+        let _ = head_with_extra.encode_headers(
             &mut bytes,
             Version::HTTP_11,
             BodySize::Stream,
@@ -597,6 +596,32 @@ mod tests {
         assert_eq!(
             bytes.take().freeze(),
             Bytes::from_static(b"\r\ntransfer-encoding: chunked\r\ndate: date\r\ncontent-type: xml\r\ncontent-type: plain/text\r\n\r\n")
+        );
+    }
+
+    #[test]
+    fn test_extra_headers() {
+        let mut bytes = BytesMut::with_capacity(2048);
+
+        let mut head = RequestHead::default();
+        head.headers.insert(AUTHORIZATION, HeaderValue::from_static("some authorization"));
+
+        let mut extra_headers = HeaderMap::new();
+        extra_headers.insert(AUTHORIZATION,HeaderValue::from_static("another authorization"));
+        extra_headers.insert(DATE, HeaderValue::from_static("date"));
+
+        let mut head_with_extra = (Rc::new(head), Some(extra_headers));
+
+        let _ = head_with_extra.encode_headers(
+            &mut bytes,
+            Version::HTTP_11,
+            BodySize::Empty,
+            ConnectionType::Close,
+            &ServiceConfig::default(),
+        );
+        assert_eq!(
+            bytes.take().freeze(),
+            Bytes::from_static(b"\r\ncontent-length: 0\r\nconnection: close\r\nauthorization: another authorization\r\ndate: date\r\n\r\n")
         );
     }
 }
