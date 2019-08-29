@@ -259,6 +259,7 @@ impl Drop for HttpRequest {
         if Rc::strong_count(&self.0) == 1 {
             let v = &mut self.0.pool.0.borrow_mut();
             if v.len() < 128 {
+                self.extensions_mut().clear();
                 v.push(self.0.clone());
             }
         }
@@ -493,5 +494,37 @@ mod tests {
         let req = TestRequest::default().to_request();
         let resp = call_service(&mut srv, req);
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[test]
+    fn test_extensions_dropped() {
+        struct Tracker {
+            pub dropped: bool,
+        }
+        struct Foo {
+            tracker: Rc<RefCell<Tracker>>,
+        }
+        impl Drop for Foo {
+            fn drop(&mut self) {
+                self.tracker.borrow_mut().dropped = true;
+            }
+        }
+
+        let tracker = Rc::new(RefCell::new(Tracker { dropped: false }));
+        {
+            let tracker2 = Rc::clone(&tracker);
+            let mut srv = init_service(App::new().data(10u32).service(
+                web::resource("/").to(move |req: HttpRequest| {
+                    req.extensions_mut().insert(Foo { tracker: Rc::clone(&tracker2) });
+                    HttpResponse::Ok()
+                }),
+            ));
+
+            let req = TestRequest::default().to_request();
+            let resp = call_service(&mut srv, req);
+            assert_eq!(resp.status(), StatusCode::OK);
+        }
+
+        assert!(tracker.borrow().dropped);
     }
 }

@@ -1,5 +1,12 @@
 # Changes
 
+## [1.0.7] - 2019-08-29
+
+### Fixed
+
+* Request Extensions leak #1062
+
+
 ## [1.0.6] - 2019-08-28
 
 ### Added
