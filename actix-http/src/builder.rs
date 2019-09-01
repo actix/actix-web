@@ -199,6 +199,7 @@ where
             self.client_disconnect,
         );
         H2Service::with_config(cfg, service.into_new_service())
+            .on_connect(self.on_connect)
     }
 
     /// Finish service configuration and create `HttpService` instance.

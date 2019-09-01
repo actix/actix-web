@@ -515,7 +515,9 @@ mod tests {
             let tracker2 = Rc::clone(&tracker);
             let mut srv = init_service(App::new().data(10u32).service(
                 web::resource("/").to(move |req: HttpRequest| {
-                    req.extensions_mut().insert(Foo { tracker: Rc::clone(&tracker2) });
+                    req.extensions_mut().insert(Foo {
+                        tracker: Rc::clone(&tracker2),
+                    });
                     HttpResponse::Ok()
                 }),
             ));

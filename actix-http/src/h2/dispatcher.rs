@@ -23,6 +23,7 @@ use crate::cloneable::CloneableService;
 use crate::config::ServiceConfig;
 use crate::error::{DispatchError, Error, ParseError, PayloadError, ResponseError};
 use crate::helpers::DataFactory;
+use crate::httpmessage::HttpMessage;
 use crate::message::ResponseHead;
 use crate::payload::Payload;
 use crate::request::Request;
@@ -122,6 +123,12 @@ where
                     head.version = parts.version;
                     head.headers = parts.headers.into();
                     head.peer_addr = self.peer_addr;
+
+                    // set on_connect data
+                    if let Some(ref on_connect) = self.on_connect {
+                        on_connect.set(&mut req.extensions_mut());
+                    }
+
                     tokio_current_thread::spawn(ServiceResponse::<S::Future, B> {
                         state: ServiceResponseState::ServiceCall(
                             self.service.call(req),

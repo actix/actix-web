@@ -1,5 +1,12 @@
 # Changes
 
+## [0.2.10] - 2019-09-xx
+
+### Fixed
+
+* on_connect result isn't added to request extensions for http2 requests #1009
+
+
 ## [0.2.9] - 2019-08-13
 
 ### Changed
