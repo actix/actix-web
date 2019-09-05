@@ -16,7 +16,7 @@ use crate::http::header::{
     HeaderValue, ACCEPT_ENCODING, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING,
 };
 use crate::http::{HeaderMap, Method, StatusCode, Version};
-use crate::message::{ConnectionType, Head, RequestHead, ResponseHead, RequestHeadWrapper};
+use crate::message::{ConnectionType, Head, RequestHead, ResponseHead, RequestHeadType};
 use crate::request::Request;
 use crate::response::Response;
 
@@ -263,7 +263,7 @@ impl MessageType for Response<()> {
     }
 }
 
-impl MessageType for RequestHeadWrapper {
+impl MessageType for RequestHeadType {
     fn status(&self) -> Option<StatusCode> {
         None
     }
@@ -538,7 +538,7 @@ mod tests {
         head.headers
             .insert(CONTENT_TYPE, HeaderValue::from_static("plain/text"));
 
-        let mut head_wrapper = RequestHeadWrapper::Owned(head);
+        let mut head_wrapper = RequestHeadType::Owned(head);
 
         let _ = head_wrapper.encode_headers(
             &mut bytes,
@@ -584,7 +584,7 @@ mod tests {
         head.headers
             .append(CONTENT_TYPE, HeaderValue::from_static("xml"));
 
-        let mut head_wrapper = RequestHeadWrapper::Owned(head);
+        let mut head_wrapper = RequestHeadType::Owned(head);
 
         let _ = head_wrapper.encode_headers(
             &mut bytes,
@@ -610,7 +610,7 @@ mod tests {
         extra_headers.insert(AUTHORIZATION,HeaderValue::from_static("another authorization"));
         extra_headers.insert(DATE, HeaderValue::from_static("date"));
 
-        let mut head_wrapper = RequestHeadWrapper::Rc(Rc::new(head), Some(extra_headers));
+        let mut head_wrapper = RequestHeadType::Rc(Rc::new(head), Some(extra_headers));
 
         let _ = head_wrapper.encode_headers(
             &mut bytes,

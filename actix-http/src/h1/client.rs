@@ -17,7 +17,7 @@ use crate::body::BodySize;
 use crate::config::ServiceConfig;
 use crate::error::{ParseError, PayloadError};
 use crate::helpers;
-use crate::message::{ConnectionType, Head, MessagePool, RequestHead, RequestHeadWrapper, ResponseHead};
+use crate::message::{ConnectionType, Head, MessagePool, RequestHead, RequestHeadType, ResponseHead};
 use crate::header::HeaderMap;
 
 bitflags! {
@@ -50,7 +50,7 @@ struct ClientCodecInner {
     // encoder part
     flags: Flags,
     headers_size: u32,
-    encoder: encoder::MessageEncoder<RequestHeadWrapper>,
+    encoder: encoder::MessageEncoder<RequestHeadType>,
 }
 
 impl Default for ClientCodec {
@@ -185,7 +185,7 @@ impl Decoder for ClientPayloadCodec {
 }
 
 impl Encoder for ClientCodec {
-    type Item = Message<(RequestHeadWrapper, BodySize)>;
+    type Item = Message<(RequestHeadType, BodySize)>;
     type Error = io::Error;
 
     fn encode(

@@ -9,7 +9,7 @@ use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, TRANSFER_ENCODING};
 use http::{request::Request, HttpTryFrom, Method, Version};
 
 use crate::body::{BodySize, MessageBody};
-use crate::message::{RequestHeadWrapper, ResponseHead};
+use crate::message::{RequestHeadType, ResponseHead};
 use crate::payload::Payload;
 use crate::header::HeaderMap;
 
@@ -19,7 +19,7 @@ use super::pool::Acquired;
 
 pub(crate) fn send_request<T, B>(
     io: SendRequest<Bytes>,
-    head_wrapper: RequestHeadWrapper,
+    head_wrapper: RequestHeadType,
     body: B,
     created: time::Instant,
     pool: Option<Acquired<T>>,
@@ -69,8 +69,8 @@ where
 
             // Extracting extra headers from RequestHeadWrapper. HeaderMap::new() does not allocate.
             let (head_wrapper, extra_headers) = match head_wrapper {
-                RequestHeadWrapper::Owned(head) => (RequestHeadWrapper::Owned(head), HeaderMap::new()),
-                RequestHeadWrapper::Rc(head, extra_headers) => (RequestHeadWrapper::Rc(head, None), extra_headers.unwrap_or(HeaderMap::new())),
+                RequestHeadType::Owned(head) => (RequestHeadType::Owned(head), HeaderMap::new()),
+                RequestHeadType::Rc(head, extra_headers) => (RequestHeadType::Rc(head, None), extra_headers.unwrap_or(HeaderMap::new())),
             };
 
             // merging headers from head and extra headers.

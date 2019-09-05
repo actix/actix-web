@@ -9,7 +9,7 @@ use futures::{Async, Future, Poll, Sink, Stream};
 use crate::error::PayloadError;
 use crate::h1;
 use crate::http::header::{IntoHeaderValue, HOST};
-use crate::message::{RequestHeadWrapper, ResponseHead};
+use crate::message::{RequestHeadType, ResponseHead};
 use crate::payload::{Payload, PayloadStream};
 use crate::header::HeaderMap;
 
@@ -20,7 +20,7 @@ use crate::body::{BodySize, MessageBody};
 
 pub(crate) fn send_request<T, B>(
     io: T,
-    mut head_wrapper: RequestHeadWrapper,
+    mut head_wrapper: RequestHeadType,
     body: B,
     created: time::Instant,
     pool: Option<Acquired<T>>,
@@ -42,10 +42,10 @@ where
             match wrt.get_mut().take().freeze().try_into() {
                 Ok(value) => {
                     match head_wrapper {
-                        RequestHeadWrapper::Owned(ref mut head) => {
+                        RequestHeadType::Owned(ref mut head) => {
                             head.headers.insert(HOST, value)
                         },
-                        RequestHeadWrapper::Rc(_, ref mut extra_headers) => {
+                        RequestHeadType::Rc(_, ref mut extra_headers) => {
                             let headers = extra_headers.get_or_insert(HeaderMap::new());
                             headers.insert(HOST, value)
                         },
@@ -104,7 +104,7 @@ where
 
 pub(crate) fn open_tunnel<T>(
     io: T,
-    head_wrapper: RequestHeadWrapper,
+    head_wrapper: RequestHeadType,
 ) -> impl Future<Item = (ResponseHead, Framed<T, h1::ClientCodec>), Error = SendRequestError>
 where
     T: AsyncRead + AsyncWrite + 'static,

@@ -182,25 +182,25 @@ impl RequestHead {
 }
 
 #[derive(Debug)]
-pub enum RequestHeadWrapper {
+pub enum RequestHeadType {
     Owned(RequestHead),
     Rc(Rc<RequestHead>, Option<HeaderMap>),
 }
 
-impl RequestHeadWrapper {
+impl RequestHeadType {
     pub fn extra_headers(&self) -> Option<&HeaderMap> {
         match self {
-            RequestHeadWrapper::Owned(_) => None,
-            RequestHeadWrapper::Rc(_, headers) => headers.as_ref(),
+            RequestHeadType::Owned(_) => None,
+            RequestHeadType::Rc(_, headers) => headers.as_ref(),
         }
     }
 }
 
-impl AsRef<RequestHead> for RequestHeadWrapper {
+impl AsRef<RequestHead> for RequestHeadType {
     fn as_ref(&self) -> &RequestHead {
         match self {
-            RequestHeadWrapper::Owned(head) => &head,
-            RequestHeadWrapper::Rc(head, _) => head.as_ref(),
+            RequestHeadType::Owned(head) => &head,
+            RequestHeadType::Rc(head, _) => head.as_ref(),
         }
     }
 }

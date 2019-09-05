@@ -9,7 +9,7 @@ use h2::client::SendRequest;
 
 use crate::body::MessageBody;
 use crate::h1::ClientCodec;
-use crate::message::{RequestHead, RequestHeadWrapper, ResponseHead};
+use crate::message::{RequestHead, RequestHeadType, ResponseHead};
 use crate::payload::Payload;
 use crate::header::HeaderMap;
 
@@ -129,14 +129,14 @@ where
         match self.io.take().unwrap() {
             ConnectionType::H1(io) => Box::new(h1proto::send_request(
                 io,
-                RequestHeadWrapper::Owned(head),
+                RequestHeadType::Owned(head),
                 body,
                 self.created,
                 self.pool,
             )),
             ConnectionType::H2(io) => Box::new(h2proto::send_request(
                 io,
-                RequestHeadWrapper::Owned(head),
+                RequestHeadType::Owned(head),
                 body,
                 self.created,
                 self.pool,
@@ -153,14 +153,14 @@ where
         match self.io.take().unwrap() {
             ConnectionType::H1(io) => Box::new(h1proto::send_request(
                 io,
-                RequestHeadWrapper::Rc(head, extra_headers),
+                RequestHeadType::Rc(head, extra_headers),
                 body,
                 self.created,
                 self.pool,
             )),
             ConnectionType::H2(io) => Box::new(h2proto::send_request(
                 io,
-                RequestHeadWrapper::Rc(head, extra_headers),
+                RequestHeadType::Rc(head, extra_headers),
                 body,
                 self.created,
                 self.pool,
@@ -182,7 +182,7 @@ where
     fn open_tunnel(mut self, head: RequestHead) -> Self::TunnelFuture {
         match self.io.take().unwrap() {
             ConnectionType::H1(io) => {
-                Either::A(Box::new(h1proto::open_tunnel(io, RequestHeadWrapper::Owned(head))))
+                Either::A(Box::new(h1proto::open_tunnel(io, RequestHeadType::Owned(head))))
             }
             ConnectionType::H2(io) => {
                 if let Some(mut pool) = self.pool.take() {
@@ -200,7 +200,7 @@ where
     fn open_tunnel_extra(mut self, head: Rc<RequestHead>, extra_headers: Option<HeaderMap>) -> Self::TunnelFuture {
         match self.io.take().unwrap() {
             ConnectionType::H1(io) => {
-                Either::A(Box::new(h1proto::open_tunnel(io, RequestHeadWrapper::Rc(head, extra_headers))))
+                Either::A(Box::new(h1proto::open_tunnel(io, RequestHeadType::Rc(head, extra_headers))))
             }
             ConnectionType::H2(io) => {
                 if let Some(mut pool) = self.pool.take() {
