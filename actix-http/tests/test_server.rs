@@ -11,6 +11,7 @@ use futures::stream::{once, Stream};
 use regex::Regex;
 use tokio_timer::sleep;
 
+use actix_http::httpmessage::HttpMessage;
 use actix_http::{
     body, error, http, http::header, Error, HttpService, KeepAlive, Request, Response,
 };
@@ -601,4 +602,19 @@ fn test_h1_service_error() {
     // read response
     let bytes = srv.load_body(response).unwrap();
     assert_eq!(bytes, Bytes::from_static(b"error"));
+}
+
+#[test]
+fn test_h1_on_connect() {
+    let mut srv = TestServer::new(|| {
+        HttpService::build()
+            .on_connect(|_| 10usize)
+            .h1(|req: Request| {
+                assert!(req.extensions().contains::<usize>());
+                future::ok::<_, ()>(Response::Ok().finish())
+            })
+    });
+
+    let response = srv.block_on(srv.get("/").send()).unwrap();
+    assert!(response.status().is_success());
 }

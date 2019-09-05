@@ -1,9 +1,5 @@
 #![cfg(feature = "ssl")]
 use actix_codec::{AsyncRead, AsyncWrite};
-use actix_http::error::{ErrorBadRequest, PayloadError};
-use actix_http::http::header::{self, HeaderName, HeaderValue};
-use actix_http::http::{Method, StatusCode, Version};
-use actix_http::{body, Error, HttpService, Request, Response};
 use actix_http_test::TestServer;
 use actix_server::ssl::OpensslAcceptor;
 use actix_server_config::ServerConfig;
@@ -14,6 +10,12 @@ use futures::future::{ok, Future};
 use futures::stream::{once, Stream};
 use openssl::ssl::{AlpnError, SslAcceptor, SslFiletype, SslMethod};
 use std::io::Result;
+
+use actix_http::error::{ErrorBadRequest, PayloadError};
+use actix_http::http::header::{self, HeaderName, HeaderValue};
+use actix_http::http::{Method, StatusCode, Version};
+use actix_http::httpmessage::HttpMessage;
+use actix_http::{body, Error, HttpService, Request, Response};
 
 fn load_body<S>(stream: S) -> impl Future<Item = BytesMut, Error = PayloadError>
 where
@@ -452,4 +454,27 @@ fn test_h2_service_error() {
     // read response
     let bytes = srv.load_body(response).unwrap();
     assert!(bytes.is_empty());
+}
+
+#[test]
+fn test_h2_on_connect() {
+    let openssl = ssl_acceptor().unwrap();
+
+    let mut srv = TestServer::new(move || {
+        openssl
+            .clone()
+            .map_err(|e| println!("Openssl error: {}", e))
+            .and_then(
+                HttpService::build()
+                    .on_connect(|_| 10usize)
+                    .h2(|req: Request| {
+                        assert!(req.extensions().contains::<usize>());
+                        ok::<_, ()>(Response::Ok().finish())
+                    })
+                    .map_err(|_| ()),
+            )
+    });
+
+    let response = srv.block_on(srv.sget("/").send()).unwrap();
+    assert!(response.status().is_success());
 }

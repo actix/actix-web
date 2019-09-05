@@ -502,7 +502,7 @@ where
                             let pl = self.codec.message_type();
                             req.head_mut().peer_addr = self.peer_addr;
 
-                            // on_connect data
+                            // set on_connect data
                             if let Some(ref on_connect) = self.on_connect {
                                 on_connect.set(&mut req.extensions_mut());
                             }
