@@ -20,7 +20,7 @@ use crate::body::{BodySize, MessageBody};
 
 pub(crate) fn send_request<T, B>(
     io: T,
-    head_wrapper: RequestHeadWrapper,
+    mut head_wrapper: RequestHeadWrapper,
     body: B,
     created: time::Instant,
     pool: Option<Acquired<T>>,
@@ -30,7 +30,7 @@ where
     B: MessageBody,
 {
     // set request host header
-    let head_wrapper = if !head_wrapper.as_ref().headers.contains_key(HOST) && !head_wrapper.extra_headers().iter().any(|h| h.contains_key(HOST)) {
+    if !head_wrapper.as_ref().headers.contains_key(HOST) && !head_wrapper.extra_headers().iter().any(|h| h.contains_key(HOST)) {
         if let Some(host) = head_wrapper.as_ref().uri.host() {
             let mut wrt = BytesMut::with_capacity(host.len() + 5).writer();
 
@@ -42,30 +42,21 @@ where
             match wrt.get_mut().take().freeze().try_into() {
                 Ok(value) => {
                     match head_wrapper {
-                        RequestHeadWrapper::Owned(mut head) => {
-                            head.headers.insert(HOST, value);
-                            RequestHeadWrapper::Owned(head)
+                        RequestHeadWrapper::Owned(ref mut head) => {
+                            head.headers.insert(HOST, value)
                         },
-                        RequestHeadWrapper::Rc(head, extra_headers) => {
-                            let mut headers = extra_headers.unwrap_or(HeaderMap::new());
-                            headers.insert(HOST, value);
-                            RequestHeadWrapper::Rc(head, Some(headers))
+                        RequestHeadWrapper::Rc(_, ref mut extra_headers) => {
+                            let headers = extra_headers.get_or_insert(HeaderMap::new());
+                            headers.insert(HOST, value)
                         },
                     }
                 }
                 Err(e) => {
-                    log::error!("Can not set HOST header {}", e);
-                    head_wrapper
+                    log::error!("Can not set HOST header {}", e)
                 }
             }
         }
-        else {
-            head_wrapper
-        }
     }
-    else {
-        head_wrapper
-    };
 
     let io = H1Connection {
         created,

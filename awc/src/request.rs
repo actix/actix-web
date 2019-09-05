@@ -519,9 +519,9 @@ impl ClientRequest {
 
         // enable br only for https
         #[cfg(any(
-        feature = "brotli",
-        feature = "flate2-zlib",
-        feature = "flate2-rust"
+            feature = "brotli",
+            feature = "flate2-zlib",
+            feature = "flate2-rust"
         ))]
         {
             if slf.response_decompress {

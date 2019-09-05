@@ -49,9 +49,7 @@ pub trait Connection {
     >;
 
     /// Send request, returns Response and Framed
-    fn open_tunnel(self,
-        head: RequestHead,
-    ) -> Self::TunnelFuture;
+    fn open_tunnel(self, head: RequestHead) -> Self::TunnelFuture;
 
     /// Send request and extra headers, returns Response and Framed
     fn open_tunnel_extra(self,
