@@ -9,7 +9,7 @@ use h2::client::SendRequest;
 
 use crate::body::MessageBody;
 use crate::h1::ClientCodec;
-use crate::message::{RequestHead, ResponseHead};
+use crate::message::{RequestHead, RequestHeadWrapper, ResponseHead};
 use crate::payload::Payload;
 use crate::header::HeaderMap;
 
@@ -31,6 +31,13 @@ pub trait Connection {
     /// Send request and body
     fn send_request<B: MessageBody + 'static>(
         self,
+        head: RequestHead,
+        body: B,
+    ) -> Self::Future;
+
+    /// Send request, extra headers and body
+    fn send_request_extra<B: MessageBody + 'static>(
+        self,
         head: Rc<RequestHead>,
         extra_headers: Option<HeaderMap>,
         body: B,
@@ -43,6 +50,11 @@ pub trait Connection {
 
     /// Send request, returns Response and Framed
     fn open_tunnel(self,
+        head: RequestHead,
+    ) -> Self::TunnelFuture;
+
+    /// Send request and extra headers, returns Response and Framed
+    fn open_tunnel_extra(self,
         head: Rc<RequestHead>,
         extra_headers: Option<HeaderMap>,
     ) -> Self::TunnelFuture;
@@ -113,6 +125,29 @@ where
 
     fn send_request<B: MessageBody + 'static>(
         mut self,
+        head: RequestHead,
+        body: B,
+    ) -> Self::Future {
+        match self.io.take().unwrap() {
+            ConnectionType::H1(io) => Box::new(h1proto::send_request(
+                io,
+                RequestHeadWrapper::Owned(head),
+                body,
+                self.created,
+                self.pool,
+            )),
+            ConnectionType::H2(io) => Box::new(h2proto::send_request(
+                io,
+                RequestHeadWrapper::Owned(head),
+                body,
+                self.created,
+                self.pool,
+            )),
+        }
+    }
+
+    fn send_request_extra<B: MessageBody + 'static>(
+        mut self,
         head: Rc<RequestHead>,
         extra_headers: Option<HeaderMap>,
         body: B,
@@ -120,16 +155,14 @@ where
         match self.io.take().unwrap() {
             ConnectionType::H1(io) => Box::new(h1proto::send_request(
                 io,
-                head,
-                extra_headers,
+                RequestHeadWrapper::Rc(head, extra_headers),
                 body,
                 self.created,
                 self.pool,
             )),
             ConnectionType::H2(io) => Box::new(h2proto::send_request(
                 io,
-                head,
-                extra_headers,
+                RequestHeadWrapper::Rc(head, extra_headers),
                 body,
                 self.created,
                 self.pool,
@@ -148,10 +181,28 @@ where
     >;
 
     /// Send request, returns Response and Framed
-    fn open_tunnel(mut self, head: Rc<RequestHead>, extra_headers: Option<HeaderMap>) -> Self::TunnelFuture {
+    fn open_tunnel(mut self, head: RequestHead) -> Self::TunnelFuture {
         match self.io.take().unwrap() {
             ConnectionType::H1(io) => {
-                Either::A(Box::new(h1proto::open_tunnel(io, head, extra_headers)))
+                Either::A(Box::new(h1proto::open_tunnel(io, RequestHeadWrapper::Owned(head))))
+            }
+            ConnectionType::H2(io) => {
+                if let Some(mut pool) = self.pool.take() {
+                    pool.release(IoConnection::new(
+                        ConnectionType::H2(io),
+                        self.created,
+                        None,
+                    ));
+                }
+                Either::B(err(SendRequestError::TunnelNotSupported))
+            }
+        }
+    }
+
+    fn open_tunnel_extra(mut self, head: Rc<RequestHead>, extra_headers: Option<HeaderMap>) -> Self::TunnelFuture {
+        match self.io.take().unwrap() {
+            ConnectionType::H1(io) => {
+                Either::A(Box::new(h1proto::open_tunnel(io, RequestHeadWrapper::Rc(head, extra_headers))))
             }
             ConnectionType::H2(io) => {
                 if let Some(mut pool) = self.pool.take() {
@@ -191,13 +242,24 @@ where
 
     fn send_request<RB: MessageBody + 'static>(
         self,
+        head: RequestHead,
+        body: RB,
+    ) -> Self::Future {
+        match self {
+            EitherConnection::A(con) => con.send_request(head, body),
+            EitherConnection::B(con) => con.send_request(head, body),
+        }
+    }
+
+    fn send_request_extra<RB: MessageBody + 'static>(
+        self,
         head: Rc<RequestHead>,
         extra_headers: Option<HeaderMap>,
         body: RB,
     ) -> Self::Future {
         match self {
-            EitherConnection::A(con) => con.send_request(head, extra_headers, body),
-            EitherConnection::B(con) => con.send_request(head, extra_headers, body),
+            EitherConnection::A(con) => con.send_request_extra(head, extra_headers, body),
+            EitherConnection::B(con) => con.send_request_extra(head, extra_headers, body),
         }
     }
 
@@ -209,14 +271,27 @@ where
     >;
 
     /// Send request, returns Response and Framed
-    fn open_tunnel(self, head: Rc<RequestHead>, extra_headers: Option<HeaderMap>) -> Self::TunnelFuture {
+    fn open_tunnel(self, head: RequestHead) -> Self::TunnelFuture {
         match self {
             EitherConnection::A(con) => Box::new(
-                con.open_tunnel(head, extra_headers)
+                con.open_tunnel(head)
                     .map(|(head, framed)| (head, framed.map_io(EitherIo::A))),
             ),
             EitherConnection::B(con) => Box::new(
-                con.open_tunnel(head, extra_headers)
+                con.open_tunnel(head)
+                    .map(|(head, framed)| (head, framed.map_io(EitherIo::B))),
+            ),
+        }
+    }
+
+    fn open_tunnel_extra(self, head: Rc<RequestHead>, extra_headers: Option<HeaderMap>) -> Self::TunnelFuture {
+        match self {
+            EitherConnection::A(con) => Box::new(
+                con.open_tunnel_extra(head, extra_headers)
+                    .map(|(head, framed)| (head, framed.map_io(EitherIo::A))),
+            ),
+            EitherConnection::B(con) => Box::new(
+                con.open_tunnel_extra(head, extra_headers)
                     .map(|(head, framed)| (head, framed.map_io(EitherIo::B))),
             ),
         }

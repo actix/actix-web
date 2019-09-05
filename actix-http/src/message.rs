@@ -182,6 +182,30 @@ impl RequestHead {
 }
 
 #[derive(Debug)]
+pub enum RequestHeadWrapper {
+    Owned(RequestHead),
+    Rc(Rc<RequestHead>, Option<HeaderMap>),
+}
+
+impl RequestHeadWrapper {
+    pub fn extra_headers(&self) -> Option<&HeaderMap> {
+        match self {
+            RequestHeadWrapper::Owned(_) => None,
+            RequestHeadWrapper::Rc(_, headers) => headers.as_ref(),
+        }
+    }
+}
+
+impl AsRef<RequestHead> for RequestHeadWrapper {
+    fn as_ref(&self) -> &RequestHead {
+        match self {
+            RequestHeadWrapper::Owned(head) => &head,
+            RequestHeadWrapper::Rc(head, _) => head.as_ref(),
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct ResponseHead {
     pub version: Version,
     pub status: StatusCode,

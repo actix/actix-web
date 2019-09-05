@@ -1,6 +1,5 @@
 use std::io::Write;
 use std::{io, time};
-use std::rc::Rc;
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use bytes::{BufMut, Bytes, BytesMut};
@@ -10,7 +9,7 @@ use futures::{Async, Future, Poll, Sink, Stream};
 use crate::error::PayloadError;
 use crate::h1;
 use crate::http::header::{IntoHeaderValue, HOST};
-use crate::message::{RequestHead, ResponseHead};
+use crate::message::{RequestHeadWrapper, ResponseHead};
 use crate::payload::{Payload, PayloadStream};
 use crate::header::HeaderMap;
 
@@ -21,8 +20,7 @@ use crate::body::{BodySize, MessageBody};
 
 pub(crate) fn send_request<T, B>(
     io: T,
-    head: Rc<RequestHead>,
-    extra_headers: Option<HeaderMap>,
+    head_wrapper: RequestHeadWrapper,
     body: B,
     created: time::Instant,
     pool: Option<Acquired<T>>,
@@ -32,33 +30,41 @@ where
     B: MessageBody,
 {
     // set request host header
-    let extra_headers = if !head.headers.contains_key(HOST) && !extra_headers.iter().any(|h| h.contains_key(HOST)) {
-        if let Some(host) = head.uri.host() {
+    let head_wrapper = if !head_wrapper.as_ref().headers.contains_key(HOST) && !head_wrapper.extra_headers().iter().any(|h| h.contains_key(HOST)) {
+        if let Some(host) = head_wrapper.as_ref().uri.host() {
             let mut wrt = BytesMut::with_capacity(host.len() + 5).writer();
 
-            let _ = match head.uri.port_u16() {
+            let _ = match head_wrapper.as_ref().uri.port_u16() {
                 None | Some(80) | Some(443) => write!(wrt, "{}", host),
                 Some(port) => write!(wrt, "{}:{}", host, port),
             };
 
             match wrt.get_mut().take().freeze().try_into() {
                 Ok(value) => {
-                    let mut headers = extra_headers.unwrap_or(HeaderMap::new());
-                    headers.insert(HOST, value);
-                    Some(headers)
+                    match head_wrapper {
+                        RequestHeadWrapper::Owned(mut head) => {
+                            head.headers.insert(HOST, value);
+                            RequestHeadWrapper::Owned(head)
+                        },
+                        RequestHeadWrapper::Rc(head, extra_headers) => {
+                            let mut headers = extra_headers.unwrap_or(HeaderMap::new());
+                            headers.insert(HOST, value);
+                            RequestHeadWrapper::Rc(head, Some(headers))
+                        },
+                    }
                 }
                 Err(e) => {
                     log::error!("Can not set HOST header {}", e);
-                    extra_headers
+                    head_wrapper
                 }
             }
         }
         else {
-            extra_headers
+            head_wrapper
         }
     }
     else {
-        extra_headers
+        head_wrapper
     };
 
     let io = H1Connection {
@@ -69,9 +75,9 @@ where
 
     let len = body.size();
 
-    // create Framed and send reqest
+    // create Framed and send request
     Framed::new(io, h1::ClientCodec::default())
-        .send((head, extra_headers, len).into())
+        .send((head_wrapper, len).into())
         .from_err()
         // send request body
         .and_then(move |framed| match body.size() {
@@ -107,15 +113,14 @@ where
 
 pub(crate) fn open_tunnel<T>(
     io: T,
-    head: Rc<RequestHead>,
-    extra_headers: Option<HeaderMap>,
+    head_wrapper: RequestHeadWrapper,
 ) -> impl Future<Item = (ResponseHead, Framed<T, h1::ClientCodec>), Error = SendRequestError>
 where
     T: AsyncRead + AsyncWrite + 'static,
 {
-    // create Framed and send reqest
+    // create Framed and send request
     Framed::new(io, h1::ClientCodec::default())
-        .send((head, extra_headers, BodySize::None).into())
+        .send((head_wrapper, BodySize::None).into())
         .from_err()
         // read response
         .and_then(|framed| {

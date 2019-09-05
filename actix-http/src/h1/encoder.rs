@@ -16,7 +16,7 @@ use crate::http::header::{
     HeaderValue, ACCEPT_ENCODING, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING,
 };
 use crate::http::{HeaderMap, Method, StatusCode, Version};
-use crate::message::{ConnectionType, Head, RequestHead, ResponseHead};
+use crate::message::{ConnectionType, Head, RequestHead, ResponseHead, RequestHeadWrapper};
 use crate::request::Request;
 use crate::response::Response;
 
@@ -263,29 +263,29 @@ impl MessageType for Response<()> {
     }
 }
 
-impl MessageType for (Rc<RequestHead>, Option<HeaderMap>) {
+impl MessageType for RequestHeadWrapper {
     fn status(&self) -> Option<StatusCode> {
         None
     }
 
     fn chunked(&self) -> bool {
-        self.0.chunked()
+        self.as_ref().chunked()
     }
 
     fn camel_case(&self) -> bool {
-        RequestHead::camel_case_headers(&self.0)
+        self.as_ref().camel_case_headers()
     }
 
     fn headers(&self) -> &HeaderMap {
-        &self.0.headers
+        self.as_ref().headers()
     }
 
     fn extra_headers(&self) -> Option<&HeaderMap> {
-        self.1.as_ref()
+        self.extra_headers()
     }
 
     fn encode_status(&mut self, dst: &mut BytesMut) -> io::Result<()> {
-        let head = &self.0;
+        let head = self.as_ref();
         dst.reserve(256 + head.headers.len() * AVERAGE_HEADER_SIZE);
         write!(
             Writer(dst),
@@ -538,9 +538,9 @@ mod tests {
         head.headers
             .insert(CONTENT_TYPE, HeaderValue::from_static("plain/text"));
 
-        let mut head_with_extra = (Rc::new(head), None);
+        let mut head_wrapper = RequestHeadWrapper::Owned(head);
 
-        let _ = head_with_extra.encode_headers(
+        let _ = head_wrapper.encode_headers(
             &mut bytes,
             Version::HTTP_11,
             BodySize::Empty,
@@ -552,7 +552,7 @@ mod tests {
             Bytes::from_static(b"\r\nContent-Length: 0\r\nConnection: close\r\nDate: date\r\nContent-Type: plain/text\r\n\r\n")
         );
 
-        let _ = head_with_extra.encode_headers(
+        let _ = head_wrapper.encode_headers(
             &mut bytes,
             Version::HTTP_11,
             BodySize::Stream,
@@ -564,7 +564,7 @@ mod tests {
             Bytes::from_static(b"\r\nTransfer-Encoding: chunked\r\nDate: date\r\nContent-Type: plain/text\r\n\r\n")
         );
 
-        let _ = head_with_extra.encode_headers(
+        let _ = head_wrapper.encode_headers(
             &mut bytes,
             Version::HTTP_11,
             BodySize::Sized64(100),
@@ -584,9 +584,9 @@ mod tests {
         head.headers
             .append(CONTENT_TYPE, HeaderValue::from_static("xml"));
 
-        let mut head_with_extra = (Rc::new(head), None);
+        let mut head_wrapper = RequestHeadWrapper::Owned(head);
 
-        let _ = head_with_extra.encode_headers(
+        let _ = head_wrapper.encode_headers(
             &mut bytes,
             Version::HTTP_11,
             BodySize::Stream,
@@ -610,9 +610,9 @@ mod tests {
         extra_headers.insert(AUTHORIZATION,HeaderValue::from_static("another authorization"));
         extra_headers.insert(DATE, HeaderValue::from_static("date"));
 
-        let mut head_with_extra = (Rc::new(head), Some(extra_headers));
+        let mut head_wrapper = RequestHeadWrapper::Rc(Rc::new(head), Some(extra_headers));
 
-        let _ = head_with_extra.encode_headers(
+        let _ = head_wrapper.encode_headers(
             &mut bytes,
             Version::HTTP_11,
             BodySize::Empty,

@@ -19,6 +19,13 @@ pub(crate) struct ConnectorWrapper<T>(pub T);
 pub(crate) trait Connect {
     fn send_request(
         &mut self,
+        head: RequestHead,
+        body: Body,
+        addr: Option<net::SocketAddr>,
+    ) -> Box<dyn Future<Item = ClientResponse, Error = SendRequestError>>;
+
+    fn send_request_extra(
+        &mut self,
         head: Rc<RequestHead>,
         extra_headers: Option<HeaderMap>,
         body: Body,
@@ -27,6 +34,18 @@ pub(crate) trait Connect {
 
     /// Send request, returns Response and Framed
     fn open_tunnel(
+        &mut self,
+        head: RequestHead,
+        addr: Option<net::SocketAddr>,
+    ) -> Box<
+        dyn Future<
+            Item = (ResponseHead, Framed<BoxedSocket, ClientCodec>),
+            Error = SendRequestError,
+        >,
+    >;
+
+    /// Send request and extra headers, returns Response and Framed
+    fn open_tunnel_extra(
         &mut self,
         head: Rc<RequestHead>,
         extra_headers: Option<HeaderMap>,
@@ -50,6 +69,26 @@ where
 {
     fn send_request(
         &mut self,
+        head: RequestHead,
+        body: Body,
+        addr: Option<net::SocketAddr>,
+    ) -> Box<dyn Future<Item = ClientResponse, Error = SendRequestError>> {
+        Box::new(
+            self.0
+                // connect to the host
+                .call(ClientConnect {
+                    uri: head.uri.clone(),
+                    addr,
+                })
+                .from_err()
+                // send request
+                .and_then(move |connection| connection.send_request(head, body))
+                .map(|(head, payload)| ClientResponse::new(head, payload)),
+        )
+    }
+
+    fn send_request_extra(
+        &mut self,
         head: Rc<RequestHead>,
         extra_headers: Option<HeaderMap>,
         body: Body,
@@ -64,12 +103,39 @@ where
                 })
                 .from_err()
                 // send request
-                .and_then(move |connection| connection.send_request(head, extra_headers, body))
+                .and_then(move |connection| connection.send_request_extra(head, extra_headers, body))
                 .map(|(head, payload)| ClientResponse::new(head, payload)),
         )
     }
 
     fn open_tunnel(
+        &mut self,
+        head: RequestHead,
+        addr: Option<net::SocketAddr>,
+    ) -> Box<
+        dyn Future<
+            Item = (ResponseHead, Framed<BoxedSocket, ClientCodec>),
+            Error = SendRequestError,
+        >,
+    > {
+        Box::new(
+            self.0
+                // connect to the host
+                .call(ClientConnect {
+                    uri: head.uri.clone(),
+                    addr,
+                })
+                .from_err()
+                // send request
+                .and_then(move |connection| connection.open_tunnel(head))
+                .map(|(head, framed)| {
+                    let framed = framed.map_io(|io| BoxedSocket(Box::new(Socket(io))));
+                    (head, framed)
+                }),
+        )
+    }
+
+    fn open_tunnel_extra(
         &mut self,
         head: Rc<RequestHead>,
         extra_headers: Option<HeaderMap>,
@@ -89,7 +155,7 @@ where
                 })
                 .from_err()
                 // send request
-                .and_then(move |connection| connection.open_tunnel(head, extra_headers))
+                .and_then(move |connection| connection.open_tunnel_extra(head, extra_headers))
                 .map(|(head, framed)| {
                     let framed = framed.map_io(|io| BoxedSocket(Box::new(Socket(io))));
                     (head, framed)

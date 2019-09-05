@@ -17,7 +17,7 @@ use crate::body::BodySize;
 use crate::config::ServiceConfig;
 use crate::error::{ParseError, PayloadError};
 use crate::helpers;
-use crate::message::{ConnectionType, Head, MessagePool, RequestHead, ResponseHead};
+use crate::message::{ConnectionType, Head, MessagePool, RequestHead, RequestHeadWrapper, ResponseHead};
 use crate::header::HeaderMap;
 
 bitflags! {
@@ -50,7 +50,7 @@ struct ClientCodecInner {
     // encoder part
     flags: Flags,
     headers_size: u32,
-    encoder: encoder::MessageEncoder<(Rc<RequestHead>, Option<HeaderMap>)>,
+    encoder: encoder::MessageEncoder<RequestHeadWrapper>,
 }
 
 impl Default for ClientCodec {
@@ -185,7 +185,7 @@ impl Decoder for ClientPayloadCodec {
 }
 
 impl Encoder for ClientCodec {
-    type Item = Message<(Rc<RequestHead>, Option<HeaderMap>, BodySize)>;
+    type Item = Message<(RequestHeadWrapper, BodySize)>;
     type Error = io::Error;
 
     fn encode(
@@ -194,13 +194,13 @@ impl Encoder for ClientCodec {
         dst: &mut BytesMut,
     ) -> Result<(), Self::Error> {
         match item {
-            Message::Item((head, extra_headers, length)) => {
+            Message::Item((mut head_wrapper, length)) => {
                 let inner = &mut self.inner;
-                inner.version = head.version;
-                inner.flags.set(Flags::HEAD, head.method == Method::HEAD);
+                inner.version = head_wrapper.as_ref().version;
+                inner.flags.set(Flags::HEAD, head_wrapper.as_ref().method == Method::HEAD);
 
                 // connection status
-                inner.ctype = match head.connection_type() {
+                inner.ctype = match head_wrapper.as_ref().connection_type() {
                     ConnectionType::KeepAlive => {
                         if inner.flags.contains(Flags::KEEPALIVE_ENABLED) {
                             ConnectionType::KeepAlive
@@ -214,7 +214,7 @@ impl Encoder for ClientCodec {
 
                 inner.encoder.encode(
                     dst,
-                    &mut (head, extra_headers),
+                    &mut head_wrapper,
                     false,
                     false,
                     inner.version,

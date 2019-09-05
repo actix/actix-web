@@ -1,5 +1,4 @@
 use std::time;
-use std::rc::Rc;
 
 use actix_codec::{AsyncRead, AsyncWrite};
 use bytes::Bytes;
@@ -10,7 +9,7 @@ use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, TRANSFER_ENCODING};
 use http::{request::Request, HttpTryFrom, Method, Version};
 
 use crate::body::{BodySize, MessageBody};
-use crate::message::{RequestHead, ResponseHead};
+use crate::message::{RequestHeadWrapper, ResponseHead};
 use crate::payload::Payload;
 use crate::header::HeaderMap;
 
@@ -20,8 +19,7 @@ use super::pool::Acquired;
 
 pub(crate) fn send_request<T, B>(
     io: SendRequest<Bytes>,
-    head: Rc<RequestHead>,
-    extra_headers: Option<HeaderMap>,
+    head_wrapper: RequestHeadWrapper,
     body: B,
     created: time::Instant,
     pool: Option<Acquired<T>>,
@@ -30,8 +28,8 @@ where
     T: AsyncRead + AsyncWrite + 'static,
     B: MessageBody,
 {
-    trace!("Sending client request: {:?} {:?}", head, body.size());
-    let head_req = head.method == Method::HEAD;
+    trace!("Sending client request: {:?} {:?}", head_wrapper, body.size());
+    let head_req = head_wrapper.as_ref().method == Method::HEAD;
     let length = body.size();
     let eof = match length {
         BodySize::None | BodySize::Empty | BodySize::Sized(0) => true,
@@ -42,8 +40,8 @@ where
         .map_err(SendRequestError::from)
         .and_then(move |mut io| {
             let mut req = Request::new(());
-            *req.uri_mut() = head.uri.clone();
-            *req.method_mut() = head.method.clone();
+            *req.uri_mut() = head_wrapper.as_ref().uri.clone();
+            *req.method_mut() = head_wrapper.as_ref().method.clone();
             *req.version_mut() = Version::HTTP_2;
 
             let mut skip_len = true;
@@ -69,9 +67,14 @@ where
                 ),
             };
 
-            // merging headers from head and extra headers. HeaderMap::new() does not allocate.
-            let extra_headers = extra_headers.unwrap_or(HeaderMap::new());
-            let headers = head.headers.iter()
+            // Extracting extra headers from RequestHeadWrapper. HeaderMap::new() does not allocate.
+            let (head_wrapper, extra_headers) = match head_wrapper {
+                RequestHeadWrapper::Owned(head) => (RequestHeadWrapper::Owned(head), HeaderMap::new()),
+                RequestHeadWrapper::Rc(head, extra_headers) => (RequestHeadWrapper::Rc(head, None), extra_headers.unwrap_or(HeaderMap::new())),
+            };
+
+            // merging headers from head and extra headers.
+            let headers = head_wrapper.as_ref().headers.iter()
                 .filter(|(name, _)| {
                     !extra_headers.contains_key(*name)
                 })
