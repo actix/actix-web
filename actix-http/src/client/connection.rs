@@ -52,7 +52,8 @@ pub trait Connection {
     fn open_tunnel(self, head: RequestHead) -> Self::TunnelFuture;
 
     /// Send request and extra headers, returns Response and Framed
-    fn open_tunnel_extra(self,
+    fn open_tunnel_extra(
+        self,
         head: Rc<RequestHead>,
         extra_headers: Option<HeaderMap>,
     ) -> Self::TunnelFuture;
