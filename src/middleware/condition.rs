@@ -13,11 +13,9 @@ use futures::{Future, Poll};
 /// use actix_web::App;
 ///
 /// fn main() {
-///     std::env::set_var("RUST_LOG", "actix_web=info");
-///     env_logger::init();
-///
+///     let enable_normalize = std::env::var("NORMALIZE_PATH") == Ok("true".into());
 ///     let app = App::new()
-///         .wrap(Condition::new(true, NormalizePath));
+///         .wrap(Condition::new(enable_normalize, NormalizePath));
 /// }
 /// ```
 ///
@@ -89,5 +87,57 @@ where
             Enable(service) => Either::A(service.call(req)),
             Disable(service) => Either::B(service.call(req)),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use actix_service::IntoService;
+
+    use super::*;
+    use crate::dev::{ServiceRequest, ServiceResponse};
+    use crate::error::Result;
+    use crate::http::{header::CONTENT_TYPE, HeaderValue, StatusCode};
+    use crate::middleware::errhandlers::*;
+    use crate::test::{self, TestRequest};
+    use crate::HttpResponse;
+
+    fn render_500<B>(mut res: ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
+        res.response_mut()
+            .headers_mut()
+            .insert(CONTENT_TYPE, HeaderValue::from_static("0001"));
+        Ok(ErrorHandlerResponse::Response(res))
+    }
+
+    #[test]
+    fn test_handler_enabled() {
+        let srv = |req: ServiceRequest| {
+            req.into_response(HttpResponse::InternalServerError().finish())
+        };
+
+        let mw =
+            ErrorHandlers::new().handler(StatusCode::INTERNAL_SERVER_ERROR, render_500);
+
+        let mut mw =
+            test::block_on(Condition::new(true, mw).new_transform(srv.into_service()))
+                .unwrap();
+        let resp = test::call_service(&mut mw, TestRequest::default().to_srv_request());
+        assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0001");
+    }
+    #[test]
+    fn test_handler_disabled() {
+        let srv = |req: ServiceRequest| {
+            req.into_response(HttpResponse::InternalServerError().finish())
+        };
+
+        let mw =
+            ErrorHandlers::new().handler(StatusCode::INTERNAL_SERVER_ERROR, render_500);
+
+        let mut mw =
+            test::block_on(Condition::new(false, mw).new_transform(srv.into_service()))
+                .unwrap();
+
+        let resp = test::call_service(&mut mw, TestRequest::default().to_srv_request());
+        assert_eq!(resp.headers().get(CONTENT_TYPE), None);
     }
 }
