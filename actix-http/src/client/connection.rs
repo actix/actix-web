@@ -1,5 +1,4 @@
 use std::{fmt, io, time};
-use std::rc::Rc;
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use bytes::{Buf, Bytes};
@@ -9,9 +8,8 @@ use h2::client::SendRequest;
 
 use crate::body::MessageBody;
 use crate::h1::ClientCodec;
-use crate::message::{RequestHead, RequestHeadType, ResponseHead};
+use crate::message::{RequestHeadType, ResponseHead};
 use crate::payload::Payload;
-use crate::header::HeaderMap;
 
 use super::error::SendRequestError;
 use super::pool::{Acquired, Protocol};
@@ -29,17 +27,9 @@ pub trait Connection {
     fn protocol(&self) -> Protocol;
 
     /// Send request and body
-    fn send_request<B: MessageBody + 'static>(
+    fn send_request<B: MessageBody + 'static, H: Into<RequestHeadType>>(
         self,
-        head: RequestHead,
-        body: B,
-    ) -> Self::Future;
-
-    /// Send request, extra headers and body
-    fn send_request_extra<B: MessageBody + 'static>(
-        self,
-        head: Rc<RequestHead>,
-        extra_headers: Option<HeaderMap>,
+        head: H,
         body: B,
     ) -> Self::Future;
 
@@ -49,14 +39,7 @@ pub trait Connection {
     >;
 
     /// Send request, returns Response and Framed
-    fn open_tunnel(self, head: RequestHead) -> Self::TunnelFuture;
-
-    /// Send request and extra headers, returns Response and Framed
-    fn open_tunnel_extra(
-        self,
-        head: Rc<RequestHead>,
-        extra_headers: Option<HeaderMap>,
-    ) -> Self::TunnelFuture;
+    fn open_tunnel<H: Into<RequestHeadType>>(self, head: H) -> Self::TunnelFuture;
 }
 
 pub(crate) trait ConnectionLifetime: AsyncRead + AsyncWrite + 'static {
@@ -122,46 +105,22 @@ where
         }
     }
 
-    fn send_request<B: MessageBody + 'static>(
+    fn send_request<B: MessageBody + 'static, H: Into<RequestHeadType>>(
         mut self,
-        head: RequestHead,
+        head: H,
         body: B,
     ) -> Self::Future {
         match self.io.take().unwrap() {
             ConnectionType::H1(io) => Box::new(h1proto::send_request(
                 io,
-                RequestHeadType::Owned(head),
+                head.into(),
                 body,
                 self.created,
                 self.pool,
             )),
             ConnectionType::H2(io) => Box::new(h2proto::send_request(
                 io,
-                RequestHeadType::Owned(head),
-                body,
-                self.created,
-                self.pool,
-            )),
-        }
-    }
-
-    fn send_request_extra<B: MessageBody + 'static>(
-        mut self,
-        head: Rc<RequestHead>,
-        extra_headers: Option<HeaderMap>,
-        body: B,
-    ) -> Self::Future {
-        match self.io.take().unwrap() {
-            ConnectionType::H1(io) => Box::new(h1proto::send_request(
-                io,
-                RequestHeadType::Rc(head, extra_headers),
-                body,
-                self.created,
-                self.pool,
-            )),
-            ConnectionType::H2(io) => Box::new(h2proto::send_request(
-                io,
-                RequestHeadType::Rc(head, extra_headers),
+                head.into(),
                 body,
                 self.created,
                 self.pool,
@@ -180,28 +139,10 @@ where
     >;
 
     /// Send request, returns Response and Framed
-    fn open_tunnel(mut self, head: RequestHead) -> Self::TunnelFuture {
+    fn open_tunnel<H: Into<RequestHeadType>>(mut self, head: H) -> Self::TunnelFuture {
         match self.io.take().unwrap() {
             ConnectionType::H1(io) => {
-                Either::A(Box::new(h1proto::open_tunnel(io, RequestHeadType::Owned(head))))
-            }
-            ConnectionType::H2(io) => {
-                if let Some(mut pool) = self.pool.take() {
-                    pool.release(IoConnection::new(
-                        ConnectionType::H2(io),
-                        self.created,
-                        None,
-                    ));
-                }
-                Either::B(err(SendRequestError::TunnelNotSupported))
-            }
-        }
-    }
-
-    fn open_tunnel_extra(mut self, head: Rc<RequestHead>, extra_headers: Option<HeaderMap>) -> Self::TunnelFuture {
-        match self.io.take().unwrap() {
-            ConnectionType::H1(io) => {
-                Either::A(Box::new(h1proto::open_tunnel(io, RequestHeadType::Rc(head, extra_headers))))
+                Either::A(Box::new(h1proto::open_tunnel(io, head.into())))
             }
             ConnectionType::H2(io) => {
                 if let Some(mut pool) = self.pool.take() {
@@ -239,26 +180,14 @@ where
         }
     }
 
-    fn send_request<RB: MessageBody + 'static>(
+    fn send_request<RB: MessageBody + 'static, H: Into<RequestHeadType>>(
         self,
-        head: RequestHead,
+        head: H,
         body: RB,
     ) -> Self::Future {
         match self {
             EitherConnection::A(con) => con.send_request(head, body),
             EitherConnection::B(con) => con.send_request(head, body),
-        }
-    }
-
-    fn send_request_extra<RB: MessageBody + 'static>(
-        self,
-        head: Rc<RequestHead>,
-        extra_headers: Option<HeaderMap>,
-        body: RB,
-    ) -> Self::Future {
-        match self {
-            EitherConnection::A(con) => con.send_request_extra(head, extra_headers, body),
-            EitherConnection::B(con) => con.send_request_extra(head, extra_headers, body),
         }
     }
 
@@ -270,7 +199,7 @@ where
     >;
 
     /// Send request, returns Response and Framed
-    fn open_tunnel(self, head: RequestHead) -> Self::TunnelFuture {
+    fn open_tunnel<H: Into<RequestHeadType>>(self, head: H) -> Self::TunnelFuture {
         match self {
             EitherConnection::A(con) => Box::new(
                 con.open_tunnel(head)
@@ -278,19 +207,6 @@ where
             ),
             EitherConnection::B(con) => Box::new(
                 con.open_tunnel(head)
-                    .map(|(head, framed)| (head, framed.map_io(EitherIo::B))),
-            ),
-        }
-    }
-
-    fn open_tunnel_extra(self, head: Rc<RequestHead>, extra_headers: Option<HeaderMap>) -> Self::TunnelFuture {
-        match self {
-            EitherConnection::A(con) => Box::new(
-                con.open_tunnel_extra(head, extra_headers)
-                    .map(|(head, framed)| (head, framed.map_io(EitherIo::A))),
-            ),
-            EitherConnection::B(con) => Box::new(
-                con.open_tunnel_extra(head, extra_headers)
                     .map(|(head, framed)| (head, framed.map_io(EitherIo::B))),
             ),
         }
