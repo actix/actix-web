@@ -711,14 +711,12 @@ impl FrozenSendBuilder {
     where
         B: Into<Body>,
     {
-//        if let Some(e) = self.err {
-//            return Either::A(err(e.into()))
-//        }
+        if let Some(e) = self.err {
+            return Either::A(err(e.into()))
+        }
 
-//        Either::B(RequestSender::Rc(self.req.head, Some(self.extra_headers))
-//            .send_body(self.req.addr, self.req.response_decompress, self.req.timeout, self.req.config.as_ref(), body))
-        RequestSender::Rc(self.req.head, Some(self.extra_headers))
-            .send_body(self.req.addr, self.req.response_decompress, self.req.timeout, self.req.config.as_ref(), body)
+        Either::B(RequestSender::Rc(self.req.head, Some(self.extra_headers))
+            .send_body(self.req.addr, self.req.response_decompress, self.req.timeout, self.req.config.as_ref(), body))
     }
 
     /// Complete request construction and send a json body.
