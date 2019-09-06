@@ -563,12 +563,13 @@ impl fmt::Debug for ClientRequest {
     }
 }
 
+#[derive(Clone)]
 pub struct FrozenClientRequest {
-    head: Rc<RequestHead>,
-    addr: Option<net::SocketAddr>,
-    response_decompress: bool,
-    timeout: Option<Duration>,
-    config: Rc<ClientConfig>,
+    pub(crate) head: Rc<RequestHead>,
+    pub(crate) addr: Option<net::SocketAddr>,
+    pub(crate) response_decompress: bool,
+    pub(crate) timeout: Option<Duration>,
+    pub(crate) config: Rc<ClientConfig>,
 }
 
 impl FrozenClientRequest {
@@ -587,11 +588,9 @@ impl FrozenClientRequest {
         &self.head.headers
     }
 
-    /// Send body with optional extra headers.
-    /// Extra headers will override corresponding existing headers in a frozen request.
+    /// Send a body.
     pub fn send_body<B>(
         &self,
-        extra_headers: Option<HeaderMap>,
         body: B,
     ) -> impl Future<
         Item = ClientResponse<impl Stream<Item = Bytes, Error = PayloadError>>,
@@ -600,43 +599,37 @@ impl FrozenClientRequest {
     where
         B: Into<Body>,
     {
-        RequestSender::Rc(self.head.clone(), extra_headers)
+        RequestSender::Rc(self.head.clone(), None)
             .send_body(self.addr, self.response_decompress, self.timeout, self.config.as_ref(), body)
     }
 
-    /// Send a JSON body with optional extra headers.
-    /// Extra headers will override corresponding existing headers in a frozen request.
+    /// Send a json body.
     pub fn send_json<T: Serialize>(
         &self,
-        extra_headers: Option<HeaderMap>,
         value: &T,
     ) -> impl Future<
         Item = ClientResponse<impl Stream<Item = Bytes, Error = PayloadError>>,
         Error = SendRequestError,
     > {
-        RequestSender::Rc(self.head.clone(), extra_headers)
+        RequestSender::Rc(self.head.clone(), None)
             .send_json(self.addr, self.response_decompress, self.timeout, self.config.as_ref(), value)
     }
 
-    /// Send a urlencoded body with optional extra headers.
-    /// Extra headers will override corresponding existing headers in a frozen request.
+    /// Send an urlencoded body.
     pub fn send_form<T: Serialize>(
         &self,
-        extra_headers: Option<HeaderMap>,
         value: &T,
     ) -> impl Future<
         Item = ClientResponse<impl Stream<Item = Bytes, Error = PayloadError>>,
         Error = SendRequestError,
     > {
-        RequestSender::Rc(self.head.clone(), extra_headers)
+        RequestSender::Rc(self.head.clone(), None)
             .send_form(self.addr, self.response_decompress, self.timeout, self.config.as_ref(), value)
     }
 
-    /// Send a streaming body with optional extra headers.
-    /// Extra headers will override corresponding existing headers in a frozen request.
+    /// Send a streaming body.
     pub fn send_stream<S, E>(
         &self,
-        extra_headers: Option<HeaderMap>,
         stream: S,
     ) -> impl Future<
         Item = ClientResponse<impl Stream<Item = Bytes, Error = PayloadError>>,
@@ -646,21 +639,153 @@ impl FrozenClientRequest {
         S: Stream<Item = Bytes, Error = E> + 'static,
         E: Into<Error> + 'static,
     {
-        RequestSender::Rc(self.head.clone(), extra_headers)
+        RequestSender::Rc(self.head.clone(), None)
             .send_stream(self.addr, self.response_decompress, self.timeout, self.config.as_ref(), stream)
     }
 
-    /// Send an empty body with optional extra headers.
-    /// Extra headers will override corresponding existing headers in a frozen request.
+    /// Send an empty body.
     pub fn send(
         &self,
-        extra_headers: Option<HeaderMap>,
     ) -> impl Future<
         Item = ClientResponse<impl Stream<Item = Bytes, Error = PayloadError>>,
         Error = SendRequestError,
     > {
-        RequestSender::Rc(self.head.clone(), extra_headers)
+        RequestSender::Rc(self.head.clone(), None)
             .send(self.addr, self.response_decompress, self.timeout, self.config.as_ref())
+    }
+
+    /// Create a `FrozenSendBuilder` with extra headers
+    pub fn extra_headers(&self, extra_headers: HeaderMap) -> FrozenSendBuilder {
+        FrozenSendBuilder::new(self.clone(), extra_headers)
+    }
+
+    /// Create a `FrozenSendBuilder` with an extra header
+    pub fn extra_header<K, V>(&self, key: K, value: V) -> FrozenSendBuilder
+    where
+        HeaderName: HttpTryFrom<K>,
+        V: IntoHeaderValue,
+    {
+        self.extra_headers(HeaderMap::new()).extra_header(key, value)
+    }
+}
+
+pub struct FrozenSendBuilder {
+    req: FrozenClientRequest,
+    extra_headers: HeaderMap,
+    err: Option<HttpError>,
+}
+
+impl FrozenSendBuilder {
+    pub(crate) fn new(req: FrozenClientRequest, extra_headers: HeaderMap) -> Self {
+        Self {
+            req,
+            extra_headers,
+            err: None,
+        }
+    }
+
+    /// Insert a header, it overrides existing header in `FrozenClientRequest`.
+    pub fn extra_header<K, V>(mut self, key: K, value: V) -> Self
+    where
+        HeaderName: HttpTryFrom<K>,
+        V: IntoHeaderValue,
+    {
+        match HeaderName::try_from(key) {
+            Ok(key) => match value.try_into() {
+                Ok(value) => self.extra_headers.insert(key, value),
+                Err(e) => self.err = Some(e.into()),
+            },
+            Err(e) => self.err = Some(e.into()),
+        }
+        self
+    }
+
+    /// Complete request construction and send a body.
+    pub fn send_body<B>(
+        self,
+        body: B,
+    ) -> impl Future<
+        Item = ClientResponse<impl Stream<Item = Bytes, Error = PayloadError>>,
+        Error = SendRequestError,
+    >
+    where
+        B: Into<Body>,
+    {
+//        if let Some(e) = self.err {
+//            return Either::A(err(e.into()))
+//        }
+
+//        Either::B(RequestSender::Rc(self.req.head, Some(self.extra_headers))
+//            .send_body(self.req.addr, self.req.response_decompress, self.req.timeout, self.req.config.as_ref(), body))
+        RequestSender::Rc(self.req.head, Some(self.extra_headers))
+            .send_body(self.req.addr, self.req.response_decompress, self.req.timeout, self.req.config.as_ref(), body)
+    }
+
+    /// Complete request construction and send a json body.
+    pub fn send_json<T: Serialize>(
+        self,
+        value: &T,
+    ) -> impl Future<
+        Item = ClientResponse<impl Stream<Item = Bytes, Error = PayloadError>>,
+        Error = SendRequestError,
+    > {
+        if let Some(e) = self.err {
+            return Either::A(err(e.into()))
+        }
+
+        Either::B(RequestSender::Rc(self.req.head, Some(self.extra_headers))
+            .send_json(self.req.addr, self.req.response_decompress, self.req.timeout, self.req.config.as_ref(), value))
+    }
+
+    /// Complete request construction and send an urlencoded body.
+    pub fn send_form<T: Serialize>(
+        self,
+        value: &T,
+    ) -> impl Future<
+        Item = ClientResponse<impl Stream<Item = Bytes, Error = PayloadError>>,
+        Error = SendRequestError,
+    > {
+        if let Some(e) = self.err {
+            return Either::A(err(e.into()))
+        }
+
+        Either::B(RequestSender::Rc(self.req.head, Some(self.extra_headers))
+            .send_form(self.req.addr, self.req.response_decompress, self.req.timeout, self.req.config.as_ref(), value))
+    }
+
+    /// Complete request construction and send a streaming body.
+    pub fn send_stream<S, E>(
+        self,
+        stream: S,
+    ) -> impl Future<
+        Item = ClientResponse<impl Stream<Item = Bytes, Error = PayloadError>>,
+        Error = SendRequestError,
+    >
+    where
+        S: Stream<Item = Bytes, Error = E> + 'static,
+        E: Into<Error> + 'static,
+    {
+        if let Some(e) = self.err {
+            return Either::A(err(e.into()))
+        }
+
+        Either::B(RequestSender::Rc(self.req.head, Some(self.extra_headers))
+            .send_stream(self.req.addr, self.req.response_decompress, self.req.timeout, self.req.config.as_ref(), stream))
+    }
+
+    /// Complete request construction and send an empty body.
+    pub fn send(
+        self,
+    ) -> impl Future<
+        Item = ClientResponse<impl Stream<Item = Bytes, Error = PayloadError>>,
+        Error = SendRequestError,
+    > {
+        if let Some(e) = self.err {
+            return Either::A(err(e.into()))
+        }
+
+        Either::B(RequestSender::Rc(self.req.head, Some(self.extra_headers))
+            .send(self.req.addr, self.req.response_decompress, self.req.timeout, self.req.config.as_ref()))
     }
 }
 
