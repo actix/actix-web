@@ -19,7 +19,6 @@ use futures::{Future, Poll};
 ///         .wrap(Condition::new(enable_normalize, NormalizePath));
 /// }
 /// ```
-///
 pub struct Condition<T> {
     trans: T,
     enable: bool,
