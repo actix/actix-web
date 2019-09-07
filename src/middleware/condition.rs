@@ -1,3 +1,4 @@
+//! `Middleware` for conditionally enables another middleware.
 use actix_service::{Service, Transform};
 use futures::future::{ok, Either, FutureResult, Map};
 use futures::{Future, Poll};
