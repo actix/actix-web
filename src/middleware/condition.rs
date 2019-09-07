@@ -3,7 +3,7 @@ use actix_service::{Service, Transform};
 use futures::future::{ok, Either, FutureResult, Map};
 use futures::{Future, Poll};
 
-/// `Middleware` for conditianally enables another middleware
+/// `Middleware` for conditionally enables another middleware.
 /// The controled middleware must not change the `Service` interfaces.
 /// This means you cannot control such middlewares like `Logger` or `Compress`.
 ///
