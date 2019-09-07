@@ -9,7 +9,7 @@ use futures::{Future, Poll};
 ///
 /// ## Usage
 ///
-/// ```
+/// ```rust
 /// use actix_web::middleware::{Condition, NormalizePath};
 /// use actix_web::App;
 ///
