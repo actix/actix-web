@@ -19,7 +19,7 @@ use super::pool::Acquired;
 
 pub(crate) fn send_request<T, B>(
     io: SendRequest<Bytes>,
-    head_wrapper: RequestHeadType,
+    head: RequestHeadType,
     body: B,
     created: time::Instant,
     pool: Option<Acquired<T>>,
@@ -28,8 +28,8 @@ where
     T: AsyncRead + AsyncWrite + 'static,
     B: MessageBody,
 {
-    trace!("Sending client request: {:?} {:?}", head_wrapper, body.size());
-    let head_req = head_wrapper.as_ref().method == Method::HEAD;
+    trace!("Sending client request: {:?} {:?}", head, body.size());
+    let head_req = head.as_ref().method == Method::HEAD;
     let length = body.size();
     let eof = match length {
         BodySize::None | BodySize::Empty | BodySize::Sized(0) => true,
@@ -40,8 +40,8 @@ where
         .map_err(SendRequestError::from)
         .and_then(move |mut io| {
             let mut req = Request::new(());
-            *req.uri_mut() = head_wrapper.as_ref().uri.clone();
-            *req.method_mut() = head_wrapper.as_ref().method.clone();
+            *req.uri_mut() = head.as_ref().uri.clone();
+            *req.method_mut() = head.as_ref().method.clone();
             *req.version_mut() = Version::HTTP_2;
 
             let mut skip_len = true;
@@ -67,14 +67,14 @@ where
                 ),
             };
 
-            // Extracting extra headers from RequestHeadWrapper. HeaderMap::new() does not allocate.
-            let (head_wrapper, extra_headers) = match head_wrapper {
+            // Extracting extra headers from RequestHeadType. HeaderMap::new() does not allocate.
+            let (head, extra_headers) = match head {
                 RequestHeadType::Owned(head) => (RequestHeadType::Owned(head), HeaderMap::new()),
                 RequestHeadType::Rc(head, extra_headers) => (RequestHeadType::Rc(head, None), extra_headers.unwrap_or(HeaderMap::new())),
             };
 
             // merging headers from head and extra headers.
-            let headers = head_wrapper.as_ref().headers.iter()
+            let headers = head.as_ref().headers.iter()
                 .filter(|(name, _)| {
                     !extra_headers.contains_key(*name)
                 })

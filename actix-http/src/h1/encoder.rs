@@ -538,9 +538,9 @@ mod tests {
         head.headers
             .insert(CONTENT_TYPE, HeaderValue::from_static("plain/text"));
 
-        let mut head_wrapper = RequestHeadType::Owned(head);
+        let mut head = RequestHeadType::Owned(head);
 
-        let _ = head_wrapper.encode_headers(
+        let _ = head.encode_headers(
             &mut bytes,
             Version::HTTP_11,
             BodySize::Empty,
@@ -552,7 +552,7 @@ mod tests {
             Bytes::from_static(b"\r\nContent-Length: 0\r\nConnection: close\r\nDate: date\r\nContent-Type: plain/text\r\n\r\n")
         );
 
-        let _ = head_wrapper.encode_headers(
+        let _ = head.encode_headers(
             &mut bytes,
             Version::HTTP_11,
             BodySize::Stream,
@@ -564,7 +564,7 @@ mod tests {
             Bytes::from_static(b"\r\nTransfer-Encoding: chunked\r\nDate: date\r\nContent-Type: plain/text\r\n\r\n")
         );
 
-        let _ = head_wrapper.encode_headers(
+        let _ = head.encode_headers(
             &mut bytes,
             Version::HTTP_11,
             BodySize::Sized64(100),
@@ -584,9 +584,9 @@ mod tests {
         head.headers
             .append(CONTENT_TYPE, HeaderValue::from_static("xml"));
 
-        let mut head_wrapper = RequestHeadType::Owned(head);
+        let mut head = RequestHeadType::Owned(head);
 
-        let _ = head_wrapper.encode_headers(
+        let _ = head.encode_headers(
             &mut bytes,
             Version::HTTP_11,
             BodySize::Stream,
@@ -610,9 +610,9 @@ mod tests {
         extra_headers.insert(AUTHORIZATION,HeaderValue::from_static("another authorization"));
         extra_headers.insert(DATE, HeaderValue::from_static("date"));
 
-        let mut head_wrapper = RequestHeadType::Rc(Rc::new(head), Some(extra_headers));
+        let mut head = RequestHeadType::Rc(Rc::new(head), Some(extra_headers));
 
-        let _ = head_wrapper.encode_headers(
+        let _ = head.encode_headers(
             &mut bytes,
             Version::HTTP_11,
             BodySize::Empty,

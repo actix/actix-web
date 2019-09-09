@@ -20,7 +20,7 @@ use crate::body::{BodySize, MessageBody};
 
 pub(crate) fn send_request<T, B>(
     io: T,
-    mut head_wrapper: RequestHeadType,
+    mut head: RequestHeadType,
     body: B,
     created: time::Instant,
     pool: Option<Acquired<T>>,
@@ -30,18 +30,18 @@ where
     B: MessageBody,
 {
     // set request host header
-    if !head_wrapper.as_ref().headers.contains_key(HOST) && !head_wrapper.extra_headers().iter().any(|h| h.contains_key(HOST)) {
-        if let Some(host) = head_wrapper.as_ref().uri.host() {
+    if !head.as_ref().headers.contains_key(HOST) && !head.extra_headers().iter().any(|h| h.contains_key(HOST)) {
+        if let Some(host) = head.as_ref().uri.host() {
             let mut wrt = BytesMut::with_capacity(host.len() + 5).writer();
 
-            let _ = match head_wrapper.as_ref().uri.port_u16() {
+            let _ = match head.as_ref().uri.port_u16() {
                 None | Some(80) | Some(443) => write!(wrt, "{}", host),
                 Some(port) => write!(wrt, "{}:{}", host, port),
             };
 
             match wrt.get_mut().take().freeze().try_into() {
                 Ok(value) => {
-                    match head_wrapper {
+                    match head {
                         RequestHeadType::Owned(ref mut head) => {
                             head.headers.insert(HOST, value)
                         },
@@ -68,7 +68,7 @@ where
 
     // create Framed and send request
     Framed::new(io, h1::ClientCodec::default())
-        .send((head_wrapper, len).into())
+        .send((head, len).into())
         .from_err()
         // send request body
         .and_then(move |framed| match body.size() {
@@ -104,14 +104,14 @@ where
 
 pub(crate) fn open_tunnel<T>(
     io: T,
-    head_wrapper: RequestHeadType,
+    head: RequestHeadType,
 ) -> impl Future<Item = (ResponseHead, Framed<T, h1::ClientCodec>), Error = SendRequestError>
 where
     T: AsyncRead + AsyncWrite + 'static,
 {
     // create Framed and send request
     Framed::new(io, h1::ClientCodec::default())
-        .send((head_wrapper, BodySize::None).into())
+        .send((head, BodySize::None).into())
         .from_err()
         // read response
         .and_then(|framed| {

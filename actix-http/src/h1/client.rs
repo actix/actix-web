@@ -194,13 +194,13 @@ impl Encoder for ClientCodec {
         dst: &mut BytesMut,
     ) -> Result<(), Self::Error> {
         match item {
-            Message::Item((mut head_wrapper, length)) => {
+            Message::Item((mut head, length)) => {
                 let inner = &mut self.inner;
-                inner.version = head_wrapper.as_ref().version;
-                inner.flags.set(Flags::HEAD, head_wrapper.as_ref().method == Method::HEAD);
+                inner.version = head.as_ref().version;
+                inner.flags.set(Flags::HEAD, head.as_ref().method == Method::HEAD);
 
                 // connection status
-                inner.ctype = match head_wrapper.as_ref().connection_type() {
+                inner.ctype = match head.as_ref().connection_type() {
                     ConnectionType::KeepAlive => {
                         if inner.flags.contains(Flags::KEEPALIVE_ENABLED) {
                             ConnectionType::KeepAlive
@@ -214,7 +214,7 @@ impl Encoder for ClientCodec {
 
                 inner.encoder.encode(
                     dst,
-                    &mut head_wrapper,
+                    &mut head,
                     false,
                     false,
                     inner.version,
