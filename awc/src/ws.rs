@@ -233,6 +233,10 @@ impl WebsocketsRequest {
             return Either::A(err(InvalidUrl::UnknownScheme.into()));
         }
 
+        if !self.head.headers.contains_key(header::HOST) {
+            self.head.headers.insert(header::HOST, HeaderValue::from_str(uri.host().unwrap()).unwrap());
+        }
+
         // set cookies
         if let Some(ref mut jar) = self.cookies {
             let mut cookie = String::new();

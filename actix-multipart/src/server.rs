@@ -167,7 +167,7 @@ impl InnerMultipart {
         boundary: &str,
     ) -> Result<Option<bool>, MultipartError> {
         // TODO: need to read epilogue
-        match payload.readline()? {
+        match payload.readline_or_eof()? {
             None => {
                 if payload.eof {
                     Ok(Some(true))
@@ -176,16 +176,15 @@ impl InnerMultipart {
                 }
             }
             Some(chunk) => {
-                if chunk.len() == boundary.len() + 4
-                    && &chunk[..2] == b"--"
-                    && &chunk[2..boundary.len() + 2] == boundary.as_bytes()
-                {
+                if chunk.len() < boundary.len() + 4
+                    || &chunk[..2] != b"--"
+                    || &chunk[2..boundary.len() + 2] != boundary.as_bytes() {
+                    Err(MultipartError::Boundary)
+                } else if &chunk[boundary.len() + 2..] == b"\r\n" {
                     Ok(Some(false))
-                } else if chunk.len() == boundary.len() + 6
-                    && &chunk[..2] == b"--"
-                    && &chunk[2..boundary.len() + 2] == boundary.as_bytes()
-                    && &chunk[boundary.len() + 2..boundary.len() + 4] == b"--"
-                {
+                } else if &chunk[boundary.len() + 2..boundary.len() + 4] == b"--"
+                    && (chunk.len() == boundary.len() + 4
+                        || &chunk[boundary.len() + 4..] == b"\r\n") {
                     Ok(Some(true))
                 } else {
                     Err(MultipartError::Boundary)
@@ -779,6 +778,14 @@ impl PayloadBuffer {
         self.read_until(b"\n")
     }
 
+    /// Read bytes until new line delimiter or eof
+    pub fn readline_or_eof(&mut self) -> Result<Option<Bytes>, MultipartError> {
+        match self.readline() {
+            Err(MultipartError::Incomplete) if self.eof => Ok(Some(self.buf.take().freeze())),
+            line => line
+        }
+    }
+
     /// Put unprocessed data back to the buffer
     pub fn unprocessed(&mut self, data: Bytes) {
         let buf = BytesMut::from(data);
@@ -849,31 +856,64 @@ mod tests {
         (tx, rx.map_err(|_| panic!()).and_then(|res| res))
     }
 
+    fn create_simple_request_with_header() -> (Bytes, HeaderMap) {
+        let bytes = Bytes::from(
+            "testasdadsad\r\n\
+            --abbc761f78ff4d7cb7573b5a23f96ef0\r\n\
+            Content-Disposition: form-data; name=\"file\"; filename=\"fn.txt\"\r\n\
+            Content-Type: text/plain; charset=utf-8\r\nContent-Length: 4\r\n\r\n\
+            test\r\n\
+            --abbc761f78ff4d7cb7573b5a23f96ef0\r\n\
+            Content-Type: text/plain; charset=utf-8\r\nContent-Length: 4\r\n\r\n\
+            data\r\n\
+            --abbc761f78ff4d7cb7573b5a23f96ef0--\r\n"
+        );
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::CONTENT_TYPE,
+            header::HeaderValue::from_static(
+                "multipart/mixed; boundary=\"abbc761f78ff4d7cb7573b5a23f96ef0\"",
+            ),
+        );
+        (bytes, headers)
+    }
+
+    #[test]
+    fn test_multipart_no_end_crlf() {
+        run_on(|| {
+            let (sender, payload) = create_stream();
+            let (bytes, headers) = create_simple_request_with_header();
+            let bytes_stripped = bytes.slice_to(bytes.len()); // strip crlf
+
+            sender.unbounded_send(Ok(bytes_stripped)).unwrap();
+            drop(sender); // eof
+
+            let mut multipart = Multipart::new(&headers, payload);
+
+            match multipart.poll().unwrap() {
+                Async::Ready(Some(_)) => (),
+                _ => unreachable!(),
+            }
+
+            match multipart.poll().unwrap() {
+                Async::Ready(Some(_)) => (),
+                _ => unreachable!(),
+            }
+
+            match multipart.poll().unwrap() {
+                Async::Ready(None) => (),
+                _ => unreachable!(),
+            }
+        })
+    }
+
     #[test]
     fn test_multipart() {
         run_on(|| {
             let (sender, payload) = create_stream();
+            let (bytes, headers) = create_simple_request_with_header();
 
-            let bytes = Bytes::from(
-                "testasdadsad\r\n\
-                 --abbc761f78ff4d7cb7573b5a23f96ef0\r\n\
-                 Content-Disposition: form-data; name=\"file\"; filename=\"fn.txt\"\r\n\
-                 Content-Type: text/plain; charset=utf-8\r\nContent-Length: 4\r\n\r\n\
-                 test\r\n\
-                 --abbc761f78ff4d7cb7573b5a23f96ef0\r\n\
-                 Content-Type: text/plain; charset=utf-8\r\nContent-Length: 4\r\n\r\n\
-                 data\r\n\
-                 --abbc761f78ff4d7cb7573b5a23f96ef0--\r\n",
-            );
             sender.unbounded_send(Ok(bytes)).unwrap();
-
-            let mut headers = HeaderMap::new();
-            headers.insert(
-                header::CONTENT_TYPE,
-                header::HeaderValue::from_static(
-                    "multipart/mixed; boundary=\"abbc761f78ff4d7cb7573b5a23f96ef0\"",
-                ),
-            );
 
             let mut multipart = Multipart::new(&headers, payload);
             match multipart.poll().unwrap() {
@@ -925,27 +965,9 @@ mod tests {
     fn test_stream() {
         run_on(|| {
             let (sender, payload) = create_stream();
+            let (bytes, headers) = create_simple_request_with_header();
 
-            let bytes = Bytes::from(
-                "testasdadsad\r\n\
-                 --abbc761f78ff4d7cb7573b5a23f96ef0\r\n\
-                 Content-Disposition: form-data; name=\"file\"; filename=\"fn.txt\"\r\n\
-                 Content-Type: text/plain; charset=utf-8\r\n\r\n\
-                 test\r\n\
-                 --abbc761f78ff4d7cb7573b5a23f96ef0\r\n\
-                 Content-Type: text/plain; charset=utf-8\r\n\r\n\
-                 data\r\n\
-                 --abbc761f78ff4d7cb7573b5a23f96ef0--\r\n",
-            );
             sender.unbounded_send(Ok(bytes)).unwrap();
-
-            let mut headers = HeaderMap::new();
-            headers.insert(
-                header::CONTENT_TYPE,
-                header::HeaderValue::from_static(
-                    "multipart/mixed; boundary=\"abbc761f78ff4d7cb7573b5a23f96ef0\"",
-                ),
-            );
 
             let mut multipart = Multipart::new(&headers, payload);
             match multipart.poll().unwrap() {
