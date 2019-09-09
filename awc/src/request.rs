@@ -828,8 +828,8 @@ impl RequestSender {
         Item = ClientResponse<impl Stream<Item = Bytes, Error = PayloadError>>,
         Error = SendRequestError,
     >
-        where
-            B: Into<Body>,
+    where
+        B: Into<Body>,
     {
         let mut connector = config.connector.borrow_mut();
 
