@@ -1,5 +1,15 @@
 # Changes
 
+## Unreleased
+
+### Fixed
+
+* Websockets: Ping and Pong should have binary data (#1049)
+
+### Changed
+
+* Make `ping` and `pong` methods of `WebsocketContext` take an `Into<Bytes>` argument
+
 ## [1.0.7] - 2019-08-29
 
 ### Fixed
