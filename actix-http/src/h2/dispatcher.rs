@@ -257,8 +257,8 @@ where
                         }
                     }
                     Ok(Async::NotReady) => Ok(Async::NotReady),
-                    Err(_e) => {
-                        let res: Response = Response::InternalServerError().finish();
+                    Err(e) => {
+                        let res: Response = e.into().into();
                         let (res, body) = res.replace_body(());
 
                         let mut send = send.take().unwrap();

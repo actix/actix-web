@@ -5,6 +5,9 @@
 
 *  Add `middleware::Conditon` that conditionally enables another middleware
 
+### Fixed
+
+* h2 will use error response #1080
 
 ## [1.0.7] - 2019-08-29
 
