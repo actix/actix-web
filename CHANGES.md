@@ -1,4 +1,10 @@
 # Changes
+## not released yet
+
+### Added
+
+*  Add `middleware::Conditon` that conditionally enables another middleware
+
 
 ## [1.0.7] - 2019-08-29
 
