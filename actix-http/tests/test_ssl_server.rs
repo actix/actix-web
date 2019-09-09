@@ -449,11 +449,11 @@ fn test_h2_service_error() {
     });
 
     let response = srv.block_on(srv.sget("/").send()).unwrap();
-    assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 
     // read response
     let bytes = srv.load_body(response).unwrap();
-    assert!(bytes.is_empty());
+    assert_eq!(bytes, Bytes::from_static(b"error"));
 }
 
 #[test]
