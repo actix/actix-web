@@ -1,10 +1,18 @@
 # Changes
 
+##
+
+### Added
+
+* Add `FrozenClientRequest` to support retries for sending HTTP requests
+
+
 ## [0.2.5] - 2019-09-06
 
 ### Changed
 
 * Ensure that the `Host` header is set when initiating a WebSocket client connection.
+
 
 ## [0.2.4] - 2019-08-13
 

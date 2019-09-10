@@ -1,5 +1,6 @@
 #![allow(unused_imports, unused_variables, dead_code)]
 use std::io::{self, Write};
+use std::rc::Rc;
 
 use actix_codec::{Decoder, Encoder};
 use bitflags::bitflags;
@@ -16,7 +17,8 @@ use crate::body::BodySize;
 use crate::config::ServiceConfig;
 use crate::error::{ParseError, PayloadError};
 use crate::helpers;
-use crate::message::{ConnectionType, Head, MessagePool, RequestHead, ResponseHead};
+use crate::message::{ConnectionType, Head, MessagePool, RequestHead, RequestHeadType, ResponseHead};
+use crate::header::HeaderMap;
 
 bitflags! {
     struct Flags: u8 {
@@ -48,7 +50,7 @@ struct ClientCodecInner {
     // encoder part
     flags: Flags,
     headers_size: u32,
-    encoder: encoder::MessageEncoder<RequestHead>,
+    encoder: encoder::MessageEncoder<RequestHeadType>,
 }
 
 impl Default for ClientCodec {
@@ -183,7 +185,7 @@ impl Decoder for ClientPayloadCodec {
 }
 
 impl Encoder for ClientCodec {
-    type Item = Message<(RequestHead, BodySize)>;
+    type Item = Message<(RequestHeadType, BodySize)>;
     type Error = io::Error;
 
     fn encode(
@@ -192,13 +194,13 @@ impl Encoder for ClientCodec {
         dst: &mut BytesMut,
     ) -> Result<(), Self::Error> {
         match item {
-            Message::Item((mut msg, length)) => {
+            Message::Item((mut head, length)) => {
                 let inner = &mut self.inner;
-                inner.version = msg.version;
-                inner.flags.set(Flags::HEAD, msg.method == Method::HEAD);
+                inner.version = head.as_ref().version;
+                inner.flags.set(Flags::HEAD, head.as_ref().method == Method::HEAD);
 
                 // connection status
-                inner.ctype = match msg.connection_type() {
+                inner.ctype = match head.as_ref().connection_type() {
                     ConnectionType::KeepAlive => {
                         if inner.flags.contains(Flags::KEEPALIVE_ENABLED) {
                             ConnectionType::KeepAlive
@@ -212,7 +214,7 @@ impl Encoder for ClientCodec {
 
                 inner.encoder.encode(
                     dst,
-                    &mut msg,
+                    &mut head,
                     false,
                     false,
                     inner.version,

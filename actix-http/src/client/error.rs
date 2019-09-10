@@ -128,3 +128,23 @@ impl ResponseError for SendRequestError {
         .into()
     }
 }
+
+/// A set of errors that can occur during freezing a request
+#[derive(Debug, Display, From)]
+pub enum FreezeRequestError {
+    /// Invalid URL
+    #[display(fmt = "Invalid URL: {}", _0)]
+    Url(InvalidUrl),
+    /// Http error
+    #[display(fmt = "{}", _0)]
+    Http(HttpError),
+}
+
+impl From<FreezeRequestError> for SendRequestError {
+    fn from(e: FreezeRequestError) -> Self {
+        match e {
+            FreezeRequestError::Url(e) => e.into(),
+            FreezeRequestError::Http(e) => e.into(),
+        }
+    }
+}

@@ -9,8 +9,9 @@ use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, TRANSFER_ENCODING};
 use http::{request::Request, HttpTryFrom, Method, Version};
 
 use crate::body::{BodySize, MessageBody};
-use crate::message::{RequestHead, ResponseHead};
+use crate::message::{RequestHeadType, ResponseHead};
 use crate::payload::Payload;
+use crate::header::HeaderMap;
 
 use super::connection::{ConnectionType, IoConnection};
 use super::error::SendRequestError;
@@ -18,7 +19,7 @@ use super::pool::Acquired;
 
 pub(crate) fn send_request<T, B>(
     io: SendRequest<Bytes>,
-    head: RequestHead,
+    head: RequestHeadType,
     body: B,
     created: time::Instant,
     pool: Option<Acquired<T>>,
@@ -28,7 +29,7 @@ where
     B: MessageBody,
 {
     trace!("Sending client request: {:?} {:?}", head, body.size());
-    let head_req = head.method == Method::HEAD;
+    let head_req = head.as_ref().method == Method::HEAD;
     let length = body.size();
     let eof = match length {
         BodySize::None | BodySize::Empty | BodySize::Sized(0) => true,
@@ -39,8 +40,8 @@ where
         .map_err(SendRequestError::from)
         .and_then(move |mut io| {
             let mut req = Request::new(());
-            *req.uri_mut() = head.uri;
-            *req.method_mut() = head.method;
+            *req.uri_mut() = head.as_ref().uri.clone();
+            *req.method_mut() = head.as_ref().method.clone();
             *req.version_mut() = Version::HTTP_2;
 
             let mut skip_len = true;
@@ -66,8 +67,21 @@ where
                 ),
             };
 
+            // Extracting extra headers from RequestHeadType. HeaderMap::new() does not allocate.
+            let (head, extra_headers) = match head {
+                RequestHeadType::Owned(head) => (RequestHeadType::Owned(head), HeaderMap::new()),
+                RequestHeadType::Rc(head, extra_headers) => (RequestHeadType::Rc(head, None), extra_headers.unwrap_or(HeaderMap::new())),
+            };
+
+            // merging headers from head and extra headers.
+            let headers = head.as_ref().headers.iter()
+                .filter(|(name, _)| {
+                    !extra_headers.contains_key(*name)
+                })
+                .chain(extra_headers.iter());
+
             // copy headers
-            for (key, value) in head.headers.iter() {
+            for (key, value) in headers {
                 match *key {
                     CONNECTION | TRANSFER_ENCODING => continue, // http2 specific
                     CONTENT_LENGTH if skip_len => continue,

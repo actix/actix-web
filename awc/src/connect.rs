@@ -1,4 +1,5 @@
 use std::{fmt, io, net};
+use std::rc::Rc;
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use actix_http::body::Body;
@@ -6,7 +7,8 @@ use actix_http::client::{
     Connect as ClientConnect, ConnectError, Connection, SendRequestError,
 };
 use actix_http::h1::ClientCodec;
-use actix_http::{RequestHead, ResponseHead};
+use actix_http::{RequestHead, RequestHeadType, ResponseHead};
+use actix_http::http::HeaderMap;
 use actix_service::Service;
 use futures::{Future, Poll};
 
@@ -22,10 +24,31 @@ pub(crate) trait Connect {
         addr: Option<net::SocketAddr>,
     ) -> Box<dyn Future<Item = ClientResponse, Error = SendRequestError>>;
 
+    fn send_request_extra(
+        &mut self,
+        head: Rc<RequestHead>,
+        extra_headers: Option<HeaderMap>,
+        body: Body,
+        addr: Option<net::SocketAddr>,
+    ) -> Box<dyn Future<Item = ClientResponse, Error = SendRequestError>>;
+
     /// Send request, returns Response and Framed
     fn open_tunnel(
         &mut self,
         head: RequestHead,
+        addr: Option<net::SocketAddr>,
+    ) -> Box<
+        dyn Future<
+            Item = (ResponseHead, Framed<BoxedSocket, ClientCodec>),
+            Error = SendRequestError,
+        >,
+    >;
+
+    /// Send request and extra headers, returns Response and Framed
+    fn open_tunnel_extra(
+        &mut self,
+        head: Rc<RequestHead>,
+        extra_headers: Option<HeaderMap>,
         addr: Option<net::SocketAddr>,
     ) -> Box<
         dyn Future<
@@ -59,7 +82,28 @@ where
                 })
                 .from_err()
                 // send request
-                .and_then(move |connection| connection.send_request(head, body))
+                .and_then(move |connection| connection.send_request(RequestHeadType::from(head), body))
+                .map(|(head, payload)| ClientResponse::new(head, payload)),
+        )
+    }
+
+    fn send_request_extra(
+        &mut self,
+        head: Rc<RequestHead>,
+        extra_headers: Option<HeaderMap>,
+        body: Body,
+        addr: Option<net::SocketAddr>,
+    ) -> Box<dyn Future<Item = ClientResponse, Error = SendRequestError>> {
+        Box::new(
+            self.0
+                // connect to the host
+                .call(ClientConnect {
+                    uri: head.uri.clone(),
+                    addr,
+                })
+                .from_err()
+                // send request
+                .and_then(move |connection| connection.send_request(RequestHeadType::Rc(head, extra_headers), body))
                 .map(|(head, payload)| ClientResponse::new(head, payload)),
         )
     }
@@ -83,7 +127,35 @@ where
                 })
                 .from_err()
                 // send request
-                .and_then(move |connection| connection.open_tunnel(head))
+                .and_then(move |connection| connection.open_tunnel(RequestHeadType::from(head)))
+                .map(|(head, framed)| {
+                    let framed = framed.map_io(|io| BoxedSocket(Box::new(Socket(io))));
+                    (head, framed)
+                }),
+        )
+    }
+
+    fn open_tunnel_extra(
+        &mut self,
+        head: Rc<RequestHead>,
+        extra_headers: Option<HeaderMap>,
+        addr: Option<net::SocketAddr>,
+    ) -> Box<
+        dyn Future<
+            Item = (ResponseHead, Framed<BoxedSocket, ClientCodec>),
+            Error = SendRequestError,
+        >,
+    > {
+        Box::new(
+            self.0
+                // connect to the host
+                .call(ClientConnect {
+                    uri: head.uri.clone(),
+                    addr,
+                })
+                .from_err()
+                // send request
+                .and_then(move |connection| connection.open_tunnel(RequestHeadType::Rc(head, extra_headers)))
                 .map(|(head, framed)| {
                     let framed = framed.map_io(|io| BoxedSocket(Box::new(Socket(io))));
                     (head, framed)

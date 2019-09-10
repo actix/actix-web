@@ -8,7 +8,7 @@ use h2::client::SendRequest;
 
 use crate::body::MessageBody;
 use crate::h1::ClientCodec;
-use crate::message::{RequestHead, ResponseHead};
+use crate::message::{RequestHeadType, ResponseHead};
 use crate::payload::Payload;
 
 use super::error::SendRequestError;
@@ -27,9 +27,9 @@ pub trait Connection {
     fn protocol(&self) -> Protocol;
 
     /// Send request and body
-    fn send_request<B: MessageBody + 'static>(
+    fn send_request<B: MessageBody + 'static, H: Into<RequestHeadType>>(
         self,
-        head: RequestHead,
+        head: H,
         body: B,
     ) -> Self::Future;
 
@@ -39,7 +39,7 @@ pub trait Connection {
     >;
 
     /// Send request, returns Response and Framed
-    fn open_tunnel(self, head: RequestHead) -> Self::TunnelFuture;
+    fn open_tunnel<H: Into<RequestHeadType>>(self, head: H) -> Self::TunnelFuture;
 }
 
 pub(crate) trait ConnectionLifetime: AsyncRead + AsyncWrite + 'static {
@@ -105,22 +105,22 @@ where
         }
     }
 
-    fn send_request<B: MessageBody + 'static>(
+    fn send_request<B: MessageBody + 'static, H: Into<RequestHeadType>>(
         mut self,
-        head: RequestHead,
+        head: H,
         body: B,
     ) -> Self::Future {
         match self.io.take().unwrap() {
             ConnectionType::H1(io) => Box::new(h1proto::send_request(
                 io,
-                head,
+                head.into(),
                 body,
                 self.created,
                 self.pool,
             )),
             ConnectionType::H2(io) => Box::new(h2proto::send_request(
                 io,
-                head,
+                head.into(),
                 body,
                 self.created,
                 self.pool,
@@ -139,10 +139,10 @@ where
     >;
 
     /// Send request, returns Response and Framed
-    fn open_tunnel(mut self, head: RequestHead) -> Self::TunnelFuture {
+    fn open_tunnel<H: Into<RequestHeadType>>(mut self, head: H) -> Self::TunnelFuture {
         match self.io.take().unwrap() {
             ConnectionType::H1(io) => {
-                Either::A(Box::new(h1proto::open_tunnel(io, head)))
+                Either::A(Box::new(h1proto::open_tunnel(io, head.into())))
             }
             ConnectionType::H2(io) => {
                 if let Some(mut pool) = self.pool.take() {
@@ -180,9 +180,9 @@ where
         }
     }
 
-    fn send_request<RB: MessageBody + 'static>(
+    fn send_request<RB: MessageBody + 'static, H: Into<RequestHeadType>>(
         self,
-        head: RequestHead,
+        head: H,
         body: RB,
     ) -> Self::Future {
         match self {
@@ -199,7 +199,7 @@ where
     >;
 
     /// Send request, returns Response and Framed
-    fn open_tunnel(self, head: RequestHead) -> Self::TunnelFuture {
+    fn open_tunnel<H: Into<RequestHeadType>>(self, head: H) -> Self::TunnelFuture {
         match self {
             EitherConnection::A(con) => Box::new(
                 con.open_tunnel(head)

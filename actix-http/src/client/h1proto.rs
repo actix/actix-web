@@ -9,8 +9,9 @@ use futures::{Async, Future, Poll, Sink, Stream};
 use crate::error::PayloadError;
 use crate::h1;
 use crate::http::header::{IntoHeaderValue, HOST};
-use crate::message::{RequestHead, ResponseHead};
+use crate::message::{RequestHeadType, ResponseHead};
 use crate::payload::{Payload, PayloadStream};
+use crate::header::HeaderMap;
 
 use super::connection::{ConnectionLifetime, ConnectionType, IoConnection};
 use super::error::{ConnectError, SendRequestError};
@@ -19,7 +20,7 @@ use crate::body::{BodySize, MessageBody};
 
 pub(crate) fn send_request<T, B>(
     io: T,
-    mut head: RequestHead,
+    mut head: RequestHeadType,
     body: B,
     created: time::Instant,
     pool: Option<Acquired<T>>,
@@ -29,21 +30,29 @@ where
     B: MessageBody,
 {
     // set request host header
-    if !head.headers.contains_key(HOST) {
-        if let Some(host) = head.uri.host() {
+    if !head.as_ref().headers.contains_key(HOST) && !head.extra_headers().iter().any(|h| h.contains_key(HOST)) {
+        if let Some(host) = head.as_ref().uri.host() {
             let mut wrt = BytesMut::with_capacity(host.len() + 5).writer();
 
-            let _ = match head.uri.port_u16() {
+            let _ = match head.as_ref().uri.port_u16() {
                 None | Some(80) | Some(443) => write!(wrt, "{}", host),
                 Some(port) => write!(wrt, "{}:{}", host, port),
             };
 
             match wrt.get_mut().take().freeze().try_into() {
                 Ok(value) => {
-                    head.headers.insert(HOST, value);
+                    match head {
+                        RequestHeadType::Owned(ref mut head) => {
+                            head.headers.insert(HOST, value)
+                        },
+                        RequestHeadType::Rc(_, ref mut extra_headers) => {
+                            let headers = extra_headers.get_or_insert(HeaderMap::new());
+                            headers.insert(HOST, value)
+                        },
+                    }
                 }
                 Err(e) => {
-                    log::error!("Can not set HOST header {}", e);
+                    log::error!("Can not set HOST header {}", e)
                 }
             }
         }
@@ -57,7 +66,7 @@ where
 
     let len = body.size();
 
-    // create Framed and send reqest
+    // create Framed and send request
     Framed::new(io, h1::ClientCodec::default())
         .send((head, len).into())
         .from_err()
@@ -95,12 +104,12 @@ where
 
 pub(crate) fn open_tunnel<T>(
     io: T,
-    head: RequestHead,
+    head: RequestHeadType,
 ) -> impl Future<Item = (ResponseHead, Framed<T, h1::ClientCodec>), Error = SendRequestError>
 where
     T: AsyncRead + AsyncWrite + 'static,
 {
-    // create Framed and send reqest
+    // create Framed and send request
     Framed::new(io, h1::ClientCodec::default())
         .send((head, BodySize::None).into())
         .from_err()

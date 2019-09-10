@@ -4,6 +4,7 @@ use std::io::Write;
 use std::marker::PhantomData;
 use std::str::FromStr;
 use std::{cmp, fmt, io, mem};
+use std::rc::Rc;
 
 use bytes::{BufMut, Bytes, BytesMut};
 
@@ -15,7 +16,7 @@ use crate::http::header::{
     HeaderValue, ACCEPT_ENCODING, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING,
 };
 use crate::http::{HeaderMap, Method, StatusCode, Version};
-use crate::message::{ConnectionType, Head, RequestHead, ResponseHead};
+use crate::message::{ConnectionType, Head, RequestHead, ResponseHead, RequestHeadType};
 use crate::request::Request;
 use crate::response::Response;
 
@@ -42,6 +43,8 @@ pub(crate) trait MessageType: Sized {
     fn status(&self) -> Option<StatusCode>;
 
     fn headers(&self) -> &HeaderMap;
+
+    fn extra_headers(&self) -> Option<&HeaderMap>;
 
     fn camel_case(&self) -> bool {
         false
@@ -128,12 +131,21 @@ pub(crate) trait MessageType: Sized {
             _ => (),
         }
 
+        // merging headers from head and extra headers. HeaderMap::new() does not allocate.
+        let empty_headers = HeaderMap::new();
+        let extra_headers = self.extra_headers().unwrap_or(&empty_headers);
+        let headers = self.headers().inner.iter()
+            .filter(|(name, _)| {
+                !extra_headers.contains_key(*name)
+            })
+            .chain(extra_headers.inner.iter());
+
         // write headers
         let mut pos = 0;
         let mut has_date = false;
         let mut remaining = dst.remaining_mut();
         let mut buf = unsafe { &mut *(dst.bytes_mut() as *mut [u8]) };
-        for (key, value) in self.headers().inner.iter() {
+        for (key, value) in headers {
             match *key {
                 CONNECTION => continue,
                 TRANSFER_ENCODING | CONTENT_LENGTH if skip_len => continue,
@@ -235,6 +247,10 @@ impl MessageType for Response<()> {
         &self.head().headers
     }
 
+    fn extra_headers(&self) -> Option<&HeaderMap> {
+        None
+    }
+
     fn encode_status(&mut self, dst: &mut BytesMut) -> io::Result<()> {
         let head = self.head();
         let reason = head.reason().as_bytes();
@@ -247,31 +263,36 @@ impl MessageType for Response<()> {
     }
 }
 
-impl MessageType for RequestHead {
+impl MessageType for RequestHeadType {
     fn status(&self) -> Option<StatusCode> {
         None
     }
 
     fn chunked(&self) -> bool {
-        self.chunked()
+        self.as_ref().chunked()
     }
 
     fn camel_case(&self) -> bool {
-        RequestHead::camel_case_headers(self)
+        self.as_ref().camel_case_headers()
     }
 
     fn headers(&self) -> &HeaderMap {
-        &self.headers
+        self.as_ref().headers()
+    }
+
+    fn extra_headers(&self) -> Option<&HeaderMap> {
+        self.extra_headers()
     }
 
     fn encode_status(&mut self, dst: &mut BytesMut) -> io::Result<()> {
-        dst.reserve(256 + self.headers.len() * AVERAGE_HEADER_SIZE);
+        let head = self.as_ref();
+        dst.reserve(256 + head.headers.len() * AVERAGE_HEADER_SIZE);
         write!(
             Writer(dst),
             "{} {} {}",
-            self.method,
-            self.uri.path_and_query().map(|u| u.as_str()).unwrap_or("/"),
-            match self.version {
+            head.method,
+            head.uri.path_and_query().map(|u| u.as_str()).unwrap_or("/"),
+            match head.version {
                 Version::HTTP_09 => "HTTP/0.9",
                 Version::HTTP_10 => "HTTP/1.0",
                 Version::HTTP_11 => "HTTP/1.1",
@@ -488,9 +509,11 @@ fn write_camel_case(value: &[u8], buffer: &mut [u8]) {
 #[cfg(test)]
 mod tests {
     use bytes::Bytes;
+    //use std::rc::Rc;
 
     use super::*;
     use crate::http::header::{HeaderValue, CONTENT_TYPE};
+    use http::header::AUTHORIZATION;
 
     #[test]
     fn test_chunked_te() {
@@ -514,6 +537,8 @@ mod tests {
         head.headers.insert(DATE, HeaderValue::from_static("date"));
         head.headers
             .insert(CONTENT_TYPE, HeaderValue::from_static("plain/text"));
+
+        let mut head = RequestHeadType::Owned(head);
 
         let _ = head.encode_headers(
             &mut bytes,
@@ -551,21 +576,16 @@ mod tests {
             Bytes::from_static(b"\r\nContent-Length: 100\r\nDate: date\r\nContent-Type: plain/text\r\n\r\n")
         );
 
+        let mut head = RequestHead::default();
+        head.set_camel_case_headers(false);
+        head.headers.insert(DATE, HeaderValue::from_static("date"));
+        head.headers
+            .insert(CONTENT_TYPE, HeaderValue::from_static("plain/text"));
         head.headers
             .append(CONTENT_TYPE, HeaderValue::from_static("xml"));
-        let _ = head.encode_headers(
-            &mut bytes,
-            Version::HTTP_11,
-            BodySize::Stream,
-            ConnectionType::KeepAlive,
-            &ServiceConfig::default(),
-        );
-        assert_eq!(
-            bytes.take().freeze(),
-            Bytes::from_static(b"\r\nTransfer-Encoding: chunked\r\nDate: date\r\nContent-Type: xml\r\nContent-Type: plain/text\r\n\r\n")
-        );
 
-        head.set_camel_case_headers(false);
+        let mut head = RequestHeadType::Owned(head);
+
         let _ = head.encode_headers(
             &mut bytes,
             Version::HTTP_11,
@@ -576,6 +596,32 @@ mod tests {
         assert_eq!(
             bytes.take().freeze(),
             Bytes::from_static(b"\r\ntransfer-encoding: chunked\r\ndate: date\r\ncontent-type: xml\r\ncontent-type: plain/text\r\n\r\n")
+        );
+    }
+
+    #[test]
+    fn test_extra_headers() {
+        let mut bytes = BytesMut::with_capacity(2048);
+
+        let mut head = RequestHead::default();
+        head.headers.insert(AUTHORIZATION, HeaderValue::from_static("some authorization"));
+
+        let mut extra_headers = HeaderMap::new();
+        extra_headers.insert(AUTHORIZATION,HeaderValue::from_static("another authorization"));
+        extra_headers.insert(DATE, HeaderValue::from_static("date"));
+
+        let mut head = RequestHeadType::Rc(Rc::new(head), Some(extra_headers));
+
+        let _ = head.encode_headers(
+            &mut bytes,
+            Version::HTTP_11,
+            BodySize::Empty,
+            ConnectionType::Close,
+            &ServiceConfig::default(),
+        );
+        assert_eq!(
+            bytes.take().freeze(),
+            Bytes::from_static(b"\r\ncontent-length: 0\r\nconnection: close\r\nauthorization: another authorization\r\ndate: date\r\n\r\n")
         );
     }
 }
