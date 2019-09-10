@@ -396,7 +396,7 @@ impl ClientRequest {
     pub fn send_body<B>(
         self,
         body: B,
-    ) -> Send
+    ) -> SendBody
     where
         B: Into<Body>,
     {
@@ -413,7 +413,7 @@ impl ClientRequest {
     pub fn send_json<T: Serialize>(
         self,
         value: &T,
-    ) -> Send
+    ) -> SendBody
     {
         let slf = match self.prep_for_sending() {
             Ok(slf) => slf,
@@ -430,7 +430,7 @@ impl ClientRequest {
     pub fn send_form<T: Serialize>(
         self,
         value: &T,
-    ) -> Send
+    ) -> SendBody
     {
         let slf = match self.prep_for_sending() {
             Ok(slf) => slf,
@@ -445,7 +445,7 @@ impl ClientRequest {
     pub fn send_stream<S, E>(
         self,
         stream: S,
-    ) -> Send
+    ) -> SendBody
     where
         S: Stream<Item = Bytes, Error = E> + 'static,
         E: Into<Error> + 'static,
@@ -462,7 +462,7 @@ impl ClientRequest {
     /// Set an empty body and generate `ClientRequest`.
     pub fn send(
         self,
-    ) -> Send
+    ) -> SendBody
     {
         let slf = match self.prep_for_sending() {
             Ok(slf) => slf,
@@ -584,7 +584,7 @@ impl FrozenClientRequest {
     pub fn send_body<B>(
         &self,
         body: B,
-    ) -> Send
+    ) -> SendBody
     where
         B: Into<Body>,
     {
@@ -596,7 +596,7 @@ impl FrozenClientRequest {
     pub fn send_json<T: Serialize>(
         &self,
         value: &T,
-    ) -> Send
+    ) -> SendBody
     {
         RequestSender::Rc(self.head.clone(), None)
             .send_json(self.addr, self.response_decompress, self.timeout, self.config.as_ref(), value)
@@ -606,7 +606,7 @@ impl FrozenClientRequest {
     pub fn send_form<T: Serialize>(
         &self,
         value: &T,
-    ) -> Send
+    ) -> SendBody
     {
         RequestSender::Rc(self.head.clone(), None)
             .send_form(self.addr, self.response_decompress, self.timeout, self.config.as_ref(), value)
@@ -616,7 +616,7 @@ impl FrozenClientRequest {
     pub fn send_stream<S, E>(
         &self,
         stream: S,
-    ) -> Send
+    ) -> SendBody
     where
         S: Stream<Item = Bytes, Error = E> + 'static,
         E: Into<Error> + 'static,
@@ -628,7 +628,7 @@ impl FrozenClientRequest {
     /// Send an empty body.
     pub fn send(
         &self,
-    ) -> Send
+    ) -> SendBody
     {
         RequestSender::Rc(self.head.clone(), None)
             .send(self.addr, self.response_decompress, self.timeout, self.config.as_ref())
@@ -684,7 +684,7 @@ impl FrozenSendBuilder {
     pub fn send_body<B>(
         self,
         body: B,
-    ) -> Send
+    ) -> SendBody
     where
         B: Into<Body>,
     {
@@ -700,7 +700,7 @@ impl FrozenSendBuilder {
     pub fn send_json<T: Serialize>(
         self,
         value: &T,
-    ) -> Send
+    ) -> SendBody
     {
         if let Some(e) = self.err {
             return e.into()
@@ -714,7 +714,7 @@ impl FrozenSendBuilder {
     pub fn send_form<T: Serialize>(
         self,
         value: &T,
-    ) -> Send
+    ) -> SendBody
     {
         if let Some(e) = self.err {
             return e.into()
@@ -728,7 +728,7 @@ impl FrozenSendBuilder {
     pub fn send_stream<S, E>(
         self,
         stream: S,
-    ) -> Send
+    ) -> SendBody
     where
         S: Stream<Item = Bytes, Error = E> + 'static,
         E: Into<Error> + 'static,
@@ -744,7 +744,7 @@ impl FrozenSendBuilder {
     /// Complete request construction and send an empty body.
     pub fn send(
         self,
-    ) -> Send
+    ) -> SendBody
     {
         if let Some(e) = self.err {
             return e.into()
@@ -779,33 +779,33 @@ impl Into<SendRequestError> for PrepForSendingError {
     }
 }
 
-pub enum Send
+pub enum SendBody
 {
     Fut(Box<dyn Future<Item = ClientResponse, Error = SendRequestError>>, Option<Delay>, bool),
     Err(Option<SendRequestError>),
 }
 
-impl Send
+impl SendBody
 {
     pub fn new(
         send: Box<dyn Future<Item = ClientResponse, Error = SendRequestError>>,
         response_decompress: bool,
         timeout: Option<Duration>,
-    ) -> Send
+    ) -> SendBody
     {
         let delay = timeout.map(|t| Delay::new(Instant::now() + t));
-        Send::Fut(send, delay, response_decompress)
+        SendBody::Fut(send, delay, response_decompress)
     }
 }
 
-impl Future for Send
+impl Future for SendBody
 {
     type Item = ClientResponse<Decoder<Payload<PayloadStream>>>;
     type Error = SendRequestError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         match self {
-            Send::Fut(send, delay, response_decompress) => {
+            SendBody::Fut(send, delay, response_decompress) => {
                 if delay.is_some() {
                     match delay.poll() {
                         Ok(Async::NotReady) => (),
@@ -824,7 +824,7 @@ impl Future for Send
 
                 Ok(Async::Ready(res))
             },
-            Send::Err(ref mut e) => {
+            SendBody::Err(ref mut e) => {
                 match e.take() {
                     Some(e) => Err(e.into()),
                     None => panic!("Attempting to call completed future"),
@@ -835,31 +835,31 @@ impl Future for Send
 }
 
 
-impl From<SendRequestError> for Send
+impl From<SendRequestError> for SendBody
 {
     fn from(e: SendRequestError) -> Self {
-        Send::Err(Some(e))
+        SendBody::Err(Some(e))
     }
 }
 
-impl From<Error> for Send
+impl From<Error> for SendBody
 {
     fn from(e: Error) -> Self {
-        Send::Err(Some(e.into()))
+        SendBody::Err(Some(e.into()))
     }
 }
 
-impl From<HttpError> for Send
+impl From<HttpError> for SendBody
 {
     fn from(e: HttpError) -> Self {
-        Send::Err(Some(e.into()))
+        SendBody::Err(Some(e.into()))
     }
 }
 
-impl From<PrepForSendingError> for Send
+impl From<PrepForSendingError> for SendBody
 {
     fn from(e: PrepForSendingError) -> Self {
-        Send::Err(Some(e.into()))
+        SendBody::Err(Some(e.into()))
     }
 }
 
@@ -877,7 +877,7 @@ impl RequestSender {
         timeout: Option<Duration>,
         config: &ClientConfig,
         body: B,
-    ) -> Send
+    ) -> SendBody
     where
         B: Into<Body>,
     {
@@ -888,7 +888,7 @@ impl RequestSender {
             RequestSender::Rc(head, extra_headers) => connector.send_request_extra(head, extra_headers, body.into(), addr),
         };
 
-        Send::new(fut, response_decompress, timeout.or_else(|| config.timeout.clone()))
+        SendBody::new(fut, response_decompress, timeout.or_else(|| config.timeout.clone()))
     }
 
     pub fn send_json<T: Serialize>(
@@ -898,7 +898,7 @@ impl RequestSender {
         timeout: Option<Duration>,
         config: &ClientConfig,
         value: &T,
-    ) -> Send
+    ) -> SendBody
     {
         let body = match serde_json::to_string(value) {
             Ok(body) => body,
@@ -919,7 +919,7 @@ impl RequestSender {
         timeout: Option<Duration>,
         config: &ClientConfig,
         value: &T,
-    ) -> Send
+    ) -> SendBody
     {
         let body = match serde_urlencoded::to_string(value) {
             Ok(body) => body,
@@ -941,7 +941,7 @@ impl RequestSender {
         timeout: Option<Duration>,
         config: &ClientConfig,
         stream: S,
-    ) -> Send
+    ) -> SendBody
     where
         S: Stream<Item = Bytes, Error = E> + 'static,
         E: Into<Error> + 'static,
@@ -955,7 +955,7 @@ impl RequestSender {
         response_decompress: bool,
         timeout: Option<Duration>,
         config: &ClientConfig,
-    ) -> Send
+    ) -> SendBody
     {
         self.send_body(addr, response_decompress, timeout, config, Body::Empty)
     }
