@@ -101,10 +101,19 @@ impl Decoder for Codec {
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
         match Parser::parse(src, self.server, self.max_size) {
-            Ok(Some((finished, opcode, payload))) => {
+            Ok(Some((finished, rsv, opcode, payload))) => {
                 // continuation is not supported
                 if !finished {
                     return Err(ProtocolError::NoContinuation);
+                }
+
+                // Since this is the default codec we have no extension
+                // and should fail if rsv is set.
+                // In an async context this will cause a NON-STRICT
+                // autoban complience since we might terminate
+                // before receiving the prior message.
+                if rsv != 0 {
+                    return Err(ProtocolError::RSVSet);
                 }
 
                 match opcode {

@@ -50,6 +50,9 @@ pub enum ProtocolError {
     /// Bad utf-8 encoding
     #[display(fmt = "Bad utf-8 encoding.")]
     BadEncoding,
+    /// Continuation is not supported
+    #[display(fmt = "RSV set without extensions.")]
+    RSVSet,
     /// Io error
     #[display(fmt = "io error: {}", _0)]
     Io(io::Error),

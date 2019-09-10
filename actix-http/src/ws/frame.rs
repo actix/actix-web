@@ -17,7 +17,8 @@ impl Parser {
         src: &[u8],
         server: bool,
         max_size: usize,
-    ) -> Result<Option<(usize, bool, OpCode, usize, Option<u32>)>, ProtocolError> {
+    ) -> Result<Option<(usize, bool, u8, OpCode, usize, Option<u32>)>, ProtocolError>
+    {
         let chunk_len = src.len();
 
         let mut idx = 2;
@@ -28,6 +29,7 @@ impl Parser {
         let first = src[0];
         let second = src[1];
         let finished = first & 0x80 != 0;
+        let rsv: u8 = first & 0x70 >> 4;
 
         // check masking
         let masked = second & 0x80 != 0;
@@ -86,7 +88,7 @@ impl Parser {
             None
         };
 
-        Ok(Some((idx, finished, opcode, length, mask)))
+        Ok(Some((idx, finished, rsv, opcode, length, mask)))
     }
 
     /// Parse the input stream into a frame.
@@ -94,9 +96,9 @@ impl Parser {
         src: &mut BytesMut,
         server: bool,
         max_size: usize,
-    ) -> Result<Option<(bool, OpCode, Option<BytesMut>)>, ProtocolError> {
+    ) -> Result<Option<(bool, u8, OpCode, Option<BytesMut>)>, ProtocolError> {
         // try to parse ws frame metadata
-        let (idx, finished, opcode, length, mask) =
+        let (idx, finished, rsv, opcode, length, mask) =
             match Parser::parse_metadata(src, server, max_size)? {
                 None => return Ok(None),
                 Some(res) => res,
@@ -112,7 +114,7 @@ impl Parser {
 
         // no need for body
         if length == 0 {
-            return Ok(Some((finished, opcode, None)));
+            return Ok(Some((finished, rsv, opcode, None)));
         }
 
         let mut data = src.split_to(length);
@@ -124,7 +126,7 @@ impl Parser {
             }
             OpCode::Close if length > 125 => {
                 debug!("Received close frame with payload length exceeding 125. Morphing to protocol close frame.");
-                return Ok(Some((true, OpCode::Close, None)));
+                return Ok(Some((true, rsv, OpCode::Close, None)));
             }
             _ => (),
         }
@@ -134,7 +136,7 @@ impl Parser {
             apply_mask(&mut data, mask);
         }
 
-        Ok(Some((finished, opcode, Some(data))))
+        Ok(Some((finished, rsv, opcode, Some(data))))
     }
 
     /// Parse the payload of a close frame.
@@ -223,12 +225,13 @@ mod tests {
 
     struct F {
         finished: bool,
+        rsv: u8,
         opcode: OpCode,
         payload: Bytes,
     }
 
     fn is_none(
-        frm: &Result<Option<(bool, OpCode, Option<BytesMut>)>, ProtocolError>,
+        frm: &Result<Option<(bool, u8, OpCode, Option<BytesMut>)>, ProtocolError>,
     ) -> bool {
         match *frm {
             Ok(None) => true,
@@ -237,11 +240,12 @@ mod tests {
     }
 
     fn extract(
-        frm: Result<Option<(bool, OpCode, Option<BytesMut>)>, ProtocolError>,
+        frm: Result<Option<(bool, u8, OpCode, Option<BytesMut>)>, ProtocolError>,
     ) -> F {
         match frm {
-            Ok(Some((finished, opcode, payload))) => F {
+            Ok(Some((finished, rsv, opcode, payload))) => F {
                 finished,
+                rsv,
                 opcode,
                 payload: payload
                     .map(|b| b.freeze())
@@ -342,6 +346,20 @@ mod tests {
         } else {
             unreachable!("error");
         }
+    }
+
+    #[test]
+    fn test_parse_rsv() {
+        let mut buf = BytesMut::from(&[0b0111_0001u8, 0b0000_0001u8][..]);
+        buf.extend(&[1u8]);
+
+        assert!(Parser::parse(&mut buf, true, 1024).is_err());
+
+        let frame = extract(Parser::parse(&mut buf, false, 1024));
+        assert!(!frame.finished);
+        assert_eq!(frame.rsv, 7);
+        assert_eq!(frame.opcode, OpCode::Text);
+        assert_eq!(frame.payload, Bytes::from(vec![1u8]));
     }
 
     #[test]
