@@ -23,7 +23,8 @@ name = "actix_http"
 path = "src/lib.rs"
 
 [features]
-default = []
+default = ["invalid-ping-payload"]
+invalid-ping-payload = []
 
 # openssl
 ssl = ["openssl", "actix-connect/ssl"]

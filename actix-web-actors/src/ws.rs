@@ -345,14 +345,30 @@ where
 
     /// Send ping frame
     #[inline]
+    #[cfg(not(feature = "invalid-ping-payload"))]
     pub fn ping<B: Into<Bytes>>(&mut self, message: B) {
         self.write_raw(Message::Ping(message.into()));
     }
 
+    /// Send ping frame
+    #[inline]
+    #[cfg(feature = "invalid-ping-payload")]
+    pub fn ping<B: Into<Bytes>>(&mut self, message: &str) {
+        self.write_raw(Message::Ping(message.to_string()));
+    }
+
     /// Send pong frame
     #[inline]
+    #[cfg(not(feature = "invalid-ping-payload"))]
     pub fn pong<B: Into<Bytes>>(&mut self, message: B) {
         self.write_raw(Message::Pong(message.into()));
+    }
+    
+    /// Send pong frame
+    #[inline]
+    #[cfg(feature = "invalid-ping-payload")]
+    pub fn pong(&mut self, message: &str) {
+        self.write_raw(Message::Pong(message.to_string()));
     }
 
     /// Send close frame

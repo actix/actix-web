@@ -13,8 +13,14 @@ pub enum Message {
     /// Binary message
     Binary(Bytes),
     /// Ping message
+    #[cfg(feature = "invalid-ping-payload")]
+    Ping(String),
+    #[cfg(not(feature = "invalid-ping-payload"))]
     Ping(Bytes),
     /// Pong message
+    #[cfg(feature = "invalid-ping-payload")]
+    Pong(String),
+    #[cfg(not(feature = "invalid-ping-payload"))]
     Pong(Bytes),
     /// Close message with optional reason
     Close(Option<CloseReason>),
@@ -30,8 +36,14 @@ pub enum Frame {
     /// Binary frame
     Binary(Option<BytesMut>),
     /// Ping message
+    #[cfg(feature = "invalid-ping-payload")]
+    Ping(String),
+    #[cfg(not(feature = "invalid-ping-payload"))]
     Ping(Bytes),
     /// Pong message
+    #[cfg(feature = "invalid-ping-payload")]
+    Pong(String),
+    #[cfg(not(feature = "invalid-ping-payload"))]
     Pong(Bytes),
     /// Close message with optional reason
     Close(Option<CloseReason>),
@@ -190,6 +202,7 @@ impl Decoder for Codec {
                             Ok(Some(Frame::Close(None)))
                         }
                     }
+                    #[cfg(not(feature = "invalid-ping-payload"))]
                     OpCode::Ping => {
                         if let Some(pl) = payload {
                             Ok(Some(Frame::Ping(pl.into())))
@@ -197,11 +210,28 @@ impl Decoder for Codec {
                             Ok(Some(Frame::Ping(Bytes::new())))
                         }
                     }
+                    #[cfg(not(feature = "invalid-ping-payload"))]
                     OpCode::Pong => {
                         if let Some(pl) = payload {
                             Ok(Some(Frame::Pong(pl.into())))
                         } else {
                             Ok(Some(Frame::Pong(Bytes::new())))
+                        }
+                    }
+                    #[cfg(feature = "invalid-ping-payload")]
+                    OpCode::Ping => {
+                        if let Some(ref pl) = payload {
+                            Ok(Some(Frame::Ping(String::from_utf8_lossy(pl).into())))
+                        } else {
+                            Ok(Some(Frame::Ping(String::new())))
+                        }
+                    }
+                    #[cfg(feature = "invalid-ping-payload")]
+                    OpCode::Pong => {
+                        if let Some(ref pl) = payload {
+                            Ok(Some(Frame::Pong(String::from_utf8_lossy(pl).into())))
+                        } else {
+                            Ok(Some(Frame::Pong(String::new())))
                         }
                     }
                     OpCode::Binary => Ok(Some(Frame::Binary(payload))),
