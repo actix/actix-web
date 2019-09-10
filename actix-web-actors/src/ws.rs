@@ -345,14 +345,14 @@ where
 
     /// Send ping frame
     #[inline]
-    pub fn ping(&mut self, message: &str) {
-        self.write_raw(Message::Ping(message.to_string()));
+    pub fn ping<B: Into<Bytes>>(&mut self, message: B) {
+        self.write_raw(Message::Ping(message.into()));
     }
 
     /// Send pong frame
     #[inline]
-    pub fn pong(&mut self, message: &str) {
-        self.write_raw(Message::Pong(message.to_string()));
+    pub fn pong<B: Into<Bytes>>(&mut self, message: B) {
+        self.write_raw(Message::Pong(message.into()));
     }
 
     /// Send close frame
