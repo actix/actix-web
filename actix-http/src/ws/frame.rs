@@ -29,7 +29,7 @@ impl Parser {
         let first = src[0];
         let second = src[1];
         let finished = first & 0x80 != 0;
-        let rsv: u8 = first & 0x70 >> 4;
+        let rsv: u8 = (first & 0x70) >> 4;
 
         // check masking
         let masked = second & 0x80 != 0;
