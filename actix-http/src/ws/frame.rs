@@ -140,18 +140,23 @@ impl Parser {
     }
 
     /// Parse the payload of a close frame.
-    pub fn parse_close_payload(payload: &[u8]) -> Option<CloseReason> {
+    pub fn parse_close_payload(payload: &[u8]) -> Result<Option<CloseReason>, ProtocolError> {
         if payload.len() >= 2 {
             let raw_code = u16::from_be_bytes(TryFrom::try_from(&payload[..2]).unwrap());
             let code = CloseCode::from(raw_code);
             let description = if payload.len() > 2 {
-                Some(String::from_utf8_lossy(&payload[2..]).into())
+                if let Ok(desc) = String::from_utf8(payload[2..].to_vec()) {
+                    Some(desc)
+                } else {
+                    return Err(ProtocolError::BadEncoding)
+                }
+                
             } else {
                 None
             };
-            Some(CloseReason { code, description })
+            Ok(Some(CloseReason { code, description }))
         } else {
-            None
+            Ok(None)
         }
     }
 

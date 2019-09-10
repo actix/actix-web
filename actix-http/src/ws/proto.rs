@@ -128,6 +128,20 @@ pub enum CloseCode {
     /// connect to a different IP (when multiple targets exist), or
     /// reconnect to the same IP when a user has performed an action.
     Again,
+    ///   3000-3999
+    ///
+    ///   Status codes in the range 3000-3999 are reserved for use by
+    ///   libraries, frameworks, and applications.  These status codes are
+    ///   registered directly with IANA.  The interpretation of these codes
+    ///   is undefined by this protocol.
+    Library(u16),
+    ///   4000-4999
+    ///
+    ///  Status codes in the range 4000-4999 are reserved for private use
+    ///  and thus can't be registered.  Such codes can be used by prior
+    ///  agreements between WebSocket applications.  The interpretation of
+    ///  these codes is undefined by this protocol.
+    Private(u16),
     #[doc(hidden)]
     Tls,
     #[doc(hidden)]
@@ -150,6 +164,8 @@ impl Into<u16> for CloseCode {
             Restart => 1012,
             Again => 1013,
             Tls => 1015,
+            Library(code) => code,
+            Private(code) => code,
             Other(code) => code,
         }
     }
@@ -171,6 +187,8 @@ impl From<u16> for CloseCode {
             1012 => Restart,
             1013 => Again,
             1015 => Tls,
+            3000..=3999 => Library(code),
+            4000..=4999 => Private(code),
             _ => Other(code),
         }
     }
@@ -293,6 +311,10 @@ mod test {
         assert_eq!(CloseCode::from(1013u16), CloseCode::Again);
         assert_eq!(CloseCode::from(1015u16), CloseCode::Tls);
         assert_eq!(CloseCode::from(2000u16), CloseCode::Other(2000));
+        assert_eq!(CloseCode::from(3000u16), CloseCode::Library(3000));
+        assert_eq!(CloseCode::from(3999u16), CloseCode::Library(3999));
+        assert_eq!(CloseCode::from(4000u16), CloseCode::Private(4000));
+        assert_eq!(CloseCode::from(4999u16), CloseCode::Private(4999));
     }
 
     #[test]
@@ -311,5 +333,9 @@ mod test {
         assert_eq!(1013u16, Into::<u16>::into(CloseCode::Again));
         assert_eq!(1015u16, Into::<u16>::into(CloseCode::Tls));
         assert_eq!(2000u16, Into::<u16>::into(CloseCode::Other(2000)));
+        assert_eq!(3000u16, Into::<u16>::into(CloseCode::Library(3000)));
+        assert_eq!(3999u16, Into::<u16>::into(CloseCode::Library(3999)));
+        assert_eq!(4000u16, Into::<u16>::into(CloseCode::Private(4000)));
+        assert_eq!(4999u16, Into::<u16>::into(CloseCode::Private(4999)));
     }
 }
