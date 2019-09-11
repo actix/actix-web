@@ -1,13 +1,10 @@
 # Changes
 
-##
+## [0.2.11] - 2019-09-11
 
 ### Added
 
 * Add support for sending HTTP requests with `Rc<RequestHead>` in addition to sending HTTP requests with `RequestHead`
-
-
-## [0.2.10] - 2019-09-xx
 
 ### Fixed
 
