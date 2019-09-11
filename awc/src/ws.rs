@@ -235,7 +235,7 @@ impl WebsocketsRequest {
 
         if !self.head.headers.contains_key(header::HOST) {
             let port = uri.port_u16();
-            let scheme = uri.scheme();
+            let scheme = uri.scheme_str();
             // https://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html
             // requires us to include the port if it's not standard
             let needs_port = ((scheme == Some("http") || scheme == Some("ws"))
