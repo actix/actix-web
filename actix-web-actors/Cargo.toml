@@ -24,7 +24,7 @@ invalid-ping-payload = ["actix-http/invalid-ping-payload"]
 [dependencies]
 actix = "0.8.3"
 actix-web = "1.0.3"
-actix-http = "0.2.5"
+actix-http = { path = "../actix-http" } # "0.2.5"
 actix-codec = "0.1.2"
 bytes = "0.4"
 futures = "0.1.25"

@@ -15,6 +15,9 @@ impl Actor for Ws {
 impl StreamHandler<ws::Message, ws::ProtocolError> for Ws {
     fn handle(&mut self, msg: ws::Message, ctx: &mut Self::Context) {
         match msg {
+            #[cfg(feature = "invalid-ping-payload")]
+            ws::Message::Ping(msg) => ctx.pong(&msg),
+            #[cfg(not(feature = "invalid-ping-payload"))]
             ws::Message::Ping(msg) => ctx.pong(msg),
             ws::Message::Text(text) => ctx.text(text),
             ws::Message::Binary(bin) => ctx.binary(bin),
