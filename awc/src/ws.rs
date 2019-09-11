@@ -234,10 +234,30 @@ impl WebsocketsRequest {
         }
 
         if !self.head.headers.contains_key(header::HOST) {
-            self.head.headers.insert(
-                header::HOST,
-                HeaderValue::from_str(uri.host().unwrap()).unwrap(),
-            );
+            let port = uri.port_u16();
+            let scheme = uri.scheme();
+            // https://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html
+            // requires us to include the port if it's not standard
+            let needs_port = ((scheme == Some("http") || scheme == Some("ws"))
+                && port != Some(80))
+                || ((scheme == Some("https") || scheme == Some("wss"))
+                    && port != Some(443));
+            if needs_port {
+                self.head.headers.insert(
+                    header::HOST,
+                    HeaderValue::from_str(&format!(
+                        "{}:{}",
+                        uri.host().unwrap(),
+                        port.unwrap()
+                    ))
+                    .unwrap(),
+                );
+            } else {
+                self.head.headers.insert(
+                    header::HOST,
+                    HeaderValue::from_str(uri.host().unwrap()).unwrap(),
+                );
+            };
         }
 
         // set cookies
