@@ -1,13 +1,10 @@
 # Changes
 
-##
+## [0.2.5] - 2019-09-11
 
 ### Added
 
 * Add `FrozenClientRequest` to support retries for sending HTTP requests
-
-
-## [0.2.5] - 2019-09-06
 
 ### Changed
 
