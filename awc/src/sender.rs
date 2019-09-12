@@ -90,7 +90,7 @@ impl Future for SendClientRequest {
                 Ok(Async::Ready(res))
             }
             SendClientRequest::Err(ref mut e) => match e.take() {
-                Some(e) => Err(e.into()),
+                Some(e) => Err(e),
                 None => panic!("Attempting to call completed future"),
             },
         }
@@ -153,7 +153,7 @@ impl RequestSender {
         SendClientRequest::new(
             fut,
             response_decompress,
-            timeout.or_else(|| config.timeout.clone()),
+            timeout.or_else(|| config.timeout),
         )
     }
 

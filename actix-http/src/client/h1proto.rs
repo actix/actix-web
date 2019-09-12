@@ -8,10 +8,10 @@ use futures::{Async, Future, Poll, Sink, Stream};
 
 use crate::error::PayloadError;
 use crate::h1;
+use crate::header::HeaderMap;
 use crate::http::header::{IntoHeaderValue, HOST};
 use crate::message::{RequestHeadType, ResponseHead};
 use crate::payload::{Payload, PayloadStream};
-use crate::header::HeaderMap;
 
 use super::connection::{ConnectionLifetime, ConnectionType, IoConnection};
 use super::error::{ConnectError, SendRequestError};
@@ -30,7 +30,9 @@ where
     B: MessageBody,
 {
     // set request host header
-    if !head.as_ref().headers.contains_key(HOST) && !head.extra_headers().iter().any(|h| h.contains_key(HOST)) {
+    if !head.as_ref().headers.contains_key(HOST)
+        && !head.extra_headers().iter().any(|h| h.contains_key(HOST))
+    {
         if let Some(host) = head.as_ref().uri.host() {
             let mut wrt = BytesMut::with_capacity(host.len() + 5).writer();
 
@@ -40,20 +42,16 @@ where
             };
 
             match wrt.get_mut().take().freeze().try_into() {
-                Ok(value) => {
-                    match head {
-                        RequestHeadType::Owned(ref mut head) => {
-                            head.headers.insert(HOST, value)
-                        },
-                        RequestHeadType::Rc(_, ref mut extra_headers) => {
-                            let headers = extra_headers.get_or_insert(HeaderMap::new());
-                            headers.insert(HOST, value)
-                        },
+                Ok(value) => match head {
+                    RequestHeadType::Owned(ref mut head) => {
+                        head.headers.insert(HOST, value)
                     }
-                }
-                Err(e) => {
-                    log::error!("Can not set HOST header {}", e)
-                }
+                    RequestHeadType::Rc(_, ref mut extra_headers) => {
+                        let headers = extra_headers.get_or_insert(HeaderMap::new());
+                        headers.insert(HOST, value)
+                    }
+                },
+                Err(e) => log::error!("Can not set HOST header {}", e),
             }
         }
     }

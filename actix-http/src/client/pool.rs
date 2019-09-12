@@ -326,7 +326,7 @@ impl<Io> Inner<Io> {
 
     fn release_waiter(&mut self, key: &Key, token: usize) {
         self.waiters.remove(token);
-        self.waiters_queue.remove(&(key.clone(), token));
+        let _ = self.waiters_queue.shift_remove(&(key.clone(), token));
     }
 }
 

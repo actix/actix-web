@@ -9,9 +9,9 @@ use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, TRANSFER_ENCODING};
 use http::{request::Request, HttpTryFrom, Method, Version};
 
 use crate::body::{BodySize, MessageBody};
+use crate::header::HeaderMap;
 use crate::message::{RequestHeadType, ResponseHead};
 use crate::payload::Payload;
-use crate::header::HeaderMap;
 
 use super::connection::{ConnectionType, IoConnection};
 use super::error::SendRequestError;
@@ -69,15 +69,21 @@ where
 
             // Extracting extra headers from RequestHeadType. HeaderMap::new() does not allocate.
             let (head, extra_headers) = match head {
-                RequestHeadType::Owned(head) => (RequestHeadType::Owned(head), HeaderMap::new()),
-                RequestHeadType::Rc(head, extra_headers) => (RequestHeadType::Rc(head, None), extra_headers.unwrap_or(HeaderMap::new())),
+                RequestHeadType::Owned(head) => {
+                    (RequestHeadType::Owned(head), HeaderMap::new())
+                }
+                RequestHeadType::Rc(head, extra_headers) => (
+                    RequestHeadType::Rc(head, None),
+                    extra_headers.unwrap_or_else(HeaderMap::new),
+                ),
             };
 
             // merging headers from head and extra headers.
-            let headers = head.as_ref().headers.iter()
-                .filter(|(name, _)| {
-                    !extra_headers.contains_key(*name)
-                })
+            let headers = head
+                .as_ref()
+                .headers
+                .iter()
+                .filter(|(name, _)| !extra_headers.contains_key(*name))
                 .chain(extra_headers.iter());
 
             // copy headers

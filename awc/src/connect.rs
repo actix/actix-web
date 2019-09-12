@@ -1,5 +1,5 @@
-use std::{fmt, io, net};
 use std::rc::Rc;
+use std::{fmt, io, net};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use actix_http::body::Body;
@@ -7,8 +7,8 @@ use actix_http::client::{
     Connect as ClientConnect, ConnectError, Connection, SendRequestError,
 };
 use actix_http::h1::ClientCodec;
-use actix_http::{RequestHead, RequestHeadType, ResponseHead};
 use actix_http::http::HeaderMap;
+use actix_http::{RequestHead, RequestHeadType, ResponseHead};
 use actix_service::Service;
 use futures::{Future, Poll};
 
@@ -82,7 +82,9 @@ where
                 })
                 .from_err()
                 // send request
-                .and_then(move |connection| connection.send_request(RequestHeadType::from(head), body))
+                .and_then(move |connection| {
+                    connection.send_request(RequestHeadType::from(head), body)
+                })
                 .map(|(head, payload)| ClientResponse::new(head, payload)),
         )
     }
@@ -103,7 +105,10 @@ where
                 })
                 .from_err()
                 // send request
-                .and_then(move |connection| connection.send_request(RequestHeadType::Rc(head, extra_headers), body))
+                .and_then(move |connection| {
+                    connection
+                        .send_request(RequestHeadType::Rc(head, extra_headers), body)
+                })
                 .map(|(head, payload)| ClientResponse::new(head, payload)),
         )
     }
@@ -127,7 +132,9 @@ where
                 })
                 .from_err()
                 // send request
-                .and_then(move |connection| connection.open_tunnel(RequestHeadType::from(head)))
+                .and_then(move |connection| {
+                    connection.open_tunnel(RequestHeadType::from(head))
+                })
                 .map(|(head, framed)| {
                     let framed = framed.map_io(|io| BoxedSocket(Box::new(Socket(io))));
                     (head, framed)
@@ -155,7 +162,9 @@ where
                 })
                 .from_err()
                 // send request
-                .and_then(move |connection| connection.open_tunnel(RequestHeadType::Rc(head, extra_headers)))
+                .and_then(move |connection| {
+                    connection.open_tunnel(RequestHeadType::Rc(head, extra_headers))
+                })
                 .map(|(head, framed)| {
                     let framed = framed.map_io(|io| BoxedSocket(Box::new(Socket(io))));
                     (head, framed)

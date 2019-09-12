@@ -169,7 +169,7 @@ where
             match self.data_factories_fut[idx].poll()? {
                 Async::Ready(f) => {
                     self.data_factories.push(f);
-                    self.data_factories_fut.remove(idx);
+                    let _ = self.data_factories_fut.remove(idx);
                 }
                 Async::NotReady => idx += 1,
             }

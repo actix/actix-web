@@ -1,5 +1,7 @@
 //! Http client errors
-pub use actix_http::client::{ConnectError, InvalidUrl, SendRequestError, FreezeRequestError};
+pub use actix_http::client::{
+    ConnectError, FreezeRequestError, InvalidUrl, SendRequestError,
+};
 pub use actix_http::error::PayloadError;
 pub use actix_http::ws::HandshakeError as WsHandshakeError;
 pub use actix_http::ws::ProtocolError as WsProtocolError;
