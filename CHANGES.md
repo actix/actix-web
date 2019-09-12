@@ -11,6 +11,9 @@
 
 * Allow to re-construct `ServiceRequest` from `HttpRequest` and `Payload`
 
+* Add `HttpServer::listen_uds` for ability to listen on UDS FD rather than path,
+  which is useful for example with systemd.
+
 ### Changed
 
 * Make UrlEncodedError::Overflow more informativve
