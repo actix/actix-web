@@ -238,10 +238,11 @@ impl WebsocketsRequest {
             let scheme = uri.scheme_str();
             // https://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html
             // requires us to include the port if it's not standard
-            let needs_port = ((scheme == Some("http") || scheme == Some("ws"))
+            let needs_port = (((scheme == Some("http") || scheme == Some("ws"))
                 && port != Some(80))
                 || ((scheme == Some("https") || scheme == Some("wss"))
-                    && port != Some(443));
+                    && port != Some(443)))
+                && port.is_some();
             if needs_port {
                 self.head.headers.insert(
                     header::HOST,
