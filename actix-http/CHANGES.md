@@ -8,6 +8,8 @@
 
 ### Fixed
 
+* h2 will use error response #1080
+
 * on_connect result isn't added to request extensions for http2 requests #1009
 
 
