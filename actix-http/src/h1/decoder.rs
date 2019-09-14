@@ -1,5 +1,6 @@
+use std::io;
 use std::marker::PhantomData;
-use std::{io, mem};
+use std::mem::MaybeUninit;
 
 use actix_codec::Decoder;
 use bytes::{Bytes, BytesMut};
@@ -186,11 +187,12 @@ impl MessageType for Request {
     fn decode(src: &mut BytesMut) -> Result<Option<(Self, PayloadType)>, ParseError> {
         // Unsafe: we read only this data only after httparse parses headers into.
         // performance bump for pipeline benchmarks.
-        let mut headers: [HeaderIndex; MAX_HEADERS] = unsafe { mem::uninitialized() };
+        let mut headers: [HeaderIndex; MAX_HEADERS] =
+            unsafe { MaybeUninit::uninit().assume_init() };
 
         let (len, method, uri, ver, h_len) = {
             let mut parsed: [httparse::Header; MAX_HEADERS] =
-                unsafe { mem::uninitialized() };
+                unsafe { MaybeUninit::uninit().assume_init() };
 
             let mut req = httparse::Request::new(&mut parsed);
             match req.parse(src)? {
@@ -260,11 +262,12 @@ impl MessageType for ResponseHead {
     fn decode(src: &mut BytesMut) -> Result<Option<(Self, PayloadType)>, ParseError> {
         // Unsafe: we read only this data only after httparse parses headers into.
         // performance bump for pipeline benchmarks.
-        let mut headers: [HeaderIndex; MAX_HEADERS] = unsafe { mem::uninitialized() };
+        let mut headers: [HeaderIndex; MAX_HEADERS] =
+            unsafe { MaybeUninit::uninit().assume_init() };
 
         let (len, ver, status, h_len) = {
             let mut parsed: [httparse::Header; MAX_HEADERS] =
-                unsafe { mem::uninitialized() };
+                unsafe { MaybeUninit::uninit().assume_init() };
 
             let mut res = httparse::Response::new(&mut parsed);
             match res.parse(src)? {

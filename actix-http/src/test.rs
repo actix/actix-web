@@ -150,7 +150,7 @@ impl TestRequest {
 
     /// Complete request creation and generate `Request` instance
     pub fn finish(&mut self) -> Request {
-        let inner = self.0.take().expect("cannot reuse test request builder");;
+        let inner = self.0.take().expect("cannot reuse test request builder");
 
         let mut req = if let Some(pl) = inner.payload {
             Request::with_payload(pl)
