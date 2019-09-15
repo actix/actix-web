@@ -115,7 +115,7 @@ pub fn write_content_length(mut n: usize, bytes: &mut BytesMut) {
 
 pub(crate) fn convert_usize(mut n: usize, bytes: &mut BytesMut) {
     let mut curr: isize = 39;
-    let mut buf: [u8; 41] = unsafe { mem::uninitialized() };
+    let mut buf: [u8; 41] = unsafe { mem::MaybeUninit::uninit().assume_init() };
     buf[39] = b'\r';
     buf[40] = b'\n';
     let buf_ptr = buf.as_mut_ptr();
