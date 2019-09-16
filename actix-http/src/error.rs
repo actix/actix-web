@@ -166,14 +166,6 @@ impl<E: ResponseError> ResponseError for TimeoutError<E> {
     }
 }
 
-/// Return `INTERNAL_SERVER_ERROR` for `std::convert::Infallible`
-impl ResponseError for std::convert::Infallible {
-    fn error_response(&self) -> Response {
-        // `std::convert::Infallible` should never happen
-        unreachable!()
-    }
-}
-
 #[derive(Debug, Display)]
 #[display(fmt = "UnknownError")]
 struct UnitError;
