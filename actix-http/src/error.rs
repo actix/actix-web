@@ -132,7 +132,6 @@ impl std::error::Error for Error {
     }
 }
 
-/// Convert `INTERNAL_SERVER_ERROR` to `std::convert::Infallible`
 impl From<std::convert::Infallible> for Error {
     fn from(_: std::convert::Infallible) -> Self {
         // `std::convert::Infallible` should never happen
