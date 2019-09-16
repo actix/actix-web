@@ -8,8 +8,6 @@
 
 * Allow to re-construct `ServiceRequest` from `HttpRequest` and `Payload`
 
-* Allow to use `std::convert::Infallible` as `actix_http::error::Error`
-
 
 ## [1.0.7] - 2019-08-29
 
