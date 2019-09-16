@@ -134,7 +134,8 @@ impl std::error::Error for Error {
 
 impl From<std::convert::Infallible> for Error {
     fn from(_: std::convert::Infallible) -> Self {
-        // `std::convert::Infallible` should never happen
+        // `std::convert::Infallible` indicates an error
+        // that will never happen
         unreachable!()
     }
 }
