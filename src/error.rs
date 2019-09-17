@@ -32,8 +32,12 @@ pub enum UrlencodedError {
     #[display(fmt = "Can not decode chunked transfer encoding")]
     Chunked,
     /// Payload size is bigger than allowed. (default: 256kB)
-    #[display(fmt = "Urlencoded payload size is bigger than allowed (default: 256kB)")]
-    Overflow,
+    #[display(
+        fmt = "Urlencoded payload size is bigger ({} bytes) than allowed (default: {} bytes)",
+        size,
+        limit
+    )]
+    Overflow { size: usize, limit: usize },
     /// Payload size is now known
     #[display(fmt = "Payload size is now known")]
     UnknownLength,
@@ -52,7 +56,7 @@ pub enum UrlencodedError {
 impl ResponseError for UrlencodedError {
     fn error_response(&self) -> HttpResponse {
         match *self {
-            UrlencodedError::Overflow => {
+            UrlencodedError::Overflow { .. } => {
                 HttpResponse::new(StatusCode::PAYLOAD_TOO_LARGE)
             }
             UrlencodedError::UnknownLength => {
@@ -164,7 +168,8 @@ mod tests {
 
     #[test]
     fn test_urlencoded_error() {
-        let resp: HttpResponse = UrlencodedError::Overflow.error_response();
+        let resp: HttpResponse =
+            UrlencodedError::Overflow { size: 0, limit: 0 }.error_response();
         assert_eq!(resp.status(), StatusCode::PAYLOAD_TOO_LARGE);
         let resp: HttpResponse = UrlencodedError::UnknownLength.error_response();
         assert_eq!(resp.status(), StatusCode::LENGTH_REQUIRED);

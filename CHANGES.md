@@ -8,6 +8,7 @@
 
 * Allow to re-construct `ServiceRequest` from `HttpRequest` and `Payload`
 
+* Make UrlEncodedError::Overflow more informativve
 
 ## [1.0.7] - 2019-08-29
 
