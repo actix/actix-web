@@ -5,6 +5,9 @@
 
 *  Add `middleware::Conditon` that conditionally enables another middleware
 
+*  Add `Scope::register_data` and `Resource::register_data` methods, parallel to
+   `App::register_data`.
+
 ### Fixed
 
 * h2 will use error response #1080
