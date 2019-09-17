@@ -318,7 +318,7 @@ where
         let limit = self.limit;
         if let Some(len) = self.length.take() {
             if len > limit {
-                return Err(UrlencodedError::Overflow);
+                return Err(UrlencodedError::Overflow { size: len, limit });
             }
         }
 
@@ -331,7 +331,10 @@ where
             .from_err()
             .fold(BytesMut::with_capacity(8192), move |mut body, chunk| {
                 if (body.len() + chunk.len()) > limit {
-                    Err(UrlencodedError::Overflow)
+                    Err(UrlencodedError::Overflow {
+                        size: body.len() + chunk.len(),
+                        limit,
+                    })
                 } else {
                     body.extend_from_slice(&chunk);
                     Ok(body)
@@ -390,8 +393,8 @@ mod tests {
 
     fn eq(err: UrlencodedError, other: UrlencodedError) -> bool {
         match err {
-            UrlencodedError::Overflow => match other {
-                UrlencodedError::Overflow => true,
+            UrlencodedError::Overflow { .. } => match other {
+                UrlencodedError::Overflow { .. } => true,
                 _ => false,
             },
             UrlencodedError::UnknownLength => match other {
@@ -420,7 +423,10 @@ mod tests {
                 .header(CONTENT_LENGTH, "1000000")
                 .to_http_parts();
         let info = block_on(UrlEncoded::<Info>::new(&req, &mut pl));
-        assert!(eq(info.err().unwrap(), UrlencodedError::Overflow));
+        assert!(eq(
+            info.err().unwrap(),
+            UrlencodedError::Overflow { size: 0, limit: 0 }
+        ));
 
         let (req, mut pl) = TestRequest::with_header(CONTENT_TYPE, "text/plain")
             .header(CONTENT_LENGTH, "10")

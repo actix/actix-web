@@ -3,14 +3,20 @@
 
 ### Added
 
-*  Add `middleware::Conditon` that conditionally enables another middleware
+* Add `Scope::register_data` and `Resource::register_data` methods, parallel to
+  `App::register_data`.
 
-*  Add `Scope::register_data` and `Resource::register_data` methods, parallel to
-   `App::register_data`.
+## [1.0.8] - 2019-09-xx
+
+### Added
+
+* Add `middleware::Condition` that conditionally enables another middleware
 
 ### Fixed
 
-* h2 will use error response #1080
+* Allow to re-construct `ServiceRequest` from `HttpRequest` and `Payload`
+
+* Make UrlEncodedError::Overflow more informativve
 
 ## [1.0.7] - 2019-08-29
 

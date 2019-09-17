@@ -103,8 +103,8 @@ pub struct TestServer;
 /// Test server controller
 pub struct TestServerRuntime {
     addr: net::SocketAddr,
-    rt: Runtime,
     client: Client,
+    system: System,
 }
 
 impl TestServer {
@@ -130,45 +130,47 @@ impl TestServer {
         });
 
         let (system, addr) = rx.recv().unwrap();
-        let mut rt = Runtime::new().unwrap();
 
-        let client = rt
-            .block_on(lazy(move || {
-                let connector = {
-                    #[cfg(feature = "ssl")]
-                    {
-                        use openssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
+        let client = block_on(lazy(move || {
+            let connector = {
+                #[cfg(feature = "ssl")]
+                {
+                    use openssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
 
-                        let mut builder =
-                            SslConnector::builder(SslMethod::tls()).unwrap();
-                        builder.set_verify(SslVerifyMode::NONE);
-                        let _ = builder.set_alpn_protos(b"\x02h2\x08http/1.1").map_err(
-                            |e| log::error!("Can not set alpn protocol: {:?}", e),
-                        );
-                        Connector::new()
-                            .conn_lifetime(time::Duration::from_secs(0))
-                            .timeout(time::Duration::from_millis(500))
-                            .ssl(builder.build())
-                            .finish()
-                    }
-                    #[cfg(not(feature = "ssl"))]
-                    {
-                        Connector::new()
-                            .conn_lifetime(time::Duration::from_secs(0))
-                            .timeout(time::Duration::from_millis(500))
-                            .finish()
-                    }
-                };
+                    let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
+                    builder.set_verify(SslVerifyMode::NONE);
+                    let _ = builder
+                        .set_alpn_protos(b"\x02h2\x08http/1.1")
+                        .map_err(|e| log::error!("Can not set alpn protocol: {:?}", e));
+                    Connector::new()
+                        .conn_lifetime(time::Duration::from_secs(0))
+                        .timeout(time::Duration::from_millis(500))
+                        .ssl(builder.build())
+                        .finish()
+                }
+                #[cfg(not(feature = "ssl"))]
+                {
+                    Connector::new()
+                        .conn_lifetime(time::Duration::from_secs(0))
+                        .timeout(time::Duration::from_millis(500))
+                        .finish()
+                }
+            };
 
-                Ok::<Client, ()>(Client::build().connector(connector).finish())
-            }))
-            .unwrap();
-        rt.block_on(lazy(
+            Ok::<Client, ()>(Client::build().connector(connector).finish())
+        }))
+        .unwrap();
+
+        block_on(lazy(
             || Ok::<_, ()>(actix_connect::start_default_resolver()),
         ))
         .unwrap();
-        System::set_current(system);
-        TestServerRuntime { addr, rt, client }
+
+        TestServerRuntime {
+            addr,
+            client,
+            system,
+        }
     }
 
     /// Get first available unused address
@@ -188,7 +190,7 @@ impl TestServerRuntime {
     where
         F: Future<Item = I, Error = E>,
     {
-        self.rt.block_on(fut)
+        block_on(fut)
     }
 
     /// Execute future on current core
@@ -197,7 +199,7 @@ impl TestServerRuntime {
         F: FnOnce() -> R,
         R: Future,
     {
-        self.rt.block_on(lazy(f))
+        block_on(lazy(f))
     }
 
     /// Execute function on current core
@@ -205,7 +207,7 @@ impl TestServerRuntime {
     where
         F: FnOnce() -> R,
     {
-        self.rt.block_on(lazy(|| Ok::<_, ()>(fut()))).unwrap()
+        block_on(lazy(|| Ok::<_, ()>(fut()))).unwrap()
     }
 
     /// Construct test server url
@@ -324,8 +326,7 @@ impl TestServerRuntime {
     {
         let url = self.url(path);
         let connect = self.client.ws(url).connect();
-        self.rt
-            .block_on(lazy(move || connect.map(|(_, framed)| framed)))
+        block_on(lazy(move || connect.map(|(_, framed)| framed)))
     }
 
     /// Connect to a websocket server
@@ -338,7 +339,7 @@ impl TestServerRuntime {
 
     /// Stop http server
     fn stop(&mut self) {
-        System::current().stop();
+        self.system.stop();
     }
 }
 

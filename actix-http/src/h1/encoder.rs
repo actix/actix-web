@@ -2,9 +2,9 @@
 use std::fmt::Write as FmtWrite;
 use std::io::Write;
 use std::marker::PhantomData;
+use std::rc::Rc;
 use std::str::FromStr;
 use std::{cmp, fmt, io, mem};
-use std::rc::Rc;
 
 use bytes::{BufMut, Bytes, BytesMut};
 
@@ -16,7 +16,7 @@ use crate::http::header::{
     HeaderValue, ACCEPT_ENCODING, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING,
 };
 use crate::http::{HeaderMap, Method, StatusCode, Version};
-use crate::message::{ConnectionType, Head, RequestHead, ResponseHead, RequestHeadType};
+use crate::message::{ConnectionType, Head, RequestHead, RequestHeadType, ResponseHead};
 use crate::request::Request;
 use crate::response::Response;
 
@@ -134,10 +134,11 @@ pub(crate) trait MessageType: Sized {
         // merging headers from head and extra headers. HeaderMap::new() does not allocate.
         let empty_headers = HeaderMap::new();
         let extra_headers = self.extra_headers().unwrap_or(&empty_headers);
-        let headers = self.headers().inner.iter()
-            .filter(|(name, _)| {
-                !extra_headers.contains_key(*name)
-            })
+        let headers = self
+            .headers()
+            .inner
+            .iter()
+            .filter(|(name, _)| !extra_headers.contains_key(*name))
             .chain(extra_headers.inner.iter());
 
         // write headers
@@ -604,10 +605,16 @@ mod tests {
         let mut bytes = BytesMut::with_capacity(2048);
 
         let mut head = RequestHead::default();
-        head.headers.insert(AUTHORIZATION, HeaderValue::from_static("some authorization"));
+        head.headers.insert(
+            AUTHORIZATION,
+            HeaderValue::from_static("some authorization"),
+        );
 
         let mut extra_headers = HeaderMap::new();
-        extra_headers.insert(AUTHORIZATION,HeaderValue::from_static("another authorization"));
+        extra_headers.insert(
+            AUTHORIZATION,
+            HeaderValue::from_static("another authorization"),
+        );
         extra_headers.insert(DATE, HeaderValue::from_static("date"));
 
         let mut head = RequestHeadType::Rc(Rc::new(head), Some(extra_headers));

@@ -68,6 +68,34 @@ impl ServiceRequest {
         (self.0, pl)
     }
 
+    /// Construct request from parts.
+    ///
+    /// `ServiceRequest` can be re-constructed only if `req` hasnt been cloned.
+    pub fn from_parts(
+        mut req: HttpRequest,
+        pl: Payload,
+    ) -> Result<Self, (HttpRequest, Payload)> {
+        if Rc::strong_count(&req.0) == 1 && Rc::weak_count(&req.0) == 0 {
+            Rc::get_mut(&mut req.0).unwrap().payload = pl;
+            Ok(ServiceRequest(req))
+        } else {
+            Err((req, pl))
+        }
+    }
+
+    /// Construct request from request.
+    ///
+    /// `HttpRequest` implements `Clone` trait via `Rc` type. `ServiceRequest`
+    /// can be re-constructed only if rc's strong pointers count eq 1 and
+    /// weak pointers count is 0.
+    pub fn from_request(req: HttpRequest) -> Result<Self, HttpRequest> {
+        if Rc::strong_count(&req.0) == 1 && Rc::weak_count(&req.0) == 0 {
+            Ok(ServiceRequest(req))
+        } else {
+            Err(req)
+        }
+    }
+
     /// Create service response
     #[inline]
     pub fn into_response<B, R: Into<Response<B>>>(self, res: R) -> ServiceResponse<B> {
@@ -513,6 +541,27 @@ mod tests {
     use super::*;
     use crate::test::{call_service, init_service, TestRequest};
     use crate::{guard, http, web, App, HttpResponse};
+
+    #[test]
+    fn test_service_request() {
+        let req = TestRequest::default().to_srv_request();
+        let (r, pl) = req.into_parts();
+        assert!(ServiceRequest::from_parts(r, pl).is_ok());
+
+        let req = TestRequest::default().to_srv_request();
+        let (r, pl) = req.into_parts();
+        let _r2 = r.clone();
+        assert!(ServiceRequest::from_parts(r, pl).is_err());
+
+        let req = TestRequest::default().to_srv_request();
+        let (r, _pl) = req.into_parts();
+        assert!(ServiceRequest::from_request(r).is_ok());
+
+        let req = TestRequest::default().to_srv_request();
+        let (r, _pl) = req.into_parts();
+        let _r2 = r.clone();
+        assert!(ServiceRequest::from_request(r).is_err());
+    }
 
     #[test]
     fn test_service() {

@@ -1,5 +1,6 @@
 # Changes
-## [0.1.4] - 2019-xx-xx
+
+## [0.1.4] - 2019-09-12
 
 * Multipart handling now parses requests which do not end in CRLF #1038
 

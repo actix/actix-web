@@ -1,5 +1,12 @@
 # Changes
 
+## [0.2.6] - 2019-09-12
+
+### Added
+
+* Export frozen request related types.
+
+
 ## [0.2.5] - 2019-09-11
 
 ### Added

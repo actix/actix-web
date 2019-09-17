@@ -178,13 +178,15 @@ impl InnerMultipart {
             Some(chunk) => {
                 if chunk.len() < boundary.len() + 4
                     || &chunk[..2] != b"--"
-                    || &chunk[2..boundary.len() + 2] != boundary.as_bytes() {
+                    || &chunk[2..boundary.len() + 2] != boundary.as_bytes()
+                {
                     Err(MultipartError::Boundary)
                 } else if &chunk[boundary.len() + 2..] == b"\r\n" {
                     Ok(Some(false))
                 } else if &chunk[boundary.len() + 2..boundary.len() + 4] == b"--"
                     && (chunk.len() == boundary.len() + 4
-                        || &chunk[boundary.len() + 4..] == b"\r\n") {
+                        || &chunk[boundary.len() + 4..] == b"\r\n")
+                {
                     Ok(Some(true))
                 } else {
                     Err(MultipartError::Boundary)
@@ -781,8 +783,10 @@ impl PayloadBuffer {
     /// Read bytes until new line delimiter or eof
     pub fn readline_or_eof(&mut self) -> Result<Option<Bytes>, MultipartError> {
         match self.readline() {
-            Err(MultipartError::Incomplete) if self.eof => Ok(Some(self.buf.take().freeze())),
-            line => line
+            Err(MultipartError::Incomplete) if self.eof => {
+                Ok(Some(self.buf.take().freeze()))
+            }
+            line => line,
         }
     }
 
@@ -859,14 +863,14 @@ mod tests {
     fn create_simple_request_with_header() -> (Bytes, HeaderMap) {
         let bytes = Bytes::from(
             "testasdadsad\r\n\
-            --abbc761f78ff4d7cb7573b5a23f96ef0\r\n\
-            Content-Disposition: form-data; name=\"file\"; filename=\"fn.txt\"\r\n\
-            Content-Type: text/plain; charset=utf-8\r\nContent-Length: 4\r\n\r\n\
-            test\r\n\
-            --abbc761f78ff4d7cb7573b5a23f96ef0\r\n\
-            Content-Type: text/plain; charset=utf-8\r\nContent-Length: 4\r\n\r\n\
-            data\r\n\
-            --abbc761f78ff4d7cb7573b5a23f96ef0--\r\n"
+             --abbc761f78ff4d7cb7573b5a23f96ef0\r\n\
+             Content-Disposition: form-data; name=\"file\"; filename=\"fn.txt\"\r\n\
+             Content-Type: text/plain; charset=utf-8\r\nContent-Length: 4\r\n\r\n\
+             test\r\n\
+             --abbc761f78ff4d7cb7573b5a23f96ef0\r\n\
+             Content-Type: text/plain; charset=utf-8\r\nContent-Length: 4\r\n\r\n\
+             data\r\n\
+             --abbc761f78ff4d7cb7573b5a23f96ef0--\r\n",
         );
         let mut headers = HeaderMap::new();
         headers.insert(
