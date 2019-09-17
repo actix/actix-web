@@ -189,11 +189,21 @@ where
     ///           ));
     /// }
     /// ```
-    pub fn data<U: 'static>(mut self, data: U) -> Self {
+    pub fn data<U: 'static>(self, data: U) -> Self {
+        self.register_data(Data::new(data))
+    }
+
+    /// Set or override application data.
+    ///
+    /// This method has the same effect as [`Resource::data`](#method.data),
+    /// except that instead of taking a value of some type `T`, it expects a
+    /// value of type `Data<T>`. Use a `Data<T>` extractor to retrieve its
+    /// value.
+    pub fn register_data<U: 'static>(mut self, data: Data<U>) -> Self {
         if self.data.is_none() {
             self.data = Some(Extensions::new());
         }
-        self.data.as_mut().unwrap().insert(Data::new(data));
+        self.data.as_mut().unwrap().insert(data);
         self
     }
 
@@ -762,5 +772,31 @@ mod tests {
             .to_request();
         let resp = call_service(&mut srv, req);
         assert_eq!(resp.status(), StatusCode::NO_CONTENT);
+    }
+
+    #[test]
+    fn test_data() {
+        let mut srv = init_service(
+            App::new()
+                .data(1.0f64)
+                .data(1usize)
+                .register_data(web::Data::new('-'))
+                .service(
+                    web::resource("/test")
+                        .data(10usize)
+                        .register_data(web::Data::new('*'))
+                        .guard(guard::Get())
+                        .to(|data1: web::Data<usize>, data2: web::Data<char>, data3: web::Data<f64>| {
+                            assert_eq!(*data1, 10);
+                            assert_eq!(*data2, '*');
+                            assert_eq!(*data3, 1.0);
+                            HttpResponse::Ok()
+                        }),
+                )
+        );
+
+        let req = TestRequest::get().uri("/test").to_request();
+        let resp = call_service(&mut srv, req);
+        assert_eq!(resp.status(), StatusCode::OK);
     }
 }

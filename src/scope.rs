@@ -148,11 +148,20 @@ where
     ///     );
     /// }
     /// ```
-    pub fn data<U: 'static>(mut self, data: U) -> Self {
+    pub fn data<U: 'static>(self, data: U) -> Self {
+        self.register_data(Data::new(data))
+    }
+
+    /// Set or override application data.
+    ///
+    /// This method has the same effect as [`Scope::data`](#method.data), except
+    /// that instead of taking a value of some type `T`, it expects a value of
+    /// type `Data<T>`. Use a `Data<T>` extractor to retrieve its value.
+    pub fn register_data<U: 'static>(mut self, data: Data<U>) -> Self {
         if self.data.is_none() {
             self.data = Some(Extensions::new());
         }
-        self.data.as_mut().unwrap().insert(Data::new(data));
+        self.data.as_mut().unwrap().insert(data);
         self
     }
 
@@ -1066,12 +1075,14 @@ mod tests {
 
     #[test]
     fn test_override_data() {
-        let mut srv = init_service(App::new().data(1usize).service(
-            web::scope("app").data(10usize).route(
+        let mut srv = init_service(App::new().data(1usize).register_data(web::Data::new('-')).service(
+            web::scope("app").data(10usize).register_data(web::Data::new('*')).route(
                 "/t",
-                web::get().to(|data: web::Data<usize>| {
-                    assert_eq!(*data, 10);
-                    let _ = data.clone();
+                web::get().to(|data1: web::Data<usize>, data2: web::Data<char>| {
+                    assert_eq!(*data1, 10);
+                    assert_eq!(*data2, '*');
+                    let _ = data1.clone();
+                    let _ = data2.clone();
                     HttpResponse::Ok()
                 }),
             ),
