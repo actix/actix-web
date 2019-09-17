@@ -1075,14 +1075,30 @@ mod tests {
 
     #[test]
     fn test_override_data() {
-        let mut srv = init_service(App::new().data(1usize).register_data(web::Data::new('-')).service(
-            web::scope("app").data(10usize).register_data(web::Data::new('*')).route(
+        let mut srv = init_service(App::new().data(1usize).service(
+            web::scope("app").data(10usize).route(
                 "/t",
-                web::get().to(|data1: web::Data<usize>, data2: web::Data<char>| {
-                    assert_eq!(*data1, 10);
-                    assert_eq!(*data2, '*');
-                    let _ = data1.clone();
-                    let _ = data2.clone();
+                web::get().to(|data: web::Data<usize>| {
+                    assert_eq!(*data, 10);
+                    let _ = data.clone();
+                    HttpResponse::Ok()
+                }),
+            ),
+        ));
+
+        let req = TestRequest::with_uri("/app/t").to_request();
+        let resp = call_service(&mut srv, req);
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[test]
+    fn test_override_register_data() {
+        let mut srv = init_service(App::new().register_data(web::Data::new(1usize)).service(
+            web::scope("app").register_data(web::Data::new(10usize)).route(
+                "/t",
+                web::get().to(|data: web::Data<usize>| {
+                    assert_eq!(*data, 10);
+                    let _ = data.clone();
                     HttpResponse::Ok()
                 }),
             ),
