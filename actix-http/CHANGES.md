@@ -6,6 +6,9 @@
 
 * Add support for sending HTTP requests with `Rc<RequestHead>` in addition to sending HTTP requests with `RequestHead`
 
+* Allow to use `std::convert::Infallible` as `actix_http::error::Error`
+
+
 ### Fixed
 
 * h2 will use error response #1080

@@ -132,6 +132,14 @@ impl std::error::Error for Error {
     }
 }
 
+impl From<std::convert::Infallible> for Error {
+    fn from(_: std::convert::Infallible) -> Self {
+        // `std::convert::Infallible` indicates an error
+        // that will never happen
+        unreachable!()
+    }
+}
+
 /// Convert `Error` to a `Response` instance
 impl From<Error> for Response {
     fn from(err: Error) -> Self {
