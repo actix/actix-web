@@ -993,6 +993,14 @@ mod tests {
     }
 
     #[test]
+    fn test_serde_json_in_body() {
+        use serde_json::json;
+        let resp =
+            Response::build(StatusCode::OK).body(json!({"test-key":"test-value"}));
+        assert_eq!(resp.body().get_ref(), br#"{"test-key":"test-value"}"#);
+    }
+
+    #[test]
     fn test_into_response() {
         let resp: Response = "test".into();
         assert_eq!(resp.status(), StatusCode::OK);
