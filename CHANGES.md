@@ -1,10 +1,18 @@
 # Changes
+## not released yet
+
+### Added
+
+* Add `Scope::register_data` and `Resource::register_data` methods, parallel to
+  `App::register_data`.
 
 ## [1.0.8] - 2019-09-xx
 
 ### Added
 
-* Add `middleware::Conditon` that conditionally enables another middleware
+* Add `middleware::Condition` that conditionally enables another middleware
+
+### Fixed
 
 * Allow to re-construct `ServiceRequest` from `HttpRequest` and `Payload`
 
