@@ -151,6 +151,7 @@ impl ConnectionInfo {
     /// - Host
     /// - Uri
     /// - Server hostname
+    #[inline]
     pub fn host(&self) -> &str {
         &self.host
     }
