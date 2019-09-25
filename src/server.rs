@@ -436,6 +436,37 @@ where
     }
 
     #[cfg(feature = "uds")]
+    /// Start listening for unix domain connections on existing listener.
+    ///
+    /// This method is available with `uds` feature.
+    pub fn listen_uds(
+        mut self,
+        lst: std::os::unix::net::UnixListener,
+    ) -> io::Result<Self> {
+        let cfg = self.config.clone();
+        let factory = self.factory.clone();
+        // todo duplicated:
+        self.sockets.push(Socket {
+            scheme: "http",
+            addr: net::SocketAddr::new(
+                net::IpAddr::V4(net::Ipv4Addr::new(127, 0, 0, 1)),
+                8080,
+            ),
+        });
+
+        let addr = format!("actix-web-service-{:?}", lst.local_addr()?);
+
+        self.builder = self.builder.listen_uds(addr, lst, move || {
+            let c = cfg.lock();
+            HttpService::build()
+                .keep_alive(c.keep_alive)
+                .client_timeout(c.client_timeout)
+                .finish(factory())
+        })?;
+        Ok(self)
+    }
+
+    #[cfg(feature = "uds")]
     /// Start listening for incoming unix domain connections.
     ///
     /// This method is available with `uds` feature.

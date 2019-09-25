@@ -1,6 +1,6 @@
 [package]
 name = "awc"
-version = "0.2.6"
+version = "0.2.7"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix http client."
 readme = "README.md"
