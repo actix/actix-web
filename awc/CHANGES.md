@@ -5,7 +5,7 @@
 
 ### Added
 
-* Add remaining getter methods from private head field #1101
+* Remaining getter methods for `ClientRequest`'s private `head` field #1101
 
 
 ## [0.2.6] - 2019-09-12
