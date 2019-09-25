@@ -96,7 +96,7 @@ impl ClientRequest {
         self
     }
 
-    /// Get HTTP URI of request
+    /// Get HTTP URI of request.
     pub fn get_uri(&self) -> &Uri {
         &self.head.uri
     }
@@ -130,6 +130,16 @@ impl ClientRequest {
     pub fn version(mut self, version: Version) -> Self {
         self.head.version = version;
         self
+    }
+
+    /// Get HTTP version of this request.
+    pub fn get_version(&self) -> &Version {
+        &self.head.version
+    }
+
+    /// Get peer address of this request.
+    pub fn get_peer_addr(&self) -> &Option<net::SocketAddr> {
+        &self.head.peer_addr
     }
 
     #[inline]
