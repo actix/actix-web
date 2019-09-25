@@ -212,7 +212,7 @@ where
     pub fn finish(
         self,
     ) -> impl Service<Request = Connect, Response = impl Connection, Error = ConnectError>
-           + Clone {
+                 + Clone {
         #[cfg(not(any(feature = "ssl", feature = "rust-tls")))]
         {
             let connector = TimeoutService::new(

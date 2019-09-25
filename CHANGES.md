@@ -1,22 +1,22 @@
 # Changes
-## not released yet
+
+## [1.0.8] - 2019-09-xx
 
 ### Added
 
 * Add `Scope::register_data` and `Resource::register_data` methods, parallel to
   `App::register_data`.
 
-## [1.0.8] - 2019-09-xx
-
-### Added
-
 * Add `middleware::Condition` that conditionally enables another middleware
-
-### Fixed
 
 * Allow to re-construct `ServiceRequest` from `HttpRequest` and `Payload`
 
+### Changed
+
 * Make UrlEncodedError::Overflow more informativve
+
+* Use actix-testing for testing utils
+
 
 ## [1.0.7] - 2019-08-29
 

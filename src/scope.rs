@@ -1093,16 +1093,20 @@ mod tests {
 
     #[test]
     fn test_override_register_data() {
-        let mut srv = init_service(App::new().register_data(web::Data::new(1usize)).service(
-            web::scope("app").register_data(web::Data::new(10usize)).route(
-                "/t",
-                web::get().to(|data: web::Data<usize>| {
-                    assert_eq!(*data, 10);
-                    let _ = data.clone();
-                    HttpResponse::Ok()
-                }),
+        let mut srv = init_service(
+            App::new().register_data(web::Data::new(1usize)).service(
+                web::scope("app")
+                    .register_data(web::Data::new(10usize))
+                    .route(
+                        "/t",
+                        web::get().to(|data: web::Data<usize>| {
+                            assert_eq!(*data, 10);
+                            let _ = data.clone();
+                            HttpResponse::Ok()
+                        }),
+                    ),
             ),
-        ));
+        );
 
         let req = TestRequest::with_uri("/app/t").to_request();
         let resp = call_service(&mut srv, req);

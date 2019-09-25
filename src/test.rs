@@ -1,5 +1,4 @@
 //! Various helpers for Actix applications to use during testing.
-use std::cell::RefCell;
 use std::rc::Rc;
 
 use actix_http::http::header::{ContentType, Header, HeaderName, IntoHeaderValue};
@@ -7,17 +6,17 @@ use actix_http::http::{HttpTryFrom, Method, StatusCode, Uri, Version};
 use actix_http::test::TestRequest as HttpTestRequest;
 use actix_http::{cookie::Cookie, Extensions, Request};
 use actix_router::{Path, ResourceDef, Url};
-use actix_rt::{System, SystemRunner};
 use actix_server_config::ServerConfig;
 use actix_service::{IntoNewService, IntoService, NewService, Service};
 use bytes::{Bytes, BytesMut};
-use futures::future::{lazy, ok, Future, IntoFuture};
+use futures::future::{ok, Future};
 use futures::Stream;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use serde_json;
 
 pub use actix_http::test::TestBuffer;
+pub use actix_testing::{block_fn, block_on, run_on};
 
 use crate::config::{AppConfig, AppConfigInner};
 use crate::data::Data;
@@ -26,78 +25,6 @@ use crate::request::HttpRequestPool;
 use crate::rmap::ResourceMap;
 use crate::service::{ServiceRequest, ServiceResponse};
 use crate::{Error, HttpRequest, HttpResponse};
-
-thread_local! {
-    static RT: RefCell<Inner> = {
-        RefCell::new(Inner(Some(System::builder().build())))
-    };
-}
-
-struct Inner(Option<SystemRunner>);
-
-impl Inner {
-    fn get_mut(&mut self) -> &mut SystemRunner {
-        self.0.as_mut().unwrap()
-    }
-}
-
-impl Drop for Inner {
-    fn drop(&mut self) {
-        std::mem::forget(self.0.take().unwrap())
-    }
-}
-
-/// Runs the provided future, blocking the current thread until the future
-/// completes.
-///
-/// This function can be used to synchronously block the current thread
-/// until the provided `future` has resolved either successfully or with an
-/// error. The result of the future is then returned from this function
-/// call.
-///
-/// Note that this function is intended to be used only for testing purpose.
-/// This function panics on nested call.
-pub fn block_on<F>(f: F) -> Result<F::Item, F::Error>
-where
-    F: IntoFuture,
-{
-    RT.with(move |rt| rt.borrow_mut().get_mut().block_on(f.into_future()))
-}
-
-/// Runs the provided function, blocking the current thread until the result
-/// future completes.
-///
-/// This function can be used to synchronously block the current thread
-/// until the provided `future` has resolved either successfully or with an
-/// error. The result of the future is then returned from this function
-/// call.
-///
-/// Note that this function is intended to be used only for testing purpose.
-/// This function panics on nested call.
-pub fn block_fn<F, R>(f: F) -> Result<R::Item, R::Error>
-where
-    F: FnOnce() -> R,
-    R: IntoFuture,
-{
-    RT.with(move |rt| rt.borrow_mut().get_mut().block_on(lazy(f)))
-}
-
-#[doc(hidden)]
-/// Runs the provided function, with runtime enabled.
-///
-/// Note that this function is intended to be used only for testing purpose.
-/// This function panics on nested call.
-pub fn run_on<F, R>(f: F) -> R
-where
-    F: FnOnce() -> R,
-{
-    RT.with(move |rt| {
-        rt.borrow_mut()
-            .get_mut()
-            .block_on(lazy(|| Ok::<_, ()>(f())))
-    })
-    .unwrap()
-}
 
 /// Create service that always responds with `HttpResponse::Ok()`
 pub fn ok_service(
