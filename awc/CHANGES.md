@@ -1,5 +1,11 @@
 # Changes
 
+## [0.2.7] - 2019-09-25
+
+### Added
+
+* Remaining getter methods for `ClientRequest`'s private `head` field.
+
 ## [0.2.6] - 2019-09-12
 
 ### Added
