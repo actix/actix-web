@@ -234,6 +234,12 @@ impl From<BytesMut> for Body {
     }
 }
 
+impl From<serde_json::Value> for Body {
+    fn from(v: serde_json::Value) -> Body {
+        Body::Bytes(v.to_string().into())
+    }
+}
+
 impl<S> From<SizedStream<S>> for Body
 where
     S: Stream<Item = Bytes, Error = Error> + 'static,
@@ -547,5 +553,18 @@ mod tests {
         assert!(format!("{:?}", Body::None).contains("Body::None"));
         assert!(format!("{:?}", Body::Empty).contains("Body::Empty"));
         assert!(format!("{:?}", Body::Bytes(Bytes::from_static(b"1"))).contains("1"));
+    }
+
+    #[test]
+    fn test_serde_json() {
+        use serde_json::json;
+        assert_eq!(
+            Body::from(serde_json::Value::String("test".into())).size(),
+            BodySize::Sized(6)
+        );
+        assert_eq!(
+            Body::from(json!({"test-key":"test-value"})).size(),
+            BodySize::Sized(25)
+        );
     }
 }

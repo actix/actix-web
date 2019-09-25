@@ -1,5 +1,12 @@
 # Changes
 
+## Not released yet
+
+### Added
+
+* Add support for serde_json::Value to be passed as argument to ResponseBuilder.body()
+
+
 ## [0.2.11] - 2019-09-11
 
 ### Added
