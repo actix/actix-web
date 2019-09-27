@@ -155,9 +155,9 @@ impl ConnectionInfo {
         &self.host
     }
 
-    /// Remote IP of client initiated HTTP request.
+    /// Remote socket addr of client initiated HTTP request.
     ///
-    /// The IP is resolved through the following headers, in this order:
+    /// The addr is resolved through the following headers, in this order:
     ///
     /// - Forwarded
     /// - X-Forwarded-For
