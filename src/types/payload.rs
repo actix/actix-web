@@ -45,6 +45,12 @@ use crate::request::HttpRequest;
 /// ```
 pub struct Payload(crate::dev::Payload);
 
+impl From<Payload> for crate::dev::Payload {
+    fn from(payload: Payload) -> Self {
+        payload.0
+    }
+}
+
 impl Stream for Payload {
     type Item = Bytes;
     type Error = PayloadError;
