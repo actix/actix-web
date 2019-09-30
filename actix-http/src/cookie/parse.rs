@@ -86,6 +86,14 @@ fn name_val_decoded(
     Ok((name, val))
 }
 
+fn unquote_value(val: &str) -> &str {
+    if val.len() >= 2 && val.starts_with('"') && val.ends_with('"') {
+        &val[1..val.len() - 1]
+    } else {
+        val
+    }
+}
+
 // This function does the real parsing but _does not_ set the `cookie_string` in
 // the returned cookie object. This only exists so that the borrow to `s` is
 // returned at the end of the call, allowing the `cookie_string` field to be
@@ -106,6 +114,8 @@ fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
     if name.is_empty() {
         return Err(ParseError::EmptyName);
     }
+
+    let value = unquote_value(value);
 
     // Create a cookie with all of the defaults. We'll fill things in while we
     // iterate through the parameters below.
@@ -397,6 +407,12 @@ mod tests {
              Domain=foo.com; Expires=Wed, 21 Oct 2015 07:28:00 GMT",
             unexpected
         );
+    }
+
+    #[test]
+    fn parse_double_quoted_value() {
+        let expected = Cookie::new("foo", "bar");
+        assert_eq_parse!("foo=\"bar\"", expected);
     }
 
     #[test]
