@@ -43,11 +43,12 @@ use crate::request::HttpRequest;
 ///     );
 /// }
 /// ```
-pub struct Payload(crate::dev::Payload);
+pub struct Payload(pub crate::dev::Payload);
 
-impl From<Payload> for crate::dev::Payload {
-    fn from(payload: Payload) -> Self {
-        payload.0
+impl Payload {
+    /// Deconstruct to a inner value
+    pub fn into_inner(self) -> crate::dev::Payload {
+        self.0
     }
 }
 
