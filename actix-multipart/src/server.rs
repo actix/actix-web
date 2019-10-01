@@ -12,11 +12,12 @@ use mime;
 
 use actix_web::error::{ParseError, PayloadError};
 use actix_web::http::header::{
-    self, ContentDisposition, HeaderMap, HeaderName, HeaderValue,
+    self, HeaderMap, HeaderName, HeaderValue,
 };
 use actix_web::http::HttpTryFrom;
 
 use crate::error::MultipartError;
+use crate::headers::ContentDisposition;
 
 const MAX_HEADERS: usize = 32;
 
