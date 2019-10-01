@@ -1,5 +1,11 @@
 # Changes
 
+## [1.0.9] - 2019-xx-xx
+
+### Added
+
+* Add `Payload::into_inner` method and make stored `def::Payload` public. (#1110)
+
 ## [1.0.8] - 2019-09-25
 
 ### Added
