@@ -43,7 +43,14 @@ use crate::request::HttpRequest;
 ///     );
 /// }
 /// ```
-pub struct Payload(crate::dev::Payload);
+pub struct Payload(pub crate::dev::Payload);
+
+impl Payload {
+    /// Deconstruct to a inner value
+    pub fn into_inner(self) -> crate::dev::Payload {
+        self.0
+    }
+}
 
 impl Stream for Payload {
     type Item = Bytes;
