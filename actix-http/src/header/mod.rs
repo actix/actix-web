@@ -16,7 +16,6 @@ use crate::httpmessage::HttpMessage;
 mod common;
 pub(crate) mod map;
 mod shared;
-#[doc(hidden)]
 pub use self::common::*;
 #[doc(hidden)]
 pub use self::shared::*;
