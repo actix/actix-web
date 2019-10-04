@@ -31,9 +31,9 @@ use actix_http::RequestHead;
 
 /// Trait defines resource guards. Guards are used for route selection.
 ///
-//! Guards can not modify the request object. But it is possible
-//! to store extra attributes on a request by using the `Extensions` container.
-//! Extensions containers are available via the `RequestHead::extensions()` method.
+/// Guards can not modify the request object. But it is possible
+/// to store extra attributes on a request by using the `Extensions` container.
+/// Extensions containers are available via the `RequestHead::extensions()` method.
 pub trait Guard {
     /// Check if request matches predicate
     fn check(&self, request: &RequestHead) -> bool;
