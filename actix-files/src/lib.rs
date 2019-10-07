@@ -1045,17 +1045,24 @@ mod tests {
     }
 
     #[test]
-    fn test_named_file_not_allowed() {
-        let file = NamedFile::open("Cargo.toml").unwrap();
+    fn test_files_not_allowed() {
+        let mut srv = test::init_service(
+            App::new().service(Files::new("/", ".")),
+        );
+
         let req = TestRequest::default()
+            .uri("/Cargo.toml")
             .method(Method::POST)
-            .to_http_request();
-        let resp = file.respond_to(&req).unwrap();
+            .to_request();
+
+        let resp = test::call_service(&mut srv, req);
         assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
 
-        let file = NamedFile::open("Cargo.toml").unwrap();
-        let req = TestRequest::default().method(Method::PUT).to_http_request();
-        let resp = file.respond_to(&req).unwrap();
+        let mut srv = test::init_service(
+            App::new().service(Files::new("/", ".")),
+        );
+        let req = TestRequest::default().method(Method::PUT).uri("/Cargo.toml").to_request();
+        let resp = test::call_service(&mut srv, req);
         assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
     }
 
