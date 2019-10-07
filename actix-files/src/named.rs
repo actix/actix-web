@@ -15,7 +15,7 @@ use actix_http::body::SizedStream;
 use actix_web::http::header::{
     self, ContentDisposition, DispositionParam, DispositionType,
 };
-use actix_web::http::{ContentEncoding, Method, StatusCode};
+use actix_web::http::{ContentEncoding, StatusCode};
 use actix_web::middleware::BodyEncoding;
 use actix_web::{Error, HttpMessage, HttpRequest, HttpResponse, Responder};
 
@@ -322,16 +322,6 @@ impl Responder for NamedFile {
                 counter: 0,
             };
             return Ok(resp.streaming(reader));
-        }
-
-        match *req.method() {
-            Method::HEAD | Method::GET => (),
-            _ => {
-                return Ok(HttpResponse::MethodNotAllowed()
-                    .header(header::CONTENT_TYPE, "text/plain")
-                    .header(header::ALLOW, "GET, HEAD")
-                    .body("This resource only supports GET and HEAD."));
-            }
         }
 
         let etag = if self.flags.contains(Flags::ETAG) {
