@@ -75,7 +75,7 @@ pub trait ResponseError: fmt::Debug + fmt::Display {
         let _ = write!(Writer(&mut buf), "{}", self);
         resp.headers_mut().insert(
             header::CONTENT_TYPE,
-            header::HeaderValue::from_static("text/plain"),
+            header::HeaderValue::from_static("text/plain; charset=utf-8"),
         );
         resp.set_body(Body::from(buf))
     }
@@ -536,7 +536,7 @@ where
                 let _ = write!(Writer(&mut buf), "{}", self);
                 res.headers_mut().insert(
                     header::CONTENT_TYPE,
-                    header::HeaderValue::from_static("text/plain"),
+                    header::HeaderValue::from_static("text/plain; charset=utf-8"),
                 );
                 res.set_body(Body::from(buf))
             }
