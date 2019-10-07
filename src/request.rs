@@ -271,8 +271,8 @@ impl Drop for HttpRequest {
 /// ## Example
 ///
 /// ```rust
-/// # #[macro_use] extern crate serde_derive;
 /// use actix_web::{web, App, HttpRequest};
+/// use serde_derive::Deserialize;
 ///
 /// /// extract `Thing` from request
 /// fn index(req: HttpRequest) -> String {

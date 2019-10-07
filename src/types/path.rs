@@ -39,8 +39,8 @@ use crate::FromRequest;
 /// implements `Deserialize` trait from *serde*.
 ///
 /// ```rust
-/// #[macro_use] extern crate serde_derive;
 /// use actix_web::{web, App, Error};
+/// use serde_derive::Deserialize;
 ///
 /// #[derive(Deserialize)]
 /// struct Info {
@@ -134,8 +134,8 @@ impl<T: fmt::Display> fmt::Display for Path<T> {
 /// implements `Deserialize` trait from *serde*.
 ///
 /// ```rust
-/// #[macro_use] extern crate serde_derive;
 /// use actix_web::{web, App, Error};
+/// use serde_derive::Deserialize;
 ///
 /// #[derive(Deserialize)]
 /// struct Info {
@@ -190,10 +190,9 @@ where
 /// Path extractor configuration
 ///
 /// ```rust
-/// # #[macro_use]
-/// # extern crate serde_derive;
 /// use actix_web::web::PathConfig;
 /// use actix_web::{error, web, App, FromRequest, HttpResponse};
+/// use serde_derive::Deserialize;
 ///
 /// #[derive(Deserialize, Debug)]
 /// enum Folder {
