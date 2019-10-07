@@ -611,6 +611,7 @@ mod tests {
     use bytes::BytesMut;
 
     use super::*;
+    use actix_web::guard;
     use actix_web::http::header::{
         self, ContentDisposition, DispositionParam, DispositionType,
     };
@@ -1064,6 +1065,24 @@ mod tests {
         let req = TestRequest::default().method(Method::PUT).uri("/Cargo.toml").to_request();
         let resp = test::call_service(&mut srv, req);
         assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
+    }
+
+    #[test]
+    fn test_files_guards() {
+        let mut srv = test::init_service(
+            App::new().service(
+                Files::new("/", ".")
+                    .use_guards(guard::Post())
+            ),
+        );
+
+        let req = TestRequest::default()
+            .uri("/Cargo.toml")
+            .method(Method::POST)
+            .to_request();
+
+        let resp = test::call_service(&mut srv, req);
+        assert_eq!(resp.status(), StatusCode::OK);
     }
 
     #[test]
