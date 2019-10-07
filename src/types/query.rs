@@ -21,8 +21,8 @@ use crate::request::HttpRequest;
 /// ## Example
 ///
 /// ```rust
-/// #[macro_use] extern crate serde_derive;
 /// use actix_web::{web, App};
+/// use serde_derive::Deserialize;
 ///
 /// #[derive(Debug, Deserialize)]
 /// pub enum ResponseType {
@@ -99,8 +99,8 @@ impl<T: fmt::Display> fmt::Display for Query<T> {
 /// ## Example
 ///
 /// ```rust
-/// #[macro_use] extern crate serde_derive;
 /// use actix_web::{web, App};
+/// use serde_derive::Deserialize;
 ///
 /// #[derive(Debug, Deserialize)]
 /// pub enum ResponseType {
@@ -169,8 +169,8 @@ where
 /// ## Example
 ///
 /// ```rust
-/// #[macro_use] extern crate serde_derive;
 /// use actix_web::{error, web, App, FromRequest, HttpResponse};
+/// use serde_derive::Deserialize;
 ///
 /// #[derive(Deserialize)]
 /// struct Info {

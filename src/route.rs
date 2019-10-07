@@ -178,8 +178,8 @@ impl Route {
     /// Set handler function, use request extractors for parameters.
     ///
     /// ```rust
-    /// #[macro_use] extern crate serde_derive;
     /// use actix_web::{web, http, App};
+    /// use serde_derive::Deserialize;
     ///
     /// #[derive(Deserialize)]
     /// struct Info {
@@ -239,9 +239,9 @@ impl Route {
     ///
     /// ```rust
     /// # use futures::future::ok;
-    /// #[macro_use] extern crate serde_derive;
     /// use actix_web::{web, App, Error};
     /// use futures::Future;
+    /// use serde_derive::Deserialize;
     ///
     /// #[derive(Deserialize)]
     /// struct Info {

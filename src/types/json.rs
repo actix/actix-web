@@ -33,8 +33,8 @@ use crate::responder::Responder;
 /// ## Example
 ///
 /// ```rust
-/// #[macro_use] extern crate serde_derive;
 /// use actix_web::{web, App};
+/// use serde_derive::Deserialize;
 ///
 /// #[derive(Deserialize)]
 /// struct Info {
@@ -60,9 +60,9 @@ use crate::responder::Responder;
 /// trait from *serde*.
 ///
 /// ```rust
-/// # #[macro_use] extern crate serde_derive;
-/// # use actix_web::*;
-/// #
+/// use actix_web::*;
+/// use serde_derive::Serialize;
+///
 /// #[derive(Serialize)]
 /// struct MyObj {
 ///     name: String,
@@ -144,8 +144,8 @@ impl<T: Serialize> Responder for Json<T> {
 /// ## Example
 ///
 /// ```rust
-/// #[macro_use] extern crate serde_derive;
 /// use actix_web::{web, App};
+/// use serde_derive::Deserialize;
 ///
 /// #[derive(Deserialize)]
 /// struct Info {
@@ -203,8 +203,8 @@ where
 /// Json extractor configuration
 ///
 /// ```rust
-/// #[macro_use] extern crate serde_derive;
 /// use actix_web::{error, web, App, FromRequest, HttpResponse};
+/// use serde_derive::Deserialize;
 ///
 /// #[derive(Deserialize)]
 /// struct Info {

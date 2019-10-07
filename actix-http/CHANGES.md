@@ -6,6 +6,10 @@
 
 * Add support for serde_json::Value to be passed as argument to ResponseBuilder.body()
 
+### Fixed
+
+* To be compatible with non-English error responses, `ResponseError` rendered with `text/plain; charset=utf-8` header #1118
+
 
 ## [0.2.10] - 2019-09-11
 

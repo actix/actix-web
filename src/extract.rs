@@ -46,9 +46,9 @@ pub trait FromRequest: Sized {
 /// ## Example
 ///
 /// ```rust
-/// # #[macro_use] extern crate serde_derive;
 /// use actix_web::{web, dev, App, Error, HttpRequest, FromRequest};
 /// use actix_web::error::ErrorBadRequest;
+/// use serde_derive::Deserialize;
 /// use rand;
 ///
 /// #[derive(Debug, Deserialize)]
@@ -119,9 +119,9 @@ where
 /// ## Example
 ///
 /// ```rust
-/// # #[macro_use] extern crate serde_derive;
 /// use actix_web::{web, dev, App, Result, Error, HttpRequest, FromRequest};
 /// use actix_web::error::ErrorBadRequest;
+/// use serde_derive::Deserialize;
 /// use rand;
 ///
 /// #[derive(Debug, Deserialize)]

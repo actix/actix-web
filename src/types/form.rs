@@ -35,9 +35,8 @@ use crate::responder::Responder;
 ///
 /// ### Example
 /// ```rust
-/// # extern crate actix_web;
-/// #[macro_use] extern crate serde_derive;
-/// use actix_web::{web, App};
+/// use actix_web::web;
+/// use serde_derive::Deserialize;
 ///
 /// #[derive(Deserialize)]
 /// struct FormData {
@@ -61,9 +60,9 @@ use crate::responder::Responder;
 ///
 /// ### Example
 /// ```rust
-/// # #[macro_use] extern crate serde_derive;
-/// # use actix_web::*;
-/// #
+/// use actix_web::*;
+/// use serde_derive::Serialize;
+///
 /// #[derive(Serialize)]
 /// struct SomeForm {
 ///     name: String,
@@ -167,8 +166,8 @@ impl<T: Serialize> Responder for Form<T> {
 /// Form extractor configuration
 ///
 /// ```rust
-/// #[macro_use] extern crate serde_derive;
 /// use actix_web::{web, App, FromRequest, Result};
+/// use serde_derive::Deserialize;
 ///
 /// #[derive(Deserialize)]
 /// struct FormData {
