@@ -1,16 +1,16 @@
 //! Route match guards.
 //!
-//! Guards are one of the way how actix-web router chooses
-//! handler service. In essence it just function that accepts
-//! reference to a `RequestHead` instance and returns boolean.
+//! Guards are one of the ways how actix-web router chooses a
+//! handler service. In essence it is just a function that accepts a
+//! reference to a `RequestHead` instance and returns a boolean.
 //! It is possible to add guards to *scopes*, *resources*
 //! and *routes*. Actix provide several guards by default, like various
 //! http methods, header, etc. To become a guard, type must implement `Guard`
 //! trait. Simple functions coulds guards as well.
 //!
-//! Guard can not modify request object. But it is possible to
-//! to store extra attributes on a request by using `Extensions` container.
-//! Extensions container available via `RequestHead::extensions()` method.
+//! Guards can not modify the request object. But it is possible
+//! to store extra attributes on a request by using the `Extensions` container.
+//! Extensions containers are available via the `RequestHead::extensions()` method.
 //!
 //! ```rust
 //! use actix_web::{web, http, dev, guard, App, HttpResponse};
@@ -29,11 +29,11 @@
 use actix_http::http::{self, header, uri::Uri, HttpTryFrom};
 use actix_http::RequestHead;
 
-/// Trait defines resource guards. Guards are used for routes selection.
+/// Trait defines resource guards. Guards are used for route selection.
 ///
-/// Guard can not modify request object. But it is possible to
-/// to store extra attributes on request by using `Extensions` container,
-/// Extensions container available via `RequestHead::extensions()` method.
+/// Guards can not modify the request object. But it is possible
+/// to store extra attributes on a request by using the `Extensions` container.
+/// Extensions containers are available via the `RequestHead::extensions()` method.
 pub trait Guard {
     /// Check if request matches predicate
     fn check(&self, request: &RequestHead) -> bool;
