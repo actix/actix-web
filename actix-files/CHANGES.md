@@ -6,6 +6,8 @@
 
 * Bump up `percent-encoding` crate version to 2.1
 
+* Allow user defined request guards for `Files` #1113
+
 ## [0.1.4] - 2019-07-20
 
 * Allow to disable `Content-Disposition` header #686
