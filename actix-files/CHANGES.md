@@ -1,12 +1,13 @@
 # Changes
 
-## [0.1.5] - unreleased
+## [0.1.5] - 2019-10-08
 
 * Bump up `mime_guess` crate version to 2.0.1
 
 * Bump up `percent-encoding` crate version to 2.1
 
 * Allow user defined request guards for `Files` #1113
+
 
 ## [0.1.4] - 2019-07-20
 

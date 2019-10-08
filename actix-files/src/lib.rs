@@ -15,8 +15,8 @@ use actix_web::dev::{
     AppService, HttpServiceFactory, Payload, ResourceDef, ServiceRequest,
     ServiceResponse,
 };
-use actix_web::guard::Guard;
 use actix_web::error::{BlockingError, Error, ErrorInternalServerError};
+use actix_web::guard::Guard;
 use actix_web::http::header::{self, DispositionType};
 use actix_web::http::Method;
 use actix_web::{web, FromRequest, HttpRequest, HttpResponse, Responder};
@@ -485,7 +485,7 @@ impl Service for FilesService {
             return Either::A(ok(req.into_response(
                 actix_web::HttpResponse::MethodNotAllowed()
                     .header(header::CONTENT_TYPE, "text/plain")
-                    .body("Request did not meet this resource's requirements.")
+                    .body("Request did not meet this resource's requirements."),
             )));
         }
 
@@ -1047,9 +1047,7 @@ mod tests {
 
     #[test]
     fn test_files_not_allowed() {
-        let mut srv = test::init_service(
-            App::new().service(Files::new("/", ".")),
-        );
+        let mut srv = test::init_service(App::new().service(Files::new("/", ".")));
 
         let req = TestRequest::default()
             .uri("/Cargo.toml")
@@ -1059,10 +1057,11 @@ mod tests {
         let resp = test::call_service(&mut srv, req);
         assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
 
-        let mut srv = test::init_service(
-            App::new().service(Files::new("/", ".")),
-        );
-        let req = TestRequest::default().method(Method::PUT).uri("/Cargo.toml").to_request();
+        let mut srv = test::init_service(App::new().service(Files::new("/", ".")));
+        let req = TestRequest::default()
+            .method(Method::PUT)
+            .uri("/Cargo.toml")
+            .to_request();
         let resp = test::call_service(&mut srv, req);
         assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
     }
@@ -1070,10 +1069,7 @@ mod tests {
     #[test]
     fn test_files_guards() {
         let mut srv = test::init_service(
-            App::new().service(
-                Files::new("/", ".")
-                    .use_guards(guard::Post())
-            ),
+            App::new().service(Files::new("/", ".").use_guards(guard::Post())),
         );
 
         let req = TestRequest::default()
