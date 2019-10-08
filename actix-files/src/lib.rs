@@ -15,8 +15,10 @@ use actix_web::dev::{
     AppService, HttpServiceFactory, Payload, ResourceDef, ServiceRequest,
     ServiceResponse,
 };
+use actix_web::guard::Guard;
 use actix_web::error::{BlockingError, Error, ErrorInternalServerError};
-use actix_web::http::header::DispositionType;
+use actix_web::http::header::{self, DispositionType};
+use actix_web::http::Method;
 use actix_web::{web, FromRequest, HttpRequest, HttpResponse, Responder};
 use bytes::Bytes;
 use futures::future::{ok, Either, FutureResult};
@@ -235,6 +237,7 @@ pub struct Files {
     renderer: Rc<DirectoryRenderer>,
     mime_override: Option<Rc<MimeOverride>>,
     file_flags: named::Flags,
+    guards: Option<Rc<Box<dyn Guard>>>,
 }
 
 impl Clone for Files {
@@ -248,6 +251,7 @@ impl Clone for Files {
             file_flags: self.file_flags,
             path: self.path.clone(),
             mime_override: self.mime_override.clone(),
+            guards: self.guards.clone(),
         }
     }
 }
@@ -273,6 +277,7 @@ impl Files {
             renderer: Rc::new(directory_listing),
             mime_override: None,
             file_flags: named::Flags::default(),
+            guards: None,
         }
     }
 
@@ -328,6 +333,15 @@ impl Files {
     /// Default is true.
     pub fn use_last_modified(mut self, value: bool) -> Self {
         self.file_flags.set(named::Flags::LAST_MD, value);
+        self
+    }
+
+    /// Specifies custom guards to use for directory listings and files.
+    ///
+    /// Default behaviour allows GET and HEAD.
+    #[inline]
+    pub fn use_guards<G: Guard + 'static>(mut self, guards: G) -> Self {
+        self.guards = Some(Rc::new(Box::new(guards)));
         self
     }
 
@@ -392,6 +406,7 @@ impl NewService for Files {
             renderer: self.renderer.clone(),
             mime_override: self.mime_override.clone(),
             file_flags: self.file_flags,
+            guards: self.guards.clone(),
         };
 
         if let Some(ref default) = *self.default.borrow() {
@@ -418,6 +433,7 @@ pub struct FilesService {
     renderer: Rc<DirectoryRenderer>,
     mime_override: Option<Rc<MimeOverride>>,
     file_flags: named::Flags,
+    guards: Option<Rc<Box<dyn Guard>>>,
 }
 
 impl FilesService {
@@ -453,6 +469,25 @@ impl Service for FilesService {
 
     fn call(&mut self, req: ServiceRequest) -> Self::Future {
         // let (req, pl) = req.into_parts();
+
+        let is_method_valid = if let Some(guard) = &self.guards {
+            // execute user defined guards
+            (**guard).check(req.head())
+        } else {
+            // default behaviour
+            match *req.method() {
+                Method::HEAD | Method::GET => true,
+                _ => false,
+            }
+        };
+
+        if !is_method_valid {
+            return Either::A(ok(req.into_response(
+                actix_web::HttpResponse::MethodNotAllowed()
+                    .header(header::CONTENT_TYPE, "text/plain")
+                    .body("Request did not meet this resource's requirements.")
+            )));
+        }
 
         let real_path = match PathBufWrp::get_pathbuf(req.match_info().path()) {
             Ok(item) => item,
@@ -576,6 +611,7 @@ mod tests {
     use bytes::BytesMut;
 
     use super::*;
+    use actix_web::guard;
     use actix_web::http::header::{
         self, ContentDisposition, DispositionParam, DispositionType,
     };
@@ -1010,18 +1046,43 @@ mod tests {
     }
 
     #[test]
-    fn test_named_file_not_allowed() {
-        let file = NamedFile::open("Cargo.toml").unwrap();
+    fn test_files_not_allowed() {
+        let mut srv = test::init_service(
+            App::new().service(Files::new("/", ".")),
+        );
+
         let req = TestRequest::default()
+            .uri("/Cargo.toml")
             .method(Method::POST)
-            .to_http_request();
-        let resp = file.respond_to(&req).unwrap();
+            .to_request();
+
+        let resp = test::call_service(&mut srv, req);
         assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
 
-        let file = NamedFile::open("Cargo.toml").unwrap();
-        let req = TestRequest::default().method(Method::PUT).to_http_request();
-        let resp = file.respond_to(&req).unwrap();
+        let mut srv = test::init_service(
+            App::new().service(Files::new("/", ".")),
+        );
+        let req = TestRequest::default().method(Method::PUT).uri("/Cargo.toml").to_request();
+        let resp = test::call_service(&mut srv, req);
         assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
+    }
+
+    #[test]
+    fn test_files_guards() {
+        let mut srv = test::init_service(
+            App::new().service(
+                Files::new("/", ".")
+                    .use_guards(guard::Post())
+            ),
+        );
+
+        let req = TestRequest::default()
+            .uri("/Cargo.toml")
+            .method(Method::POST)
+            .to_request();
+
+        let resp = test::call_service(&mut srv, req);
+        assert_eq!(resp.status(), StatusCode::OK);
     }
 
     #[test]
