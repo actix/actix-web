@@ -194,7 +194,7 @@ impl<B> Response<B> {
         self.head.extensions.borrow_mut()
     }
 
-    /// Get body os this response
+    /// Get body of this response
     #[inline]
     pub fn body(&self) -> &ResponseBody<B> {
         &self.body
