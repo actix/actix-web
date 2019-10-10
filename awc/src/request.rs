@@ -382,6 +382,27 @@ impl ClientRequest {
         }
     }
 
+    /// Sets the query part of the request
+    pub fn query<T: Serialize>(
+        mut self,
+        query: &T,
+    ) -> Result<Self, serde_urlencoded::ser::Error> {
+        let mut parts = self.head.uri.clone().into_parts();
+
+        if let Some(path_and_query) = parts.path_and_query {
+            let query = serde_urlencoded::to_string(query)?;
+            let path = path_and_query.path();
+            parts.path_and_query = format!("{}?{}", path, query).parse().ok();
+
+            match Uri::from_parts(parts) {
+                Ok(uri) => self.head.uri = uri,
+                Err(e) => self.err = Some(e.into()),
+            }
+        }
+
+        Ok(self)
+    }
+
     /// Freeze request builder and construct `FrozenClientRequest`,
     /// which could be used for sending same request multiple times.
     pub fn freeze(self) -> Result<FrozenClientRequest, FreezeRequestError> {
@@ -689,5 +710,14 @@ mod tests {
                 .unwrap(),
             "Bearer someS3cr3tAutht0k3n"
         );
+    }
+
+    #[test]
+    fn client_query() {
+        let req = Client::new()
+            .get("/")
+            .query(&[("key1", "val1"), ("key2", "val2")])
+            .unwrap();
+        assert_eq!(req.get_uri().query().unwrap(), "key1=val1&key2=val2");
     }
 }

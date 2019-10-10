@@ -1,5 +1,8 @@
 # Changes
 
+## [0.2.8] - 2019-10-24
+
+* Add support for setting query from Serialize type for client request.
 
 ## [0.2.7] - 2019-09-25
 
