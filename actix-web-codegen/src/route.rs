@@ -121,39 +121,37 @@ impl Args {
         }
 
         let ast: syn::ItemFn = syn::parse(input).expect("Parse input as function");
-        let name = ast.ident.clone();
+        let name = ast.sig.ident.clone();
 
         let mut extra_guards = Vec::new();
         let mut path = None;
         for arg in args {
             match arg {
-                syn::NestedMeta::Literal(syn::Lit::Str(ref fname)) => {
+                syn::NestedMeta::Lit(syn::Lit::Str(ref fname)) => {
                     if path.is_some() {
                         panic!("Multiple paths specified! Should be only one!")
                     }
                     let fname = quote!(#fname).to_string();
                     path = Some(fname.as_str()[1..fname.len() - 1].to_owned())
                 }
-                syn::NestedMeta::Meta(syn::Meta::NameValue(ident)) => {
-                    match ident.ident.to_string().to_lowercase().as_str() {
-                        "guard" => match ident.lit {
+                syn::NestedMeta::Meta(syn::Meta::NameValue(nv)) => {
+                    if nv.path.is_ident("guard") {
+                        match nv.lit {
                             syn::Lit::Str(ref text) => extra_guards.push(text.value()),
                             _ => panic!("Attribute guard expects literal string!"),
-                        },
-                        attr => panic!(
-                            "Unknown attribute key is specified: {}. Allowed: guard",
-                            attr
-                        ),
+                        }
+                    } else {
+                        panic!("Unknown attribute key is specified. Allowed: guard");
                     }
                 }
                 attr => panic!("Unknown attribute{:?}", attr),
             }
         }
 
-        let resource_type = if ast.asyncness.is_some() {
+        let resource_type = if ast.sig.asyncness.is_some() {
             ResourceType::Async
         } else {
-            match ast.decl.output {
+            match ast.sig.output {
                 syn::ReturnType::Default => panic!(
                     "Function {} has no return type. Cannot be used as handler",
                     name
