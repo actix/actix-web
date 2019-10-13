@@ -233,6 +233,7 @@ pub struct Files {
     directory: PathBuf,
     index: Option<String>,
     show_index: bool,
+    redirect_to_slash: bool,
     default: Rc<RefCell<Option<Rc<HttpNewService>>>>,
     renderer: Rc<DirectoryRenderer>,
     mime_override: Option<Rc<MimeOverride>>,
@@ -246,6 +247,7 @@ impl Clone for Files {
             directory: self.directory.clone(),
             index: self.index.clone(),
             show_index: self.show_index,
+            redirect_to_slash: self.redirect_to_slash,
             default: self.default.clone(),
             renderer: self.renderer.clone(),
             file_flags: self.file_flags,
@@ -273,6 +275,7 @@ impl Files {
             directory: dir,
             index: None,
             show_index: false,
+            redirect_to_slash: false,
             default: Rc::new(RefCell::new(None)),
             renderer: Rc::new(directory_listing),
             mime_override: None,
@@ -286,6 +289,14 @@ impl Files {
     /// By default show files listing is disabled.
     pub fn show_files_listing(mut self) -> Self {
         self.show_index = true;
+        self
+    }
+
+    /// Redirects to a slash-ended path when browsing a directory.
+    ///
+    /// By default never redirect.
+    pub fn redirect_to_slash_directory(mut self) -> Self {
+        self.redirect_to_slash = true;
         self
     }
 
@@ -389,10 +400,10 @@ impl HttpServiceFactory for Files {
 }
 
 impl NewService for Files {
-    type Config = ();
     type Request = ServiceRequest;
     type Response = ServiceResponse;
     type Error = Error;
+    type Config = ();
     type Service = FilesService;
     type InitError = ();
     type Future = Box<dyn Future<Item = Self::Service, Error = Self::InitError>>;
@@ -402,6 +413,7 @@ impl NewService for Files {
             directory: self.directory.clone(),
             index: self.index.clone(),
             show_index: self.show_index,
+            redirect_to_slash: self.redirect_to_slash,
             default: None,
             renderer: self.renderer.clone(),
             mime_override: self.mime_override.clone(),
@@ -429,6 +441,7 @@ pub struct FilesService {
     directory: PathBuf,
     index: Option<String>,
     show_index: bool,
+    redirect_to_slash: bool,
     default: Option<HttpService>,
     renderer: Rc<DirectoryRenderer>,
     mime_override: Option<Rc<MimeOverride>>,
@@ -502,6 +515,16 @@ impl Service for FilesService {
 
         if path.is_dir() {
             if let Some(ref redir_index) = self.index {
+                if self.redirect_to_slash && !req.path().ends_with('/') {
+                    let redirect_to = format!("{}/", req.path());
+                    return Either::A(ok(req.into_response(
+                        HttpResponse::Found()
+                            .header(header::LOCATION, redirect_to)
+                            .body("")
+                            .into_body(),
+                    )));
+                }
+
                 let path = path.join(redir_index);
 
                 match NamedFile::open(path) {
@@ -1167,6 +1190,34 @@ mod tests {
             }))
             .unwrap();
         assert!(format!("{:?}", bytes).contains("/tests/test.png"));
+    }
+
+    #[test]
+    fn test_redirect_to_slash_directory() {
+        // should not redirect if no index
+        let mut srv = test::init_service(
+            App::new().service(Files::new("/", ".").redirect_to_slash_directory()),
+        );
+        let req = TestRequest::with_uri("/tests").to_request();
+        let resp = test::call_service(&mut srv, req);
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+
+        // should redirect if index present
+        let mut srv = test::init_service(
+            App::new().service(
+                Files::new("/", ".")
+                    .index_file("test.png")
+                    .redirect_to_slash_directory(),
+            ),
+        );
+        let req = TestRequest::with_uri("/tests").to_request();
+        let resp = test::call_service(&mut srv, req);
+        assert_eq!(resp.status(), StatusCode::FOUND);
+
+        // should not redirect if the path is wrong
+        let req = TestRequest::with_uri("/not_existing").to_request();
+        let resp = test::call_service(&mut srv, req);
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
     }
 
     #[test]
