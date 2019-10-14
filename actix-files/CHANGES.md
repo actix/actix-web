@@ -1,6 +1,6 @@
 # Changes
 
-## [0.1.6] - TBD
+## [0.1.6] - 2019-10-14
 
 * Add option to redirect to a slash-ended path `Files` #1132
 
@@ -11,7 +11,7 @@
 * Bump up `percent-encoding` crate version to 2.1
 
 * Allow user defined request guards for `Files` #1113
-  
+
 ## [0.1.4] - 2019-07-20
 
 * Allow to disable `Content-Disposition` header #686

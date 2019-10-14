@@ -1,6 +1,6 @@
 [package]
 name = "actix-files"
-version = "0.1.5"
+version = "0.1.6"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Static files support for actix web."
 readme = "README.md"
