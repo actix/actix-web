@@ -12,8 +12,9 @@ workspace = ".."
 proc-macro = true
 
 [dependencies]
-quote = "0.6.12"
-syn = { version = "0.15.34", features = ["full", "parsing", "extra-traits"] }
+quote = "1"
+syn = { version = "1", features = ["full", "parsing"] }
+proc-macro2 = "1"
 
 [dev-dependencies]
 actix-web = { version = "1.0.0" }

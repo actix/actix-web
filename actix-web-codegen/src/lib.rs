@@ -58,7 +58,10 @@ use syn::parse_macro_input;
 #[proc_macro_attribute]
 pub fn get(args: TokenStream, input: TokenStream) -> TokenStream {
     let args = parse_macro_input!(args as syn::AttributeArgs);
-    let gen = route::Args::new(&args, input, route::GuardType::Get);
+    let gen = match route::Route::new(args, input, route::GuardType::Get) {
+        Ok(gen) => gen,
+        Err(err) => return err.to_compile_error().into(),
+    };
     gen.generate()
 }
 
@@ -70,7 +73,10 @@ pub fn get(args: TokenStream, input: TokenStream) -> TokenStream {
 #[proc_macro_attribute]
 pub fn post(args: TokenStream, input: TokenStream) -> TokenStream {
     let args = parse_macro_input!(args as syn::AttributeArgs);
-    let gen = route::Args::new(&args, input, route::GuardType::Post);
+    let gen = match route::Route::new(args, input, route::GuardType::Post) {
+        Ok(gen) => gen,
+        Err(err) => return err.to_compile_error().into(),
+    };
     gen.generate()
 }
 
@@ -82,7 +88,10 @@ pub fn post(args: TokenStream, input: TokenStream) -> TokenStream {
 #[proc_macro_attribute]
 pub fn put(args: TokenStream, input: TokenStream) -> TokenStream {
     let args = parse_macro_input!(args as syn::AttributeArgs);
-    let gen = route::Args::new(&args, input, route::GuardType::Put);
+    let gen = match route::Route::new(args, input, route::GuardType::Put) {
+        Ok(gen) => gen,
+        Err(err) => return err.to_compile_error().into(),
+    };
     gen.generate()
 }
 
@@ -94,7 +103,10 @@ pub fn put(args: TokenStream, input: TokenStream) -> TokenStream {
 #[proc_macro_attribute]
 pub fn delete(args: TokenStream, input: TokenStream) -> TokenStream {
     let args = parse_macro_input!(args as syn::AttributeArgs);
-    let gen = route::Args::new(&args, input, route::GuardType::Delete);
+    let gen = match route::Route::new(args, input, route::GuardType::Delete) {
+        Ok(gen) => gen,
+        Err(err) => return err.to_compile_error().into(),
+    };
     gen.generate()
 }
 
@@ -106,7 +118,10 @@ pub fn delete(args: TokenStream, input: TokenStream) -> TokenStream {
 #[proc_macro_attribute]
 pub fn head(args: TokenStream, input: TokenStream) -> TokenStream {
     let args = parse_macro_input!(args as syn::AttributeArgs);
-    let gen = route::Args::new(&args, input, route::GuardType::Head);
+    let gen = match route::Route::new(args, input, route::GuardType::Head) {
+        Ok(gen) => gen,
+        Err(err) => return err.to_compile_error().into(),
+    };
     gen.generate()
 }
 
@@ -118,7 +133,10 @@ pub fn head(args: TokenStream, input: TokenStream) -> TokenStream {
 #[proc_macro_attribute]
 pub fn connect(args: TokenStream, input: TokenStream) -> TokenStream {
     let args = parse_macro_input!(args as syn::AttributeArgs);
-    let gen = route::Args::new(&args, input, route::GuardType::Connect);
+    let gen = match route::Route::new(args, input, route::GuardType::Connect) {
+        Ok(gen) => gen,
+        Err(err) => return err.to_compile_error().into(),
+    };
     gen.generate()
 }
 
@@ -130,7 +148,10 @@ pub fn connect(args: TokenStream, input: TokenStream) -> TokenStream {
 #[proc_macro_attribute]
 pub fn options(args: TokenStream, input: TokenStream) -> TokenStream {
     let args = parse_macro_input!(args as syn::AttributeArgs);
-    let gen = route::Args::new(&args, input, route::GuardType::Options);
+    let gen = match route::Route::new(args, input, route::GuardType::Options) {
+        Ok(gen) => gen,
+        Err(err) => return err.to_compile_error().into(),
+    };
     gen.generate()
 }
 
@@ -142,7 +163,10 @@ pub fn options(args: TokenStream, input: TokenStream) -> TokenStream {
 #[proc_macro_attribute]
 pub fn trace(args: TokenStream, input: TokenStream) -> TokenStream {
     let args = parse_macro_input!(args as syn::AttributeArgs);
-    let gen = route::Args::new(&args, input, route::GuardType::Trace);
+    let gen = match route::Route::new(args, input, route::GuardType::Trace) {
+        Ok(gen) => gen,
+        Err(err) => return err.to_compile_error().into(),
+    };
     gen.generate()
 }
 
@@ -154,6 +178,9 @@ pub fn trace(args: TokenStream, input: TokenStream) -> TokenStream {
 #[proc_macro_attribute]
 pub fn patch(args: TokenStream, input: TokenStream) -> TokenStream {
     let args = parse_macro_input!(args as syn::AttributeArgs);
-    let gen = route::Args::new(&args, input, route::GuardType::Patch);
+    let gen = match route::Route::new(args, input, route::GuardType::Patch) {
+        Ok(gen) => gen,
+        Err(err) => return err.to_compile_error().into(),
+    };
     gen.generate()
 }

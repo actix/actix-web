@@ -1,21 +1,23 @@
 extern crate proc_macro;
 
-use std::fmt;
-
 use proc_macro::TokenStream;
-use quote::quote;
+use proc_macro2::{Span, TokenStream as TokenStream2};
+use quote::{quote, ToTokens, TokenStreamExt};
+use syn::{AttributeArgs, Ident, NestedMeta};
 
 enum ResourceType {
     Async,
     Sync,
 }
 
-impl fmt::Display for ResourceType {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            ResourceType::Async => write!(f, "to_async"),
-            ResourceType::Sync => write!(f, "to"),
-        }
+impl ToTokens for ResourceType {
+    fn to_tokens(&self, stream: &mut TokenStream2) {
+        let ident = match self {
+            ResourceType::Async => "to_async",
+            ResourceType::Sync => "to",
+        };
+        let ident = Ident::new(ident, Span::call_site());
+        stream.append(ident);
     }
 }
 
@@ -32,61 +34,87 @@ pub enum GuardType {
     Patch,
 }
 
-impl fmt::Display for GuardType {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            GuardType::Get => write!(f, "Get"),
-            GuardType::Post => write!(f, "Post"),
-            GuardType::Put => write!(f, "Put"),
-            GuardType::Delete => write!(f, "Delete"),
-            GuardType::Head => write!(f, "Head"),
-            GuardType::Connect => write!(f, "Connect"),
-            GuardType::Options => write!(f, "Options"),
-            GuardType::Trace => write!(f, "Trace"),
-            GuardType::Patch => write!(f, "Patch"),
+impl GuardType {
+    fn as_str(&self) -> &'static str {
+        match self {
+            GuardType::Get => "Get",
+            GuardType::Post => "Post",
+            GuardType::Put => "Put",
+            GuardType::Delete => "Delete",
+            GuardType::Head => "Head",
+            GuardType::Connect => "Connect",
+            GuardType::Options => "Options",
+            GuardType::Trace => "Trace",
+            GuardType::Patch => "Patch",
         }
     }
 }
 
-pub struct Args {
-    name: syn::Ident,
-    path: String,
-    ast: syn::ItemFn,
-    resource_type: ResourceType,
-    pub guard: GuardType,
-    pub extra_guards: Vec<String>,
+impl ToTokens for GuardType {
+    fn to_tokens(&self, stream: &mut TokenStream2) {
+        let ident = self.as_str();
+        let ident = Ident::new(ident, Span::call_site());
+        stream.append(ident);
+    }
 }
 
-impl fmt::Display for Args {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let ast = &self.ast;
-        let guards = format!(".guard(actix_web::guard::{}())", self.guard);
-        let guards = self.extra_guards.iter().fold(guards, |acc, val| {
-            format!("{}.guard(actix_web::guard::fn_guard({}))", acc, val)
-        });
+struct Args {
+    path: syn::LitStr,
+    guards: Vec<Ident>,
+}
 
-        write!(
-            f,
-            "
-#[allow(non_camel_case_types)]
-pub struct {name};
-
-impl actix_web::dev::HttpServiceFactory for {name} {{
-    fn register(self, config: &mut actix_web::dev::AppService) {{
-        {ast}
-
-        let resource = actix_web::Resource::new(\"{path}\"){guards}.{to}({name});
-
-        actix_web::dev::HttpServiceFactory::register(resource, config)
-    }}
-}}",
-            name = self.name,
-            ast = quote!(#ast),
-            path = self.path,
-            guards = guards,
-            to = self.resource_type
-        )
+impl Args {
+    fn new(args: AttributeArgs) -> syn::Result<Self> {
+        let mut path = None;
+        let mut guards = Vec::new();
+        for arg in args {
+            match arg {
+                NestedMeta::Lit(syn::Lit::Str(lit)) => match path {
+                    None => {
+                        path = Some(lit);
+                    }
+                    _ => {
+                        return Err(syn::Error::new_spanned(
+                            lit,
+                            "Multiple paths specified! Should be only one!",
+                        ));
+                    }
+                },
+                NestedMeta::Meta(syn::Meta::NameValue(nv)) => {
+                    if nv.path.is_ident("guard") {
+                        if let syn::Lit::Str(lit) = nv.lit {
+                            guards.push(Ident::new(&lit.value(), Span::call_site()));
+                        } else {
+                            return Err(syn::Error::new_spanned(
+                                nv.lit,
+                                "Attribute guard expects literal string!",
+                            ));
+                        }
+                    } else {
+                        return Err(syn::Error::new_spanned(
+                            nv.path,
+                            "Unknown attribute key is specified. Allowed: guard",
+                        ));
+                    }
+                }
+                arg => {
+                    return Err(syn::Error::new_spanned(arg, "Unknown attribute"));
+                }
+            }
+        }
+        Ok(Args {
+            path: path.unwrap(),
+            guards,
+        })
     }
+}
+
+pub struct Route {
+    name: syn::Ident,
+    args: Args,
+    ast: syn::ItemFn,
+    resource_type: ResourceType,
+    guard: GuardType,
 }
 
 fn guess_resource_type(typ: &syn::Type) -> ResourceType {
@@ -111,75 +139,73 @@ fn guess_resource_type(typ: &syn::Type) -> ResourceType {
     guess
 }
 
-impl Args {
-    pub fn new(args: &[syn::NestedMeta], input: TokenStream, guard: GuardType) -> Self {
+impl Route {
+    pub fn new(
+        args: AttributeArgs,
+        input: TokenStream,
+        guard: GuardType,
+    ) -> syn::Result<Self> {
         if args.is_empty() {
-            panic!(
-                "invalid server definition, expected: #[{}(\"some path\")]",
-                guard
-            );
+            return Err(syn::Error::new(
+                Span::call_site(),
+                format!(
+                    r#"invalid server definition, expected #[{}("<some path>")]"#,
+                    guard.as_str().to_ascii_lowercase()
+                ),
+            ));
         }
+        let ast: syn::ItemFn = syn::parse(input)?;
+        let name = ast.sig.ident.clone();
 
-        let ast: syn::ItemFn = syn::parse(input).expect("Parse input as function");
-        let name = ast.ident.clone();
+        let args = Args::new(args)?;
 
-        let mut extra_guards = Vec::new();
-        let mut path = None;
-        for arg in args {
-            match arg {
-                syn::NestedMeta::Literal(syn::Lit::Str(ref fname)) => {
-                    if path.is_some() {
-                        panic!("Multiple paths specified! Should be only one!")
-                    }
-                    let fname = quote!(#fname).to_string();
-                    path = Some(fname.as_str()[1..fname.len() - 1].to_owned())
-                }
-                syn::NestedMeta::Meta(syn::Meta::NameValue(ident)) => {
-                    match ident.ident.to_string().to_lowercase().as_str() {
-                        "guard" => match ident.lit {
-                            syn::Lit::Str(ref text) => extra_guards.push(text.value()),
-                            _ => panic!("Attribute guard expects literal string!"),
-                        },
-                        attr => panic!(
-                            "Unknown attribute key is specified: {}. Allowed: guard",
-                            attr
-                        ),
-                    }
-                }
-                attr => panic!("Unknown attribute{:?}", attr),
-            }
-        }
-
-        let resource_type = if ast.asyncness.is_some() {
+        let resource_type = if ast.sig.asyncness.is_some() {
             ResourceType::Async
         } else {
-            match ast.decl.output {
-                syn::ReturnType::Default => panic!(
-                    "Function {} has no return type. Cannot be used as handler",
-                    name
-                ),
+            match ast.sig.output {
+                syn::ReturnType::Default => {
+                    return Err(syn::Error::new_spanned(
+                        ast,
+                        "Function has no return type. Cannot be used as handler",
+                    ));
+                }
                 syn::ReturnType::Type(_, ref typ) => guess_resource_type(typ.as_ref()),
             }
         };
 
-        let path = path.unwrap();
-
-        Self {
+        Ok(Self {
             name,
-            path,
+            args,
             ast,
             resource_type,
             guard,
-            extra_guards,
-        }
+        })
     }
 
     pub fn generate(&self) -> TokenStream {
-        let text = self.to_string();
+        let name = &self.name;
+        let guard = &self.guard;
+        let ast = &self.ast;
+        let path = &self.args.path;
+        let extra_guards = &self.args.guards;
+        let resource_type = &self.resource_type;
+        let stream = quote! {
+            #[allow(non_camel_case_types)]
+            pub struct #name;
 
-        match text.parse() {
-            Ok(res) => res,
-            Err(error) => panic!("Error: {:?}\nGenerated code: {}", error, text),
-        }
+            impl actix_web::dev::HttpServiceFactory for #name {
+                fn register(self, config: &mut actix_web::dev::AppService) {
+                    #ast
+
+                    let resource = actix_web::Resource::new(#path)
+                        .guard(actix_web::guard::#guard())
+                        #(.guard(actix_web::guard::fn_guard(#extra_guards)))*
+                        .#resource_type(#name);
+
+                    actix_web::dev::HttpServiceFactory::register(resource, config)
+                }
+            }
+        };
+        stream.into()
     }
 }
