@@ -1,8 +1,9 @@
 # Changes
 
-## [UNRELEASE]
+## [0.1.3] - 2019-10-14
 
 * Bump up `syn` & `quote` to 1.0
+
 * Provide better error message
 
 ## [0.1.2] - 2019-06-04

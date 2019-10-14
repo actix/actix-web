@@ -1,6 +1,6 @@
 [package]
 name = "actix-web-codegen"
-version = "0.1.2"
+version = "0.1.3"
 description = "Actix web proc macros"
 readme = "README.md"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
