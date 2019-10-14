@@ -6,6 +6,10 @@
 
 * Add `Payload::into_inner` method and make stored `def::Payload` public. (#1110)
 
+### Changed
+
+* Updated rustls to 0.16 and webpki to 0.21
+
 ## [1.0.8] - 2019-09-25
 
 ### Added

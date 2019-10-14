@@ -1,6 +1,6 @@
 [package]
 name = "actix-http"
-version = "0.2.10"
+version = "0.2.11"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix http primitives"
 readme = "README.md"
@@ -49,9 +49,9 @@ secure-cookies = ["ring"]
 [dependencies]
 actix-service = "0.4.1"
 actix-codec = "0.1.2"
-actix-connect = "0.2.4"
+actix-connect = "0.3.0"
 actix-utils = "0.4.4"
-actix-server-config = "0.1.2"
+actix-server-config = "0.2.0"
 actix-threadpool = "0.1.1"
 
 base64 = "0.10"
@@ -86,7 +86,7 @@ tokio-current-thread = "0.1"
 trust-dns-resolver = { version="0.11.1", default-features = false }
 
 # for secure cookie
-ring = { version = "0.14.6", optional = true }
+ring = { version = "0.16", optional = true }
 
 # compression
 brotli2 = { version="0.3.2", optional = true }
@@ -95,14 +95,14 @@ flate2 = { version="1.0.7", optional = true, default-features = false }
 # optional deps
 failure = { version = "0.1.5", optional = true }
 openssl = { version="0.10", optional = true }
-rustls = { version = "0.15.2", optional = true }
-webpki-roots = { version = "0.16", optional = true }
+rustls = { version = "0.16", optional = true }
+webpki-roots = { version = "0.18", optional = true }
 chrono = "0.4.6"
 
 [dev-dependencies]
 actix-rt = "0.2.2"
-actix-server = { version = "0.6.0", features=["ssl", "rust-tls"] }
-actix-connect = { version = "0.2.0", features=["ssl"] }
+actix-server = { version = "0.7.0", features=["ssl", "rust-tls"] }
+actix-connect = { version = "0.3.0", features=["ssl"] }
 actix-http-test = { version = "0.2.4", features=["ssl"] }
 env_logger = "0.6"
 serde_derive = "1.0"

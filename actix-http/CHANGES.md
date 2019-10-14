@@ -6,6 +6,10 @@
 
 * Add support for serde_json::Value to be passed as argument to ResponseBuilder.body()
 
+### Changed
+
+* Update `rustls` to 0.16
+
 ### Fixed
 
 * To be compatible with non-English error responses, `ResponseError` rendered with `text/plain; charset=utf-8` header #1118

@@ -25,14 +25,14 @@ actix-service = "0.4.1"
 actix-router = "0.1.2"
 actix-rt = "0.2.2"
 actix-http = "0.2.7"
-actix-server-config = "0.1.2"
+actix-server-config = "0.2.0"
 
 bytes = "0.4"
 futures = "0.1.25"
 log = "0.4"
 
 [dev-dependencies]
-actix-server = { version = "0.6.0", features=["ssl"] }
-actix-connect = { version = "0.2.0", features=["ssl"] }
-actix-http-test = { version = "0.2.4", features=["ssl"] }
+actix-server = { version = "0.7.0", features=["ssl"] }
+actix-connect = { version = "0.3.0", features=["ssl"] }
+actix-http-test = { version = "0.2.5", features=["ssl"] }
 actix-utils = "0.4.4"
