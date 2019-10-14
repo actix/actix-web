@@ -69,15 +69,17 @@ impl Args {
         let mut guards = Vec::new();
         for arg in args {
             match arg {
-                NestedMeta::Lit(syn::Lit::Str(lit)) if path.is_none() => {
-                    path = Some(lit);
-                }
-                NestedMeta::Lit(syn::Lit::Str(lit)) if path.is_some() => {
-                    return Err(syn::Error::new_spanned(
-                        lit,
-                        "Multiple paths specified! Should be only one!",
-                    ));
-                }
+                NestedMeta::Lit(syn::Lit::Str(lit)) => match path {
+                    None => {
+                        path = Some(lit);
+                    }
+                    _ => {
+                        return Err(syn::Error::new_spanned(
+                            lit,
+                            "Multiple paths specified! Should be only one!",
+                        ));
+                    }
+                },
                 NestedMeta::Meta(syn::Meta::NameValue(nv)) => {
                     if nv.path.is_ident("guard") {
                         if let syn::Lit::Str(lit) = nv.lit {
