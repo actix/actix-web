@@ -276,10 +276,11 @@ pub fn Host<H: AsRef<str>>(host: H) -> HostGuard {
 
 fn get_host_uri(req: &RequestHead) -> Option<Uri> {
     use core::str::FromStr;
-    let host_value = req.headers.get(header::HOST)?;
-    let host = host_value.to_str().ok()?;
-    let uri = Uri::from_str(host).ok()?;
-    Some(uri)
+    req.headers.get(header::HOST)
+        .and_then(|host_value| host_value.to_str().ok())
+        .or_else(|| req.uri.host())
+        .map(|host: &str| Uri::from_str(host).ok())
+        .and_then(|host_success| host_success)
 }
 
 #[doc(hidden)]
@@ -394,6 +395,31 @@ mod tests {
         assert!(!pred.check(req.head()));
 
         let pred = Host("crates.io").scheme("https");
+        assert!(!pred.check(req.head()));
+
+        let pred = Host("localhost");
+        assert!(!pred.check(req.head()));
+    }
+
+    #[test]
+    fn test_host_without_header() {
+        let req = TestRequest::default()
+            .uri("www.rust-lang.org")
+            .to_http_request();
+
+        let pred = Host("www.rust-lang.org");
+        assert!(pred.check(req.head()));
+
+        let pred = Host("www.rust-lang.org").scheme("https");
+        assert!(pred.check(req.head()));
+
+        let pred = Host("blog.rust-lang.org");
+        assert!(!pred.check(req.head()));
+
+        let pred = Host("blog.rust-lang.org").scheme("https");
+        assert!(!pred.check(req.head()));
+
+        let pred = Host("crates.io");
         assert!(!pred.check(req.head()));
 
         let pred = Host("localhost");

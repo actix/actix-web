@@ -9,6 +9,7 @@
 ### Changed
 
 * Updated rustls to 0.16 and webpki to 0.21
+* Support `Host` guards when the `Host` header is unset (e.g. HTTP/2 requests) (#1129)
 
 ## [1.0.8] - 2019-09-25
 
