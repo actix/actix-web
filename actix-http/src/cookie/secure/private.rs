@@ -1,8 +1,10 @@
 use std::str;
 
 use log::warn;
-use ring::aead::{open_in_place, seal_in_place, Aad, Algorithm, Nonce, AES_256_GCM};
+use ring::aead::{Aad, Algorithm, Nonce, AES_256_GCM};
 use ring::aead::{OpeningKey, SealingKey};
+use ring::OpeningKey::open_in_place;
+use ring::SealingKey::seal_in_place;
 use ring::rand::{SecureRandom, SystemRandom};
 
 use super::Key;

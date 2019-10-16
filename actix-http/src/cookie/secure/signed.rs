@@ -1,5 +1,5 @@
 use ring::digest::{Algorithm, SHA256};
-use ring::hmac::{sign, verify_with_own_key as verify, SigningKey};
+use ring::hmac::{sign, verify, Key};
 
 use super::Key;
 use crate::cookie::{Cookie, CookieJar};
@@ -21,7 +21,7 @@ pub const KEY_LEN: usize = 32;
 /// This type is only available when the `secure` feature is enabled.
 pub struct SignedJar<'a> {
     parent: &'a mut CookieJar,
-    key: SigningKey,
+    key: Key,
 }
 
 impl<'a> SignedJar<'a> {
@@ -32,7 +32,7 @@ impl<'a> SignedJar<'a> {
     pub fn new(parent: &'a mut CookieJar, key: &Key) -> SignedJar<'a> {
         SignedJar {
             parent,
-            key: SigningKey::new(HMAC_DIGEST, key.signing()),
+            key: Key::new(HMAC_DIGEST, key.signing()),
         }
     }
 
