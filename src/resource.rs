@@ -10,7 +10,7 @@ use actix_service::{
 use futures::future::{ok, Either, FutureResult};
 use futures::{Async, Future, IntoFuture, Poll};
 
-use crate::data::Data;
+use crate::data::{AppData, Data, DataRaw};
 use crate::dev::{insert_slash, AppService, HttpServiceFactory, ResourceDef};
 use crate::extract::FromRequest;
 use crate::guard::Guard;
@@ -193,13 +193,19 @@ where
         self.register_data(Data::new(data))
     }
 
+    /// The same usage as `Resource::data` method.
+    /// The difference is the `U` must be `Send + Sync + Clone` in order to register as `DataRaw`
+    pub fn data_raw<U: Send + Sync + Clone + 'static>(self, data: U) -> Self {
+        self.register_data(DataRaw::new(data))
+    }
+
     /// Set or override application data.
     ///
     /// This method has the same effect as [`Resource::data`](#method.data),
     /// except that instead of taking a value of some type `T`, it expects a
-    /// value of type `Data<T>`. Use a `Data<T>` extractor to retrieve its
-    /// value.
-    pub fn register_data<U: 'static>(mut self, data: Data<U>) -> Self {
+    /// value of type `Data<T>` or `DataRaw<T>`. Use a `Data<T>` or `DataRaw<T>`
+    /// extractor to retrieve its value.
+    pub fn register_data<U: AppData + 'static>(mut self, data: U) -> Self {
         if self.data.is_none() {
             self.data = Some(Extensions::new());
         }
@@ -608,11 +614,13 @@ impl NewService for ResourceEndpoint {
 #[cfg(test)]
 mod tests {
     use std::time::Duration;
+    use std::sync::{Arc, Mutex};
 
     use actix_service::Service;
     use futures::{Future, IntoFuture};
     use tokio_timer::sleep;
 
+    use crate::data::AppData;
     use crate::http::{header, HeaderValue, Method, StatusCode};
     use crate::service::{ServiceRequest, ServiceResponse};
     use crate::test::{call_service, init_service, TestRequest};
@@ -793,6 +801,36 @@ mod tests {
                                 assert_eq!(*data1, 10);
                                 assert_eq!(*data2, '*');
                                 assert_eq!(*data3, 1.0);
+                                HttpResponse::Ok()
+                            },
+                        ),
+                ),
+        );
+
+        let req = TestRequest::get().uri("/test").to_request();
+        let resp = call_service(&mut srv, req);
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[test]
+    fn test_data_raw() {
+        let mut srv = init_service(
+            App::new()
+                .data_raw(Arc::new(Mutex::new(1.0f64)))
+                .data_raw(Arc::new(Mutex::new(1usize)))
+                .register_data(web::DataRaw::new(Arc::new(Mutex::new('-'))))
+                .service(
+                    web::resource("/test")
+                        .data_raw(Arc::new(Mutex::new(10usize)))
+                        .register_data(web::DataRaw::new(Arc::new(Mutex::new('*'))))
+                        .guard(guard::Get())
+                        .to(
+                            |data1: web::DataRaw<Arc<Mutex<usize>>>,
+                             data2: web::DataRaw<Arc<Mutex<char>>>,
+                             data3: web::DataRaw<Arc<Mutex<f64>>>| {
+                                assert_eq!(*(data1.lock().unwrap()), 10);
+                                assert_eq!(*(data2.lock().unwrap()), '*');
+                                assert_eq!(*(data3.lock().unwrap()), 1.0);
                                 HttpResponse::Ok()
                             },
                         ),

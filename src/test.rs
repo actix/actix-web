@@ -19,7 +19,7 @@ pub use actix_http::test::TestBuffer;
 pub use actix_testing::{block_fn, block_on, run_on};
 
 use crate::config::{AppConfig, AppConfigInner};
-use crate::data::Data;
+use crate::data::{AppData, Data};
 use crate::dev::{Body, MessageBody, Payload};
 use crate::request::HttpRequestPool;
 use crate::rmap::ResourceMap;
@@ -521,8 +521,8 @@ mod tests {
         assert!(req.headers().contains_key(header::DATE));
         assert_eq!(&req.match_info()["test"], "123");
         assert_eq!(req.version(), Version::HTTP_2);
-        let data = req.get_app_data::<u32>().unwrap();
-        assert!(req.get_app_data::<u64>().is_none());
+        let data = req.get_app_data::<web::Data<u32>>().unwrap();
+        assert!(req.get_app_data::<web::Data<u64>>().is_none());
         assert_eq!(*data, 10);
         assert_eq!(*data.get_ref(), 10);
 

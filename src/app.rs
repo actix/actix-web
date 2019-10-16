@@ -12,7 +12,7 @@ use futures::{Future, IntoFuture};
 
 use crate::app_service::{AppEntry, AppInit, AppRoutingFactory};
 use crate::config::{AppConfig, AppConfigInner, ServiceConfig};
-use crate::data::{Data, DataFactory};
+use crate::data::{AppData, Data, DataFactory, DataRaw};
 use crate::dev::ResourceDef;
 use crate::error::Error;
 use crate::resource::Resource;
@@ -104,6 +104,11 @@ where
         self
     }
 
+    pub fn data_raw<U: Send + Sync + Clone + 'static>(mut self, data: U) -> Self {
+        self.data.push(Box::new(DataRaw::new(data)));
+        self
+    }
+
     /// Set application data factory. This function is
     /// similar to `.data()` but it accepts data factory. Data object get
     /// constructed asynchronously during application initialization.
@@ -130,8 +135,8 @@ where
     }
 
     /// Set application data. Application data could be accessed
-    /// by using `Data<T>` extractor where `T` is data type.
-    pub fn register_data<U: 'static>(mut self, data: Data<U>) -> Self {
+    /// by using `Data<T>`or `DataRaw<T>` extractor where `T` is data type.
+    pub fn register_data<U: AppData + Clone + 'static>(mut self, data: U) -> Self {
         self.data.push(Box::new(data));
         self
     }

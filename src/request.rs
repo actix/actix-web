@@ -218,8 +218,8 @@ impl HttpRequest {
 
     /// Get an application data stored with `App::data()` method during
     /// application configuration.
-    pub fn get_app_data<T: 'static>(&self) -> Option<Data<T>> {
-        if let Some(st) = self.0.app_data.get::<Data<T>>() {
+    pub fn get_app_data<T: Clone + 'static>(&self) -> Option<T> {
+        if let Some(st) = self.0.app_data.get::<T>() {
             Some(st.clone())
         } else {
             None

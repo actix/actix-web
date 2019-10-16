@@ -5,7 +5,7 @@ use actix_http::Extensions;
 use actix_router::ResourceDef;
 use actix_service::{boxed, IntoNewService, NewService};
 
-use crate::data::{Data, DataFactory};
+use crate::data::{AppData, Data, DataFactory, DataRaw};
 use crate::error::Error;
 use crate::guard::Guard;
 use crate::resource::Resource;
@@ -197,6 +197,16 @@ impl ServiceConfig {
         self
     }
 
+    /// Set raw application data. Raw application data could be accessed
+    /// by using `DataRaw<T>` extractor where `T` is data type.
+    /// T must be `Send + Sync + Clone` in order to be register as `DataRaw`
+    ///
+    /// This is same as `App::data_raw()` method.
+    pub fn data_raw<U: Send + Sync + Clone + 'static>(&mut self, data: U) -> &mut Self {
+        self.data.push(Box::new(DataRaw::new(data)));
+        self
+    }
+
     /// Configure route for a specific path.
     ///
     /// This is same as `App::route()` method.
@@ -241,6 +251,8 @@ impl ServiceConfig {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::{Arc, Mutex};
+
     use actix_service::Service;
     use bytes::Bytes;
 
@@ -258,6 +270,21 @@ mod tests {
         let mut srv =
             init_service(App::new().configure(cfg).service(
                 web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()),
+            ));
+        let req = TestRequest::default().to_request();
+        let resp = block_on(srv.call(req)).unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[test]
+    fn test_data_raw() {
+        let cfg = |cfg: &mut ServiceConfig| {
+            cfg.data_raw(Arc::new(Mutex::new(10usize)));
+        };
+
+        let mut srv =
+            init_service(App::new().configure(cfg).service(
+                web::resource("/").to(|_: web::DataRaw<Arc<Mutex<usize>>>| HttpResponse::Ok()),
             ));
         let req = TestRequest::default().to_request();
         let resp = block_on(srv.call(req)).unwrap();

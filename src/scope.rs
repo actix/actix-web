@@ -12,7 +12,7 @@ use futures::future::{ok, Either, Future, FutureResult};
 use futures::{Async, IntoFuture, Poll};
 
 use crate::config::ServiceConfig;
-use crate::data::Data;
+use crate::data::{AppData, Data, DataRaw};
 use crate::dev::{AppService, HttpServiceFactory};
 use crate::error::Error;
 use crate::guard::Guard;
@@ -152,12 +152,19 @@ where
         self.register_data(Data::new(data))
     }
 
+    /// The same usage as `Resource::data` method.
+    /// The difference is the `U` must be `Send + Sync + Clone` in order to register as `DataRaw`
+    pub fn data_raw<U: Send + Sync + Clone + 'static>(self, data: U) -> Self {
+        self.register_data(DataRaw::new(data))
+    }
+
     /// Set or override application data.
     ///
     /// This method has the same effect as [`Scope::data`](#method.data), except
     /// that instead of taking a value of some type `T`, it expects a value of
-    /// type `Data<T>`. Use a `Data<T>` extractor to retrieve its value.
-    pub fn register_data<U: 'static>(mut self, data: Data<U>) -> Self {
+    /// type `Data<T>` or `DataRaw<T>`. Use a `Data<T>` or `DataRaw<T>` extractor
+    /// to retrieve its value.
+    pub fn register_data<U: AppData + 'static>(mut self, data: U) -> Self {
         if self.data.is_none() {
             self.data = Some(Extensions::new());
         }
@@ -655,10 +662,13 @@ impl NewService for ScopeEndpoint {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::{Arc, Mutex};
+
     use actix_service::Service;
     use bytes::Bytes;
     use futures::{Future, IntoFuture};
 
+    use crate::data::AppData;
     use crate::dev::{Body, ResponseBody};
     use crate::http::{header, HeaderValue, Method, StatusCode};
     use crate::service::{ServiceRequest, ServiceResponse};
@@ -1101,6 +1111,46 @@ mod tests {
                         "/t",
                         web::get().to(|data: web::Data<usize>| {
                             assert_eq!(*data, 10);
+                            let _ = data.clone();
+                            HttpResponse::Ok()
+                        }),
+                    ),
+            ),
+        );
+
+        let req = TestRequest::with_uri("/app/t").to_request();
+        let resp = call_service(&mut srv, req);
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[test]
+    fn test_override_data_raw() {
+        let mut srv = init_service(App::new().data_raw(Arc::new(Mutex::new(1usize))).service(
+            web::scope("app").data_raw(Arc::new(Mutex::new(10usize))).route(
+                "/t",
+                web::get().to(|data: web::DataRaw<Arc<Mutex<usize>>>| {
+                    assert_eq!(*(data.lock().unwrap()), 10);
+                    let _ = data.clone();
+                    HttpResponse::Ok()
+                }),
+            ),
+        ));
+
+        let req = TestRequest::with_uri("/app/t").to_request();
+        let resp = call_service(&mut srv, req);
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[test]
+    fn test_override_register_data_raw() {
+        let mut srv = init_service(
+            App::new().register_data(web::DataRaw::new(Arc::new(Mutex::new(1usize)))).service(
+                web::scope("app")
+                    .register_data(web::DataRaw::new(Arc::new(Mutex::new(10usize))))
+                    .route(
+                        "/t",
+                        web::get().to(|data: web::DataRaw<Arc<Mutex<usize>>>| {
+                            assert_eq!(*(data.lock().unwrap()), 10);
                             let _ = data.clone();
                             HttpResponse::Ok()
                         }),
