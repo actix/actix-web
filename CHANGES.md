@@ -2,6 +2,10 @@
 
 ## [1.0.9] - 2019-xx-xx
 
+### Deleted
+
+* Removed hashbrown dependency as it is [core in rust 1.36.0](https://github.com/rust-lang/rust/blob/master/RELEASES.md#version-1360-2019-07-04)
+
 ### Added
 
 * Add `Payload::into_inner` method and make stored `def::Payload` public. (#1110)

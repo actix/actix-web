@@ -1,5 +1,11 @@
 # Changes
 
+## Not released yet
+
+### Deleted
+
+* Removed hashbrown dependency as it is [core in rust 1.36.0](https://github.com/rust-lang/rust/blob/master/RELEASES.md#version-1360-2019-07-04)
+
 ## [0.2.0] - 2019-07-08
 
 *  Enhanced ``actix-session`` to facilitate state changes.  Use ``Session.renew()``

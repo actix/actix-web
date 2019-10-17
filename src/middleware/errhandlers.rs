@@ -4,7 +4,7 @@ use std::rc::Rc;
 use actix_service::{Service, Transform};
 use futures::future::{err, ok, Either, Future, FutureResult};
 use futures::Poll;
-use hashbrown::HashMap;
+use std::collections::HashMap;
 
 use crate::dev::{ServiceRequest, ServiceResponse};
 use crate::error::{Error, Result};
