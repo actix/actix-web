@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use actix_router::ResourceDef;
-use hashbrown::HashMap;
+use std::collections::HashMap;
 use url::Url;
 
 use crate::error::UrlGenerationError;

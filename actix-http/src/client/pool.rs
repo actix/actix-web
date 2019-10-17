@@ -12,7 +12,7 @@ use futures::task::AtomicTask;
 use futures::unsync::oneshot;
 use futures::{Async, Future, Poll};
 use h2::client::{handshake, Handshake};
-use hashbrown::HashMap;
+use std::collections::HashMap;
 use http::uri::Authority;
 use indexmap::IndexSet;
 use slab::Slab;

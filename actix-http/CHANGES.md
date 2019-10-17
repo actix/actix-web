@@ -2,6 +2,10 @@
 
 ## Not released yet
 
+### Deleted
+
+* Removed hashbrown dependency as it is [core in rust 1.36.0](https://github.com/rust-lang/rust/blob/master/RELEASES.md#version-1360-2019-07-04)
+
 ### Added
 
 * Add support for serde_json::Value to be passed as argument to ResponseBuilder.body()
