@@ -1,12 +1,11 @@
-use ring::digest::{Algorithm, SHA256};
-use ring::hmac::{sign, verify, Key};
+use ring::hmac::{self, sign, verify, Algorithm, HMAC_SHA256};
 
 use super::Key;
 use crate::cookie::{Cookie, CookieJar};
 
 // Keep these in sync, and keep the key len synced with the `signed` docs as
 // well as the `KEYS_INFO` const in secure::Key.
-static HMAC_DIGEST: &Algorithm = &SHA256;
+static HMAC_DIGEST: Algorithm = HMAC_SHA256;
 const BASE64_DIGEST_LEN: usize = 44;
 pub const KEY_LEN: usize = 32;
 
@@ -21,7 +20,7 @@ pub const KEY_LEN: usize = 32;
 /// This type is only available when the `secure` feature is enabled.
 pub struct SignedJar<'a> {
     parent: &'a mut CookieJar,
-    key: Key,
+    key: hmac::Key,
 }
 
 impl<'a> SignedJar<'a> {
@@ -31,8 +30,8 @@ impl<'a> SignedJar<'a> {
     #[doc(hidden)]
     pub fn new(parent: &'a mut CookieJar, key: &Key) -> SignedJar<'a> {
         SignedJar {
-            parent,
-            key: Key::new(HMAC_DIGEST, key.signing()),
+            parent: parent,
+            key: hmac::Key::new(HMAC_DIGEST, key.signing()),
         }
     }
 

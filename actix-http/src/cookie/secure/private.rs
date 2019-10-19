@@ -1,10 +1,5 @@
-use std::str;
-
-use log::warn;
 use ring::aead::{Aad, Algorithm, Nonce, AES_256_GCM};
-use ring::aead::{OpeningKey, SealingKey};
-use ring::OpeningKey::open_in_place;
-use ring::SealingKey::seal_in_place;
+use ring::aead::{LessSafeKey, UnboundKey};
 use ring::rand::{SecureRandom, SystemRandom};
 
 use super::Key;
@@ -55,23 +50,19 @@ impl<'a> PrivateJar<'a> {
         }
 
         let ad = Aad::from(name.as_bytes());
-        let key = OpeningKey::new(ALGO, &self.key).expect("opening key");
-        let (nonce, sealed) = data.split_at_mut(NONCE_LEN);
+        let key = LessSafeKey::new(
+            UnboundKey::new(&ALGO, &self.key).expect("matching key length"),
+        );
+        let (nonce, mut sealed) = data.split_at_mut(NONCE_LEN);
         let nonce =
             Nonce::try_assume_unique_for_key(nonce).expect("invalid length of `nonce`");
-        let unsealed = open_in_place(&key, nonce, ad, 0, sealed)
+        let unsealed = key
+            .open_in_place(nonce, ad, &mut sealed)
             .map_err(|_| "invalid key/nonce/value: bad seal")?;
 
-        if let Ok(unsealed_utf8) = str::from_utf8(unsealed) {
-            Ok(unsealed_utf8.to_string())
-        } else {
-            warn!(
-                "Private cookie does not have utf8 content!
-It is likely the secret key used to encrypt them has been leaked.
-Please change it as soon as possible."
-            );
-            Err("bad unsealed utf8")
-        }
+        ::std::str::from_utf8(unsealed)
+            .map(|s| s.to_string())
+            .map_err(|_| "bad unsealed utf8")
     }
 
     /// Returns a reference to the `Cookie` inside this jar with the name `name`
@@ -156,16 +147,41 @@ Please change it as soon as possible."
         self.parent.add_original(cookie);
     }
 
-    /// Encrypts the cookie's value with
-    /// authenticated encryption assuring confidentiality, integrity, and authenticity.
+    /// Encrypts the cookie's value with authenticated encryption assuring
+    /// confidentiality, integrity, and authenticity.
     fn encrypt_cookie(&self, cookie: &mut Cookie) {
-        let name = cookie.name().as_bytes();
-        let value = cookie.value().as_bytes();
-        let data = encrypt_name_value(name, value, &self.key);
+        // Create the `LessSafeKey` structure.
+        let unbound = UnboundKey::new(&ALGO, &self.key).expect("matching key length");
+        let key = LessSafeKey::new(unbound);
 
-        // Base64 encode the nonce and encrypted value.
-        let sealed_value = base64::encode(&data);
-        cookie.set_value(sealed_value);
+        // Create a vec to hold the [nonce | cookie value | tag].
+        let cookie_val = cookie.value().as_bytes();
+        let mut data = vec![0; NONCE_LEN + cookie_val.len() + ALGO.tag_len()];
+
+        // Split data into three: nonce, input/output, tag. Copy input.
+        let (nonce, in_out) = data.split_at_mut(NONCE_LEN);
+        let (in_out, tag) = in_out.split_at_mut(cookie_val.len());
+        in_out.copy_from_slice(cookie_val);
+
+        // Randomly generate the nonce into the nonce piece.
+        SystemRandom::new()
+            .fill(nonce)
+            .expect("couldn't random fill nonce");
+        let nonce =
+            Nonce::try_assume_unique_for_key(nonce).expect("invalid `nonce` length");
+
+        // Perform the actual sealing operation, using the cookie's name as
+        // associated data to prevent value swapping.
+        let ad = Aad::from(cookie.name().as_bytes());
+        let ad_tag = key
+            .seal_in_place_separate_tag(nonce, ad, in_out)
+            .expect("in-place seal");
+
+        // Copy the tag into the tag piece.
+        tag.copy_from_slice(ad_tag.as_ref());
+
+        // Base64 encode [none | encrypted value | tag].
+        cookie.set_value(base64::encode(&data));
     }
 
     /// Removes `cookie` from the parent jar.
@@ -196,38 +212,9 @@ Please change it as soon as possible."
     }
 }
 
-fn encrypt_name_value(name: &[u8], value: &[u8], key: &[u8]) -> Vec<u8> {
-    // Create the `SealingKey` structure.
-    let key = SealingKey::new(ALGO, key).expect("sealing key creation");
-
-    // Create a vec to hold the [nonce | cookie value | overhead].
-    let overhead = ALGO.tag_len();
-    let mut data = vec![0; NONCE_LEN + value.len() + overhead];
-
-    // Randomly generate the nonce, then copy the cookie value as input.
-    let (nonce, in_out) = data.split_at_mut(NONCE_LEN);
-    SystemRandom::new()
-        .fill(nonce)
-        .expect("couldn't random fill nonce");
-    in_out[..value.len()].copy_from_slice(value);
-    let nonce =
-        Nonce::try_assume_unique_for_key(nonce).expect("invalid length of `nonce`");
-
-    // Use cookie's name as associated data to prevent value swapping.
-    let ad = Aad::from(name);
-
-    // Perform the actual sealing operation and get the output length.
-    let output_len =
-        seal_in_place(&key, nonce, ad, in_out, overhead).expect("in-place seal");
-
-    // Remove the overhead and return the sealed content.
-    data.truncate(NONCE_LEN + output_len);
-    data
-}
-
 #[cfg(test)]
 mod test {
-    use super::{encrypt_name_value, Cookie, CookieJar, Key};
+    use super::{Cookie, CookieJar, Key};
 
     #[test]
     fn simple() {
@@ -244,28 +231,48 @@ mod test {
     }
 
     #[test]
-    fn non_utf8() {
-        let key = Key::generate();
+    fn roundtrip_tests() {
+        // Secret is 'Super secret!' passed through sha256
+        let secret = b"\x1b\x1c\x6f\x1b\x31\x99\x82\x77\x0e\x05\xb6\x05\x54\x0b\xd9\xea\
+            \x54\x9f\x9a\x56\xf4\x0f\x97\xdc\x6e\xf2\x89\x86\x91\xe0\xa5\x79";
+        let key = Key::from_master(secret);
+
         let mut jar = CookieJar::new();
+        jar.add(Cookie::new(
+            "signed_with_ring014",
+            "3tdHXEQ2kf6fxC7dWzBGmpSLMtJenXLKrZ9cHkSsl1w=Tamper-proof",
+        ));
+        jar.add(Cookie::new(
+            "encrypted_with_ring014",
+            "lObeZJorGVyeSWUA8khTO/8UCzFVBY9g0MGU6/J3NN1R5x11dn2JIA==",
+        ));
+        jar.add(Cookie::new(
+            "signed_with_ring016",
+            "3tdHXEQ2kf6fxC7dWzBGmpSLMtJenXLKrZ9cHkSsl1w=Tamper-proof",
+        ));
+        jar.add(Cookie::new(
+            "encrypted_with_ring016",
+            "SU1ujceILyMBg3fReqRmA9HUtAIoSPZceOM/CUpObROHEujXIjonkA==",
+        ));
 
-        let name = "malicious";
-        let mut assert_non_utf8 = |value: &[u8]| {
-            let sealed = encrypt_name_value(name.as_bytes(), value, &key.encryption());
-            let encoded = base64::encode(&sealed);
-            assert_eq!(
-                jar.private(&key).unseal(name, &encoded),
-                Err("bad unsealed utf8")
-            );
-            jar.add(Cookie::new(name, encoded));
-            assert_eq!(jar.private(&key).get(name), None);
-        };
+        let signed = jar.signed(&key);
+        assert_eq!(
+            signed.get("signed_with_ring014").unwrap().value(),
+            "Tamper-proof"
+        );
+        assert_eq!(
+            signed.get("signed_with_ring016").unwrap().value(),
+            "Tamper-proof"
+        );
 
-        assert_non_utf8(&[0x72, 0xfb, 0xdf, 0x74]); // rûst in ISO/IEC 8859-1
-
-        let mut malicious =
-            String::from(r#"{"id":"abc123??%X","admin":true}"#).into_bytes();
-        malicious[8] |= 0b1100_0000;
-        malicious[9] |= 0b1100_0000;
-        assert_non_utf8(&malicious);
+        let private = jar.private(&key);
+        assert_eq!(
+            private.get("encrypted_with_ring014").unwrap().value(),
+            "Tamper-proof"
+        );
+        assert_eq!(
+            private.get("encrypted_with_ring016").unwrap().value(),
+            "Tamper-proof"
+        );
     }
 }

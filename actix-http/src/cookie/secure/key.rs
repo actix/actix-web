@@ -1,4 +1,4 @@
-use ring::hkdf::{HKDF_SHA256, Algorithm, Prk, KeyType};
+use ring::hkdf::{Algorithm, KeyType, Prk, HKDF_SHA256};
 use ring::rand::{SecureRandom, SystemRandom};
 
 use super::private::KEY_LEN as PRIVATE_KEY_LEN;
@@ -55,13 +55,16 @@ impl Key {
     /// ```
     pub fn from_master(master_key: &[u8]) -> Key {
         if master_key.len() < 32 {
-            panic!("bad master key length: expected >= 32 bytes, found {}", master_key.len());
+            panic!(
+                "bad master key length: expected >= 32 bytes, found {}",
+                master_key.len()
+            );
         }
 
         // An empty `Key` structure; will be filled in with HKDF derived keys.
         let mut output_key = Key {
             signing_key: [0; SIGNED_KEY_LEN],
-            encryption_key: [0; PRIVATE_KEY_LEN]
+            encryption_key: [0; PRIVATE_KEY_LEN],
         };
 
         // Expand the master key into two HKDF generated keys.
@@ -71,8 +74,12 @@ impl Key {
         okm.fill(&mut both_keys).expect("fill keys");
 
         // Copy the key parts into their respective fields.
-        output_key.signing_key.copy_from_slice(&both_keys[..SIGNED_KEY_LEN]);
-        output_key.encryption_key.copy_from_slice(&both_keys[SIGNED_KEY_LEN..]);
+        output_key
+            .signing_key
+            .copy_from_slice(&both_keys[..SIGNED_KEY_LEN]);
+        output_key
+            .encryption_key
+            .copy_from_slice(&both_keys[SIGNED_KEY_LEN..]);
         output_key
     }
 
