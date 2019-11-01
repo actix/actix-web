@@ -13,7 +13,7 @@ use mime_guess::from_path;
 
 use actix_http::body::SizedStream;
 use actix_web::http::header::{
-    self, ContentDisposition, DispositionParam, DispositionType,
+    self, Charset, ContentDisposition, DispositionParam, DispositionType, ExtendedValue,
 };
 use actix_web::http::{ContentEncoding, StatusCode};
 use actix_web::middleware::BodyEncoding;
@@ -95,7 +95,13 @@ impl NamedFile {
             };
             let cd = ContentDisposition {
                 disposition: disposition_type,
-                parameters: vec![DispositionParam::Filename(filename.into_owned())],
+                parameters: vec![
+                    DispositionParam::FilenameExt(ExtendedValue {
+                        charset: Charset::Ext(String::from("UTF-8")),
+                        language_tag: None,
+                        value: filename.as_bytes().to_vec(),
+                    }),
+                ],
             };
             (ct, cd)
         };
