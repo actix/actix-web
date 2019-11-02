@@ -363,11 +363,12 @@ impl ContentDisposition {
                     // token: won't contains semicolon according to RFC 2616 Section 2.2
                     let (token, new_left) = split_once_and_trim(left, ';');
                     left = new_left;
+                    if token.is_empty() {
+                        // quoted-string can be empty, but token cannot be empty
+                        return Err(crate::error::ParseError::Header);
+                    }
                     token.to_owned()
                 };
-                if value.is_empty() {
-                    return Err(crate::error::ParseError::Header);
-                }
 
                 let param = if param_name.eq_ignore_ascii_case("name") {
                     DispositionParam::Name(value)
@@ -881,6 +882,9 @@ mod tests {
 
         let a = HeaderValue::from_static("inline; filename=  ");
         assert!(ContentDisposition::from_raw(&a).is_err());
+
+        let a = HeaderValue::from_static("inline; filename=\"\"");
+        assert!(ContentDisposition::from_raw(&a).expect("parse cd").get_filename().expect("filename").is_empty());
     }
 
     #[test]
