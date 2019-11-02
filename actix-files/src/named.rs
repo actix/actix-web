@@ -93,15 +93,18 @@ impl NamedFile {
                 mime::IMAGE | mime::TEXT | mime::VIDEO => DispositionType::Inline,
                 _ => DispositionType::Attachment,
             };
+            let mut parameters =
+                vec![DispositionParam::Filename(String::from(filename.as_ref()))];
+            if !filename.is_ascii() {
+                parameters.push(DispositionParam::FilenameExt(ExtendedValue {
+                    charset: Charset::Ext(String::from("UTF-8")),
+                    language_tag: None,
+                    value: filename.into_owned().into_bytes(),
+                }))
+            }
             let cd = ContentDisposition {
                 disposition: disposition_type,
-                parameters: vec![
-                    DispositionParam::FilenameExt(ExtendedValue {
-                        charset: Charset::Ext(String::from("UTF-8")),
-                        language_tag: None,
-                        value: filename.as_bytes().to_vec(),
-                    }),
-                ],
+                parameters: parameters,
             };
             (ct, cd)
         };
