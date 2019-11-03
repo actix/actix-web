@@ -47,7 +47,8 @@ use std::rc::Rc;
 
 use actix_web::dev::{Extensions, Payload, ServiceRequest, ServiceResponse};
 use actix_web::{Error, FromRequest, HttpMessage, HttpRequest};
-use std::collections::HashMap;
+// use std::collections::HashMap;
+use hashbrown::HashMap;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use serde_json;

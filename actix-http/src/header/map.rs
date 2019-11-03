@@ -1,6 +1,9 @@
 use either::Either;
-use std::collections::hash_map::{self, Entry};
-use std::collections::HashMap;
+// use std::collections::hash_map::{self, Entry};
+// use std::collections::HashMap;
+// use ahash::AHashMap as HashMap;
+use hashbrown::hash_map::{self, Entry};
+use hashbrown::HashMap;
 use http::header::{HeaderName, HeaderValue};
 use http::HttpTryFrom;
 

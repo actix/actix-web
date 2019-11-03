@@ -1,7 +1,9 @@
 use std::any::{Any, TypeId};
 use std::fmt;
 
-use std::collections::HashMap;
+// use std::collections::HashMap;
+// use ahash::AHashMap as HashMap;
+use hashbrown::HashMap;
 
 #[derive(Default)]
 /// A type map of request extensions.
