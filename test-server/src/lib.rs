@@ -144,7 +144,7 @@ impl TestServer {
                         .map_err(|e| log::error!("Can not set alpn protocol: {:?}", e));
                     Connector::new()
                         .conn_lifetime(time::Duration::from_secs(0))
-                        .timeout(time::Duration::from_millis(500))
+                        .timeout(time::Duration::from_millis(3000))
                         .ssl(builder.build())
                         .finish()
                 }
@@ -152,7 +152,7 @@ impl TestServer {
                 {
                     Connector::new()
                         .conn_lifetime(time::Duration::from_secs(0))
-                        .timeout(time::Duration::from_millis(500))
+                        .timeout(time::Duration::from_millis(3000))
                         .finish()
                 }
             };
