@@ -104,13 +104,21 @@ impl Decoder for Codec {
             Ok(Some((finished, opcode, payload))) => {
                 // continuation is not supported
                 if !finished {
+                    error!("No continuation 1");
                     return Err(ProtocolError::NoContinuation);
                 }
 
                 match opcode {
-                    OpCode::Continue => Err(ProtocolError::NoContinuation),
-                    OpCode::Bad => Err(ProtocolError::BadOpCode),
+                    OpCode::Continue => {
+                        error!("No continuation 2");
+                        Err(ProtocolError::NoContinuation)
+                    }
+                    OpCode::Bad => {
+                        error!("Bad opcode");
+                        Err(ProtocolError::BadOpCode)
+                    }
                     OpCode::Close => {
+                        warn!("Got a close frame!");
                         if let Some(ref pl) = payload {
                             let close_reason = Parser::parse_close_payload(pl);
                             Ok(Some(Frame::Close(close_reason)))
