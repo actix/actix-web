@@ -558,11 +558,13 @@ where
                 }
                 Ok(None) => break,
                 Err(ParseError::Io(e)) => {
+                    error!("IO error when parsing!");
                     self.client_disconnected();
                     self.error = Some(DispatchError::Io(e));
                     break;
                 }
                 Err(e) => {
+                    error!("Parsing error {:?}", e);
                     if let Some(mut payload) = self.payload.take() {
                         payload.set_error(PayloadError::EncodingCorrupted);
                     }
