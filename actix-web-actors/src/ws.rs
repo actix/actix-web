@@ -288,7 +288,7 @@ where
             inner: ContextParts::new(mb.sender_producer()),
             messages: VecDeque::new(),
         };
-        ctx.add_stream(WsStream::new(stream, codec));
+        ctx.add_stream(WsStream::new(stream, codec.clone()));
 
         WebsocketContextFut::new(ctx, actor, mb, codec)
     }
