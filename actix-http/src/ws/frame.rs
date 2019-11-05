@@ -32,10 +32,8 @@ impl Parser {
         // check masking
         let masked = second & 0x80 != 0;
         if !masked && server {
-            error!("Protocol unmasked frame");
             return Err(ProtocolError::UnmaskedFrame);
         } else if masked && !server {
-            error!("Protocol masked frame");
             return Err(ProtocolError::MaskedFrame);
         }
 
@@ -43,7 +41,6 @@ impl Parser {
         let opcode = OpCode::from(first & 0x0F);
 
         if let OpCode::Bad = opcode {
-            error!("Protocol invalid opcode");
             return Err(ProtocolError::InvalidOpcode(first & 0x0F));
         }
 
@@ -63,7 +60,6 @@ impl Parser {
             }
             let len = u64::from_be_bytes(TryFrom::try_from(&src[idx..idx + 8]).unwrap());
             if len > max_size as u64 {
-                error!("Protocol overflow 1");
                 return Err(ProtocolError::Overflow);
             }
             idx += 8;
@@ -74,7 +70,6 @@ impl Parser {
 
         // check for max allowed size
         if length > max_size {
-            error!("Protocol overflow 2");
             return Err(ProtocolError::Overflow);
         }
 
@@ -125,7 +120,6 @@ impl Parser {
         // control frames must have length <= 125
         match opcode {
             OpCode::Ping | OpCode::Pong if length > 125 => {
-                error!("Protocol invalid length");
                 return Err(ProtocolError::InvalidLength(length));
             }
             OpCode::Close if length > 125 => {

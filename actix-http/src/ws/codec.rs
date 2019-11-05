@@ -37,11 +37,12 @@ pub enum Frame {
     Close(Option<CloseReason>),
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Clone)]
 /// WebSockets protocol codec
 pub struct Codec {
     max_size: usize,
     server: bool,
+    collector: Option<BytesMut>,
 }
 
 impl Codec {
@@ -50,6 +51,7 @@ impl Codec {
         Codec {
             max_size: 65_536,
             server: true,
+            collector: None,
         }
     }
 
@@ -102,16 +104,22 @@ impl Decoder for Codec {
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
         match Parser::parse(src, self.server, self.max_size) {
             Ok(Some((finished, opcode, payload))) => {
-                // continuation is not supported
-                if !finished {
-                    error!("No continuation 1");
-                    return Err(ProtocolError::NoContinuation);
-                }
-
                 match opcode {
                     OpCode::Continue => {
-                        error!("No continuation 2");
-                        Err(ProtocolError::NoContinuation)
+                        match self.collector {
+                            Some(ref mut prev) => {
+                                if let Some(ref payload) = payload {
+                                    prev.extend_from_slice(payload);
+                                }
+                            }
+                            None => self.collector = payload,
+                        }
+
+                        if finished {
+                            Ok(Some(Frame::Binary(self.collector.take())))
+                        } else {
+                            Ok(None)
+                        }
                     }
                     OpCode::Bad => {
                         error!("Bad opcode");
@@ -140,9 +148,21 @@ impl Decoder for Codec {
                             Ok(Some(Frame::Pong(String::new())))
                         }
                     }
-                    OpCode::Binary => Ok(Some(Frame::Binary(payload))),
+                    OpCode::Binary => {
+                        if finished {
+                            Ok(Some(Frame::Binary(payload)))
+                        } else {
+                            self.collector = payload;
+                            Ok(None)
+                        }
+                    }
                     OpCode::Text => {
-                        Ok(Some(Frame::Text(payload)))
+                        if finished {
+                            Ok(Some(Frame::Text(payload)))
+                        } else {
+                            self.collector = payload;
+                            Ok(None)
+                        }
                         //let tmp = Vec::from(payload.as_ref());
                         //match String::from_utf8(tmp) {
                         //    Ok(s) => Ok(Some(Message::Text(s))),
