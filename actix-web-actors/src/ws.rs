@@ -1,4 +1,6 @@
 //! Websocket integration
+use log::error;
+
 use std::collections::VecDeque;
 use std::io;
 
@@ -556,7 +558,7 @@ where
                         let data = data.unwrap_or_else(|| BytesMut::new());
 
                         if self.collector.is_initialized() {
-                            // Previous collection was already finalized
+                            error!("Initialize a new fragmented sequence while another is active.");
                             return Err(ProtocolError::NoContinuation);
                         }
 
@@ -567,7 +569,7 @@ where
                         let data = data.unwrap_or_else(|| BytesMut::new());
 
                         if self.collector.is_initialized() {
-                            // Previous collection was already finalized
+                            error!("Initialize a new fragmented sequence while another is active.");
                             return Err(ProtocolError::NoContinuation);
                         }
 
@@ -582,7 +584,10 @@ where
                                 buf.extend_from_slice(data);
                             }
                             // Uninitialized continuation
-                            _ => return Err(ProtocolError::NoContinuation),
+                            _ => {
+                                error!("Trying to continue an uninitialized sequence of fragmented frames.");
+                                return Err(ProtocolError::NoContinuation);
+                            }
                         }
 
                         None
@@ -602,7 +607,10 @@ where
                                 Some(Message::Binary(buf.freeze()))
                             }
                             // Uninitialized continuation
-                            Collector::Uninitialized => return Err(ProtocolError::NoContinuation),
+                            Collector::Uninitialized => {
+                                error!("Trying to end an uninitialized sequence of fragmented frames.");
+                                return Err(ProtocolError::NoContinuation);
+                            }
                         }
                     }
                 };

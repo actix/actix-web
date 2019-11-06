@@ -24,6 +24,7 @@ actix-http = "0.2.5"
 actix-codec = "0.1.2"
 bytes = "0.4"
 futures = "0.1.25"
+log = "0.4"
 
 [dev-dependencies]
 env_logger = "0.6"
