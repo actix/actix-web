@@ -48,8 +48,8 @@ pub enum ProtocolError {
     #[display(fmt = "Continuation is not supported.")]
     NoContinuation,
     /// Bad utf-8 encoding
-    #[display(fmt = "Bad utf-8 encoding.")]
-    BadEncoding,
+    #[display(fmt = "Bad utf-8 encoding: {}", _0)]
+    BadEncoding(std::str::Utf8Error),
     /// Io error
     #[display(fmt = "io error: {}", _0)]
     Io(io::Error),

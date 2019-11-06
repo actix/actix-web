@@ -288,7 +288,7 @@ where
             inner: ContextParts::new(mb.sender_producer()),
             messages: VecDeque::new(),
         };
-        ctx.add_stream(WsStream::new(stream, codec.clone()));
+        ctx.add_stream(WsStream::new(stream, codec));
 
         WebsocketContextFut::new(ctx, actor, mb, codec)
     }
@@ -453,10 +453,35 @@ where
     }
 }
 
+enum Collector {
+    Text(BytesMut),
+    Binary(BytesMut),
+    None
+}
+
+impl Collector {
+    fn take(&mut self) -> Collector {
+        std::mem::replace(self, Collector::None)
+    }
+
+    fn is_none(&self) -> bool {
+        match self {
+            Collector::None => true,
+            _ => false,
+        }
+    }
+}
+
 struct WsStream<S> {
+    /// Source stream
     stream: S,
+    /// WS codec
     decoder: Codec,
+    /// Buffer collecting data to be parsed
     buf: BytesMut,
+    /// Collector used to concatenate fragmented messages
+    collector: Collector,
+    /// Whether or not the stream is closed
     closed: bool,
 }
 
@@ -469,6 +494,7 @@ where
             stream,
             decoder: codec,
             buf: BytesMut::new(),
+            collector: Collector::None,
             closed: false,
         }
     }
@@ -514,24 +540,73 @@ where
             Some(frm) => {
                 let msg = match frm {
                     Frame::Text(data) => {
-                        if let Some(data) = data {
-                            Message::Text(
-                                std::str::from_utf8(&data)
-                                    .map_err(|_| ProtocolError::BadEncoding)?
-                                    .to_string(),
-                            )
+                        Some(if let Some(data) = data {
+                            Message::Text(std::str::from_utf8(&data)?.to_string())
                         } else {
                             Message::Text(String::new())
+                        })
+                    }
+                    Frame::Binary(data) => Some(Message::Binary(
+                        data.map(|b| b.freeze()).unwrap_or_else(Bytes::new),
+                    )),
+                    Frame::Ping(s) => Some(Message::Ping(s)),
+                    Frame::Pong(s) => Some(Message::Pong(s)),
+                    Frame::Close(reason) => Some(Message::Close(reason)),
+                    Frame::BeginText(data) => {
+                        let data = data.unwrap_or_else(|| BytesMut::new());
+
+                        if self.collector.is_none() {
+                            // Previous collection was not finalized
+                            return Err(ProtocolError::NoContinuation);
+                        }
+
+                        self.collector = Collector::Text(data);
+                        None
+                    }
+                    Frame::BeginBinary(data) => {
+                        let data = data.unwrap_or_else(|| BytesMut::new());
+
+                        if self.collector.is_none() {
+                            // Previous collection was not finalized
+                            return Err(ProtocolError::NoContinuation);
+                        }
+
+                        self.collector = Collector::Binary(data);
+                        None
+                    }
+                    Frame::Continue(data) => {
+                        let data = data.as_ref().map(|d| &**d).unwrap_or_else(|| &[]);
+
+                        match self.collector {
+                            Collector::Text(ref mut buf) | Collector::Binary(ref mut buf) => {
+                                buf.extend_from_slice(data);
+                            }
+                            // Uninitialized continuation
+                            _ => return Err(ProtocolError::NoContinuation),
+                        }
+
+                        None
+                    }
+                    Frame::End(data) => {
+                        let data = data.as_ref().map(|d| &**d).unwrap_or_else(|| &[]);
+
+                        match self.collector.take() {
+                            Collector::Text(mut buf) => {
+                                buf.extend_from_slice(data);
+                                Some(Message::Text(
+                                    std::str::from_utf8(&buf)?.to_string()
+                                ))
+                            }
+                            Collector::Binary(mut buf) => {
+                                buf.extend_from_slice(data);
+                                Some(Message::Binary(buf.freeze()))
+                            }
+                            // Uninitialized continuation
+                            Collector::None => return Err(ProtocolError::NoContinuation),
                         }
                     }
-                    Frame::Binary(data) => Message::Binary(
-                        data.map(|b| b.freeze()).unwrap_or_else(Bytes::new),
-                    ),
-                    Frame::Ping(s) => Message::Ping(s),
-                    Frame::Pong(s) => Message::Pong(s),
-                    Frame::Close(reason) => Message::Close(reason),
                 };
-                Ok(Async::Ready(Some(msg)))
+                Ok(Async::Ready(msg))
             }
         }
     }

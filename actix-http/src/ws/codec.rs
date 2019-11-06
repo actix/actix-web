@@ -35,14 +35,21 @@ pub enum Frame {
     Pong(String),
     /// Close message with optional reason
     Close(Option<CloseReason>),
+    /// First frame of a fragmented text message
+    BeginText(Option<BytesMut>),
+    /// First frame of a fragmented binary message
+    BeginBinary(Option<BytesMut>),
+    /// Subsequent frame of a fragmented message
+    Continue(Option<BytesMut>),
+    /// Final frame of a fragmented message
+    End(Option<BytesMut>),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 /// WebSockets protocol codec
 pub struct Codec {
     max_size: usize,
     server: bool,
-    collector: Option<BytesMut>,
 }
 
 impl Codec {
@@ -51,7 +58,6 @@ impl Codec {
         Codec {
             max_size: 65_536,
             server: true,
-            collector: None,
         }
     }
 
@@ -104,25 +110,29 @@ impl Decoder for Codec {
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
         match Parser::parse(src, self.server, self.max_size) {
             Ok(Some((finished, opcode, payload))) => {
+                if !finished {
+                    return match opcode {
+                        OpCode::Continue => {
+                            Ok(Some(Frame::Continue(payload)))
+                        }
+                        OpCode::Binary => {
+                            Ok(Some(Frame::BeginBinary(payload)))
+                        }
+                        OpCode::Text => {
+                            Ok(Some(Frame::BeginText(payload)))
+                        }
+                        _ => {
+                            Err(ProtocolError::NoContinuation)
+                        }
+                    };
+                }
+
                 match opcode {
                     OpCode::Continue => {
-                        match self.collector {
-                            Some(ref mut prev) => {
-                                if let Some(ref payload) = payload {
-                                    prev.extend_from_slice(payload);
-                                }
-                            }
-                            None => self.collector = payload,
-                        }
-
-                        if finished {
-                            Ok(Some(Frame::Binary(self.collector.take())))
-                        } else {
-                            Ok(None)
-                        }
+                        Ok(Some(Frame::End(payload)))
                     }
                     OpCode::Bad => {
-                        error!("Bad opcode");
+                        debug!("Bad opcode");
                         Err(ProtocolError::BadOpCode)
                     }
                     OpCode::Close => {
@@ -149,25 +159,10 @@ impl Decoder for Codec {
                         }
                     }
                     OpCode::Binary => {
-                        if finished {
-                            Ok(Some(Frame::Binary(payload)))
-                        } else {
-                            self.collector = payload;
-                            Ok(None)
-                        }
+                        Ok(Some(Frame::Binary(payload)))
                     }
                     OpCode::Text => {
-                        if finished {
-                            Ok(Some(Frame::Text(payload)))
-                        } else {
-                            self.collector = payload;
-                            Ok(None)
-                        }
-                        //let tmp = Vec::from(payload.as_ref());
-                        //match String::from_utf8(tmp) {
-                        //    Ok(s) => Ok(Some(Message::Text(s))),
-                        //    Err(_) => Err(ProtocolError::BadEncoding),
-                        //}
+                        Ok(Some(Frame::Text(payload)))
                     }
                 }
             }
