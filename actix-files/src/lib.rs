@@ -734,6 +734,31 @@ mod tests {
     }
 
     #[test]
+    fn test_named_file_non_ascii_file_name() {
+        let mut file =
+            NamedFile::from_file(File::open("Cargo.toml").unwrap(), "貨物.toml")
+                .unwrap();
+        {
+            file.file();
+            let _f: &File = &file;
+        }
+        {
+            let _f: &mut File = &mut file;
+        }
+
+        let req = TestRequest::default().to_http_request();
+        let resp = file.respond_to(&req).unwrap();
+        assert_eq!(
+            resp.headers().get(header::CONTENT_TYPE).unwrap(),
+            "text/x-toml"
+        );
+        assert_eq!(
+            resp.headers().get(header::CONTENT_DISPOSITION).unwrap(),
+            "inline; filename=\"貨物.toml\"; filename*=UTF-8''%E8%B2%A8%E7%89%A9.toml"
+        );
+    }
+
+    #[test]
     fn test_named_file_set_content_type() {
         let mut file = NamedFile::open("Cargo.toml")
             .unwrap()
