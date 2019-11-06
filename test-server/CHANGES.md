@@ -5,6 +5,7 @@
 ### Changed
 
 * Update serde_urlencoded to "0.6.1"
+* Increase TestServerRuntime timeouts from 500ms to 3000ms
 
 ### Fixed
 
