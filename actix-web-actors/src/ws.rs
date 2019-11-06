@@ -456,18 +456,18 @@ where
 enum Collector {
     Text(BytesMut),
     Binary(BytesMut),
-    None
+    Uninitialized
 }
 
 impl Collector {
     fn take(&mut self) -> Collector {
-        std::mem::replace(self, Collector::None)
+        std::mem::replace(self, Collector::Uninitialized)
     }
 
-    fn is_none(&self) -> bool {
+    fn is_initialized(&self) -> bool {
         match self {
-            Collector::None => true,
-            _ => false,
+            Collector::Text(_) | Collector::Binary(_) => true,
+            Collector::Uninitialized => false,
         }
     }
 }
@@ -494,7 +494,7 @@ where
             stream,
             decoder: codec,
             buf: BytesMut::new(),
-            collector: Collector::None,
+            collector: Collector::Uninitialized,
             closed: false,
         }
     }
@@ -555,8 +555,8 @@ where
                     Frame::BeginText(data) => {
                         let data = data.unwrap_or_else(|| BytesMut::new());
 
-                        if self.collector.is_none() {
-                            // Previous collection was not finalized
+                        if self.collector.is_initialized() {
+                            // Previous collection was already finalized
                             return Err(ProtocolError::NoContinuation);
                         }
 
@@ -566,8 +566,8 @@ where
                     Frame::BeginBinary(data) => {
                         let data = data.unwrap_or_else(|| BytesMut::new());
 
-                        if self.collector.is_none() {
-                            // Previous collection was not finalized
+                        if self.collector.is_initialized() {
+                            // Previous collection was already finalized
                             return Err(ProtocolError::NoContinuation);
                         }
 
@@ -602,7 +602,7 @@ where
                                 Some(Message::Binary(buf.freeze()))
                             }
                             // Uninitialized continuation
-                            Collector::None => return Err(ProtocolError::NoContinuation),
+                            Collector::Uninitialized => return Err(ProtocolError::NoContinuation),
                         }
                     }
                 };
