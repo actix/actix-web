@@ -1,5 +1,9 @@
 # Changes
 
+## [0.1.7] - 2019-11-06
+
+* Add an additional `filename*` param in the `Content-Disposition` header of `actix_files::NamedFile` to be more compatible. (#1151)
+
 ## [0.1.6] - 2019-10-14
 
 * Add option to redirect to a slash-ended path `Files` #1132

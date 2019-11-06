@@ -5,7 +5,6 @@
 ### Added
 
 * Add `Payload::into_inner` method and make stored `def::Payload` public. (#1110)
-* Add an additional `filename*` param in the `Content-Disposition` header of `actix_files::NamedFile` to be more compatible. (#1151)
 
 ### Changed
 
