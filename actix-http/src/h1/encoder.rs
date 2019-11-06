@@ -548,10 +548,11 @@ mod tests {
             ConnectionType::Close,
             &ServiceConfig::default(),
         );
-        assert_eq!(
-            bytes.take().freeze(),
-            Bytes::from_static(b"\r\nContent-Length: 0\r\nConnection: close\r\nDate: date\r\nContent-Type: plain/text\r\n\r\n")
-        );
+        let data = String::from_utf8(Vec::from(bytes.take().freeze().as_ref())).unwrap();
+        assert!(data.contains("Content-Length: 0\r\n"));
+        assert!(data.contains("Connection: close\r\n"));
+        assert!(data.contains("Content-Type: plain/text\r\n"));
+        assert!(data.contains("Date: date\r\n"));
 
         let _ = head.encode_headers(
             &mut bytes,
@@ -560,10 +561,10 @@ mod tests {
             ConnectionType::KeepAlive,
             &ServiceConfig::default(),
         );
-        assert_eq!(
-            bytes.take().freeze(),
-            Bytes::from_static(b"\r\nTransfer-Encoding: chunked\r\nDate: date\r\nContent-Type: plain/text\r\n\r\n")
-        );
+        let data = String::from_utf8(Vec::from(bytes.take().freeze().as_ref())).unwrap();
+        assert!(data.contains("Transfer-Encoding: chunked\r\n"));
+        assert!(data.contains("Content-Type: plain/text\r\n"));
+        assert!(data.contains("Date: date\r\n"));
 
         let _ = head.encode_headers(
             &mut bytes,
@@ -572,10 +573,10 @@ mod tests {
             ConnectionType::KeepAlive,
             &ServiceConfig::default(),
         );
-        assert_eq!(
-            bytes.take().freeze(),
-            Bytes::from_static(b"\r\nContent-Length: 100\r\nDate: date\r\nContent-Type: plain/text\r\n\r\n")
-        );
+        let data = String::from_utf8(Vec::from(bytes.take().freeze().as_ref())).unwrap();
+        assert!(data.contains("Content-Length: 100\r\n"));
+        assert!(data.contains("Content-Type: plain/text\r\n"));
+        assert!(data.contains("Date: date\r\n"));
 
         let mut head = RequestHead::default();
         head.set_camel_case_headers(false);
@@ -586,7 +587,6 @@ mod tests {
             .append(CONTENT_TYPE, HeaderValue::from_static("xml"));
 
         let mut head = RequestHeadType::Owned(head);
-
         let _ = head.encode_headers(
             &mut bytes,
             Version::HTTP_11,
@@ -594,10 +594,11 @@ mod tests {
             ConnectionType::KeepAlive,
             &ServiceConfig::default(),
         );
-        assert_eq!(
-            bytes.take().freeze(),
-            Bytes::from_static(b"\r\ntransfer-encoding: chunked\r\ndate: date\r\ncontent-type: xml\r\ncontent-type: plain/text\r\n\r\n")
-        );
+        let data = String::from_utf8(Vec::from(bytes.take().freeze().as_ref())).unwrap();
+        assert!(data.contains("transfer-encoding: chunked\r\n"));
+        assert!(data.contains("content-type: xml\r\n"));
+        assert!(data.contains("content-type: plain/text\r\n"));
+        assert!(data.contains("date: date\r\n"));
     }
 
     #[test]
@@ -626,9 +627,10 @@ mod tests {
             ConnectionType::Close,
             &ServiceConfig::default(),
         );
-        assert_eq!(
-            bytes.take().freeze(),
-            Bytes::from_static(b"\r\ncontent-length: 0\r\nconnection: close\r\nauthorization: another authorization\r\ndate: date\r\n\r\n")
-        );
+        let data = String::from_utf8(Vec::from(bytes.take().freeze().as_ref())).unwrap();
+        assert!(data.contains("content-length: 0\r\n"));
+        assert!(data.contains("connection: close\r\n"));
+        assert!(data.contains("authorization: another authorization\r\n"));
+        assert!(data.contains("date: date\r\n"));
     }
 }

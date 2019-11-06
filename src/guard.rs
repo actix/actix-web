@@ -276,7 +276,8 @@ pub fn Host<H: AsRef<str>>(host: H) -> HostGuard {
 
 fn get_host_uri(req: &RequestHead) -> Option<Uri> {
     use core::str::FromStr;
-    req.headers.get(header::HOST)
+    req.headers
+        .get(header::HOST)
         .and_then(|host_value| host_value.to_str().ok())
         .or_else(|| req.uri.host())
         .map(|host: &str| Uri::from_str(host).ok())
