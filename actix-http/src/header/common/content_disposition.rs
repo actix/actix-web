@@ -80,7 +80,7 @@ pub enum DispositionParam {
     /// It is [not supposed](https://tools.ietf.org/html/rfc6266#appendix-D) to contain any
     /// non-ASCII characters when used in a *Content-Disposition* HTTP response header, where
     /// [`FilenameExt`](DispositionParam::FilenameExt) with charset UTF-8 may be used instead
-    /// in case there are Unicode charaters in file names.
+    /// in case there are Unicode characters in file names.
     Filename(String),
     /// An extended file name. It must not exist for `ContentType::Formdata` according to
     /// [RFC7578 Section 4.2](https://tools.ietf.org/html/rfc7578#section-4.2).
@@ -266,7 +266,7 @@ impl DispositionParam {
 /// assert_eq!(cd2.get_name(), Some("file")); // field name
 /// assert_eq!(cd2.get_filename(), Some("bill.odt"));
 ///
-/// // HTTP response header with Unicode charaters in file names
+/// // HTTP response header with Unicode characters in file names
 /// let cd3 = ContentDisposition {
 ///     disposition: DispositionType::Attachment,
 ///     parameters: vec![
@@ -498,7 +498,7 @@ impl fmt::Display for DispositionType {
 
 impl fmt::Display for DispositionParam {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        // All ASCII control charaters (0-30, 127) including horizontal tab, double quote, and
+        // All ASCII control characters (0-30, 127) including horizontal tab, double quote, and
         // backslash should be escaped in quoted-string (i.e. "foobar").
         // Ref: RFC6266 S4.1 -> RFC2616 S3.6
         // filename-parm  = "filename" "=" value
@@ -837,10 +837,10 @@ mod tests {
     fn test_from_raw_uncessary_percent_decode() {
         // In fact, RFC7578 (multipart/form-data) Section 2 and 4.2 suggests that filename with
         // non-ASCII characters MAY be percent-encoded.
-        // To the contrary, RFC6266 or other RFCs related to Content-Disposition response header
+        // On the contrary, RFC6266 or other RFCs related to Content-Disposition response header
         // do not mention such percent-encoding.
         // So, it appears to be undecidable whether to percent-decode or not without
-        // knowning the usage scenario (multipart/form-data v.s. HTTP response header) and
+        // knowing the usage scenario (multipart/form-data v.s. HTTP response header) and
         // inevitable to unnecessarily percent-decode filename with %XX in the former scenario.
         // Fortunately, it seems that almost all mainstream browsers just send UTF-8 encoded file
         // names in quoted-string format (tested on Edge, IE11, Chrome and Firefox) without
