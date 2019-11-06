@@ -542,24 +542,18 @@ where
             Some(frm) => {
                 let msg = match frm {
                     Frame::Text(data) => {
-                        Some(if let Some(data) = data {
-                            let text = std::str::from_utf8(&data);
-
-                            if text.is_err() {
-                                error!("Invalid UTF-8 encoding");
-                            }
-
-                            Message::Text(text?.to_string())
+                        if let Some(data) = data {
+                            Message::Text(std::str::from_utf8(&data)?.to_string())
                         } else {
                             Message::Text(String::new())
-                        })
+                        }
                     }
-                    Frame::Binary(data) => Some(Message::Binary(
+                    Frame::Binary(data) => Message::Binary(
                         data.map(|b| b.freeze()).unwrap_or_else(Bytes::new),
-                    )),
-                    Frame::Ping(s) => Some(Message::Ping(s)),
-                    Frame::Pong(s) => Some(Message::Pong(s)),
-                    Frame::Close(reason) => Some(Message::Close(reason)),
+                    ),
+                    Frame::Ping(s) => Message::Ping(s),
+                    Frame::Pong(s) => Message::Pong(s),
+                    Frame::Close(reason) => Message::Close(reason),
                     Frame::BeginText(data) => {
                         let data = data.unwrap_or_else(|| BytesMut::new());
 
@@ -569,7 +563,8 @@ where
                         }
 
                         self.collector = Collector::Text(data);
-                        None
+
+                        return Ok(Async::NotReady);
                     }
                     Frame::BeginBinary(data) => {
                         let data = data.unwrap_or_else(|| BytesMut::new());
@@ -580,7 +575,8 @@ where
                         }
 
                         self.collector = Collector::Binary(data);
-                        None
+
+                        return Ok(Async::NotReady);
                     }
                     Frame::Continue(data) => {
                         let data = data.as_ref().map(|d| &**d).unwrap_or_else(|| &[]);
@@ -596,7 +592,7 @@ where
                             }
                         }
 
-                        None
+                        return Ok(Async::NotReady);
                     }
                     Frame::End(data) => {
                         let data = data.as_ref().map(|d| &**d).unwrap_or_else(|| &[]);
@@ -604,20 +600,11 @@ where
                         match self.collector.take() {
                             Collector::Text(mut buf) => {
                                 buf.extend_from_slice(data);
-
-                                let text = std::str::from_utf8(&buf);
-
-                                if text.is_err() {
-                                    error!("Invalid UTF-8 encoding");
-                                }
-
-                                Some(Message::Text(
-                                    text?.to_string()
-                                ))
+                                Message::Text(std::str::from_utf8(&buf)?.to_string())
                             }
                             Collector::Binary(mut buf) => {
                                 buf.extend_from_slice(data);
-                                Some(Message::Binary(buf.freeze()))
+                                Message::Binary(buf.freeze())
                             }
                             // Uninitialized continuation
                             Collector::Uninitialized => {
@@ -627,7 +614,7 @@ where
                         }
                     }
                 };
-                Ok(Async::Ready(msg))
+                Ok(Async::Ready(Some(msg)))
             }
         }
     }
