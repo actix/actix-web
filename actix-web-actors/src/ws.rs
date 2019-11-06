@@ -543,6 +543,12 @@ where
                 let msg = match frm {
                     Frame::Text(data) => {
                         Some(if let Some(data) = data {
+                            let text = std::str::from_utf8(&data);
+
+                            if text.is_err() {
+                                error!("Invalid UTF-8 encoding");
+                            }
+
                             Message::Text(std::str::from_utf8(&data)?.to_string())
                         } else {
                             Message::Text(String::new())
