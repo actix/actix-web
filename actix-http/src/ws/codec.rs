@@ -122,6 +122,7 @@ impl Decoder for Codec {
                             Ok(Some(Frame::BeginText(payload)))
                         }
                         _ => {
+                            error!("Unfinished fragment {:?}", opcode);
                             Err(ProtocolError::NoContinuation)
                         }
                     };
