@@ -549,7 +549,7 @@ where
                                 error!("Invalid UTF-8 encoding");
                             }
 
-                            Message::Text(std::str::from_utf8(&data)?.to_string())
+                            Message::Text(text?.to_string())
                         } else {
                             Message::Text(String::new())
                         })
@@ -604,8 +604,15 @@ where
                         match self.collector.take() {
                             Collector::Text(mut buf) => {
                                 buf.extend_from_slice(data);
+
+                                let text = std::str::from_utf8(&buf);
+
+                                if text.is_err() {
+                                    error!("Invalid UTF-8 encoding");
+                                }
+
                                 Some(Message::Text(
-                                    std::str::from_utf8(&buf)?.to_string()
+                                    text?.to_string()
                                 ))
                             }
                             Collector::Binary(mut buf) => {
