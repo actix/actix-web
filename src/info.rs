@@ -162,6 +162,12 @@ impl ConnectionInfo {
     /// - Forwarded
     /// - X-Forwarded-For
     /// - peer name of opened socket
+    ///
+    /// # Security
+    /// Do not use this function for security purposes, unless you can ensure the Forwarded and
+    /// X-Forwarded-For headers cannot be spoofed by the client. If you want the client's socket
+    /// address explicitly, use
+    /// [`HttpRequest::peer_addr()`](../web/struct.HttpRequest.html#method.peer_addr) instead.
     #[inline]
     pub fn remote(&self) -> Option<&str> {
         if let Some(ref r) = self.remote {
