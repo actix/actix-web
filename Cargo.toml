@@ -1,6 +1,6 @@
 [package]
 name = "actix-web"
-version = "1.0.8"
+version = "1.0.9"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix web is a simple, pragmatic and extremely fast web framework for Rust."
 readme = "README.md"
@@ -78,7 +78,7 @@ actix-utils = "0.4.4"
 actix-router = "0.1.5"
 actix-rt = "0.2.4"
 actix-web-codegen = "0.1.2"
-actix-http = "0.2.9"
+actix-http = "0.2.11"
 actix-server = "0.6.1"
 actix-server-config = "0.1.2"
 actix-testing = "0.1.0"

@@ -1,6 +1,6 @@
 # Changes
 
-## [1.0.9] - 2019-xx-xx
+## [1.0.9] - 2019-11-14
 
 ### Added
 
@@ -9,6 +9,7 @@
 ### Changed
 
 * Support `Host` guards when the `Host` header is unset (e.g. HTTP/2 requests) (#1129)
+
 
 ## [1.0.8] - 2019-09-25
 
