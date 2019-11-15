@@ -4,7 +4,7 @@ use std::io::Write;
 use std::{fmt, str};
 
 use bytes::{BufMut, Bytes, BytesMut};
-use futures::future::{ok, FutureResult, IntoFuture};
+use futures::future::{ok, Ready};
 use futures::Stream;
 use serde::Serialize;
 use serde_json;
@@ -280,15 +280,15 @@ impl<B: MessageBody> fmt::Debug for Response<B> {
     }
 }
 
-impl IntoFuture for Response {
-    type Item = Response;
-    type Error = Error;
-    type Future = FutureResult<Response, Error>;
+// impl IntoFuture for Response {
+//     type Item = Response;
+//     type Error = Error;
+//     type Future = FutureResult<Response, Error>;
 
-    fn into_future(self) -> Self::Future {
-        ok(self)
-    }
-}
+//     fn into_future(self) -> Self::Future {
+//         ok(self)
+//     }
+// }
 
 pub struct CookieIter<'a> {
     iter: header::GetAll<'a>,
@@ -635,8 +635,8 @@ impl ResponseBuilder {
     /// `ResponseBuilder` can not be used after this call.
     pub fn streaming<S, E>(&mut self, stream: S) -> Response
     where
-        S: Stream<Item = Bytes, Error = E> + 'static,
-        E: Into<Error> + 'static,
+        S: Stream<Item = Result<Bytes, E>> + Unpin + 'static,
+        E: Into<Error> + Unpin + 'static,
     {
         self.body(Body::from_message(BodyStream::new(stream)))
     }
@@ -757,15 +757,15 @@ impl<'a> From<&'a ResponseHead> for ResponseBuilder {
     }
 }
 
-impl IntoFuture for ResponseBuilder {
-    type Item = Response;
-    type Error = Error;
-    type Future = FutureResult<Response, Error>;
+// impl IntoFuture for ResponseBuilder {
+//     type Item = Response;
+//     type Error = Error;
+//     type Future = FutureResult<Response, Error>;
 
-    fn into_future(mut self) -> Self::Future {
-        ok(self.finish())
-    }
-}
+//     fn into_future(mut self) -> Self::Future {
+//         ok(self.finish())
+//     }
+// }
 
 impl fmt::Debug for ResponseBuilder {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

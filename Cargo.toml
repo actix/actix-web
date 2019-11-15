@@ -28,19 +28,20 @@ path = "src/lib.rs"
 
 [workspace]
 members = [
-  ".",
-  "awc",
-  "actix-http",
-  "actix-cors",
-  "actix-files",
-  "actix-framed",
-  "actix-session",
-  "actix-identity",
-  "actix-multipart",
-  "actix-web-actors",
-  "actix-web-codegen",
-  "test-server",
+#   ".",
+#   "awc",
+#   #"actix-http",
+#   "actix-cors",
+#   "actix-files",
+#   "actix-framed",
+#   "actix-session",
+#   "actix-identity",
+#   "actix-multipart",
+#   "actix-web-actors",
+#   "actix-web-codegen",
+#   "test-server",
 ]
+exclude = ["actix-http"]
 
 [features]
 default = ["brotli", "flate2-zlib", "client", "fail"]
@@ -122,12 +123,23 @@ opt-level = 3
 codegen-units = 1
 
 [patch.crates-io]
-actix-web = { path = "." }
-actix-http = { path = "actix-http" }
-actix-http-test = { path = "test-server" }
-actix-web-codegen = { path = "actix-web-codegen" }
-actix-web-actors = { path = "actix-web-actors" }
-actix-session = { path = "actix-session" }
-actix-files = { path = "actix-files" }
-actix-multipart = { path = "actix-multipart" }
-awc = { path = "awc" }
+# actix-web = { path = "." }
+# actix-http = { path = "actix-http" }
+# actix-http-test = { path = "test-server" }
+# actix-web-codegen = { path = "actix-web-codegen" }
+# actix-web-actors = { path = "actix-web-actors" }
+# actix-session = { path = "actix-session" }
+# actix-files = { path = "actix-files" }
+# actix-multipart = { path = "actix-multipart" }
+# awc = { path = "awc" }
+
+actix-codec = { path = "../actix-net/actix-codec" }
+actix-connect = { path = "../actix-net/actix-connect" }
+actix-ioframe = { path = "../actix-net/actix-ioframe" }
+actix-rt = { path = "../actix-net/actix-rt" }
+actix-server = { path = "../actix-net/actix-server" }
+actix-server-config = { path = "../actix-net/actix-server-config" }
+actix-service = { path = "../actix-net/actix-service" }
+actix-testing = { path = "../actix-net/actix-testing" }
+actix-threadpool = { path = "../actix-net/actix-threadpool" }
+actix-utils = { path = "../actix-net/actix-utils" }

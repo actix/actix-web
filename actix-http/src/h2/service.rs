@@ -1,13 +1,16 @@
 use std::fmt::Debug;
+use std::future::Future;
 use std::marker::PhantomData;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 use std::{io, net, rc};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use actix_server_config::{Io, IoStream, ServerConfig as SrvConfig};
-use actix_service::{IntoNewService, NewService, Service};
+use actix_service::{IntoServiceFactory, Service, ServiceFactory};
 use bytes::Bytes;
-use futures::future::{ok, FutureResult};
-use futures::{try_ready, Async, Future, IntoFuture, Poll, Stream};
+use futures::future::{ok, Ready};
+use futures::{ready, Stream};
 use h2::server::{self, Connection, Handshake};
 use h2::RecvStream;
 use log::error;
@@ -23,7 +26,7 @@ use crate::response::Response;
 
 use super::dispatcher::Dispatcher;
 
-/// `NewService` implementation for HTTP2 transport
+/// `ServiceFactory` implementation for HTTP2 transport
 pub struct H2Service<T, P, S, B> {
     srv: S,
     cfg: ServiceConfig,
@@ -33,30 +36,35 @@ pub struct H2Service<T, P, S, B> {
 
 impl<T, P, S, B> H2Service<T, P, S, B>
 where
-    S: NewService<Config = SrvConfig, Request = Request>,
-    S::Error: Into<Error>,
-    S::Response: Into<Response<B>>,
-    <S::Service as Service>::Future: 'static,
+    S: ServiceFactory<Config = SrvConfig, Request = Request>,
+    S::Error: Into<Error> + Unpin + 'static,
+    S::Response: Into<Response<B>> + Unpin + 'static,
+    S::Future: Unpin,
+    <S::Service as Service>::Future: Unpin + 'static,
     B: MessageBody + 'static,
+    P: Unpin,
 {
     /// Create new `HttpService` instance.
-    pub fn new<F: IntoNewService<S>>(service: F) -> Self {
+    pub fn new<F: IntoServiceFactory<S>>(service: F) -> Self {
         let cfg = ServiceConfig::new(KeepAlive::Timeout(5), 5000, 0);
 
         H2Service {
             cfg,
             on_connect: None,
-            srv: service.into_new_service(),
+            srv: service.into_factory(),
             _t: PhantomData,
         }
     }
 
     /// Create new `HttpService` instance with config.
-    pub fn with_config<F: IntoNewService<S>>(cfg: ServiceConfig, service: F) -> Self {
+    pub fn with_config<F: IntoServiceFactory<S>>(
+        cfg: ServiceConfig,
+        service: F,
+    ) -> Self {
         H2Service {
             cfg,
             on_connect: None,
-            srv: service.into_new_service(),
+            srv: service.into_factory(),
             _t: PhantomData,
         }
     }
@@ -71,14 +79,16 @@ where
     }
 }
 
-impl<T, P, S, B> NewService for H2Service<T, P, S, B>
+impl<T, P, S, B> ServiceFactory for H2Service<T, P, S, B>
 where
     T: IoStream,
-    S: NewService<Config = SrvConfig, Request = Request>,
-    S::Error: Into<Error>,
-    S::Response: Into<Response<B>>,
-    <S::Service as Service>::Future: 'static,
+    S: ServiceFactory<Config = SrvConfig, Request = Request>,
+    S::Error: Into<Error> + Unpin + 'static,
+    S::Response: Into<Response<B>> + Unpin + 'static,
+    S::Future: Unpin,
+    <S::Service as Service>::Future: Unpin + 'static,
     B: MessageBody + 'static,
+    P: Unpin,
 {
     type Config = SrvConfig;
     type Request = Io<T, P>;
@@ -90,7 +100,7 @@ where
 
     fn new_service(&self, cfg: &SrvConfig) -> Self::Future {
         H2ServiceResponse {
-            fut: self.srv.new_service(cfg).into_future(),
+            fut: self.srv.new_service(cfg),
             cfg: Some(self.cfg.clone()),
             on_connect: self.on_connect.clone(),
             _t: PhantomData,
@@ -99,8 +109,8 @@ where
 }
 
 #[doc(hidden)]
-pub struct H2ServiceResponse<T, P, S: NewService, B> {
-    fut: <S::Future as IntoFuture>::Future,
+pub struct H2ServiceResponse<T, P, S: ServiceFactory, B> {
+    fut: S::Future,
     cfg: Option<ServiceConfig>,
     on_connect: Option<rc::Rc<dyn Fn(&T) -> Box<dyn DataFactory>>>,
     _t: PhantomData<(T, P, B)>,
@@ -109,22 +119,26 @@ pub struct H2ServiceResponse<T, P, S: NewService, B> {
 impl<T, P, S, B> Future for H2ServiceResponse<T, P, S, B>
 where
     T: IoStream,
-    S: NewService<Config = SrvConfig, Request = Request>,
-    S::Error: Into<Error>,
-    S::Response: Into<Response<B>>,
-    <S::Service as Service>::Future: 'static,
+    S: ServiceFactory<Config = SrvConfig, Request = Request>,
+    S::Error: Into<Error> + Unpin + 'static,
+    S::Response: Into<Response<B>> + Unpin + 'static,
+    S::Future: Unpin,
+    <S::Service as Service>::Future: Unpin + 'static,
     B: MessageBody + 'static,
+    P: Unpin,
 {
-    type Item = H2ServiceHandler<T, P, S::Service, B>;
-    type Error = S::InitError;
+    type Output = Result<H2ServiceHandler<T, P, S::Service, B>, S::InitError>;
 
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        let service = try_ready!(self.fut.poll());
-        Ok(Async::Ready(H2ServiceHandler::new(
-            self.cfg.take().unwrap(),
-            self.on_connect.clone(),
-            service,
-        )))
+    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+        let this = self.get_mut();
+
+        Poll::Ready(ready!(Pin::new(&mut this.fut).poll(cx)).map(|service| {
+            H2ServiceHandler::new(
+                this.cfg.take().unwrap(),
+                this.on_connect.clone(),
+                service,
+            )
+        }))
     }
 }
 
@@ -139,10 +153,11 @@ pub struct H2ServiceHandler<T, P, S, B> {
 impl<T, P, S, B> H2ServiceHandler<T, P, S, B>
 where
     S: Service<Request = Request>,
-    S::Error: Into<Error>,
-    S::Future: 'static,
-    S::Response: Into<Response<B>>,
+    S::Error: Into<Error> + Unpin + 'static,
+    S::Future: Unpin + 'static,
+    S::Response: Into<Response<B>> + Unpin + 'static,
     B: MessageBody + 'static,
+    P: Unpin,
 {
     fn new(
         cfg: ServiceConfig,
@@ -162,18 +177,19 @@ impl<T, P, S, B> Service for H2ServiceHandler<T, P, S, B>
 where
     T: IoStream,
     S: Service<Request = Request>,
-    S::Error: Into<Error>,
-    S::Future: 'static,
-    S::Response: Into<Response<B>>,
+    S::Error: Into<Error> + Unpin + 'static,
+    S::Future: Unpin + 'static,
+    S::Response: Into<Response<B>> + Unpin + 'static,
     B: MessageBody + 'static,
+    P: Unpin,
 {
     type Request = Io<T, P>;
     type Response = ();
     type Error = DispatchError;
     type Future = H2ServiceHandlerResponse<T, S, B>;
 
-    fn poll_ready(&mut self) -> Poll<(), Self::Error> {
-        self.srv.poll_ready().map_err(|e| {
+    fn poll_ready(&mut self, cx: &mut Context) -> Poll<Result<(), Self::Error>> {
+        self.srv.poll_ready(cx).map_err(|e| {
             let e = e.into();
             error!("Service readiness error: {:?}", e);
             DispatchError::Service(e)
@@ -219,9 +235,9 @@ pub struct H2ServiceHandlerResponse<T, S, B>
 where
     T: IoStream,
     S: Service<Request = Request>,
-    S::Error: Into<Error>,
-    S::Future: 'static,
-    S::Response: Into<Response<B>>,
+    S::Error: Into<Error> + Unpin + 'static,
+    S::Future: Unpin + 'static,
+    S::Response: Into<Response<B>> + Unpin + 'static,
     B: MessageBody + 'static,
 {
     state: State<T, S, B>,
@@ -231,25 +247,24 @@ impl<T, S, B> Future for H2ServiceHandlerResponse<T, S, B>
 where
     T: IoStream,
     S: Service<Request = Request>,
-    S::Error: Into<Error>,
-    S::Future: 'static,
-    S::Response: Into<Response<B>>,
+    S::Error: Into<Error> + Unpin + 'static,
+    S::Future: Unpin + 'static,
+    S::Response: Into<Response<B>> + Unpin + 'static,
     B: MessageBody,
 {
-    type Item = ();
-    type Error = DispatchError;
+    type Output = Result<(), DispatchError>;
 
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
         match self.state {
-            State::Incoming(ref mut disp) => disp.poll(),
+            State::Incoming(ref mut disp) => Pin::new(disp).poll(cx),
             State::Handshake(
                 ref mut srv,
                 ref mut config,
                 ref peer_addr,
                 ref mut on_connect,
                 ref mut handshake,
-            ) => match handshake.poll() {
-                Ok(Async::Ready(conn)) => {
+            ) => match Pin::new(handshake).poll(cx) {
+                Poll::Ready(Ok(conn)) => {
                     self.state = State::Incoming(Dispatcher::new(
                         srv.take().unwrap(),
                         conn,
@@ -258,13 +273,13 @@ where
                         None,
                         *peer_addr,
                     ));
-                    self.poll()
+                    self.poll(cx)
                 }
-                Ok(Async::NotReady) => Ok(Async::NotReady),
-                Err(err) => {
+                Poll::Ready(Err(err)) => {
                     trace!("H2 handshake error: {}", err);
-                    Err(err.into())
+                    Poll::Ready(Err(err.into()))
                 }
+                Poll::Pending => Poll::Pending,
             },
         }
     }

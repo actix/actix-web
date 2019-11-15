@@ -1,22 +1,24 @@
 use std::cell::RefCell;
 use std::collections::VecDeque;
+use std::future::Future;
 use std::io;
+use std::pin::Pin;
 use std::rc::Rc;
+use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
 
 use actix_codec::{AsyncRead, AsyncWrite};
 use actix_service::Service;
+use actix_utils::oneshot;
+use actix_utils::task::LocalWaker;
 use bytes::Bytes;
 use futures::future::{err, ok, Either, FutureResult};
-use futures::task::AtomicTask;
-use futures::unsync::oneshot;
-use futures::{Async, Future, Poll};
 use h2::client::{handshake, Handshake};
 use hashbrown::HashMap;
 use http::uri::Authority;
 use indexmap::IndexSet;
 use slab::Slab;
-use tokio_timer::{sleep, Delay};
+use tokio_timer::{delay_for, Delay};
 
 use super::connection::{ConnectionType, IoConnection};
 use super::error::ConnectError;
@@ -140,7 +142,7 @@ where
         // start support future
         if !support {
             self.1.as_ref().borrow_mut().task = Some(AtomicTask::new());
-            tokio_current_thread::spawn(ConnectorPoolSupport {
+            tokio_executor::current_thread::spawn(ConnectorPoolSupport {
                 connector: self.0.clone(),
                 inner: self.1.clone(),
             })
@@ -255,7 +257,7 @@ where
         if let Some(ref mut h2) = self.h2 {
             return match h2.poll() {
                 Ok(Async::Ready((snd, connection))) => {
-                    tokio_current_thread::spawn(connection.map_err(|_| ()));
+                    tokio_executor::current_thread::spawn(connection.map_err(|_| ()));
                     Ok(Async::Ready(IoConnection::new(
                         ConnectionType::H2(snd),
                         Instant::now(),
@@ -373,7 +375,7 @@ where
                 {
                     if let Some(timeout) = self.disconnect_timeout {
                         if let ConnectionType::H1(io) = conn.io {
-                            tokio_current_thread::spawn(CloseConnection::new(
+                            tokio_executor::current_thread::spawn(CloseConnection::new(
                                 io, timeout,
                             ))
                         }
@@ -387,7 +389,7 @@ where
                             Ok(n) if n > 0 => {
                                 if let Some(timeout) = self.disconnect_timeout {
                                     if let ConnectionType::H1(io) = io {
-                                        tokio_current_thread::spawn(
+                                        tokio_executor::current_thread::spawn(
                                             CloseConnection::new(io, timeout),
                                         )
                                     }
@@ -421,7 +423,7 @@ where
         self.acquired -= 1;
         if let Some(timeout) = self.disconnect_timeout {
             if let ConnectionType::H1(io) = io {
-                tokio_current_thread::spawn(CloseConnection::new(io, timeout))
+                tokio_executor::current_thread::spawn(CloseConnection::new(io, timeout))
             }
         }
         self.check_availibility();
@@ -448,7 +450,7 @@ where
     fn new(io: T, timeout: Duration) -> Self {
         CloseConnection {
             io,
-            timeout: sleep(timeout),
+            timeout: delay_for(timeout),
         }
     }
 }
@@ -558,7 +560,7 @@ where
         inner: Rc<RefCell<Inner<Io>>>,
         fut: F,
     ) {
-        tokio_current_thread::spawn(OpenWaitingConnection {
+        tokio_executor::current_thread::spawn(OpenWaitingConnection {
             key,
             fut,
             h2: None,
@@ -593,7 +595,7 @@ where
         if let Some(ref mut h2) = self.h2 {
             return match h2.poll() {
                 Ok(Async::Ready((snd, connection))) => {
-                    tokio_current_thread::spawn(connection.map_err(|_| ()));
+                    tokio_executor::current_thread::spawn(connection.map_err(|_| ()));
                     let rx = self.rx.take().unwrap();
                     let _ = rx.send(Ok(IoConnection::new(
                         ConnectionType::H2(snd),

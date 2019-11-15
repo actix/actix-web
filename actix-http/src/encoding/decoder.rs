@@ -1,4 +1,7 @@
+use std::future::Future;
 use std::io::{self, Write};
+use std::pin::Pin;
+use std::task::{Context, Poll};
 
 use actix_threadpool::{run, CpuFuture};
 #[cfg(feature = "brotli")]
@@ -6,7 +9,7 @@ use brotli2::write::BrotliDecoder;
 use bytes::Bytes;
 #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
 use flate2::write::{GzDecoder, ZlibDecoder};
-use futures::{try_ready, Async, Future, Poll, Stream};
+use futures::{ready, Stream};
 
 use super::Writer;
 use crate::error::PayloadError;
@@ -18,12 +21,12 @@ pub struct Decoder<S> {
     decoder: Option<ContentDecoder>,
     stream: S,
     eof: bool,
-    fut: Option<CpuFuture<(Option<Bytes>, ContentDecoder), io::Error>>,
+    fut: Option<CpuFuture<Result<(Option<Bytes>, ContentDecoder), io::Error>>>,
 }
 
 impl<S> Decoder<S>
 where
-    S: Stream<Item = Bytes, Error = PayloadError>,
+    S: Stream<Item = Result<Bytes, PayloadError>>,
 {
     /// Construct a decoder.
     #[inline]
@@ -71,34 +74,41 @@ where
 
 impl<S> Stream for Decoder<S>
 where
-    S: Stream<Item = Bytes, Error = PayloadError>,
+    S: Stream<Item = Result<Bytes, PayloadError>> + Unpin,
 {
-    type Item = Bytes;
-    type Error = PayloadError;
+    type Item = Result<Bytes, PayloadError>;
 
-    fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
+    fn poll_next(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context,
+    ) -> Poll<Option<Self::Item>> {
         loop {
             if let Some(ref mut fut) = self.fut {
-                let (chunk, decoder) = try_ready!(fut.poll());
+                let (chunk, decoder) = match ready!(Pin::new(fut).poll(cx)) {
+                    Ok(Ok(item)) => item,
+                    Ok(Err(e)) => return Poll::Ready(Some(Err(e.into()))),
+                    Err(e) => return Poll::Ready(Some(Err(e.into()))),
+                };
                 self.decoder = Some(decoder);
                 self.fut.take();
                 if let Some(chunk) = chunk {
-                    return Ok(Async::Ready(Some(chunk)));
+                    return Poll::Ready(Some(Ok(chunk)));
                 }
             }
 
             if self.eof {
-                return Ok(Async::Ready(None));
+                return Poll::Ready(None);
             }
 
-            match self.stream.poll()? {
-                Async::Ready(Some(chunk)) => {
+            match Pin::new(&mut self.stream).poll_next(cx) {
+                Poll::Ready(Some(Err(err))) => return Poll::Ready(Some(Err(err))),
+                Poll::Ready(Some(Ok(chunk))) => {
                     if let Some(mut decoder) = self.decoder.take() {
                         if chunk.len() < INPLACE {
                             let chunk = decoder.feed_data(chunk)?;
                             self.decoder = Some(decoder);
                             if let Some(chunk) = chunk {
-                                return Ok(Async::Ready(Some(chunk)));
+                                return Poll::Ready(Some(Ok(chunk)));
                             }
                         } else {
                             self.fut = Some(run(move || {
@@ -108,21 +118,25 @@ where
                         }
                         continue;
                     } else {
-                        return Ok(Async::Ready(Some(chunk)));
+                        return Poll::Ready(Some(Ok(chunk)));
                     }
                 }
-                Async::Ready(None) => {
+                Poll::Ready(None) => {
                     self.eof = true;
                     return if let Some(mut decoder) = self.decoder.take() {
-                        Ok(Async::Ready(decoder.feed_eof()?))
+                        match decoder.feed_eof() {
+                            Ok(Some(res)) => Poll::Ready(Some(Ok(res))),
+                            Ok(None) => Poll::Ready(None),
+                            Err(err) => Poll::Ready(Some(Err(err.into()))),
+                        }
                     } else {
-                        Ok(Async::Ready(None))
+                        Poll::Ready(None)
                     };
                 }
-                Async::NotReady => break,
+                Poll::Pending => break,
             }
         }
-        Ok(Async::NotReady)
+        Poll::Pending
     }
 }
 

@@ -4,7 +4,8 @@
     clippy::too_many_arguments,
     clippy::new_without_default,
     clippy::borrow_interior_mutable_const,
-    clippy::write_with_newline
+    clippy::write_with_newline,
+    unused_imports
 )]
 
 #[macro_use]
@@ -12,7 +13,7 @@ extern crate log;
 
 pub mod body;
 mod builder;
-pub mod client;
+// pub mod client;
 mod cloneable;
 mod config;
 pub mod encoding;
@@ -31,8 +32,8 @@ pub mod cookie;
 pub mod error;
 pub mod h1;
 pub mod h2;
-pub mod test;
-pub mod ws;
+// pub mod test;
+// pub mod ws;
 
 pub use self::builder::HttpServiceBuilder;
 pub use self::config::{KeepAlive, ServiceConfig};

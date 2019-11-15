@@ -1,8 +1,10 @@
 use std::marker::PhantomData;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 use std::{fmt, mem};
 
 use bytes::{Bytes, BytesMut};
-use futures::{Async, Poll, Stream};
+use futures::Stream;
 
 use crate::error::Error;
 
@@ -29,10 +31,10 @@ impl BodySize {
 }
 
 /// Type that provides this trait can be streamed to a peer.
-pub trait MessageBody {
+pub trait MessageBody: Unpin {
     fn size(&self) -> BodySize;
 
-    fn poll_next(&mut self) -> Poll<Option<Bytes>, Error>;
+    fn poll_next(&mut self, cx: &mut Context) -> Poll<Option<Result<Bytes, Error>>>;
 }
 
 impl MessageBody for () {
@@ -40,8 +42,8 @@ impl MessageBody for () {
         BodySize::Empty
     }
 
-    fn poll_next(&mut self) -> Poll<Option<Bytes>, Error> {
-        Ok(Async::Ready(None))
+    fn poll_next(&mut self, _: &mut Context) -> Poll<Option<Result<Bytes, Error>>> {
+        Poll::Ready(None)
     }
 }
 
@@ -50,8 +52,8 @@ impl<T: MessageBody> MessageBody for Box<T> {
         self.as_ref().size()
     }
 
-    fn poll_next(&mut self) -> Poll<Option<Bytes>, Error> {
-        self.as_mut().poll_next()
+    fn poll_next(&mut self, cx: &mut Context) -> Poll<Option<Result<Bytes, Error>>> {
+        self.as_mut().poll_next(cx)
     }
 }
 
@@ -93,20 +95,19 @@ impl<B: MessageBody> MessageBody for ResponseBody<B> {
         }
     }
 
-    fn poll_next(&mut self) -> Poll<Option<Bytes>, Error> {
+    fn poll_next(&mut self, cx: &mut Context) -> Poll<Option<Result<Bytes, Error>>> {
         match self {
-            ResponseBody::Body(ref mut body) => body.poll_next(),
-            ResponseBody::Other(ref mut body) => body.poll_next(),
+            ResponseBody::Body(ref mut body) => body.poll_next(cx),
+            ResponseBody::Other(ref mut body) => body.poll_next(cx),
         }
     }
 }
 
 impl<B: MessageBody> Stream for ResponseBody<B> {
-    type Item = Bytes;
-    type Error = Error;
+    type Item = Result<Bytes, Error>;
 
-    fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
-        self.poll_next()
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
+        self.get_mut().poll_next(cx)
     }
 }
 
@@ -144,19 +145,19 @@ impl MessageBody for Body {
         }
     }
 
-    fn poll_next(&mut self) -> Poll<Option<Bytes>, Error> {
+    fn poll_next(&mut self, cx: &mut Context) -> Poll<Option<Result<Bytes, Error>>> {
         match self {
-            Body::None => Ok(Async::Ready(None)),
-            Body::Empty => Ok(Async::Ready(None)),
+            Body::None => Poll::Ready(None),
+            Body::Empty => Poll::Ready(None),
             Body::Bytes(ref mut bin) => {
                 let len = bin.len();
                 if len == 0 {
-                    Ok(Async::Ready(None))
+                    Poll::Ready(None)
                 } else {
-                    Ok(Async::Ready(Some(mem::replace(bin, Bytes::new()))))
+                    Poll::Ready(Some(Ok(mem::replace(bin, Bytes::new()))))
                 }
             }
-            Body::Message(ref mut body) => body.poll_next(),
+            Body::Message(ref mut body) => body.poll_next(cx),
         }
     }
 }
@@ -242,7 +243,7 @@ impl From<serde_json::Value> for Body {
 
 impl<S> From<SizedStream<S>> for Body
 where
-    S: Stream<Item = Bytes, Error = Error> + 'static,
+    S: Stream<Item = Result<Bytes, Error>> + Unpin + 'static,
 {
     fn from(s: SizedStream<S>) -> Body {
         Body::from_message(s)
@@ -251,8 +252,8 @@ where
 
 impl<S, E> From<BodyStream<S, E>> for Body
 where
-    S: Stream<Item = Bytes, Error = E> + 'static,
-    E: Into<Error> + 'static,
+    S: Stream<Item = Result<Bytes, E>> + Unpin + 'static,
+    E: Into<Error> + Unpin + 'static,
 {
     fn from(s: BodyStream<S, E>) -> Body {
         Body::from_message(s)
@@ -264,11 +265,11 @@ impl MessageBody for Bytes {
         BodySize::Sized(self.len())
     }
 
-    fn poll_next(&mut self) -> Poll<Option<Bytes>, Error> {
+    fn poll_next(&mut self, _: &mut Context) -> Poll<Option<Result<Bytes, Error>>> {
         if self.is_empty() {
-            Ok(Async::Ready(None))
+            Poll::Ready(None)
         } else {
-            Ok(Async::Ready(Some(mem::replace(self, Bytes::new()))))
+            Poll::Ready(Some(Ok(mem::replace(self, Bytes::new()))))
         }
     }
 }
@@ -278,13 +279,11 @@ impl MessageBody for BytesMut {
         BodySize::Sized(self.len())
     }
 
-    fn poll_next(&mut self) -> Poll<Option<Bytes>, Error> {
+    fn poll_next(&mut self, _: &mut Context) -> Poll<Option<Result<Bytes, Error>>> {
         if self.is_empty() {
-            Ok(Async::Ready(None))
+            Poll::Ready(None)
         } else {
-            Ok(Async::Ready(Some(
-                mem::replace(self, BytesMut::new()).freeze(),
-            )))
+            Poll::Ready(Some(Ok(mem::replace(self, BytesMut::new()).freeze())))
         }
     }
 }
@@ -294,11 +293,11 @@ impl MessageBody for &'static str {
         BodySize::Sized(self.len())
     }
 
-    fn poll_next(&mut self) -> Poll<Option<Bytes>, Error> {
+    fn poll_next(&mut self, _: &mut Context) -> Poll<Option<Result<Bytes, Error>>> {
         if self.is_empty() {
-            Ok(Async::Ready(None))
+            Poll::Ready(None)
         } else {
-            Ok(Async::Ready(Some(Bytes::from_static(
+            Poll::Ready(Some(Ok(Bytes::from_static(
                 mem::replace(self, "").as_ref(),
             ))))
         }
@@ -310,13 +309,11 @@ impl MessageBody for &'static [u8] {
         BodySize::Sized(self.len())
     }
 
-    fn poll_next(&mut self) -> Poll<Option<Bytes>, Error> {
+    fn poll_next(&mut self, _: &mut Context) -> Poll<Option<Result<Bytes, Error>>> {
         if self.is_empty() {
-            Ok(Async::Ready(None))
+            Poll::Ready(None)
         } else {
-            Ok(Async::Ready(Some(Bytes::from_static(mem::replace(
-                self, b"",
-            )))))
+            Poll::Ready(Some(Ok(Bytes::from_static(mem::replace(self, b"")))))
         }
     }
 }
@@ -326,14 +323,11 @@ impl MessageBody for Vec<u8> {
         BodySize::Sized(self.len())
     }
 
-    fn poll_next(&mut self) -> Poll<Option<Bytes>, Error> {
+    fn poll_next(&mut self, _: &mut Context) -> Poll<Option<Result<Bytes, Error>>> {
         if self.is_empty() {
-            Ok(Async::Ready(None))
+            Poll::Ready(None)
         } else {
-            Ok(Async::Ready(Some(Bytes::from(mem::replace(
-                self,
-                Vec::new(),
-            )))))
+            Poll::Ready(Some(Ok(Bytes::from(mem::replace(self, Vec::new())))))
         }
     }
 }
@@ -343,11 +337,11 @@ impl MessageBody for String {
         BodySize::Sized(self.len())
     }
 
-    fn poll_next(&mut self) -> Poll<Option<Bytes>, Error> {
+    fn poll_next(&mut self, _: &mut Context) -> Poll<Option<Result<Bytes, Error>>> {
         if self.is_empty() {
-            Ok(Async::Ready(None))
+            Poll::Ready(None)
         } else {
-            Ok(Async::Ready(Some(Bytes::from(
+            Poll::Ready(Some(Ok(Bytes::from(
                 mem::replace(self, String::new()).into_bytes(),
             ))))
         }
@@ -363,7 +357,7 @@ pub struct BodyStream<S, E> {
 
 impl<S, E> BodyStream<S, E>
 where
-    S: Stream<Item = Bytes, Error = E>,
+    S: Stream<Item = Result<Bytes, E>>,
     E: Into<Error>,
 {
     pub fn new(stream: S) -> Self {
@@ -376,15 +370,17 @@ where
 
 impl<S, E> MessageBody for BodyStream<S, E>
 where
-    S: Stream<Item = Bytes, Error = E>,
-    E: Into<Error>,
+    S: Stream<Item = Result<Bytes, E>> + Unpin,
+    E: Into<Error> + Unpin,
 {
     fn size(&self) -> BodySize {
         BodySize::Stream
     }
 
-    fn poll_next(&mut self) -> Poll<Option<Bytes>, Error> {
-        self.stream.poll().map_err(std::convert::Into::into)
+    fn poll_next(&mut self, cx: &mut Context) -> Poll<Option<Result<Bytes, Error>>> {
+        Pin::new(&mut self.stream)
+            .poll_next(cx)
+            .map(|res| res.map(|res| res.map_err(std::convert::Into::into)))
     }
 }
 
@@ -397,7 +393,7 @@ pub struct SizedStream<S> {
 
 impl<S> SizedStream<S>
 where
-    S: Stream<Item = Bytes, Error = Error>,
+    S: Stream<Item = Result<Bytes, Error>>,
 {
     pub fn new(size: u64, stream: S) -> Self {
         SizedStream { size, stream }
@@ -406,14 +402,14 @@ where
 
 impl<S> MessageBody for SizedStream<S>
 where
-    S: Stream<Item = Bytes, Error = Error>,
+    S: Stream<Item = Result<Bytes, Error>> + Unpin,
 {
     fn size(&self) -> BodySize {
         BodySize::Sized64(self.size)
     }
 
-    fn poll_next(&mut self) -> Poll<Option<Bytes>, Error> {
-        self.stream.poll()
+    fn poll_next(&mut self, cx: &mut Context) -> Poll<Option<Result<Bytes, Error>>> {
+        Pin::new(&mut self.stream).poll_next(cx)
     }
 }
 

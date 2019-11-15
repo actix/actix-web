@@ -1,5 +1,8 @@
 use std::collections::VecDeque;
+use std::future::Future;
 use std::marker::PhantomData;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 use std::time::Instant;
 use std::{fmt, mem, net};
 
@@ -8,7 +11,7 @@ use actix_server_config::IoStream;
 use actix_service::Service;
 use bitflags::bitflags;
 use bytes::{Bytes, BytesMut};
-use futures::{try_ready, Async, Future, Poll, Sink, Stream};
+use futures::{ready, Sink, Stream};
 use h2::server::{Connection, SendResponse};
 use h2::{RecvStream, SendStream};
 use http::header::{
@@ -43,13 +46,24 @@ pub struct Dispatcher<T: IoStream, S: Service<Request = Request>, B: MessageBody
     _t: PhantomData<B>,
 }
 
+impl<T, S, B> Unpin for Dispatcher<T, S, B>
+where
+    T: IoStream,
+    S: Service<Request = Request>,
+    S::Error: Into<Error> + Unpin + 'static,
+    S::Future: Unpin + 'static,
+    S::Response: Into<Response<B>> + Unpin + 'static,
+    B: MessageBody + 'static,
+{
+}
+
 impl<T, S, B> Dispatcher<T, S, B>
 where
     T: IoStream,
     S: Service<Request = Request>,
-    S::Error: Into<Error>,
-    S::Future: 'static,
-    S::Response: Into<Response<B>>,
+    S::Error: Into<Error> + Unpin + 'static,
+    S::Future: Unpin + 'static,
+    S::Response: Into<Response<B>> + Unpin + 'static,
     B: MessageBody + 'static,
 {
     pub(crate) fn new(
@@ -93,61 +107,75 @@ impl<T, S, B> Future for Dispatcher<T, S, B>
 where
     T: IoStream,
     S: Service<Request = Request>,
-    S::Error: Into<Error>,
-    S::Future: 'static,
-    S::Response: Into<Response<B>>,
+    S::Error: Into<Error> + Unpin + 'static,
+    S::Future: Unpin + 'static,
+    S::Response: Into<Response<B>> + Unpin + 'static,
     B: MessageBody + 'static,
 {
-    type Item = ();
-    type Error = DispatchError;
+    type Output = Result<(), DispatchError>;
 
     #[inline]
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+        let this = self.get_mut();
+
         loop {
-            match self.connection.poll()? {
-                Async::Ready(None) => return Ok(Async::Ready(())),
-                Async::Ready(Some((req, res))) => {
+            match Pin::new(&mut this.connection).poll_accept(cx) {
+                Poll::Ready(None) => return Poll::Ready(Ok(())),
+                Poll::Ready(Some(Err(err))) => return Poll::Ready(Err(err.into())),
+                Poll::Ready(Some(Ok((req, res)))) => {
                     // update keep-alive expire
-                    if self.ka_timer.is_some() {
-                        if let Some(expire) = self.config.keep_alive_expire() {
-                            self.ka_expire = expire;
+                    if this.ka_timer.is_some() {
+                        if let Some(expire) = this.config.keep_alive_expire() {
+                            this.ka_expire = expire;
                         }
                     }
 
                     let (parts, body) = req.into_parts();
-                    let mut req = Request::with_payload(body.into());
+                    // let b: () = body;
+                    let mut req = Request::with_payload(Payload::<
+                        crate::payload::PayloadStream,
+                    >::H2(
+                        crate::h2::Payload::new(body)
+                    ));
 
                     let head = &mut req.head_mut();
                     head.uri = parts.uri;
                     head.method = parts.method;
                     head.version = parts.version;
                     head.headers = parts.headers.into();
-                    head.peer_addr = self.peer_addr;
+                    head.peer_addr = this.peer_addr;
 
                     // set on_connect data
-                    if let Some(ref on_connect) = self.on_connect {
+                    if let Some(ref on_connect) = this.on_connect {
                         on_connect.set(&mut req.extensions_mut());
                     }
 
-                    tokio_current_thread::spawn(ServiceResponse::<S::Future, B> {
-                        state: ServiceResponseState::ServiceCall(
-                            self.service.call(req),
-                            Some(res),
-                        ),
-                        config: self.config.clone(),
-                        buffer: None,
-                    })
+                    // tokio_executor::current_thread::spawn(ServiceResponse::<
+                    //     S::Future,
+                    //     S::Response,
+                    //     S::Error,
+                    //     B,
+                    // > {
+                    //     state: ServiceResponseState::ServiceCall(
+                    //         this.service.call(req),
+                    //         Some(res),
+                    //     ),
+                    //     config: this.config.clone(),
+                    //     buffer: None,
+                    //     _t: PhantomData,
+                    // });
                 }
-                Async::NotReady => return Ok(Async::NotReady),
+                Poll::Pending => return Poll::Pending,
             }
         }
     }
 }
 
-struct ServiceResponse<F, B> {
+struct ServiceResponse<F, I, E, B> {
     state: ServiceResponseState<F, B>,
     config: ServiceConfig,
     buffer: Option<Bytes>,
+    _t: PhantomData<(I, E)>,
 }
 
 enum ServiceResponseState<F, B> {
@@ -155,11 +183,11 @@ enum ServiceResponseState<F, B> {
     SendPayload(SendStream<Bytes>, ResponseBody<B>),
 }
 
-impl<F, B> ServiceResponse<F, B>
+impl<F, I, E, B> ServiceResponse<F, I, E, B>
 where
-    F: Future,
-    F::Error: Into<Error>,
-    F::Item: Into<Response<B>>,
+    F: Future<Output = Result<I, E>> + Unpin,
+    E: Into<Error> + Unpin + 'static,
+    I: Into<Response<B>> + Unpin + 'static,
     B: MessageBody + 'static,
 {
     fn prepare_response(
@@ -223,109 +251,116 @@ where
     }
 }
 
-impl<F, B> Future for ServiceResponse<F, B>
+impl<F, I, E, B> Future for ServiceResponse<F, I, E, B>
 where
-    F: Future,
-    F::Error: Into<Error>,
-    F::Item: Into<Response<B>>,
+    F: Future<Output = Result<I, E>> + Unpin,
+    E: Into<Error> + Unpin + 'static,
+    I: Into<Response<B>> + Unpin + 'static,
     B: MessageBody + 'static,
 {
-    type Item = ();
-    type Error = ();
+    type Output = ();
 
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        match self.state {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+        let this = self.get_mut();
+
+        match this.state {
             ServiceResponseState::ServiceCall(ref mut call, ref mut send) => {
-                match call.poll() {
-                    Ok(Async::Ready(res)) => {
+                match Pin::new(call).poll(cx) {
+                    Poll::Ready(Ok(res)) => {
                         let (res, body) = res.into().replace_body(());
 
                         let mut send = send.take().unwrap();
                         let mut size = body.size();
-                        let h2_res = self.prepare_response(res.head(), &mut size);
+                        let h2_res = this.prepare_response(res.head(), &mut size);
 
-                        let stream =
-                            send.send_response(h2_res, size.is_eof()).map_err(|e| {
+                        let stream = match send.send_response(h2_res, size.is_eof()) {
+                            Err(e) => {
                                 trace!("Error sending h2 response: {:?}", e);
-                            })?;
+                                return Poll::Ready(());
+                            }
+                            Ok(stream) => stream,
+                        };
 
                         if size.is_eof() {
-                            Ok(Async::Ready(()))
+                            Poll::Ready(())
                         } else {
-                            self.state = ServiceResponseState::SendPayload(stream, body);
-                            self.poll()
+                            this.state = ServiceResponseState::SendPayload(stream, body);
+                            Pin::new(this).poll(cx)
                         }
                     }
-                    Ok(Async::NotReady) => Ok(Async::NotReady),
-                    Err(e) => {
+                    Poll::Pending => Poll::Pending,
+                    Poll::Ready(Err(e)) => {
                         let res: Response = e.into().into();
                         let (res, body) = res.replace_body(());
 
                         let mut send = send.take().unwrap();
                         let mut size = body.size();
-                        let h2_res = self.prepare_response(res.head(), &mut size);
+                        let h2_res = this.prepare_response(res.head(), &mut size);
 
-                        let stream =
-                            send.send_response(h2_res, size.is_eof()).map_err(|e| {
+                        let stream = match send.send_response(h2_res, size.is_eof()) {
+                            Err(e) => {
                                 trace!("Error sending h2 response: {:?}", e);
-                            })?;
+                                return Poll::Ready(());
+                            }
+                            Ok(stream) => stream,
+                        };
 
                         if size.is_eof() {
-                            Ok(Async::Ready(()))
+                            Poll::Ready(())
                         } else {
-                            self.state = ServiceResponseState::SendPayload(
+                            this.state = ServiceResponseState::SendPayload(
                                 stream,
                                 body.into_body(),
                             );
-                            self.poll()
+                            Pin::new(this).poll(cx)
                         }
                     }
                 }
             }
             ServiceResponseState::SendPayload(ref mut stream, ref mut body) => loop {
                 loop {
-                    if let Some(ref mut buffer) = self.buffer {
-                        match stream.poll_capacity().map_err(|e| warn!("{:?}", e))? {
-                            Async::NotReady => return Ok(Async::NotReady),
-                            Async::Ready(None) => return Ok(Async::Ready(())),
-                            Async::Ready(Some(cap)) => {
+                    if let Some(ref mut buffer) = this.buffer {
+                        match stream.poll_capacity(cx) {
+                            Poll::Pending => return Poll::Pending,
+                            Poll::Ready(None) => return Poll::Ready(()),
+                            Poll::Ready(Some(Ok(cap))) => {
                                 let len = buffer.len();
                                 let bytes = buffer.split_to(std::cmp::min(cap, len));
 
                                 if let Err(e) = stream.send_data(bytes, false) {
                                     warn!("{:?}", e);
-                                    return Err(());
+                                    return Poll::Ready(());
                                 } else if !buffer.is_empty() {
                                     let cap = std::cmp::min(buffer.len(), CHUNK_SIZE);
                                     stream.reserve_capacity(cap);
                                 } else {
-                                    self.buffer.take();
+                                    this.buffer.take();
                                 }
+                            }
+                            Poll::Ready(Some(Err(e))) => {
+                                warn!("{:?}", e);
+                                return Poll::Ready(());
                             }
                         }
                     } else {
-                        match body.poll_next() {
-                            Ok(Async::NotReady) => {
-                                return Ok(Async::NotReady);
-                            }
-                            Ok(Async::Ready(None)) => {
+                        match body.poll_next(cx) {
+                            Poll::Pending => return Poll::Pending,
+                            Poll::Ready(None) => {
                                 if let Err(e) = stream.send_data(Bytes::new(), true) {
                                     warn!("{:?}", e);
-                                    return Err(());
-                                } else {
-                                    return Ok(Async::Ready(()));
                                 }
+                                return Poll::Ready(());
                             }
-                            Ok(Async::Ready(Some(chunk))) => {
+                            Poll::Ready(Some(Ok(chunk))) => {
                                 stream.reserve_capacity(std::cmp::min(
                                     chunk.len(),
                                     CHUNK_SIZE,
                                 ));
-                                self.buffer = Some(chunk);
+                                this.buffer = Some(chunk);
                             }
-                            Err(e) => {
+                            Poll::Ready(Some(Err(e))) => {
                                 error!("Response payload stream error: {:?}", e);
-                                return Err(());
+                                return Poll::Ready(());
                             }
                         }
                     }

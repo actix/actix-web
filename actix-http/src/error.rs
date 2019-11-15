@@ -6,11 +6,10 @@ use std::str::Utf8Error;
 use std::string::FromUtf8Error;
 use std::{fmt, io, result};
 
-pub use actix_threadpool::BlockingError;
 use actix_utils::timeout::TimeoutError;
 use bytes::BytesMut;
 use derive_more::{Display, From};
-use futures::Canceled;
+use futures::channel::oneshot::Canceled;
 use http::uri::InvalidUri;
 use http::{header, Error as HttpError, StatusCode};
 use httparse;
@@ -197,8 +196,8 @@ impl ResponseError for DeError {
     }
 }
 
-/// `InternalServerError` for `BlockingError`
-impl<E: fmt::Debug> ResponseError for BlockingError<E> {}
+/// `InternalServerError` for `Canceled`
+impl ResponseError for Canceled {}
 
 /// Return `BAD_REQUEST` for `Utf8Error`
 impl ResponseError for Utf8Error {
@@ -235,9 +234,6 @@ impl ResponseError for header::InvalidHeaderValueBytes {
         Response::new(StatusCode::BAD_REQUEST)
     }
 }
-
-/// `InternalServerError` for `futures::Canceled`
-impl ResponseError for Canceled {}
 
 /// A set of errors that can occur during parsing HTTP streams
 #[derive(Debug, Display)]
@@ -365,15 +361,12 @@ impl From<io::Error> for PayloadError {
     }
 }
 
-impl From<BlockingError<io::Error>> for PayloadError {
-    fn from(err: BlockingError<io::Error>) -> Self {
-        match err {
-            BlockingError::Error(e) => PayloadError::Io(e),
-            BlockingError::Canceled => PayloadError::Io(io::Error::new(
-                io::ErrorKind::Other,
-                "Thread pool is gone",
-            )),
-        }
+impl From<Canceled> for PayloadError {
+    fn from(_: Canceled) -> Self {
+        PayloadError::Io(io::Error::new(
+            io::ErrorKind::Other,
+            "Operation is canceled",
+        ))
     }
 }
 
@@ -390,12 +383,12 @@ impl ResponseError for PayloadError {
     }
 }
 
-/// Return `BadRequest` for `cookie::ParseError`
-impl ResponseError for crate::cookie::ParseError {
-    fn error_response(&self) -> Response {
-        Response::new(StatusCode::BAD_REQUEST)
-    }
-}
+// /// Return `BadRequest` for `cookie::ParseError`
+// impl ResponseError for crate::cookie::ParseError {
+//     fn error_response(&self) -> Response {
+//         Response::new(StatusCode::BAD_REQUEST)
+//     }
+// }
 
 #[derive(Debug, Display, From)]
 /// A set of errors that can occur during dispatching http requests
