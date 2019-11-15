@@ -1,12 +1,13 @@
 //! Test Various helpers for Actix applications to use during testing.
 use std::fmt::Write as FmtWrite;
 use std::io;
+use std::pin::Pin;
 use std::str::FromStr;
+use std::task::{Context, Poll};
 
 use actix_codec::{AsyncRead, AsyncWrite};
 use actix_server_config::IoStream;
 use bytes::{Buf, Bytes, BytesMut};
-use futures::{Async, Poll};
 use http::header::{self, HeaderName, HeaderValue};
 use http::{HttpTryFrom, Method, Uri, Version};
 use percent_encoding::percent_encode;
@@ -244,16 +245,16 @@ impl io::Write for TestBuffer {
     }
 }
 
-impl AsyncRead for TestBuffer {}
+// impl AsyncRead for TestBuffer {}
 
-impl AsyncWrite for TestBuffer {
-    fn shutdown(&mut self) -> Poll<(), io::Error> {
-        Ok(Async::Ready(()))
-    }
-    fn write_buf<B: Buf>(&mut self, _: &mut B) -> Poll<usize, io::Error> {
-        Ok(Async::NotReady)
-    }
-}
+// impl AsyncWrite for TestBuffer {
+//     fn shutdown(&mut self) -> Poll<(), io::Error> {
+//         Ok(Async::Ready(()))
+//     }
+//     fn write_buf<B: Buf>(&mut self, _: &mut B) -> Poll<usize, io::Error> {
+//         Ok(Async::NotReady)
+//     }
+// }
 
 impl IoStream for TestBuffer {
     fn set_nodelay(&mut self, _nodelay: bool) -> io::Result<()> {

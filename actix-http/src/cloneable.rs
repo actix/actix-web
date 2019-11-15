@@ -1,8 +1,8 @@
 use std::cell::UnsafeCell;
 use std::rc::Rc;
+use std::task::{Context, Poll};
 
 use actix_service::Service;
-use futures::Poll;
 
 #[doc(hidden)]
 /// Service that allows to turn non-clone service to a service with `Clone` impl
@@ -32,8 +32,8 @@ where
     type Error = T::Error;
     type Future = T::Future;
 
-    fn poll_ready(&mut self) -> Poll<(), Self::Error> {
-        unsafe { &mut *self.0.as_ref().get() }.poll_ready()
+    fn poll_ready(&mut self, cx: &mut Context) -> Poll<Result<(), Self::Error>> {
+        unsafe { &mut *self.0.as_ref().get() }.poll_ready(cx)
     }
 
     fn call(&mut self, req: T::Request) -> Self::Future {

@@ -1,15 +1,18 @@
 use std::fmt;
+use std::future::Future;
 use std::marker::PhantomData;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 use std::time::Duration;
 
 use actix_codec::{AsyncRead, AsyncWrite};
 use actix_connect::{
     default_connector, Connect as TcpConnect, Connection as TcpConnection,
 };
-use actix_service::{apply_fn, Service, ServiceExt};
+use actix_service::{apply_fn, Service};
 use actix_utils::timeout::{TimeoutError, TimeoutService};
 use http::Uri;
-use tokio_tcp::TcpStream;
+use tokio_net::tcp::TcpStream;
 
 use super::connection::Connection;
 use super::error::ConnectError;
@@ -212,7 +215,7 @@ where
     pub fn finish(
         self,
     ) -> impl Service<Request = Connect, Response = impl Connection, Error = ConnectError>
-                 + Clone {
+           + Clone {
         #[cfg(not(any(feature = "ssl", feature = "rust-tls")))]
         {
             let connector = TimeoutService::new(

@@ -5,9 +5,9 @@ use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use bytes::BytesMut;
-use futures::{future, Future};
+use futures::{future, Future, FutureExt};
 use time;
-use tokio_timer::{sleep, Delay};
+use tokio_timer::{delay, delay_for, Delay};
 
 // "Sun, 06 Nov 1994 08:49:37 GMT".len()
 const DATE_VALUE_LENGTH: usize = 29;
@@ -104,10 +104,10 @@ impl ServiceConfig {
     #[inline]
     /// Client timeout for first request.
     pub fn client_timer(&self) -> Option<Delay> {
-        let delay = self.0.client_timeout;
-        if delay != 0 {
-            Some(Delay::new(
-                self.0.timer.now() + Duration::from_millis(delay),
+        let delay_time = self.0.client_timeout;
+        if delay_time != 0 {
+            Some(delay(
+                self.0.timer.now() + Duration::from_millis(delay_time),
             ))
         } else {
             None
@@ -138,7 +138,7 @@ impl ServiceConfig {
     /// Return keep-alive timer delay is configured.
     pub fn keep_alive_timer(&self) -> Option<Delay> {
         if let Some(ka) = self.0.keep_alive {
-            Some(Delay::new(self.0.timer.now() + ka))
+            Some(delay(self.0.timer.now() + ka))
         } else {
             None
         }
@@ -242,12 +242,12 @@ impl DateService {
 
             // periodic date update
             let s = self.clone();
-            tokio_current_thread::spawn(sleep(Duration::from_millis(500)).then(
-                move |_| {
+            tokio_executor::current_thread::spawn(
+                delay_for(Duration::from_millis(500)).then(move |_| {
                     s.0.reset();
-                    future::ok(())
-                },
-            ));
+                    future::ready(())
+                }),
+            );
         }
     }
 

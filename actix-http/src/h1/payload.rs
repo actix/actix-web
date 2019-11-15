@@ -1,12 +1,14 @@
 //! Payload stream
 use std::cell::RefCell;
 use std::collections::VecDeque;
+use std::future::Future;
+use std::pin::Pin;
 use std::rc::{Rc, Weak};
+use std::task::{Context, Poll};
 
+use actix_utils::task::LocalWaker;
 use bytes::Bytes;
-use futures::task::current as current_task;
-use futures::task::Task;
-use futures::{Async, Poll, Stream};
+use futures::Stream;
 
 use crate::error::PayloadError;
 
@@ -77,15 +79,24 @@ impl Payload {
     pub fn unread_data(&mut self, data: Bytes) {
         self.inner.borrow_mut().unread_data(data);
     }
+
+    #[inline]
+    pub fn readany(
+        &mut self,
+        cx: &mut Context,
+    ) -> Poll<Option<Result<Bytes, PayloadError>>> {
+        self.inner.borrow_mut().readany(cx)
+    }
 }
 
 impl Stream for Payload {
-    type Item = Bytes;
-    type Error = PayloadError;
+    type Item = Result<Bytes, PayloadError>;
 
-    #[inline]
-    fn poll(&mut self) -> Poll<Option<Bytes>, PayloadError> {
-        self.inner.borrow_mut().readany()
+    fn poll_next(
+        self: Pin<&mut Self>,
+        cx: &mut Context,
+    ) -> Poll<Option<Result<Bytes, PayloadError>>> {
+        self.inner.borrow_mut().readany(cx)
     }
 }
 
@@ -117,19 +128,14 @@ impl PayloadSender {
     }
 
     #[inline]
-    pub fn need_read(&self) -> PayloadStatus {
+    pub fn need_read(&self, cx: &mut Context) -> PayloadStatus {
         // we check need_read only if Payload (other side) is alive,
         // otherwise always return true (consume payload)
         if let Some(shared) = self.inner.upgrade() {
             if shared.borrow().need_read {
                 PayloadStatus::Read
             } else {
-                #[cfg(not(test))]
-                {
-                    if shared.borrow_mut().io_task.is_none() {
-                        shared.borrow_mut().io_task = Some(current_task());
-                    }
-                }
+                shared.borrow_mut().io_task.register(cx.waker());
                 PayloadStatus::Pause
             }
         } else {
@@ -145,8 +151,8 @@ struct Inner {
     err: Option<PayloadError>,
     need_read: bool,
     items: VecDeque<Bytes>,
-    task: Option<Task>,
-    io_task: Option<Task>,
+    task: LocalWaker,
+    io_task: LocalWaker,
 }
 
 impl Inner {
@@ -157,8 +163,8 @@ impl Inner {
             err: None,
             items: VecDeque::new(),
             need_read: true,
-            task: None,
-            io_task: None,
+            task: LocalWaker::new(),
+            io_task: LocalWaker::new(),
         }
     }
 
@@ -178,7 +184,7 @@ impl Inner {
         self.items.push_back(data);
         self.need_read = self.len < MAX_BUFFER_SIZE;
         if let Some(task) = self.task.take() {
-            task.notify()
+            task.wake()
         }
     }
 
@@ -187,34 +193,28 @@ impl Inner {
         self.len
     }
 
-    fn readany(&mut self) -> Poll<Option<Bytes>, PayloadError> {
+    fn readany(
+        &mut self,
+        cx: &mut Context,
+    ) -> Poll<Option<Result<Bytes, PayloadError>>> {
         if let Some(data) = self.items.pop_front() {
             self.len -= data.len();
             self.need_read = self.len < MAX_BUFFER_SIZE;
 
-            if self.need_read && self.task.is_none() && !self.eof {
-                self.task = Some(current_task());
+            if self.need_read && !self.eof {
+                self.task.register(cx.waker());
             }
-            if let Some(task) = self.io_task.take() {
-                task.notify()
-            }
-            Ok(Async::Ready(Some(data)))
+            self.io_task.wake();
+            Poll::Ready(Some(Ok(data)))
         } else if let Some(err) = self.err.take() {
-            Err(err)
+            Poll::Ready(Some(Err(err)))
         } else if self.eof {
-            Ok(Async::Ready(None))
+            Poll::Ready(None)
         } else {
             self.need_read = true;
-            #[cfg(not(test))]
-            {
-                if self.task.is_none() {
-                    self.task = Some(current_task());
-                }
-                if let Some(task) = self.io_task.take() {
-                    task.notify()
-                }
-            }
-            Ok(Async::NotReady)
+            self.task.register(cx.waker());
+            self.io_task.wake();
+            Poll::Pending
         }
     }
 
