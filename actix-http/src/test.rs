@@ -1,6 +1,6 @@
 //! Test Various helpers for Actix applications to use during testing.
 use std::fmt::Write as FmtWrite;
-use std::io;
+use std::io::{self, Read, Write};
 use std::pin::Pin;
 use std::str::FromStr;
 use std::task::{Context, Poll};
@@ -245,16 +245,33 @@ impl io::Write for TestBuffer {
     }
 }
 
-// impl AsyncRead for TestBuffer {}
+impl AsyncRead for TestBuffer {
+    fn poll_read(
+        self: Pin<&mut Self>,
+        _: &mut Context<'_>,
+        buf: &mut [u8],
+    ) -> Poll<io::Result<usize>> {
+        Poll::Ready(self.get_mut().read(buf))
+    }
+}
 
-// impl AsyncWrite for TestBuffer {
-//     fn shutdown(&mut self) -> Poll<(), io::Error> {
-//         Ok(Async::Ready(()))
-//     }
-//     fn write_buf<B: Buf>(&mut self, _: &mut B) -> Poll<usize, io::Error> {
-//         Ok(Async::NotReady)
-//     }
-// }
+impl AsyncWrite for TestBuffer {
+    fn poll_write(
+        self: Pin<&mut Self>,
+        _: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<io::Result<usize>> {
+        Poll::Ready(self.get_mut().write(buf))
+    }
+
+    fn poll_flush(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<io::Result<()>> {
+        Poll::Ready(Ok(()))
+    }
+
+    fn poll_shutdown(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<io::Result<()>> {
+        Poll::Ready(Ok(()))
+    }
+}
 
 impl IoStream for TestBuffer {
     fn set_nodelay(&mut self, _nodelay: bool) -> io::Result<()> {

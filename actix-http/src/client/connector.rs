@@ -11,6 +11,7 @@ use actix_connect::{
 };
 use actix_service::{apply_fn, Service};
 use actix_utils::timeout::{TimeoutError, TimeoutService};
+use futures::future::Ready;
 use http::Uri;
 use tokio_net::tcp::TcpStream;
 
@@ -116,12 +117,13 @@ impl<T, U> Connector<T, U> {
     /// Use custom connector.
     pub fn connector<T1, U1>(self, connector: T1) -> Connector<T1, U1>
     where
-        U1: AsyncRead + AsyncWrite + fmt::Debug,
+        U1: AsyncRead + AsyncWrite + Unpin + fmt::Debug,
         T1: Service<
                 Request = TcpConnect<Uri>,
                 Response = TcpConnection<Uri, U1>,
                 Error = actix_connect::ConnectError,
             > + Clone,
+        T1::Future: Unpin,
     {
         Connector {
             connector,
@@ -138,13 +140,12 @@ impl<T, U> Connector<T, U> {
 
 impl<T, U> Connector<T, U>
 where
-    U: AsyncRead + AsyncWrite + fmt::Debug + 'static,
+    U: AsyncRead + AsyncWrite + Unpin + fmt::Debug + 'static,
     T: Service<
             Request = TcpConnect<Uri>,
             Response = TcpConnection<Uri, U>,
             Error = actix_connect::ConnectError,
-        > + Clone
-        + 'static,
+        > + 'static,
 {
     /// Connection timeout, i.e. max time to connect to remote host including dns name resolution.
     /// Set to 1 second by default.
@@ -220,7 +221,7 @@ where
         {
             let connector = TimeoutService::new(
                 self.timeout,
-                apply_fn(self.connector, |msg: Connect, srv| {
+                apply_fn(UnpinWrapper(self.connector), |msg: Connect, srv| {
                     srv.call(TcpConnect::new(msg.uri).set_addr(msg.addr))
                 })
                 .map_err(ConnectError::from)
@@ -337,10 +338,48 @@ where
     }
 }
 
+#[derive(Clone)]
+struct UnpinWrapper<T>(T);
+
+impl<T: Service> Unpin for UnpinWrapper<T> {}
+
+impl<T: Service> Service for UnpinWrapper<T> {
+    type Request = T::Request;
+    type Response = T::Response;
+    type Error = T::Error;
+    type Future = UnpinWrapperFut<T>;
+
+    fn poll_ready(&mut self, cx: &mut Context) -> Poll<Result<(), T::Error>> {
+        self.0.poll_ready(cx)
+    }
+
+    fn call(&mut self, req: T::Request) -> Self::Future {
+        UnpinWrapperFut {
+            fut: self.0.call(req),
+        }
+    }
+}
+
+struct UnpinWrapperFut<T: Service> {
+    fut: T::Future,
+}
+
+impl<T: Service> Unpin for UnpinWrapperFut<T> {}
+
+impl<T: Service> Future for UnpinWrapperFut<T> {
+    type Output = Result<T::Response, T::Error>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+        unsafe { Pin::new_unchecked(&mut self.get_mut().fut) }.poll(cx)
+    }
+}
+
 #[cfg(not(any(feature = "ssl", feature = "rust-tls")))]
 mod connect_impl {
-    use futures::future::{err, Either, FutureResult};
-    use futures::Poll;
+    use std::task::{Context, Poll};
+
+    use futures::future::{err, Either, Ready};
+    use futures::ready;
 
     use super::*;
     use crate::client::connection::IoConnection;
@@ -349,7 +388,7 @@ mod connect_impl {
     where
         Io: AsyncRead + AsyncWrite + 'static,
         T: Service<Request = Connect, Response = (Io, Protocol), Error = ConnectError>
-            + Clone
+            + Unpin
             + 'static,
     {
         pub(crate) tcp_pool: ConnectionPool<T, Io>,
@@ -359,7 +398,7 @@ mod connect_impl {
     where
         Io: AsyncRead + AsyncWrite + 'static,
         T: Service<Request = Connect, Response = (Io, Protocol), Error = ConnectError>
-            + Clone
+            + Unpin
             + 'static,
     {
         fn clone(&self) -> Self {
@@ -371,29 +410,30 @@ mod connect_impl {
 
     impl<T, Io> Service for InnerConnector<T, Io>
     where
-        Io: AsyncRead + AsyncWrite + 'static,
+        Io: AsyncRead + AsyncWrite + Unpin + 'static,
         T: Service<Request = Connect, Response = (Io, Protocol), Error = ConnectError>
-            + Clone
+            + Unpin
             + 'static,
+        T::Future: Unpin,
     {
         type Request = Connect;
         type Response = IoConnection<Io>;
         type Error = ConnectError;
         type Future = Either<
             <ConnectionPool<T, Io> as Service>::Future,
-            FutureResult<IoConnection<Io>, ConnectError>,
+            Ready<Result<IoConnection<Io>, ConnectError>>,
         >;
 
-        fn poll_ready(&mut self) -> Poll<(), Self::Error> {
-            self.tcp_pool.poll_ready()
+        fn poll_ready(&mut self, cx: &mut Context) -> Poll<Result<(), Self::Error>> {
+            self.tcp_pool.poll_ready(cx)
         }
 
         fn call(&mut self, req: Connect) -> Self::Future {
             match req.uri.scheme_str() {
                 Some("https") | Some("wss") => {
-                    Either::B(err(ConnectError::SslIsNotSupported))
+                    Either::Right(err(ConnectError::SslIsNotSupported))
                 }
-                _ => Either::A(self.tcp_pool.call(req)),
+                _ => Either::Left(self.tcp_pool.call(req)),
             }
         }
     }
@@ -403,18 +443,20 @@ mod connect_impl {
 mod connect_impl {
     use std::marker::PhantomData;
 
-    use futures::future::{Either, FutureResult};
-    use futures::{Async, Future, Poll};
+    use futures::future::Either;
+    use futures::ready;
 
     use super::*;
     use crate::client::connection::EitherConnection;
 
     pub(crate) struct InnerConnector<T1, T2, Io1, Io2>
     where
-        Io1: AsyncRead + AsyncWrite + 'static,
-        Io2: AsyncRead + AsyncWrite + 'static,
+        Io1: AsyncRead + AsyncWrite + Unpin + 'static,
+        Io2: AsyncRead + AsyncWrite + Unpin + 'static,
         T1: Service<Request = Connect, Response = (Io1, Protocol), Error = ConnectError>,
         T2: Service<Request = Connect, Response = (Io2, Protocol), Error = ConnectError>,
+        T1::Future: Unpin,
+        T2::Future: Unpin,
     {
         pub(crate) tcp_pool: ConnectionPool<T1, Io1>,
         pub(crate) ssl_pool: ConnectionPool<T2, Io2>,
@@ -422,14 +464,16 @@ mod connect_impl {
 
     impl<T1, T2, Io1, Io2> Clone for InnerConnector<T1, T2, Io1, Io2>
     where
-        Io1: AsyncRead + AsyncWrite + 'static,
-        Io2: AsyncRead + AsyncWrite + 'static,
+        Io1: AsyncRead + AsyncWrite + Unpin + 'static,
+        Io2: AsyncRead + AsyncWrite + Unpin + 'static,
         T1: Service<Request = Connect, Response = (Io1, Protocol), Error = ConnectError>
-            + Clone
+            + Unpin
             + 'static,
         T2: Service<Request = Connect, Response = (Io2, Protocol), Error = ConnectError>
-            + Clone
+            + Unpin
             + 'static,
+        T1::Future: Unpin,
+        T2::Future: Unpin,
     {
         fn clone(&self) -> Self {
             InnerConnector {
@@ -441,52 +485,50 @@ mod connect_impl {
 
     impl<T1, T2, Io1, Io2> Service for InnerConnector<T1, T2, Io1, Io2>
     where
-        Io1: AsyncRead + AsyncWrite + 'static,
-        Io2: AsyncRead + AsyncWrite + 'static,
+        Io1: AsyncRead + AsyncWrite + Unpin + 'static,
+        Io2: AsyncRead + AsyncWrite + Unpin + 'static,
         T1: Service<Request = Connect, Response = (Io1, Protocol), Error = ConnectError>
-            + Clone
+            + Unpin
             + 'static,
         T2: Service<Request = Connect, Response = (Io2, Protocol), Error = ConnectError>
-            + Clone
+            + Unpin
             + 'static,
+        T1::Future: Unpin,
+        T2::Future: Unpin,
     {
         type Request = Connect;
         type Response = EitherConnection<Io1, Io2>;
         type Error = ConnectError;
         type Future = Either<
-            FutureResult<Self::Response, Self::Error>,
-            Either<
-                InnerConnectorResponseA<T1, Io1, Io2>,
-                InnerConnectorResponseB<T2, Io1, Io2>,
-            >,
+            InnerConnectorResponseA<T1, Io1, Io2>,
+            InnerConnectorResponseB<T2, Io1, Io2>,
         >;
 
-        fn poll_ready(&mut self) -> Poll<(), Self::Error> {
-            self.tcp_pool.poll_ready()
+        fn poll_ready(&mut self, cx: &mut Context) -> Poll<Result<(), Self::Error>> {
+            self.tcp_pool.poll_ready(cx)
         }
 
         fn call(&mut self, req: Connect) -> Self::Future {
             match req.uri.scheme_str() {
-                Some("https") | Some("wss") => {
-                    Either::B(Either::B(InnerConnectorResponseB {
-                        fut: self.ssl_pool.call(req),
-                        _t: PhantomData,
-                    }))
-                }
-                _ => Either::B(Either::A(InnerConnectorResponseA {
+                Some("https") | Some("wss") => Either::B(InnerConnectorResponseB {
+                    fut: self.ssl_pool.call(req),
+                    _t: PhantomData,
+                }),
+                _ => Either::A(InnerConnectorResponseA {
                     fut: self.tcp_pool.call(req),
                     _t: PhantomData,
-                })),
+                }),
             }
         }
     }
 
     pub(crate) struct InnerConnectorResponseA<T, Io1, Io2>
     where
-        Io1: AsyncRead + AsyncWrite + 'static,
+        Io1: AsyncRead + AsyncWrite + Unpin + 'static,
         T: Service<Request = Connect, Response = (Io1, Protocol), Error = ConnectError>
-            + Clone
+            + Unpin
             + 'static,
+        T::Future: Unpin,
     {
         fut: <ConnectionPool<T, Io1> as Service>::Future,
         _t: PhantomData<Io2>,
@@ -495,28 +537,29 @@ mod connect_impl {
     impl<T, Io1, Io2> Future for InnerConnectorResponseA<T, Io1, Io2>
     where
         T: Service<Request = Connect, Response = (Io1, Protocol), Error = ConnectError>
-            + Clone
+            + Unpin
             + 'static,
-        Io1: AsyncRead + AsyncWrite + 'static,
-        Io2: AsyncRead + AsyncWrite + 'static,
+        T::Future: Unpin,
+        Io1: AsyncRead + AsyncWrite + Unpin + 'static,
+        Io2: AsyncRead + AsyncWrite + Unpin + 'static,
     {
-        type Item = EitherConnection<Io1, Io2>;
-        type Error = ConnectError;
+        type Output = Result<EitherConnection<Io1, Io2>, ConnectError>;
 
-        fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-            match self.fut.poll()? {
-                Async::NotReady => Ok(Async::NotReady),
-                Async::Ready(res) => Ok(Async::Ready(EitherConnection::A(res))),
-            }
+        fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+            Poll::Ready(
+                ready!(Pin::new(&mut self.get_mut().fut).poll(cx))
+                    .map(|res| EitherConnection::A(res)),
+            )
         }
     }
 
     pub(crate) struct InnerConnectorResponseB<T, Io1, Io2>
     where
-        Io2: AsyncRead + AsyncWrite + 'static,
+        Io2: AsyncRead + AsyncWrite + Unpin + 'static,
         T: Service<Request = Connect, Response = (Io2, Protocol), Error = ConnectError>
-            + Clone
+            + Unpin
             + 'static,
+        T::Future: Unpin,
     {
         fut: <ConnectionPool<T, Io2> as Service>::Future,
         _t: PhantomData<Io1>,
@@ -525,19 +568,19 @@ mod connect_impl {
     impl<T, Io1, Io2> Future for InnerConnectorResponseB<T, Io1, Io2>
     where
         T: Service<Request = Connect, Response = (Io2, Protocol), Error = ConnectError>
-            + Clone
+            + Unpin
             + 'static,
-        Io1: AsyncRead + AsyncWrite + 'static,
-        Io2: AsyncRead + AsyncWrite + 'static,
+        T::Future: Unpin,
+        Io1: AsyncRead + AsyncWrite + Unpin + 'static,
+        Io2: AsyncRead + AsyncWrite + Unpin + 'static,
     {
-        type Item = EitherConnection<Io1, Io2>;
-        type Error = ConnectError;
+        type Output = Result<EitherConnection<Io1, Io2>, ConnectError>;
 
-        fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-            match self.fut.poll()? {
-                Async::NotReady => Ok(Async::NotReady),
-                Async::Ready(res) => Ok(Async::Ready(EitherConnection::B(res))),
-            }
+        fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+            Poll::Ready(
+                ready!(Pin::new(&mut self.get_mut().fut).poll(cx))
+                    .map(|res| EitherConnection::B(res)),
+            )
         }
     }
 }
