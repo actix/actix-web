@@ -1,8 +1,8 @@
 use std::str;
 
 use log::warn;
-use ring::aead::{open_in_place, seal_in_place, Aad, Algorithm, Nonce, AES_256_GCM};
-use ring::aead::{OpeningKey, SealingKey};
+use ring::aead::{Aad, Algorithm, Nonce, AES_256_GCM};
+use ring::aead::{LessSafeKey, UnboundKey};
 use ring::rand::{SecureRandom, SystemRandom};
 
 use super::Key;
@@ -10,7 +10,7 @@ use crate::cookie::{Cookie, CookieJar};
 
 // Keep these in sync, and keep the key len synced with the `private` docs as
 // well as the `KEYS_INFO` const in secure::Key.
-static ALGO: &Algorithm = &AES_256_GCM;
+static ALGO: &'static Algorithm = &AES_256_GCM;
 const NONCE_LEN: usize = 12;
 pub const KEY_LEN: usize = 32;
 
@@ -53,11 +53,14 @@ impl<'a> PrivateJar<'a> {
         }
 
         let ad = Aad::from(name.as_bytes());
-        let key = OpeningKey::new(ALGO, &self.key).expect("opening key");
-        let (nonce, sealed) = data.split_at_mut(NONCE_LEN);
+        let key = LessSafeKey::new(
+            UnboundKey::new(&ALGO, &self.key).expect("matching key length"),
+        );
+        let (nonce, mut sealed) = data.split_at_mut(NONCE_LEN);
         let nonce =
             Nonce::try_assume_unique_for_key(nonce).expect("invalid length of `nonce`");
-        let unsealed = open_in_place(&key, nonce, ad, 0, sealed)
+        let unsealed = key
+            .open_in_place(nonce, ad, &mut sealed)
             .map_err(|_| "invalid key/nonce/value: bad seal")?;
 
         if let Ok(unsealed_utf8) = str::from_utf8(unsealed) {
@@ -196,30 +199,33 @@ Please change it as soon as possible."
 
 fn encrypt_name_value(name: &[u8], value: &[u8], key: &[u8]) -> Vec<u8> {
     // Create the `SealingKey` structure.
-    let key = SealingKey::new(ALGO, key).expect("sealing key creation");
+    let unbound = UnboundKey::new(&ALGO, key).expect("matching key length");
+    let key = LessSafeKey::new(unbound);
 
     // Create a vec to hold the [nonce | cookie value | overhead].
-    let overhead = ALGO.tag_len();
-    let mut data = vec![0; NONCE_LEN + value.len() + overhead];
+    let mut data = vec![0; NONCE_LEN + value.len() + ALGO.tag_len()];
 
     // Randomly generate the nonce, then copy the cookie value as input.
     let (nonce, in_out) = data.split_at_mut(NONCE_LEN);
+    let (in_out, tag) = in_out.split_at_mut(value.len());
+    in_out.copy_from_slice(value);
+
+    // Randomly generate the nonce into the nonce piece.
     SystemRandom::new()
         .fill(nonce)
         .expect("couldn't random fill nonce");
-    in_out[..value.len()].copy_from_slice(value);
-    let nonce =
-        Nonce::try_assume_unique_for_key(nonce).expect("invalid length of `nonce`");
+    let nonce = Nonce::try_assume_unique_for_key(nonce).expect("invalid `nonce` length");
 
     // Use cookie's name as associated data to prevent value swapping.
     let ad = Aad::from(name);
+    let ad_tag = key
+        .seal_in_place_separate_tag(nonce, ad, in_out)
+        .expect("in-place seal");
 
-    // Perform the actual sealing operation and get the output length.
-    let output_len =
-        seal_in_place(&key, nonce, ad, in_out, overhead).expect("in-place seal");
+    // Copy the tag into the tag piece.
+    tag.copy_from_slice(ad_tag.as_ref());
 
     // Remove the overhead and return the sealed content.
-    data.truncate(NONCE_LEN + output_len);
     data
 }
 

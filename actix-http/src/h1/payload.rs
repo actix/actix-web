@@ -234,7 +234,7 @@ mod tests {
     fn test_unread_data() {
         Runtime::new()
             .unwrap()
-            .block_on(lazy(|| {
+            .block_on(async {
                 let (_, mut payload) = Payload::create(false);
 
                 payload.unread_data(Bytes::from("data"));
@@ -242,13 +242,12 @@ mod tests {
                 assert_eq!(payload.len(), 4);
 
                 assert_eq!(
-                    Async::Ready(Some(Bytes::from("data"))),
-                    payload.poll().ok().unwrap()
+                    Poll::Ready(Some(Bytes::from("data"))),
+                    payload.next_item().await.ok().unwrap()
                 );
 
-                let res: Result<(), ()> = Ok(());
-                result(res)
-            }))
+                result(())
+            })
             .unwrap();
     }
 }
