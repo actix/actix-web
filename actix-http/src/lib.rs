@@ -13,7 +13,7 @@ extern crate log;
 
 pub mod body;
 mod builder;
-// pub mod client;
+pub mod client;
 mod cloneable;
 mod config;
 pub mod encoding;
@@ -32,8 +32,8 @@ pub mod cookie;
 pub mod error;
 pub mod h1;
 pub mod h2;
-// pub mod test;
-// pub mod ws;
+pub mod test;
+pub mod ws;
 
 pub use self::builder::HttpServiceBuilder;
 pub use self::config::{KeepAlive, ServiceConfig};

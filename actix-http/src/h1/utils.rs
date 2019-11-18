@@ -55,7 +55,7 @@ where
                             if item.is_none() {
                                 let _ = this.body.take();
                             }
-                            framed.force_send(Message::Chunk(item))?;
+                            framed.write(Message::Chunk(item))?;
                         }
                         Poll::Pending => body_ready = false,
                     }
@@ -78,7 +78,7 @@ where
 
             // send response
             if let Some(res) = this.res.take() {
-                framed.force_send(res)?;
+                framed.write(res)?;
                 continue;
             }
 

@@ -6,8 +6,8 @@ use std::{io, time};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use bytes::{BufMut, Bytes, BytesMut};
-use futures::future::{ok, Either};
-use futures::{Sink, Stream};
+use futures::future::{ok, poll_fn, Either};
+use futures::{Sink, SinkExt, Stream, StreamExt};
 
 use crate::error::PayloadError;
 use crate::h1;
@@ -21,15 +21,15 @@ use super::error::{ConnectError, SendRequestError};
 use super::pool::Acquired;
 use crate::body::{BodySize, MessageBody};
 
-pub(crate) fn send_request<T, B>(
+pub(crate) async fn send_request<T, B>(
     io: T,
     mut head: RequestHeadType,
     body: B,
     created: time::Instant,
     pool: Option<Acquired<T>>,
-) -> impl Future<Item = (ResponseHead, Payload), Error = SendRequestError>
+) -> Result<(ResponseHead, Payload), SendRequestError>
 where
-    T: AsyncRead + AsyncWrite + 'static,
+    T: AsyncRead + AsyncWrite + Unpin + 'static,
     B: MessageBody,
 {
     // set request host header
@@ -65,68 +65,98 @@ where
         io: Some(io),
     };
 
-    let len = body.size();
-
     // create Framed and send request
-    Framed::new(io, h1::ClientCodec::default())
-        .send((head, len).into())
-        .from_err()
-        // send request body
-        .and_then(move |framed| match body.size() {
-            BodySize::None | BodySize::Empty | BodySize::Sized(0) => {
-                Either::A(ok(framed))
-            }
-            _ => Either::B(SendBody::new(body, framed)),
-        })
-        // read response and init read body
-        .and_then(|framed| {
-            framed
-                .into_future()
-                .map_err(|(e, _)| SendRequestError::from(e))
-                .and_then(|(item, framed)| {
-                    if let Some(res) = item {
-                        match framed.get_codec().message_type() {
-                            h1::MessageType::None => {
-                                let force_close = !framed.get_codec().keepalive();
-                                release_connection(framed, force_close);
-                                Ok((res, Payload::None))
-                            }
-                            _ => {
-                                let pl: PayloadStream = Box::new(PlStream::new(framed));
-                                Ok((res, pl.into()))
-                            }
-                        }
-                    } else {
-                        Err(ConnectError::Disconnected.into())
-                    }
-                })
-        })
+    let mut framed = Framed::new(io, h1::ClientCodec::default());
+    framed.send((head, body.size()).into()).await?;
+
+    // send request body
+    match body.size() {
+        BodySize::None | BodySize::Empty | BodySize::Sized(0) => (),
+        _ => send_body(body, &mut framed).await?,
+    };
+
+    // read response and init read body
+    let (head, framed) = if let (Some(result), framed) = framed.into_future().await {
+        let item = result.map_err(SendRequestError::from)?;
+        (item, framed)
+    } else {
+        return Err(SendRequestError::from(ConnectError::Disconnected));
+    };
+
+    match framed.get_codec().message_type() {
+        h1::MessageType::None => {
+            let force_close = !framed.get_codec().keepalive();
+            release_connection(framed, force_close);
+            Ok((head, Payload::None))
+        }
+        _ => {
+            let pl: PayloadStream = PlStream::new(framed).boxed_local();
+            Ok((head, pl.into()))
+        }
+    }
 }
 
-pub(crate) fn open_tunnel<T>(
+pub(crate) async fn open_tunnel<T>(
     io: T,
     head: RequestHeadType,
-) -> impl Future<Item = (ResponseHead, Framed<T, h1::ClientCodec>), Error = SendRequestError>
+) -> Result<(ResponseHead, Framed<T, h1::ClientCodec>), SendRequestError>
 where
-    T: AsyncRead + AsyncWrite + 'static,
+    T: AsyncRead + AsyncWrite + Unpin + 'static,
 {
     // create Framed and send request
-    Framed::new(io, h1::ClientCodec::default())
-        .send((head, BodySize::None).into())
-        .from_err()
-        // read response
-        .and_then(|framed| {
-            framed
-                .into_future()
-                .map_err(|(e, _)| SendRequestError::from(e))
-                .and_then(|(head, framed)| {
-                    if let Some(head) = head {
-                        Ok((head, framed))
+    let mut framed = Framed::new(io, h1::ClientCodec::default());
+    framed.send((head, BodySize::None).into()).await?;
+
+    // read response
+    if let (Some(result), framed) = framed.into_future().await {
+        let head = result.map_err(SendRequestError::from)?;
+        Ok((head, framed))
+    } else {
+        Err(SendRequestError::from(ConnectError::Disconnected))
+    }
+}
+
+/// send request body to the peer
+pub(crate) async fn send_body<I, B>(
+    mut body: B,
+    framed: &mut Framed<I, h1::ClientCodec>,
+) -> Result<(), SendRequestError>
+where
+    I: ConnectionLifetime,
+    B: MessageBody,
+{
+    let mut eof = false;
+    while !eof {
+        while !eof && !framed.is_write_buf_full() {
+            match poll_fn(|cx| body.poll_next(cx)).await {
+                Some(result) => {
+                    framed.write(h1::Message::Chunk(Some(result?)))?;
+                }
+                None => {
+                    eof = true;
+                    framed.write(h1::Message::Chunk(None))?;
+                }
+            }
+        }
+
+        if !framed.is_write_buf_empty() {
+            poll_fn(|cx| match framed.flush(cx) {
+                Poll::Ready(Ok(_)) => Poll::Ready(Ok(())),
+                Poll::Ready(Err(err)) => Poll::Ready(Err(err)),
+                Poll::Pending => {
+                    if !framed.is_write_buf_full() {
+                        Poll::Ready(Ok(()))
                     } else {
-                        Err(SendRequestError::from(ConnectError::Disconnected))
+                        Poll::Pending
                     }
-                })
-        })
+                }
+            })
+            .await?;
+        }
+    }
+
+    SinkExt::flush(framed).await?;
+    Ok(())
 }
 
 #[doc(hidden)]
@@ -137,7 +167,10 @@ pub struct H1Connection<T> {
     pool: Option<Acquired<T>>,
 }
 
-impl<T: AsyncRead + AsyncWrite + 'static> ConnectionLifetime for H1Connection<T> {
+impl<T> ConnectionLifetime for H1Connection<T>
+where
+    T: AsyncRead + AsyncWrite + Unpin + 'static,
+{
     /// Close connection
     fn close(&mut self) {
         if let Some(mut pool) = self.pool.take() {
@@ -165,98 +198,41 @@ impl<T: AsyncRead + AsyncWrite + 'static> ConnectionLifetime for H1Connection<T>
     }
 }
 
-impl<T: AsyncRead + AsyncWrite + 'static> io::Read for H1Connection<T> {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.io.as_mut().unwrap().read(buf)
+impl<T: AsyncRead + AsyncWrite + Unpin + 'static> AsyncRead for H1Connection<T> {
+    unsafe fn prepare_uninitialized_buffer(&self, buf: &mut [u8]) -> bool {
+        self.io.as_ref().unwrap().prepare_uninitialized_buffer(buf)
+    }
+
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut [u8],
+    ) -> Poll<io::Result<usize>> {
+        Pin::new(&mut self.io.as_mut().unwrap()).poll_read(cx, buf)
     }
 }
 
-impl<T: AsyncRead + AsyncWrite + 'static> AsyncRead for H1Connection<T> {}
-
-impl<T: AsyncRead + AsyncWrite + 'static> io::Write for H1Connection<T> {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.io.as_mut().unwrap().write(buf)
+impl<T: AsyncRead + AsyncWrite + Unpin + 'static> AsyncWrite for H1Connection<T> {
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<io::Result<usize>> {
+        Pin::new(&mut self.io.as_mut().unwrap()).poll_write(cx, buf)
     }
 
-    fn flush(&mut self) -> io::Result<()> {
-        self.io.as_mut().unwrap().flush()
+    fn poll_flush(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<io::Result<()>> {
+        Pin::new(self.io.as_mut().unwrap()).poll_flush(cx)
     }
-}
 
-impl<T: AsyncRead + AsyncWrite + 'static> AsyncWrite for H1Connection<T> {
-    fn shutdown(&mut self) -> Poll<(), io::Error> {
-        self.io.as_mut().unwrap().shutdown()
-    }
-}
-
-/// Future responsible for sending request body to the peer
-pub(crate) struct SendBody<I, B> {
-    body: Option<B>,
-    framed: Option<Framed<I, h1::ClientCodec>>,
-    flushed: bool,
-}
-
-impl<I, B> SendBody<I, B>
-where
-    I: AsyncRead + AsyncWrite + 'static,
-    B: MessageBody,
-{
-    pub(crate) fn new(body: B, framed: Framed<I, h1::ClientCodec>) -> Self {
-        SendBody {
-            body: Some(body),
-            framed: Some(framed),
-            flushed: true,
-        }
-    }
-}
-
-impl<I, B> Future for SendBody<I, B>
-where
-    I: ConnectionLifetime,
-    B: MessageBody,
-{
-    type Item = Framed<I, h1::ClientCodec>;
-    type Error = SendRequestError;
-
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        let mut body_ready = true;
-        loop {
-            while body_ready
-                && self.body.is_some()
-                && !self.framed.as_ref().unwrap().is_write_buf_full()
-            {
-                match self.body.as_mut().unwrap().poll_next()? {
-                    Async::Ready(item) => {
-                        // check if body is done
-                        if item.is_none() {
-                            let _ = self.body.take();
-                        }
-                        self.flushed = false;
-                        self.framed
-                            .as_mut()
-                            .unwrap()
-                            .force_send(h1::Message::Chunk(item))?;
-                        break;
-                    }
-                    Async::NotReady => body_ready = false,
-                }
-            }
-
-            if !self.flushed {
-                match self.framed.as_mut().unwrap().poll_complete()? {
-                    Async::Ready(_) => {
-                        self.flushed = true;
-                        continue;
-                    }
-                    Async::NotReady => return Ok(Async::NotReady),
-                }
-            }
-
-            if self.body.is_none() {
-                return Ok(Async::Ready(self.framed.take().unwrap()));
-            }
-            return Ok(Async::NotReady);
-        }
+    fn poll_shutdown(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context,
+    ) -> Poll<Result<(), io::Error>> {
+        Pin::new(self.io.as_mut().unwrap()).poll_shutdown(cx)
     }
 }
 
@@ -273,23 +249,24 @@ impl<Io: ConnectionLifetime> PlStream<Io> {
 }
 
 impl<Io: ConnectionLifetime> Stream for PlStream<Io> {
-    type Item = Bytes;
-    type Error = PayloadError;
+    type Item = Result<Bytes, PayloadError>;
 
-    fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
-        match self.framed.as_mut().unwrap().poll()? {
-            Async::NotReady => Ok(Async::NotReady),
-            Async::Ready(Some(chunk)) => {
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
+        let this = self.get_mut();
+
+        match this.framed.as_mut().unwrap().next_item(cx)? {
+            Poll::Pending => Poll::Pending,
+            Poll::Ready(Some(chunk)) => {
                 if let Some(chunk) = chunk {
-                    Ok(Async::Ready(Some(chunk)))
+                    Poll::Ready(Some(Ok(chunk)))
                 } else {
-                    let framed = self.framed.take().unwrap();
+                    let framed = this.framed.take().unwrap();
                     let force_close = !framed.get_codec().keepalive();
                     release_connection(framed, force_close);
-                    Ok(Async::Ready(None))
+                    Poll::Ready(None)
                 }
             }
-            Async::Ready(None) => Ok(Async::Ready(None)),
+            Poll::Ready(None) => Poll::Ready(None),
         }
     }
 }
