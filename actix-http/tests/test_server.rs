@@ -4,10 +4,10 @@ use std::{net, thread};
 
 use actix_http_test::TestServer;
 use actix_server_config::ServerConfig;
-use actix_service::{new_service_cfg, service_fn, NewService};
+use actix_service::{factory_fn_cfg, pipeline, service_fn, ServiceFactory};
 use bytes::Bytes;
-use futures::future::{self, ok, Future};
-use futures::stream::{once, Stream};
+use futures::future::{self, err, ok, ready, Future, FutureExt};
+use futures::stream::{once, Stream, StreamExt};
 use regex::Regex;
 use tokio_timer::sleep;
 
@@ -58,9 +58,9 @@ fn test_expect_continue() {
         HttpService::build()
             .expect(service_fn(|req: Request| {
                 if req.head().uri.query() == Some("yes=") {
-                    Ok(req)
+                    ok(req)
                 } else {
-                    Err(error::ErrorPreconditionFailed("error"))
+                    err(error::ErrorPreconditionFailed("error"))
                 }
             }))
             .finish(|_| future::ok::<_, ()>(Response::Ok().finish()))
@@ -117,9 +117,12 @@ fn test_chunked_payload() {
         HttpService::build().h1(|mut request: Request| {
             request
                 .take_payload()
-                .map_err(|e| panic!(format!("Error reading payload: {}", e)))
-                .fold(0usize, |acc, chunk| future::ok::<_, ()>(acc + chunk.len()))
-                .map(|req_size| Response::Ok().body(format!("size={}", req_size)))
+                .map(|res| match res {
+                    Ok(pl) => pl,
+                    Err(e) => panic!(format!("Error reading payload: {}", e)),
+                })
+                .fold(0usize, |acc, chunk| ready(acc + chunk.len()))
+                .map(|req_size| ok(Response::Ok().body(format!("size={}", req_size))))
         })
     });
 
@@ -414,7 +417,7 @@ const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
 #[test]
 fn test_h1_body() {
     let mut srv = TestServer::new(|| {
-        HttpService::build().h1(|_| future::ok::<_, ()>(Response::Ok().body(STR)))
+        HttpService::build().h1(|_| ok::<_, ()>(Response::Ok().body(STR)))
     });
 
     let response = srv.block_on(srv.get("/").send()).unwrap();
@@ -493,7 +496,7 @@ fn test_h1_head_binary2() {
 fn test_h1_body_length() {
     let mut srv = TestServer::new(|| {
         HttpService::build().h1(|_| {
-            let body = once(Ok(Bytes::from_static(STR.as_ref())));
+            let body = once(ok(Bytes::from_static(STR.as_ref())));
             ok::<_, ()>(
                 Response::Ok().body(body::SizedStream::new(STR.len() as u64, body)),
             )
@@ -512,7 +515,7 @@ fn test_h1_body_length() {
 fn test_h1_body_chunked_explicit() {
     let mut srv = TestServer::new(|| {
         HttpService::build().h1(|_| {
-            let body = once::<_, Error>(Ok(Bytes::from_static(STR.as_ref())));
+            let body = once(ok::<_, Error>(Bytes::from_static(STR.as_ref())));
             ok::<_, ()>(
                 Response::Ok()
                     .header(header::TRANSFER_ENCODING, "chunked")
@@ -544,7 +547,7 @@ fn test_h1_body_chunked_explicit() {
 fn test_h1_body_chunked_implicit() {
     let mut srv = TestServer::new(|| {
         HttpService::build().h1(|_| {
-            let body = once::<_, Error>(Ok(Bytes::from_static(STR.as_ref())));
+            let body = once(ok::<_, Error>(Bytes::from_static(STR.as_ref())));
             ok::<_, ()>(Response::Ok().streaming(body))
         })
     });
@@ -569,15 +572,15 @@ fn test_h1_body_chunked_implicit() {
 #[test]
 fn test_h1_response_http_error_handling() {
     let mut srv = TestServer::new(|| {
-        HttpService::build().h1(new_service_cfg(|_: &ServerConfig| {
-            Ok::<_, ()>(|_| {
+        HttpService::build().h1(factory_fn_cfg(|_: &ServerConfig| {
+            ok::<_, ()>(pipeline(|_| {
                 let broken_header = Bytes::from_static(b"\0\0\0");
                 ok::<_, ()>(
                     Response::Ok()
                         .header(http::header::CONTENT_TYPE, broken_header)
                         .body(STR),
                 )
-            })
+            }))
         }))
     });
 
@@ -593,7 +596,7 @@ fn test_h1_response_http_error_handling() {
 fn test_h1_service_error() {
     let mut srv = TestServer::new(|| {
         HttpService::build()
-            .h1(|_| Err::<Response, Error>(error::ErrorBadRequest("error")))
+            .h1(|_| future::err::<Response, Error>(error::ErrorBadRequest("error")))
     });
 
     let response = srv.block_on(srv.get("/").send()).unwrap();

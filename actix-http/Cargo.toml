@@ -27,7 +27,7 @@ path = "src/lib.rs"
 default = []
 
 # openssl
-openssl = ["open-ssl", "actix-connect/openssl"]
+openssl = ["open-ssl", "actix-connect/openssl", "tokio-openssl"]
 
 # rustls support
 rustls = ["rust-tls", "webpki-roots", "actix-connect/rustls"]
@@ -100,6 +100,8 @@ flate2 = { version="1.0.7", optional = true, default-features = false }
 # optional deps
 failure = { version = "0.1.5", optional = true }
 open-ssl = { version="0.10", package="openssl", optional = true }
+tokio-openssl = { version = "0.4.0-alpha.6", optional = true }
+
 rust-tls = { version = "0.16.0", package="rustls", optional = true }
 webpki-roots = { version = "0.18", optional = true }
 
