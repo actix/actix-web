@@ -45,7 +45,9 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use actix_web::dev::{Extensions, Payload, ServiceRequest, ServiceResponse};
+use actix_web::dev::{
+    Extensions, Payload, RequestHead, ServiceRequest, ServiceResponse,
+};
 use actix_web::{Error, FromRequest, HttpMessage, HttpRequest};
 use futures::future::{ok, Ready};
 use hashbrown::HashMap;
@@ -94,6 +96,12 @@ impl UserSession for HttpRequest {
 }
 
 impl UserSession for ServiceRequest {
+    fn get_session(&mut self) -> Session {
+        Session::get_session(&mut *self.extensions_mut())
+    }
+}
+
+impl UserSession for RequestHead {
     fn get_session(&mut self) -> Session {
         Session::get_session(&mut *self.extensions_mut())
     }
