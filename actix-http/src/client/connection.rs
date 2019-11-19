@@ -22,7 +22,7 @@ pub(crate) enum ConnectionType<Io> {
 }
 
 pub trait Connection {
-    type Io: AsyncRead + AsyncWrite;
+    type Io: AsyncRead + AsyncWrite + Unpin;
     type Future: Future<Output = Result<(ResponseHead, Payload), SendRequestError>>;
 
     fn protocol(&self) -> Protocol;

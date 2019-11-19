@@ -1,73 +1,18 @@
 //! Various helpers for Actix applications to use during testing.
-use std::cell::RefCell;
 use std::sync::mpsc;
 use std::{net, thread, time};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
-use actix_rt::{Runtime, System};
-use actix_server::{Server, StreamServiceFactory};
+use actix_rt::{System};
+use actix_server::{Server, ServiceFactory};
 use awc::{error::PayloadError, ws, Client, ClientRequest, ClientResponse, Connector};
 use bytes::Bytes;
-use futures::future::lazy;
-use futures::{Future, IntoFuture, Stream};
+use futures::{Stream, future::lazy};
 use http::Method;
 use net2::TcpBuilder;
-use tokio_tcp::TcpStream;
+use tokio_net::tcp::TcpStream;
 
-thread_local! {
-    static RT: RefCell<Inner> = {
-        RefCell::new(Inner(Some(Runtime::new().unwrap())))
-    };
-}
-
-struct Inner(Option<Runtime>);
-
-impl Inner {
-    fn get_mut(&mut self) -> &mut Runtime {
-        self.0.as_mut().unwrap()
-    }
-}
-
-impl Drop for Inner {
-    fn drop(&mut self) {
-        std::mem::forget(self.0.take().unwrap())
-    }
-}
-
-/// Runs the provided future, blocking the current thread until the future
-/// completes.
-///
-/// This function can be used to synchronously block the current thread
-/// until the provided `future` has resolved either successfully or with an
-/// error. The result of the future is then returned from this function
-/// call.
-///
-/// Note that this function is intended to be used only for testing purpose.
-/// This function panics on nested call.
-pub fn block_on<F>(f: F) -> Result<F::Item, F::Error>
-where
-    F: IntoFuture,
-{
-    RT.with(move |rt| rt.borrow_mut().get_mut().block_on(f.into_future()))
-}
-
-/// Runs the provided function, blocking the current thread until the resul
-/// future completes.
-///
-/// This function can be used to synchronously block the current thread
-/// until the provided `future` has resolved either successfully or with an
-/// error. The result of the future is then returned from this function
-/// call.
-///
-/// Note that this function is intended to be used only for testing purpose.
-/// This function panics on nested call.
-pub fn block_fn<F, R>(f: F) -> Result<R::Item, R::Error>
-where
-    F: FnOnce() -> R,
-    R: IntoFuture,
-{
-    RT.with(move |rt| rt.borrow_mut().get_mut().block_on(lazy(f)))
-}
+pub use actix_testing::*;
 
 /// The `TestServer` type.
 ///
@@ -110,7 +55,7 @@ pub struct TestServerRuntime {
 impl TestServer {
     #[allow(clippy::new_ret_no_self)]
     /// Start new test server with application factory
-    pub fn new<F: StreamServiceFactory<TcpStream>>(factory: F) -> TestServerRuntime {
+    pub fn new<F: ServiceFactory<TcpStream>>(factory: F) -> TestServerRuntime {
         let (tx, rx) = mpsc::channel();
 
         // run server in separate thread
@@ -131,7 +76,7 @@ impl TestServer {
 
         let (system, addr) = rx.recv().unwrap();
 
-        let client = block_on(lazy(move || {
+        let client = block_on(lazy(move |_| {
             let connector = {
                 #[cfg(feature = "ssl")]
                 {
@@ -161,9 +106,9 @@ impl TestServer {
         }))
         .unwrap();
 
-        block_on(lazy(
-            || Ok::<_, ()>(actix_connect::start_default_resolver()),
-        ))
+        block_on(lazy(|_| {
+            Ok::<_, ()>(actix_connect::start_default_resolver())
+        }))
         .unwrap();
 
         TestServerRuntime {
@@ -185,31 +130,6 @@ impl TestServer {
 }
 
 impl TestServerRuntime {
-    /// Execute future on current core
-    pub fn block_on<F, I, E>(&mut self, fut: F) -> Result<I, E>
-    where
-        F: Future<Item = I, Error = E>,
-    {
-        block_on(fut)
-    }
-
-    /// Execute future on current core
-    pub fn block_on_fn<F, R>(&mut self, f: F) -> Result<R::Item, R::Error>
-    where
-        F: FnOnce() -> R,
-        R: Future,
-    {
-        block_on(lazy(f))
-    }
-
-    /// Execute function on current core
-    pub fn execute<F, R>(&mut self, fut: F) -> R
-    where
-        F: FnOnce() -> R,
-    {
-        block_on(lazy(|| Ok::<_, ()>(fut()))).unwrap()
-    }
-
     /// Construct test server url
     pub fn addr(&self) -> net::SocketAddr {
         self.addr
@@ -313,9 +233,9 @@ impl TestServerRuntime {
         mut response: ClientResponse<S>,
     ) -> Result<Bytes, PayloadError>
     where
-        S: Stream<Item = Bytes, Error = PayloadError> + 'static,
+        S: Stream<Item = Result<Bytes, PayloadError>> + Unpin + 'static,
     {
-        self.block_on(response.body().limit(10_485_760))
+        block_on(response.body().limit(10_485_760))
     }
 
     /// Connect to websocket server at a given path
@@ -326,7 +246,9 @@ impl TestServerRuntime {
     {
         let url = self.url(path);
         let connect = self.client.ws(url).connect();
-        block_on(lazy(move || connect.map(|(_, framed)| framed)))
+        block_on(async move {
+            connect.await.map(|(_, framed)| framed)
+        })
     }
 
     /// Connect to a websocket server

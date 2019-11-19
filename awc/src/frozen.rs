@@ -82,7 +82,7 @@ impl FrozenClientRequest {
     /// Send a streaming body.
     pub fn send_stream<S, E>(&self, stream: S) -> SendClientRequest
     where
-        S: Stream<Item = Bytes, Error = E> + 'static,
+        S: Stream<Item = Result<Bytes, E>> + Unpin + 'static,
         E: Into<Error> + 'static,
     {
         RequestSender::Rc(self.head.clone(), None).send_stream(
@@ -203,7 +203,7 @@ impl FrozenSendBuilder {
     /// Complete request construction and send a streaming body.
     pub fn send_stream<S, E>(self, stream: S) -> SendClientRequest
     where
-        S: Stream<Item = Bytes, Error = E> + 'static,
+        S: Stream<Item = Result<Bytes, E>> + Unpin + 'static,
         E: Into<Error> + 'static,
     {
         if let Some(e) = self.err {

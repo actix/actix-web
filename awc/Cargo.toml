@@ -1,6 +1,6 @@
 [package]
 name = "awc"
-version = "0.2.8"
+version = "0.3.0-alpha.1"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix http client."
 readme = "README.md"
@@ -14,23 +14,23 @@ categories = ["network-programming", "asynchronous",
 license = "MIT/Apache-2.0"
 exclude = [".gitignore", ".travis.yml", ".cargo/config", "appveyor.yml"]
 edition = "2018"
-workspace = ".."
+# workspace = ".."
 
 [lib]
 name = "awc"
 path = "src/lib.rs"
 
 [package.metadata.docs.rs]
-features = ["ssl", "brotli", "flate2-zlib"]
+features = ["openssl", "brotli", "flate2-zlib"]
 
 [features]
 default = ["brotli", "flate2-zlib"]
 
 # openssl
-ssl = ["openssl", "actix-http/ssl"]
+openssl = ["open-ssl", "actix-http/openssl"]
 
 # rustls
-rust-tls = ["rustls", "actix-http/rust-tls"]
+rustls = ["rust-tls", "actix-http/rustls"]
 
 # brotli encoding, requires c compiler
 brotli = ["actix-http/brotli"]
@@ -42,13 +42,14 @@ flate2-zlib = ["actix-http/flate2-zlib"]
 flate2-rust = ["actix-http/flate2-rust"]
 
 [dependencies]
-actix-codec = "0.1.2"
-actix-service = "0.4.1"
-actix-http = "0.2.11"
+actix-codec = "0.2.0-alpha.1"
+actix-service = "1.0.0-alpha.1"
+actix-http = "0.3.0-alpha.1"
+
 base64 = "0.10.1"
 bytes = "0.4"
 derive_more = "0.15.0"
-futures = "0.1.25"
+futures = "0.3.1"
 log =" 0.4"
 mime = "0.3"
 percent-encoding = "2.1"
@@ -56,21 +57,33 @@ rand = "0.7"
 serde = "1.0"
 serde_json = "1.0"
 serde_urlencoded = "0.6.1"
-tokio-timer = "0.2.8"
-openssl = { version="0.10", optional = true }
-rustls = { version = "0.15.2", optional = true }
+tokio-timer = "0.3.0-alpha.6"
+open-ssl = { version="0.10", package="openssl", optional = true }
+rust-tls = { version = "0.16.0", package="rustls", optional = true }
 
 [dev-dependencies]
-actix-rt = "0.2.2"
-actix-web = { version = "1.0.8", features=["ssl"] }
-actix-http = { version = "0.2.11", features=["ssl"] }
-actix-http-test = { version = "0.2.0", features=["ssl"] }
-actix-utils = "0.4.1"
-actix-server = { version = "0.6.0", features=["ssl", "rust-tls"] }
+actix-rt = "1.0.0-alpha.1"
+#actix-web = { version = "1.0.8", features=["ssl"] }
+actix-http = { version = "0.3.0-alpha.1", features=["openssl"] }
+#actix-http-test = { version = "0.2.0", features=["ssl"] }
+actix-utils = "0.5.0-alpha.1"
+actix-server = { version = "0.8.0-alpha.1", features=["openssl", "rustls"] }
 brotli2 = { version="0.3.2" }
 flate2 = { version="1.0.2" }
 env_logger = "0.6"
 rand = "0.7"
 tokio-tcp = "0.1"
-webpki = "0.19"
-rustls = { version = "0.15.2", features = ["dangerous_configuration"] }
+webpki = { version = "0.21" }
+rus-tls = { version = "0.16.0", package="rustls", features = ["dangerous_configuration"] }
+
+[patch.crates-io]
+actix-http = { path = "../actix-http" }
+
+actix-codec = { path = "../../actix-net/actix-codec" }
+actix-connect = { path = "../../actix-net/actix-connect" }
+actix-rt = { path = "../../actix-net/actix-rt" }
+actix-server = { path = "../../actix-net/actix-server" }
+actix-server-config = { path = "../../actix-net/actix-server-config" }
+actix-service = { path = "../../actix-net/actix-service" }
+actix-threadpool = { path = "../../actix-net/actix-threadpool" }
+actix-utils = { path = "../../actix-net/actix-utils" }

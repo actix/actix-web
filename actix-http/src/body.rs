@@ -253,7 +253,7 @@ where
 impl<S, E> From<BodyStream<S, E>> for Body
 where
     S: Stream<Item = Result<Bytes, E>> + Unpin + 'static,
-    E: Into<Error> + Unpin + 'static,
+    E: Into<Error> + 'static,
 {
     fn from(s: BodyStream<S, E>) -> Body {
         Body::from_message(s)
@@ -368,10 +368,17 @@ where
     }
 }
 
+impl<S, E> Unpin for BodyStream<S, E>
+where
+    S: Stream<Item = Result<Bytes, E>> + Unpin,
+    E: Into<Error>,
+{
+}
+
 impl<S, E> MessageBody for BodyStream<S, E>
 where
     S: Stream<Item = Result<Bytes, E>> + Unpin,
-    E: Into<Error> + Unpin,
+    E: Into<Error>,
 {
     fn size(&self) -> BodySize {
         BodySize::Stream
