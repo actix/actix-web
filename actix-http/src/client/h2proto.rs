@@ -159,6 +159,8 @@ async fn send_body<B: MessageBody>(
                 } else {
                     if !b.is_empty() {
                         send.reserve_capacity(b.len());
+                    } else {
+                        buf = None;
                     }
                     continue;
                 }

@@ -204,7 +204,6 @@ mod tests {
         assert_eq!(req.uri().query(), Some("q=1"));
 
         let s = format!("{:?}", req);
-        println!("T: {:?}", s);
         assert!(s.contains("Request HTTP/1.1 GET:/index.html"));
     }
 }
