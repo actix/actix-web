@@ -6,6 +6,7 @@ use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use bytes::{Buf, Bytes};
 use futures::future::{err, Either, Future, FutureExt, LocalBoxFuture, Ready};
 use h2::client::SendRequest;
+use pin_project::{pin_project, project};
 
 use crate::body::MessageBody;
 use crate::h1::ClientCodec;
@@ -42,9 +43,7 @@ pub trait Connection {
     fn open_tunnel<H: Into<RequestHeadType>>(self, head: H) -> Self::TunnelFuture;
 }
 
-pub(crate) trait ConnectionLifetime:
-    AsyncRead + AsyncWrite + Unpin + 'static
-{
+pub(crate) trait ConnectionLifetime: AsyncRead + AsyncWrite + 'static {
     /// Close connection
     fn close(&mut self);
 
@@ -73,7 +72,7 @@ where
     }
 }
 
-impl<T: AsyncRead + AsyncWrite> IoConnection<T> {
+impl<T: AsyncRead + AsyncWrite + Unpin> IoConnection<T> {
     pub(crate) fn new(
         io: ConnectionType<T>,
         created: time::Instant,
@@ -205,24 +204,27 @@ where
     }
 }
 
+#[pin_project]
 pub enum EitherIo<A, B> {
-    A(A),
-    B(B),
+    A(#[pin] A),
+    B(#[pin] B),
 }
 
 impl<A, B> AsyncRead for EitherIo<A, B>
 where
-    A: AsyncRead + Unpin,
-    B: AsyncRead + Unpin,
+    A: AsyncRead,
+    B: AsyncRead,
 {
+    #[project]
     fn poll_read(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         buf: &mut [u8],
     ) -> Poll<io::Result<usize>> {
-        match self.get_mut() {
-            EitherIo::A(ref mut val) => Pin::new(val).poll_read(cx, buf),
-            EitherIo::B(ref mut val) => Pin::new(val).poll_read(cx, buf),
+        #[project]
+        match self.project() {
+            EitherIo::A(val) => val.poll_read(cx, buf),
+            EitherIo::B(val) => val.poll_read(cx, buf),
         }
     }
 
@@ -236,37 +238,44 @@ where
 
 impl<A, B> AsyncWrite for EitherIo<A, B>
 where
-    A: AsyncWrite + Unpin,
-    B: AsyncWrite + Unpin,
+    A: AsyncWrite,
+    B: AsyncWrite,
 {
+    #[project]
     fn poll_write(
         self: Pin<&mut Self>,
         cx: &mut Context,
         buf: &[u8],
     ) -> Poll<io::Result<usize>> {
-        match self.get_mut() {
-            EitherIo::A(ref mut val) => Pin::new(val).poll_write(cx, buf),
-            EitherIo::B(ref mut val) => Pin::new(val).poll_write(cx, buf),
+        #[project]
+        match self.project() {
+            EitherIo::A(val) => val.poll_write(cx, buf),
+            EitherIo::B(val) => val.poll_write(cx, buf),
         }
     }
 
+    #[project]
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        match self.get_mut() {
-            EitherIo::A(ref mut val) => Pin::new(val).poll_flush(cx),
-            EitherIo::B(ref mut val) => Pin::new(val).poll_flush(cx),
+        #[project]
+        match self.project() {
+            EitherIo::A(val) => val.poll_flush(cx),
+            EitherIo::B(val) => val.poll_flush(cx),
         }
     }
 
+    #[project]
     fn poll_shutdown(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
     ) -> Poll<io::Result<()>> {
-        match self.get_mut() {
-            EitherIo::A(ref mut val) => Pin::new(val).poll_shutdown(cx),
-            EitherIo::B(ref mut val) => Pin::new(val).poll_shutdown(cx),
+        #[project]
+        match self.project() {
+            EitherIo::A(val) => val.poll_shutdown(cx),
+            EitherIo::B(val) => val.poll_shutdown(cx),
         }
     }
 
+    #[project]
     fn poll_write_buf<U: Buf>(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
@@ -275,9 +284,10 @@ where
     where
         Self: Sized,
     {
-        match self.get_mut() {
-            EitherIo::A(ref mut val) => Pin::new(val).poll_write_buf(cx, buf),
-            EitherIo::B(ref mut val) => Pin::new(val).poll_write_buf(cx, buf),
+        #[project]
+        match self.project() {
+            EitherIo::A(val) => val.poll_write_buf(cx, buf),
+            EitherIo::B(val) => val.poll_write_buf(cx, buf),
         }
     }
 }

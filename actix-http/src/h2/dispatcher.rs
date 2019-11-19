@@ -35,6 +35,7 @@ use crate::response::Response;
 const CHUNK_SIZE: usize = 16_384;
 
 /// Dispatcher for HTTP/2 protocol
+#[pin_project::pin_project]
 pub struct Dispatcher<T: IoStream, S: Service<Request = Request>, B: MessageBody> {
     service: CloneableService<S>,
     connection: Connection<T, Bytes>,
@@ -46,24 +47,13 @@ pub struct Dispatcher<T: IoStream, S: Service<Request = Request>, B: MessageBody
     _t: PhantomData<B>,
 }
 
-impl<T, S, B> Unpin for Dispatcher<T, S, B>
-where
-    T: IoStream,
-    S: Service<Request = Request>,
-    S::Error: Into<Error> + Unpin + 'static,
-    S::Future: Unpin + 'static,
-    S::Response: Into<Response<B>> + Unpin + 'static,
-    B: MessageBody + 'static,
-{
-}
-
 impl<T, S, B> Dispatcher<T, S, B>
 where
     T: IoStream,
     S: Service<Request = Request>,
-    S::Error: Into<Error> + Unpin + 'static,
-    S::Future: Unpin + 'static,
-    S::Response: Into<Response<B>> + Unpin + 'static,
+    S::Error: Into<Error> + 'static,
+    S::Future: 'static,
+    S::Response: Into<Response<B>> + 'static,
     B: MessageBody + 'static,
 {
     pub(crate) fn new(
@@ -107,9 +97,9 @@ impl<T, S, B> Future for Dispatcher<T, S, B>
 where
     T: IoStream,
     S: Service<Request = Request>,
-    S::Error: Into<Error> + Unpin + 'static,
-    S::Future: Unpin + 'static,
-    S::Response: Into<Response<B>> + Unpin + 'static,
+    S::Error: Into<Error> + 'static,
+    S::Future: 'static,
+    S::Response: Into<Response<B>> + 'static,
     B: MessageBody + 'static,
 {
     type Output = Result<(), DispatchError>;
@@ -122,7 +112,7 @@ where
             match Pin::new(&mut this.connection).poll_accept(cx) {
                 Poll::Ready(None) => return Poll::Ready(Ok(())),
                 Poll::Ready(Some(Err(err))) => return Poll::Ready(Err(err.into())),
-                Poll::Ready(Some(Ok((req, _)))) => {
+                Poll::Ready(Some(Ok((req, res)))) => {
                     // update keep-alive expire
                     if this.ka_timer.is_some() {
                         if let Some(expire) = this.config.keep_alive_expire() {
@@ -131,7 +121,6 @@ where
                     }
 
                     let (parts, body) = req.into_parts();
-                    // let b: () = body;
                     let mut req = Request::with_payload(Payload::<
                         crate::payload::PayloadStream,
                     >::H2(
@@ -150,20 +139,20 @@ where
                         on_connect.set(&mut req.extensions_mut());
                     }
 
-                    // tokio_executor::current_thread::spawn(ServiceResponse::<
-                    //     S::Future,
-                    //     S::Response,
-                    //     S::Error,
-                    //     B,
-                    // > {
-                    //     state: ServiceResponseState::ServiceCall(
-                    //         this.service.call(req),
-                    //         Some(res),
-                    //     ),
-                    //     config: this.config.clone(),
-                    //     buffer: None,
-                    //     _t: PhantomData,
-                    // });
+                    tokio_executor::current_thread::spawn(ServiceResponse::<
+                        S::Future,
+                        S::Response,
+                        S::Error,
+                        B,
+                    > {
+                        state: ServiceResponseState::ServiceCall(
+                            this.service.call(req),
+                            Some(res),
+                        ),
+                        config: this.config.clone(),
+                        buffer: None,
+                        _t: PhantomData,
+                    });
                 }
                 Poll::Pending => return Poll::Pending,
             }
@@ -171,6 +160,7 @@ where
     }
 }
 
+#[pin_project::pin_project]
 struct ServiceResponse<F, I, E, B> {
     state: ServiceResponseState<F, B>,
     config: ServiceConfig,
@@ -185,9 +175,9 @@ enum ServiceResponseState<F, B> {
 
 impl<F, I, E, B> ServiceResponse<F, I, E, B>
 where
-    F: Future<Output = Result<I, E>> + Unpin,
-    E: Into<Error> + Unpin + 'static,
-    I: Into<Response<B>> + Unpin + 'static,
+    F: Future<Output = Result<I, E>>,
+    E: Into<Error> + 'static,
+    I: Into<Response<B>> + 'static,
     B: MessageBody + 'static,
 {
     fn prepare_response(
@@ -253,25 +243,27 @@ where
 
 impl<F, I, E, B> Future for ServiceResponse<F, I, E, B>
 where
-    F: Future<Output = Result<I, E>> + Unpin,
-    E: Into<Error> + Unpin + 'static,
-    I: Into<Response<B>> + Unpin + 'static,
+    F: Future<Output = Result<I, E>>,
+    E: Into<Error> + 'static,
+    I: Into<Response<B>> + 'static,
     B: MessageBody + 'static,
 {
     type Output = ();
 
-    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        let this = self.get_mut();
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+        let mut this = self.as_mut().project();
 
         match this.state {
             ServiceResponseState::ServiceCall(ref mut call, ref mut send) => {
-                match Pin::new(call).poll(cx) {
+                match unsafe { Pin::new_unchecked(call) }.poll(cx) {
                     Poll::Ready(Ok(res)) => {
                         let (res, body) = res.into().replace_body(());
 
                         let mut send = send.take().unwrap();
                         let mut size = body.size();
-                        let h2_res = this.prepare_response(res.head(), &mut size);
+                        let h2_res =
+                            self.as_mut().prepare_response(res.head(), &mut size);
+                        this = self.as_mut().project();
 
                         let stream = match send.send_response(h2_res, size.is_eof()) {
                             Err(e) => {
@@ -284,8 +276,9 @@ where
                         if size.is_eof() {
                             Poll::Ready(())
                         } else {
-                            this.state = ServiceResponseState::SendPayload(stream, body);
-                            Pin::new(this).poll(cx)
+                            *this.state =
+                                ServiceResponseState::SendPayload(stream, body);
+                            self.poll(cx)
                         }
                     }
                     Poll::Pending => Poll::Pending,
@@ -295,7 +288,9 @@ where
 
                         let mut send = send.take().unwrap();
                         let mut size = body.size();
-                        let h2_res = this.prepare_response(res.head(), &mut size);
+                        let h2_res =
+                            self.as_mut().prepare_response(res.head(), &mut size);
+                        this = self.as_mut().project();
 
                         let stream = match send.send_response(h2_res, size.is_eof()) {
                             Err(e) => {
@@ -308,11 +303,11 @@ where
                         if size.is_eof() {
                             Poll::Ready(())
                         } else {
-                            this.state = ServiceResponseState::SendPayload(
+                            *this.state = ServiceResponseState::SendPayload(
                                 stream,
                                 body.into_body(),
                             );
-                            Pin::new(this).poll(cx)
+                            self.poll(cx)
                         }
                     }
                 }
@@ -356,7 +351,7 @@ where
                                     chunk.len(),
                                     CHUNK_SIZE,
                                 ));
-                                this.buffer = Some(chunk);
+                                *this.buffer = Some(chunk);
                             }
                             Poll::Ready(Some(Err(e))) => {
                                 error!("Response payload stream error: {:?}", e);

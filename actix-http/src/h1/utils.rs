@@ -11,6 +11,7 @@ use crate::h1::{Codec, Message};
 use crate::response::Response;
 
 /// Send http/1 response
+#[pin_project::pin_project]
 pub struct SendResponse<T, B> {
     res: Option<Message<(Response<()>, BodySize)>>,
     body: Option<ResponseBody<B>>,
@@ -34,7 +35,7 @@ where
 
 impl<T, B> Future for SendResponse<T, B>
 where
-    T: AsyncRead + AsyncWrite + Unpin,
+    T: AsyncRead + AsyncWrite,
     B: MessageBody,
 {
     type Output = Result<Framed<T, Codec>, Error>;

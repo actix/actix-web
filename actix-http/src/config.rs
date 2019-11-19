@@ -277,7 +277,7 @@ mod tests {
     fn test_date() {
         let mut rt = System::new("test");
 
-        let _ = rt.block_on(future::lazy(|| {
+        let _ = rt.block_on(future::lazy(|_| {
             let settings = ServiceConfig::new(KeepAlive::Os, 0, 0);
             let mut buf1 = BytesMut::with_capacity(DATE_VALUE_LENGTH + 10);
             settings.set_date(&mut buf1);

@@ -11,17 +11,17 @@ use super::{Codec, Frame, Message};
 pub struct Transport<S, T>
 where
     S: Service<Request = Frame, Response = Message> + 'static,
-    T: AsyncRead + AsyncWrite + Unpin,
+    T: AsyncRead + AsyncWrite,
 {
     inner: FramedTransport<S, T, Codec>,
 }
 
 impl<S, T> Transport<S, T>
 where
-    T: AsyncRead + AsyncWrite + Unpin,
-    S: Service<Request = Frame, Response = Message> + Unpin,
+    T: AsyncRead + AsyncWrite,
+    S: Service<Request = Frame, Response = Message>,
     S::Future: 'static,
-    S::Error: Unpin + 'static,
+    S::Error: 'static,
 {
     pub fn new<F: IntoService<S>>(io: T, service: F) -> Self {
         Transport {
@@ -38,10 +38,10 @@ where
 
 impl<S, T> Future for Transport<S, T>
 where
-    T: AsyncRead + AsyncWrite + Unpin,
-    S: Service<Request = Frame, Response = Message> + Unpin,
+    T: AsyncRead + AsyncWrite,
+    S: Service<Request = Frame, Response = Message>,
     S::Future: 'static,
-    S::Error: Unpin + 'static,
+    S::Error: 'static,
 {
     type Output = Result<(), FramedTransportError<S::Error, Codec>>;
 

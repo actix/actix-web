@@ -33,11 +33,9 @@ pub struct HttpServiceBuilder<T, S, X = ExpectHandler, U = UpgradeHandler<T>> {
 impl<T, S> HttpServiceBuilder<T, S, ExpectHandler, UpgradeHandler<T>>
 where
     S: ServiceFactory<Config = SrvConfig, Request = Request>,
-    S::Error: Into<Error> + Unpin + 'static,
+    S::Error: Into<Error> + 'static,
     S::InitError: fmt::Debug,
-    S::Future: Unpin,
-    S::Service: Unpin,
-    <S::Service as Service>::Future: Unpin + 'static,
+    <S::Service as Service>::Future: 'static,
 {
     /// Create instance of `ServiceConfigBuilder`
     pub fn new() -> Self {
@@ -56,17 +54,13 @@ where
 impl<T, S, X, U> HttpServiceBuilder<T, S, X, U>
 where
     S: ServiceFactory<Config = SrvConfig, Request = Request>,
-    S::Error: Into<Error> + Unpin + 'static,
+    S::Error: Into<Error> + 'static,
     S::InitError: fmt::Debug,
-    S::Future: Unpin,
-    S::Service: Unpin,
-    <S::Service as Service>::Future: Unpin + 'static,
+    <S::Service as Service>::Future: 'static,
     X: ServiceFactory<Config = SrvConfig, Request = Request, Response = Request>,
     X::Error: Into<Error>,
     X::InitError: fmt::Debug,
-    X::Future: Unpin,
-    X::Service: Unpin,
-    <X::Service as Service>::Future: Unpin + 'static,
+    <X::Service as Service>::Future: 'static,
     U: ServiceFactory<
         Config = SrvConfig,
         Request = (Request, Framed<T, Codec>),
@@ -74,9 +68,7 @@ where
     >,
     U::Error: fmt::Display,
     U::InitError: fmt::Debug,
-    U::Future: Unpin,
-    U::Service: Unpin,
-    <U::Service as Service>::Future: Unpin + 'static,
+    <U::Service as Service>::Future: 'static,
 {
     /// Set server keep-alive setting.
     ///
@@ -124,9 +116,7 @@ where
         X1: ServiceFactory<Config = SrvConfig, Request = Request, Response = Request>,
         X1::Error: Into<Error>,
         X1::InitError: fmt::Debug,
-        X1::Future: Unpin,
-        X1::Service: Unpin,
-        <X1::Service as Service>::Future: Unpin + 'static,
+        <X1::Service as Service>::Future: 'static,
     {
         HttpServiceBuilder {
             keep_alive: self.keep_alive,
@@ -153,9 +143,7 @@ where
         >,
         U1::Error: fmt::Display,
         U1::InitError: fmt::Debug,
-        U1::Future: Unpin,
-        U1::Service: Unpin,
-        <U1::Service as Service>::Future: Unpin + 'static,
+        <U1::Service as Service>::Future: 'static,
     {
         HttpServiceBuilder {
             keep_alive: self.keep_alive,
@@ -186,13 +174,10 @@ where
     where
         B: MessageBody + 'static,
         F: IntoServiceFactory<S>,
-        S::Future: Unpin,
-        S::Error: Into<Error> + Unpin + 'static,
+        S::Error: Into<Error> + 'static,
         S::InitError: fmt::Debug,
-        S::Response: Into<Response<B>> + Unpin + 'static,
-        S::Service: Unpin,
-        <S::Service as Service>::Future: Unpin + 'static,
-        P: Unpin,
+        S::Response: Into<Response<B>> + 'static,
+        <S::Service as Service>::Future: 'static,
     {
         let cfg = ServiceConfig::new(
             self.keep_alive,
@@ -210,13 +195,10 @@ where
     where
         B: MessageBody + 'static,
         F: IntoServiceFactory<S>,
-        S::Error: Into<Error> + Unpin + 'static,
+        S::Error: Into<Error> + 'static,
         S::InitError: fmt::Debug,
-        S::Response: Into<Response<B>> + Unpin + 'static,
-        S::Future: Unpin,
-        S::Service: Unpin,
-        <S::Service as Service>::Future: Unpin + 'static,
-        P: Unpin,
+        S::Response: Into<Response<B>> + 'static,
+        <S::Service as Service>::Future: 'static,
     {
         let cfg = ServiceConfig::new(
             self.keep_alive,
@@ -231,13 +213,10 @@ where
     where
         B: MessageBody + 'static,
         F: IntoServiceFactory<S>,
-        S::Error: Into<Error> + Unpin + 'static,
+        S::Error: Into<Error> + 'static,
         S::InitError: fmt::Debug,
-        S::Response: Into<Response<B>> + Unpin + 'static,
-        S::Future: Unpin,
-        S::Service: Unpin,
-        <S::Service as Service>::Future: Unpin + 'static,
-        P: Unpin,
+        S::Response: Into<Response<B>> + 'static,
+        <S::Service as Service>::Future: 'static,
     {
         let cfg = ServiceConfig::new(
             self.keep_alive,

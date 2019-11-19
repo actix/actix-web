@@ -48,14 +48,11 @@ pub struct Dispatcher<T, S, B, X, U>
 where
     S: Service<Request = Request>,
     S::Error: Into<Error>,
-    S::Future: Unpin,
     B: MessageBody,
     X: Service<Request = Request, Response = Request>,
     X::Error: Into<Error>,
-    X::Future: Unpin,
     U: Service<Request = (Request, Framed<T, Codec>), Response = ()>,
     U::Error: fmt::Display,
-    U::Future: Unpin,
 {
     inner: DispatcherState<T, S, B, X, U>,
 }
@@ -64,14 +61,11 @@ enum DispatcherState<T, S, B, X, U>
 where
     S: Service<Request = Request>,
     S::Error: Into<Error>,
-    S::Future: Unpin,
     B: MessageBody,
     X: Service<Request = Request, Response = Request>,
     X::Error: Into<Error>,
-    X::Future: Unpin,
     U: Service<Request = (Request, Framed<T, Codec>), Response = ()>,
     U::Error: fmt::Display,
-    U::Future: Unpin,
 {
     Normal(InnerDispatcher<T, S, B, X, U>),
     Upgrade(U::Future),
@@ -82,14 +76,11 @@ struct InnerDispatcher<T, S, B, X, U>
 where
     S: Service<Request = Request>,
     S::Error: Into<Error>,
-    S::Future: Unpin,
     B: MessageBody,
     X: Service<Request = Request, Response = Request>,
     X::Error: Into<Error>,
-    X::Future: Unpin,
     U: Service<Request = (Request, Framed<T, Codec>), Response = ()>,
     U::Error: fmt::Display,
-    U::Future: Unpin,
 {
     service: CloneableService<S>,
     expect: CloneableService<X>,
@@ -181,14 +172,11 @@ where
     S: Service<Request = Request>,
     S::Error: Into<Error>,
     S::Response: Into<Response<B>>,
-    S::Future: Unpin,
     B: MessageBody,
     X: Service<Request = Request, Response = Request>,
     X::Error: Into<Error>,
-    X::Future: Unpin,
     U: Service<Request = (Request, Framed<T, Codec>), Response = ()>,
     U::Error: fmt::Display,
-    U::Future: Unpin,
 {
     /// Create http/1 dispatcher.
     pub(crate) fn new(
@@ -269,14 +257,11 @@ where
     S: Service<Request = Request>,
     S::Error: Into<Error>,
     S::Response: Into<Response<B>>,
-    S::Future: Unpin,
     B: MessageBody,
     X: Service<Request = Request, Response = Request>,
     X::Error: Into<Error>,
-    X::Future: Unpin,
     U: Service<Request = (Request, Framed<T, Codec>), Response = ()>,
     U::Error: fmt::Display,
-    U::Future: Unpin,
 {
     fn can_read(&self, cx: &mut Context) -> bool {
         if self
@@ -312,7 +297,9 @@ where
         let len = self.write_buf.len();
         let mut written = 0;
         while written < len {
-            match Pin::new(&mut self.io).poll_write(cx, &self.write_buf[written..]) {
+            match unsafe { Pin::new_unchecked(&mut self.io) }
+                .poll_write(cx, &self.write_buf[written..])
+            {
                 Poll::Ready(Ok(0)) => {
                     return Err(DispatchError::Io(io::Error::new(
                         io::ErrorKind::WriteZero,
@@ -383,32 +370,36 @@ where
                     }
                     None => None,
                 },
-                State::ExpectCall(ref mut fut) => match Pin::new(fut).poll(cx) {
-                    Poll::Ready(Ok(req)) => {
-                        self.send_continue();
-                        self.state = State::ServiceCall(self.service.call(req));
-                        continue;
+                State::ExpectCall(ref mut fut) => {
+                    match unsafe { Pin::new_unchecked(fut) }.poll(cx) {
+                        Poll::Ready(Ok(req)) => {
+                            self.send_continue();
+                            self.state = State::ServiceCall(self.service.call(req));
+                            continue;
+                        }
+                        Poll::Ready(Err(e)) => {
+                            let res: Response = e.into().into();
+                            let (res, body) = res.replace_body(());
+                            Some(self.send_response(res, body.into_body())?)
+                        }
+                        Poll::Pending => None,
                     }
-                    Poll::Ready(Err(e)) => {
-                        let res: Response = e.into().into();
-                        let (res, body) = res.replace_body(());
-                        Some(self.send_response(res, body.into_body())?)
+                }
+                State::ServiceCall(ref mut fut) => {
+                    match unsafe { Pin::new_unchecked(fut) }.poll(cx) {
+                        Poll::Ready(Ok(res)) => {
+                            let (res, body) = res.into().replace_body(());
+                            self.state = self.send_response(res, body)?;
+                            continue;
+                        }
+                        Poll::Ready(Err(e)) => {
+                            let res: Response = e.into().into();
+                            let (res, body) = res.replace_body(());
+                            Some(self.send_response(res, body.into_body())?)
+                        }
+                        Poll::Pending => None,
                     }
-                    Poll::Pending => None,
-                },
-                State::ServiceCall(ref mut fut) => match Pin::new(fut).poll(cx) {
-                    Poll::Ready(Ok(res)) => {
-                        let (res, body) = res.into().replace_body(());
-                        self.state = self.send_response(res, body)?;
-                        continue;
-                    }
-                    Poll::Ready(Err(e)) => {
-                        let res: Response = e.into().into();
-                        let (res, body) = res.replace_body(());
-                        Some(self.send_response(res, body.into_body())?)
-                    }
-                    Poll::Pending => None,
-                },
+                }
                 State::SendPayload(ref mut stream) => {
                     loop {
                         if self.write_buf.len() < HW_BUFFER_SIZE {
@@ -472,7 +463,7 @@ where
         // Handle `EXPECT: 100-Continue` header
         let req = if req.head().expect() {
             let mut task = self.expect.call(req);
-            match Pin::new(&mut task).poll(cx) {
+            match unsafe { Pin::new_unchecked(&mut task) }.poll(cx) {
                 Poll::Ready(Ok(req)) => {
                     self.send_continue();
                     req
@@ -491,7 +482,7 @@ where
 
         // Call service
         let mut task = self.service.call(req);
-        match Pin::new(&mut task).poll(cx) {
+        match unsafe { Pin::new_unchecked(&mut task) }.poll(cx) {
             Poll::Ready(Ok(res)) => {
                 let (res, body) = res.into().replace_body(());
                 self.send_response(res, body)
@@ -689,26 +680,37 @@ where
     }
 }
 
+impl<T, S, B, X, U> Unpin for Dispatcher<T, S, B, X, U>
+where
+    T: IoStream,
+    S: Service<Request = Request>,
+    S::Error: Into<Error>,
+    S::Response: Into<Response<B>>,
+    B: MessageBody,
+    X: Service<Request = Request, Response = Request>,
+    X::Error: Into<Error>,
+    U: Service<Request = (Request, Framed<T, Codec>), Response = ()>,
+    U::Error: fmt::Display,
+{
+}
+
 impl<T, S, B, X, U> Future for Dispatcher<T, S, B, X, U>
 where
     T: IoStream,
     S: Service<Request = Request>,
     S::Error: Into<Error>,
     S::Response: Into<Response<B>>,
-    S::Future: Unpin,
     B: MessageBody,
     X: Service<Request = Request, Response = Request>,
     X::Error: Into<Error>,
-    X::Future: Unpin,
     U: Service<Request = (Request, Framed<T, Codec>), Response = ()>,
     U::Error: fmt::Display,
-    U::Future: Unpin,
 {
     type Output = Result<(), DispatchError>;
 
     #[inline]
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        match self.inner {
+        match self.as_mut().inner {
             DispatcherState::Normal(ref mut inner) => {
                 inner.poll_keepalive(cx)?;
 
@@ -818,7 +820,7 @@ where
                 }
             }
             DispatcherState::Upgrade(ref mut fut) => {
-                Pin::new(fut).poll(cx).map_err(|e| {
+                unsafe { Pin::new_unchecked(fut) }.poll(cx).map_err(|e| {
                     error!("Upgrade handler error: {}", e);
                     DispatchError::Upgrade
                 })
@@ -894,7 +896,7 @@ mod tests {
     #[test]
     fn test_req_parse_err() {
         let mut sys = actix_rt::System::new("test");
-        let _ = sys.block_on(lazy(|| {
+        let _ = sys.block_on(lazy(|cx| {
             let buf = TestBuffer::new("GET /test HTTP/1\r\n\r\n");
 
             let mut h1 = Dispatcher::<_, _, _, _, UpgradeHandler<TestBuffer>>::new(
@@ -907,7 +909,10 @@ mod tests {
                 None,
                 None,
             );
-            assert!(h1.poll().is_err());
+            match Pin::new(&mut h1).poll(cx) {
+                Poll::Pending => panic!(),
+                Poll::Ready(res) => assert!(res.is_err()),
+            }
 
             if let DispatcherState::Normal(ref inner) = h1.inner {
                 assert!(inner.flags.contains(Flags::READ_DISCONNECT));

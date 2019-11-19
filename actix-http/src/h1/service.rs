@@ -39,11 +39,7 @@ where
     S::Error: Into<Error>,
     S::InitError: fmt::Debug,
     S::Response: Into<Response<B>>,
-    S::Future: Unpin,
-    S::Service: Unpin,
-    <S::Service as Service>::Future: Unpin,
     B: MessageBody,
-    P: Unpin,
 {
     /// Create new `HttpService` instance with default config.
     pub fn new<F: IntoServiceFactory<S>>(service: F) -> Self {
@@ -81,20 +77,13 @@ where
     S::Error: Into<Error>,
     S::Response: Into<Response<B>>,
     S::InitError: fmt::Debug,
-    S::Future: Unpin,
-    S::Service: Unpin,
-    <S::Service as Service>::Future: Unpin,
     B: MessageBody,
-    P: Unpin,
 {
     pub fn expect<X1>(self, expect: X1) -> H1Service<T, P, S, B, X1, U>
     where
         X1: ServiceFactory<Request = Request, Response = Request>,
         X1::Error: Into<Error>,
         X1::InitError: fmt::Debug,
-        X1::Future: Unpin,
-        X1::Service: Unpin,
-        <X1::Service as Service>::Future: Unpin,
     {
         H1Service {
             expect,
@@ -111,9 +100,6 @@ where
         U1: ServiceFactory<Request = (Request, Framed<T, Codec>), Response = ()>,
         U1::Error: fmt::Display,
         U1::InitError: fmt::Debug,
-        U1::Future: Unpin,
-        U1::Service: Unpin,
-        <U1::Service as Service>::Future: Unpin,
     {
         H1Service {
             upgrade,
@@ -139,20 +125,13 @@ impl<T, P, S, B, X, U> ServiceFactory for H1Service<T, P, S, B, X, U>
 where
     T: IoStream,
     S: ServiceFactory<Config = SrvConfig, Request = Request>,
-    S::Service: Unpin,
     S::Error: Into<Error>,
     S::Response: Into<Response<B>>,
     S::InitError: fmt::Debug,
-    S::Future: Unpin,
-    S::Service: Unpin,
-    <S::Service as Service>::Future: Unpin,
     B: MessageBody,
     X: ServiceFactory<Config = SrvConfig, Request = Request, Response = Request>,
     X::Error: Into<Error>,
     X::InitError: fmt::Debug,
-    X::Future: Unpin,
-    X::Service: Unpin,
-    <X::Service as Service>::Future: Unpin,
     U: ServiceFactory<
         Config = SrvConfig,
         Request = (Request, Framed<T, Codec>),
@@ -160,10 +139,6 @@ where
     >,
     U::Error: fmt::Display,
     U::InitError: fmt::Debug,
-    U::Future: Unpin,
-    U::Service: Unpin,
-    <U::Service as Service>::Future: Unpin,
-    P: Unpin,
 {
     type Config = SrvConfig;
     type Request = Io<T, P>;
@@ -188,30 +163,24 @@ where
 }
 
 #[doc(hidden)]
+#[pin_project::pin_project]
 pub struct H1ServiceResponse<T, P, S, B, X, U>
 where
     S: ServiceFactory<Request = Request>,
     S::Error: Into<Error>,
     S::InitError: fmt::Debug,
-    S::Future: Unpin,
-    S::Service: Unpin,
-    <S::Service as Service>::Future: Unpin,
     X: ServiceFactory<Request = Request, Response = Request>,
     X::Error: Into<Error>,
     X::InitError: fmt::Debug,
-    X::Future: Unpin,
-    X::Service: Unpin,
-    <X::Service as Service>::Future: Unpin,
     U: ServiceFactory<Request = (Request, Framed<T, Codec>), Response = ()>,
     U::Error: fmt::Display,
     U::InitError: fmt::Debug,
-    U::Future: Unpin,
-    U::Service: Unpin,
-    <U::Service as Service>::Future: Unpin,
-    P: Unpin,
 {
+    #[pin]
     fut: S::Future,
+    #[pin]
     fut_ex: Option<X::Future>,
+    #[pin]
     fut_upg: Option<U::Future>,
     expect: Option<X::Service>,
     upgrade: Option<U::Service>,
@@ -227,51 +196,45 @@ where
     S::Error: Into<Error>,
     S::Response: Into<Response<B>>,
     S::InitError: fmt::Debug,
-    S::Future: Unpin,
-    S::Service: Unpin,
-    <S::Service as Service>::Future: Unpin,
     B: MessageBody,
     X: ServiceFactory<Request = Request, Response = Request>,
     X::Error: Into<Error>,
     X::InitError: fmt::Debug,
-    X::Future: Unpin,
-    X::Service: Unpin,
-    <X::Service as Service>::Future: Unpin,
     U: ServiceFactory<Request = (Request, Framed<T, Codec>), Response = ()>,
     U::Error: fmt::Display,
     U::InitError: fmt::Debug,
-    U::Future: Unpin,
-    U::Service: Unpin,
-    <U::Service as Service>::Future: Unpin,
-    P: Unpin,
 {
     type Output =
         Result<H1ServiceHandler<T, P, S::Service, B, X::Service, U::Service>, ()>;
 
-    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        let this = self.get_mut();
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+        let mut this = self.as_mut().project();
 
-        if let Some(ref mut fut) = this.fut_ex {
-            let expect = ready!(Pin::new(fut)
+        if let Some(fut) = this.fut_ex.as_pin_mut() {
+            let expect = ready!(fut
                 .poll(cx)
                 .map_err(|e| log::error!("Init http service error: {:?}", e)))?;
-            this.expect = Some(expect);
-            this.fut_ex.take();
+            this = self.as_mut().project();
+            *this.expect = Some(expect);
+            this.fut_ex.set(None);
         }
 
-        if let Some(ref mut fut) = this.fut_upg {
-            let upgrade = ready!(Pin::new(fut)
+        if let Some(fut) = this.fut_upg.as_pin_mut() {
+            let upgrade = ready!(fut
                 .poll(cx)
                 .map_err(|e| log::error!("Init http service error: {:?}", e)))?;
-            this.upgrade = Some(upgrade);
-            this.fut_ex.take();
+            this = self.as_mut().project();
+            *this.upgrade = Some(upgrade);
+            this.fut_ex.set(None);
         }
 
-        let result = ready!(Pin::new(&mut this.fut)
+        let result = ready!(this
+            .fut
             .poll(cx)
             .map_err(|e| log::error!("Init http service error: {:?}", e)));
 
         Poll::Ready(result.map(|service| {
+            let this = self.as_mut().project();
             H1ServiceHandler::new(
                 this.cfg.take().unwrap(),
                 service,
@@ -295,18 +258,14 @@ pub struct H1ServiceHandler<T, P, S, B, X, U> {
 
 impl<T, P, S, B, X, U> H1ServiceHandler<T, P, S, B, X, U>
 where
-    S: Service<Request = Request> + Unpin,
+    S: Service<Request = Request>,
     S::Error: Into<Error>,
     S::Response: Into<Response<B>>,
-    S::Future: Unpin,
     B: MessageBody,
-    X: Service<Request = Request, Response = Request> + Unpin,
-    X::Future: Unpin,
+    X: Service<Request = Request, Response = Request>,
     X::Error: Into<Error>,
-    U: Service<Request = (Request, Framed<T, Codec>), Response = ()> + Unpin,
-    U::Future: Unpin,
+    U: Service<Request = (Request, Framed<T, Codec>), Response = ()>,
     U::Error: fmt::Display,
-    P: Unpin,
 {
     fn new(
         cfg: ServiceConfig,
@@ -329,18 +288,14 @@ where
 impl<T, P, S, B, X, U> Service for H1ServiceHandler<T, P, S, B, X, U>
 where
     T: IoStream,
-    S: Service<Request = Request> + Unpin,
+    S: Service<Request = Request>,
     S::Error: Into<Error>,
     S::Response: Into<Response<B>>,
-    S::Future: Unpin,
     B: MessageBody,
-    X: Service<Request = Request, Response = Request> + Unpin,
+    X: Service<Request = Request, Response = Request>,
     X::Error: Into<Error>,
-    X::Future: Unpin,
-    U: Service<Request = (Request, Framed<T, Codec>), Response = ()> + Unpin,
+    U: Service<Request = (Request, Framed<T, Codec>), Response = ()>,
     U::Error: fmt::Display,
-    U::Future: Unpin,
-    P: Unpin,
 {
     type Request = Io<T, P>;
     type Response = ();

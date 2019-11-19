@@ -81,6 +81,11 @@ impl<P> Request<P> {
     }
 
     /// Get request's payload
+    pub fn payload(&mut self) -> &mut Payload<P> {
+        &mut self.payload
+    }
+
+    /// Get request's payload
     pub fn take_payload(&mut self) -> Payload<P> {
         std::mem::replace(&mut self.payload, Payload::None)
     }

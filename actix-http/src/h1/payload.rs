@@ -228,26 +228,23 @@ impl Inner {
 mod tests {
     use super::*;
     use actix_rt::Runtime;
-    use futures::future::{lazy, result};
+    use futures::future::{poll_fn, ready};
 
     #[test]
     fn test_unread_data() {
-        Runtime::new()
-            .unwrap()
-            .block_on(async {
-                let (_, mut payload) = Payload::create(false);
+        Runtime::new().unwrap().block_on(async {
+            let (_, mut payload) = Payload::create(false);
 
-                payload.unread_data(Bytes::from("data"));
-                assert!(!payload.is_empty());
-                assert_eq!(payload.len(), 4);
+            payload.unread_data(Bytes::from("data"));
+            assert!(!payload.is_empty());
+            assert_eq!(payload.len(), 4);
 
-                assert_eq!(
-                    Poll::Ready(Some(Bytes::from("data"))),
-                    payload.next_item().await.ok().unwrap()
-                );
+            assert_eq!(
+                Bytes::from("data"),
+                poll_fn(|cx| payload.readany(cx)).await.unwrap().unwrap()
+            );
 
-                result(())
-            })
-            .unwrap();
+            ready(())
+        });
     }
 }
