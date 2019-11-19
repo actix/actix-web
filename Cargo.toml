@@ -41,7 +41,7 @@ members = [
 #   "actix-web-codegen",
 #   "test-server",
 ]
-exclude = ["actix-http"]
+exclude = ["awc", "actix-http", "test-server"]
 
 [features]
 default = ["brotli", "flate2-zlib", "client", "fail"]

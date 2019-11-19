@@ -7,7 +7,6 @@ use std::{fmt, str};
 use actix_codec::Framed;
 use actix_http::cookie::{Cookie, CookieJar};
 use actix_http::{ws, Payload, RequestHead};
-use futures::future::{err, Either, Future};
 use percent_encoding::percent_encode;
 use tokio_timer::Timeout;
 
@@ -210,27 +209,26 @@ impl WebsocketsRequest {
     }
 
     /// Complete request construction and connect to a websockets server.
-    pub fn connect(
+    pub async fn connect(
         mut self,
-    ) -> impl Future<Item = (ClientResponse, Framed<BoxedSocket, Codec>), Error = WsClientError>
-    {
+    ) -> Result<(ClientResponse, Framed<BoxedSocket, Codec>), WsClientError> {
         if let Some(e) = self.err.take() {
-            return Either::A(err(e.into()));
+            return Err(e.into());
         }
 
         // validate uri
         let uri = &self.head.uri;
         if uri.host().is_none() {
-            return Either::A(err(InvalidUrl::MissingHost.into()));
+            return Err(InvalidUrl::MissingHost.into());
         } else if uri.scheme_part().is_none() {
-            return Either::A(err(InvalidUrl::MissingScheme.into()));
+            return Err(InvalidUrl::MissingScheme.into());
         } else if let Some(scheme) = uri.scheme_part() {
             match scheme.as_str() {
                 "http" | "ws" | "https" | "wss" => (),
-                _ => return Either::A(err(InvalidUrl::UnknownScheme.into())),
+                _ => return Err(InvalidUrl::UnknownScheme.into()),
             }
         } else {
-            return Either::A(err(InvalidUrl::UnknownScheme.into()));
+            return Err(InvalidUrl::UnknownScheme.into());
         }
 
         if !self.head.headers.contains_key(header::HOST) {
@@ -294,90 +292,83 @@ impl WebsocketsRequest {
             .config
             .connector
             .borrow_mut()
-            .open_tunnel(head, self.addr)
-            .from_err()
-            .and_then(move |(head, framed)| {
-                // verify response
-                if head.status != StatusCode::SWITCHING_PROTOCOLS {
-                    return Err(WsClientError::InvalidResponseStatus(head.status));
-                }
-                // Check for "UPGRADE" to websocket header
-                let has_hdr = if let Some(hdr) = head.headers.get(&header::UPGRADE) {
-                    if let Ok(s) = hdr.to_str() {
-                        s.to_ascii_lowercase().contains("websocket")
-                    } else {
-                        false
-                    }
-                } else {
-                    false
-                };
-                if !has_hdr {
-                    log::trace!("Invalid upgrade header");
-                    return Err(WsClientError::InvalidUpgradeHeader);
-                }
-                // Check for "CONNECTION" header
-                if let Some(conn) = head.headers.get(&header::CONNECTION) {
-                    if let Ok(s) = conn.to_str() {
-                        if !s.to_ascii_lowercase().contains("upgrade") {
-                            log::trace!("Invalid connection header: {}", s);
-                            return Err(WsClientError::InvalidConnectionHeader(
-                                conn.clone(),
-                            ));
-                        }
-                    } else {
-                        log::trace!("Invalid connection header: {:?}", conn);
-                        return Err(WsClientError::InvalidConnectionHeader(
-                            conn.clone(),
-                        ));
-                    }
-                } else {
-                    log::trace!("Missing connection header");
-                    return Err(WsClientError::MissingConnectionHeader);
-                }
-
-                if let Some(hdr_key) = head.headers.get(&header::SEC_WEBSOCKET_ACCEPT) {
-                    let encoded = ws::hash_key(key.as_ref());
-                    if hdr_key.as_bytes() != encoded.as_bytes() {
-                        log::trace!(
-                            "Invalid challenge response: expected: {} received: {:?}",
-                            encoded,
-                            key
-                        );
-                        return Err(WsClientError::InvalidChallengeResponse(
-                            encoded,
-                            hdr_key.clone(),
-                        ));
-                    }
-                } else {
-                    log::trace!("Missing SEC-WEBSOCKET-ACCEPT header");
-                    return Err(WsClientError::MissingWebSocketAcceptHeader);
-                };
-
-                // response and ws framed
-                Ok((
-                    ClientResponse::new(head, Payload::None),
-                    framed.map_codec(|_| {
-                        if server_mode {
-                            ws::Codec::new().max_size(max_size)
-                        } else {
-                            ws::Codec::new().max_size(max_size).client_mode()
-                        }
-                    }),
-                ))
-            });
+            .open_tunnel(head, self.addr);
 
         // set request timeout
-        if let Some(timeout) = self.config.timeout {
-            Either::B(Either::A(Timeout::new(fut, timeout).map_err(|e| {
-                if let Some(e) = e.into_inner() {
-                    e
-                } else {
-                    SendRequestError::Timeout.into()
-                }
-            })))
+        let (head, framed) = if let Some(timeout) = self.config.timeout {
+            Timeout::new(fut, timeout)
+                .await
+                .map_err(|_| SendRequestError::Timeout.into())
+                .and_then(|res| res)?
         } else {
-            Either::B(Either::B(fut))
+            fut.await?
+        };
+
+        // verify response
+        if head.status != StatusCode::SWITCHING_PROTOCOLS {
+            return Err(WsClientError::InvalidResponseStatus(head.status));
         }
+
+        // Check for "UPGRADE" to websocket header
+        let has_hdr = if let Some(hdr) = head.headers.get(&header::UPGRADE) {
+            if let Ok(s) = hdr.to_str() {
+                s.to_ascii_lowercase().contains("websocket")
+            } else {
+                false
+            }
+        } else {
+            false
+        };
+        if !has_hdr {
+            log::trace!("Invalid upgrade header");
+            return Err(WsClientError::InvalidUpgradeHeader);
+        }
+
+        // Check for "CONNECTION" header
+        if let Some(conn) = head.headers.get(&header::CONNECTION) {
+            if let Ok(s) = conn.to_str() {
+                if !s.to_ascii_lowercase().contains("upgrade") {
+                    log::trace!("Invalid connection header: {}", s);
+                    return Err(WsClientError::InvalidConnectionHeader(conn.clone()));
+                }
+            } else {
+                log::trace!("Invalid connection header: {:?}", conn);
+                return Err(WsClientError::InvalidConnectionHeader(conn.clone()));
+            }
+        } else {
+            log::trace!("Missing connection header");
+            return Err(WsClientError::MissingConnectionHeader);
+        }
+
+        if let Some(hdr_key) = head.headers.get(&header::SEC_WEBSOCKET_ACCEPT) {
+            let encoded = ws::hash_key(key.as_ref());
+            if hdr_key.as_bytes() != encoded.as_bytes() {
+                log::trace!(
+                    "Invalid challenge response: expected: {} received: {:?}",
+                    encoded,
+                    key
+                );
+                return Err(WsClientError::InvalidChallengeResponse(
+                    encoded,
+                    hdr_key.clone(),
+                ));
+            }
+        } else {
+            log::trace!("Missing SEC-WEBSOCKET-ACCEPT header");
+            return Err(WsClientError::MissingWebSocketAcceptHeader);
+        };
+
+        // response and ws framed
+        Ok((
+            ClientResponse::new(head, Payload::None),
+            framed.map_codec(|_| {
+                if server_mode {
+                    ws::Codec::new().max_size(max_size)
+                } else {
+                    ws::Codec::new().max_size(max_size).client_mode()
+                }
+            }),
+        ))
     }
 }
 

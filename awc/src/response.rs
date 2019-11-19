@@ -1,9 +1,11 @@
 use std::cell::{Ref, RefMut};
 use std::fmt;
 use std::marker::PhantomData;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 
 use bytes::{Bytes, BytesMut};
-use futures::{Async, Future, Poll, Stream};
+use futures::{ready, Future, Stream};
 
 use actix_http::cookie::Cookie;
 use actix_http::error::{CookieParseError, PayloadError};
@@ -104,7 +106,7 @@ impl<S> ClientResponse<S> {
 
 impl<S> ClientResponse<S>
 where
-    S: Stream<Item = Bytes, Error = PayloadError>,
+    S: Stream<Item = Result<Bytes, PayloadError>>,
 {
     /// Loads http response's body.
     pub fn body(&mut self) -> MessageBody<S> {
@@ -125,13 +127,12 @@ where
 
 impl<S> Stream for ClientResponse<S>
 where
-    S: Stream<Item = Bytes, Error = PayloadError>,
+    S: Stream<Item = Result<Bytes, PayloadError>> + Unpin,
 {
-    type Item = Bytes;
-    type Error = PayloadError;
+    type Item = Result<Bytes, PayloadError>;
 
-    fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
-        self.payload.poll()
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
+        Pin::new(&mut self.get_mut().payload).poll_next(cx)
     }
 }
 
@@ -155,7 +156,7 @@ pub struct MessageBody<S> {
 
 impl<S> MessageBody<S>
 where
-    S: Stream<Item = Bytes, Error = PayloadError>,
+    S: Stream<Item = Result<Bytes, PayloadError>>,
 {
     /// Create `MessageBody` for request.
     pub fn new(res: &mut ClientResponse<S>) -> MessageBody<S> {
@@ -198,23 +199,24 @@ where
 
 impl<S> Future for MessageBody<S>
 where
-    S: Stream<Item = Bytes, Error = PayloadError>,
+    S: Stream<Item = Result<Bytes, PayloadError>> + Unpin,
 {
-    type Item = Bytes;
-    type Error = PayloadError;
+    type Output = Result<Bytes, PayloadError>;
 
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        if let Some(err) = self.err.take() {
-            return Err(err);
+    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+        let this = self.get_mut();
+
+        if let Some(err) = this.err.take() {
+            return Poll::Ready(Err(err));
         }
 
-        if let Some(len) = self.length.take() {
-            if len > self.fut.as_ref().unwrap().limit {
-                return Err(PayloadError::Overflow);
+        if let Some(len) = this.length.take() {
+            if len > this.fut.as_ref().unwrap().limit {
+                return Poll::Ready(Err(PayloadError::Overflow));
             }
         }
 
-        self.fut.as_mut().unwrap().poll()
+        Pin::new(&mut this.fut.as_mut().unwrap()).poll(cx)
     }
 }
 
@@ -233,7 +235,7 @@ pub struct JsonBody<S, U> {
 
 impl<S, U> JsonBody<S, U>
 where
-    S: Stream<Item = Bytes, Error = PayloadError>,
+    S: Stream<Item = Result<Bytes, PayloadError>>,
     U: DeserializeOwned,
 {
     /// Create `JsonBody` for request.
@@ -279,27 +281,35 @@ where
     }
 }
 
-impl<T, U> Future for JsonBody<T, U>
+impl<T, U> Unpin for JsonBody<T, U>
 where
-    T: Stream<Item = Bytes, Error = PayloadError>,
+    T: Stream<Item = Result<Bytes, PayloadError>> + Unpin,
     U: DeserializeOwned,
 {
-    type Item = U;
-    type Error = JsonPayloadError;
+}
 
-    fn poll(&mut self) -> Poll<U, JsonPayloadError> {
+impl<T, U> Future for JsonBody<T, U>
+where
+    T: Stream<Item = Result<Bytes, PayloadError>> + Unpin,
+    U: DeserializeOwned,
+{
+    type Output = Result<U, JsonPayloadError>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
         if let Some(err) = self.err.take() {
-            return Err(err);
+            return Poll::Ready(Err(err));
         }
 
         if let Some(len) = self.length.take() {
             if len > self.fut.as_ref().unwrap().limit {
-                return Err(JsonPayloadError::Payload(PayloadError::Overflow));
+                return Poll::Ready(Err(JsonPayloadError::Payload(
+                    PayloadError::Overflow,
+                )));
             }
         }
 
-        let body = futures::try_ready!(self.fut.as_mut().unwrap().poll());
-        Ok(Async::Ready(serde_json::from_slice::<U>(&body)?))
+        let body = ready!(Pin::new(&mut self.get_mut().fut.as_mut().unwrap()).poll(cx))?;
+        Poll::Ready(serde_json::from_slice::<U>(&body).map_err(JsonPayloadError::from))
     }
 }
 
@@ -321,24 +331,25 @@ impl<S> ReadBody<S> {
 
 impl<S> Future for ReadBody<S>
 where
-    S: Stream<Item = Bytes, Error = PayloadError>,
+    S: Stream<Item = Result<Bytes, PayloadError>> + Unpin,
 {
-    type Item = Bytes;
-    type Error = PayloadError;
+    type Output = Result<Bytes, PayloadError>;
 
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+        let this = self.get_mut();
+
         loop {
-            return match self.stream.poll()? {
-                Async::Ready(Some(chunk)) => {
-                    if (self.buf.len() + chunk.len()) > self.limit {
-                        Err(PayloadError::Overflow)
+            return match Pin::new(&mut this.stream).poll_next(cx)? {
+                Poll::Ready(Some(chunk)) => {
+                    if (this.buf.len() + chunk.len()) > this.limit {
+                        Poll::Ready(Err(PayloadError::Overflow))
                     } else {
-                        self.buf.extend_from_slice(&chunk);
+                        this.buf.extend_from_slice(&chunk);
                         continue;
                     }
                 }
-                Async::Ready(None) => Ok(Async::Ready(self.buf.take().freeze())),
-                Async::NotReady => Ok(Async::NotReady),
+                Poll::Ready(None) => Poll::Ready(Ok(this.buf.take().freeze())),
+                Poll::Pending => Poll::Pending,
             };
         }
     }
