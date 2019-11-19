@@ -7,7 +7,7 @@ use actix_rt::{System};
 use actix_server::{Server, ServiceFactory};
 use awc::{error::PayloadError, ws, Client, ClientRequest, ClientResponse, Connector};
 use bytes::Bytes;
-use futures::{Stream, future::lazy};
+use futures::Stream;
 use http::Method;
 use net2::TcpBuilder;
 use tokio_net::tcp::TcpStream;
@@ -55,7 +55,7 @@ pub struct TestServerRuntime {
 impl TestServer {
     #[allow(clippy::new_ret_no_self)]
     /// Start new test server with application factory
-    pub fn new<F: ServiceFactory<TcpStream>>(factory: F) -> TestServerRuntime {
+    pub fn start<F: ServiceFactory<TcpStream>>(factory: F) -> TestServerRuntime {
         let (tx, rx) = mpsc::channel();
 
         // run server in separate thread
@@ -76,11 +76,11 @@ impl TestServer {
 
         let (system, addr) = rx.recv().unwrap();
 
-        let client = block_on(lazy(move |_| {
+        let client = {
             let connector = {
-                #[cfg(feature = "ssl")]
+                #[cfg(feature = "openssl")]
                 {
-                    use openssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
+                    use open_ssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
 
                     let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
                     builder.set_verify(SslVerifyMode::NONE);
@@ -93,7 +93,7 @@ impl TestServer {
                         .ssl(builder.build())
                         .finish()
                 }
-                #[cfg(not(feature = "ssl"))]
+                #[cfg(not(feature = "openssl"))]
                 {
                     Connector::new()
                         .conn_lifetime(time::Duration::from_secs(0))
@@ -102,14 +102,9 @@ impl TestServer {
                 }
             };
 
-            Ok::<Client, ()>(Client::build().connector(connector).finish())
-        }))
-        .unwrap();
-
-        block_on(lazy(|_| {
-            Ok::<_, ()>(actix_connect::start_default_resolver())
-        }))
-            .unwrap();
+            Client::build().connector(connector).finish()
+        };
+        actix_connect::start_default_resolver();
 
         TestServerRuntime {
             addr,
@@ -228,35 +223,33 @@ impl TestServerRuntime {
         self.client.request(method, path.as_ref())
     }
 
-    pub fn load_body<S>(
+    pub async fn load_body<S>(
         &mut self,
         mut response: ClientResponse<S>,
     ) -> Result<Bytes, PayloadError>
     where
         S: Stream<Item = Result<Bytes, PayloadError>> + Unpin + 'static,
     {
-        block_on(response.body().limit(10_485_760))
+        response.body().limit(10_485_760).await
     }
 
     /// Connect to websocket server at a given path
-    pub fn ws_at(
+    pub async fn ws_at(
         &mut self,
         path: &str,
     ) -> Result<Framed<impl AsyncRead + AsyncWrite, ws::Codec>, awc::error::WsClientError>
     {
         let url = self.url(path);
         let connect = self.client.ws(url).connect();
-        block_on(async move {
-            connect.await.map(|(_, framed)| framed)
-        })
+        connect.await.map(|(_, framed)| framed)
     }
 
     /// Connect to a websocket server
-    pub fn ws(
+    pub async fn ws(
         &mut self,
     ) -> Result<Framed<impl AsyncRead + AsyncWrite, ws::Codec>, awc::error::WsClientError>
     {
-        self.ws_at("/")
+        self.ws_at("/").await
     }
 
     /// Stop http server

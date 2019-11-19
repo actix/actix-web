@@ -181,13 +181,13 @@ impl ResponseError for FormError {}
 /// `InternalServerError` for `TimerError`
 impl ResponseError for TimerError {}
 
-#[cfg(feature = "ssl")]
+#[cfg(feature = "openssl")]
 /// `InternalServerError` for `openssl::ssl::Error`
-impl ResponseError for openssl::ssl::Error {}
+impl ResponseError for open_ssl::ssl::Error {}
 
-#[cfg(feature = "ssl")]
+#[cfg(feature = "openssl")]
 /// `InternalServerError` for `openssl::ssl::HandshakeError`
-impl ResponseError for openssl::ssl::HandshakeError<tokio_tcp::TcpStream> {}
+impl<T: std::fmt::Debug> ResponseError for open_ssl::ssl::HandshakeError<T> {}
 
 /// Return `BAD_REQUEST` for `de::value::Error`
 impl ResponseError for DeError {
@@ -383,12 +383,12 @@ impl ResponseError for PayloadError {
     }
 }
 
-// /// Return `BadRequest` for `cookie::ParseError`
-// impl ResponseError for crate::cookie::ParseError {
-//     fn error_response(&self) -> Response {
-//         Response::new(StatusCode::BAD_REQUEST)
-//     }
-// }
+/// Return `BadRequest` for `cookie::ParseError`
+impl ResponseError for crate::cookie::ParseError {
+    fn error_response(&self) -> Response {
+        Response::new(StatusCode::BAD_REQUEST)
+    }
+}
 
 #[derive(Debug, Display, From)]
 /// A set of errors that can occur during dispatching http requests

@@ -74,6 +74,7 @@ language-tags = "0.2"
 log = "0.4"
 mime = "0.3"
 percent-encoding = "2.1"
+pin-project = "0.4.5"
 rand = "0.7"
 regex = "1.0"
 serde = "1.0"
@@ -107,7 +108,7 @@ webpki-roots = { version = "0.18", optional = true }
 
 [dev-dependencies]
 actix-rt = "1.0.0-alpha.1"
-actix-server = { version = "0.8.0-alpha.1", features=["openssl"] }
+actix-server = { version = "0.8.0-alpha.1", features=["openssl", "rustls"] }
 actix-connect = { version = "1.0.0-alpha.1", features=["openssl"] }
 actix-http-test = { version = "0.3.0-alpha.1", features=["openssl"] }
 env_logger = "0.6"

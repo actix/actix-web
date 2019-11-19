@@ -37,12 +37,10 @@ pub struct H2Service<T, P, S, B> {
 impl<T, P, S, B> H2Service<T, P, S, B>
 where
     S: ServiceFactory<Config = SrvConfig, Request = Request>,
-    S::Error: Into<Error> + Unpin + 'static,
-    S::Response: Into<Response<B>> + Unpin + 'static,
-    S::Future: Unpin,
-    <S::Service as Service>::Future: Unpin + 'static,
+    S::Error: Into<Error> + 'static,
+    S::Response: Into<Response<B>> + 'static,
+    <S::Service as Service>::Future: 'static,
     B: MessageBody + 'static,
-    P: Unpin,
 {
     /// Create new `HttpService` instance.
     pub fn new<F: IntoServiceFactory<S>>(service: F) -> Self {
@@ -83,12 +81,10 @@ impl<T, P, S, B> ServiceFactory for H2Service<T, P, S, B>
 where
     T: IoStream,
     S: ServiceFactory<Config = SrvConfig, Request = Request>,
-    S::Error: Into<Error> + Unpin + 'static,
-    S::Response: Into<Response<B>> + Unpin + 'static,
-    S::Future: Unpin,
-    <S::Service as Service>::Future: Unpin + 'static,
+    S::Error: Into<Error> + 'static,
+    S::Response: Into<Response<B>> + 'static,
+    <S::Service as Service>::Future: 'static,
     B: MessageBody + 'static,
-    P: Unpin,
 {
     type Config = SrvConfig;
     type Request = Io<T, P>;
@@ -109,7 +105,9 @@ where
 }
 
 #[doc(hidden)]
+#[pin_project::pin_project]
 pub struct H2ServiceResponse<T, P, S: ServiceFactory, B> {
+    #[pin]
     fut: S::Future,
     cfg: Option<ServiceConfig>,
     on_connect: Option<rc::Rc<dyn Fn(&T) -> Box<dyn DataFactory>>>,
@@ -120,19 +118,18 @@ impl<T, P, S, B> Future for H2ServiceResponse<T, P, S, B>
 where
     T: IoStream,
     S: ServiceFactory<Config = SrvConfig, Request = Request>,
-    S::Error: Into<Error> + Unpin + 'static,
-    S::Response: Into<Response<B>> + Unpin + 'static,
-    S::Future: Unpin,
-    <S::Service as Service>::Future: Unpin + 'static,
+    S::Error: Into<Error> + 'static,
+    S::Response: Into<Response<B>> + 'static,
+    <S::Service as Service>::Future: 'static,
     B: MessageBody + 'static,
-    P: Unpin,
 {
     type Output = Result<H2ServiceHandler<T, P, S::Service, B>, S::InitError>;
 
-    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        let this = self.get_mut();
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+        let this = self.as_mut().project();
 
-        Poll::Ready(ready!(Pin::new(&mut this.fut).poll(cx)).map(|service| {
+        Poll::Ready(ready!(this.fut.poll(cx)).map(|service| {
+            let this = self.as_mut().project();
             H2ServiceHandler::new(
                 this.cfg.take().unwrap(),
                 this.on_connect.clone(),
@@ -153,11 +150,10 @@ pub struct H2ServiceHandler<T, P, S, B> {
 impl<T, P, S, B> H2ServiceHandler<T, P, S, B>
 where
     S: Service<Request = Request>,
-    S::Error: Into<Error> + Unpin + 'static,
-    S::Future: Unpin + 'static,
-    S::Response: Into<Response<B>> + Unpin + 'static,
+    S::Error: Into<Error> + 'static,
+    S::Future: 'static,
+    S::Response: Into<Response<B>> + 'static,
     B: MessageBody + 'static,
-    P: Unpin,
 {
     fn new(
         cfg: ServiceConfig,
@@ -177,11 +173,10 @@ impl<T, P, S, B> Service for H2ServiceHandler<T, P, S, B>
 where
     T: IoStream,
     S: Service<Request = Request>,
-    S::Error: Into<Error> + Unpin + 'static,
-    S::Future: Unpin + 'static,
-    S::Response: Into<Response<B>> + Unpin + 'static,
+    S::Error: Into<Error> + 'static,
+    S::Future: 'static,
+    S::Response: Into<Response<B>> + 'static,
     B: MessageBody + 'static,
-    P: Unpin,
 {
     type Request = Io<T, P>;
     type Response = ();
@@ -235,9 +230,9 @@ pub struct H2ServiceHandlerResponse<T, S, B>
 where
     T: IoStream,
     S: Service<Request = Request>,
-    S::Error: Into<Error> + Unpin + 'static,
-    S::Future: Unpin + 'static,
-    S::Response: Into<Response<B>> + Unpin + 'static,
+    S::Error: Into<Error> + 'static,
+    S::Future: 'static,
+    S::Response: Into<Response<B>> + 'static,
     B: MessageBody + 'static,
 {
     state: State<T, S, B>,
@@ -247,9 +242,9 @@ impl<T, S, B> Future for H2ServiceHandlerResponse<T, S, B>
 where
     T: IoStream,
     S: Service<Request = Request>,
-    S::Error: Into<Error> + Unpin + 'static,
-    S::Future: Unpin + 'static,
-    S::Response: Into<Response<B>> + Unpin + 'static,
+    S::Error: Into<Error> + 'static,
+    S::Future: 'static,
+    S::Response: Into<Response<B>> + 'static,
     B: MessageBody,
 {
     type Output = Result<(), DispatchError>;

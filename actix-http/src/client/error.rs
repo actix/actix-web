@@ -3,8 +3,8 @@ use std::io;
 use derive_more::{Display, From};
 use trust_dns_resolver::error::ResolveError;
 
-#[cfg(feature = "ssl")]
-use openssl::ssl::{Error as SslError, HandshakeError};
+#[cfg(feature = "openssl")]
+use open_ssl::ssl::{Error as SslError, HandshakeError};
 
 use crate::error::{Error, ParseError, ResponseError};
 use crate::http::Error as HttpError;
@@ -18,7 +18,7 @@ pub enum ConnectError {
     SslIsNotSupported,
 
     /// SSL error
-    #[cfg(feature = "ssl")]
+    #[cfg(feature = "openssl")]
     #[display(fmt = "{}", _0)]
     SslError(SslError),
 
@@ -63,7 +63,7 @@ impl From<actix_connect::ConnectError> for ConnectError {
     }
 }
 
-#[cfg(feature = "ssl")]
+#[cfg(feature = "openssl")]
 impl<T> From<HandshakeError<T>> for ConnectError {
     fn from(err: HandshakeError<T>) -> ConnectError {
         match err {

@@ -5,6 +5,7 @@ use std::{fmt, mem};
 
 use bytes::{Bytes, BytesMut};
 use futures::Stream;
+use pin_project::{pin_project, project};
 
 use crate::error::Error;
 
@@ -31,7 +32,7 @@ impl BodySize {
 }
 
 /// Type that provides this trait can be streamed to a peer.
-pub trait MessageBody: Unpin {
+pub trait MessageBody {
     fn size(&self) -> BodySize;
 
     fn poll_next(&mut self, cx: &mut Context) -> Poll<Option<Result<Bytes, Error>>>;
@@ -57,6 +58,7 @@ impl<T: MessageBody> MessageBody for Box<T> {
     }
 }
 
+#[pin_project]
 pub enum ResponseBody<B> {
     Body(B),
     Other(Body),
@@ -106,8 +108,13 @@ impl<B: MessageBody> MessageBody for ResponseBody<B> {
 impl<B: MessageBody> Stream for ResponseBody<B> {
     type Item = Result<Bytes, Error>;
 
+    #[project]
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
-        self.get_mut().poll_next(cx)
+        #[project]
+        match self.project() {
+            ResponseBody::Body(ref mut body) => body.poll_next(cx),
+            ResponseBody::Other(ref mut body) => body.poll_next(cx),
+        }
     }
 }
 
@@ -243,7 +250,7 @@ impl From<serde_json::Value> for Body {
 
 impl<S> From<SizedStream<S>> for Body
 where
-    S: Stream<Item = Result<Bytes, Error>> + Unpin + 'static,
+    S: Stream<Item = Result<Bytes, Error>> + 'static,
 {
     fn from(s: SizedStream<S>) -> Body {
         Body::from_message(s)
@@ -252,7 +259,7 @@ where
 
 impl<S, E> From<BodyStream<S, E>> for Body
 where
-    S: Stream<Item = Result<Bytes, E>> + Unpin + 'static,
+    S: Stream<Item = Result<Bytes, E>> + 'static,
     E: Into<Error> + 'static,
 {
     fn from(s: BodyStream<S, E>) -> Body {
@@ -350,7 +357,9 @@ impl MessageBody for String {
 
 /// Type represent streaming body.
 /// Response does not contain `content-length` header and appropriate transfer encoding is used.
+#[pin_project]
 pub struct BodyStream<S, E> {
+    #[pin]
     stream: S,
     _t: PhantomData<E>,
 }
@@ -368,16 +377,9 @@ where
     }
 }
 
-impl<S, E> Unpin for BodyStream<S, E>
-where
-    S: Stream<Item = Result<Bytes, E>> + Unpin,
-    E: Into<Error>,
-{
-}
-
 impl<S, E> MessageBody for BodyStream<S, E>
 where
-    S: Stream<Item = Result<Bytes, E>> + Unpin,
+    S: Stream<Item = Result<Bytes, E>>,
     E: Into<Error>,
 {
     fn size(&self) -> BodySize {
@@ -385,7 +387,9 @@ where
     }
 
     fn poll_next(&mut self, cx: &mut Context) -> Poll<Option<Result<Bytes, Error>>> {
-        Pin::new(&mut self.stream)
+        unsafe { Pin::new_unchecked(self) }
+            .project()
+            .stream
             .poll_next(cx)
             .map(|res| res.map(|res| res.map_err(std::convert::Into::into)))
     }
@@ -393,8 +397,10 @@ where
 
 /// Type represent streaming body. This body implementation should be used
 /// if total size of stream is known. Data get sent as is without using transfer encoding.
+#[pin_project]
 pub struct SizedStream<S> {
     size: u64,
+    #[pin]
     stream: S,
 }
 
@@ -409,20 +415,25 @@ where
 
 impl<S> MessageBody for SizedStream<S>
 where
-    S: Stream<Item = Result<Bytes, Error>> + Unpin,
+    S: Stream<Item = Result<Bytes, Error>>,
 {
     fn size(&self) -> BodySize {
         BodySize::Sized64(self.size)
     }
 
     fn poll_next(&mut self, cx: &mut Context) -> Poll<Option<Result<Bytes, Error>>> {
-        Pin::new(&mut self.stream).poll_next(cx)
+        unsafe { Pin::new_unchecked(self) }
+            .project()
+            .stream
+            .poll_next(cx)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use actix_http_test::block_on;
+    use futures::future::{lazy, poll_fn};
 
     impl Body {
         pub(crate) fn get_ref(&self) -> &[u8] {
@@ -450,8 +461,8 @@ mod tests {
 
         assert_eq!("test".size(), BodySize::Sized(4));
         assert_eq!(
-            "test".poll_next().unwrap(),
-            Async::Ready(Some(Bytes::from("test")))
+            block_on(poll_fn(|cx| "test".poll_next(cx))).unwrap().ok(),
+            Some(Bytes::from("test"))
         );
     }
 
@@ -467,8 +478,10 @@ mod tests {
 
         assert_eq!((&b"test"[..]).size(), BodySize::Sized(4));
         assert_eq!(
-            (&b"test"[..]).poll_next().unwrap(),
-            Async::Ready(Some(Bytes::from("test")))
+            block_on(poll_fn(|cx| (&b"test"[..]).poll_next(cx)))
+                .unwrap()
+                .ok(),
+            Some(Bytes::from("test"))
         );
     }
 
@@ -479,8 +492,10 @@ mod tests {
 
         assert_eq!(Vec::from("test").size(), BodySize::Sized(4));
         assert_eq!(
-            Vec::from("test").poll_next().unwrap(),
-            Async::Ready(Some(Bytes::from("test")))
+            block_on(poll_fn(|cx| Vec::from("test").poll_next(cx)))
+                .unwrap()
+                .ok(),
+            Some(Bytes::from("test"))
         );
     }
 
@@ -492,8 +507,8 @@ mod tests {
 
         assert_eq!(b.size(), BodySize::Sized(4));
         assert_eq!(
-            b.poll_next().unwrap(),
-            Async::Ready(Some(Bytes::from("test")))
+            block_on(poll_fn(|cx| b.poll_next(cx))).unwrap().ok(),
+            Some(Bytes::from("test"))
         );
     }
 
@@ -505,8 +520,8 @@ mod tests {
 
         assert_eq!(b.size(), BodySize::Sized(4));
         assert_eq!(
-            b.poll_next().unwrap(),
-            Async::Ready(Some(Bytes::from("test")))
+            block_on(poll_fn(|cx| b.poll_next(cx))).unwrap().ok(),
+            Some(Bytes::from("test"))
         );
     }
 
@@ -520,22 +535,22 @@ mod tests {
 
         assert_eq!(b.size(), BodySize::Sized(4));
         assert_eq!(
-            b.poll_next().unwrap(),
-            Async::Ready(Some(Bytes::from("test")))
+            block_on(poll_fn(|cx| b.poll_next(cx))).unwrap().ok(),
+            Some(Bytes::from("test"))
         );
     }
 
     #[test]
     fn test_unit() {
         assert_eq!(().size(), BodySize::Empty);
-        assert_eq!(().poll_next().unwrap(), Async::Ready(None));
+        assert!(block_on(poll_fn(|cx| ().poll_next(cx))).is_none());
     }
 
     #[test]
     fn test_box() {
         let mut val = Box::new(());
         assert_eq!(val.size(), BodySize::Empty);
-        assert_eq!(val.poll_next().unwrap(), Async::Ready(None));
+        assert!(block_on(poll_fn(|cx| val.poll_next(cx))).is_none());
     }
 
     #[test]

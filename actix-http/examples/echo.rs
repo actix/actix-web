@@ -1,9 +1,9 @@
 use std::{env, io};
 
-use actix_http::{error::PayloadError, HttpService, Request, Response};
+use actix_http::{Error, HttpService, Request, Response};
 use actix_server::Server;
 use bytes::BytesMut;
-use futures::{Future, Stream};
+use futures::StreamExt;
 use http::header::HeaderValue;
 use log::info;
 
@@ -17,20 +17,22 @@ fn main() -> io::Result<()> {
                 .client_timeout(1000)
                 .client_disconnect(1000)
                 .finish(|mut req: Request| {
-                    req.take_payload()
-                        .fold(BytesMut::new(), move |mut body, chunk| {
-                            body.extend_from_slice(&chunk);
-                            Ok::<_, PayloadError>(body)
-                        })
-                        .and_then(|bytes| {
-                            info!("request body: {:?}", bytes);
-                            let mut res = Response::Ok();
-                            res.header(
-                                "x-head",
-                                HeaderValue::from_static("dummy value!"),
-                            );
-                            Ok(res.body(bytes))
-                        })
+                    async move {
+                        let mut body = BytesMut::new();
+                        while let Some(item) = req.payload().next().await {
+                            body.extend_from_slice(&item?);
+                        }
+
+                        info!("request body: {:?}", body);
+                        Ok::<_, Error>(
+                            Response::Ok()
+                                .header(
+                                    "x-head",
+                                    HeaderValue::from_static("dummy value!"),
+                                )
+                                .body(body),
+                        )
+                    }
                 })
         })?
         .run()
