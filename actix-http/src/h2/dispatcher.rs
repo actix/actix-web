@@ -122,7 +122,7 @@ where
             match Pin::new(&mut this.connection).poll_accept(cx) {
                 Poll::Ready(None) => return Poll::Ready(Ok(())),
                 Poll::Ready(Some(Err(err))) => return Poll::Ready(Err(err.into())),
-                Poll::Ready(Some(Ok((req, res)))) => {
+                Poll::Ready(Some(Ok((req, _)))) => {
                     // update keep-alive expire
                     if this.ka_timer.is_some() {
                         if let Some(expire) = this.config.keep_alive_expire() {

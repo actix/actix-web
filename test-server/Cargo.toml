@@ -1,6 +1,6 @@
 [package]
 name = "actix-http-test"
-version = "0.2.5"
+version = "0.3.0-alpha.1"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix http test server"
 readme = "README.md"
