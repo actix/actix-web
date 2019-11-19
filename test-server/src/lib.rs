@@ -109,7 +109,7 @@ impl TestServer {
         block_on(lazy(|_| {
             Ok::<_, ()>(actix_connect::start_default_resolver())
         }))
-        .unwrap();
+            .unwrap();
 
         TestServerRuntime {
             addr,

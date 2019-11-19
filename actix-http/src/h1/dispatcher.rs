@@ -331,12 +331,10 @@ where
                 Poll::Ready(Err(err)) => return Err(DispatchError::Io(err)),
             }
         }
-        if written > 0 {
-            if written == self.write_buf.len() {
-                unsafe { self.write_buf.set_len(0) }
-            } else {
-                let _ = self.write_buf.split_to(written);
-            }
+        if written == self.write_buf.len() {
+            unsafe { self.write_buf.set_len(0) }
+        } else {
+            let _ = self.write_buf.split_to(written);
         }
         Ok(false)
     }

@@ -76,7 +76,8 @@ where
     };
 
     // read response and init read body
-    let (head, framed) = if let (Some(result), framed) = framed.into_future().await {
+    let res = framed.into_future().await;
+    let (head, framed) = if let (Some(result), framed) = res {
         let item = result.map_err(SendRequestError::from)?;
         (item, framed)
     } else {

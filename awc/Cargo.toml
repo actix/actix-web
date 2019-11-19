@@ -65,7 +65,7 @@ rust-tls = { version = "0.16.0", package="rustls", optional = true }
 actix-rt = "1.0.0-alpha.1"
 #actix-web = { version = "1.0.8", features=["ssl"] }
 actix-http = { version = "0.3.0-alpha.1", features=["openssl"] }
-#actix-http-test = { version = "0.2.0", features=["ssl"] }
+actix-http-test = { version = "0.3.0-alpha.1", features=["openssl"] }
 actix-utils = "0.5.0-alpha.1"
 actix-server = { version = "0.8.0-alpha.1", features=["openssl", "rustls"] }
 brotli2 = { version="0.3.2" }
@@ -77,7 +77,9 @@ webpki = { version = "0.21" }
 rus-tls = { version = "0.16.0", package="rustls", features = ["dangerous_configuration"] }
 
 [patch.crates-io]
+awc = { path = "." }
 actix-http = { path = "../actix-http" }
+actix-http-test = { path = "../test-server" }
 
 actix-codec = { path = "../../actix-net/actix-codec" }
 actix-connect = { path = "../../actix-net/actix-connect" }

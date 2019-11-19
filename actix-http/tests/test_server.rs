@@ -2,14 +2,14 @@ use std::io::{Read, Write};
 use std::time::Duration;
 use std::{net, thread};
 
-use actix_http_test::TestServer;
+use actix_http_test::{block_fn, TestServer};
 use actix_server_config::ServerConfig;
 use actix_service::{factory_fn_cfg, pipeline, service_fn, ServiceFactory};
 use bytes::Bytes;
-use futures::future::{self, err, ok, ready, Future, FutureExt};
-use futures::stream::{once, Stream, StreamExt};
+use futures::future::{self, err, ok, ready, FutureExt};
+use futures::stream::{once, StreamExt};
 use regex::Regex;
-use tokio_timer::sleep;
+use tokio_timer::delay_for;
 
 use actix_http::httpmessage::HttpMessage;
 use actix_http::{
@@ -18,7 +18,7 @@ use actix_http::{
 
 #[test]
 fn test_h1() {
-    let mut srv = TestServer::new(|| {
+    let srv = TestServer::new(|| {
         HttpService::build()
             .keep_alive(KeepAlive::Disabled)
             .client_timeout(1000)
@@ -29,13 +29,13 @@ fn test_h1() {
             })
     });
 
-    let response = srv.block_on(srv.get("/").send()).unwrap();
+    let response = block_fn(|| srv.get("/").send()).unwrap();
     assert!(response.status().is_success());
 }
 
 #[test]
 fn test_h1_2() {
-    let mut srv = TestServer::new(|| {
+    let srv = TestServer::new(|| {
         HttpService::build()
             .keep_alive(KeepAlive::Disabled)
             .client_timeout(1000)
@@ -48,7 +48,7 @@ fn test_h1_2() {
             .map(|_| ())
     });
 
-    let response = srv.block_on(srv.get("/").send()).unwrap();
+    let response = block_fn(|| srv.get("/").send()).unwrap();
     assert!(response.status().is_success());
 }
 
@@ -84,11 +84,11 @@ fn test_expect_continue_h1() {
     let srv = TestServer::new(|| {
         HttpService::build()
             .expect(service_fn(|req: Request| {
-                sleep(Duration::from_millis(20)).then(move |_| {
+                delay_for(Duration::from_millis(20)).then(move |_| {
                     if req.head().uri.query() == Some("yes=") {
-                        Ok(req)
+                        ok(req)
                     } else {
-                        Err(error::ErrorPreconditionFailed("error"))
+                        err(error::ErrorPreconditionFailed("error"))
                     }
                 })
             }))
@@ -114,7 +114,7 @@ fn test_chunked_payload() {
     let total_size: usize = chunk_sizes.iter().sum();
 
     let srv = TestServer::new(|| {
-        HttpService::build().h1(|mut request: Request| {
+        HttpService::build().h1(service_fn(|mut request: Request| {
             request
                 .take_payload()
                 .map(|res| match res {
@@ -122,8 +122,10 @@ fn test_chunked_payload() {
                     Err(e) => panic!(format!("Error reading payload: {}", e)),
                 })
                 .fold(0usize, |acc, chunk| ready(acc + chunk.len()))
-                .map(|req_size| ok(Response::Ok().body(format!("size={}", req_size))))
-        })
+                .map(|req_size| {
+                    Ok::<_, Error>(Response::Ok().body(format!("size={}", req_size)))
+                })
+        }))
     });
 
     let returned_size = {
@@ -310,7 +312,7 @@ fn test_content_length() {
         StatusCode,
     };
 
-    let mut srv = TestServer::new(|| {
+    let srv = TestServer::new(|| {
         HttpService::build().h1(|req: Request| {
             let indx: usize = req.uri().path()[1..].parse().unwrap();
             let statuses = [
@@ -330,24 +332,18 @@ fn test_content_length() {
 
     {
         for i in 0..4 {
-            let req = srv
-                .request(http::Method::GET, srv.url(&format!("/{}", i)))
-                .send();
-            let response = srv.block_on(req).unwrap();
+            let req = srv.request(http::Method::GET, srv.url(&format!("/{}", i)));
+            let response = block_fn(move || req.send()).unwrap();
             assert_eq!(response.headers().get(&header), None);
 
-            let req = srv
-                .request(http::Method::HEAD, srv.url(&format!("/{}", i)))
-                .send();
-            let response = srv.block_on(req).unwrap();
+            let req = srv.request(http::Method::HEAD, srv.url(&format!("/{}", i)));
+            let response = block_fn(move || req.send()).unwrap();
             assert_eq!(response.headers().get(&header), None);
         }
 
         for i in 4..6 {
-            let req = srv
-                .request(http::Method::GET, srv.url(&format!("/{}", i)))
-                .send();
-            let response = srv.block_on(req).unwrap();
+            let req = srv.request(http::Method::GET, srv.url(&format!("/{}", i)));
+            let response = block_fn(move || req.send()).unwrap();
             assert_eq!(response.headers().get(&header), Some(&value));
         }
     }
@@ -384,7 +380,7 @@ fn test_h1_headers() {
         })
     });
 
-    let response = srv.block_on(srv.get("/").send()).unwrap();
+    let response = block_fn(|| srv.get("/").send()).unwrap();
     assert!(response.status().is_success());
 
     // read response
@@ -420,7 +416,7 @@ fn test_h1_body() {
         HttpService::build().h1(|_| ok::<_, ()>(Response::Ok().body(STR)))
     });
 
-    let response = srv.block_on(srv.get("/").send()).unwrap();
+    let response = block_fn(|| srv.get("/").send()).unwrap();
     assert!(response.status().is_success());
 
     // read response
@@ -434,7 +430,7 @@ fn test_h1_head_empty() {
         HttpService::build().h1(|_| ok::<_, ()>(Response::Ok().body(STR)))
     });
 
-    let response = srv.block_on(srv.head("/").send()).unwrap();
+    let response = block_fn(|| srv.head("/").send()).unwrap();
     assert!(response.status().is_success());
 
     {
@@ -458,7 +454,7 @@ fn test_h1_head_binary() {
         })
     });
 
-    let response = srv.block_on(srv.head("/").send()).unwrap();
+    let response = block_fn(|| srv.head("/").send()).unwrap();
     assert!(response.status().is_success());
 
     {
@@ -476,11 +472,11 @@ fn test_h1_head_binary() {
 
 #[test]
 fn test_h1_head_binary2() {
-    let mut srv = TestServer::new(|| {
+    let srv = TestServer::new(|| {
         HttpService::build().h1(|_| ok::<_, ()>(Response::Ok().body(STR)))
     });
 
-    let response = srv.block_on(srv.head("/").send()).unwrap();
+    let response = block_fn(|| srv.head("/").send()).unwrap();
     assert!(response.status().is_success());
 
     {
@@ -503,7 +499,7 @@ fn test_h1_body_length() {
         })
     });
 
-    let response = srv.block_on(srv.get("/").send()).unwrap();
+    let response = block_fn(|| srv.get("/").send()).unwrap();
     assert!(response.status().is_success());
 
     // read response
@@ -524,7 +520,7 @@ fn test_h1_body_chunked_explicit() {
         })
     });
 
-    let response = srv.block_on(srv.get("/").send()).unwrap();
+    let response = block_fn(|| srv.get("/").send()).unwrap();
     assert!(response.status().is_success());
     assert_eq!(
         response
@@ -552,7 +548,7 @@ fn test_h1_body_chunked_implicit() {
         })
     });
 
-    let response = srv.block_on(srv.get("/").send()).unwrap();
+    let response = block_fn(|| srv.get("/").send()).unwrap();
     assert!(response.status().is_success());
     assert_eq!(
         response
@@ -584,7 +580,7 @@ fn test_h1_response_http_error_handling() {
         }))
     });
 
-    let response = srv.block_on(srv.get("/").send()).unwrap();
+    let response = block_fn(|| srv.get("/").send()).unwrap();
     assert_eq!(response.status(), http::StatusCode::INTERNAL_SERVER_ERROR);
 
     // read response
@@ -599,7 +595,7 @@ fn test_h1_service_error() {
             .h1(|_| future::err::<Response, Error>(error::ErrorBadRequest("error")))
     });
 
-    let response = srv.block_on(srv.get("/").send()).unwrap();
+    let response = block_fn(|| srv.get("/").send()).unwrap();
     assert_eq!(response.status(), http::StatusCode::BAD_REQUEST);
 
     // read response
@@ -609,7 +605,7 @@ fn test_h1_service_error() {
 
 #[test]
 fn test_h1_on_connect() {
-    let mut srv = TestServer::new(|| {
+    let srv = TestServer::new(|| {
         HttpService::build()
             .on_connect(|_| 10usize)
             .h1(|req: Request| {
@@ -618,6 +614,6 @@ fn test_h1_on_connect() {
             })
     });
 
-    let response = srv.block_on(srv.get("/").send()).unwrap();
+    let response = block_fn(|| srv.get("/").send()).unwrap();
     assert!(response.status().is_success());
 }
