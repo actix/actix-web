@@ -1,6 +1,6 @@
 [package]
 name = "actix-files"
-version = "0.2.0-alpha.1"
+version = "0.1.7"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Static files support for actix web."
 readme = "README.md"
@@ -11,19 +11,19 @@ documentation = "https://docs.rs/actix-files/"
 categories = ["asynchronous", "web-programming::http-server"]
 license = "MIT/Apache-2.0"
 edition = "2018"
-workspace = ".."
+# workspace = ".."
 
 [lib]
 name = "actix_files"
 path = "src/lib.rs"
 
 [dependencies]
-actix-web = { version = "2.0.0-alpha.1", default-features = false }
-actix-http = "0.3.0-alpha.1"
-actix-service = "1.0.0-alpha.1"
+actix-web = { version = "1.0.9", default-features = false }
+actix-http = "0.2.11"
+actix-service = "0.4.2"
 bitflags = "1"
 bytes = "0.4"
-futures = "0.3.1"
+futures = "0.1.24"
 derive_more = "0.15.0"
 log = "0.4"
 mime = "0.3"
@@ -32,4 +32,4 @@ percent-encoding = "2.1"
 v_htmlescape = "0.4"
 
 [dev-dependencies]
-actix-web = { version = "2.0.0-alpha.1", features=["openssl"] }
+actix-web = { version = "1.0.9", features=["ssl"] }

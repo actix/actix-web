@@ -31,13 +31,13 @@ members = [
   ".",
   "awc",
   "actix-http",
-  "actix-cors",
-  "actix-files",
-  "actix-framed",
-  "actix-session",
-  "actix-identity",
-  "actix-multipart",
-  "actix-web-actors",
+  #"actix-cors",
+  #"actix-files",
+  #"actix-framed",
+  #"actix-session",
+  #"actix-identity",
+  #"actix-multipart",
+  #"actix-web-actors",
   "actix-web-codegen",
   "test-server",
 ]
@@ -125,17 +125,27 @@ actix-http = { path = "actix-http" }
 actix-http-test = { path = "test-server" }
 actix-web-codegen = { path = "actix-web-codegen" }
 # actix-web-actors = { path = "actix-web-actors" }
-actix-session = { path = "actix-session" }
-actix-files = { path = "actix-files" }
-actix-multipart = { path = "actix-multipart" }
+# actix-session = { path = "actix-session" }
+# actix-files = { path = "actix-files" }
+# actix-multipart = { path = "actix-multipart" }
 awc = { path = "awc" }
 
-actix-codec = { path = "../actix-net/actix-codec" }
-actix-connect = { path = "../actix-net/actix-connect" }
-actix-rt = { path = "../actix-net/actix-rt" }
-actix-server = { path = "../actix-net/actix-server" }
-actix-server-config = { path = "../actix-net/actix-server-config" }
-actix-service = { path = "../actix-net/actix-service" }
-actix-testing = { path = "../actix-net/actix-testing" }
-actix-threadpool = { path = "../actix-net/actix-threadpool" }
-actix-utils = { path = "../actix-net/actix-utils" }
+actix-codec = { git = "https://github.com/actix/actix-net.git" }
+actix-connect = { git = "https://github.com/actix/actix-net.git" }
+actix-rt = { git = "https://github.com/actix/actix-net.git" }
+actix-server = { git = "https://github.com/actix/actix-net.git" }
+actix-server-config = { git = "https://github.com/actix/actix-net.git" }
+actix-service = { git = "https://github.com/actix/actix-net.git" }
+actix-testing = { git = "https://github.com/actix/actix-net.git" }
+actix-threadpool = { git = "https://github.com/actix/actix-net.git" }
+actix-utils = {  git = "https://github.com/actix/actix-net.git" }
+
+# actix-codec = { path = "../actix-net/actix-codec" }
+# actix-connect = { path = "../actix-net/actix-connect" }
+# actix-rt = { path = "../actix-net/actix-rt" }
+# actix-server = { path = "../actix-net/actix-server" }
+# actix-server-config = { path = "../actix-net/actix-server-config" }
+# actix-service = { path = "../actix-net/actix-service" }
+# actix-testing = { path = "../actix-net/actix-testing" }
+# actix-threadpool = { path = "../actix-net/actix-threadpool" }
+# actix-utils = { path = "../actix-net/actix-utils" }
