@@ -14,7 +14,7 @@ categories = ["network-programming", "asynchronous",
 license = "MIT/Apache-2.0"
 exclude = [".gitignore", ".travis.yml", ".cargo/config", "appveyor.yml"]
 edition = "2018"
-# workspace = ".."
+workspace = ".."
 
 [lib]
 name = "awc"
@@ -59,7 +59,7 @@ serde_json = "1.0"
 serde_urlencoded = "0.6.1"
 tokio-timer = "0.3.0-alpha.6"
 open-ssl = { version="0.10", package="openssl", optional = true }
-rust-tls = { version = "0.16.0", package="rustls", optional = true }
+rust-tls = { version = "0.16.0", package="rustls", optional = true, features = ["dangerous_configuration"]  }
 
 [dev-dependencies]
 actix-rt = "1.0.0-alpha.1"
@@ -67,11 +67,10 @@ actix-web = { version = "2.0.0-alpha.1", features=["openssl"] }
 actix-http = { version = "0.3.0-alpha.1", features=["openssl"] }
 actix-http-test = { version = "0.3.0-alpha.1", features=["openssl"] }
 actix-utils = "0.5.0-alpha.1"
-actix-server = { version = "0.8.0-alpha.1", features=["openssl", "rustls"] }
+actix-server = { version = "0.8.0-alpha.1", features=["openssl"] }
 brotli2 = { version="0.3.2" }
 flate2 = { version="1.0.2" }
 env_logger = "0.6"
 rand = "0.7"
 tokio-tcp = "0.1"
 webpki = { version = "0.21" }
-rus-tls = { version = "0.16.0", package="rustls", features = ["dangerous_configuration"] }

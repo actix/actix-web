@@ -389,6 +389,8 @@ impl fmt::Debug for WebsocketsRequest {
 
 #[cfg(test)]
 mod tests {
+    use actix_web::test::block_on;
+
     use super::*;
     use crate::Client;
 
@@ -463,35 +465,33 @@ mod tests {
 
     #[test]
     fn basics() {
-        let req = Client::new()
-            .ws("http://localhost/")
-            .origin("test-origin")
-            .max_frame_size(100)
-            .server_mode()
-            .protocols(&["v1", "v2"])
-            .set_header_if_none(header::CONTENT_TYPE, "json")
-            .set_header_if_none(header::CONTENT_TYPE, "text")
-            .cookie(Cookie::build("cookie1", "value1").finish());
-        assert_eq!(
-            req.origin.as_ref().unwrap().to_str().unwrap(),
-            "test-origin"
-        );
-        assert_eq!(req.max_size, 100);
-        assert_eq!(req.server_mode, true);
-        assert_eq!(req.protocols, Some("v1,v2".to_string()));
-        assert_eq!(
-            req.head.headers.get(header::CONTENT_TYPE).unwrap(),
-            header::HeaderValue::from_static("json")
-        );
+        block_on(async {
+            let req = Client::new()
+                .ws("http://localhost/")
+                .origin("test-origin")
+                .max_frame_size(100)
+                .server_mode()
+                .protocols(&["v1", "v2"])
+                .set_header_if_none(header::CONTENT_TYPE, "json")
+                .set_header_if_none(header::CONTENT_TYPE, "text")
+                .cookie(Cookie::build("cookie1", "value1").finish());
+            assert_eq!(
+                req.origin.as_ref().unwrap().to_str().unwrap(),
+                "test-origin"
+            );
+            assert_eq!(req.max_size, 100);
+            assert_eq!(req.server_mode, true);
+            assert_eq!(req.protocols, Some("v1,v2".to_string()));
+            assert_eq!(
+                req.head.headers.get(header::CONTENT_TYPE).unwrap(),
+                header::HeaderValue::from_static("json")
+            );
 
-        let _ = actix_http_test::block_fn(move || req.connect());
+            let _ = req.connect().await;
 
-        assert!(Client::new().ws("/").connect().poll().is_err());
-        assert!(Client::new().ws("http:///test").connect().poll().is_err());
-        assert!(Client::new()
-            .ws("hmm://test.com/")
-            .connect()
-            .poll()
-            .is_err());
+            assert!(Client::new().ws("/").connect().await.is_err());
+            assert!(Client::new().ws("http:///test").connect().await.is_err());
+            assert!(Client::new().ws("hmm://test.com/").connect().await.is_err());
+        })
     }
 }
