@@ -9,8 +9,8 @@ use actix_http::{
     ResponseHead,
 };
 use actix_router::{Path, Resource, ResourceDef, Url};
-use actix_service::{IntoNewService, NewService};
-use futures::future::{ok, FutureResult, IntoFuture};
+use actix_service::{IntoServiceFactory, ServiceFactory};
+use futures::future::{ok, Ready};
 
 use crate::config::{AppConfig, AppService};
 use crate::data::Data;
@@ -24,7 +24,7 @@ pub trait HttpServiceFactory {
     fn register(self, config: &mut AppService);
 }
 
-pub(crate) trait ServiceFactory {
+pub(crate) trait AppServiceFactory {
     fn register(&mut self, config: &mut AppService);
 }
 
@@ -40,7 +40,7 @@ impl<T> ServiceFactoryWrapper<T> {
     }
 }
 
-impl<T> ServiceFactory for ServiceFactoryWrapper<T>
+impl<T> AppServiceFactory for ServiceFactoryWrapper<T>
 where
     T: HttpServiceFactory,
 {
@@ -404,16 +404,6 @@ impl<B> Into<Response<B>> for ServiceResponse<B> {
     }
 }
 
-impl<B> IntoFuture for ServiceResponse<B> {
-    type Item = ServiceResponse<B>;
-    type Error = Error;
-    type Future = FutureResult<ServiceResponse<B>, Error>;
-
-    fn into_future(self) -> Self::Future {
-        ok(self)
-    }
-}
-
 impl<B: MessageBody> fmt::Debug for ServiceResponse<B> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let res = writeln!(
@@ -459,10 +449,11 @@ impl WebService {
     /// Add match guard to a web service.
     ///
     /// ```rust
-    /// use actix_web::{web, guard, dev, App, HttpResponse};
+    /// use futures::future::{ok, Ready};
+    /// use actix_web::{web, guard, dev, App, Error, HttpResponse};
     ///
-    /// fn index(req: dev::ServiceRequest) -> dev::ServiceResponse {
-    ///     req.into_response(HttpResponse::Ok().finish())
+    /// fn index(req: dev::ServiceRequest) -> Ready<Result<dev::ServiceResponse, Error>> {
+    ///     ok(req.into_response(HttpResponse::Ok().finish()))
     /// }
     ///
     /// fn main() {
@@ -482,8 +473,8 @@ impl WebService {
     /// Set a service factory implementation and generate web service.
     pub fn finish<T, F>(self, service: F) -> impl HttpServiceFactory
     where
-        F: IntoNewService<T>,
-        T: NewService<
+        F: IntoServiceFactory<T>,
+        T: ServiceFactory<
                 Config = (),
                 Request = ServiceRequest,
                 Response = ServiceResponse,
@@ -492,7 +483,7 @@ impl WebService {
             > + 'static,
     {
         WebServiceImpl {
-            srv: service.into_new_service(),
+            srv: service.into_factory(),
             rdef: self.rdef,
             name: self.name,
             guards: self.guards,
@@ -509,7 +500,7 @@ struct WebServiceImpl<T> {
 
 impl<T> HttpServiceFactory for WebServiceImpl<T>
 where
-    T: NewService<
+    T: ServiceFactory<
             Config = (),
             Request = ServiceRequest,
             Response = ServiceResponse,
@@ -539,8 +530,9 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test::{call_service, init_service, TestRequest};
+    use crate::test::{block_on, init_service, TestRequest};
     use crate::{guard, http, web, App, HttpResponse};
+    use actix_service::Service;
 
     #[test]
     fn test_service_request() {
@@ -565,25 +557,33 @@ mod tests {
 
     #[test]
     fn test_service() {
-        let mut srv = init_service(
-            App::new().service(web::service("/test").name("test").finish(
-                |req: ServiceRequest| req.into_response(HttpResponse::Ok().finish()),
-            )),
-        );
-        let req = TestRequest::with_uri("/test").to_request();
-        let resp = call_service(&mut srv, req);
-        assert_eq!(resp.status(), http::StatusCode::OK);
+        block_on(async {
+            let mut srv = init_service(
+                App::new().service(web::service("/test").name("test").finish(
+                    |req: ServiceRequest| {
+                        ok(req.into_response(HttpResponse::Ok().finish()))
+                    },
+                )),
+            )
+            .await;
+            let req = TestRequest::with_uri("/test").to_request();
+            let resp = srv.call(req).await.unwrap();
+            assert_eq!(resp.status(), http::StatusCode::OK);
 
-        let mut srv = init_service(
-            App::new().service(web::service("/test").guard(guard::Get()).finish(
-                |req: ServiceRequest| req.into_response(HttpResponse::Ok().finish()),
-            )),
-        );
-        let req = TestRequest::with_uri("/test")
-            .method(http::Method::PUT)
-            .to_request();
-        let resp = call_service(&mut srv, req);
-        assert_eq!(resp.status(), http::StatusCode::NOT_FOUND);
+            let mut srv = init_service(App::new().service(
+                web::service("/test").guard(guard::Get()).finish(
+                    |req: ServiceRequest| {
+                        ok(req.into_response(HttpResponse::Ok().finish()))
+                    },
+                ),
+            ))
+            .await;
+            let req = TestRequest::with_uri("/test")
+                .method(http::Method::PUT)
+                .to_request();
+            let resp = srv.call(req).await.unwrap();
+            assert_eq!(resp.status(), http::StatusCode::NOT_FOUND);
+        })
     }
 
     #[test]

@@ -1,14 +1,16 @@
 use std::cell::RefCell;
+use std::future::Future;
 use std::marker::PhantomData;
+use std::pin::Pin;
 use std::rc::Rc;
+use std::task::{Context, Poll};
 
 use actix_http::{Extensions, Request, Response};
 use actix_router::{Path, ResourceDef, ResourceInfo, Router, Url};
 use actix_server_config::ServerConfig;
 use actix_service::boxed::{self, BoxedNewService, BoxedService};
-use actix_service::{service_fn, NewService, Service};
-use futures::future::{ok, Either, FutureResult};
-use futures::{Async, Future, Poll};
+use actix_service::{service_fn, Service, ServiceFactory};
+use futures::future::{ok, Either, FutureExt, LocalBoxFuture, Ready};
 
 use crate::config::{AppConfig, AppService};
 use crate::data::DataFactory;
@@ -16,23 +18,20 @@ use crate::error::Error;
 use crate::guard::Guard;
 use crate::request::{HttpRequest, HttpRequestPool};
 use crate::rmap::ResourceMap;
-use crate::service::{ServiceFactory, ServiceRequest, ServiceResponse};
+use crate::service::{AppServiceFactory, ServiceRequest, ServiceResponse};
 
 type Guards = Vec<Box<dyn Guard>>;
 type HttpService = BoxedService<ServiceRequest, ServiceResponse, Error>;
 type HttpNewService = BoxedNewService<(), ServiceRequest, ServiceResponse, Error, ()>;
-type BoxedResponse = Either<
-    FutureResult<ServiceResponse, Error>,
-    Box<dyn Future<Item = ServiceResponse, Error = Error>>,
->;
+type BoxedResponse = LocalBoxFuture<'static, Result<ServiceResponse, Error>>;
 type FnDataFactory =
-    Box<dyn Fn() -> Box<dyn Future<Item = Box<dyn DataFactory>, Error = ()>>>;
+    Box<dyn Fn() -> LocalBoxFuture<'static, Result<Box<dyn DataFactory>, ()>>>;
 
 /// Service factory to convert `Request` to a `ServiceRequest<S>`.
 /// It also executes data factories.
 pub struct AppInit<T, B>
 where
-    T: NewService<
+    T: ServiceFactory<
         Config = (),
         Request = ServiceRequest,
         Response = ServiceResponse<B>,
@@ -44,15 +43,15 @@ where
     pub(crate) data: Rc<Vec<Box<dyn DataFactory>>>,
     pub(crate) data_factories: Rc<Vec<FnDataFactory>>,
     pub(crate) config: RefCell<AppConfig>,
-    pub(crate) services: Rc<RefCell<Vec<Box<dyn ServiceFactory>>>>,
+    pub(crate) services: Rc<RefCell<Vec<Box<dyn AppServiceFactory>>>>,
     pub(crate) default: Option<Rc<HttpNewService>>,
     pub(crate) factory_ref: Rc<RefCell<Option<AppRoutingFactory>>>,
     pub(crate) external: RefCell<Vec<ResourceDef>>,
 }
 
-impl<T, B> NewService for AppInit<T, B>
+impl<T, B> ServiceFactory for AppInit<T, B>
 where
-    T: NewService<
+    T: ServiceFactory<
         Config = (),
         Request = ServiceRequest,
         Response = ServiceResponse<B>,
@@ -71,8 +70,8 @@ where
     fn new_service(&self, cfg: &ServerConfig) -> Self::Future {
         // update resource default service
         let default = self.default.clone().unwrap_or_else(|| {
-            Rc::new(boxed::new_service(service_fn(|req: ServiceRequest| {
-                Ok(req.into_response(Response::NotFound().finish()))
+            Rc::new(boxed::factory(service_fn(|req: ServiceRequest| {
+                ok(req.into_response(Response::NotFound().finish()))
             })))
         });
 
@@ -135,23 +134,25 @@ where
     }
 }
 
+#[pin_project::pin_project]
 pub struct AppInitResult<T, B>
 where
-    T: NewService,
+    T: ServiceFactory,
 {
     endpoint: Option<T::Service>,
+    #[pin]
     endpoint_fut: T::Future,
     rmap: Rc<ResourceMap>,
     config: AppConfig,
     data: Rc<Vec<Box<dyn DataFactory>>>,
     data_factories: Vec<Box<dyn DataFactory>>,
-    data_factories_fut: Vec<Box<dyn Future<Item = Box<dyn DataFactory>, Error = ()>>>,
+    data_factories_fut: Vec<LocalBoxFuture<'static, Result<Box<dyn DataFactory>, ()>>>,
     _t: PhantomData<B>,
 }
 
 impl<T, B> Future for AppInitResult<T, B>
 where
-    T: NewService<
+    T: ServiceFactory<
         Config = (),
         Request = ServiceRequest,
         Response = ServiceResponse<B>,
@@ -159,48 +160,49 @@ where
         InitError = (),
     >,
 {
-    type Item = AppInitService<T::Service, B>;
-    type Error = ();
+    type Output = Result<AppInitService<T::Service, B>, ()>;
 
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+        let this = self.project();
+
         // async data factories
         let mut idx = 0;
-        while idx < self.data_factories_fut.len() {
-            match self.data_factories_fut[idx].poll()? {
-                Async::Ready(f) => {
-                    self.data_factories.push(f);
-                    let _ = self.data_factories_fut.remove(idx);
+        while idx < this.data_factories_fut.len() {
+            match Pin::new(&mut this.data_factories_fut[idx]).poll(cx)? {
+                Poll::Ready(f) => {
+                    this.data_factories.push(f);
+                    let _ = this.data_factories_fut.remove(idx);
                 }
-                Async::NotReady => idx += 1,
+                Poll::Pending => idx += 1,
             }
         }
 
-        if self.endpoint.is_none() {
-            if let Async::Ready(srv) = self.endpoint_fut.poll()? {
-                self.endpoint = Some(srv);
+        if this.endpoint.is_none() {
+            if let Poll::Ready(srv) = this.endpoint_fut.poll(cx)? {
+                *this.endpoint = Some(srv);
             }
         }
 
-        if self.endpoint.is_some() && self.data_factories_fut.is_empty() {
+        if this.endpoint.is_some() && this.data_factories_fut.is_empty() {
             // create app data container
             let mut data = Extensions::new();
-            for f in self.data.iter() {
+            for f in this.data.iter() {
                 f.create(&mut data);
             }
 
-            for f in &self.data_factories {
+            for f in this.data_factories.iter() {
                 f.create(&mut data);
             }
 
-            Ok(Async::Ready(AppInitService {
-                service: self.endpoint.take().unwrap(),
-                rmap: self.rmap.clone(),
-                config: self.config.clone(),
+            Poll::Ready(Ok(AppInitService {
+                service: this.endpoint.take().unwrap(),
+                rmap: this.rmap.clone(),
+                config: this.config.clone(),
                 data: Rc::new(data),
                 pool: HttpRequestPool::create(),
             }))
         } else {
-            Ok(Async::NotReady)
+            Poll::Pending
         }
     }
 }
@@ -226,8 +228,8 @@ where
     type Error = T::Error;
     type Future = T::Future;
 
-    fn poll_ready(&mut self) -> Poll<(), Self::Error> {
-        self.service.poll_ready()
+    fn poll_ready(&mut self, cx: &mut Context) -> Poll<Result<(), Self::Error>> {
+        self.service.poll_ready(cx)
     }
 
     fn call(&mut self, req: Request) -> Self::Future {
@@ -270,7 +272,7 @@ pub struct AppRoutingFactory {
     default: Rc<HttpNewService>,
 }
 
-impl NewService for AppRoutingFactory {
+impl ServiceFactory for AppRoutingFactory {
     type Config = ();
     type Request = ServiceRequest;
     type Response = ServiceResponse;
@@ -288,7 +290,7 @@ impl NewService for AppRoutingFactory {
                     CreateAppRoutingItem::Future(
                         Some(path.clone()),
                         guards.borrow_mut().take(),
-                        service.new_service(&()),
+                        service.new_service(&()).boxed_local(),
                     )
                 })
                 .collect(),
@@ -298,14 +300,14 @@ impl NewService for AppRoutingFactory {
     }
 }
 
-type HttpServiceFut = Box<dyn Future<Item = HttpService, Error = ()>>;
+type HttpServiceFut = LocalBoxFuture<'static, Result<HttpService, ()>>;
 
 /// Create app service
 #[doc(hidden)]
 pub struct AppRoutingFactoryResponse {
     fut: Vec<CreateAppRoutingItem>,
     default: Option<HttpService>,
-    default_fut: Option<Box<dyn Future<Item = HttpService, Error = ()>>>,
+    default_fut: Option<LocalBoxFuture<'static, Result<HttpService, ()>>>,
 }
 
 enum CreateAppRoutingItem {
@@ -314,16 +316,15 @@ enum CreateAppRoutingItem {
 }
 
 impl Future for AppRoutingFactoryResponse {
-    type Item = AppRouting;
-    type Error = ();
+    type Output = Result<AppRouting, ()>;
 
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
         let mut done = true;
 
         if let Some(ref mut fut) = self.default_fut {
-            match fut.poll()? {
-                Async::Ready(default) => self.default = Some(default),
-                Async::NotReady => done = false,
+            match Pin::new(fut).poll(cx)? {
+                Poll::Ready(default) => self.default = Some(default),
+                Poll::Pending => done = false,
             }
         }
 
@@ -334,11 +335,12 @@ impl Future for AppRoutingFactoryResponse {
                     ref mut path,
                     ref mut guards,
                     ref mut fut,
-                ) => match fut.poll()? {
-                    Async::Ready(service) => {
+                ) => match Pin::new(fut).poll(cx) {
+                    Poll::Ready(Ok(service)) => {
                         Some((path.take().unwrap(), guards.take(), service))
                     }
-                    Async::NotReady => {
+                    Poll::Ready(Err(_)) => return Poll::Ready(Err(())),
+                    Poll::Pending => {
                         done = false;
                         None
                     }
@@ -364,13 +366,13 @@ impl Future for AppRoutingFactoryResponse {
                     }
                     router
                 });
-            Ok(Async::Ready(AppRouting {
+            Poll::Ready(Ok(AppRouting {
                 ready: None,
                 router: router.finish(),
                 default: self.default.take(),
             }))
         } else {
-            Ok(Async::NotReady)
+            Poll::Pending
         }
     }
 }
@@ -387,11 +389,11 @@ impl Service for AppRouting {
     type Error = Error;
     type Future = BoxedResponse;
 
-    fn poll_ready(&mut self) -> Poll<(), Self::Error> {
+    fn poll_ready(&mut self, _: &mut Context) -> Poll<Result<(), Self::Error>> {
         if self.ready.is_none() {
-            Ok(Async::Ready(()))
+            Poll::Ready(Ok(()))
         } else {
-            Ok(Async::NotReady)
+            Poll::Pending
         }
     }
 
@@ -413,7 +415,7 @@ impl Service for AppRouting {
             default.call(req)
         } else {
             let req = req.into_parts().0;
-            Either::A(ok(ServiceResponse::new(req, Response::NotFound().finish())))
+            ok(ServiceResponse::new(req, Response::NotFound().finish())).boxed_local()
         }
     }
 }
@@ -429,7 +431,7 @@ impl AppEntry {
     }
 }
 
-impl NewService for AppEntry {
+impl ServiceFactory for AppEntry {
     type Config = ();
     type Request = ServiceRequest;
     type Response = ServiceResponse;
@@ -464,15 +466,16 @@ mod tests {
     #[test]
     fn drop_data() {
         let data = Arc::new(AtomicBool::new(false));
-        {
+        test::block_on(async {
             let mut app = test::init_service(
                 App::new()
                     .data(DropData(data.clone()))
                     .service(web::resource("/test").to(|| HttpResponse::Ok())),
-            );
+            )
+            .await;
             let req = test::TestRequest::with_uri("/test").to_request();
-            let _ = test::block_on(app.call(req)).unwrap();
-        }
+            let _ = app.call(req).await.unwrap();
+        });
         assert!(data.load(Ordering::Relaxed));
     }
 }

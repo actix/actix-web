@@ -51,10 +51,10 @@ impl<T, S, B> Dispatcher<T, S, B>
 where
     T: IoStream,
     S: Service<Request = Request>,
-    S::Error: Into<Error> + 'static,
-    S::Future: 'static,
-    S::Response: Into<Response<B>> + 'static,
-    B: MessageBody + 'static,
+    S::Error: Into<Error>,
+    // S::Future: 'static,
+    S::Response: Into<Response<B>>,
+    B: MessageBody,
 {
     pub(crate) fn new(
         service: CloneableService<S>,
@@ -176,9 +176,9 @@ enum ServiceResponseState<F, B> {
 impl<F, I, E, B> ServiceResponse<F, I, E, B>
 where
     F: Future<Output = Result<I, E>>,
-    E: Into<Error> + 'static,
-    I: Into<Response<B>> + 'static,
-    B: MessageBody + 'static,
+    E: Into<Error>,
+    I: Into<Response<B>>,
+    B: MessageBody,
 {
     fn prepare_response(
         &self,
@@ -244,9 +244,9 @@ where
 impl<F, I, E, B> Future for ServiceResponse<F, I, E, B>
 where
     F: Future<Output = Result<I, E>>,
-    E: Into<Error> + 'static,
-    I: Into<Response<B>> + 'static,
-    B: MessageBody + 'static,
+    E: Into<Error>,
+    I: Into<Response<B>>,
+    B: MessageBody,
 {
     type Output = ();
 

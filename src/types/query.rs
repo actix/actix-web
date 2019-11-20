@@ -4,6 +4,7 @@ use std::sync::Arc;
 use std::{fmt, ops};
 
 use actix_http::error::Error;
+use futures::future::{err, ok, Ready};
 use serde::de;
 use serde_urlencoded;
 
@@ -132,7 +133,7 @@ where
     T: de::DeserializeOwned,
 {
     type Error = Error;
-    type Future = Result<Self, Error>;
+    type Future = Ready<Result<Self, Error>>;
     type Config = QueryConfig;
 
     #[inline]
@@ -143,7 +144,7 @@ where
             .unwrap_or(None);
 
         serde_urlencoded::from_str::<T>(req.query_string())
-            .map(|val| Ok(Query(val)))
+            .map(|val| ok(Query(val)))
             .unwrap_or_else(move |e| {
                 let e = QueryPayloadError::Deserialize(e);
 
@@ -159,7 +160,7 @@ where
                     e.into()
                 };
 
-                Err(e)
+                err(e)
             })
     }
 }
@@ -227,7 +228,7 @@ mod tests {
 
     use super::*;
     use crate::error::InternalError;
-    use crate::test::TestRequest;
+    use crate::test::{block_on, TestRequest};
     use crate::HttpResponse;
 
     #[derive(Deserialize, Debug, Display)]
@@ -253,42 +254,46 @@ mod tests {
 
     #[test]
     fn test_request_extract() {
-        let req = TestRequest::with_uri("/name/user1/").to_srv_request();
-        let (req, mut pl) = req.into_parts();
-        assert!(Query::<Id>::from_request(&req, &mut pl).is_err());
+        block_on(async {
+            let req = TestRequest::with_uri("/name/user1/").to_srv_request();
+            let (req, mut pl) = req.into_parts();
+            assert!(Query::<Id>::from_request(&req, &mut pl).await.is_err());
 
-        let req = TestRequest::with_uri("/name/user1/?id=test").to_srv_request();
-        let (req, mut pl) = req.into_parts();
+            let req = TestRequest::with_uri("/name/user1/?id=test").to_srv_request();
+            let (req, mut pl) = req.into_parts();
 
-        let mut s = Query::<Id>::from_request(&req, &mut pl).unwrap();
-        assert_eq!(s.id, "test");
-        assert_eq!(format!("{}, {:?}", s, s), "test, Id { id: \"test\" }");
+            let mut s = Query::<Id>::from_request(&req, &mut pl).await.unwrap();
+            assert_eq!(s.id, "test");
+            assert_eq!(format!("{}, {:?}", s, s), "test, Id { id: \"test\" }");
 
-        s.id = "test1".to_string();
-        let s = s.into_inner();
-        assert_eq!(s.id, "test1");
+            s.id = "test1".to_string();
+            let s = s.into_inner();
+            assert_eq!(s.id, "test1");
+        })
     }
 
     #[test]
     fn test_custom_error_responder() {
-        let req = TestRequest::with_uri("/name/user1/")
-            .data(QueryConfig::default().error_handler(|e, _| {
-                let resp = HttpResponse::UnprocessableEntity().finish();
-                InternalError::from_response(e, resp).into()
-            }))
-            .to_srv_request();
+        block_on(async {
+            let req = TestRequest::with_uri("/name/user1/")
+                .data(QueryConfig::default().error_handler(|e, _| {
+                    let resp = HttpResponse::UnprocessableEntity().finish();
+                    InternalError::from_response(e, resp).into()
+                }))
+                .to_srv_request();
 
-        let (req, mut pl) = req.into_parts();
-        let query = Query::<Id>::from_request(&req, &mut pl);
+            let (req, mut pl) = req.into_parts();
+            let query = Query::<Id>::from_request(&req, &mut pl).await;
 
-        assert!(query.is_err());
-        assert_eq!(
-            query
-                .unwrap_err()
-                .as_response_error()
-                .error_response()
-                .status(),
-            StatusCode::UNPROCESSABLE_ENTITY
-        );
+            assert!(query.is_err());
+            assert_eq!(
+                query
+                    .unwrap_err()
+                    .as_response_error()
+                    .error_response()
+                    .status(),
+                StatusCode::UNPROCESSABLE_ENTITY
+            );
+        })
     }
 }

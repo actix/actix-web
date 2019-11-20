@@ -1,12 +1,16 @@
 //! Form extractor
 
+use std::future::Future;
+use std::pin::Pin;
 use std::rc::Rc;
+use std::task::{Context, Poll};
 use std::{fmt, ops};
 
 use actix_http::{Error, HttpMessage, Payload, Response};
 use bytes::BytesMut;
 use encoding_rs::{Encoding, UTF_8};
-use futures::{Future, Poll, Stream};
+use futures::future::{err, ok, FutureExt, LocalBoxFuture, Ready};
+use futures::{Stream, StreamExt};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
@@ -110,7 +114,7 @@ where
 {
     type Config = FormConfig;
     type Error = Error;
-    type Future = Box<dyn Future<Item = Self, Error = Error>>;
+    type Future = LocalBoxFuture<'static, Result<Self, Error>>;
 
     #[inline]
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
@@ -120,18 +124,19 @@ where
             .map(|c| (c.limit, c.ehandler.clone()))
             .unwrap_or((16384, None));
 
-        Box::new(
-            UrlEncoded::new(req, payload)
-                .limit(limit)
-                .map_err(move |e| {
+        UrlEncoded::new(req, payload)
+            .limit(limit)
+            .map(move |res| match res {
+                Err(e) => {
                     if let Some(err) = err {
-                        (*err)(e, &req2)
+                        Err((*err)(e, &req2))
                     } else {
-                        e.into()
+                        Err(e.into())
                     }
-                })
-                .map(Form),
-        )
+                }
+                Ok(item) => Ok(Form(item)),
+            })
+            .boxed_local()
     }
 }
 
@@ -149,15 +154,15 @@ impl<T: fmt::Display> fmt::Display for Form<T> {
 
 impl<T: Serialize> Responder for Form<T> {
     type Error = Error;
-    type Future = Result<Response, Error>;
+    type Future = Ready<Result<Response, Error>>;
 
     fn respond_to(self, _: &HttpRequest) -> Self::Future {
         let body = match serde_urlencoded::to_string(&self.0) {
             Ok(body) => body,
-            Err(e) => return Err(e.into()),
+            Err(e) => return err(e.into()),
         };
 
-        Ok(Response::build(StatusCode::OK)
+        ok(Response::build(StatusCode::OK)
             .set(ContentType::form_url_encoded())
             .body(body))
     }
@@ -240,7 +245,7 @@ pub struct UrlEncoded<U> {
     length: Option<usize>,
     encoding: &'static Encoding,
     err: Option<UrlencodedError>,
-    fut: Option<Box<dyn Future<Item = U, Error = UrlencodedError>>>,
+    fut: Option<LocalBoxFuture<'static, Result<U, UrlencodedError>>>,
 }
 
 impl<U> UrlEncoded<U> {
@@ -301,45 +306,45 @@ impl<U> Future for UrlEncoded<U>
 where
     U: DeserializeOwned + 'static,
 {
-    type Item = U;
-    type Error = UrlencodedError;
+    type Output = Result<U, UrlencodedError>;
 
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
         if let Some(ref mut fut) = self.fut {
-            return fut.poll();
+            return Pin::new(fut).poll(cx);
         }
 
         if let Some(err) = self.err.take() {
-            return Err(err);
+            return Poll::Ready(Err(err));
         }
 
         // payload size
         let limit = self.limit;
         if let Some(len) = self.length.take() {
             if len > limit {
-                return Err(UrlencodedError::Overflow { size: len, limit });
+                return Poll::Ready(Err(UrlencodedError::Overflow { size: len, limit }));
             }
         }
 
         // future
         let encoding = self.encoding;
-        let fut = self
-            .stream
-            .take()
-            .unwrap()
-            .from_err()
-            .fold(BytesMut::with_capacity(8192), move |mut body, chunk| {
-                if (body.len() + chunk.len()) > limit {
-                    Err(UrlencodedError::Overflow {
-                        size: body.len() + chunk.len(),
-                        limit,
-                    })
-                } else {
-                    body.extend_from_slice(&chunk);
-                    Ok(body)
+        let mut stream = self.stream.take().unwrap();
+
+        self.fut = Some(
+            async move {
+                let mut body = BytesMut::with_capacity(8192);
+
+                while let Some(item) = stream.next().await {
+                    let chunk = item?;
+                    if (body.len() + chunk.len()) > limit {
+                        return Err(UrlencodedError::Overflow {
+                            size: body.len() + chunk.len(),
+                            limit,
+                        });
+                    } else {
+                        body.extend_from_slice(&chunk);
+                    }
                 }
-            })
-            .and_then(move |body| {
+
                 if encoding == UTF_8 {
                     serde_urlencoded::from_bytes::<U>(&body)
                         .map_err(|_| UrlencodedError::Parse)
@@ -351,9 +356,10 @@ where
                     serde_urlencoded::from_str::<U>(&body)
                         .map_err(|_| UrlencodedError::Parse)
                 }
-            });
-        self.fut = Some(Box::new(fut));
-        self.poll()
+            }
+                .boxed_local(),
+        );
+        self.poll(cx)
     }
 }
 
@@ -374,20 +380,24 @@ mod tests {
 
     #[test]
     fn test_form() {
-        let (req, mut pl) =
-            TestRequest::with_header(CONTENT_TYPE, "application/x-www-form-urlencoded")
-                .header(CONTENT_LENGTH, "11")
-                .set_payload(Bytes::from_static(b"hello=world&counter=123"))
-                .to_http_parts();
+        block_on(async {
+            let (req, mut pl) = TestRequest::with_header(
+                CONTENT_TYPE,
+                "application/x-www-form-urlencoded",
+            )
+            .header(CONTENT_LENGTH, "11")
+            .set_payload(Bytes::from_static(b"hello=world&counter=123"))
+            .to_http_parts();
 
-        let Form(s) = block_on(Form::<Info>::from_request(&req, &mut pl)).unwrap();
-        assert_eq!(
-            s,
-            Info {
-                hello: "world".into(),
-                counter: 123
-            }
-        );
+            let Form(s) = Form::<Info>::from_request(&req, &mut pl).await.unwrap();
+            assert_eq!(
+                s,
+                Info {
+                    hello: "world".into(),
+                    counter: 123
+                }
+            );
+        })
     }
 
     fn eq(err: UrlencodedError, other: UrlencodedError) -> bool {
@@ -410,81 +420,93 @@ mod tests {
 
     #[test]
     fn test_urlencoded_error() {
-        let (req, mut pl) =
-            TestRequest::with_header(CONTENT_TYPE, "application/x-www-form-urlencoded")
-                .header(CONTENT_LENGTH, "xxxx")
-                .to_http_parts();
-        let info = block_on(UrlEncoded::<Info>::new(&req, &mut pl));
-        assert!(eq(info.err().unwrap(), UrlencodedError::UnknownLength));
-
-        let (req, mut pl) =
-            TestRequest::with_header(CONTENT_TYPE, "application/x-www-form-urlencoded")
-                .header(CONTENT_LENGTH, "1000000")
-                .to_http_parts();
-        let info = block_on(UrlEncoded::<Info>::new(&req, &mut pl));
-        assert!(eq(
-            info.err().unwrap(),
-            UrlencodedError::Overflow { size: 0, limit: 0 }
-        ));
-
-        let (req, mut pl) = TestRequest::with_header(CONTENT_TYPE, "text/plain")
-            .header(CONTENT_LENGTH, "10")
+        block_on(async {
+            let (req, mut pl) = TestRequest::with_header(
+                CONTENT_TYPE,
+                "application/x-www-form-urlencoded",
+            )
+            .header(CONTENT_LENGTH, "xxxx")
             .to_http_parts();
-        let info = block_on(UrlEncoded::<Info>::new(&req, &mut pl));
-        assert!(eq(info.err().unwrap(), UrlencodedError::ContentType));
+            let info = UrlEncoded::<Info>::new(&req, &mut pl).await;
+            assert!(eq(info.err().unwrap(), UrlencodedError::UnknownLength));
+
+            let (req, mut pl) = TestRequest::with_header(
+                CONTENT_TYPE,
+                "application/x-www-form-urlencoded",
+            )
+            .header(CONTENT_LENGTH, "1000000")
+            .to_http_parts();
+            let info = UrlEncoded::<Info>::new(&req, &mut pl).await;
+            assert!(eq(
+                info.err().unwrap(),
+                UrlencodedError::Overflow { size: 0, limit: 0 }
+            ));
+
+            let (req, mut pl) = TestRequest::with_header(CONTENT_TYPE, "text/plain")
+                .header(CONTENT_LENGTH, "10")
+                .to_http_parts();
+            let info = UrlEncoded::<Info>::new(&req, &mut pl).await;
+            assert!(eq(info.err().unwrap(), UrlencodedError::ContentType));
+        })
     }
 
     #[test]
     fn test_urlencoded() {
-        let (req, mut pl) =
-            TestRequest::with_header(CONTENT_TYPE, "application/x-www-form-urlencoded")
-                .header(CONTENT_LENGTH, "11")
-                .set_payload(Bytes::from_static(b"hello=world&counter=123"))
-                .to_http_parts();
+        block_on(async {
+            let (req, mut pl) = TestRequest::with_header(
+                CONTENT_TYPE,
+                "application/x-www-form-urlencoded",
+            )
+            .header(CONTENT_LENGTH, "11")
+            .set_payload(Bytes::from_static(b"hello=world&counter=123"))
+            .to_http_parts();
 
-        let info = block_on(UrlEncoded::<Info>::new(&req, &mut pl)).unwrap();
-        assert_eq!(
-            info,
-            Info {
-                hello: "world".to_owned(),
-                counter: 123
-            }
-        );
+            let info = UrlEncoded::<Info>::new(&req, &mut pl).await.unwrap();
+            assert_eq!(
+                info,
+                Info {
+                    hello: "world".to_owned(),
+                    counter: 123
+                }
+            );
 
-        let (req, mut pl) = TestRequest::with_header(
-            CONTENT_TYPE,
-            "application/x-www-form-urlencoded; charset=utf-8",
-        )
-        .header(CONTENT_LENGTH, "11")
-        .set_payload(Bytes::from_static(b"hello=world&counter=123"))
-        .to_http_parts();
+            let (req, mut pl) = TestRequest::with_header(
+                CONTENT_TYPE,
+                "application/x-www-form-urlencoded; charset=utf-8",
+            )
+            .header(CONTENT_LENGTH, "11")
+            .set_payload(Bytes::from_static(b"hello=world&counter=123"))
+            .to_http_parts();
 
-        let info = block_on(UrlEncoded::<Info>::new(&req, &mut pl)).unwrap();
-        assert_eq!(
-            info,
-            Info {
-                hello: "world".to_owned(),
-                counter: 123
-            }
-        );
+            let info = UrlEncoded::<Info>::new(&req, &mut pl).await.unwrap();
+            assert_eq!(
+                info,
+                Info {
+                    hello: "world".to_owned(),
+                    counter: 123
+                }
+            );
+        })
     }
 
     #[test]
     fn test_responder() {
-        let req = TestRequest::default().to_http_request();
+        block_on(async {
+            let req = TestRequest::default().to_http_request();
 
-        let form = Form(Info {
-            hello: "world".to_string(),
-            counter: 123,
-        });
-        let resp = form.respond_to(&req).unwrap();
-        assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(
-            resp.headers().get(CONTENT_TYPE).unwrap(),
-            HeaderValue::from_static("application/x-www-form-urlencoded")
-        );
+            let form = Form(Info {
+                hello: "world".to_string(),
+                counter: 123,
+            });
+            let resp = form.respond_to(&req).await.unwrap();
+            assert_eq!(resp.status(), StatusCode::OK);
+            assert_eq!(
+                resp.headers().get(CONTENT_TYPE).unwrap(),
+                HeaderValue::from_static("application/x-www-form-urlencoded")
+            );
 
-        use crate::responder::tests::BodyTest;
-        assert_eq!(resp.body().bin_ref(), b"hello=world&counter=123");
+            use crate::responder::tests::BodyTest;
+            assert_eq!(resp.body().bin_ref(), b"hello=world&counter=123");
+        })
     }
 }

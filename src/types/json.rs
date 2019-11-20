@@ -1,10 +1,14 @@
 //! Json extractor/responder
 
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::Arc;
+use std::task::{Context, Poll};
 use std::{fmt, ops};
 
 use bytes::BytesMut;
-use futures::{Future, Poll, Stream};
+use futures::future::{err, ok, FutureExt, LocalBoxFuture, Ready};
+use futures::{Stream, StreamExt};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use serde_json;
@@ -118,15 +122,15 @@ where
 
 impl<T: Serialize> Responder for Json<T> {
     type Error = Error;
-    type Future = Result<Response, Error>;
+    type Future = Ready<Result<Response, Error>>;
 
     fn respond_to(self, _: &HttpRequest) -> Self::Future {
         let body = match serde_json::to_string(&self.0) {
             Ok(body) => body,
-            Err(e) => return Err(e.into()),
+            Err(e) => return err(e.into()),
         };
 
-        Ok(Response::build(StatusCode::OK)
+        ok(Response::build(StatusCode::OK)
             .content_type("application/json")
             .body(body))
     }
@@ -169,7 +173,7 @@ where
     T: DeserializeOwned + 'static,
 {
     type Error = Error;
-    type Future = Box<dyn Future<Item = Self, Error = Error>>;
+    type Future = LocalBoxFuture<'static, Result<Self, Error>>;
     type Config = JsonConfig;
 
     #[inline]
@@ -180,23 +184,24 @@ where
             .map(|c| (c.limit, c.ehandler.clone(), c.content_type.clone()))
             .unwrap_or((32768, None, None));
 
-        Box::new(
-            JsonBody::new(req, payload, ctype)
-                .limit(limit)
-                .map_err(move |e| {
+        JsonBody::new(req, payload, ctype)
+            .limit(limit)
+            .map(move |res| match res {
+                Err(e) => {
                     log::debug!(
                         "Failed to deserialize Json from payload. \
                          Request path: {}",
                         req2.path()
                     );
                     if let Some(err) = err {
-                        (*err)(e, &req2)
+                        Err((*err)(e, &req2))
                     } else {
-                        e.into()
+                        Err(e.into())
                     }
-                })
-                .map(Json),
-        )
+                }
+                Ok(data) => Ok(Json(data)),
+            })
+            .boxed_local()
     }
 }
 
@@ -290,7 +295,7 @@ pub struct JsonBody<U> {
     length: Option<usize>,
     stream: Option<Decompress<Payload>>,
     err: Option<JsonPayloadError>,
-    fut: Option<Box<dyn Future<Item = U, Error = JsonPayloadError>>>,
+    fut: Option<LocalBoxFuture<'static, Result<U, JsonPayloadError>>>,
 }
 
 impl<U> JsonBody<U>
@@ -349,41 +354,43 @@ impl<U> Future for JsonBody<U>
 where
     U: DeserializeOwned + 'static,
 {
-    type Item = U;
-    type Error = JsonPayloadError;
+    type Output = Result<U, JsonPayloadError>;
 
-    fn poll(&mut self) -> Poll<U, JsonPayloadError> {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
         if let Some(ref mut fut) = self.fut {
-            return fut.poll();
+            return Pin::new(fut).poll(cx);
         }
 
         if let Some(err) = self.err.take() {
-            return Err(err);
+            return Poll::Ready(Err(err));
         }
 
         let limit = self.limit;
         if let Some(len) = self.length.take() {
             if len > limit {
-                return Err(JsonPayloadError::Overflow);
+                return Poll::Ready(Err(JsonPayloadError::Overflow));
             }
         }
+        let mut stream = self.stream.take().unwrap();
 
-        let fut = self
-            .stream
-            .take()
-            .unwrap()
-            .from_err()
-            .fold(BytesMut::with_capacity(8192), move |mut body, chunk| {
-                if (body.len() + chunk.len()) > limit {
-                    Err(JsonPayloadError::Overflow)
-                } else {
-                    body.extend_from_slice(&chunk);
-                    Ok(body)
+        self.fut = Some(
+            async move {
+                let mut body = BytesMut::with_capacity(8192);
+
+                while let Some(item) = stream.next().await {
+                    let chunk = item?;
+                    if (body.len() + chunk.len()) > limit {
+                        return Err(JsonPayloadError::Overflow);
+                    } else {
+                        body.extend_from_slice(&chunk);
+                    }
                 }
-            })
-            .and_then(|body| Ok(serde_json::from_slice::<U>(&body)?));
-        self.fut = Some(Box::new(fut));
-        self.poll()
+                Ok(serde_json::from_slice::<U>(&body)?)
+            }
+                .boxed_local(),
+        );
+
+        self.poll(cx)
     }
 }
 
@@ -395,7 +402,7 @@ mod tests {
     use super::*;
     use crate::error::InternalError;
     use crate::http::header;
-    use crate::test::{block_on, TestRequest};
+    use crate::test::{block_on, load_stream, TestRequest};
     use crate::HttpResponse;
 
     #[derive(Serialize, Deserialize, PartialEq, Debug)]
@@ -419,218 +426,234 @@ mod tests {
 
     #[test]
     fn test_responder() {
-        let req = TestRequest::default().to_http_request();
+        block_on(async {
+            let req = TestRequest::default().to_http_request();
 
-        let j = Json(MyObject {
-            name: "test".to_string(),
-        });
-        let resp = j.respond_to(&req).unwrap();
-        assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(
-            resp.headers().get(header::CONTENT_TYPE).unwrap(),
-            header::HeaderValue::from_static("application/json")
-        );
+            let j = Json(MyObject {
+                name: "test".to_string(),
+            });
+            let resp = j.respond_to(&req).await.unwrap();
+            assert_eq!(resp.status(), StatusCode::OK);
+            assert_eq!(
+                resp.headers().get(header::CONTENT_TYPE).unwrap(),
+                header::HeaderValue::from_static("application/json")
+            );
 
-        use crate::responder::tests::BodyTest;
-        assert_eq!(resp.body().bin_ref(), b"{\"name\":\"test\"}");
+            use crate::responder::tests::BodyTest;
+            assert_eq!(resp.body().bin_ref(), b"{\"name\":\"test\"}");
+        })
     }
 
     #[test]
     fn test_custom_error_responder() {
-        let (req, mut pl) = TestRequest::default()
-            .header(
-                header::CONTENT_TYPE,
-                header::HeaderValue::from_static("application/json"),
-            )
-            .header(
-                header::CONTENT_LENGTH,
-                header::HeaderValue::from_static("16"),
-            )
-            .set_payload(Bytes::from_static(b"{\"name\": \"test\"}"))
-            .data(JsonConfig::default().limit(10).error_handler(|err, _| {
-                let msg = MyObject {
-                    name: "invalid request".to_string(),
-                };
-                let resp = HttpResponse::BadRequest()
-                    .body(serde_json::to_string(&msg).unwrap());
-                InternalError::from_response(err, resp).into()
-            }))
-            .to_http_parts();
+        block_on(async {
+            let (req, mut pl) = TestRequest::default()
+                .header(
+                    header::CONTENT_TYPE,
+                    header::HeaderValue::from_static("application/json"),
+                )
+                .header(
+                    header::CONTENT_LENGTH,
+                    header::HeaderValue::from_static("16"),
+                )
+                .set_payload(Bytes::from_static(b"{\"name\": \"test\"}"))
+                .data(JsonConfig::default().limit(10).error_handler(|err, _| {
+                    let msg = MyObject {
+                        name: "invalid request".to_string(),
+                    };
+                    let resp = HttpResponse::BadRequest()
+                        .body(serde_json::to_string(&msg).unwrap());
+                    InternalError::from_response(err, resp).into()
+                }))
+                .to_http_parts();
 
-        let s = block_on(Json::<MyObject>::from_request(&req, &mut pl));
-        let mut resp = Response::from_error(s.err().unwrap().into());
-        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+            let s = Json::<MyObject>::from_request(&req, &mut pl).await;
+            let mut resp = Response::from_error(s.err().unwrap().into());
+            assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 
-        let body = block_on(resp.take_body().concat2()).unwrap();
-        let msg: MyObject = serde_json::from_slice(&body).unwrap();
-        assert_eq!(msg.name, "invalid request");
+            let body = load_stream(resp.take_body()).await.unwrap();
+            let msg: MyObject = serde_json::from_slice(&body).unwrap();
+            assert_eq!(msg.name, "invalid request");
+        })
     }
 
     #[test]
     fn test_extract() {
-        let (req, mut pl) = TestRequest::default()
-            .header(
-                header::CONTENT_TYPE,
-                header::HeaderValue::from_static("application/json"),
-            )
-            .header(
-                header::CONTENT_LENGTH,
-                header::HeaderValue::from_static("16"),
-            )
-            .set_payload(Bytes::from_static(b"{\"name\": \"test\"}"))
-            .to_http_parts();
+        block_on(async {
+            let (req, mut pl) = TestRequest::default()
+                .header(
+                    header::CONTENT_TYPE,
+                    header::HeaderValue::from_static("application/json"),
+                )
+                .header(
+                    header::CONTENT_LENGTH,
+                    header::HeaderValue::from_static("16"),
+                )
+                .set_payload(Bytes::from_static(b"{\"name\": \"test\"}"))
+                .to_http_parts();
 
-        let s = block_on(Json::<MyObject>::from_request(&req, &mut pl)).unwrap();
-        assert_eq!(s.name, "test");
-        assert_eq!(
-            s.into_inner(),
-            MyObject {
-                name: "test".to_string()
-            }
-        );
+            let s = Json::<MyObject>::from_request(&req, &mut pl).await.unwrap();
+            assert_eq!(s.name, "test");
+            assert_eq!(
+                s.into_inner(),
+                MyObject {
+                    name: "test".to_string()
+                }
+            );
 
-        let (req, mut pl) = TestRequest::default()
-            .header(
-                header::CONTENT_TYPE,
-                header::HeaderValue::from_static("application/json"),
-            )
-            .header(
-                header::CONTENT_LENGTH,
-                header::HeaderValue::from_static("16"),
-            )
-            .set_payload(Bytes::from_static(b"{\"name\": \"test\"}"))
-            .data(JsonConfig::default().limit(10))
-            .to_http_parts();
+            let (req, mut pl) = TestRequest::default()
+                .header(
+                    header::CONTENT_TYPE,
+                    header::HeaderValue::from_static("application/json"),
+                )
+                .header(
+                    header::CONTENT_LENGTH,
+                    header::HeaderValue::from_static("16"),
+                )
+                .set_payload(Bytes::from_static(b"{\"name\": \"test\"}"))
+                .data(JsonConfig::default().limit(10))
+                .to_http_parts();
 
-        let s = block_on(Json::<MyObject>::from_request(&req, &mut pl));
-        assert!(format!("{}", s.err().unwrap())
-            .contains("Json payload size is bigger than allowed"));
+            let s = Json::<MyObject>::from_request(&req, &mut pl).await;
+            assert!(format!("{}", s.err().unwrap())
+                .contains("Json payload size is bigger than allowed"));
 
-        let (req, mut pl) = TestRequest::default()
-            .header(
-                header::CONTENT_TYPE,
-                header::HeaderValue::from_static("application/json"),
-            )
-            .header(
-                header::CONTENT_LENGTH,
-                header::HeaderValue::from_static("16"),
-            )
-            .set_payload(Bytes::from_static(b"{\"name\": \"test\"}"))
-            .data(
-                JsonConfig::default()
-                    .limit(10)
-                    .error_handler(|_, _| JsonPayloadError::ContentType.into()),
-            )
-            .to_http_parts();
-        let s = block_on(Json::<MyObject>::from_request(&req, &mut pl));
-        assert!(format!("{}", s.err().unwrap()).contains("Content type error"));
+            let (req, mut pl) = TestRequest::default()
+                .header(
+                    header::CONTENT_TYPE,
+                    header::HeaderValue::from_static("application/json"),
+                )
+                .header(
+                    header::CONTENT_LENGTH,
+                    header::HeaderValue::from_static("16"),
+                )
+                .set_payload(Bytes::from_static(b"{\"name\": \"test\"}"))
+                .data(
+                    JsonConfig::default()
+                        .limit(10)
+                        .error_handler(|_, _| JsonPayloadError::ContentType.into()),
+                )
+                .to_http_parts();
+            let s = Json::<MyObject>::from_request(&req, &mut pl).await;
+            assert!(format!("{}", s.err().unwrap()).contains("Content type error"));
+        })
     }
 
     #[test]
     fn test_json_body() {
-        let (req, mut pl) = TestRequest::default().to_http_parts();
-        let json = block_on(JsonBody::<MyObject>::new(&req, &mut pl, None));
-        assert!(json_eq(json.err().unwrap(), JsonPayloadError::ContentType));
+        block_on(async {
+            let (req, mut pl) = TestRequest::default().to_http_parts();
+            let json = JsonBody::<MyObject>::new(&req, &mut pl, None).await;
+            assert!(json_eq(json.err().unwrap(), JsonPayloadError::ContentType));
 
-        let (req, mut pl) = TestRequest::default()
-            .header(
+            let (req, mut pl) = TestRequest::default()
+                .header(
+                    header::CONTENT_TYPE,
+                    header::HeaderValue::from_static("application/text"),
+                )
+                .to_http_parts();
+            let json = JsonBody::<MyObject>::new(&req, &mut pl, None).await;
+            assert!(json_eq(json.err().unwrap(), JsonPayloadError::ContentType));
+
+            let (req, mut pl) = TestRequest::default()
+                .header(
+                    header::CONTENT_TYPE,
+                    header::HeaderValue::from_static("application/json"),
+                )
+                .header(
+                    header::CONTENT_LENGTH,
+                    header::HeaderValue::from_static("10000"),
+                )
+                .to_http_parts();
+
+            let json = JsonBody::<MyObject>::new(&req, &mut pl, None)
+                .limit(100)
+                .await;
+            assert!(json_eq(json.err().unwrap(), JsonPayloadError::Overflow));
+
+            let (req, mut pl) = TestRequest::default()
+                .header(
+                    header::CONTENT_TYPE,
+                    header::HeaderValue::from_static("application/json"),
+                )
+                .header(
+                    header::CONTENT_LENGTH,
+                    header::HeaderValue::from_static("16"),
+                )
+                .set_payload(Bytes::from_static(b"{\"name\": \"test\"}"))
+                .to_http_parts();
+
+            let json = JsonBody::<MyObject>::new(&req, &mut pl, None).await;
+            assert_eq!(
+                json.ok().unwrap(),
+                MyObject {
+                    name: "test".to_owned()
+                }
+            );
+        })
+    }
+
+    #[test]
+    fn test_with_json_and_bad_content_type() {
+        block_on(async {
+            let (req, mut pl) = TestRequest::with_header(
                 header::CONTENT_TYPE,
-                header::HeaderValue::from_static("application/text"),
-            )
-            .to_http_parts();
-        let json = block_on(JsonBody::<MyObject>::new(&req, &mut pl, None));
-        assert!(json_eq(json.err().unwrap(), JsonPayloadError::ContentType));
-
-        let (req, mut pl) = TestRequest::default()
-            .header(
-                header::CONTENT_TYPE,
-                header::HeaderValue::from_static("application/json"),
-            )
-            .header(
-                header::CONTENT_LENGTH,
-                header::HeaderValue::from_static("10000"),
-            )
-            .to_http_parts();
-
-        let json = block_on(JsonBody::<MyObject>::new(&req, &mut pl, None).limit(100));
-        assert!(json_eq(json.err().unwrap(), JsonPayloadError::Overflow));
-
-        let (req, mut pl) = TestRequest::default()
-            .header(
-                header::CONTENT_TYPE,
-                header::HeaderValue::from_static("application/json"),
+                header::HeaderValue::from_static("text/plain"),
             )
             .header(
                 header::CONTENT_LENGTH,
                 header::HeaderValue::from_static("16"),
             )
             .set_payload(Bytes::from_static(b"{\"name\": \"test\"}"))
+            .data(JsonConfig::default().limit(4096))
             .to_http_parts();
 
-        let json = block_on(JsonBody::<MyObject>::new(&req, &mut pl, None));
-        assert_eq!(
-            json.ok().unwrap(),
-            MyObject {
-                name: "test".to_owned()
-            }
-        );
-    }
-
-    #[test]
-    fn test_with_json_and_bad_content_type() {
-        let (req, mut pl) = TestRequest::with_header(
-            header::CONTENT_TYPE,
-            header::HeaderValue::from_static("text/plain"),
-        )
-        .header(
-            header::CONTENT_LENGTH,
-            header::HeaderValue::from_static("16"),
-        )
-        .set_payload(Bytes::from_static(b"{\"name\": \"test\"}"))
-        .data(JsonConfig::default().limit(4096))
-        .to_http_parts();
-
-        let s = block_on(Json::<MyObject>::from_request(&req, &mut pl));
-        assert!(s.is_err())
+            let s = Json::<MyObject>::from_request(&req, &mut pl).await;
+            assert!(s.is_err())
+        })
     }
 
     #[test]
     fn test_with_json_and_good_custom_content_type() {
-        let (req, mut pl) = TestRequest::with_header(
-            header::CONTENT_TYPE,
-            header::HeaderValue::from_static("text/plain"),
-        )
-        .header(
-            header::CONTENT_LENGTH,
-            header::HeaderValue::from_static("16"),
-        )
-        .set_payload(Bytes::from_static(b"{\"name\": \"test\"}"))
-        .data(JsonConfig::default().content_type(|mime: mime::Mime| {
-            mime.type_() == mime::TEXT && mime.subtype() == mime::PLAIN
-        }))
-        .to_http_parts();
+        block_on(async {
+            let (req, mut pl) = TestRequest::with_header(
+                header::CONTENT_TYPE,
+                header::HeaderValue::from_static("text/plain"),
+            )
+            .header(
+                header::CONTENT_LENGTH,
+                header::HeaderValue::from_static("16"),
+            )
+            .set_payload(Bytes::from_static(b"{\"name\": \"test\"}"))
+            .data(JsonConfig::default().content_type(|mime: mime::Mime| {
+                mime.type_() == mime::TEXT && mime.subtype() == mime::PLAIN
+            }))
+            .to_http_parts();
 
-        let s = block_on(Json::<MyObject>::from_request(&req, &mut pl));
-        assert!(s.is_ok())
+            let s = Json::<MyObject>::from_request(&req, &mut pl).await;
+            assert!(s.is_ok())
+        })
     }
 
     #[test]
     fn test_with_json_and_bad_custom_content_type() {
-        let (req, mut pl) = TestRequest::with_header(
-            header::CONTENT_TYPE,
-            header::HeaderValue::from_static("text/html"),
-        )
-        .header(
-            header::CONTENT_LENGTH,
-            header::HeaderValue::from_static("16"),
-        )
-        .set_payload(Bytes::from_static(b"{\"name\": \"test\"}"))
-        .data(JsonConfig::default().content_type(|mime: mime::Mime| {
-            mime.type_() == mime::TEXT && mime.subtype() == mime::PLAIN
-        }))
-        .to_http_parts();
+        block_on(async {
+            let (req, mut pl) = TestRequest::with_header(
+                header::CONTENT_TYPE,
+                header::HeaderValue::from_static("text/html"),
+            )
+            .header(
+                header::CONTENT_LENGTH,
+                header::HeaderValue::from_static("16"),
+            )
+            .set_payload(Bytes::from_static(b"{\"name\": \"test\"}"))
+            .data(JsonConfig::default().content_type(|mime: mime::Mime| {
+                mime.type_() == mime::TEXT && mime.subtype() == mime::PLAIN
+            }))
+            .to_http_parts();
 
-        let s = block_on(Json::<MyObject>::from_request(&req, &mut pl));
-        assert!(s.is_err())
+            let s = Json::<MyObject>::from_request(&req, &mut pl).await;
+            assert!(s.is_err())
+        })
     }
 }

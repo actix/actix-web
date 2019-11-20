@@ -1,9 +1,13 @@
 use std::borrow::Cow;
+use std::future::Future;
+use std::pin::Pin;
 use std::str;
+use std::task::{Context, Poll};
 
 use bytes::{Bytes, BytesMut};
 use encoding_rs::{Encoding, UTF_8};
-use futures::{Async, Poll, Stream};
+use futures::Stream;
+use pin_project::pin_project;
 
 use crate::dev::Payload;
 use crate::error::{PayloadError, ReadlinesError};
@@ -22,7 +26,7 @@ pub struct Readlines<T: HttpMessage> {
 impl<T> Readlines<T>
 where
     T: HttpMessage,
-    T::Stream: Stream<Item = Bytes, Error = PayloadError>,
+    T::Stream: Stream<Item = Result<Bytes, PayloadError>> + Unpin,
 {
     /// Create a new stream to read request line by line.
     pub fn new(req: &mut T) -> Self {
@@ -62,20 +66,21 @@ where
 impl<T> Stream for Readlines<T>
 where
     T: HttpMessage,
-    T::Stream: Stream<Item = Bytes, Error = PayloadError>,
+    T::Stream: Stream<Item = Result<Bytes, PayloadError>> + Unpin,
 {
-    type Item = String;
-    type Error = ReadlinesError;
+    type Item = Result<String, ReadlinesError>;
 
-    fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
-        if let Some(err) = self.err.take() {
-            return Err(err);
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
+        let this = self.get_mut();
+
+        if let Some(err) = this.err.take() {
+            return Poll::Ready(Some(Err(err)));
         }
 
         // check if there is a newline in the buffer
-        if !self.checked_buff {
+        if !this.checked_buff {
             let mut found: Option<usize> = None;
-            for (ind, b) in self.buff.iter().enumerate() {
+            for (ind, b) in this.buff.iter().enumerate() {
                 if *b == b'\n' {
                     found = Some(ind);
                     break;
@@ -83,28 +88,28 @@ where
             }
             if let Some(ind) = found {
                 // check if line is longer than limit
-                if ind + 1 > self.limit {
-                    return Err(ReadlinesError::LimitOverflow);
+                if ind + 1 > this.limit {
+                    return Poll::Ready(Some(Err(ReadlinesError::LimitOverflow)));
                 }
-                let line = if self.encoding == UTF_8 {
-                    str::from_utf8(&self.buff.split_to(ind + 1))
+                let line = if this.encoding == UTF_8 {
+                    str::from_utf8(&this.buff.split_to(ind + 1))
                         .map_err(|_| ReadlinesError::EncodingError)?
                         .to_owned()
                 } else {
-                    self.encoding
+                    this.encoding
                         .decode_without_bom_handling_and_without_replacement(
-                            &self.buff.split_to(ind + 1),
+                            &this.buff.split_to(ind + 1),
                         )
                         .map(Cow::into_owned)
                         .ok_or(ReadlinesError::EncodingError)?
                 };
-                return Ok(Async::Ready(Some(line)));
+                return Poll::Ready(Some(Ok(line)));
             }
-            self.checked_buff = true;
+            this.checked_buff = true;
         }
         // poll req for more bytes
-        match self.stream.poll() {
-            Ok(Async::Ready(Some(mut bytes))) => {
+        match Pin::new(&mut this.stream).poll_next(cx) {
+            Poll::Ready(Some(Ok(mut bytes))) => {
                 // check if there is a newline in bytes
                 let mut found: Option<usize> = None;
                 for (ind, b) in bytes.iter().enumerate() {
@@ -115,15 +120,15 @@ where
                 }
                 if let Some(ind) = found {
                     // check if line is longer than limit
-                    if ind + 1 > self.limit {
-                        return Err(ReadlinesError::LimitOverflow);
+                    if ind + 1 > this.limit {
+                        return Poll::Ready(Some(Err(ReadlinesError::LimitOverflow)));
                     }
-                    let line = if self.encoding == UTF_8 {
+                    let line = if this.encoding == UTF_8 {
                         str::from_utf8(&bytes.split_to(ind + 1))
                             .map_err(|_| ReadlinesError::EncodingError)?
                             .to_owned()
                     } else {
-                        self.encoding
+                        this.encoding
                             .decode_without_bom_handling_and_without_replacement(
                                 &bytes.split_to(ind + 1),
                             )
@@ -131,83 +136,72 @@ where
                             .ok_or(ReadlinesError::EncodingError)?
                     };
                     // extend buffer with rest of the bytes;
-                    self.buff.extend_from_slice(&bytes);
-                    self.checked_buff = false;
-                    return Ok(Async::Ready(Some(line)));
+                    this.buff.extend_from_slice(&bytes);
+                    this.checked_buff = false;
+                    return Poll::Ready(Some(Ok(line)));
                 }
-                self.buff.extend_from_slice(&bytes);
-                Ok(Async::NotReady)
+                this.buff.extend_from_slice(&bytes);
+                Poll::Pending
             }
-            Ok(Async::NotReady) => Ok(Async::NotReady),
-            Ok(Async::Ready(None)) => {
-                if self.buff.is_empty() {
-                    return Ok(Async::Ready(None));
+            Poll::Pending => Poll::Pending,
+            Poll::Ready(None) => {
+                if this.buff.is_empty() {
+                    return Poll::Ready(None);
                 }
-                if self.buff.len() > self.limit {
-                    return Err(ReadlinesError::LimitOverflow);
+                if this.buff.len() > this.limit {
+                    return Poll::Ready(Some(Err(ReadlinesError::LimitOverflow)));
                 }
-                let line = if self.encoding == UTF_8 {
-                    str::from_utf8(&self.buff)
+                let line = if this.encoding == UTF_8 {
+                    str::from_utf8(&this.buff)
                         .map_err(|_| ReadlinesError::EncodingError)?
                         .to_owned()
                 } else {
-                    self.encoding
-                        .decode_without_bom_handling_and_without_replacement(&self.buff)
+                    this.encoding
+                        .decode_without_bom_handling_and_without_replacement(&this.buff)
                         .map(Cow::into_owned)
                         .ok_or(ReadlinesError::EncodingError)?
                 };
-                self.buff.clear();
-                Ok(Async::Ready(Some(line)))
+                this.buff.clear();
+                Poll::Ready(Some(Ok(line)))
             }
-            Err(e) => Err(ReadlinesError::from(e)),
+            Poll::Ready(Some(Err(e))) => Poll::Ready(Some(Err(ReadlinesError::from(e)))),
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use futures::stream::StreamExt;
+
     use super::*;
     use crate::test::{block_on, TestRequest};
 
     #[test]
     fn test_readlines() {
-        let mut req = TestRequest::default()
+        block_on(async {
+            let mut req = TestRequest::default()
             .set_payload(Bytes::from_static(
                 b"Lorem Ipsum is simply dummy text of the printing and typesetting\n\
                   industry. Lorem Ipsum has been the industry's standard dummy\n\
                   Contrary to popular belief, Lorem Ipsum is not simply random text.",
             ))
             .to_request();
-        let stream = match block_on(Readlines::new(&mut req).into_future()) {
-            Ok((Some(s), stream)) => {
-                assert_eq!(
-                    s,
-                    "Lorem Ipsum is simply dummy text of the printing and typesetting\n"
-                );
-                stream
-            }
-            _ => unreachable!("error"),
-        };
 
-        let stream = match block_on(stream.into_future()) {
-            Ok((Some(s), stream)) => {
-                assert_eq!(
-                    s,
-                    "industry. Lorem Ipsum has been the industry's standard dummy\n"
-                );
-                stream
-            }
-            _ => unreachable!("error"),
-        };
+            let mut stream = Readlines::new(&mut req);
+            assert_eq!(
+                stream.next().await.unwrap().unwrap(),
+                "Lorem Ipsum is simply dummy text of the printing and typesetting\n"
+            );
 
-        match block_on(stream.into_future()) {
-            Ok((Some(s), _)) => {
-                assert_eq!(
-                    s,
-                    "Contrary to popular belief, Lorem Ipsum is not simply random text."
-                );
-            }
-            _ => unreachable!("error"),
-        }
+            assert_eq!(
+                stream.next().await.unwrap().unwrap(),
+                "industry. Lorem Ipsum has been the industry's standard dummy\n"
+            );
+
+            assert_eq!(
+                stream.next().await.unwrap().unwrap(),
+                "Contrary to popular belief, Lorem Ipsum is not simply random text."
+            );
+        })
     }
 }

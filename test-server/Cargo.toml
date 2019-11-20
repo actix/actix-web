@@ -59,19 +59,5 @@ tokio-timer = "0.3.0-alpha.6"
 open-ssl = { version="0.10", package="openssl", optional = true }
 
 [dev-dependencies]
-#actix-web = "1.0.7"
+actix-web = "2.0.0-alpha.1"
 actix-http = "0.3.0-alpha.1"
-
-[patch.crates-io]
-actix-http = { path = "../actix-http" }
-awc = { path = "../awc" }
-
-actix-codec = { path = "../../actix-net/actix-codec" }
-actix-connect = { path = "../../actix-net/actix-connect" }
-actix-rt = { path = "../../actix-net/actix-rt" }
-actix-server = { path = "../../actix-net/actix-server" }
-actix-server-config = { path = "../../actix-net/actix-server-config" }
-actix-service = { path = "../../actix-net/actix-service" }
-actix-testing = { path = "../../actix-net/actix-testing" }
-actix-threadpool = { path = "../../actix-net/actix-threadpool" }
-actix-utils = { path = "../../actix-net/actix-utils" }

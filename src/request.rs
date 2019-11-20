@@ -5,6 +5,7 @@ use std::{fmt, net};
 use actix_http::http::{HeaderMap, Method, Uri, Version};
 use actix_http::{Error, Extensions, HttpMessage, Message, Payload, RequestHead};
 use actix_router::{Path, Url};
+use futures::future::{ok, Ready};
 
 use crate::config::AppConfig;
 use crate::data::Data;
@@ -289,11 +290,11 @@ impl Drop for HttpRequest {
 impl FromRequest for HttpRequest {
     type Config = ();
     type Error = Error;
-    type Future = Result<Self, Error>;
+    type Future = Ready<Result<Self, Error>>;
 
     #[inline]
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        Ok(req.clone())
+        ok(req.clone())
     }
 }
 
@@ -349,7 +350,7 @@ mod tests {
     use super::*;
     use crate::dev::{ResourceDef, ResourceMap};
     use crate::http::{header, StatusCode};
-    use crate::test::{call_service, init_service, TestRequest};
+    use crate::test::{block_on, call_service, init_service, TestRequest};
     use crate::{web, App, HttpResponse};
 
     #[test]
@@ -467,66 +468,73 @@ mod tests {
 
     #[test]
     fn test_app_data() {
-        let mut srv = init_service(App::new().data(10usize).service(
-            web::resource("/").to(|req: HttpRequest| {
-                if req.app_data::<usize>().is_some() {
-                    HttpResponse::Ok()
-                } else {
-                    HttpResponse::BadRequest()
-                }
-            }),
-        ));
+        block_on(async {
+            let mut srv = init_service(App::new().data(10usize).service(
+                web::resource("/").to(|req: HttpRequest| {
+                    if req.app_data::<usize>().is_some() {
+                        HttpResponse::Ok()
+                    } else {
+                        HttpResponse::BadRequest()
+                    }
+                }),
+            ))
+            .await;
 
-        let req = TestRequest::default().to_request();
-        let resp = call_service(&mut srv, req);
-        assert_eq!(resp.status(), StatusCode::OK);
+            let req = TestRequest::default().to_request();
+            let resp = call_service(&mut srv, req).await;
+            assert_eq!(resp.status(), StatusCode::OK);
 
-        let mut srv = init_service(App::new().data(10u32).service(
-            web::resource("/").to(|req: HttpRequest| {
-                if req.app_data::<usize>().is_some() {
-                    HttpResponse::Ok()
-                } else {
-                    HttpResponse::BadRequest()
-                }
-            }),
-        ));
+            let mut srv = init_service(App::new().data(10u32).service(
+                web::resource("/").to(|req: HttpRequest| {
+                    if req.app_data::<usize>().is_some() {
+                        HttpResponse::Ok()
+                    } else {
+                        HttpResponse::BadRequest()
+                    }
+                }),
+            ))
+            .await;
 
-        let req = TestRequest::default().to_request();
-        let resp = call_service(&mut srv, req);
-        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+            let req = TestRequest::default().to_request();
+            let resp = call_service(&mut srv, req).await;
+            assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+        })
     }
 
     #[test]
     fn test_extensions_dropped() {
-        struct Tracker {
-            pub dropped: bool,
-        }
-        struct Foo {
-            tracker: Rc<RefCell<Tracker>>,
-        }
-        impl Drop for Foo {
-            fn drop(&mut self) {
-                self.tracker.borrow_mut().dropped = true;
+        block_on(async {
+            struct Tracker {
+                pub dropped: bool,
             }
-        }
+            struct Foo {
+                tracker: Rc<RefCell<Tracker>>,
+            }
+            impl Drop for Foo {
+                fn drop(&mut self) {
+                    self.tracker.borrow_mut().dropped = true;
+                }
+            }
 
-        let tracker = Rc::new(RefCell::new(Tracker { dropped: false }));
-        {
-            let tracker2 = Rc::clone(&tracker);
-            let mut srv = init_service(App::new().data(10u32).service(
-                web::resource("/").to(move |req: HttpRequest| {
-                    req.extensions_mut().insert(Foo {
-                        tracker: Rc::clone(&tracker2),
-                    });
-                    HttpResponse::Ok()
-                }),
-            ));
+            let tracker = Rc::new(RefCell::new(Tracker { dropped: false }));
+            {
+                let tracker2 = Rc::clone(&tracker);
+                let mut srv = init_service(App::new().data(10u32).service(
+                    web::resource("/").to(move |req: HttpRequest| {
+                        req.extensions_mut().insert(Foo {
+                            tracker: Rc::clone(&tracker2),
+                        });
+                        HttpResponse::Ok()
+                    }),
+                ))
+                .await;
 
-            let req = TestRequest::default().to_request();
-            let resp = call_service(&mut srv, req);
-            assert_eq!(resp.status(), StatusCode::OK);
-        }
+                let req = TestRequest::default().to_request();
+                let resp = call_service(&mut srv, req).await;
+                assert_eq!(resp.status(), StatusCode::OK);
+            }
 
-        assert!(tracker.borrow().dropped);
+            assert!(tracker.borrow().dropped);
+        })
     }
 }

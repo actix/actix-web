@@ -5,6 +5,7 @@ use std::{fmt, ops};
 
 use actix_http::error::{Error, ErrorNotFound};
 use actix_router::PathDeserializer;
+use futures::future::{ready, Ready};
 use serde::de;
 
 use crate::dev::Payload;
@@ -159,7 +160,7 @@ where
     T: de::DeserializeOwned,
 {
     type Error = Error;
-    type Future = Result<Self, Error>;
+    type Future = Ready<Result<Self, Error>>;
     type Config = PathConfig;
 
     #[inline]
@@ -169,21 +170,23 @@ where
             .map(|c| c.ehandler.clone())
             .unwrap_or(None);
 
-        de::Deserialize::deserialize(PathDeserializer::new(req.match_info()))
-            .map(|inner| Path { inner })
-            .map_err(move |e| {
-                log::debug!(
-                    "Failed during Path extractor deserialization. \
-                     Request path: {:?}",
-                    req.path()
-                );
-                if let Some(error_handler) = error_handler {
-                    let e = PathError::Deserialize(e);
-                    (error_handler)(e, req)
-                } else {
-                    ErrorNotFound(e)
-                }
-            })
+        ready(
+            de::Deserialize::deserialize(PathDeserializer::new(req.match_info()))
+                .map(|inner| Path { inner })
+                .map_err(move |e| {
+                    log::debug!(
+                        "Failed during Path extractor deserialization. \
+                         Request path: {:?}",
+                        req.path()
+                    );
+                    if let Some(error_handler) = error_handler {
+                        let e = PathError::Deserialize(e);
+                        (error_handler)(e, req)
+                    } else {
+                        ErrorNotFound(e)
+                    }
+                }),
+        )
     }
 }
 
@@ -268,100 +271,116 @@ mod tests {
 
     #[test]
     fn test_extract_path_single() {
-        let resource = ResourceDef::new("/{value}/");
+        block_on(async {
+            let resource = ResourceDef::new("/{value}/");
 
-        let mut req = TestRequest::with_uri("/32/").to_srv_request();
-        resource.match_path(req.match_info_mut());
+            let mut req = TestRequest::with_uri("/32/").to_srv_request();
+            resource.match_path(req.match_info_mut());
 
-        let (req, mut pl) = req.into_parts();
-        assert_eq!(*Path::<i8>::from_request(&req, &mut pl).unwrap(), 32);
-        assert!(Path::<MyStruct>::from_request(&req, &mut pl).is_err());
+            let (req, mut pl) = req.into_parts();
+            assert_eq!(*Path::<i8>::from_request(&req, &mut pl).await.unwrap(), 32);
+            assert!(Path::<MyStruct>::from_request(&req, &mut pl).await.is_err());
+        })
     }
 
     #[test]
     fn test_tuple_extract() {
-        let resource = ResourceDef::new("/{key}/{value}/");
+        block_on(async {
+            let resource = ResourceDef::new("/{key}/{value}/");
 
-        let mut req = TestRequest::with_uri("/name/user1/?id=test").to_srv_request();
-        resource.match_path(req.match_info_mut());
+            let mut req = TestRequest::with_uri("/name/user1/?id=test").to_srv_request();
+            resource.match_path(req.match_info_mut());
 
-        let (req, mut pl) = req.into_parts();
-        let res =
-            block_on(<(Path<(String, String)>,)>::from_request(&req, &mut pl)).unwrap();
-        assert_eq!((res.0).0, "name");
-        assert_eq!((res.0).1, "user1");
+            let (req, mut pl) = req.into_parts();
+            let res = <(Path<(String, String)>,)>::from_request(&req, &mut pl)
+                .await
+                .unwrap();
+            assert_eq!((res.0).0, "name");
+            assert_eq!((res.0).1, "user1");
 
-        let res = block_on(
-            <(Path<(String, String)>, Path<(String, String)>)>::from_request(
+            let res = <(Path<(String, String)>, Path<(String, String)>)>::from_request(
                 &req, &mut pl,
-            ),
-        )
-        .unwrap();
-        assert_eq!((res.0).0, "name");
-        assert_eq!((res.0).1, "user1");
-        assert_eq!((res.1).0, "name");
-        assert_eq!((res.1).1, "user1");
+            )
+            .await
+            .unwrap();
+            assert_eq!((res.0).0, "name");
+            assert_eq!((res.0).1, "user1");
+            assert_eq!((res.1).0, "name");
+            assert_eq!((res.1).1, "user1");
 
-        let () = <()>::from_request(&req, &mut pl).unwrap();
+            let () = <()>::from_request(&req, &mut pl).await.unwrap();
+        })
     }
 
     #[test]
     fn test_request_extract() {
-        let mut req = TestRequest::with_uri("/name/user1/?id=test").to_srv_request();
+        block_on(async {
+            let mut req = TestRequest::with_uri("/name/user1/?id=test").to_srv_request();
 
-        let resource = ResourceDef::new("/{key}/{value}/");
-        resource.match_path(req.match_info_mut());
+            let resource = ResourceDef::new("/{key}/{value}/");
+            resource.match_path(req.match_info_mut());
 
-        let (req, mut pl) = req.into_parts();
-        let mut s = Path::<MyStruct>::from_request(&req, &mut pl).unwrap();
-        assert_eq!(s.key, "name");
-        assert_eq!(s.value, "user1");
-        s.value = "user2".to_string();
-        assert_eq!(s.value, "user2");
-        assert_eq!(
-            format!("{}, {:?}", s, s),
-            "MyStruct(name, user2), MyStruct { key: \"name\", value: \"user2\" }"
-        );
-        let s = s.into_inner();
-        assert_eq!(s.value, "user2");
+            let (req, mut pl) = req.into_parts();
+            let mut s = Path::<MyStruct>::from_request(&req, &mut pl).await.unwrap();
+            assert_eq!(s.key, "name");
+            assert_eq!(s.value, "user1");
+            s.value = "user2".to_string();
+            assert_eq!(s.value, "user2");
+            assert_eq!(
+                format!("{}, {:?}", s, s),
+                "MyStruct(name, user2), MyStruct { key: \"name\", value: \"user2\" }"
+            );
+            let s = s.into_inner();
+            assert_eq!(s.value, "user2");
 
-        let s = Path::<(String, String)>::from_request(&req, &mut pl).unwrap();
-        assert_eq!(s.0, "name");
-        assert_eq!(s.1, "user1");
+            let s = Path::<(String, String)>::from_request(&req, &mut pl)
+                .await
+                .unwrap();
+            assert_eq!(s.0, "name");
+            assert_eq!(s.1, "user1");
 
-        let mut req = TestRequest::with_uri("/name/32/").to_srv_request();
-        let resource = ResourceDef::new("/{key}/{value}/");
-        resource.match_path(req.match_info_mut());
+            let mut req = TestRequest::with_uri("/name/32/").to_srv_request();
+            let resource = ResourceDef::new("/{key}/{value}/");
+            resource.match_path(req.match_info_mut());
 
-        let (req, mut pl) = req.into_parts();
-        let s = Path::<Test2>::from_request(&req, &mut pl).unwrap();
-        assert_eq!(s.as_ref().key, "name");
-        assert_eq!(s.value, 32);
+            let (req, mut pl) = req.into_parts();
+            let s = Path::<Test2>::from_request(&req, &mut pl).await.unwrap();
+            assert_eq!(s.as_ref().key, "name");
+            assert_eq!(s.value, 32);
 
-        let s = Path::<(String, u8)>::from_request(&req, &mut pl).unwrap();
-        assert_eq!(s.0, "name");
-        assert_eq!(s.1, 32);
+            let s = Path::<(String, u8)>::from_request(&req, &mut pl)
+                .await
+                .unwrap();
+            assert_eq!(s.0, "name");
+            assert_eq!(s.1, 32);
 
-        let res = Path::<Vec<String>>::from_request(&req, &mut pl).unwrap();
-        assert_eq!(res[0], "name".to_owned());
-        assert_eq!(res[1], "32".to_owned());
+            let res = Path::<Vec<String>>::from_request(&req, &mut pl)
+                .await
+                .unwrap();
+            assert_eq!(res[0], "name".to_owned());
+            assert_eq!(res[1], "32".to_owned());
+        })
     }
 
     #[test]
     fn test_custom_err_handler() {
-        let (req, mut pl) = TestRequest::with_uri("/name/user1/")
-            .data(PathConfig::default().error_handler(|err, _| {
-                error::InternalError::from_response(
-                    err,
-                    HttpResponse::Conflict().finish(),
-                )
-                .into()
-            }))
-            .to_http_parts();
+        block_on(async {
+            let (req, mut pl) = TestRequest::with_uri("/name/user1/")
+                .data(PathConfig::default().error_handler(|err, _| {
+                    error::InternalError::from_response(
+                        err,
+                        HttpResponse::Conflict().finish(),
+                    )
+                    .into()
+                }))
+                .to_http_parts();
 
-        let s = block_on(Path::<(usize,)>::from_request(&req, &mut pl)).unwrap_err();
-        let res: HttpResponse = s.into();
+            let s = Path::<(usize,)>::from_request(&req, &mut pl)
+                .await
+                .unwrap_err();
+            let res: HttpResponse = s.into();
 
-        assert_eq!(res.status(), http::StatusCode::CONFLICT);
+            assert_eq!(res.status(), http::StatusCode::CONFLICT);
+        })
     }
 }
