@@ -1,14 +1,17 @@
 use std::cell::RefCell;
 use std::fmt;
+use std::future::Future;
 use std::marker::PhantomData;
+use std::pin::Pin;
 use std::rc::Rc;
+use std::task::{Context, Poll};
 
 use actix_http::body::{Body, MessageBody};
 use actix_service::boxed::{self, BoxedNewService};
 use actix_service::{
-    apply_transform, IntoNewService, IntoTransform, NewService, Transform,
+    apply, apply_fn_factory, IntoServiceFactory, ServiceFactory, Transform,
 };
-use futures::{Future, IntoFuture};
+use futures::future::{FutureExt, LocalBoxFuture};
 
 use crate::app_service::{AppEntry, AppInit, AppRoutingFactory};
 use crate::config::{AppConfig, AppConfigInner, ServiceConfig};
@@ -18,19 +21,19 @@ use crate::error::Error;
 use crate::resource::Resource;
 use crate::route::Route;
 use crate::service::{
-    HttpServiceFactory, ServiceFactory, ServiceFactoryWrapper, ServiceRequest,
+    AppServiceFactory, HttpServiceFactory, ServiceFactoryWrapper, ServiceRequest,
     ServiceResponse,
 };
 
 type HttpNewService = BoxedNewService<(), ServiceRequest, ServiceResponse, Error, ()>;
 type FnDataFactory =
-    Box<dyn Fn() -> Box<dyn Future<Item = Box<dyn DataFactory>, Error = ()>>>;
+    Box<dyn Fn() -> LocalBoxFuture<'static, Result<Box<dyn DataFactory>, ()>>>;
 
 /// Application builder - structure that follows the builder pattern
 /// for building application instances.
 pub struct App<T, B> {
     endpoint: T,
-    services: Vec<Box<dyn ServiceFactory>>,
+    services: Vec<Box<dyn AppServiceFactory>>,
     default: Option<Rc<HttpNewService>>,
     factory_ref: Rc<RefCell<Option<AppRoutingFactory>>>,
     data: Vec<Box<dyn DataFactory>>,
@@ -61,7 +64,7 @@ impl App<AppEntry, Body> {
 impl<T, B> App<T, B>
 where
     B: MessageBody,
-    T: NewService<
+    T: ServiceFactory<
         Config = (),
         Request = ServiceRequest,
         Response = ServiceResponse<B>,
@@ -107,24 +110,30 @@ where
     /// Set application data factory. This function is
     /// similar to `.data()` but it accepts data factory. Data object get
     /// constructed asynchronously during application initialization.
-    pub fn data_factory<F, Out>(mut self, data: F) -> Self
+    pub fn data_factory<F, Out, D, E>(mut self, data: F) -> Self
     where
         F: Fn() -> Out + 'static,
-        Out: IntoFuture + 'static,
-        Out::Error: std::fmt::Debug,
+        Out: Future<Output = Result<D, E>> + 'static,
+        D: 'static,
+        E: std::fmt::Debug,
     {
         self.data_factories.push(Box::new(move || {
-            Box::new(
-                data()
-                    .into_future()
-                    .map_err(|e| {
-                        log::error!("Can not construct data instance: {:?}", e);
-                    })
-                    .map(|data| {
-                        let data: Box<dyn DataFactory> = Box::new(Data::new(data));
-                        data
-                    }),
-            )
+            {
+                let fut = data();
+                async move {
+                    match fut.await {
+                        Err(e) => {
+                            log::error!("Can not construct data instance: {:?}", e);
+                            Err(())
+                        }
+                        Ok(data) => {
+                            let data: Box<dyn DataFactory> = Box::new(Data::new(data));
+                            Ok(data)
+                        }
+                    }
+                }
+            }
+            .boxed_local()
         }));
         self
     }
@@ -267,8 +276,8 @@ where
     /// ```
     pub fn default_service<F, U>(mut self, f: F) -> Self
     where
-        F: IntoNewService<U>,
-        U: NewService<
+        F: IntoServiceFactory<U>,
+        U: ServiceFactory<
                 Config = (),
                 Request = ServiceRequest,
                 Response = ServiceResponse,
@@ -277,11 +286,9 @@ where
         U::InitError: fmt::Debug,
     {
         // create and configure default resource
-        self.default = Some(Rc::new(boxed::new_service(
-            f.into_new_service().map_init_err(|e| {
-                log::error!("Can not construct default service: {:?}", e)
-            }),
-        )));
+        self.default = Some(Rc::new(boxed::factory(f.into_factory().map_init_err(
+            |e| log::error!("Can not construct default service: {:?}", e),
+        ))));
 
         self
     }
@@ -350,11 +357,11 @@ where
     ///         .route("/index.html", web::get().to(index));
     /// }
     /// ```
-    pub fn wrap<M, B1, F>(
+    pub fn wrap<M, B1>(
         self,
-        mw: F,
+        mw: M,
     ) -> App<
-        impl NewService<
+        impl ServiceFactory<
             Config = (),
             Request = ServiceRequest,
             Response = ServiceResponse<B1>,
@@ -372,11 +379,9 @@ where
             InitError = (),
         >,
         B1: MessageBody,
-        F: IntoTransform<M, T::Service>,
     {
-        let endpoint = apply_transform(mw, self.endpoint);
         App {
-            endpoint,
+            endpoint: apply(mw, self.endpoint),
             data: self.data,
             data_factories: self.data_factories,
             services: self.services,
@@ -407,13 +412,16 @@ where
     ///
     /// fn main() {
     ///     let app = App::new()
-    ///         .wrap_fn(|req, srv|
-    ///             srv.call(req).map(|mut res| {
+    ///         .wrap_fn(|req, srv| {
+    ///             let fut = srv.call(req);
+    ///             async {
+    ///                 let mut res = fut.await?;
     ///                 res.headers_mut().insert(
     ///                    CONTENT_TYPE, HeaderValue::from_static("text/plain"),
     ///                 );
-    ///                 res
-    ///             }))
+    ///                 Ok(res)
+    ///             }
+    ///         })
     ///         .route("/index.html", web::get().to(index));
     /// }
     /// ```
@@ -421,7 +429,7 @@ where
         self,
         mw: F,
     ) -> App<
-        impl NewService<
+        impl ServiceFactory<
             Config = (),
             Request = ServiceRequest,
             Response = ServiceResponse<B1>,
@@ -433,16 +441,26 @@ where
     where
         B1: MessageBody,
         F: FnMut(ServiceRequest, &mut T::Service) -> R + Clone,
-        R: IntoFuture<Item = ServiceResponse<B1>, Error = Error>,
+        R: Future<Output = Result<ServiceResponse<B1>, Error>>,
     {
-        self.wrap(mw)
+        App {
+            endpoint: apply_fn_factory(self.endpoint, mw),
+            data: self.data,
+            data_factories: self.data_factories,
+            services: self.services,
+            default: self.default,
+            factory_ref: self.factory_ref,
+            config: self.config,
+            external: self.external,
+            _t: PhantomData,
+        }
     }
 }
 
-impl<T, B> IntoNewService<AppInit<T, B>> for App<T, B>
+impl<T, B> IntoServiceFactory<AppInit<T, B>> for App<T, B>
 where
     B: MessageBody,
-    T: NewService<
+    T: ServiceFactory<
         Config = (),
         Request = ServiceRequest,
         Response = ServiceResponse<B>,
@@ -450,7 +468,7 @@ where
         InitError = (),
     >,
 {
-    fn into_new_service(self) -> AppInit<T, B> {
+    fn into_factory(self) -> AppInit<T, B> {
         AppInit {
             data: Rc::new(self.data),
             data_factories: Rc::new(self.data_factories),
@@ -468,82 +486,89 @@ where
 mod tests {
     use actix_service::Service;
     use bytes::Bytes;
-    use futures::{Future, IntoFuture};
+    use futures::future::{ok, Future};
 
     use super::*;
     use crate::http::{header, HeaderValue, Method, StatusCode};
+    use crate::middleware::DefaultHeaders;
     use crate::service::{ServiceRequest, ServiceResponse};
-    use crate::test::{
-        block_fn, block_on, call_service, init_service, read_body, TestRequest,
-    };
+    use crate::test::{block_on, call_service, init_service, read_body, TestRequest};
     use crate::{web, Error, HttpRequest, HttpResponse};
 
     #[test]
     fn test_default_resource() {
-        let mut srv = init_service(
-            App::new().service(web::resource("/test").to(|| HttpResponse::Ok())),
-        );
-        let req = TestRequest::with_uri("/test").to_request();
-        let resp = block_fn(|| srv.call(req)).unwrap();
-        assert_eq!(resp.status(), StatusCode::OK);
+        block_on(async {
+            let mut srv = init_service(
+                App::new().service(web::resource("/test").to(|| HttpResponse::Ok())),
+            )
+            .await;
+            let req = TestRequest::with_uri("/test").to_request();
+            let resp = srv.call(req).await.unwrap();
+            assert_eq!(resp.status(), StatusCode::OK);
 
-        let req = TestRequest::with_uri("/blah").to_request();
-        let resp = block_on(srv.call(req)).unwrap();
-        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+            let req = TestRequest::with_uri("/blah").to_request();
+            let resp = srv.call(req).await.unwrap();
+            assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 
-        let mut srv = init_service(
-            App::new()
-                .service(web::resource("/test").to(|| HttpResponse::Ok()))
-                .service(
-                    web::resource("/test2")
-                        .default_service(|r: ServiceRequest| {
-                            r.into_response(HttpResponse::Created())
-                        })
-                        .route(web::get().to(|| HttpResponse::Ok())),
-                )
-                .default_service(|r: ServiceRequest| {
-                    r.into_response(HttpResponse::MethodNotAllowed())
-                }),
-        );
+            let mut srv = init_service(
+                App::new()
+                    .service(web::resource("/test").to(|| HttpResponse::Ok()))
+                    .service(
+                        web::resource("/test2")
+                            .default_service(|r: ServiceRequest| {
+                                ok(r.into_response(HttpResponse::Created()))
+                            })
+                            .route(web::get().to(|| HttpResponse::Ok())),
+                    )
+                    .default_service(|r: ServiceRequest| {
+                        ok(r.into_response(HttpResponse::MethodNotAllowed()))
+                    }),
+            )
+            .await;
 
-        let req = TestRequest::with_uri("/blah").to_request();
-        let resp = block_on(srv.call(req)).unwrap();
-        assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
+            let req = TestRequest::with_uri("/blah").to_request();
+            let resp = srv.call(req).await.unwrap();
+            assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
 
-        let req = TestRequest::with_uri("/test2").to_request();
-        let resp = block_on(srv.call(req)).unwrap();
-        assert_eq!(resp.status(), StatusCode::OK);
+            let req = TestRequest::with_uri("/test2").to_request();
+            let resp = srv.call(req).await.unwrap();
+            assert_eq!(resp.status(), StatusCode::OK);
 
-        let req = TestRequest::with_uri("/test2")
-            .method(Method::POST)
-            .to_request();
-        let resp = block_on(srv.call(req)).unwrap();
-        assert_eq!(resp.status(), StatusCode::CREATED);
+            let req = TestRequest::with_uri("/test2")
+                .method(Method::POST)
+                .to_request();
+            let resp = srv.call(req).await.unwrap();
+            assert_eq!(resp.status(), StatusCode::CREATED);
+        })
     }
 
     #[test]
     fn test_data_factory() {
-        let mut srv =
-            init_service(App::new().data_factory(|| Ok::<_, ()>(10usize)).service(
-                web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()),
-            ));
-        let req = TestRequest::default().to_request();
-        let resp = block_on(srv.call(req)).unwrap();
-        assert_eq!(resp.status(), StatusCode::OK);
+        block_on(async {
+            let mut srv =
+                init_service(App::new().data_factory(|| ok::<_, ()>(10usize)).service(
+                    web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()),
+                ))
+                .await;
+            let req = TestRequest::default().to_request();
+            let resp = srv.call(req).await.unwrap();
+            assert_eq!(resp.status(), StatusCode::OK);
 
-        let mut srv =
-            init_service(App::new().data_factory(|| Ok::<_, ()>(10u32)).service(
-                web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()),
-            ));
-        let req = TestRequest::default().to_request();
-        let resp = block_on(srv.call(req)).unwrap();
-        assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+            let mut srv =
+                init_service(App::new().data_factory(|| ok::<_, ()>(10u32)).service(
+                    web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()),
+                ))
+                .await;
+            let req = TestRequest::default().to_request();
+            let resp = srv.call(req).await.unwrap();
+            assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+        })
     }
 
     fn md<S, B>(
         req: ServiceRequest,
         srv: &mut S,
-    ) -> impl IntoFuture<Item = ServiceResponse<B>, Error = Error>
+    ) -> impl Future<Output = Result<ServiceResponse<B>, Error>>
     where
         S: Service<
             Request = ServiceRequest,
@@ -551,112 +576,141 @@ mod tests {
             Error = Error,
         >,
     {
-        srv.call(req).map(|mut res| {
+        let fut = srv.call(req);
+        async move {
+            let mut res = fut.await?;
             res.headers_mut()
                 .insert(header::CONTENT_TYPE, HeaderValue::from_static("0001"));
-            res
-        })
+            Ok(res)
+        }
     }
 
     #[test]
     fn test_wrap() {
-        let mut srv = init_service(
-            App::new()
-                .wrap(md)
-                .route("/test", web::get().to(|| HttpResponse::Ok())),
-        );
-        let req = TestRequest::with_uri("/test").to_request();
-        let resp = call_service(&mut srv, req);
-        assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(
-            resp.headers().get(header::CONTENT_TYPE).unwrap(),
-            HeaderValue::from_static("0001")
-        );
+        block_on(async {
+            let mut srv =
+                init_service(
+                    App::new()
+                        .wrap(DefaultHeaders::new().header(
+                            header::CONTENT_TYPE,
+                            HeaderValue::from_static("0001"),
+                        ))
+                        .route("/test", web::get().to(|| HttpResponse::Ok())),
+                )
+                .await;
+            let req = TestRequest::with_uri("/test").to_request();
+            let resp = call_service(&mut srv, req).await;
+            assert_eq!(resp.status(), StatusCode::OK);
+            assert_eq!(
+                resp.headers().get(header::CONTENT_TYPE).unwrap(),
+                HeaderValue::from_static("0001")
+            );
+        })
     }
 
     #[test]
     fn test_router_wrap() {
-        let mut srv = init_service(
-            App::new()
-                .route("/test", web::get().to(|| HttpResponse::Ok()))
-                .wrap(md),
-        );
-        let req = TestRequest::with_uri("/test").to_request();
-        let resp = call_service(&mut srv, req);
-        assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(
-            resp.headers().get(header::CONTENT_TYPE).unwrap(),
-            HeaderValue::from_static("0001")
-        );
+        block_on(async {
+            let mut srv =
+                init_service(
+                    App::new()
+                        .route("/test", web::get().to(|| HttpResponse::Ok()))
+                        .wrap(DefaultHeaders::new().header(
+                            header::CONTENT_TYPE,
+                            HeaderValue::from_static("0001"),
+                        )),
+                )
+                .await;
+            let req = TestRequest::with_uri("/test").to_request();
+            let resp = call_service(&mut srv, req).await;
+            assert_eq!(resp.status(), StatusCode::OK);
+            assert_eq!(
+                resp.headers().get(header::CONTENT_TYPE).unwrap(),
+                HeaderValue::from_static("0001")
+            );
+        })
     }
 
     #[test]
     fn test_wrap_fn() {
-        let mut srv = init_service(
-            App::new()
-                .wrap_fn(|req, srv| {
-                    srv.call(req).map(|mut res| {
-                        res.headers_mut().insert(
-                            header::CONTENT_TYPE,
-                            HeaderValue::from_static("0001"),
-                        );
-                        res
+        block_on(async {
+            let mut srv = init_service(
+                App::new()
+                    .wrap_fn(|req, srv| {
+                        let fut = srv.call(req);
+                        async move {
+                            let mut res = fut.await?;
+                            res.headers_mut().insert(
+                                header::CONTENT_TYPE,
+                                HeaderValue::from_static("0001"),
+                            );
+                            Ok(res)
+                        }
                     })
-                })
-                .service(web::resource("/test").to(|| HttpResponse::Ok())),
-        );
-        let req = TestRequest::with_uri("/test").to_request();
-        let resp = call_service(&mut srv, req);
-        assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(
-            resp.headers().get(header::CONTENT_TYPE).unwrap(),
-            HeaderValue::from_static("0001")
-        );
+                    .service(web::resource("/test").to(|| HttpResponse::Ok())),
+            )
+            .await;
+            let req = TestRequest::with_uri("/test").to_request();
+            let resp = call_service(&mut srv, req).await;
+            assert_eq!(resp.status(), StatusCode::OK);
+            assert_eq!(
+                resp.headers().get(header::CONTENT_TYPE).unwrap(),
+                HeaderValue::from_static("0001")
+            );
+        })
     }
 
     #[test]
     fn test_router_wrap_fn() {
-        let mut srv = init_service(
-            App::new()
-                .route("/test", web::get().to(|| HttpResponse::Ok()))
-                .wrap_fn(|req, srv| {
-                    srv.call(req).map(|mut res| {
-                        res.headers_mut().insert(
-                            header::CONTENT_TYPE,
-                            HeaderValue::from_static("0001"),
-                        );
-                        res
-                    })
-                }),
-        );
-        let req = TestRequest::with_uri("/test").to_request();
-        let resp = call_service(&mut srv, req);
-        assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(
-            resp.headers().get(header::CONTENT_TYPE).unwrap(),
-            HeaderValue::from_static("0001")
-        );
+        block_on(async {
+            let mut srv = init_service(
+                App::new()
+                    .route("/test", web::get().to(|| HttpResponse::Ok()))
+                    .wrap_fn(|req, srv| {
+                        let fut = srv.call(req);
+                        async {
+                            let mut res = fut.await?;
+                            res.headers_mut().insert(
+                                header::CONTENT_TYPE,
+                                HeaderValue::from_static("0001"),
+                            );
+                            Ok(res)
+                        }
+                    }),
+            )
+            .await;
+            let req = TestRequest::with_uri("/test").to_request();
+            let resp = call_service(&mut srv, req).await;
+            assert_eq!(resp.status(), StatusCode::OK);
+            assert_eq!(
+                resp.headers().get(header::CONTENT_TYPE).unwrap(),
+                HeaderValue::from_static("0001")
+            );
+        })
     }
 
     #[test]
     fn test_external_resource() {
-        let mut srv = init_service(
-            App::new()
-                .external_resource("youtube", "https://youtube.com/watch/{video_id}")
-                .route(
-                    "/test",
-                    web::get().to(|req: HttpRequest| {
-                        HttpResponse::Ok().body(format!(
-                            "{}",
-                            req.url_for("youtube", &["12345"]).unwrap()
-                        ))
-                    }),
-                ),
-        );
-        let req = TestRequest::with_uri("/test").to_request();
-        let resp = call_service(&mut srv, req);
-        assert_eq!(resp.status(), StatusCode::OK);
-        let body = read_body(resp);
-        assert_eq!(body, Bytes::from_static(b"https://youtube.com/watch/12345"));
+        block_on(async {
+            let mut srv = init_service(
+                App::new()
+                    .external_resource("youtube", "https://youtube.com/watch/{video_id}")
+                    .route(
+                        "/test",
+                        web::get().to(|req: HttpRequest| {
+                            HttpResponse::Ok().body(format!(
+                                "{}",
+                                req.url_for("youtube", &["12345"]).unwrap()
+                            ))
+                        }),
+                    ),
+            )
+            .await;
+            let req = TestRequest::with_uri("/test").to_request();
+            let resp = call_service(&mut srv, req).await;
+            assert_eq!(resp.status(), StatusCode::OK);
+            let body = read_body(resp).await;
+            assert_eq!(body, Bytes::from_static(b"https://youtube.com/watch/12345"));
+        })
     }
 }

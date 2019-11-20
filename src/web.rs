@@ -1,11 +1,12 @@
 //! Essentials helper functions and types for application registration.
 use actix_http::http::Method;
-use futures::{Future, IntoFuture};
+use futures::Future;
 
 pub use actix_http::Response as HttpResponse;
 pub use bytes::{Bytes, BytesMut};
+pub use futures::channel::oneshot::Canceled;
 
-use crate::error::{BlockingError, Error};
+use crate::error::Error;
 use crate::extract::FromRequest;
 use crate::handler::{AsyncFactory, Factory};
 use crate::resource::Resource;
@@ -256,21 +257,21 @@ where
 /// # use futures::future::{ok, Future};
 /// use actix_web::{web, App, HttpResponse, Error};
 ///
-/// fn index() -> impl Future<Item=HttpResponse, Error=Error> {
-///     ok(HttpResponse::Ok().finish())
+/// async fn index() -> Result<HttpResponse, Error> {
+///     Ok(HttpResponse::Ok().finish())
 /// }
 ///
 /// App::new().service(web::resource("/").route(
 ///     web::to_async(index))
 /// );
 /// ```
-pub fn to_async<F, I, R>(handler: F) -> Route
+pub fn to_async<F, I, R, O, E>(handler: F) -> Route
 where
-    F: AsyncFactory<I, R>,
+    F: AsyncFactory<I, R, O, E>,
     I: FromRequest + 'static,
-    R: IntoFuture + 'static,
-    R::Item: Responder,
-    R::Error: Into<Error>,
+    R: Future<Output = Result<O, E>> + 'static,
+    O: Responder + 'static,
+    E: Into<Error> + 'static,
 {
     Route::new().to_async(handler)
 }
@@ -279,10 +280,11 @@ where
 ///
 /// ```rust
 /// # extern crate actix_web;
-/// use actix_web::{dev, web, guard, App, HttpResponse};
+/// use futures::future::{ok, Ready};
+/// use actix_web::{dev, web, guard, App, Error, HttpResponse};
 ///
-/// fn my_service(req: dev::ServiceRequest) -> dev::ServiceResponse {
-///     req.into_response(HttpResponse::Ok().finish())
+/// fn my_service(req: dev::ServiceRequest) -> Ready<Result<dev::ServiceResponse, Error>> {
+///     ok(req.into_response(HttpResponse::Ok().finish()))
 /// }
 ///
 /// fn main() {
@@ -299,11 +301,10 @@ pub fn service(path: &str) -> WebService {
 
 /// Execute blocking function on a thread pool, returns future that resolves
 /// to result of the function execution.
-pub fn block<F, I, E>(f: F) -> impl Future<Item = I, Error = BlockingError<E>>
+pub fn block<F, R>(f: F) -> impl Future<Output = Result<R, Canceled>>
 where
-    F: FnOnce() -> Result<I, E> + Send + 'static,
-    I: Send + 'static,
-    E: Send + std::fmt::Debug + 'static,
+    F: FnOnce() -> R + Send + 'static,
+    R: Send + 'static,
 {
-    actix_threadpool::run(f).from_err()
+    actix_threadpool::run(f)
 }

@@ -1,10 +1,14 @@
 use std::convert::Infallible;
+use std::future::Future;
 use std::marker::PhantomData;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 
 use actix_http::{Error, Response};
-use actix_service::{NewService, Service};
-use futures::future::{ok, FutureResult};
-use futures::{try_ready, Async, Future, IntoFuture, Poll};
+use actix_service::{Service, ServiceFactory};
+use futures::future::{ok, Ready};
+use futures::ready;
+use pin_project::pin_project;
 
 use crate::extract::FromRequest;
 use crate::request::HttpRequest;
@@ -73,14 +77,14 @@ where
     type Request = (T, HttpRequest);
     type Response = ServiceResponse;
     type Error = Infallible;
-    type Future = HandlerServiceResponse<<R::Future as IntoFuture>::Future>;
+    type Future = HandlerServiceResponse<R>;
 
-    fn poll_ready(&mut self) -> Poll<(), Self::Error> {
-        Ok(Async::Ready(()))
+    fn poll_ready(&mut self, _: &mut Context) -> Poll<Result<(), Self::Error>> {
+        Poll::Ready(Ok(()))
     }
 
     fn call(&mut self, (param, req): (T, HttpRequest)) -> Self::Future {
-        let fut = self.hnd.call(param).respond_to(&req).into_future();
+        let fut = self.hnd.call(param).respond_to(&req);
         HandlerServiceResponse {
             fut,
             req: Some(req),
@@ -88,53 +92,48 @@ where
     }
 }
 
-pub struct HandlerServiceResponse<T> {
-    fut: T,
+#[pin_project]
+pub struct HandlerServiceResponse<T: Responder> {
+    #[pin]
+    fut: T::Future,
     req: Option<HttpRequest>,
 }
 
-impl<T> Future for HandlerServiceResponse<T>
-where
-    T: Future<Item = Response>,
-    T::Error: Into<Error>,
-{
-    type Item = ServiceResponse;
-    type Error = Infallible;
+impl<T: Responder> Future for HandlerServiceResponse<T> {
+    type Output = Result<ServiceResponse, Infallible>;
 
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        match self.fut.poll() {
-            Ok(Async::Ready(res)) => Ok(Async::Ready(ServiceResponse::new(
-                self.req.take().unwrap(),
-                res,
-            ))),
-            Ok(Async::NotReady) => Ok(Async::NotReady),
-            Err(e) => {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+        let this = self.project();
+
+        match this.fut.poll(cx) {
+            Poll::Ready(Ok(res)) => {
+                Poll::Ready(Ok(ServiceResponse::new(this.req.take().unwrap(), res)))
+            }
+            Poll::Pending => Poll::Pending,
+            Poll::Ready(Err(e)) => {
                 let res: Response = e.into().into();
-                Ok(Async::Ready(ServiceResponse::new(
-                    self.req.take().unwrap(),
-                    res,
-                )))
+                Poll::Ready(Ok(ServiceResponse::new(this.req.take().unwrap(), res)))
             }
         }
     }
 }
 
 /// Async handler converter factory
-pub trait AsyncFactory<T, R>: Clone + 'static
+pub trait AsyncFactory<T, R, O, E>: Clone + 'static
 where
-    R: IntoFuture,
-    R::Item: Responder,
-    R::Error: Into<Error>,
+    R: Future<Output = Result<O, E>>,
+    O: Responder,
+    E: Into<Error>,
 {
     fn call(&self, param: T) -> R;
 }
 
-impl<F, R> AsyncFactory<(), R> for F
+impl<F, R, O, E> AsyncFactory<(), R, O, E> for F
 where
     F: Fn() -> R + Clone + 'static,
-    R: IntoFuture,
-    R::Item: Responder,
-    R::Error: Into<Error>,
+    R: Future<Output = Result<O, E>>,
+    O: Responder,
+    E: Into<Error>,
 {
     fn call(&self, _: ()) -> R {
         (self)()
@@ -142,23 +141,23 @@ where
 }
 
 #[doc(hidden)]
-pub struct AsyncHandler<F, T, R>
+pub struct AsyncHandler<F, T, R, O, E>
 where
-    F: AsyncFactory<T, R>,
-    R: IntoFuture,
-    R::Item: Responder,
-    R::Error: Into<Error>,
+    F: AsyncFactory<T, R, O, E>,
+    R: Future<Output = Result<O, E>>,
+    O: Responder,
+    E: Into<Error>,
 {
     hnd: F,
-    _t: PhantomData<(T, R)>,
+    _t: PhantomData<(T, R, O, E)>,
 }
 
-impl<F, T, R> AsyncHandler<F, T, R>
+impl<F, T, R, O, E> AsyncHandler<F, T, R, O, E>
 where
-    F: AsyncFactory<T, R>,
-    R: IntoFuture,
-    R::Item: Responder,
-    R::Error: Into<Error>,
+    F: AsyncFactory<T, R, O, E>,
+    R: Future<Output = Result<O, E>>,
+    O: Responder,
+    E: Into<Error>,
 {
     pub fn new(hnd: F) -> Self {
         AsyncHandler {
@@ -168,12 +167,12 @@ where
     }
 }
 
-impl<F, T, R> Clone for AsyncHandler<F, T, R>
+impl<F, T, R, O, E> Clone for AsyncHandler<F, T, R, O, E>
 where
-    F: AsyncFactory<T, R>,
-    R: IntoFuture,
-    R::Item: Responder,
-    R::Error: Into<Error>,
+    F: AsyncFactory<T, R, O, E>,
+    R: Future<Output = Result<O, E>>,
+    O: Responder,
+    E: Into<Error>,
 {
     fn clone(&self) -> Self {
         AsyncHandler {
@@ -183,25 +182,25 @@ where
     }
 }
 
-impl<F, T, R> Service for AsyncHandler<F, T, R>
+impl<F, T, R, O, E> Service for AsyncHandler<F, T, R, O, E>
 where
-    F: AsyncFactory<T, R>,
-    R: IntoFuture,
-    R::Item: Responder,
-    R::Error: Into<Error>,
+    F: AsyncFactory<T, R, O, E>,
+    R: Future<Output = Result<O, E>>,
+    O: Responder,
+    E: Into<Error>,
 {
     type Request = (T, HttpRequest);
     type Response = ServiceResponse;
     type Error = Infallible;
-    type Future = AsyncHandlerServiceResponse<R::Future>;
+    type Future = AsyncHandlerServiceResponse<R, O, E>;
 
-    fn poll_ready(&mut self) -> Poll<(), Self::Error> {
-        Ok(Async::Ready(()))
+    fn poll_ready(&mut self, _: &mut Context) -> Poll<Result<(), Self::Error>> {
+        Poll::Ready(Ok(()))
     }
 
     fn call(&mut self, (param, req): (T, HttpRequest)) -> Self::Future {
         AsyncHandlerServiceResponse {
-            fut: self.hnd.call(param).into_future(),
+            fut: self.hnd.call(param),
             fut2: None,
             req: Some(req),
         }
@@ -209,56 +208,54 @@ where
 }
 
 #[doc(hidden)]
-pub struct AsyncHandlerServiceResponse<T>
+#[pin_project]
+pub struct AsyncHandlerServiceResponse<T, R, E>
 where
-    T: Future,
-    T::Item: Responder,
+    T: Future<Output = Result<R, E>>,
+    R: Responder,
+    E: Into<Error>,
 {
+    #[pin]
     fut: T,
-    fut2: Option<<<T::Item as Responder>::Future as IntoFuture>::Future>,
+    #[pin]
+    fut2: Option<R::Future>,
     req: Option<HttpRequest>,
 }
 
-impl<T> Future for AsyncHandlerServiceResponse<T>
+impl<T, R, E> Future for AsyncHandlerServiceResponse<T, R, E>
 where
-    T: Future,
-    T::Item: Responder,
-    T::Error: Into<Error>,
+    T: Future<Output = Result<R, E>>,
+    R: Responder,
+    E: Into<Error>,
 {
-    type Item = ServiceResponse;
-    type Error = Infallible;
+    type Output = Result<ServiceResponse, Infallible>;
 
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        if let Some(ref mut fut) = self.fut2 {
-            return match fut.poll() {
-                Ok(Async::Ready(res)) => Ok(Async::Ready(ServiceResponse::new(
-                    self.req.take().unwrap(),
-                    res,
-                ))),
-                Ok(Async::NotReady) => Ok(Async::NotReady),
-                Err(e) => {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+        let this = self.as_mut().project();
+
+        if let Some(fut) = this.fut2.as_pin_mut() {
+            return match fut.poll(cx) {
+                Poll::Ready(Ok(res)) => {
+                    Poll::Ready(Ok(ServiceResponse::new(this.req.take().unwrap(), res)))
+                }
+                Poll::Pending => Poll::Pending,
+                Poll::Ready(Err(e)) => {
                     let res: Response = e.into().into();
-                    Ok(Async::Ready(ServiceResponse::new(
-                        self.req.take().unwrap(),
-                        res,
-                    )))
+                    Poll::Ready(Ok(ServiceResponse::new(this.req.take().unwrap(), res)))
                 }
             };
         }
 
-        match self.fut.poll() {
-            Ok(Async::Ready(res)) => {
-                self.fut2 =
-                    Some(res.respond_to(self.req.as_ref().unwrap()).into_future());
-                self.poll()
+        match this.fut.poll(cx) {
+            Poll::Ready(Ok(res)) => {
+                let fut = res.respond_to(this.req.as_ref().unwrap());
+                self.as_mut().project().fut2.set(Some(fut));
+                self.poll(cx)
             }
-            Ok(Async::NotReady) => Ok(Async::NotReady),
-            Err(e) => {
+            Poll::Pending => Poll::Pending,
+            Poll::Ready(Err(e)) => {
                 let res: Response = e.into().into();
-                Ok(Async::Ready(ServiceResponse::new(
-                    self.req.take().unwrap(),
-                    res,
-                )))
+                Poll::Ready(Ok(ServiceResponse::new(this.req.take().unwrap(), res)))
             }
         }
     }
@@ -279,7 +276,7 @@ impl<T: FromRequest, S> Extract<T, S> {
     }
 }
 
-impl<T: FromRequest, S> NewService for Extract<T, S>
+impl<T: FromRequest, S> ServiceFactory for Extract<T, S>
 where
     S: Service<
             Request = (T, HttpRequest),
@@ -293,7 +290,7 @@ where
     type Error = (Error, ServiceRequest);
     type InitError = ();
     type Service = ExtractService<T, S>;
-    type Future = FutureResult<Self::Service, ()>;
+    type Future = Ready<Result<Self::Service, ()>>;
 
     fn new_service(&self, _: &()) -> Self::Future {
         ok(ExtractService {
@@ -321,13 +318,13 @@ where
     type Error = (Error, ServiceRequest);
     type Future = ExtractResponse<T, S>;
 
-    fn poll_ready(&mut self) -> Poll<(), Self::Error> {
-        Ok(Async::Ready(()))
+    fn poll_ready(&mut self, _: &mut Context) -> Poll<Result<(), Self::Error>> {
+        Poll::Ready(Ok(()))
     }
 
     fn call(&mut self, req: ServiceRequest) -> Self::Future {
         let (req, mut payload) = req.into_parts();
-        let fut = T::from_request(&req, &mut payload).into_future();
+        let fut = T::from_request(&req, &mut payload);
 
         ExtractResponse {
             fut,
@@ -338,10 +335,13 @@ where
     }
 }
 
+#[pin_project]
 pub struct ExtractResponse<T: FromRequest, S: Service> {
     req: HttpRequest,
     service: S,
-    fut: <T::Future as IntoFuture>::Future,
+    #[pin]
+    fut: T::Future,
+    #[pin]
     fut_s: Option<S::Future>,
 }
 
@@ -353,21 +353,26 @@ where
         Error = Infallible,
     >,
 {
-    type Item = ServiceResponse;
-    type Error = (Error, ServiceRequest);
+    type Output = Result<ServiceResponse, (Error, ServiceRequest)>;
 
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        if let Some(ref mut fut) = self.fut_s {
-            return fut.poll().map_err(|_| panic!());
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+        let this = self.as_mut().project();
+
+        if let Some(fut) = this.fut_s.as_pin_mut() {
+            return fut.poll(cx).map_err(|_| panic!());
         }
 
-        let item = try_ready!(self.fut.poll().map_err(|e| {
-            let req = ServiceRequest::new(self.req.clone());
-            (e.into(), req)
-        }));
-
-        self.fut_s = Some(self.service.call((item, self.req.clone())));
-        self.poll()
+        match ready!(this.fut.poll(cx)) {
+            Err(e) => {
+                let req = ServiceRequest::new(this.req.clone());
+                Poll::Ready(Err((e.into(), req)))
+            }
+            Ok(item) => {
+                let fut = Some(this.service.call((item, this.req.clone())));
+                self.as_mut().project().fut_s.set(fut);
+                self.poll(cx)
+            }
+        }
     }
 }
 
@@ -382,11 +387,11 @@ macro_rules! factory_tuple ({ $(($n:tt, $T:ident)),+} => {
         }
     }
 
-    impl<Func, $($T,)+ Res> AsyncFactory<($($T,)+), Res> for Func
+    impl<Func, $($T,)+ Res, O, E1> AsyncFactory<($($T,)+), Res, O, E1> for Func
     where Func: Fn($($T,)+) -> Res + Clone + 'static,
-          Res: IntoFuture,
-          Res::Item: Responder,
-          Res::Error: Into<Error>,
+          Res: Future<Output = Result<O, E1>>,
+          O: Responder,
+          E1: Into<Error>,
     {
         fn call(&self, param: ($($T,)+)) -> Res {
             (self)($(param.$n,)+)

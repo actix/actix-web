@@ -63,7 +63,7 @@ rust-tls = { version = "0.16.0", package="rustls", optional = true }
 
 [dev-dependencies]
 actix-rt = "1.0.0-alpha.1"
-#actix-web = { version = "1.0.8", features=["ssl"] }
+actix-web = { version = "2.0.0-alpha.1", features=["openssl"] }
 actix-http = { version = "0.3.0-alpha.1", features=["openssl"] }
 actix-http-test = { version = "0.3.0-alpha.1", features=["openssl"] }
 actix-utils = "0.5.0-alpha.1"
@@ -75,17 +75,3 @@ rand = "0.7"
 tokio-tcp = "0.1"
 webpki = { version = "0.21" }
 rus-tls = { version = "0.16.0", package="rustls", features = ["dangerous_configuration"] }
-
-[patch.crates-io]
-awc = { path = "." }
-actix-http = { path = "../actix-http" }
-actix-http-test = { path = "../test-server" }
-
-actix-codec = { path = "../../actix-net/actix-codec" }
-actix-connect = { path = "../../actix-net/actix-connect" }
-actix-rt = { path = "../../actix-net/actix-rt" }
-actix-server = { path = "../../actix-net/actix-server" }
-actix-server-config = { path = "../../actix-net/actix-server-config" }
-actix-service = { path = "../../actix-net/actix-service" }
-actix-threadpool = { path = "../../actix-net/actix-threadpool" }
-actix-utils = { path = "../../actix-net/actix-utils" }

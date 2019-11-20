@@ -2,13 +2,15 @@
 use std::collections::HashSet;
 use std::env;
 use std::fmt::{self, Display, Formatter};
+use std::future::Future;
 use std::marker::PhantomData;
+use std::pin::Pin;
 use std::rc::Rc;
+use std::task::{Context, Poll};
 
 use actix_service::{Service, Transform};
 use bytes::Bytes;
-use futures::future::{ok, FutureResult};
-use futures::{Async, Future, Poll};
+use futures::future::{ok, Ready};
 use log::debug;
 use regex::Regex;
 use time;
@@ -125,7 +127,7 @@ where
     type Error = Error;
     type InitError = ();
     type Transform = LoggerMiddleware<S>;
-    type Future = FutureResult<Self::Transform, Self::InitError>;
+    type Future = Ready<Result<Self::Transform, Self::InitError>>;
 
     fn new_transform(&self, service: S) -> Self::Future {
         ok(LoggerMiddleware {
@@ -151,8 +153,8 @@ where
     type Error = Error;
     type Future = LoggerResponse<S, B>;
 
-    fn poll_ready(&mut self) -> Poll<(), Self::Error> {
-        self.service.poll_ready()
+    fn poll_ready(&mut self, cx: &mut Context) -> Poll<Result<(), Self::Error>> {
+        self.service.poll_ready(cx)
     }
 
     fn call(&mut self, req: ServiceRequest) -> Self::Future {
@@ -181,11 +183,13 @@ where
 }
 
 #[doc(hidden)]
+#[pin_project::pin_project]
 pub struct LoggerResponse<S, B>
 where
     B: MessageBody,
     S: Service,
 {
+    #[pin]
     fut: S::Future,
     time: time::Tm,
     format: Option<Format>,
@@ -197,11 +201,15 @@ where
     B: MessageBody,
     S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
 {
-    type Item = ServiceResponse<StreamLog<B>>;
-    type Error = Error;
+    type Output = Result<ServiceResponse<StreamLog<B>>, Error>;
 
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        let res = futures::try_ready!(self.fut.poll());
+    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+        let this = self.project();
+
+        let res = match futures::ready!(this.fut.poll(cx)) {
+            Ok(res) => res,
+            Err(e) => return Poll::Ready(Err(e)),
+        };
 
         if let Some(error) = res.response().error() {
             if res.response().head().status != StatusCode::INTERNAL_SERVER_ERROR {
@@ -209,18 +217,21 @@ where
             }
         }
 
-        if let Some(ref mut format) = self.format {
+        if let Some(ref mut format) = this.format {
             for unit in &mut format.0 {
                 unit.render_response(res.response());
             }
         }
 
-        Ok(Async::Ready(res.map_body(move |_, body| {
+        let time = *this.time;
+        let format = this.format.take();
+
+        Poll::Ready(Ok(res.map_body(move |_, body| {
             ResponseBody::Body(StreamLog {
                 body,
+                time,
+                format,
                 size: 0,
-                time: self.time,
-                format: self.format.take(),
             })
         })))
     }
@@ -252,13 +263,13 @@ impl<B: MessageBody> MessageBody for StreamLog<B> {
         self.body.size()
     }
 
-    fn poll_next(&mut self) -> Poll<Option<Bytes>, Error> {
-        match self.body.poll_next()? {
-            Async::Ready(Some(chunk)) => {
+    fn poll_next(&mut self, cx: &mut Context) -> Poll<Option<Result<Bytes, Error>>> {
+        match self.body.poll_next(cx) {
+            Poll::Ready(Some(Ok(chunk))) => {
                 self.size += chunk.len();
-                Ok(Async::Ready(Some(chunk)))
+                Poll::Ready(Some(Ok(chunk)))
             }
-            val => Ok(val),
+            val => val,
         }
     }
 }
@@ -464,6 +475,7 @@ impl<'a> fmt::Display for FormatDisplay<'a> {
 #[cfg(test)]
 mod tests {
     use actix_service::{IntoService, Service, Transform};
+    use futures::future::ok;
 
     use super::*;
     use crate::http::{header, StatusCode};
@@ -472,11 +484,11 @@ mod tests {
     #[test]
     fn test_logger() {
         let srv = |req: ServiceRequest| {
-            req.into_response(
+            ok(req.into_response(
                 HttpResponse::build(StatusCode::OK)
                     .header("X-Test", "ttt")
                     .finish(),
-            )
+            ))
         };
         let logger = Logger::new("%% %{User-Agent}i %{X-Test}o %{HOME}e %D test");
 

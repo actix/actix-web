@@ -13,8 +13,7 @@ categories = ["network-programming", "asynchronous",
               "web-programming::websocket"]
 license = "MIT/Apache-2.0"
 edition = "2018"
-
-# workspace = ".."
+workspace = ".."
 
 [package.metadata.docs.rs]
 features = ["openssl", "fail", "brotli", "flate2-zlib", "secure-cookies"]
@@ -114,18 +113,3 @@ actix-http-test = { version = "0.3.0-alpha.1", features=["openssl"] }
 env_logger = "0.6"
 serde_derive = "1.0"
 open-ssl = { version="0.10", package="openssl" }
-
-[patch.crates-io]
-awc = { path = "../awc" }
-actix-http = { path = "." }
-actix-http-test = { path = "../test-server" }
-
-actix-codec = { path = "../../actix-net/actix-codec" }
-actix-connect = { path = "../../actix-net/actix-connect" }
-actix-rt = { path = "../../actix-net/actix-rt" }
-actix-server = { path = "../../actix-net/actix-server" }
-actix-server-config = { path = "../../actix-net/actix-server-config" }
-actix-service = { path = "../../actix-net/actix-service" }
-actix-testing = { path = "../../actix-net/actix-testing" }
-actix-threadpool = { path = "../../actix-net/actix-threadpool" }
-actix-utils = { path = "../../actix-net/actix-utils" }

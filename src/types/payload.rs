@@ -1,12 +1,15 @@
 //! Payload/Bytes/String extractors
+use std::future::Future;
+use std::pin::Pin;
 use std::str;
+use std::task::{Context, Poll};
 
 use actix_http::error::{Error, ErrorBadRequest, PayloadError};
 use actix_http::HttpMessage;
 use bytes::{Bytes, BytesMut};
 use encoding_rs::UTF_8;
-use futures::future::{err, Either, FutureResult};
-use futures::{Future, Poll, Stream};
+use futures::future::{err, ok, Either, FutureExt, LocalBoxFuture, Ready};
+use futures::{Stream, StreamExt};
 use mime::Mime;
 
 use crate::dev;
@@ -19,21 +22,19 @@ use crate::request::HttpRequest;
 /// ## Example
 ///
 /// ```rust
-/// use futures::{Future, Stream};
+/// use futures::{Future, Stream, StreamExt};
 /// use actix_web::{web, error, App, Error, HttpResponse};
 ///
 /// /// extract binary data from request
-/// fn index(body: web::Payload) -> impl Future<Item = HttpResponse, Error = Error>
+/// async fn index(mut body: web::Payload) -> Result<HttpResponse, Error>
 /// {
-///     body.map_err(Error::from)
-///         .fold(web::BytesMut::new(), move |mut body, chunk| {
-///             body.extend_from_slice(&chunk);
-///             Ok::<_, Error>(body)
-///          })
-///          .and_then(|body| {
-///              format!("Body {:?}!", body);
-///              Ok(HttpResponse::Ok().finish())
-///          })
+///     let mut bytes = web::BytesMut::new();
+///     while let Some(item) = body.next().await {
+///         bytes.extend_from_slice(&item?);
+///     }
+///
+///     format!("Body {:?}!", bytes);
+///     Ok(HttpResponse::Ok().finish())
 /// }
 ///
 /// fn main() {
@@ -53,12 +54,14 @@ impl Payload {
 }
 
 impl Stream for Payload {
-    type Item = Bytes;
-    type Error = PayloadError;
+    type Item = Result<Bytes, PayloadError>;
 
     #[inline]
-    fn poll(&mut self) -> Poll<Option<Self::Item>, PayloadError> {
-        self.0.poll()
+    fn poll_next(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context,
+    ) -> Poll<Option<Self::Item>> {
+        Pin::new(&mut self.0).poll_next(cx)
     }
 }
 
@@ -67,21 +70,19 @@ impl Stream for Payload {
 /// ## Example
 ///
 /// ```rust
-/// use futures::{Future, Stream};
+/// use futures::{Future, Stream, StreamExt};
 /// use actix_web::{web, error, App, Error, HttpResponse};
 ///
 /// /// extract binary data from request
-/// fn index(body: web::Payload) -> impl Future<Item = HttpResponse, Error = Error>
+/// async fn index(mut body: web::Payload) -> Result<HttpResponse, Error>
 /// {
-///     body.map_err(Error::from)
-///         .fold(web::BytesMut::new(), move |mut body, chunk| {
-///             body.extend_from_slice(&chunk);
-///             Ok::<_, Error>(body)
-///          })
-///          .and_then(|body| {
-///              format!("Body {:?}!", body);
-///              Ok(HttpResponse::Ok().finish())
-///          })
+///     let mut bytes = web::BytesMut::new();
+///     while let Some(item) = body.next().await {
+///         bytes.extend_from_slice(&item?);
+///     }
+///
+///     format!("Body {:?}!", bytes);
+///     Ok(HttpResponse::Ok().finish())
 /// }
 ///
 /// fn main() {
@@ -94,11 +95,11 @@ impl Stream for Payload {
 impl FromRequest for Payload {
     type Config = PayloadConfig;
     type Error = Error;
-    type Future = Result<Payload, Error>;
+    type Future = Ready<Result<Payload, Error>>;
 
     #[inline]
     fn from_request(_: &HttpRequest, payload: &mut dev::Payload) -> Self::Future {
-        Ok(Payload(payload.take()))
+        ok(Payload(payload.take()))
     }
 }
 
@@ -130,8 +131,10 @@ impl FromRequest for Payload {
 impl FromRequest for Bytes {
     type Config = PayloadConfig;
     type Error = Error;
-    type Future =
-        Either<Box<dyn Future<Item = Bytes, Error = Error>>, FutureResult<Bytes, Error>>;
+    type Future = Either<
+        LocalBoxFuture<'static, Result<Bytes, Error>>,
+        Ready<Result<Bytes, Error>>,
+    >;
 
     #[inline]
     fn from_request(req: &HttpRequest, payload: &mut dev::Payload) -> Self::Future {
@@ -144,13 +147,12 @@ impl FromRequest for Bytes {
         };
 
         if let Err(e) = cfg.check_mimetype(req) {
-            return Either::B(err(e));
+            return Either::Right(err(e));
         }
 
         let limit = cfg.limit;
-        Either::A(Box::new(
-            HttpMessageBody::new(req, payload).limit(limit).from_err(),
-        ))
+        let fut = HttpMessageBody::new(req, payload).limit(limit);
+        Either::Left(async move { Ok(fut.await?) }.boxed_local())
     }
 }
 
@@ -185,8 +187,8 @@ impl FromRequest for String {
     type Config = PayloadConfig;
     type Error = Error;
     type Future = Either<
-        Box<dyn Future<Item = String, Error = Error>>,
-        FutureResult<String, Error>,
+        LocalBoxFuture<'static, Result<String, Error>>,
+        Ready<Result<String, Error>>,
     >;
 
     #[inline]
@@ -201,33 +203,34 @@ impl FromRequest for String {
 
         // check content-type
         if let Err(e) = cfg.check_mimetype(req) {
-            return Either::B(err(e));
+            return Either::Right(err(e));
         }
 
         // check charset
         let encoding = match req.encoding() {
             Ok(enc) => enc,
-            Err(e) => return Either::B(err(e.into())),
+            Err(e) => return Either::Right(err(e.into())),
         };
         let limit = cfg.limit;
+        let fut = HttpMessageBody::new(req, payload).limit(limit);
 
-        Either::A(Box::new(
-            HttpMessageBody::new(req, payload)
-                .limit(limit)
-                .from_err()
-                .and_then(move |body| {
-                    if encoding == UTF_8 {
-                        Ok(str::from_utf8(body.as_ref())
-                            .map_err(|_| ErrorBadRequest("Can not decode body"))?
-                            .to_owned())
-                    } else {
-                        Ok(encoding
-                            .decode_without_bom_handling_and_without_replacement(&body)
-                            .map(|s| s.into_owned())
-                            .ok_or_else(|| ErrorBadRequest("Can not decode body"))?)
-                    }
-                }),
-        ))
+        Either::Left(
+            async move {
+                let body = fut.await?;
+
+                if encoding == UTF_8 {
+                    Ok(str::from_utf8(body.as_ref())
+                        .map_err(|_| ErrorBadRequest("Can not decode body"))?
+                        .to_owned())
+                } else {
+                    Ok(encoding
+                        .decode_without_bom_handling_and_without_replacement(&body)
+                        .map(|s| s.into_owned())
+                        .ok_or_else(|| ErrorBadRequest("Can not decode body"))?)
+                }
+            }
+                .boxed_local(),
+        )
     }
 }
 /// Payload configuration for request's payload.
@@ -300,7 +303,7 @@ pub struct HttpMessageBody {
     length: Option<usize>,
     stream: Option<dev::Decompress<dev::Payload>>,
     err: Option<PayloadError>,
-    fut: Option<Box<dyn Future<Item = Bytes, Error = PayloadError>>>,
+    fut: Option<LocalBoxFuture<'static, Result<Bytes, PayloadError>>>,
 }
 
 impl HttpMessageBody {
@@ -346,42 +349,43 @@ impl HttpMessageBody {
 }
 
 impl Future for HttpMessageBody {
-    type Item = Bytes;
-    type Error = PayloadError;
+    type Output = Result<Bytes, PayloadError>;
 
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
         if let Some(ref mut fut) = self.fut {
-            return fut.poll();
+            return Pin::new(fut).poll(cx);
         }
 
         if let Some(err) = self.err.take() {
-            return Err(err);
+            return Poll::Ready(Err(err));
         }
 
         if let Some(len) = self.length.take() {
             if len > self.limit {
-                return Err(PayloadError::Overflow);
+                return Poll::Ready(Err(PayloadError::Overflow));
             }
         }
 
         // future
         let limit = self.limit;
-        self.fut = Some(Box::new(
-            self.stream
-                .take()
-                .unwrap()
-                .from_err()
-                .fold(BytesMut::with_capacity(8192), move |mut body, chunk| {
-                    if (body.len() + chunk.len()) > limit {
-                        Err(PayloadError::Overflow)
+        let mut stream = self.stream.take().unwrap();
+        self.fut = Some(
+            async move {
+                let mut body = BytesMut::with_capacity(8192);
+
+                while let Some(item) = stream.next().await {
+                    let chunk = item?;
+                    if body.len() + chunk.len() > limit {
+                        return Err(PayloadError::Overflow);
                     } else {
                         body.extend_from_slice(&chunk);
-                        Ok(body)
                     }
-                })
-                .map(|body| body.freeze()),
-        ));
-        self.poll()
+                }
+                Ok(body.freeze())
+            }
+                .boxed_local(),
+        );
+        self.poll(cx)
     }
 }
 

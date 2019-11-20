@@ -1,5 +1,3 @@
-use futures::IntoFuture;
-
 use actix_web::{
     get, middleware, web, App, Error, HttpRequest, HttpResponse, HttpServer,
 };
@@ -10,7 +8,7 @@ fn index(req: HttpRequest, name: web::Path<String>) -> String {
     format!("Hello: {}!\r\n", name)
 }
 
-fn index_async(req: HttpRequest) -> impl IntoFuture<Item = &'static str, Error = Error> {
+async fn index_async(req: HttpRequest) -> Result<&'static str, Error> {
     println!("REQ: {:?}", req);
     Ok("Hello world!\r\n")
 }
@@ -28,7 +26,7 @@ fn main() -> std::io::Result<()> {
         App::new()
             .wrap(middleware::DefaultHeaders::new().header("X-Version", "0.2"))
             .wrap(middleware::Compress::default())
-            .wrap(middleware::Logger::default())
+            // .wrap(middleware::Logger::default())
             .service(index)
             .service(no_params)
             .service(

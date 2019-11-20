@@ -172,12 +172,11 @@ where
     /// Finish service configuration and create *http service* for HTTP/1 protocol.
     pub fn h1<F, P, B>(self, service: F) -> H1Service<T, P, S, B, X, U>
     where
-        B: MessageBody + 'static,
+        B: MessageBody,
         F: IntoServiceFactory<S>,
-        S::Error: Into<Error> + 'static,
+        S::Error: Into<Error>,
         S::InitError: fmt::Debug,
-        S::Response: Into<Response<B>> + 'static,
-        <S::Service as Service>::Future: 'static,
+        S::Response: Into<Response<B>>,
     {
         let cfg = ServiceConfig::new(
             self.keep_alive,

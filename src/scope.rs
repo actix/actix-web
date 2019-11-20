@@ -1,15 +1,16 @@
 use std::cell::RefCell;
 use std::fmt;
+use std::pin::Pin;
 use std::rc::Rc;
+use std::task::{Context, Poll};
 
 use actix_http::{Extensions, Response};
 use actix_router::{ResourceDef, ResourceInfo, Router};
 use actix_service::boxed::{self, BoxedNewService, BoxedService};
 use actix_service::{
-    apply_transform, IntoNewService, IntoTransform, NewService, Service, Transform,
+    apply, apply_fn_factory, IntoServiceFactory, Service, ServiceFactory, Transform,
 };
-use futures::future::{ok, Either, Future, FutureResult};
-use futures::{Async, IntoFuture, Poll};
+use futures::future::{ok, Either, Future, LocalBoxFuture, Ready};
 
 use crate::config::ServiceConfig;
 use crate::data::Data;
@@ -20,16 +21,13 @@ use crate::resource::Resource;
 use crate::rmap::ResourceMap;
 use crate::route::Route;
 use crate::service::{
-    ServiceFactory, ServiceFactoryWrapper, ServiceRequest, ServiceResponse,
+    AppServiceFactory, ServiceFactoryWrapper, ServiceRequest, ServiceResponse,
 };
 
 type Guards = Vec<Box<dyn Guard>>;
 type HttpService = BoxedService<ServiceRequest, ServiceResponse, Error>;
 type HttpNewService = BoxedNewService<(), ServiceRequest, ServiceResponse, Error, ()>;
-type BoxedResponse = Either<
-    FutureResult<ServiceResponse, Error>,
-    Box<dyn Future<Item = ServiceResponse, Error = Error>>,
->;
+type BoxedResponse = LocalBoxFuture<'static, Result<ServiceResponse, Error>>;
 
 /// Resources scope.
 ///
@@ -64,7 +62,7 @@ pub struct Scope<T = ScopeEndpoint> {
     endpoint: T,
     rdef: String,
     data: Option<Extensions>,
-    services: Vec<Box<dyn ServiceFactory>>,
+    services: Vec<Box<dyn AppServiceFactory>>,
     guards: Vec<Box<dyn Guard>>,
     default: Rc<RefCell<Option<Rc<HttpNewService>>>>,
     external: Vec<ResourceDef>,
@@ -90,7 +88,7 @@ impl Scope {
 
 impl<T> Scope<T>
 where
-    T: NewService<
+    T: ServiceFactory<
         Config = (),
         Request = ServiceRequest,
         Response = ServiceResponse,
@@ -285,8 +283,8 @@ where
     /// If default resource is not registered, app's default resource is being used.
     pub fn default_service<F, U>(mut self, f: F) -> Self
     where
-        F: IntoNewService<U>,
-        U: NewService<
+        F: IntoServiceFactory<U>,
+        U: ServiceFactory<
                 Config = (),
                 Request = ServiceRequest,
                 Response = ServiceResponse,
@@ -295,8 +293,8 @@ where
         U::InitError: fmt::Debug,
     {
         // create and configure default resource
-        self.default = Rc::new(RefCell::new(Some(Rc::new(boxed::new_service(
-            f.into_new_service().map_init_err(|e| {
+        self.default = Rc::new(RefCell::new(Some(Rc::new(boxed::factory(
+            f.into_factory().map_init_err(|e| {
                 log::error!("Can not construct default service: {:?}", e)
             }),
         )))));
@@ -313,11 +311,11 @@ where
     /// ServiceResponse.
     ///
     /// Use middleware when you need to read or modify *every* request in some way.
-    pub fn wrap<M, F>(
+    pub fn wrap<M>(
         self,
-        mw: F,
+        mw: M,
     ) -> Scope<
-        impl NewService<
+        impl ServiceFactory<
             Config = (),
             Request = ServiceRequest,
             Response = ServiceResponse,
@@ -333,11 +331,9 @@ where
             Error = Error,
             InitError = (),
         >,
-        F: IntoTransform<M, T::Service>,
     {
-        let endpoint = apply_transform(mw, self.endpoint);
         Scope {
-            endpoint,
+            endpoint: apply(mw, self.endpoint),
             rdef: self.rdef,
             data: self.data,
             guards: self.guards,
@@ -368,13 +364,16 @@ where
     /// fn main() {
     ///     let app = App::new().service(
     ///         web::scope("/app")
-    ///             .wrap_fn(|req, srv|
-    ///                 srv.call(req).map(|mut res| {
+    ///             .wrap_fn(|req, srv| {
+    ///                 let fut = srv.call(req);
+    ///                 async {
+    ///                     let mut res = fut.await?;
     ///                     res.headers_mut().insert(
     ///                        CONTENT_TYPE, HeaderValue::from_static("text/plain"),
     ///                     );
-    ///                     res
-    ///                 }))
+    ///                     Ok(res)
+    ///                 }
+    ///             })
     ///             .route("/index.html", web::get().to(index)));
     /// }
     /// ```
@@ -382,7 +381,7 @@ where
         self,
         mw: F,
     ) -> Scope<
-        impl NewService<
+        impl ServiceFactory<
             Config = (),
             Request = ServiceRequest,
             Response = ServiceResponse,
@@ -392,15 +391,24 @@ where
     >
     where
         F: FnMut(ServiceRequest, &mut T::Service) -> R + Clone,
-        R: IntoFuture<Item = ServiceResponse, Error = Error>,
+        R: Future<Output = Result<ServiceResponse, Error>>,
     {
-        self.wrap(mw)
+        Scope {
+            endpoint: apply_fn_factory(self.endpoint, mw),
+            rdef: self.rdef,
+            data: self.data,
+            guards: self.guards,
+            services: self.services,
+            default: self.default,
+            external: self.external,
+            factory_ref: self.factory_ref,
+        }
     }
 }
 
 impl<T> HttpServiceFactory for Scope<T>
 where
-    T: NewService<
+    T: ServiceFactory<
             Config = (),
             Request = ServiceRequest,
             Response = ServiceResponse,
@@ -471,7 +479,7 @@ pub struct ScopeFactory {
     default: Rc<RefCell<Option<Rc<HttpNewService>>>>,
 }
 
-impl NewService for ScopeFactory {
+impl ServiceFactory for ScopeFactory {
     type Config = ();
     type Request = ServiceRequest;
     type Response = ServiceResponse;
@@ -508,14 +516,15 @@ impl NewService for ScopeFactory {
 
 /// Create scope service
 #[doc(hidden)]
+#[pin_project::pin_project]
 pub struct ScopeFactoryResponse {
     fut: Vec<CreateScopeServiceItem>,
     data: Option<Rc<Extensions>>,
     default: Option<HttpService>,
-    default_fut: Option<Box<dyn Future<Item = HttpService, Error = ()>>>,
+    default_fut: Option<LocalBoxFuture<'static, Result<HttpService, ()>>>,
 }
 
-type HttpServiceFut = Box<dyn Future<Item = HttpService, Error = ()>>;
+type HttpServiceFut = LocalBoxFuture<'static, Result<HttpService, ()>>;
 
 enum CreateScopeServiceItem {
     Future(Option<ResourceDef>, Option<Guards>, HttpServiceFut),
@@ -523,16 +532,15 @@ enum CreateScopeServiceItem {
 }
 
 impl Future for ScopeFactoryResponse {
-    type Item = ScopeService;
-    type Error = ();
+    type Output = Result<ScopeService, ()>;
 
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
         let mut done = true;
 
         if let Some(ref mut fut) = self.default_fut {
-            match fut.poll()? {
-                Async::Ready(default) => self.default = Some(default),
-                Async::NotReady => done = false,
+            match Pin::new(fut).poll(cx)? {
+                Poll::Ready(default) => self.default = Some(default),
+                Poll::Pending => done = false,
             }
         }
 
@@ -543,11 +551,11 @@ impl Future for ScopeFactoryResponse {
                     ref mut path,
                     ref mut guards,
                     ref mut fut,
-                ) => match fut.poll()? {
-                    Async::Ready(service) => {
+                ) => match Pin::new(fut).poll(cx)? {
+                    Poll::Ready(service) => {
                         Some((path.take().unwrap(), guards.take(), service))
                     }
-                    Async::NotReady => {
+                    Poll::Pending => {
                         done = false;
                         None
                     }
@@ -573,14 +581,14 @@ impl Future for ScopeFactoryResponse {
                     }
                     router
                 });
-            Ok(Async::Ready(ScopeService {
+            Poll::Ready(Ok(ScopeService {
                 data: self.data.clone(),
                 router: router.finish(),
                 default: self.default.take(),
                 _ready: None,
             }))
         } else {
-            Ok(Async::NotReady)
+            Poll::Pending
         }
     }
 }
@@ -596,10 +604,10 @@ impl Service for ScopeService {
     type Request = ServiceRequest;
     type Response = ServiceResponse;
     type Error = Error;
-    type Future = Either<BoxedResponse, FutureResult<Self::Response, Self::Error>>;
+    type Future = Either<BoxedResponse, Ready<Result<Self::Response, Self::Error>>>;
 
-    fn poll_ready(&mut self) -> Poll<(), Self::Error> {
-        Ok(Async::Ready(()))
+    fn poll_ready(&mut self, _: &mut Context) -> Poll<Result<(), Self::Error>> {
+        Poll::Ready(Ok(()))
     }
 
     fn call(&mut self, mut req: ServiceRequest) -> Self::Future {
@@ -618,12 +626,12 @@ impl Service for ScopeService {
             if let Some(ref data) = self.data {
                 req.set_data_container(data.clone());
             }
-            Either::A(srv.call(req))
+            Either::Left(srv.call(req))
         } else if let Some(ref mut default) = self.default {
-            Either::A(default.call(req))
+            Either::Left(default.call(req))
         } else {
             let req = req.into_parts().0;
-            Either::B(ok(ServiceResponse::new(req, Response::NotFound().finish())))
+            Either::Right(ok(ServiceResponse::new(req, Response::NotFound().finish())))
         }
     }
 }
@@ -639,7 +647,7 @@ impl ScopeEndpoint {
     }
 }
 
-impl NewService for ScopeEndpoint {
+impl ServiceFactory for ScopeEndpoint {
     type Config = ();
     type Request = ServiceRequest;
     type Response = ServiceResponse;
@@ -657,367 +665,416 @@ impl NewService for ScopeEndpoint {
 mod tests {
     use actix_service::Service;
     use bytes::Bytes;
-    use futures::{Future, IntoFuture};
+    use futures::future::ok;
+    use futures::Future;
 
     use crate::dev::{Body, ResponseBody};
     use crate::http::{header, HeaderValue, Method, StatusCode};
+    use crate::middleware::DefaultHeaders;
     use crate::service::{ServiceRequest, ServiceResponse};
     use crate::test::{block_on, call_service, init_service, read_body, TestRequest};
     use crate::{guard, web, App, Error, HttpRequest, HttpResponse};
 
     #[test]
     fn test_scope() {
-        let mut srv = init_service(
-            App::new().service(
-                web::scope("/app")
-                    .service(web::resource("/path1").to(|| HttpResponse::Ok())),
-            ),
-        );
+        block_on(async {
+            let mut srv = init_service(
+                App::new().service(
+                    web::scope("/app")
+                        .service(web::resource("/path1").to(|| HttpResponse::Ok())),
+                ),
+            )
+            .await;
 
-        let req = TestRequest::with_uri("/app/path1").to_request();
-        let resp = block_on(srv.call(req)).unwrap();
-        assert_eq!(resp.status(), StatusCode::OK);
+            let req = TestRequest::with_uri("/app/path1").to_request();
+            let resp = srv.call(req).await.unwrap();
+            assert_eq!(resp.status(), StatusCode::OK);
+        })
     }
 
     #[test]
     fn test_scope_root() {
-        let mut srv = init_service(
-            App::new().service(
-                web::scope("/app")
-                    .service(web::resource("").to(|| HttpResponse::Ok()))
-                    .service(web::resource("/").to(|| HttpResponse::Created())),
-            ),
-        );
+        block_on(async {
+            let mut srv = init_service(
+                App::new().service(
+                    web::scope("/app")
+                        .service(web::resource("").to(|| HttpResponse::Ok()))
+                        .service(web::resource("/").to(|| HttpResponse::Created())),
+                ),
+            )
+            .await;
 
-        let req = TestRequest::with_uri("/app").to_request();
-        let resp = block_on(srv.call(req)).unwrap();
-        assert_eq!(resp.status(), StatusCode::OK);
+            let req = TestRequest::with_uri("/app").to_request();
+            let resp = srv.call(req).await.unwrap();
+            assert_eq!(resp.status(), StatusCode::OK);
 
-        let req = TestRequest::with_uri("/app/").to_request();
-        let resp = block_on(srv.call(req)).unwrap();
-        assert_eq!(resp.status(), StatusCode::CREATED);
+            let req = TestRequest::with_uri("/app/").to_request();
+            let resp = srv.call(req).await.unwrap();
+            assert_eq!(resp.status(), StatusCode::CREATED);
+        })
     }
 
     #[test]
     fn test_scope_root2() {
-        let mut srv = init_service(App::new().service(
-            web::scope("/app/").service(web::resource("").to(|| HttpResponse::Ok())),
-        ));
+        block_on(async {
+            let mut srv = init_service(App::new().service(
+                web::scope("/app/").service(web::resource("").to(|| HttpResponse::Ok())),
+            ))
+            .await;
 
-        let req = TestRequest::with_uri("/app").to_request();
-        let resp = block_on(srv.call(req)).unwrap();
-        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+            let req = TestRequest::with_uri("/app").to_request();
+            let resp = srv.call(req).await.unwrap();
+            assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 
-        let req = TestRequest::with_uri("/app/").to_request();
-        let resp = block_on(srv.call(req)).unwrap();
-        assert_eq!(resp.status(), StatusCode::OK);
+            let req = TestRequest::with_uri("/app/").to_request();
+            let resp = srv.call(req).await.unwrap();
+            assert_eq!(resp.status(), StatusCode::OK);
+        })
     }
 
     #[test]
     fn test_scope_root3() {
-        let mut srv = init_service(App::new().service(
-            web::scope("/app/").service(web::resource("/").to(|| HttpResponse::Ok())),
-        ));
+        block_on(async {
+            let mut srv = init_service(
+                App::new().service(
+                    web::scope("/app/")
+                        .service(web::resource("/").to(|| HttpResponse::Ok())),
+                ),
+            )
+            .await;
 
-        let req = TestRequest::with_uri("/app").to_request();
-        let resp = block_on(srv.call(req)).unwrap();
-        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+            let req = TestRequest::with_uri("/app").to_request();
+            let resp = srv.call(req).await.unwrap();
+            assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 
-        let req = TestRequest::with_uri("/app/").to_request();
-        let resp = block_on(srv.call(req)).unwrap();
-        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+            let req = TestRequest::with_uri("/app/").to_request();
+            let resp = srv.call(req).await.unwrap();
+            assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+        })
     }
 
     #[test]
     fn test_scope_route() {
-        let mut srv = init_service(
-            App::new().service(
-                web::scope("app")
-                    .route("/path1", web::get().to(|| HttpResponse::Ok()))
-                    .route("/path1", web::delete().to(|| HttpResponse::Ok())),
-            ),
-        );
+        block_on(async {
+            let mut srv = init_service(
+                App::new().service(
+                    web::scope("app")
+                        .route("/path1", web::get().to(|| HttpResponse::Ok()))
+                        .route("/path1", web::delete().to(|| HttpResponse::Ok())),
+                ),
+            )
+            .await;
 
-        let req = TestRequest::with_uri("/app/path1").to_request();
-        let resp = block_on(srv.call(req)).unwrap();
-        assert_eq!(resp.status(), StatusCode::OK);
+            let req = TestRequest::with_uri("/app/path1").to_request();
+            let resp = srv.call(req).await.unwrap();
+            assert_eq!(resp.status(), StatusCode::OK);
 
-        let req = TestRequest::with_uri("/app/path1")
-            .method(Method::DELETE)
-            .to_request();
-        let resp = block_on(srv.call(req)).unwrap();
-        assert_eq!(resp.status(), StatusCode::OK);
+            let req = TestRequest::with_uri("/app/path1")
+                .method(Method::DELETE)
+                .to_request();
+            let resp = srv.call(req).await.unwrap();
+            assert_eq!(resp.status(), StatusCode::OK);
 
-        let req = TestRequest::with_uri("/app/path1")
-            .method(Method::POST)
-            .to_request();
-        let resp = block_on(srv.call(req)).unwrap();
-        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+            let req = TestRequest::with_uri("/app/path1")
+                .method(Method::POST)
+                .to_request();
+            let resp = srv.call(req).await.unwrap();
+            assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+        })
     }
 
     #[test]
     fn test_scope_route_without_leading_slash() {
-        let mut srv = init_service(
-            App::new().service(
-                web::scope("app").service(
-                    web::resource("path1")
-                        .route(web::get().to(|| HttpResponse::Ok()))
-                        .route(web::delete().to(|| HttpResponse::Ok())),
+        block_on(async {
+            let mut srv = init_service(
+                App::new().service(
+                    web::scope("app").service(
+                        web::resource("path1")
+                            .route(web::get().to(|| HttpResponse::Ok()))
+                            .route(web::delete().to(|| HttpResponse::Ok())),
+                    ),
                 ),
-            ),
-        );
+            )
+            .await;
 
-        let req = TestRequest::with_uri("/app/path1").to_request();
-        let resp = block_on(srv.call(req)).unwrap();
-        assert_eq!(resp.status(), StatusCode::OK);
+            let req = TestRequest::with_uri("/app/path1").to_request();
+            let resp = srv.call(req).await.unwrap();
+            assert_eq!(resp.status(), StatusCode::OK);
 
-        let req = TestRequest::with_uri("/app/path1")
-            .method(Method::DELETE)
-            .to_request();
-        let resp = block_on(srv.call(req)).unwrap();
-        assert_eq!(resp.status(), StatusCode::OK);
+            let req = TestRequest::with_uri("/app/path1")
+                .method(Method::DELETE)
+                .to_request();
+            let resp = srv.call(req).await.unwrap();
+            assert_eq!(resp.status(), StatusCode::OK);
 
-        let req = TestRequest::with_uri("/app/path1")
-            .method(Method::POST)
-            .to_request();
-        let resp = block_on(srv.call(req)).unwrap();
-        assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
+            let req = TestRequest::with_uri("/app/path1")
+                .method(Method::POST)
+                .to_request();
+            let resp = srv.call(req).await.unwrap();
+            assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
+        })
     }
 
     #[test]
     fn test_scope_guard() {
-        let mut srv = init_service(
-            App::new().service(
-                web::scope("/app")
-                    .guard(guard::Get())
-                    .service(web::resource("/path1").to(|| HttpResponse::Ok())),
-            ),
-        );
+        block_on(async {
+            let mut srv = init_service(
+                App::new().service(
+                    web::scope("/app")
+                        .guard(guard::Get())
+                        .service(web::resource("/path1").to(|| HttpResponse::Ok())),
+                ),
+            )
+            .await;
 
-        let req = TestRequest::with_uri("/app/path1")
-            .method(Method::POST)
-            .to_request();
-        let resp = block_on(srv.call(req)).unwrap();
-        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+            let req = TestRequest::with_uri("/app/path1")
+                .method(Method::POST)
+                .to_request();
+            let resp = srv.call(req).await.unwrap();
+            assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 
-        let req = TestRequest::with_uri("/app/path1")
-            .method(Method::GET)
-            .to_request();
-        let resp = block_on(srv.call(req)).unwrap();
-        assert_eq!(resp.status(), StatusCode::OK);
+            let req = TestRequest::with_uri("/app/path1")
+                .method(Method::GET)
+                .to_request();
+            let resp = srv.call(req).await.unwrap();
+            assert_eq!(resp.status(), StatusCode::OK);
+        })
     }
 
     #[test]
     fn test_scope_variable_segment() {
-        let mut srv =
-            init_service(App::new().service(web::scope("/ab-{project}").service(
-                web::resource("/path1").to(|r: HttpRequest| {
-                    HttpResponse::Ok()
-                        .body(format!("project: {}", &r.match_info()["project"]))
-                }),
-            )));
+        block_on(async {
+            let mut srv =
+                init_service(App::new().service(web::scope("/ab-{project}").service(
+                    web::resource("/path1").to(|r: HttpRequest| {
+                        HttpResponse::Ok()
+                            .body(format!("project: {}", &r.match_info()["project"]))
+                    }),
+                )))
+                .await;
 
-        let req = TestRequest::with_uri("/ab-project1/path1").to_request();
-        let resp = block_on(srv.call(req)).unwrap();
-        assert_eq!(resp.status(), StatusCode::OK);
+            let req = TestRequest::with_uri("/ab-project1/path1").to_request();
+            let resp = srv.call(req).await.unwrap();
+            assert_eq!(resp.status(), StatusCode::OK);
 
-        match resp.response().body() {
-            ResponseBody::Body(Body::Bytes(ref b)) => {
-                let bytes: Bytes = b.clone().into();
-                assert_eq!(bytes, Bytes::from_static(b"project: project1"));
+            match resp.response().body() {
+                ResponseBody::Body(Body::Bytes(ref b)) => {
+                    let bytes: Bytes = b.clone().into();
+                    assert_eq!(bytes, Bytes::from_static(b"project: project1"));
+                }
+                _ => panic!(),
             }
-            _ => panic!(),
-        }
 
-        let req = TestRequest::with_uri("/aa-project1/path1").to_request();
-        let resp = block_on(srv.call(req)).unwrap();
-        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+            let req = TestRequest::with_uri("/aa-project1/path1").to_request();
+            let resp = srv.call(req).await.unwrap();
+            assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+        })
     }
 
     #[test]
     fn test_nested_scope() {
-        let mut srv = init_service(
-            App::new().service(
-                web::scope("/app")
-                    .service(web::scope("/t1").service(
+        block_on(async {
+            let mut srv =
+                init_service(App::new().service(
+                    web::scope("/app").service(web::scope("/t1").service(
                         web::resource("/path1").to(|| HttpResponse::Created()),
                     )),
-            ),
-        );
+                ))
+                .await;
 
-        let req = TestRequest::with_uri("/app/t1/path1").to_request();
-        let resp = block_on(srv.call(req)).unwrap();
-        assert_eq!(resp.status(), StatusCode::CREATED);
+            let req = TestRequest::with_uri("/app/t1/path1").to_request();
+            let resp = srv.call(req).await.unwrap();
+            assert_eq!(resp.status(), StatusCode::CREATED);
+        })
     }
 
     #[test]
     fn test_nested_scope_no_slash() {
-        let mut srv = init_service(
-            App::new().service(
-                web::scope("/app")
-                    .service(web::scope("t1").service(
+        block_on(async {
+            let mut srv =
+                init_service(App::new().service(
+                    web::scope("/app").service(web::scope("t1").service(
                         web::resource("/path1").to(|| HttpResponse::Created()),
                     )),
-            ),
-        );
+                ))
+                .await;
 
-        let req = TestRequest::with_uri("/app/t1/path1").to_request();
-        let resp = block_on(srv.call(req)).unwrap();
-        assert_eq!(resp.status(), StatusCode::CREATED);
+            let req = TestRequest::with_uri("/app/t1/path1").to_request();
+            let resp = srv.call(req).await.unwrap();
+            assert_eq!(resp.status(), StatusCode::CREATED);
+        })
     }
 
     #[test]
     fn test_nested_scope_root() {
-        let mut srv = init_service(
-            App::new().service(
-                web::scope("/app").service(
-                    web::scope("/t1")
-                        .service(web::resource("").to(|| HttpResponse::Ok()))
-                        .service(web::resource("/").to(|| HttpResponse::Created())),
+        block_on(async {
+            let mut srv = init_service(
+                App::new().service(
+                    web::scope("/app").service(
+                        web::scope("/t1")
+                            .service(web::resource("").to(|| HttpResponse::Ok()))
+                            .service(web::resource("/").to(|| HttpResponse::Created())),
+                    ),
                 ),
-            ),
-        );
+            )
+            .await;
 
-        let req = TestRequest::with_uri("/app/t1").to_request();
-        let resp = block_on(srv.call(req)).unwrap();
-        assert_eq!(resp.status(), StatusCode::OK);
+            let req = TestRequest::with_uri("/app/t1").to_request();
+            let resp = srv.call(req).await.unwrap();
+            assert_eq!(resp.status(), StatusCode::OK);
 
-        let req = TestRequest::with_uri("/app/t1/").to_request();
-        let resp = block_on(srv.call(req)).unwrap();
-        assert_eq!(resp.status(), StatusCode::CREATED);
+            let req = TestRequest::with_uri("/app/t1/").to_request();
+            let resp = srv.call(req).await.unwrap();
+            assert_eq!(resp.status(), StatusCode::CREATED);
+        })
     }
 
     #[test]
     fn test_nested_scope_filter() {
-        let mut srv = init_service(
-            App::new().service(
-                web::scope("/app").service(
-                    web::scope("/t1")
-                        .guard(guard::Get())
-                        .service(web::resource("/path1").to(|| HttpResponse::Ok())),
+        block_on(async {
+            let mut srv = init_service(
+                App::new().service(
+                    web::scope("/app").service(
+                        web::scope("/t1")
+                            .guard(guard::Get())
+                            .service(web::resource("/path1").to(|| HttpResponse::Ok())),
+                    ),
                 ),
-            ),
-        );
+            )
+            .await;
 
-        let req = TestRequest::with_uri("/app/t1/path1")
-            .method(Method::POST)
-            .to_request();
-        let resp = block_on(srv.call(req)).unwrap();
-        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+            let req = TestRequest::with_uri("/app/t1/path1")
+                .method(Method::POST)
+                .to_request();
+            let resp = srv.call(req).await.unwrap();
+            assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 
-        let req = TestRequest::with_uri("/app/t1/path1")
-            .method(Method::GET)
-            .to_request();
-        let resp = block_on(srv.call(req)).unwrap();
-        assert_eq!(resp.status(), StatusCode::OK);
+            let req = TestRequest::with_uri("/app/t1/path1")
+                .method(Method::GET)
+                .to_request();
+            let resp = srv.call(req).await.unwrap();
+            assert_eq!(resp.status(), StatusCode::OK);
+        })
     }
 
     #[test]
     fn test_nested_scope_with_variable_segment() {
-        let mut srv = init_service(App::new().service(web::scope("/app").service(
-            web::scope("/{project_id}").service(web::resource("/path1").to(
-                |r: HttpRequest| {
-                    HttpResponse::Created()
-                        .body(format!("project: {}", &r.match_info()["project_id"]))
-                },
-            )),
-        )));
+        block_on(async {
+            let mut srv = init_service(App::new().service(web::scope("/app").service(
+                web::scope("/{project_id}").service(web::resource("/path1").to(
+                    |r: HttpRequest| {
+                        HttpResponse::Created()
+                            .body(format!("project: {}", &r.match_info()["project_id"]))
+                    },
+                )),
+            )))
+            .await;
 
-        let req = TestRequest::with_uri("/app/project_1/path1").to_request();
-        let resp = block_on(srv.call(req)).unwrap();
-        assert_eq!(resp.status(), StatusCode::CREATED);
+            let req = TestRequest::with_uri("/app/project_1/path1").to_request();
+            let resp = srv.call(req).await.unwrap();
+            assert_eq!(resp.status(), StatusCode::CREATED);
 
-        match resp.response().body() {
-            ResponseBody::Body(Body::Bytes(ref b)) => {
-                let bytes: Bytes = b.clone().into();
-                assert_eq!(bytes, Bytes::from_static(b"project: project_1"));
+            match resp.response().body() {
+                ResponseBody::Body(Body::Bytes(ref b)) => {
+                    let bytes: Bytes = b.clone().into();
+                    assert_eq!(bytes, Bytes::from_static(b"project: project_1"));
+                }
+                _ => panic!(),
             }
-            _ => panic!(),
-        }
+        })
     }
 
     #[test]
     fn test_nested2_scope_with_variable_segment() {
-        let mut srv = init_service(App::new().service(web::scope("/app").service(
-            web::scope("/{project}").service(web::scope("/{id}").service(
-                web::resource("/path1").to(|r: HttpRequest| {
-                    HttpResponse::Created().body(format!(
-                        "project: {} - {}",
-                        &r.match_info()["project"],
-                        &r.match_info()["id"],
-                    ))
-                }),
-            )),
-        )));
+        block_on(async {
+            let mut srv = init_service(App::new().service(web::scope("/app").service(
+                web::scope("/{project}").service(web::scope("/{id}").service(
+                    web::resource("/path1").to(|r: HttpRequest| {
+                        HttpResponse::Created().body(format!(
+                            "project: {} - {}",
+                            &r.match_info()["project"],
+                            &r.match_info()["id"],
+                        ))
+                    }),
+                )),
+            )))
+            .await;
 
-        let req = TestRequest::with_uri("/app/test/1/path1").to_request();
-        let resp = block_on(srv.call(req)).unwrap();
-        assert_eq!(resp.status(), StatusCode::CREATED);
+            let req = TestRequest::with_uri("/app/test/1/path1").to_request();
+            let resp = srv.call(req).await.unwrap();
+            assert_eq!(resp.status(), StatusCode::CREATED);
 
-        match resp.response().body() {
-            ResponseBody::Body(Body::Bytes(ref b)) => {
-                let bytes: Bytes = b.clone().into();
-                assert_eq!(bytes, Bytes::from_static(b"project: test - 1"));
+            match resp.response().body() {
+                ResponseBody::Body(Body::Bytes(ref b)) => {
+                    let bytes: Bytes = b.clone().into();
+                    assert_eq!(bytes, Bytes::from_static(b"project: test - 1"));
+                }
+                _ => panic!(),
             }
-            _ => panic!(),
-        }
 
-        let req = TestRequest::with_uri("/app/test/1/path2").to_request();
-        let resp = block_on(srv.call(req)).unwrap();
-        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+            let req = TestRequest::with_uri("/app/test/1/path2").to_request();
+            let resp = srv.call(req).await.unwrap();
+            assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+        })
     }
 
     #[test]
     fn test_default_resource() {
-        let mut srv = init_service(
-            App::new().service(
-                web::scope("/app")
-                    .service(web::resource("/path1").to(|| HttpResponse::Ok()))
-                    .default_service(|r: ServiceRequest| {
-                        r.into_response(HttpResponse::BadRequest())
-                    }),
-            ),
-        );
+        block_on(async {
+            let mut srv = init_service(
+                App::new().service(
+                    web::scope("/app")
+                        .service(web::resource("/path1").to(|| HttpResponse::Ok()))
+                        .default_service(|r: ServiceRequest| {
+                            ok(r.into_response(HttpResponse::BadRequest()))
+                        }),
+                ),
+            )
+            .await;
 
-        let req = TestRequest::with_uri("/app/path2").to_request();
-        let resp = block_on(srv.call(req)).unwrap();
-        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+            let req = TestRequest::with_uri("/app/path2").to_request();
+            let resp = srv.call(req).await.unwrap();
+            assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 
-        let req = TestRequest::with_uri("/path2").to_request();
-        let resp = block_on(srv.call(req)).unwrap();
-        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+            let req = TestRequest::with_uri("/path2").to_request();
+            let resp = srv.call(req).await.unwrap();
+            assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+        })
     }
 
     #[test]
     fn test_default_resource_propagation() {
-        let mut srv = init_service(
-            App::new()
-                .service(web::scope("/app1").default_service(
-                    web::resource("").to(|| HttpResponse::BadRequest()),
-                ))
-                .service(web::scope("/app2"))
-                .default_service(|r: ServiceRequest| {
-                    r.into_response(HttpResponse::MethodNotAllowed())
-                }),
-        );
+        block_on(async {
+            let mut srv = init_service(
+                App::new()
+                    .service(web::scope("/app1").default_service(
+                        web::resource("").to(|| HttpResponse::BadRequest()),
+                    ))
+                    .service(web::scope("/app2"))
+                    .default_service(|r: ServiceRequest| {
+                        ok(r.into_response(HttpResponse::MethodNotAllowed()))
+                    }),
+            )
+            .await;
 
-        let req = TestRequest::with_uri("/non-exist").to_request();
-        let resp = block_on(srv.call(req)).unwrap();
-        assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
+            let req = TestRequest::with_uri("/non-exist").to_request();
+            let resp = srv.call(req).await.unwrap();
+            assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
 
-        let req = TestRequest::with_uri("/app1/non-exist").to_request();
-        let resp = block_on(srv.call(req)).unwrap();
-        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+            let req = TestRequest::with_uri("/app1/non-exist").to_request();
+            let resp = srv.call(req).await.unwrap();
+            assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 
-        let req = TestRequest::with_uri("/app2/non-exist").to_request();
-        let resp = block_on(srv.call(req)).unwrap();
-        assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
+            let req = TestRequest::with_uri("/app2/non-exist").to_request();
+            let resp = srv.call(req).await.unwrap();
+            assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
+        })
     }
 
     fn md<S, B>(
         req: ServiceRequest,
         srv: &mut S,
-    ) -> impl IntoFuture<Item = ServiceResponse<B>, Error = Error>
+    ) -> impl Future<Output = Result<ServiceResponse<B>, Error>>
     where
         S: Service<
             Request = ServiceRequest,
@@ -1025,165 +1082,207 @@ mod tests {
             Error = Error,
         >,
     {
-        srv.call(req).map(|mut res| {
+        let fut = srv.call(req);
+        async move {
+            let mut res = fut.await?;
             res.headers_mut()
                 .insert(header::CONTENT_TYPE, HeaderValue::from_static("0001"));
-            res
-        })
+            Ok(res)
+        }
     }
 
     #[test]
     fn test_middleware() {
-        let mut srv =
-            init_service(App::new().service(web::scope("app").wrap(md).service(
-                web::resource("/test").route(web::get().to(|| HttpResponse::Ok())),
-            )));
-        let req = TestRequest::with_uri("/app/test").to_request();
-        let resp = call_service(&mut srv, req);
-        assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(
-            resp.headers().get(header::CONTENT_TYPE).unwrap(),
-            HeaderValue::from_static("0001")
-        );
+        block_on(async {
+            let mut srv = init_service(
+                App::new().service(
+                    web::scope("app")
+                        .wrap(DefaultHeaders::new().header(
+                            header::CONTENT_TYPE,
+                            HeaderValue::from_static("0001"),
+                        ))
+                        .service(
+                            web::resource("/test")
+                                .route(web::get().to(|| HttpResponse::Ok())),
+                        ),
+                ),
+            )
+            .await;
+
+            let req = TestRequest::with_uri("/app/test").to_request();
+            let resp = call_service(&mut srv, req).await;
+            assert_eq!(resp.status(), StatusCode::OK);
+            assert_eq!(
+                resp.headers().get(header::CONTENT_TYPE).unwrap(),
+                HeaderValue::from_static("0001")
+            );
+        })
     }
 
     #[test]
     fn test_middleware_fn() {
-        let mut srv = init_service(
-            App::new().service(
-                web::scope("app")
-                    .wrap_fn(|req, srv| {
-                        srv.call(req).map(|mut res| {
-                            res.headers_mut().insert(
-                                header::CONTENT_TYPE,
-                                HeaderValue::from_static("0001"),
-                            );
-                            res
+        block_on(async {
+            let mut srv = init_service(
+                App::new().service(
+                    web::scope("app")
+                        .wrap_fn(|req, srv| {
+                            let fut = srv.call(req);
+                            async move {
+                                let mut res = fut.await?;
+                                res.headers_mut().insert(
+                                    header::CONTENT_TYPE,
+                                    HeaderValue::from_static("0001"),
+                                );
+                                Ok(res)
+                            }
                         })
-                    })
-                    .route("/test", web::get().to(|| HttpResponse::Ok())),
-            ),
-        );
-        let req = TestRequest::with_uri("/app/test").to_request();
-        let resp = call_service(&mut srv, req);
-        assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(
-            resp.headers().get(header::CONTENT_TYPE).unwrap(),
-            HeaderValue::from_static("0001")
-        );
+                        .route("/test", web::get().to(|| HttpResponse::Ok())),
+                ),
+            )
+            .await;
+
+            let req = TestRequest::with_uri("/app/test").to_request();
+            let resp = call_service(&mut srv, req).await;
+            assert_eq!(resp.status(), StatusCode::OK);
+            assert_eq!(
+                resp.headers().get(header::CONTENT_TYPE).unwrap(),
+                HeaderValue::from_static("0001")
+            );
+        })
     }
 
     #[test]
     fn test_override_data() {
-        let mut srv = init_service(App::new().data(1usize).service(
-            web::scope("app").data(10usize).route(
-                "/t",
-                web::get().to(|data: web::Data<usize>| {
-                    assert_eq!(*data, 10);
-                    let _ = data.clone();
-                    HttpResponse::Ok()
-                }),
-            ),
-        ));
+        block_on(async {
+            let mut srv = init_service(App::new().data(1usize).service(
+                web::scope("app").data(10usize).route(
+                    "/t",
+                    web::get().to(|data: web::Data<usize>| {
+                        assert_eq!(*data, 10);
+                        let _ = data.clone();
+                        HttpResponse::Ok()
+                    }),
+                ),
+            ))
+            .await;
 
-        let req = TestRequest::with_uri("/app/t").to_request();
-        let resp = call_service(&mut srv, req);
-        assert_eq!(resp.status(), StatusCode::OK);
+            let req = TestRequest::with_uri("/app/t").to_request();
+            let resp = call_service(&mut srv, req).await;
+            assert_eq!(resp.status(), StatusCode::OK);
+        })
     }
 
     #[test]
     fn test_override_register_data() {
-        let mut srv = init_service(
-            App::new().register_data(web::Data::new(1usize)).service(
-                web::scope("app")
-                    .register_data(web::Data::new(10usize))
-                    .route(
-                        "/t",
-                        web::get().to(|data: web::Data<usize>| {
-                            assert_eq!(*data, 10);
-                            let _ = data.clone();
-                            HttpResponse::Ok()
-                        }),
-                    ),
-            ),
-        );
+        block_on(async {
+            let mut srv = init_service(
+                App::new().register_data(web::Data::new(1usize)).service(
+                    web::scope("app")
+                        .register_data(web::Data::new(10usize))
+                        .route(
+                            "/t",
+                            web::get().to(|data: web::Data<usize>| {
+                                assert_eq!(*data, 10);
+                                let _ = data.clone();
+                                HttpResponse::Ok()
+                            }),
+                        ),
+                ),
+            )
+            .await;
 
-        let req = TestRequest::with_uri("/app/t").to_request();
-        let resp = call_service(&mut srv, req);
-        assert_eq!(resp.status(), StatusCode::OK);
+            let req = TestRequest::with_uri("/app/t").to_request();
+            let resp = call_service(&mut srv, req).await;
+            assert_eq!(resp.status(), StatusCode::OK);
+        })
     }
 
     #[test]
     fn test_scope_config() {
-        let mut srv =
-            init_service(App::new().service(web::scope("/app").configure(|s| {
-                s.route("/path1", web::get().to(|| HttpResponse::Ok()));
-            })));
+        block_on(async {
+            let mut srv =
+                init_service(App::new().service(web::scope("/app").configure(|s| {
+                    s.route("/path1", web::get().to(|| HttpResponse::Ok()));
+                })))
+                .await;
 
-        let req = TestRequest::with_uri("/app/path1").to_request();
-        let resp = block_on(srv.call(req)).unwrap();
-        assert_eq!(resp.status(), StatusCode::OK);
+            let req = TestRequest::with_uri("/app/path1").to_request();
+            let resp = srv.call(req).await.unwrap();
+            assert_eq!(resp.status(), StatusCode::OK);
+        })
     }
 
     #[test]
     fn test_scope_config_2() {
-        let mut srv =
-            init_service(App::new().service(web::scope("/app").configure(|s| {
-                s.service(web::scope("/v1").configure(|s| {
-                    s.route("/", web::get().to(|| HttpResponse::Ok()));
-                }));
-            })));
+        block_on(async {
+            let mut srv =
+                init_service(App::new().service(web::scope("/app").configure(|s| {
+                    s.service(web::scope("/v1").configure(|s| {
+                        s.route("/", web::get().to(|| HttpResponse::Ok()));
+                    }));
+                })))
+                .await;
 
-        let req = TestRequest::with_uri("/app/v1/").to_request();
-        let resp = block_on(srv.call(req)).unwrap();
-        assert_eq!(resp.status(), StatusCode::OK);
+            let req = TestRequest::with_uri("/app/v1/").to_request();
+            let resp = srv.call(req).await.unwrap();
+            assert_eq!(resp.status(), StatusCode::OK);
+        })
     }
 
     #[test]
     fn test_url_for_external() {
-        let mut srv =
-            init_service(App::new().service(web::scope("/app").configure(|s| {
-                s.service(web::scope("/v1").configure(|s| {
-                    s.external_resource(
-                        "youtube",
-                        "https://youtube.com/watch/{video_id}",
-                    );
-                    s.route(
-                        "/",
-                        web::get().to(|req: HttpRequest| {
-                            HttpResponse::Ok().body(format!(
-                                "{}",
-                                req.url_for("youtube", &["xxxxxx"]).unwrap().as_str()
-                            ))
-                        }),
-                    );
-                }));
-            })));
+        block_on(async {
+            let mut srv =
+                init_service(App::new().service(web::scope("/app").configure(|s| {
+                    s.service(web::scope("/v1").configure(|s| {
+                        s.external_resource(
+                            "youtube",
+                            "https://youtube.com/watch/{video_id}",
+                        );
+                        s.route(
+                            "/",
+                            web::get().to(|req: HttpRequest| {
+                                HttpResponse::Ok().body(format!(
+                                    "{}",
+                                    req.url_for("youtube", &["xxxxxx"])
+                                        .unwrap()
+                                        .as_str()
+                                ))
+                            }),
+                        );
+                    }));
+                })))
+                .await;
 
-        let req = TestRequest::with_uri("/app/v1/").to_request();
-        let resp = block_on(srv.call(req)).unwrap();
-        assert_eq!(resp.status(), StatusCode::OK);
-        let body = read_body(resp);
-        assert_eq!(body, &b"https://youtube.com/watch/xxxxxx"[..]);
+            let req = TestRequest::with_uri("/app/v1/").to_request();
+            let resp = srv.call(req).await.unwrap();
+            assert_eq!(resp.status(), StatusCode::OK);
+            let body = read_body(resp).await;
+            assert_eq!(body, &b"https://youtube.com/watch/xxxxxx"[..]);
+        })
     }
 
     #[test]
     fn test_url_for_nested() {
-        let mut srv = init_service(App::new().service(web::scope("/a").service(
-            web::scope("/b").service(web::resource("/c/{stuff}").name("c").route(
-                web::get().to(|req: HttpRequest| {
-                    HttpResponse::Ok()
-                        .body(format!("{}", req.url_for("c", &["12345"]).unwrap()))
-                }),
-            )),
-        )));
-        let req = TestRequest::with_uri("/a/b/c/test").to_request();
-        let resp = call_service(&mut srv, req);
-        assert_eq!(resp.status(), StatusCode::OK);
-        let body = read_body(resp);
-        assert_eq!(
-            body,
-            Bytes::from_static(b"http://localhost:8080/a/b/c/12345")
-        );
+        block_on(async {
+            let mut srv = init_service(App::new().service(web::scope("/a").service(
+                web::scope("/b").service(web::resource("/c/{stuff}").name("c").route(
+                    web::get().to(|req: HttpRequest| {
+                        HttpResponse::Ok()
+                            .body(format!("{}", req.url_for("c", &["12345"]).unwrap()))
+                    }),
+                )),
+            )))
+            .await;
+
+            let req = TestRequest::with_uri("/a/b/c/test").to_request();
+            let resp = call_service(&mut srv, req).await;
+            assert_eq!(resp.status(), StatusCode::OK);
+            let body = read_body(resp).await;
+            assert_eq!(
+                body,
+                Bytes::from_static(b"http://localhost:8080/a/b/c/12345")
+            );
+        })
     }
 }

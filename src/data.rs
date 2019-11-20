@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use actix_http::error::{Error, ErrorInternalServerError};
 use actix_http::Extensions;
+use futures::future::{err, ok, Ready};
 
 use crate::dev::Payload;
 use crate::extract::FromRequest;
@@ -101,19 +102,19 @@ impl<T> Clone for Data<T> {
 impl<T: 'static> FromRequest for Data<T> {
     type Config = ();
     type Error = Error;
-    type Future = Result<Self, Error>;
+    type Future = Ready<Result<Self, Error>>;
 
     #[inline]
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
         if let Some(st) = req.get_app_data::<T>() {
-            Ok(st)
+            ok(st)
         } else {
             log::debug!(
                 "Failed to construct App-level Data extractor. \
                  Request path: {:?}",
                 req.path()
             );
-            Err(ErrorInternalServerError(
+            err(ErrorInternalServerError(
                 "App data is not configured, to configure use App::data()",
             ))
         }
@@ -142,85 +143,99 @@ mod tests {
 
     #[test]
     fn test_data_extractor() {
-        let mut srv =
-            init_service(App::new().data(10usize).service(
+        block_on(async {
+            let mut srv = init_service(App::new().data(10usize).service(
                 web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()),
-            ));
+            ))
+            .await;
 
-        let req = TestRequest::default().to_request();
-        let resp = block_on(srv.call(req)).unwrap();
-        assert_eq!(resp.status(), StatusCode::OK);
+            let req = TestRequest::default().to_request();
+            let resp = srv.call(req).await.unwrap();
+            assert_eq!(resp.status(), StatusCode::OK);
 
-        let mut srv =
-            init_service(App::new().data(10u32).service(
+            let mut srv = init_service(App::new().data(10u32).service(
                 web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()),
-            ));
-        let req = TestRequest::default().to_request();
-        let resp = block_on(srv.call(req)).unwrap();
-        assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+            ))
+            .await;
+            let req = TestRequest::default().to_request();
+            let resp = srv.call(req).await.unwrap();
+            assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+        })
     }
 
     #[test]
     fn test_register_data_extractor() {
-        let mut srv =
-            init_service(App::new().register_data(Data::new(10usize)).service(
-                web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()),
-            ));
+        block_on(async {
+            let mut srv =
+                init_service(App::new().register_data(Data::new(10usize)).service(
+                    web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()),
+                ))
+                .await;
 
-        let req = TestRequest::default().to_request();
-        let resp = block_on(srv.call(req)).unwrap();
-        assert_eq!(resp.status(), StatusCode::OK);
+            let req = TestRequest::default().to_request();
+            let resp = srv.call(req).await.unwrap();
+            assert_eq!(resp.status(), StatusCode::OK);
 
-        let mut srv =
-            init_service(App::new().register_data(Data::new(10u32)).service(
-                web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()),
-            ));
-        let req = TestRequest::default().to_request();
-        let resp = block_on(srv.call(req)).unwrap();
-        assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+            let mut srv =
+                init_service(App::new().register_data(Data::new(10u32)).service(
+                    web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()),
+                ))
+                .await;
+            let req = TestRequest::default().to_request();
+            let resp = srv.call(req).await.unwrap();
+            assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+        })
     }
 
     #[test]
     fn test_route_data_extractor() {
-        let mut srv =
-            init_service(App::new().service(web::resource("/").data(10usize).route(
-                web::get().to(|data: web::Data<usize>| {
-                    let _ = data.clone();
-                    HttpResponse::Ok()
-                }),
-            )));
+        block_on(async {
+            let mut srv = init_service(App::new().service(
+                web::resource("/").data(10usize).route(web::get().to(
+                    |data: web::Data<usize>| {
+                        let _ = data.clone();
+                        HttpResponse::Ok()
+                    },
+                )),
+            ))
+            .await;
 
-        let req = TestRequest::default().to_request();
-        let resp = block_on(srv.call(req)).unwrap();
-        assert_eq!(resp.status(), StatusCode::OK);
+            let req = TestRequest::default().to_request();
+            let resp = srv.call(req).await.unwrap();
+            assert_eq!(resp.status(), StatusCode::OK);
 
-        // different type
-        let mut srv = init_service(
-            App::new().service(
-                web::resource("/")
-                    .data(10u32)
-                    .route(web::get().to(|_: web::Data<usize>| HttpResponse::Ok())),
-            ),
-        );
-        let req = TestRequest::default().to_request();
-        let resp = block_on(srv.call(req)).unwrap();
-        assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+            // different type
+            let mut srv = init_service(
+                App::new().service(
+                    web::resource("/")
+                        .data(10u32)
+                        .route(web::get().to(|_: web::Data<usize>| HttpResponse::Ok())),
+                ),
+            )
+            .await;
+            let req = TestRequest::default().to_request();
+            let resp = srv.call(req).await.unwrap();
+            assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+        })
     }
 
     #[test]
     fn test_override_data() {
-        let mut srv = init_service(App::new().data(1usize).service(
-            web::resource("/").data(10usize).route(web::get().to(
-                |data: web::Data<usize>| {
-                    assert_eq!(*data, 10);
-                    let _ = data.clone();
-                    HttpResponse::Ok()
-                },
-            )),
-        ));
+        block_on(async {
+            let mut srv = init_service(App::new().data(1usize).service(
+                web::resource("/").data(10usize).route(web::get().to(
+                    |data: web::Data<usize>| {
+                        assert_eq!(*data, 10);
+                        let _ = data.clone();
+                        HttpResponse::Ok()
+                    },
+                )),
+            ))
+            .await;
 
-        let req = TestRequest::default().to_request();
-        let resp = block_on(srv.call(req)).unwrap();
-        assert_eq!(resp.status(), StatusCode::OK);
+            let req = TestRequest::default().to_request();
+            let resp = srv.call(req).await.unwrap();
+            assert_eq!(resp.status(), StatusCode::OK);
+        })
     }
 }
