@@ -41,17 +41,18 @@ const HTTPS_ENCODING: &str = "gzip, deflate";
 /// use actix_rt::System;
 ///
 /// fn main() {
-///     System::new("test").block_on(lazy(|| {
-///        awc::Client::new()
+///     System::new("test").block_on(async {
+///        let response = awc::Client::new()
 ///           .get("http://www.rust-lang.org") // <- Create request builder
 ///           .header("User-Agent", "Actix-web")
 ///           .send()                          // <- Send http request
-///           .map_err(|_| ())
-///           .and_then(|response| {           // <- server http response
-///                println!("Response: {:?}", response);
-///                Ok(())
+///           .await;
+///
+///           response.and_then(|response| {   // <- server http response
+///               println!("Response: {:?}", response);
+///               Ok(())
 ///           })
-///     }));
+///     });
 /// }
 /// ```
 pub struct ClientRequest {
@@ -158,7 +159,7 @@ impl ClientRequest {
     ///
     /// ```rust
     /// fn main() {
-    /// # actix_rt::System::new("test").block_on(futures::future::lazy(|| {
+    /// # actix_rt::System::new("test").block_on(futures::future::lazy(|_| {
     ///     let req = awc::Client::new()
     ///         .get("http://www.rust-lang.org")
     ///         .set(awc::http::header::Date::now())
@@ -186,13 +187,13 @@ impl ClientRequest {
     /// use awc::{http, Client};
     ///
     /// fn main() {
-    /// # actix_rt::System::new("test").block_on(futures::future::lazy(|| {
+    /// # actix_rt::System::new("test").block_on(async {
     ///     let req = Client::new()
     ///         .get("http://www.rust-lang.org")
     ///         .header("X-TEST", "value")
     ///         .header(http::header::CONTENT_TYPE, "application/json");
     /// #   Ok::<_, ()>(())
-    /// # }));
+    /// # });
     /// }
     /// ```
     pub fn header<K, V>(mut self, key: K, value: V) -> Self
@@ -311,7 +312,7 @@ impl ClientRequest {
     /// # use actix_rt::System;
     /// # use futures::future::{lazy, Future};
     /// fn main() {
-    ///     System::new("test").block_on(lazy(|| {
+    ///     System::new("test").block_on(async {
     ///         awc::Client::new().get("https://www.rust-lang.org")
     ///             .cookie(
     ///                 awc::http::Cookie::build("name", "value")
@@ -322,12 +323,12 @@ impl ClientRequest {
     ///                     .finish(),
     ///             )
     ///             .send()
-    ///             .map_err(|_| ())
+    ///             .await
     ///             .and_then(|response| {
     ///                println!("Response: {:?}", response);
     ///                Ok(())
     ///             })
-    ///     }));
+    ///     });
     /// }
     /// ```
     pub fn cookie(mut self, cookie: Cookie<'_>) -> Self {

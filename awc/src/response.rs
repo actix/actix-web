@@ -359,41 +359,40 @@ where
 mod tests {
     use super::*;
     use actix_http_test::block_on;
-    use futures::Async;
     use serde::{Deserialize, Serialize};
 
     use crate::{http::header, test::TestResponse};
 
     #[test]
     fn test_body() {
-        let mut req = TestResponse::with_header(header::CONTENT_LENGTH, "xxxx").finish();
-        match req.body().poll().err().unwrap() {
-            PayloadError::UnknownLength => (),
-            _ => unreachable!("error"),
-        }
+        block_on(async {
+            let mut req =
+                TestResponse::with_header(header::CONTENT_LENGTH, "xxxx").finish();
+            match req.body().await.err().unwrap() {
+                PayloadError::UnknownLength => (),
+                _ => unreachable!("error"),
+            }
 
-        let mut req =
-            TestResponse::with_header(header::CONTENT_LENGTH, "1000000").finish();
-        match req.body().poll().err().unwrap() {
-            PayloadError::Overflow => (),
-            _ => unreachable!("error"),
-        }
+            let mut req =
+                TestResponse::with_header(header::CONTENT_LENGTH, "1000000").finish();
+            match req.body().await.err().unwrap() {
+                PayloadError::Overflow => (),
+                _ => unreachable!("error"),
+            }
 
-        let mut req = TestResponse::default()
-            .set_payload(Bytes::from_static(b"test"))
-            .finish();
-        match req.body().poll().ok().unwrap() {
-            Async::Ready(bytes) => assert_eq!(bytes, Bytes::from_static(b"test")),
-            _ => unreachable!("error"),
-        }
+            let mut req = TestResponse::default()
+                .set_payload(Bytes::from_static(b"test"))
+                .finish();
+            assert_eq!(req.body().await.ok().unwrap(), Bytes::from_static(b"test"));
 
-        let mut req = TestResponse::default()
-            .set_payload(Bytes::from_static(b"11111111111111"))
-            .finish();
-        match req.body().limit(5).poll().err().unwrap() {
-            PayloadError::Overflow => (),
-            _ => unreachable!("error"),
-        }
+            let mut req = TestResponse::default()
+                .set_payload(Bytes::from_static(b"11111111111111"))
+                .finish();
+            match req.body().limit(5).await.err().unwrap() {
+                PayloadError::Overflow => (),
+                _ => unreachable!("error"),
+            }
+        })
     }
 
     #[derive(Serialize, Deserialize, PartialEq, Debug)]
@@ -417,54 +416,56 @@ mod tests {
 
     #[test]
     fn test_json_body() {
-        let mut req = TestResponse::default().finish();
-        let json = block_on(JsonBody::<_, MyObject>::new(&mut req));
-        assert!(json_eq(json.err().unwrap(), JsonPayloadError::ContentType));
+        block_on(async {
+            let mut req = TestResponse::default().finish();
+            let json = JsonBody::<_, MyObject>::new(&mut req).await;
+            assert!(json_eq(json.err().unwrap(), JsonPayloadError::ContentType));
 
-        let mut req = TestResponse::default()
-            .header(
-                header::CONTENT_TYPE,
-                header::HeaderValue::from_static("application/text"),
-            )
-            .finish();
-        let json = block_on(JsonBody::<_, MyObject>::new(&mut req));
-        assert!(json_eq(json.err().unwrap(), JsonPayloadError::ContentType));
+            let mut req = TestResponse::default()
+                .header(
+                    header::CONTENT_TYPE,
+                    header::HeaderValue::from_static("application/text"),
+                )
+                .finish();
+            let json = JsonBody::<_, MyObject>::new(&mut req).await;
+            assert!(json_eq(json.err().unwrap(), JsonPayloadError::ContentType));
 
-        let mut req = TestResponse::default()
-            .header(
-                header::CONTENT_TYPE,
-                header::HeaderValue::from_static("application/json"),
-            )
-            .header(
-                header::CONTENT_LENGTH,
-                header::HeaderValue::from_static("10000"),
-            )
-            .finish();
+            let mut req = TestResponse::default()
+                .header(
+                    header::CONTENT_TYPE,
+                    header::HeaderValue::from_static("application/json"),
+                )
+                .header(
+                    header::CONTENT_LENGTH,
+                    header::HeaderValue::from_static("10000"),
+                )
+                .finish();
 
-        let json = block_on(JsonBody::<_, MyObject>::new(&mut req).limit(100));
-        assert!(json_eq(
-            json.err().unwrap(),
-            JsonPayloadError::Payload(PayloadError::Overflow)
-        ));
+            let json = JsonBody::<_, MyObject>::new(&mut req).limit(100).await;
+            assert!(json_eq(
+                json.err().unwrap(),
+                JsonPayloadError::Payload(PayloadError::Overflow)
+            ));
 
-        let mut req = TestResponse::default()
-            .header(
-                header::CONTENT_TYPE,
-                header::HeaderValue::from_static("application/json"),
-            )
-            .header(
-                header::CONTENT_LENGTH,
-                header::HeaderValue::from_static("16"),
-            )
-            .set_payload(Bytes::from_static(b"{\"name\": \"test\"}"))
-            .finish();
+            let mut req = TestResponse::default()
+                .header(
+                    header::CONTENT_TYPE,
+                    header::HeaderValue::from_static("application/json"),
+                )
+                .header(
+                    header::CONTENT_LENGTH,
+                    header::HeaderValue::from_static("16"),
+                )
+                .set_payload(Bytes::from_static(b"{\"name\": \"test\"}"))
+                .finish();
 
-        let json = block_on(JsonBody::<_, MyObject>::new(&mut req));
-        assert_eq!(
-            json.ok().unwrap(),
-            MyObject {
-                name: "test".to_owned()
-            }
-        );
+            let json = JsonBody::<_, MyObject>::new(&mut req).await;
+            assert_eq!(
+                json.ok().unwrap(),
+                MyObject {
+                    name: "test".to_owned()
+                }
+            );
+        })
     }
 }
