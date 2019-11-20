@@ -38,16 +38,17 @@ pub(crate) trait DataFactory {
 ///
 /// ```rust
 /// use std::sync::Mutex;
-/// use actix_web::{web, App};
+/// use actix_web::{web, App, HttpResponse, Responder};
 ///
 /// struct MyData {
 ///     counter: usize,
 /// }
 ///
 /// /// Use `Data<T>` extractor to access data in handler.
-/// async fn index(data: web::Data<Mutex<MyData>>) {
+/// async fn index(data: web::Data<Mutex<MyData>>) -> impl Responder {
 ///     let mut data = data.lock().unwrap();
 ///     data.counter += 1;
+///     HttpResponse::Ok()
 /// }
 ///
 /// fn main() {

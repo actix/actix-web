@@ -146,7 +146,7 @@ where
     /// match guards for route selection.
     ///
     /// ```rust
-    /// use actix_web::{web, guard, App, HttpResponse};
+    /// use actix_web::{web, guard, App};
     ///
     /// fn main() {
     ///     let app = App::new().service(
@@ -156,9 +156,9 @@ where
     ///              .route(web::delete().to(delete_handler))
     ///     );
     /// }
-    /// # async fn get_handler() -> impl actix_web::Responder { HttpResponse::Ok() }
-    /// # async fn post_handler() -> impl actix_web::Responder { HttpResponse::Ok() }
-    /// # async fn delete_handler() -> impl actix_web::Responder { HttpResponse::Ok() }
+    /// # async fn get_handler() -> impl actix_web::Responder { actix_web::HttpResponse::Ok() }
+    /// # async fn post_handler() -> impl actix_web::Responder { actix_web::HttpResponse::Ok() }
+    /// # async fn delete_handler() -> impl actix_web::Responder { actix_web::HttpResponse::Ok() }
     /// ```
     pub fn route(mut self, route: Route) -> Self {
         self.routes.push(route);
