@@ -84,14 +84,15 @@ where
     ///
     /// ```rust
     /// use std::cell::Cell;
-    /// use actix_web::{web, App};
+    /// use actix_web::{web, App, HttpResponse, Responder};
     ///
     /// struct MyData {
     ///     counter: Cell<usize>,
     /// }
     ///
-    /// async fn index(data: web::Data<MyData>) {
+    /// async fn index(data: web::Data<MyData>) -> impl Responder {
     ///     data.counter.set(data.counter.get() + 1);
+    ///     HttpResponse::Ok()
     /// }
     ///
     /// fn main() {

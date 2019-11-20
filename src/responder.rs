@@ -131,15 +131,6 @@ impl Responder for ResponseBuilder {
     }
 }
 
-impl Responder for () {
-    type Error = Error;
-    type Future = Ready<Result<Response, Error>>;
-
-    fn respond_to(self, _: &HttpRequest) -> Self::Future {
-        ok(Response::build(StatusCode::OK).finish())
-    }
-}
-
 impl<T> Responder for (T, StatusCode)
 where
     T: Responder,
@@ -529,10 +520,6 @@ pub(crate) mod tests {
     fn test_responder() {
         block_on(async {
             let req = TestRequest::default().to_http_request();
-
-            let resp: HttpResponse = ().respond_to(&req).await.unwrap();
-            assert_eq!(resp.status(), StatusCode::OK);
-            assert_eq!(*resp.body().body(), Body::Empty);
 
             let resp: HttpResponse = "test".respond_to(&req).await.unwrap();
             assert_eq!(resp.status(), StatusCode::OK);

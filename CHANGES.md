@@ -1,5 +1,12 @@
 # Changes
 
+## [2.0.0-alpha.2] - 2019-xx-xx
+
+### Changed
+
+* Remove implementation of `Responder` for `()`. (#1167)
+
+
 ## [1.0.9] - 2019-11-14
 
 ### Added
