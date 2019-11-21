@@ -33,7 +33,7 @@ members = [
   "actix-http",
   "actix-cors",
   "actix-files",
-  #"actix-framed",
+  "actix-framed",
   #"actix-session",
   "actix-identity",
   #"actix-multipart",

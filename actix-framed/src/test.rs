@@ -1,4 +1,6 @@
 //! Various helpers for Actix applications to use during testing.
+use std::future::Future;
+
 use actix_codec::Framed;
 use actix_http::h1::Codec;
 use actix_http::http::header::{Header, HeaderName, IntoHeaderValue};
@@ -6,7 +8,6 @@ use actix_http::http::{HttpTryFrom, Method, Uri, Version};
 use actix_http::test::{TestBuffer, TestRequest as HttpTestRequest};
 use actix_router::{Path, Url};
 use actix_rt::Runtime;
-use futures::IntoFuture;
 
 use crate::{FramedRequest, State};
 
@@ -121,10 +122,10 @@ impl<S> TestRequest<S> {
     pub fn run<F, R, I, E>(self, f: F) -> Result<I, E>
     where
         F: FnOnce(FramedRequest<TestBuffer, S>) -> R,
-        R: IntoFuture<Item = I, Error = E>,
+        R: Future<Output = Result<I, E>>,
     {
         let mut rt = Runtime::new().unwrap();
-        rt.block_on(f(self.finish()).into_future())
+        rt.block_on(f(self.finish()))
     }
 }
 
