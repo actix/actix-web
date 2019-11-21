@@ -35,7 +35,7 @@ members = [
   #"actix-files",
   #"actix-framed",
   #"actix-session",
-  #"actix-identity",
+  "actix-identity",
   #"actix-multipart",
   #"actix-web-actors",
   "actix-web-codegen",
