@@ -37,7 +37,6 @@ const HTTPS_ENCODING: &str = "gzip, deflate";
 /// builder-like pattern.
 ///
 /// ```rust
-/// use futures::future::{Future, lazy};
 /// use actix_rt::System;
 ///
 /// fn main() {
@@ -310,7 +309,6 @@ impl ClientRequest {
     ///
     /// ```rust
     /// # use actix_rt::System;
-    /// # use futures::future::{lazy, Future};
     /// fn main() {
     ///     System::new("test").block_on(async {
     ///         awc::Client::new().get("https://www.rust-lang.org")

@@ -52,7 +52,6 @@ use self::connect::{Connect, ConnectorWrapper};
 /// An HTTP Client
 ///
 /// ```rust
-/// # use futures::future::{Future, lazy};
 /// use actix_rt::System;
 /// use awc::Client;
 ///

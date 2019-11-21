@@ -353,7 +353,6 @@ where
     ///
     /// ```rust
     /// use actix_service::Service;
-    /// # use futures::Future;
     /// use actix_web::{web, App};
     /// use actix_web::http::{header::CONTENT_TYPE, HeaderValue};
     ///

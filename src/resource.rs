@@ -244,7 +244,6 @@ where
     ///
     /// ```rust
     /// use actix_web::*;
-    /// use futures::future::{ok, Future};
     ///
     /// async fn index(req: HttpRequest) -> Result<HttpResponse, Error> {
     ///     Ok(HttpResponse::Ok().finish())
@@ -257,7 +256,6 @@ where
     ///
     /// ```rust
     /// # use actix_web::*;
-    /// # use futures::future::Future;
     /// # async fn index(req: HttpRequest) -> Result<HttpResponse, Error> {
     /// #     unimplemented!()
     /// # }
@@ -326,7 +324,6 @@ where
     ///
     /// ```rust
     /// use actix_service::Service;
-    /// # use futures::Future;
     /// use actix_web::{web, App};
     /// use actix_web::http::{header::CONTENT_TYPE, HeaderValue};
     ///

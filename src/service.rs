@@ -449,11 +449,10 @@ impl WebService {
     /// Add match guard to a web service.
     ///
     /// ```rust
-    /// use futures::future::{ok, Ready};
     /// use actix_web::{web, guard, dev, App, Error, HttpResponse};
     ///
-    /// fn index(req: dev::ServiceRequest) -> Ready<Result<dev::ServiceResponse, Error>> {
-    ///     ok(req.into_response(HttpResponse::Ok().finish()))
+    /// async fn index(req: dev::ServiceRequest) -> Result<dev::ServiceResponse, Error> {
+    ///     Ok(req.into_response(HttpResponse::Ok().finish()))
     /// }
     ///
     /// fn main() {
