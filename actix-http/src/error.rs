@@ -9,7 +9,7 @@ use std::{fmt, io, result};
 use actix_utils::timeout::TimeoutError;
 use bytes::BytesMut;
 use derive_more::{Display, From};
-use futures::channel::oneshot::Canceled;
+pub use futures::channel::oneshot::Canceled;
 use http::uri::InvalidUri;
 use http::{header, Error as HttpError, StatusCode};
 use httparse;

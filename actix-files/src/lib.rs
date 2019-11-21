@@ -4,25 +4,28 @@
 use std::cell::RefCell;
 use std::fmt::Write;
 use std::fs::{DirEntry, File};
+use std::future::Future;
 use std::io::{Read, Seek};
 use std::path::{Path, PathBuf};
+use std::pin::Pin;
 use std::rc::Rc;
+use std::task::{Context, Poll};
 use std::{cmp, io};
 
 use actix_service::boxed::{self, BoxedNewService, BoxedService};
-use actix_service::{IntoNewService, NewService, Service};
+use actix_service::{IntoServiceFactory, Service, ServiceFactory};
 use actix_web::dev::{
     AppService, HttpServiceFactory, Payload, ResourceDef, ServiceRequest,
     ServiceResponse,
 };
-use actix_web::error::{BlockingError, Error, ErrorInternalServerError};
+use actix_web::error::{Canceled, Error, ErrorInternalServerError};
 use actix_web::guard::Guard;
 use actix_web::http::header::{self, DispositionType};
 use actix_web::http::Method;
-use actix_web::{web, FromRequest, HttpRequest, HttpResponse, Responder};
+use actix_web::{web, FromRequest, HttpRequest, HttpResponse};
 use bytes::Bytes;
-use futures::future::{ok, Either, FutureResult};
-use futures::{Async, Future, Poll, Stream};
+use futures::future::{ok, ready, Either, FutureExt, LocalBoxFuture, Ready};
+use futures::Stream;
 use mime;
 use mime_guess::from_ext;
 use percent_encoding::{utf8_percent_encode, CONTROLS};
@@ -54,32 +57,34 @@ pub struct ChunkedReadFile {
     size: u64,
     offset: u64,
     file: Option<File>,
-    fut: Option<Box<dyn Future<Item = (File, Bytes), Error = BlockingError<io::Error>>>>,
+    fut: Option<
+        LocalBoxFuture<'static, Result<Result<(File, Bytes), io::Error>, Canceled>>,
+    >,
     counter: u64,
 }
 
-fn handle_error(err: BlockingError<io::Error>) -> Error {
-    match err {
-        BlockingError::Error(err) => err.into(),
-        BlockingError::Canceled => ErrorInternalServerError("Unexpected error"),
-    }
-}
-
 impl Stream for ChunkedReadFile {
-    type Item = Bytes;
-    type Error = Error;
+    type Item = Result<Bytes, Error>;
 
-    fn poll(&mut self) -> Poll<Option<Bytes>, Error> {
-        if self.fut.is_some() {
-            return match self.fut.as_mut().unwrap().poll().map_err(handle_error)? {
-                Async::Ready((file, bytes)) => {
+    fn poll_next(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context,
+    ) -> Poll<Option<Self::Item>> {
+        if let Some(ref mut fut) = self.fut {
+            return match Pin::new(fut).poll(cx) {
+                Poll::Ready(Err(_)) => Poll::Ready(Some(Err(ErrorInternalServerError(
+                    "Unexpected error",
+                )
+                .into()))),
+                Poll::Ready(Ok(Ok((file, bytes)))) => {
                     self.fut.take();
                     self.file = Some(file);
                     self.offset += bytes.len() as u64;
                     self.counter += bytes.len() as u64;
-                    Ok(Async::Ready(Some(bytes)))
+                    Poll::Ready(Some(Ok(bytes)))
                 }
-                Async::NotReady => Ok(Async::NotReady),
+                Poll::Ready(Ok(Err(e))) => Poll::Ready(Some(Err(e.into()))),
+                Poll::Pending => Poll::Pending,
             };
         }
 
@@ -88,22 +93,25 @@ impl Stream for ChunkedReadFile {
         let counter = self.counter;
 
         if size == counter {
-            Ok(Async::Ready(None))
+            Poll::Ready(None)
         } else {
             let mut file = self.file.take().expect("Use after completion");
-            self.fut = Some(Box::new(web::block(move || {
-                let max_bytes: usize;
-                max_bytes = cmp::min(size.saturating_sub(counter), 65_536) as usize;
-                let mut buf = Vec::with_capacity(max_bytes);
-                file.seek(io::SeekFrom::Start(offset))?;
-                let nbytes =
-                    file.by_ref().take(max_bytes as u64).read_to_end(&mut buf)?;
-                if nbytes == 0 {
-                    return Err(io::ErrorKind::UnexpectedEof.into());
-                }
-                Ok((file, Bytes::from(buf)))
-            })));
-            self.poll()
+            self.fut = Some(
+                web::block(move || {
+                    let max_bytes: usize;
+                    max_bytes = cmp::min(size.saturating_sub(counter), 65_536) as usize;
+                    let mut buf = Vec::with_capacity(max_bytes);
+                    file.seek(io::SeekFrom::Start(offset))?;
+                    let nbytes =
+                        file.by_ref().take(max_bytes as u64).read_to_end(&mut buf)?;
+                    if nbytes == 0 {
+                        return Err(io::ErrorKind::UnexpectedEof.into());
+                    }
+                    Ok((file, Bytes::from(buf)))
+                })
+                .boxed_local(),
+            );
+            self.poll_next(cx)
         }
     }
 }
@@ -367,8 +375,8 @@ impl Files {
     /// Sets default handler which is used when no matched file could be found.
     pub fn default_handler<F, U>(mut self, f: F) -> Self
     where
-        F: IntoNewService<U>,
-        U: NewService<
+        F: IntoServiceFactory<U>,
+        U: ServiceFactory<
                 Config = (),
                 Request = ServiceRequest,
                 Response = ServiceResponse,
@@ -376,8 +384,8 @@ impl Files {
             > + 'static,
     {
         // create and configure default resource
-        self.default = Rc::new(RefCell::new(Some(Rc::new(boxed::new_service(
-            f.into_new_service().map_init_err(|_| ()),
+        self.default = Rc::new(RefCell::new(Some(Rc::new(boxed::factory(
+            f.into_factory().map_init_err(|_| ()),
         )))));
 
         self
@@ -398,14 +406,14 @@ impl HttpServiceFactory for Files {
     }
 }
 
-impl NewService for Files {
+impl ServiceFactory for Files {
     type Request = ServiceRequest;
     type Response = ServiceResponse;
     type Error = Error;
     type Config = ();
     type Service = FilesService;
     type InitError = ();
-    type Future = Box<dyn Future<Item = Self::Service, Error = Self::InitError>>;
+    type Future = LocalBoxFuture<'static, Result<Self::Service, Self::InitError>>;
 
     fn new_service(&self, _: &()) -> Self::Future {
         let mut srv = FilesService {
@@ -421,17 +429,18 @@ impl NewService for Files {
         };
 
         if let Some(ref default) = *self.default.borrow() {
-            Box::new(
-                default
-                    .new_service(&())
-                    .map(move |default| {
+            default
+                .new_service(&())
+                .map(move |result| match result {
+                    Ok(default) => {
                         srv.default = Some(default);
-                        srv
-                    })
-                    .map_err(|_| ()),
-            )
+                        Ok(srv)
+                    }
+                    Err(_) => Err(()),
+                })
+                .boxed_local()
         } else {
-            Box::new(ok(srv))
+            ok(srv).boxed_local()
         }
     }
 }
@@ -454,14 +463,14 @@ impl FilesService {
         e: io::Error,
         req: ServiceRequest,
     ) -> Either<
-        FutureResult<ServiceResponse, Error>,
-        Box<dyn Future<Item = ServiceResponse, Error = Error>>,
+        Ready<Result<ServiceResponse, Error>>,
+        LocalBoxFuture<'static, Result<ServiceResponse, Error>>,
     > {
         log::debug!("Files: Failed to handle {}: {}", req.path(), e);
         if let Some(ref mut default) = self.default {
-            default.call(req)
+            Either::Right(default.call(req))
         } else {
-            Either::A(ok(req.error_response(e)))
+            Either::Left(ok(req.error_response(e)))
         }
     }
 }
@@ -471,17 +480,15 @@ impl Service for FilesService {
     type Response = ServiceResponse;
     type Error = Error;
     type Future = Either<
-        FutureResult<Self::Response, Self::Error>,
-        Box<dyn Future<Item = Self::Response, Error = Self::Error>>,
+        Ready<Result<Self::Response, Self::Error>>,
+        LocalBoxFuture<'static, Result<Self::Response, Self::Error>>,
     >;
 
-    fn poll_ready(&mut self) -> Poll<(), Self::Error> {
-        Ok(Async::Ready(()))
+    fn poll_ready(&mut self, _: &mut Context) -> Poll<Result<(), Self::Error>> {
+        Poll::Ready(Ok(()))
     }
 
     fn call(&mut self, req: ServiceRequest) -> Self::Future {
-        // let (req, pl) = req.into_parts();
-
         let is_method_valid = if let Some(guard) = &self.guards {
             // execute user defined guards
             (**guard).check(req.head())
@@ -494,7 +501,7 @@ impl Service for FilesService {
         };
 
         if !is_method_valid {
-            return Either::A(ok(req.into_response(
+            return Either::Left(ok(req.into_response(
                 actix_web::HttpResponse::MethodNotAllowed()
                     .header(header::CONTENT_TYPE, "text/plain")
                     .body("Request did not meet this resource's requirements."),
@@ -503,7 +510,7 @@ impl Service for FilesService {
 
         let real_path = match PathBufWrp::get_pathbuf(req.match_info().path()) {
             Ok(item) => item,
-            Err(e) => return Either::A(ok(req.error_response(e))),
+            Err(e) => return Either::Left(ok(req.error_response(e))),
         };
 
         // full filepath
@@ -516,7 +523,7 @@ impl Service for FilesService {
             if let Some(ref redir_index) = self.index {
                 if self.redirect_to_slash && !req.path().ends_with('/') {
                     let redirect_to = format!("{}/", req.path());
-                    return Either::A(ok(req.into_response(
+                    return Either::Left(ok(req.into_response(
                         HttpResponse::Found()
                             .header(header::LOCATION, redirect_to)
                             .body("")
@@ -536,7 +543,7 @@ impl Service for FilesService {
 
                         named_file.flags = self.file_flags;
                         let (req, _) = req.into_parts();
-                        Either::A(ok(match named_file.respond_to(&req) {
+                        Either::Left(ok(match named_file.into_response(&req) {
                             Ok(item) => ServiceResponse::new(req, item),
                             Err(e) => ServiceResponse::from_err(e, req),
                         }))
@@ -548,11 +555,11 @@ impl Service for FilesService {
                 let (req, _) = req.into_parts();
                 let x = (self.renderer)(&dir, &req);
                 match x {
-                    Ok(resp) => Either::A(ok(resp)),
-                    Err(e) => Either::A(ok(ServiceResponse::from_err(e, req))),
+                    Ok(resp) => Either::Left(ok(resp)),
+                    Err(e) => Either::Left(ok(ServiceResponse::from_err(e, req))),
                 }
             } else {
-                Either::A(ok(ServiceResponse::from_err(
+                Either::Left(ok(ServiceResponse::from_err(
                     FilesError::IsDirectory,
                     req.into_parts().0,
                 )))
@@ -568,11 +575,11 @@ impl Service for FilesService {
 
                     named_file.flags = self.file_flags;
                     let (req, _) = req.into_parts();
-                    match named_file.respond_to(&req) {
+                    match named_file.into_response(&req) {
                         Ok(item) => {
-                            Either::A(ok(ServiceResponse::new(req.clone(), item)))
+                            Either::Left(ok(ServiceResponse::new(req.clone(), item)))
                         }
-                        Err(e) => Either::A(ok(ServiceResponse::from_err(e, req))),
+                        Err(e) => Either::Left(ok(ServiceResponse::from_err(e, req))),
                     }
                 }
                 Err(e) => self.handle_err(e, req),
@@ -615,11 +622,11 @@ impl PathBufWrp {
 
 impl FromRequest for PathBufWrp {
     type Error = UriSegmentError;
-    type Future = Result<Self, Self::Error>;
+    type Future = Ready<Result<Self, Self::Error>>;
     type Config = ();
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        PathBufWrp::get_pathbuf(req.match_info().path())
+        ready(PathBufWrp::get_pathbuf(req.match_info().path()))
     }
 }
 
@@ -630,8 +637,6 @@ mod tests {
     use std::ops::Add;
     use std::time::{Duration, SystemTime};
 
-    use bytes::BytesMut;
-
     use super::*;
     use actix_web::guard;
     use actix_web::http::header::{
@@ -639,8 +644,8 @@ mod tests {
     };
     use actix_web::http::{Method, StatusCode};
     use actix_web::middleware::Compress;
-    use actix_web::test::{self, TestRequest};
-    use actix_web::App;
+    use actix_web::test::{self, block_on, TestRequest};
+    use actix_web::{App, Responder};
 
     #[test]
     fn test_file_extension_to_mime() {
@@ -656,592 +661,643 @@ mod tests {
 
     #[test]
     fn test_if_modified_since_without_if_none_match() {
-        let file = NamedFile::open("Cargo.toml").unwrap();
-        let since =
-            header::HttpDate::from(SystemTime::now().add(Duration::from_secs(60)));
+        block_on(async {
+            let file = NamedFile::open("Cargo.toml").unwrap();
+            let since =
+                header::HttpDate::from(SystemTime::now().add(Duration::from_secs(60)));
 
-        let req = TestRequest::default()
-            .header(header::IF_MODIFIED_SINCE, since)
-            .to_http_request();
-        let resp = file.respond_to(&req).unwrap();
-        assert_eq!(resp.status(), StatusCode::NOT_MODIFIED);
+            let req = TestRequest::default()
+                .header(header::IF_MODIFIED_SINCE, since)
+                .to_http_request();
+            let resp = file.respond_to(&req).await.unwrap();
+            assert_eq!(resp.status(), StatusCode::NOT_MODIFIED);
+        })
     }
 
     #[test]
     fn test_if_modified_since_with_if_none_match() {
-        let file = NamedFile::open("Cargo.toml").unwrap();
-        let since =
-            header::HttpDate::from(SystemTime::now().add(Duration::from_secs(60)));
+        block_on(async {
+            let file = NamedFile::open("Cargo.toml").unwrap();
+            let since =
+                header::HttpDate::from(SystemTime::now().add(Duration::from_secs(60)));
 
-        let req = TestRequest::default()
-            .header(header::IF_NONE_MATCH, "miss_etag")
-            .header(header::IF_MODIFIED_SINCE, since)
-            .to_http_request();
-        let resp = file.respond_to(&req).unwrap();
-        assert_ne!(resp.status(), StatusCode::NOT_MODIFIED);
+            let req = TestRequest::default()
+                .header(header::IF_NONE_MATCH, "miss_etag")
+                .header(header::IF_MODIFIED_SINCE, since)
+                .to_http_request();
+            let resp = file.respond_to(&req).await.unwrap();
+            assert_ne!(resp.status(), StatusCode::NOT_MODIFIED);
+        })
     }
 
     #[test]
     fn test_named_file_text() {
-        assert!(NamedFile::open("test--").is_err());
-        let mut file = NamedFile::open("Cargo.toml").unwrap();
-        {
-            file.file();
-            let _f: &File = &file;
-        }
-        {
-            let _f: &mut File = &mut file;
-        }
+        block_on(async {
+            assert!(NamedFile::open("test--").is_err());
+            let mut file = NamedFile::open("Cargo.toml").unwrap();
+            {
+                file.file();
+                let _f: &File = &file;
+            }
+            {
+                let _f: &mut File = &mut file;
+            }
 
-        let req = TestRequest::default().to_http_request();
-        let resp = file.respond_to(&req).unwrap();
-        assert_eq!(
-            resp.headers().get(header::CONTENT_TYPE).unwrap(),
-            "text/x-toml"
-        );
-        assert_eq!(
-            resp.headers().get(header::CONTENT_DISPOSITION).unwrap(),
-            "inline; filename=\"Cargo.toml\""
-        );
+            let req = TestRequest::default().to_http_request();
+            let resp = file.respond_to(&req).await.unwrap();
+            assert_eq!(
+                resp.headers().get(header::CONTENT_TYPE).unwrap(),
+                "text/x-toml"
+            );
+            assert_eq!(
+                resp.headers().get(header::CONTENT_DISPOSITION).unwrap(),
+                "inline; filename=\"Cargo.toml\""
+            );
+        })
     }
 
     #[test]
     fn test_named_file_content_disposition() {
-        assert!(NamedFile::open("test--").is_err());
-        let mut file = NamedFile::open("Cargo.toml").unwrap();
-        {
-            file.file();
-            let _f: &File = &file;
-        }
-        {
-            let _f: &mut File = &mut file;
-        }
+        block_on(async {
+            assert!(NamedFile::open("test--").is_err());
+            let mut file = NamedFile::open("Cargo.toml").unwrap();
+            {
+                file.file();
+                let _f: &File = &file;
+            }
+            {
+                let _f: &mut File = &mut file;
+            }
 
-        let req = TestRequest::default().to_http_request();
-        let resp = file.respond_to(&req).unwrap();
-        assert_eq!(
-            resp.headers().get(header::CONTENT_DISPOSITION).unwrap(),
-            "inline; filename=\"Cargo.toml\""
-        );
+            let req = TestRequest::default().to_http_request();
+            let resp = file.respond_to(&req).await.unwrap();
+            assert_eq!(
+                resp.headers().get(header::CONTENT_DISPOSITION).unwrap(),
+                "inline; filename=\"Cargo.toml\""
+            );
 
-        let file = NamedFile::open("Cargo.toml")
-            .unwrap()
-            .disable_content_disposition();
-        let req = TestRequest::default().to_http_request();
-        let resp = file.respond_to(&req).unwrap();
-        assert!(resp.headers().get(header::CONTENT_DISPOSITION).is_none());
+            let file = NamedFile::open("Cargo.toml")
+                .unwrap()
+                .disable_content_disposition();
+            let req = TestRequest::default().to_http_request();
+            let resp = file.respond_to(&req).await.unwrap();
+            assert!(resp.headers().get(header::CONTENT_DISPOSITION).is_none());
+        })
     }
 
     #[test]
     fn test_named_file_non_ascii_file_name() {
-        let mut file =
-            NamedFile::from_file(File::open("Cargo.toml").unwrap(), "貨物.toml")
-                .unwrap();
-        {
-            file.file();
-            let _f: &File = &file;
-        }
-        {
-            let _f: &mut File = &mut file;
-        }
+        block_on(async {
+            let mut file =
+                NamedFile::from_file(File::open("Cargo.toml").unwrap(), "貨物.toml")
+                    .unwrap();
+            {
+                file.file();
+                let _f: &File = &file;
+            }
+            {
+                let _f: &mut File = &mut file;
+            }
 
-        let req = TestRequest::default().to_http_request();
-        let resp = file.respond_to(&req).unwrap();
-        assert_eq!(
-            resp.headers().get(header::CONTENT_TYPE).unwrap(),
-            "text/x-toml"
-        );
-        assert_eq!(
+            let req = TestRequest::default().to_http_request();
+            let resp = file.respond_to(&req).await.unwrap();
+            assert_eq!(
+                resp.headers().get(header::CONTENT_TYPE).unwrap(),
+                "text/x-toml"
+            );
+            assert_eq!(
             resp.headers().get(header::CONTENT_DISPOSITION).unwrap(),
             "inline; filename=\"貨物.toml\"; filename*=UTF-8''%E8%B2%A8%E7%89%A9.toml"
         );
+        })
     }
 
     #[test]
     fn test_named_file_set_content_type() {
-        let mut file = NamedFile::open("Cargo.toml")
-            .unwrap()
-            .set_content_type(mime::TEXT_XML);
-        {
-            file.file();
-            let _f: &File = &file;
-        }
-        {
-            let _f: &mut File = &mut file;
-        }
+        block_on(async {
+            let mut file = NamedFile::open("Cargo.toml")
+                .unwrap()
+                .set_content_type(mime::TEXT_XML);
+            {
+                file.file();
+                let _f: &File = &file;
+            }
+            {
+                let _f: &mut File = &mut file;
+            }
 
-        let req = TestRequest::default().to_http_request();
-        let resp = file.respond_to(&req).unwrap();
-        assert_eq!(
-            resp.headers().get(header::CONTENT_TYPE).unwrap(),
-            "text/xml"
-        );
-        assert_eq!(
-            resp.headers().get(header::CONTENT_DISPOSITION).unwrap(),
-            "inline; filename=\"Cargo.toml\""
-        );
+            let req = TestRequest::default().to_http_request();
+            let resp = file.respond_to(&req).await.unwrap();
+            assert_eq!(
+                resp.headers().get(header::CONTENT_TYPE).unwrap(),
+                "text/xml"
+            );
+            assert_eq!(
+                resp.headers().get(header::CONTENT_DISPOSITION).unwrap(),
+                "inline; filename=\"Cargo.toml\""
+            );
+        })
     }
 
     #[test]
     fn test_named_file_image() {
-        let mut file = NamedFile::open("tests/test.png").unwrap();
-        {
-            file.file();
-            let _f: &File = &file;
-        }
-        {
-            let _f: &mut File = &mut file;
-        }
+        block_on(async {
+            let mut file = NamedFile::open("tests/test.png").unwrap();
+            {
+                file.file();
+                let _f: &File = &file;
+            }
+            {
+                let _f: &mut File = &mut file;
+            }
 
-        let req = TestRequest::default().to_http_request();
-        let resp = file.respond_to(&req).unwrap();
-        assert_eq!(
-            resp.headers().get(header::CONTENT_TYPE).unwrap(),
-            "image/png"
-        );
-        assert_eq!(
-            resp.headers().get(header::CONTENT_DISPOSITION).unwrap(),
-            "inline; filename=\"test.png\""
-        );
+            let req = TestRequest::default().to_http_request();
+            let resp = file.respond_to(&req).await.unwrap();
+            assert_eq!(
+                resp.headers().get(header::CONTENT_TYPE).unwrap(),
+                "image/png"
+            );
+            assert_eq!(
+                resp.headers().get(header::CONTENT_DISPOSITION).unwrap(),
+                "inline; filename=\"test.png\""
+            );
+        })
     }
 
     #[test]
     fn test_named_file_image_attachment() {
-        let cd = ContentDisposition {
-            disposition: DispositionType::Attachment,
-            parameters: vec![DispositionParam::Filename(String::from("test.png"))],
-        };
-        let mut file = NamedFile::open("tests/test.png")
-            .unwrap()
-            .set_content_disposition(cd);
-        {
-            file.file();
-            let _f: &File = &file;
-        }
-        {
-            let _f: &mut File = &mut file;
-        }
+        block_on(async {
+            let cd = ContentDisposition {
+                disposition: DispositionType::Attachment,
+                parameters: vec![DispositionParam::Filename(String::from("test.png"))],
+            };
+            let mut file = NamedFile::open("tests/test.png")
+                .unwrap()
+                .set_content_disposition(cd);
+            {
+                file.file();
+                let _f: &File = &file;
+            }
+            {
+                let _f: &mut File = &mut file;
+            }
 
-        let req = TestRequest::default().to_http_request();
-        let resp = file.respond_to(&req).unwrap();
-        assert_eq!(
-            resp.headers().get(header::CONTENT_TYPE).unwrap(),
-            "image/png"
-        );
-        assert_eq!(
-            resp.headers().get(header::CONTENT_DISPOSITION).unwrap(),
-            "attachment; filename=\"test.png\""
-        );
+            let req = TestRequest::default().to_http_request();
+            let resp = file.respond_to(&req).await.unwrap();
+            assert_eq!(
+                resp.headers().get(header::CONTENT_TYPE).unwrap(),
+                "image/png"
+            );
+            assert_eq!(
+                resp.headers().get(header::CONTENT_DISPOSITION).unwrap(),
+                "attachment; filename=\"test.png\""
+            );
+        })
     }
 
     #[test]
     fn test_named_file_binary() {
-        let mut file = NamedFile::open("tests/test.binary").unwrap();
-        {
-            file.file();
-            let _f: &File = &file;
-        }
-        {
-            let _f: &mut File = &mut file;
-        }
+        block_on(async {
+            let mut file = NamedFile::open("tests/test.binary").unwrap();
+            {
+                file.file();
+                let _f: &File = &file;
+            }
+            {
+                let _f: &mut File = &mut file;
+            }
 
-        let req = TestRequest::default().to_http_request();
-        let resp = file.respond_to(&req).unwrap();
-        assert_eq!(
-            resp.headers().get(header::CONTENT_TYPE).unwrap(),
-            "application/octet-stream"
-        );
-        assert_eq!(
-            resp.headers().get(header::CONTENT_DISPOSITION).unwrap(),
-            "attachment; filename=\"test.binary\""
-        );
+            let req = TestRequest::default().to_http_request();
+            let resp = file.respond_to(&req).await.unwrap();
+            assert_eq!(
+                resp.headers().get(header::CONTENT_TYPE).unwrap(),
+                "application/octet-stream"
+            );
+            assert_eq!(
+                resp.headers().get(header::CONTENT_DISPOSITION).unwrap(),
+                "attachment; filename=\"test.binary\""
+            );
+        })
     }
 
     #[test]
     fn test_named_file_status_code_text() {
-        let mut file = NamedFile::open("Cargo.toml")
-            .unwrap()
-            .set_status_code(StatusCode::NOT_FOUND);
-        {
-            file.file();
-            let _f: &File = &file;
-        }
-        {
-            let _f: &mut File = &mut file;
-        }
+        block_on(async {
+            let mut file = NamedFile::open("Cargo.toml")
+                .unwrap()
+                .set_status_code(StatusCode::NOT_FOUND);
+            {
+                file.file();
+                let _f: &File = &file;
+            }
+            {
+                let _f: &mut File = &mut file;
+            }
 
-        let req = TestRequest::default().to_http_request();
-        let resp = file.respond_to(&req).unwrap();
-        assert_eq!(
-            resp.headers().get(header::CONTENT_TYPE).unwrap(),
-            "text/x-toml"
-        );
-        assert_eq!(
-            resp.headers().get(header::CONTENT_DISPOSITION).unwrap(),
-            "inline; filename=\"Cargo.toml\""
-        );
-        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+            let req = TestRequest::default().to_http_request();
+            let resp = file.respond_to(&req).await.unwrap();
+            assert_eq!(
+                resp.headers().get(header::CONTENT_TYPE).unwrap(),
+                "text/x-toml"
+            );
+            assert_eq!(
+                resp.headers().get(header::CONTENT_DISPOSITION).unwrap(),
+                "inline; filename=\"Cargo.toml\""
+            );
+            assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+        })
     }
 
     #[test]
     fn test_mime_override() {
-        fn all_attachment(_: &mime::Name) -> DispositionType {
-            DispositionType::Attachment
-        }
+        block_on(async {
+            fn all_attachment(_: &mime::Name) -> DispositionType {
+                DispositionType::Attachment
+            }
 
-        let mut srv = test::init_service(
-            App::new().service(
-                Files::new("/", ".")
-                    .mime_override(all_attachment)
-                    .index_file("Cargo.toml"),
-            ),
-        );
+            let mut srv = test::init_service(
+                App::new().service(
+                    Files::new("/", ".")
+                        .mime_override(all_attachment)
+                        .index_file("Cargo.toml"),
+                ),
+            )
+            .await;
 
-        let request = TestRequest::get().uri("/").to_request();
-        let response = test::call_service(&mut srv, request);
-        assert_eq!(response.status(), StatusCode::OK);
+            let request = TestRequest::get().uri("/").to_request();
+            let response = test::call_service(&mut srv, request).await;
+            assert_eq!(response.status(), StatusCode::OK);
 
-        let content_disposition = response
-            .headers()
-            .get(header::CONTENT_DISPOSITION)
-            .expect("To have CONTENT_DISPOSITION");
-        let content_disposition = content_disposition
-            .to_str()
-            .expect("Convert CONTENT_DISPOSITION to str");
-        assert_eq!(content_disposition, "attachment; filename=\"Cargo.toml\"");
+            let content_disposition = response
+                .headers()
+                .get(header::CONTENT_DISPOSITION)
+                .expect("To have CONTENT_DISPOSITION");
+            let content_disposition = content_disposition
+                .to_str()
+                .expect("Convert CONTENT_DISPOSITION to str");
+            assert_eq!(content_disposition, "attachment; filename=\"Cargo.toml\"");
+        })
     }
 
     #[test]
     fn test_named_file_ranges_status_code() {
-        let mut srv = test::init_service(
-            App::new().service(Files::new("/test", ".").index_file("Cargo.toml")),
-        );
+        block_on(async {
+            let mut srv = test::init_service(
+                App::new().service(Files::new("/test", ".").index_file("Cargo.toml")),
+            )
+            .await;
 
-        // Valid range header
-        let request = TestRequest::get()
-            .uri("/t%65st/Cargo.toml")
-            .header(header::RANGE, "bytes=10-20")
-            .to_request();
-        let response = test::call_service(&mut srv, request);
-        assert_eq!(response.status(), StatusCode::PARTIAL_CONTENT);
+            // Valid range header
+            let request = TestRequest::get()
+                .uri("/t%65st/Cargo.toml")
+                .header(header::RANGE, "bytes=10-20")
+                .to_request();
+            let response = test::call_service(&mut srv, request).await;
+            assert_eq!(response.status(), StatusCode::PARTIAL_CONTENT);
 
-        // Invalid range header
-        let request = TestRequest::get()
-            .uri("/t%65st/Cargo.toml")
-            .header(header::RANGE, "bytes=1-0")
-            .to_request();
-        let response = test::call_service(&mut srv, request);
+            // Invalid range header
+            let request = TestRequest::get()
+                .uri("/t%65st/Cargo.toml")
+                .header(header::RANGE, "bytes=1-0")
+                .to_request();
+            let response = test::call_service(&mut srv, request).await;
 
-        assert_eq!(response.status(), StatusCode::RANGE_NOT_SATISFIABLE);
+            assert_eq!(response.status(), StatusCode::RANGE_NOT_SATISFIABLE);
+        })
     }
 
     #[test]
     fn test_named_file_content_range_headers() {
-        let mut srv = test::init_service(
-            App::new().service(Files::new("/test", ".").index_file("tests/test.binary")),
-        );
+        block_on(async {
+            let mut srv = test::init_service(
+                App::new()
+                    .service(Files::new("/test", ".").index_file("tests/test.binary")),
+            )
+            .await;
 
-        // Valid range header
-        let request = TestRequest::get()
-            .uri("/t%65st/tests/test.binary")
-            .header(header::RANGE, "bytes=10-20")
-            .to_request();
+            // Valid range header
+            let request = TestRequest::get()
+                .uri("/t%65st/tests/test.binary")
+                .header(header::RANGE, "bytes=10-20")
+                .to_request();
 
-        let response = test::call_service(&mut srv, request);
-        let contentrange = response
-            .headers()
-            .get(header::CONTENT_RANGE)
-            .unwrap()
-            .to_str()
-            .unwrap();
+            let response = test::call_service(&mut srv, request).await;
+            let contentrange = response
+                .headers()
+                .get(header::CONTENT_RANGE)
+                .unwrap()
+                .to_str()
+                .unwrap();
 
-        assert_eq!(contentrange, "bytes 10-20/100");
+            assert_eq!(contentrange, "bytes 10-20/100");
 
-        // Invalid range header
-        let request = TestRequest::get()
-            .uri("/t%65st/tests/test.binary")
-            .header(header::RANGE, "bytes=10-5")
-            .to_request();
-        let response = test::call_service(&mut srv, request);
+            // Invalid range header
+            let request = TestRequest::get()
+                .uri("/t%65st/tests/test.binary")
+                .header(header::RANGE, "bytes=10-5")
+                .to_request();
+            let response = test::call_service(&mut srv, request).await;
 
-        let contentrange = response
-            .headers()
-            .get(header::CONTENT_RANGE)
-            .unwrap()
-            .to_str()
-            .unwrap();
+            let contentrange = response
+                .headers()
+                .get(header::CONTENT_RANGE)
+                .unwrap()
+                .to_str()
+                .unwrap();
 
-        assert_eq!(contentrange, "bytes */100");
+            assert_eq!(contentrange, "bytes */100");
+        })
     }
 
     #[test]
     fn test_named_file_content_length_headers() {
-        // use actix_web::body::{MessageBody, ResponseBody};
+        block_on(async {
+            // use actix_web::body::{MessageBody, ResponseBody};
 
-        let mut srv = test::init_service(
-            App::new().service(Files::new("test", ".").index_file("tests/test.binary")),
-        );
+            let mut srv = test::init_service(
+                App::new()
+                    .service(Files::new("test", ".").index_file("tests/test.binary")),
+            )
+            .await;
 
-        // Valid range header
-        let request = TestRequest::get()
-            .uri("/t%65st/tests/test.binary")
-            .header(header::RANGE, "bytes=10-20")
-            .to_request();
-        let _response = test::call_service(&mut srv, request);
+            // Valid range header
+            let request = TestRequest::get()
+                .uri("/t%65st/tests/test.binary")
+                .header(header::RANGE, "bytes=10-20")
+                .to_request();
+            let _response = test::call_service(&mut srv, request).await;
 
-        // let contentlength = response
-        //     .headers()
-        //     .get(header::CONTENT_LENGTH)
-        //     .unwrap()
-        //     .to_str()
-        //     .unwrap();
-        // assert_eq!(contentlength, "11");
+            // let contentlength = response
+            //     .headers()
+            //     .get(header::CONTENT_LENGTH)
+            //     .unwrap()
+            //     .to_str()
+            //     .unwrap();
+            // assert_eq!(contentlength, "11");
 
-        // Invalid range header
-        let request = TestRequest::get()
-            .uri("/t%65st/tests/test.binary")
-            .header(header::RANGE, "bytes=10-8")
-            .to_request();
-        let response = test::call_service(&mut srv, request);
-        assert_eq!(response.status(), StatusCode::RANGE_NOT_SATISFIABLE);
+            // Invalid range header
+            let request = TestRequest::get()
+                .uri("/t%65st/tests/test.binary")
+                .header(header::RANGE, "bytes=10-8")
+                .to_request();
+            let response = test::call_service(&mut srv, request).await;
+            assert_eq!(response.status(), StatusCode::RANGE_NOT_SATISFIABLE);
 
-        // Without range header
-        let request = TestRequest::get()
-            .uri("/t%65st/tests/test.binary")
-            // .no_default_headers()
-            .to_request();
-        let _response = test::call_service(&mut srv, request);
+            // Without range header
+            let request = TestRequest::get()
+                .uri("/t%65st/tests/test.binary")
+                // .no_default_headers()
+                .to_request();
+            let _response = test::call_service(&mut srv, request).await;
 
-        // let contentlength = response
-        //     .headers()
-        //     .get(header::CONTENT_LENGTH)
-        //     .unwrap()
-        //     .to_str()
-        //     .unwrap();
-        // assert_eq!(contentlength, "100");
+            // let contentlength = response
+            //     .headers()
+            //     .get(header::CONTENT_LENGTH)
+            //     .unwrap()
+            //     .to_str()
+            //     .unwrap();
+            // assert_eq!(contentlength, "100");
 
-        // chunked
-        let request = TestRequest::get()
-            .uri("/t%65st/tests/test.binary")
-            .to_request();
-        let mut response = test::call_service(&mut srv, request);
+            // chunked
+            let request = TestRequest::get()
+                .uri("/t%65st/tests/test.binary")
+                .to_request();
+            let response = test::call_service(&mut srv, request).await;
 
-        // with enabled compression
-        // {
-        //     let te = response
-        //         .headers()
-        //         .get(header::TRANSFER_ENCODING)
-        //         .unwrap()
-        //         .to_str()
-        //         .unwrap();
-        //     assert_eq!(te, "chunked");
-        // }
+            // with enabled compression
+            // {
+            //     let te = response
+            //         .headers()
+            //         .get(header::TRANSFER_ENCODING)
+            //         .unwrap()
+            //         .to_str()
+            //         .unwrap();
+            //     assert_eq!(te, "chunked");
+            // }
 
-        let bytes =
-            test::block_on(response.take_body().fold(BytesMut::new(), |mut b, c| {
-                b.extend(c);
-                Ok::<_, Error>(b)
-            }))
-            .unwrap();
-        let data = Bytes::from(fs::read("tests/test.binary").unwrap());
-        assert_eq!(bytes.freeze(), data);
+            let bytes = test::read_body(response).await;
+            let data = Bytes::from(fs::read("tests/test.binary").unwrap());
+            assert_eq!(bytes, data);
+        })
     }
 
     #[test]
     fn test_head_content_length_headers() {
-        let mut srv = test::init_service(
-            App::new().service(Files::new("test", ".").index_file("tests/test.binary")),
-        );
+        block_on(async {
+            let mut srv = test::init_service(
+                App::new()
+                    .service(Files::new("test", ".").index_file("tests/test.binary")),
+            )
+            .await;
 
-        // Valid range header
-        let request = TestRequest::default()
-            .method(Method::HEAD)
-            .uri("/t%65st/tests/test.binary")
-            .to_request();
-        let _response = test::call_service(&mut srv, request);
+            // Valid range header
+            let request = TestRequest::default()
+                .method(Method::HEAD)
+                .uri("/t%65st/tests/test.binary")
+                .to_request();
+            let _response = test::call_service(&mut srv, request).await;
 
-        // TODO: fix check
-        // let contentlength = response
-        //     .headers()
-        //     .get(header::CONTENT_LENGTH)
-        //     .unwrap()
-        //     .to_str()
-        //     .unwrap();
-        // assert_eq!(contentlength, "100");
+            // TODO: fix check
+            // let contentlength = response
+            //     .headers()
+            //     .get(header::CONTENT_LENGTH)
+            //     .unwrap()
+            //     .to_str()
+            //     .unwrap();
+            // assert_eq!(contentlength, "100");
+        })
     }
 
     #[test]
     fn test_static_files_with_spaces() {
-        let mut srv = test::init_service(
-            App::new().service(Files::new("/", ".").index_file("Cargo.toml")),
-        );
-        let request = TestRequest::get()
-            .uri("/tests/test%20space.binary")
-            .to_request();
-        let mut response = test::call_service(&mut srv, request);
-        assert_eq!(response.status(), StatusCode::OK);
+        block_on(async {
+            let mut srv = test::init_service(
+                App::new().service(Files::new("/", ".").index_file("Cargo.toml")),
+            )
+            .await;
+            let request = TestRequest::get()
+                .uri("/tests/test%20space.binary")
+                .to_request();
+            let response = test::call_service(&mut srv, request).await;
+            assert_eq!(response.status(), StatusCode::OK);
 
-        let bytes =
-            test::block_on(response.take_body().fold(BytesMut::new(), |mut b, c| {
-                b.extend(c);
-                Ok::<_, Error>(b)
-            }))
-            .unwrap();
-
-        let data = Bytes::from(fs::read("tests/test space.binary").unwrap());
-        assert_eq!(bytes.freeze(), data);
+            let bytes = test::read_body(response).await;
+            let data = Bytes::from(fs::read("tests/test space.binary").unwrap());
+            assert_eq!(bytes, data);
+        })
     }
 
     #[test]
     fn test_files_not_allowed() {
-        let mut srv = test::init_service(App::new().service(Files::new("/", ".")));
+        block_on(async {
+            let mut srv =
+                test::init_service(App::new().service(Files::new("/", "."))).await;
 
-        let req = TestRequest::default()
-            .uri("/Cargo.toml")
-            .method(Method::POST)
-            .to_request();
+            let req = TestRequest::default()
+                .uri("/Cargo.toml")
+                .method(Method::POST)
+                .to_request();
 
-        let resp = test::call_service(&mut srv, req);
-        assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
+            let resp = test::call_service(&mut srv, req).await;
+            assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
 
-        let mut srv = test::init_service(App::new().service(Files::new("/", ".")));
-        let req = TestRequest::default()
-            .method(Method::PUT)
-            .uri("/Cargo.toml")
-            .to_request();
-        let resp = test::call_service(&mut srv, req);
-        assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
+            let mut srv =
+                test::init_service(App::new().service(Files::new("/", "."))).await;
+            let req = TestRequest::default()
+                .method(Method::PUT)
+                .uri("/Cargo.toml")
+                .to_request();
+            let resp = test::call_service(&mut srv, req).await;
+            assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
+        })
     }
 
     #[test]
     fn test_files_guards() {
-        let mut srv = test::init_service(
-            App::new().service(Files::new("/", ".").use_guards(guard::Post())),
-        );
+        block_on(async {
+            let mut srv = test::init_service(
+                App::new().service(Files::new("/", ".").use_guards(guard::Post())),
+            )
+            .await;
 
-        let req = TestRequest::default()
-            .uri("/Cargo.toml")
-            .method(Method::POST)
-            .to_request();
+            let req = TestRequest::default()
+                .uri("/Cargo.toml")
+                .method(Method::POST)
+                .to_request();
 
-        let resp = test::call_service(&mut srv, req);
-        assert_eq!(resp.status(), StatusCode::OK);
+            let resp = test::call_service(&mut srv, req).await;
+            assert_eq!(resp.status(), StatusCode::OK);
+        })
     }
 
     #[test]
     fn test_named_file_content_encoding() {
-        let mut srv = test::init_service(App::new().wrap(Compress::default()).service(
-            web::resource("/").to(|| {
-                NamedFile::open("Cargo.toml")
-                    .unwrap()
-                    .set_content_encoding(header::ContentEncoding::Identity)
-            }),
-        ));
+        block_on(async {
+            let mut srv =
+                test::init_service(App::new().wrap(Compress::default()).service(
+                    web::resource("/").to(|| {
+                        NamedFile::open("Cargo.toml")
+                            .unwrap()
+                            .set_content_encoding(header::ContentEncoding::Identity)
+                    }),
+                ))
+                .await;
 
-        let request = TestRequest::get()
-            .uri("/")
-            .header(header::ACCEPT_ENCODING, "gzip")
-            .to_request();
-        let res = test::call_service(&mut srv, request);
-        assert_eq!(res.status(), StatusCode::OK);
-        assert!(!res.headers().contains_key(header::CONTENT_ENCODING));
+            let request = TestRequest::get()
+                .uri("/")
+                .header(header::ACCEPT_ENCODING, "gzip")
+                .to_request();
+            let res = test::call_service(&mut srv, request).await;
+            assert_eq!(res.status(), StatusCode::OK);
+            assert!(!res.headers().contains_key(header::CONTENT_ENCODING));
+        })
     }
 
     #[test]
     fn test_named_file_content_encoding_gzip() {
-        let mut srv = test::init_service(App::new().wrap(Compress::default()).service(
-            web::resource("/").to(|| {
-                NamedFile::open("Cargo.toml")
-                    .unwrap()
-                    .set_content_encoding(header::ContentEncoding::Gzip)
-            }),
-        ));
+        block_on(async {
+            let mut srv =
+                test::init_service(App::new().wrap(Compress::default()).service(
+                    web::resource("/").to(|| {
+                        NamedFile::open("Cargo.toml")
+                            .unwrap()
+                            .set_content_encoding(header::ContentEncoding::Gzip)
+                    }),
+                ))
+                .await;
 
-        let request = TestRequest::get()
-            .uri("/")
-            .header(header::ACCEPT_ENCODING, "gzip")
-            .to_request();
-        let res = test::call_service(&mut srv, request);
-        assert_eq!(res.status(), StatusCode::OK);
-        assert_eq!(
-            res.headers()
-                .get(header::CONTENT_ENCODING)
-                .unwrap()
-                .to_str()
-                .unwrap(),
-            "gzip"
-        );
+            let request = TestRequest::get()
+                .uri("/")
+                .header(header::ACCEPT_ENCODING, "gzip")
+                .to_request();
+            let res = test::call_service(&mut srv, request).await;
+            assert_eq!(res.status(), StatusCode::OK);
+            assert_eq!(
+                res.headers()
+                    .get(header::CONTENT_ENCODING)
+                    .unwrap()
+                    .to_str()
+                    .unwrap(),
+                "gzip"
+            );
+        })
     }
 
     #[test]
     fn test_named_file_allowed_method() {
-        let req = TestRequest::default().method(Method::GET).to_http_request();
-        let file = NamedFile::open("Cargo.toml").unwrap();
-        let resp = file.respond_to(&req).unwrap();
-        assert_eq!(resp.status(), StatusCode::OK);
+        block_on(async {
+            let req = TestRequest::default().method(Method::GET).to_http_request();
+            let file = NamedFile::open("Cargo.toml").unwrap();
+            let resp = file.respond_to(&req).await.unwrap();
+            assert_eq!(resp.status(), StatusCode::OK);
+        })
     }
 
     #[test]
     fn test_static_files() {
-        let mut srv = test::init_service(
-            App::new().service(Files::new("/", ".").show_files_listing()),
-        );
-        let req = TestRequest::with_uri("/missing").to_request();
+        block_on(async {
+            let mut srv = test::init_service(
+                App::new().service(Files::new("/", ".").show_files_listing()),
+            )
+            .await;
+            let req = TestRequest::with_uri("/missing").to_request();
 
-        let resp = test::call_service(&mut srv, req);
-        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+            let resp = test::call_service(&mut srv, req).await;
+            assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 
-        let mut srv = test::init_service(App::new().service(Files::new("/", ".")));
+            let mut srv =
+                test::init_service(App::new().service(Files::new("/", "."))).await;
 
-        let req = TestRequest::default().to_request();
-        let resp = test::call_service(&mut srv, req);
-        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+            let req = TestRequest::default().to_request();
+            let resp = test::call_service(&mut srv, req).await;
+            assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 
-        let mut srv = test::init_service(
-            App::new().service(Files::new("/", ".").show_files_listing()),
-        );
-        let req = TestRequest::with_uri("/tests").to_request();
-        let mut resp = test::call_service(&mut srv, req);
-        assert_eq!(
-            resp.headers().get(header::CONTENT_TYPE).unwrap(),
-            "text/html; charset=utf-8"
-        );
+            let mut srv = test::init_service(
+                App::new().service(Files::new("/", ".").show_files_listing()),
+            )
+            .await;
+            let req = TestRequest::with_uri("/tests").to_request();
+            let resp = test::call_service(&mut srv, req).await;
+            assert_eq!(
+                resp.headers().get(header::CONTENT_TYPE).unwrap(),
+                "text/html; charset=utf-8"
+            );
 
-        let bytes =
-            test::block_on(resp.take_body().fold(BytesMut::new(), |mut b, c| {
-                b.extend(c);
-                Ok::<_, Error>(b)
-            }))
-            .unwrap();
-        assert!(format!("{:?}", bytes).contains("/tests/test.png"));
+            let bytes = test::read_body(resp).await;
+            assert!(format!("{:?}", bytes).contains("/tests/test.png"));
+        })
     }
 
     #[test]
     fn test_redirect_to_slash_directory() {
-        // should not redirect if no index
-        let mut srv = test::init_service(
-            App::new().service(Files::new("/", ".").redirect_to_slash_directory()),
-        );
-        let req = TestRequest::with_uri("/tests").to_request();
-        let resp = test::call_service(&mut srv, req);
-        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+        block_on(async {
+            // should not redirect if no index
+            let mut srv = test::init_service(
+                App::new().service(Files::new("/", ".").redirect_to_slash_directory()),
+            )
+            .await;
+            let req = TestRequest::with_uri("/tests").to_request();
+            let resp = test::call_service(&mut srv, req).await;
+            assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 
-        // should redirect if index present
-        let mut srv = test::init_service(
-            App::new().service(
-                Files::new("/", ".")
-                    .index_file("test.png")
-                    .redirect_to_slash_directory(),
-            ),
-        );
-        let req = TestRequest::with_uri("/tests").to_request();
-        let resp = test::call_service(&mut srv, req);
-        assert_eq!(resp.status(), StatusCode::FOUND);
+            // should redirect if index present
+            let mut srv = test::init_service(
+                App::new().service(
+                    Files::new("/", ".")
+                        .index_file("test.png")
+                        .redirect_to_slash_directory(),
+                ),
+            )
+            .await;
+            let req = TestRequest::with_uri("/tests").to_request();
+            let resp = test::call_service(&mut srv, req).await;
+            assert_eq!(resp.status(), StatusCode::FOUND);
 
-        // should not redirect if the path is wrong
-        let req = TestRequest::with_uri("/not_existing").to_request();
-        let resp = test::call_service(&mut srv, req);
-        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+            // should not redirect if the path is wrong
+            let req = TestRequest::with_uri("/not_existing").to_request();
+            let resp = test::call_service(&mut srv, req).await;
+            assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+        })
     }
 
     #[test]
@@ -1252,26 +1308,21 @@ mod tests {
 
     #[test]
     fn test_default_handler_file_missing() {
-        let mut st = test::block_on(
-            Files::new("/", ".")
+        block_on(async {
+            let mut st = Files::new("/", ".")
                 .default_handler(|req: ServiceRequest| {
-                    Ok(req.into_response(HttpResponse::Ok().body("default content")))
+                    ok(req.into_response(HttpResponse::Ok().body("default content")))
                 })
-                .new_service(&()),
-        )
-        .unwrap();
-        let req = TestRequest::with_uri("/missing").to_srv_request();
+                .new_service(&())
+                .await
+                .unwrap();
+            let req = TestRequest::with_uri("/missing").to_srv_request();
 
-        let mut resp = test::call_service(&mut st, req);
-        assert_eq!(resp.status(), StatusCode::OK);
-        let bytes =
-            test::block_on(resp.take_body().fold(BytesMut::new(), |mut b, c| {
-                b.extend(c);
-                Ok::<_, Error>(b)
-            }))
-            .unwrap();
-
-        assert_eq!(bytes.freeze(), Bytes::from_static(b"default content"));
+            let resp = test::call_service(&mut st, req).await;
+            assert_eq!(resp.status(), StatusCode::OK);
+            let bytes = test::read_body(resp).await;
+            assert_eq!(bytes, Bytes::from_static(b"default content"));
+        })
     }
 
     //     #[test]
