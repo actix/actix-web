@@ -34,7 +34,7 @@ members = [
   "actix-cors",
   "actix-files",
   "actix-framed",
-  #"actix-session",
+  "actix-session",
   "actix-identity",
   #"actix-multipart",
   "actix-web-actors",

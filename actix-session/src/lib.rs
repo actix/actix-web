@@ -47,6 +47,7 @@ use std::rc::Rc;
 
 use actix_web::dev::{Extensions, Payload, ServiceRequest, ServiceResponse};
 use actix_web::{Error, FromRequest, HttpMessage, HttpRequest};
+use futures::future::{ok, Ready};
 use hashbrown::HashMap;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -230,12 +231,12 @@ impl Session {
 /// ```
 impl FromRequest for Session {
     type Error = Error;
-    type Future = Result<Session, Error>;
+    type Future = Ready<Result<Session, Error>>;
     type Config = ();
 
     #[inline]
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        Ok(Session::get_session(&mut *req.extensions_mut()))
+        ok(Session::get_session(&mut *req.extensions_mut()))
     }
 }
 
