@@ -63,6 +63,7 @@ rust-tls = { version = "0.16.0", package="rustls", optional = true, features = [
 
 [dev-dependencies]
 actix-rt = "1.0.0-alpha.1"
+actix-connect = { version = "1.0.0-alpha.1", features=["openssl"] }
 actix-web = { version = "2.0.0-alpha.1", features=["openssl"] }
 actix-http = { version = "0.3.0-alpha.1", features=["openssl"] }
 actix-http-test = { version = "0.3.0-alpha.1", features=["openssl"] }

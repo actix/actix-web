@@ -125,9 +125,18 @@ fn test_timeout() {
             )))
         });
 
+        let connector = awc::Connector::new()
+            .connector(actix_connect::new_connector(
+                actix_connect::start_default_resolver(),
+            ))
+            .timeout(Duration::from_secs(15))
+            .finish();
+
         let client = awc::Client::build()
+            .connector(connector)
             .timeout(Duration::from_millis(50))
             .finish();
+
         let request = client.get(srv.url("/")).send();
         match request.await {
             Err(SendRequestError::Timeout) => (),
