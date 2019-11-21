@@ -181,7 +181,7 @@ impl<T: Serialize> Responder for Form<T> {
 ///
 /// /// Extract form data using serde.
 /// /// Custom configuration is used for this handler, max payload size is 4k
-/// fn index(form: web::Form<FormData>) -> Result<String> {
+/// async fn index(form: web::Form<FormData>) -> Result<String> {
 ///     Ok(format!("Welcome {}!", form.username))
 /// }
 ///

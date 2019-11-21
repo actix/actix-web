@@ -90,7 +90,7 @@ where
     ///     counter: Cell<usize>,
     /// }
     ///
-    /// fn index(data: web::Data<MyData>) {
+    /// async fn index(data: web::Data<MyData>) {
     ///     data.counter.set(data.counter.get() + 1);
     /// }
     ///
@@ -192,7 +192,7 @@ where
     /// ```rust
     /// use actix_web::{web, App, HttpResponse};
     ///
-    /// fn index(data: web::Path<(String, String)>) -> &'static str {
+    /// async fn index(data: web::Path<(String, String)>) -> &'static str {
     ///     "Welcome!"
     /// }
     ///
@@ -247,7 +247,7 @@ where
     /// ```rust
     /// use actix_web::{web, App, HttpResponse};
     ///
-    /// fn index() -> &'static str {
+    /// async fn index() -> &'static str {
     ///     "Welcome!"
     /// }
     ///
@@ -302,7 +302,7 @@ where
     /// ```rust
     /// use actix_web::{web, App, HttpRequest, HttpResponse, Result};
     ///
-    /// fn index(req: HttpRequest) -> Result<HttpResponse> {
+    /// async fn index(req: HttpRequest) -> Result<HttpResponse> {
     ///     let url = req.url_for("youtube", &["asdlkjqme"])?;
     ///     assert_eq!(url.as_str(), "https://youtube.com/watch/asdlkjqme");
     ///     Ok(HttpResponse::Ok().into())
@@ -346,7 +346,7 @@ where
     /// use actix_web::{middleware, web, App};
     /// use actix_web::http::{header::CONTENT_TYPE, HeaderValue};
     ///
-    /// fn index() -> &'static str {
+    /// async fn index() -> &'static str {
     ///     "Welcome!"
     /// }
     ///
@@ -404,7 +404,7 @@ where
     /// use actix_web::{web, App};
     /// use actix_web::http::{header::CONTENT_TYPE, HeaderValue};
     ///
-    /// fn index() -> &'static str {
+    /// async fn index() -> &'static str {
     ///     "Welcome!"
     /// }
     ///

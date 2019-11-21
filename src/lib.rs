@@ -6,7 +6,7 @@
 //! use actix_web::{web, App, Responder, HttpServer};
 //! # use std::thread;
 //!
-//! fn index(info: web::Path<(String, u32)>) -> impl Responder {
+//! async fn index(info: web::Path<(String, u32)>) -> impl Responder {
 //!     format!("Hello {}! id:{}", info.0, info.1)
 //! }
 //!
@@ -136,7 +136,7 @@ pub mod dev {
 
     pub use crate::config::{AppConfig, AppService};
     #[doc(hidden)]
-    pub use crate::handler::{AsyncFactory, Factory};
+    pub use crate::handler::Factory;
     pub use crate::info::ConnectionInfo;
     pub use crate::rmap::ResourceMap;
     pub use crate::service::{

@@ -475,9 +475,10 @@ pub(crate) mod tests {
             let mut srv = init_service(
                 App::new()
                     .service(
-                        web::resource("/none").to(|| -> Option<&'static str> { None }),
+                        web::resource("/none")
+                            .to(|| async { Option::<&'static str>::None }),
                     )
-                    .service(web::resource("/some").to(|| Some("some"))),
+                    .service(web::resource("/some").to(|| async { Some("some") })),
             )
             .await;
 

@@ -24,7 +24,7 @@ use crate::FromRequest;
 /// /// extract path info from "/{username}/{count}/index.html" url
 /// /// {username} - deserializes to a String
 /// /// {count} -  - deserializes to a u32
-/// fn index(info: web::Path<(String, u32)>) -> String {
+/// async fn index(info: web::Path<(String, u32)>) -> String {
 ///     format!("Welcome {}! {}", info.0, info.1)
 /// }
 ///
@@ -49,7 +49,7 @@ use crate::FromRequest;
 /// }
 ///
 /// /// extract `Info` from a path using serde
-/// fn index(info: web::Path<Info>) -> Result<String, Error> {
+/// async fn index(info: web::Path<Info>) -> Result<String, Error> {
 ///     Ok(format!("Welcome {}!", info.username))
 /// }
 ///
@@ -119,7 +119,7 @@ impl<T: fmt::Display> fmt::Display for Path<T> {
 /// /// extract path info from "/{username}/{count}/index.html" url
 /// /// {username} - deserializes to a String
 /// /// {count} -  - deserializes to a u32
-/// fn index(info: web::Path<(String, u32)>) -> String {
+/// async fn index(info: web::Path<(String, u32)>) -> String {
 ///     format!("Welcome {}! {}", info.0, info.1)
 /// }
 ///
@@ -144,7 +144,7 @@ impl<T: fmt::Display> fmt::Display for Path<T> {
 /// }
 ///
 /// /// extract `Info` from a path using serde
-/// fn index(info: web::Path<Info>) -> Result<String, Error> {
+/// async fn index(info: web::Path<Info>) -> Result<String, Error> {
 ///     Ok(format!("Welcome {}!", info.username))
 /// }
 ///
@@ -206,7 +206,7 @@ where
 /// }
 ///
 /// // deserialize `Info` from request's path
-/// fn index(folder: web::Path<Folder>) -> String {
+/// async fn index(folder: web::Path<Folder>) -> String {
 ///     format!("Selected folder: {:?}!", folder)
 /// }
 ///

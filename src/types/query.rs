@@ -40,7 +40,7 @@ use crate::request::HttpRequest;
 /// // Use `Query` extractor for query information (and destructure it within the signature).
 /// // This handler gets called only if the request's query string contains a `username` field.
 /// // The correct request for this handler would be `/index.html?id=64&response_type=Code"`.
-/// fn index(web::Query(info): web::Query<AuthRequest>) -> String {
+/// async fn index(web::Query(info): web::Query<AuthRequest>) -> String {
 ///     format!("Authorization request for client with id={} and type={:?}!", info.id, info.response_type)
 /// }
 ///
@@ -118,7 +118,7 @@ impl<T: fmt::Display> fmt::Display for Query<T> {
 /// // Use `Query` extractor for query information.
 /// // This handler get called only if request's query contains `username` field
 /// // The correct request for this handler would be `/index.html?id=64&response_type=Code"`
-/// fn index(info: web::Query<AuthRequest>) -> String {
+/// async fn index(info: web::Query<AuthRequest>) -> String {
 ///     format!("Authorization request for client with id={} and type={:?}!", info.id, info.response_type)
 /// }
 ///
@@ -179,7 +179,7 @@ where
 /// }
 ///
 /// /// deserialize `Info` from request's querystring
-/// fn index(info: web::Query<Info>) -> String {
+/// async fn index(info: web::Query<Info>) -> String {
 ///     format!("Welcome {}!", info.username)
 /// }
 ///

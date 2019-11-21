@@ -46,7 +46,7 @@ type BoxedResponse = LocalBoxFuture<'static, Result<ServiceResponse, Error>>;
 /// fn main() {
 ///     let app = App::new().service(
 ///         web::scope("/{project_id}/")
-///             .service(web::resource("/path1").to(|| HttpResponse::Ok()))
+///             .service(web::resource("/path1").to(|| async { HttpResponse::Ok() }))
 ///             .service(web::resource("/path2").route(web::get().to(|| HttpResponse::Ok())))
 ///             .service(web::resource("/path3").route(web::head().to(|| HttpResponse::MethodNotAllowed())))
 ///     );
@@ -101,7 +101,7 @@ where
     /// ```rust
     /// use actix_web::{web, guard, App, HttpRequest, HttpResponse};
     ///
-    /// fn index(data: web::Path<(String, String)>) -> &'static str {
+    /// async fn index(data: web::Path<(String, String)>) -> &'static str {
     ///     "Welcome!"
     /// }
     ///
@@ -132,7 +132,7 @@ where
     ///     counter: Cell<usize>,
     /// }
     ///
-    /// fn index(data: web::Data<MyData>) {
+    /// async fn index(data: web::Data<MyData>) {
     ///     data.counter.set(data.counter.get() + 1);
     /// }
     ///
@@ -228,7 +228,7 @@ where
     ///
     /// struct AppState;
     ///
-    /// fn index(req: HttpRequest) -> &'static str {
+    /// async fn index(req: HttpRequest) -> &'static str {
     ///     "Welcome!"
     /// }
     ///
@@ -258,7 +258,7 @@ where
     /// ```rust
     /// use actix_web::{web, App, HttpResponse};
     ///
-    /// fn index(data: web::Path<(String, String)>) -> &'static str {
+    /// async fn index(data: web::Path<(String, String)>) -> &'static str {
     ///     "Welcome!"
     /// }
     ///
@@ -356,7 +356,7 @@ where
     /// use actix_web::{web, App};
     /// use actix_web::http::{header::CONTENT_TYPE, HeaderValue};
     ///
-    /// fn index() -> &'static str {
+    /// async fn index() -> &'static str {
     ///     "Welcome!"
     /// }
     ///
@@ -846,8 +846,10 @@ mod tests {
             let mut srv =
                 init_service(App::new().service(web::scope("/ab-{project}").service(
                     web::resource("/path1").to(|r: HttpRequest| {
-                        HttpResponse::Ok()
-                            .body(format!("project: {}", &r.match_info()["project"]))
+                        async move {
+                            HttpResponse::Ok()
+                                .body(format!("project: {}", &r.match_info()["project"]))
+                        }
                     }),
                 )))
                 .await;
@@ -962,8 +964,12 @@ mod tests {
             let mut srv = init_service(App::new().service(web::scope("/app").service(
                 web::scope("/{project_id}").service(web::resource("/path1").to(
                     |r: HttpRequest| {
-                        HttpResponse::Created()
-                            .body(format!("project: {}", &r.match_info()["project_id"]))
+                        async move {
+                            HttpResponse::Created().body(format!(
+                                "project: {}",
+                                &r.match_info()["project_id"]
+                            ))
+                        }
                     },
                 )),
             )))
@@ -989,11 +995,13 @@ mod tests {
             let mut srv = init_service(App::new().service(web::scope("/app").service(
                 web::scope("/{project}").service(web::scope("/{id}").service(
                     web::resource("/path1").to(|r: HttpRequest| {
-                        HttpResponse::Created().body(format!(
-                            "project: {} - {}",
-                            &r.match_info()["project"],
-                            &r.match_info()["id"],
-                        ))
+                        async move {
+                            HttpResponse::Created().body(format!(
+                                "project: {} - {}",
+                                &r.match_info()["project"],
+                                &r.match_info()["id"],
+                            ))
+                        }
                     }),
                 )),
             )))
@@ -1241,12 +1249,14 @@ mod tests {
                         s.route(
                             "/",
                             web::get().to(|req: HttpRequest| {
-                                HttpResponse::Ok().body(format!(
-                                    "{}",
-                                    req.url_for("youtube", &["xxxxxx"])
-                                        .unwrap()
-                                        .as_str()
-                                ))
+                                async move {
+                                    HttpResponse::Ok().body(format!(
+                                        "{}",
+                                        req.url_for("youtube", &["xxxxxx"])
+                                            .unwrap()
+                                            .as_str()
+                                    ))
+                                }
                             }),
                         );
                     }));
@@ -1267,8 +1277,12 @@ mod tests {
             let mut srv = init_service(App::new().service(web::scope("/a").service(
                 web::scope("/b").service(web::resource("/c/{stuff}").name("c").route(
                     web::get().to(|req: HttpRequest| {
-                        HttpResponse::Ok()
-                            .body(format!("{}", req.url_for("c", &["12345"]).unwrap()))
+                        async move {
+                            HttpResponse::Ok().body(format!(
+                                "{}",
+                                req.url_for("c", &["12345"]).unwrap()
+                            ))
+                        }
                     }),
                 )),
             )))

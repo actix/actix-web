@@ -45,7 +45,7 @@ pub(crate) trait DataFactory {
 /// }
 ///
 /// /// Use `Data<T>` extractor to access data in handler.
-/// fn index(data: web::Data<Mutex<MyData>>) {
+/// async fn index(data: web::Data<Mutex<MyData>>) {
 ///     let mut data = data.lock().unwrap();
 ///     data.counter += 1;
 /// }

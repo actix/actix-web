@@ -46,7 +46,7 @@ use crate::responder::Responder;
 /// }
 ///
 /// /// deserialize `Info` from request's body
-/// fn index(info: web::Json<Info>) -> String {
+/// async fn index(info: web::Json<Info>) -> String {
 ///     format!("Welcome {}!", info.username)
 /// }
 ///
@@ -157,7 +157,7 @@ impl<T: Serialize> Responder for Json<T> {
 /// }
 ///
 /// /// deserialize `Info` from request's body
-/// fn index(info: web::Json<Info>) -> String {
+/// async fn index(info: web::Json<Info>) -> String {
 ///     format!("Welcome {}!", info.username)
 /// }
 ///
@@ -217,7 +217,7 @@ where
 /// }
 ///
 /// /// deserialize `Info` from request's body, max payload size is 4kb
-/// fn index(info: web::Json<Info>) -> String {
+/// async fn index(info: web::Json<Info>) -> String {
 ///     format!("Welcome {}!", info.username)
 /// }
 ///

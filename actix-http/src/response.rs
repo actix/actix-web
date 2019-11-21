@@ -1,11 +1,14 @@
 //! Http response
 use std::cell::{Ref, RefMut};
+use std::future::Future;
 use std::io::Write;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 use std::{fmt, str};
 
 use bytes::{BufMut, Bytes, BytesMut};
 use futures::future::{ok, Ready};
-use futures::Stream;
+use futures::stream::Stream;
 use serde::Serialize;
 use serde_json;
 
@@ -280,15 +283,20 @@ impl<B: MessageBody> fmt::Debug for Response<B> {
     }
 }
 
-// impl IntoFuture for Response {
-//     type Item = Response;
-//     type Error = Error;
-//     type Future = FutureResult<Response, Error>;
+impl Future for Response {
+    type Output = Result<Response, Error>;
 
-//     fn into_future(self) -> Self::Future {
-//         ok(self)
-//     }
-// }
+    fn poll(mut self: Pin<&mut Self>, _: &mut Context) -> Poll<Self::Output> {
+        Poll::Ready(Ok(Response {
+            head: std::mem::replace(
+                &mut self.head,
+                BoxedResponseHead::new(StatusCode::OK),
+            ),
+            body: self.body.take_body(),
+            error: self.error.take(),
+        }))
+    }
+}
 
 pub struct CookieIter<'a> {
     iter: header::GetAll<'a>,
@@ -757,15 +765,13 @@ impl<'a> From<&'a ResponseHead> for ResponseBuilder {
     }
 }
 
-// impl IntoFuture for ResponseBuilder {
-//     type Item = Response;
-//     type Error = Error;
-//     type Future = FutureResult<Response, Error>;
+impl Future for ResponseBuilder {
+    type Output = Result<Response, Error>;
 
-//     fn into_future(mut self) -> Self::Future {
-//         ok(self.finish())
-//     }
-// }
+    fn poll(mut self: Pin<&mut Self>, _: &mut Context) -> Poll<Self::Output> {
+        Poll::Ready(Ok(self.finish()))
+    }
+}
 
 impl fmt::Debug for ResponseBuilder {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

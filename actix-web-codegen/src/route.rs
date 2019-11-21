@@ -13,7 +13,7 @@ enum ResourceType {
 impl ToTokens for ResourceType {
     fn to_tokens(&self, stream: &mut TokenStream2) {
         let ident = match self {
-            ResourceType::Async => "to_async",
+            ResourceType::Async => "to",
             ResourceType::Sync => "to",
         };
         let ident = Ident::new(ident, Span::call_site());

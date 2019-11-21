@@ -8,7 +8,7 @@ pub use futures::channel::oneshot::Canceled;
 
 use crate::error::Error;
 use crate::extract::FromRequest;
-use crate::handler::{AsyncFactory, Factory};
+use crate::handler::Factory;
 use crate::resource::Resource;
 use crate::responder::Responder;
 use crate::route::Route;
@@ -231,10 +231,10 @@ pub fn method(method: Method) -> Route {
 /// Create a new route and add handler.
 ///
 /// ```rust
-/// use actix_web::{web, App, HttpResponse};
+/// use actix_web::{web, App, HttpResponse, Responder};
 ///
-/// fn index() -> HttpResponse {
-///    unimplemented!()
+/// async fn index() -> impl Responder {
+///    HttpResponse::Ok()
 /// }
 ///
 /// App::new().service(
@@ -242,36 +242,14 @@ pub fn method(method: Method) -> Route {
 ///         web::to(index))
 /// );
 /// ```
-pub fn to<F, I, R>(handler: F) -> Route
+pub fn to<F, I, R, U>(handler: F) -> Route
 where
-    F: Factory<I, R> + 'static,
-    I: FromRequest + 'static,
-    R: Responder + 'static,
-{
-    Route::new().to(handler)
-}
-
-/// Create a new route and add async handler.
-///
-/// ```rust
-/// use actix_web::{web, App, HttpResponse, Error};
-///
-/// async fn index() -> Result<HttpResponse, Error> {
-///     Ok(HttpResponse::Ok().finish())
-/// }
-///
-/// App::new().service(web::resource("/").route(
-///     web::to_async(index))
-/// );
-/// ```
-pub fn to_async<F, I, R, U>(handler: F) -> Route
-where
-    F: AsyncFactory<I, R, U>,
+    F: Factory<I, R, U>,
     I: FromRequest + 'static,
     R: Future<Output = U> + 'static,
     U: Responder + 'static,
 {
-    Route::new().to_async(handler)
+    Route::new().to(handler)
 }
 
 /// Create raw service for a specific path.

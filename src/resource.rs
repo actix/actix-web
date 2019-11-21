@@ -17,7 +17,7 @@ use crate::data::Data;
 use crate::dev::{insert_slash, AppService, HttpServiceFactory, ResourceDef};
 use crate::extract::FromRequest;
 use crate::guard::Guard;
-use crate::handler::{AsyncFactory, Factory};
+use crate::handler::Factory;
 use crate::responder::Responder;
 use crate::route::{CreateRouteService, Route, RouteService};
 use crate::service::{ServiceRequest, ServiceResponse};
@@ -98,7 +98,7 @@ where
     /// ```rust
     /// use actix_web::{web, guard, App, HttpResponse};
     ///
-    /// fn index(data: web::Path<(String, String)>) -> &'static str {
+    /// async fn index(data: web::Path<(String, String)>) -> &'static str {
     ///     "Welcome!"
     /// }
     ///
@@ -156,9 +156,9 @@ where
     ///              .route(web::delete().to(delete_handler))
     ///     );
     /// }
-    /// # fn get_handler() {}
-    /// # fn post_handler() {}
-    /// # fn delete_handler() {}
+    /// # async fn get_handler() -> impl actix_web::Responder { HttpResponse::Ok() }
+    /// # async fn post_handler() -> impl actix_web::Responder { HttpResponse::Ok() }
+    /// # async fn delete_handler() -> impl actix_web::Responder { HttpResponse::Ok() }
     /// ```
     pub fn route(mut self, route: Route) -> Self {
         self.routes.push(route);
@@ -174,7 +174,7 @@ where
     /// use actix_web::{web, App, FromRequest};
     ///
     /// /// extract text data from request
-    /// fn index(body: String) -> String {
+    /// async fn index(body: String) -> String {
     ///     format!("Body {}!", body)
     /// }
     ///
@@ -230,46 +230,14 @@ where
     /// # fn index(req: HttpRequest) -> HttpResponse { unimplemented!() }
     /// App::new().service(web::resource("/").route(web::route().to(index)));
     /// ```
-    pub fn to<F, I, R>(mut self, handler: F) -> Self
+    pub fn to<F, I, R, U>(mut self, handler: F) -> Self
     where
-        F: Factory<I, R> + 'static,
-        I: FromRequest + 'static,
-        R: Responder + 'static,
-    {
-        self.routes.push(Route::new().to(handler));
-        self
-    }
-
-    /// Register a new route and add async handler.
-    ///
-    /// ```rust
-    /// use actix_web::*;
-    ///
-    /// async fn index(req: HttpRequest) -> Result<HttpResponse, Error> {
-    ///     Ok(HttpResponse::Ok().finish())
-    /// }
-    ///
-    /// App::new().service(web::resource("/").to_async(index));
-    /// ```
-    ///
-    /// This is shortcut for:
-    ///
-    /// ```rust
-    /// # use actix_web::*;
-    /// # async fn index(req: HttpRequest) -> Result<HttpResponse, Error> {
-    /// #     unimplemented!()
-    /// # }
-    /// App::new().service(web::resource("/").route(web::route().to_async(index)));
-    /// ```
-    #[allow(clippy::wrong_self_convention)]
-    pub fn to_async<F, I, R, U>(mut self, handler: F) -> Self
-    where
-        F: AsyncFactory<I, R, U>,
+        F: Factory<I, R, U>,
         I: FromRequest + 'static,
         R: Future<Output = U> + 'static,
         U: Responder + 'static,
     {
-        self.routes.push(Route::new().to_async(handler));
+        self.routes.push(Route::new().to(handler));
         self
     }
 
@@ -327,7 +295,7 @@ where
     /// use actix_web::{web, App};
     /// use actix_web::http::{header::CONTENT_TYPE, HeaderValue};
     ///
-    /// fn index() -> &'static str {
+    /// async fn index() -> &'static str {
     ///     "Welcome!"
     /// }
     ///
@@ -705,17 +673,16 @@ mod tests {
     }
 
     #[test]
-    fn test_to_async() {
+    fn test_to() {
         block_on(async {
-            let mut srv = init_service(App::new().service(
-                web::resource("/test").to_async(|| {
+            let mut srv =
+                init_service(App::new().service(web::resource("/test").to(|| {
                     async {
                         delay_for(Duration::from_millis(100)).await;
                         Ok::<_, Error>(HttpResponse::Ok())
                     }
-                }),
-            ))
-            .await;
+                })))
+                .await;
             let req = TestRequest::with_uri("/test").to_request();
             let resp = call_service(&mut srv, req).await;
             assert_eq!(resp.status(), StatusCode::OK);

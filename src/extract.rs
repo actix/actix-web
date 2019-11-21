@@ -75,7 +75,7 @@ pub trait FromRequest: Sized {
 /// }
 ///
 /// /// extract `Thing` from request
-/// fn index(supplied_thing: Option<Thing>) -> String {
+/// async fn index(supplied_thing: Option<Thing>) -> String {
 ///     match supplied_thing {
 ///         // Puns not intended
 ///         Some(thing) => format!("Got something: {:?}", thing),
@@ -146,7 +146,7 @@ where
 /// }
 ///
 /// /// extract `Thing` from request
-/// fn index(supplied_thing: Result<Thing>) -> String {
+/// async fn index(supplied_thing: Result<Thing>) -> String {
 ///     match supplied_thing {
 ///         Ok(thing) => format!("Got thing: {:?}", thing),
 ///         Err(e) => format!("Error extracting thing: {}", e)

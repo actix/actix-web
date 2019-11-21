@@ -11,13 +11,11 @@ use bytes::Bytes;
 use flate2::read::GzDecoder;
 use flate2::write::{GzEncoder, ZlibDecoder, ZlibEncoder};
 use flate2::Compression;
-use futures::future::ok;
-use futures::stream::once;
+use futures::{future::ok, stream::once};
 use rand::{distributions::Alphanumeric, Rng};
 
-use actix_connect::start_default_resolver;
 use actix_web::middleware::{BodyEncoding, Compress};
-use actix_web::{dev, http, test, web, App, HttpResponse, HttpServer};
+use actix_web::{dev, http, web, App, HttpResponse, HttpServer};
 
 const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
                    Hello World Hello World Hello World Hello World Hello World \
@@ -817,18 +815,19 @@ fn test_brotli_encoding_large() {
 // }
 
 #[cfg(all(
-    feature = "rust-tls",
-    feature = "ssl",
+    feature = "rustls",
+    feature = "openssl",
     any(feature = "flate2-zlib", feature = "flate2-rust")
 ))]
 #[test]
 fn test_reading_deflate_encoding_large_random_ssl() {
     block_on(async {
-        use openssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
-        use rustls::internal::pemfile::{certs, pkcs8_private_keys};
-        use rustls::{NoClientAuth, ServerConfig};
+        use open_ssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
+        use rust_tls::internal::pemfile::{certs, pkcs8_private_keys};
+        use rust_tls::{NoClientAuth, ServerConfig};
         use std::fs::File;
         use std::io::BufReader;
+        use std::sync::mpsc;
 
         let addr = TestServer::unused_addr();
         let (tx, rx) = mpsc::channel();
@@ -838,7 +837,7 @@ fn test_reading_deflate_encoding_large_random_ssl() {
             .take(160_000)
             .collect::<String>();
 
-        thread::spawn(move || {
+        std::thread::spawn(move || {
             let sys = actix_rt::System::new("test");
 
             // load ssl keys
@@ -851,11 +850,13 @@ fn test_reading_deflate_encoding_large_random_ssl() {
 
             let srv = HttpServer::new(|| {
                 App::new().service(web::resource("/").route(web::to(|bytes: Bytes| {
-                    Ok::<_, Error>(
-                        HttpResponse::Ok()
-                            .encoding(http::ContentEncoding::Identity)
-                            .body(bytes),
-                    )
+                    async move {
+                        Ok::<_, Error>(
+                            HttpResponse::Ok()
+                                .encoding(http::ContentEncoding::Identity)
+                                .body(bytes),
+                        )
+                    }
                 })))
             })
             .bind_rustls(addr, config)
@@ -866,8 +867,7 @@ fn test_reading_deflate_encoding_large_random_ssl() {
             let _ = sys.run();
         });
         let (srv, _sys) = rx.recv().unwrap();
-        test::block_on(futures::lazy(|| Ok::<_, ()>(start_default_resolver()))).unwrap();
-        let client = test::run_on(|| {
+        let client = {
             let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
             builder.set_verify(SslVerifyMode::NONE);
             let _ = builder.set_alpn_protos(b"\x02h2\x08http/1.1").unwrap();
@@ -880,7 +880,7 @@ fn test_reading_deflate_encoding_large_random_ssl() {
                         .finish(),
                 )
                 .finish()
-        });
+        };
 
         // encode data
         let mut e = ZlibEncoder::new(Vec::new(), Compression::default());
@@ -893,11 +893,11 @@ fn test_reading_deflate_encoding_large_random_ssl() {
             .header(http::header::CONTENT_ENCODING, "deflate")
             .send_body(enc);
 
-        let mut response = test::block_on(req).unwrap();
+        let mut response = req.await.unwrap();
         assert!(response.status().is_success());
 
         // read response
-        let bytes = test::block_on(response.body()).unwrap();
+        let bytes = response.body().await.unwrap();
         assert_eq!(bytes.len(), data.len());
         assert_eq!(bytes, Bytes::from(data));
 

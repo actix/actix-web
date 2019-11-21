@@ -55,7 +55,7 @@ pub fn default_service(
 /// fn test_init_service() {
 ///     let mut app = test::init_service(
 ///         App::new()
-///             .service(web::resource("/test").to(|| HttpResponse::Ok()))
+///             .service(web::resource("/test").to(|| async { HttpResponse::Ok() }))
 ///     );
 ///
 ///     // Create request object
@@ -94,14 +94,16 @@ where
 /// fn test_response() {
 ///     let mut app = test::init_service(
 ///         App::new()
-///             .service(web::resource("/test").to(|| HttpResponse::Ok()))
-///     );
+///             .service(web::resource("/test").to(|| async {
+///                 HttpResponse::Ok()
+///             }))
+///     ).await;
 ///
 ///     // Create request object
 ///     let req = test::TestRequest::with_uri("/test").to_request();
 ///
 ///     // Call application
-///     let resp = test::call_service(&mut app, req);
+///     let resp = test::call_service(&mut app, req).await;
 ///     assert_eq!(resp.status(), StatusCode::OK);
 /// }
 /// ```
@@ -125,15 +127,17 @@ where
 ///     let mut app = test::init_service(
 ///         App::new().service(
 ///             web::resource("/index.html")
-///                 .route(web::post().to(
-///                     || HttpResponse::Ok().body("welcome!")))));
+///                 .route(web::post().to(|| async {
+///                     HttpResponse::Ok().body("welcome!")
+///                 })))
+///     ).await;
 ///
 ///     let req = test::TestRequest::post()
 ///         .uri("/index.html")
 ///         .header(header::CONTENT_TYPE, "application/json")
 ///         .to_request();
 ///
-///     let result = test::read_response(&mut app, req);
+///     let result = test::read_response(&mut app, req).await;
 ///     assert_eq!(result, Bytes::from_static(b"welcome!"));
 /// }
 /// ```
@@ -167,15 +171,17 @@ where
 ///     let mut app = test::init_service(
 ///         App::new().service(
 ///             web::resource("/index.html")
-///                 .route(web::post().to(
-///                     || HttpResponse::Ok().body("welcome!")))));
+///                 .route(web::post().to(|| async {
+///                     HttpResponse::Ok().body("welcome!")
+///                 })))
+///     ).await;
 ///
 ///     let req = test::TestRequest::post()
 ///         .uri("/index.html")
 ///         .header(header::CONTENT_TYPE, "application/json")
 ///         .to_request();
 ///
-///     let resp = test::call_service(&mut app, req);
+///     let resp = test::call_service(&mut app, req).await;
 ///     let result = test::read_body(resp);
 ///     assert_eq!(result, Bytes::from_static(b"welcome!"));
 /// }
@@ -221,10 +227,11 @@ where
 ///     let mut app = test::init_service(
 ///         App::new().service(
 ///             web::resource("/people")
-///                 .route(web::post().to(|person: web::Json<Person>| {
+///                 .route(web::post().to(|person: web::Json<Person>| async {
 ///                     HttpResponse::Ok()
 ///                         .json(person.into_inner())})
-///                     )));
+///                     ))
+///     ).await;
 ///
 ///     let payload = r#"{"id":"12345","name":"User name"}"#.as_bytes();
 ///
@@ -234,7 +241,7 @@ where
 ///         .set_payload(payload)
 ///         .to_request();
 ///
-///     let result: Person = test::read_response_json(&mut app, req);
+///     let result: Person = test::read_response_json(&mut app, req).await;
 /// }
 /// ```
 pub async fn read_response_json<S, B, T>(app: &mut S, req: Request) -> T
@@ -262,7 +269,7 @@ where
 /// use actix_web::{test, HttpRequest, HttpResponse, HttpMessage};
 /// use actix_web::http::{header, StatusCode};
 ///
-/// fn index(req: HttpRequest) -> HttpResponse {
+/// async fn index(req: HttpRequest) -> HttpResponse {
 ///     if let Some(hdr) = req.headers().get(header::CONTENT_TYPE) {
 ///         HttpResponse::Ok().into()
 ///     } else {
@@ -275,11 +282,11 @@ where
 ///     let req = test::TestRequest::with_header("content-type", "text/plain")
 ///         .to_http_request();
 ///
-///     let resp = test::block_on(index(req)).unwrap();
+///     let resp = index(req).await.unwrap();
 ///     assert_eq!(resp.status(), StatusCode::OK);
 ///
 ///     let req = test::TestRequest::default().to_http_request();
-///     let resp = test::block_on(index(req)).unwrap();
+///     let resp = index(req).await.unwrap();
 ///     assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 /// }
 /// ```
@@ -535,9 +542,17 @@ mod tests {
             let mut app = init_service(
                 App::new().service(
                     web::resource("/index.html")
-                        .route(web::put().to(|| HttpResponse::Ok().body("put!")))
-                        .route(web::patch().to(|| HttpResponse::Ok().body("patch!")))
-                        .route(web::delete().to(|| HttpResponse::Ok().body("delete!"))),
+                        .route(
+                            web::put().to(|| async { HttpResponse::Ok().body("put!") }),
+                        )
+                        .route(
+                            web::patch()
+                                .to(|| async { HttpResponse::Ok().body("patch!") }),
+                        )
+                        .route(
+                            web::delete()
+                                .to(|| async { HttpResponse::Ok().body("delete!") }),
+                        ),
                 ),
             )
             .await;
@@ -567,13 +582,11 @@ mod tests {
     #[test]
     fn test_response() {
         block_on(async {
-            let mut app = init_service(
-                App::new().service(
-                    web::resource("/index.html")
-                        .route(web::post().to(|| HttpResponse::Ok().body("welcome!"))),
-                ),
-            )
-            .await;
+            let mut app =
+                init_service(App::new().service(web::resource("/index.html").route(
+                    web::post().to(|| async { HttpResponse::Ok().body("welcome!") }),
+                )))
+                .await;
 
             let req = TestRequest::post()
                 .uri("/index.html")
@@ -597,7 +610,7 @@ mod tests {
             let mut app =
                 init_service(App::new().service(web::resource("/people").route(
                     web::post().to(|person: web::Json<Person>| {
-                        HttpResponse::Ok().json(person.into_inner())
+                        async { HttpResponse::Ok().json(person.into_inner()) }
                     }),
                 )))
                 .await;
@@ -621,7 +634,7 @@ mod tests {
             let mut app =
                 init_service(App::new().service(web::resource("/people").route(
                     web::post().to(|person: web::Form<Person>| {
-                        HttpResponse::Ok().json(person.into_inner())
+                        async { HttpResponse::Ok().json(person.into_inner()) }
                     }),
                 )))
                 .await;
@@ -650,7 +663,7 @@ mod tests {
             let mut app =
                 init_service(App::new().service(web::resource("/people").route(
                     web::post().to(|person: web::Json<Person>| {
-                        HttpResponse::Ok().json(person.into_inner())
+                        async { HttpResponse::Ok().json(person.into_inner()) }
                     }),
                 )))
                 .await;
@@ -688,8 +701,7 @@ mod tests {
             }
 
             let mut app = init_service(
-                App::new()
-                    .service(web::resource("/index.html").to_async(async_with_block)),
+                App::new().service(web::resource("/index.html").to(async_with_block)),
             )
             .await;
 
@@ -721,7 +733,7 @@ mod tests {
 
     //     let addr = run_on(|| MyActor.start());
     //     let mut app = init_service(App::new().service(
-    //         web::resource("/index.html").to_async(move || {
+    //         web::resource("/index.html").to(move || {
     //             addr.send(Num(1)).from_err().and_then(|res| {
     //                 if res == 1 {
     //                     HttpResponse::Ok()

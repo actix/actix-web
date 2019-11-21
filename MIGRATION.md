@@ -1,3 +1,10 @@
+## 2.0.0
+
+* Sync handlers has been removed. `.to_async()` methtod has been renamed to `.to()`
+
+  replace `fn` with `async fn` to convert sync handler to async
+
+
 ## 1.0.1
 
 * Cors middleware has been moved to `actix-cors` crate

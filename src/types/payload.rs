@@ -40,7 +40,7 @@ use crate::request::HttpRequest;
 /// fn main() {
 ///     let app = App::new().service(
 ///         web::resource("/index.html").route(
-///             web::get().to_async(index))
+///             web::get().to(index))
 ///     );
 /// }
 /// ```
@@ -88,7 +88,7 @@ impl Stream for Payload {
 /// fn main() {
 ///     let app = App::new().service(
 ///         web::resource("/index.html").route(
-///             web::get().to_async(index))
+///             web::get().to(index))
 ///     );
 /// }
 /// ```
@@ -117,7 +117,7 @@ impl FromRequest for Payload {
 /// use actix_web::{web, App};
 ///
 /// /// extract binary data from request
-/// fn index(body: Bytes) -> String {
+/// async fn index(body: Bytes) -> String {
 ///     format!("Body {:?}!", body)
 /// }
 ///
@@ -169,7 +169,7 @@ impl FromRequest for Bytes {
 /// use actix_web::{web, App, FromRequest};
 ///
 /// /// extract text data from request
-/// fn index(text: String) -> String {
+/// async fn index(text: String) -> String {
 ///     format!("Body {}!", text)
 /// }
 ///

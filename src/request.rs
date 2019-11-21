@@ -276,7 +276,7 @@ impl Drop for HttpRequest {
 /// use serde_derive::Deserialize;
 ///
 /// /// extract `Thing` from request
-/// fn index(req: HttpRequest) -> String {
+/// async fn index(req: HttpRequest) -> String {
 ///    format!("Got thing: {:?}", req)
 /// }
 ///

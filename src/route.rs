@@ -5,11 +5,11 @@ use std::task::{Context, Poll};
 
 use actix_http::{http::Method, Error};
 use actix_service::{Service, ServiceFactory};
-use futures::future::{ok, Either, FutureExt, LocalBoxFuture, Ready};
+use futures::future::{ok, ready, Either, FutureExt, LocalBoxFuture, Ready};
 
 use crate::extract::FromRequest;
 use crate::guard::{self, Guard};
-use crate::handler::{AsyncFactory, AsyncHandler, Extract, Factory, Handler};
+use crate::handler::{Extract, Factory, Handler};
 use crate::responder::Responder;
 use crate::service::{ServiceRequest, ServiceResponse};
 use crate::HttpResponse;
@@ -49,7 +49,7 @@ impl Route {
     pub fn new() -> Route {
         Route {
             service: Box::new(RouteNewService::new(Extract::new(Handler::new(|| {
-                HttpResponse::NotFound()
+                ready(HttpResponse::NotFound())
             })))),
             guards: Rc::new(Vec::new()),
         }
@@ -187,7 +187,7 @@ impl Route {
     /// }
     ///
     /// /// extract path info using serde
-    /// fn index(info: web::Path<Info>) -> String {
+    /// async fn index(info: web::Path<Info>) -> String {
     ///     format!("Welcome {}!", info.username)
     /// }
     ///
@@ -212,7 +212,7 @@ impl Route {
     /// }
     ///
     /// /// extract path info using serde
-    /// fn index(path: web::Path<Info>, query: web::Query<HashMap<String, String>>, body: web::Json<Info>) -> String {
+    /// async fn index(path: web::Path<Info>, query: web::Query<HashMap<String, String>>, body: web::Json<Info>) -> String {
     ///     format!("Welcome {}!", path.username)
     /// }
     ///
@@ -223,52 +223,15 @@ impl Route {
     ///     );
     /// }
     /// ```
-    pub fn to<F, T, R>(mut self, handler: F) -> Route
+    pub fn to<F, T, R, U>(mut self, handler: F) -> Self
     where
-        F: Factory<T, R> + 'static,
-        T: FromRequest + 'static,
-        R: Responder + 'static,
-    {
-        self.service =
-            Box::new(RouteNewService::new(Extract::new(Handler::new(handler))));
-        self
-    }
-
-    /// Set async handler function, use request extractors for parameters.
-    /// This method has to be used if your handler function returns `impl Future<>`
-    ///
-    /// ```rust
-    /// use actix_web::{web, App, Error};
-    /// use serde_derive::Deserialize;
-    ///
-    /// #[derive(Deserialize)]
-    /// struct Info {
-    ///     username: String,
-    /// }
-    ///
-    /// /// extract path info using serde
-    /// async fn index(info: web::Path<Info>) -> Result<&'static str, Error> {
-    ///     Ok("Hello World!")
-    /// }
-    ///
-    /// fn main() {
-    ///     let app = App::new().service(
-    ///         web::resource("/{username}/index.html") // <- define path parameters
-    ///             .route(web::get().to_async(index))  // <- register async handler
-    ///     );
-    /// }
-    /// ```
-    #[allow(clippy::wrong_self_convention)]
-    pub fn to_async<F, T, R, U>(mut self, handler: F) -> Self
-    where
-        F: AsyncFactory<T, R, U>,
+        F: Factory<T, R, U>,
         T: FromRequest + 'static,
         R: Future<Output = U> + 'static,
         U: Responder + 'static,
     {
-        self.service = Box::new(RouteNewService::new(Extract::new(AsyncHandler::new(
-            handler,
-        ))));
+        self.service =
+            Box::new(RouteNewService::new(Extract::new(Handler::new(handler))));
         self
     }
 }
@@ -402,22 +365,24 @@ mod tests {
                         web::resource("/test")
                             .route(web::get().to(|| HttpResponse::Ok()))
                             .route(web::put().to(|| {
-                                Err::<HttpResponse, _>(error::ErrorBadRequest("err"))
+                                async {
+                                    Err::<HttpResponse, _>(error::ErrorBadRequest("err"))
+                                }
                             }))
-                            .route(web::post().to_async(|| {
+                            .route(web::post().to(|| {
                                 async {
                                     delay_for(Duration::from_millis(100)).await;
                                     HttpResponse::Created()
                                 }
                             }))
-                            .route(web::delete().to_async(|| {
+                            .route(web::delete().to(|| {
                                 async {
                                     delay_for(Duration::from_millis(100)).await;
                                     Err::<HttpResponse, _>(error::ErrorBadRequest("err"))
                                 }
                             })),
                     )
-                    .service(web::resource("/json").route(web::get().to_async(|| {
+                    .service(web::resource("/json").route(web::get().to(|| {
                         async {
                             delay_for(Duration::from_millis(25)).await;
                             web::Json(MyObject {
