@@ -1,21 +1,24 @@
+use std::future::Future;
+use std::pin::Pin;
 use std::rc::Rc;
+use std::task::{Context, Poll};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use actix_http::h1::{Codec, SendResponse};
 use actix_http::{Error, Request, Response};
 use actix_router::{Path, Router, Url};
 use actix_server_config::ServerConfig;
-use actix_service::{IntoNewService, NewService, Service};
-use futures::{Async, Future, Poll};
+use actix_service::{IntoServiceFactory, Service, ServiceFactory};
+use futures::future::{ok, FutureExt, LocalBoxFuture};
 
 use crate::helpers::{BoxedHttpNewService, BoxedHttpService, HttpNewService};
 use crate::request::FramedRequest;
 use crate::state::State;
 
-type BoxedResponse = Box<dyn Future<Item = (), Error = Error>>;
+type BoxedResponse = LocalBoxFuture<'static, Result<(), Error>>;
 
 pub trait HttpServiceFactory {
-    type Factory: NewService;
+    type Factory: ServiceFactory;
 
     fn path(&self) -> &str;
 
@@ -48,19 +51,19 @@ impl<T: 'static, S: 'static> FramedApp<T, S> {
     pub fn service<U>(mut self, factory: U) -> Self
     where
         U: HttpServiceFactory,
-        U::Factory: NewService<
+        U::Factory: ServiceFactory<
                 Config = (),
                 Request = FramedRequest<T, S>,
                 Response = (),
                 Error = Error,
                 InitError = (),
             > + 'static,
-        <U::Factory as NewService>::Future: 'static,
-        <U::Factory as NewService>::Service: Service<
+        <U::Factory as ServiceFactory>::Future: 'static,
+        <U::Factory as ServiceFactory>::Service: Service<
             Request = FramedRequest<T, S>,
             Response = (),
             Error = Error,
-            Future = Box<dyn Future<Item = (), Error = Error>>,
+            Future = LocalBoxFuture<'static, Result<(), Error>>,
         >,
     {
         let path = factory.path().to_string();
@@ -70,12 +73,12 @@ impl<T: 'static, S: 'static> FramedApp<T, S> {
     }
 }
 
-impl<T, S> IntoNewService<FramedAppFactory<T, S>> for FramedApp<T, S>
+impl<T, S> IntoServiceFactory<FramedAppFactory<T, S>> for FramedApp<T, S>
 where
-    T: AsyncRead + AsyncWrite + 'static,
+    T: AsyncRead + AsyncWrite + Unpin + 'static,
     S: 'static,
 {
-    fn into_new_service(self) -> FramedAppFactory<T, S> {
+    fn into_factory(self) -> FramedAppFactory<T, S> {
         FramedAppFactory {
             state: self.state,
             services: Rc::new(self.services),
@@ -89,9 +92,9 @@ pub struct FramedAppFactory<T, S> {
     services: Rc<Vec<(String, BoxedHttpNewService<FramedRequest<T, S>>)>>,
 }
 
-impl<T, S> NewService for FramedAppFactory<T, S>
+impl<T, S> ServiceFactory for FramedAppFactory<T, S>
 where
-    T: AsyncRead + AsyncWrite + 'static,
+    T: AsyncRead + AsyncWrite + Unpin + 'static,
     S: 'static,
 {
     type Config = ServerConfig;
@@ -128,28 +131,30 @@ pub struct CreateService<T, S> {
 enum CreateServiceItem<T, S> {
     Future(
         Option<String>,
-        Box<dyn Future<Item = BoxedHttpService<FramedRequest<T, S>>, Error = ()>>,
+        LocalBoxFuture<'static, Result<BoxedHttpService<FramedRequest<T, S>>, ()>>,
     ),
     Service(String, BoxedHttpService<FramedRequest<T, S>>),
 }
 
 impl<S: 'static, T: 'static> Future for CreateService<T, S>
 where
-    T: AsyncRead + AsyncWrite,
+    T: AsyncRead + AsyncWrite + Unpin,
 {
-    type Item = FramedAppService<T, S>;
-    type Error = ();
+    type Output = Result<FramedAppService<T, S>, ()>;
 
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
         let mut done = true;
 
         // poll http services
         for item in &mut self.fut {
             let res = match item {
                 CreateServiceItem::Future(ref mut path, ref mut fut) => {
-                    match fut.poll()? {
-                        Async::Ready(service) => Some((path.take().unwrap(), service)),
-                        Async::NotReady => {
+                    match Pin::new(fut).poll(cx) {
+                        Poll::Ready(Ok(service)) => {
+                            Some((path.take().unwrap(), service))
+                        }
+                        Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
+                        Poll::Pending => {
                             done = false;
                             None
                         }
@@ -176,12 +181,12 @@ where
                     }
                     router
                 });
-            Ok(Async::Ready(FramedAppService {
+            Poll::Ready(Ok(FramedAppService {
                 router: router.finish(),
                 state: self.state.clone(),
             }))
         } else {
-            Ok(Async::NotReady)
+            Poll::Pending
         }
     }
 }
@@ -193,15 +198,15 @@ pub struct FramedAppService<T, S> {
 
 impl<S: 'static, T: 'static> Service for FramedAppService<T, S>
 where
-    T: AsyncRead + AsyncWrite,
+    T: AsyncRead + AsyncWrite + Unpin,
 {
     type Request = (Request, Framed<T, Codec>);
     type Response = ();
     type Error = Error;
     type Future = BoxedResponse;
 
-    fn poll_ready(&mut self) -> Poll<(), Self::Error> {
-        Ok(Async::Ready(()))
+    fn poll_ready(&mut self, _: &mut Context) -> Poll<Result<(), Self::Error>> {
+        Poll::Ready(Ok(()))
     }
 
     fn call(&mut self, (req, framed): (Request, Framed<T, Codec>)) -> Self::Future {
@@ -210,8 +215,8 @@ where
         if let Some((srv, _info)) = self.router.recognize_mut(&mut path) {
             return srv.call(FramedRequest::new(req, framed, path, self.state.clone()));
         }
-        Box::new(
-            SendResponse::new(framed, Response::NotFound().finish()).then(|_| Ok(())),
-        )
+        SendResponse::new(framed, Response::NotFound().finish())
+            .then(|_| ok(()))
+            .boxed_local()
     }
 }

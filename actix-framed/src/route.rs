@@ -1,11 +1,12 @@
 use std::fmt;
+use std::future::Future;
 use std::marker::PhantomData;
+use std::task::{Context, Poll};
 
 use actix_codec::{AsyncRead, AsyncWrite};
 use actix_http::{http::Method, Error};
-use actix_service::{NewService, Service};
-use futures::future::{ok, FutureResult};
-use futures::{Async, Future, IntoFuture, Poll};
+use actix_service::{Service, ServiceFactory};
+use futures::future::{ok, FutureExt, LocalBoxFuture, Ready};
 use log::error;
 
 use crate::app::HttpServiceFactory;
@@ -15,11 +16,11 @@ use crate::request::FramedRequest;
 ///
 /// Route uses builder-like pattern for configuration.
 /// If handler is not explicitly set, default *404 Not Found* handler is used.
-pub struct FramedRoute<Io, S, F = (), R = ()> {
+pub struct FramedRoute<Io, S, F = (), R = (), E = ()> {
     handler: F,
     pattern: String,
     methods: Vec<Method>,
-    state: PhantomData<(Io, S, R)>,
+    state: PhantomData<(Io, S, R, E)>,
 }
 
 impl<Io, S> FramedRoute<Io, S> {
@@ -53,12 +54,12 @@ impl<Io, S> FramedRoute<Io, S> {
         self
     }
 
-    pub fn to<F, R>(self, handler: F) -> FramedRoute<Io, S, F, R>
+    pub fn to<F, R, E>(self, handler: F) -> FramedRoute<Io, S, F, R, E>
     where
         F: FnMut(FramedRequest<Io, S>) -> R,
-        R: IntoFuture<Item = ()>,
-        R::Future: 'static,
-        R::Error: fmt::Debug,
+        R: Future<Output = Result<(), E>> + 'static,
+
+        E: fmt::Debug,
     {
         FramedRoute {
             handler,
@@ -69,15 +70,14 @@ impl<Io, S> FramedRoute<Io, S> {
     }
 }
 
-impl<Io, S, F, R> HttpServiceFactory for FramedRoute<Io, S, F, R>
+impl<Io, S, F, R, E> HttpServiceFactory for FramedRoute<Io, S, F, R, E>
 where
     Io: AsyncRead + AsyncWrite + 'static,
     F: FnMut(FramedRequest<Io, S>) -> R + Clone,
-    R: IntoFuture<Item = ()>,
-    R::Future: 'static,
-    R::Error: fmt::Display,
+    R: Future<Output = Result<(), E>> + 'static,
+    E: fmt::Display,
 {
-    type Factory = FramedRouteFactory<Io, S, F, R>;
+    type Factory = FramedRouteFactory<Io, S, F, R, E>;
 
     fn path(&self) -> &str {
         &self.pattern
@@ -92,27 +92,26 @@ where
     }
 }
 
-pub struct FramedRouteFactory<Io, S, F, R> {
+pub struct FramedRouteFactory<Io, S, F, R, E> {
     handler: F,
     methods: Vec<Method>,
-    _t: PhantomData<(Io, S, R)>,
+    _t: PhantomData<(Io, S, R, E)>,
 }
 
-impl<Io, S, F, R> NewService for FramedRouteFactory<Io, S, F, R>
+impl<Io, S, F, R, E> ServiceFactory for FramedRouteFactory<Io, S, F, R, E>
 where
     Io: AsyncRead + AsyncWrite + 'static,
     F: FnMut(FramedRequest<Io, S>) -> R + Clone,
-    R: IntoFuture<Item = ()>,
-    R::Future: 'static,
-    R::Error: fmt::Display,
+    R: Future<Output = Result<(), E>> + 'static,
+    E: fmt::Display,
 {
     type Config = ();
     type Request = FramedRequest<Io, S>;
     type Response = ();
     type Error = Error;
     type InitError = ();
-    type Service = FramedRouteService<Io, S, F, R>;
-    type Future = FutureResult<Self::Service, Self::InitError>;
+    type Service = FramedRouteService<Io, S, F, R, E>;
+    type Future = Ready<Result<Self::Service, Self::InitError>>;
 
     fn new_service(&self, _: &()) -> Self::Future {
         ok(FramedRouteService {
@@ -123,35 +122,38 @@ where
     }
 }
 
-pub struct FramedRouteService<Io, S, F, R> {
+pub struct FramedRouteService<Io, S, F, R, E> {
     handler: F,
     methods: Vec<Method>,
-    _t: PhantomData<(Io, S, R)>,
+    _t: PhantomData<(Io, S, R, E)>,
 }
 
-impl<Io, S, F, R> Service for FramedRouteService<Io, S, F, R>
+impl<Io, S, F, R, E> Service for FramedRouteService<Io, S, F, R, E>
 where
     Io: AsyncRead + AsyncWrite + 'static,
     F: FnMut(FramedRequest<Io, S>) -> R + Clone,
-    R: IntoFuture<Item = ()>,
-    R::Future: 'static,
-    R::Error: fmt::Display,
+    R: Future<Output = Result<(), E>> + 'static,
+    E: fmt::Display,
 {
     type Request = FramedRequest<Io, S>;
     type Response = ();
     type Error = Error;
-    type Future = Box<dyn Future<Item = (), Error = Error>>;
+    type Future = LocalBoxFuture<'static, Result<(), Error>>;
 
-    fn poll_ready(&mut self) -> Poll<(), Self::Error> {
-        Ok(Async::Ready(()))
+    fn poll_ready(&mut self, _: &mut Context) -> Poll<Result<(), Self::Error>> {
+        Poll::Ready(Ok(()))
     }
 
     fn call(&mut self, req: FramedRequest<Io, S>) -> Self::Future {
-        Box::new((self.handler)(req).into_future().then(|res| {
+        let fut = (self.handler)(req);
+
+        async move {
+            let res = fut.await;
             if let Err(e) = res {
                 error!("Error in request handler: {}", e);
             }
             Ok(())
-        }))
+        }
+            .boxed_local()
     }
 }

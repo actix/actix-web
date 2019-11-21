@@ -1,36 +1,38 @@
+use std::task::{Context, Poll};
+
 use actix_http::Error;
-use actix_service::{NewService, Service};
-use futures::{Future, Poll};
+use actix_service::{Service, ServiceFactory};
+use futures::future::{FutureExt, LocalBoxFuture};
 
 pub(crate) type BoxedHttpService<Req> = Box<
     dyn Service<
         Request = Req,
         Response = (),
         Error = Error,
-        Future = Box<dyn Future<Item = (), Error = Error>>,
+        Future = LocalBoxFuture<'static, Result<(), Error>>,
     >,
 >;
 
 pub(crate) type BoxedHttpNewService<Req> = Box<
-    dyn NewService<
+    dyn ServiceFactory<
         Config = (),
         Request = Req,
         Response = (),
         Error = Error,
         InitError = (),
         Service = BoxedHttpService<Req>,
-        Future = Box<dyn Future<Item = BoxedHttpService<Req>, Error = ()>>,
+        Future = LocalBoxFuture<'static, Result<BoxedHttpService<Req>, ()>>,
     >,
 >;
 
-pub(crate) struct HttpNewService<T: NewService>(T);
+pub(crate) struct HttpNewService<T: ServiceFactory>(T);
 
 impl<T> HttpNewService<T>
 where
-    T: NewService<Response = (), Error = Error>,
+    T: ServiceFactory<Response = (), Error = Error>,
     T::Response: 'static,
     T::Future: 'static,
-    T::Service: Service<Future = Box<dyn Future<Item = (), Error = Error>>> + 'static,
+    T::Service: Service<Future = LocalBoxFuture<'static, Result<(), Error>>> + 'static,
     <T::Service as Service>::Future: 'static,
 {
     pub fn new(service: T) -> Self {
@@ -38,12 +40,12 @@ where
     }
 }
 
-impl<T> NewService for HttpNewService<T>
+impl<T> ServiceFactory for HttpNewService<T>
 where
-    T: NewService<Config = (), Response = (), Error = Error>,
+    T: ServiceFactory<Config = (), Response = (), Error = Error>,
     T::Request: 'static,
     T::Future: 'static,
-    T::Service: Service<Future = Box<dyn Future<Item = (), Error = Error>>> + 'static,
+    T::Service: Service<Future = LocalBoxFuture<'static, Result<(), Error>>> + 'static,
     <T::Service as Service>::Future: 'static,
 {
     type Config = ();
@@ -52,13 +54,19 @@ where
     type Error = Error;
     type InitError = ();
     type Service = BoxedHttpService<T::Request>;
-    type Future = Box<dyn Future<Item = Self::Service, Error = ()>>;
+    type Future = LocalBoxFuture<'static, Result<Self::Service, ()>>;
 
     fn new_service(&self, _: &()) -> Self::Future {
-        Box::new(self.0.new_service(&()).map_err(|_| ()).and_then(|service| {
-            let service: BoxedHttpService<_> = Box::new(HttpServiceWrapper { service });
-            Ok(service)
-        }))
+        let fut = self.0.new_service(&());
+
+        async move {
+            fut.await.map_err(|_| ()).map(|service| {
+                let service: BoxedHttpService<_> =
+                    Box::new(HttpServiceWrapper { service });
+                service
+            })
+        }
+            .boxed_local()
     }
 }
 
@@ -70,7 +78,7 @@ impl<T> Service for HttpServiceWrapper<T>
 where
     T: Service<
         Response = (),
-        Future = Box<dyn Future<Item = (), Error = Error>>,
+        Future = LocalBoxFuture<'static, Result<(), Error>>,
         Error = Error,
     >,
     T::Request: 'static,
@@ -78,10 +86,10 @@ where
     type Request = T::Request;
     type Response = ();
     type Error = Error;
-    type Future = Box<dyn Future<Item = (), Error = Error>>;
+    type Future = LocalBoxFuture<'static, Result<(), Error>>;
 
-    fn poll_ready(&mut self) -> Poll<(), Self::Error> {
-        self.service.poll_ready()
+    fn poll_ready(&mut self, cx: &mut Context) -> Poll<Result<(), Self::Error>> {
+        self.service.poll_ready(cx)
     }
 
     fn call(&mut self, req: Self::Request) -> Self::Future {
