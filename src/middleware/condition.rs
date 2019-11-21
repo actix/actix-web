@@ -1,7 +1,8 @@
 //! `Middleware` for conditionally enables another middleware.
+use std::task::{Context, Poll};
+
 use actix_service::{Service, Transform};
-use futures::future::{ok, Either, FutureResult, Map};
-use futures::{Future, Poll};
+use futures::future::{ok, Either, FutureExt, LocalBoxFuture, Ready};
 
 /// `Middleware` for conditionally enables another middleware.
 /// The controled middleware must not change the `Service` interfaces.
@@ -13,11 +14,11 @@ use futures::{Future, Poll};
 /// use actix_web::middleware::{Condition, NormalizePath};
 /// use actix_web::App;
 ///
-/// fn main() {
-///     let enable_normalize = std::env::var("NORMALIZE_PATH") == Ok("true".into());
-///     let app = App::new()
-///         .wrap(Condition::new(enable_normalize, NormalizePath));
-/// }
+/// # fn main() {
+/// let enable_normalize = std::env::var("NORMALIZE_PATH") == Ok("true".into());
+/// let app = App::new()
+///     .wrap(Condition::new(enable_normalize, NormalizePath));
+/// # }
 /// ```
 pub struct Condition<T> {
     trans: T,
@@ -32,29 +33,31 @@ impl<T> Condition<T> {
 
 impl<S, T> Transform<S> for Condition<T>
 where
-    S: Service,
+    S: Service + 'static,
     T: Transform<S, Request = S::Request, Response = S::Response, Error = S::Error>,
+    T::Future: 'static,
+    T::InitError: 'static,
+    T::Transform: 'static,
 {
     type Request = S::Request;
     type Response = S::Response;
     type Error = S::Error;
     type InitError = T::InitError;
     type Transform = ConditionMiddleware<T::Transform, S>;
-    type Future = Either<
-        Map<T::Future, fn(T::Transform) -> Self::Transform>,
-        FutureResult<Self::Transform, Self::InitError>,
-    >;
+    type Future = LocalBoxFuture<'static, Result<Self::Transform, Self::InitError>>;
 
     fn new_transform(&self, service: S) -> Self::Future {
         if self.enable {
-            let f = self
-                .trans
-                .new_transform(service)
-                .map(ConditionMiddleware::Enable as fn(T::Transform) -> Self::Transform);
-            Either::A(f)
+            let f = self.trans.new_transform(service).map(|res| {
+                res.map(
+                    ConditionMiddleware::Enable as fn(T::Transform) -> Self::Transform,
+                )
+            });
+            Either::Left(f)
         } else {
-            Either::B(ok(ConditionMiddleware::Disable(service)))
+            Either::Right(ok(ConditionMiddleware::Disable(service)))
         }
+        .boxed_local()
     }
 }
 
@@ -73,19 +76,19 @@ where
     type Error = E::Error;
     type Future = Either<E::Future, D::Future>;
 
-    fn poll_ready(&mut self) -> Poll<(), Self::Error> {
+    fn poll_ready(&mut self, cx: &mut Context) -> Poll<Result<(), Self::Error>> {
         use ConditionMiddleware::*;
         match self {
-            Enable(service) => service.poll_ready(),
-            Disable(service) => service.poll_ready(),
+            Enable(service) => service.poll_ready(cx),
+            Disable(service) => service.poll_ready(cx),
         }
     }
 
     fn call(&mut self, req: E::Request) -> Self::Future {
         use ConditionMiddleware::*;
         match self {
-            Enable(service) => Either::A(service.call(req)),
-            Disable(service) => Either::B(service.call(req)),
+            Enable(service) => Either::Left(service.call(req)),
+            Disable(service) => Either::Right(service.call(req)),
         }
     }
 }
@@ -99,7 +102,7 @@ mod tests {
     use crate::error::Result;
     use crate::http::{header::CONTENT_TYPE, HeaderValue, StatusCode};
     use crate::middleware::errhandlers::*;
-    use crate::test::{self, TestRequest};
+    use crate::test::{self, block_on, TestRequest};
     use crate::HttpResponse;
 
     fn render_500<B>(mut res: ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
@@ -111,33 +114,44 @@ mod tests {
 
     #[test]
     fn test_handler_enabled() {
-        let srv = |req: ServiceRequest| {
-            req.into_response(HttpResponse::InternalServerError().finish())
-        };
+        block_on(async {
+            let srv = |req: ServiceRequest| {
+                ok(req.into_response(HttpResponse::InternalServerError().finish()))
+            };
 
-        let mw =
-            ErrorHandlers::new().handler(StatusCode::INTERNAL_SERVER_ERROR, render_500);
+            let mw = ErrorHandlers::new()
+                .handler(StatusCode::INTERNAL_SERVER_ERROR, render_500);
 
-        let mut mw =
-            test::block_on(Condition::new(true, mw).new_transform(srv.into_service()))
+            let mut mw = Condition::new(true, mw)
+                .new_transform(srv.into_service())
+                .await
                 .unwrap();
-        let resp = test::call_service(&mut mw, TestRequest::default().to_srv_request());
-        assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0001");
+            let resp =
+                test::call_service(&mut mw, TestRequest::default().to_srv_request())
+                    .await;
+            assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0001");
+        })
     }
+
     #[test]
     fn test_handler_disabled() {
-        let srv = |req: ServiceRequest| {
-            req.into_response(HttpResponse::InternalServerError().finish())
-        };
+        block_on(async {
+            let srv = |req: ServiceRequest| {
+                ok(req.into_response(HttpResponse::InternalServerError().finish()))
+            };
 
-        let mw =
-            ErrorHandlers::new().handler(StatusCode::INTERNAL_SERVER_ERROR, render_500);
+            let mw = ErrorHandlers::new()
+                .handler(StatusCode::INTERNAL_SERVER_ERROR, render_500);
 
-        let mut mw =
-            test::block_on(Condition::new(false, mw).new_transform(srv.into_service()))
+            let mut mw = Condition::new(false, mw)
+                .new_transform(srv.into_service())
+                .await
                 .unwrap();
 
-        let resp = test::call_service(&mut mw, TestRequest::default().to_srv_request());
-        assert_eq!(resp.headers().get(CONTENT_TYPE), None);
+            let resp =
+                test::call_service(&mut mw, TestRequest::default().to_srv_request())
+                    .await;
+            assert_eq!(resp.headers().get(CONTENT_TYPE), None);
+        })
     }
 }

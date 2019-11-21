@@ -1,9 +1,9 @@
 //! Custom handlers service for responses.
 use std::rc::Rc;
+use std::task::{Context, Poll};
 
 use actix_service::{Service, Transform};
-use futures::future::{err, ok, Either, Future, FutureResult};
-use futures::Poll;
+use futures::future::{err, ok, Either, Future, FutureExt, LocalBoxFuture, Ready};
 use hashbrown::HashMap;
 
 use crate::dev::{ServiceRequest, ServiceResponse};
@@ -15,7 +15,7 @@ pub enum ErrorHandlerResponse<B> {
     /// New http response got generated
     Response(ServiceResponse<B>),
     /// Result is a future that resolves to a new http response
-    Future(Box<dyn Future<Item = ServiceResponse<B>, Error = Error>>),
+    Future(LocalBoxFuture<'static, Result<ServiceResponse<B>, Error>>),
 }
 
 type ErrorHandler<B> = dyn Fn(ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>>;
@@ -39,17 +39,17 @@ type ErrorHandler<B> = dyn Fn(ServiceResponse<B>) -> Result<ErrorHandlerResponse
 ///     Ok(ErrorHandlerResponse::Response(res))
 /// }
 ///
-/// fn main() {
-///     let app = App::new()
-///         .wrap(
-///             ErrorHandlers::new()
-///                 .handler(http::StatusCode::INTERNAL_SERVER_ERROR, render_500),
-///         )
-///         .service(web::resource("/test")
-///             .route(web::get().to(|| HttpResponse::Ok()))
-///             .route(web::head().to(|| HttpResponse::MethodNotAllowed())
-///         ));
-/// }
+/// # fn main() {
+/// let app = App::new()
+///     .wrap(
+///         ErrorHandlers::new()
+///             .handler(http::StatusCode::INTERNAL_SERVER_ERROR, render_500),
+///     )
+///     .service(web::resource("/test")
+///         .route(web::get().to(|| HttpResponse::Ok()))
+///         .route(web::head().to(|| HttpResponse::MethodNotAllowed())
+///     ));
+/// # }
 /// ```
 pub struct ErrorHandlers<B> {
     handlers: Rc<HashMap<StatusCode, Box<ErrorHandler<B>>>>,
@@ -92,7 +92,7 @@ where
     type Error = Error;
     type InitError = ();
     type Transform = ErrorHandlersMiddleware<S, B>;
-    type Future = FutureResult<Self::Transform, Self::InitError>;
+    type Future = Ready<Result<Self::Transform, Self::InitError>>;
 
     fn new_transform(&self, service: S) -> Self::Future {
         ok(ErrorHandlersMiddleware {
@@ -117,26 +117,30 @@ where
     type Request = ServiceRequest;
     type Response = ServiceResponse<B>;
     type Error = Error;
-    type Future = Box<dyn Future<Item = Self::Response, Error = Self::Error>>;
+    type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
 
-    fn poll_ready(&mut self) -> Poll<(), Self::Error> {
-        self.service.poll_ready()
+    fn poll_ready(&mut self, cx: &mut Context) -> Poll<Result<(), Self::Error>> {
+        self.service.poll_ready(cx)
     }
 
     fn call(&mut self, req: ServiceRequest) -> Self::Future {
         let handlers = self.handlers.clone();
+        let fut = self.service.call(req);
 
-        Box::new(self.service.call(req).and_then(move |res| {
+        async move {
+            let res = fut.await?;
+
             if let Some(handler) = handlers.get(&res.status()) {
                 match handler(res) {
-                    Ok(ErrorHandlerResponse::Response(res)) => Either::A(ok(res)),
-                    Ok(ErrorHandlerResponse::Future(fut)) => Either::B(fut),
-                    Err(e) => Either::A(err(e)),
+                    Ok(ErrorHandlerResponse::Response(res)) => Ok(res),
+                    Ok(ErrorHandlerResponse::Future(fut)) => fut.await,
+                    Err(e) => Err(e),
                 }
             } else {
-                Either::A(ok(res))
+                Ok(res)
             }
-        }))
+        }
+            .boxed_local()
     }
 }
 
@@ -147,7 +151,7 @@ mod tests {
 
     use super::*;
     use crate::http::{header::CONTENT_TYPE, HeaderValue, StatusCode};
-    use crate::test::{self, TestRequest};
+    use crate::test::{self, block_on, TestRequest};
     use crate::HttpResponse;
 
     fn render_500<B>(mut res: ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
@@ -159,19 +163,22 @@ mod tests {
 
     #[test]
     fn test_handler() {
-        let srv = |req: ServiceRequest| {
-            req.into_response(HttpResponse::InternalServerError().finish())
-        };
+        block_on(async {
+            let srv = |req: ServiceRequest| {
+                ok(req.into_response(HttpResponse::InternalServerError().finish()))
+            };
 
-        let mut mw = test::block_on(
-            ErrorHandlers::new()
+            let mut mw = ErrorHandlers::new()
                 .handler(StatusCode::INTERNAL_SERVER_ERROR, render_500)
-                .new_transform(srv.into_service()),
-        )
-        .unwrap();
+                .new_transform(srv.into_service())
+                .await
+                .unwrap();
 
-        let resp = test::call_service(&mut mw, TestRequest::default().to_srv_request());
-        assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0001");
+            let resp =
+                test::call_service(&mut mw, TestRequest::default().to_srv_request())
+                    .await;
+            assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0001");
+        })
     }
 
     fn render_500_async<B: 'static>(
@@ -180,23 +187,26 @@ mod tests {
         res.response_mut()
             .headers_mut()
             .insert(CONTENT_TYPE, HeaderValue::from_static("0001"));
-        Ok(ErrorHandlerResponse::Future(Box::new(ok(res))))
+        Ok(ErrorHandlerResponse::Future(ok(res).boxed_local()))
     }
 
     #[test]
     fn test_handler_async() {
-        let srv = |req: ServiceRequest| {
-            req.into_response(HttpResponse::InternalServerError().finish())
-        };
+        block_on(async {
+            let srv = |req: ServiceRequest| {
+                ok(req.into_response(HttpResponse::InternalServerError().finish()))
+            };
 
-        let mut mw = test::block_on(
-            ErrorHandlers::new()
+            let mut mw = ErrorHandlers::new()
                 .handler(StatusCode::INTERNAL_SERVER_ERROR, render_500_async)
-                .new_transform(srv.into_service()),
-        )
-        .unwrap();
+                .new_transform(srv.into_service())
+                .await
+                .unwrap();
 
-        let resp = test::call_service(&mut mw, TestRequest::default().to_srv_request());
-        assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0001");
+            let resp =
+                test::call_service(&mut mw, TestRequest::default().to_srv_request())
+                    .await;
+            assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0001");
+        })
     }
 }
