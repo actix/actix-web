@@ -31,7 +31,7 @@ members = [
   ".",
   "awc",
   "actix-http",
-  #"actix-cors",
+  "actix-cors",
   #"actix-files",
   #"actix-framed",
   #"actix-session",
