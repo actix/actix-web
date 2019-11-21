@@ -37,7 +37,7 @@ members = [
   #"actix-session",
   "actix-identity",
   #"actix-multipart",
-  #"actix-web-actors",
+  "actix-web-actors",
   "actix-web-codegen",
   "test-server",
 ]

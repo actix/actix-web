@@ -35,8 +35,8 @@
 //! use futures::{future, Future};
 //!
 //! #[get("/test")]
-//! fn async_test() -> impl Future<Item=HttpResponse, Error=actix_web::Error> {
-//!     future::ok(HttpResponse::Ok().finish())
+//! async fn async_test() -> Result<HttpResponse, actix_web::Error> {
+//!     Ok(HttpResponse::Ok().finish())
 //! }
 //! ```
 
