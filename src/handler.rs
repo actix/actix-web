@@ -119,21 +119,19 @@ impl<T: Responder> Future for HandlerServiceResponse<T> {
 }
 
 /// Async handler converter factory
-pub trait AsyncFactory<T, R, O, E>: Clone + 'static
+pub trait AsyncFactory<T, R, O>: Clone + 'static
 where
-    R: Future<Output = Result<O, E>>,
+    R: Future<Output = O>,
     O: Responder,
-    E: Into<Error>,
 {
     fn call(&self, param: T) -> R;
 }
 
-impl<F, R, O, E> AsyncFactory<(), R, O, E> for F
+impl<F, R, O> AsyncFactory<(), R, O> for F
 where
     F: Fn() -> R + Clone + 'static,
-    R: Future<Output = Result<O, E>>,
+    R: Future<Output = O>,
     O: Responder,
-    E: Into<Error>,
 {
     fn call(&self, _: ()) -> R {
         (self)()
@@ -141,23 +139,21 @@ where
 }
 
 #[doc(hidden)]
-pub struct AsyncHandler<F, T, R, O, E>
+pub struct AsyncHandler<F, T, R, O>
 where
-    F: AsyncFactory<T, R, O, E>,
-    R: Future<Output = Result<O, E>>,
+    F: AsyncFactory<T, R, O>,
+    R: Future<Output = O>,
     O: Responder,
-    E: Into<Error>,
 {
     hnd: F,
-    _t: PhantomData<(T, R, O, E)>,
+    _t: PhantomData<(T, R, O)>,
 }
 
-impl<F, T, R, O, E> AsyncHandler<F, T, R, O, E>
+impl<F, T, R, O> AsyncHandler<F, T, R, O>
 where
-    F: AsyncFactory<T, R, O, E>,
-    R: Future<Output = Result<O, E>>,
+    F: AsyncFactory<T, R, O>,
+    R: Future<Output = O>,
     O: Responder,
-    E: Into<Error>,
 {
     pub fn new(hnd: F) -> Self {
         AsyncHandler {
@@ -167,12 +163,11 @@ where
     }
 }
 
-impl<F, T, R, O, E> Clone for AsyncHandler<F, T, R, O, E>
+impl<F, T, R, O> Clone for AsyncHandler<F, T, R, O>
 where
-    F: AsyncFactory<T, R, O, E>,
-    R: Future<Output = Result<O, E>>,
+    F: AsyncFactory<T, R, O>,
+    R: Future<Output = O>,
     O: Responder,
-    E: Into<Error>,
 {
     fn clone(&self) -> Self {
         AsyncHandler {
@@ -182,17 +177,16 @@ where
     }
 }
 
-impl<F, T, R, O, E> Service for AsyncHandler<F, T, R, O, E>
+impl<F, T, R, O> Service for AsyncHandler<F, T, R, O>
 where
-    F: AsyncFactory<T, R, O, E>,
-    R: Future<Output = Result<O, E>>,
+    F: AsyncFactory<T, R, O>,
+    R: Future<Output = O>,
     O: Responder,
-    E: Into<Error>,
 {
     type Request = (T, HttpRequest);
     type Response = ServiceResponse;
     type Error = Infallible;
-    type Future = AsyncHandlerServiceResponse<R, O, E>;
+    type Future = AsyncHandlerServiceResponse<R, O>;
 
     fn poll_ready(&mut self, _: &mut Context) -> Poll<Result<(), Self::Error>> {
         Poll::Ready(Ok(()))
@@ -209,11 +203,10 @@ where
 
 #[doc(hidden)]
 #[pin_project]
-pub struct AsyncHandlerServiceResponse<T, R, E>
+pub struct AsyncHandlerServiceResponse<T, R>
 where
-    T: Future<Output = Result<R, E>>,
+    T: Future<Output = R>,
     R: Responder,
-    E: Into<Error>,
 {
     #[pin]
     fut: T,
@@ -222,11 +215,10 @@ where
     req: Option<HttpRequest>,
 }
 
-impl<T, R, E> Future for AsyncHandlerServiceResponse<T, R, E>
+impl<T, R> Future for AsyncHandlerServiceResponse<T, R>
 where
-    T: Future<Output = Result<R, E>>,
+    T: Future<Output = R>,
     R: Responder,
-    E: Into<Error>,
 {
     type Output = Result<ServiceResponse, Infallible>;
 
@@ -247,16 +239,12 @@ where
         }
 
         match this.fut.poll(cx) {
-            Poll::Ready(Ok(res)) => {
+            Poll::Ready(res) => {
                 let fut = res.respond_to(this.req.as_ref().unwrap());
                 self.as_mut().project().fut2.set(Some(fut));
                 self.poll(cx)
             }
             Poll::Pending => Poll::Pending,
-            Poll::Ready(Err(e)) => {
-                let res: Response = e.into().into();
-                Poll::Ready(Ok(ServiceResponse::new(this.req.take().unwrap(), res)))
-            }
         }
     }
 }
@@ -387,11 +375,10 @@ macro_rules! factory_tuple ({ $(($n:tt, $T:ident)),+} => {
         }
     }
 
-    impl<Func, $($T,)+ Res, O, E1> AsyncFactory<($($T,)+), Res, O, E1> for Func
+    impl<Func, $($T,)+ Res, O> AsyncFactory<($($T,)+), Res, O> for Func
     where Func: Fn($($T,)+) -> Res + Clone + 'static,
-          Res: Future<Output = Result<O, E1>>,
+          Res: Future<Output = O>,
           O: Responder,
-          E1: Into<Error>,
     {
         fn call(&self, param: ($($T,)+)) -> Res {
             (self)($(param.$n,)+)

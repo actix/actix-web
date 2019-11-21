@@ -265,13 +265,12 @@ where
 ///     web::to_async(index))
 /// );
 /// ```
-pub fn to_async<F, I, R, O, E>(handler: F) -> Route
+pub fn to_async<F, I, R, U>(handler: F) -> Route
 where
-    F: AsyncFactory<I, R, O, E>,
+    F: AsyncFactory<I, R, U>,
     I: FromRequest + 'static,
-    R: Future<Output = Result<O, E>> + 'static,
-    O: Responder + 'static,
-    E: Into<Error> + 'static,
+    R: Future<Output = U> + 'static,
+    U: Responder + 'static,
 {
     Route::new().to_async(handler)
 }

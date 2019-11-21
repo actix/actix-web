@@ -264,13 +264,12 @@ where
     /// App::new().service(web::resource("/").route(web::route().to_async(index)));
     /// ```
     #[allow(clippy::wrong_self_convention)]
-    pub fn to_async<F, I, R, O, E>(mut self, handler: F) -> Self
+    pub fn to_async<F, I, R, U>(mut self, handler: F) -> Self
     where
-        F: AsyncFactory<I, R, O, E>,
+        F: AsyncFactory<I, R, U>,
         I: FromRequest + 'static,
-        R: Future<Output = Result<O, E>> + 'static,
-        O: Responder + 'static,
-        E: Into<Error> + 'static,
+        R: Future<Output = U> + 'static,
+        U: Responder + 'static,
     {
         self.routes.push(Route::new().to_async(handler));
         self
