@@ -36,7 +36,7 @@ members = [
   "actix-framed",
   "actix-session",
   "actix-identity",
-  #"actix-multipart",
+  "actix-multipart",
   "actix-web-actors",
   "actix-web-codegen",
   "test-server",
@@ -125,9 +125,9 @@ actix-http = { path = "actix-http" }
 actix-http-test = { path = "test-server" }
 actix-web-codegen = { path = "actix-web-codegen" }
 # actix-web-actors = { path = "actix-web-actors" }
-# actix-session = { path = "actix-session" }
+actix-session = { path = "actix-session" }
 actix-files = { path = "actix-files" }
-# actix-multipart = { path = "actix-multipart" }
+actix-multipart = { path = "actix-multipart" }
 awc = { path = "awc" }
 
 actix-codec = { git = "https://github.com/actix/actix-net.git" }
