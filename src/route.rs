@@ -261,13 +261,12 @@ impl Route {
     /// }
     /// ```
     #[allow(clippy::wrong_self_convention)]
-    pub fn to_async<F, T, R, O, E>(mut self, handler: F) -> Self
+    pub fn to_async<F, T, R, U>(mut self, handler: F) -> Self
     where
-        F: AsyncFactory<T, R, O, E>,
+        F: AsyncFactory<T, R, U>,
         T: FromRequest + 'static,
-        R: Future<Output = Result<O, E>> + 'static,
-        O: Responder + 'static,
-        E: Into<Error> + 'static,
+        R: Future<Output = U> + 'static,
+        U: Responder + 'static,
     {
         self.service = Box::new(RouteNewService::new(Extract::new(AsyncHandler::new(
             handler,
@@ -410,7 +409,7 @@ mod tests {
                             .route(web::post().to_async(|| {
                                 async {
                                     delay_for(Duration::from_millis(100)).await;
-                                    Ok::<_, Error>(HttpResponse::Created())
+                                    HttpResponse::Created()
                                 }
                             }))
                             .route(web::delete().to_async(|| {
@@ -423,9 +422,9 @@ mod tests {
                     .service(web::resource("/json").route(web::get().to_async(|| {
                         async {
                             delay_for(Duration::from_millis(25)).await;
-                            Ok::<_, Error>(web::Json(MyObject {
+                            web::Json(MyObject {
                                 name: "test".to_string(),
-                            }))
+                            })
                         }
                     }))),
             )
