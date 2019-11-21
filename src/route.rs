@@ -238,9 +238,7 @@ impl Route {
     /// This method has to be used if your handler function returns `impl Future<>`
     ///
     /// ```rust
-    /// # use futures::future::ok;
     /// use actix_web::{web, App, Error};
-    /// use futures::Future;
     /// use serde_derive::Deserialize;
     ///
     /// #[derive(Deserialize)]

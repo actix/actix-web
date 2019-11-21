@@ -254,7 +254,6 @@ where
 /// Create a new route and add async handler.
 ///
 /// ```rust
-/// # use futures::future::{ok, Future};
 /// use actix_web::{web, App, HttpResponse, Error};
 ///
 /// async fn index() -> Result<HttpResponse, Error> {
@@ -278,12 +277,10 @@ where
 /// Create raw service for a specific path.
 ///
 /// ```rust
-/// # extern crate actix_web;
-/// use futures::future::{ok, Ready};
 /// use actix_web::{dev, web, guard, App, Error, HttpResponse};
 ///
-/// fn my_service(req: dev::ServiceRequest) -> Ready<Result<dev::ServiceResponse, Error>> {
-///     ok(req.into_response(HttpResponse::Ok().finish()))
+/// async fn my_service(req: dev::ServiceRequest) -> Result<dev::ServiceResponse, Error> {
+///     Ok(req.into_response(HttpResponse::Ok().finish()))
 /// }
 ///
 /// fn main() {

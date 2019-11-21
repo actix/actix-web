@@ -342,7 +342,6 @@ impl<T: Responder> Future for CustomResponderFut<T> {
 /// Combines two different responder types into a single type
 ///
 /// ```rust
-/// # use futures::future::{ok, Future};
 /// use actix_web::{Either, Error, HttpResponse};
 ///
 /// type RegisterResult = Either<HttpResponse, Result<HttpResponse, Error>>;
