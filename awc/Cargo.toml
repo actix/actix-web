@@ -30,7 +30,7 @@ default = ["brotli", "flate2-zlib"]
 openssl = ["open-ssl", "actix-http/openssl"]
 
 # rustls
-rustls = ["rust-tls", "actix-http/rustls"]
+# rustls = ["rust-tls", "actix-http/rustls"]
 
 # brotli encoding, requires c compiler
 brotli = ["actix-http/brotli"]
