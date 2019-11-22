@@ -10,9 +10,9 @@ matrix:
   include:
     - rust: stable
     - rust: beta
-    - rust: nightly-2019-08-10
+    - rust: nightly-2019-11-20
   allow_failures:
-    - rust: nightly-2019-08-10
+    - rust: nightly-2019-11-20
 
 env:
   global:
@@ -25,7 +25,7 @@ before_install:
   - sudo apt-get install -y openssl libssl-dev libelf-dev libdw-dev cmake gcc binutils-dev libiberty-dev
 
 before_cache: |
-  if [[ "$TRAVIS_RUST_VERSION" == "nightly-2019-08-10" ]]; then
+  if [[ "$TRAVIS_RUST_VERSION" == "nightly-2019-11-20" ]]; then
     RUSTFLAGS="--cfg procmacro2_semver_exempt" cargo install --version 0.6.11 cargo-tarpaulin
   fi
 
@@ -37,8 +37,8 @@ script:
   - cargo update
   - cargo check --all --no-default-features
   - cargo test --all-features --all -- --nocapture
-  - cd actix-http; cargo test --no-default-features --features="rust-tls" -- --nocapture; cd ..
-  - cd awc; cargo test --no-default-features --features="rust-tls" -- --nocapture; cd ..
+  # - cd actix-http; cargo test --no-default-features --features="rustls" -- --nocapture; cd ..
+  # - cd awc; cargo test --no-default-features --features="rustls" -- --nocapture; cd ..
 
 # Upload docs
 after_success:
@@ -51,7 +51,7 @@ after_success:
       echo "Uploaded documentation"
     fi
   - |
-    if [[ "$TRAVIS_RUST_VERSION" ==  "nightly-2019-08-10" ]]; then
+    if [[ "$TRAVIS_RUST_VERSION" ==  "nightly-2019-11-20" ]]; then
         taskset -c 0 cargo tarpaulin --out Xml --all --all-features
         bash <(curl -s https://codecov.io/bash)
         echo "Uploaded code coverage"
