@@ -1176,9 +1176,11 @@ mod tests {
             let mut srv =
                 test::init_service(App::new().wrap(Compress::default()).service(
                     web::resource("/").to(|| {
-                        NamedFile::open("Cargo.toml")
-                            .unwrap()
-                            .set_content_encoding(header::ContentEncoding::Identity)
+                        async {
+                            NamedFile::open("Cargo.toml")
+                                .unwrap()
+                                .set_content_encoding(header::ContentEncoding::Identity)
+                        }
                     }),
                 ))
                 .await;
@@ -1199,9 +1201,11 @@ mod tests {
             let mut srv =
                 test::init_service(App::new().wrap(Compress::default()).service(
                     web::resource("/").to(|| {
-                        NamedFile::open("Cargo.toml")
-                            .unwrap()
-                            .set_content_encoding(header::ContentEncoding::Gzip)
+                        async {
+                            NamedFile::open("Cargo.toml")
+                                .unwrap()
+                                .set_content_encoding(header::ContentEncoding::Gzip)
+                        }
                     }),
                 ))
                 .await;

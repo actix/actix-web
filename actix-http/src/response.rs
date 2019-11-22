@@ -288,10 +288,7 @@ impl Future for Response {
 
     fn poll(mut self: Pin<&mut Self>, _: &mut Context) -> Poll<Self::Output> {
         Poll::Ready(Ok(Response {
-            head: std::mem::replace(
-                &mut self.head,
-                BoxedResponseHead::new(StatusCode::OK),
-            ),
+            head: self.head.take(),
             body: self.body.take_body(),
             error: self.error.take(),
         }))

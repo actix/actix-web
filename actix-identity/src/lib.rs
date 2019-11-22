@@ -16,7 +16,7 @@
 //! use actix_web::*;
 //! use actix_identity::{Identity, CookieIdentityPolicy, IdentityService};
 //!
-//! fn index(id: Identity) -> String {
+//! async fn index(id: Identity) -> String {
 //!     // access request identity
 //!     if let Some(id) = id.identity() {
 //!         format!("Welcome! {}", id)
@@ -25,12 +25,12 @@
 //!     }
 //! }
 //!
-//! fn login(id: Identity) -> HttpResponse {
+//! async fn login(id: Identity) -> HttpResponse {
 //!     id.remember("User1".to_owned()); // <- remember identity
 //!     HttpResponse::Ok().finish()
 //! }
 //!
-//! fn logout(id: Identity) -> HttpResponse {
+//! async fn logout(id: Identity) -> HttpResponse {
 //!     id.forget();                      // <- remove identity
 //!     HttpResponse::Ok().finish()
 //! }
@@ -764,11 +764,13 @@ mod tests {
                 .secure(false)
                 .name(COOKIE_NAME))))
                 .service(web::resource("/").to(|id: Identity| {
-                    let identity = id.identity();
-                    if identity.is_none() {
-                        id.remember(COOKIE_LOGIN.to_string())
+                    async move {
+                        let identity = id.identity();
+                        if identity.is_none() {
+                            id.remember(COOKIE_LOGIN.to_string())
+                        }
+                        web::Json(identity)
                     }
-                    web::Json(identity)
                 })),
         )
         .await

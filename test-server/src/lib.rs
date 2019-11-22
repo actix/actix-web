@@ -35,7 +35,7 @@ pub use actix_testing::*;
 ///         let mut srv = TestServer::start(
 ///             || HttpService::new(
 ///                 App::new().service(
-///                     web::resource("/").to_async(my_handler))
+///                     web::resource("/").to(my_handler))
 ///             )
 ///         );
 ///

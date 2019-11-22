@@ -115,14 +115,14 @@ fn test_form() {
 fn test_timeout() {
     block_on(async {
         let srv = TestServer::start(|| {
-            HttpService::new(App::new().service(web::resource("/").route(
-                web::to_async(|| {
+            HttpService::new(App::new().service(web::resource("/").route(web::to(
+                || {
                     async {
                         tokio_timer::delay_for(Duration::from_millis(200)).await;
                         Ok::<_, Error>(HttpResponse::Ok().body(STR))
                     }
-                }),
-            )))
+                },
+            ))))
         });
 
         let connector = awc::Connector::new()
@@ -149,14 +149,14 @@ fn test_timeout() {
 fn test_timeout_override() {
     block_on(async {
         let srv = TestServer::start(|| {
-            HttpService::new(App::new().service(web::resource("/").route(
-                web::to_async(|| {
+            HttpService::new(App::new().service(web::resource("/").route(web::to(
+                || {
                     async {
                         tokio_timer::delay_for(Duration::from_millis(200)).await;
                         Ok::<_, Error>(HttpResponse::Ok().body(STR))
                     }
-                }),
-            )))
+                },
+            ))))
         });
 
         let client = awc::Client::build()
@@ -693,12 +693,9 @@ fn test_client_brotli_encoding() {
 
 #[test]
 fn test_client_cookie_handling() {
+    use std::io::{Error as IoError, ErrorKind};
+
     block_on(async {
-        fn err() -> Error {
-            use std::io::{Error as IoError, ErrorKind};
-            // stub some generic error
-            Error::from(IoError::from(ErrorKind::NotFound))
-        }
         let cookie1 = Cookie::build("cookie1", "value1").finish();
         let cookie2 = Cookie::build("cookie2", "value2")
             .domain("www.example.org")
@@ -717,31 +714,45 @@ fn test_client_cookie_handling() {
             HttpService::new(App::new().route(
                 "/",
                 web::to(move |req: HttpRequest| {
-                    // Check cookies were sent correctly
-                    req.cookie("cookie1")
-                        .ok_or_else(err)
-                        .and_then(|c1| {
-                            if c1.value() == "value1" {
-                                Ok(())
-                            } else {
-                                Err(err())
-                            }
-                        })
-                        .and_then(|()| req.cookie("cookie2").ok_or_else(err))
-                        .and_then(|c2| {
-                            if c2.value() == "value2" {
-                                Ok(())
-                            } else {
-                                Err(err())
-                            }
-                        })
-                        // Send some cookies back
-                        .map(|_| {
-                            HttpResponse::Ok()
-                                .cookie(cookie1.clone())
-                                .cookie(cookie2.clone())
-                                .finish()
-                        })
+                    let cookie1 = cookie1.clone();
+                    let cookie2 = cookie2.clone();
+
+                    async move {
+                        // Check cookies were sent correctly
+                        let res: Result<(), Error> = req
+                            .cookie("cookie1")
+                            .ok_or(())
+                            .and_then(|c1| {
+                                if c1.value() == "value1" {
+                                    Ok(())
+                                } else {
+                                    Err(())
+                                }
+                            })
+                            .and_then(|()| req.cookie("cookie2").ok_or(()))
+                            .and_then(|c2| {
+                                if c2.value() == "value2" {
+                                    Ok(())
+                                } else {
+                                    Err(())
+                                }
+                            })
+                            .map_err(|_| {
+                                Error::from(IoError::from(ErrorKind::NotFound))
+                            });
+
+                        if let Err(e) = res {
+                            Err(e)
+                        } else {
+                            // Send some cookies back
+                            Ok::<_, Error>(
+                                HttpResponse::Ok()
+                                    .cookie(cookie1)
+                                    .cookie(cookie2)
+                                    .finish(),
+                            )
+                        }
+                    }
                 }),
             ))
         });

@@ -5,42 +5,42 @@ use actix_web_codegen::{connect, delete, get, head, options, patch, post, put, t
 use futures::{future, Future};
 
 #[get("/test")]
-fn test() -> impl Responder {
+async fn test() -> impl Responder {
     HttpResponse::Ok()
 }
 
 #[put("/test")]
-fn put_test() -> impl Responder {
+async fn put_test() -> impl Responder {
     HttpResponse::Created()
 }
 
 #[patch("/test")]
-fn patch_test() -> impl Responder {
+async fn patch_test() -> impl Responder {
     HttpResponse::Ok()
 }
 
 #[post("/test")]
-fn post_test() -> impl Responder {
+async fn post_test() -> impl Responder {
     HttpResponse::NoContent()
 }
 
 #[head("/test")]
-fn head_test() -> impl Responder {
+async fn head_test() -> impl Responder {
     HttpResponse::Ok()
 }
 
 #[connect("/test")]
-fn connect_test() -> impl Responder {
+async fn connect_test() -> impl Responder {
     HttpResponse::Ok()
 }
 
 #[options("/test")]
-fn options_test() -> impl Responder {
+async fn options_test() -> impl Responder {
     HttpResponse::Ok()
 }
 
 #[trace("/test")]
-fn trace_test() -> impl Responder {
+async fn trace_test() -> impl Responder {
     HttpResponse::Ok()
 }
 
@@ -55,17 +55,17 @@ fn auto_sync() -> impl Future<Output = Result<HttpResponse, actix_web::Error>> {
 }
 
 #[put("/test/{param}")]
-fn put_param_test(_: Path<String>) -> impl Responder {
+async fn put_param_test(_: Path<String>) -> impl Responder {
     HttpResponse::Created()
 }
 
 #[delete("/test/{param}")]
-fn delete_param_test(_: Path<String>) -> impl Responder {
+async fn delete_param_test(_: Path<String>) -> impl Responder {
     HttpResponse::NoContent()
 }
 
 #[get("/test/{param}")]
-fn get_param_test(_: Path<String>) -> impl Responder {
+async fn get_param_test(_: Path<String>) -> impl Responder {
     HttpResponse::Ok()
 }
 

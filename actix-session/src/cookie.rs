@@ -371,8 +371,10 @@ mod tests {
                 App::new()
                     .wrap(CookieSession::signed(&[0; 32]).secure(false))
                     .service(web::resource("/").to(|ses: Session| {
-                        let _ = ses.set("counter", 100);
-                        "test"
+                        async move {
+                            let _ = ses.set("counter", 100);
+                            "test"
+                        }
                     })),
             )
             .await;
@@ -394,8 +396,10 @@ mod tests {
                 App::new()
                     .wrap(CookieSession::private(&[0; 32]).secure(false))
                     .service(web::resource("/").to(|ses: Session| {
-                        let _ = ses.set("counter", 100);
-                        "test"
+                        async move {
+                            let _ = ses.set("counter", 100);
+                            "test"
+                        }
                     })),
             )
             .await;
@@ -417,8 +421,10 @@ mod tests {
                 App::new()
                     .wrap(CookieSession::signed(&[0; 32]).secure(false))
                     .service(web::resource("/").to(|ses: Session| {
-                        let _ = ses.set("counter", 100);
-                        "test"
+                        async move {
+                            let _ = ses.set("counter", 100);
+                            "test"
+                        }
                     })),
             )
             .await;
@@ -448,12 +454,16 @@ mod tests {
                             .max_age(100),
                     )
                     .service(web::resource("/").to(|ses: Session| {
-                        let _ = ses.set("counter", 100);
-                        "test"
+                        async move {
+                            let _ = ses.set("counter", 100);
+                            "test"
+                        }
                     }))
                     .service(web::resource("/test/").to(|ses: Session| {
-                        let val: usize = ses.get("counter").unwrap().unwrap();
-                        format!("counter: {}", val)
+                        async move {
+                            let val: usize = ses.get("counter").unwrap().unwrap();
+                            format!("counter: {}", val)
+                        }
                     })),
             )
             .await;

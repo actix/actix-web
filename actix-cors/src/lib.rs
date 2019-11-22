@@ -11,7 +11,7 @@
 //! use actix_cors::Cors;
 //! use actix_web::{http, web, App, HttpRequest, HttpResponse, HttpServer};
 //!
-//! fn index(req: HttpRequest) -> &'static str {
+//! async fn index(req: HttpRequest) -> &'static str {
 //!     "Hello world"
 //! }
 //!
