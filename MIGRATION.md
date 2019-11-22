@@ -1,6 +1,6 @@
 ## 2.0.0
 
-* Sync handlers has been removed. `.to_async()` methtod has been renamed to `.to()`
+* Sync handlers has been removed. `.to_async()` method has been renamed to `.to()`
 
   replace `fn` with `async fn` to convert sync handler to async
 
