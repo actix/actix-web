@@ -4,7 +4,7 @@ use std::rc::Rc;
 
 use actix_codec::Framed;
 use actix_server_config::ServerConfig as SrvConfig;
-use actix_service::{IntoNewService, NewService, Service};
+use actix_service::{IntoServiceFactory, Service, ServiceFactory};
 
 use crate::body::MessageBody;
 use crate::config::{KeepAlive, ServiceConfig};
@@ -32,9 +32,10 @@ pub struct HttpServiceBuilder<T, S, X = ExpectHandler, U = UpgradeHandler<T>> {
 
 impl<T, S> HttpServiceBuilder<T, S, ExpectHandler, UpgradeHandler<T>>
 where
-    S: NewService<Config = SrvConfig, Request = Request>,
-    S::Error: Into<Error>,
+    S: ServiceFactory<Config = SrvConfig, Request = Request>,
+    S::Error: Into<Error> + 'static,
     S::InitError: fmt::Debug,
+    <S::Service as Service>::Future: 'static,
 {
     /// Create instance of `ServiceConfigBuilder`
     pub fn new() -> Self {
@@ -52,19 +53,22 @@ where
 
 impl<T, S, X, U> HttpServiceBuilder<T, S, X, U>
 where
-    S: NewService<Config = SrvConfig, Request = Request>,
-    S::Error: Into<Error>,
+    S: ServiceFactory<Config = SrvConfig, Request = Request>,
+    S::Error: Into<Error> + 'static,
     S::InitError: fmt::Debug,
-    X: NewService<Config = SrvConfig, Request = Request, Response = Request>,
+    <S::Service as Service>::Future: 'static,
+    X: ServiceFactory<Config = SrvConfig, Request = Request, Response = Request>,
     X::Error: Into<Error>,
     X::InitError: fmt::Debug,
-    U: NewService<
+    <X::Service as Service>::Future: 'static,
+    U: ServiceFactory<
         Config = SrvConfig,
         Request = (Request, Framed<T, Codec>),
         Response = (),
     >,
     U::Error: fmt::Display,
     U::InitError: fmt::Debug,
+    <U::Service as Service>::Future: 'static,
 {
     /// Set server keep-alive setting.
     ///
@@ -108,16 +112,17 @@ where
     /// request will be forwarded to main service.
     pub fn expect<F, X1>(self, expect: F) -> HttpServiceBuilder<T, S, X1, U>
     where
-        F: IntoNewService<X1>,
-        X1: NewService<Config = SrvConfig, Request = Request, Response = Request>,
+        F: IntoServiceFactory<X1>,
+        X1: ServiceFactory<Config = SrvConfig, Request = Request, Response = Request>,
         X1::Error: Into<Error>,
         X1::InitError: fmt::Debug,
+        <X1::Service as Service>::Future: 'static,
     {
         HttpServiceBuilder {
             keep_alive: self.keep_alive,
             client_timeout: self.client_timeout,
             client_disconnect: self.client_disconnect,
-            expect: expect.into_new_service(),
+            expect: expect.into_factory(),
             upgrade: self.upgrade,
             on_connect: self.on_connect,
             _t: PhantomData,
@@ -130,21 +135,22 @@ where
     /// and this service get called with original request and framed object.
     pub fn upgrade<F, U1>(self, upgrade: F) -> HttpServiceBuilder<T, S, X, U1>
     where
-        F: IntoNewService<U1>,
-        U1: NewService<
+        F: IntoServiceFactory<U1>,
+        U1: ServiceFactory<
             Config = SrvConfig,
             Request = (Request, Framed<T, Codec>),
             Response = (),
         >,
         U1::Error: fmt::Display,
         U1::InitError: fmt::Debug,
+        <U1::Service as Service>::Future: 'static,
     {
         HttpServiceBuilder {
             keep_alive: self.keep_alive,
             client_timeout: self.client_timeout,
             client_disconnect: self.client_disconnect,
             expect: self.expect,
-            upgrade: Some(upgrade.into_new_service()),
+            upgrade: Some(upgrade.into_factory()),
             on_connect: self.on_connect,
             _t: PhantomData,
         }
@@ -166,8 +172,8 @@ where
     /// Finish service configuration and create *http service* for HTTP/1 protocol.
     pub fn h1<F, P, B>(self, service: F) -> H1Service<T, P, S, B, X, U>
     where
-        B: MessageBody + 'static,
-        F: IntoNewService<S>,
+        B: MessageBody,
+        F: IntoServiceFactory<S>,
         S::Error: Into<Error>,
         S::InitError: fmt::Debug,
         S::Response: Into<Response<B>>,
@@ -177,7 +183,7 @@ where
             self.client_timeout,
             self.client_disconnect,
         );
-        H1Service::with_config(cfg, service.into_new_service())
+        H1Service::with_config(cfg, service.into_factory())
             .expect(self.expect)
             .upgrade(self.upgrade)
             .on_connect(self.on_connect)
@@ -187,10 +193,10 @@ where
     pub fn h2<F, P, B>(self, service: F) -> H2Service<T, P, S, B>
     where
         B: MessageBody + 'static,
-        F: IntoNewService<S>,
-        S::Error: Into<Error>,
+        F: IntoServiceFactory<S>,
+        S::Error: Into<Error> + 'static,
         S::InitError: fmt::Debug,
-        S::Response: Into<Response<B>>,
+        S::Response: Into<Response<B>> + 'static,
         <S::Service as Service>::Future: 'static,
     {
         let cfg = ServiceConfig::new(
@@ -198,18 +204,17 @@ where
             self.client_timeout,
             self.client_disconnect,
         );
-        H2Service::with_config(cfg, service.into_new_service())
-            .on_connect(self.on_connect)
+        H2Service::with_config(cfg, service.into_factory()).on_connect(self.on_connect)
     }
 
     /// Finish service configuration and create `HttpService` instance.
     pub fn finish<F, P, B>(self, service: F) -> HttpService<T, P, S, B, X, U>
     where
         B: MessageBody + 'static,
-        F: IntoNewService<S>,
-        S::Error: Into<Error>,
+        F: IntoServiceFactory<S>,
+        S::Error: Into<Error> + 'static,
         S::InitError: fmt::Debug,
-        S::Response: Into<Response<B>>,
+        S::Response: Into<Response<B>> + 'static,
         <S::Service as Service>::Future: 'static,
     {
         let cfg = ServiceConfig::new(
@@ -217,7 +222,7 @@ where
             self.client_timeout,
             self.client_disconnect,
         );
-        HttpService::with_config(cfg, service.into_new_service())
+        HttpService::with_config(cfg, service.into_factory())
             .expect(self.expect)
             .upgrade(self.upgrade)
             .on_connect(self.on_connect)

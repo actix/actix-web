@@ -37,21 +37,21 @@ const HTTPS_ENCODING: &str = "gzip, deflate";
 /// builder-like pattern.
 ///
 /// ```rust
-/// use futures::future::{Future, lazy};
 /// use actix_rt::System;
 ///
 /// fn main() {
-///     System::new("test").block_on(lazy(|| {
-///        awc::Client::new()
+///     System::new("test").block_on(async {
+///        let response = awc::Client::new()
 ///           .get("http://www.rust-lang.org") // <- Create request builder
 ///           .header("User-Agent", "Actix-web")
 ///           .send()                          // <- Send http request
-///           .map_err(|_| ())
-///           .and_then(|response| {           // <- server http response
-///                println!("Response: {:?}", response);
-///                Ok(())
+///           .await;
+///
+///           response.and_then(|response| {   // <- server http response
+///               println!("Response: {:?}", response);
+///               Ok(())
 ///           })
-///     }));
+///     });
 /// }
 /// ```
 pub struct ClientRequest {
@@ -158,7 +158,7 @@ impl ClientRequest {
     ///
     /// ```rust
     /// fn main() {
-    /// # actix_rt::System::new("test").block_on(futures::future::lazy(|| {
+    /// # actix_rt::System::new("test").block_on(futures::future::lazy(|_| {
     ///     let req = awc::Client::new()
     ///         .get("http://www.rust-lang.org")
     ///         .set(awc::http::header::Date::now())
@@ -186,13 +186,13 @@ impl ClientRequest {
     /// use awc::{http, Client};
     ///
     /// fn main() {
-    /// # actix_rt::System::new("test").block_on(futures::future::lazy(|| {
+    /// # actix_rt::System::new("test").block_on(async {
     ///     let req = Client::new()
     ///         .get("http://www.rust-lang.org")
     ///         .header("X-TEST", "value")
     ///         .header(http::header::CONTENT_TYPE, "application/json");
     /// #   Ok::<_, ()>(())
-    /// # }));
+    /// # });
     /// }
     /// ```
     pub fn header<K, V>(mut self, key: K, value: V) -> Self
@@ -309,9 +309,8 @@ impl ClientRequest {
     ///
     /// ```rust
     /// # use actix_rt::System;
-    /// # use futures::future::{lazy, Future};
     /// fn main() {
-    ///     System::new("test").block_on(lazy(|| {
+    ///     System::new("test").block_on(async {
     ///         awc::Client::new().get("https://www.rust-lang.org")
     ///             .cookie(
     ///                 awc::http::Cookie::build("name", "value")
@@ -322,12 +321,12 @@ impl ClientRequest {
     ///                     .finish(),
     ///             )
     ///             .send()
-    ///             .map_err(|_| ())
+    ///             .await
     ///             .and_then(|response| {
     ///                println!("Response: {:?}", response);
     ///                Ok(())
     ///             })
-    ///     }));
+    ///     });
     /// }
     /// ```
     pub fn cookie(mut self, cookie: Cookie<'_>) -> Self {
@@ -380,6 +379,27 @@ impl ClientRequest {
         } else {
             self
         }
+    }
+
+    /// Sets the query part of the request
+    pub fn query<T: Serialize>(
+        mut self,
+        query: &T,
+    ) -> Result<Self, serde_urlencoded::ser::Error> {
+        let mut parts = self.head.uri.clone().into_parts();
+
+        if let Some(path_and_query) = parts.path_and_query {
+            let query = serde_urlencoded::to_string(query)?;
+            let path = path_and_query.path();
+            parts.path_and_query = format!("{}?{}", path, query).parse().ok();
+
+            match Uri::from_parts(parts) {
+                Ok(uri) => self.head.uri = uri,
+                Err(e) => self.err = Some(e.into()),
+            }
+        }
+
+        Ok(self)
     }
 
     /// Freeze request builder and construct `FrozenClientRequest`,
@@ -457,7 +477,7 @@ impl ClientRequest {
     /// Set an streaming body and generate `ClientRequest`.
     pub fn send_stream<S, E>(self, stream: S) -> SendClientRequest
     where
-        S: Stream<Item = Bytes, Error = E> + 'static,
+        S: Stream<Item = Result<Bytes, E>> + Unpin + 'static,
         E: Into<Error> + 'static,
     {
         let slf = match self.prep_for_sending() {
@@ -689,5 +709,14 @@ mod tests {
                 .unwrap(),
             "Bearer someS3cr3tAutht0k3n"
         );
+    }
+
+    #[test]
+    fn client_query() {
+        let req = Client::new()
+            .get("/")
+            .query(&[("key1", "val1"), ("key2", "val2")])
+            .unwrap();
+        assert_eq!(req.get_uri().query().unwrap(), "key1=val1&key2=val2");
     }
 }

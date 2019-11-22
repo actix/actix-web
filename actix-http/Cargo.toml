@@ -1,6 +1,6 @@
 [package]
 name = "actix-http"
-version = "0.2.10"
+version = "0.3.0-alpha.1"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix http primitives"
 readme = "README.md"
@@ -16,7 +16,7 @@ edition = "2018"
 workspace = ".."
 
 [package.metadata.docs.rs]
-features = ["ssl", "fail", "brotli", "flate2-zlib", "secure-cookies"]
+features = ["openssl", "fail", "brotli", "flate2-zlib", "secure-cookies"]
 
 [lib]
 name = "actix_http"
@@ -27,10 +27,10 @@ default = ["invalid-ping-payload"]
 invalid-ping-payload = []
 
 # openssl
-ssl = ["openssl", "actix-connect/ssl"]
+openssl = ["open-ssl", "actix-connect/openssl", "tokio-openssl"]
 
 # rustls support
-rust-tls = ["rustls", "webpki-roots", "actix-connect/rust-tls"]
+# rustls = ["rust-tls", "webpki-roots", "actix-connect/rustls"]
 
 # brotli encoding, requires c compiler
 brotli = ["brotli2"]
@@ -48,23 +48,24 @@ fail = ["failure"]
 secure-cookies = ["ring"]
 
 [dependencies]
-actix-service = "0.4.1"
-actix-codec = "0.1.2"
-actix-connect = "0.2.4"
-actix-utils = "0.4.4"
-actix-server-config = "0.1.2"
-actix-threadpool = "0.1.1"
+actix-service = "1.0.0-alpha.1"
+actix-codec = "0.2.0-alpha.1"
+actix-connect = "1.0.0-alpha.1"
+actix-utils = "0.5.0-alpha.1"
+actix-server-config = "0.3.0-alpha.1"
+actix-threadpool = "0.2.0-alpha.1"
 
 base64 = "0.10"
 bitflags = "1.0"
 bytes = "0.4"
 copyless = "0.1.4"
+chrono = "0.4.6"
 derive_more = "0.15.0"
 either = "1.5.2"
 encoding_rs = "0.8"
-futures = "0.1.25"
-hashbrown = "0.5.0"
-h2 = "0.1.16"
+futures = "0.3.1"
+hashbrown = "0.6.3"
+h2 = "0.2.0-alpha.3"
 http = "0.1.17"
 httparse = "1.3"
 indexmap = "1.2"
@@ -73,6 +74,7 @@ language-tags = "0.2"
 log = "0.4"
 mime = "0.3"
 percent-encoding = "2.1"
+pin-project = "0.4.5"
 rand = "0.7"
 regex = "1.0"
 serde = "1.0"
@@ -81,13 +83,16 @@ sha1 = "0.6"
 slab = "0.4"
 serde_urlencoded = "0.6.1"
 time = "0.1.42"
-tokio-tcp = "0.1.3"
-tokio-timer = "0.2.8"
-tokio-current-thread = "0.1"
-trust-dns-resolver = { version="0.11.1", default-features = false }
+
+tokio = "=0.2.0-alpha.6"
+tokio-io = "=0.2.0-alpha.6"
+tokio-net = "=0.2.0-alpha.6"
+tokio-timer = "0.3.0-alpha.6"
+tokio-executor = "=0.2.0-alpha.6"
+trust-dns-resolver = { version="0.18.0-alpha.1", default-features = false }
 
 # for secure cookie
-ring = { version = "0.14.6", optional = true }
+ring = { version = "0.16.9", optional = true }
 
 # compression
 brotli2 = { version="0.3.2", optional = true }
@@ -95,17 +100,17 @@ flate2 = { version="1.0.7", optional = true, default-features = false }
 
 # optional deps
 failure = { version = "0.1.5", optional = true }
-openssl = { version="0.10", optional = true }
-rustls = { version = "0.15.2", optional = true }
-webpki-roots = { version = "0.16", optional = true }
-chrono = "0.4.6"
+open-ssl = { version="0.10", package="openssl", optional = true }
+tokio-openssl = { version = "0.4.0-alpha.6", optional = true }
+
+rust-tls = { version = "0.16.0", package="rustls", optional = true }
+webpki-roots = { version = "0.18", optional = true }
 
 [dev-dependencies]
-actix-rt = "0.2.2"
-actix-server = { version = "0.6.0", features=["ssl", "rust-tls"] }
-actix-connect = { version = "0.2.0", features=["ssl"] }
-actix-http-test = { version = "0.2.4", features=["ssl"] }
+actix-rt = "1.0.0-alpha.1"
+actix-server = { version = "0.8.0-alpha.1", features=["openssl"] }
+actix-connect = { version = "1.0.0-alpha.1", features=["openssl"] }
+actix-http-test = { version = "0.3.0-alpha.1", features=["openssl"] }
 env_logger = "0.6"
 serde_derive = "1.0"
-openssl = { version="0.10" }
-tokio-tcp = "0.1"
+open-ssl = { version="0.10", package="openssl" }

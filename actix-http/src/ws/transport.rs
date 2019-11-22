@@ -1,7 +1,10 @@
+use std::future::Future;
+use std::pin::Pin;
+use std::task::{Context, Poll};
+
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use actix_service::{IntoService, Service};
 use actix_utils::framed::{FramedTransport, FramedTransportError};
-use futures::{Future, Poll};
 
 use super::{Codec, Frame, Message};
 
@@ -40,10 +43,9 @@ where
     S::Future: 'static,
     S::Error: 'static,
 {
-    type Item = ();
-    type Error = FramedTransportError<S::Error, Codec>;
+    type Output = Result<(), FramedTransportError<S::Error, Codec>>;
 
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        self.inner.poll()
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+        Pin::new(&mut self.inner).poll(cx)
     }
 }

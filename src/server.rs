@@ -6,15 +6,15 @@ use actix_http::{body::MessageBody, Error, HttpService, KeepAlive, Request, Resp
 use actix_rt::System;
 use actix_server::{Server, ServerBuilder};
 use actix_server_config::ServerConfig;
-use actix_service::{IntoNewService, NewService};
+use actix_service::{IntoServiceFactory, Service, ServiceFactory};
 use parking_lot::Mutex;
 
 use net2::TcpBuilder;
 
-#[cfg(feature = "ssl")]
-use openssl::ssl::{SslAcceptor, SslAcceptorBuilder};
-#[cfg(feature = "rust-tls")]
-use rustls::ServerConfig as RustlsServerConfig;
+#[cfg(feature = "openssl")]
+use open_ssl::ssl::{SslAcceptor, SslAcceptorBuilder};
+#[cfg(feature = "rustls")]
+use rust_tls::ServerConfig as RustlsServerConfig;
 
 struct Socket {
     scheme: &'static str,
@@ -51,12 +51,11 @@ struct Config {
 pub struct HttpServer<F, I, S, B>
 where
     F: Fn() -> I + Send + Clone + 'static,
-    I: IntoNewService<S>,
-    S: NewService<Config = ServerConfig, Request = Request>,
+    I: IntoServiceFactory<S>,
+    S: ServiceFactory<Config = ServerConfig, Request = Request>,
     S::Error: Into<Error>,
     S::InitError: fmt::Debug,
     S::Response: Into<Response<B>>,
-    S::Service: 'static,
     B: MessageBody,
 {
     pub(super) factory: F,
@@ -71,12 +70,12 @@ where
 impl<F, I, S, B> HttpServer<F, I, S, B>
 where
     F: Fn() -> I + Send + Clone + 'static,
-    I: IntoNewService<S>,
-    S: NewService<Config = ServerConfig, Request = Request>,
-    S::Error: Into<Error>,
+    I: IntoServiceFactory<S>,
+    S: ServiceFactory<Config = ServerConfig, Request = Request>,
+    S::Error: Into<Error> + 'static,
     S::InitError: fmt::Debug,
-    S::Response: Into<Response<B>>,
-    S::Service: 'static,
+    S::Response: Into<Response<B>> + 'static,
+    <S::Service as Service>::Future: 'static,
     B: MessageBody + 'static,
 {
     /// Create new http server with application factory
@@ -254,11 +253,11 @@ where
         Ok(self)
     }
 
-    #[cfg(feature = "ssl")]
+    #[cfg(feature = "openssl")]
     /// Use listener for accepting incoming tls connection requests
     ///
     /// This method sets alpn protocols to "h2" and "http/1.1"
-    pub fn listen_ssl(
+    pub fn listen_openssl(
         self,
         lst: net::TcpListener,
         builder: SslAcceptorBuilder,
@@ -266,13 +265,14 @@ where
         self.listen_ssl_inner(lst, openssl_acceptor(builder)?)
     }
 
-    #[cfg(feature = "ssl")]
+    #[cfg(feature = "openssl")]
     fn listen_ssl_inner(
         mut self,
         lst: net::TcpListener,
         acceptor: SslAcceptor,
     ) -> io::Result<Self> {
         use actix_server::ssl::{OpensslAcceptor, SslError};
+        use actix_service::pipeline_factory;
 
         let acceptor = OpensslAcceptor::new(acceptor);
         let factory = self.factory.clone();
@@ -288,7 +288,7 @@ where
             lst,
             move || {
                 let c = cfg.lock();
-                acceptor.clone().map_err(SslError::Ssl).and_then(
+                pipeline_factory(acceptor.clone().map_err(SslError::Ssl)).and_then(
                     HttpService::build()
                         .keep_alive(c.keep_alive)
                         .client_timeout(c.client_timeout)
@@ -302,7 +302,7 @@ where
         Ok(self)
     }
 
-    #[cfg(feature = "rust-tls")]
+    #[cfg(feature = "rustls")]
     /// Use listener for accepting incoming tls connection requests
     ///
     /// This method sets alpn protocols to "h2" and "http/1.1"
@@ -314,13 +314,14 @@ where
         self.listen_rustls_inner(lst, config)
     }
 
-    #[cfg(feature = "rust-tls")]
+    #[cfg(feature = "rustls")]
     fn listen_rustls_inner(
         mut self,
         lst: net::TcpListener,
         mut config: RustlsServerConfig,
     ) -> io::Result<Self> {
         use actix_server::ssl::{RustlsAcceptor, SslError};
+        use actix_service::pipeline_factory;
 
         let protos = vec!["h2".to_string().into(), "http/1.1".to_string().into()];
         config.set_protocols(&protos);
@@ -339,7 +340,7 @@ where
             lst,
             move || {
                 let c = cfg.lock();
-                acceptor.clone().map_err(SslError::Ssl).and_then(
+                pipeline_factory(acceptor.clone().map_err(SslError::Ssl)).and_then(
                     HttpService::build()
                         .keep_alive(c.keep_alive)
                         .client_timeout(c.client_timeout)
@@ -397,11 +398,11 @@ where
         }
     }
 
-    #[cfg(feature = "ssl")]
+    #[cfg(feature = "openssl")]
     /// Start listening for incoming tls connections.
     ///
     /// This method sets alpn protocols to "h2" and "http/1.1"
-    pub fn bind_ssl<A>(
+    pub fn bind_openssl<A>(
         mut self,
         addr: A,
         builder: SslAcceptorBuilder,
@@ -419,7 +420,7 @@ where
         Ok(self)
     }
 
-    #[cfg(feature = "rust-tls")]
+    #[cfg(feature = "rustls")]
     /// Start listening for incoming tls connections.
     ///
     /// This method sets alpn protocols to "h2" and "http/1.1"
@@ -435,7 +436,7 @@ where
         Ok(self)
     }
 
-    #[cfg(feature = "uds")]
+    #[cfg(unix)]
     /// Start listening for unix domain connections on existing listener.
     ///
     /// This method is available with `uds` feature.
@@ -466,7 +467,7 @@ where
         Ok(self)
     }
 
-    #[cfg(feature = "uds")]
+    #[cfg(unix)]
     /// Start listening for incoming unix domain connections.
     ///
     /// This method is available with `uds` feature.
@@ -502,8 +503,8 @@ where
 impl<F, I, S, B> HttpServer<F, I, S, B>
 where
     F: Fn() -> I + Send + Clone + 'static,
-    I: IntoNewService<S>,
-    S: NewService<Config = ServerConfig, Request = Request>,
+    I: IntoServiceFactory<S>,
+    S: ServiceFactory<Config = ServerConfig, Request = Request>,
     S::Error: Into<Error>,
     S::InitError: fmt::Debug,
     S::Response: Into<Response<B>>,
@@ -577,10 +578,10 @@ fn create_tcp_listener(
     Ok(builder.listen(backlog)?)
 }
 
-#[cfg(feature = "ssl")]
+#[cfg(feature = "openssl")]
 /// Configure `SslAcceptorBuilder` with custom server flags.
 fn openssl_acceptor(mut builder: SslAcceptorBuilder) -> io::Result<SslAcceptor> {
-    use openssl::ssl::AlpnError;
+    use open_ssl::ssl::AlpnError;
 
     builder.set_alpn_select_callback(|_, protos| {
         const H2: &[u8] = b"\x02h2";

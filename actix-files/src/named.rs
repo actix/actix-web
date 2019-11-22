@@ -13,11 +13,12 @@ use mime_guess::from_path;
 
 use actix_http::body::SizedStream;
 use actix_web::http::header::{
-    self, ContentDisposition, DispositionParam, DispositionType,
+    self, Charset, ContentDisposition, DispositionParam, DispositionType, ExtendedValue,
 };
-use actix_web::http::{ContentEncoding, Method, StatusCode};
+use actix_web::http::{ContentEncoding, StatusCode};
 use actix_web::middleware::BodyEncoding;
 use actix_web::{Error, HttpMessage, HttpRequest, HttpResponse, Responder};
+use futures::future::{ready, Ready};
 
 use crate::range::HttpRange;
 use crate::ChunkedReadFile;
@@ -93,9 +94,18 @@ impl NamedFile {
                 mime::IMAGE | mime::TEXT | mime::VIDEO => DispositionType::Inline,
                 _ => DispositionType::Attachment,
             };
+            let mut parameters =
+                vec![DispositionParam::Filename(String::from(filename.as_ref()))];
+            if !filename.is_ascii() {
+                parameters.push(DispositionParam::FilenameExt(ExtendedValue {
+                    charset: Charset::Ext(String::from("UTF-8")),
+                    language_tag: None,
+                    value: filename.into_owned().into_bytes(),
+                }))
+            }
             let cd = ContentDisposition {
                 disposition: disposition_type,
-                parameters: vec![DispositionParam::Filename(filename.into_owned())],
+                parameters: parameters,
             };
             (ct, cd)
         };
@@ -246,62 +256,8 @@ impl NamedFile {
     pub(crate) fn last_modified(&self) -> Option<header::HttpDate> {
         self.modified.map(|mtime| mtime.into())
     }
-}
 
-impl Deref for NamedFile {
-    type Target = File;
-
-    fn deref(&self) -> &File {
-        &self.file
-    }
-}
-
-impl DerefMut for NamedFile {
-    fn deref_mut(&mut self) -> &mut File {
-        &mut self.file
-    }
-}
-
-/// Returns true if `req` has no `If-Match` header or one which matches `etag`.
-fn any_match(etag: Option<&header::EntityTag>, req: &HttpRequest) -> bool {
-    match req.get_header::<header::IfMatch>() {
-        None | Some(header::IfMatch::Any) => true,
-        Some(header::IfMatch::Items(ref items)) => {
-            if let Some(some_etag) = etag {
-                for item in items {
-                    if item.strong_eq(some_etag) {
-                        return true;
-                    }
-                }
-            }
-            false
-        }
-    }
-}
-
-/// Returns true if `req` doesn't have an `If-None-Match` header matching `req`.
-fn none_match(etag: Option<&header::EntityTag>, req: &HttpRequest) -> bool {
-    match req.get_header::<header::IfNoneMatch>() {
-        Some(header::IfNoneMatch::Any) => false,
-        Some(header::IfNoneMatch::Items(ref items)) => {
-            if let Some(some_etag) = etag {
-                for item in items {
-                    if item.weak_eq(some_etag) {
-                        return false;
-                    }
-                }
-            }
-            true
-        }
-        None => true,
-    }
-}
-
-impl Responder for NamedFile {
-    type Error = Error;
-    type Future = Result<HttpResponse, Error>;
-
-    fn respond_to(self, req: &HttpRequest) -> Self::Future {
+    pub fn into_response(self, req: &HttpRequest) -> Result<HttpResponse, Error> {
         if self.status_code != StatusCode::OK {
             let mut resp = HttpResponse::build(self.status_code);
             resp.set(header::ContentType(self.content_type.clone()))
@@ -322,16 +278,6 @@ impl Responder for NamedFile {
                 counter: 0,
             };
             return Ok(resp.streaming(reader));
-        }
-
-        match *req.method() {
-            Method::HEAD | Method::GET => (),
-            _ => {
-                return Ok(HttpResponse::MethodNotAllowed()
-                    .header(header::CONTENT_TYPE, "text/plain")
-                    .header(header::ALLOW, "GET, HEAD")
-                    .body("This resource only supports GET and HEAD."));
-            }
         }
 
         let etag = if self.flags.contains(Flags::ETAG) {
@@ -443,8 +389,67 @@ impl Responder for NamedFile {
             counter: 0,
         };
         if offset != 0 || length != self.md.len() {
-            return Ok(resp.status(StatusCode::PARTIAL_CONTENT).streaming(reader));
-        };
-        Ok(resp.body(SizedStream::new(length, reader)))
+            Ok(resp.status(StatusCode::PARTIAL_CONTENT).streaming(reader))
+        } else {
+            Ok(resp.body(SizedStream::new(length, reader)))
+        }
+    }
+}
+
+impl Deref for NamedFile {
+    type Target = File;
+
+    fn deref(&self) -> &File {
+        &self.file
+    }
+}
+
+impl DerefMut for NamedFile {
+    fn deref_mut(&mut self) -> &mut File {
+        &mut self.file
+    }
+}
+
+/// Returns true if `req` has no `If-Match` header or one which matches `etag`.
+fn any_match(etag: Option<&header::EntityTag>, req: &HttpRequest) -> bool {
+    match req.get_header::<header::IfMatch>() {
+        None | Some(header::IfMatch::Any) => true,
+        Some(header::IfMatch::Items(ref items)) => {
+            if let Some(some_etag) = etag {
+                for item in items {
+                    if item.strong_eq(some_etag) {
+                        return true;
+                    }
+                }
+            }
+            false
+        }
+    }
+}
+
+/// Returns true if `req` doesn't have an `If-None-Match` header matching `req`.
+fn none_match(etag: Option<&header::EntityTag>, req: &HttpRequest) -> bool {
+    match req.get_header::<header::IfNoneMatch>() {
+        Some(header::IfNoneMatch::Any) => false,
+        Some(header::IfNoneMatch::Items(ref items)) => {
+            if let Some(some_etag) = etag {
+                for item in items {
+                    if item.weak_eq(some_etag) {
+                        return false;
+                    }
+                }
+            }
+            true
+        }
+        None => true,
+    }
+}
+
+impl Responder for NamedFile {
+    type Error = Error;
+    type Future = Ready<Result<HttpResponse, Error>>;
+
+    fn respond_to(self, req: &HttpRequest) -> Self::Future {
+        ready(self.into_response(req))
     }
 }

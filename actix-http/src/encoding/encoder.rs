@@ -1,5 +1,8 @@
 //! Stream encoder
+use std::future::Future;
 use std::io::{self, Write};
+use std::pin::Pin;
+use std::task::{Context, Poll};
 
 use actix_threadpool::{run, CpuFuture};
 #[cfg(feature = "brotli")]
@@ -7,7 +10,6 @@ use brotli2::write::BrotliEncoder;
 use bytes::Bytes;
 #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
 use flate2::write::{GzEncoder, ZlibEncoder};
-use futures::{Async, Future, Poll};
 
 use crate::body::{Body, BodySize, MessageBody, ResponseBody};
 use crate::http::header::{ContentEncoding, CONTENT_ENCODING};
@@ -22,7 +24,7 @@ pub struct Encoder<B> {
     eof: bool,
     body: EncoderBody<B>,
     encoder: Option<ContentEncoder>,
-    fut: Option<CpuFuture<ContentEncoder, io::Error>>,
+    fut: Option<CpuFuture<Result<ContentEncoder, io::Error>>>,
 }
 
 impl<B: MessageBody> Encoder<B> {
@@ -94,43 +96,46 @@ impl<B: MessageBody> MessageBody for Encoder<B> {
         }
     }
 
-    fn poll_next(&mut self) -> Poll<Option<Bytes>, Error> {
+    fn poll_next(&mut self, cx: &mut Context) -> Poll<Option<Result<Bytes, Error>>> {
         loop {
             if self.eof {
-                return Ok(Async::Ready(None));
+                return Poll::Ready(None);
             }
 
             if let Some(ref mut fut) = self.fut {
-                let mut encoder = futures::try_ready!(fut.poll());
+                let mut encoder = match futures::ready!(Pin::new(fut).poll(cx)) {
+                    Ok(Ok(item)) => item,
+                    Ok(Err(e)) => return Poll::Ready(Some(Err(e.into()))),
+                    Err(e) => return Poll::Ready(Some(Err(e.into()))),
+                };
                 let chunk = encoder.take();
                 self.encoder = Some(encoder);
                 self.fut.take();
                 if !chunk.is_empty() {
-                    return Ok(Async::Ready(Some(chunk)));
+                    return Poll::Ready(Some(Ok(chunk)));
                 }
             }
 
             let result = match self.body {
                 EncoderBody::Bytes(ref mut b) => {
                     if b.is_empty() {
-                        Async::Ready(None)
+                        Poll::Ready(None)
                     } else {
-                        Async::Ready(Some(std::mem::replace(b, Bytes::new())))
+                        Poll::Ready(Some(Ok(std::mem::replace(b, Bytes::new()))))
                     }
                 }
-                EncoderBody::Stream(ref mut b) => b.poll_next()?,
-                EncoderBody::BoxedStream(ref mut b) => b.poll_next()?,
+                EncoderBody::Stream(ref mut b) => b.poll_next(cx),
+                EncoderBody::BoxedStream(ref mut b) => b.poll_next(cx),
             };
             match result {
-                Async::NotReady => return Ok(Async::NotReady),
-                Async::Ready(Some(chunk)) => {
+                Poll::Ready(Some(Ok(chunk))) => {
                     if let Some(mut encoder) = self.encoder.take() {
                         if chunk.len() < INPLACE {
                             encoder.write(&chunk)?;
                             let chunk = encoder.take();
                             self.encoder = Some(encoder);
                             if !chunk.is_empty() {
-                                return Ok(Async::Ready(Some(chunk)));
+                                return Poll::Ready(Some(Ok(chunk)));
                             }
                         } else {
                             self.fut = Some(run(move || {
@@ -139,22 +144,23 @@ impl<B: MessageBody> MessageBody for Encoder<B> {
                             }));
                         }
                     } else {
-                        return Ok(Async::Ready(Some(chunk)));
+                        return Poll::Ready(Some(Ok(chunk)));
                     }
                 }
-                Async::Ready(None) => {
+                Poll::Ready(None) => {
                     if let Some(encoder) = self.encoder.take() {
                         let chunk = encoder.finish()?;
                         if chunk.is_empty() {
-                            return Ok(Async::Ready(None));
+                            return Poll::Ready(None);
                         } else {
                             self.eof = true;
-                            return Ok(Async::Ready(Some(chunk)));
+                            return Poll::Ready(Some(Ok(chunk)));
                         }
                     } else {
-                        return Ok(Async::Ready(None));
+                        return Poll::Ready(None);
                     }
                 }
+                val => return val,
             }
         }
     }

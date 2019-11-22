@@ -1,13 +1,14 @@
 //! Essentials helper functions and types for application registration.
 use actix_http::http::Method;
-use futures::{Future, IntoFuture};
+use futures::Future;
 
 pub use actix_http::Response as HttpResponse;
 pub use bytes::{Bytes, BytesMut};
+pub use futures::channel::oneshot::Canceled;
 
-use crate::error::{BlockingError, Error};
+use crate::error::Error;
 use crate::extract::FromRequest;
-use crate::handler::{AsyncFactory, Factory};
+use crate::handler::Factory;
 use crate::resource::Resource;
 use crate::responder::Responder;
 use crate::route::Route;
@@ -230,10 +231,10 @@ pub fn method(method: Method) -> Route {
 /// Create a new route and add handler.
 ///
 /// ```rust
-/// use actix_web::{web, App, HttpResponse};
+/// use actix_web::{web, App, HttpResponse, Responder};
 ///
-/// fn index() -> HttpResponse {
-///    unimplemented!()
+/// async fn index() -> impl Responder {
+///    HttpResponse::Ok()
 /// }
 ///
 /// App::new().service(
@@ -241,48 +242,23 @@ pub fn method(method: Method) -> Route {
 ///         web::to(index))
 /// );
 /// ```
-pub fn to<F, I, R>(handler: F) -> Route
+pub fn to<F, I, R, U>(handler: F) -> Route
 where
-    F: Factory<I, R> + 'static,
+    F: Factory<I, R, U>,
     I: FromRequest + 'static,
-    R: Responder + 'static,
+    R: Future<Output = U> + 'static,
+    U: Responder + 'static,
 {
     Route::new().to(handler)
-}
-
-/// Create a new route and add async handler.
-///
-/// ```rust
-/// # use futures::future::{ok, Future};
-/// use actix_web::{web, App, HttpResponse, Error};
-///
-/// fn index() -> impl Future<Item=HttpResponse, Error=Error> {
-///     ok(HttpResponse::Ok().finish())
-/// }
-///
-/// App::new().service(web::resource("/").route(
-///     web::to_async(index))
-/// );
-/// ```
-pub fn to_async<F, I, R>(handler: F) -> Route
-where
-    F: AsyncFactory<I, R>,
-    I: FromRequest + 'static,
-    R: IntoFuture + 'static,
-    R::Item: Responder,
-    R::Error: Into<Error>,
-{
-    Route::new().to_async(handler)
 }
 
 /// Create raw service for a specific path.
 ///
 /// ```rust
-/// # extern crate actix_web;
-/// use actix_web::{dev, web, guard, App, HttpResponse};
+/// use actix_web::{dev, web, guard, App, Error, HttpResponse};
 ///
-/// fn my_service(req: dev::ServiceRequest) -> dev::ServiceResponse {
-///     req.into_response(HttpResponse::Ok().finish())
+/// async fn my_service(req: dev::ServiceRequest) -> Result<dev::ServiceResponse, Error> {
+///     Ok(req.into_response(HttpResponse::Ok().finish()))
 /// }
 ///
 /// fn main() {
@@ -299,11 +275,10 @@ pub fn service(path: &str) -> WebService {
 
 /// Execute blocking function on a thread pool, returns future that resolves
 /// to result of the function execution.
-pub fn block<F, I, E>(f: F) -> impl Future<Item = I, Error = BlockingError<E>>
+pub fn block<F, R>(f: F) -> impl Future<Output = Result<R, Canceled>>
 where
-    F: FnOnce() -> Result<I, E> + Send + 'static,
-    I: Send + 'static,
-    E: Send + std::fmt::Debug + 'static,
+    F: FnOnce() -> R + Send + 'static,
+    R: Send + 'static,
 {
-    actix_threadpool::run(f).from_err()
+    actix_threadpool::run(f)
 }

@@ -29,7 +29,6 @@ impl Response {
     STATIC_RESP!(AlreadyReported, StatusCode::ALREADY_REPORTED);
 
     STATIC_RESP!(MultipleChoices, StatusCode::MULTIPLE_CHOICES);
-    STATIC_RESP!(MovedPermanenty, StatusCode::MOVED_PERMANENTLY);
     STATIC_RESP!(MovedPermanently, StatusCode::MOVED_PERMANENTLY);
     STATIC_RESP!(Found, StatusCode::FOUND);
     STATIC_RESP!(SeeOther, StatusCode::SEE_OTHER);

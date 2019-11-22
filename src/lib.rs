@@ -1,4 +1,4 @@
-#![allow(clippy::borrow_interior_mutable_const)]
+#![allow(clippy::borrow_interior_mutable_const, unused_imports, dead_code)]
 //! Actix web is a small, pragmatic, and extremely fast web framework
 //! for Rust.
 //!
@@ -6,7 +6,7 @@
 //! use actix_web::{web, App, Responder, HttpServer};
 //! # use std::thread;
 //!
-//! fn index(info: web::Path<(String, u32)>) -> impl Responder {
+//! async fn index(info: web::Path<(String, u32)>) -> impl Responder {
 //!     format!("Hello {}! id:{}", info.0, info.1)
 //! }
 //!
@@ -68,8 +68,8 @@
 //! ## Package feature
 //!
 //! * `client` - enables http client (default enabled)
-//! * `ssl` - enables ssl support via `openssl` crate, supports `http/2`
-//! * `rust-tls` - enables ssl support via `rustls` crate, supports `http/2`
+//! * `openssl` - enables ssl support via `openssl` crate, supports `http/2`
+//! * `rustls` - enables ssl support via `rustls` crate, supports `http/2`
 //! * `secure-cookies` - enables secure cookies support, includes `ring` crate as
 //!   dependency
 //! * `brotli` - enables `brotli` compression support, requires `c`
@@ -78,7 +78,6 @@
 //!   `c` compiler (default enabled)
 //! * `flate2-rust` - experimental rust based implementation for
 //!   `gzip`, `deflate` compression.
-//! * `uds` - Unix domain support, enables `HttpServer::bind_uds()` method.
 //!
 #![allow(clippy::type_complexity, clippy::new_without_default)]
 
@@ -137,15 +136,16 @@ pub mod dev {
 
     pub use crate::config::{AppConfig, AppService};
     #[doc(hidden)]
-    pub use crate::handler::{AsyncFactory, Factory};
+    pub use crate::handler::Factory;
     pub use crate::info::ConnectionInfo;
     pub use crate::rmap::ResourceMap;
     pub use crate::service::{
         HttpServiceFactory, ServiceRequest, ServiceResponse, WebService,
     };
-    pub use crate::types::form::UrlEncoded;
-    pub use crate::types::json::JsonBody;
-    pub use crate::types::readlines::Readlines;
+
+    //pub use crate::types::form::UrlEncoded;
+    //pub use crate::types::json::JsonBody;
+    //pub use crate::types::readlines::Readlines;
 
     pub use actix_http::body::{Body, BodySize, MessageBody, ResponseBody, SizedStream};
     pub use actix_http::encoding::Decoder as Decompress;
@@ -171,23 +171,20 @@ pub mod client {
     //! An HTTP Client
     //!
     //! ```rust
-    //! # use futures::future::{Future, lazy};
     //! use actix_rt::System;
     //! use actix_web::client::Client;
     //!
     //! fn main() {
-    //!     System::new("test").block_on(lazy(|| {
+    //!     System::new("test").block_on(async {
     //!        let mut client = Client::default();
     //!
-    //!        client.get("http://www.rust-lang.org") // <- Create request builder
+    //!        // Create request builder and send request
+    //!        let response = client.get("http://www.rust-lang.org")
     //!           .header("User-Agent", "Actix-web")
-    //!           .send()                             // <- Send http request
-    //!           .map_err(|_| ())
-    //!           .and_then(|response| {              // <- server http response
-    //!                println!("Response: {:?}", response);
-    //!                Ok(())
-    //!           })
-    //!     }));
+    //!           .send().await;                      // <- Send http request
+    //!
+    //!        println!("Response: {:?}", response);
+    //!     });
     //! }
     //! ```
     pub use awc::error::{

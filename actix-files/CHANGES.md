@@ -1,20 +1,28 @@
 # Changes
 
-## [0.1.5] - unreleased
+## [0.1.7] - 2019-11-06
+
+* Add an additional `filename*` param in the `Content-Disposition` header of `actix_files::NamedFile` to be more compatible. (#1151)
+
+## [0.1.6] - 2019-10-14
+
+* Add option to redirect to a slash-ended path `Files` #1132
+
+## [0.1.5] - 2019-10-08
 
 * Bump up `mime_guess` crate version to 2.0.1
 
 * Bump up `percent-encoding` crate version to 2.1
 
+* Allow user defined request guards for `Files` #1113
+
 ## [0.1.4] - 2019-07-20
 
 * Allow to disable `Content-Disposition` header #686
 
-
 ## [0.1.3] - 2019-06-28
 
 * Do not set `Content-Length` header, let actix-http set it #930
-
 
 ## [0.1.2] - 2019-06-13
 

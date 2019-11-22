@@ -1,13 +1,15 @@
 use std::net;
+use std::pin::Pin;
 use std::rc::Rc;
-use std::time::{Duration, Instant};
+use std::task::{Context, Poll};
+use std::time::Duration;
 
 use bytes::Bytes;
 use derive_more::From;
-use futures::{try_ready, Async, Future, Poll, Stream};
+use futures::{future::LocalBoxFuture, ready, Future, Stream};
 use serde::Serialize;
 use serde_json;
-use tokio_timer::Delay;
+use tokio_timer::{delay_for, Delay};
 
 use actix_http::body::{Body, BodyStream};
 use actix_http::encoding::Decoder;
@@ -47,7 +49,7 @@ impl Into<SendRequestError> for PrepForSendingError {
 #[must_use = "futures do nothing unless polled"]
 pub enum SendClientRequest {
     Fut(
-        Box<dyn Future<Item = ClientResponse, Error = SendRequestError>>,
+        LocalBoxFuture<'static, Result<ClientResponse, SendRequestError>>,
         Option<Delay>,
         bool,
     ),
@@ -56,41 +58,51 @@ pub enum SendClientRequest {
 
 impl SendClientRequest {
     pub(crate) fn new(
-        send: Box<dyn Future<Item = ClientResponse, Error = SendRequestError>>,
+        send: LocalBoxFuture<'static, Result<ClientResponse, SendRequestError>>,
         response_decompress: bool,
         timeout: Option<Duration>,
     ) -> SendClientRequest {
-        let delay = timeout.map(|t| Delay::new(Instant::now() + t));
+        let delay = timeout.map(|t| delay_for(t));
         SendClientRequest::Fut(send, delay, response_decompress)
     }
 }
 
 impl Future for SendClientRequest {
-    type Item = ClientResponse<Decoder<Payload<PayloadStream>>>;
-    type Error = SendRequestError;
+    type Output =
+        Result<ClientResponse<Decoder<Payload<PayloadStream>>>, SendRequestError>;
 
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        match self {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+        let this = self.get_mut();
+
+        match this {
             SendClientRequest::Fut(send, delay, response_decompress) => {
                 if delay.is_some() {
-                    match delay.poll() {
-                        Ok(Async::NotReady) => (),
-                        _ => return Err(SendRequestError::Timeout),
+                    match Pin::new(delay.as_mut().unwrap()).poll(cx) {
+                        Poll::Pending => (),
+                        _ => return Poll::Ready(Err(SendRequestError::Timeout)),
                     }
                 }
 
-                let res = try_ready!(send.poll()).map_body(|head, payload| {
-                    if *response_decompress {
-                        Payload::Stream(Decoder::from_headers(payload, &head.headers))
-                    } else {
-                        Payload::Stream(Decoder::new(payload, ContentEncoding::Identity))
-                    }
+                let res = ready!(Pin::new(send).poll(cx)).map(|res| {
+                    res.map_body(|head, payload| {
+                        if *response_decompress {
+                            Payload::Stream(Decoder::from_headers(
+                                payload,
+                                &head.headers,
+                            ))
+                        } else {
+                            Payload::Stream(Decoder::new(
+                                payload,
+                                ContentEncoding::Identity,
+                            ))
+                        }
+                    })
                 });
 
-                Ok(Async::Ready(res))
+                Poll::Ready(res)
             }
             SendClientRequest::Err(ref mut e) => match e.take() {
-                Some(e) => Err(e),
+                Some(e) => Poll::Ready(Err(e)),
                 None => panic!("Attempting to call completed future"),
             },
         }
@@ -223,7 +235,7 @@ impl RequestSender {
         stream: S,
     ) -> SendClientRequest
     where
-        S: Stream<Item = Bytes, Error = E> + 'static,
+        S: Stream<Item = Result<Bytes, E>> + Unpin + 'static,
         E: Into<Error> + 'static,
     {
         self.send_body(

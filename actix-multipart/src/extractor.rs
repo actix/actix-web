@@ -1,5 +1,6 @@
 //! Multipart payload support
 use actix_web::{dev::Payload, Error, FromRequest, HttpRequest};
+use futures::future::{ok, Ready};
 
 use crate::server::Multipart;
 
@@ -10,33 +11,31 @@ use crate::server::Multipart;
 /// ## Server example
 ///
 /// ```rust
-/// # use futures::{Future, Stream};
-/// # use futures::future::{ok, result, Either};
+/// use futures::{Stream, StreamExt};
 /// use actix_web::{web, HttpResponse, Error};
 /// use actix_multipart as mp;
 ///
-/// fn index(payload: mp::Multipart) -> impl Future<Item = HttpResponse, Error = Error> {
-///     payload.from_err()               // <- get multipart stream for current request
-///        .and_then(|field| {           // <- iterate over multipart items
+/// async fn index(mut payload: mp::Multipart) -> Result<HttpResponse, Error> {
+///     // iterate over multipart stream
+///     while let Some(item) = payload.next().await {
+///            let mut field = item?;
+///
 ///            // Field in turn is stream of *Bytes* object
-///            field.from_err()
-///                .fold((), |_, chunk| {
-///                    println!("-- CHUNK: \n{:?}", std::str::from_utf8(&chunk));
-///                        Ok::<_, Error>(())
-///                    })
-///         })
-///         .fold((), |_, _| Ok::<_, Error>(()))
-///         .map(|_| HttpResponse::Ok().into())
+///            while let Some(chunk) = field.next().await {
+///                println!("-- CHUNK: \n{:?}", std::str::from_utf8(&chunk?));
+///            }
+///     }
+///     Ok(HttpResponse::Ok().into())
 /// }
 /// # fn main() {}
 /// ```
 impl FromRequest for Multipart {
     type Error = Error;
-    type Future = Result<Multipart, Error>;
+    type Future = Ready<Result<Multipart, Error>>;
     type Config = ();
 
     #[inline]
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
-        Ok(Multipart::new(req.headers(), payload.take()))
+        ok(Multipart::new(req.headers(), payload.take()))
     }
 }

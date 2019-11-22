@@ -1,5 +1,9 @@
 # Changes
 
+## [1.0.3] - 2019-11-14
+
+* Update actix-web and actix-http dependencies
+
 ## [1.0.2] - 2019-07-20
 
 * Add `ws::start_with_addr()`, returning the address of the created actor, along

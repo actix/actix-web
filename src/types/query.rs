@@ -4,6 +4,7 @@ use std::sync::Arc;
 use std::{fmt, ops};
 
 use actix_http::error::Error;
+use futures::future::{err, ok, Ready};
 use serde::de;
 use serde_urlencoded;
 
@@ -21,8 +22,8 @@ use crate::request::HttpRequest;
 /// ## Example
 ///
 /// ```rust
-/// #[macro_use] extern crate serde_derive;
 /// use actix_web::{web, App};
+/// use serde_derive::Deserialize;
 ///
 /// #[derive(Debug, Deserialize)]
 /// pub enum ResponseType {
@@ -39,7 +40,7 @@ use crate::request::HttpRequest;
 /// // Use `Query` extractor for query information (and destructure it within the signature).
 /// // This handler gets called only if the request's query string contains a `username` field.
 /// // The correct request for this handler would be `/index.html?id=64&response_type=Code"`.
-/// fn index(web::Query(info): web::Query<AuthRequest>) -> String {
+/// async fn index(web::Query(info): web::Query<AuthRequest>) -> String {
 ///     format!("Authorization request for client with id={} and type={:?}!", info.id, info.response_type)
 /// }
 ///
@@ -99,8 +100,8 @@ impl<T: fmt::Display> fmt::Display for Query<T> {
 /// ## Example
 ///
 /// ```rust
-/// #[macro_use] extern crate serde_derive;
 /// use actix_web::{web, App};
+/// use serde_derive::Deserialize;
 ///
 /// #[derive(Debug, Deserialize)]
 /// pub enum ResponseType {
@@ -117,7 +118,7 @@ impl<T: fmt::Display> fmt::Display for Query<T> {
 /// // Use `Query` extractor for query information.
 /// // This handler get called only if request's query contains `username` field
 /// // The correct request for this handler would be `/index.html?id=64&response_type=Code"`
-/// fn index(info: web::Query<AuthRequest>) -> String {
+/// async fn index(info: web::Query<AuthRequest>) -> String {
 ///     format!("Authorization request for client with id={} and type={:?}!", info.id, info.response_type)
 /// }
 ///
@@ -132,7 +133,7 @@ where
     T: de::DeserializeOwned,
 {
     type Error = Error;
-    type Future = Result<Self, Error>;
+    type Future = Ready<Result<Self, Error>>;
     type Config = QueryConfig;
 
     #[inline]
@@ -143,7 +144,7 @@ where
             .unwrap_or(None);
 
         serde_urlencoded::from_str::<T>(req.query_string())
-            .map(|val| Ok(Query(val)))
+            .map(|val| ok(Query(val)))
             .unwrap_or_else(move |e| {
                 let e = QueryPayloadError::Deserialize(e);
 
@@ -159,7 +160,7 @@ where
                     e.into()
                 };
 
-                Err(e)
+                err(e)
             })
     }
 }
@@ -169,8 +170,8 @@ where
 /// ## Example
 ///
 /// ```rust
-/// #[macro_use] extern crate serde_derive;
 /// use actix_web::{error, web, App, FromRequest, HttpResponse};
+/// use serde_derive::Deserialize;
 ///
 /// #[derive(Deserialize)]
 /// struct Info {
@@ -178,7 +179,7 @@ where
 /// }
 ///
 /// /// deserialize `Info` from request's querystring
-/// fn index(info: web::Query<Info>) -> String {
+/// async fn index(info: web::Query<Info>) -> String {
 ///     format!("Welcome {}!", info.username)
 /// }
 ///
@@ -227,7 +228,7 @@ mod tests {
 
     use super::*;
     use crate::error::InternalError;
-    use crate::test::TestRequest;
+    use crate::test::{block_on, TestRequest};
     use crate::HttpResponse;
 
     #[derive(Deserialize, Debug, Display)]
@@ -253,42 +254,46 @@ mod tests {
 
     #[test]
     fn test_request_extract() {
-        let req = TestRequest::with_uri("/name/user1/").to_srv_request();
-        let (req, mut pl) = req.into_parts();
-        assert!(Query::<Id>::from_request(&req, &mut pl).is_err());
+        block_on(async {
+            let req = TestRequest::with_uri("/name/user1/").to_srv_request();
+            let (req, mut pl) = req.into_parts();
+            assert!(Query::<Id>::from_request(&req, &mut pl).await.is_err());
 
-        let req = TestRequest::with_uri("/name/user1/?id=test").to_srv_request();
-        let (req, mut pl) = req.into_parts();
+            let req = TestRequest::with_uri("/name/user1/?id=test").to_srv_request();
+            let (req, mut pl) = req.into_parts();
 
-        let mut s = Query::<Id>::from_request(&req, &mut pl).unwrap();
-        assert_eq!(s.id, "test");
-        assert_eq!(format!("{}, {:?}", s, s), "test, Id { id: \"test\" }");
+            let mut s = Query::<Id>::from_request(&req, &mut pl).await.unwrap();
+            assert_eq!(s.id, "test");
+            assert_eq!(format!("{}, {:?}", s, s), "test, Id { id: \"test\" }");
 
-        s.id = "test1".to_string();
-        let s = s.into_inner();
-        assert_eq!(s.id, "test1");
+            s.id = "test1".to_string();
+            let s = s.into_inner();
+            assert_eq!(s.id, "test1");
+        })
     }
 
     #[test]
     fn test_custom_error_responder() {
-        let req = TestRequest::with_uri("/name/user1/")
-            .data(QueryConfig::default().error_handler(|e, _| {
-                let resp = HttpResponse::UnprocessableEntity().finish();
-                InternalError::from_response(e, resp).into()
-            }))
-            .to_srv_request();
+        block_on(async {
+            let req = TestRequest::with_uri("/name/user1/")
+                .data(QueryConfig::default().error_handler(|e, _| {
+                    let resp = HttpResponse::UnprocessableEntity().finish();
+                    InternalError::from_response(e, resp).into()
+                }))
+                .to_srv_request();
 
-        let (req, mut pl) = req.into_parts();
-        let query = Query::<Id>::from_request(&req, &mut pl);
+            let (req, mut pl) = req.into_parts();
+            let query = Query::<Id>::from_request(&req, &mut pl).await;
 
-        assert!(query.is_err());
-        assert_eq!(
-            query
-                .unwrap_err()
-                .as_response_error()
-                .error_response()
-                .status(),
-            StatusCode::UNPROCESSABLE_ENTITY
-        );
+            assert!(query.is_err());
+            assert_eq!(
+                query
+                    .unwrap_err()
+                    .as_response_error()
+                    .error_response()
+                    .status(),
+                StatusCode::UNPROCESSABLE_ENTITY
+            );
+        })
     }
 }

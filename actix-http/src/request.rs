@@ -81,6 +81,11 @@ impl<P> Request<P> {
     }
 
     /// Get request's payload
+    pub fn payload(&mut self) -> &mut Payload<P> {
+        &mut self.payload
+    }
+
+    /// Get request's payload
     pub fn take_payload(&mut self) -> Payload<P> {
         std::mem::replace(&mut self.payload, Payload::None)
     }
@@ -199,7 +204,6 @@ mod tests {
         assert_eq!(req.uri().query(), Some("q=1"));
 
         let s = format!("{:?}", req);
-        println!("T: {:?}", s);
         assert!(s.contains("Request HTTP/1.1 GET:/index.html"));
     }
 }

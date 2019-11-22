@@ -1,12 +1,15 @@
 use std::fmt;
+use std::future::Future;
 use std::marker::PhantomData;
+use std::pin::Pin;
 use std::rc::Rc;
+use std::task::{Context, Poll};
 
 use actix_codec::Framed;
 use actix_server_config::{Io, IoStream, ServerConfig as SrvConfig};
-use actix_service::{IntoNewService, NewService, Service};
-use futures::future::{ok, FutureResult};
-use futures::{try_ready, Async, Future, IntoFuture, Poll, Stream};
+use actix_service::{IntoServiceFactory, Service, ServiceFactory};
+use futures::future::{ok, Ready};
+use futures::{ready, Stream};
 
 use crate::body::MessageBody;
 use crate::cloneable::CloneableService;
@@ -20,7 +23,7 @@ use super::codec::Codec;
 use super::dispatcher::Dispatcher;
 use super::{ExpectHandler, Message, UpgradeHandler};
 
-/// `NewService` implementation for HTTP1 transport
+/// `ServiceFactory` implementation for HTTP1 transport
 pub struct H1Service<T, P, S, B, X = ExpectHandler, U = UpgradeHandler<T>> {
     srv: S,
     cfg: ServiceConfig,
@@ -32,19 +35,19 @@ pub struct H1Service<T, P, S, B, X = ExpectHandler, U = UpgradeHandler<T>> {
 
 impl<T, P, S, B> H1Service<T, P, S, B>
 where
-    S: NewService<Config = SrvConfig, Request = Request>,
+    S: ServiceFactory<Config = SrvConfig, Request = Request>,
     S::Error: Into<Error>,
     S::InitError: fmt::Debug,
     S::Response: Into<Response<B>>,
     B: MessageBody,
 {
     /// Create new `HttpService` instance with default config.
-    pub fn new<F: IntoNewService<S>>(service: F) -> Self {
+    pub fn new<F: IntoServiceFactory<S>>(service: F) -> Self {
         let cfg = ServiceConfig::new(KeepAlive::Timeout(5), 5000, 0);
 
         H1Service {
             cfg,
-            srv: service.into_new_service(),
+            srv: service.into_factory(),
             expect: ExpectHandler,
             upgrade: None,
             on_connect: None,
@@ -53,10 +56,13 @@ where
     }
 
     /// Create new `HttpService` instance with config.
-    pub fn with_config<F: IntoNewService<S>>(cfg: ServiceConfig, service: F) -> Self {
+    pub fn with_config<F: IntoServiceFactory<S>>(
+        cfg: ServiceConfig,
+        service: F,
+    ) -> Self {
         H1Service {
             cfg,
-            srv: service.into_new_service(),
+            srv: service.into_factory(),
             expect: ExpectHandler,
             upgrade: None,
             on_connect: None,
@@ -67,7 +73,7 @@ where
 
 impl<T, P, S, B, X, U> H1Service<T, P, S, B, X, U>
 where
-    S: NewService<Config = SrvConfig, Request = Request>,
+    S: ServiceFactory<Config = SrvConfig, Request = Request>,
     S::Error: Into<Error>,
     S::Response: Into<Response<B>>,
     S::InitError: fmt::Debug,
@@ -75,7 +81,7 @@ where
 {
     pub fn expect<X1>(self, expect: X1) -> H1Service<T, P, S, B, X1, U>
     where
-        X1: NewService<Request = Request, Response = Request>,
+        X1: ServiceFactory<Request = Request, Response = Request>,
         X1::Error: Into<Error>,
         X1::InitError: fmt::Debug,
     {
@@ -91,7 +97,7 @@ where
 
     pub fn upgrade<U1>(self, upgrade: Option<U1>) -> H1Service<T, P, S, B, X, U1>
     where
-        U1: NewService<Request = (Request, Framed<T, Codec>), Response = ()>,
+        U1: ServiceFactory<Request = (Request, Framed<T, Codec>), Response = ()>,
         U1::Error: fmt::Display,
         U1::InitError: fmt::Debug,
     {
@@ -115,18 +121,18 @@ where
     }
 }
 
-impl<T, P, S, B, X, U> NewService for H1Service<T, P, S, B, X, U>
+impl<T, P, S, B, X, U> ServiceFactory for H1Service<T, P, S, B, X, U>
 where
     T: IoStream,
-    S: NewService<Config = SrvConfig, Request = Request>,
+    S: ServiceFactory<Config = SrvConfig, Request = Request>,
     S::Error: Into<Error>,
     S::Response: Into<Response<B>>,
     S::InitError: fmt::Debug,
     B: MessageBody,
-    X: NewService<Config = SrvConfig, Request = Request, Response = Request>,
+    X: ServiceFactory<Config = SrvConfig, Request = Request, Response = Request>,
     X::Error: Into<Error>,
     X::InitError: fmt::Debug,
-    U: NewService<
+    U: ServiceFactory<
         Config = SrvConfig,
         Request = (Request, Framed<T, Codec>),
         Response = (),
@@ -144,7 +150,7 @@ where
 
     fn new_service(&self, cfg: &SrvConfig) -> Self::Future {
         H1ServiceResponse {
-            fut: self.srv.new_service(cfg).into_future(),
+            fut: self.srv.new_service(cfg),
             fut_ex: Some(self.expect.new_service(cfg)),
             fut_upg: self.upgrade.as_ref().map(|f| f.new_service(cfg)),
             expect: None,
@@ -157,20 +163,24 @@ where
 }
 
 #[doc(hidden)]
+#[pin_project::pin_project]
 pub struct H1ServiceResponse<T, P, S, B, X, U>
 where
-    S: NewService<Request = Request>,
+    S: ServiceFactory<Request = Request>,
     S::Error: Into<Error>,
     S::InitError: fmt::Debug,
-    X: NewService<Request = Request, Response = Request>,
+    X: ServiceFactory<Request = Request, Response = Request>,
     X::Error: Into<Error>,
     X::InitError: fmt::Debug,
-    U: NewService<Request = (Request, Framed<T, Codec>), Response = ()>,
+    U: ServiceFactory<Request = (Request, Framed<T, Codec>), Response = ()>,
     U::Error: fmt::Display,
     U::InitError: fmt::Debug,
 {
+    #[pin]
     fut: S::Future,
+    #[pin]
     fut_ex: Option<X::Future>,
+    #[pin]
     fut_upg: Option<U::Future>,
     expect: Option<X::Service>,
     upgrade: Option<U::Service>,
@@ -182,49 +192,57 @@ where
 impl<T, P, S, B, X, U> Future for H1ServiceResponse<T, P, S, B, X, U>
 where
     T: IoStream,
-    S: NewService<Request = Request>,
+    S: ServiceFactory<Request = Request>,
     S::Error: Into<Error>,
     S::Response: Into<Response<B>>,
     S::InitError: fmt::Debug,
     B: MessageBody,
-    X: NewService<Request = Request, Response = Request>,
+    X: ServiceFactory<Request = Request, Response = Request>,
     X::Error: Into<Error>,
     X::InitError: fmt::Debug,
-    U: NewService<Request = (Request, Framed<T, Codec>), Response = ()>,
+    U: ServiceFactory<Request = (Request, Framed<T, Codec>), Response = ()>,
     U::Error: fmt::Display,
     U::InitError: fmt::Debug,
 {
-    type Item = H1ServiceHandler<T, P, S::Service, B, X::Service, U::Service>;
-    type Error = ();
+    type Output =
+        Result<H1ServiceHandler<T, P, S::Service, B, X::Service, U::Service>, ()>;
 
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        if let Some(ref mut fut) = self.fut_ex {
-            let expect = try_ready!(fut
-                .poll()
-                .map_err(|e| log::error!("Init http service error: {:?}", e)));
-            self.expect = Some(expect);
-            self.fut_ex.take();
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+        let mut this = self.as_mut().project();
+
+        if let Some(fut) = this.fut_ex.as_pin_mut() {
+            let expect = ready!(fut
+                .poll(cx)
+                .map_err(|e| log::error!("Init http service error: {:?}", e)))?;
+            this = self.as_mut().project();
+            *this.expect = Some(expect);
+            this.fut_ex.set(None);
         }
 
-        if let Some(ref mut fut) = self.fut_upg {
-            let upgrade = try_ready!(fut
-                .poll()
-                .map_err(|e| log::error!("Init http service error: {:?}", e)));
-            self.upgrade = Some(upgrade);
-            self.fut_ex.take();
+        if let Some(fut) = this.fut_upg.as_pin_mut() {
+            let upgrade = ready!(fut
+                .poll(cx)
+                .map_err(|e| log::error!("Init http service error: {:?}", e)))?;
+            this = self.as_mut().project();
+            *this.upgrade = Some(upgrade);
+            this.fut_ex.set(None);
         }
 
-        let service = try_ready!(self
+        let result = ready!(this
             .fut
-            .poll()
+            .poll(cx)
             .map_err(|e| log::error!("Init http service error: {:?}", e)));
-        Ok(Async::Ready(H1ServiceHandler::new(
-            self.cfg.take().unwrap(),
-            service,
-            self.expect.take().unwrap(),
-            self.upgrade.take(),
-            self.on_connect.clone(),
-        )))
+
+        Poll::Ready(result.map(|service| {
+            let this = self.as_mut().project();
+            H1ServiceHandler::new(
+                this.cfg.take().unwrap(),
+                service,
+                this.expect.take().unwrap(),
+                this.upgrade.take(),
+                this.on_connect.clone(),
+            )
+        }))
     }
 }
 
@@ -284,10 +302,10 @@ where
     type Error = DispatchError;
     type Future = Dispatcher<T, S, B, X, U>;
 
-    fn poll_ready(&mut self) -> Poll<(), Self::Error> {
+    fn poll_ready(&mut self, cx: &mut Context) -> Poll<Result<(), Self::Error>> {
         let ready = self
             .expect
-            .poll_ready()
+            .poll_ready(cx)
             .map_err(|e| {
                 let e = e.into();
                 log::error!("Http service readiness error: {:?}", e);
@@ -297,7 +315,7 @@ where
 
         let ready = self
             .srv
-            .poll_ready()
+            .poll_ready(cx)
             .map_err(|e| {
                 let e = e.into();
                 log::error!("Http service readiness error: {:?}", e);
@@ -307,9 +325,9 @@ where
             && ready;
 
         if ready {
-            Ok(Async::Ready(()))
+            Poll::Ready(Ok(()))
         } else {
-            Ok(Async::NotReady)
+            Poll::Pending
         }
     }
 
@@ -333,7 +351,7 @@ where
     }
 }
 
-/// `NewService` implementation for `OneRequestService` service
+/// `ServiceFactory` implementation for `OneRequestService` service
 #[derive(Default)]
 pub struct OneRequest<T, P> {
     config: ServiceConfig,
@@ -353,7 +371,7 @@ where
     }
 }
 
-impl<T, P> NewService for OneRequest<T, P>
+impl<T, P> ServiceFactory for OneRequest<T, P>
 where
     T: IoStream,
 {
@@ -363,7 +381,7 @@ where
     type Error = ParseError;
     type InitError = ();
     type Service = OneRequestService<T, P>;
-    type Future = FutureResult<Self::Service, Self::InitError>;
+    type Future = Ready<Result<Self::Service, Self::InitError>>;
 
     fn new_service(&self, _: &SrvConfig) -> Self::Future {
         ok(OneRequestService {
@@ -389,8 +407,8 @@ where
     type Error = ParseError;
     type Future = OneRequestServiceResponse<T>;
 
-    fn poll_ready(&mut self) -> Poll<(), Self::Error> {
-        Ok(Async::Ready(()))
+    fn poll_ready(&mut self, _: &mut Context) -> Poll<Result<(), Self::Error>> {
+        Poll::Ready(Ok(()))
     }
 
     fn call(&mut self, req: Self::Request) -> Self::Future {
@@ -415,19 +433,19 @@ impl<T> Future for OneRequestServiceResponse<T>
 where
     T: IoStream,
 {
-    type Item = (Request, Framed<T, Codec>);
-    type Error = ParseError;
+    type Output = Result<(Request, Framed<T, Codec>), ParseError>;
 
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        match self.framed.as_mut().unwrap().poll()? {
-            Async::Ready(Some(req)) => match req {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+        match self.framed.as_mut().unwrap().next_item(cx) {
+            Poll::Ready(Some(Ok(req))) => match req {
                 Message::Item(req) => {
-                    Ok(Async::Ready((req, self.framed.take().unwrap())))
+                    Poll::Ready(Ok((req, self.framed.take().unwrap())))
                 }
                 Message::Chunk(_) => unreachable!("Something is wrong"),
             },
-            Async::Ready(None) => Err(ParseError::Incomplete),
-            Async::NotReady => Ok(Async::NotReady),
+            Poll::Ready(Some(Err(err))) => Poll::Ready(Err(err)),
+            Poll::Ready(None) => Poll::Ready(Err(ParseError::Incomplete)),
+            Poll::Pending => Poll::Pending,
         }
     }
 }

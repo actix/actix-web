@@ -1,73 +1,18 @@
 //! Various helpers for Actix applications to use during testing.
-use std::cell::RefCell;
 use std::sync::mpsc;
 use std::{net, thread, time};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
-use actix_rt::{Runtime, System};
-use actix_server::{Server, StreamServiceFactory};
+use actix_rt::System;
+use actix_server::{Server, ServiceFactory};
 use awc::{error::PayloadError, ws, Client, ClientRequest, ClientResponse, Connector};
 use bytes::Bytes;
-use futures::future::lazy;
-use futures::{Future, IntoFuture, Stream};
+use futures::Stream;
 use http::Method;
 use net2::TcpBuilder;
-use tokio_tcp::TcpStream;
+use tokio_net::tcp::TcpStream;
 
-thread_local! {
-    static RT: RefCell<Inner> = {
-        RefCell::new(Inner(Some(Runtime::new().unwrap())))
-    };
-}
-
-struct Inner(Option<Runtime>);
-
-impl Inner {
-    fn get_mut(&mut self) -> &mut Runtime {
-        self.0.as_mut().unwrap()
-    }
-}
-
-impl Drop for Inner {
-    fn drop(&mut self) {
-        std::mem::forget(self.0.take().unwrap())
-    }
-}
-
-/// Runs the provided future, blocking the current thread until the future
-/// completes.
-///
-/// This function can be used to synchronously block the current thread
-/// until the provided `future` has resolved either successfully or with an
-/// error. The result of the future is then returned from this function
-/// call.
-///
-/// Note that this function is intended to be used only for testing purpose.
-/// This function panics on nested call.
-pub fn block_on<F>(f: F) -> Result<F::Item, F::Error>
-where
-    F: IntoFuture,
-{
-    RT.with(move |rt| rt.borrow_mut().get_mut().block_on(f.into_future()))
-}
-
-/// Runs the provided function, blocking the current thread until the resul
-/// future completes.
-///
-/// This function can be used to synchronously block the current thread
-/// until the provided `future` has resolved either successfully or with an
-/// error. The result of the future is then returned from this function
-/// call.
-///
-/// Note that this function is intended to be used only for testing purpose.
-/// This function panics on nested call.
-pub fn block_fn<F, R>(f: F) -> Result<R::Item, R::Error>
-where
-    F: FnOnce() -> R,
-    R: IntoFuture,
-{
-    RT.with(move |rt| rt.borrow_mut().get_mut().block_on(lazy(f)))
-}
+pub use actix_testing::*;
 
 /// The `TestServer` type.
 ///
@@ -78,24 +23,26 @@ where
 ///
 /// ```rust
 /// use actix_http::HttpService;
-/// use actix_http_test::TestServer;
-/// use actix_web::{web, App, HttpResponse};
+/// use actix_http_test::{block_on, TestServer};
+/// use actix_web::{web, App, HttpResponse, Error};
 ///
-/// fn my_handler() -> HttpResponse {
-///     HttpResponse::Ok().into()
+/// async fn my_handler() -> Result<HttpResponse, Error> {
+///     Ok(HttpResponse::Ok().into())
 /// }
 ///
 /// fn main() {
-///     let mut srv = TestServer::new(
-///         || HttpService::new(
-///             App::new().service(
-///                 web::resource("/").to(my_handler))
-///         )
-///     );
+///     block_on( async {
+///         let mut srv = TestServer::start(
+///             || HttpService::new(
+///                 App::new().service(
+///                     web::resource("/").to(my_handler))
+///             )
+///         );
 ///
-///     let req = srv.get("/");
-///     let response = srv.block_on(req.send()).unwrap();
-///     assert!(response.status().is_success());
+///         let req = srv.get("/");
+///         let response = req.send().await.unwrap();
+///         assert!(response.status().is_success());
+///     })
 /// }
 /// ```
 pub struct TestServer;
@@ -110,7 +57,7 @@ pub struct TestServerRuntime {
 impl TestServer {
     #[allow(clippy::new_ret_no_self)]
     /// Start new test server with application factory
-    pub fn new<F: StreamServiceFactory<TcpStream>>(factory: F) -> TestServerRuntime {
+    pub fn start<F: ServiceFactory<TcpStream>>(factory: F) -> TestServerRuntime {
         let (tx, rx) = mpsc::channel();
 
         // run server in separate thread
@@ -131,11 +78,11 @@ impl TestServer {
 
         let (system, addr) = rx.recv().unwrap();
 
-        let client = block_on(lazy(move || {
+        let client = {
             let connector = {
-                #[cfg(feature = "ssl")]
+                #[cfg(feature = "openssl")]
                 {
-                    use openssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
+                    use open_ssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
 
                     let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
                     builder.set_verify(SslVerifyMode::NONE);
@@ -144,27 +91,22 @@ impl TestServer {
                         .map_err(|e| log::error!("Can not set alpn protocol: {:?}", e));
                     Connector::new()
                         .conn_lifetime(time::Duration::from_secs(0))
-                        .timeout(time::Duration::from_millis(500))
+                        .timeout(time::Duration::from_millis(3000))
                         .ssl(builder.build())
                         .finish()
                 }
-                #[cfg(not(feature = "ssl"))]
+                #[cfg(not(feature = "openssl"))]
                 {
                     Connector::new()
                         .conn_lifetime(time::Duration::from_secs(0))
-                        .timeout(time::Duration::from_millis(500))
+                        .timeout(time::Duration::from_millis(3000))
                         .finish()
                 }
             };
 
-            Ok::<Client, ()>(Client::build().connector(connector).finish())
-        }))
-        .unwrap();
-
-        block_on(lazy(
-            || Ok::<_, ()>(actix_connect::start_default_resolver()),
-        ))
-        .unwrap();
+            Client::build().connector(connector).finish()
+        };
+        actix_connect::start_default_resolver();
 
         TestServerRuntime {
             addr,
@@ -185,31 +127,6 @@ impl TestServer {
 }
 
 impl TestServerRuntime {
-    /// Execute future on current core
-    pub fn block_on<F, I, E>(&mut self, fut: F) -> Result<I, E>
-    where
-        F: Future<Item = I, Error = E>,
-    {
-        block_on(fut)
-    }
-
-    /// Execute future on current core
-    pub fn block_on_fn<F, R>(&mut self, f: F) -> Result<R::Item, R::Error>
-    where
-        F: FnOnce() -> R,
-        R: Future,
-    {
-        block_on(lazy(f))
-    }
-
-    /// Execute function on current core
-    pub fn execute<F, R>(&mut self, fut: F) -> R
-    where
-        F: FnOnce() -> R,
-    {
-        block_on(lazy(|| Ok::<_, ()>(fut()))).unwrap()
-    }
-
     /// Construct test server url
     pub fn addr(&self) -> net::SocketAddr {
         self.addr
@@ -308,33 +225,33 @@ impl TestServerRuntime {
         self.client.request(method, path.as_ref())
     }
 
-    pub fn load_body<S>(
+    pub async fn load_body<S>(
         &mut self,
         mut response: ClientResponse<S>,
     ) -> Result<Bytes, PayloadError>
     where
-        S: Stream<Item = Bytes, Error = PayloadError> + 'static,
+        S: Stream<Item = Result<Bytes, PayloadError>> + Unpin + 'static,
     {
-        self.block_on(response.body().limit(10_485_760))
+        response.body().limit(10_485_760).await
     }
 
     /// Connect to websocket server at a given path
-    pub fn ws_at(
+    pub async fn ws_at(
         &mut self,
         path: &str,
     ) -> Result<Framed<impl AsyncRead + AsyncWrite, ws::Codec>, awc::error::WsClientError>
     {
         let url = self.url(path);
         let connect = self.client.ws(url).connect();
-        block_on(lazy(move || connect.map(|(_, framed)| framed)))
+        connect.await.map(|(_, framed)| framed)
     }
 
     /// Connect to a websocket server
-    pub fn ws(
+    pub async fn ws(
         &mut self,
     ) -> Result<Framed<impl AsyncRead + AsyncWrite, ws::Codec>, awc::error::WsClientError>
     {
-        self.ws_at("/")
+        self.ws_at("/").await
     }
 
     /// Stop http server

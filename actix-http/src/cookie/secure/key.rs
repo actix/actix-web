@@ -1,13 +1,12 @@
-use ring::digest::{Algorithm, SHA256};
-use ring::hkdf::expand;
-use ring::hmac::SigningKey;
+use ring::hkdf::{Algorithm, KeyType, Prk, HKDF_SHA256};
+use ring::hmac;
 use ring::rand::{SecureRandom, SystemRandom};
 
 use super::private::KEY_LEN as PRIVATE_KEY_LEN;
 use super::signed::KEY_LEN as SIGNED_KEY_LEN;
 
-static HKDF_DIGEST: &Algorithm = &SHA256;
-const KEYS_INFO: &str = "COOKIE;SIGNED:HMAC-SHA256;PRIVATE:AEAD-AES-256-GCM";
+static HKDF_DIGEST: Algorithm = HKDF_SHA256;
+const KEYS_INFO: &[&[u8]] = &[b"COOKIE;SIGNED:HMAC-SHA256;PRIVATE:AEAD-AES-256-GCM"];
 
 /// A cryptographic master key for use with `Signed` and/or `Private` jars.
 ///
@@ -23,6 +22,13 @@ const KEYS_INFO: &str = "COOKIE;SIGNED:HMAC-SHA256;PRIVATE:AEAD-AES-256-GCM";
 pub struct Key {
     signing_key: [u8; SIGNED_KEY_LEN],
     encryption_key: [u8; PRIVATE_KEY_LEN],
+}
+
+impl KeyType for &Key {
+    #[inline]
+    fn len(&self) -> usize {
+        SIGNED_KEY_LEN + PRIVATE_KEY_LEN
+    }
 }
 
 impl Key {
@@ -56,21 +62,26 @@ impl Key {
             );
         }
 
-        // Expand the user's key into two.
-        let prk = SigningKey::new(HKDF_DIGEST, key);
+        // An empty `Key` structure; will be filled in with HKDF derived keys.
+        let mut output_key = Key {
+            signing_key: [0; SIGNED_KEY_LEN],
+            encryption_key: [0; PRIVATE_KEY_LEN],
+        };
+
+        // Expand the master key into two HKDF generated keys.
         let mut both_keys = [0; SIGNED_KEY_LEN + PRIVATE_KEY_LEN];
-        expand(&prk, KEYS_INFO.as_bytes(), &mut both_keys);
+        let prk = Prk::new_less_safe(HKDF_DIGEST, key);
+        let okm = prk.expand(KEYS_INFO, &output_key).expect("okm expand");
+        okm.fill(&mut both_keys).expect("fill keys");
 
-        // Copy the keys into their respective arrays.
-        let mut signing_key = [0; SIGNED_KEY_LEN];
-        let mut encryption_key = [0; PRIVATE_KEY_LEN];
-        signing_key.copy_from_slice(&both_keys[..SIGNED_KEY_LEN]);
-        encryption_key.copy_from_slice(&both_keys[SIGNED_KEY_LEN..]);
-
-        Key {
-            signing_key,
-            encryption_key,
-        }
+        // Copy the key parts into their respective fields.
+        output_key
+            .signing_key
+            .copy_from_slice(&both_keys[..SIGNED_KEY_LEN]);
+        output_key
+            .encryption_key
+            .copy_from_slice(&both_keys[SIGNED_KEY_LEN..]);
+        output_key
     }
 
     /// Generates signing/encryption keys from a secure, random source. Keys are

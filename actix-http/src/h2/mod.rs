@@ -1,9 +1,11 @@
 #![allow(dead_code, unused_imports)]
-
 use std::fmt;
+use std::future::Future;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 
 use bytes::Bytes;
-use futures::{Async, Poll, Stream};
+use futures::Stream;
 use h2::RecvStream;
 
 mod dispatcher;
@@ -25,22 +27,23 @@ impl Payload {
 }
 
 impl Stream for Payload {
-    type Item = Bytes;
-    type Error = PayloadError;
+    type Item = Result<Bytes, PayloadError>;
 
-    fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
-        match self.pl.poll() {
-            Ok(Async::Ready(Some(chunk))) => {
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
+        let this = self.get_mut();
+
+        match Pin::new(&mut this.pl).poll_data(cx) {
+            Poll::Ready(Some(Ok(chunk))) => {
                 let len = chunk.len();
-                if let Err(err) = self.pl.release_capacity().release_capacity(len) {
-                    Err(err.into())
+                if let Err(err) = this.pl.release_capacity().release_capacity(len) {
+                    Poll::Ready(Some(Err(err.into())))
                 } else {
-                    Ok(Async::Ready(Some(chunk)))
+                    Poll::Ready(Some(Ok(chunk)))
                 }
             }
-            Ok(Async::Ready(None)) => Ok(Async::Ready(None)),
-            Ok(Async::NotReady) => Ok(Async::NotReady),
-            Err(err) => Err(err.into()),
+            Poll::Ready(Some(Err(err))) => Poll::Ready(Some(Err(err.into()))),
+            Poll::Pending => Poll::Pending,
+            Poll::Ready(None) => Poll::Ready(None),
         }
     }
 }

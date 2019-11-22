@@ -1,10 +1,18 @@
 # Changes
 
-## Not released yet
+## [0.2.11] - 2019-11-06
 
 ### Added
 
 * Add support for serde_json::Value to be passed as argument to ResponseBuilder.body()
+
+* Add an additional `filename*` param in the `Content-Disposition` header of `actix_files::NamedFile` to be more compatible. (#1151)
+
+* Allow to use `std::convert::Infallible` as `actix_http::error::Error`
+
+### Fixed
+
+* To be compatible with non-English error responses, `ResponseError` rendered with `text/plain; charset=utf-8` header #1118
 
 
 ## [0.2.10] - 2019-09-11
@@ -12,9 +20,6 @@
 ### Added
 
 * Add support for sending HTTP requests with `Rc<RequestHead>` in addition to sending HTTP requests with `RequestHead`
-
-* Allow to use `std::convert::Infallible` as `actix_http::error::Error`
-
 
 ### Fixed
 

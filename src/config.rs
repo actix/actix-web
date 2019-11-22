@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use actix_http::Extensions;
 use actix_router::ResourceDef;
-use actix_service::{boxed, IntoNewService, NewService};
+use actix_service::{boxed, IntoServiceFactory, ServiceFactory};
 
 use crate::data::{Data, DataFactory};
 use crate::error::Error;
@@ -12,7 +12,7 @@ use crate::resource::Resource;
 use crate::rmap::ResourceMap;
 use crate::route::Route;
 use crate::service::{
-    HttpServiceFactory, ServiceFactory, ServiceFactoryWrapper, ServiceRequest,
+    AppServiceFactory, HttpServiceFactory, ServiceFactoryWrapper, ServiceRequest,
     ServiceResponse,
 };
 
@@ -102,11 +102,11 @@ impl AppService {
         &mut self,
         rdef: ResourceDef,
         guards: Option<Vec<Box<dyn Guard>>>,
-        service: F,
+        factory: F,
         nested: Option<Rc<ResourceMap>>,
     ) where
-        F: IntoNewService<S>,
-        S: NewService<
+        F: IntoServiceFactory<S>,
+        S: ServiceFactory<
                 Config = (),
                 Request = ServiceRequest,
                 Response = ServiceResponse,
@@ -116,7 +116,7 @@ impl AppService {
     {
         self.services.push((
             rdef,
-            boxed::new_service(service.into_new_service()),
+            boxed::factory(factory.into_factory()),
             guards,
             nested,
         ));
@@ -174,7 +174,7 @@ impl Default for AppConfigInner {
 /// to set of external methods. This could help with
 /// modularization of big application configuration.
 pub struct ServiceConfig {
-    pub(crate) services: Vec<Box<dyn ServiceFactory>>,
+    pub(crate) services: Vec<Box<dyn AppServiceFactory>>,
     pub(crate) data: Vec<Box<dyn DataFactory>>,
     pub(crate) external: Vec<ResourceDef>,
 }
@@ -251,17 +251,19 @@ mod tests {
 
     #[test]
     fn test_data() {
-        let cfg = |cfg: &mut ServiceConfig| {
-            cfg.data(10usize);
-        };
+        block_on(async {
+            let cfg = |cfg: &mut ServiceConfig| {
+                cfg.data(10usize);
+            };
 
-        let mut srv =
-            init_service(App::new().configure(cfg).service(
+            let mut srv = init_service(App::new().configure(cfg).service(
                 web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()),
-            ));
-        let req = TestRequest::default().to_request();
-        let resp = block_on(srv.call(req)).unwrap();
-        assert_eq!(resp.status(), StatusCode::OK);
+            ))
+            .await;
+            let req = TestRequest::default().to_request();
+            let resp = srv.call(req).await.unwrap();
+            assert_eq!(resp.status(), StatusCode::OK);
+        })
     }
 
     // #[test]
@@ -298,50 +300,57 @@ mod tests {
 
     #[test]
     fn test_external_resource() {
-        let mut srv = init_service(
-            App::new()
-                .configure(|cfg| {
-                    cfg.external_resource(
-                        "youtube",
-                        "https://youtube.com/watch/{video_id}",
-                    );
-                })
-                .route(
-                    "/test",
-                    web::get().to(|req: HttpRequest| {
-                        HttpResponse::Ok().body(format!(
-                            "{}",
-                            req.url_for("youtube", &["12345"]).unwrap()
-                        ))
-                    }),
-                ),
-        );
-        let req = TestRequest::with_uri("/test").to_request();
-        let resp = call_service(&mut srv, req);
-        assert_eq!(resp.status(), StatusCode::OK);
-        let body = read_body(resp);
-        assert_eq!(body, Bytes::from_static(b"https://youtube.com/watch/12345"));
+        block_on(async {
+            let mut srv = init_service(
+                App::new()
+                    .configure(|cfg| {
+                        cfg.external_resource(
+                            "youtube",
+                            "https://youtube.com/watch/{video_id}",
+                        );
+                    })
+                    .route(
+                        "/test",
+                        web::get().to(|req: HttpRequest| {
+                            HttpResponse::Ok().body(format!(
+                                "{}",
+                                req.url_for("youtube", &["12345"]).unwrap()
+                            ))
+                        }),
+                    ),
+            )
+            .await;
+            let req = TestRequest::with_uri("/test").to_request();
+            let resp = call_service(&mut srv, req).await;
+            assert_eq!(resp.status(), StatusCode::OK);
+            let body = read_body(resp).await;
+            assert_eq!(body, Bytes::from_static(b"https://youtube.com/watch/12345"));
+        })
     }
 
     #[test]
     fn test_service() {
-        let mut srv = init_service(App::new().configure(|cfg| {
-            cfg.service(
-                web::resource("/test").route(web::get().to(|| HttpResponse::Created())),
-            )
-            .route("/index.html", web::get().to(|| HttpResponse::Ok()));
-        }));
+        block_on(async {
+            let mut srv = init_service(App::new().configure(|cfg| {
+                cfg.service(
+                    web::resource("/test")
+                        .route(web::get().to(|| HttpResponse::Created())),
+                )
+                .route("/index.html", web::get().to(|| HttpResponse::Ok()));
+            }))
+            .await;
 
-        let req = TestRequest::with_uri("/test")
-            .method(Method::GET)
-            .to_request();
-        let resp = call_service(&mut srv, req);
-        assert_eq!(resp.status(), StatusCode::CREATED);
+            let req = TestRequest::with_uri("/test")
+                .method(Method::GET)
+                .to_request();
+            let resp = call_service(&mut srv, req).await;
+            assert_eq!(resp.status(), StatusCode::CREATED);
 
-        let req = TestRequest::with_uri("/index.html")
-            .method(Method::GET)
-            .to_request();
-        let resp = call_service(&mut srv, req);
-        assert_eq!(resp.status(), StatusCode::OK);
+            let req = TestRequest::with_uri("/index.html")
+                .method(Method::GET)
+                .to_request();
+            let resp = call_service(&mut srv, req).await;
+            assert_eq!(resp.status(), StatusCode::OK);
+        })
     }
 }

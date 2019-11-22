@@ -1,16 +1,16 @@
 //! Route match guards.
 //!
-//! Guards are one of the way how actix-web router chooses
-//! handler service. In essence it just function that accepts
-//! reference to a `RequestHead` instance and returns boolean.
+//! Guards are one of the ways how actix-web router chooses a
+//! handler service. In essence it is just a function that accepts a
+//! reference to a `RequestHead` instance and returns a boolean.
 //! It is possible to add guards to *scopes*, *resources*
 //! and *routes*. Actix provide several guards by default, like various
 //! http methods, header, etc. To become a guard, type must implement `Guard`
 //! trait. Simple functions coulds guards as well.
 //!
-//! Guard can not modify request object. But it is possible to
-//! to store extra attributes on a request by using `Extensions` container.
-//! Extensions container available via `RequestHead::extensions()` method.
+//! Guards can not modify the request object. But it is possible
+//! to store extra attributes on a request by using the `Extensions` container.
+//! Extensions containers are available via the `RequestHead::extensions()` method.
 //!
 //! ```rust
 //! use actix_web::{web, http, dev, guard, App, HttpResponse};
@@ -29,11 +29,11 @@
 use actix_http::http::{self, header, uri::Uri, HttpTryFrom};
 use actix_http::RequestHead;
 
-/// Trait defines resource guards. Guards are used for routes selection.
+/// Trait defines resource guards. Guards are used for route selection.
 ///
-/// Guard can not modify request object. But it is possible to
-/// to store extra attributes on request by using `Extensions` container,
-/// Extensions container available via `RequestHead::extensions()` method.
+/// Guards can not modify the request object. But it is possible
+/// to store extra attributes on a request by using the `Extensions` container.
+/// Extensions containers are available via the `RequestHead::extensions()` method.
 pub trait Guard {
     /// Check if request matches predicate
     fn check(&self, request: &RequestHead) -> bool;
@@ -276,10 +276,12 @@ pub fn Host<H: AsRef<str>>(host: H) -> HostGuard {
 
 fn get_host_uri(req: &RequestHead) -> Option<Uri> {
     use core::str::FromStr;
-    let host_value = req.headers.get(header::HOST)?;
-    let host = host_value.to_str().ok()?;
-    let uri = Uri::from_str(host).ok()?;
-    Some(uri)
+    req.headers
+        .get(header::HOST)
+        .and_then(|host_value| host_value.to_str().ok())
+        .or_else(|| req.uri.host())
+        .map(|host: &str| Uri::from_str(host).ok())
+        .and_then(|host_success| host_success)
 }
 
 #[doc(hidden)]
@@ -394,6 +396,31 @@ mod tests {
         assert!(!pred.check(req.head()));
 
         let pred = Host("crates.io").scheme("https");
+        assert!(!pred.check(req.head()));
+
+        let pred = Host("localhost");
+        assert!(!pred.check(req.head()));
+    }
+
+    #[test]
+    fn test_host_without_header() {
+        let req = TestRequest::default()
+            .uri("www.rust-lang.org")
+            .to_http_request();
+
+        let pred = Host("www.rust-lang.org");
+        assert!(pred.check(req.head()));
+
+        let pred = Host("www.rust-lang.org").scheme("https");
+        assert!(pred.check(req.head()));
+
+        let pred = Host("blog.rust-lang.org");
+        assert!(!pred.check(req.head()));
+
+        let pred = Host("blog.rust-lang.org").scheme("https");
+        assert!(!pred.check(req.head()));
+
+        let pred = Host("crates.io");
         assert!(!pred.check(req.head()));
 
         let pred = Host("localhost");
