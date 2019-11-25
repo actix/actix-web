@@ -48,7 +48,7 @@ actix-http = "0.3.0-alpha.1"
 
 base64 = "0.10.1"
 bytes = "0.4"
-derive_more = "0.15.0"
+derive_more = "0.99.2"
 futures = "0.3.1"
 log =" 0.4"
 mime = "0.3"

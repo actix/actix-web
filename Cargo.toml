@@ -83,7 +83,7 @@ actix-threadpool = "0.2.0-alpha.1"
 awc = { version = "0.3.0-alpha.1", optional = true }
 
 bytes = "0.4"
-derive_more = "0.15.0"
+derive_more = "0.99.2"
 encoding_rs = "0.8"
 futures = "0.3.1"
 hashbrown = "0.6.3"
@@ -125,6 +125,8 @@ actix-http = { path = "actix-http" }
 actix-http-test = { path = "test-server" }
 actix-web-codegen = { path = "actix-web-codegen" }
 # actix-web-actors = { path = "actix-web-actors" }
+actix-cors = { path = "actix-cors" }
+actix-identity = { path = "actix-identity" }
 actix-session = { path = "actix-session" }
 actix-files = { path = "actix-files" }
 actix-multipart = { path = "actix-multipart" }

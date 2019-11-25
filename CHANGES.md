@@ -1,8 +1,10 @@
 # Changes
 
-## [2.0.0-alpha.2] - 2019-xx-xx
+## [2.0.0-alpha.1] - 2019-11-22
 
 ### Changed
+
+* Migrated to `std::future`
 
 * Remove implementation of `Responder` for `()`. (#1167)
 
