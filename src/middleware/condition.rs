@@ -1,9 +1,11 @@
 //! `Middleware` for conditionally enables another middleware.
-use actix_service::{Service, Transform};
+use actix_service::{IntoTransform, Service, Transform};
 use futures::future::{ok, Either, FutureResult, Map};
 use futures::{Future, Poll};
+use std::marker::PhantomData;
 
 /// `Middleware` for conditionally enables another middleware.
+///
 /// The controled middleware must not change the `Service` interfaces.
 /// This means you cannot control such middlewares like `Logger` or `Compress`.
 ///
@@ -16,17 +18,55 @@ use futures::{Future, Poll};
 /// fn main() {
 ///     let enable_normalize = std::env::var("NORMALIZE_PATH") == Ok("true".into());
 ///     let app = App::new()
-///         .wrap(Condition::new(enable_normalize, NormalizePath));
+///         .wrap(Condition::enable_if(enable_normalize, NormalizePath));
 /// }
 /// ```
-pub struct Condition<T> {
+pub struct Condition<T, Trans = No> {
     trans: T,
     enable: bool,
+    _phantom: PhantomData<Trans>,
 }
 
-impl<T> Condition<T> {
+#[doc(hidden)]
+pub enum No {}
+#[doc(hidden)]
+pub enum Yes {}
+
+impl<T> Condition<T, Yes> {
+    /// Conditionally enables another middleware.
+    pub fn enable_if(enable: bool, trans: T) -> Self {
+        Self {
+            trans,
+            enable,
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<T> Condition<T, No> {
+    /// Create a new condition middleware.
+    /// This function is not recommended in favor of [`enable_if`](#method.enable_if).
     pub fn new(enable: bool, trans: T) -> Self {
-        Self { trans, enable }
+        Self {
+            trans,
+            enable,
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<S, T, Target> IntoTransform<Condition<Target>, S> for Condition<T, Yes>
+where
+    S: Service,
+    T: IntoTransform<Target, S>,
+    Target: Transform<S, Request = S::Request, Response = S::Response, Error = S::Error>,
+{
+    fn into_transform(self) -> Condition<Target> {
+        Condition {
+            enable: self.enable,
+            trans: self.trans.into_transform(),
+            _phantom: PhantomData,
+        }
     }
 }
 
