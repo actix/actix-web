@@ -35,7 +35,7 @@ pub enum UriSegmentError {
 
 /// Return `BadRequest` for `UriSegmentError`
 impl ResponseError for UriSegmentError {
-    fn error_response(&self) -> HttpResponse {
-        HttpResponse::new(StatusCode::BAD_REQUEST)
+    fn status_code(&self) -> StatusCode {
+        StatusCode::BAD_REQUEST
     }
 }

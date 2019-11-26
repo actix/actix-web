@@ -93,6 +93,10 @@ pub enum CorsError {
 }
 
 impl ResponseError for CorsError {
+    fn status_code(&self) -> StatusCode {
+        StatusCode::BAD_REQUEST
+    }
+
     fn error_response(&self) -> HttpResponse {
         HttpResponse::with_body(StatusCode::BAD_REQUEST, format!("{}", self).into())
     }

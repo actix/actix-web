@@ -53,7 +53,7 @@ impl Response<Body> {
     /// Constructs an error response
     #[inline]
     pub fn from_error(error: Error) -> Response {
-        let mut resp = error.as_response_error().render_response();
+        let mut resp = error.as_response_error().error_response();
         if resp.head.status == StatusCode::INTERNAL_SERVER_ERROR {
             error!("Internal Server Error: {:?}", error);
         }

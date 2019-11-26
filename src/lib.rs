@@ -63,7 +63,7 @@
 //! * SSL support with OpenSSL or `native-tls`
 //! * Middlewares (`Logger`, `Session`, `CORS`, `DefaultHeaders`)
 //! * Supports [Actix actor framework](https://github.com/actix/actix)
-//! * Supported Rust version: 1.36 or later
+//! * Supported Rust version: 1.39 or later
 //!
 //! ## Package feature
 //!

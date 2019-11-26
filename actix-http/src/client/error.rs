@@ -7,8 +7,7 @@ use trust_dns_resolver::error::ResolveError;
 use open_ssl::ssl::{Error as SslError, HandshakeError};
 
 use crate::error::{Error, ParseError, ResponseError};
-use crate::http::Error as HttpError;
-use crate::response::Response;
+use crate::http::{Error as HttpError, StatusCode};
 
 /// A set of errors that can occur while connecting to an HTTP host
 #[derive(Debug, Display, From)]
@@ -117,15 +116,14 @@ pub enum SendRequestError {
 
 /// Convert `SendRequestError` to a server `Response`
 impl ResponseError for SendRequestError {
-    fn error_response(&self) -> Response {
+    fn status_code(&self) -> StatusCode {
         match *self {
             SendRequestError::Connect(ConnectError::Timeout) => {
-                Response::GatewayTimeout()
+                StatusCode::GATEWAY_TIMEOUT
             }
-            SendRequestError::Connect(_) => Response::BadGateway(),
-            _ => Response::InternalServerError(),
+            SendRequestError::Connect(_) => StatusCode::BAD_REQUEST,
+            _ => StatusCode::INTERNAL_SERVER_ERROR,
         }
-        .into()
     }
 }
 

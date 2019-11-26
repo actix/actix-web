@@ -6,7 +6,7 @@ pub use actix_http::error::PayloadError;
 pub use actix_http::ws::HandshakeError as WsHandshakeError;
 pub use actix_http::ws::ProtocolError as WsProtocolError;
 
-use actix_http::{Response, ResponseError};
+use actix_http::ResponseError;
 use serde_json::error::Error as JsonError;
 
 use actix_http::http::{header::HeaderValue, Error as HttpError, StatusCode};
@@ -68,8 +68,4 @@ pub enum JsonPayloadError {
 }
 
 /// Return `InternalServerError` for `JsonPayloadError`
-impl ResponseError for JsonPayloadError {
-    fn error_response(&self) -> Response {
-        Response::new(StatusCode::INTERNAL_SERVER_ERROR)
-    }
-}
+impl ResponseError for JsonPayloadError {}
