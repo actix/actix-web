@@ -1,6 +1,6 @@
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use actix_http::{body, h1, ws, Error, HttpService, Request, Response};
-use actix_http_test::{block_on, TestServer};
+use actix_http_test::TestServer;
 use actix_utils::framed::FramedTransport;
 use bytes::{Bytes, BytesMut};
 use futures::future;
@@ -34,53 +34,51 @@ async fn service(msg: ws::Frame) -> Result<ws::Message, Error> {
     Ok(msg)
 }
 
-#[test]
-fn test_simple() {
-    block_on(async {
-        let mut srv = TestServer::start(|| {
-            HttpService::build()
-                .upgrade(actix_service::service_fn(ws_service))
-                .finish(|_| future::ok::<_, ()>(Response::NotFound()))
-        });
+#[actix_rt::test]
+async fn test_simple() {
+    let mut srv = TestServer::start(|| {
+        HttpService::build()
+            .upgrade(actix_service::service_fn(ws_service))
+            .finish(|_| future::ok::<_, ()>(Response::NotFound()))
+    });
 
-        // client service
-        let mut framed = srv.ws().await.unwrap();
-        framed
-            .send(ws::Message::Text("text".to_string()))
-            .await
-            .unwrap();
-        let (item, mut framed) = framed.into_future().await;
-        assert_eq!(
-            item.unwrap().unwrap(),
-            ws::Frame::Text(Some(BytesMut::from("text")))
-        );
+    // client service
+    let mut framed = srv.ws().await.unwrap();
+    framed
+        .send(ws::Message::Text("text".to_string()))
+        .await
+        .unwrap();
+    let (item, mut framed) = framed.into_future().await;
+    assert_eq!(
+        item.unwrap().unwrap(),
+        ws::Frame::Text(Some(BytesMut::from("text")))
+    );
 
-        framed
-            .send(ws::Message::Binary("text".into()))
-            .await
-            .unwrap();
-        let (item, mut framed) = framed.into_future().await;
-        assert_eq!(
-            item.unwrap().unwrap(),
-            ws::Frame::Binary(Some(Bytes::from_static(b"text").into()))
-        );
+    framed
+        .send(ws::Message::Binary("text".into()))
+        .await
+        .unwrap();
+    let (item, mut framed) = framed.into_future().await;
+    assert_eq!(
+        item.unwrap().unwrap(),
+        ws::Frame::Binary(Some(Bytes::from_static(b"text").into()))
+    );
 
-        framed.send(ws::Message::Ping("text".into())).await.unwrap();
-        let (item, mut framed) = framed.into_future().await;
-        assert_eq!(
-            item.unwrap().unwrap(),
-            ws::Frame::Pong("text".to_string().into())
-        );
+    framed.send(ws::Message::Ping("text".into())).await.unwrap();
+    let (item, mut framed) = framed.into_future().await;
+    assert_eq!(
+        item.unwrap().unwrap(),
+        ws::Frame::Pong("text".to_string().into())
+    );
 
-        framed
-            .send(ws::Message::Close(Some(ws::CloseCode::Normal.into())))
-            .await
-            .unwrap();
+    framed
+        .send(ws::Message::Close(Some(ws::CloseCode::Normal.into())))
+        .await
+        .unwrap();
 
-        let (item, _framed) = framed.into_future().await;
-        assert_eq!(
-            item.unwrap().unwrap(),
-            ws::Frame::Close(Some(ws::CloseCode::Normal.into()))
-        );
-    })
+    let (item, _framed) = framed.into_future().await;
+    assert_eq!(
+        item.unwrap().unwrap(),
+        ws::Frame::Close(Some(ws::CloseCode::Normal.into()))
+    );
 }

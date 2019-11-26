@@ -9,14 +9,13 @@ use actix_router::{Path, ResourceDef, Url};
 use actix_server_config::ServerConfig;
 use actix_service::{IntoService, IntoServiceFactory, Service, ServiceFactory};
 use bytes::{Bytes, BytesMut};
-use futures::future::{ok, Future, FutureExt};
+use futures::future::ok;
 use futures::stream::{Stream, StreamExt};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use serde_json;
 
 pub use actix_http::test::TestBuffer;
-pub use actix_testing::{block_fn, block_on, run_on};
 
 use crate::config::{AppConfig, AppConfigInner};
 use crate::data::Data;
@@ -51,8 +50,8 @@ pub fn default_service(
 /// use actix_service::Service;
 /// use actix_web::{test, web, App, HttpResponse, http::StatusCode};
 ///
-/// #[test]
-/// fn test_init_service() {
+/// #[actix_rt::test]
+/// async fn test_init_service() {
 ///     let mut app = test::init_service(
 ///         App::new()
 ///             .service(web::resource("/test").to(|| async { HttpResponse::Ok() }))
@@ -62,7 +61,7 @@ pub fn default_service(
 ///     let req = test::TestRequest::with_uri("/test").to_request();
 ///
 ///     // Execute application
-///     let resp = test::block_on(app.call(req)).unwrap();
+///     let resp = app.call(req).await.unwrap();
 ///     assert_eq!(resp.status(), StatusCode::OK);
 /// }
 /// ```
@@ -116,14 +115,13 @@ where
 }
 
 /// Helper function that returns a response body of a TestRequest
-/// This function blocks the current thread until futures complete.
 ///
 /// ```rust
 /// use actix_web::{test, web, App, HttpResponse, http::header};
 /// use bytes::Bytes;
 ///
-/// #[test]
-/// fn test_index() {
+/// #[actix_rt::test]
+/// async fn test_index() {
 ///     let mut app = test::init_service(
 ///         App::new().service(
 ///             web::resource("/index.html")
@@ -149,7 +147,7 @@ where
     let mut resp = app
         .call(req)
         .await
-        .unwrap_or_else(|_| panic!("read_response failed at block_on unwrap"));
+        .unwrap_or_else(|_| panic!("read_response failed at application call"));
 
     let mut body = resp.take_body();
     let mut bytes = BytesMut::new();
@@ -160,14 +158,13 @@ where
 }
 
 /// Helper function that returns a response body of a ServiceResponse.
-/// This function blocks the current thread until futures complete.
 ///
 /// ```rust
 /// use actix_web::{test, web, App, HttpResponse, http::header};
 /// use bytes::Bytes;
 ///
-/// #[test]
-/// fn test_index() {
+/// #[actix_rt::test]
+/// async fn test_index() {
 ///     let mut app = test::init_service(
 ///         App::new().service(
 ///             web::resource("/index.html")
@@ -210,7 +207,6 @@ where
 }
 
 /// Helper function that returns a deserialized response body of a TestRequest
-/// This function blocks the current thread until futures complete.
 ///
 /// ```rust
 /// use actix_web::{App, test, web, HttpResponse, http::header};
@@ -222,8 +218,8 @@ where
 ///     name: String
 /// }
 ///
-/// #[test]
-/// fn test_add_person() {
+/// #[actix_rt::test]
+/// async fn test_add_person() {
 ///     let mut app = test::init_service(
 ///         App::new().service(
 ///             web::resource("/people")
@@ -512,90 +508,81 @@ mod tests {
     use super::*;
     use crate::{http::header, web, App, HttpResponse};
 
-    #[test]
-    fn test_basics() {
-        block_on(async {
-            let req = TestRequest::with_hdr(header::ContentType::json())
-                .version(Version::HTTP_2)
-                .set(header::Date(SystemTime::now().into()))
-                .param("test", "123")
-                .data(10u32)
-                .to_http_request();
-            assert!(req.headers().contains_key(header::CONTENT_TYPE));
-            assert!(req.headers().contains_key(header::DATE));
-            assert_eq!(&req.match_info()["test"], "123");
-            assert_eq!(req.version(), Version::HTTP_2);
-            let data = req.get_app_data::<u32>().unwrap();
-            assert!(req.get_app_data::<u64>().is_none());
-            assert_eq!(*data, 10);
-            assert_eq!(*data.get_ref(), 10);
+    #[actix_rt::test]
+    async fn test_basics() {
+        let req = TestRequest::with_hdr(header::ContentType::json())
+            .version(Version::HTTP_2)
+            .set(header::Date(SystemTime::now().into()))
+            .param("test", "123")
+            .data(10u32)
+            .to_http_request();
+        assert!(req.headers().contains_key(header::CONTENT_TYPE));
+        assert!(req.headers().contains_key(header::DATE));
+        assert_eq!(&req.match_info()["test"], "123");
+        assert_eq!(req.version(), Version::HTTP_2);
+        let data = req.get_app_data::<u32>().unwrap();
+        assert!(req.get_app_data::<u64>().is_none());
+        assert_eq!(*data, 10);
+        assert_eq!(*data.get_ref(), 10);
 
-            assert!(req.app_data::<u64>().is_none());
-            let data = req.app_data::<u32>().unwrap();
-            assert_eq!(*data, 10);
-        })
+        assert!(req.app_data::<u64>().is_none());
+        let data = req.app_data::<u32>().unwrap();
+        assert_eq!(*data, 10);
     }
 
-    #[test]
-    fn test_request_methods() {
-        block_on(async {
-            let mut app = init_service(
-                App::new().service(
-                    web::resource("/index.html")
-                        .route(
-                            web::put().to(|| async { HttpResponse::Ok().body("put!") }),
-                        )
-                        .route(
-                            web::patch()
-                                .to(|| async { HttpResponse::Ok().body("patch!") }),
-                        )
-                        .route(
-                            web::delete()
-                                .to(|| async { HttpResponse::Ok().body("delete!") }),
-                        ),
-                ),
-            )
+    #[actix_rt::test]
+    async fn test_request_methods() {
+        let mut app = init_service(
+            App::new().service(
+                web::resource("/index.html")
+                    .route(web::put().to(|| async { HttpResponse::Ok().body("put!") }))
+                    .route(
+                        web::patch().to(|| async { HttpResponse::Ok().body("patch!") }),
+                    )
+                    .route(
+                        web::delete()
+                            .to(|| async { HttpResponse::Ok().body("delete!") }),
+                    ),
+            ),
+        )
+        .await;
+
+        let put_req = TestRequest::put()
+            .uri("/index.html")
+            .header(header::CONTENT_TYPE, "application/json")
+            .to_request();
+
+        let result = read_response(&mut app, put_req).await;
+        assert_eq!(result, Bytes::from_static(b"put!"));
+
+        let patch_req = TestRequest::patch()
+            .uri("/index.html")
+            .header(header::CONTENT_TYPE, "application/json")
+            .to_request();
+
+        let result = read_response(&mut app, patch_req).await;
+        assert_eq!(result, Bytes::from_static(b"patch!"));
+
+        let delete_req = TestRequest::delete().uri("/index.html").to_request();
+        let result = read_response(&mut app, delete_req).await;
+        assert_eq!(result, Bytes::from_static(b"delete!"));
+    }
+
+    #[actix_rt::test]
+    async fn test_response() {
+        let mut app =
+            init_service(App::new().service(web::resource("/index.html").route(
+                web::post().to(|| async { HttpResponse::Ok().body("welcome!") }),
+            )))
             .await;
 
-            let put_req = TestRequest::put()
-                .uri("/index.html")
-                .header(header::CONTENT_TYPE, "application/json")
-                .to_request();
+        let req = TestRequest::post()
+            .uri("/index.html")
+            .header(header::CONTENT_TYPE, "application/json")
+            .to_request();
 
-            let result = read_response(&mut app, put_req).await;
-            assert_eq!(result, Bytes::from_static(b"put!"));
-
-            let patch_req = TestRequest::patch()
-                .uri("/index.html")
-                .header(header::CONTENT_TYPE, "application/json")
-                .to_request();
-
-            let result = read_response(&mut app, patch_req).await;
-            assert_eq!(result, Bytes::from_static(b"patch!"));
-
-            let delete_req = TestRequest::delete().uri("/index.html").to_request();
-            let result = read_response(&mut app, delete_req).await;
-            assert_eq!(result, Bytes::from_static(b"delete!"));
-        })
-    }
-
-    #[test]
-    fn test_response() {
-        block_on(async {
-            let mut app =
-                init_service(App::new().service(web::resource("/index.html").route(
-                    web::post().to(|| async { HttpResponse::Ok().body("welcome!") }),
-                )))
-                .await;
-
-            let req = TestRequest::post()
-                .uri("/index.html")
-                .header(header::CONTENT_TYPE, "application/json")
-                .to_request();
-
-            let result = read_response(&mut app, req).await;
-            assert_eq!(result, Bytes::from_static(b"welcome!"));
-        })
+        let result = read_response(&mut app, req).await;
+        assert_eq!(result, Bytes::from_static(b"welcome!"));
     }
 
     #[derive(Serialize, Deserialize)]
@@ -604,114 +591,103 @@ mod tests {
         name: String,
     }
 
-    #[test]
-    fn test_response_json() {
-        block_on(async {
-            let mut app =
-                init_service(App::new().service(web::resource("/people").route(
-                    web::post().to(|person: web::Json<Person>| {
-                        async { HttpResponse::Ok().json(person.into_inner()) }
-                    }),
-                )))
-                .await;
+    #[actix_rt::test]
+    async fn test_response_json() {
+        let mut app = init_service(App::new().service(web::resource("/people").route(
+            web::post().to(|person: web::Json<Person>| {
+                async { HttpResponse::Ok().json(person.into_inner()) }
+            }),
+        )))
+        .await;
 
-            let payload = r#"{"id":"12345","name":"User name"}"#.as_bytes();
+        let payload = r#"{"id":"12345","name":"User name"}"#.as_bytes();
 
-            let req = TestRequest::post()
-                .uri("/people")
-                .header(header::CONTENT_TYPE, "application/json")
-                .set_payload(payload)
-                .to_request();
+        let req = TestRequest::post()
+            .uri("/people")
+            .header(header::CONTENT_TYPE, "application/json")
+            .set_payload(payload)
+            .to_request();
 
-            let result: Person = read_response_json(&mut app, req).await;
-            assert_eq!(&result.id, "12345");
-        })
+        let result: Person = read_response_json(&mut app, req).await;
+        assert_eq!(&result.id, "12345");
     }
 
-    #[test]
-    fn test_request_response_form() {
-        block_on(async {
-            let mut app =
-                init_service(App::new().service(web::resource("/people").route(
-                    web::post().to(|person: web::Form<Person>| {
-                        async { HttpResponse::Ok().json(person.into_inner()) }
-                    }),
-                )))
-                .await;
+    #[actix_rt::test]
+    async fn test_request_response_form() {
+        let mut app = init_service(App::new().service(web::resource("/people").route(
+            web::post().to(|person: web::Form<Person>| {
+                async { HttpResponse::Ok().json(person.into_inner()) }
+            }),
+        )))
+        .await;
 
-            let payload = Person {
-                id: "12345".to_string(),
-                name: "User name".to_string(),
-            };
+        let payload = Person {
+            id: "12345".to_string(),
+            name: "User name".to_string(),
+        };
 
-            let req = TestRequest::post()
-                .uri("/people")
-                .set_form(&payload)
-                .to_request();
+        let req = TestRequest::post()
+            .uri("/people")
+            .set_form(&payload)
+            .to_request();
 
-            assert_eq!(req.content_type(), "application/x-www-form-urlencoded");
+        assert_eq!(req.content_type(), "application/x-www-form-urlencoded");
 
-            let result: Person = read_response_json(&mut app, req).await;
-            assert_eq!(&result.id, "12345");
-            assert_eq!(&result.name, "User name");
-        })
+        let result: Person = read_response_json(&mut app, req).await;
+        assert_eq!(&result.id, "12345");
+        assert_eq!(&result.name, "User name");
     }
 
-    #[test]
-    fn test_request_response_json() {
-        block_on(async {
-            let mut app =
-                init_service(App::new().service(web::resource("/people").route(
-                    web::post().to(|person: web::Json<Person>| {
-                        async { HttpResponse::Ok().json(person.into_inner()) }
-                    }),
-                )))
-                .await;
+    #[actix_rt::test]
+    async fn test_request_response_json() {
+        let mut app = init_service(App::new().service(web::resource("/people").route(
+            web::post().to(|person: web::Json<Person>| {
+                async { HttpResponse::Ok().json(person.into_inner()) }
+            }),
+        )))
+        .await;
 
-            let payload = Person {
-                id: "12345".to_string(),
-                name: "User name".to_string(),
-            };
+        let payload = Person {
+            id: "12345".to_string(),
+            name: "User name".to_string(),
+        };
 
-            let req = TestRequest::post()
-                .uri("/people")
-                .set_json(&payload)
-                .to_request();
+        let req = TestRequest::post()
+            .uri("/people")
+            .set_json(&payload)
+            .to_request();
 
-            assert_eq!(req.content_type(), "application/json");
+        assert_eq!(req.content_type(), "application/json");
 
-            let result: Person = read_response_json(&mut app, req).await;
-            assert_eq!(&result.id, "12345");
-            assert_eq!(&result.name, "User name");
-        })
+        let result: Person = read_response_json(&mut app, req).await;
+        assert_eq!(&result.id, "12345");
+        assert_eq!(&result.name, "User name");
     }
 
-    #[test]
-    fn test_async_with_block() {
-        block_on(async {
-            async fn async_with_block() -> Result<HttpResponse, Error> {
-                let res = web::block(move || Some(4usize).ok_or("wrong")).await;
+    #[actix_rt::test]
+    async fn test_async_with_block() {
+        async fn async_with_block() -> Result<HttpResponse, Error> {
+            let res = web::block(move || Some(4usize).ok_or("wrong")).await;
 
-                match res? {
-                    Ok(value) => Ok(HttpResponse::Ok()
-                        .content_type("text/plain")
-                        .body(format!("Async with block value: {}", value))),
-                    Err(_) => panic!("Unexpected"),
-                }
+            match res? {
+                Ok(value) => Ok(HttpResponse::Ok()
+                    .content_type("text/plain")
+                    .body(format!("Async with block value: {}", value))),
+                Err(_) => panic!("Unexpected"),
             }
+        }
 
-            let mut app = init_service(
-                App::new().service(web::resource("/index.html").to(async_with_block)),
-            )
-            .await;
+        let mut app = init_service(
+            App::new().service(web::resource("/index.html").to(async_with_block)),
+        )
+        .await;
 
-            let req = TestRequest::post().uri("/index.html").to_request();
-            let res = app.call(req).await.unwrap();
-            assert!(res.status().is_success());
-        })
+        let req = TestRequest::post().uri("/index.html").to_request();
+        let res = app.call(req).await.unwrap();
+        assert!(res.status().is_success());
     }
 
-    // #[test]
+    // #[actix_rt::test]
     // fn test_actor() {
     //     use actix::Actor;
 

@@ -9,7 +9,7 @@ use actix_codec::Framed;
 use actix_server_config::{Io, IoStream, ServerConfig as SrvConfig};
 use actix_service::{IntoServiceFactory, Service, ServiceFactory};
 use futures::future::{ok, Ready};
-use futures::{ready, Stream};
+use futures::ready;
 
 use crate::body::MessageBody;
 use crate::cloneable::CloneableService;

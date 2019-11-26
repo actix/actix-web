@@ -8,9 +8,9 @@ use std::task::{Context, Poll};
 use actix_http::{Extensions, Request, Response};
 use actix_router::{Path, ResourceDef, ResourceInfo, Router, Url};
 use actix_server_config::ServerConfig;
-use actix_service::boxed::{self, BoxedNewService, BoxedService};
+use actix_service::boxed::{self, BoxService, BoxServiceFactory};
 use actix_service::{service_fn, Service, ServiceFactory};
-use futures::future::{ok, Either, FutureExt, LocalBoxFuture, Ready};
+use futures::future::{ok, FutureExt, LocalBoxFuture};
 
 use crate::config::{AppConfig, AppService};
 use crate::data::DataFactory;
@@ -21,9 +21,9 @@ use crate::rmap::ResourceMap;
 use crate::service::{AppServiceFactory, ServiceRequest, ServiceResponse};
 
 type Guards = Vec<Box<dyn Guard>>;
-type HttpService = BoxedService<ServiceRequest, ServiceResponse, Error>;
-type HttpNewService = BoxedNewService<(), ServiceRequest, ServiceResponse, Error, ()>;
-type BoxedResponse = LocalBoxFuture<'static, Result<ServiceResponse, Error>>;
+type HttpService = BoxService<ServiceRequest, ServiceResponse, Error>;
+type HttpNewService = BoxServiceFactory<(), ServiceRequest, ServiceResponse, Error, ()>;
+type BoxResponse = LocalBoxFuture<'static, Result<ServiceResponse, Error>>;
 type FnDataFactory =
     Box<dyn Fn() -> LocalBoxFuture<'static, Result<Box<dyn DataFactory>, ()>>>;
 
@@ -387,7 +387,7 @@ impl Service for AppRouting {
     type Request = ServiceRequest;
     type Response = ServiceResponse;
     type Error = Error;
-    type Future = BoxedResponse;
+    type Future = BoxResponse;
 
     fn poll_ready(&mut self, _: &mut Context) -> Poll<Result<(), Self::Error>> {
         if self.ready.is_none() {
@@ -447,13 +447,12 @@ impl ServiceFactory for AppEntry {
 
 #[cfg(test)]
 mod tests {
-    use actix_service::Service;
-    use std::sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc,
-    };
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::Arc;
 
-    use crate::{test, web, App, HttpResponse};
+    use crate::test::{init_service, TestRequest};
+    use crate::{web, App, HttpResponse};
+    use actix_service::Service;
 
     struct DropData(Arc<AtomicBool>);
 
@@ -463,19 +462,20 @@ mod tests {
         }
     }
 
-    #[test]
-    fn drop_data() {
+    #[actix_rt::test]
+    async fn test_drop_data() {
         let data = Arc::new(AtomicBool::new(false));
-        test::block_on(async {
-            let mut app = test::init_service(
+
+        {
+            let mut app = init_service(
                 App::new()
                     .data(DropData(data.clone()))
                     .service(web::resource("/test").to(|| HttpResponse::Ok())),
             )
             .await;
-            let req = test::TestRequest::with_uri("/test").to_request();
+            let req = TestRequest::with_uri("/test").to_request();
             let _ = app.call(req).await.unwrap();
-        });
+        }
         assert!(data.load(Ordering::Relaxed));
     }
 }

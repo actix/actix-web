@@ -4,10 +4,10 @@ use std::fmt::Write;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
+use actix_rt::time::{delay, delay_for, Delay};
 use bytes::BytesMut;
-use futures::{future, Future, FutureExt};
+use futures::{future, FutureExt};
 use time;
-use tokio_timer::{delay, delay_for, Delay};
 
 // "Sun, 06 Nov 1994 08:49:37 GMT".len()
 const DATE_VALUE_LENGTH: usize = 29;
@@ -242,12 +242,10 @@ impl DateService {
 
             // periodic date update
             let s = self.clone();
-            tokio_executor::current_thread::spawn(
-                delay_for(Duration::from_millis(500)).then(move |_| {
-                    s.0.reset();
-                    future::ready(())
-                }),
-            );
+            actix_rt::spawn(delay_for(Duration::from_millis(500)).then(move |_| {
+                s.0.reset();
+                future::ready(())
+            }));
         }
     }
 
@@ -265,26 +263,19 @@ impl DateService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use actix_rt::System;
-    use futures::future;
 
     #[test]
     fn test_date_len() {
         assert_eq!(DATE_VALUE_LENGTH, "Sun, 06 Nov 1994 08:49:37 GMT".len());
     }
 
-    #[test]
-    fn test_date() {
-        let mut rt = System::new("test");
-
-        let _ = rt.block_on(future::lazy(|_| {
-            let settings = ServiceConfig::new(KeepAlive::Os, 0, 0);
-            let mut buf1 = BytesMut::with_capacity(DATE_VALUE_LENGTH + 10);
-            settings.set_date(&mut buf1);
-            let mut buf2 = BytesMut::with_capacity(DATE_VALUE_LENGTH + 10);
-            settings.set_date(&mut buf2);
-            assert_eq!(buf1, buf2);
-            future::ok::<_, ()>(())
-        }));
+    #[actix_rt::test]
+    async fn test_date() {
+        let settings = ServiceConfig::new(KeepAlive::Os, 0, 0);
+        let mut buf1 = BytesMut::with_capacity(DATE_VALUE_LENGTH + 10);
+        settings.set_date(&mut buf1);
+        let mut buf2 = BytesMut::with_capacity(DATE_VALUE_LENGTH + 10);
+        settings.set_date(&mut buf2);
+        assert_eq!(buf1, buf2);
     }
 }

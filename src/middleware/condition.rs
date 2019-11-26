@@ -2,7 +2,7 @@
 use std::task::{Context, Poll};
 
 use actix_service::{Service, Transform};
-use futures::future::{ok, Either, FutureExt, LocalBoxFuture, Ready};
+use futures::future::{ok, Either, FutureExt, LocalBoxFuture};
 
 /// `Middleware` for conditionally enables another middleware.
 /// The controled middleware must not change the `Service` interfaces.
@@ -102,7 +102,7 @@ mod tests {
     use crate::error::Result;
     use crate::http::{header::CONTENT_TYPE, HeaderValue, StatusCode};
     use crate::middleware::errhandlers::*;
-    use crate::test::{self, block_on, TestRequest};
+    use crate::test::{self, TestRequest};
     use crate::HttpResponse;
 
     fn render_500<B>(mut res: ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
@@ -112,46 +112,40 @@ mod tests {
         Ok(ErrorHandlerResponse::Response(res))
     }
 
-    #[test]
-    fn test_handler_enabled() {
-        block_on(async {
-            let srv = |req: ServiceRequest| {
-                ok(req.into_response(HttpResponse::InternalServerError().finish()))
-            };
+    #[actix_rt::test]
+    async fn test_handler_enabled() {
+        let srv = |req: ServiceRequest| {
+            ok(req.into_response(HttpResponse::InternalServerError().finish()))
+        };
 
-            let mw = ErrorHandlers::new()
-                .handler(StatusCode::INTERNAL_SERVER_ERROR, render_500);
+        let mw =
+            ErrorHandlers::new().handler(StatusCode::INTERNAL_SERVER_ERROR, render_500);
 
-            let mut mw = Condition::new(true, mw)
-                .new_transform(srv.into_service())
-                .await
-                .unwrap();
-            let resp =
-                test::call_service(&mut mw, TestRequest::default().to_srv_request())
-                    .await;
-            assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0001");
-        })
+        let mut mw = Condition::new(true, mw)
+            .new_transform(srv.into_service())
+            .await
+            .unwrap();
+        let resp =
+            test::call_service(&mut mw, TestRequest::default().to_srv_request()).await;
+        assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0001");
     }
 
-    #[test]
-    fn test_handler_disabled() {
-        block_on(async {
-            let srv = |req: ServiceRequest| {
-                ok(req.into_response(HttpResponse::InternalServerError().finish()))
-            };
+    #[actix_rt::test]
+    async fn test_handler_disabled() {
+        let srv = |req: ServiceRequest| {
+            ok(req.into_response(HttpResponse::InternalServerError().finish()))
+        };
 
-            let mw = ErrorHandlers::new()
-                .handler(StatusCode::INTERNAL_SERVER_ERROR, render_500);
+        let mw =
+            ErrorHandlers::new().handler(StatusCode::INTERNAL_SERVER_ERROR, render_500);
 
-            let mut mw = Condition::new(false, mw)
-                .new_transform(srv.into_service())
-                .await
-                .unwrap();
+        let mut mw = Condition::new(false, mw)
+            .new_transform(srv.into_service())
+            .await
+            .unwrap();
 
-            let resp =
-                test::call_service(&mut mw, TestRequest::default().to_srv_request())
-                    .await;
-            assert_eq!(resp.headers().get(CONTENT_TYPE), None);
-        })
+        let resp =
+            test::call_service(&mut mw, TestRequest::default().to_srv_request()).await;
+        assert_eq!(resp.headers().get(CONTENT_TYPE), None);
     }
 }

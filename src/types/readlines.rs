@@ -1,5 +1,4 @@
 use std::borrow::Cow;
-use std::future::Future;
 use std::pin::Pin;
 use std::str;
 use std::task::{Context, Poll};
@@ -7,7 +6,6 @@ use std::task::{Context, Poll};
 use bytes::{Bytes, BytesMut};
 use encoding_rs::{Encoding, UTF_8};
 use futures::Stream;
-use pin_project::pin_project;
 
 use crate::dev::Payload;
 use crate::error::{PayloadError, ReadlinesError};
@@ -174,12 +172,11 @@ mod tests {
     use futures::stream::StreamExt;
 
     use super::*;
-    use crate::test::{block_on, TestRequest};
+    use crate::test::TestRequest;
 
-    #[test]
-    fn test_readlines() {
-        block_on(async {
-            let mut req = TestRequest::default()
+    #[actix_rt::test]
+    async fn test_readlines() {
+        let mut req = TestRequest::default()
             .set_payload(Bytes::from_static(
                 b"Lorem Ipsum is simply dummy text of the printing and typesetting\n\
                   industry. Lorem Ipsum has been the industry's standard dummy\n\
@@ -187,21 +184,20 @@ mod tests {
             ))
             .to_request();
 
-            let mut stream = Readlines::new(&mut req);
-            assert_eq!(
-                stream.next().await.unwrap().unwrap(),
-                "Lorem Ipsum is simply dummy text of the printing and typesetting\n"
-            );
+        let mut stream = Readlines::new(&mut req);
+        assert_eq!(
+            stream.next().await.unwrap().unwrap(),
+            "Lorem Ipsum is simply dummy text of the printing and typesetting\n"
+        );
 
-            assert_eq!(
-                stream.next().await.unwrap().unwrap(),
-                "industry. Lorem Ipsum has been the industry's standard dummy\n"
-            );
+        assert_eq!(
+            stream.next().await.unwrap().unwrap(),
+            "industry. Lorem Ipsum has been the industry's standard dummy\n"
+        );
 
-            assert_eq!(
-                stream.next().await.unwrap().unwrap(),
-                "Contrary to popular belief, Lorem Ipsum is not simply random text."
-            );
-        })
+        assert_eq!(
+            stream.next().await.unwrap().unwrap(),
+            "Contrary to popular belief, Lorem Ipsum is not simply random text."
+        );
     }
 }

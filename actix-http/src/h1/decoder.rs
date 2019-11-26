@@ -1,9 +1,7 @@
-use std::future::Future;
 use std::io;
 use std::marker::PhantomData;
 use std::mem::MaybeUninit;
-use std::pin::Pin;
-use std::task::{Context, Poll};
+use std::task::Poll;
 
 use actix_codec::Decoder;
 use bytes::{Bytes, BytesMut};

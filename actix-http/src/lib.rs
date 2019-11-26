@@ -4,8 +4,7 @@
     clippy::too_many_arguments,
     clippy::new_without_default,
     clippy::borrow_interior_mutable_const,
-    clippy::write_with_newline,
-    unused_imports
+    clippy::write_with_newline
 )]
 
 #[macro_use]

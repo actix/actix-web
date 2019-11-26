@@ -36,9 +36,12 @@ before_script:
 script:
   - cargo update
   - cargo check --all --no-default-features
-  - cargo test --all-features --all -- --nocapture
-  # - cd actix-http; cargo test --no-default-features --features="rustls" -- --nocapture; cd ..
-  # - cd awc; cargo test --no-default-features --features="rustls" -- --nocapture; cd ..
+  - |
+    if [[ "$TRAVIS_RUST_VERSION" == "stable" || "$TRAVIS_RUST_VERSION" == "beta" ]]; then
+      cargo test --all-features --all -- --nocapture
+      cd actix-http; cargo test --no-default-features --features="rustls" -- --nocapture; cd ..
+      cd awc; cargo test --no-default-features --features="rustls" -- --nocapture; cd ..
+    fi
 
 # Upload docs
 after_success:
@@ -51,7 +54,7 @@ after_success:
       echo "Uploaded documentation"
     fi
   - |
-    if [[ "$TRAVIS_RUST_VERSION" ==  "nightly-2019-11-20" ]]; then
+    if [[ "$TRAVIS_RUST_VERSION" == "nightly-2019-11-20" ]]; then
         taskset -c 0 cargo tarpaulin --out Xml --all --all-features
         bash <(curl -s https://codecov.io/bash)
         echo "Uploaded code coverage"

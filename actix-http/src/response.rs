@@ -7,7 +7,6 @@ use std::task::{Context, Poll};
 use std::{fmt, str};
 
 use bytes::{BufMut, Bytes, BytesMut};
-use futures::future::{ok, Ready};
 use futures::stream::Stream;
 use serde::Serialize;
 use serde_json;

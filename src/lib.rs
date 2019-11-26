@@ -1,4 +1,4 @@
-#![allow(clippy::borrow_interior_mutable_const, unused_imports, dead_code)]
+#![allow(clippy::borrow_interior_mutable_const)]
 //! Actix web is a small, pragmatic, and extremely fast web framework
 //! for Rust.
 //!
@@ -143,9 +143,9 @@ pub mod dev {
         HttpServiceFactory, ServiceRequest, ServiceResponse, WebService,
     };
 
-    //pub use crate::types::form::UrlEncoded;
-    //pub use crate::types::json::JsonBody;
-    //pub use crate::types::readlines::Readlines;
+    pub use crate::types::form::UrlEncoded;
+    pub use crate::types::json::JsonBody;
+    pub use crate::types::readlines::Readlines;
 
     pub use actix_http::body::{Body, BodySize, MessageBody, ResponseBody, SizedStream};
     pub use actix_http::encoding::Decoder as Decompress;
@@ -174,17 +174,16 @@ pub mod client {
     //! use actix_rt::System;
     //! use actix_web::client::Client;
     //!
-    //! fn main() {
-    //!     System::new("test").block_on(async {
-    //!        let mut client = Client::default();
+    //! #[actix_rt::main]
+    //! async fn main() {
+    //!    let mut client = Client::default();
     //!
-    //!        // Create request builder and send request
-    //!        let response = client.get("http://www.rust-lang.org")
-    //!           .header("User-Agent", "Actix-web")
-    //!           .send().await;                      // <- Send http request
+    //!    // Create request builder and send request
+    //!    let response = client.get("http://www.rust-lang.org")
+    //!       .header("User-Agent", "Actix-web")
+    //!       .send().await;                      // <- Send http request
     //!
-    //!        println!("Response: {:?}", response);
-    //!     });
+    //!    println!("Response: {:?}", response);
     //! }
     //! ```
     pub use awc::error::{

@@ -3,7 +3,7 @@ use std::rc::Rc;
 use std::task::{Context, Poll};
 
 use actix_service::{Service, Transform};
-use futures::future::{err, ok, Either, Future, FutureExt, LocalBoxFuture, Ready};
+use futures::future::{ok, FutureExt, LocalBoxFuture, Ready};
 use hashbrown::HashMap;
 
 use crate::dev::{ServiceRequest, ServiceResponse};
@@ -151,7 +151,7 @@ mod tests {
 
     use super::*;
     use crate::http::{header::CONTENT_TYPE, HeaderValue, StatusCode};
-    use crate::test::{self, block_on, TestRequest};
+    use crate::test::{self, TestRequest};
     use crate::HttpResponse;
 
     fn render_500<B>(mut res: ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
@@ -161,24 +161,21 @@ mod tests {
         Ok(ErrorHandlerResponse::Response(res))
     }
 
-    #[test]
-    fn test_handler() {
-        block_on(async {
-            let srv = |req: ServiceRequest| {
-                ok(req.into_response(HttpResponse::InternalServerError().finish()))
-            };
+    #[actix_rt::test]
+    async fn test_handler() {
+        let srv = |req: ServiceRequest| {
+            ok(req.into_response(HttpResponse::InternalServerError().finish()))
+        };
 
-            let mut mw = ErrorHandlers::new()
-                .handler(StatusCode::INTERNAL_SERVER_ERROR, render_500)
-                .new_transform(srv.into_service())
-                .await
-                .unwrap();
+        let mut mw = ErrorHandlers::new()
+            .handler(StatusCode::INTERNAL_SERVER_ERROR, render_500)
+            .new_transform(srv.into_service())
+            .await
+            .unwrap();
 
-            let resp =
-                test::call_service(&mut mw, TestRequest::default().to_srv_request())
-                    .await;
-            assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0001");
-        })
+        let resp =
+            test::call_service(&mut mw, TestRequest::default().to_srv_request()).await;
+        assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0001");
     }
 
     fn render_500_async<B: 'static>(
@@ -190,23 +187,20 @@ mod tests {
         Ok(ErrorHandlerResponse::Future(ok(res).boxed_local()))
     }
 
-    #[test]
-    fn test_handler_async() {
-        block_on(async {
-            let srv = |req: ServiceRequest| {
-                ok(req.into_response(HttpResponse::InternalServerError().finish()))
-            };
+    #[actix_rt::test]
+    async fn test_handler_async() {
+        let srv = |req: ServiceRequest| {
+            ok(req.into_response(HttpResponse::InternalServerError().finish()))
+        };
 
-            let mut mw = ErrorHandlers::new()
-                .handler(StatusCode::INTERNAL_SERVER_ERROR, render_500_async)
-                .new_transform(srv.into_service())
-                .await
-                .unwrap();
+        let mut mw = ErrorHandlers::new()
+            .handler(StatusCode::INTERNAL_SERVER_ERROR, render_500_async)
+            .new_transform(srv.into_service())
+            .await
+            .unwrap();
 
-            let resp =
-                test::call_service(&mut mw, TestRequest::default().to_srv_request())
-                    .await;
-            assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0001");
-        })
+        let resp =
+            test::call_service(&mut mw, TestRequest::default().to_srv_request()).await;
+        assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0001");
     }
 }

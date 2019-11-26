@@ -1,7 +1,6 @@
 //! Payload stream
 use std::cell::RefCell;
 use std::collections::VecDeque;
-use std::future::Future;
 use std::pin::Pin;
 use std::rc::{Rc, Weak};
 use std::task::{Context, Poll};
@@ -227,24 +226,19 @@ impl Inner {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use actix_rt::Runtime;
-    use futures::future::{poll_fn, ready};
+    use futures::future::poll_fn;
 
-    #[test]
-    fn test_unread_data() {
-        Runtime::new().unwrap().block_on(async {
-            let (_, mut payload) = Payload::create(false);
+    #[actix_rt::test]
+    async fn test_unread_data() {
+        let (_, mut payload) = Payload::create(false);
 
-            payload.unread_data(Bytes::from("data"));
-            assert!(!payload.is_empty());
-            assert_eq!(payload.len(), 4);
+        payload.unread_data(Bytes::from("data"));
+        assert!(!payload.is_empty());
+        assert_eq!(payload.len(), 4);
 
-            assert_eq!(
-                Bytes::from("data"),
-                poll_fn(|cx| payload.readany(cx)).await.unwrap().unwrap()
-            );
-
-            ready(())
-        });
+        assert_eq!(
+            Bytes::from("data"),
+            poll_fn(|cx| payload.readany(cx)).await.unwrap().unwrap()
+        );
     }
 }

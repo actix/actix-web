@@ -5,7 +5,7 @@ use std::task::{Context, Poll};
 
 use actix_http::{http::Method, Error};
 use actix_service::{Service, ServiceFactory};
-use futures::future::{ok, ready, Either, FutureExt, LocalBoxFuture, Ready};
+use futures::future::{ready, FutureExt, LocalBoxFuture};
 
 use crate::extract::FromRequest;
 use crate::guard::{self, Guard};
@@ -342,93 +342,90 @@ where
 mod tests {
     use std::time::Duration;
 
+    use actix_rt::time::delay_for;
     use bytes::Bytes;
-    use futures::Future;
     use serde_derive::Serialize;
-    use tokio_timer::delay_for;
 
     use crate::http::{Method, StatusCode};
-    use crate::test::{block_on, call_service, init_service, read_body, TestRequest};
-    use crate::{error, web, App, Error, HttpResponse};
+    use crate::test::{call_service, init_service, read_body, TestRequest};
+    use crate::{error, web, App, HttpResponse};
 
     #[derive(Serialize, PartialEq, Debug)]
     struct MyObject {
         name: String,
     }
 
-    #[test]
-    fn test_route() {
-        block_on(async {
-            let mut srv = init_service(
-                App::new()
-                    .service(
-                        web::resource("/test")
-                            .route(web::get().to(|| HttpResponse::Ok()))
-                            .route(web::put().to(|| {
-                                async {
-                                    Err::<HttpResponse, _>(error::ErrorBadRequest("err"))
-                                }
-                            }))
-                            .route(web::post().to(|| {
-                                async {
-                                    delay_for(Duration::from_millis(100)).await;
-                                    HttpResponse::Created()
-                                }
-                            }))
-                            .route(web::delete().to(|| {
-                                async {
-                                    delay_for(Duration::from_millis(100)).await;
-                                    Err::<HttpResponse, _>(error::ErrorBadRequest("err"))
-                                }
-                            })),
-                    )
-                    .service(web::resource("/json").route(web::get().to(|| {
-                        async {
-                            delay_for(Duration::from_millis(25)).await;
-                            web::Json(MyObject {
-                                name: "test".to_string(),
-                            })
-                        }
-                    }))),
-            )
-            .await;
+    #[actix_rt::test]
+    async fn test_route() {
+        let mut srv = init_service(
+            App::new()
+                .service(
+                    web::resource("/test")
+                        .route(web::get().to(|| HttpResponse::Ok()))
+                        .route(web::put().to(|| {
+                            async {
+                                Err::<HttpResponse, _>(error::ErrorBadRequest("err"))
+                            }
+                        }))
+                        .route(web::post().to(|| {
+                            async {
+                                delay_for(Duration::from_millis(100)).await;
+                                HttpResponse::Created()
+                            }
+                        }))
+                        .route(web::delete().to(|| {
+                            async {
+                                delay_for(Duration::from_millis(100)).await;
+                                Err::<HttpResponse, _>(error::ErrorBadRequest("err"))
+                            }
+                        })),
+                )
+                .service(web::resource("/json").route(web::get().to(|| {
+                    async {
+                        delay_for(Duration::from_millis(25)).await;
+                        web::Json(MyObject {
+                            name: "test".to_string(),
+                        })
+                    }
+                }))),
+        )
+        .await;
 
-            let req = TestRequest::with_uri("/test")
-                .method(Method::GET)
-                .to_request();
-            let resp = call_service(&mut srv, req).await;
-            assert_eq!(resp.status(), StatusCode::OK);
+        let req = TestRequest::with_uri("/test")
+            .method(Method::GET)
+            .to_request();
+        let resp = call_service(&mut srv, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
 
-            let req = TestRequest::with_uri("/test")
-                .method(Method::POST)
-                .to_request();
-            let resp = call_service(&mut srv, req).await;
-            assert_eq!(resp.status(), StatusCode::CREATED);
+        let req = TestRequest::with_uri("/test")
+            .method(Method::POST)
+            .to_request();
+        let resp = call_service(&mut srv, req).await;
+        assert_eq!(resp.status(), StatusCode::CREATED);
 
-            let req = TestRequest::with_uri("/test")
-                .method(Method::PUT)
-                .to_request();
-            let resp = call_service(&mut srv, req).await;
-            assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+        let req = TestRequest::with_uri("/test")
+            .method(Method::PUT)
+            .to_request();
+        let resp = call_service(&mut srv, req).await;
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 
-            let req = TestRequest::with_uri("/test")
-                .method(Method::DELETE)
-                .to_request();
-            let resp = call_service(&mut srv, req).await;
-            assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+        let req = TestRequest::with_uri("/test")
+            .method(Method::DELETE)
+            .to_request();
+        let resp = call_service(&mut srv, req).await;
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 
-            let req = TestRequest::with_uri("/test")
-                .method(Method::HEAD)
-                .to_request();
-            let resp = call_service(&mut srv, req).await;
-            assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
+        let req = TestRequest::with_uri("/test")
+            .method(Method::HEAD)
+            .to_request();
+        let resp = call_service(&mut srv, req).await;
+        assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
 
-            let req = TestRequest::with_uri("/json").to_request();
-            let resp = call_service(&mut srv, req).await;
-            assert_eq!(resp.status(), StatusCode::OK);
+        let req = TestRequest::with_uri("/json").to_request();
+        let resp = call_service(&mut srv, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
 
-            let body = read_body(resp).await;
-            assert_eq!(body, Bytes::from_static(b"{\"name\":\"test\"}"));
-        })
+        let body = read_body(resp).await;
+        assert_eq!(body, Bytes::from_static(b"{\"name\":\"test\"}"));
     }
 }

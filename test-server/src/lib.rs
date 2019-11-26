@@ -23,26 +23,25 @@ pub use actix_testing::*;
 ///
 /// ```rust
 /// use actix_http::HttpService;
-/// use actix_http_test::{block_on, TestServer};
+/// use actix_http_test::TestServer;
 /// use actix_web::{web, App, HttpResponse, Error};
 ///
 /// async fn my_handler() -> Result<HttpResponse, Error> {
 ///     Ok(HttpResponse::Ok().into())
 /// }
 ///
-/// fn main() {
-///     block_on( async {
-///         let mut srv = TestServer::start(
-///             || HttpService::new(
-///                 App::new().service(
-///                     web::resource("/").to(my_handler))
-///             )
-///         );
+/// #[actix_rt::test]
+/// async fn test_example() {
+///     let mut srv = TestServer::start(
+///         || HttpService::new(
+///             App::new().service(
+///                 web::resource("/").to(my_handler))
+///         )
+///     );
 ///
-///         let req = srv.get("/");
-///         let response = req.send().await.unwrap();
-///         assert!(response.status().is_success());
-///     })
+///     let req = srv.get("/");
+///     let response = req.send().await.unwrap();
+///     assert!(response.status().is_success());
 /// }
 /// ```
 pub struct TestServer;

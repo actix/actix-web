@@ -16,7 +16,6 @@ use httparse;
 use serde::de::value::Error as DeError;
 use serde_json::error::Error as JsonError;
 use serde_urlencoded::ser::Error as FormError;
-use tokio_timer::Error as TimerError;
 
 // re-export for convinience
 use crate::body::Body;
@@ -177,9 +176,6 @@ impl ResponseError for JsonError {}
 
 /// `InternalServerError` for `FormError`
 impl ResponseError for FormError {}
-
-/// `InternalServerError` for `TimerError`
-impl ResponseError for TimerError {}
 
 #[cfg(feature = "openssl")]
 /// `InternalServerError` for `openssl::ssl::Error`

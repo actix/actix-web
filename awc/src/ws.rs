@@ -7,8 +7,8 @@ use std::{fmt, str};
 use actix_codec::Framed;
 use actix_http::cookie::{Cookie, CookieJar};
 use actix_http::{ws, Payload, RequestHead};
+use actix_rt::time::Timeout;
 use percent_encoding::percent_encode;
-use tokio_timer::Timeout;
 
 use actix_http::cookie::USERINFO;
 pub use actix_http::ws::{CloseCode, CloseReason, Codec, Frame, Message};
@@ -389,21 +389,19 @@ impl fmt::Debug for WebsocketsRequest {
 
 #[cfg(test)]
 mod tests {
-    use actix_web::test::block_on;
-
     use super::*;
     use crate::Client;
 
-    #[test]
-    fn test_debug() {
+    #[actix_rt::test]
+    async fn test_debug() {
         let request = Client::new().ws("/").header("x-test", "111");
         let repr = format!("{:?}", request);
         assert!(repr.contains("WebsocketsRequest"));
         assert!(repr.contains("x-test"));
     }
 
-    #[test]
-    fn test_header_override() {
+    #[actix_rt::test]
+    async fn test_header_override() {
         let req = Client::build()
             .header(header::CONTENT_TYPE, "111")
             .finish()
@@ -421,8 +419,8 @@ mod tests {
         );
     }
 
-    #[test]
-    fn basic_auth() {
+    #[actix_rt::test]
+    async fn basic_auth() {
         let req = Client::new()
             .ws("/")
             .basic_auth("username", Some("password"));
@@ -448,8 +446,8 @@ mod tests {
         );
     }
 
-    #[test]
-    fn bearer_auth() {
+    #[actix_rt::test]
+    async fn bearer_auth() {
         let req = Client::new().ws("/").bearer_auth("someS3cr3tAutht0k3n");
         assert_eq!(
             req.head
@@ -463,35 +461,33 @@ mod tests {
         let _ = req.connect();
     }
 
-    #[test]
-    fn basics() {
-        block_on(async {
-            let req = Client::new()
-                .ws("http://localhost/")
-                .origin("test-origin")
-                .max_frame_size(100)
-                .server_mode()
-                .protocols(&["v1", "v2"])
-                .set_header_if_none(header::CONTENT_TYPE, "json")
-                .set_header_if_none(header::CONTENT_TYPE, "text")
-                .cookie(Cookie::build("cookie1", "value1").finish());
-            assert_eq!(
-                req.origin.as_ref().unwrap().to_str().unwrap(),
-                "test-origin"
-            );
-            assert_eq!(req.max_size, 100);
-            assert_eq!(req.server_mode, true);
-            assert_eq!(req.protocols, Some("v1,v2".to_string()));
-            assert_eq!(
-                req.head.headers.get(header::CONTENT_TYPE).unwrap(),
-                header::HeaderValue::from_static("json")
-            );
+    #[actix_rt::test]
+    async fn basics() {
+        let req = Client::new()
+            .ws("http://localhost/")
+            .origin("test-origin")
+            .max_frame_size(100)
+            .server_mode()
+            .protocols(&["v1", "v2"])
+            .set_header_if_none(header::CONTENT_TYPE, "json")
+            .set_header_if_none(header::CONTENT_TYPE, "text")
+            .cookie(Cookie::build("cookie1", "value1").finish());
+        assert_eq!(
+            req.origin.as_ref().unwrap().to_str().unwrap(),
+            "test-origin"
+        );
+        assert_eq!(req.max_size, 100);
+        assert_eq!(req.server_mode, true);
+        assert_eq!(req.protocols, Some("v1,v2".to_string()));
+        assert_eq!(
+            req.head.headers.get(header::CONTENT_TYPE).unwrap(),
+            header::HeaderValue::from_static("json")
+        );
 
-            let _ = req.connect().await;
+        let _ = req.connect().await;
 
-            assert!(Client::new().ws("/").connect().await.is_err());
-            assert!(Client::new().ws("http:///test").connect().await.is_err());
-            assert!(Client::new().ws("hmm://test.com/").connect().await.is_err());
-        })
+        assert!(Client::new().ws("/").connect().await.is_err());
+        assert!(Client::new().ws("http:///test").connect().await.is_err());
+        assert!(Client::new().ws("hmm://test.com/").connect().await.is_err());
     }
 }

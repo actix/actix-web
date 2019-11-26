@@ -3,15 +3,15 @@ use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::time::Instant;
-use std::{fmt, io, io::Write, net};
+use std::{fmt, io, net};
 
-use actix_codec::{AsyncRead, AsyncWrite, Decoder, Encoder, Framed, FramedParts};
+use actix_codec::{AsyncRead, Decoder, Encoder, Framed, FramedParts};
+use actix_rt::time::{delay, Delay};
 use actix_server_config::IoStream;
 use actix_service::Service;
 use bitflags::bitflags;
 use bytes::{BufMut, BytesMut};
 use log::{error, trace};
-use tokio_timer::{delay, Delay};
 
 use crate::body::{Body, BodySize, MessageBody, ResponseBody};
 use crate::cloneable::CloneableService;
@@ -893,10 +893,9 @@ mod tests {
     use crate::h1::{ExpectHandler, UpgradeHandler};
     use crate::test::TestBuffer;
 
-    #[test]
-    fn test_req_parse_err() {
-        let mut sys = actix_rt::System::new("test");
-        let _ = sys.block_on(lazy(|cx| {
+    #[actix_rt::test]
+    async fn test_req_parse_err() {
+        lazy(|cx| {
             let buf = TestBuffer::new("GET /test HTTP/1\r\n\r\n");
 
             let mut h1 = Dispatcher::<_, _, _, _, UpgradeHandler<TestBuffer>>::new(
@@ -918,7 +917,7 @@ mod tests {
                 assert!(inner.flags.contains(Flags::READ_DISCONNECT));
                 assert_eq!(&inner.io.write_buf[..26], b"HTTP/1.1 400 Bad Request\r\n");
             }
-            ok::<_, ()>(())
-        }));
+        })
+        .await;
     }
 }

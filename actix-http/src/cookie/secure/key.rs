@@ -1,5 +1,4 @@
 use ring::hkdf::{Algorithm, KeyType, Prk, HKDF_SHA256};
-use ring::hmac;
 use ring::rand::{SecureRandom, SystemRandom};
 
 use super::private::KEY_LEN as PRIVATE_KEY_LEN;

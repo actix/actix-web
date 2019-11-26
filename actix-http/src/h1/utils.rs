@@ -3,7 +3,6 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
-use futures::Sink;
 
 use crate::body::{BodySize, MessageBody, ResponseBody};
 use crate::error::Error;

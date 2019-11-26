@@ -364,125 +364,117 @@ mod tests {
     use actix_web::{test, web, App};
     use bytes::Bytes;
 
-    #[test]
-    fn cookie_session() {
-        test::block_on(async {
-            let mut app = test::init_service(
-                App::new()
-                    .wrap(CookieSession::signed(&[0; 32]).secure(false))
-                    .service(web::resource("/").to(|ses: Session| {
-                        async move {
-                            let _ = ses.set("counter", 100);
-                            "test"
-                        }
-                    })),
-            )
-            .await;
+    #[actix_rt::test]
+    async fn cookie_session() {
+        let mut app = test::init_service(
+            App::new()
+                .wrap(CookieSession::signed(&[0; 32]).secure(false))
+                .service(web::resource("/").to(|ses: Session| {
+                    async move {
+                        let _ = ses.set("counter", 100);
+                        "test"
+                    }
+                })),
+        )
+        .await;
 
-            let request = test::TestRequest::get().to_request();
-            let response = app.call(request).await.unwrap();
-            assert!(response
-                .response()
-                .cookies()
-                .find(|c| c.name() == "actix-session")
-                .is_some());
-        })
+        let request = test::TestRequest::get().to_request();
+        let response = app.call(request).await.unwrap();
+        assert!(response
+            .response()
+            .cookies()
+            .find(|c| c.name() == "actix-session")
+            .is_some());
     }
 
-    #[test]
-    fn private_cookie() {
-        test::block_on(async {
-            let mut app = test::init_service(
-                App::new()
-                    .wrap(CookieSession::private(&[0; 32]).secure(false))
-                    .service(web::resource("/").to(|ses: Session| {
-                        async move {
-                            let _ = ses.set("counter", 100);
-                            "test"
-                        }
-                    })),
-            )
-            .await;
+    #[actix_rt::test]
+    async fn private_cookie() {
+        let mut app = test::init_service(
+            App::new()
+                .wrap(CookieSession::private(&[0; 32]).secure(false))
+                .service(web::resource("/").to(|ses: Session| {
+                    async move {
+                        let _ = ses.set("counter", 100);
+                        "test"
+                    }
+                })),
+        )
+        .await;
 
-            let request = test::TestRequest::get().to_request();
-            let response = app.call(request).await.unwrap();
-            assert!(response
-                .response()
-                .cookies()
-                .find(|c| c.name() == "actix-session")
-                .is_some());
-        })
+        let request = test::TestRequest::get().to_request();
+        let response = app.call(request).await.unwrap();
+        assert!(response
+            .response()
+            .cookies()
+            .find(|c| c.name() == "actix-session")
+            .is_some());
     }
 
-    #[test]
-    fn cookie_session_extractor() {
-        test::block_on(async {
-            let mut app = test::init_service(
-                App::new()
-                    .wrap(CookieSession::signed(&[0; 32]).secure(false))
-                    .service(web::resource("/").to(|ses: Session| {
-                        async move {
-                            let _ = ses.set("counter", 100);
-                            "test"
-                        }
-                    })),
-            )
-            .await;
+    #[actix_rt::test]
+    async fn cookie_session_extractor() {
+        let mut app = test::init_service(
+            App::new()
+                .wrap(CookieSession::signed(&[0; 32]).secure(false))
+                .service(web::resource("/").to(|ses: Session| {
+                    async move {
+                        let _ = ses.set("counter", 100);
+                        "test"
+                    }
+                })),
+        )
+        .await;
 
-            let request = test::TestRequest::get().to_request();
-            let response = app.call(request).await.unwrap();
-            assert!(response
-                .response()
-                .cookies()
-                .find(|c| c.name() == "actix-session")
-                .is_some());
-        })
+        let request = test::TestRequest::get().to_request();
+        let response = app.call(request).await.unwrap();
+        assert!(response
+            .response()
+            .cookies()
+            .find(|c| c.name() == "actix-session")
+            .is_some());
     }
 
-    #[test]
-    fn basics() {
-        test::block_on(async {
-            let mut app = test::init_service(
-                App::new()
-                    .wrap(
-                        CookieSession::signed(&[0; 32])
-                            .path("/test/")
-                            .name("actix-test")
-                            .domain("localhost")
-                            .http_only(true)
-                            .same_site(SameSite::Lax)
-                            .max_age(100),
-                    )
-                    .service(web::resource("/").to(|ses: Session| {
-                        async move {
-                            let _ = ses.set("counter", 100);
-                            "test"
-                        }
-                    }))
-                    .service(web::resource("/test/").to(|ses: Session| {
-                        async move {
-                            let val: usize = ses.get("counter").unwrap().unwrap();
-                            format!("counter: {}", val)
-                        }
-                    })),
-            )
-            .await;
+    #[actix_rt::test]
+    async fn basics() {
+        let mut app = test::init_service(
+            App::new()
+                .wrap(
+                    CookieSession::signed(&[0; 32])
+                        .path("/test/")
+                        .name("actix-test")
+                        .domain("localhost")
+                        .http_only(true)
+                        .same_site(SameSite::Lax)
+                        .max_age(100),
+                )
+                .service(web::resource("/").to(|ses: Session| {
+                    async move {
+                        let _ = ses.set("counter", 100);
+                        "test"
+                    }
+                }))
+                .service(web::resource("/test/").to(|ses: Session| {
+                    async move {
+                        let val: usize = ses.get("counter").unwrap().unwrap();
+                        format!("counter: {}", val)
+                    }
+                })),
+        )
+        .await;
 
-            let request = test::TestRequest::get().to_request();
-            let response = app.call(request).await.unwrap();
-            let cookie = response
-                .response()
-                .cookies()
-                .find(|c| c.name() == "actix-test")
-                .unwrap()
-                .clone();
-            assert_eq!(cookie.path().unwrap(), "/test/");
+        let request = test::TestRequest::get().to_request();
+        let response = app.call(request).await.unwrap();
+        let cookie = response
+            .response()
+            .cookies()
+            .find(|c| c.name() == "actix-test")
+            .unwrap()
+            .clone();
+        assert_eq!(cookie.path().unwrap(), "/test/");
 
-            let request = test::TestRequest::with_uri("/test/")
-                .cookie(cookie)
-                .to_request();
-            let body = test::read_response(&mut app, request).await;
-            assert_eq!(body, Bytes::from_static(b"counter: 100"));
-        })
+        let request = test::TestRequest::with_uri("/test/")
+            .cookie(cookie)
+            .to_request();
+        let body = test::read_response(&mut app, request).await;
+        assert_eq!(body, Bytes::from_static(b"counter: 100"));
     }
 }

@@ -8,7 +8,7 @@ use actix_server_config::{
     Io as ServerIo, IoStream, Protocol, ServerConfig as SrvConfig,
 };
 use actix_service::{IntoServiceFactory, Service, ServiceFactory};
-use bytes::{Buf, BufMut, Bytes, BytesMut};
+use bytes::{BufMut, Bytes, BytesMut};
 use futures::{ready, Future};
 use h2::server::{self, Handshake};
 use pin_project::{pin_project, project};
@@ -659,7 +659,7 @@ impl<T: AsyncRead> AsyncRead for Io<T> {
     // }
 }
 
-impl<T: AsyncWrite> tokio_io::AsyncWrite for Io<T> {
+impl<T: AsyncWrite> actix_codec::AsyncWrite for Io<T> {
     fn poll_write(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,

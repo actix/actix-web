@@ -813,12 +813,11 @@ mod tests {
     use actix_http::h1::Payload;
     use actix_utils::mpsc;
     use actix_web::http::header::{DispositionParam, DispositionType};
-    use actix_web::test::block_on;
     use bytes::Bytes;
     use futures::future::lazy;
 
-    #[test]
-    fn test_boundary() {
+    #[actix_rt::test]
+    async fn test_boundary() {
         let headers = HeaderMap::new();
         match Multipart::boundary(&headers) {
             Err(MultipartError::NoContentType) => (),
@@ -891,246 +890,228 @@ mod tests {
         (bytes, headers)
     }
 
-    #[test]
-    fn test_multipart_no_end_crlf() {
-        block_on(async {
-            let (sender, payload) = create_stream();
-            let (bytes, headers) = create_simple_request_with_header();
-            let bytes_stripped = bytes.slice_to(bytes.len()); // strip crlf
+    #[actix_rt::test]
+    async fn test_multipart_no_end_crlf() {
+        let (sender, payload) = create_stream();
+        let (bytes, headers) = create_simple_request_with_header();
+        let bytes_stripped = bytes.slice_to(bytes.len()); // strip crlf
 
-            sender.send(Ok(bytes_stripped)).unwrap();
-            drop(sender); // eof
+        sender.send(Ok(bytes_stripped)).unwrap();
+        drop(sender); // eof
 
-            let mut multipart = Multipart::new(&headers, payload);
+        let mut multipart = Multipart::new(&headers, payload);
 
-            match multipart.next().await.unwrap() {
-                Ok(_) => (),
-                _ => unreachable!(),
-            }
+        match multipart.next().await.unwrap() {
+            Ok(_) => (),
+            _ => unreachable!(),
+        }
 
-            match multipart.next().await.unwrap() {
-                Ok(_) => (),
-                _ => unreachable!(),
-            }
+        match multipart.next().await.unwrap() {
+            Ok(_) => (),
+            _ => unreachable!(),
+        }
 
-            match multipart.next().await {
-                None => (),
-                _ => unreachable!(),
-            }
-        })
+        match multipart.next().await {
+            None => (),
+            _ => unreachable!(),
+        }
     }
 
-    #[test]
-    fn test_multipart() {
-        block_on(async {
-            let (sender, payload) = create_stream();
-            let (bytes, headers) = create_simple_request_with_header();
+    #[actix_rt::test]
+    async fn test_multipart() {
+        let (sender, payload) = create_stream();
+        let (bytes, headers) = create_simple_request_with_header();
 
-            sender.send(Ok(bytes)).unwrap();
+        sender.send(Ok(bytes)).unwrap();
 
-            let mut multipart = Multipart::new(&headers, payload);
-            match multipart.next().await {
-                Some(Ok(mut field)) => {
-                    let cd = field.content_disposition().unwrap();
-                    assert_eq!(cd.disposition, DispositionType::FormData);
-                    assert_eq!(cd.parameters[0], DispositionParam::Name("file".into()));
+        let mut multipart = Multipart::new(&headers, payload);
+        match multipart.next().await {
+            Some(Ok(mut field)) => {
+                let cd = field.content_disposition().unwrap();
+                assert_eq!(cd.disposition, DispositionType::FormData);
+                assert_eq!(cd.parameters[0], DispositionParam::Name("file".into()));
 
-                    assert_eq!(field.content_type().type_(), mime::TEXT);
-                    assert_eq!(field.content_type().subtype(), mime::PLAIN);
+                assert_eq!(field.content_type().type_(), mime::TEXT);
+                assert_eq!(field.content_type().subtype(), mime::PLAIN);
 
-                    match field.next().await.unwrap() {
-                        Ok(chunk) => assert_eq!(chunk, "test"),
-                        _ => unreachable!(),
-                    }
-                    match field.next().await {
-                        None => (),
-                        _ => unreachable!(),
-                    }
+                match field.next().await.unwrap() {
+                    Ok(chunk) => assert_eq!(chunk, "test"),
+                    _ => unreachable!(),
                 }
-                _ => unreachable!(),
-            }
-
-            match multipart.next().await.unwrap() {
-                Ok(mut field) => {
-                    assert_eq!(field.content_type().type_(), mime::TEXT);
-                    assert_eq!(field.content_type().subtype(), mime::PLAIN);
-
-                    match field.next().await {
-                        Some(Ok(chunk)) => assert_eq!(chunk, "data"),
-                        _ => unreachable!(),
-                    }
-                    match field.next().await {
-                        None => (),
-                        _ => unreachable!(),
-                    }
+                match field.next().await {
+                    None => (),
+                    _ => unreachable!(),
                 }
-                _ => unreachable!(),
             }
+            _ => unreachable!(),
+        }
 
-            match multipart.next().await {
-                None => (),
-                _ => unreachable!(),
-            }
-        });
-    }
+        match multipart.next().await.unwrap() {
+            Ok(mut field) => {
+                assert_eq!(field.content_type().type_(), mime::TEXT);
+                assert_eq!(field.content_type().subtype(), mime::PLAIN);
 
-    #[test]
-    fn test_stream() {
-        block_on(async {
-            let (sender, payload) = create_stream();
-            let (bytes, headers) = create_simple_request_with_header();
-
-            sender.send(Ok(bytes)).unwrap();
-
-            let mut multipart = Multipart::new(&headers, payload);
-            match multipart.next().await.unwrap() {
-                Ok(mut field) => {
-                    let cd = field.content_disposition().unwrap();
-                    assert_eq!(cd.disposition, DispositionType::FormData);
-                    assert_eq!(cd.parameters[0], DispositionParam::Name("file".into()));
-
-                    assert_eq!(field.content_type().type_(), mime::TEXT);
-                    assert_eq!(field.content_type().subtype(), mime::PLAIN);
-
-                    match field.next().await.unwrap() {
-                        Ok(chunk) => assert_eq!(chunk, "test"),
-                        _ => unreachable!(),
-                    }
-                    match field.next().await {
-                        None => (),
-                        _ => unreachable!(),
-                    }
+                match field.next().await {
+                    Some(Ok(chunk)) => assert_eq!(chunk, "data"),
+                    _ => unreachable!(),
                 }
-                _ => unreachable!(),
-            }
-
-            match multipart.next().await {
-                Some(Ok(mut field)) => {
-                    assert_eq!(field.content_type().type_(), mime::TEXT);
-                    assert_eq!(field.content_type().subtype(), mime::PLAIN);
-
-                    match field.next().await {
-                        Some(Ok(chunk)) => assert_eq!(chunk, "data"),
-                        _ => unreachable!(),
-                    }
-                    match field.next().await {
-                        None => (),
-                        _ => unreachable!(),
-                    }
+                match field.next().await {
+                    None => (),
+                    _ => unreachable!(),
                 }
-                _ => unreachable!(),
             }
+            _ => unreachable!(),
+        }
 
-            match multipart.next().await {
-                None => (),
-                _ => unreachable!(),
+        match multipart.next().await {
+            None => (),
+            _ => unreachable!(),
+        }
+    }
+
+    #[actix_rt::test]
+    async fn test_stream() {
+        let (sender, payload) = create_stream();
+        let (bytes, headers) = create_simple_request_with_header();
+
+        sender.send(Ok(bytes)).unwrap();
+
+        let mut multipart = Multipart::new(&headers, payload);
+        match multipart.next().await.unwrap() {
+            Ok(mut field) => {
+                let cd = field.content_disposition().unwrap();
+                assert_eq!(cd.disposition, DispositionType::FormData);
+                assert_eq!(cd.parameters[0], DispositionParam::Name("file".into()));
+
+                assert_eq!(field.content_type().type_(), mime::TEXT);
+                assert_eq!(field.content_type().subtype(), mime::PLAIN);
+
+                match field.next().await.unwrap() {
+                    Ok(chunk) => assert_eq!(chunk, "test"),
+                    _ => unreachable!(),
+                }
+                match field.next().await {
+                    None => (),
+                    _ => unreachable!(),
+                }
             }
-        });
+            _ => unreachable!(),
+        }
+
+        match multipart.next().await {
+            Some(Ok(mut field)) => {
+                assert_eq!(field.content_type().type_(), mime::TEXT);
+                assert_eq!(field.content_type().subtype(), mime::PLAIN);
+
+                match field.next().await {
+                    Some(Ok(chunk)) => assert_eq!(chunk, "data"),
+                    _ => unreachable!(),
+                }
+                match field.next().await {
+                    None => (),
+                    _ => unreachable!(),
+                }
+            }
+            _ => unreachable!(),
+        }
+
+        match multipart.next().await {
+            None => (),
+            _ => unreachable!(),
+        }
     }
 
-    #[test]
-    fn test_basic() {
-        block_on(async {
-            let (_, payload) = Payload::create(false);
-            let mut payload = PayloadBuffer::new(payload);
+    #[actix_rt::test]
+    async fn test_basic() {
+        let (_, payload) = Payload::create(false);
+        let mut payload = PayloadBuffer::new(payload);
 
-            assert_eq!(payload.buf.len(), 0);
-            lazy(|cx| payload.poll_stream(cx)).await.unwrap();
-            assert_eq!(None, payload.read_max(1).unwrap());
-        })
+        assert_eq!(payload.buf.len(), 0);
+        lazy(|cx| payload.poll_stream(cx)).await.unwrap();
+        assert_eq!(None, payload.read_max(1).unwrap());
     }
 
-    #[test]
-    fn test_eof() {
-        block_on(async {
-            let (mut sender, payload) = Payload::create(false);
-            let mut payload = PayloadBuffer::new(payload);
+    #[actix_rt::test]
+    async fn test_eof() {
+        let (mut sender, payload) = Payload::create(false);
+        let mut payload = PayloadBuffer::new(payload);
 
-            assert_eq!(None, payload.read_max(4).unwrap());
-            sender.feed_data(Bytes::from("data"));
-            sender.feed_eof();
-            lazy(|cx| payload.poll_stream(cx)).await.unwrap();
+        assert_eq!(None, payload.read_max(4).unwrap());
+        sender.feed_data(Bytes::from("data"));
+        sender.feed_eof();
+        lazy(|cx| payload.poll_stream(cx)).await.unwrap();
 
-            assert_eq!(Some(Bytes::from("data")), payload.read_max(4).unwrap());
-            assert_eq!(payload.buf.len(), 0);
-            assert!(payload.read_max(1).is_err());
-            assert!(payload.eof);
-        })
+        assert_eq!(Some(Bytes::from("data")), payload.read_max(4).unwrap());
+        assert_eq!(payload.buf.len(), 0);
+        assert!(payload.read_max(1).is_err());
+        assert!(payload.eof);
     }
 
-    #[test]
-    fn test_err() {
-        block_on(async {
-            let (mut sender, payload) = Payload::create(false);
-            let mut payload = PayloadBuffer::new(payload);
-            assert_eq!(None, payload.read_max(1).unwrap());
-            sender.set_error(PayloadError::Incomplete(None));
-            lazy(|cx| payload.poll_stream(cx)).await.err().unwrap();
-        })
+    #[actix_rt::test]
+    async fn test_err() {
+        let (mut sender, payload) = Payload::create(false);
+        let mut payload = PayloadBuffer::new(payload);
+        assert_eq!(None, payload.read_max(1).unwrap());
+        sender.set_error(PayloadError::Incomplete(None));
+        lazy(|cx| payload.poll_stream(cx)).await.err().unwrap();
     }
 
-    #[test]
-    fn test_readmax() {
-        block_on(async {
-            let (mut sender, payload) = Payload::create(false);
-            let mut payload = PayloadBuffer::new(payload);
+    #[actix_rt::test]
+    async fn test_readmax() {
+        let (mut sender, payload) = Payload::create(false);
+        let mut payload = PayloadBuffer::new(payload);
 
-            sender.feed_data(Bytes::from("line1"));
-            sender.feed_data(Bytes::from("line2"));
-            lazy(|cx| payload.poll_stream(cx)).await.unwrap();
-            assert_eq!(payload.buf.len(), 10);
+        sender.feed_data(Bytes::from("line1"));
+        sender.feed_data(Bytes::from("line2"));
+        lazy(|cx| payload.poll_stream(cx)).await.unwrap();
+        assert_eq!(payload.buf.len(), 10);
 
-            assert_eq!(Some(Bytes::from("line1")), payload.read_max(5).unwrap());
-            assert_eq!(payload.buf.len(), 5);
+        assert_eq!(Some(Bytes::from("line1")), payload.read_max(5).unwrap());
+        assert_eq!(payload.buf.len(), 5);
 
-            assert_eq!(Some(Bytes::from("line2")), payload.read_max(5).unwrap());
-            assert_eq!(payload.buf.len(), 0);
-        })
+        assert_eq!(Some(Bytes::from("line2")), payload.read_max(5).unwrap());
+        assert_eq!(payload.buf.len(), 0);
     }
 
-    #[test]
-    fn test_readexactly() {
-        block_on(async {
-            let (mut sender, payload) = Payload::create(false);
-            let mut payload = PayloadBuffer::new(payload);
+    #[actix_rt::test]
+    async fn test_readexactly() {
+        let (mut sender, payload) = Payload::create(false);
+        let mut payload = PayloadBuffer::new(payload);
 
-            assert_eq!(None, payload.read_exact(2));
+        assert_eq!(None, payload.read_exact(2));
 
-            sender.feed_data(Bytes::from("line1"));
-            sender.feed_data(Bytes::from("line2"));
-            lazy(|cx| payload.poll_stream(cx)).await.unwrap();
+        sender.feed_data(Bytes::from("line1"));
+        sender.feed_data(Bytes::from("line2"));
+        lazy(|cx| payload.poll_stream(cx)).await.unwrap();
 
-            assert_eq!(Some(Bytes::from_static(b"li")), payload.read_exact(2));
-            assert_eq!(payload.buf.len(), 8);
+        assert_eq!(Some(Bytes::from_static(b"li")), payload.read_exact(2));
+        assert_eq!(payload.buf.len(), 8);
 
-            assert_eq!(Some(Bytes::from_static(b"ne1l")), payload.read_exact(4));
-            assert_eq!(payload.buf.len(), 4);
-        })
+        assert_eq!(Some(Bytes::from_static(b"ne1l")), payload.read_exact(4));
+        assert_eq!(payload.buf.len(), 4);
     }
 
-    #[test]
-    fn test_readuntil() {
-        block_on(async {
-            let (mut sender, payload) = Payload::create(false);
-            let mut payload = PayloadBuffer::new(payload);
+    #[actix_rt::test]
+    async fn test_readuntil() {
+        let (mut sender, payload) = Payload::create(false);
+        let mut payload = PayloadBuffer::new(payload);
 
-            assert_eq!(None, payload.read_until(b"ne").unwrap());
+        assert_eq!(None, payload.read_until(b"ne").unwrap());
 
-            sender.feed_data(Bytes::from("line1"));
-            sender.feed_data(Bytes::from("line2"));
-            lazy(|cx| payload.poll_stream(cx)).await.unwrap();
+        sender.feed_data(Bytes::from("line1"));
+        sender.feed_data(Bytes::from("line2"));
+        lazy(|cx| payload.poll_stream(cx)).await.unwrap();
 
-            assert_eq!(
-                Some(Bytes::from("line")),
-                payload.read_until(b"ne").unwrap()
-            );
-            assert_eq!(payload.buf.len(), 6);
+        assert_eq!(
+            Some(Bytes::from("line")),
+            payload.read_until(b"ne").unwrap()
+        );
+        assert_eq!(payload.buf.len(), 6);
 
-            assert_eq!(
-                Some(Bytes::from("1line2")),
-                payload.read_until(b"2").unwrap()
-            );
-            assert_eq!(payload.buf.len(), 0);
-        })
+        assert_eq!(
+            Some(Bytes::from("1line2")),
+            payload.read_until(b"2").unwrap()
+        );
+        assert_eq!(payload.buf.len(), 0);
     }
 }

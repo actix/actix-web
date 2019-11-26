@@ -479,10 +479,10 @@ mod tests {
 
     use super::*;
     use crate::http::{header, StatusCode};
-    use crate::test::{block_on, TestRequest};
+    use crate::test::TestRequest;
 
-    #[test]
-    fn test_logger() {
+    #[actix_rt::test]
+    async fn test_logger() {
         let srv = |req: ServiceRequest| {
             ok(req.into_response(
                 HttpResponse::build(StatusCode::OK)
@@ -492,18 +492,18 @@ mod tests {
         };
         let logger = Logger::new("%% %{User-Agent}i %{X-Test}o %{HOME}e %D test");
 
-        let mut srv = block_on(logger.new_transform(srv.into_service())).unwrap();
+        let mut srv = logger.new_transform(srv.into_service()).await.unwrap();
 
         let req = TestRequest::with_header(
             header::USER_AGENT,
             header::HeaderValue::from_static("ACTIX-WEB"),
         )
         .to_srv_request();
-        let _res = block_on(srv.call(req));
+        let _res = srv.call(req).await;
     }
 
-    #[test]
-    fn test_url_path() {
+    #[actix_rt::test]
+    async fn test_url_path() {
         let mut format = Format::new("%T %U");
         let req = TestRequest::with_header(
             header::USER_AGENT,
@@ -533,8 +533,8 @@ mod tests {
         assert!(s.contains("/test/route/yeah"));
     }
 
-    #[test]
-    fn test_default_format() {
+    #[actix_rt::test]
+    async fn test_default_format() {
         let mut format = Format::default();
 
         let req = TestRequest::with_header(
@@ -566,8 +566,8 @@ mod tests {
         assert!(s.contains("ACTIX-WEB"));
     }
 
-    #[test]
-    fn test_request_time_format() {
+    #[actix_rt::test]
+    async fn test_request_time_format() {
         let mut format = Format::new("%t");
         let req = TestRequest::default().to_srv_request();
 

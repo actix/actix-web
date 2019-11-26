@@ -54,8 +54,6 @@ slab = "0.4"
 serde_urlencoded = "0.6.1"
 time = "0.1"
 tokio-net = "0.2.0-alpha.6"
-tokio-timer = "0.3.0-alpha.6"
-
 open-ssl = { version="0.10", package="openssl", optional = true }
 
 [dev-dependencies]

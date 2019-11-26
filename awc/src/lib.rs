@@ -6,19 +6,16 @@
 //! use actix_rt::System;
 //! use awc::Client;
 //!
-//! fn main() {
-//!     System::new("test").block_on(async {
-//!        let mut client = Client::default();
+//! #[actix_rt::main]
+//! async fn main() {
+//!    let mut client = Client::default();
 //!
-//!        client.get("http://www.rust-lang.org") // <- Create request builder
-//!           .header("User-Agent", "Actix-web")
-//!           .send()                             // <- Send http request
-//!           .await
-//!           .and_then(|response| {              // <- server http response
-//!                println!("Response: {:?}", response);
-//!                Ok(())
-//!           })
-//!     });
+//!    let response = client.get("http://www.rust-lang.org") // <- Create request builder
+//!       .header("User-Agent", "Actix-web")
+//!       .send()                             // <- Send http request
+//!       .await;
+//!
+//!     println!("Response: {:?}", response);
 //! }
 //! ```
 use std::cell::RefCell;

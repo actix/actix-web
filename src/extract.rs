@@ -270,7 +270,7 @@ mod tests {
     use serde_derive::Deserialize;
 
     use super::*;
-    use crate::test::{block_on, TestRequest};
+    use crate::test::TestRequest;
     use crate::types::{Form, FormConfig};
 
     #[derive(Deserialize, Debug, PartialEq)]
@@ -278,8 +278,8 @@ mod tests {
         hello: String,
     }
 
-    #[test]
-    fn test_option() {
+    #[actix_rt::test]
+    async fn test_option() {
         let (req, mut pl) = TestRequest::with_header(
             header::CONTENT_TYPE,
             "application/x-www-form-urlencoded",
@@ -287,7 +287,9 @@ mod tests {
         .data(FormConfig::default().limit(4096))
         .to_http_parts();
 
-        let r = block_on(Option::<Form<Info>>::from_request(&req, &mut pl)).unwrap();
+        let r = Option::<Form<Info>>::from_request(&req, &mut pl)
+            .await
+            .unwrap();
         assert_eq!(r, None);
 
         let (req, mut pl) = TestRequest::with_header(
@@ -298,7 +300,9 @@ mod tests {
         .set_payload(Bytes::from_static(b"hello=world"))
         .to_http_parts();
 
-        let r = block_on(Option::<Form<Info>>::from_request(&req, &mut pl)).unwrap();
+        let r = Option::<Form<Info>>::from_request(&req, &mut pl)
+            .await
+            .unwrap();
         assert_eq!(
             r,
             Some(Form(Info {
@@ -314,12 +318,14 @@ mod tests {
         .set_payload(Bytes::from_static(b"bye=world"))
         .to_http_parts();
 
-        let r = block_on(Option::<Form<Info>>::from_request(&req, &mut pl)).unwrap();
+        let r = Option::<Form<Info>>::from_request(&req, &mut pl)
+            .await
+            .unwrap();
         assert_eq!(r, None);
     }
 
-    #[test]
-    fn test_result() {
+    #[actix_rt::test]
+    async fn test_result() {
         let (req, mut pl) = TestRequest::with_header(
             header::CONTENT_TYPE,
             "application/x-www-form-urlencoded",
@@ -328,7 +334,8 @@ mod tests {
         .set_payload(Bytes::from_static(b"hello=world"))
         .to_http_parts();
 
-        let r = block_on(Result::<Form<Info>, Error>::from_request(&req, &mut pl))
+        let r = Result::<Form<Info>, Error>::from_request(&req, &mut pl)
+            .await
             .unwrap()
             .unwrap();
         assert_eq!(
@@ -346,8 +353,9 @@ mod tests {
         .set_payload(Bytes::from_static(b"bye=world"))
         .to_http_parts();
 
-        let r =
-            block_on(Result::<Form<Info>, Error>::from_request(&req, &mut pl)).unwrap();
+        let r = Result::<Form<Info>, Error>::from_request(&req, &mut pl)
+            .await
+            .unwrap();
         assert!(r.is_err());
     }
 }

@@ -1,8 +1,5 @@
 use std::fmt;
-use std::future::Future;
 use std::marker::PhantomData;
-use std::pin::Pin;
-use std::task::{Context, Poll};
 use std::time::Duration;
 
 use actix_codec::{AsyncRead, AsyncWrite};
@@ -11,7 +8,6 @@ use actix_connect::{
 };
 use actix_service::{apply_fn, Service};
 use actix_utils::timeout::{TimeoutError, TimeoutService};
-use futures::future::Ready;
 use http::Uri;
 use tokio_net::tcp::TcpStream;
 
@@ -344,7 +340,6 @@ mod connect_impl {
     use std::task::{Context, Poll};
 
     use futures::future::{err, Either, Ready};
-    use futures::ready;
 
     use super::*;
     use crate::client::connection::IoConnection;
@@ -402,7 +397,10 @@ mod connect_impl {
 
 #[cfg(any(feature = "openssl", feature = "rustls"))]
 mod connect_impl {
+    use std::future::Future;
     use std::marker::PhantomData;
+    use std::pin::Pin;
+    use std::task::{Context, Poll};
 
     use futures::future::Either;
     use futures::ready;

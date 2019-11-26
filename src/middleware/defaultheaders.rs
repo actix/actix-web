@@ -1,6 +1,4 @@
 //! Middleware for setting default response headers
-use std::future::Future;
-use std::pin::Pin;
 use std::rc::Rc;
 use std::task::{Context, Poll};
 
@@ -161,55 +159,50 @@ mod tests {
     use super::*;
     use crate::dev::ServiceRequest;
     use crate::http::header::CONTENT_TYPE;
-    use crate::test::{block_on, ok_service, TestRequest};
+    use crate::test::{ok_service, TestRequest};
     use crate::HttpResponse;
 
-    #[test]
-    fn test_default_headers() {
-        block_on(async {
-            let mut mw = DefaultHeaders::new()
-                .header(CONTENT_TYPE, "0001")
-                .new_transform(ok_service())
-                .await
-                .unwrap();
+    #[actix_rt::test]
+    async fn test_default_headers() {
+        let mut mw = DefaultHeaders::new()
+            .header(CONTENT_TYPE, "0001")
+            .new_transform(ok_service())
+            .await
+            .unwrap();
 
-            let req = TestRequest::default().to_srv_request();
-            let resp = mw.call(req).await.unwrap();
-            assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0001");
+        let req = TestRequest::default().to_srv_request();
+        let resp = mw.call(req).await.unwrap();
+        assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0001");
 
-            let req = TestRequest::default().to_srv_request();
-            let srv = |req: ServiceRequest| {
-                ok(req.into_response(
-                    HttpResponse::Ok().header(CONTENT_TYPE, "0002").finish(),
-                ))
-            };
-            let mut mw = DefaultHeaders::new()
-                .header(CONTENT_TYPE, "0001")
-                .new_transform(srv.into_service())
-                .await
-                .unwrap();
-            let resp = mw.call(req).await.unwrap();
-            assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0002");
-        })
+        let req = TestRequest::default().to_srv_request();
+        let srv = |req: ServiceRequest| {
+            ok(req
+                .into_response(HttpResponse::Ok().header(CONTENT_TYPE, "0002").finish()))
+        };
+        let mut mw = DefaultHeaders::new()
+            .header(CONTENT_TYPE, "0001")
+            .new_transform(srv.into_service())
+            .await
+            .unwrap();
+        let resp = mw.call(req).await.unwrap();
+        assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0002");
     }
 
-    #[test]
-    fn test_content_type() {
-        block_on(async {
-            let srv =
-                |req: ServiceRequest| ok(req.into_response(HttpResponse::Ok().finish()));
-            let mut mw = DefaultHeaders::new()
-                .content_type()
-                .new_transform(srv.into_service())
-                .await
-                .unwrap();
+    #[actix_rt::test]
+    async fn test_content_type() {
+        let srv =
+            |req: ServiceRequest| ok(req.into_response(HttpResponse::Ok().finish()));
+        let mut mw = DefaultHeaders::new()
+            .content_type()
+            .new_transform(srv.into_service())
+            .await
+            .unwrap();
 
-            let req = TestRequest::default().to_srv_request();
-            let resp = mw.call(req).await.unwrap();
-            assert_eq!(
-                resp.headers().get(CONTENT_TYPE).unwrap(),
-                "application/octet-stream"
-            );
-        })
+        let req = TestRequest::default().to_srv_request();
+        let resp = mw.call(req).await.unwrap();
+        assert_eq!(
+            resp.headers().get(CONTENT_TYPE).unwrap(),
+            "application/octet-stream"
+        );
     }
 }

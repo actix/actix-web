@@ -1,23 +1,22 @@
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::future::Future;
-use std::io;
 use std::pin::Pin;
 use std::rc::Rc;
 use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
 
 use actix_codec::{AsyncRead, AsyncWrite};
+use actix_rt::time::{delay_for, Delay};
 use actix_service::Service;
 use actix_utils::{oneshot, task::LocalWaker};
 use bytes::Bytes;
-use futures::future::{err, ok, poll_fn, Either, FutureExt, LocalBoxFuture, Ready};
+use futures::future::{poll_fn, FutureExt, LocalBoxFuture};
 use h2::client::{handshake, Connection, SendRequest};
 use hashbrown::HashMap;
 use http::uri::Authority;
 use indexmap::IndexSet;
 use slab::Slab;
-use tokio_timer::{delay_for, Delay};
 
 use super::connection::{ConnectionType, IoConnection};
 use super::error::ConnectError;
@@ -100,7 +99,7 @@ where
 
     fn call(&mut self, req: Connect) -> Self::Future {
         // start support future
-        tokio_executor::current_thread::spawn(ConnectorPoolSupport {
+        actix_rt::spawn(ConnectorPoolSupport {
             connector: self.0.clone(),
             inner: self.1.clone(),
         });
@@ -139,7 +138,7 @@ where
                         ))
                     } else {
                         let (snd, connection) = handshake(io).await?;
-                        tokio_executor::current_thread::spawn(connection.map(|_| ()));
+                        actix_rt::spawn(connection.map(|_| ()));
                         Ok(IoConnection::new(
                             ConnectionType::H2(snd),
                             Instant::now(),
@@ -328,9 +327,7 @@ where
                 {
                     if let Some(timeout) = self.disconnect_timeout {
                         if let ConnectionType::H1(io) = conn.io {
-                            tokio_executor::current_thread::spawn(CloseConnection::new(
-                                io, timeout,
-                            ))
+                            actix_rt::spawn(CloseConnection::new(io, timeout))
                         }
                     }
                 } else {
@@ -342,9 +339,9 @@ where
                             Poll::Ready(Ok(n)) if n > 0 => {
                                 if let Some(timeout) = self.disconnect_timeout {
                                     if let ConnectionType::H1(io) = io {
-                                        tokio_executor::current_thread::spawn(
-                                            CloseConnection::new(io, timeout),
-                                        )
+                                        actix_rt::spawn(CloseConnection::new(
+                                            io, timeout,
+                                        ))
                                     }
                                 }
                                 continue;
@@ -376,7 +373,7 @@ where
         self.acquired -= 1;
         if let Some(timeout) = self.disconnect_timeout {
             if let ConnectionType::H1(io) = io {
-                tokio_executor::current_thread::spawn(CloseConnection::new(io, timeout))
+                actix_rt::spawn(CloseConnection::new(io, timeout))
             }
         }
         self.check_availibility();
@@ -518,7 +515,7 @@ where
         inner: Rc<RefCell<Inner<Io>>>,
         fut: F,
     ) {
-        tokio_executor::current_thread::spawn(OpenWaitingConnection {
+        actix_rt::spawn(OpenWaitingConnection {
             key,
             fut,
             h2: None,
@@ -554,7 +551,7 @@ where
         if let Some(ref mut h2) = this.h2 {
             return match Pin::new(h2).poll(cx) {
                 Poll::Ready(Ok((snd, connection))) => {
-                    tokio_executor::current_thread::spawn(connection.map(|_| ()));
+                    actix_rt::spawn(connection.map(|_| ()));
                     let rx = this.rx.take().unwrap();
                     let _ = rx.send(Ok(IoConnection::new(
                         ConnectionType::H2(snd),

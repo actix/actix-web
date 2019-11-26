@@ -6,7 +6,6 @@ pub use actix_http::Response as HttpResponse;
 pub use bytes::{Bytes, BytesMut};
 pub use futures::channel::oneshot::Canceled;
 
-use crate::error::Error;
 use crate::extract::FromRequest;
 use crate::handler::Factory;
 use crate::resource::Resource;

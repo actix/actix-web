@@ -66,7 +66,7 @@ fail = ["actix-http/fail"]
 openssl = ["open-ssl", "actix-server/openssl", "awc/openssl"]
 
 # rustls
-# rustls = ["rust-tls", "actix-server/rustls", "awc/rustls"]
+rustls = ["rust-tls", "actix-server/rustls", "awc/rustls"]
 
 [dependencies]
 actix-codec = "0.2.0-alpha.1"
@@ -110,7 +110,6 @@ actix-http-test = "0.3.0-alpha.1"
 rand = "0.7"
 env_logger = "0.6"
 serde_derive = "1.0"
-tokio-timer = "0.3.0-alpha.6"
 brotli2 = "0.3.2"
 flate2 = "1.0.2"
 
@@ -135,19 +134,9 @@ awc = { path = "awc" }
 actix-codec = { git = "https://github.com/actix/actix-net.git" }
 actix-connect = { git = "https://github.com/actix/actix-net.git" }
 actix-rt = { git = "https://github.com/actix/actix-net.git" }
+actix-macros = { git = "https://github.com/actix/actix-net.git" }
 actix-server = { git = "https://github.com/actix/actix-net.git" }
 actix-server-config = { git = "https://github.com/actix/actix-net.git" }
 actix-service = { git = "https://github.com/actix/actix-net.git" }
 actix-testing = { git = "https://github.com/actix/actix-net.git" }
-actix-threadpool = { git = "https://github.com/actix/actix-net.git" }
 actix-utils = {  git = "https://github.com/actix/actix-net.git" }
-
-# actix-codec = { path = "../actix-net/actix-codec" }
-# actix-connect = { path = "../actix-net/actix-connect" }
-# actix-rt = { path = "../actix-net/actix-rt" }
-# actix-server = { path = "../actix-net/actix-server" }
-# actix-server-config = { path = "../actix-net/actix-server-config" }
-# actix-service = { path = "../actix-net/actix-service" }
-# actix-testing = { path = "../actix-net/actix-testing" }
-# actix-threadpool = { path = "../actix-net/actix-threadpool" }
-# actix-utils = { path = "../actix-net/actix-utils" }

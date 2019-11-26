@@ -6,12 +6,11 @@ use std::rc::Rc;
 use std::task::{Context, Poll};
 
 use actix_http::{Error, Extensions, Response};
-use actix_service::boxed::{self, BoxedNewService, BoxedService};
+use actix_service::boxed::{self, BoxService, BoxServiceFactory};
 use actix_service::{
     apply, apply_fn_factory, IntoServiceFactory, Service, ServiceFactory, Transform,
 };
 use futures::future::{ok, Either, LocalBoxFuture, Ready};
-use pin_project::pin_project;
 
 use crate::data::Data;
 use crate::dev::{insert_slash, AppService, HttpServiceFactory, ResourceDef};
@@ -22,8 +21,8 @@ use crate::responder::Responder;
 use crate::route::{CreateRouteService, Route, RouteService};
 use crate::service::{ServiceRequest, ServiceResponse};
 
-type HttpService = BoxedService<ServiceRequest, ServiceResponse, Error>;
-type HttpNewService = BoxedNewService<(), ServiceRequest, ServiceResponse, Error, ()>;
+type HttpService = BoxService<ServiceRequest, ServiceResponse, Error>;
+type HttpNewService = BoxServiceFactory<(), ServiceRequest, ServiceResponse, Error, ()>;
 
 /// *Resource* is an entry in resources table which corresponds to requested URL.
 ///
@@ -585,40 +584,20 @@ impl ServiceFactory for ResourceEndpoint {
 mod tests {
     use std::time::Duration;
 
+    use actix_rt::time::delay_for;
     use actix_service::Service;
-    use futures::future::{ok, Future};
-    use tokio_timer::delay_for;
+    use futures::future::ok;
 
     use crate::http::{header, HeaderValue, Method, StatusCode};
     use crate::middleware::DefaultHeaders;
-    use crate::service::{ServiceRequest, ServiceResponse};
-    use crate::test::{block_on, call_service, init_service, TestRequest};
+    use crate::service::ServiceRequest;
+    use crate::test::{call_service, init_service, TestRequest};
     use crate::{guard, web, App, Error, HttpResponse};
 
-    fn md<S, B>(
-        req: ServiceRequest,
-        srv: &mut S,
-    ) -> impl Future<Output = Result<ServiceResponse<B>, Error>>
-    where
-        S: Service<
-            Request = ServiceRequest,
-            Response = ServiceResponse<B>,
-            Error = Error,
-        >,
-    {
-        let fut = srv.call(req);
-        async move {
-            let mut res = fut.await?;
-            res.headers_mut()
-                .insert(header::CONTENT_TYPE, HeaderValue::from_static("0001"));
-            Ok(res)
-        }
-    }
-
-    #[test]
-    fn test_middleware() {
-        block_on(async {
-            let mut srv = init_service(
+    #[actix_rt::test]
+    async fn test_middleware() {
+        let mut srv =
+            init_service(
                 App::new().service(
                     web::resource("/test")
                         .name("test")
@@ -630,185 +609,173 @@ mod tests {
                 ),
             )
             .await;
-            let req = TestRequest::with_uri("/test").to_request();
-            let resp = call_service(&mut srv, req).await;
-            assert_eq!(resp.status(), StatusCode::OK);
-            assert_eq!(
-                resp.headers().get(header::CONTENT_TYPE).unwrap(),
-                HeaderValue::from_static("0001")
-            );
-        })
+        let req = TestRequest::with_uri("/test").to_request();
+        let resp = call_service(&mut srv, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(
+            resp.headers().get(header::CONTENT_TYPE).unwrap(),
+            HeaderValue::from_static("0001")
+        );
     }
 
-    #[test]
-    fn test_middleware_fn() {
-        block_on(async {
-            let mut srv = init_service(
-                App::new().service(
-                    web::resource("/test")
-                        .wrap_fn(|req, srv| {
-                            let fut = srv.call(req);
-                            async {
-                                fut.await.map(|mut res| {
-                                    res.headers_mut().insert(
-                                        header::CONTENT_TYPE,
-                                        HeaderValue::from_static("0001"),
-                                    );
-                                    res
-                                })
-                            }
-                        })
-                        .route(web::get().to(|| HttpResponse::Ok())),
-                ),
-            )
+    #[actix_rt::test]
+    async fn test_middleware_fn() {
+        let mut srv = init_service(
+            App::new().service(
+                web::resource("/test")
+                    .wrap_fn(|req, srv| {
+                        let fut = srv.call(req);
+                        async {
+                            fut.await.map(|mut res| {
+                                res.headers_mut().insert(
+                                    header::CONTENT_TYPE,
+                                    HeaderValue::from_static("0001"),
+                                );
+                                res
+                            })
+                        }
+                    })
+                    .route(web::get().to(|| HttpResponse::Ok())),
+            ),
+        )
+        .await;
+        let req = TestRequest::with_uri("/test").to_request();
+        let resp = call_service(&mut srv, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(
+            resp.headers().get(header::CONTENT_TYPE).unwrap(),
+            HeaderValue::from_static("0001")
+        );
+    }
+
+    #[actix_rt::test]
+    async fn test_to() {
+        let mut srv =
+            init_service(App::new().service(web::resource("/test").to(|| {
+                async {
+                    delay_for(Duration::from_millis(100)).await;
+                    Ok::<_, Error>(HttpResponse::Ok())
+                }
+            })))
             .await;
-            let req = TestRequest::with_uri("/test").to_request();
-            let resp = call_service(&mut srv, req).await;
-            assert_eq!(resp.status(), StatusCode::OK);
-            assert_eq!(
-                resp.headers().get(header::CONTENT_TYPE).unwrap(),
-                HeaderValue::from_static("0001")
-            );
-        })
+        let req = TestRequest::with_uri("/test").to_request();
+        let resp = call_service(&mut srv, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
     }
 
-    #[test]
-    fn test_to() {
-        block_on(async {
-            let mut srv =
-                init_service(App::new().service(web::resource("/test").to(|| {
-                    async {
-                        delay_for(Duration::from_millis(100)).await;
-                        Ok::<_, Error>(HttpResponse::Ok())
-                    }
-                })))
-                .await;
-            let req = TestRequest::with_uri("/test").to_request();
-            let resp = call_service(&mut srv, req).await;
-            assert_eq!(resp.status(), StatusCode::OK);
-        })
-    }
+    #[actix_rt::test]
+    async fn test_default_resource() {
+        let mut srv = init_service(
+            App::new()
+                .service(
+                    web::resource("/test").route(web::get().to(|| HttpResponse::Ok())),
+                )
+                .default_service(|r: ServiceRequest| {
+                    ok(r.into_response(HttpResponse::BadRequest()))
+                }),
+        )
+        .await;
+        let req = TestRequest::with_uri("/test").to_request();
+        let resp = call_service(&mut srv, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
 
-    #[test]
-    fn test_default_resource() {
-        block_on(async {
-            let mut srv = init_service(
-                App::new()
-                    .service(
-                        web::resource("/test")
-                            .route(web::get().to(|| HttpResponse::Ok())),
-                    )
+        let req = TestRequest::with_uri("/test")
+            .method(Method::POST)
+            .to_request();
+        let resp = call_service(&mut srv, req).await;
+        assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
+
+        let mut srv = init_service(
+            App::new().service(
+                web::resource("/test")
+                    .route(web::get().to(|| HttpResponse::Ok()))
                     .default_service(|r: ServiceRequest| {
                         ok(r.into_response(HttpResponse::BadRequest()))
                     }),
-            )
-            .await;
-            let req = TestRequest::with_uri("/test").to_request();
-            let resp = call_service(&mut srv, req).await;
-            assert_eq!(resp.status(), StatusCode::OK);
+            ),
+        )
+        .await;
 
-            let req = TestRequest::with_uri("/test")
-                .method(Method::POST)
-                .to_request();
-            let resp = call_service(&mut srv, req).await;
-            assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
+        let req = TestRequest::with_uri("/test").to_request();
+        let resp = call_service(&mut srv, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
 
-            let mut srv = init_service(
-                App::new().service(
-                    web::resource("/test")
-                        .route(web::get().to(|| HttpResponse::Ok()))
-                        .default_service(|r: ServiceRequest| {
-                            ok(r.into_response(HttpResponse::BadRequest()))
-                        }),
+        let req = TestRequest::with_uri("/test")
+            .method(Method::POST)
+            .to_request();
+        let resp = call_service(&mut srv, req).await;
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[actix_rt::test]
+    async fn test_resource_guards() {
+        let mut srv = init_service(
+            App::new()
+                .service(
+                    web::resource("/test/{p}")
+                        .guard(guard::Get())
+                        .to(|| HttpResponse::Ok()),
+                )
+                .service(
+                    web::resource("/test/{p}")
+                        .guard(guard::Put())
+                        .to(|| HttpResponse::Created()),
+                )
+                .service(
+                    web::resource("/test/{p}")
+                        .guard(guard::Delete())
+                        .to(|| HttpResponse::NoContent()),
                 ),
-            )
-            .await;
+        )
+        .await;
 
-            let req = TestRequest::with_uri("/test").to_request();
-            let resp = call_service(&mut srv, req).await;
-            assert_eq!(resp.status(), StatusCode::OK);
+        let req = TestRequest::with_uri("/test/it")
+            .method(Method::GET)
+            .to_request();
+        let resp = call_service(&mut srv, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
 
-            let req = TestRequest::with_uri("/test")
-                .method(Method::POST)
-                .to_request();
-            let resp = call_service(&mut srv, req).await;
-            assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-        })
+        let req = TestRequest::with_uri("/test/it")
+            .method(Method::PUT)
+            .to_request();
+        let resp = call_service(&mut srv, req).await;
+        assert_eq!(resp.status(), StatusCode::CREATED);
+
+        let req = TestRequest::with_uri("/test/it")
+            .method(Method::DELETE)
+            .to_request();
+        let resp = call_service(&mut srv, req).await;
+        assert_eq!(resp.status(), StatusCode::NO_CONTENT);
     }
 
-    #[test]
-    fn test_resource_guards() {
-        block_on(async {
-            let mut srv = init_service(
-                App::new()
-                    .service(
-                        web::resource("/test/{p}")
-                            .guard(guard::Get())
-                            .to(|| HttpResponse::Ok()),
-                    )
-                    .service(
-                        web::resource("/test/{p}")
-                            .guard(guard::Put())
-                            .to(|| HttpResponse::Created()),
-                    )
-                    .service(
-                        web::resource("/test/{p}")
-                            .guard(guard::Delete())
-                            .to(|| HttpResponse::NoContent()),
-                    ),
-            )
-            .await;
+    #[actix_rt::test]
+    async fn test_data() {
+        let mut srv = init_service(
+            App::new()
+                .data(1.0f64)
+                .data(1usize)
+                .register_data(web::Data::new('-'))
+                .service(
+                    web::resource("/test")
+                        .data(10usize)
+                        .register_data(web::Data::new('*'))
+                        .guard(guard::Get())
+                        .to(
+                            |data1: web::Data<usize>,
+                             data2: web::Data<char>,
+                             data3: web::Data<f64>| {
+                                assert_eq!(*data1, 10);
+                                assert_eq!(*data2, '*');
+                                assert_eq!(*data3, 1.0);
+                                HttpResponse::Ok()
+                            },
+                        ),
+                ),
+        )
+        .await;
 
-            let req = TestRequest::with_uri("/test/it")
-                .method(Method::GET)
-                .to_request();
-            let resp = call_service(&mut srv, req).await;
-            assert_eq!(resp.status(), StatusCode::OK);
-
-            let req = TestRequest::with_uri("/test/it")
-                .method(Method::PUT)
-                .to_request();
-            let resp = call_service(&mut srv, req).await;
-            assert_eq!(resp.status(), StatusCode::CREATED);
-
-            let req = TestRequest::with_uri("/test/it")
-                .method(Method::DELETE)
-                .to_request();
-            let resp = call_service(&mut srv, req).await;
-            assert_eq!(resp.status(), StatusCode::NO_CONTENT);
-        })
-    }
-
-    #[test]
-    fn test_data() {
-        block_on(async {
-            let mut srv = init_service(
-                App::new()
-                    .data(1.0f64)
-                    .data(1usize)
-                    .register_data(web::Data::new('-'))
-                    .service(
-                        web::resource("/test")
-                            .data(10usize)
-                            .register_data(web::Data::new('*'))
-                            .guard(guard::Get())
-                            .to(
-                                |data1: web::Data<usize>,
-                                 data2: web::Data<char>,
-                                 data3: web::Data<f64>| {
-                                    assert_eq!(*data1, 10);
-                                    assert_eq!(*data2, '*');
-                                    assert_eq!(*data3, 1.0);
-                                    HttpResponse::Ok()
-                                },
-                            ),
-                    ),
-            )
-            .await;
-
-            let req = TestRequest::get().uri("/test").to_request();
-            let resp = call_service(&mut srv, req).await;
-            assert_eq!(resp.status(), StatusCode::OK);
-        })
+        let req = TestRequest::get().uri("/test").to_request();
+        let resp = call_service(&mut srv, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
     }
 }

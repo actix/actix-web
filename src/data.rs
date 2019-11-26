@@ -139,104 +139,97 @@ mod tests {
 
     use super::*;
     use crate::http::StatusCode;
-    use crate::test::{block_on, init_service, TestRequest};
+    use crate::test::{init_service, TestRequest};
     use crate::{web, App, HttpResponse};
 
-    #[test]
-    fn test_data_extractor() {
-        block_on(async {
-            let mut srv = init_service(App::new().data(10usize).service(
+    #[actix_rt::test]
+    async fn test_data_extractor() {
+        let mut srv =
+            init_service(App::new().data(10usize).service(
                 web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()),
             ))
             .await;
 
-            let req = TestRequest::default().to_request();
-            let resp = srv.call(req).await.unwrap();
-            assert_eq!(resp.status(), StatusCode::OK);
+        let req = TestRequest::default().to_request();
+        let resp = srv.call(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
 
-            let mut srv = init_service(App::new().data(10u32).service(
+        let mut srv =
+            init_service(App::new().data(10u32).service(
                 web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()),
             ))
             .await;
-            let req = TestRequest::default().to_request();
-            let resp = srv.call(req).await.unwrap();
-            assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
-        })
+        let req = TestRequest::default().to_request();
+        let resp = srv.call(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
     }
 
-    #[test]
-    fn test_register_data_extractor() {
-        block_on(async {
-            let mut srv =
-                init_service(App::new().register_data(Data::new(10usize)).service(
-                    web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()),
-                ))
-                .await;
-
-            let req = TestRequest::default().to_request();
-            let resp = srv.call(req).await.unwrap();
-            assert_eq!(resp.status(), StatusCode::OK);
-
-            let mut srv =
-                init_service(App::new().register_data(Data::new(10u32)).service(
-                    web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()),
-                ))
-                .await;
-            let req = TestRequest::default().to_request();
-            let resp = srv.call(req).await.unwrap();
-            assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
-        })
-    }
-
-    #[test]
-    fn test_route_data_extractor() {
-        block_on(async {
-            let mut srv = init_service(App::new().service(
-                web::resource("/").data(10usize).route(web::get().to(
-                    |data: web::Data<usize>| {
-                        let _ = data.clone();
-                        HttpResponse::Ok()
-                    },
-                )),
+    #[actix_rt::test]
+    async fn test_register_data_extractor() {
+        let mut srv =
+            init_service(App::new().register_data(Data::new(10usize)).service(
+                web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()),
             ))
             .await;
 
-            let req = TestRequest::default().to_request();
-            let resp = srv.call(req).await.unwrap();
-            assert_eq!(resp.status(), StatusCode::OK);
+        let req = TestRequest::default().to_request();
+        let resp = srv.call(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
 
-            // different type
-            let mut srv = init_service(
-                App::new().service(
-                    web::resource("/")
-                        .data(10u32)
-                        .route(web::get().to(|_: web::Data<usize>| HttpResponse::Ok())),
-                ),
-            )
-            .await;
-            let req = TestRequest::default().to_request();
-            let resp = srv.call(req).await.unwrap();
-            assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
-        })
-    }
-
-    #[test]
-    fn test_override_data() {
-        block_on(async {
-            let mut srv = init_service(App::new().data(1usize).service(
-                web::resource("/").data(10usize).route(web::get().to(
-                    |data: web::Data<usize>| {
-                        assert_eq!(*data, 10);
-                        let _ = data.clone();
-                        HttpResponse::Ok()
-                    },
-                )),
+        let mut srv =
+            init_service(App::new().register_data(Data::new(10u32)).service(
+                web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()),
             ))
             .await;
+        let req = TestRequest::default().to_request();
+        let resp = srv.call(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    }
 
-            let req = TestRequest::default().to_request();
-            let resp = srv.call(req).await.unwrap();
-            assert_eq!(resp.status(), StatusCode::OK);
-        })
+    #[actix_rt::test]
+    async fn test_route_data_extractor() {
+        let mut srv =
+            init_service(App::new().service(web::resource("/").data(10usize).route(
+                web::get().to(|data: web::Data<usize>| {
+                    let _ = data.clone();
+                    HttpResponse::Ok()
+                }),
+            )))
+            .await;
+
+        let req = TestRequest::default().to_request();
+        let resp = srv.call(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        // different type
+        let mut srv = init_service(
+            App::new().service(
+                web::resource("/")
+                    .data(10u32)
+                    .route(web::get().to(|_: web::Data<usize>| HttpResponse::Ok())),
+            ),
+        )
+        .await;
+        let req = TestRequest::default().to_request();
+        let resp = srv.call(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    #[actix_rt::test]
+    async fn test_override_data() {
+        let mut srv = init_service(App::new().data(1usize).service(
+            web::resource("/").data(10usize).route(web::get().to(
+                |data: web::Data<usize>| {
+                    assert_eq!(*data, 10);
+                    let _ = data.clone();
+                    HttpResponse::Ok()
+                },
+            )),
+        ))
+        .await;
+
+        let req = TestRequest::default().to_request();
+        let resp = srv.call(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
     }
 }

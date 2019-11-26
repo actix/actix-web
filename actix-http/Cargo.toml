@@ -29,7 +29,7 @@ default = []
 openssl = ["open-ssl", "actix-connect/openssl", "tokio-openssl"]
 
 # rustls support
-# rustls = ["rust-tls", "webpki-roots", "actix-connect/rustls"]
+rustls = ["rust-tls", "webpki-roots", "actix-connect/rustls"]
 
 # brotli encoding, requires c compiler
 brotli = ["brotli2"]
@@ -52,6 +52,7 @@ actix-codec = "0.2.0-alpha.1"
 actix-connect = "1.0.0-alpha.1"
 actix-utils = "0.5.0-alpha.1"
 actix-server-config = "0.3.0-alpha.1"
+actix-rt = "1.0.0-alpha.1"
 actix-threadpool = "0.2.0-alpha.1"
 
 base64 = "0.10"
@@ -83,11 +84,7 @@ slab = "0.4"
 serde_urlencoded = "0.6.1"
 time = "0.1.42"
 
-tokio = "=0.2.0-alpha.6"
-tokio-io = "=0.2.0-alpha.6"
 tokio-net = "=0.2.0-alpha.6"
-tokio-timer = "0.3.0-alpha.6"
-tokio-executor = "=0.2.0-alpha.6"
 trust-dns-resolver = { version="0.18.0-alpha.1", default-features = false }
 
 # for secure cookie
@@ -106,8 +103,7 @@ rust-tls = { version = "0.16.0", package="rustls", optional = true }
 webpki-roots = { version = "0.18", optional = true }
 
 [dev-dependencies]
-actix-rt = "1.0.0-alpha.1"
-actix-server = { version = "0.8.0-alpha.1", features=["openssl"] }
+actix-server = { version = "0.8.0-alpha.1", features=["openssl", "rustls"] }
 actix-connect = { version = "1.0.0-alpha.1", features=["openssl"] }
 actix-http-test = { version = "0.3.0-alpha.1", features=["openssl"] }
 env_logger = "0.6"

@@ -39,19 +39,18 @@ const HTTPS_ENCODING: &str = "gzip, deflate";
 /// ```rust
 /// use actix_rt::System;
 ///
-/// fn main() {
-///     System::new("test").block_on(async {
-///        let response = awc::Client::new()
-///           .get("http://www.rust-lang.org") // <- Create request builder
-///           .header("User-Agent", "Actix-web")
-///           .send()                          // <- Send http request
-///           .await;
+/// #[actix_rt::main]
+/// async fn main() {
+///    let response = awc::Client::new()
+///         .get("http://www.rust-lang.org") // <- Create request builder
+///         .header("User-Agent", "Actix-web")
+///         .send()                          // <- Send http request
+///         .await;
 ///
-///           response.and_then(|response| {   // <- server http response
-///               println!("Response: {:?}", response);
-///               Ok(())
-///           })
-///     });
+///    response.and_then(|response| {   // <- server http response
+///         println!("Response: {:?}", response);
+///         Ok(())
+///    });
 /// }
 /// ```
 pub struct ClientRequest {
@@ -308,25 +307,21 @@ impl ClientRequest {
     /// Set a cookie
     ///
     /// ```rust
-    /// # use actix_rt::System;
-    /// fn main() {
-    ///     System::new("test").block_on(async {
-    ///         awc::Client::new().get("https://www.rust-lang.org")
-    ///             .cookie(
-    ///                 awc::http::Cookie::build("name", "value")
-    ///                     .domain("www.rust-lang.org")
-    ///                     .path("/")
-    ///                     .secure(true)
-    ///                     .http_only(true)
-    ///                     .finish(),
-    ///             )
-    ///             .send()
-    ///             .await
-    ///             .and_then(|response| {
-    ///                println!("Response: {:?}", response);
-    ///                Ok(())
-    ///             })
-    ///     });
+    /// #[actix_rt::main]
+    /// async fn main() {
+    ///     let resp = awc::Client::new().get("https://www.rust-lang.org")
+    ///         .cookie(
+    ///             awc::http::Cookie::build("name", "value")
+    ///                 .domain("www.rust-lang.org")
+    ///                 .path("/")
+    ///                 .secure(true)
+    ///                 .http_only(true)
+    ///                 .finish(),
+    ///          )
+    ///          .send()
+    ///          .await;
+    ///
+    ///     println!("Response: {:?}", resp);
     /// }
     /// ```
     pub fn cookie(mut self, cookie: Cookie<'_>) -> Self {

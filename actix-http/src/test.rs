@@ -7,7 +7,7 @@ use std::task::{Context, Poll};
 
 use actix_codec::{AsyncRead, AsyncWrite};
 use actix_server_config::IoStream;
-use bytes::{Buf, Bytes, BytesMut};
+use bytes::{Bytes, BytesMut};
 use http::header::{self, HeaderName, HeaderValue};
 use http::{HttpTryFrom, Method, Uri, Version};
 use percent_encoding::percent_encode;

@@ -395,10 +395,10 @@ mod tests {
 
     use super::*;
     use crate::http::header;
-    use crate::test::{block_on, TestRequest};
+    use crate::test::TestRequest;
 
-    #[test]
-    fn test_payload_config() {
+    #[actix_rt::test]
+    async fn test_payload_config() {
         let req = TestRequest::default().to_http_request();
         let cfg = PayloadConfig::default().mimetype(mime::APPLICATION_JSON);
         assert!(cfg.check_mimetype(&req).is_err());
@@ -415,32 +415,32 @@ mod tests {
         assert!(cfg.check_mimetype(&req).is_ok());
     }
 
-    #[test]
-    fn test_bytes() {
+    #[actix_rt::test]
+    async fn test_bytes() {
         let (req, mut pl) = TestRequest::with_header(header::CONTENT_LENGTH, "11")
             .set_payload(Bytes::from_static(b"hello=world"))
             .to_http_parts();
 
-        let s = block_on(Bytes::from_request(&req, &mut pl)).unwrap();
+        let s = Bytes::from_request(&req, &mut pl).await.unwrap();
         assert_eq!(s, Bytes::from_static(b"hello=world"));
     }
 
-    #[test]
-    fn test_string() {
+    #[actix_rt::test]
+    async fn test_string() {
         let (req, mut pl) = TestRequest::with_header(header::CONTENT_LENGTH, "11")
             .set_payload(Bytes::from_static(b"hello=world"))
             .to_http_parts();
 
-        let s = block_on(String::from_request(&req, &mut pl)).unwrap();
+        let s = String::from_request(&req, &mut pl).await.unwrap();
         assert_eq!(s, "hello=world");
     }
 
-    #[test]
-    fn test_message_body() {
+    #[actix_rt::test]
+    async fn test_message_body() {
         let (req, mut pl) = TestRequest::with_header(header::CONTENT_LENGTH, "xxxx")
             .to_srv_request()
             .into_parts();
-        let res = block_on(HttpMessageBody::new(&req, &mut pl));
+        let res = HttpMessageBody::new(&req, &mut pl).await;
         match res.err().unwrap() {
             PayloadError::UnknownLength => (),
             _ => unreachable!("error"),
@@ -449,7 +449,7 @@ mod tests {
         let (req, mut pl) = TestRequest::with_header(header::CONTENT_LENGTH, "1000000")
             .to_srv_request()
             .into_parts();
-        let res = block_on(HttpMessageBody::new(&req, &mut pl));
+        let res = HttpMessageBody::new(&req, &mut pl).await;
         match res.err().unwrap() {
             PayloadError::Overflow => (),
             _ => unreachable!("error"),
@@ -458,13 +458,13 @@ mod tests {
         let (req, mut pl) = TestRequest::default()
             .set_payload(Bytes::from_static(b"test"))
             .to_http_parts();
-        let res = block_on(HttpMessageBody::new(&req, &mut pl));
+        let res = HttpMessageBody::new(&req, &mut pl).await;
         assert_eq!(res.ok().unwrap(), Bytes::from_static(b"test"));
 
         let (req, mut pl) = TestRequest::default()
             .set_payload(Bytes::from_static(b"11111111111111"))
             .to_http_parts();
-        let res = block_on(HttpMessageBody::new(&req, &mut pl).limit(5));
+        let res = HttpMessageBody::new(&req, &mut pl).limit(5).await;
         match res.err().unwrap() {
             PayloadError::Overflow => (),
             _ => unreachable!("error"),

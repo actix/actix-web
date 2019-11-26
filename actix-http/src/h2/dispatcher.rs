@@ -7,6 +7,7 @@ use std::time::Instant;
 use std::{fmt, mem, net};
 
 use actix_codec::{AsyncRead, AsyncWrite};
+use actix_rt::time::Delay;
 use actix_server_config::IoStream;
 use actix_service::Service;
 use bitflags::bitflags;
@@ -19,7 +20,6 @@ use http::header::{
 };
 use http::HttpTryFrom;
 use log::{debug, error, trace};
-use tokio_timer::Delay;
 
 use crate::body::{Body, BodySize, MessageBody, ResponseBody};
 use crate::cloneable::CloneableService;
@@ -139,7 +139,7 @@ where
                         on_connect.set(&mut req.extensions_mut());
                     }
 
-                    tokio_executor::current_thread::spawn(ServiceResponse::<
+                    actix_rt::spawn(ServiceResponse::<
                         S::Future,
                         S::Response,
                         S::Error,

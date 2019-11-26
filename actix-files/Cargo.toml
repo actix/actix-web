@@ -32,4 +32,5 @@ percent-encoding = "2.1"
 v_htmlescape = "0.4"
 
 [dev-dependencies]
+actix-rt = "1.0.0-alpha.1"
 actix-web = { version = "2.0.0-alpha.1", features=["openssl"] }

@@ -1,4 +1,3 @@
-use std::future::Future;
 use std::io::Write;
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -6,8 +5,8 @@ use std::{io, time};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use bytes::{BufMut, Bytes, BytesMut};
-use futures::future::{ok, poll_fn, Either};
-use futures::{Sink, SinkExt, Stream, StreamExt};
+use futures::future::poll_fn;
+use futures::{SinkExt, Stream, StreamExt};
 
 use crate::error::PayloadError;
 use crate::h1;

@@ -10,7 +10,6 @@ use actix_http::{
 };
 use actix_router::{Path, Resource, ResourceDef, Url};
 use actix_service::{IntoServiceFactory, ServiceFactory};
-use futures::future::{ok, Ready};
 
 use crate::config::{AppConfig, AppService};
 use crate::data::Data;
@@ -529,9 +528,10 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test::{block_on, init_service, TestRequest};
+    use crate::test::{init_service, TestRequest};
     use crate::{guard, http, web, App, HttpResponse};
     use actix_service::Service;
+    use futures::future::ok;
 
     #[test]
     fn test_service_request() {
@@ -554,35 +554,29 @@ mod tests {
         assert!(ServiceRequest::from_request(r).is_err());
     }
 
-    #[test]
-    fn test_service() {
-        block_on(async {
-            let mut srv = init_service(
-                App::new().service(web::service("/test").name("test").finish(
-                    |req: ServiceRequest| {
-                        ok(req.into_response(HttpResponse::Ok().finish()))
-                    },
-                )),
-            )
-            .await;
-            let req = TestRequest::with_uri("/test").to_request();
-            let resp = srv.call(req).await.unwrap();
-            assert_eq!(resp.status(), http::StatusCode::OK);
+    #[actix_rt::test]
+    async fn test_service() {
+        let mut srv = init_service(
+            App::new().service(web::service("/test").name("test").finish(
+                |req: ServiceRequest| ok(req.into_response(HttpResponse::Ok().finish())),
+            )),
+        )
+        .await;
+        let req = TestRequest::with_uri("/test").to_request();
+        let resp = srv.call(req).await.unwrap();
+        assert_eq!(resp.status(), http::StatusCode::OK);
 
-            let mut srv = init_service(App::new().service(
-                web::service("/test").guard(guard::Get()).finish(
-                    |req: ServiceRequest| {
-                        ok(req.into_response(HttpResponse::Ok().finish()))
-                    },
-                ),
-            ))
-            .await;
-            let req = TestRequest::with_uri("/test")
-                .method(http::Method::PUT)
-                .to_request();
-            let resp = srv.call(req).await.unwrap();
-            assert_eq!(resp.status(), http::StatusCode::NOT_FOUND);
-        })
+        let mut srv = init_service(
+            App::new().service(web::service("/test").guard(guard::Get()).finish(
+                |req: ServiceRequest| ok(req.into_response(HttpResponse::Ok().finish())),
+            )),
+        )
+        .await;
+        let req = TestRequest::with_uri("/test")
+            .method(http::Method::PUT)
+            .to_request();
+        let resp = srv.call(req).await.unwrap();
+        assert_eq!(resp.status(), http::StatusCode::NOT_FOUND);
     }
 
     #[test]
