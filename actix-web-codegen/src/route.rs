@@ -184,6 +184,7 @@ impl Route {
 
     pub fn generate(&self) -> TokenStream {
         let name = &self.name;
+        let resource_name = name.to_string();
         let guard = &self.guard;
         let ast = &self.ast;
         let path = &self.args.path;
@@ -196,8 +197,8 @@ impl Route {
             impl actix_web::dev::HttpServiceFactory for #name {
                 fn register(self, config: &mut actix_web::dev::AppService) {
                     #ast
-
                     let resource = actix_web::Resource::new(#path)
+                        .name(#resource_name)
                         .guard(actix_web::guard::#guard())
                         #(.guard(actix_web::guard::fn_guard(#extra_guards)))*
                         .#resource_type(#name);
