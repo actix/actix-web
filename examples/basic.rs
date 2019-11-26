@@ -16,7 +16,8 @@ async fn no_params() -> &'static str {
     "Hello world!\r\n"
 }
 
-fn main() -> std::io::Result<()> {
+#[actix_rt::main]
+async fn main() -> std::io::Result<()> {
     std::env::set_var("RUST_LOG", "actix_server=info,actix_web=info");
     env_logger::init();
 
@@ -41,5 +42,6 @@ fn main() -> std::io::Result<()> {
     })
     .bind("127.0.0.1:8080")?
     .workers(1)
-    .run()
+    .start()
+    .await
 }

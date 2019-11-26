@@ -19,7 +19,8 @@ async fn no_params() -> &'static str {
 }
 
 #[cfg(unix)]
-fn main() -> std::io::Result<()> {
+#[actix_rt::main]
+async fn main() -> std::io::Result<()> {
     std::env::set_var("RUST_LOG", "actix_server=info,actix_web=info");
     env_logger::init();
 
@@ -44,7 +45,8 @@ fn main() -> std::io::Result<()> {
     })
     .bind_uds("/Users/fafhrd91/uds-test")?
     .workers(1)
-    .run()
+    .start()
+    .await
 }
 
 #[cfg(not(unix))]
