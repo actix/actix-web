@@ -29,7 +29,7 @@ default = []
 openssl = ["open-ssl", "actix-connect/openssl", "tokio-openssl"]
 
 # rustls support
-rustls = ["rust-tls", "webpki-roots", "actix-connect/rustls"]
+# rustls = ["rust-tls", "webpki-roots", "actix-connect/rustls"]
 
 # brotli encoding, requires c compiler
 brotli = ["brotli2"]
@@ -99,11 +99,12 @@ failure = { version = "0.1.5", optional = true }
 open-ssl = { version="0.10", package="openssl", optional = true }
 tokio-openssl = { version = "0.4.0-alpha.6", optional = true }
 
-rust-tls = { version = "0.16.0", package="rustls", optional = true }
-webpki-roots = { version = "0.18", optional = true }
+# rust-tls = { version = "0.16.0", package="rustls", optional = true }
+# webpki-roots = { version = "0.18", optional = true }
 
 [dev-dependencies]
-actix-server = { version = "0.8.0-alpha.1", features=["openssl", "rustls"] }
+#actix-server = { version = "0.8.0-alpha.1", features=["openssl", "rustls"] }
+actix-server = { version = "0.8.0-alpha.1", features=["openssl"] }
 actix-connect = { version = "1.0.0-alpha.1", features=["openssl"] }
 actix-http-test = { version = "0.3.0-alpha.1", features=["openssl"] }
 env_logger = "0.6"

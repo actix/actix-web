@@ -66,7 +66,7 @@ fail = ["actix-http/fail"]
 openssl = ["open-ssl", "actix-server/openssl", "awc/openssl"]
 
 # rustls
-rustls = ["rust-tls", "actix-server/rustls", "awc/rustls"]
+# rustls = ["rust-tls", "actix-server/rustls", "awc/rustls"]
 
 [dependencies]
 actix-codec = "0.2.0-alpha.1"
@@ -101,7 +101,7 @@ url = "2.1"
 
 # ssl support
 open-ssl = { version="0.10", package="openssl", optional = true }
-rust-tls = { version = "0.16", package="rustls", optional = true }
+# rust-tls = { version = "0.16", package="rustls", optional = true }
 
 [dev-dependencies]
 # actix = "0.8.3"

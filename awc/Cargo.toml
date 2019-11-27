@@ -30,7 +30,7 @@ default = ["brotli", "flate2-zlib"]
 openssl = ["open-ssl", "actix-http/openssl"]
 
 # rustls
-rustls = ["rust-tls", "actix-http/rustls"]
+# rustls = ["rust-tls", "actix-http/rustls"]
 
 # brotli encoding, requires c compiler
 brotli = ["actix-http/brotli"]
@@ -59,7 +59,7 @@ serde = "1.0"
 serde_json = "1.0"
 serde_urlencoded = "0.6.1"
 open-ssl = { version="0.10", package="openssl", optional = true }
-rust-tls = { version = "0.16.0", package="rustls", optional = true, features = ["dangerous_configuration"]  }
+# rust-tls = { version = "0.16.0", package="rustls", optional = true, features = ["dangerous_configuration"]  }
 
 [dev-dependencies]
 actix-connect = { version = "1.0.0-alpha.1", features=["openssl"] }
