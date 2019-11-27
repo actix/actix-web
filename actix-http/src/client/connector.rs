@@ -9,7 +9,7 @@ use actix_connect::{
 use actix_service::{apply_fn, Service};
 use actix_utils::timeout::{TimeoutError, TimeoutService};
 use http::Uri;
-use tokio_net::tcp::TcpStream;
+use tokio::net::TcpStream;
 
 use super::connection::Connection;
 use super::error::ConnectError;

@@ -84,7 +84,7 @@ slab = "0.4"
 serde_urlencoded = "0.6.1"
 time = "0.1.42"
 
-tokio-net = "=0.2.0-alpha.6"
+tokio = { version = "0.2", features = ["net"] }
 trust-dns-resolver = { version="0.18.0-alpha.1", default-features = false }
 
 # for secure cookie
