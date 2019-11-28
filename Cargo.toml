@@ -16,7 +16,7 @@ exclude = [".gitignore", ".travis.yml", ".cargo/config", "appveyor.yml"]
 edition = "2018"
 
 [package.metadata.docs.rs]
-features = ["openssl", "rustls", "brotli", "flate2-zlib", "secure-cookies", "client"]
+features = ["openssl", "brotli", "flate2-zlib", "secure-cookies", "client"]
 
 [badges]
 travis-ci = { repository = "actix/actix-web", branch = "master" }
