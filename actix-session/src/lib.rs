@@ -290,6 +290,20 @@ mod tests {
     }
 
     #[test]
+    fn get_session_from_request_head() {
+        let mut req = test::TestRequest::default().to_srv_request();
+
+        Session::set_session(
+            vec![("key".to_string(), "\"value\"".to_string())].into_iter(),
+            &mut req,
+        );
+
+        let session = req.head_mut().get_session();
+        let res = session.get::<String>("key").unwrap();
+        assert_eq!(res, Some("value".to_string()));
+    }
+
+    #[test]
     fn purge_session() {
         let req = test::TestRequest::default().to_srv_request();
         let session = Session::get_session(&mut *req.extensions_mut());
