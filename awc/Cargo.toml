@@ -1,0 +1,75 @@
+[package]
+name = "awc"
+version = "0.3.0-alpha.1"
+authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
+description = "Actix http client."
+readme = "README.md"
+keywords = ["actix", "http", "framework", "async", "web"]
+homepage = "https://actix.rs"
+repository = "https://github.com/actix/actix-web.git"
+documentation = "https://docs.rs/awc/"
+categories = ["network-programming", "asynchronous",
+              "web-programming::http-client",
+              "web-programming::websocket"]
+license = "MIT/Apache-2.0"
+exclude = [".gitignore", ".travis.yml", ".cargo/config", "appveyor.yml"]
+edition = "2018"
+workspace = ".."
+
+[lib]
+name = "awc"
+path = "src/lib.rs"
+
+[package.metadata.docs.rs]
+features = ["openssl", "brotli", "flate2-zlib"]
+
+[features]
+default = ["brotli", "flate2-zlib"]
+
+# openssl
+openssl = ["open-ssl", "actix-http/openssl"]
+
+# rustls
+# rustls = ["rust-tls", "actix-http/rustls"]
+
+# brotli encoding, requires c compiler
+brotli = ["actix-http/brotli"]
+
+# miniz-sys backend for flate2 crate
+flate2-zlib = ["actix-http/flate2-zlib"]
+
+# rust backend for flate2 crate
+flate2-rust = ["actix-http/flate2-rust"]
+
+[dependencies]
+actix-codec = "0.2.0-alpha.1"
+actix-service = "1.0.0-alpha.1"
+actix-http = "0.3.0-alpha.1"
+actix-rt = "1.0.0-alpha.1"
+
+base64 = "0.10.1"
+bytes = "0.4"
+derive_more = "0.99.2"
+futures = "0.3.1"
+log =" 0.4"
+mime = "0.3"
+percent-encoding = "2.1"
+rand = "0.7"
+serde = "1.0"
+serde_json = "1.0"
+serde_urlencoded = "0.6.1"
+open-ssl = { version="0.10", package="openssl", optional = true }
+# rust-tls = { version = "0.16.0", package="rustls", optional = true, features = ["dangerous_configuration"]  }
+
+[dev-dependencies]
+actix-connect = { version = "1.0.0-alpha.1", features=["openssl"] }
+actix-web = { version = "2.0.0-alpha.1", features=["openssl"] }
+actix-http = { version = "0.3.0-alpha.1", features=["openssl"] }
+actix-http-test = { version = "0.3.0-alpha.1", features=["openssl"] }
+actix-utils = "0.5.0-alpha.1"
+actix-server = { version = "0.8.0-alpha.1", features=["openssl"] }
+brotli2 = { version="0.3.2" }
+flate2 = { version="1.0.2" }
+env_logger = "0.6"
+rand = "0.7"
+webpki = { version = "0.21" }

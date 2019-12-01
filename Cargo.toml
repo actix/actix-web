@@ -1,130 +1,142 @@
 [package]
 name = "actix-web"
-version = "0.5.0-dev"
+version = "2.0.0-alpha.1"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
-description = "Actix web is a simple, pragmatic, extremely fast, web framework for Rust."
+description = "Actix web is a simple, pragmatic and extremely fast web framework for Rust."
 readme = "README.md"
-keywords = ["http", "web", "framework", "async", "futures"]
-homepage = "https://github.com/actix/actix-web"
+keywords = ["actix", "http", "web", "framework", "async"]
+homepage = "https://actix.rs"
 repository = "https://github.com/actix/actix-web.git"
 documentation = "https://docs.rs/actix-web/"
 categories = ["network-programming", "asynchronous",
               "web-programming::http-server",
-              "web-programming::http-client",
               "web-programming::websocket"]
 license = "MIT/Apache-2.0"
-exclude = [".gitignore", ".travis.yml", ".cargo/config",
-           "appveyor.yml", "/examples/**"]
-build = "build.rs"
+exclude = [".gitignore", ".travis.yml", ".cargo/config", "appveyor.yml"]
+edition = "2018"
+
+[package.metadata.docs.rs]
+features = ["openssl", "brotli", "flate2-zlib", "secure-cookies", "client"]
 
 [badges]
 travis-ci = { repository = "actix/actix-web", branch = "master" }
-appveyor = { repository = "fafhrd91/actix-web-hdy9d" }
 codecov = { repository = "actix/actix-web", branch = "master", service = "github" }
 
 [lib]
 name = "actix_web"
 path = "src/lib.rs"
 
-[features]
-default = ["session", "brotli"]
+[workspace]
+members = [
+  ".",
+  "awc",
+  "actix-http",
+  "actix-cors",
+  "actix-files",
+  "actix-framed",
+  "actix-session",
+  "actix-identity",
+  "actix-multipart",
+  "actix-web-actors",
+  "actix-web-codegen",
+  "test-server",
+]
 
-# tls
-tls = ["native-tls", "tokio-tls"]
+[features]
+default = ["brotli", "flate2-zlib", "client", "fail"]
+
+# http client
+client = ["awc"]
+
+# brotli encoding, requires c compiler
+brotli = ["actix-http/brotli"]
+
+# miniz-sys backend for flate2 crate
+flate2-zlib = ["actix-http/flate2-zlib"]
+
+# rust backend for flate2 crate
+flate2-rust = ["actix-http/flate2-rust"]
+
+# sessions feature, session require "ring" crate and c compiler
+secure-cookies = ["actix-http/secure-cookies"]
+
+fail = ["actix-http/fail"]
 
 # openssl
-alpn = ["openssl", "openssl/v102", "openssl/v110", "tokio-openssl"]
+openssl = ["open-ssl", "actix-server/openssl", "awc/openssl"]
 
-# sessions
-session = ["cookie/secure"]
-
-# brotli encoding
-brotli = ["brotli2"]
+# rustls
+# rustls = ["rust-tls", "actix-server/rustls", "awc/rustls"]
 
 [dependencies]
-actix = "^0.5.5"
+actix-codec = "0.2.0-alpha.1"
+actix-service = "1.0.0-alpha.1"
+actix-utils = "0.5.0-alpha.1"
+actix-router = "0.1.5"
+actix-rt = "1.0.0-alpha.1"
+actix-web-codegen = "0.2.0-alpha.1"
+actix-http = "0.3.0-alpha.1"
+actix-server = "0.8.0-alpha.1"
+actix-server-config = "0.3.0-alpha.1"
+actix-testing = "0.3.0-alpha.1"
+actix-threadpool = "0.2.0-alpha.1"
+awc = { version = "0.3.0-alpha.1", optional = true }
 
-base64 = "0.9"
-bitflags = "1.0"
-failure = "0.1.1"
-flate2 = "1.0"
-h2 = "0.1"
-http = "^0.1.5"
-httparse = "1.2"
-http-range = "0.1"
-libc = "0.2"
+bytes = "0.4"
+derive_more = "0.99.2"
+encoding_rs = "0.8"
+futures = "0.3.1"
+hashbrown = "0.6.3"
 log = "0.4"
 mime = "0.3"
-mime_guess = "2.0.0-alpha"
-num_cpus = "1.0"
-percent-encoding = "1.0"
-rand = "0.4"
-regex = "0.2"
-serde = "1.0"
+net2 = "0.2.33"
+parking_lot = "0.9"
+pin-project = "0.4.5"
+regex = "1.0"
+serde = { version = "1.0", features=["derive"] }
 serde_json = "1.0"
-serde_urlencoded = "0.5"
-sha1 = "0.6"
-smallvec = "0.6"
-time = "0.1"
-encoding = "0.2"
-language-tags = "0.2"
-lazy_static = "1.0"
-url = { version="1.7", features=["query_encoding"] }
-cookie = { version="0.10", features=["percent-encode"] }
-brotli2 = { version="^0.3.2", optional = true }
+serde_urlencoded = "0.6.1"
+time = "0.1.42"
+url = "2.1"
 
-# io
-mio = "^0.6.13"
-net2 = "0.2"
-bytes = "0.4"
-byteorder = "1"
-futures = "0.1"
-futures-cpupool = "0.1"
-tokio-io = "0.1"
-tokio-core = "0.1"
-trust-dns-resolver = "0.8"
-
-# native-tls
-native-tls = { version="0.1", optional = true }
-tokio-tls = { version="0.1", optional = true }
-
-# openssl
-openssl = { version="0.10", optional = true }
-tokio-openssl = { version="0.2", optional = true }
+# ssl support
+open-ssl = { version="0.10", package="openssl", optional = true }
+# rust-tls = { version = "0.16", package="rustls", optional = true }
 
 [dev-dependencies]
-env_logger = "0.5"
-skeptic = "0.13"
+# actix = "0.8.3"
+actix-connect = "0.3.0-alpha.1"
+actix-http-test = "0.3.0-alpha.1"
+rand = "0.7"
+env_logger = "0.6"
 serde_derive = "1.0"
-
-[build-dependencies]
-skeptic = "0.13"
-version_check = "0.1"
+brotli2 = "0.3.2"
+flate2 = "1.0.2"
 
 [profile.release]
 lto = true
 opt-level = 3
 codegen-units = 1
 
-[workspace]
-members = [
-  "./",
-  "examples/basics",
-  "examples/juniper",
-  "examples/diesel",
-  "examples/r2d2",
-  "examples/json",
-  "examples/protobuf",
-  "examples/hello-world",
-  "examples/http-proxy",
-  "examples/multipart",
-  "examples/state",
-  "examples/redis-session",
-  "examples/template_tera",
-  "examples/tls",
-  "examples/websocket",
-  "examples/websocket-chat",
-  "examples/web-cors/backend",
-  "examples/unix-socket",
-  "tools/wsload/",
-]
+[patch.crates-io]
+actix-web = { path = "." }
+actix-http = { path = "actix-http" }
+actix-http-test = { path = "test-server" }
+actix-web-codegen = { path = "actix-web-codegen" }
+# actix-web-actors = { path = "actix-web-actors" }
+actix-cors = { path = "actix-cors" }
+actix-identity = { path = "actix-identity" }
+actix-session = { path = "actix-session" }
+actix-files = { path = "actix-files" }
+actix-multipart = { path = "actix-multipart" }
+awc = { path = "awc" }
+
+actix-codec = { git = "https://github.com/actix/actix-net.git" }
+actix-connect = { git = "https://github.com/actix/actix-net.git" }
+actix-rt = { git = "https://github.com/actix/actix-net.git" }
+actix-macros = { git = "https://github.com/actix/actix-net.git" }
+actix-server = { git = "https://github.com/actix/actix-net.git" }
+actix-server-config = { git = "https://github.com/actix/actix-net.git" }
+actix-service = { git = "https://github.com/actix/actix-net.git" }
+actix-testing = { git = "https://github.com/actix/actix-net.git" }
+actix-utils = {  git = "https://github.com/actix/actix-net.git" }

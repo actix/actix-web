@@ -1,25 +1,18 @@
 language: rust
-sudo: false
+sudo: required
 dist: trusty
 
 cache:
-  cargo: true
+  # cargo: true
   apt: true
 
 matrix:
   include:
-    - rust: 1.21.0
     - rust: stable
     - rust: beta
-    - rust: nightly
+    - rust: nightly-2019-11-20
   allow_failures:
-    - rust: nightly
-
-#rust:
-#  - 1.21.0
-#  - stable
-#  - beta
-#  - nightly-2018-01-03
+    - rust: nightly-2019-11-20
 
 env:
   global:
@@ -29,67 +22,40 @@ env:
 before_install:
   - sudo add-apt-repository -y ppa:0k53d-karl-f830m/openssl
   - sudo apt-get update -qq
-  - sudo apt-get install -qq libssl-dev libelf-dev libdw-dev cmake gcc binutils-dev libiberty-dev
+  - sudo apt-get install -y openssl libssl-dev libelf-dev libdw-dev cmake gcc binutils-dev libiberty-dev
+
+before_cache: |
+  if [[ "$TRAVIS_RUST_VERSION" == "nightly-2019-11-20" ]]; then
+    RUSTFLAGS="--cfg procmacro2_semver_exempt" cargo install --version 0.6.11 cargo-tarpaulin
+  fi
 
 # Add clippy
 before_script:
-  - |
-    if [[ "$TRAVIS_RUST_VERSION" == "nightly" ]]; then
-        ( ( cargo install clippy && export CLIPPY=true ) || export CLIPPY=false );
-    fi
   - export PATH=$PATH:~/.cargo/bin
 
 script:
+  - cargo update
+  - cargo check --all --no-default-features
   - |
-    if [[ "$TRAVIS_RUST_VERSION" == "stable" ]]; then
-       cargo clean
-       USE_SKEPTIC=1 cargo test --features=alpn
-    else
-       cargo clean
-       cargo test -- --nocapture
-       # --features=alpn
-    fi
-
-  - |
-    if [[ "$TRAVIS_RUST_VERSION" == "stable" ]]; then
-      cd examples/basics && cargo check && cd ../..
-      cd examples/hello-world && cargo check && cd ../..
-      cd examples/http-proxy && cargo check && cd ../..
-      cd examples/multipart && cargo check && cd ../..
-      cd examples/json && cargo check && cd ../..
-      cd examples/juniper && cargo check && cd ../..
-      cd examples/protobuf && cargo check && cd ../..
-      cd examples/state && cargo check && cd ../..
-      cd examples/template_tera && cargo check && cd ../..
-      cd examples/diesel && cargo check && cd ../..
-      cd examples/r2d2 && cargo check && cd ../..
-      cd examples/tls && cargo check && cd ../..
-      cd examples/websocket-chat && cargo check && cd ../..
-      cd examples/websocket && cargo check && cd ../..
-      cd examples/unix-socket && cargo check && cd ../..
-    fi
-  - |
-    if [[ "$TRAVIS_RUST_VERSION" == "nightly" && $CLIPPY ]]; then
-        cargo clippy
+    if [[ "$TRAVIS_RUST_VERSION" == "stable" || "$TRAVIS_RUST_VERSION" == "beta" ]]; then
+      cargo test --all-features --all -- --nocapture
+      cd actix-http; cargo test --no-default-features --features="rustls" -- --nocapture; cd ..
+      cd awc; cargo test --no-default-features --features="rustls" -- --nocapture; cd ..
     fi
 
 # Upload docs
 after_success:
   - |
-    if [[ "$TRAVIS_OS_NAME" == "linux" && "$TRAVIS_PULL_REQUEST" = "false" && "$TRAVIS_BRANCH" == "master" && "$TRAVIS_RUST_VERSION" == "beta" ]]; then
-      cargo doc --features "alpn, tls, session" --no-deps &&
+    if [[ "$TRAVIS_OS_NAME" == "linux" && "$TRAVIS_PULL_REQUEST" = "false" && "$TRAVIS_BRANCH" == "master" && "$TRAVIS_RUST_VERSION" == "stable" ]]; then
+      cargo doc --no-deps --all-features &&
       echo "<meta http-equiv=refresh content=0;url=os_balloon/index.html>" > target/doc/index.html &&
-      curl -sL https://github.com/rust-lang-nursery/mdBook/releases/download/v0.1.5/mdbook-v0.1.5-x86_64-unknown-linux-gnu.tar.gz | tar xvz -C $HOME/.cargo/bin &&
-      cd guide && mdbook build -d ../target/doc/guide && cd .. &&
       git clone https://github.com/davisp/ghp-import.git &&
       ./ghp-import/ghp_import.py -n -p -f -m "Documentation upload" -r https://"$GH_TOKEN"@github.com/"$TRAVIS_REPO_SLUG.git" target/doc &&
       echo "Uploaded documentation"
     fi
-
   - |
-    if [[ "$TRAVIS_OS_NAME" == "linux" && "$TRAVIS_RUST_VERSION" == "1.21.0" ]]; then
-      bash <(curl https://raw.githubusercontent.com/xd009642/tarpaulin/master/travis-install.sh)
-      USE_SKEPTIC=1 cargo tarpaulin --out Xml
-      bash <(curl -s https://codecov.io/bash)
-      echo "Uploaded code coverage"
+    if [[ "$TRAVIS_RUST_VERSION" == "nightly-2019-11-20" ]]; then
+        taskset -c 0 cargo tarpaulin --out Xml --all --all-features
+        bash <(curl -s https://codecov.io/bash)
+        echo "Uploaded code coverage"
     fi

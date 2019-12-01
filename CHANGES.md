@@ -1,257 +1,357 @@
 # Changes
 
-## 0.5.0
+## [2.0.0-alpha.1] - 2019-11-22
 
-* Type-safe path/query/form parameter handling, using serde #70
+### Changed
 
-* HttpResponse builder's methods  `.body()`, `.finish()`, `.json()`
-  return `HttpResponse` instead of `Result`
+* Migrated to `std::future`
 
-* Use more ergonomic `actix_web::Error` instead of `http::Error` for `ClientRequestBuilder::body()`
+* Remove implementation of `Responder` for `()`. (#1167)
 
-* Added `HttpRequest::resource()`, returns current matched resource
 
-* Added `ErrorHandlers` middleware
+## [1.0.9] - 2019-11-14
 
-* Router cannot parse Non-ASCII characters in URL #137
+### Added
 
-* Fix long client urls #129
+* Add `Payload::into_inner` method and make stored `def::Payload` public. (#1110)
 
-* Fix panic on invalid URL characters #130
+### Changed
 
-* Fix client connection pooling
+* Support `Host` guards when the `Host` header is unset (e.g. HTTP/2 requests) (#1129)
 
-* Fix logger request duration calculation #152
 
+## [1.0.8] - 2019-09-25
 
-## 0.4.10 (2018-03-20)
+### Added
 
-* Use `Error` instead of `InternalError` for `error::ErrorXXXX` methods
+* Add `Scope::register_data` and `Resource::register_data` methods, parallel to
+  `App::register_data`.
 
-* Allow to set client request timeout
+* Add `middleware::Condition` that conditionally enables another middleware
 
-* Allow to set client websocket handshake timeout
+* Allow to re-construct `ServiceRequest` from `HttpRequest` and `Payload`
 
-* Refactor `TestServer` configuration
+* Add `HttpServer::listen_uds` for ability to listen on UDS FD rather than path,
+  which is useful for example with systemd.
 
-* Fix server websockets big payloads support
+### Changed
 
-* Fix http/2 date header generation
+* Make UrlEncodedError::Overflow more informativve
 
+* Use actix-testing for testing utils
 
-## 0.4.9 (2018-03-16)
 
-* Allow to disable http/2 support
+## [1.0.7] - 2019-08-29
 
-* Wake payload reading task when data is available
+### Fixed
 
-* Fix server keep-alive handling
+* Request Extensions leak #1062
 
-* Send Query Parameters in client requests #120
 
-* Move brotli encoding to a feature
+## [1.0.6] - 2019-08-28
 
-* Add option of default handler for `StaticFiles` handler #57
+### Added
 
-* Add basic client connection pooling
+* Re-implement Host predicate (#989)
 
+* Form immplements Responder, returning a `application/x-www-form-urlencoded` response
 
-## 0.4.8 (2018-03-12)
+* Add `into_inner` to `Data`
 
-* Allow to set read buffer capacity for server request
+* Add `test::TestRequest::set_form()` convenience method to automatically serialize data and set
+  the header in test requests.
 
-* Handle WouldBlock error for socket accept call
+### Changed
 
+* `Query` payload made `pub`. Allows user to pattern-match the payload.
 
-## 0.4.7 (2018-03-11)
+* Enable `rust-tls` feature for client #1045
 
-* Fix panic on unknown content encoding
+* Update serde_urlencoded to 0.6.1
 
-* Fix connection get closed too early
+* Update url to 2.1
 
-* Fix streaming response handling for http/2
 
-* Better sleep on error support
+## [1.0.5] - 2019-07-18
 
+### Added
 
-## 0.4.6 (2018-03-10)
+* Unix domain sockets (HttpServer::bind_uds) #92
 
-* Fix client cookie handling
+* Actix now logs errors resulting in "internal server error" responses always, with the `error`
+  logging level
 
-* Fix json content type detection
+### Fixed
 
-* Fix CORS middleware #117
+* Restored logging of errors through the `Logger` middleware
 
-* Optimize websockets stream support
 
+## [1.0.4] - 2019-07-17
 
-## 0.4.5 (2018-03-07)
+### Added
 
-* Fix compression #103 and #104
+* Add `Responder` impl for `(T, StatusCode) where T: Responder`
 
-* Fix client cookie handling #111
+* Allow to access app's resource map via
+  `ServiceRequest::resource_map()` and `HttpRequest::resource_map()` methods.
 
-* Non-blocking processing of a `NamedFile`
+### Changed
 
-* Enable compression support for `NamedFile`
+* Upgrade `rand` dependency version to 0.7
 
-* Better support for `NamedFile` type
 
-* Add `ResponseError` impl for `SendRequestError`. This improves ergonomics of the client.
+## [1.0.3] - 2019-06-28
 
-* Add native-tls support for client
+### Added
 
-* Allow client connection timeout to be set #108
+* Support asynchronous data factories #850
 
-* Allow to use std::net::TcpListener for HttpServer
+### Changed
 
-* Handle panics in worker threads
+*  Use `encoding_rs` crate instead of unmaintained `encoding` crate
 
 
-## 0.4.4 (2018-03-04)
+## [1.0.2] - 2019-06-17
 
-* Allow to use Arc<Vec<u8>> as response/request body
+### Changed
 
-* Fix handling of requests with an encoded body with a length > 8192 #93
+* Move cors middleware to `actix-cors` crate.
 
-## 0.4.3 (2018-03-03)
+* Move identity middleware to `actix-identity` crate.
 
-* Fix request body read bug
 
-* Fix segmentation fault #79
+## [1.0.1] - 2019-06-17
 
-* Set reuse address before bind #90
+### Added
 
+* Add support for PathConfig #903
 
-## 0.4.2 (2018-03-02)
+* Add `middleware::identity::RequestIdentity` trait to `get_identity` from `HttpMessage`.
 
-* Better naming for websockets implementation
+### Changed
 
-* Add `Pattern::with_prefix()`, make it more usable outside of actix
+* Move cors middleware to `actix-cors` crate.
 
-* Add csrf middleware for filter for cross-site request forgery #89
+* Move identity middleware to `actix-identity` crate.
 
-* Fix disconnect on idle connections
+* Disable default feature `secure-cookies`.
 
+* Allow to test an app that uses async actors #897
 
-## 0.4.1 (2018-03-01)
+* Re-apply patch from #637 #894
 
-* Rename `Route::p()` to `Route::filter()`
+### Fixed
 
-* Better naming for http codes
+* HttpRequest::url_for is broken with nested scopes #915
 
-* Fix payload parse in situation when socket data is not ready.
 
-* Fix Session mutable borrow lifetime #87
+## [1.0.0] - 2019-06-05
 
+### Added
 
-## 0.4.0 (2018-02-28)
+* Add `Scope::configure()` method.
 
-* Actix 0.5 compatibility
+* Add `ServiceRequest::set_payload()` method.
 
-* Fix request json/urlencoded loaders
+* Add `test::TestRequest::set_json()` convenience method to automatically
+  serialize data and set header in test requests.
 
-* Simplify HttpServer type definition
+* Add macros for head, options, trace, connect and patch http methods
 
-* Added HttpRequest::encoding() method
+### Changed
 
-* Added HttpRequest::mime_type() method
+* Drop an unnecessary `Option<_>` indirection around `ServerBuilder` from `HttpServer`. #863
 
-* Added HttpRequest::uri_mut(), allows to modify request uri
+### Fixed
 
-* Added StaticFiles::index_file()
+* Fix Logger request time format, and use rfc3339. #867
 
-* Added http client
+* Clear http requests pool on app service drop #860
 
-* Added websocket client
 
-* Added TestServer::ws(), test websockets client
+## [1.0.0-rc] - 2019-05-18
 
-* Added TestServer http client support
+### Add
 
-* Allow to override content encoding on application level
+* Add `Query<T>::from_query()` to extract parameters from a query string. #846
+* `QueryConfig`, similar to `JsonConfig` for customizing error handling of query extractors.
 
+### Changed
 
-## 0.3.3 (2018-01-25)
+* `JsonConfig` is now `Send + Sync`, this implies that `error_handler` must be `Send + Sync` too.
 
-* Stop processing any events after context stop
+### Fixed
 
-* Re-enable write back-pressure for h1 connections
+* Codegen with parameters in the path only resolves the first registered endpoint #841
 
-* Refactor HttpServer::start_ssl() method
 
-* Upgrade openssl to 0.10
+## [1.0.0-beta.4] - 2019-05-12
 
+### Add
 
-## 0.3.2 (2018-01-21)
+* Allow to set/override app data on scope level
 
-* Fix HEAD requests handling
+### Changed
 
-* Log request processing errors
+* `App::configure` take an `FnOnce` instead of `Fn`
+* Upgrade actix-net crates
 
-* Always enable content encoding if encoding explicitly selected
 
-* Allow multiple Applications on a single server with different state #49
+## [1.0.0-beta.3] - 2019-05-04
 
-* CORS middleware: allowed_headers is defaulting to None #50
+### Added
 
+* Add helper function for executing futures `test::block_fn()`
 
-## 0.3.1 (2018-01-13)
+### Changed
 
-* Fix directory entry path #47
+* Extractor configuration could be registered with `App::data()`
+  or with `Resource::data()` #775
 
-* Do not enable chunked encoding for HTTP/1.0
+* Route data is unified with app data, `Route::data()` moved to resource
+  level to `Resource::data()`
 
-* Allow explicitly disable chunked encoding
+* CORS handling without headers #702
 
+* Allow to construct `Data` instances to avoid double `Arc` for `Send + Sync` types.
 
-## 0.3.0 (2018-01-12)
+### Fixed
 
-* HTTP/2 Support
+* Fix `NormalizePath` middleware impl #806
 
-* Refactor streaming responses
+### Deleted
 
-* Refactor error handling
+* `App::data_factory()` is deleted.
 
-* Asynchronous middlewares
 
-* Refactor logger middleware
+## [1.0.0-beta.2] - 2019-04-24
 
-* Content compression/decompression (br, gzip, deflate)
+### Added
 
-* Server multi-threading
+* Add raw services support via `web::service()`
 
-* Gracefull shutdown support
+* Add helper functions for reading response body `test::read_body()`
 
+* Add support for `remainder match` (i.e "/path/{tail}*")
 
-## 0.2.1 (2017-11-03)
+* Extend `Responder` trait, allow to override status code and headers.
 
-* Allow to start tls server with `HttpServer::serve_tls`
+* Store visit and login timestamp in the identity cookie #502
 
-* Export `Frame` enum
+### Changed
 
-* Add conversion impl from `HttpResponse` and `BinaryBody` to a `Frame`
+* `.to_async()` handler can return `Responder` type #792
 
+### Fixed
 
-## 0.2.0 (2017-10-30)
+* Fix async web::Data factory handling
 
-* Do not use `http::Uri` as it can not parse some valid paths
 
-* Refactor response `Body`
+## [1.0.0-beta.1] - 2019-04-20
 
-* Refactor `RouteRecognizer` usability
+### Added
 
-* Refactor `HttpContext::write`
+* Add helper functions for reading test response body,
+ `test::read_response()` and test::read_response_json()`
 
-* Refactor `Payload` stream
+* Add `.peer_addr()` #744
 
-* Re-use `BinaryBody` for `Frame::Payload`
+* Add `NormalizePath` middleware
 
-* Stop http actor on `write_eof`
+### Changed
 
-* Fix disconnection handling.
+* Rename `RouterConfig` to `ServiceConfig`
 
+* Rename `test::call_success` to `test::call_service`
 
-## 0.1.0 (2017-10-23)
+* Removed `ServiceRequest::from_parts()` as it is unsafe to create from parts.
 
-* First release
+* `CookieIdentityPolicy::max_age()` accepts value in seconds
+
+### Fixed
+
+* Fixed `TestRequest::app_data()`
+
+
+## [1.0.0-alpha.6] - 2019-04-14
+
+### Changed
+
+* Allow to use any service as default service.
+
+* Remove generic type for request payload, always use default.
+
+* Removed `Decompress` middleware. Bytes, String, Json, Form extractors
+  automatically decompress payload.
+
+* Make extractor config type explicit. Add `FromRequest::Config` associated type.
+
+
+## [1.0.0-alpha.5] - 2019-04-12
+
+### Added
+
+* Added async io `TestBuffer` for testing.
+
+### Deleted
+
+* Removed native-tls support
+
+
+## [1.0.0-alpha.4] - 2019-04-08
+
+### Added
+
+* `App::configure()` allow to offload app configuration to different methods
+
+* Added `URLPath` option for logger
+
+* Added `ServiceRequest::app_data()`, returns `Data<T>`
+
+* Added `ServiceFromRequest::app_data()`, returns `Data<T>`
+
+### Changed
+
+* `FromRequest` trait refactoring
+
+* Move multipart support to actix-multipart crate
+
+### Fixed
+
+* Fix body propagation in Response::from_error. #760
+
+
+## [1.0.0-alpha.3] - 2019-04-02
+
+### Changed
+
+* Renamed `TestRequest::to_service()` to `TestRequest::to_srv_request()`
+
+* Renamed `TestRequest::to_response()` to `TestRequest::to_srv_response()`
+
+* Removed `Deref` impls
+
+### Removed
+
+* Removed unused `actix_web::web::md()`
+
+
+## [1.0.0-alpha.2] - 2019-03-29
+
+### Added
+
+* rustls support
+
+### Changed
+
+* use forked cookie
+
+* multipart::Field renamed to MultipartField
+
+## [1.0.0-alpha.1] - 2019-03-28
+
+### Changed
+
+* Complete architecture re-design.
+
+* Return 405 response if no matching route found within resource #538

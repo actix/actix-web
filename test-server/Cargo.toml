@@ -1,0 +1,61 @@
+[package]
+name = "actix-http-test"
+version = "0.3.0-alpha.1"
+authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
+description = "Actix http test server"
+readme = "README.md"
+keywords = ["http", "web", "framework", "async", "futures"]
+homepage = "https://actix.rs"
+repository = "https://github.com/actix/actix-web.git"
+documentation = "https://docs.rs/actix-http-test/"
+categories = ["network-programming", "asynchronous",
+              "web-programming::http-server",
+              "web-programming::websocket"]
+license = "MIT/Apache-2.0"
+exclude = [".gitignore", ".travis.yml", ".cargo/config", "appveyor.yml"]
+edition = "2018"
+workspace = ".."
+
+[package.metadata.docs.rs]
+features = []
+
+[lib]
+name = "actix_http_test"
+path = "src/lib.rs"
+
+[features]
+default = []
+
+# openssl
+openssl = ["open-ssl", "actix-server/openssl", "awc/openssl"]
+
+[dependencies]
+actix-service = "1.0.0-alpha.1"
+actix-codec = "0.2.0-alpha.1"
+actix-connect = "1.0.0-alpha.1"
+actix-utils = "0.5.0-alpha.1"
+actix-rt = "1.0.0-alpha.1"
+actix-server = "0.8.0-alpha.1"
+actix-server-config = "0.3.0-alpha.1"
+actix-testing = "0.3.0-alpha.1"
+awc = "0.3.0-alpha.1"
+
+base64 = "0.10"
+bytes = "0.4"
+futures = "0.3.1"
+http = "0.1.8"
+log = "0.4"
+env_logger = "0.6"
+net2 = "0.2"
+serde = "1.0"
+serde_json = "1.0"
+sha1 = "0.6"
+slab = "0.4"
+serde_urlencoded = "0.6.1"
+time = "0.1"
+tokio-net = "0.2.0-alpha.6"
+open-ssl = { version="0.10", package="openssl", optional = true }
+
+[dev-dependencies]
+actix-web = "2.0.0-alpha.1"
+actix-http = "0.3.0-alpha.1"

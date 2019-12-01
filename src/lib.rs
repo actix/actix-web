@@ -1,31 +1,55 @@
-//! Actix web is a small, pragmatic, extremely fast, web framework for Rust.
+#![allow(clippy::borrow_interior_mutable_const)]
+//! Actix web is a small, pragmatic, and extremely fast web framework
+//! for Rust.
 //!
 //! ```rust
-//! use actix_web::{App, HttpServer, Path};
+//! use actix_web::{web, App, Responder, HttpServer};
 //! # use std::thread;
 //!
-//! fn index(info: Path<(String, u32)>) -> String {
-//!    format!("Hello {}! id:{}", info.0, info.1)
+//! async fn index(info: web::Path<(String, u32)>) -> impl Responder {
+//!     format!("Hello {}! id:{}", info.0, info.1)
 //! }
 //!
-//! fn main() {
-//! # thread::spawn(|| {
-//!     HttpServer::new(
-//!         || App::new()
-//!             .resource("/{name}/{id}/index.html", |r| r.with(index)))
-//!         .bind("127.0.0.1:8080").unwrap()
-//!         .run();
-//! # });
+//! fn main() -> std::io::Result<()> {
+//!     # thread::spawn(|| {
+//!     HttpServer::new(|| App::new().service(
+//!         web::resource("/{name}/{id}/index.html").to(index))
+//!     )
+//!         .bind("127.0.0.1:8080")?
+//!         .run()
+//!     # });
+//!     # Ok(())
 //! }
 //! ```
 //!
-//! ## Documentation
+//! ## Documentation & community resources
 //!
-//! * [User Guide](http://actix.github.io/actix-web/guide/)
+//! Besides the API documentation (which you are currently looking
+//! at!), several other resources are available:
+//!
+//! * [User Guide](https://actix.rs/docs/)
 //! * [Chat on gitter](https://gitter.im/actix/actix)
 //! * [GitHub repository](https://github.com/actix/actix-web)
 //! * [Cargo package](https://crates.io/crates/actix-web)
-//! * Supported Rust version: 1.21 or later
+//!
+//! To get started navigating the API documentation you may want to
+//! consider looking at the following pages:
+//!
+//! * [App](struct.App.html): This struct represents an actix-web
+//!   application and is used to configure routes and other common
+//!   settings.
+//!
+//! * [HttpServer](struct.HttpServer.html): This struct
+//!   represents an HTTP server instance and is used to instantiate and
+//!   configure servers.
+//!
+//! * [web](web/index.html): This module
+//!   provide essentials helper functions and types for application registration.
+//!
+//! * [HttpRequest](struct.HttpRequest.html) and
+//!   [HttpResponse](struct.HttpResponse.html): These structs
+//!   represent HTTP requests and responses and expose various methods
+//!   for inspecting, creating and otherwise utilizing them.
 //!
 //! ## Features
 //!
@@ -35,176 +59,137 @@
 //! * `WebSockets` server/client
 //! * Transparent content compression/decompression (br, gzip, deflate)
 //! * Configurable request routing
-//! * Graceful server shutdown
 //! * Multipart streams
-//! * SSL support with openssl or native-tls
-//! * Middlewares (`Logger`, `Session`, `CORS`, `CSRF`, `DefaultHeaders`)
-//! * Built on top of [Actix actor framework](https://github.com/actix/actix).
+//! * SSL support with OpenSSL or `native-tls`
+//! * Middlewares (`Logger`, `Session`, `CORS`, `DefaultHeaders`)
+//! * Supports [Actix actor framework](https://github.com/actix/actix)
+//! * Supported Rust version: 1.39 or later
+//!
+//! ## Package feature
+//!
+//! * `client` - enables http client (default enabled)
+//! * `openssl` - enables ssl support via `openssl` crate, supports `http/2`
+//! * `rustls` - enables ssl support via `rustls` crate, supports `http/2`
+//! * `secure-cookies` - enables secure cookies support, includes `ring` crate as
+//!   dependency
+//! * `brotli` - enables `brotli` compression support, requires `c`
+//!   compiler (default enabled)
+//! * `flate2-zlib` - enables `gzip`, `deflate` compression support, requires
+//!   `c` compiler (default enabled)
+//! * `flate2-rust` - experimental rust based implementation for
+//!   `gzip`, `deflate` compression.
+//!
+#![allow(clippy::type_complexity, clippy::new_without_default)]
 
-#![cfg_attr(actix_nightly, feature(
-    specialization, // for impl ErrorResponse for std::error::Error
-))]
-#![cfg_attr(feature = "cargo-clippy", allow(
-    decimal_literal_representation,suspicious_arithmetic_impl,))]
-
-#[macro_use]
-extern crate log;
-extern crate time;
-extern crate base64;
-extern crate bytes;
-extern crate byteorder;
-extern crate sha1;
-extern crate regex;
-#[macro_use]
-extern crate bitflags;
-#[macro_use]
-extern crate failure;
-#[macro_use]
-extern crate lazy_static;
-#[macro_use]
-extern crate futures;
-extern crate futures_cpupool;
-extern crate tokio_io;
-extern crate tokio_core;
-extern crate mio;
-extern crate net2;
-extern crate cookie;
-extern crate http as modhttp;
-extern crate httparse;
-extern crate http_range;
-extern crate mime;
-extern crate mime_guess;
-extern crate language_tags;
-extern crate rand;
-extern crate url;
-extern crate libc;
-#[macro_use] extern crate serde;
-extern crate serde_json;
-extern crate serde_urlencoded;
-extern crate flate2;
-#[cfg(feature="brotli")]
-extern crate brotli2;
-extern crate encoding;
-extern crate percent_encoding;
-extern crate smallvec;
-extern crate num_cpus;
-extern crate h2 as http2;
-extern crate trust_dns_resolver;
-#[macro_use] extern crate actix;
-
-#[cfg(test)]
-#[macro_use] extern crate serde_derive;
-
-#[cfg(feature="tls")]
-extern crate native_tls;
-#[cfg(feature="tls")]
-extern crate tokio_tls;
-
-#[cfg(feature="openssl")]
-extern crate openssl;
-#[cfg(feature="openssl")]
-extern crate tokio_openssl;
-
-mod application;
-mod body;
-mod context;
-mod de;
-mod extractor;
-mod handler;
-mod header;
-mod helpers;
-mod httpmessage;
-mod httprequest;
-mod httpresponse;
-mod info;
-mod json;
-mod route;
-mod router;
-mod resource;
-mod param;
-mod payload;
-mod pipeline;
-mod with;
-
-pub mod client;
-pub mod fs;
-pub mod ws;
+mod app;
+mod app_service;
+mod config;
+mod data;
 pub mod error;
-pub mod multipart;
+mod extract;
+pub mod guard;
+mod handler;
+mod info;
 pub mod middleware;
-pub mod pred;
+mod request;
+mod resource;
+mod responder;
+mod rmap;
+mod route;
+mod scope;
+mod server;
+mod service;
 pub mod test;
-pub mod server;
-pub use extractor::{Path, Form, Query};
-pub use error::{Error, Result, ResponseError};
-pub use body::{Body, Binary};
-pub use json::Json;
-pub use application::App;
-pub use httpmessage::HttpMessage;
-pub use httprequest::HttpRequest;
-pub use httpresponse::HttpResponse;
-pub use handler::{Either, Responder, AsyncResponder, FromRequest, FutureResponse, State};
-pub use context::HttpContext;
-pub use server::HttpServer;
+mod types;
+pub mod web;
+
+#[allow(unused_imports)]
+#[macro_use]
+extern crate actix_web_codegen;
 
 #[doc(hidden)]
-pub mod httpcodes;
+pub use actix_web_codegen::*;
 
-#[doc(hidden)]
-#[allow(deprecated)]
-pub use application::Application;
+// re-export for convenience
+pub use actix_http::Response as HttpResponse;
+pub use actix_http::{body, cookie, http, Error, HttpMessage, ResponseError, Result};
 
-#[cfg(feature="openssl")]
-pub(crate) const HAS_OPENSSL: bool = true;
-#[cfg(not(feature="openssl"))]
-pub(crate) const HAS_OPENSSL: bool = false;
-
-#[cfg(feature="tls")]
-pub(crate) const HAS_TLS: bool = true;
-#[cfg(not(feature="tls"))]
-pub(crate) const HAS_TLS: bool = false;
+pub use crate::app::App;
+pub use crate::extract::FromRequest;
+pub use crate::request::HttpRequest;
+pub use crate::resource::Resource;
+pub use crate::responder::{Either, Responder};
+pub use crate::route::Route;
+pub use crate::scope::Scope;
+pub use crate::server::HttpServer;
 
 pub mod dev {
-//! The `actix-web` prelude for library developers
-//!
-//! The purpose of this module is to alleviate imports of many common actix traits
-//! by adding a glob import to the top of actix heavy modules:
-//!
-//! ```
-//! # #![allow(unused_imports)]
-//! use actix_web::dev::*;
-//! ```
+    //! The `actix-web` prelude for library developers
+    //!
+    //! The purpose of this module is to alleviate imports of many common actix
+    //! traits by adding a glob import to the top of actix heavy modules:
+    //!
+    //! ```
+    //! # #![allow(unused_imports)]
+    //! use actix_web::dev::*;
+    //! ```
 
-    pub use body::BodyStream;
-    pub use context::Drain;
-    pub use json::JsonBody;
-    pub use info::ConnectionInfo;
-    pub use handler::{Handler, Reply};
-    pub use route::Route;
-    pub use router::{Router, Resource, ResourceType};
-    pub use resource::ResourceHandler;
-    pub use param::{FromParam, Params};
-    pub use httpmessage::{UrlEncoded, MessageBody};
-    pub use httpresponse::HttpResponseBuilder;
+    pub use crate::config::{AppConfig, AppService};
+    #[doc(hidden)]
+    pub use crate::handler::Factory;
+    pub use crate::info::ConnectionInfo;
+    pub use crate::rmap::ResourceMap;
+    pub use crate::service::{
+        HttpServiceFactory, ServiceRequest, ServiceResponse, WebService,
+    };
+
+    pub use crate::types::form::UrlEncoded;
+    pub use crate::types::json::JsonBody;
+    pub use crate::types::readlines::Readlines;
+
+    pub use actix_http::body::{Body, BodySize, MessageBody, ResponseBody, SizedStream};
+    pub use actix_http::encoding::Decoder as Decompress;
+    pub use actix_http::ResponseBuilder as HttpResponseBuilder;
+    pub use actix_http::{
+        Extensions, Payload, PayloadStream, RequestHead, ResponseHead,
+    };
+    pub use actix_router::{Path, ResourceDef, ResourcePath, Url};
+    pub use actix_server::Server;
+    pub use actix_service::{Service, Transform};
+
+    pub(crate) fn insert_slash(path: &str) -> String {
+        let mut path = path.to_owned();
+        if !path.is_empty() && !path.starts_with('/') {
+            path.insert(0, '/');
+        };
+        path
+    }
 }
 
-pub mod http {
-    //! Various http related types
-
-    // re-exports
-    pub use modhttp::{Method, StatusCode, Version};
-
-    #[doc(hidden)]
-    pub use modhttp::{uri, Uri, Error, Extensions, HeaderMap, HttpTryFrom};
-
-    pub use http_range::HttpRange;
-    pub use cookie::{Cookie, CookieBuilder};
-
-    pub use helpers::NormalizePath;
-
-    pub mod header {
-        pub use ::header::*;
-    }
-    pub use header::ContentEncoding;
-    pub use httpresponse::ConnectionType;
+#[cfg(feature = "client")]
+pub mod client {
+    //! An HTTP Client
+    //!
+    //! ```rust
+    //! use actix_rt::System;
+    //! use actix_web::client::Client;
+    //!
+    //! #[actix_rt::main]
+    //! async fn main() {
+    //!    let mut client = Client::default();
+    //!
+    //!    // Create request builder and send request
+    //!    let response = client.get("http://www.rust-lang.org")
+    //!       .header("User-Agent", "Actix-web")
+    //!       .send().await;                      // <- Send http request
+    //!
+    //!    println!("Response: {:?}", response);
+    //! }
+    //! ```
+    pub use awc::error::{
+        ConnectError, InvalidUrl, PayloadError, SendRequestError, WsClientError,
+    };
+    pub use awc::{
+        test, Client, ClientBuilder, ClientRequest, ClientResponse, Connector,
+    };
 }

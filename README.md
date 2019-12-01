@@ -1,74 +1,67 @@
-# Actix web [![Build Status](https://travis-ci.org/actix/actix-web.svg?branch=master)](https://travis-ci.org/actix/actix-web) [![Build status](https://ci.appveyor.com/api/projects/status/kkdb4yce7qhm5w85/branch/master?svg=true)](https://ci.appveyor.com/project/fafhrd91/actix-web-hdy9d/branch/master) [![codecov](https://codecov.io/gh/actix/actix-web/branch/master/graph/badge.svg)](https://codecov.io/gh/actix/actix-web) [![crates.io](https://meritbadge.herokuapp.com/actix-web)](https://crates.io/crates/actix-web) [![Join the chat at https://gitter.im/actix/actix](https://badges.gitter.im/actix/actix.svg)](https://gitter.im/actix/actix?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+# Actix web [![Build Status](https://travis-ci.org/actix/actix-web.svg?branch=master)](https://travis-ci.org/actix/actix-web) [![codecov](https://codecov.io/gh/actix/actix-web/branch/master/graph/badge.svg)](https://codecov.io/gh/actix/actix-web) [![crates.io](https://meritbadge.herokuapp.com/actix-web)](https://crates.io/crates/actix-web) [![Join the chat at https://gitter.im/actix/actix](https://badges.gitter.im/actix/actix.svg)](https://gitter.im/actix/actix?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
-Actix web is a simple, pragmatic, extremely fast, web framework for Rust.
+Actix web is a simple, pragmatic and extremely fast web framework for Rust.
 
-* Supported *HTTP/1.x* and [*HTTP/2.0*](https://actix.github.io/actix-web/guide/qs_13.html) protocols
+* Supported *HTTP/1.x* and *HTTP/2.0* protocols
 * Streaming and pipelining
 * Keep-alive and slow requests handling
-* Client/server [WebSockets](https://actix.github.io/actix-web/guide/qs_9.html) support
+* Client/server [WebSockets](https://actix.rs/docs/websockets/) support
 * Transparent content compression/decompression (br, gzip, deflate)
-* Configurable [request routing](https://actix.github.io/actix-web/guide/qs_5.html)
-* Graceful server shutdown
+* Configurable [request routing](https://actix.rs/docs/url-dispatch/)
 * Multipart streams
 * Static assets
-* SSL support with openssl or native-tls
-* Middlewares ([Logger](https://actix.github.io/actix-web/guide/qs_10.html#logging),
-  [Session](https://actix.github.io/actix-web/guide/qs_10.html#user-sessions),
-  [Redis sessions](https://github.com/actix/actix-redis),
-  [DefaultHeaders](https://actix.github.io/actix-web/guide/qs_10.html#default-headers),
-  [CORS](https://actix.github.io/actix-web/actix_web/middleware/cors/index.html),
-  [CSRF](https://actix.github.io/actix-web/actix_web/middleware/csrf/index.html))
-* Built on top of [Actix actor framework](https://github.com/actix/actix).
+* SSL support with OpenSSL or Rustls
+* Middlewares ([Logger, Session, CORS, etc](https://actix.rs/docs/middleware/))
+* Includes an asynchronous [HTTP client](https://actix.rs/actix-web/actix_web/client/index.html)
+* Supports [Actix actor framework](https://github.com/actix/actix)
 
-## Documentation
+## Documentation & community resources
 
-* [User Guide](http://actix.github.io/actix-web/guide/)
-* [API Documentation (Development)](http://actix.github.io/actix-web/actix_web/)
-* [API Documentation (Releases)](https://docs.rs/actix-web/)
+* [User Guide](https://actix.rs/docs/)
+* [API Documentation (1.0)](https://docs.rs/actix-web/)
 * [Chat on gitter](https://gitter.im/actix/actix)
 * Cargo package: [actix-web](https://crates.io/crates/actix-web)
-* Minimum supported Rust version: 1.21 or later
+* Minimum supported Rust version: 1.39 or later
 
 ## Example
 
 ```rust
-extern crate actix_web;
-use actix_web::{App, HttpServer, Path};
+use actix_web::{get, App, HttpServer, Responder};
 
-fn index(info: Path<(String, u32)>) -> String {
-    format!("Hello {}! id:{}", info.0, info.1)
+#[get("/{id}/{name}/index.html")]
+async fn index(info: web::Path<(u32, String)>) -> impl Responder {
+    format!("Hello {}! id:{}", info.1, info.0)
 }
 
-fn main() {
-    HttpServer::new(
-        || App::new()
-            .resource("/{name}/{id}/index.html", |r| r.with(index)))
-        .bind("127.0.0.1:8080").unwrap()
-        .run();
+#[actix_rt::main]
+async fn main() -> std::io::Result<()> {
+    HttpServer::new(|| App::new().service(index))
+        .bind("127.0.0.1:8080")?
+        .start()
+        .await
 }
 ```
 
 ### More examples
 
-* [Basics](https://github.com/actix/actix-web/tree/master/examples/basics/)
-* [Stateful](https://github.com/actix/actix-web/tree/master/examples/state/)
-* [Protobuf support](https://github.com/actix/actix-web/tree/master/examples/protobuf/)
-* [Multipart streams](https://github.com/actix/actix-web/tree/master/examples/multipart/)
-* [Simple websocket session](https://github.com/actix/actix-web/tree/master/examples/websocket/)
-* [Tera templates](https://github.com/actix/actix-web/tree/master/examples/template_tera/)
-* [Diesel integration](https://github.com/actix/actix-web/tree/master/examples/diesel/)
-* [SSL / HTTP/2.0](https://github.com/actix/actix-web/tree/master/examples/tls/)
-* [Tcp/Websocket chat](https://github.com/actix/actix-web/tree/master/examples/websocket-chat/)
-* [Json](https://github.com/actix/actix-web/tree/master/examples/json/)
+* [Basics](https://github.com/actix/examples/tree/master/basics/)
+* [Stateful](https://github.com/actix/examples/tree/master/state/)
+* [Multipart streams](https://github.com/actix/examples/tree/master/multipart/)
+* [Simple websocket](https://github.com/actix/examples/tree/master/websocket/)
+* [Tera](https://github.com/actix/examples/tree/master/template_tera/) /
+  [Askama](https://github.com/actix/examples/tree/master/template_askama/) templates
+* [Diesel integration](https://github.com/actix/examples/tree/master/diesel/)
+* [r2d2](https://github.com/actix/examples/tree/master/r2d2/)
+* [SSL / HTTP/2.0](https://github.com/actix/examples/tree/master/tls/)
+* [Tcp/Websocket chat](https://github.com/actix/examples/tree/master/websocket-chat/)
+* [Json](https://github.com/actix/examples/tree/master/json/)
 
 You may consider checking out
-[this directory](https://github.com/actix/actix-web/tree/master/examples) for more examples.
+[this directory](https://github.com/actix/examples/tree/master/) for more examples.
 
 ## Benchmarks
 
-* [TechEmpower Framework Benchmark](https://www.techempower.com/benchmarks/#section=data-r15&hw=ph&test=plaintext)
-
-* Some basic benchmarks could be found in this [repository](https://github.com/fafhrd91/benchmarks).
+* [TechEmpower Framework Benchmark](https://www.techempower.com/benchmarks/#section=data-r18)
 
 ## License
 
