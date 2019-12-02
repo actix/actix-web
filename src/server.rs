@@ -2,11 +2,13 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 use std::{fmt, io, net};
 
-use actix_http::{body::MessageBody, Error, HttpService, KeepAlive, Request, Response};
+use actix_http::{
+    body::MessageBody, Error, HttpService, KeepAlive, Protocol, Request, Response,
+};
 use actix_rt::System;
 use actix_server::{Server, ServerBuilder};
-use actix_server_config::ServerConfig;
-use actix_service::{IntoServiceFactory, Service, ServiceFactory};
+use actix_service::{pipeline_factory, IntoServiceFactory, Service, ServiceFactory};
+use futures::future::ok;
 use parking_lot::Mutex;
 
 use net2::TcpBuilder;
@@ -52,7 +54,7 @@ pub struct HttpServer<F, I, S, B>
 where
     F: Fn() -> I + Send + Clone + 'static,
     I: IntoServiceFactory<S>,
-    S: ServiceFactory<Config = ServerConfig, Request = Request>,
+    S: ServiceFactory<Config = (), Request = Request>,
     S::Error: Into<Error>,
     S::InitError: fmt::Debug,
     S::Response: Into<Response<B>>,
@@ -71,7 +73,7 @@ impl<F, I, S, B> HttpServer<F, I, S, B>
 where
     F: Fn() -> I + Send + Clone + 'static,
     I: IntoServiceFactory<S>,
-    S: ServiceFactory<Config = ServerConfig, Request = Request>,
+    S: ServiceFactory<Config = (), Request = Request>,
     S::Error: Into<Error> + 'static,
     S::InitError: fmt::Debug,
     S::Response: Into<Response<B>> + 'static,
@@ -137,8 +139,8 @@ where
     /// can be used to limit the global SSL CPU usage.
     ///
     /// By default max connections is set to a 256.
-    pub fn maxconnrate(mut self, num: usize) -> Self {
-        self.builder = self.builder.maxconnrate(num);
+    pub fn maxconnrate(self, num: usize) -> Self {
+        actix_tls::max_concurrent_ssl_connect(num);
         self
     }
 
@@ -247,7 +249,9 @@ where
                 HttpService::build()
                     .keep_alive(c.keep_alive)
                     .client_timeout(c.client_timeout)
+                    .local_addr(addr)
                     .finish(factory())
+                    .tcp()
             },
         )?;
         Ok(self)
@@ -271,10 +275,6 @@ where
         lst: net::TcpListener,
         acceptor: SslAcceptor,
     ) -> io::Result<Self> {
-        use actix_server::ssl::{OpensslAcceptor, SslError};
-        use actix_service::pipeline_factory;
-
-        let acceptor = OpensslAcceptor::new(acceptor);
         let factory = self.factory.clone();
         let cfg = self.config.clone();
         let addr = lst.local_addr().unwrap();
@@ -288,15 +288,12 @@ where
             lst,
             move || {
                 let c = cfg.lock();
-                pipeline_factory(acceptor.clone().map_err(SslError::Ssl)).and_then(
-                    HttpService::build()
-                        .keep_alive(c.keep_alive)
-                        .client_timeout(c.client_timeout)
-                        .client_disconnect(c.client_shutdown)
-                        .finish(factory())
-                        .map_err(SslError::Service)
-                        .map_init_err(|_| ()),
-                )
+                HttpService::build()
+                    .keep_alive(c.keep_alive)
+                    .client_timeout(c.client_timeout)
+                    .client_disconnect(c.client_shutdown)
+                    .finish(factory())
+                    .openssl(acceptor.clone())
             },
         )?;
         Ok(self)
@@ -444,6 +441,8 @@ where
         mut self,
         lst: std::os::unix::net::UnixListener,
     ) -> io::Result<Self> {
+        use actix_rt::net::UnixStream;
+
         let cfg = self.config.clone();
         let factory = self.factory.clone();
         // todo duplicated:
@@ -459,10 +458,12 @@ where
 
         self.builder = self.builder.listen_uds(addr, lst, move || {
             let c = cfg.lock();
-            HttpService::build()
-                .keep_alive(c.keep_alive)
-                .client_timeout(c.client_timeout)
-                .finish(factory())
+            pipeline_factory(|io: UnixStream| ok((io, Protocol::Http1, None))).and_then(
+                HttpService::build()
+                    .keep_alive(c.keep_alive)
+                    .client_timeout(c.client_timeout)
+                    .finish(factory()),
+            )
         })?;
         Ok(self)
     }
@@ -475,6 +476,8 @@ where
     where
         A: AsRef<std::path::Path>,
     {
+        use actix_rt::net::UnixStream;
+
         let cfg = self.config.clone();
         let factory = self.factory.clone();
         self.sockets.push(Socket {
@@ -490,10 +493,13 @@ where
             addr,
             move || {
                 let c = cfg.lock();
-                HttpService::build()
-                    .keep_alive(c.keep_alive)
-                    .client_timeout(c.client_timeout)
-                    .finish(factory())
+                pipeline_factory(|io: UnixStream| ok((io, Protocol::Http1, None)))
+                    .and_then(
+                        HttpService::build()
+                            .keep_alive(c.keep_alive)
+                            .client_timeout(c.client_timeout)
+                            .finish(factory()),
+                    )
             },
         )?;
         Ok(self)
@@ -504,7 +510,7 @@ impl<F, I, S, B> HttpServer<F, I, S, B>
 where
     F: Fn() -> I + Send + Clone + 'static,
     I: IntoServiceFactory<S>,
-    S: ServiceFactory<Config = ServerConfig, Request = Request>,
+    S: ServiceFactory<Config = (), Request = Request>,
     S::Error: Into<Error>,
     S::InitError: fmt::Debug,
     S::Response: Into<Response<B>>,
@@ -585,8 +591,11 @@ fn openssl_acceptor(mut builder: SslAcceptorBuilder) -> io::Result<SslAcceptor> 
 
     builder.set_alpn_select_callback(|_, protos| {
         const H2: &[u8] = b"\x02h2";
+        const H11: &[u8] = b"\x08http/1.1";
         if protos.windows(3).any(|window| window == H2) {
             Ok(b"h2")
+        } else if protos.windows(9).any(|window| window == H11) {
+            Ok(b"http/1.1")
         } else {
             Err(AlpnError::NOACK)
         }

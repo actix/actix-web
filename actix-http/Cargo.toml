@@ -26,7 +26,7 @@ path = "src/lib.rs"
 default = []
 
 # openssl
-openssl = ["open-ssl", "actix-connect/openssl", "tokio-openssl"]
+openssl = ["open-ssl", "actix-tls/openssl", "actix-connect/openssl", "tokio-openssl"]
 
 # rustls support
 # rustls = ["rust-tls", "webpki-roots", "actix-connect/rustls"]
@@ -51,9 +51,9 @@ actix-service = "1.0.0-alpha.1"
 actix-codec = "0.2.0-alpha.1"
 actix-connect = "1.0.0-alpha.1"
 actix-utils = "0.5.0-alpha.1"
-actix-server-config = "0.3.0-alpha.1"
 actix-rt = "1.0.0-alpha.1"
 actix-threadpool = "0.2.0-alpha.1"
+actix-tls = { git = "https://github.com/actix/actix-net.git", optional = true }
 
 base64 = "0.10"
 bitflags = "1.0"
@@ -103,10 +103,11 @@ tokio-openssl = { version = "0.4.0-alpha.6", optional = true }
 # webpki-roots = { version = "0.18", optional = true }
 
 [dev-dependencies]
-#actix-server = { version = "0.8.0-alpha.1", features=["openssl", "rustls"] }
-actix-server = { version = "0.8.0-alpha.1", features=["openssl"] }
+actix-server = { version = "0.8.0-alpha.1" }
 actix-connect = { version = "1.0.0-alpha.1", features=["openssl"] }
 actix-http-test = { version = "0.3.0-alpha.1", features=["openssl"] }
+#actix-tls = { version = "0.1.0-alpha.1", features=["openssl"] }
+actix-tls = { git = "https://github.com/actix/actix-net.git", features=["openssl"] }
 env_logger = "0.6"
 serde_derive = "1.0"
 open-ssl = { version="0.10", package="openssl" }

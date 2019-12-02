@@ -64,3 +64,10 @@ pub mod http {
     pub use crate::header::ContentEncoding;
     pub use crate::message::ConnectionType;
 }
+
+/// Http protocol
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub enum Protocol {
+    Http1,
+    Http2,
+}

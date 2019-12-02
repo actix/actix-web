@@ -63,7 +63,7 @@ secure-cookies = ["actix-http/secure-cookies"]
 fail = ["actix-http/fail"]
 
 # openssl
-openssl = ["open-ssl", "actix-server/openssl", "awc/openssl"]
+openssl = ["open-ssl", "actix-tls/openssl", "awc/openssl"]
 
 # rustls
 # rustls = ["rust-tls", "actix-server/rustls", "awc/rustls"]
@@ -76,10 +76,11 @@ actix-router = "0.1.5"
 actix-rt = "1.0.0-alpha.1"
 actix-web-codegen = "0.2.0-alpha.1"
 actix-http = "0.3.0-alpha.1"
-actix-server = "0.8.0-alpha.1"
-actix-server-config = "0.3.0-alpha.1"
+actix-server = "0.8.0-alpha.2"
 actix-testing = "0.3.0-alpha.1"
 actix-threadpool = "0.2.0-alpha.1"
+#actix-tls = "0.1.0-alpha.1"
+actix-tls = { git = "https://github.com/actix/actix-net.git", optional = true }
 awc = { version = "0.3.0-alpha.1", optional = true }
 
 bytes = "0.4"
@@ -123,7 +124,6 @@ actix-web = { path = "." }
 actix-http = { path = "actix-http" }
 actix-http-test = { path = "test-server" }
 actix-web-codegen = { path = "actix-web-codegen" }
-# actix-web-actors = { path = "actix-web-actors" }
 actix-cors = { path = "actix-cors" }
 actix-identity = { path = "actix-identity" }
 actix-session = { path = "actix-session" }
@@ -136,7 +136,7 @@ actix-connect = { git = "https://github.com/actix/actix-net.git" }
 actix-rt = { git = "https://github.com/actix/actix-net.git" }
 actix-macros = { git = "https://github.com/actix/actix-net.git" }
 actix-server = { git = "https://github.com/actix/actix-net.git" }
-actix-server-config = { git = "https://github.com/actix/actix-net.git" }
 actix-service = { git = "https://github.com/actix/actix-net.git" }
 actix-testing = { git = "https://github.com/actix/actix-net.git" }
+actix-tls = { git = "https://github.com/actix/actix-net.git" }
 actix-utils = {  git = "https://github.com/actix/actix-net.git" }

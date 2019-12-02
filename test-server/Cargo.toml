@@ -27,7 +27,7 @@ path = "src/lib.rs"
 default = []
 
 # openssl
-openssl = ["open-ssl", "actix-server/openssl", "awc/openssl"]
+openssl = ["open-ssl", "awc/openssl", ] # "actix-tls/openssl"]
 
 [dependencies]
 actix-service = "1.0.0-alpha.1"
@@ -36,7 +36,6 @@ actix-connect = "1.0.0-alpha.1"
 actix-utils = "0.5.0-alpha.1"
 actix-rt = "1.0.0-alpha.1"
 actix-server = "0.8.0-alpha.1"
-actix-server-config = "0.3.0-alpha.1"
 actix-testing = "0.3.0-alpha.1"
 awc = "0.3.0-alpha.1"
 

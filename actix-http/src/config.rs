@@ -1,8 +1,8 @@
 use std::cell::UnsafeCell;
-use std::fmt;
 use std::fmt::Write;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
+use std::{fmt, net};
 
 use actix_rt::time::{delay, delay_for, Delay};
 use bytes::BytesMut;
@@ -47,6 +47,8 @@ struct Inner {
     client_timeout: u64,
     client_disconnect: u64,
     ka_enabled: bool,
+    secure: bool,
+    local_addr: Option<std::net::SocketAddr>,
     timer: DateService,
 }
 
@@ -58,7 +60,7 @@ impl Clone for ServiceConfig {
 
 impl Default for ServiceConfig {
     fn default() -> Self {
-        Self::new(KeepAlive::Timeout(5), 0, 0)
+        Self::new(KeepAlive::Timeout(5), 0, 0, false, None)
     }
 }
 
@@ -68,6 +70,8 @@ impl ServiceConfig {
         keep_alive: KeepAlive,
         client_timeout: u64,
         client_disconnect: u64,
+        secure: bool,
+        local_addr: Option<net::SocketAddr>,
     ) -> ServiceConfig {
         let (keep_alive, ka_enabled) = match keep_alive {
             KeepAlive::Timeout(val) => (val as u64, true),
@@ -85,8 +89,22 @@ impl ServiceConfig {
             ka_enabled,
             client_timeout,
             client_disconnect,
+            secure,
+            local_addr,
             timer: DateService::new(),
         }))
+    }
+
+    #[inline]
+    /// Returns true if connection is secure(https)
+    pub fn secure(&self) -> bool {
+        self.0.secure
+    }
+
+    #[inline]
+    /// Returns the local address that this server is bound to.
+    pub fn local_addr(&self) -> Option<net::SocketAddr> {
+        self.0.local_addr
     }
 
     #[inline]
@@ -271,7 +289,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_date() {
-        let settings = ServiceConfig::new(KeepAlive::Os, 0, 0);
+        let settings = ServiceConfig::new(KeepAlive::Os, 0, 0, false, None);
         let mut buf1 = BytesMut::with_capacity(DATE_VALUE_LENGTH + 10);
         settings.set_date(&mut buf1);
         let mut buf2 = BytesMut::with_capacity(DATE_VALUE_LENGTH + 10);

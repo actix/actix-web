@@ -46,6 +46,7 @@ async fn test_simple() {
                 FramedApp::new().service(FramedRoute::get("/index.html").to(ws_service)),
             )
             .finish(|_| future::ok::<_, Error>(Response::NotFound()))
+            .tcp()
     });
 
     assert!(srv.ws_at("/test").await.is_err());

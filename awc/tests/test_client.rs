@@ -49,6 +49,7 @@ async fn test_simple() {
             HttpService::new(App::new().service(
                 web::resource("/").route(web::to(|| HttpResponse::Ok().body(STR))),
             ))
+            .tcp()
         });
 
     let request = srv.get("/").header("x-test", "111").send();
@@ -77,6 +78,7 @@ async fn test_json() {
         HttpService::new(App::new().service(
             web::resource("/").route(web::to(|_: web::Json<String>| HttpResponse::Ok())),
         ))
+        .tcp()
     });
 
     let request = srv
@@ -93,6 +95,7 @@ async fn test_form() {
         HttpService::new(App::new().service(web::resource("/").route(web::to(
             |_: web::Form<HashMap<String, String>>| HttpResponse::Ok(),
         ))))
+        .tcp()
     });
 
     let mut data = HashMap::new();
@@ -112,6 +115,7 @@ async fn test_timeout() {
                 Ok::<_, Error>(HttpResponse::Ok().body(STR))
             }
         }))))
+        .tcp()
     });
 
     let connector = awc::Connector::new()
@@ -142,6 +146,7 @@ async fn test_timeout_override() {
                 Ok::<_, Error>(HttpResponse::Ok().body(STR))
             }
         }))))
+        .tcp()
     });
 
     let client = awc::Client::build()
@@ -168,9 +173,13 @@ async fn test_connection_reuse() {
             num2.fetch_add(1, Ordering::Relaxed);
             ok(io)
         })
-        .and_then(HttpService::new(
-            App::new().service(web::resource("/").route(web::to(|| HttpResponse::Ok()))),
-        ))
+        .and_then(
+            HttpService::new(
+                App::new()
+                    .service(web::resource("/").route(web::to(|| HttpResponse::Ok()))),
+            )
+            .tcp(),
+        )
     });
 
     let client = awc::Client::default();
@@ -200,9 +209,13 @@ async fn test_connection_force_close() {
             num2.fetch_add(1, Ordering::Relaxed);
             ok(io)
         })
-        .and_then(HttpService::new(
-            App::new().service(web::resource("/").route(web::to(|| HttpResponse::Ok()))),
-        ))
+        .and_then(
+            HttpService::new(
+                App::new()
+                    .service(web::resource("/").route(web::to(|| HttpResponse::Ok()))),
+            )
+            .tcp(),
+        )
     });
 
     let client = awc::Client::default();
@@ -232,12 +245,15 @@ async fn test_connection_server_close() {
             num2.fetch_add(1, Ordering::Relaxed);
             ok(io)
         })
-        .and_then(HttpService::new(
-            App::new().service(
-                web::resource("/")
-                    .route(web::to(|| HttpResponse::Ok().force_close().finish())),
-            ),
-        ))
+        .and_then(
+            HttpService::new(
+                App::new().service(
+                    web::resource("/")
+                        .route(web::to(|| HttpResponse::Ok().force_close().finish())),
+                ),
+            )
+            .tcp(),
+        )
     });
 
     let client = awc::Client::default();
@@ -267,9 +283,12 @@ async fn test_connection_wait_queue() {
             num2.fetch_add(1, Ordering::Relaxed);
             ok(io)
         })
-        .and_then(HttpService::new(App::new().service(
-            web::resource("/").route(web::to(|| HttpResponse::Ok().body(STR))),
-        )))
+        .and_then(
+            HttpService::new(App::new().service(
+                web::resource("/").route(web::to(|| HttpResponse::Ok().body(STR))),
+            ))
+            .tcp(),
+        )
     });
 
     let client = awc::Client::build()
@@ -308,12 +327,15 @@ async fn test_connection_wait_queue_force_close() {
             num2.fetch_add(1, Ordering::Relaxed);
             ok(io)
         })
-        .and_then(HttpService::new(
-            App::new().service(
-                web::resource("/")
-                    .route(web::to(|| HttpResponse::Ok().force_close().body(STR))),
-            ),
-        ))
+        .and_then(
+            HttpService::new(
+                App::new().service(
+                    web::resource("/")
+                        .route(web::to(|| HttpResponse::Ok().force_close().body(STR))),
+                ),
+            )
+            .tcp(),
+        )
     });
 
     let client = awc::Client::build()
@@ -353,6 +375,7 @@ async fn test_with_query_parameter() {
                 }
             },
         )))
+        .tcp()
     });
 
     let res = awc::Client::new()
@@ -373,6 +396,7 @@ async fn test_no_decompress() {
                 res
             })),
         ))
+        .tcp()
     });
 
     let mut res = awc::Client::new()
@@ -419,6 +443,7 @@ async fn test_client_gzip_encoding() {
                 .header("content-encoding", "gzip")
                 .body(data)
         }))))
+        .tcp()
     });
 
     // client request
@@ -442,6 +467,7 @@ async fn test_client_gzip_encoding_large() {
                 .header("content-encoding", "gzip")
                 .body(data)
         }))))
+        .tcp()
     });
 
     // client request
@@ -471,6 +497,7 @@ async fn test_client_gzip_encoding_large_random() {
                     .body(data)
             },
         ))))
+        .tcp()
     });
 
     // client request
@@ -495,6 +522,7 @@ async fn test_client_brotli_encoding() {
                     .body(data)
             },
         ))))
+        .tcp()
     });
 
     // client request
@@ -707,6 +735,7 @@ async fn test_client_cookie_handling() {
                 }
             }),
         ))
+        .tcp()
     });
 
     let request = srv.get("/").cookie(cookie1.clone()).cookie(cookie2.clone());
@@ -768,6 +797,7 @@ async fn client_basic_auth() {
                 }
             }),
         ))
+        .tcp()
     });
 
     // set authorization header to Basic <base64 encoded username:password>
@@ -796,6 +826,7 @@ async fn client_bearer_auth() {
                 }
             }),
         ))
+        .tcp()
     });
 
     // set authorization header to Bearer <token>

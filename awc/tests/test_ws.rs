@@ -46,6 +46,7 @@ async fn test_simple() {
                 }
             })
             .finish(|_| ok::<_, Error>(Response::NotFound()))
+            .tcp()
     });
 
     // client service

@@ -6,7 +6,6 @@ use std::str::FromStr;
 use std::task::{Context, Poll};
 
 use actix_codec::{AsyncRead, AsyncWrite};
-use actix_server_config::IoStream;
 use bytes::{Bytes, BytesMut};
 use http::header::{self, HeaderName, HeaderValue};
 use http::{HttpTryFrom, Method, Uri, Version};
@@ -270,19 +269,5 @@ impl AsyncWrite for TestBuffer {
 
     fn poll_shutdown(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<io::Result<()>> {
         Poll::Ready(Ok(()))
-    }
-}
-
-impl IoStream for TestBuffer {
-    fn set_nodelay(&mut self, _nodelay: bool) -> io::Result<()> {
-        Ok(())
-    }
-
-    fn set_linger(&mut self, _dur: Option<std::time::Duration>) -> io::Result<()> {
-        Ok(())
-    }
-
-    fn set_keepalive(&mut self, _dur: Option<std::time::Duration>) -> io::Result<()> {
-        Ok(())
     }
 }

@@ -40,6 +40,7 @@ async fn test_simple() {
         HttpService::build()
             .upgrade(actix_service::service_fn(ws_service))
             .finish(|_| future::ok::<_, ()>(Response::NotFound()))
+            .tcp()
     });
 
     // client service

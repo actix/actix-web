@@ -34,6 +34,7 @@ fn main() -> io::Result<()> {
                         )
                     }
                 })
+                .tcp()
         })?
         .run()
 }

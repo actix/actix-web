@@ -4,7 +4,7 @@ use actix_http::http::header::{
     ContentEncoding, ACCEPT_ENCODING, CONTENT_ENCODING, CONTENT_LENGTH,
     TRANSFER_ENCODING,
 };
-use actix_http::{h1, Error, HttpService, Response};
+use actix_http::{Error, HttpService, Response};
 use actix_http_test::TestServer;
 use brotli2::write::{BrotliDecoder, BrotliEncoder};
 use bytes::Bytes;
@@ -42,10 +42,10 @@ const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
 #[actix_rt::test]
 async fn test_body() {
     let srv = TestServer::start(|| {
-        h1::H1Service::new(
-            App::new()
-                .service(web::resource("/").route(web::to(|| Response::Ok().body(STR)))),
-        )
+        HttpService::build()
+            .h1(App::new()
+                .service(web::resource("/").route(web::to(|| Response::Ok().body(STR)))))
+            .tcp()
     });
 
     let mut response = srv.get("/").send().await.unwrap();
@@ -60,11 +60,11 @@ async fn test_body() {
 #[actix_rt::test]
 async fn test_body_gzip() {
     let srv = TestServer::start(|| {
-        h1::H1Service::new(
-            App::new()
+        HttpService::build()
+            .h1(App::new()
                 .wrap(Compress::new(ContentEncoding::Gzip))
-                .service(web::resource("/").route(web::to(|| Response::Ok().body(STR)))),
-        )
+                .service(web::resource("/").route(web::to(|| Response::Ok().body(STR)))))
+            .tcp()
     });
 
     let mut response = srv
@@ -90,13 +90,13 @@ async fn test_body_gzip() {
 #[actix_rt::test]
 async fn test_body_gzip2() {
     let srv = TestServer::start(|| {
-        h1::H1Service::new(
-            App::new()
+        HttpService::build()
+            .h1(App::new()
                 .wrap(Compress::new(ContentEncoding::Gzip))
                 .service(web::resource("/").route(web::to(|| {
                     Response::Ok().body(STR).into_body::<dev::Body>()
-                }))),
-        )
+                }))))
+            .tcp()
     });
 
     let mut response = srv
@@ -122,8 +122,8 @@ async fn test_body_gzip2() {
 #[actix_rt::test]
 async fn test_body_encoding_override() {
     let srv = TestServer::start(|| {
-        h1::H1Service::new(
-            App::new()
+        HttpService::build()
+            .h1(App::new()
                 .wrap(Compress::new(ContentEncoding::Gzip))
                 .service(web::resource("/").route(web::to(|| {
                     Response::Ok().encoding(ContentEncoding::Deflate).body(STR)
@@ -136,8 +136,8 @@ async fn test_body_encoding_override() {
                     response.encoding(ContentEncoding::Deflate);
 
                     response
-                }))),
-        )
+                }))))
+            .tcp()
     });
 
     // Builder
@@ -187,14 +187,14 @@ async fn test_body_gzip_large() {
 
     let srv = TestServer::start(move || {
         let data = srv_data.clone();
-        h1::H1Service::new(
-            App::new()
+        HttpService::build()
+            .h1(App::new()
                 .wrap(Compress::new(ContentEncoding::Gzip))
                 .service(
                     web::resource("/")
                         .route(web::to(move || Response::Ok().body(data.clone()))),
-                ),
-        )
+                ))
+            .tcp()
     });
 
     let mut response = srv
@@ -227,14 +227,14 @@ async fn test_body_gzip_large_random() {
 
     let srv = TestServer::start(move || {
         let data = srv_data.clone();
-        h1::H1Service::new(
-            App::new()
+        HttpService::build()
+            .h1(App::new()
                 .wrap(Compress::new(ContentEncoding::Gzip))
                 .service(
                     web::resource("/")
                         .route(web::to(move || Response::Ok().body(data.clone()))),
-                ),
-        )
+                ))
+            .tcp()
     });
 
     let mut response = srv
@@ -261,15 +261,15 @@ async fn test_body_gzip_large_random() {
 #[actix_rt::test]
 async fn test_body_chunked_implicit() {
     let srv = TestServer::start(move || {
-        h1::H1Service::new(
-            App::new()
+        HttpService::build()
+            .h1(App::new()
                 .wrap(Compress::new(ContentEncoding::Gzip))
                 .service(web::resource("/").route(web::get().to(move || {
                     Response::Ok().streaming(once(ok::<_, Error>(Bytes::from_static(
                         STR.as_ref(),
                     ))))
-                }))),
-        )
+                }))))
+            .tcp()
     });
 
     let mut response = srv
@@ -299,12 +299,15 @@ async fn test_body_chunked_implicit() {
 #[cfg(feature = "brotli")]
 async fn test_body_br_streaming() {
     let srv = TestServer::start(move || {
-        h1::H1Service::new(App::new().wrap(Compress::new(ContentEncoding::Br)).service(
-            web::resource("/").route(web::to(move || {
-                Response::Ok()
-                    .streaming(once(ok::<_, Error>(Bytes::from_static(STR.as_ref()))))
-            })),
-        ))
+        HttpService::build()
+            .h1(App::new().wrap(Compress::new(ContentEncoding::Br)).service(
+                web::resource("/").route(web::to(move || {
+                    Response::Ok().streaming(once(ok::<_, Error>(Bytes::from_static(
+                        STR.as_ref(),
+                    ))))
+                })),
+            ))
+            .tcp()
     });
 
     let mut response = srv
@@ -329,9 +332,11 @@ async fn test_body_br_streaming() {
 #[actix_rt::test]
 async fn test_head_binary() {
     let srv = TestServer::start(move || {
-        h1::H1Service::new(App::new().service(web::resource("/").route(
-            web::head().to(move || Response::Ok().content_length(100).body(STR)),
-        )))
+        HttpService::build()
+            .h1(App::new().service(web::resource("/").route(
+                web::head().to(move || Response::Ok().content_length(100).body(STR)),
+            )))
+            .tcp()
     });
 
     let mut response = srv.head("/").send().await.unwrap();
@@ -350,14 +355,18 @@ async fn test_head_binary() {
 #[actix_rt::test]
 async fn test_no_chunking() {
     let srv = TestServer::start(move || {
-        h1::H1Service::new(App::new().service(web::resource("/").route(web::to(
-            move || {
-                Response::Ok()
-                    .no_chunking()
-                    .content_length(STR.len() as u64)
-                    .streaming(once(ok::<_, Error>(Bytes::from_static(STR.as_ref()))))
-            },
-        ))))
+        HttpService::build()
+            .h1(
+                App::new().service(web::resource("/").route(web::to(move || {
+                    Response::Ok()
+                        .no_chunking()
+                        .content_length(STR.len() as u64)
+                        .streaming(once(ok::<_, Error>(Bytes::from_static(
+                            STR.as_ref(),
+                        ))))
+                }))),
+            )
+            .tcp()
     });
 
     let mut response = srv.get("/").send().await.unwrap();
@@ -373,13 +382,13 @@ async fn test_no_chunking() {
 #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
 async fn test_body_deflate() {
     let srv = TestServer::start(move || {
-        h1::H1Service::new(
-            App::new()
+        HttpService::build()
+            .h1(App::new()
                 .wrap(Compress::new(ContentEncoding::Deflate))
                 .service(
                     web::resource("/").route(web::to(move || Response::Ok().body(STR))),
-                ),
-        )
+                ))
+            .tcp()
     });
 
     // client request
@@ -405,9 +414,11 @@ async fn test_body_deflate() {
 #[cfg(any(feature = "brotli"))]
 async fn test_body_brotli() {
     let srv = TestServer::start(move || {
-        h1::H1Service::new(App::new().wrap(Compress::new(ContentEncoding::Br)).service(
-            web::resource("/").route(web::to(move || Response::Ok().body(STR))),
-        ))
+        HttpService::build()
+            .h1(App::new().wrap(Compress::new(ContentEncoding::Br)).service(
+                web::resource("/").route(web::to(move || Response::Ok().body(STR))),
+            ))
+            .tcp()
     });
 
     // client request
@@ -434,12 +445,12 @@ async fn test_body_brotli() {
 #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
 async fn test_encoding() {
     let srv = TestServer::start(move || {
-        HttpService::new(
-            App::new().wrap(Compress::default()).service(
+        HttpService::build()
+            .h1(App::new().wrap(Compress::default()).service(
                 web::resource("/")
                     .route(web::to(move |body: Bytes| Response::Ok().body(body))),
-            ),
-        )
+            ))
+            .tcp()
     });
 
     // client request
@@ -463,12 +474,12 @@ async fn test_encoding() {
 #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
 async fn test_gzip_encoding() {
     let srv = TestServer::start(move || {
-        HttpService::new(
-            App::new().service(
+        HttpService::build()
+            .h1(App::new().service(
                 web::resource("/")
                     .route(web::to(move |body: Bytes| Response::Ok().body(body))),
-            ),
-        )
+            ))
+            .tcp()
     });
 
     // client request
@@ -493,12 +504,12 @@ async fn test_gzip_encoding() {
 async fn test_gzip_encoding_large() {
     let data = STR.repeat(10);
     let srv = TestServer::start(move || {
-        h1::H1Service::new(
-            App::new().service(
+        HttpService::build()
+            .h1(App::new().service(
                 web::resource("/")
                     .route(web::to(move |body: Bytes| Response::Ok().body(body))),
-            ),
-        )
+            ))
+            .tcp()
     });
 
     // client request
@@ -527,12 +538,12 @@ async fn test_reading_gzip_encoding_large_random() {
         .collect::<String>();
 
     let srv = TestServer::start(move || {
-        HttpService::new(
-            App::new().service(
+        HttpService::build()
+            .h1(App::new().service(
                 web::resource("/")
                     .route(web::to(move |body: Bytes| Response::Ok().body(body))),
-            ),
-        )
+            ))
+            .tcp()
     });
 
     // client request
@@ -557,12 +568,12 @@ async fn test_reading_gzip_encoding_large_random() {
 #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
 async fn test_reading_deflate_encoding() {
     let srv = TestServer::start(move || {
-        h1::H1Service::new(
-            App::new().service(
+        HttpService::build()
+            .h1(App::new().service(
                 web::resource("/")
                     .route(web::to(move |body: Bytes| Response::Ok().body(body))),
-            ),
-        )
+            ))
+            .tcp()
     });
 
     let mut e = ZlibEncoder::new(Vec::new(), Compression::default());
@@ -587,12 +598,12 @@ async fn test_reading_deflate_encoding() {
 async fn test_reading_deflate_encoding_large() {
     let data = STR.repeat(10);
     let srv = TestServer::start(move || {
-        h1::H1Service::new(
-            App::new().service(
+        HttpService::build()
+            .h1(App::new().service(
                 web::resource("/")
                     .route(web::to(move |body: Bytes| Response::Ok().body(body))),
-            ),
-        )
+            ))
+            .tcp()
     });
 
     let mut e = ZlibEncoder::new(Vec::new(), Compression::default());
@@ -621,12 +632,12 @@ async fn test_reading_deflate_encoding_large_random() {
         .collect::<String>();
 
     let srv = TestServer::start(move || {
-        h1::H1Service::new(
-            App::new().service(
+        HttpService::build()
+            .h1(App::new().service(
                 web::resource("/")
                     .route(web::to(move |body: Bytes| Response::Ok().body(body))),
-            ),
-        )
+            ))
+            .tcp()
     });
 
     let mut e = ZlibEncoder::new(Vec::new(), Compression::default());
@@ -651,12 +662,12 @@ async fn test_reading_deflate_encoding_large_random() {
 #[cfg(feature = "brotli")]
 async fn test_brotli_encoding() {
     let srv = TestServer::start(move || {
-        h1::H1Service::new(
-            App::new().service(
+        HttpService::build()
+            .h1(App::new().service(
                 web::resource("/")
                     .route(web::to(move |body: Bytes| Response::Ok().body(body))),
-            ),
-        )
+            ))
+            .tcp()
     });
 
     let mut e = BrotliEncoder::new(Vec::new(), 5);
@@ -681,12 +692,12 @@ async fn test_brotli_encoding() {
 async fn test_brotli_encoding_large() {
     let data = STR.repeat(10);
     let srv = TestServer::start(move || {
-        h1::H1Service::new(
-            App::new().service(
+        HttpService::build()
+            .h1(App::new().service(
                 web::resource("/")
                     .route(web::to(move |body: Bytes| Response::Ok().body(body))),
-            ),
-        )
+            ))
+            .tcp()
     });
 
     let mut e = BrotliEncoder::new(Vec::new(), 5);

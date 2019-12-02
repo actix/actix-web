@@ -8,7 +8,6 @@ use std::{fmt, mem, net};
 
 use actix_codec::{AsyncRead, AsyncWrite};
 use actix_rt::time::Delay;
-use actix_server_config::IoStream;
 use actix_service::Service;
 use bitflags::bitflags;
 use bytes::{Bytes, BytesMut};
@@ -36,7 +35,10 @@ const CHUNK_SIZE: usize = 16_384;
 
 /// Dispatcher for HTTP/2 protocol
 #[pin_project::pin_project]
-pub struct Dispatcher<T: IoStream, S: Service<Request = Request>, B: MessageBody> {
+pub struct Dispatcher<T, S: Service<Request = Request>, B: MessageBody>
+where
+    T: AsyncRead + AsyncWrite + Unpin,
+{
     service: CloneableService<S>,
     connection: Connection<T, Bytes>,
     on_connect: Option<Box<dyn DataFactory>>,
@@ -49,7 +51,7 @@ pub struct Dispatcher<T: IoStream, S: Service<Request = Request>, B: MessageBody
 
 impl<T, S, B> Dispatcher<T, S, B>
 where
-    T: IoStream,
+    T: AsyncRead + AsyncWrite + Unpin,
     S: Service<Request = Request>,
     S::Error: Into<Error>,
     // S::Future: 'static,
@@ -95,7 +97,7 @@ where
 
 impl<T, S, B> Future for Dispatcher<T, S, B>
 where
-    T: IoStream,
+    T: AsyncRead + AsyncWrite + Unpin,
     S: Service<Request = Request>,
     S::Error: Into<Error> + 'static,
     S::Future: 'static,

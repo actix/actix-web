@@ -7,7 +7,6 @@ use std::task::{Context, Poll};
 
 use actix_http::{Extensions, Request, Response};
 use actix_router::{Path, ResourceDef, ResourceInfo, Router, Url};
-use actix_server_config::ServerConfig;
 use actix_service::boxed::{self, BoxService, BoxServiceFactory};
 use actix_service::{service_fn, Service, ServiceFactory};
 use futures::future::{ok, FutureExt, LocalBoxFuture};
@@ -59,7 +58,7 @@ where
         InitError = (),
     >,
 {
-    type Config = ServerConfig;
+    type Config = ();
     type Request = Request;
     type Response = ServiceResponse<B>;
     type Error = T::Error;
@@ -67,7 +66,7 @@ where
     type Service = AppInitService<T::Service, B>;
     type Future = AppInitResult<T, B>;
 
-    fn new_service(&self, cfg: &ServerConfig) -> Self::Future {
+    fn new_service(&self, _: &()) -> Self::Future {
         // update resource default service
         let default = self.default.clone().unwrap_or_else(|| {
             Rc::new(boxed::factory(service_fn(|req: ServiceRequest| {
@@ -76,13 +75,6 @@ where
         });
 
         // App config
-        {
-            let mut c = self.config.borrow_mut();
-            let loc_cfg = Rc::get_mut(&mut c.0).unwrap();
-            loc_cfg.secure = cfg.secure();
-            loc_cfg.addr = cfg.local_addr();
-        }
-
         let mut config = AppService::new(
             self.config.borrow().clone(),
             default.clone(),

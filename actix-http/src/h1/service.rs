@@ -1,19 +1,19 @@
-use std::fmt;
 use std::future::Future;
 use std::marker::PhantomData;
 use std::pin::Pin;
 use std::rc::Rc;
 use std::task::{Context, Poll};
+use std::{fmt, net};
 
-use actix_codec::Framed;
-use actix_server_config::{Io, IoStream, ServerConfig as SrvConfig};
-use actix_service::{IntoServiceFactory, Service, ServiceFactory};
+use actix_codec::{AsyncRead, AsyncWrite, Framed};
+use actix_rt::net::TcpStream;
+use actix_service::{pipeline_factory, IntoServiceFactory, Service, ServiceFactory};
 use futures::future::{ok, Ready};
 use futures::ready;
 
 use crate::body::MessageBody;
 use crate::cloneable::CloneableService;
-use crate::config::{KeepAlive, ServiceConfig};
+use crate::config::ServiceConfig;
 use crate::error::{DispatchError, Error, ParseError};
 use crate::helpers::DataFactory;
 use crate::request::Request;
@@ -24,39 +24,25 @@ use super::dispatcher::Dispatcher;
 use super::{ExpectHandler, Message, UpgradeHandler};
 
 /// `ServiceFactory` implementation for HTTP1 transport
-pub struct H1Service<T, P, S, B, X = ExpectHandler, U = UpgradeHandler<T>> {
+pub struct H1Service<T, S, B, X = ExpectHandler, U = UpgradeHandler<T>> {
     srv: S,
     cfg: ServiceConfig,
     expect: X,
     upgrade: Option<U>,
     on_connect: Option<Rc<dyn Fn(&T) -> Box<dyn DataFactory>>>,
-    _t: PhantomData<(T, P, B)>,
+    _t: PhantomData<(T, B)>,
 }
 
-impl<T, P, S, B> H1Service<T, P, S, B>
+impl<T, S, B> H1Service<T, S, B>
 where
-    S: ServiceFactory<Config = SrvConfig, Request = Request>,
+    S: ServiceFactory<Config = (), Request = Request>,
     S::Error: Into<Error>,
     S::InitError: fmt::Debug,
     S::Response: Into<Response<B>>,
     B: MessageBody,
 {
-    /// Create new `HttpService` instance with default config.
-    pub fn new<F: IntoServiceFactory<S>>(service: F) -> Self {
-        let cfg = ServiceConfig::new(KeepAlive::Timeout(5), 5000, 0);
-
-        H1Service {
-            cfg,
-            srv: service.into_factory(),
-            expect: ExpectHandler,
-            upgrade: None,
-            on_connect: None,
-            _t: PhantomData,
-        }
-    }
-
     /// Create new `HttpService` instance with config.
-    pub fn with_config<F: IntoServiceFactory<S>>(
+    pub(crate) fn with_config<F: IntoServiceFactory<S>>(
         cfg: ServiceConfig,
         service: F,
     ) -> Self {
@@ -71,15 +57,102 @@ where
     }
 }
 
-impl<T, P, S, B, X, U> H1Service<T, P, S, B, X, U>
+impl<S, B, X, U> H1Service<TcpStream, S, B, X, U>
 where
-    S: ServiceFactory<Config = SrvConfig, Request = Request>,
+    S: ServiceFactory<Config = (), Request = Request>,
+    S::Error: Into<Error>,
+    S::InitError: fmt::Debug,
+    S::Response: Into<Response<B>>,
+    B: MessageBody,
+    X: ServiceFactory<Config = (), Request = Request, Response = Request>,
+    X::Error: Into<Error>,
+    X::InitError: fmt::Debug,
+    U: ServiceFactory<
+        Config = (),
+        Request = (Request, Framed<TcpStream, Codec>),
+        Response = (),
+    >,
+    U::Error: fmt::Display,
+    U::InitError: fmt::Debug,
+{
+    /// Create simple tcp stream service
+    pub fn tcp(
+        self,
+    ) -> impl ServiceFactory<
+        Config = (),
+        Request = TcpStream,
+        Response = (),
+        Error = DispatchError,
+        InitError = (),
+    > {
+        pipeline_factory(|io: TcpStream| {
+            let peer_addr = io.peer_addr().ok();
+            ok((io, peer_addr))
+        })
+        .and_then(self)
+    }
+}
+
+#[cfg(feature = "openssl")]
+mod openssl {
+    use super::*;
+
+    use actix_tls::openssl::{Acceptor, SslStream};
+    use actix_tls::{openssl::HandshakeError, SslError};
+    use open_ssl::ssl::SslAcceptor;
+
+    impl<S, B, X, U> H1Service<SslStream<TcpStream>, S, B, X, U>
+    where
+        S: ServiceFactory<Config = (), Request = Request>,
+        S::Error: Into<Error>,
+        S::InitError: fmt::Debug,
+        S::Response: Into<Response<B>>,
+        B: MessageBody,
+        X: ServiceFactory<Config = (), Request = Request, Response = Request>,
+        X::Error: Into<Error>,
+        X::InitError: fmt::Debug,
+        U: ServiceFactory<
+            Config = (),
+            Request = (Request, Framed<SslStream<TcpStream>, Codec>),
+            Response = (),
+        >,
+        U::Error: fmt::Display,
+        U::InitError: fmt::Debug,
+    {
+        /// Create openssl based service
+        pub fn openssl(
+            self,
+            acceptor: SslAcceptor,
+        ) -> impl ServiceFactory<
+            Config = (),
+            Request = TcpStream,
+            Response = (),
+            Error = SslError<HandshakeError<TcpStream>, DispatchError>,
+            InitError = (),
+        > {
+            pipeline_factory(
+                Acceptor::new(acceptor)
+                    .map_err(SslError::Ssl)
+                    .map_init_err(|_| panic!()),
+            )
+            .and_then(|io: SslStream<TcpStream>| {
+                let peer_addr = io.get_ref().peer_addr().ok();
+                ok((io, peer_addr))
+            })
+            .and_then(self.map_err(SslError::Service))
+        }
+    }
+}
+
+impl<T, S, B, X, U> H1Service<T, S, B, X, U>
+where
+    S: ServiceFactory<Config = (), Request = Request>,
     S::Error: Into<Error>,
     S::Response: Into<Response<B>>,
     S::InitError: fmt::Debug,
     B: MessageBody,
 {
-    pub fn expect<X1>(self, expect: X1) -> H1Service<T, P, S, B, X1, U>
+    pub fn expect<X1>(self, expect: X1) -> H1Service<T, S, B, X1, U>
     where
         X1: ServiceFactory<Request = Request, Response = Request>,
         X1::Error: Into<Error>,
@@ -95,7 +168,7 @@ where
         }
     }
 
-    pub fn upgrade<U1>(self, upgrade: Option<U1>) -> H1Service<T, P, S, B, X, U1>
+    pub fn upgrade<U1>(self, upgrade: Option<U1>) -> H1Service<T, S, B, X, U1>
     where
         U1: ServiceFactory<Request = (Request, Framed<T, Codec>), Response = ()>,
         U1::Error: fmt::Display,
@@ -121,34 +194,30 @@ where
     }
 }
 
-impl<T, P, S, B, X, U> ServiceFactory for H1Service<T, P, S, B, X, U>
+impl<T, S, B, X, U> ServiceFactory for H1Service<T, S, B, X, U>
 where
-    T: IoStream,
-    S: ServiceFactory<Config = SrvConfig, Request = Request>,
+    T: AsyncRead + AsyncWrite + Unpin,
+    S: ServiceFactory<Config = (), Request = Request>,
     S::Error: Into<Error>,
     S::Response: Into<Response<B>>,
     S::InitError: fmt::Debug,
     B: MessageBody,
-    X: ServiceFactory<Config = SrvConfig, Request = Request, Response = Request>,
+    X: ServiceFactory<Config = (), Request = Request, Response = Request>,
     X::Error: Into<Error>,
     X::InitError: fmt::Debug,
-    U: ServiceFactory<
-        Config = SrvConfig,
-        Request = (Request, Framed<T, Codec>),
-        Response = (),
-    >,
+    U: ServiceFactory<Config = (), Request = (Request, Framed<T, Codec>), Response = ()>,
     U::Error: fmt::Display,
     U::InitError: fmt::Debug,
 {
-    type Config = SrvConfig;
-    type Request = Io<T, P>;
+    type Config = ();
+    type Request = (T, Option<net::SocketAddr>);
     type Response = ();
     type Error = DispatchError;
     type InitError = ();
-    type Service = H1ServiceHandler<T, P, S::Service, B, X::Service, U::Service>;
-    type Future = H1ServiceResponse<T, P, S, B, X, U>;
+    type Service = H1ServiceHandler<T, S::Service, B, X::Service, U::Service>;
+    type Future = H1ServiceResponse<T, S, B, X, U>;
 
-    fn new_service(&self, cfg: &SrvConfig) -> Self::Future {
+    fn new_service(&self, cfg: &()) -> Self::Future {
         H1ServiceResponse {
             fut: self.srv.new_service(cfg),
             fut_ex: Some(self.expect.new_service(cfg)),
@@ -164,7 +233,7 @@ where
 
 #[doc(hidden)]
 #[pin_project::pin_project]
-pub struct H1ServiceResponse<T, P, S, B, X, U>
+pub struct H1ServiceResponse<T, S, B, X, U>
 where
     S: ServiceFactory<Request = Request>,
     S::Error: Into<Error>,
@@ -186,12 +255,12 @@ where
     upgrade: Option<U::Service>,
     on_connect: Option<Rc<dyn Fn(&T) -> Box<dyn DataFactory>>>,
     cfg: Option<ServiceConfig>,
-    _t: PhantomData<(T, P, B)>,
+    _t: PhantomData<(T, B)>,
 }
 
-impl<T, P, S, B, X, U> Future for H1ServiceResponse<T, P, S, B, X, U>
+impl<T, S, B, X, U> Future for H1ServiceResponse<T, S, B, X, U>
 where
-    T: IoStream,
+    T: AsyncRead + AsyncWrite + Unpin,
     S: ServiceFactory<Request = Request>,
     S::Error: Into<Error>,
     S::Response: Into<Response<B>>,
@@ -204,8 +273,7 @@ where
     U::Error: fmt::Display,
     U::InitError: fmt::Debug,
 {
-    type Output =
-        Result<H1ServiceHandler<T, P, S::Service, B, X::Service, U::Service>, ()>;
+    type Output = Result<H1ServiceHandler<T, S::Service, B, X::Service, U::Service>, ()>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
         let mut this = self.as_mut().project();
@@ -247,16 +315,16 @@ where
 }
 
 /// `Service` implementation for HTTP1 transport
-pub struct H1ServiceHandler<T, P, S, B, X, U> {
+pub struct H1ServiceHandler<T, S, B, X, U> {
     srv: CloneableService<S>,
     expect: CloneableService<X>,
     upgrade: Option<CloneableService<U>>,
     on_connect: Option<Rc<dyn Fn(&T) -> Box<dyn DataFactory>>>,
     cfg: ServiceConfig,
-    _t: PhantomData<(T, P, B)>,
+    _t: PhantomData<(T, B)>,
 }
 
-impl<T, P, S, B, X, U> H1ServiceHandler<T, P, S, B, X, U>
+impl<T, S, B, X, U> H1ServiceHandler<T, S, B, X, U>
 where
     S: Service<Request = Request>,
     S::Error: Into<Error>,
@@ -273,7 +341,7 @@ where
         expect: X,
         upgrade: Option<U>,
         on_connect: Option<Rc<dyn Fn(&T) -> Box<dyn DataFactory>>>,
-    ) -> H1ServiceHandler<T, P, S, B, X, U> {
+    ) -> H1ServiceHandler<T, S, B, X, U> {
         H1ServiceHandler {
             srv: CloneableService::new(srv),
             expect: CloneableService::new(expect),
@@ -285,9 +353,9 @@ where
     }
 }
 
-impl<T, P, S, B, X, U> Service for H1ServiceHandler<T, P, S, B, X, U>
+impl<T, S, B, X, U> Service for H1ServiceHandler<T, S, B, X, U>
 where
-    T: IoStream,
+    T: AsyncRead + AsyncWrite + Unpin,
     S: Service<Request = Request>,
     S::Error: Into<Error>,
     S::Response: Into<Response<B>>,
@@ -297,7 +365,7 @@ where
     U: Service<Request = (Request, Framed<T, Codec>), Response = ()>,
     U::Error: fmt::Display,
 {
-    type Request = Io<T, P>;
+    type Request = (T, Option<net::SocketAddr>);
     type Response = ();
     type Error = DispatchError;
     type Future = Dispatcher<T, S, B, X, U>;
@@ -331,9 +399,7 @@ where
         }
     }
 
-    fn call(&mut self, req: Self::Request) -> Self::Future {
-        let io = req.into_parts().0;
-
+    fn call(&mut self, (io, addr): Self::Request) -> Self::Future {
         let on_connect = if let Some(ref on_connect) = self.on_connect {
             Some(on_connect(&io))
         } else {
@@ -347,20 +413,21 @@ where
             self.expect.clone(),
             self.upgrade.clone(),
             on_connect,
+            addr,
         )
     }
 }
 
 /// `ServiceFactory` implementation for `OneRequestService` service
 #[derive(Default)]
-pub struct OneRequest<T, P> {
+pub struct OneRequest<T> {
     config: ServiceConfig,
-    _t: PhantomData<(T, P)>,
+    _t: PhantomData<T>,
 }
 
-impl<T, P> OneRequest<T, P>
+impl<T> OneRequest<T>
 where
-    T: IoStream,
+    T: AsyncRead + AsyncWrite + Unpin,
 {
     /// Create new `H1SimpleService` instance.
     pub fn new() -> Self {
@@ -371,38 +438,38 @@ where
     }
 }
 
-impl<T, P> ServiceFactory for OneRequest<T, P>
+impl<T> ServiceFactory for OneRequest<T>
 where
-    T: IoStream,
+    T: AsyncRead + AsyncWrite + Unpin,
 {
-    type Config = SrvConfig;
-    type Request = Io<T, P>;
+    type Config = ();
+    type Request = T;
     type Response = (Request, Framed<T, Codec>);
     type Error = ParseError;
     type InitError = ();
-    type Service = OneRequestService<T, P>;
+    type Service = OneRequestService<T>;
     type Future = Ready<Result<Self::Service, Self::InitError>>;
 
-    fn new_service(&self, _: &SrvConfig) -> Self::Future {
+    fn new_service(&self, _: &()) -> Self::Future {
         ok(OneRequestService {
-            config: self.config.clone(),
             _t: PhantomData,
+            config: self.config.clone(),
         })
     }
 }
 
 /// `Service` implementation for HTTP1 transport. Reads one request and returns
 /// request and framed object.
-pub struct OneRequestService<T, P> {
+pub struct OneRequestService<T> {
+    _t: PhantomData<T>,
     config: ServiceConfig,
-    _t: PhantomData<(T, P)>,
 }
 
-impl<T, P> Service for OneRequestService<T, P>
+impl<T> Service for OneRequestService<T>
 where
-    T: IoStream,
+    T: AsyncRead + AsyncWrite + Unpin,
 {
-    type Request = Io<T, P>;
+    type Request = T;
     type Response = (Request, Framed<T, Codec>);
     type Error = ParseError;
     type Future = OneRequestServiceResponse<T>;
@@ -413,10 +480,7 @@ where
 
     fn call(&mut self, req: Self::Request) -> Self::Future {
         OneRequestServiceResponse {
-            framed: Some(Framed::new(
-                req.into_parts().0,
-                Codec::new(self.config.clone()),
-            )),
+            framed: Some(Framed::new(req, Codec::new(self.config.clone()))),
         }
     }
 }
@@ -424,14 +488,14 @@ where
 #[doc(hidden)]
 pub struct OneRequestServiceResponse<T>
 where
-    T: IoStream,
+    T: AsyncRead + AsyncWrite + Unpin,
 {
     framed: Option<Framed<T, Codec>>,
 }
 
 impl<T> Future for OneRequestServiceResponse<T>
 where
-    T: IoStream,
+    T: AsyncRead + AsyncWrite + Unpin,
 {
     type Output = Result<(Request, Framed<T, Codec>), ParseError>;
 

@@ -6,7 +6,6 @@ use actix_http::http::{HttpTryFrom, Method, StatusCode, Uri, Version};
 use actix_http::test::TestRequest as HttpTestRequest;
 use actix_http::{cookie::Cookie, Extensions, Request};
 use actix_router::{Path, ResourceDef, Url};
-use actix_server_config::ServerConfig;
 use actix_service::{IntoService, IntoServiceFactory, Service, ServiceFactory};
 use bytes::{Bytes, BytesMut};
 use futures::future::ok;
@@ -71,16 +70,15 @@ pub async fn init_service<R, S, B, E>(
 where
     R: IntoServiceFactory<S>,
     S: ServiceFactory<
-        Config = ServerConfig,
+        Config = (),
         Request = Request,
         Response = ServiceResponse<B>,
         Error = E,
     >,
     S::InitError: std::fmt::Debug,
 {
-    let cfg = ServerConfig::new("127.0.0.1:8080".parse().unwrap());
     let srv = app.into_factory();
-    srv.new_service(&cfg).await.unwrap()
+    srv.new_service(&()).await.unwrap()
 }
 
 /// Calls service and waits for response future completion.
