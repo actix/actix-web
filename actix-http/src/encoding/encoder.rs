@@ -24,7 +24,7 @@ pub struct Encoder<B> {
     eof: bool,
     body: EncoderBody<B>,
     encoder: Option<ContentEncoder>,
-    fut: Option<CpuFuture<Result<ContentEncoder, io::Error>>>,
+    fut: Option<CpuFuture<ContentEncoder, io::Error>>,
 }
 
 impl<B: MessageBody> Encoder<B> {
@@ -104,8 +104,7 @@ impl<B: MessageBody> MessageBody for Encoder<B> {
 
             if let Some(ref mut fut) = self.fut {
                 let mut encoder = match futures::ready!(Pin::new(fut).poll(cx)) {
-                    Ok(Ok(item)) => item,
-                    Ok(Err(e)) => return Poll::Ready(Some(Err(e.into()))),
+                    Ok(item) => item,
                     Err(e) => return Poll::Ready(Some(Err(e.into()))),
                 };
                 let chunk = encoder.take();

@@ -21,7 +21,7 @@ pub struct Decoder<S> {
     decoder: Option<ContentDecoder>,
     stream: S,
     eof: bool,
-    fut: Option<CpuFuture<Result<(Option<Bytes>, ContentDecoder), io::Error>>>,
+    fut: Option<CpuFuture<(Option<Bytes>, ContentDecoder), io::Error>>,
 }
 
 impl<S> Decoder<S>
@@ -85,8 +85,7 @@ where
         loop {
             if let Some(ref mut fut) = self.fut {
                 let (chunk, decoder) = match ready!(Pin::new(fut).poll(cx)) {
-                    Ok(Ok(item)) => item,
-                    Ok(Err(e)) => return Poll::Ready(Some(Err(e.into()))),
+                    Ok(item) => item,
                     Err(e) => return Poll::Ready(Some(Err(e.into()))),
                 };
                 self.decoder = Some(decoder);

@@ -6,10 +6,10 @@ use actix_codec::{AsyncRead, AsyncWrite};
 use actix_connect::{
     default_connector, Connect as TcpConnect, Connection as TcpConnection,
 };
+use actix_rt::net::TcpStream;
 use actix_service::{apply_fn, Service};
 use actix_utils::timeout::{TimeoutError, TimeoutService};
 use http::Uri;
-use tokio_net::tcp::TcpStream;
 
 use super::connection::Connection;
 use super::error::ConnectError;

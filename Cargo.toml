@@ -1,6 +1,6 @@
 [package]
 name = "actix-web"
-version = "2.0.0-alpha.1"
+version = "2.0.0-alpha.2"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix web is a simple, pragmatic and extremely fast web framework for Rust."
 readme = "README.md"
@@ -69,19 +69,18 @@ openssl = ["open-ssl", "actix-tls/openssl", "awc/openssl"]
 # rustls = ["rust-tls", "actix-server/rustls", "awc/rustls"]
 
 [dependencies]
-actix-codec = "0.2.0-alpha.1"
-actix-service = "1.0.0-alpha.1"
-actix-utils = "0.5.0-alpha.1"
+actix-codec = "0.2.0-alpha.2"
+actix-service = "1.0.0-alpha.2"
+actix-utils = "1.0.0-alpha.2"
 actix-router = "0.1.5"
-actix-rt = "1.0.0-alpha.1"
-actix-web-codegen = "0.2.0-alpha.1"
-actix-http = "0.3.0-alpha.1"
-actix-server = "0.8.0-alpha.2"
-actix-testing = "0.3.0-alpha.1"
-actix-threadpool = "0.2.0-alpha.1"
-#actix-tls = "0.1.0-alpha.1"
-actix-tls = { git = "https://github.com/actix/actix-net.git", optional = true }
-awc = { version = "0.3.0-alpha.1", optional = true }
+actix-rt = "1.0.0-alpha.2"
+actix-web-codegen = "0.2.0-alpha.2"
+actix-http = "0.3.0-alpha.2"
+actix-server = "1.0.0-alpha.2"
+actix-testing = "1.0.0-alpha.2"
+actix-threadpool = "0.3.0"
+actix-tls = { version = "1.0.0-alpha.1", optional = true }
+awc = { version = "0.3.0-alpha.2", optional = true }
 
 bytes = "0.4"
 derive_more = "0.99.2"
@@ -92,7 +91,7 @@ log = "0.4"
 mime = "0.3"
 net2 = "0.2.33"
 parking_lot = "0.9"
-pin-project = "0.4.5"
+pin-project = "0.4.6"
 regex = "1.0"
 serde = { version = "1.0", features=["derive"] }
 serde_json = "1.0"
@@ -106,8 +105,8 @@ open-ssl = { version="0.10", package="openssl", optional = true }
 
 [dev-dependencies]
 # actix = "0.8.3"
-actix-connect = "0.3.0-alpha.1"
-actix-http-test = "0.3.0-alpha.1"
+actix-connect = "1.0.0-alpha.2"
+actix-http-test = "0.3.0-alpha.2"
 rand = "0.7"
 env_logger = "0.6"
 serde_derive = "1.0"
@@ -131,12 +130,12 @@ actix-files = { path = "actix-files" }
 actix-multipart = { path = "actix-multipart" }
 awc = { path = "awc" }
 
-actix-codec = { git = "https://github.com/actix/actix-net.git" }
-actix-connect = { git = "https://github.com/actix/actix-net.git" }
-actix-rt = { git = "https://github.com/actix/actix-net.git" }
-actix-macros = { git = "https://github.com/actix/actix-net.git" }
-actix-server = { git = "https://github.com/actix/actix-net.git" }
-actix-service = { git = "https://github.com/actix/actix-net.git" }
-actix-testing = { git = "https://github.com/actix/actix-net.git" }
-actix-tls = { git = "https://github.com/actix/actix-net.git" }
-actix-utils = { git = "https://github.com/actix/actix-net.git" }
+# actix-codec = { git = "https://github.com/actix/actix-net.git" }
+# actix-connect = { git = "https://github.com/actix/actix-net.git" }
+# actix-rt = { git = "https://github.com/actix/actix-net.git" }
+# actix-macros = { git = "https://github.com/actix/actix-net.git" }
+# actix-server = { git = "https://github.com/actix/actix-net.git" }
+# actix-service = { git = "https://github.com/actix/actix-net.git" }
+# actix-testing = { git = "https://github.com/actix/actix-net.git" }
+# actix-tls = { git = "https://github.com/actix/actix-net.git" }
+# actix-utils = { git = "https://github.com/actix/actix-net.git" }

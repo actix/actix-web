@@ -6,6 +6,7 @@ use std::str::Utf8Error;
 use std::string::FromUtf8Error;
 use std::{fmt, io, result};
 
+pub use actix_threadpool::BlockingError;
 use actix_utils::timeout::TimeoutError;
 use bytes::BytesMut;
 use derive_more::{Display, From};
@@ -197,6 +198,9 @@ impl ResponseError for DeError {
 /// `InternalServerError` for `Canceled`
 impl ResponseError for Canceled {}
 
+/// `InternalServerError` for `BlockingError`
+impl<E: fmt::Debug> ResponseError for BlockingError<E> {}
+
 /// Return `BAD_REQUEST` for `Utf8Error`
 impl ResponseError for Utf8Error {
     fn status_code(&self) -> StatusCode {
@@ -359,12 +363,15 @@ impl From<io::Error> for PayloadError {
     }
 }
 
-impl From<Canceled> for PayloadError {
-    fn from(_: Canceled) -> Self {
-        PayloadError::Io(io::Error::new(
-            io::ErrorKind::Other,
-            "Operation is canceled",
-        ))
+impl From<BlockingError<io::Error>> for PayloadError {
+    fn from(err: BlockingError<io::Error>) -> Self {
+        match err {
+            BlockingError::Error(e) => PayloadError::Io(e),
+            BlockingError::Canceled => PayloadError::Io(io::Error::new(
+                io::ErrorKind::Other,
+                "Operation is canceled",
+            )),
+        }
     }
 }
 

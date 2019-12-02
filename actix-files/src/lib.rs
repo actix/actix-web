@@ -18,7 +18,7 @@ use actix_web::dev::{
     AppService, HttpServiceFactory, Payload, ResourceDef, ServiceRequest,
     ServiceResponse,
 };
-use actix_web::error::{Canceled, Error, ErrorInternalServerError};
+use actix_web::error::{BlockingError, Error, ErrorInternalServerError};
 use actix_web::guard::Guard;
 use actix_web::http::header::{self, DispositionType};
 use actix_web::http::Method;
@@ -50,6 +50,12 @@ pub fn file_extension_to_mime(ext: &str) -> mime::Mime {
     from_ext(ext).first_or_octet_stream()
 }
 
+fn handle_error(err: BlockingError<io::Error>) -> Error {
+    match err {
+        BlockingError::Error(err) => err.into(),
+        BlockingError::Canceled => ErrorInternalServerError("Unexpected error"),
+    }
+}
 #[doc(hidden)]
 /// A helper created from a `std::fs::File` which reads the file
 /// chunk-by-chunk on a `ThreadPool`.
@@ -57,9 +63,8 @@ pub struct ChunkedReadFile {
     size: u64,
     offset: u64,
     file: Option<File>,
-    fut: Option<
-        LocalBoxFuture<'static, Result<Result<(File, Bytes), io::Error>, Canceled>>,
-    >,
+    fut:
+        Option<LocalBoxFuture<'static, Result<(File, Bytes), BlockingError<io::Error>>>>,
     counter: u64,
 }
 
@@ -72,18 +77,14 @@ impl Stream for ChunkedReadFile {
     ) -> Poll<Option<Self::Item>> {
         if let Some(ref mut fut) = self.fut {
             return match Pin::new(fut).poll(cx) {
-                Poll::Ready(Err(_)) => Poll::Ready(Some(Err(ErrorInternalServerError(
-                    "Unexpected error",
-                )
-                .into()))),
-                Poll::Ready(Ok(Ok((file, bytes)))) => {
+                Poll::Ready(Ok((file, bytes))) => {
                     self.fut.take();
                     self.file = Some(file);
                     self.offset += bytes.len() as u64;
                     self.counter += bytes.len() as u64;
                     Poll::Ready(Some(Ok(bytes)))
                 }
-                Poll::Ready(Ok(Err(e))) => Poll::Ready(Some(Err(e.into()))),
+                Poll::Ready(Err(e)) => Poll::Ready(Some(Err(handle_error(e)))),
                 Poll::Pending => Poll::Pending,
             };
         }

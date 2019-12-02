@@ -667,7 +667,7 @@ mod tests {
         async fn async_with_block() -> Result<HttpResponse, Error> {
             let res = web::block(move || Some(4usize).ok_or("wrong")).await;
 
-            match res? {
+            match res {
                 Ok(value) => Ok(HttpResponse::Ok()
                     .content_type("text/plain")
                     .body(format!("Async with block value: {}", value))),
