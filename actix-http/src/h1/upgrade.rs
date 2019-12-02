@@ -20,7 +20,7 @@ impl<T> ServiceFactory for UpgradeHandler<T> {
     type InitError = Error;
     type Future = Ready<Result<Self::Service, Self::InitError>>;
 
-    fn new_service(&self, _: &()) -> Self::Future {
+    fn new_service(&self, _: ()) -> Self::Future {
         unimplemented!()
     }
 }

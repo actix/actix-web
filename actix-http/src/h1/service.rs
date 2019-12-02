@@ -217,11 +217,11 @@ where
     type Service = H1ServiceHandler<T, S::Service, B, X::Service, U::Service>;
     type Future = H1ServiceResponse<T, S, B, X, U>;
 
-    fn new_service(&self, cfg: &()) -> Self::Future {
+    fn new_service(&self, _: ()) -> Self::Future {
         H1ServiceResponse {
-            fut: self.srv.new_service(cfg),
-            fut_ex: Some(self.expect.new_service(cfg)),
-            fut_upg: self.upgrade.as_ref().map(|f| f.new_service(cfg)),
+            fut: self.srv.new_service(()),
+            fut_ex: Some(self.expect.new_service(())),
+            fut_upg: self.upgrade.as_ref().map(|f| f.new_service(())),
             expect: None,
             upgrade: None,
             on_connect: self.on_connect.clone(),
@@ -450,7 +450,7 @@ where
     type Service = OneRequestService<T>;
     type Future = Ready<Result<Self::Service, Self::InitError>>;
 
-    fn new_service(&self, _: &()) -> Self::Future {
+    fn new_service(&self, _: ()) -> Self::Future {
         ok(OneRequestService {
             _t: PhantomData,
             config: self.config.clone(),

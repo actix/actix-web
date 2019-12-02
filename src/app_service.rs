@@ -66,7 +66,7 @@ where
     type Service = AppInitService<T::Service, B>;
     type Future = AppInitResult<T, B>;
 
-    fn new_service(&self, _: &()) -> Self::Future {
+    fn new_service(&self, _: ()) -> Self::Future {
         // update resource default service
         let default = self.default.clone().unwrap_or_else(|| {
             Rc::new(boxed::factory(service_fn(|req: ServiceRequest| {
@@ -115,7 +115,7 @@ where
 
         AppInitResult {
             endpoint: None,
-            endpoint_fut: self.endpoint.new_service(&()),
+            endpoint_fut: self.endpoint.new_service(()),
             data: self.data.clone(),
             data_factories: Vec::new(),
             data_factories_fut: self.data_factories.iter().map(|f| f()).collect(),
@@ -273,7 +273,7 @@ impl ServiceFactory for AppRoutingFactory {
     type Service = AppRouting;
     type Future = AppRoutingFactoryResponse;
 
-    fn new_service(&self, _: &()) -> Self::Future {
+    fn new_service(&self, _: ()) -> Self::Future {
         AppRoutingFactoryResponse {
             fut: self
                 .services
@@ -282,12 +282,12 @@ impl ServiceFactory for AppRoutingFactory {
                     CreateAppRoutingItem::Future(
                         Some(path.clone()),
                         guards.borrow_mut().take(),
-                        service.new_service(&()).boxed_local(),
+                        service.new_service(()).boxed_local(),
                     )
                 })
                 .collect(),
             default: None,
-            default_fut: Some(self.default.new_service(&())),
+            default_fut: Some(self.default.new_service(())),
         }
     }
 }
@@ -432,8 +432,8 @@ impl ServiceFactory for AppEntry {
     type Service = AppRouting;
     type Future = AppRoutingFactoryResponse;
 
-    fn new_service(&self, _: &()) -> Self::Future {
-        self.factory.borrow_mut().as_mut().unwrap().new_service(&())
+    fn new_service(&self, _: ()) -> Self::Future {
+        self.factory.borrow_mut().as_mut().unwrap().new_service(())
     }
 }
 

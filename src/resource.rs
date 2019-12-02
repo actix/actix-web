@@ -435,9 +435,9 @@ impl ServiceFactory for ResourceFactory {
     type Service = ResourceService;
     type Future = CreateResourceService;
 
-    fn new_service(&self, _: &()) -> Self::Future {
+    fn new_service(&self, _: ()) -> Self::Future {
         let default_fut = if let Some(ref default) = *self.default.borrow() {
-            Some(default.new_service(&()))
+            Some(default.new_service(()))
         } else {
             None
         };
@@ -446,7 +446,7 @@ impl ServiceFactory for ResourceFactory {
             fut: self
                 .routes
                 .iter()
-                .map(|route| CreateRouteServiceItem::Future(route.new_service(&())))
+                .map(|route| CreateRouteServiceItem::Future(route.new_service(())))
                 .collect(),
             data: self.data.clone(),
             default: None,
@@ -575,8 +575,8 @@ impl ServiceFactory for ResourceEndpoint {
     type Service = ResourceService;
     type Future = CreateResourceService;
 
-    fn new_service(&self, _: &()) -> Self::Future {
-        self.factory.borrow_mut().as_mut().unwrap().new_service(&())
+    fn new_service(&self, _: ()) -> Self::Future {
+        self.factory.borrow_mut().as_mut().unwrap().new_service(())
     }
 }
 

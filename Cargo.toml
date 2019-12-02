@@ -139,4 +139,4 @@ actix-server = { git = "https://github.com/actix/actix-net.git" }
 actix-service = { git = "https://github.com/actix/actix-net.git" }
 actix-testing = { git = "https://github.com/actix/actix-net.git" }
 actix-tls = { git = "https://github.com/actix/actix-net.git" }
-actix-utils = {  git = "https://github.com/actix/actix-net.git" }
+actix-utils = { git = "https://github.com/actix/actix-net.git" }

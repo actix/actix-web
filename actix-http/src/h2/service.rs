@@ -160,9 +160,9 @@ where
     type Service = H2ServiceHandler<T, S::Service, B>;
     type Future = H2ServiceResponse<T, S, B>;
 
-    fn new_service(&self, cfg: &()) -> Self::Future {
+    fn new_service(&self, _: ()) -> Self::Future {
         H2ServiceResponse {
-            fut: self.srv.new_service(cfg),
+            fut: self.srv.new_service(()),
             cfg: Some(self.cfg.clone()),
             on_connect: self.on_connect.clone(),
             _t: PhantomData,

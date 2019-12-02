@@ -113,7 +113,7 @@ where
     type Service = FramedRouteService<Io, S, F, R, E>;
     type Future = Ready<Result<Self::Service, Self::InitError>>;
 
-    fn new_service(&self, _: &()) -> Self::Future {
+    fn new_service(&self, _: ()) -> Self::Future {
         ok(FramedRouteService {
             handler: self.handler.clone(),
             methods: self.methods.clone(),

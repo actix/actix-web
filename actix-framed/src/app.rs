@@ -104,7 +104,7 @@ where
     type Service = FramedAppService<T, S>;
     type Future = CreateService<T, S>;
 
-    fn new_service(&self, _: &()) -> Self::Future {
+    fn new_service(&self, _: ()) -> Self::Future {
         CreateService {
             fut: self
                 .services
@@ -112,7 +112,7 @@ where
                 .map(|(path, service)| {
                     CreateServiceItem::Future(
                         Some(path.clone()),
-                        service.new_service(&()),
+                        service.new_service(()),
                     )
                 })
                 .collect(),

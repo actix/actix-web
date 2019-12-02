@@ -415,7 +415,7 @@ impl ServiceFactory for Files {
     type InitError = ();
     type Future = LocalBoxFuture<'static, Result<Self::Service, Self::InitError>>;
 
-    fn new_service(&self, _: &()) -> Self::Future {
+    fn new_service(&self, _: ()) -> Self::Future {
         let mut srv = FilesService {
             directory: self.directory.clone(),
             index: self.index.clone(),
@@ -430,7 +430,7 @@ impl ServiceFactory for Files {
 
         if let Some(ref default) = *self.default.borrow() {
             default
-                .new_service(&())
+                .new_service(())
                 .map(move |result| match result {
                     Ok(default) => {
                         srv.default = Some(default);
@@ -1262,7 +1262,7 @@ mod tests {
             .default_handler(|req: ServiceRequest| {
                 ok(req.into_response(HttpResponse::Ok().body("default content")))
             })
-            .new_service(&())
+            .new_service(())
             .await
             .unwrap();
         let req = TestRequest::with_uri("/missing").to_srv_request();

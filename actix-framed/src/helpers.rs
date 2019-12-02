@@ -56,8 +56,8 @@ where
     type Service = BoxedHttpService<T::Request>;
     type Future = LocalBoxFuture<'static, Result<Self::Service, ()>>;
 
-    fn new_service(&self, _: &()) -> Self::Future {
-        let fut = self.0.new_service(&());
+    fn new_service(&self, _: ()) -> Self::Future {
+        let fut = self.0.new_service(());
 
         async move {
             fut.await.map_err(|_| ()).map(|service| {
