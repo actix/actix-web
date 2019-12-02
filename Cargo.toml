@@ -74,12 +74,13 @@ actix-service = "1.0.0-alpha.2"
 actix-utils = "1.0.0-alpha.2"
 actix-router = "0.1.5"
 actix-rt = "1.0.0-alpha.2"
-actix-web-codegen = "0.2.0-alpha.2"
-actix-http = "0.3.0-alpha.2"
 actix-server = "1.0.0-alpha.2"
 actix-testing = "1.0.0-alpha.2"
 actix-threadpool = "0.3.0"
-actix-tls = { version = "1.0.0-alpha.1", optional = true }
+actix-tls = { version = "1.0.0-alpha.1" }
+
+actix-web-codegen = "0.2.0-alpha.2"
+actix-http = "0.3.0-alpha.2"
 awc = { version = "0.3.0-alpha.2", optional = true }
 
 bytes = "0.4"
@@ -129,13 +130,3 @@ actix-session = { path = "actix-session" }
 actix-files = { path = "actix-files" }
 actix-multipart = { path = "actix-multipart" }
 awc = { path = "awc" }
-
-# actix-codec = { git = "https://github.com/actix/actix-net.git" }
-# actix-connect = { git = "https://github.com/actix/actix-net.git" }
-# actix-rt = { git = "https://github.com/actix/actix-net.git" }
-# actix-macros = { git = "https://github.com/actix/actix-net.git" }
-# actix-server = { git = "https://github.com/actix/actix-net.git" }
-# actix-service = { git = "https://github.com/actix/actix-net.git" }
-# actix-testing = { git = "https://github.com/actix/actix-net.git" }
-# actix-tls = { git = "https://github.com/actix/actix-net.git" }
-# actix-utils = { git = "https://github.com/actix/actix-net.git" }
