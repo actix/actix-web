@@ -1,6 +1,6 @@
 [package]
 name = "actix-multipart"
-version = "0.2.0-alpha.1"
+version = "0.2.0-alpha.2"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Multipart support for actix web framework."
 readme = "README.md"
