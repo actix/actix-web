@@ -604,7 +604,7 @@ impl InnerField {
             }
 
             match payload.readline()? {
-                None => Async::Ready(None),
+                None => Async::NotReady,
                 Some(line) => {
                     if line.as_ref() != b"\r\n" {
                         log::warn!("multipart field did not read all the data or it is malformed");
