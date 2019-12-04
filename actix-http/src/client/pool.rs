@@ -12,8 +12,8 @@ use actix_service::Service;
 use actix_utils::{oneshot, task::LocalWaker};
 use bytes::Bytes;
 use futures::future::{poll_fn, FutureExt, LocalBoxFuture};
+use fxhash::FxHashMap;
 use h2::client::{handshake, Connection, SendRequest};
-use hashbrown::HashMap;
 use http::uri::Authority;
 use indexmap::IndexSet;
 use slab::Slab;
@@ -66,7 +66,7 @@ where
                 acquired: 0,
                 waiters: Slab::new(),
                 waiters_queue: IndexSet::new(),
-                available: HashMap::new(),
+                available: FxHashMap::default(),
                 waker: LocalWaker::new(),
             })),
         )
@@ -259,7 +259,7 @@ pub(crate) struct Inner<Io> {
     disconnect_timeout: Option<Duration>,
     limit: usize,
     acquired: usize,
-    available: HashMap<Key, VecDeque<AvailableConnection<Io>>>,
+    available: FxHashMap<Key, VecDeque<AvailableConnection<Io>>>,
     waiters: Slab<
         Option<(
             Connect,

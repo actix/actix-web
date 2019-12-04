@@ -72,5 +72,4 @@ actix-server = { version = "1.0.0-alpha.2" }
 brotli2 = { version="0.3.2" }
 flate2 = { version="1.0.2" }
 env_logger = "0.6"
-rand = "0.7"
 webpki = { version = "0.21" }
