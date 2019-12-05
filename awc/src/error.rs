@@ -3,13 +3,14 @@ pub use actix_http::client::{
     ConnectError, FreezeRequestError, InvalidUrl, SendRequestError,
 };
 pub use actix_http::error::PayloadError;
+pub use actix_http::http::Error as HttpError;
 pub use actix_http::ws::HandshakeError as WsHandshakeError;
 pub use actix_http::ws::ProtocolError as WsProtocolError;
 
 use actix_http::ResponseError;
 use serde_json::error::Error as JsonError;
 
-use actix_http::http::{header::HeaderValue, Error as HttpError, StatusCode};
+use actix_http::http::{header::HeaderValue, StatusCode};
 use derive_more::{Display, From};
 
 /// Websocket client error

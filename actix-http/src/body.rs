@@ -133,7 +133,7 @@ pub enum Body {
 impl Body {
     /// Create body from slice (copy)
     pub fn from_slice(s: &[u8]) -> Body {
-        Body::Bytes(Bytes::from(s))
+        Body::Bytes(Bytes::copy_from_slice(s))
     }
 
     /// Create body from generic message body.
@@ -226,7 +226,7 @@ impl From<String> for Body {
 
 impl<'a> From<&'a String> for Body {
     fn from(s: &'a String) -> Body {
-        Body::Bytes(Bytes::from(AsRef::<[u8]>::as_ref(&s)))
+        Body::Bytes(Bytes::copy_from_slice(AsRef::<[u8]>::as_ref(&s)))
     }
 }
 

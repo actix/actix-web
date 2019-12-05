@@ -1,9 +1,9 @@
 use std::collections::hash_map::{self, Entry};
+use std::convert::TryFrom;
 
 use either::Either;
 use fxhash::FxHashMap;
 use http::header::{HeaderName, HeaderValue};
-use http::HttpTryFrom;
 
 /// A set of HTTP headers
 ///

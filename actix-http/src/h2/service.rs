@@ -102,9 +102,8 @@ where
 #[cfg(feature = "openssl")]
 mod openssl {
     use actix_service::{factory_fn, service_fn2};
-    use actix_tls::openssl::{Acceptor, SslStream};
+    use actix_tls::openssl::{Acceptor, SslAcceptor, SslStream};
     use actix_tls::{openssl::HandshakeError, SslError};
-    use open_ssl::ssl::SslAcceptor;
 
     use super::*;
 
@@ -135,6 +134,51 @@ mod openssl {
             .and_then(factory_fn(|| {
                 ok::<_, S::InitError>(service_fn2(|io: SslStream<TcpStream>| {
                     let peer_addr = io.get_ref().peer_addr().ok();
+                    ok((io, peer_addr))
+                }))
+            }))
+            .and_then(self.map_err(SslError::Service))
+        }
+    }
+}
+
+#[cfg(feature = "rustls")]
+mod rustls {
+    use super::*;
+    use actix_tls::rustls::{Acceptor, ServerConfig, Session, TlsStream};
+    use actix_tls::SslError;
+    use std::{fmt, io};
+
+    impl<S, B> H2Service<TlsStream<TcpStream>, S, B>
+    where
+        S: ServiceFactory<Config = (), Request = Request>,
+        S::Error: Into<Error> + 'static,
+        S::Response: Into<Response<B>> + 'static,
+        <S::Service as Service>::Future: 'static,
+        B: MessageBody + 'static,
+    {
+        /// Create openssl based service
+        pub fn rustls(
+            self,
+            mut config: ServerConfig,
+        ) -> impl ServiceFactory<
+            Config = (),
+            Request = TcpStream,
+            Response = (),
+            Error = SslError<io::Error, DispatchError>,
+            InitError = S::InitError,
+        > {
+            let protos = vec!["h2".to_string().into()];
+            config.set_protocols(&protos);
+
+            pipeline_factory(
+                Acceptor::new(config)
+                    .map_err(SslError::Ssl)
+                    .map_init_err(|_| panic!()),
+            )
+            .and_then(factory_fn(|| {
+                ok::<_, S::InitError>(service_fn2(|io: TlsStream<TcpStream>| {
+                    let peer_addr = io.get_ref().0.peer_addr().ok();
                     ok((io, peer_addr))
                 }))
             }))

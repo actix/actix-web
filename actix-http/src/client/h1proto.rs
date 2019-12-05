@@ -1,10 +1,11 @@
 use std::io::Write;
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use std::{io, time};
+use std::{io, mem, time};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
-use bytes::{BufMut, Bytes, BytesMut};
+use bytes::buf::BufMutExt;
+use bytes::{Bytes, BytesMut};
 use futures::future::poll_fn;
 use futures::{SinkExt, Stream, StreamExt};
 
@@ -43,7 +44,7 @@ where
                 Some(port) => write!(wrt, "{}:{}", host, port),
             };
 
-            match wrt.get_mut().take().freeze().try_into() {
+            match wrt.get_mut().split().freeze().try_into() {
                 Ok(value) => match head {
                     RequestHeadType::Owned(ref mut head) => {
                         head.headers.insert(HOST, value)
@@ -199,7 +200,10 @@ where
 }
 
 impl<T: AsyncRead + AsyncWrite + Unpin + 'static> AsyncRead for H1Connection<T> {
-    unsafe fn prepare_uninitialized_buffer(&self, buf: &mut [u8]) -> bool {
+    unsafe fn prepare_uninitialized_buffer(
+        &self,
+        buf: &mut [mem::MaybeUninit<u8>],
+    ) -> bool {
         self.io.as_ref().unwrap().prepare_uninitialized_buffer(buf)
     }
 

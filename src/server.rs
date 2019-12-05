@@ -14,9 +14,9 @@ use parking_lot::Mutex;
 use net2::TcpBuilder;
 
 #[cfg(feature = "openssl")]
-use open_ssl::ssl::{SslAcceptor, SslAcceptorBuilder};
+use actix_tls::openssl::{SslAcceptor, SslAcceptorBuilder};
 #[cfg(feature = "rustls")]
-use rust_tls::ServerConfig as RustlsServerConfig;
+use actix_tls::rustls::ServerConfig as RustlsServerConfig;
 
 struct Socket {
     scheme: &'static str,
@@ -315,15 +315,8 @@ where
     fn listen_rustls_inner(
         mut self,
         lst: net::TcpListener,
-        mut config: RustlsServerConfig,
+        config: RustlsServerConfig,
     ) -> io::Result<Self> {
-        use actix_server::ssl::{RustlsAcceptor, SslError};
-        use actix_service::pipeline_factory;
-
-        let protos = vec!["h2".to_string().into(), "http/1.1".to_string().into()];
-        config.set_protocols(&protos);
-
-        let acceptor = RustlsAcceptor::new(config);
         let factory = self.factory.clone();
         let cfg = self.config.clone();
         let addr = lst.local_addr().unwrap();
@@ -337,15 +330,12 @@ where
             lst,
             move || {
                 let c = cfg.lock();
-                pipeline_factory(acceptor.clone().map_err(SslError::Ssl)).and_then(
-                    HttpService::build()
-                        .keep_alive(c.keep_alive)
-                        .client_timeout(c.client_timeout)
-                        .client_disconnect(c.client_shutdown)
-                        .finish(factory())
-                        .map_err(SslError::Service)
-                        .map_init_err(|_| ()),
-                )
+                HttpService::build()
+                    .keep_alive(c.keep_alive)
+                    .client_timeout(c.client_timeout)
+                    .client_disconnect(c.client_shutdown)
+                    .finish(factory())
+                    .rustls(config.clone())
             },
         )?;
         Ok(self)
@@ -530,14 +520,13 @@ where
     /// use std::io;
     /// use actix_web::{web, App, HttpResponse, HttpServer};
     ///
-    /// fn main() -> io::Result<()> {
-    ///     let sys = actix_rt::System::new("example");  // <- create Actix system
-    ///
+    /// #[actix_rt::main]
+    /// async fn main() -> io::Result<()> {
+    /// #   actix_rt::System::current().stop();
     ///     HttpServer::new(|| App::new().service(web::resource("/").to(|| HttpResponse::Ok())))
     ///         .bind("127.0.0.1:0")?
-    ///         .start();
-    /// #   actix_rt::System::current().stop();
-    ///    sys.run()  // <- Run actix system, this method starts all async processes
+    ///         .start()
+    ///         .await
     /// }
     /// ```
     pub fn start(self) -> Server {

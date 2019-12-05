@@ -348,7 +348,7 @@ where
                         continue;
                     }
                 }
-                Poll::Ready(None) => Poll::Ready(Ok(this.buf.take().freeze())),
+                Poll::Ready(None) => Poll::Ready(Ok(this.buf.split().freeze())),
                 Poll::Pending => Poll::Pending,
             };
         }

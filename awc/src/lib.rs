@@ -19,12 +19,13 @@
 //! }
 //! ```
 use std::cell::RefCell;
+use std::convert::TryFrom;
 use std::rc::Rc;
 use std::time::Duration;
 
 pub use actix_http::{client::Connector, cookie, http};
 
-use actix_http::http::{HeaderMap, HttpTryFrom, Method, Uri};
+use actix_http::http::{Error as HttpError, HeaderMap, Method, Uri};
 use actix_http::RequestHead;
 
 mod builder;
@@ -102,7 +103,8 @@ impl Client {
     /// Construct HTTP request.
     pub fn request<U>(&self, method: Method, url: U) -> ClientRequest
     where
-        Uri: HttpTryFrom<U>,
+        Uri: TryFrom<U>,
+        <Uri as TryFrom<U>>::Error: Into<HttpError>,
     {
         let mut req = ClientRequest::new(method, url, self.0.clone());
 
@@ -118,7 +120,8 @@ impl Client {
     /// copies all headers and the method.
     pub fn request_from<U>(&self, url: U, head: &RequestHead) -> ClientRequest
     where
-        Uri: HttpTryFrom<U>,
+        Uri: TryFrom<U>,
+        <Uri as TryFrom<U>>::Error: Into<HttpError>,
     {
         let mut req = self.request(head.method.clone(), url);
         for (key, value) in head.headers.iter() {
@@ -130,7 +133,8 @@ impl Client {
     /// Construct HTTP *GET* request.
     pub fn get<U>(&self, url: U) -> ClientRequest
     where
-        Uri: HttpTryFrom<U>,
+        Uri: TryFrom<U>,
+        <Uri as TryFrom<U>>::Error: Into<HttpError>,
     {
         self.request(Method::GET, url)
     }
@@ -138,7 +142,8 @@ impl Client {
     /// Construct HTTP *HEAD* request.
     pub fn head<U>(&self, url: U) -> ClientRequest
     where
-        Uri: HttpTryFrom<U>,
+        Uri: TryFrom<U>,
+        <Uri as TryFrom<U>>::Error: Into<HttpError>,
     {
         self.request(Method::HEAD, url)
     }
@@ -146,7 +151,8 @@ impl Client {
     /// Construct HTTP *PUT* request.
     pub fn put<U>(&self, url: U) -> ClientRequest
     where
-        Uri: HttpTryFrom<U>,
+        Uri: TryFrom<U>,
+        <Uri as TryFrom<U>>::Error: Into<HttpError>,
     {
         self.request(Method::PUT, url)
     }
@@ -154,7 +160,8 @@ impl Client {
     /// Construct HTTP *POST* request.
     pub fn post<U>(&self, url: U) -> ClientRequest
     where
-        Uri: HttpTryFrom<U>,
+        Uri: TryFrom<U>,
+        <Uri as TryFrom<U>>::Error: Into<HttpError>,
     {
         self.request(Method::POST, url)
     }
@@ -162,7 +169,8 @@ impl Client {
     /// Construct HTTP *PATCH* request.
     pub fn patch<U>(&self, url: U) -> ClientRequest
     where
-        Uri: HttpTryFrom<U>,
+        Uri: TryFrom<U>,
+        <Uri as TryFrom<U>>::Error: Into<HttpError>,
     {
         self.request(Method::PATCH, url)
     }
@@ -170,7 +178,8 @@ impl Client {
     /// Construct HTTP *DELETE* request.
     pub fn delete<U>(&self, url: U) -> ClientRequest
     where
-        Uri: HttpTryFrom<U>,
+        Uri: TryFrom<U>,
+        <Uri as TryFrom<U>>::Error: Into<HttpError>,
     {
         self.request(Method::DELETE, url)
     }
@@ -178,7 +187,8 @@ impl Client {
     /// Construct HTTP *OPTIONS* request.
     pub fn options<U>(&self, url: U) -> ClientRequest
     where
-        Uri: HttpTryFrom<U>,
+        Uri: TryFrom<U>,
+        <Uri as TryFrom<U>>::Error: Into<HttpError>,
     {
         self.request(Method::OPTIONS, url)
     }
@@ -186,7 +196,8 @@ impl Client {
     /// Construct WebSockets request.
     pub fn ws<U>(&self, url: U) -> ws::WebsocketsRequest
     where
-        Uri: HttpTryFrom<U>,
+        Uri: TryFrom<U>,
+        <Uri as TryFrom<U>>::Error: Into<HttpError>,
     {
         let mut req = ws::WebsocketsRequest::new(url, self.0.clone());
         for (key, value) in self.0.headers.iter() {

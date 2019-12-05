@@ -1,13 +1,13 @@
 use std::collections::VecDeque;
+use std::convert::TryFrom;
 use std::future::Future;
 use std::marker::PhantomData;
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use std::time::Instant;
 use std::{fmt, mem, net};
 
 use actix_codec::{AsyncRead, AsyncWrite};
-use actix_rt::time::Delay;
+use actix_rt::time::{Delay, Instant};
 use actix_service::Service;
 use bitflags::bitflags;
 use bytes::{Bytes, BytesMut};
@@ -17,7 +17,6 @@ use h2::{RecvStream, SendStream};
 use http::header::{
     HeaderValue, ACCEPT_ENCODING, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING,
 };
-use http::HttpTryFrom;
 use log::{debug, error, trace};
 
 use crate::body::{Body, BodySize, MessageBody, ResponseBody};
@@ -235,8 +234,9 @@ where
         if !has_date {
             let mut bytes = BytesMut::with_capacity(29);
             self.config.set_date_header(&mut bytes);
-            res.headers_mut()
-                .insert(DATE, HeaderValue::try_from(bytes.freeze()).unwrap());
+            res.headers_mut().insert(DATE, unsafe {
+                HeaderValue::from_maybe_shared_unchecked(bytes.freeze())
+            });
         }
 
         res

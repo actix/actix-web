@@ -1,3 +1,4 @@
+use std::convert::TryFrom;
 use std::future::Future;
 use std::marker::PhantomData;
 use std::pin::Pin;
@@ -5,8 +6,7 @@ use std::task::{Context, Poll};
 
 use actix_http::error::InternalError;
 use actix_http::http::{
-    header::IntoHeaderValue, Error as HttpError, HeaderMap, HeaderName, HttpTryFrom,
-    StatusCode,
+    header::IntoHeaderValue, Error as HttpError, HeaderMap, HeaderName, StatusCode,
 };
 use actix_http::{Error, Response, ResponseBuilder};
 use bytes::{Bytes, BytesMut};
@@ -68,7 +68,8 @@ pub trait Responder {
     fn with_header<K, V>(self, key: K, value: V) -> CustomResponder<Self>
     where
         Self: Sized,
-        HeaderName: HttpTryFrom<K>,
+        HeaderName: TryFrom<K>,
+        <HeaderName as TryFrom<K>>::Error: Into<HttpError>,
         V: IntoHeaderValue,
     {
         CustomResponder::new(self).with_header(key, value)
@@ -267,7 +268,8 @@ impl<T: Responder> CustomResponder<T> {
     /// ```
     pub fn with_header<K, V>(mut self, key: K, value: V) -> Self
     where
-        HeaderName: HttpTryFrom<K>,
+        HeaderName: TryFrom<K>,
+        <HeaderName as TryFrom<K>>::Error: Into<HttpError>,
         V: IntoHeaderValue,
     {
         if self.headers.is_none() {

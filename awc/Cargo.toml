@@ -1,6 +1,6 @@
 [package]
 name = "awc"
-version = "0.3.0-alpha.2"
+version = "0.3.0-alpha.3"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix http client."
 readme = "README.md"
@@ -21,7 +21,7 @@ name = "awc"
 path = "src/lib.rs"
 
 [package.metadata.docs.rs]
-features = ["openssl", "brotli", "flate2-zlib"]
+features = ["openssl", "rustls", "brotli", "flate2-zlib"]
 
 [features]
 default = ["brotli", "flate2-zlib"]
@@ -30,7 +30,7 @@ default = ["brotli", "flate2-zlib"]
 openssl = ["open-ssl", "actix-http/openssl"]
 
 # rustls
-# rustls = ["rust-tls", "actix-http/rustls"]
+rustls = ["rust-tls", "actix-http/rustls"]
 
 # brotli encoding, requires c compiler
 brotli = ["actix-http/brotli"]
@@ -42,13 +42,13 @@ flate2-zlib = ["actix-http/flate2-zlib"]
 flate2-rust = ["actix-http/flate2-rust"]
 
 [dependencies]
-actix-codec = "0.2.0-alpha.2"
-actix-service = "1.0.0-alpha.2"
-actix-http = "0.3.0-alpha.2"
-actix-rt = "1.0.0-alpha.2"
+actix-codec = "0.2.0-alpha.3"
+actix-service = "1.0.0-alpha.3"
+actix-http = "0.3.0-alpha.3"
+actix-rt = "1.0.0-alpha.3"
 
-base64 = "0.10.1"
-bytes = "0.4"
+base64 = "0.11"
+bytes = "0.5.2"
 derive_more = "0.99.2"
 futures = "0.3.1"
 log =" 0.4"
@@ -59,16 +59,16 @@ serde = "1.0"
 serde_json = "1.0"
 serde_urlencoded = "0.6.1"
 open-ssl = { version="0.10", package="openssl", optional = true }
-# rust-tls = { version = "0.16.0", package="rustls", optional = true, features = ["dangerous_configuration"]  }
+rust-tls = { version = "0.16.0", package="rustls", optional = true, features = ["dangerous_configuration"]  }
 
 [dev-dependencies]
-actix-connect = { version = "1.0.0-alpha.2", features=["openssl"] }
-actix-web = { version = "2.0.0-alpha.2", features=["openssl"] }
-actix-http = { version = "0.3.0-alpha.2", features=["openssl"] }
-actix-http-test = { version = "0.3.0-alpha.2", features=["openssl"] }
-actix-utils = "1.0.0-alpha.2"
-actix-server = { version = "1.0.0-alpha.2" }
-#actix-tls = { version = "0.1.0-alpha.1", features=["openssl"] }
+actix-connect = { version = "1.0.0-alpha.3", features=["openssl"] }
+actix-web = { version = "2.0.0-alpha.3", features=["openssl"] }
+actix-http = { version = "0.3.0-alpha.3", features=["openssl"] }
+actix-http-test = { version = "0.3.0-alpha.3", features=["openssl"] }
+actix-utils = "1.0.0-alpha.3"
+actix-server = { version = "1.0.0-alpha.3" }
+actix-tls = { version = "1.0.0-alpha.3", features=["openssl", "rustls"] }
 brotli2 = { version="0.3.2" }
 flate2 = { version="1.0.2" }
 env_logger = "0.6"

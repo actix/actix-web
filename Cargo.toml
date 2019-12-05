@@ -1,6 +1,6 @@
 [package]
 name = "actix-web"
-version = "2.0.0-alpha.2"
+version = "2.0.0-alpha.3"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix web is a simple, pragmatic and extremely fast web framework for Rust."
 readme = "README.md"
@@ -66,24 +66,24 @@ fail = ["actix-http/fail"]
 openssl = ["open-ssl", "actix-tls/openssl", "awc/openssl"]
 
 # rustls
-# rustls = ["rust-tls", "actix-server/rustls", "awc/rustls"]
+rustls = ["rust-tls", "actix-tls/rustls", "awc/rustls"]
 
 [dependencies]
-actix-codec = "0.2.0-alpha.2"
-actix-service = "1.0.0-alpha.2"
-actix-utils = "1.0.0-alpha.2"
-actix-router = "0.1.5"
-actix-rt = "1.0.0-alpha.2"
-actix-server = "1.0.0-alpha.2"
-actix-testing = "1.0.0-alpha.2"
+actix-codec = "0.2.0-alpha.3"
+actix-service = "1.0.0-alpha.3"
+actix-utils = "1.0.0-alpha.3"
+actix-router = "0.2.0"
+actix-rt = "1.0.0-alpha.3"
+actix-server = "1.0.0-alpha.3"
+actix-testing = "1.0.0-alpha.3"
 actix-threadpool = "0.3.0"
-actix-tls = { version = "1.0.0-alpha.1" }
+actix-tls = { version = "1.0.0-alpha.3" }
 
 actix-web-codegen = "0.2.0-alpha.2"
 actix-http = "0.3.0-alpha.2"
 awc = { version = "0.3.0-alpha.2", optional = true }
 
-bytes = "0.4"
+bytes = "0.5.2"
 derive_more = "0.99.2"
 encoding_rs = "0.8"
 futures = "0.3.1"
@@ -102,7 +102,7 @@ url = "2.1"
 
 # ssl support
 open-ssl = { version="0.10", package="openssl", optional = true }
-# rust-tls = { version = "0.16", package="rustls", optional = true }
+rust-tls = { version = "0.16", package="rustls", optional = true }
 
 [dev-dependencies]
 # actix = "0.8.3"
@@ -130,3 +130,13 @@ actix-session = { path = "actix-session" }
 actix-files = { path = "actix-files" }
 actix-multipart = { path = "actix-multipart" }
 awc = { path = "awc" }
+
+actix-codec = { git = "https://github.com/actix/actix-net.git" }
+actix-connect = { git = "https://github.com/actix/actix-net.git" }
+actix-rt = { git = "https://github.com/actix/actix-net.git" }
+actix-server = { git = "https://github.com/actix/actix-net.git" }
+actix-service = { git = "https://github.com/actix/actix-net.git" }
+actix-testing = { git = "https://github.com/actix/actix-net.git" }
+actix-tls = { git = "https://github.com/actix/actix-net.git" }
+actix-utils = { git = "https://github.com/actix/actix-net.git" }
+actix-router = { git = "https://github.com/actix/actix-net.git" }

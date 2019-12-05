@@ -164,13 +164,13 @@ macro_rules! header {
             }
         }
         impl $crate::http::header::IntoHeaderValue for $id {
-            type Error = $crate::http::header::InvalidHeaderValueBytes;
+            type Error = $crate::http::header::InvalidHeaderValue;
 
             fn try_into(self) -> Result<$crate::http::header::HeaderValue, Self::Error> {
                 use std::fmt::Write;
                 let mut writer = $crate::http::header::Writer::new();
                 let _ = write!(&mut writer, "{}", self);
-                $crate::http::header::HeaderValue::from_shared(writer.take())
+                $crate::http::header::HeaderValue::from_maybe_shared(writer.take())
             }
         }
     };
@@ -200,13 +200,13 @@ macro_rules! header {
             }
         }
         impl $crate::http::header::IntoHeaderValue for $id {
-            type Error = $crate::http::header::InvalidHeaderValueBytes;
+            type Error = $crate::http::header::InvalidHeaderValue;
 
             fn try_into(self) -> Result<$crate::http::header::HeaderValue, Self::Error> {
                 use std::fmt::Write;
                 let mut writer = $crate::http::header::Writer::new();
                 let _ = write!(&mut writer, "{}", self);
-                $crate::http::header::HeaderValue::from_shared(writer.take())
+                $crate::http::header::HeaderValue::from_maybe_shared(writer.take())
             }
         }
     };
@@ -236,7 +236,7 @@ macro_rules! header {
             }
         }
         impl $crate::http::header::IntoHeaderValue for $id {
-            type Error = $crate::http::header::InvalidHeaderValueBytes;
+            type Error = $crate::http::header::InvalidHeaderValue;
 
             fn try_into(self) -> Result<$crate::http::header::HeaderValue, Self::Error> {
                 self.0.try_into()
@@ -285,13 +285,13 @@ macro_rules! header {
             }
         }
         impl $crate::http::header::IntoHeaderValue for $id {
-            type Error = $crate::http::header::InvalidHeaderValueBytes;
+            type Error = $crate::http::header::InvalidHeaderValue;
 
             fn try_into(self) -> Result<$crate::http::header::HeaderValue, Self::Error> {
                 use std::fmt::Write;
                 let mut writer = $crate::http::header::Writer::new();
                 let _ = write!(&mut writer, "{}", self);
-                $crate::http::header::HeaderValue::from_shared(writer.take())
+                $crate::http::header::HeaderValue::from_maybe_shared(writer.take())
             }
         }
     };

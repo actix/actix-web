@@ -1,4 +1,5 @@
 //! Websockets client
+use std::convert::TryFrom;
 use std::fmt::Write as FmtWrite;
 use std::net::SocketAddr;
 use std::rc::Rc;
@@ -7,7 +8,7 @@ use std::{fmt, str};
 use actix_codec::Framed;
 use actix_http::cookie::{Cookie, CookieJar};
 use actix_http::{ws, Payload, RequestHead};
-use actix_rt::time::Timeout;
+use actix_rt::time::timeout;
 use percent_encoding::percent_encode;
 
 use actix_http::cookie::USERINFO;
@@ -19,7 +20,7 @@ use crate::http::header::{
     self, HeaderName, HeaderValue, IntoHeaderValue, AUTHORIZATION,
 };
 use crate::http::{
-    ConnectionType, Error as HttpError, HttpTryFrom, Method, StatusCode, Uri, Version,
+    ConnectionType, Error as HttpError, Method, StatusCode, Uri, Version,
 };
 use crate::response::ClientResponse;
 use crate::ClientConfig;
@@ -41,7 +42,8 @@ impl WebsocketsRequest {
     /// Create new websocket connection
     pub(crate) fn new<U>(uri: U, config: Rc<ClientConfig>) -> Self
     where
-        Uri: HttpTryFrom<U>,
+        Uri: TryFrom<U>,
+        <Uri as TryFrom<U>>::Error: Into<HttpError>,
     {
         let mut err = None;
         let mut head = RequestHead::default();
@@ -102,9 +104,10 @@ impl WebsocketsRequest {
     }
 
     /// Set request Origin
-    pub fn origin<V>(mut self, origin: V) -> Self
+    pub fn origin<V, E>(mut self, origin: V) -> Self
     where
-        HeaderValue: HttpTryFrom<V>,
+        HeaderValue: TryFrom<V, Error = E>,
+        HttpError: From<E>,
     {
         match HeaderValue::try_from(origin) {
             Ok(value) => self.origin = Some(value),
@@ -133,7 +136,8 @@ impl WebsocketsRequest {
     /// To override header use `set_header()` method.
     pub fn header<K, V>(mut self, key: K, value: V) -> Self
     where
-        HeaderName: HttpTryFrom<K>,
+        HeaderName: TryFrom<K>,
+        <HeaderName as TryFrom<K>>::Error: Into<HttpError>,
         V: IntoHeaderValue,
     {
         match HeaderName::try_from(key) {
@@ -151,7 +155,8 @@ impl WebsocketsRequest {
     /// Insert a header, replaces existing header.
     pub fn set_header<K, V>(mut self, key: K, value: V) -> Self
     where
-        HeaderName: HttpTryFrom<K>,
+        HeaderName: TryFrom<K>,
+        <HeaderName as TryFrom<K>>::Error: Into<HttpError>,
         V: IntoHeaderValue,
     {
         match HeaderName::try_from(key) {
@@ -169,7 +174,8 @@ impl WebsocketsRequest {
     /// Insert a header only if it is not yet set.
     pub fn set_header_if_none<K, V>(mut self, key: K, value: V) -> Self
     where
-        HeaderName: HttpTryFrom<K>,
+        HeaderName: TryFrom<K>,
+        <HeaderName as TryFrom<K>>::Error: Into<HttpError>,
         V: IntoHeaderValue,
     {
         match HeaderName::try_from(key) {
@@ -220,9 +226,9 @@ impl WebsocketsRequest {
         let uri = &self.head.uri;
         if uri.host().is_none() {
             return Err(InvalidUrl::MissingHost.into());
-        } else if uri.scheme_part().is_none() {
+        } else if uri.scheme().is_none() {
             return Err(InvalidUrl::MissingScheme.into());
-        } else if let Some(scheme) = uri.scheme_part() {
+        } else if let Some(scheme) = uri.scheme() {
             match scheme.as_str() {
                 "http" | "ws" | "https" | "wss" => (),
                 _ => return Err(InvalidUrl::UnknownScheme.into()),
@@ -295,8 +301,8 @@ impl WebsocketsRequest {
             .open_tunnel(head, self.addr);
 
         // set request timeout
-        let (head, framed) = if let Some(timeout) = self.config.timeout {
-            Timeout::new(fut, timeout)
+        let (head, framed) = if let Some(to) = self.config.timeout {
+            timeout(to, fut)
                 .await
                 .map_err(|_| SendRequestError::Timeout.into())
                 .and_then(|res| res)?

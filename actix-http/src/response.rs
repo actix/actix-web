@@ -1,12 +1,12 @@
 //! Http response
 use std::cell::{Ref, RefMut};
+use std::convert::TryFrom;
 use std::future::Future;
-use std::io::Write;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::{fmt, str};
 
-use bytes::{BufMut, Bytes, BytesMut};
+use bytes::{Bytes, BytesMut};
 use futures::stream::Stream;
 use serde::Serialize;
 use serde_json;
@@ -17,7 +17,7 @@ use crate::error::Error;
 use crate::extensions::Extensions;
 use crate::header::{Header, IntoHeaderValue};
 use crate::http::header::{self, HeaderName, HeaderValue};
-use crate::http::{Error as HttpError, HeaderMap, HttpTryFrom, StatusCode};
+use crate::http::{Error as HttpError, HeaderMap, StatusCode};
 use crate::message::{BoxedResponseHead, ConnectionType, ResponseHead};
 
 /// An HTTP Response
@@ -384,7 +384,8 @@ impl ResponseBuilder {
     /// ```
     pub fn header<K, V>(&mut self, key: K, value: V) -> &mut Self
     where
-        HeaderName: HttpTryFrom<K>,
+        HeaderName: TryFrom<K>,
+        <HeaderName as TryFrom<K>>::Error: Into<HttpError>,
         V: IntoHeaderValue,
     {
         if let Some(parts) = parts(&mut self.head, &self.err) {
@@ -416,7 +417,8 @@ impl ResponseBuilder {
     /// ```
     pub fn set_header<K, V>(&mut self, key: K, value: V) -> &mut Self
     where
-        HeaderName: HttpTryFrom<K>,
+        HeaderName: TryFrom<K>,
+        <HeaderName as TryFrom<K>>::Error: Into<HttpError>,
         V: IntoHeaderValue,
     {
         if let Some(parts) = parts(&mut self.head, &self.err) {
@@ -485,7 +487,8 @@ impl ResponseBuilder {
     #[inline]
     pub fn content_type<V>(&mut self, value: V) -> &mut Self
     where
-        HeaderValue: HttpTryFrom<V>,
+        HeaderValue: TryFrom<V>,
+        <HeaderValue as TryFrom<V>>::Error: Into<HttpError>,
     {
         if let Some(parts) = parts(&mut self.head, &self.err) {
             match HeaderValue::try_from(value) {
@@ -501,9 +504,7 @@ impl ResponseBuilder {
     /// Set content length
     #[inline]
     pub fn content_length(&mut self, len: u64) -> &mut Self {
-        let mut wrt = BytesMut::new().writer();
-        let _ = write!(wrt, "{}", len);
-        self.header(header::CONTENT_LENGTH, wrt.get_mut().take().freeze())
+        self.header(header::CONTENT_LENGTH, len)
     }
 
     /// Set a cookie

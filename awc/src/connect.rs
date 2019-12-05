@@ -1,7 +1,7 @@
 use std::pin::Pin;
 use std::rc::Rc;
 use std::task::{Context, Poll};
-use std::{fmt, io, net};
+use std::{fmt, io, mem, net};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use actix_http::body::Body;
@@ -201,7 +201,10 @@ impl fmt::Debug for BoxedSocket {
 }
 
 impl AsyncRead for BoxedSocket {
-    unsafe fn prepare_uninitialized_buffer(&self, buf: &mut [u8]) -> bool {
+    unsafe fn prepare_uninitialized_buffer(
+        &self,
+        buf: &mut [mem::MaybeUninit<u8>],
+    ) -> bool {
         self.0.as_read().prepare_uninitialized_buffer(buf)
     }
 

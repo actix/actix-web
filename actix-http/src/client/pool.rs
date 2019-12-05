@@ -108,7 +108,7 @@ where
         let inner = self.1.clone();
 
         let fut = async move {
-            let key = if let Some(authority) = req.uri.authority_part() {
+            let key = if let Some(authority) = req.uri.authority() {
                 authority.clone().into()
             } else {
                 return Err(ConnectError::Unresolverd);
@@ -299,7 +299,7 @@ where
     ) {
         let (tx, rx) = oneshot::channel();
 
-        let key: Key = connect.uri.authority_part().unwrap().clone().into();
+        let key: Key = connect.uri.authority().unwrap().clone().into();
         let entry = self.waiters.vacant_entry();
         let token = entry.key();
         entry.insert(Some((connect, tx)));

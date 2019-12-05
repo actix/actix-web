@@ -1,3 +1,4 @@
+use std::convert::TryFrom;
 use std::io;
 use std::marker::PhantomData;
 use std::mem::MaybeUninit;
@@ -6,7 +7,7 @@ use std::task::Poll;
 use actix_codec::Decoder;
 use bytes::{Bytes, BytesMut};
 use http::header::{HeaderName, HeaderValue};
-use http::{header, HttpTryFrom, Method, StatusCode, Uri, Version};
+use http::{header, Method, StatusCode, Uri, Version};
 use httparse;
 use log::{debug, error, trace};
 
@@ -79,8 +80,8 @@ pub(crate) trait MessageType: Sized {
 
                 // Unsafe: httparse check header value for valid utf-8
                 let value = unsafe {
-                    HeaderValue::from_shared_unchecked(
-                        slice.slice(idx.value.0, idx.value.1),
+                    HeaderValue::from_maybe_shared_unchecked(
+                        slice.slice(idx.value.0..idx.value.1),
                     )
                 };
                 match name {
@@ -428,7 +429,7 @@ impl Decoder for PayloadDecoder {
                     let len = src.len() as u64;
                     let buf;
                     if *remaining > len {
-                        buf = src.take().freeze();
+                        buf = src.split().freeze();
                         *remaining -= len;
                     } else {
                         buf = src.split_to(*remaining as usize).freeze();
@@ -463,7 +464,7 @@ impl Decoder for PayloadDecoder {
                 if src.is_empty() {
                     Ok(None)
                 } else {
-                    Ok(Some(PayloadItem::Chunk(src.take().freeze())))
+                    Ok(Some(PayloadItem::Chunk(src.split().freeze())))
                 }
             }
         }
@@ -581,7 +582,7 @@ impl ChunkedState {
         } else {
             let slice;
             if *rem > len {
-                slice = rdr.take().freeze();
+                slice = rdr.split().freeze();
                 *rem -= len;
             } else {
                 slice = rdr.split_to(*rem as usize).freeze();

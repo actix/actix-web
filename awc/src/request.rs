@@ -1,10 +1,10 @@
+use std::convert::TryFrom;
 use std::fmt::Write as FmtWrite;
-use std::io::Write;
 use std::rc::Rc;
 use std::time::Duration;
 use std::{fmt, net};
 
-use bytes::{BufMut, Bytes, BytesMut};
+use bytes::Bytes;
 use futures::Stream;
 use percent_encoding::percent_encode;
 use serde::Serialize;
@@ -13,8 +13,8 @@ use actix_http::body::Body;
 use actix_http::cookie::{Cookie, CookieJar, USERINFO};
 use actix_http::http::header::{self, Header, IntoHeaderValue};
 use actix_http::http::{
-    uri, ConnectionType, Error as HttpError, HeaderMap, HeaderName, HeaderValue,
-    HttpTryFrom, Method, Uri, Version,
+    uri, ConnectionType, Error as HttpError, HeaderMap, HeaderName, HeaderValue, Method,
+    Uri, Version,
 };
 use actix_http::{Error, RequestHead};
 
@@ -67,7 +67,8 @@ impl ClientRequest {
     /// Create new client request builder.
     pub(crate) fn new<U>(method: Method, uri: U, config: Rc<ClientConfig>) -> Self
     where
-        Uri: HttpTryFrom<U>,
+        Uri: TryFrom<U>,
+        <Uri as TryFrom<U>>::Error: Into<HttpError>,
     {
         ClientRequest {
             config,
@@ -86,7 +87,8 @@ impl ClientRequest {
     #[inline]
     pub fn uri<U>(mut self, uri: U) -> Self
     where
-        Uri: HttpTryFrom<U>,
+        Uri: TryFrom<U>,
+        <Uri as TryFrom<U>>::Error: Into<HttpError>,
     {
         match Uri::try_from(uri) {
             Ok(uri) => self.head.uri = uri,
@@ -196,7 +198,8 @@ impl ClientRequest {
     /// ```
     pub fn header<K, V>(mut self, key: K, value: V) -> Self
     where
-        HeaderName: HttpTryFrom<K>,
+        HeaderName: TryFrom<K>,
+        <HeaderName as TryFrom<K>>::Error: Into<HttpError>,
         V: IntoHeaderValue,
     {
         match HeaderName::try_from(key) {
@@ -212,7 +215,8 @@ impl ClientRequest {
     /// Insert a header, replaces existing header.
     pub fn set_header<K, V>(mut self, key: K, value: V) -> Self
     where
-        HeaderName: HttpTryFrom<K>,
+        HeaderName: TryFrom<K>,
+        <HeaderName as TryFrom<K>>::Error: Into<HttpError>,
         V: IntoHeaderValue,
     {
         match HeaderName::try_from(key) {
@@ -228,7 +232,8 @@ impl ClientRequest {
     /// Insert a header only if it is not yet set.
     pub fn set_header_if_none<K, V>(mut self, key: K, value: V) -> Self
     where
-        HeaderName: HttpTryFrom<K>,
+        HeaderName: TryFrom<K>,
+        <HeaderName as TryFrom<K>>::Error: Into<HttpError>,
         V: IntoHeaderValue,
     {
         match HeaderName::try_from(key) {
@@ -264,7 +269,8 @@ impl ClientRequest {
     #[inline]
     pub fn content_type<V>(mut self, value: V) -> Self
     where
-        HeaderValue: HttpTryFrom<V>,
+        HeaderValue: TryFrom<V>,
+        <HeaderValue as TryFrom<V>>::Error: Into<HttpError>,
     {
         match HeaderValue::try_from(value) {
             Ok(value) => self.head.headers.insert(header::CONTENT_TYPE, value),
@@ -276,9 +282,7 @@ impl ClientRequest {
     /// Set content length
     #[inline]
     pub fn content_length(self, len: u64) -> Self {
-        let mut wrt = BytesMut::new().writer();
-        let _ = write!(wrt, "{}", len);
-        self.header(header::CONTENT_LENGTH, wrt.get_mut().take().freeze())
+        self.header(header::CONTENT_LENGTH, len)
     }
 
     /// Set HTTP basic authorization header
@@ -513,9 +517,9 @@ impl ClientRequest {
         let uri = &self.head.uri;
         if uri.host().is_none() {
             return Err(InvalidUrl::MissingHost.into());
-        } else if uri.scheme_part().is_none() {
+        } else if uri.scheme().is_none() {
             return Err(InvalidUrl::MissingScheme.into());
-        } else if let Some(scheme) = uri.scheme_part() {
+        } else if let Some(scheme) = uri.scheme() {
             match scheme.as_str() {
                 "http" | "ws" | "https" | "wss" => (),
                 _ => return Err(InvalidUrl::UnknownScheme.into()),
@@ -551,7 +555,7 @@ impl ClientRequest {
                 let https = slf
                     .head
                     .uri
-                    .scheme_part()
+                    .scheme()
                     .map(|s| s == &uri::Scheme::HTTPS)
                     .unwrap_or(true);
 

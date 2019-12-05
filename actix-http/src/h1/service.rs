@@ -97,9 +97,8 @@ where
 mod openssl {
     use super::*;
 
-    use actix_tls::openssl::{Acceptor, SslStream};
+    use actix_tls::openssl::{Acceptor, SslAcceptor, SslStream};
     use actix_tls::{openssl::HandshakeError, SslError};
-    use open_ssl::ssl::SslAcceptor;
 
     impl<S, B, X, U> H1Service<SslStream<TcpStream>, S, B, X, U>
     where
@@ -137,6 +136,56 @@ mod openssl {
             )
             .and_then(|io: SslStream<TcpStream>| {
                 let peer_addr = io.get_ref().peer_addr().ok();
+                ok((io, peer_addr))
+            })
+            .and_then(self.map_err(SslError::Service))
+        }
+    }
+}
+
+#[cfg(feature = "rustls")]
+mod rustls {
+    use super::*;
+    use actix_tls::rustls::{Acceptor, ServerConfig, TlsStream};
+    use actix_tls::SslError;
+    use std::{fmt, io};
+
+    impl<S, B, X, U> H1Service<TlsStream<TcpStream>, S, B, X, U>
+    where
+        S: ServiceFactory<Config = (), Request = Request>,
+        S::Error: Into<Error>,
+        S::InitError: fmt::Debug,
+        S::Response: Into<Response<B>>,
+        B: MessageBody,
+        X: ServiceFactory<Config = (), Request = Request, Response = Request>,
+        X::Error: Into<Error>,
+        X::InitError: fmt::Debug,
+        U: ServiceFactory<
+            Config = (),
+            Request = (Request, Framed<TlsStream<TcpStream>, Codec>),
+            Response = (),
+        >,
+        U::Error: fmt::Display,
+        U::InitError: fmt::Debug,
+    {
+        /// Create rustls based service
+        pub fn rustls(
+            self,
+            config: ServerConfig,
+        ) -> impl ServiceFactory<
+            Config = (),
+            Request = TcpStream,
+            Response = (),
+            Error = SslError<io::Error, DispatchError>,
+            InitError = (),
+        > {
+            pipeline_factory(
+                Acceptor::new(config)
+                    .map_err(SslError::Ssl)
+                    .map_init_err(|_| panic!()),
+            )
+            .and_then(|io: TlsStream<TcpStream>| {
+                let peer_addr = io.get_ref().0.peer_addr().ok();
                 ok((io, peer_addr))
             })
             .and_then(self.map_err(SslError::Service))

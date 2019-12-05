@@ -1,4 +1,5 @@
 //! Test Various helpers for Actix applications to use during testing.
+use std::convert::TryFrom;
 use std::fmt::Write as FmtWrite;
 use std::io::{self, Read, Write};
 use std::pin::Pin;
@@ -8,7 +9,7 @@ use std::task::{Context, Poll};
 use actix_codec::{AsyncRead, AsyncWrite};
 use bytes::{Bytes, BytesMut};
 use http::header::{self, HeaderName, HeaderValue};
-use http::{HttpTryFrom, Method, Uri, Version};
+use http::{Error as HttpError, Method, Uri, Version};
 use percent_encoding::percent_encode;
 
 use crate::cookie::{Cookie, CookieJar, USERINFO};
@@ -82,7 +83,8 @@ impl TestRequest {
     /// Create TestRequest and set header
     pub fn with_header<K, V>(key: K, value: V) -> TestRequest
     where
-        HeaderName: HttpTryFrom<K>,
+        HeaderName: TryFrom<K>,
+        <HeaderName as TryFrom<K>>::Error: Into<HttpError>,
         V: IntoHeaderValue,
     {
         TestRequest::default().header(key, value).take()
@@ -118,7 +120,8 @@ impl TestRequest {
     /// Set a header
     pub fn header<K, V>(&mut self, key: K, value: V) -> &mut Self
     where
-        HeaderName: HttpTryFrom<K>,
+        HeaderName: TryFrom<K>,
+        <HeaderName as TryFrom<K>>::Error: Into<HttpError>,
         V: IntoHeaderValue,
     {
         if let Ok(key) = HeaderName::try_from(key) {

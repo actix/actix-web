@@ -2,7 +2,7 @@ use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use actix_http::{body, h1, ws, Error, HttpService, Request, Response};
 use actix_http_test::TestServer;
 use actix_utils::framed::FramedTransport;
-use bytes::{Bytes, BytesMut};
+use bytes::BytesMut;
 use futures::future;
 use futures::{SinkExt, StreamExt};
 
@@ -62,7 +62,7 @@ async fn test_simple() {
     let (item, mut framed) = framed.into_future().await;
     assert_eq!(
         item.unwrap().unwrap(),
-        ws::Frame::Binary(Some(Bytes::from_static(b"text").into()))
+        ws::Frame::Binary(Some(BytesMut::from(&b"text"[..]).into()))
     );
 
     framed.send(ws::Message::Ping("text".into())).await.unwrap();

@@ -1,6 +1,6 @@
 [package]
 name = "actix-files"
-version = "0.2.0-alpha.2"
+version = "0.2.0-alpha.3"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Static files support for actix web."
 readme = "README.md"
@@ -20,9 +20,9 @@ path = "src/lib.rs"
 [dependencies]
 actix-web = { version = "2.0.0-alpha.2", default-features = false }
 actix-http = "0.3.0-alpha.2"
-actix-service = "1.0.0-alpha.2"
+actix-service = "1.0.0-alpha.3"
 bitflags = "1"
-bytes = "0.4"
+bytes = "0.5.2"
 futures = "0.3.1"
 derive_more = "0.99.2"
 log = "0.4"

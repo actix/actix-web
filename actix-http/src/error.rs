@@ -113,12 +113,6 @@ impl fmt::Debug for Error {
     }
 }
 
-impl From<()> for Error {
-    fn from(_: ()) -> Self {
-        Error::from(UnitError)
-    }
-}
-
 impl std::error::Error for Error {
     fn description(&self) -> &str {
         "actix-http::Error"
@@ -130,6 +124,12 @@ impl std::error::Error for Error {
 
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         None
+    }
+}
+
+impl From<()> for Error {
+    fn from(_: ()) -> Self {
+        Error::from(UnitError)
     }
 }
 
@@ -182,11 +182,11 @@ impl ResponseError for FormError {}
 
 #[cfg(feature = "openssl")]
 /// `InternalServerError` for `openssl::ssl::Error`
-impl ResponseError for open_ssl::ssl::Error {}
+impl ResponseError for actix_connect::ssl::openssl::SslError {}
 
 #[cfg(feature = "openssl")]
 /// `InternalServerError` for `openssl::ssl::HandshakeError`
-impl<T: std::fmt::Debug> ResponseError for open_ssl::ssl::HandshakeError<T> {}
+impl<T: std::fmt::Debug> ResponseError for actix_tls::openssl::HandshakeError<T> {}
 
 /// Return `BAD_REQUEST` for `de::value::Error`
 impl ResponseError for DeError {
@@ -225,13 +225,6 @@ impl ResponseError for io::Error {
 
 /// `BadRequest` for `InvalidHeaderValue`
 impl ResponseError for header::InvalidHeaderValue {
-    fn status_code(&self) -> StatusCode {
-        StatusCode::BAD_REQUEST
-    }
-}
-
-/// `BadRequest` for `InvalidHeaderValue`
-impl ResponseError for header::InvalidHeaderValueBytes {
     fn status_code(&self) -> StatusCode {
         StatusCode::BAD_REQUEST
     }

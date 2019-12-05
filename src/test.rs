@@ -1,8 +1,9 @@
 //! Various helpers for Actix applications to use during testing.
+use std::convert::TryFrom;
 use std::rc::Rc;
 
 use actix_http::http::header::{ContentType, Header, HeaderName, IntoHeaderValue};
-use actix_http::http::{HttpTryFrom, Method, StatusCode, Uri, Version};
+use actix_http::http::{Error as HttpError, Method, StatusCode, Uri, Version};
 use actix_http::test::TestRequest as HttpTestRequest;
 use actix_http::{cookie::Cookie, Extensions, Request};
 use actix_router::{Path, ResourceDef, Url};
@@ -319,7 +320,8 @@ impl TestRequest {
     /// Create TestRequest and set header
     pub fn with_header<K, V>(key: K, value: V) -> TestRequest
     where
-        HeaderName: HttpTryFrom<K>,
+        HeaderName: TryFrom<K>,
+        <HeaderName as TryFrom<K>>::Error: Into<HttpError>,
         V: IntoHeaderValue,
     {
         TestRequest::default().header(key, value)
@@ -377,7 +379,8 @@ impl TestRequest {
     /// Set a header
     pub fn header<K, V>(mut self, key: K, value: V) -> Self
     where
-        HeaderName: HttpTryFrom<K>,
+        HeaderName: TryFrom<K>,
+        <HeaderName as TryFrom<K>>::Error: Into<HttpError>,
         V: IntoHeaderValue,
     {
         self.req.header(key, value);

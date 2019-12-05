@@ -3,7 +3,7 @@ use std::fmt::{self, Display, Write};
 use crate::error::ParseError;
 use crate::header::{
     self, from_one_raw_str, EntityTag, Header, HeaderName, HeaderValue, HttpDate,
-    IntoHeaderValue, InvalidHeaderValueBytes, Writer,
+    IntoHeaderValue, InvalidHeaderValue, Writer,
 };
 use crate::httpmessage::HttpMessage;
 
@@ -96,12 +96,12 @@ impl Display for IfRange {
 }
 
 impl IntoHeaderValue for IfRange {
-    type Error = InvalidHeaderValueBytes;
+    type Error = InvalidHeaderValue;
 
     fn try_into(self) -> Result<HeaderValue, Self::Error> {
         let mut writer = Writer::new();
         let _ = write!(&mut writer, "{}", self);
-        HeaderValue::from_shared(writer.take())
+        HeaderValue::from_maybe_shared(writer.take())
     }
 }
 

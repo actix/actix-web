@@ -13,7 +13,7 @@ use flate2::write::{GzEncoder, ZlibEncoder};
 
 use crate::body::{Body, BodySize, MessageBody, ResponseBody};
 use crate::http::header::{ContentEncoding, CONTENT_ENCODING};
-use crate::http::{HeaderValue, HttpTryFrom, StatusCode};
+use crate::http::{HeaderValue, StatusCode};
 use crate::{Error, ResponseHead};
 
 use super::Writer;
@@ -168,7 +168,7 @@ impl<B: MessageBody> MessageBody for Encoder<B> {
 fn update_head(encoding: ContentEncoding, head: &mut ResponseHead) {
     head.headers_mut().insert(
         CONTENT_ENCODING,
-        HeaderValue::try_from(Bytes::from_static(encoding.as_str().as_bytes())).unwrap(),
+        HeaderValue::from_static(encoding.as_str()),
     );
 }
 

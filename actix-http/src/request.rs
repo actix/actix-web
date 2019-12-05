@@ -187,7 +187,7 @@ impl<P> fmt::Debug for Request<P> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use http::HttpTryFrom;
+    use std::convert::TryFrom;
 
     #[test]
     fn test_basics() {

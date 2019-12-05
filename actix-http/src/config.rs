@@ -1,10 +1,10 @@
 use std::cell::UnsafeCell;
 use std::fmt::Write;
 use std::rc::Rc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use std::{fmt, net};
 
-use actix_rt::time::{delay, delay_for, Delay};
+use actix_rt::time::{delay_for, delay_until, Delay, Instant};
 use bytes::BytesMut;
 use futures::{future, FutureExt};
 use time;
@@ -124,7 +124,7 @@ impl ServiceConfig {
     pub fn client_timer(&self) -> Option<Delay> {
         let delay_time = self.0.client_timeout;
         if delay_time != 0 {
-            Some(delay(
+            Some(delay_until(
                 self.0.timer.now() + Duration::from_millis(delay_time),
             ))
         } else {
@@ -156,7 +156,7 @@ impl ServiceConfig {
     /// Return keep-alive timer delay is configured.
     pub fn keep_alive_timer(&self) -> Option<Delay> {
         if let Some(ka) = self.0.keep_alive {
-            Some(delay(self.0.timer.now() + ka))
+            Some(delay_until(self.0.timer.now() + ka))
         } else {
             None
         }

@@ -1,6 +1,6 @@
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use std::{fmt, io, time};
+use std::{fmt, io, mem, time};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use bytes::{Buf, Bytes};
@@ -228,7 +228,10 @@ where
         }
     }
 
-    unsafe fn prepare_uninitialized_buffer(&self, buf: &mut [u8]) -> bool {
+    unsafe fn prepare_uninitialized_buffer(
+        &self,
+        buf: &mut [mem::MaybeUninit<u8>],
+    ) -> bool {
         match self {
             EitherIo::A(ref val) => val.prepare_uninitialized_buffer(buf),
             EitherIo::B(ref val) => val.prepare_uninitialized_buffer(buf),

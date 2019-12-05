@@ -193,9 +193,8 @@ where
 #[cfg(feature = "openssl")]
 mod openssl {
     use super::*;
-    use actix_tls::openssl::{Acceptor, SslStream};
+    use actix_tls::openssl::{Acceptor, SslAcceptor, SslStream};
     use actix_tls::{openssl::HandshakeError, SslError};
-    use open_ssl::ssl::SslAcceptor;
 
     impl<S, B, X, U> HttpService<SslStream<TcpStream>, S, B, X, U>
     where
@@ -245,6 +244,71 @@ mod openssl {
                     Protocol::Http1
                 };
                 let peer_addr = io.get_ref().peer_addr().ok();
+                ok((io, proto, peer_addr))
+            })
+            .and_then(self.map_err(SslError::Service))
+        }
+    }
+}
+
+#[cfg(feature = "rustls")]
+mod rustls {
+    use super::*;
+    use actix_tls::rustls::{Acceptor, ServerConfig, Session, TlsStream};
+    use actix_tls::SslError;
+    use std::io;
+
+    impl<S, B, X, U> HttpService<TlsStream<TcpStream>, S, B, X, U>
+    where
+        S: ServiceFactory<Config = (), Request = Request>,
+        S::Error: Into<Error> + 'static,
+        S::InitError: fmt::Debug,
+        S::Response: Into<Response<B>> + 'static,
+        <S::Service as Service>::Future: 'static,
+        B: MessageBody + 'static,
+        X: ServiceFactory<Config = (), Request = Request, Response = Request>,
+        X::Error: Into<Error>,
+        X::InitError: fmt::Debug,
+        <X::Service as Service>::Future: 'static,
+        U: ServiceFactory<
+            Config = (),
+            Request = (Request, Framed<TlsStream<TcpStream>, h1::Codec>),
+            Response = (),
+        >,
+        U::Error: fmt::Display,
+        U::InitError: fmt::Debug,
+        <U::Service as Service>::Future: 'static,
+    {
+        /// Create openssl based service
+        pub fn rustls(
+            self,
+            mut config: ServerConfig,
+        ) -> impl ServiceFactory<
+            Config = (),
+            Request = TcpStream,
+            Response = (),
+            Error = SslError<io::Error, DispatchError>,
+            InitError = (),
+        > {
+            let protos = vec!["h2".to_string().into(), "http/1.1".to_string().into()];
+            config.set_protocols(&protos);
+
+            pipeline_factory(
+                Acceptor::new(config)
+                    .map_err(SslError::Ssl)
+                    .map_init_err(|_| panic!()),
+            )
+            .and_then(|io: TlsStream<TcpStream>| {
+                let proto = if let Some(protos) = io.get_ref().1.get_alpn_protocol() {
+                    if protos.windows(2).any(|window| window == b"h2") {
+                        Protocol::Http2
+                    } else {
+                        Protocol::Http1
+                    }
+                } else {
+                    Protocol::Http1
+                };
+                let peer_addr = io.get_ref().0.peer_addr().ok();
                 ok((io, proto, peer_addr))
             })
             .and_then(self.map_err(SslError::Service))

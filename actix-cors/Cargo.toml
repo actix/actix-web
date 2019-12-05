@@ -1,6 +1,6 @@
 [package]
 name = "actix-cors"
-version = "0.2.0-alpha.1"
+version = "0.2.0-alpha.3"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Cross-origin resource sharing (CORS) for Actix applications."
 readme = "README.md"
