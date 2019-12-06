@@ -23,6 +23,7 @@
     <a href="https://github.com/actix/examples">Examples</a>
   </h3>
 </div>
+<br>
 
 Actix web is a simple, pragmatic and extremely fast web framework for Rust.
 
