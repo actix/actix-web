@@ -1,4 +1,28 @@
-# Actix web [![Build Status](https://travis-ci.org/actix/actix-web.svg?branch=master)](https://travis-ci.org/actix/actix-web) [![codecov](https://codecov.io/gh/actix/actix-web/branch/master/graph/badge.svg)](https://codecov.io/gh/actix/actix-web) [![crates.io](https://meritbadge.herokuapp.com/actix-web)](https://crates.io/crates/actix-web) [![Join the chat at https://gitter.im/actix/actix](https://badges.gitter.im/actix/actix.svg)](https://gitter.im/actix/actix?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+<div align="center">
+ <p><h1>Actix web</h1> </p>
+  <p><h4>Actix web is a small, pragmatic, and extremely fast rust web framework</h4> </p>
+  <p>
+
+[![Build Status](https://travis-ci.org/actix/actix-web.svg?branch=master)](https://travis-ci.org/actix/actix-web) 
+[![codecov](https://codecov.io/gh/actix/actix-web/branch/master/graph/badge.svg)](https://codecov.io/gh/actix/actix-web) 
+[![crates.io](https://meritbadge.herokuapp.com/actix-web)](https://crates.io/crates/actix-web) 
+[![Join the chat at https://gitter.im/actix/actix](https://badges.gitter.im/actix/actix.svg)](https://gitter.im/actix/actix?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+
+[![Documentation](https://docs.rs/actix-web/badge.svg)](https://docs.rs/actix-web)
+[![Download](https://img.shields.io/crates/d/actix-web.svg?style=flat-square)](https://crates.io/crates/actix-web)
+[![Version](https://img.shields.io/badge/rustc-1.39+-lightgray.svg?style=flat-square)](https://blog.rust-lang.org/2019/11/07/Rust-1.39.0.html)
+![License](https://img.shields.io/crates/l/actix-web.svg)
+  
+  </p>
+  
+  <h3>
+    <a href="https://actix.rs">Website</a>
+    <span> | </span>
+    <a href="https://reddit.com/r/actix">Forum</a>
+    <span> | </span>
+    <a href="https://github.com/actix/examples">Examples</a>
+  </h3>
+</div>
 
 Actix web is a simple, pragmatic and extremely fast web framework for Rust.
 
@@ -14,14 +38,6 @@ Actix web is a simple, pragmatic and extremely fast web framework for Rust.
 * Middlewares ([Logger, Session, CORS, etc](https://actix.rs/docs/middleware/))
 * Includes an asynchronous [HTTP client](https://actix.rs/actix-web/actix_web/client/index.html)
 * Supports [Actix actor framework](https://github.com/actix/actix)
-
-## Documentation & community resources
-
-* [User Guide](https://actix.rs/docs/)
-* [API Documentation (1.0)](https://docs.rs/actix-web/)
-* [Chat on gitter](https://gitter.im/actix/actix)
-* Cargo package: [actix-web](https://crates.io/crates/actix-web)
-* Minimum supported Rust version: 1.39 or later
 
 ## Example
 
