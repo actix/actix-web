@@ -18,7 +18,7 @@
   <h3>
     <a href="https://actix.rs">Website</a>
     <span> | </span>
-    <a href="https://reddit.com/r/actix">Forum</a>
+    <a href="https://www.reddit.com/r/actix">Forum</a>
     <span> | </span>
     <a href="https://github.com/actix/examples">Examples</a>
   </h3>
