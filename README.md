@@ -1,6 +1,6 @@
 <div align="center">
  <p><h1>Actix web</h1> </p>
-  <p><h4>Actix web is a small, pragmatic, and extremely fast rust web framework</h4> </p>
+  <p><strong>Actix web is a small, pragmatic, and extremely fast rust web framework</strong> </p>
   <p>
 
 [![Build Status](https://travis-ci.org/actix/actix-web.svg?branch=master)](https://travis-ci.org/actix/actix-web) 
