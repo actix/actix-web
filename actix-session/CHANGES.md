@@ -6,6 +6,7 @@
    at successful login to cycle a session (new key/cookie but keeps state).
    Use ``Session.purge()`` at logout to invalid a session cookie (and remove
    from redis cache, if applicable).
+*  Add access to the session from RequestHead for use of session from guard methods
 
 ## [0.1.1] - 2019-06-03
 

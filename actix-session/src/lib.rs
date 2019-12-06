@@ -46,7 +46,9 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use actix_web::dev::{Extensions, Payload, ServiceRequest, ServiceResponse};
+use actix_web::dev::{
+    Extensions, Payload, RequestHead, ServiceRequest, ServiceResponse,
+};
 use actix_web::{Error, FromRequest, HttpMessage, HttpRequest};
 use futures::future::{ok, Ready};
 use serde::de::DeserializeOwned;
@@ -94,6 +96,12 @@ impl UserSession for HttpRequest {
 }
 
 impl UserSession for ServiceRequest {
+    fn get_session(&mut self) -> Session {
+        Session::get_session(&mut *self.extensions_mut())
+    }
+}
+
+impl UserSession for RequestHead {
     fn get_session(&mut self) -> Session {
         Session::get_session(&mut *self.extensions_mut())
     }
@@ -277,6 +285,20 @@ mod tests {
         );
 
         let session = req.get_session();
+        let res = session.get::<String>("key").unwrap();
+        assert_eq!(res, Some("value".to_string()));
+    }
+
+    #[test]
+    fn get_session_from_request_head() {
+        let mut req = test::TestRequest::default().to_srv_request();
+
+        Session::set_session(
+            vec![("key".to_string(), "\"value\"".to_string())].into_iter(),
+            &mut req,
+        );
+
+        let session = req.head_mut().get_session();
         let res = session.get::<String>("key").unwrap();
         assert_eq!(res, Some("value".to_string()));
     }
