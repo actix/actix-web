@@ -7,7 +7,6 @@
 [![codecov](https://codecov.io/gh/actix/actix-web/branch/master/graph/badge.svg)](https://codecov.io/gh/actix/actix-web) 
 [![crates.io](https://meritbadge.herokuapp.com/actix-web)](https://crates.io/crates/actix-web) 
 [![Join the chat at https://gitter.im/actix/actix](https://badges.gitter.im/actix/actix.svg)](https://gitter.im/actix/actix?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
-
 [![Documentation](https://docs.rs/actix-web/badge.svg)](https://docs.rs/actix-web)
 [![Download](https://img.shields.io/crates/d/actix-web.svg?style=flat-square)](https://crates.io/crates/actix-web)
 [![Version](https://img.shields.io/badge/rustc-1.39+-lightgray.svg?style=flat-square)](https://blog.rust-lang.org/2019/11/07/Rust-1.39.0.html)
