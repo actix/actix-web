@@ -1,4 +1,5 @@
 //! Middleware for setting default response headers
+use std::convert::TryFrom;
 use std::rc::Rc;
 use std::task::{Context, Poll};
 
@@ -6,7 +7,7 @@ use actix_service::{Service, Transform};
 use futures::future::{ok, FutureExt, LocalBoxFuture, Ready};
 
 use crate::http::header::{HeaderName, HeaderValue, CONTENT_TYPE};
-use crate::http::{HeaderMap, HttpTryFrom};
+use crate::http::{Error as HttpError, HeaderMap};
 use crate::service::{ServiceRequest, ServiceResponse};
 use crate::Error;
 
@@ -58,8 +59,10 @@ impl DefaultHeaders {
     #[inline]
     pub fn header<K, V>(mut self, key: K, value: V) -> Self
     where
-        HeaderName: HttpTryFrom<K>,
-        HeaderValue: HttpTryFrom<V>,
+        HeaderName: TryFrom<K>,
+        <HeaderName as TryFrom<K>>::Error: Into<HttpError>,
+        HeaderValue: TryFrom<V>,
+        <HeaderValue as TryFrom<V>>::Error: Into<HttpError>,
     {
         #[allow(clippy::match_wild_err_arm)]
         match HeaderName::try_from(key) {

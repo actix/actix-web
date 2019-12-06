@@ -488,9 +488,9 @@ impl ServiceFactory for ScopeFactory {
     type Service = ScopeService;
     type Future = ScopeFactoryResponse;
 
-    fn new_service(&self, _: &()) -> Self::Future {
+    fn new_service(&self, _: ()) -> Self::Future {
         let default_fut = if let Some(ref default) = *self.default.borrow() {
-            Some(default.new_service(&()))
+            Some(default.new_service(()))
         } else {
             None
         };
@@ -503,7 +503,7 @@ impl ServiceFactory for ScopeFactory {
                     CreateScopeServiceItem::Future(
                         Some(path.clone()),
                         guards.borrow_mut().take(),
-                        service.new_service(&()),
+                        service.new_service(()),
                     )
                 })
                 .collect(),
@@ -656,8 +656,8 @@ impl ServiceFactory for ScopeEndpoint {
     type Service = ScopeService;
     type Future = ScopeFactoryResponse;
 
-    fn new_service(&self, _: &()) -> Self::Future {
-        self.factory.borrow_mut().as_mut().unwrap().new_service(&())
+    fn new_service(&self, _: ()) -> Self::Future {
+        self.factory.borrow_mut().as_mut().unwrap().new_service(())
     }
 }
 

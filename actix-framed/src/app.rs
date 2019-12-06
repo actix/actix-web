@@ -7,7 +7,6 @@ use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use actix_http::h1::{Codec, SendResponse};
 use actix_http::{Error, Request, Response};
 use actix_router::{Path, Router, Url};
-use actix_server_config::ServerConfig;
 use actix_service::{IntoServiceFactory, Service, ServiceFactory};
 use futures::future::{ok, FutureExt, LocalBoxFuture};
 
@@ -97,7 +96,7 @@ where
     T: AsyncRead + AsyncWrite + Unpin + 'static,
     S: 'static,
 {
-    type Config = ServerConfig;
+    type Config = ();
     type Request = (Request, Framed<T, Codec>);
     type Response = ();
     type Error = Error;
@@ -105,7 +104,7 @@ where
     type Service = FramedAppService<T, S>;
     type Future = CreateService<T, S>;
 
-    fn new_service(&self, _: &ServerConfig) -> Self::Future {
+    fn new_service(&self, _: ()) -> Self::Future {
         CreateService {
             fut: self
                 .services
@@ -113,7 +112,7 @@ where
                 .map(|(path, service)| {
                     CreateServiceItem::Future(
                         Some(path.clone()),
-                        service.new_service(&()),
+                        service.new_service(()),
                     )
                 })
                 .collect(),

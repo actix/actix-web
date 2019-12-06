@@ -12,8 +12,8 @@ use actix_service::Service;
 use actix_utils::{oneshot, task::LocalWaker};
 use bytes::Bytes;
 use futures::future::{poll_fn, FutureExt, LocalBoxFuture};
+use fxhash::FxHashMap;
 use h2::client::{handshake, Connection, SendRequest};
-use hashbrown::HashMap;
 use http::uri::Authority;
 use indexmap::IndexSet;
 use slab::Slab;
@@ -66,7 +66,7 @@ where
                 acquired: 0,
                 waiters: Slab::new(),
                 waiters_queue: IndexSet::new(),
-                available: HashMap::new(),
+                available: FxHashMap::default(),
                 waker: LocalWaker::new(),
             })),
         )
@@ -108,7 +108,7 @@ where
         let inner = self.1.clone();
 
         let fut = async move {
-            let key = if let Some(authority) = req.uri.authority_part() {
+            let key = if let Some(authority) = req.uri.authority() {
                 authority.clone().into()
             } else {
                 return Err(ConnectError::Unresolverd);
@@ -259,7 +259,7 @@ pub(crate) struct Inner<Io> {
     disconnect_timeout: Option<Duration>,
     limit: usize,
     acquired: usize,
-    available: HashMap<Key, VecDeque<AvailableConnection<Io>>>,
+    available: FxHashMap<Key, VecDeque<AvailableConnection<Io>>>,
     waiters: Slab<
         Option<(
             Connect,
@@ -299,7 +299,7 @@ where
     ) {
         let (tx, rx) = oneshot::channel();
 
-        let key: Key = connect.uri.authority_part().unwrap().clone().into();
+        let key: Key = connect.uri.authority().unwrap().clone().into();
         let entry = self.waiters.vacant_entry();
         let token = entry.key();
         entry.insert(Some((connect, tx)));

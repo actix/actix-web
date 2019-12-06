@@ -20,7 +20,7 @@ impl Writer {
         }
     }
     fn take(&mut self) -> Bytes {
-        self.buf.take().freeze()
+        self.buf.split().freeze()
     }
 }
 

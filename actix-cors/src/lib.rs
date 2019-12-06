@@ -40,6 +40,7 @@
 //!
 //! Cors middleware automatically handle *OPTIONS* preflight request.
 use std::collections::HashSet;
+use std::convert::TryFrom;
 use std::iter::FromIterator;
 use std::rc::Rc;
 use std::task::{Context, Poll};
@@ -48,7 +49,7 @@ use actix_service::{Service, Transform};
 use actix_web::dev::{RequestHead, ServiceRequest, ServiceResponse};
 use actix_web::error::{Error, ResponseError, Result};
 use actix_web::http::header::{self, HeaderName, HeaderValue};
-use actix_web::http::{self, HttpTryFrom, Method, StatusCode, Uri};
+use actix_web::http::{self, Error as HttpError, Method, StatusCode, Uri};
 use actix_web::HttpResponse;
 use derive_more::Display;
 use futures::future::{ok, Either, FutureExt, LocalBoxFuture, Ready};
@@ -274,7 +275,8 @@ impl Cors {
     pub fn allowed_methods<U, M>(mut self, methods: U) -> Cors
     where
         U: IntoIterator<Item = M>,
-        Method: HttpTryFrom<M>,
+        Method: TryFrom<M>,
+        <Method as TryFrom<M>>::Error: Into<HttpError>,
     {
         self.methods = true;
         if let Some(cors) = cors(&mut self.cors, &self.error) {
@@ -296,7 +298,8 @@ impl Cors {
     /// Set an allowed header
     pub fn allowed_header<H>(mut self, header: H) -> Cors
     where
-        HeaderName: HttpTryFrom<H>,
+        HeaderName: TryFrom<H>,
+        <HeaderName as TryFrom<H>>::Error: Into<HttpError>,
     {
         if let Some(cors) = cors(&mut self.cors, &self.error) {
             match HeaderName::try_from(header) {
@@ -328,7 +331,8 @@ impl Cors {
     pub fn allowed_headers<U, H>(mut self, headers: U) -> Cors
     where
         U: IntoIterator<Item = H>,
-        HeaderName: HttpTryFrom<H>,
+        HeaderName: TryFrom<H>,
+        <HeaderName as TryFrom<H>>::Error: Into<HttpError>,
     {
         if let Some(cors) = cors(&mut self.cors, &self.error) {
             for h in headers {
@@ -362,7 +366,8 @@ impl Cors {
     pub fn expose_headers<U, H>(mut self, headers: U) -> Cors
     where
         U: IntoIterator<Item = H>,
-        HeaderName: HttpTryFrom<H>,
+        HeaderName: TryFrom<H>,
+        <HeaderName as TryFrom<H>>::Error: Into<HttpError>,
     {
         for h in headers {
             match HeaderName::try_from(h) {

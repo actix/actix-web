@@ -1,20 +1,16 @@
 #![cfg(feature = "openssl")]
-use open_ssl::ssl::{SslAcceptor, SslConnector, SslFiletype, SslMethod, SslVerifyMode};
-
-use std::io::Result;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
-use actix_codec::{AsyncRead, AsyncWrite};
 use actix_http::HttpService;
 use actix_http_test::TestServer;
-use actix_server::ssl::OpensslAcceptor;
 use actix_service::{pipeline_factory, ServiceFactory};
 use actix_web::http::Version;
 use actix_web::{web, App, HttpResponse};
 use futures::future::ok;
+use open_ssl::ssl::{SslAcceptor, SslConnector, SslFiletype, SslMethod, SslVerifyMode};
 
-fn ssl_acceptor<T: AsyncRead + AsyncWrite>() -> Result<OpensslAcceptor<T, ()>> {
+fn ssl_acceptor() -> SslAcceptor {
     // load ssl keys
     let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
     builder
@@ -31,13 +27,12 @@ fn ssl_acceptor<T: AsyncRead + AsyncWrite>() -> Result<OpensslAcceptor<T, ()>> {
             Err(open_ssl::ssl::AlpnError::NOACK)
         }
     });
-    builder.set_alpn_protos(b"\x02h2")?;
-    Ok(actix_server::ssl::OpensslAcceptor::new(builder.build()))
+    builder.set_alpn_protos(b"\x02h2").unwrap();
+    builder.build()
 }
 
 #[actix_rt::test]
 async fn test_connection_reuse_h2() {
-    let openssl = ssl_acceptor().unwrap();
     let num = Arc::new(AtomicUsize::new(0));
     let num2 = num.clone();
 
@@ -48,14 +43,10 @@ async fn test_connection_reuse_h2() {
             ok(io)
         })
         .and_then(
-            openssl
-                .clone()
-                .map_err(|e| println!("Openssl error: {}", e)),
-        )
-        .and_then(
             HttpService::build()
                 .h2(App::new()
                     .service(web::resource("/").route(web::to(|| HttpResponse::Ok()))))
+                .openssl(ssl_acceptor())
                 .map_err(|_| ()),
         )
     });

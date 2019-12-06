@@ -3,7 +3,7 @@ use actix_http::{body, http::StatusCode, ws, Error, HttpService, Response};
 use actix_http_test::TestServer;
 use actix_service::{pipeline_factory, IntoServiceFactory, ServiceFactory};
 use actix_utils::framed::FramedTransport;
-use bytes::{Bytes, BytesMut};
+use bytes::BytesMut;
 use futures::{future, SinkExt, StreamExt};
 
 use actix_framed::{FramedApp, FramedRequest, FramedRoute, SendError, VerifyWebSockets};
@@ -46,6 +46,7 @@ async fn test_simple() {
                 FramedApp::new().service(FramedRoute::get("/index.html").to(ws_service)),
             )
             .finish(|_| future::ok::<_, Error>(Response::NotFound()))
+            .tcp()
     });
 
     assert!(srv.ws_at("/test").await.is_err());
@@ -69,7 +70,7 @@ async fn test_simple() {
     let (item, mut framed) = framed.into_future().await;
     assert_eq!(
         item.unwrap().unwrap(),
-        ws::Frame::Binary(Some(Bytes::from_static(b"text").into()))
+        ws::Frame::Binary(Some(BytesMut::from(&b"text"[..])))
     );
 
     framed.send(ws::Message::Ping("text".into())).await.unwrap();
@@ -135,7 +136,7 @@ async fn test_service() {
     let (item, mut framed) = framed.into_future().await;
     assert_eq!(
         item.unwrap().unwrap(),
-        ws::Frame::Binary(Some(Bytes::from_static(b"text").into()))
+        ws::Frame::Binary(Some(BytesMut::from(&b"text"[..])))
     );
 
     framed.send(ws::Message::Ping("text".into())).await.unwrap();

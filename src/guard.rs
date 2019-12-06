@@ -24,9 +24,10 @@
 //!     );
 //! }
 //! ```
-
 #![allow(non_snake_case)]
-use actix_http::http::{self, header, uri::Uri, HttpTryFrom};
+use std::convert::TryFrom;
+
+use actix_http::http::{self, header, uri::Uri};
 use actix_http::RequestHead;
 
 /// Trait defines resource guards. Guards are used for route selection.

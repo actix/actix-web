@@ -1,13 +1,10 @@
 #![cfg(feature = "rustls")]
-use actix_codec::{AsyncRead, AsyncWrite};
 use actix_http::error::PayloadError;
 use actix_http::http::header::{self, HeaderName, HeaderValue};
 use actix_http::http::{Method, StatusCode, Version};
 use actix_http::{body, error, Error, HttpService, Request, Response};
 use actix_http_test::TestServer;
-use actix_server::ssl::RustlsAcceptor;
-use actix_server_config::ServerConfig;
-use actix_service::{factory_fn_cfg, pipeline_factory, service_fn2, ServiceFactory};
+use actix_service::{factory_fn_cfg, service_fn2};
 
 use bytes::{Bytes, BytesMut};
 use futures::future::{self, err, ok};
@@ -31,7 +28,7 @@ where
     Ok(body)
 }
 
-fn ssl_acceptor<T: AsyncRead + AsyncWrite>() -> io::Result<RustlsAcceptor<T, ()>> {
+fn ssl_acceptor() -> RustlsServerConfig {
     // load ssl keys
     let mut config = RustlsServerConfig::new(NoClientAuth::new());
     let cert_file = &mut BufReader::new(File::open("../tests/cert.pem").unwrap());
@@ -39,22 +36,45 @@ fn ssl_acceptor<T: AsyncRead + AsyncWrite>() -> io::Result<RustlsAcceptor<T, ()>
     let cert_chain = certs(cert_file).unwrap();
     let mut keys = pkcs8_private_keys(key_file).unwrap();
     config.set_single_cert(cert_chain, keys.remove(0)).unwrap();
+    config
+}
 
-    let protos = vec![b"h2".to_vec()];
-    config.set_protocols(&protos);
-    Ok(RustlsAcceptor::new(config))
+#[actix_rt::test]
+async fn test_h1() -> io::Result<()> {
+    let srv = TestServer::start(move || {
+        HttpService::build()
+            .h1(|_| future::ok::<_, Error>(Response::Ok().finish()))
+            .rustls(ssl_acceptor())
+    });
+
+    let response = srv.sget("/").send().await.unwrap();
+    assert!(response.status().is_success());
+    Ok(())
 }
 
 #[actix_rt::test]
 async fn test_h2() -> io::Result<()> {
-    let rustls = ssl_acceptor()?;
     let srv = TestServer::start(move || {
-        pipeline_factory(rustls.clone().map_err(|e| println!("Rustls error: {}", e)))
-            .and_then(
-                HttpService::build()
-                    .h2(|_| future::ok::<_, Error>(Response::Ok().finish()))
-                    .map_err(|_| ()),
-            )
+        HttpService::build()
+            .h2(|_| future::ok::<_, Error>(Response::Ok().finish()))
+            .rustls(ssl_acceptor())
+    });
+
+    let response = srv.sget("/").send().await.unwrap();
+    assert!(response.status().is_success());
+    Ok(())
+}
+
+#[actix_rt::test]
+async fn test_h1_1() -> io::Result<()> {
+    let srv = TestServer::start(move || {
+        HttpService::build()
+            .h1(|req: Request| {
+                assert!(req.peer_addr().is_some());
+                assert_eq!(req.version(), Version::HTTP_11);
+                future::ok::<_, Error>(Response::Ok().finish())
+            })
+            .rustls(ssl_acceptor())
     });
 
     let response = srv.sget("/").send().await.unwrap();
@@ -64,18 +84,14 @@ async fn test_h2() -> io::Result<()> {
 
 #[actix_rt::test]
 async fn test_h2_1() -> io::Result<()> {
-    let rustls = ssl_acceptor()?;
     let srv = TestServer::start(move || {
-        pipeline_factory(rustls.clone().map_err(|e| println!("Rustls error: {}", e)))
-            .and_then(
-                HttpService::build()
-                    .finish(|req: Request| {
-                        assert!(req.peer_addr().is_some());
-                        assert_eq!(req.version(), Version::HTTP_2);
-                        future::ok::<_, Error>(Response::Ok().finish())
-                    })
-                    .map_err(|_| ()),
-            )
+        HttpService::build()
+            .finish(|req: Request| {
+                assert!(req.peer_addr().is_some());
+                assert_eq!(req.version(), Version::HTTP_2);
+                future::ok::<_, Error>(Response::Ok().finish())
+            })
+            .rustls(ssl_acceptor())
     });
 
     let response = srv.sget("/").send().await.unwrap();
@@ -86,19 +102,15 @@ async fn test_h2_1() -> io::Result<()> {
 #[actix_rt::test]
 async fn test_h2_body1() -> io::Result<()> {
     let data = "HELLOWORLD".to_owned().repeat(64 * 1024);
-    let rustls = ssl_acceptor()?;
     let mut srv = TestServer::start(move || {
-        pipeline_factory(rustls.clone().map_err(|e| println!("Rustls error: {}", e)))
-            .and_then(
-                HttpService::build()
-                    .h2(|mut req: Request<_>| {
-                        async move {
-                            let body = load_body(req.take_payload()).await?;
-                            Ok::<_, Error>(Response::Ok().body(body))
-                        }
-                    })
-                    .map_err(|_| ()),
-            )
+        HttpService::build()
+            .h2(|mut req: Request<_>| {
+                async move {
+                    let body = load_body(req.take_payload()).await?;
+                    Ok::<_, Error>(Response::Ok().body(body))
+                }
+            })
+            .rustls(ssl_acceptor())
     });
 
     let response = srv.sget("/").send_body(data.clone()).await.unwrap();
@@ -111,31 +123,25 @@ async fn test_h2_body1() -> io::Result<()> {
 
 #[actix_rt::test]
 async fn test_h2_content_length() {
-    let rustls = ssl_acceptor().unwrap();
-
     let srv = TestServer::start(move || {
-        pipeline_factory(rustls.clone().map_err(|e| println!("Rustls error: {}", e)))
-            .and_then(
-                HttpService::build()
-                    .h2(|req: Request| {
-                        let indx: usize = req.uri().path()[1..].parse().unwrap();
-                        let statuses = [
-                            StatusCode::NO_CONTENT,
-                            StatusCode::CONTINUE,
-                            StatusCode::SWITCHING_PROTOCOLS,
-                            StatusCode::PROCESSING,
-                            StatusCode::OK,
-                            StatusCode::NOT_FOUND,
-                        ];
-                        future::ok::<_, ()>(Response::new(statuses[indx]))
-                    })
-                    .map_err(|_| ()),
-            )
+        HttpService::build()
+            .h2(|req: Request| {
+                let indx: usize = req.uri().path()[1..].parse().unwrap();
+                let statuses = [
+                    StatusCode::NO_CONTENT,
+                    StatusCode::CONTINUE,
+                    StatusCode::SWITCHING_PROTOCOLS,
+                    StatusCode::PROCESSING,
+                    StatusCode::OK,
+                    StatusCode::NOT_FOUND,
+                ];
+                future::ok::<_, ()>(Response::new(statuses[indx]))
+            })
+            .rustls(ssl_acceptor())
     });
 
     let header = HeaderName::from_static("content-length");
     let value = HeaderValue::from_static("0");
-
     {
         for i in 0..4 {
             let req = srv
@@ -165,14 +171,9 @@ async fn test_h2_content_length() {
 async fn test_h2_headers() {
     let data = STR.repeat(10);
     let data2 = data.clone();
-    let rustls = ssl_acceptor().unwrap();
 
     let mut srv = TestServer::start(move || {
         let data = data.clone();
-        pipeline_factory(rustls
-            .clone()
-            .map_err(|e| println!("Rustls error: {}", e)))
-            .and_then(
         HttpService::build().h2(move |_| {
             let mut config = Response::Ok();
             for idx in 0..90 {
@@ -194,7 +195,8 @@ async fn test_h2_headers() {
                 );
             }
             future::ok::<_, ()>(config.body(data.clone()))
-        }).map_err(|_| ()))
+        })
+            .rustls(ssl_acceptor())
     });
 
     let response = srv.sget("/").send().await.unwrap();
@@ -229,14 +231,10 @@ const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
 
 #[actix_rt::test]
 async fn test_h2_body2() {
-    let rustls = ssl_acceptor().unwrap();
     let mut srv = TestServer::start(move || {
-        pipeline_factory(rustls.clone().map_err(|e| println!("Rustls error: {}", e)))
-            .and_then(
-                HttpService::build()
-                    .h2(|_| future::ok::<_, ()>(Response::Ok().body(STR)))
-                    .map_err(|_| ()),
-            )
+        HttpService::build()
+            .h2(|_| future::ok::<_, ()>(Response::Ok().body(STR)))
+            .rustls(ssl_acceptor())
     });
 
     let response = srv.sget("/").send().await.unwrap();
@@ -249,14 +247,10 @@ async fn test_h2_body2() {
 
 #[actix_rt::test]
 async fn test_h2_head_empty() {
-    let rustls = ssl_acceptor().unwrap();
     let mut srv = TestServer::start(move || {
-        pipeline_factory(rustls.clone().map_err(|e| println!("Rustls error: {}", e)))
-            .and_then(
-                HttpService::build()
-                    .finish(|_| ok::<_, ()>(Response::Ok().body(STR)))
-                    .map_err(|_| ()),
-            )
+        HttpService::build()
+            .finish(|_| ok::<_, ()>(Response::Ok().body(STR)))
+            .rustls(ssl_acceptor())
     });
 
     let response = srv.shead("/").send().await.unwrap();
@@ -278,18 +272,12 @@ async fn test_h2_head_empty() {
 
 #[actix_rt::test]
 async fn test_h2_head_binary() {
-    let rustls = ssl_acceptor().unwrap();
     let mut srv = TestServer::start(move || {
-        pipeline_factory(rustls.clone().map_err(|e| println!("Rustls error: {}", e)))
-            .and_then(
-                HttpService::build()
-                    .h2(|_| {
-                        ok::<_, ()>(
-                            Response::Ok().content_length(STR.len() as u64).body(STR),
-                        )
-                    })
-                    .map_err(|_| ()),
-            )
+        HttpService::build()
+            .h2(|_| {
+                ok::<_, ()>(Response::Ok().content_length(STR.len() as u64).body(STR))
+            })
+            .rustls(ssl_acceptor())
     });
 
     let response = srv.shead("/").send().await.unwrap();
@@ -310,14 +298,10 @@ async fn test_h2_head_binary() {
 
 #[actix_rt::test]
 async fn test_h2_head_binary2() {
-    let rustls = ssl_acceptor().unwrap();
     let srv = TestServer::start(move || {
-        pipeline_factory(rustls.clone().map_err(|e| println!("Rustls error: {}", e)))
-            .and_then(
-                HttpService::build()
-                    .h2(|_| ok::<_, ()>(Response::Ok().body(STR)))
-                    .map_err(|_| ()),
-            )
+        HttpService::build()
+            .h2(|_| ok::<_, ()>(Response::Ok().body(STR)))
+            .rustls(ssl_acceptor())
     });
 
     let response = srv.shead("/").send().await.unwrap();
@@ -334,20 +318,15 @@ async fn test_h2_head_binary2() {
 
 #[actix_rt::test]
 async fn test_h2_body_length() {
-    let rustls = ssl_acceptor().unwrap();
     let mut srv = TestServer::start(move || {
-        pipeline_factory(rustls.clone().map_err(|e| println!("Rustls error: {}", e)))
-            .and_then(
-                HttpService::build()
-                    .h2(|_| {
-                        let body = once(ok(Bytes::from_static(STR.as_ref())));
-                        ok::<_, ()>(
-                            Response::Ok()
-                                .body(body::SizedStream::new(STR.len() as u64, body)),
-                        )
-                    })
-                    .map_err(|_| ()),
-            )
+        HttpService::build()
+            .h2(|_| {
+                let body = once(ok(Bytes::from_static(STR.as_ref())));
+                ok::<_, ()>(
+                    Response::Ok().body(body::SizedStream::new(STR.len() as u64, body)),
+                )
+            })
+            .rustls(ssl_acceptor())
     });
 
     let response = srv.sget("/").send().await.unwrap();
@@ -360,22 +339,17 @@ async fn test_h2_body_length() {
 
 #[actix_rt::test]
 async fn test_h2_body_chunked_explicit() {
-    let rustls = ssl_acceptor().unwrap();
     let mut srv = TestServer::start(move || {
-        pipeline_factory(rustls.clone().map_err(|e| println!("Rustls error: {}", e)))
-            .and_then(
-                HttpService::build()
-                    .h2(|_| {
-                        let body =
-                            once(ok::<_, Error>(Bytes::from_static(STR.as_ref())));
-                        ok::<_, ()>(
-                            Response::Ok()
-                                .header(header::TRANSFER_ENCODING, "chunked")
-                                .streaming(body),
-                        )
-                    })
-                    .map_err(|_| ()),
-            )
+        HttpService::build()
+            .h2(|_| {
+                let body = once(ok::<_, Error>(Bytes::from_static(STR.as_ref())));
+                ok::<_, ()>(
+                    Response::Ok()
+                        .header(header::TRANSFER_ENCODING, "chunked")
+                        .streaming(body),
+                )
+            })
+            .rustls(ssl_acceptor())
     });
 
     let response = srv.sget("/").send().await.unwrap();
@@ -391,24 +365,19 @@ async fn test_h2_body_chunked_explicit() {
 
 #[actix_rt::test]
 async fn test_h2_response_http_error_handling() {
-    let rustls = ssl_acceptor().unwrap();
-
     let mut srv = TestServer::start(move || {
-        pipeline_factory(rustls.clone().map_err(|e| println!("Rustls error: {}", e)))
-            .and_then(
-                HttpService::build()
-                    .h2(factory_fn_cfg(|_: &ServerConfig| {
-                        ok::<_, ()>(service_fn2(|_| {
-                            let broken_header = Bytes::from_static(b"\0\0\0");
-                            ok::<_, ()>(
-                                Response::Ok()
-                                    .header(http::header::CONTENT_TYPE, broken_header)
-                                    .body(STR),
-                            )
-                        }))
-                    }))
-                    .map_err(|_| ()),
-            )
+        HttpService::build()
+            .h2(factory_fn_cfg(|_: ()| {
+                ok::<_, ()>(service_fn2(|_| {
+                    let broken_header = Bytes::from_static(b"\0\0\0");
+                    ok::<_, ()>(
+                        Response::Ok()
+                            .header(http::header::CONTENT_TYPE, broken_header)
+                            .body(STR),
+                    )
+                }))
+            }))
+            .rustls(ssl_acceptor())
     });
 
     let response = srv.sget("/").send().await.unwrap();
@@ -421,15 +390,26 @@ async fn test_h2_response_http_error_handling() {
 
 #[actix_rt::test]
 async fn test_h2_service_error() {
-    let rustls = ssl_acceptor().unwrap();
-
     let mut srv = TestServer::start(move || {
-        pipeline_factory(rustls.clone().map_err(|e| println!("Rustls error: {}", e)))
-            .and_then(
-                HttpService::build()
-                    .h2(|_| err::<Response, Error>(error::ErrorBadRequest("error")))
-                    .map_err(|_| ()),
-            )
+        HttpService::build()
+            .h2(|_| err::<Response, Error>(error::ErrorBadRequest("error")))
+            .rustls(ssl_acceptor())
+    });
+
+    let response = srv.sget("/").send().await.unwrap();
+    assert_eq!(response.status(), http::StatusCode::BAD_REQUEST);
+
+    // read response
+    let bytes = srv.load_body(response).await.unwrap();
+    assert_eq!(bytes, Bytes::from_static(b"error"));
+}
+
+#[actix_rt::test]
+async fn test_h1_service_error() {
+    let mut srv = TestServer::start(move || {
+        HttpService::build()
+            .h1(|_| err::<Response, Error>(error::ErrorBadRequest("error")))
+            .rustls(ssl_acceptor())
     });
 
     let response = srv.sget("/").send().await.unwrap();

@@ -33,7 +33,7 @@ impl<T, C> ServiceFactory for VerifyWebSockets<T, C> {
     type Service = VerifyWebSockets<T, C>;
     type Future = Ready<Result<Self::Service, Self::InitError>>;
 
-    fn new_service(&self, _: &C) -> Self::Future {
+    fn new_service(&self, _: C) -> Self::Future {
         ok(VerifyWebSockets { _t: PhantomData })
     }
 }
@@ -83,7 +83,7 @@ where
     type Service = SendError<T, R, E, C>;
     type Future = Ready<Result<Self::Service, Self::InitError>>;
 
-    fn new_service(&self, _: &C) -> Self::Future {
+    fn new_service(&self, _: C) -> Self::Future {
         ok(SendError(PhantomData))
     }
 }

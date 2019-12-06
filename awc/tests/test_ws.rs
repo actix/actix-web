@@ -46,6 +46,7 @@ async fn test_simple() {
                 }
             })
             .finish(|_| ok::<_, Error>(Response::NotFound()))
+            .tcp()
     });
 
     // client service
@@ -62,10 +63,7 @@ async fn test_simple() {
         .await
         .unwrap();
     let item = framed.next().await.unwrap().unwrap();
-    assert_eq!(
-        item,
-        ws::Frame::Binary(Some(Bytes::from_static(b"text").into()))
-    );
+    assert_eq!(item, ws::Frame::Binary(Some(BytesMut::from(&b"text"[..]))));
 
     framed.send(ws::Message::Ping("text".into())).await.unwrap();
     let item = framed.next().await.unwrap().unwrap();

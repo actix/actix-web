@@ -1,6 +1,6 @@
 [package]
 name = "actix-web-codegen"
-version = "0.2.0-alpha.1"
+version = "0.2.0-alpha.2"
 description = "Actix web proc macros"
 readme = "README.md"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
@@ -17,8 +17,8 @@ syn = { version = "^1", features = ["full", "parsing"] }
 proc-macro2 = "^1"
 
 [dev-dependencies]
-actix-rt = { version = "1.0.0-alpha.1" }
-actix-web = { version = "2.0.0-alpha.1" }
-actix-http = { version = "0.3.0-alpha.1", features=["openssl"] }
-actix-http-test = { version = "0.3.0-alpha.1", features=["openssl"] }
+actix-rt = { version = "1.0.0-alpha.2" }
+actix-web = { version = "2.0.0-alpha.2" }
+actix-http = { version = "0.3.0-alpha.2", features=["openssl"] }
+actix-http-test = { version = "0.3.0-alpha.2", features=["openssl"] }
 futures = { version = "0.3.1" }

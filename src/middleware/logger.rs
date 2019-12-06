@@ -1,5 +1,6 @@
 //! Request logging middleware
 use std::collections::HashSet;
+use std::convert::TryFrom;
 use std::env;
 use std::fmt::{self, Display, Formatter};
 use std::future::Future;
@@ -17,7 +18,7 @@ use time;
 
 use crate::dev::{BodySize, MessageBody, ResponseBody};
 use crate::error::{Error, Result};
-use crate::http::{HeaderName, HttpTryFrom, StatusCode};
+use crate::http::{HeaderName, StatusCode};
 use crate::service::{ServiceRequest, ServiceResponse};
 use crate::HttpResponse;
 

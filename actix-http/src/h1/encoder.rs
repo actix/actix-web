@@ -2,11 +2,13 @@
 use std::fmt::Write as FmtWrite;
 use std::io::Write;
 use std::marker::PhantomData;
+use std::ptr::copy_nonoverlapping;
 use std::rc::Rc;
+use std::slice::from_raw_parts_mut;
 use std::str::FromStr;
 use std::{cmp, fmt, io, mem};
 
-use bytes::{BufMut, Bytes, BytesMut};
+use bytes::{buf::BufMutExt, BufMut, Bytes, BytesMut};
 
 use crate::body::BodySize;
 use crate::config::ServiceConfig;
@@ -144,8 +146,8 @@ pub(crate) trait MessageType: Sized {
         // write headers
         let mut pos = 0;
         let mut has_date = false;
-        let mut remaining = dst.remaining_mut();
-        let mut buf = unsafe { &mut *(dst.bytes_mut() as *mut [u8]) };
+        let mut remaining = dst.capacity() - dst.len();
+        let mut buf = dst.bytes_mut().as_mut_ptr() as *mut u8;
         for (key, value) in headers {
             match *key {
                 CONNECTION => continue,
@@ -159,61 +161,67 @@ pub(crate) trait MessageType: Sized {
             match value {
                 map::Value::One(ref val) => {
                     let v = val.as_ref();
-                    let len = k.len() + v.len() + 4;
+                    let v_len = v.len();
+                    let k_len = k.len();
+                    let len = k_len + v_len + 4;
                     if len > remaining {
                         unsafe {
                             dst.advance_mut(pos);
                         }
                         pos = 0;
                         dst.reserve(len * 2);
-                        remaining = dst.remaining_mut();
-                        unsafe {
-                            buf = &mut *(dst.bytes_mut() as *mut _);
-                        }
+                        remaining = dst.capacity() - dst.len();
+                        buf = dst.bytes_mut().as_mut_ptr() as *mut u8;
                     }
                     // use upper Camel-Case
-                    if camel_case {
-                        write_camel_case(k, &mut buf[pos..pos + k.len()]);
-                    } else {
-                        buf[pos..pos + k.len()].copy_from_slice(k);
+                    unsafe {
+                        if camel_case {
+                            write_camel_case(k, from_raw_parts_mut(buf, k_len))
+                        } else {
+                            write_data(k, buf, k_len)
+                        }
+                        buf = buf.add(k_len);
+                        write_data(b": ", buf, 2);
+                        buf = buf.add(2);
+                        write_data(v, buf, v_len);
+                        buf = buf.add(v_len);
+                        write_data(b"\r\n", buf, 2);
+                        buf = buf.add(2);
+                        pos += len;
+                        remaining -= len;
                     }
-                    pos += k.len();
-                    buf[pos..pos + 2].copy_from_slice(b": ");
-                    pos += 2;
-                    buf[pos..pos + v.len()].copy_from_slice(v);
-                    pos += v.len();
-                    buf[pos..pos + 2].copy_from_slice(b"\r\n");
-                    pos += 2;
-                    remaining -= len;
                 }
                 map::Value::Multi(ref vec) => {
                     for val in vec {
                         let v = val.as_ref();
-                        let len = k.len() + v.len() + 4;
+                        let v_len = v.len();
+                        let k_len = k.len();
+                        let len = k_len + v_len + 4;
                         if len > remaining {
                             unsafe {
                                 dst.advance_mut(pos);
                             }
                             pos = 0;
                             dst.reserve(len * 2);
-                            remaining = dst.remaining_mut();
-                            unsafe {
-                                buf = &mut *(dst.bytes_mut() as *mut _);
-                            }
+                            remaining = dst.capacity() - dst.len();
+                            buf = dst.bytes_mut().as_mut_ptr() as *mut u8;
                         }
                         // use upper Camel-Case
-                        if camel_case {
-                            write_camel_case(k, &mut buf[pos..pos + k.len()]);
-                        } else {
-                            buf[pos..pos + k.len()].copy_from_slice(k);
-                        }
-                        pos += k.len();
-                        buf[pos..pos + 2].copy_from_slice(b": ");
-                        pos += 2;
-                        buf[pos..pos + v.len()].copy_from_slice(v);
-                        pos += v.len();
-                        buf[pos..pos + 2].copy_from_slice(b"\r\n");
-                        pos += 2;
+                        unsafe {
+                            if camel_case {
+                                write_camel_case(k, from_raw_parts_mut(buf, k_len));
+                            } else {
+                                write_data(k, buf, k_len);
+                            }
+                            buf = buf.add(k_len);
+                            write_data(b": ", buf, 2);
+                            buf = buf.add(2);
+                            write_data(v, buf, v_len);
+                            buf = buf.add(v_len);
+                            write_data(b"\r\n", buf, 2);
+                            buf = buf.add(2);
+                        };
+                        pos += len;
                         remaining -= len;
                     }
                 }
@@ -298,6 +306,12 @@ impl MessageType for RequestHeadType {
                 Version::HTTP_10 => "HTTP/1.0",
                 Version::HTTP_11 => "HTTP/1.1",
                 Version::HTTP_2 => "HTTP/2.0",
+                Version::HTTP_3 => "HTTP/3.0",
+                _ =>
+                    return Err(io::Error::new(
+                        io::ErrorKind::Other,
+                        "unsupported version"
+                    )),
             }
         )
         .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
@@ -479,6 +493,10 @@ impl<'a> io::Write for Writer<'a> {
     }
 }
 
+unsafe fn write_data(value: &[u8], buf: *mut u8, len: usize) {
+    copy_nonoverlapping(value.as_ptr(), buf, len);
+}
+
 fn write_camel_case(value: &[u8], buffer: &mut [u8]) {
     let mut index = 0;
     let key = value;
@@ -525,7 +543,7 @@ mod tests {
             assert!(enc.encode(b"", &mut bytes).ok().unwrap());
         }
         assert_eq!(
-            bytes.take().freeze(),
+            bytes.split().freeze(),
             Bytes::from_static(b"4\r\ntest\r\n0\r\n\r\n")
         );
     }
@@ -548,7 +566,8 @@ mod tests {
             ConnectionType::Close,
             &ServiceConfig::default(),
         );
-        let data = String::from_utf8(Vec::from(bytes.take().freeze().as_ref())).unwrap();
+        let data =
+            String::from_utf8(Vec::from(bytes.split().freeze().as_ref())).unwrap();
         assert!(data.contains("Content-Length: 0\r\n"));
         assert!(data.contains("Connection: close\r\n"));
         assert!(data.contains("Content-Type: plain/text\r\n"));
@@ -561,7 +580,8 @@ mod tests {
             ConnectionType::KeepAlive,
             &ServiceConfig::default(),
         );
-        let data = String::from_utf8(Vec::from(bytes.take().freeze().as_ref())).unwrap();
+        let data =
+            String::from_utf8(Vec::from(bytes.split().freeze().as_ref())).unwrap();
         assert!(data.contains("Transfer-Encoding: chunked\r\n"));
         assert!(data.contains("Content-Type: plain/text\r\n"));
         assert!(data.contains("Date: date\r\n"));
@@ -573,7 +593,8 @@ mod tests {
             ConnectionType::KeepAlive,
             &ServiceConfig::default(),
         );
-        let data = String::from_utf8(Vec::from(bytes.take().freeze().as_ref())).unwrap();
+        let data =
+            String::from_utf8(Vec::from(bytes.split().freeze().as_ref())).unwrap();
         assert!(data.contains("Content-Length: 100\r\n"));
         assert!(data.contains("Content-Type: plain/text\r\n"));
         assert!(data.contains("Date: date\r\n"));
@@ -594,7 +615,8 @@ mod tests {
             ConnectionType::KeepAlive,
             &ServiceConfig::default(),
         );
-        let data = String::from_utf8(Vec::from(bytes.take().freeze().as_ref())).unwrap();
+        let data =
+            String::from_utf8(Vec::from(bytes.split().freeze().as_ref())).unwrap();
         assert!(data.contains("transfer-encoding: chunked\r\n"));
         assert!(data.contains("content-type: xml\r\n"));
         assert!(data.contains("content-type: plain/text\r\n"));
@@ -627,7 +649,8 @@ mod tests {
             ConnectionType::Close,
             &ServiceConfig::default(),
         );
-        let data = String::from_utf8(Vec::from(bytes.take().freeze().as_ref())).unwrap();
+        let data =
+            String::from_utf8(Vec::from(bytes.split().freeze().as_ref())).unwrap();
         assert!(data.contains("content-length: 0\r\n"));
         assert!(data.contains("connection: close\r\n"));
         assert!(data.contains("authorization: another authorization\r\n"));

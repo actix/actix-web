@@ -1,3 +1,4 @@
+use std::convert::TryFrom;
 use std::time;
 
 use actix_codec::{AsyncRead, AsyncWrite};
@@ -5,7 +6,7 @@ use bytes::Bytes;
 use futures::future::poll_fn;
 use h2::{client::SendRequest, SendStream};
 use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, TRANSFER_ENCODING};
-use http::{request::Request, HttpTryFrom, Method, Version};
+use http::{request::Request, Method, Version};
 
 use crate::body::{BodySize, MessageBody};
 use crate::header::HeaderMap;

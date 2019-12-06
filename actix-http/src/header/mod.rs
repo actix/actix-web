@@ -1,6 +1,7 @@
 //! Various http headers
 // This is mostly copy of [hyper](https://github.com/hyperium/hyper/tree/master/src/header)
 
+use std::convert::TryFrom;
 use std::{fmt, str::FromStr};
 
 use bytes::{Bytes, BytesMut};
@@ -73,58 +74,58 @@ impl<'a> IntoHeaderValue for &'a [u8] {
 }
 
 impl IntoHeaderValue for Bytes {
-    type Error = InvalidHeaderValueBytes;
+    type Error = InvalidHeaderValue;
 
     #[inline]
     fn try_into(self) -> Result<HeaderValue, Self::Error> {
-        HeaderValue::from_shared(self)
+        HeaderValue::from_maybe_shared(self)
     }
 }
 
 impl IntoHeaderValue for Vec<u8> {
-    type Error = InvalidHeaderValueBytes;
+    type Error = InvalidHeaderValue;
 
     #[inline]
     fn try_into(self) -> Result<HeaderValue, Self::Error> {
-        HeaderValue::from_shared(Bytes::from(self))
+        HeaderValue::try_from(self)
     }
 }
 
 impl IntoHeaderValue for String {
-    type Error = InvalidHeaderValueBytes;
+    type Error = InvalidHeaderValue;
 
     #[inline]
     fn try_into(self) -> Result<HeaderValue, Self::Error> {
-        HeaderValue::from_shared(Bytes::from(self))
+        HeaderValue::try_from(self)
     }
 }
 
 impl IntoHeaderValue for usize {
-    type Error = InvalidHeaderValueBytes;
+    type Error = InvalidHeaderValue;
 
     #[inline]
     fn try_into(self) -> Result<HeaderValue, Self::Error> {
         let s = format!("{}", self);
-        HeaderValue::from_shared(Bytes::from(s))
+        HeaderValue::try_from(s)
     }
 }
 
 impl IntoHeaderValue for u64 {
-    type Error = InvalidHeaderValueBytes;
+    type Error = InvalidHeaderValue;
 
     #[inline]
     fn try_into(self) -> Result<HeaderValue, Self::Error> {
         let s = format!("{}", self);
-        HeaderValue::from_shared(Bytes::from(s))
+        HeaderValue::try_from(s)
     }
 }
 
 impl IntoHeaderValue for Mime {
-    type Error = InvalidHeaderValueBytes;
+    type Error = InvalidHeaderValue;
 
     #[inline]
     fn try_into(self) -> Result<HeaderValue, Self::Error> {
-        HeaderValue::from_shared(Bytes::from(format!("{}", self)))
+        HeaderValue::try_from(format!("{}", self))
     }
 }
 
@@ -204,7 +205,7 @@ impl Writer {
         }
     }
     fn take(&mut self) -> Bytes {
-        self.buf.take().freeze()
+        self.buf.split().freeze()
     }
 }
 

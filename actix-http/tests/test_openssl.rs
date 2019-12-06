@@ -1,11 +1,8 @@
 #![cfg(feature = "openssl")]
 use std::io;
 
-use actix_codec::{AsyncRead, AsyncWrite};
 use actix_http_test::TestServer;
-use actix_server::ssl::OpensslAcceptor;
-use actix_server_config::ServerConfig;
-use actix_service::{factory_fn_cfg, pipeline_factory, service_fn2, ServiceFactory};
+use actix_service::{service_fn, ServiceFactory};
 
 use bytes::{Bytes, BytesMut};
 use futures::future::{err, ok, ready};
@@ -36,7 +33,7 @@ where
     Ok(body)
 }
 
-fn ssl_acceptor<T: AsyncRead + AsyncWrite>() -> io::Result<OpensslAcceptor<T, ()>> {
+fn ssl_acceptor() -> SslAcceptor {
     // load ssl keys
     let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
     builder
@@ -47,30 +44,29 @@ fn ssl_acceptor<T: AsyncRead + AsyncWrite>() -> io::Result<OpensslAcceptor<T, ()
         .unwrap();
     builder.set_alpn_select_callback(|_, protos| {
         const H2: &[u8] = b"\x02h2";
+        const H11: &[u8] = b"\x08http/1.1";
         if protos.windows(3).any(|window| window == H2) {
             Ok(b"h2")
+        } else if protos.windows(9).any(|window| window == H11) {
+            Ok(b"http/1.1")
         } else {
             Err(AlpnError::NOACK)
         }
     });
-    builder.set_alpn_protos(b"\x02h2")?;
-    Ok(OpensslAcceptor::new(builder.build()))
+    builder
+        .set_alpn_protos(b"\x08http/1.1\x02h2")
+        .expect("Can not contrust SslAcceptor");
+
+    builder.build()
 }
 
 #[actix_rt::test]
 async fn test_h2() -> io::Result<()> {
-    let openssl = ssl_acceptor()?;
     let srv = TestServer::start(move || {
-        pipeline_factory(
-            openssl
-                .clone()
-                .map_err(|e| println!("Openssl error: {}", e)),
-        )
-        .and_then(
-            HttpService::build()
-                .h2(|_| ok::<_, Error>(Response::Ok().finish()))
-                .map_err(|_| ()),
-        )
+        HttpService::build()
+            .h2(|_| ok::<_, Error>(Response::Ok().finish()))
+            .openssl(ssl_acceptor())
+            .map_err(|_| ())
     });
 
     let response = srv.sget("/").send().await.unwrap();
@@ -80,22 +76,15 @@ async fn test_h2() -> io::Result<()> {
 
 #[actix_rt::test]
 async fn test_h2_1() -> io::Result<()> {
-    let openssl = ssl_acceptor()?;
     let srv = TestServer::start(move || {
-        pipeline_factory(
-            openssl
-                .clone()
-                .map_err(|e| println!("Openssl error: {}", e)),
-        )
-        .and_then(
-            HttpService::build()
-                .finish(|req: Request| {
-                    assert!(req.peer_addr().is_some());
-                    assert_eq!(req.version(), Version::HTTP_2);
-                    ok::<_, Error>(Response::Ok().finish())
-                })
-                .map_err(|_| ()),
-        )
+        HttpService::build()
+            .finish(|req: Request| {
+                assert!(req.peer_addr().is_some());
+                assert_eq!(req.version(), Version::HTTP_2);
+                ok::<_, Error>(Response::Ok().finish())
+            })
+            .openssl(ssl_acceptor())
+            .map_err(|_| ())
     });
 
     let response = srv.sget("/").send().await.unwrap();
@@ -106,23 +95,16 @@ async fn test_h2_1() -> io::Result<()> {
 #[actix_rt::test]
 async fn test_h2_body() -> io::Result<()> {
     let data = "HELLOWORLD".to_owned().repeat(64 * 1024);
-    let openssl = ssl_acceptor()?;
     let mut srv = TestServer::start(move || {
-        pipeline_factory(
-            openssl
-                .clone()
-                .map_err(|e| println!("Openssl error: {}", e)),
-        )
-        .and_then(
-            HttpService::build()
-                .h2(|mut req: Request<_>| {
-                    async move {
-                        let body = load_body(req.take_payload()).await?;
-                        Ok::<_, Error>(Response::Ok().body(body))
-                    }
-                })
-                .map_err(|_| ()),
-        )
+        HttpService::build()
+            .h2(|mut req: Request<_>| {
+                async move {
+                    let body = load_body(req.take_payload()).await?;
+                    Ok::<_, Error>(Response::Ok().body(body))
+                }
+            })
+            .openssl(ssl_acceptor())
+            .map_err(|_| ())
     });
 
     let response = srv.sget("/").send_body(data.clone()).await.unwrap();
@@ -135,30 +117,22 @@ async fn test_h2_body() -> io::Result<()> {
 
 #[actix_rt::test]
 async fn test_h2_content_length() {
-    let openssl = ssl_acceptor().unwrap();
-
     let srv = TestServer::start(move || {
-        pipeline_factory(
-            openssl
-                .clone()
-                .map_err(|e| println!("Openssl error: {}", e)),
-        )
-        .and_then(
-            HttpService::build()
-                .h2(|req: Request| {
-                    let indx: usize = req.uri().path()[1..].parse().unwrap();
-                    let statuses = [
-                        StatusCode::NO_CONTENT,
-                        StatusCode::CONTINUE,
-                        StatusCode::SWITCHING_PROTOCOLS,
-                        StatusCode::PROCESSING,
-                        StatusCode::OK,
-                        StatusCode::NOT_FOUND,
-                    ];
-                    ok::<_, ()>(Response::new(statuses[indx]))
-                })
-                .map_err(|_| ()),
-        )
+        HttpService::build()
+            .h2(|req: Request| {
+                let indx: usize = req.uri().path()[1..].parse().unwrap();
+                let statuses = [
+                    StatusCode::NO_CONTENT,
+                    StatusCode::CONTINUE,
+                    StatusCode::SWITCHING_PROTOCOLS,
+                    StatusCode::PROCESSING,
+                    StatusCode::OK,
+                    StatusCode::NOT_FOUND,
+                ];
+                ok::<_, ()>(Response::new(statuses[indx]))
+            })
+            .openssl(ssl_acceptor())
+            .map_err(|_| ())
     });
 
     let header = HeaderName::from_static("content-length");
@@ -193,14 +167,9 @@ async fn test_h2_content_length() {
 async fn test_h2_headers() {
     let data = STR.repeat(10);
     let data2 = data.clone();
-    let openssl = ssl_acceptor().unwrap();
 
     let mut srv = TestServer::start(move || {
         let data = data.clone();
-        pipeline_factory(openssl
-            .clone()
-            .map_err(|e| println!("Openssl error: {}", e)))
-            .and_then(
         HttpService::build().h2(move |_| {
             let mut builder = Response::Ok();
             for idx in 0..90 {
@@ -222,7 +191,9 @@ async fn test_h2_headers() {
                 );
             }
             ok::<_, ()>(builder.body(data.clone()))
-        }).map_err(|_| ()))
+        })
+            .openssl(ssl_acceptor())
+                    .map_err(|_| ())
     });
 
     let response = srv.sget("/").send().await.unwrap();
@@ -257,18 +228,11 @@ const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
 
 #[actix_rt::test]
 async fn test_h2_body2() {
-    let openssl = ssl_acceptor().unwrap();
     let mut srv = TestServer::start(move || {
-        pipeline_factory(
-            openssl
-                .clone()
-                .map_err(|e| println!("Openssl error: {}", e)),
-        )
-        .and_then(
-            HttpService::build()
-                .h2(|_| ok::<_, ()>(Response::Ok().body(STR)))
-                .map_err(|_| ()),
-        )
+        HttpService::build()
+            .h2(|_| ok::<_, ()>(Response::Ok().body(STR)))
+            .openssl(ssl_acceptor())
+            .map_err(|_| ())
     });
 
     let response = srv.sget("/").send().await.unwrap();
@@ -281,18 +245,11 @@ async fn test_h2_body2() {
 
 #[actix_rt::test]
 async fn test_h2_head_empty() {
-    let openssl = ssl_acceptor().unwrap();
     let mut srv = TestServer::start(move || {
-        pipeline_factory(
-            openssl
-                .clone()
-                .map_err(|e| println!("Openssl error: {}", e)),
-        )
-        .and_then(
-            HttpService::build()
-                .finish(|_| ok::<_, ()>(Response::Ok().body(STR)))
-                .map_err(|_| ()),
-        )
+        HttpService::build()
+            .finish(|_| ok::<_, ()>(Response::Ok().body(STR)))
+            .openssl(ssl_acceptor())
+            .map_err(|_| ())
     });
 
     let response = srv.shead("/").send().await.unwrap();
@@ -311,22 +268,13 @@ async fn test_h2_head_empty() {
 
 #[actix_rt::test]
 async fn test_h2_head_binary() {
-    let openssl = ssl_acceptor().unwrap();
     let mut srv = TestServer::start(move || {
-        pipeline_factory(
-            openssl
-                .clone()
-                .map_err(|e| println!("Openssl error: {}", e)),
-        )
-        .and_then(
-            HttpService::build()
-                .h2(|_| {
-                    ok::<_, ()>(
-                        Response::Ok().content_length(STR.len() as u64).body(STR),
-                    )
-                })
-                .map_err(|_| ()),
-        )
+        HttpService::build()
+            .h2(|_| {
+                ok::<_, ()>(Response::Ok().content_length(STR.len() as u64).body(STR))
+            })
+            .openssl(ssl_acceptor())
+            .map_err(|_| ())
     });
 
     let response = srv.shead("/").send().await.unwrap();
@@ -344,18 +292,11 @@ async fn test_h2_head_binary() {
 
 #[actix_rt::test]
 async fn test_h2_head_binary2() {
-    let openssl = ssl_acceptor().unwrap();
     let srv = TestServer::start(move || {
-        pipeline_factory(
-            openssl
-                .clone()
-                .map_err(|e| println!("Openssl error: {}", e)),
-        )
-        .and_then(
-            HttpService::build()
-                .h2(|_| ok::<_, ()>(Response::Ok().body(STR)))
-                .map_err(|_| ()),
-        )
+        HttpService::build()
+            .h2(|_| ok::<_, ()>(Response::Ok().body(STR)))
+            .openssl(ssl_acceptor())
+            .map_err(|_| ())
     });
 
     let response = srv.shead("/").send().await.unwrap();
@@ -369,24 +310,16 @@ async fn test_h2_head_binary2() {
 
 #[actix_rt::test]
 async fn test_h2_body_length() {
-    let openssl = ssl_acceptor().unwrap();
     let mut srv = TestServer::start(move || {
-        pipeline_factory(
-            openssl
-                .clone()
-                .map_err(|e| println!("Openssl error: {}", e)),
-        )
-        .and_then(
-            HttpService::build()
-                .h2(|_| {
-                    let body = once(ok(Bytes::from_static(STR.as_ref())));
-                    ok::<_, ()>(
-                        Response::Ok()
-                            .body(body::SizedStream::new(STR.len() as u64, body)),
-                    )
-                })
-                .map_err(|_| ()),
-        )
+        HttpService::build()
+            .h2(|_| {
+                let body = once(ok(Bytes::from_static(STR.as_ref())));
+                ok::<_, ()>(
+                    Response::Ok().body(body::SizedStream::new(STR.len() as u64, body)),
+                )
+            })
+            .openssl(ssl_acceptor())
+            .map_err(|_| ())
     });
 
     let response = srv.sget("/").send().await.unwrap();
@@ -399,25 +332,18 @@ async fn test_h2_body_length() {
 
 #[actix_rt::test]
 async fn test_h2_body_chunked_explicit() {
-    let openssl = ssl_acceptor().unwrap();
     let mut srv = TestServer::start(move || {
-        pipeline_factory(
-            openssl
-                .clone()
-                .map_err(|e| println!("Openssl error: {}", e)),
-        )
-        .and_then(
-            HttpService::build()
-                .h2(|_| {
-                    let body = once(ok::<_, Error>(Bytes::from_static(STR.as_ref())));
-                    ok::<_, ()>(
-                        Response::Ok()
-                            .header(header::TRANSFER_ENCODING, "chunked")
-                            .streaming(body),
-                    )
-                })
-                .map_err(|_| ()),
-        )
+        HttpService::build()
+            .h2(|_| {
+                let body = once(ok::<_, Error>(Bytes::from_static(STR.as_ref())));
+                ok::<_, ()>(
+                    Response::Ok()
+                        .header(header::TRANSFER_ENCODING, "chunked")
+                        .streaming(body),
+                )
+            })
+            .openssl(ssl_acceptor())
+            .map_err(|_| ())
     });
 
     let response = srv.sget("/").send().await.unwrap();
@@ -433,28 +359,18 @@ async fn test_h2_body_chunked_explicit() {
 
 #[actix_rt::test]
 async fn test_h2_response_http_error_handling() {
-    let openssl = ssl_acceptor().unwrap();
-
     let mut srv = TestServer::start(move || {
-        pipeline_factory(
-            openssl
-                .clone()
-                .map_err(|e| println!("Openssl error: {}", e)),
-        )
-        .and_then(
-            HttpService::build()
-                .h2(factory_fn_cfg(|_: &ServerConfig| {
-                    ok::<_, ()>(service_fn2(|_| {
-                        let broken_header = Bytes::from_static(b"\0\0\0");
-                        ok::<_, ()>(
-                            Response::Ok()
-                                .header(header::CONTENT_TYPE, broken_header)
-                                .body(STR),
-                        )
-                    }))
-                }))
-                .map_err(|_| ()),
-        )
+        HttpService::build()
+            .h2(service_fn(|_| {
+                let broken_header = Bytes::from_static(b"\0\0\0");
+                ok::<_, ()>(
+                    Response::Ok()
+                        .header(header::CONTENT_TYPE, broken_header)
+                        .body(STR),
+                )
+            }))
+            .openssl(ssl_acceptor())
+            .map_err(|_| ())
     });
 
     let response = srv.sget("/").send().await.unwrap();
@@ -467,19 +383,11 @@ async fn test_h2_response_http_error_handling() {
 
 #[actix_rt::test]
 async fn test_h2_service_error() {
-    let openssl = ssl_acceptor().unwrap();
-
     let mut srv = TestServer::start(move || {
-        pipeline_factory(
-            openssl
-                .clone()
-                .map_err(|e| println!("Openssl error: {}", e)),
-        )
-        .and_then(
-            HttpService::build()
-                .h2(|_| err::<Response, Error>(ErrorBadRequest("error")))
-                .map_err(|_| ()),
-        )
+        HttpService::build()
+            .h2(|_| err::<Response, Error>(ErrorBadRequest("error")))
+            .openssl(ssl_acceptor())
+            .map_err(|_| ())
     });
 
     let response = srv.sget("/").send().await.unwrap();
@@ -492,23 +400,15 @@ async fn test_h2_service_error() {
 
 #[actix_rt::test]
 async fn test_h2_on_connect() {
-    let openssl = ssl_acceptor().unwrap();
-
     let srv = TestServer::start(move || {
-        pipeline_factory(
-            openssl
-                .clone()
-                .map_err(|e| println!("Openssl error: {}", e)),
-        )
-        .and_then(
-            HttpService::build()
-                .on_connect(|_| 10usize)
-                .h2(|req: Request| {
-                    assert!(req.extensions().contains::<usize>());
-                    ok::<_, ()>(Response::Ok().finish())
-                })
-                .map_err(|_| ()),
-        )
+        HttpService::build()
+            .on_connect(|_| 10usize)
+            .h2(|req: Request| {
+                assert!(req.extensions().contains::<usize>());
+                ok::<_, ()>(Response::Ok().finish())
+            })
+            .openssl(ssl_acceptor())
+            .map_err(|_| ())
     });
 
     let response = srv.sget("/").send().await.unwrap();

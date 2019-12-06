@@ -123,7 +123,9 @@ impl<Io, S> FramedRequest<Io, S> {
 
 #[cfg(test)]
 mod tests {
-    use actix_http::http::{HeaderName, HeaderValue, HttpTryFrom};
+    use std::convert::TryFrom;
+
+    use actix_http::http::{HeaderName, HeaderValue};
     use actix_http::test::{TestBuffer, TestRequest};
 
     use super::*;

@@ -6,6 +6,7 @@ pub use actix_http::Response as HttpResponse;
 pub use bytes::{Bytes, BytesMut};
 pub use futures::channel::oneshot::Canceled;
 
+use crate::error::BlockingError;
 use crate::extract::FromRequest;
 use crate::handler::Factory;
 use crate::resource::Resource;
@@ -274,10 +275,11 @@ pub fn service(path: &str) -> WebService {
 
 /// Execute blocking function on a thread pool, returns future that resolves
 /// to result of the function execution.
-pub fn block<F, R>(f: F) -> impl Future<Output = Result<R, Canceled>>
+pub async fn block<F, I, E>(f: F) -> Result<I, BlockingError<E>>
 where
-    F: FnOnce() -> R + Send + 'static,
-    R: Send + 'static,
+    F: FnOnce() -> Result<I, E> + Send + 'static,
+    I: Send + 'static,
+    E: Send + std::fmt::Debug + 'static,
 {
-    actix_threadpool::run(f)
+    actix_threadpool::run(f).await
 }

@@ -1,10 +1,11 @@
 use std::cell::RefCell;
+use std::convert::TryFrom;
 use std::fmt;
 use std::rc::Rc;
 use std::time::Duration;
 
 use actix_http::client::{Connect, ConnectError, Connection, Connector};
-use actix_http::http::{header, HeaderMap, HeaderName, HttpTryFrom};
+use actix_http::http::{header, Error as HttpError, HeaderMap, HeaderName};
 use actix_service::Service;
 
 use crate::connect::ConnectorWrapper;
@@ -97,8 +98,8 @@ impl ClientBuilder {
     /// get added to every request.
     pub fn header<K, V>(mut self, key: K, value: V) -> Self
     where
-        HeaderName: HttpTryFrom<K>,
-        <HeaderName as HttpTryFrom<K>>::Error: fmt::Debug,
+        HeaderName: TryFrom<K>,
+        <HeaderName as TryFrom<K>>::Error: fmt::Debug + Into<HttpError>,
         V: header::IntoHeaderValue,
         V::Error: fmt::Debug,
     {

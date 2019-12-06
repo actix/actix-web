@@ -177,7 +177,7 @@ where
     type Service = ExtractService<T, S>;
     type Future = Ready<Result<Self::Service, ()>>;
 
-    fn new_service(&self, _: &()) -> Self::Future {
+    fn new_service(&self, _: ()) -> Self::Future {
         ok(ExtractService {
             _t: PhantomData,
             service: self.service.clone(),

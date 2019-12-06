@@ -1,10 +1,10 @@
 use std::io;
 
+use actix_connect::resolver::ResolveError;
 use derive_more::{Display, From};
-use trust_dns_resolver::error::ResolveError;
 
 #[cfg(feature = "openssl")]
-use open_ssl::ssl::{Error as SslError, HandshakeError};
+use actix_connect::ssl::openssl::{HandshakeError, SslError};
 
 use crate::error::{Error, ParseError, ResponseError};
 use crate::http::{Error as HttpError, StatusCode};
@@ -20,6 +20,11 @@ pub enum ConnectError {
     #[cfg(feature = "openssl")]
     #[display(fmt = "{}", _0)]
     SslError(SslError),
+
+    /// SSL Handshake error
+    #[cfg(feature = "openssl")]
+    #[display(fmt = "{}", _0)]
+    SslHandshakeError(String),
 
     /// Failed to resolve the hostname
     #[display(fmt = "Failed resolving hostname: {}", _0)]
@@ -63,13 +68,9 @@ impl From<actix_connect::ConnectError> for ConnectError {
 }
 
 #[cfg(feature = "openssl")]
-impl<T> From<HandshakeError<T>> for ConnectError {
+impl<T: std::fmt::Debug> From<HandshakeError<T>> for ConnectError {
     fn from(err: HandshakeError<T>) -> ConnectError {
-        match err {
-            HandshakeError::SetupFailure(stack) => SslError::from(stack).into(),
-            HandshakeError::Failure(stream) => stream.into_error().into(),
-            HandshakeError::WouldBlock(stream) => stream.into_error().into(),
-        }
+        ConnectError::SslHandshakeError(format!("{:?}", err))
     }
 }
 

@@ -462,12 +462,12 @@ impl ContentDisposition {
 }
 
 impl IntoHeaderValue for ContentDisposition {
-    type Error = header::InvalidHeaderValueBytes;
+    type Error = header::InvalidHeaderValue;
 
     fn try_into(self) -> Result<header::HeaderValue, Self::Error> {
         let mut writer = Writer::new();
         let _ = write!(&mut writer, "{}", self);
-        header::HeaderValue::from_shared(writer.take())
+        header::HeaderValue::from_maybe_shared(writer.take())
     }
 }
 
@@ -768,9 +768,8 @@ mod tests {
         Mainstream browsers like Firefox (gecko) and Chrome use UTF-8 directly as above.
         (And now, only UTF-8 is handled by this implementation.)
         */
-        let a =
-            HeaderValue::from_str("form-data; name=upload; filename=\"文件.webp\"")
-                .unwrap();
+        let a = HeaderValue::from_str("form-data; name=upload; filename=\"文件.webp\"")
+            .unwrap();
         let a: ContentDisposition = ContentDisposition::from_raw(&a).unwrap();
         let b = ContentDisposition {
             disposition: DispositionType::FormData,
@@ -884,7 +883,11 @@ mod tests {
         assert!(ContentDisposition::from_raw(&a).is_err());
 
         let a = HeaderValue::from_static("inline; filename=\"\"");
-        assert!(ContentDisposition::from_raw(&a).expect("parse cd").get_filename().expect("filename").is_empty());
+        assert!(ContentDisposition::from_raw(&a)
+            .expect("parse cd")
+            .get_filename()
+            .expect("filename")
+            .is_empty());
     }
 
     #[test]

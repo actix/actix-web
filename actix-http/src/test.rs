@@ -1,4 +1,5 @@
 //! Test Various helpers for Actix applications to use during testing.
+use std::convert::TryFrom;
 use std::fmt::Write as FmtWrite;
 use std::io::{self, Read, Write};
 use std::pin::Pin;
@@ -6,10 +7,9 @@ use std::str::FromStr;
 use std::task::{Context, Poll};
 
 use actix_codec::{AsyncRead, AsyncWrite};
-use actix_server_config::IoStream;
 use bytes::{Bytes, BytesMut};
 use http::header::{self, HeaderName, HeaderValue};
-use http::{HttpTryFrom, Method, Uri, Version};
+use http::{Error as HttpError, Method, Uri, Version};
 use percent_encoding::percent_encode;
 
 use crate::cookie::{Cookie, CookieJar, USERINFO};
@@ -83,7 +83,8 @@ impl TestRequest {
     /// Create TestRequest and set header
     pub fn with_header<K, V>(key: K, value: V) -> TestRequest
     where
-        HeaderName: HttpTryFrom<K>,
+        HeaderName: TryFrom<K>,
+        <HeaderName as TryFrom<K>>::Error: Into<HttpError>,
         V: IntoHeaderValue,
     {
         TestRequest::default().header(key, value).take()
@@ -119,7 +120,8 @@ impl TestRequest {
     /// Set a header
     pub fn header<K, V>(&mut self, key: K, value: V) -> &mut Self
     where
-        HeaderName: HttpTryFrom<K>,
+        HeaderName: TryFrom<K>,
+        <HeaderName as TryFrom<K>>::Error: Into<HttpError>,
         V: IntoHeaderValue,
     {
         if let Ok(key) = HeaderName::try_from(key) {
@@ -270,19 +272,5 @@ impl AsyncWrite for TestBuffer {
 
     fn poll_shutdown(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<io::Result<()>> {
         Poll::Ready(Ok(()))
-    }
-}
-
-impl IoStream for TestBuffer {
-    fn set_nodelay(&mut self, _nodelay: bool) -> io::Result<()> {
-        Ok(())
-    }
-
-    fn set_linger(&mut self, _dur: Option<std::time::Duration>) -> io::Result<()> {
-        Ok(())
-    }
-
-    fn set_keepalive(&mut self, _dur: Option<std::time::Duration>) -> io::Result<()> {
-        Ok(())
     }
 }
