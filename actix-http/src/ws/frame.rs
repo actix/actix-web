@@ -180,11 +180,11 @@ impl Parser {
         } else if payload_len <= 65_535 {
             dst.reserve(p_len + 4 + if mask { 4 } else { 0 });
             dst.put_slice(&[one, two | 126]);
-            dst.put_u16_be(payload_len as u16);
+            dst.put_u16(payload_len as u16);
         } else {
             dst.reserve(p_len + 10 + if mask { 4 } else { 0 });
             dst.put_slice(&[one, two | 127]);
-            dst.put_u64_be(payload_len as u64);
+            dst.put_u64(payload_len as u64);
         };
 
         if mask {

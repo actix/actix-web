@@ -1,7 +1,7 @@
 //! `Middleware` to normalize request's URI
 use std::task::{Context, Poll};
 
-use actix_http::http::{HttpTryFrom, PathAndQuery, Uri};
+use actix_http::http::{PathAndQuery, Uri};
 use actix_service::{Service, Transform};
 use bytes::Bytes;
 use futures::future::{ok, Ready};
@@ -74,7 +74,6 @@ where
 
     fn call(&mut self, mut req: ServiceRequest) -> Self::Future {
         let head = req.head_mut();
-
         let path = head.uri.path();
         let original_len = path.len();
         let path = self.merge_slash.replace_all(path, "/");
@@ -86,9 +85,10 @@ where
             let path = if let Some(q) = pq.query() {
                 Bytes::from(format!("{}?{}", path, q))
             } else {
-                Bytes::from(path.as_ref())
+                Bytes::copy_from_slice(path.as_bytes())
             };
-            parts.path_and_query = Some(PathAndQuery::try_from(path).unwrap());
+            parts.path_and_query = Some(PathAndQuery::from_maybe_shared(path).unwrap());
+            drop(head);
 
             let uri = Uri::from_parts(parts).unwrap();
             req.match_info_mut().get_mut().update(&uri);

@@ -1,6 +1,5 @@
 use std::task::{Context, Poll};
 
-use actix_server_config::ServerConfig;
 use actix_service::{Service, ServiceFactory};
 use futures::future::{ok, Ready};
 
@@ -10,7 +9,7 @@ use crate::request::Request;
 pub struct ExpectHandler;
 
 impl ServiceFactory for ExpectHandler {
-    type Config = ServerConfig;
+    type Config = ();
     type Request = Request;
     type Response = Request;
     type Error = Error;
@@ -18,7 +17,7 @@ impl ServiceFactory for ExpectHandler {
     type InitError = Error;
     type Future = Ready<Result<Self::Service, Self::InitError>>;
 
-    fn new_service(&self, _: &ServerConfig) -> Self::Future {
+    fn new_service(&self, _: ()) -> Self::Future {
         ok(ExpectHandler)
     }
 }

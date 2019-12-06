@@ -51,7 +51,7 @@ pub mod http {
     // re-exports
     pub use http::header::{HeaderName, HeaderValue};
     pub use http::uri::PathAndQuery;
-    pub use http::{uri, Error, HttpTryFrom, Uri};
+    pub use http::{uri, Error, Uri};
     pub use http::{Method, StatusCode, Version};
 
     pub use crate::cookie::{Cookie, CookieBuilder};
@@ -63,4 +63,11 @@ pub mod http {
     }
     pub use crate::header::ContentEncoding;
     pub use crate::message::ConnectionType;
+}
+
+/// Http protocol
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub enum Protocol {
+    Http1,
+    Http2,
 }

@@ -1,6 +1,6 @@
 [package]
 name = "actix-web"
-version = "2.0.0-alpha.1"
+version = "2.0.0-alpha.3"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix web is a simple, pragmatic and extremely fast web framework for Rust."
 readme = "README.md"
@@ -63,35 +63,36 @@ secure-cookies = ["actix-http/secure-cookies"]
 fail = ["actix-http/fail"]
 
 # openssl
-openssl = ["open-ssl", "actix-server/openssl", "awc/openssl"]
+openssl = ["open-ssl", "actix-tls/openssl", "awc/openssl"]
 
 # rustls
-# rustls = ["rust-tls", "actix-server/rustls", "awc/rustls"]
+rustls = ["rust-tls", "actix-tls/rustls", "awc/rustls"]
 
 [dependencies]
-actix-codec = "0.2.0-alpha.1"
-actix-service = "1.0.0-alpha.1"
-actix-utils = "0.5.0-alpha.1"
-actix-router = "0.1.5"
-actix-rt = "1.0.0-alpha.1"
-actix-web-codegen = "0.2.0-alpha.1"
-actix-http = "0.3.0-alpha.1"
-actix-server = "0.8.0-alpha.1"
-actix-server-config = "0.3.0-alpha.1"
-actix-testing = "0.3.0-alpha.1"
-actix-threadpool = "0.2.0-alpha.1"
-awc = { version = "0.3.0-alpha.1", optional = true }
+actix-codec = "0.2.0-alpha.3"
+actix-service = "1.0.0-alpha.3"
+actix-utils = "1.0.0-alpha.3"
+actix-router = "0.2.0"
+actix-rt = "1.0.0-alpha.3"
+actix-server = "1.0.0-alpha.3"
+actix-testing = "1.0.0-alpha.3"
+actix-threadpool = "0.3.0"
+actix-tls = { version = "1.0.0-alpha.3" }
 
-bytes = "0.4"
+actix-web-codegen = "0.2.0-alpha.2"
+actix-http = "0.3.0-alpha.2"
+awc = { version = "0.3.0-alpha.2", optional = true }
+
+bytes = "0.5.2"
 derive_more = "0.99.2"
 encoding_rs = "0.8"
 futures = "0.3.1"
-hashbrown = "0.6.3"
+fxhash = "0.2.1"
 log = "0.4"
 mime = "0.3"
 net2 = "0.2.33"
 parking_lot = "0.9"
-pin-project = "0.4.5"
+pin-project = "0.4.6"
 regex = "1.0"
 serde = { version = "1.0", features=["derive"] }
 serde_json = "1.0"
@@ -101,12 +102,12 @@ url = "2.1"
 
 # ssl support
 open-ssl = { version="0.10", package="openssl", optional = true }
-# rust-tls = { version = "0.16", package="rustls", optional = true }
+rust-tls = { version = "0.16", package="rustls", optional = true }
 
 [dev-dependencies]
 # actix = "0.8.3"
-actix-connect = "0.3.0-alpha.1"
-actix-http-test = "0.3.0-alpha.1"
+actix-connect = "1.0.0-alpha.2"
+actix-http-test = "0.3.0-alpha.2"
 rand = "0.7"
 env_logger = "0.6"
 serde_derive = "1.0"
@@ -123,7 +124,6 @@ actix-web = { path = "." }
 actix-http = { path = "actix-http" }
 actix-http-test = { path = "test-server" }
 actix-web-codegen = { path = "actix-web-codegen" }
-# actix-web-actors = { path = "actix-web-actors" }
 actix-cors = { path = "actix-cors" }
 actix-identity = { path = "actix-identity" }
 actix-session = { path = "actix-session" }
@@ -134,9 +134,9 @@ awc = { path = "awc" }
 actix-codec = { git = "https://github.com/actix/actix-net.git" }
 actix-connect = { git = "https://github.com/actix/actix-net.git" }
 actix-rt = { git = "https://github.com/actix/actix-net.git" }
-actix-macros = { git = "https://github.com/actix/actix-net.git" }
 actix-server = { git = "https://github.com/actix/actix-net.git" }
-actix-server-config = { git = "https://github.com/actix/actix-net.git" }
 actix-service = { git = "https://github.com/actix/actix-net.git" }
 actix-testing = { git = "https://github.com/actix/actix-net.git" }
-actix-utils = {  git = "https://github.com/actix/actix-net.git" }
+actix-tls = { git = "https://github.com/actix/actix-net.git" }
+actix-utils = { git = "https://github.com/actix/actix-net.git" }
+actix-router = { git = "https://github.com/actix/actix-net.git" }

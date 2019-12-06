@@ -2,12 +2,10 @@ use std::collections::VecDeque;
 use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use std::time::Instant;
 use std::{fmt, io, net};
 
-use actix_codec::{AsyncRead, Decoder, Encoder, Framed, FramedParts};
-use actix_rt::time::{delay, Delay};
-use actix_server_config::IoStream;
+use actix_codec::{AsyncRead, AsyncWrite, Decoder, Encoder, Framed, FramedParts};
+use actix_rt::time::{delay_until, Delay, Instant};
 use actix_service::Service;
 use bitflags::bitflags;
 use bytes::{BufMut, BytesMut};
@@ -168,7 +166,7 @@ impl PartialEq for PollResponse {
 
 impl<T, S, B, X, U> Dispatcher<T, S, B, X, U>
 where
-    T: IoStream,
+    T: AsyncRead + AsyncWrite + Unpin,
     S: Service<Request = Request>,
     S::Error: Into<Error>,
     S::Response: Into<Response<B>>,
@@ -186,6 +184,7 @@ where
         expect: CloneableService<X>,
         upgrade: Option<CloneableService<U>>,
         on_connect: Option<Box<dyn DataFactory>>,
+        peer_addr: Option<net::SocketAddr>,
     ) -> Self {
         Dispatcher::with_timeout(
             stream,
@@ -197,6 +196,7 @@ where
             expect,
             upgrade,
             on_connect,
+            peer_addr,
         )
     }
 
@@ -211,6 +211,7 @@ where
         expect: CloneableService<X>,
         upgrade: Option<CloneableService<U>>,
         on_connect: Option<Box<dyn DataFactory>>,
+        peer_addr: Option<net::SocketAddr>,
     ) -> Self {
         let keepalive = config.keep_alive_enabled();
         let flags = if keepalive {
@@ -234,7 +235,6 @@ where
                 payload: None,
                 state: State::None,
                 error: None,
-                peer_addr: io.peer_addr(),
                 messages: VecDeque::new(),
                 io,
                 codec,
@@ -244,6 +244,7 @@ where
                 upgrade,
                 on_connect,
                 flags,
+                peer_addr,
                 ka_expire,
                 ka_timer,
             }),
@@ -253,7 +254,7 @@ where
 
 impl<T, S, B, X, U> InnerDispatcher<T, S, B, X, U>
 where
-    T: IoStream,
+    T: AsyncRead + AsyncWrite + Unpin,
     S: Service<Request = Request>,
     S::Error: Into<Error>,
     S::Response: Into<Response<B>>,
@@ -608,7 +609,7 @@ where
             // shutdown timeout
             if self.flags.contains(Flags::SHUTDOWN) {
                 if let Some(interval) = self.codec.config().client_disconnect_timer() {
-                    self.ka_timer = Some(delay(interval));
+                    self.ka_timer = Some(delay_until(interval));
                 } else {
                     self.flags.insert(Flags::READ_DISCONNECT);
                     if let Some(mut payload) = self.payload.take() {
@@ -682,7 +683,7 @@ where
 
 impl<T, S, B, X, U> Unpin for Dispatcher<T, S, B, X, U>
 where
-    T: IoStream,
+    T: AsyncRead + AsyncWrite + Unpin,
     S: Service<Request = Request>,
     S::Error: Into<Error>,
     S::Response: Into<Response<B>>,
@@ -696,7 +697,7 @@ where
 
 impl<T, S, B, X, U> Future for Dispatcher<T, S, B, X, U>
 where
-    T: IoStream,
+    T: AsyncRead + AsyncWrite + Unpin,
     S: Service<Request = Request>,
     S::Error: Into<Error>,
     S::Response: Into<Response<B>>,
@@ -905,6 +906,7 @@ mod tests {
                     (|_| ok::<_, Error>(Response::Ok().finish())).into_service(),
                 ),
                 CloneableService::new(ExpectHandler),
+                None,
                 None,
                 None,
             );

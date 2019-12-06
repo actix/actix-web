@@ -35,7 +35,7 @@ impl Stream for Payload {
         match Pin::new(&mut this.pl).poll_data(cx) {
             Poll::Ready(Some(Ok(chunk))) => {
                 let len = chunk.len();
-                if let Err(err) = this.pl.release_capacity().release_capacity(len) {
+                if let Err(err) = this.pl.flow_control().release_capacity(len) {
                     Poll::Ready(Some(Err(err.into())))
                 } else {
                     Poll::Ready(Some(Ok(chunk)))

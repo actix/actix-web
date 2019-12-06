@@ -1,12 +1,12 @@
 //! Various helpers for Actix applications to use during testing.
+use std::convert::TryFrom;
 use std::rc::Rc;
 
 use actix_http::http::header::{ContentType, Header, HeaderName, IntoHeaderValue};
-use actix_http::http::{HttpTryFrom, Method, StatusCode, Uri, Version};
+use actix_http::http::{Error as HttpError, Method, StatusCode, Uri, Version};
 use actix_http::test::TestRequest as HttpTestRequest;
 use actix_http::{cookie::Cookie, Extensions, Request};
 use actix_router::{Path, ResourceDef, Url};
-use actix_server_config::ServerConfig;
 use actix_service::{IntoService, IntoServiceFactory, Service, ServiceFactory};
 use bytes::{Bytes, BytesMut};
 use futures::future::ok;
@@ -71,16 +71,15 @@ pub async fn init_service<R, S, B, E>(
 where
     R: IntoServiceFactory<S>,
     S: ServiceFactory<
-        Config = ServerConfig,
+        Config = (),
         Request = Request,
         Response = ServiceResponse<B>,
         Error = E,
     >,
     S::InitError: std::fmt::Debug,
 {
-    let cfg = ServerConfig::new("127.0.0.1:8080".parse().unwrap());
     let srv = app.into_factory();
-    srv.new_service(&cfg).await.unwrap()
+    srv.new_service(()).await.unwrap()
 }
 
 /// Calls service and waits for response future completion.
@@ -321,7 +320,8 @@ impl TestRequest {
     /// Create TestRequest and set header
     pub fn with_header<K, V>(key: K, value: V) -> TestRequest
     where
-        HeaderName: HttpTryFrom<K>,
+        HeaderName: TryFrom<K>,
+        <HeaderName as TryFrom<K>>::Error: Into<HttpError>,
         V: IntoHeaderValue,
     {
         TestRequest::default().header(key, value)
@@ -379,7 +379,8 @@ impl TestRequest {
     /// Set a header
     pub fn header<K, V>(mut self, key: K, value: V) -> Self
     where
-        HeaderName: HttpTryFrom<K>,
+        HeaderName: TryFrom<K>,
+        <HeaderName as TryFrom<K>>::Error: Into<HttpError>,
         V: IntoHeaderValue,
     {
         self.req.header(key, value);
@@ -669,7 +670,7 @@ mod tests {
         async fn async_with_block() -> Result<HttpResponse, Error> {
             let res = web::block(move || Some(4usize).ok_or("wrong")).await;
 
-            match res? {
+            match res {
                 Ok(value) => Ok(HttpResponse::Ok()
                     .content_type("text/plain")
                     .body(format!("Async with block value: {}", value))),

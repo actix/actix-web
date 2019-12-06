@@ -3,7 +3,7 @@ use std::str::FromStr;
 
 use crate::error::ParseError;
 use crate::header::{
-    HeaderValue, IntoHeaderValue, InvalidHeaderValueBytes, Writer, CONTENT_RANGE,
+    HeaderValue, IntoHeaderValue, InvalidHeaderValue, Writer, CONTENT_RANGE,
 };
 
 header! {
@@ -198,11 +198,11 @@ impl Display for ContentRangeSpec {
 }
 
 impl IntoHeaderValue for ContentRangeSpec {
-    type Error = InvalidHeaderValueBytes;
+    type Error = InvalidHeaderValue;
 
     fn try_into(self) -> Result<HeaderValue, Self::Error> {
         let mut writer = Writer::new();
         let _ = write!(&mut writer, "{}", self);
-        HeaderValue::from_shared(writer.take())
+        HeaderValue::from_maybe_shared(writer.take())
     }
 }

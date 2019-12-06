@@ -2,7 +2,6 @@ use std::marker::PhantomData;
 use std::task::{Context, Poll};
 
 use actix_codec::Framed;
-use actix_server_config::ServerConfig;
 use actix_service::{Service, ServiceFactory};
 use futures::future::Ready;
 
@@ -13,7 +12,7 @@ use crate::request::Request;
 pub struct UpgradeHandler<T>(PhantomData<T>);
 
 impl<T> ServiceFactory for UpgradeHandler<T> {
-    type Config = ServerConfig;
+    type Config = ();
     type Request = (Request, Framed<T, Codec>);
     type Response = ();
     type Error = Error;
@@ -21,7 +20,7 @@ impl<T> ServiceFactory for UpgradeHandler<T> {
     type InitError = Error;
     type Future = Ready<Result<Self::Service, Self::InitError>>;
 
-    fn new_service(&self, _: &ServerConfig) -> Self::Future {
+    fn new_service(&self, _: ()) -> Self::Future {
         unimplemented!()
     }
 }

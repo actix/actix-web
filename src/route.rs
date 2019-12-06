@@ -69,9 +69,9 @@ impl ServiceFactory for Route {
     type Service = RouteService;
     type Future = CreateRouteService;
 
-    fn new_service(&self, _: &()) -> Self::Future {
+    fn new_service(&self, _: ()) -> Self::Future {
         CreateRouteService {
-            fut: self.service.new_service(&()),
+            fut: self.service.new_service(()),
             guards: self.guards.clone(),
         }
     }
@@ -280,9 +280,9 @@ where
     type Service = BoxedRouteService<ServiceRequest, Self::Response>;
     type Future = LocalBoxFuture<'static, Result<Self::Service, Self::InitError>>;
 
-    fn new_service(&self, _: &()) -> Self::Future {
+    fn new_service(&self, _: ()) -> Self::Future {
         self.service
-            .new_service(&())
+            .new_service(())
             .map(|result| match result {
                 Ok(service) => {
                     let service: BoxedRouteService<_, _> =

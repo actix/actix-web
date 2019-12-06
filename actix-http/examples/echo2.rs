@@ -25,7 +25,7 @@ fn main() -> io::Result<()> {
 
     Server::build()
         .bind("echo", "127.0.0.1:8080", || {
-            HttpService::build().finish(handle_request)
+            HttpService::build().finish(handle_request).tcp()
         })?
         .run()
 }

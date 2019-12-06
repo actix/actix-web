@@ -6,10 +6,10 @@ use actix_codec::{AsyncRead, AsyncWrite};
 use actix_connect::{
     default_connector, Connect as TcpConnect, Connection as TcpConnection,
 };
+use actix_rt::net::TcpStream;
 use actix_service::{apply_fn, Service};
 use actix_utils::timeout::{TimeoutError, TimeoutService};
 use http::Uri;
-use tokio_net::tcp::TcpStream;
 
 use super::connection::Connection;
 use super::error::ConnectError;
@@ -17,10 +17,10 @@ use super::pool::{ConnectionPool, Protocol};
 use super::Connect;
 
 #[cfg(feature = "openssl")]
-use open_ssl::ssl::SslConnector as OpensslConnector;
+use actix_connect::ssl::openssl::SslConnector as OpensslConnector;
 
 #[cfg(feature = "rustls")]
-use rust_tls::ClientConfig;
+use actix_connect::ssl::rustls::ClientConfig;
 #[cfg(feature = "rustls")]
 use std::sync::Arc;
 
@@ -74,7 +74,7 @@ impl Connector<(), ()> {
         let ssl = {
             #[cfg(feature = "openssl")]
             {
-                use open_ssl::ssl::SslMethod;
+                use actix_connect::ssl::openssl::SslMethod;
 
                 let mut ssl = OpensslConnector::builder(SslMethod::tls()).unwrap();
                 let _ = ssl
@@ -87,9 +87,9 @@ impl Connector<(), ()> {
                 let protos = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
                 let mut config = ClientConfig::new();
                 config.set_protocols(&protos);
-                config
-                    .root_store
-                    .add_server_trust_anchors(&webpki_roots::TLS_SERVER_ROOTS);
+                config.root_store.add_server_trust_anchors(
+                    &actix_connect::ssl::rustls::TLS_SERVER_ROOTS,
+                );
                 SslConnector::Rustls(Arc::new(config))
             }
             #[cfg(not(any(feature = "openssl", feature = "rustls")))]
@@ -242,12 +242,10 @@ where
         {
             const H2: &[u8] = b"h2";
             #[cfg(feature = "openssl")]
-            use actix_connect::ssl::OpensslConnector;
+            use actix_connect::ssl::openssl::OpensslConnector;
             #[cfg(feature = "rustls")]
-            use actix_connect::ssl::RustlsConnector;
+            use actix_connect::ssl::rustls::{RustlsConnector, Session};
             use actix_service::{boxed::service, pipeline};
-            #[cfg(feature = "rustls")]
-            use rust_tls::Session;
 
             let ssl_service = TimeoutService::new(
                 self.timeout,

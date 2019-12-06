@@ -78,6 +78,7 @@ async fn test_params() {
                 .service(put_param_test)
                 .service(delete_param_test),
         )
+        .tcp()
     });
 
     let request = srv.request(http::Method::GET, srv.url("/test/it"));
@@ -107,6 +108,7 @@ async fn test_body() {
                 .service(patch_test)
                 .service(test),
         )
+        .tcp()
     });
     let request = srv.request(http::Method::GET, srv.url("/test"));
     let response = request.send().await.unwrap();
@@ -149,7 +151,8 @@ async fn test_body() {
 
 #[actix_rt::test]
 async fn test_auto_async() {
-    let srv = TestServer::start(|| HttpService::new(App::new().service(auto_async)));
+    let srv =
+        TestServer::start(|| HttpService::new(App::new().service(auto_async)).tcp());
 
     let request = srv.request(http::Method::GET, srv.url("/test"));
     let response = request.send().await.unwrap();

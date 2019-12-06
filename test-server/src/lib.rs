@@ -3,14 +3,13 @@ use std::sync::mpsc;
 use std::{net, thread, time};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
-use actix_rt::System;
+use actix_rt::{net::TcpStream, System};
 use actix_server::{Server, ServiceFactory};
 use awc::{error::PayloadError, ws, Client, ClientRequest, ClientResponse, Connector};
 use bytes::Bytes;
 use futures::Stream;
 use http::Method;
 use net2::TcpBuilder;
-use tokio_net::tcp::TcpStream;
 
 pub use actix_testing::*;
 

@@ -43,6 +43,7 @@
 //! }
 //! ```
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::rc::Rc;
 
 use actix_web::dev::{
@@ -50,7 +51,6 @@ use actix_web::dev::{
 };
 use actix_web::{Error, FromRequest, HttpMessage, HttpRequest};
 use futures::future::{ok, Ready};
-use hashbrown::HashMap;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use serde_json;

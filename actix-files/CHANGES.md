@@ -1,5 +1,9 @@
 # Changes
 
+## [0.2.0-alpha.2] - 2019-12-03
+
+* Migrate to `std::future`
+
 ## [0.1.7] - 2019-11-06
 
 * Add an additional `filename*` param in the `Content-Disposition` header of `actix_files::NamedFile` to be more compatible. (#1151)

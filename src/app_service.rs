@@ -7,7 +7,6 @@ use std::task::{Context, Poll};
 
 use actix_http::{Extensions, Request, Response};
 use actix_router::{Path, ResourceDef, ResourceInfo, Router, Url};
-use actix_server_config::ServerConfig;
 use actix_service::boxed::{self, BoxService, BoxServiceFactory};
 use actix_service::{service_fn, Service, ServiceFactory};
 use futures::future::{ok, FutureExt, LocalBoxFuture};
@@ -59,7 +58,7 @@ where
         InitError = (),
     >,
 {
-    type Config = ServerConfig;
+    type Config = ();
     type Request = Request;
     type Response = ServiceResponse<B>;
     type Error = T::Error;
@@ -67,7 +66,7 @@ where
     type Service = AppInitService<T::Service, B>;
     type Future = AppInitResult<T, B>;
 
-    fn new_service(&self, cfg: &ServerConfig) -> Self::Future {
+    fn new_service(&self, _: ()) -> Self::Future {
         // update resource default service
         let default = self.default.clone().unwrap_or_else(|| {
             Rc::new(boxed::factory(service_fn(|req: ServiceRequest| {
@@ -76,13 +75,6 @@ where
         });
 
         // App config
-        {
-            let mut c = self.config.borrow_mut();
-            let loc_cfg = Rc::get_mut(&mut c.0).unwrap();
-            loc_cfg.secure = cfg.secure();
-            loc_cfg.addr = cfg.local_addr();
-        }
-
         let mut config = AppService::new(
             self.config.borrow().clone(),
             default.clone(),
@@ -123,7 +115,7 @@ where
 
         AppInitResult {
             endpoint: None,
-            endpoint_fut: self.endpoint.new_service(&()),
+            endpoint_fut: self.endpoint.new_service(()),
             data: self.data.clone(),
             data_factories: Vec::new(),
             data_factories_fut: self.data_factories.iter().map(|f| f()).collect(),
@@ -281,7 +273,7 @@ impl ServiceFactory for AppRoutingFactory {
     type Service = AppRouting;
     type Future = AppRoutingFactoryResponse;
 
-    fn new_service(&self, _: &()) -> Self::Future {
+    fn new_service(&self, _: ()) -> Self::Future {
         AppRoutingFactoryResponse {
             fut: self
                 .services
@@ -290,12 +282,12 @@ impl ServiceFactory for AppRoutingFactory {
                     CreateAppRoutingItem::Future(
                         Some(path.clone()),
                         guards.borrow_mut().take(),
-                        service.new_service(&()).boxed_local(),
+                        service.new_service(()).boxed_local(),
                     )
                 })
                 .collect(),
             default: None,
-            default_fut: Some(self.default.new_service(&())),
+            default_fut: Some(self.default.new_service(())),
         }
     }
 }
@@ -440,8 +432,8 @@ impl ServiceFactory for AppEntry {
     type Service = AppRouting;
     type Future = AppRoutingFactoryResponse;
 
-    fn new_service(&self, _: &()) -> Self::Future {
-        self.factory.borrow_mut().as_mut().unwrap().new_service(&())
+    fn new_service(&self, _: ()) -> Self::Future {
+        self.factory.borrow_mut().as_mut().unwrap().new_service(())
     }
 }
 

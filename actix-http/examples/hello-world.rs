@@ -21,6 +21,7 @@ fn main() -> io::Result<()> {
                     res.header("x-head", HeaderValue::from_static("dummy value!"));
                     future::ok::<_, ()>(res.body("Hello world!"))
                 })
+                .tcp()
         })?
         .run()
 }

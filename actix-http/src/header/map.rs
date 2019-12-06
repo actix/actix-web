@@ -1,8 +1,9 @@
+use std::collections::hash_map::{self, Entry};
+use std::convert::TryFrom;
+
 use either::Either;
-use hashbrown::hash_map::{self, Entry};
-use hashbrown::HashMap;
+use fxhash::FxHashMap;
 use http::header::{HeaderName, HeaderValue};
-use http::HttpTryFrom;
 
 /// A set of HTTP headers
 ///
@@ -11,7 +12,7 @@ use http::HttpTryFrom;
 /// [`HeaderName`]: struct.HeaderName.html
 #[derive(Debug, Clone)]
 pub struct HeaderMap {
-    pub(crate) inner: HashMap<HeaderName, Value>,
+    pub(crate) inner: FxHashMap<HeaderName, Value>,
 }
 
 #[derive(Debug, Clone)]
@@ -56,7 +57,7 @@ impl HeaderMap {
     /// allocate.
     pub fn new() -> Self {
         HeaderMap {
-            inner: HashMap::new(),
+            inner: FxHashMap::default(),
         }
     }
 
@@ -70,7 +71,7 @@ impl HeaderMap {
     /// More capacity than requested may be allocated.
     pub fn with_capacity(capacity: usize) -> HeaderMap {
         HeaderMap {
-            inner: HashMap::with_capacity(capacity),
+            inner: FxHashMap::with_capacity_and_hasher(capacity, Default::default()),
         }
     }
 

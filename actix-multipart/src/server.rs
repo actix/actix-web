@@ -1,5 +1,6 @@
 //! Multipart payload support
 use std::cell::{Cell, RefCell, RefMut};
+use std::convert::TryFrom;
 use std::marker::PhantomData;
 use std::pin::Pin;
 use std::rc::Rc;
@@ -16,7 +17,6 @@ use actix_web::error::{ParseError, PayloadError};
 use actix_web::http::header::{
     self, ContentDisposition, HeaderMap, HeaderName, HeaderValue,
 };
-use actix_web::http::HttpTryFrom;
 
 use crate::error::MultipartError;
 
@@ -582,7 +582,7 @@ impl InnerField {
                     }
                 }
             } else {
-                Poll::Ready(Some(Ok(payload.buf.take().freeze())))
+                Poll::Ready(Some(Ok(payload.buf.split().freeze())))
             };
         }
     }
@@ -792,7 +792,7 @@ impl PayloadBuffer {
     pub fn readline_or_eof(&mut self) -> Result<Option<Bytes>, MultipartError> {
         match self.readline() {
             Err(MultipartError::Incomplete) if self.eof => {
-                Ok(Some(self.buf.take().freeze()))
+                Ok(Some(self.buf.split().freeze()))
             }
             line => line,
         }
@@ -800,7 +800,7 @@ impl PayloadBuffer {
 
     /// Put unprocessed data back to the buffer
     pub fn unprocessed(&mut self, data: Bytes) {
-        let buf = BytesMut::from(data);
+        let buf = BytesMut::from(data.as_ref());
         let buf = std::mem::replace(&mut self.buf, buf);
         self.buf.extend_from_slice(&buf);
     }
@@ -893,8 +893,8 @@ mod tests {
     #[actix_rt::test]
     async fn test_multipart_no_end_crlf() {
         let (sender, payload) = create_stream();
-        let (bytes, headers) = create_simple_request_with_header();
-        let bytes_stripped = bytes.slice_to(bytes.len()); // strip crlf
+        let (mut bytes, headers) = create_simple_request_with_header();
+        let bytes_stripped = bytes.split_to(bytes.len()); // strip crlf
 
         sender.send(Ok(bytes_stripped)).unwrap();
         drop(sender); // eof
