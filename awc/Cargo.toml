@@ -21,19 +21,16 @@ name = "awc"
 path = "src/lib.rs"
 
 [package.metadata.docs.rs]
-features = ["openssl", "rustls", "brotli", "flate2-zlib"]
+features = ["openssl", "rustls", "flate2-zlib"]
 
 [features]
-default = ["brotli", "flate2-zlib"]
+default = ["flate2-zlib"]
 
 # openssl
 openssl = ["open-ssl", "actix-http/openssl"]
 
 # rustls
 rustls = ["rust-tls", "actix-http/rustls"]
-
-# brotli encoding, requires c compiler
-brotli = ["actix-http/brotli"]
 
 # miniz-sys backend for flate2 crate
 flate2-zlib = ["actix-http/flate2-zlib"]
@@ -69,7 +66,7 @@ actix-http-test = { version = "1.0.0-alpha.3", features=["openssl"] }
 actix-utils = "1.0.0-alpha.3"
 actix-server = { version = "1.0.0-alpha.3" }
 actix-tls = { version = "1.0.0-alpha.3", features=["openssl", "rustls"] }
-brotli2 = { version="0.3.2" }
+brotli = "3.3.0"
 flate2 = { version="1.0.2" }
 env_logger = "0.6"
 webpki = { version = "0.21" }

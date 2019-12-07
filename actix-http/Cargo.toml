@@ -16,7 +16,7 @@ edition = "2018"
 workspace = ".."
 
 [package.metadata.docs.rs]
-features = ["openssl", "rustls", "fail", "brotli", "flate2-zlib", "secure-cookies"]
+features = ["openssl", "rustls", "fail", "flate2-zlib", "secure-cookies"]
 
 [lib]
 name = "actix_http"
@@ -30,9 +30,6 @@ openssl = ["actix-tls/openssl", "actix-connect/openssl"]
 
 # rustls support
 rustls = ["actix-tls/rustls", "actix-connect/rustls"]
-
-# brotli encoding, requires c compiler
-brotli = ["brotli2"]
 
 # miniz-sys backend for flate2 crate
 flate2-zlib = ["flate2/miniz-sys"]
@@ -88,7 +85,7 @@ time = "0.1.42"
 ring = { version = "0.16.9", optional = true }
 
 # compression
-brotli2 = { version="0.3.2", optional = true }
+brotli = "3.3.0"
 flate2 = { version="1.0.7", optional = true, default-features = false }
 
 # optional deps

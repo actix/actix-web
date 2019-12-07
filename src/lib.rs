@@ -72,8 +72,6 @@
 //! * `rustls` - enables ssl support via `rustls` crate, supports `http/2`
 //! * `secure-cookies` - enables secure cookies support, includes `ring` crate as
 //!   dependency
-//! * `brotli` - enables `brotli` compression support, requires `c`
-//!   compiler (default enabled)
 //! * `flate2-zlib` - enables `gzip`, `deflate` compression support, requires
 //!   `c` compiler (default enabled)
 //! * `flate2-rust` - experimental rust based implementation for
