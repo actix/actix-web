@@ -1,6 +1,6 @@
 # Changes
 
-## [0.2.0-alpha.2] - 2019-12-03
+## [0.2.0-alpha.7] - 2019-12-07
 
 * Migrate to `std::future`
 

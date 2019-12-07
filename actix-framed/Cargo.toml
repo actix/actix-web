@@ -24,7 +24,7 @@ actix-codec = "0.2.0-alpha.3"
 actix-service = "1.0.0-alpha.3"
 actix-router = "0.2.0"
 actix-rt = "1.0.0-alpha.3"
-actix-http = "0.3.0-alpha.3"
+actix-http = "1.0.0-alpha.3"
 
 bytes = "0.5.2"
 futures = "0.3.1"
@@ -34,5 +34,5 @@ log = "0.4"
 [dev-dependencies]
 actix-server = { version = "1.0.0-alpha.3" }
 actix-connect = { version = "1.0.0-alpha.3", features=["openssl"] }
-actix-http-test = { version = "0.3.0-alpha.3", features=["openssl"] }
+actix-http-test = { version = "1.0.0-alpha.3", features=["openssl"] }
 actix-utils = "1.0.0-alpha.3"

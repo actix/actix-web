@@ -516,13 +516,12 @@ where
     /// This methods panics if no socket address can be bound or an `Actix` system is not yet
     /// configured.
     ///
-    /// ```rust
+    /// ```rust,no_run
     /// use std::io;
     /// use actix_web::{web, App, HttpResponse, HttpServer};
     ///
     /// #[actix_rt::main]
     /// async fn main() -> io::Result<()> {
-    /// #   actix_rt::System::current().stop();
     ///     HttpServer::new(|| App::new().service(web::resource("/").to(|| HttpResponse::Ok())))
     ///         .bind("127.0.0.1:0")?
     ///         .start()

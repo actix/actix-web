@@ -1,6 +1,6 @@
 [package]
 name = "actix-http"
-version = "0.3.0-alpha.3"
+version = "1.0.0-alpha.3"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix http primitives"
 readme = "README.md"
@@ -65,7 +65,7 @@ either = "1.5.2"
 encoding_rs = "0.8"
 futures = "0.3.1"
 fxhash = "0.2.1"
-h2 = "0.2.0"
+h2 = "0.2.1"
 http = "0.2.0"
 httparse = "1.3"
 indexmap = "1.2"
@@ -97,7 +97,7 @@ failure = { version = "0.1.5", optional = true }
 [dev-dependencies]
 actix-server = { version = "1.0.0-alpha.3" }
 actix-connect = { version = "1.0.0-alpha.3", features=["openssl"] }
-actix-http-test = { version = "0.3.0-alpha.3", features=["openssl"] }
+actix-http-test = { version = "1.0.0-alpha.3", features=["openssl"] }
 actix-tls = { version = "1.0.0-alpha.3", features=["openssl"] }
 env_logger = "0.6"
 serde_derive = "1.0"
