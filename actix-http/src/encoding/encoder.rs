@@ -212,7 +212,7 @@ impl ContentEncoder {
             ContentEncoder::Br(ref mut encoder) => {
                 let mut encoder_new = CompressorWriter::new(Writer::new(), 0, 3, 0);
                 std::mem::swap(encoder, &mut encoder_new);
-                encoder_new.into_inner().take()
+                encoder_new.into_inner().freeze()
             }
             #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
             ContentEncoder::Deflate(ref mut encoder) => encoder.get_mut().take(),
