@@ -1,6 +1,6 @@
 # Changes
 
-## [0.1.5] - 2019-xx-xx
+## [0.1.5] - 2019-12-07
 
 * Multipart handling now handles NotReady during read of boundary #1189
 
