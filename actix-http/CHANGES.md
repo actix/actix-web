@@ -4,6 +4,10 @@
 
 * Add impl ResponseBuilder for Error
 
+### Changed
+
+* Use rust based brotli compression library
+
 ## [1.0.0-alpha.3] - 2019-12-07
 
 ### Changed
