@@ -4,8 +4,7 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 
 use actix_threadpool::{run, CpuFuture};
-#[cfg(feature = "brotli")]
-use brotli2::DecompressorWriter;
+use brotli::DecompressorWriter;
 use bytes::Bytes;
 #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
 use flate2::write::{GzDecoder, ZlibDecoder};
@@ -32,7 +31,6 @@ where
     #[inline]
     pub fn new(stream: S, encoding: ContentEncoding) -> Decoder<S> {
         let decoder = match encoding {
-            #[cfg(feature = "brotli")]
             ContentEncoding::Br => Some(ContentDecoder::Br(Box::new(
                 DecompressorWriter::new(Writer::new(), 0),
             ))),
@@ -144,7 +142,6 @@ enum ContentDecoder {
     Deflate(Box<ZlibDecoder<Writer>>),
     #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
     Gzip(Box<GzDecoder<Writer>>),
-    #[cfg(feature = "brotli")]
     Br(Box<DecompressorWriter<Writer>>),
 }
 
@@ -152,7 +149,6 @@ impl ContentDecoder {
     #[allow(unreachable_patterns)]
     fn feed_eof(&mut self) -> io::Result<Option<Bytes>> {
         match self {
-            #[cfg(feature = "brotli")]
             ContentDecoder::Br(ref mut decoder) => match decoder.flush() {
                 Ok(()) => {
                     let b = decoder.get_mut().take();
@@ -195,7 +191,6 @@ impl ContentDecoder {
     #[allow(unreachable_patterns)]
     fn feed_data(&mut self, data: Bytes) -> io::Result<Option<Bytes>> {
         match self {
-            #[cfg(feature = "brotli")]
             ContentDecoder::Br(ref mut decoder) => match decoder.write_all(&data) {
                 Ok(_) => {
                     decoder.flush()?;

@@ -5,8 +5,7 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 
 use actix_threadpool::{run, CpuFuture};
-#[cfg(feature = "brotli")]
-use brotli2::CompressorWriter;
+use brotli::CompressorWriter;
 use bytes::Bytes;
 #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
 use flate2::write::{GzEncoder, ZlibEncoder};
@@ -177,7 +176,6 @@ enum ContentEncoder {
     Deflate(ZlibEncoder<Writer>),
     #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
     Gzip(GzEncoder<Writer>),
-    #[cfg(feature = "brotli")]
     Br(CompressorWriter<Writer>),
 }
 
@@ -194,7 +192,6 @@ impl ContentEncoder {
                 Writer::new(),
                 flate2::Compression::fast(),
             ))),
-            #[cfg(feature = "brotli")]
             ContentEncoding::Br => Some(ContentEncoder::Br(CompressorWriter::new(
                 Writer::new(),
                 0,
@@ -208,7 +205,6 @@ impl ContentEncoder {
     #[inline]
     pub(crate) fn take(&mut self) -> Bytes {
         match *self {
-            #[cfg(feature = "brotli")]
             ContentEncoder::Br(ref mut encoder) => {
                 let mut encoder_new = CompressorWriter::new(Writer::new(), 0, 3, 0);
                 std::mem::swap(encoder, &mut encoder_new);
@@ -223,7 +219,6 @@ impl ContentEncoder {
 
     fn finish(self) -> Result<Bytes, io::Error> {
         match self {
-            #[cfg(feature = "brotli")]
             ContentEncoder::Br(encoder) => Ok(encoder.into_inner().buf.freeze()),
             #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
             ContentEncoder::Gzip(encoder) => match encoder.finish() {
@@ -240,7 +235,6 @@ impl ContentEncoder {
 
     fn write(&mut self, data: &[u8]) -> Result<(), io::Error> {
         match *self {
-            #[cfg(feature = "brotli")]
             ContentEncoder::Br(ref mut encoder) => match encoder.write_all(data) {
                 Ok(_) => Ok(()),
                 Err(err) => {

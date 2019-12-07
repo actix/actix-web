@@ -4,7 +4,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
-use brotli2::write::BrotliEncoder;
+use brotli::write::BrotliEncoder;
 use bytes::Bytes;
 use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
@@ -568,7 +568,6 @@ async fn test_client_brotli_encoding() {
 //     assert_eq!(bytes, Bytes::from(data));
 // }
 
-// #[cfg(feature = "brotli")]
 // #[actix_rt::test]
 // async fn test_client_deflate_encoding() {
 //     let srv = test::TestServer::start(|app| {

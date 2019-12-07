@@ -6,7 +6,7 @@ use actix_http::http::header::{
 };
 use actix_http::{Error, HttpService, Response};
 use actix_http_test::TestServer;
-use brotli2::write::{BrotliDecoder, BrotliEncoder};
+use brotli::write::{BrotliDecoder, BrotliEncoder};
 use bytes::Bytes;
 use flate2::read::GzDecoder;
 use flate2::write::{GzEncoder, ZlibDecoder, ZlibEncoder};
@@ -296,7 +296,6 @@ async fn test_body_chunked_implicit() {
 }
 
 #[actix_rt::test]
-#[cfg(feature = "brotli")]
 async fn test_body_br_streaming() {
     let srv = TestServer::start(move || {
         HttpService::build()
@@ -411,7 +410,6 @@ async fn test_body_deflate() {
 }
 
 #[actix_rt::test]
-#[cfg(any(feature = "brotli"))]
 async fn test_body_brotli() {
     let srv = TestServer::start(move || {
         HttpService::build()
@@ -717,7 +715,7 @@ async fn test_brotli_encoding_large() {
     assert_eq!(bytes, Bytes::from(data));
 }
 
-// #[cfg(all(feature = "brotli", feature = "ssl"))]
+// #[cfg(feature = "ssl")]
 // #[actix_rt::test]
 // async fn test_brotli_encoding_large_ssl() {
 //     use actix::{Actor, System};
