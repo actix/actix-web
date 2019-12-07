@@ -1,5 +1,10 @@
 # Changes
 
+## [1.0.0-alpha.3]
+
+* Migrate to `std::future`
+
+
 ## [0.2.8] - 2019-11-06
 
 * Add support for setting query from Serialize type for client request.

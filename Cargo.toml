@@ -80,8 +80,8 @@ actix-threadpool = "0.3.0"
 actix-tls = { version = "1.0.0-alpha.3" }
 
 actix-web-codegen = "0.2.0-alpha.2"
-actix-http = "0.3.0-alpha.2"
-awc = { version = "0.3.0-alpha.2", optional = true }
+actix-http = "1.0.0-alpha.3"
+awc = { version = "1.0.0-alpha.3", optional = true }
 
 bytes = "0.5.2"
 derive_more = "0.99.2"
@@ -107,7 +107,7 @@ rust-tls = { version = "0.16", package="rustls", optional = true }
 [dev-dependencies]
 # actix = "0.8.3"
 actix-connect = "1.0.0-alpha.3"
-actix-http-test = "0.3.0-alpha.2"
+actix-http-test = "1.0.0-alpha.3"
 rand = "0.7"
 env_logger = "0.6"
 serde_derive = "1.0"
