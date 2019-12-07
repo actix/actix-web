@@ -32,7 +32,7 @@ openssl = ["open-ssl", "actix-http/openssl"]
 # rustls
 rustls = ["rust-tls", "actix-http/rustls"]
 
-# brotli encoding, requires c compiler
+# brotli encoding
 brotli = ["actix-http/brotli"]
 
 # miniz-sys backend for flate2 crate
@@ -69,7 +69,7 @@ actix-http-test = { version = "1.0.0-alpha.3", features=["openssl"] }
 actix-utils = "1.0.0-alpha.3"
 actix-server = { version = "1.0.0-alpha.3" }
 actix-tls = { version = "1.0.0-alpha.3", features=["openssl", "rustls"] }
-brotli2 = { version="0.3.2" }
+brotli2 = { package = "brotli", version="3.3.0" }
 flate2 = { version="1.0.2" }
 env_logger = "0.6"
 webpki = { version = "0.21" }
