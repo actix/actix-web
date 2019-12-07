@@ -6,9 +6,6 @@
 
 * Migrate to tokio 0.2
 
-### Fixed
-
-* Allow comma-separated websocket subprotocols without spaces (#1172)
 
 ## [2.0.0-alpha.1] - 2019-11-22
 
