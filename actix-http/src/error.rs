@@ -22,7 +22,7 @@ use serde_urlencoded::ser::Error as FormError;
 use crate::body::Body;
 pub use crate::cookie::ParseError as CookieParseError;
 use crate::helpers::Writer;
-use crate::response::Response;
+use crate::response::{Response, ResponseBuilder};
 
 /// A specialized [`Result`](https://doc.rust-lang.org/std/result/enum.Result.html)
 /// for actix web operations
@@ -154,6 +154,20 @@ impl<T: ResponseError + 'static> From<T> for Error {
         Error {
             cause: Box::new(err),
         }
+    }
+}
+
+/// Convert Response to a Error
+impl From<Response> for Error {
+    fn from(res: Response) -> Error {
+        InternalError::from_response("", res).into()
+    }
+}
+
+/// Convert ResponseBuilder to a Error
+impl From<ResponseBuilder> for Error {
+    fn from(mut res: ResponseBuilder) -> Error {
+        InternalError::from_response("", res.finish()).into()
     }
 }
 
@@ -552,13 +566,6 @@ where
                 }
             }
         }
-    }
-}
-
-/// Convert Response to a Error
-impl From<Response> for Error {
-    fn from(res: Response) -> Error {
-        InternalError::from_response("", res).into()
     }
 }
 

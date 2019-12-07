@@ -87,9 +87,9 @@ impl Connector<(), ()> {
                 let protos = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
                 let mut config = ClientConfig::new();
                 config.set_protocols(&protos);
-                config.root_store.add_server_trust_anchors(
-                    &actix_tls::rustls::TLS_SERVER_ROOTS,
-                );
+                config
+                    .root_store
+                    .add_server_trust_anchors(&actix_tls::rustls::TLS_SERVER_ROOTS);
                 SslConnector::Rustls(Arc::new(config))
             }
             #[cfg(not(any(feature = "openssl", feature = "rustls")))]

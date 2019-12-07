@@ -1,5 +1,9 @@
 # Changes
 
+### Added
+
+* Add impl ResponseBuilder for Error
+
 ## [1.0.0-alpha.3] - 2019-12-07
 
 ### Changed
