@@ -531,32 +531,6 @@ where
     pub fn start(self) -> Server {
         self.builder.start()
     }
-
-    /// Spawn new thread and start listening for incoming connections.
-    ///
-    /// This method spawns new thread and starts new actix system. Other than
-    /// that it is similar to `start()` method. This method blocks.
-    ///
-    /// This methods panics if no socket addresses get bound.
-    ///
-    /// ```rust
-    /// use std::io;
-    /// use actix_web::{web, App, HttpResponse, HttpServer};
-    ///
-    /// fn main() -> io::Result<()> {
-    /// # std::thread::spawn(|| {
-    ///     HttpServer::new(|| App::new().service(web::resource("/").to(|| HttpResponse::Ok())))
-    ///         .bind("127.0.0.1:0")?
-    ///         .run()
-    /// # });
-    /// # Ok(())
-    /// }
-    /// ```
-    pub fn run(self) -> io::Result<()> {
-        let sys = System::new("http-server");
-        self.start();
-        sys.run()
-    }
 }
 
 fn create_tcp_listener(

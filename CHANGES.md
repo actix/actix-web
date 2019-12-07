@@ -1,5 +1,9 @@
 # Changes
 
+### Deleted
+
+* Delete HttpServer::run(), it is not useful witht async/await
+
 ## [2.0.0-alpha.3] - 2019-12-07
 
 ### Changed
