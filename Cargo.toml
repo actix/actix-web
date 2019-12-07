@@ -49,13 +49,13 @@ default = ["brotli", "flate2-zlib", "client", "fail"]
 client = ["awc"]
 
 # brotli encoding, requires c compiler
-brotli = ["actix-http/brotli"]
+brotli = ["actix-http/brotli", "awc/brotli"]
 
 # miniz-sys backend for flate2 crate
-flate2-zlib = ["actix-http/flate2-zlib"]
+flate2-zlib = ["actix-http/flate2-zlib", "awc/flate2-zlib"]
 
 # rust backend for flate2 crate
-flate2-rust = ["actix-http/flate2-rust"]
+flate2-rust = ["actix-http/flate2-rust", "awc/flate2-rust"]
 
 # sessions feature, session require "ring" crate and c compiler
 secure-cookies = ["actix-http/secure-cookies"]
@@ -81,7 +81,7 @@ actix-tls = { version = "1.0.0-alpha.3" }
 
 actix-web-codegen = "0.2.0-alpha.2"
 actix-http = "1.0.0-alpha.3"
-awc = { version = "1.0.0-alpha.3", optional = true }
+awc = { version = "1.0.0-alpha.3", default-features = false, optional = true }
 
 bytes = "0.5.2"
 derive_more = "0.99.2"
