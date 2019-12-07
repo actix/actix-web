@@ -307,7 +307,7 @@ impl CookieJar {
     /// // Delta contains two new cookies ("new", "yac") and a removal ("name").
     /// assert_eq!(jar.delta().count(), 3);
     /// ```
-    pub fn delta(&self) -> Delta {
+    pub fn delta(&self) -> Delta<'_> {
         Delta {
             iter: self.delta_cookies.iter(),
         }
@@ -343,7 +343,7 @@ impl CookieJar {
     ///     }
     /// }
     /// ```
-    pub fn iter(&self) -> Iter {
+    pub fn iter(&self) -> Iter<'_> {
         Iter {
             delta_cookies: self
                 .delta_cookies
@@ -386,7 +386,7 @@ impl CookieJar {
     /// assert!(jar.get("private").is_some());
     /// ```
     #[cfg(feature = "secure-cookies")]
-    pub fn private(&mut self, key: &Key) -> PrivateJar {
+    pub fn private(&mut self, key: &Key) -> PrivateJar<'_> {
         PrivateJar::new(self, key)
     }
 
@@ -424,7 +424,7 @@ impl CookieJar {
     /// assert!(jar.get("signed").is_some());
     /// ```
     #[cfg(feature = "secure-cookies")]
-    pub fn signed(&mut self, key: &Key) -> SignedJar {
+    pub fn signed(&mut self, key: &Key) -> SignedJar<'_> {
         SignedJar::new(self, key)
     }
 }

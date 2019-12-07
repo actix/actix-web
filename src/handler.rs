@@ -85,7 +85,7 @@ where
     type Error = Infallible;
     type Future = HandlerServiceResponse<R, O>;
 
-    fn poll_ready(&mut self, _: &mut Context) -> Poll<Result<(), Self::Error>> {
+    fn poll_ready(&mut self, _: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         Poll::Ready(Ok(()))
     }
 
@@ -119,7 +119,7 @@ where
 {
     type Output = Result<ServiceResponse, Infallible>;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.as_mut().project();
 
         if let Some(fut) = this.fut2.as_pin_mut() {
@@ -203,7 +203,7 @@ where
     type Error = (Error, ServiceRequest);
     type Future = ExtractResponse<T, S>;
 
-    fn poll_ready(&mut self, _: &mut Context) -> Poll<Result<(), Self::Error>> {
+    fn poll_ready(&mut self, _: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         Poll::Ready(Ok(()))
     }
 
@@ -240,7 +240,7 @@ where
 {
     type Output = Result<ServiceResponse, (Error, ServiceRequest)>;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.as_mut().project();
 
         if let Some(fut) = this.fut_s.as_pin_mut() {

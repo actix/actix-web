@@ -5,7 +5,6 @@ use std::{fmt, io, net};
 use actix_http::{
     body::MessageBody, Error, HttpService, KeepAlive, Protocol, Request, Response,
 };
-use actix_rt::System;
 use actix_server::{Server, ServerBuilder};
 use actix_service::{pipeline_factory, IntoServiceFactory, Service, ServiceFactory};
 use futures::future::ok;

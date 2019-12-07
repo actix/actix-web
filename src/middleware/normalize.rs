@@ -68,7 +68,7 @@ where
     type Error = Error;
     type Future = S::Future;
 
-    fn poll_ready(&mut self, cx: &mut Context) -> Poll<Result<(), Self::Error>> {
+    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         self.service.poll_ready(cx)
     }
 
@@ -88,7 +88,6 @@ where
                 Bytes::copy_from_slice(path.as_bytes())
             };
             parts.path_and_query = Some(PathAndQuery::from_maybe_shared(path).unwrap());
-            drop(head);
 
             let uri = Uri::from_parts(parts).unwrap();
             req.match_info_mut().get_mut().update(&uri);

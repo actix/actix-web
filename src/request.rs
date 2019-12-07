@@ -125,13 +125,13 @@ impl HttpRequest {
 
     /// Request extensions
     #[inline]
-    pub fn extensions(&self) -> Ref<Extensions> {
+    pub fn extensions(&self) -> Ref<'_, Extensions> {
         self.head().extensions()
     }
 
     /// Mutable reference to a the request's extensions
     #[inline]
-    pub fn extensions_mut(&self) -> RefMut<Extensions> {
+    pub fn extensions_mut(&self) -> RefMut<'_, Extensions> {
         self.head().extensions_mut()
     }
 
@@ -197,7 +197,7 @@ impl HttpRequest {
     /// This method panics if request's extensions container is already
     /// borrowed.
     #[inline]
-    pub fn connection_info(&self) -> Ref<ConnectionInfo> {
+    pub fn connection_info(&self) -> Ref<'_, ConnectionInfo> {
         ConnectionInfo::get(self.head(), &*self.app_config())
     }
 
@@ -239,13 +239,13 @@ impl HttpMessage for HttpRequest {
 
     /// Request extensions
     #[inline]
-    fn extensions(&self) -> Ref<Extensions> {
+    fn extensions(&self) -> Ref<'_, Extensions> {
         self.0.head.extensions()
     }
 
     /// Mutable reference to a the request's extensions
     #[inline]
-    fn extensions_mut(&self) -> RefMut<Extensions> {
+    fn extensions_mut(&self) -> RefMut<'_, Extensions> {
         self.0.head.extensions_mut()
     }
 
@@ -299,7 +299,7 @@ impl FromRequest for HttpRequest {
 }
 
 impl fmt::Debug for HttpRequest {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(
             f,
             "\nHttpRequest {:?} {}:{}",

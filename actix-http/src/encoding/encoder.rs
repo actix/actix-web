@@ -95,7 +95,7 @@ impl<B: MessageBody> MessageBody for Encoder<B> {
         }
     }
 
-    fn poll_next(&mut self, cx: &mut Context) -> Poll<Option<Result<Bytes, Error>>> {
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes, Error>>> {
         loop {
             if self.eof {
                 return Poll::Ready(None);
@@ -176,7 +176,7 @@ enum ContentEncoder {
     Deflate(ZlibEncoder<Writer>),
     #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
     Gzip(GzEncoder<Writer>),
-    Br(CompressorWriter<Writer>),
+    Br(Box<CompressorWriter<Writer>>),
 }
 
 impl ContentEncoder {
@@ -192,11 +192,8 @@ impl ContentEncoder {
                 Writer::new(),
                 flate2::Compression::fast(),
             ))),
-            ContentEncoding::Br => Some(ContentEncoder::Br(CompressorWriter::new(
-                Writer::new(),
-                0,
-                3,
-                0,
+            ContentEncoding::Br => Some(ContentEncoder::Br(Box::new(
+                CompressorWriter::new(Writer::new(), 0, 3, 0),
             ))),
             _ => None,
         }
@@ -206,7 +203,8 @@ impl ContentEncoder {
     pub(crate) fn take(&mut self) -> Bytes {
         match *self {
             ContentEncoder::Br(ref mut encoder) => {
-                let mut encoder_new = CompressorWriter::new(Writer::new(), 0, 3, 0);
+                let mut encoder_new =
+                    Box::new(CompressorWriter::new(Writer::new(), 0, 3, 0));
                 std::mem::swap(encoder, &mut encoder_new);
                 encoder_new.into_inner().freeze()
             }

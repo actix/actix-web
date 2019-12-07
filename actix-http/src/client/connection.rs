@@ -63,7 +63,7 @@ impl<T> fmt::Debug for IoConnection<T>
 where
     T: fmt::Debug,
 {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.io {
             Some(ConnectionType::H1(ref io)) => write!(f, "H1Connection({:?})", io),
             Some(ConnectionType::H2(_)) => write!(f, "H2Connection"),
@@ -247,7 +247,7 @@ where
     #[project]
     fn poll_write(
         self: Pin<&mut Self>,
-        cx: &mut Context,
+        cx: &mut Context<'_>,
         buf: &[u8],
     ) -> Poll<io::Result<usize>> {
         #[project]

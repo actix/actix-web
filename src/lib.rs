@@ -1,4 +1,5 @@
-#![allow(clippy::borrow_interior_mutable_const)]
+#![deny(rust_2018_idioms, warnings)]
+#![allow(clippy::type_complexity, clippy::borrow_interior_mutable_const)]
 //! Actix web is a small, pragmatic, and extremely fast web framework
 //! for Rust.
 //!

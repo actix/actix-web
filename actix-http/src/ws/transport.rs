@@ -45,7 +45,7 @@ where
 {
     type Output = Result<(), FramedTransportError<S::Error, Codec>>;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         Pin::new(&mut self.inner).poll(cx)
     }
 }

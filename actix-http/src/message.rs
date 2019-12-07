@@ -78,13 +78,13 @@ impl Head for RequestHead {
 impl RequestHead {
     /// Message extensions
     #[inline]
-    pub fn extensions(&self) -> Ref<Extensions> {
+    pub fn extensions(&self) -> Ref<'_, Extensions> {
         self.extensions.borrow()
     }
 
     /// Mutable reference to a the message's extensions
     #[inline]
-    pub fn extensions_mut(&self) -> RefMut<Extensions> {
+    pub fn extensions_mut(&self) -> RefMut<'_, Extensions> {
         self.extensions.borrow_mut()
     }
 
@@ -237,13 +237,13 @@ impl ResponseHead {
 
     /// Message extensions
     #[inline]
-    pub fn extensions(&self) -> Ref<Extensions> {
+    pub fn extensions(&self) -> Ref<'_, Extensions> {
         self.extensions.borrow()
     }
 
     /// Mutable reference to a the message's extensions
     #[inline]
-    pub fn extensions_mut(&self) -> RefMut<Extensions> {
+    pub fn extensions_mut(&self) -> RefMut<'_, Extensions> {
         self.extensions.borrow_mut()
     }
 

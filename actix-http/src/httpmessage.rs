@@ -25,10 +25,10 @@ pub trait HttpMessage: Sized {
     fn take_payload(&mut self) -> Payload<Self::Stream>;
 
     /// Request's extensions container
-    fn extensions(&self) -> Ref<Extensions>;
+    fn extensions(&self) -> Ref<'_, Extensions>;
 
     /// Mutable reference to a the request's extensions container
-    fn extensions_mut(&self) -> RefMut<Extensions>;
+    fn extensions_mut(&self) -> RefMut<'_, Extensions>;
 
     #[doc(hidden)]
     /// Get a header
@@ -105,7 +105,7 @@ pub trait HttpMessage: Sized {
 
     /// Load request cookies.
     #[inline]
-    fn cookies(&self) -> Result<Ref<Vec<Cookie<'static>>>, CookieParseError> {
+    fn cookies(&self) -> Result<Ref<'_, Vec<Cookie<'static>>>, CookieParseError> {
         if self.extensions().get::<Cookies>().is_none() {
             let mut cookies = Vec::new();
             for hdr in self.headers().get_all(header::COOKIE) {
@@ -153,12 +153,12 @@ where
     }
 
     /// Request's extensions container
-    fn extensions(&self) -> Ref<Extensions> {
+    fn extensions(&self) -> Ref<'_, Extensions> {
         (**self).extensions()
     }
 
     /// Mutable reference to a the request's extensions container
-    fn extensions_mut(&self) -> RefMut<Extensions> {
+    fn extensions_mut(&self) -> RefMut<'_, Extensions> {
         (**self).extensions_mut()
     }
 }

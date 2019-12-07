@@ -486,7 +486,7 @@ impl Header for ContentDisposition {
 }
 
 impl fmt::Display for DispositionType {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             DispositionType::Inline => write!(f, "inline"),
             DispositionType::Attachment => write!(f, "attachment"),
@@ -497,7 +497,7 @@ impl fmt::Display for DispositionType {
 }
 
 impl fmt::Display for DispositionParam {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // All ASCII control characters (0-30, 127) including horizontal tab, double quote, and
         // backslash should be escaped in quoted-string (i.e. "foobar").
         // Ref: RFC6266 S4.1 -> RFC2616 S3.6
@@ -555,7 +555,7 @@ impl fmt::Display for DispositionParam {
 }
 
 impl fmt::Display for ContentDisposition {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.disposition)?;
         self.parameters
             .iter()

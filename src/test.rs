@@ -388,7 +388,7 @@ impl TestRequest {
     }
 
     /// Set cookie for this request
-    pub fn cookie(mut self, cookie: Cookie) -> Self {
+    pub fn cookie(mut self, cookie: Cookie<'_>) -> Self {
         self.req.cookie(cookie);
         self
     }

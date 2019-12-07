@@ -62,7 +62,7 @@ trait Io: AsyncRead + AsyncWrite + Unpin {}
 impl<T: AsyncRead + AsyncWrite + Unpin> Io for T {}
 
 impl Connector<(), ()> {
-    #[allow(clippy::new_ret_no_self)]
+    #[allow(clippy::new_ret_no_self, clippy::let_unit_value)]
     pub fn new() -> Connector<
         impl Service<
                 Request = TcpConnect<Uri>,
@@ -378,7 +378,7 @@ mod connect_impl {
             Ready<Result<IoConnection<Io>, ConnectError>>,
         >;
 
-        fn poll_ready(&mut self, cx: &mut Context) -> Poll<Result<(), Self::Error>> {
+        fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
             self.tcp_pool.poll_ready(cx)
         }
 
@@ -451,7 +451,7 @@ mod connect_impl {
             InnerConnectorResponseB<T2, Io1, Io2>,
         >;
 
-        fn poll_ready(&mut self, cx: &mut Context) -> Poll<Result<(), Self::Error>> {
+        fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
             self.tcp_pool.poll_ready(cx)
         }
 
@@ -490,10 +490,10 @@ mod connect_impl {
     {
         type Output = Result<EitherConnection<Io1, Io2>, ConnectError>;
 
-        fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+        fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
             Poll::Ready(
                 ready!(Pin::new(&mut self.get_mut().fut).poll(cx))
-                    .map(|res| EitherConnection::A(res)),
+                    .map(EitherConnection::A),
             )
         }
     }
@@ -519,10 +519,10 @@ mod connect_impl {
     {
         type Output = Result<EitherConnection<Io1, Io2>, ConnectError>;
 
-        fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+        fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
             Poll::Ready(
                 ready!(Pin::new(&mut self.get_mut().fut).poll(cx))
-                    .map(|res| EitherConnection::B(res)),
+                    .map(EitherConnection::B),
             )
         }
     }

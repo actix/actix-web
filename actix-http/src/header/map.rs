@@ -143,7 +143,7 @@ impl HeaderMap {
     /// Returns `None` if there are no values associated with the key.
     ///
     /// [`GetAll`]: struct.GetAll.html
-    pub fn get_all<N: AsName>(&self, name: N) -> GetAll {
+    pub fn get_all<N: AsName>(&self, name: N) -> GetAll<'_> {
         GetAll {
             idx: 0,
             item: self.get2(name),
@@ -187,7 +187,7 @@ impl HeaderMap {
     /// The iteration order is arbitrary, but consistent across platforms for
     /// the same crate version. Each key will be yielded once per associated
     /// value. So, if a key has 3 associated values, it will be yielded 3 times.
-    pub fn iter(&self) -> Iter {
+    pub fn iter(&self) -> Iter<'_> {
         Iter::new(self.inner.iter())
     }
 
@@ -196,7 +196,7 @@ impl HeaderMap {
     /// The iteration order is arbitrary, but consistent across platforms for
     /// the same crate version. Each key will be yielded only once even if it
     /// has multiple associated values.
-    pub fn keys(&self) -> Keys {
+    pub fn keys(&self) -> Keys<'_> {
         Keys(self.inner.keys())
     }
 

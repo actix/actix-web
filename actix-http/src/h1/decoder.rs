@@ -185,6 +185,7 @@ impl MessageType for Request {
         &mut self.head_mut().headers
     }
 
+    #[allow(clippy::uninit_assumed_init)]
     fn decode(src: &mut BytesMut) -> Result<Option<(Self, PayloadType)>, ParseError> {
         // Unsafe: we read only this data only after httparse parses headers into.
         // performance bump for pipeline benchmarks.
@@ -192,7 +193,7 @@ impl MessageType for Request {
             unsafe { MaybeUninit::uninit().assume_init() };
 
         let (len, method, uri, ver, h_len) = {
-            let mut parsed: [httparse::Header; MAX_HEADERS] =
+            let mut parsed: [httparse::Header<'_>; MAX_HEADERS] =
                 unsafe { MaybeUninit::uninit().assume_init() };
 
             let mut req = httparse::Request::new(&mut parsed);
@@ -260,6 +261,7 @@ impl MessageType for ResponseHead {
         &mut self.headers
     }
 
+    #[allow(clippy::uninit_assumed_init)]
     fn decode(src: &mut BytesMut) -> Result<Option<(Self, PayloadType)>, ParseError> {
         // Unsafe: we read only this data only after httparse parses headers into.
         // performance bump for pipeline benchmarks.
@@ -267,7 +269,7 @@ impl MessageType for ResponseHead {
             unsafe { MaybeUninit::uninit().assume_init() };
 
         let (len, ver, status, h_len) = {
-            let mut parsed: [httparse::Header; MAX_HEADERS] =
+            let mut parsed: [httparse::Header<'_>; MAX_HEADERS] =
                 unsafe { MaybeUninit::uninit().assume_init() };
 
             let mut res = httparse::Response::new(&mut parsed);
@@ -326,7 +328,7 @@ pub(crate) struct HeaderIndex {
 impl HeaderIndex {
     pub(crate) fn record(
         bytes: &[u8],
-        headers: &[httparse::Header],
+        headers: &[httparse::Header<'_>],
         indices: &mut [HeaderIndex],
     ) {
         let bytes_ptr = bytes.as_ptr() as usize;

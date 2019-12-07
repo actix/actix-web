@@ -49,7 +49,7 @@ impl Default for Codec {
 }
 
 impl fmt::Debug for Codec {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "h1::Codec({:?})", self.flags)
     }
 }

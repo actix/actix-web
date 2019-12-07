@@ -87,7 +87,7 @@ impl Header for IfRange {
 }
 
 impl Display for IfRange {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             IfRange::EntityTag(ref x) => Display::fmt(x, f),
             IfRange::Date(ref x) => Display::fmt(x, f),

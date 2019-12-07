@@ -106,7 +106,7 @@ where
     type Error = Error;
     type Future = CompressResponse<S, B>;
 
-    fn poll_ready(&mut self, cx: &mut Context) -> Poll<Result<(), Self::Error>> {
+    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         self.service.poll_ready(cx)
     }
 
@@ -150,7 +150,7 @@ where
 {
     type Output = Result<ServiceResponse<Encoder<B>>, Error>;
 
-    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.project();
 
         match futures::ready!(this.fut.poll(cx)) {

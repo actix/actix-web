@@ -10,7 +10,7 @@ use crate::cookie::{Cookie, CookieJar};
 
 // Keep these in sync, and keep the key len synced with the `private` docs as
 // well as the `KEYS_INFO` const in secure::Key.
-static ALGO: &'static Algorithm = &AES_256_GCM;
+static ALGO: &Algorithm = &AES_256_GCM;
 const NONCE_LEN: usize = 12;
 pub const KEY_LEN: usize = 32;
 
@@ -159,7 +159,7 @@ Please change it as soon as possible."
 
     /// Encrypts the cookie's value with
     /// authenticated encryption assuring confidentiality, integrity, and authenticity.
-    fn encrypt_cookie(&self, cookie: &mut Cookie) {
+    fn encrypt_cookie(&self, cookie: &mut Cookie<'_>) {
         let name = cookie.name().as_bytes();
         let value = cookie.value().as_bytes();
         let data = encrypt_name_value(name, value, &self.key);
