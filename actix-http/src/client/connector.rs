@@ -88,7 +88,7 @@ impl Connector<(), ()> {
                 let mut config = ClientConfig::new();
                 config.set_protocols(&protos);
                 config.root_store.add_server_trust_anchors(
-                    &actix_connect::ssl::rustls::TLS_SERVER_ROOTS,
+                    &actix_tls::rustls::TLS_SERVER_ROOTS,
                 );
                 SslConnector::Rustls(Arc::new(config))
             }
