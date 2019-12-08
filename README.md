@@ -5,19 +5,19 @@
 
 [![Build Status](https://travis-ci.org/actix/actix-web.svg?branch=master)](https://travis-ci.org/actix/actix-web) 
 [![codecov](https://codecov.io/gh/actix/actix-web/branch/master/graph/badge.svg)](https://codecov.io/gh/actix/actix-web) 
-[![crates.io](https://meritbadge.herokuapp.com/actix-web)](https://crates.io/crates/actix-web) 
+[![crates.io](https://meritbadge.herokuapp.com/actix-web)](https://crates.io/crates/actix-web)
 [![Join the chat at https://gitter.im/actix/actix](https://badges.gitter.im/actix/actix.svg)](https://gitter.im/actix/actix?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 [![Documentation](https://docs.rs/actix-web/badge.svg)](https://docs.rs/actix-web)
 [![Download](https://img.shields.io/crates/d/actix-web.svg)](https://crates.io/crates/actix-web)
 [![Version](https://img.shields.io/badge/rustc-1.39+-lightgray.svg)](https://blog.rust-lang.org/2019/11/07/Rust-1.39.0.html)
 ![License](https://img.shields.io/crates/l/actix-web.svg)
-  
+
   </p>
-  
+
   <h3>
     <a href="https://actix.rs">Website</a>
     <span> | </span>
-    <a href="https://www.reddit.com/r/actix">Forum</a>
+    <a href="https://gitter.im/actix/actix">Chat</a>
     <span> | </span>
     <a href="https://github.com/actix/examples">Examples</a>
   </h3>
