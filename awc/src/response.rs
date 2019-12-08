@@ -29,11 +29,11 @@ impl<S> HttpMessage for ClientResponse<S> {
         &self.head.headers
     }
 
-    fn extensions(&self) -> Ref<Extensions> {
+    fn extensions(&self) -> Ref<'_, Extensions> {
         self.head.extensions()
     }
 
-    fn extensions_mut(&self) -> RefMut<Extensions> {
+    fn extensions_mut(&self) -> RefMut<'_, Extensions> {
         self.head.extensions_mut()
     }
 
@@ -43,7 +43,7 @@ impl<S> HttpMessage for ClientResponse<S> {
 
     /// Load request cookies.
     #[inline]
-    fn cookies(&self) -> Result<Ref<Vec<Cookie<'static>>>, CookieParseError> {
+    fn cookies(&self) -> Result<Ref<'_, Vec<Cookie<'static>>>, CookieParseError> {
         struct Cookies(Vec<Cookie<'static>>);
 
         if self.extensions().get::<Cookies>().is_none() {
@@ -131,13 +131,16 @@ where
 {
     type Item = Result<Bytes, PayloadError>;
 
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
+    fn poll_next(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Option<Self::Item>> {
         Pin::new(&mut self.get_mut().payload).poll_next(cx)
     }
 }
 
 impl<S> fmt::Debug for ClientResponse<S> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "\nClientResponse {:?} {}", self.version(), self.status(),)?;
         writeln!(f, "  headers:")?;
         for (key, val) in self.headers().iter() {
@@ -203,7 +206,7 @@ where
 {
     type Output = Result<Bytes, PayloadError>;
 
-    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.get_mut();
 
         if let Some(err) = this.err.take() {
@@ -295,7 +298,7 @@ where
 {
     type Output = Result<U, JsonPayloadError>;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         if let Some(err) = self.err.take() {
             return Poll::Ready(Err(err));
         }
@@ -335,7 +338,7 @@ where
 {
     type Output = Result<Bytes, PayloadError>;
 
-    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.get_mut();
 
         loop {

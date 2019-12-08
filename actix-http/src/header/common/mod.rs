@@ -159,7 +159,7 @@ macro_rules! header {
         }
         impl std::fmt::Display for $id {
             #[inline]
-            fn fmt(&self, f: &mut std::fmt::Formatter) -> ::std::fmt::Result {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> ::std::fmt::Result {
                 $crate::http::header::fmt_comma_delimited(f, &self.0[..])
             }
         }
@@ -195,7 +195,7 @@ macro_rules! header {
         }
         impl std::fmt::Display for $id {
             #[inline]
-            fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 $crate::http::header::fmt_comma_delimited(f, &self.0[..])
             }
         }
@@ -231,7 +231,7 @@ macro_rules! header {
         }
         impl std::fmt::Display for $id {
             #[inline]
-            fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 std::fmt::Display::fmt(&self.0, f)
             }
         }
@@ -276,7 +276,7 @@ macro_rules! header {
         }
         impl std::fmt::Display for $id {
             #[inline]
-            fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 match *self {
                     $id::Any => f.write_str("*"),
                     $id::Items(ref fields) => $crate::http::header::fmt_comma_delimited(

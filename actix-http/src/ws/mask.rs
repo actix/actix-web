@@ -51,7 +51,7 @@ pub(crate) fn apply_mask(buf: &mut [u8], mask_u32: u32) {
 // inefficient, it could be done better. The compiler does not understand that
 // a `ShortSlice` must be smaller than a u64.
 #[allow(clippy::needless_pass_by_value)]
-fn xor_short(buf: ShortSlice, mask: u64) {
+fn xor_short(buf: ShortSlice<'_>, mask: u64) {
     // Unsafe: we know that a `ShortSlice` fits in a u64
     unsafe {
         let (ptr, len) = (buf.0.as_mut_ptr(), buf.0.len());
@@ -77,7 +77,7 @@ unsafe fn cast_slice(buf: &mut [u8]) -> &mut [u64] {
 #[inline]
 // Splits a slice into three parts: an unaligned short head and tail, plus an aligned
 // u64 mid section.
-fn align_buf(buf: &mut [u8]) -> (ShortSlice, &mut [u64], ShortSlice) {
+fn align_buf(buf: &mut [u8]) -> (ShortSlice<'_>, &mut [u64], ShortSlice<'_>) {
     let start_ptr = buf.as_ptr() as usize;
     let end_ptr = start_ptr + buf.len();
 

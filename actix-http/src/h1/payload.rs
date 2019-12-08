@@ -82,7 +82,7 @@ impl Payload {
     #[inline]
     pub fn readany(
         &mut self,
-        cx: &mut Context,
+        cx: &mut Context<'_>,
     ) -> Poll<Option<Result<Bytes, PayloadError>>> {
         self.inner.borrow_mut().readany(cx)
     }
@@ -93,7 +93,7 @@ impl Stream for Payload {
 
     fn poll_next(
         self: Pin<&mut Self>,
-        cx: &mut Context,
+        cx: &mut Context<'_>,
     ) -> Poll<Option<Result<Bytes, PayloadError>>> {
         self.inner.borrow_mut().readany(cx)
     }
@@ -127,7 +127,7 @@ impl PayloadSender {
     }
 
     #[inline]
-    pub fn need_read(&self, cx: &mut Context) -> PayloadStatus {
+    pub fn need_read(&self, cx: &mut Context<'_>) -> PayloadStatus {
         // we check need_read only if Payload (other side) is alive,
         // otherwise always return true (consume payload)
         if let Some(shared) = self.inner.upgrade() {
@@ -194,7 +194,7 @@ impl Inner {
 
     fn readany(
         &mut self,
-        cx: &mut Context,
+        cx: &mut Context<'_>,
     ) -> Poll<Option<Result<Bytes, PayloadError>>> {
         if let Some(data) = self.items.pop_front() {
             self.len -= data.len();

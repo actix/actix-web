@@ -235,7 +235,7 @@ where
 {
     type Output = Result<H2ServiceHandler<T, S::Service, B>, S::InitError>;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.as_mut().project();
 
         Poll::Ready(ready!(this.fut.poll(cx)).map(|service| {
@@ -293,7 +293,7 @@ where
     type Error = DispatchError;
     type Future = H2ServiceHandlerResponse<T, S, B>;
 
-    fn poll_ready(&mut self, cx: &mut Context) -> Poll<Result<(), Self::Error>> {
+    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         self.srv.poll_ready(cx).map_err(|e| {
             let e = e.into();
             error!("Service readiness error: {:?}", e);
@@ -358,7 +358,7 @@ where
 {
     type Output = Result<(), DispatchError>;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         match self.state {
             State::Incoming(ref mut disp) => Pin::new(disp).poll(cx),
             State::Handshake(

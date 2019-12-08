@@ -1,5 +1,22 @@
 # Changes
 
+### Added
+
+* Add impl ResponseBuilder for Error
+
+### Changed
+
+* Use rust based brotli compression library
+
+## [1.0.0-alpha.3] - 2019-12-07
+
+### Changed
+
+* Migrate to tokio 0.2
+
+* Migrate to `std::future`
+
+
 ## [0.2.11] - 2019-11-06
 
 ### Added

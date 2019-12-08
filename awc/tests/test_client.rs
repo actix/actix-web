@@ -4,7 +4,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
-use brotli2::write::BrotliEncoder;
+use brotli::CompressorWriter;
 use bytes::Bytes;
 use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
@@ -514,9 +514,9 @@ async fn test_client_brotli_encoding() {
     let srv = TestServer::start(|| {
         HttpService::new(App::new().service(web::resource("/").route(web::to(
             |data: Bytes| {
-                let mut e = BrotliEncoder::new(Vec::new(), 5);
+                let mut e = CompressorWriter::new(Vec::new(), 0, 5, 0);
                 e.write_all(&data).unwrap();
-                let data = e.finish().unwrap();
+                let data = e.into_inner();
                 HttpResponse::Ok()
                     .header("content-encoding", "br")
                     .body(data)
@@ -534,41 +534,37 @@ async fn test_client_brotli_encoding() {
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
 }
 
-// #[actix_rt::test]
-// async fn test_client_brotli_encoding_large_random() {
-//     let data = rand::thread_rng()
-//         .sample_iter(&rand::distributions::Alphanumeric)
-//         .take(70_000)
-//         .collect::<String>();
+#[actix_rt::test]
+async fn test_client_brotli_encoding_large_random() {
+    let data = rand::thread_rng()
+        .sample_iter(&rand::distributions::Alphanumeric)
+        .take(70_000)
+        .collect::<String>();
 
-//     let srv = test::TestServer::start(|app| {
-//         app.handler(|req: &HttpRequest| {
-//             req.body()
-//                 .and_then(move |bytes: Bytes| {
-//                     Ok(HttpResponse::Ok()
-//                         .content_encoding(http::ContentEncoding::Gzip)
-//                         .body(bytes))
-//                 })
-//                 .responder()
-//         })
-//     });
+    let srv = TestServer::start(|| {
+        HttpService::new(App::new().service(web::resource("/").route(web::to(
+            |data: Bytes| {
+                let mut e = CompressorWriter::new(Vec::new(), 0, 5, 0);
+                e.write_all(&data).unwrap();
+                let data = e.into_inner();
+                HttpResponse::Ok()
+                    .header("content-encoding", "br")
+                    .body(data)
+            },
+        ))))
+        .tcp()
+    });
 
-//     // client request
-//     let request = srv
-//         .client(http::Method::POST, "/")
-//         .content_encoding(http::ContentEncoding::Br)
-//         .body(data.clone())
-//         .unwrap();
-//     let response = request.send().await.unwrap();
-//     assert!(response.status().is_success());
+    // client request
+    let mut response = srv.post("/").send_body(data.clone()).await.unwrap();
+    assert!(response.status().is_success());
 
-//     // read response
-//     let bytes = response.body().await.unwrap();
-//     assert_eq!(bytes.len(), data.len());
-//     assert_eq!(bytes, Bytes::from(data));
-// }
+    // read response
+    let bytes = response.body().await.unwrap();
+    assert_eq!(bytes.len(), data.len());
+    assert_eq!(bytes, Bytes::from(data));
+}
 
-// #[cfg(feature = "brotli")]
 // #[actix_rt::test]
 // async fn test_client_deflate_encoding() {
 //     let srv = test::TestServer::start(|app| {

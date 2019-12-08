@@ -234,7 +234,7 @@ impl<T: AsyncRead + AsyncWrite + Unpin + 'static> AsyncWrite for H1Connection<T>
 
     fn poll_shutdown(
         mut self: Pin<&mut Self>,
-        cx: &mut Context,
+        cx: &mut Context<'_>,
     ) -> Poll<Result<(), io::Error>> {
         Pin::new(self.io.as_mut().unwrap()).poll_shutdown(cx)
     }
@@ -255,7 +255,10 @@ impl<Io: ConnectionLifetime> PlStream<Io> {
 impl<Io: ConnectionLifetime> Stream for PlStream<Io> {
     type Item = Result<Bytes, PayloadError>;
 
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
+    fn poll_next(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Option<Self::Item>> {
         let this = self.get_mut();
 
         match this.framed.as_mut().unwrap().next_item(cx)? {

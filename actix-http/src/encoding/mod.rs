@@ -22,6 +22,9 @@ impl Writer {
     fn take(&mut self) -> Bytes {
         self.buf.split().freeze()
     }
+    fn freeze(self) -> Bytes {
+        self.buf.freeze()
+    }
 }
 
 impl io::Write for Writer {

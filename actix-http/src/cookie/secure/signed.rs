@@ -129,7 +129,7 @@ impl<'a> SignedJar<'a> {
     }
 
     /// Signs the cookie's value assuring integrity and authenticity.
-    fn sign_cookie(&self, cookie: &mut Cookie) {
+    fn sign_cookie(&self, cookie: &mut Cookie<'_>) {
         let digest = sign(&self.key, cookie.value().as_bytes());
         let mut new_value = base64::encode(digest.as_ref());
         new_value.push_str(cookie.value());

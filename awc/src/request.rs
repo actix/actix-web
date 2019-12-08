@@ -23,13 +23,10 @@ use crate::frozen::FrozenClientRequest;
 use crate::sender::{PrepForSendingError, RequestSender, SendClientRequest};
 use crate::ClientConfig;
 
-#[cfg(any(feature = "brotli", feature = "flate2-zlib", feature = "flate2-rust"))]
+#[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
 const HTTPS_ENCODING: &str = "br, gzip, deflate";
-#[cfg(all(
-    any(feature = "flate2-zlib", feature = "flate2-rust"),
-    not(feature = "brotli")
-))]
-const HTTPS_ENCODING: &str = "gzip, deflate";
+#[cfg(not(any(feature = "flate2-zlib", feature = "flate2-rust")))]
+const HTTPS_ENCODING: &str = "br";
 
 /// An HTTP Client request builder
 ///
@@ -544,31 +541,23 @@ impl ClientRequest {
 
         let mut slf = self;
 
-        // enable br only for https
-        #[cfg(any(
-            feature = "brotli",
-            feature = "flate2-zlib",
-            feature = "flate2-rust"
-        ))]
-        {
-            if slf.response_decompress {
-                let https = slf
-                    .head
-                    .uri
-                    .scheme()
-                    .map(|s| s == &uri::Scheme::HTTPS)
-                    .unwrap_or(true);
+        if slf.response_decompress {
+            let https = slf
+                .head
+                .uri
+                .scheme()
+                .map(|s| s == &uri::Scheme::HTTPS)
+                .unwrap_or(true);
 
-                if https {
-                    slf = slf.set_header_if_none(header::ACCEPT_ENCODING, HTTPS_ENCODING)
-                } else {
-                    #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
-                    {
-                        slf = slf
-                            .set_header_if_none(header::ACCEPT_ENCODING, "gzip, deflate")
-                    }
-                };
-            }
+            if https {
+                slf = slf.set_header_if_none(header::ACCEPT_ENCODING, HTTPS_ENCODING)
+            } else {
+                #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
+                {
+                    slf =
+                        slf.set_header_if_none(header::ACCEPT_ENCODING, "gzip, deflate")
+                }
+            };
         }
 
         Ok(slf)
@@ -576,7 +565,7 @@ impl ClientRequest {
 }
 
 impl fmt::Debug for ClientRequest {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(
             f,
             "\nClientRequest {:?} {}:{}",

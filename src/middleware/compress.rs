@@ -106,7 +106,7 @@ where
     type Error = Error;
     type Future = CompressResponse<S, B>;
 
-    fn poll_ready(&mut self, cx: &mut Context) -> Poll<Result<(), Self::Error>> {
+    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         self.service.poll_ready(cx)
     }
 
@@ -140,7 +140,7 @@ where
     #[pin]
     fut: S::Future,
     encoding: ContentEncoding,
-    _t: PhantomData<(B)>,
+    _t: PhantomData<B>,
 }
 
 impl<S, B> Future for CompressResponse<S, B>
@@ -150,7 +150,7 @@ where
 {
     type Output = Result<ServiceResponse<Encoder<B>>, Error>;
 
-    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.project();
 
         match futures::ready!(this.fut.poll(cx)) {
@@ -178,6 +178,7 @@ struct AcceptEncoding {
 impl Eq for AcceptEncoding {}
 
 impl Ord for AcceptEncoding {
+    #[allow(clippy::comparison_chain)]
     fn cmp(&self, other: &AcceptEncoding) -> cmp::Ordering {
         if self.quality > other.quality {
             cmp::Ordering::Less

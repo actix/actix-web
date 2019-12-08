@@ -324,7 +324,7 @@ where
 {
     type Output = Result<H1ServiceHandler<T, S::Service, B, X::Service, U::Service>, ()>;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut this = self.as_mut().project();
 
         if let Some(fut) = this.fut_ex.as_pin_mut() {
@@ -419,7 +419,7 @@ where
     type Error = DispatchError;
     type Future = Dispatcher<T, S, B, X, U>;
 
-    fn poll_ready(&mut self, cx: &mut Context) -> Poll<Result<(), Self::Error>> {
+    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         let ready = self
             .expect
             .poll_ready(cx)
@@ -523,7 +523,7 @@ where
     type Error = ParseError;
     type Future = OneRequestServiceResponse<T>;
 
-    fn poll_ready(&mut self, _: &mut Context) -> Poll<Result<(), Self::Error>> {
+    fn poll_ready(&mut self, _: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         Poll::Ready(Ok(()))
     }
 
@@ -548,7 +548,7 @@ where
 {
     type Output = Result<(Request, Framed<T, Codec>), ParseError>;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         match self.framed.as_mut().unwrap().next_item(cx) {
             Poll::Ready(Some(Ok(req))) => match req {
                 Message::Item(req) => {

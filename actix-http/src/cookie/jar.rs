@@ -190,7 +190,6 @@ impl CookieJar {
     /// use actix_http::cookie::{CookieJar, Cookie};
     /// use chrono::Duration;
     ///
-    /// # fn main() {
     /// let mut jar = CookieJar::new();
     ///
     /// // Assume this cookie originally had a path of "/" and domain of "a.b".
@@ -204,7 +203,6 @@ impl CookieJar {
     /// assert_eq!(delta.len(), 1);
     /// assert_eq!(delta[0].name(), "name");
     /// assert_eq!(delta[0].max_age(), Some(Duration::seconds(0)));
-    /// # }
     /// ```
     ///
     /// Removing a new cookie does not result in a _removal_ cookie:
@@ -243,7 +241,6 @@ impl CookieJar {
     /// use actix_http::cookie::{CookieJar, Cookie};
     /// use chrono::Duration;
     ///
-    /// # fn main() {
     /// let mut jar = CookieJar::new();
     ///
     /// // Add an original cookie and a new cookie.
@@ -261,7 +258,6 @@ impl CookieJar {
     /// jar.force_remove(Cookie::new("key", "value"));
     /// assert_eq!(jar.delta().count(), 0);
     /// assert_eq!(jar.iter().count(), 0);
-    /// # }
     /// ```
     pub fn force_remove<'a>(&mut self, cookie: Cookie<'a>) {
         self.original_cookies.remove(cookie.name());
@@ -307,7 +303,7 @@ impl CookieJar {
     /// // Delta contains two new cookies ("new", "yac") and a removal ("name").
     /// assert_eq!(jar.delta().count(), 3);
     /// ```
-    pub fn delta(&self) -> Delta {
+    pub fn delta(&self) -> Delta<'_> {
         Delta {
             iter: self.delta_cookies.iter(),
         }
@@ -343,7 +339,7 @@ impl CookieJar {
     ///     }
     /// }
     /// ```
-    pub fn iter(&self) -> Iter {
+    pub fn iter(&self) -> Iter<'_> {
         Iter {
             delta_cookies: self
                 .delta_cookies
@@ -386,7 +382,7 @@ impl CookieJar {
     /// assert!(jar.get("private").is_some());
     /// ```
     #[cfg(feature = "secure-cookies")]
-    pub fn private(&mut self, key: &Key) -> PrivateJar {
+    pub fn private(&mut self, key: &Key) -> PrivateJar<'_> {
         PrivateJar::new(self, key)
     }
 
@@ -424,7 +420,7 @@ impl CookieJar {
     /// assert!(jar.get("signed").is_some());
     /// ```
     #[cfg(feature = "secure-cookies")]
-    pub fn signed(&mut self, key: &Key) -> SignedJar {
+    pub fn signed(&mut self, key: &Key) -> SignedJar<'_> {
         SignedJar::new(self, key)
     }
 }

@@ -217,7 +217,7 @@ impl fmt::Write for Writer {
     }
 
     #[inline]
-    fn write_fmt(&mut self, args: fmt::Arguments) -> fmt::Result {
+    fn write_fmt(&mut self, args: fmt::Arguments<'_>) -> fmt::Result {
         fmt::write(self, args)
     }
 }
@@ -259,7 +259,7 @@ pub fn from_one_raw_str<T: FromStr>(val: Option<&HeaderValue>) -> Result<T, Pars
 #[inline]
 #[doc(hidden)]
 /// Format an array into a comma-delimited string.
-pub fn fmt_comma_delimited<T>(f: &mut fmt::Formatter, parts: &[T]) -> fmt::Result
+pub fn fmt_comma_delimited<T>(f: &mut fmt::Formatter<'_>, parts: &[T]) -> fmt::Result
 where
     T: fmt::Display,
 {
@@ -361,7 +361,7 @@ pub fn parse_extended_value(
 }
 
 impl fmt::Display for ExtendedValue {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let encoded_value =
             percent_encoding::percent_encode(&self.value[..], HTTP_VALUE);
         if let Some(ref lang) = self.language_tag {
@@ -376,7 +376,7 @@ impl fmt::Display for ExtendedValue {
 /// [https://tools.ietf.org/html/rfc5987#section-3.2][url]
 ///
 /// [url]: https://tools.ietf.org/html/rfc5987#section-3.2
-pub fn http_percent_encode(f: &mut fmt::Formatter, bytes: &[u8]) -> fmt::Result {
+pub fn http_percent_encode(f: &mut fmt::Formatter<'_>, bytes: &[u8]) -> fmt::Result {
     let encoded = percent_encoding::percent_encode(bytes, HTTP_VALUE);
     fmt::Display::fmt(&encoded, f)
 }

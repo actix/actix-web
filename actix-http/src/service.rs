@@ -403,7 +403,7 @@ where
     type Output =
         Result<HttpServiceHandler<T, S::Service, B, X::Service, U::Service>, ()>;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut this = self.as_mut().project();
 
         if let Some(fut) = this.fut_ex.as_pin_mut() {
@@ -499,7 +499,7 @@ where
     type Error = DispatchError;
     type Future = HttpServiceHandlerResponse<T, S, B, X, U>;
 
-    fn poll_ready(&mut self, cx: &mut Context) -> Poll<Result<(), Self::Error>> {
+    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         let ready = self
             .expect
             .poll_ready(cx)
@@ -619,7 +619,7 @@ where
 {
     type Output = Result<(), DispatchError>;
 
-    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         self.project().state.poll(cx)
     }
 }
@@ -639,7 +639,7 @@ where
     #[project]
     fn poll(
         mut self: Pin<&mut Self>,
-        cx: &mut Context,
+        cx: &mut Context<'_>,
     ) -> Poll<Result<(), DispatchError>> {
         #[project]
         match self.as_mut().project() {

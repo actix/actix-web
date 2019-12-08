@@ -74,7 +74,7 @@ impl Header for CacheControl {
 }
 
 impl fmt::Display for CacheControl {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt_comma_delimited(f, &self[..])
     }
 }
@@ -126,7 +126,7 @@ pub enum CacheDirective {
 }
 
 impl fmt::Display for CacheDirective {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use self::CacheDirective::*;
         fmt::Display::fmt(
             match *self {

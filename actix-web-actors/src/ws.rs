@@ -152,7 +152,8 @@ pub fn handshake_with_protocols(
             .and_then(|req_protocols| {
                 let req_protocols = req_protocols.to_str().ok()?;
                 req_protocols
-                    .split(", ")
+                    .split(',')
+                    .map(|req_p| req_p.trim())
                     .find(|req_p| protocols.iter().any(|p| p == req_p))
             });
 
@@ -716,6 +717,47 @@ mod tests {
             .header(
                 header::SEC_WEBSOCKET_PROTOCOL,
                 header::HeaderValue::from_static("p1, p2, p3"),
+            )
+            .to_http_request();
+
+        let protocols = vec!["p3", "p2"];
+
+        assert_eq!(
+            StatusCode::SWITCHING_PROTOCOLS,
+            handshake_with_protocols(&req, &protocols)
+                .unwrap()
+                .finish()
+                .status()
+        );
+        assert_eq!(
+            Some(&header::HeaderValue::from_static("p2")),
+            handshake_with_protocols(&req, &protocols)
+                .unwrap()
+                .finish()
+                .headers()
+                .get(&header::SEC_WEBSOCKET_PROTOCOL)
+        );
+
+        let req = TestRequest::default()
+            .header(
+                header::UPGRADE,
+                header::HeaderValue::from_static("websocket"),
+            )
+            .header(
+                header::CONNECTION,
+                header::HeaderValue::from_static("upgrade"),
+            )
+            .header(
+                header::SEC_WEBSOCKET_VERSION,
+                header::HeaderValue::from_static("13"),
+            )
+            .header(
+                header::SEC_WEBSOCKET_KEY,
+                header::HeaderValue::from_static("13"),
+            )
+            .header(
+                header::SEC_WEBSOCKET_PROTOCOL,
+                header::HeaderValue::from_static("p1,p2,p3"),
             )
             .to_http_request();
 

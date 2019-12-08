@@ -22,7 +22,7 @@ use serde_urlencoded::ser::Error as FormError;
 use crate::body::Body;
 pub use crate::cookie::ParseError as CookieParseError;
 use crate::helpers::Writer;
-use crate::response::Response;
+use crate::response::{Response, ResponseBuilder};
 
 /// A specialized [`Result`](https://doc.rust-lang.org/std/result/enum.Result.html)
 /// for actix web operations
@@ -102,13 +102,13 @@ impl dyn ResponseError + 'static {
 }
 
 impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(&self.cause, f)
     }
 }
 
 impl fmt::Debug for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "{:?}", &self.cause)
     }
 }
@@ -154,6 +154,20 @@ impl<T: ResponseError + 'static> From<T> for Error {
         Error {
             cause: Box::new(err),
         }
+    }
+}
+
+/// Convert Response to a Error
+impl From<Response> for Error {
+    fn from(res: Response) -> Error {
+        InternalError::from_response("", res).into()
+    }
+}
+
+/// Convert ResponseBuilder to a Error
+impl From<ResponseBuilder> for Error {
+    fn from(mut res: ResponseBuilder) -> Error {
+        InternalError::from_response("", res.finish()).into()
     }
 }
 
@@ -460,14 +474,12 @@ impl ResponseError for ContentTypeError {
 /// default.
 ///
 /// ```rust
-/// # extern crate actix_http;
 /// # use std::io;
 /// # use actix_http::*;
 ///
 /// fn index(req: Request) -> Result<&'static str> {
 ///     Err(error::ErrorBadRequest(io::Error::new(io::ErrorKind::Other, "error")))
 /// }
-/// # fn main() {}
 /// ```
 pub struct InternalError<T> {
     cause: T,
@@ -501,7 +513,7 @@ impl<T> fmt::Debug for InternalError<T>
 where
     T: fmt::Debug + 'static,
 {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Debug::fmt(&self.cause, f)
     }
 }
@@ -510,7 +522,7 @@ impl<T> fmt::Display for InternalError<T>
 where
     T: fmt::Display + 'static,
 {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(&self.cause, f)
     }
 }
@@ -552,13 +564,6 @@ where
                 }
             }
         }
-    }
-}
-
-/// Convert Response to a Error
-impl From<Response> for Error {
-    fn from(res: Response) -> Error {
-        InternalError::from_response("", res).into()
     }
 }
 

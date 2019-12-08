@@ -110,7 +110,7 @@ impl CookieStr {
     /// # Panics
     ///
     /// Panics if `self` is an indexed string and `string` is None.
-    fn to_str<'s>(&'s self, string: Option<&'s Cow<str>>) -> &'s str {
+    fn to_str<'s>(&'s self, string: Option<&'s Cow<'_, str>>) -> &'s str {
         match *self {
             CookieStr::Indexed(i, j) => {
                 let s = string.expect(
@@ -647,13 +647,11 @@ impl<'c> Cookie<'c> {
     /// use actix_http::cookie::Cookie;
     /// use chrono::Duration;
     ///
-    /// # fn main() {
     /// let mut c = Cookie::new("name", "value");
     /// assert_eq!(c.max_age(), None);
     ///
     /// c.set_max_age(Duration::hours(10));
     /// assert_eq!(c.max_age(), Some(Duration::hours(10)));
-    /// # }
     /// ```
     #[inline]
     pub fn set_max_age(&mut self, value: Duration) {
@@ -701,7 +699,6 @@ impl<'c> Cookie<'c> {
     /// ```rust
     /// use actix_http::cookie::Cookie;
     ///
-    /// # fn main() {
     /// let mut c = Cookie::new("name", "value");
     /// assert_eq!(c.expires(), None);
     ///
@@ -710,7 +707,6 @@ impl<'c> Cookie<'c> {
     ///
     /// c.set_expires(now);
     /// assert!(c.expires().is_some())
-    /// # }
     /// ```
     #[inline]
     pub fn set_expires(&mut self, time: Tm) {
@@ -726,7 +722,6 @@ impl<'c> Cookie<'c> {
     /// use actix_http::cookie::Cookie;
     /// use chrono::Duration;
     ///
-    /// # fn main() {
     /// let mut c = Cookie::new("foo", "bar");
     /// assert!(c.expires().is_none());
     /// assert!(c.max_age().is_none());
@@ -734,7 +729,6 @@ impl<'c> Cookie<'c> {
     /// c.make_permanent();
     /// assert!(c.expires().is_some());
     /// assert_eq!(c.max_age(), Some(Duration::days(365 * 20)));
-    /// # }
     /// ```
     pub fn make_permanent(&mut self) {
         let twenty_years = Duration::days(365 * 20);
@@ -742,7 +736,7 @@ impl<'c> Cookie<'c> {
         self.set_expires(time::now() + twenty_years);
     }
 
-    fn fmt_parameters(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt_parameters(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Some(true) = self.http_only() {
             write!(f, "; HttpOnly")?;
         }
@@ -924,10 +918,10 @@ impl<'c> Cookie<'c> {
 /// let mut c = Cookie::new("my name", "this; value?");
 /// assert_eq!(&c.encoded().to_string(), "my%20name=this%3B%20value%3F");
 /// ```
-pub struct EncodedCookie<'a, 'c: 'a>(&'a Cookie<'c>);
+pub struct EncodedCookie<'a, 'c>(&'a Cookie<'c>);
 
 impl<'a, 'c: 'a> fmt::Display for EncodedCookie<'a, 'c> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // Percent-encode the name and value.
         let name = percent_encode(self.0.name().as_bytes(), USERINFO);
         let value = percent_encode(self.0.value().as_bytes(), USERINFO);
@@ -952,7 +946,7 @@ impl<'c> fmt::Display for Cookie<'c> {
     ///
     /// assert_eq!(&cookie.to_string(), "foo=bar; Path=/");
     /// ```
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}={}", self.name(), self.value())?;
         self.fmt_parameters(f)
     }

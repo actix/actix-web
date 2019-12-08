@@ -53,7 +53,7 @@ impl<T: PartialEq> cmp::PartialOrd for QualityItem<T> {
 }
 
 impl<T: fmt::Display> fmt::Display for QualityItem<T> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(&self.item, f)?;
         match self.quality.0 {
             1000 => Ok(()),

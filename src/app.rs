@@ -38,7 +38,7 @@ pub struct App<T, B> {
     data_factories: Vec<FnDataFactory>,
     config: AppConfigInner,
     external: Vec<ResourceDef>,
-    _t: PhantomData<(B)>,
+    _t: PhantomData<B>,
 }
 
 impl App<AppEntry, Body> {
@@ -93,13 +93,11 @@ where
     ///     HttpResponse::Ok()
     /// }
     ///
-    /// fn main() {
-    ///     let app = App::new()
-    ///         .data(MyData{ counter: Cell::new(0) })
-    ///         .service(
-    ///             web::resource("/index.html").route(
-    ///                 web::get().to(index)));
-    /// }
+    /// let app = App::new()
+    ///     .data(MyData{ counter: Cell::new(0) })
+    ///     .service(
+    ///         web::resource("/index.html").route(
+    ///             web::get().to(index)));
     /// ```
     pub fn data<U: 'static>(mut self, data: U) -> Self {
         self.data.push(Box::new(Data::new(data)));

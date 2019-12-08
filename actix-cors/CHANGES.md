@@ -1,6 +1,6 @@
 # Changes
 
-## [0.2.0-alpha.3] - unreleased
+## [0.2.0-alpha.3] - 2019-12-07
 
 * Migrate to actix-web 2.0.0
 

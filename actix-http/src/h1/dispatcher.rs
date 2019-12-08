@@ -264,7 +264,7 @@ where
     U: Service<Request = (Request, Framed<T, Codec>), Response = ()>,
     U::Error: fmt::Display,
 {
-    fn can_read(&self, cx: &mut Context) -> bool {
+    fn can_read(&self, cx: &mut Context<'_>) -> bool {
         if self
             .flags
             .intersects(Flags::READ_DISCONNECT | Flags::UPGRADE)
@@ -290,7 +290,7 @@ where
     ///
     /// true - got whouldblock
     /// false - didnt get whouldblock
-    fn poll_flush(&mut self, cx: &mut Context) -> Result<bool, DispatchError> {
+    fn poll_flush(&mut self, cx: &mut Context<'_>) -> Result<bool, DispatchError> {
         if self.write_buf.is_empty() {
             return Ok(false);
         }
@@ -355,7 +355,7 @@ where
 
     fn poll_response(
         &mut self,
-        cx: &mut Context,
+        cx: &mut Context<'_>,
     ) -> Result<PollResponse, DispatchError> {
         loop {
             let state = match self.state {
@@ -459,7 +459,7 @@ where
     fn handle_request(
         &mut self,
         req: Request,
-        cx: &mut Context,
+        cx: &mut Context<'_>,
     ) -> Result<State<S, B, X>, DispatchError> {
         // Handle `EXPECT: 100-Continue` header
         let req = if req.head().expect() {
@@ -500,7 +500,7 @@ where
     /// Process one incoming requests
     pub(self) fn poll_request(
         &mut self,
-        cx: &mut Context,
+        cx: &mut Context<'_>,
     ) -> Result<bool, DispatchError> {
         // limit a mount of non processed requests
         if self.messages.len() >= MAX_PIPELINED_MESSAGES || !self.can_read(cx) {
@@ -604,7 +604,7 @@ where
     }
 
     /// keep-alive timer
-    fn poll_keepalive(&mut self, cx: &mut Context) -> Result<(), DispatchError> {
+    fn poll_keepalive(&mut self, cx: &mut Context<'_>) -> Result<(), DispatchError> {
         if self.ka_timer.is_none() {
             // shutdown timeout
             if self.flags.contains(Flags::SHUTDOWN) {
@@ -710,7 +710,7 @@ where
     type Output = Result<(), DispatchError>;
 
     #[inline]
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         match self.as_mut().inner {
             DispatcherState::Normal(ref mut inner) => {
                 inner.poll_keepalive(cx)?;
@@ -832,7 +832,7 @@ where
 }
 
 fn read_available<T>(
-    cx: &mut Context,
+    cx: &mut Context<'_>,
     io: &mut T,
     buf: &mut BytesMut,
 ) -> Result<Option<bool>, io::Error>
@@ -874,7 +874,7 @@ where
 }
 
 fn read<T>(
-    cx: &mut Context,
+    cx: &mut Context<'_>,
     io: &mut T,
     buf: &mut BytesMut,
 ) -> Poll<Result<usize, io::Error>>

@@ -93,7 +93,7 @@ where
     type Error = ConnectError;
     type Future = LocalBoxFuture<'static, Result<IoConnection<Io>, ConnectError>>;
 
-    fn poll_ready(&mut self, cx: &mut Context) -> Poll<Result<(), Self::Error>> {
+    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         self.0.poll_ready(cx)
     }
 
@@ -308,7 +308,7 @@ where
         (rx, token)
     }
 
-    fn acquire(&mut self, key: &Key, cx: &mut Context) -> Acquire<Io> {
+    fn acquire(&mut self, key: &Key, cx: &mut Context<'_>) -> Acquire<Io> {
         // check limits
         if self.limit > 0 && self.acquired >= self.limit {
             return Acquire::NotAvailable;
@@ -409,7 +409,7 @@ where
 {
     type Output = ();
 
-    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<()> {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<()> {
         let this = self.get_mut();
 
         match Pin::new(&mut this.timeout).poll(cx) {
@@ -438,7 +438,7 @@ where
 {
     type Output = ();
 
-    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = unsafe { self.get_unchecked_mut() };
 
         let mut inner = this.inner.as_ref().borrow_mut();
@@ -545,7 +545,7 @@ where
 {
     type Output = ();
 
-    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = unsafe { self.get_unchecked_mut() };
 
         if let Some(ref mut h2) = this.h2 {

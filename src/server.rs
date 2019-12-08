@@ -5,7 +5,6 @@ use std::{fmt, io, net};
 use actix_http::{
     body::MessageBody, Error, HttpService, KeepAlive, Protocol, Request, Response,
 };
-use actix_rt::System;
 use actix_server::{Server, ServerBuilder};
 use actix_service::{pipeline_factory, IntoServiceFactory, Service, ServiceFactory};
 use futures::future::ok;
@@ -516,13 +515,12 @@ where
     /// This methods panics if no socket address can be bound or an `Actix` system is not yet
     /// configured.
     ///
-    /// ```rust
+    /// ```rust,no_run
     /// use std::io;
     /// use actix_web::{web, App, HttpResponse, HttpServer};
     ///
     /// #[actix_rt::main]
     /// async fn main() -> io::Result<()> {
-    /// #   actix_rt::System::current().stop();
     ///     HttpServer::new(|| App::new().service(web::resource("/").to(|| HttpResponse::Ok())))
     ///         .bind("127.0.0.1:0")?
     ///         .start()
@@ -531,32 +529,6 @@ where
     /// ```
     pub fn start(self) -> Server {
         self.builder.start()
-    }
-
-    /// Spawn new thread and start listening for incoming connections.
-    ///
-    /// This method spawns new thread and starts new actix system. Other than
-    /// that it is similar to `start()` method. This method blocks.
-    ///
-    /// This methods panics if no socket addresses get bound.
-    ///
-    /// ```rust
-    /// use std::io;
-    /// use actix_web::{web, App, HttpResponse, HttpServer};
-    ///
-    /// fn main() -> io::Result<()> {
-    /// # std::thread::spawn(|| {
-    ///     HttpServer::new(|| App::new().service(web::resource("/").to(|| HttpResponse::Ok())))
-    ///         .bind("127.0.0.1:0")?
-    ///         .run()
-    /// # });
-    /// # Ok(())
-    /// }
-    /// ```
-    pub fn run(self) -> io::Result<()> {
-        let sys = System::new("http-server");
-        self.start();
-        sys.run()
     }
 }
 

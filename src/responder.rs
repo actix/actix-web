@@ -313,7 +313,7 @@ pub struct CustomResponderFut<T: Responder> {
 impl<T: Responder> Future for CustomResponderFut<T> {
     type Output = Result<Response, T::Error>;
 
-    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.project();
 
         let mut res = match ready!(this.fut.poll(cx)) {
@@ -397,7 +397,7 @@ where
     type Output = Result<Response, Error>;
 
     #[project]
-    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         #[project]
         match self.project() {
             EitherResponder::A(fut) => {
@@ -446,7 +446,7 @@ where
 {
     type Output = Result<Response, Error>;
 
-    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         Poll::Ready(ready!(self.project().fut.poll(cx)).map_err(|e| e.into()))
     }
 }

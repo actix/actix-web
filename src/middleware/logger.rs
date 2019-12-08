@@ -154,7 +154,7 @@ where
     type Error = Error;
     type Future = LoggerResponse<S, B>;
 
-    fn poll_ready(&mut self, cx: &mut Context) -> Poll<Result<(), Self::Error>> {
+    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         self.service.poll_ready(cx)
     }
 
@@ -204,7 +204,7 @@ where
 {
     type Output = Result<ServiceResponse<StreamLog<B>>, Error>;
 
-    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.project();
 
         let res = match futures::ready!(this.fut.poll(cx)) {
@@ -248,7 +248,7 @@ pub struct StreamLog<B> {
 impl<B> Drop for StreamLog<B> {
     fn drop(&mut self) {
         if let Some(ref format) = self.format {
-            let render = |fmt: &mut Formatter| {
+            let render = |fmt: &mut Formatter<'_>| {
                 for unit in &format.0 {
                     unit.render(fmt, self.size, self.time)?;
                 }
@@ -264,7 +264,7 @@ impl<B: MessageBody> MessageBody for StreamLog<B> {
         self.body.size()
     }
 
-    fn poll_next(&mut self, cx: &mut Context) -> Poll<Option<Result<Bytes, Error>>> {
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes, Error>>> {
         match self.body.poll_next(cx) {
             Poll::Ready(Some(Ok(chunk))) => {
                 self.size += chunk.len();
@@ -364,7 +364,7 @@ pub enum FormatText {
 impl FormatText {
     fn render(
         &self,
-        fmt: &mut Formatter,
+        fmt: &mut Formatter<'_>,
         size: usize,
         entry_time: time::Tm,
     ) -> Result<(), fmt::Error> {
@@ -464,11 +464,11 @@ impl FormatText {
 }
 
 pub(crate) struct FormatDisplay<'a>(
-    &'a dyn Fn(&mut Formatter) -> Result<(), fmt::Error>,
+    &'a dyn Fn(&mut Formatter<'_>) -> Result<(), fmt::Error>,
 );
 
 impl<'a> fmt::Display for FormatDisplay<'a> {
-    fn fmt(&self, fmt: &mut Formatter) -> Result<(), fmt::Error> {
+    fn fmt(&self, fmt: &mut Formatter<'_>) -> Result<(), fmt::Error> {
         (self.0)(fmt)
     }
 }
@@ -523,7 +523,7 @@ mod tests {
             unit.render_response(&resp);
         }
 
-        let render = |fmt: &mut Formatter| {
+        let render = |fmt: &mut Formatter<'_>| {
             for unit in &format.0 {
                 unit.render(fmt, 1024, now)?;
             }
@@ -555,7 +555,7 @@ mod tests {
         }
 
         let entry_time = time::now();
-        let render = |fmt: &mut Formatter| {
+        let render = |fmt: &mut Formatter<'_>| {
             for unit in &format.0 {
                 unit.render(fmt, 1024, entry_time)?;
             }
@@ -582,7 +582,7 @@ mod tests {
             unit.render_response(&resp);
         }
 
-        let render = |fmt: &mut Formatter| {
+        let render = |fmt: &mut Formatter<'_>| {
             for unit in &format.0 {
                 unit.render(fmt, 1024, now)?;
             }

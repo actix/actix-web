@@ -4,8 +4,7 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 
 use actix_threadpool::{run, CpuFuture};
-#[cfg(feature = "brotli")]
-use brotli2::write::BrotliDecoder;
+use brotli::DecompressorWriter;
 use bytes::Bytes;
 #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
 use flate2::write::{GzDecoder, ZlibDecoder};
@@ -32,9 +31,8 @@ where
     #[inline]
     pub fn new(stream: S, encoding: ContentEncoding) -> Decoder<S> {
         let decoder = match encoding {
-            #[cfg(feature = "brotli")]
             ContentEncoding::Br => Some(ContentDecoder::Br(Box::new(
-                BrotliDecoder::new(Writer::new()),
+                DecompressorWriter::new(Writer::new(), 0),
             ))),
             #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
             ContentEncoding::Deflate => Some(ContentDecoder::Deflate(Box::new(
@@ -80,7 +78,7 @@ where
 
     fn poll_next(
         mut self: Pin<&mut Self>,
-        cx: &mut Context,
+        cx: &mut Context<'_>,
     ) -> Poll<Option<Self::Item>> {
         loop {
             if let Some(ref mut fut) = self.fut {
@@ -144,18 +142,16 @@ enum ContentDecoder {
     Deflate(Box<ZlibDecoder<Writer>>),
     #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
     Gzip(Box<GzDecoder<Writer>>),
-    #[cfg(feature = "brotli")]
-    Br(Box<BrotliDecoder<Writer>>),
+    Br(Box<DecompressorWriter<Writer>>),
 }
 
 impl ContentDecoder {
     #[allow(unreachable_patterns)]
     fn feed_eof(&mut self) -> io::Result<Option<Bytes>> {
         match self {
-            #[cfg(feature = "brotli")]
-            ContentDecoder::Br(ref mut decoder) => match decoder.finish() {
-                Ok(mut writer) => {
-                    let b = writer.take();
+            ContentDecoder::Br(ref mut decoder) => match decoder.flush() {
+                Ok(()) => {
+                    let b = decoder.get_mut().take();
                     if !b.is_empty() {
                         Ok(Some(b))
                     } else {
@@ -195,7 +191,6 @@ impl ContentDecoder {
     #[allow(unreachable_patterns)]
     fn feed_data(&mut self, data: Bytes) -> io::Result<Option<Bytes>> {
         match self {
-            #[cfg(feature = "brotli")]
             ContentDecoder::Br(ref mut decoder) => match decoder.write_all(&data) {
                 Ok(_) => {
                     decoder.flush()?;

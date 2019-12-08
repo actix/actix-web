@@ -44,13 +44,11 @@ pub use crate::types::*;
 /// # extern crate actix_web;
 /// use actix_web::{web, App, HttpResponse};
 ///
-/// fn main() {
-///     let app = App::new().service(
-///         web::resource("/users/{userid}/{friend}")
-///             .route(web::get().to(|| HttpResponse::Ok()))
-///             .route(web::head().to(|| HttpResponse::MethodNotAllowed()))
-///     );
-/// }
+/// let app = App::new().service(
+///     web::resource("/users/{userid}/{friend}")
+///         .route(web::get().to(|| HttpResponse::Ok()))
+///         .route(web::head().to(|| HttpResponse::MethodNotAllowed()))
+/// );
 /// ```
 pub fn resource(path: &str) -> Resource {
     Resource::new(path)
@@ -64,14 +62,12 @@ pub fn resource(path: &str) -> Resource {
 /// ```rust
 /// use actix_web::{web, App, HttpResponse};
 ///
-/// fn main() {
-///     let app = App::new().service(
-///         web::scope("/{project_id}")
-///             .service(web::resource("/path1").to(|| HttpResponse::Ok()))
-///             .service(web::resource("/path2").to(|| HttpResponse::Ok()))
-///             .service(web::resource("/path3").to(|| HttpResponse::MethodNotAllowed()))
-///     );
-/// }
+/// let app = App::new().service(
+///     web::scope("/{project_id}")
+///         .service(web::resource("/path1").to(|| HttpResponse::Ok()))
+///         .service(web::resource("/path2").to(|| HttpResponse::Ok()))
+///         .service(web::resource("/path3").to(|| HttpResponse::MethodNotAllowed()))
+/// );
 /// ```
 ///
 /// In the above example, three routes get added:
@@ -93,12 +89,10 @@ pub fn route() -> Route {
 /// ```rust
 /// use actix_web::{web, App, HttpResponse};
 ///
-/// fn main() {
-///     let app = App::new().service(
-///         web::resource("/{project_id}")
-///             .route(web::get().to(|| HttpResponse::Ok()))
-///     );
-/// }
+/// let app = App::new().service(
+///     web::resource("/{project_id}")
+///        .route(web::get().to(|| HttpResponse::Ok()))
+/// );
 /// ```
 ///
 /// In the above example, one `GET` route get added:
@@ -113,12 +107,10 @@ pub fn get() -> Route {
 /// ```rust
 /// use actix_web::{web, App, HttpResponse};
 ///
-/// fn main() {
-///     let app = App::new().service(
-///         web::resource("/{project_id}")
-///             .route(web::post().to(|| HttpResponse::Ok()))
-///     );
-/// }
+/// let app = App::new().service(
+///     web::resource("/{project_id}")
+///         .route(web::post().to(|| HttpResponse::Ok()))
+/// );
 /// ```
 ///
 /// In the above example, one `POST` route get added:
@@ -133,12 +125,10 @@ pub fn post() -> Route {
 /// ```rust
 /// use actix_web::{web, App, HttpResponse};
 ///
-/// fn main() {
-///     let app = App::new().service(
-///         web::resource("/{project_id}")
-///             .route(web::put().to(|| HttpResponse::Ok()))
-///     );
-/// }
+/// let app = App::new().service(
+///     web::resource("/{project_id}")
+///         .route(web::put().to(|| HttpResponse::Ok()))
+/// );
 /// ```
 ///
 /// In the above example, one `PUT` route get added:
@@ -153,12 +143,10 @@ pub fn put() -> Route {
 /// ```rust
 /// use actix_web::{web, App, HttpResponse};
 ///
-/// fn main() {
-///     let app = App::new().service(
-///         web::resource("/{project_id}")
-///             .route(web::patch().to(|| HttpResponse::Ok()))
-///     );
-/// }
+/// let app = App::new().service(
+///     web::resource("/{project_id}")
+///         .route(web::patch().to(|| HttpResponse::Ok()))
+/// );
 /// ```
 ///
 /// In the above example, one `PATCH` route get added:
@@ -173,12 +161,10 @@ pub fn patch() -> Route {
 /// ```rust
 /// use actix_web::{web, App, HttpResponse};
 ///
-/// fn main() {
-///     let app = App::new().service(
-///         web::resource("/{project_id}")
-///             .route(web::delete().to(|| HttpResponse::Ok()))
-///     );
-/// }
+/// let app = App::new().service(
+///     web::resource("/{project_id}")
+///         .route(web::delete().to(|| HttpResponse::Ok()))
+/// );
 /// ```
 ///
 /// In the above example, one `DELETE` route get added:
@@ -193,12 +179,10 @@ pub fn delete() -> Route {
 /// ```rust
 /// use actix_web::{web, App, HttpResponse};
 ///
-/// fn main() {
-///     let app = App::new().service(
-///         web::resource("/{project_id}")
-///             .route(web::head().to(|| HttpResponse::Ok()))
-///     );
-/// }
+/// let app = App::new().service(
+///     web::resource("/{project_id}")
+///         .route(web::head().to(|| HttpResponse::Ok()))
+/// );
 /// ```
 ///
 /// In the above example, one `HEAD` route get added:
@@ -213,12 +197,10 @@ pub fn head() -> Route {
 /// ```rust
 /// use actix_web::{web, http, App, HttpResponse};
 ///
-/// fn main() {
-///     let app = App::new().service(
-///         web::resource("/{project_id}")
-///             .route(web::method(http::Method::GET).to(|| HttpResponse::Ok()))
-///     );
-/// }
+/// let app = App::new().service(
+///     web::resource("/{project_id}")
+///         .route(web::method(http::Method::GET).to(|| HttpResponse::Ok()))
+/// );
 /// ```
 ///
 /// In the above example, one `GET` route get added:
@@ -261,13 +243,11 @@ where
 ///     Ok(req.into_response(HttpResponse::Ok().finish()))
 /// }
 ///
-/// fn main() {
-///     let app = App::new().service(
-///         web::service("/users/*")
-///             .guard(guard::Header("content-type", "text/plain"))
-///             .finish(my_service)
-///     );
-/// }
+/// let app = App::new().service(
+///     web::service("/users/*")
+///         .guard(guard::Header("content-type", "text/plain"))
+///         .finish(my_service)
+/// );
 /// ```
 pub fn service(path: &str) -> WebService {
     WebService::new(path)
