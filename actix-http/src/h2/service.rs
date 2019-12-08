@@ -8,7 +8,7 @@ use std::{io, net, rc};
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use actix_rt::net::TcpStream;
 use actix_service::{
-    factory_fn, pipeline_factory, service_fn2, IntoServiceFactory, Service,
+    fn_factory, fn_service, pipeline_factory, IntoServiceFactory, Service,
     ServiceFactory,
 };
 use bytes::Bytes;
@@ -87,9 +87,9 @@ where
         Error = DispatchError,
         InitError = S::InitError,
     > {
-        pipeline_factory(factory_fn(|| {
+        pipeline_factory(fn_factory(|| {
             async {
-                Ok::<_, S::InitError>(service_fn2(|io: TcpStream| {
+                Ok::<_, S::InitError>(fn_service(|io: TcpStream| {
                     let peer_addr = io.peer_addr().ok();
                     ok::<_, DispatchError>((io, peer_addr))
                 }))
@@ -101,7 +101,7 @@ where
 
 #[cfg(feature = "openssl")]
 mod openssl {
-    use actix_service::{factory_fn, service_fn2};
+    use actix_service::{fn_factory, fn_service};
     use actix_tls::openssl::{Acceptor, SslAcceptor, SslStream};
     use actix_tls::{openssl::HandshakeError, SslError};
 
@@ -131,8 +131,8 @@ mod openssl {
                     .map_err(SslError::Ssl)
                     .map_init_err(|_| panic!()),
             )
-            .and_then(factory_fn(|| {
-                ok::<_, S::InitError>(service_fn2(|io: SslStream<TcpStream>| {
+            .and_then(fn_factory(|| {
+                ok::<_, S::InitError>(fn_service(|io: SslStream<TcpStream>| {
                     let peer_addr = io.get_ref().peer_addr().ok();
                     ok((io, peer_addr))
                 }))
@@ -176,8 +176,8 @@ mod rustls {
                     .map_err(SslError::Ssl)
                     .map_init_err(|_| panic!()),
             )
-            .and_then(factory_fn(|| {
-                ok::<_, S::InitError>(service_fn2(|io: TlsStream<TcpStream>| {
+            .and_then(fn_factory(|| {
+                ok::<_, S::InitError>(fn_service(|io: TlsStream<TcpStream>| {
                     let peer_addr = io.get_ref().0.peer_addr().ok();
                     ok((io, peer_addr))
                 }))

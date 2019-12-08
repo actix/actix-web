@@ -38,7 +38,7 @@ async fn service(msg: ws::Frame) -> Result<ws::Message, Error> {
 async fn test_simple() {
     let mut srv = TestServer::start(|| {
         HttpService::build()
-            .upgrade(actix_service::service_fn(ws_service))
+            .upgrade(actix_service::fn_service(ws_service))
             .finish(|_| future::ok::<_, ()>(Response::NotFound()))
             .tcp()
     });

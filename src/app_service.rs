@@ -8,7 +8,7 @@ use std::task::{Context, Poll};
 use actix_http::{Extensions, Request, Response};
 use actix_router::{Path, ResourceDef, ResourceInfo, Router, Url};
 use actix_service::boxed::{self, BoxService, BoxServiceFactory};
-use actix_service::{service_fn, Service, ServiceFactory};
+use actix_service::{fn_service, Service, ServiceFactory};
 use futures::future::{ok, FutureExt, LocalBoxFuture};
 
 use crate::config::{AppConfig, AppService};
@@ -69,7 +69,7 @@ where
     fn new_service(&self, _: ()) -> Self::Future {
         // update resource default service
         let default = self.default.clone().unwrap_or_else(|| {
-            Rc::new(boxed::factory(service_fn(|req: ServiceRequest| {
+            Rc::new(boxed::factory(fn_service(|req: ServiceRequest| {
                 ok(req.into_response(Response::NotFound().finish()))
             })))
         });

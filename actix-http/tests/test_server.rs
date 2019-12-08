@@ -4,7 +4,7 @@ use std::{net, thread};
 
 use actix_http_test::TestServer;
 use actix_rt::time::delay_for;
-use actix_service::service_fn;
+use actix_service::fn_service;
 use bytes::Bytes;
 use futures::future::{self, err, ok, ready, FutureExt};
 use futures::stream::{once, StreamExt};
@@ -56,7 +56,7 @@ async fn test_h1_2() {
 async fn test_expect_continue() {
     let srv = TestServer::start(|| {
         HttpService::build()
-            .expect(service_fn(|req: Request| {
+            .expect(fn_service(|req: Request| {
                 if req.head().uri.query() == Some("yes=") {
                     ok(req)
                 } else {
@@ -84,7 +84,7 @@ async fn test_expect_continue() {
 async fn test_expect_continue_h1() {
     let srv = TestServer::start(|| {
         HttpService::build()
-            .expect(service_fn(|req: Request| {
+            .expect(fn_service(|req: Request| {
                 delay_for(Duration::from_millis(20)).then(move |_| {
                     if req.head().uri.query() == Some("yes=") {
                         ok(req)
@@ -93,7 +93,7 @@ async fn test_expect_continue_h1() {
                     }
                 })
             }))
-            .h1(service_fn(|_| future::ok::<_, ()>(Response::Ok().finish())))
+            .h1(fn_service(|_| future::ok::<_, ()>(Response::Ok().finish())))
             .tcp()
     });
 
@@ -117,7 +117,7 @@ async fn test_chunked_payload() {
 
     let srv = TestServer::start(|| {
         HttpService::build()
-            .h1(service_fn(|mut request: Request| {
+            .h1(fn_service(|mut request: Request| {
                 request
                     .take_payload()
                     .map(|res| match res {
@@ -602,7 +602,7 @@ async fn test_h1_body_chunked_implicit() {
 async fn test_h1_response_http_error_handling() {
     let mut srv = TestServer::start(|| {
         HttpService::build()
-            .h1(service_fn(|_| {
+            .h1(fn_service(|_| {
                 let broken_header = Bytes::from_static(b"\0\0\0");
                 ok::<_, ()>(
                     Response::Ok()

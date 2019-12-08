@@ -822,7 +822,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use actix_service::{service_fn2, Transform};
+    use actix_service::{fn_service, Transform};
     use actix_web::test::{self, TestRequest};
 
     use super::*;
@@ -1083,7 +1083,7 @@ mod tests {
             .expose_headers(exposed_headers.clone())
             .allowed_header(header::CONTENT_TYPE)
             .finish()
-            .new_transform(service_fn2(|req: ServiceRequest| {
+            .new_transform(fn_service(|req: ServiceRequest| {
                 ok(req.into_response(
                     HttpResponse::Ok().header(header::VARY, "Accept").finish(),
                 ))

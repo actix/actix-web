@@ -127,3 +127,6 @@ actix-session = { path = "actix-session" }
 actix-files = { path = "actix-files" }
 actix-multipart = { path = "actix-multipart" }
 awc = { path = "awc" }
+
+actix-service = { git = "https://github.com/actix/actix-net.git" }
+actix-server = { git = "https://github.com/actix/actix-net.git" }

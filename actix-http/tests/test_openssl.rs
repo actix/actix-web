@@ -2,7 +2,7 @@
 use std::io;
 
 use actix_http_test::TestServer;
-use actix_service::{service_fn, ServiceFactory};
+use actix_service::{fn_service, ServiceFactory};
 
 use bytes::{Bytes, BytesMut};
 use futures::future::{err, ok, ready};
@@ -361,7 +361,7 @@ async fn test_h2_body_chunked_explicit() {
 async fn test_h2_response_http_error_handling() {
     let mut srv = TestServer::start(move || {
         HttpService::build()
-            .h2(service_fn(|_| {
+            .h2(fn_service(|_| {
                 let broken_header = Bytes::from_static(b"\0\0\0");
                 ok::<_, ()>(
                     Response::Ok()

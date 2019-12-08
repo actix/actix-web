@@ -4,7 +4,7 @@ use actix_http::http::header::{self, HeaderName, HeaderValue};
 use actix_http::http::{Method, StatusCode, Version};
 use actix_http::{body, error, Error, HttpService, Request, Response};
 use actix_http_test::TestServer;
-use actix_service::{factory_fn_cfg, service_fn2};
+use actix_service::{fn_factory_with_config, fn_service};
 
 use bytes::{Bytes, BytesMut};
 use futures::future::{self, err, ok};
@@ -367,8 +367,8 @@ async fn test_h2_body_chunked_explicit() {
 async fn test_h2_response_http_error_handling() {
     let mut srv = TestServer::start(move || {
         HttpService::build()
-            .h2(factory_fn_cfg(|_: ()| {
-                ok::<_, ()>(service_fn2(|_| {
+            .h2(fn_factory_with_config(|_: ()| {
+                ok::<_, ()>(fn_service(|_| {
                     let broken_header = Bytes::from_static(b"\0\0\0");
                     ok::<_, ()>(
                         Response::Ok()
