@@ -304,7 +304,7 @@ impl WebsocketsRequest {
         let (head, framed) = if let Some(to) = self.config.timeout {
             timeout(to, fut)
                 .await
-                .map_err(|_| SendRequestError::Timeout.into())
+                .map_err(|_| SendRequestError::Timeout)
                 .and_then(|res| res)?
         } else {
             fut.await?
@@ -379,7 +379,7 @@ impl WebsocketsRequest {
 }
 
 impl fmt::Debug for WebsocketsRequest {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(
             f,
             "\nWebsocketsRequest {}:{}",

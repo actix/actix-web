@@ -12,7 +12,7 @@
 //! [*Session*](struct.Session.html) extractor must be used. Session
 //! extractor allows us to get or set session data.
 //!
-//! ```rust
+//! ```rust,no_run
 //! use actix_web::{web, App, HttpServer, HttpResponse, Error};
 //! use actix_session::{Session, CookieSession};
 //!
@@ -28,8 +28,8 @@
 //!     Ok("Welcome!")
 //! }
 //!
-//! fn main() -> std::io::Result<()> {
-//! # std::thread::spawn(||
+//! #[actix_rt::main]
+//! async fn main() -> std::io::Result<()> {
 //!     HttpServer::new(
 //!         || App::new().wrap(
 //!               CookieSession::signed(&[0; 32]) // <- create cookie based session middleware
@@ -37,9 +37,8 @@
 //!              )
 //!             .service(web::resource("/").to(|| HttpResponse::Ok())))
 //!         .bind("127.0.0.1:59880")?
-//!         .run()
-//! # );
-//! # Ok(())
+//!         .start()
+//!         .await
 //! }
 //! ```
 use std::cell::RefCell;

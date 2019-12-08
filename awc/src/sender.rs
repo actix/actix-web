@@ -62,7 +62,7 @@ impl SendClientRequest {
         response_decompress: bool,
         timeout: Option<Duration>,
     ) -> SendClientRequest {
-        let delay = timeout.map(|t| delay_for(t));
+        let delay = timeout.map(delay_for);
         SendClientRequest::Fut(send, delay, response_decompress)
     }
 }
@@ -71,7 +71,7 @@ impl Future for SendClientRequest {
     type Output =
         Result<ClientResponse<Decoder<Payload<PayloadStream>>>, SendRequestError>;
 
-    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.get_mut();
 
         match this {

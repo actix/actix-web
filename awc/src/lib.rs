@@ -1,4 +1,9 @@
-#![allow(clippy::borrow_interior_mutable_const)]
+#![deny(rust_2018_idioms, warnings)]
+#![allow(
+    clippy::type_complexity,
+    clippy::borrow_interior_mutable_const,
+    clippy::needless_doctest_main
+)]
 //! An HTTP Client
 //!
 //! ```rust
@@ -11,9 +16,9 @@
 //!    let mut client = Client::default();
 //!
 //!    let response = client.get("http://www.rust-lang.org") // <- Create request builder
-//!       .header("User-Agent", "Actix-web")
-//!       .send()                             // <- Send http request
-//!       .await;
+//!        .header("User-Agent", "Actix-web")
+//!        .send()                             // <- Send http request
+//!        .await;
 //!
 //!     println!("Response: {:?}", response);
 //! }
@@ -50,22 +55,18 @@ use self::connect::{Connect, ConnectorWrapper};
 /// An HTTP Client
 ///
 /// ```rust
-/// use actix_rt::System;
 /// use awc::Client;
 ///
-/// fn main() {
-///     System::new("test").block_on(async {
-///        let mut client = Client::default();
+/// #[actix_rt::main]
+/// async fn main() {
+///     let mut client = Client::default();
 ///
-///        client.get("http://www.rust-lang.org") // <- Create request builder
-///           .header("User-Agent", "Actix-web")
-///           .send()                             // <- Send http request
-///           .await
-///           .and_then(|response| {              // <- server http response
-///                println!("Response: {:?}", response);
-///                Ok(())
-///           })
-///     });
+///     let res = client.get("http://www.rust-lang.org") // <- Create request builder
+///         .header("User-Agent", "Actix-web")
+///         .send()                             // <- Send http request
+///         .await;                             // <- send request and wait for response
+///
+///      println!("Response: {:?}", res);
 /// }
 /// ```
 #[derive(Clone)]

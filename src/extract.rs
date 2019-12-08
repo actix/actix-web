@@ -195,6 +195,7 @@ macro_rules! tuple_from_req ({$fut_type:ident, $(($n:tt, $T:ident)),+} => {
 
     /// FromRequest implementation for tuple
     #[doc(hidden)]
+    #[allow(unused_parens)]
     impl<$($T: FromRequest + 'static),+> FromRequest for ($($T,)+)
     {
         type Error = Error;

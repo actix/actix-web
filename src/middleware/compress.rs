@@ -140,7 +140,7 @@ where
     #[pin]
     fut: S::Future,
     encoding: ContentEncoding,
-    _t: PhantomData<(B)>,
+    _t: PhantomData<B>,
 }
 
 impl<S, B> Future for CompressResponse<S, B>
@@ -178,6 +178,7 @@ struct AcceptEncoding {
 impl Eq for AcceptEncoding {}
 
 impl Ord for AcceptEncoding {
+    #[allow(clippy::comparison_chain)]
     fn cmp(&self, other: &AcceptEncoding) -> cmp::Ordering {
         if self.quality > other.quality {
             cmp::Ordering::Less

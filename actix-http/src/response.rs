@@ -354,7 +354,6 @@ impl ResponseBuilder {
     ///         ))
     ///         .finish())
     /// }
-    /// fn main() {}
     /// ```
     #[doc(hidden)]
     pub fn set<H: Header>(&mut self, hdr: H) -> &mut Self {
@@ -380,7 +379,6 @@ impl ResponseBuilder {
     ///         .header(http::header::CONTENT_TYPE, "application/json")
     ///         .finish()
     /// }
-    /// fn main() {}
     /// ```
     pub fn header<K, V>(&mut self, key: K, value: V) -> &mut Self
     where
@@ -413,7 +411,6 @@ impl ResponseBuilder {
     ///         .set_header(http::header::CONTENT_TYPE, "application/json")
     ///         .finish()
     /// }
-    /// fn main() {}
     /// ```
     pub fn set_header<K, V>(&mut self, key: K, value: V) -> &mut Self
     where

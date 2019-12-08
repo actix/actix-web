@@ -474,14 +474,12 @@ impl ResponseError for ContentTypeError {
 /// default.
 ///
 /// ```rust
-/// # extern crate actix_http;
 /// # use std::io;
 /// # use actix_http::*;
 ///
 /// fn index(req: Request) -> Result<&'static str> {
 ///     Err(error::ErrorBadRequest(io::Error::new(io::ErrorKind::Other, "error")))
 /// }
-/// # fn main() {}
 /// ```
 pub struct InternalError<T> {
     cause: T,

@@ -6,7 +6,7 @@ use actix_http::http::header::{
 };
 use actix_http::{Error, HttpService, Response};
 use actix_http_test::TestServer;
-use brotli::write::{BrotliDecoder, BrotliEncoder};
+use brotli::DecompressorWriter;
 use bytes::Bytes;
 use flate2::read::GzDecoder;
 use flate2::write::{GzEncoder, ZlibDecoder, ZlibEncoder};
@@ -322,9 +322,9 @@ async fn test_body_br_streaming() {
     let bytes = response.body().await.unwrap();
 
     // decode br
-    let mut e = BrotliDecoder::new(Vec::with_capacity(2048));
+    let mut e = DecompressorWriter::new(Vec::with_capacity(2048), 0);
     e.write_all(bytes.as_ref()).unwrap();
-    let dec = e.finish().unwrap();
+    let dec = e.into_inner().unwrap();
     assert_eq!(Bytes::from(dec), Bytes::from_static(STR.as_ref()));
 }
 
@@ -433,9 +433,9 @@ async fn test_body_brotli() {
     let bytes = response.body().await.unwrap();
 
     // decode brotli
-    let mut e = BrotliDecoder::new(Vec::with_capacity(2048));
+    let mut e = DecompressorWriter::new(Vec::with_capacity(2048), 0);
     e.write_all(bytes.as_ref()).unwrap();
-    let dec = e.finish().unwrap();
+    let dec = e.into_inner().unwrap();
     assert_eq!(Bytes::from(dec), Bytes::from_static(STR.as_ref()));
 }
 

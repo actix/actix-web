@@ -1,25 +1,27 @@
 #![deny(rust_2018_idioms, warnings)]
-#![allow(clippy::type_complexity, clippy::borrow_interior_mutable_const)]
+#![allow(
+    clippy::needless_doctest_main,
+    clippy::type_complexity,
+    clippy::borrow_interior_mutable_const
+)]
 //! Actix web is a small, pragmatic, and extremely fast web framework
 //! for Rust.
 //!
-//! ```rust
+//! ```rust,no_run
 //! use actix_web::{web, App, Responder, HttpServer};
-//! # use std::thread;
 //!
 //! async fn index(info: web::Path<(String, u32)>) -> impl Responder {
 //!     format!("Hello {}! id:{}", info.0, info.1)
 //! }
 //!
-//! fn main() -> std::io::Result<()> {
-//!     # thread::spawn(|| {
+//! #[actix_rt::main]
+//! async fn main() -> std::io::Result<()> {
 //!     HttpServer::new(|| App::new().service(
 //!         web::resource("/{name}/{id}/index.html").to(index))
 //!     )
 //!         .bind("127.0.0.1:8080")?
-//!         .run()
-//!     # });
-//!     # Ok(())
+//!         .start()
+//!         .await
 //! }
 //! ```
 //!
@@ -170,7 +172,6 @@ pub mod client {
     //! An HTTP Client
     //!
     //! ```rust
-    //! use actix_rt::System;
     //! use actix_web::client::Client;
     //!
     //! #[actix_rt::main]

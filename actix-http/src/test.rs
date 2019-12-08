@@ -21,8 +21,6 @@ use crate::Request;
 /// Test `Request` builder
 ///
 /// ```rust,ignore
-/// # extern crate http;
-/// # extern crate actix_web;
 /// # use http::{header, StatusCode};
 /// # use actix_web::*;
 /// use actix_web::test::TestRequest;
@@ -35,15 +33,13 @@ use crate::Request;
 ///     }
 /// }
 ///
-/// fn main() {
-///     let resp = TestRequest::with_header("content-type", "text/plain")
-///         .run(&index)
-///         .unwrap();
-///     assert_eq!(resp.status(), StatusCode::OK);
+/// let resp = TestRequest::with_header("content-type", "text/plain")
+///     .run(&index)
+///     .unwrap();
+/// assert_eq!(resp.status(), StatusCode::OK);
 ///
-///     let resp = TestRequest::default().run(&index).unwrap();
-///     assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-/// }
+/// let resp = TestRequest::default().run(&index).unwrap();
+/// assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 /// ```
 pub struct TestRequest(Option<Inner>);
 

@@ -190,7 +190,6 @@ impl CookieJar {
     /// use actix_http::cookie::{CookieJar, Cookie};
     /// use chrono::Duration;
     ///
-    /// # fn main() {
     /// let mut jar = CookieJar::new();
     ///
     /// // Assume this cookie originally had a path of "/" and domain of "a.b".
@@ -204,7 +203,6 @@ impl CookieJar {
     /// assert_eq!(delta.len(), 1);
     /// assert_eq!(delta[0].name(), "name");
     /// assert_eq!(delta[0].max_age(), Some(Duration::seconds(0)));
-    /// # }
     /// ```
     ///
     /// Removing a new cookie does not result in a _removal_ cookie:
@@ -243,7 +241,6 @@ impl CookieJar {
     /// use actix_http::cookie::{CookieJar, Cookie};
     /// use chrono::Duration;
     ///
-    /// # fn main() {
     /// let mut jar = CookieJar::new();
     ///
     /// // Add an original cookie and a new cookie.
@@ -261,7 +258,6 @@ impl CookieJar {
     /// jar.force_remove(Cookie::new("key", "value"));
     /// assert_eq!(jar.delta().count(), 0);
     /// assert_eq!(jar.iter().count(), 0);
-    /// # }
     /// ```
     pub fn force_remove<'a>(&mut self, cookie: Cookie<'a>) {
         self.original_cookies.remove(cookie.name());

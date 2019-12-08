@@ -195,7 +195,7 @@ impl<T: AsyncRead + AsyncWrite + Unpin> AsyncSocket for Socket<T> {
 pub struct BoxedSocket(Box<dyn AsyncSocket>);
 
 impl fmt::Debug for BoxedSocket {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "BoxedSocket")
     }
 }

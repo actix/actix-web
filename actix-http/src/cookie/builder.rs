@@ -18,7 +18,6 @@ use super::{Cookie, SameSite};
 /// ```rust
 /// use actix_http::cookie::Cookie;
 ///
-/// # fn main() {
 /// let cookie: Cookie = Cookie::build("name", "value")
 ///     .domain("www.rust-lang.org")
 ///     .path("/")
@@ -26,7 +25,6 @@ use super::{Cookie, SameSite};
 ///     .http_only(true)
 ///     .max_age(84600)
 ///     .finish();
-/// # }
 /// ```
 #[derive(Debug, Clone)]
 pub struct CookieBuilder {
@@ -65,13 +63,11 @@ impl CookieBuilder {
     /// ```rust
     /// use actix_http::cookie::Cookie;
     ///
-    /// # fn main() {
     /// let c = Cookie::build("foo", "bar")
     ///     .expires(time::now())
     ///     .finish();
     ///
     /// assert!(c.expires().is_some());
-    /// # }
     /// ```
     #[inline]
     pub fn expires(mut self, when: Tm) -> CookieBuilder {
@@ -86,13 +82,11 @@ impl CookieBuilder {
     /// ```rust
     /// use actix_http::cookie::Cookie;
     ///
-    /// # fn main() {
     /// let c = Cookie::build("foo", "bar")
     ///     .max_age(1800)
     ///     .finish();
     ///
     /// assert_eq!(c.max_age(), Some(time::Duration::seconds(30 * 60)));
-    /// # }
     /// ```
     #[inline]
     pub fn max_age(self, seconds: i64) -> CookieBuilder {
@@ -106,13 +100,11 @@ impl CookieBuilder {
     /// ```rust
     /// use actix_http::cookie::Cookie;
     ///
-    /// # fn main() {
     /// let c = Cookie::build("foo", "bar")
     ///     .max_age_time(time::Duration::minutes(30))
     ///     .finish();
     ///
     /// assert_eq!(c.max_age(), Some(time::Duration::seconds(30 * 60)));
-    /// # }
     /// ```
     #[inline]
     pub fn max_age_time(mut self, value: Duration) -> CookieBuilder {
@@ -222,14 +214,12 @@ impl CookieBuilder {
     /// use actix_http::cookie::Cookie;
     /// use chrono::Duration;
     ///
-    /// # fn main() {
     /// let c = Cookie::build("foo", "bar")
     ///     .permanent()
     ///     .finish();
     ///
     /// assert_eq!(c.max_age(), Some(Duration::days(365 * 20)));
     /// # assert!(c.expires().is_some());
-    /// # }
     /// ```
     #[inline]
     pub fn permanent(mut self) -> CookieBuilder {

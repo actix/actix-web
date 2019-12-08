@@ -647,13 +647,11 @@ impl<'c> Cookie<'c> {
     /// use actix_http::cookie::Cookie;
     /// use chrono::Duration;
     ///
-    /// # fn main() {
     /// let mut c = Cookie::new("name", "value");
     /// assert_eq!(c.max_age(), None);
     ///
     /// c.set_max_age(Duration::hours(10));
     /// assert_eq!(c.max_age(), Some(Duration::hours(10)));
-    /// # }
     /// ```
     #[inline]
     pub fn set_max_age(&mut self, value: Duration) {
@@ -701,7 +699,6 @@ impl<'c> Cookie<'c> {
     /// ```rust
     /// use actix_http::cookie::Cookie;
     ///
-    /// # fn main() {
     /// let mut c = Cookie::new("name", "value");
     /// assert_eq!(c.expires(), None);
     ///
@@ -710,7 +707,6 @@ impl<'c> Cookie<'c> {
     ///
     /// c.set_expires(now);
     /// assert!(c.expires().is_some())
-    /// # }
     /// ```
     #[inline]
     pub fn set_expires(&mut self, time: Tm) {
@@ -726,7 +722,6 @@ impl<'c> Cookie<'c> {
     /// use actix_http::cookie::Cookie;
     /// use chrono::Duration;
     ///
-    /// # fn main() {
     /// let mut c = Cookie::new("foo", "bar");
     /// assert!(c.expires().is_none());
     /// assert!(c.max_age().is_none());
@@ -734,7 +729,6 @@ impl<'c> Cookie<'c> {
     /// c.make_permanent();
     /// assert!(c.expires().is_some());
     /// assert_eq!(c.max_age(), Some(Duration::days(365 * 20)));
-    /// # }
     /// ```
     pub fn make_permanent(&mut self) {
         let twenty_years = Duration::days(365 * 20);

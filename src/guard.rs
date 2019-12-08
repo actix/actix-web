@@ -259,16 +259,15 @@ impl Guard for HeaderGuard {
 
 /// Return predicate that matches if request contains specified Host name.
 ///
-/// ```rust,ignore
-/// # extern crate actix_web;
-/// use actix_web::{guard::Host, App, HttpResponse};
+/// ```rust
+/// use actix_web::{web, guard::Host, App, HttpResponse};
 ///
 /// fn main() {
-///     App::new().resource("/index.html", |r| {
-///         r.route()
+///     App::new().service(
+///         web::resource("/index.html")
 ///             .guard(Host("www.rust-lang.org"))
-///             .f(|_| HttpResponse::MethodNotAllowed())
-///     });
+///             .to(|| HttpResponse::MethodNotAllowed())
+///     );
 /// }
 /// ```
 pub fn Host<H: AsRef<str>>(host: H) -> HostGuard {
