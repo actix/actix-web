@@ -66,6 +66,7 @@ where
     U::Error: fmt::Display,
 {
     Normal(InnerDispatcher<T, S, B, X, U>),
+    UpgradeReadiness(InnerDispatcher<T, S, B, X, U>, Request),
     Upgrade(U::Future),
     None,
 }
@@ -761,16 +762,8 @@ where
                             if let DispatcherState::Normal(inner) =
                                 std::mem::replace(&mut self.inner, DispatcherState::None)
                             {
-                                let mut parts = FramedParts::with_read_buf(
-                                    inner.io,
-                                    inner.codec,
-                                    inner.read_buf,
-                                );
-                                parts.write_buf = inner.write_buf;
-                                let framed = Framed::from_parts(parts);
-                                self.inner = DispatcherState::Upgrade(
-                                    inner.upgrade.unwrap().call((req, framed)),
-                                );
+                                self.inner =
+                                    DispatcherState::UpgradeReadiness(inner, req);
                                 return self.poll(cx);
                             } else {
                                 panic!()
@@ -817,6 +810,35 @@ where
                         }
                     } else {
                         Poll::Pending
+                    }
+                }
+            }
+            DispatcherState::UpgradeReadiness(ref mut inner, _) => {
+                let upgrade = inner.upgrade.as_mut().unwrap();
+                match upgrade.poll_ready(cx) {
+                    Poll::Ready(Ok(_)) => {
+                        if let DispatcherState::UpgradeReadiness(inner, req) =
+                            std::mem::replace(&mut self.inner, DispatcherState::None)
+                        {
+                            let mut parts = FramedParts::with_read_buf(
+                                inner.io,
+                                inner.codec,
+                                inner.read_buf,
+                            );
+                            parts.write_buf = inner.write_buf;
+                            let framed = Framed::from_parts(parts);
+                            self.inner = DispatcherState::Upgrade(
+                                inner.upgrade.unwrap().call((req, framed)),
+                            );
+                            self.poll(cx)
+                        } else {
+                            panic!()
+                        }
+                    }
+                    Poll::Pending => Poll::Pending,
+                    Poll::Ready(Err(e)) => {
+                        error!("Upgrade handler readiness check error: {}", e);
+                        Poll::Ready(Err(DispatchError::Upgrade))
                     }
                 }
             }

@@ -1,5 +1,10 @@
 # Changes
 
+## [1.0.0-alpha.5] - 2019-12-xx
+
+### Fixed
+
+* Check `Upgrade` service readiness before calling it
 
 ### Changed
 
