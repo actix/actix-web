@@ -78,7 +78,7 @@ actix-tls = { version = "1.0.0-alpha.3" }
 
 actix-web-codegen = "0.2.0-alpha.2"
 actix-http = "1.0.0-alpha.4"
-awc = { version = "1.0.0-alpha.3", default-features = false, optional = true }
+awc = { version = "1.0.0-alpha.4", default-features = false, optional = true }
 
 bytes = "0.5.2"
 derive_more = "0.99.2"

@@ -1,5 +1,10 @@
 # Changes
 
+
+### Changed
+
+* Websockets: Ping and Pong should have binary data #1049
+
 ## [1.0.0-alpha.4] - 2019-12-08
 
 ### Added

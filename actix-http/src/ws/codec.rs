@@ -13,9 +13,9 @@ pub enum Message {
     /// Binary message
     Binary(Bytes),
     /// Ping message
-    Ping(String),
+    Ping(Bytes),
     /// Pong message
-    Pong(String),
+    Pong(Bytes),
     /// Close message with optional reason
     Close(Option<CloseReason>),
     /// No-op. Useful for actix-net services
@@ -30,9 +30,9 @@ pub enum Frame {
     /// Binary frame
     Binary(Option<BytesMut>),
     /// Ping message
-    Ping(String),
+    Ping(Bytes),
     /// Pong message
-    Pong(String),
+    Pong(Bytes),
     /// Close message with optional reason
     Close(Option<CloseReason>),
 }
@@ -119,17 +119,17 @@ impl Decoder for Codec {
                         }
                     }
                     OpCode::Ping => {
-                        if let Some(ref pl) = payload {
-                            Ok(Some(Frame::Ping(String::from_utf8_lossy(pl).into())))
+                        if let Some(pl) = payload {
+                            Ok(Some(Frame::Ping(pl.freeze())))
                         } else {
-                            Ok(Some(Frame::Ping(String::new())))
+                            Ok(Some(Frame::Ping(Bytes::new())))
                         }
                     }
                     OpCode::Pong => {
-                        if let Some(ref pl) = payload {
-                            Ok(Some(Frame::Pong(String::from_utf8_lossy(pl).into())))
+                        if let Some(pl) = payload {
+                            Ok(Some(Frame::Pong(pl.freeze())))
                         } else {
-                            Ok(Some(Frame::Pong(String::new())))
+                            Ok(Some(Frame::Pong(Bytes::new())))
                         }
                     }
                     OpCode::Binary => Ok(Some(Frame::Binary(payload))),
