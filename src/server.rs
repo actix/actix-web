@@ -180,9 +180,11 @@ where
 
     /// Set server host name.
     ///
-    /// Host name is used by application router as a hostname for url
-    /// generation. Check [ConnectionInfo](./dev/struct.ConnectionInfo.
-    /// html#method.host) documentation for more information.
+    /// Host name is used by application router as a hostname for url generation.
+    /// Check [ConnectionInfo](./dev/struct.ConnectionInfo.html#method.host)
+    /// documentation for more information.
+    ///
+    /// By default host name is set to a "localhost" value.
     pub fn server_hostname<T: AsRef<str>>(mut self, val: T) -> Self {
         self.host = Some(val.as_ref().to_owned());
         self

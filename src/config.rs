@@ -133,9 +133,9 @@ impl AppConfig {
 
     /// Set server host name.
     ///
-    /// Host name is used by application router as a hostname for url
-    /// generation. Check [ConnectionInfo](./dev/struct.ConnectionInfo.
-    /// html#method.host) documentation for more information.
+    /// Host name is used by application router as a hostname for url generation.
+    /// Check [ConnectionInfo](./struct.ConnectionInfo.html#method.host)
+    /// documentation for more information.
     ///
     /// By default host name is set to a "localhost" value.
     pub fn host(&self) -> &str {
