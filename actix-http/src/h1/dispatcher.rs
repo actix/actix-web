@@ -8,7 +8,7 @@ use actix_codec::{AsyncRead, AsyncWrite, Decoder, Encoder, Framed, FramedParts};
 use actix_rt::time::{delay_until, Delay, Instant};
 use actix_service::Service;
 use bitflags::bitflags;
-use bytes::{BufMut, BytesMut};
+use bytes::BytesMut;
 use log::{error, trace};
 
 use crate::body::{Body, BodySize, MessageBody, ResponseBody};
@@ -751,8 +751,10 @@ where
                     };
 
                     loop {
-                        if inner.write_buf.remaining_mut() < LW_BUFFER_SIZE {
-                            inner.write_buf.reserve(HW_BUFFER_SIZE);
+                        let remaining =
+                            inner.write_buf.capacity() - inner.write_buf.len();
+                        if remaining < LW_BUFFER_SIZE {
+                            inner.write_buf.reserve(HW_BUFFER_SIZE - remaining);
                         }
                         let result = inner.poll_response(cx)?;
                         let drain = result == PollResponse::DrainWriteBuf;
@@ -863,8 +865,9 @@ where
 {
     let mut read_some = false;
     loop {
-        if buf.remaining_mut() < LW_BUFFER_SIZE {
-            buf.reserve(HW_BUFFER_SIZE);
+        let remaining = buf.capacity() - buf.len();
+        if remaining < LW_BUFFER_SIZE {
+            buf.reserve(HW_BUFFER_SIZE - remaining);
         }
 
         match read(cx, io, buf) {

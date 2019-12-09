@@ -1,10 +1,12 @@
 # Changes
 
-## [1.0.0-alpha.5] - 2019-12-xx
+## [1.0.0-alpha.5] - 2019-12-09
 
 ### Fixed
 
 * Check `Upgrade` service readiness before calling it
+
+* Fix buffer remaining capacity calcualtion
 
 ### Changed
 
