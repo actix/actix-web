@@ -1,5 +1,5 @@
 use std::marker::PhantomData;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::{fmt, io, net};
 
 use actix_http::{
@@ -8,7 +8,6 @@ use actix_http::{
 use actix_server::{Server, ServerBuilder};
 use actix_service::{pipeline_factory, IntoServiceFactory, Service, ServiceFactory};
 use futures::future::ok;
-use parking_lot::Mutex;
 
 use net2::TcpBuilder;
 
@@ -147,7 +146,7 @@ where
     ///
     /// By default keep alive is set to a 5 seconds.
     pub fn keep_alive<T: Into<KeepAlive>>(self, val: T) -> Self {
-        self.config.lock().keep_alive = val.into();
+        self.config.lock().unwrap().keep_alive = val.into();
         self
     }
 
@@ -161,7 +160,7 @@ where
     ///
     /// By default client timeout is set to 5000 milliseconds.
     pub fn client_timeout(self, val: u64) -> Self {
-        self.config.lock().client_timeout = val;
+        self.config.lock().unwrap().client_timeout = val;
         self
     }
 
@@ -174,7 +173,7 @@ where
     ///
     /// By default client timeout is set to 5000 milliseconds.
     pub fn client_shutdown(self, val: u64) -> Self {
-        self.config.lock().client_shutdown = val;
+        self.config.lock().unwrap().client_shutdown = val;
         self
     }
 
@@ -246,7 +245,7 @@ where
             format!("actix-web-service-{}", addr),
             lst,
             move || {
-                let c = cfg.lock();
+                let c = cfg.lock().unwrap();
                 HttpService::build()
                     .keep_alive(c.keep_alive)
                     .client_timeout(c.client_timeout)
@@ -288,7 +287,7 @@ where
             format!("actix-web-service-{}", addr),
             lst,
             move || {
-                let c = cfg.lock();
+                let c = cfg.lock().unwrap();
                 HttpService::build()
                     .keep_alive(c.keep_alive)
                     .client_timeout(c.client_timeout)
@@ -330,7 +329,7 @@ where
             format!("actix-web-service-{}", addr),
             lst,
             move || {
-                let c = cfg.lock();
+                let c = cfg.lock().unwrap();
                 HttpService::build()
                     .keep_alive(c.keep_alive)
                     .client_timeout(c.client_timeout)
@@ -448,7 +447,7 @@ where
         let addr = format!("actix-web-service-{:?}", lst.local_addr()?);
 
         self.builder = self.builder.listen_uds(addr, lst, move || {
-            let c = cfg.lock();
+            let c = cfg.lock().unwrap();
             pipeline_factory(|io: UnixStream| ok((io, Protocol::Http1, None))).and_then(
                 HttpService::build()
                     .keep_alive(c.keep_alive)
@@ -483,7 +482,7 @@ where
             format!("actix-web-service-{:?}", addr.as_ref()),
             addr,
             move || {
-                let c = cfg.lock();
+                let c = cfg.lock().unwrap();
                 pipeline_factory(|io: UnixStream| ok((io, Protocol::Http1, None)))
                     .and_then(
                         HttpService::build()
