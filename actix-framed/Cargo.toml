@@ -20,10 +20,10 @@ name = "actix_framed"
 path = "src/lib.rs"
 
 [dependencies]
-actix-codec = "0.2.0-alpha.3"
-actix-service = "1.0.0-alpha.3"
+actix-codec = "0.2.0"
+actix-service = "1.0.0"
 actix-router = "0.2.0"
-actix-rt = "1.0.0-alpha.3"
+actix-rt = "1.0.0"
 actix-http = "1.0.0-alpha.3"
 
 bytes = "0.5.2"
@@ -32,7 +32,7 @@ pin-project = "0.4.6"
 log = "0.4"
 
 [dev-dependencies]
-actix-server = { version = "1.0.0-alpha.3" }
-actix-connect = { version = "1.0.0-alpha.3", features=["openssl"] }
+actix-server = "1.0.0"
+actix-connect = { version = "1.0.0", features=["openssl"] }
 actix-http-test = { version = "1.0.0-alpha.3", features=["openssl"] }
-actix-utils = "1.0.0-alpha.3"
+actix-utils = "1.0.0"

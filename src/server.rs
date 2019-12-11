@@ -12,7 +12,7 @@ use futures::future::ok;
 use net2::TcpBuilder;
 
 #[cfg(feature = "openssl")]
-use actix_tls::openssl::{SslAcceptor, SslAcceptorBuilder};
+use actix_tls::openssl::{AlpnError, SslAcceptor, SslAcceptorBuilder};
 #[cfg(feature = "rustls")]
 use actix_tls::rustls::ServerConfig as RustlsServerConfig;
 
@@ -549,8 +549,6 @@ fn create_tcp_listener(
 #[cfg(feature = "openssl")]
 /// Configure `SslAcceptorBuilder` with custom server flags.
 fn openssl_acceptor(mut builder: SslAcceptorBuilder) -> io::Result<SslAcceptor> {
-    use open_ssl::ssl::AlpnError;
-
     builder.set_alpn_select_callback(|_, protos| {
         const H2: &[u8] = b"\x02h2";
         const H11: &[u8] = b"\x08http/1.1";

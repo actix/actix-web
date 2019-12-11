@@ -13,15 +13,15 @@ use crate::message::RequestHead;
 use crate::response::{Response, ResponseBuilder};
 
 mod codec;
+mod dispatcher;
 mod frame;
 mod mask;
 mod proto;
-mod transport;
 
 pub use self::codec::{Codec, Frame, Message};
+pub use self::dispatcher::Dispatcher;
 pub use self::frame::Parser;
 pub use self::proto::{hash_key, CloseCode, CloseReason, OpCode};
-pub use self::transport::Transport;
 
 /// Websocket protocol errors
 #[derive(Debug, Display, From)]
