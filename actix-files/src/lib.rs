@@ -274,10 +274,14 @@ impl Files {
     /// By default pool with 5x threads of available cpus is used.
     /// Pool size can be changed by setting ACTIX_CPU_POOL environment variable.
     pub fn new<T: Into<PathBuf>>(path: &str, dir: T) -> Files {
-        let dir = dir.into().canonicalize().unwrap_or_else(|_| PathBuf::new());
-        if !dir.is_dir() {
-            log::error!("Specified path is not a directory: {:?}", dir);
-        }
+        let orig_dir = dir.into();
+        let dir = match orig_dir.canonicalize() {
+            Ok(canon_dir) => canon_dir,
+            Err(_) => {
+                log::error!("Specified path is not a directory: {:?}", orig_dir);
+                PathBuf::new()
+            }
+        };
 
         Files {
             path: path.to_string(),
