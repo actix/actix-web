@@ -43,10 +43,7 @@ members = [
 ]
 
 [features]
-default = ["compress", "client", "fail"]
-
-# http client
-client = ["awc"]
+default = ["compress", "fail"]
 
 # content-encoding support
 compress = ["actix-http/compress", "awc/compress"]
@@ -57,10 +54,10 @@ secure-cookies = ["actix-http/secure-cookies"]
 fail = ["actix-http/fail"]
 
 # openssl
-openssl = ["actix-tls/openssl", "awc/openssl"]
+openssl = ["actix-tls/openssl", "awc/openssl", "open-ssl"]
 
 # rustls
-rustls = ["actix-tls/rustls", "awc/rustls"]
+rustls = ["actix-tls/rustls", "awc/rustls", "rust-tls"]
 
 [dependencies]
 actix-codec = "0.2.0"
@@ -70,12 +67,13 @@ actix-router = "0.2.0"
 actix-rt = "1.0.0"
 actix-server = "1.0.0"
 actix-testing = "1.0.0"
+actix-macros = "0.1.0"
 actix-threadpool = "0.3.0"
 actix-tls = "1.0.0"
 
 actix-web-codegen = "0.2.0-alpha.2"
 actix-http = "1.0.0"
-awc = { version = "1.0.0", default-features = false, optional = true }
+awc = { version = "1.0.0", default-features = false }
 
 bytes = "0.5.2"
 derive_more = "0.99.2"
@@ -92,18 +90,16 @@ serde_json = "1.0"
 serde_urlencoded = "0.6.1"
 time = "0.1.42"
 url = "2.1"
+open-ssl = { version="0.10", package = "openssl", optional = true }
+rust-tls = { version = "0.16.0", package = "rustls", optional = true }
 
 [dev-dependencies]
 # actix = "0.8.3"
-actix-connect = "1.0.0"
-actix-http-test = "1.0.0-alpha.3"
 rand = "0.7"
 env_logger = "0.6"
 serde_derive = "1.0"
 brotli = "3.3.0"
 flate2 = "1.0.13"
-open-ssl = { version="0.10", package = "openssl" }
-rust_tls = { version = "0.16.0", package = "rustls" }
 
 [profile.release]
 lto = true

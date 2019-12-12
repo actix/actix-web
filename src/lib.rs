@@ -100,10 +100,6 @@ pub mod test;
 mod types;
 pub mod web;
 
-#[allow(unused_imports)]
-#[macro_use]
-extern crate actix_web_codegen;
-
 #[doc(hidden)]
 pub use actix_web_codegen::*;
 
@@ -163,7 +159,6 @@ pub mod dev {
     }
 }
 
-#[cfg(feature = "client")]
 pub mod client {
     //! An HTTP Client
     //!

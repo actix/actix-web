@@ -4,9 +4,7 @@ use actix_http::http::header::{
     ContentEncoding, ACCEPT_ENCODING, CONTENT_ENCODING, CONTENT_LENGTH,
     TRANSFER_ENCODING,
 };
-use actix_http::{Error, HttpService, Response};
-use actix_http_test::TestServer;
-use brotli::DecompressorWriter;
+use brotli::{CompressorWriter, DecompressorWriter};
 use bytes::Bytes;
 use flate2::read::GzDecoder;
 use flate2::write::{GzEncoder, ZlibDecoder, ZlibEncoder};
@@ -15,7 +13,7 @@ use futures::{future::ok, stream::once};
 use rand::{distributions::Alphanumeric, Rng};
 
 use actix_web::middleware::{BodyEncoding, Compress};
-use actix_web::{dev, http, web, App, HttpResponse, HttpServer};
+use actix_web::{dev, http, test, web, App, Error, HttpResponse};
 
 const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
                    Hello World Hello World Hello World Hello World Hello World \
@@ -41,11 +39,9 @@ const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
 
 #[actix_rt::test]
 async fn test_body() {
-    let srv = TestServer::start(|| {
-        HttpService::build()
-            .h1(App::new()
-                .service(web::resource("/").route(web::to(|| Response::Ok().body(STR)))))
-            .tcp()
+    let srv = test::start(|| {
+        App::new()
+            .service(web::resource("/").route(web::to(|| HttpResponse::Ok().body(STR))))
     });
 
     let mut response = srv.get("/").send().await.unwrap();
@@ -58,12 +54,10 @@ async fn test_body() {
 
 #[actix_rt::test]
 async fn test_body_gzip() {
-    let srv = TestServer::start(|| {
-        HttpService::build()
-            .h1(App::new()
-                .wrap(Compress::new(ContentEncoding::Gzip))
-                .service(web::resource("/").route(web::to(|| Response::Ok().body(STR)))))
-            .tcp()
+    let srv = test::start_with(test::config().h1(), || {
+        App::new()
+            .wrap(Compress::new(ContentEncoding::Gzip))
+            .service(web::resource("/").route(web::to(|| HttpResponse::Ok().body(STR))))
     });
 
     let mut response = srv
@@ -87,14 +81,12 @@ async fn test_body_gzip() {
 
 #[actix_rt::test]
 async fn test_body_gzip2() {
-    let srv = TestServer::start(|| {
-        HttpService::build()
-            .h1(App::new()
-                .wrap(Compress::new(ContentEncoding::Gzip))
-                .service(web::resource("/").route(web::to(|| {
-                    Response::Ok().body(STR).into_body::<dev::Body>()
-                }))))
-            .tcp()
+    let srv = test::start_with(test::config().h1(), || {
+        App::new()
+            .wrap(Compress::new(ContentEncoding::Gzip))
+            .service(web::resource("/").route(web::to(|| {
+                HttpResponse::Ok().body(STR).into_body::<dev::Body>()
+            })))
     });
 
     let mut response = srv
@@ -118,23 +110,23 @@ async fn test_body_gzip2() {
 
 #[actix_rt::test]
 async fn test_body_encoding_override() {
-    let srv = TestServer::start(|| {
-        HttpService::build()
-            .h1(App::new()
-                .wrap(Compress::new(ContentEncoding::Gzip))
-                .service(web::resource("/").route(web::to(|| {
-                    Response::Ok().encoding(ContentEncoding::Deflate).body(STR)
-                })))
-                .service(web::resource("/raw").route(web::to(|| {
-                    let body = actix_web::dev::Body::Bytes(STR.into());
-                    let mut response =
-                        Response::with_body(actix_web::http::StatusCode::OK, body);
+    let srv = test::start_with(test::config().h1(), || {
+        App::new()
+            .wrap(Compress::new(ContentEncoding::Gzip))
+            .service(web::resource("/").route(web::to(|| {
+                HttpResponse::Ok()
+                    .encoding(ContentEncoding::Deflate)
+                    .body(STR)
+            })))
+            .service(web::resource("/raw").route(web::to(|| {
+                let body = actix_web::dev::Body::Bytes(STR.into());
+                let mut response =
+                    HttpResponse::with_body(actix_web::http::StatusCode::OK, body);
 
-                    response.encoding(ContentEncoding::Deflate);
+                response.encoding(ContentEncoding::Deflate);
 
-                    response
-                }))))
-            .tcp()
+                response
+            })))
     });
 
     // Builder
@@ -181,16 +173,14 @@ async fn test_body_gzip_large() {
     let data = STR.repeat(10);
     let srv_data = data.clone();
 
-    let srv = TestServer::start(move || {
+    let srv = test::start_with(test::config().h1(), move || {
         let data = srv_data.clone();
-        HttpService::build()
-            .h1(App::new()
-                .wrap(Compress::new(ContentEncoding::Gzip))
-                .service(
-                    web::resource("/")
-                        .route(web::to(move || Response::Ok().body(data.clone()))),
-                ))
-            .tcp()
+        App::new()
+            .wrap(Compress::new(ContentEncoding::Gzip))
+            .service(
+                web::resource("/")
+                    .route(web::to(move || HttpResponse::Ok().body(data.clone()))),
+            )
     });
 
     let mut response = srv
@@ -220,16 +210,14 @@ async fn test_body_gzip_large_random() {
         .collect::<String>();
     let srv_data = data.clone();
 
-    let srv = TestServer::start(move || {
+    let srv = test::start_with(test::config().h1(), move || {
         let data = srv_data.clone();
-        HttpService::build()
-            .h1(App::new()
-                .wrap(Compress::new(ContentEncoding::Gzip))
-                .service(
-                    web::resource("/")
-                        .route(web::to(move || Response::Ok().body(data.clone()))),
-                ))
-            .tcp()
+        App::new()
+            .wrap(Compress::new(ContentEncoding::Gzip))
+            .service(
+                web::resource("/")
+                    .route(web::to(move || HttpResponse::Ok().body(data.clone()))),
+            )
     });
 
     let mut response = srv
@@ -254,16 +242,13 @@ async fn test_body_gzip_large_random() {
 
 #[actix_rt::test]
 async fn test_body_chunked_implicit() {
-    let srv = TestServer::start(move || {
-        HttpService::build()
-            .h1(App::new()
-                .wrap(Compress::new(ContentEncoding::Gzip))
-                .service(web::resource("/").route(web::get().to(move || {
-                    Response::Ok().streaming(once(ok::<_, Error>(Bytes::from_static(
-                        STR.as_ref(),
-                    ))))
-                }))))
-            .tcp()
+    let srv = test::start_with(test::config().h1(), || {
+        App::new()
+            .wrap(Compress::new(ContentEncoding::Gzip))
+            .service(web::resource("/").route(web::get().to(move || {
+                HttpResponse::Ok()
+                    .streaming(once(ok::<_, Error>(Bytes::from_static(STR.as_ref()))))
+            })))
     });
 
     let mut response = srv
@@ -291,16 +276,13 @@ async fn test_body_chunked_implicit() {
 
 #[actix_rt::test]
 async fn test_body_br_streaming() {
-    let srv = TestServer::start(move || {
-        HttpService::build()
-            .h1(App::new().wrap(Compress::new(ContentEncoding::Br)).service(
-                web::resource("/").route(web::to(move || {
-                    Response::Ok().streaming(once(ok::<_, Error>(Bytes::from_static(
-                        STR.as_ref(),
-                    ))))
-                })),
-            ))
-            .tcp()
+    let srv = test::start_with(test::config().h1(), || {
+        App::new().wrap(Compress::new(ContentEncoding::Br)).service(
+            web::resource("/").route(web::to(move || {
+                HttpResponse::Ok()
+                    .streaming(once(ok::<_, Error>(Bytes::from_static(STR.as_ref()))))
+            })),
+        )
     });
 
     let mut response = srv
@@ -324,12 +306,10 @@ async fn test_body_br_streaming() {
 
 #[actix_rt::test]
 async fn test_head_binary() {
-    let srv = TestServer::start(move || {
-        HttpService::build()
-            .h1(App::new().service(web::resource("/").route(
-                web::head().to(move || Response::Ok().content_length(100).body(STR)),
-            )))
-            .tcp()
+    let srv = test::start_with(test::config().h1(), || {
+        App::new().service(web::resource("/").route(
+            web::head().to(move || HttpResponse::Ok().content_length(100).body(STR)),
+        ))
     });
 
     let mut response = srv.head("/").send().await.unwrap();
@@ -347,19 +327,13 @@ async fn test_head_binary() {
 
 #[actix_rt::test]
 async fn test_no_chunking() {
-    let srv = TestServer::start(move || {
-        HttpService::build()
-            .h1(
-                App::new().service(web::resource("/").route(web::to(move || {
-                    Response::Ok()
-                        .no_chunking()
-                        .content_length(STR.len() as u64)
-                        .streaming(once(ok::<_, Error>(Bytes::from_static(
-                            STR.as_ref(),
-                        ))))
-                }))),
-            )
-            .tcp()
+    let srv = test::start_with(test::config().h1(), || {
+        App::new().service(web::resource("/").route(web::to(move || {
+            HttpResponse::Ok()
+                .no_chunking()
+                .content_length(STR.len() as u64)
+                .streaming(once(ok::<_, Error>(Bytes::from_static(STR.as_ref()))))
+        })))
     });
 
     let mut response = srv.get("/").send().await.unwrap();
@@ -373,14 +347,12 @@ async fn test_no_chunking() {
 
 #[actix_rt::test]
 async fn test_body_deflate() {
-    let srv = TestServer::start(move || {
-        HttpService::build()
-            .h1(App::new()
-                .wrap(Compress::new(ContentEncoding::Deflate))
-                .service(
-                    web::resource("/").route(web::to(move || Response::Ok().body(STR))),
-                ))
-            .tcp()
+    let srv = test::start_with(test::config().h1(), || {
+        App::new()
+            .wrap(Compress::new(ContentEncoding::Deflate))
+            .service(
+                web::resource("/").route(web::to(move || HttpResponse::Ok().body(STR))),
+            )
     });
 
     // client request
@@ -404,12 +376,10 @@ async fn test_body_deflate() {
 
 #[actix_rt::test]
 async fn test_body_brotli() {
-    let srv = TestServer::start(move || {
-        HttpService::build()
-            .h1(App::new().wrap(Compress::new(ContentEncoding::Br)).service(
-                web::resource("/").route(web::to(move || Response::Ok().body(STR))),
-            ))
-            .tcp()
+    let srv = test::start_with(test::config().h1(), || {
+        App::new().wrap(Compress::new(ContentEncoding::Br)).service(
+            web::resource("/").route(web::to(move || HttpResponse::Ok().body(STR))),
+        )
     });
 
     // client request
@@ -434,13 +404,11 @@ async fn test_body_brotli() {
 
 #[actix_rt::test]
 async fn test_encoding() {
-    let srv = TestServer::start(move || {
-        HttpService::build()
-            .h1(App::new().wrap(Compress::default()).service(
-                web::resource("/")
-                    .route(web::to(move |body: Bytes| Response::Ok().body(body))),
-            ))
-            .tcp()
+    let srv = test::start_with(test::config().h1(), || {
+        App::new().wrap(Compress::default()).service(
+            web::resource("/")
+                .route(web::to(move |body: Bytes| HttpResponse::Ok().body(body))),
+        )
     });
 
     // client request
@@ -462,13 +430,11 @@ async fn test_encoding() {
 
 #[actix_rt::test]
 async fn test_gzip_encoding() {
-    let srv = TestServer::start(move || {
-        HttpService::build()
-            .h1(App::new().service(
-                web::resource("/")
-                    .route(web::to(move |body: Bytes| Response::Ok().body(body))),
-            ))
-            .tcp()
+    let srv = test::start_with(test::config().h1(), || {
+        App::new().service(
+            web::resource("/")
+                .route(web::to(move |body: Bytes| HttpResponse::Ok().body(body))),
+        )
     });
 
     // client request
@@ -491,13 +457,11 @@ async fn test_gzip_encoding() {
 #[actix_rt::test]
 async fn test_gzip_encoding_large() {
     let data = STR.repeat(10);
-    let srv = TestServer::start(move || {
-        HttpService::build()
-            .h1(App::new().service(
-                web::resource("/")
-                    .route(web::to(move |body: Bytes| Response::Ok().body(body))),
-            ))
-            .tcp()
+    let srv = test::start_with(test::config().h1(), || {
+        App::new().service(
+            web::resource("/")
+                .route(web::to(move |body: Bytes| HttpResponse::Ok().body(body))),
+        )
     });
 
     // client request
@@ -524,13 +488,11 @@ async fn test_reading_gzip_encoding_large_random() {
         .take(60_000)
         .collect::<String>();
 
-    let srv = TestServer::start(move || {
-        HttpService::build()
-            .h1(App::new().service(
-                web::resource("/")
-                    .route(web::to(move |body: Bytes| Response::Ok().body(body))),
-            ))
-            .tcp()
+    let srv = test::start_with(test::config().h1(), || {
+        App::new().service(
+            web::resource("/")
+                .route(web::to(move |body: Bytes| HttpResponse::Ok().body(body))),
+        )
     });
 
     // client request
@@ -553,13 +515,11 @@ async fn test_reading_gzip_encoding_large_random() {
 
 #[actix_rt::test]
 async fn test_reading_deflate_encoding() {
-    let srv = TestServer::start(move || {
-        HttpService::build()
-            .h1(App::new().service(
-                web::resource("/")
-                    .route(web::to(move |body: Bytes| Response::Ok().body(body))),
-            ))
-            .tcp()
+    let srv = test::start_with(test::config().h1(), || {
+        App::new().service(
+            web::resource("/")
+                .route(web::to(move |body: Bytes| HttpResponse::Ok().body(body))),
+        )
     });
 
     let mut e = ZlibEncoder::new(Vec::new(), Compression::default());
@@ -582,13 +542,11 @@ async fn test_reading_deflate_encoding() {
 #[actix_rt::test]
 async fn test_reading_deflate_encoding_large() {
     let data = STR.repeat(10);
-    let srv = TestServer::start(move || {
-        HttpService::build()
-            .h1(App::new().service(
-                web::resource("/")
-                    .route(web::to(move |body: Bytes| Response::Ok().body(body))),
-            ))
-            .tcp()
+    let srv = test::start_with(test::config().h1(), || {
+        App::new().service(
+            web::resource("/")
+                .route(web::to(move |body: Bytes| HttpResponse::Ok().body(body))),
+        )
     });
 
     let mut e = ZlibEncoder::new(Vec::new(), Compression::default());
@@ -615,13 +573,11 @@ async fn test_reading_deflate_encoding_large_random() {
         .take(160_000)
         .collect::<String>();
 
-    let srv = TestServer::start(move || {
-        HttpService::build()
-            .h1(App::new().service(
-                web::resource("/")
-                    .route(web::to(move |body: Bytes| Response::Ok().body(body))),
-            ))
-            .tcp()
+    let srv = test::start_with(test::config().h1(), || {
+        App::new().service(
+            web::resource("/")
+                .route(web::to(move |body: Bytes| HttpResponse::Ok().body(body))),
+        )
     });
 
     let mut e = ZlibEncoder::new(Vec::new(), Compression::default());
@@ -643,20 +599,17 @@ async fn test_reading_deflate_encoding_large_random() {
 }
 
 #[actix_rt::test]
-#[cfg(feature = "brotli")]
 async fn test_brotli_encoding() {
-    let srv = TestServer::start(move || {
-        HttpService::build()
-            .h1(App::new().service(
-                web::resource("/")
-                    .route(web::to(move |body: Bytes| Response::Ok().body(body))),
-            ))
-            .tcp()
+    let srv = test::start_with(test::config().h1(), || {
+        App::new().service(
+            web::resource("/")
+                .route(web::to(move |body: Bytes| HttpResponse::Ok().body(body))),
+        )
     });
 
-    let mut e = BrotliEncoder::new(Vec::new(), 5);
+    let mut e = CompressorWriter::new(Vec::new(), 0, 3, 0);
     e.write_all(STR.as_ref()).unwrap();
-    let enc = e.finish().unwrap();
+    let enc = e.into_inner();
 
     // client request
     let request = srv
@@ -671,22 +624,19 @@ async fn test_brotli_encoding() {
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
 }
 
-#[cfg(feature = "brotli")]
 #[actix_rt::test]
 async fn test_brotli_encoding_large() {
     let data = STR.repeat(10);
-    let srv = TestServer::start(move || {
-        HttpService::build()
-            .h1(App::new().service(
-                web::resource("/")
-                    .route(web::to(move |body: Bytes| Response::Ok().body(body))),
-            ))
-            .tcp()
+    let srv = test::start_with(test::config().h1(), || {
+        App::new().service(
+            web::resource("/")
+                .route(web::to(move |body: Bytes| HttpResponse::Ok().body(body))),
+        )
     });
 
-    let mut e = BrotliEncoder::new(Vec::new(), 5);
+    let mut e = CompressorWriter::new(Vec::new(), 0, 3, 0);
     e.write_all(data.as_ref()).unwrap();
-    let enc = e.finish().unwrap();
+    let enc = e.into_inner();
 
     // client request
     let request = srv
@@ -701,124 +651,75 @@ async fn test_brotli_encoding_large() {
     assert_eq!(bytes, Bytes::from(data));
 }
 
-// #[cfg(feature = "ssl")]
-// #[actix_rt::test]
-// async fn test_brotli_encoding_large_ssl() {
-//     use actix::{Actor, System};
-//     use openssl::ssl::{
-//         SslAcceptor, SslConnector, SslFiletype, SslMethod, SslVerifyMode,
-//     };
-//     // load ssl keys
-//     let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
-//     builder
-//         .set_private_key_file("tests/key.pem", SslFiletype::PEM)
-//         .unwrap();
-//     builder
-//         .set_certificate_chain_file("tests/cert.pem")
-//         .unwrap();
+#[cfg(feature = "openssl")]
+#[actix_rt::test]
+async fn test_brotli_encoding_large_openssl() {
+    // load ssl keys
+    use open_ssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
+    let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
+    builder
+        .set_private_key_file("tests/key.pem", SslFiletype::PEM)
+        .unwrap();
+    builder
+        .set_certificate_chain_file("tests/cert.pem")
+        .unwrap();
 
-//     let data = STR.repeat(10);
-//     let srv = test::TestServer::build().ssl(builder).start(|app| {
-//         app.handler(|req: &HttpRequest| {
-//             req.body()
-//                 .and_then(|bytes: Bytes| {
-//                     Ok(HttpResponse::Ok()
-//                         .content_encoding(http::ContentEncoding::Identity)
-//                         .body(bytes))
-//                 })
-//                 .responder()
-//         })
-//     });
-//     let mut rt = System::new("test");
+    let data = STR.repeat(10);
+    let srv = test::start_with(test::config().openssl(builder.build()), move || {
+        App::new().service(web::resource("/").route(web::to(|bytes: Bytes| {
+            HttpResponse::Ok()
+                .encoding(http::ContentEncoding::Identity)
+                .body(bytes)
+        })))
+    });
 
-//     // client connector
-//     let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
-//     builder.set_verify(SslVerifyMode::NONE);
-//     let conn = client::ClientConnector::with_connector(builder.build()).start();
+    // body
+    let mut e = CompressorWriter::new(Vec::new(), 0, 3, 0);
+    e.write_all(data.as_ref()).unwrap();
+    let enc = e.into_inner();
 
-//     // body
-//     let mut e = BrotliEncoder::new(Vec::new(), 5);
-//     e.write_all(data.as_ref()).unwrap();
-//     let enc = e.finish().unwrap();
+    // client request
+    let mut response = srv
+        .post("/")
+        .header(http::header::CONTENT_ENCODING, "br")
+        .send_body(enc)
+        .await
+        .unwrap();
+    assert!(response.status().is_success());
 
-//     // client request
-//     let request = client::ClientRequest::build()
-//         .uri(srv.url("/"))
-//         .method(http::Method::POST)
-//         .header(http::header::CONTENT_ENCODING, "br")
-//         .with_connector(conn)
-//         .body(enc)
-//         .unwrap();
-//     let response = rt.block_on(request.send()).unwrap();
-//     assert!(response.status().is_success());
-
-//     // read response
-//     let bytes = rt.block_on(response.body()).unwrap();
-//     assert_eq!(bytes, Bytes::from(data));
-// }
+    // read response
+    let bytes = response.body().await.unwrap();
+    assert_eq!(bytes, Bytes::from(data));
+}
 
 #[cfg(all(feature = "rustls", feature = "openssl"))]
 #[actix_rt::test]
-async fn test_reading_deflate_encoding_large_random_ssl() {
-    use open_ssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
+async fn test_reading_deflate_encoding_large_random_rustls() {
     use rust_tls::internal::pemfile::{certs, pkcs8_private_keys};
     use rust_tls::{NoClientAuth, ServerConfig};
     use std::fs::File;
     use std::io::BufReader;
-    use std::sync::mpsc;
-
-    let addr = TestServer::unused_addr();
-    let (tx, rx) = mpsc::channel();
 
     let data = rand::thread_rng()
         .sample_iter(&Alphanumeric)
         .take(160_000)
         .collect::<String>();
 
-    std::thread::spawn(move || {
-        let sys = actix_rt::System::new("test");
+    // load ssl keys
+    let mut config = ServerConfig::new(NoClientAuth::new());
+    let cert_file = &mut BufReader::new(File::open("tests/cert.pem").unwrap());
+    let key_file = &mut BufReader::new(File::open("tests/key.pem").unwrap());
+    let cert_chain = certs(cert_file).unwrap();
+    let mut keys = pkcs8_private_keys(key_file).unwrap();
+    config.set_single_cert(cert_chain, keys.remove(0)).unwrap();
 
-        // load ssl keys
-        let mut config = ServerConfig::new(NoClientAuth::new());
-        let cert_file = &mut BufReader::new(File::open("tests/cert.pem").unwrap());
-        let key_file = &mut BufReader::new(File::open("tests/key.pem").unwrap());
-        let cert_chain = certs(cert_file).unwrap();
-        let mut keys = pkcs8_private_keys(key_file).unwrap();
-        config.set_single_cert(cert_chain, keys.remove(0)).unwrap();
-
-        let srv = HttpServer::new(|| {
-            App::new().service(web::resource("/").route(web::to(|bytes: Bytes| {
-                async move {
-                    Ok::<_, Error>(
-                        HttpResponse::Ok()
-                            .encoding(http::ContentEncoding::Identity)
-                            .body(bytes),
-                    )
-                }
-            })))
-        })
-        .bind_rustls(addr, config)
-        .unwrap()
-        .start();
-
-        let _ = tx.send((srv, actix_rt::System::current()));
-        let _ = sys.run();
+    let srv = test::start_with(test::config().rustls(config), || {
+        App::new().service(web::resource("/").route(web::to(|bytes: Bytes| {
+            HttpResponse::Ok()
+                .encoding(http::ContentEncoding::Identity)
+                .body(bytes)
+        })))
     });
-    let (srv, _sys) = rx.recv().unwrap();
-    let client = {
-        let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
-        builder.set_verify(SslVerifyMode::NONE);
-        let _ = builder.set_alpn_protos(b"\x02h2\x08http/1.1").unwrap();
-
-        awc::Client::build()
-            .connector(
-                awc::Connector::new()
-                    .timeout(std::time::Duration::from_millis(500))
-                    .ssl(builder.build())
-                    .finish(),
-            )
-            .finish()
-    };
 
     // encode data
     let mut e = ZlibEncoder::new(Vec::new(), Compression::default());
@@ -826,8 +727,8 @@ async fn test_reading_deflate_encoding_large_random_ssl() {
     let enc = e.finish().unwrap();
 
     // client request
-    let req = client
-        .post(format!("https://localhost:{}/", addr.port()))
+    let req = srv
+        .post("/")
         .header(http::header::CONTENT_ENCODING, "deflate")
         .send_body(enc);
 
@@ -838,14 +739,11 @@ async fn test_reading_deflate_encoding_large_random_ssl() {
     let bytes = response.body().await.unwrap();
     assert_eq!(bytes.len(), data.len());
     assert_eq!(bytes, Bytes::from(data));
-
-    // stop
-    let _ = srv.stop(false);
 }
 
 // #[cfg(all(feature = "tls", feature = "ssl"))]
 // #[test]
-// fn test_reading_deflate_encoding_large_random_tls() {
+// fn test_reading_deflate_encoding_large_random_nativetls() {
 //     use native_tls::{Identity, TlsAcceptor};
 //     use openssl::ssl::{
 //         SslAcceptor, SslConnector, SslFiletype, SslMethod, SslVerifyMode,
@@ -986,55 +884,31 @@ async fn test_reading_deflate_encoding_large_random_ssl() {
 //     }
 // }
 
-// #[test]
-// fn test_slow_request() {
-//     use actix::System;
+#[actix_rt::test]
+async fn test_slow_request() {
+    use std::net;
+
+    let srv = test::start_with(test::config().client_timeout(200), || {
+        App::new().service(web::resource("/").route(web::to(|| HttpResponse::Ok())))
+    });
+
+    let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
+    let mut data = String::new();
+    let _ = stream.read_to_string(&mut data);
+    assert!(data.starts_with("HTTP/1.1 408 Request Timeout"));
+
+    let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
+    let _ = stream.write_all(b"GET /test/tests/test HTTP/1.1\r\n");
+    let mut data = String::new();
+    let _ = stream.read_to_string(&mut data);
+    assert!(data.starts_with("HTTP/1.1 408 Request Timeout"));
+}
+
+// #[cfg(feature = "openssl")]
+// #[actix_rt::test]
+// async fn test_ssl_handshake_timeout() {
+//     use open_ssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
 //     use std::net;
-//     use std::sync::mpsc;
-//     let (tx, rx) = mpsc::channel();
-
-//     let addr = test::TestServer::unused_addr();
-//     thread::spawn(move || {
-//         System::run(move || {
-//             let srv = server::new(|| {
-//                 vec![App::new().resource("/", |r| {
-//                     r.method(http::Method::GET).f(|_| HttpResponse::Ok())
-//                 })]
-//             });
-
-//             let srv = srv.bind(addr).unwrap();
-//             srv.client_timeout(200).start();
-//             let _ = tx.send(System::current());
-//         });
-//     });
-//     let sys = rx.recv().unwrap();
-
-//     thread::sleep(time::Duration::from_millis(200));
-
-//     let mut stream = net::TcpStream::connect(addr).unwrap();
-//     let mut data = String::new();
-//     let _ = stream.read_to_string(&mut data);
-//     assert!(data.starts_with("HTTP/1.1 408 Request Timeout"));
-
-//     let mut stream = net::TcpStream::connect(addr).unwrap();
-//     let _ = stream.write_all(b"GET /test/tests/test HTTP/1.1\r\n");
-//     let mut data = String::new();
-//     let _ = stream.read_to_string(&mut data);
-//     assert!(data.starts_with("HTTP/1.1 408 Request Timeout"));
-
-//     sys.stop();
-// }
-
-// #[test]
-// #[cfg(feature = "ssl")]
-// fn test_ssl_handshake_timeout() {
-//     use actix::System;
-//     use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
-//     use std::net;
-//     use std::sync::mpsc;
-
-//     let (tx, rx) = mpsc::channel();
-//     let addr = test::TestServer::unused_addr();
 
 //     // load ssl keys
 //     let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
@@ -1045,28 +919,12 @@ async fn test_reading_deflate_encoding_large_random_ssl() {
 //         .set_certificate_chain_file("tests/cert.pem")
 //         .unwrap();
 
-//     thread::spawn(move || {
-//         System::run(move || {
-//             let srv = server::new(|| {
-//                 App::new().resource("/", |r| {
-//                     r.method(http::Method::GET).f(|_| HttpResponse::Ok())
-//                 })
-//             });
-
-//             srv.bind_ssl(addr, builder)
-//                 .unwrap()
-//                 .workers(1)
-//                 .client_timeout(200)
-//                 .start();
-//             let _ = tx.send(System::current());
-//         });
+//     let srv = test::start_with(test::config().openssl(builder.build()), || {
+//         App::new().service(web::resource("/").route(web::to(|| HttpResponse::Ok())))
 //     });
-//     let sys = rx.recv().unwrap();
 
-//     let mut stream = net::TcpStream::connect(addr).unwrap();
+//     let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
 //     let mut data = String::new();
 //     let _ = stream.read_to_string(&mut data);
 //     assert!(data.is_empty());
-
-//     let _ = sys.stop();
 // }
