@@ -1,6 +1,6 @@
 [package]
 name = "actix-http"
-version = "1.0.0-alpha.5"
+version = "1.0.0-alpha.6"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix http primitives"
 readme = "README.md"
@@ -44,13 +44,13 @@ fail = ["failure"]
 secure-cookies = ["ring"]
 
 [dependencies]
-actix-service = "1.0.0-alpha.4"
-actix-codec = "0.2.0-alpha.3"
-actix-connect = "1.0.0-alpha.3"
-actix-utils = "1.0.0-alpha.3"
-actix-rt = "1.0.0-alpha.3"
+actix-service = "1.0.0"
+actix-codec = "0.2.0"
+actix-connect = "1.0.0"
+actix-utils = "1.0.1"
+actix-rt = "1.0.0"
 actix-threadpool = "0.3.0"
-actix-tls = { version = "1.0.0-alpha.3", optional = true }
+actix-tls = { version = "1.0.0", optional = true }
 
 base64 = "0.11"
 bitflags = "1.0"
@@ -92,10 +92,10 @@ flate2 = { version="1.0.7", optional = true, default-features = false }
 failure = { version = "0.1.5", optional = true }
 
 [dev-dependencies]
-actix-server = { version = "1.0.0-alpha.4" }
-actix-connect = { version = "1.0.0-alpha.3", features=["openssl"] }
+actix-server = "1.0.0"
+actix-connect = { version = "1.0.0", features=["openssl"] }
 actix-http-test = { version = "1.0.0-alpha.3", features=["openssl"] }
-actix-tls = { version = "1.0.0-alpha.3", features=["openssl"] }
+actix-tls = { version = "1.0.0", features=["openssl"] }
 env_logger = "0.6"
 serde_derive = "1.0"
 open-ssl = { version="0.10", package = "openssl" }

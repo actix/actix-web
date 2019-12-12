@@ -1,5 +1,9 @@
 # Changes
 
+## [2.0.0-alpha.4] - 2019-12-xx
+
+* Multipart handling now handles Pending during read of boundary #1205
+
 ## [0.2.0-alpha.2] - 2019-12-03
 
 * Migrate to `std::future`
