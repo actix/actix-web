@@ -109,7 +109,7 @@ impl fmt::Display for Error {
 
 impl fmt::Debug for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "{:?}", &self.cause)
+        write!(f, "{:?}", &self.cause)
     }
 }
 
