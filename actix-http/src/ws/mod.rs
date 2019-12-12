@@ -18,7 +18,7 @@ mod frame;
 mod mask;
 mod proto;
 
-pub use self::codec::{Codec, Frame, Message};
+pub use self::codec::{Codec, Frame, Item, Message};
 pub use self::dispatcher::Dispatcher;
 pub use self::frame::Parser;
 pub use self::proto::{hash_key, CloseCode, CloseReason, OpCode};
@@ -44,12 +44,15 @@ pub enum ProtocolError {
     /// A payload reached size limit.
     #[display(fmt = "A payload reached size limit.")]
     Overflow,
-    /// Continuation is not supported
-    #[display(fmt = "Continuation is not supported.")]
-    NoContinuation,
-    /// Bad utf-8 encoding
-    #[display(fmt = "Bad utf-8 encoding.")]
-    BadEncoding,
+    /// Continuation is not started
+    #[display(fmt = "Continuation is not started.")]
+    ContinuationNotStarted,
+    /// Received new continuation but it is already started
+    #[display(fmt = "Received new continuation but it is already started")]
+    ContinuationStarted,
+    /// Unknown continuation fragment
+    #[display(fmt = "Unknown continuation fragment.")]
+    ContinuationFragment(OpCode),
     /// Io error
     #[display(fmt = "io error: {}", _0)]
     Io(io::Error),

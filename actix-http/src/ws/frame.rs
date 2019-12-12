@@ -1,6 +1,6 @@
 use std::convert::TryFrom;
 
-use bytes::{BufMut, Bytes, BytesMut};
+use bytes::{BufMut, BytesMut};
 use log::debug;
 use rand;
 
@@ -154,14 +154,14 @@ impl Parser {
     }
 
     /// Generate binary representation
-    pub fn write_message<B: Into<Bytes>>(
+    pub fn write_message<B: AsRef<[u8]>>(
         dst: &mut BytesMut,
         pl: B,
         op: OpCode,
         fin: bool,
         mask: bool,
     ) {
-        let payload = pl.into();
+        let payload = pl.as_ref();
         let one: u8 = if fin {
             0x80 | Into::<u8>::into(op)
         } else {

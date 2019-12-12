@@ -1,5 +1,11 @@
 # Changes
 
+## [1.0.0] - 2019-12-xx
+
+### Added
+
+* Add websockets continuation frame support
+
 ## [1.0.0-alpha.5] - 2019-12-09
 
 ### Fixed

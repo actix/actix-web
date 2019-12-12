@@ -880,14 +880,17 @@ mod tests {
                 bytes: bytes,
                 pos: 0,
                 ready: false,
-            }
+            };
         }
     }
 
     impl Stream for SlowStream {
         type Item = Result<Bytes, PayloadError>;
 
-        fn poll_next(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
+        fn poll_next(
+            self: Pin<&mut Self>,
+            cx: &mut Context,
+        ) -> Poll<Option<Self::Item>> {
             let this = self.get_mut();
             if !this.ready {
                 this.ready = true;

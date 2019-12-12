@@ -1,6 +1,6 @@
 [package]
 name = "actix-http"
-version = "1.0.0-alpha.6"
+version = "1.0.0"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix http primitives"
 readme = "README.md"
@@ -13,7 +13,6 @@ categories = ["network-programming", "asynchronous",
               "web-programming::websocket"]
 license = "MIT/Apache-2.0"
 edition = "2018"
-workspace = ".."
 
 [package.metadata.docs.rs]
 features = ["openssl", "rustls", "fail", "flate2-zlib", "secure-cookies"]
@@ -47,26 +46,26 @@ secure-cookies = ["ring"]
 actix-service = "1.0.0"
 actix-codec = "0.2.0"
 actix-connect = "1.0.0"
-actix-utils = "1.0.1"
+actix-utils = "1.0.3"
 actix-rt = "1.0.0"
-actix-threadpool = "0.3.0"
+actix-threadpool = "0.3.1"
 actix-tls = { version = "1.0.0", optional = true }
 
 base64 = "0.11"
-bitflags = "1.0"
+bitflags = "1.2"
 bytes = "0.5.2"
 copyless = "0.1.4"
 chrono = "0.4.6"
 derive_more = "0.99.2"
-either = "1.5.2"
+either = "1.5.3"
 encoding_rs = "0.8"
 futures = "0.3.1"
 fxhash = "0.2.1"
 h2 = "0.2.1"
 http = "0.2.0"
 httparse = "1.3"
-indexmap = "1.2"
-lazy_static = "1.0"
+indexmap = "1.3"
+lazy_static = "1.4"
 language-tags = "0.2"
 log = "0.4"
 mime = "0.3"
