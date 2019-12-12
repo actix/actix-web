@@ -1,11 +1,9 @@
-use actix_http::HttpService;
-use actix_http_test::TestServer;
-use actix_web::{http, web::Path, App, HttpResponse, Responder};
+use actix_web::{http, test, web::Path, App, HttpResponse, Responder};
 use actix_web_codegen::{connect, delete, get, head, options, patch, post, put, trace};
 use futures::{future, Future};
 
 #[get("/test")]
-async fn test() -> impl Responder {
+async fn test_handler() -> impl Responder {
     HttpResponse::Ok()
 }
 
@@ -71,14 +69,11 @@ async fn get_param_test(_: Path<String>) -> impl Responder {
 
 #[actix_rt::test]
 async fn test_params() {
-    let srv = TestServer::start(|| {
-        HttpService::new(
-            App::new()
-                .service(get_param_test)
-                .service(put_param_test)
-                .service(delete_param_test),
-        )
-        .tcp()
+    let srv = test::start(|| {
+        App::new()
+            .service(get_param_test)
+            .service(put_param_test)
+            .service(delete_param_test)
     });
 
     let request = srv.request(http::Method::GET, srv.url("/test/it"));
@@ -96,19 +91,16 @@ async fn test_params() {
 
 #[actix_rt::test]
 async fn test_body() {
-    let srv = TestServer::start(|| {
-        HttpService::new(
-            App::new()
-                .service(post_test)
-                .service(put_test)
-                .service(head_test)
-                .service(connect_test)
-                .service(options_test)
-                .service(trace_test)
-                .service(patch_test)
-                .service(test),
-        )
-        .tcp()
+    let srv = test::start(|| {
+        App::new()
+            .service(post_test)
+            .service(put_test)
+            .service(head_test)
+            .service(connect_test)
+            .service(options_test)
+            .service(trace_test)
+            .service(patch_test)
+            .service(test_handler)
     });
     let request = srv.request(http::Method::GET, srv.url("/test"));
     let response = request.send().await.unwrap();
@@ -151,8 +143,7 @@ async fn test_body() {
 
 #[actix_rt::test]
 async fn test_auto_async() {
-    let srv =
-        TestServer::start(|| HttpService::new(App::new().service(auto_async)).tcp());
+    let srv = test::start(|| App::new().service(auto_async));
 
     let request = srv.request(http::Method::GET, srv.url("/test"));
     let response = request.send().await.unwrap();

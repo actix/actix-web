@@ -2,7 +2,7 @@ use std::io;
 
 use actix_codec::Framed;
 use actix_http::{body::BodySize, h1, ws, Error, HttpService, Request, Response};
-use actix_http_test::TestServer;
+use actix_http_test::test_server;
 use bytes::Bytes;
 use futures::future::ok;
 use futures::{SinkExt, StreamExt};
@@ -21,7 +21,7 @@ async fn ws_service(req: ws::Frame) -> Result<ws::Message, io::Error> {
 
 #[actix_rt::test]
 async fn test_simple() {
-    let mut srv = TestServer::start(|| {
+    let mut srv = test_server(|| {
         HttpService::build()
             .upgrade(|(req, mut framed): (Request, Framed<_, _>)| {
                 async move {

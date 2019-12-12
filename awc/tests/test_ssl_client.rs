@@ -3,7 +3,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
 use actix_http::HttpService;
-use actix_http_test::TestServer;
+use actix_http_test::test_server;
 use actix_service::{pipeline_factory, ServiceFactory};
 use actix_web::http::Version;
 use actix_web::{web, App, HttpResponse};
@@ -36,7 +36,7 @@ async fn test_connection_reuse_h2() {
     let num = Arc::new(AtomicUsize::new(0));
     let num2 = num.clone();
 
-    let srv = TestServer::start(move || {
+    let srv = test_server(move || {
         let num2 = num2.clone();
         pipeline_factory(move |io| {
             num2.fetch_add(1, Ordering::Relaxed);

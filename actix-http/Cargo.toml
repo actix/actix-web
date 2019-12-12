@@ -34,7 +34,7 @@ rustls = ["actix-tls/rustls", "actix-connect/rustls"]
 compress = ["flate2", "brotli"]
 
 # failure integration. actix does not use failure anymore
-fail = ["failure"]
+failure = ["fail-ure"]
 
 # support for secure cookies
 secure-cookies = ["ring"]
@@ -85,7 +85,7 @@ brotli = { version = "3.3.0", optional = true }
 flate2 = { version = "1.0.13", optional = true }
 
 # optional deps
-failure = { version = "0.1.5", optional = true }
+fail-ure = { version = "0.1.5", package="failure", optional = true }
 
 [dev-dependencies]
 actix-server = "1.0.0"

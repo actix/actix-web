@@ -1,6 +1,6 @@
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use actix_http::{body, h1, ws, Error, HttpService, Request, Response};
-use actix_http_test::TestServer;
+use actix_http_test::test_server;
 use actix_utils::framed::Dispatcher;
 use bytes::Bytes;
 use futures::future;
@@ -37,7 +37,7 @@ async fn service(msg: ws::Frame) -> Result<ws::Message, Error> {
 
 #[actix_rt::test]
 async fn test_simple() {
-    let mut srv = TestServer::start(|| {
+    let mut srv = test_server(|| {
         HttpService::build()
             .upgrade(actix_service::fn_service(ws_service))
             .finish(|_| future::ok::<_, ()>(Response::NotFound()))

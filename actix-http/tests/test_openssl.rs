@@ -1,7 +1,7 @@
 #![cfg(feature = "openssl")]
 use std::io;
 
-use actix_http_test::TestServer;
+use actix_http_test::test_server;
 use actix_service::{fn_service, ServiceFactory};
 
 use bytes::{Bytes, BytesMut};
@@ -62,7 +62,7 @@ fn ssl_acceptor() -> SslAcceptor {
 
 #[actix_rt::test]
 async fn test_h2() -> io::Result<()> {
-    let srv = TestServer::start(move || {
+    let srv = test_server(move || {
         HttpService::build()
             .h2(|_| ok::<_, Error>(Response::Ok().finish()))
             .openssl(ssl_acceptor())
@@ -76,7 +76,7 @@ async fn test_h2() -> io::Result<()> {
 
 #[actix_rt::test]
 async fn test_h2_1() -> io::Result<()> {
-    let srv = TestServer::start(move || {
+    let srv = test_server(move || {
         HttpService::build()
             .finish(|req: Request| {
                 assert!(req.peer_addr().is_some());
@@ -95,7 +95,7 @@ async fn test_h2_1() -> io::Result<()> {
 #[actix_rt::test]
 async fn test_h2_body() -> io::Result<()> {
     let data = "HELLOWORLD".to_owned().repeat(64 * 1024);
-    let mut srv = TestServer::start(move || {
+    let mut srv = test_server(move || {
         HttpService::build()
             .h2(|mut req: Request<_>| {
                 async move {
@@ -117,7 +117,7 @@ async fn test_h2_body() -> io::Result<()> {
 
 #[actix_rt::test]
 async fn test_h2_content_length() {
-    let srv = TestServer::start(move || {
+    let srv = test_server(move || {
         HttpService::build()
             .h2(|req: Request| {
                 let indx: usize = req.uri().path()[1..].parse().unwrap();
@@ -168,7 +168,7 @@ async fn test_h2_headers() {
     let data = STR.repeat(10);
     let data2 = data.clone();
 
-    let mut srv = TestServer::start(move || {
+    let mut srv = test_server(move || {
         let data = data.clone();
         HttpService::build().h2(move |_| {
             let mut builder = Response::Ok();
@@ -228,7 +228,7 @@ const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
 
 #[actix_rt::test]
 async fn test_h2_body2() {
-    let mut srv = TestServer::start(move || {
+    let mut srv = test_server(move || {
         HttpService::build()
             .h2(|_| ok::<_, ()>(Response::Ok().body(STR)))
             .openssl(ssl_acceptor())
@@ -245,7 +245,7 @@ async fn test_h2_body2() {
 
 #[actix_rt::test]
 async fn test_h2_head_empty() {
-    let mut srv = TestServer::start(move || {
+    let mut srv = test_server(move || {
         HttpService::build()
             .finish(|_| ok::<_, ()>(Response::Ok().body(STR)))
             .openssl(ssl_acceptor())
@@ -268,7 +268,7 @@ async fn test_h2_head_empty() {
 
 #[actix_rt::test]
 async fn test_h2_head_binary() {
-    let mut srv = TestServer::start(move || {
+    let mut srv = test_server(move || {
         HttpService::build()
             .h2(|_| {
                 ok::<_, ()>(Response::Ok().content_length(STR.len() as u64).body(STR))
@@ -292,7 +292,7 @@ async fn test_h2_head_binary() {
 
 #[actix_rt::test]
 async fn test_h2_head_binary2() {
-    let srv = TestServer::start(move || {
+    let srv = test_server(move || {
         HttpService::build()
             .h2(|_| ok::<_, ()>(Response::Ok().body(STR)))
             .openssl(ssl_acceptor())
@@ -310,7 +310,7 @@ async fn test_h2_head_binary2() {
 
 #[actix_rt::test]
 async fn test_h2_body_length() {
-    let mut srv = TestServer::start(move || {
+    let mut srv = test_server(move || {
         HttpService::build()
             .h2(|_| {
                 let body = once(ok(Bytes::from_static(STR.as_ref())));
@@ -332,7 +332,7 @@ async fn test_h2_body_length() {
 
 #[actix_rt::test]
 async fn test_h2_body_chunked_explicit() {
-    let mut srv = TestServer::start(move || {
+    let mut srv = test_server(move || {
         HttpService::build()
             .h2(|_| {
                 let body = once(ok::<_, Error>(Bytes::from_static(STR.as_ref())));
@@ -359,7 +359,7 @@ async fn test_h2_body_chunked_explicit() {
 
 #[actix_rt::test]
 async fn test_h2_response_http_error_handling() {
-    let mut srv = TestServer::start(move || {
+    let mut srv = test_server(move || {
         HttpService::build()
             .h2(fn_service(|_| {
                 let broken_header = Bytes::from_static(b"\0\0\0");
@@ -383,7 +383,7 @@ async fn test_h2_response_http_error_handling() {
 
 #[actix_rt::test]
 async fn test_h2_service_error() {
-    let mut srv = TestServer::start(move || {
+    let mut srv = test_server(move || {
         HttpService::build()
             .h2(|_| err::<Response, Error>(ErrorBadRequest("error")))
             .openssl(ssl_acceptor())
@@ -400,7 +400,7 @@ async fn test_h2_service_error() {
 
 #[actix_rt::test]
 async fn test_h2_on_connect() {
-    let srv = TestServer::start(move || {
+    let srv = test_server(move || {
         HttpService::build()
             .on_connect(|_| 10usize)
             .h2(|req: Request| {

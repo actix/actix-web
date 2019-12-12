@@ -957,13 +957,9 @@ where
     InternalError::new(err, StatusCode::NETWORK_AUTHENTICATION_REQUIRED).into()
 }
 
-#[cfg(feature = "fail")]
-mod failure_integration {
-    use super::*;
-
-    /// Compatibility for `failure::Error`
-    impl ResponseError for failure::Error {}
-}
+#[cfg(feature = "failure")]
+/// Compatibility for `failure::Error`
+impl ResponseError for fail_ure::Error {}
 
 #[cfg(test)]
 mod tests {

@@ -1,6 +1,6 @@
 use actix_codec::{AsyncRead, AsyncWrite};
 use actix_http::{body, http::StatusCode, ws, Error, HttpService, Response};
-use actix_http_test::TestServer;
+use actix_http_test::test_server;
 use actix_service::{pipeline_factory, IntoServiceFactory, ServiceFactory};
 use actix_utils::framed::Dispatcher;
 use bytes::Bytes;
@@ -40,7 +40,7 @@ async fn service(msg: ws::Frame) -> Result<ws::Message, Error> {
 
 #[actix_rt::test]
 async fn test_simple() {
-    let mut srv = TestServer::start(|| {
+    let mut srv = test_server(|| {
         HttpService::build()
             .upgrade(
                 FramedApp::new().service(FramedRoute::get("/index.html").to(ws_service)),
@@ -94,7 +94,7 @@ async fn test_simple() {
 
 #[actix_rt::test]
 async fn test_service() {
-    let mut srv = TestServer::start(|| {
+    let mut srv = test_server(|| {
         pipeline_factory(actix_http::h1::OneRequest::new().map_err(|_| ())).and_then(
             pipeline_factory(
                 pipeline_factory(VerifyWebSockets::default())
