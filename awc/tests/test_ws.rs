@@ -42,7 +42,7 @@ async fn test_simple() {
 
                     // start websocket service
                     let framed = framed.into_framed(ws::Codec::new());
-                    ws::Transport::with(framed, ws_service).await
+                    ws::Dispatcher::with(framed, ws_service).await
                 }
             })
             .finish(|_| ok::<_, Error>(Response::NotFound()))

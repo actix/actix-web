@@ -8,7 +8,7 @@ use actix_codec::{AsyncRead, AsyncWrite, Decoder, Encoder, Framed, FramedParts};
 use actix_rt::time::{delay_until, Delay, Instant};
 use actix_service::Service;
 use bitflags::bitflags;
-use bytes::{BufMut, BytesMut};
+use bytes::BytesMut;
 use log::{error, trace};
 
 use crate::body::{Body, BodySize, MessageBody, ResponseBody};
@@ -66,6 +66,7 @@ where
     U::Error: fmt::Display,
 {
     Normal(InnerDispatcher<T, S, B, X, U>),
+    UpgradeReadiness(InnerDispatcher<T, S, B, X, U>, Request),
     Upgrade(U::Future),
     None,
 }
@@ -750,8 +751,10 @@ where
                     };
 
                     loop {
-                        if inner.write_buf.remaining_mut() < LW_BUFFER_SIZE {
-                            inner.write_buf.reserve(HW_BUFFER_SIZE);
+                        let remaining =
+                            inner.write_buf.capacity() - inner.write_buf.len();
+                        if remaining < LW_BUFFER_SIZE {
+                            inner.write_buf.reserve(HW_BUFFER_SIZE - remaining);
                         }
                         let result = inner.poll_response(cx)?;
                         let drain = result == PollResponse::DrainWriteBuf;
@@ -761,16 +764,8 @@ where
                             if let DispatcherState::Normal(inner) =
                                 std::mem::replace(&mut self.inner, DispatcherState::None)
                             {
-                                let mut parts = FramedParts::with_read_buf(
-                                    inner.io,
-                                    inner.codec,
-                                    inner.read_buf,
-                                );
-                                parts.write_buf = inner.write_buf;
-                                let framed = Framed::from_parts(parts);
-                                self.inner = DispatcherState::Upgrade(
-                                    inner.upgrade.unwrap().call((req, framed)),
-                                );
+                                self.inner =
+                                    DispatcherState::UpgradeReadiness(inner, req);
                                 return self.poll(cx);
                             } else {
                                 panic!()
@@ -820,6 +815,35 @@ where
                     }
                 }
             }
+            DispatcherState::UpgradeReadiness(ref mut inner, _) => {
+                let upgrade = inner.upgrade.as_mut().unwrap();
+                match upgrade.poll_ready(cx) {
+                    Poll::Ready(Ok(_)) => {
+                        if let DispatcherState::UpgradeReadiness(inner, req) =
+                            std::mem::replace(&mut self.inner, DispatcherState::None)
+                        {
+                            let mut parts = FramedParts::with_read_buf(
+                                inner.io,
+                                inner.codec,
+                                inner.read_buf,
+                            );
+                            parts.write_buf = inner.write_buf;
+                            let framed = Framed::from_parts(parts);
+                            self.inner = DispatcherState::Upgrade(
+                                inner.upgrade.unwrap().call((req, framed)),
+                            );
+                            self.poll(cx)
+                        } else {
+                            panic!()
+                        }
+                    }
+                    Poll::Pending => Poll::Pending,
+                    Poll::Ready(Err(e)) => {
+                        error!("Upgrade handler readiness check error: {}", e);
+                        Poll::Ready(Err(DispatchError::Upgrade))
+                    }
+                }
+            }
             DispatcherState::Upgrade(ref mut fut) => {
                 unsafe { Pin::new_unchecked(fut) }.poll(cx).map_err(|e| {
                     error!("Upgrade handler error: {}", e);
@@ -841,8 +865,9 @@ where
 {
     let mut read_some = false;
     loop {
-        if buf.remaining_mut() < LW_BUFFER_SIZE {
-            buf.reserve(HW_BUFFER_SIZE);
+        let remaining = buf.capacity() - buf.len();
+        if remaining < LW_BUFFER_SIZE {
+            buf.reserve(HW_BUFFER_SIZE - remaining);
         }
 
         match read(cx, io, buf) {

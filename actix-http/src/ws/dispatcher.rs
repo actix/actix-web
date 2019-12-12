@@ -4,19 +4,19 @@ use std::task::{Context, Poll};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use actix_service::{IntoService, Service};
-use actix_utils::framed::{FramedTransport, FramedTransportError};
+use actix_utils::framed;
 
 use super::{Codec, Frame, Message};
 
-pub struct Transport<S, T>
+pub struct Dispatcher<S, T>
 where
     S: Service<Request = Frame, Response = Message> + 'static,
     T: AsyncRead + AsyncWrite,
 {
-    inner: FramedTransport<S, T, Codec>,
+    inner: framed::Dispatcher<S, T, Codec>,
 }
 
-impl<S, T> Transport<S, T>
+impl<S, T> Dispatcher<S, T>
 where
     T: AsyncRead + AsyncWrite,
     S: Service<Request = Frame, Response = Message>,
@@ -24,26 +24,26 @@ where
     S::Error: 'static,
 {
     pub fn new<F: IntoService<S>>(io: T, service: F) -> Self {
-        Transport {
-            inner: FramedTransport::new(Framed::new(io, Codec::new()), service),
+        Dispatcher {
+            inner: framed::Dispatcher::new(Framed::new(io, Codec::new()), service),
         }
     }
 
     pub fn with<F: IntoService<S>>(framed: Framed<T, Codec>, service: F) -> Self {
-        Transport {
-            inner: FramedTransport::new(framed, service),
+        Dispatcher {
+            inner: framed::Dispatcher::new(framed, service),
         }
     }
 }
 
-impl<S, T> Future for Transport<S, T>
+impl<S, T> Future for Dispatcher<S, T>
 where
     T: AsyncRead + AsyncWrite,
     S: Service<Request = Frame, Response = Message>,
     S::Future: 'static,
     S::Error: 'static,
 {
-    type Output = Result<(), FramedTransportError<S::Error, Codec>>;
+    type Output = Result<(), framed::DispatcherError<S::Error, Codec>>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         Pin::new(&mut self.inner).poll(cx)

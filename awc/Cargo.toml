@@ -39,10 +39,10 @@ flate2-zlib = ["actix-http/flate2-zlib"]
 flate2-rust = ["actix-http/flate2-rust"]
 
 [dependencies]
-actix-codec = "0.2.0-alpha.3"
-actix-service = "1.0.0-alpha.4"
+actix-codec = "0.2.0"
+actix-service = "1.0.0"
 actix-http = "1.0.0-alpha.4"
-actix-rt = "1.0.0-alpha.3"
+actix-rt = "1.0.0"
 
 base64 = "0.11"
 bytes = "0.5.2"
@@ -59,13 +59,13 @@ open-ssl = { version="0.10", package="openssl", optional = true }
 rust-tls = { version = "0.16.0", package="rustls", optional = true, features = ["dangerous_configuration"]  }
 
 [dev-dependencies]
-actix-connect = { version = "1.0.0-alpha.3", features=["openssl"] }
+actix-connect = { version = "1.0.0", features=["openssl"] }
 actix-web = { version = "2.0.0-alpha.3", features=["openssl"] }
 actix-http = { version = "1.0.0-alpha.4", features=["openssl"] }
 actix-http-test = { version = "1.0.0-alpha.3", features=["openssl"] }
-actix-utils = "1.0.0-alpha.3"
-actix-server = { version = "1.0.0-alpha.4" }
-actix-tls = { version = "1.0.0-alpha.3", features=["openssl", "rustls"] }
+actix-utils = "1.0.0"
+actix-server = "1.0.0"
+actix-tls = { version = "1.0.0", features=["openssl", "rustls"] }
 brotli = "3.3.0"
 flate2 = { version="1.0.2" }
 env_logger = "0.6"

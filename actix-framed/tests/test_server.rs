@@ -2,7 +2,7 @@ use actix_codec::{AsyncRead, AsyncWrite};
 use actix_http::{body, http::StatusCode, ws, Error, HttpService, Response};
 use actix_http_test::TestServer;
 use actix_service::{pipeline_factory, IntoServiceFactory, ServiceFactory};
-use actix_utils::framed::FramedTransport;
+use actix_utils::framed::Dispatcher;
 use bytes::BytesMut;
 use futures::{future, SinkExt, StreamExt};
 
@@ -18,7 +18,7 @@ async fn ws_service<T: AsyncRead + AsyncWrite>(
         .send((res, body::BodySize::None).into())
         .await
         .unwrap();
-    FramedTransport::new(framed.into_framed(ws::Codec::new()), service)
+    Dispatcher::new(framed.into_framed(ws::Codec::new()), service)
         .await
         .unwrap();
 

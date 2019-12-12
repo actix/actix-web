@@ -30,13 +30,13 @@ default = []
 openssl = ["open-ssl", "awc/openssl", ] # "actix-tls/openssl"]
 
 [dependencies]
-actix-service = "1.0.0-alpha.3"
-actix-codec = "0.2.0-alpha.3"
-actix-connect = "1.0.0-alpha.3"
-actix-utils = "1.0.0-alpha.3"
-actix-rt = "1.0.0-alpha.3"
-actix-server = "1.0.0-alpha.3"
-actix-testing = "1.0.0-alpha.3"
+actix-service = "1.0.0"
+actix-codec = "0.2.0"
+actix-connect = "1.0.0"
+actix-utils = "1.0.0"
+actix-rt = "1.0.0"
+actix-server = "1.0.0"
+actix-testing = "1.0.0"
 awc = "1.0.0-alpha.3"
 
 base64 = "0.11"
