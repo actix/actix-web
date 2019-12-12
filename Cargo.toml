@@ -16,7 +16,7 @@ exclude = [".gitignore", ".travis.yml", ".cargo/config", "appveyor.yml"]
 edition = "2018"
 
 [package.metadata.docs.rs]
-features = ["openssl", "flate2-zlib", "secure-cookies", "client"]
+features = ["openssl", "compress", "secure-cookies", "client"]
 
 [badges]
 travis-ci = { repository = "actix/actix-web", branch = "master" }
@@ -43,16 +43,13 @@ members = [
 ]
 
 [features]
-default = ["flate2-zlib", "client", "fail"]
+default = ["compress", "client", "fail"]
 
 # http client
 client = ["awc"]
 
-# miniz-sys backend for flate2 crate
-flate2-zlib = ["actix-http/flate2-zlib", "awc/flate2-zlib"]
-
-# rust backend for flate2 crate
-flate2-rust = ["actix-http/flate2-rust", "awc/flate2-rust"]
+# content-encoding support
+compress = ["actix-http/compress", "awc/compress"]
 
 # sessions feature, session require "ring" crate and c compiler
 secure-cookies = ["actix-http/secure-cookies"]
@@ -68,7 +65,7 @@ rustls = ["actix-tls/rustls", "awc/rustls"]
 [dependencies]
 actix-codec = "0.2.0"
 actix-service = "1.0.0"
-actix-utils = "1.0.1"
+actix-utils = "1.0.3"
 actix-router = "0.2.0"
 actix-rt = "1.0.0"
 actix-server = "1.0.0"
@@ -77,8 +74,8 @@ actix-threadpool = "0.3.0"
 actix-tls = "1.0.0"
 
 actix-web-codegen = "0.2.0-alpha.2"
-actix-http = "1.0.0-alpha.4"
-awc = { version = "1.0.0-alpha.4", default-features = false, optional = true }
+actix-http = "1.0.0"
+awc = { version = "1.0.0", default-features = false, optional = true }
 
 bytes = "0.5.2"
 derive_more = "0.99.2"
@@ -104,7 +101,7 @@ rand = "0.7"
 env_logger = "0.6"
 serde_derive = "1.0"
 brotli = "3.3.0"
-flate2 = "1.0.2"
+flate2 = "1.0.13"
 open-ssl = { version="0.10", package = "openssl" }
 rust_tls = { version = "0.16.0", package = "rustls" }
 

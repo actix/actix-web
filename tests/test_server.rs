@@ -56,7 +56,6 @@ async fn test_body() {
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
 }
 
-#[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
 #[actix_rt::test]
 async fn test_body_gzip() {
     let srv = TestServer::start(|| {
@@ -86,7 +85,6 @@ async fn test_body_gzip() {
     assert_eq!(Bytes::from(dec), Bytes::from_static(STR.as_ref()));
 }
 
-#[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
 #[actix_rt::test]
 async fn test_body_gzip2() {
     let srv = TestServer::start(|| {
@@ -118,7 +116,6 @@ async fn test_body_gzip2() {
     assert_eq!(Bytes::from(dec), Bytes::from_static(STR.as_ref()));
 }
 
-#[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
 #[actix_rt::test]
 async fn test_body_encoding_override() {
     let srv = TestServer::start(|| {
@@ -179,7 +176,6 @@ async fn test_body_encoding_override() {
     assert_eq!(Bytes::from(dec), Bytes::from_static(STR.as_ref()));
 }
 
-#[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
 #[actix_rt::test]
 async fn test_body_gzip_large() {
     let data = STR.repeat(10);
@@ -216,7 +212,6 @@ async fn test_body_gzip_large() {
     assert_eq!(Bytes::from(dec), Bytes::from(data));
 }
 
-#[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
 #[actix_rt::test]
 async fn test_body_gzip_large_random() {
     let data = rand::thread_rng()
@@ -257,7 +252,6 @@ async fn test_body_gzip_large_random() {
     assert_eq!(Bytes::from(dec), Bytes::from(data));
 }
 
-#[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
 #[actix_rt::test]
 async fn test_body_chunked_implicit() {
     let srv = TestServer::start(move || {
@@ -378,7 +372,6 @@ async fn test_no_chunking() {
 }
 
 #[actix_rt::test]
-#[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
 async fn test_body_deflate() {
     let srv = TestServer::start(move || {
         HttpService::build()
@@ -440,7 +433,6 @@ async fn test_body_brotli() {
 }
 
 #[actix_rt::test]
-#[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
 async fn test_encoding() {
     let srv = TestServer::start(move || {
         HttpService::build()
@@ -469,7 +461,6 @@ async fn test_encoding() {
 }
 
 #[actix_rt::test]
-#[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
 async fn test_gzip_encoding() {
     let srv = TestServer::start(move || {
         HttpService::build()
@@ -498,7 +489,6 @@ async fn test_gzip_encoding() {
 }
 
 #[actix_rt::test]
-#[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
 async fn test_gzip_encoding_large() {
     let data = STR.repeat(10);
     let srv = TestServer::start(move || {
@@ -528,7 +518,6 @@ async fn test_gzip_encoding_large() {
 }
 
 #[actix_rt::test]
-#[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
 async fn test_reading_gzip_encoding_large_random() {
     let data = rand::thread_rng()
         .sample_iter(&Alphanumeric)
@@ -563,7 +552,6 @@ async fn test_reading_gzip_encoding_large_random() {
 }
 
 #[actix_rt::test]
-#[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
 async fn test_reading_deflate_encoding() {
     let srv = TestServer::start(move || {
         HttpService::build()
@@ -592,7 +580,6 @@ async fn test_reading_deflate_encoding() {
 }
 
 #[actix_rt::test]
-#[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
 async fn test_reading_deflate_encoding_large() {
     let data = STR.repeat(10);
     let srv = TestServer::start(move || {
@@ -622,7 +609,6 @@ async fn test_reading_deflate_encoding_large() {
 }
 
 #[actix_rt::test]
-#[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
 async fn test_reading_deflate_encoding_large_random() {
     let data = rand::thread_rng()
         .sample_iter(&Alphanumeric)
@@ -771,11 +757,7 @@ async fn test_brotli_encoding_large() {
 //     assert_eq!(bytes, Bytes::from(data));
 // }
 
-#[cfg(all(
-    feature = "rustls",
-    feature = "openssl",
-    any(feature = "flate2-zlib", feature = "flate2-rust")
-))]
+#[cfg(all(feature = "rustls", feature = "openssl"))]
 #[actix_rt::test]
 async fn test_reading_deflate_encoding_large_random_ssl() {
     use open_ssl::ssl::{SslConnector, SslMethod, SslVerifyMode};

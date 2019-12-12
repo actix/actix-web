@@ -1,6 +1,6 @@
 [package]
 name = "awc"
-version = "1.0.0-alpha.4"
+version = "1.0.0"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix http client."
 readme = "README.md"
@@ -12,19 +12,17 @@ categories = ["network-programming", "asynchronous",
               "web-programming::http-client",
               "web-programming::websocket"]
 license = "MIT/Apache-2.0"
-exclude = [".gitignore", ".travis.yml", ".cargo/config", "appveyor.yml"]
 edition = "2018"
-workspace = ".."
 
 [lib]
 name = "awc"
 path = "src/lib.rs"
 
 [package.metadata.docs.rs]
-features = ["openssl", "rustls", "flate2-zlib"]
+features = ["openssl", "rustls", "compress"]
 
 [features]
-default = ["flate2-zlib"]
+default = ["compress"]
 
 # openssl
 openssl = ["open-ssl", "actix-http/openssl"]
@@ -32,16 +30,13 @@ openssl = ["open-ssl", "actix-http/openssl"]
 # rustls
 rustls = ["rust-tls", "actix-http/rustls"]
 
-# miniz-sys backend for flate2 crate
-flate2-zlib = ["actix-http/flate2-zlib"]
-
-# rust backend for flate2 crate
-flate2-rust = ["actix-http/flate2-rust"]
+# content-encoding support
+compress = ["actix-http/compress"]
 
 [dependencies]
 actix-codec = "0.2.0"
 actix-service = "1.0.0"
-actix-http = "1.0.0-alpha.4"
+actix-http = "1.0.0"
 actix-rt = "1.0.0"
 
 base64 = "0.11"
@@ -61,12 +56,12 @@ rust-tls = { version = "0.16.0", package="rustls", optional = true, features = [
 [dev-dependencies]
 actix-connect = { version = "1.0.0", features=["openssl"] }
 actix-web = { version = "2.0.0-alpha.3", features=["openssl"] }
-actix-http = { version = "1.0.0-alpha.4", features=["openssl"] }
+actix-http = { version = "1.0.0", features=["openssl"] }
 actix-http-test = { version = "1.0.0-alpha.3", features=["openssl"] }
 actix-utils = "1.0.0"
 actix-server = "1.0.0"
 actix-tls = { version = "1.0.0", features=["openssl", "rustls"] }
 brotli = "3.3.0"
-flate2 = { version="1.0.2" }
+flate2 = "1.0.13"
 env_logger = "0.6"
-webpki = { version = "0.21" }
+webpki = "0.21"

@@ -6,6 +6,10 @@
 
 * Add websockets continuation frame support
 
+### Changed
+
+* Replace `flate2-xxx` features with `compress`
+
 ## [1.0.0-alpha.5] - 2019-12-09
 
 ### Fixed

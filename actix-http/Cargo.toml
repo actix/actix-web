@@ -15,7 +15,7 @@ license = "MIT/Apache-2.0"
 edition = "2018"
 
 [package.metadata.docs.rs]
-features = ["openssl", "rustls", "fail", "flate2-zlib", "secure-cookies"]
+features = ["openssl", "rustls", "fail", "compress", "secure-cookies"]
 
 [lib]
 name = "actix_http"
@@ -30,11 +30,8 @@ openssl = ["actix-tls/openssl", "actix-connect/openssl"]
 # rustls support
 rustls = ["actix-tls/rustls", "actix-connect/rustls"]
 
-# miniz-sys backend for flate2 crate
-flate2-zlib = ["flate2/miniz-sys"]
-
-# rust backend for flate2 crate
-flate2-rust = ["flate2/rust_backend"]
+# enable compressison support
+compress = ["flate2", "brotli"]
 
 # failure integration. actix does not use failure anymore
 fail = ["failure"]
@@ -84,8 +81,8 @@ time = "0.1.42"
 ring = { version = "0.16.9", optional = true }
 
 # compression
-brotli = "3.3.0"
-flate2 = { version="1.0.7", optional = true, default-features = false }
+brotli = { version = "3.3.0", optional = true }
+flate2 = { version = "1.0.13", optional = true }
 
 # optional deps
 failure = { version = "0.1.5", optional = true }

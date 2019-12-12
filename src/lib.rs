@@ -71,15 +71,11 @@
 //! ## Package feature
 //!
 //! * `client` - enables http client (default enabled)
+//! * `compress` - enables content encoding compression support (default enabled)
 //! * `openssl` - enables ssl support via `openssl` crate, supports `http/2`
 //! * `rustls` - enables ssl support via `rustls` crate, supports `http/2`
 //! * `secure-cookies` - enables secure cookies support, includes `ring` crate as
 //!   dependency
-//! * `flate2-zlib` - enables `gzip`, `deflate` compression support, requires
-//!   `c` compiler (default enabled)
-//! * `flate2-rust` - experimental rust based implementation for
-//!   `gzip`, `deflate` compression.
-//!
 #![allow(clippy::type_complexity, clippy::new_without_default)]
 
 mod app;

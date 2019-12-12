@@ -108,6 +108,7 @@ pub(crate) trait MessageType: Sized {
                 } else {
                     dst.put_slice(b"\r\ncontent-length: ");
                 }
+                #[allow(clippy::write_with_newline)]
                 write!(dst.writer(), "{}\r\n", len)?;
             }
             BodySize::None => dst.put_slice(b"\r\n"),
