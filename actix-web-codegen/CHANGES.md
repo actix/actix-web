@@ -1,5 +1,9 @@
 # Changes
 
+## [0.2.0] - 2019-12-13
+
+* Generate code for actix-web 2.0
+
 ## [0.1.3] - 2019-10-14
 
 * Bump up `syn` & `quote` to 1.0
