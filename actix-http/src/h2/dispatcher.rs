@@ -1,28 +1,23 @@
-use std::collections::VecDeque;
 use std::convert::TryFrom;
 use std::future::Future;
 use std::marker::PhantomData;
+use std::net;
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use std::{fmt, mem, net};
 
 use actix_codec::{AsyncRead, AsyncWrite};
 use actix_rt::time::{Delay, Instant};
 use actix_service::Service;
-use bitflags::bitflags;
 use bytes::{Bytes, BytesMut};
-use futures::{ready, Sink, Stream};
 use h2::server::{Connection, SendResponse};
-use h2::{RecvStream, SendStream};
-use http::header::{
-    HeaderValue, ACCEPT_ENCODING, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING,
-};
-use log::{debug, error, trace};
+use h2::SendStream;
+use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING};
+use log::{error, trace};
 
-use crate::body::{Body, BodySize, MessageBody, ResponseBody};
+use crate::body::{BodySize, MessageBody, ResponseBody};
 use crate::cloneable::CloneableService;
 use crate::config::ServiceConfig;
-use crate::error::{DispatchError, Error, ParseError, PayloadError, ResponseError};
+use crate::error::{DispatchError, Error};
 use crate::helpers::DataFactory;
 use crate::httpmessage::HttpMessage;
 use crate::message::ResponseHead;

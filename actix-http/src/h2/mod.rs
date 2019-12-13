@@ -1,6 +1,4 @@
-#![allow(dead_code, unused_imports)]
-use std::fmt;
-use std::future::Future;
+//! HTTP/2 implementation
 use std::pin::Pin;
 use std::task::{Context, Poll};
 

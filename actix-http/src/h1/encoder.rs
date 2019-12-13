@@ -1,25 +1,18 @@
-#![allow(unused_imports, unused_variables, dead_code)]
-use std::fmt::Write as FmtWrite;
 use std::io::Write;
 use std::marker::PhantomData;
 use std::ptr::copy_nonoverlapping;
-use std::rc::Rc;
 use std::slice::from_raw_parts_mut;
-use std::str::FromStr;
-use std::{cmp, fmt, io, mem};
+use std::{cmp, io};
 
-use bytes::{buf::BufMutExt, BufMut, Bytes, BytesMut};
+use bytes::{buf::BufMutExt, BufMut, BytesMut};
 
 use crate::body::BodySize;
 use crate::config::ServiceConfig;
-use crate::header::{map, ContentEncoding};
+use crate::header::map;
 use crate::helpers;
-use crate::http::header::{
-    HeaderValue, ACCEPT_ENCODING, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING,
-};
-use crate::http::{HeaderMap, Method, StatusCode, Version};
-use crate::message::{ConnectionType, Head, RequestHead, RequestHeadType, ResponseHead};
-use crate::request::Request;
+use crate::http::header::{CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING};
+use crate::http::{HeaderMap, StatusCode, Version};
+use crate::message::{ConnectionType, RequestHeadType};
 use crate::response::Response;
 
 const AVERAGE_HEADER_SIZE: usize = 30;

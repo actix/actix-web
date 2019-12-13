@@ -1,12 +1,9 @@
-#![allow(unused_imports, unused_variables, dead_code)]
-use std::io::Write;
-use std::{fmt, io, net};
+use std::{fmt, io};
 
 use actix_codec::{Decoder, Encoder};
 use bitflags::bitflags;
-use bytes::{BufMut, Bytes, BytesMut};
-use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING};
-use http::{Method, StatusCode, Version};
+use bytes::BytesMut;
+use http::{Method, Version};
 
 use super::decoder::{PayloadDecoder, PayloadItem, PayloadType};
 use super::{decoder, encoder};
@@ -14,8 +11,7 @@ use super::{Message, MessageType};
 use crate::body::BodySize;
 use crate::config::ServiceConfig;
 use crate::error::ParseError;
-use crate::helpers;
-use crate::message::{ConnectionType, Head, ResponseHead};
+use crate::message::ConnectionType;
 use crate::request::Request;
 use crate::response::Response;
 
@@ -26,8 +22,6 @@ bitflags! {
         const STREAM            = 0b0000_0100;
     }
 }
-
-const AVERAGE_HEADER_SIZE: usize = 30;
 
 /// HTTP/1 Codec
 pub struct Codec {
@@ -176,7 +170,6 @@ impl Encoder for Codec {
                 };
 
                 // encode message
-                let len = dst.len();
                 self.encoder.encode(
                     dst,
                     &mut res,

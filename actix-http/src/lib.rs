@@ -4,8 +4,7 @@
     clippy::type_complexity,
     clippy::too_many_arguments,
     clippy::new_without_default,
-    clippy::borrow_interior_mutable_const,
-//    clippy::write_with_newline
+    clippy::borrow_interior_mutable_const
 )]
 
 #[macro_use]

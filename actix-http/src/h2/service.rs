@@ -1,32 +1,28 @@
-use std::fmt::Debug;
 use std::future::Future;
 use std::marker::PhantomData;
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use std::{io, net, rc};
+use std::{net, rc};
 
-use actix_codec::{AsyncRead, AsyncWrite, Framed};
+use actix_codec::{AsyncRead, AsyncWrite};
 use actix_rt::net::TcpStream;
 use actix_service::{
     fn_factory, fn_service, pipeline_factory, IntoServiceFactory, Service,
     ServiceFactory,
 };
 use bytes::Bytes;
-use futures::future::{ok, Ready};
-use futures::{ready, Stream};
-use h2::server::{self, Connection, Handshake};
-use h2::RecvStream;
+use futures::future::ok;
+use futures::ready;
+use h2::server::{self, Handshake};
 use log::error;
 
 use crate::body::MessageBody;
 use crate::cloneable::CloneableService;
-use crate::config::{KeepAlive, ServiceConfig};
-use crate::error::{DispatchError, Error, ParseError, ResponseError};
+use crate::config::ServiceConfig;
+use crate::error::{DispatchError, Error};
 use crate::helpers::DataFactory;
-use crate::payload::Payload;
 use crate::request::Request;
 use crate::response::Response;
-use crate::Protocol;
 
 use super::dispatcher::Dispatcher;
 

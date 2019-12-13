@@ -1,13 +1,8 @@
-#![allow(unused_imports, unused_variables, dead_code)]
-use std::io::{self, Write};
-use std::rc::Rc;
+use std::io;
 
 use actix_codec::{Decoder, Encoder};
 use bitflags::bitflags;
-use bytes::{BufMut, Bytes, BytesMut};
-use http::header::{
-    HeaderValue, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING, UPGRADE,
-};
+use bytes::{Bytes, BytesMut};
 use http::{Method, Version};
 
 use super::decoder::{PayloadDecoder, PayloadItem, PayloadType};
@@ -16,11 +11,7 @@ use super::{Message, MessageType};
 use crate::body::BodySize;
 use crate::config::ServiceConfig;
 use crate::error::{ParseError, PayloadError};
-use crate::header::HeaderMap;
-use crate::helpers;
-use crate::message::{
-    ConnectionType, Head, MessagePool, RequestHead, RequestHeadType, ResponseHead,
-};
+use crate::message::{ConnectionType, RequestHeadType, ResponseHead};
 
 bitflags! {
     struct Flags: u8 {
@@ -29,8 +20,6 @@ bitflags! {
         const STREAM            = 0b0001_0000;
     }
 }
-
-const AVERAGE_HEADER_SIZE: usize = 30;
 
 /// HTTP/1 Codec
 pub struct ClientCodec {
@@ -51,7 +40,6 @@ struct ClientCodecInner {
 
     // encoder part
     flags: Flags,
-    headers_size: u32,
     encoder: encoder::MessageEncoder<RequestHeadType>,
 }
 
@@ -80,7 +68,6 @@ impl ClientCodec {
                 ctype: ConnectionType::Close,
 
                 flags,
-                headers_size: 0,
                 encoder: encoder::MessageEncoder::default(),
             },
         }
