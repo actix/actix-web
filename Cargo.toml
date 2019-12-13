@@ -71,11 +71,11 @@ actix-macros = "0.1.0"
 actix-threadpool = "0.3.0"
 actix-tls = "1.0.0"
 
-actix-web-codegen = "0.2.0-alpha.2"
+actix-web-codegen = "0.2.0"
 actix-http = "1.0.0"
 awc = { version = "1.0.0", default-features = false }
 
-bytes = "0.5.2"
+bytes = "0.5.3"
 derive_more = "0.99.2"
 encoding_rs = "0.8"
 futures = "0.3.1"

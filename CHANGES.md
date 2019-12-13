@@ -1,5 +1,11 @@
 # Changes
 
+## [2.0.0-alpha.5] - 2019-12-13
+
+### Added
+
+* Add test server, `test::start()` and `test::start_with()`
+
 ## [2.0.0-alpha.4] - 2019-12-08
 
 ### Deleted
