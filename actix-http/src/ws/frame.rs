@@ -108,7 +108,7 @@ impl Parser {
         }
 
         // remove prefix
-        src.split_to(idx);
+        let _ = src.split_to(idx);
 
         // no need for body
         if length == 0 {

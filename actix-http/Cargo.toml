@@ -50,7 +50,7 @@ actix-tls = { version = "1.0.0", optional = true }
 
 base64 = "0.11"
 bitflags = "1.2"
-bytes = "0.5.2"
+bytes = "0.5.3"
 copyless = "0.1.4"
 chrono = "0.4.6"
 derive_more = "0.99.2"
