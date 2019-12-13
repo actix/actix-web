@@ -7,7 +7,7 @@ use std::time::Duration;
 use actix_rt::time::{delay_for, Delay};
 use bytes::Bytes;
 use derive_more::From;
-use futures::{future::LocalBoxFuture, ready, Future, Stream};
+use futures_core::{ready, Future, Stream};
 use serde::Serialize;
 use serde_json;
 
@@ -49,7 +49,7 @@ impl Into<SendRequestError> for PrepForSendingError {
 #[must_use = "futures do nothing unless polled"]
 pub enum SendClientRequest {
     Fut(
-        LocalBoxFuture<'static, Result<ClientResponse, SendRequestError>>,
+        Pin<Box<dyn Future<Output = Result<ClientResponse, SendRequestError>>>>,
         Option<Delay>,
         bool,
     ),
@@ -58,7 +58,7 @@ pub enum SendClientRequest {
 
 impl SendClientRequest {
     pub(crate) fn new(
-        send: LocalBoxFuture<'static, Result<ClientResponse, SendRequestError>>,
+        send: Pin<Box<dyn Future<Output = Result<ClientResponse, SendRequestError>>>>,
         response_decompress: bool,
         timeout: Option<Duration>,
     ) -> SendClientRequest {

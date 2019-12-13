@@ -4,7 +4,7 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use bytes::Bytes;
-use futures::Stream;
+use futures_core::Stream;
 use serde::Serialize;
 
 use actix_http::body::Body;

@@ -6,8 +6,9 @@ use std::{io, mem, time};
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use bytes::buf::BufMutExt;
 use bytes::{Bytes, BytesMut};
-use futures::future::poll_fn;
-use futures::{SinkExt, Stream, StreamExt};
+use futures_core::Stream;
+use futures_util::future::poll_fn;
+use futures_util::{SinkExt, StreamExt};
 
 use crate::error::PayloadError;
 use crate::h1;

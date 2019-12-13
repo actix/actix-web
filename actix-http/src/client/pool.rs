@@ -11,7 +11,7 @@ use actix_rt::time::{delay_for, Delay};
 use actix_service::Service;
 use actix_utils::{oneshot, task::LocalWaker};
 use bytes::Bytes;
-use futures::future::{poll_fn, FutureExt, LocalBoxFuture};
+use futures_util::future::{poll_fn, FutureExt, LocalBoxFuture};
 use fxhash::FxHashMap;
 use h2::client::{handshake, Connection, SendRequest};
 use http::uri::Authority;

@@ -521,12 +521,14 @@ fn write_camel_case(value: &[u8], buffer: &mut [u8]) {
 
 #[cfg(test)]
 mod tests {
+    use std::rc::Rc;
+
     use bytes::Bytes;
-    //use std::rc::Rc;
+    use http::header::AUTHORIZATION;
 
     use super::*;
     use crate::http::header::{HeaderValue, CONTENT_TYPE};
-    use http::header::AUTHORIZATION;
+    use crate::RequestHead;
 
     #[test]
     fn test_chunked_te() {

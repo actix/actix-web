@@ -1,3 +1,4 @@
+use std::future::Future;
 use std::pin::Pin;
 use std::rc::Rc;
 use std::task::{Context, Poll};
@@ -12,7 +13,6 @@ use actix_http::h1::ClientCodec;
 use actix_http::http::HeaderMap;
 use actix_http::{RequestHead, RequestHeadType, ResponseHead};
 use actix_service::Service;
-use futures::future::{FutureExt, LocalBoxFuture};
 
 use crate::response::ClientResponse;
 
@@ -24,7 +24,7 @@ pub(crate) trait Connect {
         head: RequestHead,
         body: Body,
         addr: Option<net::SocketAddr>,
-    ) -> LocalBoxFuture<'static, Result<ClientResponse, SendRequestError>>;
+    ) -> Pin<Box<dyn Future<Output = Result<ClientResponse, SendRequestError>>>>;
 
     fn send_request_extra(
         &mut self,
@@ -32,16 +32,22 @@ pub(crate) trait Connect {
         extra_headers: Option<HeaderMap>,
         body: Body,
         addr: Option<net::SocketAddr>,
-    ) -> LocalBoxFuture<'static, Result<ClientResponse, SendRequestError>>;
+    ) -> Pin<Box<dyn Future<Output = Result<ClientResponse, SendRequestError>>>>;
 
     /// Send request, returns Response and Framed
     fn open_tunnel(
         &mut self,
         head: RequestHead,
         addr: Option<net::SocketAddr>,
-    ) -> LocalBoxFuture<
-        'static,
-        Result<(ResponseHead, Framed<BoxedSocket, ClientCodec>), SendRequestError>,
+    ) -> Pin<
+        Box<
+            dyn Future<
+                Output = Result<
+                    (ResponseHead, Framed<BoxedSocket, ClientCodec>),
+                    SendRequestError,
+                >,
+            >,
+        >,
     >;
 
     /// Send request and extra headers, returns Response and Framed
@@ -50,9 +56,15 @@ pub(crate) trait Connect {
         head: Rc<RequestHead>,
         extra_headers: Option<HeaderMap>,
         addr: Option<net::SocketAddr>,
-    ) -> LocalBoxFuture<
-        'static,
-        Result<(ResponseHead, Framed<BoxedSocket, ClientCodec>), SendRequestError>,
+    ) -> Pin<
+        Box<
+            dyn Future<
+                Output = Result<
+                    (ResponseHead, Framed<BoxedSocket, ClientCodec>),
+                    SendRequestError,
+                >,
+            >,
+        >,
     >;
 }
 
@@ -70,14 +82,14 @@ where
         head: RequestHead,
         body: Body,
         addr: Option<net::SocketAddr>,
-    ) -> LocalBoxFuture<'static, Result<ClientResponse, SendRequestError>> {
+    ) -> Pin<Box<dyn Future<Output = Result<ClientResponse, SendRequestError>>>> {
         // connect to the host
         let fut = self.0.call(ClientConnect {
             uri: head.uri.clone(),
             addr,
         });
 
-        async move {
+        Box::pin(async move {
             let connection = fut.await?;
 
             // send request
@@ -85,8 +97,7 @@ where
                 .send_request(RequestHeadType::from(head), body)
                 .await
                 .map(|(head, payload)| ClientResponse::new(head, payload))
-        }
-            .boxed_local()
+        })
     }
 
     fn send_request_extra(
@@ -95,14 +106,14 @@ where
         extra_headers: Option<HeaderMap>,
         body: Body,
         addr: Option<net::SocketAddr>,
-    ) -> LocalBoxFuture<'static, Result<ClientResponse, SendRequestError>> {
+    ) -> Pin<Box<dyn Future<Output = Result<ClientResponse, SendRequestError>>>> {
         // connect to the host
         let fut = self.0.call(ClientConnect {
             uri: head.uri.clone(),
             addr,
         });
 
-        async move {
+        Box::pin(async move {
             let connection = fut.await?;
 
             // send request
@@ -111,17 +122,22 @@ where
                 .await?;
 
             Ok(ClientResponse::new(head, payload))
-        }
-            .boxed_local()
+        })
     }
 
     fn open_tunnel(
         &mut self,
         head: RequestHead,
         addr: Option<net::SocketAddr>,
-    ) -> LocalBoxFuture<
-        'static,
-        Result<(ResponseHead, Framed<BoxedSocket, ClientCodec>), SendRequestError>,
+    ) -> Pin<
+        Box<
+            dyn Future<
+                Output = Result<
+                    (ResponseHead, Framed<BoxedSocket, ClientCodec>),
+                    SendRequestError,
+                >,
+            >,
+        >,
     > {
         // connect to the host
         let fut = self.0.call(ClientConnect {
@@ -129,7 +145,7 @@ where
             addr,
         });
 
-        async move {
+        Box::pin(async move {
             let connection = fut.await?;
 
             // send request
@@ -138,8 +154,7 @@ where
 
             let framed = framed.map_io(|io| BoxedSocket(Box::new(Socket(io))));
             Ok((head, framed))
-        }
-            .boxed_local()
+        })
     }
 
     fn open_tunnel_extra(
@@ -147,9 +162,15 @@ where
         head: Rc<RequestHead>,
         extra_headers: Option<HeaderMap>,
         addr: Option<net::SocketAddr>,
-    ) -> LocalBoxFuture<
-        'static,
-        Result<(ResponseHead, Framed<BoxedSocket, ClientCodec>), SendRequestError>,
+    ) -> Pin<
+        Box<
+            dyn Future<
+                Output = Result<
+                    (ResponseHead, Framed<BoxedSocket, ClientCodec>),
+                    SendRequestError,
+                >,
+            >,
+        >,
     > {
         // connect to the host
         let fut = self.0.call(ClientConnect {
@@ -157,7 +178,7 @@ where
             addr,
         });
 
-        async move {
+        Box::pin(async move {
             let connection = fut.await?;
 
             // send request
@@ -167,8 +188,7 @@ where
 
             let framed = framed.map_io(|io| BoxedSocket(Box::new(Socket(io))));
             Ok((head, framed))
-        }
-            .boxed_local()
+        })
     }
 }
 

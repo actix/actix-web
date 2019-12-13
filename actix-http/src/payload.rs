@@ -2,7 +2,7 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 
 use bytes::Bytes;
-use futures::Stream;
+use futures_core::Stream;
 use h2::RecvStream;
 
 use crate::error::PayloadError;

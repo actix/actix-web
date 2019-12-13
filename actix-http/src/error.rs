@@ -10,7 +10,7 @@ pub use actix_threadpool::BlockingError;
 use actix_utils::timeout::TimeoutError;
 use bytes::BytesMut;
 use derive_more::{Display, From};
-pub use futures::channel::oneshot::Canceled;
+pub use futures_channel::oneshot::Canceled;
 use http::uri::InvalidUri;
 use http::{header, Error as HttpError, StatusCode};
 use httparse;

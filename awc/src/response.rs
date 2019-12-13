@@ -5,7 +5,7 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 
 use bytes::{Bytes, BytesMut};
-use futures::{ready, Future, Stream};
+use futures_core::{ready, Future, Stream};
 
 use actix_http::cookie::Cookie;
 use actix_http::error::{CookieParseError, PayloadError};

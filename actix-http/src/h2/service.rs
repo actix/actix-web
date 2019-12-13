@@ -11,8 +11,8 @@ use actix_service::{
     ServiceFactory,
 };
 use bytes::Bytes;
-use futures::future::ok;
-use futures::ready;
+use futures_core::ready;
+use futures_util::future::ok;
 use h2::server::{self, Handshake};
 use log::error;
 
@@ -141,9 +141,9 @@ mod openssl {
 #[cfg(feature = "rustls")]
 mod rustls {
     use super::*;
-    use actix_tls::rustls::{Acceptor, ServerConfig, Session, TlsStream};
+    use actix_tls::rustls::{Acceptor, ServerConfig, TlsStream};
     use actix_tls::SslError;
-    use std::{fmt, io};
+    use std::io;
 
     impl<S, B> H2Service<TlsStream<TcpStream>, S, B>
     where

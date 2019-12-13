@@ -56,7 +56,9 @@ chrono = "0.4.6"
 derive_more = "0.99.2"
 either = "1.5.3"
 encoding_rs = "0.8"
-futures = "0.3.1"
+futures-core = "0.3.1"
+futures-util = "0.3.1"
+futures-channel = "0.3.1"
 fxhash = "0.2.1"
 h2 = "0.2.1"
 http = "0.2.0"
@@ -92,6 +94,7 @@ actix-server = "1.0.0"
 actix-connect = { version = "1.0.0", features=["openssl"] }
 actix-http-test = { version = "1.0.0-alpha.3", features=["openssl"] }
 actix-tls = { version = "1.0.0", features=["openssl"] }
+futures = "0.3.1"
 env_logger = "0.6"
 serde_derive = "1.0"
 open-ssl = { version="0.10", package = "openssl" }

@@ -4,7 +4,7 @@ use std::task::{Context, Poll};
 use std::{fmt, mem};
 
 use bytes::{Bytes, BytesMut};
-use futures::Stream;
+use futures_core::Stream;
 use pin_project::{pin_project, project};
 
 use crate::error::Error;
@@ -435,7 +435,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use futures::future::poll_fn;
+    use futures_util::future::poll_fn;
 
     impl Body {
         pub(crate) fn get_ref(&self) -> &[u8] {

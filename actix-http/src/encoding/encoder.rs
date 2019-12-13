@@ -8,6 +8,7 @@ use actix_threadpool::{run, CpuFuture};
 use brotli::CompressorWriter;
 use bytes::Bytes;
 use flate2::write::{GzEncoder, ZlibEncoder};
+use futures_core::ready;
 
 use crate::body::{Body, BodySize, MessageBody, ResponseBody};
 use crate::http::header::{ContentEncoding, CONTENT_ENCODING};
@@ -101,7 +102,7 @@ impl<B: MessageBody> MessageBody for Encoder<B> {
             }
 
             if let Some(ref mut fut) = self.fut {
-                let mut encoder = match futures::ready!(Pin::new(fut).poll(cx)) {
+                let mut encoder = match ready!(Pin::new(fut).poll(cx)) {
                     Ok(item) => item,
                     Err(e) => return Poll::Ready(Some(Err(e.into()))),
                 };

@@ -195,17 +195,11 @@ impl Encoder for Codec {
 
 #[cfg(test)]
 mod tests {
-    use std::{cmp, io};
-
-    use actix_codec::{AsyncRead, AsyncWrite};
-    use bytes::{Buf, Bytes, BytesMut};
-    use http::{Method, Version};
+    use bytes::BytesMut;
+    use http::Method;
 
     use super::*;
-    use crate::error::ParseError;
-    use crate::h1::Message;
     use crate::httpmessage::HttpMessage;
-    use crate::request::Request;
 
     #[test]
     fn test_http_request_chunked_payload_and_next_message() {

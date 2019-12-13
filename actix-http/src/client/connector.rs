@@ -337,7 +337,7 @@ where
 mod connect_impl {
     use std::task::{Context, Poll};
 
-    use futures::future::{err, Either, Ready};
+    use futures_util::future::{err, Either, Ready};
 
     use super::*;
     use crate::client::connection::IoConnection;
@@ -400,8 +400,8 @@ mod connect_impl {
     use std::pin::Pin;
     use std::task::{Context, Poll};
 
-    use futures::future::Either;
-    use futures::ready;
+    use futures_core::ready;
+    use futures_util::future::Either;
 
     use super::*;
     use crate::client::connection::EitherConnection;

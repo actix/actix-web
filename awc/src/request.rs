@@ -5,7 +5,7 @@ use std::time::Duration;
 use std::{fmt, net};
 
 use bytes::Bytes;
-use futures::Stream;
+use futures_core::Stream;
 use percent_encoding::percent_encode;
 use serde::Serialize;
 
