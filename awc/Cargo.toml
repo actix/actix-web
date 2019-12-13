@@ -40,7 +40,7 @@ actix-http = "1.0.0"
 actix-rt = "1.0.0"
 
 base64 = "0.11"
-bytes = "0.5.2"
+bytes = "0.5.3"
 derive_more = "0.99.2"
 futures-core = "0.3.1"
 log =" 0.4"

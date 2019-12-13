@@ -1,6 +1,6 @@
 [package]
 name = "actix-framed"
-version = "0.3.0-alpha.1"
+version = "0.3.0"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix framed app server"
 readme = "README.md"
@@ -24,9 +24,9 @@ actix-codec = "0.2.0"
 actix-service = "1.0.0"
 actix-router = "0.2.0"
 actix-rt = "1.0.0"
-actix-http = "1.0.0-alpha.3"
+actix-http = "1.0.0"
 
-bytes = "0.5.2"
+bytes = "0.5.3"
 futures = "0.3.1"
 pin-project = "0.4.6"
 log = "0.4"
@@ -34,5 +34,5 @@ log = "0.4"
 [dev-dependencies]
 actix-server = "1.0.0"
 actix-connect = { version = "1.0.0", features=["openssl"] }
-actix-http-test = { version = "1.0.0-alpha.3", features=["openssl"] }
-actix-utils = "1.0.0"
+actix-http-test = { version = "1.0.0", features=["openssl"] }
+actix-utils = "1.0.3"

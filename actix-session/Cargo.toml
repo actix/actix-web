@@ -1,6 +1,6 @@
 [package]
 name = "actix-session"
-version = "0.3.0-alpha.3"
+version = "0.3.0"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Session for actix web framework."
 readme = "README.md"
@@ -9,8 +9,6 @@ homepage = "https://actix.rs"
 repository = "https://github.com/actix/actix-web.git"
 documentation = "https://docs.rs/actix-session/"
 license = "MIT/Apache-2.0"
-exclude = [".gitignore", ".travis.yml", ".cargo/config", "appveyor.yml"]
-workspace = ".."
 edition = "2018"
 
 [lib]
@@ -24,9 +22,9 @@ default = ["cookie-session"]
 cookie-session = ["actix-web/secure-cookies"]
 
 [dependencies]
-actix-web = "2.0.0-alpha.3"
+actix-web = "2.0.0-alpha.5"
 actix-service = "1.0.0"
-bytes = "0.5.2"
+bytes = "0.5.3"
 derive_more = "0.99.2"
 futures = "0.3.1"
 serde = "1.0"

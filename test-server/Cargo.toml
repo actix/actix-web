@@ -55,5 +55,5 @@ time = "0.1"
 open-ssl = { version="0.10", package="openssl", optional = true }
 
 [dev-dependencies]
-#actix-web = "2.0.0-alpha.4"
+actix-web = "2.0.0-alpha.5"
 actix-http = "1.0.0"
