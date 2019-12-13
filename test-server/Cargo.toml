@@ -40,7 +40,7 @@ actix-testing = "1.0.0"
 awc = "1.0.0"
 
 base64 = "0.11"
-bytes = "0.5.2"
+bytes = "0.5.3"
 futures = "0.3.1"
 http = "0.2.0"
 log = "0.4"

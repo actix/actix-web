@@ -55,10 +55,10 @@ rust-tls = { version = "0.16.0", package="rustls", optional = true, features = [
 
 [dev-dependencies]
 actix-connect = { version = "1.0.0", features=["openssl"] }
-actix-web = { version = "2.0.0-alpha.3", features=["openssl"] }
+actix-web = { version = "2.0.0-alpha.5", features=["openssl"] }
 actix-http = { version = "1.0.0", features=["openssl"] }
-actix-http-test = { version = "1.0.0-alpha.3", features=["openssl"] }
-actix-utils = "1.0.0"
+actix-http-test = { version = "1.0.0", features=["openssl"] }
+actix-utils = "1.0.3"
 actix-server = "1.0.0"
 actix-tls = { version = "1.0.0", features=["openssl", "rustls"] }
 brotli = "3.3.0"
