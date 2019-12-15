@@ -1,6 +1,6 @@
 [package]
 name = "actix-web"
-version = "2.0.0-alpha.5"
+version = "2.0.0-alpha.6"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix web is a simple, pragmatic and extremely fast web framework for Rust."
 readme = "README.md"
@@ -12,7 +12,6 @@ categories = ["network-programming", "asynchronous",
               "web-programming::http-server",
               "web-programming::websocket"]
 license = "MIT/Apache-2.0"
-exclude = [".gitignore", ".travis.yml", ".cargo/config", "appveyor.yml"]
 edition = "2018"
 
 [package.metadata.docs.rs]
@@ -73,7 +72,7 @@ actix-tls = "1.0.0"
 
 actix-web-codegen = "0.2.0"
 actix-http = "1.0.0"
-awc = { version = "1.0.0", default-features = false }
+awc = { version = "1.0.1", default-features = false }
 
 bytes = "0.5.3"
 derive_more = "0.99.2"

@@ -1,5 +1,11 @@
 # Changes
 
+## [2.0.0-alpha.6] - 2019-12-15
+
+### Fixed
+
+* Fixed compilation with default features off
+
 ## [2.0.0-alpha.5] - 2019-12-13
 
 ### Added
