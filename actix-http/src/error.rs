@@ -114,10 +114,6 @@ impl fmt::Debug for Error {
 }
 
 impl std::error::Error for Error {
-    fn description(&self) -> &str {
-        "actix-http::Error"
-    }
-
     fn cause(&self) -> Option<&dyn std::error::Error> {
         None
     }
@@ -966,7 +962,6 @@ mod tests {
     use super::*;
     use http::{Error as HttpError, StatusCode};
     use httparse;
-    use std::error::Error as StdError;
     use std::io;
 
     #[test]
@@ -995,7 +990,7 @@ mod tests {
     #[test]
     fn test_error_cause() {
         let orig = io::Error::new(io::ErrorKind::Other, "other");
-        let desc = orig.description().to_owned();
+        let desc = orig.to_string();
         let e = Error::from(orig);
         assert_eq!(format!("{}", e.as_response_error()), desc);
     }
@@ -1003,7 +998,7 @@ mod tests {
     #[test]
     fn test_error_display() {
         let orig = io::Error::new(io::ErrorKind::Other, "other");
-        let desc = orig.description().to_owned();
+        let desc = orig.to_string();
         let e = Error::from(orig);
         assert_eq!(format!("{}", e), desc);
     }
@@ -1045,7 +1040,7 @@ mod tests {
             match ParseError::from($from) {
                 e @ $error => {
                     let desc = format!("{}", e);
-                    assert_eq!(desc, format!("IO error: {}", $from.description()));
+                    assert_eq!(desc, format!("IO error: {}", $from));
                 }
                 _ => unreachable!("{:?}", $from),
             }
