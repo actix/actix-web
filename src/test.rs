@@ -910,6 +910,7 @@ impl Drop for TestServer {
 #[cfg(test)]
 mod tests {
     use actix_http::httpmessage::HttpMessage;
+    use futures::FutureExt;
     use serde::{Deserialize, Serialize};
     use std::time::SystemTime;
 
@@ -1095,41 +1096,46 @@ mod tests {
         assert!(res.status().is_success());
     }
 
-    // #[actix_rt::test]
-    // fn test_actor() {
-    //     use actix::Actor;
+    #[actix_rt::test]
+    async fn test_actor() {
+        use actix::Actor;
 
-    //     struct MyActor;
+        struct MyActor;
 
-    //     struct Num(usize);
-    //     impl actix::Message for Num {
-    //         type Result = usize;
-    //     }
-    //     impl actix::Actor for MyActor {
-    //         type Context = actix::Context<Self>;
-    //     }
-    //     impl actix::Handler<Num> for MyActor {
-    //         type Result = usize;
-    //         fn handle(&mut self, msg: Num, _: &mut Self::Context) -> Self::Result {
-    //             msg.0
-    //         }
-    //     }
+        struct Num(usize);
+        impl actix::Message for Num {
+            type Result = usize;
+        }
+        impl actix::Actor for MyActor {
+            type Context = actix::Context<Self>;
+        }
+        impl actix::Handler<Num> for MyActor {
+            type Result = usize;
+            fn handle(&mut self, msg: Num, _: &mut Self::Context) -> Self::Result {
+                msg.0
+            }
+        }
 
-    //     let addr = run_on(|| MyActor.start());
-    //     let mut app = init_service(App::new().service(
-    //         web::resource("/index.html").to(move || {
-    //             addr.send(Num(1)).from_err().and_then(|res| {
-    //                 if res == 1 {
-    //                     HttpResponse::Ok()
-    //                 } else {
-    //                     HttpResponse::BadRequest()
-    //                 }
-    //             })
-    //         }),
-    //     ));
+        let addr = MyActor.start();
 
-    //     let req = TestRequest::post().uri("/index.html").to_request();
-    //     let res = block_fn(|| app.call(req)).unwrap();
-    //     assert!(res.status().is_success());
-    // }
+        let mut app = init_service(App::new().service(web::resource("/index.html").to(
+            move || {
+                addr.send(Num(1)).map(|res| match res {
+                    Ok(res) => {
+                        if res == 1 {
+                            Ok(HttpResponse::Ok())
+                        } else {
+                            Ok(HttpResponse::BadRequest())
+                        }
+                    }
+                    Err(err) => Err(err),
+                })
+            },
+        )))
+        .await;
+
+        let req = TestRequest::post().uri("/index.html").to_request();
+        let res = app.call(req).await.unwrap();
+        assert!(res.status().is_success());
+    }
 }
