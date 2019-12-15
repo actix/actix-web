@@ -301,7 +301,10 @@ impl Default for PayloadConfig {
 pub struct HttpMessageBody {
     limit: usize,
     length: Option<usize>,
+    #[cfg(feature = "compress")]
     stream: Option<dev::Decompress<dev::Payload>>,
+    #[cfg(not(feature = "compress"))]
+    stream: Option<dev::Payload>,
     err: Option<PayloadError>,
     fut: Option<LocalBoxFuture<'static, Result<Bytes, PayloadError>>>,
 }
@@ -322,8 +325,13 @@ impl HttpMessageBody {
             }
         }
 
+        #[cfg(feature = "compress")]
+        let stream = Some(dev::Decompress::from_headers(payload.take(), req.headers()));
+        #[cfg(not(feature = "compress"))]
+        let stream = Some(payload.take());
+
         HttpMessageBody {
-            stream: Some(dev::Decompress::from_headers(payload.take(), req.headers())),
+            stream,
             limit: 262_144,
             length: len,
             fut: None,

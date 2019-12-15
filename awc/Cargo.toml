@@ -22,7 +22,7 @@ path = "src/lib.rs"
 features = ["openssl", "rustls", "compress"]
 
 [features]
-default = ["compress"]
+default = [] #"compress"]
 
 # openssl
 openssl = ["open-ssl", "actix-http/openssl"]
@@ -54,7 +54,7 @@ open-ssl = { version="0.10", package="openssl", optional = true }
 rust-tls = { version = "0.16.0", package="rustls", optional = true, features = ["dangerous_configuration"]  }
 
 [dev-dependencies]
-actix-connect = { version = "1.0.0", features=["openssl"] }
+actix-connect = { version = "1.0.1", features=["openssl"] }
 actix-web = { version = "2.0.0-alpha.5", features=["openssl"] }
 actix-http = { version = "1.0.0", features=["openssl"] }
 actix-http-test = { version = "1.0.0", features=["openssl"] }

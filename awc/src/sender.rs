@@ -7,15 +7,21 @@ use std::time::Duration;
 use actix_rt::time::{delay_for, Delay};
 use bytes::Bytes;
 use derive_more::From;
-use futures_core::{ready, Future, Stream};
+use futures_core::{Future, Stream};
 use serde::Serialize;
 use serde_json;
 
 use actix_http::body::{Body, BodyStream};
-use actix_http::encoding::Decoder;
-use actix_http::http::header::{self, ContentEncoding, IntoHeaderValue};
+use actix_http::http::header::{self, IntoHeaderValue};
 use actix_http::http::{Error as HttpError, HeaderMap, HeaderName};
-use actix_http::{Error, Payload, PayloadStream, RequestHead};
+use actix_http::{Error, RequestHead};
+
+#[cfg(feature = "compress")]
+use actix_http::encoding::Decoder;
+#[cfg(feature = "compress")]
+use actix_http::http::header::ContentEncoding;
+#[cfg(feature = "compress")]
+use actix_http::{Payload, PayloadStream};
 
 use crate::error::{FreezeRequestError, InvalidUrl, SendRequestError};
 use crate::response::ClientResponse;
@@ -67,6 +73,7 @@ impl SendClientRequest {
     }
 }
 
+#[cfg(feature = "compress")]
 impl Future for SendClientRequest {
     type Output =
         Result<ClientResponse<Decoder<Payload<PayloadStream>>>, SendRequestError>;
@@ -83,7 +90,7 @@ impl Future for SendClientRequest {
                     }
                 }
 
-                let res = ready!(Pin::new(send).poll(cx)).map(|res| {
+                let res = futures_core::ready!(Pin::new(send).poll(cx)).map(|res| {
                     res.map_body(|head, payload| {
                         if *response_decompress {
                             Payload::Stream(Decoder::from_headers(
@@ -100,6 +107,30 @@ impl Future for SendClientRequest {
                 });
 
                 Poll::Ready(res)
+            }
+            SendClientRequest::Err(ref mut e) => match e.take() {
+                Some(e) => Poll::Ready(Err(e)),
+                None => panic!("Attempting to call completed future"),
+            },
+        }
+    }
+}
+
+#[cfg(not(feature = "compress"))]
+impl Future for SendClientRequest {
+    type Output = Result<ClientResponse, SendRequestError>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = self.get_mut();
+        match this {
+            SendClientRequest::Fut(send, delay, _) => {
+                if delay.is_some() {
+                    match Pin::new(delay.as_mut().unwrap()).poll(cx) {
+                        Poll::Pending => (),
+                        _ => return Poll::Ready(Err(SendRequestError::Timeout)),
+                    }
+                }
+                Pin::new(send).poll(cx)
             }
             SendClientRequest::Err(ref mut e) => match e.take() {
                 Some(e) => Poll::Ready(Err(e)),

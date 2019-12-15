@@ -14,6 +14,7 @@ use futures::StreamExt;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
+#[cfg(feature = "compress")]
 use crate::dev::Decompress;
 use crate::error::UrlencodedError;
 use crate::extract::FromRequest;
@@ -240,7 +241,10 @@ impl Default for FormConfig {
 /// * content-length is greater than 32k
 ///
 pub struct UrlEncoded<U> {
+    #[cfg(feature = "compress")]
     stream: Option<Decompress<Payload>>,
+    #[cfg(not(feature = "compress"))]
+    stream: Option<Payload>,
     limit: usize,
     length: Option<usize>,
     encoding: &'static Encoding,
@@ -273,7 +277,11 @@ impl<U> UrlEncoded<U> {
             }
         };
 
+        #[cfg(feature = "compress")]
         let payload = Decompress::from_headers(payload.take(), req.headers());
+        #[cfg(not(feature = "compress"))]
+        let payload = payload.take();
+
         UrlEncoded {
             encoding,
             stream: Some(payload),

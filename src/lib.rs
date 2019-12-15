@@ -141,6 +141,7 @@ pub mod dev {
     pub use crate::types::readlines::Readlines;
 
     pub use actix_http::body::{Body, BodySize, MessageBody, ResponseBody, SizedStream};
+    #[cfg(feature = "compress")]
     pub use actix_http::encoding::Decoder as Decompress;
     pub use actix_http::ResponseBuilder as HttpResponseBuilder;
     pub use actix_http::{

@@ -16,6 +16,7 @@ use serde_json;
 use actix_http::http::{header::CONTENT_LENGTH, StatusCode};
 use actix_http::{HttpMessage, Payload, Response};
 
+#[cfg(feature = "compress")]
 use crate::dev::Decompress;
 use crate::error::{Error, JsonPayloadError};
 use crate::extract::FromRequest;
@@ -293,7 +294,10 @@ impl Default for JsonConfig {
 pub struct JsonBody<U> {
     limit: usize,
     length: Option<usize>,
+    #[cfg(feature = "compress")]
     stream: Option<Decompress<Payload>>,
+    #[cfg(not(feature = "compress"))]
+    stream: Option<Payload>,
     err: Option<JsonPayloadError>,
     fut: Option<LocalBoxFuture<'static, Result<U, JsonPayloadError>>>,
 }
@@ -332,7 +336,11 @@ where
             .get(&CONTENT_LENGTH)
             .and_then(|l| l.to_str().ok())
             .and_then(|s| s.parse::<usize>().ok());
+
+        #[cfg(feature = "compress")]
         let payload = Decompress::from_headers(payload.take(), req.headers());
+        #[cfg(not(feature = "compress"))]
+        let payload = payload.take();
 
         JsonBody {
             limit: 262_144,

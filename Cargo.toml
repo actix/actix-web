@@ -106,14 +106,14 @@ lto = true
 opt-level = 3
 codegen-units = 1
 
-# [patch.crates-io]
-# actix-web = { path = "." }
-# actix-http = { path = "actix-http" }
-# actix-http-test = { path = "test-server" }
-# actix-web-codegen = { path = "actix-web-codegen" }
-# actix-cors = { path = "actix-cors" }
-# actix-identity = { path = "actix-identity" }
-# actix-session = { path = "actix-session" }
-# actix-files = { path = "actix-files" }
-# actix-multipart = { path = "actix-multipart" }
-# awc = { path = "awc" }
+[patch.crates-io]
+actix-web = { path = "." }
+actix-http = { path = "actix-http" }
+actix-http-test = { path = "test-server" }
+actix-web-codegen = { path = "actix-web-codegen" }
+actix-cors = { path = "actix-cors" }
+actix-identity = { path = "actix-identity" }
+actix-session = { path = "actix-session" }
+actix-files = { path = "actix-files" }
+actix-multipart = { path = "actix-multipart" }
+awc = { path = "awc" }
