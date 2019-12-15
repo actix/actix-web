@@ -1,6 +1,6 @@
 [package]
 name = "awc"
-version = "1.0.0"
+version = "1.0.1"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix http client."
 readme = "README.md"
@@ -22,7 +22,7 @@ path = "src/lib.rs"
 features = ["openssl", "rustls", "compress"]
 
 [features]
-default = [] #"compress"]
+default = ["compress"]
 
 # openssl
 openssl = ["open-ssl", "actix-http/openssl"]
