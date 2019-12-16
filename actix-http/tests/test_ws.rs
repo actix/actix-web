@@ -8,11 +8,10 @@ use actix_http::{body, h1, ws, Error, HttpService, Request, Response};
 use actix_http_test::test_server;
 use actix_service::{fn_factory, Service};
 use actix_utils::framed::Dispatcher;
-use bitflags::_core::task::{Context, Poll};
 use bytes::Bytes;
 use futures::future;
+use futures::task::{Context, Poll};
 use futures::{Future, SinkExt, StreamExt};
-use futures_util::future::ok;
 
 struct WsService<T>(Arc<Mutex<(PhantomData<T>, Cell<bool>)>>);
 
@@ -90,7 +89,7 @@ async fn test_simple() {
         move || {
             let ws_service = ws_service.clone();
             HttpService::build()
-                .upgrade(fn_factory(move || ok::<_, ()>(ws_service.clone())))
+                .upgrade(fn_factory(move || future::ok::<_, ()>(ws_service.clone())))
                 .finish(|_| future::ok::<_, ()>(Response::NotFound()))
                 .tcp()
         }
