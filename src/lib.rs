@@ -158,6 +158,48 @@ pub mod dev {
         };
         path
     }
+
+    use crate::http::header::ContentEncoding;
+    use actix_http::{Response, ResponseBuilder};
+
+    struct Enc(ContentEncoding);
+
+    /// Helper trait that allows to set specific encoding for response.
+    pub trait BodyEncoding {
+        fn encoding(&self) -> Option<ContentEncoding>;
+
+        fn set_encoding(&mut self, encoding: ContentEncoding) -> &mut Self;
+    }
+
+    impl BodyEncoding for ResponseBuilder {
+        fn encoding(&self) -> Option<ContentEncoding> {
+            if let Some(ref enc) = self.extensions().get::<Enc>() {
+                Some(enc.0)
+            } else {
+                None
+            }
+        }
+
+        fn set_encoding(&mut self, encoding: ContentEncoding) -> &mut Self {
+            self.extensions_mut().insert(Enc(encoding));
+            self
+        }
+    }
+
+    impl<B> BodyEncoding for Response<B> {
+        fn encoding(&self) -> Option<ContentEncoding> {
+            if let Some(ref enc) = self.extensions().get::<Enc>() {
+                Some(enc.0)
+            } else {
+                None
+            }
+        }
+
+        fn set_encoding(&mut self, encoding: ContentEncoding) -> &mut Self {
+            self.extensions_mut().insert(Enc(encoding));
+            self
+        }
+    }
 }
 
 pub mod client {

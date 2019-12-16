@@ -1,6 +1,10 @@
 # Changes
 
-## [0.2.0-alpha.7] - 2019-12-07
+## [0.2.0] - 2019-12-xx
+
+* Fix BodyEncoding trait import #1220
+
+## [0.2.0-alpha.1] - 2019-12-07
 
 * Migrate to `std::future`
 

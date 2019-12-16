@@ -9,33 +9,13 @@ use std::task::{Context, Poll};
 use actix_http::body::MessageBody;
 use actix_http::encoding::Encoder;
 use actix_http::http::header::{ContentEncoding, ACCEPT_ENCODING};
-use actix_http::{Error, Response, ResponseBuilder};
+use actix_http::Error;
 use actix_service::{Service, Transform};
 use futures::future::{ok, Ready};
 use pin_project::pin_project;
 
+use crate::dev::BodyEncoding;
 use crate::service::{ServiceRequest, ServiceResponse};
-
-struct Enc(ContentEncoding);
-
-/// Helper trait that allows to set specific encoding for response.
-pub trait BodyEncoding {
-    fn encoding(&mut self, encoding: ContentEncoding) -> &mut Self;
-}
-
-impl BodyEncoding for ResponseBuilder {
-    fn encoding(&mut self, encoding: ContentEncoding) -> &mut Self {
-        self.extensions_mut().insert(Enc(encoding));
-        self
-    }
-}
-
-impl<B> BodyEncoding for Response<B> {
-    fn encoding(&mut self, encoding: ContentEncoding) -> &mut Self {
-        self.extensions_mut().insert(Enc(encoding));
-        self
-    }
-}
 
 #[derive(Debug, Clone)]
 /// `Middleware` for compressing response body.
@@ -155,8 +135,8 @@ where
 
         match futures::ready!(this.fut.poll(cx)) {
             Ok(resp) => {
-                let enc = if let Some(enc) = resp.response().extensions().get::<Enc>() {
-                    enc.0
+                let enc = if let Some(enc) = resp.response().encoding() {
+                    enc
                 } else {
                     *this.encoding
                 };

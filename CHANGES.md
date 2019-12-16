@@ -1,5 +1,11 @@
 # Changes
 
+## [2.0.0] - 2019-12-xx
+
+### Changed
+
+* Move `BodyEncoding` to `dev` module #1220
+
 ## [2.0.0-alpha.6] - 2019-12-15
 
 ### Fixed

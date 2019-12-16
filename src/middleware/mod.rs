@@ -3,7 +3,7 @@
 #[cfg(feature = "compress")]
 mod compress;
 #[cfg(feature = "compress")]
-pub use self::compress::{BodyEncoding, Compress};
+pub use self::compress::Compress;
 
 mod condition;
 mod defaultheaders;

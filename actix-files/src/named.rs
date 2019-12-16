@@ -12,11 +12,11 @@ use mime;
 use mime_guess::from_path;
 
 use actix_http::body::SizedStream;
+use actix_web::dev::BodyEncoding;
 use actix_web::http::header::{
     self, Charset, ContentDisposition, DispositionParam, DispositionType, ExtendedValue,
 };
 use actix_web::http::{ContentEncoding, StatusCode};
-use actix_web::middleware::BodyEncoding;
 use actix_web::{Error, HttpMessage, HttpRequest, HttpResponse, Responder};
 use futures::future::{ready, Ready};
 
@@ -268,7 +268,7 @@ impl NamedFile {
                     );
                 });
             if let Some(current_encoding) = self.encoding {
-                resp.encoding(current_encoding);
+                resp.set_encoding(current_encoding);
             }
             let reader = ChunkedReadFile {
                 size: self.md.len(),
@@ -335,7 +335,7 @@ impl NamedFile {
             });
         // default compressing
         if let Some(current_encoding) = self.encoding {
-            resp.encoding(current_encoding);
+            resp.set_encoding(current_encoding);
         }
 
         resp.if_some(last_modified, |lm, resp| {
@@ -356,7 +356,7 @@ impl NamedFile {
                 if let Ok(rangesvec) = HttpRange::parse(rangesheader, length) {
                     length = rangesvec[0].length;
                     offset = rangesvec[0].start;
-                    resp.encoding(ContentEncoding::Identity);
+                    resp.set_encoding(ContentEncoding::Identity);
                     resp.header(
                         header::CONTENT_RANGE,
                         format!(
