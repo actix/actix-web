@@ -51,11 +51,7 @@ impl From<Utf8Error> for ParseError {
     }
 }
 
-impl Error for ParseError {
-    fn description(&self) -> &str {
-        self.as_str()
-    }
-}
+impl Error for ParseError {}
 
 fn indexes_of(needle: &str, haystack: &str) -> Option<(usize, usize)> {
     let haystack_start = haystack.as_ptr() as usize;
