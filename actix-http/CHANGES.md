@@ -1,5 +1,11 @@
 # Changes
 
+## [1.0.xx] - 2019-12-xx
+
+### Fixed
+
+* Poll upgrade service's readiness from HTTP service handlers
+
 ## [1.0.0] - 2019-12-13
 
 ### Added

@@ -72,7 +72,7 @@ where
         Request = (Request, Framed<TcpStream, Codec>),
         Response = (),
     >,
-    U::Error: fmt::Display,
+    U::Error: fmt::Display + Into<Error>,
     U::InitError: fmt::Debug,
 {
     /// Create simple tcp stream service
@@ -115,7 +115,7 @@ mod openssl {
             Request = (Request, Framed<SslStream<TcpStream>, Codec>),
             Response = (),
         >,
-        U::Error: fmt::Display,
+        U::Error: fmt::Display + Into<Error>,
         U::InitError: fmt::Debug,
     {
         /// Create openssl based service
@@ -255,7 +255,7 @@ where
     X::Error: Into<Error>,
     X::InitError: fmt::Debug,
     U: ServiceFactory<Config = (), Request = (Request, Framed<T, Codec>), Response = ()>,
-    U::Error: fmt::Display,
+    U::Error: fmt::Display + Into<Error>,
     U::InitError: fmt::Debug,
 {
     type Config = ();
@@ -412,7 +412,7 @@ where
     X: Service<Request = Request, Response = Request>,
     X::Error: Into<Error>,
     U: Service<Request = (Request, Framed<T, Codec>), Response = ()>,
-    U::Error: fmt::Display,
+    U::Error: fmt::Display + Into<Error>,
 {
     type Request = (T, Option<net::SocketAddr>);
     type Response = ();
@@ -440,6 +440,19 @@ where
             })?
             .is_ready()
             && ready;
+        
+        let ready = if let Some(ref mut upg) = self.upgrade {
+            upg.poll_ready(cx)
+                .map_err(|e| {
+                    let e = e.into();
+                    log::error!("Http service readiness error: {:?}", e);
+                    DispatchError::Service(e)
+                })?
+                .is_ready()
+                && ready
+        } else {
+            ready
+        };
 
         if ready {
             Poll::Ready(Ok(()))
