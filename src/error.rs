@@ -6,7 +6,6 @@ use url::ParseError as UrlParseError;
 
 use crate::http::StatusCode;
 use crate::HttpResponse;
-use serde_urlencoded::de;
 
 /// Errors which can occur when attempting to generate resource uri.
 #[derive(Debug, PartialEq, Display, From)]
@@ -97,7 +96,7 @@ impl ResponseError for JsonPayloadError {
 pub enum PathError {
     /// Deserialize error
     #[display(fmt = "Path deserialize error: {}", _0)]
-    Deserialize(de::Error),
+    Deserialize(serde::de::value::Error),
 }
 
 /// Return `BadRequest` for `PathError`
@@ -112,7 +111,7 @@ impl ResponseError for PathError {
 pub enum QueryPayloadError {
     /// Deserialize error
     #[display(fmt = "Query deserialize error: {}", _0)]
-    Deserialize(de::Error),
+    Deserialize(serde::de::value::Error),
 }
 
 /// Return `BadRequest` for `QueryPayloadError`

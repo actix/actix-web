@@ -135,7 +135,7 @@ where
 
         match futures::ready!(this.fut.poll(cx)) {
             Ok(resp) => {
-                let enc = if let Some(enc) = resp.response().encoding() {
+                let enc = if let Some(enc) = resp.response().get_encoding() {
                     enc
                 } else {
                     *this.encoding

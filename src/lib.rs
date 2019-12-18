@@ -166,13 +166,15 @@ pub mod dev {
 
     /// Helper trait that allows to set specific encoding for response.
     pub trait BodyEncoding {
-        fn encoding(&self) -> Option<ContentEncoding>;
+        /// Get content encoding
+        fn get_encoding(&self) -> Option<ContentEncoding>;
 
-        fn set_encoding(&mut self, encoding: ContentEncoding) -> &mut Self;
+        /// Set content encoding
+        fn encoding(&mut self, encoding: ContentEncoding) -> &mut Self;
     }
 
     impl BodyEncoding for ResponseBuilder {
-        fn encoding(&self) -> Option<ContentEncoding> {
+        fn get_encoding(&self) -> Option<ContentEncoding> {
             if let Some(ref enc) = self.extensions().get::<Enc>() {
                 Some(enc.0)
             } else {
@@ -180,14 +182,14 @@ pub mod dev {
             }
         }
 
-        fn set_encoding(&mut self, encoding: ContentEncoding) -> &mut Self {
+        fn encoding(&mut self, encoding: ContentEncoding) -> &mut Self {
             self.extensions_mut().insert(Enc(encoding));
             self
         }
     }
 
     impl<B> BodyEncoding for Response<B> {
-        fn encoding(&self) -> Option<ContentEncoding> {
+        fn get_encoding(&self) -> Option<ContentEncoding> {
             if let Some(ref enc) = self.extensions().get::<Enc>() {
                 Some(enc.0)
             } else {
@@ -195,7 +197,7 @@ pub mod dev {
             }
         }
 
-        fn set_encoding(&mut self, encoding: ContentEncoding) -> &mut Self {
+        fn encoding(&mut self, encoding: ContentEncoding) -> &mut Self {
             self.extensions_mut().insert(Enc(encoding));
             self
         }

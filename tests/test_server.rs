@@ -12,8 +12,9 @@ use flate2::Compression;
 use futures::{future::ok, stream::once};
 use rand::{distributions::Alphanumeric, Rng};
 
-use actix_web::middleware::{BodyEncoding, Compress};
-use actix_web::{dev, http, test, web, App, Error, HttpResponse};
+use actix_web::dev::BodyEncoding;
+use actix_web::middleware::Compress;
+use actix_web::{dev, test, web, App, Error, HttpResponse};
 
 const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
                    Hello World Hello World Hello World Hello World Hello World \
@@ -668,7 +669,7 @@ async fn test_brotli_encoding_large_openssl() {
     let srv = test::start_with(test::config().openssl(builder.build()), move || {
         App::new().service(web::resource("/").route(web::to(|bytes: Bytes| {
             HttpResponse::Ok()
-                .encoding(http::ContentEncoding::Identity)
+                .encoding(actix_web::http::ContentEncoding::Identity)
                 .body(bytes)
         })))
     });
@@ -681,7 +682,7 @@ async fn test_brotli_encoding_large_openssl() {
     // client request
     let mut response = srv
         .post("/")
-        .header(http::header::CONTENT_ENCODING, "br")
+        .header(actix_web::http::header::CONTENT_ENCODING, "br")
         .send_body(enc)
         .await
         .unwrap();
@@ -716,7 +717,7 @@ async fn test_reading_deflate_encoding_large_random_rustls() {
     let srv = test::start_with(test::config().rustls(config), || {
         App::new().service(web::resource("/").route(web::to(|bytes: Bytes| {
             HttpResponse::Ok()
-                .encoding(http::ContentEncoding::Identity)
+                .encoding(actix_web::http::ContentEncoding::Identity)
                 .body(bytes)
         })))
     });
@@ -729,7 +730,7 @@ async fn test_reading_deflate_encoding_large_random_rustls() {
     // client request
     let req = srv
         .post("/")
-        .header(http::header::CONTENT_ENCODING, "deflate")
+        .header(actix_web::http::header::CONTENT_ENCODING, "deflate")
         .send_body(enc);
 
     let mut response = req.await.unwrap();

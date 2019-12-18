@@ -15,8 +15,9 @@ use rand::Rng;
 use actix_http::HttpService;
 use actix_http_test::test_server;
 use actix_service::pipeline_factory;
+use actix_web::dev::BodyEncoding;
 use actix_web::http::Cookie;
-use actix_web::middleware::{BodyEncoding, Compress};
+use actix_web::middleware::Compress;
 use actix_web::{
     http::header, test, web, App, Error, HttpMessage, HttpRequest, HttpResponse,
 };

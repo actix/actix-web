@@ -268,7 +268,7 @@ impl NamedFile {
                     );
                 });
             if let Some(current_encoding) = self.encoding {
-                resp.set_encoding(current_encoding);
+                resp.encoding(current_encoding);
             }
             let reader = ChunkedReadFile {
                 size: self.md.len(),
@@ -335,7 +335,7 @@ impl NamedFile {
             });
         // default compressing
         if let Some(current_encoding) = self.encoding {
-            resp.set_encoding(current_encoding);
+            resp.encoding(current_encoding);
         }
 
         resp.if_some(last_modified, |lm, resp| {
@@ -356,7 +356,7 @@ impl NamedFile {
                 if let Ok(rangesvec) = HttpRange::parse(rangesheader, length) {
                     length = rangesvec[0].length;
                     offset = rangesvec[0].start;
-                    resp.set_encoding(ContentEncoding::Identity);
+                    resp.encoding(ContentEncoding::Identity);
                     resp.header(
                         header::CONTENT_RANGE,
                         format!(

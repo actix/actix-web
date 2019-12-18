@@ -440,7 +440,7 @@ where
             })?
             .is_ready()
             && ready;
-        
+
         let ready = if let Some(ref mut upg) = self.upgrade {
             upg.poll_ready(cx)
                 .map_err(|e| {
