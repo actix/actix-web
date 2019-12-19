@@ -1,5 +1,10 @@
 # Changes
 
+
+## [0.3.0-alpha.4] - 2019-12-xx
+
+* Allow access to sessions also from not mutable references to the request
+
 ## [0.3.0-alpha.3] - 2019-12-xx
 
 * Add access to the session from RequestHead for use of session from guard methods
