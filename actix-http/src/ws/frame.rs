@@ -1,6 +1,6 @@
 use std::convert::TryFrom;
 
-use bytes::{BufMut, BytesMut};
+use bytes::{Buf, BufMut, BytesMut};
 use log::debug;
 use rand;
 
@@ -108,7 +108,7 @@ impl Parser {
         }
 
         // remove prefix
-        let _ = src.split_to(idx);
+        src.advance(idx);
 
         // no need for body
         if length == 0 {

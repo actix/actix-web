@@ -5,7 +5,7 @@ use std::mem::MaybeUninit;
 use std::task::Poll;
 
 use actix_codec::Decoder;
-use bytes::{Bytes, BytesMut};
+use bytes::{Buf, Bytes, BytesMut};
 use http::header::{HeaderName, HeaderValue};
 use http::{header, Method, StatusCode, Uri, Version};
 use httparse;
@@ -477,7 +477,7 @@ macro_rules! byte (
     ($rdr:ident) => ({
         if $rdr.len() > 0 {
             let b = $rdr[0];
-            let _ = $rdr.split_to(1);
+            $rdr.advance(1);
             b
         } else {
             return Poll::Pending

@@ -8,7 +8,7 @@ use actix_codec::{AsyncRead, AsyncWrite, Decoder, Encoder, Framed, FramedParts};
 use actix_rt::time::{delay_until, Delay, Instant};
 use actix_service::Service;
 use bitflags::bitflags;
-use bytes::BytesMut;
+use bytes::{Buf, BytesMut};
 use log::{error, trace};
 
 use crate::body::{Body, BodySize, MessageBody, ResponseBody};
@@ -312,7 +312,7 @@ where
                 }
                 Poll::Pending => {
                     if written > 0 {
-                        let _ = self.write_buf.split_to(written);
+                        self.write_buf.advance(written);
                     }
                     return Ok(true);
                 }
@@ -322,7 +322,7 @@ where
         if written == self.write_buf.len() {
             unsafe { self.write_buf.set_len(0) }
         } else {
-            let _ = self.write_buf.split_to(written);
+            self.write_buf.advance(written);
         }
         Ok(false)
     }
