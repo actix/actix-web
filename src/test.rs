@@ -962,7 +962,7 @@ mod tests {
     use std::time::SystemTime;
 
     use super::*;
-    use crate::{http::header, web, App, HttpResponse};
+    use crate::{http::header, web, App, HttpResponse, Responder};
 
     #[actix_rt::test]
     async fn test_basics() {
@@ -1140,6 +1140,25 @@ mod tests {
 
         let mut app = init_service(
             App::new().service(web::resource("/index.html").to(async_with_block)),
+        )
+        .await;
+
+        let req = TestRequest::post().uri("/index.html").to_request();
+        let res = app.call(req).await.unwrap();
+        assert!(res.status().is_success());
+    }
+
+    #[actix_rt::test]
+    async fn test_server_data() {
+        async fn handler(data: web::Data<usize>) -> impl Responder {
+            assert_eq!(**data, 10);
+            HttpResponse::Ok()
+        }
+
+        let mut app = init_service(
+            App::new()
+                .data(10usize)
+                .service(web::resource("/index.html").to(handler)),
         )
         .await;
 
