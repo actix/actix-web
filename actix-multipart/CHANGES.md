@@ -1,6 +1,10 @@
 # Changes
 
-## [2.0.0-alpha.4] - 2019-12-xx
+## [0.2.0] - 2019-12-20
+
+* Release
+
+## [0.2.0-alpha.4] - 2019-12-xx
 
 * Multipart handling now handles Pending during read of boundary #1205
 

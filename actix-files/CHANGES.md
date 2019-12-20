@@ -1,6 +1,6 @@
 # Changes
 
-## [0.2.0] - 2019-12-xx
+## [0.2.0] - 2019-12-20
 
 * Fix BodyEncoding trait import #1220
 

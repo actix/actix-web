@@ -1,5 +1,9 @@
 # Changes
 
+## [2.0.0] - 2019-12-20
+
+* Release
+
 ## [2.0.0-alpha.1] - 2019-12-15
 
 * Migrate to actix-web 2.0.0
