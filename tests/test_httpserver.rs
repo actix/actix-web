@@ -5,7 +5,7 @@ use std::{net, thread, time::Duration};
 #[cfg(feature = "openssl")]
 use open_ssl::ssl::SslAcceptorBuilder;
 
-use actix_web::{web, App, HttpRequest, HttpResponse, HttpServer};
+use actix_web::{web, App, HttpResponse, HttpServer};
 
 fn unused_addr() -> net::SocketAddr {
     let addr: net::SocketAddr = "127.0.0.1:0".parse().unwrap();
@@ -90,6 +90,8 @@ fn ssl_acceptor() -> std::io::Result<SslAcceptorBuilder> {
 #[actix_rt::test]
 #[cfg(feature = "openssl")]
 async fn test_start_ssl() {
+    use actix_web::HttpRequest;
+
     let addr = unused_addr();
     let (tx, rx) = mpsc::channel();
 

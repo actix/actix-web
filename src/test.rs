@@ -1,5 +1,6 @@
 //! Various helpers for Actix applications to use during testing.
 use std::convert::TryFrom;
+use std::net::SocketAddr;
 use std::rc::Rc;
 use std::sync::mpsc;
 use std::{fmt, net, thread, time};
@@ -300,6 +301,7 @@ pub struct TestRequest {
     rmap: ResourceMap,
     config: AppConfig,
     path: Path<Url>,
+    peer_addr: Option<SocketAddr>,
     app_data: Extensions,
 }
 
@@ -310,6 +312,7 @@ impl Default for TestRequest {
             rmap: ResourceMap::new(ResourceDef::new("")),
             config: AppConfig::default(),
             path: Path::new(Url::new(Uri::default())),
+            peer_addr: None,
             app_data: Extensions::new(),
         }
     }
@@ -409,6 +412,12 @@ impl TestRequest {
         self
     }
 
+    /// Set peer addr
+    pub fn peer_addr(mut self, addr: SocketAddr) -> Self {
+        self.peer_addr = Some(addr);
+        self
+    }
+
     /// Set request payload
     pub fn set_payload<B: Into<Bytes>>(mut self, data: B) -> Self {
         self.req.set_payload(data);
@@ -451,12 +460,15 @@ impl TestRequest {
 
     /// Complete request creation and generate `Request` instance
     pub fn to_request(mut self) -> Request {
-        self.req.finish()
+        let mut req = self.req.finish();
+        req.head_mut().peer_addr = self.peer_addr;
+        req
     }
 
     /// Complete request creation and generate `ServiceRequest` instance
     pub fn to_srv_request(mut self) -> ServiceRequest {
-        let (head, payload) = self.req.finish().into_parts();
+        let (mut head, payload) = self.req.finish().into_parts();
+        head.peer_addr = self.peer_addr;
         self.path.get_mut().update(&head.uri);
 
         ServiceRequest::new(HttpRequest::new(
@@ -477,7 +489,8 @@ impl TestRequest {
 
     /// Complete request creation and generate `HttpRequest` instance
     pub fn to_http_request(mut self) -> HttpRequest {
-        let (head, payload) = self.req.finish().into_parts();
+        let (mut head, payload) = self.req.finish().into_parts();
+        head.peer_addr = self.peer_addr;
         self.path.get_mut().update(&head.uri);
 
         HttpRequest::new(
@@ -493,7 +506,8 @@ impl TestRequest {
 
     /// Complete request creation and generate `HttpRequest` and `Payload` instances
     pub fn to_http_parts(mut self) -> (HttpRequest, Payload) {
-        let (head, payload) = self.req.finish().into_parts();
+        let (mut head, payload) = self.req.finish().into_parts();
+        head.peer_addr = self.peer_addr;
         self.path.get_mut().update(&head.uri);
 
         let req = HttpRequest::new(
@@ -950,9 +964,14 @@ mod tests {
             .set(header::Date(SystemTime::now().into()))
             .param("test", "123")
             .data(10u32)
+            .peer_addr("127.0.0.1:8081".parse().unwrap())
             .to_http_request();
         assert!(req.headers().contains_key(header::CONTENT_TYPE));
         assert!(req.headers().contains_key(header::DATE));
+        assert_eq!(
+            req.head().peer_addr,
+            Some("127.0.0.1:8081".parse().unwrap())
+        );
         assert_eq!(&req.match_info()["test"], "123");
         assert_eq!(req.version(), Version::HTTP_2);
         let data = req.get_app_data::<u32>().unwrap();

@@ -6,6 +6,8 @@
 
 * Move `BodyEncoding` to `dev` module #1220
 
+* Allow to set `peer_addr` for TestRequest #1074
+
 ### Fixed
 
 * Fix `AppConfig::secure()` is always false. #1202
