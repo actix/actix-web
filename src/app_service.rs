@@ -41,7 +41,6 @@ where
     pub(crate) endpoint: T,
     pub(crate) data: Rc<Vec<Box<dyn DataFactory>>>,
     pub(crate) data_factories: Rc<Vec<FnDataFactory>>,
-    pub(crate) config: RefCell<AppConfig>,
     pub(crate) services: Rc<RefCell<Vec<Box<dyn AppServiceFactory>>>>,
     pub(crate) default: Option<Rc<HttpNewService>>,
     pub(crate) factory_ref: Rc<RefCell<Option<AppRoutingFactory>>>,
@@ -58,7 +57,7 @@ where
         InitError = (),
     >,
 {
-    type Config = ();
+    type Config = AppConfig;
     type Request = Request;
     type Response = ServiceResponse<B>;
     type Error = T::Error;
@@ -66,7 +65,7 @@ where
     type Service = AppInitService<T::Service, B>;
     type Future = AppInitResult<T, B>;
 
-    fn new_service(&self, _: ()) -> Self::Future {
+    fn new_service(&self, config: AppConfig) -> Self::Future {
         // update resource default service
         let default = self.default.clone().unwrap_or_else(|| {
             Rc::new(boxed::factory(fn_service(|req: ServiceRequest| {
@@ -75,11 +74,7 @@ where
         });
 
         // App config
-        let mut config = AppService::new(
-            self.config.borrow().clone(),
-            default.clone(),
-            self.data.clone(),
-        );
+        let mut config = AppService::new(config, default.clone(), self.data.clone());
 
         // register services
         std::mem::replace(&mut *self.services.borrow_mut(), Vec::new())

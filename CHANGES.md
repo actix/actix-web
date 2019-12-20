@@ -6,6 +6,11 @@
 
 * Move `BodyEncoding` to `dev` module #1220
 
+### Fixed
+
+* Fix `AppConfig::secure()` is always false. #1202
+
+
 ## [2.0.0-alpha.6] - 2019-12-15
 
 ### Fixed

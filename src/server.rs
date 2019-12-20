@@ -6,7 +6,9 @@ use actix_http::{
     body::MessageBody, Error, HttpService, KeepAlive, Protocol, Request, Response,
 };
 use actix_server::{Server, ServerBuilder};
-use actix_service::{pipeline_factory, IntoServiceFactory, Service, ServiceFactory};
+use actix_service::{
+    map_config, pipeline_factory, IntoServiceFactory, Service, ServiceFactory,
+};
 use futures::future::ok;
 
 use net2::TcpBuilder;
@@ -16,12 +18,15 @@ use actix_tls::openssl::{AlpnError, SslAcceptor, SslAcceptorBuilder};
 #[cfg(feature = "rustls")]
 use actix_tls::rustls::ServerConfig as RustlsServerConfig;
 
+use crate::config::AppConfig;
+
 struct Socket {
     scheme: &'static str,
     addr: net::SocketAddr,
 }
 
 struct Config {
+    host: Option<String>,
     keep_alive: KeepAlive,
     client_timeout: u64,
     client_shutdown: u64,
@@ -52,14 +57,13 @@ pub struct HttpServer<F, I, S, B>
 where
     F: Fn() -> I + Send + Clone + 'static,
     I: IntoServiceFactory<S>,
-    S: ServiceFactory<Config = (), Request = Request>,
+    S: ServiceFactory<Config = AppConfig, Request = Request>,
     S::Error: Into<Error>,
     S::InitError: fmt::Debug,
     S::Response: Into<Response<B>>,
     B: MessageBody,
 {
     pub(super) factory: F,
-    pub(super) host: Option<String>,
     config: Arc<Mutex<Config>>,
     backlog: i32,
     sockets: Vec<Socket>,
@@ -71,7 +75,7 @@ impl<F, I, S, B> HttpServer<F, I, S, B>
 where
     F: Fn() -> I + Send + Clone + 'static,
     I: IntoServiceFactory<S>,
-    S: ServiceFactory<Config = (), Request = Request>,
+    S: ServiceFactory<Config = AppConfig, Request = Request>,
     S::Error: Into<Error> + 'static,
     S::InitError: fmt::Debug,
     S::Response: Into<Response<B>> + 'static,
@@ -82,8 +86,8 @@ where
     pub fn new(factory: F) -> Self {
         HttpServer {
             factory,
-            host: None,
             config: Arc::new(Mutex::new(Config {
+                host: None,
                 keep_alive: KeepAlive::Timeout(5),
                 client_timeout: 5000,
                 client_shutdown: 5000,
@@ -184,8 +188,8 @@ where
     /// documentation for more information.
     ///
     /// By default host name is set to a "localhost" value.
-    pub fn server_hostname<T: AsRef<str>>(mut self, val: T) -> Self {
-        self.host = Some(val.as_ref().to_owned());
+    pub fn server_hostname<T: AsRef<str>>(self, val: T) -> Self {
+        self.config.lock().unwrap().host = Some(val.as_ref().to_owned());
         self
     }
 
@@ -246,11 +250,17 @@ where
             lst,
             move || {
                 let c = cfg.lock().unwrap();
+                let cfg = AppConfig::new(
+                    false,
+                    addr,
+                    c.host.clone().unwrap_or_else(|| format!("{}", addr)),
+                );
+
                 HttpService::build()
                     .keep_alive(c.keep_alive)
                     .client_timeout(c.client_timeout)
                     .local_addr(addr)
-                    .finish(factory())
+                    .finish(map_config(factory().into_factory(), move |_| cfg.clone()))
                     .tcp()
             },
         )?;
@@ -288,11 +298,16 @@ where
             lst,
             move || {
                 let c = cfg.lock().unwrap();
+                let cfg = AppConfig::new(
+                    true,
+                    addr,
+                    c.host.clone().unwrap_or_else(|| format!("{}", addr)),
+                );
                 HttpService::build()
                     .keep_alive(c.keep_alive)
                     .client_timeout(c.client_timeout)
                     .client_disconnect(c.client_shutdown)
-                    .finish(factory())
+                    .finish(map_config(factory().into_factory(), move |_| cfg.clone()))
                     .openssl(acceptor.clone())
             },
         )?;
@@ -330,11 +345,16 @@ where
             lst,
             move || {
                 let c = cfg.lock().unwrap();
+                let cfg = AppConfig::new(
+                    true,
+                    addr,
+                    c.host.clone().unwrap_or_else(|| format!("{}", addr)),
+                );
                 HttpService::build()
                     .keep_alive(c.keep_alive)
                     .client_timeout(c.client_timeout)
                     .client_disconnect(c.client_shutdown)
-                    .finish(factory())
+                    .finish(map_config(factory().into_factory(), move |_| cfg.clone()))
                     .rustls(config.clone())
             },
         )?;
@@ -435,24 +455,31 @@ where
 
         let cfg = self.config.clone();
         let factory = self.factory.clone();
-        // todo duplicated:
+        let socket_addr = net::SocketAddr::new(
+            net::IpAddr::V4(net::Ipv4Addr::new(127, 0, 0, 1)),
+            8080,
+        );
         self.sockets.push(Socket {
             scheme: "http",
-            addr: net::SocketAddr::new(
-                net::IpAddr::V4(net::Ipv4Addr::new(127, 0, 0, 1)),
-                8080,
-            ),
+            addr: socket_addr,
         });
 
         let addr = format!("actix-web-service-{:?}", lst.local_addr()?);
 
         self.builder = self.builder.listen_uds(addr, lst, move || {
             let c = cfg.lock().unwrap();
+            let config = AppConfig::new(
+                false,
+                socket_addr,
+                c.host.clone().unwrap_or_else(|| format!("{}", socket_addr)),
+            );
             pipeline_factory(|io: UnixStream| ok((io, Protocol::Http1, None))).and_then(
                 HttpService::build()
                     .keep_alive(c.keep_alive)
                     .client_timeout(c.client_timeout)
-                    .finish(factory()),
+                    .finish(map_config(factory().into_factory(), move |_| {
+                        config.clone()
+                    })),
             )
         })?;
         Ok(self)
@@ -470,12 +497,13 @@ where
 
         let cfg = self.config.clone();
         let factory = self.factory.clone();
+        let socket_addr = net::SocketAddr::new(
+            net::IpAddr::V4(net::Ipv4Addr::new(127, 0, 0, 1)),
+            8080,
+        );
         self.sockets.push(Socket {
             scheme: "http",
-            addr: net::SocketAddr::new(
-                net::IpAddr::V4(net::Ipv4Addr::new(127, 0, 0, 1)),
-                8080,
-            ),
+            addr: socket_addr,
         });
 
         self.builder = self.builder.bind_uds(
@@ -483,12 +511,19 @@ where
             addr,
             move || {
                 let c = cfg.lock().unwrap();
+                let config = AppConfig::new(
+                    false,
+                    socket_addr,
+                    c.host.clone().unwrap_or_else(|| format!("{}", socket_addr)),
+                );
                 pipeline_factory(|io: UnixStream| ok((io, Protocol::Http1, None)))
                     .and_then(
                         HttpService::build()
                             .keep_alive(c.keep_alive)
                             .client_timeout(c.client_timeout)
-                            .finish(factory()),
+                            .finish(map_config(factory().into_factory(), move |_| {
+                                config.clone()
+                            })),
                     )
             },
         )?;
@@ -500,7 +535,7 @@ impl<F, I, S, B> HttpServer<F, I, S, B>
 where
     F: Fn() -> I + Send + Clone + 'static,
     I: IntoServiceFactory<S>,
-    S: ServiceFactory<Config = (), Request = Request>,
+    S: ServiceFactory<Config = AppConfig, Request = Request>,
     S::Error: Into<Error>,
     S::InitError: fmt::Debug,
     S::Response: Into<Response<B>>,

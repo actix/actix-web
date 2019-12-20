@@ -12,7 +12,7 @@ use actix_service::{
 use futures::future::{FutureExt, LocalBoxFuture};
 
 use crate::app_service::{AppEntry, AppInit, AppRoutingFactory};
-use crate::config::{AppConfig, AppConfigInner, ServiceConfig};
+use crate::config::ServiceConfig;
 use crate::data::{Data, DataFactory};
 use crate::dev::ResourceDef;
 use crate::error::Error;
@@ -36,7 +36,6 @@ pub struct App<T, B> {
     factory_ref: Rc<RefCell<Option<AppRoutingFactory>>>,
     data: Vec<Box<dyn DataFactory>>,
     data_factories: Vec<FnDataFactory>,
-    config: AppConfigInner,
     external: Vec<ResourceDef>,
     _t: PhantomData<B>,
 }
@@ -52,7 +51,6 @@ impl App<AppEntry, Body> {
             services: Vec::new(),
             default: None,
             factory_ref: fref,
-            config: AppConfigInner::default(),
             external: Vec::new(),
             _t: PhantomData,
         }
@@ -225,18 +223,6 @@ where
         self
     }
 
-    /// Set server host name.
-    ///
-    /// Host name is used by application router as a hostname for url generation.
-    /// Check [ConnectionInfo](./dev/struct.ConnectionInfo.html#method.host)
-    /// documentation for more information.
-    ///
-    /// By default host name is set to a "localhost" value.
-    pub fn hostname(mut self, val: &str) -> Self {
-        self.config.host = val.to_owned();
-        self
-    }
-
     /// Default service to be used if no matching resource could be found.
     ///
     /// It is possible to use services like `Resource`, `Route`.
@@ -383,7 +369,6 @@ where
             services: self.services,
             default: self.default,
             factory_ref: self.factory_ref,
-            config: self.config,
             external: self.external,
             _t: PhantomData,
         }
@@ -445,7 +430,6 @@ where
             services: self.services,
             default: self.default,
             factory_ref: self.factory_ref,
-            config: self.config,
             external: self.external,
             _t: PhantomData,
         }
@@ -472,7 +456,6 @@ where
             external: RefCell::new(self.external),
             default: self.default,
             factory_ref: self.factory_ref,
-            config: RefCell::new(AppConfig(Rc::new(self.config))),
         }
     }
 }

@@ -12,7 +12,9 @@ use actix_http::{cookie::Cookie, ws, Extensions, HttpService, Request};
 use actix_router::{Path, ResourceDef, Url};
 use actix_rt::System;
 use actix_server::Server;
-use actix_service::{IntoService, IntoServiceFactory, Service, ServiceFactory};
+use actix_service::{
+    map_config, IntoService, IntoServiceFactory, Service, ServiceFactory,
+};
 use awc::error::PayloadError;
 use awc::{Client, ClientRequest, ClientResponse, Connector};
 use bytes::{Bytes, BytesMut};
@@ -25,7 +27,7 @@ use serde_json;
 
 pub use actix_http::test::TestBuffer;
 
-use crate::config::{AppConfig, AppConfigInner};
+use crate::config::AppConfig;
 use crate::data::Data;
 use crate::dev::{Body, MessageBody, Payload};
 use crate::request::HttpRequestPool;
@@ -79,7 +81,7 @@ pub async fn init_service<R, S, B, E>(
 where
     R: IntoServiceFactory<S>,
     S: ServiceFactory<
-        Config = (),
+        Config = AppConfig,
         Request = Request,
         Response = ServiceResponse<B>,
         Error = E,
@@ -87,7 +89,7 @@ where
     S::InitError: std::fmt::Debug,
 {
     let srv = app.into_factory();
-    srv.new_service(()).await.unwrap()
+    srv.new_service(AppConfig::default()).await.unwrap()
 }
 
 /// Calls service and waits for response future completion.
@@ -296,7 +298,7 @@ where
 pub struct TestRequest {
     req: HttpTestRequest,
     rmap: ResourceMap,
-    config: AppConfigInner,
+    config: AppConfig,
     path: Path<Url>,
     app_data: Extensions,
 }
@@ -306,7 +308,7 @@ impl Default for TestRequest {
         TestRequest {
             req: HttpTestRequest::default(),
             rmap: ResourceMap::new(ResourceDef::new("")),
-            config: AppConfigInner::default(),
+            config: AppConfig::default(),
             path: Path::new(Url::new(Uri::default())),
             app_data: Extensions::new(),
         }
@@ -462,7 +464,7 @@ impl TestRequest {
             head,
             payload,
             Rc::new(self.rmap),
-            AppConfig::new(self.config),
+            self.config.clone(),
             Rc::new(self.app_data),
             HttpRequestPool::create(),
         ))
@@ -483,7 +485,7 @@ impl TestRequest {
             head,
             payload,
             Rc::new(self.rmap),
-            AppConfig::new(self.config),
+            self.config.clone(),
             Rc::new(self.app_data),
             HttpRequestPool::create(),
         )
@@ -499,7 +501,7 @@ impl TestRequest {
             head,
             Payload::None,
             Rc::new(self.rmap),
-            AppConfig::new(self.config),
+            self.config.clone(),
             Rc::new(self.app_data),
             HttpRequestPool::create(),
         );
@@ -538,7 +540,7 @@ pub fn start<F, I, S, B>(factory: F) -> TestServer
 where
     F: Fn() -> I + Send + Clone + 'static,
     I: IntoServiceFactory<S>,
-    S: ServiceFactory<Config = (), Request = Request> + 'static,
+    S: ServiceFactory<Config = AppConfig, Request = Request> + 'static,
     S::Error: Into<Error> + 'static,
     S::InitError: fmt::Debug,
     S::Response: Into<HttpResponse<B>> + 'static,
@@ -577,7 +579,7 @@ pub fn start_with<F, I, S, B>(cfg: TestServerConfig, factory: F) -> TestServer
 where
     F: Fn() -> I + Send + Clone + 'static,
     I: IntoServiceFactory<S>,
-    S: ServiceFactory<Config = (), Request = Request> + 'static,
+    S: ServiceFactory<Config = AppConfig, Request = Request> + 'static,
     S::Error: Into<Error> + 'static,
     S::InitError: fmt::Debug,
     S::Response: Into<HttpResponse<B>> + 'static,
@@ -607,63 +609,87 @@ where
         match cfg.stream {
             StreamType::Tcp => match cfg.tp {
                 HttpVer::Http1 => builder.listen("test", tcp, move || {
+                    let cfg =
+                        AppConfig::new(false, local_addr, format!("{}", local_addr));
                     HttpService::build()
                         .client_timeout(ctimeout)
-                        .h1(factory())
+                        .h1(map_config(factory().into_factory(), move |_| cfg.clone()))
                         .tcp()
                 }),
                 HttpVer::Http2 => builder.listen("test", tcp, move || {
+                    let cfg =
+                        AppConfig::new(false, local_addr, format!("{}", local_addr));
                     HttpService::build()
                         .client_timeout(ctimeout)
-                        .h2(factory())
+                        .h2(map_config(factory().into_factory(), move |_| cfg.clone()))
                         .tcp()
                 }),
                 HttpVer::Both => builder.listen("test", tcp, move || {
+                    let cfg =
+                        AppConfig::new(false, local_addr, format!("{}", local_addr));
                     HttpService::build()
                         .client_timeout(ctimeout)
-                        .finish(factory())
+                        .finish(map_config(factory().into_factory(), move |_| {
+                            cfg.clone()
+                        }))
                         .tcp()
                 }),
             },
             #[cfg(feature = "openssl")]
             StreamType::Openssl(acceptor) => match cfg.tp {
                 HttpVer::Http1 => builder.listen("test", tcp, move || {
+                    let cfg =
+                        AppConfig::new(true, local_addr, format!("{}", local_addr));
                     HttpService::build()
                         .client_timeout(ctimeout)
-                        .h1(factory())
+                        .h1(map_config(factory().into_factory(), move |_| cfg.clone()))
                         .openssl(acceptor.clone())
                 }),
                 HttpVer::Http2 => builder.listen("test", tcp, move || {
+                    let cfg =
+                        AppConfig::new(true, local_addr, format!("{}", local_addr));
                     HttpService::build()
                         .client_timeout(ctimeout)
-                        .h2(factory())
+                        .h2(map_config(factory().into_factory(), move |_| cfg.clone()))
                         .openssl(acceptor.clone())
                 }),
                 HttpVer::Both => builder.listen("test", tcp, move || {
+                    let cfg =
+                        AppConfig::new(true, local_addr, format!("{}", local_addr));
                     HttpService::build()
                         .client_timeout(ctimeout)
-                        .finish(factory())
+                        .finish(map_config(factory().into_factory(), move |_| {
+                            cfg.clone()
+                        }))
                         .openssl(acceptor.clone())
                 }),
             },
             #[cfg(feature = "rustls")]
             StreamType::Rustls(config) => match cfg.tp {
                 HttpVer::Http1 => builder.listen("test", tcp, move || {
+                    let cfg =
+                        AppConfig::new(true, local_addr, format!("{}", local_addr));
                     HttpService::build()
                         .client_timeout(ctimeout)
-                        .h1(factory())
+                        .h1(map_config(factory().into_factory(), move |_| cfg.clone()))
                         .rustls(config.clone())
                 }),
                 HttpVer::Http2 => builder.listen("test", tcp, move || {
+                    let cfg =
+                        AppConfig::new(true, local_addr, format!("{}", local_addr));
                     HttpService::build()
                         .client_timeout(ctimeout)
-                        .h2(factory())
+                        .h2(map_config(factory().into_factory(), move |_| cfg.clone()))
                         .rustls(config.clone())
                 }),
                 HttpVer::Both => builder.listen("test", tcp, move || {
+                    let cfg =
+                        AppConfig::new(true, local_addr, format!("{}", local_addr));
                     HttpService::build()
                         .client_timeout(ctimeout)
-                        .finish(factory())
+                        .finish(map_config(factory().into_factory(), move |_| {
+                            cfg.clone()
+                        }))
                         .rustls(config.clone())
                 }),
             },

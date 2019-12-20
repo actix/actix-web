@@ -124,14 +124,20 @@ impl AppService {
 }
 
 #[derive(Clone)]
-pub struct AppConfig(pub(crate) Rc<AppConfigInner>);
+pub struct AppConfig(Rc<AppConfigInner>);
+
+struct AppConfigInner {
+    secure: bool,
+    host: String,
+    addr: SocketAddr,
+}
 
 impl AppConfig {
-    pub(crate) fn new(inner: AppConfigInner) -> Self {
-        AppConfig(Rc::new(inner))
+    pub(crate) fn new(secure: bool, addr: SocketAddr, host: String) -> Self {
+        AppConfig(Rc::new(AppConfigInner { secure, addr, host }))
     }
 
-    /// Set server host name.
+    /// Server host name.
     ///
     /// Host name is used by application router as a hostname for url generation.
     /// Check [ConnectionInfo](./struct.ConnectionInfo.html#method.host)
@@ -153,19 +159,13 @@ impl AppConfig {
     }
 }
 
-pub(crate) struct AppConfigInner {
-    pub(crate) secure: bool,
-    pub(crate) host: String,
-    pub(crate) addr: SocketAddr,
-}
-
-impl Default for AppConfigInner {
-    fn default() -> AppConfigInner {
-        AppConfigInner {
-            secure: false,
-            addr: "127.0.0.1:8080".parse().unwrap(),
-            host: "localhost:8080".to_owned(),
-        }
+impl Default for AppConfig {
+    fn default() -> Self {
+        AppConfig::new(
+            false,
+            "127.0.0.1:8080".parse().unwrap(),
+            "localhost:8080".to_owned(),
+        )
     }
 }
 
