@@ -8,6 +8,8 @@
 
 * Allow to set `peer_addr` for TestRequest #1074
 
+* Make web::Data deref to Arc<T> #1214
+
 * Rename `App::register_data()` to `App::app_data()`
 
 * `HttpRequest::app_data<T>()` returns `Option<&T>` instead of `Option<&Data<T>>`

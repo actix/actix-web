@@ -1106,7 +1106,7 @@ mod tests {
             web::scope("app").data(10usize).route(
                 "/t",
                 web::get().to(|data: web::Data<usize>| {
-                    assert_eq!(*data, 10);
+                    assert_eq!(**data, 10);
                     let _ = data.clone();
                     HttpResponse::Ok()
                 }),
@@ -1125,7 +1125,7 @@ mod tests {
             web::scope("app").app_data(web::Data::new(10usize)).route(
                 "/t",
                 web::get().to(|data: web::Data<usize>| {
-                    assert_eq!(*data, 10);
+                    assert_eq!(**data, 10);
                     let _ = data.clone();
                     HttpResponse::Ok()
                 }),

@@ -761,9 +761,9 @@ mod tests {
                             |data1: web::Data<usize>,
                              data2: web::Data<char>,
                              data3: web::Data<f64>| {
-                                assert_eq!(*data1, 10);
-                                assert_eq!(*data2, '*');
-                                assert_eq!(*data3, 1.0);
+                                assert_eq!(**data1, 10);
+                                assert_eq!(**data2, '*');
+                                assert_eq!(**data3, 1.0);
                                 HttpResponse::Ok()
                             },
                         ),
