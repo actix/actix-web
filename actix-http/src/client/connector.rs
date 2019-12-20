@@ -206,6 +206,38 @@ where
         self
     }
 
+    /// Finish configuration process and create connector service wich http2 set.
+    pub fn finish_for_h2(
+        self,
+    ) -> impl Service<Request = Connect, Response = impl Connection, Error = ConnectError>
+                + Clone {
+        let connector = TimeoutService::new(
+            self.timeout,
+            apply_fn(self.connector, |msg: Connect, srv| {
+                srv.call(TcpConnect::new(msg.uri).set_addr(msg.addr))
+            })
+            .map_err(ConnectError::from)
+            .map(|stream| {
+                let sock = stream.into_parts().0;
+                (Box::new(sock) as Box<dyn Io>, Protocol::Http2)
+            }),
+        )
+        .map_err(|e| match e {
+            TimeoutError::Service(e) => e,
+            TimeoutError::Timeout => ConnectError::Timeout,
+        });
+
+        connect_impl::InnerConnector {
+            tcp_pool: ConnectionPool::new(
+                connector,
+                self.conn_lifetime,
+                self.conn_keep_alive,
+                None,
+                self.limit,
+            ),
+        }
+    }
+
     /// Finish configuration process and create connector service.
     /// The Connector builder always concludes by calling `finish()` last in
     /// its combinator chain.

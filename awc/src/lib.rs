@@ -96,6 +96,17 @@ impl Client {
         Client::default()
     }
 
+    /// Create new client instance with http2 settings.
+    pub fn set_http2() -> Client {
+        Client(Rc::new(ClientConfig {
+            connector: RefCell::new(Box::new(ConnectorWrapper(
+                Connector::new().finish_for_h2(),
+            ))),
+            headers: HeaderMap::new(),
+            timeout: Some(Duration::from_secs(5)),
+        }))
+    }
+
     /// Build client instance.
     pub fn build() -> ClientBuilder {
         ClientBuilder::new()
