@@ -15,6 +15,8 @@ use crate::FromRequest;
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
 /// Extract typed information from the request's path.
 ///
+/// [**PathConfig**](struct.PathConfig.html) allows to configure extraction process.
+///
 /// ## Example
 ///
 /// ```rust

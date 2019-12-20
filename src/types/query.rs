@@ -19,6 +19,8 @@ use crate::request::HttpRequest;
 /// be decoded into any type which depends upon data ordering e.g. tuples or tuple-structs.
 /// Attempts to do so will *fail at runtime*.
 ///
+/// [**QueryConfig**](struct.QueryConfig.html) allows to configure extraction process.
+///
 /// ## Example
 ///
 /// ```rust
