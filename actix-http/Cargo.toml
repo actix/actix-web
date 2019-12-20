@@ -1,6 +1,6 @@
 [package]
 name = "actix-http"
-version = "1.0.0"
+version = "1.0.1"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix http primitives"
 readme = "README.md"
@@ -31,7 +31,7 @@ openssl = ["actix-tls/openssl", "actix-connect/openssl"]
 rustls = ["actix-tls/rustls", "actix-connect/rustls"]
 
 # enable compressison support
-compress = ["flate2", "brotli"]
+compress = ["flate2", "brotli2"]
 
 # failure integration. actix does not use failure anymore
 failure = ["fail-ure"]
@@ -83,7 +83,7 @@ time = "0.1.42"
 ring = { version = "0.16.9", optional = true }
 
 # compression
-brotli = { version = "3.3.0", optional = true }
+brotli2 = { version="0.3.2", optional = true }
 flate2 = { version = "1.0.13", optional = true }
 
 # optional deps

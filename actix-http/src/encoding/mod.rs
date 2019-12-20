@@ -19,11 +19,9 @@ impl Writer {
             buf: BytesMut::with_capacity(8192),
         }
     }
+
     fn take(&mut self) -> Bytes {
         self.buf.split().freeze()
-    }
-    fn freeze(self) -> Bytes {
-        self.buf.freeze()
     }
 }
 
@@ -32,6 +30,7 @@ impl io::Write for Writer {
         self.buf.extend_from_slice(buf);
         Ok(buf.len())
     }
+
     fn flush(&mut self) -> io::Result<()> {
         Ok(())
     }

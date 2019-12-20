@@ -1,10 +1,12 @@
 # Changes
 
-## [1.0.1] - 2019-12-xx
+## [1.0.1] - 2019-12-20
 
 ### Fixed
 
 * Poll upgrade service's readiness from HTTP service handlers
+
+* Replace brotli with brotli2 #1224
 
 ## [1.0.0] - 2019-12-13
 

@@ -5,7 +5,7 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 
 use actix_threadpool::{run, CpuFuture};
-use brotli::CompressorWriter;
+use brotli2::write::BrotliEncoder;
 use bytes::Bytes;
 use flate2::write::{GzEncoder, ZlibEncoder};
 use futures_core::ready;
@@ -17,7 +17,7 @@ use crate::{Error, ResponseHead};
 
 use super::Writer;
 
-const INPLACE: usize = 2049;
+const INPLACE: usize = 1024;
 
 pub struct Encoder<B> {
     eof: bool,
@@ -174,7 +174,7 @@ fn update_head(encoding: ContentEncoding, head: &mut ResponseHead) {
 enum ContentEncoder {
     Deflate(ZlibEncoder<Writer>),
     Gzip(GzEncoder<Writer>),
-    Br(Box<CompressorWriter<Writer>>),
+    Br(BrotliEncoder<Writer>),
 }
 
 impl ContentEncoder {
@@ -188,9 +188,9 @@ impl ContentEncoder {
                 Writer::new(),
                 flate2::Compression::fast(),
             ))),
-            ContentEncoding::Br => Some(ContentEncoder::Br(Box::new(
-                CompressorWriter::new(Writer::new(), 0, 3, 0),
-            ))),
+            ContentEncoding::Br => {
+                Some(ContentEncoder::Br(BrotliEncoder::new(Writer::new(), 3)))
+            }
             _ => None,
         }
     }
@@ -198,12 +198,7 @@ impl ContentEncoder {
     #[inline]
     pub(crate) fn take(&mut self) -> Bytes {
         match *self {
-            ContentEncoder::Br(ref mut encoder) => {
-                let mut encoder_new =
-                    Box::new(CompressorWriter::new(Writer::new(), 0, 3, 0));
-                std::mem::swap(encoder, &mut encoder_new);
-                encoder_new.into_inner().freeze()
-            }
+            ContentEncoder::Br(ref mut encoder) => encoder.get_mut().take(),
             ContentEncoder::Deflate(ref mut encoder) => encoder.get_mut().take(),
             ContentEncoder::Gzip(ref mut encoder) => encoder.get_mut().take(),
         }
@@ -211,7 +206,10 @@ impl ContentEncoder {
 
     fn finish(self) -> Result<Bytes, io::Error> {
         match self {
-            ContentEncoder::Br(encoder) => Ok(encoder.into_inner().buf.freeze()),
+            ContentEncoder::Br(encoder) => match encoder.finish() {
+                Ok(writer) => Ok(writer.buf.freeze()),
+                Err(err) => Err(err),
+            },
             ContentEncoder::Gzip(encoder) => match encoder.finish() {
                 Ok(writer) => Ok(writer.buf.freeze()),
                 Err(err) => Err(err),

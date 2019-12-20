@@ -276,7 +276,7 @@ mod rustls {
             Request = (Request, Framed<TlsStream<TcpStream>, h1::Codec>),
             Response = (),
         >,
-        U::Error: fmt::Display,
+        U::Error: fmt::Display + Into<Error>,
         U::InitError: fmt::Debug,
         <U::Service as Service>::Future: 'static,
     {

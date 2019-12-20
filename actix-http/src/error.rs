@@ -6,7 +6,9 @@ use std::str::Utf8Error;
 use std::string::FromUtf8Error;
 use std::{fmt, io, result};
 
+use actix_codec::{Decoder, Encoder};
 pub use actix_threadpool::BlockingError;
+use actix_utils::framed::DispatcherError as FramedDispatcherError;
 use actix_utils::timeout::TimeoutError;
 use bytes::BytesMut;
 use derive_more::{Display, From};
@@ -461,6 +463,14 @@ impl ResponseError for ContentTypeError {
     fn status_code(&self) -> StatusCode {
         StatusCode::BAD_REQUEST
     }
+}
+
+impl<E, U: Encoder + Decoder> ResponseError for FramedDispatcherError<E, U>
+where
+    E: fmt::Debug + fmt::Display,
+    <U as Encoder>::Error: fmt::Debug,
+    <U as Decoder>::Error: fmt::Debug,
+{
 }
 
 /// Helper type that can wrap any error and generate custom response.

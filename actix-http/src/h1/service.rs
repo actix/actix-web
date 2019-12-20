@@ -165,7 +165,7 @@ mod rustls {
             Request = (Request, Framed<TlsStream<TcpStream>, Codec>),
             Response = (),
         >,
-        U::Error: fmt::Display,
+        U::Error: fmt::Display + Into<Error>,
         U::InitError: fmt::Debug,
     {
         /// Create rustls based service

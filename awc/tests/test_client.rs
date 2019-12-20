@@ -4,7 +4,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
-use brotli::CompressorWriter;
+use brotli2::write::BrotliEncoder;
 use bytes::Bytes;
 use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
@@ -500,9 +500,9 @@ async fn test_client_gzip_encoding_large_random() {
 async fn test_client_brotli_encoding() {
     let srv = test::start(|| {
         App::new().service(web::resource("/").route(web::to(|data: Bytes| {
-            let mut e = CompressorWriter::new(Vec::new(), 0, 5, 0);
+            let mut e = BrotliEncoder::new(Vec::new(), 5);
             e.write_all(&data).unwrap();
-            let data = e.into_inner();
+            let data = e.finish().unwrap();
             HttpResponse::Ok()
                 .header("content-encoding", "br")
                 .body(data)
@@ -527,9 +527,9 @@ async fn test_client_brotli_encoding_large_random() {
 
     let srv = test::start(|| {
         App::new().service(web::resource("/").route(web::to(|data: Bytes| {
-            let mut e = CompressorWriter::new(Vec::new(), 0, 5, 0);
+            let mut e = BrotliEncoder::new(Vec::new(), 5);
             e.write_all(&data).unwrap();
-            let data = e.into_inner();
+            let data = e.finish().unwrap();
             HttpResponse::Ok()
                 .header("content-encoding", "br")
                 .body(data)
