@@ -212,7 +212,7 @@ where
 /// fn main() {
 ///     let app = App::new().service(
 ///         web::resource("/messages/{folder}")
-///             .data(PathConfig::default().error_handler(|err, req| {
+///             .app_data(PathConfig::default().error_handler(|err, req| {
 ///                 error::InternalError::from_response(
 ///                     err,
 ///                     HttpResponse::Conflict().finish(),
@@ -358,7 +358,7 @@ mod tests {
     #[actix_rt::test]
     async fn test_custom_err_handler() {
         let (req, mut pl) = TestRequest::with_uri("/name/user1/")
-            .data(PathConfig::default().error_handler(|err, _| {
+            .app_data(PathConfig::default().error_handler(|err, _| {
                 error::InternalError::from_response(
                     err,
                     HttpResponse::Conflict().finish(),

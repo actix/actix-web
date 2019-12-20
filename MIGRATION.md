@@ -1,5 +1,10 @@
 ## 2.0.0
 
+* `App::register_data()` renamed to `App::app_data()` and accepts any type `T: 'static`.
+  Stored data is available via `HttpRequest::app_data()` method at runtime.
+
+* Extractor configuration must be registered with `App::app_data()` instead of `App::data()`
+
 * Sync handlers has been removed. `.to_async()` method has been renamed to `.to()`
 
   replace `fn` with `async fn` to convert sync handler to async

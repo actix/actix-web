@@ -8,7 +8,6 @@ use actix_router::{Path, Url};
 use futures::future::{ok, Ready};
 
 use crate::config::AppConfig;
-use crate::data::Data;
 use crate::error::UrlGenerationError;
 use crate::extract::FromRequest;
 use crate::info::ConnectionInfo;
@@ -207,21 +206,11 @@ impl HttpRequest {
         &self.0.config
     }
 
-    /// Get an application data stored with `App::data()` method during
+    /// Get an application data stored with `App::extension()` method during
     /// application configuration.
     pub fn app_data<T: 'static>(&self) -> Option<&T> {
-        if let Some(st) = self.0.app_data.get::<Data<T>>() {
+        if let Some(st) = self.0.app_data.get::<T>() {
             Some(&st)
-        } else {
-            None
-        }
-    }
-
-    /// Get an application data stored with `App::data()` method during
-    /// application configuration.
-    pub fn get_app_data<T: 'static>(&self) -> Option<Data<T>> {
-        if let Some(st) = self.0.app_data.get::<Data<T>>() {
-            Some(st.clone())
         } else {
             None
         }
@@ -467,8 +456,8 @@ mod tests {
     }
 
     #[actix_rt::test]
-    async fn test_app_data() {
-        let mut srv = init_service(App::new().data(10usize).service(
+    async fn test_data() {
+        let mut srv = init_service(App::new().app_data(10usize).service(
             web::resource("/").to(|req: HttpRequest| {
                 if req.app_data::<usize>().is_some() {
                     HttpResponse::Ok()
@@ -483,7 +472,7 @@ mod tests {
         let resp = call_service(&mut srv, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
 
-        let mut srv = init_service(App::new().data(10u32).service(
+        let mut srv = init_service(App::new().app_data(10u32).service(
             web::resource("/").to(|req: HttpRequest| {
                 if req.app_data::<usize>().is_some() {
                     HttpResponse::Ok()

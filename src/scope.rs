@@ -148,15 +148,13 @@ where
     /// }
     /// ```
     pub fn data<U: 'static>(self, data: U) -> Self {
-        self.register_data(Data::new(data))
+        self.app_data(Data::new(data))
     }
 
     /// Set or override application data.
     ///
-    /// This method has the same effect as [`Scope::data`](#method.data), except
-    /// that instead of taking a value of some type `T`, it expects a value of
-    /// type `Data<T>`. Use a `Data<T>` extractor to retrieve its value.
-    pub fn register_data<U: 'static>(mut self, data: Data<U>) -> Self {
+    /// This method overrides data stored with [`App::app_data()`](#method.app_data)
+    pub fn app_data<U: 'static>(mut self, data: U) -> Self {
         if self.data.is_none() {
             self.data = Some(Extensions::new());
         }
@@ -1122,21 +1120,17 @@ mod tests {
     }
 
     #[actix_rt::test]
-    async fn test_override_register_data() {
-        let mut srv = init_service(
-            App::new().register_data(web::Data::new(1usize)).service(
-                web::scope("app")
-                    .register_data(web::Data::new(10usize))
-                    .route(
-                        "/t",
-                        web::get().to(|data: web::Data<usize>| {
-                            assert_eq!(*data, 10);
-                            let _ = data.clone();
-                            HttpResponse::Ok()
-                        }),
-                    ),
+    async fn test_override_app_data() {
+        let mut srv = init_service(App::new().app_data(web::Data::new(1usize)).service(
+            web::scope("app").app_data(web::Data::new(10usize)).route(
+                "/t",
+                web::get().to(|data: web::Data<usize>| {
+                    assert_eq!(*data, 10);
+                    let _ = data.clone();
+                    HttpResponse::Ok()
+                }),
             ),
-        )
+        ))
         .await;
 
         let req = TestRequest::with_uri("/app/t").to_request();

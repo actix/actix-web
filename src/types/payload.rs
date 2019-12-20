@@ -176,7 +176,7 @@ impl FromRequest for Bytes {
 /// fn main() {
 ///     let app = App::new().service(
 ///         web::resource("/index.html")
-///             .data(String::configure(|cfg| {  // <- limit size of the payload
+///             .app_data(String::configure(|cfg| {  // <- limit size of the payload
 ///                 cfg.limit(4096)
 ///             }))
 ///             .route(web::get().to(index))  // <- register handler with extractor params

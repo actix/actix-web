@@ -224,17 +224,18 @@ where
 ///
 /// fn main() {
 ///     let app = App::new().service(
-///         web::resource("/index.html").data(
-///             // change json extractor configuration
-///             web::Json::<Info>::configure(|cfg| {
-///                 cfg.limit(4096)
-///                    .content_type(|mime| {  // <- accept text/plain content type
-///                         mime.type_() == mime::TEXT && mime.subtype() == mime::PLAIN
-///                    })
-///                    .error_handler(|err, req| {  // <- create custom error response
-///                         error::InternalError::from_response(
-///                             err, HttpResponse::Conflict().finish()).into()
-///                    })
+///         web::resource("/index.html")
+///             .app_data(
+///                 // change json extractor configuration
+///                 web::Json::<Info>::configure(|cfg| {
+///                     cfg.limit(4096)
+///                        .content_type(|mime| {  // <- accept text/plain content type
+///                            mime.type_() == mime::TEXT && mime.subtype() == mime::PLAIN
+///                        })
+///                        .error_handler(|err, req| {  // <- create custom error response
+///                           error::InternalError::from_response(
+///                               err, HttpResponse::Conflict().finish()).into()
+///                        })
 ///             }))
 ///             .route(web::post().to(index))
 ///     );
@@ -462,7 +463,7 @@ mod tests {
                 header::HeaderValue::from_static("16"),
             )
             .set_payload(Bytes::from_static(b"{\"name\": \"test\"}"))
-            .data(JsonConfig::default().limit(10).error_handler(|err, _| {
+            .app_data(JsonConfig::default().limit(10).error_handler(|err, _| {
                 let msg = MyObject {
                     name: "invalid request".to_string(),
                 };
@@ -514,7 +515,7 @@ mod tests {
                 header::HeaderValue::from_static("16"),
             )
             .set_payload(Bytes::from_static(b"{\"name\": \"test\"}"))
-            .data(JsonConfig::default().limit(10))
+            .app_data(JsonConfig::default().limit(10))
             .to_http_parts();
 
         let s = Json::<MyObject>::from_request(&req, &mut pl).await;
@@ -531,7 +532,7 @@ mod tests {
                 header::HeaderValue::from_static("16"),
             )
             .set_payload(Bytes::from_static(b"{\"name\": \"test\"}"))
-            .data(
+            .app_data(
                 JsonConfig::default()
                     .limit(10)
                     .error_handler(|_, _| JsonPayloadError::ContentType.into()),
@@ -604,7 +605,7 @@ mod tests {
             header::HeaderValue::from_static("16"),
         )
         .set_payload(Bytes::from_static(b"{\"name\": \"test\"}"))
-        .data(JsonConfig::default().limit(4096))
+        .app_data(JsonConfig::default().limit(4096))
         .to_http_parts();
 
         let s = Json::<MyObject>::from_request(&req, &mut pl).await;
@@ -622,7 +623,7 @@ mod tests {
             header::HeaderValue::from_static("16"),
         )
         .set_payload(Bytes::from_static(b"{\"name\": \"test\"}"))
-        .data(JsonConfig::default().content_type(|mime: mime::Mime| {
+        .app_data(JsonConfig::default().content_type(|mime: mime::Mime| {
             mime.type_() == mime::TEXT && mime.subtype() == mime::PLAIN
         }))
         .to_http_parts();
@@ -642,7 +643,7 @@ mod tests {
             header::HeaderValue::from_static("16"),
         )
         .set_payload(Bytes::from_static(b"{\"name\": \"test\"}"))
-        .data(JsonConfig::default().content_type(|mime: mime::Mime| {
+        .app_data(JsonConfig::default().content_type(|mime: mime::Mime| {
             mime.type_() == mime::TEXT && mime.subtype() == mime::PLAIN
         }))
         .to_http_parts();

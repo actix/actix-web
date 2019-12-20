@@ -451,6 +451,13 @@ impl TestRequest {
         self
     }
 
+    /// Set application data. This is equivalent of `App::app_data()` method
+    /// for testing purpose.
+    pub fn app_data<T: 'static>(mut self, data: T) -> Self {
+        self.app_data.insert(data);
+        self
+    }
+
     #[cfg(test)]
     /// Set request config
     pub(crate) fn rmap(mut self, rmap: ResourceMap) -> Self {
@@ -964,6 +971,7 @@ mod tests {
             .set(header::Date(SystemTime::now().into()))
             .param("test", "123")
             .data(10u32)
+            .app_data(20u64)
             .peer_addr("127.0.0.1:8081".parse().unwrap())
             .to_http_request();
         assert!(req.headers().contains_key(header::CONTENT_TYPE));
@@ -974,14 +982,13 @@ mod tests {
         );
         assert_eq!(&req.match_info()["test"], "123");
         assert_eq!(req.version(), Version::HTTP_2);
-        let data = req.get_app_data::<u32>().unwrap();
-        assert!(req.get_app_data::<u64>().is_none());
-        assert_eq!(*data, 10);
+        let data = req.app_data::<Data<u32>>().unwrap();
+        assert!(req.app_data::<Data<u64>>().is_none());
         assert_eq!(*data.get_ref(), 10);
 
-        assert!(req.app_data::<u64>().is_none());
-        let data = req.app_data::<u32>().unwrap();
-        assert_eq!(*data, 10);
+        assert!(req.app_data::<u32>().is_none());
+        let data = req.app_data::<u64>().unwrap();
+        assert_eq!(*data, 20);
     }
 
     #[actix_rt::test]

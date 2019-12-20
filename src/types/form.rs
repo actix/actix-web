@@ -190,7 +190,7 @@ impl<T: Serialize> Responder for Form<T> {
 ///     let app = App::new().service(
 ///         web::resource("/index.html")
 ///             // change `Form` extractor configuration
-///             .data(
+///             .app_data(
 ///                 web::Form::<FormData>::configure(|cfg| cfg.limit(4097))
 ///             )
 ///             .route(web::get().to(index))

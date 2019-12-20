@@ -56,7 +56,7 @@ pub(crate) trait DataFactory {
 ///
 ///     let app = App::new()
 ///         // Store `MyData` in application storage.
-///         .register_data(data.clone())
+///         .app_data(data.clone())
 ///         .service(
 ///             web::resource("/index.html").route(
 ///                 web::get().to(index)));
@@ -107,8 +107,8 @@ impl<T: 'static> FromRequest for Data<T> {
 
     #[inline]
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        if let Some(st) = req.get_app_data::<T>() {
-            ok(st)
+        if let Some(st) = req.app_data::<Data<T>>() {
+            ok(st.clone())
         } else {
             log::debug!(
                 "Failed to construct App-level Data extractor. \
@@ -165,9 +165,9 @@ mod tests {
     }
 
     #[actix_rt::test]
-    async fn test_register_data_extractor() {
+    async fn test_app_data_extractor() {
         let mut srv =
-            init_service(App::new().register_data(Data::new(10usize)).service(
+            init_service(App::new().app_data(Data::new(10usize)).service(
                 web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()),
             ))
             .await;
@@ -177,7 +177,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
 
         let mut srv =
-            init_service(App::new().register_data(Data::new(10u32)).service(
+            init_service(App::new().app_data(Data::new(10u32)).service(
                 web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()),
             ))
             .await;

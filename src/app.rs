@@ -5,6 +5,7 @@ use std::marker::PhantomData;
 use std::rc::Rc;
 
 use actix_http::body::{Body, MessageBody};
+use actix_http::Extensions;
 use actix_service::boxed::{self, BoxServiceFactory};
 use actix_service::{
     apply, apply_fn_factory, IntoServiceFactory, ServiceFactory, Transform,
@@ -37,6 +38,7 @@ pub struct App<T, B> {
     data: Vec<Box<dyn DataFactory>>,
     data_factories: Vec<FnDataFactory>,
     external: Vec<ResourceDef>,
+    extensions: Extensions,
     _t: PhantomData<B>,
 }
 
@@ -52,6 +54,7 @@ impl App<AppEntry, Body> {
             default: None,
             factory_ref: fref,
             external: Vec::new(),
+            extensions: Extensions::new(),
             _t: PhantomData,
         }
     }
@@ -133,10 +136,15 @@ where
         self
     }
 
-    /// Set application data. Application data could be accessed
-    /// by using `Data<T>` extractor where `T` is data type.
-    pub fn register_data<U: 'static>(mut self, data: Data<U>) -> Self {
-        self.data.push(Box::new(data));
+    /// Set application level arbitrary data item.
+    ///
+    /// Application data stored with `App::app_data()` method is available
+    /// via `HttpRequest::app_data()` method at runtime.
+    ///
+    /// This method could be used for storing `Data<T>` as well, in that case
+    /// data could be accessed by using `Data<T>` extractor.
+    pub fn app_data<U: 'static>(mut self, ext: U) -> Self {
+        self.extensions.insert(ext);
         self
     }
 
@@ -370,6 +378,7 @@ where
             default: self.default,
             factory_ref: self.factory_ref,
             external: self.external,
+            extensions: self.extensions,
             _t: PhantomData,
         }
     }
@@ -431,6 +440,7 @@ where
             default: self.default,
             factory_ref: self.factory_ref,
             external: self.external,
+            extensions: self.extensions,
             _t: PhantomData,
         }
     }
@@ -456,6 +466,7 @@ where
             external: RefCell::new(self.external),
             default: self.default,
             factory_ref: self.factory_ref,
+            extensions: RefCell::new(Some(self.extensions)),
         }
     }
 }
@@ -537,6 +548,20 @@ mod tests {
         let req = TestRequest::default().to_request();
         let resp = srv.call(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    #[actix_rt::test]
+    async fn test_extension() {
+        let mut srv = init_service(App::new().app_data(10usize).service(
+            web::resource("/").to(|req: HttpRequest| {
+                assert_eq!(*req.app_data::<usize>().unwrap(), 10);
+                HttpResponse::Ok()
+            }),
+        ))
+        .await;
+        let req = TestRequest::default().to_request();
+        let resp = srv.call(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
     }
 
     #[actix_rt::test]

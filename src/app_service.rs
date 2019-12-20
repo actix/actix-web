@@ -39,6 +39,7 @@ where
     >,
 {
     pub(crate) endpoint: T,
+    pub(crate) extensions: RefCell<Option<Extensions>>,
     pub(crate) data: Rc<Vec<Box<dyn DataFactory>>>,
     pub(crate) data_factories: Rc<Vec<FnDataFactory>>,
     pub(crate) services: Rc<RefCell<Vec<Box<dyn AppServiceFactory>>>>,
@@ -114,6 +115,12 @@ where
             data: self.data.clone(),
             data_factories: Vec::new(),
             data_factories_fut: self.data_factories.iter().map(|f| f()).collect(),
+            extensions: Some(
+                self.extensions
+                    .borrow_mut()
+                    .take()
+                    .unwrap_or_else(Extensions::new),
+            ),
             config,
             rmap,
             _t: PhantomData,
@@ -134,6 +141,7 @@ where
     data: Rc<Vec<Box<dyn DataFactory>>>,
     data_factories: Vec<Box<dyn DataFactory>>,
     data_factories_fut: Vec<LocalBoxFuture<'static, Result<Box<dyn DataFactory>, ()>>>,
+    extensions: Option<Extensions>,
     _t: PhantomData<B>,
 }
 
@@ -172,7 +180,7 @@ where
 
         if this.endpoint.is_some() && this.data_factories_fut.is_empty() {
             // create app data container
-            let mut data = Extensions::new();
+            let mut data = this.extensions.take().unwrap();
             for f in this.data.iter() {
                 f.create(&mut data);
             }

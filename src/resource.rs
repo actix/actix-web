@@ -192,16 +192,13 @@ where
     /// }
     /// ```
     pub fn data<U: 'static>(self, data: U) -> Self {
-        self.register_data(Data::new(data))
+        self.app_data(Data::new(data))
     }
 
     /// Set or override application data.
     ///
-    /// This method has the same effect as [`Resource::data`](#method.data),
-    /// except that instead of taking a value of some type `T`, it expects a
-    /// value of type `Data<T>`. Use a `Data<T>` extractor to retrieve its
-    /// value.
-    pub fn register_data<U: 'static>(mut self, data: Data<U>) -> Self {
+    /// This method overrides data stored with [`App::app_data()`](#method.app_data)
+    pub fn app_data<U: 'static>(mut self, data: U) -> Self {
         if self.data.is_none() {
             self.data = Some(Extensions::new());
         }
@@ -754,11 +751,11 @@ mod tests {
             App::new()
                 .data(1.0f64)
                 .data(1usize)
-                .register_data(web::Data::new('-'))
+                .app_data(web::Data::new('-'))
                 .service(
                     web::resource("/test")
                         .data(10usize)
-                        .register_data(web::Data::new('*'))
+                        .app_data(web::Data::new('*'))
                         .guard(guard::Get())
                         .to(
                             |data1: web::Data<usize>,

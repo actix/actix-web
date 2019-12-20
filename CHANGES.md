@@ -8,6 +8,10 @@
 
 * Allow to set `peer_addr` for TestRequest #1074
 
+* Rename `App::register_data()` to `App::app_data()`
+
+* `HttpRequest::app_data<T>()` returns `Option<&T>` instead of `Option<&Data<T>>`
+
 ### Fixed
 
 * Fix `AppConfig::secure()` is always false. #1202
