@@ -4,9 +4,9 @@ use std::sync::Arc;
 
 use actix_http::HttpService;
 use actix_http_test::test_server;
-use actix_service::{map_config, pipeline_factory, ServiceFactory, IntoServiceFactory};
+use actix_service::{map_config, pipeline_factory, IntoServiceFactory, ServiceFactory};
 use actix_web::http::Version;
-use actix_web::{web, App, HttpResponse, dev::AppConfig};
+use actix_web::{dev::AppConfig, web, App, HttpResponse};
 use futures::future::ok;
 use open_ssl::ssl::{SslAcceptor, SslFiletype, SslMethod, SslVerifyMode};
 use rust_tls::ClientConfig;
@@ -62,10 +62,13 @@ async fn _test_connection_reuse_h2() {
         })
         .and_then(
             HttpService::build()
-                .h2(map_config(App::new()
-                               .service(web::resource("/").route(web::to(|| HttpResponse::Ok())))
-                               .into_factory(),
-                               |_| AppConfig::default(),
+                .h2(map_config(
+                    App::new()
+                        .service(
+                            web::resource("/").route(web::to(|| HttpResponse::Ok())),
+                        )
+                        .into_factory(),
+                    |_| AppConfig::default(),
                 ))
                 .openssl(ssl_acceptor())
                 .map_err(|_| ()),

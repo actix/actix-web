@@ -78,8 +78,9 @@ where
     /// an application instance. Http server constructs an application
     /// instance for each thread, thus application data must be constructed
     /// multiple times. If you want to share data between different
-    /// threads, a shared object should be used, e.g. `Arc`. Application
-    /// data does not need to be `Send` or `Sync`.
+    /// threads, a shared object should be used, e.g. `Arc`. Internally `Data` type
+    /// uses `Arc` so data could be created outside of app factory and clones could
+    /// be stored via `App::app_data()` method.
     ///
     /// ```rust
     /// use std::cell::Cell;
