@@ -66,7 +66,7 @@ pub fn default_service(
 ///     let mut app = test::init_service(
 ///         App::new()
 ///             .service(web::resource("/test").to(|| async { HttpResponse::Ok() }))
-///     );
+///     ).await;
 ///
 ///     // Create request object
 ///     let req = test::TestRequest::with_uri("/test").to_request();
