@@ -85,23 +85,23 @@ pub struct Session(Rc<RefCell<SessionInner>>);
 
 /// Helper trait that allows to get session
 pub trait UserSession {
-    fn get_session(&mut self) -> Session;
+    fn get_session(&self) -> Session;
 }
 
 impl UserSession for HttpRequest {
-    fn get_session(&mut self) -> Session {
+    fn get_session(&self) -> Session {
         Session::get_session(&mut *self.extensions_mut())
     }
 }
 
 impl UserSession for ServiceRequest {
-    fn get_session(&mut self) -> Session {
+    fn get_session(&self) -> Session {
         Session::get_session(&mut *self.extensions_mut())
     }
 }
 
 impl UserSession for RequestHead {
-    fn get_session(&mut self) -> Session {
+    fn get_session(&self) -> Session {
         Session::get_session(&mut *self.extensions_mut())
     }
 }
