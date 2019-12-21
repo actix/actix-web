@@ -12,7 +12,7 @@ jobs:
       matrix:
         toolchain:
           - x86_64-pc-windows-msvc
-          - i686-pc-windows-msvc
+          # - i686-pc-windows-msvc
           - x86_64-apple-darwin
         version:
           - stable
@@ -21,9 +21,9 @@ jobs:
         - toolchain: x86_64-pc-windows-msvc
           os: windows-latest
           arch: x64
-        - toolchain: i686-pc-windows-msvc
-          os: windows-latest
-          arch: x86
+        # - toolchain: i686-pc-windows-msvc
+          # os: windows-latest
+          # arch: x86
         - toolchain: x86_64-apple-darwin
           os: macOS-latest
 
