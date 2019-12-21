@@ -1222,7 +1222,10 @@ mod tests {
         );
 
         let bytes = test::read_body(resp).await;
+        #[cfg(unix)]
         assert!(format!("{:?}", bytes).contains("/tests/test.png"));
+        #[cfg(windows)]
+        assert!(format!("{:?}", bytes).contains("/tests\\\\test.png"));
     }
 
     #[actix_rt::test]
