@@ -3,15 +3,21 @@ use std::sync::{Arc, Mutex};
 use std::{fmt, io, net};
 
 use actix_http::{
-    body::MessageBody, Error, HttpService, KeepAlive, Protocol, Request, Response,
+    body::MessageBody, Error, HttpService, KeepAlive, Request, Response,
 };
 use actix_server::{Server, ServerBuilder};
 use actix_service::{
-    map_config, pipeline_factory, IntoServiceFactory, Service, ServiceFactory,
+    map_config, IntoServiceFactory, Service, ServiceFactory,
 };
-use futures::future::ok;
 
 use net2::TcpBuilder;
+
+#[cfg(unix)]
+use actix_http::Protocol;
+#[cfg(unix)]
+use actix_service::pipeline_factory;
+#[cfg(unix)]
+use futures::future::ok;
 
 #[cfg(feature = "openssl")]
 use actix_tls::openssl::{AlpnError, SslAcceptor, SslAcceptorBuilder};
