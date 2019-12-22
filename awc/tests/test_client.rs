@@ -14,7 +14,7 @@ use rand::Rng;
 
 use actix_http::HttpService;
 use actix_http_test::test_server;
-use actix_service::{map_config, pipeline_factory, IntoServiceFactory};
+use actix_service::{map_config, pipeline_factory};
 use actix_web::dev::{AppConfig, BodyEncoding};
 use actix_web::http::Cookie;
 use actix_web::middleware::Compress;

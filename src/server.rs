@@ -38,21 +38,17 @@ struct Config {
 ///
 /// Create new http server with application factory.
 ///
-/// ```rust
-/// use std::io;
+/// ```rust,no_run
 /// use actix_web::{web, App, HttpResponse, HttpServer};
 ///
-/// fn main() -> io::Result<()> {
-///     let sys = actix_rt::System::new("example");  // <- create Actix runtime
-///
+/// #[actix_rt::main]
+/// async fn main() -> std::io::Result<()> {
 ///     HttpServer::new(
 ///         || App::new()
 ///             .service(web::resource("/").to(|| HttpResponse::Ok())))
 ///         .bind("127.0.0.1:59090")?
-///         .start();
-///
-/// #       actix_rt::System::current().stop();
-///     sys.run()
+///         .run()
+///         .await
 /// }
 /// ```
 pub struct HttpServer<F, I, S, B>
@@ -557,11 +553,11 @@ where
     /// async fn main() -> io::Result<()> {
     ///     HttpServer::new(|| App::new().service(web::resource("/").to(|| HttpResponse::Ok())))
     ///         .bind("127.0.0.1:0")?
-    ///         .start()
+    ///         .run()
     ///         .await
     /// }
     /// ```
-    pub fn start(self) -> Server {
+    pub fn run(self) -> Server {
         self.builder.start()
     }
 }

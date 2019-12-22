@@ -1,5 +1,12 @@
 # Changes
 
+## [2.0.0] - 2019-12-xx
+
+### Changed
+
+* Rename `HttpServer::start()` to `HttpServer::run()`
+
+
 ## [2.0.0-rc] - 2019-12-20
 
 ### Changed

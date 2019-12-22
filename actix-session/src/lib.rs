@@ -37,7 +37,7 @@
 //!              )
 //!             .service(web::resource("/").to(|| HttpResponse::Ok())))
 //!         .bind("127.0.0.1:59880")?
-//!         .start()
+//!         .run()
 //!         .await
 //! }
 //! ```

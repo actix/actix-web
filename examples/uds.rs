@@ -45,7 +45,7 @@ async fn main() -> std::io::Result<()> {
     })
     .bind_uds("/Users/fafhrd91/uds-test")?
     .workers(1)
-    .start()
+    .run()
     .await
 }
 

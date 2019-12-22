@@ -42,7 +42,7 @@ async fn test_start() {
         .disable_signals()
         .bind(format!("{}", addr))
         .unwrap()
-        .start();
+        .run();
 
         let _ = tx.send((srv, actix_rt::System::current()));
         let _ = sys.run();
@@ -111,7 +111,7 @@ async fn test_start_ssl() {
         .disable_signals()
         .bind_openssl(format!("{}", addr), builder)
         .unwrap()
-        .start();
+        .run();
 
         let _ = tx.send((srv, actix_rt::System::current()));
         let _ = sys.run();

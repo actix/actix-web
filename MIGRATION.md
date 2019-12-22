@@ -1,5 +1,8 @@
 ## 2.0.0
 
+* `HttpServer::start()` renamed to `HttpServer::run()`. It also possible to
+  `.await` on `run` method result, in that case it awaits server exit.
+
 * `App::register_data()` renamed to `App::app_data()` and accepts any type `T: 'static`.
   Stored data is available via `HttpRequest::app_data()` method at runtime.
 
