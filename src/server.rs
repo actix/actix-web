@@ -2,13 +2,9 @@ use std::marker::PhantomData;
 use std::sync::{Arc, Mutex};
 use std::{fmt, io, net};
 
-use actix_http::{
-    body::MessageBody, Error, HttpService, KeepAlive, Request, Response,
-};
+use actix_http::{body::MessageBody, Error, HttpService, KeepAlive, Request, Response};
 use actix_server::{Server, ServerBuilder};
-use actix_service::{
-    map_config, IntoServiceFactory, Service, ServiceFactory,
-};
+use actix_service::{map_config, IntoServiceFactory, Service, ServiceFactory};
 
 use net2::TcpBuilder;
 
@@ -266,7 +262,7 @@ where
                     .keep_alive(c.keep_alive)
                     .client_timeout(c.client_timeout)
                     .local_addr(addr)
-                    .finish(map_config(factory().into_factory(), move |_| cfg.clone()))
+                    .finish(map_config(factory(), move |_| cfg.clone()))
                     .tcp()
             },
         )?;
@@ -313,7 +309,7 @@ where
                     .keep_alive(c.keep_alive)
                     .client_timeout(c.client_timeout)
                     .client_disconnect(c.client_shutdown)
-                    .finish(map_config(factory().into_factory(), move |_| cfg.clone()))
+                    .finish(map_config(factory(), move |_| cfg.clone()))
                     .openssl(acceptor.clone())
             },
         )?;
@@ -360,7 +356,7 @@ where
                     .keep_alive(c.keep_alive)
                     .client_timeout(c.client_timeout)
                     .client_disconnect(c.client_shutdown)
-                    .finish(map_config(factory().into_factory(), move |_| cfg.clone()))
+                    .finish(map_config(factory(), move |_| cfg.clone()))
                     .rustls(config.clone())
             },
         )?;
@@ -483,9 +479,7 @@ where
                 HttpService::build()
                     .keep_alive(c.keep_alive)
                     .client_timeout(c.client_timeout)
-                    .finish(map_config(factory().into_factory(), move |_| {
-                        config.clone()
-                    })),
+                    .finish(map_config(factory(), move |_| config.clone())),
             )
         })?;
         Ok(self)
@@ -527,9 +521,7 @@ where
                         HttpService::build()
                             .keep_alive(c.keep_alive)
                             .client_timeout(c.client_timeout)
-                            .finish(map_config(factory().into_factory(), move |_| {
-                                config.clone()
-                            })),
+                            .finish(map_config(factory(), move |_| config.clone())),
                     )
             },
         )?;

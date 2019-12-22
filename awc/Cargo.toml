@@ -35,7 +35,7 @@ compress = ["actix-http/compress"]
 
 [dependencies]
 actix-codec = "0.2.0"
-actix-service = "1.0.0"
+actix-service = "1.0.1"
 actix-http = "1.0.0"
 actix-rt = "1.0.0"
 

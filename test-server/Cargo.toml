@@ -30,7 +30,7 @@ default = []
 openssl = ["open-ssl", "awc/openssl"]
 
 [dependencies]
-actix-service = "1.0.0"
+actix-service = "1.0.1"
 actix-codec = "0.2.0"
 actix-connect = "1.0.0"
 actix-utils = "1.0.3"

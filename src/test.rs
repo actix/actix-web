@@ -634,7 +634,7 @@ where
                         AppConfig::new(false, local_addr, format!("{}", local_addr));
                     HttpService::build()
                         .client_timeout(ctimeout)
-                        .h1(map_config(factory().into_factory(), move |_| cfg.clone()))
+                        .h1(map_config(factory(), move |_| cfg.clone()))
                         .tcp()
                 }),
                 HttpVer::Http2 => builder.listen("test", tcp, move || {
@@ -642,7 +642,7 @@ where
                         AppConfig::new(false, local_addr, format!("{}", local_addr));
                     HttpService::build()
                         .client_timeout(ctimeout)
-                        .h2(map_config(factory().into_factory(), move |_| cfg.clone()))
+                        .h2(map_config(factory(), move |_| cfg.clone()))
                         .tcp()
                 }),
                 HttpVer::Both => builder.listen("test", tcp, move || {
@@ -650,9 +650,7 @@ where
                         AppConfig::new(false, local_addr, format!("{}", local_addr));
                     HttpService::build()
                         .client_timeout(ctimeout)
-                        .finish(map_config(factory().into_factory(), move |_| {
-                            cfg.clone()
-                        }))
+                        .finish(map_config(factory(), move |_| cfg.clone()))
                         .tcp()
                 }),
             },
@@ -663,7 +661,7 @@ where
                         AppConfig::new(true, local_addr, format!("{}", local_addr));
                     HttpService::build()
                         .client_timeout(ctimeout)
-                        .h1(map_config(factory().into_factory(), move |_| cfg.clone()))
+                        .h1(map_config(factory(), move |_| cfg.clone()))
                         .openssl(acceptor.clone())
                 }),
                 HttpVer::Http2 => builder.listen("test", tcp, move || {
@@ -671,7 +669,7 @@ where
                         AppConfig::new(true, local_addr, format!("{}", local_addr));
                     HttpService::build()
                         .client_timeout(ctimeout)
-                        .h2(map_config(factory().into_factory(), move |_| cfg.clone()))
+                        .h2(map_config(factory(), move |_| cfg.clone()))
                         .openssl(acceptor.clone())
                 }),
                 HttpVer::Both => builder.listen("test", tcp, move || {
@@ -679,9 +677,7 @@ where
                         AppConfig::new(true, local_addr, format!("{}", local_addr));
                     HttpService::build()
                         .client_timeout(ctimeout)
-                        .finish(map_config(factory().into_factory(), move |_| {
-                            cfg.clone()
-                        }))
+                        .finish(map_config(factory(), move |_| cfg.clone()))
                         .openssl(acceptor.clone())
                 }),
             },
@@ -692,7 +688,7 @@ where
                         AppConfig::new(true, local_addr, format!("{}", local_addr));
                     HttpService::build()
                         .client_timeout(ctimeout)
-                        .h1(map_config(factory().into_factory(), move |_| cfg.clone()))
+                        .h1(map_config(factory(), move |_| cfg.clone()))
                         .rustls(config.clone())
                 }),
                 HttpVer::Http2 => builder.listen("test", tcp, move || {
@@ -700,7 +696,7 @@ where
                         AppConfig::new(true, local_addr, format!("{}", local_addr));
                     HttpService::build()
                         .client_timeout(ctimeout)
-                        .h2(map_config(factory().into_factory(), move |_| cfg.clone()))
+                        .h2(map_config(factory(), move |_| cfg.clone()))
                         .rustls(config.clone())
                 }),
                 HttpVer::Both => builder.listen("test", tcp, move || {
@@ -708,9 +704,7 @@ where
                         AppConfig::new(true, local_addr, format!("{}", local_addr));
                     HttpService::build()
                         .client_timeout(ctimeout)
-                        .finish(map_config(factory().into_factory(), move |_| {
-                            cfg.clone()
-                        }))
+                        .finish(map_config(factory(), move |_| cfg.clone()))
                         .rustls(config.clone())
                 }),
             },

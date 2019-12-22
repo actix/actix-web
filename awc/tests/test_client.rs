@@ -172,8 +172,7 @@ async fn test_connection_reuse() {
         .and_then(
             HttpService::new(map_config(
                 App::new()
-                    .service(web::resource("/").route(web::to(|| HttpResponse::Ok())))
-                    .into_factory(),
+                    .service(web::resource("/").route(web::to(|| HttpResponse::Ok()))),
                 |_| AppConfig::default(),
             ))
             .tcp(),
@@ -210,8 +209,7 @@ async fn test_connection_force_close() {
         .and_then(
             HttpService::new(map_config(
                 App::new()
-                    .service(web::resource("/").route(web::to(|| HttpResponse::Ok())))
-                    .into_factory(),
+                    .service(web::resource("/").route(web::to(|| HttpResponse::Ok()))),
                 |_| AppConfig::default(),
             ))
             .tcp(),
@@ -239,25 +237,23 @@ async fn test_connection_server_close() {
     let num = Arc::new(AtomicUsize::new(0));
     let num2 = num.clone();
 
-    let srv =
-        test_server(move || {
-            let num2 = num2.clone();
-            pipeline_factory(move |io| {
-                num2.fetch_add(1, Ordering::Relaxed);
-                ok(io)
-            })
-            .and_then(
-                HttpService::new(map_config(
-                    App::new()
-                        .service(web::resource("/").route(web::to(|| {
-                            HttpResponse::Ok().force_close().finish()
-                        })))
-                        .into_factory(),
-                    |_| AppConfig::default(),
-                ))
-                .tcp(),
-            )
-        });
+    let srv = test_server(move || {
+        let num2 = num2.clone();
+        pipeline_factory(move |io| {
+            num2.fetch_add(1, Ordering::Relaxed);
+            ok(io)
+        })
+        .and_then(
+            HttpService::new(map_config(
+                App::new().service(
+                    web::resource("/")
+                        .route(web::to(|| HttpResponse::Ok().force_close().finish())),
+                ),
+                |_| AppConfig::default(),
+            ))
+            .tcp(),
+        )
+    });
 
     let client = awc::Client::default();
 
@@ -288,12 +284,9 @@ async fn test_connection_wait_queue() {
         })
         .and_then(
             HttpService::new(map_config(
-                App::new()
-                    .service(
-                        web::resource("/")
-                            .route(web::to(|| HttpResponse::Ok().body(STR))),
-                    )
-                    .into_factory(),
+                App::new().service(
+                    web::resource("/").route(web::to(|| HttpResponse::Ok().body(STR))),
+                ),
                 |_| AppConfig::default(),
             ))
             .tcp(),
@@ -330,25 +323,23 @@ async fn test_connection_wait_queue_force_close() {
     let num = Arc::new(AtomicUsize::new(0));
     let num2 = num.clone();
 
-    let srv =
-        test_server(move || {
-            let num2 = num2.clone();
-            pipeline_factory(move |io| {
-                num2.fetch_add(1, Ordering::Relaxed);
-                ok(io)
-            })
-            .and_then(
-                HttpService::new(map_config(
-                    App::new()
-                        .service(web::resource("/").route(web::to(|| {
-                            HttpResponse::Ok().force_close().body(STR)
-                        })))
-                        .into_factory(),
-                    |_| AppConfig::default(),
-                ))
-                .tcp(),
-            )
-        });
+    let srv = test_server(move || {
+        let num2 = num2.clone();
+        pipeline_factory(move |io| {
+            num2.fetch_add(1, Ordering::Relaxed);
+            ok(io)
+        })
+        .and_then(
+            HttpService::new(map_config(
+                App::new().service(
+                    web::resource("/")
+                        .route(web::to(|| HttpResponse::Ok().force_close().body(STR))),
+                ),
+                |_| AppConfig::default(),
+            ))
+            .tcp(),
+        )
+    });
 
     let client = awc::Client::build()
         .connector(awc::Connector::new().limit(1).finish())

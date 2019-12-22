@@ -178,7 +178,9 @@ fn directory_listing(
         if dir.is_visible(&entry) {
             let entry = entry.unwrap();
             let p = match entry.path().strip_prefix(&dir.path) {
-                Ok(p) if cfg!(windows) => base.join(p).to_string_lossy().replace("\\", "/"),
+                Ok(p) if cfg!(windows) => {
+                    base.join(p).to_string_lossy().replace("\\", "/")
+                }
                 Ok(p) => base.join(p).to_string_lossy().into_owned(),
                 Err(_) => continue,
             };
