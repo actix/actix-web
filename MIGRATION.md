@@ -9,10 +9,10 @@
 * Extractor configuration must be registered with `App::app_data()` instead of `App::data()`
 
 * Sync handlers has been removed. `.to_async()` method has been renamed to `.to()`
-
   replace `fn` with `async fn` to convert sync handler to async
 
-* `TestServer::new()` renamed to `TestServer::start()`
+* `actix_http_test::TestServer` moved to `actix_web::test` module. To start
+  test server use `test::start()` or `test_start_with_config()` methods
 
 
 ## 1.0.1
