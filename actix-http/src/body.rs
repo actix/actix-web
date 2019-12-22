@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::marker::PhantomData;
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -230,6 +231,15 @@ impl From<String> for Body {
 impl<'a> From<&'a String> for Body {
     fn from(s: &'a String) -> Body {
         Body::Bytes(Bytes::copy_from_slice(AsRef::<[u8]>::as_ref(&s)))
+    }
+}
+
+impl From<Cow<'static, str>> for Body {
+    fn from(s: Cow<'static, str>) -> Body {
+        match s {
+            Cow::Borrowed(s) => Body::from(s),
+            Cow::Owned(s) => Body::from(s),
+        }
     }
 }
 
