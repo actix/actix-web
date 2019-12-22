@@ -155,7 +155,7 @@ impl Directory {
 // show file url as relative to static path
 macro_rules! encode_file_url {
     ($path:ident) => {
-        utf8_percent_encode(&$path.to_string_lossy(), CONTROLS)
+        utf8_percent_encode(&$path, CONTROLS)
     };
 }
 
@@ -178,7 +178,8 @@ fn directory_listing(
         if dir.is_visible(&entry) {
             let entry = entry.unwrap();
             let p = match entry.path().strip_prefix(&dir.path) {
-                Ok(p) => base.join(p),
+                Ok(p) if cfg!(windows) => base.join(p).to_string_lossy().replace("\\", "/"),
+                Ok(p) => base.join(p).to_string_lossy().into_owned(),
                 Err(_) => continue,
             };
 

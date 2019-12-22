@@ -1,5 +1,9 @@
 # Changes
 
+## [0.2.1] - 2019-12-22
+
+* Use the same format for file URLs regardless of platforms
+
 ## [0.2.0] - 2019-12-20
 
 * Fix BodyEncoding trait import #1220
