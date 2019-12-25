@@ -136,10 +136,11 @@ impl<T: 'static> DataFactory for Data<T> {
 #[cfg(test)]
 mod tests {
     use actix_service::Service;
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     use super::*;
     use crate::http::StatusCode;
-    use crate::test::{init_service, TestRequest};
+    use crate::test::{self, init_service, TestRequest};
     use crate::{web, App, HttpResponse};
 
     #[actix_rt::test]
@@ -233,5 +234,48 @@ mod tests {
         let req = TestRequest::default().to_request();
         let resp = srv.call(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[actix_rt::test]
+    async fn test_data_drop() {
+        struct TestData(Arc<AtomicUsize>);
+
+        impl TestData {
+            fn new(inner: Arc<AtomicUsize>) -> Self {
+                let _ = inner.fetch_add(1, Ordering::SeqCst);
+                Self(inner)
+            }
+        }
+
+        impl Clone for TestData {
+            fn clone(&self) -> Self {
+                let inner = self.0.clone();
+                let _ = inner.fetch_add(1, Ordering::SeqCst);
+                Self(inner)
+            }
+        }
+
+        impl Drop for TestData {
+            fn drop(&mut self) {
+                let _ = self.0.fetch_sub(1, Ordering::SeqCst);
+            }
+        }
+
+        let num = Arc::new(AtomicUsize::new(0));
+        let data = TestData::new(num.clone());
+        assert_eq!(num.load(Ordering::SeqCst), 1);
+
+        let srv = test::start(move || {
+            let data = data.clone();
+
+            App::new()
+                .data(data)
+                .service(web::resource("/").to(|_data: Data<TestData>| async { "ok" }))
+        });
+
+        assert!(srv.get("/").send().await.unwrap().status().is_success());
+        srv.stop().await;
+
+        assert_eq!(num.load(Ordering::SeqCst), 0);
     }
 }

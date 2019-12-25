@@ -11,8 +11,7 @@ use actix_http::http::{Error as HttpError, Method, StatusCode, Uri, Version};
 use actix_http::test::TestRequest as HttpTestRequest;
 use actix_http::{cookie::Cookie, ws, Extensions, HttpService, Request};
 use actix_router::{Path, ResourceDef, Url};
-use actix_rt::System;
-use actix_server::Server;
+use actix_rt::{time::delay_for, System};
 use actix_service::{
     map_config, IntoService, IntoServiceFactory, Service, ServiceFactory,
 };
@@ -30,7 +29,7 @@ pub use actix_http::test::TestBuffer;
 
 use crate::config::AppConfig;
 use crate::data::Data;
-use crate::dev::{Body, MessageBody, Payload};
+use crate::dev::{Body, MessageBody, Payload, Server};
 use crate::request::HttpRequestPool;
 use crate::rmap::ResourceMap;
 use crate::service::{ServiceRequest, ServiceResponse};
@@ -627,7 +626,7 @@ where
         let ctimeout = cfg.client_timeout;
         let builder = Server::build().workers(1).disable_signals();
 
-        match cfg.stream {
+        let srv = match cfg.stream {
             StreamType::Tcp => match cfg.tp {
                 HttpVer::Http1 => builder.listen("test", tcp, move || {
                     let cfg =
@@ -712,11 +711,11 @@ where
         .unwrap()
         .start();
 
-        tx.send((System::current(), local_addr)).unwrap();
+        tx.send((System::current(), srv, local_addr)).unwrap();
         sys.run()
     });
 
-    let (system, addr) = rx.recv().unwrap();
+    let (system, server, addr) = rx.recv().unwrap();
 
     let client = {
         let connector = {
@@ -752,6 +751,7 @@ where
         addr,
         client,
         system,
+        server,
     }
 }
 
@@ -848,6 +848,7 @@ pub struct TestServer {
     client: awc::Client,
     system: actix_rt::System,
     ssl: bool,
+    server: Server,
 }
 
 impl TestServer {
@@ -936,15 +937,17 @@ impl TestServer {
         self.ws_at("/").await
     }
 
-    /// Stop http server
-    fn stop(&mut self) {
+    /// Gracefully stop http server
+    pub async fn stop(self) {
+        self.server.stop(true).await;
         self.system.stop();
+        delay_for(time::Duration::from_millis(100)).await;
     }
 }
 
 impl Drop for TestServer {
     fn drop(&mut self) {
-        self.stop()
+        self.system.stop()
     }
 }
 
