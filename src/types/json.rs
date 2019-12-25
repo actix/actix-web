@@ -396,7 +396,7 @@ where
                 }
                 Ok(serde_json::from_slice::<U>(&body)?)
             }
-                .boxed_local(),
+            .boxed_local(),
         );
 
         self.poll(cx)

@@ -814,7 +814,7 @@ where
                         res
                     }
                 }
-                    .boxed_local(),
+                .boxed_local(),
             )
         }
     }

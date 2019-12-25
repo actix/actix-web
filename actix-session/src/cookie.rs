@@ -354,7 +354,7 @@ where
                 }
             })
         }
-            .boxed_local()
+        .boxed_local()
     }
 }
 

@@ -151,12 +151,13 @@ pub mod dev {
     pub use actix_server::Server;
     pub use actix_service::{Service, Transform};
 
-    pub(crate) fn insert_slash(path: &str) -> String {
-        let mut path = path.to_owned();
-        if !path.is_empty() && !path.starts_with('/') {
-            path.insert(0, '/');
-        };
-        path
+    pub(crate) fn insert_slash(mut patterns: Vec<String>) -> Vec<String> {
+        for path in &mut patterns {
+            if !path.is_empty() && !path.starts_with('/') {
+                path.insert(0, '/');
+            };
+        }
+        patterns
     }
 
     use crate::http::header::ContentEncoding;

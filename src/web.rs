@@ -1,5 +1,6 @@
 //! Essentials helper functions and types for application registration.
 use actix_http::http::Method;
+use actix_router::IntoPattern;
 use futures::Future;
 
 pub use actix_http::Response as HttpResponse;
@@ -50,7 +51,7 @@ pub use crate::types::*;
 ///         .route(web::head().to(|| HttpResponse::MethodNotAllowed()))
 /// );
 /// ```
-pub fn resource(path: &str) -> Resource {
+pub fn resource<T: IntoPattern>(path: T) -> Resource {
     Resource::new(path)
 }
 
@@ -249,7 +250,7 @@ where
 ///         .finish(my_service)
 /// );
 /// ```
-pub fn service(path: &str) -> WebService {
+pub fn service<T: IntoPattern>(path: T) -> WebService {
     WebService::new(path)
 }
 

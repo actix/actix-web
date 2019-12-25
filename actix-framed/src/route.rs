@@ -154,6 +154,6 @@ where
             }
             Ok(())
         }
-            .boxed_local()
+        .boxed_local()
     }
 }

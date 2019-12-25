@@ -8,7 +8,7 @@ use actix_http::{
     Error, Extensions, HttpMessage, Payload, PayloadStream, RequestHead, Response,
     ResponseHead,
 };
-use actix_router::{Path, Resource, ResourceDef, Url};
+use actix_router::{IntoPattern, Path, Resource, ResourceDef, Url};
 use actix_service::{IntoServiceFactory, ServiceFactory};
 
 use crate::config::{AppConfig, AppService};
@@ -422,16 +422,16 @@ impl<B: MessageBody> fmt::Debug for ServiceResponse<B> {
 }
 
 pub struct WebService {
-    rdef: String,
+    rdef: Vec<String>,
     name: Option<String>,
     guards: Vec<Box<dyn Guard>>,
 }
 
 impl WebService {
     /// Create new `WebService` instance.
-    pub fn new(path: &str) -> Self {
+    pub fn new<T: IntoPattern>(path: T) -> Self {
         WebService {
-            rdef: path.to_string(),
+            rdef: path.patterns(),
             name: None,
             guards: Vec::new(),
         }
@@ -491,7 +491,7 @@ impl WebService {
 
 struct WebServiceImpl<T> {
     srv: T,
-    rdef: String,
+    rdef: Vec<String>,
     name: Option<String>,
     guards: Vec<Box<dyn Guard>>,
 }
@@ -514,9 +514,9 @@ where
         };
 
         let mut rdef = if config.is_root() || !self.rdef.is_empty() {
-            ResourceDef::new(&insert_slash(&self.rdef))
+            ResourceDef::new(insert_slash(self.rdef))
         } else {
-            ResourceDef::new(&self.rdef)
+            ResourceDef::new(self.rdef)
         };
         if let Some(ref name) = self.name {
             *rdef.name_mut() = name.clone();

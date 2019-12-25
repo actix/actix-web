@@ -66,7 +66,7 @@ where
                 service
             })
         }
-            .boxed_local()
+        .boxed_local()
     }
 }
 

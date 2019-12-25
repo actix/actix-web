@@ -8,6 +8,7 @@
 
 * Allow to gracefully stop test server via `TestServer::stop()`
 
+* Allow to specify multi-patterns for resources
 
 ## [2.0.0-rc] - 2019-12-20
 

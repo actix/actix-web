@@ -229,7 +229,7 @@ impl FromRequest for String {
                         .ok_or_else(|| ErrorBadRequest("Can not decode body"))?)
                 }
             }
-                .boxed_local(),
+            .boxed_local(),
         )
     }
 }
@@ -391,7 +391,7 @@ impl Future for HttpMessageBody {
                 }
                 Ok(body.freeze())
             }
-                .boxed_local(),
+            .boxed_local(),
         );
         self.poll(cx)
     }

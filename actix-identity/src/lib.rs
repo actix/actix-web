@@ -294,7 +294,7 @@ where
                 Err(err) => Ok(req.error_response(err)),
             }
         }
-            .boxed_local()
+        .boxed_local()
     }
 }
 

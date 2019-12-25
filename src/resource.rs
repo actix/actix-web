@@ -6,6 +6,7 @@ use std::rc::Rc;
 use std::task::{Context, Poll};
 
 use actix_http::{Error, Extensions, Response};
+use actix_router::IntoPattern;
 use actix_service::boxed::{self, BoxService, BoxServiceFactory};
 use actix_service::{
     apply, apply_fn_factory, IntoServiceFactory, Service, ServiceFactory, Transform,
@@ -48,7 +49,7 @@ type HttpNewService = BoxServiceFactory<(), ServiceRequest, ServiceResponse, Err
 /// Default behavior could be overriden with `default_resource()` method.
 pub struct Resource<T = ResourceEndpoint> {
     endpoint: T,
-    rdef: String,
+    rdef: Vec<String>,
     name: Option<String>,
     routes: Vec<Route>,
     data: Option<Extensions>,
@@ -58,12 +59,12 @@ pub struct Resource<T = ResourceEndpoint> {
 }
 
 impl Resource {
-    pub fn new(path: &str) -> Resource {
+    pub fn new<T: IntoPattern>(path: T) -> Resource {
         let fref = Rc::new(RefCell::new(None));
 
         Resource {
             routes: Vec::new(),
-            rdef: path.to_string(),
+            rdef: path.patterns(),
             name: None,
             endpoint: ResourceEndpoint::new(fref.clone()),
             factory_ref: fref,
@@ -381,9 +382,9 @@ where
             Some(std::mem::replace(&mut self.guards, Vec::new()))
         };
         let mut rdef = if config.is_root() || !self.rdef.is_empty() {
-            ResourceDef::new(&insert_slash(&self.rdef))
+            ResourceDef::new(insert_slash(self.rdef.clone()))
         } else {
-            ResourceDef::new(&self.rdef)
+            ResourceDef::new(self.rdef.clone())
         };
         if let Some(ref name) = self.name {
             *rdef.name_mut() = name.clone();
@@ -656,6 +657,23 @@ mod tests {
             })))
             .await;
         let req = TestRequest::with_uri("/test").to_request();
+        let resp = call_service(&mut srv, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[actix_rt::test]
+    async fn test_pattern() {
+        let mut srv =
+            init_service(App::new().service(web::resource(["/test", "/test2"]).to(|| {
+                async {
+                    Ok::<_, Error>(HttpResponse::Ok())
+                }
+            })))
+            .await;
+        let req = TestRequest::with_uri("/test").to_request();
+        let resp = call_service(&mut srv, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+        let req = TestRequest::with_uri("/test2").to_request();
         let resp = call_service(&mut srv, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
     }
