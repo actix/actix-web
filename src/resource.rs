@@ -663,13 +663,13 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_pattern() {
-        let mut srv =
-            init_service(App::new().service(web::resource(["/test", "/test2"]).to(|| {
-                async {
-                    Ok::<_, Error>(HttpResponse::Ok())
-                }
-            })))
-            .await;
+        let mut srv = init_service(
+            App::new().service(
+                web::resource(["/test", "/test2"])
+                    .to(|| async { Ok::<_, Error>(HttpResponse::Ok()) }),
+            ),
+        )
+        .await;
         let req = TestRequest::with_uri("/test").to_request();
         let resp = call_service(&mut srv, req).await;
         assert_eq!(resp.status(), StatusCode::OK);

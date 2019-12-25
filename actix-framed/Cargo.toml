@@ -13,7 +13,6 @@ categories = ["network-programming", "asynchronous",
               "web-programming::websocket"]
 license = "MIT/Apache-2.0"
 edition = "2018"
-workspace =".."
 
 [lib]
 name = "actix_framed"
@@ -22,7 +21,7 @@ path = "src/lib.rs"
 [dependencies]
 actix-codec = "0.2.0"
 actix-service = "1.0.1"
-actix-router = "0.2.0"
+actix-router = "0.2.1"
 actix-rt = "1.0.0"
 actix-http = "1.0.1"
 
