@@ -77,7 +77,7 @@ pub fn test_server<F: ServiceFactory<TcpStream>>(factory: F) -> TestServer {
                     .map_err(|e| log::error!("Can not set alpn protocol: {:?}", e));
                 Connector::new()
                     .conn_lifetime(time::Duration::from_secs(0))
-                    .timeout(time::Duration::from_millis(3000))
+                    .timeout(time::Duration::from_millis(30000))
                     .ssl(builder.build())
                     .finish()
             }
@@ -85,7 +85,7 @@ pub fn test_server<F: ServiceFactory<TcpStream>>(factory: F) -> TestServer {
             {
                 Connector::new()
                     .conn_lifetime(time::Duration::from_secs(0))
-                    .timeout(time::Duration::from_millis(3000))
+                    .timeout(time::Duration::from_millis(30000))
                     .finish()
             }
         };
