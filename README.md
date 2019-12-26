@@ -69,7 +69,7 @@ async fn main() -> std::io::Result<()> {
 * [Diesel integration](https://github.com/actix/examples/tree/master/diesel/)
 * [r2d2](https://github.com/actix/examples/tree/master/r2d2/)
 * [OpenSSL](https://github.com/actix/examples/tree/master/openssl/)
-* [rustls](https://github.com/actix/examples/tree/master/rustls/)
+* [Rustls](https://github.com/actix/examples/tree/master/rustls/)
 * [Tcp/Websocket chat](https://github.com/actix/examples/tree/master/websocket-chat/)
 * [Json](https://github.com/actix/examples/tree/master/json/)
 
