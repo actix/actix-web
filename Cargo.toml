@@ -42,7 +42,7 @@ members = [
 ]
 
 [features]
-default = ["compress", "failure"]
+default = ["compress", "failure", "anyhow"]
 
 # content-encoding support
 compress = ["actix-http/compress", "awc/compress"]
@@ -51,6 +51,7 @@ compress = ["actix-http/compress", "awc/compress"]
 secure-cookies = ["actix-http/secure-cookies"]
 
 failure = ["actix-http/failure"]
+anyhow = ["actix-http/anyhow"]
 
 # openssl
 openssl = ["actix-tls/openssl", "awc/openssl", "open-ssl"]

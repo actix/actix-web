@@ -36,8 +36,8 @@ pub type Result<T, E = Error> = result::Result<T, E>;
 
 /// General purpose actix web error.
 ///
-/// An actix web error is used to carry errors from `failure` or `std::error`
-/// through actix in a convenient way.  It can be created through
+/// An actix web error is used to carry errors from `anyhow`, `failure`, or
+/// `std::error` through actix in a convenient way.  It can be created through
 /// converting errors with `into()`.
 ///
 /// Whenever it is created from an external object a response error is created
@@ -966,6 +966,10 @@ where
 #[cfg(feature = "failure")]
 /// Compatibility for `failure::Error`
 impl ResponseError for fail_ure::Error {}
+
+#[cfg(feature = "anyhow")]
+/// Compatibility for `anyhow::Error`
+impl ResponseError for any_how::Error {}
 
 #[cfg(test)]
 mod tests {
