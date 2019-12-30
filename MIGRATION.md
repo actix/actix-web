@@ -20,7 +20,7 @@
 * Feature `rust-tls` renamed to `rustls`
 
   instead of
-  
+
     ```rust
     actix-web = { version = "2.0.0", features = ["rust-tls"] }
     ```
@@ -29,6 +29,20 @@
 
     ```rust
     actix-web = { version = "2.0.0", features = ["rustls"] }
+    ```
+
+* Feature `ssl` renamed to `openssl`
+
+  instead of
+
+    ```rust
+    actix-web = { version = "2.0.0", features = ["ssl"] }
+    ```
+
+  use
+
+    ```rust
+    actix-web = { version = "2.0.0", features = ["openssl"] }
     ```
 
 
