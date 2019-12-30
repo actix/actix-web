@@ -17,6 +17,20 @@
 * `ResponseError` trait has been reafctored. `ResponseError::error_response()` renders
   http response.
 
+* Feature `rust-tls` renamed to `rustls`
+
+  instead of
+  
+    ```rust
+    actix-web = { version = "2.0.0", features = ["rust-tls"] }
+    ```
+
+  use
+
+    ```rust
+    actix-web = { version = "2.0.0", features = ["rustls"] }
+    ```
+
 
 ## 1.0.1
 
