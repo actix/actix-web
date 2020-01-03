@@ -47,7 +47,7 @@
 //!   configure servers.
 //!
 //! * [web](web/index.html): This module
-//!   provide essentials helper functions and types for application registration.
+//!   provides essential helper functions and types for application registration.
 //!
 //! * [HttpRequest](struct.HttpRequest.html) and
 //!   [HttpResponse](struct.HttpResponse.html): These structs
