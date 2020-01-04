@@ -65,9 +65,8 @@ use std::borrow::Cow;
 use std::fmt;
 use std::str::FromStr;
 
-use chrono::Duration;
 use percent_encoding::{percent_encode, AsciiSet, CONTROLS};
-use time::Tm;
+use time::{Duration, PrimitiveDateTime};
 
 pub use self::builder::CookieBuilder;
 pub use self::draft::*;
@@ -172,7 +171,7 @@ pub struct Cookie<'c> {
     /// The cookie's value.
     value: CookieStr,
     /// The cookie's expiration, if any.
-    expires: Option<Tm>,
+    expires: Option<PrimitiveDateTime>,
     /// The cookie's maximum age, if any.
     max_age: Option<Duration>,
     /// The cookie's domain, if any.
@@ -547,7 +546,7 @@ impl<'c> Cookie<'c> {
     /// assert_eq!(c.expires().map(|t| t.tm_year), Some(117));
     /// ```
     #[inline]
-    pub fn expires(&self) -> Option<Tm> {
+    pub fn expires(&self) -> Option<PrimitiveDateTime> {
         self.expires
     }
 
@@ -645,7 +644,7 @@ impl<'c> Cookie<'c> {
     ///
     /// ```rust
     /// use actix_http::cookie::Cookie;
-    /// use chrono::Duration;
+    /// use time::Duration;
     ///
     /// let mut c = Cookie::new("name", "value");
     /// assert_eq!(c.max_age(), None);
@@ -698,18 +697,19 @@ impl<'c> Cookie<'c> {
     ///
     /// ```rust
     /// use actix_http::cookie::Cookie;
+    /// use time::Duration;
     ///
     /// let mut c = Cookie::new("name", "value");
     /// assert_eq!(c.expires(), None);
     ///
-    /// let mut now = time::now();
-    /// now.tm_year += 1;
+    /// let mut now = time::PrimitiveDateTime::now();
+    /// now += Duration::week();
     ///
     /// c.set_expires(now);
     /// assert!(c.expires().is_some())
     /// ```
     #[inline]
-    pub fn set_expires(&mut self, time: Tm) {
+    pub fn set_expires(&mut self, time: PrimitiveDateTime) {
         self.expires = Some(time);
     }
 
@@ -720,7 +720,7 @@ impl<'c> Cookie<'c> {
     ///
     /// ```rust
     /// use actix_http::cookie::Cookie;
-    /// use chrono::Duration;
+    /// use time::Duration;
     ///
     /// let mut c = Cookie::new("foo", "bar");
     /// assert!(c.expires().is_none());
@@ -733,7 +733,7 @@ impl<'c> Cookie<'c> {
     pub fn make_permanent(&mut self) {
         let twenty_years = Duration::days(365 * 20);
         self.set_max_age(twenty_years);
-        self.set_expires(time::now() + twenty_years);
+        self.set_expires(PrimitiveDateTime::now() + twenty_years);
     }
 
     fn fmt_parameters(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -760,11 +760,11 @@ impl<'c> Cookie<'c> {
         }
 
         if let Some(max_age) = self.max_age() {
-            write!(f, "; Max-Age={}", max_age.num_seconds())?;
+            write!(f, "; Max-Age={}", max_age.whole_seconds())?;
         }
 
         if let Some(time) = self.expires() {
-            write!(f, "; Expires={}", time.rfc822())?;
+            write!(f, "; Expires={}", time.format("%a, %d %b %Y %H:%M:%S GMT"))?;
         }
 
         Ok(())
@@ -992,7 +992,7 @@ impl<'a, 'b> PartialEq<Cookie<'b>> for Cookie<'a> {
 #[cfg(test)]
 mod tests {
     use super::{Cookie, SameSite};
-    use time::strptime;
+    use time::PrimitiveDateTime;
 
     #[test]
     fn format() {
@@ -1017,7 +1017,7 @@ mod tests {
         assert_eq!(&cookie.to_string(), "foo=bar; Domain=www.rust-lang.org");
 
         let time_str = "Wed, 21 Oct 2015 07:28:00 GMT";
-        let expires = strptime(time_str, "%a, %d %b %Y %H:%M:%S %Z").unwrap();
+        let expires = PrimitiveDateTime::parse(time_str, "%a, %d %b %Y %H:%M:%S").unwrap();
         let cookie = Cookie::build("foo", "bar").expires(expires).finish();
         assert_eq!(
             &cookie.to_string(),

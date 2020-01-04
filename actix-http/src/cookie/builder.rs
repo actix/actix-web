@@ -1,7 +1,6 @@
 use std::borrow::Cow;
 
-use chrono::Duration;
-use time::Tm;
+use time::{Duration, PrimitiveDateTime};
 
 use super::{Cookie, SameSite};
 
@@ -70,7 +69,7 @@ impl CookieBuilder {
     /// assert!(c.expires().is_some());
     /// ```
     #[inline]
-    pub fn expires(mut self, when: Tm) -> CookieBuilder {
+    pub fn expires(mut self, when: PrimitiveDateTime) -> CookieBuilder {
         self.cookie.set_expires(when);
         self
     }
@@ -212,7 +211,7 @@ impl CookieBuilder {
     ///
     /// ```rust
     /// use actix_http::cookie::Cookie;
-    /// use chrono::Duration;
+    /// use time::Duration;
     ///
     /// let c = Cookie::build("foo", "bar")
     ///     .permanent()
