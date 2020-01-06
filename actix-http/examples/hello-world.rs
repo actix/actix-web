@@ -6,7 +6,8 @@ use futures::future;
 use http::header::HeaderValue;
 use log::info;
 
-fn main() -> io::Result<()> {
+#[actix_rt::main]
+async fn main() -> io::Result<()> {
     env::set_var("RUST_LOG", "hello_world=info");
     env_logger::init();
 
@@ -24,4 +25,5 @@ fn main() -> io::Result<()> {
                 .tcp()
         })?
         .run()
+        .await
 }

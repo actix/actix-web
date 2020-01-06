@@ -19,7 +19,8 @@ async fn handle_request(mut req: Request) -> Result<Response, Error> {
         .body(body))
 }
 
-fn main() -> io::Result<()> {
+#[actix_rt::main]
+async fn main() -> io::Result<()> {
     env::set_var("RUST_LOG", "echo=info");
     env_logger::init();
 
@@ -28,4 +29,5 @@ fn main() -> io::Result<()> {
             HttpService::build().finish(handle_request).tcp()
         })?
         .run()
+        .await
 }
