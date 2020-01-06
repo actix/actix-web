@@ -74,28 +74,28 @@ impl From<HttpDate> for SystemTime {
 #[cfg(test)]
 mod tests {
     use super::HttpDate;
-    use time::{OffsetDateTime, Date, Time};
-
-    const NOV_07: HttpDate = HttpDate(OffsetDateTime::new(
-        Date::try_from_ymd(1994, 11, 7).unwrap(),
-        Time::try_from_hms(8, 48, 37).unwrap()
-    ));
+    use time::{PrimitiveDateTime, Date, Time, UtcOffset};
 
     #[test]
     fn test_date() {
+        let nov_07 = HttpDate(PrimitiveDateTime::new(
+            Date::try_from_ymd(1994, 11, 7).unwrap(),
+            Time::try_from_hms(8, 48, 37).unwrap()
+        ).using_offset(UtcOffset::UTC));
+
         assert_eq!(
             "Sun, 07 Nov 1994 08:48:37 GMT".parse::<HttpDate>().unwrap(),
-            NOV_07
+            nov_07
         );
         assert_eq!(
             "Sunday, 07-Nov-94 08:48:37 GMT"
                 .parse::<HttpDate>()
                 .unwrap(),
-            NOV_07
+            nov_07
         );
         assert_eq!(
             "Sun Nov  7 08:48:37 1994".parse::<HttpDate>().unwrap(),
-            NOV_07
+            nov_07
         );
         assert!("this-is-no-date".parse::<HttpDate>().is_err());
     }

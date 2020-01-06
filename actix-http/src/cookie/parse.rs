@@ -216,7 +216,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::{Cookie, SameSite};
-    use time::{Duration, OffsetDateTime, PrimitiveDateTime, UtcOffset};
+    use time::{Duration, PrimitiveDateTime, UtcOffset};
 
     macro_rules! assert_eq_parse {
         ($string:expr, $expected:expr) => {

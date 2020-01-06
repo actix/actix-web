@@ -992,7 +992,7 @@ impl<'a, 'b> PartialEq<Cookie<'b>> for Cookie<'a> {
 #[cfg(test)]
 mod tests {
     use super::{Cookie, SameSite};
-    use time::{OffsetDateTime, PrimitiveDateTime, UtcOffset};
+    use time::{PrimitiveDateTime, UtcOffset};
 
     #[test]
     fn format() {
