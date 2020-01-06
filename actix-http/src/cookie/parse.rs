@@ -6,7 +6,7 @@ use std::fmt;
 use std::str::Utf8Error;
 
 use percent_encoding::percent_decode;
-use time::{Duration, OffsetDateTime};
+use time::{Duration, PrimitiveDateTime, UtcOffset};
 
 use super::{Cookie, CookieStr, SameSite};
 
@@ -182,13 +182,13 @@ fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
                 // Try parsing with three date formats according to
                 // http://tools.ietf.org/html/rfc2616#section-3.3.1. Try
                 // additional ones as encountered in the real world.
-                let tm = OffsetDateTime::parse(v, "%a, %d %b %Y %H:%M:%S")
-                    .or_else(|_| OffsetDateTime::parse(v, "%A, %d-%b-%y %H:%M:%S"))
-                    .or_else(|_| OffsetDateTime::parse(v, "%a, %d-%b-%Y %H:%M:%S"))
-                    .or_else(|_| OffsetDateTime::parse(v, "%a %b %d %H:%M:%S %Y"));
+                let tm = PrimitiveDateTime::parse(v, "%a, %d %b %Y %H:%M:%S")
+                    .or_else(|_| PrimitiveDateTime::parse(v, "%A, %d-%b-%y %H:%M:%S"))
+                    .or_else(|_| PrimitiveDateTime::parse(v, "%a, %d-%b-%Y %H:%M:%S"))
+                    .or_else(|_| PrimitiveDateTime::parse(v, "%a %b %d %H:%M:%S %Y"));
 
                 if let Ok(time) = tm {
-                    cookie.expires = Some(time)
+                    cookie.expires = Some(time.using_offset(UtcOffset::UTC))
                 }
             }
             _ => {
@@ -216,7 +216,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::{Cookie, SameSite};
-    use time::{Duration, OffsetDateTime};
+    use time::{Duration, OffsetDateTime, PrimitiveDateTime, UtcOffset};
 
     macro_rules! assert_eq_parse {
         ($string:expr, $expected:expr) => {
@@ -376,7 +376,7 @@ mod tests {
         );
 
         let time_str = "Wed, 21 Oct 2015 07:28:00 GMT";
-        let expires = OffsetDateTime::parse(time_str, "%a, %d %b %Y %H:%M:%S").unwrap();
+        let expires = PrimitiveDateTime::parse(time_str, "%a, %d %b %Y %H:%M:%S").unwrap().using_offset(UtcOffset::UTC);
         expected.set_expires(expires);
         assert_eq_parse!(
             " foo=bar ;HttpOnly; Secure; Max-Age=4; Path=/foo; \
@@ -385,7 +385,7 @@ mod tests {
         );
 
         unexpected.set_domain("foo.com");
-        let bad_expires = OffsetDateTime::parse(time_str, "%a, %d %b %Y %H:%S:%M").unwrap();
+        let bad_expires = PrimitiveDateTime::parse(time_str, "%a, %d %b %Y %H:%S:%M").unwrap().using_offset(UtcOffset::UTC);
         expected.set_expires(bad_expires);
         assert_ne_parse!(
             " foo=bar ;HttpOnly; Secure; Max-Age=4; Path=/foo; \

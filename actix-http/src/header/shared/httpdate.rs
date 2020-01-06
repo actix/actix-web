@@ -18,11 +18,11 @@ impl FromStr for HttpDate {
     type Err = ParseError;
 
     fn from_str(s: &str) -> Result<HttpDate, ParseError> {
-        match OffsetDateTime::parse(s, "%a, %d %b %Y %H:%M:%S")
-            .or_else(|_| OffsetDateTime::parse(s, "%A, %d-%b-%y %H:%M:%S"))
-            .or_else(|_| OffsetDateTime::parse(s, "%c"))
+        match PrimitiveDateTime::parse(s, "%a, %d %b %Y %H:%M:%S")
+            .or_else(|_| PrimitiveDateTime::parse(s, "%A, %d-%b-%y %H:%M:%S"))
+            .or_else(|_| PrimitiveDateTime::parse(s, "%c"))
         {
-            Ok(t) => Ok(HttpDate(t)),
+            Ok(t) => Ok(HttpDate(t.using_offset(UtcOffset::UTC))),
             Err(_) => {
                 Err(ParseError::Header)
             },
