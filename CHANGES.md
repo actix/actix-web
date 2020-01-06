@@ -1,5 +1,11 @@
 # Changes
 
+## [2.0.NEXT] - 2020-01-xx
+
+### Changed
+
+*  Use `sha-1` crate instead of unmaintained `sha1` crate
+
 ## [2.0.0] - 2019-12-25
 
 ### Changed
