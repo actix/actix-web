@@ -27,7 +27,7 @@ use actix_web::{Error, HttpMessage, ResponseError};
 use derive_more::{Display, From};
 use futures::future::{ok, FutureExt, LocalBoxFuture, Ready};
 use serde_json::error::Error as JsonError;
-use time::{Duration, PrimitiveDateTime};
+use time::{Duration, OffsetDateTime};
 
 use crate::{Session, SessionStatus};
 
@@ -125,7 +125,7 @@ impl CookieSessionInner {
         let mut cookie = Cookie::named(self.name.clone());
         cookie.set_value("");
         cookie.set_max_age(Duration::seconds(0));
-        cookie.set_expires(PrimitiveDateTime::now() - Duration::days(365));
+        cookie.set_expires(OffsetDateTime::now() - Duration::days(365));
 
         let val = HeaderValue::from_str(&cookie.to_string())?;
         res.headers_mut().append(SET_COOKIE, val);

@@ -14,7 +14,7 @@ use bytes::Bytes;
 use futures::future::{ok, Ready};
 use log::debug;
 use regex::Regex;
-use time::PrimitiveDateTime;
+use time::OffsetDateTime;
 
 use crate::dev::{BodySize, MessageBody, ResponseBody};
 use crate::error::{Error, Result};
@@ -163,11 +163,11 @@ where
             LoggerResponse {
                 fut: self.service.call(req),
                 format: None,
-                time: PrimitiveDateTime::now(),
+                time: OffsetDateTime::now(),
                 _t: PhantomData,
             }
         } else {
-            let now = PrimitiveDateTime::now();
+            let now = OffsetDateTime::now();
             let mut format = self.inner.format.clone();
 
             for unit in &mut format.0 {
@@ -192,7 +192,7 @@ where
 {
     #[pin]
     fut: S::Future,
-    time: time::PrimitiveDateTime,
+    time: OffsetDateTime,
     format: Option<Format>,
     _t: PhantomData<(B,)>,
 }
@@ -242,7 +242,7 @@ pub struct StreamLog<B> {
     body: ResponseBody<B>,
     format: Option<Format>,
     size: usize,
-    time: time::PrimitiveDateTime,
+    time: OffsetDateTime,
 }
 
 impl<B> Drop for StreamLog<B> {
@@ -366,19 +366,19 @@ impl FormatText {
         &self,
         fmt: &mut Formatter<'_>,
         size: usize,
-        entry_time: time::PrimitiveDateTime,
+        entry_time: OffsetDateTime,
     ) -> Result<(), fmt::Error> {
         match *self {
             FormatText::Str(ref string) => fmt.write_str(string),
             FormatText::Percent => "%".fmt(fmt),
             FormatText::ResponseSize => size.fmt(fmt),
             FormatText::Time => {
-                let rt = PrimitiveDateTime::now() - entry_time;
+                let rt = OffsetDateTime::now() - entry_time;
                 let rt = (rt.whole_nanoseconds() as f64) / 1_000_000_000.0;
                 fmt.write_fmt(format_args!("{:.6}", rt))
             }
             FormatText::TimeMillis => {
-                let rt = PrimitiveDateTime::now() - entry_time;
+                let rt = OffsetDateTime::now() - entry_time;
                 let rt = (rt.whole_nanoseconds() as f64) / 1_000_000.0;
                 fmt.write_fmt(format_args!("{:.6}", rt))
             }
@@ -414,7 +414,7 @@ impl FormatText {
         }
     }
 
-    fn render_request(&mut self, now: PrimitiveDateTime, req: &ServiceRequest) {
+    fn render_request(&mut self, now: OffsetDateTime, req: &ServiceRequest) {
         match *self {
             FormatText::RequestLine => {
                 *self = if req.query_string().is_empty() {
@@ -513,7 +513,7 @@ mod tests {
         .uri("/test/route/yeah")
         .to_srv_request();
 
-        let now = PrimitiveDateTime::now();
+        let now = OffsetDateTime::now();
         for unit in &mut format.0 {
             unit.render_request(now, &req);
         }
@@ -544,7 +544,7 @@ mod tests {
         )
         .to_srv_request();
 
-        let now = PrimitiveDateTime::now();
+        let now = OffsetDateTime::now();
         for unit in &mut format.0 {
             unit.render_request(now, &req);
         }
@@ -554,7 +554,7 @@ mod tests {
             unit.render_response(&resp);
         }
 
-        let entry_time = PrimitiveDateTime::now();
+        let entry_time = OffsetDateTime::now();
         let render = |fmt: &mut Formatter<'_>| {
             for unit in &format.0 {
                 unit.render(fmt, 1024, entry_time)?;
@@ -572,7 +572,7 @@ mod tests {
         let mut format = Format::new("%t");
         let req = TestRequest::default().to_srv_request();
 
-        let now = PrimitiveDateTime::now();
+        let now = OffsetDateTime::now();
         for unit in &mut format.0 {
             unit.render_request(now, &req);
         }

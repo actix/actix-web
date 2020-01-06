@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::mem::replace;
 
-use time::{Duration, PrimitiveDateTime};
+use time::{Duration, OffsetDateTime};
 
 use super::delta::DeltaCookie;
 use super::Cookie;
@@ -221,7 +221,7 @@ impl CookieJar {
         if self.original_cookies.contains(cookie.name()) {
             cookie.set_value("");
             cookie.set_max_age(Duration::seconds(0));
-            cookie.set_expires(PrimitiveDateTime::now() - Duration::days(365));
+            cookie.set_expires(OffsetDateTime::now() - Duration::days(365));
             self.delta_cookies.replace(DeltaCookie::removed(cookie));
         } else {
             self.delta_cookies.remove(cookie.name());

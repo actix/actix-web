@@ -5,22 +5,22 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use bytes::{buf::BufMutExt, BytesMut};
 use http::header::{HeaderValue, InvalidHeaderValue};
-use time::PrimitiveDateTime;
+use time::{PrimitiveDateTime, OffsetDateTime, UtcOffset};
 
 use crate::error::ParseError;
 use crate::header::IntoHeaderValue;
 
 /// A timestamp with HTTP formatting and parsing
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub struct HttpDate(time::PrimitiveDateTime);
+pub struct HttpDate(OffsetDateTime);
 
 impl FromStr for HttpDate {
     type Err = ParseError;
 
     fn from_str(s: &str) -> Result<HttpDate, ParseError> {
-        match PrimitiveDateTime::parse(s, "%a, %d %b %Y %H:%M:%S")
-            .or_else(|_| PrimitiveDateTime::parse(s, "%A, %d-%b-%y %H:%M:%S"))
-            .or_else(|_| PrimitiveDateTime::parse(s, "%c"))
+        match OffsetDateTime::parse(s, "%a, %d %b %Y %H:%M:%S")
+            .or_else(|_| OffsetDateTime::parse(s, "%A, %d-%b-%y %H:%M:%S"))
+            .or_else(|_| OffsetDateTime::parse(s, "%c"))
         {
             Ok(t) => Ok(HttpDate(t)),
             Err(_) => {
@@ -36,15 +36,15 @@ impl Display for HttpDate {
     }
 }
 
-impl From<time::PrimitiveDateTime> for HttpDate {
-    fn from(dt: time::PrimitiveDateTime) -> HttpDate {
+impl From<OffsetDateTime> for HttpDate {
+    fn from(dt: time::OffsetDateTime) -> HttpDate {
         HttpDate(dt)
     }
 }
 
 impl From<SystemTime> for HttpDate {
     fn from(sys: SystemTime) -> HttpDate {
-        HttpDate(PrimitiveDateTime::from(sys))
+        HttpDate(PrimitiveDateTime::from(sys).using_offset(UtcOffset::UTC))
     }
 }
 
@@ -61,7 +61,7 @@ impl IntoHeaderValue for HttpDate {
 impl From<HttpDate> for SystemTime {
     fn from(date: HttpDate) -> SystemTime {
         let dt = date.0;
-        let epoch = PrimitiveDateTime::unix_epoch();
+        let epoch = OffsetDateTime::unix_epoch();
 
         if dt >= epoch {
             UNIX_EPOCH + (dt - epoch)
@@ -74,9 +74,9 @@ impl From<HttpDate> for SystemTime {
 #[cfg(test)]
 mod tests {
     use super::HttpDate;
-    use time::{PrimitiveDateTime, Date, Time};
+    use time::{OffsetDateTime, Date, Time};
 
-    const NOV_07: HttpDate = HttpDate(PrimitiveDateTime::new(
+    const NOV_07: HttpDate = HttpDate(OffsetDateTime::new(
         Date::try_from_ymd(1994, 11, 7).unwrap(),
         Time::try_from_hms(8, 48, 37).unwrap()
     ));

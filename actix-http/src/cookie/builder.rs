@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 
-use time::{Duration, PrimitiveDateTime};
+use time::{Duration, OffsetDateTime};
 
 use super::{Cookie, SameSite};
 
@@ -63,13 +63,13 @@ impl CookieBuilder {
     /// use actix_http::cookie::Cookie;
     ///
     /// let c = Cookie::build("foo", "bar")
-    ///     .expires(time::now())
+    ///     .expires(time::OffsetDateTime::now())
     ///     .finish();
     ///
     /// assert!(c.expires().is_some());
     /// ```
     #[inline]
-    pub fn expires(mut self, when: PrimitiveDateTime) -> CookieBuilder {
+    pub fn expires(mut self, when: OffsetDateTime) -> CookieBuilder {
         self.cookie.set_expires(when);
         self
     }
