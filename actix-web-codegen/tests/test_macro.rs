@@ -67,6 +67,7 @@ async fn get_param_test(_: Path<String>) -> impl Responder {
     HttpResponse::Ok()
 }
 
+#[cfg(not(windows))]
 #[actix_rt::test]
 async fn test_params() {
     let srv = test::start(|| {

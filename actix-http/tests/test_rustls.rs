@@ -121,6 +121,7 @@ async fn test_h2_body1() -> io::Result<()> {
     Ok(())
 }
 
+#[cfg(not(any(target_os = "macos", windows)))]
 #[actix_rt::test]
 async fn test_h2_content_length() {
     let srv = test_server(move || {

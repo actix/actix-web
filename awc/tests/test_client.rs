@@ -46,6 +46,7 @@ const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
                    Hello World Hello World Hello World Hello World Hello World";
 
 #[actix_rt::test]
+#[cfg(not(windows))]
 async fn test_simple() {
     let srv = test::start(|| {
         App::new()

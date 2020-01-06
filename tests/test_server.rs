@@ -741,6 +741,7 @@ async fn test_brotli_encoding_large_openssl() {
 }
 
 #[cfg(all(feature = "rustls", feature = "openssl"))]
+#[cfg(not(any(target_os = "macos", windows)))]
 #[actix_rt::test]
 async fn test_reading_deflate_encoding_large_random_rustls() {
     use rust_tls::internal::pemfile::{certs, pkcs8_private_keys};
