@@ -12,7 +12,6 @@ jobs:
       matrix:
         toolchain:
           - x86_64-pc-windows-msvc
-          # - i686-pc-windows-msvc
           - x86_64-apple-darwin
         version:
           - stable
@@ -20,10 +19,6 @@ jobs:
         include:
         - toolchain: x86_64-pc-windows-msvc
           os: windows-latest
-          arch: x64
-        # - toolchain: i686-pc-windows-msvc
-          # os: windows-latest
-          # arch: x86
         - toolchain: x86_64-apple-darwin
           os: macOS-latest
 
@@ -43,7 +38,7 @@ jobs:
         if: matrix.os == 'windows-latest'
         run: |
           vcpkg integrate install
-          vcpkg install openssl:${{ matrix.arch }}-windows
+          vcpkg install openssl:x64-windows
 
       - name: check nightly
         if: matrix.version == 'nightly'
@@ -60,7 +55,6 @@ jobs:
           args: --all --bins --examples --tests
 
       - name: tests
-        if: matrix.toolchain != 'x86_64-pc-windows-gnu'
         uses: actions-rs/cargo@v1
         with:
           command: test
