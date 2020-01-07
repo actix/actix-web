@@ -10,6 +10,8 @@ use time::{Duration, PrimitiveDateTime, UtcOffset};
 
 use super::{Cookie, CookieStr, SameSite};
 
+use crate::time_parser;
+
 /// Enum corresponding to a parsing error.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum ParseError {
@@ -182,12 +184,10 @@ fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
                 // Try parsing with three date formats according to
                 // http://tools.ietf.org/html/rfc2616#section-3.3.1. Try
                 // additional ones as encountered in the real world.
-                let tm = PrimitiveDateTime::parse(v, "%a, %d %b %Y %H:%M:%S")
-                    .or_else(|_| PrimitiveDateTime::parse(v, "%A, %d-%b-%y %H:%M:%S"))
-                    .or_else(|_| PrimitiveDateTime::parse(v, "%a, %d-%b-%Y %H:%M:%S"))
-                    .or_else(|_| PrimitiveDateTime::parse(v, "%a %b %d %H:%M:%S %Y"));
+                let tm = time_parser::parse_http_date(v)
+                    .or_else(|| PrimitiveDateTime::parse(v, "%a, %d-%b-%Y %H:%M:%S").ok());
 
-                if let Ok(time) = tm {
+                if let Some(time) = tm {
                     cookie.expires = Some(time.using_offset(UtcOffset::UTC))
                 }
             }

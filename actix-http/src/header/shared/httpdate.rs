@@ -9,6 +9,7 @@ use time::{PrimitiveDateTime, OffsetDateTime, UtcOffset};
 
 use crate::error::ParseError;
 use crate::header::IntoHeaderValue;
+use crate::time_parser;
 
 /// A timestamp with HTTP formatting and parsing
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -18,14 +19,9 @@ impl FromStr for HttpDate {
     type Err = ParseError;
 
     fn from_str(s: &str) -> Result<HttpDate, ParseError> {
-        match PrimitiveDateTime::parse(s, "%a, %d %b %Y %H:%M:%S")
-            .or_else(|_| PrimitiveDateTime::parse(s, "%A, %d-%b-%y %H:%M:%S"))
-            .or_else(|_| PrimitiveDateTime::parse(s, "%c"))
-        {
-            Ok(t) => Ok(HttpDate(t.using_offset(UtcOffset::UTC))),
-            Err(_) => {
-                Err(ParseError::Header)
-            },
+        match time_parser::parse_http_date(s) {
+            Some(t) => Ok(HttpDate(t.using_offset(UtcOffset::UTC))),
+            None => Err(ParseError::Header)
         }
     }
 }
@@ -37,7 +33,7 @@ impl Display for HttpDate {
 }
 
 impl From<OffsetDateTime> for HttpDate {
-    fn from(dt: time::OffsetDateTime) -> HttpDate {
+    fn from(dt: OffsetDateTime) -> HttpDate {
         HttpDate(dt)
     }
 }
