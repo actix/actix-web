@@ -1,6 +1,6 @@
 # Changes
 
-## [0.2.1] - 2020-01-06
+## [0.2.1] - 2020-01-xx
 
 * Remove the unused `time` dependency
 

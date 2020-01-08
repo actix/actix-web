@@ -1,10 +1,10 @@
 # Changes
 
-## [2.0.1] - 2020-01-06
+## [2.x.x] - 2020-01-xx
 
 ### Changed
 
-* Update the `time` dependency to 0.2.1
+* Update the `time` dependency to 0.2.2
 
 ## [2.0.0] - 2019-12-25
 
