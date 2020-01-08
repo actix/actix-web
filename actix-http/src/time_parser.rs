@@ -38,5 +38,5 @@ fn try_parse_rfc_850(time: &str) -> Option<PrimitiveDateTime> {
 
 /// Attempt to parse a `time` string using ANSI C's `asctime` format.
 fn try_parse_asctime(time: &str) -> Option<PrimitiveDateTime> {
-    PrimitiveDateTime::parse(time, "%c").ok()
+    PrimitiveDateTime::parse(time, "%a %b %_d %H:%M:%S %Y").ok()
 }
