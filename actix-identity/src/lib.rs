@@ -47,7 +47,6 @@
 //! }
 //! ```
 use std::cell::RefCell;
-use std::convert::TryFrom;
 use std::future::Future;
 use std::rc::Rc;
 use std::task::{Context, Poll};
@@ -418,14 +417,14 @@ impl CookieIdentityInner {
         let now = SystemTime::now();
         if let Some(visit_deadline) = self.visit_deadline {
             if now.duration_since(value.visit_timestamp?).ok()?
-                > std::time::Duration::try_from(visit_deadline).ok()?
+                > visit_deadline
             {
                 return None;
             }
         }
         if let Some(login_deadline) = self.login_deadline {
             if now.duration_since(value.login_timestamp?).ok()?
-                > std::time::Duration::try_from(login_deadline).ok()?
+                > login_deadline
             {
                 return None;
             }
@@ -844,7 +843,7 @@ mod tests {
         let cv: CookieValue = serde_json::from_str(cookie.value()).unwrap();
         assert_eq!(cv.identity, identity);
         let now = SystemTime::now();
-        let t30sec_ago = now - std::time::Duration::try_from(Duration::seconds(30)).unwrap();
+        let t30sec_ago = now - Duration::seconds(30);
         match login_timestamp {
             LoginTimestampCheck::NoTimestamp => assert_eq!(cv.login_timestamp, None),
             LoginTimestampCheck::NewTimestamp => assert!(
@@ -986,7 +985,7 @@ mod tests {
             create_identity_server(|c| c.login_deadline(Duration::days(90))).await;
         let cookie = login_cookie(
             COOKIE_LOGIN,
-            Some(SystemTime::now() - std::time::Duration::try_from(Duration::days(180)).unwrap()),
+            Some(SystemTime::now() - Duration::days(180)),
             None,
         );
         let mut resp = test::call_service(
@@ -1012,7 +1011,7 @@ mod tests {
         let cookie = login_cookie(
             COOKIE_LOGIN,
             None,
-            Some(SystemTime::now() - std::time::Duration::try_from(Duration::days(180)).unwrap()),
+            Some(SystemTime::now() - Duration::days(180)),
         );
         let mut resp = test::call_service(
             &mut srv,
@@ -1053,7 +1052,7 @@ mod tests {
                 .login_deadline(Duration::days(90))
         })
         .await;
-        let timestamp = SystemTime::now() - std::time::Duration::try_from(Duration::days(1)).unwrap();
+        let timestamp = SystemTime::now() - Duration::days(1);
         let cookie = login_cookie(COOKIE_LOGIN, Some(timestamp), Some(timestamp));
         let mut resp = test::call_service(
             &mut srv,
