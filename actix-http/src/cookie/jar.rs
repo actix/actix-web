@@ -202,7 +202,7 @@ impl CookieJar {
     /// let delta: Vec<_> = jar.delta().collect();
     /// assert_eq!(delta.len(), 1);
     /// assert_eq!(delta[0].name(), "name");
-    /// assert_eq!(delta[0].max_age(), Some(Duration::seconds(0)));
+    /// assert_eq!(delta[0].max_age(), Some(Duration::zero()));
     /// ```
     ///
     /// Removing a new cookie does not result in a _removal_ cookie:
@@ -220,7 +220,7 @@ impl CookieJar {
     pub fn remove(&mut self, mut cookie: Cookie<'static>) {
         if self.original_cookies.contains(cookie.name()) {
             cookie.set_value("");
-            cookie.set_max_age(Duration::seconds(0));
+            cookie.set_max_age(Duration::zero());
             cookie.set_expires(OffsetDateTime::now() - Duration::days(365));
             self.delta_cookies.replace(DeltaCookie::removed(cookie));
         } else {
@@ -556,7 +556,7 @@ mod test {
         assert!(names.get("test2").unwrap().is_none());
         assert!(names.get("test3").unwrap().is_none());
         assert!(names.get("test4").unwrap().is_none());
-        assert_eq!(names.get("original").unwrap(), &Some(Duration::seconds(0)));
+        assert_eq!(names.get("original").unwrap(), &Some(Duration::zero()));
     }
 
     #[test]
