@@ -478,7 +478,7 @@ impl<'c> Cookie<'c> {
     /// assert_eq!(c.max_age(), None);
     ///
     /// let c = Cookie::parse("name=value; Max-Age=3600").unwrap();
-    /// assert_eq!(c.max_age().map(|age| age.num_hours()), Some(1));
+    /// assert_eq!(c.max_age().map(|age| age.whole_hours()), Some(1));
     /// ```
     #[inline]
     pub fn max_age(&self) -> Option<Duration> {
@@ -543,7 +543,7 @@ impl<'c> Cookie<'c> {
     /// let expire_time = "Wed, 21 Oct 2017 07:28:00 GMT";
     /// let cookie_str = format!("name=value; Expires={}", expire_time);
     /// let c = Cookie::parse(cookie_str).unwrap();
-    /// assert_eq!(c.expires().map(|t| t.tm_year), Some(117));
+    /// assert_eq!(c.expires().map(|t| t.year()), Some(2017));
     /// ```
     #[inline]
     pub fn expires(&self) -> Option<OffsetDateTime> {
