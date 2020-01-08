@@ -49,7 +49,7 @@ impl IntoHeaderValue for HttpDate {
 
     fn try_into(self) -> Result<HeaderValue, Self::Error> {
         let mut wrt = BytesMut::with_capacity(29).writer();
-        write!(wrt, "{}", self.0.format("%a, %d %b %Y %H:%M:%S GMT")).unwrap();
+        write!(wrt, "{}", self.0.to_offset(UtcOffset::UTC).format("%a, %d %b %Y %H:%M:%S GMT")).unwrap();
         HeaderValue::from_maybe_shared(wrt.get_mut().split().freeze())
     }
 }
