@@ -374,7 +374,7 @@ impl FormatText {
             FormatText::ResponseSize => size.fmt(fmt),
             FormatText::Time => {
                 let rt = OffsetDateTime::now() - entry_time;
-                let rt = (rt.whole_nanoseconds() as f64) / 1_000_000_000.0;
+                let rt = rt.as_seconds_f64();
                 fmt.write_fmt(format_args!("{:.6}", rt))
             }
             FormatText::TimeMillis => {
