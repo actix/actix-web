@@ -124,7 +124,7 @@ impl CookieSessionInner {
     fn remove_cookie<B>(&self, res: &mut ServiceResponse<B>) -> Result<(), Error> {
         let mut cookie = Cookie::named(self.name.clone());
         cookie.set_value("");
-        cookie.set_max_age(Duration::seconds(0));
+        cookie.set_max_age(Duration::zero());
         cookie.set_expires(OffsetDateTime::now() - Duration::days(365));
 
         let val = HeaderValue::from_str(&cookie.to_string())?;
