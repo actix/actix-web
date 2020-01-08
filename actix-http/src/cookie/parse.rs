@@ -413,8 +413,9 @@ mod tests {
 
     #[test]
     fn do_not_panic_on_large_max_ages() {
-        let max_seconds = Duration::max_value().whole_seconds();
-        let expected = Cookie::build("foo", "bar").max_age(max_seconds).finish();
-        assert_eq_parse!(format!(" foo=bar; Max-Age={:?}", max_seconds + 1), expected);
+        let max_duration = Duration::max_value();
+        let expected = Cookie::build("foo", "bar").max_age_time(max_duration).finish();
+        let overflow_duration = max_duration.checked_add(Duration::nanoseconds(1)).unwrap_or(max_duration);
+        assert_eq_parse!(format!(" foo=bar; Max-Age={:?}", overflow_duration.whole_seconds()), expected);
     }
 }
