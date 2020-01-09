@@ -211,7 +211,7 @@ impl HttpRequest {
     ///
     /// If `App::data` was used to store object, use `Data<T>`:
     ///
-    /// ```rust,no_run
+    /// ```rust,ignore
     /// let opt_t = req.app_data::<Data<T>>();
     /// ```
     pub fn app_data<T: 'static>(&self) -> Option<&T> {
