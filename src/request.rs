@@ -206,7 +206,7 @@ impl HttpRequest {
         &self.0.config
     }
 
-    /// Get an application data object stored with `App::data` or `App::app_data` 
+    /// Get an application data object stored with `App::data` or `App::app_data`
     /// methods during application configuration.
     ///
     /// If `App::data` was used to store object, use `Data<T>`:
