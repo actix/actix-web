@@ -278,6 +278,12 @@ mod test {
     }
 
     #[test]
+    fn test_hash_key() {
+        let hash = hash_key(b"hello actix-web");
+        assert_eq!(&hash, "cR1dlyUUJKp0s/Bel25u5TgvC3E=");
+    }
+
+    #[test]
     fn closecode_from_u16() {
         assert_eq!(CloseCode::from(1000u16), CloseCode::Normal);
         assert_eq!(CloseCode::from(1001u16), CloseCode::Away);
