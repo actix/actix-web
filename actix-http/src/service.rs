@@ -443,7 +443,7 @@ where
 }
 
 /// `Service` implementation for http transport
-pub struct HttpServiceHandler<T, S, B, X, U> {
+pub struct HttpServiceHandler<T, S: Service, B, X: Service, U: Service> {
     srv: CloneableService<S>,
     expect: CloneableService<X>,
     upgrade: Option<CloneableService<U>>,
