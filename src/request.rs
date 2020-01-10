@@ -206,8 +206,14 @@ impl HttpRequest {
         &self.0.config
     }
 
-    /// Get an application data stored with `App::extension()` method during
-    /// application configuration.
+    /// Get an application data object stored with `App::data` or `App::app_data`
+    /// methods during application configuration.
+    ///
+    /// If `App::data` was used to store object, use `Data<T>`:
+    ///
+    /// ```rust,ignore
+    /// let opt_t = req.app_data::<Data<T>>();
+    /// ```
     pub fn app_data<T: 'static>(&self) -> Option<&T> {
         if let Some(st) = self.0.app_data.get::<T>() {
             Some(&st)
