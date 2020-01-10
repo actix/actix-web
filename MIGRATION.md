@@ -44,7 +44,7 @@
     ```rust
     actix-web = { version = "2.0.0", features = ["openssl"] }
     ```
-
+* `Cors` builder now requires that you call `.finish()` to construct the middleware
 
 ## 1.0.1
 
