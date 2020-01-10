@@ -1,5 +1,9 @@
 # Changes
 
+## [0.2.1] - 2020-01-10
+
+* Fix panic with already borrowed: BorrowMutError #1263
+
 ## [0.2.0] - 2019-12-20
 
 * Use actix-web 2.0
