@@ -6,27 +6,21 @@ use actix_service::Service;
 
 #[doc(hidden)]
 /// Service that allows to turn non-clone service to a service with `Clone` impl
-pub(crate) struct CloneableService<T>(Rc<UnsafeCell<T>>);
+pub(crate) struct CloneableService<T: Service>(Rc<UnsafeCell<T>>);
 
-impl<T> CloneableService<T> {
-    pub(crate) fn new(service: T) -> Self
-    where
-        T: Service,
-    {
+impl<T: Service> CloneableService<T> {
+    pub(crate) fn new(service: T) -> Self {
         Self(Rc::new(UnsafeCell::new(service)))
     }
 }
 
-impl<T> Clone for CloneableService<T> {
+impl<T: Service> Clone for CloneableService<T> {
     fn clone(&self) -> Self {
         Self(self.0.clone())
     }
 }
 
-impl<T> Service for CloneableService<T>
-where
-    T: Service,
-{
+impl<T: Service> Service for CloneableService<T> {
     type Request = T::Request;
     type Response = T::Response;
     type Error = T::Error;

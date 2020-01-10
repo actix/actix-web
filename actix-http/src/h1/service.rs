@@ -364,7 +364,7 @@ where
 }
 
 /// `Service` implementation for HTTP1 transport
-pub struct H1ServiceHandler<T, S, B, X, U> {
+pub struct H1ServiceHandler<T, S: Service, B, X: Service, U: Service> {
     srv: CloneableService<S>,
     expect: CloneableService<X>,
     upgrade: Option<CloneableService<U>>,

@@ -246,7 +246,7 @@ where
 }
 
 /// `Service` implementation for http/2 transport
-pub struct H2ServiceHandler<T, S, B> {
+pub struct H2ServiceHandler<T, S: Service, B> {
     srv: CloneableService<S>,
     cfg: ServiceConfig,
     on_connect: Option<rc::Rc<dyn Fn(&T) -> Box<dyn DataFactory>>>,
