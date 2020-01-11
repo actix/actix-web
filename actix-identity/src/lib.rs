@@ -251,6 +251,15 @@ pub struct IdentityServiceMiddleware<S, T> {
     service: Rc<RefCell<S>>,
 }
 
+impl<S, T> Clone for IdentityServiceMiddleware<S, T> {
+    fn clone(&self) -> Self {
+        Self {
+            backend: self.backend.clone(),
+            service: self.service.clone(),
+        }
+    }
+}
+
 impl<S, T, B> Service for IdentityServiceMiddleware<S, T>
 where
     B: 'static,
@@ -279,7 +288,9 @@ where
                     req.extensions_mut()
                         .insert(IdentityItem { id, changed: false });
 
-                    let mut res = srv.borrow_mut().call(req).await?;
+                    // https://github.com/actix/actix-web/issues/1263
+                    let fut = { srv.borrow_mut().call(req) };
+                    let mut res = fut.await?;
                     let id = res.request().extensions_mut().remove::<IdentityItem>();
 
                     if let Some(id) = id {
@@ -606,9 +617,10 @@ mod tests {
     use std::borrow::Borrow;
 
     use super::*;
+    use actix_service::into_service;
     use actix_web::http::StatusCode;
     use actix_web::test::{self, TestRequest};
-    use actix_web::{web, App, Error, HttpResponse};
+    use actix_web::{error, web, App, Error, HttpResponse};
 
     const COOKIE_KEY_MASTER: [u8; 32] = [0; 32];
     const COOKIE_NAME: &'static str = "actix_auth";
@@ -1045,6 +1057,7 @@ mod tests {
         assert_logged_in(resp, Some(COOKIE_LOGIN)).await;
     }
 
+    // https://github.com/actix/actix-web/issues/1263
     #[actix_rt::test]
     async fn test_identity_cookie_updated_on_visit_deadline() {
         let mut srv = create_identity_server(|c| {
@@ -1068,5 +1081,48 @@ mod tests {
             VisitTimeStampCheck::NewTimestamp,
         );
         assert_logged_in(resp, Some(COOKIE_LOGIN)).await;
+    }
+
+    #[actix_rt::test]
+    async fn test_borrowed_mut_error() {
+        use futures::future::{lazy, ok, Ready};
+
+        struct Ident;
+        impl IdentityPolicy for Ident {
+            type Future = Ready<Result<Option<String>, Error>>;
+            type ResponseFuture = Ready<Result<(), Error>>;
+
+            fn from_request(&self, _: &mut ServiceRequest) -> Self::Future {
+                ok(Some("test".to_string()))
+            }
+
+            fn to_response<B>(
+                &self,
+                _: Option<String>,
+                _: bool,
+                _: &mut ServiceResponse<B>,
+            ) -> Self::ResponseFuture {
+                ok(())
+            }
+        }
+
+        let mut srv = IdentityServiceMiddleware {
+            backend: Rc::new(Ident),
+            service: Rc::new(RefCell::new(into_service(|_: ServiceRequest| {
+                async move {
+                    actix_rt::time::delay_for(std::time::Duration::from_secs(100)).await;
+                    Err::<ServiceResponse, _>(error::ErrorBadRequest("error"))
+                }
+            }))),
+        };
+
+        let mut srv2 = srv.clone();
+        let req = TestRequest::default().to_srv_request();
+        actix_rt::spawn(async move {
+            let _ = srv2.call(req).await;
+        });
+        actix_rt::time::delay_for(std::time::Duration::from_millis(50)).await;
+
+        let _ = lazy(|cx| srv.poll_ready(cx)).await;
     }
 }

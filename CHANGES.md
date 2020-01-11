@@ -1,10 +1,13 @@
 # Changes
 
-## [2.x.x] - 2020-01-xx
+
+## [2.0.NEXT] - 2020-01-xx
 
 ### Changed
 
-* Update the `time` dependency to 0.2.2
+*  Use `sha-1` crate instead of unmaintained `sha1` crate
+
+*  Update the `time` dependency to 0.2.2
 
 ## [2.0.0] - 2019-12-25
 

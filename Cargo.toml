@@ -60,9 +60,9 @@ rustls = ["actix-tls/rustls", "awc/rustls", "rust-tls"]
 
 [dependencies]
 actix-codec = "0.2.0"
-actix-service = "1.0.1"
-actix-utils = "1.0.4"
-actix-router = "0.2.1"
+actix-service = "1.0.2"
+actix-utils = "1.0.6"
+actix-router = "0.2.4"
 actix-rt = "1.0.0"
 actix-server = "1.0.0"
 actix-testing = "1.0.0"
