@@ -78,9 +78,8 @@ where
     /// an application instance. Http server constructs an application
     /// instance for each thread, thus application data must be constructed
     /// multiple times. If you want to share data between different
-    /// threads, a shared object should be used, e.g. `Arc`. Internally `Data` type
-    /// uses `Arc` so data could be created outside of app factory and clones could
-    /// be stored via `App::app_data()` method.
+    /// threads, it is recommended instead to wrap your state in a `web::Data<T>`
+    /// and attach to the `App` with the `App::app_data` method.
     ///
     /// ```rust
     /// use std::cell::Cell;
@@ -137,13 +136,42 @@ where
         self
     }
 
-    /// Set application level arbitrary data item.
+    /// Set application-level arbitrary data item.
     ///
     /// Application data stored with `App::app_data()` method is available
     /// via `HttpRequest::app_data()` method at runtime.
     ///
-    /// This method could be used for storing `Data<T>` as well, in that case
-    /// data could be accessed by using `Data<T>` extractor.
+    /// If this method is used to store a `Data<T>`, that
+    /// data could be accessed by using the `Data<T>` extractor.
+    ///
+    /// # Examples
+    ///
+    /// This is an example to have shared global state
+    /// that would otherwise go inside an `Arc`.
+    ///
+    /// ```rust
+    /// use std::sync::Mutex;
+    /// use actix_web::{web, App, HttpServer, HttpResponse, Responder};
+    ///
+    /// struct MyData {
+    ///     counter: Mutex<usize>,
+    /// }
+    ///
+    /// async fn index(data: web::Data<MyData>) -> impl Responder {
+    ///     *data.counter.lock().unwrap() += 1;
+    ///     HttpResponse::Ok()
+    /// }
+    ///
+    /// let global_data = web::Data::new(MyData{ counter: Mutex::new(0) });
+    ///
+    /// let server = HttpServer::new(move || {
+    ///     App::new()
+    ///         .app_data(global_data.clone())
+    ///         .service(
+    ///             web::resource("/index.html").route(
+    ///                 web::get().to(index)))
+    /// });
+    /// ```
     pub fn app_data<U: 'static>(mut self, ext: U) -> Self {
         self.extensions.insert(ext);
         self
