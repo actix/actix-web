@@ -1,3 +1,5 @@
+use std::future::Future;
+use std::task::{Context, Poll};
 use std::cell::{Ref, RefMut};
 use std::rc::Rc;
 use std::{fmt, net};
@@ -9,7 +11,9 @@ use actix_http::{
     ResponseHead,
 };
 use actix_router::{IntoPattern, Path, Resource, ResourceDef, Url};
-use actix_service::{IntoServiceFactory, ServiceFactory};
+use actix_service::{IntoServiceFactory, ServiceFactory, Service};
+
+use futures::future::{ok, Ready};
 
 use crate::config::{AppConfig, AppService};
 use crate::data::Data;
@@ -486,6 +490,58 @@ impl WebService {
             name: self.name,
             guards: self.guards,
         }
+    }
+
+    pub fn handler<S>(self, handler: S) -> impl HttpServiceFactory
+    where
+        S: Handle + Clone + 'static,
+    {
+
+        self.finish(Handler {
+            service: handler
+        })
+
+    }
+}
+
+
+pub trait Handle {
+    type Future: Future<Output= Result<ServiceResponse, Error>>;
+
+    fn call(&mut self, req: ServiceRequest) -> Self::Future;
+}
+
+#[derive(Clone)]
+pub struct Handler<S: Handle + Clone> {
+    service: S
+}
+
+impl<S: Handle + Clone> Service for Handler<S> {
+    type Request = ServiceRequest;
+    type Response = ServiceResponse;
+    type Error = Error;
+    type Future = S::Future;
+
+    fn poll_ready(&mut self, _: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        Poll::Ready(Ok(()))
+    }    
+
+    fn call(&mut self, req: ServiceRequest) -> Self::Future {
+        self.service.call(req)
+    }
+}
+
+impl <S: Handle + Clone> ServiceFactory for Handler<S> {
+    type Request = ServiceRequest;
+    type Response = ServiceResponse;
+    type Error = Error;
+    type Future = Ready<Result<Handler<S>, ()>>;
+    type Config = ();
+    type InitError = ();
+    type Service = Handler<S>;
+
+    fn new_service(&self, _config: ()) -> Self::Future {
+        ok(self.clone())
     }
 }
 
