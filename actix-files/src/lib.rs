@@ -275,7 +275,7 @@ impl Files {
     ///
     /// `File` uses `ThreadPool` for blocking filesystem operations.
     /// By default pool with 5x threads of available cpus is used.
-    /// Pool size can be changed by setting ACTIX_CPU_POOL environment variable.
+    /// Pool size can be changed by setting ACTIX_THREADPOOL environment variable.
     pub fn new<T: Into<PathBuf>>(path: &str, dir: T) -> Files {
         let orig_dir = dir.into();
         let dir = match orig_dir.canonicalize() {
