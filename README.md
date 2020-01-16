@@ -41,6 +41,16 @@ Actix web is a simple, pragmatic and extremely fast web framework for Rust.
 
 ## Example
 
+Dependencies:
+
+```toml
+[dependencies]
+actix-web = "2"
+actix-rt = "1"
+```
+
+Code:
+
 ```rust
 use actix_web::{get, web, App, HttpServer, Responder};
 
@@ -65,7 +75,7 @@ async fn main() -> std::io::Result<()> {
 * [Multipart streams](https://github.com/actix/examples/tree/master/multipart/)
 * [Simple websocket](https://github.com/actix/examples/tree/master/websocket/)
 * [Tera](https://github.com/actix/examples/tree/master/template_tera/) /
-  [Askama](https://github.com/actix/examples/tree/master/template_askama/) templates
+* [Askama](https://github.com/actix/examples/tree/master/template_askama/) templates
 * [Diesel integration](https://github.com/actix/examples/tree/master/diesel/)
 * [r2d2](https://github.com/actix/examples/tree/master/r2d2/)
 * [OpenSSL](https://github.com/actix/examples/tree/master/openssl/)
