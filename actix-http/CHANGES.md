@@ -4,7 +4,7 @@
 
 ### Changed
 
-* Update the `time` dependency to 0.2.2
+* Update the `time` dependency to 0.2.3
 
 ## [1.0.1] - 2019-12-20
 

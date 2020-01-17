@@ -992,7 +992,7 @@ impl<'a, 'b> PartialEq<Cookie<'b>> for Cookie<'a> {
 #[cfg(test)]
 mod tests {
     use super::{Cookie, SameSite};
-    use time::{PrimitiveDateTime, UtcOffset};
+    use time::offset;
 
     #[test]
     fn format() {
@@ -1017,7 +1017,7 @@ mod tests {
         assert_eq!(&cookie.to_string(), "foo=bar; Domain=www.rust-lang.org");
 
         let time_str = "Wed, 21 Oct 2015 07:28:00 GMT";
-        let expires = PrimitiveDateTime::parse(time_str, "%a, %d %b %Y %H:%M:%S").unwrap().using_offset(UtcOffset::UTC);
+        let expires = time::parse(time_str, "%a, %d %b %Y %H:%M:%S").unwrap().using_offset(offset!(UTC));
         let cookie = Cookie::build("foo", "bar").expires(expires).finish();
         assert_eq!(
             &cookie.to_string(),

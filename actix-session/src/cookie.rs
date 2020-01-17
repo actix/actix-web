@@ -264,7 +264,7 @@ impl CookieSession {
 
     /// Sets the `max-age` field in the session cookie being built.
     pub fn max_age(self, seconds: i64) -> CookieSession {
-        self.max_age_time(time::Duration::seconds(seconds))
+        self.max_age_time(Duration::seconds(seconds))
     }
 
     /// Sets the `max-age` field in the session cookie being built.
