@@ -76,7 +76,7 @@ impl ConnectionInfo {
                 }
             }
             if scheme.is_none() {
-                scheme = req.uri.scheme_part().map(|a| a.as_str());
+                scheme = req.uri.scheme().map(|a| a.as_str());
                 if scheme.is_none() && cfg.secure() {
                     scheme = Some("https")
                 }
@@ -98,7 +98,7 @@ impl ConnectionInfo {
                     host = h.to_str().ok();
                 }
                 if host.is_none() {
-                    host = req.uri.authority_part().map(|a| a.as_str());
+                    host = req.uri.authority().map(|a| a.as_str());
                     if host.is_none() {
                         host = Some(cfg.host());
                     }
@@ -155,13 +155,19 @@ impl ConnectionInfo {
         &self.host
     }
 
-    /// Remote IP of client initiated HTTP request.
+    /// Remote socket addr of client initiated HTTP request.
     ///
-    /// The IP is resolved through the following headers, in this order:
+    /// The addr is resolved through the following headers, in this order:
     ///
     /// - Forwarded
     /// - X-Forwarded-For
     /// - peer name of opened socket
+    ///
+    /// # Security
+    /// Do not use this function for security purposes, unless you can ensure the Forwarded and
+    /// X-Forwarded-For headers cannot be spoofed by the client. If you want the client's socket
+    /// address explicitly, use
+    /// [`HttpRequest::peer_addr()`](../web/struct.HttpRequest.html#method.peer_addr) instead.
     #[inline]
     pub fn remote(&self) -> Option<&str> {
         if let Some(ref r) = self.remote {

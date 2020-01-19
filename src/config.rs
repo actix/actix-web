@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use actix_http::Extensions;
 use actix_router::ResourceDef;
-use actix_service::{boxed, IntoNewService, NewService};
+use actix_service::{boxed, IntoServiceFactory, ServiceFactory};
 
 use crate::data::{Data, DataFactory};
 use crate::error::Error;
@@ -12,13 +12,13 @@ use crate::resource::Resource;
 use crate::rmap::ResourceMap;
 use crate::route::Route;
 use crate::service::{
-    HttpServiceFactory, ServiceFactory, ServiceFactoryWrapper, ServiceRequest,
+    AppServiceFactory, HttpServiceFactory, ServiceFactoryWrapper, ServiceRequest,
     ServiceResponse,
 };
 
 type Guards = Vec<Box<dyn Guard>>;
 type HttpNewService =
-    boxed::BoxedNewService<(), ServiceRequest, ServiceResponse, Error, ()>;
+    boxed::BoxServiceFactory<(), ServiceRequest, ServiceResponse, Error, ()>;
 
 /// Application configuration
 pub struct AppService {
@@ -102,11 +102,11 @@ impl AppService {
         &mut self,
         rdef: ResourceDef,
         guards: Option<Vec<Box<dyn Guard>>>,
-        service: F,
+        factory: F,
         nested: Option<Rc<ResourceMap>>,
     ) where
-        F: IntoNewService<S>,
-        S: NewService<
+        F: IntoServiceFactory<S>,
+        S: ServiceFactory<
                 Config = (),
                 Request = ServiceRequest,
                 Response = ServiceResponse,
@@ -116,7 +116,7 @@ impl AppService {
     {
         self.services.push((
             rdef,
-            boxed::new_service(service.into_new_service()),
+            boxed::factory(factory.into_factory()),
             guards,
             nested,
         ));
@@ -124,18 +124,24 @@ impl AppService {
 }
 
 #[derive(Clone)]
-pub struct AppConfig(pub(crate) Rc<AppConfigInner>);
+pub struct AppConfig(Rc<AppConfigInner>);
+
+struct AppConfigInner {
+    secure: bool,
+    host: String,
+    addr: SocketAddr,
+}
 
 impl AppConfig {
-    pub(crate) fn new(inner: AppConfigInner) -> Self {
-        AppConfig(Rc::new(inner))
+    pub(crate) fn new(secure: bool, addr: SocketAddr, host: String) -> Self {
+        AppConfig(Rc::new(AppConfigInner { secure, addr, host }))
     }
 
-    /// Set server host name.
+    /// Server host name.
     ///
-    /// Host name is used by application router as a hostname for url
-    /// generation. Check [ConnectionInfo](./dev/struct.ConnectionInfo.
-    /// html#method.host) documentation for more information.
+    /// Host name is used by application router as a hostname for url generation.
+    /// Check [ConnectionInfo](./struct.ConnectionInfo.html#method.host)
+    /// documentation for more information.
     ///
     /// By default host name is set to a "localhost" value.
     pub fn host(&self) -> &str {
@@ -153,19 +159,13 @@ impl AppConfig {
     }
 }
 
-pub(crate) struct AppConfigInner {
-    pub(crate) secure: bool,
-    pub(crate) host: String,
-    pub(crate) addr: SocketAddr,
-}
-
-impl Default for AppConfigInner {
-    fn default() -> AppConfigInner {
-        AppConfigInner {
-            secure: false,
-            addr: "127.0.0.1:8080".parse().unwrap(),
-            host: "localhost:8080".to_owned(),
-        }
+impl Default for AppConfig {
+    fn default() -> Self {
+        AppConfig::new(
+            false,
+            "127.0.0.1:8080".parse().unwrap(),
+            "localhost:8080".to_owned(),
+        )
     }
 }
 
@@ -174,7 +174,7 @@ impl Default for AppConfigInner {
 /// to set of external methods. This could help with
 /// modularization of big application configuration.
 pub struct ServiceConfig {
-    pub(crate) services: Vec<Box<dyn ServiceFactory>>,
+    pub(crate) services: Vec<Box<dyn AppServiceFactory>>,
     pub(crate) data: Vec<Box<dyn DataFactory>>,
     pub(crate) external: Vec<ResourceDef>,
 }
@@ -246,11 +246,11 @@ mod tests {
 
     use super::*;
     use crate::http::{Method, StatusCode};
-    use crate::test::{block_on, call_service, init_service, read_body, TestRequest};
+    use crate::test::{call_service, init_service, read_body, TestRequest};
     use crate::{web, App, HttpRequest, HttpResponse};
 
-    #[test]
-    fn test_data() {
+    #[actix_rt::test]
+    async fn test_data() {
         let cfg = |cfg: &mut ServiceConfig| {
             cfg.data(10usize);
         };
@@ -258,14 +258,15 @@ mod tests {
         let mut srv =
             init_service(App::new().configure(cfg).service(
                 web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()),
-            ));
+            ))
+            .await;
         let req = TestRequest::default().to_request();
-        let resp = block_on(srv.call(req)).unwrap();
+        let resp = srv.call(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
-    // #[test]
-    // fn test_data_factory() {
+    // #[actix_rt::test]
+    // async fn test_data_factory() {
     //     let cfg = |cfg: &mut ServiceConfig| {
     //         cfg.data_factory(|| {
     //             sleep(std::time::Duration::from_millis(50)).then(|_| {
@@ -280,7 +281,7 @@ mod tests {
     //             web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()),
     //         ));
     //     let req = TestRequest::default().to_request();
-    //     let resp = block_on(srv.call(req)).unwrap();
+    //     let resp = srv.call(req).await.unwrap();
     //     assert_eq!(resp.status(), StatusCode::OK);
 
     //     let cfg2 = |cfg: &mut ServiceConfig| {
@@ -292,12 +293,12 @@ mod tests {
     //             .configure(cfg2),
     //     );
     //     let req = TestRequest::default().to_request();
-    //     let resp = block_on(srv.call(req)).unwrap();
+    //     let resp = srv.call(req).await.unwrap();
     //     assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
     // }
 
-    #[test]
-    fn test_external_resource() {
+    #[actix_rt::test]
+    async fn test_external_resource() {
         let mut srv = init_service(
             App::new()
                 .configure(|cfg| {
@@ -315,33 +316,35 @@ mod tests {
                         ))
                     }),
                 ),
-        );
+        )
+        .await;
         let req = TestRequest::with_uri("/test").to_request();
-        let resp = call_service(&mut srv, req);
+        let resp = call_service(&mut srv, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
-        let body = read_body(resp);
+        let body = read_body(resp).await;
         assert_eq!(body, Bytes::from_static(b"https://youtube.com/watch/12345"));
     }
 
-    #[test]
-    fn test_service() {
+    #[actix_rt::test]
+    async fn test_service() {
         let mut srv = init_service(App::new().configure(|cfg| {
             cfg.service(
                 web::resource("/test").route(web::get().to(|| HttpResponse::Created())),
             )
             .route("/index.html", web::get().to(|| HttpResponse::Ok()));
-        }));
+        }))
+        .await;
 
         let req = TestRequest::with_uri("/test")
             .method(Method::GET)
             .to_request();
-        let resp = call_service(&mut srv, req);
+        let resp = call_service(&mut srv, req).await;
         assert_eq!(resp.status(), StatusCode::CREATED);
 
         let req = TestRequest::with_uri("/index.html")
             .method(Method::GET)
             .to_request();
-        let resp = call_service(&mut srv, req);
+        let resp = call_service(&mut srv, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
     }
 }

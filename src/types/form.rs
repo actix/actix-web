@@ -1,15 +1,20 @@
 //! Form extractor
 
+use std::future::Future;
+use std::pin::Pin;
 use std::rc::Rc;
+use std::task::{Context, Poll};
 use std::{fmt, ops};
 
 use actix_http::{Error, HttpMessage, Payload, Response};
 use bytes::BytesMut;
 use encoding_rs::{Encoding, UTF_8};
-use futures::{Future, Poll, Stream};
+use futures::future::{err, ok, FutureExt, LocalBoxFuture, Ready};
+use futures::StreamExt;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
+#[cfg(feature = "compress")]
 use crate::dev::Decompress;
 use crate::error::UrlencodedError;
 use crate::extract::FromRequest;
@@ -35,9 +40,8 @@ use crate::responder::Responder;
 ///
 /// ### Example
 /// ```rust
-/// # extern crate actix_web;
-/// #[macro_use] extern crate serde_derive;
-/// use actix_web::{web, App};
+/// use actix_web::web;
+/// use serde_derive::Deserialize;
 ///
 /// #[derive(Deserialize)]
 /// struct FormData {
@@ -61,9 +65,9 @@ use crate::responder::Responder;
 ///
 /// ### Example
 /// ```rust
-/// # #[macro_use] extern crate serde_derive;
-/// # use actix_web::*;
-/// #
+/// use actix_web::*;
+/// use serde_derive::Serialize;
+///
 /// #[derive(Serialize)]
 /// struct SomeForm {
 ///     name: String,
@@ -111,7 +115,7 @@ where
 {
     type Config = FormConfig;
     type Error = Error;
-    type Future = Box<dyn Future<Item = Self, Error = Error>>;
+    type Future = LocalBoxFuture<'static, Result<Self, Error>>;
 
     #[inline]
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
@@ -121,44 +125,45 @@ where
             .map(|c| (c.limit, c.ehandler.clone()))
             .unwrap_or((16384, None));
 
-        Box::new(
-            UrlEncoded::new(req, payload)
-                .limit(limit)
-                .map_err(move |e| {
+        UrlEncoded::new(req, payload)
+            .limit(limit)
+            .map(move |res| match res {
+                Err(e) => {
                     if let Some(err) = err {
-                        (*err)(e, &req2)
+                        Err((*err)(e, &req2))
                     } else {
-                        e.into()
+                        Err(e.into())
                     }
-                })
-                .map(Form),
-        )
+                }
+                Ok(item) => Ok(Form(item)),
+            })
+            .boxed_local()
     }
 }
 
 impl<T: fmt::Debug> fmt::Debug for Form<T> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.fmt(f)
     }
 }
 
 impl<T: fmt::Display> fmt::Display for Form<T> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.fmt(f)
     }
 }
 
 impl<T: Serialize> Responder for Form<T> {
     type Error = Error;
-    type Future = Result<Response, Error>;
+    type Future = Ready<Result<Response, Error>>;
 
     fn respond_to(self, _: &HttpRequest) -> Self::Future {
         let body = match serde_urlencoded::to_string(&self.0) {
             Ok(body) => body,
-            Err(e) => return Err(e.into()),
+            Err(e) => return err(e.into()),
         };
 
-        Ok(Response::build(StatusCode::OK)
+        ok(Response::build(StatusCode::OK)
             .set(ContentType::form_url_encoded())
             .body(body))
     }
@@ -167,8 +172,8 @@ impl<T: Serialize> Responder for Form<T> {
 /// Form extractor configuration
 ///
 /// ```rust
-/// #[macro_use] extern crate serde_derive;
 /// use actix_web::{web, App, FromRequest, Result};
+/// use serde_derive::Deserialize;
 ///
 /// #[derive(Deserialize)]
 /// struct FormData {
@@ -177,7 +182,7 @@ impl<T: Serialize> Responder for Form<T> {
 ///
 /// /// Extract form data using serde.
 /// /// Custom configuration is used for this handler, max payload size is 4k
-/// fn index(form: web::Form<FormData>) -> Result<String> {
+/// async fn index(form: web::Form<FormData>) -> Result<String> {
 ///     Ok(format!("Welcome {}!", form.username))
 /// }
 ///
@@ -185,7 +190,7 @@ impl<T: Serialize> Responder for Form<T> {
 ///     let app = App::new().service(
 ///         web::resource("/index.html")
 ///             // change `Form` extractor configuration
-///             .data(
+///             .app_data(
 ///                 web::Form::<FormData>::configure(|cfg| cfg.limit(4097))
 ///             )
 ///             .route(web::get().to(index))
@@ -236,12 +241,15 @@ impl Default for FormConfig {
 /// * content-length is greater than 32k
 ///
 pub struct UrlEncoded<U> {
+    #[cfg(feature = "compress")]
     stream: Option<Decompress<Payload>>,
+    #[cfg(not(feature = "compress"))]
+    stream: Option<Payload>,
     limit: usize,
     length: Option<usize>,
     encoding: &'static Encoding,
     err: Option<UrlencodedError>,
-    fut: Option<Box<dyn Future<Item = U, Error = UrlencodedError>>>,
+    fut: Option<LocalBoxFuture<'static, Result<U, UrlencodedError>>>,
 }
 
 impl<U> UrlEncoded<U> {
@@ -269,7 +277,11 @@ impl<U> UrlEncoded<U> {
             }
         };
 
+        #[cfg(feature = "compress")]
         let payload = Decompress::from_headers(payload.take(), req.headers());
+        #[cfg(not(feature = "compress"))]
+        let payload = payload.take();
+
         UrlEncoded {
             encoding,
             stream: Some(payload),
@@ -302,42 +314,45 @@ impl<U> Future for UrlEncoded<U>
 where
     U: DeserializeOwned + 'static,
 {
-    type Item = U;
-    type Error = UrlencodedError;
+    type Output = Result<U, UrlencodedError>;
 
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         if let Some(ref mut fut) = self.fut {
-            return fut.poll();
+            return Pin::new(fut).poll(cx);
         }
 
         if let Some(err) = self.err.take() {
-            return Err(err);
+            return Poll::Ready(Err(err));
         }
 
         // payload size
         let limit = self.limit;
         if let Some(len) = self.length.take() {
             if len > limit {
-                return Err(UrlencodedError::Overflow);
+                return Poll::Ready(Err(UrlencodedError::Overflow { size: len, limit }));
             }
         }
 
         // future
         let encoding = self.encoding;
-        let fut = self
-            .stream
-            .take()
-            .unwrap()
-            .from_err()
-            .fold(BytesMut::with_capacity(8192), move |mut body, chunk| {
-                if (body.len() + chunk.len()) > limit {
-                    Err(UrlencodedError::Overflow)
-                } else {
-                    body.extend_from_slice(&chunk);
-                    Ok(body)
+        let mut stream = self.stream.take().unwrap();
+
+        self.fut = Some(
+            async move {
+                let mut body = BytesMut::with_capacity(8192);
+
+                while let Some(item) = stream.next().await {
+                    let chunk = item?;
+                    if (body.len() + chunk.len()) > limit {
+                        return Err(UrlencodedError::Overflow {
+                            size: body.len() + chunk.len(),
+                            limit,
+                        });
+                    } else {
+                        body.extend_from_slice(&chunk);
+                    }
                 }
-            })
-            .and_then(move |body| {
+
                 if encoding == UTF_8 {
                     serde_urlencoded::from_bytes::<U>(&body)
                         .map_err(|_| UrlencodedError::Parse)
@@ -349,9 +364,10 @@ where
                     serde_urlencoded::from_str::<U>(&body)
                         .map_err(|_| UrlencodedError::Parse)
                 }
-            });
-        self.fut = Some(Box::new(fut));
-        self.poll()
+            }
+            .boxed_local(),
+        );
+        self.poll(cx)
     }
 }
 
@@ -362,7 +378,7 @@ mod tests {
 
     use super::*;
     use crate::http::header::{HeaderValue, CONTENT_TYPE};
-    use crate::test::{block_on, TestRequest};
+    use crate::test::TestRequest;
 
     #[derive(Deserialize, Serialize, Debug, PartialEq)]
     struct Info {
@@ -370,15 +386,15 @@ mod tests {
         counter: i64,
     }
 
-    #[test]
-    fn test_form() {
+    #[actix_rt::test]
+    async fn test_form() {
         let (req, mut pl) =
             TestRequest::with_header(CONTENT_TYPE, "application/x-www-form-urlencoded")
                 .header(CONTENT_LENGTH, "11")
                 .set_payload(Bytes::from_static(b"hello=world&counter=123"))
                 .to_http_parts();
 
-        let Form(s) = block_on(Form::<Info>::from_request(&req, &mut pl)).unwrap();
+        let Form(s) = Form::<Info>::from_request(&req, &mut pl).await.unwrap();
         assert_eq!(
             s,
             Info {
@@ -390,8 +406,8 @@ mod tests {
 
     fn eq(err: UrlencodedError, other: UrlencodedError) -> bool {
         match err {
-            UrlencodedError::Overflow => match other {
-                UrlencodedError::Overflow => true,
+            UrlencodedError::Overflow { .. } => match other {
+                UrlencodedError::Overflow { .. } => true,
                 _ => false,
             },
             UrlencodedError::UnknownLength => match other {
@@ -406,38 +422,41 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_urlencoded_error() {
+    #[actix_rt::test]
+    async fn test_urlencoded_error() {
         let (req, mut pl) =
             TestRequest::with_header(CONTENT_TYPE, "application/x-www-form-urlencoded")
                 .header(CONTENT_LENGTH, "xxxx")
                 .to_http_parts();
-        let info = block_on(UrlEncoded::<Info>::new(&req, &mut pl));
+        let info = UrlEncoded::<Info>::new(&req, &mut pl).await;
         assert!(eq(info.err().unwrap(), UrlencodedError::UnknownLength));
 
         let (req, mut pl) =
             TestRequest::with_header(CONTENT_TYPE, "application/x-www-form-urlencoded")
                 .header(CONTENT_LENGTH, "1000000")
                 .to_http_parts();
-        let info = block_on(UrlEncoded::<Info>::new(&req, &mut pl));
-        assert!(eq(info.err().unwrap(), UrlencodedError::Overflow));
+        let info = UrlEncoded::<Info>::new(&req, &mut pl).await;
+        assert!(eq(
+            info.err().unwrap(),
+            UrlencodedError::Overflow { size: 0, limit: 0 }
+        ));
 
         let (req, mut pl) = TestRequest::with_header(CONTENT_TYPE, "text/plain")
             .header(CONTENT_LENGTH, "10")
             .to_http_parts();
-        let info = block_on(UrlEncoded::<Info>::new(&req, &mut pl));
+        let info = UrlEncoded::<Info>::new(&req, &mut pl).await;
         assert!(eq(info.err().unwrap(), UrlencodedError::ContentType));
     }
 
-    #[test]
-    fn test_urlencoded() {
+    #[actix_rt::test]
+    async fn test_urlencoded() {
         let (req, mut pl) =
             TestRequest::with_header(CONTENT_TYPE, "application/x-www-form-urlencoded")
                 .header(CONTENT_LENGTH, "11")
                 .set_payload(Bytes::from_static(b"hello=world&counter=123"))
                 .to_http_parts();
 
-        let info = block_on(UrlEncoded::<Info>::new(&req, &mut pl)).unwrap();
+        let info = UrlEncoded::<Info>::new(&req, &mut pl).await.unwrap();
         assert_eq!(
             info,
             Info {
@@ -454,7 +473,7 @@ mod tests {
         .set_payload(Bytes::from_static(b"hello=world&counter=123"))
         .to_http_parts();
 
-        let info = block_on(UrlEncoded::<Info>::new(&req, &mut pl)).unwrap();
+        let info = UrlEncoded::<Info>::new(&req, &mut pl).await.unwrap();
         assert_eq!(
             info,
             Info {
@@ -464,15 +483,15 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_responder() {
+    #[actix_rt::test]
+    async fn test_responder() {
         let req = TestRequest::default().to_http_request();
 
         let form = Form(Info {
             hello: "world".to_string(),
             counter: 123,
         });
-        let resp = form.respond_to(&req).unwrap();
+        let resp = form.respond_to(&req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(
             resp.headers().get(CONTENT_TYPE).unwrap(),

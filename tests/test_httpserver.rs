@@ -2,11 +2,10 @@ use net2::TcpBuilder;
 use std::sync::mpsc;
 use std::{net, thread, time::Duration};
 
-#[cfg(feature = "ssl")]
-use openssl::ssl::SslAcceptorBuilder;
+#[cfg(feature = "openssl")]
+use open_ssl::ssl::SslAcceptorBuilder;
 
-use actix_http::Response;
-use actix_web::{test, web, App, HttpServer};
+use actix_web::{web, App, HttpResponse, HttpServer};
 
 fn unused_addr() -> net::SocketAddr {
     let addr: net::SocketAddr = "127.0.0.1:0".parse().unwrap();
@@ -17,9 +16,9 @@ fn unused_addr() -> net::SocketAddr {
     tcp.local_addr().unwrap()
 }
 
-#[test]
 #[cfg(unix)]
-fn test_start() {
+#[actix_rt::test]
+async fn test_start() {
     let addr = unused_addr();
     let (tx, rx) = mpsc::channel();
 
@@ -28,7 +27,7 @@ fn test_start() {
 
         let srv = HttpServer::new(|| {
             App::new().service(
-                web::resource("/").route(web::to(|| Response::Ok().body("test"))),
+                web::resource("/").route(web::to(|| HttpResponse::Ok().body("test"))),
             )
         })
         .workers(1)
@@ -43,7 +42,7 @@ fn test_start() {
         .disable_signals()
         .bind(format!("{}", addr))
         .unwrap()
-        .start();
+        .run();
 
         let _ = tx.send((srv, actix_rt::System::current()));
         let _ = sys.run();
@@ -53,23 +52,17 @@ fn test_start() {
     #[cfg(feature = "client")]
     {
         use actix_http::client;
-        use actix_web::test;
 
-        let client = test::run_on(|| {
-            Ok::<_, ()>(
-                awc::Client::build()
-                    .connector(
-                        client::Connector::new()
-                            .timeout(Duration::from_millis(100))
-                            .finish(),
-                    )
+        let client = awc::Client::build()
+            .connector(
+                client::Connector::new()
+                    .timeout(Duration::from_millis(100))
                     .finish(),
             )
-        })
-        .unwrap();
-        let host = format!("http://{}", addr);
+            .finish();
 
-        let response = test::block_on(client.get(host.clone()).send()).unwrap();
+        let host = format!("http://{}", addr);
+        let response = client.get(host.clone()).send().await.unwrap();
         assert!(response.status().is_success());
     }
 
@@ -80,9 +73,9 @@ fn test_start() {
     let _ = sys.stop();
 }
 
-#[cfg(feature = "ssl")]
+#[cfg(feature = "openssl")]
 fn ssl_acceptor() -> std::io::Result<SslAcceptorBuilder> {
-    use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
+    use open_ssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
     // load ssl keys
     let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
     builder
@@ -94,9 +87,11 @@ fn ssl_acceptor() -> std::io::Result<SslAcceptorBuilder> {
     Ok(builder)
 }
 
-#[test]
-#[cfg(feature = "ssl")]
-fn test_start_ssl() {
+#[actix_rt::test]
+#[cfg(feature = "openssl")]
+async fn test_start_ssl() {
+    use actix_web::HttpRequest;
+
     let addr = unused_addr();
     let (tx, rx) = mpsc::channel();
 
@@ -105,46 +100,42 @@ fn test_start_ssl() {
         let builder = ssl_acceptor().unwrap();
 
         let srv = HttpServer::new(|| {
-            App::new().service(
-                web::resource("/").route(web::to(|| Response::Ok().body("test"))),
-            )
+            App::new().service(web::resource("/").route(web::to(|req: HttpRequest| {
+                assert!(req.app_config().secure());
+                HttpResponse::Ok().body("test")
+            })))
         })
         .workers(1)
         .shutdown_timeout(1)
         .system_exit()
         .disable_signals()
-        .bind_ssl(format!("{}", addr), builder)
+        .bind_openssl(format!("{}", addr), builder)
         .unwrap()
-        .start();
+        .run();
 
         let _ = tx.send((srv, actix_rt::System::current()));
         let _ = sys.run();
     });
     let (srv, sys) = rx.recv().unwrap();
 
-    let client = test::run_on(|| {
-        use openssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
-        let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
-        builder.set_verify(SslVerifyMode::NONE);
-        let _ = builder
-            .set_alpn_protos(b"\x02h2\x08http/1.1")
-            .map_err(|e| log::error!("Can not set alpn protocol: {:?}", e));
+    use open_ssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
+    let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
+    builder.set_verify(SslVerifyMode::NONE);
+    let _ = builder
+        .set_alpn_protos(b"\x02h2\x08http/1.1")
+        .map_err(|e| log::error!("Can not set alpn protocol: {:?}", e));
 
-        Ok::<_, ()>(
-            awc::Client::build()
-                .connector(
-                    awc::Connector::new()
-                        .ssl(builder.build())
-                        .timeout(Duration::from_millis(100))
-                        .finish(),
-                )
+    let client = awc::Client::build()
+        .connector(
+            awc::Connector::new()
+                .ssl(builder.build())
+                .timeout(Duration::from_millis(100))
                 .finish(),
         )
-    })
-    .unwrap();
-    let host = format!("https://{}", addr);
+        .finish();
 
-    let response = test::block_on(client.get(host.clone()).send()).unwrap();
+    let host = format!("https://{}", addr);
+    let response = client.get(host.clone()).send().await.unwrap();
     assert!(response.status().is_success());
 
     // stop

@@ -16,7 +16,7 @@
 //! use actix_web::*;
 //! use actix_identity::{Identity, CookieIdentityPolicy, IdentityService};
 //!
-//! fn index(id: Identity) -> String {
+//! async fn index(id: Identity) -> String {
 //!     // access request identity
 //!     if let Some(id) = id.identity() {
 //!         format!("Welcome! {}", id)
@@ -25,12 +25,12 @@
 //!     }
 //! }
 //!
-//! fn login(id: Identity) -> HttpResponse {
+//! async fn login(id: Identity) -> HttpResponse {
 //!     id.remember("User1".to_owned()); // <- remember identity
 //!     HttpResponse::Ok().finish()
 //! }
 //!
-//! fn logout(id: Identity) -> HttpResponse {
+//! async fn logout(id: Identity) -> HttpResponse {
 //!     id.forget();                      // <- remove identity
 //!     HttpResponse::Ok().finish()
 //! }
@@ -47,12 +47,13 @@
 //! }
 //! ```
 use std::cell::RefCell;
+use std::future::Future;
 use std::rc::Rc;
+use std::task::{Context, Poll};
 use std::time::SystemTime;
 
 use actix_service::{Service, Transform};
-use futures::future::{ok, Either, FutureResult};
-use futures::{Future, IntoFuture, Poll};
+use futures::future::{ok, FutureExt, LocalBoxFuture, Ready};
 use serde::{Deserialize, Serialize};
 use time::Duration;
 
@@ -165,21 +166,21 @@ where
 impl FromRequest for Identity {
     type Config = ();
     type Error = Error;
-    type Future = Result<Identity, Error>;
+    type Future = Ready<Result<Identity, Error>>;
 
     #[inline]
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        Ok(Identity(req.clone()))
+        ok(Identity(req.clone()))
     }
 }
 
 /// Identity policy definition.
 pub trait IdentityPolicy: Sized + 'static {
     /// The return type of the middleware
-    type Future: IntoFuture<Item = Option<String>, Error = Error>;
+    type Future: Future<Output = Result<Option<String>, Error>>;
 
     /// The return type of the middleware
-    type ResponseFuture: IntoFuture<Item = (), Error = Error>;
+    type ResponseFuture: Future<Output = Result<(), Error>>;
 
     /// Parse the session from request and load data from a service identity.
     fn from_request(&self, request: &mut ServiceRequest) -> Self::Future;
@@ -234,7 +235,7 @@ where
     type Error = Error;
     type InitError = ();
     type Transform = IdentityServiceMiddleware<S, T>;
-    type Future = FutureResult<Self::Transform, Self::InitError>;
+    type Future = Ready<Result<Self::Transform, Self::InitError>>;
 
     fn new_transform(&self, service: S) -> Self::Future {
         ok(IdentityServiceMiddleware {
@@ -250,6 +251,15 @@ pub struct IdentityServiceMiddleware<S, T> {
     service: Rc<RefCell<S>>,
 }
 
+impl<S, T> Clone for IdentityServiceMiddleware<S, T> {
+    fn clone(&self) -> Self {
+        Self {
+            backend: self.backend.clone(),
+            service: self.service.clone(),
+        }
+    }
+}
+
 impl<S, T, B> Service for IdentityServiceMiddleware<S, T>
 where
     B: 'static,
@@ -261,46 +271,41 @@ where
     type Request = ServiceRequest;
     type Response = ServiceResponse<B>;
     type Error = Error;
-    type Future = Box<dyn Future<Item = Self::Response, Error = Self::Error>>;
+    type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
 
-    fn poll_ready(&mut self) -> Poll<(), Self::Error> {
-        self.service.borrow_mut().poll_ready()
+    fn poll_ready(&mut self, cx: &mut Context) -> Poll<Result<(), Self::Error>> {
+        self.service.borrow_mut().poll_ready(cx)
     }
 
     fn call(&mut self, mut req: ServiceRequest) -> Self::Future {
         let srv = self.service.clone();
         let backend = self.backend.clone();
+        let fut = self.backend.from_request(&mut req);
 
-        Box::new(
-            self.backend.from_request(&mut req).into_future().then(
-                move |res| match res {
-                    Ok(id) => {
-                        req.extensions_mut()
-                            .insert(IdentityItem { id, changed: false });
+        async move {
+            match fut.await {
+                Ok(id) => {
+                    req.extensions_mut()
+                        .insert(IdentityItem { id, changed: false });
 
-                        Either::A(srv.borrow_mut().call(req).and_then(move |mut res| {
-                            let id =
-                                res.request().extensions_mut().remove::<IdentityItem>();
+                    // https://github.com/actix/actix-web/issues/1263
+                    let fut = { srv.borrow_mut().call(req) };
+                    let mut res = fut.await?;
+                    let id = res.request().extensions_mut().remove::<IdentityItem>();
 
-                            if let Some(id) = id {
-                                Either::A(
-                                    backend
-                                        .to_response(id.id, id.changed, &mut res)
-                                        .into_future()
-                                        .then(move |t| match t {
-                                            Ok(_) => Ok(res),
-                                            Err(e) => Ok(res.error_response(e)),
-                                        }),
-                                )
-                            } else {
-                                Either::B(ok(res))
-                            }
-                        }))
+                    if let Some(id) = id {
+                        match backend.to_response(id.id, id.changed, &mut res).await {
+                            Ok(_) => Ok(res),
+                            Err(e) => Ok(res.error_response(e)),
+                        }
+                    } else {
+                        Ok(res)
                     }
-                    Err(err) => Either::B(ok(req.error_response(err))),
-                },
-            ),
-        )
+                }
+                Err(err) => Ok(req.error_response(err)),
+            }
+        }
+        .boxed_local()
     }
 }
 
@@ -547,11 +552,11 @@ impl CookieIdentityPolicy {
 }
 
 impl IdentityPolicy for CookieIdentityPolicy {
-    type Future = Result<Option<String>, Error>;
-    type ResponseFuture = Result<(), Error>;
+    type Future = Ready<Result<Option<String>, Error>>;
+    type ResponseFuture = Ready<Result<(), Error>>;
 
     fn from_request(&self, req: &mut ServiceRequest) -> Self::Future {
-        Ok(self.0.load(req).map(
+        ok(self.0.load(req).map(
             |CookieValue {
                  identity,
                  login_timestamp,
@@ -603,7 +608,7 @@ impl IdentityPolicy for CookieIdentityPolicy {
         } else {
             Ok(())
         };
-        Ok(())
+        ok(())
     }
 }
 
@@ -612,16 +617,17 @@ mod tests {
     use std::borrow::Borrow;
 
     use super::*;
+    use actix_service::into_service;
     use actix_web::http::StatusCode;
     use actix_web::test::{self, TestRequest};
-    use actix_web::{web, App, Error, HttpResponse};
+    use actix_web::{error, web, App, Error, HttpResponse};
 
     const COOKIE_KEY_MASTER: [u8; 32] = [0; 32];
     const COOKIE_NAME: &'static str = "actix_auth";
     const COOKIE_LOGIN: &'static str = "test";
 
-    #[test]
-    fn test_identity() {
+    #[actix_rt::test]
+    async fn test_identity() {
         let mut srv = test::init_service(
             App::new()
                 .wrap(IdentityService::new(
@@ -650,13 +656,16 @@ mod tests {
                         HttpResponse::BadRequest()
                     }
                 })),
-        );
+        )
+        .await;
         let resp =
-            test::call_service(&mut srv, TestRequest::with_uri("/index").to_request());
+            test::call_service(&mut srv, TestRequest::with_uri("/index").to_request())
+                .await;
         assert_eq!(resp.status(), StatusCode::OK);
 
         let resp =
-            test::call_service(&mut srv, TestRequest::with_uri("/login").to_request());
+            test::call_service(&mut srv, TestRequest::with_uri("/login").to_request())
+                .await;
         assert_eq!(resp.status(), StatusCode::OK);
         let c = resp.response().cookies().next().unwrap().to_owned();
 
@@ -665,7 +674,8 @@ mod tests {
             TestRequest::with_uri("/index")
                 .cookie(c.clone())
                 .to_request(),
-        );
+        )
+        .await;
         assert_eq!(resp.status(), StatusCode::CREATED);
 
         let resp = test::call_service(
@@ -673,13 +683,14 @@ mod tests {
             TestRequest::with_uri("/logout")
                 .cookie(c.clone())
                 .to_request(),
-        );
+        )
+        .await;
         assert_eq!(resp.status(), StatusCode::OK);
         assert!(resp.headers().contains_key(header::SET_COOKIE))
     }
 
-    #[test]
-    fn test_identity_max_age_time() {
+    #[actix_rt::test]
+    async fn test_identity_max_age_time() {
         let duration = Duration::days(1);
         let mut srv = test::init_service(
             App::new()
@@ -695,17 +706,19 @@ mod tests {
                     id.remember("test".to_string());
                     HttpResponse::Ok()
                 })),
-        );
+        )
+        .await;
         let resp =
-            test::call_service(&mut srv, TestRequest::with_uri("/login").to_request());
+            test::call_service(&mut srv, TestRequest::with_uri("/login").to_request())
+                .await;
         assert_eq!(resp.status(), StatusCode::OK);
         assert!(resp.headers().contains_key(header::SET_COOKIE));
         let c = resp.response().cookies().next().unwrap().to_owned();
         assert_eq!(duration, c.max_age().unwrap());
     }
 
-    #[test]
-    fn test_identity_max_age() {
+    #[actix_rt::test]
+    async fn test_identity_max_age() {
         let seconds = 60;
         let mut srv = test::init_service(
             App::new()
@@ -721,16 +734,18 @@ mod tests {
                     id.remember("test".to_string());
                     HttpResponse::Ok()
                 })),
-        );
+        )
+        .await;
         let resp =
-            test::call_service(&mut srv, TestRequest::with_uri("/login").to_request());
+            test::call_service(&mut srv, TestRequest::with_uri("/login").to_request())
+                .await;
         assert_eq!(resp.status(), StatusCode::OK);
         assert!(resp.headers().contains_key(header::SET_COOKIE));
         let c = resp.response().cookies().next().unwrap().to_owned();
         assert_eq!(Duration::seconds(seconds as i64), c.max_age().unwrap());
     }
 
-    fn create_identity_server<
+    async fn create_identity_server<
         F: Fn(CookieIdentityPolicy) -> CookieIdentityPolicy + Sync + Send + Clone + 'static,
     >(
         f: F,
@@ -747,13 +762,16 @@ mod tests {
                 .secure(false)
                 .name(COOKIE_NAME))))
                 .service(web::resource("/").to(|id: Identity| {
-                    let identity = id.identity();
-                    if identity.is_none() {
-                        id.remember(COOKIE_LOGIN.to_string())
+                    async move {
+                        let identity = id.identity();
+                        if identity.is_none() {
+                            id.remember(COOKIE_LOGIN.to_string())
+                        }
+                        web::Json(identity)
                     }
-                    web::Json(identity)
                 })),
         )
+        .await
     }
 
     fn legacy_login_cookie(identity: &'static str) -> Cookie<'static> {
@@ -786,15 +804,8 @@ mod tests {
         jar.get(COOKIE_NAME).unwrap().clone()
     }
 
-    fn assert_logged_in(response: &mut ServiceResponse, identity: Option<&str>) {
-        use bytes::BytesMut;
-        use futures::Stream;
-        let bytes =
-            test::block_on(response.take_body().fold(BytesMut::new(), |mut b, c| {
-                b.extend(c);
-                Ok::<_, Error>(b)
-            }))
-            .unwrap();
+    async fn assert_logged_in(response: ServiceResponse, identity: Option<&str>) {
+        let bytes = test::read_body(response).await;
         let resp: Option<String> = serde_json::from_slice(&bytes[..]).unwrap();
         assert_eq!(resp.as_ref().map(|s| s.borrow()), identity);
     }
@@ -872,108 +883,118 @@ mod tests {
         assert!(cookies.get(COOKIE_NAME).is_none());
     }
 
-    #[test]
-    fn test_identity_legacy_cookie_is_set() {
-        let mut srv = create_identity_server(|c| c);
+    #[actix_rt::test]
+    async fn test_identity_legacy_cookie_is_set() {
+        let mut srv = create_identity_server(|c| c).await;
         let mut resp =
-            test::call_service(&mut srv, TestRequest::with_uri("/").to_request());
-        assert_logged_in(&mut resp, None);
+            test::call_service(&mut srv, TestRequest::with_uri("/").to_request()).await;
         assert_legacy_login_cookie(&mut resp, COOKIE_LOGIN);
+        assert_logged_in(resp, None).await;
     }
 
-    #[test]
-    fn test_identity_legacy_cookie_works() {
-        let mut srv = create_identity_server(|c| c);
+    #[actix_rt::test]
+    async fn test_identity_legacy_cookie_works() {
+        let mut srv = create_identity_server(|c| c).await;
         let cookie = legacy_login_cookie(COOKIE_LOGIN);
         let mut resp = test::call_service(
             &mut srv,
             TestRequest::with_uri("/")
                 .cookie(cookie.clone())
                 .to_request(),
-        );
-        assert_logged_in(&mut resp, Some(COOKIE_LOGIN));
+        )
+        .await;
         assert_no_login_cookie(&mut resp);
+        assert_logged_in(resp, Some(COOKIE_LOGIN)).await;
     }
 
-    #[test]
-    fn test_identity_legacy_cookie_rejected_if_visit_timestamp_needed() {
-        let mut srv = create_identity_server(|c| c.visit_deadline(Duration::days(90)));
+    #[actix_rt::test]
+    async fn test_identity_legacy_cookie_rejected_if_visit_timestamp_needed() {
+        let mut srv =
+            create_identity_server(|c| c.visit_deadline(Duration::days(90))).await;
         let cookie = legacy_login_cookie(COOKIE_LOGIN);
         let mut resp = test::call_service(
             &mut srv,
             TestRequest::with_uri("/")
                 .cookie(cookie.clone())
                 .to_request(),
-        );
-        assert_logged_in(&mut resp, None);
+        )
+        .await;
         assert_login_cookie(
             &mut resp,
             COOKIE_LOGIN,
             LoginTimestampCheck::NoTimestamp,
             VisitTimeStampCheck::NewTimestamp,
         );
+        assert_logged_in(resp, None).await;
     }
 
-    #[test]
-    fn test_identity_legacy_cookie_rejected_if_login_timestamp_needed() {
-        let mut srv = create_identity_server(|c| c.login_deadline(Duration::days(90)));
+    #[actix_rt::test]
+    async fn test_identity_legacy_cookie_rejected_if_login_timestamp_needed() {
+        let mut srv =
+            create_identity_server(|c| c.login_deadline(Duration::days(90))).await;
         let cookie = legacy_login_cookie(COOKIE_LOGIN);
         let mut resp = test::call_service(
             &mut srv,
             TestRequest::with_uri("/")
                 .cookie(cookie.clone())
                 .to_request(),
-        );
-        assert_logged_in(&mut resp, None);
+        )
+        .await;
         assert_login_cookie(
             &mut resp,
             COOKIE_LOGIN,
             LoginTimestampCheck::NewTimestamp,
             VisitTimeStampCheck::NoTimestamp,
         );
+        assert_logged_in(resp, None).await;
     }
 
-    #[test]
-    fn test_identity_cookie_rejected_if_login_timestamp_needed() {
-        let mut srv = create_identity_server(|c| c.login_deadline(Duration::days(90)));
+    #[actix_rt::test]
+    async fn test_identity_cookie_rejected_if_login_timestamp_needed() {
+        let mut srv =
+            create_identity_server(|c| c.login_deadline(Duration::days(90))).await;
         let cookie = login_cookie(COOKIE_LOGIN, None, Some(SystemTime::now()));
         let mut resp = test::call_service(
             &mut srv,
             TestRequest::with_uri("/")
                 .cookie(cookie.clone())
                 .to_request(),
-        );
-        assert_logged_in(&mut resp, None);
+        )
+        .await;
         assert_login_cookie(
             &mut resp,
             COOKIE_LOGIN,
             LoginTimestampCheck::NewTimestamp,
             VisitTimeStampCheck::NoTimestamp,
         );
+        assert_logged_in(resp, None).await;
     }
 
-    #[test]
-    fn test_identity_cookie_rejected_if_visit_timestamp_needed() {
-        let mut srv = create_identity_server(|c| c.visit_deadline(Duration::days(90)));
+    #[actix_rt::test]
+    async fn test_identity_cookie_rejected_if_visit_timestamp_needed() {
+        let mut srv =
+            create_identity_server(|c| c.visit_deadline(Duration::days(90))).await;
         let cookie = login_cookie(COOKIE_LOGIN, Some(SystemTime::now()), None);
         let mut resp = test::call_service(
             &mut srv,
             TestRequest::with_uri("/")
                 .cookie(cookie.clone())
                 .to_request(),
-        );
-        assert_logged_in(&mut resp, None);
+        )
+        .await;
         assert_login_cookie(
             &mut resp,
             COOKIE_LOGIN,
             LoginTimestampCheck::NoTimestamp,
             VisitTimeStampCheck::NewTimestamp,
         );
+        assert_logged_in(resp, None).await;
     }
 
-    #[test]
-    fn test_identity_cookie_rejected_if_login_timestamp_too_old() {
-        let mut srv = create_identity_server(|c| c.login_deadline(Duration::days(90)));
+    #[actix_rt::test]
+    async fn test_identity_cookie_rejected_if_login_timestamp_too_old() {
+        let mut srv =
+            create_identity_server(|c| c.login_deadline(Duration::days(90))).await;
         let cookie = login_cookie(
             COOKIE_LOGIN,
             Some(SystemTime::now() - Duration::days(180).to_std().unwrap()),
@@ -984,19 +1005,21 @@ mod tests {
             TestRequest::with_uri("/")
                 .cookie(cookie.clone())
                 .to_request(),
-        );
-        assert_logged_in(&mut resp, None);
+        )
+        .await;
         assert_login_cookie(
             &mut resp,
             COOKIE_LOGIN,
             LoginTimestampCheck::NewTimestamp,
             VisitTimeStampCheck::NoTimestamp,
         );
+        assert_logged_in(resp, None).await;
     }
 
-    #[test]
-    fn test_identity_cookie_rejected_if_visit_timestamp_too_old() {
-        let mut srv = create_identity_server(|c| c.visit_deadline(Duration::days(90)));
+    #[actix_rt::test]
+    async fn test_identity_cookie_rejected_if_visit_timestamp_too_old() {
+        let mut srv =
+            create_identity_server(|c| c.visit_deadline(Duration::days(90))).await;
         let cookie = login_cookie(
             COOKIE_LOGIN,
             None,
@@ -1007,36 +1030,41 @@ mod tests {
             TestRequest::with_uri("/")
                 .cookie(cookie.clone())
                 .to_request(),
-        );
-        assert_logged_in(&mut resp, None);
+        )
+        .await;
         assert_login_cookie(
             &mut resp,
             COOKIE_LOGIN,
             LoginTimestampCheck::NoTimestamp,
             VisitTimeStampCheck::NewTimestamp,
         );
+        assert_logged_in(resp, None).await;
     }
 
-    #[test]
-    fn test_identity_cookie_not_updated_on_login_deadline() {
-        let mut srv = create_identity_server(|c| c.login_deadline(Duration::days(90)));
+    #[actix_rt::test]
+    async fn test_identity_cookie_not_updated_on_login_deadline() {
+        let mut srv =
+            create_identity_server(|c| c.login_deadline(Duration::days(90))).await;
         let cookie = login_cookie(COOKIE_LOGIN, Some(SystemTime::now()), None);
         let mut resp = test::call_service(
             &mut srv,
             TestRequest::with_uri("/")
                 .cookie(cookie.clone())
                 .to_request(),
-        );
-        assert_logged_in(&mut resp, Some(COOKIE_LOGIN));
+        )
+        .await;
         assert_no_login_cookie(&mut resp);
+        assert_logged_in(resp, Some(COOKIE_LOGIN)).await;
     }
 
-    #[test]
-    fn test_identity_cookie_updated_on_visit_deadline() {
+    // https://github.com/actix/actix-web/issues/1263
+    #[actix_rt::test]
+    async fn test_identity_cookie_updated_on_visit_deadline() {
         let mut srv = create_identity_server(|c| {
             c.visit_deadline(Duration::days(90))
                 .login_deadline(Duration::days(90))
-        });
+        })
+        .await;
         let timestamp = SystemTime::now() - Duration::days(1).to_std().unwrap();
         let cookie = login_cookie(COOKIE_LOGIN, Some(timestamp), Some(timestamp));
         let mut resp = test::call_service(
@@ -1044,13 +1072,57 @@ mod tests {
             TestRequest::with_uri("/")
                 .cookie(cookie.clone())
                 .to_request(),
-        );
-        assert_logged_in(&mut resp, Some(COOKIE_LOGIN));
+        )
+        .await;
         assert_login_cookie(
             &mut resp,
             COOKIE_LOGIN,
             LoginTimestampCheck::OldTimestamp(timestamp),
             VisitTimeStampCheck::NewTimestamp,
         );
+        assert_logged_in(resp, Some(COOKIE_LOGIN)).await;
+    }
+
+    #[actix_rt::test]
+    async fn test_borrowed_mut_error() {
+        use futures::future::{lazy, ok, Ready};
+
+        struct Ident;
+        impl IdentityPolicy for Ident {
+            type Future = Ready<Result<Option<String>, Error>>;
+            type ResponseFuture = Ready<Result<(), Error>>;
+
+            fn from_request(&self, _: &mut ServiceRequest) -> Self::Future {
+                ok(Some("test".to_string()))
+            }
+
+            fn to_response<B>(
+                &self,
+                _: Option<String>,
+                _: bool,
+                _: &mut ServiceResponse<B>,
+            ) -> Self::ResponseFuture {
+                ok(())
+            }
+        }
+
+        let mut srv = IdentityServiceMiddleware {
+            backend: Rc::new(Ident),
+            service: Rc::new(RefCell::new(into_service(|_: ServiceRequest| {
+                async move {
+                    actix_rt::time::delay_for(std::time::Duration::from_secs(100)).await;
+                    Err::<ServiceResponse, _>(error::ErrorBadRequest("error"))
+                }
+            }))),
+        };
+
+        let mut srv2 = srv.clone();
+        let req = TestRequest::default().to_srv_request();
+        actix_rt::spawn(async move {
+            let _ = srv2.call(req).await;
+        });
+        actix_rt::time::delay_for(std::time::Duration::from_millis(50)).await;
+
+        let _ = lazy(|cx| srv.poll_ready(cx)).await;
     }
 }

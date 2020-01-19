@@ -1,4 +1,28 @@
-# Actix web [![Build Status](https://travis-ci.org/actix/actix-web.svg?branch=master)](https://travis-ci.org/actix/actix-web) [![codecov](https://codecov.io/gh/actix/actix-web/branch/master/graph/badge.svg)](https://codecov.io/gh/actix/actix-web) [![crates.io](https://meritbadge.herokuapp.com/actix-web)](https://crates.io/crates/actix-web) [![Join the chat at https://gitter.im/actix/actix](https://badges.gitter.im/actix/actix.svg)](https://gitter.im/actix/actix?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+<div align="center">
+ <p><h1>Actix web</h1> </p>
+  <p><strong>Actix web is a small, pragmatic, and extremely fast rust web framework</strong> </p>
+  <p>
+
+[![Build Status](https://travis-ci.org/actix/actix-web.svg?branch=master)](https://travis-ci.org/actix/actix-web) 
+[![codecov](https://codecov.io/gh/actix/actix-web/branch/master/graph/badge.svg)](https://codecov.io/gh/actix/actix-web) 
+[![crates.io](https://meritbadge.herokuapp.com/actix-web)](https://crates.io/crates/actix-web)
+[![Join the chat at https://gitter.im/actix/actix](https://badges.gitter.im/actix/actix.svg)](https://gitter.im/actix/actix?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+[![Documentation](https://docs.rs/actix-web/badge.svg)](https://docs.rs/actix-web)
+[![Download](https://img.shields.io/crates/d/actix-web.svg)](https://crates.io/crates/actix-web)
+[![Version](https://img.shields.io/badge/rustc-1.39+-lightgray.svg)](https://blog.rust-lang.org/2019/11/07/Rust-1.39.0.html)
+![License](https://img.shields.io/crates/l/actix-web.svg)
+
+  </p>
+
+  <h3>
+    <a href="https://actix.rs">Website</a>
+    <span> | </span>
+    <a href="https://gitter.im/actix/actix">Chat</a>
+    <span> | </span>
+    <a href="https://github.com/actix/examples">Examples</a>
+  </h3>
+</div>
+<br>
 
 Actix web is a simple, pragmatic and extremely fast web framework for Rust.
 
@@ -15,30 +39,32 @@ Actix web is a simple, pragmatic and extremely fast web framework for Rust.
 * Includes an asynchronous [HTTP client](https://actix.rs/actix-web/actix_web/client/index.html)
 * Supports [Actix actor framework](https://github.com/actix/actix)
 
-## Documentation & community resources
-
-* [User Guide](https://actix.rs/docs/)
-* [API Documentation (1.0)](https://docs.rs/actix-web/)
-* [API Documentation (0.7)](https://docs.rs/actix-web/0.7.19/actix_web/)
-* [Chat on gitter](https://gitter.im/actix/actix)
-* Cargo package: [actix-web](https://crates.io/crates/actix-web)
-* Minimum supported Rust version: 1.36 or later
-
 ## Example
 
-```rust
-use actix_web::{web, App, HttpServer, Responder};
+Dependencies:
 
-fn index(info: web::Path<(u32, String)>) -> impl Responder {
+```toml
+[dependencies]
+actix-web = "2"
+actix-rt = "1"
+```
+
+Code:
+
+```rust
+use actix_web::{get, web, App, HttpServer, Responder};
+
+#[get("/{id}/{name}/index.html")]
+async fn index(info: web::Path<(u32, String)>) -> impl Responder {
     format!("Hello {}! id:{}", info.1, info.0)
 }
 
-fn main() -> std::io::Result<()> {
-    HttpServer::new(
-        || App::new().service(
-              web::resource("/{id}/{name}/index.html").to(index)))
+#[actix_rt::main]
+async fn main() -> std::io::Result<()> {
+    HttpServer::new(|| App::new().service(index))
         .bind("127.0.0.1:8080")?
         .run()
+        .await
 }
 ```
 
@@ -49,10 +75,11 @@ fn main() -> std::io::Result<()> {
 * [Multipart streams](https://github.com/actix/examples/tree/master/multipart/)
 * [Simple websocket](https://github.com/actix/examples/tree/master/websocket/)
 * [Tera](https://github.com/actix/examples/tree/master/template_tera/) /
-  [Askama](https://github.com/actix/examples/tree/master/template_askama/) templates
+* [Askama](https://github.com/actix/examples/tree/master/template_askama/) templates
 * [Diesel integration](https://github.com/actix/examples/tree/master/diesel/)
 * [r2d2](https://github.com/actix/examples/tree/master/r2d2/)
-* [SSL / HTTP/2.0](https://github.com/actix/examples/tree/master/tls/)
+* [OpenSSL](https://github.com/actix/examples/tree/master/openssl/)
+* [Rustls](https://github.com/actix/examples/tree/master/rustls/)
 * [Tcp/Websocket chat](https://github.com/actix/examples/tree/master/websocket-chat/)
 * [Json](https://github.com/actix/examples/tree/master/json/)
 

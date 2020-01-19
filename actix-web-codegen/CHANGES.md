@@ -1,5 +1,15 @@
 # Changes
 
+## [0.2.0] - 2019-12-13
+
+* Generate code for actix-web 2.0
+
+## [0.1.3] - 2019-10-14
+
+* Bump up `syn` & `quote` to 1.0
+
+* Provide better error message
+
 ## [0.1.2] - 2019-06-04
 
 * Add macros for head, options, trace, connect and patch http methods

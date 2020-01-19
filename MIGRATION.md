@@ -1,3 +1,51 @@
+## 2.0.0
+
+* `HttpServer::start()` renamed to `HttpServer::run()`. It also possible to
+  `.await` on `run` method result, in that case it awaits server exit.
+
+* `App::register_data()` renamed to `App::app_data()` and accepts any type `T: 'static`.
+  Stored data is available via `HttpRequest::app_data()` method at runtime.
+
+* Extractor configuration must be registered with `App::app_data()` instead of `App::data()`
+
+* Sync handlers has been removed. `.to_async()` method has been renamed to `.to()`
+  replace `fn` with `async fn` to convert sync handler to async
+
+* `actix_http_test::TestServer` moved to `actix_web::test` module. To start
+  test server use `test::start()` or `test_start_with_config()` methods
+
+* `ResponseError` trait has been reafctored. `ResponseError::error_response()` renders
+  http response.
+
+* Feature `rust-tls` renamed to `rustls`
+
+  instead of
+
+    ```rust
+    actix-web = { version = "2.0.0", features = ["rust-tls"] }
+    ```
+
+  use
+
+    ```rust
+    actix-web = { version = "2.0.0", features = ["rustls"] }
+    ```
+
+* Feature `ssl` renamed to `openssl`
+
+  instead of
+
+    ```rust
+    actix-web = { version = "2.0.0", features = ["ssl"] }
+    ```
+
+  use
+
+    ```rust
+    actix-web = { version = "2.0.0", features = ["openssl"] }
+    ```
+* `Cors` builder now requires that you call `.finish()` to construct the middleware
+
 ## 1.0.1
 
 * Cors middleware has been moved to `actix-cors` crate
@@ -34,52 +82,52 @@
 * Extractor configuration. In version 1.0 this is handled with the new `Data` mechanism for both setting and retrieving the configuration
 
   instead of
-    
+
   ```rust
-    
+
   #[derive(Default)]
   struct ExtractorConfig {
      config: String,
   }
-    
+
   impl FromRequest for YourExtractor {
      type Config = ExtractorConfig;
      type Result = Result<YourExtractor, Error>;
-  
+
      fn from_request(req: &HttpRequest, cfg: &Self::Config) -> Self::Result {
          println!("use the config: {:?}", cfg.config);
          ...
      }
   }
-    
+
   App::new().resource("/route_with_config", |r| {
      r.post().with_config(handler_fn, |cfg| {
          cfg.0.config = "test".to_string();
      })
   })
-    
+
   ```
-    
+
   use the HttpRequest to get the configuration like any other `Data` with `req.app_data::<C>()` and set it with the `data()` method on the `resource`
-    
+
   ```rust
   #[derive(Default)]
   struct ExtractorConfig {
      config: String,
   }
-    
+
   impl FromRequest for YourExtractor {
      type Error = Error;
      type Future = Result<Self, Self::Error>;
      type Config = ExtractorConfig;
-    
+
      fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
          let cfg = req.app_data::<ExtractorConfig>();
          println!("config data?: {:?}", cfg.unwrap().role);
          ...
      }
   }
-    
+
   App::new().service(
      resource("/route_with_config")
          .data(ExtractorConfig {
@@ -88,7 +136,7 @@
          .route(post().to(handler_fn)),
   )
   ```
-  
+
 * Resource registration. 1.0 version uses generalized resource
   registration via `.service()` method.
 
@@ -379,9 +427,9 @@
 
 * `HttpRequest` does not implement `Stream` anymore. If you need to read request payload
   use `HttpMessage::payload()` method.
-  
+
   instead of
-  
+
     ```rust
     fn index(req: HttpRequest) -> impl Responder {
          req
@@ -407,8 +455,8 @@
   trait uses `&HttpRequest` instead of `&mut HttpRequest`.
 
 * Removed `Route::with2()` and `Route::with3()` use tuple of extractors instead.
-    
-    instead of 
+
+    instead of
 
     ```rust
     fn index(query: Query<..>, info: Json<MyStruct) -> impl Responder {}
@@ -424,7 +472,7 @@
 
 * `Handler::handle()` accepts reference to `HttpRequest<_>` instead of value
 
-* Removed deprecated `HttpServer::threads()`, use 
+* Removed deprecated `HttpServer::threads()`, use
   [HttpServer::workers()](https://actix.rs/actix-web/actix_web/server/struct.HttpServer.html#method.workers) instead.
 
 * Renamed `client::ClientConnectorError::Connector` to
@@ -433,7 +481,7 @@
 * `Route::with()` does not return `ExtractorConfig`, to configure
   extractor use `Route::with_config()`
 
-    instead of 
+    instead of
 
     ```rust
     fn main() {
@@ -444,11 +492,11 @@
          });
     }
     ```
-    
-    use 
-    
+
+    use
+
     ```rust
-  
+
     fn main() {
          let app = App::new().resource("/index.html", |r| {
              r.method(http::Method::GET)
@@ -478,12 +526,12 @@
 * `HttpRequest::extensions()` returns read only reference to the request's Extension
   `HttpRequest::extensions_mut()` returns mutable reference.
 
-* Instead of 
+* Instead of
 
    `use actix_web::middleware::{
         CookieSessionBackend, CookieSessionError, RequestSession,
         Session, SessionBackend, SessionImpl, SessionStorage};`
-                                
+
   use `actix_web::middleware::session`
 
    `use actix_web::middleware::session{CookieSessionBackend, CookieSessionError,

@@ -1,13 +1,15 @@
 //! Essentials helper functions and types for application registration.
 use actix_http::http::Method;
-use futures::{Future, IntoFuture};
+use actix_router::IntoPattern;
+use futures::Future;
 
 pub use actix_http::Response as HttpResponse;
 pub use bytes::{Bytes, BytesMut};
+pub use futures::channel::oneshot::Canceled;
 
-use crate::error::{BlockingError, Error};
+use crate::error::BlockingError;
 use crate::extract::FromRequest;
-use crate::handler::{AsyncFactory, Factory};
+use crate::handler::Factory;
 use crate::resource::Resource;
 use crate::responder::Responder;
 use crate::route::Route;
@@ -43,15 +45,13 @@ pub use crate::types::*;
 /// # extern crate actix_web;
 /// use actix_web::{web, App, HttpResponse};
 ///
-/// fn main() {
-///     let app = App::new().service(
-///         web::resource("/users/{userid}/{friend}")
-///             .route(web::get().to(|| HttpResponse::Ok()))
-///             .route(web::head().to(|| HttpResponse::MethodNotAllowed()))
-///     );
-/// }
+/// let app = App::new().service(
+///     web::resource("/users/{userid}/{friend}")
+///         .route(web::get().to(|| HttpResponse::Ok()))
+///         .route(web::head().to(|| HttpResponse::MethodNotAllowed()))
+/// );
 /// ```
-pub fn resource(path: &str) -> Resource {
+pub fn resource<T: IntoPattern>(path: T) -> Resource {
     Resource::new(path)
 }
 
@@ -63,14 +63,12 @@ pub fn resource(path: &str) -> Resource {
 /// ```rust
 /// use actix_web::{web, App, HttpResponse};
 ///
-/// fn main() {
-///     let app = App::new().service(
-///         web::scope("/{project_id}")
-///             .service(web::resource("/path1").to(|| HttpResponse::Ok()))
-///             .service(web::resource("/path2").to(|| HttpResponse::Ok()))
-///             .service(web::resource("/path3").to(|| HttpResponse::MethodNotAllowed()))
-///     );
-/// }
+/// let app = App::new().service(
+///     web::scope("/{project_id}")
+///         .service(web::resource("/path1").to(|| HttpResponse::Ok()))
+///         .service(web::resource("/path2").to(|| HttpResponse::Ok()))
+///         .service(web::resource("/path3").to(|| HttpResponse::MethodNotAllowed()))
+/// );
 /// ```
 ///
 /// In the above example, three routes get added:
@@ -92,12 +90,10 @@ pub fn route() -> Route {
 /// ```rust
 /// use actix_web::{web, App, HttpResponse};
 ///
-/// fn main() {
-///     let app = App::new().service(
-///         web::resource("/{project_id}")
-///             .route(web::get().to(|| HttpResponse::Ok()))
-///     );
-/// }
+/// let app = App::new().service(
+///     web::resource("/{project_id}")
+///        .route(web::get().to(|| HttpResponse::Ok()))
+/// );
 /// ```
 ///
 /// In the above example, one `GET` route get added:
@@ -112,12 +108,10 @@ pub fn get() -> Route {
 /// ```rust
 /// use actix_web::{web, App, HttpResponse};
 ///
-/// fn main() {
-///     let app = App::new().service(
-///         web::resource("/{project_id}")
-///             .route(web::post().to(|| HttpResponse::Ok()))
-///     );
-/// }
+/// let app = App::new().service(
+///     web::resource("/{project_id}")
+///         .route(web::post().to(|| HttpResponse::Ok()))
+/// );
 /// ```
 ///
 /// In the above example, one `POST` route get added:
@@ -132,12 +126,10 @@ pub fn post() -> Route {
 /// ```rust
 /// use actix_web::{web, App, HttpResponse};
 ///
-/// fn main() {
-///     let app = App::new().service(
-///         web::resource("/{project_id}")
-///             .route(web::put().to(|| HttpResponse::Ok()))
-///     );
-/// }
+/// let app = App::new().service(
+///     web::resource("/{project_id}")
+///         .route(web::put().to(|| HttpResponse::Ok()))
+/// );
 /// ```
 ///
 /// In the above example, one `PUT` route get added:
@@ -152,12 +144,10 @@ pub fn put() -> Route {
 /// ```rust
 /// use actix_web::{web, App, HttpResponse};
 ///
-/// fn main() {
-///     let app = App::new().service(
-///         web::resource("/{project_id}")
-///             .route(web::patch().to(|| HttpResponse::Ok()))
-///     );
-/// }
+/// let app = App::new().service(
+///     web::resource("/{project_id}")
+///         .route(web::patch().to(|| HttpResponse::Ok()))
+/// );
 /// ```
 ///
 /// In the above example, one `PATCH` route get added:
@@ -172,12 +162,10 @@ pub fn patch() -> Route {
 /// ```rust
 /// use actix_web::{web, App, HttpResponse};
 ///
-/// fn main() {
-///     let app = App::new().service(
-///         web::resource("/{project_id}")
-///             .route(web::delete().to(|| HttpResponse::Ok()))
-///     );
-/// }
+/// let app = App::new().service(
+///     web::resource("/{project_id}")
+///         .route(web::delete().to(|| HttpResponse::Ok()))
+/// );
 /// ```
 ///
 /// In the above example, one `DELETE` route get added:
@@ -192,12 +180,10 @@ pub fn delete() -> Route {
 /// ```rust
 /// use actix_web::{web, App, HttpResponse};
 ///
-/// fn main() {
-///     let app = App::new().service(
-///         web::resource("/{project_id}")
-///             .route(web::head().to(|| HttpResponse::Ok()))
-///     );
-/// }
+/// let app = App::new().service(
+///     web::resource("/{project_id}")
+///         .route(web::head().to(|| HttpResponse::Ok()))
+/// );
 /// ```
 ///
 /// In the above example, one `HEAD` route get added:
@@ -212,12 +198,10 @@ pub fn head() -> Route {
 /// ```rust
 /// use actix_web::{web, http, App, HttpResponse};
 ///
-/// fn main() {
-///     let app = App::new().service(
-///         web::resource("/{project_id}")
-///             .route(web::method(http::Method::GET).to(|| HttpResponse::Ok()))
-///     );
-/// }
+/// let app = App::new().service(
+///     web::resource("/{project_id}")
+///         .route(web::method(http::Method::GET).to(|| HttpResponse::Ok()))
+/// );
 /// ```
 ///
 /// In the above example, one `GET` route get added:
@@ -230,10 +214,10 @@ pub fn method(method: Method) -> Route {
 /// Create a new route and add handler.
 ///
 /// ```rust
-/// use actix_web::{web, App, HttpResponse};
+/// use actix_web::{web, App, HttpResponse, Responder};
 ///
-/// fn index() -> HttpResponse {
-///    unimplemented!()
+/// async fn index() -> impl Responder {
+///    HttpResponse::Ok()
 /// }
 ///
 /// App::new().service(
@@ -241,69 +225,42 @@ pub fn method(method: Method) -> Route {
 ///         web::to(index))
 /// );
 /// ```
-pub fn to<F, I, R>(handler: F) -> Route
+pub fn to<F, I, R, U>(handler: F) -> Route
 where
-    F: Factory<I, R> + 'static,
+    F: Factory<I, R, U>,
     I: FromRequest + 'static,
-    R: Responder + 'static,
+    R: Future<Output = U> + 'static,
+    U: Responder + 'static,
 {
     Route::new().to(handler)
-}
-
-/// Create a new route and add async handler.
-///
-/// ```rust
-/// # use futures::future::{ok, Future};
-/// use actix_web::{web, App, HttpResponse, Error};
-///
-/// fn index() -> impl Future<Item=HttpResponse, Error=Error> {
-///     ok(HttpResponse::Ok().finish())
-/// }
-///
-/// App::new().service(web::resource("/").route(
-///     web::to_async(index))
-/// );
-/// ```
-pub fn to_async<F, I, R>(handler: F) -> Route
-where
-    F: AsyncFactory<I, R>,
-    I: FromRequest + 'static,
-    R: IntoFuture + 'static,
-    R::Item: Responder,
-    R::Error: Into<Error>,
-{
-    Route::new().to_async(handler)
 }
 
 /// Create raw service for a specific path.
 ///
 /// ```rust
-/// # extern crate actix_web;
-/// use actix_web::{dev, web, guard, App, HttpResponse};
+/// use actix_web::{dev, web, guard, App, Error, HttpResponse};
 ///
-/// fn my_service(req: dev::ServiceRequest) -> dev::ServiceResponse {
-///     req.into_response(HttpResponse::Ok().finish())
+/// async fn my_service(req: dev::ServiceRequest) -> Result<dev::ServiceResponse, Error> {
+///     Ok(req.into_response(HttpResponse::Ok().finish()))
 /// }
 ///
-/// fn main() {
-///     let app = App::new().service(
-///         web::service("/users/*")
-///             .guard(guard::Header("content-type", "text/plain"))
-///             .finish(my_service)
-///     );
-/// }
+/// let app = App::new().service(
+///     web::service("/users/*")
+///         .guard(guard::Header("content-type", "text/plain"))
+///         .finish(my_service)
+/// );
 /// ```
-pub fn service(path: &str) -> WebService {
+pub fn service<T: IntoPattern>(path: T) -> WebService {
     WebService::new(path)
 }
 
 /// Execute blocking function on a thread pool, returns future that resolves
 /// to result of the function execution.
-pub fn block<F, I, E>(f: F) -> impl Future<Item = I, Error = BlockingError<E>>
+pub async fn block<F, I, E>(f: F) -> Result<I, BlockingError<E>>
 where
     F: FnOnce() -> Result<I, E> + Send + 'static,
     I: Send + 'static,
     E: Send + std::fmt::Debug + 'static,
 {
-    actix_threadpool::run(f).from_err()
+    actix_threadpool::run(f).await
 }

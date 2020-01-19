@@ -1,11 +1,13 @@
+use std::convert::TryFrom;
+use std::io;
 use std::marker::PhantomData;
-use std::{io, mem};
+use std::mem::MaybeUninit;
+use std::task::Poll;
 
 use actix_codec::Decoder;
-use bytes::{Bytes, BytesMut};
-use futures::{Async, Poll};
+use bytes::{Buf, Bytes, BytesMut};
 use http::header::{HeaderName, HeaderValue};
-use http::{header, HttpTryFrom, Method, StatusCode, Uri, Version};
+use http::{header, Method, StatusCode, Uri, Version};
 use httparse;
 use log::{debug, error, trace};
 
@@ -78,8 +80,8 @@ pub(crate) trait MessageType: Sized {
 
                 // Unsafe: httparse check header value for valid utf-8
                 let value = unsafe {
-                    HeaderValue::from_shared_unchecked(
-                        slice.slice(idx.value.0, idx.value.1),
+                    HeaderValue::from_maybe_shared_unchecked(
+                        slice.slice(idx.value.0..idx.value.1),
                     )
                 };
                 match name {
@@ -183,14 +185,16 @@ impl MessageType for Request {
         &mut self.head_mut().headers
     }
 
+    #[allow(clippy::uninit_assumed_init)]
     fn decode(src: &mut BytesMut) -> Result<Option<(Self, PayloadType)>, ParseError> {
         // Unsafe: we read only this data only after httparse parses headers into.
         // performance bump for pipeline benchmarks.
-        let mut headers: [HeaderIndex; MAX_HEADERS] = unsafe { mem::uninitialized() };
+        let mut headers: [HeaderIndex; MAX_HEADERS] =
+            unsafe { MaybeUninit::uninit().assume_init() };
 
         let (len, method, uri, ver, h_len) = {
-            let mut parsed: [httparse::Header; MAX_HEADERS] =
-                unsafe { mem::uninitialized() };
+            let mut parsed: [httparse::Header<'_>; MAX_HEADERS] =
+                unsafe { MaybeUninit::uninit().assume_init() };
 
             let mut req = httparse::Request::new(&mut parsed);
             match req.parse(src)? {
@@ -257,14 +261,16 @@ impl MessageType for ResponseHead {
         &mut self.headers
     }
 
+    #[allow(clippy::uninit_assumed_init)]
     fn decode(src: &mut BytesMut) -> Result<Option<(Self, PayloadType)>, ParseError> {
         // Unsafe: we read only this data only after httparse parses headers into.
         // performance bump for pipeline benchmarks.
-        let mut headers: [HeaderIndex; MAX_HEADERS] = unsafe { mem::uninitialized() };
+        let mut headers: [HeaderIndex; MAX_HEADERS] =
+            unsafe { MaybeUninit::uninit().assume_init() };
 
         let (len, ver, status, h_len) = {
-            let mut parsed: [httparse::Header; MAX_HEADERS] =
-                unsafe { mem::uninitialized() };
+            let mut parsed: [httparse::Header<'_>; MAX_HEADERS] =
+                unsafe { MaybeUninit::uninit().assume_init() };
 
             let mut res = httparse::Response::new(&mut parsed);
             match res.parse(src)? {
@@ -322,7 +328,7 @@ pub(crate) struct HeaderIndex {
 impl HeaderIndex {
     pub(crate) fn record(
         bytes: &[u8],
-        headers: &[httparse::Header],
+        headers: &[httparse::Header<'_>],
         indices: &mut [HeaderIndex],
     ) {
         let bytes_ptr = bytes.as_ptr() as usize;
@@ -425,7 +431,7 @@ impl Decoder for PayloadDecoder {
                     let len = src.len() as u64;
                     let buf;
                     if *remaining > len {
-                        buf = src.take().freeze();
+                        buf = src.split().freeze();
                         *remaining -= len;
                     } else {
                         buf = src.split_to(*remaining as usize).freeze();
@@ -439,9 +445,10 @@ impl Decoder for PayloadDecoder {
                 loop {
                     let mut buf = None;
                     // advances the chunked state
-                    *state = match state.step(src, size, &mut buf)? {
-                        Async::NotReady => return Ok(None),
-                        Async::Ready(state) => state,
+                    *state = match state.step(src, size, &mut buf) {
+                        Poll::Pending => return Ok(None),
+                        Poll::Ready(Ok(state)) => state,
+                        Poll::Ready(Err(e)) => return Err(e),
                     };
                     if *state == ChunkedState::End {
                         trace!("End of chunked stream");
@@ -459,7 +466,7 @@ impl Decoder for PayloadDecoder {
                 if src.is_empty() {
                     Ok(None)
                 } else {
-                    Ok(Some(PayloadItem::Chunk(src.take().freeze())))
+                    Ok(Some(PayloadItem::Chunk(src.split().freeze())))
                 }
             }
         }
@@ -470,10 +477,10 @@ macro_rules! byte (
     ($rdr:ident) => ({
         if $rdr.len() > 0 {
             let b = $rdr[0];
-            $rdr.split_to(1);
+            $rdr.advance(1);
             b
         } else {
-            return Ok(Async::NotReady)
+            return Poll::Pending
         }
     })
 );
@@ -484,7 +491,7 @@ impl ChunkedState {
         body: &mut BytesMut,
         size: &mut u64,
         buf: &mut Option<Bytes>,
-    ) -> Poll<ChunkedState, io::Error> {
+    ) -> Poll<Result<ChunkedState, io::Error>> {
         use self::ChunkedState::*;
         match *self {
             Size => ChunkedState::read_size(body, size),
@@ -496,10 +503,14 @@ impl ChunkedState {
             BodyLf => ChunkedState::read_body_lf(body),
             EndCr => ChunkedState::read_end_cr(body),
             EndLf => ChunkedState::read_end_lf(body),
-            End => Ok(Async::Ready(ChunkedState::End)),
+            End => Poll::Ready(Ok(ChunkedState::End)),
         }
     }
-    fn read_size(rdr: &mut BytesMut, size: &mut u64) -> Poll<ChunkedState, io::Error> {
+
+    fn read_size(
+        rdr: &mut BytesMut,
+        size: &mut u64,
+    ) -> Poll<Result<ChunkedState, io::Error>> {
         let radix = 16;
         match byte!(rdr) {
             b @ b'0'..=b'9' => {
@@ -514,48 +525,49 @@ impl ChunkedState {
                 *size *= radix;
                 *size += u64::from(b + 10 - b'A');
             }
-            b'\t' | b' ' => return Ok(Async::Ready(ChunkedState::SizeLws)),
-            b';' => return Ok(Async::Ready(ChunkedState::Extension)),
-            b'\r' => return Ok(Async::Ready(ChunkedState::SizeLf)),
+            b'\t' | b' ' => return Poll::Ready(Ok(ChunkedState::SizeLws)),
+            b';' => return Poll::Ready(Ok(ChunkedState::Extension)),
+            b'\r' => return Poll::Ready(Ok(ChunkedState::SizeLf)),
             _ => {
-                return Err(io::Error::new(
+                return Poll::Ready(Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
                     "Invalid chunk size line: Invalid Size",
-                ));
+                )));
             }
         }
-        Ok(Async::Ready(ChunkedState::Size))
+        Poll::Ready(Ok(ChunkedState::Size))
     }
-    fn read_size_lws(rdr: &mut BytesMut) -> Poll<ChunkedState, io::Error> {
+
+    fn read_size_lws(rdr: &mut BytesMut) -> Poll<Result<ChunkedState, io::Error>> {
         trace!("read_size_lws");
         match byte!(rdr) {
             // LWS can follow the chunk size, but no more digits can come
-            b'\t' | b' ' => Ok(Async::Ready(ChunkedState::SizeLws)),
-            b';' => Ok(Async::Ready(ChunkedState::Extension)),
-            b'\r' => Ok(Async::Ready(ChunkedState::SizeLf)),
-            _ => Err(io::Error::new(
+            b'\t' | b' ' => Poll::Ready(Ok(ChunkedState::SizeLws)),
+            b';' => Poll::Ready(Ok(ChunkedState::Extension)),
+            b'\r' => Poll::Ready(Ok(ChunkedState::SizeLf)),
+            _ => Poll::Ready(Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "Invalid chunk size linear white space",
-            )),
+            ))),
         }
     }
-    fn read_extension(rdr: &mut BytesMut) -> Poll<ChunkedState, io::Error> {
+    fn read_extension(rdr: &mut BytesMut) -> Poll<Result<ChunkedState, io::Error>> {
         match byte!(rdr) {
-            b'\r' => Ok(Async::Ready(ChunkedState::SizeLf)),
-            _ => Ok(Async::Ready(ChunkedState::Extension)), // no supported extensions
+            b'\r' => Poll::Ready(Ok(ChunkedState::SizeLf)),
+            _ => Poll::Ready(Ok(ChunkedState::Extension)), // no supported extensions
         }
     }
     fn read_size_lf(
         rdr: &mut BytesMut,
         size: &mut u64,
-    ) -> Poll<ChunkedState, io::Error> {
+    ) -> Poll<Result<ChunkedState, io::Error>> {
         match byte!(rdr) {
-            b'\n' if *size > 0 => Ok(Async::Ready(ChunkedState::Body)),
-            b'\n' if *size == 0 => Ok(Async::Ready(ChunkedState::EndCr)),
-            _ => Err(io::Error::new(
+            b'\n' if *size > 0 => Poll::Ready(Ok(ChunkedState::Body)),
+            b'\n' if *size == 0 => Poll::Ready(Ok(ChunkedState::EndCr)),
+            _ => Poll::Ready(Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "Invalid chunk size LF",
-            )),
+            ))),
         }
     }
 
@@ -563,16 +575,16 @@ impl ChunkedState {
         rdr: &mut BytesMut,
         rem: &mut u64,
         buf: &mut Option<Bytes>,
-    ) -> Poll<ChunkedState, io::Error> {
+    ) -> Poll<Result<ChunkedState, io::Error>> {
         trace!("Chunked read, remaining={:?}", rem);
 
         let len = rdr.len() as u64;
         if len == 0 {
-            Ok(Async::Ready(ChunkedState::Body))
+            Poll::Ready(Ok(ChunkedState::Body))
         } else {
             let slice;
             if *rem > len {
-                slice = rdr.take().freeze();
+                slice = rdr.split().freeze();
                 *rem -= len;
             } else {
                 slice = rdr.split_to(*rem as usize).freeze();
@@ -580,47 +592,47 @@ impl ChunkedState {
             }
             *buf = Some(slice);
             if *rem > 0 {
-                Ok(Async::Ready(ChunkedState::Body))
+                Poll::Ready(Ok(ChunkedState::Body))
             } else {
-                Ok(Async::Ready(ChunkedState::BodyCr))
+                Poll::Ready(Ok(ChunkedState::BodyCr))
             }
         }
     }
 
-    fn read_body_cr(rdr: &mut BytesMut) -> Poll<ChunkedState, io::Error> {
+    fn read_body_cr(rdr: &mut BytesMut) -> Poll<Result<ChunkedState, io::Error>> {
         match byte!(rdr) {
-            b'\r' => Ok(Async::Ready(ChunkedState::BodyLf)),
-            _ => Err(io::Error::new(
+            b'\r' => Poll::Ready(Ok(ChunkedState::BodyLf)),
+            _ => Poll::Ready(Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "Invalid chunk body CR",
-            )),
+            ))),
         }
     }
-    fn read_body_lf(rdr: &mut BytesMut) -> Poll<ChunkedState, io::Error> {
+    fn read_body_lf(rdr: &mut BytesMut) -> Poll<Result<ChunkedState, io::Error>> {
         match byte!(rdr) {
-            b'\n' => Ok(Async::Ready(ChunkedState::Size)),
-            _ => Err(io::Error::new(
+            b'\n' => Poll::Ready(Ok(ChunkedState::Size)),
+            _ => Poll::Ready(Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "Invalid chunk body LF",
-            )),
+            ))),
         }
     }
-    fn read_end_cr(rdr: &mut BytesMut) -> Poll<ChunkedState, io::Error> {
+    fn read_end_cr(rdr: &mut BytesMut) -> Poll<Result<ChunkedState, io::Error>> {
         match byte!(rdr) {
-            b'\r' => Ok(Async::Ready(ChunkedState::EndLf)),
-            _ => Err(io::Error::new(
+            b'\r' => Poll::Ready(Ok(ChunkedState::EndLf)),
+            _ => Poll::Ready(Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "Invalid chunk end CR",
-            )),
+            ))),
         }
     }
-    fn read_end_lf(rdr: &mut BytesMut) -> Poll<ChunkedState, io::Error> {
+    fn read_end_lf(rdr: &mut BytesMut) -> Poll<Result<ChunkedState, io::Error>> {
         match byte!(rdr) {
-            b'\n' => Ok(Async::Ready(ChunkedState::End)),
-            _ => Err(io::Error::new(
+            b'\n' => Poll::Ready(Ok(ChunkedState::End)),
+            _ => Poll::Ready(Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "Invalid chunk end LF",
-            )),
+            ))),
         }
     }
 }

@@ -1,11 +1,14 @@
+use std::pin::Pin;
+use std::task::{Context, Poll};
+
 use bytes::Bytes;
-use futures::{Async, Poll, Stream};
+use futures_core::Stream;
 use h2::RecvStream;
 
 use crate::error::PayloadError;
 
 /// Type represent boxed payload
-pub type PayloadStream = Box<dyn Stream<Item = Bytes, Error = PayloadError>>;
+pub type PayloadStream = Pin<Box<dyn Stream<Item = Result<Bytes, PayloadError>>>>;
 
 /// Type represent streaming payload
 pub enum Payload<S = PayloadStream> {
@@ -48,18 +51,20 @@ impl<S> Payload<S> {
 
 impl<S> Stream for Payload<S>
 where
-    S: Stream<Item = Bytes, Error = PayloadError>,
+    S: Stream<Item = Result<Bytes, PayloadError>> + Unpin,
 {
-    type Item = Bytes;
-    type Error = PayloadError;
+    type Item = Result<Bytes, PayloadError>;
 
     #[inline]
-    fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
-        match self {
-            Payload::None => Ok(Async::Ready(None)),
-            Payload::H1(ref mut pl) => pl.poll(),
-            Payload::H2(ref mut pl) => pl.poll(),
-            Payload::Stream(ref mut pl) => pl.poll(),
+    fn poll_next(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Option<Self::Item>> {
+        match self.get_mut() {
+            Payload::None => Poll::Ready(None),
+            Payload::H1(ref mut pl) => pl.readany(cx),
+            Payload::H2(ref mut pl) => Pin::new(pl).poll_next(cx),
+            Payload::Stream(ref mut pl) => Pin::new(pl).poll_next(cx),
         }
     }
 }

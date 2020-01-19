@@ -1,8 +1,9 @@
+use std::collections::hash_map::{self, Entry};
+use std::convert::TryFrom;
+
 use either::Either;
-use hashbrown::hash_map::{self, Entry};
-use hashbrown::HashMap;
+use fxhash::FxHashMap;
 use http::header::{HeaderName, HeaderValue};
-use http::HttpTryFrom;
 
 /// A set of HTTP headers
 ///
@@ -11,7 +12,7 @@ use http::HttpTryFrom;
 /// [`HeaderName`]: struct.HeaderName.html
 #[derive(Debug, Clone)]
 pub struct HeaderMap {
-    pub(crate) inner: HashMap<HeaderName, Value>,
+    pub(crate) inner: FxHashMap<HeaderName, Value>,
 }
 
 #[derive(Debug, Clone)]
@@ -56,7 +57,7 @@ impl HeaderMap {
     /// allocate.
     pub fn new() -> Self {
         HeaderMap {
-            inner: HashMap::new(),
+            inner: FxHashMap::default(),
         }
     }
 
@@ -70,7 +71,7 @@ impl HeaderMap {
     /// More capacity than requested may be allocated.
     pub fn with_capacity(capacity: usize) -> HeaderMap {
         HeaderMap {
-            inner: HashMap::with_capacity(capacity),
+            inner: FxHashMap::with_capacity_and_hasher(capacity, Default::default()),
         }
     }
 
@@ -142,7 +143,7 @@ impl HeaderMap {
     /// Returns `None` if there are no values associated with the key.
     ///
     /// [`GetAll`]: struct.GetAll.html
-    pub fn get_all<N: AsName>(&self, name: N) -> GetAll {
+    pub fn get_all<N: AsName>(&self, name: N) -> GetAll<'_> {
         GetAll {
             idx: 0,
             item: self.get2(name),
@@ -186,7 +187,7 @@ impl HeaderMap {
     /// The iteration order is arbitrary, but consistent across platforms for
     /// the same crate version. Each key will be yielded once per associated
     /// value. So, if a key has 3 associated values, it will be yielded 3 times.
-    pub fn iter(&self) -> Iter {
+    pub fn iter(&self) -> Iter<'_> {
         Iter::new(self.inner.iter())
     }
 
@@ -195,7 +196,7 @@ impl HeaderMap {
     /// The iteration order is arbitrary, but consistent across platforms for
     /// the same crate version. Each key will be yielded only once even if it
     /// has multiple associated values.
-    pub fn keys(&self) -> Keys {
+    pub fn keys(&self) -> Keys<'_> {
         Keys(self.inner.keys())
     }
 

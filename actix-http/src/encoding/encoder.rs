@@ -1,22 +1,23 @@
 //! Stream encoder
+use std::future::Future;
 use std::io::{self, Write};
+use std::pin::Pin;
+use std::task::{Context, Poll};
 
 use actix_threadpool::{run, CpuFuture};
-#[cfg(feature = "brotli")]
 use brotli2::write::BrotliEncoder;
 use bytes::Bytes;
-#[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
 use flate2::write::{GzEncoder, ZlibEncoder};
-use futures::{Async, Future, Poll};
+use futures_core::ready;
 
 use crate::body::{Body, BodySize, MessageBody, ResponseBody};
 use crate::http::header::{ContentEncoding, CONTENT_ENCODING};
-use crate::http::{HeaderValue, HttpTryFrom, StatusCode};
+use crate::http::{HeaderValue, StatusCode};
 use crate::{Error, ResponseHead};
 
 use super::Writer;
 
-const INPLACE: usize = 2049;
+const INPLACE: usize = 1024;
 
 pub struct Encoder<B> {
     eof: bool,
@@ -94,43 +95,45 @@ impl<B: MessageBody> MessageBody for Encoder<B> {
         }
     }
 
-    fn poll_next(&mut self) -> Poll<Option<Bytes>, Error> {
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes, Error>>> {
         loop {
             if self.eof {
-                return Ok(Async::Ready(None));
+                return Poll::Ready(None);
             }
 
             if let Some(ref mut fut) = self.fut {
-                let mut encoder = futures::try_ready!(fut.poll());
+                let mut encoder = match ready!(Pin::new(fut).poll(cx)) {
+                    Ok(item) => item,
+                    Err(e) => return Poll::Ready(Some(Err(e.into()))),
+                };
                 let chunk = encoder.take();
                 self.encoder = Some(encoder);
                 self.fut.take();
                 if !chunk.is_empty() {
-                    return Ok(Async::Ready(Some(chunk)));
+                    return Poll::Ready(Some(Ok(chunk)));
                 }
             }
 
             let result = match self.body {
                 EncoderBody::Bytes(ref mut b) => {
                     if b.is_empty() {
-                        Async::Ready(None)
+                        Poll::Ready(None)
                     } else {
-                        Async::Ready(Some(std::mem::replace(b, Bytes::new())))
+                        Poll::Ready(Some(Ok(std::mem::replace(b, Bytes::new()))))
                     }
                 }
-                EncoderBody::Stream(ref mut b) => b.poll_next()?,
-                EncoderBody::BoxedStream(ref mut b) => b.poll_next()?,
+                EncoderBody::Stream(ref mut b) => b.poll_next(cx),
+                EncoderBody::BoxedStream(ref mut b) => b.poll_next(cx),
             };
             match result {
-                Async::NotReady => return Ok(Async::NotReady),
-                Async::Ready(Some(chunk)) => {
+                Poll::Ready(Some(Ok(chunk))) => {
                     if let Some(mut encoder) = self.encoder.take() {
                         if chunk.len() < INPLACE {
                             encoder.write(&chunk)?;
                             let chunk = encoder.take();
                             self.encoder = Some(encoder);
                             if !chunk.is_empty() {
-                                return Ok(Async::Ready(Some(chunk)));
+                                return Poll::Ready(Some(Ok(chunk)));
                             }
                         } else {
                             self.fut = Some(run(move || {
@@ -139,22 +142,23 @@ impl<B: MessageBody> MessageBody for Encoder<B> {
                             }));
                         }
                     } else {
-                        return Ok(Async::Ready(Some(chunk)));
+                        return Poll::Ready(Some(Ok(chunk)));
                     }
                 }
-                Async::Ready(None) => {
+                Poll::Ready(None) => {
                     if let Some(encoder) = self.encoder.take() {
                         let chunk = encoder.finish()?;
                         if chunk.is_empty() {
-                            return Ok(Async::Ready(None));
+                            return Poll::Ready(None);
                         } else {
                             self.eof = true;
-                            return Ok(Async::Ready(Some(chunk)));
+                            return Poll::Ready(Some(Ok(chunk)));
                         }
                     } else {
-                        return Ok(Async::Ready(None));
+                        return Poll::Ready(None);
                     }
                 }
+                val => return val,
             }
         }
     }
@@ -163,33 +167,27 @@ impl<B: MessageBody> MessageBody for Encoder<B> {
 fn update_head(encoding: ContentEncoding, head: &mut ResponseHead) {
     head.headers_mut().insert(
         CONTENT_ENCODING,
-        HeaderValue::try_from(Bytes::from_static(encoding.as_str().as_bytes())).unwrap(),
+        HeaderValue::from_static(encoding.as_str()),
     );
 }
 
 enum ContentEncoder {
-    #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
     Deflate(ZlibEncoder<Writer>),
-    #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
     Gzip(GzEncoder<Writer>),
-    #[cfg(feature = "brotli")]
     Br(BrotliEncoder<Writer>),
 }
 
 impl ContentEncoder {
     fn encoder(encoding: ContentEncoding) -> Option<Self> {
         match encoding {
-            #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
             ContentEncoding::Deflate => Some(ContentEncoder::Deflate(ZlibEncoder::new(
                 Writer::new(),
                 flate2::Compression::fast(),
             ))),
-            #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
             ContentEncoding::Gzip => Some(ContentEncoder::Gzip(GzEncoder::new(
                 Writer::new(),
                 flate2::Compression::fast(),
             ))),
-            #[cfg(feature = "brotli")]
             ContentEncoding::Br => {
                 Some(ContentEncoder::Br(BrotliEncoder::new(Writer::new(), 3)))
             }
@@ -200,28 +198,22 @@ impl ContentEncoder {
     #[inline]
     pub(crate) fn take(&mut self) -> Bytes {
         match *self {
-            #[cfg(feature = "brotli")]
             ContentEncoder::Br(ref mut encoder) => encoder.get_mut().take(),
-            #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
             ContentEncoder::Deflate(ref mut encoder) => encoder.get_mut().take(),
-            #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
             ContentEncoder::Gzip(ref mut encoder) => encoder.get_mut().take(),
         }
     }
 
     fn finish(self) -> Result<Bytes, io::Error> {
         match self {
-            #[cfg(feature = "brotli")]
             ContentEncoder::Br(encoder) => match encoder.finish() {
                 Ok(writer) => Ok(writer.buf.freeze()),
                 Err(err) => Err(err),
             },
-            #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
             ContentEncoder::Gzip(encoder) => match encoder.finish() {
                 Ok(writer) => Ok(writer.buf.freeze()),
                 Err(err) => Err(err),
             },
-            #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
             ContentEncoder::Deflate(encoder) => match encoder.finish() {
                 Ok(writer) => Ok(writer.buf.freeze()),
                 Err(err) => Err(err),
@@ -231,7 +223,6 @@ impl ContentEncoder {
 
     fn write(&mut self, data: &[u8]) -> Result<(), io::Error> {
         match *self {
-            #[cfg(feature = "brotli")]
             ContentEncoder::Br(ref mut encoder) => match encoder.write_all(data) {
                 Ok(_) => Ok(()),
                 Err(err) => {
@@ -239,7 +230,6 @@ impl ContentEncoder {
                     Err(err)
                 }
             },
-            #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
             ContentEncoder::Gzip(ref mut encoder) => match encoder.write_all(data) {
                 Ok(_) => Ok(()),
                 Err(err) => {
@@ -247,7 +237,6 @@ impl ContentEncoder {
                     Err(err)
                 }
             },
-            #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
             ContentEncoder::Deflate(ref mut encoder) => match encoder.write_all(data) {
                 Ok(_) => Ok(()),
                 Err(err) => {

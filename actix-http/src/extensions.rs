@@ -1,12 +1,12 @@
 use std::any::{Any, TypeId};
 use std::fmt;
 
-use hashbrown::HashMap;
+use fxhash::FxHashMap;
 
 #[derive(Default)]
 /// A type map of request extensions.
 pub struct Extensions {
-    map: HashMap<TypeId, Box<dyn Any>>,
+    map: FxHashMap<TypeId, Box<dyn Any>>,
 }
 
 impl Extensions {
@@ -14,7 +14,7 @@ impl Extensions {
     #[inline]
     pub fn new() -> Extensions {
         Extensions {
-            map: HashMap::default(),
+            map: FxHashMap::default(),
         }
     }
 
@@ -65,7 +65,7 @@ impl Extensions {
 }
 
 impl fmt::Debug for Extensions {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Extensions").finish()
     }
 }

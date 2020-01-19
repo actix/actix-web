@@ -12,7 +12,7 @@
 //! [*Session*](struct.Session.html) extractor must be used. Session
 //! extractor allows us to get or set session data.
 //!
-//! ```rust
+//! ```rust,no_run
 //! use actix_web::{web, App, HttpServer, HttpResponse, Error};
 //! use actix_session::{Session, CookieSession};
 //!
@@ -28,8 +28,8 @@
 //!     Ok("Welcome!")
 //! }
 //!
-//! fn main() -> std::io::Result<()> {
-//! # std::thread::spawn(||
+//! #[actix_rt::main]
+//! async fn main() -> std::io::Result<()> {
 //!     HttpServer::new(
 //!         || App::new().wrap(
 //!               CookieSession::signed(&[0; 32]) // <- create cookie based session middleware
@@ -38,16 +38,18 @@
 //!             .service(web::resource("/").to(|| HttpResponse::Ok())))
 //!         .bind("127.0.0.1:59880")?
 //!         .run()
-//! # );
-//! # Ok(())
+//!         .await
 //! }
 //! ```
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::rc::Rc;
 
-use actix_web::dev::{Extensions, Payload, ServiceRequest, ServiceResponse};
+use actix_web::dev::{
+    Extensions, Payload, RequestHead, ServiceRequest, ServiceResponse,
+};
 use actix_web::{Error, FromRequest, HttpMessage, HttpRequest};
-use hashbrown::HashMap;
+use futures::future::{ok, Ready};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use serde_json;
@@ -83,17 +85,23 @@ pub struct Session(Rc<RefCell<SessionInner>>);
 
 /// Helper trait that allows to get session
 pub trait UserSession {
-    fn get_session(&mut self) -> Session;
+    fn get_session(&self) -> Session;
 }
 
 impl UserSession for HttpRequest {
-    fn get_session(&mut self) -> Session {
+    fn get_session(&self) -> Session {
         Session::get_session(&mut *self.extensions_mut())
     }
 }
 
 impl UserSession for ServiceRequest {
-    fn get_session(&mut self) -> Session {
+    fn get_session(&self) -> Session {
+        Session::get_session(&mut *self.extensions_mut())
+    }
+}
+
+impl UserSession for RequestHead {
+    fn get_session(&self) -> Session {
         Session::get_session(&mut *self.extensions_mut())
     }
 }
@@ -230,12 +238,12 @@ impl Session {
 /// ```
 impl FromRequest for Session {
     type Error = Error;
-    type Future = Result<Session, Error>;
+    type Future = Ready<Result<Session, Error>>;
     type Config = ();
 
     #[inline]
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        Ok(Session::get_session(&mut *req.extensions_mut()))
+        ok(Session::get_session(&mut *req.extensions_mut()))
     }
 }
 
@@ -276,6 +284,20 @@ mod tests {
         );
 
         let session = req.get_session();
+        let res = session.get::<String>("key").unwrap();
+        assert_eq!(res, Some("value".to_string()));
+    }
+
+    #[test]
+    fn get_session_from_request_head() {
+        let mut req = test::TestRequest::default().to_srv_request();
+
+        Session::set_session(
+            vec![("key".to_string(), "\"value\"".to_string())].into_iter(),
+            &mut req,
+        );
+
+        let session = req.head_mut().get_session();
         let res = session.get::<String>("key").unwrap();
         assert_eq!(res, Some("value".to_string()));
     }

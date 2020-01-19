@@ -1,6 +1,6 @@
 [package]
 name = "actix-http-test"
-version = "0.2.4"
+version = "1.0.0"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix http test server"
 readme = "README.md"
@@ -27,21 +27,22 @@ path = "src/lib.rs"
 default = []
 
 # openssl
-ssl = ["openssl", "actix-server/ssl", "awc/ssl"]
+openssl = ["open-ssl", "awc/openssl"]
 
 [dependencies]
-actix-codec = "0.1.2"
-actix-rt = "0.2.2"
-actix-service = "0.4.1"
-actix-server = "0.6.0"
-actix-utils = "0.4.1"
-awc = "0.2.2"
-actix-connect = "0.2.2"
+actix-service = "1.0.1"
+actix-codec = "0.2.0"
+actix-connect = "1.0.0"
+actix-utils = "1.0.3"
+actix-rt = "1.0.0"
+actix-server = "1.0.0"
+actix-testing = "1.0.0"
+awc = "1.0.0"
 
-base64 = "0.10"
-bytes = "0.4"
-futures = "0.1"
-http = "0.1.8"
+base64 = "0.11"
+bytes = "0.5.3"
+futures = "0.3.1"
+http = "0.2.0"
 log = "0.4"
 env_logger = "0.6"
 net2 = "0.2"
@@ -51,10 +52,8 @@ sha1 = "0.6"
 slab = "0.4"
 serde_urlencoded = "0.6.1"
 time = "0.1"
-tokio-tcp = "0.1"
-tokio-timer = "0.2"
-openssl = { version="0.10", optional = true }
+open-ssl = { version="0.10", package="openssl", optional = true }
 
 [dev-dependencies]
-actix-web = "1.0.0"
-actix-http = "0.2.4"
+actix-web = "2.0.0-rc"
+actix-http = "1.0.1"

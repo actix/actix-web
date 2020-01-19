@@ -1,7 +1,7 @@
 use std::fmt::{self, Display, Write};
 use std::str::FromStr;
 
-use crate::header::{HeaderValue, IntoHeaderValue, InvalidHeaderValueBytes, Writer};
+use crate::header::{HeaderValue, IntoHeaderValue, InvalidHeaderValue, Writer};
 
 /// check that each char in the slice is either:
 /// 1. `%x21`, or
@@ -113,7 +113,7 @@ impl EntityTag {
 }
 
 impl Display for EntityTag {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if self.weak {
             write!(f, "W/\"{}\"", self.tag)
         } else {
@@ -157,12 +157,12 @@ impl FromStr for EntityTag {
 }
 
 impl IntoHeaderValue for EntityTag {
-    type Error = InvalidHeaderValueBytes;
+    type Error = InvalidHeaderValue;
 
     fn try_into(self) -> Result<HeaderValue, Self::Error> {
         let mut wrt = Writer::new();
         write!(wrt, "{}", self).unwrap();
-        HeaderValue::from_shared(wrt.take())
+        HeaderValue::from_maybe_shared(wrt.take())
     }
 }
 

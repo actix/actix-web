@@ -1,13 +1,43 @@
 # Changes
 
-##
+## [1.0.1] - 2019-12-15
+
+* Fix compilation with default features off
+
+
+## [1.0.0] - 2019-12-13
+
+* Release
+
+## [1.0.0-alpha.3]
+
+* Migrate to `std::future`
+
+
+## [0.2.8] - 2019-11-06
+
+* Add support for setting query from Serialize type for client request.
+
+
+## [0.2.7] - 2019-09-25
+
+### Added
+
+* Remaining getter methods for `ClientRequest`'s private `head` field #1101
+
+
+## [0.2.6] - 2019-09-12
+
+### Added
+
+* Export frozen request related types.
+
+
+## [0.2.5] - 2019-09-11
 
 ### Added
 
 * Add `FrozenClientRequest` to support retries for sending HTTP requests
-
-
-## [0.2.5] - 2019-09-06
 
 ### Changed
 

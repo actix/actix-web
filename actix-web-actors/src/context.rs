@@ -1,4 +1,6 @@
 use std::collections::VecDeque;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 
 use actix::dev::{
     AsyncContextParts, ContextFut, ContextParts, Envelope, Mailbox, ToEnvelope,
@@ -7,10 +9,10 @@ use actix::fut::ActorFuture;
 use actix::{
     Actor, ActorContext, ActorState, Addr, AsyncContext, Handler, Message, SpawnHandle,
 };
-use actix_web::error::{Error, ErrorInternalServerError};
+use actix_web::error::Error;
 use bytes::Bytes;
-use futures::sync::oneshot::Sender;
-use futures::{Async, Future, Poll, Stream};
+use futures::channel::oneshot::Sender;
+use futures::{Future, Stream};
 
 /// Execution context for http actors
 pub struct HttpContext<A>
@@ -43,7 +45,7 @@ where
     #[inline]
     fn spawn<F>(&mut self, fut: F) -> SpawnHandle
     where
-        F: ActorFuture<Item = (), Error = (), Actor = A> + 'static,
+        F: ActorFuture<Output = (), Actor = A> + 'static,
     {
         self.inner.spawn(fut)
     }
@@ -51,7 +53,7 @@ where
     #[inline]
     fn wait<F>(&mut self, fut: F)
     where
-        F: ActorFuture<Item = (), Error = (), Actor = A> + 'static,
+        F: ActorFuture<Output = (), Actor = A> + 'static,
     {
         self.inner.wait(fut)
     }
@@ -81,7 +83,7 @@ where
 {
     #[inline]
     /// Create a new HTTP Context from a request and an actor
-    pub fn create(actor: A) -> impl Stream<Item = Bytes, Error = Error> {
+    pub fn create(actor: A) -> impl Stream<Item = Result<Bytes, Error>> {
         let mb = Mailbox::default();
         let ctx = HttpContext {
             inner: ContextParts::new(mb.sender_producer()),
@@ -91,7 +93,7 @@ where
     }
 
     /// Create a new HTTP Context
-    pub fn with_factory<F>(f: F) -> impl Stream<Item = Bytes, Error = Error>
+    pub fn with_factory<F>(f: F) -> impl Stream<Item = Result<Bytes, Error>>
     where
         F: FnOnce(&mut Self) -> A + 'static,
     {
@@ -160,24 +162,23 @@ impl<A> Stream for HttpContextFut<A>
 where
     A: Actor<Context = HttpContext<A>>,
 {
-    type Item = Bytes;
-    type Error = Error;
+    type Item = Result<Bytes, Error>;
 
-    fn poll(&mut self) -> Poll<Option<Bytes>, Error> {
+    fn poll_next(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Option<Self::Item>> {
         if self.fut.alive() {
-            match self.fut.poll() {
-                Ok(Async::NotReady) | Ok(Async::Ready(())) => (),
-                Err(_) => return Err(ErrorInternalServerError("error")),
-            }
+            let _ = Pin::new(&mut self.fut).poll(cx);
         }
 
         // frames
         if let Some(data) = self.fut.ctx().stream.pop_front() {
-            Ok(Async::Ready(data))
+            Poll::Ready(data.map(|b| Ok(b)))
         } else if self.fut.alive() {
-            Ok(Async::NotReady)
+            Poll::Pending
         } else {
-            Ok(Async::Ready(None))
+            Poll::Ready(None)
         }
     }
 }
@@ -199,9 +200,9 @@ mod tests {
 
     use actix::Actor;
     use actix_web::http::StatusCode;
-    use actix_web::test::{block_on, call_service, init_service, TestRequest};
+    use actix_web::test::{call_service, init_service, read_body, TestRequest};
     use actix_web::{web, App, HttpResponse};
-    use bytes::{Bytes, BytesMut};
+    use bytes::Bytes;
 
     use super::*;
 
@@ -223,31 +224,25 @@ mod tests {
             if self.count > 3 {
                 ctx.write_eof()
             } else {
-                ctx.write(Bytes::from(format!("LINE-{}", self.count).as_bytes()));
+                ctx.write(Bytes::from(format!("LINE-{}", self.count)));
                 ctx.run_later(Duration::from_millis(100), |slf, ctx| slf.write(ctx));
             }
         }
     }
 
-    #[test]
-    fn test_default_resource() {
+    #[actix_rt::test]
+    async fn test_default_resource() {
         let mut srv =
             init_service(App::new().service(web::resource("/test").to(|| {
                 HttpResponse::Ok().streaming(HttpContext::create(MyActor { count: 0 }))
-            })));
+            })))
+            .await;
 
         let req = TestRequest::with_uri("/test").to_request();
-        let mut resp = call_service(&mut srv, req);
+        let resp = call_service(&mut srv, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
 
-        let body = block_on(resp.take_body().fold(
-            BytesMut::new(),
-            move |mut body, chunk| {
-                body.extend_from_slice(&chunk);
-                Ok::<_, Error>(body)
-            },
-        ))
-        .unwrap();
-        assert_eq!(body.freeze(), Bytes::from_static(b"LINE-1LINE-2LINE-3"));
+        let body = read_body(resp).await;
+        assert_eq!(body, Bytes::from_static(b"LINE-1LINE-2LINE-3"));
     }
 }

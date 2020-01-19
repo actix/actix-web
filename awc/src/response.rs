@@ -1,9 +1,11 @@
 use std::cell::{Ref, RefMut};
 use std::fmt;
 use std::marker::PhantomData;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 
 use bytes::{Bytes, BytesMut};
-use futures::{Async, Future, Poll, Stream};
+use futures_core::{ready, Future, Stream};
 
 use actix_http::cookie::Cookie;
 use actix_http::error::{CookieParseError, PayloadError};
@@ -27,11 +29,11 @@ impl<S> HttpMessage for ClientResponse<S> {
         &self.head.headers
     }
 
-    fn extensions(&self) -> Ref<Extensions> {
+    fn extensions(&self) -> Ref<'_, Extensions> {
         self.head.extensions()
     }
 
-    fn extensions_mut(&self) -> RefMut<Extensions> {
+    fn extensions_mut(&self) -> RefMut<'_, Extensions> {
         self.head.extensions_mut()
     }
 
@@ -41,7 +43,7 @@ impl<S> HttpMessage for ClientResponse<S> {
 
     /// Load request cookies.
     #[inline]
-    fn cookies(&self) -> Result<Ref<Vec<Cookie<'static>>>, CookieParseError> {
+    fn cookies(&self) -> Result<Ref<'_, Vec<Cookie<'static>>>, CookieParseError> {
         struct Cookies(Vec<Cookie<'static>>);
 
         if self.extensions().get::<Cookies>().is_none() {
@@ -104,7 +106,7 @@ impl<S> ClientResponse<S> {
 
 impl<S> ClientResponse<S>
 where
-    S: Stream<Item = Bytes, Error = PayloadError>,
+    S: Stream<Item = Result<Bytes, PayloadError>>,
 {
     /// Loads http response's body.
     pub fn body(&mut self) -> MessageBody<S> {
@@ -125,18 +127,20 @@ where
 
 impl<S> Stream for ClientResponse<S>
 where
-    S: Stream<Item = Bytes, Error = PayloadError>,
+    S: Stream<Item = Result<Bytes, PayloadError>> + Unpin,
 {
-    type Item = Bytes;
-    type Error = PayloadError;
+    type Item = Result<Bytes, PayloadError>;
 
-    fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
-        self.payload.poll()
+    fn poll_next(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Option<Self::Item>> {
+        Pin::new(&mut self.get_mut().payload).poll_next(cx)
     }
 }
 
 impl<S> fmt::Debug for ClientResponse<S> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "\nClientResponse {:?} {}", self.version(), self.status(),)?;
         writeln!(f, "  headers:")?;
         for (key, val) in self.headers().iter() {
@@ -155,7 +159,7 @@ pub struct MessageBody<S> {
 
 impl<S> MessageBody<S>
 where
-    S: Stream<Item = Bytes, Error = PayloadError>,
+    S: Stream<Item = Result<Bytes, PayloadError>>,
 {
     /// Create `MessageBody` for request.
     pub fn new(res: &mut ClientResponse<S>) -> MessageBody<S> {
@@ -198,23 +202,24 @@ where
 
 impl<S> Future for MessageBody<S>
 where
-    S: Stream<Item = Bytes, Error = PayloadError>,
+    S: Stream<Item = Result<Bytes, PayloadError>> + Unpin,
 {
-    type Item = Bytes;
-    type Error = PayloadError;
+    type Output = Result<Bytes, PayloadError>;
 
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        if let Some(err) = self.err.take() {
-            return Err(err);
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = self.get_mut();
+
+        if let Some(err) = this.err.take() {
+            return Poll::Ready(Err(err));
         }
 
-        if let Some(len) = self.length.take() {
-            if len > self.fut.as_ref().unwrap().limit {
-                return Err(PayloadError::Overflow);
+        if let Some(len) = this.length.take() {
+            if len > this.fut.as_ref().unwrap().limit {
+                return Poll::Ready(Err(PayloadError::Overflow));
             }
         }
 
-        self.fut.as_mut().unwrap().poll()
+        Pin::new(&mut this.fut.as_mut().unwrap()).poll(cx)
     }
 }
 
@@ -233,7 +238,7 @@ pub struct JsonBody<S, U> {
 
 impl<S, U> JsonBody<S, U>
 where
-    S: Stream<Item = Bytes, Error = PayloadError>,
+    S: Stream<Item = Result<Bytes, PayloadError>>,
     U: DeserializeOwned,
 {
     /// Create `JsonBody` for request.
@@ -279,27 +284,35 @@ where
     }
 }
 
-impl<T, U> Future for JsonBody<T, U>
+impl<T, U> Unpin for JsonBody<T, U>
 where
-    T: Stream<Item = Bytes, Error = PayloadError>,
+    T: Stream<Item = Result<Bytes, PayloadError>> + Unpin,
     U: DeserializeOwned,
 {
-    type Item = U;
-    type Error = JsonPayloadError;
+}
 
-    fn poll(&mut self) -> Poll<U, JsonPayloadError> {
+impl<T, U> Future for JsonBody<T, U>
+where
+    T: Stream<Item = Result<Bytes, PayloadError>> + Unpin,
+    U: DeserializeOwned,
+{
+    type Output = Result<U, JsonPayloadError>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         if let Some(err) = self.err.take() {
-            return Err(err);
+            return Poll::Ready(Err(err));
         }
 
         if let Some(len) = self.length.take() {
             if len > self.fut.as_ref().unwrap().limit {
-                return Err(JsonPayloadError::Payload(PayloadError::Overflow));
+                return Poll::Ready(Err(JsonPayloadError::Payload(
+                    PayloadError::Overflow,
+                )));
             }
         }
 
-        let body = futures::try_ready!(self.fut.as_mut().unwrap().poll());
-        Ok(Async::Ready(serde_json::from_slice::<U>(&body)?))
+        let body = ready!(Pin::new(&mut self.get_mut().fut.as_mut().unwrap()).poll(cx))?;
+        Poll::Ready(serde_json::from_slice::<U>(&body).map_err(JsonPayloadError::from))
     }
 }
 
@@ -321,24 +334,25 @@ impl<S> ReadBody<S> {
 
 impl<S> Future for ReadBody<S>
 where
-    S: Stream<Item = Bytes, Error = PayloadError>,
+    S: Stream<Item = Result<Bytes, PayloadError>> + Unpin,
 {
-    type Item = Bytes;
-    type Error = PayloadError;
+    type Output = Result<Bytes, PayloadError>;
 
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = self.get_mut();
+
         loop {
-            return match self.stream.poll()? {
-                Async::Ready(Some(chunk)) => {
-                    if (self.buf.len() + chunk.len()) > self.limit {
-                        Err(PayloadError::Overflow)
+            return match Pin::new(&mut this.stream).poll_next(cx)? {
+                Poll::Ready(Some(chunk)) => {
+                    if (this.buf.len() + chunk.len()) > this.limit {
+                        Poll::Ready(Err(PayloadError::Overflow))
                     } else {
-                        self.buf.extend_from_slice(&chunk);
+                        this.buf.extend_from_slice(&chunk);
                         continue;
                     }
                 }
-                Async::Ready(None) => Ok(Async::Ready(self.buf.take().freeze())),
-                Async::NotReady => Ok(Async::NotReady),
+                Poll::Ready(None) => Poll::Ready(Ok(this.buf.split().freeze())),
+                Poll::Pending => Poll::Pending,
             };
         }
     }
@@ -347,23 +361,21 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use actix_http_test::block_on;
-    use futures::Async;
     use serde::{Deserialize, Serialize};
 
     use crate::{http::header, test::TestResponse};
 
-    #[test]
-    fn test_body() {
+    #[actix_rt::test]
+    async fn test_body() {
         let mut req = TestResponse::with_header(header::CONTENT_LENGTH, "xxxx").finish();
-        match req.body().poll().err().unwrap() {
+        match req.body().await.err().unwrap() {
             PayloadError::UnknownLength => (),
             _ => unreachable!("error"),
         }
 
         let mut req =
             TestResponse::with_header(header::CONTENT_LENGTH, "1000000").finish();
-        match req.body().poll().err().unwrap() {
+        match req.body().await.err().unwrap() {
             PayloadError::Overflow => (),
             _ => unreachable!("error"),
         }
@@ -371,15 +383,12 @@ mod tests {
         let mut req = TestResponse::default()
             .set_payload(Bytes::from_static(b"test"))
             .finish();
-        match req.body().poll().ok().unwrap() {
-            Async::Ready(bytes) => assert_eq!(bytes, Bytes::from_static(b"test")),
-            _ => unreachable!("error"),
-        }
+        assert_eq!(req.body().await.ok().unwrap(), Bytes::from_static(b"test"));
 
         let mut req = TestResponse::default()
             .set_payload(Bytes::from_static(b"11111111111111"))
             .finish();
-        match req.body().limit(5).poll().err().unwrap() {
+        match req.body().limit(5).await.err().unwrap() {
             PayloadError::Overflow => (),
             _ => unreachable!("error"),
         }
@@ -404,10 +413,10 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_json_body() {
+    #[actix_rt::test]
+    async fn test_json_body() {
         let mut req = TestResponse::default().finish();
-        let json = block_on(JsonBody::<_, MyObject>::new(&mut req));
+        let json = JsonBody::<_, MyObject>::new(&mut req).await;
         assert!(json_eq(json.err().unwrap(), JsonPayloadError::ContentType));
 
         let mut req = TestResponse::default()
@@ -416,7 +425,7 @@ mod tests {
                 header::HeaderValue::from_static("application/text"),
             )
             .finish();
-        let json = block_on(JsonBody::<_, MyObject>::new(&mut req));
+        let json = JsonBody::<_, MyObject>::new(&mut req).await;
         assert!(json_eq(json.err().unwrap(), JsonPayloadError::ContentType));
 
         let mut req = TestResponse::default()
@@ -430,7 +439,7 @@ mod tests {
             )
             .finish();
 
-        let json = block_on(JsonBody::<_, MyObject>::new(&mut req).limit(100));
+        let json = JsonBody::<_, MyObject>::new(&mut req).limit(100).await;
         assert!(json_eq(
             json.err().unwrap(),
             JsonPayloadError::Payload(PayloadError::Overflow)
@@ -448,7 +457,7 @@ mod tests {
             .set_payload(Bytes::from_static(b"{\"name\": \"test\"}"))
             .finish();
 
-        let json = block_on(JsonBody::<_, MyObject>::new(&mut req));
+        let json = JsonBody::<_, MyObject>::new(&mut req).await;
         assert_eq!(
             json.ok().unwrap(),
             MyObject {

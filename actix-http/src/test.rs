@@ -1,14 +1,15 @@
 //! Test Various helpers for Actix applications to use during testing.
+use std::convert::TryFrom;
 use std::fmt::Write as FmtWrite;
-use std::io;
+use std::io::{self, Read, Write};
+use std::pin::Pin;
 use std::str::FromStr;
+use std::task::{Context, Poll};
 
 use actix_codec::{AsyncRead, AsyncWrite};
-use actix_server_config::IoStream;
-use bytes::{Buf, Bytes, BytesMut};
-use futures::{Async, Poll};
+use bytes::{Bytes, BytesMut};
 use http::header::{self, HeaderName, HeaderValue};
-use http::{HttpTryFrom, Method, Uri, Version};
+use http::{Error as HttpError, Method, Uri, Version};
 use percent_encoding::percent_encode;
 
 use crate::cookie::{Cookie, CookieJar, USERINFO};
@@ -20,8 +21,6 @@ use crate::Request;
 /// Test `Request` builder
 ///
 /// ```rust,ignore
-/// # extern crate http;
-/// # extern crate actix_web;
 /// # use http::{header, StatusCode};
 /// # use actix_web::*;
 /// use actix_web::test::TestRequest;
@@ -34,15 +33,13 @@ use crate::Request;
 ///     }
 /// }
 ///
-/// fn main() {
-///     let resp = TestRequest::with_header("content-type", "text/plain")
-///         .run(&index)
-///         .unwrap();
-///     assert_eq!(resp.status(), StatusCode::OK);
+/// let resp = TestRequest::with_header("content-type", "text/plain")
+///     .run(&index)
+///     .unwrap();
+/// assert_eq!(resp.status(), StatusCode::OK);
 ///
-///     let resp = TestRequest::default().run(&index).unwrap();
-///     assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-/// }
+/// let resp = TestRequest::default().run(&index).unwrap();
+/// assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 /// ```
 pub struct TestRequest(Option<Inner>);
 
@@ -82,7 +79,8 @@ impl TestRequest {
     /// Create TestRequest and set header
     pub fn with_header<K, V>(key: K, value: V) -> TestRequest
     where
-        HeaderName: HttpTryFrom<K>,
+        HeaderName: TryFrom<K>,
+        <HeaderName as TryFrom<K>>::Error: Into<HttpError>,
         V: IntoHeaderValue,
     {
         TestRequest::default().header(key, value).take()
@@ -118,7 +116,8 @@ impl TestRequest {
     /// Set a header
     pub fn header<K, V>(&mut self, key: K, value: V) -> &mut Self
     where
-        HeaderName: HttpTryFrom<K>,
+        HeaderName: TryFrom<K>,
+        <HeaderName as TryFrom<K>>::Error: Into<HttpError>,
         V: IntoHeaderValue,
     {
         if let Ok(key) = HeaderName::try_from(key) {
@@ -150,7 +149,7 @@ impl TestRequest {
 
     /// Complete request creation and generate `Request` instance
     pub fn finish(&mut self) -> Request {
-        let inner = self.0.take().expect("cannot reuse test request builder");;
+        let inner = self.0.take().expect("cannot reuse test request builder");
 
         let mut req = if let Some(pl) = inner.payload {
             Request::with_payload(pl)
@@ -244,27 +243,30 @@ impl io::Write for TestBuffer {
     }
 }
 
-impl AsyncRead for TestBuffer {}
-
-impl AsyncWrite for TestBuffer {
-    fn shutdown(&mut self) -> Poll<(), io::Error> {
-        Ok(Async::Ready(()))
-    }
-    fn write_buf<B: Buf>(&mut self, _: &mut B) -> Poll<usize, io::Error> {
-        Ok(Async::NotReady)
+impl AsyncRead for TestBuffer {
+    fn poll_read(
+        self: Pin<&mut Self>,
+        _: &mut Context<'_>,
+        buf: &mut [u8],
+    ) -> Poll<io::Result<usize>> {
+        Poll::Ready(self.get_mut().read(buf))
     }
 }
 
-impl IoStream for TestBuffer {
-    fn set_nodelay(&mut self, _nodelay: bool) -> io::Result<()> {
-        Ok(())
+impl AsyncWrite for TestBuffer {
+    fn poll_write(
+        self: Pin<&mut Self>,
+        _: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<io::Result<usize>> {
+        Poll::Ready(self.get_mut().write(buf))
     }
 
-    fn set_linger(&mut self, _dur: Option<std::time::Duration>) -> io::Result<()> {
-        Ok(())
+    fn poll_flush(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<io::Result<()>> {
+        Poll::Ready(Ok(()))
     }
 
-    fn set_keepalive(&mut self, _dur: Option<std::time::Duration>) -> io::Result<()> {
-        Ok(())
+    fn poll_shutdown(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<io::Result<()>> {
+        Poll::Ready(Ok(()))
     }
 }

@@ -5,9 +5,9 @@ use std::{fmt, net};
 use actix_http::http::{HeaderMap, Method, Uri, Version};
 use actix_http::{Error, Extensions, HttpMessage, Message, Payload, RequestHead};
 use actix_router::{Path, Url};
+use futures::future::{ok, Ready};
 
 use crate::config::AppConfig;
-use crate::data::Data;
 use crate::error::UrlGenerationError;
 use crate::extract::FromRequest;
 use crate::info::ConnectionInfo;
@@ -124,13 +124,13 @@ impl HttpRequest {
 
     /// Request extensions
     #[inline]
-    pub fn extensions(&self) -> Ref<Extensions> {
+    pub fn extensions(&self) -> Ref<'_, Extensions> {
         self.head().extensions()
     }
 
     /// Mutable reference to a the request's extensions
     #[inline]
-    pub fn extensions_mut(&self) -> RefMut<Extensions> {
+    pub fn extensions_mut(&self) -> RefMut<'_, Extensions> {
         self.head().extensions_mut()
     }
 
@@ -196,7 +196,7 @@ impl HttpRequest {
     /// This method panics if request's extensions container is already
     /// borrowed.
     #[inline]
-    pub fn connection_info(&self) -> Ref<ConnectionInfo> {
+    pub fn connection_info(&self) -> Ref<'_, ConnectionInfo> {
         ConnectionInfo::get(self.head(), &*self.app_config())
     }
 
@@ -206,21 +206,17 @@ impl HttpRequest {
         &self.0.config
     }
 
-    /// Get an application data stored with `App::data()` method during
-    /// application configuration.
+    /// Get an application data object stored with `App::data` or `App::app_data`
+    /// methods during application configuration.
+    ///
+    /// If `App::data` was used to store object, use `Data<T>`:
+    ///
+    /// ```rust,ignore
+    /// let opt_t = req.app_data::<Data<T>>();
+    /// ```
     pub fn app_data<T: 'static>(&self) -> Option<&T> {
-        if let Some(st) = self.0.app_data.get::<Data<T>>() {
+        if let Some(st) = self.0.app_data.get::<T>() {
             Some(&st)
-        } else {
-            None
-        }
-    }
-
-    /// Get an application data stored with `App::data()` method during
-    /// application configuration.
-    pub fn get_app_data<T: 'static>(&self) -> Option<Data<T>> {
-        if let Some(st) = self.0.app_data.get::<Data<T>>() {
-            Some(st.clone())
         } else {
             None
         }
@@ -238,13 +234,13 @@ impl HttpMessage for HttpRequest {
 
     /// Request extensions
     #[inline]
-    fn extensions(&self) -> Ref<Extensions> {
+    fn extensions(&self) -> Ref<'_, Extensions> {
         self.0.head.extensions()
     }
 
     /// Mutable reference to a the request's extensions
     #[inline]
-    fn extensions_mut(&self) -> RefMut<Extensions> {
+    fn extensions_mut(&self) -> RefMut<'_, Extensions> {
         self.0.head.extensions_mut()
     }
 
@@ -271,11 +267,11 @@ impl Drop for HttpRequest {
 /// ## Example
 ///
 /// ```rust
-/// # #[macro_use] extern crate serde_derive;
 /// use actix_web::{web, App, HttpRequest};
+/// use serde_derive::Deserialize;
 ///
 /// /// extract `Thing` from request
-/// fn index(req: HttpRequest) -> String {
+/// async fn index(req: HttpRequest) -> String {
 ///    format!("Got thing: {:?}", req)
 /// }
 ///
@@ -289,16 +285,16 @@ impl Drop for HttpRequest {
 impl FromRequest for HttpRequest {
     type Config = ();
     type Error = Error;
-    type Future = Result<Self, Error>;
+    type Future = Ready<Result<Self, Error>>;
 
     #[inline]
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        Ok(req.clone())
+        ok(req.clone())
     }
 }
 
 impl fmt::Debug for HttpRequest {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(
             f,
             "\nHttpRequest {:?} {}:{}",
@@ -465,9 +461,9 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_app_data() {
-        let mut srv = init_service(App::new().data(10usize).service(
+    #[actix_rt::test]
+    async fn test_data() {
+        let mut srv = init_service(App::new().app_data(10usize).service(
             web::resource("/").to(|req: HttpRequest| {
                 if req.app_data::<usize>().is_some() {
                     HttpResponse::Ok()
@@ -475,13 +471,14 @@ mod tests {
                     HttpResponse::BadRequest()
                 }
             }),
-        ));
+        ))
+        .await;
 
         let req = TestRequest::default().to_request();
-        let resp = call_service(&mut srv, req);
+        let resp = call_service(&mut srv, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
 
-        let mut srv = init_service(App::new().data(10u32).service(
+        let mut srv = init_service(App::new().app_data(10u32).service(
             web::resource("/").to(|req: HttpRequest| {
                 if req.app_data::<usize>().is_some() {
                     HttpResponse::Ok()
@@ -489,15 +486,16 @@ mod tests {
                     HttpResponse::BadRequest()
                 }
             }),
-        ));
+        ))
+        .await;
 
         let req = TestRequest::default().to_request();
-        let resp = call_service(&mut srv, req);
+        let resp = call_service(&mut srv, req).await;
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
     }
 
-    #[test]
-    fn test_extensions_dropped() {
+    #[actix_rt::test]
+    async fn test_extensions_dropped() {
         struct Tracker {
             pub dropped: bool,
         }
@@ -520,10 +518,11 @@ mod tests {
                     });
                     HttpResponse::Ok()
                 }),
-            ));
+            ))
+            .await;
 
             let req = TestRequest::default().to_request();
-            let resp = call_service(&mut srv, req);
+            let resp = call_service(&mut srv, req).await;
             assert_eq!(resp.status(), StatusCode::OK);
         }
 

@@ -1,15 +1,78 @@
 # Changes
 
-##
+## [1.0.1] - 2019-12-20
+
+### Fixed
+
+* Poll upgrade service's readiness from HTTP service handlers
+
+* Replace brotli with brotli2 #1224
+
+## [1.0.0] - 2019-12-13
+
+### Added
+
+* Add websockets continuation frame support
+
+### Changed
+
+* Replace `flate2-xxx` features with `compress`
+
+## [1.0.0-alpha.5] - 2019-12-09
+
+### Fixed
+
+* Check `Upgrade` service readiness before calling it
+
+* Fix buffer remaining capacity calcualtion
+
+### Changed
+
+* Websockets: Ping and Pong should have binary data #1049
+
+## [1.0.0-alpha.4] - 2019-12-08
+
+### Added
+
+* Add impl ResponseBuilder for Error
+
+### Changed
+
+* Use rust based brotli compression library
+
+## [1.0.0-alpha.3] - 2019-12-07
+
+### Changed
+
+* Migrate to tokio 0.2
+
+* Migrate to `std::future`
+
+
+## [0.2.11] - 2019-11-06
+
+### Added
+
+* Add support for serde_json::Value to be passed as argument to ResponseBuilder.body()
+
+* Add an additional `filename*` param in the `Content-Disposition` header of `actix_files::NamedFile` to be more compatible. (#1151)
+
+* Allow to use `std::convert::Infallible` as `actix_http::error::Error`
+
+### Fixed
+
+* To be compatible with non-English error responses, `ResponseError` rendered with `text/plain; charset=utf-8` header #1118
+
+
+## [0.2.10] - 2019-09-11
 
 ### Added
 
 * Add support for sending HTTP requests with `Rc<RequestHead>` in addition to sending HTTP requests with `RequestHead`
 
-
-## [0.2.10] - 2019-09-xx
-
 ### Fixed
+
+* h2 will use error response #1080
 
 * on_connect result isn't added to request extensions for http2 requests #1009
 

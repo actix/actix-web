@@ -1,11 +1,13 @@
 //! Http response
 use std::cell::{Ref, RefMut};
-use std::io::Write;
+use std::convert::TryFrom;
+use std::future::Future;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 use std::{fmt, str};
 
-use bytes::{BufMut, Bytes, BytesMut};
-use futures::future::{ok, FutureResult, IntoFuture};
-use futures::Stream;
+use bytes::{Bytes, BytesMut};
+use futures_core::Stream;
 use serde::Serialize;
 use serde_json;
 
@@ -15,7 +17,7 @@ use crate::error::Error;
 use crate::extensions::Extensions;
 use crate::header::{Header, IntoHeaderValue};
 use crate::http::header::{self, HeaderName, HeaderValue};
-use crate::http::{Error as HttpError, HeaderMap, HttpTryFrom, StatusCode};
+use crate::http::{Error as HttpError, HeaderMap, StatusCode};
 use crate::message::{BoxedResponseHead, ConnectionType, ResponseHead};
 
 /// An HTTP Response
@@ -51,7 +53,7 @@ impl Response<Body> {
     /// Constructs an error response
     #[inline]
     pub fn from_error(error: Error) -> Response {
-        let mut resp = error.as_response_error().render_response();
+        let mut resp = error.as_response_error().error_response();
         if resp.head.status == StatusCode::INTERNAL_SERVER_ERROR {
             error!("Internal Server Error: {:?}", error);
         }
@@ -128,7 +130,7 @@ impl<B> Response<B> {
 
     /// Get an iterator for the cookies set by this response
     #[inline]
-    pub fn cookies(&self) -> CookieIter {
+    pub fn cookies(&self) -> CookieIter<'_> {
         CookieIter {
             iter: self.head.headers.get_all(header::SET_COOKIE),
         }
@@ -136,7 +138,7 @@ impl<B> Response<B> {
 
     /// Add a cookie to this response
     #[inline]
-    pub fn add_cookie(&mut self, cookie: &Cookie) -> Result<(), HttpError> {
+    pub fn add_cookie(&mut self, cookie: &Cookie<'_>) -> Result<(), HttpError> {
         let h = &mut self.head.headers;
         HeaderValue::from_str(&cookie.to_string())
             .map(|c| {
@@ -184,17 +186,17 @@ impl<B> Response<B> {
 
     /// Responses extensions
     #[inline]
-    pub fn extensions(&self) -> Ref<Extensions> {
+    pub fn extensions(&self) -> Ref<'_, Extensions> {
         self.head.extensions.borrow()
     }
 
     /// Mutable reference to a the response's extensions
     #[inline]
-    pub fn extensions_mut(&mut self) -> RefMut<Extensions> {
+    pub fn extensions_mut(&mut self) -> RefMut<'_, Extensions> {
         self.head.extensions.borrow_mut()
     }
 
-    /// Get body os this response
+    /// Get body of this response
     #[inline]
     pub fn body(&self) -> &ResponseBody<B> {
         &self.body
@@ -263,7 +265,7 @@ impl<B> Response<B> {
 }
 
 impl<B: MessageBody> fmt::Debug for Response<B> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let res = writeln!(
             f,
             "\nResponse {:?} {}{}",
@@ -280,13 +282,15 @@ impl<B: MessageBody> fmt::Debug for Response<B> {
     }
 }
 
-impl IntoFuture for Response {
-    type Item = Response;
-    type Error = Error;
-    type Future = FutureResult<Response, Error>;
+impl Future for Response {
+    type Output = Result<Response, Error>;
 
-    fn into_future(self) -> Self::Future {
-        ok(self)
+    fn poll(mut self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Self::Output> {
+        Poll::Ready(Ok(Response {
+            head: self.head.take(),
+            body: self.body.take_body(),
+            error: self.error.take(),
+        }))
     }
 }
 
@@ -350,7 +354,6 @@ impl ResponseBuilder {
     ///         ))
     ///         .finish())
     /// }
-    /// fn main() {}
     /// ```
     #[doc(hidden)]
     pub fn set<H: Header>(&mut self, hdr: H) -> &mut Self {
@@ -376,11 +379,11 @@ impl ResponseBuilder {
     ///         .header(http::header::CONTENT_TYPE, "application/json")
     ///         .finish()
     /// }
-    /// fn main() {}
     /// ```
     pub fn header<K, V>(&mut self, key: K, value: V) -> &mut Self
     where
-        HeaderName: HttpTryFrom<K>,
+        HeaderName: TryFrom<K>,
+        <HeaderName as TryFrom<K>>::Error: Into<HttpError>,
         V: IntoHeaderValue,
     {
         if let Some(parts) = parts(&mut self.head, &self.err) {
@@ -408,11 +411,11 @@ impl ResponseBuilder {
     ///         .set_header(http::header::CONTENT_TYPE, "application/json")
     ///         .finish()
     /// }
-    /// fn main() {}
     /// ```
     pub fn set_header<K, V>(&mut self, key: K, value: V) -> &mut Self
     where
-        HeaderName: HttpTryFrom<K>,
+        HeaderName: TryFrom<K>,
+        <HeaderName as TryFrom<K>>::Error: Into<HttpError>,
         V: IntoHeaderValue,
     {
         if let Some(parts) = parts(&mut self.head, &self.err) {
@@ -481,7 +484,8 @@ impl ResponseBuilder {
     #[inline]
     pub fn content_type<V>(&mut self, value: V) -> &mut Self
     where
-        HeaderValue: HttpTryFrom<V>,
+        HeaderValue: TryFrom<V>,
+        <HeaderValue as TryFrom<V>>::Error: Into<HttpError>,
     {
         if let Some(parts) = parts(&mut self.head, &self.err) {
             match HeaderValue::try_from(value) {
@@ -497,9 +501,7 @@ impl ResponseBuilder {
     /// Set content length
     #[inline]
     pub fn content_length(&mut self, len: u64) -> &mut Self {
-        let mut wrt = BytesMut::new().writer();
-        let _ = write!(wrt, "{}", len);
-        self.header(header::CONTENT_LENGTH, wrt.get_mut().take().freeze())
+        self.header(header::CONTENT_LENGTH, len)
     }
 
     /// Set a cookie
@@ -583,14 +585,14 @@ impl ResponseBuilder {
 
     /// Responses extensions
     #[inline]
-    pub fn extensions(&self) -> Ref<Extensions> {
+    pub fn extensions(&self) -> Ref<'_, Extensions> {
         let head = self.head.as_ref().expect("cannot reuse response builder");
         head.extensions.borrow()
     }
 
     /// Mutable reference to a the response's extensions
     #[inline]
-    pub fn extensions_mut(&mut self) -> RefMut<Extensions> {
+    pub fn extensions_mut(&mut self) -> RefMut<'_, Extensions> {
         let head = self.head.as_ref().expect("cannot reuse response builder");
         head.extensions.borrow_mut()
     }
@@ -635,7 +637,7 @@ impl ResponseBuilder {
     /// `ResponseBuilder` can not be used after this call.
     pub fn streaming<S, E>(&mut self, stream: S) -> Response
     where
-        S: Stream<Item = Bytes, Error = E> + 'static,
+        S: Stream<Item = Result<Bytes, E>> + 'static,
         E: Into<Error> + 'static,
     {
         self.body(Body::from_message(BodyStream::new(stream)))
@@ -757,18 +759,16 @@ impl<'a> From<&'a ResponseHead> for ResponseBuilder {
     }
 }
 
-impl IntoFuture for ResponseBuilder {
-    type Item = Response;
-    type Error = Error;
-    type Future = FutureResult<Response, Error>;
+impl Future for ResponseBuilder {
+    type Output = Result<Response, Error>;
 
-    fn into_future(mut self) -> Self::Future {
-        ok(self.finish())
+    fn poll(mut self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Self::Output> {
+        Poll::Ready(Ok(self.finish()))
     }
 }
 
 impl fmt::Debug for ResponseBuilder {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let head = self.head.as_ref().unwrap();
 
         let res = writeln!(
@@ -990,6 +990,14 @@ mod tests {
         let ct = resp.headers().get(CONTENT_TYPE).unwrap();
         assert_eq!(ct, HeaderValue::from_static("text/json"));
         assert_eq!(resp.body().get_ref(), b"[\"v1\",\"v2\",\"v3\"]");
+    }
+
+    #[test]
+    fn test_serde_json_in_body() {
+        use serde_json::json;
+        let resp =
+            Response::build(StatusCode::OK).body(json!({"test-key":"test-value"}));
+        assert_eq!(resp.body().get_ref(), br#"{"test-key":"test-value"}"#);
     }
 
     #[test]

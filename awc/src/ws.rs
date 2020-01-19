@@ -1,4 +1,5 @@
 //! Websockets client
+use std::convert::TryFrom;
 use std::fmt::Write as FmtWrite;
 use std::net::SocketAddr;
 use std::rc::Rc;
@@ -7,9 +8,8 @@ use std::{fmt, str};
 use actix_codec::Framed;
 use actix_http::cookie::{Cookie, CookieJar};
 use actix_http::{ws, Payload, RequestHead};
-use futures::future::{err, Either, Future};
+use actix_rt::time::timeout;
 use percent_encoding::percent_encode;
-use tokio_timer::Timeout;
 
 use actix_http::cookie::USERINFO;
 pub use actix_http::ws::{CloseCode, CloseReason, Codec, Frame, Message};
@@ -20,7 +20,7 @@ use crate::http::header::{
     self, HeaderName, HeaderValue, IntoHeaderValue, AUTHORIZATION,
 };
 use crate::http::{
-    ConnectionType, Error as HttpError, HttpTryFrom, Method, StatusCode, Uri, Version,
+    ConnectionType, Error as HttpError, Method, StatusCode, Uri, Version,
 };
 use crate::response::ClientResponse;
 use crate::ClientConfig;
@@ -42,7 +42,8 @@ impl WebsocketsRequest {
     /// Create new websocket connection
     pub(crate) fn new<U>(uri: U, config: Rc<ClientConfig>) -> Self
     where
-        Uri: HttpTryFrom<U>,
+        Uri: TryFrom<U>,
+        <Uri as TryFrom<U>>::Error: Into<HttpError>,
     {
         let mut err = None;
         let mut head = RequestHead::default();
@@ -103,9 +104,10 @@ impl WebsocketsRequest {
     }
 
     /// Set request Origin
-    pub fn origin<V>(mut self, origin: V) -> Self
+    pub fn origin<V, E>(mut self, origin: V) -> Self
     where
-        HeaderValue: HttpTryFrom<V>,
+        HeaderValue: TryFrom<V, Error = E>,
+        HttpError: From<E>,
     {
         match HeaderValue::try_from(origin) {
             Ok(value) => self.origin = Some(value),
@@ -134,7 +136,8 @@ impl WebsocketsRequest {
     /// To override header use `set_header()` method.
     pub fn header<K, V>(mut self, key: K, value: V) -> Self
     where
-        HeaderName: HttpTryFrom<K>,
+        HeaderName: TryFrom<K>,
+        <HeaderName as TryFrom<K>>::Error: Into<HttpError>,
         V: IntoHeaderValue,
     {
         match HeaderName::try_from(key) {
@@ -152,7 +155,8 @@ impl WebsocketsRequest {
     /// Insert a header, replaces existing header.
     pub fn set_header<K, V>(mut self, key: K, value: V) -> Self
     where
-        HeaderName: HttpTryFrom<K>,
+        HeaderName: TryFrom<K>,
+        <HeaderName as TryFrom<K>>::Error: Into<HttpError>,
         V: IntoHeaderValue,
     {
         match HeaderName::try_from(key) {
@@ -170,7 +174,8 @@ impl WebsocketsRequest {
     /// Insert a header only if it is not yet set.
     pub fn set_header_if_none<K, V>(mut self, key: K, value: V) -> Self
     where
-        HeaderName: HttpTryFrom<K>,
+        HeaderName: TryFrom<K>,
+        <HeaderName as TryFrom<K>>::Error: Into<HttpError>,
         V: IntoHeaderValue,
     {
         match HeaderName::try_from(key) {
@@ -210,31 +215,33 @@ impl WebsocketsRequest {
     }
 
     /// Complete request construction and connect to a websockets server.
-    pub fn connect(
+    pub async fn connect(
         mut self,
-    ) -> impl Future<Item = (ClientResponse, Framed<BoxedSocket, Codec>), Error = WsClientError>
-    {
+    ) -> Result<(ClientResponse, Framed<BoxedSocket, Codec>), WsClientError> {
         if let Some(e) = self.err.take() {
-            return Either::A(err(e.into()));
+            return Err(e.into());
         }
 
         // validate uri
         let uri = &self.head.uri;
         if uri.host().is_none() {
-            return Either::A(err(InvalidUrl::MissingHost.into()));
-        } else if uri.scheme_part().is_none() {
-            return Either::A(err(InvalidUrl::MissingScheme.into()));
-        } else if let Some(scheme) = uri.scheme_part() {
+            return Err(InvalidUrl::MissingHost.into());
+        } else if uri.scheme().is_none() {
+            return Err(InvalidUrl::MissingScheme.into());
+        } else if let Some(scheme) = uri.scheme() {
             match scheme.as_str() {
                 "http" | "ws" | "https" | "wss" => (),
-                _ => return Either::A(err(InvalidUrl::UnknownScheme.into())),
+                _ => return Err(InvalidUrl::UnknownScheme.into()),
             }
         } else {
-            return Either::A(err(InvalidUrl::UnknownScheme.into()));
+            return Err(InvalidUrl::UnknownScheme.into());
         }
 
         if !self.head.headers.contains_key(header::HOST) {
-            self.head.headers.insert(header::HOST, HeaderValue::from_str(uri.host().unwrap()).unwrap());
+            self.head.headers.insert(
+                header::HOST,
+                HeaderValue::from_str(uri.host().unwrap()).unwrap(),
+            );
         }
 
         // set cookies
@@ -291,95 +298,88 @@ impl WebsocketsRequest {
             .config
             .connector
             .borrow_mut()
-            .open_tunnel(head, self.addr)
-            .from_err()
-            .and_then(move |(head, framed)| {
-                // verify response
-                if head.status != StatusCode::SWITCHING_PROTOCOLS {
-                    return Err(WsClientError::InvalidResponseStatus(head.status));
-                }
-                // Check for "UPGRADE" to websocket header
-                let has_hdr = if let Some(hdr) = head.headers.get(&header::UPGRADE) {
-                    if let Ok(s) = hdr.to_str() {
-                        s.to_ascii_lowercase().contains("websocket")
-                    } else {
-                        false
-                    }
-                } else {
-                    false
-                };
-                if !has_hdr {
-                    log::trace!("Invalid upgrade header");
-                    return Err(WsClientError::InvalidUpgradeHeader);
-                }
-                // Check for "CONNECTION" header
-                if let Some(conn) = head.headers.get(&header::CONNECTION) {
-                    if let Ok(s) = conn.to_str() {
-                        if !s.to_ascii_lowercase().contains("upgrade") {
-                            log::trace!("Invalid connection header: {}", s);
-                            return Err(WsClientError::InvalidConnectionHeader(
-                                conn.clone(),
-                            ));
-                        }
-                    } else {
-                        log::trace!("Invalid connection header: {:?}", conn);
-                        return Err(WsClientError::InvalidConnectionHeader(
-                            conn.clone(),
-                        ));
-                    }
-                } else {
-                    log::trace!("Missing connection header");
-                    return Err(WsClientError::MissingConnectionHeader);
-                }
-
-                if let Some(hdr_key) = head.headers.get(&header::SEC_WEBSOCKET_ACCEPT) {
-                    let encoded = ws::hash_key(key.as_ref());
-                    if hdr_key.as_bytes() != encoded.as_bytes() {
-                        log::trace!(
-                            "Invalid challenge response: expected: {} received: {:?}",
-                            encoded,
-                            key
-                        );
-                        return Err(WsClientError::InvalidChallengeResponse(
-                            encoded,
-                            hdr_key.clone(),
-                        ));
-                    }
-                } else {
-                    log::trace!("Missing SEC-WEBSOCKET-ACCEPT header");
-                    return Err(WsClientError::MissingWebSocketAcceptHeader);
-                };
-
-                // response and ws framed
-                Ok((
-                    ClientResponse::new(head, Payload::None),
-                    framed.map_codec(|_| {
-                        if server_mode {
-                            ws::Codec::new().max_size(max_size)
-                        } else {
-                            ws::Codec::new().max_size(max_size).client_mode()
-                        }
-                    }),
-                ))
-            });
+            .open_tunnel(head, self.addr);
 
         // set request timeout
-        if let Some(timeout) = self.config.timeout {
-            Either::B(Either::A(Timeout::new(fut, timeout).map_err(|e| {
-                if let Some(e) = e.into_inner() {
-                    e
-                } else {
-                    SendRequestError::Timeout.into()
-                }
-            })))
+        let (head, framed) = if let Some(to) = self.config.timeout {
+            timeout(to, fut)
+                .await
+                .map_err(|_| SendRequestError::Timeout)
+                .and_then(|res| res)?
         } else {
-            Either::B(Either::B(fut))
+            fut.await?
+        };
+
+        // verify response
+        if head.status != StatusCode::SWITCHING_PROTOCOLS {
+            return Err(WsClientError::InvalidResponseStatus(head.status));
         }
+
+        // Check for "UPGRADE" to websocket header
+        let has_hdr = if let Some(hdr) = head.headers.get(&header::UPGRADE) {
+            if let Ok(s) = hdr.to_str() {
+                s.to_ascii_lowercase().contains("websocket")
+            } else {
+                false
+            }
+        } else {
+            false
+        };
+        if !has_hdr {
+            log::trace!("Invalid upgrade header");
+            return Err(WsClientError::InvalidUpgradeHeader);
+        }
+
+        // Check for "CONNECTION" header
+        if let Some(conn) = head.headers.get(&header::CONNECTION) {
+            if let Ok(s) = conn.to_str() {
+                if !s.to_ascii_lowercase().contains("upgrade") {
+                    log::trace!("Invalid connection header: {}", s);
+                    return Err(WsClientError::InvalidConnectionHeader(conn.clone()));
+                }
+            } else {
+                log::trace!("Invalid connection header: {:?}", conn);
+                return Err(WsClientError::InvalidConnectionHeader(conn.clone()));
+            }
+        } else {
+            log::trace!("Missing connection header");
+            return Err(WsClientError::MissingConnectionHeader);
+        }
+
+        if let Some(hdr_key) = head.headers.get(&header::SEC_WEBSOCKET_ACCEPT) {
+            let encoded = ws::hash_key(key.as_ref());
+            if hdr_key.as_bytes() != encoded.as_bytes() {
+                log::trace!(
+                    "Invalid challenge response: expected: {} received: {:?}",
+                    encoded,
+                    key
+                );
+                return Err(WsClientError::InvalidChallengeResponse(
+                    encoded,
+                    hdr_key.clone(),
+                ));
+            }
+        } else {
+            log::trace!("Missing SEC-WEBSOCKET-ACCEPT header");
+            return Err(WsClientError::MissingWebSocketAcceptHeader);
+        };
+
+        // response and ws framed
+        Ok((
+            ClientResponse::new(head, Payload::None),
+            framed.map_codec(|_| {
+                if server_mode {
+                    ws::Codec::new().max_size(max_size)
+                } else {
+                    ws::Codec::new().max_size(max_size).client_mode()
+                }
+            }),
+        ))
     }
 }
 
 impl fmt::Debug for WebsocketsRequest {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(
             f,
             "\nWebsocketsRequest {}:{}",
@@ -398,16 +398,16 @@ mod tests {
     use super::*;
     use crate::Client;
 
-    #[test]
-    fn test_debug() {
+    #[actix_rt::test]
+    async fn test_debug() {
         let request = Client::new().ws("/").header("x-test", "111");
         let repr = format!("{:?}", request);
         assert!(repr.contains("WebsocketsRequest"));
         assert!(repr.contains("x-test"));
     }
 
-    #[test]
-    fn test_header_override() {
+    #[actix_rt::test]
+    async fn test_header_override() {
         let req = Client::build()
             .header(header::CONTENT_TYPE, "111")
             .finish()
@@ -425,8 +425,8 @@ mod tests {
         );
     }
 
-    #[test]
-    fn basic_auth() {
+    #[actix_rt::test]
+    async fn basic_auth() {
         let req = Client::new()
             .ws("/")
             .basic_auth("username", Some("password"));
@@ -452,8 +452,8 @@ mod tests {
         );
     }
 
-    #[test]
-    fn bearer_auth() {
+    #[actix_rt::test]
+    async fn bearer_auth() {
         let req = Client::new().ws("/").bearer_auth("someS3cr3tAutht0k3n");
         assert_eq!(
             req.head
@@ -467,8 +467,8 @@ mod tests {
         let _ = req.connect();
     }
 
-    #[test]
-    fn basics() {
+    #[actix_rt::test]
+    async fn basics() {
         let req = Client::new()
             .ws("http://localhost/")
             .origin("test-origin")
@@ -490,14 +490,10 @@ mod tests {
             header::HeaderValue::from_static("json")
         );
 
-        let _ = actix_http_test::block_fn(move || req.connect());
+        let _ = req.connect().await;
 
-        assert!(Client::new().ws("/").connect().poll().is_err());
-        assert!(Client::new().ws("http:///test").connect().poll().is_err());
-        assert!(Client::new()
-            .ws("hmm://test.com/")
-            .connect()
-            .poll()
-            .is_err());
+        assert!(Client::new().ws("/").connect().await.is_err());
+        assert!(Client::new().ws("http:///test").connect().await.is_err());
+        assert!(Client::new().ws("hmm://test.com/").connect().await.is_err());
     }
 }

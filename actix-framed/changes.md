@@ -1,5 +1,9 @@
 # Changes
 
+## [0.3.0] - 2019-12-25
+
+* Migrate to actix-http 1.0
+
 ## [0.2.1] - 2019-07-20
 
 * Remove unneeded actix-utils dependency

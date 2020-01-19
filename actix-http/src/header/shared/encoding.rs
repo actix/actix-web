@@ -27,7 +27,7 @@ pub enum Encoding {
 }
 
 impl fmt::Display for Encoding {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match *self {
             Chunked => "chunked",
             Brotli => "br",

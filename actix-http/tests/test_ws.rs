@@ -1,76 +1,194 @@
+use std::cell::Cell;
+use std::marker::PhantomData;
+use std::pin::Pin;
+use std::sync::{Arc, Mutex};
+
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use actix_http::{body, h1, ws, Error, HttpService, Request, Response};
-use actix_http_test::TestServer;
-use actix_utils::framed::FramedTransport;
-use bytes::{Bytes, BytesMut};
-use futures::future::{self, ok};
-use futures::{Future, Sink, Stream};
+use actix_http_test::test_server;
+use actix_service::{fn_factory, Service};
+use actix_utils::framed::Dispatcher;
+use bytes::Bytes;
+use futures::future;
+use futures::task::{Context, Poll};
+use futures::{Future, SinkExt, StreamExt};
 
-fn ws_service<T: AsyncRead + AsyncWrite>(
-    (req, framed): (Request, Framed<T, h1::Codec>),
-) -> impl Future<Item = (), Error = Error> {
-    let res = ws::handshake(req.head()).unwrap().message_body(());
+struct WsService<T>(Arc<Mutex<(PhantomData<T>, Cell<bool>)>>);
 
-    framed
-        .send((res, body::BodySize::None).into())
-        .map_err(|_| panic!())
-        .and_then(|framed| {
-            FramedTransport::new(framed.into_framed(ws::Codec::new()), service)
-                .map_err(|_| panic!())
-        })
+impl<T> WsService<T> {
+    fn new() -> Self {
+        WsService(Arc::new(Mutex::new((PhantomData, Cell::new(false)))))
+    }
+
+    fn set_polled(&mut self) {
+        *self.0.lock().unwrap().1.get_mut() = true;
+    }
+
+    fn was_polled(&self) -> bool {
+        self.0.lock().unwrap().1.get()
+    }
 }
 
-fn service(msg: ws::Frame) -> impl Future<Item = ws::Message, Error = Error> {
+impl<T> Clone for WsService<T> {
+    fn clone(&self) -> Self {
+        WsService(self.0.clone())
+    }
+}
+
+impl<T> Service for WsService<T>
+where
+    T: AsyncRead + AsyncWrite + Unpin + 'static,
+{
+    type Request = (Request, Framed<T, h1::Codec>);
+    type Response = ();
+    type Error = Error;
+    type Future = Pin<Box<dyn Future<Output = Result<(), Error>>>>;
+
+    fn poll_ready(&mut self, _ctx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        self.set_polled();
+        Poll::Ready(Ok(()))
+    }
+
+    fn call(&mut self, (req, mut framed): Self::Request) -> Self::Future {
+        let fut = async move {
+            let res = ws::handshake(req.head()).unwrap().message_body(());
+
+            framed
+                .send((res, body::BodySize::None).into())
+                .await
+                .unwrap();
+
+            Dispatcher::new(framed.into_framed(ws::Codec::new()), service)
+                .await
+                .map_err(|_| panic!())
+        };
+
+        Box::pin(fut)
+    }
+}
+
+async fn service(msg: ws::Frame) -> Result<ws::Message, Error> {
     let msg = match msg {
         ws::Frame::Ping(msg) => ws::Message::Pong(msg),
         ws::Frame::Text(text) => {
-            ws::Message::Text(String::from_utf8_lossy(&text.unwrap()).to_string())
+            ws::Message::Text(String::from_utf8_lossy(&text).to_string())
         }
-        ws::Frame::Binary(bin) => ws::Message::Binary(bin.unwrap().freeze()),
+        ws::Frame::Binary(bin) => ws::Message::Binary(bin),
+        ws::Frame::Continuation(item) => ws::Message::Continuation(item),
         ws::Frame::Close(reason) => ws::Message::Close(reason),
         _ => panic!(),
     };
-    ok(msg)
+    Ok(msg)
 }
 
-#[test]
-fn test_simple() {
-    let mut srv = TestServer::new(|| {
-        HttpService::build()
-            .upgrade(ws_service)
-            .finish(|_| future::ok::<_, ()>(Response::NotFound()))
+#[actix_rt::test]
+async fn test_simple() {
+    let ws_service = WsService::new();
+    let mut srv = test_server({
+        let ws_service = ws_service.clone();
+        move || {
+            let ws_service = ws_service.clone();
+            HttpService::build()
+                .upgrade(fn_factory(move || future::ok::<_, ()>(ws_service.clone())))
+                .finish(|_| future::ok::<_, ()>(Response::NotFound()))
+                .tcp()
+        }
     });
 
     // client service
-    let framed = srv.ws().unwrap();
-    let framed = srv
-        .block_on(framed.send(ws::Message::Text("text".to_string())))
+    let mut framed = srv.ws().await.unwrap();
+    framed
+        .send(ws::Message::Text("text".to_string()))
+        .await
         .unwrap();
-    let (item, framed) = srv.block_on(framed.into_future()).map_err(|_| ()).unwrap();
-    assert_eq!(item, Some(ws::Frame::Text(Some(BytesMut::from("text")))));
-
-    let framed = srv
-        .block_on(framed.send(ws::Message::Binary("text".into())))
-        .unwrap();
-    let (item, framed) = srv.block_on(framed.into_future()).map_err(|_| ()).unwrap();
+    let (item, mut framed) = framed.into_future().await;
     assert_eq!(
-        item,
-        Some(ws::Frame::Binary(Some(Bytes::from_static(b"text").into())))
+        item.unwrap().unwrap(),
+        ws::Frame::Text(Bytes::from_static(b"text"))
     );
 
-    let framed = srv
-        .block_on(framed.send(ws::Message::Ping("text".into())))
+    framed
+        .send(ws::Message::Binary("text".into()))
+        .await
         .unwrap();
-    let (item, framed) = srv.block_on(framed.into_future()).map_err(|_| ()).unwrap();
-    assert_eq!(item, Some(ws::Frame::Pong("text".to_string().into())));
-
-    let framed = srv
-        .block_on(framed.send(ws::Message::Close(Some(ws::CloseCode::Normal.into()))))
-        .unwrap();
-
-    let (item, _framed) = srv.block_on(framed.into_future()).map_err(|_| ()).unwrap();
+    let (item, mut framed) = framed.into_future().await;
     assert_eq!(
-        item,
-        Some(ws::Frame::Close(Some(ws::CloseCode::Normal.into())))
+        item.unwrap().unwrap(),
+        ws::Frame::Binary(Bytes::from_static(&b"text"[..]))
     );
+
+    framed.send(ws::Message::Ping("text".into())).await.unwrap();
+    let (item, mut framed) = framed.into_future().await;
+    assert_eq!(
+        item.unwrap().unwrap(),
+        ws::Frame::Pong("text".to_string().into())
+    );
+
+    framed
+        .send(ws::Message::Continuation(ws::Item::FirstText(
+            "text".into(),
+        )))
+        .await
+        .unwrap();
+    let (item, mut framed) = framed.into_future().await;
+    assert_eq!(
+        item.unwrap().unwrap(),
+        ws::Frame::Continuation(ws::Item::FirstText(Bytes::from_static(b"text")))
+    );
+
+    assert!(framed
+        .send(ws::Message::Continuation(ws::Item::FirstText(
+            "text".into()
+        )))
+        .await
+        .is_err());
+    assert!(framed
+        .send(ws::Message::Continuation(ws::Item::FirstBinary(
+            "text".into()
+        )))
+        .await
+        .is_err());
+
+    framed
+        .send(ws::Message::Continuation(ws::Item::Continue("text".into())))
+        .await
+        .unwrap();
+    let (item, mut framed) = framed.into_future().await;
+    assert_eq!(
+        item.unwrap().unwrap(),
+        ws::Frame::Continuation(ws::Item::Continue(Bytes::from_static(b"text")))
+    );
+
+    framed
+        .send(ws::Message::Continuation(ws::Item::Last("text".into())))
+        .await
+        .unwrap();
+    let (item, mut framed) = framed.into_future().await;
+    assert_eq!(
+        item.unwrap().unwrap(),
+        ws::Frame::Continuation(ws::Item::Last(Bytes::from_static(b"text")))
+    );
+
+    assert!(framed
+        .send(ws::Message::Continuation(ws::Item::Continue("text".into())))
+        .await
+        .is_err());
+
+    assert!(framed
+        .send(ws::Message::Continuation(ws::Item::Last("text".into())))
+        .await
+        .is_err());
+
+    framed
+        .send(ws::Message::Close(Some(ws::CloseCode::Normal.into())))
+        .await
+        .unwrap();
+
+    let (item, _framed) = framed.into_future().await;
+    assert_eq!(
+        item.unwrap().unwrap(),
+        ws::Frame::Close(Some(ws::CloseCode::Normal.into()))
+    );
+
+    assert!(ws_service.was_polled());
 }

@@ -1,12 +1,13 @@
 //! Various helpers for Actix applications to use during testing.
+use std::convert::TryFrom;
+use std::future::Future;
+
 use actix_codec::Framed;
 use actix_http::h1::Codec;
 use actix_http::http::header::{Header, HeaderName, IntoHeaderValue};
-use actix_http::http::{HttpTryFrom, Method, Uri, Version};
+use actix_http::http::{Error as HttpError, Method, Uri, Version};
 use actix_http::test::{TestBuffer, TestRequest as HttpTestRequest};
 use actix_router::{Path, Url};
-use actix_rt::Runtime;
-use futures::IntoFuture;
 
 use crate::{FramedRequest, State};
 
@@ -41,7 +42,8 @@ impl TestRequest<()> {
     /// Create TestRequest and set header
     pub fn with_header<K, V>(key: K, value: V) -> Self
     where
-        HeaderName: HttpTryFrom<K>,
+        HeaderName: TryFrom<K>,
+        <HeaderName as TryFrom<K>>::Error: Into<HttpError>,
         V: IntoHeaderValue,
     {
         Self::default().header(key, value)
@@ -96,7 +98,8 @@ impl<S> TestRequest<S> {
     /// Set a header
     pub fn header<K, V>(mut self, key: K, value: V) -> Self
     where
-        HeaderName: HttpTryFrom<K>,
+        HeaderName: TryFrom<K>,
+        <HeaderName as TryFrom<K>>::Error: Into<HttpError>,
         V: IntoHeaderValue,
     {
         self.req.header(key, value);
@@ -118,13 +121,12 @@ impl<S> TestRequest<S> {
     }
 
     /// This method generates `FramedRequest` instance and executes async handler
-    pub fn run<F, R, I, E>(self, f: F) -> Result<I, E>
+    pub async fn run<F, R, I, E>(self, f: F) -> Result<I, E>
     where
         F: FnOnce(FramedRequest<TestBuffer, S>) -> R,
-        R: IntoFuture<Item = I, Error = E>,
+        R: Future<Output = Result<I, E>>,
     {
-        let mut rt = Runtime::new().unwrap();
-        rt.block_on(f(self.finish()).into_future())
+        f(self.finish()).await
     }
 }
 

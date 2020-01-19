@@ -60,7 +60,7 @@ pub(crate) fn write_status_line(version: Version, mut n: u16, bytes: &mut BytesM
 
     bytes.put_slice(&buf);
     if four {
-        bytes.put(b' ');
+        bytes.put_u8(b' ');
     }
 }
 
@@ -115,7 +115,7 @@ pub fn write_content_length(mut n: usize, bytes: &mut BytesMut) {
 
 pub(crate) fn convert_usize(mut n: usize, bytes: &mut BytesMut) {
     let mut curr: isize = 39;
-    let mut buf: [u8; 41] = unsafe { mem::uninitialized() };
+    let mut buf: [u8; 41] = unsafe { mem::MaybeUninit::uninit().assume_init() };
     buf[39] = b'\r';
     buf[40] = b'\n';
     let buf_ptr = buf.as_mut_ptr();
@@ -203,33 +203,33 @@ mod tests {
         let mut bytes = BytesMut::new();
         bytes.reserve(50);
         write_content_length(0, &mut bytes);
-        assert_eq!(bytes.take().freeze(), b"\r\ncontent-length: 0\r\n"[..]);
+        assert_eq!(bytes.split().freeze(), b"\r\ncontent-length: 0\r\n"[..]);
         bytes.reserve(50);
         write_content_length(9, &mut bytes);
-        assert_eq!(bytes.take().freeze(), b"\r\ncontent-length: 9\r\n"[..]);
+        assert_eq!(bytes.split().freeze(), b"\r\ncontent-length: 9\r\n"[..]);
         bytes.reserve(50);
         write_content_length(10, &mut bytes);
-        assert_eq!(bytes.take().freeze(), b"\r\ncontent-length: 10\r\n"[..]);
+        assert_eq!(bytes.split().freeze(), b"\r\ncontent-length: 10\r\n"[..]);
         bytes.reserve(50);
         write_content_length(99, &mut bytes);
-        assert_eq!(bytes.take().freeze(), b"\r\ncontent-length: 99\r\n"[..]);
+        assert_eq!(bytes.split().freeze(), b"\r\ncontent-length: 99\r\n"[..]);
         bytes.reserve(50);
         write_content_length(100, &mut bytes);
-        assert_eq!(bytes.take().freeze(), b"\r\ncontent-length: 100\r\n"[..]);
+        assert_eq!(bytes.split().freeze(), b"\r\ncontent-length: 100\r\n"[..]);
         bytes.reserve(50);
         write_content_length(101, &mut bytes);
-        assert_eq!(bytes.take().freeze(), b"\r\ncontent-length: 101\r\n"[..]);
+        assert_eq!(bytes.split().freeze(), b"\r\ncontent-length: 101\r\n"[..]);
         bytes.reserve(50);
         write_content_length(998, &mut bytes);
-        assert_eq!(bytes.take().freeze(), b"\r\ncontent-length: 998\r\n"[..]);
+        assert_eq!(bytes.split().freeze(), b"\r\ncontent-length: 998\r\n"[..]);
         bytes.reserve(50);
         write_content_length(1000, &mut bytes);
-        assert_eq!(bytes.take().freeze(), b"\r\ncontent-length: 1000\r\n"[..]);
+        assert_eq!(bytes.split().freeze(), b"\r\ncontent-length: 1000\r\n"[..]);
         bytes.reserve(50);
         write_content_length(1001, &mut bytes);
-        assert_eq!(bytes.take().freeze(), b"\r\ncontent-length: 1001\r\n"[..]);
+        assert_eq!(bytes.split().freeze(), b"\r\ncontent-length: 1001\r\n"[..]);
         bytes.reserve(50);
         write_content_length(5909, &mut bytes);
-        assert_eq!(bytes.take().freeze(), b"\r\ncontent-length: 5909\r\n"[..]);
+        assert_eq!(bytes.split().freeze(), b"\r\ncontent-length: 5909\r\n"[..]);
     }
 }

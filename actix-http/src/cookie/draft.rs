@@ -88,7 +88,7 @@ impl SameSite {
 }
 
 impl fmt::Display for SameSite {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             SameSite::Strict => write!(f, "Strict"),
             SameSite::Lax => write!(f, "Lax"),

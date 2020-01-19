@@ -1,9 +1,29 @@
 # Changes
 
+## [1.0.0] - 2019-12-13
+
+### Changed
+
+* Replaced `TestServer::start()` with `test_server()`
+
+
+## [1.0.0-alpha.3] - 2019-12-07
+
+### Changed
+
+* Migrate to `std::future`
+
+
+## [0.2.5] - 2019-09-17
 
 ### Changed
 
 * Update serde_urlencoded to "0.6.1"
+* Increase TestServerRuntime timeouts from 500ms to 3000ms
+
+### Fixed
+
+* Do not override current `System`
 
 
 ## [0.2.4] - 2019-07-18

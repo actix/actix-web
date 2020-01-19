@@ -1,0 +1,59 @@
+name: CI (macOS)
+
+on: [push, pull_request]
+
+jobs:
+  build_and_test:
+    strategy:
+      fail-fast: false
+      matrix:
+        version:
+          - stable
+          - nightly
+
+    name: ${{ matrix.version }} - x86_64-apple-darwin
+    runs-on: macOS-latest
+
+    steps:
+      - uses: actions/checkout@master
+
+      - name: Install ${{ matrix.version }}
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ matrix.version }}-x86_64-apple-darwin
+          profile: minimal
+          override: true
+
+      - name: Generate Cargo.lock
+        uses: actions-rs/cargo@v1
+        with:
+          command: update
+      - name: Cache cargo registry
+        uses: actions/cache@v1
+        with:
+          path: ~/.cargo/registry
+          key: ${{ matrix.version }}-x86_64-apple-darwin-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+      - name: Cache cargo index
+        uses: actions/cache@v1
+        with:
+          path: ~/.cargo/git
+          key: ${{ matrix.version }}-x86_64-apple-darwin-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+      - name: Cache cargo build
+        uses: actions/cache@v1
+        with:
+          path: target
+          key: ${{ matrix.version }}-x86_64-apple-darwin-cargo-build-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: check build
+        uses: actions-rs/cargo@v1
+        with:
+          command: check
+          args: --all --bins --examples --tests
+
+      - name: tests
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --all --all-features --no-fail-fast -- --nocapture
+                --skip=test_h2_content_length
+                --skip=test_reading_deflate_encoding_large_random_rustls

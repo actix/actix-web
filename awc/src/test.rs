@@ -1,9 +1,10 @@
 //! Test helpers for actix http client to use during testing.
+use std::convert::TryFrom;
 use std::fmt::Write as FmtWrite;
 
 use actix_http::cookie::{Cookie, CookieJar, USERINFO};
 use actix_http::http::header::{self, Header, HeaderValue, IntoHeaderValue};
-use actix_http::http::{HeaderName, HttpTryFrom, StatusCode, Version};
+use actix_http::http::{Error as HttpError, HeaderName, StatusCode, Version};
 use actix_http::{h1, Payload, ResponseHead};
 use bytes::Bytes;
 use percent_encoding::percent_encode;
@@ -31,7 +32,8 @@ impl TestResponse {
     /// Create TestResponse and set header
     pub fn with_header<K, V>(key: K, value: V) -> Self
     where
-        HeaderName: HttpTryFrom<K>,
+        HeaderName: TryFrom<K>,
+        <HeaderName as TryFrom<K>>::Error: Into<HttpError>,
         V: IntoHeaderValue,
     {
         Self::default().header(key, value)
@@ -55,7 +57,8 @@ impl TestResponse {
     /// Append a header
     pub fn header<K, V>(mut self, key: K, value: V) -> Self
     where
-        HeaderName: HttpTryFrom<K>,
+        HeaderName: TryFrom<K>,
+        <HeaderName as TryFrom<K>>::Error: Into<HttpError>,
         V: IntoHeaderValue,
     {
         if let Ok(key) = HeaderName::try_from(key) {

@@ -1,19 +1,16 @@
-#![cfg(feature = "ssl")]
-use openssl::ssl::{SslAcceptor, SslConnector, SslFiletype, SslMethod, SslVerifyMode};
-
-use std::io::Result;
+#![cfg(feature = "openssl")]
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
-use actix_codec::{AsyncRead, AsyncWrite};
 use actix_http::HttpService;
-use actix_http_test::TestServer;
-use actix_server::ssl::OpensslAcceptor;
-use actix_service::{service_fn, NewService};
+use actix_http_test::test_server;
+use actix_service::{map_config, pipeline_factory, ServiceFactory};
 use actix_web::http::Version;
-use actix_web::{web, App, HttpResponse};
+use actix_web::{dev::AppConfig, web, App, HttpResponse};
+use futures::future::ok;
+use open_ssl::ssl::{SslAcceptor, SslConnector, SslFiletype, SslMethod, SslVerifyMode};
 
-fn ssl_acceptor<T: AsyncRead + AsyncWrite>() -> Result<OpensslAcceptor<T, ()>> {
+fn ssl_acceptor() -> SslAcceptor {
     // load ssl keys
     let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
     builder
@@ -27,34 +24,33 @@ fn ssl_acceptor<T: AsyncRead + AsyncWrite>() -> Result<OpensslAcceptor<T, ()>> {
         if protos.windows(3).any(|window| window == H2) {
             Ok(b"h2")
         } else {
-            Err(openssl::ssl::AlpnError::NOACK)
+            Err(open_ssl::ssl::AlpnError::NOACK)
         }
     });
-    builder.set_alpn_protos(b"\x02h2")?;
-    Ok(actix_server::ssl::OpensslAcceptor::new(builder.build()))
+    builder.set_alpn_protos(b"\x02h2").unwrap();
+    builder.build()
 }
 
-#[test]
-fn test_connection_reuse_h2() {
-    let openssl = ssl_acceptor().unwrap();
+#[actix_rt::test]
+async fn test_connection_reuse_h2() {
     let num = Arc::new(AtomicUsize::new(0));
     let num2 = num.clone();
 
-    let mut srv = TestServer::new(move || {
+    let srv = test_server(move || {
         let num2 = num2.clone();
-        service_fn(move |io| {
+        pipeline_factory(move |io| {
             num2.fetch_add(1, Ordering::Relaxed);
-            Ok(io)
+            ok(io)
         })
         .and_then(
-            openssl
-                .clone()
-                .map_err(|e| println!("Openssl error: {}", e)),
-        )
-        .and_then(
             HttpService::build()
-                .h2(App::new()
-                    .service(web::resource("/").route(web::to(|| HttpResponse::Ok()))))
+                .h2(map_config(
+                    App::new().service(
+                        web::resource("/").route(web::to(|| HttpResponse::Ok())),
+                    ),
+                    |_| AppConfig::default(),
+                ))
+                .openssl(ssl_acceptor())
                 .map_err(|_| ()),
         )
     });
@@ -72,12 +68,12 @@ fn test_connection_reuse_h2() {
 
     // req 1
     let request = client.get(srv.surl("/")).send();
-    let response = srv.block_on(request).unwrap();
+    let response = request.await.unwrap();
     assert!(response.status().is_success());
 
     // req 2
     let req = client.post(srv.surl("/"));
-    let response = srv.block_on_fn(move || req.send()).unwrap();
+    let response = req.send().await.unwrap();
     assert!(response.status().is_success());
     assert_eq!(response.version(), Version::HTTP_2);
 

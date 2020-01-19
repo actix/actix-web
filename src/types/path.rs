@@ -1,10 +1,10 @@
 //! Path extractor
-
 use std::sync::Arc;
 use std::{fmt, ops};
 
 use actix_http::error::{Error, ErrorNotFound};
 use actix_router::PathDeserializer;
+use futures::future::{ready, Ready};
 use serde::de;
 
 use crate::dev::Payload;
@@ -15,6 +15,8 @@ use crate::FromRequest;
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
 /// Extract typed information from the request's path.
 ///
+/// [**PathConfig**](struct.PathConfig.html) allows to configure extraction process.
+///
 /// ## Example
 ///
 /// ```rust
@@ -23,7 +25,7 @@ use crate::FromRequest;
 /// /// extract path info from "/{username}/{count}/index.html" url
 /// /// {username} - deserializes to a String
 /// /// {count} -  - deserializes to a u32
-/// fn index(info: web::Path<(String, u32)>) -> String {
+/// async fn index(info: web::Path<(String, u32)>) -> String {
 ///     format!("Welcome {}! {}", info.0, info.1)
 /// }
 ///
@@ -39,8 +41,8 @@ use crate::FromRequest;
 /// implements `Deserialize` trait from *serde*.
 ///
 /// ```rust
-/// #[macro_use] extern crate serde_derive;
 /// use actix_web::{web, App, Error};
+/// use serde_derive::Deserialize;
 ///
 /// #[derive(Deserialize)]
 /// struct Info {
@@ -48,7 +50,7 @@ use crate::FromRequest;
 /// }
 ///
 /// /// extract `Info` from a path using serde
-/// fn index(info: web::Path<Info>) -> Result<String, Error> {
+/// async fn index(info: web::Path<Info>) -> Result<String, Error> {
 ///     Ok(format!("Welcome {}!", info.username))
 /// }
 ///
@@ -97,13 +99,13 @@ impl<T> From<T> for Path<T> {
 }
 
 impl<T: fmt::Debug> fmt::Debug for Path<T> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.inner.fmt(f)
     }
 }
 
 impl<T: fmt::Display> fmt::Display for Path<T> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.inner.fmt(f)
     }
 }
@@ -118,7 +120,7 @@ impl<T: fmt::Display> fmt::Display for Path<T> {
 /// /// extract path info from "/{username}/{count}/index.html" url
 /// /// {username} - deserializes to a String
 /// /// {count} -  - deserializes to a u32
-/// fn index(info: web::Path<(String, u32)>) -> String {
+/// async fn index(info: web::Path<(String, u32)>) -> String {
 ///     format!("Welcome {}! {}", info.0, info.1)
 /// }
 ///
@@ -134,8 +136,8 @@ impl<T: fmt::Display> fmt::Display for Path<T> {
 /// implements `Deserialize` trait from *serde*.
 ///
 /// ```rust
-/// #[macro_use] extern crate serde_derive;
 /// use actix_web::{web, App, Error};
+/// use serde_derive::Deserialize;
 ///
 /// #[derive(Deserialize)]
 /// struct Info {
@@ -143,7 +145,7 @@ impl<T: fmt::Display> fmt::Display for Path<T> {
 /// }
 ///
 /// /// extract `Info` from a path using serde
-/// fn index(info: web::Path<Info>) -> Result<String, Error> {
+/// async fn index(info: web::Path<Info>) -> Result<String, Error> {
 ///     Ok(format!("Welcome {}!", info.username))
 /// }
 ///
@@ -159,7 +161,7 @@ where
     T: de::DeserializeOwned,
 {
     type Error = Error;
-    type Future = Result<Self, Error>;
+    type Future = Ready<Result<Self, Error>>;
     type Config = PathConfig;
 
     #[inline]
@@ -169,31 +171,32 @@ where
             .map(|c| c.ehandler.clone())
             .unwrap_or(None);
 
-        de::Deserialize::deserialize(PathDeserializer::new(req.match_info()))
-            .map(|inner| Path { inner })
-            .map_err(move |e| {
-                log::debug!(
-                    "Failed during Path extractor deserialization. \
-                     Request path: {:?}",
-                    req.path()
-                );
-                if let Some(error_handler) = error_handler {
-                    let e = PathError::Deserialize(e);
-                    (error_handler)(e, req)
-                } else {
-                    ErrorNotFound(e)
-                }
-            })
+        ready(
+            de::Deserialize::deserialize(PathDeserializer::new(req.match_info()))
+                .map(|inner| Path { inner })
+                .map_err(move |e| {
+                    log::debug!(
+                        "Failed during Path extractor deserialization. \
+                         Request path: {:?}",
+                        req.path()
+                    );
+                    if let Some(error_handler) = error_handler {
+                        let e = PathError::Deserialize(e);
+                        (error_handler)(e, req)
+                    } else {
+                        ErrorNotFound(e)
+                    }
+                }),
+        )
     }
 }
 
 /// Path extractor configuration
 ///
 /// ```rust
-/// # #[macro_use]
-/// # extern crate serde_derive;
 /// use actix_web::web::PathConfig;
 /// use actix_web::{error, web, App, FromRequest, HttpResponse};
+/// use serde_derive::Deserialize;
 ///
 /// #[derive(Deserialize, Debug)]
 /// enum Folder {
@@ -204,14 +207,14 @@ where
 /// }
 ///
 /// // deserialize `Info` from request's path
-/// fn index(folder: web::Path<Folder>) -> String {
+/// async fn index(folder: web::Path<Folder>) -> String {
 ///     format!("Selected folder: {:?}!", folder)
 /// }
 ///
 /// fn main() {
 ///     let app = App::new().service(
 ///         web::resource("/messages/{folder}")
-///             .data(PathConfig::default().error_handler(|err, req| {
+///             .app_data(PathConfig::default().error_handler(|err, req| {
 ///                 error::InternalError::from_response(
 ///                     err,
 ///                     HttpResponse::Conflict().finish(),
@@ -251,7 +254,7 @@ mod tests {
     use serde_derive::Deserialize;
 
     use super::*;
-    use crate::test::{block_on, TestRequest};
+    use crate::test::TestRequest;
     use crate::{error, http, HttpResponse};
 
     #[derive(Deserialize, Debug, Display)]
@@ -267,54 +270,54 @@ mod tests {
         value: u32,
     }
 
-    #[test]
-    fn test_extract_path_single() {
+    #[actix_rt::test]
+    async fn test_extract_path_single() {
         let resource = ResourceDef::new("/{value}/");
 
         let mut req = TestRequest::with_uri("/32/").to_srv_request();
         resource.match_path(req.match_info_mut());
 
         let (req, mut pl) = req.into_parts();
-        assert_eq!(*Path::<i8>::from_request(&req, &mut pl).unwrap(), 32);
-        assert!(Path::<MyStruct>::from_request(&req, &mut pl).is_err());
+        assert_eq!(*Path::<i8>::from_request(&req, &mut pl).await.unwrap(), 32);
+        assert!(Path::<MyStruct>::from_request(&req, &mut pl).await.is_err());
     }
 
-    #[test]
-    fn test_tuple_extract() {
+    #[actix_rt::test]
+    async fn test_tuple_extract() {
         let resource = ResourceDef::new("/{key}/{value}/");
 
         let mut req = TestRequest::with_uri("/name/user1/?id=test").to_srv_request();
         resource.match_path(req.match_info_mut());
 
         let (req, mut pl) = req.into_parts();
-        let res =
-            block_on(<(Path<(String, String)>,)>::from_request(&req, &mut pl)).unwrap();
+        let res = <(Path<(String, String)>,)>::from_request(&req, &mut pl)
+            .await
+            .unwrap();
         assert_eq!((res.0).0, "name");
         assert_eq!((res.0).1, "user1");
 
-        let res = block_on(
-            <(Path<(String, String)>, Path<(String, String)>)>::from_request(
-                &req, &mut pl,
-            ),
+        let res = <(Path<(String, String)>, Path<(String, String)>)>::from_request(
+            &req, &mut pl,
         )
+        .await
         .unwrap();
         assert_eq!((res.0).0, "name");
         assert_eq!((res.0).1, "user1");
         assert_eq!((res.1).0, "name");
         assert_eq!((res.1).1, "user1");
 
-        let () = <()>::from_request(&req, &mut pl).unwrap();
+        let () = <()>::from_request(&req, &mut pl).await.unwrap();
     }
 
-    #[test]
-    fn test_request_extract() {
+    #[actix_rt::test]
+    async fn test_request_extract() {
         let mut req = TestRequest::with_uri("/name/user1/?id=test").to_srv_request();
 
         let resource = ResourceDef::new("/{key}/{value}/");
         resource.match_path(req.match_info_mut());
 
         let (req, mut pl) = req.into_parts();
-        let mut s = Path::<MyStruct>::from_request(&req, &mut pl).unwrap();
+        let mut s = Path::<MyStruct>::from_request(&req, &mut pl).await.unwrap();
         assert_eq!(s.key, "name");
         assert_eq!(s.value, "user1");
         s.value = "user2".to_string();
@@ -326,7 +329,9 @@ mod tests {
         let s = s.into_inner();
         assert_eq!(s.value, "user2");
 
-        let s = Path::<(String, String)>::from_request(&req, &mut pl).unwrap();
+        let s = Path::<(String, String)>::from_request(&req, &mut pl)
+            .await
+            .unwrap();
         assert_eq!(s.0, "name");
         assert_eq!(s.1, "user1");
 
@@ -335,23 +340,27 @@ mod tests {
         resource.match_path(req.match_info_mut());
 
         let (req, mut pl) = req.into_parts();
-        let s = Path::<Test2>::from_request(&req, &mut pl).unwrap();
+        let s = Path::<Test2>::from_request(&req, &mut pl).await.unwrap();
         assert_eq!(s.as_ref().key, "name");
         assert_eq!(s.value, 32);
 
-        let s = Path::<(String, u8)>::from_request(&req, &mut pl).unwrap();
+        let s = Path::<(String, u8)>::from_request(&req, &mut pl)
+            .await
+            .unwrap();
         assert_eq!(s.0, "name");
         assert_eq!(s.1, 32);
 
-        let res = Path::<Vec<String>>::from_request(&req, &mut pl).unwrap();
+        let res = Path::<Vec<String>>::from_request(&req, &mut pl)
+            .await
+            .unwrap();
         assert_eq!(res[0], "name".to_owned());
         assert_eq!(res[1], "32".to_owned());
     }
 
-    #[test]
-    fn test_custom_err_handler() {
+    #[actix_rt::test]
+    async fn test_custom_err_handler() {
         let (req, mut pl) = TestRequest::with_uri("/name/user1/")
-            .data(PathConfig::default().error_handler(|err, _| {
+            .app_data(PathConfig::default().error_handler(|err, _| {
                 error::InternalError::from_response(
                     err,
                     HttpResponse::Conflict().finish(),
@@ -360,7 +369,9 @@ mod tests {
             }))
             .to_http_parts();
 
-        let s = block_on(Path::<(usize,)>::from_request(&req, &mut pl)).unwrap_err();
+        let s = Path::<(usize,)>::from_request(&req, &mut pl)
+            .await
+            .unwrap_err();
         let res: HttpResponse = s.into();
 
         assert_eq!(res.status(), http::StatusCode::CONFLICT);

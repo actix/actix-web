@@ -3,8 +3,8 @@ use std::io::Write;
 use std::str::FromStr;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use bytes::{BufMut, BytesMut};
-use http::header::{HeaderValue, InvalidHeaderValueBytes};
+use bytes::{buf::BufMutExt, BytesMut};
+use http::header::{HeaderValue, InvalidHeaderValue};
 
 use crate::error::ParseError;
 use crate::header::IntoHeaderValue;
@@ -28,7 +28,7 @@ impl FromStr for HttpDate {
 }
 
 impl Display for HttpDate {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(&self.0.to_utc().rfc822(), f)
     }
 }
@@ -58,12 +58,12 @@ impl From<SystemTime> for HttpDate {
 }
 
 impl IntoHeaderValue for HttpDate {
-    type Error = InvalidHeaderValueBytes;
+    type Error = InvalidHeaderValue;
 
     fn try_into(self) -> Result<HeaderValue, Self::Error> {
         let mut wrt = BytesMut::with_capacity(29).writer();
         write!(wrt, "{}", self.0.rfc822()).unwrap();
-        HeaderValue::from_shared(wrt.get_mut().take().freeze())
+        HeaderValue::from_maybe_shared(wrt.get_mut().split().freeze())
     }
 }
 

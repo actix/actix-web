@@ -1,12 +1,13 @@
+use std::future::Future;
 use std::io::{self, Write};
+use std::pin::Pin;
+use std::task::{Context, Poll};
 
 use actix_threadpool::{run, CpuFuture};
-#[cfg(feature = "brotli")]
 use brotli2::write::BrotliDecoder;
 use bytes::Bytes;
-#[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
 use flate2::write::{GzDecoder, ZlibDecoder};
-use futures::{try_ready, Async, Future, Poll, Stream};
+use futures_core::{ready, Stream};
 
 use super::Writer;
 use crate::error::PayloadError;
@@ -23,21 +24,18 @@ pub struct Decoder<S> {
 
 impl<S> Decoder<S>
 where
-    S: Stream<Item = Bytes, Error = PayloadError>,
+    S: Stream<Item = Result<Bytes, PayloadError>>,
 {
     /// Construct a decoder.
     #[inline]
     pub fn new(stream: S, encoding: ContentEncoding) -> Decoder<S> {
         let decoder = match encoding {
-            #[cfg(feature = "brotli")]
             ContentEncoding::Br => Some(ContentDecoder::Br(Box::new(
                 BrotliDecoder::new(Writer::new()),
             ))),
-            #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
             ContentEncoding::Deflate => Some(ContentDecoder::Deflate(Box::new(
                 ZlibDecoder::new(Writer::new()),
             ))),
-            #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
             ContentEncoding::Gzip => Some(ContentDecoder::Gzip(Box::new(
                 GzDecoder::new(Writer::new()),
             ))),
@@ -71,34 +69,40 @@ where
 
 impl<S> Stream for Decoder<S>
 where
-    S: Stream<Item = Bytes, Error = PayloadError>,
+    S: Stream<Item = Result<Bytes, PayloadError>> + Unpin,
 {
-    type Item = Bytes;
-    type Error = PayloadError;
+    type Item = Result<Bytes, PayloadError>;
 
-    fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
+    fn poll_next(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Option<Self::Item>> {
         loop {
             if let Some(ref mut fut) = self.fut {
-                let (chunk, decoder) = try_ready!(fut.poll());
+                let (chunk, decoder) = match ready!(Pin::new(fut).poll(cx)) {
+                    Ok(item) => item,
+                    Err(e) => return Poll::Ready(Some(Err(e.into()))),
+                };
                 self.decoder = Some(decoder);
                 self.fut.take();
                 if let Some(chunk) = chunk {
-                    return Ok(Async::Ready(Some(chunk)));
+                    return Poll::Ready(Some(Ok(chunk)));
                 }
             }
 
             if self.eof {
-                return Ok(Async::Ready(None));
+                return Poll::Ready(None);
             }
 
-            match self.stream.poll()? {
-                Async::Ready(Some(chunk)) => {
+            match Pin::new(&mut self.stream).poll_next(cx) {
+                Poll::Ready(Some(Err(err))) => return Poll::Ready(Some(Err(err))),
+                Poll::Ready(Some(Ok(chunk))) => {
                     if let Some(mut decoder) = self.decoder.take() {
                         if chunk.len() < INPLACE {
                             let chunk = decoder.feed_data(chunk)?;
                             self.decoder = Some(decoder);
                             if let Some(chunk) = chunk {
-                                return Ok(Async::Ready(Some(chunk)));
+                                return Poll::Ready(Some(Ok(chunk)));
                             }
                         } else {
                             self.fut = Some(run(move || {
@@ -108,41 +112,40 @@ where
                         }
                         continue;
                     } else {
-                        return Ok(Async::Ready(Some(chunk)));
+                        return Poll::Ready(Some(Ok(chunk)));
                     }
                 }
-                Async::Ready(None) => {
+                Poll::Ready(None) => {
                     self.eof = true;
                     return if let Some(mut decoder) = self.decoder.take() {
-                        Ok(Async::Ready(decoder.feed_eof()?))
+                        match decoder.feed_eof() {
+                            Ok(Some(res)) => Poll::Ready(Some(Ok(res))),
+                            Ok(None) => Poll::Ready(None),
+                            Err(err) => Poll::Ready(Some(Err(err.into()))),
+                        }
                     } else {
-                        Ok(Async::Ready(None))
+                        Poll::Ready(None)
                     };
                 }
-                Async::NotReady => break,
+                Poll::Pending => break,
             }
         }
-        Ok(Async::NotReady)
+        Poll::Pending
     }
 }
 
 enum ContentDecoder {
-    #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
     Deflate(Box<ZlibDecoder<Writer>>),
-    #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
     Gzip(Box<GzDecoder<Writer>>),
-    #[cfg(feature = "brotli")]
     Br(Box<BrotliDecoder<Writer>>),
 }
 
 impl ContentDecoder {
-    #[allow(unreachable_patterns)]
     fn feed_eof(&mut self) -> io::Result<Option<Bytes>> {
         match self {
-            #[cfg(feature = "brotli")]
-            ContentDecoder::Br(ref mut decoder) => match decoder.finish() {
-                Ok(mut writer) => {
-                    let b = writer.take();
+            ContentDecoder::Br(ref mut decoder) => match decoder.flush() {
+                Ok(()) => {
+                    let b = decoder.get_mut().take();
                     if !b.is_empty() {
                         Ok(Some(b))
                     } else {
@@ -151,7 +154,6 @@ impl ContentDecoder {
                 }
                 Err(e) => Err(e),
             },
-            #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
             ContentDecoder::Gzip(ref mut decoder) => match decoder.try_finish() {
                 Ok(_) => {
                     let b = decoder.get_mut().take();
@@ -163,7 +165,6 @@ impl ContentDecoder {
                 }
                 Err(e) => Err(e),
             },
-            #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
             ContentDecoder::Deflate(ref mut decoder) => match decoder.try_finish() {
                 Ok(_) => {
                     let b = decoder.get_mut().take();
@@ -175,14 +176,11 @@ impl ContentDecoder {
                 }
                 Err(e) => Err(e),
             },
-            _ => Ok(None),
         }
     }
 
-    #[allow(unreachable_patterns)]
     fn feed_data(&mut self, data: Bytes) -> io::Result<Option<Bytes>> {
         match self {
-            #[cfg(feature = "brotli")]
             ContentDecoder::Br(ref mut decoder) => match decoder.write_all(&data) {
                 Ok(_) => {
                     decoder.flush()?;
@@ -195,7 +193,6 @@ impl ContentDecoder {
                 }
                 Err(e) => Err(e),
             },
-            #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
             ContentDecoder::Gzip(ref mut decoder) => match decoder.write_all(&data) {
                 Ok(_) => {
                     decoder.flush()?;
@@ -208,7 +205,6 @@ impl ContentDecoder {
                 }
                 Err(e) => Err(e),
             },
-            #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
             ContentDecoder::Deflate(ref mut decoder) => match decoder.write_all(&data) {
                 Ok(_) => {
                     decoder.flush()?;
@@ -221,7 +217,6 @@ impl ContentDecoder {
                 }
                 Err(e) => Err(e),
             },
-            _ => Ok(Some(data)),
         }
     }
 }

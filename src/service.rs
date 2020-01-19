@@ -8,9 +8,8 @@ use actix_http::{
     Error, Extensions, HttpMessage, Payload, PayloadStream, RequestHead, Response,
     ResponseHead,
 };
-use actix_router::{Path, Resource, ResourceDef, Url};
-use actix_service::{IntoNewService, NewService};
-use futures::future::{ok, FutureResult, IntoFuture};
+use actix_router::{IntoPattern, Path, Resource, ResourceDef, Url};
+use actix_service::{IntoServiceFactory, ServiceFactory};
 
 use crate::config::{AppConfig, AppService};
 use crate::data::Data;
@@ -24,7 +23,7 @@ pub trait HttpServiceFactory {
     fn register(self, config: &mut AppService);
 }
 
-pub(crate) trait ServiceFactory {
+pub(crate) trait AppServiceFactory {
     fn register(&mut self, config: &mut AppService);
 }
 
@@ -40,7 +39,7 @@ impl<T> ServiceFactoryWrapper<T> {
     }
 }
 
-impl<T> ServiceFactory for ServiceFactoryWrapper<T>
+impl<T> AppServiceFactory for ServiceFactoryWrapper<T>
 where
     T: HttpServiceFactory,
 {
@@ -66,6 +65,34 @@ impl ServiceRequest {
     pub fn into_parts(mut self) -> (HttpRequest, Payload) {
         let pl = Rc::get_mut(&mut (self.0).0).unwrap().payload.take();
         (self.0, pl)
+    }
+
+    /// Construct request from parts.
+    ///
+    /// `ServiceRequest` can be re-constructed only if `req` hasnt been cloned.
+    pub fn from_parts(
+        mut req: HttpRequest,
+        pl: Payload,
+    ) -> Result<Self, (HttpRequest, Payload)> {
+        if Rc::strong_count(&req.0) == 1 && Rc::weak_count(&req.0) == 0 {
+            Rc::get_mut(&mut req.0).unwrap().payload = pl;
+            Ok(ServiceRequest(req))
+        } else {
+            Err((req, pl))
+        }
+    }
+
+    /// Construct request from request.
+    ///
+    /// `HttpRequest` implements `Clone` trait via `Rc` type. `ServiceRequest`
+    /// can be re-constructed only if rc's strong pointers count eq 1 and
+    /// weak pointers count is 0.
+    pub fn from_request(req: HttpRequest) -> Result<Self, HttpRequest> {
+        if Rc::strong_count(&req.0) == 1 && Rc::weak_count(&req.0) == 0 {
+            Ok(ServiceRequest(req))
+        } else {
+            Err(req)
+        }
     }
 
     /// Create service response
@@ -154,7 +181,7 @@ impl ServiceRequest {
 
     /// Get *ConnectionInfo* for the current request.
     #[inline]
-    pub fn connection_info(&self) -> Ref<ConnectionInfo> {
+    pub fn connection_info(&self) -> Ref<'_, ConnectionInfo> {
         ConnectionInfo::get(self.head(), &*self.app_config())
     }
 
@@ -226,13 +253,13 @@ impl HttpMessage for ServiceRequest {
 
     /// Request extensions
     #[inline]
-    fn extensions(&self) -> Ref<Extensions> {
+    fn extensions(&self) -> Ref<'_, Extensions> {
         self.0.extensions()
     }
 
     /// Mutable reference to a the request's extensions
     #[inline]
-    fn extensions_mut(&self) -> RefMut<Extensions> {
+    fn extensions_mut(&self) -> RefMut<'_, Extensions> {
         self.0.extensions_mut()
     }
 
@@ -243,7 +270,7 @@ impl HttpMessage for ServiceRequest {
 }
 
 impl fmt::Debug for ServiceRequest {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(
             f,
             "\nServiceRequest {:?} {}:{}",
@@ -376,18 +403,8 @@ impl<B> Into<Response<B>> for ServiceResponse<B> {
     }
 }
 
-impl<B> IntoFuture for ServiceResponse<B> {
-    type Item = ServiceResponse<B>;
-    type Error = Error;
-    type Future = FutureResult<ServiceResponse<B>, Error>;
-
-    fn into_future(self) -> Self::Future {
-        ok(self)
-    }
-}
-
 impl<B: MessageBody> fmt::Debug for ServiceResponse<B> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let res = writeln!(
             f,
             "\nServiceResponse {:?} {}{}",
@@ -405,16 +422,16 @@ impl<B: MessageBody> fmt::Debug for ServiceResponse<B> {
 }
 
 pub struct WebService {
-    rdef: String,
+    rdef: Vec<String>,
     name: Option<String>,
     guards: Vec<Box<dyn Guard>>,
 }
 
 impl WebService {
     /// Create new `WebService` instance.
-    pub fn new(path: &str) -> Self {
+    pub fn new<T: IntoPattern>(path: T) -> Self {
         WebService {
-            rdef: path.to_string(),
+            rdef: path.patterns(),
             name: None,
             guards: Vec::new(),
         }
@@ -431,10 +448,10 @@ impl WebService {
     /// Add match guard to a web service.
     ///
     /// ```rust
-    /// use actix_web::{web, guard, dev, App, HttpResponse};
+    /// use actix_web::{web, guard, dev, App, Error, HttpResponse};
     ///
-    /// fn index(req: dev::ServiceRequest) -> dev::ServiceResponse {
-    ///     req.into_response(HttpResponse::Ok().finish())
+    /// async fn index(req: dev::ServiceRequest) -> Result<dev::ServiceResponse, Error> {
+    ///     Ok(req.into_response(HttpResponse::Ok().finish()))
     /// }
     ///
     /// fn main() {
@@ -454,8 +471,8 @@ impl WebService {
     /// Set a service factory implementation and generate web service.
     pub fn finish<T, F>(self, service: F) -> impl HttpServiceFactory
     where
-        F: IntoNewService<T>,
-        T: NewService<
+        F: IntoServiceFactory<T>,
+        T: ServiceFactory<
                 Config = (),
                 Request = ServiceRequest,
                 Response = ServiceResponse,
@@ -464,7 +481,7 @@ impl WebService {
             > + 'static,
     {
         WebServiceImpl {
-            srv: service.into_new_service(),
+            srv: service.into_factory(),
             rdef: self.rdef,
             name: self.name,
             guards: self.guards,
@@ -474,14 +491,14 @@ impl WebService {
 
 struct WebServiceImpl<T> {
     srv: T,
-    rdef: String,
+    rdef: Vec<String>,
     name: Option<String>,
     guards: Vec<Box<dyn Guard>>,
 }
 
 impl<T> HttpServiceFactory for WebServiceImpl<T>
 where
-    T: NewService<
+    T: ServiceFactory<
             Config = (),
             Request = ServiceRequest,
             Response = ServiceResponse,
@@ -497,9 +514,9 @@ where
         };
 
         let mut rdef = if config.is_root() || !self.rdef.is_empty() {
-            ResourceDef::new(&insert_slash(&self.rdef))
+            ResourceDef::new(insert_slash(self.rdef))
         } else {
-            ResourceDef::new(&self.rdef)
+            ResourceDef::new(self.rdef)
         };
         if let Some(ref name) = self.name {
             *rdef.name_mut() = name.clone();
@@ -511,29 +528,54 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test::{call_service, init_service, TestRequest};
+    use crate::test::{init_service, TestRequest};
     use crate::{guard, http, web, App, HttpResponse};
+    use actix_service::Service;
+    use futures::future::ok;
 
     #[test]
-    fn test_service() {
+    fn test_service_request() {
+        let req = TestRequest::default().to_srv_request();
+        let (r, pl) = req.into_parts();
+        assert!(ServiceRequest::from_parts(r, pl).is_ok());
+
+        let req = TestRequest::default().to_srv_request();
+        let (r, pl) = req.into_parts();
+        let _r2 = r.clone();
+        assert!(ServiceRequest::from_parts(r, pl).is_err());
+
+        let req = TestRequest::default().to_srv_request();
+        let (r, _pl) = req.into_parts();
+        assert!(ServiceRequest::from_request(r).is_ok());
+
+        let req = TestRequest::default().to_srv_request();
+        let (r, _pl) = req.into_parts();
+        let _r2 = r.clone();
+        assert!(ServiceRequest::from_request(r).is_err());
+    }
+
+    #[actix_rt::test]
+    async fn test_service() {
         let mut srv = init_service(
             App::new().service(web::service("/test").name("test").finish(
-                |req: ServiceRequest| req.into_response(HttpResponse::Ok().finish()),
+                |req: ServiceRequest| ok(req.into_response(HttpResponse::Ok().finish())),
             )),
-        );
+        )
+        .await;
         let req = TestRequest::with_uri("/test").to_request();
-        let resp = call_service(&mut srv, req);
+        let resp = srv.call(req).await.unwrap();
         assert_eq!(resp.status(), http::StatusCode::OK);
 
         let mut srv = init_service(
             App::new().service(web::service("/test").guard(guard::Get()).finish(
-                |req: ServiceRequest| req.into_response(HttpResponse::Ok().finish()),
+                |req: ServiceRequest| ok(req.into_response(HttpResponse::Ok().finish())),
             )),
-        );
+        )
+        .await;
         let req = TestRequest::with_uri("/test")
             .method(http::Method::PUT)
             .to_request();
-        let resp = call_service(&mut srv, req);
+        let resp = srv.call(req).await.unwrap();
         assert_eq!(resp.status(), http::StatusCode::NOT_FOUND);
     }
 

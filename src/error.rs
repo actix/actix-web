@@ -6,7 +6,6 @@ use url::ParseError as UrlParseError;
 
 use crate::http::StatusCode;
 use crate::HttpResponse;
-use serde_urlencoded::de;
 
 /// Errors which can occur when attempting to generate resource uri.
 #[derive(Debug, PartialEq, Display, From)]
@@ -32,8 +31,12 @@ pub enum UrlencodedError {
     #[display(fmt = "Can not decode chunked transfer encoding")]
     Chunked,
     /// Payload size is bigger than allowed. (default: 256kB)
-    #[display(fmt = "Urlencoded payload size is bigger than allowed (default: 256kB)")]
-    Overflow,
+    #[display(
+        fmt = "Urlencoded payload size is bigger ({} bytes) than allowed (default: {} bytes)",
+        size,
+        limit
+    )]
+    Overflow { size: usize, limit: usize },
     /// Payload size is now known
     #[display(fmt = "Payload size is now known")]
     UnknownLength,
@@ -50,15 +53,11 @@ pub enum UrlencodedError {
 
 /// Return `BadRequest` for `UrlencodedError`
 impl ResponseError for UrlencodedError {
-    fn error_response(&self) -> HttpResponse {
+    fn status_code(&self) -> StatusCode {
         match *self {
-            UrlencodedError::Overflow => {
-                HttpResponse::new(StatusCode::PAYLOAD_TOO_LARGE)
-            }
-            UrlencodedError::UnknownLength => {
-                HttpResponse::new(StatusCode::LENGTH_REQUIRED)
-            }
-            _ => HttpResponse::new(StatusCode::BAD_REQUEST),
+            UrlencodedError::Overflow { .. } => StatusCode::PAYLOAD_TOO_LARGE,
+            UrlencodedError::UnknownLength => StatusCode::LENGTH_REQUIRED,
+            _ => StatusCode::BAD_REQUEST,
         }
     }
 }
@@ -97,15 +96,13 @@ impl ResponseError for JsonPayloadError {
 pub enum PathError {
     /// Deserialize error
     #[display(fmt = "Path deserialize error: {}", _0)]
-    Deserialize(de::Error),
+    Deserialize(serde::de::value::Error),
 }
 
 /// Return `BadRequest` for `PathError`
 impl ResponseError for PathError {
-    fn error_response(&self) -> HttpResponse {
-        match *self {
-            PathError::Deserialize(_) => HttpResponse::new(StatusCode::BAD_REQUEST),
-        }
+    fn status_code(&self) -> StatusCode {
+        StatusCode::BAD_REQUEST
     }
 }
 
@@ -114,17 +111,13 @@ impl ResponseError for PathError {
 pub enum QueryPayloadError {
     /// Deserialize error
     #[display(fmt = "Query deserialize error: {}", _0)]
-    Deserialize(de::Error),
+    Deserialize(serde::de::value::Error),
 }
 
 /// Return `BadRequest` for `QueryPayloadError`
 impl ResponseError for QueryPayloadError {
-    fn error_response(&self) -> HttpResponse {
-        match *self {
-            QueryPayloadError::Deserialize(_) => {
-                HttpResponse::new(StatusCode::BAD_REQUEST)
-            }
-        }
+    fn status_code(&self) -> StatusCode {
+        StatusCode::BAD_REQUEST
     }
 }
 
@@ -148,12 +141,10 @@ pub enum ReadlinesError {
 
 /// Return `BadRequest` for `ReadlinesError`
 impl ResponseError for ReadlinesError {
-    fn error_response(&self) -> HttpResponse {
+    fn status_code(&self) -> StatusCode {
         match *self {
-            ReadlinesError::LimitOverflow => {
-                HttpResponse::new(StatusCode::PAYLOAD_TOO_LARGE)
-            }
-            _ => HttpResponse::new(StatusCode::BAD_REQUEST),
+            ReadlinesError::LimitOverflow => StatusCode::PAYLOAD_TOO_LARGE,
+            _ => StatusCode::BAD_REQUEST,
         }
     }
 }
@@ -164,7 +155,8 @@ mod tests {
 
     #[test]
     fn test_urlencoded_error() {
-        let resp: HttpResponse = UrlencodedError::Overflow.error_response();
+        let resp: HttpResponse =
+            UrlencodedError::Overflow { size: 0, limit: 0 }.error_response();
         assert_eq!(resp.status(), StatusCode::PAYLOAD_TOO_LARGE);
         let resp: HttpResponse = UrlencodedError::UnknownLength.error_response();
         assert_eq!(resp.status(), StatusCode::LENGTH_REQUIRED);

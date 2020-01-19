@@ -78,13 +78,13 @@ impl Head for RequestHead {
 impl RequestHead {
     /// Message extensions
     #[inline]
-    pub fn extensions(&self) -> Ref<Extensions> {
+    pub fn extensions(&self) -> Ref<'_, Extensions> {
         self.extensions.borrow()
     }
 
     /// Mutable reference to a the message's extensions
     #[inline]
-    pub fn extensions_mut(&self) -> RefMut<Extensions> {
+    pub fn extensions_mut(&self) -> RefMut<'_, Extensions> {
         self.extensions.borrow_mut()
     }
 
@@ -237,13 +237,13 @@ impl ResponseHead {
 
     /// Message extensions
     #[inline]
-    pub fn extensions(&self) -> Ref<Extensions> {
+    pub fn extensions(&self) -> Ref<'_, Extensions> {
         self.extensions.borrow()
     }
 
     /// Mutable reference to a the message's extensions
     #[inline]
-    pub fn extensions_mut(&self) -> RefMut<Extensions> {
+    pub fn extensions_mut(&self) -> RefMut<'_, Extensions> {
         self.extensions.borrow_mut()
     }
 
@@ -388,6 +388,12 @@ impl BoxedResponseHead {
     pub fn new(status: StatusCode) -> Self {
         RESPONSE_POOL.with(|p| p.get_message(status))
     }
+
+    pub(crate) fn take(&mut self) -> Self {
+        BoxedResponseHead {
+            head: self.head.take(),
+        }
+    }
 }
 
 impl std::ops::Deref for BoxedResponseHead {
@@ -406,7 +412,9 @@ impl std::ops::DerefMut for BoxedResponseHead {
 
 impl Drop for BoxedResponseHead {
     fn drop(&mut self) {
-        RESPONSE_POOL.with(|p| p.release(self.head.take().unwrap()))
+        if let Some(head) = self.head.take() {
+            RESPONSE_POOL.with(move |p| p.release(head))
+        }
     }
 }
 

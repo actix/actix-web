@@ -1,24 +1,27 @@
-#![allow(clippy::borrow_interior_mutable_const)]
+#![deny(rust_2018_idioms, warnings)]
+#![allow(
+    clippy::needless_doctest_main,
+    clippy::type_complexity,
+    clippy::borrow_interior_mutable_const
+)]
 //! Actix web is a small, pragmatic, and extremely fast web framework
 //! for Rust.
 //!
-//! ```rust
+//! ```rust,no_run
 //! use actix_web::{web, App, Responder, HttpServer};
-//! # use std::thread;
 //!
-//! fn index(info: web::Path<(String, u32)>) -> impl Responder {
+//! async fn index(info: web::Path<(String, u32)>) -> impl Responder {
 //!     format!("Hello {}! id:{}", info.0, info.1)
 //! }
 //!
-//! fn main() -> std::io::Result<()> {
-//!     # thread::spawn(|| {
+//! #[actix_rt::main]
+//! async fn main() -> std::io::Result<()> {
 //!     HttpServer::new(|| App::new().service(
 //!         web::resource("/{name}/{id}/index.html").to(index))
 //!     )
 //!         .bind("127.0.0.1:8080")?
 //!         .run()
-//!     # });
-//!     # Ok(())
+//!         .await
 //! }
 //! ```
 //!
@@ -44,7 +47,7 @@
 //!   configure servers.
 //!
 //! * [web](web/index.html): This module
-//!   provide essentials helper functions and types for application registration.
+//!   provides essential helper functions and types for application registration.
 //!
 //! * [HttpRequest](struct.HttpRequest.html) and
 //!   [HttpResponse](struct.HttpResponse.html): These structs
@@ -63,23 +66,16 @@
 //! * SSL support with OpenSSL or `native-tls`
 //! * Middlewares (`Logger`, `Session`, `CORS`, `DefaultHeaders`)
 //! * Supports [Actix actor framework](https://github.com/actix/actix)
-//! * Supported Rust version: 1.36 or later
+//! * Supported Rust version: 1.39 or later
 //!
 //! ## Package feature
 //!
 //! * `client` - enables http client (default enabled)
-//! * `ssl` - enables ssl support via `openssl` crate, supports `http/2`
-//! * `rust-tls` - enables ssl support via `rustls` crate, supports `http/2`
+//! * `compress` - enables content encoding compression support (default enabled)
+//! * `openssl` - enables ssl support via `openssl` crate, supports `http/2`
+//! * `rustls` - enables ssl support via `rustls` crate, supports `http/2`
 //! * `secure-cookies` - enables secure cookies support, includes `ring` crate as
 //!   dependency
-//! * `brotli` - enables `brotli` compression support, requires `c`
-//!   compiler (default enabled)
-//! * `flate2-zlib` - enables `gzip`, `deflate` compression support, requires
-//!   `c` compiler (default enabled)
-//! * `flate2-rust` - experimental rust based implementation for
-//!   `gzip`, `deflate` compression.
-//! * `uds` - Unix domain support, enables `HttpServer::bind_uds()` method.
-//!
 #![allow(clippy::type_complexity, clippy::new_without_default)]
 
 mod app;
@@ -103,10 +99,6 @@ mod service;
 pub mod test;
 mod types;
 pub mod web;
-
-#[allow(unused_imports)]
-#[macro_use]
-extern crate actix_web_codegen;
 
 #[doc(hidden)]
 pub use actix_web_codegen::*;
@@ -137,17 +129,19 @@ pub mod dev {
 
     pub use crate::config::{AppConfig, AppService};
     #[doc(hidden)]
-    pub use crate::handler::{AsyncFactory, Factory};
+    pub use crate::handler::Factory;
     pub use crate::info::ConnectionInfo;
     pub use crate::rmap::ResourceMap;
     pub use crate::service::{
         HttpServiceFactory, ServiceRequest, ServiceResponse, WebService,
     };
+
     pub use crate::types::form::UrlEncoded;
     pub use crate::types::json::JsonBody;
     pub use crate::types::readlines::Readlines;
 
     pub use actix_http::body::{Body, BodySize, MessageBody, ResponseBody, SizedStream};
+    #[cfg(feature = "compress")]
     pub use actix_http::encoding::Decoder as Decompress;
     pub use actix_http::ResponseBuilder as HttpResponseBuilder;
     pub use actix_http::{
@@ -157,37 +151,76 @@ pub mod dev {
     pub use actix_server::Server;
     pub use actix_service::{Service, Transform};
 
-    pub(crate) fn insert_slash(path: &str) -> String {
-        let mut path = path.to_owned();
-        if !path.is_empty() && !path.starts_with('/') {
-            path.insert(0, '/');
-        };
-        path
+    pub(crate) fn insert_slash(mut patterns: Vec<String>) -> Vec<String> {
+        for path in &mut patterns {
+            if !path.is_empty() && !path.starts_with('/') {
+                path.insert(0, '/');
+            };
+        }
+        patterns
+    }
+
+    use crate::http::header::ContentEncoding;
+    use actix_http::{Response, ResponseBuilder};
+
+    struct Enc(ContentEncoding);
+
+    /// Helper trait that allows to set specific encoding for response.
+    pub trait BodyEncoding {
+        /// Get content encoding
+        fn get_encoding(&self) -> Option<ContentEncoding>;
+
+        /// Set content encoding
+        fn encoding(&mut self, encoding: ContentEncoding) -> &mut Self;
+    }
+
+    impl BodyEncoding for ResponseBuilder {
+        fn get_encoding(&self) -> Option<ContentEncoding> {
+            if let Some(ref enc) = self.extensions().get::<Enc>() {
+                Some(enc.0)
+            } else {
+                None
+            }
+        }
+
+        fn encoding(&mut self, encoding: ContentEncoding) -> &mut Self {
+            self.extensions_mut().insert(Enc(encoding));
+            self
+        }
+    }
+
+    impl<B> BodyEncoding for Response<B> {
+        fn get_encoding(&self) -> Option<ContentEncoding> {
+            if let Some(ref enc) = self.extensions().get::<Enc>() {
+                Some(enc.0)
+            } else {
+                None
+            }
+        }
+
+        fn encoding(&mut self, encoding: ContentEncoding) -> &mut Self {
+            self.extensions_mut().insert(Enc(encoding));
+            self
+        }
     }
 }
 
-#[cfg(feature = "client")]
 pub mod client {
     //! An HTTP Client
     //!
     //! ```rust
-    //! # use futures::future::{Future, lazy};
-    //! use actix_rt::System;
     //! use actix_web::client::Client;
     //!
-    //! fn main() {
-    //!     System::new("test").block_on(lazy(|| {
-    //!        let mut client = Client::default();
+    //! #[actix_rt::main]
+    //! async fn main() {
+    //!    let mut client = Client::default();
     //!
-    //!        client.get("http://www.rust-lang.org") // <- Create request builder
-    //!           .header("User-Agent", "Actix-web")
-    //!           .send()                             // <- Send http request
-    //!           .map_err(|_| ())
-    //!           .and_then(|response| {              // <- server http response
-    //!                println!("Response: {:?}", response);
-    //!                Ok(())
-    //!           })
-    //!     }));
+    //!    // Create request builder and send request
+    //!    let response = client.get("http://www.rust-lang.org")
+    //!       .header("User-Agent", "Actix-web")
+    //!       .send().await;                      // <- Send http request
+    //!
+    //!    println!("Response: {:?}", response);
     //! }
     //! ```
     pub use awc::error::{

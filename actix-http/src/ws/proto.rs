@@ -24,7 +24,7 @@ pub enum OpCode {
 }
 
 impl fmt::Display for OpCode {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             Continue => write!(f, "CONTINUE"),
             Text => write!(f, "TEXT"),
@@ -95,7 +95,7 @@ pub enum CloseCode {
     Abnormal,
     /// Indicates that an endpoint is terminating the connection
     /// because it has received data within a message that was not
-    /// consistent with the type of the message (e.g., non-UTF-8 [RFC3629]
+    /// consistent with the type of the message (e.g., non-UTF-8 \[RFC3629\]
     /// data within a text message).
     Invalid,
     /// Indicates that an endpoint is terminating the connection
@@ -207,12 +207,13 @@ static WS_GUID: &str = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 
 // TODO: hash is always same size, we dont need String
 pub fn hash_key(key: &[u8]) -> String {
+    use sha1::Digest;
     let mut hasher = sha1::Sha1::new();
 
-    hasher.update(key);
-    hasher.update(WS_GUID.as_bytes());
+    hasher.input(key);
+    hasher.input(WS_GUID.as_bytes());
 
-    base64::encode(&hasher.digest().bytes())
+    base64::encode(hasher.result().as_ref())
 }
 
 #[cfg(test)]
@@ -275,6 +276,12 @@ mod test {
         assert_eq!(format!("{}", OpCode::Ping), "PING");
         assert_eq!(format!("{}", OpCode::Pong), "PONG");
         assert_eq!(format!("{}", OpCode::Bad), "BAD");
+    }
+
+    #[test]
+    fn test_hash_key() {
+        let hash = hash_key(b"hello actix-web");
+        assert_eq!(&hash, "cR1dlyUUJKp0s/Bel25u5TgvC3E=");
     }
 
     #[test]

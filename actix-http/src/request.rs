@@ -25,13 +25,13 @@ impl<P> HttpMessage for Request<P> {
 
     /// Request extensions
     #[inline]
-    fn extensions(&self) -> Ref<Extensions> {
+    fn extensions(&self) -> Ref<'_, Extensions> {
         self.head.extensions()
     }
 
     /// Mutable reference to a the request's extensions
     #[inline]
-    fn extensions_mut(&self) -> RefMut<Extensions> {
+    fn extensions_mut(&self) -> RefMut<'_, Extensions> {
         self.head.extensions_mut()
     }
 
@@ -78,6 +78,11 @@ impl<P> Request<P> {
             },
             pl,
         )
+    }
+
+    /// Get request's payload
+    pub fn payload(&mut self) -> &mut Payload<P> {
+        &mut self.payload
     }
 
     /// Get request's payload
@@ -160,7 +165,7 @@ impl<P> Request<P> {
 }
 
 impl<P> fmt::Debug for Request<P> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(
             f,
             "\nRequest {:?} {}:{}",
@@ -182,7 +187,7 @@ impl<P> fmt::Debug for Request<P> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use http::HttpTryFrom;
+    use std::convert::TryFrom;
 
     #[test]
     fn test_basics() {
@@ -199,7 +204,6 @@ mod tests {
         assert_eq!(req.uri().query(), Some("q=1"));
 
         let s = format!("{:?}", req);
-        println!("T: {:?}", s);
         assert!(s.contains("Request HTTP/1.1 GET:/index.html"));
     }
 }

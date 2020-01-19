@@ -1,8 +1,11 @@
 use std::marker::PhantomData;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 use std::{fmt, mem};
 
 use bytes::{Bytes, BytesMut};
-use futures::{Async, Poll, Stream};
+use futures_core::Stream;
+use pin_project::{pin_project, project};
 
 use crate::error::Error;
 
@@ -32,7 +35,7 @@ impl BodySize {
 pub trait MessageBody {
     fn size(&self) -> BodySize;
 
-    fn poll_next(&mut self) -> Poll<Option<Bytes>, Error>;
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes, Error>>>;
 }
 
 impl MessageBody for () {
@@ -40,8 +43,8 @@ impl MessageBody for () {
         BodySize::Empty
     }
 
-    fn poll_next(&mut self) -> Poll<Option<Bytes>, Error> {
-        Ok(Async::Ready(None))
+    fn poll_next(&mut self, _: &mut Context<'_>) -> Poll<Option<Result<Bytes, Error>>> {
+        Poll::Ready(None)
     }
 }
 
@@ -50,11 +53,12 @@ impl<T: MessageBody> MessageBody for Box<T> {
         self.as_ref().size()
     }
 
-    fn poll_next(&mut self) -> Poll<Option<Bytes>, Error> {
-        self.as_mut().poll_next()
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes, Error>>> {
+        self.as_mut().poll_next(cx)
     }
 }
 
+#[pin_project]
 pub enum ResponseBody<B> {
     Body(B),
     Other(Body),
@@ -93,20 +97,27 @@ impl<B: MessageBody> MessageBody for ResponseBody<B> {
         }
     }
 
-    fn poll_next(&mut self) -> Poll<Option<Bytes>, Error> {
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes, Error>>> {
         match self {
-            ResponseBody::Body(ref mut body) => body.poll_next(),
-            ResponseBody::Other(ref mut body) => body.poll_next(),
+            ResponseBody::Body(ref mut body) => body.poll_next(cx),
+            ResponseBody::Other(ref mut body) => body.poll_next(cx),
         }
     }
 }
 
 impl<B: MessageBody> Stream for ResponseBody<B> {
-    type Item = Bytes;
-    type Error = Error;
+    type Item = Result<Bytes, Error>;
 
-    fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
-        self.poll_next()
+    #[project]
+    fn poll_next(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Option<Self::Item>> {
+        #[project]
+        match self.project() {
+            ResponseBody::Body(ref mut body) => body.poll_next(cx),
+            ResponseBody::Other(ref mut body) => body.poll_next(cx),
+        }
     }
 }
 
@@ -125,7 +136,7 @@ pub enum Body {
 impl Body {
     /// Create body from slice (copy)
     pub fn from_slice(s: &[u8]) -> Body {
-        Body::Bytes(Bytes::from(s))
+        Body::Bytes(Bytes::copy_from_slice(s))
     }
 
     /// Create body from generic message body.
@@ -144,19 +155,19 @@ impl MessageBody for Body {
         }
     }
 
-    fn poll_next(&mut self) -> Poll<Option<Bytes>, Error> {
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes, Error>>> {
         match self {
-            Body::None => Ok(Async::Ready(None)),
-            Body::Empty => Ok(Async::Ready(None)),
+            Body::None => Poll::Ready(None),
+            Body::Empty => Poll::Ready(None),
             Body::Bytes(ref mut bin) => {
                 let len = bin.len();
                 if len == 0 {
-                    Ok(Async::Ready(None))
+                    Poll::Ready(None)
                 } else {
-                    Ok(Async::Ready(Some(mem::replace(bin, Bytes::new()))))
+                    Poll::Ready(Some(Ok(mem::replace(bin, Bytes::new()))))
                 }
             }
-            Body::Message(ref mut body) => body.poll_next(),
+            Body::Message(ref mut body) => body.poll_next(cx),
         }
     }
 }
@@ -182,7 +193,7 @@ impl PartialEq for Body {
 }
 
 impl fmt::Debug for Body {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             Body::None => write!(f, "Body::None"),
             Body::Empty => write!(f, "Body::Empty"),
@@ -218,7 +229,7 @@ impl From<String> for Body {
 
 impl<'a> From<&'a String> for Body {
     fn from(s: &'a String) -> Body {
-        Body::Bytes(Bytes::from(AsRef::<[u8]>::as_ref(&s)))
+        Body::Bytes(Bytes::copy_from_slice(AsRef::<[u8]>::as_ref(&s)))
     }
 }
 
@@ -234,9 +245,15 @@ impl From<BytesMut> for Body {
     }
 }
 
+impl From<serde_json::Value> for Body {
+    fn from(v: serde_json::Value) -> Body {
+        Body::Bytes(v.to_string().into())
+    }
+}
+
 impl<S> From<SizedStream<S>> for Body
 where
-    S: Stream<Item = Bytes, Error = Error> + 'static,
+    S: Stream<Item = Result<Bytes, Error>> + 'static,
 {
     fn from(s: SizedStream<S>) -> Body {
         Body::from_message(s)
@@ -245,7 +262,7 @@ where
 
 impl<S, E> From<BodyStream<S, E>> for Body
 where
-    S: Stream<Item = Bytes, Error = E> + 'static,
+    S: Stream<Item = Result<Bytes, E>> + 'static,
     E: Into<Error> + 'static,
 {
     fn from(s: BodyStream<S, E>) -> Body {
@@ -258,11 +275,11 @@ impl MessageBody for Bytes {
         BodySize::Sized(self.len())
     }
 
-    fn poll_next(&mut self) -> Poll<Option<Bytes>, Error> {
+    fn poll_next(&mut self, _: &mut Context<'_>) -> Poll<Option<Result<Bytes, Error>>> {
         if self.is_empty() {
-            Ok(Async::Ready(None))
+            Poll::Ready(None)
         } else {
-            Ok(Async::Ready(Some(mem::replace(self, Bytes::new()))))
+            Poll::Ready(Some(Ok(mem::replace(self, Bytes::new()))))
         }
     }
 }
@@ -272,13 +289,11 @@ impl MessageBody for BytesMut {
         BodySize::Sized(self.len())
     }
 
-    fn poll_next(&mut self) -> Poll<Option<Bytes>, Error> {
+    fn poll_next(&mut self, _: &mut Context<'_>) -> Poll<Option<Result<Bytes, Error>>> {
         if self.is_empty() {
-            Ok(Async::Ready(None))
+            Poll::Ready(None)
         } else {
-            Ok(Async::Ready(Some(
-                mem::replace(self, BytesMut::new()).freeze(),
-            )))
+            Poll::Ready(Some(Ok(mem::replace(self, BytesMut::new()).freeze())))
         }
     }
 }
@@ -288,11 +303,11 @@ impl MessageBody for &'static str {
         BodySize::Sized(self.len())
     }
 
-    fn poll_next(&mut self) -> Poll<Option<Bytes>, Error> {
+    fn poll_next(&mut self, _: &mut Context<'_>) -> Poll<Option<Result<Bytes, Error>>> {
         if self.is_empty() {
-            Ok(Async::Ready(None))
+            Poll::Ready(None)
         } else {
-            Ok(Async::Ready(Some(Bytes::from_static(
+            Poll::Ready(Some(Ok(Bytes::from_static(
                 mem::replace(self, "").as_ref(),
             ))))
         }
@@ -304,13 +319,11 @@ impl MessageBody for &'static [u8] {
         BodySize::Sized(self.len())
     }
 
-    fn poll_next(&mut self) -> Poll<Option<Bytes>, Error> {
+    fn poll_next(&mut self, _: &mut Context<'_>) -> Poll<Option<Result<Bytes, Error>>> {
         if self.is_empty() {
-            Ok(Async::Ready(None))
+            Poll::Ready(None)
         } else {
-            Ok(Async::Ready(Some(Bytes::from_static(mem::replace(
-                self, b"",
-            )))))
+            Poll::Ready(Some(Ok(Bytes::from_static(mem::replace(self, b"")))))
         }
     }
 }
@@ -320,14 +333,11 @@ impl MessageBody for Vec<u8> {
         BodySize::Sized(self.len())
     }
 
-    fn poll_next(&mut self) -> Poll<Option<Bytes>, Error> {
+    fn poll_next(&mut self, _: &mut Context<'_>) -> Poll<Option<Result<Bytes, Error>>> {
         if self.is_empty() {
-            Ok(Async::Ready(None))
+            Poll::Ready(None)
         } else {
-            Ok(Async::Ready(Some(Bytes::from(mem::replace(
-                self,
-                Vec::new(),
-            )))))
+            Poll::Ready(Some(Ok(Bytes::from(mem::replace(self, Vec::new())))))
         }
     }
 }
@@ -337,11 +347,11 @@ impl MessageBody for String {
         BodySize::Sized(self.len())
     }
 
-    fn poll_next(&mut self) -> Poll<Option<Bytes>, Error> {
+    fn poll_next(&mut self, _: &mut Context<'_>) -> Poll<Option<Result<Bytes, Error>>> {
         if self.is_empty() {
-            Ok(Async::Ready(None))
+            Poll::Ready(None)
         } else {
-            Ok(Async::Ready(Some(Bytes::from(
+            Poll::Ready(Some(Ok(Bytes::from(
                 mem::replace(self, String::new()).into_bytes(),
             ))))
         }
@@ -350,14 +360,16 @@ impl MessageBody for String {
 
 /// Type represent streaming body.
 /// Response does not contain `content-length` header and appropriate transfer encoding is used.
+#[pin_project]
 pub struct BodyStream<S, E> {
+    #[pin]
     stream: S,
     _t: PhantomData<E>,
 }
 
 impl<S, E> BodyStream<S, E>
 where
-    S: Stream<Item = Bytes, Error = E>,
+    S: Stream<Item = Result<Bytes, E>>,
     E: Into<Error>,
 {
     pub fn new(stream: S) -> Self {
@@ -370,28 +382,34 @@ where
 
 impl<S, E> MessageBody for BodyStream<S, E>
 where
-    S: Stream<Item = Bytes, Error = E>,
+    S: Stream<Item = Result<Bytes, E>>,
     E: Into<Error>,
 {
     fn size(&self) -> BodySize {
         BodySize::Stream
     }
 
-    fn poll_next(&mut self) -> Poll<Option<Bytes>, Error> {
-        self.stream.poll().map_err(std::convert::Into::into)
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes, Error>>> {
+        unsafe { Pin::new_unchecked(self) }
+            .project()
+            .stream
+            .poll_next(cx)
+            .map(|res| res.map(|res| res.map_err(std::convert::Into::into)))
     }
 }
 
 /// Type represent streaming body. This body implementation should be used
 /// if total size of stream is known. Data get sent as is without using transfer encoding.
+#[pin_project]
 pub struct SizedStream<S> {
     size: u64,
+    #[pin]
     stream: S,
 }
 
 impl<S> SizedStream<S>
 where
-    S: Stream<Item = Bytes, Error = Error>,
+    S: Stream<Item = Result<Bytes, Error>>,
 {
     pub fn new(size: u64, stream: S) -> Self {
         SizedStream { size, stream }
@@ -400,20 +418,24 @@ where
 
 impl<S> MessageBody for SizedStream<S>
 where
-    S: Stream<Item = Bytes, Error = Error>,
+    S: Stream<Item = Result<Bytes, Error>>,
 {
     fn size(&self) -> BodySize {
         BodySize::Sized64(self.size)
     }
 
-    fn poll_next(&mut self) -> Poll<Option<Bytes>, Error> {
-        self.stream.poll()
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes, Error>>> {
+        unsafe { Pin::new_unchecked(self) }
+            .project()
+            .stream
+            .poll_next(cx)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use futures_util::future::poll_fn;
 
     impl Body {
         pub(crate) fn get_ref(&self) -> &[u8] {
@@ -433,21 +455,21 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_static_str() {
+    #[actix_rt::test]
+    async fn test_static_str() {
         assert_eq!(Body::from("").size(), BodySize::Sized(0));
         assert_eq!(Body::from("test").size(), BodySize::Sized(4));
         assert_eq!(Body::from("test").get_ref(), b"test");
 
         assert_eq!("test".size(), BodySize::Sized(4));
         assert_eq!(
-            "test".poll_next().unwrap(),
-            Async::Ready(Some(Bytes::from("test")))
+            poll_fn(|cx| "test".poll_next(cx)).await.unwrap().ok(),
+            Some(Bytes::from("test"))
         );
     }
 
-    #[test]
-    fn test_static_bytes() {
+    #[actix_rt::test]
+    async fn test_static_bytes() {
         assert_eq!(Body::from(b"test".as_ref()).size(), BodySize::Sized(4));
         assert_eq!(Body::from(b"test".as_ref()).get_ref(), b"test");
         assert_eq!(
@@ -458,51 +480,57 @@ mod tests {
 
         assert_eq!((&b"test"[..]).size(), BodySize::Sized(4));
         assert_eq!(
-            (&b"test"[..]).poll_next().unwrap(),
-            Async::Ready(Some(Bytes::from("test")))
+            poll_fn(|cx| (&b"test"[..]).poll_next(cx))
+                .await
+                .unwrap()
+                .ok(),
+            Some(Bytes::from("test"))
         );
     }
 
-    #[test]
-    fn test_vec() {
+    #[actix_rt::test]
+    async fn test_vec() {
         assert_eq!(Body::from(Vec::from("test")).size(), BodySize::Sized(4));
         assert_eq!(Body::from(Vec::from("test")).get_ref(), b"test");
 
         assert_eq!(Vec::from("test").size(), BodySize::Sized(4));
         assert_eq!(
-            Vec::from("test").poll_next().unwrap(),
-            Async::Ready(Some(Bytes::from("test")))
+            poll_fn(|cx| Vec::from("test").poll_next(cx))
+                .await
+                .unwrap()
+                .ok(),
+            Some(Bytes::from("test"))
         );
     }
 
-    #[test]
-    fn test_bytes() {
+    #[actix_rt::test]
+    async fn test_bytes() {
         let mut b = Bytes::from("test");
         assert_eq!(Body::from(b.clone()).size(), BodySize::Sized(4));
         assert_eq!(Body::from(b.clone()).get_ref(), b"test");
 
         assert_eq!(b.size(), BodySize::Sized(4));
         assert_eq!(
-            b.poll_next().unwrap(),
-            Async::Ready(Some(Bytes::from("test")))
+            poll_fn(|cx| b.poll_next(cx)).await.unwrap().ok(),
+            Some(Bytes::from("test"))
         );
     }
 
-    #[test]
-    fn test_bytes_mut() {
+    #[actix_rt::test]
+    async fn test_bytes_mut() {
         let mut b = BytesMut::from("test");
         assert_eq!(Body::from(b.clone()).size(), BodySize::Sized(4));
         assert_eq!(Body::from(b.clone()).get_ref(), b"test");
 
         assert_eq!(b.size(), BodySize::Sized(4));
         assert_eq!(
-            b.poll_next().unwrap(),
-            Async::Ready(Some(Bytes::from("test")))
+            poll_fn(|cx| b.poll_next(cx)).await.unwrap().ok(),
+            Some(Bytes::from("test"))
         );
     }
 
-    #[test]
-    fn test_string() {
+    #[actix_rt::test]
+    async fn test_string() {
         let mut b = "test".to_owned();
         assert_eq!(Body::from(b.clone()).size(), BodySize::Sized(4));
         assert_eq!(Body::from(b.clone()).get_ref(), b"test");
@@ -511,26 +539,26 @@ mod tests {
 
         assert_eq!(b.size(), BodySize::Sized(4));
         assert_eq!(
-            b.poll_next().unwrap(),
-            Async::Ready(Some(Bytes::from("test")))
+            poll_fn(|cx| b.poll_next(cx)).await.unwrap().ok(),
+            Some(Bytes::from("test"))
         );
     }
 
-    #[test]
-    fn test_unit() {
+    #[actix_rt::test]
+    async fn test_unit() {
         assert_eq!(().size(), BodySize::Empty);
-        assert_eq!(().poll_next().unwrap(), Async::Ready(None));
+        assert!(poll_fn(|cx| ().poll_next(cx)).await.is_none());
     }
 
-    #[test]
-    fn test_box() {
+    #[actix_rt::test]
+    async fn test_box() {
         let mut val = Box::new(());
         assert_eq!(val.size(), BodySize::Empty);
-        assert_eq!(val.poll_next().unwrap(), Async::Ready(None));
+        assert!(poll_fn(|cx| val.poll_next(cx)).await.is_none());
     }
 
-    #[test]
-    fn test_body_eq() {
+    #[actix_rt::test]
+    async fn test_body_eq() {
         assert!(Body::None == Body::None);
         assert!(Body::None != Body::Empty);
         assert!(Body::Empty == Body::Empty);
@@ -542,10 +570,23 @@ mod tests {
         assert!(Body::Bytes(Bytes::from_static(b"1")) != Body::None);
     }
 
-    #[test]
-    fn test_body_debug() {
+    #[actix_rt::test]
+    async fn test_body_debug() {
         assert!(format!("{:?}", Body::None).contains("Body::None"));
         assert!(format!("{:?}", Body::Empty).contains("Body::Empty"));
         assert!(format!("{:?}", Body::Bytes(Bytes::from_static(b"1"))).contains("1"));
+    }
+
+    #[actix_rt::test]
+    async fn test_serde_json() {
+        use serde_json::json;
+        assert_eq!(
+            Body::from(serde_json::Value::String("test".into())).size(),
+            BodySize::Sized(6)
+        );
+        assert_eq!(
+            Body::from(json!({"test-key":"test-value"})).size(),
+            BodySize::Sized(25)
+        );
     }
 }

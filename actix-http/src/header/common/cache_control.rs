@@ -74,18 +74,18 @@ impl Header for CacheControl {
 }
 
 impl fmt::Display for CacheControl {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt_comma_delimited(f, &self[..])
     }
 }
 
 impl IntoHeaderValue for CacheControl {
-    type Error = header::InvalidHeaderValueBytes;
+    type Error = header::InvalidHeaderValue;
 
     fn try_into(self) -> Result<header::HeaderValue, Self::Error> {
         let mut writer = Writer::new();
         let _ = write!(&mut writer, "{}", self);
-        header::HeaderValue::from_shared(writer.take())
+        header::HeaderValue::from_maybe_shared(writer.take())
     }
 }
 
@@ -126,7 +126,7 @@ pub enum CacheDirective {
 }
 
 impl fmt::Display for CacheDirective {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use self::CacheDirective::*;
         fmt::Display::fmt(
             match *self {
