@@ -9,7 +9,7 @@ pub fn parse_http_date(time: &str) -> Option<PrimitiveDateTime> {
 
 /// Attempt to parse a `time` string as a RFC 1123 formatted date time string.
 fn try_parse_rfc_1123(time: &str) -> Option<PrimitiveDateTime> {
-    PrimitiveDateTime::parse(time, "%a, %d %b %Y %H:%M:%S").ok()
+    time::parse(time, "%a, %d %b %Y %H:%M:%S").ok()
 }
 
 /// Attempt to parse a `time` string as a RFC 850 formatted date time string.
@@ -38,5 +38,5 @@ fn try_parse_rfc_850(time: &str) -> Option<PrimitiveDateTime> {
 
 /// Attempt to parse a `time` string using ANSI C's `asctime` format.
 fn try_parse_asctime(time: &str) -> Option<PrimitiveDateTime> {
-    PrimitiveDateTime::parse(time, "%a %b %_d %H:%M:%S %Y").ok()
+    time::parse(time, "%a %b %_d %H:%M:%S %Y").ok()
 }

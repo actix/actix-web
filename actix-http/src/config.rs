@@ -7,7 +7,6 @@ use std::{fmt, net};
 use actix_rt::time::{delay_for, delay_until, Delay, Instant};
 use bytes::BytesMut;
 use futures_util::{future, FutureExt};
-use time;
 use time::OffsetDateTime;
 
 // "Sun, 06 Nov 1994 08:49:37 GMT".len()

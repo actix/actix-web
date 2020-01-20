@@ -2,7 +2,7 @@
 
 ## [0.2.x] - 2020-01-xx
 
-* Update the `time` dependency to 0.2.2
+* Update the `time` dependency to 0.2.3
 
 ## [0.2.1] - 2020-01-10
 
