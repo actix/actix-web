@@ -1,22 +1,33 @@
 use actix_service::Service;
 use actix_web::dev::{ServiceRequest, ServiceResponse};
-use actix_web::{test, web, App, Error, HttpResponse};
-use criterion::{criterion_group, criterion_main, Criterion};
+use actix_web::{web, App, Error, HttpResponse};
+use criterion::{criterion_main, Criterion};
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::test::{init_service, ok_service, TestRequest};
+use actix_web::test::{init_service, ok_service, TestRequest};
 
-// TOOD: probably convert to macro?
-
-// Following approach is usable for benching Service wrappers
-// Using minimum service code implementation we first measure
-// time to run minimum service, then measure time with wrapper.
-// Sample results on MacBook Pro '14
-// async_service_direct    time:   [1.0908 us 1.1656 us 1.2613 us]
-fn async_cloneable_wrapper_service(c: &mut Criterion) {
+/// Criterion Benchmark for async Service
+/// Should be used from within criterion group:
+/// ```rust,ignore
+/// let mut criterion: ::criterion::Criterion<_> =
+///     ::criterion::Criterion::default().configure_from_args();
+/// bench_async_service(&mut criterion, ok_service(), "async_service_direct");
+/// ```
+///
+/// Usable for benching Service wrappers:
+/// Using minimum service code implementation we first measure
+/// time to run minimum service, then measure time with wrapper.
+///
+/// Sample output
+/// async_service_direct    time:   [1.0908 us 1.1656 us 1.2613 us]
+pub fn bench_async_service<S>(c: &mut Criterion, srv: S, name: &str)
+where
+    S: Service<Request = ServiceRequest, Response = ServiceResponse, Error = Error>
+        + 'static,
+{
     let mut rt = actix_rt::System::new("test");
-    let srv = Rc::new(RefCell::new(ok_service()));
+    let srv = Rc::new(RefCell::new(srv));
 
     let req = TestRequest::default().to_srv_request();
     assert!(rt
@@ -26,7 +37,7 @@ fn async_cloneable_wrapper_service(c: &mut Criterion) {
         .is_success());
 
     // start benchmark loops
-    c.bench_function("async_service_direct", move |b| {
+    c.bench_function(name, move |b| {
         b.iter_custom(|iters| {
             let srv = srv.clone();
             // exclude request generation, it appears it takes significant time vs call (3us vs 1us)
@@ -55,7 +66,7 @@ async fn index(req: ServiceRequest) -> Result<ServiceResponse, Error> {
 // this approach is usable for benching WebService, though it adds some time to direct service call:
 // Sample results on MacBook Pro '14
 // time:   [2.0724 us 2.1345 us 2.2074 us]
-fn async_cloneable_wrapper_web_service(c: &mut Criterion) {
+fn async_web_service(c: &mut Criterion) {
     let mut rt = actix_rt::System::new("test");
     let srv = Rc::new(RefCell::new(rt.block_on(init_service(
         App::new().service(web::service("/").finish(index)),
@@ -88,9 +99,10 @@ fn async_cloneable_wrapper_web_service(c: &mut Criterion) {
     });
 }
 
-criterion_group!(
-    service_benches,
-    async_cloneable_wrapper_service,
-    async_cloneable_wrapper_web_service
-);
+pub fn service_benches() {
+    let mut criterion: ::criterion::Criterion<_> =
+        ::criterion::Criterion::default().configure_from_args();
+    bench_async_service(&mut criterion, ok_service(), "async_service_direct");
+    async_web_service(&mut criterion);
+}
 criterion_main!(service_benches);
