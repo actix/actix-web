@@ -121,3 +121,7 @@ awc = { path = "awc" }
 [[bench]]
 name = "server"
 harness = false
+
+[[bench]]
+name = "service"
+harness = false
