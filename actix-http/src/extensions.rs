@@ -35,26 +35,23 @@ impl Extensions {
     pub fn get<T: 'static>(&self) -> Option<&T> {
         self.map
             .get(&TypeId::of::<T>())
-            .and_then(|boxed| (&**boxed as &(dyn Any + 'static)).downcast_ref())
+            .and_then(|boxed| boxed.downcast_ref())
     }
 
     /// Get a mutable reference to a type previously inserted on this `Extensions`.
     pub fn get_mut<T: 'static>(&mut self) -> Option<&mut T> {
         self.map
             .get_mut(&TypeId::of::<T>())
-            .and_then(|boxed| (&mut **boxed as &mut (dyn Any + 'static)).downcast_mut())
+            .and_then(|boxed| boxed.downcast_mut())
     }
 
     /// Remove a type from this `Extensions`.
     ///
     /// If a extension of this type existed, it will be returned.
     pub fn remove<T: 'static>(&mut self) -> Option<T> {
-        self.map.remove(&TypeId::of::<T>()).and_then(|boxed| {
-            (boxed as Box<dyn Any + 'static>)
-                .downcast()
-                .ok()
-                .map(|boxed| *boxed)
-        })
+        self.map
+            .remove(&TypeId::of::<T>())
+            .and_then(|boxed| boxed.downcast().ok().map(|boxed| *boxed))
     }
 
     /// Clear the `Extensions` of all inserted extensions.
