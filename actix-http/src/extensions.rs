@@ -28,7 +28,7 @@ impl Extensions {
 
     /// Check if container contains entry
     pub fn contains<T: 'static>(&self) -> bool {
-        self.map.get(&TypeId::of::<T>()).is_some()
+        self.map.contains_key(&TypeId::of::<T>())
     }
 
     /// Get a reference to a type previously inserted on this `Extensions`.
