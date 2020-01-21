@@ -1,5 +1,6 @@
-ignore: # ignore codecoverage on following paths
-  - "**/tests"
-  - "test-server"
-  - "**/benches"
-  - "**/examples"
+codecov:
+  ignore: # ignore codecoverage on following paths
+    - "**/tests"
+    - "test-server"
+    - "**/benches"
+    - "**/examples"
