@@ -1,4 +1,4 @@
-use std::cell::UnsafeCell;
+use std::cell::RefCell;
 use std::rc::Rc;
 use std::task::{Context, Poll};
 
@@ -6,11 +6,15 @@ use actix_service::Service;
 
 #[doc(hidden)]
 /// Service that allows to turn non-clone service to a service with `Clone` impl
-pub(crate) struct CloneableService<T: Service>(Rc<UnsafeCell<T>>);
+/// 
+/// # Panics
+/// CloneableService might panic with some creative use of thread local storage.
+/// See https://github.com/actix/actix-web/issues/1295 for example
+pub(crate) struct CloneableService<T: Service>(Rc<RefCell<T>>);
 
 impl<T: Service> CloneableService<T> {
     pub(crate) fn new(service: T) -> Self {
-        Self(Rc::new(UnsafeCell::new(service)))
+        Self(Rc::new(RefCell::new(service)))
     }
 }
 
@@ -27,10 +31,10 @@ impl<T: Service> Service for CloneableService<T> {
     type Future = T::Future;
 
     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        unsafe { &mut *self.0.as_ref().get() }.poll_ready(cx)
+        self.0.borrow_mut().poll_ready(cx)
     }
 
     fn call(&mut self, req: T::Request) -> Self::Future {
-        unsafe { &mut *self.0.as_ref().get() }.call(req)
+        self.0.borrow_mut().call(req)
     }
 }
