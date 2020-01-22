@@ -1,0 +1,8 @@
+---
+image: restyled/restyler-rustfmt:v1.4.11-nightly
+command:
+- rustfmt
+arguments: []
+include:
+- "**/*.rs"
+interpreters: []
