@@ -279,17 +279,20 @@ mod tests {
         assert_eq!(num.load(Ordering::SeqCst), 0);
     }
     
+    use actix_service::{IntoServiceFactory, ServiceFactory};
+    use crate::dev::AppConfig;
+
     #[actix_rt::test]
     async fn test_error_data_service() {
-        let mut srv =
-            init_service(App::new().data_factory(|| async { Err::<u32,_>(()) }).service(
+        let srv =
+            App::new().data_factory(|| async { Err::<u32,_>(()) }).service(
                 web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()),
-            ))
+            )
+            .into_factory()
+            .new_service(AppConfig::default())
             .await;
-
-        let req = TestRequest::default().to_request();
-        let resp = srv.call(req).await.expect("response failure");
-        assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+        // Service should not start
+        assert!(srv.is_err());
     }
 
     #[actix_rt::test]
@@ -299,9 +302,42 @@ mod tests {
                 .data_factory(|| async { Err::<u32,_>(()) })
                 .service(web::resource("/").to(|_: web::Data<usize>| async { "ok" }))
         });
+        // Server should not start, hence clients should not be able to connect
+        assert!(srv.get("/").send().await.is_err());
+    }
 
-        let resp = srv.get("/").send().await.expect("response failure");
-        assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    use crate::HttpServer;
+    use awc::Client;
+
+    // When there is failure in data_factory HttpServer will keep trying to start,
+    // it still should return server error via http.
+    //
+    // Following test also reproduces one panic which seems unhandled:
+    // thread 'actix-rt:worker:1' panicked at 'index out of bounds: the len is 0 but the index is 0' in slice
+    #[actix_rt::test]
+    async fn test_error_data_http_server() {
+        env_logger::init();
+        let (tx, rx) = std::sync::mpsc::channel();
+        let sys = std::thread::spawn(move || {
+            let mut rt = actix_rt::System::new("test");
+            let srv = HttpServer::new(move || {App::new()
+                    .data_factory(|| async { Err::<u32,_>(()) })
+                    .service(web::resource("/").to(|_: web::Data<usize>| async { "ok" }))
+                })
+                .workers(1)
+                .bind("127.0.0.1:0").unwrap();
+            let addr = srv.addrs().first().unwrap().clone();
+            let srv = srv.run();
+            tx.send( (addr, srv.clone()) ).unwrap();
+            rt.block_on(srv)
+        });
+        // Server will not start, hence clients should not be able to connect
+        let (addr, srv) = rx.recv().unwrap();
+        let client = Client::new().get(format!("http://127.0.0.1:{}/", addr.port()));
+        assert!(client.send().await.expect("request failed").status().is_server_error());
+        srv.stop(true).await;
+        // But server's thread should exit with Ok()
+        assert!(sys.join().is_ok());
     }
 }
 
