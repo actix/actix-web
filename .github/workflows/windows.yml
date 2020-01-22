@@ -3,7 +3,6 @@ name: CI (Windows)
 on: [push, pull_request]
 
 env:
-  VCPKG_HASH: 3f62e5d55d1a7d8905df35d5c441d6e9ad64ffdf
   VCPKGRS_DYNAMIC: 1
 
 jobs:
@@ -47,27 +46,15 @@ jobs:
         with:
           path: target
           key: ${{ matrix.version }}-x86_64-pc-windows-msvc-cargo-build-${{ hashFiles('**/Cargo.lock') }}
-      - name: Cache vcpkg package
-        uses: actions/cache@v1
-        id: cache-vcpkg
-        with:
-          path: vcpkg
-          key: windows_x64-${{ env.VCPKG_HASH }}-vcpkg
 
       - name: Install OpenSSL
-        if: steps.cache-vcpkg.outputs.cache-hit != 'true'
-        shell: pwsh
         run: |
-          git clone https://github.com/Microsoft/vcpkg.git
-          cd vcpkg
-          git reset --hard $VCPKG_HASH
-          .\bootstrap-vcpkg.bat
-          .\vcpkg integrate install
-          .\vcpkg install openssl:x64-windows
-          Copy-Item .\installed\x64-windows\bin\libcrypto-1_1-x64.dll .\installed\x64-windows\bin\libcrypto.dll
-          Copy-Item .\installed\x64-windows\bin\libssl-1_1-x64.dll .\installed\x64-windows\bin\libssl.dll
-          Get-ChildItem .\installed\x64-windows\bin
-          Get-ChildItem .\installed\x64-windows\lib
+          vcpkg integrate install
+          vcpkg install openssl:x64-windows
+          Copy-Item C:\vcpkg\installed\x64-windows\bin\libcrypto-1_1-x64.dll C:\vcpkg\installed\x64-windows\bin\libcrypto.dll
+          Copy-Item C:\vcpkg\installed\x64-windows\bin\libssl-1_1-x64.dll C:\vcpkg\installed\x64-windows\bin\libssl.dll
+          Get-ChildItem C:\vcpkg\installed\x64-windows\bin
+          Get-ChildItem C:\vcpkg\installed\x64-windows\lib
 
       - name: check build
         uses: actions-rs/cargo@v1
