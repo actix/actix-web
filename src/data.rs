@@ -316,7 +316,6 @@ mod tests {
     // thread 'actix-rt:worker:1' panicked at 'index out of bounds: the len is 0 but the index is 0' in slice
     #[actix_rt::test]
     async fn test_error_data_http_server() {
-        env_logger::init();
         let (tx, rx) = std::sync::mpsc::channel();
         let sys = std::thread::spawn(move || {
             let mut rt = actix_rt::System::new("test");
@@ -334,7 +333,9 @@ mod tests {
         // Server will not start, hence clients should not be able to connect
         let (addr, srv) = rx.recv().unwrap();
         let client = Client::new().get(format!("http://127.0.0.1:{}/", addr.port()));
-        assert!(client.send().await.expect("request failed").status().is_server_error());
+        // server inteded behavior to return error
+        // see https://github.com/actix/actix-web/issues/1304#issuecomment-577433665
+        assert!(client.send().await.is_err());
         srv.stop(true).await;
         // But server's thread should exit with Ok()
         assert!(sys.join().is_ok());
