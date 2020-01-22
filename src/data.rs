@@ -278,4 +278,31 @@ mod tests {
 
         assert_eq!(num.load(Ordering::SeqCst), 0);
     }
+    
+    #[actix_rt::test]
+    async fn test_error_data_service() {
+        let mut srv =
+            init_service(App::new().data_factory(|| async { Err::<u32,_>(()) }).service(
+                web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()),
+            ))
+            .await;
+
+        let req = TestRequest::default().to_request();
+        let resp = srv.call(req).await.expect("response failure");
+        assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    #[actix_rt::test]
+    async fn test_error_data_test_server() {
+        let srv = test::start(move || {
+            App::new()
+                .data_factory(|| async { Err::<u32,_>(()) })
+                .service(web::resource("/").to(|_: web::Data<usize>| async { "ok" }))
+        });
+
+        let resp = srv.get("/").send().await.expect("response failure");
+        assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    }
 }
+
+
