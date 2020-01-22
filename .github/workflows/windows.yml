@@ -30,7 +30,7 @@ jobs:
       - name: Generate Cargo.lock
         uses: actions-rs/cargo@v1
         with:
-          command: update
+          command: generate-lockfile
       - name: Cache cargo registry
         uses: actions/cache@v1
         with:
@@ -76,4 +76,4 @@ jobs:
                 --skip=test_simple
                 --skip=test_expect_continue
                 --skip=test_http10_keepalive
-                --skip=test_slow_request 
+                --skip=test_slow_request
