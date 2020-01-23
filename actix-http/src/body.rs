@@ -451,7 +451,6 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bytes::BufMut;
     use futures::stream;
     use futures_util::future::poll_fn;
 
@@ -613,12 +612,19 @@ mod tests {
 
         #[actix_rt::test]
         async fn skips_empty_chunks() {
-            let body = BodyStream::new(stream::iter(
+            let mut body = BodyStream::new(stream::iter(
                 ["1", "", "2"]
                     .iter()
                     .map(|&v| Ok(Bytes::from(v)) as Result<Bytes, ()>),
             ));
-            assert_eq!(read_all(body).await.unwrap(), Bytes::from("12"));
+            assert_eq!(
+                poll_fn(|cx| body.poll_next(cx)).await.unwrap().ok(),
+                Some(Bytes::from("1")),
+            );
+            assert_eq!(
+                poll_fn(|cx| body.poll_next(cx)).await.unwrap().ok(),
+                Some(Bytes::from("2")),
+            );
         }
     }
 
@@ -627,25 +633,18 @@ mod tests {
 
         #[actix_rt::test]
         async fn skips_empty_chunks() {
-            let body = SizedStream::new(
+            let mut body = SizedStream::new(
                 2,
-                stream::iter(
-                    ["1", "", "2"]
-                        .iter()
-                        .map(|&v| Ok(Bytes::from(v))),
-                ),
+                stream::iter(["1", "", "2"].iter().map(|&v| Ok(Bytes::from(v)))),
             );
-            assert_eq!(read_all(body).await.unwrap(), Bytes::from("12"));
+            assert_eq!(
+                poll_fn(|cx| body.poll_next(cx)).await.unwrap().ok(),
+                Some(Bytes::from("1")),
+            );
+            assert_eq!(
+                poll_fn(|cx| body.poll_next(cx)).await.unwrap().ok(),
+                Some(Bytes::from("2")),
+            );
         }
-    }
-
-    async fn read_all<B: MessageBody>(mut body: B) -> Result<Bytes, Error> {
-        use futures::StreamExt as _;
-
-        let mut bytes = BytesMut::new();
-        while let Some(b) = stream::poll_fn(|cx| body.poll_next(cx)).next().await {
-            bytes.put(b?);
-        }
-        Ok(bytes.freeze())
     }
 }
