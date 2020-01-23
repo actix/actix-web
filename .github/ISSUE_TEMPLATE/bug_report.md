@@ -1,5 +1,5 @@
 Your issue may already be reported!
-Please search on the [issue tracker](../) before creating one.
+Please search on the [Actix Web issue tracker](https://github.com/actix/actix-web/issues) before creating one.
 
 ## Expected Behavior
 <!--- If you're describing a bug, tell us what should happen -->
@@ -28,5 +28,5 @@ Please search on the [issue tracker](../) before creating one.
 ## Your Environment
 <!--- Include as many relevant details about the environment you experienced the bug in -->
 
-* Version used:
-* Link to your project:
+* Rust Version (I.e, output of `rustc -V`):
+* Actix Web Version: 
