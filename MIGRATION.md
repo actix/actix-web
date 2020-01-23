@@ -1,3 +1,9 @@
+## Unreleased
+
+* Setting a cookie's SameSite property, explicitly, to `SameSite::None` will now
+  result in `SameSite=None` being sent with the response Set-Cookie header.
+  To create a cookie without a SameSite attribute, remove any calls setting same_site.
+
 ## 2.0.0
 
 * `HttpServer::start()` renamed to `HttpServer::run()`. It also possible to
