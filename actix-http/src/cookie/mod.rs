@@ -746,9 +746,7 @@ impl<'c> Cookie<'c> {
         }
 
         if let Some(same_site) = self.same_site() {
-            if !same_site.is_none() {
-                write!(f, "; SameSite={}", same_site)?;
-            }
+            write!(f, "; SameSite={}", same_site)?;
         }
 
         if let Some(path) = self.path() {
@@ -1037,7 +1035,7 @@ mod tests {
         let cookie = Cookie::build("foo", "bar")
             .same_site(SameSite::None)
             .finish();
-        assert_eq!(&cookie.to_string(), "foo=bar");
+        assert_eq!(&cookie.to_string(), "foo=bar; SameSite=None");
     }
 
     #[test]

@@ -1,10 +1,14 @@
 # Changes
 
-## [1.x.x] - 2020-01-x
+# [Unreleased]
 
 ### Changed
 
 * Update the `time` dependency to 0.2.3
+
+### Fixed
+
+* Allow `SameSite=None` cookies to be sent in a response.
 
 ## [1.0.1] - 2019-12-20
 
