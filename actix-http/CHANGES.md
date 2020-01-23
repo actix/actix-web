@@ -1,5 +1,60 @@
 # Changes
 
+# [Unreleased]
+
+### Fixed
+
+* Allow `SameSite=None` cookies to be sent in a response.
+
+## [1.0.1] - 2019-12-20
+
+### Fixed
+
+* Poll upgrade service's readiness from HTTP service handlers
+
+* Replace brotli with brotli2 #1224
+
+## [1.0.0] - 2019-12-13
+
+### Added
+
+* Add websockets continuation frame support
+
+### Changed
+
+* Replace `flate2-xxx` features with `compress`
+
+## [1.0.0-alpha.5] - 2019-12-09
+
+### Fixed
+
+* Check `Upgrade` service readiness before calling it
+
+* Fix buffer remaining capacity calcualtion
+
+### Changed
+
+* Websockets: Ping and Pong should have binary data #1049
+
+## [1.0.0-alpha.4] - 2019-12-08
+
+### Added
+
+* Add impl ResponseBuilder for Error
+
+### Changed
+
+* Use rust based brotli compression library
+
+## [1.0.0-alpha.3] - 2019-12-07
+
+### Changed
+
+* Migrate to tokio 0.2
+
+* Migrate to `std::future`
+
+
 ## [0.2.11] - 2019-11-06
 
 ### Added
