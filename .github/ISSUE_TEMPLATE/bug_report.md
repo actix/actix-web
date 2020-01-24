@@ -1,3 +1,8 @@
+---
+name: bug report
+about: create a bug report
+---
+
 Your issue may already be reported!
 Please search on the [Actix Web issue tracker](https://github.com/actix/actix-web/issues) before creating one.
 
@@ -29,4 +34,4 @@ Please search on the [Actix Web issue tracker](https://github.com/actix/actix-we
 <!--- Include as many relevant details about the environment you experienced the bug in -->
 
 * Rust Version (I.e, output of `rustc -V`):
-* Actix Web Version: 
+* Actix Web Version:
