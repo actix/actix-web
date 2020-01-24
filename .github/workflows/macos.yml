@@ -27,7 +27,7 @@ jobs:
       - name: Generate Cargo.lock
         uses: actions-rs/cargo@v1
         with:
-          command: update
+          command: generate-lockfile
       - name: Cache cargo registry
         uses: actions/cache@v1
         with:

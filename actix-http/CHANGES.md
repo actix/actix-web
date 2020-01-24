@@ -1,5 +1,11 @@
 # Changes
 
+# [Unreleased]
+
+### Fixed
+
+* Allow `SameSite=None` cookies to be sent in a response.
+
 ## [1.0.1] - 2019-12-20
 
 ### Fixed

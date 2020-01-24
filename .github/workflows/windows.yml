@@ -30,7 +30,7 @@ jobs:
       - name: Generate Cargo.lock
         uses: actions-rs/cargo@v1
         with:
-          command: update
+          command: generate-lockfile
       - name: Cache cargo registry
         uses: actions/cache@v1
         with:
@@ -46,18 +46,15 @@ jobs:
         with:
           path: target
           key: ${{ matrix.version }}-x86_64-pc-windows-msvc-cargo-build-${{ hashFiles('**/Cargo.lock') }}
-      - name: Cache vcpkg package
-        uses: actions/cache@v1
-        id: cache-vcpkg
-        with:
-          path: C:\vcpkg
-          key: windows_x64-${{ matrix.version }}-vcpkg
 
       - name: Install OpenSSL
-        if: steps.cache-vcpkg.outputs.cache-hit != 'true'
         run: |
           vcpkg integrate install
           vcpkg install openssl:x64-windows
+          Copy-Item C:\vcpkg\installed\x64-windows\bin\libcrypto-1_1-x64.dll C:\vcpkg\installed\x64-windows\bin\libcrypto.dll
+          Copy-Item C:\vcpkg\installed\x64-windows\bin\libssl-1_1-x64.dll C:\vcpkg\installed\x64-windows\bin\libssl.dll
+          Get-ChildItem C:\vcpkg\installed\x64-windows\bin
+          Get-ChildItem C:\vcpkg\installed\x64-windows\lib
 
       - name: check build
         uses: actions-rs/cargo@v1
@@ -76,4 +73,4 @@ jobs:
                 --skip=test_simple
                 --skip=test_expect_continue
                 --skip=test_http10_keepalive
-                --skip=test_slow_request 
+                --skip=test_slow_request
