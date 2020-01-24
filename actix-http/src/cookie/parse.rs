@@ -216,7 +216,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::{Cookie, SameSite};
-    use time::{offset, Duration};
+    use time::{offset, Duration, PrimitiveDateTime};
 
     macro_rules! assert_eq_parse {
         ($string:expr, $expected:expr) => {
@@ -376,7 +376,7 @@ mod tests {
         );
 
         let time_str = "Wed, 21 Oct 2015 07:28:00 GMT";
-        let expires = time::parse(time_str, "%a, %d %b %Y %H:%M:%S").unwrap().using_offset(offset!(UTC));
+        let expires = PrimitiveDateTime::parse(time_str, "%a, %d %b %Y %H:%M:%S").unwrap().using_offset(offset!(UTC));
         expected.set_expires(expires);
         assert_eq_parse!(
             " foo=bar ;HttpOnly; Secure; Max-Age=4; Path=/foo; \
@@ -385,7 +385,7 @@ mod tests {
         );
 
         unexpected.set_domain("foo.com");
-        let bad_expires = time::parse(time_str, "%a, %d %b %Y %H:%S:%M").unwrap().using_offset(offset!(UTC));
+        let bad_expires = PrimitiveDateTime::parse(time_str, "%a, %d %b %Y %H:%S:%M").unwrap().using_offset(offset!(UTC));
         expected.set_expires(bad_expires);
         assert_ne_parse!(
             " foo=bar ;HttpOnly; Secure; Max-Age=4; Path=/foo; \
