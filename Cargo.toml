@@ -125,7 +125,3 @@ harness = false
 [[bench]]
 name = "service"
 harness = false
-
-[[bench]]
-name = "cloneable"
-harness = false
