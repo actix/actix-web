@@ -2,6 +2,12 @@ use actix_web::{http, test, web::Path, App, HttpResponse, Responder};
 use actix_web_codegen::{connect, delete, get, head, options, patch, post, put, trace};
 use futures::{future, Future};
 
+// Make sure that we can name function as 'config'
+#[get("/config")]
+async fn config() -> impl Responder {
+    HttpResponse::Ok()
+}
+
 #[get("/test")]
 async fn test_handler() -> impl Responder {
     HttpResponse::Ok()
