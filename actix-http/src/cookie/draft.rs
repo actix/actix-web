@@ -14,13 +14,13 @@ use std::fmt;
 /// normal. In some browsers, this will implicitly handle the cookie as if "Lax"
 /// and in others, "None". It's best to explicitly set the `SameSite` attribute
 /// to avoid inconsistent behavior.
-/// 
+///
 /// **Note:** Depending on browser, the `Secure` attribute may be required for
 /// `SameSite` "None" cookies to be accepted.
 ///
 /// **Note:** This cookie attribute is an HTTP draft! Its meaning and definition
 /// are subject to change.
-/// 
+///
 /// More info about these draft changes can be found in the draft spec:
 /// - https://tools.ietf.org/html/draft-west-cookie-incrementalism-00
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
