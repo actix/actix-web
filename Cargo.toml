@@ -99,6 +99,7 @@ env_logger = "0.6"
 serde_derive = "1.0"
 brotli2 = "0.3.2"
 flate2 = "1.0.13"
+criterion = "0.3"
 
 [profile.release]
 lto = true
@@ -116,3 +117,11 @@ actix-session = { path = "actix-session" }
 actix-files = { path = "actix-files" }
 actix-multipart = { path = "actix-multipart" }
 awc = { path = "awc" }
+
+[[bench]]
+name = "server"
+harness = false
+
+[[bench]]
+name = "service"
+harness = false
