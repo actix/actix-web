@@ -95,11 +95,10 @@ where
 /// Calls service and waits for response future completion.
 ///
 /// ```rust
-/// use actix_web::{test, App, HttpResponse, http::StatusCode};
-/// use actix_service::Service;
+/// use actix_web::{test, web, App, HttpResponse, http::StatusCode};
 ///
-/// #[test]
-/// fn test_response() {
+/// #[actix_rt::test]
+/// async fn test_response() {
 ///     let mut app = test::init_service(
 ///         App::new()
 ///             .service(web::resource("/test").to(|| async {
