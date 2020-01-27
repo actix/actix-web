@@ -1,5 +1,9 @@
 # Changes
 
+## [0.2.NEXT] - 2020-xx-xx
+
+* Allow the handler function to be named as `config` #1290
+
 ## [0.2.0] - 2019-12-13
 
 * Generate code for actix-web 2.0

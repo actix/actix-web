@@ -195,15 +195,15 @@ impl Route {
             pub struct #name;
 
             impl actix_web::dev::HttpServiceFactory for #name {
-                fn register(self, config: &mut actix_web::dev::AppService) {
+                fn register(self, __config: &mut actix_web::dev::AppService) {
                     #ast
-                    let resource = actix_web::Resource::new(#path)
+                    let __resource = actix_web::Resource::new(#path)
                         .name(#resource_name)
                         .guard(actix_web::guard::#guard())
                         #(.guard(actix_web::guard::fn_guard(#extra_guards)))*
                         .#resource_type(#name);
 
-                    actix_web::dev::HttpServiceFactory::register(resource, config)
+                    actix_web::dev::HttpServiceFactory::register(__resource, __config)
                 }
             }
         };
