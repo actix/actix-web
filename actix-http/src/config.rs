@@ -7,7 +7,7 @@ use std::{fmt, net};
 use actix_rt::time::{delay_for, delay_until, Delay, Instant};
 use bytes::BytesMut;
 use futures_util::{future, FutureExt};
-use time;
+use time::OffsetDateTime;
 
 // "Sun, 06 Nov 1994 08:49:37 GMT".len()
 const DATE_VALUE_LENGTH: usize = 29;
@@ -211,7 +211,7 @@ impl Date {
     }
     fn update(&mut self) {
         self.pos = 0;
-        write!(self, "{}", time::at_utc(time::get_time()).rfc822()).unwrap();
+        write!(self, "{}", OffsetDateTime::now().format("%a, %d %b %Y %H:%M:%S GMT")).unwrap();
     }
 }
 
