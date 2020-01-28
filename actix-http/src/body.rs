@@ -612,6 +612,8 @@ mod tests {
 
     mod body_stream {
         use super::*;
+        use futures::task::noop_waker;
+        use futures::stream::once;
 
         #[actix_rt::test]
         async fn skips_empty_chunks() {
@@ -628,6 +630,25 @@ mod tests {
                 poll_fn(|cx| body.poll_next(cx)).await.unwrap().ok(),
                 Some(Bytes::from("2")),
             );
+        }
+
+        #[actix_rt::test]
+        async fn move_pinned_pointer() {
+            let (sender, receiver) = futures::channel::oneshot::channel();
+            let mut body_stream = Ok(BodyStream::new(once(async {
+                let x = Box::new(0i32);
+                let y = &x;
+                receiver.await.unwrap();
+                let _z = **y;
+                Ok::<_, ()>(Bytes::new())
+            })));
+        
+            let waker = noop_waker();
+            let mut context = Context::from_waker(&waker);
+        
+            let _ = body_stream.as_mut().unwrap().poll_next(&mut context);
+            sender.send(()).unwrap();
+            let _ = std::mem::replace(&mut body_stream, Err([0; 32])).unwrap().poll_next(&mut context);        
         }
     }
 
