@@ -282,6 +282,19 @@ impl DateService {
 mod tests {
     use super::*;
 
+
+    // Test modifying the date from within the closure
+    // passed to `set_date`
+    #[test]
+    fn test_evil_date() {
+        let service = DateService::new();
+        // Make sure that `check_date` doesn't try to spawn a task
+        service.0.update();
+        service.set_date(|_| {
+            service.0.reset()
+        });
+    }
+
     #[test]
     fn test_date_len() {
         assert_eq!(DATE_VALUE_LENGTH, "Sun, 06 Nov 1994 08:49:37 GMT".len());
