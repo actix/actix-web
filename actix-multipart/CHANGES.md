@@ -1,5 +1,9 @@
 # Changes
 
+## [0.2.1] - 2020-01-xx
+
+* Remove the unused `time` dependency
+
 ## [0.2.0] - 2019-12-20
 
 * Release

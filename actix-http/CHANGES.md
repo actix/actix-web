@@ -2,6 +2,10 @@
 
 # [Unreleased]
 
+### Changed
+
+* Update the `time` dependency to 0.2.5
+
 ### Fixed
 
 * Allow `SameSite=None` cookies to be sent in a response.

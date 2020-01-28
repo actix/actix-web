@@ -488,10 +488,12 @@ where
     }
 }
 
+#[pin_project::pin_project(PinnedDrop)]
 struct OpenWaitingConnection<F, Io>
 where
     Io: AsyncRead + AsyncWrite + Unpin + 'static,
 {
+    #[pin]
     fut: F,
     key: Key,
     h2: Option<
@@ -525,12 +527,13 @@ where
     }
 }
 
-impl<F, Io> Drop for OpenWaitingConnection<F, Io>
+#[pin_project::pinned_drop]
+impl<F, Io> PinnedDrop for OpenWaitingConnection<F, Io>
 where
     Io: AsyncRead + AsyncWrite + Unpin + 'static,
 {
-    fn drop(&mut self) {
-        if let Some(inner) = self.inner.take() {
+    fn drop(self: Pin<&mut Self>) {
+        if let Some(inner) = self.project().inner.take() {
             let mut inner = inner.as_ref().borrow_mut();
             inner.release();
             inner.check_availibility();
@@ -545,8 +548,8 @@ where
 {
     type Output = ();
 
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let this = unsafe { self.get_unchecked_mut() };
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = self.as_mut().project();
 
         if let Some(ref mut h2) = this.h2 {
             return match Pin::new(h2).poll(cx) {
@@ -571,7 +574,7 @@ where
             };
         }
 
-        match unsafe { Pin::new_unchecked(&mut this.fut) }.poll(cx) {
+        match this.fut.poll(cx) {
             Poll::Ready(Err(err)) => {
                 let _ = this.inner.take();
                 if let Some(rx) = this.rx.take() {
@@ -589,8 +592,8 @@ where
                     )));
                     Poll::Ready(())
                 } else {
-                    this.h2 = Some(handshake(io).boxed_local());
-                    unsafe { Pin::new_unchecked(this) }.poll(cx)
+                    *this.h2 = Some(handshake(io).boxed_local());
+                    self.poll(cx)
                 }
             }
             Poll::Pending => Poll::Pending,

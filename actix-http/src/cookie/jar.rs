@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::mem::replace;
 
-use chrono::Duration;
+use time::{Duration, OffsetDateTime};
 
 use super::delta::DeltaCookie;
 use super::Cookie;
@@ -188,7 +188,7 @@ impl CookieJar {
     ///
     /// ```rust
     /// use actix_http::cookie::{CookieJar, Cookie};
-    /// use chrono::Duration;
+    /// use time::Duration;
     ///
     /// let mut jar = CookieJar::new();
     ///
@@ -202,7 +202,7 @@ impl CookieJar {
     /// let delta: Vec<_> = jar.delta().collect();
     /// assert_eq!(delta.len(), 1);
     /// assert_eq!(delta[0].name(), "name");
-    /// assert_eq!(delta[0].max_age(), Some(Duration::seconds(0)));
+    /// assert_eq!(delta[0].max_age(), Some(Duration::zero()));
     /// ```
     ///
     /// Removing a new cookie does not result in a _removal_ cookie:
@@ -220,8 +220,8 @@ impl CookieJar {
     pub fn remove(&mut self, mut cookie: Cookie<'static>) {
         if self.original_cookies.contains(cookie.name()) {
             cookie.set_value("");
-            cookie.set_max_age(Duration::seconds(0));
-            cookie.set_expires(time::now() - Duration::days(365));
+            cookie.set_max_age(Duration::zero());
+            cookie.set_expires(OffsetDateTime::now() - Duration::days(365));
             self.delta_cookies.replace(DeltaCookie::removed(cookie));
         } else {
             self.delta_cookies.remove(cookie.name());
@@ -239,7 +239,7 @@ impl CookieJar {
     ///
     /// ```rust
     /// use actix_http::cookie::{CookieJar, Cookie};
-    /// use chrono::Duration;
+    /// use time::Duration;
     ///
     /// let mut jar = CookieJar::new();
     ///
@@ -533,7 +533,7 @@ mod test {
     #[test]
     #[cfg(feature = "secure-cookies")]
     fn delta() {
-        use chrono::Duration;
+        use time::Duration;
         use std::collections::HashMap;
 
         let mut c = CookieJar::new();
@@ -556,7 +556,7 @@ mod test {
         assert!(names.get("test2").unwrap().is_none());
         assert!(names.get("test3").unwrap().is_none());
         assert!(names.get("test4").unwrap().is_none());
-        assert_eq!(names.get("original").unwrap(), &Some(Duration::seconds(0)));
+        assert_eq!(names.get("original").unwrap(), &Some(Duration::zero()));
     }
 
     #[test]

@@ -158,14 +158,16 @@ where
 
 #[pin_project::pin_project]
 struct ServiceResponse<F, I, E, B> {
+    #[pin]
     state: ServiceResponseState<F, B>,
     config: ServiceConfig,
     buffer: Option<Bytes>,
     _t: PhantomData<(I, E)>,
 }
 
+#[pin_project::pin_project]
 enum ServiceResponseState<F, B> {
-    ServiceCall(F, Option<SendResponse<Bytes>>),
+    ServiceCall(#[pin] F, Option<SendResponse<Bytes>>),
     SendPayload(SendStream<Bytes>, ResponseBody<B>),
 }
 
@@ -247,12 +249,14 @@ where
 {
     type Output = ();
 
+    #[pin_project::project]
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut this = self.as_mut().project();
 
-        match this.state {
-            ServiceResponseState::ServiceCall(ref mut call, ref mut send) => {
-                match unsafe { Pin::new_unchecked(call) }.poll(cx) {
+        #[project]
+        match this.state.project() {
+            ServiceResponseState::ServiceCall(call, send) => {
+                match call.poll(cx) {
                     Poll::Ready(Ok(res)) => {
                         let (res, body) = res.into().replace_body(());
 
@@ -273,8 +277,7 @@ where
                         if size.is_eof() {
                             Poll::Ready(())
                         } else {
-                            *this.state =
-                                ServiceResponseState::SendPayload(stream, body);
+                            this.state.set(ServiceResponseState::SendPayload(stream, body));
                             self.poll(cx)
                         }
                     }
@@ -300,10 +303,10 @@ where
                         if size.is_eof() {
                             Poll::Ready(())
                         } else {
-                            *this.state = ServiceResponseState::SendPayload(
+                            this.state.set(ServiceResponseState::SendPayload(
                                 stream,
                                 body.into_body(),
-                            );
+                            ));
                             self.poll(cx)
                         }
                     }
