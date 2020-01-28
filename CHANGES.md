@@ -5,7 +5,9 @@
 
 ### Changed
 
-*  Use `sha-1` crate instead of unmaintained `sha1` crate
+* Use `sha-1` crate instead of unmaintained `sha1` crate
+
+* Skip empty chunks when returning response from a `Stream` #1308
 
 *  Update the `time` dependency to 0.2.3
 

@@ -193,57 +193,83 @@ impl FromRequest for () {
 
 macro_rules! tuple_from_req ({$fut_type:ident, $(($n:tt, $T:ident)),+} => {
 
-    /// FromRequest implementation for tuple
-    #[doc(hidden)]
-    #[allow(unused_parens)]
-    impl<$($T: FromRequest + 'static),+> FromRequest for ($($T,)+)
-    {
-        type Error = Error;
-        type Future = $fut_type<$($T),+>;
-        type Config = ($($T::Config),+);
+    // This module is a trick to get around the inability of
+    // `macro_rules!` macros to make new idents. We want to make
+    // a new `FutWrapper` struct for each distinct invocation of
+    // this macro. Ideally, we would name it something like
+    // `FutWrapper_$fut_type`, but this can't be done in a macro_rules
+    // macro.
+    //
+    // Instead, we put everything in a module named `$fut_type`, thus allowing
+    // us to use the name `FutWrapper` without worrying about conflicts.
+    // This macro only exists to generate trait impls for tuples - these
+    // are inherently global, so users don't have to care about this
+    // weird trick.
+    #[allow(non_snake_case)]
+    mod $fut_type {
 
-        fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
-            $fut_type {
-                items: <($(Option<$T>,)+)>::default(),
-                futs: ($($T::from_request(req, payload),)+),
+        // Bring everything into scope, so we don't need
+        // redundant imports
+        use super::*;
+
+        /// A helper struct to allow us to pin-project through
+        /// to individual fields
+        #[pin_project::pin_project]
+        struct FutWrapper<$($T: FromRequest),+>($(#[pin] $T::Future),+);
+
+        /// FromRequest implementation for tuple
+        #[doc(hidden)]
+        #[allow(unused_parens)]
+        impl<$($T: FromRequest + 'static),+> FromRequest for ($($T,)+)
+        {
+            type Error = Error;
+            type Future = $fut_type<$($T),+>;
+            type Config = ($($T::Config),+);
+
+            fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
+                $fut_type {
+                    items: <($(Option<$T>,)+)>::default(),
+                    futs: FutWrapper($($T::from_request(req, payload),)+),
+                }
             }
         }
-    }
 
-    #[doc(hidden)]
-    #[pin_project::pin_project]
-    pub struct $fut_type<$($T: FromRequest),+> {
-        items: ($(Option<$T>,)+),
-        futs: ($($T::Future,)+),
-    }
+        #[doc(hidden)]
+        #[pin_project::pin_project]
+        pub struct $fut_type<$($T: FromRequest),+> {
+            items: ($(Option<$T>,)+),
+            #[pin]
+            futs: FutWrapper<$($T,)+>,
+        }
 
-    impl<$($T: FromRequest),+> Future for $fut_type<$($T),+>
-    {
-        type Output = Result<($($T,)+), Error>;
+        impl<$($T: FromRequest),+> Future for $fut_type<$($T),+>
+        {
+            type Output = Result<($($T,)+), Error>;
 
-        fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-            let this = self.project();
+            fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+                let mut this = self.project();
 
-            let mut ready = true;
-            $(
-                if this.items.$n.is_none() {
-                    match unsafe { Pin::new_unchecked(&mut this.futs.$n) }.poll(cx) {
-                        Poll::Ready(Ok(item)) => {
-                            this.items.$n = Some(item);
+                let mut ready = true;
+                $(
+                    if this.items.$n.is_none() {
+                        match this.futs.as_mut().project().$n.poll(cx) {
+                            Poll::Ready(Ok(item)) => {
+                                this.items.$n = Some(item);
+                            }
+                            Poll::Pending => ready = false,
+                            Poll::Ready(Err(e)) => return Poll::Ready(Err(e.into())),
                         }
-                        Poll::Pending => ready = false,
-                        Poll::Ready(Err(e)) => return Poll::Ready(Err(e.into())),
                     }
-                }
-            )+
+                )+
 
-                if ready {
-                    Poll::Ready(Ok(
-                        ($(this.items.$n.take().unwrap(),)+)
-                    ))
-                } else {
-                    Poll::Pending
-                }
+                    if ready {
+                        Poll::Ready(Ok(
+                            ($(this.items.$n.take().unwrap(),)+)
+                        ))
+                    } else {
+                        Poll::Pending
+                    }
+            }
         }
     }
 });
