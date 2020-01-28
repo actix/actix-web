@@ -361,10 +361,8 @@ impl MessageBody for String {
 
 /// Type represent streaming body.
 /// Response does not contain `content-length` header and appropriate transfer encoding is used.
-#[pin_project]
 pub struct BodyStream<S, E> {
-    #[pin]
-    stream: S,
+    stream: Pin<Box<S>>,
     _t: PhantomData<E>,
 }
 
@@ -375,7 +373,7 @@ where
 {
     pub fn new(stream: S) -> Self {
         BodyStream {
-            stream,
+            stream: Box::pin(stream),
             _t: PhantomData,
         }
     }
@@ -396,7 +394,7 @@ where
     /// ended on a zero-length chunk, but rather proceed until the underlying
     /// [`Stream`] ends.
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes, Error>>> {
-        let mut stream = unsafe { Pin::new_unchecked(self) }.project().stream;
+        let mut stream = self.stream.as_mut();
         loop {
             return Poll::Ready(match ready!(stream.as_mut().poll_next(cx)) {
                 Some(Ok(ref bytes)) if bytes.is_empty() => continue,
@@ -408,11 +406,9 @@ where
 
 /// Type represent streaming body. This body implementation should be used
 /// if total size of stream is known. Data get sent as is without using transfer encoding.
-#[pin_project]
 pub struct SizedStream<S> {
     size: u64,
-    #[pin]
-    stream: S,
+    stream: Pin<Box<S>>,
 }
 
 impl<S> SizedStream<S>
@@ -420,7 +416,7 @@ where
     S: Stream<Item = Result<Bytes, Error>>,
 {
     pub fn new(size: u64, stream: S) -> Self {
-        SizedStream { size, stream }
+        SizedStream { size, stream: Box::pin(stream) }
     }
 }
 
@@ -438,7 +434,7 @@ where
     /// ended on a zero-length chunk, but rather proceed until the underlying
     /// [`Stream`] ends.
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes, Error>>> {
-        let mut stream = unsafe { Pin::new_unchecked(self) }.project().stream;
+        let mut stream = self.stream.as_mut();
         loop {
             return Poll::Ready(match ready!(stream.as_mut().poll_next(cx)) {
                 Some(Ok(ref bytes)) if bytes.is_empty() => continue,
