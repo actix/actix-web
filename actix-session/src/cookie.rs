@@ -58,6 +58,7 @@ struct CookieSessionInner {
     secure: bool,
     http_only: bool,
     max_age: Option<Duration>,
+    expires_in: Option<Duration>,
     same_site: Option<SameSite>,
 }
 
@@ -72,6 +73,7 @@ impl CookieSessionInner {
             secure: true,
             http_only: true,
             max_age: None,
+            expires_in: None,
             same_site: None,
         }
     }
@@ -95,6 +97,10 @@ impl CookieSessionInner {
 
         if let Some(ref domain) = self.domain {
             cookie.set_domain(domain.clone());
+        }
+
+        if let Some(expires_in) = self.expires_in {
+            cookie.set_expires(OffsetDateTime::now() + expires_in);
         }
 
         if let Some(max_age) = self.max_age {
@@ -272,6 +278,17 @@ impl CookieSession {
         Rc::get_mut(&mut self.0).unwrap().max_age = Some(value);
         self
     }
+
+    /// Sets the `expires` field in the session cookie being built.
+    pub fn expires_in(self, seconds: i64) -> CookieSession {
+        self.expires_in_time(Duration::seconds(seconds))
+    }
+
+    /// Sets the `expires` field in the session cookie being built.
+    pub fn expires_in_time(mut self, value: Duration) -> CookieSession {
+        Rc::get_mut(&mut self.0).unwrap().expires_in = Some(value);
+        self
+    }
 }
 
 impl<S, B: 'static> Transform<S> for CookieSession
@@ -324,6 +341,7 @@ where
     fn call(&mut self, mut req: ServiceRequest) -> Self::Future {
         let inner = self.inner.clone();
         let (is_new, state) = self.inner.load(&req);
+        let prolong_expiration = self.inner.expires_in.is_some();
         Session::set_session(state.into_iter(), &mut req);
 
         let fut = self.service.call(req);
@@ -333,6 +351,9 @@ where
                 match Session::get_changes(&mut res) {
                     (SessionStatus::Changed, Some(state))
                     | (SessionStatus::Renewed, Some(state)) => {
+                        res.checked_expr(|res| inner.set_cookie(res, state))
+                    }
+                    (SessionStatus::Unchanged, Some(state)) if prolong_expiration => {
                         res.checked_expr(|res| inner.set_cookie(res, state))
                     }
                     (SessionStatus::Unchanged, _) =>
@@ -477,5 +498,48 @@ mod tests {
             .to_request();
         let body = test::read_response(&mut app, request).await;
         assert_eq!(body, Bytes::from_static(b"counter: 100"));
+    }
+
+    #[actix_rt::test]
+    async fn prolong_expiration() {
+        let mut app = test::init_service(
+            App::new()
+                .wrap(CookieSession::signed(&[0; 32]).secure(false).expires_in(60))
+                .service(web::resource("/").to(|ses: Session| {
+                    async move {
+                        let _ = ses.set("counter", 100);
+                        "test"
+                    }
+                }))
+                .service(
+                    web::resource("/test/")
+                        .to(|| async move { "no-changes-in-session" }),
+                ),
+        )
+        .await;
+
+        let request = test::TestRequest::get().to_request();
+        let response = app.call(request).await.unwrap();
+        let expires_1 = response
+            .response()
+            .cookies()
+            .find(|c| c.name() == "actix-session")
+            .expect("Cookie is set")
+            .expires()
+            .expect("Expiration is set");
+
+        actix_rt::time::delay_for(std::time::Duration::from_secs(1)).await;
+
+        let request = test::TestRequest::with_uri("/test/").to_request();
+        let response = app.call(request).await.unwrap();
+        let expires_2 = response
+            .response()
+            .cookies()
+            .find(|c| c.name() == "actix-session")
+            .expect("Cookie is set")
+            .expires()
+            .expect("Expiration is set");
+
+        assert!(expires_2 - expires_1 >= Duration::seconds(1));
     }
 }

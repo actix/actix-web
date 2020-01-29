@@ -3,6 +3,7 @@
 ## [Unreleased] - 2020-01-xx
 
 * Update the `time` dependency to 0.2.5
+* [#1292](https://github.com/actix/actix-web/pull/1292) Long lasting auto-prolonged session
 
 ## [0.3.0] - 2019-12-20
 
