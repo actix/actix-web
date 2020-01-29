@@ -13,6 +13,7 @@ use crate::response::Response;
 #[pin_project::pin_project]
 pub struct SendResponse<T, B> {
     res: Option<Message<(Response<()>, BodySize)>>,
+    #[pin]
     body: Option<ResponseBody<B>>,
     framed: Option<Framed<T, Codec>>,
 }
@@ -39,20 +40,23 @@ where
 {
     type Output = Result<Framed<T, Codec>, Error>;
 
+    // TODO: rethink if we need loops in polls
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let this = self.get_mut();
+        let mut this = self.project();
 
+        let mut body_done = this.body.is_none();
         loop {
-            let mut body_ready = this.body.is_some();
+            let mut body_ready = !body_done;
             let framed = this.framed.as_mut().unwrap();
 
             // send body
-            if this.res.is_none() && this.body.is_some() {
-                while body_ready && this.body.is_some() && !framed.is_write_buf_full() {
-                    match this.body.as_mut().unwrap().poll_next(cx)? {
+            if this.res.is_none() && body_ready {
+                while body_ready && !body_done && !framed.is_write_buf_full() {
+                    match this.body.as_mut().as_pin_mut().unwrap().poll_next(cx)? {
                         Poll::Ready(item) => {
-                            // body is done
-                            if item.is_none() {
+                            // body is done when item is None
+                            body_done = item.is_none();
+                            if body_done {
                                 let _ = this.body.take();
                             }
                             framed.write(Message::Chunk(item))?;
@@ -82,7 +86,7 @@ where
                 continue;
             }
 
-            if this.body.is_some() {
+            if body_done {
                 if body_ready {
                     continue;
                 } else {

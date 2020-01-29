@@ -170,7 +170,7 @@ where
     S: Service<Request = Request>,
     S::Error: Into<Error>,
     S::Response: Into<Response<B>>,
-    B: MessageBody,
+    B: MessageBody+Unpin,
     X: Service<Request = Request, Response = Request>,
     X::Error: Into<Error>,
     U: Service<Request = (Request, Framed<T, Codec>), Response = ()>,
@@ -258,7 +258,7 @@ where
     S: Service<Request = Request>,
     S::Error: Into<Error>,
     S::Response: Into<Response<B>>,
-    B: MessageBody,
+    B: MessageBody+Unpin,
     X: Service<Request = Request, Response = Request>,
     X::Error: Into<Error>,
     U: Service<Request = (Request, Framed<T, Codec>), Response = ()>,
@@ -402,9 +402,10 @@ where
                     }
                 }
                 State::SendPayload(ref mut stream) => {
+                    let mut stream = Pin::new(stream);
                     loop {
                         if self.write_buf.len() < HW_BUFFER_SIZE {
-                            match stream.poll_next(cx) {
+                            match stream.as_mut().poll_next(cx) {
                                 Poll::Ready(Some(Ok(item))) => {
                                     self.codec.encode(
                                         Message::Chunk(Some(item)),
@@ -687,7 +688,7 @@ where
     S: Service<Request = Request>,
     S::Error: Into<Error>,
     S::Response: Into<Response<B>>,
-    B: MessageBody,
+    B: MessageBody+Unpin,
     X: Service<Request = Request, Response = Request>,
     X::Error: Into<Error>,
     U: Service<Request = (Request, Framed<T, Codec>), Response = ()>,

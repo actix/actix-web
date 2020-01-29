@@ -1,6 +1,6 @@
 [package]
 name = "actix-http"
-version = "1.0.1"
+version = "2.0.0"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix http primitives"
 readme = "README.md"
@@ -43,10 +43,10 @@ secure-cookies = ["ring"]
 actors = ["actix"]
 
 [dependencies]
-actix-service = "1.0.1"
+actix-service = "1.0.5"
 actix-codec = "0.2.0"
-actix-connect = "1.0.1"
-actix-utils = "1.0.3"
+actix-connect = "1.0.2"
+actix-utils = "1.0.6"
 actix-rt = "1.0.0"
 actix-threadpool = "0.3.1"
 actix-tls = { version = "1.0.0", optional = true }
@@ -93,9 +93,9 @@ flate2 = { version = "1.0.13", optional = true }
 fail-ure = { version = "0.1.5", package="failure", optional = true }
 
 [dev-dependencies]
-actix-server = "1.0.0"
-actix-connect = { version = "1.0.0", features=["openssl"] }
-actix-http-test = { version = "1.0.0", features=["openssl"] }
+actix-server = "1.0.1"
+actix-connect = { version = "1.0.2", features=["openssl"] }
+actix-http-test = { version = "2.0.0", path = "../test-server", features=["openssl"] }
 actix-tls = { version = "1.0.0", features=["openssl"] }
 criterion = "0.3"
 futures = "0.3.1"

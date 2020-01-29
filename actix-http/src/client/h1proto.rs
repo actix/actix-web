@@ -8,7 +8,7 @@ use bytes::buf::BufMutExt;
 use bytes::{Bytes, BytesMut};
 use futures_core::Stream;
 use futures_util::future::poll_fn;
-use futures_util::{SinkExt, StreamExt};
+use futures_util::{SinkExt, StreamExt, pin_mut};
 
 use crate::error::PayloadError;
 use crate::h1;
@@ -120,7 +120,7 @@ where
 
 /// send request body to the peer
 pub(crate) async fn send_body<I, B>(
-    mut body: B,
+    body: B,
     framed: &mut Framed<I, h1::ClientCodec>,
 ) -> Result<(), SendRequestError>
 where
@@ -128,9 +128,10 @@ where
     B: MessageBody,
 {
     let mut eof = false;
+    pin_mut!(body);
     while !eof {
         while !eof && !framed.is_write_buf_full() {
-            match poll_fn(|cx| body.poll_next(cx)).await {
+            match poll_fn(|cx| body.as_mut().poll_next(cx)).await {
                 Some(result) => {
                     framed.write(h1::Message::Chunk(Some(result?)))?;
                 }

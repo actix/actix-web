@@ -168,7 +168,7 @@ struct ServiceResponse<F, I, E, B> {
 #[pin_project::pin_project]
 enum ServiceResponseState<F, B> {
     ServiceCall(#[pin] F, Option<SendResponse<Bytes>>),
-    SendPayload(SendStream<Bytes>, ResponseBody<B>),
+    SendPayload(SendStream<Bytes>, #[pin] ResponseBody<B>),
 }
 
 impl<F, I, E, B> ServiceResponse<F, I, E, B>
@@ -338,7 +338,7 @@ where
                             }
                         }
                     } else {
-                        match body.poll_next(cx) {
+                        match body.as_mut().poll_next(cx) {
                             Poll::Pending => return Poll::Pending,
                             Poll::Ready(None) => {
                                 if let Err(e) = stream.send_data(Bytes::new(), true) {

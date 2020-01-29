@@ -59,6 +59,12 @@ impl Error {
     }
 }
 
+/// A struct with a private constructor, for use with
+/// `__private_get_type_id__`. Its single field is private,
+/// ensuring that it can only be constructed from this module
+#[doc(hidden)]
+pub struct PrivateHelper(());
+
 /// Error that can be converted to `Response`
 pub trait ResponseError: fmt::Debug + fmt::Display {
     /// Response's status code
