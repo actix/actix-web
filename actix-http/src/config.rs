@@ -1,4 +1,4 @@
-use std::cell::UnsafeCell;
+use std::cell::Cell;
 use std::fmt::Write;
 use std::rc::Rc;
 use std::time::Duration;
@@ -228,24 +228,24 @@ impl fmt::Write for Date {
 struct DateService(Rc<DateServiceInner>);
 
 struct DateServiceInner {
-    current: UnsafeCell<Option<(Date, Instant)>>,
+    current: Cell<Option<(Date, Instant)>>,
 }
 
 impl DateServiceInner {
     fn new() -> Self {
         DateServiceInner {
-            current: UnsafeCell::new(None),
+            current: Cell::new(None),
         }
     }
 
     fn reset(&self) {
-        unsafe { (&mut *self.current.get()).take() };
+        self.current.take();
     }
 
     fn update(&self) {
         let now = Instant::now();
         let date = Date::new();
-        *(unsafe { &mut *self.current.get() }) = Some((date, now));
+        self.current.set(Some((date, now)));
     }
 }
 
@@ -255,7 +255,7 @@ impl DateService {
     }
 
     fn check_date(&self) {
-        if unsafe { (&*self.0.current.get()).is_none() } {
+        if self.0.current.get().is_none() {
             self.0.update();
 
             // periodic date update
@@ -269,18 +269,31 @@ impl DateService {
 
     fn now(&self) -> Instant {
         self.check_date();
-        unsafe { (&*self.0.current.get()).as_ref().unwrap().1 }
+        self.0.current.get().unwrap().1
     }
 
     fn set_date<F: FnMut(&Date)>(&self, mut f: F) {
         self.check_date();
-        f(&unsafe { (&*self.0.current.get()).as_ref().unwrap().0 })
+        f(&self.0.current.get().unwrap().0);
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+
+    // Test modifying the date from within the closure
+    // passed to `set_date`
+    #[test]
+    fn test_evil_date() {
+        let service = DateService::new();
+        // Make sure that `check_date` doesn't try to spawn a task
+        service.0.update();
+        service.set_date(|_| {
+            service.0.reset()
+        });
+    }
 
     #[test]
     fn test_date_len() {
