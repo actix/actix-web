@@ -1,6 +1,6 @@
 [package]
 name = "actix-web"
-version = "2.0.0"
+version = "3.0.0"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix web is a simple, pragmatic and extremely fast web framework for Rust."
 readme = "README.md"
@@ -71,8 +71,8 @@ actix-threadpool = "0.3.1"
 actix-tls = "1.0.0"
 
 actix-web-codegen = "0.2.0"
-actix-http = "1.0.1"
-awc = { version = "1.0.1", default-features = false }
+actix-http = { version = "2.0.0", path = "actix-http" }
+awc = { version = "2.0.0", path = "awc", default-features = false }
 
 bytes = "0.5.3"
 derive_more = "0.99.2"
@@ -107,7 +107,7 @@ opt-level = 3
 codegen-units = 1
 
 [patch.crates-io]
-actix-web = { path = "." }
+actix-web = { path = "." } 
 actix-http = { path = "actix-http" }
 actix-http-test = { path = "test-server" }
 actix-web-codegen = { path = "actix-web-codegen" }

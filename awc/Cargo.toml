@@ -1,6 +1,6 @@
 [package]
 name = "awc"
-version = "1.0.1"
+version = "2.0.0"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix http client."
 readme = "README.md"
@@ -36,7 +36,7 @@ compress = ["actix-http/compress"]
 [dependencies]
 actix-codec = "0.2.0"
 actix-service = "1.0.1"
-actix-http = "1.0.0"
+actix-http = { version = "2.0.0", path = "../actix-http" }
 actix-rt = "1.0.0"
 
 base64 = "0.11"
@@ -55,9 +55,9 @@ rust-tls = { version = "0.16.0", package="rustls", optional = true, features = [
 
 [dev-dependencies]
 actix-connect = { version = "1.0.1", features=["openssl"] }
-actix-web = { version = "2.0.0-rc", features=["openssl"] }
-actix-http = { version = "1.0.1", features=["openssl"] }
-actix-http-test = { version = "1.0.0", features=["openssl"] }
+actix-web = { version = "3.0.0", path = "..", features=["openssl"] }
+actix-http = { version = "2.0.0", path = "../actix-http", features=["openssl"] }
+actix-http-test = { version = "2.0.0", path = "../test-server", features=["openssl"] }
 actix-utils = "1.0.3"
 actix-server = "1.0.0"
 actix-tls = { version = "1.0.0", features=["openssl", "rustls"] }

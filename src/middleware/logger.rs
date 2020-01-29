@@ -238,19 +238,24 @@ where
     }
 }
 
+use pin_project::{pin_project, pinned_drop};
+#[pin_project(PinnedDrop)]
 pub struct StreamLog<B> {
+    #[pin]
     body: ResponseBody<B>,
     format: Option<Format>,
     size: usize,
     time: OffsetDateTime,
 }
 
-impl<B> Drop for StreamLog<B> {
-    fn drop(&mut self) {
-        if let Some(ref format) = self.format {
+#[pinned_drop]
+impl<B> PinnedDrop for StreamLog<B> {
+    fn drop(self: Pin<&mut Self>) {
+        let this = self.project();
+        if let Some(ref format) = this.format {
             let render = |fmt: &mut Formatter<'_>| {
                 for unit in &format.0 {
-                    unit.render(fmt, self.size, self.time)?;
+                    unit.render(fmt, *this.size, *this.time)?;
                 }
                 Ok(())
             };
@@ -264,10 +269,11 @@ impl<B: MessageBody> MessageBody for StreamLog<B> {
         self.body.size()
     }
 
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes, Error>>> {
-        match self.body.poll_next(cx) {
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes, Error>>> {
+        let this = self.project();
+        match this.body.poll_next(cx) {
             Poll::Ready(Some(Ok(chunk))) => {
-                self.size += chunk.len();
+                *this.size += chunk.len();
                 Poll::Ready(Some(Ok(chunk)))
             }
             val => val,

@@ -22,9 +22,9 @@ default = ["cookie-session"]
 cookie-session = ["actix-web/secure-cookies"]
 
 [dependencies]
-actix-web = "2.0.0-rc"
-actix-service = "1.0.1"
-bytes = "0.5.3"
+actix-web = { version = "3.0.0", path = ".." }
+actix-service = "1.0.5"
+bytes = "0.5.4"
 derive_more = "0.99.2"
 futures = "0.3.1"
 serde = "1.0"
