@@ -92,7 +92,7 @@ pub trait ResponseError: fmt::Debug + fmt::Display {
     /// A helper method to get the type ID of the type
     /// this trait is implemented on.
     /// This method is unsafe to *implement*, since `downcast_ref` relies
-    /// on the returned `TypeId` to perform an cast.
+    /// on the returned `TypeId` to perform a cast.
     ///
     /// Unfortunately, Rust has no notion of a trait method that is
     /// unsafe to implement (marking it as `unsafe` makes it unsafe
