@@ -27,6 +27,7 @@ mod payload;
 mod request;
 mod response;
 mod service;
+mod time_parser;
 
 pub mod cookie;
 pub mod error;

@@ -1,7 +1,6 @@
 use std::borrow::Cow;
 
-use chrono::Duration;
-use time::Tm;
+use time::{Duration, OffsetDateTime};
 
 use super::{Cookie, SameSite};
 
@@ -64,13 +63,13 @@ impl CookieBuilder {
     /// use actix_http::cookie::Cookie;
     ///
     /// let c = Cookie::build("foo", "bar")
-    ///     .expires(time::now())
+    ///     .expires(time::OffsetDateTime::now())
     ///     .finish();
     ///
     /// assert!(c.expires().is_some());
     /// ```
     #[inline]
-    pub fn expires(mut self, when: Tm) -> CookieBuilder {
+    pub fn expires(mut self, when: OffsetDateTime) -> CookieBuilder {
         self.cookie.set_expires(when);
         self
     }
@@ -108,7 +107,9 @@ impl CookieBuilder {
     /// ```
     #[inline]
     pub fn max_age_time(mut self, value: Duration) -> CookieBuilder {
-        self.cookie.set_max_age(value);
+        // Truncate any nanoseconds from the Duration, as they aren't represented within `Max-Age`
+        // and would cause two otherwise identical `Cookie` instances to not be equivalent to one another.
+        self.cookie.set_max_age(Duration::seconds(value.whole_seconds()));
         self
     }
 
@@ -212,7 +213,7 @@ impl CookieBuilder {
     ///
     /// ```rust
     /// use actix_http::cookie::Cookie;
-    /// use chrono::Duration;
+    /// use time::Duration;
     ///
     /// let c = Cookie::build("foo", "bar")
     ///     .permanent()
