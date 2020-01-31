@@ -1,6 +1,6 @@
 [package]
 name = "actix-http-test"
-version = "2.0.0"
+version = "1.0.0"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix http test server"
 readme = "README.md"
@@ -37,7 +37,7 @@ actix-utils = "1.0.3"
 actix-rt = "1.0.0"
 actix-server = "1.0.0"
 actix-testing = "1.0.0"
-awc = { version = "2.0.0", path = "../awc" }
+awc = { version = "1.0.1" }
 
 base64 = "0.11"
 bytes = "0.5.3"

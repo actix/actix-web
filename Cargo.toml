@@ -33,8 +33,8 @@ members = [
   "actix-cors",
   "actix-files",
   "actix-framed",
-  "actix-session",
-  "actix-identity",
+#  "actix-session",
+#  "actix-identity",
   "actix-multipart",
   "actix-web-actors",
   "actix-web-codegen",
@@ -71,8 +71,8 @@ actix-threadpool = "0.3.1"
 actix-tls = "1.0.0"
 
 actix-web-codegen = "0.2.0"
-actix-http = { version = "2.0.0", path = "actix-http" }
-awc = { version = "2.0.0", path = "awc", default-features = false }
+actix-http = { version = "1.0.1" }
+awc = { version = "1.0.1", default-features = false }
 
 bytes = "0.5.3"
 derive_more = "0.99.2"
