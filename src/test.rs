@@ -1163,6 +1163,10 @@ mod tests {
     }
 
 /*
+
+    Comment out until actix decoupled of actix-http:
+    https://github.com/actix/actix/issues/321
+
     use futures::FutureExt;
 
     #[actix_rt::test]
