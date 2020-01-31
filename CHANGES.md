@@ -1,7 +1,7 @@
 # Changes
 
 
-## [2.1.NEXT] - 2020-01-xx
+## [2.0.NEXT] - 2020-01-xx
 
 ### Added
 
@@ -14,8 +14,6 @@
 * Skip empty chunks when returning response from a `Stream` #1308
 
 * Update the `time` dependency to 0.2.7
-
-* Accomodate breaking change in actix-http: trait actix_http::MessageBody requires Unpin and accepting Pin<&mut Self> instead of &mut self in the poll_next()
 
 ## [2.0.0] - 2019-12-25
 

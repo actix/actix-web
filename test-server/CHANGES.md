@@ -4,9 +4,6 @@
 
 * Update the `time` dependency to 0.2.7
 
-* Breaking change: trait actix_http::MessageBody requires Unpin and accepting Pin<&mut Self> instead of &mut self in the poll_next()
-
-
 ## [1.0.0] - 2019-12-13
 
 ### Changed
