@@ -81,6 +81,9 @@ async fn service(msg: ws::Frame) -> Result<ws::Message, Error> {
     Ok(msg)
 }
 
+/*
+Temporarily commented out due to dependency on actix-http-test
+
 #[actix_rt::test]
 async fn test_simple() {
     let ws_service = WsService::new();
@@ -192,3 +195,5 @@ async fn test_simple() {
 
     assert!(ws_service.was_polled());
 }
+
+*/

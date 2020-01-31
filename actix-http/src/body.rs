@@ -383,7 +383,7 @@ where
 {
     pub fn new(stream: S) -> Self {
         BodyStream {
-            stream: Box::pin(stream),
+            stream,
             _t: PhantomData,
         }
     }
@@ -420,7 +420,8 @@ where
 #[pin_project]
 pub struct SizedStream<S: Unpin> {
     size: u64,
-    stream: Pin<Box<S>>,
+    #[pin]
+    stream: S,
 }
 
 impl<S> SizedStream<S>
@@ -428,10 +429,7 @@ where
     S: Stream<Item = Result<Bytes, Error>> + Unpin,
 {
     pub fn new(size: u64, stream: S) -> Self {
-        SizedStream {
-            size,
-            stream: Box::pin(stream),
-        }
+        SizedStream { size, stream }
     }
 }
 
