@@ -107,7 +107,7 @@ opt-level = 3
 codegen-units = 1
 
 [patch.crates-io]
-actix-web = { path = "." } 
+actix-web = { path = "." }
 actix-http = { path = "actix-http" }
 actix-http-test = { path = "test-server" }
 actix-web-codegen = { path = "actix-web-codegen" }
