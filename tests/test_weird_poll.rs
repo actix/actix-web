@@ -5,6 +5,9 @@ use futures::stream::once;
 use actix_http::body::{MessageBody, BodyStream};
 use bytes::Bytes;
 
+/* 
+Disable weird poll until actix-web is based on actix-http 2.0.0
+
 #[test]
 fn weird_poll() {
     let (sender, receiver) = futures::channel::oneshot::channel();
@@ -24,3 +27,4 @@ fn weird_poll() {
     let _ = std::mem::replace(&mut body_stream, Err([0; 32])).unwrap().poll_next(&mut context);
 }
 
+*/
