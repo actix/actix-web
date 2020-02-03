@@ -1,4 +1,3 @@
-use net2::TcpBuilder;
 use std::sync::mpsc;
 use std::{net, thread, time::Duration};
 
@@ -8,12 +7,18 @@ use open_ssl::ssl::SslAcceptorBuilder;
 use actix_web::{web, App, HttpResponse, HttpServer};
 
 fn unused_addr() -> net::SocketAddr {
-    let addr: net::SocketAddr = "127.0.0.1:0".parse().unwrap();
-    let socket = TcpBuilder::new_v4().unwrap();
-    socket.bind(&addr).unwrap();
-    socket.reuse_address(true).unwrap();
-    let tcp = socket.to_tcp_listener().unwrap();
-    tcp.local_addr().unwrap()
+    (1025..65535).find_map(|port| {
+        match net::TcpListener::bind(net::SocketAddr::new(
+            net::IpAddr::V4(net::Ipv4Addr::new(127, 0, 0, 1)),
+            port,
+        )) {
+            Ok(listener) => {
+                Some(listener.local_addr())
+            }
+            Err(_) => None,
+        }
+    });
+    panic!("Could not find an unused port!");
 }
 
 #[cfg(unix)]

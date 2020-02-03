@@ -20,7 +20,6 @@ use awc::{Client, ClientRequest, ClientResponse, Connector};
 use bytes::{Bytes, BytesMut};
 use futures::future::ok;
 use futures::stream::{Stream, StreamExt};
-use net2::TcpBuilder;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use serde_json;
@@ -829,16 +828,6 @@ impl TestServerConfig {
         self.client_timeout = val;
         self
     }
-}
-
-/// Get first available unused address
-pub fn unused_addr() -> net::SocketAddr {
-    let addr: net::SocketAddr = "127.0.0.1:0".parse().unwrap();
-    let socket = TcpBuilder::new_v4().unwrap();
-    socket.bind(&addr).unwrap();
-    socket.reuse_address(true).unwrap();
-    let tcp = socket.to_tcp_listener().unwrap();
-    tcp.local_addr().unwrap()
 }
 
 /// Test server controller
