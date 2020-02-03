@@ -7,7 +7,7 @@ use open_ssl::ssl::SslAcceptorBuilder;
 use actix_web::{web, App, HttpResponse, HttpServer};
 
 fn unused_addr() -> net::SocketAddr {
-    (1025..65535).find_map(|port| {
+    match (1025..65535).find_map(|port| {
         match net::TcpListener::bind(net::SocketAddr::new(
             net::IpAddr::V4(net::Ipv4Addr::new(127, 0, 0, 1)),
             port,
@@ -17,8 +17,10 @@ fn unused_addr() -> net::SocketAddr {
             }
             Err(_) => None,
         }
-    });
-    panic!("Could not find an unused port!");
+    }) {
+        Some(addr) => addr.unwrap(),
+        None => panic!("Could not find an unused port!")
+    }
 }
 
 #[cfg(unix)]
