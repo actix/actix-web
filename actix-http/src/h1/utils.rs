@@ -36,7 +36,7 @@ where
 impl<T, B> Future for SendResponse<T, B>
 where
     T: AsyncRead + AsyncWrite,
-    B: MessageBody,
+    B: MessageBody + Unpin,
 {
     type Output = Result<Framed<T, Codec>, Error>;
 

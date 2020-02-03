@@ -33,7 +33,7 @@ impl BodySize {
 }
 
 /// Type that provides this trait can be streamed to a peer.
-pub trait MessageBody: Unpin {
+pub trait MessageBody {
     fn size(&self) -> BodySize;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes, Error>>>;
@@ -53,14 +53,13 @@ impl MessageBody for () {
     }
 }
 
-impl<T: MessageBody> MessageBody for Box<T> {
+impl<T: MessageBody + Unpin> MessageBody for Box<T> {
     fn size(&self) -> BodySize {
         self.as_ref().size()
     }
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes, Error>>> {
-        let a: Pin<&mut T> = Pin::new(self.get_mut().as_mut());
-        a.poll_next(cx)
+        unsafe { self.map_unchecked_mut(|boxed| boxed.as_mut()) }.poll_next(cx)
     }
 }
 
@@ -70,8 +69,7 @@ impl MessageBody for Box<dyn MessageBody> {
     }
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes, Error>>> {
-        let a: Pin<&mut dyn MessageBody> = Pin::new(self.get_mut().as_mut());
-        a.poll_next(cx)
+        unsafe { Pin::new_unchecked(self.get_mut().as_mut()) }.poll_next(cx)
     }
 }
 
