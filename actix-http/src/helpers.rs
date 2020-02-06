@@ -1,4 +1,4 @@
-use std::{io, mem, ptr, slice};
+use std::{io, ptr, slice};
 
 use bytes::{BufMut, BytesMut};
 use http::Version;
@@ -14,9 +14,7 @@ const DEC_DIGITS_LUT: &[u8] = b"0001020304050607080910111213141516171819\
 pub(crate) const STATUS_LINE_BUF_SIZE: usize = 13;
 
 pub(crate) fn write_status_line(version: Version, mut n: u16, bytes: &mut BytesMut) {
-    let mut buf: [u8; STATUS_LINE_BUF_SIZE] = [
-        b'H', b'T', b'T', b'P', b'/', b'1', b'.', b'1', b' ', b' ', b' ', b' ', b' ',
-    ];
+    let mut buf: [u8; STATUS_LINE_BUF_SIZE] = *b"HTTP/1.1     ";
     match version {
         Version::HTTP_2 => buf[5] = b'2',
         Version::HTTP_10 => buf[7] = b'0',
@@ -64,60 +62,55 @@ pub(crate) fn write_status_line(version: Version, mut n: u16, bytes: &mut BytesM
     }
 }
 
+const DIGITS_START: u8 = b'0';
+
 /// NOTE: bytes object has to contain enough space
-pub fn write_content_length(mut n: usize, bytes: &mut BytesMut) {
+pub fn write_content_length(n: usize, bytes: &mut BytesMut) {
+    bytes.put_slice(b"\r\ncontent-length: ");
+
     if n < 10 {
-        let mut buf: [u8; 21] = [
-            b'\r', b'\n', b'c', b'o', b'n', b't', b'e', b'n', b't', b'-', b'l', b'e',
-            b'n', b'g', b't', b'h', b':', b' ', b'0', b'\r', b'\n',
-        ];
-        buf[18] = (n as u8) + b'0';
-        bytes.put_slice(&buf);
+        bytes.put_u8(DIGITS_START + (n as u8));
     } else if n < 100 {
-        let mut buf: [u8; 22] = [
-            b'\r', b'\n', b'c', b'o', b'n', b't', b'e', b'n', b't', b'-', b'l', b'e',
-            b'n', b'g', b't', b'h', b':', b' ', b'0', b'0', b'\r', b'\n',
-        ];
-        let d1 = n << 1;
-        unsafe {
-            ptr::copy_nonoverlapping(
-                DEC_DIGITS_LUT.as_ptr().add(d1),
-                buf.as_mut_ptr().offset(18),
-                2,
-            );
-        }
-        bytes.put_slice(&buf);
+        let n = n as u8;
+
+        let d10 = n / 10;
+        let d1 = n % 10;
+
+        bytes.put_u8(DIGITS_START + d10);
+        bytes.put_u8(DIGITS_START + d1);
     } else if n < 1000 {
-        let mut buf: [u8; 23] = [
-            b'\r', b'\n', b'c', b'o', b'n', b't', b'e', b'n', b't', b'-', b'l', b'e',
-            b'n', b'g', b't', b'h', b':', b' ', b'0', b'0', b'0', b'\r', b'\n',
-        ];
-        // decode 2 more chars, if > 2 chars
-        let d1 = (n % 100) << 1;
-        n /= 100;
-        unsafe {
-            ptr::copy_nonoverlapping(
-                DEC_DIGITS_LUT.as_ptr().add(d1),
-                buf.as_mut_ptr().offset(19),
-                2,
-            )
-        };
+        let n = n as u16;
 
-        // decode last 1
-        buf[18] = (n as u8) + b'0';
+        let d100 = (n / 100) as u8;
+        let d10 = ((n / 10) % 10) as u8;
+        let d1 = (n % 10) as u8;
 
-        bytes.put_slice(&buf);
+        bytes.put_u8(DIGITS_START + d100);
+        bytes.put_u8(DIGITS_START + d10);
+        bytes.put_u8(DIGITS_START + d1);
+    } else if n < 10000 {
+        let n = n as u16;
+
+        let d1000 = (n / 1000) as u8;
+        let d100 = ((n / 100) % 10) as u8;
+        let d10 = ((n / 10) % 10) as u8;
+        let d1 = (n % 10) as u8;
+
+        bytes.put_u8(DIGITS_START + d1000);
+        bytes.put_u8(DIGITS_START + d100);
+        bytes.put_u8(DIGITS_START + d10);
+        bytes.put_u8(DIGITS_START + d1);
     } else {
-        bytes.put_slice(b"\r\ncontent-length: ");
-        convert_usize(n, bytes);
+        write_usize(n, bytes);
     }
+
+    bytes.put_slice(b"\r\n");
 }
 
-pub(crate) fn convert_usize(mut n: usize, bytes: &mut BytesMut) {
+pub(crate) fn write_usize(mut n: usize, bytes: &mut BytesMut) {
     let mut curr: isize = 39;
-    let mut buf: [u8; 41] = unsafe { mem::MaybeUninit::uninit().assume_init() };
-    buf[39] = b'\r';
-    buf[40] = b'\n';
+    let mut buf = [0u8; 39];
+
     let buf_ptr = buf.as_mut_ptr();
     let lut_ptr = DEC_DIGITS_LUT.as_ptr();
 
@@ -165,7 +158,7 @@ pub(crate) fn convert_usize(mut n: usize, bytes: &mut BytesMut) {
     unsafe {
         bytes.extend_from_slice(slice::from_raw_parts(
             buf_ptr.offset(curr),
-            41 - curr as usize,
+            39 - curr as usize,
         ));
     }
 }
@@ -231,5 +224,11 @@ mod tests {
         bytes.reserve(50);
         write_content_length(5909, &mut bytes);
         assert_eq!(bytes.split().freeze(), b"\r\ncontent-length: 5909\r\n"[..]);
+        bytes.reserve(50);
+        write_content_length(10001, &mut bytes);
+        assert_eq!(bytes.split().freeze(), b"\r\ncontent-length: 10001\r\n"[..]);
+        bytes.reserve(50);
+        write_content_length(59094, &mut bytes);
+        assert_eq!(bytes.split().freeze(), b"\r\ncontent-length: 59094\r\n"[..]);
     }
 }
