@@ -8,6 +8,12 @@
 //! for Rust.
 //!
 //! ```rust,no_run
+//! [dependencies]
+//! actix-web = "2.0"
+//! actix-rt = "1.0"
+//! ```
+//!
+//! ```rust,no_run
 //! use actix_web::{web, App, Responder, HttpServer};
 //!
 //! async fn index(info: web::Path<(String, u32)>) -> impl Responder {
