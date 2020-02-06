@@ -7,7 +7,7 @@
 //! Actix web is a small, pragmatic, and extremely fast web framework
 //! for Rust.
 //!
-//! ```rust,no_run
+//! ```toml
 //! [dependencies]
 //! actix-web = "2.0"
 //! actix-rt = "1.0"
