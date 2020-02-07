@@ -171,7 +171,7 @@ pub mod client {
     //! An HTTP Client
     //!
     //! ```rust
-    //! # use futures::future::{Future, lazy};
+    //! use futures::future::{Future, lazy};
     //! use actix_rt::System;
     //! use actix_web::client::Client;
     //!
