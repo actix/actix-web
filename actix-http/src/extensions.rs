@@ -119,11 +119,11 @@ fn test_integers() {
     assert!(map.get::<i32>().is_some());
     assert!(map.get::<i64>().is_some());
     assert!(map.get::<i128>().is_some());
-    assert!(map.get::<i8>().is_some());
-    assert!(map.get::<i16>().is_some());
-    assert!(map.get::<i32>().is_some());
-    assert!(map.get::<i64>().is_some());
-    assert!(map.get::<i128>().is_some());
+    assert!(map.get::<u8>().is_some());
+    assert!(map.get::<u16>().is_some());
+    assert!(map.get::<u32>().is_some());
+    assert!(map.get::<u64>().is_some());
+    assert!(map.get::<u128>().is_some());
 }
 
 #[test]
