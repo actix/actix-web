@@ -75,7 +75,7 @@ fn test_remove() {
     assert!(map.get::<i8>().is_some());
 
     map.remove::<i8>();
-    assert!(!map.get::<i8>().is_some());
+    assert!(map.get::<i8>().is_none());
 }
 
 #[test]
@@ -148,7 +148,7 @@ fn test_composition() {
     map.insert(Magi(Homura { attempts: 0 }));
     map.insert(Magi(Mami { guns: 999 }));
 
-    assert_eq!(false, map.get::<Magi<Madoka>>().unwrap().0.god);
+    assert!(!map.get::<Magi<Madoka>>().unwrap().0.god);
     assert_eq!(0, map.get::<Magi<Homura>>().unwrap().0.attempts);
     assert_eq!(999, map.get::<Magi<Mami>>().unwrap().0.guns);
 }
