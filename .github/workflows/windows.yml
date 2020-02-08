@@ -56,3 +56,4 @@ jobs:
                 --skip=test_slow_request
                 --skip=test_connection_force_close
                 --skip=test_connection_server_close
+                --skip=test_connection_wait_queue_force_close
