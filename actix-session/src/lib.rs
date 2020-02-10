@@ -62,8 +62,9 @@ pub use crate::cookie::CookieSession;
 /// The high-level interface you use to modify session data.
 ///
 /// Session object could be obtained with
-/// [`RequestSession::session`](trait.RequestSession.html#tymethod.session)
-/// method. `RequestSession` trait is implemented for `HttpRequest`.
+/// [`UserSession::get_session`](trait.UserSession.html#tymethod.get_session)
+/// method. The `UserSession` trait is implemented for `HttpRequest`, `ServiceRequest`, and
+/// `RequestHead`.
 ///
 /// ```rust
 /// use actix_session::Session;
