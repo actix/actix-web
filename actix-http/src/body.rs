@@ -59,20 +59,9 @@ impl<T: MessageBody + Unpin> MessageBody for Box<T> {
     }
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes, Error>>> {
-        unsafe { self.map_unchecked_mut(|boxed| boxed.as_mut()) }.poll_next(cx)
+        Pin::new(self.get_mut().as_mut()).poll_next(cx)
     }
 }
-
-impl MessageBody for Box<dyn MessageBody> {
-    fn size(&self) -> BodySize {
-        self.as_ref().size()
-    }
-
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes, Error>>> {
-        unsafe { Pin::new_unchecked(self.get_mut().as_mut()) }.poll_next(cx)
-    }
-}
-
 
 #[pin_project]
 pub enum ResponseBody<B> {
@@ -149,7 +138,7 @@ pub enum Body {
     /// Specific response body.
     Bytes(Bytes),
     /// Generic message body.
-    Message(#[pin] Box<dyn MessageBody>),
+    Message(Box<dyn MessageBody + Unpin>),
 }
 
 impl Body {
@@ -159,7 +148,7 @@ impl Body {
     }
 
     /// Create body from generic message body.
-    pub fn from_message<B: MessageBody + 'static>(body: B) -> Body {
+    pub fn from_message<B: MessageBody + Unpin + 'static>(body: B) -> Body {
         Body::Message(Box::new(body))
     }
 }
@@ -188,7 +177,7 @@ impl MessageBody for Body {
                     Poll::Ready(Some(Ok(mem::replace(bin, Bytes::new()))))
                 }
             }
-            Body::Message(body) => body.poll_next(cx),
+            Body::Message(ref mut body) => Pin::new(body.as_mut()).poll_next(cx),
         }
     }
 }
