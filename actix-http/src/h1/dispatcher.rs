@@ -853,8 +853,8 @@ where
                     }
                 }
             }
-            DispatcherState::Upgrade(ref mut fut) => {
-                fut.as_mut().poll(cx).map_err(|e| {
+            DispatcherState::Upgrade(fut) => {
+                fut.poll(cx).map_err(|e| {
                     error!("Upgrade handler error: {}", e);
                     DispatchError::Upgrade
                 })
