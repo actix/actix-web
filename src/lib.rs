@@ -7,11 +7,11 @@
 //! Actix web is a small, pragmatic, and extremely fast web framework
 //! for Rust.
 //!
-//! ```toml
-//! [dependencies]
-//! actix-web = "2.0"
-//! actix-rt = "1.0"
-//! ```
+//! ## Example
+//!
+//! The `#[actix_rt::main]` macro in the example below is provided by the Actix runtime
+//! crate, [`actix-rt`](https://crates.io/crates/actix-rt). You will need to include
+//! `actix-rt` in your dependencies for it to run.
 //!
 //! ```rust,no_run
 //! use actix_web::{web, App, Responder, HttpServer};
