@@ -5,6 +5,7 @@ use derive_more::Display;
 #[derive(Display, Debug, PartialEq)]
 pub enum FilesError {
     /// Path is not a directory
+    #[allow(dead_code)]
     #[display(fmt = "Path is not a directory. Unable to serve static files")]
     IsNotDirectory,
 
