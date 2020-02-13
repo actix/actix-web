@@ -1,6 +1,6 @@
-use actix_web::{
-    get, middleware, web, App, Error, HttpRequest, HttpResponse, HttpServer,
-};
+use actix_web::{get, web, HttpRequest};
+#[cfg(unix)]
+use actix_web::{middleware, App, Error, HttpResponse, HttpServer};
 
 #[get("/resource1/{name}/index.html")]
 async fn index(req: HttpRequest, name: web::Path<String>) -> String {
@@ -8,6 +8,7 @@ async fn index(req: HttpRequest, name: web::Path<String>) -> String {
     format!("Hello: {}!\r\n", name)
 }
 
+#[cfg(unix)]
 async fn index_async(req: HttpRequest) -> Result<&'static str, Error> {
     println!("REQ: {:?}", req);
     Ok("Hello world!\r\n")
