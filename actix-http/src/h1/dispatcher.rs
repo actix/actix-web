@@ -780,10 +780,10 @@ where
                             let inner_p = inner.as_mut().project();
                             let mut parts = FramedParts::with_read_buf(
                                 inner_p.io.take().unwrap(),
-                                std::mem::take(inner_p.codec),
-                                std::mem::take(inner_p.read_buf),
+                                std::mem::replace(inner_p.codec, Codec::default()),
+                                std::mem::replace(inner_p.read_buf, BytesMut::default()),
                             );
-                            parts.write_buf = std::mem::take(inner_p.write_buf);
+                            parts.write_buf = std::mem::replace(inner_p.write_buf, BytesMut::default());
                             let framed = Framed::from_parts(parts);
                             let upgrade = inner_p.upgrade.take().unwrap().call((req, framed));
                             self.as_mut().project().inner.set(DispatcherState::Upgrade(upgrade));
