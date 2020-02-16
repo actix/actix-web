@@ -34,15 +34,7 @@ criterion_group!(benches, bench_write_content_length);
 criterion_main!(benches);
 
 mod _new {
-    use std::{ptr, slice};
-
     use bytes::{BufMut, BytesMut};
-
-    const DEC_DIGITS_LUT: &[u8] = b"0001020304050607080910111213141516171819\
-          2021222324252627282930313233343536373839\
-          4041424344454647484950515253545556575859\
-          6061626364656667686970717273747576777879\
-          8081828384858687888990919293949596979899";
 
     const DIGITS_START: u8 = b'0';
 
@@ -94,63 +86,29 @@ mod _new {
         bytes.put_slice(b"\r\n");
     }
 
-    pub(crate) fn write_usize(mut n: usize, bytes: &mut BytesMut) {
-        let mut curr: isize = 39;
-        let mut buf = [0u8; 39];
+    fn write_usize(n: usize, bytes: &mut BytesMut) {
+        let mut n = n;
 
-        let buf_ptr = buf.as_mut_ptr();
-        let lut_ptr = DEC_DIGITS_LUT.as_ptr();
+        // 20 chars is max length of a usize (2^64)
+        // digits will be added to the buffer from lsd to msd
+        let mut buf = BytesMut::with_capacity(20);
 
-        // eagerly decode 4 characters at a time
-        while n >= 10_000 {
-            let rem = (n % 10_000) as isize;
-            n /= 10_000;
+        while n > 9 {
+            // "pop" the least-significant digit
+            let lsd = (n % 10) as u8;
 
-            let d1 = (rem / 100) << 1;
-            let d2 = (rem % 100) << 1;
-            curr -= 4;
-            unsafe {
-                ptr::copy_nonoverlapping(lut_ptr.offset(d1), buf_ptr.offset(curr), 2);
-                ptr::copy_nonoverlapping(
-                    lut_ptr.offset(d2),
-                    buf_ptr.offset(curr + 2),
-                    2,
-                );
-            }
+            // remove the lsd from n
+            n = n / 10;
+
+            buf.put_u8(DIGITS_START + lsd);
         }
 
-        // if we reach here numbers are <= 9999, so at most 4 chars long
-        let mut n = n as isize; // possibly reduce 64bit math
+        // put msd to result buffer
+        bytes.put_u8(DIGITS_START + (n as u8));
 
-        // decode 2 more chars, if > 2 chars
-        if n >= 100 {
-            let d1 = (n % 100) << 1;
-            n /= 100;
-            curr -= 2;
-            unsafe {
-                ptr::copy_nonoverlapping(lut_ptr.offset(d1), buf_ptr.offset(curr), 2);
-            }
-        }
-
-        // decode last 1 or 2 chars
-        if n < 10 {
-            curr -= 1;
-            unsafe {
-                *buf_ptr.offset(curr) = (n as u8) + b'0';
-            }
-        } else {
-            let d1 = n << 1;
-            curr -= 2;
-            unsafe {
-                ptr::copy_nonoverlapping(lut_ptr.offset(d1), buf_ptr.offset(curr), 2);
-            }
-        }
-
-        unsafe {
-            bytes.extend_from_slice(slice::from_raw_parts(
-                buf_ptr.offset(curr),
-                39 - curr as usize,
-            ));
+        // put, in reverse (msd to lsd), remaining digits to buffer
+        for i in (0..buf.len()).rev() {
+            bytes.put_u8(buf[i]);
         }
     }
 }
