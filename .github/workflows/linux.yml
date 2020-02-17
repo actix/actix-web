@@ -63,7 +63,7 @@ jobs:
         timeout-minutes: 40
         with:
           command: test
-          args: --package=actix-http --no-default-features --features=rustls -- --nocapture
+          args: --manifest-path=actix-http/Cargo.toml --no-default-features --features=rustls -- --nocapture
 
       - name: tests (awc)
         uses: actions-rs/cargo@v1
