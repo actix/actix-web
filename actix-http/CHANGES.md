@@ -6,6 +6,10 @@
 
 * Update the `time` dependency to 0.2.5
 
+* Breaking change: trait MessageBody requires Unpin and accepting Pin<&mut Self> instead of &mut self in the poll_next()
+
+* MessageBody is not implemented for &'static [u8] anymore
+
 ### Fixed
 
 * Allow `SameSite=None` cookies to be sent in a response.

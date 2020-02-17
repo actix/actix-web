@@ -637,7 +637,7 @@ impl ResponseBuilder {
     /// `ResponseBuilder` can not be used after this call.
     pub fn streaming<S, E>(&mut self, stream: S) -> Response
     where
-        S: Stream<Item = Result<Bytes, E>> + 'static,
+        S: Stream<Item = Result<Bytes, E>> + Unpin + 'static,
         E: Into<Error> + 'static,
     {
         self.body(Body::from_message(BodyStream::new(stream)))

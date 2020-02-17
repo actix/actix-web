@@ -1,0 +1,35 @@
+name: Upload documentation
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    if: github.repository == 'actix/actix-web'
+
+    steps:
+      - uses: actions/checkout@master
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable-x86_64-unknown-linux-gnu
+          profile: minimal
+          override: true
+
+      - name: check build
+        uses: actions-rs/cargo@v1
+        with:
+          command: doc
+          args: --no-deps --all-features
+
+      - name: Tweak HTML
+        run: echo "<meta http-equiv=refresh content=0;url=os_balloon/index.html>" > target/doc/index.html
+
+      - name: Upload documentation
+        run: |
+          git clone https://github.com/davisp/ghp-import.git
+          ./ghp-import/ghp_import.py -n -p -f -m "Documentation upload" -r https://${{ secrets.GITHUB_TOKEN }}@github.com/"${{ github.repository }}.git" target/doc

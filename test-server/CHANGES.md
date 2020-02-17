@@ -4,7 +4,6 @@
 
 * Update the `time` dependency to 0.2.5
 
-
 ## [1.0.0] - 2019-12-13
 
 ### Changed
