@@ -443,8 +443,6 @@ where
 
     #[cfg(unix)]
     /// Start listening for unix domain connections on existing listener.
-    ///
-    /// This method is available with `uds` feature.
     pub fn listen_uds(
         mut self,
         lst: std::os::unix::net::UnixListener,
@@ -483,8 +481,6 @@ where
 
     #[cfg(unix)]
     /// Start listening for incoming unix domain connections.
-    ///
-    /// This method is available with `uds` feature.
     pub fn bind_uds<A>(mut self, addr: A) -> io::Result<Self>
     where
         A: AsRef<std::path::Path>,
