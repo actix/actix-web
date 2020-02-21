@@ -2,7 +2,7 @@
 
 ## [Unreleased] - 2020-xx-xx
 
-* Update the `time` dependency to 0.2.5
+* Update the `time` dependency to 0.2.6
 
 ## [0.2.1] - 2020-01-10
 
