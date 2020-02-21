@@ -1,5 +1,4 @@
 //! Error and Result module
-use std::any::TypeId;
 use std::cell::RefCell;
 use std::io::Write;
 use std::str::Utf8Error;
@@ -60,12 +59,6 @@ impl Error {
     }
 }
 
-/// A struct with a private constructor, for use with
-/// `__private_get_type_id__`. Its single field is private,
-/// ensuring that it can only be constructed from this module
-#[doc(hidden)]
-pub struct PrivateHelper(());
-
 /// Error that can be converted to `Response`
 pub trait ResponseError: fmt::Debug + fmt::Display {
     /// Response's status code
@@ -89,43 +82,10 @@ pub trait ResponseError: fmt::Debug + fmt::Display {
         resp.set_body(Body::from(buf))
     }
 
-    /// A helper method to get the type ID of the type
-    /// this trait is implemented on.
-    /// This method is unsafe to *implement*, since `downcast_ref` relies
-    /// on the returned `TypeId` to perform a cast.
-    ///
-    /// Unfortunately, Rust has no notion of a trait method that is
-    /// unsafe to implement (marking it as `unsafe` makes it unsafe
-    /// to *call*). As a workaround, we require this method
-    /// to return a private type along with the `TypeId`. This
-    /// private type (`PrivateHelper`) has a private constructor,
-    /// making it impossible for safe code to construct outside of
-    /// this module. This ensures that safe code cannot violate
-    /// type-safety by implementing this method.
-    #[doc(hidden)]
-    fn __private_get_type_id__(&self) -> (TypeId, PrivateHelper)
-    where
-        Self: 'static,
-    {
-        (TypeId::of::<Self>(), PrivateHelper(()))
-    }
+    downcast_get_type_id!();
 }
 
-impl dyn ResponseError + 'static {
-    /// Downcasts a response error to a specific type.
-    pub fn downcast_ref<T: ResponseError + 'static>(&self) -> Option<&T> {
-        if self.__private_get_type_id__().0 == TypeId::of::<T>() {
-            // Safety: external crates cannot override the default
-            // implementation of `__private_get_type_id__`, since
-            // it requires returning a private type. We can therefore
-            // rely on the returned `TypeId`, which ensures that this
-            // case is correct.
-            unsafe { Some(&*(self as *const dyn ResponseError as *const T)) }
-        } else {
-            None
-        }
-    }
-}
+downcast!(ResponseError);
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

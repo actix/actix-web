@@ -37,7 +37,11 @@ pub trait MessageBody {
     fn size(&self) -> BodySize;
 
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes, Error>>>;
+
+    downcast_get_type_id!();
 }
+
+downcast!(MessageBody);
 
 impl MessageBody for () {
     fn size(&self) -> BodySize {
@@ -416,7 +420,10 @@ where
     S: Stream<Item = Result<Bytes, Error>>,
 {
     pub fn new(size: u64, stream: S) -> Self {
-        SizedStream { size, stream: Box::pin(stream) }
+        SizedStream {
+            size,
+            stream: Box::pin(stream),
+        }
     }
 }
 
@@ -642,5 +649,19 @@ mod tests {
                 Some(Bytes::from("2")),
             );
         }
+    }
+
+    #[actix_rt::test]
+    async fn test_body_casting() {
+        let mut body = String::from("hello cast");
+        let resp_body: &mut dyn MessageBody = &mut body;
+        let body = resp_body.downcast_ref::<String>().unwrap();
+        assert_eq!(body, "hello cast");
+        let body = &mut resp_body.downcast_mut::<String>().unwrap();
+        body.push_str("!");
+        let body = resp_body.downcast_ref::<String>().unwrap();
+        assert_eq!(body, "hello cast!");
+        let not_body = resp_body.downcast_ref::<()>();
+        assert!(not_body.is_none());
     }
 }
