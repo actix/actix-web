@@ -191,7 +191,7 @@ impl Route {
         let extra_guards = &self.args.guards;
         let resource_type = &self.resource_type;
         let stream = quote! {
-            #[allow(non_camel_case_types)]
+            #[allow(non_camel_case_types, missing_docs)]
             pub struct #name;
 
             impl actix_web::dev::HttpServiceFactory for #name {
