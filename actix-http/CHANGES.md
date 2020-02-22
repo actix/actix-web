@@ -4,7 +4,7 @@
 
 ### Changed
 
-* Update the `time` dependency to 0.2.5
+* Update the `time` dependency to 0.2.7
 
 ### Fixed
 

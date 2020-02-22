@@ -1,4 +1,4 @@
-use time::{PrimitiveDateTime, Date};
+use time::{OffsetDateTime, PrimitiveDateTime, Date};
 
 /// Attempt to parse a `time` string as one of either RFC 1123, RFC 850, or asctime.
 pub fn parse_http_date(time: &str) -> Option<PrimitiveDateTime> {
@@ -19,7 +19,7 @@ fn try_parse_rfc_850(time: &str) -> Option<PrimitiveDateTime> {
             // If the `time` string contains a two-digit year, then as per RFC 2616 § 19.3,
             // we consider the year as part of this century if it's within the next 50 years,
             // otherwise we consider as part of the previous century.
-            let now = PrimitiveDateTime::now();
+            let now = OffsetDateTime::now();
             let century_start_year = (now.year() / 100) * 100;
             let mut expanded_year = century_start_year + dt.year();
 
