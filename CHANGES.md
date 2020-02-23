@@ -3,6 +3,10 @@
 
 ## [2.0.NEXT] - 2020-01-xx
 
+### Added
+
+* Add helper function for creating routes with `TRACE` method guard `web::trace()`
+
 ### Changed
 
 * Use `sha-1` crate instead of unmaintained `sha1` crate
