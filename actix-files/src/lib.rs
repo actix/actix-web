@@ -605,8 +605,6 @@ impl PathBufWrp {
         for segment in path.split('/') {
             if segment == ".." {
                 buf.pop();
-            } else if segment.starts_with('.') {
-                return Err(UriSegmentError::BadStart('.'));
             } else if segment.starts_with('*') {
                 return Err(UriSegmentError::BadStart('*'));
             } else if segment.ends_with(':') {
@@ -1397,10 +1395,6 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_path_buf() {
-        assert_eq!(
-            PathBufWrp::get_pathbuf("/test/.tt").map(|t| t.0),
-            Err(UriSegmentError::BadStart('.'))
-        );
         assert_eq!(
             PathBufWrp::get_pathbuf("/test/*tt").map(|t| t.0),
             Err(UriSegmentError::BadStart('*'))
