@@ -1,6 +1,6 @@
 # Changes
 
-## [0.2.1] - 2020-02-23
+## [0.2.1] - 2020-02-25
 
 * Add `#[allow(missing_docs)]` attribute to generated structs [#1368]
 * Allow the handler function to be named as `config` [#1290]
