@@ -88,7 +88,7 @@ pub fn write_content_length(n: usize, bytes: &mut BytesMut) {
         bytes.put_u8(DIGITS_START + d100);
         bytes.put_u8(DIGITS_START + d10);
         bytes.put_u8(DIGITS_START + d1);
-    } else if n < 10000 {
+    } else if n < 10_000 {
         let n = n as u16;
 
         let d1000 = (n / 1000) as u8;
@@ -96,6 +96,36 @@ pub fn write_content_length(n: usize, bytes: &mut BytesMut) {
         let d10 = ((n / 10) % 10) as u8;
         let d1 = (n % 10) as u8;
 
+        bytes.put_u8(DIGITS_START + d1000);
+        bytes.put_u8(DIGITS_START + d100);
+        bytes.put_u8(DIGITS_START + d10);
+        bytes.put_u8(DIGITS_START + d1);
+    } else if n < 100_000 {
+        let n = n as u32;
+
+        let d10000 = (n / 10000) as u8;
+        let d1000 = ((n / 1000) % 10) as u8;
+        let d100 = ((n / 100) % 10) as u8;
+        let d10 = ((n / 10) % 10) as u8;
+        let d1 = (n % 10) as u8;
+
+        bytes.put_u8(DIGITS_START + d10000);
+        bytes.put_u8(DIGITS_START + d1000);
+        bytes.put_u8(DIGITS_START + d100);
+        bytes.put_u8(DIGITS_START + d10);
+        bytes.put_u8(DIGITS_START + d1);
+    } else if n < 1_000_000 {
+        let n = n as u32;
+
+        let d100000 = (n / 100000) as u8;
+        let d10000 = ((n / 10000) % 10) as u8;
+        let d1000 = ((n / 1000) % 10) as u8;
+        let d100 = ((n / 100) % 10) as u8;
+        let d10 = ((n / 10) % 10) as u8;
+        let d1 = (n % 10) as u8;
+
+        bytes.put_u8(DIGITS_START + d100000);
+        bytes.put_u8(DIGITS_START + d10000);
         bytes.put_u8(DIGITS_START + d1000);
         bytes.put_u8(DIGITS_START + d100);
         bytes.put_u8(DIGITS_START + d10);
@@ -109,7 +139,7 @@ pub fn write_content_length(n: usize, bytes: &mut BytesMut) {
 
 pub(crate) fn write_usize(n: usize, bytes: &mut BytesMut) {
     let mut n = n;
-    
+
     // 20 chars is max length of a usize (2^64)
     // digits will be added to the buffer from lsd to msd
     let mut buf = BytesMut::with_capacity(20);
@@ -126,7 +156,7 @@ pub(crate) fn write_usize(n: usize, bytes: &mut BytesMut) {
 
     // put msd to result buffer
     bytes.put_u8(DIGITS_START + (n as u8));
-    
+
     // put, in reverse (msd to lsd), remaining digits to buffer
     for i in (0..buf.len()).rev() {
         bytes.put_u8(buf[i]);
@@ -195,17 +225,29 @@ mod tests {
         write_content_length(5909, &mut bytes);
         assert_eq!(bytes.split().freeze(), b"\r\ncontent-length: 5909\r\n"[..]);
         bytes.reserve(50);
+        write_content_length(9999, &mut bytes);
+        assert_eq!(bytes.split().freeze(), b"\r\ncontent-length: 9999\r\n"[..]);
+        bytes.reserve(50);
         write_content_length(10001, &mut bytes);
         assert_eq!(bytes.split().freeze(), b"\r\ncontent-length: 10001\r\n"[..]);
         bytes.reserve(50);
         write_content_length(59094, &mut bytes);
         assert_eq!(bytes.split().freeze(), b"\r\ncontent-length: 59094\r\n"[..]);
+        bytes.reserve(50);
+        write_content_length(99999, &mut bytes);
+        assert_eq!(bytes.split().freeze(), b"\r\ncontent-length: 99999\r\n"[..]);
 
         bytes.reserve(50);
         write_content_length(590947, &mut bytes);
         assert_eq!(
             bytes.split().freeze(),
             b"\r\ncontent-length: 590947\r\n"[..]
+        );
+        bytes.reserve(50);
+        write_content_length(999999, &mut bytes);
+        assert_eq!(
+            bytes.split().freeze(),
+            b"\r\ncontent-length: 999999\r\n"[..]
         );
         bytes.reserve(50);
         write_content_length(5909471, &mut bytes);
@@ -218,6 +260,12 @@ mod tests {
         assert_eq!(
             bytes.split().freeze(),
             b"\r\ncontent-length: 59094718\r\n"[..]
+        );
+        bytes.reserve(50);
+        write_content_length(4294973728, &mut bytes);
+        assert_eq!(
+            bytes.split().freeze(),
+            b"\r\ncontent-length: 4294973728\r\n"[..]
         );
     }
 }

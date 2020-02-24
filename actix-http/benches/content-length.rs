@@ -67,7 +67,7 @@ mod _new {
             bytes.put_u8(DIGITS_START + d100);
             bytes.put_u8(DIGITS_START + d10);
             bytes.put_u8(DIGITS_START + d1);
-        } else if n < 10000 {
+        } else if n < 10_000 {
             let n = n as u16;
 
             let d1000 = (n / 1000) as u8;
@@ -75,6 +75,36 @@ mod _new {
             let d10 = ((n / 10) % 10) as u8;
             let d1 = (n % 10) as u8;
 
+            bytes.put_u8(DIGITS_START + d1000);
+            bytes.put_u8(DIGITS_START + d100);
+            bytes.put_u8(DIGITS_START + d10);
+            bytes.put_u8(DIGITS_START + d1);
+        } else if n < 100_000 {
+            let n = n as u32;
+
+            let d10000 = (n / 10000) as u8;
+            let d1000 = ((n / 1000) % 10) as u8;
+            let d100 = ((n / 100) % 10) as u8;
+            let d10 = ((n / 10) % 10) as u8;
+            let d1 = (n % 10) as u8;
+
+            bytes.put_u8(DIGITS_START + d10000);
+            bytes.put_u8(DIGITS_START + d1000);
+            bytes.put_u8(DIGITS_START + d100);
+            bytes.put_u8(DIGITS_START + d10);
+            bytes.put_u8(DIGITS_START + d1);
+        } else if n < 1_000_000 {
+            let n = n as u32;
+
+            let d100000 = (n / 100000) as u8;
+            let d10000 = ((n / 10000) % 10) as u8;
+            let d1000 = ((n / 1000) % 10) as u8;
+            let d100 = ((n / 100) % 10) as u8;
+            let d10 = ((n / 10) % 10) as u8;
+            let d1 = (n % 10) as u8;
+
+            bytes.put_u8(DIGITS_START + d100000);
+            bytes.put_u8(DIGITS_START + d10000);
             bytes.put_u8(DIGITS_START + d1000);
             bytes.put_u8(DIGITS_START + d100);
             bytes.put_u8(DIGITS_START + d10);
