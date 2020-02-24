@@ -9,7 +9,7 @@
 
 * Skip empty chunks when returning response from a `Stream` #1308
 
-* Update the `time` dependency to 0.2.5
+* Update the `time` dependency to 0.2.7
 
 ## [2.0.0] - 2019-12-25
 
