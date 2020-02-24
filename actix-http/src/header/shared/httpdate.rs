@@ -20,7 +20,7 @@ impl FromStr for HttpDate {
 
     fn from_str(s: &str) -> Result<HttpDate, ParseError> {
         match time_parser::parse_http_date(s) {
-            Some(t) => Ok(HttpDate(t.using_offset(offset!(UTC)))),
+            Some(t) => Ok(HttpDate(t.assume_utc())),
             None => Err(ParseError::Header)
         }
     }
@@ -40,7 +40,7 @@ impl From<OffsetDateTime> for HttpDate {
 
 impl From<SystemTime> for HttpDate {
     fn from(sys: SystemTime) -> HttpDate {
-        HttpDate(PrimitiveDateTime::from(sys).using_offset(offset!(UTC)))
+        HttpDate(PrimitiveDateTime::from(sys).assume_utc())
     }
 }
 
@@ -66,14 +66,14 @@ impl From<HttpDate> for SystemTime {
 #[cfg(test)]
 mod tests {
     use super::HttpDate;
-    use time::{PrimitiveDateTime, date, time, offset};
+    use time::{PrimitiveDateTime, date, time};
 
     #[test]
     fn test_date() {
         let nov_07 = HttpDate(PrimitiveDateTime::new(
             date!(1994-11-07),
             time!(8:48:37)
-        ).using_offset(offset!(UTC)));
+        ).assume_utc());
 
         assert_eq!(
             "Sun, 07 Nov 1994 08:48:37 GMT".parse::<HttpDate>().unwrap(),
