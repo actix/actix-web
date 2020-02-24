@@ -951,6 +951,14 @@ where
 /// Compatibility for `failure::Error`
 impl ResponseError for fail_ure::Error {}
 
+#[cfg(feature = "actix")]
+/// `InternalServerError` for `actix::MailboxError`
+impl ResponseError for actix::MailboxError {} 
+
+#[cfg(all(feature = "actix", feature = "resolver"))]
+/// `InternalServerError` for `actix::ResolverError`
+impl ResponseError for actix::actors::resolver::ResolverError {} 
+
 #[cfg(test)]
 mod tests {
     use super::*;
