@@ -63,7 +63,7 @@ header! {
     (AcceptCharset, ACCEPT_CHARSET) => (QualityItem<Charset>)+
 
     test_accept_charset {
-        /// Test case from RFC
+        // Test case from RFC
         test_header!(test1, vec![b"iso-8859-5, unicode-1-1;q=0.8"]);
     }
 }
