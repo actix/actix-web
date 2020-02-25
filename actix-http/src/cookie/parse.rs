@@ -6,7 +6,7 @@ use std::fmt;
 use std::str::Utf8Error;
 
 use percent_encoding::percent_decode;
-use time::{Duration, offset};
+use time::Duration;
 
 use super::{Cookie, CookieStr, SameSite};
 
@@ -188,7 +188,7 @@ fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
                     .or_else(|| time::parse(v, "%a, %d-%b-%Y %H:%M:%S").ok());
 
                 if let Some(time) = tm {
-                    cookie.expires = Some(time.using_offset(offset!(UTC)))
+                    cookie.expires = Some(time.assume_utc())
                 }
             }
             _ => {
@@ -216,7 +216,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::{Cookie, SameSite};
-    use time::{offset, Duration, PrimitiveDateTime};
+    use time::{Duration, PrimitiveDateTime};
 
     macro_rules! assert_eq_parse {
         ($string:expr, $expected:expr) => {
@@ -376,7 +376,7 @@ mod tests {
         );
 
         let time_str = "Wed, 21 Oct 2015 07:28:00 GMT";
-        let expires = PrimitiveDateTime::parse(time_str, "%a, %d %b %Y %H:%M:%S").unwrap().using_offset(offset!(UTC));
+        let expires = PrimitiveDateTime::parse(time_str, "%a, %d %b %Y %H:%M:%S").unwrap().assume_utc();
         expected.set_expires(expires);
         assert_eq_parse!(
             " foo=bar ;HttpOnly; Secure; Max-Age=4; Path=/foo; \
@@ -385,7 +385,7 @@ mod tests {
         );
 
         unexpected.set_domain("foo.com");
-        let bad_expires = PrimitiveDateTime::parse(time_str, "%a, %d %b %Y %H:%S:%M").unwrap().using_offset(offset!(UTC));
+        let bad_expires = PrimitiveDateTime::parse(time_str, "%a, %d %b %Y %H:%S:%M").unwrap().assume_utc();
         expected.set_expires(bad_expires);
         assert_ne_parse!(
             " foo=bar ;HttpOnly; Secure; Max-Age=4; Path=/foo; \
