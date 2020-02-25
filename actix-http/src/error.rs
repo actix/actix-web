@@ -955,7 +955,7 @@ impl ResponseError for fail_ure::Error {}
 /// `InternalServerError` for `actix::MailboxError`
 impl ResponseError for actix::MailboxError {} 
 
-#[cfg(all(feature = "actix", feature = "resolver"))]
+#[cfg(feature = "actix")]
 /// `InternalServerError` for `actix::ResolverError`
 impl ResponseError for actix::actors::resolver::ResolverError {} 
 
