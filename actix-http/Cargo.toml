@@ -40,7 +40,7 @@ failure = ["fail-ure"]
 secure-cookies = ["ring"]
 
 # support for actix Actor messages
-actix = ["actix"]
+actors = ["actix"]
 
 [dependencies]
 actix-service = "1.0.1"

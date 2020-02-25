@@ -951,11 +951,11 @@ where
 /// Compatibility for `failure::Error`
 impl ResponseError for fail_ure::Error {}
 
-#[cfg(feature = "actix")]
+#[cfg(feature = "actors")]
 /// `InternalServerError` for `actix::MailboxError`
 impl ResponseError for actix::MailboxError {} 
 
-#[cfg(feature = "actix")]
+#[cfg(feature = "actors")]
 /// `InternalServerError` for `actix::ResolverError`
 impl ResponseError for actix::actors::resolver::ResolverError {} 
 
