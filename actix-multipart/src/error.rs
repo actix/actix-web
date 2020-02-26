@@ -33,6 +33,8 @@ pub enum MultipartError {
     NotConsumed,
 }
 
+impl std::error::Error for MultipartError {}
+
 /// Return `BadRequest` for `MultipartError`
 impl ResponseError for MultipartError {
     fn status_code(&self) -> StatusCode {
