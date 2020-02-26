@@ -15,7 +15,7 @@ license = "MIT/Apache-2.0"
 edition = "2018"
 
 [package.metadata.docs.rs]
-features = ["openssl", "rustls", "failure", "compress", "secure-cookies","actix"]
+features = ["openssl", "rustls", "failure", "compress", "secure-cookies","actors"]
 
 [lib]
 name = "actix_http"
