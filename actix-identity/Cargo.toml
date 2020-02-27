@@ -25,5 +25,5 @@ time = { version = "0.2.5", default-features = false, features = ["std"] }
 
 [dev-dependencies]
 actix-rt = "1.0.0"
-actix-http = { version = "1.0.1" }
+actix-http = "1.0.1"
 bytes = "0.5.4"
