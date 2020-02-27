@@ -117,7 +117,7 @@ pub fn write_content_length(n: usize, bytes: &mut BytesMut) {
     } else if n < 1_000_000 {
         let n = n as u32;
 
-        let d100000 = (n / 100000) as u8;
+        let d100000 = (n / 100_000) as u8;
         let d10000 = ((n / 10000) % 10) as u8;
         let d1000 = ((n / 1000) % 10) as u8;
         let d100 = ((n / 100) % 10) as u8;
@@ -149,7 +149,7 @@ pub(crate) fn write_usize(n: usize, bytes: &mut BytesMut) {
         let lsd = (n % 10) as u8;
 
         // remove the lsd from n
-        n = n / 10;
+        n /= 10;
 
         buf.put_u8(DIGITS_START + lsd);
     }

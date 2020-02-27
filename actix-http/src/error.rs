@@ -14,7 +14,6 @@ use derive_more::{Display, From};
 pub use futures_channel::oneshot::Canceled;
 use http::uri::InvalidUri;
 use http::{header, Error as HttpError, StatusCode};
-use httparse;
 use serde::de::value::Error as DeError;
 use serde_json::error::Error as JsonError;
 use serde_urlencoded::ser::Error as FormError;

@@ -2,7 +2,6 @@ use std::convert::TryFrom;
 
 use bytes::{Buf, BufMut, BytesMut};
 use log::debug;
-use rand;
 
 use crate::ws::mask::apply_mask;
 use crate::ws::proto::{CloseCode, CloseReason, OpCode};

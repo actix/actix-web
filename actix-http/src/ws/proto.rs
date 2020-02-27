@@ -1,5 +1,3 @@
-use base64;
-use sha1;
 use std::convert::{From, Into};
 use std::fmt;
 
