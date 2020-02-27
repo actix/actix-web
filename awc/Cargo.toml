@@ -36,7 +36,7 @@ compress = ["actix-http/compress"]
 [dependencies]
 actix-codec = "0.2.0"
 actix-service = "1.0.1"
-actix-http = "1.0.1"
+actix-http = "2.0.0-alpha.1"
 actix-rt = "1.0.0"
 
 base64 = "0.11"
@@ -56,7 +56,7 @@ rust-tls = { version = "0.16.0", package="rustls", optional = true, features = [
 [dev-dependencies]
 actix-connect = { version = "1.0.1", features=["openssl"] }
 actix-web = { version = "2.0.0", features=["openssl"] }
-actix-http = { version = "1.0.1", features=["openssl"] }
+actix-http = { version = "2.0.0-alpha.1", features=["openssl"] }
 actix-http-test = { version = "1.0.0", features=["openssl"] }
 actix-utils = "1.0.3"
 actix-server = "1.0.0"

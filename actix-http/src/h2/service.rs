@@ -83,13 +83,11 @@ where
         Error = DispatchError,
         InitError = S::InitError,
     > {
-        pipeline_factory(fn_factory(|| {
-            async {
-                Ok::<_, S::InitError>(fn_service(|io: TcpStream| {
-                    let peer_addr = io.peer_addr().ok();
-                    ok::<_, DispatchError>((io, peer_addr))
-                }))
-            }
+        pipeline_factory(fn_factory(|| async {
+            Ok::<_, S::InitError>(fn_service(|io: TcpStream| {
+                let peer_addr = io.peer_addr().ok();
+                ok::<_, DispatchError>((io, peer_addr))
+            }))
         }))
         .and_then(self)
     }

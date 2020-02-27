@@ -533,8 +533,8 @@ mod test {
     #[test]
     #[cfg(feature = "secure-cookies")]
     fn delta() {
-        use time::Duration;
         use std::collections::HashMap;
+        use time::Duration;
 
         let mut c = CookieJar::new();
 

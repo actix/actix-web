@@ -8,7 +8,6 @@ use actix_codec::Decoder;
 use bytes::{Buf, Bytes, BytesMut};
 use http::header::{HeaderName, HeaderValue};
 use http::{header, Method, StatusCode, Uri, Version};
-use httparse;
 use log::{debug, error, trace};
 
 use crate::error::ParseError;

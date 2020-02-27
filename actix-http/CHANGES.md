@@ -1,10 +1,10 @@
 # Changes
 
-# [Unreleased]
+## [2.0.0-alpha.1] - 2020-02-27
 
 ### Changed
 
-* Update the `time` dependency to 0.2.7
+* Update the `time` dependency to 0.2.7.
 
 * Moved actors messages support from actix crate, enabled with feature `actors`.
 
