@@ -99,7 +99,7 @@ actix-http-test = { version = "1.0.0", features=["openssl"] }
 actix-tls = { version = "1.0.0", features=["openssl"] }
 criterion = "0.3"
 futures = "0.3.1"
-env_logger = "0.6"
+env_logger = "0.7"
 serde_derive = "1.0"
 open-ssl = { version="0.10", package = "openssl" }
 rust-tls = { version="0.16", package = "rustls" }
