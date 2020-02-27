@@ -29,4 +29,4 @@ twoway = "0.2"
 
 [dev-dependencies]
 actix-rt = "1.0.0"
-actix-http = "1.0.1"
+actix-http = "2.0.0-alpha.1"
