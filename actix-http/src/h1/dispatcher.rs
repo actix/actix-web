@@ -1,3 +1,6 @@
+// Because MSRV is 1.39.0.
+#![allow(clippy::mem_replace_with_default)]
+
 use std::collections::VecDeque;
 use std::future::Future;
 use std::pin::Pin;
