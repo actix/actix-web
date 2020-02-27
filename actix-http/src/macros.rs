@@ -21,7 +21,7 @@ macro_rules! downcast_get_type_id {
         {
             (std::any::TypeId::of::<Self>(), PrivateHelper(()))
         }
-    }
+    };
 }
 
 //Generate implementation for dyn $name

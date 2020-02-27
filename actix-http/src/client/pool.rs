@@ -16,8 +16,8 @@ use fxhash::FxHashMap;
 use h2::client::{handshake, Connection, SendRequest};
 use http::uri::Authority;
 use indexmap::IndexSet;
-use slab::Slab;
 use pin_project::pin_project;
+use slab::Slab;
 
 use super::connection::{ConnectionType, IoConnection};
 use super::error::ConnectError;

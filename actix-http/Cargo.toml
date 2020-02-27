@@ -1,6 +1,6 @@
 [package]
 name = "actix-http"
-version = "1.0.1"
+version = "2.0.0-alpha.1"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix http primitives"
 readme = "README.md"
@@ -15,7 +15,7 @@ license = "MIT/Apache-2.0"
 edition = "2018"
 
 [package.metadata.docs.rs]
-features = ["openssl", "rustls", "failure", "compress", "secure-cookies"]
+features = ["openssl", "rustls", "failure", "compress", "secure-cookies","actors"]
 
 [lib]
 name = "actix_http"
@@ -39,14 +39,18 @@ failure = ["fail-ure"]
 # support for secure cookies
 secure-cookies = ["ring"]
 
+# support for actix Actor messages
+actors = ["actix"]
+
 [dependencies]
-actix-service = "1.0.1"
+actix-service = "1.0.5"
 actix-codec = "0.2.0"
-actix-connect = "1.0.1"
-actix-utils = "1.0.3"
+actix-connect = "1.0.2"
+actix-utils = "1.0.6"
 actix-rt = "1.0.0"
 actix-threadpool = "0.3.1"
 actix-tls = { version = "1.0.0", optional = true }
+actix = { version = "0.10.0-alpha.1", optional = true }
 
 base64 = "0.11"
 bitflags = "1.2"
@@ -89,13 +93,13 @@ flate2 = { version = "1.0.13", optional = true }
 fail-ure = { version = "0.1.5", package="failure", optional = true }
 
 [dev-dependencies]
-actix-server = "1.0.0"
-actix-connect = { version = "1.0.0", features=["openssl"] }
+actix-server = "1.0.1"
+actix-connect = { version = "1.0.2", features=["openssl"] }
 actix-http-test = { version = "1.0.0", features=["openssl"] }
 actix-tls = { version = "1.0.0", features=["openssl"] }
 criterion = "0.3"
 futures = "0.3.1"
-env_logger = "0.6"
+env_logger = "0.7"
 serde_derive = "1.0"
 open-ssl = { version="0.10", package = "openssl" }
 rust-tls = { version="0.16", package = "rustls" }

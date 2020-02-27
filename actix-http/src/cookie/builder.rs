@@ -109,7 +109,8 @@ impl CookieBuilder {
     pub fn max_age_time(mut self, value: Duration) -> CookieBuilder {
         // Truncate any nanoseconds from the Duration, as they aren't represented within `Max-Age`
         // and would cause two otherwise identical `Cookie` instances to not be equivalent to one another.
-        self.cookie.set_max_age(Duration::seconds(value.whole_seconds()));
+        self.cookie
+            .set_max_age(Duration::seconds(value.whole_seconds()));
         self
     }
 

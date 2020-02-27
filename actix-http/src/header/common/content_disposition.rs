@@ -423,7 +423,7 @@ impl ContentDisposition {
 
     /// Return the value of *name* if exists.
     pub fn get_name(&self) -> Option<&str> {
-        self.parameters.iter().filter_map(|p| p.as_name()).nth(0)
+        self.parameters.iter().filter_map(|p| p.as_name()).next()
     }
 
     /// Return the value of *filename* if exists.
@@ -431,7 +431,7 @@ impl ContentDisposition {
         self.parameters
             .iter()
             .filter_map(|p| p.as_filename())
-            .nth(0)
+            .next()
     }
 
     /// Return the value of *filename\** if exists.
@@ -439,7 +439,7 @@ impl ContentDisposition {
         self.parameters
             .iter()
             .filter_map(|p| p.as_filename_ext())
-            .nth(0)
+            .next()
     }
 
     /// Return the value of the parameter which the `name` matches.
@@ -448,7 +448,7 @@ impl ContentDisposition {
         self.parameters
             .iter()
             .filter_map(|p| p.as_unknown(name))
-            .nth(0)
+            .next()
     }
 
     /// Return the value of the extended parameter which the `name` matches.
@@ -457,7 +457,7 @@ impl ContentDisposition {
         self.parameters
             .iter()
             .filter_map(|p| p.as_unknown_ext(name))
-            .nth(0)
+            .next()
     }
 }
 
