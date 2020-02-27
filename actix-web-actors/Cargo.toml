@@ -16,7 +16,7 @@ name = "actix_web_actors"
 path = "src/lib.rs"
 
 [dependencies]
-actix = "0.9.0"
+actix = "0.10.0-alpha.1"
 actix-web = "2.0.0"
 actix-http = "2.0.0-alpha.1"
 actix-codec = "0.2.0"
