@@ -1,4 +1,4 @@
-#![deny(rust_2018_idioms, warnings)]
+#![warn(rust_2018_idioms, warnings)]
 #![allow(
     clippy::needless_doctest_main,
     clippy::type_complexity,
