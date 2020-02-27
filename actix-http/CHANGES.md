@@ -6,6 +6,8 @@
 
 * Update the `time` dependency to 0.2.7
 
+* Moved actors messages support from actix crate, enabled with feature `actors`.
+
 ### Fixed
 
 * Allow `SameSite=None` cookies to be sent in a response.
