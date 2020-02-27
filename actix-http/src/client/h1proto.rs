@@ -8,7 +8,7 @@ use bytes::buf::BufMutExt;
 use bytes::{Bytes, BytesMut};
 use futures_core::Stream;
 use futures_util::future::poll_fn;
-use futures_util::{SinkExt, StreamExt, pin_mut};
+use futures_util::{pin_mut, SinkExt, StreamExt};
 
 use crate::error::PayloadError;
 use crate::h1;

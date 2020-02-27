@@ -1,4 +1,4 @@
-use time::{OffsetDateTime, PrimitiveDateTime, Date};
+use time::{Date, OffsetDateTime, PrimitiveDateTime};
 
 /// Attempt to parse a `time` string as one of either RFC 1123, RFC 850, or asctime.
 pub fn parse_http_date(time: &str) -> Option<PrimitiveDateTime> {
@@ -29,10 +29,10 @@ fn try_parse_rfc_850(time: &str) -> Option<PrimitiveDateTime> {
 
             match Date::try_from_ymd(expanded_year, dt.month(), dt.day()) {
                 Ok(date) => Some(PrimitiveDateTime::new(date, dt.time())),
-                Err(_) => None
+                Err(_) => None,
             }
         }
-        Err(_) => None
+        Err(_) => None,
     }
 }
 

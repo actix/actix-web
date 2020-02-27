@@ -36,7 +36,10 @@ impl BodySize {
 pub trait MessageBody {
     fn size(&self) -> BodySize;
 
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes, Error>>>;
+    fn poll_next(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Option<Result<Bytes, Error>>>;
 
     downcast_get_type_id!();
 }
@@ -48,7 +51,10 @@ impl MessageBody for () {
         BodySize::Empty
     }
 
-    fn poll_next(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Option<Result<Bytes, Error>>> {
+    fn poll_next(
+        self: Pin<&mut Self>,
+        _: &mut Context<'_>,
+    ) -> Poll<Option<Result<Bytes, Error>>> {
         Poll::Ready(None)
     }
 }
@@ -58,7 +64,10 @@ impl<T: MessageBody + Unpin> MessageBody for Box<T> {
         self.as_ref().size()
     }
 
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes, Error>>> {
+    fn poll_next(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Option<Result<Bytes, Error>>> {
         Pin::new(self.get_mut().as_mut()).poll_next(cx)
     }
 }
@@ -103,7 +112,10 @@ impl<B: MessageBody> MessageBody for ResponseBody<B> {
     }
 
     #[project]
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes, Error>>> {
+    fn poll_next(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Option<Result<Bytes, Error>>> {
         #[project]
         match self.project() {
             ResponseBody::Body(body) => body.poll_next(cx),
@@ -164,7 +176,10 @@ impl MessageBody for Body {
     }
 
     #[project]
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes, Error>>> {
+    fn poll_next(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Option<Result<Bytes, Error>>> {
         #[project]
         match self.project() {
             Body::None => Poll::Ready(None),
@@ -285,7 +300,10 @@ impl MessageBody for Bytes {
         BodySize::Sized(self.len())
     }
 
-    fn poll_next(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Option<Result<Bytes, Error>>> {
+    fn poll_next(
+        self: Pin<&mut Self>,
+        _: &mut Context<'_>,
+    ) -> Poll<Option<Result<Bytes, Error>>> {
         if self.is_empty() {
             Poll::Ready(None)
         } else {
@@ -299,11 +317,16 @@ impl MessageBody for BytesMut {
         BodySize::Sized(self.len())
     }
 
-    fn poll_next(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Option<Result<Bytes, Error>>> {
+    fn poll_next(
+        self: Pin<&mut Self>,
+        _: &mut Context<'_>,
+    ) -> Poll<Option<Result<Bytes, Error>>> {
         if self.is_empty() {
             Poll::Ready(None)
         } else {
-            Poll::Ready(Some(Ok(mem::replace(self.get_mut(), BytesMut::new()).freeze())))
+            Poll::Ready(Some(Ok(
+                mem::replace(self.get_mut(), BytesMut::new()).freeze()
+            )))
         }
     }
 }
@@ -313,7 +336,10 @@ impl MessageBody for &'static str {
         BodySize::Sized(self.len())
     }
 
-    fn poll_next(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Option<Result<Bytes, Error>>> {
+    fn poll_next(
+        self: Pin<&mut Self>,
+        _: &mut Context<'_>,
+    ) -> Poll<Option<Result<Bytes, Error>>> {
         if self.is_empty() {
             Poll::Ready(None)
         } else {
@@ -329,11 +355,17 @@ impl MessageBody for Vec<u8> {
         BodySize::Sized(self.len())
     }
 
-    fn poll_next(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Option<Result<Bytes, Error>>> {
+    fn poll_next(
+        self: Pin<&mut Self>,
+        _: &mut Context<'_>,
+    ) -> Poll<Option<Result<Bytes, Error>>> {
         if self.is_empty() {
             Poll::Ready(None)
         } else {
-            Poll::Ready(Some(Ok(Bytes::from(mem::replace(self.get_mut(), Vec::new())))))
+            Poll::Ready(Some(Ok(Bytes::from(mem::replace(
+                self.get_mut(),
+                Vec::new(),
+            )))))
         }
     }
 }
@@ -343,7 +375,10 @@ impl MessageBody for String {
         BodySize::Sized(self.len())
     }
 
-    fn poll_next(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Option<Result<Bytes, Error>>> {
+    fn poll_next(
+        self: Pin<&mut Self>,
+        _: &mut Context<'_>,
+    ) -> Poll<Option<Result<Bytes, Error>>> {
         if self.is_empty() {
             Poll::Ready(None)
         } else {
@@ -390,7 +425,10 @@ where
     /// Empty values are skipped to prevent [`BodyStream`]'s transmission being
     /// ended on a zero-length chunk, but rather proceed until the underlying
     /// [`Stream`] ends.
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes, Error>>> {
+    fn poll_next(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Option<Result<Bytes, Error>>> {
         let mut stream = self.project().stream;
         loop {
             let stream = stream.as_mut();
@@ -433,7 +471,10 @@ where
     /// Empty values are skipped to prevent [`SizedStream`]'s transmission being
     /// ended on a zero-length chunk, but rather proceed until the underlying
     /// [`Stream`] ends.
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes, Error>>> {
+    fn poll_next(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Option<Result<Bytes, Error>>> {
         let mut stream: Pin<&mut S> = self.project().stream;
         loop {
             let stream = stream.as_mut();
@@ -478,7 +519,10 @@ mod tests {
 
         assert_eq!("test".size(), BodySize::Sized(4));
         assert_eq!(
-            poll_fn(|cx| Pin::new(&mut "test").poll_next(cx)).await.unwrap().ok(),
+            poll_fn(|cx| Pin::new(&mut "test").poll_next(cx))
+                .await
+                .unwrap()
+                .ok(),
             Some(Bytes::from("test"))
         );
     }
@@ -497,10 +541,7 @@ mod tests {
 
         assert_eq!(sb.size(), BodySize::Sized(4));
         assert_eq!(
-            poll_fn(|cx| sb.as_mut().poll_next(cx))
-                .await
-                .unwrap()
-                .ok(),
+            poll_fn(|cx| sb.as_mut().poll_next(cx)).await.unwrap().ok(),
             Some(Bytes::from("test"))
         );
     }
@@ -535,7 +576,7 @@ mod tests {
             Some(Bytes::from("test"))
         );
     }
-    
+
     #[actix_rt::test]
     async fn test_bytes_mut() {
         let b = BytesMut::from("test");
@@ -569,7 +610,9 @@ mod tests {
     #[actix_rt::test]
     async fn test_unit() {
         assert_eq!(().size(), BodySize::Empty);
-        assert!(poll_fn(|cx| Pin::new(&mut ()).poll_next(cx)).await.is_none());
+        assert!(poll_fn(|cx| Pin::new(&mut ()).poll_next(cx))
+            .await
+            .is_none());
     }
 
     #[actix_rt::test]
@@ -628,11 +671,17 @@ mod tests {
             pin_mut!(body);
 
             assert_eq!(
-                poll_fn(|cx| body.as_mut().poll_next(cx)).await.unwrap().ok(),
+                poll_fn(|cx| body.as_mut().poll_next(cx))
+                    .await
+                    .unwrap()
+                    .ok(),
                 Some(Bytes::from("1")),
             );
             assert_eq!(
-                poll_fn(|cx| body.as_mut().poll_next(cx)).await.unwrap().ok(),
+                poll_fn(|cx| body.as_mut().poll_next(cx))
+                    .await
+                    .unwrap()
+                    .ok(),
                 Some(Bytes::from("2")),
             );
         }
@@ -648,14 +697,14 @@ mod tests {
                 let _z = **y;
                 Ok::<_, ()>(Bytes::new())
             })));
-        
+
             let waker = noop_waker();
             let mut context = Context::from_waker(&waker);
             pin_mut!(body_stream);
 
             let _ = body_stream.as_mut().unwrap().poll_next(&mut context);
             sender.send(()).unwrap();
-            let _ = std::mem::replace(&mut body_stream, Err([0; 32])).unwrap().poll_next(&mut context);        
+            let _ = std::mem::replace(&mut body_stream, Err([0; 32])).unwrap().poll_next(&mut context);
         }*/
     }
 
@@ -670,11 +719,17 @@ mod tests {
             );
             pin_mut!(body);
             assert_eq!(
-                poll_fn(|cx| body.as_mut().poll_next(cx)).await.unwrap().ok(),
+                poll_fn(|cx| body.as_mut().poll_next(cx))
+                    .await
+                    .unwrap()
+                    .ok(),
                 Some(Bytes::from("1")),
             );
             assert_eq!(
-                poll_fn(|cx| body.as_mut().poll_next(cx)).await.unwrap().ok(),
+                poll_fn(|cx| body.as_mut().poll_next(cx))
+                    .await
+                    .unwrap()
+                    .ok(),
                 Some(Bytes::from("2")),
             );
         }

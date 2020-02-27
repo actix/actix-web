@@ -255,63 +255,60 @@ where
 
         #[project]
         match this.state.project() {
-            ServiceResponseState::ServiceCall(call, send) => {
-                match call.poll(cx) {
-                    Poll::Ready(Ok(res)) => {
-                        let (res, body) = res.into().replace_body(());
+            ServiceResponseState::ServiceCall(call, send) => match call.poll(cx) {
+                Poll::Ready(Ok(res)) => {
+                    let (res, body) = res.into().replace_body(());
 
-                        let mut send = send.take().unwrap();
-                        let mut size = body.size();
-                        let h2_res =
-                            self.as_mut().prepare_response(res.head(), &mut size);
-                        this = self.as_mut().project();
+                    let mut send = send.take().unwrap();
+                    let mut size = body.size();
+                    let h2_res = self.as_mut().prepare_response(res.head(), &mut size);
+                    this = self.as_mut().project();
 
-                        let stream = match send.send_response(h2_res, size.is_eof()) {
-                            Err(e) => {
-                                trace!("Error sending h2 response: {:?}", e);
-                                return Poll::Ready(());
-                            }
-                            Ok(stream) => stream,
-                        };
-
-                        if size.is_eof() {
-                            Poll::Ready(())
-                        } else {
-                            this.state.set(ServiceResponseState::SendPayload(stream, body));
-                            self.poll(cx)
+                    let stream = match send.send_response(h2_res, size.is_eof()) {
+                        Err(e) => {
+                            trace!("Error sending h2 response: {:?}", e);
+                            return Poll::Ready(());
                         }
-                    }
-                    Poll::Pending => Poll::Pending,
-                    Poll::Ready(Err(e)) => {
-                        let res: Response = e.into().into();
-                        let (res, body) = res.replace_body(());
+                        Ok(stream) => stream,
+                    };
 
-                        let mut send = send.take().unwrap();
-                        let mut size = body.size();
-                        let h2_res =
-                            self.as_mut().prepare_response(res.head(), &mut size);
-                        this = self.as_mut().project();
-
-                        let stream = match send.send_response(h2_res, size.is_eof()) {
-                            Err(e) => {
-                                trace!("Error sending h2 response: {:?}", e);
-                                return Poll::Ready(());
-                            }
-                            Ok(stream) => stream,
-                        };
-
-                        if size.is_eof() {
-                            Poll::Ready(())
-                        } else {
-                            this.state.set(ServiceResponseState::SendPayload(
-                                stream,
-                                body.into_body(),
-                            ));
-                            self.poll(cx)
-                        }
+                    if size.is_eof() {
+                        Poll::Ready(())
+                    } else {
+                        this.state
+                            .set(ServiceResponseState::SendPayload(stream, body));
+                        self.poll(cx)
                     }
                 }
-            }
+                Poll::Pending => Poll::Pending,
+                Poll::Ready(Err(e)) => {
+                    let res: Response = e.into().into();
+                    let (res, body) = res.replace_body(());
+
+                    let mut send = send.take().unwrap();
+                    let mut size = body.size();
+                    let h2_res = self.as_mut().prepare_response(res.head(), &mut size);
+                    this = self.as_mut().project();
+
+                    let stream = match send.send_response(h2_res, size.is_eof()) {
+                        Err(e) => {
+                            trace!("Error sending h2 response: {:?}", e);
+                            return Poll::Ready(());
+                        }
+                        Ok(stream) => stream,
+                    };
+
+                    if size.is_eof() {
+                        Poll::Ready(())
+                    } else {
+                        this.state.set(ServiceResponseState::SendPayload(
+                            stream,
+                            body.into_body(),
+                        ));
+                        self.poll(cx)
+                    }
+                }
+            },
             ServiceResponseState::SendPayload(ref mut stream, ref mut body) => loop {
                 loop {
                     if let Some(ref mut buffer) = this.buffer {

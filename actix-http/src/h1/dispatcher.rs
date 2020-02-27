@@ -297,7 +297,10 @@ where
     /// true - got whouldblock
     /// false - didnt get whouldblock
     #[pin_project::project]
-    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Result<bool, DispatchError> {
+    fn poll_flush(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Result<bool, DispatchError> {
         if self.write_buf.is_empty() {
             return Ok(false);
         }
@@ -308,8 +311,7 @@ where
         let InnerDispatcher { io, write_buf, .. } = self.project();
         let mut io = Pin::new(io.as_mut().unwrap());
         while written < len {
-            match io.as_mut().poll_write(cx, &write_buf[written..])
-            {
+            match io.as_mut().poll_write(cx, &write_buf[written..]) {
                 Poll::Ready(Ok(0)) => {
                     return Err(DispatchError::Io(io::Error::new(
                         io::ErrorKind::WriteZero,
@@ -359,7 +361,8 @@ where
     }
 
     fn send_continue(self: Pin<&mut Self>) {
-        self.project().write_buf
+        self.project()
+            .write_buf
             .extend_from_slice(b"HTTP/1.1 100 Continue\r\n\r\n");
     }
 
@@ -376,47 +379,44 @@ where
                     Some(DispatcherMessage::Item(req)) => {
                         Some(self.as_mut().handle_request(req, cx)?)
                     }
-                    Some(DispatcherMessage::Error(res)) => {
-                        Some(self.as_mut().send_response(res, ResponseBody::Other(Body::Empty))?)
-                    }
+                    Some(DispatcherMessage::Error(res)) => Some(
+                        self.as_mut()
+                            .send_response(res, ResponseBody::Other(Body::Empty))?,
+                    ),
                     Some(DispatcherMessage::Upgrade(req)) => {
                         return Ok(PollResponse::Upgrade(req));
                     }
                     None => None,
                 },
-                State::ExpectCall(fut) => {
-                    match fut.poll(cx) {
-                        Poll::Ready(Ok(req)) => {
-                            self.as_mut().send_continue();
-                            this = self.as_mut().project();
-                            this.state.set(State::ServiceCall(this.service.call(req)));
-                            continue;
-                        }
-                        Poll::Ready(Err(e)) => {
-                            let res: Response = e.into().into();
-                            let (res, body) = res.replace_body(());
-                            Some(self.as_mut().send_response(res, body.into_body())?)
-                        }
-                        Poll::Pending => None,
+                State::ExpectCall(fut) => match fut.poll(cx) {
+                    Poll::Ready(Ok(req)) => {
+                        self.as_mut().send_continue();
+                        this = self.as_mut().project();
+                        this.state.set(State::ServiceCall(this.service.call(req)));
+                        continue;
                     }
-                }
-                State::ServiceCall(fut) => {
-                    match fut.poll(cx) {
-                        Poll::Ready(Ok(res)) => {
-                            let (res, body) = res.into().replace_body(());
-                            let state = self.as_mut().send_response(res, body)?;
-                            this = self.as_mut().project();
-                            this.state.set(state);
-                            continue;
-                        }
-                        Poll::Ready(Err(e)) => {
-                            let res: Response = e.into().into();
-                            let (res, body) = res.replace_body(());
-                            Some(self.as_mut().send_response(res, body.into_body())?)
-                        }
-                        Poll::Pending => None,
+                    Poll::Ready(Err(e)) => {
+                        let res: Response = e.into().into();
+                        let (res, body) = res.replace_body(());
+                        Some(self.as_mut().send_response(res, body.into_body())?)
                     }
-                }
+                    Poll::Pending => None,
+                },
+                State::ServiceCall(fut) => match fut.poll(cx) {
+                    Poll::Ready(Ok(res)) => {
+                        let (res, body) = res.into().replace_body(());
+                        let state = self.as_mut().send_response(res, body)?;
+                        this = self.as_mut().project();
+                        this.state.set(state);
+                        continue;
+                    }
+                    Poll::Ready(Err(e)) => {
+                        let res: Response = e.into().into();
+                        let (res, body) = res.replace_body(());
+                        Some(self.as_mut().send_response(res, body.into_body())?)
+                    }
+                    Poll::Pending => None,
+                },
                 State::SendPayload(mut stream) => {
                     loop {
                         if this.write_buf.len() < HW_BUFFER_SIZE {
@@ -627,7 +627,10 @@ where
     }
 
     /// keep-alive timer
-    fn poll_keepalive(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Result<(), DispatchError> {
+    fn poll_keepalive(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Result<(), DispatchError> {
         let mut this = self.as_mut().project();
         if this.ka_timer.is_none() {
             // shutdown timeout
@@ -738,7 +741,11 @@ where
                         if !inner.write_buf.is_empty() || inner.io.is_none() {
                             Poll::Pending
                         } else {
-                            match Pin::new(inner.project().io).as_pin_mut().unwrap().poll_shutdown(cx) {
+                            match Pin::new(inner.project().io)
+                                .as_pin_mut()
+                                .unwrap()
+                                .poll_shutdown(cx)
+                            {
                                 Poll::Ready(res) => {
                                     Poll::Ready(res.map_err(DispatchError::from))
                                 }
@@ -751,7 +758,11 @@ where
                     let should_disconnect =
                         if !inner.flags.contains(Flags::READ_DISCONNECT) {
                             let mut inner_p = inner.as_mut().project();
-                            read_available(cx, inner_p.io.as_mut().unwrap(), &mut inner_p.read_buf)?
+                            read_available(
+                                cx,
+                                inner_p.io.as_mut().unwrap(),
+                                &mut inner_p.read_buf,
+                            )?
                         } else {
                             None
                         };
@@ -783,11 +794,18 @@ where
                                 std::mem::replace(inner_p.codec, Codec::default()),
                                 std::mem::replace(inner_p.read_buf, BytesMut::default()),
                             );
-                            parts.write_buf = std::mem::replace(inner_p.write_buf, BytesMut::default());
+                            parts.write_buf = std::mem::replace(
+                                inner_p.write_buf,
+                                BytesMut::default(),
+                            );
                             let framed = Framed::from_parts(parts);
-                            let upgrade = inner_p.upgrade.take().unwrap().call((req, framed));
-                            self.as_mut().project().inner.set(DispatcherState::Upgrade(upgrade));
-                            return self.poll(cx);    
+                            let upgrade =
+                                inner_p.upgrade.take().unwrap().call((req, framed));
+                            self.as_mut()
+                                .project()
+                                .inner
+                                .set(DispatcherState::Upgrade(upgrade));
+                            return self.poll(cx);
                         }
 
                         // we didnt get WouldBlock from write operation,
@@ -834,12 +852,10 @@ where
                     }
                 }
             }
-            DispatcherState::Upgrade(fut) => {
-                fut.poll(cx).map_err(|e| {
-                    error!("Upgrade handler error: {}", e);
-                    DispatchError::Upgrade
-                })
-            }
+            DispatcherState::Upgrade(fut) => fut.poll(cx).map_err(|e| {
+                error!("Upgrade handler error: {}", e);
+                DispatchError::Upgrade
+            }),
         }
     }
 }
@@ -931,7 +947,10 @@ mod tests {
 
             if let DispatcherState::Normal(ref mut inner) = h1.inner {
                 assert!(inner.flags.contains(Flags::READ_DISCONNECT));
-                assert_eq!(&inner.io.take().unwrap().write_buf[..26], b"HTTP/1.1 400 Bad Request\r\n");
+                assert_eq!(
+                    &inner.io.take().unwrap().write_buf[..26],
+                    b"HTTP/1.1 400 Bad Request\r\n"
+                );
             }
         })
         .await;

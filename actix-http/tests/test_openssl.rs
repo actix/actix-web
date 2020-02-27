@@ -97,11 +97,9 @@ async fn test_h2_body() -> io::Result<()> {
     let data = "HELLOWORLD".to_owned().repeat(64 * 1024);
     let mut srv = test_server(move || {
         HttpService::build()
-            .h2(|mut req: Request<_>| {
-                async move {
-                    let body = load_body(req.take_payload()).await?;
-                    Ok::<_, Error>(Response::Ok().body(body))
-                }
+            .h2(|mut req: Request<_>| async move {
+                let body = load_body(req.take_payload()).await?;
+                Ok::<_, Error>(Response::Ok().body(body))
             })
             .openssl(ssl_acceptor())
             .map_err(|_| ())

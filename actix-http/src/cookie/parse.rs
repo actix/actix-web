@@ -376,7 +376,9 @@ mod tests {
         );
 
         let time_str = "Wed, 21 Oct 2015 07:28:00 GMT";
-        let expires = PrimitiveDateTime::parse(time_str, "%a, %d %b %Y %H:%M:%S").unwrap().assume_utc();
+        let expires = PrimitiveDateTime::parse(time_str, "%a, %d %b %Y %H:%M:%S")
+            .unwrap()
+            .assume_utc();
         expected.set_expires(expires);
         assert_eq_parse!(
             " foo=bar ;HttpOnly; Secure; Max-Age=4; Path=/foo; \
@@ -385,7 +387,9 @@ mod tests {
         );
 
         unexpected.set_domain("foo.com");
-        let bad_expires = PrimitiveDateTime::parse(time_str, "%a, %d %b %Y %H:%S:%M").unwrap().assume_utc();
+        let bad_expires = PrimitiveDateTime::parse(time_str, "%a, %d %b %Y %H:%S:%M")
+            .unwrap()
+            .assume_utc();
         expected.set_expires(bad_expires);
         assert_ne_parse!(
             " foo=bar ;HttpOnly; Secure; Max-Age=4; Path=/foo; \
@@ -414,8 +418,15 @@ mod tests {
     #[test]
     fn do_not_panic_on_large_max_ages() {
         let max_duration = Duration::max_value();
-        let expected = Cookie::build("foo", "bar").max_age_time(max_duration).finish();
-        let overflow_duration = max_duration.checked_add(Duration::nanoseconds(1)).unwrap_or(max_duration);
-        assert_eq_parse!(format!(" foo=bar; Max-Age={:?}", overflow_duration.whole_seconds()), expected);
+        let expected = Cookie::build("foo", "bar")
+            .max_age_time(max_duration)
+            .finish();
+        let overflow_duration = max_duration
+            .checked_add(Duration::nanoseconds(1))
+            .unwrap_or(max_duration);
+        assert_eq_parse!(
+            format!(" foo=bar; Max-Age={:?}", overflow_duration.whole_seconds()),
+            expected
+        );
     }
 }
