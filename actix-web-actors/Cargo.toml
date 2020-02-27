@@ -17,7 +17,7 @@ path = "src/lib.rs"
 
 [dependencies]
 actix = "0.9.0"
-actix-web = "2.0.0-rc"
+actix-web = "2.0.0"
 actix-http = "1.0.1"
 actix-codec = "0.2.0"
 bytes = "0.5.2"
