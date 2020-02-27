@@ -94,9 +94,12 @@ impl<B: MessageBody> MessageBody for EncoderBody<B> {
             EncoderBody::BoxedStream(ref b) => b.size(),
         }
     }
-    
+
     #[project]
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes, Error>>> {
+    fn poll_next(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Option<Result<Bytes, Error>>> {
         #[project]
         match self.project() {
             EncoderBody::Bytes(b) => {
@@ -112,7 +115,6 @@ impl<B: MessageBody> MessageBody for EncoderBody<B> {
     }
 }
 
-
 impl<B: MessageBody> MessageBody for Encoder<B> {
     fn size(&self) -> BodySize {
         if self.encoder.is_none() {
@@ -121,8 +123,11 @@ impl<B: MessageBody> MessageBody for Encoder<B> {
             BodySize::Stream
         }
     }
-    
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes, Error>>> {
+
+    fn poll_next(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Option<Result<Bytes, Error>>> {
         let mut this = self.project();
         loop {
             if *this.eof {

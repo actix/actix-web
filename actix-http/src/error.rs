@@ -14,7 +14,6 @@ use derive_more::{Display, From};
 pub use futures_channel::oneshot::Canceled;
 use http::uri::InvalidUri;
 use http::{header, Error as HttpError, StatusCode};
-use httparse;
 use serde::de::value::Error as DeError;
 use serde_json::error::Error as JsonError;
 use serde_urlencoded::ser::Error as FormError;
@@ -954,12 +953,12 @@ impl ResponseError for fail_ure::Error {}
 #[cfg(feature = "actors")]
 /// `InternalServerError` for `actix::MailboxError`
 /// This is supported on feature=`actors` only
-impl ResponseError for actix::MailboxError {} 
+impl ResponseError for actix::MailboxError {}
 
 #[cfg(feature = "actors")]
 /// `InternalServerError` for `actix::ResolverError`
 /// This is supported on feature=`actors` only
-impl ResponseError for actix::actors::resolver::ResolverError {} 
+impl ResponseError for actix::actors::resolver::ResolverError {}
 
 #[cfg(test)]
 mod tests {

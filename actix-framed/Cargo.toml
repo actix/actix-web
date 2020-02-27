@@ -23,7 +23,7 @@ actix-codec = "0.2.0"
 actix-service = "1.0.1"
 actix-router = "0.2.1"
 actix-rt = "1.0.0"
-actix-http = "1.0.1"
+actix-http = "2.0.0-alpha.1"
 
 bytes = "0.5.3"
 futures = "0.3.1"

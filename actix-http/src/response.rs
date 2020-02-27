@@ -9,7 +9,6 @@ use std::{fmt, str};
 use bytes::{Bytes, BytesMut};
 use futures_core::Stream;
 use serde::Serialize;
-use serde_json;
 
 use crate::body::{Body, BodyStream, MessageBody, ResponseBody};
 use crate::cookie::{Cookie, CookieJar};
