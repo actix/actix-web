@@ -4,6 +4,8 @@
 
 * Remove the unused `time` dependency
 
+* Fix missing `std::error::Error` implement for `MultipartError`.
+
 ## [0.2.0] - 2019-12-20
 
 * Release
