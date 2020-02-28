@@ -47,7 +47,7 @@
 //! ```
 
 #![doc(html_root_url = "https://docs.rs/cookie/0.11")]
-#![deny(missing_docs)]
+#![warn(missing_docs)]
 
 mod builder;
 mod delta;
