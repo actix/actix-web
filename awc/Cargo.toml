@@ -64,5 +64,5 @@ actix-tls = { version = "2.0.0-alpha.1", features=["openssl", "rustls"] }
 brotli2 = "0.3.2"
 flate2 = "1.0.13"
 futures = "0.3.1"
-env_logger = "0.6"
+env_logger = "0.7"
 webpki = "0.21"
