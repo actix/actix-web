@@ -13,12 +13,13 @@ use actix_utils::{oneshot, task::LocalWaker};
 use bytes::Bytes;
 use futures_util::future::{poll_fn, FutureExt, LocalBoxFuture};
 use fxhash::FxHashMap;
-use h2::client::{handshake, Connection, SendRequest};
+use h2::client::{Connection, SendRequest};
 use http::uri::Authority;
 use indexmap::IndexSet;
 use pin_project::pin_project;
 use slab::Slab;
 
+use super::h2proto::handshake;
 use super::connection::{ConnectionType, IoConnection};
 use super::error::ConnectError;
 use super::Connect;
@@ -593,7 +594,7 @@ where
                         Some(Acquired(this.key.clone(), this.inner.take())),
                     )));
                     Poll::Ready(())
-                } else {
+                } else {            
                     *this.h2 = Some(handshake(io).boxed_local());
                     self.poll(cx)
                 }
