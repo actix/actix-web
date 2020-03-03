@@ -16,6 +16,7 @@ use fxhash::FxHashMap;
 use h2::client::{handshake, Connection, SendRequest};
 use http::uri::Authority;
 use indexmap::IndexSet;
+use pin_project::pin_project;
 use slab::Slab;
 
 use super::connection::{ConnectionType, IoConnection};
@@ -422,6 +423,7 @@ where
     }
 }
 
+#[pin_project]
 struct ConnectorPoolSupport<T, Io>
 where
     Io: AsyncRead + AsyncWrite + Unpin + 'static,
@@ -439,7 +441,7 @@ where
     type Output = ();
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let this = unsafe { self.get_unchecked_mut() };
+        let this = self.project();
 
         let mut inner = this.inner.as_ref().borrow_mut();
         inner.waker.register(cx.waker());

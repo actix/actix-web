@@ -1,4 +1,4 @@
-#![deny(rust_2018_idioms, warnings)]
+#![warn(rust_2018_idioms, warnings)]
 #![allow(
     clippy::needless_doctest_main,
     clippy::type_complexity,
@@ -6,6 +6,12 @@
 )]
 //! Actix web is a small, pragmatic, and extremely fast web framework
 //! for Rust.
+//!
+//! ## Example
+//!
+//! The `#[actix_rt::main]` macro in the example below is provided by the Actix runtime
+//! crate, [`actix-rt`](https://crates.io/crates/actix-rt). You will need to include
+//! `actix-rt` in your dependencies for it to run.
 //!
 //! ```rust,no_run
 //! use actix_web::{web, App, Responder, HttpServer};

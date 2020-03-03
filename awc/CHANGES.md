@@ -4,7 +4,6 @@
 
 * Fix compilation with default features off
 
-
 ## [1.0.0] - 2019-12-13
 
 * Release

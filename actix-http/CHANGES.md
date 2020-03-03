@@ -1,10 +1,16 @@
 # Changes
 
-# [Unreleased]
+## [2.0.0-alpha.1] - 2020-02-27
 
 ### Changed
 
-* Update the `time` dependency to 0.2.5
+* Update the `time` dependency to 0.2.7.
+
+* Moved actors messages support from actix crate, enabled with feature `actors`.
+
+* Breaking change: trait MessageBody requires Unpin and accepting Pin<&mut Self> instead of &mut self in the poll_next().
+
+* MessageBody is not implemented for &'static [u8] anymore.
 
 ### Fixed
 

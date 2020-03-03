@@ -189,7 +189,7 @@ impl ToTokens for Route {
         } = self;
         let resource_name = name.to_string();
         let stream = quote! {
-            #[allow(non_camel_case_types)]
+            #[allow(non_camel_case_types, missing_docs)]
             pub struct #name;
 
             impl actix_web::dev::HttpServiceFactory for #name {

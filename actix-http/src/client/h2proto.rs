@@ -4,6 +4,7 @@ use std::time;
 use actix_codec::{AsyncRead, AsyncWrite};
 use bytes::Bytes;
 use futures_util::future::poll_fn;
+use futures_util::pin_mut;
 use h2::{client::SendRequest, SendStream};
 use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, TRANSFER_ENCODING};
 use http::{request::Request, Method, Version};
@@ -123,13 +124,14 @@ where
 }
 
 async fn send_body<B: MessageBody>(
-    mut body: B,
+    body: B,
     mut send: SendStream<Bytes>,
 ) -> Result<(), SendRequestError> {
     let mut buf = None;
+    pin_mut!(body);
     loop {
         if buf.is_none() {
-            match poll_fn(|cx| body.poll_next(cx)).await {
+            match poll_fn(|cx| body.as_mut().poll_next(cx)).await {
                 Some(Ok(b)) => {
                     send.reserve_capacity(b.len());
                     buf = Some(b);

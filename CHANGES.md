@@ -3,13 +3,17 @@
 
 ## [2.0.NEXT] - 2020-01-xx
 
+### Added
+
+* Add helper function for creating routes with `TRACE` method guard `web::trace()`
+
 ### Changed
 
 * Use `sha-1` crate instead of unmaintained `sha1` crate
 
 * Skip empty chunks when returning response from a `Stream` #1308
 
-* Update the `time` dependency to 0.2.5
+* Update the `time` dependency to 0.2.7
 
 ## [2.0.0] - 2019-12-25
 

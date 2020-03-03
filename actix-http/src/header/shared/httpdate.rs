@@ -5,7 +5,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use bytes::{buf::BufMutExt, BytesMut};
 use http::header::{HeaderValue, InvalidHeaderValue};
-use time::{PrimitiveDateTime, OffsetDateTime, offset};
+use time::{offset, OffsetDateTime, PrimitiveDateTime};
 
 use crate::error::ParseError;
 use crate::header::IntoHeaderValue;
@@ -20,8 +20,8 @@ impl FromStr for HttpDate {
 
     fn from_str(s: &str) -> Result<HttpDate, ParseError> {
         match time_parser::parse_http_date(s) {
-            Some(t) => Ok(HttpDate(t.using_offset(offset!(UTC)))),
-            None => Err(ParseError::Header)
+            Some(t) => Ok(HttpDate(t.assume_utc())),
+            None => Err(ParseError::Header),
         }
     }
 }
@@ -40,7 +40,7 @@ impl From<OffsetDateTime> for HttpDate {
 
 impl From<SystemTime> for HttpDate {
     fn from(sys: SystemTime) -> HttpDate {
-        HttpDate(PrimitiveDateTime::from(sys).using_offset(offset!(UTC)))
+        HttpDate(PrimitiveDateTime::from(sys).assume_utc())
     }
 }
 
@@ -49,7 +49,14 @@ impl IntoHeaderValue for HttpDate {
 
     fn try_into(self) -> Result<HeaderValue, Self::Error> {
         let mut wrt = BytesMut::with_capacity(29).writer();
-        write!(wrt, "{}", self.0.to_offset(offset!(UTC)).format("%a, %d %b %Y %H:%M:%S GMT")).unwrap();
+        write!(
+            wrt,
+            "{}",
+            self.0
+                .to_offset(offset!(UTC))
+                .format("%a, %d %b %Y %H:%M:%S GMT")
+        )
+        .unwrap();
         HeaderValue::from_maybe_shared(wrt.get_mut().split().freeze())
     }
 }
@@ -66,14 +73,13 @@ impl From<HttpDate> for SystemTime {
 #[cfg(test)]
 mod tests {
     use super::HttpDate;
-    use time::{PrimitiveDateTime, date, time, offset};
+    use time::{date, time, PrimitiveDateTime};
 
     #[test]
     fn test_date() {
-        let nov_07 = HttpDate(PrimitiveDateTime::new(
-            date!(1994-11-07),
-            time!(8:48:37)
-        ).using_offset(offset!(UTC)));
+        let nov_07 = HttpDate(
+            PrimitiveDateTime::new(date!(1994 - 11 - 07), time!(8:48:37)).assume_utc(),
+        );
 
         assert_eq!(
             "Sun, 07 Nov 1994 08:48:37 GMT".parse::<HttpDate>().unwrap(),

@@ -37,7 +37,7 @@ actix-utils = "1.0.3"
 actix-rt = "1.0.0"
 actix-server = "1.0.0"
 actix-testing = "1.0.0"
-awc = "1.0.0"
+awc = "1.0.1"
 
 base64 = "0.11"
 bytes = "0.5.3"
@@ -51,9 +51,9 @@ serde_json = "1.0"
 sha1 = "0.6"
 slab = "0.4"
 serde_urlencoded = "0.6.1"
-time = { version = "0.2.5", default-features = false, features = ["std"] }
+time = { version = "0.2.7", default-features = false, features = ["std"] }
 open-ssl = { version="0.10", package="openssl", optional = true }
 
 [dev-dependencies]
-actix-web = "2.0.0-rc"
-actix-http = "1.0.1"
+actix-web = "2.0.0"
+actix-http = "2.0.0-alpha.1"

@@ -193,6 +193,24 @@ pub fn head() -> Route {
     method(Method::HEAD)
 }
 
+/// Create *route* with `TRACE` method guard.
+///
+/// ```rust
+/// use actix_web::{web, App, HttpResponse};
+///
+/// let app = App::new().service(
+///     web::resource("/{project_id}")
+///         .route(web::trace().to(|| HttpResponse::Ok()))
+/// );
+/// ```
+///
+/// In the above example, one `HEAD` route gets added:
+///  * /{project_id}
+///
+pub fn trace() -> Route {
+    method(Method::TRACE)
+}
+
 /// Create *route* and add method guard.
 ///
 /// ```rust
