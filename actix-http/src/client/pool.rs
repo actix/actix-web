@@ -594,7 +594,7 @@ where
                         Some(Acquired(this.key.clone(), this.inner.take())),
                     )));
                     Poll::Ready(())
-                } else {            
+                } else {
                     *this.h2 = Some(handshake(io).boxed_local());
                     self.poll(cx)
                 }
