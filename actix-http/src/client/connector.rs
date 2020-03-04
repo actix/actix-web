@@ -50,13 +50,6 @@ type SslConnector = ();
 pub struct Connector<T, U> {
     connector: T,
     config: ConnectorConfig,
-    /*    timeout: Duration,
-    conn_lifetime: Duration,
-    conn_keep_alive: Duration,
-    disconnect_timeout: Duration,
-    limit: usize,
-    conn_window_size: u32,
-    stream_window_size: u32,*/
     #[allow(dead_code)]
     ssl: SslConnector,
     _t: PhantomData<U>,
