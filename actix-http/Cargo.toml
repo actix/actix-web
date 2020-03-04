@@ -102,7 +102,7 @@ futures = "0.3.1"
 env_logger = "0.7"
 serde_derive = "1.0"
 open-ssl = { version="0.10", package = "openssl" }
-rust-tls = { version="0.16", package = "rustls" }
+rust-tls = { version="0.17", package = "rustls" }
 
 [[bench]]
 name = "content-length"
