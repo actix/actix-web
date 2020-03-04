@@ -83,6 +83,31 @@ impl ClientBuilder {
         self
     }
 
+    /// Maximum supported http major version
+    /// When supplied 1 both HTTP/1.0 and HTTP/1.1 will be allowed
+    pub fn max_http_version(mut self, val: u8) -> Self {
+        self.max_http_version = Some(val);
+        self
+    }
+
+    /// Indicates the initial window size (in octets) for
+    /// HTTP2 stream-level flow control for received data.
+    ///
+    /// The default value is 65,535 and is good for APIs, but not for big objects.
+    pub fn initial_window_size(mut self, size: u32) -> Self {
+        self.stream_window_size = Some(size);
+        self
+    }
+
+    /// Indicates the initial window size (in octets) for
+    /// HTTP2 connection-level flow control for received data.
+    ///
+    /// The default value is 65,535 and is good for APIs, but not for big objects.
+    pub fn initial_connection_window_size(mut self, size: u32) -> Self {
+        self.conn_window_size = Some(size);
+        self
+    }
+
     /// Set max number of redirects.
     ///
     /// Max redirects is set to 10 by default.
