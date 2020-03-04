@@ -12,7 +12,11 @@
 
 * MessageBody is not implemented for &'static [u8] anymore.
 
-* Change defaul initial window size and connection window size for HTTP2 to 5MB and 2MB respectively. This 7 times improves download speed for awc when downloading large objects.
+* Change default initial window size and connection window size for HTTP2 to 2MB and 1MB respectively to improve download speed for awc when downloading large objects.
+
+* client::Connector accepts initial_window_size and initial_connection_window_size HTTP2 configuration
+
+* client::Connector allowing to set max_http_version to limit HTTP version to be used
 
 ### Fixed
 

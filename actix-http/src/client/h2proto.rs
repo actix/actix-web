@@ -1,12 +1,15 @@
 use std::convert::TryFrom;
-use std::time;
 use std::future::Future;
+use std::time;
 
 use actix_codec::{AsyncRead, AsyncWrite};
 use bytes::Bytes;
 use futures_util::future::poll_fn;
 use futures_util::pin_mut;
-use h2::{client::{SendRequest, Connection, Builder}, SendStream};
+use h2::{
+    client::{Builder, Connection, SendRequest},
+    SendStream,
+};
 use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, TRANSFER_ENCODING};
 use http::{request::Request, Method, Version};
 
@@ -15,6 +18,7 @@ use crate::header::HeaderMap;
 use crate::message::{RequestHeadType, ResponseHead};
 use crate::payload::Payload;
 
+use super::config::ConnectorConfig;
 use super::connection::{ConnectionType, IoConnection};
 use super::error::SendRequestError;
 use super::pool::Acquired;
@@ -187,20 +191,17 @@ fn release<T: AsyncRead + AsyncWrite + Unpin + 'static>(
     }
 }
 
-
-// These values are taken from hyper/src/proto/h2/client.rs
-const DEFAULT_H2_CONN_WINDOW: u32 = 1024 * 1024 * 5; // 5mb
-const DEFAULT_H2_STREAM_WINDOW: u32 = 1024 * 1024 * 2; // 2mb
-
-pub(crate) fn handshake<Io>(io: Io)
-    -> impl Future<Output=Result<(SendRequest<Bytes>, Connection<Io, Bytes>), h2::Error>>
+pub(crate) fn handshake<Io>(
+    io: Io,
+    config: &ConnectorConfig,
+) -> impl Future<Output = Result<(SendRequest<Bytes>, Connection<Io, Bytes>), h2::Error>>
 where
     Io: AsyncRead + AsyncWrite + Unpin + 'static,
 {
     let mut builder = Builder::new();
     builder
-        .initial_window_size(DEFAULT_H2_CONN_WINDOW)
-        .initial_connection_window_size(DEFAULT_H2_STREAM_WINDOW)
+        .initial_window_size(config.stream_window_size)
+        .initial_connection_window_size(config.conn_window_size)
         .enable_push(false);
     builder.handshake(io)
 }
