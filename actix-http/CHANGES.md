@@ -12,6 +12,8 @@
 
 * MessageBody is not implemented for &'static [u8] anymore.
 
+* Change defaul initial window size and connection window size for HTTP2 to 5MB and 2MB respectively. This 7 times improves download speed for awc when downloading large objects.
+
 ### Fixed
 
 * Allow `SameSite=None` cookies to be sent in a response.
