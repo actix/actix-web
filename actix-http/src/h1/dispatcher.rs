@@ -73,7 +73,7 @@ where
     U::Error: fmt::Display,
 {
     Normal(#[pin] InnerDispatcher<T, S, B, X, U>),
-    Upgrade(#[pin] U::Future),
+    Upgrade(Pin<Box<U::Future>>),
 }
 
 #[pin_project]
@@ -123,8 +123,8 @@ where
     B: MessageBody,
 {
     None,
-    ExpectCall(#[pin] X::Future),
-    ServiceCall(#[pin] S::Future),
+    ExpectCall(Pin<Box<X::Future>>),
+    ServiceCall(Pin<Box<S::Future>>),
     SendPayload(#[pin] ResponseBody<B>),
 }
 
@@ -391,11 +391,11 @@ where
                     }
                     None => None,
                 },
-                State::ExpectCall(fut) => match fut.poll(cx) {
+                State::ExpectCall(fut) => match fut.as_mut().poll(cx) {
                     Poll::Ready(Ok(req)) => {
                         self.as_mut().send_continue();
                         this = self.as_mut().project();
-                        this.state.set(State::ServiceCall(this.service.call(req)));
+                        this.state.set(State::ServiceCall(Box::pin(this.service.call(req))));
                         continue;
                     }
                     Poll::Ready(Err(e)) => {
@@ -405,7 +405,7 @@ where
                     }
                     Poll::Pending => None,
                 },
-                State::ServiceCall(fut) => match fut.poll(cx) {
+                State::ServiceCall(fut) => match fut.as_mut().poll(cx) {
                     Poll::Ready(Ok(res)) => {
                         let (res, body) = res.into().replace_body(());
                         let state = self.as_mut().send_response(res, body)?;
@@ -485,8 +485,8 @@ where
     ) -> Result<State<S, B, X>, DispatchError> {
         // Handle `EXPECT: 100-Continue` header
         let req = if req.head().expect() {
-            let mut task = self.as_mut().project().expect.call(req);
-            match unsafe { Pin::new_unchecked(&mut task) }.poll(cx) {
+            let mut task = Box::pin(self.as_mut().project().expect.call(req));
+            match task.as_mut().poll(cx) {
                 Poll::Ready(Ok(req)) => {
                     self.as_mut().send_continue();
                     req
@@ -504,8 +504,8 @@ where
         };
 
         // Call service
-        let mut task = self.as_mut().project().service.call(req);
-        match unsafe { Pin::new_unchecked(&mut task) }.poll(cx) {
+        let mut task = Box::pin(self.as_mut().project().service.call(req));
+        match task.as_mut().poll(cx) {
             Poll::Ready(Ok(res)) => {
                 let (res, body) = res.into().replace_body(());
                 self.send_response(res, body)
@@ -807,7 +807,7 @@ where
                             self.as_mut()
                                 .project()
                                 .inner
-                                .set(DispatcherState::Upgrade(upgrade));
+                                .set(DispatcherState::Upgrade(Box::pin(upgrade)));
                             return self.poll(cx);
                         }
 
@@ -855,7 +855,7 @@ where
                     }
                 }
             }
-            DispatcherState::Upgrade(fut) => fut.poll(cx).map_err(|e| {
+            DispatcherState::Upgrade(fut) => fut.as_mut().poll(cx).map_err(|e| {
                 error!("Upgrade handler error: {}", e);
                 DispatchError::Upgrade
             }),
