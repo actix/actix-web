@@ -83,37 +83,41 @@ impl Connector<(), ()> {
         }
     }
 
-    // Build Ssl connector based on features config and supplied alpn protocols
-    fn build_ssl(protocols: Vec<Vec<u8>>) -> SslConnector {
-        #[cfg(feature = "openssl")]
-        {
-            use actix_connect::ssl::openssl::SslMethod;
-            use bytes::{BufMut, BytesMut};
+    // Build Ssl connector with openssl, based on supplied alpn protocols
+    #[cfg(feature = "openssl")]
+    fn build_ssl(protocols: Vec<Vec<u8>>) -> SslConnector 
+    {
+        use actix_connect::ssl::openssl::SslMethod;
+        use bytes::{BufMut, BytesMut};
 
-            let mut alpn = BytesMut::with_capacity(20);
-            for proto in protocols.iter() {
-                alpn.put_u8(proto.len() as u8);
-                alpn.put(proto.as_slice());
-            }
+        let mut alpn = BytesMut::with_capacity(20);
+        for proto in protocols.iter() {
+            alpn.put_u8(proto.len() as u8);
+            alpn.put(proto.as_slice());
+        }
 
-            let mut ssl = OpensslConnector::builder(SslMethod::tls()).unwrap();
-            let _ = ssl
-                .set_alpn_protos(&alpn)
-                .map_err(|e| error!("Can not set alpn protocol: {:?}", e));
-            SslConnector::Openssl(ssl.build())
-        }
-        #[cfg(all(not(feature = "openssl"), feature = "rustls"))]
-        {
-            let mut config = ClientConfig::new();
-            config.set_protocols(&protocols);
-            config
-                .root_store
-                .add_server_trust_anchors(&actix_tls::rustls::TLS_SERVER_ROOTS);
-            SslConnector::Rustls(Arc::new(config))
-        }
-        #[cfg(not(any(feature = "openssl", feature = "rustls")))]
-        {}
+        let mut ssl = OpensslConnector::builder(SslMethod::tls()).unwrap();
+        let _ = ssl
+            .set_alpn_protos(&alpn)
+            .map_err(|e| error!("Can not set alpn protocol: {:?}", e));
+        SslConnector::Openssl(ssl.build())
     }
+
+    // Build Ssl connector with rustls, based on supplied alpn protocols
+    #[cfg(all(not(feature = "openssl"), feature = "rustls"))]
+    fn build_ssl(protocols: Vec<Vec<u8>>) -> SslConnector 
+    {
+        let mut config = ClientConfig::new();
+        config.set_protocols(&protocols);
+        config
+            .root_store
+            .add_server_trust_anchors(&actix_tls::rustls::TLS_SERVER_ROOTS);
+        SslConnector::Rustls(Arc::new(config))
+    }
+
+    // ssl turned off, provides empty ssl connector
+    #[cfg(not(any(feature = "openssl", feature = "rustls")))]
+    fn build_ssl(_: Vec<Vec<u8>>) -> SslConnector {}
 }
 
 impl<T, U> Connector<T, U> {

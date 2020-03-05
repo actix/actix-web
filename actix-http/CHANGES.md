@@ -1,5 +1,15 @@
 # Changes
 
+## [NEXT] - 2020-02-27
+
+### Changed
+
+* Change default initial window size and connection window size for HTTP2 to 2MB and 1MB respectively to improve download speed for awc when downloading large objects.
+
+* client::Connector accepts initial_window_size and initial_connection_window_size HTTP2 configuration
+
+* client::Connector allowing to set max_http_version to limit HTTP version to be used
+
 ## [2.0.0-alpha.1] - 2020-02-27
 
 ### Changed
@@ -11,12 +21,6 @@
 * Breaking change: trait MessageBody requires Unpin and accepting Pin<&mut Self> instead of &mut self in the poll_next().
 
 * MessageBody is not implemented for &'static [u8] anymore.
-
-* Change default initial window size and connection window size for HTTP2 to 2MB and 1MB respectively to improve download speed for awc when downloading large objects.
-
-* client::Connector accepts initial_window_size and initial_connection_window_size HTTP2 configuration
-
-* client::Connector allowing to set max_http_version to limit HTTP version to be used
 
 ### Fixed
 
