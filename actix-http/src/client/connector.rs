@@ -72,13 +72,6 @@ impl Connector<(), ()> {
             ssl: Self::build_ssl(vec![b"h2".to_vec(), b"http/1.1".to_vec()]),
             connector: default_connector(),
             config: ConnectorConfig::default(),
-            /*            timeout: Duration::from_secs(1),
-            conn_lifetime: Duration::from_secs(75),
-            conn_keep_alive: Duration::from_secs(15),
-            disconnect_timeout: Duration::from_millis(3000),
-            limit: 100,
-            conn_window_size: DEFAULT_H2_CONN_WINDOW,
-            stream_window_size: DEFAULT_H2_STREAM_WINDOW,*/
             _t: PhantomData,
         }
     }
