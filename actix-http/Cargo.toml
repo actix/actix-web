@@ -45,11 +45,11 @@ actors = ["actix"]
 [dependencies]
 actix-service = "1.0.5"
 actix-codec = "0.2.0"
-actix-connect = "1.0.2"
+actix-connect = "2.0.0-alpha.1"
 actix-utils = "1.0.6"
 actix-rt = "1.0.0"
 actix-threadpool = "0.3.1"
-actix-tls = { version = "1.0.0", optional = true }
+actix-tls = { version = "2.0.0-alpha.1", optional = true }
 actix = { version = "0.10.0-alpha.1", optional = true }
 
 base64 = "0.11"
@@ -94,15 +94,15 @@ fail-ure = { version = "0.1.5", package="failure", optional = true }
 
 [dev-dependencies]
 actix-server = "1.0.1"
-actix-connect = { version = "1.0.2", features=["openssl"] }
+actix-connect = { version = "2.0.0-alpha.1", features=["openssl"] }
 actix-http-test = { version = "1.0.0", features=["openssl"] }
-actix-tls = { version = "1.0.0", features=["openssl"] }
+actix-tls = { version = "2.0.0-alpha.1", features=["openssl"] }
 criterion = "0.3"
 futures = "0.3.1"
 env_logger = "0.7"
 serde_derive = "1.0"
 open-ssl = { version="0.10", package = "openssl" }
-rust-tls = { version="0.16", package = "rustls" }
+rust-tls = { version="0.17", package = "rustls" }
 
 [[bench]]
 name = "content-length"

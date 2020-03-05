@@ -1,8 +1,10 @@
 # Changes
 
-## [NEXT] - 2020-02-27
+## [2.0.0-alpha.2] - someday
 
 ### Changed
+
+* Update `actix-connect` and `actix-tls` dependency to 2.0.0-alpha.1
 
 * Change default initial window size and connection window size for HTTP2 to 2MB and 1MB respectively to improve download speed for awc when downloading large objects.
 
@@ -15,11 +17,8 @@
 ### Changed
 
 * Update the `time` dependency to 0.2.7.
-
 * Moved actors messages support from actix crate, enabled with feature `actors`.
-
 * Breaking change: trait MessageBody requires Unpin and accepting Pin<&mut Self> instead of &mut self in the poll_next().
-
 * MessageBody is not implemented for &'static [u8] anymore.
 
 ### Fixed
