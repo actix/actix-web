@@ -164,13 +164,14 @@ where
     }
 
     /// Maximum supported http major version
-    /// When supplied 1 both HTTP/1.0 and HTTP/1.1 will be allowed
-    pub fn max_http_version(mut self, val: u8) -> Self {
-        self.ssl = Connector::build_ssl(if val == 1 {
-            vec![b"http/1.1".to_vec()]
-        } else {
-            vec![b"h2".to_vec(), b"http/1.1".to_vec()]
-        });
+    /// Supported versions http/1.1, http/2
+    pub fn max_http_version(mut self, val: http::Version) -> Self {
+        let versions = match val {
+            http::Version::HTTP_11 => vec![b"http/1.1".to_vec()],
+            http::Version::HTTP_2 => vec![b"h2".to_vec(), b"http/1.1".to_vec()],
+            _ => unimplemented!("actix-http:client: supported versions http/1.1, http/2"),
+        };
+        self.ssl = Connector::build_ssl(versions);
         self
     }
 

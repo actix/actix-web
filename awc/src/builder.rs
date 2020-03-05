@@ -5,7 +5,7 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use actix_http::client::{Connect as HttpConnect, ConnectError, Connection, Connector};
-use actix_http::http::{header, Error as HttpError, HeaderMap, HeaderName};
+use actix_http::http::{header, Error as HttpError, HeaderMap, HeaderName, self};
 use actix_service::Service;
 
 use crate::connect::{ConnectorWrapper, Connect};
@@ -19,7 +19,7 @@ pub struct ClientBuilder {
     default_headers: bool,
     allow_redirects: bool,
     max_redirects: usize,
-    max_http_version: Option<u8>,
+    max_http_version: Option<http::Version>,
     stream_window_size: Option<u32>,
     conn_window_size: Option<u32>,
     headers: HeaderMap,
@@ -84,8 +84,8 @@ impl ClientBuilder {
     }
 
     /// Maximum supported http major version
-    /// When supplied 1 both HTTP/1.0 and HTTP/1.1 will be allowed
-    pub fn max_http_version(mut self, val: u8) -> Self {
+    /// Supported versions http/1.1, http/2
+    pub fn max_http_version(mut self, val: http::Version) -> Self {
         self.max_http_version = Some(val);
         self
     }
