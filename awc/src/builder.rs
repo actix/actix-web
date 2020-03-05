@@ -169,8 +169,8 @@ impl ClientBuilder {
 
     /// Finish build process and create `Client` instance.
     pub fn finish(self) -> Client {
-        let connector = if self.connector.is_some() {
-            self.connector.unwrap()
+        let connector = if let Some(connector) = self.connector {
+            connector
         } else {
             let mut connector = Connector::new();
             if let Some(val) = self.max_http_version {
