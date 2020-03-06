@@ -12,7 +12,7 @@ workspace = ".."
 proc-macro = true
 
 [dependencies]
-quote = "=1.0.2"
+quote = "^1"
 syn = { version = "^1", features = ["full", "parsing"] }
 proc-macro2 = "^1"
 
