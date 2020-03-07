@@ -238,10 +238,10 @@ where
 ///
 ///     assert!(resp.status().is_success());
 ///
-///     let result: Person = test::read_json_body(resp).await;
+///     let result: Person = test::read_body_json(resp).await;
 /// }
 /// ```
-pub async fn read_json_body<T, B>(res: ServiceResponse<B>) -> T
+pub async fn read_body_json<T, B>(res: ServiceResponse<B>) -> T
 where
     B: MessageBody,
     T: DeserializeOwned,
@@ -1101,6 +1101,23 @@ mod tests {
         assert_eq!(result, Bytes::from_static(b"welcome!"));
     }
 
+    #[actix_rt::test]
+    async fn test_send_request() {
+        let mut app =
+            init_service(App::new().service(web::resource("/index.html").route(
+                web::get().to(|| async { HttpResponse::Ok().body("welcome!") }),
+            )))
+            .await;
+
+        let resp = TestRequest::get()
+            .uri("/index.html")
+            .send_request(&mut app)
+            .await;
+
+        let result = read_body(resp).await;
+        assert_eq!(result, Bytes::from_static(b"welcome!"));
+    }
+
     #[derive(Serialize, Deserialize)]
     pub struct Person {
         id: String,
@@ -1126,6 +1143,28 @@ mod tests {
 
         let result: Person = read_response_json(&mut app, req).await;
         assert_eq!(&result.id, "12345");
+    }
+
+    #[actix_rt::test]
+    async fn test_body_json() {
+        let mut app = init_service(App::new().service(web::resource("/people").route(
+            web::post().to(|person: web::Json<Person>| {
+                async { HttpResponse::Ok().json(person.into_inner()) }
+            }),
+        )))
+        .await;
+
+        let payload = r#"{"id":"12345","name":"User name"}"#.as_bytes();
+
+        let resp = TestRequest::post()
+            .uri("/people")
+            .header(header::CONTENT_TYPE, "application/json")
+            .set_payload(payload)
+            .send_request(&mut app)
+            .await;
+
+        let result: Person = read_body_json(resp).await;
+        assert_eq!(&result.name, "User name");
     }
 
     #[actix_rt::test]
