@@ -1,6 +1,7 @@
 //! Http client api
 use http::Uri;
 
+mod config;
 mod connection;
 mod connector;
 mod error;

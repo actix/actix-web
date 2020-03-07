@@ -1,5 +1,11 @@
 # Changes
 
+## [NEXT]
+
+* ClientBuilder accepts initial_window_size and initial_connection_window_size HTTP2 configuration
+
+* ClientBuilder allowing to set max_http_version to limit HTTP version to be used
+
 ## [1.0.1] - 2019-12-15
 
 * Fix compilation with default features off
