@@ -242,7 +242,7 @@ where
 /// ```
 pub async fn read_body_json<T, B>(res: ServiceResponse<B>) -> T
 where
-    B: MessageBody,
+    B: MessageBody + Unpin,
     T: DeserializeOwned,
 {
     let body = read_body(res).await;
