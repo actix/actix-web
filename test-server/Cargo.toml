@@ -56,4 +56,4 @@ open-ssl = { version="0.10", package="openssl", optional = true }
 
 [dev-dependencies]
 actix-web = "2.0.0"
-actix-http = "2.0.0-alpha.1"
+actix-http = "2.0.0-alpha.2"
