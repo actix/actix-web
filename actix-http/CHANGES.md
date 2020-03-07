@@ -1,16 +1,20 @@
 # Changes
 
-## [2.0.0-alpha.2] - someday
+## [2.0.0-alpha.2] - 2020-03-07
 
 ### Changed
 
-* Update `actix-connect` and `actix-tls` dependency to 2.0.0-alpha.1
+* Update `actix-connect` and `actix-tls` dependency to 2.0.0-alpha.1. [#1395]
 
-* Change default initial window size and connection window size for HTTP2 to 2MB and 1MB respectively to improve download speed for awc when downloading large objects.
+* Change default initial window size and connection window size for HTTP2 to 2MB and 1MB respectively
+  to improve download speed for awc when downloading large objects. [#1394]
 
-* client::Connector accepts initial_window_size and initial_connection_window_size HTTP2 configuration
+* client::Connector accepts initial_window_size and initial_connection_window_size HTTP2 configuration. [#1394]
 
-* client::Connector allowing to set max_http_version to limit HTTP version to be used
+* client::Connector allowing to set max_http_version to limit HTTP version to be used. [#1394]
+
+[#1394]: https://github.com/actix/actix-web/pull/1394
+[#1395]: https://github.com/actix/actix-web/pull/1395
 
 ## [2.0.0-alpha.1] - 2020-02-27
 
