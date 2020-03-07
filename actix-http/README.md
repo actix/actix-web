@@ -14,19 +14,34 @@ Actix http
 
 ```rust
 // see examples/framed_hello.rs for complete list of used crates.
-extern crate actix_http;
-use actix_http::{h1, Response, ServiceConfig};
+use std::{env, io};
 
-fn main() {
-    Server::new().bind("framed_hello", "127.0.0.1:8080", || {
-        IntoFramed::new(|| h1::Codec::new(ServiceConfig::default()))	// <- create h1 codec
-            .and_then(TakeItem::new().map_err(|_| ()))	                // <- read one request
-            .and_then(|(_req, _framed): (_, Framed<_, _>)| {	        // <- send response and close conn
-                SendResponse::send(_framed, Response::Ok().body("Hello world!"))
-                    .map_err(|_| ())
-                    .map(|_| ())
-            })
-    }).unwrap().run();
+use actix_http::{HttpService, Response};
+use actix_server::Server;
+use futures::future;
+use http::header::HeaderValue;
+use log::info;
+
+#[actix_rt::main]
+async fn main() -> io::Result<()> {
+    env::set_var("RUST_LOG", "hello_world=info");
+    env_logger::init();
+
+    Server::build()
+        .bind("hello-world", "127.0.0.1:8080", || {
+            HttpService::build()
+                .client_timeout(1000)
+                .client_disconnect(1000)
+                .finish(|_req| {
+                    info!("{:?}", _req);
+                    let mut res = Response::Ok();
+                    res.header("x-head", HeaderValue::from_static("dummy value!"));
+                    future::ok::<_, ()>(res.body("Hello world!"))
+                })
+                .tcp()
+        })?
+        .run()
+        .await
 }
 ```
 
