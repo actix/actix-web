@@ -4,11 +4,11 @@ use std::fmt;
 use std::rc::Rc;
 use std::time::Duration;
 
-use actix_http::client::{Connect, ConnectError, Connection, Connector};
-use actix_http::http::{header, Error as HttpError, HeaderMap, HeaderName};
+use actix_http::client::{Connect as HttpConnect, ConnectError, Connection, Connector};
+use actix_http::http::{header, Error as HttpError, HeaderMap, HeaderName, self};
 use actix_service::Service;
 
-use crate::connect::ConnectorWrapper;
+use crate::connect::{ConnectorWrapper, Connect};
 use crate::{Client, ClientConfig};
 
 /// An HTTP Client builder
@@ -16,10 +16,15 @@ use crate::{Client, ClientConfig};
 /// This type can be used to construct an instance of `Client` through a
 /// builder-like pattern.
 pub struct ClientBuilder {
-    config: ClientConfig,
     default_headers: bool,
     allow_redirects: bool,
     max_redirects: usize,
+    max_http_version: Option<http::Version>,
+    stream_window_size: Option<u32>,
+    conn_window_size: Option<u32>,
+    headers: HeaderMap,
+    timeout: Option<Duration>,
+    connector: Option<RefCell<Box<dyn Connect>>>,
 }
 
 impl Default for ClientBuilder {
@@ -34,25 +39,24 @@ impl ClientBuilder {
             default_headers: true,
             allow_redirects: true,
             max_redirects: 10,
-            config: ClientConfig {
-                headers: HeaderMap::new(),
-                timeout: Some(Duration::from_secs(5)),
-                connector: RefCell::new(Box::new(ConnectorWrapper(
-                    Connector::new().finish(),
-                ))),
-            },
+            headers: HeaderMap::new(),
+            timeout: Some(Duration::from_secs(5)),
+            connector: None,
+            max_http_version: None,
+            stream_window_size: None,
+            conn_window_size: None,
         }
     }
 
     /// Use custom connector service.
     pub fn connector<T>(mut self, connector: T) -> Self
     where
-        T: Service<Request = Connect, Error = ConnectError> + 'static,
+        T: Service<Request = HttpConnect, Error = ConnectError> + 'static,
         T::Response: Connection,
         <T::Response as Connection>::Future: 'static,
         T::Future: 'static,
     {
-        self.config.connector = RefCell::new(Box::new(ConnectorWrapper(connector)));
+        self.connector = Some(RefCell::new(Box::new(ConnectorWrapper(connector))));
         self
     }
 
@@ -61,13 +65,13 @@ impl ClientBuilder {
     /// Request timeout is the total time before a response must be received.
     /// Default value is 5 seconds.
     pub fn timeout(mut self, timeout: Duration) -> Self {
-        self.config.timeout = Some(timeout);
+        self.timeout = Some(timeout);
         self
     }
 
     /// Disable request timeout.
     pub fn disable_timeout(mut self) -> Self {
-        self.config.timeout = None;
+        self.timeout = None;
         self
     }
 
@@ -76,6 +80,31 @@ impl ClientBuilder {
     /// Redirects are allowed by default.
     pub fn disable_redirects(mut self) -> Self {
         self.allow_redirects = false;
+        self
+    }
+
+    /// Maximum supported http major version
+    /// Supported versions http/1.1, http/2
+    pub fn max_http_version(mut self, val: http::Version) -> Self {
+        self.max_http_version = Some(val);
+        self
+    }
+
+    /// Indicates the initial window size (in octets) for
+    /// HTTP2 stream-level flow control for received data.
+    ///
+    /// The default value is 65,535 and is good for APIs, but not for big objects.
+    pub fn initial_window_size(mut self, size: u32) -> Self {
+        self.stream_window_size = Some(size);
+        self
+    }
+
+    /// Indicates the initial window size (in octets) for
+    /// HTTP2 connection-level flow control for received data.
+    ///
+    /// The default value is 65,535 and is good for APIs, but not for big objects.
+    pub fn initial_connection_window_size(mut self, size: u32) -> Self {
+        self.conn_window_size = Some(size);
         self
     }
 
@@ -106,7 +135,7 @@ impl ClientBuilder {
         match HeaderName::try_from(key) {
             Ok(key) => match value.try_into() {
                 Ok(value) => {
-                    self.config.headers.append(key, value);
+                    self.headers.append(key, value);
                 }
                 Err(e) => log::error!("Header value error: {:?}", e),
             },
@@ -140,7 +169,27 @@ impl ClientBuilder {
 
     /// Finish build process and create `Client` instance.
     pub fn finish(self) -> Client {
-        Client(Rc::new(self.config))
+        let connector = if let Some(connector) = self.connector {
+            connector
+        } else {
+            let mut connector = Connector::new();
+            if let Some(val) = self.max_http_version {
+                connector = connector.max_http_version(val)
+            };
+            if let Some(val) = self.conn_window_size {
+                connector = connector.initial_connection_window_size(val)
+            };
+            if let Some(val) = self.stream_window_size {
+                connector = connector.initial_window_size(val)
+            };
+            RefCell::new(Box::new(ConnectorWrapper(connector.finish())) as Box<dyn Connect>)
+        };
+        let config = ClientConfig {
+            headers: self.headers,
+            timeout: self.timeout,
+            connector,
+        };
+        Client(Rc::new(config))
     }
 }
 
@@ -153,7 +202,6 @@ mod tests {
         let client = ClientBuilder::new().basic_auth("username", Some("password"));
         assert_eq!(
             client
-                .config
                 .headers
                 .get(header::AUTHORIZATION)
                 .unwrap()
@@ -165,7 +213,6 @@ mod tests {
         let client = ClientBuilder::new().basic_auth("username", None);
         assert_eq!(
             client
-                .config
                 .headers
                 .get(header::AUTHORIZATION)
                 .unwrap()
@@ -180,7 +227,6 @@ mod tests {
         let client = ClientBuilder::new().bearer_auth("someS3cr3tAutht0k3n");
         assert_eq!(
             client
-                .config
                 .headers
                 .get(header::AUTHORIZATION)
                 .unwrap()

@@ -1,5 +1,9 @@
 # Changes
 
+## [Unreleased] - 2020-xx-xx
+
+* Update the `time` dependency to 0.2.5
+
 ## [0.2.1] - 2020-01-10
 
 * Fix panic with already borrowed: BorrowMutError #1263

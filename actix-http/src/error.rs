@@ -1,5 +1,4 @@
 //! Error and Result module
-use std::any::TypeId;
 use std::cell::RefCell;
 use std::io::Write;
 use std::str::Utf8Error;
@@ -15,7 +14,6 @@ use derive_more::{Display, From};
 pub use futures_channel::oneshot::Canceled;
 use http::uri::InvalidUri;
 use http::{header, Error as HttpError, StatusCode};
-use httparse;
 use serde::de::value::Error as DeError;
 use serde_json::error::Error as JsonError;
 use serde_urlencoded::ser::Error as FormError;
@@ -83,25 +81,10 @@ pub trait ResponseError: fmt::Debug + fmt::Display {
         resp.set_body(Body::from(buf))
     }
 
-    #[doc(hidden)]
-    fn __private_get_type_id__(&self) -> TypeId
-    where
-        Self: 'static,
-    {
-        TypeId::of::<Self>()
-    }
+    downcast_get_type_id!();
 }
 
-impl dyn ResponseError + 'static {
-    /// Downcasts a response error to a specific type.
-    pub fn downcast_ref<T: ResponseError + 'static>(&self) -> Option<&T> {
-        if self.__private_get_type_id__() == TypeId::of::<T>() {
-            unsafe { Some(&*(self as *const dyn ResponseError as *const T)) }
-        } else {
-            None
-        }
-    }
-}
+downcast!(ResponseError);
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -966,6 +949,16 @@ where
 #[cfg(feature = "failure")]
 /// Compatibility for `failure::Error`
 impl ResponseError for fail_ure::Error {}
+
+#[cfg(feature = "actors")]
+/// `InternalServerError` for `actix::MailboxError`
+/// This is supported on feature=`actors` only
+impl ResponseError for actix::MailboxError {}
+
+#[cfg(feature = "actors")]
+/// `InternalServerError` for `actix::ResolverError`
+/// This is supported on feature=`actors` only
+impl ResponseError for actix::actors::resolver::ResolverError {}
 
 #[cfg(test)]
 mod tests {

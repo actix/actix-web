@@ -1,6 +1,6 @@
 [package]
 name = "actix-http"
-version = "1.0.1"
+version = "2.0.0-alpha.2"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix http primitives"
 readme = "README.md"
@@ -15,7 +15,7 @@ license = "MIT/Apache-2.0"
 edition = "2018"
 
 [package.metadata.docs.rs]
-features = ["openssl", "rustls", "failure", "compress", "secure-cookies"]
+features = ["openssl", "rustls", "failure", "compress", "secure-cookies","actors"]
 
 [lib]
 name = "actix_http"
@@ -39,20 +39,23 @@ failure = ["fail-ure"]
 # support for secure cookies
 secure-cookies = ["ring"]
 
+# support for actix Actor messages
+actors = ["actix"]
+
 [dependencies]
-actix-service = "1.0.1"
+actix-service = "1.0.5"
 actix-codec = "0.2.0"
-actix-connect = "1.0.1"
-actix-utils = "1.0.3"
+actix-connect = "2.0.0-alpha.1"
+actix-utils = "1.0.6"
 actix-rt = "1.0.0"
 actix-threadpool = "0.3.1"
-actix-tls = { version = "1.0.0", optional = true }
+actix-tls = { version = "2.0.0-alpha.1", optional = true }
+actix = { version = "0.10.0-alpha.1", optional = true }
 
 base64 = "0.11"
 bitflags = "1.2"
 bytes = "0.5.3"
 copyless = "0.1.4"
-chrono = "0.4.6"
 derive_more = "0.99.2"
 either = "1.5.3"
 encoding_rs = "0.8"
@@ -77,7 +80,7 @@ serde_json = "1.0"
 sha-1 = "0.8"
 slab = "0.4"
 serde_urlencoded = "0.6.1"
-time = "0.1.42"
+time = { version = "0.2.7", default-features = false, features = ["std"] }
 
 # for secure cookie
 ring = { version = "0.16.9", optional = true }
@@ -90,12 +93,17 @@ flate2 = { version = "1.0.13", optional = true }
 fail-ure = { version = "0.1.5", package="failure", optional = true }
 
 [dev-dependencies]
-actix-server = "1.0.0"
-actix-connect = { version = "1.0.0", features=["openssl"] }
+actix-server = "1.0.1"
+actix-connect = { version = "2.0.0-alpha.1", features=["openssl"] }
 actix-http-test = { version = "1.0.0", features=["openssl"] }
-actix-tls = { version = "1.0.0", features=["openssl"] }
+actix-tls = { version = "2.0.0-alpha.1", features=["openssl"] }
+criterion = "0.3"
 futures = "0.3.1"
-env_logger = "0.6"
+env_logger = "0.7"
 serde_derive = "1.0"
 open-ssl = { version="0.10", package = "openssl" }
-rust-tls = { version="0.16", package = "rustls" }
+rust-tls = { version="0.17", package = "rustls" }
+
+[[bench]]
+name = "content-length"
+harness = false

@@ -9,7 +9,6 @@ use std::{fmt, str};
 use bytes::{Bytes, BytesMut};
 use futures_core::Stream;
 use serde::Serialize;
-use serde_json;
 
 use crate::body::{Body, BodyStream, MessageBody, ResponseBody};
 use crate::cookie::{Cookie, CookieJar};
@@ -637,7 +636,7 @@ impl ResponseBuilder {
     /// `ResponseBuilder` can not be used after this call.
     pub fn streaming<S, E>(&mut self, stream: S) -> Response
     where
-        S: Stream<Item = Result<Bytes, E>> + 'static,
+        S: Stream<Item = Result<Bytes, E>> + Unpin + 'static,
         E: Into<Error> + 'static,
     {
         self.body(Body::from_message(BodyStream::new(stream)))
