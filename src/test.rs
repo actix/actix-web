@@ -204,6 +204,54 @@ where
     bytes.freeze()
 }
 
+/// Helper function that returns a deserialized response body of a ServiceResponse.
+///
+/// ```rust
+/// use actix_web::{App, test, web, HttpResponse, http::header};
+/// use serde::{Serialize, Deserialize};
+///
+/// #[derive(Serialize, Deserialize)]
+/// pub struct Person {
+///     id: String,
+///     name: String,
+/// }
+///
+/// #[actix_rt::test]
+/// async fn test_post_person() {
+///     let mut app = test::init_service(
+///         App::new().service(
+///             web::resource("/people")
+///                 .route(web::post().to(|person: web::Json<Person>| async {
+///                     HttpResponse::Ok()
+///                         .json(person.into_inner())})
+///                     ))
+///     ).await;
+///
+///     let payload = r#"{"id":"12345","name":"User name"}"#.as_bytes();
+///
+///     let resp = test::TestRequest::post()
+///         .uri("/people")
+///         .header(header::CONTENT_TYPE, "application/json")
+///         .set_payload(payload)
+///         .send_request(&mut app)
+///         .await;
+///
+///     assert!(resp.status().is_success());
+///
+///     let result: Person = test::read_json_body(resp).await;
+/// }
+/// ```
+pub async fn read_json_body<T, B>(res: ServiceResponse<B>) -> T
+where
+    B: MessageBody,
+    T: DeserializeOwned,
+{
+    let body = read_body(res).await;
+
+    serde_json::from_slice(&body)
+        .unwrap_or_else(|_| panic!("read_response_json failed during deserialization"))
+}
+
 pub async fn load_stream<S>(mut stream: S) -> Result<Bytes, Error>
 where
     S: Stream<Item = Result<Bytes, Error>> + Unpin,
@@ -527,6 +575,16 @@ impl TestRequest {
         );
 
         (req, payload)
+    }
+
+    /// Complete request creation, calls service and waits for response future completion.
+    pub async fn send_request<S, B, E>(self, app: &mut S) -> S::Response
+    where
+        S: Service<Request = Request, Response = ServiceResponse<B>, Error = E>,
+        E: std::fmt::Debug
+    {
+        let req = self.to_request();
+        call_service(app, req).await
     }
 }
 
