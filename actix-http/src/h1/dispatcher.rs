@@ -395,7 +395,8 @@ where
                     Poll::Ready(Ok(req)) => {
                         self.as_mut().send_continue();
                         this = self.as_mut().project();
-                        this.state.set(State::ServiceCall(Box::pin(this.service.call(req))));
+                        this.state
+                            .set(State::ServiceCall(Box::pin(this.service.call(req))));
                         continue;
                     }
                     Poll::Ready(Err(e)) => {
