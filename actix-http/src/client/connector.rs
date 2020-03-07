@@ -11,6 +11,7 @@ use actix_service::{apply_fn, Service};
 use actix_utils::timeout::{TimeoutError, TimeoutService};
 use http::Uri;
 
+use super::config::ConnectorConfig;
 use super::connection::Connection;
 use super::error::ConnectError;
 use super::pool::{ConnectionPool, Protocol};
@@ -48,11 +49,7 @@ type SslConnector = ();
 /// ```
 pub struct Connector<T, U> {
     connector: T,
-    timeout: Duration,
-    conn_lifetime: Duration,
-    conn_keep_alive: Duration,
-    disconnect_timeout: Duration,
-    limit: usize,
+    config: ConnectorConfig,
     #[allow(dead_code)]
     ssl: SslConnector,
     _t: PhantomData<U>,
@@ -71,42 +68,49 @@ impl Connector<(), ()> {
             > + Clone,
         TcpStream,
     > {
-        let ssl = {
-            #[cfg(feature = "openssl")]
-            {
-                use actix_connect::ssl::openssl::SslMethod;
-
-                let mut ssl = OpensslConnector::builder(SslMethod::tls()).unwrap();
-                let _ = ssl
-                    .set_alpn_protos(b"\x02h2\x08http/1.1")
-                    .map_err(|e| error!("Can not set alpn protocol: {:?}", e));
-                SslConnector::Openssl(ssl.build())
-            }
-            #[cfg(all(not(feature = "openssl"), feature = "rustls"))]
-            {
-                let protos = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
-                let mut config = ClientConfig::new();
-                config.set_protocols(&protos);
-                config
-                    .root_store
-                    .add_server_trust_anchors(&actix_tls::rustls::TLS_SERVER_ROOTS);
-                SslConnector::Rustls(Arc::new(config))
-            }
-            #[cfg(not(any(feature = "openssl", feature = "rustls")))]
-            {}
-        };
-
         Connector {
-            ssl,
+            ssl: Self::build_ssl(vec![b"h2".to_vec(), b"http/1.1".to_vec()]),
             connector: default_connector(),
-            timeout: Duration::from_secs(1),
-            conn_lifetime: Duration::from_secs(75),
-            conn_keep_alive: Duration::from_secs(15),
-            disconnect_timeout: Duration::from_millis(3000),
-            limit: 100,
+            config: ConnectorConfig::default(),
             _t: PhantomData,
         }
     }
+
+    // Build Ssl connector with openssl, based on supplied alpn protocols
+    #[cfg(feature = "openssl")]
+    fn build_ssl(protocols: Vec<Vec<u8>>) -> SslConnector 
+    {
+        use actix_connect::ssl::openssl::SslMethod;
+        use bytes::{BufMut, BytesMut};
+
+        let mut alpn = BytesMut::with_capacity(20);
+        for proto in protocols.iter() {
+            alpn.put_u8(proto.len() as u8);
+            alpn.put(proto.as_slice());
+        }
+
+        let mut ssl = OpensslConnector::builder(SslMethod::tls()).unwrap();
+        let _ = ssl
+            .set_alpn_protos(&alpn)
+            .map_err(|e| error!("Can not set alpn protocol: {:?}", e));
+        SslConnector::Openssl(ssl.build())
+    }
+
+    // Build Ssl connector with rustls, based on supplied alpn protocols
+    #[cfg(all(not(feature = "openssl"), feature = "rustls"))]
+    fn build_ssl(protocols: Vec<Vec<u8>>) -> SslConnector 
+    {
+        let mut config = ClientConfig::new();
+        config.set_protocols(&protocols);
+        config
+            .root_store
+            .add_server_trust_anchors(&actix_tls::rustls::TLS_SERVER_ROOTS);
+        SslConnector::Rustls(Arc::new(config))
+    }
+
+    // ssl turned off, provides empty ssl connector
+    #[cfg(not(any(feature = "openssl", feature = "rustls")))]
+    fn build_ssl(_: Vec<Vec<u8>>) -> SslConnector {}
 }
 
 impl<T, U> Connector<T, U> {
@@ -122,11 +126,7 @@ impl<T, U> Connector<T, U> {
     {
         Connector {
             connector,
-            timeout: self.timeout,
-            conn_lifetime: self.conn_lifetime,
-            conn_keep_alive: self.conn_keep_alive,
-            disconnect_timeout: self.disconnect_timeout,
-            limit: self.limit,
+            config: self.config,
             ssl: self.ssl,
             _t: PhantomData,
         }
@@ -146,7 +146,7 @@ where
     /// Connection timeout, i.e. max time to connect to remote host including dns name resolution.
     /// Set to 1 second by default.
     pub fn timeout(mut self, timeout: Duration) -> Self {
-        self.timeout = timeout;
+        self.config.timeout = timeout;
         self
     }
 
@@ -163,12 +163,42 @@ where
         self
     }
 
+    /// Maximum supported http major version
+    /// Supported versions http/1.1, http/2
+    pub fn max_http_version(mut self, val: http::Version) -> Self {
+        let versions = match val {
+            http::Version::HTTP_11 => vec![b"http/1.1".to_vec()],
+            http::Version::HTTP_2 => vec![b"h2".to_vec(), b"http/1.1".to_vec()],
+            _ => unimplemented!("actix-http:client: supported versions http/1.1, http/2"),
+        };
+        self.ssl = Connector::build_ssl(versions);
+        self
+    }
+
+    /// Indicates the initial window size (in octets) for
+    /// HTTP2 stream-level flow control for received data.
+    ///
+    /// The default value is 65,535 and is good for APIs, but not for big objects.
+    pub fn initial_window_size(mut self, size: u32) -> Self {
+        self.config.stream_window_size = size;
+        self
+    }
+
+    /// Indicates the initial window size (in octets) for
+    /// HTTP2 connection-level flow control for received data.
+    ///
+    /// The default value is 65,535 and is good for APIs, but not for big objects.
+    pub fn initial_connection_window_size(mut self, size: u32) -> Self {
+        self.config.conn_window_size = size;
+        self
+    }
+
     /// Set total number of simultaneous connections per type of scheme.
     ///
     /// If limit is 0, the connector has no limit.
     /// The default limit size is 100.
     pub fn limit(mut self, limit: usize) -> Self {
-        self.limit = limit;
+        self.config.limit = limit;
         self
     }
 
@@ -179,7 +209,7 @@ where
     /// exceeds this period, the connection is closed.
     /// Default keep-alive period is 15 seconds.
     pub fn conn_keep_alive(mut self, dur: Duration) -> Self {
-        self.conn_keep_alive = dur;
+        self.config.conn_keep_alive = dur;
         self
     }
 
@@ -189,7 +219,7 @@ where
     /// until it is closed regardless of keep-alive period.
     /// Default lifetime period is 75 seconds.
     pub fn conn_lifetime(mut self, dur: Duration) -> Self {
-        self.conn_lifetime = dur;
+        self.config.conn_lifetime = dur;
         self
     }
 
@@ -202,7 +232,7 @@ where
     ///
     /// By default disconnect timeout is set to 3000 milliseconds.
     pub fn disconnect_timeout(mut self, dur: Duration) -> Self {
-        self.disconnect_timeout = dur;
+        self.config.disconnect_timeout = Some(dur);
         self
     }
 
@@ -216,7 +246,7 @@ where
         #[cfg(not(any(feature = "openssl", feature = "rustls")))]
         {
             let connector = TimeoutService::new(
-                self.timeout,
+                self.config.timeout,
                 apply_fn(self.connector, |msg: Connect, srv| {
                     srv.call(TcpConnect::new(msg.uri).set_addr(msg.addr))
                 })
@@ -231,10 +261,7 @@ where
             connect_impl::InnerConnector {
                 tcp_pool: ConnectionPool::new(
                     connector,
-                    self.conn_lifetime,
-                    self.conn_keep_alive,
-                    None,
-                    self.limit,
+                    self.config.no_disconnect_timeout(),
                 ),
             }
         }
@@ -248,7 +275,7 @@ where
             use actix_service::{boxed::service, pipeline};
 
             let ssl_service = TimeoutService::new(
-                self.timeout,
+                self.config.timeout,
                 pipeline(
                     apply_fn(self.connector.clone(), |msg: Connect, srv| {
                         srv.call(TcpConnect::new(msg.uri).set_addr(msg.addr))
@@ -301,7 +328,7 @@ where
             });
 
             let tcp_service = TimeoutService::new(
-                self.timeout,
+                self.config.timeout,
                 apply_fn(self.connector, |msg: Connect, srv| {
                     srv.call(TcpConnect::new(msg.uri).set_addr(msg.addr))
                 })
@@ -316,18 +343,9 @@ where
             connect_impl::InnerConnector {
                 tcp_pool: ConnectionPool::new(
                     tcp_service,
-                    self.conn_lifetime,
-                    self.conn_keep_alive,
-                    None,
-                    self.limit,
+                    self.config.no_disconnect_timeout(),
                 ),
-                ssl_pool: ConnectionPool::new(
-                    ssl_service,
-                    self.conn_lifetime,
-                    self.conn_keep_alive,
-                    Some(self.disconnect_timeout),
-                    self.limit,
-                ),
+                ssl_pool: ConnectionPool::new(ssl_service, self.config),
             }
         }
     }
