@@ -4,6 +4,7 @@
 
 * Update the `time` dependency to 0.2.7
 * Update `actix-connect` dependency to 2.0.0-alpha.2
+* Make `test_server` `async` fn.
 
 ## [1.0.0] - 2019-12-13
 
