@@ -27,7 +27,8 @@ async fn test_h1() {
                 future::ok::<_, ()>(Response::Ok().finish())
             })
             .tcp()
-    });
+    })
+    .await;
 
     let response = srv.get("/").send().await.unwrap();
     assert!(response.status().is_success());
@@ -46,7 +47,8 @@ async fn test_h1_2() {
                 future::ok::<_, ()>(Response::Ok().finish())
             })
             .tcp()
-    });
+    })
+    .await;
 
     let response = srv.get("/").send().await.unwrap();
     assert!(response.status().is_success());
@@ -65,7 +67,8 @@ async fn test_expect_continue() {
             }))
             .finish(|_| future::ok::<_, ()>(Response::Ok().finish()))
             .tcp()
-    });
+    })
+    .await;
 
     let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
     let _ = stream.write_all(b"GET /test HTTP/1.1\r\nexpect: 100-continue\r\n\r\n");
@@ -95,7 +98,8 @@ async fn test_expect_continue_h1() {
             }))
             .h1(fn_service(|_| future::ok::<_, ()>(Response::Ok().finish())))
             .tcp()
-    });
+    })
+    .await;
 
     let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
     let _ = stream.write_all(b"GET /test HTTP/1.1\r\nexpect: 100-continue\r\n\r\n");
@@ -130,7 +134,8 @@ async fn test_chunked_payload() {
                     })
             }))
             .tcp()
-    });
+    })
+    .await;
 
     let returned_size = {
         let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
@@ -172,7 +177,8 @@ async fn test_slow_request() {
             .client_timeout(100)
             .finish(|_| future::ok::<_, ()>(Response::Ok().finish()))
             .tcp()
-    });
+    })
+    .await;
 
     let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
     let _ = stream.write_all(b"GET /test/tests/test HTTP/1.1\r\n");
@@ -187,7 +193,8 @@ async fn test_http1_malformed_request() {
         HttpService::build()
             .h1(|_| future::ok::<_, ()>(Response::Ok().finish()))
             .tcp()
-    });
+    })
+    .await;
 
     let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
     let _ = stream.write_all(b"GET /test/tests/test HTTP1.1\r\n");
@@ -202,7 +209,8 @@ async fn test_http1_keepalive() {
         HttpService::build()
             .h1(|_| future::ok::<_, ()>(Response::Ok().finish()))
             .tcp()
-    });
+    })
+    .await;
 
     let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
     let _ = stream.write_all(b"GET /test/tests/test HTTP/1.1\r\n\r\n");
@@ -223,7 +231,8 @@ async fn test_http1_keepalive_timeout() {
             .keep_alive(1)
             .h1(|_| future::ok::<_, ()>(Response::Ok().finish()))
             .tcp()
-    });
+    })
+    .await;
 
     let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
     let _ = stream.write_all(b"GET /test/tests/test HTTP/1.1\r\n\r\n");
@@ -243,7 +252,8 @@ async fn test_http1_keepalive_close() {
         HttpService::build()
             .h1(|_| future::ok::<_, ()>(Response::Ok().finish()))
             .tcp()
-    });
+    })
+    .await;
 
     let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
     let _ =
@@ -263,7 +273,8 @@ async fn test_http10_keepalive_default_close() {
         HttpService::build()
             .h1(|_| future::ok::<_, ()>(Response::Ok().finish()))
             .tcp()
-    });
+    })
+    .await;
 
     let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
     let _ = stream.write_all(b"GET /test/tests/test HTTP/1.0\r\n\r\n");
@@ -282,7 +293,8 @@ async fn test_http10_keepalive() {
         HttpService::build()
             .h1(|_| future::ok::<_, ()>(Response::Ok().finish()))
             .tcp()
-    });
+    })
+    .await;
 
     let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
     let _ = stream
@@ -309,7 +321,8 @@ async fn test_http1_keepalive_disabled() {
             .keep_alive(KeepAlive::Disabled)
             .h1(|_| future::ok::<_, ()>(Response::Ok().finish()))
             .tcp()
-    });
+    })
+    .await;
 
     let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
     let _ = stream.write_all(b"GET /test/tests/test HTTP/1.1\r\n\r\n");
@@ -344,7 +357,8 @@ async fn test_content_length() {
                 future::ok::<_, ()>(Response::new(statuses[indx]))
             })
             .tcp()
-    });
+    })
+    .await;
 
     let header = HeaderName::from_static("content-length");
     let value = HeaderValue::from_static("0");
@@ -397,7 +411,7 @@ async fn test_h1_headers() {
             }
             future::ok::<_, ()>(builder.body(data.clone()))
         }).tcp()
-    });
+    }).await;
 
     let response = srv.get("/").send().await.unwrap();
     assert!(response.status().is_success());
@@ -435,7 +449,8 @@ async fn test_h1_body() {
         HttpService::build()
             .h1(|_| ok::<_, ()>(Response::Ok().body(STR)))
             .tcp()
-    });
+    })
+    .await;
 
     let response = srv.get("/").send().await.unwrap();
     assert!(response.status().is_success());
@@ -451,7 +466,8 @@ async fn test_h1_head_empty() {
         HttpService::build()
             .h1(|_| ok::<_, ()>(Response::Ok().body(STR)))
             .tcp()
-    });
+    })
+    .await;
 
     let response = srv.head("/").send().await.unwrap();
     assert!(response.status().is_success());
@@ -477,7 +493,8 @@ async fn test_h1_head_binary() {
                 ok::<_, ()>(Response::Ok().content_length(STR.len() as u64).body(STR))
             })
             .tcp()
-    });
+    })
+    .await;
 
     let response = srv.head("/").send().await.unwrap();
     assert!(response.status().is_success());
@@ -501,7 +518,8 @@ async fn test_h1_head_binary2() {
         HttpService::build()
             .h1(|_| ok::<_, ()>(Response::Ok().body(STR)))
             .tcp()
-    });
+    })
+    .await;
 
     let response = srv.head("/").send().await.unwrap();
     assert!(response.status().is_success());
@@ -526,7 +544,8 @@ async fn test_h1_body_length() {
                 )
             })
             .tcp()
-    });
+    })
+    .await;
 
     let response = srv.get("/").send().await.unwrap();
     assert!(response.status().is_success());
@@ -549,7 +568,8 @@ async fn test_h1_body_chunked_explicit() {
                 )
             })
             .tcp()
-    });
+    })
+    .await;
 
     let response = srv.get("/").send().await.unwrap();
     assert!(response.status().is_success());
@@ -579,7 +599,8 @@ async fn test_h1_body_chunked_implicit() {
                 ok::<_, ()>(Response::Ok().streaming(body))
             })
             .tcp()
-    });
+    })
+    .await;
 
     let response = srv.get("/").send().await.unwrap();
     assert!(response.status().is_success());
@@ -611,7 +632,8 @@ async fn test_h1_response_http_error_handling() {
                 )
             }))
             .tcp()
-    });
+    })
+    .await;
 
     let response = srv.get("/").send().await.unwrap();
     assert_eq!(response.status(), http::StatusCode::INTERNAL_SERVER_ERROR);
@@ -627,7 +649,8 @@ async fn test_h1_service_error() {
         HttpService::build()
             .h1(|_| future::err::<Response, Error>(error::ErrorBadRequest("error")))
             .tcp()
-    });
+    })
+    .await;
 
     let response = srv.get("/").send().await.unwrap();
     assert_eq!(response.status(), http::StatusCode::BAD_REQUEST);
@@ -647,7 +670,8 @@ async fn test_h1_on_connect() {
                 future::ok::<_, ()>(Response::Ok().finish())
             })
             .tcp()
-    });
+    })
+    .await;
 
     let response = srv.get("/").send().await.unwrap();
     assert!(response.status().is_success());

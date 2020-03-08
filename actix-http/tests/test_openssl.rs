@@ -67,7 +67,8 @@ async fn test_h2() -> io::Result<()> {
             .h2(|_| ok::<_, Error>(Response::Ok().finish()))
             .openssl(ssl_acceptor())
             .map_err(|_| ())
-    });
+    })
+    .await;
 
     let response = srv.sget("/").send().await.unwrap();
     assert!(response.status().is_success());
@@ -85,7 +86,8 @@ async fn test_h2_1() -> io::Result<()> {
             })
             .openssl(ssl_acceptor())
             .map_err(|_| ())
-    });
+    })
+    .await;
 
     let response = srv.sget("/").send().await.unwrap();
     assert!(response.status().is_success());
@@ -103,7 +105,8 @@ async fn test_h2_body() -> io::Result<()> {
             })
             .openssl(ssl_acceptor())
             .map_err(|_| ())
-    });
+    })
+    .await;
 
     let response = srv.sget("/").send_body(data.clone()).await.unwrap();
     assert!(response.status().is_success());
@@ -131,7 +134,8 @@ async fn test_h2_content_length() {
             })
             .openssl(ssl_acceptor())
             .map_err(|_| ())
-    });
+    })
+    .await;
 
     let header = HeaderName::from_static("content-length");
     let value = HeaderValue::from_static("0");
@@ -192,7 +196,7 @@ async fn test_h2_headers() {
         })
             .openssl(ssl_acceptor())
                     .map_err(|_| ())
-    });
+    }).await;
 
     let response = srv.sget("/").send().await.unwrap();
     assert!(response.status().is_success());
@@ -231,7 +235,8 @@ async fn test_h2_body2() {
             .h2(|_| ok::<_, ()>(Response::Ok().body(STR)))
             .openssl(ssl_acceptor())
             .map_err(|_| ())
-    });
+    })
+    .await;
 
     let response = srv.sget("/").send().await.unwrap();
     assert!(response.status().is_success());
@@ -248,7 +253,8 @@ async fn test_h2_head_empty() {
             .finish(|_| ok::<_, ()>(Response::Ok().body(STR)))
             .openssl(ssl_acceptor())
             .map_err(|_| ())
-    });
+    })
+    .await;
 
     let response = srv.shead("/").send().await.unwrap();
     assert!(response.status().is_success());
@@ -273,7 +279,8 @@ async fn test_h2_head_binary() {
             })
             .openssl(ssl_acceptor())
             .map_err(|_| ())
-    });
+    })
+    .await;
 
     let response = srv.shead("/").send().await.unwrap();
     assert!(response.status().is_success());
@@ -295,7 +302,8 @@ async fn test_h2_head_binary2() {
             .h2(|_| ok::<_, ()>(Response::Ok().body(STR)))
             .openssl(ssl_acceptor())
             .map_err(|_| ())
-    });
+    })
+    .await;
 
     let response = srv.shead("/").send().await.unwrap();
     assert!(response.status().is_success());
@@ -318,7 +326,8 @@ async fn test_h2_body_length() {
             })
             .openssl(ssl_acceptor())
             .map_err(|_| ())
-    });
+    })
+    .await;
 
     let response = srv.sget("/").send().await.unwrap();
     assert!(response.status().is_success());
@@ -342,7 +351,8 @@ async fn test_h2_body_chunked_explicit() {
             })
             .openssl(ssl_acceptor())
             .map_err(|_| ())
-    });
+    })
+    .await;
 
     let response = srv.sget("/").send().await.unwrap();
     assert!(response.status().is_success());
@@ -369,7 +379,8 @@ async fn test_h2_response_http_error_handling() {
             }))
             .openssl(ssl_acceptor())
             .map_err(|_| ())
-    });
+    })
+    .await;
 
     let response = srv.sget("/").send().await.unwrap();
     assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
@@ -386,7 +397,8 @@ async fn test_h2_service_error() {
             .h2(|_| err::<Response, Error>(ErrorBadRequest("error")))
             .openssl(ssl_acceptor())
             .map_err(|_| ())
-    });
+    })
+    .await;
 
     let response = srv.sget("/").send().await.unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
@@ -407,7 +419,8 @@ async fn test_h2_on_connect() {
             })
             .openssl(ssl_acceptor())
             .map_err(|_| ())
-    });
+    })
+    .await;
 
     let response = srv.sget("/").send().await.unwrap();
     assert!(response.status().is_success());
