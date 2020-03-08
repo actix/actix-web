@@ -78,8 +78,7 @@ impl Connector<(), ()> {
 
     // Build Ssl connector with openssl, based on supplied alpn protocols
     #[cfg(feature = "openssl")]
-    fn build_ssl(protocols: Vec<Vec<u8>>) -> SslConnector 
-    {
+    fn build_ssl(protocols: Vec<Vec<u8>>) -> SslConnector {
         use actix_connect::ssl::openssl::SslMethod;
         use bytes::{BufMut, BytesMut};
 
@@ -98,8 +97,7 @@ impl Connector<(), ()> {
 
     // Build Ssl connector with rustls, based on supplied alpn protocols
     #[cfg(all(not(feature = "openssl"), feature = "rustls"))]
-    fn build_ssl(protocols: Vec<Vec<u8>>) -> SslConnector 
-    {
+    fn build_ssl(protocols: Vec<Vec<u8>>) -> SslConnector {
         let mut config = ClientConfig::new();
         config.set_protocols(&protocols);
         config
@@ -169,7 +167,9 @@ where
         let versions = match val {
             http::Version::HTTP_11 => vec![b"http/1.1".to_vec()],
             http::Version::HTTP_2 => vec![b"h2".to_vec(), b"http/1.1".to_vec()],
-            _ => unimplemented!("actix-http:client: supported versions http/1.1, http/2"),
+            _ => {
+                unimplemented!("actix-http:client: supported versions http/1.1, http/2")
+            }
         };
         self.ssl = Connector::build_ssl(versions);
         self
