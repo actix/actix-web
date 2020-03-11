@@ -1,6 +1,6 @@
 # Changes
 
-## [2.0.0-alpha.1] - 2020-03-08
+## [2.0.0-alpha.1] - 2020-03-11
 
 * Update `actix-http` dependency to 2.0.0-alpha.2
 * Update `rustls` dependency to 0.17
