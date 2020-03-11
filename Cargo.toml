@@ -95,7 +95,7 @@ rust-tls = { version = "0.17.0", package = "rustls", optional = true }
 [dev-dependencies]
 actix = "0.10.0-alpha.1"
 rand = "0.7"
-env_logger = "0.6"
+env_logger = "0.7"
 serde_derive = "1.0"
 brotli2 = "0.3.2"
 flate2 = "1.0.13"
