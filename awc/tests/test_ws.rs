@@ -38,7 +38,8 @@ async fn test_simple() {
             })
             .finish(|_| ok::<_, Error>(Response::NotFound()))
             .tcp()
-    });
+    })
+    .await;
 
     // client service
     let mut framed = srv.ws().await.unwrap();
