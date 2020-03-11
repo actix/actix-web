@@ -1,6 +1,6 @@
 [package]
 name = "awc"
-version = "1.0.1"
+version = "2.0.0-alpha.1"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix http client."
 readme = "README.md"
@@ -54,7 +54,7 @@ open-ssl = { version="0.10", package="openssl", optional = true }
 rust-tls = { version = "0.17.0", package="rustls", optional = true, features = ["dangerous_configuration"]  }
 
 [dev-dependencies]
-actix-connect = { version = "2.0.0-alpha.1", features=["openssl"] }
+actix-connect = { version = "2.0.0-alpha.2", features=["openssl"] }
 actix-web = { version = "2.0.0", features=["openssl"] }
 actix-http = { version = "2.0.0-alpha.2", features=["openssl"] }
 actix-http-test = { version = "1.0.0", features=["openssl"] }
@@ -64,5 +64,5 @@ actix-tls = { version = "2.0.0-alpha.1", features=["openssl", "rustls"] }
 brotli2 = "0.3.2"
 flate2 = "1.0.13"
 futures = "0.3.1"
-env_logger = "0.6"
+env_logger = "0.7"
 webpki = "0.21"

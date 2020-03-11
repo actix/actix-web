@@ -53,7 +53,8 @@ async fn test_connection_reuse_h2() {
                 .openssl(ssl_acceptor())
                 .map_err(|_| ()),
         )
-    });
+    })
+    .await;
 
     // disable ssl verification
     let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();

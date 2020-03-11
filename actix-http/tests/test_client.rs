@@ -33,7 +33,8 @@ async fn test_h1_v2() {
         HttpService::build()
             .finish(|_| future::ok::<_, ()>(Response::Ok().body(STR)))
             .tcp()
-    });
+    })
+    .await;
 
     let response = srv.get("/").send().await.unwrap();
     assert!(response.status().is_success());
@@ -61,7 +62,8 @@ async fn test_connection_close() {
             .finish(|_| ok::<_, ()>(Response::Ok().body(STR)))
             .tcp()
             .map(|_| ())
-    });
+    })
+    .await;
 
     let response = srv.get("/").force_close().send().await.unwrap();
     assert!(response.status().is_success());
@@ -80,7 +82,8 @@ async fn test_with_query_parameter() {
             })
             .tcp()
             .map(|_| ())
-    });
+    })
+    .await;
 
     let request = srv.request(http::Method::GET, srv.url("/?qp=5"));
     let response = request.send().await.unwrap();

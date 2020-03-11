@@ -5,10 +5,10 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use actix_http::client::{Connect as HttpConnect, ConnectError, Connection, Connector};
-use actix_http::http::{header, Error as HttpError, HeaderMap, HeaderName, self};
+use actix_http::http::{self, header, Error as HttpError, HeaderMap, HeaderName};
 use actix_service::Service;
 
-use crate::connect::{ConnectorWrapper, Connect};
+use crate::connect::{Connect, ConnectorWrapper};
 use crate::{Client, ClientConfig};
 
 /// An HTTP Client builder
@@ -182,7 +182,9 @@ impl ClientBuilder {
             if let Some(val) = self.stream_window_size {
                 connector = connector.initial_window_size(val)
             };
-            RefCell::new(Box::new(ConnectorWrapper(connector.finish())) as Box<dyn Connect>)
+            RefCell::new(
+                Box::new(ConnectorWrapper(connector.finish())) as Box<dyn Connect>
+            )
         };
         let config = ClientConfig {
             headers: self.headers,
