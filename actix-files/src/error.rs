@@ -1,16 +1,16 @@
 use actix_web::{http::StatusCode, HttpResponse, ResponseError};
-use derive_more::Display;
+use thiserror::Error;
 
 /// Errors which can occur when serving static files.
-#[derive(Display, Debug, PartialEq)]
+#[derive(Error, Debug, PartialEq)]
 pub enum FilesError {
     /// Path is not a directory
     #[allow(dead_code)]
-    #[display(fmt = "Path is not a directory. Unable to serve static files")]
+    #[error("Path is not a directory. Unable to serve static files")]
     IsNotDirectory,
 
     /// Cannot render directory
-    #[display(fmt = "Unable to render directory without index file")]
+    #[error("Unable to render directory without index file")]
     IsDirectory,
 }
 
@@ -21,16 +21,16 @@ impl ResponseError for FilesError {
     }
 }
 
-#[derive(Display, Debug, PartialEq)]
+#[derive(Error, Debug, PartialEq)]
 pub enum UriSegmentError {
     /// The segment started with the wrapped invalid character.
-    #[display(fmt = "The segment started with the wrapped invalid character")]
+    #[error("The segment started with the wrapped invalid character")]
     BadStart(char),
     /// The segment contained the wrapped invalid character.
-    #[display(fmt = "The segment contained the wrapped invalid character")]
+    #[error("The segment contained the wrapped invalid character")]
     BadChar(char),
     /// The segment ended with the wrapped invalid character.
-    #[display(fmt = "The segment ended with the wrapped invalid character")]
+    #[error("The segment ended with the wrapped invalid character")]
     BadEnd(char),
 }
 
