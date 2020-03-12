@@ -6,7 +6,6 @@ use std::{fmt, ops};
 use actix_http::error::Error;
 use futures::future::{err, ok, Ready};
 use serde::de;
-use serde_urlencoded;
 
 use crate::dev::Payload;
 use crate::error::QueryPayloadError;
