@@ -1,7 +1,7 @@
 use std::io;
 
 use actix_connect::resolver::ResolveError;
-use derive_more::{Display, From};
+use thiserror::Error;
 
 #[cfg(feature = "openssl")]
 use actix_connect::ssl::openssl::{HandshakeError, SslError};
@@ -10,49 +10,49 @@ use crate::error::{Error, ParseError, ResponseError};
 use crate::http::{Error as HttpError, StatusCode};
 
 /// A set of errors that can occur while connecting to an HTTP host
-#[derive(Debug, Display, From)]
+#[derive(Debug, Error)]
 pub enum ConnectError {
     /// SSL feature is not enabled
-    #[display(fmt = "SSL is not supported")]
+    #[error("SSL is not supported")]
     SslIsNotSupported,
 
     /// SSL error
     #[cfg(feature = "openssl")]
-    #[display(fmt = "{}", _0)]
-    SslError(SslError),
+    #[error(transparent)]
+    SslError(#[from] SslError),
 
     /// SSL Handshake error
     #[cfg(feature = "openssl")]
-    #[display(fmt = "{}", _0)]
+    #[error("SSL handshake error: {0}")]
     SslHandshakeError(String),
 
     /// Failed to resolve the hostname
-    #[display(fmt = "Failed resolving hostname: {}", _0)]
-    Resolver(ResolveError),
+    #[error("Failed resolving hostname: {0}")]
+    Resolver(#[from] ResolveError),
 
     /// No dns records
-    #[display(fmt = "No dns records found for the input")]
+    #[error("No dns records found for the input")]
     NoRecords,
 
     /// Http2 error
-    #[display(fmt = "{}", _0)]
-    H2(h2::Error),
+    #[error(transparent)]
+    H2(#[from] h2::Error),
 
     /// Connecting took too long
-    #[display(fmt = "Timeout out while establishing connection")]
+    #[error("Timeout out while establishing connection")]
     Timeout,
 
     /// Connector has been disconnected
-    #[display(fmt = "Internal error: connector has been disconnected")]
+    #[error("Internal error: connector has been disconnected")]
     Disconnected,
 
     /// Unresolved host name
-    #[display(fmt = "Connector received `Connect` method with unresolved host")]
+    #[error("Connector received `Connect` method with unresolved host")]
     Unresolverd,
 
     /// Connection io error
-    #[display(fmt = "{}", _0)]
-    Io(io::Error),
+    #[error(transparent)]
+    Io(#[from] io::Error),
 }
 
 impl From<actix_connect::ConnectError> for ConnectError {
@@ -74,45 +74,48 @@ impl<T: std::fmt::Debug> From<HandshakeError<T>> for ConnectError {
     }
 }
 
-#[derive(Debug, Display, From)]
+#[derive(Debug, Error)]
 pub enum InvalidUrl {
-    #[display(fmt = "Missing url scheme")]
+    #[error("Missing url scheme")]
     MissingScheme,
-    #[display(fmt = "Unknown url scheme")]
+    #[error("Unknown url scheme")]
     UnknownScheme,
-    #[display(fmt = "Missing host name")]
+    #[error("Missing host name")]
     MissingHost,
-    #[display(fmt = "Url parse error: {}", _0)]
-    HttpError(http::Error),
+    #[error("Url parse error: {0}")]
+    HttpError(#[from] http::Error),
 }
 
 /// A set of errors that can occur during request sending and response reading
-#[derive(Debug, Display, From)]
+#[derive(Debug, Error)]
 pub enum SendRequestError {
     /// Invalid URL
-    #[display(fmt = "Invalid URL: {}", _0)]
-    Url(InvalidUrl),
+    #[error("Invalid URL: {0}")]
+    Url(#[from] InvalidUrl),
     /// Failed to connect to host
-    #[display(fmt = "Failed to connect to host: {}", _0)]
-    Connect(ConnectError),
+    #[error("Failed to connect to host: {0}")]
+    Connect(#[from] ConnectError),
     /// Error sending request
-    Send(io::Error),
+    #[error(transparent)]
+    Send(#[from] io::Error),
     /// Error parsing response
-    Response(ParseError),
+    #[error(transparent)]
+    Response(#[from] ParseError),
     /// Http error
-    #[display(fmt = "{}", _0)]
-    Http(HttpError),
+    #[error(transparent)]
+    Http(#[from] HttpError),
     /// Http2 error
-    #[display(fmt = "{}", _0)]
-    H2(h2::Error),
+    #[error(transparent)]
+    H2(#[from] h2::Error),
     /// Response took too long
-    #[display(fmt = "Timeout out while waiting for response")]
+    #[error("Timeout out while waiting for response")]
     Timeout,
     /// Tunnels are not supported for http2 connection
-    #[display(fmt = "Tunnels are not supported for http2 connection")]
+    #[error("Tunnels are not supported for http2 connection")]
     TunnelNotSupported,
     /// Error sending request body
-    Body(Error),
+    #[error(transparent)]
+    Body(#[from] Error),
 }
 
 /// Convert `SendRequestError` to a server `Response`
@@ -129,21 +132,12 @@ impl ResponseError for SendRequestError {
 }
 
 /// A set of errors that can occur during freezing a request
-#[derive(Debug, Display, From)]
+#[derive(Debug, Error)]
 pub enum FreezeRequestError {
     /// Invalid URL
-    #[display(fmt = "Invalid URL: {}", _0)]
-    Url(InvalidUrl),
+    #[error("Invalid URL: {0}")]
+    Url(#[from] InvalidUrl),
     /// Http error
-    #[display(fmt = "{}", _0)]
-    Http(HttpError),
-}
-
-impl From<FreezeRequestError> for SendRequestError {
-    fn from(e: FreezeRequestError) -> Self {
-        match e {
-            FreezeRequestError::Url(e) => e.into(),
-            FreezeRequestError::Http(e) => e.into(),
-        }
-    }
+    #[error(transparent)]
+    Http(#[from] HttpError),
 }

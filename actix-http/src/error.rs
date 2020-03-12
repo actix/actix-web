@@ -2,7 +2,6 @@
 use std::cell::RefCell;
 use std::io::Write;
 use std::str::Utf8Error;
-use std::string::FromUtf8Error;
 use std::{fmt, io, result};
 
 use actix_codec::{Decoder, Encoder};
@@ -10,13 +9,13 @@ pub use actix_threadpool::BlockingError;
 use actix_utils::framed::DispatcherError as FramedDispatcherError;
 use actix_utils::timeout::TimeoutError;
 use bytes::BytesMut;
-use derive_more::{Display, From};
 pub use futures_channel::oneshot::Canceled;
 use http::uri::InvalidUri;
 use http::{header, Error as HttpError, StatusCode};
 use serde::de::value::Error as DeError;
 use serde_json::error::Error as JsonError;
 use serde_urlencoded::ser::Error as FormError;
+use thiserror::Error;
 
 // re-export for convinience
 use crate::body::Body;
@@ -42,6 +41,7 @@ pub type Result<T, E = Error> = result::Result<T, E>;
 /// for it that can be used to create an http response from it this means that
 /// if you have access to an actix `Error` you can always get a
 /// `ResponseError` reference from it.
+#[derive(Error)]
 pub struct Error {
     cause: Box<dyn ResponseError>,
 }
@@ -95,16 +95,6 @@ impl fmt::Display for Error {
 impl fmt::Debug for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{:?}", &self.cause)
-    }
-}
-
-impl std::error::Error for Error {
-    fn cause(&self) -> Option<&dyn std::error::Error> {
-        None
-    }
-
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        None
     }
 }
 
@@ -162,8 +152,8 @@ impl<E: ResponseError> ResponseError for TimeoutError<E> {
     }
 }
 
-#[derive(Debug, Display)]
-#[display(fmt = "UnknownError")]
+#[derive(Debug, Error)]
+#[error("UnknownError")]
 struct UnitError;
 
 /// `InternalServerError` for `UnitError`
@@ -226,70 +216,46 @@ impl ResponseError for header::InvalidHeaderValue {
 }
 
 /// A set of errors that can occur during parsing HTTP streams
-#[derive(Debug, Display)]
+#[derive(Debug, Error)]
 pub enum ParseError {
     /// An invalid `Method`, such as `GE.T`.
-    #[display(fmt = "Invalid Method specified")]
+    #[error("Invalid Method specified")]
     Method,
     /// An invalid `Uri`, such as `exam ple.domain`.
-    #[display(fmt = "Uri error: {}", _0)]
-    Uri(InvalidUri),
+    #[error("Uri error: {0}")]
+    Uri(#[from] InvalidUri),
     /// An invalid `HttpVersion`, such as `HTP/1.1`
-    #[display(fmt = "Invalid HTTP version specified")]
+    #[error("Invalid HTTP version specified")]
     Version,
     /// An invalid `Header`.
-    #[display(fmt = "Invalid Header provided")]
+    #[error("Invalid Header provided")]
     Header,
     /// A message head is too large to be reasonable.
-    #[display(fmt = "Message head is too large")]
+    #[error("Message head is too large")]
     TooLarge,
     /// A message reached EOF, but is not complete.
-    #[display(fmt = "Message is incomplete")]
+    #[error("Message is incomplete")]
     Incomplete,
     /// An invalid `Status`, such as `1337 ELITE`.
-    #[display(fmt = "Invalid Status provided")]
+    #[error("Invalid Status provided")]
     Status,
     /// A timeout occurred waiting for an IO event.
     #[allow(dead_code)]
-    #[display(fmt = "Timeout")]
+    #[error("Timeout")]
     Timeout,
     /// An `io::Error` that occurred while trying to read or write to a network
     /// stream.
-    #[display(fmt = "IO error: {}", _0)]
-    Io(io::Error),
+    #[error("IO error: {0}")]
+    Io(#[from] io::Error),
     /// Parsing a field as string failed
-    #[display(fmt = "UTF8 error: {}", _0)]
-    Utf8(Utf8Error),
+    #[error("UTF8 error: {0}")]
+    Utf8(#[from] Utf8Error),
 }
 
 /// Return `BadRequest` for `ParseError`
 impl ResponseError for ParseError {
     fn status_code(&self) -> StatusCode {
         StatusCode::BAD_REQUEST
-    }
-}
-
-impl From<io::Error> for ParseError {
-    fn from(err: io::Error) -> ParseError {
-        ParseError::Io(err)
-    }
-}
-
-impl From<InvalidUri> for ParseError {
-    fn from(err: InvalidUri) -> ParseError {
-        ParseError::Uri(err)
-    }
-}
-
-impl From<Utf8Error> for ParseError {
-    fn from(err: Utf8Error) -> ParseError {
-        ParseError::Utf8(err)
-    }
-}
-
-impl From<FromUtf8Error> for ParseError {
-    fn from(err: FromUtf8Error) -> ParseError {
-        ParseError::Utf8(err.utf8_error())
     }
 }
 
@@ -307,48 +273,27 @@ impl From<httparse::Error> for ParseError {
     }
 }
 
-#[derive(Display, Debug)]
+#[derive(Error, Debug)]
 /// A set of errors that can occur during payload parsing
 pub enum PayloadError {
     /// A payload reached EOF, but is not complete.
-    #[display(
-        fmt = "A payload reached EOF, but is not complete. With error: {:?}",
-        _0
-    )]
-    Incomplete(Option<io::Error>),
+    #[error("A payload reached EOF, but is not complete. With error: {0:?}")]
+    Incomplete(#[from] Option<io::Error>),
     /// Content encoding stream corruption
-    #[display(fmt = "Can not decode content-encoding.")]
+    #[error("Can not decode content-encoding.")]
     EncodingCorrupted,
     /// A payload reached size limit.
-    #[display(fmt = "A payload reached size limit.")]
+    #[error("A payload reached size limit.")]
     Overflow,
     /// A payload length is unknown.
-    #[display(fmt = "A payload length is unknown.")]
+    #[error("A payload length is unknown.")]
     UnknownLength,
     /// Http2 payload error
-    #[display(fmt = "{}", _0)]
-    Http2Payload(h2::Error),
+    #[error(transparent)]
+    Http2Payload(#[from] h2::Error),
     /// Io error
-    #[display(fmt = "{}", _0)]
-    Io(io::Error),
-}
-
-impl From<h2::Error> for PayloadError {
-    fn from(err: h2::Error) -> Self {
-        PayloadError::Http2Payload(err)
-    }
-}
-
-impl From<Option<io::Error>> for PayloadError {
-    fn from(err: Option<io::Error>) -> Self {
-        PayloadError::Incomplete(err)
-    }
-}
-
-impl From<io::Error> for PayloadError {
-    fn from(err: io::Error) -> Self {
-        PayloadError::Incomplete(Some(err))
-    }
+    #[error(transparent)]
+    Io(#[from] io::Error),
 }
 
 impl From<BlockingError<io::Error>> for PayloadError {
@@ -383,61 +328,63 @@ impl ResponseError for crate::cookie::ParseError {
     }
 }
 
-#[derive(Debug, Display, From)]
+#[derive(Debug, Error)]
 /// A set of errors that can occur during dispatching http requests
 pub enum DispatchError {
     /// Service error
-    Service(Error),
+    #[error(transparent)]
+    Service(#[from] Error),
 
     /// Upgrade service error
+    #[error("Upgrade service error")]
     Upgrade,
 
     /// An `io::Error` that occurred while trying to read or write to a network
     /// stream.
-    #[display(fmt = "IO error: {}", _0)]
-    Io(io::Error),
+    #[error("IO error: {0}")]
+    Io(#[from] io::Error),
 
     /// Http request parse error.
-    #[display(fmt = "Parse error: {}", _0)]
-    Parse(ParseError),
+    #[error("Parse error: {0}")]
+    Parse(#[from] ParseError),
 
     /// Http/2 error
-    #[display(fmt = "{}", _0)]
-    H2(h2::Error),
+    #[error(transparent)]
+    H2(#[from] h2::Error),
 
     /// The first request did not complete within the specified timeout.
-    #[display(fmt = "The first request did not complete within the specified timeout")]
+    #[error("The first request did not complete within the specified timeout")]
     SlowRequestTimeout,
 
     /// Disconnect timeout. Makes sense for ssl streams.
-    #[display(fmt = "Connection shutdown timeout")]
+    #[error("Connection shutdown timeout")]
     DisconnectTimeout,
 
     /// Payload is not consumed
-    #[display(fmt = "Task is completed but request's payload is not consumed")]
+    #[error("Task is completed but request's payload is not consumed")]
     PayloadIsNotConsumed,
 
     /// Malformed request
-    #[display(fmt = "Malformed request")]
+    #[error("Malformed request")]
     MalformedRequest,
 
     /// Internal error
-    #[display(fmt = "Internal error")]
+    #[error("Internal error")]
     InternalError,
 
     /// Unknown error
-    #[display(fmt = "Unknown error")]
+    #[error("Unknown error")]
     Unknown,
 }
 
 /// A set of error that can occure during parsing content type
-#[derive(PartialEq, Debug, Display)]
+#[derive(Error, PartialEq, Debug)]
 pub enum ContentTypeError {
     /// Can not parse content type
-    #[display(fmt = "Can not parse content type")]
+    #[error("Can not parse content type")]
     ParseError,
     /// Unknown content encoding
-    #[display(fmt = "Unknown content encoding")]
+    #[error("Unknown content encoding")]
     UnknownEncoding,
 }
 

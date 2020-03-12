@@ -5,8 +5,8 @@
 //! communicate with the peer.
 use std::io;
 
-use derive_more::{Display, From};
 use http::{header, Method, StatusCode};
+use thiserror::Error;
 
 use crate::error::ResponseError;
 use crate::message::RequestHead;
@@ -24,62 +24,62 @@ pub use self::frame::Parser;
 pub use self::proto::{hash_key, CloseCode, CloseReason, OpCode};
 
 /// Websocket protocol errors
-#[derive(Debug, Display, From)]
+#[derive(Debug, Error)]
 pub enum ProtocolError {
     /// Received an unmasked frame from client
-    #[display(fmt = "Received an unmasked frame from client")]
+    #[error("Received an unmasked frame from client")]
     UnmaskedFrame,
     /// Received a masked frame from server
-    #[display(fmt = "Received a masked frame from server")]
+    #[error("Received a masked frame from server")]
     MaskedFrame,
     /// Encountered invalid opcode
-    #[display(fmt = "Invalid opcode: {}", _0)]
+    #[error("Invalid opcode: {0}")]
     InvalidOpcode(u8),
     /// Invalid control frame length
-    #[display(fmt = "Invalid control frame length: {}", _0)]
+    #[error("Invalid control frame length: {0}")]
     InvalidLength(usize),
     /// Bad web socket op code
-    #[display(fmt = "Bad web socket op code")]
+    #[error("Bad web socket op code")]
     BadOpCode,
     /// A payload reached size limit.
-    #[display(fmt = "A payload reached size limit.")]
+    #[error("A payload reached size limit.")]
     Overflow,
     /// Continuation is not started
-    #[display(fmt = "Continuation is not started.")]
+    #[error("Continuation is not started.")]
     ContinuationNotStarted,
     /// Received new continuation but it is already started
-    #[display(fmt = "Received new continuation but it is already started")]
+    #[error("Received new continuation but it is already started")]
     ContinuationStarted,
     /// Unknown continuation fragment
-    #[display(fmt = "Unknown continuation fragment.")]
+    #[error("Unknown continuation fragment.")]
     ContinuationFragment(OpCode),
     /// Io error
-    #[display(fmt = "io error: {}", _0)]
-    Io(io::Error),
+    #[error("io error: {0}")]
+    Io(#[from] io::Error),
 }
 
 impl ResponseError for ProtocolError {}
 
 /// Websocket handshake errors
-#[derive(PartialEq, Debug, Display)]
+#[derive(PartialEq, Debug, Error)]
 pub enum HandshakeError {
     /// Only get method is allowed
-    #[display(fmt = "Method not allowed")]
+    #[error("Method not allowed")]
     GetMethodRequired,
     /// Upgrade header if not set to websocket
-    #[display(fmt = "Websocket upgrade is expected")]
+    #[error("Websocket upgrade is expected")]
     NoWebsocketUpgrade,
     /// Connection header is not set to upgrade
-    #[display(fmt = "Connection upgrade is expected")]
+    #[error("Connection upgrade is expected")]
     NoConnectionUpgrade,
     /// Websocket version header is not set
-    #[display(fmt = "Websocket version header is required")]
+    #[error("Websocket version header is required")]
     NoVersionHeader,
     /// Unsupported websocket version
-    #[display(fmt = "Unsupported version")]
+    #[error("Unsupported version")]
     UnsupportedVersion,
     /// Websocket key is not set or wrong
-    #[display(fmt = "Unknown websocket key")]
+    #[error("Unknown websocket key")]
     BadWebsocketKey,
 }
 
