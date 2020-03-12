@@ -1,7 +1,6 @@
 # Changes
 
-
-## [2.0.NEXT] - 2020-01-xx
+## [3.0.0-alpha.1] - 2020-03-11
 
 ### Added
 
@@ -10,10 +9,12 @@
 ### Changed
 
 * Use `sha-1` crate instead of unmaintained `sha1` crate
-* Skip empty chunks when returning response from a `Stream` #1308
+* Skip empty chunks when returning response from a `Stream` [#1308]
 * Update the `time` dependency to 0.2.7
 * Update `actix-tls` dependency to 2.0.0-alpha.1
 * Update `rustls` dependency to 0.17
+
+[#1308]: https://github.com/actix/actix-web/pull/1308
 
 ## [2.0.0] - 2019-12-25
 
