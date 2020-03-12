@@ -11,35 +11,35 @@ use actix_http::ResponseError;
 use serde_json::error::Error as JsonError;
 
 use actix_http::http::{header::HeaderValue, StatusCode};
-use derive_more::{Display, From};
+use thiserror::Error;
 
 /// Websocket client error
-#[derive(Debug, Display, From)]
+#[derive(Debug, Error)]
 pub enum WsClientError {
     /// Invalid response status
-    #[display(fmt = "Invalid response status")]
+    #[error("Invalid response status")]
     InvalidResponseStatus(StatusCode),
     /// Invalid upgrade header
-    #[display(fmt = "Invalid upgrade header")]
+    #[error("Invalid upgrade header")]
     InvalidUpgradeHeader,
     /// Invalid connection header
-    #[display(fmt = "Invalid connection header")]
+    #[error("Invalid connection header")]
     InvalidConnectionHeader(HeaderValue),
     /// Missing CONNECTION header
-    #[display(fmt = "Missing CONNECTION header")]
+    #[error("Missing CONNECTION header")]
     MissingConnectionHeader,
     /// Missing SEC-WEBSOCKET-ACCEPT header
-    #[display(fmt = "Missing SEC-WEBSOCKET-ACCEPT header")]
+    #[error("Missing SEC-WEBSOCKET-ACCEPT header")]
     MissingWebSocketAcceptHeader,
     /// Invalid challenge response
-    #[display(fmt = "Invalid challenge response")]
+    #[error("Invalid challenge response")]
     InvalidChallengeResponse(String, HeaderValue),
     /// Protocol error
-    #[display(fmt = "{}", _0)]
-    Protocol(WsProtocolError),
+    #[error(transparent)]
+    Protocol(#[from] WsProtocolError),
     /// Send request error
-    #[display(fmt = "{}", _0)]
-    SendRequest(SendRequestError),
+    #[error(transparent)]
+    SendRequest(#[from] SendRequestError),
 }
 
 impl From<InvalidUrl> for WsClientError {
@@ -55,17 +55,17 @@ impl From<HttpError> for WsClientError {
 }
 
 /// A set of errors that can occur during parsing json payloads
-#[derive(Debug, Display, From)]
+#[derive(Debug, Error)]
 pub enum JsonPayloadError {
     /// Content type error
-    #[display(fmt = "Content type error")]
+    #[error("Content type error")]
     ContentType,
     /// Deserialize error
-    #[display(fmt = "Json deserialize error: {}", _0)]
-    Deserialize(JsonError),
+    #[error("Json deserialize error: {0}")]
+    Deserialize(#[from] JsonError),
     /// Payload error
-    #[display(fmt = "Error that occur during reading payload: {}", _0)]
-    Payload(PayloadError),
+    #[error("Error that occur during reading payload: {0}")]
+    Payload(#[from] PayloadError),
 }
 
 /// Return `InternalServerError` for `JsonPayloadError`

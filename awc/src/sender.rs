@@ -6,9 +6,9 @@ use std::time::Duration;
 
 use actix_rt::time::{delay_for, Delay};
 use bytes::Bytes;
-use derive_more::From;
 use futures_core::{Future, Stream};
 use serde::Serialize;
+use thiserror::Error;
 
 use actix_http::body::{Body, BodyStream};
 use actix_http::http::header::{self, IntoHeaderValue};
@@ -26,10 +26,12 @@ use crate::error::{FreezeRequestError, InvalidUrl, SendRequestError};
 use crate::response::ClientResponse;
 use crate::ClientConfig;
 
-#[derive(Debug, From)]
+#[derive(Debug, Error)]
 pub(crate) enum PrepForSendingError {
-    Url(InvalidUrl),
-    Http(HttpError),
+    #[error(transparent)]
+    Url(#[from] InvalidUrl),
+    #[error(transparent)]
+    Http(#[from] HttpError),
 }
 
 impl Into<FreezeRequestError> for PrepForSendingError {
