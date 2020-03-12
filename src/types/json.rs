@@ -11,7 +11,6 @@ use futures::future::{err, ok, FutureExt, LocalBoxFuture, Ready};
 use futures::StreamExt;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use serde_json;
 
 use actix_http::http::{header::CONTENT_LENGTH, StatusCode};
 use actix_http::{HttpMessage, Payload, Response};

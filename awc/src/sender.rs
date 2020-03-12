@@ -9,7 +9,6 @@ use bytes::Bytes;
 use derive_more::From;
 use futures_core::{Future, Stream};
 use serde::Serialize;
-use serde_json;
 
 use actix_http::body::{Body, BodyStream};
 use actix_http::http::header::{self, IntoHeaderValue};
