@@ -250,15 +250,15 @@ impl Default for PathConfig {
 #[cfg(test)]
 mod tests {
     use actix_router::ResourceDef;
-    use derive_more::Display;
     use serde_derive::Deserialize;
+    use thiserror::Error;
 
     use super::*;
     use crate::test::TestRequest;
     use crate::{error, http, HttpResponse};
 
-    #[derive(Deserialize, Debug, Display)]
-    #[display(fmt = "MyStruct({}, {})", key, value)]
+    #[derive(Deserialize, Debug, Error)]
+    #[error("MyStruct({key}, {value})")]
     struct MyStruct {
         key: String,
         value: String,

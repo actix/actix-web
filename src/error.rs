@@ -1,54 +1,50 @@
 //! Error and Result module
 pub use actix_http::error::*;
-use derive_more::{Display, From};
 use serde_json::error::Error as JsonError;
+use thiserror::Error;
 use url::ParseError as UrlParseError;
 
 use crate::http::StatusCode;
 use crate::HttpResponse;
 
 /// Errors which can occur when attempting to generate resource uri.
-#[derive(Debug, PartialEq, Display, From)]
+#[derive(Debug, PartialEq, Error)]
 pub enum UrlGenerationError {
     /// Resource not found
-    #[display(fmt = "Resource not found")]
+    #[error("Resource not found")]
     ResourceNotFound,
     /// Not all path pattern covered
-    #[display(fmt = "Not all path pattern covered")]
+    #[error("Not all path pattern covered")]
     NotEnoughElements,
     /// URL parse error
-    #[display(fmt = "{}", _0)]
-    ParseError(UrlParseError),
+    #[error(transparent)]
+    ParseError(#[from] UrlParseError),
 }
 
 /// `InternalServerError` for `UrlGeneratorError`
 impl ResponseError for UrlGenerationError {}
 
 /// A set of errors that can occur during parsing urlencoded payloads
-#[derive(Debug, Display, From)]
+#[derive(Debug, Error)]
 pub enum UrlencodedError {
     /// Can not decode chunked transfer encoding
-    #[display(fmt = "Can not decode chunked transfer encoding")]
+    #[error("Can not decode chunked transfer encoding")]
     Chunked,
     /// Payload size is bigger than allowed. (default: 256kB)
-    #[display(
-        fmt = "Urlencoded payload size is bigger ({} bytes) than allowed (default: {} bytes)",
-        size,
-        limit
-    )]
+    #[error("Urlencoded payload size is bigger ({size} bytes) than allowed (default: {limit} bytes)")]
     Overflow { size: usize, limit: usize },
     /// Payload size is now known
-    #[display(fmt = "Payload size is now known")]
+    #[error("Payload size is now known")]
     UnknownLength,
     /// Content type error
-    #[display(fmt = "Content type error")]
+    #[error("Content type error")]
     ContentType,
     /// Parse error
-    #[display(fmt = "Parse error")]
+    #[error("Parse error")]
     Parse,
     /// Payload error
-    #[display(fmt = "Error that occur during reading payload: {}", _0)]
-    Payload(PayloadError),
+    #[error("Error that occur during reading payload: {0}")]
+    Payload(#[from] PayloadError),
 }
 
 /// Return `BadRequest` for `UrlencodedError`
@@ -63,20 +59,20 @@ impl ResponseError for UrlencodedError {
 }
 
 /// A set of errors that can occur during parsing json payloads
-#[derive(Debug, Display, From)]
+#[derive(Debug, Error)]
 pub enum JsonPayloadError {
     /// Payload size is bigger than allowed. (default: 32kB)
-    #[display(fmt = "Json payload size is bigger than allowed")]
+    #[error("Json payload size is bigger than allowed")]
     Overflow,
     /// Content type error
-    #[display(fmt = "Content type error")]
+    #[error("Content type error")]
     ContentType,
     /// Deserialize error
-    #[display(fmt = "Json deserialize error: {}", _0)]
-    Deserialize(JsonError),
+    #[error("Json deserialize error: {0}")]
+    Deserialize(#[from] JsonError),
     /// Payload error
-    #[display(fmt = "Error that occur during reading payload: {}", _0)]
-    Payload(PayloadError),
+    #[error("Error that occur during reading payload: {0}")]
+    Payload(#[from] PayloadError),
 }
 
 /// Return `BadRequest` for `JsonPayloadError`
@@ -92,11 +88,11 @@ impl ResponseError for JsonPayloadError {
 }
 
 /// A set of errors that can occur during parsing request paths
-#[derive(Debug, Display, From)]
+#[derive(Debug, Error)]
 pub enum PathError {
     /// Deserialize error
-    #[display(fmt = "Path deserialize error: {}", _0)]
-    Deserialize(serde::de::value::Error),
+    #[error("Path deserialize error: {0}")]
+    Deserialize(#[from] serde::de::value::Error),
 }
 
 /// Return `BadRequest` for `PathError`
@@ -107,11 +103,11 @@ impl ResponseError for PathError {
 }
 
 /// A set of errors that can occur during parsing query strings
-#[derive(Debug, Display, From)]
+#[derive(Debug, Error)]
 pub enum QueryPayloadError {
     /// Deserialize error
-    #[display(fmt = "Query deserialize error: {}", _0)]
-    Deserialize(serde::de::value::Error),
+    #[error("Query deserialize error: {0}")]
+    Deserialize(#[from] serde::de::value::Error),
 }
 
 /// Return `BadRequest` for `QueryPayloadError`
@@ -122,21 +118,21 @@ impl ResponseError for QueryPayloadError {
 }
 
 /// Error type returned when reading body as lines.
-#[derive(From, Display, Debug)]
+#[derive(Error, Debug)]
 pub enum ReadlinesError {
     /// Error when decoding a line.
-    #[display(fmt = "Encoding error")]
+    #[error("Encoding error")]
     /// Payload size is bigger than allowed. (default: 256kB)
     EncodingError,
     /// Payload error.
-    #[display(fmt = "Error that occur during reading payload: {}", _0)]
-    Payload(PayloadError),
+    #[error("Error that occur during reading payload: {0}")]
+    Payload(#[from] PayloadError),
     /// Line limit exceeded.
-    #[display(fmt = "Line limit exceeded")]
+    #[error("Line limit exceeded")]
     LimitOverflow,
     /// ContentType error.
-    #[display(fmt = "Content-type error")]
-    ContentTypeError(ContentTypeError),
+    #[error("Content-type error")]
+    ContentTypeError(#[from] ContentTypeError),
 }
 
 /// Return `BadRequest` for `ReadlinesError`

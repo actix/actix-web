@@ -75,7 +75,6 @@ actix-http = "2.0.0-alpha.2"
 awc = { version = "2.0.0-alpha.1", default-features = false }
 
 bytes = "0.5.3"
-derive_more = "0.99.2"
 encoding_rs = "0.8"
 futures = "0.3.1"
 fxhash = "0.2.1"
@@ -88,6 +87,7 @@ serde = { version = "1.0", features=["derive"] }
 serde_json = "1.0"
 serde_urlencoded = "0.6.1"
 time = { version = "0.2.7", default-features = false, features = ["std"] }
+thiserror = "1.0.11"
 url = "2.1"
 open-ssl = { version="0.10", package = "openssl", optional = true }
 rust-tls = { version = "0.17.0", package = "rustls", optional = true }

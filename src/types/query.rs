@@ -224,15 +224,16 @@ impl Default for QueryConfig {
 #[cfg(test)]
 mod tests {
     use actix_http::http::StatusCode;
-    use derive_more::Display;
     use serde_derive::Deserialize;
+    use thiserror::Error;
 
     use super::*;
     use crate::error::InternalError;
     use crate::test::TestRequest;
     use crate::HttpResponse;
 
-    #[derive(Deserialize, Debug, Display)]
+    #[derive(Deserialize, Debug, Error)]
+    #[error("{id}")]
     struct Id {
         id: String,
     }
