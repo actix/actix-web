@@ -187,7 +187,7 @@ where
 ///         .to_request();
 ///
 ///     let resp = test::call_service(&mut app, req).await;
-///     let result = test::read_body(resp);
+///     let result = test::read_body(resp).await;
 ///     assert_eq!(result, Bytes::from_static(b"welcome!"));
 /// }
 /// ```

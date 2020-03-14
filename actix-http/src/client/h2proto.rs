@@ -1,11 +1,15 @@
 use std::convert::TryFrom;
+use std::future::Future;
 use std::time;
 
 use actix_codec::{AsyncRead, AsyncWrite};
 use bytes::Bytes;
 use futures_util::future::poll_fn;
 use futures_util::pin_mut;
-use h2::{client::SendRequest, SendStream};
+use h2::{
+    client::{Builder, Connection, SendRequest},
+    SendStream,
+};
 use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, TRANSFER_ENCODING};
 use http::{request::Request, Method, Version};
 
@@ -14,6 +18,7 @@ use crate::header::HeaderMap;
 use crate::message::{RequestHeadType, ResponseHead};
 use crate::payload::Payload;
 
+use super::config::ConnectorConfig;
 use super::connection::{ConnectionType, IoConnection};
 use super::error::SendRequestError;
 use super::pool::Acquired;
@@ -184,4 +189,19 @@ fn release<T: AsyncRead + AsyncWrite + Unpin + 'static>(
             pool.release(IoConnection::new(ConnectionType::H2(io), created, None));
         }
     }
+}
+
+pub(crate) fn handshake<Io>(
+    io: Io,
+    config: &ConnectorConfig,
+) -> impl Future<Output = Result<(SendRequest<Bytes>, Connection<Io, Bytes>), h2::Error>>
+where
+    Io: AsyncRead + AsyncWrite + Unpin + 'static,
+{
+    let mut builder = Builder::new();
+    builder
+        .initial_window_size(config.stream_window_size)
+        .initial_connection_window_size(config.conn_window_size)
+        .enable_push(false);
+    builder.handshake(io)
 }
