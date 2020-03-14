@@ -3,7 +3,7 @@ extern crate proc_macro;
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::{format_ident, quote, ToTokens, TokenStreamExt};
-use syn::{AttributeArgs, Ident, NestedMeta};
+use syn::{AttributeArgs, Ident, NestedMeta, parse_macro_input};
 
 enum ResourceType {
     Async,
@@ -207,5 +207,17 @@ impl ToTokens for Route {
         };
 
         output.extend(stream);
+    }
+}
+
+pub(crate) fn generate(
+    args: TokenStream,
+    input: TokenStream,
+    guard: GuardType,
+) -> TokenStream {
+    let args = parse_macro_input!(args as syn::AttributeArgs);
+    match Route::new(args, input, guard) {
+        Ok(route) => route.into_token_stream().into(),
+        Err(err) => err.to_compile_error().into(),
     }
 }

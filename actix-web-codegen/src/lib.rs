@@ -45,9 +45,6 @@ extern crate proc_macro;
 mod route;
 
 use proc_macro::TokenStream;
-use quote::ToTokens;
-use route::Route;
-use syn::parse_macro_input;
 
 /// Creates route handler with `GET` method guard.
 ///
@@ -59,11 +56,7 @@ use syn::parse_macro_input;
 /// - `guard="function_name"` - Registers function as guard using `actix_web::guard::fn_guard`
 #[proc_macro_attribute]
 pub fn get(args: TokenStream, input: TokenStream) -> TokenStream {
-    let args = parse_macro_input!(args as syn::AttributeArgs);
-    match Route::new(args, input, route::GuardType::Get) {
-        Ok(route) => route.into_token_stream().into(),
-        Err(err) => err.to_compile_error().into(),
-    }
+    route::generate(args, input, route::GuardType::Get)
 }
 
 /// Creates route handler with `POST` method guard.
@@ -73,11 +66,7 @@ pub fn get(args: TokenStream, input: TokenStream) -> TokenStream {
 /// Attributes are the same as in [get](attr.get.html)
 #[proc_macro_attribute]
 pub fn post(args: TokenStream, input: TokenStream) -> TokenStream {
-    let args = parse_macro_input!(args as syn::AttributeArgs);
-    match Route::new(args, input, route::GuardType::Post) {
-        Ok(route) => route.into_token_stream().into(),
-        Err(err) => err.to_compile_error().into(),
-    }
+    route::generate(args, input, route::GuardType::Post)
 }
 
 /// Creates route handler with `PUT` method guard.
@@ -87,11 +76,7 @@ pub fn post(args: TokenStream, input: TokenStream) -> TokenStream {
 /// Attributes are the same as in [get](attr.get.html)
 #[proc_macro_attribute]
 pub fn put(args: TokenStream, input: TokenStream) -> TokenStream {
-    let args = parse_macro_input!(args as syn::AttributeArgs);
-    match Route::new(args, input, route::GuardType::Put) {
-        Ok(route) => route.into_token_stream().into(),
-        Err(err) => err.to_compile_error().into(),
-    }
+    route::generate(args, input, route::GuardType::Put)
 }
 
 /// Creates route handler with `DELETE` method guard.
@@ -101,11 +86,7 @@ pub fn put(args: TokenStream, input: TokenStream) -> TokenStream {
 /// Attributes are the same as in [get](attr.get.html)
 #[proc_macro_attribute]
 pub fn delete(args: TokenStream, input: TokenStream) -> TokenStream {
-    let args = parse_macro_input!(args as syn::AttributeArgs);
-    match Route::new(args, input, route::GuardType::Delete) {
-        Ok(route) => route.into_token_stream().into(),
-        Err(err) => err.to_compile_error().into(),
-    }
+    route::generate(args, input, route::GuardType::Delete)
 }
 
 /// Creates route handler with `HEAD` method guard.
@@ -115,11 +96,7 @@ pub fn delete(args: TokenStream, input: TokenStream) -> TokenStream {
 /// Attributes are the same as in [head](attr.head.html)
 #[proc_macro_attribute]
 pub fn head(args: TokenStream, input: TokenStream) -> TokenStream {
-    let args = parse_macro_input!(args as syn::AttributeArgs);
-    match Route::new(args, input, route::GuardType::Head) {
-        Ok(route) => route.into_token_stream().into(),
-        Err(err) => err.to_compile_error().into(),
-    }
+    route::generate(args, input, route::GuardType::Head)
 }
 
 /// Creates route handler with `CONNECT` method guard.
@@ -129,11 +106,7 @@ pub fn head(args: TokenStream, input: TokenStream) -> TokenStream {
 /// Attributes are the same as in [connect](attr.connect.html)
 #[proc_macro_attribute]
 pub fn connect(args: TokenStream, input: TokenStream) -> TokenStream {
-    let args = parse_macro_input!(args as syn::AttributeArgs);
-    match Route::new(args, input, route::GuardType::Connect) {
-        Ok(route) => route.into_token_stream().into(),
-        Err(err) => err.to_compile_error().into(),
-    }
+    route::generate(args, input, route::GuardType::Connect)
 }
 
 /// Creates route handler with `OPTIONS` method guard.
@@ -143,11 +116,7 @@ pub fn connect(args: TokenStream, input: TokenStream) -> TokenStream {
 /// Attributes are the same as in [options](attr.options.html)
 #[proc_macro_attribute]
 pub fn options(args: TokenStream, input: TokenStream) -> TokenStream {
-    let args = parse_macro_input!(args as syn::AttributeArgs);
-    match Route::new(args, input, route::GuardType::Options) {
-        Ok(route) => route.into_token_stream().into(),
-        Err(err) => err.to_compile_error().into(),
-    }
+    route::generate(args, input, route::GuardType::Options)
 }
 
 /// Creates route handler with `TRACE` method guard.
@@ -157,11 +126,7 @@ pub fn options(args: TokenStream, input: TokenStream) -> TokenStream {
 /// Attributes are the same as in [trace](attr.trace.html)
 #[proc_macro_attribute]
 pub fn trace(args: TokenStream, input: TokenStream) -> TokenStream {
-    let args = parse_macro_input!(args as syn::AttributeArgs);
-    match Route::new(args, input, route::GuardType::Trace) {
-        Ok(route) => route.into_token_stream().into(),
-        Err(err) => err.to_compile_error().into(),
-    }
+    route::generate(args, input, route::GuardType::Trace)
 }
 
 /// Creates route handler with `PATCH` method guard.
@@ -171,9 +136,5 @@ pub fn trace(args: TokenStream, input: TokenStream) -> TokenStream {
 /// Attributes are the same as in [patch](attr.patch.html)
 #[proc_macro_attribute]
 pub fn patch(args: TokenStream, input: TokenStream) -> TokenStream {
-    let args = parse_macro_input!(args as syn::AttributeArgs);
-    match Route::new(args, input, route::GuardType::Patch) {
-        Ok(route) => route.into_token_stream().into(),
-        Err(err) => err.to_compile_error().into(),
-    }
+    route::generate(args, input, route::GuardType::Patch)
 }
