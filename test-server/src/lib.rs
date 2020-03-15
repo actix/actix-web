@@ -43,7 +43,7 @@ pub use actix_testing::*;
 ///     assert!(response.status().is_success());
 /// }
 /// ```
-pub fn test_server<F: ServiceFactory<TcpStream>>(factory: F) -> TestServer {
+pub async fn test_server<F: ServiceFactory<TcpStream>>(factory: F) -> TestServer {
     let (tx, rx) = mpsc::channel();
 
     // run server in separate thread
@@ -92,7 +92,7 @@ pub fn test_server<F: ServiceFactory<TcpStream>>(factory: F) -> TestServer {
 
         Client::build().connector(connector).finish()
     };
-    actix_connect::start_default_resolver();
+    actix_connect::start_default_resolver().await.unwrap();
 
     TestServer {
         addr,

@@ -72,7 +72,8 @@ async fn _test_connection_reuse_h2() {
                 .openssl(ssl_acceptor())
                 .map_err(|_| ()),
         )
-    });
+    })
+    .await;
 
     // disable ssl verification
     let mut config = ClientConfig::new();

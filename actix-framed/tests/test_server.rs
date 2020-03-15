@@ -47,7 +47,8 @@ async fn test_simple() {
             )
             .finish(|_| future::ok::<_, Error>(Response::NotFound()))
             .tcp()
-    });
+    })
+    .await;
 
     assert!(srv.ws_at("/test").await.is_err());
 
@@ -108,7 +109,8 @@ async fn test_service() {
                     .map_err(|_| ()),
             ),
         )
-    });
+    })
+    .await;
 
     // non ws request
     let res = srv.get("/index.html").send().await.unwrap();

@@ -1,6 +1,6 @@
 [package]
 name = "actix-web"
-version = "2.0.0"
+version = "3.0.0-alpha.1"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix web is a simple, pragmatic and extremely fast web framework for Rust."
 readme = "README.md"
@@ -30,7 +30,7 @@ members = [
   ".",
   "awc",
   "actix-http",
-  "actix-cors",
+#  "actix-cors",
   "actix-files",
   "actix-framed",
 #  "actix-session",
@@ -72,7 +72,7 @@ actix-tls = "2.0.0-alpha.1"
 
 actix-web-codegen = "0.2.0"
 actix-http = "2.0.0-alpha.2"
-awc = { version = "1.0.1", default-features = false }
+awc = { version = "2.0.0-alpha.1", default-features = false }
 
 bytes = "0.5.3"
 derive_more = "0.99.2"
@@ -95,7 +95,7 @@ rust-tls = { version = "0.17.0", package = "rustls", optional = true }
 [dev-dependencies]
 actix = "0.10.0-alpha.1"
 rand = "0.7"
-env_logger = "0.6"
+env_logger = "0.7"
 serde_derive = "1.0"
 brotli2 = "0.3.2"
 flate2 = "1.0.13"
@@ -111,9 +111,6 @@ actix-web = { path = "." }
 actix-http = { path = "actix-http" }
 actix-http-test = { path = "test-server" }
 actix-web-codegen = { path = "actix-web-codegen" }
-actix-cors = { path = "actix-cors" }
-actix-identity = { path = "actix-identity" }
-actix-session = { path = "actix-session" }
 actix-files = { path = "actix-files" }
 actix-multipart = { path = "actix-multipart" }
 awc = { path = "awc" }

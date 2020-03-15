@@ -45,6 +45,8 @@ extern crate proc_macro;
 mod route;
 
 use proc_macro::TokenStream;
+use quote::ToTokens;
+use route::Route;
 use syn::parse_macro_input;
 
 /// Creates route handler with `GET` method guard.
@@ -58,11 +60,10 @@ use syn::parse_macro_input;
 #[proc_macro_attribute]
 pub fn get(args: TokenStream, input: TokenStream) -> TokenStream {
     let args = parse_macro_input!(args as syn::AttributeArgs);
-    let gen = match route::Route::new(args, input, route::GuardType::Get) {
-        Ok(gen) => gen,
-        Err(err) => return err.to_compile_error().into(),
-    };
-    gen.generate()
+    match Route::new(args, input, route::GuardType::Get) {
+        Ok(route) => route.into_token_stream().into(),
+        Err(err) => err.to_compile_error().into(),
+    }
 }
 
 /// Creates route handler with `POST` method guard.
@@ -73,11 +74,10 @@ pub fn get(args: TokenStream, input: TokenStream) -> TokenStream {
 #[proc_macro_attribute]
 pub fn post(args: TokenStream, input: TokenStream) -> TokenStream {
     let args = parse_macro_input!(args as syn::AttributeArgs);
-    let gen = match route::Route::new(args, input, route::GuardType::Post) {
-        Ok(gen) => gen,
-        Err(err) => return err.to_compile_error().into(),
-    };
-    gen.generate()
+    match Route::new(args, input, route::GuardType::Post) {
+        Ok(route) => route.into_token_stream().into(),
+        Err(err) => err.to_compile_error().into(),
+    }
 }
 
 /// Creates route handler with `PUT` method guard.
@@ -88,11 +88,10 @@ pub fn post(args: TokenStream, input: TokenStream) -> TokenStream {
 #[proc_macro_attribute]
 pub fn put(args: TokenStream, input: TokenStream) -> TokenStream {
     let args = parse_macro_input!(args as syn::AttributeArgs);
-    let gen = match route::Route::new(args, input, route::GuardType::Put) {
-        Ok(gen) => gen,
-        Err(err) => return err.to_compile_error().into(),
-    };
-    gen.generate()
+    match Route::new(args, input, route::GuardType::Put) {
+        Ok(route) => route.into_token_stream().into(),
+        Err(err) => err.to_compile_error().into(),
+    }
 }
 
 /// Creates route handler with `DELETE` method guard.
@@ -103,11 +102,10 @@ pub fn put(args: TokenStream, input: TokenStream) -> TokenStream {
 #[proc_macro_attribute]
 pub fn delete(args: TokenStream, input: TokenStream) -> TokenStream {
     let args = parse_macro_input!(args as syn::AttributeArgs);
-    let gen = match route::Route::new(args, input, route::GuardType::Delete) {
-        Ok(gen) => gen,
-        Err(err) => return err.to_compile_error().into(),
-    };
-    gen.generate()
+    match Route::new(args, input, route::GuardType::Delete) {
+        Ok(route) => route.into_token_stream().into(),
+        Err(err) => err.to_compile_error().into(),
+    }
 }
 
 /// Creates route handler with `HEAD` method guard.
@@ -118,11 +116,10 @@ pub fn delete(args: TokenStream, input: TokenStream) -> TokenStream {
 #[proc_macro_attribute]
 pub fn head(args: TokenStream, input: TokenStream) -> TokenStream {
     let args = parse_macro_input!(args as syn::AttributeArgs);
-    let gen = match route::Route::new(args, input, route::GuardType::Head) {
-        Ok(gen) => gen,
-        Err(err) => return err.to_compile_error().into(),
-    };
-    gen.generate()
+    match Route::new(args, input, route::GuardType::Head) {
+        Ok(route) => route.into_token_stream().into(),
+        Err(err) => err.to_compile_error().into(),
+    }
 }
 
 /// Creates route handler with `CONNECT` method guard.
@@ -133,11 +130,10 @@ pub fn head(args: TokenStream, input: TokenStream) -> TokenStream {
 #[proc_macro_attribute]
 pub fn connect(args: TokenStream, input: TokenStream) -> TokenStream {
     let args = parse_macro_input!(args as syn::AttributeArgs);
-    let gen = match route::Route::new(args, input, route::GuardType::Connect) {
-        Ok(gen) => gen,
-        Err(err) => return err.to_compile_error().into(),
-    };
-    gen.generate()
+    match Route::new(args, input, route::GuardType::Connect) {
+        Ok(route) => route.into_token_stream().into(),
+        Err(err) => err.to_compile_error().into(),
+    }
 }
 
 /// Creates route handler with `OPTIONS` method guard.
@@ -148,11 +144,10 @@ pub fn connect(args: TokenStream, input: TokenStream) -> TokenStream {
 #[proc_macro_attribute]
 pub fn options(args: TokenStream, input: TokenStream) -> TokenStream {
     let args = parse_macro_input!(args as syn::AttributeArgs);
-    let gen = match route::Route::new(args, input, route::GuardType::Options) {
-        Ok(gen) => gen,
-        Err(err) => return err.to_compile_error().into(),
-    };
-    gen.generate()
+    match Route::new(args, input, route::GuardType::Options) {
+        Ok(route) => route.into_token_stream().into(),
+        Err(err) => err.to_compile_error().into(),
+    }
 }
 
 /// Creates route handler with `TRACE` method guard.
@@ -163,11 +158,10 @@ pub fn options(args: TokenStream, input: TokenStream) -> TokenStream {
 #[proc_macro_attribute]
 pub fn trace(args: TokenStream, input: TokenStream) -> TokenStream {
     let args = parse_macro_input!(args as syn::AttributeArgs);
-    let gen = match route::Route::new(args, input, route::GuardType::Trace) {
-        Ok(gen) => gen,
-        Err(err) => return err.to_compile_error().into(),
-    };
-    gen.generate()
+    match Route::new(args, input, route::GuardType::Trace) {
+        Ok(route) => route.into_token_stream().into(),
+        Err(err) => err.to_compile_error().into(),
+    }
 }
 
 /// Creates route handler with `PATCH` method guard.
@@ -178,9 +172,8 @@ pub fn trace(args: TokenStream, input: TokenStream) -> TokenStream {
 #[proc_macro_attribute]
 pub fn patch(args: TokenStream, input: TokenStream) -> TokenStream {
     let args = parse_macro_input!(args as syn::AttributeArgs);
-    let gen = match route::Route::new(args, input, route::GuardType::Patch) {
-        Ok(gen) => gen,
-        Err(err) => return err.to_compile_error().into(),
-    };
-    gen.generate()
+    match Route::new(args, input, route::GuardType::Patch) {
+        Ok(route) => route.into_token_stream().into(),
+        Err(err) => err.to_compile_error().into(),
+    }
 }

@@ -2,7 +2,7 @@ extern crate proc_macro;
 
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as TokenStream2};
-use quote::{quote, ToTokens, TokenStreamExt};
+use quote::{format_ident, quote, ToTokens, TokenStreamExt};
 use syn::{AttributeArgs, Ident, NestedMeta};
 
 enum ResourceType {
@@ -12,11 +12,7 @@ enum ResourceType {
 
 impl ToTokens for ResourceType {
     fn to_tokens(&self, stream: &mut TokenStream2) {
-        let ident = match self {
-            ResourceType::Async => "to",
-            ResourceType::Sync => "to",
-        };
-        let ident = Ident::new(ident, Span::call_site());
+        let ident = format_ident!("to");
         stream.append(ident);
     }
 }
@@ -52,8 +48,7 @@ impl GuardType {
 
 impl ToTokens for GuardType {
     fn to_tokens(&self, stream: &mut TokenStream2) {
-        let ident = self.as_str();
-        let ident = Ident::new(ident, Span::call_site());
+        let ident = Ident::new(self.as_str(), Span::call_site());
         stream.append(ident);
     }
 }
@@ -93,12 +88,12 @@ impl Args {
                     } else {
                         return Err(syn::Error::new_spanned(
                             nv.path,
-                            "Unknown attribute key is specified. Allowed: guard",
+                            "Unknown attribute key is specified. Allowed: guard.",
                         ));
                     }
                 }
                 arg => {
-                    return Err(syn::Error::new_spanned(arg, "Unknown attribute"));
+                    return Err(syn::Error::new_spanned(arg, "Unknown attribute."));
                 }
             }
         }
@@ -181,15 +176,18 @@ impl Route {
             guard,
         })
     }
+}
 
-    pub fn generate(&self) -> TokenStream {
-        let name = &self.name;
+impl ToTokens for Route {
+    fn to_tokens(&self, output: &mut TokenStream2) {
+        let Self {
+            name,
+            guard,
+            ast,
+            args: Args { path, guards },
+            resource_type,
+        } = self;
         let resource_name = name.to_string();
-        let guard = &self.guard;
-        let ast = &self.ast;
-        let path = &self.args.path;
-        let extra_guards = &self.args.guards;
-        let resource_type = &self.resource_type;
         let stream = quote! {
             #[allow(non_camel_case_types, missing_docs)]
             pub struct #name;
@@ -200,13 +198,14 @@ impl Route {
                     let __resource = actix_web::Resource::new(#path)
                         .name(#resource_name)
                         .guard(actix_web::guard::#guard())
-                        #(.guard(actix_web::guard::fn_guard(#extra_guards)))*
+                        #(.guard(actix_web::guard::fn_guard(#guards)))*
                         .#resource_type(#name);
 
                     actix_web::dev::HttpServiceFactory::register(__resource, __config)
                 }
             }
         };
-        stream.into()
+
+        output.extend(stream);
     }
 }
