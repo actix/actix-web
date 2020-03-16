@@ -223,8 +223,6 @@ where
 ///     format!("Welcome {}!", info.username)
 /// }
 ///
-/// /// Create custom error response
-///
 /// /// Return either a 400 or 415, and include the error message from serde
 /// /// in the response body
 /// fn json_error_handler(err: error::JsonPayloadError, _req: &HttpRequest) -> error::Error {
