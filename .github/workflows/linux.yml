@@ -73,15 +73,14 @@ jobs:
           args: --package=awc --no-default-features --features=rustls -- --nocapture
 
       - name: Generate coverage file
-        if: matrix.version == 'stable' && github.ref == 'refs/heads/master'
+        if: matrix.version == 'stable' && (github.ref == 'refs/heads/master' || github.event_name == 'pull_request')
         run: |
           cargo install cargo-tarpaulin
           cargo tarpaulin --out Xml
       - name: Upload to Codecov
-        if: matrix.version == 'stable' && github.ref == 'refs/heads/master'
+        if: matrix.version == 'stable' && (github.ref == 'refs/heads/master' || github.event_name == 'pull_request')
         uses: codecov/codecov-action@v1
         with:
-          token: ${{ secrets.CODECOV_TOKEN }}
           file: cobertura.xml
 
       - name: Clear the cargo caches
