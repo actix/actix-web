@@ -1,5 +1,13 @@
 # Changes
 
+## [Unreleased]
+
+### Changed
+
+* Implement `std::error::Error` for our custom errors [#1422]
+
+[#1422]: https://github.com/actix/actix-web/pull/1422
+
 ## [2.0.0-alpha.2] - 2020-03-07
 
 ### Changed

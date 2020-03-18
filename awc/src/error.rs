@@ -42,6 +42,8 @@ pub enum WsClientError {
     SendRequest(SendRequestError),
 }
 
+impl std::error::Error for WsClientError {}
+
 impl From<InvalidUrl> for WsClientError {
     fn from(err: InvalidUrl) -> Self {
         WsClientError::SendRequest(err.into())
@@ -67,6 +69,8 @@ pub enum JsonPayloadError {
     #[display(fmt = "Error that occur during reading payload: {}", _0)]
     Payload(PayloadError),
 }
+
+impl std::error::Error for JsonPayloadError {}
 
 /// Return `InternalServerError` for `JsonPayloadError`
 impl ResponseError for JsonPayloadError {}

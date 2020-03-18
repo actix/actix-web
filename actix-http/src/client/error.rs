@@ -55,6 +55,8 @@ pub enum ConnectError {
     Io(io::Error),
 }
 
+impl std::error::Error for ConnectError {}
+
 impl From<actix_connect::ConnectError> for ConnectError {
     fn from(err: actix_connect::ConnectError) -> ConnectError {
         match err {
@@ -86,6 +88,8 @@ pub enum InvalidUrl {
     HttpError(http::Error),
 }
 
+impl std::error::Error for InvalidUrl {}
+
 /// A set of errors that can occur during request sending and response reading
 #[derive(Debug, Display, From)]
 pub enum SendRequestError {
@@ -115,6 +119,8 @@ pub enum SendRequestError {
     Body(Error),
 }
 
+impl std::error::Error for SendRequestError {}
+
 /// Convert `SendRequestError` to a server `Response`
 impl ResponseError for SendRequestError {
     fn status_code(&self) -> StatusCode {
@@ -138,6 +144,8 @@ pub enum FreezeRequestError {
     #[display(fmt = "{}", _0)]
     Http(HttpError),
 }
+
+impl std::error::Error for FreezeRequestError {}
 
 impl From<FreezeRequestError> for SendRequestError {
     fn from(e: FreezeRequestError) -> Self {
