@@ -58,6 +58,8 @@ pub enum ProtocolError {
     Io(io::Error),
 }
 
+impl std::error::Error for ProtocolError {}
+
 impl ResponseError for ProtocolError {}
 
 /// Websocket handshake errors

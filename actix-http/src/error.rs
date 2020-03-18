@@ -333,6 +333,8 @@ pub enum PayloadError {
     Io(io::Error),
 }
 
+impl std::error::Error for PayloadError {}
+
 impl From<h2::Error> for PayloadError {
     fn from(err: h2::Error) -> Self {
         PayloadError::Http2Payload(err)
@@ -440,6 +442,8 @@ pub enum ContentTypeError {
     #[display(fmt = "Unknown content encoding")]
     UnknownEncoding,
 }
+
+impl std::error::Error for ContentTypeError {}
 
 /// Return `BadRequest` for `ContentTypeError`
 impl ResponseError for ContentTypeError {
