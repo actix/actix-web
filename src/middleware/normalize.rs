@@ -74,9 +74,13 @@ where
 
     fn call(&mut self, mut req: ServiceRequest) -> Self::Future {
         let head = req.head_mut();
-        let path = head.uri.path();
+        
+        // always add trailing slash, might be an extra one
+        let path = head.uri.path().to_string() + "/";
         let original_len = path.len();
-        let path = self.merge_slash.replace_all(path, "/");
+
+        // normalize multiple /'s to one /
+        let path = self.merge_slash.replace_all(&path, "/");
 
         if original_len != path.len() {
             let mut parts = head.uri.clone().into_parts();
