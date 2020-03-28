@@ -58,6 +58,18 @@ openssl = ["actix-tls/openssl", "awc/openssl", "open-ssl"]
 # rustls
 rustls = ["actix-tls/rustls", "awc/rustls", "rust-tls"]
 
+[[example]]
+name = "basic"
+required-features = ["compress"]
+
+[[example]]
+name = "uds"
+required-features = ["compress"]
+
+[[test]]
+name = "test_server"
+required-features = ["compress"]
+
 [dependencies]
 actix-codec = "0.2.0"
 actix-service = "1.0.2"
