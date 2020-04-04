@@ -5,6 +5,7 @@
 ### Changed
 
 * Implement `std::error::Error` for our custom errors [#1422]
+* NormalizePath middleware now appends trailing / so that routes of form /example/ respond to /example requests.
 
 [#1422]: https://github.com/actix/actix-web/pull/1422
 
