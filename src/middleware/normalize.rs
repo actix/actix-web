@@ -74,9 +74,13 @@ where
 
     fn call(&mut self, mut req: ServiceRequest) -> Self::Future {
         let head = req.head_mut();
-        let path = head.uri.path();
+        
+        // always add trailing slash, might be an extra one
+        let path = head.uri.path().to_string() + "/";
         let original_len = path.len();
-        let path = self.merge_slash.replace_all(path, "/");
+
+        // normalize multiple /'s to one /
+        let path = self.merge_slash.replace_all(&path, "/");
 
         if original_len != path.len() {
             let mut parts = head.uri.clone().into_parts();
@@ -119,6 +123,14 @@ mod tests {
         let req = TestRequest::with_uri("/v1//something////").to_request();
         let res = call_service(&mut app, req).await;
         assert!(res.status().is_success());
+
+        let req2 = TestRequest::with_uri("//v1/something").to_request();
+        let res2 = call_service(&mut app, req2).await;
+        assert!(res2.status().is_success());
+
+        let req3 = TestRequest::with_uri("//v1//////something").to_request();
+        let res3 = call_service(&mut app, req3).await;
+        assert!(res3.status().is_success());
     }
 
     #[actix_rt::test]
@@ -136,11 +148,38 @@ mod tests {
         let req = TestRequest::with_uri("/v1//something////").to_srv_request();
         let res = normalize.call(req).await.unwrap();
         assert!(res.status().is_success());
+
+        let req2 = TestRequest::with_uri("///v1/something").to_srv_request();
+        let res2 = normalize.call(req2).await.unwrap();
+        assert!(res2.status().is_success());
+
+        let req3 = TestRequest::with_uri("//v1///something").to_srv_request();
+        let res3 = normalize.call(req3).await.unwrap();
+        assert!(res3.status().is_success());
     }
 
     #[actix_rt::test]
     async fn should_normalize_nothing() {
         const URI: &str = "/v1/something/";
+
+        let srv = |req: ServiceRequest| {
+            assert_eq!(URI, req.path());
+            ok(req.into_response(HttpResponse::Ok().finish()))
+        };
+
+        let mut normalize = NormalizePath
+            .new_transform(srv.into_service())
+            .await
+            .unwrap();
+
+        let req = TestRequest::with_uri(URI).to_srv_request();
+        let res = normalize.call(req).await.unwrap();
+        assert!(res.status().is_success());
+    }
+
+     #[actix_rt::test]
+    async fn should_normalize_nothing_notrail() {
+        const URI: &str = "/v1/something";
 
         let srv = |req: ServiceRequest| {
             assert_eq!(URI, req.path());
