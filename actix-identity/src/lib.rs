@@ -116,7 +116,7 @@ impl Identity {
         }
     }
 
-    fn get_identity(extensions: &Extensions) -> Option<String> {
+    pub fn get_identity(extensions: &Extensions) -> Option<String> {
         if let Some(id) = extensions.get::<IdentityItem>() {
             id.id.clone()
         } else {
