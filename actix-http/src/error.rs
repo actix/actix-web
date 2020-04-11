@@ -34,7 +34,7 @@ pub type Result<T, E = Error> = result::Result<T, E>;
 
 /// General purpose actix web error.
 ///
-/// An actix web error is used to carry errors from `failure` or `std::error`
+/// An actix web error is used to carry errors from `std::error`
 /// through actix in a convenient way.  It can be created through
 /// converting errors with `into()`.
 ///
@@ -949,10 +949,6 @@ where
 {
     InternalError::new(err, StatusCode::NETWORK_AUTHENTICATION_REQUIRED).into()
 }
-
-#[cfg(feature = "failure")]
-/// Compatibility for `failure::Error`
-impl ResponseError for fail_ure::Error {}
 
 #[cfg(feature = "actors")]
 /// `InternalServerError` for `actix::MailboxError`

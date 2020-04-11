@@ -42,15 +42,13 @@ members = [
 ]
 
 [features]
-default = ["compress", "failure"]
+default = ["compress"]
 
 # content-encoding support
 compress = ["actix-http/compress", "awc/compress"]
 
 # sessions feature, session require "ring" crate and c compiler
 secure-cookies = ["actix-http/secure-cookies"]
-
-failure = ["actix-http/failure"]
 
 # openssl
 openssl = ["actix-tls/openssl", "awc/openssl", "open-ssl"]
