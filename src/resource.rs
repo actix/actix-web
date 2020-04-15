@@ -542,6 +542,9 @@ impl Service for ResourceService {
             }
         }
         if let Some(ref mut default) = self.default {
+            if let Some(ref data) = self.data {
+                req.set_data_container(data.clone());
+            }
             Either::Right(default.call(req))
         } else {
             let req = req.into_parts().0;
@@ -649,11 +652,9 @@ mod tests {
     #[actix_rt::test]
     async fn test_to() {
         let mut srv =
-            init_service(App::new().service(web::resource("/test").to(|| {
-                async {
-                    delay_for(Duration::from_millis(100)).await;
-                    Ok::<_, Error>(HttpResponse::Ok())
-                }
+            init_service(App::new().service(web::resource("/test").to(|| async {
+                delay_for(Duration::from_millis(100)).await;
+                Ok::<_, Error>(HttpResponse::Ok())
             })))
             .await;
         let req = TestRequest::with_uri("/test").to_request();
@@ -786,6 +787,25 @@ mod tests {
                             },
                         ),
                 ),
+        )
+        .await;
+
+        let req = TestRequest::get().uri("/test").to_request();
+        let resp = call_service(&mut srv, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[actix_rt::test]
+    async fn test_data_default_service() {
+        let mut srv = init_service(
+            App::new().data(1usize).service(
+                web::resource("/test")
+                    .data(10usize)
+                    .default_service(web::to(|data: web::Data<usize>| {
+                        assert_eq!(**data, 10);
+                        HttpResponse::Ok()
+                    })),
+            ),
         )
         .await;
 
