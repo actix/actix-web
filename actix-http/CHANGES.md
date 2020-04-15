@@ -5,6 +5,8 @@
 ### Changed
 
 * Implement `std::error::Error` for our custom errors [#1422]
+* Remove `failure` support for `ResponseError` since that crate
+  will be deprecated in the near future.
 
 [#1422]: https://github.com/actix/actix-web/pull/1422
 
