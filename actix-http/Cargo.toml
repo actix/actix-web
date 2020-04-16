@@ -15,7 +15,7 @@ license = "MIT/Apache-2.0"
 edition = "2018"
 
 [package.metadata.docs.rs]
-features = ["openssl", "rustls", "failure", "compress", "secure-cookies","actors"]
+features = ["openssl", "rustls", "compress", "secure-cookies", "actors"]
 
 [lib]
 name = "actix_http"
@@ -32,9 +32,6 @@ rustls = ["actix-tls/rustls", "actix-connect/rustls"]
 
 # enable compressison support
 compress = ["flate2", "brotli2"]
-
-# failure integration. actix does not use failure anymore
-failure = ["fail-ure"]
 
 # support for secure cookies
 secure-cookies = ["ring"]
@@ -88,9 +85,6 @@ ring = { version = "0.16.9", optional = true }
 # compression
 brotli2 = { version="0.3.2", optional = true }
 flate2 = { version = "1.0.13", optional = true }
-
-# optional deps
-fail-ure = { version = "0.1.5", package="failure", optional = true }
 
 [dev-dependencies]
 actix-server = "1.0.1"
