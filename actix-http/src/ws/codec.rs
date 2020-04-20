@@ -12,8 +12,6 @@ pub enum Message {
     Text(String),
     /// Binary message
     Binary(Bytes),
-    /// Continuation
-    Continuation(Item),
     /// Ping message
     Ping(Bytes),
     /// Pong message
@@ -92,52 +90,52 @@ impl Codec {
 }
 
 impl Encoder for Codec {
-    type Item = Message;
+    type Item = Frame;
     type Error = ProtocolError;
 
-    fn encode(&mut self, item: Message, dst: &mut BytesMut) -> Result<(), Self::Error> {
+    fn encode(&mut self, item: Frame, dst: &mut BytesMut) -> Result<(), Self::Error> {
         match item {
-            Message::Text(txt) => Parser::write_message(
+            Frame::Text(txt) => Parser::write_frame(
                 dst,
                 txt,
                 OpCode::Text,
                 true,
                 !self.flags.contains(Flags::SERVER),
             ),
-            Message::Binary(bin) => Parser::write_message(
+            Frame::Binary(bin) => Parser::write_frame(
                 dst,
                 bin,
                 OpCode::Binary,
                 true,
                 !self.flags.contains(Flags::SERVER),
             ),
-            Message::Ping(txt) => Parser::write_message(
+            Frame::Ping(txt) => Parser::write_frame(
                 dst,
                 txt,
                 OpCode::Ping,
                 true,
                 !self.flags.contains(Flags::SERVER),
             ),
-            Message::Pong(txt) => Parser::write_message(
+            Frame::Pong(txt) => Parser::write_frame(
                 dst,
                 txt,
                 OpCode::Pong,
                 true,
                 !self.flags.contains(Flags::SERVER),
             ),
-            Message::Close(reason) => {
+            Frame::Close(reason) => {
                 Parser::write_close(dst, reason, !self.flags.contains(Flags::SERVER))
             }
-            Message::Continuation(cont) => match cont {
+            Frame::Continuation(cont) => match cont {
                 Item::FirstText(data) => {
                     if self.flags.contains(Flags::W_CONTINUATION) {
                         return Err(ProtocolError::ContinuationStarted);
                     } else {
                         self.flags.insert(Flags::W_CONTINUATION);
-                        Parser::write_message(
+                        Parser::write_frame(
                             dst,
                             &data[..],
-                            OpCode::Binary,
+                            OpCode::Text,
                             false,
                             !self.flags.contains(Flags::SERVER),
                         )
@@ -148,10 +146,10 @@ impl Encoder for Codec {
                         return Err(ProtocolError::ContinuationStarted);
                     } else {
                         self.flags.insert(Flags::W_CONTINUATION);
-                        Parser::write_message(
+                        Parser::write_frame(
                             dst,
                             &data[..],
-                            OpCode::Text,
+                            OpCode::Binary,
                             false,
                             !self.flags.contains(Flags::SERVER),
                         )
@@ -159,7 +157,7 @@ impl Encoder for Codec {
                 }
                 Item::Continue(data) => {
                     if self.flags.contains(Flags::W_CONTINUATION) {
-                        Parser::write_message(
+                        Parser::write_frame(
                             dst,
                             &data[..],
                             OpCode::Continue,
@@ -173,7 +171,7 @@ impl Encoder for Codec {
                 Item::Last(data) => {
                     if self.flags.contains(Flags::W_CONTINUATION) {
                         self.flags.remove(Flags::W_CONTINUATION);
-                        Parser::write_message(
+                        Parser::write_frame(
                             dst,
                             &data[..],
                             OpCode::Continue,
@@ -185,7 +183,6 @@ impl Encoder for Codec {
                     }
                 }
             },
-            Message::Nop => (),
         }
         Ok(())
     }

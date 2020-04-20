@@ -153,7 +153,7 @@ impl Parser {
     }
 
     /// Generate binary representation
-    pub fn write_message<B: AsRef<[u8]>>(
+    pub fn write_frame<B: AsRef<[u8]>>(
         dst: &mut BytesMut,
         pl: B,
         op: OpCode,
@@ -211,7 +211,7 @@ impl Parser {
             }
         };
 
-        Parser::write_message(dst, payload, OpCode::Close, true, mask)
+        Parser::write_frame(dst, payload, OpCode::Close, true, mask)
     }
 }
 
@@ -346,7 +346,7 @@ mod tests {
     #[test]
     fn test_ping_frame() {
         let mut buf = BytesMut::new();
-        Parser::write_message(&mut buf, Vec::from("data"), OpCode::Ping, true, false);
+        Parser::write_frame(&mut buf, Vec::from("data"), OpCode::Ping, true, false);
 
         let mut v = vec![137u8, 4u8];
         v.extend(b"data");
@@ -356,7 +356,7 @@ mod tests {
     #[test]
     fn test_pong_frame() {
         let mut buf = BytesMut::new();
-        Parser::write_message(&mut buf, Vec::from("data"), OpCode::Pong, true, false);
+        Parser::write_frame(&mut buf, Vec::from("data"), OpCode::Pong, true, false);
 
         let mut v = vec![138u8, 4u8];
         v.extend(b"data");

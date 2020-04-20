@@ -67,16 +67,14 @@ where
     }
 }
 
-async fn service(msg: ws::Frame) -> Result<ws::Message, Error> {
+async fn service(msg: ws::Frame) -> Result<ws::Frame, Error> {
     let msg = match msg {
-        ws::Frame::Ping(msg) => ws::Message::Pong(msg),
-        ws::Frame::Text(text) => {
-            ws::Message::Text(String::from_utf8_lossy(&text).to_string())
-        }
-        ws::Frame::Binary(bin) => ws::Message::Binary(bin),
-        ws::Frame::Continuation(item) => ws::Message::Continuation(item),
-        ws::Frame::Close(reason) => ws::Message::Close(reason),
-        _ => panic!(),
+        ws::Frame::Ping(msg) => ws::Frame::Pong(msg),
+        ws::Frame::Text(bs) => ws::Frame::Text(bs),
+        ws::Frame::Binary(bin) => ws::Frame::Binary(bin),
+        ws::Frame::Continuation(item) => ws::Frame::Continuation(item),
+        ws::Frame::Close(reason) => ws::Frame::Close(reason),
+        ws::Frame::Pong(_) => panic!(),
     };
     Ok(msg)
 }
@@ -98,27 +96,21 @@ async fn test_simple() {
 
     // client service
     let mut framed = srv.ws().await.unwrap();
-    framed
-        .send(ws::Message::Text("text".to_string()))
-        .await
-        .unwrap();
+    framed.send(ws::Frame::Text("text".into())).await.unwrap();
     let (item, mut framed) = framed.into_future().await;
     assert_eq!(
         item.unwrap().unwrap(),
         ws::Frame::Text(Bytes::from_static(b"text"))
     );
 
-    framed
-        .send(ws::Message::Binary("text".into()))
-        .await
-        .unwrap();
+    framed.send(ws::Frame::Binary("text".into())).await.unwrap();
     let (item, mut framed) = framed.into_future().await;
     assert_eq!(
         item.unwrap().unwrap(),
         ws::Frame::Binary(Bytes::from_static(&b"text"[..]))
     );
 
-    framed.send(ws::Message::Ping("text".into())).await.unwrap();
+    framed.send(ws::Frame::Ping("text".into())).await.unwrap();
     let (item, mut framed) = framed.into_future().await;
     assert_eq!(
         item.unwrap().unwrap(),
@@ -126,9 +118,7 @@ async fn test_simple() {
     );
 
     framed
-        .send(ws::Message::Continuation(ws::Item::FirstText(
-            "text".into(),
-        )))
+        .send(ws::Frame::Continuation(ws::Item::FirstText("text".into())))
         .await
         .unwrap();
     let (item, mut framed) = framed.into_future().await;
@@ -138,20 +128,18 @@ async fn test_simple() {
     );
 
     assert!(framed
-        .send(ws::Message::Continuation(ws::Item::FirstText(
-            "text".into()
-        )))
+        .send(ws::Frame::Continuation(ws::Item::FirstText("text".into())))
         .await
         .is_err());
     assert!(framed
-        .send(ws::Message::Continuation(ws::Item::FirstBinary(
+        .send(ws::Frame::Continuation(ws::Item::FirstBinary(
             "text".into()
         )))
         .await
         .is_err());
 
     framed
-        .send(ws::Message::Continuation(ws::Item::Continue("text".into())))
+        .send(ws::Frame::Continuation(ws::Item::Continue("text".into())))
         .await
         .unwrap();
     let (item, mut framed) = framed.into_future().await;
@@ -161,7 +149,7 @@ async fn test_simple() {
     );
 
     framed
-        .send(ws::Message::Continuation(ws::Item::Last("text".into())))
+        .send(ws::Frame::Continuation(ws::Item::Last("text".into())))
         .await
         .unwrap();
     let (item, mut framed) = framed.into_future().await;
@@ -171,17 +159,17 @@ async fn test_simple() {
     );
 
     assert!(framed
-        .send(ws::Message::Continuation(ws::Item::Continue("text".into())))
+        .send(ws::Frame::Continuation(ws::Item::Continue("text".into())))
         .await
         .is_err());
 
     assert!(framed
-        .send(ws::Message::Continuation(ws::Item::Last("text".into())))
+        .send(ws::Frame::Continuation(ws::Item::Last("text".into())))
         .await
         .is_err());
 
     framed
-        .send(ws::Message::Close(Some(ws::CloseCode::Normal.into())))
+        .send(ws::Frame::Close(Some(ws::CloseCode::Normal.into())))
         .await
         .unwrap();
 

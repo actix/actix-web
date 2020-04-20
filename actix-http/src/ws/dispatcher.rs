@@ -6,11 +6,11 @@ use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use actix_service::{IntoService, Service};
 use actix_utils::framed;
 
-use super::{Codec, Frame, Message};
+use super::{Codec, Frame};
 
 pub struct Dispatcher<S, T>
 where
-    S: Service<Request = Frame, Response = Message> + 'static,
+    S: Service<Request = Frame, Response = Frame> + 'static,
     T: AsyncRead + AsyncWrite,
 {
     inner: framed::Dispatcher<S, T, Codec>,
@@ -19,7 +19,7 @@ where
 impl<S, T> Dispatcher<S, T>
 where
     T: AsyncRead + AsyncWrite,
-    S: Service<Request = Frame, Response = Message>,
+    S: Service<Request = Frame, Response = Frame>,
     S::Future: 'static,
     S::Error: 'static,
 {
@@ -39,7 +39,7 @@ where
 impl<S, T> Future for Dispatcher<S, T>
 where
     T: AsyncRead + AsyncWrite,
-    S: Service<Request = Frame, Response = Message>,
+    S: Service<Request = Frame, Response = Frame>,
     S::Future: 'static,
     S::Error: 'static,
 {

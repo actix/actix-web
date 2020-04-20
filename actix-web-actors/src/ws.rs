@@ -1,4 +1,6 @@
 //! Websocket integration
+//use super::{ContinuationBins, ContinuationTexts};
+
 use std::collections::VecDeque;
 use std::io;
 use std::pin::Pin;
@@ -16,7 +18,8 @@ use actix::{
 use actix_codec::{Decoder, Encoder};
 use actix_http::ws::{hash_key, Codec};
 pub use actix_http::ws::{
-    CloseCode, CloseReason, Frame, HandshakeError, Message, ProtocolError,
+    CloseCode, CloseReason, ContinuationBins, ContinuationTexts, Frame, HandshakeError,
+    Item, Message, ProtocolError,
 };
 use actix_web::dev::HttpResponseBuilder;
 use actix_web::error::{Error, PayloadError};
@@ -25,6 +28,8 @@ use actix_web::{HttpRequest, HttpResponse};
 use bytes::{Bytes, BytesMut};
 use futures::channel::oneshot::Sender;
 use futures::{Future, Stream};
+
+const DEFAULT_MAX_FRAME_SIZE: usize = 64_000;
 
 /// Do websocket handshake and start ws actor.
 pub fn start<A, T>(actor: A, req: &HttpRequest, stream: T) -> Result<HttpResponse, Error>
@@ -180,7 +185,8 @@ where
     A: Actor<Context = WebsocketContext<A>>,
 {
     inner: ContextParts<A>,
-    messages: VecDeque<Option<Message>>,
+    frames: VecDeque<Option<Frame>>,
+    max_frame_content_bytes: usize,
 }
 
 impl<A> ActorContext for WebsocketContext<A>
@@ -268,7 +274,8 @@ where
         let mb = Mailbox::default();
         let mut ctx = WebsocketContext {
             inner: ContextParts::new(mb.sender_producer()),
-            messages: VecDeque::new(),
+            frames: VecDeque::new(),
+            max_frame_content_bytes: DEFAULT_MAX_FRAME_SIZE,
         };
         ctx.add_stream(WsStream::new(stream, Codec::new()));
 
@@ -291,7 +298,8 @@ where
         let mb = Mailbox::default();
         let mut ctx = WebsocketContext {
             inner: ContextParts::new(mb.sender_producer()),
-            messages: VecDeque::new(),
+            frames: VecDeque::new(),
+            max_frame_content_bytes: DEFAULT_MAX_FRAME_SIZE,
         };
         ctx.add_stream(WsStream::new(stream, codec));
 
@@ -311,7 +319,8 @@ where
         let mb = Mailbox::default();
         let mut ctx = WebsocketContext {
             inner: ContextParts::new(mb.sender_producer()),
-            messages: VecDeque::new(),
+            frames: VecDeque::new(),
+            max_frame_content_bytes: DEFAULT_MAX_FRAME_SIZE,
         };
         ctx.add_stream(WsStream::new(stream, Codec::new()));
 
@@ -332,38 +341,46 @@ where
     /// data you should prefer the `text()` or `binary()` convenience functions
     /// that handle the framing for you.
     #[inline]
-    pub fn write_raw(&mut self, msg: Message) {
-        self.messages.push_back(Some(msg));
+    pub fn write_raw(&mut self, frm: Frame) {
+        self.frames.push_back(Some(frm));
     }
 
     /// Send text frame
     #[inline]
     pub fn text<T: Into<String>>(&mut self, text: T) {
-        self.write_raw(Message::Text(text.into()));
+        for frm in
+            ContinuationTexts::new(text.into().chars(), self.max_frame_content_bytes)
+        {
+            self.write_raw(frm);
+        }
     }
 
     /// Send binary frame
     #[inline]
     pub fn binary<B: Into<Bytes>>(&mut self, data: B) {
-        self.write_raw(Message::Binary(data.into()));
+        for frm in
+            ContinuationBins::new(data.into().as_ref(), self.max_frame_content_bytes)
+        {
+            self.write_raw(frm);
+        }
     }
 
     /// Send ping frame
     #[inline]
     pub fn ping(&mut self, message: &[u8]) {
-        self.write_raw(Message::Ping(Bytes::copy_from_slice(message)));
+        self.write_raw(Frame::Ping(Bytes::copy_from_slice(message)));
     }
 
     /// Send pong frame
     #[inline]
     pub fn pong(&mut self, message: &[u8]) {
-        self.write_raw(Message::Pong(Bytes::copy_from_slice(message)));
+        self.write_raw(Frame::Pong(Bytes::copy_from_slice(message)));
     }
 
     /// Send close frame
     #[inline]
     pub fn close(&mut self, reason: Option<CloseReason>) {
-        self.write_raw(Message::Close(reason));
+        self.write_raw(Frame::Close(reason));
     }
 
     /// Handle of the running future
@@ -431,10 +448,10 @@ where
             let _ = Pin::new(&mut this.fut).poll(cx);
         }
 
-        // encode messages
-        while let Some(item) = this.fut.ctx().messages.pop_front() {
-            if let Some(msg) = item {
-                this.encoder.encode(msg, &mut this.buf)?;
+        // encode frames
+        while let Some(item) = this.fut.ctx().frames.pop_front() {
+            if let Some(frm) = item {
+                this.encoder.encode(frm, &mut this.buf)?;
             } else {
                 this.closed = true;
                 break;
@@ -462,6 +479,12 @@ where
     }
 }
 
+enum ContnBufType {
+    Unknown,
+    Text,
+    Binary,
+}
+
 #[pin_project::pin_project]
 struct WsStream<S> {
     #[pin]
@@ -469,6 +492,8 @@ struct WsStream<S> {
     decoder: Codec,
     buf: BytesMut,
     closed: bool,
+    continuation_buf: BytesMut,
+    continuation_buf_type: ContnBufType,
 }
 
 impl<S> WsStream<S>
@@ -481,6 +506,8 @@ where
             decoder: codec,
             buf: BytesMut::new(),
             closed: false,
+            continuation_buf: BytesMut::new(),
+            continuation_buf_type: ContnBufType::Unknown,
         }
     }
 }
@@ -518,7 +545,7 @@ where
             }
         }
 
-        match this.decoder.decode(this.buf)? {
+        match this.decoder.decode(&mut this.buf)? {
             None => {
                 if *this.closed {
                     Poll::Ready(None)
@@ -526,26 +553,69 @@ where
                     Poll::Pending
                 }
             }
-            Some(frm) => {
-                let msg = match frm {
-                    Frame::Text(data) => Message::Text(
-                        std::str::from_utf8(&data)
-                            .map_err(|e| {
+            Some(frm) => match frm {
+                Frame::Text(data) => {
+                    let txt = std::str::from_utf8(&data)
+                        .map_err(|e| {
+                            ProtocolError::Io(io::Error::new(
+                                io::ErrorKind::Other,
+                                format!("{}", e),
+                            ))
+                        })?
+                        .to_string();
+                    Poll::Ready(Some(Ok(Message::Text(txt))))
+                }
+                Frame::Binary(data) => Poll::Ready(Some(Ok(Message::Binary(data)))),
+                Frame::Ping(s) => Poll::Ready(Some(Ok(Message::Ping(s)))),
+                Frame::Pong(s) => Poll::Ready(Some(Ok(Message::Pong(s)))),
+                Frame::Close(reason) => Poll::Ready(Some(Ok(Message::Close(reason)))),
+                Frame::Continuation(item) => match item {
+                    Item::FirstText(bs) => {
+                        this.continuation_buf.clear();
+                        this.continuation_buf.extend_from_slice(&bs[..]);
+                        *this.continuation_buf_type = ContnBufType::Text;
+                        Poll::Pending
+                    }
+                    Item::FirstBinary(bs) => {
+                        this.continuation_buf.clear();
+                        this.continuation_buf.extend_from_slice(&bs[..]);
+                        *this.continuation_buf_type = ContnBufType::Binary;
+                        Poll::Pending
+                    }
+                    Item::Continue(bs) => {
+                        this.continuation_buf.extend_from_slice(&bs[..]);
+                        Poll::Pending
+                    }
+                    Item::Last(bs) => {
+                        this.continuation_buf.extend_from_slice(&bs[..]);
+                        match this.continuation_buf_type {
+                            ContnBufType::Text => {
+                                let txt =
+                                    std::str::from_utf8(&this.continuation_buf[..])
+                                        .map_err(|e| {
+                                            ProtocolError::Io(io::Error::new(
+                                                io::ErrorKind::Other,
+                                                format!("{}", e),
+                                            ))
+                                        })?
+                                        .to_string();
+                                Poll::Ready(Some(Ok(Message::Text(txt))))
+                            }
+                            ContnBufType::Binary => {
+                                let bts =
+                                    Bytes::copy_from_slice(&this.continuation_buf[..]);
+                                Poll::Ready(Some(Ok(Message::Binary(bts))))
+                            }
+                            ContnBufType::Unknown => Poll::Ready(Some(Err(
                                 ProtocolError::Io(io::Error::new(
                                     io::ErrorKind::Other,
-                                    format!("{}", e),
-                                ))
-                            })?
-                            .to_string(),
-                    ),
-                    Frame::Binary(data) => Message::Binary(data),
-                    Frame::Ping(s) => Message::Ping(s),
-                    Frame::Pong(s) => Message::Pong(s),
-                    Frame::Close(reason) => Message::Close(reason),
-                    Frame::Continuation(item) => Message::Continuation(item),
-                };
-                Poll::Ready(Some(Ok(msg)))
-            }
+                                    "Invalid decoder state".to_string(),
+                                )),
+                            ))),
+                        }
+                    }
+                },
+            },
         }
     }
 }

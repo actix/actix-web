@@ -30,8 +30,42 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for Ws {
 async fn test_simple() {
     let mut srv = test::start(|| {
         App::new().service(web::resource("/").to(
-            |req: HttpRequest, stream: web::Payload| {
-                async move { ws::start(Ws, &req, stream) }
+            |req: HttpRequest, stream: web::Payload| async move {
+                ws::start(Ws, &req, stream)
+            },
+        ))
+    });
+
+    // client service
+    let mut framed = srv.ws().await.unwrap();
+    framed.send(ws::Frame::Text("text".into())).await.unwrap();
+
+    let item = framed.next().await.unwrap().unwrap();
+    assert_eq!(item, ws::Frame::Text(Bytes::from_static(b"text")));
+
+    framed.send(ws::Frame::Binary("text".into())).await.unwrap();
+    let item = framed.next().await.unwrap().unwrap();
+    assert_eq!(item, ws::Frame::Binary(Bytes::from_static(b"text").into()));
+
+    framed.send(ws::Frame::Ping("text".into())).await.unwrap();
+    let item = framed.next().await.unwrap().unwrap();
+    assert_eq!(item, ws::Frame::Pong(Bytes::copy_from_slice(b"text")));
+
+    framed
+        .send(ws::Frame::Close(Some(ws::CloseCode::Normal.into())))
+        .await
+        .unwrap();
+
+    let item = framed.next().await.unwrap().unwrap();
+    assert_eq!(item, ws::Frame::Close(Some(ws::CloseCode::Normal.into())));
+}
+
+#[actix_rt::test]
+async fn test_continuation_frames() {
+    let mut srv = test::start(|| {
+        App::new().service(web::resource("/").to(
+            |req: HttpRequest, stream: web::Payload| async move {
+                ws::start(Ws, &req, stream)
             },
         ))
     });
@@ -39,29 +73,68 @@ async fn test_simple() {
     // client service
     let mut framed = srv.ws().await.unwrap();
     framed
-        .send(ws::Message::Text("text".to_string()))
+        .send(ws::Frame::Continuation(ws::Item::FirstText("first".into())))
         .await
         .unwrap();
-
+    framed
+        .send(ws::Frame::Continuation(ws::Item::Last(" text".into())))
+        .await
+        .unwrap();
     let item = framed.next().await.unwrap().unwrap();
-    assert_eq!(item, ws::Frame::Text(Bytes::from_static(b"text")));
+    assert_eq!(item, ws::Frame::Text(Bytes::from_static(b"first text")));
 
     framed
-        .send(ws::Message::Binary("text".into()))
+        .send(ws::Frame::Continuation(ws::Item::FirstBinary(
+            "first".into(),
+        )))
+        .await
+        .unwrap();
+    framed
+        .send(ws::Frame::Continuation(ws::Item::Last(" binary".into())))
         .await
         .unwrap();
     let item = framed.next().await.unwrap().unwrap();
-    assert_eq!(item, ws::Frame::Binary(Bytes::from_static(b"text").into()));
-
-    framed.send(ws::Message::Ping("text".into())).await.unwrap();
-    let item = framed.next().await.unwrap().unwrap();
-    assert_eq!(item, ws::Frame::Pong(Bytes::copy_from_slice(b"text")));
+    assert_eq!(item, ws::Frame::Binary(Bytes::from_static(b"first binary")));
 
     framed
-        .send(ws::Message::Close(Some(ws::CloseCode::Normal.into())))
+        .send(ws::Frame::Continuation(ws::Item::FirstText("first".into())))
         .await
         .unwrap();
-
+    framed
+        .send(ws::Frame::Continuation(ws::Item::Continue(
+            " continuation".into(),
+        )))
+        .await
+        .unwrap();
+    framed
+        .send(ws::Frame::Continuation(ws::Item::Last(" text".into())))
+        .await
+        .unwrap();
     let item = framed.next().await.unwrap().unwrap();
-    assert_eq!(item, ws::Frame::Close(Some(ws::CloseCode::Normal.into())));
+    assert_eq!(
+        item,
+        ws::Frame::Text(Bytes::from_static(b"first continuation text"))
+    );
+
+    framed
+        .send(ws::Frame::Continuation(ws::Item::FirstBinary(
+            "first".into(),
+        )))
+        .await
+        .unwrap();
+    framed
+        .send(ws::Frame::Continuation(ws::Item::Continue(
+            " continuation".into(),
+        )))
+        .await
+        .unwrap();
+    framed
+        .send(ws::Frame::Continuation(ws::Item::Last(" binary".into())))
+        .await
+        .unwrap();
+    let item = framed.next().await.unwrap().unwrap();
+    assert_eq!(
+        item,
+        ws::Frame::Binary(Bytes::from_static(b"first continuation binary"))
+    );
 }
