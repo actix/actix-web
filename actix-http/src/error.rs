@@ -18,7 +18,7 @@ use serde::de::value::Error as DeError;
 use serde_json::error::Error as JsonError;
 use serde_urlencoded::ser::Error as FormError;
 
-// re-export for convinience
+// re-export for convenience
 use crate::body::Body;
 pub use crate::cookie::ParseError as CookieParseError;
 use crate::helpers::Writer;
@@ -432,7 +432,7 @@ pub enum DispatchError {
     Unknown,
 }
 
-/// A set of error that can occure during parsing content type
+/// A set of error that can occur during parsing content type
 #[derive(PartialEq, Debug, Display)]
 pub enum ContentTypeError {
     /// Can not parse content type

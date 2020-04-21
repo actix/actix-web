@@ -50,7 +50,7 @@ impl AppService {
         }
     }
 
-    /// Check if root is beeing configured
+    /// Check if root is being configured
     pub fn is_root(&self) -> bool {
         self.root
     }

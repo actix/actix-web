@@ -42,7 +42,7 @@ impl<Io, S> FramedRequest<Io, S> {
         self.req.head()
     }
 
-    /// This method returns muttable reference to the request head.
+    /// This method returns mutable reference to the request head.
     /// panics if multiple references of http request exists.
     #[inline]
     pub fn head_mut(&mut self) -> &mut RequestHead {
@@ -131,7 +131,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_reqest() {
+    fn test_request() {
         let buf = TestBuffer::empty();
         let framed = Framed::new(buf, Codec::default());
         let req = TestRequest::with_uri("/index.html?q=1")

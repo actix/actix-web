@@ -7,7 +7,7 @@ mod service;
 mod state;
 pub mod test;
 
-// re-export for convinience
+// re-export for convenience
 pub use actix_http::{http, Error, HttpMessage, Response, ResponseError};
 
 pub use self::app::{FramedApp, FramedAppService};

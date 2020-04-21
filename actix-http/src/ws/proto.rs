@@ -203,7 +203,7 @@ impl<T: Into<String>> From<(CloseCode, T)> for CloseReason {
 
 static WS_GUID: &str = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 
-// TODO: hash is always same size, we dont need String
+// TODO: hash is always same size, we don't need String
 pub fn hash_key(key: &[u8]) -> String {
     use sha1::Digest;
     let mut hasher = sha1::Sha1::new();
