@@ -18,7 +18,7 @@ use crate::request::Request;
 const MAX_BUFFER_SIZE: usize = 131_072;
 const MAX_HEADERS: usize = 96;
 
-/// Incoming messagd decoder
+/// Incoming message decoder
 pub(crate) struct MessageDecoder<T: MessageType>(PhantomData<T>);
 
 #[derive(Debug)]

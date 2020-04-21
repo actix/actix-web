@@ -114,7 +114,7 @@ impl ServiceConfig {
     }
 
     #[inline]
-    /// Return state of connection keep-alive funcitonality
+    /// Return state of connection keep-alive functionality
     pub fn keep_alive_enabled(&self) -> bool {
         self.0.ka_enabled
     }

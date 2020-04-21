@@ -297,8 +297,8 @@ where
 
     /// Flush stream
     ///
-    /// true - got whouldblock
-    /// false - didnt get whouldblock
+    /// true - got WouldBlock
+    /// false - didn't get WouldBlock
     #[pin_project::project]
     fn poll_flush(
         self: Pin<&mut Self>,
@@ -812,7 +812,7 @@ where
                             return self.poll(cx);
                         }
 
-                        // we didnt get WouldBlock from write operation,
+                        // we didn't get WouldBlock from write operation,
                         // so data get written to kernel completely (OSX)
                         // and we have to write again otherwise response can get stuck
                         if inner.as_mut().poll_flush(cx)? || !drain {

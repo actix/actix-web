@@ -320,7 +320,7 @@ where
 
     /// Registers middleware, in the form of a middleware component (type),
     /// that runs during inbound and/or outbound processing in the request
-    /// lifecycle (request -> response), modifying request/response as
+    /// life-cycle (request -> response), modifying request/response as
     /// necessary, across all requests managed by the *Application*.
     ///
     /// Use middleware when you need to read or modify *every* request or
@@ -385,7 +385,7 @@ where
     }
 
     /// Registers middleware, in the form of a closure, that runs during inbound
-    /// and/or outbound processing in the request lifecycle (request -> response),
+    /// and/or outbound processing in the request life-cycle (request -> response),
     /// modifying request/response as necessary, across all requests managed by
     /// the *Application*.
     ///

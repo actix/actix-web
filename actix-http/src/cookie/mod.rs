@@ -103,7 +103,7 @@ enum CookieStr {
 
 impl CookieStr {
     /// Retrieves the string `self` corresponds to. If `self` is derived from
-    /// indexes, the corresponding subslice of `string` is returned. Otherwise,
+    /// indexes, the corresponding sub-slice of `string` is returned. Otherwise,
     /// the concrete string is returned.
     ///
     /// # Panics

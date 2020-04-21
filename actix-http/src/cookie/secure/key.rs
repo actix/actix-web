@@ -84,7 +84,7 @@ impl Key {
     }
 
     /// Generates signing/encryption keys from a secure, random source. Keys are
-    /// generated nondeterministically.
+    /// generated non-deterministically.
     ///
     /// # Panics
     ///
@@ -103,7 +103,7 @@ impl Key {
     }
 
     /// Attempts to generate signing/encryption keys from a secure, random
-    /// source. Keys are generated nondeterministically. If randomness cannot be
+    /// source. Keys are generated non-deterministically. If randomness cannot be
     /// retrieved from the underlying operating system, returns `None`.
     ///
     /// # Example

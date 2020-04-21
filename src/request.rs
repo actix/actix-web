@@ -57,7 +57,7 @@ impl HttpRequest {
         &self.0.head
     }
 
-    /// This method returns muttable reference to the request head.
+    /// This method returns mutable reference to the request head.
     /// panics if multiple references of http request exists.
     #[inline]
     pub(crate) fn head_mut(&mut self) -> &mut RequestHead {
