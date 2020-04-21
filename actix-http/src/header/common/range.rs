@@ -7,7 +7,7 @@ use header::{Header, Raw};
 /// `Range` header, defined in [RFC7233](https://tools.ietf.org/html/rfc7233#section-3.1)
 ///
 /// The "Range" header field on a GET request modifies the method
-/// semantics to request transfer of only one or more subranges of the
+/// semantics to request transfer of only one or more sub-ranges of the
 /// selected representation data, rather than the entire selected
 /// representation data.
 ///

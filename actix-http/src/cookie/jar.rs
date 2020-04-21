@@ -13,7 +13,7 @@ use super::secure::{Key, PrivateJar, SignedJar};
 ///
 /// A `CookieJar` provides storage for any number of cookies. Any changes made
 /// to the jar are tracked; the changes can be retrieved via the
-/// [delta](#method.delta) method which returns an interator over the changes.
+/// [delta](#method.delta) method which returns an iterator over the changes.
 ///
 /// # Usage
 ///

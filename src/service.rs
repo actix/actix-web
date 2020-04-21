@@ -69,7 +69,7 @@ impl ServiceRequest {
 
     /// Construct request from parts.
     ///
-    /// `ServiceRequest` can be re-constructed only if `req` hasnt been cloned.
+    /// `ServiceRequest` can be re-constructed only if `req` hasn't been cloned.
     pub fn from_parts(
         mut req: HttpRequest,
         pl: Payload,

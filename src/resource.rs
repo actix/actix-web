@@ -46,7 +46,7 @@ type HttpNewService = BoxServiceFactory<(), ServiceRequest, ServiceResponse, Err
 /// ```
 ///
 /// If no matching route could be found, *405* response code get returned.
-/// Default behavior could be overriden with `default_resource()` method.
+/// Default behavior could be overridden with `default_resource()` method.
 pub struct Resource<T = ResourceEndpoint> {
     endpoint: T,
     rdef: Vec<String>,

@@ -110,7 +110,7 @@ impl ResponseError for HandshakeError {
     }
 }
 
-/// Verify `WebSocket` handshake request and create handshake reponse.
+/// Verify `WebSocket` handshake request and create handshake response.
 // /// `protocols` is a sequence of known protocols. On successful handshake,
 // /// the returned response headers contain the first protocol in this list
 // /// which the server also knows.
@@ -170,7 +170,7 @@ pub fn verify_handshake(req: &RequestHead) -> Result<(), HandshakeError> {
     Ok(())
 }
 
-/// Create websocket's handshake response
+/// Create websocket handshake response
 ///
 /// This function returns handshake `Response`, ready to send to peer.
 pub fn handshake_response(req: &RequestHead) -> ResponseBuilder {
