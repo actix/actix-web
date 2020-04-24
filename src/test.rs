@@ -88,8 +88,28 @@ where
     >,
     S::InitError: std::fmt::Debug,
 {
+    try_init_service(app).await.expect("service initilization failed")
+}
+
+/// Fallible version of init_service that allows testing data factory errors.
+pub(crate) async fn try_init_service<R, S, B, E>(
+    app: R,
+) -> Result<
+    impl Service<Request = Request, Response = ServiceResponse<B>, Error = E>,
+    S::InitError,
+>
+where
+    R: IntoServiceFactory<S>,
+    S: ServiceFactory<
+        Config = AppConfig,
+        Request = Request,
+        Response = ServiceResponse<B>,
+        Error = E,
+    >,
+    S::InitError: std::fmt::Debug,
+{
     let srv = app.into_factory();
-    srv.new_service(AppConfig::default()).await.unwrap()
+    srv.new_service(AppConfig::default()).await
 }
 
 /// Calls service and waits for response future completion.
@@ -580,7 +600,7 @@ impl TestRequest {
     pub async fn send_request<S, B, E>(self, app: &mut S) -> S::Response
     where
         S: Service<Request = Request, Response = ServiceResponse<B>, Error = E>,
-        E: std::fmt::Debug
+        E: std::fmt::Debug,
     {
         let req = self.to_request();
         call_service(app, req).await
@@ -1125,8 +1145,8 @@ mod tests {
     #[actix_rt::test]
     async fn test_response_json() {
         let mut app = init_service(App::new().service(web::resource("/people").route(
-            web::post().to(|person: web::Json<Person>| {
-                async { HttpResponse::Ok().json(person.into_inner()) }
+            web::post().to(|person: web::Json<Person>| async {
+                HttpResponse::Ok().json(person.into_inner())
             }),
         )))
         .await;
@@ -1146,8 +1166,8 @@ mod tests {
     #[actix_rt::test]
     async fn test_body_json() {
         let mut app = init_service(App::new().service(web::resource("/people").route(
-            web::post().to(|person: web::Json<Person>| {
-                async { HttpResponse::Ok().json(person.into_inner()) }
+            web::post().to(|person: web::Json<Person>| async {
+                HttpResponse::Ok().json(person.into_inner())
             }),
         )))
         .await;
@@ -1168,8 +1188,8 @@ mod tests {
     #[actix_rt::test]
     async fn test_request_response_form() {
         let mut app = init_service(App::new().service(web::resource("/people").route(
-            web::post().to(|person: web::Form<Person>| {
-                async { HttpResponse::Ok().json(person.into_inner()) }
+            web::post().to(|person: web::Form<Person>| async {
+                HttpResponse::Ok().json(person.into_inner())
             }),
         )))
         .await;
@@ -1194,8 +1214,8 @@ mod tests {
     #[actix_rt::test]
     async fn test_request_response_json() {
         let mut app = init_service(App::new().service(web::resource("/people").route(
-            web::post().to(|person: web::Json<Person>| {
-                async { HttpResponse::Ok().json(person.into_inner()) }
+            web::post().to(|person: web::Json<Person>| async {
+                HttpResponse::Ok().json(person.into_inner())
             }),
         )))
         .await;
@@ -1259,53 +1279,53 @@ mod tests {
         assert!(res.status().is_success());
     }
 
-/*
+    /*
 
-    Comment out until actix decoupled of actix-http:
-    https://github.com/actix/actix/issues/321
+        Comment out until actix decoupled of actix-http:
+        https://github.com/actix/actix/issues/321
 
-    use futures::FutureExt;
+        use futures::FutureExt;
 
-    #[actix_rt::test]
-    async fn test_actor() {
-        use actix::Actor;
+        #[actix_rt::test]
+        async fn test_actor() {
+            use actix::Actor;
 
-        struct MyActor;
+            struct MyActor;
 
-        struct Num(usize);
-        impl actix::Message for Num {
-            type Result = usize;
-        }
-        impl actix::Actor for MyActor {
-            type Context = actix::Context<Self>;
-        }
-        impl actix::Handler<Num> for MyActor {
-            type Result = usize;
-            fn handle(&mut self, msg: Num, _: &mut Self::Context) -> Self::Result {
-                msg.0
+            struct Num(usize);
+            impl actix::Message for Num {
+                type Result = usize;
             }
-        }
+            impl actix::Actor for MyActor {
+                type Context = actix::Context<Self>;
+            }
+            impl actix::Handler<Num> for MyActor {
+                type Result = usize;
+                fn handle(&mut self, msg: Num, _: &mut Self::Context) -> Self::Result {
+                    msg.0
+                }
+            }
 
 
-        let mut app = init_service(App::new().service(web::resource("/index.html").to(
-            move || {
-                addr.send(Num(1)).map(|res| match res {
-                    Ok(res) => {
-                        if res == 1 {
-                            Ok(HttpResponse::Ok())
-                        } else {
-                            Ok(HttpResponse::BadRequest())
+            let mut app = init_service(App::new().service(web::resource("/index.html").to(
+                move || {
+                    addr.send(Num(1)).map(|res| match res {
+                        Ok(res) => {
+                            if res == 1 {
+                                Ok(HttpResponse::Ok())
+                            } else {
+                                Ok(HttpResponse::BadRequest())
+                            }
                         }
-                    }
-                    Err(err) => Err(err),
-                })
-            },
-        )))
-        .await;
+                        Err(err) => Err(err),
+                    })
+                },
+            )))
+            .await;
 
-        let req = TestRequest::post().uri("/index.html").to_request();
-        let res = app.call(req).await.unwrap();
-        assert!(res.status().is_success());
-    }
-*/
+            let req = TestRequest::post().uri("/index.html").to_request();
+            let res = app.call(req).await.unwrap();
+            assert!(res.status().is_success());
+        }
+    */
 }
