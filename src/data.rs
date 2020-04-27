@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use actix_http::error::{Error, ErrorInternalServerError};
 use actix_http::Extensions;
-use futures::future::{err, ok, Ready};
+use futures::future::{err, ok, LocalBoxFuture, Ready};
 
 use crate::dev::Payload;
 use crate::extract::FromRequest;
@@ -13,6 +13,9 @@ use crate::request::HttpRequest;
 pub(crate) trait DataFactory {
     fn create(&self, extensions: &mut Extensions) -> bool;
 }
+
+pub(crate) type FnDataFactory =
+    Box<dyn Fn() -> LocalBoxFuture<'static, Result<Box<dyn DataFactory>, ()>>>;
 
 /// Application data.
 ///

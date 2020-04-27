@@ -10,11 +10,11 @@ use actix_service::boxed::{self, BoxServiceFactory};
 use actix_service::{
     apply, apply_fn_factory, IntoServiceFactory, ServiceFactory, Transform,
 };
-use futures::future::{FutureExt, LocalBoxFuture};
+use futures::future::FutureExt;
 
 use crate::app_service::{AppEntry, AppInit, AppRoutingFactory};
 use crate::config::ServiceConfig;
-use crate::data::{Data, DataFactory};
+use crate::data::{Data, DataFactory, FnDataFactory};
 use crate::dev::ResourceDef;
 use crate::error::Error;
 use crate::resource::Resource;
@@ -25,8 +25,6 @@ use crate::service::{
 };
 
 type HttpNewService = BoxServiceFactory<(), ServiceRequest, ServiceResponse, Error, ()>;
-type FnDataFactory =
-    Box<dyn Fn() -> LocalBoxFuture<'static, Result<Box<dyn DataFactory>, ()>>>;
 
 /// Application builder - structure that follows the builder pattern
 /// for building application instances.
