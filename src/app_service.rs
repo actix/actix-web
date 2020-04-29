@@ -12,7 +12,7 @@ use actix_service::{fn_service, Service, ServiceFactory};
 use futures::future::{join_all, ok, FutureExt, LocalBoxFuture};
 
 use crate::config::{AppConfig, AppService};
-use crate::data::DataFactory;
+use crate::data::{FnDataFactory, DataFactory};
 use crate::error::Error;
 use crate::guard::Guard;
 use crate::request::{HttpRequest, HttpRequestPool};
@@ -23,8 +23,6 @@ type Guards = Vec<Box<dyn Guard>>;
 type HttpService = BoxService<ServiceRequest, ServiceResponse, Error>;
 type HttpNewService = BoxServiceFactory<(), ServiceRequest, ServiceResponse, Error, ()>;
 type BoxResponse = LocalBoxFuture<'static, Result<ServiceResponse, Error>>;
-type FnDataFactory =
-    Box<dyn Fn() -> LocalBoxFuture<'static, Result<Box<dyn DataFactory>, ()>>>;
 
 /// Service factory to convert `Request` to a `ServiceRequest<S>`.
 /// It also executes data factories.
