@@ -9,7 +9,7 @@ use actix_http::{Extensions, Request, Response};
 use actix_router::{Path, ResourceDef, ResourceInfo, Router, Url};
 use actix_service::boxed::{self, BoxService, BoxServiceFactory};
 use actix_service::{fn_service, Service, ServiceFactory};
-use futures::future::{ok, FutureExt, LocalBoxFuture};
+use futures::future::{join_all, ok, FutureExt, LocalBoxFuture};
 
 use crate::config::{AppConfig, AppService};
 use crate::data::DataFactory;
@@ -109,12 +109,15 @@ where
         let rmap = Rc::new(rmap);
         rmap.finish(rmap.clone());
 
+        // start all data factory futures
+        let factory_futs = join_all(self.data_factories.iter().map(|f| f()));
+
         AppInitResult {
             endpoint: None,
             endpoint_fut: self.endpoint.new_service(()),
             data: self.data.clone(),
-            data_factories: Vec::new(),
-            data_factories_fut: self.data_factories.iter().map(|f| f()).collect(),
+            data_factories: None,
+            data_factories_fut: factory_futs.boxed_local(),
             extensions: Some(
                 self.extensions
                     .borrow_mut()
@@ -133,15 +136,21 @@ pub struct AppInitResult<T, B>
 where
     T: ServiceFactory,
 {
-    endpoint: Option<T::Service>,
     #[pin]
     endpoint_fut: T::Future,
+    // a Some signals completion of endpoint creation
+    endpoint: Option<T::Service>,
+
+    #[pin]
+    data_factories_fut: LocalBoxFuture<'static, Vec<Result<Box<dyn DataFactory>, ()>>>,
+    // a Some signals completion of factory futures
+    data_factories: Option<Vec<Box<dyn DataFactory>>>,
+
     rmap: Rc<ResourceMap>,
     config: AppConfig,
     data: Rc<Vec<Box<dyn DataFactory>>>,
-    data_factories: Vec<Box<dyn DataFactory>>,
-    data_factories_fut: Vec<LocalBoxFuture<'static, Result<Box<dyn DataFactory>, ()>>>,
     extensions: Option<Extensions>,
+
     _t: PhantomData<B>,
 }
 
@@ -161,44 +170,46 @@ where
         let this = self.project();
 
         // async data factories
-        let mut idx = 0;
-        while idx < this.data_factories_fut.len() {
-            match Pin::new(&mut this.data_factories_fut[idx]).poll(cx)? {
-                Poll::Ready(f) => {
-                    this.data_factories.push(f);
-                    let _ = this.data_factories_fut.remove(idx);
-                }
-                Poll::Pending => idx += 1,
+        if let Poll::Ready(factories) = this.data_factories_fut.poll(cx) {
+            let factories: Result<Vec<_>, ()> = factories.into_iter().collect();
+
+            if let Ok(factories) = factories {
+                this.data_factories.replace(factories);
+            } else {
+                return Poll::Ready(Err(()));
             }
         }
 
+        // app service and middleware
         if this.endpoint.is_none() {
             if let Poll::Ready(srv) = this.endpoint_fut.poll(cx)? {
                 *this.endpoint = Some(srv);
             }
         }
 
-        if this.endpoint.is_some() && this.data_factories_fut.is_empty() {
+        // not using if let so condition only needs shared ref
+        if this.endpoint.is_some() && this.data_factories.is_some() {
             // create app data container
             let mut data = this.extensions.take().unwrap();
+
             for f in this.data.iter() {
                 f.create(&mut data);
             }
 
-            for f in this.data_factories.iter() {
+            for f in this.data_factories.take().unwrap().iter() {
                 f.create(&mut data);
             }
 
-            Poll::Ready(Ok(AppInitService {
+            return Poll::Ready(Ok(AppInitService {
                 service: this.endpoint.take().unwrap(),
                 rmap: this.rmap.clone(),
                 config: this.config.clone(),
                 data: Rc::new(data),
                 pool: HttpRequestPool::create(),
-            }))
-        } else {
-            Poll::Pending
+            }));
         }
+
+        Poll::Pending
     }
 }
 
