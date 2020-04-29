@@ -7,6 +7,8 @@
 * Implement `std::error::Error` for our custom errors [#1422]
 * Remove `failure` support for `ResponseError` since that crate
   will be deprecated in the near future.
+* Fix a mistake in the encoding of websocket continuation messages wherein
+  Item::FirstText and Item::FirstBinary are each encoded as the other.
 
 [#1422]: https://github.com/actix/actix-web/pull/1422
 
