@@ -137,17 +137,22 @@ impl FromStr for Charset {
     }
 }
 
-#[test]
-fn test_parse() {
-    assert_eq!(Us_Ascii, "us-ascii".parse().unwrap());
-    assert_eq!(Us_Ascii, "US-Ascii".parse().unwrap());
-    assert_eq!(Us_Ascii, "US-ASCII".parse().unwrap());
-    assert_eq!(Shift_Jis, "Shift-JIS".parse().unwrap());
-    assert_eq!(Ext("ABCD".to_owned()), "abcd".parse().unwrap());
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-#[test]
-fn test_display() {
-    assert_eq!("US-ASCII", format!("{}", Us_Ascii));
-    assert_eq!("ABCD", format!("{}", Ext("ABCD".to_owned())));
+    #[test]
+    fn test_parse() {
+        assert_eq!(Us_Ascii, "us-ascii".parse().unwrap());
+        assert_eq!(Us_Ascii, "US-Ascii".parse().unwrap());
+        assert_eq!(Us_Ascii, "US-ASCII".parse().unwrap());
+        assert_eq!(Shift_Jis, "Shift-JIS".parse().unwrap());
+        assert_eq!(Ext("ABCD".to_owned()), "abcd".parse().unwrap());
+    }
+
+    #[test]
+    fn test_display() {
+        assert_eq!("US-ASCII", format!("{}", Us_Ascii));
+        assert_eq!("ABCD", format!("{}", Ext("ABCD".to_owned())));
+    }
 }
