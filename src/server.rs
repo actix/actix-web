@@ -49,7 +49,7 @@ struct Config {
 ///         .await
 /// }
 /// ```
-pub struct HttpServer<F, I, S, B>
+pub struct HttpServer<F, I, S, B, C = ()>
 where
     F: Fn() -> I + Send + Clone + 'static,
     I: IntoServiceFactory<S>,
@@ -64,10 +64,10 @@ where
     backlog: i32,
     sockets: Vec<Socket>,
     builder: ServerBuilder,
-    _t: PhantomData<(S, B)>,
+    on_connect_fn: Option<Arc<dyn Fn(&dyn std::any::Any) -> C + Send + Sync>>,
+    _t: PhantomData<(S, B, C)>,
 }
-
-impl<F, I, S, B> HttpServer<F, I, S, B>
+impl<F, I, S, B> HttpServer<F, I, S, B, ()>
 where
     F: Fn() -> I + Send + Clone + 'static,
     I: IntoServiceFactory<S>,
@@ -91,10 +91,48 @@ where
             backlog: 1024,
             sockets: Vec::new(),
             builder: ServerBuilder::default(),
+            on_connect_fn: None,
             _t: PhantomData,
         }
     }
 
+    /// Sets function that will be called once for each connection.
+    /// It will receive &Any, which contains underlying connection type.
+    /// For example:
+    /// - `actix_tls::openssl::SslStream<tokio::net::TcpStream>` when using openssl.
+    /// - `actix_tls::rustls::TlsStream<tokio::net::TcpStream>` when using rustls.
+    /// - `tokio::net::TcpStream` when no encryption is used.
+    pub fn on_connect<C>(
+        self,
+        f: Arc<dyn Fn(&dyn std::any::Any) -> C + Send + Sync>,
+    ) -> HttpServer<F, I, S, B, C>
+    where
+        C: Clone + 'static,
+    {
+        HttpServer {
+            factory: self.factory,
+            config: self.config,
+            backlog: self.backlog,
+            sockets: self.sockets,
+            builder: self.builder,
+            on_connect_fn: Some(f),
+            _t: PhantomData,
+        }
+    }
+}
+
+impl<F, I, S, B, C> HttpServer<F, I, S, B, C>
+where
+    F: Fn() -> I + Send + Clone + 'static,
+    I: IntoServiceFactory<S>,
+    S: ServiceFactory<Config = AppConfig, Request = Request>,
+    S::Error: Into<Error> + 'static,
+    S::InitError: fmt::Debug,
+    S::Response: Into<Response<B>> + 'static,
+    <S::Service as Service>::Future: 'static,
+    B: MessageBody + 'static,
+    C: Clone + 'static,
+{
     /// Set number of workers to start.
     ///
     /// By default http server uses number of available logical cpu as threads
@@ -240,6 +278,7 @@ where
             addr,
             scheme: "http",
         });
+        let on_connect_fn = self.on_connect_fn.clone();
 
         self.builder = self.builder.listen(
             format!("actix-web-service-{}", addr),
@@ -256,6 +295,9 @@ where
                     .keep_alive(c.keep_alive)
                     .client_timeout(c.client_timeout)
                     .local_addr(addr)
+                    .on_connect_optional(on_connect_fn.clone().map(|handler| {
+                        move |arg: &_| (&*handler)(arg as &dyn std::any::Any)
+                    }))
                     .finish(map_config(factory(), move |_| cfg.clone()))
                     .tcp()
             },
@@ -289,6 +331,8 @@ where
             scheme: "https",
         });
 
+        let on_connect_fn = self.on_connect_fn.clone();
+
         self.builder = self.builder.listen(
             format!("actix-web-service-{}", addr),
             lst,
@@ -303,6 +347,9 @@ where
                     .keep_alive(c.keep_alive)
                     .client_timeout(c.client_timeout)
                     .client_disconnect(c.client_shutdown)
+                    .on_connect_optional(on_connect_fn.clone().map(|handler| {
+                        move |arg: &_| (&*handler)(arg as &dyn std::any::Any)
+                    }))
                     .finish(map_config(factory(), move |_| cfg.clone()))
                     .openssl(acceptor.clone())
             },
@@ -336,6 +383,8 @@ where
             scheme: "https",
         });
 
+        let on_connect_fn = self.on_connect_fn.clone();
+
         self.builder = self.builder.listen(
             format!("actix-web-service-{}", addr),
             lst,
@@ -350,6 +399,9 @@ where
                     .keep_alive(c.keep_alive)
                     .client_timeout(c.client_timeout)
                     .client_disconnect(c.client_shutdown)
+                    .on_connect_optional(on_connect_fn.clone().map(|handler| {
+                        move |arg: &_| (&*handler)(arg as &dyn std::any::Any)
+                    }))
                     .finish(map_config(factory(), move |_| cfg.clone()))
                     .rustls(config.clone())
             },
@@ -460,7 +512,7 @@ where
         });
 
         let addr = format!("actix-web-service-{:?}", lst.local_addr()?);
-
+        let on_connect_fn = self.on_connect_fn.clone();
         self.builder = self.builder.listen_uds(addr, lst, move || {
             let c = cfg.lock().unwrap();
             let config = AppConfig::new(
@@ -472,6 +524,9 @@ where
                 HttpService::build()
                     .keep_alive(c.keep_alive)
                     .client_timeout(c.client_timeout)
+                    .on_connect_optional(on_connect_fn.clone().map(|handler| {
+                        move |arg: &_| (&*handler)(arg as &dyn std::any::Any)
+                    }))
                     .finish(map_config(factory(), move |_| config.clone())),
             )
         })?;
@@ -520,7 +575,7 @@ where
     }
 }
 
-impl<F, I, S, B> HttpServer<F, I, S, B>
+impl<F, I, S, B, C> HttpServer<F, I, S, B, C>
 where
     F: Fn() -> I + Send + Clone + 'static,
     I: IntoServiceFactory<S>,

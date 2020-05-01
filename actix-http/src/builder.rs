@@ -184,6 +184,20 @@ where
         self
     }
 
+    /// Similar to `on_connect`, but takes optional callback.
+    /// If `f` is None, does nothing.
+    pub fn on_connect_optional<F, I>(self, f: Option<F>) -> Self
+    where 
+        F: Fn(&T) -> I + 'static,
+        I: Clone + 'static,
+    {
+        if let Some(f) = f {
+            self.on_connect(f)
+        } else {
+            self
+        }
+    }
+
     /// Finish service configuration and create *http service* for HTTP/1 protocol.
     pub fn h1<F, B>(self, service: F) -> H1Service<T, S, B, X, U>
     where
