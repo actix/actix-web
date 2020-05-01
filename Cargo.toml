@@ -68,6 +68,9 @@ required-features = ["compress"]
 name = "test_server"
 required-features = ["compress"]
 
+[[example]]
+name = "on_connect"
+
 [dependencies]
 actix-codec = "0.2.0"
 actix-service = "1.0.2"
