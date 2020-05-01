@@ -102,6 +102,7 @@ where
     /// - `actix_tls::openssl::SslStream<tokio::net::TcpStream>` when using openssl.
     /// - `actix_tls::rustls::TlsStream<tokio::net::TcpStream>` when using rustls.
     /// - `tokio::net::TcpStream` when no encryption is used.
+    /// See `on_connect` example for additional details.
     pub fn on_connect<C>(
         self,
         f: Arc<dyn Fn(&dyn std::any::Any) -> C + Send + Sync>,
