@@ -63,7 +63,7 @@ impl CookieBuilder {
     /// use actix_http::cookie::Cookie;
     ///
     /// let c = Cookie::build("foo", "bar")
-    ///     .expires(time::OffsetDateTime::now())
+    ///     .expires(time::OffsetDateTime::now_utc())
     ///     .finish();
     ///
     /// assert!(c.expires().is_some());

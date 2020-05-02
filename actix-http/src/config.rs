@@ -214,7 +214,7 @@ impl Date {
         write!(
             self,
             "{}",
-            OffsetDateTime::now().format("%a, %d %b %Y %H:%M:%S GMT")
+            OffsetDateTime::now_utc().format("%a, %d %b %Y %H:%M:%S GMT")
         )
         .unwrap();
     }

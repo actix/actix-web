@@ -19,7 +19,7 @@ fn try_parse_rfc_850(time: &str) -> Option<PrimitiveDateTime> {
             // If the `time` string contains a two-digit year, then as per RFC 2616 § 19.3,
             // we consider the year as part of this century if it's within the next 50 years,
             // otherwise we consider as part of the previous century.
-            let now = OffsetDateTime::now();
+            let now = OffsetDateTime::now_utc();
             let century_start_year = (now.year() / 100) * 100;
             let mut expanded_year = century_start_year + dt.year();
 
