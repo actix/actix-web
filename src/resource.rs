@@ -196,9 +196,11 @@ where
         self.app_data(Data::new(data))
     }
 
-    /// Set or override application data.
+    /// Add resource data.
     ///
-    /// This method overrides data stored with [`App::app_data()`](#method.app_data)
+    /// If used, this method will create a new data context used for extracting
+    /// from requests. Data added here is *not* merged with data added on App 
+    /// or containing scopes.
     pub fn app_data<U: 'static>(mut self, data: U) -> Self {
         if self.data.is_none() {
             self.data = Some(Extensions::new());
@@ -393,6 +395,7 @@ where
         if let Some(ref mut ext) = self.data {
             config.set_service_data(ext);
         }
+
         config.register_service(rdef, guards, self, None)
     }
 }
@@ -587,13 +590,14 @@ mod tests {
 
     use actix_rt::time::delay_for;
     use actix_service::Service;
+    use bytes::Bytes;
     use futures::future::ok;
 
     use crate::http::{header, HeaderValue, Method, StatusCode};
     use crate::middleware::DefaultHeaders;
     use crate::service::ServiceRequest;
-    use crate::test::{call_service, init_service, TestRequest};
-    use crate::{guard, web, App, Error, HttpResponse};
+    use crate::test::{call_service, init_service, read_body, TestRequest};
+    use crate::{guard, web, App, Error, HttpRequest, HttpResponse};
 
     #[actix_rt::test]
     async fn test_middleware() {
@@ -617,6 +621,79 @@ mod tests {
             resp.headers().get(header::CONTENT_TYPE).unwrap(),
             HeaderValue::from_static("0001")
         );
+    }
+
+    #[actix_rt::test]
+    async fn test_overwritten_data() {
+        #[allow(dead_code)]
+        fn echo_usize(req: HttpRequest) -> HttpResponse {
+            let num = req.app_data::<usize>().unwrap();
+            HttpResponse::Ok().body(format!("{}", num))
+        }
+
+        #[allow(dead_code)]
+        fn echo_u32(req: HttpRequest) -> HttpResponse {
+            let num = req.app_data::<u32>().unwrap();
+            HttpResponse::Ok().body(format!("{}", num))
+        }
+
+        #[allow(dead_code)]
+        fn echo_both(req: HttpRequest) -> HttpResponse {
+            let num = req.app_data::<usize>().unwrap();
+            let num2 = req.app_data::<u32>().unwrap();
+            HttpResponse::Ok().body(format!("{}-{}", num, num2))
+        }
+
+        let mut srv = init_service(
+            App::new()
+                .app_data(88usize)
+                .service(web::resource("/").route(web::get().to(echo_usize)))
+                .service(
+                    web::resource("/one")
+                        .app_data(1usize)
+                        .route(web::get().to(echo_usize)),
+                )
+                .service(
+                    web::resource("/two")
+                        .app_data(2usize)
+                        .route(web::get().to(echo_usize)),
+                )
+                .service(
+                    web::resource("/three")
+                        .app_data(3u32)
+                        // this doesnt work because app_data "overrides" the
+                        // entire data field potentially passed down
+                        // .route(web::get().to(echo_both)),
+                        .route(web::get().to(echo_u32)),
+                )
+                .service(web::resource("/eight").route(web::get().to(echo_usize))),
+        )
+        .await;
+
+        let req = TestRequest::get().uri("/").to_request();
+        let resp = srv.call(req).await.unwrap();
+        let body = read_body(resp).await;
+        assert_eq!(body, Bytes::from_static(b"88"));
+
+        let req = TestRequest::get().uri("/one").to_request();
+        let resp = srv.call(req).await.unwrap();
+        let body = read_body(resp).await;
+        assert_eq!(body, Bytes::from_static(b"1"));
+
+        let req = TestRequest::get().uri("/two").to_request();
+        let resp = srv.call(req).await.unwrap();
+        let body = read_body(resp).await;
+        assert_eq!(body, Bytes::from_static(b"2"));
+
+        // let req = TestRequest::get().uri("/three").to_request();
+        // let resp = srv.call(req).await.unwrap();
+        // let body = read_body(resp).await;
+        // assert_eq!(body, Bytes::from_static(b"88-3"));
+
+        let req = TestRequest::get().uri("/eight").to_request();
+        let resp = srv.call(req).await.unwrap();
+        let body = read_body(resp).await;
+        assert_eq!(body, Bytes::from_static(b"88"));
     }
 
     #[actix_rt::test]

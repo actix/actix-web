@@ -151,9 +151,11 @@ where
         self.app_data(Data::new(data))
     }
 
-    /// Set or override application data.
+    /// Add scope data.
     ///
-    /// This method overrides data stored with [`App::app_data()`](#method.app_data)
+    /// If used, this method will create a new data context used for extracting
+    /// from requests. Data added here is *not* merged with data added on App
+    /// or containing scopes.
     pub fn app_data<U: 'static>(mut self, data: U) -> Self {
         if self.data.is_none() {
             self.data = Some(Extensions::new());
