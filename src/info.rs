@@ -30,7 +30,6 @@ impl ConnectionInfo {
         let mut host = None;
         let mut scheme = None;
         let mut remote = None;
-        let mut peer = None;
 
         // load forwarded header
         for hdr in req.headers.get_all(&header::FORWARDED) {
@@ -106,6 +105,9 @@ impl ConnectionInfo {
             }
         }
 
+        // get peeraddr from socketaddr
+        let peer = req.peer_addr.map(|addr| format!("{}", addr));
+
         // remote addr
         if remote.is_none() {
             if let Some(h) = req
@@ -115,10 +117,6 @@ impl ConnectionInfo {
                 if let Ok(h) = h.to_str() {
                     remote = h.split(',').next().map(|v| v.trim());
                 }
-            }
-            if remote.is_none() {
-                // get peeraddr from socketaddr
-                peer = req.peer_addr.map(|addr| format!("{}", addr));
             }
         }
 
@@ -155,6 +153,16 @@ impl ConnectionInfo {
         &self.host
     }
 
+    /// Peer address of the request.
+    ///
+    /// Get peer address from socket address
+    pub fn peer(&self) -> Option<&str> {
+        if let Some(ref peer) = self.peer {
+            Some(peer)
+        } else {
+            None
+        }
+    }
     /// Remote socket addr of client initiated HTTP request.
     ///
     /// The addr is resolved through the following headers, in this order:
