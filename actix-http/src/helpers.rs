@@ -1,68 +1,33 @@
-use std::{io, ptr};
+use std::io;
 
 use bytes::{BufMut, BytesMut};
 use http::Version;
 
 use crate::extensions::Extensions;
 
-const DEC_DIGITS_LUT: &[u8] = b"0001020304050607080910111213141516171819\
-      2021222324252627282930313233343536373839\
-      4041424344454647484950515253545556575859\
-      6061626364656667686970717273747576777879\
-      8081828384858687888990919293949596979899";
-
-pub(crate) const STATUS_LINE_BUF_SIZE: usize = 13;
-
-pub(crate) fn write_status_line(version: Version, mut n: u16, bytes: &mut BytesMut) {
-    let mut buf: [u8; STATUS_LINE_BUF_SIZE] = *b"HTTP/1.1     ";
-    match version {
-        Version::HTTP_2 => buf[5] = b'2',
-        Version::HTTP_10 => buf[7] = b'0',
-        Version::HTTP_09 => {
-            buf[5] = b'0';
-            buf[7] = b'9';
-        }
-        _ => (),
-    }
-
-    let mut curr: isize = 12;
-    let buf_ptr = buf.as_mut_ptr();
-    let lut_ptr = DEC_DIGITS_LUT.as_ptr();
-    let four = n > 999;
-
-    // decode 2 more chars, if > 2 chars
-    let d1 = (n % 100) << 1;
-    n /= 100;
-    curr -= 2;
-    unsafe {
-        ptr::copy_nonoverlapping(lut_ptr.offset(d1 as isize), buf_ptr.offset(curr), 2);
-    }
-
-    // decode last 1 or 2 chars
-    if n < 10 {
-        curr -= 1;
-        unsafe {
-            *buf_ptr.offset(curr) = (n as u8) + b'0';
-        }
-    } else {
-        let d1 = n << 1;
-        curr -= 2;
-        unsafe {
-            ptr::copy_nonoverlapping(
-                lut_ptr.offset(d1 as isize),
-                buf_ptr.offset(curr),
-                2,
-            );
-        }
-    }
-
-    bytes.put_slice(&buf);
-    if four {
-        bytes.put_u8(b' ');
-    }
-}
-
 const DIGITS_START: u8 = b'0';
+
+pub(crate) fn write_status_line(version: Version, n: u16, bytes: &mut BytesMut) {
+    match version {
+        Version::HTTP_11 => bytes.put_slice(b"HTTP/1.1 "),
+        Version::HTTP_10 => bytes.put_slice(b"HTTP/1.0 "),
+        Version::HTTP_09 => bytes.put_slice(b"HTTP/0.9 "),
+        _ => {
+            // other HTTP version handlers do not use this method
+        }
+    }
+
+    let d100 = (n / 100) as u8;
+    let d10 = ((n / 10) % 10) as u8;
+    let d1 = (n % 10) as u8;
+
+    bytes.put_u8(DIGITS_START + d100);
+    bytes.put_u8(DIGITS_START + d10);
+    bytes.put_u8(DIGITS_START + d1);
+
+    // trailing space before reason
+    bytes.put_u8(b' ');
+}
 
 /// NOTE: bytes object has to contain enough space
 pub fn write_content_length(n: usize, bytes: &mut BytesMut) {
@@ -189,7 +154,27 @@ impl<T: Clone + 'static> DataFactory for Data<T> {
 
 #[cfg(test)]
 mod tests {
+    use std::str::from_utf8;
+
     use super::*;
+
+    #[test]
+    fn test_status_line() {
+        let mut bytes = BytesMut::new();
+        bytes.reserve(50);
+        write_status_line(Version::HTTP_11, 200, &mut bytes);
+        assert_eq!(from_utf8(&bytes.split().freeze()).unwrap(), "HTTP/1.1 200 ");
+
+        let mut bytes = BytesMut::new();
+        bytes.reserve(50);
+        write_status_line(Version::HTTP_09, 404, &mut bytes);
+        assert_eq!(from_utf8(&bytes.split().freeze()).unwrap(), "HTTP/0.9 404 ");
+
+        let mut bytes = BytesMut::new();
+        bytes.reserve(50);
+        write_status_line(Version::HTTP_09, 515, &mut bytes);
+        assert_eq!(from_utf8(&bytes.split().freeze()).unwrap(), "HTTP/0.9 515 ");
+    }
 
     #[test]
     fn test_write_content_length() {
