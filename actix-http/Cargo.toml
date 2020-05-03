@@ -101,3 +101,7 @@ rust-tls = { version="0.17", package = "rustls" }
 [[bench]]
 name = "content-length"
 harness = false
+
+[[bench]]
+name = "status-line"
+harness = false
