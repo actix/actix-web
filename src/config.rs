@@ -123,6 +123,7 @@ impl AppService {
     }
 }
 
+/// Application connection config
 #[derive(Clone)]
 pub struct AppConfig(Rc<AppConfigInner>);
 
