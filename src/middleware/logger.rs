@@ -55,7 +55,7 @@ use crate::HttpResponse;
 ///
 /// `%%`  The percent sign
 ///
-/// `%a`  Client IP-address
+/// `%a`  Remote IP-address (IP-address of proxy if using reverse proxy)
 ///
 /// `%t`  Time when the request was started to process (in rfc3339 format)
 ///
@@ -72,7 +72,7 @@ use crate::HttpResponse;
 ///
 /// `%U`  Request URL
 ///
-/// `%{r}a`  Remote IP-address (IP-address of proxy if using reverse proxy) **\***
+/// `%{r}a`  Real IP remote address **\***
 ///
 /// `%{FOO}i`  request.headers['FOO']
 ///
@@ -80,9 +80,12 @@ use crate::HttpResponse;
 ///
 /// `%{FOO}e`  os.environ['FOO']
 ///
-/// > **\* warning** It is critical to only use this value from intermediate
-/// > hosts(proxies, etc) which are trusted by this server, since it is trivial
-/// > for the remote client to simulate another client.
+/// ### **\* security warning**
+///  It is calculated using
+///  [`ConnectionInfo::realip_remote_addr()`](../dev/struct.ConnectionInfo.html#method.realip_remote_addr)
+///
+///  If you use this value ensure that all requests come from trusted hosts, since it is trivial
+///  for the remote client to simulate been another client.
 ///
 pub struct Logger(Rc<Inner>);
 
@@ -322,7 +325,7 @@ impl Format {
             if let Some(key) = cap.get(2) {
                 results.push(match cap.get(3).unwrap().as_str() {
                     "a" => if key.as_str() == "r" {
-                        FormatText::RemoteAddr
+                        FormatText::RealIPRemoteAddr
                     } else {
                         unreachable!()
                     },
@@ -339,7 +342,7 @@ impl Format {
                 let m = cap.get(1).unwrap();
                 results.push(match m.as_str() {
                     "%" => FormatText::Percent,
-                    "a" => FormatText::ClientIP,
+                    "a" => FormatText::RemoteAddr,
                     "t" => FormatText::RequestTime,
                     "r" => FormatText::RequestLine,
                     "s" => FormatText::ResponseStatus,
@@ -372,8 +375,8 @@ pub enum FormatText {
     ResponseSize,
     Time,
     TimeMillis,
-    ClientIP,
     RemoteAddr,
+    RealIPRemoteAddr,
     UrlPath,
     RequestHeader(HeaderName),
     ResponseHeader(HeaderName),
@@ -469,16 +472,16 @@ impl FormatText {
                 };
                 *self = FormatText::Str(s.to_string());
             }
-            FormatText::ClientIP => {
-                let s = if let Some(ref peer) = req.connection_info().peer() {
+            FormatText::RemoteAddr => {
+                let s = if let Some(ref peer) = req.connection_info().remote_addr() {
                     FormatText::Str(peer.to_string())
                 } else {
                     FormatText::Str("-".to_string())
                 };
                 *self = s;
             }
-            FormatText::RemoteAddr => {
-                let s = if let Some(remote) = req.connection_info().remote() {
+            FormatText::RealIPRemoteAddr => {
+                let s = if let Some(remote) = req.connection_info().realip_remote_addr() {
                     FormatText::Str(remote.to_string())
                 } else {
                     FormatText::Str("-".to_string())
