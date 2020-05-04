@@ -6,6 +6,8 @@ use fxhash::FxHashMap;
 #[derive(Default)]
 /// A type map of request extensions.
 pub struct Extensions {
+    /// Use FxHasher with a std HashMap with for faster
+    /// lookups on the small `TypeId` (u64 equivalent) keys.
     map: FxHashMap<TypeId, Box<dyn Any>>,
 }
 
