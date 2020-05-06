@@ -497,12 +497,6 @@ impl ResponseBuilder {
         self
     }
 
-    /// Set content length
-    #[inline]
-    pub fn content_length(&mut self, len: u64) -> &mut Self {
-        self.header(header::CONTENT_LENGTH, len)
-    }
-
     /// Set a cookie
     ///
     /// ```rust
