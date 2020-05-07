@@ -1,6 +1,6 @@
 [package]
 name = "actix-http"
-version = "2.0.0-alpha.2"
+version = "2.0.0-alpha.3"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix http primitives"
 readme = "README.md"
@@ -42,7 +42,7 @@ actors = ["actix"]
 [dependencies]
 actix-service = "1.0.5"
 actix-codec = "0.2.0"
-actix-connect = "2.0.0-alpha.2"
+actix-connect = "2.0.0-alpha.3"
 actix-utils = "1.0.6"
 actix-rt = "1.0.0"
 actix-threadpool = "0.3.1"
