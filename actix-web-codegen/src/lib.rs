@@ -21,6 +21,7 @@
 //!
 //! - `"path"` - Raw literal string with path for which to register handle. Mandatory.
 //! - `guard="function_name"` - Registers function as guard using `actix_web::guard::fn_guard`
+//! - `wrap="Middleware"` - Registers a resource middleware.
 //!
 //! ## Notes
 //!
@@ -54,6 +55,7 @@ use proc_macro::TokenStream;
 ///
 /// - `"path"` - Raw literal string with path for which to register handler. Mandatory.
 /// - `guard="function_name"` - Registers function as guard using `actix_web::guard::fn_guard`
+/// - `wrap="Middleware"` - Registers a resource middleware.
 #[proc_macro_attribute]
 pub fn get(args: TokenStream, input: TokenStream) -> TokenStream {
     route::generate(args, input, route::GuardType::Get)
