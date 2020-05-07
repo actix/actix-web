@@ -56,12 +56,14 @@ impl ToTokens for GuardType {
 struct Args {
     path: syn::LitStr,
     guards: Vec<Ident>,
+    wrappers: Vec<syn::Type>,
 }
 
 impl Args {
     fn new(args: AttributeArgs) -> syn::Result<Self> {
         let mut path = None;
         let mut guards = Vec::new();
+        let mut wrappers = Vec::new();
         for arg in args {
             match arg {
                 NestedMeta::Lit(syn::Lit::Str(lit)) => match path {
@@ -85,10 +87,19 @@ impl Args {
                                 "Attribute guard expects literal string!",
                             ));
                         }
+                    } else if nv.path.is_ident("wrap") {
+                        if let syn::Lit::Str(lit) = nv.lit {
+                            wrappers.push(lit.parse()?);
+                        } else {
+                            return Err(syn::Error::new_spanned(
+                                nv.lit,
+                                "Attribute wrap expects type",
+                            ));
+                        }
                     } else {
                         return Err(syn::Error::new_spanned(
                             nv.path,
-                            "Unknown attribute key is specified. Allowed: guard.",
+                            "Unknown attribute key is specified. Allowed: guard and wrap",
                         ));
                     }
                 }
@@ -100,6 +111,7 @@ impl Args {
         Ok(Args {
             path: path.unwrap(),
             guards,
+            wrappers,
         })
     }
 }
@@ -184,7 +196,7 @@ impl ToTokens for Route {
             name,
             guard,
             ast,
-            args: Args { path, guards },
+            args: Args { path, guards, wrappers },
             resource_type,
         } = self;
         let resource_name = name.to_string();
@@ -199,6 +211,7 @@ impl ToTokens for Route {
                         .name(#resource_name)
                         .guard(actix_web::guard::#guard())
                         #(.guard(actix_web::guard::fn_guard(#guards)))*
+                        #(.wrap(#wrappers))*
                         .#resource_type(#name);
 
                     actix_web::dev::HttpServiceFactory::register(__resource, __config)
