@@ -371,7 +371,7 @@ async fn test_no_chunking() {
     let srv = test::start_with(test::config().h1(), || {
         App::new().service(web::resource("/").route(web::to(move || {
             HttpResponse::Ok()
-                .no_chunking()
+                .no_chunking(STR.len() as u64)
                 .streaming(TestBody::new(Bytes::from_static(STR.as_ref()), 24))
         })))
     });
