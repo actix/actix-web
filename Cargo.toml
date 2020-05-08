@@ -101,6 +101,7 @@ time = { version = "0.2.7", default-features = false, features = ["std"] }
 url = "2.1"
 open-ssl = { version="0.10", package = "openssl", optional = true }
 rust-tls = { version = "0.17.0", package = "rustls", optional = true }
+tinyvec = { version = "0.3", features = ["alloc"] }
 
 [dev-dependencies]
 actix = "0.10.0-alpha.1"
