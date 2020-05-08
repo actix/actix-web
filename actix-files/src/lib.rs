@@ -584,7 +584,8 @@ impl Service for FilesService {
                     named_file.flags = self.file_flags;
                     let (req, _) = req.into_parts();
                     match named_file.into_response(&req) {
-                        Ok(item) => {
+                        Ok(mut item) => {
+                            item.head_mut().no_chunking(true);
                             Either::Left(ok(ServiceResponse::new(req.clone(), item)))
                         }
                         Err(e) => Either::Left(ok(ServiceResponse::from_err(e, req))),
