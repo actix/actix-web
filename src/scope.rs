@@ -153,9 +153,7 @@ where
 
     /// Add scope data.
     ///
-    /// If used, this method will create a new data context used for extracting
-    /// from requests. Data added here is *not* merged with data added on App
-    /// or containing scopes.
+    /// Data of different types from parent contexts will still be accessible.
     pub fn app_data<U: 'static>(mut self, data: U) -> Self {
         if self.data.is_none() {
             self.data = Some(Extensions::new());
@@ -624,12 +622,12 @@ impl Service for ScopeService {
 
         if let Some((srv, _info)) = res {
             if let Some(ref data) = self.data {
-                req.set_data_container(data.clone());
+                req.add_data_container(data.clone());
             }
             Either::Left(srv.call(req))
         } else if let Some(ref mut default) = self.default {
             if let Some(ref data) = self.data {
-                req.set_data_container(data.clone());
+                req.add_data_container(data.clone());
             }
             Either::Left(default.call(req))
         } else {
