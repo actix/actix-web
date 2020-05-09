@@ -1,6 +1,6 @@
 [package]
 name = "actix-web"
-version = "3.0.0-alpha.1"
+version = "3.0.0-alpha.2"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix web is a simple, pragmatic and extremely fast web framework for Rust."
 readme = "README.md"
@@ -81,7 +81,7 @@ actix-threadpool = "0.3.1"
 actix-tls = "2.0.0-alpha.1"
 
 actix-web-codegen = "0.2.0"
-actix-http = "2.0.0-alpha.2"
+actix-http = "2.0.0-alpha.3"
 awc = { version = "2.0.0-alpha.1", default-features = false }
 
 bytes = "0.5.3"
@@ -101,6 +101,7 @@ time = { version = "0.2.7", default-features = false, features = ["std"] }
 url = "2.1"
 open-ssl = { version="0.10", package = "openssl", optional = true }
 rust-tls = { version = "0.17.0", package = "rustls", optional = true }
+tinyvec = { version = "0.3", features = ["alloc"] }
 
 [dev-dependencies]
 actix = "0.10.0-alpha.1"
