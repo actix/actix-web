@@ -80,8 +80,8 @@ use crate::HttpResponse;
 ///
 /// `%{FOO}e`  os.environ['FOO']
 ///
-/// ### **\* security warning**
-///  It is calculated using
+/// # Security
+///  **\*** It is calculated using
 ///  [`ConnectionInfo::realip_remote_addr()`](../dev/struct.ConnectionInfo.html#method.realip_remote_addr)
 ///
 ///  If you use this value ensure that all requests come from trusted hosts, since it is trivial
