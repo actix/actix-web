@@ -105,7 +105,7 @@ where
             let key = if let Some(authority) = req.uri.authority() {
                 authority.clone().into()
             } else {
-                return Err(ConnectError::Unresolverd);
+                return Err(ConnectError::Unresolved);
             };
 
             // acquire connection
@@ -195,7 +195,7 @@ where
         if let Some(i) = self.inner.take() {
             let mut inner = i.as_ref().borrow_mut();
             inner.release_waiter(&self.key, self.token);
-            inner.check_availibility();
+            inner.check_availability();
         }
     }
 }
@@ -232,7 +232,7 @@ where
         if let Some(i) = self.inner.take() {
             let mut inner = i.as_ref().borrow_mut();
             inner.release();
-            inner.check_availibility();
+            inner.check_availability();
         }
     }
 }
@@ -359,7 +359,7 @@ where
                 created,
                 used: Instant::now(),
             });
-        self.check_availibility();
+        self.check_availability();
     }
 
     fn release_close(&mut self, io: ConnectionType<Io>) {
@@ -369,10 +369,10 @@ where
                 actix_rt::spawn(CloseConnection::new(io, timeout))
             }
         }
-        self.check_availibility();
+        self.check_availability();
     }
 
-    fn check_availibility(&self) {
+    fn check_availability(&self) {
         if !self.waiters_queue.is_empty() && self.acquired < self.config.limit {
             self.waker.wake();
         }
@@ -534,7 +534,7 @@ where
         if let Some(inner) = self.project().inner.take() {
             let mut inner = inner.as_ref().borrow_mut();
             inner.release();
-            inner.check_availibility();
+            inner.check_availability();
         }
     }
 }

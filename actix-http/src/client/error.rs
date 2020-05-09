@@ -48,7 +48,7 @@ pub enum ConnectError {
 
     /// Unresolved host name
     #[display(fmt = "Connector received `Connect` method with unresolved host")]
-    Unresolverd,
+    Unresolved,
 
     /// Connection io error
     #[display(fmt = "{}", _0)]
@@ -63,7 +63,7 @@ impl From<actix_connect::ConnectError> for ConnectError {
             actix_connect::ConnectError::Resolver(e) => ConnectError::Resolver(e),
             actix_connect::ConnectError::NoRecords => ConnectError::NoRecords,
             actix_connect::ConnectError::InvalidInput => panic!(),
-            actix_connect::ConnectError::Unresolverd => ConnectError::Unresolverd,
+            actix_connect::ConnectError::Unresolved => ConnectError::Unresolved,
             actix_connect::ConnectError::Io(e) => ConnectError::Io(e),
         }
     }

@@ -174,7 +174,7 @@ where
 
         // frames
         if let Some(data) = self.fut.ctx().stream.pop_front() {
-            Poll::Ready(data.map(|b| Ok(b)))
+            Poll::Ready(data.map(Ok))
         } else if self.fut.alive() {
             Poll::Pending
         } else {

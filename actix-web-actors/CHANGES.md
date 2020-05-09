@@ -1,5 +1,11 @@
 # Changes
 
+# [3.0.0-alpha.1] - 2020-05-08
+
+* Update the actix-web dependency to 3.0.0-alpha.1
+* Update the actix dependency to 0.10.0-alpha.2
+* Update the actix-http dependency to 2.0.0-alpha.3
+
 ## [2.0.0] - 2019-12-20
 
 * Release
