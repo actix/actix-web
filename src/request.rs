@@ -6,6 +6,7 @@ use actix_http::http::{HeaderMap, Method, Uri, Version};
 use actix_http::{Error, Extensions, HttpMessage, Message, Payload, RequestHead};
 use actix_router::{Path, Url};
 use futures::future::{ok, Ready};
+use tinyvec::TinyVec;
 
 use crate::config::AppConfig;
 use crate::error::UrlGenerationError;
@@ -21,7 +22,7 @@ pub(crate) struct HttpRequestInner {
     pub(crate) head: Message<RequestHead>,
     pub(crate) path: Path<Url>,
     pub(crate) payload: Payload,
-    pub(crate) app_data: Rc<Extensions>,
+    pub(crate) app_data: TinyVec<[Rc<Extensions>; 4]>,
     rmap: Rc<ResourceMap>,
     config: AppConfig,
     pool: &'static HttpRequestPool,
@@ -38,13 +39,16 @@ impl HttpRequest {
         app_data: Rc<Extensions>,
         pool: &'static HttpRequestPool,
     ) -> HttpRequest {
+        let mut data = TinyVec::<[Rc<Extensions>; 4]>::new();
+        data.push(app_data);
+
         HttpRequest(Rc::new(HttpRequestInner {
             head,
             path,
             payload,
             rmap,
             config,
-            app_data,
+            app_data: data,
             pool,
         }))
     }
@@ -215,11 +219,13 @@ impl HttpRequest {
     /// let opt_t = req.app_data::<Data<T>>();
     /// ```
     pub fn app_data<T: 'static>(&self) -> Option<&T> {
-        if let Some(st) = self.0.app_data.get::<T>() {
-            Some(&st)
-        } else {
-            None
+        for container in self.0.app_data.iter().rev() {
+            if let Some(data) = container.get::<T>() {
+                return Some(data);
+            }
         }
+
+        None
     }
 }
 
@@ -342,10 +348,13 @@ impl HttpRequestPool {
 
 #[cfg(test)]
 mod tests {
+    use actix_service::Service;
+    use bytes::Bytes;
+
     use super::*;
     use crate::dev::{ResourceDef, ResourceMap};
     use crate::http::{header, StatusCode};
-    use crate::test::{call_service, init_service, TestRequest};
+    use crate::test::{call_service, init_service, read_body, TestRequest};
     use crate::{web, App, HttpResponse};
 
     #[test]
@@ -492,6 +501,68 @@ mod tests {
         let req = TestRequest::default().to_request();
         let resp = call_service(&mut srv, req).await;
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[actix_rt::test]
+    async fn test_cascading_data() {
+        #[allow(dead_code)]
+        fn echo_usize(req: HttpRequest) -> HttpResponse {
+            let num = req.app_data::<usize>().unwrap();
+            HttpResponse::Ok().body(num.to_string())
+        }
+
+        let mut srv = init_service(
+            App::new()
+                .app_data(88usize)
+                .service(web::resource("/").route(web::get().to(echo_usize)))
+                .service(
+                    web::resource("/one")
+                        .app_data(1u32)
+                        .route(web::get().to(echo_usize)),
+                ),
+        )
+        .await;
+
+        let req = TestRequest::get().uri("/").to_request();
+        let resp = srv.call(req).await.unwrap();
+        let body = read_body(resp).await;
+        assert_eq!(body, Bytes::from_static(b"88"));
+
+        let req = TestRequest::get().uri("/one").to_request();
+        let resp = srv.call(req).await.unwrap();
+        let body = read_body(resp).await;
+        assert_eq!(body, Bytes::from_static(b"88"));
+    }
+
+    #[actix_rt::test]
+    async fn test_overwrite_data() {
+        #[allow(dead_code)]
+        fn echo_usize(req: HttpRequest) -> HttpResponse {
+            let num = req.app_data::<usize>().unwrap();
+            HttpResponse::Ok().body(num.to_string())
+        }
+
+        let mut srv = init_service(
+            App::new()
+                .app_data(88usize)
+                .service(web::resource("/").route(web::get().to(echo_usize)))
+                .service(
+                    web::resource("/one")
+                        .app_data(1usize)
+                        .route(web::get().to(echo_usize)),
+                ),
+        )
+        .await;
+
+        let req = TestRequest::get().uri("/").to_request();
+        let resp = srv.call(req).await.unwrap();
+        let body = read_body(resp).await;
+        assert_eq!(body, Bytes::from_static(b"88"));
+
+        let req = TestRequest::get().uri("/one").to_request();
+        let resp = srv.call(req).await.unwrap();
+        let body = read_body(resp).await;
+        assert_eq!(body, Bytes::from_static(b"1"));
     }
 
     #[actix_rt::test]
