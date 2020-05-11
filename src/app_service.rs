@@ -245,7 +245,7 @@ where
             inner.path.reset();
             inner.head = head;
             inner.payload = payload;
-            inner.app_data = self.data.clone();
+            inner.app_data.push(self.data.clone());
             req
         } else {
             HttpRequest::new(
