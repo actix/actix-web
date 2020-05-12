@@ -1,5 +1,11 @@
 # Changes
 
+## [Unreleased]
+
+### Fixed
+
+* Support parsing of `SameSite=None` [#1503]
+
 ## [2.0.0-alpha.3] - 2020-05-08
 
 ### Fixed
