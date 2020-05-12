@@ -992,50 +992,10 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_named_file_content_length_headers() {
-        // use actix_web::body::{MessageBody, ResponseBody};
-
         let mut srv = test::init_service(
             App::new().service(Files::new("test", ".").index_file("tests/test.binary")),
         )
         .await;
-
-        // Valid range header
-        let request = TestRequest::get()
-            .uri("/t%65st/tests/test.binary")
-            .header(header::RANGE, "bytes=10-20")
-            .to_request();
-        let _response = test::call_service(&mut srv, request).await;
-
-        // let contentlength = response
-        //     .headers()
-        //     .get(header::CONTENT_LENGTH)
-        //     .unwrap()
-        //     .to_str()
-        //     .unwrap();
-        // assert_eq!(contentlength, "11");
-
-        // Invalid range header
-        let request = TestRequest::get()
-            .uri("/t%65st/tests/test.binary")
-            .header(header::RANGE, "bytes=10-8")
-            .to_request();
-        let response = test::call_service(&mut srv, request).await;
-        assert_eq!(response.status(), StatusCode::RANGE_NOT_SATISFIABLE);
-
-        // Without range header
-        let request = TestRequest::get()
-            .uri("/t%65st/tests/test.binary")
-            // .no_default_headers()
-            .to_request();
-        let _response = test::call_service(&mut srv, request).await;
-
-        // let contentlength = response
-        //     .headers()
-        //     .get(header::CONTENT_LENGTH)
-        //     .unwrap()
-        //     .to_str()
-        //     .unwrap();
-        // assert_eq!(contentlength, "100");
 
         // chunked
         let request = TestRequest::get()
@@ -1057,30 +1017,6 @@ mod tests {
         let bytes = test::read_body(response).await;
         let data = Bytes::from(fs::read("tests/test.binary").unwrap());
         assert_eq!(bytes, data);
-    }
-
-    #[actix_rt::test]
-    async fn test_head_content_length_headers() {
-        let mut srv = test::init_service(
-            App::new().service(Files::new("test", ".").index_file("tests/test.binary")),
-        )
-        .await;
-
-        // Valid range header
-        let request = TestRequest::default()
-            .method(Method::HEAD)
-            .uri("/t%65st/tests/test.binary")
-            .to_request();
-        let _response = test::call_service(&mut srv, request).await;
-
-        // TODO: fix check
-        // let contentlength = response
-        //     .headers()
-        //     .get(header::CONTENT_LENGTH)
-        //     .unwrap()
-        //     .to_str()
-        //     .unwrap();
-        // assert_eq!(contentlength, "100");
     }
 
     #[actix_rt::test]
