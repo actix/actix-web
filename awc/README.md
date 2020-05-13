@@ -8,7 +8,7 @@ An HTTP Client
 * [API Documentation](https://docs.rs/awc/)
 * [Chat on gitter](https://gitter.im/actix/actix)
 * Cargo package: [awc](https://crates.io/crates/awc)
-* Minimum supported Rust version: 1.33 or later
+* Minimum supported Rust version: 1.40 or later
 
 ## Example
 
