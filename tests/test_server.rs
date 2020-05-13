@@ -3,7 +3,7 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 
 use actix_http::http::header::{
-    self, ContentEncoding, ACCEPT_ENCODING, CONTENT_ENCODING, CONTENT_LENGTH,
+    ContentEncoding, ACCEPT_ENCODING, CONTENT_ENCODING, CONTENT_LENGTH,
     TRANSFER_ENCODING,
 };
 use brotli2::write::{BrotliDecoder, BrotliEncoder};
@@ -17,7 +17,6 @@ use rand::{distributions::Alphanumeric, Rng};
 use actix_web::dev::BodyEncoding;
 use actix_web::middleware::Compress;
 use actix_web::{dev, test, web, App, Error, HttpResponse};
-use actix_files::Files;
 
 const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
                    Hello World Hello World Hello World Hello World Hello World \
@@ -890,63 +889,3 @@ async fn test_slow_request() {
 //     let _ = stream.read_to_string(&mut data);
 //     assert!(data.is_empty());
 // }
-
-#[actix_rt::test]
-async fn test_files_content_length_headers() {
-    let srv = test::start_with(test::config().h1(), || {
-        App::new().service(
-            Files::new("/", ".").index_file("actix-files/tests/test.binary")
-        )
-    });
-
-    let response = srv
-        .head("/")
-        .send().await.unwrap();
-
-    let contentlength = response
-        .headers()
-        .get(CONTENT_LENGTH)
-        .unwrap()
-        .to_str()
-        .unwrap();
-    assert_eq!(contentlength, "100");
-
-    let response = srv
-        .head("/")
-        .header(header::RANGE, "bytes=10-20")
-        .send().await.unwrap();
-
-    let contentlength = response
-        .headers()
-        .get(CONTENT_LENGTH)
-        .unwrap()
-        .to_str()
-        .unwrap();
-    assert_eq!(contentlength, "11");
-
-    let response = srv
-        .head("/")
-        .header(header::RANGE, "bytes=0-20")
-        .send().await.unwrap();
-
-    let contentlength = response
-        .headers()
-        .get(CONTENT_LENGTH)
-        .unwrap()
-        .to_str()
-        .unwrap();
-    assert_eq!(contentlength, "21");
-
-    let response = srv
-        .head("/")
-        .header(header::RANGE, "bytes=20-0")
-        .send().await.unwrap();
-
-    let contentlength = response
-        .headers()
-        .get(CONTENT_LENGTH)
-        .unwrap()
-        .to_str()
-        .unwrap();
-    assert_eq!(contentlength, "0");
-}

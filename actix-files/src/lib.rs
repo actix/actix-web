@@ -952,69 +952,68 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_named_file_content_range_headers() {
-        let mut srv = test::init_service(
-            App::new().service(Files::new("/test", ".").index_file("tests/test.binary")),
-        )
-        .await;
+        let srv = test::start(|| {
+            App::new().service(Files::new("/", ".").index_file("tests/test.binary"))
+        });
 
         // Valid range header
-        let request = TestRequest::get()
-            .uri("/t%65st/tests/test.binary")
+        let response = srv
+            .get("/")
             .header(header::RANGE, "bytes=10-20")
-            .to_request();
-
-        let response = test::call_service(&mut srv, request).await;
-        let contentrange = response
-            .headers()
-            .get(header::CONTENT_RANGE)
-            .unwrap()
-            .to_str()
+            .send()
+            .await
             .unwrap();
-
-        assert_eq!(contentrange, "bytes 10-20/100");
+        let content_range = response.headers().get(header::CONTENT_RANGE).unwrap();
+        assert_eq!(content_range.to_str().unwrap(), "bytes 10-20/100");
 
         // Invalid range header
-        let request = TestRequest::get()
-            .uri("/t%65st/tests/test.binary")
+        let response = srv
+            .get("/")
             .header(header::RANGE, "bytes=10-5")
-            .to_request();
-        let response = test::call_service(&mut srv, request).await;
-
-        let contentrange = response
-            .headers()
-            .get(header::CONTENT_RANGE)
-            .unwrap()
-            .to_str()
+            .send()
+            .await
             .unwrap();
-
-        assert_eq!(contentrange, "bytes */100");
+        let content_range = response.headers().get(header::CONTENT_RANGE).unwrap();
+        assert_eq!(content_range.to_str().unwrap(), "bytes */100");
     }
 
     #[actix_rt::test]
     async fn test_named_file_content_length_headers() {
-        let mut srv = test::init_service(
-            App::new().service(Files::new("test", ".").index_file("tests/test.binary")),
-        )
-        .await;
+        let srv = test::start(|| {
+            App::new().service(Files::new("/", ".").index_file("tests/test.binary"))
+        });
 
-        // chunked
-        let request = TestRequest::get()
-            .uri("/t%65st/tests/test.binary")
-            .to_request();
-        let response = test::call_service(&mut srv, request).await;
+        // Valid range header
+        let response = srv
+            .head("/")
+            .header(header::RANGE, "bytes=10-20")
+            .send()
+            .await
+            .unwrap();
+        let content_length = response.headers().get(header::CONTENT_LENGTH).unwrap();
+        assert_eq!(content_length.to_str().unwrap(), "11");
 
-        // with enabled compression
-        // {
-        //     let te = response
-        //         .headers()
-        //         .get(header::TRANSFER_ENCODING)
-        //         .unwrap()
-        //         .to_str()
-        //         .unwrap();
-        //     assert_eq!(te, "chunked");
-        // }
+        // Valid range header, starting from 0
+        let response = srv
+            .head("/")
+            .header(header::RANGE, "bytes=0-20")
+            .send()
+            .await
+            .unwrap();
+        let content_length = response.headers().get(header::CONTENT_LENGTH).unwrap();
+        assert_eq!(content_length.to_str().unwrap(), "21");
 
-        let bytes = test::read_body(response).await;
+        // Without range header
+        let mut response = srv.get("/").send().await.unwrap();
+        let content_length = response.headers().get(header::CONTENT_LENGTH).unwrap();
+        assert_eq!(content_length.to_str().unwrap(), "100");
+
+        // Should be no transfer-encoding
+        let transfer_encoding = response.headers().get(header::TRANSFER_ENCODING);
+        assert!(transfer_encoding.is_none());
+
+        // Check file contents
+        let bytes = response.body().await.unwrap();
         let data = Bytes::from(fs::read("tests/test.binary").unwrap());
         assert_eq!(bytes, data);
     }
