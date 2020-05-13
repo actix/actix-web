@@ -1,6 +1,10 @@
 # Changes
 
-# [3.0.0-alpha.1] - 2020-05-08
+## [Unreleased] - 2020-xx-xx
+
+* Bump minimum supported Rust version to 1.40
+
+## [3.0.0-alpha.1] - 2020-05-08
 
 * Update the actix-web dependency to 3.0.0-alpha.1
 * Update the actix dependency to 0.10.0-alpha.2

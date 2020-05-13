@@ -1,5 +1,9 @@
 # Changes
 
+## [Unreleased] - 2020-xx-xx
+
+* Bump minimum supported Rust version to 1.40
+
 ## [0.2.1] - 2020-01-xx
 
 * Remove the unused `time` dependency
