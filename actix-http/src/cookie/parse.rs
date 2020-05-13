@@ -172,6 +172,8 @@ fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
                     cookie.same_site = Some(SameSite::Strict);
                 } else if v.eq_ignore_ascii_case("lax") {
                     cookie.same_site = Some(SameSite::Lax);
+                } else if v.eq_ignore_ascii_case("none") {
+                    cookie.same_site = Some(SameSite::None);
                 } else {
                     // We do nothing here, for now. When/if the `SameSite`
                     // attribute becomes standard, the spec says that we should
@@ -261,6 +263,16 @@ mod tests {
         assert_eq_parse!("foo=bar; SameSite=strict", expected);
         assert_eq_parse!("foo=bar; SameSite=STrICT", expected);
         assert_eq_parse!("foo=bar; SameSite=STRICT", expected);
+
+        let expected = Cookie::build("foo", "bar")
+            .same_site(SameSite::None)
+            .finish();
+
+        assert_eq_parse!("foo=bar; SameSite=None", expected);
+        assert_eq_parse!("foo=bar; SameSITE=None", expected);
+        assert_eq_parse!("foo=bar; SameSite=nOne", expected);
+        assert_eq_parse!("foo=bar; SameSite=NoNE", expected);
+        assert_eq_parse!("foo=bar; SameSite=NONE", expected);
     }
 
     #[test]
@@ -395,6 +407,29 @@ mod tests {
             " foo=bar ;HttpOnly; Secure; Max-Age=4; Path=/foo; \
              Domain=foo.com; Expires=Wed, 21 Oct 2015 07:28:00 GMT",
             unexpected
+        );
+
+        expected.set_expires(expires);
+        expected.set_same_site(SameSite::Lax);
+        assert_eq_parse!(
+            " foo=bar ;HttpOnly; Secure; Max-Age=4; Path=/foo; \
+             Domain=foo.com; Expires=Wed, 21 Oct 2015 07:28:00 GMT; \
+             SameSite=Lax",
+            expected
+        );
+        expected.set_same_site(SameSite::Strict);
+        assert_eq_parse!(
+            " foo=bar ;HttpOnly; Secure; Max-Age=4; Path=/foo; \
+             Domain=foo.com; Expires=Wed, 21 Oct 2015 07:28:00 GMT; \
+             SameSite=Strict",
+            expected
+        );
+        expected.set_same_site(SameSite::None);
+        assert_eq_parse!(
+            " foo=bar ;HttpOnly; Secure; Max-Age=4; Path=/foo; \
+             Domain=foo.com; Expires=Wed, 21 Oct 2015 07:28:00 GMT; \
+             SameSite=None",
+            expected
         );
     }
 
