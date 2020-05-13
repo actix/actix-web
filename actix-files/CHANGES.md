@@ -1,5 +1,9 @@
 # Changes
 
+## [Unreleased] - 2020-xx-xx
+
+* Bump minimum supported Rust version to 1.40
+
 ## [0.2.1] - 2019-12-22
 
 * Use the same format for file URLs regardless of platforms

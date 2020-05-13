@@ -5,4 +5,4 @@ Actix actors support for actix web framework [![Build Status](https://travis-ci.
 * [API Documentation](https://docs.rs/actix-web-actors/)
 * [Chat on gitter](https://gitter.im/actix/actix)
 * Cargo package: [actix-web-actors](https://crates.io/crates/actix-web-actors)
-* Minimum supported Rust version: 1.33 or later
+* Minimum supported Rust version: 1.40 or later
