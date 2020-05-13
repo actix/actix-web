@@ -6,4 +6,4 @@
 * [API Documentation](https://docs.rs/actix-http-test/)
 * [Chat on gitter](https://gitter.im/actix/actix)
 * Cargo package: [actix-http-test](https://crates.io/crates/actix-http-test)
-* Minimum supported Rust version: 1.33 or later
+* Minimum supported Rust version: 1.40 or later
