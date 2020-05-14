@@ -5,9 +5,13 @@
 ### Changed
 
 * Resources and Scopes can now access non-overridden data types set on App (or containing scopes) when setting their own data. [#1486]
+
 * Fix audit issue logging by default peer address [#1485]
 
+* Bump minimum supported Rust version to 1.40
+
 [#1485]: https://github.com/actix/actix-web/pull/1485
+
 
 ## [3.0.0-alpha.2] - 2020-05-08
 
