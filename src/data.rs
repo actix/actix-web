@@ -103,6 +103,12 @@ impl<T> Clone for Data<T> {
     }
 }
 
+impl<T> From<Arc<T>> for Data<T> {
+    fn from(arc: Arc<T>) -> Self {
+        Data(arc)
+    }
+}
+
 impl<T: 'static> FromRequest for Data<T> {
     type Config = ();
     type Error = Error;
@@ -280,5 +286,12 @@ mod tests {
         srv.stop().await;
 
         assert_eq!(num.load(Ordering::SeqCst), 0);
+    }
+
+    #[actix_rt::test]
+    async fn test_data_from_arc() {
+        let data_new = Data::new(String::from("test-123"));
+        let data_from_arc = Data::from(Arc::new(String::from("test-123")));
+        assert_eq!(data_new.0, data_from_arc.0)
     }
 }
