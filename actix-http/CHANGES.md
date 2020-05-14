@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+* Bump minimum supported Rust version to 1.40
+
 ### Fixed
 
 * Support parsing of `SameSite=None` [#1503]
