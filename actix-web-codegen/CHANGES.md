@@ -1,5 +1,9 @@
 # Changes
 
+## [Unreleased] - 2020-xx-xx
+
+* Bump minimum supported Rust version to 1.40
+
 ## [0.2.1] - 2020-02-25
 
 * Add `#[allow(missing_docs)]` attribute to generated structs [#1368]
