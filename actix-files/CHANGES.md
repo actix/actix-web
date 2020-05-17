@@ -3,6 +3,7 @@
 ## [Unreleased] - 2020-xx-xx
 
 * Bump minimum supported Rust version to 1.40
+* Support sending Content-Length when Content-Range is specified #1384 
 
 ## [0.2.1] - 2019-12-22
 

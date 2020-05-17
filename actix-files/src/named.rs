@@ -388,11 +388,12 @@ impl NamedFile {
             fut: None,
             counter: 0,
         };
+
         if offset != 0 || length != self.md.len() {
-            Ok(resp.status(StatusCode::PARTIAL_CONTENT).streaming(reader))
-        } else {
-            Ok(resp.body(SizedStream::new(length, reader)))
+            resp.status(StatusCode::PARTIAL_CONTENT);
         }
+
+        Ok(resp.body(SizedStream::new(length, reader)))
     }
 }
 
