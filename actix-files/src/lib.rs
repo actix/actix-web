@@ -953,12 +953,12 @@ mod tests {
     #[actix_rt::test]
     async fn test_named_file_content_range_headers() {
         let srv = test::start(|| {
-            App::new().service(Files::new("/", ".").index_file("tests/test.binary"))
+            App::new().service(Files::new("/", "."))
         });
 
         // Valid range header
         let response = srv
-            .get("/")
+            .get("/tests/test.binary")
             .header(header::RANGE, "bytes=10-20")
             .send()
             .await
@@ -968,7 +968,7 @@ mod tests {
 
         // Invalid range header
         let response = srv
-            .get("/")
+            .get("/tests/test.binary")
             .header(header::RANGE, "bytes=10-5")
             .send()
             .await
@@ -980,12 +980,12 @@ mod tests {
     #[actix_rt::test]
     async fn test_named_file_content_length_headers() {
         let srv = test::start(|| {
-            App::new().service(Files::new("/", ".").index_file("tests/test.binary"))
+            App::new().service(Files::new("/", "."))
         });
 
         // Valid range header
         let response = srv
-            .get("/")
+            .get("/tests/test.binary")
             .header(header::RANGE, "bytes=10-20")
             .send()
             .await
@@ -995,7 +995,7 @@ mod tests {
 
         // Valid range header, starting from 0
         let response = srv
-            .get("/")
+            .get("/tests/test.binary")
             .header(header::RANGE, "bytes=0-20")
             .send()
             .await
@@ -1004,7 +1004,7 @@ mod tests {
         assert_eq!(content_length.to_str().unwrap(), "21");
 
         // Without range header
-        let mut response = srv.get("/").send().await.unwrap();
+        let mut response = srv.get("/tests/test.binary").send().await.unwrap();
         let content_length = response.headers().get(header::CONTENT_LENGTH).unwrap();
         assert_eq!(content_length.to_str().unwrap(), "100");
 
@@ -1021,11 +1021,11 @@ mod tests {
     #[actix_rt::test]
     async fn test_head_content_length_headers() {
         let srv = test::start(|| {
-            App::new().service(Files::new("/", ".").index_file("tests/test.binary"))
+            App::new().service(Files::new("/", "."))
         });
 
         let response = srv
-            .head("/")
+            .head("/tests/test.binary")
             .send()
             .await
             .unwrap();
