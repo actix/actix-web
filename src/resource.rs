@@ -379,7 +379,7 @@ where
         let guards = if self.guards.is_empty() {
             None
         } else {
-            Some(std::mem::replace(&mut self.guards, Vec::new()))
+            Some(std::mem::take(&mut self.guards))
         };
         let mut rdef = if config.is_root() || !self.rdef.is_empty() {
             ResourceDef::new(insert_slash(self.rdef.clone()))

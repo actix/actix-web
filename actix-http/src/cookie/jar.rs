@@ -1,5 +1,5 @@
 use std::collections::HashSet;
-use std::mem::replace;
+use std::mem;
 
 use time::{Duration, OffsetDateTime};
 
@@ -273,7 +273,7 @@ impl CookieJar {
     )]
     pub fn clear(&mut self) {
         self.delta_cookies.clear();
-        for delta in replace(&mut self.original_cookies, HashSet::new()) {
+        for delta in mem::take(&mut self.original_cookies) {
             self.remove(delta.cookie);
         }
     }
