@@ -200,8 +200,7 @@ impl Session {
             .extensions()
             .get::<Rc<RefCell<SessionInner>>>()
         {
-            let state =
-                std::mem::replace(&mut s_impl.borrow_mut().state, HashMap::new());
+            let state = std::mem::take(&mut s_impl.borrow_mut().state);
             (s_impl.borrow().status.clone(), Some(state.into_iter()))
         } else {
             (SessionStatus::Unchanged, None)

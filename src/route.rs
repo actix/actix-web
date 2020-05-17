@@ -56,7 +56,7 @@ impl Route {
     }
 
     pub(crate) fn take_guards(&mut self) -> Vec<Box<dyn Guard>> {
-        std::mem::replace(Rc::get_mut(&mut self.guards).unwrap(), Vec::new())
+        std::mem::take(Rc::get_mut(&mut self.guards).unwrap())
     }
 }
 
