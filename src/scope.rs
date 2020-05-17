@@ -429,7 +429,7 @@ where
         let mut rmap = ResourceMap::new(ResourceDef::root_prefix(&self.rdef));
 
         // external resources
-        for mut rdef in std::mem::replace(&mut self.external, Vec::new()) {
+        for mut rdef in std::mem::take(&mut self.external) {
             rmap.add(&mut rdef, None);
         }
 

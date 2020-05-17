@@ -12,7 +12,7 @@ use actix_service::{fn_service, Service, ServiceFactory};
 use futures::future::{join_all, ok, FutureExt, LocalBoxFuture};
 
 use crate::config::{AppConfig, AppService};
-use crate::data::{FnDataFactory, DataFactory};
+use crate::data::{DataFactory, FnDataFactory};
 use crate::error::Error;
 use crate::guard::Guard;
 use crate::request::{HttpRequest, HttpRequestPool};
@@ -76,7 +76,7 @@ where
         let mut config = AppService::new(config, default.clone(), self.data.clone());
 
         // register services
-        std::mem::replace(&mut *self.services.borrow_mut(), Vec::new())
+        std::mem::take(&mut *self.services.borrow_mut())
             .into_iter()
             .for_each(|mut srv| srv.register(&mut config));
 
@@ -99,7 +99,7 @@ where
         });
 
         // external resources
-        for mut rdef in std::mem::replace(&mut *self.external.borrow_mut(), Vec::new()) {
+        for mut rdef in std::mem::take(&mut *self.external.borrow_mut()) {
             rmap.add(&mut rdef, None);
         }
 
