@@ -985,7 +985,7 @@ mod tests {
 
         // Valid range header
         let response = srv
-            .head("/")
+            .get("/")
             .header(header::RANGE, "bytes=10-20")
             .send()
             .await
@@ -995,7 +995,7 @@ mod tests {
 
         // Valid range header, starting from 0
         let response = srv
-            .head("/")
+            .get("/")
             .header(header::RANGE, "bytes=0-20")
             .send()
             .await
@@ -1016,6 +1016,28 @@ mod tests {
         let bytes = response.body().await.unwrap();
         let data = Bytes::from(fs::read("tests/test.binary").unwrap());
         assert_eq!(bytes, data);
+    }
+
+    #[actix_rt::test]
+    async fn test_head_content_length_headers() {
+        let srv = test::start(|| {
+            App::new().service(Files::new("/", ".").index_file("tests/test.binary"))
+        });
+
+        let response = srv
+            .head("/")
+            .send()
+            .await
+            .unwrap();
+
+        let content_length = response
+            .headers()
+            .get(header::CONTENT_LENGTH)
+            .unwrap()
+            .to_str()
+            .unwrap();
+
+        assert_eq!(content_length, "100");
     }
 
     #[actix_rt::test]
