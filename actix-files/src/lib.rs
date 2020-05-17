@@ -952,135 +952,92 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_named_file_content_range_headers() {
-        let mut srv = test::init_service(
-            App::new().service(Files::new("/test", ".").index_file("tests/test.binary")),
-        )
-        .await;
+        let srv = test::start(|| {
+            App::new().service(Files::new("/", "."))
+        });
 
         // Valid range header
-        let request = TestRequest::get()
-            .uri("/t%65st/tests/test.binary")
+        let response = srv
+            .get("/tests/test.binary")
             .header(header::RANGE, "bytes=10-20")
-            .to_request();
-
-        let response = test::call_service(&mut srv, request).await;
-        let contentrange = response
-            .headers()
-            .get(header::CONTENT_RANGE)
-            .unwrap()
-            .to_str()
+            .send()
+            .await
             .unwrap();
-
-        assert_eq!(contentrange, "bytes 10-20/100");
+        let content_range = response.headers().get(header::CONTENT_RANGE).unwrap();
+        assert_eq!(content_range.to_str().unwrap(), "bytes 10-20/100");
 
         // Invalid range header
-        let request = TestRequest::get()
-            .uri("/t%65st/tests/test.binary")
+        let response = srv
+            .get("/tests/test.binary")
             .header(header::RANGE, "bytes=10-5")
-            .to_request();
-        let response = test::call_service(&mut srv, request).await;
-
-        let contentrange = response
-            .headers()
-            .get(header::CONTENT_RANGE)
-            .unwrap()
-            .to_str()
+            .send()
+            .await
             .unwrap();
-
-        assert_eq!(contentrange, "bytes */100");
+        let content_range = response.headers().get(header::CONTENT_RANGE).unwrap();
+        assert_eq!(content_range.to_str().unwrap(), "bytes */100");
     }
 
     #[actix_rt::test]
     async fn test_named_file_content_length_headers() {
-        // use actix_web::body::{MessageBody, ResponseBody};
-
-        let mut srv = test::init_service(
-            App::new().service(Files::new("test", ".").index_file("tests/test.binary")),
-        )
-        .await;
+        let srv = test::start(|| {
+            App::new().service(Files::new("/", "."))
+        });
 
         // Valid range header
-        let request = TestRequest::get()
-            .uri("/t%65st/tests/test.binary")
+        let response = srv
+            .get("/tests/test.binary")
             .header(header::RANGE, "bytes=10-20")
-            .to_request();
-        let _response = test::call_service(&mut srv, request).await;
+            .send()
+            .await
+            .unwrap();
+        let content_length = response.headers().get(header::CONTENT_LENGTH).unwrap();
+        assert_eq!(content_length.to_str().unwrap(), "11");
 
-        // let contentlength = response
-        //     .headers()
-        //     .get(header::CONTENT_LENGTH)
-        //     .unwrap()
-        //     .to_str()
-        //     .unwrap();
-        // assert_eq!(contentlength, "11");
-
-        // Invalid range header
-        let request = TestRequest::get()
-            .uri("/t%65st/tests/test.binary")
-            .header(header::RANGE, "bytes=10-8")
-            .to_request();
-        let response = test::call_service(&mut srv, request).await;
-        assert_eq!(response.status(), StatusCode::RANGE_NOT_SATISFIABLE);
+        // Valid range header, starting from 0
+        let response = srv
+            .get("/tests/test.binary")
+            .header(header::RANGE, "bytes=0-20")
+            .send()
+            .await
+            .unwrap();
+        let content_length = response.headers().get(header::CONTENT_LENGTH).unwrap();
+        assert_eq!(content_length.to_str().unwrap(), "21");
 
         // Without range header
-        let request = TestRequest::get()
-            .uri("/t%65st/tests/test.binary")
-            // .no_default_headers()
-            .to_request();
-        let _response = test::call_service(&mut srv, request).await;
+        let mut response = srv.get("/tests/test.binary").send().await.unwrap();
+        let content_length = response.headers().get(header::CONTENT_LENGTH).unwrap();
+        assert_eq!(content_length.to_str().unwrap(), "100");
 
-        // let contentlength = response
-        //     .headers()
-        //     .get(header::CONTENT_LENGTH)
-        //     .unwrap()
-        //     .to_str()
-        //     .unwrap();
-        // assert_eq!(contentlength, "100");
+        // Should be no transfer-encoding
+        let transfer_encoding = response.headers().get(header::TRANSFER_ENCODING);
+        assert!(transfer_encoding.is_none());
 
-        // chunked
-        let request = TestRequest::get()
-            .uri("/t%65st/tests/test.binary")
-            .to_request();
-        let response = test::call_service(&mut srv, request).await;
-
-        // with enabled compression
-        // {
-        //     let te = response
-        //         .headers()
-        //         .get(header::TRANSFER_ENCODING)
-        //         .unwrap()
-        //         .to_str()
-        //         .unwrap();
-        //     assert_eq!(te, "chunked");
-        // }
-
-        let bytes = test::read_body(response).await;
+        // Check file contents
+        let bytes = response.body().await.unwrap();
         let data = Bytes::from(fs::read("tests/test.binary").unwrap());
         assert_eq!(bytes, data);
     }
 
     #[actix_rt::test]
     async fn test_head_content_length_headers() {
-        let mut srv = test::init_service(
-            App::new().service(Files::new("test", ".").index_file("tests/test.binary")),
-        )
-        .await;
+        let srv = test::start(|| {
+            App::new().service(Files::new("/", "."))
+        });
 
-        // Valid range header
-        let request = TestRequest::default()
-            .method(Method::HEAD)
-            .uri("/t%65st/tests/test.binary")
-            .to_request();
-        let _response = test::call_service(&mut srv, request).await;
+        let response = srv
+            .head("/tests/test.binary")
+            .send()
+            .await
+            .unwrap();
 
-        // TODO: fix check
-        // let contentlength = response
-        //     .headers()
-        //     .get(header::CONTENT_LENGTH)
-        //     .unwrap()
-        //     .to_str()
-        //     .unwrap();
-        // assert_eq!(contentlength, "100");
+        let content_length = response
+            .headers()
+            .get(header::CONTENT_LENGTH)
+            .unwrap()
+            .to_str()
+            .unwrap();
+
+        assert_eq!(content_length, "100");
     }
 
     #[actix_rt::test]
