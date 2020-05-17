@@ -3,6 +3,9 @@
 ## [0.2.1] - 2019-12-22
 
 * Use the same format for file URLs regardless of platforms
+* Support sending Content-Length when Content-Range is specified [#1384]
+
+[#1384]: https://github.com/actix/actix-web/pull/1384
 
 ## [0.2.0] - 2019-12-20
 
