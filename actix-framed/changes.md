@@ -1,5 +1,9 @@
 # Changes
 
+## [Unreleased] - 2020-xx-xx
+
+* Bump minimum supported Rust version to 1.40
+
 ## [0.3.0] - 2019-12-25
 
 * Migrate to actix-http 1.0
