@@ -189,7 +189,7 @@ impl MessageBody for Body {
                 if len == 0 {
                     Poll::Ready(None)
                 } else {
-                    Poll::Ready(Some(Ok(mem::replace(bin, Bytes::new()))))
+                    Poll::Ready(Some(Ok(mem::take(bin))))
                 }
             }
             Body::Message(ref mut body) => Pin::new(body.as_mut()).poll_next(cx),
@@ -307,7 +307,7 @@ impl MessageBody for Bytes {
         if self.is_empty() {
             Poll::Ready(None)
         } else {
-            Poll::Ready(Some(Ok(mem::replace(self.get_mut(), Bytes::new()))))
+            Poll::Ready(Some(Ok(mem::take(self.get_mut()))))
         }
     }
 }
@@ -324,9 +324,7 @@ impl MessageBody for BytesMut {
         if self.is_empty() {
             Poll::Ready(None)
         } else {
-            Poll::Ready(Some(Ok(
-                mem::replace(self.get_mut(), BytesMut::new()).freeze()
-            )))
+            Poll::Ready(Some(Ok(mem::take(self.get_mut()).freeze())))
         }
     }
 }
@@ -344,7 +342,7 @@ impl MessageBody for &'static str {
             Poll::Ready(None)
         } else {
             Poll::Ready(Some(Ok(Bytes::from_static(
-                mem::replace(self.get_mut(), "").as_ref(),
+                mem::take(self.get_mut()).as_ref(),
             ))))
         }
     }
@@ -362,10 +360,7 @@ impl MessageBody for Vec<u8> {
         if self.is_empty() {
             Poll::Ready(None)
         } else {
-            Poll::Ready(Some(Ok(Bytes::from(mem::replace(
-                self.get_mut(),
-                Vec::new(),
-            )))))
+            Poll::Ready(Some(Ok(Bytes::from(mem::take(self.get_mut())))))
         }
     }
 }
@@ -383,7 +378,7 @@ impl MessageBody for String {
             Poll::Ready(None)
         } else {
             Poll::Ready(Some(Ok(Bytes::from(
-                mem::replace(self.get_mut(), String::new()).into_bytes(),
+                mem::take(self.get_mut()).into_bytes(),
             ))))
         }
     }
