@@ -30,7 +30,7 @@ pub(crate) fn write_status_line(version: Version, n: u16, bytes: &mut BytesMut) 
 }
 
 /// NOTE: bytes object has to contain enough space
-pub fn write_content_length(n: usize, bytes: &mut BytesMut) {
+pub fn write_content_length(n: u64, bytes: &mut BytesMut) {
     bytes.put_slice(b"\r\ncontent-length: ");
 
     if n < 10 {
@@ -96,16 +96,16 @@ pub fn write_content_length(n: usize, bytes: &mut BytesMut) {
         bytes.put_u8(DIGITS_START + d10);
         bytes.put_u8(DIGITS_START + d1);
     } else {
-        write_usize(n, bytes);
+        write_u64(n, bytes);
     }
 
     bytes.put_slice(b"\r\n");
 }
 
-pub(crate) fn write_usize(n: usize, bytes: &mut BytesMut) {
+pub(crate) fn write_u64(n: u64, bytes: &mut BytesMut) {
     let mut n = n;
 
-    // 20 chars is max length of a usize (2^64)
+    // 20 chars is max length of a u64 (2^64)
     // digits will be added to the buffer from lsd to msd
     let mut buf = BytesMut::with_capacity(20);
 
