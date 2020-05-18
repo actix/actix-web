@@ -5,7 +5,7 @@
   To create a cookie without a SameSite attribute, remove any calls setting same_site.
 * actix-http support for Actors messages was moved to actix-http crate and is enabled 
   with feature `actors`
-* content_length function is removed from actix-files.
+* content_length function is removed from actix-http.
   You can set Content-Length by normally setting the response body or calling no_chunking function. 
 
 ## 2.0.0
