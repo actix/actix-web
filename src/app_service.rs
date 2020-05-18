@@ -9,7 +9,7 @@ use actix_http::{Extensions, Request, Response};
 use actix_router::{Path, ResourceDef, ResourceInfo, Router, Url};
 use actix_service::boxed::{self, BoxService, BoxServiceFactory};
 use actix_service::{fn_service, Service, ServiceFactory};
-use futures::future::{join_all, ok, FutureExt, LocalBoxFuture};
+use futures_util::future::{join_all, ok, FutureExt, LocalBoxFuture};
 
 use crate::config::{AppConfig, AppService};
 use crate::data::{DataFactory, FnDataFactory};

@@ -1,7 +1,7 @@
 use actix_web::{test, web, App, HttpResponse};
 use awc::Client;
 use criterion::{criterion_group, criterion_main, Criterion};
-use futures::future::join_all;
+use futures_util::future::join_all;
 
 const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
                    Hello World Hello World Hello World Hello World Hello World \

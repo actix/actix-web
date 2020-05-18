@@ -7,8 +7,8 @@ use std::task::{Context, Poll};
 use std::{fmt, ops};
 
 use bytes::BytesMut;
-use futures::future::{err, ok, FutureExt, LocalBoxFuture, Ready};
-use futures::StreamExt;
+use futures_util::future::{err, ok, FutureExt, LocalBoxFuture, Ready};
+use futures_util::StreamExt;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 

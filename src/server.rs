@@ -13,7 +13,7 @@ use actix_http::Protocol;
 #[cfg(unix)]
 use actix_service::pipeline_factory;
 #[cfg(unix)]
-use futures::future::ok;
+use futures_util::future::ok;
 
 #[cfg(feature = "openssl")]
 use actix_tls::openssl::{AlpnError, SslAcceptor, SslAcceptorBuilder};

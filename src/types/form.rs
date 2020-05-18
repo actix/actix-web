@@ -9,8 +9,8 @@ use std::{fmt, ops};
 use actix_http::{Error, HttpMessage, Payload, Response};
 use bytes::BytesMut;
 use encoding_rs::{Encoding, UTF_8};
-use futures::future::{err, ok, FutureExt, LocalBoxFuture, Ready};
-use futures::StreamExt;
+use futures_util::future::{err, ok, FutureExt, LocalBoxFuture, Ready};
+use futures_util::StreamExt;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 

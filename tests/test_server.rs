@@ -1,3 +1,4 @@
+use std::future::Future;
 use std::io::{Read, Write};
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -11,7 +12,7 @@ use bytes::Bytes;
 use flate2::read::GzDecoder;
 use flate2::write::{GzEncoder, ZlibDecoder, ZlibEncoder};
 use flate2::Compression;
-use futures::{ready, Future};
+use futures_util::ready;
 use rand::{distributions::Alphanumeric, Rng};
 
 use actix_web::dev::BodyEncoding;
@@ -56,7 +57,7 @@ impl TestBody {
     }
 }
 
-impl futures::Stream for TestBody {
+impl futures_core::stream::Stream for TestBody {
     type Item = Result<Bytes, Error>;
 
     fn poll_next(

@@ -4,7 +4,7 @@ use std::task::{Context, Poll};
 use actix_http::http::{PathAndQuery, Uri};
 use actix_service::{Service, Transform};
 use bytes::Bytes;
-use futures::future::{ok, Ready};
+use futures_util::future::{ok, Ready};
 use regex::Regex;
 
 use crate::service::{ServiceRequest, ServiceResponse};

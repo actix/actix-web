@@ -11,7 +11,7 @@ use actix_http::encoding::Encoder;
 use actix_http::http::header::{ContentEncoding, ACCEPT_ENCODING};
 use actix_http::Error;
 use actix_service::{Service, Transform};
-use futures::future::{ok, Ready};
+use futures_util::future::{ok, Ready};
 use pin_project::pin_project;
 
 use crate::dev::BodyEncoding;
@@ -133,7 +133,7 @@ where
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.project();
 
-        match futures::ready!(this.fut.poll(cx)) {
+        match futures_util::ready!(this.fut.poll(cx)) {
             Ok(resp) => {
                 let enc = if let Some(enc) = resp.response().get_encoding() {
                     enc
