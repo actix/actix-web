@@ -3,8 +3,12 @@
 * Setting a cookie's SameSite property, explicitly, to `SameSite::None` will now
   result in `SameSite=None` being sent with the response Set-Cookie header.
   To create a cookie without a SameSite attribute, remove any calls setting same_site.
+
 * actix-http support for Actors messages was moved to actix-http crate and is enabled 
   with feature `actors`
+
+* `BodySize::Sized64` variant has been removed. `BodySize::Sized` now receives a
+  `u64` instead of a `usize`.
 
 ## 2.0.0
 

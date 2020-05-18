@@ -64,10 +64,6 @@ where
             CONTENT_LENGTH,
             HeaderValue::try_from(format!("{}", len)).unwrap(),
         ),
-        BodySize::Sized64(len) => req.headers_mut().insert(
-            CONTENT_LENGTH,
-            HeaderValue::try_from(format!("{}", len)).unwrap(),
-        ),
     };
 
     // Extracting extra headers from RequestHeadType. HeaderMap::new() does not allocate.

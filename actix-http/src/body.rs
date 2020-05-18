@@ -15,8 +15,7 @@ use crate::error::Error;
 pub enum BodySize {
     None,
     Empty,
-    Sized(usize),
-    Sized64(u64),
+    Sized(u64),
     Stream,
 }
 
@@ -25,8 +24,7 @@ impl BodySize {
         match self {
             BodySize::None
             | BodySize::Empty
-            | BodySize::Sized(0)
-            | BodySize::Sized64(0) => true,
+            | BodySize::Sized(0) => true,
             _ => false,
         }
     }
@@ -170,7 +168,7 @@ impl MessageBody for Body {
         match self {
             Body::None => BodySize::None,
             Body::Empty => BodySize::Empty,
-            Body::Bytes(ref bin) => BodySize::Sized(bin.len()),
+            Body::Bytes(ref bin) => BodySize::Sized(bin.len() as u64),
             Body::Message(ref body) => body.size(),
         }
     }
@@ -297,7 +295,7 @@ where
 
 impl MessageBody for Bytes {
     fn size(&self) -> BodySize {
-        BodySize::Sized(self.len())
+        BodySize::Sized(self.len() as u64)
     }
 
     fn poll_next(
@@ -314,7 +312,7 @@ impl MessageBody for Bytes {
 
 impl MessageBody for BytesMut {
     fn size(&self) -> BodySize {
-        BodySize::Sized(self.len())
+        BodySize::Sized(self.len() as u64)
     }
 
     fn poll_next(
@@ -331,7 +329,7 @@ impl MessageBody for BytesMut {
 
 impl MessageBody for &'static str {
     fn size(&self) -> BodySize {
-        BodySize::Sized(self.len())
+        BodySize::Sized(self.len() as u64)
     }
 
     fn poll_next(
@@ -350,7 +348,7 @@ impl MessageBody for &'static str {
 
 impl MessageBody for Vec<u8> {
     fn size(&self) -> BodySize {
-        BodySize::Sized(self.len())
+        BodySize::Sized(self.len() as u64)
     }
 
     fn poll_next(
@@ -367,7 +365,7 @@ impl MessageBody for Vec<u8> {
 
 impl MessageBody for String {
     fn size(&self) -> BodySize {
-        BodySize::Sized(self.len())
+        BodySize::Sized(self.len() as u64)
     }
 
     fn poll_next(
@@ -458,7 +456,7 @@ where
     S: Stream<Item = Result<Bytes, Error>> + Unpin,
 {
     fn size(&self) -> BodySize {
-        BodySize::Sized64(self.size)
+        BodySize::Sized(self.size as u64)
     }
 
     /// Attempts to pull out the next value of the underlying [`Stream`].
