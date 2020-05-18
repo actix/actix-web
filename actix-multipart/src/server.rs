@@ -8,7 +8,7 @@ use std::task::{Context, Poll};
 use std::{cmp, fmt};
 
 use bytes::{Bytes, BytesMut};
-use futures::stream::{LocalBoxStream, Stream, StreamExt};
+use futures_util::stream::{LocalBoxStream, Stream, StreamExt};
 use httparse;
 use mime;
 
@@ -814,7 +814,7 @@ mod tests {
     use actix_utils::mpsc;
     use actix_web::http::header::{DispositionParam, DispositionType};
     use bytes::Bytes;
-    use futures::future::lazy;
+    use futures_util::future::lazy;
 
     #[actix_rt::test]
     async fn test_boundary() {
