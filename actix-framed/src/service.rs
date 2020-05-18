@@ -1,3 +1,4 @@
+use std::future::Future;
 use std::marker::PhantomData;
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -9,8 +10,7 @@ use actix_http::h1::{Codec, Message};
 use actix_http::ws::{verify_handshake, HandshakeError};
 use actix_http::{Request, Response};
 use actix_service::{Service, ServiceFactory};
-use futures::future::{err, ok, Either, Ready};
-use futures::Future;
+use futures_util::future::{err, ok, Either, Ready};
 
 /// Service that verifies incoming request if it is valid websocket
 /// upgrade request. In case of error returns `HandshakeError`

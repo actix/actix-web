@@ -8,7 +8,7 @@ use actix_http::h1::{Codec, SendResponse};
 use actix_http::{Error, Request, Response};
 use actix_router::{Path, Router, Url};
 use actix_service::{IntoServiceFactory, Service, ServiceFactory};
-use futures::future::{ok, FutureExt, LocalBoxFuture};
+use futures_util::future::{ok, FutureExt, LocalBoxFuture};
 
 use crate::helpers::{BoxedHttpNewService, BoxedHttpService, HttpNewService};
 use crate::request::FramedRequest;

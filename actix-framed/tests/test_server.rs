@@ -4,7 +4,7 @@ use actix_http_test::test_server;
 use actix_service::{pipeline_factory, IntoServiceFactory, ServiceFactory};
 use actix_utils::framed::Dispatcher;
 use bytes::Bytes;
-use futures::{future, SinkExt, StreamExt};
+use futures_util::{future, SinkExt, StreamExt};
 
 use actix_framed::{FramedApp, FramedRequest, FramedRoute, SendError, VerifyWebSockets};
 
