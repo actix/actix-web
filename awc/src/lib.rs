@@ -7,7 +7,6 @@
 //! An HTTP Client
 //!
 //! ```rust
-//! use futures::future::{lazy, Future};
 //! use actix_rt::System;
 //! use awc::Client;
 //!

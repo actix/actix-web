@@ -9,7 +9,7 @@ use bytes::Bytes;
 use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
 use flate2::Compression;
-use futures::future::ok;
+use futures_util::future::ok;
 use rand::Rng;
 
 use actix_http::HttpService;
