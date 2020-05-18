@@ -349,7 +349,7 @@ async fn test_body_br_streaming() {
 async fn test_head_binary() {
     let srv = test::start_with(test::config().h1(), || {
         App::new().service(web::resource("/").route(
-            web::head().to(move || HttpResponse::Ok().content_length(100).body(STR)),
+            web::head().to(move || HttpResponse::Ok().body(STR)),
         ))
     });
 
@@ -371,8 +371,7 @@ async fn test_no_chunking() {
     let srv = test::start_with(test::config().h1(), || {
         App::new().service(web::resource("/").route(web::to(move || {
             HttpResponse::Ok()
-                .no_chunking()
-                .content_length(STR.len() as u64)
+                .no_chunking(STR.len() as u64)
                 .streaming(TestBody::new(Bytes::from_static(STR.as_ref()), 24))
         })))
     });

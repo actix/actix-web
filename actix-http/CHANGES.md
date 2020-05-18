@@ -5,6 +5,7 @@
 ### Changed
 
 * Bump minimum supported Rust version to 1.40
+* content_length function is removed, and you can set Content-Length by calling no_chunking function [#1439]
 
 * `BodySize::Sized64` variant has been removed. `BodySize::Sized` now receives a
   `u64` instead of a `usize`.
@@ -12,6 +13,9 @@
 ### Fixed
 
 * Support parsing of `SameSite=None` [#1503]
+
+[#1439]: https://github.com/actix/actix-web/pull/1439
+[#1503]: https://github.com/actix/actix-web/pull/1503
 
 ## [2.0.0-alpha.3] - 2020-05-08
 

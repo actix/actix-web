@@ -6,6 +6,8 @@
 
 * actix-http support for Actors messages was moved to actix-http crate and is enabled 
   with feature `actors`
+* content_length function is removed from actix-http.
+  You can set Content-Length by normally setting the response body or calling no_chunking function. 
 
 * `BodySize::Sized64` variant has been removed. `BodySize::Sized` now receives a
   `u64` instead of a `usize`.

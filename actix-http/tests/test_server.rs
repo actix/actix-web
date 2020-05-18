@@ -490,7 +490,7 @@ async fn test_h1_head_binary() {
     let mut srv = test_server(|| {
         HttpService::build()
             .h1(|_| {
-                ok::<_, ()>(Response::Ok().content_length(STR.len() as u64).body(STR))
+                ok::<_, ()>(Response::Ok().body(STR))
             })
             .tcp()
     })
