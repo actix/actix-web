@@ -188,7 +188,7 @@ where
             .limit(limit)
             .map(move |res| match res {
                 Err(e) => {
-                    log::debug!(
+                    log::error!(
                         "Failed to deserialize Json from payload. \
                          Request path: {}",
                         req2.path()
