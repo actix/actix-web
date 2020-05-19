@@ -11,7 +11,7 @@ use actix_service::boxed::{self, BoxService, BoxServiceFactory};
 use actix_service::{
     apply, apply_fn_factory, IntoServiceFactory, Service, ServiceFactory, Transform,
 };
-use futures::future::{ok, Either, LocalBoxFuture, Ready};
+use futures_util::future::{ok, Either, LocalBoxFuture, Ready};
 
 use crate::data::Data;
 use crate::dev::{insert_slash, AppService, HttpServiceFactory, ResourceDef};
@@ -588,7 +588,7 @@ mod tests {
 
     use actix_rt::time::delay_for;
     use actix_service::Service;
-    use futures::future::ok;
+    use futures_util::future::ok;
 
     use crate::http::{header, HeaderValue, Method, StatusCode};
     use crate::middleware::DefaultHeaders;

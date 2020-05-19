@@ -156,7 +156,7 @@ impl ClientRequest {
     ///
     /// ```rust
     /// fn main() {
-    /// # actix_rt::System::new("test").block_on(futures::future::lazy(|_| {
+    /// # actix_rt::System::new("test").block_on(futures_util::future::lazy(|_| {
     ///     let req = awc::Client::new()
     ///         .get("http://www.rust-lang.org")
     ///         .set(awc::http::header::Date::now())

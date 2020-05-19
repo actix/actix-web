@@ -6,7 +6,7 @@ use std::task::{Context, Poll};
 use actix_codec::{AsyncRead, AsyncWrite};
 use actix_http::{http::Method, Error};
 use actix_service::{Service, ServiceFactory};
-use futures::future::{ok, FutureExt, LocalBoxFuture, Ready};
+use futures_util::future::{ok, FutureExt, LocalBoxFuture, Ready};
 use log::error;
 
 use crate::app::HttpServiceFactory;

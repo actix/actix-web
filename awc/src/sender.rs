@@ -1,3 +1,4 @@
+use std::future::Future;
 use std::net;
 use std::pin::Pin;
 use std::rc::Rc;
@@ -7,7 +8,7 @@ use std::time::Duration;
 use actix_rt::time::{delay_for, Delay};
 use bytes::Bytes;
 use derive_more::From;
-use futures_core::{Future, Stream};
+use futures_core::Stream;
 use serde::Serialize;
 
 use actix_http::body::{Body, BodyStream};

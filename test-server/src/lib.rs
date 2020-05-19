@@ -7,7 +7,7 @@ use actix_rt::{net::TcpStream, System};
 use actix_server::{Server, ServiceFactory};
 use awc::{error::PayloadError, ws, Client, ClientRequest, ClientResponse, Connector};
 use bytes::Bytes;
-use futures::Stream;
+use futures_core::stream::Stream;
 use http::Method;
 use net2::TcpBuilder;
 

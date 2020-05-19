@@ -482,7 +482,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use futures::stream;
+    use futures_util::stream;
     use futures_util::future::poll_fn;
     use futures_util::pin_mut;
 

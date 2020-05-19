@@ -41,7 +41,7 @@ awc = "2.0.0-alpha.1"
 
 base64 = "0.11"
 bytes = "0.5.3"
-futures = "0.3.1"
+futures-core = { version = "0.3.5", default-features = false }
 http = "0.2.0"
 log = "0.4"
 env_logger = "0.6"

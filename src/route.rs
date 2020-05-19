@@ -5,7 +5,7 @@ use std::task::{Context, Poll};
 
 use actix_http::{http::Method, Error};
 use actix_service::{Service, ServiceFactory};
-use futures::future::{ready, FutureExt, LocalBoxFuture};
+use futures_util::future::{ready, FutureExt, LocalBoxFuture};
 
 use crate::extract::FromRequest;
 use crate::guard::{self, Guard};

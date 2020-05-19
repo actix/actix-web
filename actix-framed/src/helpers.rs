@@ -2,7 +2,7 @@ use std::task::{Context, Poll};
 
 use actix_http::Error;
 use actix_service::{Service, ServiceFactory};
-use futures::future::{FutureExt, LocalBoxFuture};
+use futures_util::future::{FutureExt, LocalBoxFuture};
 
 pub(crate) type BoxedHttpService<Req> = Box<
     dyn Service<

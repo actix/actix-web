@@ -5,8 +5,8 @@ use actix_http_test::test_server;
 use actix_service::{fn_service, ServiceFactory};
 
 use bytes::{Bytes, BytesMut};
-use futures::future::{err, ok, ready};
-use futures::stream::{once, Stream, StreamExt};
+use futures_util::future::{err, ok, ready};
+use futures_util::stream::{once, Stream, StreamExt};
 use open_ssl::ssl::{AlpnError, SslAcceptor, SslFiletype, SslMethod};
 
 use actix_http::error::{ErrorBadRequest, PayloadError};

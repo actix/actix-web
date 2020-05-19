@@ -4,7 +4,7 @@ use std::rc::Rc;
 use std::task::{Context, Poll};
 
 use actix_service::{Service, Transform};
-use futures::future::{ok, FutureExt, LocalBoxFuture, Ready};
+use futures_util::future::{ok, FutureExt, LocalBoxFuture, Ready};
 
 use crate::http::header::{HeaderName, HeaderValue, CONTENT_TYPE};
 use crate::http::{Error as HttpError, HeaderMap};
@@ -157,7 +157,7 @@ where
 #[cfg(test)]
 mod tests {
     use actix_service::IntoService;
-    use futures::future::ok;
+    use futures_util::future::ok;
 
     use super::*;
     use crate::dev::ServiceRequest;

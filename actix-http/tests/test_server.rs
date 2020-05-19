@@ -6,8 +6,8 @@ use actix_http_test::test_server;
 use actix_rt::time::delay_for;
 use actix_service::fn_service;
 use bytes::Bytes;
-use futures::future::{self, err, ok, ready, FutureExt};
-use futures::stream::{once, StreamExt};
+use futures_util::future::{self, err, ok, ready, FutureExt};
+use futures_util::stream::{once, StreamExt};
 use regex::Regex;
 
 use actix_http::httpmessage::HttpMessage;

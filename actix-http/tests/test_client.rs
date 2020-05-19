@@ -1,6 +1,6 @@
 use actix_service::ServiceFactory;
 use bytes::Bytes;
-use futures::future::{self, ok};
+use futures_util::future::{self, ok};
 
 use actix_http::{http, HttpService, Request, Response};
 use actix_http_test::test_server;

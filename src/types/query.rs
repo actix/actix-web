@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::{fmt, ops};
 
 use actix_http::error::Error;
-use futures::future::{err, ok, Ready};
+use futures_util::future::{err, ok, Ready};
 use serde::de;
 
 use crate::dev::Payload;

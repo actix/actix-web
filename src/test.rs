@@ -18,8 +18,9 @@ use actix_service::{
 use awc::error::PayloadError;
 use awc::{Client, ClientRequest, ClientResponse, Connector};
 use bytes::{Bytes, BytesMut};
-use futures::future::ok;
-use futures::stream::{Stream, StreamExt};
+use futures_core::Stream;
+use futures_util::future::ok;
+use futures_util::StreamExt;
 use net2::TcpBuilder;
 use serde::de::DeserializeOwned;
 use serde::Serialize;

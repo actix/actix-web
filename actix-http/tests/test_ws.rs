@@ -1,4 +1,5 @@
 use std::cell::Cell;
+use std::future::Future;
 use std::marker::PhantomData;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
@@ -9,9 +10,9 @@ use actix_http_test::test_server;
 use actix_service::{fn_factory, Service};
 use actix_utils::framed::Dispatcher;
 use bytes::Bytes;
-use futures::future;
-use futures::task::{Context, Poll};
-use futures::{Future, SinkExt, StreamExt};
+use futures_util::future;
+use futures_util::task::{Context, Poll};
+use futures_util::{SinkExt, StreamExt};
 
 struct WsService<T>(Arc<Mutex<(PhantomData<T>, Cell<bool>)>>);
 

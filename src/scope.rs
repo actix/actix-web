@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 use std::fmt;
+use std::future::Future;
 use std::pin::Pin;
 use std::rc::Rc;
 use std::task::{Context, Poll};
@@ -10,7 +11,7 @@ use actix_service::boxed::{self, BoxService, BoxServiceFactory};
 use actix_service::{
     apply, apply_fn_factory, IntoServiceFactory, Service, ServiceFactory, Transform,
 };
-use futures::future::{ok, Either, Future, LocalBoxFuture, Ready};
+use futures_util::future::{ok, Either, LocalBoxFuture, Ready};
 
 use crate::config::ServiceConfig;
 use crate::data::Data;
@@ -666,7 +667,7 @@ impl ServiceFactory for ScopeEndpoint {
 mod tests {
     use actix_service::Service;
     use bytes::Bytes;
-    use futures::future::ok;
+    use futures_util::future::ok;
 
     use crate::dev::{Body, ResponseBody};
     use crate::http::{header, HeaderValue, Method, StatusCode};

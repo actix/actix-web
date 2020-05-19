@@ -1,11 +1,11 @@
 //! Essentials helper functions and types for application registration.
 use actix_http::http::Method;
 use actix_router::IntoPattern;
-use futures::Future;
+use std::future::Future;
 
 pub use actix_http::Response as HttpResponse;
 pub use bytes::{Bytes, BytesMut};
-pub use futures::channel::oneshot::Canceled;
+pub use futures_channel::oneshot::Canceled;
 
 use crate::error::BlockingError;
 use crate::extract::FromRequest;
