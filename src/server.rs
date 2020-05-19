@@ -6,8 +6,6 @@ use actix_http::{body::MessageBody, Error, HttpService, KeepAlive, Request, Resp
 use actix_server::{Server, ServerBuilder};
 use actix_service::{map_config, IntoServiceFactory, Service, ServiceFactory};
 
-use net2::TcpBuilder;
-
 #[cfg(unix)]
 use actix_http::Protocol;
 #[cfg(unix)]
@@ -562,13 +560,16 @@ fn create_tcp_listener(
     addr: net::SocketAddr,
     backlog: i32,
 ) -> io::Result<net::TcpListener> {
-    let builder = match addr {
-        net::SocketAddr::V4(_) => TcpBuilder::new_v4()?,
-        net::SocketAddr::V6(_) => TcpBuilder::new_v6()?,
+    use socket2::{Domain, Protocol, Socket, Type};
+    let domain = match addr {
+        net::SocketAddr::V4(_) => Domain::ipv4(),
+        net::SocketAddr::V6(_) => Domain::ipv6(),
     };
-    builder.reuse_address(true)?;
-    builder.bind(addr)?;
-    Ok(builder.listen(backlog)?)
+    let socket = Socket::new(domain, Type::stream(), Some(Protocol::tcp()))?;
+    socket.set_reuse_address(true)?;
+    socket.bind(&addr.into())?;
+    socket.listen(backlog)?;
+    Ok(socket.into_tcp_listener())
 }
 
 #[cfg(feature = "openssl")]

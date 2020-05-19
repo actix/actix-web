@@ -14,6 +14,8 @@
 
 * Bump minimum supported Rust version to 1.40
 
+* Replace deprecated `net2` crate with `socket2`
+
 [#1485]: https://github.com/actix/actix-web/pull/1485
 [#1509]: https://github.com/actix/actix-web/pull/1509
 
