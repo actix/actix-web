@@ -21,10 +21,10 @@ use bytes::{Bytes, BytesMut};
 use futures_core::Stream;
 use futures_util::future::ok;
 use futures_util::StreamExt;
-use net2::TcpBuilder;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use serde_json;
+use socket2::{Domain, Protocol, Socket, Type};
 
 pub use actix_http::test::TestBuffer;
 
@@ -913,10 +913,10 @@ impl TestServerConfig {
 /// Get first available unused address
 pub fn unused_addr() -> net::SocketAddr {
     let addr: net::SocketAddr = "127.0.0.1:0".parse().unwrap();
-    let socket = TcpBuilder::new_v4().unwrap();
-    socket.bind(&addr).unwrap();
-    socket.reuse_address(true).unwrap();
-    let tcp = socket.to_tcp_listener().unwrap();
+    let socket = Socket::new(Domain::ipv4(), Type::stream(), Some(Protocol::tcp())).unwrap();
+    socket.bind(&addr.into()).unwrap();
+    socket.set_reuse_address(true).unwrap();
+    let tcp = socket.into_tcp_listener();
     tcp.local_addr().unwrap()
 }
 
