@@ -6,6 +6,7 @@
 * Update `actix-connect` dependency to 2.0.0-alpha.2
 * Make `test_server` `async` fn.
 * Bump minimum supported Rust version to 1.40
+* Replace deprecated `net2` crate with `socket2`
 
 ## [1.0.0] - 2019-12-13
 

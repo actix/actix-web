@@ -9,7 +9,7 @@ use awc::{error::PayloadError, ws, Client, ClientRequest, ClientResponse, Connec
 use bytes::Bytes;
 use futures_core::stream::Stream;
 use http::Method;
-use net2::TcpBuilder;
+use socket2::{Domain, Protocol, Socket, Type};
 
 pub use actix_testing::*;
 
@@ -104,10 +104,10 @@ pub async fn test_server<F: ServiceFactory<TcpStream>>(factory: F) -> TestServer
 /// Get first available unused address
 pub fn unused_addr() -> net::SocketAddr {
     let addr: net::SocketAddr = "127.0.0.1:0".parse().unwrap();
-    let socket = TcpBuilder::new_v4().unwrap();
-    socket.bind(&addr).unwrap();
-    socket.reuse_address(true).unwrap();
-    let tcp = socket.to_tcp_listener().unwrap();
+    let socket = Socket::new(Domain::ipv4(), Type::stream(), Some(Protocol::tcp())).unwrap();
+    socket.bind(&addr.into()).unwrap();
+    socket.set_reuse_address(true).unwrap();
+    let tcp = socket.into_tcp_listener();
     tcp.local_addr().unwrap()
 }
 
