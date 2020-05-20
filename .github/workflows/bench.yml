@@ -20,4 +20,4 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: bench
-          args: --bench=server
+          args: --bench=server -- --sample-size=15
