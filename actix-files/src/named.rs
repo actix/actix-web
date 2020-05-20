@@ -18,7 +18,7 @@ use actix_web::http::header::{
 };
 use actix_web::http::{ContentEncoding, StatusCode};
 use actix_web::{Error, HttpMessage, HttpRequest, HttpResponse, Responder};
-use futures::future::{ready, Ready};
+use futures_util::future::{ready, Ready};
 
 use crate::range::HttpRange;
 use crate::ChunkedReadFile;

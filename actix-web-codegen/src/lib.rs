@@ -33,7 +33,6 @@
 //! ```rust
 //! use actix_web::HttpResponse;
 //! use actix_web_codegen::get;
-//! use futures::{future, Future};
 //!
 //! #[get("/test")]
 //! async fn async_test() -> Result<HttpResponse, actix_web::Error> {

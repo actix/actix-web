@@ -7,7 +7,7 @@ use actix_http_test::test_server;
 use actix_service::{map_config, pipeline_factory, ServiceFactory};
 use actix_web::http::Version;
 use actix_web::{dev::AppConfig, web, App, HttpResponse};
-use futures::future::ok;
+use futures_util::future::ok;
 use open_ssl::ssl::{SslAcceptor, SslConnector, SslFiletype, SslMethod, SslVerifyMode};
 
 fn ssl_acceptor() -> SslAcceptor {

@@ -1,10 +1,11 @@
+use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::{fmt, io, mem, time};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use bytes::{Buf, Bytes};
-use futures_util::future::{err, Either, Future, FutureExt, LocalBoxFuture, Ready};
+use futures_util::future::{err, Either, FutureExt, LocalBoxFuture, Ready};
 use h2::client::SendRequest;
 use pin_project::{pin_project, project};
 

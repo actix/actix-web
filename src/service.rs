@@ -536,7 +536,7 @@ mod tests {
     use crate::test::{init_service, TestRequest};
     use crate::{guard, http, web, App, HttpResponse};
     use actix_service::Service;
-    use futures::future::ok;
+    use futures_util::future::ok;
 
     #[test]
     fn test_service_request() {

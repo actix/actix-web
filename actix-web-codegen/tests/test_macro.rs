@@ -1,10 +1,11 @@
+use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
 use actix_web::{http, test, web::Path, App, HttpResponse, Responder, Error};
 use actix_web::dev::{Service, Transform, ServiceRequest, ServiceResponse};
 use actix_web_codegen::{connect, delete, get, head, options, patch, post, put, trace};
-use futures::{future, Future};
+use futures_util::future;
 use actix_web::http::header::{HeaderName, HeaderValue};
 
 // Make sure that we can name function as 'config'

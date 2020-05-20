@@ -1,4 +1,5 @@
 use std::collections::VecDeque;
+use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
@@ -11,8 +12,8 @@ use actix::{
 };
 use actix_web::error::Error;
 use bytes::Bytes;
-use futures::channel::oneshot::Sender;
-use futures::{Future, Stream};
+use futures_channel::oneshot::Sender;
+use futures_core::Stream;
 
 /// Execution context for http actors
 pub struct HttpContext<A>

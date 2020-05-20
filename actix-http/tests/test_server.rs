@@ -6,8 +6,8 @@ use actix_http_test::test_server;
 use actix_rt::time::delay_for;
 use actix_service::fn_service;
 use bytes::Bytes;
-use futures::future::{self, err, ok, ready, FutureExt};
-use futures::stream::{once, StreamExt};
+use futures_util::future::{self, err, ok, ready, FutureExt};
+use futures_util::stream::{once, StreamExt};
 use regex::Regex;
 
 use actix_http::httpmessage::HttpMessage;
@@ -490,7 +490,7 @@ async fn test_h1_head_binary() {
     let mut srv = test_server(|| {
         HttpService::build()
             .h1(|_| {
-                ok::<_, ()>(Response::Ok().content_length(STR.len() as u64).body(STR))
+                ok::<_, ()>(Response::Ok().body(STR))
             })
             .tcp()
     })

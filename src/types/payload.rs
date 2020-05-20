@@ -8,8 +8,9 @@ use actix_http::error::{Error, ErrorBadRequest, PayloadError};
 use actix_http::HttpMessage;
 use bytes::{Bytes, BytesMut};
 use encoding_rs::UTF_8;
-use futures::future::{err, ok, Either, FutureExt, LocalBoxFuture, Ready};
-use futures::{Stream, StreamExt};
+use futures_core::stream::Stream;
+use futures_util::future::{err, ok, Either, FutureExt, LocalBoxFuture, Ready};
+use futures_util::StreamExt;
 use mime::Mime;
 
 use crate::dev;
@@ -22,9 +23,10 @@ use crate::request::HttpRequest;
 /// ## Example
 ///
 /// ```rust
-/// use futures::{Future, Stream, StreamExt};
 /// use actix_web::{web, error, App, Error, HttpResponse};
-///
+/// use std::future::Future;
+/// use futures_core::stream::Stream;
+/// use futures_util::StreamExt;
 /// /// extract binary data from request
 /// async fn index(mut body: web::Payload) -> Result<HttpResponse, Error>
 /// {
@@ -70,8 +72,10 @@ impl Stream for Payload {
 /// ## Example
 ///
 /// ```rust
-/// use futures::{Future, Stream, StreamExt};
 /// use actix_web::{web, error, App, Error, HttpResponse};
+/// use std::future::Future;
+/// use futures_core::stream::Stream;
+/// use futures_util::StreamExt;
 ///
 /// /// extract binary data from request
 /// async fn index(mut body: web::Payload) -> Result<HttpResponse, Error>

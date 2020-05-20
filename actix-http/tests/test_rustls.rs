@@ -7,8 +7,8 @@ use actix_http_test::test_server;
 use actix_service::{fn_factory_with_config, fn_service};
 
 use bytes::{Bytes, BytesMut};
-use futures::future::{self, err, ok};
-use futures::stream::{once, Stream, StreamExt};
+use futures_util::future::{self, err, ok};
+use futures_util::stream::{once, Stream, StreamExt};
 use rust_tls::{
     internal::pemfile::{certs, pkcs8_private_keys},
     NoClientAuth, ServerConfig as RustlsServerConfig,
@@ -281,7 +281,7 @@ async fn test_h2_head_binary() {
     let mut srv = test_server(move || {
         HttpService::build()
             .h2(|_| {
-                ok::<_, ()>(Response::Ok().content_length(STR.len() as u64).body(STR))
+                ok::<_, ()>(Response::Ok().body(STR))
             })
             .rustls(ssl_acceptor())
     })

@@ -5,7 +5,7 @@ use std::task::{Context, Poll};
 
 use bytes::{Bytes, BytesMut};
 use encoding_rs::{Encoding, UTF_8};
-use futures::Stream;
+use futures_util::stream::Stream;
 
 use crate::dev::Payload;
 use crate::error::{PayloadError, ReadlinesError};
@@ -172,7 +172,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use futures::stream::StreamExt;
+    use futures_util::stream::StreamExt;
 
     use super::*;
     use crate::test::TestRequest;
