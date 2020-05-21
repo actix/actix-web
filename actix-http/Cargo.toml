@@ -49,7 +49,7 @@ actix-threadpool = "0.3.1"
 actix-tls = { version = "2.0.0-alpha.1", optional = true }
 actix = { version = "0.10.0-alpha.1", optional = true }
 
-base64 = "0.11"
+base64 = "0.12"
 bitflags = "1.2"
 bytes = "0.5.3"
 copyless = "0.1.4"

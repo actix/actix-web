@@ -6,6 +6,7 @@
 
 * Implement `std::error::Error` for our custom errors [#1422]
 * Bump minimum supported Rust version to 1.40
+* Update `base64` dependency to 0.12
 
 [#1422]: https://github.com/actix/actix-web/pull/1422
 
