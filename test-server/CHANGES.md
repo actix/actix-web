@@ -7,6 +7,8 @@
 * Make `test_server` `async` fn.
 * Bump minimum supported Rust version to 1.40
 * Replace deprecated `net2` crate with `socket2`
+* Update `base64` dependency to 0.12
+* Update `env_logger` dependency to 0.7
 
 ## [1.0.0] - 2019-12-13
 
