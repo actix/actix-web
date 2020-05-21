@@ -25,6 +25,13 @@ fn bench_write_content_length(c: &mut Criterion) {
                 _new::write_content_length(i, &mut b)
             })
         });
+
+        group.bench_with_input(BenchmarkId::new("itoa", i), i, |b, &i| {
+            b.iter(|| {
+                let mut b = BytesMut::with_capacity(35);
+                _itoa::write_content_length(i, &mut b)
+            })
+        });
     }
 
     group.finish();
@@ -32,6 +39,23 @@ fn bench_write_content_length(c: &mut Criterion) {
 
 criterion_group!(benches, bench_write_content_length);
 criterion_main!(benches);
+
+mod _itoa {
+    use bytes::{BufMut, BytesMut};
+
+    pub fn write_content_length(n: usize, bytes: &mut BytesMut) {
+        if n == 0 {
+            bytes.put_slice(b"\r\ncontent-length: 0\r\n");
+            return;
+        }
+
+        let mut buf = itoa::Buffer::new();
+
+        bytes.put_slice(b"\r\ncontent-length: ");
+        bytes.put_slice(buf.format(n).as_bytes());
+        bytes.put_slice(b"\r\n");
+    }
+}
 
 mod _new {
     use bytes::{BufMut, BytesMut};
