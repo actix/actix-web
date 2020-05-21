@@ -474,13 +474,15 @@ where
 mod tests {
     use actix_service::Service;
     use bytes::Bytes;
-    use futures_util::future::{ok, err};
+    use futures_util::future::{err, ok};
 
     use super::*;
     use crate::http::{header, HeaderValue, Method, StatusCode};
     use crate::middleware::DefaultHeaders;
     use crate::service::ServiceRequest;
-    use crate::test::{call_service, init_service, try_init_service, read_body, TestRequest};
+    use crate::test::{
+        call_service, init_service, read_body, try_init_service, TestRequest,
+    };
     use crate::{web, HttpRequest, HttpResponse};
 
     #[actix_rt::test]
@@ -556,7 +558,7 @@ mod tests {
                 web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()),
             ))
             .await;
-            
+
         assert!(srv.is_err());
     }
 

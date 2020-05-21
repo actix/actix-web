@@ -74,7 +74,7 @@ where
 
     fn call(&mut self, mut req: ServiceRequest) -> Self::Future {
         let head = req.head_mut();
-        
+
         // always add trailing slash, might be an extra one
         let path = head.uri.path().to_string() + "/";
         let original_len = path.len();
@@ -177,7 +177,7 @@ mod tests {
         assert!(res.status().is_success());
     }
 
-     #[actix_rt::test]
+    #[actix_rt::test]
     async fn should_normalize_nothing_notrail() {
         const URI: &str = "/v1/something";
 

@@ -1,6 +1,6 @@
 # Changes
 
-## [Unreleased]
+## [3.0.0-alpha.3] - 2020-05-21
 
 ### Added
 
