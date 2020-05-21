@@ -273,13 +273,15 @@ impl<B> PinnedDrop for StreamLog<B> {
     }
 }
 
-
 impl<B: MessageBody> MessageBody for StreamLog<B> {
     fn size(&self) -> BodySize {
         self.body.size()
     }
 
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes, Error>>> {
+    fn poll_next(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Option<Result<Bytes, Error>>> {
         let this = self.project();
         match this.body.poll_next(cx) {
             Poll::Ready(Some(Ok(chunk))) => {
@@ -324,11 +326,13 @@ impl Format {
 
             if let Some(key) = cap.get(2) {
                 results.push(match cap.get(3).unwrap().as_str() {
-                    "a" => if key.as_str() == "r" {
-                        FormatText::RealIPRemoteAddr
-                    } else {
-                        unreachable!()
-                    },
+                    "a" => {
+                        if key.as_str() == "r" {
+                            FormatText::RealIPRemoteAddr
+                        } else {
+                            unreachable!()
+                        }
+                    }
                     "i" => FormatText::RequestHeader(
                         HeaderName::try_from(key.as_str()).unwrap(),
                     ),
@@ -481,7 +485,8 @@ impl FormatText {
                 *self = s;
             }
             FormatText::RealIPRemoteAddr => {
-                let s = if let Some(remote) = req.connection_info().realip_remote_addr() {
+                let s = if let Some(remote) = req.connection_info().realip_remote_addr()
+                {
                     FormatText::Str(remote.to_string())
                 } else {
                     FormatText::Str("-".to_string())
@@ -630,7 +635,9 @@ mod tests {
 
         let req = TestRequest::with_header(
             header::FORWARDED,
-            header::HeaderValue::from_static("for=192.0.2.60;proto=http;by=203.0.113.43"),
+            header::HeaderValue::from_static(
+                "for=192.0.2.60;proto=http;by=203.0.113.43",
+            ),
         )
         .to_srv_request();
 
