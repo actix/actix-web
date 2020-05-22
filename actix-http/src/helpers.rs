@@ -31,101 +31,16 @@ pub(crate) fn write_status_line(version: Version, n: u16, bytes: &mut BytesMut) 
 
 /// NOTE: bytes object has to contain enough space
 pub fn write_content_length(n: u64, bytes: &mut BytesMut) {
+    if n == 0 {
+        bytes.put_slice(b"\r\ncontent-length: 0\r\n");
+        return;
+    }
+
+    let mut buf = itoa::Buffer::new();
+
     bytes.put_slice(b"\r\ncontent-length: ");
-
-    if n < 10 {
-        bytes.put_u8(DIGITS_START + (n as u8));
-    } else if n < 100 {
-        let n = n as u8;
-
-        let d10 = n / 10;
-        let d1 = n % 10;
-
-        bytes.put_u8(DIGITS_START + d10);
-        bytes.put_u8(DIGITS_START + d1);
-    } else if n < 1000 {
-        let n = n as u16;
-
-        let d100 = (n / 100) as u8;
-        let d10 = ((n / 10) % 10) as u8;
-        let d1 = (n % 10) as u8;
-
-        bytes.put_u8(DIGITS_START + d100);
-        bytes.put_u8(DIGITS_START + d10);
-        bytes.put_u8(DIGITS_START + d1);
-    } else if n < 10_000 {
-        let n = n as u16;
-
-        let d1000 = (n / 1000) as u8;
-        let d100 = ((n / 100) % 10) as u8;
-        let d10 = ((n / 10) % 10) as u8;
-        let d1 = (n % 10) as u8;
-
-        bytes.put_u8(DIGITS_START + d1000);
-        bytes.put_u8(DIGITS_START + d100);
-        bytes.put_u8(DIGITS_START + d10);
-        bytes.put_u8(DIGITS_START + d1);
-    } else if n < 100_000 {
-        let n = n as u32;
-
-        let d10000 = (n / 10000) as u8;
-        let d1000 = ((n / 1000) % 10) as u8;
-        let d100 = ((n / 100) % 10) as u8;
-        let d10 = ((n / 10) % 10) as u8;
-        let d1 = (n % 10) as u8;
-
-        bytes.put_u8(DIGITS_START + d10000);
-        bytes.put_u8(DIGITS_START + d1000);
-        bytes.put_u8(DIGITS_START + d100);
-        bytes.put_u8(DIGITS_START + d10);
-        bytes.put_u8(DIGITS_START + d1);
-    } else if n < 1_000_000 {
-        let n = n as u32;
-
-        let d100000 = (n / 100_000) as u8;
-        let d10000 = ((n / 10000) % 10) as u8;
-        let d1000 = ((n / 1000) % 10) as u8;
-        let d100 = ((n / 100) % 10) as u8;
-        let d10 = ((n / 10) % 10) as u8;
-        let d1 = (n % 10) as u8;
-
-        bytes.put_u8(DIGITS_START + d100000);
-        bytes.put_u8(DIGITS_START + d10000);
-        bytes.put_u8(DIGITS_START + d1000);
-        bytes.put_u8(DIGITS_START + d100);
-        bytes.put_u8(DIGITS_START + d10);
-        bytes.put_u8(DIGITS_START + d1);
-    } else {
-        write_u64(n, bytes);
-    }
-
+    bytes.put_slice(buf.format(n).as_bytes());
     bytes.put_slice(b"\r\n");
-}
-
-pub(crate) fn write_u64(n: u64, bytes: &mut BytesMut) {
-    let mut n = n;
-
-    // 20 chars is max length of a u64 (2^64)
-    // digits will be added to the buffer from lsd to msd
-    let mut buf = BytesMut::with_capacity(20);
-
-    while n > 9 {
-        // "pop" the least-significant digit
-        let lsd = (n % 10) as u8;
-
-        // remove the lsd from n
-        n /= 10;
-
-        buf.put_u8(DIGITS_START + lsd);
-    }
-
-    // put msd to result buffer
-    bytes.put_u8(DIGITS_START + (n as u8));
-
-    // put, in reverse (msd to lsd), remaining digits to buffer
-    for i in (0..buf.len()).rev() {
-        bytes.put_u8(buf[i]);
-    }
 }
 
 pub(crate) struct Writer<'a>(pub &'a mut BytesMut);
