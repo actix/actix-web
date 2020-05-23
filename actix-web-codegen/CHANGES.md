@@ -1,8 +1,10 @@
 # Changes
 
-## [Unreleased] - 2020-xx-xx
+## [0.2.2] - 2020-05-23
 
-* Bump minimum supported Rust version to 1.40
+* Add resource middleware on actix-web-codegen [#1467]
+
+[#1467]: https://github.com/actix/actix-web/pull/1467
 
 ## [0.2.1] - 2020-02-25
 

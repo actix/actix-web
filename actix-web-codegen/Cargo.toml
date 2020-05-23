@@ -1,6 +1,6 @@
 [package]
 name = "actix-web-codegen"
-version = "0.2.1"
+version = "0.2.2"
 description = "Actix web proc macros"
 readme = "README.md"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
@@ -12,9 +12,9 @@ workspace = ".."
 proc-macro = true
 
 [dependencies]
-quote = "^1"
-syn = { version = "^1", features = ["full", "parsing"] }
-proc-macro2 = "^1"
+quote = "1"
+syn = { version = "1", features = ["full", "parsing"] }
+proc-macro2 = "1"
 
 [dev-dependencies]
 actix-rt = "1.0.0"
