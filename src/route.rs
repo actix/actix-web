@@ -362,31 +362,23 @@ mod tests {
                 .service(
                     web::resource("/test")
                         .route(web::get().to(|| HttpResponse::Ok()))
-                        .route(web::put().to(|| {
-                            async {
-                                Err::<HttpResponse, _>(error::ErrorBadRequest("err"))
-                            }
+                        .route(web::put().to(|| async {
+                            Err::<HttpResponse, _>(error::ErrorBadRequest("err"))
                         }))
-                        .route(web::post().to(|| {
-                            async {
-                                delay_for(Duration::from_millis(100)).await;
-                                HttpResponse::Created()
-                            }
+                        .route(web::post().to(|| async {
+                            delay_for(Duration::from_millis(100)).await;
+                            HttpResponse::Created()
                         }))
-                        .route(web::delete().to(|| {
-                            async {
-                                delay_for(Duration::from_millis(100)).await;
-                                Err::<HttpResponse, _>(error::ErrorBadRequest("err"))
-                            }
+                        .route(web::delete().to(|| async {
+                            delay_for(Duration::from_millis(100)).await;
+                            Err::<HttpResponse, _>(error::ErrorBadRequest("err"))
                         })),
                 )
-                .service(web::resource("/json").route(web::get().to(|| {
-                    async {
-                        delay_for(Duration::from_millis(25)).await;
-                        web::Json(MyObject {
-                            name: "test".to_string(),
-                        })
-                    }
+                .service(web::resource("/json").route(web::get().to(|| async {
+                    delay_for(Duration::from_millis(25)).await;
+                    web::Json(MyObject {
+                        name: "test".to_string(),
+                    })
                 }))),
         )
         .await;

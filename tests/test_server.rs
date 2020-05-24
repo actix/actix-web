@@ -349,9 +349,10 @@ async fn test_body_br_streaming() {
 #[actix_rt::test]
 async fn test_head_binary() {
     let srv = test::start_with(test::config().h1(), || {
-        App::new().service(web::resource("/").route(
-            web::head().to(move || HttpResponse::Ok().body(STR)),
-        ))
+        App::new().service(
+            web::resource("/")
+                .route(web::head().to(move || HttpResponse::Ok().body(STR))),
+        )
     });
 
     let mut response = srv.head("/").send().await.unwrap();

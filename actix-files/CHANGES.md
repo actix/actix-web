@@ -1,9 +1,13 @@
 # Changes
 
-## [Unreleased] - 2020-xx-xx
+## [0.3.0-alpha.1] - 2020-05-23
 
+* Update `actix-web` and `actix-http` dependencies to alpha
+* Fix some typos in the docs
 * Bump minimum supported Rust version to 1.40
-* Support sending Content-Length when Content-Range is specified #1384 
+* Support sending Content-Length when Content-Range is specified [#1384]
+
+[#1384]: https://github.com/actix/actix-web/pull/1384
 
 ## [0.2.1] - 2019-12-22
 
