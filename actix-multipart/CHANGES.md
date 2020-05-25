@@ -1,10 +1,12 @@
 # Changes
 
-## [Unreleased] - 2020-xx-xx
+## [0.3.0-alpha.1] - 2020-05-25
+
+* Update `actix-web` to 3.0.0-alpha.3
 
 * Bump minimum supported Rust version to 1.40
 
-## [0.2.1] - 2020-01-xx
+* Minimize `futures` dependencies
 
 * Remove the unused `time` dependency
 
