@@ -1,5 +1,9 @@
 # Changes
 
+## [0.3.1] - 2020-05-25
+
+* Deprecate this crate
+
 ## [0.3.0] - 2019-12-25
 
 * Migrate to actix-http 1.0
