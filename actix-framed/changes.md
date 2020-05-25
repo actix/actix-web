@@ -1,8 +1,10 @@
 # Changes
 
-## [Unreleased] - 2020-xx-xx
+## [0.4.0-alpha.1] - 2020-05-25
 
+* Update `actix-http` to 2.0.0-alpha.4
 * Bump minimum supported Rust version to 1.40
+* Minimize `futures` dependency
 
 ## [0.3.0] - 2019-12-25
 
