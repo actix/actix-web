@@ -1,6 +1,6 @@
 [package]
 name = "actix-framed"
-version = "0.3.0"
+version = "0.3.1"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix framed app server"
 readme = "README.md"
