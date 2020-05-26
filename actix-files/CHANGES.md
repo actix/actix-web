@@ -1,5 +1,13 @@
 # Changes
 
+## [0.2.2] - 2020-05-26
+
+* Minimize `futures` dependency
+* Support sending Content-Length when Content-Range is specified [#1496]
+* Update `actix-web` to 2.0.0
+
+[#1496]: https://github.com/actix/actix-web/issues/1496
+
 ## [0.2.1] - 2019-12-22
 
 * Use the same format for file URLs regardless of platforms

@@ -18,7 +18,7 @@ use actix_web::http::header::{
 };
 use actix_web::http::{ContentEncoding, StatusCode};
 use actix_web::{Error, HttpMessage, HttpRequest, HttpResponse, Responder};
-use futures::future::{ready, Ready};
+use futures_util::future::{ready, Ready};
 
 use crate::range::HttpRange;
 use crate::ChunkedReadFile;
@@ -388,11 +388,12 @@ impl NamedFile {
             fut: None,
             counter: 0,
         };
+
         if offset != 0 || length != self.md.len() {
-            Ok(resp.status(StatusCode::PARTIAL_CONTENT).streaming(reader))
-        } else {
-            Ok(resp.body(SizedStream::new(length, reader)))
+            resp.status(StatusCode::PARTIAL_CONTENT);
         }
+
+        Ok(resp.body(SizedStream::new(length, reader)))
     }
 }
 
