@@ -521,7 +521,7 @@ impl Service for FilesService {
             Err(e) => return Either::Left(ok(req.error_response(e))),
         };
 
-        // full filepath
+        // full file path
         let path = match self.directory.join(&real_path.0).canonicalize() {
             Ok(path) => path,
             Err(e) => return self.handle_err(e, req),
