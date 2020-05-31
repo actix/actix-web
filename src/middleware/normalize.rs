@@ -16,6 +16,7 @@ use crate::Error;
 /// Performs following:
 ///
 /// - Merges multiple slashes into one.
+/// - Appends a trailing slash if one is not present.
 ///
 /// ```rust
 /// use actix_web::{web, http, middleware, App, HttpResponse};
