@@ -39,7 +39,7 @@ pub enum ConnectError {
     H2(h2::Error),
 
     /// Connecting took too long
-    #[display(fmt = "Timeout out while establishing connection")]
+    #[display(fmt = "Timeout while establishing connection")]
     Timeout,
 
     /// Connector has been disconnected
@@ -110,7 +110,7 @@ pub enum SendRequestError {
     #[display(fmt = "{}", _0)]
     H2(h2::Error),
     /// Response took too long
-    #[display(fmt = "Timeout out while waiting for response")]
+    #[display(fmt = "Timeout while waiting for response")]
     Timeout,
     /// Tunnels are not supported for http2 connection
     #[display(fmt = "Tunnels are not supported for http2 connection")]
