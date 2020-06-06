@@ -58,7 +58,7 @@ where
     inner: DispatcherState<T, S, B, X, U>,
 }
 
-#[pin_project]
+#[pin_project(project = DispatcherStateProj)]
 enum DispatcherState<T, S, B, X, U>
 where
     S: Service<Request = Request>,
@@ -73,7 +73,7 @@ where
     Upgrade(Pin<Box<U::Future>>),
 }
 
-#[pin_project]
+#[pin_project(project = InnerDispatcherProj)]
 struct InnerDispatcher<T, S, B, X, U>
 where
     S: Service<Request = Request>,
@@ -112,7 +112,7 @@ enum DispatcherMessage {
     Error(Response<()>),
 }
 
-#[pin_project]
+#[pin_project(project = StateProj)]
 enum State<S, B, X>
 where
     S: Service<Request = Request>,
@@ -296,7 +296,6 @@ where
     ///
     /// true - got WouldBlock
     /// false - didn't get WouldBlock
-    #[pin_project::project]
     fn poll_flush(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
@@ -307,8 +306,7 @@ where
 
         let len = self.write_buf.len();
         let mut written = 0;
-        #[project]
-        let InnerDispatcher { io, write_buf, .. } = self.project();
+        let InnerDispatcherProj { io, write_buf, .. } = self.project();
         let mut io = Pin::new(io.as_mut().unwrap());
         while written < len {
             match io.as_mut().poll_write(cx, &write_buf[written..]) {
@@ -366,16 +364,14 @@ where
             .extend_from_slice(b"HTTP/1.1 100 Continue\r\n\r\n");
     }
 
-    #[pin_project::project]
     fn poll_response(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
     ) -> Result<PollResponse, DispatchError> {
         loop {
             let mut this = self.as_mut().project();
-            #[project]
             let state = match this.state.project() {
-                State::None => match this.messages.pop_front() {
+                StateProj::None => match this.messages.pop_front() {
                     Some(DispatcherMessage::Item(req)) => {
                         Some(self.as_mut().handle_request(req, cx)?)
                     }
@@ -388,7 +384,7 @@ where
                     }
                     None => None,
                 },
-                State::ExpectCall(fut) => match fut.as_mut().poll(cx) {
+                StateProj::ExpectCall(fut) => match fut.as_mut().poll(cx) {
                     Poll::Ready(Ok(req)) => {
                         self.as_mut().send_continue();
                         this = self.as_mut().project();
@@ -403,7 +399,7 @@ where
                     }
                     Poll::Pending => None,
                 },
-                State::ServiceCall(fut) => match fut.as_mut().poll(cx) {
+                StateProj::ServiceCall(fut) => match fut.as_mut().poll(cx) {
                     Poll::Ready(Ok(res)) => {
                         let (res, body) = res.into().replace_body(());
                         let state = self.as_mut().send_response(res, body)?;
@@ -418,7 +414,7 @@ where
                     }
                     Poll::Pending => None,
                 },
-                State::SendPayload(mut stream) => {
+                StateProj::SendPayload(mut stream) => {
                     loop {
                         if this.write_buf.len() < HW_BUFFER_SIZE {
                             match stream.as_mut().poll_next(cx) {
@@ -724,13 +720,11 @@ where
 {
     type Output = Result<(), DispatchError>;
 
-    #[pin_project::project]
     #[inline]
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.as_mut().project();
-        #[project]
         match this.inner.project() {
-            DispatcherState::Normal(mut inner) => {
+            DispatcherStateProj::Normal(mut inner) => {
                 inner.as_mut().poll_keepalive(cx)?;
 
                 if inner.flags.contains(Flags::SHUTDOWN) {
@@ -850,7 +844,7 @@ where
                     }
                 }
             }
-            DispatcherState::Upgrade(fut) => fut.as_mut().poll(cx).map_err(|e| {
+            DispatcherStateProj::Upgrade(fut) => fut.as_mut().poll(cx).map_err(|e| {
                 error!("Upgrade handler error: {}", e);
                 DispatchError::Upgrade
             }),

@@ -12,7 +12,7 @@ use actix_http::{Error, Response, ResponseBuilder};
 use bytes::{Bytes, BytesMut};
 use futures_util::future::{err, ok, Either as EitherFuture, Ready};
 use futures_util::ready;
-use pin_project::{pin_project, project};
+use pin_project::pin_project;
 
 use crate::request::HttpRequest;
 
@@ -379,7 +379,7 @@ where
     }
 }
 
-#[pin_project]
+#[pin_project(project = EitherResponderProj)]
 pub enum EitherResponder<A, B>
 where
     A: Responder,
@@ -396,14 +396,12 @@ where
 {
     type Output = Result<Response, Error>;
 
-    #[project]
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        #[project]
         match self.project() {
-            EitherResponder::A(fut) => {
+            EitherResponderProj::A(fut) => {
                 Poll::Ready(ready!(fut.poll(cx)).map_err(|e| e.into()))
             }
-            EitherResponder::B(fut) => {
+            EitherResponderProj::B(fut) => {
                 Poll::Ready(ready!(fut.poll(cx).map_err(|e| e.into())))
             }
         }

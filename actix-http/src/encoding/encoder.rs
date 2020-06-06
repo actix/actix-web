@@ -9,7 +9,7 @@ use brotli2::write::BrotliEncoder;
 use bytes::Bytes;
 use flate2::write::{GzEncoder, ZlibEncoder};
 use futures_core::ready;
-use pin_project::{pin_project, project};
+use pin_project::pin_project;
 
 use crate::body::{Body, BodySize, MessageBody, ResponseBody};
 use crate::http::header::{ContentEncoding, CONTENT_ENCODING};
@@ -79,7 +79,7 @@ impl<B: MessageBody> Encoder<B> {
     }
 }
 
-#[pin_project]
+#[pin_project(project = EncoderBodyProj)]
 enum EncoderBody<B> {
     Bytes(Bytes),
     Stream(#[pin] B),
@@ -95,22 +95,22 @@ impl<B: MessageBody> MessageBody for EncoderBody<B> {
         }
     }
 
-    #[project]
     fn poll_next(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
     ) -> Poll<Option<Result<Bytes, Error>>> {
-        #[project]
         match self.project() {
-            EncoderBody::Bytes(b) => {
+            EncoderBodyProj::Bytes(b) => {
                 if b.is_empty() {
                     Poll::Ready(None)
                 } else {
                     Poll::Ready(Some(Ok(std::mem::take(b))))
                 }
             }
-            EncoderBody::Stream(b) => b.poll_next(cx),
-            EncoderBody::BoxedStream(ref mut b) => Pin::new(b.as_mut()).poll_next(cx),
+            EncoderBodyProj::Stream(b) => b.poll_next(cx),
+            EncoderBodyProj::BoxedStream(ref mut b) => {
+                Pin::new(b.as_mut()).poll_next(cx)
+            }
         }
     }
 }
