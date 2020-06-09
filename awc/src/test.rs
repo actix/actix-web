@@ -2,12 +2,11 @@
 use std::convert::TryFrom;
 use std::fmt::Write as FmtWrite;
 
-use actix_http::cookie::{Cookie, CookieJar, USERINFO};
+use actix_http::cookie::{Cookie, CookieJar};
 use actix_http::http::header::{self, Header, HeaderValue, IntoHeaderValue};
 use actix_http::http::{Error as HttpError, HeaderName, StatusCode, Version};
 use actix_http::{h1, Payload, ResponseHead};
 use bytes::Bytes;
-use percent_encoding::percent_encode;
 
 use crate::ClientResponse;
 
@@ -90,9 +89,8 @@ impl TestResponse {
 
         let mut cookie = String::new();
         for c in self.cookies.delta() {
-            let name = percent_encode(c.name().as_bytes(), USERINFO);
-            let value = percent_encode(c.value().as_bytes(), USERINFO);
-            let _ = write!(&mut cookie, "; {}={}", name, value);
+            let c = Cookie::new(c.name(), c.value());
+            let _ = write!(&mut cookie, "; {}", c.encoded());
         }
         if !cookie.is_empty() {
             head.headers.insert(

@@ -6,11 +6,10 @@ use std::{fmt, net};
 
 use bytes::Bytes;
 use futures_core::Stream;
-use percent_encoding::percent_encode;
 use serde::Serialize;
 
 use actix_http::body::Body;
-use actix_http::cookie::{Cookie, CookieJar, USERINFO};
+use actix_http::cookie::{Cookie, CookieJar};
 use actix_http::http::header::{self, Header, IntoHeaderValue};
 use actix_http::http::{
     uri, ConnectionType, Error as HttpError, HeaderMap, HeaderName, HeaderValue, Method,
@@ -529,9 +528,9 @@ impl ClientRequest {
         if let Some(ref mut jar) = self.cookies {
             let mut cookie = String::new();
             for c in jar.delta() {
-                let name = percent_encode(c.name().as_bytes(), USERINFO);
-                let value = percent_encode(c.value().as_bytes(), USERINFO);
-                let _ = write!(&mut cookie, "; {}={}", name, value);
+                // ensure only name=value is written to cookie header
+                let c = Cookie::new(c.name(), c.value());
+                let _ = write!(&mut cookie, "; {}", c.encoded());
             }
             self.head.headers.insert(
                 header::COOKIE,

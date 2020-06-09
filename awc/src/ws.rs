@@ -9,9 +9,7 @@ use actix_codec::Framed;
 use actix_http::cookie::{Cookie, CookieJar};
 use actix_http::{ws, Payload, RequestHead};
 use actix_rt::time::timeout;
-use percent_encoding::percent_encode;
 
-use actix_http::cookie::USERINFO;
 pub use actix_http::ws::{CloseCode, CloseReason, Codec, Frame, Message};
 
 use crate::connect::BoxedSocket;
@@ -248,9 +246,9 @@ impl WebsocketsRequest {
         if let Some(ref mut jar) = self.cookies {
             let mut cookie = String::new();
             for c in jar.delta() {
-                let name = percent_encode(c.name().as_bytes(), USERINFO);
-                let value = percent_encode(c.value().as_bytes(), USERINFO);
-                let _ = write!(&mut cookie, "; {}={}", name, value);
+                // ensure only name=value is written to cookie header
+                let c = Cookie::new(c.name(), c.value());
+                let _ = write!(&mut cookie, "; {}", c.encoded());
             }
             self.head.headers.insert(
                 header::COOKIE,

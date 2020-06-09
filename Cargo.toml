@@ -43,7 +43,7 @@ default = ["compress"]
 # content-encoding support
 compress = ["actix-http/compress", "awc/compress"]
 
-# sessions feature, session require "ring" crate and c compiler
+# sessions feature
 secure-cookies = ["actix-http/secure-cookies"]
 
 # openssl

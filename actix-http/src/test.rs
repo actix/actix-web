@@ -10,9 +10,8 @@ use actix_codec::{AsyncRead, AsyncWrite};
 use bytes::{Bytes, BytesMut};
 use http::header::{self, HeaderName, HeaderValue};
 use http::{Error as HttpError, Method, Uri, Version};
-use percent_encoding::percent_encode;
 
-use crate::cookie::{Cookie, CookieJar, USERINFO};
+use crate::cookie::{Cookie, CookieJar};
 use crate::header::HeaderMap;
 use crate::header::{Header, IntoHeaderValue};
 use crate::payload::Payload;
@@ -165,9 +164,9 @@ impl TestRequest {
 
         let mut cookie = String::new();
         for c in inner.cookies.delta() {
-            let name = percent_encode(c.name().as_bytes(), USERINFO);
-            let value = percent_encode(c.value().as_bytes(), USERINFO);
-            let _ = write!(&mut cookie, "; {}={}", name, value);
+            // ensure only name=value is written to cookie header
+            let c = Cookie::new(c.name(), c.value());
+            let _ = write!(&mut cookie, "; {}", c.encoded());
         }
         if !cookie.is_empty() {
             head.headers.insert(
