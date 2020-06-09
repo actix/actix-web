@@ -1,6 +1,5 @@
 //! Test Various helpers for Actix applications to use during testing.
 use std::convert::TryFrom;
-use std::fmt::Write as FmtWrite;
 use std::io::{self, Read, Write};
 use std::pin::Pin;
 use std::str::FromStr;
@@ -162,17 +161,17 @@ impl TestRequest {
         head.version = inner.version;
         head.headers = inner.headers;
 
-        let mut cookie = String::new();
-        for c in inner.cookies.delta() {
+        let cookie: String = inner
+            .cookies
+            .delta()
             // ensure only name=value is written to cookie header
-            let c = Cookie::new(c.name(), c.value());
-            let _ = write!(&mut cookie, "; {}", c.encoded());
-        }
+            .map(|c| Cookie::new(c.name(), c.value()).encoded().to_string())
+            .collect::<Vec<_>>()
+            .join("; ");
+
         if !cookie.is_empty() {
-            head.headers.insert(
-                header::COOKIE,
-                HeaderValue::from_str(&cookie.as_str()[2..]).unwrap(),
-            );
+            head.headers
+                .insert(header::COOKIE, HeaderValue::from_str(&cookie).unwrap());
         }
 
         req

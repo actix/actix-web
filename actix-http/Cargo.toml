@@ -70,7 +70,7 @@ lazy_static = "1.4"
 language-tags = "0.2"
 log = "0.4"
 mime = "0.3"
-percent-encoding = "2.1" # TODO: remove
+percent-encoding = "2.1"
 pin-project = "0.4.17"
 rand = "0.7"
 regex = "1.3"
@@ -80,9 +80,6 @@ sha-1 = "0.8"
 slab = "0.4"
 serde_urlencoded = "0.6.1"
 time = { version = "0.2.7", default-features = false, features = ["std"] }
-
-# for secure cookie
-ring = { version = "0.16.9", optional = true } # TODO: remove
 
 # compression
 brotli2 = { version="0.3.2", optional = true }

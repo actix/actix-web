@@ -1,5 +1,11 @@
 # Changes
 
+## [Unreleased]
+
+### Changed
+
+* Migrate cookie handling to `cookie` crate.
+
 ## [2.0.0-alpha.4] - 2020-05-21
 
 ### Changed

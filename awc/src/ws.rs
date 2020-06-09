@@ -1,6 +1,5 @@
 //! Websockets client
 use std::convert::TryFrom;
-use std::fmt::Write as FmtWrite;
 use std::net::SocketAddr;
 use std::rc::Rc;
 use std::{fmt, str};
@@ -244,16 +243,18 @@ impl WebsocketsRequest {
 
         // set cookies
         if let Some(ref mut jar) = self.cookies {
-            let mut cookie = String::new();
-            for c in jar.delta() {
+            let cookie: String = jar
+                .delta()
                 // ensure only name=value is written to cookie header
-                let c = Cookie::new(c.name(), c.value());
-                let _ = write!(&mut cookie, "; {}", c.encoded());
+                .map(|c| Cookie::new(c.name(), c.value()).encoded().to_string())
+                .collect::<Vec<_>>()
+                .join("; ");
+
+            if !cookie.is_empty() {
+                self.head
+                    .headers
+                    .insert(header::COOKIE, HeaderValue::from_str(&cookie).unwrap());
             }
-            self.head.headers.insert(
-                header::COOKIE,
-                HeaderValue::from_str(&cookie.as_str()[2..]).unwrap(),
-            );
         }
 
         // origin
