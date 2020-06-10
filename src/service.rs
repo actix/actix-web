@@ -69,7 +69,7 @@ impl ServiceRequest {
 
     /// Construct request from parts.
     ///
-    /// `ServiceRequest` can be re-constructed only if `req` hasnt been cloned.
+    /// `ServiceRequest` can be re-constructed only if `req` hasn't been cloned.
     pub fn from_parts(
         mut req: HttpRequest,
         pl: Payload,
@@ -217,11 +217,13 @@ impl ServiceRequest {
     /// Get an application data stored with `App::data()` method during
     /// application configuration.
     pub fn app_data<T: 'static>(&self) -> Option<Data<T>> {
-        if let Some(st) = (self.0).0.app_data.get::<Data<T>>() {
-            Some(st.clone())
-        } else {
-            None
+        for container in (self.0).0.app_data.iter().rev() {
+            if let Some(data) = container.get::<Data<T>>() {
+                return Some(Data::clone(&data));
+            }
         }
+
+        None
     }
 
     /// Set request payload.
@@ -230,9 +232,12 @@ impl ServiceRequest {
     }
 
     #[doc(hidden)]
-    /// Set new app data container
-    pub fn set_data_container(&mut self, extensions: Rc<Extensions>) {
-        Rc::get_mut(&mut (self.0).0).unwrap().app_data = extensions;
+    /// Add app data container to request's resolution set.
+    pub fn add_data_container(&mut self, extensions: Rc<Extensions>) {
+        Rc::get_mut(&mut (self.0).0)
+            .unwrap()
+            .app_data
+            .push(extensions);
     }
 }
 
@@ -510,7 +515,7 @@ where
         let guards = if self.guards.is_empty() {
             None
         } else {
-            Some(std::mem::replace(&mut self.guards, Vec::new()))
+            Some(std::mem::take(&mut self.guards))
         };
 
         let mut rdef = if config.is_root() || !self.rdef.is_empty() {
@@ -531,7 +536,7 @@ mod tests {
     use crate::test::{init_service, TestRequest};
     use crate::{guard, http, web, App, HttpResponse};
     use actix_service::Service;
-    use futures::future::ok;
+    use futures_util::future::ok;
 
     #[test]
     fn test_service_request() {
@@ -578,7 +583,6 @@ mod tests {
         let resp = srv.call(req).await.unwrap();
         assert_eq!(resp.status(), http::StatusCode::NOT_FOUND);
     }
-
     #[test]
     fn test_fmt_debug() {
         let req = TestRequest::get()

@@ -4,7 +4,7 @@ use std::ptr::copy_nonoverlapping;
 use std::slice::from_raw_parts_mut;
 use std::{cmp, io};
 
-use bytes::{buf::BufMutExt, BufMut, BytesMut};
+use bytes::{BufMut, BytesMut};
 
 use crate::body::BodySize;
 use crate::config::ServiceConfig;
@@ -95,15 +95,6 @@ pub(crate) trait MessageType: Sized {
                 }
             }
             BodySize::Sized(len) => helpers::write_content_length(len, dst),
-            BodySize::Sized64(len) => {
-                if camel_case {
-                    dst.put_slice(b"\r\nContent-Length: ");
-                } else {
-                    dst.put_slice(b"\r\ncontent-length: ");
-                }
-                #[allow(clippy::write_with_newline)]
-                write!(dst.writer(), "{}\r\n", len)?;
-            }
             BodySize::None => dst.put_slice(b"\r\n"),
         }
 
@@ -338,8 +329,7 @@ impl<T: MessageType> MessageEncoder<T> {
         if !head {
             self.te = match length {
                 BodySize::Empty => TransferEncoding::empty(),
-                BodySize::Sized(len) => TransferEncoding::length(len as u64),
-                BodySize::Sized64(len) => TransferEncoding::length(len),
+                BodySize::Sized(len) => TransferEncoding::length(len),
                 BodySize::Stream => {
                     if message.chunked() && !stream {
                         TransferEncoding::chunked()
@@ -579,19 +569,6 @@ mod tests {
         let data =
             String::from_utf8(Vec::from(bytes.split().freeze().as_ref())).unwrap();
         assert!(data.contains("Transfer-Encoding: chunked\r\n"));
-        assert!(data.contains("Content-Type: plain/text\r\n"));
-        assert!(data.contains("Date: date\r\n"));
-
-        let _ = head.encode_headers(
-            &mut bytes,
-            Version::HTTP_11,
-            BodySize::Sized64(100),
-            ConnectionType::KeepAlive,
-            &ServiceConfig::default(),
-        );
-        let data =
-            String::from_utf8(Vec::from(bytes.split().freeze().as_ref())).unwrap();
-        assert!(data.contains("Content-Length: 100\r\n"));
         assert!(data.contains("Content-Type: plain/text\r\n"));
         assert!(data.contains("Date: date\r\n"));
 

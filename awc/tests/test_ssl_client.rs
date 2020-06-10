@@ -7,7 +7,7 @@ use actix_http_test::test_server;
 use actix_service::{map_config, pipeline_factory, ServiceFactory};
 use actix_web::http::Version;
 use actix_web::{dev::AppConfig, web, App, HttpResponse};
-use futures::future::ok;
+use futures_util::future::ok;
 use open_ssl::ssl::{SslAcceptor, SslConnector, SslFiletype, SslMethod, SslVerifyMode};
 
 fn ssl_acceptor() -> SslAcceptor {
@@ -53,7 +53,8 @@ async fn test_connection_reuse_h2() {
                 .openssl(ssl_acceptor())
                 .map_err(|_| ()),
         )
-    });
+    })
+    .await;
 
     // disable ssl verification
     let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();

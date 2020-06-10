@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Gitter channel (actix-web)
+    url: https://gitter.im/actix/actix-web
+    about: Please ask and answer questions about the actix-web here.
+  - name: Gitter channel (actix)
+    url: https://gitter.im/actix/actix
+    about: Please ask and answer questions about the actix here.

@@ -4,7 +4,7 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 
 use actix_http::error::Error;
-use futures::future::{ok, FutureExt, LocalBoxFuture, Ready};
+use futures_util::future::{ok, FutureExt, LocalBoxFuture, Ready};
 
 use crate::dev::Payload;
 use crate::request::HttpRequest;
@@ -50,7 +50,7 @@ pub trait FromRequest: Sized {
 /// ```rust
 /// use actix_web::{web, dev, App, Error, HttpRequest, FromRequest};
 /// use actix_web::error::ErrorBadRequest;
-/// use futures::future::{ok, err, Ready};
+/// use futures_util::future::{ok, err, Ready};
 /// use serde_derive::Deserialize;
 /// use rand;
 ///
@@ -122,7 +122,7 @@ where
 /// ```rust
 /// use actix_web::{web, dev, App, Result, Error, HttpRequest, FromRequest};
 /// use actix_web::error::ErrorBadRequest;
-/// use futures::future::{ok, err, Ready};
+/// use futures_util::future::{ok, err, Ready};
 /// use serde_derive::Deserialize;
 /// use rand;
 ///

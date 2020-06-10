@@ -114,7 +114,7 @@ impl ServiceConfig {
     }
 
     #[inline]
-    /// Return state of connection keep-alive funcitonality
+    /// Return state of connection keep-alive functionality
     pub fn keep_alive_enabled(&self) -> bool {
         self.0.ka_enabled
     }
@@ -211,7 +211,12 @@ impl Date {
     }
     fn update(&mut self) {
         self.pos = 0;
-        write!(self, "{}", OffsetDateTime::now().format("%a, %d %b %Y %H:%M:%S GMT")).unwrap();
+        write!(
+            self,
+            "{}",
+            OffsetDateTime::now_utc().format("%a, %d %b %Y %H:%M:%S GMT")
+        )
+        .unwrap();
     }
 }
 
@@ -282,7 +287,6 @@ impl DateService {
 mod tests {
     use super::*;
 
-
     // Test modifying the date from within the closure
     // passed to `set_date`
     #[test]
@@ -290,9 +294,7 @@ mod tests {
         let service = DateService::new();
         // Make sure that `check_date` doesn't try to spawn a task
         service.0.update();
-        service.set_date(|_| {
-            service.0.reset()
-        });
+        service.set_date(|_| service.0.reset());
     }
 
     #[test]

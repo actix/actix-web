@@ -1,15 +1,55 @@
 # Changes
 
+## [3.0.0-alpha.3] - 2020-05-21
 
-## [2.0.NEXT] - 2020-01-xx
+### Added
+
+* Add option to create `Data<T>` from `Arc<T>` [#1509]
+
+### Changed
+
+* Resources and Scopes can now access non-overridden data types set on App (or containing scopes) when setting their own data. [#1486]
+
+* Fix audit issue logging by default peer address [#1485]
+
+* Bump minimum supported Rust version to 1.40
+
+* Replace deprecated `net2` crate with `socket2`
+
+[#1485]: https://github.com/actix/actix-web/pull/1485
+[#1509]: https://github.com/actix/actix-web/pull/1509
+
+## [3.0.0-alpha.2] - 2020-05-08
+
+### Changed
+
+* `{Resource,Scope}::default_service(f)` handlers now support app data extraction. [#1452]
+* Implement `std::error::Error` for our custom errors [#1422]
+* NormalizePath middleware now appends trailing / so that routes of form /example/ respond to /example requests. [#1433]
+* Remove the `failure` feature and support.
+
+[#1422]: https://github.com/actix/actix-web/pull/1422
+[#1433]: https://github.com/actix/actix-web/pull/1433
+[#1452]: https://github.com/actix/actix-web/pull/1452
+[#1486]: https://github.com/actix/actix-web/pull/1486
+
+
+## [3.0.0-alpha.1] - 2020-03-11
+
+### Added
+
+* Add helper function for creating routes with `TRACE` method guard `web::trace()`
+* Add convenience functions `test::read_body_json()` and `test::TestRequest::send_request()` for testing.
 
 ### Changed
 
 * Use `sha-1` crate instead of unmaintained `sha1` crate
+* Skip empty chunks when returning response from a `Stream` [#1308]
+* Update the `time` dependency to 0.2.7
+* Update `actix-tls` dependency to 2.0.0-alpha.1
+* Update `rustls` dependency to 0.17
 
-* Skip empty chunks when returning response from a `Stream` #1308
-
-* Update the `time` dependency to 0.2.5
+[#1308]: https://github.com/actix/actix-web/pull/1308
 
 ## [2.0.0] - 2019-12-25
 

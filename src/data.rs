@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use actix_http::error::{Error, ErrorInternalServerError};
 use actix_http::Extensions;
-use futures::future::{err, ok, Ready};
+use futures_util::future::{err, ok, LocalBoxFuture, Ready};
 
 use crate::dev::Payload;
 use crate::extract::FromRequest;
@@ -13,6 +13,9 @@ use crate::request::HttpRequest;
 pub(crate) trait DataFactory {
     fn create(&self, extensions: &mut Extensions) -> bool;
 }
+
+pub(crate) type FnDataFactory =
+    Box<dyn Fn() -> LocalBoxFuture<'static, Result<Box<dyn DataFactory>, ()>>>;
 
 /// Application data.
 ///
@@ -97,6 +100,12 @@ impl<T> Deref for Data<T> {
 impl<T> Clone for Data<T> {
     fn clone(&self) -> Data<T> {
         Data(self.0.clone())
+    }
+}
+
+impl<T> From<Arc<T>> for Data<T> {
+    fn from(arc: Arc<T>) -> Self {
+        Data(arc)
     }
 }
 
@@ -277,5 +286,12 @@ mod tests {
         srv.stop().await;
 
         assert_eq!(num.load(Ordering::SeqCst), 0);
+    }
+
+    #[actix_rt::test]
+    async fn test_data_from_arc() {
+        let data_new = Data::new(String::from("test-123"));
+        let data_from_arc = Data::from(Arc::new(String::from("test-123")));
+        assert_eq!(data_new.0, data_from_arc.0)
     }
 }

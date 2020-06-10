@@ -1,5 +1,5 @@
 use std::collections::HashSet;
-use std::mem::replace;
+use std::mem;
 
 use time::{Duration, OffsetDateTime};
 
@@ -13,7 +13,7 @@ use super::secure::{Key, PrivateJar, SignedJar};
 ///
 /// A `CookieJar` provides storage for any number of cookies. Any changes made
 /// to the jar are tracked; the changes can be retrieved via the
-/// [delta](#method.delta) method which returns an interator over the changes.
+/// [delta](#method.delta) method which returns an iterator over the changes.
 ///
 /// # Usage
 ///
@@ -221,7 +221,7 @@ impl CookieJar {
         if self.original_cookies.contains(cookie.name()) {
             cookie.set_value("");
             cookie.set_max_age(Duration::zero());
-            cookie.set_expires(OffsetDateTime::now() - Duration::days(365));
+            cookie.set_expires(OffsetDateTime::now_utc() - Duration::days(365));
             self.delta_cookies.replace(DeltaCookie::removed(cookie));
         } else {
             self.delta_cookies.remove(cookie.name());
@@ -273,7 +273,7 @@ impl CookieJar {
     )]
     pub fn clear(&mut self) {
         self.delta_cookies.clear();
-        for delta in replace(&mut self.original_cookies, HashSet::new()) {
+        for delta in mem::take(&mut self.original_cookies) {
             self.remove(delta.cookie);
         }
     }
@@ -533,8 +533,8 @@ mod test {
     #[test]
     #[cfg(feature = "secure-cookies")]
     fn delta() {
-        use time::Duration;
         use std::collections::HashMap;
+        use time::Duration;
 
         let mut c = CookieJar::new();
 

@@ -47,7 +47,7 @@
 //! ```
 
 #![doc(html_root_url = "https://docs.rs/cookie/0.11")]
-#![deny(missing_docs)]
+#![warn(missing_docs)]
 
 mod builder;
 mod delta;
@@ -103,7 +103,7 @@ enum CookieStr {
 
 impl CookieStr {
     /// Retrieves the string `self` corresponds to. If `self` is derived from
-    /// indexes, the corresponding subslice of `string` is returned. Otherwise,
+    /// indexes, the corresponding sub-slice of `string` is returned. Otherwise,
     /// the concrete string is returned.
     ///
     /// # Panics
@@ -733,7 +733,7 @@ impl<'c> Cookie<'c> {
     pub fn make_permanent(&mut self) {
         let twenty_years = Duration::days(365 * 20);
         self.set_max_age(twenty_years);
-        self.set_expires(OffsetDateTime::now() + twenty_years);
+        self.set_expires(OffsetDateTime::now_utc() + twenty_years);
     }
 
     fn fmt_parameters(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -990,7 +990,7 @@ impl<'a, 'b> PartialEq<Cookie<'b>> for Cookie<'a> {
 #[cfg(test)]
 mod tests {
     use super::{Cookie, SameSite};
-    use time::{offset, PrimitiveDateTime};
+    use time::PrimitiveDateTime;
 
     #[test]
     fn format() {
@@ -1015,7 +1015,9 @@ mod tests {
         assert_eq!(&cookie.to_string(), "foo=bar; Domain=www.rust-lang.org");
 
         let time_str = "Wed, 21 Oct 2015 07:28:00 GMT";
-        let expires = PrimitiveDateTime::parse(time_str, "%a, %d %b %Y %H:%M:%S").unwrap().using_offset(offset!(UTC));
+        let expires = PrimitiveDateTime::parse(time_str, "%a, %d %b %Y %H:%M:%S")
+            .unwrap()
+            .assume_utc();
         let cookie = Cookie::build("foo", "bar").expires(expires).finish();
         assert_eq!(
             &cookie.to_string(),

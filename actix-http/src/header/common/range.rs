@@ -7,7 +7,7 @@ use header::{Header, Raw};
 /// `Range` header, defined in [RFC7233](https://tools.ietf.org/html/rfc7233#section-3.1)
 ///
 /// The "Range" header field on a GET request modifies the method
-/// semantics to request transfer of only one or more subranges of the
+/// semantics to request transfer of only one or more sub-ranges of the
 /// selected representation data, rather than the entire selected
 /// representation data.
 ///
@@ -183,13 +183,13 @@ impl fmt::Display for Range {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             Range::Bytes(ref ranges) => {
-                try!(write!(f, "bytes="));
+                write!(f, "bytes=")?;
 
                 for (i, range) in ranges.iter().enumerate() {
                     if i != 0 {
-                        try!(f.write_str(","));
+                        f.write_str(",")?;
                     }
-                    try!(Display::fmt(range, f));
+                    Display::fmt(range, f)?;
                 }
                 Ok(())
             }
@@ -214,9 +214,9 @@ impl FromStr for Range {
                 }
                 Ok(Range::Bytes(ranges))
             }
-            (Some(unit), Some(range_str)) if unit != "" && range_str != "" => Ok(
-                Range::Unregistered(unit.to_owned(), range_str.to_owned()),
-            ),
+            (Some(unit), Some(range_str)) if unit != "" && range_str != "" => {
+                Ok(Range::Unregistered(unit.to_owned(), range_str.to_owned()))
+            }
             _ => Err(::Error::Header),
         }
     }
@@ -229,7 +229,8 @@ impl FromStr for ByteRangeSpec {
         let mut parts = s.splitn(2, '-');
 
         match (parts.next(), parts.next()) {
-            (Some(""), Some(end)) => end.parse()
+            (Some(""), Some(end)) => end
+                .parse()
                 .or(Err(::Error::Header))
                 .map(ByteRangeSpec::Last),
             (Some(start), Some("")) => start
@@ -272,163 +273,138 @@ impl Header for Range {
     }
 }
 
-#[test]
-fn test_parse_bytes_range_valid() {
-    let r: Range = Header::parse_header(&"bytes=1-100".into()).unwrap();
-    let r2: Range = Header::parse_header(&"bytes=1-100,-".into()).unwrap();
-    let r3 = Range::bytes(1, 100);
-    assert_eq!(r, r2);
-    assert_eq!(r2, r3);
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    let r: Range = Header::parse_header(&"bytes=1-100,200-".into()).unwrap();
-    let r2: Range =
-        Header::parse_header(&"bytes= 1-100 , 101-xxx,  200- ".into()).unwrap();
-    let r3 = Range::Bytes(vec![
-        ByteRangeSpec::FromTo(1, 100),
-        ByteRangeSpec::AllFrom(200),
-    ]);
-    assert_eq!(r, r2);
-    assert_eq!(r2, r3);
+    #[test]
+    fn test_parse_bytes_range_valid() {
+        let r: Range = Header::parse_header(&"bytes=1-100".into()).unwrap();
+        let r2: Range = Header::parse_header(&"bytes=1-100,-".into()).unwrap();
+        let r3 = Range::bytes(1, 100);
+        assert_eq!(r, r2);
+        assert_eq!(r2, r3);
 
-    let r: Range = Header::parse_header(&"bytes=1-100,-100".into()).unwrap();
-    let r2: Range = Header::parse_header(&"bytes=1-100, ,,-100".into()).unwrap();
-    let r3 = Range::Bytes(vec![
-        ByteRangeSpec::FromTo(1, 100),
-        ByteRangeSpec::Last(100),
-    ]);
-    assert_eq!(r, r2);
-    assert_eq!(r2, r3);
+        let r: Range = Header::parse_header(&"bytes=1-100,200-".into()).unwrap();
+        let r2: Range =
+            Header::parse_header(&"bytes= 1-100 , 101-xxx,  200- ".into()).unwrap();
+        let r3 = Range::Bytes(vec![
+            ByteRangeSpec::FromTo(1, 100),
+            ByteRangeSpec::AllFrom(200),
+        ]);
+        assert_eq!(r, r2);
+        assert_eq!(r2, r3);
 
-    let r: Range = Header::parse_header(&"custom=1-100,-100".into()).unwrap();
-    let r2 = Range::Unregistered("custom".to_owned(), "1-100,-100".to_owned());
-    assert_eq!(r, r2);
-}
+        let r: Range = Header::parse_header(&"bytes=1-100,-100".into()).unwrap();
+        let r2: Range = Header::parse_header(&"bytes=1-100, ,,-100".into()).unwrap();
+        let r3 = Range::Bytes(vec![
+            ByteRangeSpec::FromTo(1, 100),
+            ByteRangeSpec::Last(100),
+        ]);
+        assert_eq!(r, r2);
+        assert_eq!(r2, r3);
 
-#[test]
-fn test_parse_unregistered_range_valid() {
-    let r: Range = Header::parse_header(&"custom=1-100,-100".into()).unwrap();
-    let r2 = Range::Unregistered("custom".to_owned(), "1-100,-100".to_owned());
-    assert_eq!(r, r2);
+        let r: Range = Header::parse_header(&"custom=1-100,-100".into()).unwrap();
+        let r2 = Range::Unregistered("custom".to_owned(), "1-100,-100".to_owned());
+        assert_eq!(r, r2);
+    }
 
-    let r: Range = Header::parse_header(&"custom=abcd".into()).unwrap();
-    let r2 = Range::Unregistered("custom".to_owned(), "abcd".to_owned());
-    assert_eq!(r, r2);
+    #[test]
+    fn test_parse_unregistered_range_valid() {
+        let r: Range = Header::parse_header(&"custom=1-100,-100".into()).unwrap();
+        let r2 = Range::Unregistered("custom".to_owned(), "1-100,-100".to_owned());
+        assert_eq!(r, r2);
 
-    let r: Range = Header::parse_header(&"custom=xxx-yyy".into()).unwrap();
-    let r2 = Range::Unregistered("custom".to_owned(), "xxx-yyy".to_owned());
-    assert_eq!(r, r2);
-}
+        let r: Range = Header::parse_header(&"custom=abcd".into()).unwrap();
+        let r2 = Range::Unregistered("custom".to_owned(), "abcd".to_owned());
+        assert_eq!(r, r2);
 
-#[test]
-fn test_parse_invalid() {
-    let r: ::Result<Range> = Header::parse_header(&"bytes=1-a,-".into());
-    assert_eq!(r.ok(), None);
+        let r: Range = Header::parse_header(&"custom=xxx-yyy".into()).unwrap();
+        let r2 = Range::Unregistered("custom".to_owned(), "xxx-yyy".to_owned());
+        assert_eq!(r, r2);
+    }
 
-    let r: ::Result<Range> = Header::parse_header(&"bytes=1-2-3".into());
-    assert_eq!(r.ok(), None);
+    #[test]
+    fn test_parse_invalid() {
+        let r: ::Result<Range> = Header::parse_header(&"bytes=1-a,-".into());
+        assert_eq!(r.ok(), None);
 
-    let r: ::Result<Range> = Header::parse_header(&"abc".into());
-    assert_eq!(r.ok(), None);
+        let r: ::Result<Range> = Header::parse_header(&"bytes=1-2-3".into());
+        assert_eq!(r.ok(), None);
 
-    let r: ::Result<Range> = Header::parse_header(&"bytes=1-100=".into());
-    assert_eq!(r.ok(), None);
+        let r: ::Result<Range> = Header::parse_header(&"abc".into());
+        assert_eq!(r.ok(), None);
 
-    let r: ::Result<Range> = Header::parse_header(&"bytes=".into());
-    assert_eq!(r.ok(), None);
+        let r: ::Result<Range> = Header::parse_header(&"bytes=1-100=".into());
+        assert_eq!(r.ok(), None);
 
-    let r: ::Result<Range> = Header::parse_header(&"custom=".into());
-    assert_eq!(r.ok(), None);
+        let r: ::Result<Range> = Header::parse_header(&"bytes=".into());
+        assert_eq!(r.ok(), None);
 
-    let r: ::Result<Range> = Header::parse_header(&"=1-100".into());
-    assert_eq!(r.ok(), None);
-}
+        let r: ::Result<Range> = Header::parse_header(&"custom=".into());
+        assert_eq!(r.ok(), None);
 
-#[test]
-fn test_fmt() {
-    use header::Headers;
+        let r: ::Result<Range> = Header::parse_header(&"=1-100".into());
+        assert_eq!(r.ok(), None);
+    }
 
-    let mut headers = Headers::new();
+    #[test]
+    fn test_fmt() {
+        use header::Headers;
 
-    headers.set(Range::Bytes(vec![
-        ByteRangeSpec::FromTo(0, 1000),
-        ByteRangeSpec::AllFrom(2000),
-    ]));
-    assert_eq!(&headers.to_string(), "Range: bytes=0-1000,2000-\r\n");
+        let mut headers = Headers::new();
 
-    headers.clear();
-    headers.set(Range::Bytes(vec![]));
+        headers.set(Range::Bytes(vec![
+            ByteRangeSpec::FromTo(0, 1000),
+            ByteRangeSpec::AllFrom(2000),
+        ]));
+        assert_eq!(&headers.to_string(), "Range: bytes=0-1000,2000-\r\n");
 
-    assert_eq!(&headers.to_string(), "Range: bytes=\r\n");
+        headers.clear();
+        headers.set(Range::Bytes(vec![]));
 
-    headers.clear();
-    headers.set(Range::Unregistered(
-        "custom".to_owned(),
-        "1-xxx".to_owned(),
-    ));
+        assert_eq!(&headers.to_string(), "Range: bytes=\r\n");
 
-    assert_eq!(&headers.to_string(), "Range: custom=1-xxx\r\n");
-}
+        headers.clear();
+        headers.set(Range::Unregistered("custom".to_owned(), "1-xxx".to_owned()));
 
-#[test]
-fn test_byte_range_spec_to_satisfiable_range() {
-    assert_eq!(
-        Some((0, 0)),
-        ByteRangeSpec::FromTo(0, 0).to_satisfiable_range(3)
-    );
-    assert_eq!(
-        Some((1, 2)),
-        ByteRangeSpec::FromTo(1, 2).to_satisfiable_range(3)
-    );
-    assert_eq!(
-        Some((1, 2)),
-        ByteRangeSpec::FromTo(1, 5).to_satisfiable_range(3)
-    );
-    assert_eq!(
-        None,
-        ByteRangeSpec::FromTo(3, 3).to_satisfiable_range(3)
-    );
-    assert_eq!(
-        None,
-        ByteRangeSpec::FromTo(2, 1).to_satisfiable_range(3)
-    );
-    assert_eq!(
-        None,
-        ByteRangeSpec::FromTo(0, 0).to_satisfiable_range(0)
-    );
+        assert_eq!(&headers.to_string(), "Range: custom=1-xxx\r\n");
+    }
 
-    assert_eq!(
-        Some((0, 2)),
-        ByteRangeSpec::AllFrom(0).to_satisfiable_range(3)
-    );
-    assert_eq!(
-        Some((2, 2)),
-        ByteRangeSpec::AllFrom(2).to_satisfiable_range(3)
-    );
-    assert_eq!(
-        None,
-        ByteRangeSpec::AllFrom(3).to_satisfiable_range(3)
-    );
-    assert_eq!(
-        None,
-        ByteRangeSpec::AllFrom(5).to_satisfiable_range(3)
-    );
-    assert_eq!(
-        None,
-        ByteRangeSpec::AllFrom(0).to_satisfiable_range(0)
-    );
+    #[test]
+    fn test_byte_range_spec_to_satisfiable_range() {
+        assert_eq!(
+            Some((0, 0)),
+            ByteRangeSpec::FromTo(0, 0).to_satisfiable_range(3)
+        );
+        assert_eq!(
+            Some((1, 2)),
+            ByteRangeSpec::FromTo(1, 2).to_satisfiable_range(3)
+        );
+        assert_eq!(
+            Some((1, 2)),
+            ByteRangeSpec::FromTo(1, 5).to_satisfiable_range(3)
+        );
+        assert_eq!(None, ByteRangeSpec::FromTo(3, 3).to_satisfiable_range(3));
+        assert_eq!(None, ByteRangeSpec::FromTo(2, 1).to_satisfiable_range(3));
+        assert_eq!(None, ByteRangeSpec::FromTo(0, 0).to_satisfiable_range(0));
 
-    assert_eq!(
-        Some((1, 2)),
-        ByteRangeSpec::Last(2).to_satisfiable_range(3)
-    );
-    assert_eq!(
-        Some((2, 2)),
-        ByteRangeSpec::Last(1).to_satisfiable_range(3)
-    );
-    assert_eq!(
-        Some((0, 2)),
-        ByteRangeSpec::Last(5).to_satisfiable_range(3)
-    );
-    assert_eq!(None, ByteRangeSpec::Last(0).to_satisfiable_range(3));
-    assert_eq!(None, ByteRangeSpec::Last(2).to_satisfiable_range(0));
+        assert_eq!(
+            Some((0, 2)),
+            ByteRangeSpec::AllFrom(0).to_satisfiable_range(3)
+        );
+        assert_eq!(
+            Some((2, 2)),
+            ByteRangeSpec::AllFrom(2).to_satisfiable_range(3)
+        );
+        assert_eq!(None, ByteRangeSpec::AllFrom(3).to_satisfiable_range(3));
+        assert_eq!(None, ByteRangeSpec::AllFrom(5).to_satisfiable_range(3));
+        assert_eq!(None, ByteRangeSpec::AllFrom(0).to_satisfiable_range(0));
+
+        assert_eq!(Some((1, 2)), ByteRangeSpec::Last(2).to_satisfiable_range(3));
+        assert_eq!(Some((2, 2)), ByteRangeSpec::Last(1).to_satisfiable_range(3));
+        assert_eq!(Some((0, 2)), ByteRangeSpec::Last(5).to_satisfiable_range(3));
+        assert_eq!(None, ByteRangeSpec::Last(0).to_satisfiable_range(3));
+        assert_eq!(None, ByteRangeSpec::Last(2).to_satisfiable_range(0));
+    }
 }

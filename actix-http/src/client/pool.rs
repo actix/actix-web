@@ -13,13 +13,16 @@ use actix_utils::{oneshot, task::LocalWaker};
 use bytes::Bytes;
 use futures_util::future::{poll_fn, FutureExt, LocalBoxFuture};
 use fxhash::FxHashMap;
-use h2::client::{handshake, Connection, SendRequest};
+use h2::client::{Connection, SendRequest};
 use http::uri::Authority;
 use indexmap::IndexSet;
+use pin_project::pin_project;
 use slab::Slab;
 
+use super::config::ConnectorConfig;
 use super::connection::{ConnectionType, IoConnection};
 use super::error::ConnectError;
+use super::h2proto::handshake;
 use super::Connect;
 
 #[derive(Clone, Copy, PartialEq)]
@@ -49,20 +52,11 @@ where
     T: Service<Request = Connect, Response = (Io, Protocol), Error = ConnectError>
         + 'static,
 {
-    pub(crate) fn new(
-        connector: T,
-        conn_lifetime: Duration,
-        conn_keep_alive: Duration,
-        disconnect_timeout: Option<Duration>,
-        limit: usize,
-    ) -> Self {
+    pub(crate) fn new(connector: T, config: ConnectorConfig) -> Self {
         ConnectionPool(
             Rc::new(RefCell::new(connector)),
             Rc::new(RefCell::new(Inner {
-                conn_lifetime,
-                conn_keep_alive,
-                disconnect_timeout,
-                limit,
+                config,
                 acquired: 0,
                 waiters: Slab::new(),
                 waiters_queue: IndexSet::new(),
@@ -111,7 +105,7 @@ where
             let key = if let Some(authority) = req.uri.authority() {
                 authority.clone().into()
             } else {
-                return Err(ConnectError::Unresolverd);
+                return Err(ConnectError::Unresolved);
             };
 
             // acquire connection
@@ -128,6 +122,8 @@ where
                     // open tcp connection
                     let (io, proto) = connector.call(req).await?;
 
+                    let config = inner.borrow().config.clone();
+
                     let guard = OpenGuard::new(key, inner);
 
                     if proto == Protocol::Http1 {
@@ -137,7 +133,7 @@ where
                             Some(guard.consume()),
                         ))
                     } else {
-                        let (snd, connection) = handshake(io).await?;
+                        let (snd, connection) = handshake(io, &config).await?;
                         actix_rt::spawn(connection.map(|_| ()));
                         Ok(IoConnection::new(
                             ConnectionType::H2(snd),
@@ -199,7 +195,7 @@ where
         if let Some(i) = self.inner.take() {
             let mut inner = i.as_ref().borrow_mut();
             inner.release_waiter(&self.key, self.token);
-            inner.check_availibility();
+            inner.check_availability();
         }
     }
 }
@@ -236,7 +232,7 @@ where
         if let Some(i) = self.inner.take() {
             let mut inner = i.as_ref().borrow_mut();
             inner.release();
-            inner.check_availibility();
+            inner.check_availability();
         }
     }
 }
@@ -254,10 +250,7 @@ struct AvailableConnection<Io> {
 }
 
 pub(crate) struct Inner<Io> {
-    conn_lifetime: Duration,
-    conn_keep_alive: Duration,
-    disconnect_timeout: Option<Duration>,
-    limit: usize,
+    config: ConnectorConfig,
     acquired: usize,
     available: FxHashMap<Key, VecDeque<AvailableConnection<Io>>>,
     waiters: Slab<
@@ -310,7 +303,7 @@ where
 
     fn acquire(&mut self, key: &Key, cx: &mut Context<'_>) -> Acquire<Io> {
         // check limits
-        if self.limit > 0 && self.acquired >= self.limit {
+        if self.config.limit > 0 && self.acquired >= self.config.limit {
             return Acquire::NotAvailable;
         }
 
@@ -322,10 +315,10 @@ where
             let now = Instant::now();
             while let Some(conn) = connections.pop_back() {
                 // check if it still usable
-                if (now - conn.used) > self.conn_keep_alive
-                    || (now - conn.created) > self.conn_lifetime
+                if (now - conn.used) > self.config.conn_keep_alive
+                    || (now - conn.created) > self.config.conn_lifetime
                 {
-                    if let Some(timeout) = self.disconnect_timeout {
+                    if let Some(timeout) = self.config.disconnect_timeout {
                         if let ConnectionType::H1(io) = conn.io {
                             actix_rt::spawn(CloseConnection::new(io, timeout))
                         }
@@ -337,7 +330,7 @@ where
                         match Pin::new(s).poll_read(cx, &mut buf) {
                             Poll::Pending => (),
                             Poll::Ready(Ok(n)) if n > 0 => {
-                                if let Some(timeout) = self.disconnect_timeout {
+                                if let Some(timeout) = self.config.disconnect_timeout {
                                     if let ConnectionType::H1(io) = io {
                                         actix_rt::spawn(CloseConnection::new(
                                             io, timeout,
@@ -366,21 +359,21 @@ where
                 created,
                 used: Instant::now(),
             });
-        self.check_availibility();
+        self.check_availability();
     }
 
     fn release_close(&mut self, io: ConnectionType<Io>) {
         self.acquired -= 1;
-        if let Some(timeout) = self.disconnect_timeout {
+        if let Some(timeout) = self.config.disconnect_timeout {
             if let ConnectionType::H1(io) = io {
                 actix_rt::spawn(CloseConnection::new(io, timeout))
             }
         }
-        self.check_availibility();
+        self.check_availability();
     }
 
-    fn check_availibility(&self) {
-        if !self.waiters_queue.is_empty() && self.acquired < self.limit {
+    fn check_availability(&self) {
+        if !self.waiters_queue.is_empty() && self.acquired < self.config.limit {
             self.waker.wake();
         }
     }
@@ -422,6 +415,7 @@ where
     }
 }
 
+#[pin_project]
 struct ConnectorPoolSupport<T, Io>
 where
     Io: AsyncRead + AsyncWrite + Unpin + 'static,
@@ -439,7 +433,7 @@ where
     type Output = ();
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let this = unsafe { self.get_unchecked_mut() };
+        let this = self.project();
 
         let mut inner = this.inner.as_ref().borrow_mut();
         inner.waker.register(cx.waker());
@@ -478,6 +472,7 @@ where
                         tx,
                         this.inner.clone(),
                         this.connector.call(connect),
+                        inner.config.clone(),
                     );
                 }
             }
@@ -504,6 +499,7 @@ where
     >,
     rx: Option<oneshot::Sender<Result<IoConnection<Io>, ConnectError>>>,
     inner: Option<Rc<RefCell<Inner<Io>>>>,
+    config: ConnectorConfig,
 }
 
 impl<F, Io> OpenWaitingConnection<F, Io>
@@ -516,6 +512,7 @@ where
         rx: oneshot::Sender<Result<IoConnection<Io>, ConnectError>>,
         inner: Rc<RefCell<Inner<Io>>>,
         fut: F,
+        config: ConnectorConfig,
     ) {
         actix_rt::spawn(OpenWaitingConnection {
             key,
@@ -523,6 +520,7 @@ where
             h2: None,
             rx: Some(rx),
             inner: Some(inner),
+            config,
         })
     }
 }
@@ -536,7 +534,7 @@ where
         if let Some(inner) = self.project().inner.take() {
             let mut inner = inner.as_ref().borrow_mut();
             inner.release();
-            inner.check_availibility();
+            inner.check_availability();
         }
     }
 }
@@ -592,7 +590,7 @@ where
                     )));
                     Poll::Ready(())
                 } else {
-                    *this.h2 = Some(handshake(io).boxed_local());
+                    *this.h2 = Some(handshake(io, this.config).boxed_local());
                     self.poll(cx)
                 }
             }

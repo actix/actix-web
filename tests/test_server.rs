@@ -1,3 +1,4 @@
+use std::future::Future;
 use std::io::{Read, Write};
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -11,7 +12,7 @@ use bytes::Bytes;
 use flate2::read::GzDecoder;
 use flate2::write::{GzEncoder, ZlibDecoder, ZlibEncoder};
 use flate2::Compression;
-use futures::{ready, Future};
+use futures_util::ready;
 use rand::{distributions::Alphanumeric, Rng};
 
 use actix_web::dev::BodyEncoding;
@@ -56,7 +57,7 @@ impl TestBody {
     }
 }
 
-impl futures::Stream for TestBody {
+impl futures_core::stream::Stream for TestBody {
     type Item = Result<Bytes, Error>;
 
     fn poll_next(
@@ -348,9 +349,10 @@ async fn test_body_br_streaming() {
 #[actix_rt::test]
 async fn test_head_binary() {
     let srv = test::start_with(test::config().h1(), || {
-        App::new().service(web::resource("/").route(
-            web::head().to(move || HttpResponse::Ok().content_length(100).body(STR)),
-        ))
+        App::new().service(
+            web::resource("/")
+                .route(web::head().to(move || HttpResponse::Ok().body(STR))),
+        )
     });
 
     let mut response = srv.head("/").send().await.unwrap();
@@ -371,8 +373,7 @@ async fn test_no_chunking() {
     let srv = test::start_with(test::config().h1(), || {
         App::new().service(web::resource("/").route(web::to(move || {
             HttpResponse::Ok()
-                .no_chunking()
-                .content_length(STR.len() as u64)
+                .no_chunking(STR.len() as u64)
                 .streaming(TestBody::new(Bytes::from_static(STR.as_ref()), 24))
         })))
     });

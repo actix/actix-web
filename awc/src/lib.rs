@@ -1,4 +1,4 @@
-#![deny(rust_2018_idioms, warnings)]
+#![warn(rust_2018_idioms, warnings)]
 #![allow(
     clippy::type_complexity,
     clippy::borrow_interior_mutable_const,
@@ -7,7 +7,6 @@
 //! An HTTP Client
 //!
 //! ```rust
-//! use futures::future::{lazy, Future};
 //! use actix_rt::System;
 //! use awc::Client;
 //!

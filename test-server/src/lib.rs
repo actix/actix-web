@@ -7,9 +7,9 @@ use actix_rt::{net::TcpStream, System};
 use actix_server::{Server, ServiceFactory};
 use awc::{error::PayloadError, ws, Client, ClientRequest, ClientResponse, Connector};
 use bytes::Bytes;
-use futures::Stream;
+use futures_core::stream::Stream;
 use http::Method;
-use net2::TcpBuilder;
+use socket2::{Domain, Protocol, Socket, Type};
 
 pub use actix_testing::*;
 
@@ -43,7 +43,7 @@ pub use actix_testing::*;
 ///     assert!(response.status().is_success());
 /// }
 /// ```
-pub fn test_server<F: ServiceFactory<TcpStream>>(factory: F) -> TestServer {
+pub async fn test_server<F: ServiceFactory<TcpStream>>(factory: F) -> TestServer {
     let (tx, rx) = mpsc::channel();
 
     // run server in separate thread
@@ -92,7 +92,7 @@ pub fn test_server<F: ServiceFactory<TcpStream>>(factory: F) -> TestServer {
 
         Client::build().connector(connector).finish()
     };
-    actix_connect::start_default_resolver();
+    actix_connect::start_default_resolver().await.unwrap();
 
     TestServer {
         addr,
@@ -104,10 +104,11 @@ pub fn test_server<F: ServiceFactory<TcpStream>>(factory: F) -> TestServer {
 /// Get first available unused address
 pub fn unused_addr() -> net::SocketAddr {
     let addr: net::SocketAddr = "127.0.0.1:0".parse().unwrap();
-    let socket = TcpBuilder::new_v4().unwrap();
-    socket.bind(&addr).unwrap();
-    socket.reuse_address(true).unwrap();
-    let tcp = socket.to_tcp_listener().unwrap();
+    let socket =
+        Socket::new(Domain::ipv4(), Type::stream(), Some(Protocol::tcp())).unwrap();
+    socket.bind(&addr.into()).unwrap();
+    socket.set_reuse_address(true).unwrap();
+    let tcp = socket.into_tcp_listener();
     tcp.local_addr().unwrap()
 }
 

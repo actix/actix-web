@@ -7,10 +7,11 @@ use actix_http_test::test_server;
 use actix_service::{map_config, pipeline_factory, ServiceFactory};
 use actix_web::http::Version;
 use actix_web::{dev::AppConfig, web, App, HttpResponse};
-use futures::future::ok;
+use futures_util::future::ok;
 use open_ssl::ssl::{SslAcceptor, SslFiletype, SslMethod, SslVerifyMode};
 use rust_tls::ClientConfig;
 
+#[allow(unused)]
 fn ssl_acceptor() -> SslAcceptor {
     // load ssl keys
     let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
@@ -71,7 +72,8 @@ async fn _test_connection_reuse_h2() {
                 .openssl(ssl_acceptor())
                 .map_err(|_| ()),
         )
-    });
+    })
+    .await;
 
     // disable ssl verification
     let mut config = ClientConfig::new();

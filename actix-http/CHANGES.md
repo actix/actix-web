@@ -1,10 +1,63 @@
 # Changes
 
-# [Unreleased]
+## [2.0.0-alpha.4] - 2020-05-21
 
 ### Changed
 
-* Update the `time` dependency to 0.2.5
+* Bump minimum supported Rust version to 1.40
+* content_length function is removed, and you can set Content-Length by calling no_chunking function [#1439]
+* `BodySize::Sized64` variant has been removed. `BodySize::Sized` now receives a
+  `u64` instead of a `usize`.
+* Update `base64` dependency to 0.12
+
+### Fixed
+
+* Support parsing of `SameSite=None` [#1503]
+
+[#1439]: https://github.com/actix/actix-web/pull/1439
+[#1503]: https://github.com/actix/actix-web/pull/1503
+
+## [2.0.0-alpha.3] - 2020-05-08
+
+### Fixed
+
+* Correct spelling of ConnectError::Unresolved [#1487]
+* Fix a mistake in the encoding of websocket continuation messages wherein
+  Item::FirstText and Item::FirstBinary are each encoded as the other.
+
+### Changed
+
+* Implement `std::error::Error` for our custom errors [#1422]
+* Remove `failure` support for `ResponseError` since that crate
+  will be deprecated in the near future.
+
+[#1422]: https://github.com/actix/actix-web/pull/1422
+[#1487]: https://github.com/actix/actix-web/pull/1487
+
+## [2.0.0-alpha.2] - 2020-03-07
+
+### Changed
+
+* Update `actix-connect` and `actix-tls` dependency to 2.0.0-alpha.1. [#1395]
+
+* Change default initial window size and connection window size for HTTP2 to 2MB and 1MB respectively
+  to improve download speed for awc when downloading large objects. [#1394]
+
+* client::Connector accepts initial_window_size and initial_connection_window_size HTTP2 configuration. [#1394]
+
+* client::Connector allowing to set max_http_version to limit HTTP version to be used. [#1394]
+
+[#1394]: https://github.com/actix/actix-web/pull/1394
+[#1395]: https://github.com/actix/actix-web/pull/1395
+
+## [2.0.0-alpha.1] - 2020-02-27
+
+### Changed
+
+* Update the `time` dependency to 0.2.7.
+* Moved actors messages support from actix crate, enabled with feature `actors`.
+* Breaking change: trait MessageBody requires Unpin and accepting Pin<&mut Self> instead of &mut self in the poll_next().
+* MessageBody is not implemented for &'static [u8] anymore.
 
 ### Fixed
 

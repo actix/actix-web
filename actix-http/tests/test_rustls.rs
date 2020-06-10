@@ -7,8 +7,8 @@ use actix_http_test::test_server;
 use actix_service::{fn_factory_with_config, fn_service};
 
 use bytes::{Bytes, BytesMut};
-use futures::future::{self, err, ok};
-use futures::stream::{once, Stream, StreamExt};
+use futures_util::future::{self, err, ok};
+use futures_util::stream::{once, Stream, StreamExt};
 use rust_tls::{
     internal::pemfile::{certs, pkcs8_private_keys},
     NoClientAuth, ServerConfig as RustlsServerConfig,
@@ -45,7 +45,8 @@ async fn test_h1() -> io::Result<()> {
         HttpService::build()
             .h1(|_| future::ok::<_, Error>(Response::Ok().finish()))
             .rustls(ssl_acceptor())
-    });
+    })
+    .await;
 
     let response = srv.sget("/").send().await.unwrap();
     assert!(response.status().is_success());
@@ -58,7 +59,8 @@ async fn test_h2() -> io::Result<()> {
         HttpService::build()
             .h2(|_| future::ok::<_, Error>(Response::Ok().finish()))
             .rustls(ssl_acceptor())
-    });
+    })
+    .await;
 
     let response = srv.sget("/").send().await.unwrap();
     assert!(response.status().is_success());
@@ -75,7 +77,8 @@ async fn test_h1_1() -> io::Result<()> {
                 future::ok::<_, Error>(Response::Ok().finish())
             })
             .rustls(ssl_acceptor())
-    });
+    })
+    .await;
 
     let response = srv.sget("/").send().await.unwrap();
     assert!(response.status().is_success());
@@ -92,7 +95,8 @@ async fn test_h2_1() -> io::Result<()> {
                 future::ok::<_, Error>(Response::Ok().finish())
             })
             .rustls(ssl_acceptor())
-    });
+    })
+    .await;
 
     let response = srv.sget("/").send().await.unwrap();
     assert!(response.status().is_success());
@@ -104,14 +108,13 @@ async fn test_h2_body1() -> io::Result<()> {
     let data = "HELLOWORLD".to_owned().repeat(64 * 1024);
     let mut srv = test_server(move || {
         HttpService::build()
-            .h2(|mut req: Request<_>| {
-                async move {
-                    let body = load_body(req.take_payload()).await?;
-                    Ok::<_, Error>(Response::Ok().body(body))
-                }
+            .h2(|mut req: Request<_>| async move {
+                let body = load_body(req.take_payload()).await?;
+                Ok::<_, Error>(Response::Ok().body(body))
             })
             .rustls(ssl_acceptor())
-    });
+    })
+    .await;
 
     let response = srv.sget("/").send_body(data.clone()).await.unwrap();
     assert!(response.status().is_success());
@@ -138,7 +141,8 @@ async fn test_h2_content_length() {
                 future::ok::<_, ()>(Response::new(statuses[indx]))
             })
             .rustls(ssl_acceptor())
-    });
+    })
+    .await;
 
     let header = HeaderName::from_static("content-length");
     let value = HeaderValue::from_static("0");
@@ -197,7 +201,7 @@ async fn test_h2_headers() {
             future::ok::<_, ()>(config.body(data.clone()))
         })
             .rustls(ssl_acceptor())
-    });
+    }).await;
 
     let response = srv.sget("/").send().await.unwrap();
     assert!(response.status().is_success());
@@ -235,7 +239,8 @@ async fn test_h2_body2() {
         HttpService::build()
             .h2(|_| future::ok::<_, ()>(Response::Ok().body(STR)))
             .rustls(ssl_acceptor())
-    });
+    })
+    .await;
 
     let response = srv.sget("/").send().await.unwrap();
     assert!(response.status().is_success());
@@ -251,7 +256,8 @@ async fn test_h2_head_empty() {
         HttpService::build()
             .finish(|_| ok::<_, ()>(Response::Ok().body(STR)))
             .rustls(ssl_acceptor())
-    });
+    })
+    .await;
 
     let response = srv.shead("/").send().await.unwrap();
     assert!(response.status().is_success());
@@ -275,10 +281,11 @@ async fn test_h2_head_binary() {
     let mut srv = test_server(move || {
         HttpService::build()
             .h2(|_| {
-                ok::<_, ()>(Response::Ok().content_length(STR.len() as u64).body(STR))
+                ok::<_, ()>(Response::Ok().body(STR))
             })
             .rustls(ssl_acceptor())
-    });
+    })
+    .await;
 
     let response = srv.shead("/").send().await.unwrap();
     assert!(response.status().is_success());
@@ -302,7 +309,8 @@ async fn test_h2_head_binary2() {
         HttpService::build()
             .h2(|_| ok::<_, ()>(Response::Ok().body(STR)))
             .rustls(ssl_acceptor())
-    });
+    })
+    .await;
 
     let response = srv.shead("/").send().await.unwrap();
     assert!(response.status().is_success());
@@ -327,7 +335,8 @@ async fn test_h2_body_length() {
                 )
             })
             .rustls(ssl_acceptor())
-    });
+    })
+    .await;
 
     let response = srv.sget("/").send().await.unwrap();
     assert!(response.status().is_success());
@@ -350,7 +359,8 @@ async fn test_h2_body_chunked_explicit() {
                 )
             })
             .rustls(ssl_acceptor())
-    });
+    })
+    .await;
 
     let response = srv.sget("/").send().await.unwrap();
     assert!(response.status().is_success());
@@ -378,7 +388,8 @@ async fn test_h2_response_http_error_handling() {
                 }))
             }))
             .rustls(ssl_acceptor())
-    });
+    })
+    .await;
 
     let response = srv.sget("/").send().await.unwrap();
     assert_eq!(response.status(), http::StatusCode::INTERNAL_SERVER_ERROR);
@@ -394,7 +405,8 @@ async fn test_h2_service_error() {
         HttpService::build()
             .h2(|_| err::<Response, Error>(error::ErrorBadRequest("error")))
             .rustls(ssl_acceptor())
-    });
+    })
+    .await;
 
     let response = srv.sget("/").send().await.unwrap();
     assert_eq!(response.status(), http::StatusCode::BAD_REQUEST);
@@ -410,7 +422,8 @@ async fn test_h1_service_error() {
         HttpService::build()
             .h1(|_| err::<Response, Error>(error::ErrorBadRequest("error")))
             .rustls(ssl_acceptor())
-    });
+    })
+    .await;
 
     let response = srv.sget("/").send().await.unwrap();
     assert_eq!(response.status(), http::StatusCode::BAD_REQUEST);

@@ -1,25 +1,15 @@
-use net2::TcpBuilder;
 use std::sync::mpsc;
-use std::{net, thread, time::Duration};
+use std::{thread, time::Duration};
 
 #[cfg(feature = "openssl")]
 use open_ssl::ssl::SslAcceptorBuilder;
 
-use actix_web::{web, App, HttpResponse, HttpServer};
-
-fn unused_addr() -> net::SocketAddr {
-    let addr: net::SocketAddr = "127.0.0.1:0".parse().unwrap();
-    let socket = TcpBuilder::new_v4().unwrap();
-    socket.bind(&addr).unwrap();
-    socket.reuse_address(true).unwrap();
-    let tcp = socket.to_tcp_listener().unwrap();
-    tcp.local_addr().unwrap()
-}
+use actix_web::{test, web, App, HttpResponse, HttpServer};
 
 #[cfg(unix)]
 #[actix_rt::test]
 async fn test_start() {
-    let addr = unused_addr();
+    let addr = test::unused_addr();
     let (tx, rx) = mpsc::channel();
 
     thread::spawn(move || {
@@ -92,7 +82,7 @@ fn ssl_acceptor() -> std::io::Result<SslAcceptorBuilder> {
 async fn test_start_ssl() {
     use actix_web::HttpRequest;
 
-    let addr = unused_addr();
+    let addr = test::unused_addr();
     let (tx, rx) = mpsc::channel();
 
     thread::spawn(move || {

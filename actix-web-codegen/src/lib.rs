@@ -21,6 +21,7 @@
 //!
 //! - `"path"` - Raw literal string with path for which to register handle. Mandatory.
 //! - `guard="function_name"` - Registers function as guard using `actix_web::guard::fn_guard`
+//! - `wrap="Middleware"` - Registers a resource middleware.
 //!
 //! ## Notes
 //!
@@ -32,7 +33,6 @@
 //! ```rust
 //! use actix_web::HttpResponse;
 //! use actix_web_codegen::get;
-//! use futures::{future, Future};
 //!
 //! #[get("/test")]
 //! async fn async_test() -> Result<HttpResponse, actix_web::Error> {
@@ -45,7 +45,6 @@ extern crate proc_macro;
 mod route;
 
 use proc_macro::TokenStream;
-use syn::parse_macro_input;
 
 /// Creates route handler with `GET` method guard.
 ///
@@ -55,14 +54,10 @@ use syn::parse_macro_input;
 ///
 /// - `"path"` - Raw literal string with path for which to register handler. Mandatory.
 /// - `guard="function_name"` - Registers function as guard using `actix_web::guard::fn_guard`
+/// - `wrap="Middleware"` - Registers a resource middleware.
 #[proc_macro_attribute]
 pub fn get(args: TokenStream, input: TokenStream) -> TokenStream {
-    let args = parse_macro_input!(args as syn::AttributeArgs);
-    let gen = match route::Route::new(args, input, route::GuardType::Get) {
-        Ok(gen) => gen,
-        Err(err) => return err.to_compile_error().into(),
-    };
-    gen.generate()
+    route::generate(args, input, route::GuardType::Get)
 }
 
 /// Creates route handler with `POST` method guard.
@@ -72,12 +67,7 @@ pub fn get(args: TokenStream, input: TokenStream) -> TokenStream {
 /// Attributes are the same as in [get](attr.get.html)
 #[proc_macro_attribute]
 pub fn post(args: TokenStream, input: TokenStream) -> TokenStream {
-    let args = parse_macro_input!(args as syn::AttributeArgs);
-    let gen = match route::Route::new(args, input, route::GuardType::Post) {
-        Ok(gen) => gen,
-        Err(err) => return err.to_compile_error().into(),
-    };
-    gen.generate()
+    route::generate(args, input, route::GuardType::Post)
 }
 
 /// Creates route handler with `PUT` method guard.
@@ -87,12 +77,7 @@ pub fn post(args: TokenStream, input: TokenStream) -> TokenStream {
 /// Attributes are the same as in [get](attr.get.html)
 #[proc_macro_attribute]
 pub fn put(args: TokenStream, input: TokenStream) -> TokenStream {
-    let args = parse_macro_input!(args as syn::AttributeArgs);
-    let gen = match route::Route::new(args, input, route::GuardType::Put) {
-        Ok(gen) => gen,
-        Err(err) => return err.to_compile_error().into(),
-    };
-    gen.generate()
+    route::generate(args, input, route::GuardType::Put)
 }
 
 /// Creates route handler with `DELETE` method guard.
@@ -102,12 +87,7 @@ pub fn put(args: TokenStream, input: TokenStream) -> TokenStream {
 /// Attributes are the same as in [get](attr.get.html)
 #[proc_macro_attribute]
 pub fn delete(args: TokenStream, input: TokenStream) -> TokenStream {
-    let args = parse_macro_input!(args as syn::AttributeArgs);
-    let gen = match route::Route::new(args, input, route::GuardType::Delete) {
-        Ok(gen) => gen,
-        Err(err) => return err.to_compile_error().into(),
-    };
-    gen.generate()
+    route::generate(args, input, route::GuardType::Delete)
 }
 
 /// Creates route handler with `HEAD` method guard.
@@ -117,12 +97,7 @@ pub fn delete(args: TokenStream, input: TokenStream) -> TokenStream {
 /// Attributes are the same as in [head](attr.head.html)
 #[proc_macro_attribute]
 pub fn head(args: TokenStream, input: TokenStream) -> TokenStream {
-    let args = parse_macro_input!(args as syn::AttributeArgs);
-    let gen = match route::Route::new(args, input, route::GuardType::Head) {
-        Ok(gen) => gen,
-        Err(err) => return err.to_compile_error().into(),
-    };
-    gen.generate()
+    route::generate(args, input, route::GuardType::Head)
 }
 
 /// Creates route handler with `CONNECT` method guard.
@@ -132,12 +107,7 @@ pub fn head(args: TokenStream, input: TokenStream) -> TokenStream {
 /// Attributes are the same as in [connect](attr.connect.html)
 #[proc_macro_attribute]
 pub fn connect(args: TokenStream, input: TokenStream) -> TokenStream {
-    let args = parse_macro_input!(args as syn::AttributeArgs);
-    let gen = match route::Route::new(args, input, route::GuardType::Connect) {
-        Ok(gen) => gen,
-        Err(err) => return err.to_compile_error().into(),
-    };
-    gen.generate()
+    route::generate(args, input, route::GuardType::Connect)
 }
 
 /// Creates route handler with `OPTIONS` method guard.
@@ -147,12 +117,7 @@ pub fn connect(args: TokenStream, input: TokenStream) -> TokenStream {
 /// Attributes are the same as in [options](attr.options.html)
 #[proc_macro_attribute]
 pub fn options(args: TokenStream, input: TokenStream) -> TokenStream {
-    let args = parse_macro_input!(args as syn::AttributeArgs);
-    let gen = match route::Route::new(args, input, route::GuardType::Options) {
-        Ok(gen) => gen,
-        Err(err) => return err.to_compile_error().into(),
-    };
-    gen.generate()
+    route::generate(args, input, route::GuardType::Options)
 }
 
 /// Creates route handler with `TRACE` method guard.
@@ -162,12 +127,7 @@ pub fn options(args: TokenStream, input: TokenStream) -> TokenStream {
 /// Attributes are the same as in [trace](attr.trace.html)
 #[proc_macro_attribute]
 pub fn trace(args: TokenStream, input: TokenStream) -> TokenStream {
-    let args = parse_macro_input!(args as syn::AttributeArgs);
-    let gen = match route::Route::new(args, input, route::GuardType::Trace) {
-        Ok(gen) => gen,
-        Err(err) => return err.to_compile_error().into(),
-    };
-    gen.generate()
+    route::generate(args, input, route::GuardType::Trace)
 }
 
 /// Creates route handler with `PATCH` method guard.
@@ -177,10 +137,5 @@ pub fn trace(args: TokenStream, input: TokenStream) -> TokenStream {
 /// Attributes are the same as in [patch](attr.patch.html)
 #[proc_macro_attribute]
 pub fn patch(args: TokenStream, input: TokenStream) -> TokenStream {
-    let args = parse_macro_input!(args as syn::AttributeArgs);
-    let gen = match route::Route::new(args, input, route::GuardType::Patch) {
-        Ok(gen) => gen,
-        Err(err) => return err.to_compile_error().into(),
-    };
-    gen.generate()
+    route::generate(args, input, route::GuardType::Patch)
 }

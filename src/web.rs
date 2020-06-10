@@ -1,11 +1,11 @@
 //! Essentials helper functions and types for application registration.
 use actix_http::http::Method;
 use actix_router::IntoPattern;
-use futures::Future;
+use std::future::Future;
 
 pub use actix_http::Response as HttpResponse;
 pub use bytes::{Bytes, BytesMut};
-pub use futures::channel::oneshot::Canceled;
+pub use futures_channel::oneshot::Canceled;
 
 use crate::error::BlockingError;
 use crate::extract::FromRequest;
@@ -96,7 +96,7 @@ pub fn route() -> Route {
 /// );
 /// ```
 ///
-/// In the above example, one `GET` route get added:
+/// In the above example, one `GET` route gets added:
 ///  * /{project_id}
 ///
 pub fn get() -> Route {
@@ -114,7 +114,7 @@ pub fn get() -> Route {
 /// );
 /// ```
 ///
-/// In the above example, one `POST` route get added:
+/// In the above example, one `POST` route gets added:
 ///  * /{project_id}
 ///
 pub fn post() -> Route {
@@ -132,7 +132,7 @@ pub fn post() -> Route {
 /// );
 /// ```
 ///
-/// In the above example, one `PUT` route get added:
+/// In the above example, one `PUT` route gets added:
 ///  * /{project_id}
 ///
 pub fn put() -> Route {
@@ -150,7 +150,7 @@ pub fn put() -> Route {
 /// );
 /// ```
 ///
-/// In the above example, one `PATCH` route get added:
+/// In the above example, one `PATCH` route gets added:
 ///  * /{project_id}
 ///
 pub fn patch() -> Route {
@@ -168,7 +168,7 @@ pub fn patch() -> Route {
 /// );
 /// ```
 ///
-/// In the above example, one `DELETE` route get added:
+/// In the above example, one `DELETE` route gets added:
 ///  * /{project_id}
 ///
 pub fn delete() -> Route {
@@ -186,11 +186,29 @@ pub fn delete() -> Route {
 /// );
 /// ```
 ///
-/// In the above example, one `HEAD` route get added:
+/// In the above example, one `HEAD` route gets added:
 ///  * /{project_id}
 ///
 pub fn head() -> Route {
     method(Method::HEAD)
+}
+
+/// Create *route* with `TRACE` method guard.
+///
+/// ```rust
+/// use actix_web::{web, App, HttpResponse};
+///
+/// let app = App::new().service(
+///     web::resource("/{project_id}")
+///         .route(web::trace().to(|| HttpResponse::Ok()))
+/// );
+/// ```
+///
+/// In the above example, one `HEAD` route gets added:
+///  * /{project_id}
+///
+pub fn trace() -> Route {
+    method(Method::TRACE)
 }
 
 /// Create *route* and add method guard.
@@ -204,7 +222,7 @@ pub fn head() -> Route {
 /// );
 /// ```
 ///
-/// In the above example, one `GET` route get added:
+/// In the above example, one `GET` route gets added:
 ///  * /{project_id}
 ///
 pub fn method(method: Method) -> Route {

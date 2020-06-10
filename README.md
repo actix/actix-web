@@ -9,7 +9,7 @@
 [![Join the chat at https://gitter.im/actix/actix](https://badges.gitter.im/actix/actix.svg)](https://gitter.im/actix/actix?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 [![Documentation](https://docs.rs/actix-web/badge.svg)](https://docs.rs/actix-web)
 [![Download](https://img.shields.io/crates/d/actix-web.svg)](https://crates.io/crates/actix-web)
-[![Version](https://img.shields.io/badge/rustc-1.39+-lightgray.svg)](https://blog.rust-lang.org/2019/11/07/Rust-1.39.0.html)
+[![Version](https://img.shields.io/badge/rustc-1.40+-lightgray.svg)](https://blog.rust-lang.org/2019/12/19/Rust-1.40.0.html)
 ![License](https://img.shields.io/crates/l/actix-web.svg)
 
   </p>
@@ -38,6 +38,13 @@ Actix web is a simple, pragmatic and extremely fast web framework for Rust.
 * Middlewares ([Logger, Session, CORS, etc](https://actix.rs/docs/middleware/))
 * Includes an asynchronous [HTTP client](https://actix.rs/actix-web/actix_web/client/index.html)
 * Supports [Actix actor framework](https://github.com/actix/actix)
+* Supports Rust 1.40+
+
+## Docs
+
+* [API documentation (master)](https://actix.rs/actix-web/actix_web)
+* [API documentation (docs.rs)](https://docs.rs/actix-web)
+* [User guide](https://actix.rs)
 
 ## Example
 
@@ -74,7 +81,7 @@ async fn main() -> std::io::Result<()> {
 * [Stateful](https://github.com/actix/examples/tree/master/state/)
 * [Multipart streams](https://github.com/actix/examples/tree/master/multipart/)
 * [Simple websocket](https://github.com/actix/examples/tree/master/websocket/)
-* [Tera](https://github.com/actix/examples/tree/master/template_tera/) /
+* [Tera](https://github.com/actix/examples/tree/master/template_tera/)
 * [Askama](https://github.com/actix/examples/tree/master/template_askama/) templates
 * [Diesel integration](https://github.com/actix/examples/tree/master/diesel/)
 * [r2d2](https://github.com/actix/examples/tree/master/r2d2/)

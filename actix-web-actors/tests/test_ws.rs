@@ -2,7 +2,7 @@ use actix::prelude::*;
 use actix_web::{test, web, App, HttpRequest};
 use actix_web_actors::*;
 use bytes::Bytes;
-use futures::{SinkExt, StreamExt};
+use futures_util::{SinkExt, StreamExt};
 
 struct Ws;
 

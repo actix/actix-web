@@ -1,6 +1,6 @@
 //! Multipart payload support
 use actix_web::{dev::Payload, Error, FromRequest, HttpRequest};
-use futures::future::{ok, Ready};
+use futures_util::future::{ok, Ready};
 
 use crate::server::Multipart;
 
@@ -11,7 +11,7 @@ use crate::server::Multipart;
 /// ## Server example
 ///
 /// ```rust
-/// use futures::{Stream, StreamExt};
+/// use futures_util::stream::{Stream, StreamExt};
 /// use actix_web::{web, HttpResponse, Error};
 /// use actix_multipart as mp;
 ///

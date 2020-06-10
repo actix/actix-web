@@ -1,5 +1,5 @@
 //! Basic http primitives for actix-net framework.
-#![deny(rust_2018_idioms, warnings)]
+#![warn(rust_2018_idioms, warnings)]
 #![allow(
     clippy::type_complexity,
     clippy::too_many_arguments,
@@ -9,6 +9,9 @@
 
 #[macro_use]
 extern crate log;
+
+#[macro_use]
+mod macros;
 
 pub mod body;
 mod builder;

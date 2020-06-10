@@ -6,7 +6,7 @@
 //! It is possible to add guards to *scopes*, *resources*
 //! and *routes*. Actix provide several guards by default, like various
 //! http methods, header, etc. To become a guard, type must implement `Guard`
-//! trait. Simple functions coulds guards as well.
+//! trait. Simple functions could be guards as well.
 //!
 //! Guards can not modify the request object. But it is possible
 //! to store extra attributes on a request by using the `Extensions` container.
@@ -100,7 +100,7 @@ pub fn Any<F: Guard + 'static>(guard: F) -> AnyGuard {
     AnyGuard(vec![Box::new(guard)])
 }
 
-/// Matches if any of supplied guards matche.
+/// Matches any of supplied guards.
 pub struct AnyGuard(Vec<Box<dyn Guard>>);
 
 impl AnyGuard {

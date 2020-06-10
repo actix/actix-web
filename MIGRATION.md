@@ -4,6 +4,14 @@
   result in `SameSite=None` being sent with the response Set-Cookie header.
   To create a cookie without a SameSite attribute, remove any calls setting same_site.
 
+* actix-http support for Actors messages was moved to actix-http crate and is enabled 
+  with feature `actors`
+* content_length function is removed from actix-http.
+  You can set Content-Length by normally setting the response body or calling no_chunking function. 
+
+* `BodySize::Sized64` variant has been removed. `BodySize::Sized` now receives a
+  `u64` instead of a `usize`.
+
 ## 2.0.0
 
 * `HttpServer::start()` renamed to `HttpServer::run()`. It also possible to
@@ -358,7 +366,7 @@
 
 * `actix_web::server` module has been removed. To start http server use `actix_web::HttpServer` type
 
-* StaticFiles and NamedFile has been move to separate create.
+* StaticFiles and NamedFile have been moved to a separate crate.
 
   instead of `use actix_web::fs::StaticFile`
 
@@ -368,7 +376,7 @@
 
   use `use actix_files::NamedFile`
 
-* Multipart has been move to separate create.
+* Multipart has been moved to a separate crate.
 
   instead of `use actix_web::multipart::Multipart`
 

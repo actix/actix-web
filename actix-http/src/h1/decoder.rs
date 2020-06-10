@@ -8,7 +8,6 @@ use actix_codec::Decoder;
 use bytes::{Buf, Bytes, BytesMut};
 use http::header::{HeaderName, HeaderValue};
 use http::{header, Method, StatusCode, Uri, Version};
-use httparse;
 use log::{debug, error, trace};
 
 use crate::error::ParseError;
@@ -19,7 +18,7 @@ use crate::request::Request;
 const MAX_BUFFER_SIZE: usize = 131_072;
 const MAX_HEADERS: usize = 96;
 
-/// Incoming messagd decoder
+/// Incoming message decoder
 pub(crate) struct MessageDecoder<T: MessageType>(PhantomData<T>);
 
 #[derive(Debug)]

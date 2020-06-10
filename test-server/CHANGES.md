@@ -1,9 +1,14 @@
 # Changes
 
-## [Unreleased] - 2020-xx-xx
+## [2.0.0-alpha.1] - 2020-05-23
 
-* Update the `time` dependency to 0.2.5
-
+* Update the `time` dependency to 0.2.7
+* Update `actix-connect` dependency to 2.0.0-alpha.2
+* Make `test_server` `async` fn.
+* Bump minimum supported Rust version to 1.40
+* Replace deprecated `net2` crate with `socket2`
+* Update `base64` dependency to 0.12
+* Update `env_logger` dependency to 0.7
 
 ## [1.0.0] - 2019-12-13
 

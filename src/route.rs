@@ -5,7 +5,7 @@ use std::task::{Context, Poll};
 
 use actix_http::{http::Method, Error};
 use actix_service::{Service, ServiceFactory};
-use futures::future::{ready, FutureExt, LocalBoxFuture};
+use futures_util::future::{ready, FutureExt, LocalBoxFuture};
 
 use crate::extract::FromRequest;
 use crate::guard::{self, Guard};
@@ -56,7 +56,7 @@ impl Route {
     }
 
     pub(crate) fn take_guards(&mut self) -> Vec<Box<dyn Guard>> {
-        std::mem::replace(Rc::get_mut(&mut self.guards).unwrap(), Vec::new())
+        std::mem::take(Rc::get_mut(&mut self.guards).unwrap())
     }
 }
 
@@ -362,31 +362,23 @@ mod tests {
                 .service(
                     web::resource("/test")
                         .route(web::get().to(|| HttpResponse::Ok()))
-                        .route(web::put().to(|| {
-                            async {
-                                Err::<HttpResponse, _>(error::ErrorBadRequest("err"))
-                            }
+                        .route(web::put().to(|| async {
+                            Err::<HttpResponse, _>(error::ErrorBadRequest("err"))
                         }))
-                        .route(web::post().to(|| {
-                            async {
-                                delay_for(Duration::from_millis(100)).await;
-                                HttpResponse::Created()
-                            }
+                        .route(web::post().to(|| async {
+                            delay_for(Duration::from_millis(100)).await;
+                            HttpResponse::Created()
                         }))
-                        .route(web::delete().to(|| {
-                            async {
-                                delay_for(Duration::from_millis(100)).await;
-                                Err::<HttpResponse, _>(error::ErrorBadRequest("err"))
-                            }
+                        .route(web::delete().to(|| async {
+                            delay_for(Duration::from_millis(100)).await;
+                            Err::<HttpResponse, _>(error::ErrorBadRequest("err"))
                         })),
                 )
-                .service(web::resource("/json").route(web::get().to(|| {
-                    async {
-                        delay_for(Duration::from_millis(25)).await;
-                        web::Json(MyObject {
-                            name: "test".to_string(),
-                        })
-                    }
+                .service(web::resource("/json").route(web::get().to(|| async {
+                    delay_for(Duration::from_millis(25)).await;
+                    web::Json(MyObject {
+                        name: "test".to_string(),
+                    })
                 }))),
         )
         .await;

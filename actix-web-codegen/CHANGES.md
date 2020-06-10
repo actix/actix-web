@@ -1,8 +1,18 @@
 # Changes
 
-## [0.2.NEXT] - 2020-xx-xx
+## [0.2.2] - 2020-05-23
 
-* Allow the handler function to be named as `config` #1290
+* Add resource middleware on actix-web-codegen [#1467]
+
+[#1467]: https://github.com/actix/actix-web/pull/1467
+
+## [0.2.1] - 2020-02-25
+
+* Add `#[allow(missing_docs)]` attribute to generated structs [#1368]
+* Allow the handler function to be named as `config` [#1290]
+
+[#1368]: https://github.com/actix/actix-web/issues/1368
+[#1290]: https://github.com/actix/actix-web/issues/1290
 
 ## [0.2.0] - 2019-12-13
 

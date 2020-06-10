@@ -1,12 +1,13 @@
+use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::{fmt, io, mem, time};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use bytes::{Buf, Bytes};
-use futures_util::future::{err, Either, Future, FutureExt, LocalBoxFuture, Ready};
+use futures_util::future::{err, Either, FutureExt, LocalBoxFuture, Ready};
 use h2::client::SendRequest;
-use pin_project::{pin_project, project};
+use pin_project::pin_project;
 
 use crate::body::MessageBody;
 use crate::h1::ClientCodec;
@@ -204,7 +205,7 @@ where
     }
 }
 
-#[pin_project]
+#[pin_project(project = EitherIoProj)]
 pub enum EitherIo<A, B> {
     A(#[pin] A),
     B(#[pin] B),
@@ -215,16 +216,14 @@ where
     A: AsyncRead,
     B: AsyncRead,
 {
-    #[project]
     fn poll_read(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         buf: &mut [u8],
     ) -> Poll<io::Result<usize>> {
-        #[project]
         match self.project() {
-            EitherIo::A(val) => val.poll_read(cx, buf),
-            EitherIo::B(val) => val.poll_read(cx, buf),
+            EitherIoProj::A(val) => val.poll_read(cx, buf),
+            EitherIoProj::B(val) => val.poll_read(cx, buf),
         }
     }
 
@@ -244,41 +243,34 @@ where
     A: AsyncWrite,
     B: AsyncWrite,
 {
-    #[project]
     fn poll_write(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         buf: &[u8],
     ) -> Poll<io::Result<usize>> {
-        #[project]
         match self.project() {
-            EitherIo::A(val) => val.poll_write(cx, buf),
-            EitherIo::B(val) => val.poll_write(cx, buf),
+            EitherIoProj::A(val) => val.poll_write(cx, buf),
+            EitherIoProj::B(val) => val.poll_write(cx, buf),
         }
     }
 
-    #[project]
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        #[project]
         match self.project() {
-            EitherIo::A(val) => val.poll_flush(cx),
-            EitherIo::B(val) => val.poll_flush(cx),
+            EitherIoProj::A(val) => val.poll_flush(cx),
+            EitherIoProj::B(val) => val.poll_flush(cx),
         }
     }
 
-    #[project]
     fn poll_shutdown(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
     ) -> Poll<io::Result<()>> {
-        #[project]
         match self.project() {
-            EitherIo::A(val) => val.poll_shutdown(cx),
-            EitherIo::B(val) => val.poll_shutdown(cx),
+            EitherIoProj::A(val) => val.poll_shutdown(cx),
+            EitherIoProj::B(val) => val.poll_shutdown(cx),
         }
     }
 
-    #[project]
     fn poll_write_buf<U: Buf>(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
@@ -287,10 +279,9 @@ where
     where
         Self: Sized,
     {
-        #[project]
         match self.project() {
-            EitherIo::A(val) => val.poll_write_buf(cx, buf),
-            EitherIo::B(val) => val.poll_write_buf(cx, buf),
+            EitherIoProj::A(val) => val.poll_write_buf(cx, buf),
+            EitherIoProj::B(val) => val.poll_write_buf(cx, buf),
         }
     }
 }

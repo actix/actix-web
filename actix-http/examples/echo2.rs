@@ -4,7 +4,7 @@ use actix_http::http::HeaderValue;
 use actix_http::{Error, HttpService, Request, Response};
 use actix_server::Server;
 use bytes::BytesMut;
-use futures::StreamExt;
+use futures_util::StreamExt;
 use log::info;
 
 async fn handle_request(mut req: Request) -> Result<Response, Error> {
