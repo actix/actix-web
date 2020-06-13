@@ -6,7 +6,7 @@ use std::{fmt, mem};
 use bytes::{Bytes, BytesMut};
 use futures_core::Stream;
 use futures_util::ready;
-use pin_project::{pin_project, project};
+use pin_project::pin_project;
 
 use crate::error::Error;
 
@@ -70,7 +70,7 @@ impl<T: MessageBody + Unpin> MessageBody for Box<T> {
     }
 }
 
-#[pin_project]
+#[pin_project(project = ResponseBodyProj)]
 pub enum ResponseBody<B> {
     Body(#[pin] B),
     Other(#[pin] Body),
@@ -109,15 +109,13 @@ impl<B: MessageBody> MessageBody for ResponseBody<B> {
         }
     }
 
-    #[project]
     fn poll_next(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
     ) -> Poll<Option<Result<Bytes, Error>>> {
-        #[project]
         match self.project() {
-            ResponseBody::Body(body) => body.poll_next(cx),
-            ResponseBody::Other(body) => body.poll_next(cx),
+            ResponseBodyProj::Body(body) => body.poll_next(cx),
+            ResponseBodyProj::Other(body) => body.poll_next(cx),
         }
     }
 }
@@ -125,20 +123,18 @@ impl<B: MessageBody> MessageBody for ResponseBody<B> {
 impl<B: MessageBody> Stream for ResponseBody<B> {
     type Item = Result<Bytes, Error>;
 
-    #[project]
     fn poll_next(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
     ) -> Poll<Option<Self::Item>> {
-        #[project]
         match self.project() {
-            ResponseBody::Body(body) => body.poll_next(cx),
-            ResponseBody::Other(body) => body.poll_next(cx),
+            ResponseBodyProj::Body(body) => body.poll_next(cx),
+            ResponseBodyProj::Other(body) => body.poll_next(cx),
         }
     }
 }
 
-#[pin_project]
+#[pin_project(project = BodyProj)]
 /// Represents various types of http message body.
 pub enum Body {
     /// Empty response. `Content-Length` header is not set.
@@ -173,16 +169,14 @@ impl MessageBody for Body {
         }
     }
 
-    #[project]
     fn poll_next(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
     ) -> Poll<Option<Result<Bytes, Error>>> {
-        #[project]
         match self.project() {
-            Body::None => Poll::Ready(None),
-            Body::Empty => Poll::Ready(None),
-            Body::Bytes(ref mut bin) => {
+            BodyProj::None => Poll::Ready(None),
+            BodyProj::Empty => Poll::Ready(None),
+            BodyProj::Bytes(ref mut bin) => {
                 let len = bin.len();
                 if len == 0 {
                     Poll::Ready(None)
@@ -190,7 +184,7 @@ impl MessageBody for Body {
                     Poll::Ready(Some(Ok(mem::take(bin))))
                 }
             }
-            Body::Message(ref mut body) => Pin::new(body.as_mut()).poll_next(cx),
+            BodyProj::Message(ref mut body) => Pin::new(body.as_mut()).poll_next(cx),
         }
     }
 }

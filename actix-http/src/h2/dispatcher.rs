@@ -165,7 +165,7 @@ struct ServiceResponse<F, I, E, B> {
     _t: PhantomData<(I, E)>,
 }
 
-#[pin_project::pin_project]
+#[pin_project::pin_project(project = ServiceResponseStateProj)]
 enum ServiceResponseState<F, B> {
     ServiceCall(#[pin] F, Option<SendResponse<Bytes>>),
     SendPayload(SendStream<Bytes>, #[pin] ResponseBody<B>),
@@ -245,13 +245,11 @@ where
 {
     type Output = ();
 
-    #[pin_project::project]
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut this = self.as_mut().project();
 
-        #[project]
         match this.state.project() {
-            ServiceResponseState::ServiceCall(call, send) => match call.poll(cx) {
+            ServiceResponseStateProj::ServiceCall(call, send) => match call.poll(cx) {
                 Poll::Ready(Ok(res)) => {
                     let (res, body) = res.into().replace_body(());
 
@@ -305,7 +303,7 @@ where
                     }
                 }
             },
-            ServiceResponseState::SendPayload(ref mut stream, ref mut body) => loop {
+            ServiceResponseStateProj::SendPayload(ref mut stream, ref mut body) => loop {
                 loop {
                     if let Some(ref mut buffer) = this.buffer {
                         match stream.poll_capacity(cx) {

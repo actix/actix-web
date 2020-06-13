@@ -10,7 +10,7 @@ use bytes::Bytes;
 use futures_core::{ready, Future};
 use futures_util::future::ok;
 use h2::server::{self, Handshake};
-use pin_project::{pin_project, project};
+use pin_project::pin_project;
 
 use crate::body::MessageBody;
 use crate::builder::HttpServiceBuilder;
@@ -574,7 +574,7 @@ where
     }
 }
 
-#[pin_project]
+#[pin_project(project = StateProj)]
 enum State<T, S, B, X, U>
 where
     S: Service<Request = Request>,
@@ -650,16 +650,14 @@ where
     U: Service<Request = (Request, Framed<T, h1::Codec>), Response = ()>,
     U::Error: fmt::Display,
 {
-    #[project]
     fn poll(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
     ) -> Poll<Result<(), DispatchError>> {
-        #[project]
         match self.as_mut().project() {
-            State::H1(disp) => disp.poll(cx),
-            State::H2(disp) => disp.poll(cx),
-            State::H2Handshake(ref mut data) => {
+            StateProj::H1(disp) => disp.poll(cx),
+            StateProj::H2(disp) => disp.poll(cx),
+            StateProj::H2Handshake(ref mut data) => {
                 let conn = if let Some(ref mut item) = data {
                     match Pin::new(&mut item.0).poll(cx) {
                         Poll::Ready(Ok(conn)) => conn,
