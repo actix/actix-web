@@ -144,6 +144,10 @@ mod tests {
         let req3 = TestRequest::with_uri("//v1//////something").to_request();
         let res3 = call_service(&mut app, req3).await;
         assert!(res3.status().is_success());
+
+        let req4 = TestRequest::with_uri("/v1//something").to_request();
+        let res4 = call_service(&mut app, req4).await;
+        assert!(res4.status().is_success());
     }
 
     #[actix_rt::test]
@@ -169,6 +173,10 @@ mod tests {
         let req3 = TestRequest::with_uri("//v1///something").to_srv_request();
         let res3 = normalize.call(req3).await.unwrap();
         assert!(res3.status().is_success());
+
+        let req4 = TestRequest::with_uri("/v1//something").to_srv_request();
+        let res4 = normalize.call(req4).await.unwrap();
+        assert!(res4.status().is_success());
     }
 
     #[actix_rt::test]
