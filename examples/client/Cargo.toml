@@ -1,0 +1,9 @@
+[package]
+name = "actix_web_client"
+version = "0.1.0"
+authors = ["Eric Semeniuc <3838856+esemeniuc@users.noreply.github.com>"]
+edition = "2018"
+
+[dependencies]
+actix-rt = "1.1"
+actix-web = { version = "2.0", features=["rustls"] }
