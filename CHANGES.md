@@ -6,6 +6,10 @@
 
 * Fix actix_http::h1::dispatcher so it returns when HW_BUFFER_SIZE is reached. Should reduce peak memory consumption during large uploads. [#1550]
 
+### Fixed
+
+* `NormalizePath` improved consistency when path needs slashes added _and_ removed.
+
 ## [3.0.0-alpha.3] - 2020-05-21
 
 ### Added
