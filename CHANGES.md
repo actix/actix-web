@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+* Re-export `actix_rt::main` as `actix_web::main`.
+
 ### Changed
 
 * Fix actix_http::h1::dispatcher so it returns when HW_BUFFER_SIZE is reached. Should reduce peak memory consumption during large uploads. [#1550]
