@@ -1,6 +1,5 @@
 //! Websockets client
 use std::convert::TryFrom;
-use std::fmt::Write as FmtWrite;
 use std::net::SocketAddr;
 use std::rc::Rc;
 use std::{fmt, str};
@@ -9,9 +8,7 @@ use actix_codec::Framed;
 use actix_http::cookie::{Cookie, CookieJar};
 use actix_http::{ws, Payload, RequestHead};
 use actix_rt::time::timeout;
-use percent_encoding::percent_encode;
 
-use actix_http::cookie::USERINFO;
 pub use actix_http::ws::{CloseCode, CloseReason, Codec, Frame, Message};
 
 use crate::connect::BoxedSocket;
@@ -246,16 +243,18 @@ impl WebsocketsRequest {
 
         // set cookies
         if let Some(ref mut jar) = self.cookies {
-            let mut cookie = String::new();
-            for c in jar.delta() {
-                let name = percent_encode(c.name().as_bytes(), USERINFO);
-                let value = percent_encode(c.value().as_bytes(), USERINFO);
-                let _ = write!(&mut cookie, "; {}={}", name, value);
+            let cookie: String = jar
+                .delta()
+                // ensure only name=value is written to cookie header
+                .map(|c| Cookie::new(c.name(), c.value()).encoded().to_string())
+                .collect::<Vec<_>>()
+                .join("; ");
+
+            if !cookie.is_empty() {
+                self.head
+                    .headers
+                    .insert(header::COOKIE, HeaderValue::from_str(&cookie).unwrap());
             }
-            self.head.headers.insert(
-                header::COOKIE,
-                HeaderValue::from_str(&cookie.as_str()[2..]).unwrap(),
-            );
         }
 
         // origin
