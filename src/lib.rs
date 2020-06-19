@@ -112,6 +112,7 @@ pub use actix_web_codegen::*;
 // re-export for convenience
 pub use actix_http::Response as HttpResponse;
 pub use actix_http::{body, cookie, http, Error, HttpMessage, ResponseError, Result};
+pub use actix_macros::{main, test as test_rt};
 
 pub use crate::app::App;
 pub use crate::extract::FromRequest;

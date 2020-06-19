@@ -861,7 +861,14 @@ where
     T: AsyncRead + Unpin,
 {
     let mut read_some = false;
+
     loop {
+        // If buf is full return but do not disconnect since
+        // there is more reading to be done
+        if buf.len() >= HW_BUFFER_SIZE {
+            return Ok(Some(false));
+        }
+
         let remaining = buf.capacity() - buf.len();
         if remaining < LW_BUFFER_SIZE {
             buf.reserve(HW_BUFFER_SIZE - remaining);
