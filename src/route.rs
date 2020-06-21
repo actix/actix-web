@@ -46,6 +46,7 @@ pub struct Route {
 
 impl Route {
     /// Create new route which matches any request.
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Route {
         Route {
             service: Box::new(RouteNewService::new(Extract::new(Handler::new(|| {

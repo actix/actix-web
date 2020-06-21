@@ -90,6 +90,7 @@ where
         self.service.poll_ready(cx)
     }
 
+    #[allow(clippy::borrow_interior_mutable_const)]
     fn call(&mut self, req: ServiceRequest) -> Self::Future {
         // negotiate content-encoding
         let encoding = if let Some(val) = req.headers().get(&ACCEPT_ENCODING) {

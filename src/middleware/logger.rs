@@ -478,7 +478,7 @@ impl FormatText {
             }
             FormatText::RemoteAddr => {
                 let s = if let Some(ref peer) = req.connection_info().remote_addr() {
-                    FormatText::Str(peer.to_string())
+                    FormatText::Str((*peer).to_string())
                 } else {
                     FormatText::Str("-".to_string())
                 };
