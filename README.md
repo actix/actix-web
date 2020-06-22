@@ -94,7 +94,7 @@ You may consider checking out
 
 ## Benchmarks
 
-* [TechEmpower Framework Benchmark](https://www.techempower.com/benchmarks/#section=data-r18)
+* [TechEmpower Framework Benchmark](https://www.techempower.com/benchmarks/#section=data-r19)
 
 ## License
 
