@@ -92,6 +92,12 @@ impl ResourceMap {
         }
         false
     }
+    /// Returns the full resource pattern matched against a route or None if no match is
+    /// found.
+    pub fn match_name(&self, path: &str) -> Option<&ResourceDef> {
+        let path = if path.is_empty() { "/" } else { path };
+        self.named.get(path)
+    }
 
     /// Returns the full resource pattern matched against a path or None if no full match
     /// is possible.

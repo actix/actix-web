@@ -4,7 +4,7 @@ use std::{fmt, net};
 
 use actix_http::http::{HeaderMap, Method, Uri, Version};
 use actix_http::{Error, Extensions, HttpMessage, Message, Payload, RequestHead};
-use actix_router::{Path, Url};
+use actix_router::{Path, Url, ResourceDef};
 use futures_util::future::{ok, Ready};
 use tinyvec::TinyVec;
 
@@ -135,6 +135,11 @@ impl HttpRequest {
     #[inline]
     pub fn match_pattern(&self) -> Option<String> {
         self.0.rmap.match_pattern(self.path())
+
+    /// Checks if a given path matches a route
+    #[inline]
+    pub fn match_name(&self) -> Option<&ResourceDef> {
+        self.0.rmap.match_name(&self.path())
     }
 
     /// Request extensions
@@ -459,6 +464,27 @@ mod tests {
         assert_eq!(
             url.ok().unwrap().as_str(),
             "http://www.rust-lang.org/index.html"
+        );
+    }
+
+    #[test]
+    fn test_match_name() {
+        let mut rdef = ResourceDef::new("/index.html");
+        *rdef.name_mut() = "index".to_string();
+
+        let mut rmap = ResourceMap::new(ResourceDef::new(""));
+        rmap.add(&mut rdef, None);
+
+        assert!(rmap.has_resource("/index.html"));
+
+        let req = TestRequest::with_uri("/test")
+            .header(header::HOST, "www.rust-lang.org")
+            .rmap(rmap)
+            .to_http_request();
+        let route_name = req.resource_map().match_name("index").unwrap().name();
+        assert_eq!(
+            route_name,
+            rdef.name()
         );
     }
 
