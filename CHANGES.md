@@ -5,6 +5,8 @@
 ### Added
 
 * Re-export `actix_rt::main` as `actix_web::main`.
+* `HttpRequest::match_pattern` and `ServiceRequest::match_pattern` for extracting the matched
+  resource pattern.
 
 ### Changed
 
