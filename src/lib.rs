@@ -1,17 +1,10 @@
 #![warn(rust_2018_idioms, warnings)]
-#![allow(
-    clippy::needless_doctest_main,
-    clippy::type_complexity,
-    clippy::borrow_interior_mutable_const
-)]
+#![allow(clippy::needless_doctest_main, clippy::type_complexity)]
+
 //! Actix web is a small, pragmatic, and extremely fast web framework
 //! for Rust.
 //!
 //! ## Example
-//!
-//! The `#[actix_rt::main]` macro in the example below is provided by the Actix runtime
-//! crate, [`actix-rt`](https://crates.io/crates/actix-rt). You will need to include
-//! `actix-rt` in your dependencies for it to run.
 //!
 //! ```rust,no_run
 //! use actix_web::{web, App, Responder, HttpServer};
@@ -20,7 +13,7 @@
 //!     format!("Hello {}! id:{}", info.0, info.1)
 //! }
 //!
-//! #[actix_rt::main]
+//! #[actix_web::main]
 //! async fn main() -> std::io::Result<()> {
 //!     HttpServer::new(|| App::new().service(
 //!         web::resource("/{name}/{id}/index.html").to(index))
@@ -80,9 +73,7 @@
 //! * `compress` - enables content encoding compression support (default enabled)
 //! * `openssl` - enables ssl support via `openssl` crate, supports `http/2`
 //! * `rustls` - enables ssl support via `rustls` crate, supports `http/2`
-//! * `secure-cookies` - enables secure cookies support, includes `ring` crate as
-//!   dependency
-#![allow(clippy::type_complexity, clippy::new_without_default)]
+//! * `secure-cookies` - enables secure cookies support
 
 mod app;
 mod app_service;
@@ -106,13 +97,12 @@ pub mod test;
 mod types;
 pub mod web;
 
-#[doc(hidden)]
 pub use actix_web_codegen::*;
+pub use actix_rt as rt;
 
 // re-export for convenience
 pub use actix_http::Response as HttpResponse;
 pub use actix_http::{body, cookie, http, Error, HttpMessage, ResponseError, Result};
-pub use actix_macros::{main, test as test_rt};
 
 pub use crate::app::App;
 pub use crate::extract::FromRequest;
@@ -230,6 +220,7 @@ pub mod client {
     //!    println!("Response: {:?}", response);
     //! }
     //! ```
+
     pub use awc::error::{
         ConnectError, InvalidUrl, PayloadError, SendRequestError, WsClientError,
     };

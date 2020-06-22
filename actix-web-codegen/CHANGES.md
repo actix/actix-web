@@ -1,5 +1,10 @@
 # Changes
 
+## [Unreleased] - XXXX-XX-XX
+
+* Add main entry-point macro that uses re-exported runtime.
+
+
 ## [0.2.2] - 2020-05-23
 
 * Add resource middleware on actix-web-codegen [#1467]
