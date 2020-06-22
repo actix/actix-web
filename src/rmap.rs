@@ -43,9 +43,7 @@ impl ResourceMap {
             }
         }
     }
-}
 
-impl ResourceMap {
     /// Generate url for named resource
     ///
     /// Check [`HttpRequest::url_for()`](../struct.HttpRequest.html#method.
@@ -93,6 +91,45 @@ impl ResourceMap {
             }
         }
         false
+    }
+
+    /// Returns the full resource pattern matched against a path or None if no full match
+    /// is possible.
+    pub fn match_pattern(&self, path: &str) -> Option<String> {
+        let path = if path.is_empty() { "/" } else { path };
+
+        // ensure a full match exists
+        if !self.has_resource(path) {
+            return None;
+        }
+
+        Some(self.traverse_resource_pattern(path))
+    }
+
+    /// Takes remaining path and tries to match it up against a resource definition within the
+    /// current resource map recursively, returning a concatenation of all resource prefixes and
+    /// patterns matched in the tree.
+    ///
+    /// Should only be used after checking the resource exists in the map so that partial match
+    /// patterns are not returned.
+    fn traverse_resource_pattern(&self, remaining: &str) -> String {
+        for (pattern, rmap) in &self.patterns {
+            if let Some(ref rmap) = rmap {
+                if let Some(prefix_len) = pattern.is_prefix_match(remaining) {
+                    let prefix = pattern.pattern().to_owned();
+
+                    return [
+                        prefix,
+                        rmap.traverse_resource_pattern(&remaining[prefix_len..]),
+                    ]
+                    .concat();
+                }
+            } else if pattern.is_match(remaining) {
+                return pattern.pattern().to_owned();
+            }
+        }
+
+        String::new()
     }
 
     fn patterns_for<U, I>(
@@ -186,5 +223,83 @@ impl ResourceMap {
         } else {
             Ok(None)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn extract_matched_pattern() {
+        let mut root = ResourceMap::new(ResourceDef::root_prefix(""));
+
+        let mut user_map = ResourceMap::new(ResourceDef::root_prefix(""));
+        user_map.add(&mut ResourceDef::new("/"), None);
+        user_map.add(&mut ResourceDef::new("/profile"), None);
+        user_map.add(&mut ResourceDef::new("/article/{id}"), None);
+        user_map.add(&mut ResourceDef::new("/post/{post_id}"), None);
+        user_map.add(
+            &mut ResourceDef::new("/post/{post_id}/comment/{comment_id}"),
+            None,
+        );
+
+        root.add(&mut ResourceDef::new("/info"), None);
+        root.add(&mut ResourceDef::new("/v{version:[[:digit:]]{1}}"), None);
+        root.add(
+            &mut ResourceDef::root_prefix("/user/{id}"),
+            Some(Rc::new(user_map)),
+        );
+
+        let root = Rc::new(root);
+        root.finish(Rc::clone(&root));
+
+        // sanity check resource map setup
+
+        assert!(root.has_resource("/info"));
+        assert!(!root.has_resource("/bar"));
+
+        assert!(root.has_resource("/v1"));
+        assert!(root.has_resource("/v2"));
+        assert!(!root.has_resource("/v33"));
+
+        assert!(root.has_resource("/user/22"));
+        assert!(root.has_resource("/user/22/"));
+        assert!(root.has_resource("/user/22/profile"));
+
+        // extract patterns from paths
+
+        assert!(root.match_pattern("/bar").is_none());
+        assert!(root.match_pattern("/v44").is_none());
+
+        assert_eq!(root.match_pattern("/info"), Some("/info".to_owned()));
+        assert_eq!(
+            root.match_pattern("/v1"),
+            Some("/v{version:[[:digit:]]{1}}".to_owned())
+        );
+        assert_eq!(
+            root.match_pattern("/v2"),
+            Some("/v{version:[[:digit:]]{1}}".to_owned())
+        );
+        assert_eq!(
+            root.match_pattern("/user/22/profile"),
+            Some("/user/{id}/profile".to_owned())
+        );
+        assert_eq!(
+            root.match_pattern("/user/602CFB82-7709-4B17-ADCF-4C347B6F2203/profile"),
+            Some("/user/{id}/profile".to_owned())
+        );
+        assert_eq!(
+            root.match_pattern("/user/22/article/44"),
+            Some("/user/{id}/article/{id}".to_owned())
+        );
+        assert_eq!(
+            root.match_pattern("/user/22/post/my-post"),
+            Some("/user/{id}/post/{post_id}".to_owned())
+        );
+        assert_eq!(
+            root.match_pattern("/user/22/post/other-post/comment/42"),
+            Some("/user/{id}/post/{post_id}/comment/{comment_id}".to_owned())
+        );
     }
 }

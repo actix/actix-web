@@ -195,6 +195,12 @@ impl ServiceRequest {
     pub fn match_info(&self) -> &Path<Url> {
         self.0.match_info()
     }
+    
+    /// Counterpart to [`HttpRequest::match_pattern`](../struct.HttpRequest.html#method.match_pattern).
+    #[inline]
+    pub fn match_pattern(&self) -> Option<String> {
+        self.0.match_pattern()
+    }
 
     #[inline]
     /// Get a mutable reference to the Path parameters.
