@@ -637,6 +637,38 @@ mod tests {
     }
 
     #[actix_rt::test]
+    async fn test_path_routes() {
+        let mut srv = init_service(
+            App::new().service(
+                web::scope("/user/{id}")
+                    .service(web::resource("/profile").route(web::get().to(
+                        move |req: HttpRequest| {
+                            assert_eq!(
+                                req.match_name(),
+                                Some("/user/{id}/profile".to_owned())
+                            );
+
+                            HttpResponse::Ok().finish()
+                        },
+                    )))
+                    .default_service(web::to(move |req: HttpRequest| {
+                        assert!(req.match_pattern().is_none());
+                        HttpResponse::Ok().finish()
+                    })),
+            ),
+        )
+        .await;
+
+        let req = TestRequest::get().uri("/user/22/profile").to_request();
+        let res = call_service(&mut srv, req).await;
+        assert_eq!(res.status(), StatusCode::OK);
+
+        let req = TestRequest::get().uri("/user/22/not-exist").to_request();
+        let res = call_service(&mut srv, req).await;
+        assert_eq!(res.status(), StatusCode::OK);
+    }
+
+    #[actix_rt::test]
     async fn extract_path_pattern() {
         let mut srv = init_service(
             App::new().service(
