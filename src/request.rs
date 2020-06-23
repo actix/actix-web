@@ -135,6 +135,7 @@ impl HttpRequest {
     #[inline]
     pub fn match_pattern(&self) -> Option<String> {
         self.0.rmap.match_pattern(self.path())
+    }
 
     /// Checks if a given path matches a route
     #[inline]
@@ -645,14 +646,14 @@ mod tests {
                         move |req: HttpRequest| {
                             assert_eq!(
                                 req.match_name(),
-                                Some("/user/{id}/profile".to_owned())
+                                Some(&ResourceDef::new("/profile"))
                             );
 
                             HttpResponse::Ok().finish()
                         },
                     )))
                     .default_service(web::to(move |req: HttpRequest| {
-                        assert!(req.match_pattern().is_none());
+                        assert!(req.match_name().is_none());
                         HttpResponse::Ok().finish()
                     })),
             ),
