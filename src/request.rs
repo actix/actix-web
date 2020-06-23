@@ -4,7 +4,7 @@ use std::{fmt, net};
 
 use actix_http::http::{HeaderMap, Method, Uri, Version};
 use actix_http::{Error, Extensions, HttpMessage, Message, Payload, RequestHead};
-use actix_router::{Path, Url, ResourceDef};
+use actix_router::{Path, Url};
 use futures_util::future::{ok, Ready};
 use tinyvec::TinyVec;
 
@@ -139,7 +139,7 @@ impl HttpRequest {
 
     /// Checks if a given path matches a route
     #[inline]
-    pub fn match_name(&self) -> Option<&ResourceDef> {
+    pub fn match_name(&self) -> Option<String> {
         self.0.rmap.match_name(&self.path())
     }
 
@@ -482,10 +482,10 @@ mod tests {
             .header(header::HOST, "www.rust-lang.org")
             .rmap(rmap)
             .to_http_request();
-        let route_name = req.resource_map().match_name("index").unwrap().name();
+        let route_name = req.0.rmap.match_name("index");
         assert_eq!(
-            route_name,
-            rdef.name()
+            route_name.unwrap(),
+            rdef.name().to_owned()
         );
     }
 
@@ -645,8 +645,8 @@ mod tests {
                     .service(web::resource("/profile").route(web::get().to(
                         move |req: HttpRequest| {
                             assert_eq!(
-                                req.match_name(),
-                                Some(&ResourceDef::new("/profile"))
+                                req.0.rmap.match_name("/user/22/profile"),
+                                Some(ResourceDef::new("/profile").name().to_owned())
                             );
 
                             HttpResponse::Ok().finish()
