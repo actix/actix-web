@@ -1,8 +1,3 @@
----
-name: Bug / Feature
-about: Submit a bug fix or feature.
----
-
 ## PR Type
 What kind of change does this PR make?
 
