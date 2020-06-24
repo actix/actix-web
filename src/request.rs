@@ -126,6 +126,17 @@ impl HttpRequest {
         &mut Rc::get_mut(&mut self.0).unwrap().path
     }
 
+    /// The resource definition pattern that matched the path. Useful for logging and metrics.
+    ///
+    /// For example, when a resource with pattern `/user/{id}/profile` is defined and a call is made
+    /// to `/user/123/profile` this function would return `Some("/user/{id}/profile")`.
+    ///
+    /// Returns a None when no resource is fully matched, including default services.
+    #[inline]
+    pub fn match_pattern(&self) -> Option<String> {
+        self.0.rmap.match_pattern(self.path())
+    }
+
     /// Request extensions
     #[inline]
     pub fn extensions(&self) -> Ref<'_, Extensions> {
@@ -141,7 +152,6 @@ impl HttpRequest {
     /// Generate url for named resource
     ///
     /// ```rust
-    /// # extern crate actix_web;
     /// # use actix_web::{web, App, HttpRequest, HttpResponse};
     /// #
     /// fn index(req: HttpRequest) -> HttpResponse {
@@ -598,5 +608,37 @@ mod tests {
         }
 
         assert!(tracker.borrow().dropped);
+    }
+
+    #[actix_rt::test]
+    async fn extract_path_pattern() {
+        let mut srv = init_service(
+            App::new().service(
+                web::scope("/user/{id}")
+                    .service(web::resource("/profile").route(web::get().to(
+                        move |req: HttpRequest| {
+                            assert_eq!(
+                                req.match_pattern(),
+                                Some("/user/{id}/profile".to_owned())
+                            );
+
+                            HttpResponse::Ok().finish()
+                        },
+                    )))
+                    .default_service(web::to(move |req: HttpRequest| {
+                        assert!(req.match_pattern().is_none());
+                        HttpResponse::Ok().finish()
+                    })),
+            ),
+        )
+        .await;
+
+        let req = TestRequest::get().uri("/user/22/profile").to_request();
+        let res = call_service(&mut srv, req).await;
+        assert_eq!(res.status(), StatusCode::OK);
+
+        let req = TestRequest::get().uri("/user/22/not-exist").to_request();
+        let res = call_service(&mut srv, req).await;
+        assert_eq!(res.status(), StatusCode::OK);
     }
 }

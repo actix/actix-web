@@ -14,7 +14,6 @@ categories = ["network-programming", "asynchronous",
 license = "MIT/Apache-2.0"
 exclude = [".gitignore", ".cargo/config"]
 edition = "2018"
-workspace = ".."
 
 [package.metadata.docs.rs]
 features = []

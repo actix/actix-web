@@ -252,6 +252,7 @@ pub struct UrlEncoded<U> {
     fut: Option<LocalBoxFuture<'static, Result<U, UrlencodedError>>>,
 }
 
+#[allow(clippy::borrow_interior_mutable_const)]
 impl<U> UrlEncoded<U> {
     /// Create a new future to URL encode a request
     pub fn new(req: &HttpRequest, payload: &mut Payload) -> UrlEncoded<U> {

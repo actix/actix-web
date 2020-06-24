@@ -1,11 +1,12 @@
 #![recursion_limit = "512"]
-//! Actix-web codegen module
+
+//! Helper and convenience macros for Actix-web.
 //!
-//! Generators for routes and scopes
+//! ## Runtime Setup
 //!
-//! ## Route
+//! - [main](attr.main.html)
 //!
-//! Macros:
+//! ## Resource Macros:
 //!
 //! - [get](attr.get.html)
 //! - [post](attr.post.html)
@@ -23,12 +24,12 @@
 //! - `guard="function_name"` - Registers function as guard using `actix_web::guard::fn_guard`
 //! - `wrap="Middleware"` - Registers a resource middleware.
 //!
-//! ## Notes
+//! ### Notes
 //!
 //! Function name can be specified as any expression that is going to be accessible to the generate
 //! code (e.g `my_guard` or `my_module::my_guard`)
 //!
-//! ## Example:
+//! ### Example:
 //!
 //! ```rust
 //! use actix_web::HttpResponse;
@@ -138,4 +139,44 @@ pub fn trace(args: TokenStream, input: TokenStream) -> TokenStream {
 #[proc_macro_attribute]
 pub fn patch(args: TokenStream, input: TokenStream) -> TokenStream {
     route::generate(args, input, route::GuardType::Patch)
+}
+
+/// Marks async main function as the actix system entry-point.
+///
+/// ## Usage
+///
+/// ```rust
+/// #[actix_web::main]
+/// async fn main() {
+///     async { println!("Hello world"); }.await
+/// }
+/// ```
+#[proc_macro_attribute]
+#[cfg(not(test))] // Work around for rust-lang/rust#62127
+pub fn main(_: TokenStream, item: TokenStream) -> TokenStream {
+    use quote::quote;
+
+    let mut input = syn::parse_macro_input!(item as syn::ItemFn);
+    let attrs = &input.attrs;
+    let vis = &input.vis;
+    let sig = &mut input.sig;
+    let body = &input.block;
+    let name = &sig.ident;
+
+    if sig.asyncness.is_none() {
+        return syn::Error::new_spanned(sig.fn_token, "only async fn is supported")
+            .to_compile_error()
+            .into();
+    }
+
+    sig.asyncness = None;
+
+    (quote! {
+        #(#attrs)*
+        #vis #sig {
+            actix_web::rt::System::new(stringify!(#name))
+                .block_on(async move { #body })
+        }
+    })
+    .into()
 }

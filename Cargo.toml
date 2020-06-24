@@ -97,8 +97,8 @@ serde_json = "1.0"
 serde_urlencoded = "0.6.1"
 time = { version = "0.2.7", default-features = false, features = ["std"] }
 url = "2.1"
-open-ssl = { version="0.10", package = "openssl", optional = true }
-rust-tls = { version = "0.17.0", package = "rustls", optional = true }
+open-ssl = { package = "openssl", version = "0.10", optional = true }
+rust-tls = { package = "rustls", version = "0.17.0", optional = true }
 tinyvec = { version = "0.3", features = ["alloc"] }
 
 [dev-dependencies]
