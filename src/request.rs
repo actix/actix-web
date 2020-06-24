@@ -140,7 +140,7 @@ impl HttpRequest {
     /// Checks if a given path matches a route
     #[inline]
     pub fn match_name(&self) -> Option<String> {
-        self.0.rmap.match_name(&self.path())
+        self.0.rmap.match_name(self.path())
     }
 
     /// Request extensions
@@ -478,14 +478,11 @@ mod tests {
 
         assert!(rmap.has_resource("/index.html"));
 
-        let req = TestRequest::with_uri("/test")
-            .header(header::HOST, "www.rust-lang.org")
-            .rmap(rmap)
-            .to_http_request();
-        let route_name = req.0.rmap.match_name("index");
+        let req = TestRequest::default().rmap(rmap).to_http_request();
+        let route_name = req.0.rmap.match_name("/index.html");
         assert_eq!(
             route_name.unwrap(),
-            rdef.name().to_owned()
+            "index".to_owned()
         );
     }
 
@@ -635,38 +632,6 @@ mod tests {
         }
 
         assert!(tracker.borrow().dropped);
-    }
-
-    #[actix_rt::test]
-    async fn test_path_routes() {
-        let mut srv = init_service(
-            App::new().service(
-                web::scope("/user/{id}")
-                    .service(web::resource("/profile").route(web::get().to(
-                        move |req: HttpRequest| {
-                            assert_eq!(
-                                req.0.rmap.match_name("/user/22/profile"),
-                                Some(ResourceDef::new("/profile").name().to_owned())
-                            );
-
-                            HttpResponse::Ok().finish()
-                        },
-                    )))
-                    .default_service(web::to(move |req: HttpRequest| {
-                        assert!(req.match_name().is_none());
-                        HttpResponse::Ok().finish()
-                    })),
-            ),
-        )
-        .await;
-
-        let req = TestRequest::get().uri("/user/22/profile").to_request();
-        let res = call_service(&mut srv, req).await;
-        assert_eq!(res.status(), StatusCode::OK);
-
-        let req = TestRequest::get().uri("/user/22/not-exist").to_request();
-        let res = call_service(&mut srv, req).await;
-        assert_eq!(res.status(), StatusCode::OK);
     }
 
     #[actix_rt::test]
