@@ -480,9 +480,12 @@ mod tests {
 
         assert!(rmap.has_resource("/index.html"));
 
-        let req = TestRequest::default().rmap(rmap).to_http_request();
-        let route_name = req.0.rmap.match_name("/index.html");
-        assert_eq!(route_name.unwrap(), "index".to_owned());
+        let req = TestRequest::default()
+            .uri("/index.html")
+            .rmap(rmap)
+            .to_http_request();
+
+        assert_eq!(req.match_name(), Some("index"));
     }
 
     #[test]
