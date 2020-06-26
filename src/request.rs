@@ -482,10 +482,7 @@ mod tests {
 
         let req = TestRequest::default().rmap(rmap).to_http_request();
         let route_name = req.0.rmap.match_name("/index.html");
-        assert_eq!(
-            route_name.unwrap(),
-            "index".to_owned()
-        );
+        assert_eq!(route_name.unwrap(), "index".to_owned());
     }
 
     #[test]
