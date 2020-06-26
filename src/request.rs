@@ -137,9 +137,11 @@ impl HttpRequest {
         self.0.rmap.match_pattern(self.path())
     }
 
-    /// Checks if a given path matches a route
+    /// The resource name that matched the path. Useful for logging and metrics.
+    ///
+    /// Returns a None when no resource is fully matched, including default services.
     #[inline]
-    pub fn match_name(&self) -> Option<String> {
+    pub fn match_name(&self) -> Option<&str> {
         self.0.rmap.match_name(self.path())
     }
 

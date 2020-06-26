@@ -198,7 +198,7 @@ impl ServiceRequest {
 
     /// Counterpart to [`HttpRequest::match_name`](../struct.HttpRequest.html#method.match_name).
     #[inline]
-    pub fn match_name(&self) -> Option<String> {
+    pub fn match_name(&self) -> Option<&str> {
         self.0.match_name()
     }
 
