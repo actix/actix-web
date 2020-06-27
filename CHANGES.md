@@ -7,6 +7,7 @@
 * Re-export `actix_rt::main` as `actix_web::main`.
 * `HttpRequest::match_pattern` and `ServiceRequest::match_pattern` for extracting the matched
   resource pattern.
+* `HttpRequest::match_name` and `ServiceRequest::match_name` for extracting matched resource name.
 
 ### Changed
 

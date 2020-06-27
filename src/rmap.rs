@@ -93,6 +93,27 @@ impl ResourceMap {
         false
     }
 
+    /// Returns the name of the route that matches the given path or None if no full match
+    /// is possible.
+    pub fn match_name(&self, path: &str) -> Option<&str> {
+        let path = if path.is_empty() { "/" } else { path };
+
+        for (pattern, rmap) in &self.patterns {
+            if let Some(ref rmap) = rmap {
+                if let Some(plen) = pattern.is_prefix_match(path) {
+                    return rmap.match_name(&path[plen..]);
+                }
+            } else if pattern.is_match(path) {
+                return match pattern.name() {
+                    "" => None,
+                    s => Some(s),
+                };
+            }
+        }
+
+        None
+    }
+
     /// Returns the full resource pattern matched against a path or None if no full match
     /// is possible.
     pub fn match_pattern(&self, path: &str) -> Option<String> {
@@ -301,5 +322,49 @@ mod tests {
             root.match_pattern("/user/22/post/other-post/comment/42"),
             Some("/user/{id}/post/{post_id}/comment/{comment_id}".to_owned())
         );
+    }
+
+    #[test]
+    fn extract_matched_name() {
+        let mut root = ResourceMap::new(ResourceDef::root_prefix(""));
+
+        let mut rdef = ResourceDef::new("/info");
+        *rdef.name_mut() = "root_info".to_owned();
+        root.add(&mut rdef, None);
+
+        let mut user_map = ResourceMap::new(ResourceDef::root_prefix(""));
+        let mut rdef = ResourceDef::new("/");
+        user_map.add(&mut rdef, None);
+
+        let mut rdef = ResourceDef::new("/post/{post_id}");
+        *rdef.name_mut() = "user_post".to_owned();
+        user_map.add(&mut rdef, None);
+
+        root.add(
+            &mut ResourceDef::root_prefix("/user/{id}"),
+            Some(Rc::new(user_map)),
+        );
+
+        let root = Rc::new(root);
+        root.finish(Rc::clone(&root));
+
+        // sanity check resource map setup
+
+        assert!(root.has_resource("/info"));
+        assert!(!root.has_resource("/bar"));
+
+        assert!(root.has_resource("/user/22"));
+        assert!(root.has_resource("/user/22/"));
+        assert!(root.has_resource("/user/22/post/55"));
+
+        // extract patterns from paths
+
+        assert!(root.match_name("/bar").is_none());
+        assert!(root.match_name("/v44").is_none());
+
+        assert_eq!(root.match_name("/info"), Some("root_info"));
+        assert_eq!(root.match_name("/user/22"), None);
+        assert_eq!(root.match_name("/user/22/"), None);
+        assert_eq!(root.match_name("/user/22/post/55"), Some("user_post"));
     }
 }
