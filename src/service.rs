@@ -195,7 +195,13 @@ impl ServiceRequest {
     pub fn match_info(&self) -> &Path<Url> {
         self.0.match_info()
     }
-    
+
+    /// Counterpart to [`HttpRequest::match_name`](../struct.HttpRequest.html#method.match_name).
+    #[inline]
+    pub fn match_name(&self) -> Option<&str> {
+        self.0.match_name()
+    }
+
     /// Counterpart to [`HttpRequest::match_pattern`](../struct.HttpRequest.html#method.match_pattern).
     #[inline]
     pub fn match_pattern(&self) -> Option<String> {

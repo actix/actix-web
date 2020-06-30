@@ -137,6 +137,14 @@ impl HttpRequest {
         self.0.rmap.match_pattern(self.path())
     }
 
+    /// The resource name that matched the path. Useful for logging and metrics.
+    ///
+    /// Returns a None when no resource is fully matched, including default services.
+    #[inline]
+    pub fn match_name(&self) -> Option<&str> {
+        self.0.rmap.match_name(self.path())
+    }
+
     /// Request extensions
     #[inline]
     pub fn extensions(&self) -> Ref<'_, Extensions> {
@@ -460,6 +468,24 @@ mod tests {
             url.ok().unwrap().as_str(),
             "http://www.rust-lang.org/index.html"
         );
+    }
+
+    #[test]
+    fn test_match_name() {
+        let mut rdef = ResourceDef::new("/index.html");
+        *rdef.name_mut() = "index".to_string();
+
+        let mut rmap = ResourceMap::new(ResourceDef::new(""));
+        rmap.add(&mut rdef, None);
+
+        assert!(rmap.has_resource("/index.html"));
+
+        let req = TestRequest::default()
+            .uri("/index.html")
+            .rmap(rmap)
+            .to_http_request();
+
+        assert_eq!(req.match_name(), Some("index"));
     }
 
     #[test]
