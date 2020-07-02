@@ -13,6 +13,7 @@
 
 * Fix actix_http::h1::dispatcher so it returns when HW_BUFFER_SIZE is reached. Should reduce peak memory consumption during large uploads. [#1550]
 * Migrate cookie handling to `cookie` crate. Actix-web no longer requires `ring` dependency.
+* MSRV is now 1.41.1
 
 ### Fixed
 
