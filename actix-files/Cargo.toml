@@ -29,7 +29,7 @@ log = "0.4"
 mime = "0.3"
 mime_guess = "2.0.1"
 percent-encoding = "2.1"
-v_htmlescape = "0.4"
+v_htmlescape = "0.10"
 
 [dev-dependencies]
 actix-rt = "1.0.0"
