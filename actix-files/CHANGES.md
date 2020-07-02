@@ -1,5 +1,9 @@
 # Changes
 
+## [unreleased] - xxx
+
+* Update `v_htmlescape` to 0.10
+
 ## [0.3.0-alpha.1] - 2020-05-23
 
 * Update `actix-web` and `actix-http` dependencies to alpha
