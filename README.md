@@ -42,9 +42,8 @@ Actix web is a simple, pragmatic and extremely fast web framework for Rust.
 
 ## Docs
 
-* [API documentation (master)](https://actix.rs/actix-web/actix_web)
-* [API documentation (docs.rs)](https://docs.rs/actix-web)
-* [User guide](https://actix.rs)
+* [Website](https://actix.rs)
+* [API documentation](https://docs.rs/actix-web)
 
 ## Example
 
@@ -52,7 +51,8 @@ Dependencies:
 
 ```toml
 [dependencies]
-actix-web = "2"
+actix-web = "3.0.0-alpha.3"
+actix-rt = "1.1.1"
 ```
 
 Code:
