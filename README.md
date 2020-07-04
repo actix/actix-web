@@ -9,7 +9,7 @@
 [![Join the chat at https://gitter.im/actix/actix](https://badges.gitter.im/actix/actix.svg)](https://gitter.im/actix/actix?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 [![Documentation](https://docs.rs/actix-web/badge.svg)](https://docs.rs/actix-web)
 [![Download](https://img.shields.io/crates/d/actix-web.svg)](https://crates.io/crates/actix-web)
-[![Version](https://img.shields.io/badge/rustc-1.40+-lightgray.svg)](https://blog.rust-lang.org/2019/12/19/Rust-1.40.0.html)
+[![Version](https://img.shields.io/badge/rustc-1.41+-lightgray.svg)](https://blog.rust-lang.org/2020/02/27/Rust-1.41.1.html)
 ![License](https://img.shields.io/crates/l/actix-web.svg)
 
   </p>
