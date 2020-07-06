@@ -55,7 +55,7 @@ jobs:
       - name: Generate coverage file
         if: matrix.version == 'stable' && (github.ref == 'refs/heads/master' || github.event_name == 'pull_request')
         run: |
-          cargo install cargo-tarpaulin
+          cargo install cargo-tarpaulin --vers "^0.13"
           cargo tarpaulin --out Xml
       - name: Upload to Codecov
         if: matrix.version == 'stable' && (github.ref == 'refs/heads/master' || github.event_name == 'pull_request')
