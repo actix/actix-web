@@ -1,12 +1,8 @@
 ## PR Type
 What kind of change does this PR make?
 
-<!-- Check the one that applies to this PR using "[x]". -->
-
-- [ ] Bug fix
-- [ ] Feature
-- [ ] Refactor / code style change (no functional or public API changes)
-- [ ] Other
+<!-- Bug Fix / Feature / Refactor / Code Style / Other -->
+INSERT_PR_TYPE
 
 
 ## PR Checklist
