@@ -7,6 +7,7 @@
 * Migrate cookie handling to `cookie` crate.
 * Update `sha-1` to 0.9
 * MSRV is now 1.41.1
+* Fix client leak [#1580]
 
 ## [2.0.0-alpha.4] - 2020-05-21
 

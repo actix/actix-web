@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::future::Future;
 use std::pin::Pin;
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
 
@@ -53,16 +53,25 @@ where
         + 'static,
 {
     pub(crate) fn new(connector: T, config: ConnectorConfig) -> Self {
+        let connector_rc = Rc::new(RefCell::new(connector));
+        let inner_rc = Rc::new(RefCell::new(Inner {
+            config,
+            acquired: 0,
+            waiters: Slab::new(),
+            waiters_queue: IndexSet::new(),
+            available: FxHashMap::default(),
+            waker: LocalWaker::new(),
+        }));
+
+        // start support future
+        actix_rt::spawn(ConnectorPoolSupport {
+            connector: connector_rc.clone(),
+            inner: Rc::downgrade(&inner_rc),
+        });
+
         ConnectionPool(
-            Rc::new(RefCell::new(connector)),
-            Rc::new(RefCell::new(Inner {
-                config,
-                acquired: 0,
-                waiters: Slab::new(),
-                waiters_queue: IndexSet::new(),
-                available: FxHashMap::default(),
-                waker: LocalWaker::new(),
-            })),
+            connector_rc,
+            inner_rc,
         )
     }
 }
@@ -92,12 +101,6 @@ where
     }
 
     fn call(&mut self, req: Connect) -> Self::Future {
-        // start support future
-        actix_rt::spawn(ConnectorPoolSupport {
-            connector: self.0.clone(),
-            inner: self.1.clone(),
-        });
-
         let mut connector = self.0.clone();
         let inner = self.1.clone();
 
@@ -421,7 +424,7 @@ where
     Io: AsyncRead + AsyncWrite + Unpin + 'static,
 {
     connector: T,
-    inner: Rc<RefCell<Inner<Io>>>,
+    inner: Weak<RefCell<Inner<Io>>>,
 }
 
 impl<T, Io> Future for ConnectorPoolSupport<T, Io>
@@ -435,51 +438,55 @@ where
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.project();
 
-        let mut inner = this.inner.as_ref().borrow_mut();
-        inner.waker.register(cx.waker());
+        if let Some(this_inner) = this.inner.upgrade() {
+            let mut inner = this_inner.as_ref().borrow_mut();
+            inner.waker.register(cx.waker());
 
-        // check waiters
-        loop {
-            let (key, token) = {
-                if let Some((key, token)) = inner.waiters_queue.get_index(0) {
-                    (key.clone(), *token)
-                } else {
-                    break;
+            // check waiters
+            loop {
+                let (key, token) = {
+                    if let Some((key, token)) = inner.waiters_queue.get_index(0) {
+                        (key.clone(), *token)
+                    } else {
+                        break;
+                    }
+                };
+                if inner.waiters.get(token).unwrap().is_none() {
+                    continue;
                 }
-            };
-            if inner.waiters.get(token).unwrap().is_none() {
-                continue;
-            }
 
-            match inner.acquire(&key, cx) {
-                Acquire::NotAvailable => break,
-                Acquire::Acquired(io, created) => {
-                    let tx = inner.waiters.get_mut(token).unwrap().take().unwrap().1;
-                    if let Err(conn) = tx.send(Ok(IoConnection::new(
-                        io,
-                        created,
-                        Some(Acquired(key.clone(), Some(this.inner.clone()))),
-                    ))) {
-                        let (io, created) = conn.unwrap().into_inner();
-                        inner.release_conn(&key, io, created);
+                match inner.acquire(&key, cx) {
+                    Acquire::NotAvailable => break,
+                    Acquire::Acquired(io, created) => {
+                        let tx = inner.waiters.get_mut(token).unwrap().take().unwrap().1;
+                        if let Err(conn) = tx.send(Ok(IoConnection::new(
+                            io,
+                            created,
+                            Some(Acquired(key.clone(), Some(this_inner.clone()))),
+                        ))) {
+                            let (io, created) = conn.unwrap().into_inner();
+                            inner.release_conn(&key, io, created);
+                        }
+                    }
+                    Acquire::Available => {
+                        let (connect, tx) =
+                            inner.waiters.get_mut(token).unwrap().take().unwrap();
+                        OpenWaitingConnection::spawn(
+                            key.clone(),
+                            tx,
+                            this_inner.clone(),
+                            this.connector.call(connect),
+                            inner.config.clone(),
+                        );
                     }
                 }
-                Acquire::Available => {
-                    let (connect, tx) =
-                        inner.waiters.get_mut(token).unwrap().take().unwrap();
-                    OpenWaitingConnection::spawn(
-                        key.clone(),
-                        tx,
-                        this.inner.clone(),
-                        this.connector.call(connect),
-                        inner.config.clone(),
-                    );
-                }
+                let _ = inner.waiters_queue.swap_remove_index(0);
             }
-            let _ = inner.waiters_queue.swap_remove_index(0);
-        }
 
-        Poll::Pending
+            Poll::Pending
+        } else {
+            Poll::Ready(())
+        }
     }
 }
 
