@@ -12,6 +12,26 @@
 * `BodySize::Sized64` variant has been removed. `BodySize::Sized` now receives a
   `u64` instead of a `usize`.
 
+* Code that was using `path.<index>` to access a `web::Path<(A, B, C)>`s elements now needs to use
+  destructuring or `.into_inner()`. For example:
+
+  ```rust
+  // Previously:
+  async fn some_route(path: web::Path<(String, String)>) -> String {
+    format!("Hello, {} {}", path.0, path.1)
+  }
+
+  // Now (this also worked before):
+  async fn some_route(path: web::Path<(String, String)>) -> String {
+    let (first_name, last_name) = path.into_inner();
+    format!("Hello, {} {}", first_name, last_name)
+  }
+  // Or (this wasn't previously supported):
+  async fn some_route(web::Path((first_name, last_name)): web::Path<(String, String)>) -> String {
+    format!("Hello, {} {}", first_name, last_name)
+  }
+  ```
+
 ## 2.0.0
 
 * `HttpServer::start()` renamed to `HttpServer::run()`. It also possible to
