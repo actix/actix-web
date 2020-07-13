@@ -1,13 +1,19 @@
 # Changes
 
-## [Unreleased]
+## [Unreleased] - xxx
+
+## [2.0.0-beta.1] - 2020-07-11
 
 ### Changed
 
-* Migrate cookie handling to `cookie` crate.
-* Update `sha-1` to 0.9
-* MSRV is now 1.41.1
-* Fix client leak [#1580]
+* Migrate cookie handling to `cookie` crate. [#1558]
+* Update `sha-1` to 0.9. [#1586]
+* Fix leak in client pool. [#1580]
+* MSRV is now 1.41.1.
+
+[#1558]: https://github.com/actix/actix-web/pull/1558
+[#1586]: https://github.com/actix/actix-web/pull/1586
+[#1580]: https://github.com/actix/actix-web/pull/1580
 
 ## [2.0.0-alpha.4] - 2020-05-21
 
