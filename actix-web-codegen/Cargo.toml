@@ -7,7 +7,7 @@ homepage = "https://actix.rs"
 repository = "https://github.com/actix/actix-web"
 documentation = "https://docs.rs/actix-web-codegen"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
-license = "MIT/Apache-2.0"
+license = "MIT OR Apache-2.0"
 edition = "2018"
 
 [lib]

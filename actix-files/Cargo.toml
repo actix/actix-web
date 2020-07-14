@@ -9,7 +9,7 @@ homepage = "https://actix.rs"
 repository = "https://github.com/actix/actix-web.git"
 documentation = "https://docs.rs/actix-files/"
 categories = ["asynchronous", "web-programming::http-server"]
-license = "MIT/Apache-2.0"
+license = "MIT OR Apache-2.0"
 edition = "2018"
 
 [lib]
