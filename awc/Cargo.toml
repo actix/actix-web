@@ -11,7 +11,7 @@ documentation = "https://docs.rs/awc/"
 categories = ["network-programming", "asynchronous",
               "web-programming::http-client",
               "web-programming::websocket"]
-license = "MIT/Apache-2.0"
+license = "MIT OR Apache-2.0"
 edition = "2018"
 
 [lib]
