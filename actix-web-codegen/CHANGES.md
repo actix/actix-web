@@ -1,18 +1,20 @@
 # Changes
 
-## [Unreleased] - XXXX-XX-XX
+## Unreleased - 2020-xx-xx
 
-* Add main entry-point macro that uses re-exported runtime.
+
+## 0.3.0-beta.1 - 2020-07-14
+* Add main entry-point macro that uses re-exported runtime. [#1559]
+
+[#1559]: https://github.com/actix/actix-web/pull/1559
 
 
 ## [0.2.2] - 2020-05-23
-
 * Add resource middleware on actix-web-codegen [#1467]
 
 [#1467]: https://github.com/actix/actix-web/pull/1467
 
 ## [0.2.1] - 2020-02-25
-
 * Add `#[allow(missing_docs)]` attribute to generated structs [#1368]
 * Allow the handler function to be named as `config` [#1290]
 
@@ -26,7 +28,6 @@
 ## [0.1.3] - 2019-10-14
 
 * Bump up `syn` & `quote` to 1.0
-
 * Provide better error message
 
 ## [0.1.2] - 2019-06-04

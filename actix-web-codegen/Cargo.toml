@@ -1,6 +1,6 @@
 [package]
 name = "actix-web-codegen"
-version = "0.2.2"
+version = "0.3.0-beta.1"
 description = "Actix web proc macros"
 readme = "README.md"
 homepage = "https://actix.rs"
@@ -20,5 +20,5 @@ proc-macro2 = "1"
 
 [dev-dependencies]
 actix-rt = "1.0.0"
-actix-web = "3.0.0-alpha.3"
+actix-web = "3.0.0-beta.1"
 futures-util = { version = "0.3.5", default-features = false }
