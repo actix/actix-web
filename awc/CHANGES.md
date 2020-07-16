@@ -1,5 +1,9 @@
 # Changes
 
+## [2.0.0-beta.1] - 2020-07-14
+### Changed
+* Update `actix-http` dependency to 2.0.0-beta.1
+
 ## [2.0.0-alpha.2] - 2020-05-21
 
 ### Changed

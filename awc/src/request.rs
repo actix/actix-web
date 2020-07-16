@@ -586,16 +586,16 @@ mod tests {
     use super::*;
     use crate::Client;
 
-    #[test]
-    fn test_debug() {
+    #[actix_rt::test]
+    async fn test_debug() {
         let request = Client::new().get("/").header("x-test", "111");
         let repr = format!("{:?}", request);
         assert!(repr.contains("ClientRequest"));
         assert!(repr.contains("x-test"));
     }
 
-    #[test]
-    fn test_basics() {
+    #[actix_rt::test]
+    async fn test_basics() {
         let mut req = Client::new()
             .put("/")
             .version(Version::HTTP_2)
@@ -621,8 +621,8 @@ mod tests {
         let _ = req.send_body("");
     }
 
-    #[test]
-    fn test_client_header() {
+    #[actix_rt::test]
+    async fn test_client_header() {
         let req = Client::build()
             .header(header::CONTENT_TYPE, "111")
             .finish()
@@ -639,8 +639,8 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_client_header_override() {
+    #[actix_rt::test]
+    async fn test_client_header_override() {
         let req = Client::build()
             .header(header::CONTENT_TYPE, "111")
             .finish()
@@ -658,8 +658,8 @@ mod tests {
         );
     }
 
-    #[test]
-    fn client_basic_auth() {
+    #[actix_rt::test]
+    async fn client_basic_auth() {
         let req = Client::new()
             .get("/")
             .basic_auth("username", Some("password"));
@@ -685,8 +685,8 @@ mod tests {
         );
     }
 
-    #[test]
-    fn client_bearer_auth() {
+    #[actix_rt::test]
+    async fn client_bearer_auth() {
         let req = Client::new().get("/").bearer_auth("someS3cr3tAutht0k3n");
         assert_eq!(
             req.head
@@ -699,8 +699,8 @@ mod tests {
         );
     }
 
-    #[test]
-    fn client_query() {
+    #[actix_rt::test]
+    async fn client_query() {
         let req = Client::new()
             .get("/")
             .query(&[("key1", "val1"), ("key2", "val2")])
