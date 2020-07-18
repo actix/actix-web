@@ -1,6 +1,10 @@
 # Changes
 
 ## Unreleased - 2020-xx-xx
+### Fixed
+* Memory leak of app data in pooled requests. [#1609]
+
+[#1609]: https://github.com/actix/actix-web/pull/1609
 
 
 ## 3.0.0-beta.1 - 2020-07-13

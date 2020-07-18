@@ -276,6 +276,7 @@ impl HttpMessage for HttpRequest {
 
 impl Drop for HttpRequest {
     fn drop(&mut self) {
+        // if possible, contribute to current worker's HttpRequest allocation pool
         if Rc::strong_count(&self.0) == 1 {
             let v = &mut self.0.pool.0.borrow_mut();
             if v.len() < 128 {
@@ -340,25 +341,32 @@ impl fmt::Debug for HttpRequest {
     }
 }
 
-/// Request's objects pool
+/// Slab-allocated `HttpRequest` Pool
+///
+/// Since request processing may yield for asynchronous events to complete, a worker may have many
+/// requests in-flight at any time. Pooling requests like this amortizes the performance and memory
+/// costs of allocating and de-allocating HttpRequest objects as frequently as they otherwise would.
+///
+/// Request objects are added when they are dropped (see `<HttpRequest as Drop>::drop`) and re-used
+/// in `<AppInitService as Service>::call` when there are available objects in the list.
+///
+/// The pool's initial capacity is 128 items.
 pub(crate) struct HttpRequestPool(RefCell<Vec<Rc<HttpRequestInner>>>);
 
 impl HttpRequestPool {
+    /// Allocates a slab of memory for pool use.
     pub(crate) fn create() -> &'static HttpRequestPool {
         let pool = HttpRequestPool(RefCell::new(Vec::with_capacity(128)));
         Box::leak(Box::new(pool))
     }
 
-    /// Get message from the pool
+    /// Re-use a previously allocated (but now completed/discarded) HttpRequest object.
     #[inline]
     pub(crate) fn get_request(&self) -> Option<HttpRequest> {
-        if let Some(inner) = self.0.borrow_mut().pop() {
-            Some(HttpRequest(inner))
-        } else {
-            None
-        }
+        self.0.borrow_mut().pop().map(HttpRequest)
     }
 
+    /// Clears all allocated HttpRequest objects.
     pub(crate) fn clear(&self) {
         self.0.borrow_mut().clear()
     }
