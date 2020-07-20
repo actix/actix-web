@@ -4,10 +4,13 @@
 ### Changed
 * `PayloadConfig` is now also considered in `Bytes` and `String` extractors when set
   using `App::data`. [#1610]
+* `web::Path` now has a public representation: `web::Path(pub T)` that enables
+  destructuring. [#1594]
 
 ### Fixed
 * Memory leak of app data in pooled requests. [#1609]
 
+[#1594]: https://github.com/actix/actix-web/pull/1594
 [#1609]: https://github.com/actix/actix-web/pull/1609
 [#1610]: https://github.com/actix/actix-web/pull/1610
 
@@ -23,8 +26,6 @@
 * Fix actix_http::h1::dispatcher so it returns when HW_BUFFER_SIZE is reached. Should reduce peak memory consumption during large uploads. [#1550]
 * Migrate cookie handling to `cookie` crate. Actix-web no longer requires `ring` dependency.
 * MSRV is now 1.41.1
-* `web::Path` now has a public representation: `web::Path(pub T)`
-  * This means it can now be destructured the same way as `web::Json`: `async fn some_route(web::Path(s): web::Path<String>)`
 
 ### Fixed
 * `NormalizePath` improved consistency when path needs slashes added _and_ removed.
