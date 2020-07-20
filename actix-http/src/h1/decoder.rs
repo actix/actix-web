@@ -1037,7 +1037,7 @@ mod tests {
     }
 
     #[test]
-    fn test_http_request_upgrade() {
+    fn test_http_request_upgrade_websocket() {
         let mut buf = BytesMut::from(
             "GET /test HTTP/1.1\r\n\
              connection: upgrade\r\n\
@@ -1049,6 +1049,26 @@ mod tests {
         assert_eq!(req.head().connection_type(), ConnectionType::Upgrade);
         assert!(req.upgrade());
         assert!(pl.is_unhandled());
+    }
+
+    #[test]
+    fn test_http_request_upgrade_h2c() {
+        let mut buf = BytesMut::from(
+            "GET /test HTTP/1.1\r\n\
+             connection: upgrade, http2-settings\r\n\
+             upgrade: h2c\r\n\
+             http2-settings: dummy\r\n\r\n",
+        );
+        let mut reader = MessageDecoder::<Request>::default();
+        let (req, pl) = reader.decode(&mut buf).unwrap().unwrap();
+        // `connection: upgrade, http2-settings` doesn't work properly..
+        // see MessageType::set_headers().
+        //
+        // The line below should be:
+        // assert_eq!(req.head().connection_type(), ConnectionType::Upgrade);
+        assert_eq!(req.head().connection_type(), ConnectionType::KeepAlive);
+        assert!(req.upgrade());
+        assert!(!pl.is_unhandled());
     }
 
     #[test]
