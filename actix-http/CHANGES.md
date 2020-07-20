@@ -2,6 +2,12 @@
 
 ## [Unreleased] - xxx
 
+### Changed
+
+* Fix illegal chunked encoding. [#1611]
+
+[#1611]: https://github.com/actix/actix-web/issues/1611
+
 ## [2.0.0-beta.1] - 2020-07-11
 
 ### Changed
