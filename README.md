@@ -7,7 +7,7 @@
 
 [![crates.io](https://meritbadge.herokuapp.com/actix-web)](https://crates.io/crates/actix-web)
 [![Documentation](https://docs.rs/actix-web/badge.svg)](https://docs.rs/actix-web)
-[![Version](https://img.shields.io/badge/rustc-1.41+-lightgray.svg)](https://blog.rust-lang.org/2020/02/27/Rust-1.41.1.html)
+[![Version](https://img.shields.io/badge/rustc-1.42+-ab6000.svg)](https://blog.rust-lang.org/2020/03/12/Rust-1.42.html)
 ![License](https://img.shields.io/crates/l/actix-web.svg)
 <br />
 [![Build Status](https://travis-ci.org/actix/actix-web.svg?branch=master)](https://travis-ci.org/actix/actix-web) 
@@ -32,7 +32,7 @@
 * Middlewares ([Logger, Session, CORS, etc](https://actix.rs/docs/middleware/))
 * Includes an async [HTTP client](https://actix.rs/actix-web/actix_web/client/index.html)
 * Supports [Actix actor framework](https://github.com/actix/actix)
-* Runs on stable Rust 1.41+
+* Runs on stable Rust 1.42+
 
 ## Documentation
 
