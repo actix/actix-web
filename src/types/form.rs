@@ -407,18 +407,9 @@ mod tests {
 
     fn eq(err: UrlencodedError, other: UrlencodedError) -> bool {
         match err {
-            UrlencodedError::Overflow { .. } => match other {
-                UrlencodedError::Overflow { .. } => true,
-                _ => false,
-            },
-            UrlencodedError::UnknownLength => match other {
-                UrlencodedError::UnknownLength => true,
-                _ => false,
-            },
-            UrlencodedError::ContentType => match other {
-                UrlencodedError::ContentType => true,
-                _ => false,
-            },
+            UrlencodedError::Overflow { .. } => matches!(other, UrlencodedError::Overflow { .. }),
+            UrlencodedError::UnknownLength => matches!(other, UrlencodedError::UnknownLength),
+            UrlencodedError::ContentType => matches!(other, UrlencodedError::ContentType),
             _ => false,
         }
     }

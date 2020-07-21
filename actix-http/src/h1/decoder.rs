@@ -652,10 +652,7 @@ mod tests {
         }
 
         fn is_unhandled(&self) -> bool {
-            match self {
-                PayloadType::Stream(_) => true,
-                _ => false,
-            }
+            matches!(self, PayloadType::Stream(_))
         }
     }
 
@@ -667,10 +664,7 @@ mod tests {
             }
         }
         fn eof(&self) -> bool {
-            match *self {
-                PayloadItem::Eof => true,
-                _ => false,
-            }
+            matches!(*self, PayloadItem::Eof)
         }
     }
 

@@ -1,10 +1,19 @@
 # Changes
 
 ## Unreleased - 2020-xx-xx
+### Changed
+* `PayloadConfig` is now also considered in `Bytes` and `String` extractors when set
+  using `App::data`. [#1610]
+* `web::Path` now has a public representation: `web::Path(pub T)` that enables
+  destructuring. [#1594]
+* MSRV is now 1.42.0.
+
 ### Fixed
 * Memory leak of app data in pooled requests. [#1609]
 
+[#1594]: https://github.com/actix/actix-web/pull/1594
 [#1609]: https://github.com/actix/actix-web/pull/1609
+[#1610]: https://github.com/actix/actix-web/pull/1610
 
 
 ## 3.0.0-beta.1 - 2020-07-13
