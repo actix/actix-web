@@ -45,7 +45,7 @@ impl<T: MessageType> Decoder for MessageDecoder<T> {
 
 pub(crate) enum PayloadLength {
     Payload(PayloadType),
-    Upgrade,
+    UpgradeWebSocket,
     None,
 }
 
@@ -64,7 +64,7 @@ pub(crate) trait MessageType: Sized {
         raw_headers: &[HeaderIndex],
     ) -> Result<PayloadLength, ParseError> {
         let mut ka = None;
-        let mut has_upgrade = false;
+        let mut has_upgrade_websocket = false;
         let mut expect = false;
         let mut chunked = false;
         let mut content_length = None;
@@ -123,12 +123,9 @@ pub(crate) trait MessageType: Sized {
                         };
                     }
                     header::UPGRADE => {
-                        has_upgrade = true;
-                        // check content-length, some clients (dart)
-                        // sends "content-length: 0" with websocket upgrade
                         if let Ok(val) = value.to_str().map(|val| val.trim()) {
                             if val.eq_ignore_ascii_case("websocket") {
-                                content_length = None;
+                                has_upgrade_websocket = true;
                             }
                         }
                     }
@@ -155,13 +152,13 @@ pub(crate) trait MessageType: Sized {
             Ok(PayloadLength::Payload(PayloadType::Payload(
                 PayloadDecoder::chunked(),
             )))
+        } else if has_upgrade_websocket {
+            Ok(PayloadLength::UpgradeWebSocket)
         } else if let Some(len) = content_length {
             // Content-Length
             Ok(PayloadLength::Payload(PayloadType::Payload(
                 PayloadDecoder::length(len),
             )))
-        } else if has_upgrade {
-            Ok(PayloadLength::Upgrade)
         } else {
             Ok(PayloadLength::None)
         }
@@ -216,7 +213,7 @@ impl MessageType for Request {
         // payload decoder
         let decoder = match length {
             PayloadLength::Payload(pl) => pl,
-            PayloadLength::Upgrade => {
+            PayloadLength::UpgradeWebSocket => {
                 // upgrade(websocket)
                 PayloadType::Stream(PayloadDecoder::eof())
             }
@@ -1034,7 +1031,7 @@ mod tests {
     }
 
     #[test]
-    fn test_http_request_upgrade() {
+    fn test_http_request_upgrade_websocket() {
         let mut buf = BytesMut::from(
             "GET /test HTTP/1.1\r\n\
              connection: upgrade\r\n\
@@ -1046,6 +1043,26 @@ mod tests {
         assert_eq!(req.head().connection_type(), ConnectionType::Upgrade);
         assert!(req.upgrade());
         assert!(pl.is_unhandled());
+    }
+
+    #[test]
+    fn test_http_request_upgrade_h2c() {
+        let mut buf = BytesMut::from(
+            "GET /test HTTP/1.1\r\n\
+             connection: upgrade, http2-settings\r\n\
+             upgrade: h2c\r\n\
+             http2-settings: dummy\r\n\r\n",
+        );
+        let mut reader = MessageDecoder::<Request>::default();
+        let (req, pl) = reader.decode(&mut buf).unwrap().unwrap();
+        // `connection: upgrade, http2-settings` doesn't work properly..
+        // see MessageType::set_headers().
+        //
+        // The line below should be:
+        // assert_eq!(req.head().connection_type(), ConnectionType::Upgrade);
+        assert_eq!(req.head().connection_type(), ConnectionType::KeepAlive);
+        assert!(req.upgrade());
+        assert!(!pl.is_unhandled());
     }
 
     #[test]

@@ -7,6 +7,12 @@
 [#1614]: https://github.com/actix/actix-web/pull/1614
 
 
+### Changed
+
+* Fix illegal chunked encoding. [#1615]
+
+[#1615]: https://github.com/actix/actix-web/pull/1615
+
 ## [2.0.0-beta.1] - 2020-07-11
 
 ### Changed
