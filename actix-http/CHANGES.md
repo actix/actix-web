@@ -1,6 +1,11 @@
 # Changes
 
 ## [Unreleased] - xxx
+### Fixed
+* Potential UB in h1 decoder using uninitialized memory. [#1614]
+
+[#1614]: https://github.com/actix/actix-web/pull/1614
+
 
 ## [2.0.0-beta.1] - 2020-07-11
 

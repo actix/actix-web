@@ -103,3 +103,7 @@ harness = false
 [[bench]]
 name = "status-line"
 harness = false
+
+[[bench]]
+name = "uninit-headers"
+harness = false

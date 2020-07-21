@@ -1,7 +1,6 @@
 use std::convert::TryFrom;
 use std::io;
 use std::marker::PhantomData;
-use std::mem::MaybeUninit;
 use std::task::Poll;
 
 use actix_codec::Decoder;
@@ -77,7 +76,7 @@ pub(crate) trait MessageType: Sized {
                 let name =
                     HeaderName::from_bytes(&slice[idx.name.0..idx.name.1]).unwrap();
 
-                // Unsafe: httparse check header value for valid utf-8
+                // SAFETY: httparse checks header value is valid UTF-8
                 let value = unsafe {
                     HeaderValue::from_maybe_shared_unchecked(
                         slice.slice(idx.value.0..idx.value.1),
@@ -184,16 +183,11 @@ impl MessageType for Request {
         &mut self.head_mut().headers
     }
 
-    #[allow(clippy::uninit_assumed_init)]
     fn decode(src: &mut BytesMut) -> Result<Option<(Self, PayloadType)>, ParseError> {
-        // Unsafe: we read only this data only after httparse parses headers into.
-        // performance bump for pipeline benchmarks.
-        let mut headers: [HeaderIndex; MAX_HEADERS] =
-            unsafe { MaybeUninit::uninit().assume_init() };
+        let mut headers: [HeaderIndex; MAX_HEADERS] = EMPTY_HEADER_INDEX_ARRAY;
 
         let (len, method, uri, ver, h_len) = {
-            let mut parsed: [httparse::Header<'_>; MAX_HEADERS] =
-                unsafe { MaybeUninit::uninit().assume_init() };
+            let mut parsed: [httparse::Header<'_>; MAX_HEADERS] = EMPTY_HEADER_ARRAY;
 
             let mut req = httparse::Request::new(&mut parsed);
             match req.parse(src)? {
@@ -260,16 +254,11 @@ impl MessageType for ResponseHead {
         &mut self.headers
     }
 
-    #[allow(clippy::uninit_assumed_init)]
     fn decode(src: &mut BytesMut) -> Result<Option<(Self, PayloadType)>, ParseError> {
-        // Unsafe: we read only this data only after httparse parses headers into.
-        // performance bump for pipeline benchmarks.
-        let mut headers: [HeaderIndex; MAX_HEADERS] =
-            unsafe { MaybeUninit::uninit().assume_init() };
+        let mut headers: [HeaderIndex; MAX_HEADERS] = EMPTY_HEADER_INDEX_ARRAY;
 
         let (len, ver, status, h_len) = {
-            let mut parsed: [httparse::Header<'_>; MAX_HEADERS] =
-                unsafe { MaybeUninit::uninit().assume_init() };
+            let mut parsed: [httparse::Header<'_>; MAX_HEADERS] = EMPTY_HEADER_ARRAY;
 
             let mut res = httparse::Response::new(&mut parsed);
             match res.parse(src)? {
@@ -323,6 +312,17 @@ pub(crate) struct HeaderIndex {
     pub(crate) name: (usize, usize),
     pub(crate) value: (usize, usize),
 }
+
+pub(crate) const EMPTY_HEADER_INDEX: HeaderIndex = HeaderIndex {
+    name: (0, 0),
+    value: (0, 0),
+};
+
+pub(crate) const EMPTY_HEADER_INDEX_ARRAY: [HeaderIndex; MAX_HEADERS] =
+    [EMPTY_HEADER_INDEX; MAX_HEADERS];
+
+pub(crate) const EMPTY_HEADER_ARRAY: [httparse::Header<'static>; MAX_HEADERS] =
+    [httparse::EMPTY_HEADER; MAX_HEADERS];
 
 impl HeaderIndex {
     pub(crate) fn record(
@@ -973,7 +973,7 @@ mod tests {
             unreachable!("Error");
         }
 
-        // type in chunked
+        // intentional typo in "chunked"
         let mut buf = BytesMut::from(
             "GET /test HTTP/1.1\r\n\
              transfer-encoding: chnked\r\n\r\n",
