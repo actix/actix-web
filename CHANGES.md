@@ -6,6 +6,7 @@
   using `App::data`. [#1610]
 * `web::Path` now has a public representation: `web::Path(pub T)` that enables
   destructuring. [#1594]
+* MSRV is now 1.42.0.
 
 ### Fixed
 * Memory leak of app data in pooled requests. [#1609]
