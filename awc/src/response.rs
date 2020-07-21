@@ -402,9 +402,12 @@ mod tests {
 
     fn json_eq(err: JsonPayloadError, other: JsonPayloadError) -> bool {
         match err {
-            JsonPayloadError::Payload(PayloadError::Overflow) =>
-                matches!(other, JsonPayloadError::Payload(PayloadError::Overflow)),
-            JsonPayloadError::ContentType => matches!(other, JsonPayloadError::ContentType),
+            JsonPayloadError::Payload(PayloadError::Overflow) => {
+                matches!(other, JsonPayloadError::Payload(PayloadError::Overflow))
+            }
+            JsonPayloadError::ContentType => {
+                matches!(other, JsonPayloadError::ContentType)
+            }
             _ => false,
         }
     }

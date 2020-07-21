@@ -30,8 +30,8 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for Ws {
 async fn test_simple() {
     let mut srv = test::start(|| {
         App::new().service(web::resource("/").to(
-            |req: HttpRequest, stream: web::Payload| {
-                async move { ws::start(Ws, &req, stream) }
+            |req: HttpRequest, stream: web::Payload| async move {
+                ws::start(Ws, &req, stream)
             },
         ))
     });

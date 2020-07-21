@@ -22,9 +22,7 @@ pub enum BodySize {
 impl BodySize {
     pub fn is_eof(&self) -> bool {
         match self {
-            BodySize::None
-            | BodySize::Empty
-            | BodySize::Sized(0) => true,
+            BodySize::None | BodySize::Empty | BodySize::Sized(0) => true,
             _ => false,
         }
     }
@@ -470,9 +468,9 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use futures_util::stream;
     use futures_util::future::poll_fn;
     use futures_util::pin_mut;
+    use futures_util::stream;
 
     impl Body {
         pub(crate) fn get_ref(&self) -> &[u8] {

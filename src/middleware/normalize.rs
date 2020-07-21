@@ -91,9 +91,9 @@ where
         // That approach fails when a trailing slash is added,
         // and a duplicate slash is removed,
         // since the length of the strings remains the same
-        // 
+        //
         // For example, the path "/v1//s" will be normalized to "/v1/s/"
-        // Both of the paths have the same length, 
+        // Both of the paths have the same length,
         // so the change can not be deduced from the length comparison
         if path != original_path {
             let mut parts = head.uri.clone().into_parts();

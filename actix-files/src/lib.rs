@@ -952,9 +952,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_named_file_content_range_headers() {
-        let srv = test::start(|| {
-            App::new().service(Files::new("/", "."))
-        });
+        let srv = test::start(|| App::new().service(Files::new("/", ".")));
 
         // Valid range header
         let response = srv
@@ -979,9 +977,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_named_file_content_length_headers() {
-        let srv = test::start(|| {
-            App::new().service(Files::new("/", "."))
-        });
+        let srv = test::start(|| App::new().service(Files::new("/", ".")));
 
         // Valid range header
         let response = srv
@@ -1020,15 +1016,9 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_head_content_length_headers() {
-        let srv = test::start(|| {
-            App::new().service(Files::new("/", "."))
-        });
+        let srv = test::start(|| App::new().service(Files::new("/", ".")));
 
-        let response = srv
-            .head("/tests/test.binary")
-            .send()
-            .await
-            .unwrap();
+        let response = srv.head("/tests/test.binary").send().await.unwrap();
 
         let content_length = response
             .headers()
@@ -1097,12 +1087,10 @@ mod tests {
     #[actix_rt::test]
     async fn test_named_file_content_encoding() {
         let mut srv = test::init_service(App::new().wrap(Compress::default()).service(
-            web::resource("/").to(|| {
-                async {
-                    NamedFile::open("Cargo.toml")
-                        .unwrap()
-                        .set_content_encoding(header::ContentEncoding::Identity)
-                }
+            web::resource("/").to(|| async {
+                NamedFile::open("Cargo.toml")
+                    .unwrap()
+                    .set_content_encoding(header::ContentEncoding::Identity)
             }),
         ))
         .await;
@@ -1119,12 +1107,10 @@ mod tests {
     #[actix_rt::test]
     async fn test_named_file_content_encoding_gzip() {
         let mut srv = test::init_service(App::new().wrap(Compress::default()).service(
-            web::resource("/").to(|| {
-                async {
-                    NamedFile::open("Cargo.toml")
-                        .unwrap()
-                        .set_content_encoding(header::ContentEncoding::Gzip)
-                }
+            web::resource("/").to(|| async {
+                NamedFile::open("Cargo.toml")
+                    .unwrap()
+                    .set_content_encoding(header::ContentEncoding::Gzip)
             }),
         ))
         .await;
