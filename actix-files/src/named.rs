@@ -8,7 +8,6 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use std::os::unix::fs::MetadataExt;
 
 use bitflags::bitflags;
-use mime;
 use mime_guess::from_path;
 
 use actix_http::body::SizedStream;
@@ -90,7 +89,7 @@ impl NamedFile {
             };
 
             let ct = from_path(&path).first_or_octet_stream();
-            let disposition_type = match ct.type_() {
+            let disposition = match ct.type_() {
                 mime::IMAGE | mime::TEXT | mime::VIDEO => DispositionType::Inline,
                 _ => DispositionType::Attachment,
             };
@@ -104,8 +103,8 @@ impl NamedFile {
                 }))
             }
             let cd = ContentDisposition {
-                disposition: disposition_type,
-                parameters: parameters,
+                disposition,
+                parameters,
             };
             (ct, cd)
         };

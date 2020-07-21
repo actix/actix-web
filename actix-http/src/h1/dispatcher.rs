@@ -132,19 +132,11 @@ where
     B: MessageBody,
 {
     fn is_empty(&self) -> bool {
-        if let State::None = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, State::None)
     }
 
     fn is_call(&self) -> bool {
-        if let State::ServiceCall(_) = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, State::ServiceCall(_))
     }
 }
 enum PollResponse {

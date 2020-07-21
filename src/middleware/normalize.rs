@@ -129,7 +129,7 @@ mod tests {
         let mut app = init_service(
             App::new()
                 .wrap(NormalizePath::default())
-                .service(web::resource("/v1/something/").to(|| HttpResponse::Ok())),
+                .service(web::resource("/v1/something/").to(HttpResponse::Ok)),
         )
         .await;
 

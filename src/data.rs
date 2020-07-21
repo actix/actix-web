@@ -200,14 +200,14 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_route_data_extractor() {
-        let mut srv =
-            init_service(App::new().service(web::resource("/").data(10usize).route(
-                web::get().to(|data: web::Data<usize>| {
-                    let _ = data.clone();
-                    HttpResponse::Ok()
-                }),
-            )))
-            .await;
+        let mut srv = init_service(
+            App::new().service(
+                web::resource("/")
+                    .data(10usize)
+                    .route(web::get().to(|_data: web::Data<usize>| HttpResponse::Ok())),
+            ),
+        )
+        .await;
 
         let req = TestRequest::default().to_request();
         let resp = srv.call(req).await.unwrap();
@@ -233,7 +233,6 @@ mod tests {
             web::resource("/").data(10usize).route(web::get().to(
                 |data: web::Data<usize>| {
                     assert_eq!(**data, 10);
-                    let _ = data.clone();
                     HttpResponse::Ok()
                 },
             )),

@@ -167,7 +167,6 @@ where
 mod tests {
     use bytes::Bytes;
     use encoding_rs::ISO_8859_2;
-    use mime;
 
     use super::*;
     use crate::test::TestRequest;

@@ -21,10 +21,7 @@ pub enum BodySize {
 
 impl BodySize {
     pub fn is_eof(&self) -> bool {
-        match self {
-            BodySize::None | BodySize::Empty | BodySize::Sized(0) => true,
-            _ => false,
-        }
+        matches!(self, BodySize::None | BodySize::Empty | BodySize::Sized(0))
     }
 }
 
@@ -604,10 +601,6 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_body_eq() {
-        assert!(Body::None == Body::None);
-        assert!(Body::None != Body::Empty);
-        assert!(Body::Empty == Body::Empty);
-        assert!(Body::Empty != Body::None);
         assert!(
             Body::Bytes(Bytes::from_static(b"1"))
                 == Body::Bytes(Bytes::from_static(b"1"))
@@ -619,7 +612,7 @@ mod tests {
     async fn test_body_debug() {
         assert!(format!("{:?}", Body::None).contains("Body::None"));
         assert!(format!("{:?}", Body::Empty).contains("Body::Empty"));
-        assert!(format!("{:?}", Body::Bytes(Bytes::from_static(b"1"))).contains("1"));
+        assert!(format!("{:?}", Body::Bytes(Bytes::from_static(b"1"))).contains('1'));
     }
 
     #[actix_rt::test]

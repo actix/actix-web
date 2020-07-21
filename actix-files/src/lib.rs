@@ -26,7 +26,6 @@ use actix_web::{web, FromRequest, HttpRequest, HttpResponse};
 use bytes::Bytes;
 use futures_core::Stream;
 use futures_util::future::{ok, ready, Either, FutureExt, LocalBoxFuture, Ready};
-use mime;
 use mime_guess::from_ext;
 use percent_encoding::{utf8_percent_encode, CONTROLS};
 use v_htmlescape::escape as escape_html_entity;
@@ -250,6 +249,8 @@ pub struct Files {
     renderer: Rc<DirectoryRenderer>,
     mime_override: Option<Rc<MimeOverride>>,
     file_flags: named::Flags,
+    // FIXME: Should re-visit later.
+    #[allow(clippy::redundant_allocation)]
     guards: Option<Rc<Box<dyn Guard>>>,
 }
 
@@ -462,6 +463,8 @@ pub struct FilesService {
     renderer: Rc<DirectoryRenderer>,
     mime_override: Option<Rc<MimeOverride>>,
     file_flags: named::Flags,
+    // FIXME: Should re-visit later.
+    #[allow(clippy::redundant_allocation)]
     guards: Option<Rc<Box<dyn Guard>>>,
 }
 
@@ -501,11 +504,8 @@ impl Service for FilesService {
             // execute user defined guards
             (**guard).check(req.head())
         } else {
-            // default behaviour
-            match *req.method() {
-                Method::HEAD | Method::GET => true,
-                _ => false,
-            }
+            // default behavior
+            matches!(*req.method(), Method::HEAD | Method::GET)
         };
 
         if !is_method_valid {
