@@ -1,6 +1,8 @@
-## PR Type
-What kind of change does this PR make?
+<!-- Thanks for considering contributing actix! -->
+<!-- Please fill out the following to make our reviews easy. -->
 
+## PR Type
+<!-- What kind of change does this PR make? -->
 <!-- Bug Fix / Feature / Refactor / Code Style / Other -->
 INSERT_PR_TYPE
 

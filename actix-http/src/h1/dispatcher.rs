@@ -156,14 +156,8 @@ enum PollResponse {
 impl PartialEq for PollResponse {
     fn eq(&self, other: &PollResponse) -> bool {
         match self {
-            PollResponse::DrainWriteBuf => match other {
-                PollResponse::DrainWriteBuf => true,
-                _ => false,
-            },
-            PollResponse::DoNothing => match other {
-                PollResponse::DoNothing => true,
-                _ => false,
-            },
+            PollResponse::DrainWriteBuf => matches!(other, PollResponse::DrainWriteBuf),
+            PollResponse::DoNothing => matches!(other, PollResponse::DoNothing),
             _ => false,
         }
     }
