@@ -475,7 +475,7 @@ mod tests {
             let mut app = init_service(
                 App::new()
                     .data(DropData(data.clone()))
-                    .service(web::resource("/test").to(|| HttpResponse::Ok())),
+                    .service(web::resource("/test").to(HttpResponse::Ok)),
             )
             .await;
             let req = TestRequest::with_uri("/test").to_request();

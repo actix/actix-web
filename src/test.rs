@@ -23,7 +23,6 @@ use futures_util::future::ok;
 use futures_util::StreamExt;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use serde_json;
 use socket2::{Domain, Protocol, Socket, Type};
 
 pub use actix_http::test::TestBuffer;

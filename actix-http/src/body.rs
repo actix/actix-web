@@ -21,12 +21,7 @@ pub enum BodySize {
 
 impl BodySize {
     pub fn is_eof(&self) -> bool {
-        match self {
-            BodySize::None
-            | BodySize::Empty
-            | BodySize::Sized(0) => true,
-            _ => false,
-        }
+        matches!(self, BodySize::None | BodySize::Empty | BodySize::Sized(0))
     }
 }
 
@@ -470,9 +465,9 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use futures_util::stream;
     use futures_util::future::poll_fn;
     use futures_util::pin_mut;
+    use futures_util::stream;
 
     impl Body {
         pub(crate) fn get_ref(&self) -> &[u8] {
@@ -606,10 +601,6 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_body_eq() {
-        assert!(Body::None == Body::None);
-        assert!(Body::None != Body::Empty);
-        assert!(Body::Empty == Body::Empty);
-        assert!(Body::Empty != Body::None);
         assert!(
             Body::Bytes(Bytes::from_static(b"1"))
                 == Body::Bytes(Bytes::from_static(b"1"))
@@ -621,7 +612,7 @@ mod tests {
     async fn test_body_debug() {
         assert!(format!("{:?}", Body::None).contains("Body::None"));
         assert!(format!("{:?}", Body::Empty).contains("Body::Empty"));
-        assert!(format!("{:?}", Body::Bytes(Bytes::from_static(b"1"))).contains("1"));
+        assert!(format!("{:?}", Body::Bytes(Bytes::from_static(b"1"))).contains('1'));
     }
 
     #[actix_rt::test]
