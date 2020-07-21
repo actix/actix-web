@@ -139,7 +139,7 @@ mod tests {
             let mut masked = unmasked.clone();
             apply_mask_fallback(&mut masked[1..], &mask);
 
-            let mut masked_fast = unmasked.clone();
+            let mut masked_fast = unmasked;
             apply_mask(&mut masked_fast[1..], mask_u32);
 
             assert_eq!(masked, masked_fast);

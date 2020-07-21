@@ -303,55 +303,59 @@ where
                     }
                 }
             },
-            ServiceResponseStateProj::SendPayload(ref mut stream, ref mut body) => loop {
+            ServiceResponseStateProj::SendPayload(ref mut stream, ref mut body) => {
                 loop {
-                    if let Some(ref mut buffer) = this.buffer {
-                        match stream.poll_capacity(cx) {
-                            Poll::Pending => return Poll::Pending,
-                            Poll::Ready(None) => return Poll::Ready(()),
-                            Poll::Ready(Some(Ok(cap))) => {
-                                let len = buffer.len();
-                                let bytes = buffer.split_to(std::cmp::min(cap, len));
+                    loop {
+                        if let Some(ref mut buffer) = this.buffer {
+                            match stream.poll_capacity(cx) {
+                                Poll::Pending => return Poll::Pending,
+                                Poll::Ready(None) => return Poll::Ready(()),
+                                Poll::Ready(Some(Ok(cap))) => {
+                                    let len = buffer.len();
+                                    let bytes = buffer.split_to(std::cmp::min(cap, len));
 
-                                if let Err(e) = stream.send_data(bytes, false) {
+                                    if let Err(e) = stream.send_data(bytes, false) {
+                                        warn!("{:?}", e);
+                                        return Poll::Ready(());
+                                    } else if !buffer.is_empty() {
+                                        let cap =
+                                            std::cmp::min(buffer.len(), CHUNK_SIZE);
+                                        stream.reserve_capacity(cap);
+                                    } else {
+                                        this.buffer.take();
+                                    }
+                                }
+                                Poll::Ready(Some(Err(e))) => {
                                     warn!("{:?}", e);
                                     return Poll::Ready(());
-                                } else if !buffer.is_empty() {
-                                    let cap = std::cmp::min(buffer.len(), CHUNK_SIZE);
-                                    stream.reserve_capacity(cap);
-                                } else {
-                                    this.buffer.take();
                                 }
                             }
-                            Poll::Ready(Some(Err(e))) => {
-                                warn!("{:?}", e);
-                                return Poll::Ready(());
-                            }
-                        }
-                    } else {
-                        match body.as_mut().poll_next(cx) {
-                            Poll::Pending => return Poll::Pending,
-                            Poll::Ready(None) => {
-                                if let Err(e) = stream.send_data(Bytes::new(), true) {
-                                    warn!("{:?}", e);
+                        } else {
+                            match body.as_mut().poll_next(cx) {
+                                Poll::Pending => return Poll::Pending,
+                                Poll::Ready(None) => {
+                                    if let Err(e) = stream.send_data(Bytes::new(), true)
+                                    {
+                                        warn!("{:?}", e);
+                                    }
+                                    return Poll::Ready(());
                                 }
-                                return Poll::Ready(());
-                            }
-                            Poll::Ready(Some(Ok(chunk))) => {
-                                stream.reserve_capacity(std::cmp::min(
-                                    chunk.len(),
-                                    CHUNK_SIZE,
-                                ));
-                                *this.buffer = Some(chunk);
-                            }
-                            Poll::Ready(Some(Err(e))) => {
-                                error!("Response payload stream error: {:?}", e);
-                                return Poll::Ready(());
+                                Poll::Ready(Some(Ok(chunk))) => {
+                                    stream.reserve_capacity(std::cmp::min(
+                                        chunk.len(),
+                                        CHUNK_SIZE,
+                                    ));
+                                    *this.buffer = Some(chunk);
+                                }
+                                Poll::Ready(Some(Err(e))) => {
+                                    error!("Response payload stream error: {:?}", e);
+                                    return Poll::Ready(());
+                                }
                             }
                         }
                     }
                 }
-            },
+            }
         }
     }
 }

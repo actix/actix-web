@@ -626,7 +626,7 @@ mod tests {
             Ok(())
         };
         let s = format!("{}", FormatDisplay(&render));
-        assert!(s.contains(&format!("{}", now.format("%Y-%m-%dT%H:%M:%S"))));
+        assert!(s.contains(&now.format("%Y-%m-%dT%H:%M:%S")));
     }
 
     #[actix_rt::test]

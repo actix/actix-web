@@ -37,7 +37,10 @@ where
     trace!("Sending client request: {:?} {:?}", head, body.size());
     let head_req = head.as_ref().method == Method::HEAD;
     let length = body.size();
-    let eof = matches!(length, BodySize::None | BodySize::Empty | BodySize::Sized(0));
+    let eof = matches!(
+        length,
+        BodySize::None | BodySize::Empty | BodySize::Sized(0)
+    );
 
     let mut req = Request::new(());
     *req.uri_mut() = head.as_ref().uri.clone();

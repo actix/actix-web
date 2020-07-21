@@ -9,8 +9,6 @@ use std::{cmp, fmt};
 
 use bytes::{Bytes, BytesMut};
 use futures_util::stream::{LocalBoxStream, Stream, StreamExt};
-use httparse;
-use mime;
 
 use actix_utils::task::LocalWaker;
 use actix_web::error::{ParseError, PayloadError};
@@ -876,11 +874,11 @@ mod tests {
 
     impl SlowStream {
         fn new(bytes: Bytes) -> SlowStream {
-            return SlowStream {
-                bytes: bytes,
+            SlowStream {
+                bytes,
                 pos: 0,
                 ready: false,
-            };
+            }
         }
     }
 

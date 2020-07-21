@@ -3,7 +3,7 @@ extern crate proc_macro;
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::{format_ident, quote, ToTokens, TokenStreamExt};
-use syn::{AttributeArgs, Ident, NestedMeta, parse_macro_input};
+use syn::{parse_macro_input, AttributeArgs, Ident, NestedMeta};
 
 enum ResourceType {
     Async,
@@ -196,7 +196,12 @@ impl ToTokens for Route {
             name,
             guard,
             ast,
-            args: Args { path, guards, wrappers },
+            args:
+                Args {
+                    path,
+                    guards,
+                    wrappers,
+                },
             resource_type,
         } = self;
         let resource_name = name.to_string();

@@ -434,7 +434,9 @@ mod tests {
     fn json_eq(err: JsonPayloadError, other: JsonPayloadError) -> bool {
         match err {
             JsonPayloadError::Overflow => matches!(other, JsonPayloadError::Overflow),
-            JsonPayloadError::ContentType => matches!(other, JsonPayloadError::ContentType),
+            JsonPayloadError::ContentType => {
+                matches!(other, JsonPayloadError::ContentType)
+            }
             _ => false,
         }
     }
@@ -480,7 +482,7 @@ mod tests {
             .to_http_parts();
 
         let s = Json::<MyObject>::from_request(&req, &mut pl).await;
-        let mut resp = Response::from_error(s.err().unwrap().into());
+        let mut resp = Response::from_error(s.err().unwrap());
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 
         let body = load_stream(resp.take_body()).await.unwrap();
