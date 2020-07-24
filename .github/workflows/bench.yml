@@ -1,6 +1,11 @@
 name: Benchmark (Linux)
 
-on: [push, pull_request]
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  push:
+    branches:
+      - master
 
 jobs:
   check_benchmark:

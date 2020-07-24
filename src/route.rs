@@ -362,7 +362,7 @@ mod tests {
             App::new()
                 .service(
                     web::resource("/test")
-                        .route(web::get().to(|| HttpResponse::Ok()))
+                        .route(web::get().to(HttpResponse::Ok))
                         .route(web::put().to(|| async {
                             Err::<HttpResponse, _>(error::ErrorBadRequest("err"))
                         }))

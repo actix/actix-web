@@ -167,8 +167,7 @@ async fn test_connection_reuse() {
         })
         .and_then(
             HttpService::new(map_config(
-                App::new()
-                    .service(web::resource("/").route(web::to(|| HttpResponse::Ok()))),
+                App::new().service(web::resource("/").route(web::to(HttpResponse::Ok))),
                 |_| AppConfig::default(),
             ))
             .tcp(),
@@ -205,8 +204,7 @@ async fn test_connection_force_close() {
         })
         .and_then(
             HttpService::new(map_config(
-                App::new()
-                    .service(web::resource("/").route(web::to(|| HttpResponse::Ok()))),
+                App::new().service(web::resource("/").route(web::to(HttpResponse::Ok))),
                 |_| AppConfig::default(),
             ))
             .tcp(),

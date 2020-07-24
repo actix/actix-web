@@ -148,10 +148,7 @@ impl ContentEncoding {
     #[inline]
     /// Is the content compressed?
     pub fn is_compression(self) -> bool {
-        match self {
-            ContentEncoding::Identity | ContentEncoding::Auto => false,
-            _ => true,
-        }
+        matches!(self, ContentEncoding::Identity | ContentEncoding::Auto)
     }
 
     #[inline]

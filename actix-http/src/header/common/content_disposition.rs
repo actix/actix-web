@@ -387,26 +387,17 @@ impl ContentDisposition {
 
     /// Returns `true` if it is [`Inline`](DispositionType::Inline).
     pub fn is_inline(&self) -> bool {
-        match self.disposition {
-            DispositionType::Inline => true,
-            _ => false,
-        }
+        matches!(self.disposition, DispositionType::Inline)
     }
 
     /// Returns `true` if it is [`Attachment`](DispositionType::Attachment).
     pub fn is_attachment(&self) -> bool {
-        match self.disposition {
-            DispositionType::Attachment => true,
-            _ => false,
-        }
+        matches!(self.disposition, DispositionType::Attachment)
     }
 
     /// Returns `true` if it is [`FormData`](DispositionType::FormData).
     pub fn is_form_data(&self) -> bool {
-        match self.disposition {
-            DispositionType::FormData => true,
-            _ => false,
-        }
+        matches!(self.disposition, DispositionType::FormData)
     }
 
     /// Returns `true` if it is [`Ext`](DispositionType::Ext) and the `disp_type` matches.

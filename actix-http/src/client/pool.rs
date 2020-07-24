@@ -69,10 +69,7 @@ where
             inner: Rc::downgrade(&inner_rc),
         });
 
-        ConnectionPool(
-            connector_rc,
-            inner_rc,
-        )
+        ConnectionPool(connector_rc, inner_rc)
     }
 }
 

@@ -132,19 +132,11 @@ where
     B: MessageBody,
 {
     fn is_empty(&self) -> bool {
-        if let State::None = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, State::None)
     }
 
     fn is_call(&self) -> bool {
-        if let State::ServiceCall(_) = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, State::ServiceCall(_))
     }
 }
 enum PollResponse {
@@ -156,14 +148,8 @@ enum PollResponse {
 impl PartialEq for PollResponse {
     fn eq(&self, other: &PollResponse) -> bool {
         match self {
-            PollResponse::DrainWriteBuf => match other {
-                PollResponse::DrainWriteBuf => true,
-                _ => false,
-            },
-            PollResponse::DoNothing => match other {
-                PollResponse::DoNothing => true,
-                _ => false,
-            },
+            PollResponse::DrainWriteBuf => matches!(other, PollResponse::DrainWriteBuf),
+            PollResponse::DoNothing => matches!(other, PollResponse::DoNothing),
             _ => false,
         }
     }

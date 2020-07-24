@@ -280,9 +280,7 @@ async fn test_h2_head_empty() {
 async fn test_h2_head_binary() {
     let mut srv = test_server(move || {
         HttpService::build()
-            .h2(|_| {
-                ok::<_, ()>(Response::Ok().body(STR))
-            })
+            .h2(|_| ok::<_, ()>(Response::Ok().body(STR)))
             .rustls(ssl_acceptor())
     })
     .await;
