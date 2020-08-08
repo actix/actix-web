@@ -6,6 +6,8 @@
   using `App::data`. [#1610]
 * `web::Path` now has a public representation: `web::Path(pub T)` that enables
   destructuring. [#1594]
+* `ServiceRequest::app_data` allows retrieval of non-Data data without splitting into parts to
+  access `HttpRequest` which already allows this. [#1618]
 * MSRV is now 1.42.0.
 
 ### Fixed
@@ -14,6 +16,7 @@
 [#1594]: https://github.com/actix/actix-web/pull/1594
 [#1609]: https://github.com/actix/actix-web/pull/1609
 [#1610]: https://github.com/actix/actix-web/pull/1610
+[#1618]: https://github.com/actix/actix-web/pull/1610
 
 
 ## 3.0.0-beta.1 - 2020-07-13
