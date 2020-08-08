@@ -124,6 +124,10 @@ actix-files = { path = "actix-files" }
 actix-multipart = { path = "actix-multipart" }
 awc = { path = "awc" }
 
+[[example]]
+name = "client"
+required-features = ["rustls"]
+
 [[bench]]
 name = "server"
 harness = false
