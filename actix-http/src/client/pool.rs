@@ -65,8 +65,8 @@ where
 
         // start support future
         actix_rt::spawn(ConnectorPoolSupport {
-            connector: connector_rc.clone(),
-            inner: inner_rc.clone(),
+            connector: Rc::clone(&connector_rc),
+            inner: Rc::clone(&inner_rc),
         });
 
         ConnectionPool(connector_rc, inner_rc)
@@ -84,7 +84,7 @@ where
 
 impl<T, Io> Drop for ConnectionPool<T, Io> {
     fn drop(&mut self) {
-        // We wake up the ConnectorPoolSupport when dropping so it can exit properly.
+        // wake up the ConnectorPoolSupport when dropping so it can exit properly.
         self.1.borrow().waker.wake();
     }
 }
