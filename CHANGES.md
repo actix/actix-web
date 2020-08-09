@@ -10,10 +10,12 @@
 
 ### Fixed
 * Memory leak of app data in pooled requests. [#1609]
+* Memory leak of `awc::Client` [#1626]
 
 [#1594]: https://github.com/actix/actix-web/pull/1594
 [#1609]: https://github.com/actix/actix-web/pull/1609
 [#1610]: https://github.com/actix/actix-web/pull/1610
+[#1626]: https://github.com/actix/actix-web/pull/1626
 
 
 ## 3.0.0-beta.1 - 2020-07-13
