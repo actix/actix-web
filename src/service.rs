@@ -12,7 +12,6 @@ use actix_router::{IntoPattern, Path, Resource, ResourceDef, Url};
 use actix_service::{IntoServiceFactory, ServiceFactory};
 
 use crate::config::{AppConfig, AppService};
-use crate::data::Data;
 use crate::dev::insert_slash;
 use crate::guard::Guard;
 use crate::info::ConnectionInfo;
@@ -226,12 +225,11 @@ impl ServiceRequest {
         self.0.app_config()
     }
 
-    /// Get an application data stored with `App::data()` method during
-    /// application configuration.
-    pub fn app_data<T: 'static>(&self) -> Option<Data<T>> {
+    /// Counterpart to [`HttpRequest::app_data`](../struct.HttpRequest.html#method.app_data).
+    pub fn app_data<T: 'static>(&self) -> Option<&T> {
         for container in (self.0).0.app_data.iter().rev() {
-            if let Some(data) = container.get::<Data<T>>() {
-                return Some(Data::clone(&data));
+            if let Some(data) = container.get::<T>() {
+                return Some(data);
             }
         }
 
@@ -595,6 +593,28 @@ mod tests {
         let resp = srv.call(req).await.unwrap();
         assert_eq!(resp.status(), http::StatusCode::NOT_FOUND);
     }
+
+    #[actix_rt::test]
+    async fn test_service_data() {
+        let mut srv = init_service(
+            App::new()
+                .data(42u32)
+                .service(web::service("/test").name("test").finish(
+                    |req: ServiceRequest| {
+                        assert_eq!(
+                            req.app_data::<web::Data<u32>>().unwrap().as_ref(),
+                            &42
+                        );
+                        ok(req.into_response(HttpResponse::Ok().finish()))
+                    },
+                )),
+        )
+        .await;
+        let req = TestRequest::with_uri("/test").to_request();
+        let resp = srv.call(req).await.unwrap();
+        assert_eq!(resp.status(), http::StatusCode::OK);
+    }
+
     #[test]
     fn test_fmt_debug() {
         let req = TestRequest::get()
