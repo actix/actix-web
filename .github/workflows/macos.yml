@@ -20,7 +20,7 @@ jobs:
     runs-on: macOS-latest
 
     steps:
-      - uses: actions/checkout@master
+      - uses: actions/checkout@v2
 
       - name: Install ${{ matrix.version }}
         uses: actions-rs/toolchain@v1
