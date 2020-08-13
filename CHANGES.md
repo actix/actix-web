@@ -17,7 +17,7 @@
 [#1594]: https://github.com/actix/actix-web/pull/1594
 [#1609]: https://github.com/actix/actix-web/pull/1609
 [#1610]: https://github.com/actix/actix-web/pull/1610
-[#1618]: https://github.com/actix/actix-web/pull/1610
+[#1618]: https://github.com/actix/actix-web/pull/1618
 [#1621]: https://github.com/actix/actix-web/pull/1621
 
 
