@@ -1,6 +1,7 @@
 # Changes
 
-## Unreleased - 2020-xx-xx
+## [2.0.0-beta.3] - 2020-08-14
+
 ### Fixed
 * Memory leak of `client::pool::ConnectorPoolSupport`. [#1626]
 
