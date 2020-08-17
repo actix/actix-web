@@ -1,6 +1,9 @@
 # Changes
 
-## Unreleased - 2020-xx-xx
+## Unreleased
+
+
+## 3.0.0-beta.2 - 2020-08-17
 ### Changed
 * `PayloadConfig` is now also considered in `Bytes` and `String` extractors when set
   using `App::data`. [#1610]
