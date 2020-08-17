@@ -1,6 +1,6 @@
 # Changes
 
-## Unreleased
+## 3.0.0-beta.3 - 2020-08-17
 ### Changed
 * Update `rustls` to 0.18
 
