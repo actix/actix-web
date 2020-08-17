@@ -74,7 +74,7 @@ actix-server = "1.0.0"
 actix-testing = "1.0.0"
 actix-macros = "0.1.0"
 actix-threadpool = "0.3.1"
-actix-tls = "2.0.0-alpha.1"
+actix-tls = "2.0.0-alpha.2"
 
 actix-web-codegen = "0.3.0-beta.1"
 actix-http = "2.0.0-beta.3"
@@ -98,7 +98,7 @@ serde_urlencoded = "0.6.1"
 time = { version = "0.2.7", default-features = false, features = ["std"] }
 url = "2.1"
 open-ssl = { package = "openssl", version = "0.10", optional = true }
-rust-tls = { package = "rustls", version = "0.17.0", optional = true }
+rust-tls = { package = "rustls", version = "0.18.0", optional = true }
 tinyvec = { version = "0.3", features = ["alloc"] }
 
 [dev-dependencies]
