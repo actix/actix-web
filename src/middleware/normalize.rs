@@ -11,15 +11,23 @@ use crate::service::{ServiceRequest, ServiceResponse};
 use crate::Error;
 
 /// To be used when constructing `NormalizePath` to define it's behavior.
+#[non_exhaustive]
 #[derive(Clone, Copy)]
 pub enum TrailingSlash {
     /// Always add a trailing slash to the end of the path.
+    /// This will require all routes to end in a trailing slash for them to be accessible.
     Always,
     /// Trim trailing slashes from the end of the path.
     Trim,
 }
 
-#[derive(Clone, Copy)]
+impl Default for TrailingSlash {
+    fn default() -> Self {
+        TrailingSlash::Always
+    }
+}
+
+#[derive(Default, Clone, Copy)]
 /// `Middleware` to normalize request's URI in place
 ///
 /// Performs following:
@@ -50,12 +58,6 @@ impl NormalizePath {
     }
 }
 
-impl Default for NormalizePath {
-    fn default() -> Self {
-        NormalizePath::new(TrailingSlash::Always)
-    }
-}
-
 impl<S, B> Transform<S> for NormalizePath
 where
     S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
@@ -72,10 +74,7 @@ where
         ok(NormalizePathNormalization {
             service,
             merge_slash: Regex::new("//+").unwrap(),
-            trim_last_slash: match self.0 {
-                TrailingSlash::Trim => true,
-                TrailingSlash::Always => false,
-            },
+            trailing_slash_behavior: self.0,
         })
     }
 }
@@ -83,7 +82,7 @@ where
 pub struct NormalizePathNormalization<S> {
     service: S,
     merge_slash: Regex,
-    trim_last_slash: bool,
+    trailing_slash_behavior: TrailingSlash,
 }
 
 impl<S, B> Service for NormalizePathNormalization<S>
@@ -106,9 +105,9 @@ where
         let original_path = head.uri.path();
 
         // Either adds a string to the end (duplicates will be removed anyways) or trims all slashes from the end
-        let path = match self.trim_last_slash {
-            false => original_path.to_string() + "/",
-            true => original_path.trim_end_matches(|c| c == '/').to_string(),
+        let path = match self.trailing_slash_behavior {
+            TrailingSlash::Always => original_path.to_string() + "/",
+            TrailingSlash::Trim => original_path.trim_end_matches('/').to_string(),
         };
 
         // normalize multiple /'s to one /
@@ -189,15 +188,19 @@ mod tests {
         )
         .await;
 
-        let req4 = TestRequest::with_uri("/v1/something////").to_request();
-        let res4 = call_service(&mut app, req4).await;
-        assert!(res4.status().is_success());
+        let req = TestRequest::with_uri("/v1/something////").to_request();
+        let res = call_service(&mut app, req).await;
+        assert!(res.status().is_success());
 
-        let req4 = TestRequest::with_uri("/v1/something/").to_request();
-        let res4 = call_service(&mut app, req4).await;
-        assert!(res4.status().is_success());
+        let req2 = TestRequest::with_uri("/v1/something/").to_request();
+        let res2 = call_service(&mut app, req2).await;
+        assert!(res2.status().is_success());
 
-        let req4 = TestRequest::with_uri("//v1//something//").to_request();
+        let req3 = TestRequest::with_uri("//v1//something//").to_request();
+        let res3 = call_service(&mut app, req3).await;
+        assert!(res3.status().is_success());
+
+        let req4 = TestRequest::with_uri("//v1//something").to_request();
         let res4 = call_service(&mut app, req4).await;
         assert!(res4.status().is_success());
     }
