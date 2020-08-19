@@ -17,7 +17,7 @@ use futures_util::future::{ok, Either, FutureExt, LocalBoxFuture};
 /// # fn main() {
 /// let enable_normalize = std::env::var("NORMALIZE_PATH") == Ok("true".into());
 /// let app = App::new()
-///     .wrap(Condition::new(enable_normalize, NormalizePath));
+///     .wrap(Condition::new(enable_normalize, NormalizePath::default()));
 /// # }
 /// ```
 pub struct Condition<T> {
