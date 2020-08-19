@@ -10,20 +10,37 @@ use regex::Regex;
 use crate::service::{ServiceRequest, ServiceResponse};
 use crate::Error;
 
+/// To be used when constructing `NormalizePath` to define it's behavior.
+#[non_exhaustive]
+#[derive(Clone, Copy)]
+pub enum TrailingSlash {
+    /// Always add a trailing slash to the end of the path.
+    /// This will require all routes to end in a trailing slash for them to be accessible.
+    Always,
+    /// Trim trailing slashes from the end of the path.
+    Trim,
+}
+
+impl Default for TrailingSlash {
+    fn default() -> Self {
+        TrailingSlash::Always
+    }
+}
+
 #[derive(Default, Clone, Copy)]
 /// `Middleware` to normalize request's URI in place
 ///
 /// Performs following:
 ///
 /// - Merges multiple slashes into one.
-/// - Appends a trailing slash if one is not present.
+/// - Appends a trailing slash if one is not present, or removes one if present, depending on the supplied `TrailingSlash`.
 ///
 /// ```rust
 /// use actix_web::{web, http, middleware, App, HttpResponse};
 ///
 /// # fn main() {
 /// let app = App::new()
-///     .wrap(middleware::NormalizePath)
+///     .wrap(middleware::NormalizePath::default())
 ///     .service(
 ///         web::resource("/test")
 ///             .route(web::get().to(|| HttpResponse::Ok()))
@@ -32,7 +49,14 @@ use crate::Error;
 /// # }
 /// ```
 
-pub struct NormalizePath;
+pub struct NormalizePath(TrailingSlash);
+
+impl NormalizePath {
+    /// Create new `NormalizePath` middleware with the specified trailing slash style.
+    pub fn new(trailing_slash_style: TrailingSlash) -> Self {
+        NormalizePath(trailing_slash_style)
+    }
+}
 
 impl<S, B> Transform<S> for NormalizePath
 where
@@ -50,6 +74,7 @@ where
         ok(NormalizePathNormalization {
             service,
             merge_slash: Regex::new("//+").unwrap(),
+            trailing_slash_behavior: self.0,
         })
     }
 }
@@ -57,6 +82,7 @@ where
 pub struct NormalizePathNormalization<S> {
     service: S,
     merge_slash: Regex,
+    trailing_slash_behavior: TrailingSlash,
 }
 
 impl<S, B> Service for NormalizePathNormalization<S>
@@ -78,8 +104,11 @@ where
 
         let original_path = head.uri.path();
 
-        // always add trailing slash, might be an extra one
-        let path = original_path.to_string() + "/";
+        // Either adds a string to the end (duplicates will be removed anyways) or trims all slashes from the end
+        let path = match self.trailing_slash_behavior {
+            TrailingSlash::Always => original_path.to_string() + "/",
+            TrailingSlash::Trim => original_path.trim_end_matches('/').to_string(),
+        };
 
         // normalize multiple /'s to one /
         let path = self.merge_slash.replace_all(&path, "/");
@@ -151,13 +180,39 @@ mod tests {
     }
 
     #[actix_rt::test]
+    async fn trim_trailing_slashes() {
+        let mut app = init_service(
+            App::new()
+                .wrap(NormalizePath(TrailingSlash::Trim))
+                .service(web::resource("/v1/something").to(HttpResponse::Ok)),
+        )
+        .await;
+
+        let req = TestRequest::with_uri("/v1/something////").to_request();
+        let res = call_service(&mut app, req).await;
+        assert!(res.status().is_success());
+
+        let req2 = TestRequest::with_uri("/v1/something/").to_request();
+        let res2 = call_service(&mut app, req2).await;
+        assert!(res2.status().is_success());
+
+        let req3 = TestRequest::with_uri("//v1//something//").to_request();
+        let res3 = call_service(&mut app, req3).await;
+        assert!(res3.status().is_success());
+
+        let req4 = TestRequest::with_uri("//v1//something").to_request();
+        let res4 = call_service(&mut app, req4).await;
+        assert!(res4.status().is_success());
+    }
+
+    #[actix_rt::test]
     async fn test_in_place_normalization() {
         let srv = |req: ServiceRequest| {
             assert_eq!("/v1/something/", req.path());
             ok(req.into_response(HttpResponse::Ok().finish()))
         };
 
-        let mut normalize = NormalizePath
+        let mut normalize = NormalizePath::default()
             .new_transform(srv.into_service())
             .await
             .unwrap();
@@ -188,7 +243,7 @@ mod tests {
             ok(req.into_response(HttpResponse::Ok().finish()))
         };
 
-        let mut normalize = NormalizePath
+        let mut normalize = NormalizePath::default()
             .new_transform(srv.into_service())
             .await
             .unwrap();
@@ -207,7 +262,7 @@ mod tests {
             ok(req.into_response(HttpResponse::Ok().finish()))
         };
 
-        let mut normalize = NormalizePath
+        let mut normalize = NormalizePath::default()
             .new_transform(srv.into_service())
             .await
             .unwrap();

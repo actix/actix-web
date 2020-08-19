@@ -1,5 +1,10 @@
 # Changes
 
+## Unreleased
+### Added
+* `middleware::NormalizePath` now has configurable behaviour for either always having a trailing slash,
+  or as the new addition, always trimming trailing slashes.
+
 ## 3.0.0-beta.3 - 2020-08-17
 ### Changed
 * Update `rustls` to 0.18
