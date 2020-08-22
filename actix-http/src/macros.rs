@@ -38,7 +38,7 @@ macro_rules! downcast {
             /// Downcasts generic body to a specific type.
             pub fn downcast_ref<T: $name + 'static>(&self) -> Option<&T> {
                 if self.__private_get_type_id__().0 == std::any::TypeId::of::<T>() {
-                    // Safety: external crates cannot override the default
+                    // SAFETY: external crates cannot override the default
                     // implementation of `__private_get_type_id__`, since
                     // it requires returning a private type. We can therefore
                     // rely on the returned `TypeId`, which ensures that this
@@ -48,10 +48,11 @@ macro_rules! downcast {
                     None
                 }
             }
+
             /// Downcasts a generic body to a mutable specific type.
             pub fn downcast_mut<T: $name + 'static>(&mut self) -> Option<&mut T> {
                 if self.__private_get_type_id__().0 == std::any::TypeId::of::<T>() {
-                    // Safety: external crates cannot override the default
+                    // SAFETY: external crates cannot override the default
                     // implementation of `__private_get_type_id__`, since
                     // it requires returning a private type. We can therefore
                     // rely on the returned `TypeId`, which ensures that this
