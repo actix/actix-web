@@ -6,7 +6,7 @@ use bytes::BytesMut;
 struct Form {
     name: String,
 
-    #[multipart(max_size = 8096)]
+    #[multipart(max_size = 1024)]
     file: BytesMut,
 }
 

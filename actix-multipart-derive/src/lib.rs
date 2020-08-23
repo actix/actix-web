@@ -2,6 +2,7 @@ use proc_macro::TokenStream;
 use quote::quote;
 use syn::{
     parse_macro_input, Data, DataStruct, DeriveInput, Field, Fields, FieldsNamed, Ident,
+    Meta, MetaList, MetaNameValue, NestedMeta, Path,
 };
 
 #[proc_macro_derive(MultipartForm, attributes(multipart))]
@@ -29,12 +30,45 @@ pub fn derive(input: TokenStream) -> TokenStream {
     });
 
     let field_max_sizes = fields.iter().map(|f| {
-        let Field { ident, .. } = f;
+        let Field { ident, attrs, .. } = f;
 
-        // TODO: parse field attributes find
-        // #[multipart(max_size = n)]
+        for attr in attrs {
+            // TODO: use something like https://github.com/TedDriggs/darling ??
 
-        quote! { stringify!(#ident) => Some(8096) }
+            if let Ok(m) = attr.parse_meta() {
+                if let Meta::List(MetaList { path, nested, .. }) = m {
+                    if path.get_ident().unwrap()
+                        != &Ident::new("multipart", proc_macro2::Span::call_site())
+                    {
+                        continue;
+                    }
+
+                    // it's our meta list, marked by multipart
+
+                    if let Some(NestedMeta::Meta(Meta::NameValue(MetaNameValue {
+                        path: Path { segments, .. },
+                        lit,
+                        ..
+                    }))) = nested.first()
+                    {
+                        for seg in segments {
+                            // if there's a max_size attr in the list, extract the lit
+                            if &seg.ident
+                                == &Ident::new(
+                                    "max_size",
+                                    proc_macro2::Span::call_site(),
+                                )
+                            {
+                                // TODO: ensure literal is numeric
+                                return quote! { stringify!(#ident) => Some(#lit) };
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        quote! { stringify!(#ident) => None }
     });
 
     let build_fields = fields.iter().map(|f| {

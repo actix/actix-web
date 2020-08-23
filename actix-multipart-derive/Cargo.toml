@@ -10,6 +10,7 @@ proc-macro = true
 [dependencies]
 quote = "1"
 syn = { version = "1", features = ["extra-traits"] }
+proc-macro2 = "1"
 
 # [dev-dependencies]
 actix-multipart = "0.3.0-beta.1"
