@@ -1,0 +1,20 @@
+[package]
+name = "actix-multipart-derive"
+version = "0.1.0"
+authors = ["Rob Ede <robjtede@icloud.com>"]
+edition = "2018"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+quote = "1"
+syn = { version = "1", features = ["extra-traits"] }
+
+# [dev-dependencies]
+actix-multipart = "0.3.0-beta.1"
+actix-web = "3.0.0-beta.3"
+bytes = "0.5"
+futures-util = "0.3"
+serde = { version = "1", features = ["derive"] }
+trybuild = "1"

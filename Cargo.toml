@@ -32,6 +32,7 @@ members = [
   "actix-http",
   "actix-files",
   "actix-multipart",
+  "actix-multipart-derive",
   "actix-web-actors",
   "actix-web-codegen",
   "test-server",

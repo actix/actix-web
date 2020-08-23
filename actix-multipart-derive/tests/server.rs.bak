@@ -1,0 +1,19 @@
+
+#[post("/")]
+async fn no_params(form: Form) -> &'static str {
+    println!("{:?}", &form);
+
+    "Hello world!\r\n"
+}
+
+#[actix_web::main]
+async fn main() -> std::io::Result<()> {
+    std::env::set_var("RUST_LOG", "actix_server=info,actix_web=info");
+    env_logger::init();
+
+    HttpServer::new(|| App::new().service(no_params))
+        .bind("127.0.0.1:8080")?
+        .workers(1)
+        .run()
+        .await
+}
