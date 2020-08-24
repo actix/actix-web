@@ -5,6 +5,6 @@ mod error;
 mod extractor;
 mod server;
 
-pub use self::byte_builder::BuildFromBytes;
+pub use self::byte_builder::FromBytes;
 pub use self::error::MultipartError;
 pub use self::server::{Field, Multipart};

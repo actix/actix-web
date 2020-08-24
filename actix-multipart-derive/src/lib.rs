@@ -76,21 +76,21 @@ pub fn derive(input: TokenStream) -> TokenStream {
         quote! { #ident: self.#ident.unwrap() }
     });
 
-    let field_appending = fields.iter().map(|f| {
+    let bytes_appending = fields.iter().map(|f| {
+        let Field { ident, .. } = f;
+
+        quote! {
+           stringify!(#ident) => field_bytes.put(chunk),
+        }
+    });
+
+    let fields_from_bytes = fields.iter().map(|f| {
         let Field { ident, ty, .. } = f;
 
         quote! {
-           stringify!(#ident) => match builder.#ident {
-               Some(ref mut field) => {
-                   field.append(chunk);
-               }
-               None => {
-                   let mut field = #ty::default();
-                   field.append(chunk);
-                   builder.#ident.replace(field);
-               }
-           },
-
+           stringify!(#ident) => {
+                builder.#ident.replace(#ty::from_bytes(field_bytes));
+            }
         }
     });
 
@@ -121,9 +121,11 @@ pub fn derive(input: TokenStream) -> TokenStream {
             type Config = ();
 
             fn from_request(req: &::actix_web::HttpRequest, payload: &mut ::actix_web::dev::Payload) -> Self::Future {
-                use futures_util::future::FutureExt;
-                use futures_util::stream::StreamExt;
-                use actix_multipart::BuildFromBytes;
+                use ::futures_util::future::FutureExt;
+                use ::futures_util::stream::StreamExt;
+                use ::actix_web::error;
+                use ::actix_multipart::{FromBytes, Multipart};
+                use ::bytes::{BufMut, BytesMut};
 
                 let pl = payload.take();
                 let req2 = req.clone();
@@ -140,26 +142,36 @@ pub fn derive(input: TokenStream) -> TokenStream {
 
                         let cd = field.content_disposition().unwrap();
                         let name = cd.get_name().unwrap();
-                        println!("FIELD: {}", name);
 
                         let mut size = 0;
+                        let mut field_bytes = BytesMut::new();
 
                         while let Some(chunk) = field.next().await {
                             let chunk = chunk?;
                             size += chunk.len();
 
                             if (size > #b_ident::max_size(&name).unwrap_or(std::usize::MAX)) {
-                                return Err(::actix_web::error::ErrorPayloadTooLarge("field is too large"));
+                                return Err(error::ErrorPayloadTooLarge("field is too large"));
                             }
 
                             match name {
-                                #(#field_appending)*
+                                #(#bytes_appending)*
 
-                                _ => todo!("unknown field"),
+                                _ => {
+                                    // unknown field
+                                },
                             }
                         }
 
-                        println!();
+                        let field_bytes = field_bytes.freeze();
+
+                        match name {
+                            #(#fields_from_bytes)*
+
+                            _ => {
+                                // unknown field
+                            },
+                        }
                     }
 
                     builder.build()

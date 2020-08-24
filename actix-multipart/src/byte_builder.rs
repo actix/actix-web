@@ -1,18 +1,25 @@
-use bytes::{BufMut, Bytes, BytesMut};
+use bytes::{Bytes, BytesMut};
 
-pub trait BuildFromBytes {
-    fn append(&mut self, next: Bytes);
+pub trait FromBytes {
+    fn from_bytes(next: Bytes) -> Self;
 }
 
-impl BuildFromBytes for String {
-    fn append(&mut self, chunk: Bytes) {
-        let chunk_str = std::str::from_utf8(&chunk).expect("string field is not utf-8");
-        self.push_str(chunk_str);
+impl FromBytes for String {
+    fn from_bytes(bytes: Bytes) -> Self {
+        std::str::from_utf8(&bytes)
+            .expect("string field is not utf-8")
+            .to_owned()
     }
 }
 
-impl BuildFromBytes for BytesMut {
-    fn append(&mut self, chunk: Bytes) {
-        self.put(&chunk[..]);
+impl FromBytes for Bytes {
+    fn from_bytes(bytes: Bytes) -> Self {
+        bytes
+    }
+}
+
+impl FromBytes for BytesMut {
+    fn from_bytes(bytes: Bytes) -> Self {
+        BytesMut::from(bytes.as_ref())
     }
 }
