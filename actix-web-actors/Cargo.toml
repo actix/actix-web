@@ -19,7 +19,7 @@ path = "src/lib.rs"
 actix = "0.10.0-alpha.2"
 actix-web = { version = "3.0.0-beta.3", default-features = false }
 actix-http = "2.0.0-beta.3"
-actix-codec = "0.2.0"
+actix-codec = "0.3.0"
 bytes = "0.5.2"
 futures-channel = { version = "0.3.5", default-features = false }
 futures-core = { version = "0.3.5", default-features = false }

@@ -366,7 +366,7 @@ impl WebsocketsRequest {
         // response and ws framed
         Ok((
             ClientResponse::new(head, Payload::None),
-            framed.map_codec(|_| {
+            framed.into_map_codec(|_| {
                 if server_mode {
                     ws::Codec::new().max_size(max_size)
                 } else {
