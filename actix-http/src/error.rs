@@ -1,4 +1,5 @@
 //! Error and Result module
+
 use std::cell::RefCell;
 use std::io::Write;
 use std::str::Utf8Error;
@@ -7,7 +8,7 @@ use std::{fmt, io, result};
 
 use actix_codec::{Decoder, Encoder};
 pub use actix_threadpool::BlockingError;
-use actix_utils::framed::DispatcherError as FramedDispatcherError;
+use actix_utils::dispatcher::DispatcherError as FramedDispatcherError;
 use actix_utils::timeout::TimeoutError;
 use bytes::BytesMut;
 use derive_more::{Display, From};
@@ -452,10 +453,10 @@ impl ResponseError for ContentTypeError {
     }
 }
 
-impl<E, U: Encoder + Decoder> ResponseError for FramedDispatcherError<E, U>
+impl<E, U: Encoder<I> + Decoder, I> ResponseError for FramedDispatcherError<E, U, I>
 where
     E: fmt::Debug + fmt::Display,
-    <U as Encoder>::Error: fmt::Debug,
+    <U as Encoder<I>>::Error: fmt::Debug,
     <U as Decoder>::Error: fmt::Debug,
 {
 }

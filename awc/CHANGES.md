@@ -1,5 +1,10 @@
 # Changes
 
+## Unreleased - 2020-xx-xx
+### Changed
+* Update actix-codec dependency.
+
+
 ## 2.0.0-beta.3 - 2020-08-17
 ### Changed
 * Update `rustls` to 0.18

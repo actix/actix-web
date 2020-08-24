@@ -1,5 +1,8 @@
 # Changes
 
+## Unreleased - 2020-xx-xx
+* Update actix-codec and actix-utils dependencies.
+
 ## [2.0.0-alpha.1] - 2020-05-23
 
 * Update the `time` dependency to 0.2.7

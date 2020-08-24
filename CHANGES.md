@@ -1,13 +1,18 @@
 # Changes
 
-## Unreleased
+## Unreleased - 2020-xx-xx
 ### Added
-* `middleware::NormalizePath` now has configurable behaviour for either always having a trailing slash,
-  or as the new addition, always trimming trailing slashes.
+* `middleware::NormalizePath` now has configurable behaviour for either always having a trailing
+  slash, or as the new addition, always trimming trailing slashes.
+
+### Changed
+* Update actix-codec and actix-utils dependencies.
+
 
 ## 3.0.0-beta.3 - 2020-08-17
 ### Changed
 * Update `rustls` to 0.18
+
 
 ## 3.0.0-beta.2 - 2020-08-17
 ### Changed
