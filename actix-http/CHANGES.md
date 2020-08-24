@@ -1,7 +1,8 @@
 # Changes
 
 ## Unreleased
-
+### Changed
+* Update actix-codec and actix-utils dependencies.
 
 ## [2.0.0-beta.3] - 2020-08-14
 

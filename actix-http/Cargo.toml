@@ -41,9 +41,9 @@ actors = ["actix"]
 
 [dependencies]
 actix-service = "1.0.5"
-actix-codec = "0.2.0"
+actix-codec = "0.3.0"
 actix-connect = "2.0.0-alpha.4"
-actix-utils = "1.0.6"
+actix-utils = "2.0.0"
 actix-rt = "1.0.0"
 actix-threadpool = "0.3.1"
 actix-tls = { version = "2.0.0-alpha.2", optional = true }
