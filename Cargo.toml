@@ -65,9 +65,9 @@ name = "test_server"
 required-features = ["compress"]
 
 [dependencies]
-actix-codec = "0.2.0"
-actix-service = "1.0.2"
-actix-utils = "1.0.6"
+actix-codec = "0.3.0"
+actix-service = "1.0.6"
+actix-utils = "2.0.0"
 actix-router = "0.2.4"
 actix-rt = "1.1.1"
 actix-server = "1.0.0"

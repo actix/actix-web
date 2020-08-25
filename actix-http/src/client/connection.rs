@@ -46,10 +46,10 @@ pub trait Connection {
 
 pub(crate) trait ConnectionLifetime: AsyncRead + AsyncWrite + 'static {
     /// Close connection
-    fn close(&mut self);
+    fn close(self: Pin<&mut Self>);
 
     /// Release connection to the connection pool
-    fn release(&mut self);
+    fn release(self: Pin<&mut Self>);
 }
 
 #[doc(hidden)]
@@ -195,11 +195,15 @@ where
         match self {
             EitherConnection::A(con) => con
                 .open_tunnel(head)
-                .map(|res| res.map(|(head, framed)| (head, framed.map_io(EitherIo::A))))
+                .map(|res| {
+                    res.map(|(head, framed)| (head, framed.into_map_io(EitherIo::A)))
+                })
                 .boxed_local(),
             EitherConnection::B(con) => con
                 .open_tunnel(head)
-                .map(|res| res.map(|(head, framed)| (head, framed.map_io(EitherIo::B))))
+                .map(|res| {
+                    res.map(|(head, framed)| (head, framed.into_map_io(EitherIo::B)))
+                })
                 .boxed_local(),
         }
     }
