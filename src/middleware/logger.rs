@@ -85,7 +85,7 @@ use crate::HttpResponse;
 ///  [`ConnectionInfo::realip_remote_addr()`](../dev/struct.ConnectionInfo.html#method.realip_remote_addr)
 ///
 ///  If you use this value ensure that all requests come from trusted hosts, since it is trivial
-///  for the remote client to simulate been another client.
+///  for the remote client to simulate being another client.
 ///
 pub struct Logger(Rc<Inner>);
 
