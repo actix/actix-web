@@ -279,27 +279,24 @@ impl PayloadConfig {
         Ok(())
     }
 
-    /// Allow payload config extraction from app data checking both `T` and `Data<T>`, in that
-    /// order, and falling back to the default payload config.
-    fn from_req(req: &HttpRequest) -> &PayloadConfig {
-        req.app_data::<PayloadConfig>()
-            .or_else(|| {
-                req.app_data::<web::Data<PayloadConfig>>()
-                    .map(|d| d.as_ref())
-            })
-            .unwrap_or_else(|| &DEFAULT_PAYLOAD_CONFIG)
+    /// Extract payload config from app data. Check both `T` and `Data<T>`, in that order, and fall
+    /// back to the default payload config.
+    fn from_req(req: &HttpRequest) -> &Self {
+        req.app_data::<Self>()
+            .or_else(|| req.app_data::<web::Data<Self>>().map(|d| d.as_ref()))
+            .unwrap_or_else(|| &DEFAULT_CONFIG)
     }
 }
 
 // Allow shared refs to default.
-static DEFAULT_PAYLOAD_CONFIG: PayloadConfig = PayloadConfig {
+const DEFAULT_CONFIG: PayloadConfig = PayloadConfig {
     limit: 262_144, // 2^18 bytes (~256kB)
     mimetype: None,
 };
 
 impl Default for PayloadConfig {
     fn default() -> Self {
-        DEFAULT_PAYLOAD_CONFIG.clone()
+        DEFAULT_CONFIG.clone()
     }
 }
 
