@@ -23,7 +23,7 @@ use crate::http::{
     StatusCode,
 };
 use crate::request::HttpRequest;
-use crate::responder::Responder;
+use crate::{responder::Responder, web};
 
 /// Form data helper (`application/x-www-form-urlencoded`)
 ///
@@ -121,8 +121,12 @@ where
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         let req2 = req.clone();
         let (limit, err) = req
-            .app_data::<FormConfig>()
-            .map(|c| (c.limit, c.ehandler.clone()))
+            .app_data::<Self::Config>()
+            .or_else(|| {
+                req.app_data::<web::Data<Self::Config>>()
+                    .map(|d| d.as_ref())
+            })
+            .map(|c| (c.limit, c.err_handler.clone()))
             .unwrap_or((16384, None));
 
         UrlEncoded::new(req, payload)
@@ -200,7 +204,7 @@ impl<T: Serialize> Responder for Form<T> {
 #[derive(Clone)]
 pub struct FormConfig {
     limit: usize,
-    ehandler: Option<Rc<dyn Fn(UrlencodedError, &HttpRequest) -> Error>>,
+    err_handler: Option<Rc<dyn Fn(UrlencodedError, &HttpRequest) -> Error>>,
 }
 
 impl FormConfig {
@@ -215,7 +219,7 @@ impl FormConfig {
     where
         F: Fn(UrlencodedError, &HttpRequest) -> Error + 'static,
     {
-        self.ehandler = Some(Rc::new(f));
+        self.err_handler = Some(Rc::new(f));
         self
     }
 }
@@ -223,8 +227,8 @@ impl FormConfig {
 impl Default for FormConfig {
     fn default() -> Self {
         FormConfig {
-            limit: 16384,
-            ehandler: None,
+            limit: 16_384, // 2^14 bytes (~16kB)
+            err_handler: None,
         }
     }
 }
@@ -378,7 +382,7 @@ mod tests {
     use serde::{Deserialize, Serialize};
 
     use super::*;
-    use crate::http::header::{HeaderValue, CONTENT_TYPE};
+    use crate::http::header::{HeaderValue, CONTENT_LENGTH, CONTENT_TYPE};
     use crate::test::TestRequest;
 
     #[derive(Deserialize, Serialize, Debug, PartialEq)]
@@ -498,5 +502,23 @@ mod tests {
 
         use crate::responder::tests::BodyTest;
         assert_eq!(resp.body().bin_ref(), b"hello=world&counter=123");
+    }
+
+    #[actix_rt::test]
+    async fn test_with_config_in_data_wrapper() {
+        let ctype = HeaderValue::from_static("application/x-www-form-urlencoded");
+
+        let (req, mut pl) = TestRequest::default()
+            .header(CONTENT_TYPE, ctype)
+            .header(CONTENT_LENGTH, HeaderValue::from_static("20"))
+            .set_payload(Bytes::from_static(b"hello=test&counter=4"))
+            .app_data(web::Data::new(FormConfig::default().limit(10)))
+            .to_http_parts();
+
+        let s = Form::<Info>::from_request(&req, &mut pl).await;
+        assert!(s.is_err());
+
+        let err_str = s.err().unwrap().to_string();
+        assert!(err_str.contains("Urlencoded payload size is bigger"));
     }
 }
