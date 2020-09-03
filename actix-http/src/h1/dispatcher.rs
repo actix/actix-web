@@ -314,11 +314,15 @@ where
                 Poll::Ready(Err(err)) => return Err(DispatchError::Io(err)),
             }
         }
+
         if written == write_buf.len() {
+            // SAFETY: setting length to 0 is safe
+            // skips one length check vs truncate
             unsafe { write_buf.set_len(0) }
         } else {
             write_buf.advance(written);
         }
+
         Ok(false)
     }
 
