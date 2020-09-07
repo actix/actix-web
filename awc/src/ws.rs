@@ -12,7 +12,7 @@
 //! #[actix_rt::main]
 //! async fn main() {
 //!     let (_resp, mut connection) = Client::new()
-//!         .ws("wss://echo.websocket.org")
+//!         .ws("ws://echo.websocket.org")
 //!         .connect()
 //!         .await
 //!         .unwrap();
