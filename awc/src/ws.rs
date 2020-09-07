@@ -1,7 +1,6 @@
 //! Websockets client
 //!
-//! This module contains type definitions required to use [`awc::Client`](../struct.Client.html) as a WebSocket client.
-//! To use `awc::Client`
+//! Type definitions required to use [`awc::Client`](../struct.Client.html) as a WebSocket client.
 //!
 //! # Example
 //!
@@ -26,7 +25,6 @@
 //!     assert_eq!(response, ws::Frame::Text("Echo".as_bytes().into()));
 //! }
 //! ```
-//!
 
 use std::convert::TryFrom;
 use std::net::SocketAddr;

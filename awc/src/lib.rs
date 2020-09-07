@@ -193,8 +193,8 @@ impl Client {
         self.request(Method::OPTIONS, url)
     }
 
-    /// Initialize a WebSockets connection.
-    /// This method returns a builder structure to establish a WebSocket connection.
+    /// Initialize a WebSocket connection.
+    /// Returns a WebSocket connection builder.
     pub fn ws<U>(&self, url: U) -> ws::WebsocketsRequest
     where
         Uri: TryFrom<U>,
