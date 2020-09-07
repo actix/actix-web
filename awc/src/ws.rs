@@ -1,4 +1,33 @@
 //! Websockets client
+//!
+//! This module contains type definitions required to use [`awc::Client`](../struct.Client.html) as a WebSocket client.
+//! To use `awc::Client`
+//!
+//! # Example
+//!
+//! ```
+//! use awc::{Client, ws};
+//! use futures_util::{sink::SinkExt, stream::StreamExt};
+//!
+//! #[actix_rt::main]
+//! async fn main() {
+//!     let (_resp, mut connection) = Client::new()
+//!         .ws("wss://echo.websocket.org")
+//!         .connect()
+//!         .await
+//!         .unwrap();
+//!
+//!     connection
+//!         .send(ws::Message::Text("Echo".to_string()))
+//!         .await
+//!         .unwrap();
+//!     let response = connection.next().await.unwrap().unwrap();
+//!
+//!     assert_eq!(response, ws::Frame::Text("Echo".as_bytes().into()));
+//! }
+//! ```
+//!
+
 use std::convert::TryFrom;
 use std::net::SocketAddr;
 use std::rc::Rc;
