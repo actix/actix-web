@@ -5,7 +5,7 @@
     clippy::needless_doctest_main
 )]
 
-//! `awc` is a HTTP/WebSocket Client library implemented atop of `actix` stack.
+//! `awc` is a HTTP and WebSocket client library built using the Actix ecosystem.
 //!
 //! ## Making a GET request
 //!
@@ -125,7 +125,7 @@ pub use self::sender::SendClientRequest;
 
 use self::connect::{Connect, ConnectorWrapper};
 
-/// An asynchronous web Client.
+/// An asynchronous HTTP and WebSocket client.
 ///
 /// ## Examples
 ///
