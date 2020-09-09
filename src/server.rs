@@ -122,23 +122,23 @@ where
 
     /// Sets the maximum per-worker number of concurrent connections.
     ///
-    /// All socket listeners will stop accepting connections when this limit is reached
-    /// for each worker.
+    /// All socket listeners will stop accepting connections when this limit is reached for
+    /// each worker.
     ///
     /// By default max connections is set to a 25k.
-    pub fn maxconn(mut self, num: usize) -> Self {
+    pub fn max_connections(mut self, num: usize) -> Self {
         self.builder = self.builder.maxconn(num);
         self
     }
 
     /// Sets the maximum per-worker concurrent connection establish process.
     ///
-    /// All listeners will stop accepting connections when this limit is reached. It
-    /// can be used to limit the global SSL CPU usage.
+    /// All listeners will stop accepting connections when this limit is reached. It can be used to
+    /// limit the global TLS CPU usage.
     ///
     /// By default max connections is set to a 256.
-    pub fn maxconnrate(self, num: usize) -> Self {
-        actix_tls::max_concurrent_ssl_connect(num);
+    pub fn max_connection_rate(self, num: usize) -> Self {
+        actix_tls::max_concurrent_tls_connect(num);
         self
     }
 
@@ -375,19 +375,20 @@ where
         addr: A,
     ) -> io::Result<Vec<net::TcpListener>> {
         let mut err = None;
-        let mut succ = false;
+        let mut success = false;
         let mut sockets = Vec::new();
+
         for addr in addr.to_socket_addrs()? {
             match create_tcp_listener(addr, self.backlog) {
                 Ok(lst) => {
-                    succ = true;
+                    success = true;
                     sockets.push(lst);
                 }
                 Err(e) => err = Some(e),
             }
         }
 
-        if !succ {
+        if !success {
             if let Some(e) = err.take() {
                 Err(e)
             } else {
@@ -575,17 +576,19 @@ fn create_tcp_listener(
 #[cfg(feature = "openssl")]
 /// Configure `SslAcceptorBuilder` with custom server flags.
 fn openssl_acceptor(mut builder: SslAcceptorBuilder) -> io::Result<SslAcceptor> {
-    builder.set_alpn_select_callback(|_, protos| {
+    builder.set_alpn_select_callback(|_, protocols| {
         const H2: &[u8] = b"\x02h2";
         const H11: &[u8] = b"\x08http/1.1";
-        if protos.windows(3).any(|window| window == H2) {
+
+        if protocols.windows(3).any(|window| window == H2) {
             Ok(b"h2")
-        } else if protos.windows(9).any(|window| window == H11) {
+        } else if protocols.windows(9).any(|window| window == H11) {
             Ok(b"http/1.1")
         } else {
             Err(AlpnError::NOACK)
         }
     });
+
     builder.set_alpn_protos(b"\x08http/1.1\x02h2")?;
 
     Ok(builder.build())
