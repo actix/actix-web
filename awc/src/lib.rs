@@ -5,7 +5,7 @@
     clippy::needless_doctest_main
 )]
 
-//! `awc` is a HTTP/WebSocket library implemented atop of `actix` stack.
+//! `awc` is a HTTP/WebSocket Client library implemented atop of `actix` stack.
 //!
 //! ## Making a GET request
 //!
