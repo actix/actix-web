@@ -74,7 +74,7 @@ actix-server = "1.0.0"
 actix-testing = "1.0.0"
 actix-macros = "0.1.0"
 actix-threadpool = "0.3.1"
-actix-tls = "2.0.0-alpha.2"
+actix-tls = "2.0.0"
 
 actix-web-codegen = "0.3.0-beta.1"
 actix-http = "2.0.0-beta.3"

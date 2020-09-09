@@ -36,6 +36,10 @@
   It will need `middleware::normalize::TrailingSlash` when being constructed with `NormalizePath::new(...)`,
   or for an easier migration you can replace `wrap(middleware::NormalizePath)` with `wrap(middleware::NormalizePath::default())`.
 
+* `HttpServer::maxconn` is renamed to the more expressive `HttpServer::max_connections`.
+
+* `HttpServer::maxconnrate` is renamed to the more expressive `HttpServer::max_connection_rate`.
+
 ## 2.0.0
 
 * `HttpServer::start()` renamed to `HttpServer::run()`. It also possible to
