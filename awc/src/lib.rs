@@ -13,7 +13,7 @@
 //! # #[actix_rt::main]
 //! # async fn main() -> Result<(), awc::error::SendRequestError> {
 //! let mut client = awc::Client::default();
-//! let response = client.get("https://www.rust-lang.org") // <- Create request builder
+//! let response = client.get("http://www.rust-lang.org") // <- Create request builder
 //!     .header("User-Agent", "Actix-web")
 //!     .send()                                            // <- Send http request
 //!     .await?;
@@ -31,7 +31,7 @@
 //! # #[actix_rt::main]
 //! # async fn main() -> Result<(), awc::error::SendRequestError> {
 //! let mut client = awc::Client::default();
-//! let response = client.post("https://httpbin.org/post")
+//! let response = client.post("http://httpbin.org/post")
 //!     .send_body("Raw body contents")
 //!     .await?;
 //! # Ok(())
@@ -46,7 +46,7 @@
 //! let params = [("foo", "bar"), ("baz", "quux")];
 //!
 //! let mut client = awc::Client::default();
-//! let response = client.post("https://httpbin.org/post")
+//! let response = client.post("http://httpbin.org/post")
 //!     .send_form(&params)
 //!     .await?;
 //! # Ok(())
@@ -64,7 +64,7 @@
 //! });
 //!
 //! let mut client = awc::Client::default();
-//! let response = client.post("https://httpbin.org/post")
+//! let response = client.post("http://httpbin.org/post")
 //!     .send_json(&request)
 //!     .await?;
 //! # Ok(())
