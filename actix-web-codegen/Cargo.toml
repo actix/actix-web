@@ -20,5 +20,5 @@ proc-macro2 = "1"
 
 [dev-dependencies]
 actix-rt = "1.0.0"
-actix-web = "3.0.0-beta.3"
+actix-web = "3.0.0-beta.4"
 futures-util = { version = "0.3.5", default-features = false }

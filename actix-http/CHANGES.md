@@ -1,8 +1,13 @@
 # Changes
 
-## Unreleased
+## Unreleased - 2020-xx-xx
+
+
+## 2.0.0-beta.4 - 2020-09-09
 ### Changed
 * Update actix-codec and actix-utils dependencies.
+* Update actix-connect and actix-tls dependencies.
+
 
 ## [2.0.0-beta.3] - 2020-08-14
 
