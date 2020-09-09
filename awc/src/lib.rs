@@ -15,7 +15,7 @@
 //! let mut client = awc::Client::default();
 //! let response = client.get("https://www.rust-lang.org") // <- Create request builder
 //!     .header("User-Agent", "Actix-web")
-//!     .send()                                           // <- Send http request
+//!     .send()                                            // <- Send http request
 //!     .await?;
 //!
 //!  println!("Response: {:?}", response);
@@ -58,7 +58,7 @@
 //! ```rust
 //! # #[actix_rt::main]
 //! # async fn main() -> Result<(), awc::error::SendRequestError> {
-//! let mut request = serde_json::json!({
+//! let request = serde_json::json!({
 //!     "lang": "rust",
 //!     "body": "json"
 //! });
