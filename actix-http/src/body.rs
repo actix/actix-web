@@ -714,7 +714,7 @@ mod tests {
         let body = resp_body.downcast_ref::<String>().unwrap();
         assert_eq!(body, "hello cast");
         let body = &mut resp_body.downcast_mut::<String>().unwrap();
-        body.push_str("!");
+        body.push('!');
         let body = resp_body.downcast_ref::<String>().unwrap();
         assert_eq!(body, "hello cast!");
         let not_body = resp_body.downcast_ref::<()>();

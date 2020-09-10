@@ -1,4 +1,4 @@
-#![warn(rust_2018_idioms, warnings)]
+#![deny(rust_2018_idioms)]
 #![allow(
     clippy::type_complexity,
     clippy::borrow_interior_mutable_const,
