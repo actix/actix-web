@@ -193,11 +193,7 @@ impl RequestSender {
             }
         };
 
-        SendClientRequest::new(
-            fut,
-            response_decompress,
-            timeout.or_else(|| config.timeout),
-        )
+        SendClientRequest::new(fut, response_decompress, timeout.or(config.timeout))
     }
 
     pub(crate) fn send_json<T: Serialize>(
