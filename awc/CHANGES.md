@@ -1,6 +1,8 @@
 # Changes
 
 ## Unreleased - 2020-xx-xx
+### Changed
+* `Client::build` was renamed to `Client::builder`.
 
 
 ## 2.0.0-beta.4 - 2020-09-09
