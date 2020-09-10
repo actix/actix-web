@@ -211,6 +211,42 @@ where
 ///
 /// # Examples
 ///
+/// Global extractor configuration:
+/// ```rust
+/// use actix_web::{error, web, App, FromRequest, HttpResponse};
+/// use serde_derive::Deserialize;
+///
+/// #[derive(Deserialize)]
+/// struct Info {
+///     username: String,
+/// }
+///
+/// /// deserialize `Info` from request's body, max payload size is 4kb
+/// async fn index(info: web::Json<Info>) -> String {
+///     format!("Welcome {}!", info.username)
+/// }
+///
+/// fn main() {
+///     let app = App::new().service(
+///         web::resource("/index.html")
+///             .app_data(
+///                 // Json extractor configuration for this resource.
+///                 web::JsonConfig::default()
+///                     .limit(4096) // Limit request payload size
+///                     .content_type(|mime| {  // <- accept text/plain content type
+///                         mime.type_() == mime::TEXT && mime.subtype() == mime::PLAIN
+///                     })
+///                     .error_handler(|err, req| {  // <- create custom error response
+///                        error::InternalError::from_response(
+///                            err, HttpResponse::Conflict().finish()).into()
+///                     })
+///             )
+///             .route(web::post().to(index))
+///     );
+/// }
+/// ```
+///
+/// Per-type extractor configuration:
 /// ```rust
 /// use actix_web::{error, web, App, FromRequest, HttpRequest, HttpResponse};
 /// use serde_derive::Deserialize;
@@ -242,7 +278,7 @@ where
 ///     let app = App::new().service(
 ///         web::resource("/index.html")
 ///             .app_data(
-///                 // change json extractor configuration
+///                 // Json extractor configuration for only the `Info` struct.
 ///                 web::Json::<Info>::configure(|cfg| {
 ///                     cfg.limit(4096)
 ///                        .content_type(|mime| {  // <- accept text/plain content type
