@@ -1,7 +1,8 @@
 # Changes
 
 ## Unreleased - 2020-xx-xx
-
+### Fixed
+* Reduced chance of timeouts on Windows.
 
 ## 2.0.0-beta.4 - 2020-09-09
 ### Changed

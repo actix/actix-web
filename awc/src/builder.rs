@@ -40,7 +40,14 @@ impl ClientBuilder {
             allow_redirects: true,
             max_redirects: 10,
             headers: HeaderMap::new(),
+
+            #[cfg(not(target_os = "windows"))]
             timeout: Some(Duration::from_secs(5)),
+
+            // HACK: Issue #1560 - ameliorate connect timeouts from DNS lookups
+            #[cfg(target_os = "windows")]
+            timeout: Some(Duration::from_secs(10)),
+
             connector: None,
             max_http_version: None,
             stream_window_size: None,
