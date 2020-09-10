@@ -37,7 +37,7 @@
 ## Documentation
 
 * [Website & User Guide](https://actix.rs)
-* [Examples Repository](https://actix.rs/actix-web/actix_web)
+* [Examples Repository](https://github.com/actix/examples)
 * [API Documentation](https://docs.rs/actix-web)
 * [API Documentation (master branch)](https://actix.rs/actix-web/actix_web)
 
