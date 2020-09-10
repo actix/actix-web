@@ -623,7 +623,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_client_header() {
-        let req = Client::build()
+        let req = Client::builder()
             .header(header::CONTENT_TYPE, "111")
             .finish()
             .get("/");
@@ -641,7 +641,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_client_header_override() {
-        let req = Client::build()
+        let req = Client::builder()
             .header(header::CONTENT_TYPE, "111")
             .finish()
             .get("/")

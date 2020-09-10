@@ -43,7 +43,7 @@ async fn test_start() {
     {
         use actix_http::client;
 
-        let client = awc::Client::build()
+        let client = awc::Client::builder()
             .connector(
                 client::Connector::new()
                     .timeout(Duration::from_millis(100))
@@ -115,7 +115,7 @@ async fn test_start_ssl() {
         .set_alpn_protos(b"\x02h2\x08http/1.1")
         .map_err(|e| log::error!("Can not set alpn protocol: {:?}", e));
 
-    let client = awc::Client::build()
+    let client = awc::Client::builder()
         .connector(
             awc::Connector::new()
                 .ssl(builder.build())
