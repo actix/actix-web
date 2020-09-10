@@ -212,6 +212,7 @@ where
 /// # Examples
 ///
 /// Global extractor configuration:
+///
 /// ```rust
 /// use actix_web::{error, web, App, FromRequest, HttpResponse};
 /// use serde_derive::Deserialize;
@@ -247,6 +248,7 @@ where
 /// ```
 ///
 /// Per-type extractor configuration:
+///
 /// ```rust
 /// use actix_web::{error, web, App, FromRequest, HttpRequest, HttpResponse};
 /// use serde_derive::Deserialize;
@@ -278,7 +280,7 @@ where
 ///     let app = App::new().service(
 ///         web::resource("/index.html")
 ///             .app_data(
-///                 // Json extractor configuration for only the `Info` struct.
+///                 // JSON extractor configuration for the `Info` struct only.
 ///                 web::Json::<Info>::configure(|cfg| {
 ///                     cfg.limit(4096)
 ///                        .content_type(|mime| {  // <- accept text/plain content type
