@@ -4,24 +4,93 @@
     clippy::borrow_interior_mutable_const,
     clippy::needless_doctest_main
 )]
-//! An HTTP Client
+
+//! `awc` is a HTTP and WebSocket client library built using the Actix ecosystem.
+//!
+//! ## Making a GET request
 //!
 //! ```rust
-//! use actix_rt::System;
-//! use awc::Client;
+//! # #[actix_rt::main]
+//! # async fn main() -> Result<(), awc::error::SendRequestError> {
+//! let mut client = awc::Client::default();
+//! let response = client.get("http://www.rust-lang.org") // <- Create request builder
+//!     .header("User-Agent", "Actix-web")
+//!     .send()                                            // <- Send http request
+//!     .await?;
 //!
-//! #[actix_rt::main]
-//! async fn main() {
-//!    let mut client = Client::default();
-//!
-//!    let response = client.get("http://www.rust-lang.org") // <- Create request builder
-//!        .header("User-Agent", "Actix-web")
-//!        .send()                             // <- Send http request
-//!        .await;
-//!
-//!     println!("Response: {:?}", response);
-//! }
+//!  println!("Response: {:?}", response);
+//! # Ok(())
+//! # }
 //! ```
+//!
+//! ## Making POST requests
+//!
+//! ### Raw body contents
+//!
+//! ```rust
+//! # #[actix_rt::main]
+//! # async fn main() -> Result<(), awc::error::SendRequestError> {
+//! let mut client = awc::Client::default();
+//! let response = client.post("http://httpbin.org/post")
+//!     .send_body("Raw body contents")
+//!     .await?;
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! ### Forms
+//!
+//! ```rust
+//! # #[actix_rt::main]
+//! # async fn main() -> Result<(), awc::error::SendRequestError> {
+//! let params = [("foo", "bar"), ("baz", "quux")];
+//!
+//! let mut client = awc::Client::default();
+//! let response = client.post("http://httpbin.org/post")
+//!     .send_form(&params)
+//!     .await?;
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! ### JSON
+//!
+//! ```rust
+//! # #[actix_rt::main]
+//! # async fn main() -> Result<(), awc::error::SendRequestError> {
+//! let request = serde_json::json!({
+//!     "lang": "rust",
+//!     "body": "json"
+//! });
+//!
+//! let mut client = awc::Client::default();
+//! let response = client.post("http://httpbin.org/post")
+//!     .send_json(&request)
+//!     .await?;
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! ## WebSocket support
+//!
+//! ```
+//! # #[actix_rt::main]
+//! # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! use futures_util::{sink::SinkExt, stream::StreamExt};
+//! let (_resp, mut connection) = awc::Client::new()
+//!     .ws("ws://echo.websocket.org")
+//!     .connect()
+//!     .await?;
+//!
+//! connection
+//!     .send(awc::ws::Message::Text("Echo".to_string()))
+//!     .await?;
+//! let response = connection.next().await.unwrap()?;
+//! # assert_eq!(response, awc::ws::Frame::Text("Echo".as_bytes().into()));
+//! # Ok(())
+//! # }
+//! ```
+
 use std::cell::RefCell;
 use std::convert::TryFrom;
 use std::rc::Rc;
@@ -51,7 +120,9 @@ pub use self::sender::SendClientRequest;
 
 use self::connect::{Connect, ConnectorWrapper};
 
-/// An HTTP Client
+/// An asynchronous HTTP and WebSocket client.
+///
+/// ## Examples
 ///
 /// ```rust
 /// use awc::Client;
