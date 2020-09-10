@@ -1,3 +1,5 @@
+//! Multipart form support for Actix web.
+
 #![allow(clippy::borrow_interior_mutable_const)]
 
 mod error;
