@@ -188,12 +188,12 @@ where
 ///     let app = App::new().service(
 ///         web::resource("/index.html").app_data(
 ///             // change query extractor configuration
-///             web::Query::<Info>::configure(|cfg| {
-///                 cfg.error_handler(|err, req| {  // <- create custom error response
+///             web::QueryConfig::default()
+///                 .error_handler(|err, req| {  // <- create custom error response
 ///                     error::InternalError::from_response(
 ///                         err, HttpResponse::Conflict().finish()).into()
 ///                 })
-///             }))
+///             )
 ///             .route(web::post().to(index))
 ///     );
 /// }
