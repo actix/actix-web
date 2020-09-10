@@ -119,11 +119,11 @@ where
             match poll_fn(|cx| Poll::Ready(inner.borrow_mut().acquire(&key, cx))).await {
                 Acquire::Acquired(io, created) => {
                     // use existing connection
-                    return Ok(IoConnection::new(
+                    Ok(IoConnection::new(
                         io,
                         created,
                         Some(Acquired(key, Some(inner))),
-                    ));
+                    ))
                 }
                 Acquire::Available => {
                     // open tcp connection
