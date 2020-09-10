@@ -209,9 +209,7 @@ where
 
 /// Json extractor configuration
 ///
-/// # Examples
-///
-/// Global extractor configuration:
+/// # Example
 ///
 /// ```rust
 /// use actix_web::{error, web, App, FromRequest, HttpResponse};
@@ -247,51 +245,6 @@ where
 /// }
 /// ```
 ///
-/// Per-type extractor configuration:
-///
-/// ```rust
-/// use actix_web::{error, web, App, FromRequest, HttpRequest, HttpResponse};
-/// use serde_derive::Deserialize;
-///
-/// #[derive(Deserialize)]
-/// struct Info {
-///     username: String,
-/// }
-///
-/// /// deserialize `Info` from request's body, max payload size is 4kb
-/// async fn index(info: web::Json<Info>) -> String {
-///     format!("Welcome {}!", info.username)
-/// }
-///
-/// /// Return either a 400 or 415, and include the error message from serde
-/// /// in the response body
-/// fn json_error_handler(err: error::JsonPayloadError, _req: &HttpRequest) -> error::Error {
-///     let detail = err.to_string();
-///     let response = match &err {
-///         error::JsonPayloadError::ContentType => {
-///             HttpResponse::UnsupportedMediaType().content_type("text/plain").body(detail)
-///         }
-///         _ => HttpResponse::BadRequest().content_type("text/plain").body(detail),
-///     };
-///     error::InternalError::from_response(err, response).into()
-/// }
-///
-/// fn main() {
-///     let app = App::new().service(
-///         web::resource("/index.html")
-///             .app_data(
-///                 // JSON extractor configuration for the `Info` struct only.
-///                 web::Json::<Info>::configure(|cfg| {
-///                     cfg.limit(4096)
-///                        .content_type(|mime| {  // <- accept text/plain content type
-///                            mime.type_() == mime::TEXT && mime.subtype() == mime::PLAIN
-///                        })
-///                        .error_handler(json_error_handler)  // Use our custom error response
-///             }))
-///             .route(web::post().to(index))
-///     );
-/// }
-/// ```
 #[derive(Clone)]
 pub struct JsonConfig {
     limit: usize,
