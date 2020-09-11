@@ -283,11 +283,11 @@ impl DispositionParam {
 ///            Some("\u{1f600}.svg".as_bytes()));
 /// ```
 ///
-/// # WARN
+/// # Security Note
+///
 /// If "filename" parameter is supplied, do not use the file name blindly, check and possibly
 /// change to match local file system conventions if applicable, and do not use directory path
-/// information that may be present. See [RFC2183](https://tools.ietf.org/html/rfc2183#section-2.3)
-/// .
+/// information that may be present. See [RFC2183](https://tools.ietf.org/html/rfc2183#section-2.3).
 #[derive(Clone, Debug, PartialEq)]
 pub struct ContentDisposition {
     /// The disposition type
