@@ -3,7 +3,7 @@
 ## Unreleased - 2020-xx-xx
 
 
-## 0.3.0-beta.1 - 2020-09-11
+## 0.3.0 - 2020-09-11
 * No significant changes from `0.3.0-beta.1`.
 
 

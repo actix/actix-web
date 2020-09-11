@@ -43,11 +43,6 @@
 
 ## Example
 
-<h2>
-  WARNING: This example is for the master branch which is currently in beta stages for v3. For
-  Actix web v2 see the <a href="https://actix.rs/docs/getting-started/">getting started guide</a>.
-</h2>
-
 Dependencies:
 
 ```toml
