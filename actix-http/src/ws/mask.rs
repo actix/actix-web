@@ -66,43 +66,16 @@ fn xor_short(buf: ShortSlice<'_>, mask: u64) {
     }
 }
 
-/// # Safety
-/// Caller must ensure the buffer has the correct size and alignment.
-#[inline]
-unsafe fn cast_slice(buf: &mut [u8]) -> &mut [u64] {
-    // Assert correct size and alignment in debug builds
-    debug_assert!(buf.len().trailing_zeros() >= 3);
-    debug_assert!((buf.as_ptr() as usize).trailing_zeros() >= 3);
-
-    slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut u64, buf.len() >> 3)
-}
-
 // Splits a slice into three parts: an unaligned short head and tail, plus an aligned
 // u64 mid section.
 #[inline]
 fn align_buf(buf: &mut [u8]) -> (ShortSlice<'_>, &mut [u64], ShortSlice<'_>) {
-    let start_ptr = buf.as_ptr() as usize;
-    let end_ptr = start_ptr + buf.len();
-
-    // Round *up* to next aligned boundary for start
-    let start_aligned = (start_ptr + 7) & !0x7;
-    // Round *down* to last aligned boundary for end
-    let end_aligned = end_ptr & !0x7;
-
-    if end_aligned >= start_aligned {
-        // We have our three segments (head, mid, tail)
-        let (tmp, tail) = buf.split_at_mut(end_aligned - start_ptr);
-        let (head, mid) = tmp.split_at_mut(start_aligned - start_ptr);
-
-        // SAFETY: we know the middle section is correctly aligned, and the outer
-        // sections are smaller than 8 bytes
-        unsafe { (ShortSlice::new(head), cast_slice(mid), ShortSlice(tail)) }
-    } else {
-        // We didn't cross even one aligned boundary!
-
-        // SAFETY: The outer sections are smaller than 8 bytes
-        unsafe { (ShortSlice::new(buf), &mut [], ShortSlice::new(&mut [])) }
-    }
+    // Safety: the only invariant to uphold when transmuting &[u8] to &[u64] is alignment,
+    // since all bit patterns are valid for both types and there is no destructor.
+    // This unsafe block could be avoided by using the `bytemuck` crate,
+    // but it's not clear if eliminating one line of unsafe is worth an extra dependency.
+    let (head, mid, tail) = unsafe { buf.align_to_mut::<u64>() };
+    (ShortSlice(head), mid, ShortSlice(tail))
 }
 
 #[cfg(test)]
