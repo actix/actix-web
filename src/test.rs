@@ -1072,14 +1072,9 @@ mod tests {
         let mut app = init_service(
             App::new().service(
                 web::resource("/index.html")
-                    .route(web::put().to(|| async { HttpResponse::Ok().body("put!") }))
-                    .route(
-                        web::patch().to(|| async { HttpResponse::Ok().body("patch!") }),
-                    )
-                    .route(
-                        web::delete()
-                            .to(|| async { HttpResponse::Ok().body("delete!") }),
-                    ),
+                    .route(web::put().to(|| HttpResponse::Ok().body("put!")))
+                    .route(web::patch().to(|| HttpResponse::Ok().body("patch!")))
+                    .route(web::delete().to(|| HttpResponse::Ok().body("delete!"))),
             ),
         )
         .await;
@@ -1107,11 +1102,13 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_response() {
-        let mut app =
-            init_service(App::new().service(web::resource("/index.html").route(
-                web::post().to(|| async { HttpResponse::Ok().body("welcome!") }),
-            )))
-            .await;
+        let mut app = init_service(
+            App::new().service(
+                web::resource("/index.html")
+                    .route(web::post().to(|| HttpResponse::Ok().body("welcome!"))),
+            ),
+        )
+        .await;
 
         let req = TestRequest::post()
             .uri("/index.html")
@@ -1124,11 +1121,13 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_send_request() {
-        let mut app =
-            init_service(App::new().service(web::resource("/index.html").route(
-                web::get().to(|| async { HttpResponse::Ok().body("welcome!") }),
-            )))
-            .await;
+        let mut app = init_service(
+            App::new().service(
+                web::resource("/index.html")
+                    .route(web::get().to(|| HttpResponse::Ok().body("welcome!"))),
+            ),
+        )
+        .await;
 
         let resp = TestRequest::get()
             .uri("/index.html")
@@ -1148,7 +1147,7 @@ mod tests {
     #[actix_rt::test]
     async fn test_response_json() {
         let mut app = init_service(App::new().service(web::resource("/people").route(
-            web::post().to(|person: web::Json<Person>| async {
+            web::post().to(|person: web::Json<Person>| {
                 HttpResponse::Ok().json(person.into_inner())
             }),
         )))
@@ -1169,7 +1168,7 @@ mod tests {
     #[actix_rt::test]
     async fn test_body_json() {
         let mut app = init_service(App::new().service(web::resource("/people").route(
-            web::post().to(|person: web::Json<Person>| async {
+            web::post().to(|person: web::Json<Person>| {
                 HttpResponse::Ok().json(person.into_inner())
             }),
         )))
@@ -1191,7 +1190,7 @@ mod tests {
     #[actix_rt::test]
     async fn test_request_response_form() {
         let mut app = init_service(App::new().service(web::resource("/people").route(
-            web::post().to(|person: web::Form<Person>| async {
+            web::post().to(|person: web::Form<Person>| {
                 HttpResponse::Ok().json(person.into_inner())
             }),
         )))
@@ -1217,7 +1216,7 @@ mod tests {
     #[actix_rt::test]
     async fn test_request_response_json() {
         let mut app = init_service(App::new().service(web::resource("/people").route(
-            web::post().to(|person: web::Json<Person>| async {
+            web::post().to(|person: web::Json<Person>| {
                 HttpResponse::Ok().json(person.into_inner())
             }),
         )))

@@ -826,7 +826,7 @@ mod tests {
     async fn test_scope_variable_segment() {
         let mut srv =
             init_service(App::new().service(web::scope("/ab-{project}").service(
-                web::resource("/path1").to(|r: HttpRequest| async move {
+                web::resource("/path1").to(|r: HttpRequest| {
                     HttpResponse::Ok()
                         .body(format!("project: {}", &r.match_info()["project"]))
                 }),
@@ -926,7 +926,7 @@ mod tests {
     async fn test_nested_scope_with_variable_segment() {
         let mut srv = init_service(App::new().service(web::scope("/app").service(
             web::scope("/{project_id}").service(web::resource("/path1").to(
-                |r: HttpRequest| async move {
+                |r: HttpRequest| {
                     HttpResponse::Created()
                         .body(format!("project: {}", &r.match_info()["project_id"]))
                 },
@@ -951,7 +951,7 @@ mod tests {
     async fn test_nested2_scope_with_variable_segment() {
         let mut srv = init_service(App::new().service(web::scope("/app").service(
             web::scope("/{project}").service(web::scope("/{id}").service(
-                web::resource("/path1").to(|r: HttpRequest| async move {
+                web::resource("/path1").to(|r: HttpRequest| {
                     HttpResponse::Created().body(format!(
                         "project: {} - {}",
                         &r.match_info()["project"],
@@ -1178,7 +1178,7 @@ mod tests {
                     );
                     s.route(
                         "/",
-                        web::get().to(|req: HttpRequest| async move {
+                        web::get().to(|req: HttpRequest| {
                             HttpResponse::Ok().body(
                                 req.url_for("youtube", &["xxxxxx"]).unwrap().to_string(),
                             )
@@ -1199,7 +1199,7 @@ mod tests {
     async fn test_url_for_nested() {
         let mut srv = init_service(App::new().service(web::scope("/a").service(
             web::scope("/b").service(web::resource("/c/{stuff}").name("c").route(
-                web::get().to(|req: HttpRequest| async move {
+                web::get().to(|req: HttpRequest| {
                     HttpResponse::Ok()
                         .body(format!("{}", req.url_for("c", &["12345"]).unwrap()))
                 }),
