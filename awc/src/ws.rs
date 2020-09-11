@@ -434,7 +434,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_header_override() {
-        let req = Client::build()
+        let req = Client::builder()
             .header(header::CONTENT_TYPE, "111")
             .finish()
             .ws("/")

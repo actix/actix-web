@@ -120,7 +120,7 @@ async fn test_timeout() {
         .timeout(Duration::from_secs(15))
         .finish();
 
-    let client = awc::Client::build()
+    let client = awc::Client::builder()
         .connector(connector)
         .timeout(Duration::from_millis(50))
         .finish();
@@ -141,7 +141,7 @@ async fn test_timeout_override() {
         })))
     });
 
-    let client = awc::Client::build()
+    let client = awc::Client::builder()
         .timeout(Duration::from_millis(50000))
         .finish();
     let request = client
@@ -291,7 +291,7 @@ async fn test_connection_wait_queue() {
     })
     .await;
 
-    let client = awc::Client::build()
+    let client = awc::Client::builder()
         .connector(awc::Connector::new().limit(1).finish())
         .finish();
 
@@ -340,7 +340,7 @@ async fn test_connection_wait_queue_force_close() {
     })
     .await;
 
-    let client = awc::Client::build()
+    let client = awc::Client::builder()
         .connector(awc::Connector::new().limit(1).finish())
         .finish();
 

@@ -822,7 +822,7 @@ where
             }
         };
 
-        Client::build().connector(connector).finish()
+        Client::builder().connector(connector).finish()
     };
 
     TestServer {
