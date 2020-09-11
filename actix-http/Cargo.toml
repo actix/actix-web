@@ -40,7 +40,7 @@ secure-cookies = ["cookie/secure"]
 actors = ["actix"]
 
 [dependencies]
-actix-service = "1.0.5"
+actix-service = "1.0.6"
 actix-codec = "0.3.0"
 actix-connect = "2.0.0"
 actix-utils = "2.0.0"
