@@ -1,6 +1,6 @@
 [package]
 name = "actix-files"
-version = "0.3.0-beta.1"
+version = "0.3.0"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Static files support for actix web."
 readme = "README.md"
@@ -17,9 +17,9 @@ name = "actix_files"
 path = "src/lib.rs"
 
 [dependencies]
-actix-web = { version = "3.0.0-beta.4", default-features = false }
-actix-http = "2.0.0-beta.4"
-actix-service = "1.0.1"
+actix-web = { version = "3.0.0", default-features = false }
+actix-http = "2.0.0"
+actix-service = "1.0.6"
 bitflags = "1"
 bytes = "0.5.3"
 futures-core = { version = "0.3.5", default-features = false }
@@ -33,4 +33,4 @@ v_htmlescape = "0.10"
 
 [dev-dependencies]
 actix-rt = "1.0.0"
-actix-web = { version = "3.0.0-beta.4", features = ["openssl"] }
+actix-web = { version = "3.0.0", features = ["openssl"] }

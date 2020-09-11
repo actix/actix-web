@@ -3,6 +3,10 @@
 ## Unreleased - 2020-xx-xx
 
 
+## 3.0.0 - 2020-09-11
+* No significant changes from `3.0.0-beta.4`.
+
+
 ## 3.0.0-beta.4 - 2020-09-09
 ### Added
 * `middleware::NormalizePath` now has configurable behaviour for either always having a trailing

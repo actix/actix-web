@@ -90,7 +90,7 @@ pub async fn test_server<F: ServiceFactory<TcpStream>>(factory: F) -> TestServer
             }
         };
 
-        Client::build().connector(connector).finish()
+        Client::builder().connector(connector).finish()
     };
     actix_connect::start_default_resolver().await.unwrap();
 
