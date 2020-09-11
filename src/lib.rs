@@ -1,4 +1,4 @@
-#![warn(rust_2018_idioms, warnings)]
+#![deny(rust_2018_idioms)]
 #![allow(clippy::needless_doctest_main, clippy::type_complexity)]
 
 //! Actix web is a powerful, pragmatic, and extremely fast web framework for Rust.

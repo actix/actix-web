@@ -209,10 +209,10 @@ where
 
 /// Json extractor configuration
 ///
-/// # Examples
+/// # Example
 ///
 /// ```rust
-/// use actix_web::{error, web, App, FromRequest, HttpRequest, HttpResponse};
+/// use actix_web::{error, web, App, FromRequest, HttpResponse};
 /// use serde_derive::Deserialize;
 ///
 /// #[derive(Deserialize)]
@@ -225,35 +225,26 @@ where
 ///     format!("Welcome {}!", info.username)
 /// }
 ///
-/// /// Return either a 400 or 415, and include the error message from serde
-/// /// in the response body
-/// fn json_error_handler(err: error::JsonPayloadError, _req: &HttpRequest) -> error::Error {
-///     let detail = err.to_string();
-///     let response = match &err {
-///         error::JsonPayloadError::ContentType => {
-///             HttpResponse::UnsupportedMediaType().content_type("text/plain").body(detail)
-///         }
-///         _ => HttpResponse::BadRequest().content_type("text/plain").body(detail),
-///     };
-///     error::InternalError::from_response(err, response).into()
-/// }
-///
 /// fn main() {
 ///     let app = App::new().service(
 ///         web::resource("/index.html")
 ///             .app_data(
-///                 // change json extractor configuration
-///                 web::Json::<Info>::configure(|cfg| {
-///                     cfg.limit(4096)
-///                        .content_type(|mime| {  // <- accept text/plain content type
-///                            mime.type_() == mime::TEXT && mime.subtype() == mime::PLAIN
-///                        })
-///                        .error_handler(json_error_handler)  // Use our custom error response
-///             }))
+///                 // Json extractor configuration for this resource.
+///                 web::JsonConfig::default()
+///                     .limit(4096) // Limit request payload size
+///                     .content_type(|mime| {  // <- accept text/plain content type
+///                         mime.type_() == mime::TEXT && mime.subtype() == mime::PLAIN
+///                     })
+///                     .error_handler(|err, req| {  // <- create custom error response
+///                        error::InternalError::from_response(
+///                            err, HttpResponse::Conflict().finish()).into()
+///                     })
+///             )
 ///             .route(web::post().to(index))
 ///     );
 /// }
 /// ```
+///
 #[derive(Clone)]
 pub struct JsonConfig {
     limit: usize,

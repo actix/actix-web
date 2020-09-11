@@ -195,7 +195,7 @@ impl<T: Serialize> Responder for Form<T> {
 ///         web::resource("/index.html")
 ///             // change `Form` extractor configuration
 ///             .app_data(
-///                 web::Form::<FormData>::configure(|cfg| cfg.limit(4097))
+///                 web::FormConfig::default().limit(4097)
 ///             )
 ///             .route(web::get().to(index))
 ///     );
