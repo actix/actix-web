@@ -3,6 +3,10 @@
 ## Unreleased - 2020-xx-xx
 
 
+## 3.0.0 - 2020-09-11
+* No significant changes from `3.0.0-beta.2`.
+
+
 ## 3.0.0-beta.2 - 2020-09-10
 * Update `actix-*` dependencies to latest versions.
 

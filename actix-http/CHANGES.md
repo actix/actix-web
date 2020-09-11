@@ -3,6 +3,10 @@
 ## Unreleased - 2020-xx-xx
 
 
+## 2.0.0 - 2020-09-11
+* No significant changes from `2.0.0-beta.4`.
+
+
 ## 2.0.0-beta.4 - 2020-09-09
 ### Changed
 * Update actix-codec and actix-utils dependencies.

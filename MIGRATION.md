@@ -1,5 +1,8 @@
 ## Unreleased
 
+
+## 3.0.0
+
 * Setting a cookie's SameSite property, explicitly, to `SameSite::None` will now
   result in `SameSite=None` being sent with the response Set-Cookie header.
   To create a cookie without a SameSite attribute, remove any calls setting same_site.
@@ -39,6 +42,7 @@
 * `HttpServer::maxconn` is renamed to the more expressive `HttpServer::max_connections`.
 
 * `HttpServer::maxconnrate` is renamed to the more expressive `HttpServer::max_connection_rate`.
+
 
 ## 2.0.0
 
