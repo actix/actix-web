@@ -166,7 +166,7 @@ impl Client {
         Client::default()
     }
 
-    /// Create a [ClientBuilder] to configure `Client`.
+    /// Create `Client` builder.
     /// This function is equivalent of `ClientBuilder::new()`.
     pub fn builder() -> ClientBuilder {
         ClientBuilder::new()
