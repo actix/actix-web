@@ -1,6 +1,6 @@
 [package]
 name = "actix-web-actors"
-version = "3.0.0-beta.2"
+version = "3.0.0"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix actors support for actix web framework."
 readme = "README.md"
@@ -17,8 +17,8 @@ path = "src/lib.rs"
 
 [dependencies]
 actix = "0.10.0"
-actix-web = { version = "3.0.0-beta.4", default-features = false }
-actix-http = "2.0.0-beta.4"
+actix-web = { version = "3.0.0", default-features = false }
+actix-http = "2.0.0"
 actix-codec = "0.3.0"
 bytes = "0.5.2"
 futures-channel = { version = "0.3.5", default-features = false }
@@ -26,6 +26,6 @@ futures-core = { version = "0.3.5", default-features = false }
 pin-project = "0.4.17"
 
 [dev-dependencies]
-actix-rt = "1.0.0"
+actix-rt = "1.1.1"
 env_logger = "0.7"
 futures-util = { version = "0.3.5", default-features = false }
