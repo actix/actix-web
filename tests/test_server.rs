@@ -16,9 +16,9 @@ use futures_util::ready;
 use rand::{distributions::Alphanumeric, Rng};
 
 use actix_web::dev::BodyEncoding;
+use actix_web::middleware::normalize::TrailingSlash;
 use actix_web::middleware::{Compress, NormalizePath};
 use actix_web::{dev, test, web, App, Error, HttpResponse};
-use actix_web::middleware::normalize::TrailingSlash;
 
 const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
                    Hello World Hello World Hello World Hello World Hello World \
@@ -872,14 +872,12 @@ async fn test_normalize() {
     let srv = test::start_with(test::config().h1(), || {
         App::new()
             .wrap(NormalizePath::new(TrailingSlash::Trim))
-            .service(web::resource("/one").route(web::to(|| HttpResponse::Ok().finish())))
+            .service(
+                web::resource("/one").route(web::to(|| HttpResponse::Ok().finish())),
+            )
     });
 
-    let response = srv
-        .get("/one/")
-        .send()
-        .await
-        .unwrap();
+    let response = srv.get("/one/").send().await.unwrap();
     assert!(response.status().is_success());
 }
 
