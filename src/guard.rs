@@ -104,6 +104,10 @@ pub fn Any<F: Guard + 'static>(guard: F) -> AnyGuard {
 pub struct AnyGuard(Vec<Box<dyn Guard>>);
 
 impl AnyGuard {
+    /// Create AnyGuard from a vector of Guards
+    pub fn new(guards: Vec<Box<dyn Guard>>) -> Self {
+        AnyGuard(guards)
+    }
     /// Add guard to a list of guards to check
     pub fn or<F: Guard + 'static>(mut self, guard: F) -> Self {
         self.0.push(Box::new(guard));

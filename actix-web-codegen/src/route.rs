@@ -17,7 +17,7 @@ impl ToTokens for ResourceType {
     }
 }
 
-#[derive(PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum GuardType {
     Get,
     Post,
@@ -28,6 +28,7 @@ pub enum GuardType {
     Options,
     Trace,
     Patch,
+    Multi,
 }
 
 impl GuardType {
@@ -42,6 +43,7 @@ impl GuardType {
             GuardType::Options => "Options",
             GuardType::Trace => "Trace",
             GuardType::Patch => "Patch",
+            GuardType::Multi => "Multi",
         }
     }
 }
@@ -57,6 +59,7 @@ struct Args {
     path: syn::LitStr,
     guards: Vec<Ident>,
     wrappers: Vec<syn::Type>,
+    methods: Vec<GuardType>,
 }
 
 impl Args {
@@ -64,6 +67,7 @@ impl Args {
         let mut path = None;
         let mut guards = Vec::new();
         let mut wrappers = Vec::new();
+        let mut methods = Vec::new();
         for arg in args {
             match arg {
                 NestedMeta::Lit(syn::Lit::Str(lit)) => match path {
@@ -96,6 +100,36 @@ impl Args {
                                 "Attribute wrap expects type",
                             ));
                         }
+                    } else if nv.path.is_ident("methods") {
+                        if let syn::Lit::Str(ref lit) = nv.lit {
+                            for meth in lit.value().split(',') {
+                                match meth.to_uppercase().as_str() {
+                                    "CONNECT" => methods.push(GuardType::Connect),
+                                    "DELETE" => methods.push(GuardType::Delete),
+                                    "GET" => methods.push(GuardType::Get),
+                                    "HEAD" => methods.push(GuardType::Head),
+                                    "OPTIONS" => methods.push(GuardType::Options),
+                                    "PATCH" => methods.push(GuardType::Patch),
+                                    "POST" => methods.push(GuardType::Post),
+                                    "PUT" => methods.push(GuardType::Put),
+                                    "TRACE" => methods.push(GuardType::Trace),
+                                    _ => {
+                                        return Err(syn::Error::new_spanned(
+                                            nv.lit,
+                                            &format!(
+                                                "Unexpected HTTP Method: `{}`",
+                                                meth
+                                            ),
+                                        ))
+                                    }
+                                };
+                            }
+                        } else {
+                            return Err(syn::Error::new_spanned(
+                                nv.lit,
+                                "Attribute methods expects literal string!",
+                            ));
+                        }
                     } else {
                         return Err(syn::Error::new_spanned(
                             nv.path,
@@ -112,6 +146,7 @@ impl Args {
             path: path.unwrap(),
             guards,
             wrappers,
+            methods,
         })
     }
 }
@@ -166,6 +201,13 @@ impl Route {
 
         let args = Args::new(args)?;
 
+        if guard == GuardType::Multi && args.methods.is_empty() {
+            return Err(syn::Error::new(
+                Span::call_site(),
+                "The #[route(..)] macro requires the `methods` attribute!",
+            ));
+        }
+
         let resource_type = if ast.sig.asyncness.is_some() {
             ResourceType::Async
         } else {
@@ -201,25 +243,47 @@ impl ToTokens for Route {
                     path,
                     guards,
                     wrappers,
+                    methods,
                 },
             resource_type,
         } = self;
         let resource_name = name.to_string();
-        let stream = quote! {
-            #[allow(non_camel_case_types, missing_docs)]
-            pub struct #name;
+        let stream = if guard != &GuardType::Multi {
+            quote! {
+                #[allow(non_camel_case_types, missing_docs)]
+                pub struct #name;
 
-            impl actix_web::dev::HttpServiceFactory for #name {
-                fn register(self, __config: &mut actix_web::dev::AppService) {
-                    #ast
-                    let __resource = actix_web::Resource::new(#path)
-                        .name(#resource_name)
-                        .guard(actix_web::guard::#guard())
-                        #(.guard(actix_web::guard::fn_guard(#guards)))*
-                        #(.wrap(#wrappers))*
-                        .#resource_type(#name);
+                impl actix_web::dev::HttpServiceFactory for #name {
+                    fn register(self, __config: &mut actix_web::dev::AppService) {
+                        #ast
+                        let __resource = actix_web::Resource::new(#path)
+                            .name(#resource_name)
+                            .guard(actix_web::guard::#guard())
+                            #(.guard(actix_web::guard::fn_guard(#guards)))*
+                            #(.wrap(#wrappers))*
+                            .#resource_type(#name);
 
-                    actix_web::dev::HttpServiceFactory::register(__resource, __config)
+                        actix_web::dev::HttpServiceFactory::register(__resource, __config)
+                    }
+                }
+            }
+        } else {
+            quote! {
+                #[allow(non_camel_case_types, missing_docs)]
+                pub struct #name;
+
+                impl actix_web::dev::HttpServiceFactory for #name {
+                    fn register(self, __config: &mut actix_web::dev::AppService) {
+                        #ast
+                        let __resource = actix_web::Resource::new(#path)
+                            .name(#resource_name)
+                            .guard(actix_web::guard::AnyGuard::new(vec![#(Box::new(actix_web::guard::#methods())),*]))
+                            #(.guard(actix_web::guard::fn_guard(#guards)))*
+                            #(.wrap(#wrappers))*
+                            .#resource_type(#name);
+
+                        actix_web::dev::HttpServiceFactory::register(__resource, __config)
+                    }
                 }
             }
         };
