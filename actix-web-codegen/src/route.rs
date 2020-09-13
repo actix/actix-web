@@ -100,40 +100,38 @@ impl Args {
                                 "Attribute wrap expects type",
                             ));
                         }
-                    } else if nv.path.is_ident("methods") {
+                    } else if nv.path.is_ident("method") {
                         if let syn::Lit::Str(ref lit) = nv.lit {
-                            for meth in lit.value().split(',') {
-                                match meth.to_uppercase().as_str() {
-                                    "CONNECT" => methods.push(GuardType::Connect),
-                                    "DELETE" => methods.push(GuardType::Delete),
-                                    "GET" => methods.push(GuardType::Get),
-                                    "HEAD" => methods.push(GuardType::Head),
-                                    "OPTIONS" => methods.push(GuardType::Options),
-                                    "PATCH" => methods.push(GuardType::Patch),
-                                    "POST" => methods.push(GuardType::Post),
-                                    "PUT" => methods.push(GuardType::Put),
-                                    "TRACE" => methods.push(GuardType::Trace),
-                                    _ => {
-                                        return Err(syn::Error::new_spanned(
-                                            nv.lit,
-                                            &format!(
-                                                "Unexpected HTTP Method: `{}`",
-                                                meth
-                                            ),
-                                        ))
-                                    }
-                                };
-                            }
+                            match lit.value().to_uppercase().as_str() {
+                                "CONNECT" => methods.push(GuardType::Connect),
+                                "DELETE" => methods.push(GuardType::Delete),
+                                "GET" => methods.push(GuardType::Get),
+                                "HEAD" => methods.push(GuardType::Head),
+                                "OPTIONS" => methods.push(GuardType::Options),
+                                "PATCH" => methods.push(GuardType::Patch),
+                                "POST" => methods.push(GuardType::Post),
+                                "PUT" => methods.push(GuardType::Put),
+                                "TRACE" => methods.push(GuardType::Trace),
+                                _ => {
+                                    return Err(syn::Error::new_spanned(
+                                        &nv.lit,
+                                        &format!(
+                                            "Unexpected HTTP Method: `{}`",
+                                            lit.value()
+                                        ),
+                                    ))
+                                }
+                            };
                         } else {
                             return Err(syn::Error::new_spanned(
                                 nv.lit,
-                                "Attribute methods expects literal string!",
+                                "Attribute method expects literal string!",
                             ));
                         }
                     } else {
                         return Err(syn::Error::new_spanned(
                             nv.path,
-                            "Unknown attribute key is specified. Allowed: guard and wrap",
+                            "Unknown attribute key is specified. Allowed: guard, method and wrap",
                         ));
                     }
                 }
@@ -204,7 +202,7 @@ impl Route {
         if guard == GuardType::Multi && args.methods.is_empty() {
             return Err(syn::Error::new(
                 Span::call_site(),
-                "The #[route(..)] macro requires the `methods` attribute!",
+                "The #[route(..)] macro requires at least one `method` attribute!",
             ));
         }
 

@@ -147,7 +147,7 @@ pub fn patch(args: TokenStream, input: TokenStream) -> TokenStream {
 ///
 /// ## Attributes
 /// - `"path"` - Raw literal string with path for which to register handler. Mandatory.
-/// - `methods="HTTP_METHOD_1,HTTP_METHOD_2"` - Registers HTTP methods to provide guards for.
+/// - `method="HTTP_METHOD"` - Registers HTTP method to provide guard for.
 /// - `guard="function_name"` - Registers function as guard using `actix_web::guard::fn_guard`
 /// - `wrap="Middleware"` - Registers a resource middleware.
 #[proc_macro_attribute]
