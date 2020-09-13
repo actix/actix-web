@@ -22,3 +22,4 @@ proc-macro2 = "1"
 actix-rt = "1.0.0"
 actix-web = "3.0.0"
 futures-util = { version = "0.3.5", default-features = false }
+trybuild = "1"

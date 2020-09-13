@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2020-xx-xx
+* Added compile success and failure testing. [#1677]
+
+[#1677]: https://github.com/actix/actix-web/pull/1677
 
 
 ## 0.3.0 - 2020-09-11
