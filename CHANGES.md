@@ -1,8 +1,14 @@
 # Changes
 
 ## Unreleased - 2020-xx-xx
+
+
+## 3.0.1 - 2020-09-13
 ### Changed
 * `middleware::normalize::TrailingSlash` enum is now accessible. [#1673]
+
+[#1673]: https://github.com/actix/actix-web/pull/1673
+
 
 ## 3.0.0 - 2020-09-11
 * No significant changes from `3.0.0-beta.4`.
