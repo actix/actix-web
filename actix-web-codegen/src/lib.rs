@@ -145,6 +145,8 @@ pub fn patch(args: TokenStream, input: TokenStream) -> TokenStream {
 ///
 /// Syntax: `#[route("path"[, attributes])]`
 ///
+/// Example: `#[route("/", method="GET", method="HEAD")]`
+///
 /// ## Attributes
 ///
 /// - `"path"` - Raw literal string with path for which to register handler. Mandatory.
