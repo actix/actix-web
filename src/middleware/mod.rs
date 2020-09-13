@@ -9,7 +9,7 @@ mod condition;
 mod defaultheaders;
 pub mod errhandlers;
 mod logger;
-mod normalize;
+pub mod normalize;
 
 pub use self::condition::Condition;
 pub use self::defaultheaders::DefaultHeaders;
