@@ -102,7 +102,7 @@ impl Args {
                         }
                     } else if nv.path.is_ident("method") {
                         if let syn::Lit::Str(ref lit) = nv.lit {
-                            match lit.value().to_uppercase().as_str() {
+                            match lit.value().as_str() {
                                 "CONNECT" => methods.push(GuardType::Connect),
                                 "DELETE" => methods.push(GuardType::Delete),
                                 "GET" => methods.push(GuardType::Get),
@@ -202,7 +202,7 @@ impl Route {
         if guard == GuardType::Multi && args.methods.is_empty() {
             return Err(syn::Error::new(
                 Span::call_site(),
-                "The #[route(..)] macro requires at least one `method` attribute!",
+                "The #[route(..)] macro requires at least one `method` attribute",
             ));
         }
 
@@ -246,42 +246,32 @@ impl ToTokens for Route {
             resource_type,
         } = self;
         let resource_name = name.to_string();
-        let stream = if guard != &GuardType::Multi {
+
+        let guard_gen = if guard == &GuardType::Multi {
             quote! {
-                #[allow(non_camel_case_types, missing_docs)]
-                pub struct #name;
-
-                impl actix_web::dev::HttpServiceFactory for #name {
-                    fn register(self, __config: &mut actix_web::dev::AppService) {
-                        #ast
-                        let __resource = actix_web::Resource::new(#path)
-                            .name(#resource_name)
-                            .guard(actix_web::guard::#guard())
-                            #(.guard(actix_web::guard::fn_guard(#guards)))*
-                            #(.wrap(#wrappers))*
-                            .#resource_type(#name);
-
-                        actix_web::dev::HttpServiceFactory::register(__resource, __config)
-                    }
-                }
+                .guard(actix_web::guard::AnyGuard::new(vec![#(Box::new(actix_web::guard::#methods())),*]))
             }
         } else {
             quote! {
-                #[allow(non_camel_case_types, missing_docs)]
-                pub struct #name;
+                .guard(actix_web::guard::#guard())
+            }
+        };
 
-                impl actix_web::dev::HttpServiceFactory for #name {
-                    fn register(self, __config: &mut actix_web::dev::AppService) {
-                        #ast
-                        let __resource = actix_web::Resource::new(#path)
-                            .name(#resource_name)
-                            .guard(actix_web::guard::AnyGuard::new(vec![#(Box::new(actix_web::guard::#methods())),*]))
-                            #(.guard(actix_web::guard::fn_guard(#guards)))*
-                            #(.wrap(#wrappers))*
-                            .#resource_type(#name);
+        let stream = quote! {
+            #[allow(non_camel_case_types, missing_docs)]
+            pub struct #name;
 
-                        actix_web::dev::HttpServiceFactory::register(__resource, __config)
-                    }
+            impl actix_web::dev::HttpServiceFactory for #name {
+                fn register(self, __config: &mut actix_web::dev::AppService) {
+                    #ast
+                    let __resource = actix_web::Resource::new(#path)
+                        .name(#resource_name)
+                        #guard_gen
+                        #(.guard(actix_web::guard::fn_guard(#guards)))*
+                        #(.wrap(#wrappers))*
+                        .#resource_type(#name);
+
+                    actix_web::dev::HttpServiceFactory::register(__resource, __config)
                 }
             }
         };
