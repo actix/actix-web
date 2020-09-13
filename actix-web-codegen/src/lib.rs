@@ -49,13 +49,13 @@ use proc_macro::TokenStream;
 
 /// Creates route handler with `GET` method guard.
 ///
-/// Syntax: `#[get("path"[, attributes])]`
+/// Syntax: `#[get("path" [, attributes])]`
 ///
 /// ## Attributes:
 ///
 /// - `"path"` - Raw literal string with path for which to register handler. Mandatory.
-/// - `guard="function_name"` - Registers function as guard using `actix_web::guard::fn_guard`
-/// - `wrap="Middleware"` - Registers a resource middleware.
+/// - `guard = "function_name"` - Registers function as guard using `actix_web::guard::fn_guard`
+/// - `wrap = "Middleware"` - Registers a resource middleware.
 #[proc_macro_attribute]
 pub fn get(args: TokenStream, input: TokenStream) -> TokenStream {
     route::generate(args, input, route::GuardType::Get)
@@ -63,7 +63,7 @@ pub fn get(args: TokenStream, input: TokenStream) -> TokenStream {
 
 /// Creates route handler with `POST` method guard.
 ///
-/// Syntax: `#[post("path"[, attributes])]`
+/// Syntax: `#[post("path" [, attributes])]`
 ///
 /// Attributes are the same as in [get](attr.get.html)
 #[proc_macro_attribute]
@@ -73,7 +73,7 @@ pub fn post(args: TokenStream, input: TokenStream) -> TokenStream {
 
 /// Creates route handler with `PUT` method guard.
 ///
-/// Syntax: `#[put("path"[, attributes])]`
+/// Syntax: `#[put("path" [, attributes])]`
 ///
 /// Attributes are the same as in [get](attr.get.html)
 #[proc_macro_attribute]
@@ -83,9 +83,9 @@ pub fn put(args: TokenStream, input: TokenStream) -> TokenStream {
 
 /// Creates route handler with `DELETE` method guard.
 ///
-/// Syntax: `#[delete("path"[, attributes])]`
+/// Syntax: `#[delete("path" [, attributes])]`
 ///
-/// Attributes are the same as in [get](attr.get.html)
+/// Attributes are the same as in [get](attr.get.html).
 #[proc_macro_attribute]
 pub fn delete(args: TokenStream, input: TokenStream) -> TokenStream {
     route::generate(args, input, route::GuardType::Delete)
@@ -93,9 +93,9 @@ pub fn delete(args: TokenStream, input: TokenStream) -> TokenStream {
 
 /// Creates route handler with `HEAD` method guard.
 ///
-/// Syntax: `#[head("path"[, attributes])]`
+/// Syntax: `#[head("path" [, attributes])]`
 ///
-/// Attributes are the same as in [head](attr.head.html)
+/// Attributes are the same as in [get](attr.get.html).
 #[proc_macro_attribute]
 pub fn head(args: TokenStream, input: TokenStream) -> TokenStream {
     route::generate(args, input, route::GuardType::Head)
@@ -103,9 +103,9 @@ pub fn head(args: TokenStream, input: TokenStream) -> TokenStream {
 
 /// Creates route handler with `CONNECT` method guard.
 ///
-/// Syntax: `#[connect("path"[, attributes])]`
+/// Syntax: `#[connect("path" [, attributes])]`
 ///
-/// Attributes are the same as in [connect](attr.connect.html)
+/// Attributes are the same as in [get](attr.get.html).
 #[proc_macro_attribute]
 pub fn connect(args: TokenStream, input: TokenStream) -> TokenStream {
     route::generate(args, input, route::GuardType::Connect)
@@ -113,9 +113,9 @@ pub fn connect(args: TokenStream, input: TokenStream) -> TokenStream {
 
 /// Creates route handler with `OPTIONS` method guard.
 ///
-/// Syntax: `#[options("path"[, attributes])]`
+/// Syntax: `#[options("path" [, attributes])]`
 ///
-/// Attributes are the same as in [options](attr.options.html)
+/// Attributes are the same as in [get](attr.get.html).
 #[proc_macro_attribute]
 pub fn options(args: TokenStream, input: TokenStream) -> TokenStream {
     route::generate(args, input, route::GuardType::Options)
@@ -123,9 +123,9 @@ pub fn options(args: TokenStream, input: TokenStream) -> TokenStream {
 
 /// Creates route handler with `TRACE` method guard.
 ///
-/// Syntax: `#[trace("path"[, attributes])]`
+/// Syntax: `#[trace("path" [, attributes])]`
 ///
-/// Attributes are the same as in [trace](attr.trace.html)
+/// Attributes are the same as in [get](attr.get.html).
 #[proc_macro_attribute]
 pub fn trace(args: TokenStream, input: TokenStream) -> TokenStream {
     route::generate(args, input, route::GuardType::Trace)
@@ -133,9 +133,9 @@ pub fn trace(args: TokenStream, input: TokenStream) -> TokenStream {
 
 /// Creates route handler with `PATCH` method guard.
 ///
-/// Syntax: `#[patch("path"[, attributes])]`
+/// Syntax: `#[patch("path" [, attributes])]`
 ///
-/// Attributes are the same as in [patch](attr.patch.html)
+/// Attributes are the same as in [get](attr.get.html).
 #[proc_macro_attribute]
 pub fn patch(args: TokenStream, input: TokenStream) -> TokenStream {
     route::generate(args, input, route::GuardType::Patch)
