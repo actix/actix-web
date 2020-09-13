@@ -1,5 +1,7 @@
 extern crate proc_macro;
 
+use std::collections::HashSet;
+
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::{format_ident, quote, ToTokens, TokenStreamExt};
@@ -17,7 +19,7 @@ impl ToTokens for ResourceType {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub enum GuardType {
     Get,
     Post,
@@ -59,7 +61,7 @@ struct Args {
     path: syn::LitStr,
     guards: Vec<Ident>,
     wrappers: Vec<syn::Type>,
-    methods: Vec<GuardType>,
+    methods: HashSet<GuardType>,
 }
 
 impl Args {
@@ -67,7 +69,7 @@ impl Args {
         let mut path = None;
         let mut guards = Vec::new();
         let mut wrappers = Vec::new();
-        let mut methods = Vec::new();
+        let mut methods = HashSet::new();
         for arg in args {
             match arg {
                 NestedMeta::Lit(syn::Lit::Str(lit)) => match path {
@@ -102,26 +104,38 @@ impl Args {
                         }
                     } else if nv.path.is_ident("method") {
                         if let syn::Lit::Str(ref lit) = nv.lit {
-                            match lit.value().as_str() {
-                                "CONNECT" => methods.push(GuardType::Connect),
-                                "DELETE" => methods.push(GuardType::Delete),
-                                "GET" => methods.push(GuardType::Get),
-                                "HEAD" => methods.push(GuardType::Head),
-                                "OPTIONS" => methods.push(GuardType::Options),
-                                "PATCH" => methods.push(GuardType::Patch),
-                                "POST" => methods.push(GuardType::Post),
-                                "PUT" => methods.push(GuardType::Put),
-                                "TRACE" => methods.push(GuardType::Trace),
-                                _ => {
+                            let guard_type: Option<GuardType> =
+                                match lit.value().as_str() {
+                                    "CONNECT" => Some(GuardType::Connect),
+                                    "DELETE" => Some(GuardType::Delete),
+                                    "GET" => Some(GuardType::Get),
+                                    "HEAD" => Some(GuardType::Head),
+                                    "OPTIONS" => Some(GuardType::Options),
+                                    "PATCH" => Some(GuardType::Patch),
+                                    "POST" => Some(GuardType::Post),
+                                    "PUT" => Some(GuardType::Put),
+                                    "TRACE" => Some(GuardType::Trace),
+                                    _ => None,
+                                };
+                            if let Some(guard) = guard_type {
+                                if !methods.insert(guard) {
                                     return Err(syn::Error::new_spanned(
                                         &nv.lit,
                                         &format!(
-                                            "Unexpected HTTP Method: `{}`",
+                                            "HTTP Method defined more than once: `{}`",
                                             lit.value()
                                         ),
-                                    ))
+                                    ));
                                 }
-                            };
+                            } else {
+                                return Err(syn::Error::new_spanned(
+                                    &nv.lit,
+                                    &format!(
+                                        "Unexpected HTTP Method: `{}`",
+                                        lit.value()
+                                    ),
+                                ));
+                            }
                         } else {
                             return Err(syn::Error::new_spanned(
                                 nv.lit,
@@ -246,6 +260,7 @@ impl ToTokens for Route {
             resource_type,
         } = self;
         let resource_name = name.to_string();
+        let methods = methods.iter();
 
         let guard_gen = if guard == &GuardType::Multi {
             quote! {
