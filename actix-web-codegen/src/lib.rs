@@ -141,7 +141,7 @@ pub fn patch(args: TokenStream, input: TokenStream) -> TokenStream {
     route::generate(args, input, route::GuardType::Patch)
 }
 
-/// Creates route handler with Multiple HTTP methods guards.
+/// Creates resource handler, allowing multiple HTTP method guards.
 ///
 /// Syntax: `#[route("path"[, attributes])]`
 ///
