@@ -146,6 +146,7 @@ pub fn patch(args: TokenStream, input: TokenStream) -> TokenStream {
 /// Syntax: `#[route("path"[, attributes])]`
 ///
 /// ## Attributes
+///
 /// - `"path"` - Raw literal string with path for which to register handler. Mandatory.
 /// - `method="HTTP_METHOD"` - Registers HTTP method to provide guard for.
 /// - `guard="function_name"` - Registers function as guard using `actix_web::guard::fn_guard`

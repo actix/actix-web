@@ -1,6 +1,7 @@
 extern crate proc_macro;
 
 use std::collections::HashSet;
+use std::convert::TryFrom;
 
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as TokenStream2};
@@ -57,6 +58,28 @@ impl ToTokens for GuardType {
     }
 }
 
+impl TryFrom<&syn::LitStr> for GuardType {
+    type Error = syn::Error;
+
+    fn try_from(value: &syn::LitStr) -> Result<Self, Self::Error> {
+        match value.value().as_str() {
+            "CONNECT" => Ok(GuardType::Connect),
+            "DELETE" => Ok(GuardType::Delete),
+            "GET" => Ok(GuardType::Get),
+            "HEAD" => Ok(GuardType::Head),
+            "OPTIONS" => Ok(GuardType::Options),
+            "PATCH" => Ok(GuardType::Patch),
+            "POST" => Ok(GuardType::Post),
+            "PUT" => Ok(GuardType::Put),
+            "TRACE" => Ok(GuardType::Trace),
+            _ => Err(syn::Error::new_spanned(
+                value,
+                &format!("Unexpected HTTP Method: `{}`", value.value()),
+            )),
+        }
+    }
+}
+
 struct Args {
     path: syn::LitStr,
     guards: Vec<Ident>,
@@ -104,34 +127,12 @@ impl Args {
                         }
                     } else if nv.path.is_ident("method") {
                         if let syn::Lit::Str(ref lit) = nv.lit {
-                            let guard_type: Option<GuardType> =
-                                match lit.value().as_str() {
-                                    "CONNECT" => Some(GuardType::Connect),
-                                    "DELETE" => Some(GuardType::Delete),
-                                    "GET" => Some(GuardType::Get),
-                                    "HEAD" => Some(GuardType::Head),
-                                    "OPTIONS" => Some(GuardType::Options),
-                                    "PATCH" => Some(GuardType::Patch),
-                                    "POST" => Some(GuardType::Post),
-                                    "PUT" => Some(GuardType::Put),
-                                    "TRACE" => Some(GuardType::Trace),
-                                    _ => None,
-                                };
-                            if let Some(guard) = guard_type {
-                                if !methods.insert(guard) {
-                                    return Err(syn::Error::new_spanned(
-                                        &nv.lit,
-                                        &format!(
-                                            "HTTP Method defined more than once: `{}`",
-                                            lit.value()
-                                        ),
-                                    ));
-                                }
-                            } else {
+                            let guard = GuardType::try_from(lit)?;
+                            if !methods.insert(guard) {
                                 return Err(syn::Error::new_spanned(
                                     &nv.lit,
                                     &format!(
-                                        "Unexpected HTTP Method: `{}`",
+                                        "HTTP Method defined more than once: `{}`",
                                         lit.value()
                                     ),
                                 ));
@@ -262,7 +263,7 @@ impl ToTokens for Route {
         let resource_name = name.to_string();
         let methods = methods.iter();
 
-        let guard_gen = if guard == &GuardType::Multi {
+        let guard_gen = if *guard == GuardType::Multi {
             quote! {
                 .guard(actix_web::guard::AnyGuard::new(vec![#(Box::new(actix_web::guard::#methods())),*]))
             }
