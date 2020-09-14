@@ -1,5 +1,5 @@
+#[rustversion::attr(not(stable(1.42)), ignore)]
 #[test]
-#[rustversion::stable(1.42)]
 fn compile_macros() {
     let t = trybuild::TestCases::new();
 
