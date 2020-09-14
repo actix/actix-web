@@ -1,4 +1,5 @@
 #[test]
+#[rustversion::stable(1.42)]
 fn compile_macros() {
     let t = trybuild::TestCases::new();
 
