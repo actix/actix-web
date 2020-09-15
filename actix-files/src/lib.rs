@@ -1,7 +1,6 @@
 //! Static files support
 
 #![deny(rust_2018_idioms)]
-#![allow(clippy::borrow_interior_mutable_const)]
 
 use std::io;
 
@@ -29,9 +28,9 @@ pub use crate::named::NamedFile;
 pub use crate::range::HttpRange;
 pub use crate::service::FilesService;
 
-pub(crate) use self::directory::{directory_listing, DirectoryRenderer};
-pub(crate) use self::error::FilesError;
-pub(crate) use self::path_buf::PathBufWrap;
+use self::directory::{directory_listing, DirectoryRenderer};
+use self::error::FilesError;
+use self::path_buf::PathBufWrap;
 
 type HttpService = BoxService<ServiceRequest, ServiceResponse, Error>;
 type HttpNewService = BoxServiceFactory<(), ServiceRequest, ServiceResponse, Error, ()>;

@@ -29,9 +29,7 @@ pub struct FilesService {
     pub(crate) renderer: Rc<DirectoryRenderer>,
     pub(crate) mime_override: Option<Rc<MimeOverride>>,
     pub(crate) file_flags: named::Flags,
-    // FIXME: Should re-visit later.
-    #[allow(clippy::redundant_allocation)]
-    pub(crate) guards: Option<Rc<Box<dyn Guard>>>,
+    pub(crate) guards: Option<Rc<dyn Guard>>,
 }
 
 impl FilesService {

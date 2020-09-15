@@ -38,9 +38,7 @@ pub struct Files {
     renderer: Rc<DirectoryRenderer>,
     mime_override: Option<Rc<MimeOverride>>,
     file_flags: named::Flags,
-    // FIXME: Should re-visit later.
-    #[allow(clippy::redundant_allocation)]
-    guards: Option<Rc<Box<dyn Guard>>>,
+    guards: Option<Rc<dyn Guard>>,
 }
 
 impl Clone for Files {
@@ -157,7 +155,7 @@ impl Files {
     /// Default behaviour allows GET and HEAD.
     #[inline]
     pub fn use_guards<G: Guard + 'static>(mut self, guards: G) -> Self {
-        self.guards = Some(Rc::new(Box::new(guards)));
+        self.guards = Some(Rc::new(guards));
         self
     }
 
