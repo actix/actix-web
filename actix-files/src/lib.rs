@@ -3,17 +3,11 @@
 #![deny(rust_2018_idioms)]
 #![allow(clippy::borrow_interior_mutable_const)]
 
-use std::{
-    cell::RefCell,
-    io,
-    path::PathBuf,
-    rc::Rc,
-    task::{Context, Poll},
-};
+use std::{cell::RefCell, io, path::PathBuf, rc::Rc};
 
 use actix_service::{
     boxed::{self, BoxService, BoxServiceFactory},
-    IntoServiceFactory, Service, ServiceFactory,
+    IntoServiceFactory, ServiceFactory,
 };
 use actix_web::{
     dev::{
@@ -21,11 +15,10 @@ use actix_web::{
     },
     error::{BlockingError, Error, ErrorInternalServerError},
     guard::Guard,
-    http::header::{self, DispositionType},
-    http::Method,
-    HttpRequest, HttpResponse,
+    http::header::DispositionType,
+    HttpRequest,
 };
-use futures_util::future::{ok, Either, FutureExt, LocalBoxFuture, Ready};
+use futures_util::future::{ok, FutureExt, LocalBoxFuture};
 use mime_guess::from_ext;
 
 mod chunked;
@@ -34,15 +27,17 @@ mod error;
 mod named;
 mod path_buf;
 mod range;
+mod service;
 
 pub use crate::chunked::ChunkedReadFile;
 pub use crate::directory::Directory;
 pub use crate::named::NamedFile;
 pub use crate::range::HttpRange;
+pub use crate::service::FilesService;
 
-use self::directory::{directory_listing, DirectoryRenderer};
-use self::error::FilesError;
-use self::path_buf::PathBufWrap;
+pub(crate) use self::directory::{directory_listing, DirectoryRenderer};
+pub(crate) use self::error::FilesError;
+pub(crate) use self::path_buf::PathBufWrap;
 
 type HttpService = BoxService<ServiceRequest, ServiceResponse, Error>;
 type HttpNewService = BoxServiceFactory<(), ServiceRequest, ServiceResponse, Error, ()>;
@@ -290,165 +285,26 @@ impl ServiceFactory for Files {
     }
 }
 
-pub struct FilesService {
-    directory: PathBuf,
-    index: Option<String>,
-    show_index: bool,
-    redirect_to_slash: bool,
-    default: Option<HttpService>,
-    renderer: Rc<DirectoryRenderer>,
-    mime_override: Option<Rc<MimeOverride>>,
-    file_flags: named::Flags,
-    // FIXME: Should re-visit later.
-    #[allow(clippy::redundant_allocation)]
-    guards: Option<Rc<Box<dyn Guard>>>,
-}
-
-impl FilesService {
-    #[allow(clippy::type_complexity)]
-    fn handle_err(
-        &mut self,
-        e: io::Error,
-        req: ServiceRequest,
-    ) -> Either<
-        Ready<Result<ServiceResponse, Error>>,
-        LocalBoxFuture<'static, Result<ServiceResponse, Error>>,
-    > {
-        log::debug!("Files: Failed to handle {}: {}", req.path(), e);
-        if let Some(ref mut default) = self.default {
-            Either::Right(default.call(req))
-        } else {
-            Either::Left(ok(req.error_response(e)))
-        }
-    }
-}
-
-impl Service for FilesService {
-    type Request = ServiceRequest;
-    type Response = ServiceResponse;
-    type Error = Error;
-    #[allow(clippy::type_complexity)]
-    type Future = Either<
-        Ready<Result<Self::Response, Self::Error>>,
-        LocalBoxFuture<'static, Result<Self::Response, Self::Error>>,
-    >;
-
-    fn poll_ready(&mut self, _: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        Poll::Ready(Ok(()))
-    }
-
-    fn call(&mut self, req: ServiceRequest) -> Self::Future {
-        let is_method_valid = if let Some(guard) = &self.guards {
-            // execute user defined guards
-            (**guard).check(req.head())
-        } else {
-            // default behavior
-            matches!(*req.method(), Method::HEAD | Method::GET)
-        };
-
-        if !is_method_valid {
-            return Either::Left(ok(req.into_response(
-                actix_web::HttpResponse::MethodNotAllowed()
-                    .header(header::CONTENT_TYPE, "text/plain")
-                    .body("Request did not meet this resource's requirements."),
-            )));
-        }
-
-        let real_path: PathBufWrap = match req.match_info().path().parse() {
-            Ok(item) => item,
-            Err(e) => return Either::Left(ok(req.error_response(e))),
-        };
-
-        // full file path
-        let path = match self.directory.join(&real_path).canonicalize() {
-            Ok(path) => path,
-            Err(e) => return self.handle_err(e, req),
-        };
-
-        if path.is_dir() {
-            if let Some(ref redir_index) = self.index {
-                if self.redirect_to_slash && !req.path().ends_with('/') {
-                    let redirect_to = format!("{}/", req.path());
-                    return Either::Left(ok(req.into_response(
-                        HttpResponse::Found()
-                            .header(header::LOCATION, redirect_to)
-                            .body("")
-                            .into_body(),
-                    )));
-                }
-
-                let path = path.join(redir_index);
-
-                match NamedFile::open(path) {
-                    Ok(mut named_file) => {
-                        if let Some(ref mime_override) = self.mime_override {
-                            let new_disposition =
-                                mime_override(&named_file.content_type.type_());
-                            named_file.content_disposition.disposition = new_disposition;
-                        }
-
-                        named_file.flags = self.file_flags;
-                        let (req, _) = req.into_parts();
-                        Either::Left(ok(match named_file.into_response(&req) {
-                            Ok(item) => ServiceResponse::new(req, item),
-                            Err(e) => ServiceResponse::from_err(e, req),
-                        }))
-                    }
-                    Err(e) => self.handle_err(e, req),
-                }
-            } else if self.show_index {
-                let dir = Directory::new(self.directory.clone(), path);
-                let (req, _) = req.into_parts();
-                let x = (self.renderer)(&dir, &req);
-                match x {
-                    Ok(resp) => Either::Left(ok(resp)),
-                    Err(e) => Either::Left(ok(ServiceResponse::from_err(e, req))),
-                }
-            } else {
-                Either::Left(ok(ServiceResponse::from_err(
-                    FilesError::IsDirectory,
-                    req.into_parts().0,
-                )))
-            }
-        } else {
-            match NamedFile::open(path) {
-                Ok(mut named_file) => {
-                    if let Some(ref mime_override) = self.mime_override {
-                        let new_disposition =
-                            mime_override(&named_file.content_type.type_());
-                        named_file.content_disposition.disposition = new_disposition;
-                    }
-
-                    named_file.flags = self.file_flags;
-                    let (req, _) = req.into_parts();
-                    match named_file.into_response(&req) {
-                        Ok(item) => {
-                            Either::Left(ok(ServiceResponse::new(req.clone(), item)))
-                        }
-                        Err(e) => Either::Left(ok(ServiceResponse::from_err(e, req))),
-                    }
-                }
-                Err(e) => self.handle_err(e, req),
-            }
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use std::fs::{self, File};
-    use std::ops::Add;
-    use std::time::{Duration, SystemTime};
+    use std::{
+        fs::{self, File},
+        ops::Add,
+        time::{Duration, SystemTime},
+    };
+
+    use actix_web::{
+        guard,
+        http::{
+            header::{self, ContentDisposition, DispositionParam, DispositionType},
+            Method, StatusCode,
+        },
+        middleware::Compress,
+        test::{self, TestRequest},
+        web, App, HttpResponse, Responder,
+    };
 
     use super::*;
-    use actix_web::guard;
-    use actix_web::http::header::{
-        self, ContentDisposition, DispositionParam, DispositionType,
-    };
-    use actix_web::http::{Method, StatusCode};
-    use actix_web::middleware::Compress;
-    use actix_web::test::{self, TestRequest};
-    use actix_web::{web, App, Responder};
 
     #[actix_rt::test]
     async fn test_file_extension_to_mime() {
