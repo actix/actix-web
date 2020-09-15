@@ -4,11 +4,10 @@
 #![allow(clippy::borrow_interior_mutable_const)]
 
 use std::cell::RefCell;
-use std::fmt::Write;
-use std::fs::{DirEntry, File};
+use std::fs::File;
 use std::future::Future;
 use std::io::{Read, Seek};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::pin::Pin;
 use std::rc::Rc;
 use std::task::{Context, Poll};
@@ -29,16 +28,18 @@ use bytes::Bytes;
 use futures_core::Stream;
 use futures_util::future::{ok, ready, Either, FutureExt, LocalBoxFuture, Ready};
 use mime_guess::from_ext;
-use percent_encoding::{utf8_percent_encode, CONTROLS};
-use v_htmlescape::escape as escape_html_entity;
 
+mod directory;
 mod error;
 mod named;
 mod range;
 
-use self::error::{FilesError, UriSegmentError};
+pub use crate::directory::Directory;
 pub use crate::named::NamedFile;
 pub use crate::range::HttpRange;
+
+use self::directory::{directory_listing, DirectoryRenderer};
+use self::error::{FilesError, UriSegmentError};
 
 type HttpService = BoxService<ServiceRequest, ServiceResponse, Error>;
 type HttpNewService = BoxServiceFactory<(), ServiceRequest, ServiceResponse, Error, ()>;
@@ -117,114 +118,6 @@ impl Stream for ChunkedReadFile {
             self.poll_next(cx)
         }
     }
-}
-
-type DirectoryRenderer =
-    dyn Fn(&Directory, &HttpRequest) -> Result<ServiceResponse, io::Error>;
-
-/// A directory; responds with the generated directory listing.
-#[derive(Debug)]
-pub struct Directory {
-    /// Base directory
-    pub base: PathBuf,
-    /// Path of subdirectory to generate listing for
-    pub path: PathBuf,
-}
-
-impl Directory {
-    /// Create a new directory
-    pub fn new(base: PathBuf, path: PathBuf) -> Directory {
-        Directory { base, path }
-    }
-
-    /// Is this entry visible from this directory?
-    pub fn is_visible(&self, entry: &io::Result<DirEntry>) -> bool {
-        if let Ok(ref entry) = *entry {
-            if let Some(name) = entry.file_name().to_str() {
-                if name.starts_with('.') {
-                    return false;
-                }
-            }
-            if let Ok(ref md) = entry.metadata() {
-                let ft = md.file_type();
-                return ft.is_dir() || ft.is_file() || ft.is_symlink();
-            }
-        }
-        false
-    }
-}
-
-// show file url as relative to static path
-macro_rules! encode_file_url {
-    ($path:ident) => {
-        utf8_percent_encode(&$path, CONTROLS)
-    };
-}
-
-// " -- &quot;  & -- &amp;  ' -- &#x27;  < -- &lt;  > -- &gt;  / -- &#x2f;
-macro_rules! encode_file_name {
-    ($entry:ident) => {
-        escape_html_entity(&$entry.file_name().to_string_lossy())
-    };
-}
-
-fn directory_listing(
-    dir: &Directory,
-    req: &HttpRequest,
-) -> Result<ServiceResponse, io::Error> {
-    let index_of = format!("Index of {}", req.path());
-    let mut body = String::new();
-    let base = Path::new(req.path());
-
-    for entry in dir.path.read_dir()? {
-        if dir.is_visible(&entry) {
-            let entry = entry.unwrap();
-            let p = match entry.path().strip_prefix(&dir.path) {
-                Ok(p) if cfg!(windows) => {
-                    base.join(p).to_string_lossy().replace("\\", "/")
-                }
-                Ok(p) => base.join(p).to_string_lossy().into_owned(),
-                Err(_) => continue,
-            };
-
-            // if file is a directory, add '/' to the end of the name
-            if let Ok(metadata) = entry.metadata() {
-                if metadata.is_dir() {
-                    let _ = write!(
-                        body,
-                        "<li><a href=\"{}\">{}/</a></li>",
-                        encode_file_url!(p),
-                        encode_file_name!(entry),
-                    );
-                } else {
-                    let _ = write!(
-                        body,
-                        "<li><a href=\"{}\">{}</a></li>",
-                        encode_file_url!(p),
-                        encode_file_name!(entry),
-                    );
-                }
-            } else {
-                continue;
-            }
-        }
-    }
-
-    let html = format!(
-        "<html>\
-         <head><title>{}</title></head>\
-         <body><h1>{}</h1>\
-         <ul>\
-         {}\
-         </ul></body>\n</html>",
-        index_of, index_of, body
-    );
-    Ok(ServiceResponse::new(
-        req.clone(),
-        HttpResponse::Ok()
-            .content_type("text/html; charset=utf-8")
-            .body(html),
-    ))
 }
 
 type MimeOverride = dyn Fn(&mime::Name<'_>) -> DispositionType;
