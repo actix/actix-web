@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2020-xx-xx
+
+
+## 3.0.2 - 2020-09-15
 ### Fixed
 * `NormalizePath` when used with `TrailingSlash::Trim` no longer trims the root path "/". [#1678]
 
