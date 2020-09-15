@@ -195,7 +195,7 @@ where
 mod openssl {
     use super::*;
     use actix_tls::openssl::{Acceptor, SslAcceptor, SslStream};
-    use actix_tls::{openssl::HandshakeError, SslError};
+    use actix_tls::{openssl::HandshakeError, TlsError};
 
     impl<S, B, X, U> HttpService<SslStream<TcpStream>, S, B, X, U>
     where
@@ -226,12 +226,12 @@ mod openssl {
             Config = (),
             Request = TcpStream,
             Response = (),
-            Error = SslError<HandshakeError<TcpStream>, DispatchError>,
+            Error = TlsError<HandshakeError<TcpStream>, DispatchError>,
             InitError = (),
         > {
             pipeline_factory(
                 Acceptor::new(acceptor)
-                    .map_err(SslError::Ssl)
+                    .map_err(TlsError::Tls)
                     .map_init_err(|_| panic!()),
             )
             .and_then(|io: SslStream<TcpStream>| {
@@ -247,7 +247,7 @@ mod openssl {
                 let peer_addr = io.get_ref().peer_addr().ok();
                 ok((io, proto, peer_addr))
             })
-            .and_then(self.map_err(SslError::Service))
+            .and_then(self.map_err(TlsError::Service))
         }
     }
 }
@@ -256,7 +256,7 @@ mod openssl {
 mod rustls {
     use super::*;
     use actix_tls::rustls::{Acceptor, ServerConfig, Session, TlsStream};
-    use actix_tls::SslError;
+    use actix_tls::TlsError;
     use std::io;
 
     impl<S, B, X, U> HttpService<TlsStream<TcpStream>, S, B, X, U>
@@ -288,7 +288,7 @@ mod rustls {
             Config = (),
             Request = TcpStream,
             Response = (),
-            Error = SslError<io::Error, DispatchError>,
+            Error = TlsError<io::Error, DispatchError>,
             InitError = (),
         > {
             let protos = vec!["h2".to_string().into(), "http/1.1".to_string().into()];
@@ -296,7 +296,7 @@ mod rustls {
 
             pipeline_factory(
                 Acceptor::new(config)
-                    .map_err(SslError::Ssl)
+                    .map_err(TlsError::Tls)
                     .map_init_err(|_| panic!()),
             )
             .and_then(|io: TlsStream<TcpStream>| {
@@ -312,7 +312,7 @@ mod rustls {
                 let peer_addr = io.get_ref().0.peer_addr().ok();
                 ok((io, proto, peer_addr))
             })
-            .and_then(self.map_err(SslError::Service))
+            .and_then(self.map_err(TlsError::Service))
         }
     }
 }

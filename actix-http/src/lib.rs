@@ -1,5 +1,6 @@
 //! Basic http primitives for actix-net framework.
-#![warn(rust_2018_idioms, warnings)]
+
+#![deny(rust_2018_idioms)]
 #![allow(
     clippy::type_complexity,
     clippy::too_many_arguments,

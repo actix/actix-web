@@ -1,6 +1,3 @@
-#![warn(rust_2018_idioms, warnings)]
-#![allow(clippy::needless_doctest_main, clippy::type_complexity)]
-
 //! Actix web is a powerful, pragmatic, and extremely fast web framework for Rust.
 //!
 //! ## Example
@@ -59,7 +56,7 @@
 //! * Middlewares ([Logger, Session, CORS, etc](https://actix.rs/docs/middleware/))
 //! * Includes an async [HTTP client](https://actix.rs/actix-web/actix_web/client/index.html)
 //! * Supports [Actix actor framework](https://github.com/actix/actix)
-//! * Runs on stable Rust 1.41+
+//! * Runs on stable Rust 1.42+
 //!
 //! ## Crate Features
 //!
@@ -67,6 +64,11 @@
 //! * `openssl` - HTTPS support via `openssl` crate, supports `HTTP/2`
 //! * `rustls` - HTTPS support via `rustls` crate, supports `HTTP/2`
 //! * `secure-cookies` - secure cookies support
+
+#![deny(rust_2018_idioms)]
+#![allow(clippy::needless_doctest_main, clippy::type_complexity)]
+#![doc(html_logo_url = "https://actix.rs/img/logo.png")]
+#![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
 
 mod app;
 mod app_service;

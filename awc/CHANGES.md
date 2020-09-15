@@ -1,5 +1,18 @@
 # Changes
 
+## Unreleased - 2020-xx-xx
+
+
+## 2.0.0 - 2020-09-11
+### Changed
+* `Client::build` was renamed to `Client::builder`.
+
+
+## 2.0.0-beta.4 - 2020-09-09
+### Changed
+* Update actix-codec & actix-tls dependencies.
+
+
 ## 2.0.0-beta.3 - 2020-08-17
 ### Changed
 * Update `rustls` to 0.18

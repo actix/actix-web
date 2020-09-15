@@ -368,7 +368,7 @@ mod tests {
                         }))
                         .route(web::post().to(|| async {
                             delay_for(Duration::from_millis(100)).await;
-                            HttpResponse::Created()
+                            Ok::<_, ()>(HttpResponse::Created())
                         }))
                         .route(web::delete().to(|| async {
                             delay_for(Duration::from_millis(100)).await;

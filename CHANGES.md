@@ -1,13 +1,41 @@
 # Changes
 
-## Unreleased
+## Unreleased - 2020-xx-xx
+
+
+## 3.0.1 - 2020-09-13
+### Changed
+* `middleware::normalize::TrailingSlash` enum is now accessible. [#1673]
+
+[#1673]: https://github.com/actix/actix-web/pull/1673
+
+
+## 3.0.0 - 2020-09-11
+* No significant changes from `3.0.0-beta.4`.
+
+
+## 3.0.0-beta.4 - 2020-09-09
 ### Added
-* `middleware::NormalizePath` now has configurable behaviour for either always having a trailing slash,
-  or as the new addition, always trimming trailing slashes.
+* `middleware::NormalizePath` now has configurable behaviour for either always having a trailing
+  slash, or as the new addition, always trimming trailing slashes. [#1639]
+
+### Changed
+* Update actix-codec and actix-utils dependencies. [#1634]
+* `FormConfig` and `JsonConfig` configurations are now also considered when set
+  using `App::data`. [#1641]
+* `HttpServer::maxconn` is renamed to the more expressive `HttpServer::max_connections`. [#1655]
+* `HttpServer::maxconnrate` is renamed to the more expressive
+  `HttpServer::max_connection_rate`. [#1655]
+
+[#1639]: https://github.com/actix/actix-web/pull/1639
+[#1641]: https://github.com/actix/actix-web/pull/1641
+[#1634]: https://github.com/actix/actix-web/pull/1634
+[#1655]: https://github.com/actix/actix-web/pull/1655
 
 ## 3.0.0-beta.3 - 2020-08-17
 ### Changed
 * Update `rustls` to 0.18
+
 
 ## 3.0.0-beta.2 - 2020-08-17
 ### Changed

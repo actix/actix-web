@@ -76,12 +76,14 @@ pub(crate) trait MessageType: Sized {
                 let name =
                     HeaderName::from_bytes(&slice[idx.name.0..idx.name.1]).unwrap();
 
-                // SAFETY: httparse checks header value is valid UTF-8
+                // SAFETY: httparse already checks header value is only visible ASCII bytes
+                // from_maybe_shared_unchecked contains debug assertions so they are omitted here
                 let value = unsafe {
                     HeaderValue::from_maybe_shared_unchecked(
                         slice.slice(idx.value.0..idx.value.1),
                     )
                 };
+
                 match name {
                     header::CONTENT_LENGTH => {
                         if let Ok(s) = value.to_str() {

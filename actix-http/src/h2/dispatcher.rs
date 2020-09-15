@@ -227,9 +227,11 @@ where
         if !has_date {
             let mut bytes = BytesMut::with_capacity(29);
             self.config.set_date_header(&mut bytes);
-            res.headers_mut().insert(DATE, unsafe {
-                HeaderValue::from_maybe_shared_unchecked(bytes.freeze())
-            });
+            res.headers_mut().insert(
+                DATE,
+                // SAFETY: serialized date-times are known ASCII strings
+                unsafe { HeaderValue::from_maybe_shared_unchecked(bytes.freeze()) },
+            );
         }
 
         res

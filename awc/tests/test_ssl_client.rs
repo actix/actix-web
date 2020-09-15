@@ -62,7 +62,7 @@ async fn test_connection_reuse_h2() {
         .set_alpn_protos(b"\x02h2\x08http/1.1")
         .map_err(|e| log::error!("Can not set alpn protocol: {:?}", e));
 
-    let client = awc::Client::build()
+    let client = awc::Client::builder()
         .connector(awc::Connector::new().ssl(builder.build()).finish())
         .finish();
 
