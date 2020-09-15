@@ -2,10 +2,12 @@
 
 ## Unreleased - 2020-xx-xx
 
+* add ability to set address for `TestServer` [#1645]
+
+[#1645]: https://github.com/actix/actix-web/pull/1645
 
 ## 2.0.0 - 2020-09-11
 * Update actix-codec and actix-utils dependencies.
-
 
 ## 2.0.0-alpha.1 - 2020-05-23
 * Update the `time` dependency to 0.2.7
