@@ -1,4 +1,7 @@
-use std::path::PathBuf;
+use std::{
+    path::{Path, PathBuf},
+    str::FromStr,
+};
 
 use actix_web::{dev::Payload, FromRequest, HttpRequest};
 use futures_util::future::{ready, Ready};
@@ -6,14 +9,12 @@ use futures_util::future::{ready, Ready};
 use crate::error::UriSegmentError;
 
 #[derive(Debug)]
-pub(crate) struct PathBufWrp(PathBuf);
+pub(crate) struct PathBufWrap(PathBuf);
 
-impl PathBufWrp {
-    pub(crate) fn as_pathbuf(&self) -> &PathBuf {
-        &self.0
-    }
+impl FromStr for PathBufWrap {
+    type Err = UriSegmentError;
 
-    pub(crate) fn get_pathbuf(path: &str) -> Result<Self, UriSegmentError> {
+    fn from_str(path: &str) -> Result<Self, Self::Err> {
         let mut buf = PathBuf::new();
         for segment in path.split('/') {
             if segment == ".." {
@@ -37,17 +38,23 @@ impl PathBufWrp {
             }
         }
 
-        Ok(PathBufWrp(buf))
+        Ok(PathBufWrap(buf))
     }
 }
 
-impl FromRequest for PathBufWrp {
+impl AsRef<Path> for PathBufWrap {
+    fn as_ref(&self) -> &Path {
+        self.0.as_ref()
+    }
+}
+
+impl FromRequest for PathBufWrap {
     type Error = UriSegmentError;
     type Future = Ready<Result<Self, Self::Error>>;
     type Config = ();
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        ready(PathBufWrp::get_pathbuf(req.match_info().path()))
+        ready(req.match_info().path().parse())
     }
 }
 
@@ -60,31 +67,31 @@ mod tests {
     #[test]
     fn test_path_buf() {
         assert_eq!(
-            PathBufWrp::get_pathbuf("/test/.tt").map(|t| t.0),
+            PathBufWrap::from_str("/test/.tt").map(|t| t.0),
             Err(UriSegmentError::BadStart('.'))
         );
         assert_eq!(
-            PathBufWrp::get_pathbuf("/test/*tt").map(|t| t.0),
+            PathBufWrap::from_str("/test/*tt").map(|t| t.0),
             Err(UriSegmentError::BadStart('*'))
         );
         assert_eq!(
-            PathBufWrp::get_pathbuf("/test/tt:").map(|t| t.0),
+            PathBufWrap::from_str("/test/tt:").map(|t| t.0),
             Err(UriSegmentError::BadEnd(':'))
         );
         assert_eq!(
-            PathBufWrp::get_pathbuf("/test/tt<").map(|t| t.0),
+            PathBufWrap::from_str("/test/tt<").map(|t| t.0),
             Err(UriSegmentError::BadEnd('<'))
         );
         assert_eq!(
-            PathBufWrp::get_pathbuf("/test/tt>").map(|t| t.0),
+            PathBufWrap::from_str("/test/tt>").map(|t| t.0),
             Err(UriSegmentError::BadEnd('>'))
         );
         assert_eq!(
-            PathBufWrp::get_pathbuf("/seg1/seg2/").unwrap().0,
+            PathBufWrap::from_str("/seg1/seg2/").unwrap().0,
             PathBuf::from_iter(vec!["seg1", "seg2"])
         );
         assert_eq!(
-            PathBufWrp::get_pathbuf("/seg1/../seg2/").unwrap().0,
+            PathBufWrap::from_str("/seg1/../seg2/").unwrap().0,
             PathBuf::from_iter(vec!["seg2"])
         );
     }

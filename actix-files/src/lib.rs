@@ -42,7 +42,7 @@ pub use crate::range::HttpRange;
 
 use self::directory::{directory_listing, DirectoryRenderer};
 use self::error::FilesError;
-use self::path_buf::PathBufWrp;
+use self::path_buf::PathBufWrap;
 
 type HttpService = BoxService<ServiceRequest, ServiceResponse, Error>;
 type HttpNewService = BoxServiceFactory<(), ServiceRequest, ServiceResponse, Error, ()>;
@@ -354,13 +354,13 @@ impl Service for FilesService {
             )));
         }
 
-        let real_path = match PathBufWrp::get_pathbuf(req.match_info().path()) {
+        let real_path: PathBufWrap = match req.match_info().path().parse() {
             Ok(item) => item,
             Err(e) => return Either::Left(ok(req.error_response(e))),
         };
 
         // full file path
-        let path = match self.directory.join(real_path.as_pathbuf()).canonicalize() {
+        let path = match self.directory.join(&real_path).canonicalize() {
             Ok(path) => path,
             Err(e) => return self.handle_err(e, req),
         };
