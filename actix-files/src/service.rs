@@ -32,17 +32,15 @@ pub struct FilesService {
     pub(crate) guards: Option<Rc<dyn Guard>>,
 }
 
+type FilesServiceFuture = Either<
+    Ready<Result<ServiceResponse, Error>>,
+    LocalBoxFuture<'static, Result<ServiceResponse, Error>>,
+>;
+
 impl FilesService {
-    #[allow(clippy::type_complexity)]
-    fn handle_err(
-        &mut self,
-        e: io::Error,
-        req: ServiceRequest,
-    ) -> Either<
-        Ready<Result<ServiceResponse, Error>>,
-        LocalBoxFuture<'static, Result<ServiceResponse, Error>>,
-    > {
-        log::debug!("Files: Failed to handle {}: {}", req.path(), e);
+    fn handle_err(&mut self, e: io::Error, req: ServiceRequest) -> FilesServiceFuture {
+        log::debug!("Failed to handle {}: {}", req.path(), e);
+
         if let Some(ref mut default) = self.default {
             Either::Right(default.call(req))
         } else {
@@ -55,11 +53,7 @@ impl Service for FilesService {
     type Request = ServiceRequest;
     type Response = ServiceResponse;
     type Error = Error;
-    #[allow(clippy::type_complexity)]
-    type Future = Either<
-        Ready<Result<Self::Response, Self::Error>>,
-        LocalBoxFuture<'static, Result<Self::Response, Self::Error>>,
-    >;
+    type Future = FilesServiceFuture;
 
     fn poll_ready(&mut self, _: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         Poll::Ready(Ok(()))
@@ -97,6 +91,7 @@ impl Service for FilesService {
             if let Some(ref redir_index) = self.index {
                 if self.redirect_to_slash && !req.path().ends_with('/') {
                     let redirect_to = format!("{}/", req.path());
+
                     return Either::Left(ok(req.into_response(
                         HttpResponse::Found()
                             .header(header::LOCATION, redirect_to)
@@ -114,8 +109,8 @@ impl Service for FilesService {
                                 mime_override(&named_file.content_type.type_());
                             named_file.content_disposition.disposition = new_disposition;
                         }
-
                         named_file.flags = self.file_flags;
+
                         let (req, _) = req.into_parts();
                         Either::Left(ok(match named_file.into_response(&req) {
                             Ok(item) => ServiceResponse::new(req, item),
@@ -126,8 +121,10 @@ impl Service for FilesService {
                 }
             } else if self.show_index {
                 let dir = Directory::new(self.directory.clone(), path);
+
                 let (req, _) = req.into_parts();
                 let x = (self.renderer)(&dir, &req);
+
                 match x {
                     Ok(resp) => Either::Left(ok(resp)),
                     Err(e) => Either::Left(ok(ServiceResponse::from_err(e, req))),
@@ -146,8 +143,8 @@ impl Service for FilesService {
                             mime_override(&named_file.content_type.type_());
                         named_file.content_disposition.disposition = new_disposition;
                     }
-
                     named_file.flags = self.file_flags;
+
                     let (req, _) = req.into_parts();
                     match named_file.into_response(&req) {
                         Ok(item) => {

@@ -5,7 +5,7 @@ pub struct HttpRange {
     pub length: u64,
 }
 
-static PREFIX: &str = "bytes=";
+const PREFIX: &str = "bytes=";
 const PREFIX_LEN: usize = 6;
 
 impl HttpRange {

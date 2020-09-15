@@ -93,8 +93,10 @@ impl NamedFile {
                 mime::IMAGE | mime::TEXT | mime::VIDEO => DispositionType::Inline,
                 _ => DispositionType::Attachment,
             };
+
             let mut parameters =
                 vec![DispositionParam::Filename(String::from(filename.as_ref()))];
+
             if !filename.is_ascii() {
                 parameters.push(DispositionParam::FilenameExt(ExtendedValue {
                     charset: Charset::Ext(String::from("UTF-8")),
@@ -102,16 +104,19 @@ impl NamedFile {
                     value: filename.into_owned().into_bytes(),
                 }))
             }
+
             let cd = ContentDisposition {
                 disposition,
                 parameters,
             };
+
             (ct, cd)
         };
 
         let md = file.metadata()?;
         let modified = md.modified().ok();
         let encoding = None;
+
         Ok(NamedFile {
             path,
             file,
@@ -259,6 +264,7 @@ impl NamedFile {
     pub fn into_response(self, req: &HttpRequest) -> Result<HttpResponse, Error> {
         if self.status_code != StatusCode::OK {
             let mut resp = HttpResponse::build(self.status_code);
+
             resp.set(header::ContentType(self.content_type.clone()))
                 .if_true(self.flags.contains(Flags::CONTENT_DISPOSITION), |res| {
                     res.header(
@@ -266,9 +272,11 @@ impl NamedFile {
                         self.content_disposition.to_string(),
                     );
                 });
+
             if let Some(current_encoding) = self.encoding {
                 resp.encoding(current_encoding);
             }
+
             let reader = ChunkedReadFile {
                 size: self.md.len(),
                 offset: 0,
@@ -276,6 +284,7 @@ impl NamedFile {
                 fut: None,
                 counter: 0,
             };
+
             return Ok(resp.streaming(reader));
         }
 
@@ -284,6 +293,7 @@ impl NamedFile {
         } else {
             None
         };
+
         let last_modified = if self.flags.contains(Flags::LAST_MD) {
             self.last_modified()
         } else {
@@ -298,6 +308,7 @@ impl NamedFile {
         {
             let t1: SystemTime = m.clone().into();
             let t2: SystemTime = since.clone().into();
+
             match (t1.duration_since(UNIX_EPOCH), t2.duration_since(UNIX_EPOCH)) {
                 (Ok(t1), Ok(t2)) => t1 > t2,
                 _ => false,
@@ -316,6 +327,7 @@ impl NamedFile {
         {
             let t1: SystemTime = m.clone().into();
             let t2: SystemTime = since.clone().into();
+
             match (t1.duration_since(UNIX_EPOCH), t2.duration_since(UNIX_EPOCH)) {
                 (Ok(t1), Ok(t2)) => t1 <= t2,
                 _ => false,
@@ -332,6 +344,7 @@ impl NamedFile {
                     self.content_disposition.to_string(),
                 );
             });
+
         // default compressing
         if let Some(current_encoding) = self.encoding {
             resp.encoding(current_encoding);
@@ -355,6 +368,7 @@ impl NamedFile {
                 if let Ok(rangesvec) = HttpRange::parse(rangesheader, length) {
                     length = rangesvec[0].length;
                     offset = rangesvec[0].start;
+
                     resp.encoding(ContentEncoding::Identity);
                     resp.header(
                         header::CONTENT_RANGE,
@@ -414,6 +428,7 @@ impl DerefMut for NamedFile {
 fn any_match(etag: Option<&header::EntityTag>, req: &HttpRequest) -> bool {
     match req.get_header::<header::IfMatch>() {
         None | Some(header::IfMatch::Any) => true,
+
         Some(header::IfMatch::Items(ref items)) => {
             if let Some(some_etag) = etag {
                 for item in items {
@@ -422,6 +437,7 @@ fn any_match(etag: Option<&header::EntityTag>, req: &HttpRequest) -> bool {
                     }
                 }
             }
+
             false
         }
     }
@@ -431,6 +447,7 @@ fn any_match(etag: Option<&header::EntityTag>, req: &HttpRequest) -> bool {
 fn none_match(etag: Option<&header::EntityTag>, req: &HttpRequest) -> bool {
     match req.get_header::<header::IfNoneMatch>() {
         Some(header::IfNoneMatch::Any) => false,
+
         Some(header::IfNoneMatch::Items(ref items)) => {
             if let Some(some_etag) = etag {
                 for item in items {
@@ -439,8 +456,10 @@ fn none_match(etag: Option<&header::EntityTag>, req: &HttpRequest) -> bool {
                     }
                 }
             }
+
             true
         }
+
         None => true,
     }
 }
