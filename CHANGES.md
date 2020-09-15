@@ -1,6 +1,10 @@
 # Changes
 
 ## Unreleased - 2020-xx-xx
+### Fixed
+* `NormalizePath` when used with `TrailingSlash::Trim` no longer trims the root path "/". [#1678]
+
+[#1678]: https://github.com/actix/actix-web/pull/1678
 
 
 ## 3.0.1 - 2020-09-13
