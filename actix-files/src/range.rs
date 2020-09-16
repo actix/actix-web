@@ -1,7 +1,10 @@
 /// HTTP Range header representation.
 #[derive(Debug, Clone, Copy)]
 pub struct HttpRange {
+    /// Start of range.
     pub start: u64,
+
+    /// Length of range.
     pub length: u64,
 }
 

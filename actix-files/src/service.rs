@@ -1,5 +1,5 @@
 use std::{
-    io,
+    fmt, io,
     path::PathBuf,
     rc::Rc,
     task::{Context, Poll},
@@ -20,6 +20,7 @@ use crate::{
     NamedFile, PathBufWrap,
 };
 
+/// Assembled file serving service.
 pub struct FilesService {
     pub(crate) directory: PathBuf,
     pub(crate) index: Option<String>,
@@ -46,6 +47,12 @@ impl FilesService {
         } else {
             Either::Left(ok(req.error_response(e)))
         }
+    }
+}
+
+impl fmt::Debug for FilesService {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("FilesService")
     }
 }
 

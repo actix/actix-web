@@ -1,6 +1,22 @@
-//! Static files support
+//! Static files support for Actix Web.
+//!
+//! Provides a non-blocking service for serving static files from disk.
+//!
+//! # Example
+//! ```rust
+//! use actix_web::App;
+//! use actix_files::Files;
+//!
+//! let app = App::new()
+//!     .service(Files::new("/static", "."));
+//! ```
+//!
+//! # Implementation Quirks
+//! - If a filename contains non-ascii characters, that file will be served with the `charset=utf-8`
+//!   extension on the Content-Type header.
 
 #![deny(rust_2018_idioms)]
+#![warn(missing_docs, missing_debug_implementations)]
 
 use std::io;
 

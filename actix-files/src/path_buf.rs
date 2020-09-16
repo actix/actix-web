@@ -16,7 +16,7 @@ impl FromStr for PathBufWrap {
 
     fn from_str(path: &str) -> Result<Self, Self::Err> {
         let mut buf = PathBuf::new();
-        
+
         for segment in path.split('/') {
             if segment == ".." {
                 buf.pop();

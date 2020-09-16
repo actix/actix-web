@@ -1,4 +1,4 @@
-use std::{cell::RefCell, io, path::PathBuf, rc::Rc};
+use std::{cell::RefCell, fmt, io, path::PathBuf, rc::Rc};
 
 use actix_service::{boxed, IntoServiceFactory, ServiceFactory};
 use actix_web::{
@@ -17,7 +17,7 @@ use crate::{
     HttpNewService, MimeOverride,
 };
 
-/// Static files handling
+/// Static files handling service.
 ///
 /// `Files` service must be registered with `App::service()` method.
 ///
@@ -39,6 +39,12 @@ pub struct Files {
     mime_override: Option<Rc<MimeOverride>>,
     file_flags: named::Flags,
     guards: Option<Rc<dyn Guard>>,
+}
+
+impl fmt::Debug for Files {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("Files")
+    }
 }
 
 impl Clone for Files {
@@ -193,11 +199,13 @@ impl HttpServiceFactory for Files {
         if self.default.borrow().is_none() {
             *self.default.borrow_mut() = Some(config.default_service());
         }
+
         let rdef = if config.is_root() {
             ResourceDef::root_prefix(&self.path)
         } else {
             ResourceDef::prefix(&self.path)
         };
+
         config.register_service(rdef, None, self, None)
     }
 }

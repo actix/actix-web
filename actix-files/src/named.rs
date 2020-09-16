@@ -7,17 +7,20 @@ use std::time::{SystemTime, UNIX_EPOCH};
 #[cfg(unix)]
 use std::os::unix::fs::MetadataExt;
 
-use bitflags::bitflags;
-use mime_guess::from_path;
-
-use actix_http::body::SizedStream;
-use actix_web::dev::BodyEncoding;
-use actix_web::http::header::{
-    self, Charset, ContentDisposition, DispositionParam, DispositionType, ExtendedValue,
+use actix_web::{
+    dev::{BodyEncoding, SizedStream},
+    http::{
+        header::{
+            self, Charset, ContentDisposition, DispositionParam, DispositionType,
+            ExtendedValue,
+        },
+        ContentEncoding, StatusCode,
+    },
+    Error, HttpMessage, HttpRequest, HttpResponse, Responder,
 };
-use actix_web::http::{ContentEncoding, StatusCode};
-use actix_web::{Error, HttpMessage, HttpRequest, HttpResponse, Responder};
+use bitflags::bitflags;
 use futures_util::future::{ready, Ready};
+use mime_guess::from_path;
 
 use crate::range::HttpRange;
 use crate::ChunkedReadFile;
@@ -247,6 +250,7 @@ impl NamedFile {
             let dur = mtime
                 .duration_since(UNIX_EPOCH)
                 .expect("modification time must be after epoch");
+
             header::EntityTag::strong(format!(
                 "{:x}:{:x}:{:x}:{:x}",
                 ino,
@@ -261,6 +265,7 @@ impl NamedFile {
         self.modified.map(|mtime| mtime.into())
     }
 
+    /// Creates an `HttpResponse` with file as a streaming body.
     pub fn into_response(self, req: &HttpRequest) -> Result<HttpResponse, Error> {
         if self.status_code != StatusCode::OK {
             let mut resp = HttpResponse::build(self.status_code);
@@ -364,10 +369,10 @@ impl NamedFile {
 
         // check for range header
         if let Some(ranges) = req.headers().get(header::RANGE) {
-            if let Ok(rangesheader) = ranges.to_str() {
-                if let Ok(rangesvec) = HttpRange::parse(rangesheader, length) {
-                    length = rangesvec[0].length;
-                    offset = rangesvec[0].start;
+            if let Ok(ranges_header) = ranges.to_str() {
+                if let Ok(ranges) = HttpRange::parse(ranges_header, length) {
+                    length = ranges[0].length;
+                    offset = ranges[0].start;
 
                     resp.encoding(ContentEncoding::Identity);
                     resp.header(

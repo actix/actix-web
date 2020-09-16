@@ -1,5 +1,5 @@
 use std::{
-    cmp,
+    cmp, fmt,
     fs::File,
     future::Future,
     io::{self, Read, Seek},
@@ -29,6 +29,12 @@ pub struct ChunkedReadFile {
     pub(crate) file: Option<File>,
     pub(crate) fut: Option<ChunkedBoxFuture>,
     pub(crate) counter: u64,
+}
+
+impl fmt::Debug for ChunkedReadFile {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("ChunkedReadFile")
+    }
 }
 
 impl Stream for ChunkedReadFile {
