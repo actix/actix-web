@@ -1,9 +1,6 @@
 # Changes
 
 ## Unreleased - 2020-xx-xx
-* Add public constructor for `web::guard::AnyGuard`
-
-[#1674]: https://github.com/actix/actix-web/pull/1674
 
 
 ## 3.0.2 - 2020-09-15

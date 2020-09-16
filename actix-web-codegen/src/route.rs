@@ -261,11 +261,17 @@ impl ToTokens for Route {
             resource_type,
         } = self;
         let resource_name = name.to_string();
-        let methods = methods.iter();
+        let mut methods = methods.iter();
 
-        let guard_gen = if *guard == GuardType::Multi {
+        let method_guards = if *guard == GuardType::Multi {
+            // unwrapping since length is checked to be at least one
+            let first = methods.next().unwrap();
+
             quote! {
-                .guard(actix_web::guard::AnyGuard::new(vec![#(Box::new(actix_web::guard::#methods())),*]))
+                .guard(
+                    actix_web::guard::Any(actix_web::guard::#first())
+                        #(.or(actix_web::guard::#methods()))*
+                )
             }
         } else {
             quote! {
@@ -282,7 +288,7 @@ impl ToTokens for Route {
                     #ast
                     let __resource = actix_web::Resource::new(#path)
                         .name(#resource_name)
-                        #guard_gen
+                        #method_guards
                         #(.guard(actix_web::guard::fn_guard(#guards)))*
                         #(.wrap(#wrappers))*
                         .#resource_type(#name);
