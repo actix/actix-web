@@ -141,6 +141,23 @@ pub fn patch(args: TokenStream, input: TokenStream) -> TokenStream {
     route::generate(args, input, route::GuardType::Patch)
 }
 
+/// Creates resource handler, allowing multiple HTTP method guards.
+///
+/// Syntax: `#[route("path"[, attributes])]`
+///
+/// Example: `#[route("/", method="GET", method="HEAD")]`
+///
+/// ## Attributes
+///
+/// - `"path"` - Raw literal string with path for which to register handler. Mandatory.
+/// - `method="HTTP_METHOD"` - Registers HTTP method to provide guard for.
+/// - `guard="function_name"` - Registers function as guard using `actix_web::guard::fn_guard`
+/// - `wrap="Middleware"` - Registers a resource middleware.
+#[proc_macro_attribute]
+pub fn route(args: TokenStream, input: TokenStream) -> TokenStream {
+    route::generate(args, input, route::GuardType::Multi)
+}
+
 /// Marks async main function as the actix system entry-point.
 ///
 /// ## Usage

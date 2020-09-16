@@ -1,5 +1,8 @@
 extern crate proc_macro;
 
+use std::collections::HashSet;
+use std::convert::TryFrom;
+
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::{format_ident, quote, ToTokens, TokenStreamExt};
@@ -17,7 +20,7 @@ impl ToTokens for ResourceType {
     }
 }
 
-#[derive(PartialEq)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub enum GuardType {
     Get,
     Post,
@@ -28,6 +31,7 @@ pub enum GuardType {
     Options,
     Trace,
     Patch,
+    Multi,
 }
 
 impl GuardType {
@@ -42,6 +46,7 @@ impl GuardType {
             GuardType::Options => "Options",
             GuardType::Trace => "Trace",
             GuardType::Patch => "Patch",
+            GuardType::Multi => "Multi",
         }
     }
 }
@@ -53,10 +58,33 @@ impl ToTokens for GuardType {
     }
 }
 
+impl TryFrom<&syn::LitStr> for GuardType {
+    type Error = syn::Error;
+
+    fn try_from(value: &syn::LitStr) -> Result<Self, Self::Error> {
+        match value.value().as_str() {
+            "CONNECT" => Ok(GuardType::Connect),
+            "DELETE" => Ok(GuardType::Delete),
+            "GET" => Ok(GuardType::Get),
+            "HEAD" => Ok(GuardType::Head),
+            "OPTIONS" => Ok(GuardType::Options),
+            "PATCH" => Ok(GuardType::Patch),
+            "POST" => Ok(GuardType::Post),
+            "PUT" => Ok(GuardType::Put),
+            "TRACE" => Ok(GuardType::Trace),
+            _ => Err(syn::Error::new_spanned(
+                value,
+                &format!("Unexpected HTTP Method: `{}`", value.value()),
+            )),
+        }
+    }
+}
+
 struct Args {
     path: syn::LitStr,
     guards: Vec<Ident>,
     wrappers: Vec<syn::Type>,
+    methods: HashSet<GuardType>,
 }
 
 impl Args {
@@ -64,6 +92,7 @@ impl Args {
         let mut path = None;
         let mut guards = Vec::new();
         let mut wrappers = Vec::new();
+        let mut methods = HashSet::new();
         for arg in args {
             match arg {
                 NestedMeta::Lit(syn::Lit::Str(lit)) => match path {
@@ -96,10 +125,28 @@ impl Args {
                                 "Attribute wrap expects type",
                             ));
                         }
+                    } else if nv.path.is_ident("method") {
+                        if let syn::Lit::Str(ref lit) = nv.lit {
+                            let guard = GuardType::try_from(lit)?;
+                            if !methods.insert(guard) {
+                                return Err(syn::Error::new_spanned(
+                                    &nv.lit,
+                                    &format!(
+                                        "HTTP Method defined more than once: `{}`",
+                                        lit.value()
+                                    ),
+                                ));
+                            }
+                        } else {
+                            return Err(syn::Error::new_spanned(
+                                nv.lit,
+                                "Attribute method expects literal string!",
+                            ));
+                        }
                     } else {
                         return Err(syn::Error::new_spanned(
                             nv.path,
-                            "Unknown attribute key is specified. Allowed: guard and wrap",
+                            "Unknown attribute key is specified. Allowed: guard, method and wrap",
                         ));
                     }
                 }
@@ -112,6 +159,7 @@ impl Args {
             path: path.unwrap(),
             guards,
             wrappers,
+            methods,
         })
     }
 }
@@ -166,6 +214,13 @@ impl Route {
 
         let args = Args::new(args)?;
 
+        if guard == GuardType::Multi && args.methods.is_empty() {
+            return Err(syn::Error::new(
+                Span::call_site(),
+                "The #[route(..)] macro requires at least one `method` attribute",
+            ));
+        }
+
         let resource_type = if ast.sig.asyncness.is_some() {
             ResourceType::Async
         } else {
@@ -201,10 +256,29 @@ impl ToTokens for Route {
                     path,
                     guards,
                     wrappers,
+                    methods,
                 },
             resource_type,
         } = self;
         let resource_name = name.to_string();
+        let mut methods = methods.iter();
+
+        let method_guards = if *guard == GuardType::Multi {
+            // unwrapping since length is checked to be at least one
+            let first = methods.next().unwrap();
+
+            quote! {
+                .guard(
+                    actix_web::guard::Any(actix_web::guard::#first())
+                        #(.or(actix_web::guard::#methods()))*
+                )
+            }
+        } else {
+            quote! {
+                .guard(actix_web::guard::#guard())
+            }
+        };
+
         let stream = quote! {
             #[allow(non_camel_case_types, missing_docs)]
             pub struct #name;
@@ -214,7 +288,7 @@ impl ToTokens for Route {
                     #ast
                     let __resource = actix_web::Resource::new(#path)
                         .name(#resource_name)
-                        .guard(actix_web::guard::#guard())
+                        #method_guards
                         #(.guard(actix_web::guard::fn_guard(#guards)))*
                         #(.wrap(#wrappers))*
                         .#resource_type(#name);
