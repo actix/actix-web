@@ -79,6 +79,7 @@ where
     }
 }
 
+#[doc(hidden)]
 pub struct NormalizePathNormalization<S> {
     service: S,
     merge_slash: Regex,
@@ -112,6 +113,10 @@ where
 
         // normalize multiple /'s to one /
         let path = self.merge_slash.replace_all(&path, "/");
+
+        // Ensure root paths are still resolvable. If resulting path is blank after previous step
+        // it means the path was one or more slashes. Reduce to single slash.
+        let path = if path.is_empty() { "/" } else { path.as_ref() };
 
         // Check whether the path has been changed
         //
@@ -158,9 +163,22 @@ mod tests {
         let mut app = init_service(
             App::new()
                 .wrap(NormalizePath::default())
+                .service(web::resource("/").to(HttpResponse::Ok))
                 .service(web::resource("/v1/something/").to(HttpResponse::Ok)),
         )
         .await;
+
+        let req = TestRequest::with_uri("/").to_request();
+        let res = call_service(&mut app, req).await;
+        assert!(res.status().is_success());
+
+        let req = TestRequest::with_uri("/?query=test").to_request();
+        let res = call_service(&mut app, req).await;
+        assert!(res.status().is_success());
+
+        let req = TestRequest::with_uri("///").to_request();
+        let res = call_service(&mut app, req).await;
+        assert!(res.status().is_success());
 
         let req = TestRequest::with_uri("/v1//something////").to_request();
         let res = call_service(&mut app, req).await;
@@ -184,9 +202,23 @@ mod tests {
         let mut app = init_service(
             App::new()
                 .wrap(NormalizePath(TrailingSlash::Trim))
+                .service(web::resource("/").to(HttpResponse::Ok))
                 .service(web::resource("/v1/something").to(HttpResponse::Ok)),
         )
         .await;
+
+        // root paths should still work
+        let req = TestRequest::with_uri("/").to_request();
+        let res = call_service(&mut app, req).await;
+        assert!(res.status().is_success());
+
+        let req = TestRequest::with_uri("/?query=test").to_request();
+        let res = call_service(&mut app, req).await;
+        assert!(res.status().is_success());
+
+        let req = TestRequest::with_uri("///").to_request();
+        let res = call_service(&mut app, req).await;
+        assert!(res.status().is_success());
 
         let req = TestRequest::with_uri("/v1/something////").to_request();
         let res = call_service(&mut app, req).await;
