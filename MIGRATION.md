@@ -48,7 +48,7 @@
 
 * `middleware::NormalizePath` can now also be configured to trim trailing slashes instead of always keeping one.
   It will need `middleware::normalize::TrailingSlash` when being constructed with `NormalizePath::new(...)`,
-  or for an easier migration you can replace `wrap(middleware::NormalizePath)` with `wrap(middleware::NormalizePath::default())`.
+  or for an easier migration you can replace `wrap(middleware::NormalizePath)` with `wrap(middleware::NormalizePath::new(TrailingSlash::MergeOnly))`.
 
 * `HttpServer::maxconn` is renamed to the more expressive `HttpServer::max_connections`.
 
