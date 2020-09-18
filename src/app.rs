@@ -1,10 +1,9 @@
 use std::cell::RefCell;
 use std::fmt;
 use std::future::Future;
-use std::marker::PhantomData;
 use std::rc::Rc;
 
-use actix_http::body::{Body, MessageBody};
+use actix_http::body::MessageBody;
 use actix_http::Extensions;
 use actix_service::boxed::{self, BoxServiceFactory};
 use actix_service::{
@@ -28,7 +27,7 @@ type HttpNewService = BoxServiceFactory<(), ServiceRequest, ServiceResponse, Err
 
 /// Application builder - structure that follows the builder pattern
 /// for building application instances.
-pub struct App<T, B> {
+pub struct App<T> {
     endpoint: T,
     services: Vec<Box<dyn AppServiceFactory>>,
     default: Option<Rc<HttpNewService>>,
@@ -37,10 +36,9 @@ pub struct App<T, B> {
     data_factories: Vec<FnDataFactory>,
     external: Vec<ResourceDef>,
     extensions: Extensions,
-    _t: PhantomData<B>,
 }
 
-impl App<AppEntry, Body> {
+impl App<AppEntry> {
     /// Create application builder. Application can be configured with a builder-like pattern.
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
@@ -54,12 +52,11 @@ impl App<AppEntry, Body> {
             factory_ref: fref,
             external: Vec::new(),
             extensions: Extensions::new(),
-            _t: PhantomData,
         }
     }
 }
 
-impl<T, B> App<T, B>
+impl<T, B> App<T>
 where
     B: MessageBody,
     T: ServiceFactory<
@@ -358,7 +355,6 @@ where
             Error = Error,
             InitError = (),
         >,
-        B1,
     >
     where
         M: Transform<
@@ -379,7 +375,6 @@ where
             factory_ref: self.factory_ref,
             external: self.external,
             extensions: self.extensions,
-            _t: PhantomData,
         }
     }
 
@@ -425,7 +420,6 @@ where
             Error = Error,
             InitError = (),
         >,
-        B1,
     >
     where
         B1: MessageBody,
@@ -441,12 +435,11 @@ where
             factory_ref: self.factory_ref,
             external: self.external,
             extensions: self.extensions,
-            _t: PhantomData,
         }
     }
 }
 
-impl<T, B> IntoServiceFactory<AppInit<T, B>> for App<T, B>
+impl<T, B> IntoServiceFactory<AppInit<T, B>> for App<T>
 where
     B: MessageBody,
     T: ServiceFactory<

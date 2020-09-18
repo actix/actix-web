@@ -1,6 +1,10 @@
 # Changes
 
 ## Unreleased - 2020-xx-xx
+### Changed
+* remove generic type `B` for `app::App` and it's not bound to `actix_http::body::MessageBody` trait anymore. [#1692]
+
+[#1692]: https://github.com/actix/actix-web/pull/1692
 
 
 ## 3.0.2 - 2020-09-15
