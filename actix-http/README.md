@@ -13,7 +13,7 @@ Actix http
 ## Example
 
 ```rust
-// see examples/framed_hello.rs for complete list of used crates.
+// see examples/hello-world.rs for complete list of used crates.
 use std::{env, io};
 
 use actix_http::{HttpService, Response};
