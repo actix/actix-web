@@ -21,7 +21,7 @@ impl ToTokens for ResourceType {
 }
 
 #[derive(Debug, PartialEq, Eq, Hash)]
-pub enum GuardType {
+pub enum Method {
     Get,
     Post,
     Put,
@@ -31,47 +31,45 @@ pub enum GuardType {
     Options,
     Trace,
     Patch,
-    Multi,
 }
 
-impl GuardType {
+impl Method {
     fn as_str(&self) -> &'static str {
         match self {
-            GuardType::Get => "Get",
-            GuardType::Post => "Post",
-            GuardType::Put => "Put",
-            GuardType::Delete => "Delete",
-            GuardType::Head => "Head",
-            GuardType::Connect => "Connect",
-            GuardType::Options => "Options",
-            GuardType::Trace => "Trace",
-            GuardType::Patch => "Patch",
-            GuardType::Multi => "Multi",
+            Method::Get => "Get",
+            Method::Post => "Post",
+            Method::Put => "Put",
+            Method::Delete => "Delete",
+            Method::Head => "Head",
+            Method::Connect => "Connect",
+            Method::Options => "Options",
+            Method::Trace => "Trace",
+            Method::Patch => "Patch",
         }
     }
 }
 
-impl ToTokens for GuardType {
+impl ToTokens for Method {
     fn to_tokens(&self, stream: &mut TokenStream2) {
         let ident = Ident::new(self.as_str(), Span::call_site());
         stream.append(ident);
     }
 }
 
-impl TryFrom<&syn::LitStr> for GuardType {
+impl TryFrom<&syn::LitStr> for Method {
     type Error = syn::Error;
 
     fn try_from(value: &syn::LitStr) -> Result<Self, Self::Error> {
         match value.value().as_str() {
-            "CONNECT" => Ok(GuardType::Connect),
-            "DELETE" => Ok(GuardType::Delete),
-            "GET" => Ok(GuardType::Get),
-            "HEAD" => Ok(GuardType::Head),
-            "OPTIONS" => Ok(GuardType::Options),
-            "PATCH" => Ok(GuardType::Patch),
-            "POST" => Ok(GuardType::Post),
-            "PUT" => Ok(GuardType::Put),
-            "TRACE" => Ok(GuardType::Trace),
+            "CONNECT" => Ok(Method::Connect),
+            "DELETE" => Ok(Method::Delete),
+            "GET" => Ok(Method::Get),
+            "HEAD" => Ok(Method::Head),
+            "OPTIONS" => Ok(Method::Options),
+            "PATCH" => Ok(Method::Patch),
+            "POST" => Ok(Method::Post),
+            "PUT" => Ok(Method::Put),
+            "TRACE" => Ok(Method::Trace),
             _ => Err(syn::Error::new_spanned(
                 value,
                 &format!("Unexpected HTTP Method: `{}`", value.value()),
@@ -84,15 +82,14 @@ struct Args {
     path: syn::LitStr,
     guards: Vec<Ident>,
     wrappers: Vec<syn::Type>,
-    methods: HashSet<GuardType>,
+    methods: HashSet<Method>,
 }
 
 impl Args {
-    fn new(args: AttributeArgs) -> syn::Result<Self> {
+    fn new(args: AttributeArgs, mut methods: HashSet<Method>) -> syn::Result<Self> {
         let mut path = None;
         let mut guards = Vec::new();
         let mut wrappers = Vec::new();
-        let mut methods = HashSet::new();
         for arg in args {
             match arg {
                 NestedMeta::Lit(syn::Lit::Str(lit)) => match path {
@@ -127,8 +124,8 @@ impl Args {
                         }
                     } else if nv.path.is_ident("method") {
                         if let syn::Lit::Str(ref lit) = nv.lit {
-                            let guard = GuardType::try_from(lit)?;
-                            if !methods.insert(guard) {
+                            let method = Method::try_from(lit)?;
+                            if !methods.insert(method) {
                                 return Err(syn::Error::new_spanned(
                                     &nv.lit,
                                     &format!(
@@ -169,7 +166,6 @@ pub struct Route {
     args: Args,
     ast: syn::ItemFn,
     resource_type: ResourceType,
-    guard: GuardType,
 }
 
 fn guess_resource_type(typ: &syn::Type) -> ResourceType {
@@ -198,23 +194,26 @@ impl Route {
     pub fn new(
         args: AttributeArgs,
         input: TokenStream,
-        guard: GuardType,
+        method: Option<Method>,
     ) -> syn::Result<Self> {
         if args.is_empty() {
             return Err(syn::Error::new(
                 Span::call_site(),
                 format!(
-                    r#"invalid server definition, expected #[{}("<some path>")]"#,
-                    guard.as_str().to_ascii_lowercase()
+                    r#"invalid service definition, expected #[{}("<some path>")]"#,
+                    method
+                        .map(|it| it.as_str())
+                        .unwrap_or("route")
+                        .to_ascii_lowercase()
                 ),
             ));
         }
         let ast: syn::ItemFn = syn::parse(input)?;
         let name = ast.sig.ident.clone();
 
-        let args = Args::new(args)?;
-
-        if guard == GuardType::Multi && args.methods.is_empty() {
+        let methods = method.into_iter().collect();
+        let args = Args::new(args, methods)?;
+        if args.methods.is_empty() {
             return Err(syn::Error::new(
                 Span::call_site(),
                 "The #[route(..)] macro requires at least one `method` attribute",
@@ -240,7 +239,6 @@ impl Route {
             args,
             ast,
             resource_type,
-            guard,
         })
     }
 }
@@ -249,7 +247,6 @@ impl ToTokens for Route {
     fn to_tokens(&self, output: &mut TokenStream2) {
         let Self {
             name,
-            guard,
             ast,
             args:
                 Args {
@@ -261,21 +258,22 @@ impl ToTokens for Route {
             resource_type,
         } = self;
         let resource_name = name.to_string();
-        let mut methods = methods.iter();
-
-        let method_guards = if *guard == GuardType::Multi {
+        let method_guards = {
+            let mut others = methods.iter();
             // unwrapping since length is checked to be at least one
-            let first = methods.next().unwrap();
+            let first = others.next().unwrap();
 
-            quote! {
-                .guard(
-                    actix_web::guard::Any(actix_web::guard::#first())
-                        #(.or(actix_web::guard::#methods()))*
-                )
-            }
-        } else {
-            quote! {
-                .guard(actix_web::guard::#guard())
+            if methods.len() > 1 {
+                quote! {
+                    .guard(
+                        actix_web::guard::Any(actix_web::guard::#first())
+                            #(.or(actix_web::guard::#others()))*
+                    )
+                }
+            } else {
+                quote! {
+                    .guard(actix_web::guard::#first())
+                }
             }
         };
 
@@ -302,13 +300,13 @@ impl ToTokens for Route {
     }
 }
 
-pub(crate) fn generate(
+pub(crate) fn with_method(
+    method: Option<Method>,
     args: TokenStream,
     input: TokenStream,
-    guard: GuardType,
 ) -> TokenStream {
     let args = parse_macro_input!(args as syn::AttributeArgs);
-    match Route::new(args, input, guard) {
+    match Route::new(args, input, method) {
         Ok(route) => route.into_token_stream().into(),
         Err(err) => err.to_compile_error().into(),
     }
