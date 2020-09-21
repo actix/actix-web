@@ -64,26 +64,13 @@ impl Multipart {
         S: Stream<Item = Result<Bytes, PayloadError>> + Unpin + 'static,
     {
         match Self::boundary(headers) {
-            Ok(boundary) => Multipart {
-                error: None,
-                safety: Safety::new(),
-                inner: Some(Rc::new(RefCell::new(InnerMultipart {
-                    boundary,
-                    payload: PayloadRef::new(PayloadBuffer::new(Box::new(stream))),
-                    state: InnerState::FirstBoundary,
-                    item: InnerMultipartItem::None,
-                }))),
-            },
-            Err(err) => Multipart {
-                error: Some(err),
-                safety: Safety::new(),
-                inner: None,
-            },
+            Ok(boundary) => Multipart::from_boundary(boundary, stream),
+            Err(err) => Multipart::from_error(err),
         }
     }
 
     /// Extract boundary info from headers.
-    fn boundary(headers: &HeaderMap) -> Result<String, MultipartError> {
+    pub(crate) fn boundary(headers: &HeaderMap) -> Result<String, MultipartError> {
         if let Some(content_type) = headers.get(&header::CONTENT_TYPE) {
             if let Ok(content_type) = content_type.to_str() {
                 if let Ok(ct) = content_type.parse::<mime::Mime>() {
@@ -100,6 +87,32 @@ impl Multipart {
             }
         } else {
             Err(MultipartError::NoContentType)
+        }
+    }
+
+    /// Create multipart instance for given boundary and stream
+    pub(crate) fn from_boundary<S>(boundary: String, stream: S) -> Multipart
+    where
+        S: Stream<Item = Result<Bytes, PayloadError>> + Unpin + 'static,
+    {
+        Multipart {
+            error: None,
+            safety: Safety::new(),
+            inner: Some(Rc::new(RefCell::new(InnerMultipart {
+                boundary,
+                payload: PayloadRef::new(PayloadBuffer::new(Box::new(stream))),
+                state: InnerState::FirstBoundary,
+                item: InnerMultipartItem::None,
+            }))),
+        }
+    }
+
+    /// Create Multipart instance from MultipartError
+    pub(crate) fn from_error(err: MultipartError) -> Multipart {
+        Multipart {
+            error: Some(err),
+            safety: Safety::new(),
+            inner: None,
         }
     }
 }
