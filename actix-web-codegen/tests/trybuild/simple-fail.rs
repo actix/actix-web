@@ -1,30 +1,30 @@
-use actix_web::*;
+use actix_web_codegen::*;
 
 #[get("/one", other)]
-async fn one() -> impl Responder {
-    HttpResponse::Ok()
+async fn one() -> String {
+    "Hello World!".to_owned()
 }
 
 #[post(/two)]
-async fn two() -> impl Responder {
-    HttpResponse::Ok()
+async fn two() -> String {
+    "Hello World!".to_owned()
 }
 
 static PATCH_PATH: &str = "/three";
 
 #[patch(PATCH_PATH)]
-async fn three() -> impl Responder {
-    HttpResponse::Ok()
+async fn three() -> String {
+    "Hello World!".to_owned()
 }
 
 #[delete("/four", "/five")]
-async fn four() -> impl Responder {
-    HttpResponse::Ok()
+async fn four() -> String {
+    "Hello World!".to_owned()
 }
 
 #[delete("/five", method="GET")]
-async fn five() -> impl Responder {
-    HttpResponse::Ok()
+async fn five() -> String {
+    "Hello World!".to_owned()
 }
 
 fn main() {}

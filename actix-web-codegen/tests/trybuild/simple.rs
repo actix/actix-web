@@ -1,4 +1,5 @@
-use actix_web::*;
+use actix_web::{Responder, HttpResponse, App, test};
+use actix_web_codegen::*;
 
 #[get("/config")]
 async fn config() -> impl Responder {
