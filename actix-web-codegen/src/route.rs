@@ -89,6 +89,8 @@ impl Args {
         let mut guards = Vec::new();
         let mut wrappers = Vec::new();
         let mut methods = HashSet::new();
+
+        let is_route_macro = method.is_none();
         if let Some(method) = method {
             methods.insert(method);
         }
@@ -126,7 +128,12 @@ impl Args {
                             ));
                         }
                     } else if nv.path.is_ident("method") {
-                        if let syn::Lit::Str(ref lit) = nv.lit {
+                        if !is_route_macro {
+                            return Err(syn::Error::new_spanned(
+                                &nv,
+                                "HTTP method forbidden here. To handle multiple methods, use `route` instead",
+                            ));
+                        } else if let syn::Lit::Str(ref lit) = nv.lit {
                             let method = MethodType::try_from(lit)?;
                             if !methods.insert(method) {
                                 return Err(syn::Error::new_spanned(
