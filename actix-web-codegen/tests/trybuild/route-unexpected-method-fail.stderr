@@ -1,4 +1,4 @@
-error: Unexpected HTTP Method: `UNEXPECTED`
+error: Unexpected HTTP method: `UNEXPECTED`
  --> $DIR/route-unexpected-method-fail.rs:3:21
   |
 3 | #[route("/", method="UNEXPECTED")]

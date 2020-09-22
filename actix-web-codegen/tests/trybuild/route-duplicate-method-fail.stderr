@@ -1,4 +1,4 @@
-error: HTTP Method defined more than once: `GET`
+error: HTTP method defined more than once: `GET`
  --> $DIR/route-duplicate-method-fail.rs:3:35
   |
 3 | #[route("/", method="GET", method="GET")]
