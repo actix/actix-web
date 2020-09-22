@@ -17,7 +17,7 @@
 //! - [options](attr.options.html)
 //! - [trace](attr.trace.html)
 //! - [patch](attr.patch.html)
-//! - [route](attr.patch.html)
+//! - [route](attr.route.html)
 //!
 //! ### Attributes:
 //!
