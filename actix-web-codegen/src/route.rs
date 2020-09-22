@@ -20,61 +20,61 @@ impl ToTokens for ResourceType {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Hash)]
-pub enum Method {
-    Get,
-    Post,
-    Put,
-    Delete,
-    Head,
-    Connect,
-    Options,
-    Trace,
-    Patch,
-}
-
-impl Method {
-    fn as_str(&self) -> &'static str {
-        match self {
-            Method::Get => "Get",
-            Method::Post => "Post",
-            Method::Put => "Put",
-            Method::Delete => "Delete",
-            Method::Head => "Head",
-            Method::Connect => "Connect",
-            Method::Options => "Options",
-            Method::Trace => "Trace",
-            Method::Patch => "Patch",
+macro_rules! method_type {
+    (
+        $(
+            ($variant:ident, $upper:ident);
+        )+
+    ) => {
+        #[derive(Debug, PartialEq, Eq, Hash)]
+        pub enum MethodType {
+            $(
+                $variant,
+            )+
         }
-    }
+
+        impl MethodType {
+            fn as_str(&self) -> &'static str {
+                match self {
+                    $(Self::$variant => stringify!($variant),)+
+                }
+            }
+
+            fn parse(method: &str) -> Result<Self, String> {
+                match method {
+                    $(stringify!($upper) => Ok(Self::$variant),)+
+                    _ => Err(format!("Unexpected HTTP method: `{}`", method)),
+                }
+            }
+        }
+    };
 }
 
-impl ToTokens for Method {
+method_type! {
+    (Get,       GET);
+    (Post,      POST);
+    (Put,       PUT);
+    (Delete,    DELETE);
+    (Head,      HEAD);
+    (Connect,   CONNECT);
+    (Options,   OPTIONS);
+    (Trace,     TRACE);
+    (Patch,     PATCH);
+}
+
+impl ToTokens for MethodType {
     fn to_tokens(&self, stream: &mut TokenStream2) {
         let ident = Ident::new(self.as_str(), Span::call_site());
         stream.append(ident);
     }
 }
 
-impl TryFrom<&syn::LitStr> for Method {
+impl TryFrom<&syn::LitStr> for MethodType {
     type Error = syn::Error;
 
     fn try_from(value: &syn::LitStr) -> Result<Self, Self::Error> {
-        match value.value().as_str() {
-            "CONNECT" => Ok(Method::Connect),
-            "DELETE" => Ok(Method::Delete),
-            "GET" => Ok(Method::Get),
-            "HEAD" => Ok(Method::Head),
-            "OPTIONS" => Ok(Method::Options),
-            "PATCH" => Ok(Method::Patch),
-            "POST" => Ok(Method::Post),
-            "PUT" => Ok(Method::Put),
-            "TRACE" => Ok(Method::Trace),
-            _ => Err(syn::Error::new_spanned(
-                value,
-                &format!("Unexpected HTTP Method: `{}`", value.value()),
-            )),
-        }
+        Self::parse(value.value().as_str())
+            .map_err(|message| syn::Error::new_spanned(value, message))
     }
 }
 
@@ -82,14 +82,19 @@ struct Args {
     path: syn::LitStr,
     guards: Vec<Ident>,
     wrappers: Vec<syn::Type>,
-    methods: HashSet<Method>,
+    methods: HashSet<MethodType>,
 }
 
 impl Args {
-    fn new(args: AttributeArgs, mut methods: HashSet<Method>) -> syn::Result<Self> {
+    fn new(args: AttributeArgs, method: Option<MethodType>) -> syn::Result<Self> {
         let mut path = None;
         let mut guards = Vec::new();
         let mut wrappers = Vec::new();
+        let mut methods = HashSet::new();
+        if let Some(method) = method {
+            methods.insert(method);
+        }
+
         for arg in args {
             match arg {
                 NestedMeta::Lit(syn::Lit::Str(lit)) => match path {
@@ -124,7 +129,7 @@ impl Args {
                         }
                     } else if nv.path.is_ident("method") {
                         if let syn::Lit::Str(ref lit) = nv.lit {
-                            let method = Method::try_from(lit)?;
+                            let method = MethodType::try_from(lit)?;
                             if !methods.insert(method) {
                                 return Err(syn::Error::new_spanned(
                                     &nv.lit,
@@ -194,7 +199,7 @@ impl Route {
     pub fn new(
         args: AttributeArgs,
         input: TokenStream,
-        method: Option<Method>,
+        method: Option<MethodType>,
     ) -> syn::Result<Self> {
         if args.is_empty() {
             return Err(syn::Error::new(
@@ -211,8 +216,7 @@ impl Route {
         let ast: syn::ItemFn = syn::parse(input)?;
         let name = ast.sig.ident.clone();
 
-        let methods = method.into_iter().collect();
-        let args = Args::new(args, methods)?;
+        let args = Args::new(args, method)?;
         if args.methods.is_empty() {
             return Err(syn::Error::new(
                 Span::call_site(),
@@ -301,7 +305,7 @@ impl ToTokens for Route {
 }
 
 pub(crate) fn with_method(
-    method: Option<Method>,
+    method: Option<MethodType>,
     args: TokenStream,
     input: TokenStream,
 ) -> TokenStream {

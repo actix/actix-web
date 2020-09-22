@@ -58,7 +58,7 @@ use proc_macro::TokenStream;
 /// - `wrap = "Middleware"` - Registers a resource middleware.
 #[proc_macro_attribute]
 pub fn get(args: TokenStream, input: TokenStream) -> TokenStream {
-    route::with_method(Some(route::Method::Get), args, input)
+    route::with_method(Some(route::MethodType::Get), args, input)
 }
 
 /// Creates route handler with `POST` method guard.
@@ -68,7 +68,7 @@ pub fn get(args: TokenStream, input: TokenStream) -> TokenStream {
 /// Attributes are the same as in [get](attr.get.html)
 #[proc_macro_attribute]
 pub fn post(args: TokenStream, input: TokenStream) -> TokenStream {
-    route::with_method(Some(route::Method::Post), args, input)
+    route::with_method(Some(route::MethodType::Post), args, input)
 }
 
 /// Creates route handler with `PUT` method guard.
@@ -78,7 +78,7 @@ pub fn post(args: TokenStream, input: TokenStream) -> TokenStream {
 /// Attributes are the same as in [get](attr.get.html)
 #[proc_macro_attribute]
 pub fn put(args: TokenStream, input: TokenStream) -> TokenStream {
-    route::with_method(Some(route::Method::Put), args, input)
+    route::with_method(Some(route::MethodType::Put), args, input)
 }
 
 /// Creates route handler with `DELETE` method guard.
@@ -88,7 +88,7 @@ pub fn put(args: TokenStream, input: TokenStream) -> TokenStream {
 /// Attributes are the same as in [get](attr.get.html).
 #[proc_macro_attribute]
 pub fn delete(args: TokenStream, input: TokenStream) -> TokenStream {
-    route::with_method(Some(route::Method::Delete), args, input)
+    route::with_method(Some(route::MethodType::Delete), args, input)
 }
 
 /// Creates route handler with `HEAD` method guard.
@@ -98,7 +98,7 @@ pub fn delete(args: TokenStream, input: TokenStream) -> TokenStream {
 /// Attributes are the same as in [get](attr.get.html).
 #[proc_macro_attribute]
 pub fn head(args: TokenStream, input: TokenStream) -> TokenStream {
-    route::with_method(Some(route::Method::Head), args, input)
+    route::with_method(Some(route::MethodType::Head), args, input)
 }
 
 /// Creates route handler with `CONNECT` method guard.
@@ -108,7 +108,7 @@ pub fn head(args: TokenStream, input: TokenStream) -> TokenStream {
 /// Attributes are the same as in [get](attr.get.html).
 #[proc_macro_attribute]
 pub fn connect(args: TokenStream, input: TokenStream) -> TokenStream {
-    route::with_method(Some(route::Method::Connect), args, input)
+    route::with_method(Some(route::MethodType::Connect), args, input)
 }
 
 /// Creates route handler with `OPTIONS` method guard.
@@ -118,7 +118,7 @@ pub fn connect(args: TokenStream, input: TokenStream) -> TokenStream {
 /// Attributes are the same as in [get](attr.get.html).
 #[proc_macro_attribute]
 pub fn options(args: TokenStream, input: TokenStream) -> TokenStream {
-    route::with_method(Some(route::Method::Options), args, input)
+    route::with_method(Some(route::MethodType::Options), args, input)
 }
 
 /// Creates route handler with `TRACE` method guard.
@@ -128,7 +128,7 @@ pub fn options(args: TokenStream, input: TokenStream) -> TokenStream {
 /// Attributes are the same as in [get](attr.get.html).
 #[proc_macro_attribute]
 pub fn trace(args: TokenStream, input: TokenStream) -> TokenStream {
-    route::with_method(Some(route::Method::Trace), args, input)
+    route::with_method(Some(route::MethodType::Trace), args, input)
 }
 
 /// Creates route handler with `PATCH` method guard.
@@ -138,7 +138,7 @@ pub fn trace(args: TokenStream, input: TokenStream) -> TokenStream {
 /// Attributes are the same as in [get](attr.get.html).
 #[proc_macro_attribute]
 pub fn patch(args: TokenStream, input: TokenStream) -> TokenStream {
-    route::with_method(Some(route::Method::Patch), args, input)
+    route::with_method(Some(route::MethodType::Patch), args, input)
 }
 
 /// Creates resource handler, allowing multiple HTTP method guards.
