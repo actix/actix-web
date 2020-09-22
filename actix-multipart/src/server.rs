@@ -1164,4 +1164,20 @@ mod tests {
         );
         assert_eq!(payload.buf.len(), 0);
     }
+
+    #[actix_rt::test]
+    async fn test_multipart_from_error() {
+        let err = MultipartError::NoContentType;
+        let mut multipart = Multipart::from_error(err);
+        assert!(multipart.next().await.unwrap().is_err())
+    }
+
+    #[actix_rt::test]
+    async fn test_multipart_from_boundary() {
+        let (_, payload) = create_stream();
+        let (_, headers) = create_simple_request_with_header();
+        let boundary = Multipart::boundary(&headers);
+        assert!(boundary.is_ok());
+        let _ = Multipart::from_boundary(boundary.unwrap(), payload);
+    }
 }
