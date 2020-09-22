@@ -134,7 +134,7 @@ impl Args {
                                 return Err(syn::Error::new_spanned(
                                     &nv.lit,
                                     &format!(
-                                        "HTTP Method defined more than once: `{}`",
+                                        "HTTP method defined more than once: `{}`",
                                         lit.value()
                                     ),
                                 ));
