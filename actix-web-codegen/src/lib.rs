@@ -9,8 +9,9 @@ mod route;
 /// Creates resource handler, allowing multiple HTTP method guards.
 ///
 /// ## Syntax
-///
-///     #[route("path", method="HTTP_METHOD"[, attributes])]
+/// ```text
+/// #[route("path", method="HTTP_METHOD"[, attributes])]
+/// ```
 ///
 /// ### Attributes
 /// - `"path"` - Raw literal string with path for which to register handler.
@@ -29,8 +30,8 @@ mod route;
 /// use actix_web_codegen::route;
 ///
 /// #[route("/", method="GET", method="HEAD")]
-/// fn async example() -> HttpResponse {
-///     Ok(HttpResponse::Ok().finish())
+/// async fn example() -> HttpResponse {
+///     HttpResponse::Ok().finish()
 /// }
 /// ```
 #[proc_macro_attribute]
@@ -54,8 +55,9 @@ concat!("
 Creates route handler with `actix_web::guard::", stringify!($variant), "`.
 
 ## Syntax
-
-    #[", stringify!($method), r#"("path"[, attributes])]
+```text
+#[", stringify!($method), r#"("path"[, attributes])]
+```
 
 ### Attributes
 - `"path"` - Raw literal string with path for which to register handler.
@@ -73,8 +75,8 @@ use actix_web::HttpResponse;
 use actix_web_codegen::"#, stringify!($method), ";
 
 #[", stringify!($method), r#"("/")]
-fn async example() -> HttpResponse {
-    Ok(HttpResponse::Ok().finish())
+async fn example() -> HttpResponse {
+    HttpResponse::Ok().finish()
 }
 ```
 "#);
