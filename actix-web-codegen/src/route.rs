@@ -22,9 +22,7 @@ impl ToTokens for ResourceType {
 
 macro_rules! method_type {
     (
-        $(
-            ($variant:ident, $upper:ident);
-        )+
+        $($variant:ident, $upper:ident,)+
     ) => {
         #[derive(Debug, PartialEq, Eq, Hash)]
         pub enum MethodType {
@@ -51,15 +49,15 @@ macro_rules! method_type {
 }
 
 method_type! {
-    (Get,       GET);
-    (Post,      POST);
-    (Put,       PUT);
-    (Delete,    DELETE);
-    (Head,      HEAD);
-    (Connect,   CONNECT);
-    (Options,   OPTIONS);
-    (Trace,     TRACE);
-    (Patch,     PATCH);
+    Get,       GET,
+    Post,      POST,
+    Put,       PUT,
+    Delete,    DELETE,
+    Head,      HEAD,
+    Connect,   CONNECT,
+    Options,   OPTIONS,
+    Trace,     TRACE,
+    Patch,     PATCH,
 }
 
 impl ToTokens for MethodType {
