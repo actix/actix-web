@@ -22,4 +22,9 @@ async fn four() -> impl Responder {
     HttpResponse::Ok()
 }
 
+#[delete("/five", method="GET")]
+async fn five() -> impl Responder {
+    HttpResponse::Ok()
+}
+
 fn main() {}
