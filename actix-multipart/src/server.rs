@@ -828,6 +828,8 @@ mod tests {
     use actix_http::h1::Payload;
     use actix_utils::mpsc;
     use actix_web::http::header::{DispositionParam, DispositionType};
+    use actix_web::test::TestRequest;
+    use actix_web::FromRequest;
     use bytes::Bytes;
     use futures_util::future::lazy;
 
@@ -1179,5 +1181,23 @@ mod tests {
         let boundary = Multipart::boundary(&headers);
         assert!(boundary.is_ok());
         let _ = Multipart::from_boundary(boundary.unwrap(), payload);
+    }
+
+    #[actix_rt::test]
+    async fn test_multipart_payload_consumption() {
+        // with sample payload and HttpRequest with no headers
+        let (_, inner_payload) = Payload::create(false);
+        let mut payload = actix_web::dev::Payload::from(inner_payload);
+        let req = TestRequest::default().to_http_request();
+
+        // multipart should generate an error
+        let mut mp = Multipart::from_request(&req, &mut payload).await.unwrap();
+        assert!(mp.next().await.unwrap().is_err());
+
+        // and should not consume the payload
+        match payload {
+            actix_web::dev::Payload::H1(_) => {} //expected
+            _ => unreachable!(),
+        }
     }
 }
