@@ -5,7 +5,9 @@ use std::task::{Context, Poll};
 use actix_web::dev::{Service, ServiceRequest, ServiceResponse, Transform};
 use actix_web::http::header::{HeaderName, HeaderValue};
 use actix_web::{http, test, web::Path, App, Error, HttpResponse, Responder};
-use actix_web_codegen::{connect, delete, get, head, options, patch, post, put, trace};
+use actix_web_codegen::{
+    connect, delete, get, head, options, patch, post, put, route, trace,
+};
 use futures_util::future;
 
 // Make sure that we can name function as 'config'
@@ -76,6 +78,11 @@ async fn delete_param_test(_: Path<String>) -> impl Responder {
 
 #[get("/test/{param}")]
 async fn get_param_test(_: Path<String>) -> impl Responder {
+    HttpResponse::Ok()
+}
+
+#[route("/multi", method = "GET", method = "POST", method = "HEAD")]
+async fn route_test() -> impl Responder {
     HttpResponse::Ok()
 }
 
@@ -172,6 +179,7 @@ async fn test_body() {
             .service(trace_test)
             .service(patch_test)
             .service(test_handler)
+            .service(route_test)
     });
     let request = srv.request(http::Method::GET, srv.url("/test"));
     let response = request.send().await.unwrap();
@@ -210,6 +218,22 @@ async fn test_body() {
     let request = srv.request(http::Method::GET, srv.url("/test"));
     let response = request.send().await.unwrap();
     assert!(response.status().is_success());
+
+    let request = srv.request(http::Method::GET, srv.url("/multi"));
+    let response = request.send().await.unwrap();
+    assert!(response.status().is_success());
+
+    let request = srv.request(http::Method::POST, srv.url("/multi"));
+    let response = request.send().await.unwrap();
+    assert!(response.status().is_success());
+
+    let request = srv.request(http::Method::HEAD, srv.url("/multi"));
+    let response = request.send().await.unwrap();
+    assert!(response.status().is_success());
+
+    let request = srv.request(http::Method::PATCH, srv.url("/multi"));
+    let response = request.send().await.unwrap();
+    assert!(!response.status().is_success());
 }
 
 #[actix_rt::test]

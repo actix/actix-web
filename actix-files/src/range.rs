@@ -1,11 +1,14 @@
 /// HTTP Range header representation.
 #[derive(Debug, Clone, Copy)]
 pub struct HttpRange {
+    /// Start of range.
     pub start: u64,
+
+    /// Length of range.
     pub length: u64,
 }
 
-static PREFIX: &str = "bytes=";
+const PREFIX: &str = "bytes=";
 const PREFIX_LEN: usize = 6;
 
 impl HttpRange {
