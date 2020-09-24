@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2020-xx-xx
+
+
+## 0.4.0 - 2020-09-20
 * Added compile success and failure testing. [#1677]
 * Add `route` macro for supporting multiple HTTP methods guards.
 

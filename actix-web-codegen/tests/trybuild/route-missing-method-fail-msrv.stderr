@@ -5,7 +5,7 @@ error: The #[route(..)] macro requires at least one `method` attribute
   | ^^^^^^^^^^^^^
 
 error[E0425]: cannot find value `index` in this scope
-  --> $DIR/route-missing-method-fail-msrv.rs:10:49
+  --> $DIR/route-missing-method-fail-msrv.rs:12:49
    |
-10 |     let srv = test::start(|| App::new().service(index));
+12 |     let srv = test::start(|| App::new().service(index));
    |                                                 ^^^^^ not found in this scope
