@@ -383,8 +383,6 @@ mod tests {
             None,
         );
 
-        root.add(&mut ResourceDef::new("/info"), None);
-        root.add(&mut ResourceDef::new("/v{version:[[:digit:]]{1}}"), None);
         root.add(
             &mut ResourceDef::root_prefix("/user/{id}"),
             Some(Rc::new(user_map)),
@@ -392,6 +390,16 @@ mod tests {
 
         let root = Rc::new(root);
         root.finish(Rc::clone(&root));
+
+        // check root has no parent
+        assert!(root.parent.borrow().upgrade().is_none());
+        // check child has parent reference
+        assert!(root.patterns[0].1.is_some());
+        // check child's parent root id matches root's root id
+        assert_eq!(
+            root.patterns[0].1.as_ref().unwrap().root.id(),
+            root.root.id()
+        );
 
         let output = format!("{:?}", root);
         assert!(output.starts_with("ResourceMap {"));
