@@ -394,7 +394,7 @@ mod tests {
         root.finish(Rc::clone(&root));
 
         let output = format!("{:?}", root);
-        assert!(output.starts_with("ResourceMap"));
-        assert!(output.ends_with("}"));
+        assert!(output.starts_with("ResourceMap {"));
+        assert!(output.ends_with(" }"));
     }
 }
