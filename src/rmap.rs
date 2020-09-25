@@ -367,4 +367,32 @@ mod tests {
         assert_eq!(root.match_name("/user/22/"), None);
         assert_eq!(root.match_name("/user/22/post/55"), Some("user_post"));
     }
+
+    #[test]
+    fn bug_fix_issue_1582_debug_print_exits() {
+        // ref: https://github.com/actix/actix-web/issues/1582
+        let mut root = ResourceMap::new(ResourceDef::root_prefix(""));
+
+        let mut user_map = ResourceMap::new(ResourceDef::root_prefix(""));
+        user_map.add(&mut ResourceDef::new("/"), None);
+        user_map.add(&mut ResourceDef::new("/profile"), None);
+        user_map.add(&mut ResourceDef::new("/article/{id}"), None);
+        user_map.add(&mut ResourceDef::new("/post/{post_id}"), None);
+        user_map.add(
+            &mut ResourceDef::new("/post/{post_id}/comment/{comment_id}"),
+            None,
+        );
+
+        root.add(&mut ResourceDef::new("/info"), None);
+        root.add(&mut ResourceDef::new("/v{version:[[:digit:]]{1}}"), None);
+        root.add(
+            &mut ResourceDef::root_prefix("/user/{id}"),
+            Some(Rc::new(user_map)),
+        );
+
+        let root = Rc::new(root);
+        root.finish(Rc::clone(&root));
+
+        println!("{:?}", root);
+    }
 }
