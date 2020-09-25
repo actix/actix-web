@@ -1,12 +1,14 @@
-use actix_web::*;
+use actix_web_codegen::*;
 
 #[route("/", method="GET", method="GET")]
-async fn index() -> impl Responder {
-    HttpResponse::Ok()
+async fn index() -> String {
+    "Hello World!".to_owned()
 }
 
 #[actix_web::main]
 async fn main() {
+    use actix_web::{App, test};
+
     let srv = test::start(|| App::new().service(index));
 
     let request = srv.get("/");
