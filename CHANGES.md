@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2020-xx-xx
+### Changed
+* Add `TrailingSlash::MergeOnly` behaviour to `NormalizePath`, which allow `NormalizePath`
+  to keep the trailing slash's existance as it is. [#1695]
 
 
 ## 3.0.2 - 2020-09-15
