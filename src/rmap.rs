@@ -1,5 +1,5 @@
 use std::cell::RefCell;
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 
 use actix_router::ResourceDef;
 use fxhash::FxHashMap;
@@ -11,7 +11,7 @@ use crate::request::HttpRequest;
 #[derive(Clone, Debug)]
 pub struct ResourceMap {
     root: ResourceDef,
-    parent: RefCell<Option<Rc<ResourceMap>>>,
+    parent: RefCell<Weak<ResourceMap>>,
     named: FxHashMap<String, ResourceDef>,
     patterns: Vec<(ResourceDef, Option<Rc<ResourceMap>>)>,
 }
@@ -20,7 +20,7 @@ impl ResourceMap {
     pub fn new(root: ResourceDef) -> Self {
         ResourceMap {
             root,
-            parent: RefCell::new(None),
+            parent: RefCell::new(Weak::new()),
             named: FxHashMap::default(),
             patterns: Vec::new(),
         }
@@ -38,7 +38,7 @@ impl ResourceMap {
     pub(crate) fn finish(&self, current: Rc<ResourceMap>) {
         for (_, nested) in &self.patterns {
             if let Some(ref nested) = nested {
-                *nested.parent.borrow_mut() = Some(current.clone());
+                *nested.parent.borrow_mut() = Rc::downgrade(&current);
                 nested.finish(nested.clone());
             }
         }
@@ -210,7 +210,7 @@ impl ResourceMap {
         U: Iterator<Item = I>,
         I: AsRef<str>,
     {
-        if let Some(ref parent) = *self.parent.borrow() {
+        if let Some(ref parent) = self.parent.borrow().upgrade() {
             parent.fill_root(path, elements)?;
         }
         if self.root.resource_path(path, elements) {
@@ -230,7 +230,7 @@ impl ResourceMap {
         U: Iterator<Item = I>,
         I: AsRef<str>,
     {
-        if let Some(ref parent) = *self.parent.borrow() {
+        if let Some(ref parent) = self.parent.borrow().upgrade() {
             if let Some(pattern) = parent.named.get(name) {
                 self.fill_root(path, elements)?;
                 if pattern.resource_path(path, elements) {
@@ -366,5 +366,43 @@ mod tests {
         assert_eq!(root.match_name("/user/22"), None);
         assert_eq!(root.match_name("/user/22/"), None);
         assert_eq!(root.match_name("/user/22/post/55"), Some("user_post"));
+    }
+
+    #[test]
+    fn bug_fix_issue_1582_debug_print_exits() {
+        // ref: https://github.com/actix/actix-web/issues/1582
+        let mut root = ResourceMap::new(ResourceDef::root_prefix(""));
+
+        let mut user_map = ResourceMap::new(ResourceDef::root_prefix(""));
+        user_map.add(&mut ResourceDef::new("/"), None);
+        user_map.add(&mut ResourceDef::new("/profile"), None);
+        user_map.add(&mut ResourceDef::new("/article/{id}"), None);
+        user_map.add(&mut ResourceDef::new("/post/{post_id}"), None);
+        user_map.add(
+            &mut ResourceDef::new("/post/{post_id}/comment/{comment_id}"),
+            None,
+        );
+
+        root.add(
+            &mut ResourceDef::root_prefix("/user/{id}"),
+            Some(Rc::new(user_map)),
+        );
+
+        let root = Rc::new(root);
+        root.finish(Rc::clone(&root));
+
+        // check root has no parent
+        assert!(root.parent.borrow().upgrade().is_none());
+        // check child has parent reference
+        assert!(root.patterns[0].1.is_some());
+        // check child's parent root id matches root's root id
+        assert_eq!(
+            root.patterns[0].1.as_ref().unwrap().root.id(),
+            root.root.id()
+        );
+
+        let output = format!("{:?}", root);
+        assert!(output.starts_with("ResourceMap {"));
+        assert!(output.ends_with(" }"));
     }
 }
