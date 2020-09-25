@@ -1,5 +1,5 @@
 use std::cell::RefCell;
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 
 use actix_router::ResourceDef;
 use fxhash::FxHashMap;
@@ -11,7 +11,7 @@ use crate::request::HttpRequest;
 #[derive(Clone, Debug)]
 pub struct ResourceMap {
     root: ResourceDef,
-    parent: RefCell<Option<Rc<ResourceMap>>>,
+    parent: RefCell<Weak<ResourceMap>>,
     named: FxHashMap<String, ResourceDef>,
     patterns: Vec<(ResourceDef, Option<Rc<ResourceMap>>)>,
 }
@@ -20,7 +20,7 @@ impl ResourceMap {
     pub fn new(root: ResourceDef) -> Self {
         ResourceMap {
             root,
-            parent: RefCell::new(None),
+            parent: RefCell::new(Weak::new()),
             named: FxHashMap::default(),
             patterns: Vec::new(),
         }
@@ -38,7 +38,7 @@ impl ResourceMap {
     pub(crate) fn finish(&self, current: Rc<ResourceMap>) {
         for (_, nested) in &self.patterns {
             if let Some(ref nested) = nested {
-                *nested.parent.borrow_mut() = Some(current.clone());
+                *nested.parent.borrow_mut() = Rc::downgrade(&current);
                 nested.finish(nested.clone());
             }
         }
@@ -210,7 +210,7 @@ impl ResourceMap {
         U: Iterator<Item = I>,
         I: AsRef<str>,
     {
-        if let Some(ref parent) = *self.parent.borrow() {
+        if let Some(ref parent) = self.parent.borrow().upgrade() {
             parent.fill_root(path, elements)?;
         }
         if self.root.resource_path(path, elements) {
@@ -230,7 +230,7 @@ impl ResourceMap {
         U: Iterator<Item = I>,
         I: AsRef<str>,
     {
-        if let Some(ref parent) = *self.parent.borrow() {
+        if let Some(ref parent) = self.parent.borrow().upgrade() {
             if let Some(pattern) = parent.named.get(name) {
                 self.fill_root(path, elements)?;
                 if pattern.resource_path(path, elements) {
