@@ -4,7 +4,9 @@
 ### Changed
 * Add `TrailingSlash::MergeOnly` behaviour to `NormalizePath`, which allow `NormalizePath`
   to keep the trailing slash's existance as it is. [#1695]
+* Fix `ResourceMap` recursive references when printing/debugging. [#1708]
 
+[#1708]: https://github.com/actix/actix-web/pull/1708
 
 ## 3.0.2 - 2020-09-15
 ### Fixed
