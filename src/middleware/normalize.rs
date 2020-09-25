@@ -17,8 +17,9 @@ pub enum TrailingSlash {
     /// Always add a trailing slash to the end of the path.
     /// This will require all routes to end in a trailing slash for them to be accessible.
     Always,
-    /// Neither add nor trim slash at end of path. Merge multiple slashes only
-    /// This is compatible with actix-web 2.0
+    /// Only merge any present multiple trailing slashes.
+    ///
+    /// Note: This option provides the best compatibility with the v2 version of this middlware.
     MergeOnly,
     /// Trim trailing slashes from the end of the path.
     Trim,
@@ -36,7 +37,8 @@ impl Default for TrailingSlash {
 /// Performs following:
 ///
 /// - Merges multiple slashes into one.
-/// - Appends a trailing slash if one is not present, or removes one if present, or keep trailing slash's existance as it was, depending on the supplied `TrailingSlash`.
+/// - Appends a trailing slash if one is not present, removes one if present, or keeps trailing
+///   slashes as-is, depending on the supplied `TrailingSlash` variant.
 ///
 /// ```rust
 /// use actix_web::{web, http, middleware, App, HttpResponse};
