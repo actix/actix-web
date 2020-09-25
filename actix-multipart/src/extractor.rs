@@ -36,6 +36,9 @@ impl FromRequest for Multipart {
 
     #[inline]
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
-        ok(Multipart::new(req.headers(), payload.take()))
+        ok(match Multipart::boundary(req.headers()) {
+            Ok(boundary) => Multipart::from_boundary(boundary, payload.take()),
+            Err(err) => Multipart::from_error(err),
+        })
     }
 }
