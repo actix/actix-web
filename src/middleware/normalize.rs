@@ -17,6 +17,10 @@ pub enum TrailingSlash {
     /// Always add a trailing slash to the end of the path.
     /// This will require all routes to end in a trailing slash for them to be accessible.
     Always,
+    /// Only merge any present multiple trailing slashes.
+    ///
+    /// Note: This option provides the best compatibility with the v2 version of this middlware.
+    MergeOnly,
     /// Trim trailing slashes from the end of the path.
     Trim,
 }
@@ -33,7 +37,8 @@ impl Default for TrailingSlash {
 /// Performs following:
 ///
 /// - Merges multiple slashes into one.
-/// - Appends a trailing slash if one is not present, or removes one if present, depending on the supplied `TrailingSlash`.
+/// - Appends a trailing slash if one is not present, removes one if present, or keeps trailing
+///   slashes as-is, depending on the supplied `TrailingSlash` variant.
 ///
 /// ```rust
 /// use actix_web::{web, http, middleware, App, HttpResponse};
@@ -108,6 +113,7 @@ where
         // Either adds a string to the end (duplicates will be removed anyways) or trims all slashes from the end
         let path = match self.trailing_slash_behavior {
             TrailingSlash::Always => original_path.to_string() + "/",
+            TrailingSlash::MergeOnly => original_path.to_string(),
             TrailingSlash::Trim => original_path.trim_end_matches('/').to_string(),
         };
 
@@ -235,6 +241,38 @@ mod tests {
         let req4 = TestRequest::with_uri("//v1//something").to_request();
         let res4 = call_service(&mut app, req4).await;
         assert!(res4.status().is_success());
+    }
+
+    #[actix_rt::test]
+    async fn keep_trailing_slash_unchange() {
+        let mut app = init_service(
+            App::new()
+                .wrap(NormalizePath(TrailingSlash::MergeOnly))
+                .service(web::resource("/").to(HttpResponse::Ok))
+                .service(web::resource("/v1/something").to(HttpResponse::Ok))
+                .service(web::resource("/v1/").to(HttpResponse::Ok)),
+        )
+        .await;
+
+        let tests = vec![
+            ("/", true), // root paths should still work
+            ("/?query=test", true),
+            ("///", true),
+            ("/v1/something////", false),
+            ("/v1/something/", false),
+            ("//v1//something", true),
+            ("/v1/", true),
+            ("/v1", false),
+            ("/v1////", true),
+            ("//v1//", true),
+            ("///v1", false),
+        ];
+
+        for (path, success) in tests {
+            let req = TestRequest::with_uri(path).to_request();
+            let res = call_service(&mut app, req).await;
+            assert_eq!(res.status().is_success(), success);
+        }
     }
 
     #[actix_rt::test]
