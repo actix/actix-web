@@ -66,7 +66,7 @@ pub(crate) type FnDataFactory =
 /// }
 /// ```
 #[derive(Debug)]
-pub struct Data<T>(Arc<T>);
+pub struct Data<T: ?Sized>(Arc<T>);
 
 impl<T> Data<T> {
     /// Create new `Data` instance.
@@ -89,7 +89,7 @@ impl<T> Data<T> {
     }
 }
 
-impl<T> Deref for Data<T> {
+impl<T: ?Sized> Deref for Data<T> {
     type Target = Arc<T>;
 
     fn deref(&self) -> &Arc<T> {
@@ -97,19 +97,19 @@ impl<T> Deref for Data<T> {
     }
 }
 
-impl<T> Clone for Data<T> {
+impl<T: ?Sized> Clone for Data<T> {
     fn clone(&self) -> Data<T> {
         Data(self.0.clone())
     }
 }
 
-impl<T> From<Arc<T>> for Data<T> {
+impl<T: ?Sized> From<Arc<T>> for Data<T> {
     fn from(arc: Arc<T>) -> Self {
         Data(arc)
     }
 }
 
-impl<T: 'static> FromRequest for Data<T> {
+impl<T: ?Sized + 'static> FromRequest for Data<T> {
     type Config = ();
     type Error = Error;
     type Future = Ready<Result<Self, Error>>;
@@ -131,7 +131,7 @@ impl<T: 'static> FromRequest for Data<T> {
     }
 }
 
-impl<T: 'static> DataFactory for Data<T> {
+impl<T: ?Sized + 'static> DataFactory for Data<T> {
     fn create(&self, extensions: &mut Extensions) -> bool {
         if !extensions.contains::<Data<T>>() {
             extensions.insert(Data(self.0.clone()));
@@ -293,4 +293,24 @@ mod tests {
         let data_from_arc = Data::from(Arc::new(String::from("test-123")));
         assert_eq!(data_new.0, data_from_arc.0)
     }
+
+    #[actix_rt::test]
+    async fn test_data_from_dyn_arc() {
+        trait TestTrait {
+            fn get_num(&self) -> i32;
+        }
+        struct A {}
+        impl TestTrait for A{
+            fn get_num(&self) -> i32 {
+                42
+            }
+        }
+        // This works when Sized is required
+        let dyn_arc_box: Arc<Box<dyn TestTrait>> = Arc::new(Box::new(A{}));
+        let data_arc_box = Data::from(dyn_arc_box);
+        // This works when Data Sized Bound is removed
+        let dyn_arc: Arc<dyn TestTrait> = Arc::new(A{});
+        let data_arc = Data::from(dyn_arc);
+        assert_eq!(data_arc_box.get_num(), data_arc.get_num())
+    }    
 }
