@@ -300,17 +300,17 @@ mod tests {
             fn get_num(&self) -> i32;
         }
         struct A {}
-        impl TestTrait for A{
+        impl TestTrait for A {
             fn get_num(&self) -> i32 {
                 42
             }
         }
         // This works when Sized is required
-        let dyn_arc_box: Arc<Box<dyn TestTrait>> = Arc::new(Box::new(A{}));
+        let dyn_arc_box: Arc<Box<dyn TestTrait>> = Arc::new(Box::new(A {}));
         let data_arc_box = Data::from(dyn_arc_box);
         // This works when Data Sized Bound is removed
-        let dyn_arc: Arc<dyn TestTrait> = Arc::new(A{});
+        let dyn_arc: Arc<dyn TestTrait> = Arc::new(A {});
         let data_arc = Data::from(dyn_arc);
         assert_eq!(data_arc_box.get_num(), data_arc.get_num())
-    }    
+    }
 }
