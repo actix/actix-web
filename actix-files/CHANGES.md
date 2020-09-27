@@ -1,6 +1,14 @@
 # Changes
 
 ## [Unreleased] - 2020-xx-xx
+* Add `Files::prefer_utf8` option that adds UTF-8 charset on certain response types. [#1714]
+
+[#1714]: https://github.com/actix/actix-web/pull/1714
+
+
+## [0.3.0] - 2020-09-11
+* No significant changes from 0.3.0-beta.1.
+
 
 ## [0.3.0-beta.1] - 2020-07-15
 * Update `v_htmlescape` to 0.10

@@ -138,21 +138,30 @@ impl Files {
         self
     }
 
-    #[inline]
     /// Specifies whether to use ETag or not.
     ///
     /// Default is true.
+    #[inline]
     pub fn use_etag(mut self, value: bool) -> Self {
         self.file_flags.set(named::Flags::ETAG, value);
         self
     }
 
-    #[inline]
     /// Specifies whether to use Last-Modified or not.
     ///
     /// Default is true.
+    #[inline]
     pub fn use_last_modified(mut self, value: bool) -> Self {
         self.file_flags.set(named::Flags::LAST_MD, value);
+        self
+    }
+
+    /// Specifies whether text responses should signal a UTF-8 encoding.
+    ///
+    /// Default is false (but will default to true in a future version).
+    #[inline]
+    pub fn prefer_utf8(mut self, value: bool) -> Self {
+        self.file_flags.set(named::Flags::PREFER_UTF8, value);
         self
     }
 
