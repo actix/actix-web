@@ -232,7 +232,10 @@ impl<B> Response<B> {
     }
 
     /// Set a body and return previous body value
-    pub(crate) fn replace_body<B2>(self, body: B2) -> (Response<B2>, ResponseBody<B>) {
+    pub(crate) fn replace_body<B2: Unpin>(
+        self,
+        body: B2,
+    ) -> (Response<B2>, ResponseBody<B>) {
         (
             Response {
                 head: self.head,

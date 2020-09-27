@@ -29,12 +29,12 @@ pub struct Encoder<B> {
     fut: Option<CpuFuture<ContentEncoder, io::Error>>,
 }
 
-impl<B: MessageBody> Encoder<B> {
+impl<B: MessageBody + Unpin + 'static> Encoder<B> {
     pub fn response(
         encoding: ContentEncoding,
         head: &mut ResponseHead,
         body: ResponseBody<B>,
-    ) -> ResponseBody<Encoder<B>> {
+    ) -> ResponseBody<B> {
         let can_encode = !(head.headers().contains_key(&CONTENT_ENCODING)
             || head.status == StatusCode::SWITCHING_PROTOCOLS
             || head.status == StatusCode::NO_CONTENT
@@ -62,20 +62,20 @@ impl<B: MessageBody> Encoder<B> {
             if let Some(enc) = ContentEncoder::encoder(encoding) {
                 update_head(encoding, head);
                 head.no_chunking(false);
-                return ResponseBody::Body(Encoder {
+                return ResponseBody::Other(Body::from_message(Encoder {
                     body,
                     eof: false,
                     fut: None,
                     encoder: Some(enc),
-                });
+                }));
             }
         }
-        ResponseBody::Body(Encoder {
+        ResponseBody::Other(Body::from_message(Encoder {
             body,
             eof: false,
             fut: None,
             encoder: None,
-        })
+        }))
     }
 }
 

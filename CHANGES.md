@@ -2,9 +2,15 @@
 
 ## Unreleased - 2020-xx-xx
 ### Changed
-* remove generic type `B` for `app::App` and it's not bound to `actix_http::body::MessageBody` trait anymore. [#1692]
+* Remove generic type `B` for `app::App`, `app_service::{AppInit, AppInitResult, AppInitService}`.
+  Change `middleware::{Compressed, Logger}` to return `ServiceResponse<Body>` directly. [#1692]
+* Add `TrailingSlash::MergeOnly` behaviour to `NormalizePath`, which allow `NormalizePath`
+  to keep the trailing slash's existance as it is. [#1695]
+* Fix `ResourceMap` recursive references when printing/debugging. [#1708]
 
 [#1692]: https://github.com/actix/actix-web/pull/1692
+[#1695]: https://github.com/actix/actix-web/pull/1695
+[#1708]: https://github.com/actix/actix-web/pull/1708
 
 
 ## 3.0.2 - 2020-09-15

@@ -1,6 +1,5 @@
 use std::cell::RefCell;
 use std::future::Future;
-use std::marker::PhantomData;
 use std::pin::Pin;
 use std::rc::Rc;
 use std::task::{Context, Poll};
@@ -27,16 +26,7 @@ type BoxResponse = LocalBoxFuture<'static, Result<ServiceResponse, Error>>;
 
 /// Service factory to convert `Request` to a `ServiceRequest<S>`.
 /// It also executes data factories.
-pub struct AppInit<T, B>
-where
-    T: ServiceFactory<
-        Config = (),
-        Request = ServiceRequest,
-        Response = ServiceResponse<B>,
-        Error = Error,
-        InitError = (),
-    >,
-{
+pub struct AppInit<T> {
     pub(crate) endpoint: T,
     pub(crate) extensions: RefCell<Option<Extensions>>,
     pub(crate) data: Rc<Vec<Box<dyn DataFactory>>>,
@@ -47,23 +37,23 @@ where
     pub(crate) external: RefCell<Vec<ResourceDef>>,
 }
 
-impl<T, B> ServiceFactory for AppInit<T, B>
+impl<T> ServiceFactory for AppInit<T>
 where
     T: ServiceFactory<
         Config = (),
         Request = ServiceRequest,
-        Response = ServiceResponse<B>,
+        Response = ServiceResponse,
         Error = Error,
         InitError = (),
     >,
 {
     type Config = AppConfig;
     type Request = Request;
-    type Response = ServiceResponse<B>;
+    type Response = ServiceResponse;
     type Error = T::Error;
     type InitError = T::InitError;
-    type Service = AppInitService<T::Service, B>;
-    type Future = AppInitResult<T, B>;
+    type Service = AppInitService<T::Service>;
+    type Future = AppInitResult<T>;
 
     fn new_service(&self, config: AppConfig) -> Self::Future {
         // update resource default service
@@ -125,13 +115,12 @@ where
             ),
             config,
             rmap,
-            _t: PhantomData,
         }
     }
 }
 
 #[pin_project::pin_project]
-pub struct AppInitResult<T, B>
+pub struct AppInitResult<T>
 where
     T: ServiceFactory,
 {
@@ -149,21 +138,19 @@ where
     config: AppConfig,
     data: Rc<Vec<Box<dyn DataFactory>>>,
     extensions: Option<Extensions>,
-
-    _t: PhantomData<B>,
 }
 
-impl<T, B> Future for AppInitResult<T, B>
+impl<T> Future for AppInitResult<T>
 where
     T: ServiceFactory<
         Config = (),
         Request = ServiceRequest,
-        Response = ServiceResponse<B>,
+        Response = ServiceResponse,
         Error = Error,
         InitError = (),
     >,
 {
-    type Output = Result<AppInitService<T::Service, B>, ()>;
+    type Output = Result<AppInitService<T::Service>, ()>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.project();
@@ -213,10 +200,7 @@ where
 }
 
 /// Service to convert `Request` to a `ServiceRequest<S>`
-pub struct AppInitService<T, B>
-where
-    T: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
-{
+pub struct AppInitService<T> {
     service: T,
     rmap: Rc<ResourceMap>,
     config: AppConfig,
@@ -224,12 +208,12 @@ where
     pool: &'static HttpRequestPool,
 }
 
-impl<T, B> Service for AppInitService<T, B>
+impl<T> Service for AppInitService<T>
 where
-    T: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    T: Service<Request = ServiceRequest, Response = ServiceResponse, Error = Error>,
 {
     type Request = Request;
-    type Response = ServiceResponse<B>;
+    type Response = ServiceResponse;
     type Error = T::Error;
     type Future = T::Future;
 
@@ -263,10 +247,7 @@ where
     }
 }
 
-impl<T, B> Drop for AppInitService<T, B>
-where
-    T: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
-{
+impl<T> Drop for AppInitService<T> {
     fn drop(&mut self) {
         self.pool.clear();
     }

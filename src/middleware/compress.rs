@@ -53,11 +53,11 @@ impl Default for Compress {
 
 impl<S, B> Transform<S> for Compress
 where
-    B: MessageBody,
+    B: MessageBody + Unpin + 'static,
     S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
 {
     type Request = ServiceRequest;
-    type Response = ServiceResponse<Encoder<B>>;
+    type Response = ServiceResponse<B>;
     type Error = Error;
     type InitError = ();
     type Transform = CompressMiddleware<S>;
@@ -78,11 +78,11 @@ pub struct CompressMiddleware<S> {
 
 impl<S, B> Service for CompressMiddleware<S>
 where
-    B: MessageBody,
+    B: MessageBody + Unpin + 'static,
     S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
 {
     type Request = ServiceRequest;
-    type Response = ServiceResponse<Encoder<B>>;
+    type Response = ServiceResponse<B>;
     type Error = Error;
     type Future = CompressResponse<S, B>;
 
@@ -126,10 +126,10 @@ where
 
 impl<S, B> Future for CompressResponse<S, B>
 where
-    B: MessageBody,
+    B: MessageBody + Unpin + 'static,
     S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
 {
-    type Output = Result<ServiceResponse<Encoder<B>>, Error>;
+    type Output = Result<ServiceResponse<B>, Error>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.project();

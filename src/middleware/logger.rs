@@ -130,10 +130,10 @@ impl Default for Logger {
 impl<S, B> Transform<S> for Logger
 where
     S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
-    B: MessageBody,
+    B: MessageBody + Unpin + 'static,
 {
     type Request = ServiceRequest;
-    type Response = ServiceResponse<StreamLog<B>>;
+    type Response = ServiceResponse<B>;
     type Error = Error;
     type InitError = ();
     type Transform = LoggerMiddleware<S>;
@@ -156,10 +156,10 @@ pub struct LoggerMiddleware<S> {
 impl<S, B> Service for LoggerMiddleware<S>
 where
     S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
-    B: MessageBody,
+    B: MessageBody + Unpin + 'static,
 {
     type Request = ServiceRequest;
-    type Response = ServiceResponse<StreamLog<B>>;
+    type Response = ServiceResponse<B>;
     type Error = Error;
     type Future = LoggerResponse<S, B>;
 
@@ -208,10 +208,10 @@ where
 
 impl<S, B> Future for LoggerResponse<S, B>
 where
-    B: MessageBody,
+    B: MessageBody + Unpin + 'static,
     S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
 {
-    type Output = Result<ServiceResponse<StreamLog<B>>, Error>;
+    type Output = Result<ServiceResponse<B>, Error>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.project();
@@ -237,16 +237,17 @@ where
         let format = this.format.take();
 
         Poll::Ready(Ok(res.map_body(move |_, body| {
-            ResponseBody::Body(StreamLog {
+            ResponseBody::Other(Body::from_message(StreamLog {
                 body,
                 time,
                 format,
                 size: 0,
-            })
+            }))
         })))
     }
 }
 
+use actix_http::body::Body;
 use pin_project::{pin_project, pinned_drop};
 
 #[pin_project(PinnedDrop)]

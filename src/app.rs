@@ -3,7 +3,6 @@ use std::fmt;
 use std::future::Future;
 use std::rc::Rc;
 
-use actix_http::body::MessageBody;
 use actix_http::Extensions;
 use actix_service::boxed::{self, BoxServiceFactory};
 use actix_service::{
@@ -27,7 +26,7 @@ type HttpNewService = BoxServiceFactory<(), ServiceRequest, ServiceResponse, Err
 
 /// Application builder - structure that follows the builder pattern
 /// for building application instances.
-pub struct App<T> {
+pub struct App<T = AppEntry> {
     endpoint: T,
     services: Vec<Box<dyn AppServiceFactory>>,
     default: Option<Rc<HttpNewService>>,
@@ -38,7 +37,7 @@ pub struct App<T> {
     extensions: Extensions,
 }
 
-impl App<AppEntry> {
+impl App {
     /// Create application builder. Application can be configured with a builder-like pattern.
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
@@ -56,13 +55,12 @@ impl App<AppEntry> {
     }
 }
 
-impl<T, B> App<T>
+impl<T> App<T>
 where
-    B: MessageBody,
     T: ServiceFactory<
         Config = (),
         Request = ServiceRequest,
-        Response = ServiceResponse<B>,
+        Response = ServiceResponse,
         Error = Error,
         InitError = (),
     >,
@@ -344,14 +342,14 @@ where
     ///         .route("/index.html", web::get().to(index));
     /// }
     /// ```
-    pub fn wrap<M, B1>(
+    pub fn wrap<M>(
         self,
         mw: M,
     ) -> App<
         impl ServiceFactory<
             Config = (),
             Request = ServiceRequest,
-            Response = ServiceResponse<B1>,
+            Response = ServiceResponse,
             Error = Error,
             InitError = (),
         >,
@@ -360,11 +358,10 @@ where
         M: Transform<
             T::Service,
             Request = ServiceRequest,
-            Response = ServiceResponse<B1>,
+            Response = ServiceResponse,
             Error = Error,
             InitError = (),
         >,
-        B1: MessageBody,
     {
         App {
             endpoint: apply(mw, self.endpoint),
@@ -409,22 +406,21 @@ where
     ///         .route("/index.html", web::get().to(index));
     /// }
     /// ```
-    pub fn wrap_fn<B1, F, R>(
+    pub fn wrap_fn<F, R>(
         self,
         mw: F,
     ) -> App<
         impl ServiceFactory<
             Config = (),
             Request = ServiceRequest,
-            Response = ServiceResponse<B1>,
+            Response = ServiceResponse,
             Error = Error,
             InitError = (),
         >,
     >
     where
-        B1: MessageBody,
         F: FnMut(ServiceRequest, &mut T::Service) -> R + Clone,
-        R: Future<Output = Result<ServiceResponse<B1>, Error>>,
+        R: Future<Output = Result<ServiceResponse, Error>>,
     {
         App {
             endpoint: apply_fn_factory(self.endpoint, mw),
@@ -439,18 +435,17 @@ where
     }
 }
 
-impl<T, B> IntoServiceFactory<AppInit<T, B>> for App<T>
+impl<T> IntoServiceFactory<AppInit<T>> for App<T>
 where
-    B: MessageBody,
     T: ServiceFactory<
         Config = (),
         Request = ServiceRequest,
-        Response = ServiceResponse<B>,
+        Response = ServiceResponse,
         Error = Error,
         InitError = (),
     >,
 {
-    fn into_factory(self) -> AppInit<T, B> {
+    fn into_factory(self) -> AppInit<T> {
         AppInit {
             data: Rc::new(self.data),
             data_factories: Rc::new(self.data_factories),
