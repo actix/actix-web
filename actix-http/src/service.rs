@@ -218,7 +218,7 @@ mod openssl {
         U::InitError: fmt::Debug,
         <U::Service as Service>::Future: 'static,
     {
-        /// Create openssl based service
+        /// Create OpenSSL based service
         pub fn openssl(
             self,
             acceptor: SslAcceptor,
@@ -280,7 +280,7 @@ mod rustls {
         U::InitError: fmt::Debug,
         <U::Service as Service>::Future: 'static,
     {
-        /// Create openssl based service
+        /// Create Rustls based service
         pub fn rustls(
             self,
             mut config: ServerConfig,

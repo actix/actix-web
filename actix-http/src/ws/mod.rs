@@ -89,7 +89,7 @@ impl ResponseError for HandshakeError {
     fn error_response(&self) -> Response {
         match *self {
             HandshakeError::GetMethodRequired => Response::MethodNotAllowed()
-                .header(header::ALLOW, "GET")
+                .insert_header(header::ALLOW, "GET")
                 .finish(),
             HandshakeError::NoWebsocketUpgrade => Response::BadRequest()
                 .reason("No WebSocket UPGRADE header found")
@@ -181,8 +181,8 @@ pub fn handshake_response(req: &RequestHead) -> ResponseBuilder {
 
     Response::build(StatusCode::SWITCHING_PROTOCOLS)
         .upgrade("websocket")
-        .header(header::TRANSFER_ENCODING, "chunked")
-        .header(header::SEC_WEBSOCKET_ACCEPT, key.as_str())
+        .insert_header(header::TRANSFER_ENCODING, "chunked")
+        .insert_header(header::SEC_WEBSOCKET_ACCEPT, key.as_str())
         .take()
 }
 

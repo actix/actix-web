@@ -67,6 +67,7 @@ impl Header for IfRange {
     fn name() -> HeaderName {
         header::IF_RANGE
     }
+
     #[inline]
     fn parse<T>(msg: &T) -> Result<Self, ParseError>
     where
@@ -74,14 +75,18 @@ impl Header for IfRange {
     {
         let etag: Result<EntityTag, _> =
             from_one_raw_str(msg.headers().get(&header::IF_RANGE));
+
         if let Ok(etag) = etag {
             return Ok(IfRange::EntityTag(etag));
         }
+
         let date: Result<HttpDate, _> =
             from_one_raw_str(msg.headers().get(&header::IF_RANGE));
+
         if let Ok(date) = date {
             return Ok(IfRange::Date(date));
         }
+
         Err(ParseError::Header)
     }
 }

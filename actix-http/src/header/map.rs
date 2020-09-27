@@ -202,9 +202,6 @@ impl HeaderMap {
 
     /// Inserts a key-value pair into the map.
     ///
-    /// If the map did not previously have this key present, then `None` is
-    /// returned.
-    ///
     /// If the map did have this key present, the new value is associated with
     /// the key and all previous values are removed. **Note** that only a single
     /// one of the previous values is returned. If there are multiple values
@@ -219,9 +216,6 @@ impl HeaderMap {
     }
 
     /// Inserts a key-value pair into the map.
-    ///
-    /// If the map did not previously have this key present, then `false` is
-    /// returned.
     ///
     /// If the map did have this key present, the new value is pushed to the end
     /// of the list of values currently associated with the key. The key is not

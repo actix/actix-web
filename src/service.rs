@@ -626,7 +626,7 @@ mod tests {
         assert!(s.contains("test=1"));
         assert!(s.contains("x-test"));
 
-        let res = HttpResponse::Ok().header("x-test", "111").finish();
+        let res = HttpResponse::Ok().insert_header("x-test", "111").finish();
         let res = TestRequest::post()
             .uri("/index.html?test=1")
             .to_srv_response(res);

@@ -522,7 +522,7 @@ mod tests {
         let srv = |req: ServiceRequest| {
             ok(req.into_response(
                 HttpResponse::build(StatusCode::OK)
-                    .header("X-Test", "ttt")
+                    .insert_header("X-Test", "ttt")
                     .finish(),
             ))
         };

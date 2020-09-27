@@ -12,7 +12,7 @@ use flate2::Compression;
 use futures_util::future::ok;
 use rand::Rng;
 
-use actix_http::HttpService;
+use actix_http::{http::ContentEncoding, HttpService};
 use actix_http_test::test_server;
 use actix_service::{map_config, pipeline_factory};
 use actix_web::dev::{AppConfig, BodyEncoding};
@@ -438,7 +438,7 @@ async fn test_client_gzip_encoding() {
             let data = e.finish().unwrap();
 
             HttpResponse::Ok()
-                .header("content-encoding", "gzip")
+                .insert_header(header::CONTENT_ENCODING, ContentEncoding::Gzip.as_str())
                 .body(data)
         })))
     });
@@ -461,7 +461,7 @@ async fn test_client_gzip_encoding_large() {
             let data = e.finish().unwrap();
 
             HttpResponse::Ok()
-                .header("content-encoding", "gzip")
+                .insert_header(header::CONTENT_ENCODING, ContentEncoding::Gzip.as_str())
                 .body(data)
         })))
     });
@@ -488,7 +488,7 @@ async fn test_client_gzip_encoding_large_random() {
             e.write_all(&data).unwrap();
             let data = e.finish().unwrap();
             HttpResponse::Ok()
-                .header("content-encoding", "gzip")
+                .insert_header(header::CONTENT_ENCODING, ContentEncoding::Gzip.as_str())
                 .body(data)
         })))
     });
@@ -510,7 +510,7 @@ async fn test_client_brotli_encoding() {
             e.write_all(&data).unwrap();
             let data = e.finish().unwrap();
             HttpResponse::Ok()
-                .header("content-encoding", "br")
+                .insert_header(header::CONTENT_ENCODING, ContentEncoding::Br.as_str())
                 .body(data)
         })))
     });
@@ -537,7 +537,7 @@ async fn test_client_brotli_encoding_large_random() {
             e.write_all(&data).unwrap();
             let data = e.finish().unwrap();
             HttpResponse::Ok()
-                .header("content-encoding", "br")
+                .insert_header(header::CONTENT_ENCODING, ContentEncoding::Br.as_str())
                 .body(data)
         })))
     });

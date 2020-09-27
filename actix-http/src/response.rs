@@ -354,7 +354,6 @@ impl ResponseBuilder {
     ///         .finish())
     /// }
     /// ```
-    #[doc(hidden)]
     pub fn set<H: Header>(&mut self, hdr: H) -> &mut Self {
         if let Some(parts) = parts(&mut self.head, &self.err) {
             match hdr.try_into() {
@@ -367,7 +366,7 @@ impl ResponseBuilder {
         self
     }
 
-    /// Append a header to existing headers.
+    /// Append a header to response.
     ///
     /// ```rust
     /// use actix_http::{http, Request, Response};
@@ -379,7 +378,7 @@ impl ResponseBuilder {
     ///         .finish()
     /// }
     /// ```
-    pub fn header<K, V>(&mut self, key: K, value: V) -> &mut Self
+    pub fn append_header<K, V>(&mut self, key: K, value: V) -> &mut Self
     where
         HeaderName: TryFrom<K>,
         <HeaderName as TryFrom<K>>::Error: Into<HttpError>,
@@ -399,7 +398,19 @@ impl ResponseBuilder {
         self
     }
 
-    /// Set a header.
+    /// Append a header to response.
+    #[doc(hidden)]
+    #[deprecated = "Renamed to `append_header`."]
+    pub fn header<K, V>(&mut self, key: K, value: V) -> &mut Self
+    where
+        HeaderName: TryFrom<K>,
+        <HeaderName as TryFrom<K>>::Error: Into<HttpError>,
+        V: IntoHeaderValue,
+    {
+        self.append_header(key, value)
+    }
+
+    /// Set a header, overwriting any with the same key.
     ///
     /// ```rust
     /// use actix_http::{http, Request, Response};
@@ -411,7 +422,7 @@ impl ResponseBuilder {
     ///         .finish()
     /// }
     /// ```
-    pub fn set_header<K, V>(&mut self, key: K, value: V) -> &mut Self
+    pub fn insert_header<K, V>(&mut self, key: K, value: V) -> &mut Self
     where
         HeaderName: TryFrom<K>,
         <HeaderName as TryFrom<K>>::Error: Into<HttpError>,
@@ -429,6 +440,18 @@ impl ResponseBuilder {
             };
         }
         self
+    }
+
+    /// Set a header, overwriting any with the same key.
+    #[doc(hidden)]
+    #[deprecated = "Renamed to `insert_header`."]
+    pub fn set_header<K, V>(&mut self, key: K, value: V) -> &mut Self
+    where
+        HeaderName: TryFrom<K>,
+        <HeaderName as TryFrom<K>>::Error: Into<HttpError>,
+        V: IntoHeaderValue,
+    {
+        self.insert_header(key, value)
     }
 
     /// Set the custom reason for the response.
@@ -458,7 +481,7 @@ impl ResponseBuilder {
         if let Some(parts) = parts(&mut self.head, &self.err) {
             parts.set_connection_type(ConnectionType::Upgrade);
         }
-        self.set_header(header::UPGRADE, value)
+        self.insert_header(header::UPGRADE, value)
     }
 
     /// Force close connection, even if it is marked as keep-alive
@@ -473,7 +496,7 @@ impl ResponseBuilder {
     /// Disable chunked transfer encoding for HTTP/1.1 streaming responses.
     #[inline]
     pub fn no_chunking(&mut self, len: u64) -> &mut Self {
-        self.header(header::CONTENT_LENGTH, len);
+        self.insert_header(header::CONTENT_LENGTH, len);
 
         if let Some(parts) = parts(&mut self.head, &self.err) {
             parts.no_chunking(true);
@@ -556,6 +579,7 @@ impl ResponseBuilder {
 
     /// This method calls provided closure with builder reference if value is
     /// true.
+    #[deprecated = "Conditionally assign headers with standard if statement."]
     pub fn if_true<F>(&mut self, value: bool, f: F) -> &mut Self
     where
         F: FnOnce(&mut ResponseBuilder),
@@ -568,6 +592,7 @@ impl ResponseBuilder {
 
     /// This method calls provided closure with builder reference if value is
     /// Some.
+    #[deprecated = "Conditionally assign headers with standard if-let statement."]
     pub fn if_some<T, F>(&mut self, value: Option<T>, f: F) -> &mut Self
     where
         F: FnOnce(T, &mut ResponseBuilder),
@@ -592,10 +617,10 @@ impl ResponseBuilder {
         head.extensions.borrow_mut()
     }
 
-    #[inline]
     /// Set a body and generate `Response`.
     ///
     /// `ResponseBuilder` can not be used after this call.
+    #[inline]
     pub fn body<B: Into<Body>>(&mut self, body: B) -> Response {
         self.message_body(body.into())
     }
@@ -626,10 +651,10 @@ impl ResponseBuilder {
         }
     }
 
-    #[inline]
     /// Set a streaming body and generate `Response`.
     ///
     /// `ResponseBuilder` can not be used after this call.
+    #[inline]
     pub fn streaming<S, E>(&mut self, stream: S) -> Response
     where
         S: Stream<Item = Result<Bytes, E>> + Unpin + 'static,
@@ -638,10 +663,10 @@ impl ResponseBuilder {
         self.body(Body::from_message(BodyStream::new(stream)))
     }
 
-    #[inline]
     /// Set a json body and generate `Response`
     ///
     /// `ResponseBuilder` can not be used after this call.
+    #[inline]
     pub fn json<T: Serialize>(&mut self, value: T) -> Response {
         self.json2(&value)
     }
@@ -658,7 +683,7 @@ impl ResponseBuilder {
                     true
                 };
                 if !contains {
-                    self.header(header::CONTENT_TYPE, "application/json");
+                    self.insert_header(header::CONTENT_TYPE, "application/json");
                 }
 
                 self.body(Body::from(body))
@@ -667,10 +692,10 @@ impl ResponseBuilder {
         }
     }
 
-    #[inline]
     /// Set an empty body and generate `Response`
     ///
     /// `ResponseBuilder` can not be used after this call.
+    #[inline]
     pub fn finish(&mut self) -> Response {
         self.body(Body::Empty)
     }
@@ -854,8 +879,8 @@ mod tests {
     #[test]
     fn test_debug() {
         let resp = Response::Ok()
-            .header(COOKIE, HeaderValue::from_static("cookie1=value1; "))
-            .header(COOKIE, HeaderValue::from_static("cookie2=value2; "))
+            .append_header(COOKIE, HeaderValue::from_static("cookie1=value1; "))
+            .append_header(COOKIE, HeaderValue::from_static("cookie2=value2; "))
             .finish();
         let dbg = format!("{:?}", resp);
         assert!(dbg.contains("Response"));
@@ -921,7 +946,7 @@ mod tests {
 
     #[test]
     fn test_basic_builder() {
-        let resp = Response::Ok().header("X-TEST", "value").finish();
+        let resp = Response::Ok().insert_header("X-TEST", "value").finish();
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
