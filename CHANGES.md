@@ -5,6 +5,7 @@
 * Add `TrailingSlash::MergeOnly` behaviour to `NormalizePath`, which allow `NormalizePath`
   to keep the trailing slash's existance as it is. [#1695]
 * Fix `ResourceMap` recursive references when printing/debugging. [#1708]
+* Remove bound `std::marker::Sized` from `web::Data` to support storing `Arc<dyn Trait>` via `web::Data::from` [#1710]
 
 [#1708]: https://github.com/actix/actix-web/pull/1708
 
