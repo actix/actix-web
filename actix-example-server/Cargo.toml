@@ -1,0 +1,14 @@
+[package]
+name = "actix-example-server"
+version = "0.1.0"
+edition = "2018"
+
+[[bin]]
+name = "actix-example-server"
+path = "main.rs"
+
+[dependencies]
+actix-web = { version = "3.0.0" }
+actix-files = { version = "0.3.0"}
+env_logger = "0.7.1"
+mime = "0.3.16"
