@@ -284,7 +284,7 @@ impl PayloadConfig {
     fn from_req(req: &HttpRequest) -> &Self {
         req.app_data::<Self>()
             .or_else(|| req.app_data::<web::Data<Self>>().map(|d| d.as_ref()))
-            .unwrap_or_else(|| &DEFAULT_CONFIG)
+            .unwrap_or(&DEFAULT_CONFIG)
     }
 }
 
