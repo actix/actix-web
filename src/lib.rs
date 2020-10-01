@@ -67,6 +67,7 @@
 
 #![deny(rust_2018_idioms)]
 #![allow(clippy::needless_doctest_main, clippy::type_complexity)]
+#![allow(clippy::rc_buffer)] // FXIME: We should take a closer look for the warnings at some point.
 #![doc(html_logo_url = "https://actix.rs/img/logo.png")]
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
 
