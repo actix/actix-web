@@ -1,12 +1,22 @@
 # Changes
 
 ## Unreleased - 2020-xx-xx
-### Changed
-* Add `TrailingSlash::MergeOnly` behaviour to `NormalizePath`, which allow `NormalizePath`
-  to keep the trailing slash's existance as it is. [#1695]
-* Fix `ResourceMap` recursive references when printing/debugging. [#1708]
 
+
+## 3.1.0 - 2020-09-29
+### Changed
+* Add `TrailingSlash::MergeOnly` behaviour to `NormalizePath`, which allows `NormalizePath`
+  to retain any trailing slashes. [#1695]
+* Remove bound `std::marker::Sized` from `web::Data` to support storing `Arc<dyn Trait>`
+  via `web::Data::from` [#1710]
+
+### Fixed
+* `ResourceMap` debug printing is no longer infinitely recursive. [#1708]
+
+[#1695]: https://github.com/actix/actix-web/pull/1695
 [#1708]: https://github.com/actix/actix-web/pull/1708
+[#1710]: https://github.com/actix/actix-web/pull/1710
+
 
 ## 3.0.2 - 2020-09-15
 ### Fixed
@@ -176,7 +186,7 @@
 
 ### Deleted
 
-* Delete HttpServer::run(), it is not useful witht async/await
+* Delete HttpServer::run(), it is not useful with async/await
 
 ## [2.0.0-alpha.3] - 2019-12-07
 
@@ -221,7 +231,7 @@
 
 ### Changed
 
-* Make UrlEncodedError::Overflow more informativve
+* Make UrlEncodedError::Overflow more informative
 
 * Use actix-testing for testing utils
 
@@ -239,7 +249,7 @@
 
 * Re-implement Host predicate (#989)
 
-* Form immplements Responder, returning a `application/x-www-form-urlencoded` response
+* Form implements Responder, returning a `application/x-www-form-urlencoded` response
 
 * Add `into_inner` to `Data`
 

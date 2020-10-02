@@ -7,6 +7,7 @@
     clippy::new_without_default,
     clippy::borrow_interior_mutable_const
 )]
+#![allow(clippy::manual_strip)] // Allow this to keep MSRV(1.42).
 
 #[macro_use]
 extern crate log;
