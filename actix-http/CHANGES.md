@@ -2,6 +2,9 @@
 
 ## Unreleased - 2020-xx-xx
 
+### Changed
+
+* Change the return type of `Extensions::insert` from `()` to `Option<T>`
 
 ## 2.0.0 - 2020-09-11
 * No significant changes from `2.0.0-beta.4`.

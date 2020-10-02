@@ -24,8 +24,10 @@ impl Extensions {
     ///
     /// If a extension of this type already existed, it will
     /// be returned.
-    pub fn insert<T: 'static>(&mut self, val: T) {
-        self.map.insert(TypeId::of::<T>(), Box::new(val));
+    pub fn insert<T: 'static>(&mut self, val: T) -> Option<T> {
+        self.map
+            .insert(TypeId::of::<T>(), Box::new(val))
+            .and_then(|boxed| boxed.downcast().ok().map(|boxed| *boxed))
     }
 
     /// Check if container contains entry

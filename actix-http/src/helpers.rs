@@ -63,7 +63,7 @@ pub(crate) struct Data<T>(pub(crate) T);
 
 impl<T: Clone + 'static> DataFactory for Data<T> {
     fn set(&self, ext: &mut Extensions) {
-        ext.insert(self.0.clone())
+        ext.insert(self.0.clone());
     }
 }
 
