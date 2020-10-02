@@ -58,7 +58,6 @@ type BoxedResponse = LocalBoxFuture<'static, Result<ServiceResponse, Error>>;
 ///  * /{project_id}/path1 - responds to all http method
 ///  * /{project_id}/path2 - `GET` requests
 ///  * /{project_id}/path3 - `HEAD` requests
-///
 pub struct Scope<T = ScopeEndpoint> {
     endpoint: T,
     rdef: String,
