@@ -13,7 +13,7 @@ use actix_service::{Service, Transform};
 use bytes::Bytes;
 use futures_util::future::{ok, Ready};
 use log::debug;
-use regex::Regex;
+use regex::{Regex, RegexSet};
 use time::OffsetDateTime;
 
 use crate::dev::{BodySize, MessageBody, ResponseBody};
@@ -92,6 +92,7 @@ pub struct Logger(Rc<Inner>);
 struct Inner {
     format: Format,
     exclude: HashSet<String>,
+    exclude_regex: RegexSet,
 }
 
 impl Logger {
@@ -100,6 +101,7 @@ impl Logger {
         Logger(Rc::new(Inner {
             format: Format::new(format),
             exclude: HashSet::new(),
+            exclude_regex: RegexSet::new(Vec::<&str>::new()).unwrap(),
         }))
     }
 
@@ -110,6 +112,19 @@ impl Logger {
             .exclude
             .insert(path.into());
         self
+    }
+
+    /// Ignore and do not log access info for paths that match regex
+    pub fn exclude_regex<T: Into<String>>(
+        mut self,
+        path: T,
+    ) -> Result<Self, regex::Error> {
+        let inner = Rc::get_mut(&mut self.0).unwrap();
+        let mut patterns: Vec<String> = inner.exclude_regex.patterns().into();
+        patterns.push(path.into());
+        let regex_set = RegexSet::new(patterns)?;
+        inner.exclude_regex = regex_set;
+        Ok(self)
     }
 }
 
@@ -123,6 +138,7 @@ impl Default for Logger {
         Logger(Rc::new(Inner {
             format: Format::default(),
             exclude: HashSet::new(),
+            exclude_regex: RegexSet::new(Vec::<&str>::new()).unwrap(),
         }))
     }
 }
@@ -168,7 +184,9 @@ where
     }
 
     fn call(&mut self, req: ServiceRequest) -> Self::Future {
-        if self.inner.exclude.contains(req.path()) {
+        if self.inner.exclude.contains(req.path())
+            || self.inner.exclude_regex.is_match(req.path())
+        {
             LoggerResponse {
                 fut: self.service.call(req),
                 format: None,
@@ -536,6 +554,29 @@ mod tests {
         )
         .to_srv_request();
         let _res = srv.call(req).await;
+    }
+
+    #[actix_rt::test]
+    async fn test_logger_exclude_regex() {
+        let srv = |req: ServiceRequest| {
+            ok(req.into_response(
+                HttpResponse::build(StatusCode::OK)
+                    .header("X-Test", "ttt")
+                    .finish(),
+            ))
+        };
+        let logger = Logger::new("%% %{User-Agent}i %{X-Test}o %{HOME}e %D test")
+            .exclude_regex("\\w")
+            .unwrap();
+
+        let mut srv = logger.new_transform(srv.into_service()).await.unwrap();
+
+        let req = TestRequest::with_header(
+            header::USER_AGENT,
+            header::HeaderValue::from_static("ACTIX-WEB"),
+        )
+        .to_srv_request();
+        let _res = srv.call(req).await.unwrap();
     }
 
     #[actix_rt::test]
