@@ -76,6 +76,19 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_insert() {
+        let mut map = Extensions::new();
+
+        let prev = map.insert("foo");
+        assert_eq!(prev, None);
+        assert_eq!(map.get::<&str>().copied(), Some("foo"));
+
+        let prev = map.insert("bar");
+        assert_eq!(prev, Some("foo"));
+        assert_eq!(map.get::<&str>().copied(), Some("bar"));
+    }
+
+    #[test]
     fn test_remove() {
         let mut map = Extensions::new();
 
