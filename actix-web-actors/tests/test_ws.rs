@@ -30,8 +30,8 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for Ws {
 async fn test_simple() {
     let mut srv = test::start(|| {
         App::new().service(web::resource("/").to(
-            |req: HttpRequest, stream: web::Payload| {
-                async move { ws::start(Ws, &req, stream) }
+            |req: HttpRequest, stream: web::Payload| async move {
+                ws::start(Ws, &req, stream)
             },
         ))
     });
@@ -51,7 +51,7 @@ async fn test_simple() {
         .await
         .unwrap();
     let item = framed.next().await.unwrap().unwrap();
-    assert_eq!(item, ws::Frame::Binary(Bytes::from_static(b"text").into()));
+    assert_eq!(item, ws::Frame::Binary(Bytes::from_static(b"text")));
 
     framed.send(ws::Message::Ping("text".into())).await.unwrap();
     let item = framed.next().await.unwrap().unwrap();

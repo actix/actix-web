@@ -1,7 +1,12 @@
 # Changes
 
-## [0.3.0-alpha.1] - 2020-05-23
+## [Unreleased] - 2020-xx-xx
 
+## [0.3.0-beta.1] - 2020-07-15
+* Update `v_htmlescape` to 0.10
+* Update `actix-web` and `actix-http` dependencies to beta.1
+
+## [0.3.0-alpha.1] - 2020-05-23
 * Update `actix-web` and `actix-http` dependencies to alpha
 * Fix some typos in the docs
 * Bump minimum supported Rust version to 1.40

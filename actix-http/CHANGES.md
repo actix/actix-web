@@ -1,5 +1,50 @@
 # Changes
 
+## Unreleased - 2020-xx-xx
+
+
+## 2.0.0 - 2020-09-11
+* No significant changes from `2.0.0-beta.4`.
+
+
+## 2.0.0-beta.4 - 2020-09-09
+### Changed
+* Update actix-codec and actix-utils dependencies.
+* Update actix-connect and actix-tls dependencies.
+
+
+## [2.0.0-beta.3] - 2020-08-14
+
+### Fixed
+* Memory leak of `client::pool::ConnectorPoolSupport`. [#1626]
+
+[#1626]: https://github.com/actix/actix-web/pull/1626
+
+
+## [2.0.0-beta.2] - 2020-07-21
+### Fixed
+* Potential UB in h1 decoder using uninitialized memory. [#1614]
+
+### Changed
+* Fix illegal chunked encoding. [#1615]
+
+[#1614]: https://github.com/actix/actix-web/pull/1614
+[#1615]: https://github.com/actix/actix-web/pull/1615
+
+
+## [2.0.0-beta.1] - 2020-07-11
+
+### Changed
+
+* Migrate cookie handling to `cookie` crate. [#1558]
+* Update `sha-1` to 0.9. [#1586]
+* Fix leak in client pool. [#1580]
+* MSRV is now 1.41.1.
+
+[#1558]: https://github.com/actix/actix-web/pull/1558
+[#1586]: https://github.com/actix/actix-web/pull/1586
+[#1580]: https://github.com/actix/actix-web/pull/1580
+
 ## [2.0.0-alpha.4] - 2020-05-21
 
 ### Changed

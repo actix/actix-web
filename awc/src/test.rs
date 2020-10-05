@@ -1,13 +1,11 @@
 //! Test helpers for actix http client to use during testing.
 use std::convert::TryFrom;
-use std::fmt::Write as FmtWrite;
 
-use actix_http::cookie::{Cookie, CookieJar, USERINFO};
+use actix_http::cookie::{Cookie, CookieJar};
 use actix_http::http::header::{self, Header, HeaderValue, IntoHeaderValue};
 use actix_http::http::{Error as HttpError, HeaderName, StatusCode, Version};
 use actix_http::{h1, Payload, ResponseHead};
 use bytes::Bytes;
-use percent_encoding::percent_encode;
 
 use crate::ClientResponse;
 
@@ -88,16 +86,10 @@ impl TestResponse {
     pub fn finish(self) -> ClientResponse {
         let mut head = self.head;
 
-        let mut cookie = String::new();
-        for c in self.cookies.delta() {
-            let name = percent_encode(c.name().as_bytes(), USERINFO);
-            let value = percent_encode(c.value().as_bytes(), USERINFO);
-            let _ = write!(&mut cookie, "; {}={}", name, value);
-        }
-        if !cookie.is_empty() {
+        for cookie in self.cookies.delta() {
             head.headers.insert(
                 header::SET_COOKIE,
-                HeaderValue::from_str(&cookie.as_str()[2..]).unwrap(),
+                HeaderValue::from_str(&cookie.encoded().to_string()).unwrap(),
             );
         }
 

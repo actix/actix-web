@@ -311,10 +311,9 @@ mod tests {
                 .route(
                     "/test",
                     web::get().to(|req: HttpRequest| {
-                        HttpResponse::Ok().body(format!(
-                            "{}",
-                            req.url_for("youtube", &["12345"]).unwrap()
-                        ))
+                        HttpResponse::Ok().body(
+                            req.url_for("youtube", &["12345"]).unwrap().to_string(),
+                        )
                     }),
                 ),
         )
@@ -330,9 +329,9 @@ mod tests {
     async fn test_service() {
         let mut srv = init_service(App::new().configure(|cfg| {
             cfg.service(
-                web::resource("/test").route(web::get().to(|| HttpResponse::Created())),
+                web::resource("/test").route(web::get().to(HttpResponse::Created)),
             )
-            .route("/index.html", web::get().to(|| HttpResponse::Ok()));
+            .route("/index.html", web::get().to(HttpResponse::Ok));
         }))
         .await;
 

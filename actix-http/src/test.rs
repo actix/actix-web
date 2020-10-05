@@ -1,6 +1,5 @@
 //! Test Various helpers for Actix applications to use during testing.
 use std::convert::TryFrom;
-use std::fmt::Write as FmtWrite;
 use std::io::{self, Read, Write};
 use std::pin::Pin;
 use std::str::FromStr;
@@ -10,9 +9,8 @@ use actix_codec::{AsyncRead, AsyncWrite};
 use bytes::{Bytes, BytesMut};
 use http::header::{self, HeaderName, HeaderValue};
 use http::{Error as HttpError, Method, Uri, Version};
-use percent_encoding::percent_encode;
 
-use crate::cookie::{Cookie, CookieJar, USERINFO};
+use crate::cookie::{Cookie, CookieJar};
 use crate::header::HeaderMap;
 use crate::header::{Header, IntoHeaderValue};
 use crate::payload::Payload;
@@ -163,17 +161,17 @@ impl TestRequest {
         head.version = inner.version;
         head.headers = inner.headers;
 
-        let mut cookie = String::new();
-        for c in inner.cookies.delta() {
-            let name = percent_encode(c.name().as_bytes(), USERINFO);
-            let value = percent_encode(c.value().as_bytes(), USERINFO);
-            let _ = write!(&mut cookie, "; {}={}", name, value);
-        }
+        let cookie: String = inner
+            .cookies
+            .delta()
+            // ensure only name=value is written to cookie header
+            .map(|c| Cookie::new(c.name(), c.value()).encoded().to_string())
+            .collect::<Vec<_>>()
+            .join("; ");
+
         if !cookie.is_empty() {
-            head.headers.insert(
-                header::COOKIE,
-                HeaderValue::from_str(&cookie.as_str()[2..]).unwrap(),
-            );
+            head.headers
+                .insert(header::COOKIE, HeaderValue::from_str(&cookie).unwrap());
         }
 
         req

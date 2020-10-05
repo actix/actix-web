@@ -1,0 +1,11 @@
+error: HTTP method defined more than once: `GET`
+ --> $DIR/route-duplicate-method-fail.rs:3:35
+  |
+3 | #[route("/", method="GET", method="GET")]
+  |                                   ^^^^^
+
+error[E0425]: cannot find value `index` in this scope
+  --> $DIR/route-duplicate-method-fail.rs:12:49
+   |
+12 |     let srv = test::start(|| App::new().service(index));
+   |                                                 ^^^^^ not found in this scope

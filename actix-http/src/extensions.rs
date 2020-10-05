@@ -72,7 +72,7 @@ impl fmt::Debug for Extensions {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_remove() {
         let mut map = Extensions::new();

@@ -45,9 +45,8 @@ async fn test_connection_reuse_h2() {
         .and_then(
             HttpService::build()
                 .h2(map_config(
-                    App::new().service(
-                        web::resource("/").route(web::to(|| HttpResponse::Ok())),
-                    ),
+                    App::new()
+                        .service(web::resource("/").route(web::to(HttpResponse::Ok))),
                     |_| AppConfig::default(),
                 ))
                 .openssl(ssl_acceptor())
@@ -63,7 +62,7 @@ async fn test_connection_reuse_h2() {
         .set_alpn_protos(b"\x02h2\x08http/1.1")
         .map_err(|e| log::error!("Can not set alpn protocol: {:?}", e));
 
-    let client = awc::Client::build()
+    let client = awc::Client::builder()
         .connector(awc::Connector::new().ssl(builder.build()).finish())
         .finish();
 

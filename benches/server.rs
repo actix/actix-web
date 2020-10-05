@@ -27,15 +27,16 @@ const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
 
 // benchmark sending all requests at the same time
 fn bench_async_burst(c: &mut Criterion) {
+    // We are using System here, since Runtime requires preinitialized tokio
+    // Maybe add to actix_rt docs
+    let mut rt = actix_rt::System::new("test");
+
     let srv = test::start(|| {
         App::new()
             .service(web::resource("/").route(web::to(|| HttpResponse::Ok().body(STR))))
     });
 
-    // We are using System here, since Runtime requires preinitialized tokio
-    // Maybe add to actix_rt docs
     let url = srv.url("/");
-    let mut rt = actix_rt::System::new("test");
 
     c.bench_function("get_body_async_burst", move |b| {
         b.iter_custom(|iters| {

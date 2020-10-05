@@ -1,0 +1,11 @@
+error: Unexpected HTTP method: `UNEXPECTED`
+ --> $DIR/route-unexpected-method-fail.rs:3:21
+  |
+3 | #[route("/", method="UNEXPECTED")]
+  |                     ^^^^^^^^^^^^
+
+error[E0425]: cannot find value `index` in this scope
+  --> $DIR/route-unexpected-method-fail.rs:12:49
+   |
+12 |     let srv = test::start(|| App::new().service(index));
+   |                                                 ^^^^^ not found in this scope

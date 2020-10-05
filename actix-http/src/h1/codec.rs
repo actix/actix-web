@@ -144,13 +144,12 @@ impl Decoder for Codec {
     }
 }
 
-impl Encoder for Codec {
-    type Item = Message<(Response<()>, BodySize)>;
+impl Encoder<Message<(Response<()>, BodySize)>> for Codec {
     type Error = io::Error;
 
     fn encode(
         &mut self,
-        item: Self::Item,
+        item: Message<(Response<()>, BodySize)>,
         dst: &mut BytesMut,
     ) -> Result<(), Self::Error> {
         match item {

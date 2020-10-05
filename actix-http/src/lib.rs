@@ -1,11 +1,13 @@
 //! Basic http primitives for actix-net framework.
-#![warn(rust_2018_idioms, warnings)]
+
+#![deny(rust_2018_idioms)]
 #![allow(
     clippy::type_complexity,
     clippy::too_many_arguments,
     clippy::new_without_default,
     clippy::borrow_interior_mutable_const
 )]
+#![allow(clippy::manual_strip)] // Allow this to keep MSRV(1.42).
 
 #[macro_use]
 extern crate log;
@@ -32,7 +34,7 @@ mod response;
 mod service;
 mod time_parser;
 
-pub mod cookie;
+pub use cookie;
 pub mod error;
 pub mod h1;
 pub mod h2;

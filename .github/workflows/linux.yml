@@ -1,6 +1,11 @@
 name: CI (Linux)
 
-on: [push, pull_request]
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  push:
+    branches:
+      - master
 
 jobs:
   build_and_test:
@@ -8,7 +13,7 @@ jobs:
       fail-fast: false
       matrix:
         version:
-          - 1.40.0 # MSRV
+          - 1.42.0 # MSRV
           - stable
           - nightly
 
@@ -16,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@master
+      - uses: actions/checkout@v2
 
       - name: Install ${{ matrix.version }}
         uses: actions-rs/toolchain@v1
@@ -55,7 +60,7 @@ jobs:
       - name: Generate coverage file
         if: matrix.version == 'stable' && (github.ref == 'refs/heads/master' || github.event_name == 'pull_request')
         run: |
-          cargo install cargo-tarpaulin
+          cargo install cargo-tarpaulin --vers "^0.13"
           cargo tarpaulin --out Xml
       - name: Upload to Codecov
         if: matrix.version == 'stable' && (github.ref == 'refs/heads/master' || github.event_name == 'pull_request')

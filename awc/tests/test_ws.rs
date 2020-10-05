@@ -32,7 +32,7 @@ async fn test_simple() {
                         .await?;
 
                     // start websocket service
-                    let framed = framed.into_framed(ws::Codec::new());
+                    let framed = framed.replace_codec(ws::Codec::new());
                     ws::Dispatcher::with(framed, ws_service).await
                 }
             })

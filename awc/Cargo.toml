@@ -1,17 +1,20 @@
 [package]
 name = "awc"
-version = "2.0.0-alpha.2"
+version = "2.0.0"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
-description = "Actix http client."
+description = "Async HTTP client library that uses the Actix runtime."
 readme = "README.md"
 keywords = ["actix", "http", "framework", "async", "web"]
 homepage = "https://actix.rs"
 repository = "https://github.com/actix/actix-web.git"
 documentation = "https://docs.rs/awc/"
-categories = ["network-programming", "asynchronous",
-              "web-programming::http-client",
-              "web-programming::websocket"]
-license = "MIT/Apache-2.0"
+categories = [
+    "network-programming",
+    "asynchronous",
+    "web-programming::http-client",
+    "web-programming::websocket",
+]
+license = "MIT OR Apache-2.0"
 edition = "2018"
 
 [lib]
@@ -34,9 +37,9 @@ rustls = ["rust-tls", "actix-http/rustls"]
 compress = ["actix-http/compress"]
 
 [dependencies]
-actix-codec = "0.2.0"
-actix-service = "1.0.1"
-actix-http = "2.0.0-alpha.4"
+actix-codec = "0.3.0"
+actix-service = "1.0.6"
+actix-http = "2.0.0"
 actix-rt = "1.0.0"
 
 base64 = "0.12"
@@ -51,16 +54,16 @@ serde = "1.0"
 serde_json = "1.0"
 serde_urlencoded = "0.6.1"
 open-ssl = { version = "0.10", package = "openssl", optional = true }
-rust-tls = { version = "0.17.0", package = "rustls", optional = true, features = ["dangerous_configuration"] }
+rust-tls = { version = "0.18.0", package = "rustls", optional = true, features = ["dangerous_configuration"] }
 
 [dev-dependencies]
-actix-connect = { version = "2.0.0-alpha.2", features = ["openssl"] }
-actix-web = { version = "3.0.0-alpha.3", features = ["openssl"] }
-actix-http = { version = "2.0.0-alpha.4", features = ["openssl"] }
-actix-http-test = { version = "2.0.0-alpha.1", features = ["openssl"] }
-actix-utils = "1.0.3"
+actix-connect = { version = "2.0.0", features = ["openssl"] }
+actix-web = { version = "3.0.0", features = ["openssl"] }
+actix-http = { version = "2.0.0", features = ["openssl"] }
+actix-http-test = { version = "2.0.0", features = ["openssl"] }
+actix-utils = "2.0.0"
 actix-server = "1.0.0"
-actix-tls = { version = "2.0.0-alpha.1", features = ["openssl", "rustls"] }
+actix-tls = { version = "2.0.0", features = ["openssl", "rustls"] }
 brotli2 = "0.3.2"
 flate2 = "1.0.13"
 futures-util = { version = "0.3.5", default-features = false }

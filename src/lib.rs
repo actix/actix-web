@@ -1,88 +1,75 @@
-#![warn(rust_2018_idioms, warnings)]
-#![allow(
-    clippy::needless_doctest_main,
-    clippy::type_complexity,
-    clippy::borrow_interior_mutable_const
-)]
-//! Actix web is a small, pragmatic, and extremely fast web framework
-//! for Rust.
+//! Actix web is a powerful, pragmatic, and extremely fast web framework for Rust.
 //!
 //! ## Example
 //!
-//! The `#[actix_rt::main]` macro in the example below is provided by the Actix runtime
-//! crate, [`actix-rt`](https://crates.io/crates/actix-rt). You will need to include
-//! `actix-rt` in your dependencies for it to run.
-//!
 //! ```rust,no_run
-//! use actix_web::{web, App, Responder, HttpServer};
+//! use actix_web::{get, web, App, HttpServer, Responder};
 //!
-//! async fn index(info: web::Path<(String, u32)>) -> impl Responder {
-//!     format!("Hello {}! id:{}", info.0, info.1)
+//! #[get("/{id}/{name}/index.html")]
+//! async fn index(web::Path((id, name)): web::Path<(u32, String)>) -> impl Responder {
+//!     format!("Hello {}! id:{}", name, id)
 //! }
 //!
-//! #[actix_rt::main]
+//! #[actix_web::main]
 //! async fn main() -> std::io::Result<()> {
-//!     HttpServer::new(|| App::new().service(
-//!         web::resource("/{name}/{id}/index.html").to(index))
-//!     )
+//!     HttpServer::new(|| App::new().service(index))
 //!         .bind("127.0.0.1:8080")?
 //!         .run()
 //!         .await
 //! }
 //! ```
 //!
-//! ## Documentation & community resources
+//! ## Documentation & Community Resources
 //!
-//! Besides the API documentation (which you are currently looking
-//! at!), several other resources are available:
+//! In addition to this API documentation, several other resources are available:
 //!
-//! * [User Guide](https://actix.rs/docs/)
-//! * [Chat on gitter](https://gitter.im/actix/actix)
-//! * [GitHub repository](https://github.com/actix/actix-web)
-//! * [Cargo package](https://crates.io/crates/actix-web)
+//! * [Website & User Guide](https://actix.rs/)
+//! * [Examples Repository](https://github.com/actix/examples)
+//! * [Community Chat on Gitter](https://gitter.im/actix/actix-web)
 //!
-//! To get started navigating the API documentation you may want to
-//! consider looking at the following pages:
+//! To get started navigating the API docs, you may consider looking at the following pages first:
 //!
-//! * [App](struct.App.html): This struct represents an actix-web
-//!   application and is used to configure routes and other common
-//!   settings.
+//! * [App](struct.App.html): This struct represents an Actix web application and is used to
+//!   configure routes and other common application settings.
 //!
-//! * [HttpServer](struct.HttpServer.html): This struct
-//!   represents an HTTP server instance and is used to instantiate and
-//!   configure servers.
+//! * [HttpServer](struct.HttpServer.html): This struct represents an HTTP server instance and is
+//!   used to instantiate and configure servers.
 //!
-//! * [web](web/index.html): This module
-//!   provides essential helper functions and types for application registration.
+//! * [web](web/index.html): This module provides essential types for route registration as well as
+//!   common utilities for request handlers.
 //!
-//! * [HttpRequest](struct.HttpRequest.html) and
-//!   [HttpResponse](struct.HttpResponse.html): These structs
-//!   represent HTTP requests and responses and expose various methods
-//!   for inspecting, creating and otherwise utilizing them.
+//! * [HttpRequest](struct.HttpRequest.html) and [HttpResponse](struct.HttpResponse.html): These
+//!   structs represent HTTP requests and responses and expose methods for creating, inspecting,
+//!   and otherwise utilizing them.
 //!
 //! ## Features
 //!
-//! * Supported *HTTP/1.x* and *HTTP/2.0* protocols
+//! * Supports *HTTP/1.x* and *HTTP/2*
 //! * Streaming and pipelining
 //! * Keep-alive and slow requests handling
-//! * `WebSockets` server/client
+//! * Client/server [WebSockets](https://actix.rs/docs/websockets/) support
 //! * Transparent content compression/decompression (br, gzip, deflate)
-//! * Configurable request routing
+//! * Powerful [request routing](https://actix.rs/docs/url-dispatch/)
 //! * Multipart streams
-//! * SSL support with OpenSSL or `native-tls`
-//! * Middlewares (`Logger`, `Session`, `CORS`, `DefaultHeaders`)
+//! * Static assets
+//! * SSL support using OpenSSL or Rustls
+//! * Middlewares ([Logger, Session, CORS, etc](https://actix.rs/docs/middleware/))
+//! * Includes an async [HTTP client](https://actix.rs/actix-web/actix_web/client/index.html)
 //! * Supports [Actix actor framework](https://github.com/actix/actix)
-//! * Supported Rust version: 1.40 or later
+//! * Runs on stable Rust 1.42+
 //!
-//! ## Package feature
+//! ## Crate Features
 //!
-//! * `client` - enables http client (default enabled)
-//! * `compress` - enables content encoding compression support (default enabled)
-//! * `openssl` - enables ssl support via `openssl` crate, supports `http/2`
-//! * `rustls` - enables ssl support via `rustls` crate, supports `http/2`
-//! * `secure-cookies` - enables secure cookies support, includes `ring` crate as
-//!   dependency
-#![allow(clippy::type_complexity, clippy::new_without_default)]
+//! * `compress` - content encoding compression support (enabled by default)
+//! * `openssl` - HTTPS support via `openssl` crate, supports `HTTP/2`
+//! * `rustls` - HTTPS support via `rustls` crate, supports `HTTP/2`
+//! * `secure-cookies` - secure cookies support
+
+#![deny(rust_2018_idioms)]
+#![allow(clippy::needless_doctest_main, clippy::type_complexity)]
+#![allow(clippy::rc_buffer)] // FXIME: We should take a closer look for the warnings at some point.
+#![doc(html_logo_url = "https://actix.rs/img/logo.png")]
+#![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
 
 mod app;
 mod app_service;
@@ -106,12 +93,10 @@ pub mod test;
 mod types;
 pub mod web;
 
-#[doc(hidden)]
-pub use actix_web_codegen::*;
-
-// re-export for convenience
 pub use actix_http::Response as HttpResponse;
 pub use actix_http::{body, cookie, http, Error, HttpMessage, ResponseError, Result};
+pub use actix_rt as rt;
+pub use actix_web_codegen::*;
 
 pub use crate::app::App;
 pub use crate::extract::FromRequest;
@@ -212,26 +197,26 @@ pub mod dev {
 }
 
 pub mod client {
-    //! An HTTP Client
+    //! Actix web async HTTP client.
     //!
     //! ```rust
     //! use actix_web::client::Client;
     //!
-    //! #[actix_rt::main]
+    //! #[actix_web::main]
     //! async fn main() {
     //!    let mut client = Client::default();
     //!
     //!    // Create request builder and send request
     //!    let response = client.get("http://www.rust-lang.org")
-    //!       .header("User-Agent", "Actix-web")
-    //!       .send().await;                      // <- Send http request
+    //!       .header("User-Agent", "actix-web/3.0")
+    //!       .send()     // <- Send request
+    //!       .await;     // <- Wait for response
     //!
     //!    println!("Response: {:?}", response);
     //! }
     //! ```
-    pub use awc::error::{
-        ConnectError, InvalidUrl, PayloadError, SendRequestError, WsClientError,
-    };
+
+    pub use awc::error::*;
     pub use awc::{
         test, Client, ClientBuilder, ClientRequest, ClientResponse, Connector,
     };

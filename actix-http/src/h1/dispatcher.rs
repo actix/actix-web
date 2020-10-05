@@ -132,19 +132,11 @@ where
     B: MessageBody,
 {
     fn is_empty(&self) -> bool {
-        if let State::None = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, State::None)
     }
 
     fn is_call(&self) -> bool {
-        if let State::ServiceCall(_) = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, State::ServiceCall(_))
     }
 }
 enum PollResponse {
@@ -156,14 +148,8 @@ enum PollResponse {
 impl PartialEq for PollResponse {
     fn eq(&self, other: &PollResponse) -> bool {
         match self {
-            PollResponse::DrainWriteBuf => match other {
-                PollResponse::DrainWriteBuf => true,
-                _ => false,
-            },
-            PollResponse::DoNothing => match other {
-                PollResponse::DoNothing => true,
-                _ => false,
-            },
+            PollResponse::DrainWriteBuf => matches!(other, PollResponse::DrainWriteBuf),
+            PollResponse::DoNothing => matches!(other, PollResponse::DoNothing),
             _ => false,
         }
     }
@@ -328,11 +314,15 @@ where
                 Poll::Ready(Err(err)) => return Err(DispatchError::Io(err)),
             }
         }
+
         if written == write_buf.len() {
+            // SAFETY: setting length to 0 is safe
+            // skips one length check vs truncate
             unsafe { write_buf.set_len(0) }
         } else {
             write_buf.advance(written);
         }
+
         Ok(false)
     }
 
@@ -861,7 +851,14 @@ where
     T: AsyncRead + Unpin,
 {
     let mut read_some = false;
+
     loop {
+        // If buf is full return but do not disconnect since
+        // there is more reading to be done
+        if buf.len() >= HW_BUFFER_SIZE {
+            return Ok(Some(false));
+        }
+
         let remaining = buf.capacity() - buf.len();
         if remaining < LW_BUFFER_SIZE {
             buf.reserve(HW_BUFFER_SIZE - remaining);

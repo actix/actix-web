@@ -607,7 +607,7 @@ mod tests {
                             header::CONTENT_TYPE,
                             HeaderValue::from_static("0001"),
                         ))
-                        .route(web::get().to(|| HttpResponse::Ok())),
+                        .route(web::get().to(HttpResponse::Ok)),
                 ),
             )
             .await;
@@ -637,7 +637,7 @@ mod tests {
                             })
                         }
                     })
-                    .route(web::get().to(|| HttpResponse::Ok())),
+                    .route(web::get().to(HttpResponse::Ok)),
             ),
         )
         .await;
@@ -684,9 +684,7 @@ mod tests {
     async fn test_default_resource() {
         let mut srv = init_service(
             App::new()
-                .service(
-                    web::resource("/test").route(web::get().to(|| HttpResponse::Ok())),
-                )
+                .service(web::resource("/test").route(web::get().to(HttpResponse::Ok)))
                 .default_service(|r: ServiceRequest| {
                     ok(r.into_response(HttpResponse::BadRequest()))
                 }),
@@ -705,7 +703,7 @@ mod tests {
         let mut srv = init_service(
             App::new().service(
                 web::resource("/test")
-                    .route(web::get().to(|| HttpResponse::Ok()))
+                    .route(web::get().to(HttpResponse::Ok))
                     .default_service(|r: ServiceRequest| {
                         ok(r.into_response(HttpResponse::BadRequest()))
                     }),
@@ -731,17 +729,17 @@ mod tests {
                 .service(
                     web::resource("/test/{p}")
                         .guard(guard::Get())
-                        .to(|| HttpResponse::Ok()),
+                        .to(HttpResponse::Ok),
                 )
                 .service(
                     web::resource("/test/{p}")
                         .guard(guard::Put())
-                        .to(|| HttpResponse::Created()),
+                        .to(HttpResponse::Created),
                 )
                 .service(
                     web::resource("/test/{p}")
                         .guard(guard::Delete())
-                        .to(|| HttpResponse::NoContent()),
+                        .to(HttpResponse::NoContent),
                 ),
         )
         .await;
@@ -783,7 +781,8 @@ mod tests {
                              data3: web::Data<f64>| {
                                 assert_eq!(**data1, 10);
                                 assert_eq!(**data2, '*');
-                                assert_eq!(**data3, 1.0);
+                                let error = std::f64::EPSILON;
+                                assert!((**data3 - 1.0).abs() < error);
                                 HttpResponse::Ok()
                             },
                         ),

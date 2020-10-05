@@ -85,7 +85,7 @@ use crate::HttpResponse;
 ///  [`ConnectionInfo::realip_remote_addr()`](../dev/struct.ConnectionInfo.html#method.realip_remote_addr)
 ///
 ///  If you use this value ensure that all requests come from trusted hosts, since it is trivial
-///  for the remote client to simulate been another client.
+///  for the remote client to simulate being another client.
 ///
 pub struct Logger(Rc<Inner>);
 
@@ -478,7 +478,7 @@ impl FormatText {
             }
             FormatText::RemoteAddr => {
                 let s = if let Some(ref peer) = req.connection_info().remote_addr() {
-                    FormatText::Str(peer.to_string())
+                    FormatText::Str((*peer).to_string())
                 } else {
                     FormatText::Str("-".to_string())
                 };
@@ -626,7 +626,7 @@ mod tests {
             Ok(())
         };
         let s = format!("{}", FormatDisplay(&render));
-        assert!(s.contains(&format!("{}", now.format("%Y-%m-%dT%H:%M:%S"))));
+        assert!(s.contains(&now.format("%Y-%m-%dT%H:%M:%S")));
     }
 
     #[actix_rt::test]

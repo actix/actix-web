@@ -1,0 +1,11 @@
+error: The #[route(..)] macro requires at least one `method` attribute
+ --> $DIR/route-missing-method-fail-msrv.rs:3:1
+  |
+3 | #[route("/")]
+  | ^^^^^^^^^^^^^
+
+error[E0425]: cannot find value `index` in this scope
+  --> $DIR/route-missing-method-fail-msrv.rs:12:49
+   |
+12 |     let srv = test::start(|| App::new().service(index));
+   |                                                 ^^^^^ not found in this scope

@@ -1,19 +1,109 @@
 # Changes
 
-## [3.0.0-alpha.3] - 2020-05-21
+## Unreleased - 2020-xx-xx
 
+
+## 3.1.0 - 2020-09-29
+### Changed
+* Add `TrailingSlash::MergeOnly` behaviour to `NormalizePath`, which allows `NormalizePath`
+  to retain any trailing slashes. [#1695]
+* Remove bound `std::marker::Sized` from `web::Data` to support storing `Arc<dyn Trait>`
+  via `web::Data::from` [#1710]
+
+### Fixed
+* `ResourceMap` debug printing is no longer infinitely recursive. [#1708]
+
+[#1695]: https://github.com/actix/actix-web/pull/1695
+[#1708]: https://github.com/actix/actix-web/pull/1708
+[#1710]: https://github.com/actix/actix-web/pull/1710
+
+
+## 3.0.2 - 2020-09-15
+### Fixed
+* `NormalizePath` when used with `TrailingSlash::Trim` no longer trims the root path "/". [#1678]
+
+[#1678]: https://github.com/actix/actix-web/pull/1678
+
+
+## 3.0.1 - 2020-09-13
+### Changed
+* `middleware::normalize::TrailingSlash` enum is now accessible. [#1673]
+
+[#1673]: https://github.com/actix/actix-web/pull/1673
+
+
+## 3.0.0 - 2020-09-11
+* No significant changes from `3.0.0-beta.4`.
+
+
+## 3.0.0-beta.4 - 2020-09-09
 ### Added
+* `middleware::NormalizePath` now has configurable behaviour for either always having a trailing
+  slash, or as the new addition, always trimming trailing slashes. [#1639]
 
+### Changed
+* Update actix-codec and actix-utils dependencies. [#1634]
+* `FormConfig` and `JsonConfig` configurations are now also considered when set
+  using `App::data`. [#1641]
+* `HttpServer::maxconn` is renamed to the more expressive `HttpServer::max_connections`. [#1655]
+* `HttpServer::maxconnrate` is renamed to the more expressive
+  `HttpServer::max_connection_rate`. [#1655]
+
+[#1639]: https://github.com/actix/actix-web/pull/1639
+[#1641]: https://github.com/actix/actix-web/pull/1641
+[#1634]: https://github.com/actix/actix-web/pull/1634
+[#1655]: https://github.com/actix/actix-web/pull/1655
+
+## 3.0.0-beta.3 - 2020-08-17
+### Changed
+* Update `rustls` to 0.18
+
+
+## 3.0.0-beta.2 - 2020-08-17
+### Changed
+* `PayloadConfig` is now also considered in `Bytes` and `String` extractors when set
+  using `App::data`. [#1610]
+* `web::Path` now has a public representation: `web::Path(pub T)` that enables
+  destructuring. [#1594]
+* `ServiceRequest::app_data` allows retrieval of non-Data data without splitting into parts to
+  access `HttpRequest` which already allows this. [#1618]
+* Re-export all error types from `awc`. [#1621]
+* MSRV is now 1.42.0.
+
+### Fixed
+* Memory leak of app data in pooled requests. [#1609]
+
+[#1594]: https://github.com/actix/actix-web/pull/1594
+[#1609]: https://github.com/actix/actix-web/pull/1609
+[#1610]: https://github.com/actix/actix-web/pull/1610
+[#1618]: https://github.com/actix/actix-web/pull/1618
+[#1621]: https://github.com/actix/actix-web/pull/1621
+
+
+## 3.0.0-beta.1 - 2020-07-13
+### Added
+* Re-export `actix_rt::main` as `actix_web::main`.
+* `HttpRequest::match_pattern` and `ServiceRequest::match_pattern` for extracting the matched
+  resource pattern.
+* `HttpRequest::match_name` and `ServiceRequest::match_name` for extracting matched resource name.
+
+### Changed
+* Fix actix_http::h1::dispatcher so it returns when HW_BUFFER_SIZE is reached. Should reduce peak memory consumption during large uploads. [#1550]
+* Migrate cookie handling to `cookie` crate. Actix-web no longer requires `ring` dependency.
+* MSRV is now 1.41.1
+
+### Fixed
+* `NormalizePath` improved consistency when path needs slashes added _and_ removed.
+
+
+## 3.0.0-alpha.3 - 2020-05-21
+### Added
 * Add option to create `Data<T>` from `Arc<T>` [#1509]
 
 ### Changed
-
 * Resources and Scopes can now access non-overridden data types set on App (or containing scopes) when setting their own data. [#1486]
-
 * Fix audit issue logging by default peer address [#1485]
-
 * Bump minimum supported Rust version to 1.40
-
 * Replace deprecated `net2` crate with `socket2`
 
 [#1485]: https://github.com/actix/actix-web/pull/1485
@@ -96,7 +186,7 @@
 
 ### Deleted
 
-* Delete HttpServer::run(), it is not useful witht async/await
+* Delete HttpServer::run(), it is not useful with async/await
 
 ## [2.0.0-alpha.3] - 2019-12-07
 
@@ -141,7 +231,7 @@
 
 ### Changed
 
-* Make UrlEncodedError::Overflow more informativve
+* Make UrlEncodedError::Overflow more informative
 
 * Use actix-testing for testing utils
 
@@ -159,7 +249,7 @@
 
 * Re-implement Host predicate (#989)
 
-* Form immplements Responder, returning a `application/x-www-form-urlencoded` response
+* Form implements Responder, returning a `application/x-www-form-urlencoded` response
 
 * Add `into_inner` to `Data`
 

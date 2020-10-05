@@ -1,6 +1,32 @@
 //! Websockets client
+//!
+//! Type definitions required to use [`awc::Client`](../struct.Client.html) as a WebSocket client.
+//!
+//! # Example
+//!
+//! ```
+//! use awc::{Client, ws};
+//! use futures_util::{sink::SinkExt, stream::StreamExt};
+//!
+//! #[actix_rt::main]
+//! async fn main() {
+//!     let (_resp, mut connection) = Client::new()
+//!         .ws("ws://echo.websocket.org")
+//!         .connect()
+//!         .await
+//!         .unwrap();
+//!
+//!     connection
+//!         .send(ws::Message::Text("Echo".to_string()))
+//!         .await
+//!         .unwrap();
+//!     let response = connection.next().await.unwrap().unwrap();
+//!
+//!     assert_eq!(response, ws::Frame::Text("Echo".as_bytes().into()));
+//! }
+//! ```
+
 use std::convert::TryFrom;
-use std::fmt::Write as FmtWrite;
 use std::net::SocketAddr;
 use std::rc::Rc;
 use std::{fmt, str};
@@ -9,9 +35,7 @@ use actix_codec::Framed;
 use actix_http::cookie::{Cookie, CookieJar};
 use actix_http::{ws, Payload, RequestHead};
 use actix_rt::time::timeout;
-use percent_encoding::percent_encode;
 
-use actix_http::cookie::USERINFO;
 pub use actix_http::ws::{CloseCode, CloseReason, Codec, Frame, Message};
 
 use crate::connect::BoxedSocket;
@@ -246,16 +270,18 @@ impl WebsocketsRequest {
 
         // set cookies
         if let Some(ref mut jar) = self.cookies {
-            let mut cookie = String::new();
-            for c in jar.delta() {
-                let name = percent_encode(c.name().as_bytes(), USERINFO);
-                let value = percent_encode(c.value().as_bytes(), USERINFO);
-                let _ = write!(&mut cookie, "; {}={}", name, value);
+            let cookie: String = jar
+                .delta()
+                // ensure only name=value is written to cookie header
+                .map(|c| Cookie::new(c.name(), c.value()).encoded().to_string())
+                .collect::<Vec<_>>()
+                .join("; ");
+
+            if !cookie.is_empty() {
+                self.head
+                    .headers
+                    .insert(header::COOKIE, HeaderValue::from_str(&cookie).unwrap());
             }
-            self.head.headers.insert(
-                header::COOKIE,
-                HeaderValue::from_str(&cookie.as_str()[2..]).unwrap(),
-            );
         }
 
         // origin
@@ -367,7 +393,7 @@ impl WebsocketsRequest {
         // response and ws framed
         Ok((
             ClientResponse::new(head, Payload::None),
-            framed.map_codec(|_| {
+            framed.into_map_codec(|_| {
                 if server_mode {
                     ws::Codec::new().max_size(max_size)
                 } else {
@@ -408,7 +434,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_header_override() {
-        let req = Client::build()
+        let req = Client::builder()
             .header(header::CONTENT_TYPE, "111")
             .finish()
             .ws("/")

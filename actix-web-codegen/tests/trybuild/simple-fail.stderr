@@ -1,0 +1,29 @@
+error: Unknown attribute.
+ --> $DIR/simple-fail.rs:3:15
+  |
+3 | #[get("/one", other)]
+  |               ^^^^^
+
+error: expected identifier or literal
+ --> $DIR/simple-fail.rs:8:8
+  |
+8 | #[post(/two)]
+  |        ^
+
+error: Unknown attribute.
+  --> $DIR/simple-fail.rs:15:9
+   |
+15 | #[patch(PATCH_PATH)]
+   |         ^^^^^^^^^^
+
+error: Multiple paths specified! Should be only one!
+  --> $DIR/simple-fail.rs:20:19
+   |
+20 | #[delete("/four", "/five")]
+   |                   ^^^^^^^
+
+error: HTTP method forbidden here. To handle multiple methods, use `route` instead
+  --> $DIR/simple-fail.rs:25:19
+   |
+25 | #[delete("/five", method="GET")]
+   |                   ^^^^^^^^^^^^

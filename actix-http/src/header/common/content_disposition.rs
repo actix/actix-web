@@ -283,11 +283,11 @@ impl DispositionParam {
 ///            Some("\u{1f600}.svg".as_bytes()));
 /// ```
 ///
-/// # WARN
+/// # Security Note
+///
 /// If "filename" parameter is supplied, do not use the file name blindly, check and possibly
 /// change to match local file system conventions if applicable, and do not use directory path
-/// information that may be present. See [RFC2183](https://tools.ietf.org/html/rfc2183#section-2.3)
-/// .
+/// information that may be present. See [RFC2183](https://tools.ietf.org/html/rfc2183#section-2.3).
 #[derive(Clone, Debug, PartialEq)]
 pub struct ContentDisposition {
     /// The disposition type
@@ -387,26 +387,17 @@ impl ContentDisposition {
 
     /// Returns `true` if it is [`Inline`](DispositionType::Inline).
     pub fn is_inline(&self) -> bool {
-        match self.disposition {
-            DispositionType::Inline => true,
-            _ => false,
-        }
+        matches!(self.disposition, DispositionType::Inline)
     }
 
     /// Returns `true` if it is [`Attachment`](DispositionType::Attachment).
     pub fn is_attachment(&self) -> bool {
-        match self.disposition {
-            DispositionType::Attachment => true,
-            _ => false,
-        }
+        matches!(self.disposition, DispositionType::Attachment)
     }
 
     /// Returns `true` if it is [`FormData`](DispositionType::FormData).
     pub fn is_form_data(&self) -> bool {
-        match self.disposition {
-            DispositionType::FormData => true,
-            _ => false,
-        }
+        matches!(self.disposition, DispositionType::FormData)
     }
 
     /// Returns `true` if it is [`Ext`](DispositionType::Ext) and the `disp_type` matches.

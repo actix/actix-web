@@ -1,8 +1,8 @@
 [package]
 name = "actix-http-test"
-version = "2.0.0-alpha.1"
+version = "2.0.0"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
-description = "Actix http test server"
+description = "Actix HTTP test server"
 readme = "README.md"
 keywords = ["http", "web", "framework", "async", "futures"]
 homepage = "https://actix.rs"
@@ -11,10 +11,9 @@ documentation = "https://docs.rs/actix-http-test/"
 categories = ["network-programming", "asynchronous",
               "web-programming::http-server",
               "web-programming::websocket"]
-license = "MIT/Apache-2.0"
+license = "MIT OR Apache-2.0"
 exclude = [".gitignore", ".cargo/config"]
 edition = "2018"
-workspace = ".."
 
 [package.metadata.docs.rs]
 features = []
@@ -30,30 +29,28 @@ default = []
 openssl = ["open-ssl", "awc/openssl"]
 
 [dependencies]
-actix-service = "1.0.1"
-actix-codec = "0.2.0"
-actix-connect = "2.0.0-alpha.2"
-actix-utils = "1.0.3"
-actix-rt = "1.0.0"
+actix-service = "1.0.6"
+actix-codec = "0.3.0"
+actix-connect = "2.0.0"
+actix-utils = "2.0.0"
+actix-rt = "1.1.1"
 actix-server = "1.0.0"
 actix-testing = "1.0.0"
-awc = "2.0.0-alpha.2"
+awc = "2.0.0"
 
 base64 = "0.12"
 bytes = "0.5.3"
 futures-core = { version = "0.3.5", default-features = false }
 http = "0.2.0"
 log = "0.4"
-env_logger = "0.7"
 socket2 = "0.3"
 serde = "1.0"
 serde_json = "1.0"
-sha1 = "0.6"
 slab = "0.4"
 serde_urlencoded = "0.6.1"
 time = { version = "0.2.7", default-features = false, features = ["std"] }
 open-ssl = { version = "0.10", package = "openssl", optional = true }
 
 [dev-dependencies]
-actix-web = "3.0.0-alpha.3"
-actix-http = "2.0.0-alpha.4"
+actix-web = "3.0.0"
+actix-http = "2.0.0"

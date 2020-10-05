@@ -17,7 +17,7 @@ const DATE_VALUE_LENGTH: usize = 29;
 pub enum KeepAlive {
     /// Keep alive in seconds
     Timeout(usize),
-    /// Relay on OS to shutdown tcp connection
+    /// Rely on OS to shutdown tcp connection
     Os,
     /// Disabled
     Disabled,
@@ -209,6 +209,7 @@ impl Date {
         date.update();
         date
     }
+
     fn update(&mut self) {
         self.pos = 0;
         write!(

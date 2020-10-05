@@ -20,7 +20,7 @@ async fn no_params() -> &'static str {
 }
 
 #[cfg(unix)]
-#[actix_rt::main]
+#[actix_web::main]
 async fn main() -> std::io::Result<()> {
     std::env::set_var("RUST_LOG", "actix_server=info,actix_web=info");
     env_logger::init();

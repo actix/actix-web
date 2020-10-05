@@ -7,6 +7,8 @@ use std::slice;
 struct ShortSlice<'a>(&'a mut [u8]);
 
 impl<'a> ShortSlice<'a> {
+    /// # Safety
+    /// Given slice must be shorter than 8 bytes.
     unsafe fn new(slice: &'a mut [u8]) -> Self {
         // Sanity check for debug builds
         debug_assert!(slice.len() < 8);
@@ -46,13 +48,13 @@ pub(crate) fn apply_mask(buf: &mut [u8], mask_u32: u32) {
     }
 }
 
-#[inline]
 // TODO: copy_nonoverlapping here compiles to call memcpy. While it is not so
 // inefficient, it could be done better. The compiler does not understand that
 // a `ShortSlice` must be smaller than a u64.
+#[inline]
 #[allow(clippy::needless_pass_by_value)]
 fn xor_short(buf: ShortSlice<'_>, mask: u64) {
-    // Unsafe: we know that a `ShortSlice` fits in a u64
+    // SAFETY: we know that a `ShortSlice` fits in a u64
     unsafe {
         let (ptr, len) = (buf.0.as_mut_ptr(), buf.0.len());
         let mut b: u64 = 0;
@@ -64,8 +66,9 @@ fn xor_short(buf: ShortSlice<'_>, mask: u64) {
     }
 }
 
+/// # Safety
+/// Caller must ensure the buffer has the correct size and alignment.
 #[inline]
-// Unsafe: caller must ensure the buffer has the correct size and alignment
 unsafe fn cast_slice(buf: &mut [u8]) -> &mut [u64] {
     // Assert correct size and alignment in debug builds
     debug_assert!(buf.len().trailing_zeros() >= 3);
@@ -74,9 +77,9 @@ unsafe fn cast_slice(buf: &mut [u8]) -> &mut [u64] {
     slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut u64, buf.len() >> 3)
 }
 
-#[inline]
 // Splits a slice into three parts: an unaligned short head and tail, plus an aligned
 // u64 mid section.
+#[inline]
 fn align_buf(buf: &mut [u8]) -> (ShortSlice<'_>, &mut [u64], ShortSlice<'_>) {
     let start_ptr = buf.as_ptr() as usize;
     let end_ptr = start_ptr + buf.len();
@@ -91,13 +94,13 @@ fn align_buf(buf: &mut [u8]) -> (ShortSlice<'_>, &mut [u64], ShortSlice<'_>) {
         let (tmp, tail) = buf.split_at_mut(end_aligned - start_ptr);
         let (head, mid) = tmp.split_at_mut(start_aligned - start_ptr);
 
-        // Unsafe: we know the middle section is correctly aligned, and the outer
+        // SAFETY: we know the middle section is correctly aligned, and the outer
         // sections are smaller than 8 bytes
         unsafe { (ShortSlice::new(head), cast_slice(mid), ShortSlice(tail)) }
     } else {
         // We didn't cross even one aligned boundary!
 
-        // Unsafe: The outer sections are smaller than 8 bytes
+        // SAFETY: The outer sections are smaller than 8 bytes
         unsafe { (ShortSlice::new(buf), &mut [], ShortSlice::new(&mut [])) }
     }
 }
@@ -139,7 +142,7 @@ mod tests {
             let mut masked = unmasked.clone();
             apply_mask_fallback(&mut masked[1..], &mask);
 
-            let mut masked_fast = unmasked.clone();
+            let mut masked_fast = unmasked;
             apply_mask(&mut masked_fast[1..], mask_u32);
 
             assert_eq!(masked, masked_fast);

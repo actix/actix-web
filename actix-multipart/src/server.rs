@@ -1,4 +1,5 @@
 //! Multipart payload support
+
 use std::cell::{Cell, RefCell, RefMut};
 use std::convert::TryFrom;
 use std::marker::PhantomData;
@@ -9,8 +10,6 @@ use std::{cmp, fmt};
 
 use bytes::{Bytes, BytesMut};
 use futures_util::stream::{LocalBoxStream, Stream, StreamExt};
-use httparse;
-use mime;
 
 use actix_utils::task::LocalWaker;
 use actix_web::error::{ParseError, PayloadError};
@@ -65,26 +64,13 @@ impl Multipart {
         S: Stream<Item = Result<Bytes, PayloadError>> + Unpin + 'static,
     {
         match Self::boundary(headers) {
-            Ok(boundary) => Multipart {
-                error: None,
-                safety: Safety::new(),
-                inner: Some(Rc::new(RefCell::new(InnerMultipart {
-                    boundary,
-                    payload: PayloadRef::new(PayloadBuffer::new(Box::new(stream))),
-                    state: InnerState::FirstBoundary,
-                    item: InnerMultipartItem::None,
-                }))),
-            },
-            Err(err) => Multipart {
-                error: Some(err),
-                safety: Safety::new(),
-                inner: None,
-            },
+            Ok(boundary) => Multipart::from_boundary(boundary, stream),
+            Err(err) => Multipart::from_error(err),
         }
     }
 
     /// Extract boundary info from headers.
-    fn boundary(headers: &HeaderMap) -> Result<String, MultipartError> {
+    pub(crate) fn boundary(headers: &HeaderMap) -> Result<String, MultipartError> {
         if let Some(content_type) = headers.get(&header::CONTENT_TYPE) {
             if let Ok(content_type) = content_type.to_str() {
                 if let Ok(ct) = content_type.parse::<mime::Mime>() {
@@ -103,6 +89,32 @@ impl Multipart {
             Err(MultipartError::NoContentType)
         }
     }
+
+    /// Create multipart instance for given boundary and stream
+    pub(crate) fn from_boundary<S>(boundary: String, stream: S) -> Multipart
+    where
+        S: Stream<Item = Result<Bytes, PayloadError>> + Unpin + 'static,
+    {
+        Multipart {
+            error: None,
+            safety: Safety::new(),
+            inner: Some(Rc::new(RefCell::new(InnerMultipart {
+                boundary,
+                payload: PayloadRef::new(PayloadBuffer::new(Box::new(stream))),
+                state: InnerState::FirstBoundary,
+                item: InnerMultipartItem::None,
+            }))),
+        }
+    }
+
+    /// Create Multipart instance from MultipartError
+    pub(crate) fn from_error(err: MultipartError) -> Multipart {
+        Multipart {
+            error: Some(err),
+            safety: Safety::new(),
+            inner: None,
+        }
+    }
 }
 
 impl Stream for Multipart {
@@ -110,7 +122,7 @@ impl Stream for Multipart {
 
     fn poll_next(
         mut self: Pin<&mut Self>,
-        cx: &mut Context,
+        cx: &mut Context<'_>,
     ) -> Poll<Option<Self::Item>> {
         if let Some(err) = self.error.take() {
             Poll::Ready(Some(Err(err)))
@@ -246,7 +258,7 @@ impl InnerMultipart {
     fn poll(
         &mut self,
         safety: &Safety,
-        cx: &mut Context,
+        cx: &mut Context<'_>,
     ) -> Poll<Option<Result<Field, MultipartError>>> {
         if self.state == InnerState::Eof {
             Poll::Ready(None)
@@ -418,7 +430,10 @@ impl Field {
 impl Stream for Field {
     type Item = Result<Bytes, MultipartError>;
 
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
+    fn poll_next(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Option<Self::Item>> {
         if self.safety.current() {
             let mut inner = self.inner.borrow_mut();
             if let Some(mut payload) =
@@ -436,7 +451,7 @@ impl Stream for Field {
 }
 
 impl fmt::Debug for Field {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "\nField: {}", self.ct)?;
         writeln!(f, "  boundary: {}", self.inner.borrow().boundary)?;
         writeln!(f, "  headers:")?;
@@ -691,7 +706,7 @@ impl Safety {
         self.clean.get()
     }
 
-    fn clone(&self, cx: &mut Context) -> Safety {
+    fn clone(&self, cx: &mut Context<'_>) -> Safety {
         let payload = Rc::clone(&self.payload);
         let s = Safety {
             task: LocalWaker::new(),
@@ -736,7 +751,7 @@ impl PayloadBuffer {
         }
     }
 
-    fn poll_stream(&mut self, cx: &mut Context) -> Result<(), PayloadError> {
+    fn poll_stream(&mut self, cx: &mut Context<'_>) -> Result<(), PayloadError> {
         loop {
             match Pin::new(&mut self.stream).poll_next(cx) {
                 Poll::Ready(Some(Ok(data))) => self.buf.extend_from_slice(&data),
@@ -813,6 +828,8 @@ mod tests {
     use actix_http::h1::Payload;
     use actix_utils::mpsc;
     use actix_web::http::header::{DispositionParam, DispositionType};
+    use actix_web::test::TestRequest;
+    use actix_web::FromRequest;
     use bytes::Bytes;
     use futures_util::future::lazy;
 
@@ -876,11 +893,11 @@ mod tests {
 
     impl SlowStream {
         fn new(bytes: Bytes) -> SlowStream {
-            return SlowStream {
-                bytes: bytes,
+            SlowStream {
+                bytes,
                 pos: 0,
                 ready: false,
-            };
+            }
         }
     }
 
@@ -889,7 +906,7 @@ mod tests {
 
         fn poll_next(
             self: Pin<&mut Self>,
-            cx: &mut Context,
+            cx: &mut Context<'_>,
         ) -> Poll<Option<Self::Item>> {
             let this = self.get_mut();
             if !this.ready {
@@ -1148,5 +1165,39 @@ mod tests {
             payload.read_until(b"2").unwrap()
         );
         assert_eq!(payload.buf.len(), 0);
+    }
+
+    #[actix_rt::test]
+    async fn test_multipart_from_error() {
+        let err = MultipartError::NoContentType;
+        let mut multipart = Multipart::from_error(err);
+        assert!(multipart.next().await.unwrap().is_err())
+    }
+
+    #[actix_rt::test]
+    async fn test_multipart_from_boundary() {
+        let (_, payload) = create_stream();
+        let (_, headers) = create_simple_request_with_header();
+        let boundary = Multipart::boundary(&headers);
+        assert!(boundary.is_ok());
+        let _ = Multipart::from_boundary(boundary.unwrap(), payload);
+    }
+
+    #[actix_rt::test]
+    async fn test_multipart_payload_consumption() {
+        // with sample payload and HttpRequest with no headers
+        let (_, inner_payload) = Payload::create(false);
+        let mut payload = actix_web::dev::Payload::from(inner_payload);
+        let req = TestRequest::default().to_http_request();
+
+        // multipart should generate an error
+        let mut mp = Multipart::from_request(&req, &mut payload).await.unwrap();
+        assert!(mp.next().await.unwrap().is_err());
+
+        // and should not consume the payload
+        match payload {
+            actix_web::dev::Payload::H1(_) => {} //expected
+            _ => unreachable!(),
+        }
     }
 }

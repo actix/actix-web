@@ -1,0 +1,25 @@
+digraph {
+    subgraph cluster_net {
+        label="actix/actix-net";
+        "actix-codec"
+        "actix-connect"
+        "actix-macros"
+        "actix-rt"
+        "actix-server"
+        "actix-service"
+        "actix-testing"
+        "actix-threadpool"
+        "actix-tls"
+        "actix-tracing"
+        "actix-utils"
+        "actix-router"
+    }
+
+    "actix-utils" -> { "actix-service" "actix-rt" "actix-codec" }
+    "actix-tracing" -> { "actix-service" }
+    "actix-tls" -> { "actix-service" "actix-codec" "actix-utils" }
+    "actix-testing" -> { "actix-rt" "actix-macros" "actix-server" "actix-service" }
+    "actix-server" -> { "actix-service" "actix-rt" "actix-codec" "actix-utils" }
+    "actix-rt" -> { "actix-macros" "actix-threadpool" }
+    "actix-connect" -> { "actix-service" "actix-codec" "actix-utils" "actix-rt" }
+}

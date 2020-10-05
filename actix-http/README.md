@@ -13,12 +13,11 @@ Actix http
 ## Example
 
 ```rust
-// see examples/framed_hello.rs for complete list of used crates.
 use std::{env, io};
 
 use actix_http::{HttpService, Response};
 use actix_server::Server;
-use futures::future;
+use futures_util::future;
 use http::header::HeaderValue;
 use log::info;
 

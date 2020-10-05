@@ -877,7 +877,7 @@ mod tests {
                     .domain("www.rust-lang.org")
                     .path("/test")
                     .http_only(true)
-                    .max_age_time(time::Duration::days(1))
+                    .max_age(time::Duration::days(1))
                     .finish(),
             )
             .del_cookie(&cookies[1])

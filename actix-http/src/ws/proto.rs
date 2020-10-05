@@ -208,10 +208,10 @@ pub fn hash_key(key: &[u8]) -> String {
     use sha1::Digest;
     let mut hasher = sha1::Sha1::new();
 
-    hasher.input(key);
-    hasher.input(WS_GUID.as_bytes());
+    hasher.update(key);
+    hasher.update(WS_GUID.as_bytes());
 
-    base64::encode(hasher.result().as_ref())
+    base64::encode(&hasher.finalize())
 }
 
 #[cfg(test)]

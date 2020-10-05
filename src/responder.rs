@@ -480,7 +480,7 @@ pub(crate) mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
         match resp.response().body() {
             ResponseBody::Body(Body::Bytes(ref b)) => {
-                let bytes: Bytes = b.clone().into();
+                let bytes = b.clone();
                 assert_eq!(bytes, Bytes::from_static(b"some"));
             }
             _ => panic!(),

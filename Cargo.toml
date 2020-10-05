@@ -1,8 +1,8 @@
 [package]
 name = "actix-web"
-version = "3.0.0-alpha.3"
+version = "3.1.0"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
-description = "Actix web is a simple, pragmatic and extremely fast web framework for Rust."
+description = "Actix web is a powerful, pragmatic, and extremely fast web framework for Rust."
 readme = "README.md"
 keywords = ["actix", "http", "web", "framework", "async"]
 homepage = "https://actix.rs"
@@ -11,7 +11,7 @@ documentation = "https://docs.rs/actix-web/"
 categories = ["network-programming", "asynchronous",
               "web-programming::http-server",
               "web-programming::websocket"]
-license = "MIT/Apache-2.0"
+license = "MIT OR Apache-2.0"
 edition = "2018"
 
 [package.metadata.docs.rs]
@@ -43,7 +43,7 @@ default = ["compress"]
 # content-encoding support
 compress = ["actix-http/compress", "awc/compress"]
 
-# sessions feature, session require "ring" crate and c compiler
+# sessions feature
 secure-cookies = ["actix-http/secure-cookies"]
 
 # openssl
@@ -65,20 +65,20 @@ name = "test_server"
 required-features = ["compress"]
 
 [dependencies]
-actix-codec = "0.2.0"
-actix-service = "1.0.2"
-actix-utils = "1.0.6"
+actix-codec = "0.3.0"
+actix-service = "1.0.6"
+actix-utils = "2.0.0"
 actix-router = "0.2.4"
-actix-rt = "1.0.0"
+actix-rt = "1.1.1"
 actix-server = "1.0.0"
 actix-testing = "1.0.0"
 actix-macros = "0.1.0"
 actix-threadpool = "0.3.1"
-actix-tls = "2.0.0-alpha.1"
+actix-tls = "2.0.0"
 
-actix-web-codegen = "0.2.2"
-actix-http = "2.0.0-alpha.4"
-awc = { version = "2.0.0-alpha.2", default-features = false }
+actix-web-codegen = "0.3.0"
+actix-http = "2.0.0"
+awc = { version = "2.0.0", default-features = false }
 
 bytes = "0.5.3"
 derive_more = "0.99.2"
@@ -92,17 +92,18 @@ mime = "0.3"
 socket2 = "0.3"
 pin-project = "0.4.17"
 regex = "1.3"
-serde = { version = "1.0", features=["derive"] }
+serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde_urlencoded = "0.6.1"
 time = { version = "0.2.7", default-features = false, features = ["std"] }
 url = "2.1"
-open-ssl = { version="0.10", package = "openssl", optional = true }
-rust-tls = { version = "0.17.0", package = "rustls", optional = true }
-tinyvec = { version = "0.3", features = ["alloc"] }
+open-ssl = { package = "openssl", version = "0.10", optional = true }
+rust-tls = { package = "rustls", version = "0.18.0", optional = true }
+tinyvec = { version = "1", features = ["alloc"] }
 
 [dev-dependencies]
-actix = "0.10.0-alpha.1"
+actix = "0.10.0"
+actix-http = { version = "2.0.0", features = ["actors"] }
 rand = "0.7"
 env_logger = "0.7"
 serde_derive = "1.0"
@@ -123,6 +124,10 @@ actix-web-codegen = { path = "actix-web-codegen" }
 actix-files = { path = "actix-files" }
 actix-multipart = { path = "actix-multipart" }
 awc = { path = "awc" }
+
+[[example]]
+name = "client"
+required-features = ["rustls"]
 
 [[bench]]
 name = "server"

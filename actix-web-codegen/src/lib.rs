@@ -1,141 +1,198 @@
-#![recursion_limit = "512"]
-//! Actix-web codegen module
+//! Macros for reducing boilerplate code in Actix Web applications.
 //!
-//! Generators for routes and scopes
+//! ## Actix Web Re-exports
+//! Actix Web re-exports a version of this crate in it's entirety so you usually don't have to
+//! specify a dependency on this crate explicitly. Sometimes, however, updates are made to this
+//! crate before the actix-web dependency is updated. Therefore, code examples here will show
+//! explicit imports. Check the latest [actix-web attributes docs] to see which macros
+//! are re-exported.
 //!
-//! ## Route
-//!
-//! Macros:
-//!
-//! - [get](attr.get.html)
-//! - [post](attr.post.html)
-//! - [put](attr.put.html)
-//! - [delete](attr.delete.html)
-//! - [head](attr.head.html)
-//! - [connect](attr.connect.html)
-//! - [options](attr.options.html)
-//! - [trace](attr.trace.html)
-//! - [patch](attr.patch.html)
-//!
-//! ### Attributes:
-//!
-//! - `"path"` - Raw literal string with path for which to register handle. Mandatory.
-//! - `guard="function_name"` - Registers function as guard using `actix_web::guard::fn_guard`
-//! - `wrap="Middleware"` - Registers a resource middleware.
-//!
-//! ## Notes
-//!
-//! Function name can be specified as any expression that is going to be accessible to the generate
-//! code (e.g `my_guard` or `my_module::my_guard`)
-//!
-//! ## Example:
+//! # Runtime Setup
+//! Used for setting up the actix async runtime. See [main] macro docs.
 //!
 //! ```rust
-//! use actix_web::HttpResponse;
-//! use actix_web_codegen::get;
-//!
-//! #[get("/test")]
-//! async fn async_test() -> Result<HttpResponse, actix_web::Error> {
-//!     Ok(HttpResponse::Ok().finish())
+//! #[actix_web_codegen::main] // or `#[actix_web::main]` in Actix Web apps
+//! async fn main() {
+//!     async { println!("Hello world"); }.await
 //! }
 //! ```
+//!
+//! # Single Method Handler
+//! There is a macro to set up a handler for each of the most common HTTP methods that also define
+//! additional guards and route-specific middleware.
+//!
+//! See docs for: [GET], [POST], [PATCH], [PUT], [DELETE], [HEAD], [CONNECT], [OPTIONS], [TRACE]
+//!
+//! ```rust
+//! # use actix_web::HttpResponse;
+//! # use actix_web_codegen::get;
+//! #[get("/test")]
+//! async fn get_handler() -> HttpResponse {
+//!     HttpResponse::Ok().finish()
+//! }
+//! ```
+//!
+//! # Multiple Method Handlers
+//! Similar to the single method handler macro but takes one or more arguments for the HTTP methods
+//! it should respond to. See [route] macro docs.
+//!
+//! ```rust
+//! # use actix_web::HttpResponse;
+//! # use actix_web_codegen::route;
+//! #[route("/test", method="GET", method="HEAD")]
+//! async fn get_and_head_handler() -> HttpResponse {
+//!     HttpResponse::Ok().finish()
+//! }
+//! ```
+//!
+//! [actix-web attributes docs]: https://docs.rs/actix-web/*/actix_web/#attributes
+//! [main]: attr.main.html
+//! [route]: attr.route.html
+//! [GET]: attr.get.html
+//! [POST]: attr.post.html
+//! [PUT]: attr.put.html
+//! [DELETE]: attr.delete.html
+//! [HEAD]: attr.head.html
+//! [CONNECT]: attr.connect.html
+//! [OPTIONS]: attr.options.html
+//! [TRACE]: attr.trace.html
+//! [PATCH]: attr.patch.html
 
-extern crate proc_macro;
-
-mod route;
+#![recursion_limit = "512"]
 
 use proc_macro::TokenStream;
 
-/// Creates route handler with `GET` method guard.
+mod route;
+
+/// Creates resource handler, allowing multiple HTTP method guards.
 ///
-/// Syntax: `#[get("path"[, attributes])]`
+/// # Syntax
+/// ```text
+/// #[route("path", method="HTTP_METHOD"[, attributes])]
+/// ```
 ///
-/// ## Attributes:
-///
-/// - `"path"` - Raw literal string with path for which to register handler. Mandatory.
+/// # Attributes
+/// - `"path"` - Raw literal string with path for which to register handler.
+/// - `method="HTTP_METHOD"` - Registers HTTP method to provide guard for. Upper-case string, "GET", "POST" for example.
 /// - `guard="function_name"` - Registers function as guard using `actix_web::guard::fn_guard`
 /// - `wrap="Middleware"` - Registers a resource middleware.
+///
+/// # Notes
+/// Function name can be specified as any expression that is going to be accessible to the generate
+/// code, e.g `my_guard` or `my_module::my_guard`.
+///
+/// # Example
+///
+/// ```rust
+/// # use actix_web::HttpResponse;
+/// # use actix_web_codegen::route;
+/// #[route("/test", method="GET", method="HEAD")]
+/// async fn example() -> HttpResponse {
+///     HttpResponse::Ok().finish()
+/// }
+/// ```
 #[proc_macro_attribute]
-pub fn get(args: TokenStream, input: TokenStream) -> TokenStream {
-    route::generate(args, input, route::GuardType::Get)
+pub fn route(args: TokenStream, input: TokenStream) -> TokenStream {
+    route::with_method(None, args, input)
 }
 
-/// Creates route handler with `POST` method guard.
-///
-/// Syntax: `#[post("path"[, attributes])]`
-///
-/// Attributes are the same as in [get](attr.get.html)
-#[proc_macro_attribute]
-pub fn post(args: TokenStream, input: TokenStream) -> TokenStream {
-    route::generate(args, input, route::GuardType::Post)
+macro_rules! doc_comment {
+    ($x:expr; $($tt:tt)*) => {
+        #[doc = $x]
+        $($tt)*
+    };
 }
 
-/// Creates route handler with `PUT` method guard.
-///
-/// Syntax: `#[put("path"[, attributes])]`
-///
-/// Attributes are the same as in [get](attr.get.html)
-#[proc_macro_attribute]
-pub fn put(args: TokenStream, input: TokenStream) -> TokenStream {
-    route::generate(args, input, route::GuardType::Put)
+macro_rules! method_macro {
+    (
+        $($variant:ident, $method:ident,)+
+    ) => {
+        $(doc_comment! {
+concat!("
+Creates route handler with `actix_web::guard::", stringify!($variant), "`.
+
+# Syntax
+```text
+#[", stringify!($method), r#"("path"[, attributes])]
+```
+
+# Attributes
+- `"path"` - Raw literal string with path for which to register handler.
+- `guard="function_name"` - Registers function as guard using `actix_web::guard::fn_guard`.
+- `wrap="Middleware"` - Registers a resource middleware.
+
+# Notes
+Function name can be specified as any expression that is going to be accessible to the generate
+code, e.g `my_guard` or `my_module::my_guard`.
+
+# Example
+
+```rust
+# use actix_web::HttpResponse;
+# use actix_web_codegen::"#, stringify!($method), ";
+#[", stringify!($method), r#"("/")]
+async fn example() -> HttpResponse {
+    HttpResponse::Ok().finish()
+}
+```
+"#);
+            #[proc_macro_attribute]
+            pub fn $method(args: TokenStream, input: TokenStream) -> TokenStream {
+                route::with_method(Some(route::MethodType::$variant), args, input)
+            }
+        })+
+    };
 }
 
-/// Creates route handler with `DELETE` method guard.
-///
-/// Syntax: `#[delete("path"[, attributes])]`
-///
-/// Attributes are the same as in [get](attr.get.html)
-#[proc_macro_attribute]
-pub fn delete(args: TokenStream, input: TokenStream) -> TokenStream {
-    route::generate(args, input, route::GuardType::Delete)
+method_macro! {
+    Get,       get,
+    Post,      post,
+    Put,       put,
+    Delete,    delete,
+    Head,      head,
+    Connect,   connect,
+    Options,   options,
+    Trace,     trace,
+    Patch,     patch,
 }
 
-/// Creates route handler with `HEAD` method guard.
+/// Marks async main function as the actix system entry-point.
 ///
-/// Syntax: `#[head("path"[, attributes])]`
+/// # Actix Web Re-export
+/// This macro can be applied with `#[actix_web::main]` when used in Actix Web applications.
 ///
-/// Attributes are the same as in [head](attr.head.html)
+/// # Usage
+/// ```rust
+/// #[actix_web_codegen::main]
+/// async fn main() {
+///     async { println!("Hello world"); }.await
+/// }
+/// ```
 #[proc_macro_attribute]
-pub fn head(args: TokenStream, input: TokenStream) -> TokenStream {
-    route::generate(args, input, route::GuardType::Head)
-}
+pub fn main(_: TokenStream, item: TokenStream) -> TokenStream {
+    use quote::quote;
 
-/// Creates route handler with `CONNECT` method guard.
-///
-/// Syntax: `#[connect("path"[, attributes])]`
-///
-/// Attributes are the same as in [connect](attr.connect.html)
-#[proc_macro_attribute]
-pub fn connect(args: TokenStream, input: TokenStream) -> TokenStream {
-    route::generate(args, input, route::GuardType::Connect)
-}
+    let mut input = syn::parse_macro_input!(item as syn::ItemFn);
+    let attrs = &input.attrs;
+    let vis = &input.vis;
+    let sig = &mut input.sig;
+    let body = &input.block;
+    let name = &sig.ident;
 
-/// Creates route handler with `OPTIONS` method guard.
-///
-/// Syntax: `#[options("path"[, attributes])]`
-///
-/// Attributes are the same as in [options](attr.options.html)
-#[proc_macro_attribute]
-pub fn options(args: TokenStream, input: TokenStream) -> TokenStream {
-    route::generate(args, input, route::GuardType::Options)
-}
+    if sig.asyncness.is_none() {
+        return syn::Error::new_spanned(sig.fn_token, "only async fn is supported")
+            .to_compile_error()
+            .into();
+    }
 
-/// Creates route handler with `TRACE` method guard.
-///
-/// Syntax: `#[trace("path"[, attributes])]`
-///
-/// Attributes are the same as in [trace](attr.trace.html)
-#[proc_macro_attribute]
-pub fn trace(args: TokenStream, input: TokenStream) -> TokenStream {
-    route::generate(args, input, route::GuardType::Trace)
-}
+    sig.asyncness = None;
 
-/// Creates route handler with `PATCH` method guard.
-///
-/// Syntax: `#[patch("path"[, attributes])]`
-///
-/// Attributes are the same as in [patch](attr.patch.html)
-#[proc_macro_attribute]
-pub fn patch(args: TokenStream, input: TokenStream) -> TokenStream {
-    route::generate(args, input, route::GuardType::Patch)
+    (quote! {
+        #(#attrs)*
+        #vis #sig {
+            actix_web::rt::System::new(stringify!(#name))
+                .block_on(async move { #body })
+        }
+    })
+    .into()
 }

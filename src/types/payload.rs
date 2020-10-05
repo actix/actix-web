@@ -13,10 +13,10 @@ use futures_util::future::{err, ok, Either, FutureExt, LocalBoxFuture, Ready};
 use futures_util::StreamExt;
 use mime::Mime;
 
-use crate::dev;
 use crate::extract::FromRequest;
 use crate::http::header;
 use crate::request::HttpRequest;
+use crate::{dev, web};
 
 /// Payload extractor returns request 's payload stream.
 ///
@@ -142,13 +142,8 @@ impl FromRequest for Bytes {
 
     #[inline]
     fn from_request(req: &HttpRequest, payload: &mut dev::Payload) -> Self::Future {
-        let tmp;
-        let cfg = if let Some(cfg) = req.app_data::<PayloadConfig>() {
-            cfg
-        } else {
-            tmp = PayloadConfig::default();
-            &tmp
-        };
+        // allow both Config and Data<Config>
+        let cfg = PayloadConfig::from_req(req);
 
         if let Err(e) = cfg.check_mimetype(req) {
             return Either::Right(err(e));
@@ -197,13 +192,7 @@ impl FromRequest for String {
 
     #[inline]
     fn from_request(req: &HttpRequest, payload: &mut dev::Payload) -> Self::Future {
-        let tmp;
-        let cfg = if let Some(cfg) = req.app_data::<PayloadConfig>() {
-            cfg
-        } else {
-            tmp = PayloadConfig::default();
-            &tmp
-        };
+        let cfg = PayloadConfig::from_req(req);
 
         // check content-type
         if let Err(e) = cfg.check_mimetype(req) {
@@ -237,7 +226,12 @@ impl FromRequest for String {
         )
     }
 }
-/// Payload configuration for request's payload.
+
+/// Configuration for request's payload.
+///
+/// Applies to the built-in `Bytes` and `String` extractors. Note that the Payload extractor does
+/// not automatically check conformance with this configuration to allow more flexibility when
+/// building extractors on top of `Payload`.
 #[derive(Clone)]
 pub struct PayloadConfig {
     limit: usize,
@@ -284,14 +278,25 @@ impl PayloadConfig {
         }
         Ok(())
     }
+
+    /// Extract payload config from app data. Check both `T` and `Data<T>`, in that order, and fall
+    /// back to the default payload config.
+    fn from_req(req: &HttpRequest) -> &Self {
+        req.app_data::<Self>()
+            .or_else(|| req.app_data::<web::Data<Self>>().map(|d| d.as_ref()))
+            .unwrap_or(&DEFAULT_CONFIG)
+    }
 }
+
+// Allow shared refs to default.
+const DEFAULT_CONFIG: PayloadConfig = PayloadConfig {
+    limit: 262_144, // 2^18 bytes (~256kB)
+    mimetype: None,
+};
 
 impl Default for PayloadConfig {
     fn default() -> Self {
-        PayloadConfig {
-            limit: 262_144,
-            mimetype: None,
-        }
+        DEFAULT_CONFIG.clone()
     }
 }
 
@@ -315,6 +320,7 @@ pub struct HttpMessageBody {
 
 impl HttpMessageBody {
     /// Create `MessageBody` for request.
+    #[allow(clippy::borrow_interior_mutable_const)]
     pub fn new(req: &HttpRequest, payload: &mut dev::Payload) -> HttpMessageBody {
         let mut len = None;
         if let Some(l) = req.headers().get(&header::CONTENT_LENGTH) {
@@ -406,8 +412,9 @@ mod tests {
     use bytes::Bytes;
 
     use super::*;
-    use crate::http::header;
-    use crate::test::TestRequest;
+    use crate::http::{header, StatusCode};
+    use crate::test::{call_service, init_service, TestRequest};
+    use crate::{web, App, Responder};
 
     #[actix_rt::test]
     async fn test_payload_config() {
@@ -425,6 +432,86 @@ mod tests {
         let req = TestRequest::with_header(header::CONTENT_TYPE, "application/json")
             .to_http_request();
         assert!(cfg.check_mimetype(&req).is_ok());
+    }
+
+    #[actix_rt::test]
+    async fn test_config_recall_locations() {
+        async fn bytes_handler(_: Bytes) -> impl Responder {
+            "payload is probably json bytes"
+        }
+
+        async fn string_handler(_: String) -> impl Responder {
+            "payload is probably json string"
+        }
+
+        let mut srv = init_service(
+            App::new()
+                .service(
+                    web::resource("/bytes-app-data")
+                        .app_data(
+                            PayloadConfig::default().mimetype(mime::APPLICATION_JSON),
+                        )
+                        .route(web::get().to(bytes_handler)),
+                )
+                .service(
+                    web::resource("/bytes-data")
+                        .data(PayloadConfig::default().mimetype(mime::APPLICATION_JSON))
+                        .route(web::get().to(bytes_handler)),
+                )
+                .service(
+                    web::resource("/string-app-data")
+                        .app_data(
+                            PayloadConfig::default().mimetype(mime::APPLICATION_JSON),
+                        )
+                        .route(web::get().to(string_handler)),
+                )
+                .service(
+                    web::resource("/string-data")
+                        .data(PayloadConfig::default().mimetype(mime::APPLICATION_JSON))
+                        .route(web::get().to(string_handler)),
+                ),
+        )
+        .await;
+
+        let req = TestRequest::with_uri("/bytes-app-data").to_request();
+        let resp = call_service(&mut srv, req).await;
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+
+        let req = TestRequest::with_uri("/bytes-data").to_request();
+        let resp = call_service(&mut srv, req).await;
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+
+        let req = TestRequest::with_uri("/string-app-data").to_request();
+        let resp = call_service(&mut srv, req).await;
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+
+        let req = TestRequest::with_uri("/string-data").to_request();
+        let resp = call_service(&mut srv, req).await;
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+
+        let req = TestRequest::with_uri("/bytes-app-data")
+            .header(header::CONTENT_TYPE, mime::APPLICATION_JSON)
+            .to_request();
+        let resp = call_service(&mut srv, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let req = TestRequest::with_uri("/bytes-data")
+            .header(header::CONTENT_TYPE, mime::APPLICATION_JSON)
+            .to_request();
+        let resp = call_service(&mut srv, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let req = TestRequest::with_uri("/string-app-data")
+            .header(header::CONTENT_TYPE, mime::APPLICATION_JSON)
+            .to_request();
+        let resp = call_service(&mut srv, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let req = TestRequest::with_uri("/string-data")
+            .header(header::CONTENT_TYPE, mime::APPLICATION_JSON)
+            .to_request();
+        let resp = call_service(&mut srv, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
     }
 
     #[actix_rt::test]

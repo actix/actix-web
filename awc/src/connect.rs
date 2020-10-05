@@ -152,7 +152,7 @@ where
             let (head, framed) =
                 connection.open_tunnel(RequestHeadType::from(head)).await?;
 
-            let framed = framed.map_io(|io| BoxedSocket(Box::new(Socket(io))));
+            let framed = framed.into_map_io(|io| BoxedSocket(Box::new(Socket(io))));
             Ok((head, framed))
         })
     }
@@ -186,7 +186,7 @@ where
                 .open_tunnel(RequestHeadType::Rc(head, extra_headers))
                 .await?;
 
-            let framed = framed.map_io(|io| BoxedSocket(Box::new(Socket(io))));
+            let framed = framed.into_map_io(|io| BoxedSocket(Box::new(Socket(io))));
             Ok((head, framed))
         })
     }

@@ -1,15 +1,26 @@
 # Changes
 
-## [0.3.0-alpha.1] - 2020-05-25
+## Unreleased - 2020-xx-xx
+* Fix multipart consuming payload before header checks #1513
 
+
+## 3.0.0 - 2020-09-11
+* No significant changes from `3.0.0-beta.2`.
+
+
+## 3.0.0-beta.2 - 2020-09-10
+* Update `actix-*` dependencies to latest versions.
+
+
+## 0.3.0-beta.1 - 2020-07-15
+* Update `actix-web` to 3.0.0-beta.1
+
+
+## 0.3.0-alpha.1 - 2020-05-25
 * Update `actix-web` to 3.0.0-alpha.3
-
 * Bump minimum supported Rust version to 1.40
-
 * Minimize `futures` dependencies
-
 * Remove the unused `time` dependency
-
 * Fix missing `std::error::Error` implement for `MultipartError`.
 
 ## [0.2.0] - 2019-12-20

@@ -16,7 +16,8 @@ use futures_util::ready;
 use rand::{distributions::Alphanumeric, Rng};
 
 use actix_web::dev::BodyEncoding;
-use actix_web::middleware::Compress;
+use actix_web::middleware::normalize::TrailingSlash;
+use actix_web::middleware::{Compress, NormalizePath};
 use actix_web::{dev, test, web, App, Error, HttpResponse};
 
 const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
@@ -851,7 +852,7 @@ async fn test_slow_request() {
     use std::net;
 
     let srv = test::start_with(test::config().client_timeout(200), || {
-        App::new().service(web::resource("/").route(web::to(|| HttpResponse::Ok())))
+        App::new().service(web::resource("/").route(web::to(HttpResponse::Ok)))
     });
 
     let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
@@ -864,6 +865,20 @@ async fn test_slow_request() {
     let mut data = String::new();
     let _ = stream.read_to_string(&mut data);
     assert!(data.starts_with("HTTP/1.1 408 Request Timeout"));
+}
+
+#[actix_rt::test]
+async fn test_normalize() {
+    let srv = test::start_with(test::config().h1(), || {
+        App::new()
+            .wrap(NormalizePath::new(TrailingSlash::Trim))
+            .service(
+                web::resource("/one").route(web::to(|| HttpResponse::Ok().finish())),
+            )
+    });
+
+    let response = srv.get("/one/").send().await.unwrap();
+    assert!(response.status().is_success());
 }
 
 // #[cfg(feature = "openssl")]

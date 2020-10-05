@@ -2,11 +2,13 @@ use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-use actix_web::{http, test, web::Path, App, HttpResponse, Responder, Error};
-use actix_web::dev::{Service, Transform, ServiceRequest, ServiceResponse};
-use actix_web_codegen::{connect, delete, get, head, options, patch, post, put, trace};
-use futures_util::future;
+use actix_web::dev::{Service, ServiceRequest, ServiceResponse, Transform};
 use actix_web::http::header::{HeaderName, HeaderValue};
+use actix_web::{http, test, web::Path, App, Error, HttpResponse, Responder};
+use actix_web_codegen::{
+    connect, delete, get, head, options, patch, post, put, route, trace,
+};
+use futures_util::future;
 
 // Make sure that we can name function as 'config'
 #[get("/config")]
@@ -79,6 +81,11 @@ async fn get_param_test(_: Path<String>) -> impl Responder {
     HttpResponse::Ok()
 }
 
+#[route("/multi", method = "GET", method = "POST", method = "HEAD")]
+async fn route_test() -> impl Responder {
+    HttpResponse::Ok()
+}
+
 pub struct ChangeStatusCode;
 
 impl<S, B> Transform<S> for ChangeStatusCode
@@ -112,6 +119,7 @@ where
     type Request = ServiceRequest;
     type Response = ServiceResponse<B>;
     type Error = Error;
+    #[allow(clippy::type_complexity)]
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>>>>;
 
     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
@@ -119,7 +127,6 @@ where
     }
 
     fn call(&mut self, req: ServiceRequest) -> Self::Future {
-
         let fut = self.service.call(req);
 
         Box::pin(async move {
@@ -172,6 +179,7 @@ async fn test_body() {
             .service(trace_test)
             .service(patch_test)
             .service(test_handler)
+            .service(route_test)
     });
     let request = srv.request(http::Method::GET, srv.url("/test"));
     let response = request.send().await.unwrap();
@@ -210,6 +218,22 @@ async fn test_body() {
     let request = srv.request(http::Method::GET, srv.url("/test"));
     let response = request.send().await.unwrap();
     assert!(response.status().is_success());
+
+    let request = srv.request(http::Method::GET, srv.url("/multi"));
+    let response = request.send().await.unwrap();
+    assert!(response.status().is_success());
+
+    let request = srv.request(http::Method::POST, srv.url("/multi"));
+    let response = request.send().await.unwrap();
+    assert!(response.status().is_success());
+
+    let request = srv.request(http::Method::HEAD, srv.url("/multi"));
+    let response = request.send().await.unwrap();
+    assert!(response.status().is_success());
+
+    let request = srv.request(http::Method::PATCH, srv.url("/multi"));
+    let response = request.send().await.unwrap();
+    assert!(!response.status().is_success());
 }
 
 #[actix_rt::test]
@@ -223,10 +247,7 @@ async fn test_auto_async() {
 
 #[actix_rt::test]
 async fn test_wrap() {
-    let srv = test::start(|| {
-        App::new()
-            .service(get_wrap)
-    });
+    let srv = test::start(|| App::new().service(get_wrap));
 
     let request = srv.request(http::Method::GET, srv.url("/test/wrap"));
     let response = request.send().await.unwrap();
