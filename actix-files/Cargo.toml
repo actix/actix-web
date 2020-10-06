@@ -1,8 +1,8 @@
 [package]
 name = "actix-files"
-version = "0.3.0"
+version = "0.4.0"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
-description = "Static files support for actix web."
+description = "Static file serving for Actix Web"
 readme = "README.md"
 keywords = ["actix", "http", "async", "futures"]
 homepage = "https://actix.rs"

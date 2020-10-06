@@ -1,4 +1,4 @@
-//! Static files support for Actix Web.
+//! Static file serving for Actix Web.
 //!
 //! Provides a non-blocking service for serving static files from disk.
 //!
