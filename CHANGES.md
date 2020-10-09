@@ -1,7 +1,9 @@
 # Changes
 
 ## Unreleased - 2020-xx-xx
+* Implement Logger middleware regex exclude pattern [#1723]
 
+[#1723]: https://github.com/actix/actix-web/pull/1723
 
 ## 3.1.0 - 2020-09-29
 ### Changed
@@ -9,7 +11,6 @@
   to retain any trailing slashes. [#1695]
 * Remove bound `std::marker::Sized` from `web::Data` to support storing `Arc<dyn Trait>`
   via `web::Data::from` [#1710]
-* Implement Logger middleware regex exclude pattern [#1723]
 
 ### Fixed
 * `ResourceMap` debug printing is no longer infinitely recursive. [#1708]
@@ -17,7 +18,6 @@
 [#1695]: https://github.com/actix/actix-web/pull/1695
 [#1708]: https://github.com/actix/actix-web/pull/1708
 [#1710]: https://github.com/actix/actix-web/pull/1710
-[#1723]: https://github.com/actix/actix-web/pull/1723
 
 
 ## 3.0.2 - 2020-09-15
