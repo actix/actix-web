@@ -19,12 +19,11 @@ pub(crate) type FnDataFactory =
 
 /// Application data.
 ///
-/// Application data is an arbitrary data attached to the app.
-/// Application data is available to all routes and could be added
-/// during application configuration process
-/// with `App::data()` method.
+/// Application data is a piece of arbitrary data attached to the app.
+/// Application data is available to all routes and can be added
+/// during the application configuration process via `App::data()`.
 ///
-/// Application data could be accessed by using `Data<T>`
+/// Application data can be accessed by using `Data<T>`
 /// extractor where `T` is data type.
 ///
 /// **Note**: http server accepts an application factory rather than
@@ -32,9 +31,7 @@ pub(crate) type FnDataFactory =
 /// instance for each thread, thus application data must be constructed
 /// multiple times. If you want to share data between different
 /// threads, a shareable object should be used, e.g. `Send + Sync`. Application
-/// data does not need to be `Send` or `Sync`. Internally `Data` type
-/// uses `Arc`. if your data implements `Send` + `Sync` traits you can
-/// use `web::Data::new()` and avoid double `Arc`.
+/// data does not need to be `Send` or `Sync`. Internally `Data` uses `Arc`.
 ///
 /// If route data is not set for a handler, using `Data<T>` extractor would
 /// cause *Internal Server Error* response.
@@ -47,7 +44,7 @@ pub(crate) type FnDataFactory =
 ///     counter: usize,
 /// }
 ///
-/// /// Use `Data<T>` extractor to access data in handler.
+/// /// Use the `Data<T>` extractor to access data in a handler.
 /// async fn index(data: web::Data<Mutex<MyData>>) -> impl Responder {
 ///     let mut data = data.lock().unwrap();
 ///     data.counter += 1;
@@ -70,10 +67,6 @@ pub struct Data<T: ?Sized>(Arc<T>);
 
 impl<T> Data<T> {
     /// Create new `Data` instance.
-    ///
-    /// Internally `Data` type uses `Arc`. if your data implements
-    /// `Send` + `Sync` traits you can use `web::Data::new()` and
-    /// avoid double `Arc`.
     pub fn new(state: T) -> Data<T> {
         Data(Arc::new(state))
     }
