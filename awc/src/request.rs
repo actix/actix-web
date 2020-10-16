@@ -21,19 +21,15 @@ use crate::frozen::FrozenClientRequest;
 use crate::sender::{PrepForSendingError, RequestSender, SendClientRequest};
 use crate::ClientConfig;
 
-#[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
-const HTTPS_ENCODING: &str = "br, gzip, deflate";
-#[cfg(all(
-    not(any(feature = "flate2-zlib", feature = "flate2-rust")),
-    feature = "compress"
-))]
-const HTTPS_ENCODING: &str = "br";
-#[cfg(not(any(
-    feature = "flate2-zlib",
-    feature = "flate2-rust",
-    feature = "compress"
-)))]
-const HTTPS_ENCODING: &str = "identity";
+cfg_if::cfg_if! {
+    if #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))] {
+        const HTTPS_ENCODING: &str = "br, gzip, deflate";
+    } else if #[cfg(feature = "compress")] {
+        const HTTPS_ENCODING: &str = "br";
+    } else {
+        const HTTPS_ENCODING: &str = "identity";
+    }
+}
 
 /// An HTTP Client request builder
 ///
