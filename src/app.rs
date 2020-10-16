@@ -70,16 +70,24 @@ where
         InitError = (),
     >,
 {
-    /// Set application data. Application data could be accessed
-    /// by using `Data<T>` extractor where `T` is data type.
+    /// Adds application data.
+    /// Application data can be accessed by using a `Data<T>` extractor where `T` is the data type.
     ///
-    /// **Note**: http server accepts an application factory rather than
-    /// an application instance. Http server constructs an application
-    /// instance for each thread, thus application data must be constructed
-    /// multiple times. If you want to share data between different
-    /// threads, a shared object should be used, e.g. `Arc`. Internally `Data` type
-    /// uses `Arc` so data could be created outside of app factory and clones could
-    /// be stored via `App::app_data()` method.
+    /// The state is managed on a per-type basis and as such there can be
+    /// at most one value for any given type.
+    /// This means that only the first invocation of this function per type will have an effect,
+    /// all later ones will be ignored.
+    ///
+    /// Internally the data will be wrapped in an `Arc`.
+    /// If your data is already wrapped in an `Arc`
+    /// you can instead store it directly using the `App::app_data()` function.
+    ///
+    /// **Note**: `HttpServer` accepts an application factory rather than
+    /// an application instance (`App`).
+    /// `HttpServer` constructs an application instance for each thread,
+    /// thus application data must be constructed multiple times.
+    /// If you want to share data between different threads,
+    /// a shared object should be used, e.g. `Arc`.
     ///
     /// ```rust
     /// use std::cell::Cell;
