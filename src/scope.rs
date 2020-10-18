@@ -442,16 +442,17 @@ where
         *self.factory_ref.borrow_mut() = Some(ScopeFactory {
             data: self.data.take().map(Rc::new),
             default: self.default.clone(),
-            services: Rc::new(
-                cfg.into_services()
-                    .1
-                    .into_iter()
-                    .map(|(mut rdef, srv, guards, nested)| {
-                        rmap.add(&mut rdef, nested);
-                        (rdef, srv, RefCell::new(guards))
-                    })
-                    .collect(),
-            ),
+            services: cfg
+                .into_services()
+                .1
+                .into_iter()
+                .map(|(mut rdef, srv, guards, nested)| {
+                    rmap.add(&mut rdef, nested);
+                    (rdef, srv, RefCell::new(guards))
+                })
+                .collect::<Vec<_>>()
+                .into_boxed_slice()
+                .into(),
         });
 
         // get guards
@@ -473,7 +474,7 @@ where
 
 pub struct ScopeFactory {
     data: Option<Rc<Extensions>>,
-    services: Rc<Vec<(ResourceDef, HttpNewService, RefCell<Option<Guards>>)>>,
+    services: Rc<[(ResourceDef, HttpNewService, RefCell<Option<Guards>>)]>,
     default: Rc<RefCell<Option<Rc<HttpNewService>>>>,
 }
 

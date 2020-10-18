@@ -31,7 +31,7 @@ pub struct AppService {
         Option<Guards>,
         Option<Rc<ResourceMap>>,
     )>,
-    service_data: Rc<Vec<Box<dyn DataFactory>>>,
+    service_data: Rc<[Box<dyn DataFactory>]>,
 }
 
 impl AppService {
@@ -39,7 +39,7 @@ impl AppService {
     pub(crate) fn new(
         config: AppConfig,
         default: Rc<HttpNewService>,
-        service_data: Rc<Vec<Box<dyn DataFactory>>>,
+        service_data: Rc<[Box<dyn DataFactory>]>,
     ) -> Self {
         AppService {
             config,

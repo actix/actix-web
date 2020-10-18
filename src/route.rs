@@ -1,3 +1,5 @@
+#![allow(clippy::rc_buffer)] // inner value is mutated before being shared (`Rc::get_mut`)
+
 use std::future::Future;
 use std::pin::Pin;
 use std::rc::Rc;
