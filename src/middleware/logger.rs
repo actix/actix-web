@@ -115,10 +115,7 @@ impl Logger {
     }
 
     /// Ignore and do not log access info for paths that match regex
-    pub fn exclude_regex<T: Into<String>>(
-        mut self,
-        path: T,
-    ) -> Self {
+    pub fn exclude_regex<T: Into<String>>(mut self, path: T) -> Self {
         let inner = Rc::get_mut(&mut self.0).unwrap();
         let mut patterns = inner.exclude_regex.patterns().to_vec();
         patterns.push(path.into());
