@@ -101,7 +101,7 @@ impl Logger {
         Logger(Rc::new(Inner {
             format: Format::new(format),
             exclude: HashSet::new(),
-            exclude_regex: RegexSet::new(Vec::<&str>::new()).unwrap(),
+            exclude_regex: RegexSet::empty(),
         }))
     }
 
@@ -120,7 +120,7 @@ impl Logger {
         path: T,
     ) -> Result<Self, regex::Error> {
         let inner = Rc::get_mut(&mut self.0).unwrap();
-        let mut patterns: Vec<String> = inner.exclude_regex.patterns().into();
+        let mut patterns = inner.exclude_regex.patterns().to_vec();
         patterns.push(path.into());
         let regex_set = RegexSet::new(patterns)?;
         inner.exclude_regex = regex_set;
@@ -138,7 +138,7 @@ impl Default for Logger {
         Logger(Rc::new(Inner {
             format: Format::default(),
             exclude: HashSet::new(),
-            exclude_regex: RegexSet::new(Vec::<&str>::new()).unwrap(),
+            exclude_regex: RegexSet::empty(),
         }))
     }
 }
