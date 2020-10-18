@@ -118,13 +118,13 @@ impl Logger {
     pub fn exclude_regex<T: Into<String>>(
         mut self,
         path: T,
-    ) -> Result<Self, regex::Error> {
+    ) -> Self {
         let inner = Rc::get_mut(&mut self.0).unwrap();
         let mut patterns = inner.exclude_regex.patterns().to_vec();
         patterns.push(path.into());
-        let regex_set = RegexSet::new(patterns)?;
+        let regex_set = RegexSet::new(patterns).unwrap();
         inner.exclude_regex = regex_set;
-        Ok(self)
+        self
     }
 }
 
@@ -566,8 +566,7 @@ mod tests {
             ))
         };
         let logger = Logger::new("%% %{User-Agent}i %{X-Test}o %{HOME}e %D test")
-            .exclude_regex("\\w")
-            .unwrap();
+            .exclude_regex("\\w");
 
         let mut srv = logger.new_transform(srv.into_service()).await.unwrap();
 
