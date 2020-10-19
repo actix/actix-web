@@ -1,14 +1,9 @@
 # Changes
 
 ## Unreleased - 2020-xx-xx
-
 * Implement Logger middleware regex exclude pattern [#1723]
+
 [#1723]: https://github.com/actix/actix-web/pull/1723
-
-### Fixed
-
-* awc now uses `Accept-Encoding: identity` instead of `Accept-Encoding: br` when no compression feature is enabled
-[#1737](https://github.com/actix/actix-web/pull/1737)
 
 ## 3.1.0 - 2020-09-29
 ### Changed

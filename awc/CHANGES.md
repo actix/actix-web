@@ -1,6 +1,10 @@
 # Changes
 
 ## Unreleased - 2020-xx-xx
+### Fixed
+* Use `Accept-Encoding: identity` instead of `Accept-Encoding: br` when no compression feature is enabled [#1737]
+
+[#1737]: https://github.com/actix/actix-web/pull/1737
 
 
 ## 2.0.0 - 2020-09-11
