@@ -1,7 +1,9 @@
 # Changes
 
 ## Unreleased - 2020-xx-xx
+* Implement Logger middleware regex exclude pattern [#1723]
 
+[#1723]: https://github.com/actix/actix-web/pull/1723
 
 ## 3.1.0 - 2020-09-29
 ### Changed
