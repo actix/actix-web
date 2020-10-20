@@ -3,14 +3,14 @@
 ## Unreleased - 2020-xx-xx
 ### Added
 * Implement `exclude_regex` for Logger middleware. [#1723]
-* Add request-local data extractor `web::ReqData`. [#1729]
+* Add request-local data extractor `web::ReqData`. [#1748]
 
 ### Changed
 * Print non-configured `Data<T>` type when attempting extraction. [#1743]
 
-[#1729]: https://github.com/actix/actix-web/pull/1729
 [#1723]: https://github.com/actix/actix-web/pull/1723
 [#1743]: https://github.com/actix/actix-web/pull/1743
+[#1748]: https://github.com/actix/actix-web/pull/1748
 
 
 ## 3.1.0 - 2020-09-29
