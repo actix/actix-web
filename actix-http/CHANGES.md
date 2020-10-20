@@ -1,7 +1,7 @@
 # Changes
 
 ## Unreleased - 2020-xx-xx
-
+* Upgrade `base64` to `0.13`.
 
 ## 2.0.0 - 2020-09-11
 * No significant changes from `2.0.0-beta.4`.
