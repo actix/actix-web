@@ -29,7 +29,7 @@ use crate::{dev::Payload, FromRequest, HttpRequest};
 /// #[derive(Debug, Clone, PartialEq)]
 /// struct FlagFromMiddleware(String);
 ///
-/// /// Use the `Data<T>` extractor to access data in a handler.
+/// /// Use the `ReqData<T>` extractor to access request data in a handler.
 /// async fn handler(
 ///     req: HttpRequest,
 ///     opt_flag: Option<web::ReqData<FlagFromMiddleware>>,
