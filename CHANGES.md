@@ -2,7 +2,7 @@
 
 ## Unreleased - 2020-xx-xx
 * Implement Logger middleware regex exclude pattern [#1723]
-* Print unconfigured AppData type [#1743]
+* Print unconfigured `Data<T>` type when attempting extraction. [#1743]
 
 [#1723]: https://github.com/actix/actix-web/pull/1723
 [#1743]: https://github.com/actix/actix-web/pull/1743
