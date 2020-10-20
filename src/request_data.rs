@@ -5,11 +5,11 @@ use futures_util::future;
 
 use crate::{dev::Payload, FromRequest, HttpRequest};
 
-/// Request-local data.
+/// Request-local data extractor.
 ///
 /// Request-local data is arbitrary data attached to an individual request, usually
-/// by middleware. It can be set via `extensions_mut` on [`HttpRequest`](htr_ext_mut)
-/// or [`ServiceRequest`](srv_ext_mut).
+/// by middleware. It can be set via `extensions_mut` on [`HttpRequest`][htr_ext_mut]
+/// or [`ServiceRequest`][srv_ext_mut].
 ///
 /// Unlike app data, request data is dropped when the request has finished processing. This makes it
 /// useful as a kind of messaging system between middleware and request handlers. It uses the same
@@ -44,8 +44,8 @@ use crate::{dev::Payload, FromRequest, HttpRequest};
 /// }
 /// ```
 ///
-/// [`htr_ext_mut`]: crate::HttpRequest::extensions_mut
-/// [`srv_ext_mut`]: crate::ServiceRequest::extensions_mut
+/// [htr_ext_mut]: crate::HttpRequest::extensions_mut
+/// [srv_ext_mut]: crate::dev::ServiceRequest::extensions_mut
 #[derive(Debug, Clone)]
 pub struct ReqData<T: Clone + 'static>(T);
 
