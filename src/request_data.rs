@@ -34,9 +34,9 @@ use crate::{dev::Payload, FromRequest, HttpRequest};
 ///     req: HttpRequest,
 ///     opt_flag: Option<web::ReqData<FlagFromMiddleware>>,
 /// ) -> impl Responder {
+///     // use an optional extractor if the middleware is
+///     // not guaranteed to add this type of requests data
 ///     if let Some(flag) = opt_flag {
-///         // using an optional extractor since the middleware may
-///         // not be guaranteed to add our flag to request data
 ///         assert_eq!(&flag.into_inner(), req.extensions().get::<FlagFromMiddleware>().unwrap());
 ///     }
 ///     
