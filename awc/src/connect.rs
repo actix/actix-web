@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::future::Future;
 use std::pin::Pin;
 use std::rc::Rc;
@@ -10,13 +11,14 @@ use actix_http::client::{
     Connect as ClientConnect, ConnectError, Connection, SendRequestError,
 };
 use actix_http::h1::ClientCodec;
-use actix_http::http::HeaderMap;
+use actix_http::http::{HeaderMap, Uri};
+use actix_http::Extensions;
 use actix_http::{RequestHead, RequestHeadType, ResponseHead};
 use actix_service::Service;
 
 use crate::response::ClientResponse;
 
-pub(crate) struct ConnectorWrapper<T>(pub T);
+pub(crate) struct ConnectorWrapper<T>(pub Rc<RefCell<T>>);
 
 pub(crate) trait Connect {
     fn send_request(
@@ -70,7 +72,7 @@ pub(crate) trait Connect {
 
 impl<T> Connect for ConnectorWrapper<T>
 where
-    T: Service<Request = ClientConnect, Error = ConnectError>,
+    T: Service<Request = ClientConnect, Error = ConnectError> + 'static,
     T::Response: Connection,
     <T::Response as Connection>::Io: 'static,
     <T::Response as Connection>::Future: 'static,
@@ -83,21 +85,81 @@ where
         body: Body,
         addr: Option<net::SocketAddr>,
     ) -> Pin<Box<dyn Future<Output = Result<ClientResponse, SendRequestError>>>> {
-        // connect to the host
-        let fut = self.0.call(ClientConnect {
-            uri: head.uri.clone(),
-            addr,
-        });
+        fn deal_with_redirects<S>(
+            backend: Rc<RefCell<S>>,
+            head: RequestHead,
+            body: Body,
+            addr: Option<net::SocketAddr>,
+        ) -> Pin<Box<dyn Future<Output = Result<ClientResponse, SendRequestError>>>>
+        where
+            S: Service<Request = ClientConnect, Error = ConnectError> + 'static,
+            S::Response: Connection,
+            <S::Response as Connection>::Io: 'static,
+            <S::Response as Connection>::Future: 'static,
+            <S::Response as Connection>::TunnelFuture: 'static,
+            S::Future: 'static,
+        {
+            // connect to the host
+            let fut = backend.borrow_mut().call(ClientConnect {
+                uri: head.uri.clone(),
+                addr,
+            });
 
-        Box::pin(async move {
-            let connection = fut.await?;
+            Box::pin(async move {
+                let connection = fut.await?;
 
-            // send request
-            connection
-                .send_request(RequestHeadType::from(head), body)
-                .await
-                .map(|(head, payload)| ClientResponse::new(head, payload))
-        })
+                // FIXME: whether we'll resend the body depends on the redirect status code
+                let reqbody = match body {
+                    Body::None => Body::None,
+                    Body::Empty => Body::Empty,
+                    Body::Bytes(ref b) => Body::Bytes(b.clone()),
+                    // can't re-stream body, send an empty one instead
+                    // TODO: maybe emit some kind of warning?
+                    Body::Message(_) => Body::Empty,
+                };
+
+                let mut reqhead = RequestHead::default();
+                // FIXME: method depends on redirect code
+                reqhead.method = head.method.clone();
+                reqhead.version = head.version.clone();
+                // FIXME: not all headers should be mirrored on redirect
+                reqhead.headers = head.headers.clone();
+                // FIXME: should we mirror extensions?
+                reqhead.extensions = RefCell::new(Extensions::new());
+                reqhead.peer_addr = head.peer_addr.clone();
+
+                // send request
+                let resp = connection
+                    .send_request(RequestHeadType::from(head), body)
+                    .await;
+
+                match resp {
+                    Ok((resphead, payload)) => {
+                        if resphead.status.is_redirection() {
+                            reqhead.uri = resphead
+                                .headers
+                                .get(actix_http::http::header::LOCATION)
+                                .unwrap()
+                                .to_str()
+                                .unwrap()
+                                .parse::<Uri>()
+                                .unwrap();
+                            return deal_with_redirects(
+                                backend.clone(),
+                                reqhead,
+                                reqbody,
+                                addr,
+                            )
+                            .await;
+                        }
+                        Ok(ClientResponse::new(resphead, payload))
+                    }
+                    Err(e) => Err(e),
+                }
+            })
+        }
+
+        deal_with_redirects(self.0.clone(), head, body, addr)
     }
 
     fn send_request_extra(

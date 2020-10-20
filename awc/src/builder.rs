@@ -56,7 +56,9 @@ impl ClientBuilder {
         <T::Response as Connection>::Future: 'static,
         T::Future: 'static,
     {
-        self.connector = Some(RefCell::new(Box::new(ConnectorWrapper(connector))));
+        self.connector = Some(RefCell::new(Box::new(ConnectorWrapper(Rc::new(
+            RefCell::new(connector),
+        )))));
         self
     }
 
@@ -182,9 +184,9 @@ impl ClientBuilder {
             if let Some(val) = self.stream_window_size {
                 connector = connector.initial_window_size(val)
             };
-            RefCell::new(
-                Box::new(ConnectorWrapper(connector.finish())) as Box<dyn Connect>
-            )
+            RefCell::new(Box::new(ConnectorWrapper(Rc::new(RefCell::new(
+                connector.finish(),
+            )))) as Box<dyn Connect>)
         };
         let config = ClientConfig {
             headers: self.headers,

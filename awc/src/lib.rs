@@ -153,9 +153,9 @@ pub(crate) struct ClientConfig {
 impl Default for Client {
     fn default() -> Self {
         Client(Rc::new(ClientConfig {
-            connector: RefCell::new(Box::new(ConnectorWrapper(
+            connector: RefCell::new(Box::new(ConnectorWrapper(Rc::new(RefCell::new(
                 Connector::new().finish(),
-            ))),
+            ))))),
             headers: HeaderMap::new(),
             timeout: Some(Duration::from_secs(5)),
         }))
