@@ -20,22 +20,20 @@ pub(crate) type FnDataFactory =
 
 /// Application data.
 ///
-/// Application data is a piece of arbitrary data attached to the app.
-/// Application data is available to all routes and can be added
-/// during the application configuration process via `App::data()`.
+/// Application level data is a piece of arbitrary data attached to the app, scope, or resource.
+/// Application data is available to all routes and can be added during the application
+/// configuration process via `App::data()`.
 ///
-/// Application data can be accessed by using `Data<T>`
-/// extractor where `T` is data type.
+/// Application data can be accessed by using `Data<T>` extractor where `T` is data type.
 ///
-/// **Note**: http server accepts an application factory rather than
-/// an application instance. Http server constructs an application
-/// instance for each thread, thus application data must be constructed
-/// multiple times. If you want to share data between different
-/// threads, a shareable object should be used, e.g. `Send + Sync`. Application
-/// data does not need to be `Send` or `Sync`. Internally `Data` uses `Arc`.
+/// **Note**: http server accepts an application factory rather than an application instance. HTTP
+/// server constructs an application instance for each thread, thus application data must be
+/// constructed multiple times. If you want to share data between different threads, a shareable
+/// object should be used, e.g. `Send + Sync`. Application data does not need to be `Send`
+/// or `Sync`. Internally `Data` uses `Arc`.
 ///
-/// If route data is not set for a handler, using `Data<T>` extractor would
-/// cause *Internal Server Error* response.
+/// If route data is not set for a handler, using `Data<T>` extractor would cause *Internal
+/// Server Error* response.
 ///
 /// ```rust
 /// use std::sync::Mutex;
