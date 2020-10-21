@@ -93,6 +93,7 @@ struct Inner {
     format: Format,
     exclude: HashSet<String>,
     exclude_regex: RegexSet,
+    closure: Vec<fn(req: &ServiceRequest) -> String>,
 }
 
 impl Logger {
@@ -102,6 +103,7 @@ impl Logger {
             format: Format::new(format),
             exclude: HashSet::new(),
             exclude_regex: RegexSet::empty(),
+            closure: vec![],
         }))
     }
 
@@ -123,6 +125,14 @@ impl Logger {
         inner.exclude_regex = regex_set;
         self
     }
+
+    pub fn register_closure(
+        mut self,
+        closure: fn(req: &ServiceRequest) -> String,
+    ) -> Self {
+        Rc::get_mut(&mut self.0).unwrap().closure.push(closure);
+        self
+    }
 }
 
 impl Default for Logger {
@@ -136,6 +146,7 @@ impl Default for Logger {
             format: Format::default(),
             exclude: HashSet::new(),
             exclude_regex: RegexSet::empty(),
+            closure: vec![],
         }))
     }
 }
@@ -196,6 +207,9 @@ where
 
             for unit in &mut format.0 {
                 unit.render_request(now, &req);
+            }
+            for closure in self.inner.closure.clone() {
+                format.0.push(FormatText::render_closure(closure, &req));
             }
             LoggerResponse {
                 fut: self.service.call(req),
@@ -455,6 +469,13 @@ impl FormatText {
         }
     }
 
+    fn render_closure(
+        closure: fn(req: &ServiceRequest) -> String,
+        req: &ServiceRequest,
+    ) -> FormatText {
+        FormatText::Str(closure(req))
+    }
+
     fn render_request(&mut self, now: OffsetDateTime, req: &ServiceRequest) {
         match *self {
             FormatText::RequestLine => {
@@ -698,5 +719,30 @@ mod tests {
         let s = format!("{}", FormatDisplay(&render));
         println!("{}", s);
         assert!(s.contains("192.0.2.60"));
+    }
+
+    #[actix_rt::test]
+    async fn test_closure_logger_format() {
+        let srv = |req: ServiceRequest| {
+            ok(req.into_response(
+                HttpResponse::build(StatusCode::OK)
+                    .header("X-Test", "ttt")
+                    .finish(),
+            ))
+        };
+        let logger = Logger::new("%% %{User-Agent}i %{X-Test}o %{HOME}e %D test")
+            .register_closure(|_req: &ServiceRequest| -> String {
+                String::from("custom_log")
+            });
+
+        let mut srv = logger.new_transform(srv.into_service()).await.unwrap();
+
+        let req = TestRequest::with_header(
+            header::USER_AGENT,
+            header::HeaderValue::from_static("ACTIX-WEB"),
+        )
+        .to_srv_request();
+        let res = srv.call(req).await;
+        println!("{:?}", res);
     }
 }
