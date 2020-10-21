@@ -1,3 +1,4 @@
+use std::any::type_name;
 use std::ops::Deref;
 use std::sync::Arc;
 
@@ -121,8 +122,9 @@ impl<T: ?Sized + 'static> FromRequest for Data<T> {
         } else {
             log::debug!(
                 "Failed to construct App-level Data extractor. \
-                 Request path: {:?}",
-                req.path()
+                 Request path: {:?} (type: {})",
+                req.path(),
+                type_name::<T>(),
             );
             err(ErrorInternalServerError(
                 "App data is not configured, to configure use App::data()",

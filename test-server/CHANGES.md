@@ -3,6 +3,7 @@
 ## Unreleased - 2020-xx-xx
 
 * add ability to set address for `TestServer` [#1645]
+* Upgrade `base64` to `0.13`.
 
 [#1645]: https://github.com/actix/actix-web/pull/1645
 
