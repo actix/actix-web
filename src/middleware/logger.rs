@@ -126,7 +126,7 @@ impl Logger {
         self
     }
 
-    /// Register a closure to be run on the request output of the logger. 
+    /// Register a closure to be run on the request output of the logger.
     /// Note: output from closure will be present at end of logger output. Multiple closure will be ran in the order they are registed.
     pub fn register_request_closure(
         mut self,
@@ -733,7 +733,7 @@ mod tests {
             ))
         };
         let logger = Logger::new("%% %{User-Agent}i %{X-Test}o %{HOME}e %D test")
-            .register_closure(|_req: &ServiceRequest| -> String {
+            .register_request_closure(|_req: &ServiceRequest| -> String {
                 String::from("custom_log")
             });
 
@@ -744,7 +744,6 @@ mod tests {
             header::HeaderValue::from_static("ACTIX-WEB"),
         )
         .to_srv_request();
-        let res = srv.call(req).await;
-        println!("{:?}", res);
+        let _res = srv.call(req).await;
     }
 }
