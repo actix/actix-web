@@ -126,9 +126,9 @@ impl Logger {
         self
     }
 
-    /// Register a closure to be run on the logger. 
+    /// Register a closure to be run on the request output of the logger. 
     /// Note: output from closure will be present at end of logger output. Multiple closure will be ran in the order they are registed.
-    pub fn register_closure(
+    pub fn register_request_closure(
         mut self,
         closure: fn(req: &ServiceRequest) -> String,
     ) -> Self {
