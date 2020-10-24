@@ -7,10 +7,12 @@
 
 ### Changed
 * Print non-configured `Data<T>` type when attempting extraction. [#1743]
+* Re-export bytes::Buf{Mut} in web module. [#1750]
 
 [#1723]: https://github.com/actix/actix-web/pull/1723
 [#1743]: https://github.com/actix/actix-web/pull/1743
 [#1748]: https://github.com/actix/actix-web/pull/1748
+[#1750]: https://github.com/actix/actix-web/pull/1750
 
 
 ## 3.1.0 - 2020-09-29
