@@ -81,6 +81,7 @@ mod handler;
 mod info;
 pub mod middleware;
 mod request;
+mod request_data;
 mod resource;
 mod responder;
 mod rmap;
