@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2020-xx-xx
+### Changed
+* Upgrade `base64` to `0.13`.
+
 ### Fixed
 * Use `Accept-Encoding: identity` instead of `Accept-Encoding: br` when no compression feature is enabled [#1737]
 
