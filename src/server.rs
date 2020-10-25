@@ -1,8 +1,14 @@
-use std::marker::PhantomData;
-use std::sync::{Arc, Mutex};
-use std::{fmt, io, net};
+use std::{
+    any::Any,
+    fmt, io,
+    marker::PhantomData,
+    net,
+    sync::{Arc, Mutex},
+};
 
-use actix_http::{body::MessageBody, Error, HttpService, KeepAlive, Request, Response};
+use actix_http::{
+    body::MessageBody, Error, Extensions, HttpService, KeepAlive, Request, Response,
+};
 use actix_server::{Server, ServerBuilder};
 use actix_service::{map_config, IntoServiceFactory, Service, ServiceFactory};
 
@@ -49,7 +55,7 @@ struct Config {
 ///         .await
 /// }
 /// ```
-pub struct HttpServer<F, I, S, B, C = ()>
+pub struct HttpServer<F, I, S, B>
 where
     F: Fn() -> I + Send + Clone + 'static,
     I: IntoServiceFactory<S>,
@@ -64,10 +70,11 @@ where
     backlog: i32,
     sockets: Vec<Socket>,
     builder: ServerBuilder,
-    on_connect_fn: Option<Arc<dyn Fn(&dyn std::any::Any) -> C + Send + Sync>>,
-    _t: PhantomData<(S, B, C)>,
+    on_connect_fn: Option<Arc<dyn Fn(&dyn Any, &mut Extensions) + Send + Sync>>,
+    _t: PhantomData<(S, B)>,
 }
-impl<F, I, S, B> HttpServer<F, I, S, B, ()>
+
+impl<F, I, S, B> HttpServer<F, I, S, B>
 where
     F: Fn() -> I + Send + Clone + 'static,
     I: IntoServiceFactory<S>,
@@ -103,12 +110,9 @@ where
     /// - `actix_tls::rustls::TlsStream<tokio::net::TcpStream>` when using rustls.
     /// - `tokio::net::TcpStream` when no encryption is used.
     /// See `on_connect` example for additional details.
-    pub fn on_connect<C>(
-        self,
-        f: Arc<dyn Fn(&dyn std::any::Any) -> C + Send + Sync>,
-    ) -> HttpServer<F, I, S, B, C>
+    pub fn on_connect<CB>(self, f: CB) -> HttpServer<F, I, S, B>
     where
-        C: Clone + 'static,
+        CB: Fn(&dyn Any, &mut Extensions) + Send + Sync + 'static,
     {
         HttpServer {
             factory: self.factory,
@@ -116,13 +120,13 @@ where
             backlog: self.backlog,
             sockets: self.sockets,
             builder: self.builder,
-            on_connect_fn: Some(f),
+            on_connect_fn: Some(Arc::new(f)),
             _t: PhantomData,
         }
     }
 }
 
-impl<F, I, S, B, C> HttpServer<F, I, S, B, C>
+impl<F, I, S, B> HttpServer<F, I, S, B>
 where
     F: Fn() -> I + Send + Clone + 'static,
     I: IntoServiceFactory<S>,
@@ -132,7 +136,6 @@ where
     S::Response: Into<Response<B>> + 'static,
     <S::Service as Service>::Future: 'static,
     B: MessageBody + 'static,
-    C: Clone + 'static,
 {
     /// Set number of workers to start.
     ///
@@ -292,14 +295,20 @@ where
                     c.host.clone().unwrap_or_else(|| format!("{}", addr)),
                 );
 
-                HttpService::build()
+                let svc = HttpService::build()
                     .keep_alive(c.keep_alive)
                     .client_timeout(c.client_timeout)
-                    .local_addr(addr)
-                    .on_connect_optional(on_connect_fn.clone().map(|handler| {
-                        move |arg: &_| (&*handler)(arg as &dyn std::any::Any)
-                    }))
-                    .finish(map_config(factory(), move |_| cfg.clone()))
+                    .local_addr(addr);
+
+                let svc = if let Some(handler) = on_connect_fn.clone() {
+                    svc.on_connect_ext(move |io: &_, ext: _| {
+                        (handler)(io as &dyn Any, ext)
+                    })
+                } else {
+                    svc
+                };
+
+                svc.finish(map_config(factory(), move |_| cfg.clone()))
                     .tcp()
             },
         )?;
@@ -344,14 +353,23 @@ where
                     addr,
                     c.host.clone().unwrap_or_else(|| format!("{}", addr)),
                 );
-                HttpService::build()
+
+                let svc = HttpService::build()
                     .keep_alive(c.keep_alive)
                     .client_timeout(c.client_timeout)
-                    .client_disconnect(c.client_shutdown)
-                    .on_connect_optional(on_connect_fn.clone().map(|handler| {
-                        move |arg: &_| (&*handler)(arg as &dyn std::any::Any)
-                    }))
-                    .finish(map_config(factory(), move |_| cfg.clone()))
+                    .client_disconnect(c.client_shutdown);
+
+                let svc = if let Some(handler) =
+                    on_connect_fn.map(|handler| Arc::clone(&handler))
+                {
+                    svc.on_connect_ext(move |io: &_, ext: _| {
+                        (handler)(io as &dyn Any, ext)
+                    })
+                } else {
+                    svc
+                };
+
+                svc.finish(map_config(factory(), move |_| cfg.clone()))
                     .openssl(acceptor.clone())
             },
         )?;
@@ -396,14 +414,23 @@ where
                     addr,
                     c.host.clone().unwrap_or_else(|| format!("{}", addr)),
                 );
-                HttpService::build()
+
+                let svc = HttpService::build()
                     .keep_alive(c.keep_alive)
                     .client_timeout(c.client_timeout)
-                    .client_disconnect(c.client_shutdown)
-                    .on_connect_optional(on_connect_fn.clone().map(|handler| {
-                        move |arg: &_| (&*handler)(arg as &dyn std::any::Any)
-                    }))
-                    .finish(map_config(factory(), move |_| cfg.clone()))
+                    .client_disconnect(c.client_shutdown);
+
+                let svc = if let Some(handler) =
+                    on_connect_fn.map(|handler| Rc::clone(&handler))
+                {
+                    svc.on_connect_ext(move |io: &_, ext: _| {
+                        (handler)(io as &dyn Any, ext)
+                    })
+                } else {
+                    svc
+                };
+
+                svc.finish(map_config(factory(), move |_| cfg.clone()))
                     .rustls(config.clone())
             },
         )?;
@@ -494,7 +521,7 @@ where
     }
 
     #[cfg(unix)]
-    /// Start listening for unix domain connections on existing listener.
+    /// Start listening for unix domain (UDS) connections on existing listener.
     pub fn listen_uds(
         mut self,
         lst: std::os::unix::net::UnixListener,
@@ -514,6 +541,7 @@ where
 
         let addr = format!("actix-web-service-{:?}", lst.local_addr()?);
         let on_connect_fn = self.on_connect_fn.clone();
+
         self.builder = self.builder.listen_uds(addr, lst, move || {
             let c = cfg.lock().unwrap();
             let config = AppConfig::new(
@@ -521,14 +549,23 @@ where
                 socket_addr,
                 c.host.clone().unwrap_or_else(|| format!("{}", socket_addr)),
             );
+
             pipeline_factory(|io: UnixStream| ok((io, Protocol::Http1, None))).and_then(
-                HttpService::build()
-                    .keep_alive(c.keep_alive)
-                    .client_timeout(c.client_timeout)
-                    .on_connect_optional(on_connect_fn.clone().map(|handler| {
-                        move |arg: &_| (&*handler)(arg as &dyn std::any::Any)
-                    }))
-                    .finish(map_config(factory(), move |_| config.clone())),
+                {
+                    let svc = HttpService::build()
+                        .keep_alive(c.keep_alive)
+                        .client_timeout(c.client_timeout);
+
+                    let svc = if let Some(handler) = on_connect_fn.clone() {
+                        svc.on_connect_ext(move |io: &_, ext: _| {
+                            (&*handler)(io as &dyn Any, ext)
+                        })
+                    } else {
+                        svc
+                    };
+
+                    svc.finish(map_config(factory(), move |_| config.clone()))
+                },
             )
         })?;
         Ok(self)
@@ -576,7 +613,7 @@ where
     }
 }
 
-impl<F, I, S, B, C> HttpServer<F, I, S, B, C>
+impl<F, I, S, B> HttpServer<F, I, S, B>
 where
     F: Fn() -> I + Send + Clone + 'static,
     I: IntoServiceFactory<S>,

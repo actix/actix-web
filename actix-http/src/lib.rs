@@ -1,4 +1,4 @@
-//! Basic http primitives for actix-net framework.
+//! Basic HTTP primitives for the Actix ecosystem.
 
 #![deny(rust_2018_idioms)]
 #![allow(
@@ -78,3 +78,5 @@ pub enum Protocol {
     Http1,
     Http2,
 }
+
+type ConnectCallback<IO> = dyn Fn(&IO, &mut Extensions);
