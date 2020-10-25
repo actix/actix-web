@@ -66,6 +66,12 @@ required-features = ["compress"]
 
 [[example]]
 name = "on_connect"
+required-features = ["rustls"]
+
+[[example]]
+name = "client"
+required-features = ["rustls"]
+
 
 [dependencies]
 actix-codec = "0.3.0"
@@ -113,6 +119,7 @@ serde_derive = "1.0"
 brotli2 = "0.3.2"
 flate2 = "1.0.13"
 criterion = "0.3"
+webpki-roots = "0.20"
 
 [profile.release]
 lto = true
@@ -127,10 +134,6 @@ actix-web-codegen = { path = "actix-web-codegen" }
 actix-files = { path = "actix-files" }
 actix-multipart = { path = "actix-multipart" }
 awc = { path = "awc" }
-
-[[example]]
-name = "client"
-required-features = ["rustls"]
 
 [[bench]]
 name = "server"

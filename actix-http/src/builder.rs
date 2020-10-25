@@ -180,7 +180,8 @@ where
     /// Set on-connect callback.
     ///
     /// Called once per connection. Return value of the call is stored in request extensions.
-    #[deprecated = "Prefer the `on_connect_ext` style callback."]
+    ///
+    /// *SOFT DEPRECATED*: Prefer the `on_connect_ext` style callback.
     pub fn on_connect<F, I>(mut self, f: F) -> Self
     where
         F: Fn(&T) -> I + 'static,

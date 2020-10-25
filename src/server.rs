@@ -105,10 +105,12 @@ where
 
     /// Sets function that will be called once for each connection.
     /// It will receive &Any, which contains underlying connection type.
+    ///
     /// For example:
-    /// - `actix_tls::openssl::SslStream<tokio::net::TcpStream>` when using openssl.
-    /// - `actix_tls::rustls::TlsStream<tokio::net::TcpStream>` when using rustls.
-    /// - `tokio::net::TcpStream` when no encryption is used.
+    /// - `actix_tls::openssl::SslStream<actix_web::rt::net::TcpStream>` when using openssl.
+    /// - `actix_tls::rustls::TlsStream<actix_web::rt::net::TcpStream>` when using rustls.
+    /// - `actix_web::rt::net::TcpStream` when no encryption is used.
+    ///
     /// See `on_connect` example for additional details.
     pub fn on_connect<CB>(self, f: CB) -> HttpServer<F, I, S, B>
     where

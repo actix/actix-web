@@ -326,6 +326,7 @@ where
                 Some(self.cfg.clone()),
                 addr,
                 deprecated_on_connect,
+                Some(connect_extensions),
                 server::handshake(io),
             ),
         }
@@ -343,6 +344,7 @@ where
         Option<ServiceConfig>,
         Option<net::SocketAddr>,
         Option<Box<dyn DataFactory>>,
+        Option<Extensions>,
         Handshake<T, Bytes>,
     ),
 }
@@ -378,6 +380,7 @@ where
                 ref mut config,
                 ref peer_addr,
                 ref mut on_connect,
+                ref mut on_connect_data,
                 ref mut handshake,
             ) => match Pin::new(handshake).poll(cx) {
                 Poll::Ready(Ok(conn)) => {
@@ -385,6 +388,7 @@ where
                         srv.take().unwrap(),
                         conn,
                         on_connect.take(),
+                        on_connect_data.take().unwrap(),
                         config.take().unwrap(),
                         None,
                         *peer_addr,

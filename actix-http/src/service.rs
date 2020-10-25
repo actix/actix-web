@@ -20,7 +20,7 @@ use crate::error::{DispatchError, Error};
 use crate::helpers::DataFactory;
 use crate::request::Request;
 use crate::response::Response;
-use crate::{h1, h2::Dispatcher, ConnectCallback, Protocol};
+use crate::{h1, h2::Dispatcher, ConnectCallback, Extensions, Protocol};
 
 /// A `ServiceFactory` for HTTP/1.1 or HTTP/2 protocol.
 pub struct HttpService<T, S, B, X = h1::ExpectHandler, U = h1::UpgradeHandler<T>> {
@@ -562,12 +562,12 @@ where
     }
 
     fn call(&mut self, (io, proto, peer_addr): Self::Request) -> Self::Future {
-        let mut connect_extensions = crate::Extensions::new();
+        let mut connect_extensions = Extensions::new();
 
-        let legacy_on_connect = self.on_connect.as_ref().map(|handler| handler(&io));
-        self.on_connect_ext
-            .as_ref()
-            .map(|handler| handler(&io, &mut connect_extensions));
+        let deprecated_on_connect = self.on_connect.as_ref().map(|handler| handler(&io));
+        if let Some(ref handler) = self.on_connect_ext {
+            handler(&io, &mut connect_extensions);
+        }
 
         match proto {
             Protocol::Http2 => HttpServiceHandlerResponse {
@@ -575,7 +575,8 @@ where
                     server::handshake(io),
                     self.cfg.clone(),
                     self.srv.clone(),
-                    legacy_on_connect,
+                    deprecated_on_connect,
+                    connect_extensions,
                     peer_addr,
                 ))),
             },
@@ -587,7 +588,7 @@ where
                     self.srv.clone(),
                     self.expect.clone(),
                     self.upgrade.clone(),
-                    legacy_on_connect,
+                    deprecated_on_connect,
                     connect_extensions,
                     peer_addr,
                 )),
@@ -617,6 +618,7 @@ where
             ServiceConfig,
             CloneableService<S>,
             Option<Box<dyn DataFactory>>,
+            Extensions,
             Option<net::SocketAddr>,
         )>,
     ),
@@ -692,9 +694,9 @@ where
                 } else {
                     panic!()
                 };
-                let (_, cfg, srv, on_connect, peer_addr) = data.take().unwrap();
+                let (_, cfg, srv, on_connect, on_connect_data, peer_addr) = data.take().unwrap();
                 self.set(State::H2(Dispatcher::new(
-                    srv, conn, on_connect, cfg, None, peer_addr,
+                    srv, conn, on_connect, on_connect_data, cfg, None, peer_addr,
                 )));
                 self.poll(cx)
             }
