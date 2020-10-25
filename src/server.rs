@@ -359,11 +359,9 @@ where
                     .client_timeout(c.client_timeout)
                     .client_disconnect(c.client_shutdown);
 
-                let svc = if let Some(handler) =
-                    on_connect_fn.map(|handler| Arc::clone(&handler))
-                {
+                let svc = if let Some(handler) = on_connect_fn.clone() {
                     svc.on_connect_ext(move |io: &_, ext: _| {
-                        (handler)(io as &dyn Any, ext)
+                        (&*handler)(io as &dyn Any, ext)
                     })
                 } else {
                     svc
@@ -420,9 +418,7 @@ where
                     .client_timeout(c.client_timeout)
                     .client_disconnect(c.client_shutdown);
 
-                let svc = if let Some(handler) =
-                    on_connect_fn.map(|handler| Rc::clone(&handler))
-                {
+                let svc = if let Some(handler) = on_connect_fn.clone() {
                     svc.on_connect_ext(move |io: &_, ext: _| {
                         (handler)(io as &dyn Any, ext)
                     })
