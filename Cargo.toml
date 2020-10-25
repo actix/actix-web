@@ -68,47 +68,47 @@ required-features = ["compress"]
 actix-codec = "0.3.0"
 actix-service = "1.0.6"
 actix-utils = "2.0.0"
-actix-router = "0.2.4"
+actix-router = "0.2.5"
 actix-rt = "1.1.1"
-actix-server = "1.0.0"
-actix-testing = "1.0.0"
-actix-macros = "0.1.0"
-actix-threadpool = "0.3.1"
+actix-server = "1.0.4"
+actix-testing = "1.0.1"
+actix-macros = "0.1.2"
+actix-threadpool = "0.3.3"
 actix-tls = "2.0.0"
 
-actix-web-codegen = "0.3.0"
+actix-web-codegen = "0.4.0"
 actix-http = "2.0.0"
 awc = { version = "2.0.0", default-features = false }
 
-bytes = "0.5.3"
-derive_more = "0.99.2"
+bytes = "0.5.6"
+derive_more = "0.99.11"
 encoding_rs = "0.8"
-futures-channel = { version = "0.3.5", default-features = false }
-futures-core = { version = "0.3.5", default-features = false }
-futures-util = { version = "0.3.5", default-features = false }
+futures-channel = { version = "0.3.7", default-features = false }
+futures-core = { version = "0.3.7", default-features = false }
+futures-util = { version = "0.3.7", default-features = false }
 fxhash = "0.2.1"
 log = "0.4"
 mime = "0.3"
 socket2 = "0.3"
-pin-project = "1.0.0"
+pin-project = "1.0.1"
 regex = "1.4"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-serde_urlencoded = "0.6.1"
-time = { version = "0.2.7", default-features = false, features = ["std"] }
+serde_urlencoded = "0.7.0"
+time = { version = "0.2.22", default-features = false, features = ["std"] }
 url = "2.1"
 open-ssl = { package = "openssl", version = "0.10", optional = true }
-rust-tls = { package = "rustls", version = "0.18.0", optional = true }
+rust-tls = { package = "rustls", version = "0.18.1", optional = true }
 tinyvec = { version = "1", features = ["alloc"] }
 
 [dev-dependencies]
 actix = "0.10.0"
 actix-http = { version = "2.0.0", features = ["actors"] }
 rand = "0.7"
-env_logger = "0.7"
+env_logger = "0.8.1"
 serde_derive = "1.0"
 brotli2 = "0.3.2"
-flate2 = "1.0.13"
+flate2 = "1.0.18"
 criterion = "0.3"
 
 [profile.release]
