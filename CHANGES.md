@@ -8,6 +8,7 @@
 ### Changed
 * Print non-configured `Data<T>` type when attempting extraction. [#1743]
 * Re-export bytes::Buf{Mut} in web module. [#1750]
+* Upgrade `pin-project` to `1.0`.
 
 [#1723]: https://github.com/actix/actix-web/pull/1723
 [#1743]: https://github.com/actix/actix-web/pull/1743
