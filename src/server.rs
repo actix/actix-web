@@ -103,8 +103,9 @@ where
         }
     }
 
-    /// Sets function that will be called once for each connection.
-    /// It will receive &Any, which contains underlying connection type.
+    /// Sets function that will be called once before each connection is handled.
+    /// It will receive a `&std::any::Any`, which contains underlying connection type and an
+    /// [Extensions] container so that request-local data can be passed to middleware and handlers.
     ///
     /// For example:
     /// - `actix_tls::openssl::SslStream<actix_web::rt::net::TcpStream>` when using openssl.

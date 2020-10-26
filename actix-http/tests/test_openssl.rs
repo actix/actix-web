@@ -411,8 +411,10 @@ async fn test_h2_on_connect() {
     let srv = test_server(move || {
         HttpService::build()
             .on_connect(|_| 10usize)
+            .on_connect_ext(|_, data| data.insert(20isize))
             .h2(|req: Request| {
                 assert!(req.extensions().contains::<usize>());
+                assert!(req.extensions().contains::<isize>());
                 ok::<_, ()>(Response::Ok().finish())
             })
             .openssl(ssl_acceptor())

@@ -5,6 +5,7 @@
 * Implement `exclude_regex` for Logger middleware. [#1723]
 * Add request-local data extractor `web::ReqData`. [#1748]
 * Add `app_data` to `ServiceConfig`. [#1757]
+* Expose `on_connect` for access to the connection stream before request is handled. [#1748]
 
 ### Changed
 * Print non-configured `Data<T>` type when attempting extraction. [#1743]
@@ -15,6 +16,7 @@
 [#1743]: https://github.com/actix/actix-web/pull/1743
 [#1748]: https://github.com/actix/actix-web/pull/1748
 [#1750]: https://github.com/actix/actix-web/pull/1750
+[#1754]: https://github.com/actix/actix-web/pull/1754
 
 
 ## 3.1.0 - 2020-09-29

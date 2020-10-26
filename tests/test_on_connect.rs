@@ -1,9 +1,3 @@
-//! This example shows how to use `actix_web::HttpServer::on_connect` to access a lower-level socket
-//! properties and pass them to a handler through request-local data.
-//!
-//! For an example of extracting a client TLS certificate, see:
-//! <https://github.com/actix/examples/tree/HEAD/rustls-client-cert>
-
 use std::{any::Any, env, io, net::SocketAddr};
 
 use actix_web::{dev::Extensions, rt::net::TcpStream, web, App, HttpServer};

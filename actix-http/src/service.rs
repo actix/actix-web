@@ -694,9 +694,16 @@ where
                 } else {
                     panic!()
                 };
-                let (_, cfg, srv, on_connect, on_connect_data, peer_addr) = data.take().unwrap();
+                let (_, cfg, srv, on_connect, on_connect_data, peer_addr) =
+                    data.take().unwrap();
                 self.set(State::H2(Dispatcher::new(
-                    srv, conn, on_connect, on_connect_data, cfg, None, peer_addr,
+                    srv,
+                    conn,
+                    on_connect,
+                    on_connect_data,
+                    cfg,
+                    None,
+                    peer_addr,
                 )));
                 self.poll(cx)
             }
