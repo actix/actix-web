@@ -209,12 +209,7 @@ where
 
             self.data = Some(data);
         }
-
-        if !cfg.extensions.is_empty() {
-            let mut data = self.data.unwrap_or_else(Extensions::new);
-            data.extend(cfg.extensions);
-            self.data = Some(data);
-        }
+        self.data.get_or_insert_with(Extensions::new).extend(cfg.extensions);
         self
     }
 
