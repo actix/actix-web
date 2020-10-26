@@ -554,8 +554,9 @@ impl ResponseBuilder {
         self
     }
 
-    /// This method calls provided closure with builder reference if value is
-    /// true.
+    /// This method calls provided closure with builder reference if value is `true`.
+    #[doc(hidden)]
+    #[deprecated = "Use an if statement."]
     pub fn if_true<F>(&mut self, value: bool, f: F) -> &mut Self
     where
         F: FnOnce(&mut ResponseBuilder),
@@ -566,8 +567,9 @@ impl ResponseBuilder {
         self
     }
 
-    /// This method calls provided closure with builder reference if value is
-    /// Some.
+    /// This method calls provided closure with builder reference if value is `Some`.
+    #[doc(hidden)]
+    #[deprecated = "Use an if-let construction."]
     pub fn if_some<T, F>(&mut self, value: Option<T>, f: F) -> &mut Self
     where
         F: FnOnce(T, &mut ResponseBuilder),
