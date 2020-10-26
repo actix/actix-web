@@ -270,14 +270,13 @@ mod tests {
             cfg.app_data(10usize);
         };
 
-        let mut srv =
-            init_service(App::new().configure(cfg).service(
-                web::resource("/").to(|_: web::Data<usize>, req: HttpRequest| {
-                    assert_eq!(*req.app_data::<usize>().unwrap(), 10usize);
-                    HttpResponse::Ok()
-                }),
-            ))
-            .await;
+        let mut srv = init_service(App::new().configure(cfg).service(
+            web::resource("/").to(|_: web::Data<usize>, req: HttpRequest| {
+                assert_eq!(*req.app_data::<usize>().unwrap(), 10usize);
+                HttpResponse::Ok()
+            }),
+        ))
+        .await;
         let req = TestRequest::default().to_request();
         let resp = srv.call(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
