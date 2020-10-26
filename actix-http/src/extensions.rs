@@ -219,6 +219,7 @@ mod tests {
         assert_eq!(extensions.get_mut(), Some(&mut 20u8));
     }
 
+    #[test]
     fn test_drain_from() {
         let mut ext = Extensions::new();
         ext.insert(2isize);
