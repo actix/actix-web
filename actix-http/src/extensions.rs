@@ -66,6 +66,11 @@ impl Extensions {
     pub fn extend(&mut self, other: Extensions) {
         self.map.extend(other.map);
     }
+
+    /// Returns `true` if no extension is registered
+    pub fn is_empty(&self) -> bool {
+        self.map.is_empty()
+    }
 }
 
 impl fmt::Debug for Extensions {
@@ -93,6 +98,8 @@ mod tests {
     fn test_clear() {
         let mut map = Extensions::new();
 
+        assert!(map.is_empty());
+
         map.insert::<i8>(8);
         map.insert::<i16>(16);
         map.insert::<i32>(32);
@@ -100,12 +107,14 @@ mod tests {
         assert!(map.contains::<i8>());
         assert!(map.contains::<i16>());
         assert!(map.contains::<i32>());
+        assert!(!map.is_empty());
 
         map.clear();
 
         assert!(!map.contains::<i8>());
         assert!(!map.contains::<i16>());
         assert!(!map.contains::<i32>());
+        assert!(map.is_empty());
 
         map.insert::<i8>(10);
         assert_eq!(*map.get::<i8>().unwrap(), 10);
@@ -182,5 +191,35 @@ mod tests {
 
         assert_eq!(extensions.get::<bool>(), None);
         assert_eq!(extensions.get(), Some(&MyType(10)));
+    }
+
+    #[test]
+    fn test_extend() {
+        #[derive(Debug, PartialEq)]
+        struct MyType(i32);
+
+        let mut extensions = Extensions::new();
+
+        extensions.insert(5i32);
+        extensions.insert(MyType(10));
+
+        let mut other = Extensions::new();
+
+        other.insert(15i32);
+        other.insert(20u8);
+
+        extensions.extend(other);
+
+        assert_eq!(extensions.get(), Some(&15i32));
+        assert_eq!(extensions.get_mut(), Some(&mut 15i32));
+
+        assert_eq!(extensions.remove::<i32>(), Some(15i32));
+        assert!(extensions.get::<i32>().is_none());
+
+        assert_eq!(extensions.get::<bool>(), None);
+        assert_eq!(extensions.get(), Some(&MyType(10)));
+        
+        assert_eq!(extensions.get(), Some(&20u8));
+        assert_eq!(extensions.get_mut(), Some(&20u8));
     }
 }

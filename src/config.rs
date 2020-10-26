@@ -264,12 +264,12 @@ mod tests {
     async fn test_data() {
         let cfg = |cfg: &mut ServiceConfig| {
             cfg.data(10usize);
-            cfg.app_data(10usize);
+            cfg.app_data(15u8);
         };
 
         let mut srv = init_service(App::new().configure(cfg).service(
             web::resource("/").to(|_: web::Data<usize>, req: HttpRequest| {
-                assert_eq!(*req.app_data::<usize>().unwrap(), 10usize);
+                assert_eq!(*req.app_data::<u8>().unwrap(), 15u8);
                 HttpResponse::Ok()
             }),
         ))
