@@ -178,6 +178,7 @@ pub struct ServiceConfig {
     pub(crate) services: Vec<Box<dyn AppServiceFactory>>,
     pub(crate) data: Vec<Box<dyn DataFactory>>,
     pub(crate) external: Vec<ResourceDef>,
+    pub(crate) extensions: Extensions,
 }
 
 impl ServiceConfig {
@@ -186,6 +187,7 @@ impl ServiceConfig {
             services: Vec::new(),
             data: Vec::new(),
             external: Vec::new(),
+            extensions: Extensions::new(),
         }
     }
 
@@ -195,6 +197,17 @@ impl ServiceConfig {
     /// This is same as `App::data()` method.
     pub fn data<S: 'static>(&mut self, data: S) -> &mut Self {
         self.data.push(Box::new(Data::new(data)));
+        self
+    }
+
+    /// Set application level arbitrary data item.
+    ///
+    /// Application data stored with `App::app_data()` method is available
+    /// via `HttpRequest::app_data()` method at runtime.
+    ///
+    /// Note: this method is ignored for `Scope::configure` method
+    pub fn app_data<U: 'static>(&mut self, ext: U) -> &mut Self {
+        self.extensions.insert(ext);
         self
     }
 
@@ -254,11 +267,15 @@ mod tests {
     async fn test_data() {
         let cfg = |cfg: &mut ServiceConfig| {
             cfg.data(10usize);
+            cfg.app_data(10usize);
         };
 
         let mut srv =
             init_service(App::new().configure(cfg).service(
-                web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()),
+                web::resource("/").to(|_: web::Data<usize>, req: HttpRequest| {
+                    assert_eq!(*req.app_data::<usize>().unwrap(), 10usize);
+                    HttpResponse::Ok()
+                }),
             ))
             .await;
         let req = TestRequest::default().to_request();

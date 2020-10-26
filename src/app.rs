@@ -183,6 +183,7 @@ where
         self.data.extend(cfg.data);
         self.services.extend(cfg.services);
         self.external.extend(cfg.external);
+        self.extensions.extend(cfg.extensions);
         self
     }
 

@@ -61,6 +61,11 @@ impl Extensions {
     pub fn clear(&mut self) {
         self.map.clear();
     }
+
+    /// Extends it with the content for another `Extensions`
+    pub fn extend(&mut self, extensions: Extensions) {
+        self.map.extend(extensions.map);
+    }
 }
 
 impl fmt::Debug for Extensions {
