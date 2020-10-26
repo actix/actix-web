@@ -200,12 +200,9 @@ impl ServiceConfig {
         self
     }
 
-    /// Set application level arbitrary data item.
+    /// Set arbitrary data item.
     ///
-    /// Application data stored with `App::app_data()` method is available
-    /// via `HttpRequest::app_data()` method at runtime.
-    ///
-    /// Note: this method is ignored for `Scope::configure` method
+    /// This is same as `App::data()` method.
     pub fn app_data<U: 'static>(&mut self, ext: U) -> &mut Self {
         self.extensions.insert(ext);
         self
