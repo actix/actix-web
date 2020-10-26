@@ -62,9 +62,9 @@ impl Extensions {
         self.map.clear();
     }
 
-    /// Extends it with the content for another `Extensions`
-    pub fn extend(&mut self, extensions: Extensions) {
-        self.map.extend(extensions.map);
+    /// Extends self with the items from another `Extensions`.
+    pub fn extend(&mut self, other: Extensions) {
+        self.map.extend(other.map);
     }
 }
 
