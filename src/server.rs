@@ -127,19 +127,7 @@ where
             _t: PhantomData,
         }
     }
-}
 
-impl<F, I, S, B> HttpServer<F, I, S, B>
-where
-    F: Fn() -> I + Send + Clone + 'static,
-    I: IntoServiceFactory<S>,
-    S: ServiceFactory<Config = AppConfig, Request = Request>,
-    S::Error: Into<Error> + 'static,
-    S::InitError: fmt::Debug,
-    S::Response: Into<Response<B>> + 'static,
-    <S::Service as Service>::Future: 'static,
-    B: MessageBody + 'static,
-{
     /// Set number of workers to start.
     ///
     /// By default http server uses number of available logical cpu as threads
