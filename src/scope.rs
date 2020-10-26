@@ -209,7 +209,9 @@ where
 
             self.data = Some(data);
         }
-        self.data.get_or_insert_with(Extensions::new).extend(cfg.extensions);
+        self.data
+            .get_or_insert_with(Extensions::new)
+            .extend(cfg.extensions);
         self
     }
 
