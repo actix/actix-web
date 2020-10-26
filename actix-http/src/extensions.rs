@@ -220,6 +220,6 @@ mod tests {
         assert_eq!(extensions.get(), Some(&MyType(10)));
 
         assert_eq!(extensions.get(), Some(&20u8));
-        assert_eq!(extensions.get_mut(), Some(&20u8));
+        assert_eq!(extensions.get_mut(), Some(&mut 20u8));
     }
 }
