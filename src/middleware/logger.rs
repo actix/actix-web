@@ -93,7 +93,6 @@ struct Inner {
     format: Format,
     exclude: HashSet<String>,
     exclude_regex: RegexSet,
-    closure: Vec<fn(req: &ServiceRequest) -> String>,
 }
 
 impl Logger {
@@ -103,7 +102,6 @@ impl Logger {
             format: Format::new(format),
             exclude: HashSet::new(),
             exclude_regex: RegexSet::empty(),
-            closure: vec![],
         }))
     }
 
@@ -127,12 +125,21 @@ impl Logger {
     }
 
     /// Register a closure to be run on the request output of the logger.
-    /// Note: output from closure will be present at end of logger output. Multiple closure will be ran in the order they are registed.
-    pub fn register_request_closure(
+    /// Label passed into this function will be used to match output of given closure to label found in log format line with format %{label}xi.
+    pub fn custom_request_replace(
         mut self,
+        label: &'static str,
         closure: fn(req: &ServiceRequest) -> String,
     ) -> Self {
-        Rc::get_mut(&mut self.0).unwrap().closure.push(closure);
+        let inner = Rc::get_mut(&mut self.0).unwrap();
+
+        for tf in inner.format.0.iter_mut() {
+            if let FormatText::CustomLog(inner_label, _inner_closure) = tf {
+                if inner_label == label {
+                    *tf = FormatText::CustomLog(label.to_string(), Some(closure))
+                };
+            };
+        }
         self
     }
 }
@@ -148,7 +155,6 @@ impl Default for Logger {
             format: Format::default(),
             exclude: HashSet::new(),
             exclude_regex: RegexSet::empty(),
-            closure: vec![],
         }))
     }
 }
@@ -209,9 +215,6 @@ where
 
             for unit in &mut format.0 {
                 unit.render_request(now, &req);
-            }
-            for closure in self.inner.closure.clone() {
-                format.0.push(FormatText::render_closure(closure, &req));
             }
             LoggerResponse {
                 fut: self.service.call(req),
@@ -343,7 +346,8 @@ impl Format {
     /// Returns `None` if the format string syntax is incorrect.
     pub fn new(s: &str) -> Format {
         log::trace!("Access log format: {}", s);
-        let fmt = Regex::new(r"%(\{([A-Za-z0-9\-_]+)\}([aioe])|[atPrUsbTD]?)").unwrap();
+        let fmt =
+            Regex::new(r"%(\{([A-Za-z0-9\-_]+)\}([aioe]|xi)|[atPrUsbTD]?)").unwrap();
 
         let mut idx = 0;
         let mut results = Vec::new();
@@ -371,6 +375,7 @@ impl Format {
                         HeaderName::try_from(key.as_str()).unwrap(),
                     ),
                     "e" => FormatText::EnvironHeader(key.as_str().to_owned()),
+                    "xi" => FormatText::CustomLog(key.as_str().to_owned(), None),
                     _ => unreachable!(),
                 })
             } else {
@@ -400,7 +405,7 @@ impl Format {
 /// A string of text to be logged. This is either one of the data
 /// fields supported by the `Logger`, or a custom `String`.
 #[doc(hidden)]
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum FormatText {
     Str(String),
     Percent,
@@ -416,6 +421,7 @@ pub enum FormatText {
     RequestHeader(HeaderName),
     ResponseHeader(HeaderName),
     EnvironHeader(String),
+    CustomLog(String, Option<fn(req: &ServiceRequest) -> String>),
 }
 
 impl FormatText {
@@ -471,13 +477,6 @@ impl FormatText {
         }
     }
 
-    fn render_closure(
-        closure: fn(req: &ServiceRequest) -> String,
-        req: &ServiceRequest,
-    ) -> FormatText {
-        FormatText::Str(closure(req))
-    }
-
     fn render_request(&mut self, now: OffsetDateTime, req: &ServiceRequest) {
         match *self {
             FormatText::RequestLine => {
@@ -526,6 +525,14 @@ impl FormatText {
                 let s = if let Some(remote) = req.connection_info().realip_remote_addr()
                 {
                     FormatText::Str(remote.to_string())
+                } else {
+                    FormatText::Str("-".to_string())
+                };
+                *self = s;
+            }
+            FormatText::CustomLog(_, closure) => {
+                let s = if let Some(closure) = closure {
+                    FormatText::Str(closure(req))
                 } else {
                     FormatText::Str("-".to_string())
                 };
@@ -724,7 +731,37 @@ mod tests {
     }
 
     #[actix_rt::test]
-    async fn test_closure_logger_format() {
+    async fn test_custom_closure_log() {
+        let mut logger = Logger::new("%{CUSTOM}xi")
+            .custom_request_replace("CUSTOM", |_req: &ServiceRequest| -> String {
+                String::from("custom_log")
+            });
+        let mut format = Rc::get_mut(&mut logger.0).unwrap().format.0.clone();
+
+        let req = TestRequest::default().to_srv_request();
+
+        let now = OffsetDateTime::now_utc();
+        for unit in &mut format {
+            unit.render_request(now, &req);
+        }
+
+        let resp = HttpResponse::build(StatusCode::OK).force_close().finish();
+        for unit in &mut format {
+            unit.render_response(&resp);
+        }
+
+        let render = |fmt: &mut Formatter<'_>| {
+            for unit in &format {
+                unit.render(fmt, 1024, now)?;
+            }
+            Ok(())
+        };
+        let s = format!("{}", FormatDisplay(&render));
+        assert!(s.contains(&now.format("custom_log")));
+    }
+
+    #[actix_rt::test]
+    async fn test_closure_logger() {
         let srv = |req: ServiceRequest| {
             ok(req.into_response(
                 HttpResponse::build(StatusCode::OK)
@@ -732,8 +769,8 @@ mod tests {
                     .finish(),
             ))
         };
-        let logger = Logger::new("%% %{User-Agent}i %{X-Test}o %{HOME}e %D test")
-            .register_request_closure(|_req: &ServiceRequest| -> String {
+        let logger = Logger::new("%% %{User-Agent}i %{X-Test}o %{HOME}e %D %{CUSTOM}xi")
+            .custom_request_replace("CUSTOM", |_req: &ServiceRequest| -> String {
                 String::from("custom_log")
             });
 
