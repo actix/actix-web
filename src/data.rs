@@ -18,49 +18,11 @@ pub(crate) trait DataFactory {
 pub(crate) type FnDataFactory =
     Box<dyn Fn() -> LocalBoxFuture<'static, Result<Box<dyn DataFactory>, ()>>>;
 
-/// Application data.
+/// Wrapper for a piece of data.
 ///
-/// Application level data is a piece of arbitrary data attached to the app, scope, or resource.
-/// Application data is available to all routes and can be added during the application
-/// configuration process via `App::data()`.
+/// Internally it wraps the data in an `Arc`.
 ///
-/// Application data can be accessed by using `Data<T>` extractor where `T` is data type.
-///
-/// **Note**: http server accepts an application factory rather than an application instance. HTTP
-/// server constructs an application instance for each thread, thus application data must be
-/// constructed multiple times. If you want to share data between different threads, a shareable
-/// object should be used, e.g. `Send + Sync`. Application data does not need to be `Send`
-/// or `Sync`. Internally `Data` uses `Arc`.
-///
-/// If route data is not set for a handler, using `Data<T>` extractor would cause *Internal
-/// Server Error* response.
-///
-/// ```rust
-/// use std::sync::Mutex;
-/// use actix_web::{web, App, HttpResponse, Responder};
-///
-/// struct MyData {
-///     counter: usize,
-/// }
-///
-/// /// Use the `Data<T>` extractor to access data in a handler.
-/// async fn index(data: web::Data<Mutex<MyData>>) -> impl Responder {
-///     let mut data = data.lock().unwrap();
-///     data.counter += 1;
-///     HttpResponse::Ok()
-/// }
-///
-/// fn main() {
-///     let data = web::Data::new(Mutex::new(MyData{ counter: 0 }));
-///
-///     let app = App::new()
-///         // Store `MyData` in application storage.
-///         .app_data(data.clone())
-///         .service(
-///             web::resource("/index.html").route(
-///                 web::get().to(index)));
-/// }
-/// ```
+/// See `App::data()` and `App::app_data()` for when and how to use this.
 #[derive(Debug)]
 pub struct Data<T: ?Sized>(Arc<T>);
 

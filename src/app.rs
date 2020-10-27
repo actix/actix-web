@@ -70,7 +70,8 @@ where
         InitError = (),
     >,
 {
-    /// Adds application data.
+    /// Adds an arbirtraty application level data item.
+    ///
     /// Application data can be accessed by using a `Data<T>` extractor where `T` is the data type.
     ///
     /// The state is managed on a per-type basis and as such there can be
@@ -82,12 +83,15 @@ where
     /// If your data is already wrapped in an `Arc`
     /// you can instead store it directly using the `App::app_data()` function.
     ///
-    /// **Note**: `HttpServer` accepts an application factory rather than
+    /// **Note**: `HttpServer` accepts an application factory (closure) rather than
     /// an application instance (`App`).
-    /// `HttpServer` constructs an application instance for each thread,
-    /// thus application data must be constructed multiple times.
+    /// `HttpServer` constructs an application instance for each thread
+    /// by calling this factory closure thus application data must be constructed multiple times.
     /// If you want to share data between different threads,
     /// a shared object should be used, e.g. `Arc`.
+    ///
+    /// If route data is not set for a handler, using `Data<T>` extractor would cause an *Internal
+    /// Server Error* response.
     ///
     /// ```rust
     /// use std::cell::Cell;
@@ -144,13 +148,60 @@ where
         self
     }
 
-    /// Set application level arbitrary data item.
+    /// Adds an arbirtraty application level data item.
     ///
-    /// Application data stored with `App::app_data()` method is available
-    /// via `HttpRequest::app_data()` method at runtime.
+    /// This data is available to all routes and can be added during the application.
+    /// There are two ways to retrieve this data:
     ///
-    /// This method could be used for storing `Data<T>` as well, in that case
-    /// data could be accessed by using `Data<T>` extractor.
+    /// 1. At runtime via the `HttpRequest::app_data()` method
+    /// 2. If data of type `T` is stored wrapped in a `Data<T>` object
+    ///    it can also be retrieved using a `Data<T>` extractor
+    ///
+    /// The state is managed on a per-type basis and as such there can be
+    /// at most one value for any given type.
+    /// Later invocations overwrite earlier ones.
+    /// This means that only the last invocation of this function per type will have an effect.
+    ///
+    /// **Note**: `HttpServer` accepts an application factory (closure) rather than
+    /// an application instance (`App`).
+    /// `HttpServer` constructs an application instance for each thread
+    /// by calling this factory closure thus application data must be constructed multiple times.
+    /// If you want to share data between different threads,
+    /// a shared object should be used, e.g. `Arc`.
+    ///
+    /// ```rust
+    /// use std::sync::Mutex;
+    /// use actix_web::{web, App, HttpResponse, HttpRequest, Responder};
+    ///
+    /// struct MyData {
+    ///     counter: usize,
+    /// }
+    ///
+    /// /// Use the `Data<T>` extractor to access data in a handler.
+    /// async fn index(data: web::Data<Mutex<MyData>>) -> impl Responder {
+    ///     let mut data = data.lock().unwrap();
+    ///     data.counter += 1;
+    ///     HttpResponse::Ok().body(format!("{}", data.counter))
+    /// }
+    ///
+    /// async fn hello(req: HttpRequest) -> impl Responder {
+    ///    let data = req.app_data::<web::Data<Mutex<MyData>>>();
+    ///    let mut data = data.unwrap().lock().unwrap();
+    ///    data.counter += 1;
+    ///    HttpResponse::Ok().body(format!("{}", data.counter))
+    ///}
+    ///
+    /// fn main() {
+    ///     let data = web::Data::new(Mutex::new(MyData{ counter: 0 }));
+    ///
+    ///     let app = App::new()
+    ///         // Store `MyData` in application storage.
+    ///         .app_data(data)
+    ///         .service(
+    ///             web::resource("/index.html").route(
+    ///                 web::get().to(index)));
+    /// }
+    /// ```
     pub fn app_data<U: 'static>(mut self, ext: U) -> Self {
         self.extensions.insert(ext);
         self
