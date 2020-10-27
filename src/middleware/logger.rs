@@ -129,14 +129,16 @@ impl Logger {
     pub fn custom_request_replace(
         mut self,
         label: &'static str,
-        closure: fn(req: &ServiceRequest) -> String,
+        closure: impl Fn(&ServiceRequest) -> String + 'static + Clone,
     ) -> Self {
         let inner = Rc::get_mut(&mut self.0).unwrap();
 
         for tf in inner.format.0.iter_mut() {
-            if let FormatText::CustomLog(inner_label, _inner_closure) = tf {
+            if let FormatText::CustomLog(inner_label, inner_closure) = tf {
                 if inner_label == label {
-                    *tf = FormatText::CustomLog(label.to_string(), Some(closure))
+                    *inner_closure = Some(CustomRequestFn {
+                        inner_fn: Rc::new(closure.clone()),
+                    });
                 };
             };
         }
@@ -405,7 +407,7 @@ impl Format {
 /// A string of text to be logged. This is either one of the data
 /// fields supported by the `Logger`, or a custom `String`.
 #[doc(hidden)]
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum FormatText {
     Str(String),
     Percent,
@@ -421,7 +423,18 @@ pub enum FormatText {
     RequestHeader(HeaderName),
     ResponseHeader(HeaderName),
     EnvironHeader(String),
-    CustomLog(String, Option<fn(req: &ServiceRequest) -> String>),
+    CustomLog(String, Option<CustomRequestFn>),
+}
+
+#[derive(Clone)]
+pub struct CustomRequestFn {
+    pub(crate) inner_fn: Rc<dyn Fn(&ServiceRequest) -> String>,
+}
+
+impl fmt::Debug for CustomRequestFn {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("custom log closure fn")
+    }
 }
 
 impl FormatText {
@@ -478,7 +491,7 @@ impl FormatText {
     }
 
     fn render_request(&mut self, now: OffsetDateTime, req: &ServiceRequest) {
-        match *self {
+        match &*self {
             FormatText::RequestLine => {
                 *self = if req.query_string().is_empty() {
                     FormatText::Str(format!(
@@ -532,7 +545,7 @@ impl FormatText {
             }
             FormatText::CustomLog(_, closure) => {
                 let s = if let Some(closure) = closure {
-                    FormatText::Str(closure(req))
+                    FormatText::Str((closure.inner_fn)(req))
                 } else {
                     FormatText::Str("-".to_string())
                 };
