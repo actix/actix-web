@@ -61,6 +61,11 @@ impl Extensions {
     pub fn clear(&mut self) {
         self.map.clear();
     }
+
+    /// Extends self with the items from another `Extensions`.
+    pub fn extend(&mut self, other: Extensions) {
+        self.map.extend(other.map);
+    }
 }
 
 impl fmt::Debug for Extensions {
@@ -177,5 +182,35 @@ mod tests {
 
         assert_eq!(extensions.get::<bool>(), None);
         assert_eq!(extensions.get(), Some(&MyType(10)));
+    }
+
+    #[test]
+    fn test_extend() {
+        #[derive(Debug, PartialEq)]
+        struct MyType(i32);
+
+        let mut extensions = Extensions::new();
+
+        extensions.insert(5i32);
+        extensions.insert(MyType(10));
+
+        let mut other = Extensions::new();
+
+        other.insert(15i32);
+        other.insert(20u8);
+
+        extensions.extend(other);
+
+        assert_eq!(extensions.get(), Some(&15i32));
+        assert_eq!(extensions.get_mut(), Some(&mut 15i32));
+
+        assert_eq!(extensions.remove::<i32>(), Some(15i32));
+        assert!(extensions.get::<i32>().is_none());
+
+        assert_eq!(extensions.get::<bool>(), None);
+        assert_eq!(extensions.get(), Some(&MyType(10)));
+
+        assert_eq!(extensions.get(), Some(&20u8));
+        assert_eq!(extensions.get_mut(), Some(&mut 20u8));
     }
 }
