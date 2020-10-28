@@ -129,19 +129,25 @@ impl Logger {
     pub fn custom_request_replace(
         mut self,
         label: &'static str,
-        closure: impl Fn(&ServiceRequest) -> String + 'static + Clone,
+        closure: impl Fn(&ServiceRequest) -> String + 'static,
     ) -> Self {
         let inner = Rc::get_mut(&mut self.0).unwrap();
 
-        for tf in inner.format.0.iter_mut() {
-            if let FormatText::CustomLog(inner_label, inner_closure) = tf {
-                if inner_label == label {
+        let pos = inner.format.0.iter().position(|tf| match tf {
+            FormatText::CustomLog(inner_label, _) => label == inner_label,
+            _ => false,
+        });
+        match pos {
+            Some(pos) => match &mut inner.format.0[pos] {
+                FormatText::CustomLog(_, inner_closure) => {
                     *inner_closure = Some(CustomRequestFn {
-                        inner_fn: Rc::new(closure.clone()),
-                    });
-                };
-            };
-        }
+                        inner_fn: Rc::new(closure),
+                    })
+                }
+                _ => unreachable!(),
+            },
+            None => (),
+        };
         self
     }
 }
