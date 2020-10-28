@@ -134,12 +134,12 @@ impl Logger {
         let inner = Rc::get_mut(&mut self.0).unwrap();
 
         let pos = inner.format.0.iter().position(|tf| match tf {
-            FormatText::CustomRequestLog(inner_label, _) => label == inner_label,
+            FormatText::CustomRequest(inner_label, _) => label == inner_label,
             _ => false,
         });
         match pos {
             Some(pos) => match &mut inner.format.0[pos] {
-                FormatText::CustomRequestLog(_, inner_closure) => {
+                FormatText::CustomRequest(_, inner_closure) => {
                     *inner_closure = Some(CustomRequestFn {
                         inner_fn: Rc::new(closure),
                     })
@@ -383,7 +383,7 @@ impl Format {
                         HeaderName::try_from(key.as_str()).unwrap(),
                     ),
                     "e" => FormatText::EnvironHeader(key.as_str().to_owned()),
-                    "xi" => FormatText::CustomRequestLog(key.as_str().to_owned(), None),
+                    "xi" => FormatText::CustomRequest(key.as_str().to_owned(), None),
                     _ => unreachable!(),
                 })
             } else {
@@ -429,7 +429,7 @@ pub enum FormatText {
     RequestHeader(HeaderName),
     ResponseHeader(HeaderName),
     EnvironHeader(String),
-    CustomRequestLog(String, Option<CustomRequestFn>),
+    CustomRequest(String, Option<CustomRequestFn>),
 }
 
 #[derive(Clone)]
@@ -549,7 +549,7 @@ impl FormatText {
                 };
                 *self = s;
             }
-            FormatText::CustomLog(_, closure) => {
+            FormatText::CustomRequest(_, closure) => {
                 let s = if let Some(closure) = closure {
                     FormatText::Str((closure.inner_fn)(req))
                 } else {
