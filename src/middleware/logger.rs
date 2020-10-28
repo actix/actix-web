@@ -133,9 +133,12 @@ impl Logger {
     ) -> Self {
         let inner = Rc::get_mut(&mut self.0).unwrap();
 
-        let pos = inner.format.0.iter().position(|tf| match tf {
-            FormatText::CustomRequest(inner_label, _) => label == inner_label,
-            _ => false,
+        let pos = inner.format.0.iter().position(|tf| {
+            if let FormatText::CustomRequest(inner_label, _) = tf {
+                label == inner_label
+            } else {
+                false
+            }
         });
         match pos {
             Some(pos) => match &mut inner.format.0[pos] {
