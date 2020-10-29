@@ -3,7 +3,10 @@
 ## Unreleased - 2020-xx-xx
 * Upgrade `base64` to `0.13`.
 * Upgrade `pin-project` to `1.0`.
-* Deprecate `ResponseBuilder::{if_some, if_true}`.
+* Deprecate `ResponseBuilder::{if_some, if_true}`. [#1760]
+
+[#1760]: https://github.com/actix/actix-web/pull/1760
+
 
 ## 2.0.0 - 2020-09-11
 * No significant changes from `2.0.0-beta.4`.
