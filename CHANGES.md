@@ -30,6 +30,9 @@
 * Re-export bytes::Buf{Mut} in web module. [#1750]
 * Upgrade `pin-project` to `1.0`.
 
+### Fixed
+* Removed an occasional `unwrap` on `None` panic in `NormalizePathNormalization`.
+
 [#1723]: https://github.com/actix/actix-web/pull/1723
 [#1743]: https://github.com/actix/actix-web/pull/1743
 [#1748]: https://github.com/actix/actix-web/pull/1748
