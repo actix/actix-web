@@ -4,6 +4,7 @@
 ### Added
 * Implement `exclude_regex` for Logger middleware. [#1723]
 * Add request-local data extractor `web::ReqData`. [#1748]
+* Add ability to register closure for request middleware logging. [#1749]
 * Add `app_data` to `ServiceConfig`. [#1757]
 
 ### Changed
@@ -15,6 +16,7 @@
 [#1743]: https://github.com/actix/actix-web/pull/1743
 [#1748]: https://github.com/actix/actix-web/pull/1748
 [#1750]: https://github.com/actix/actix-web/pull/1750
+[#1749]: https://github.com/actix/actix-web/pull/1749
 
 
 ## 3.1.0 - 2020-09-29
