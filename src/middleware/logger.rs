@@ -34,21 +34,19 @@ use crate::HttpResponse;
 /// Default `Logger` could be created with `default` method, it uses the
 /// default format:
 ///
-/// ```ignore
-///  %a "%r" %s %b "%{Referer}i" "%{User-Agent}i" %T
+/// ```plain
+/// %a "%r" %s %b "%{Referer}i" "%{User-Agent}i" %T
 /// ```
+///
 /// ```rust
-/// use actix_web::middleware::Logger;
-/// use actix_web::App;
+/// use actix_web::{middleware::Logger, App};
 ///
-/// fn main() {
-///     std::env::set_var("RUST_LOG", "actix_web=info");
-///     env_logger::init();
+/// std::env::set_var("RUST_LOG", "actix_web=info");
+/// env_logger::init();
 ///
-///     let app = App::new()
-///         .wrap(Logger::default())
-///         .wrap(Logger::new("%a %{User-Agent}i"));
-/// }
+/// let app = App::new()
+///     .wrap(Logger::default())
+///     .wrap(Logger::new("%a %{User-Agent}i"));
 /// ```
 ///
 /// ## Format
@@ -79,6 +77,8 @@ use crate::HttpResponse;
 /// `%{FOO}o`  response.headers['FOO']
 ///
 /// `%{FOO}e`  os.environ['FOO']
+///
+/// `%{FOO}xi`  [custom request replacement](Logger::custom_request_replace) labelled "FOO"
 ///
 /// # Security
 ///  **\*** It is calculated using
@@ -124,33 +124,43 @@ impl Logger {
         self
     }
 
-    /// Register a closure to be run on the request output of the logger.
-    /// Label passed into this function will be used to match output of given closure to label found in log format line with format %{label}xi.
+    /// Register a function that receives a ServiceRequest and returns a String for use in the
+    /// log line. The label passed as the first argument should match a replacement substring in
+    /// the logger format like `%{label}xi`.
+    ///
+    /// It is convention to print "-" to indicate no output instead of an empty string.
+    ///
+    /// # Example
+    /// ```rust
+    /// # use actix_web::{http::HeaderValue, middleware::Logger};
+    /// # fn parse_jwt_id (_req: Option<&HeaderValue>) -> String { "jwt_uid".to_owned() }
+    /// Logger::new("example %{JWT_ID}xi")
+    ///     .custom_request_replace("JWT_ID", |req| parse_jwt_id(req.headers().get("Authorization")));
+    /// ```
     pub fn custom_request_replace(
         mut self,
-        label: &'static str,
-        closure: impl Fn(&ServiceRequest) -> String + 'static,
+        label: &str,
+        f: impl Fn(&ServiceRequest) -> String + 'static,
     ) -> Self {
         let inner = Rc::get_mut(&mut self.0).unwrap();
 
-        let pos = inner.format.0.iter().position(|tf| {
-            if let FormatText::CustomRequest(inner_label, _) = tf {
-                label == inner_label
-            } else {
-                false
-            }
+        let ft = inner.format.0.iter_mut().find(|ft| {
+            matches!(ft, FormatText::CustomRequest(unit_label, _) if label == unit_label)
         });
-        match pos {
-            Some(pos) => match &mut inner.format.0[pos] {
-                FormatText::CustomRequest(_, inner_closure) => {
-                    *inner_closure = Some(CustomRequestFn {
-                        inner_fn: Rc::new(closure),
-                    })
-                }
-                _ => unreachable!(),
-            },
-            None => (),
-        };
+
+        if let Some(FormatText::CustomRequest(_, request_fn)) = ft {
+            // replace into None or previously registered fn using same label
+            request_fn.replace(CustomRequestFn {
+                inner_fn: Rc::new(f),
+            });
+        } else {
+            // non-printed request replacement function diagnostic
+            debug!(
+                "Attempted to register custom request logging function for nonexistent label: {}",
+                label
+            );
+        }
+
         self
     }
 }
@@ -158,7 +168,7 @@ impl Logger {
 impl Default for Logger {
     /// Create `Logger` middleware with format:
     ///
-    /// ```ignore
+    /// ```plain
     /// %a "%r" %s %b "%{Referer}i" "%{User-Agent}i" %T
     /// ```
     fn default() -> Logger {
@@ -183,6 +193,17 @@ where
     type Future = Ready<Result<Self::Transform, Self::InitError>>;
 
     fn new_transform(&self, service: S) -> Self::Future {
+        for unit in &self.0.format.0 {
+            // missing request replacement function diagnostic
+            if let FormatText::CustomRequest(label, None) = unit {
+                debug!(
+                    "No custom request replacement function was registered for label {} in\
+                    logger format.",
+                    label
+                );
+            }
+        }
+
         ok(LoggerMiddleware {
             service,
             inner: self.0.clone(),
@@ -341,7 +362,6 @@ impl<B: MessageBody> MessageBody for StreamLog<B> {
 /// A formatting style for the `Logger`, consisting of multiple
 /// `FormatText`s concatenated into one line.
 #[derive(Clone)]
-#[doc(hidden)]
 struct Format(Vec<FormatText>);
 
 impl Default for Format {
@@ -416,7 +436,9 @@ impl Format {
 /// A string of text to be logged. This is either one of the data
 /// fields supported by the `Logger`, or a custom `String`.
 #[doc(hidden)]
+#[non_exhaustive]
 #[derive(Debug, Clone)]
+// TODO: remove pub on next breaking change
 pub enum FormatText {
     Str(String),
     Percent,
@@ -435,14 +457,22 @@ pub enum FormatText {
     CustomRequest(String, Option<CustomRequestFn>),
 }
 
+// TODO: remove pub on next breaking change
+#[doc(hidden)]
 #[derive(Clone)]
 pub struct CustomRequestFn {
-    pub(crate) inner_fn: Rc<dyn Fn(&ServiceRequest) -> String>,
+    inner_fn: Rc<dyn Fn(&ServiceRequest) -> String>,
+}
+
+impl CustomRequestFn {
+    fn call(&self, req: &ServiceRequest) -> String {
+        (self.inner_fn)(req)
+    }
 }
 
 impl fmt::Debug for CustomRequestFn {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("custom log closure fn")
+        f.write_str("custom_request_fn")
     }
 }
 
@@ -552,12 +582,12 @@ impl FormatText {
                 };
                 *self = s;
             }
-            FormatText::CustomRequest(_, closure) => {
-                let s = if let Some(closure) = closure {
-                    FormatText::Str((closure.inner_fn)(req))
-                } else {
-                    FormatText::Str("-".to_string())
+            FormatText::CustomRequest(_, request_fn) => {
+                let s = match request_fn {
+                    Some(f) => FormatText::Str(f.call(req)),
+                    None => FormatText::Str("-".to_owned()),
                 };
+
                 *self = s;
             }
             _ => (),
@@ -565,6 +595,7 @@ impl FormatText {
     }
 }
 
+/// Converter to get a String from something that writes to a Formatter.
 pub(crate) struct FormatDisplay<'a>(
     &'a dyn Fn(&mut Formatter<'_>) -> Result<(), fmt::Error>,
 );
@@ -582,7 +613,7 @@ mod tests {
 
     use super::*;
     use crate::http::{header, StatusCode};
-    use crate::test::TestRequest;
+    use crate::test::{self, TestRequest};
 
     #[actix_rt::test]
     async fn test_logger() {
@@ -754,55 +785,42 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_custom_closure_log() {
-        let mut logger = Logger::new("%{CUSTOM}xi")
+        let mut logger = Logger::new("test %{CUSTOM}xi")
             .custom_request_replace("CUSTOM", |_req: &ServiceRequest| -> String {
                 String::from("custom_log")
             });
-        let mut format = Rc::get_mut(&mut logger.0).unwrap().format.0.clone();
+        let mut unit = Rc::get_mut(&mut logger.0).unwrap().format.0[1].clone();
+
+        let label = match &unit {
+            FormatText::CustomRequest(label, _) => label,
+            ft => panic!("expected CustomRequest, found {:?}", ft),
+        };
+
+        assert_eq!(label, "CUSTOM");
 
         let req = TestRequest::default().to_srv_request();
-
         let now = OffsetDateTime::now_utc();
-        for unit in &mut format {
-            unit.render_request(now, &req);
-        }
 
-        let resp = HttpResponse::build(StatusCode::OK).force_close().finish();
-        for unit in &mut format {
-            unit.render_response(&resp);
-        }
+        unit.render_request(now, &req);
 
-        let render = |fmt: &mut Formatter<'_>| {
-            for unit in &format {
-                unit.render(fmt, 1024, now)?;
-            }
-            Ok(())
-        };
-        let s = format!("{}", FormatDisplay(&render));
-        assert!(s.contains(&now.format("custom_log")));
+        let render = |fmt: &mut Formatter<'_>| unit.render(fmt, 1024, now);
+
+        let log_output = FormatDisplay(&render).to_string();
+        assert_eq!(log_output, "custom_log");
     }
 
     #[actix_rt::test]
-    async fn test_closure_logger() {
-        let srv = |req: ServiceRequest| {
-            ok(req.into_response(
-                HttpResponse::build(StatusCode::OK)
-                    .header("X-Test", "ttt")
-                    .finish(),
-            ))
-        };
-        let logger = Logger::new("%% %{User-Agent}i %{X-Test}o %{HOME}e %D %{CUSTOM}xi")
-            .custom_request_replace("CUSTOM", |_req: &ServiceRequest| -> String {
-                String::from("custom_log")
+    async fn test_closure_logger_in_middleware() {
+        let captured = "custom log replacement";
+
+        let logger = Logger::new("%{CUSTOM}xi")
+            .custom_request_replace("CUSTOM", move |_req: &ServiceRequest| -> String {
+                captured.to_owned()
             });
 
-        let mut srv = logger.new_transform(srv.into_service()).await.unwrap();
+        let mut srv = logger.new_transform(test::ok_service()).await.unwrap();
 
-        let req = TestRequest::with_header(
-            header::USER_AGENT,
-            header::HeaderValue::from_static("ACTIX-WEB"),
-        )
-        .to_srv_request();
-        let _res = srv.call(req).await;
+        let req = TestRequest::default().to_srv_request();
+        srv.call(req).await.unwrap();
     }
 }
