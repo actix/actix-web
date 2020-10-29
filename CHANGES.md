@@ -5,6 +5,7 @@
 * Implement `exclude_regex` for Logger middleware. [#1723]
 * Add request-local data extractor `web::ReqData`. [#1748]
 * Add ability to register closure for request middleware logging. [#1749]
+* Add `app_data` to `ServiceConfig`. [#1757]
 
 ### Changed
 * Print non-configured `Data<T>` type when attempting extraction. [#1743]
