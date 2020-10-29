@@ -3,11 +3,13 @@
 ## Unreleased - 2020-xx-xx
 ### Changed
 * Upgrade `base64` to `0.13`.
+* Deprecate `ClientRequest::{if_some, if_true}`. [#1760]
 
 ### Fixed
 * Use `Accept-Encoding: identity` instead of `Accept-Encoding: br` when no compression feature is enabled [#1737]
 
 [#1737]: https://github.com/actix/actix-web/pull/1737
+[#1760]: https://github.com/actix/actix-web/pull/1760
 
 
 ## 2.0.0 - 2020-09-11
