@@ -24,6 +24,7 @@ use crate::message::ResponseHead;
 use crate::payload::Payload;
 use crate::request::Request;
 use crate::response::Response;
+use crate::Extensions;
 
 const CHUNK_SIZE: usize = 16_384;
 
@@ -36,6 +37,7 @@ where
     service: CloneableService<S>,
     connection: Connection<T, Bytes>,
     on_connect: Option<Box<dyn DataFactory>>,
+    on_connect_data: Extensions,
     config: ServiceConfig,
     peer_addr: Option<net::SocketAddr>,
     ka_expire: Instant,
@@ -56,6 +58,7 @@ where
         service: CloneableService<S>,
         connection: Connection<T, Bytes>,
         on_connect: Option<Box<dyn DataFactory>>,
+        on_connect_data: Extensions,
         config: ServiceConfig,
         timeout: Option<Delay>,
         peer_addr: Option<net::SocketAddr>,
@@ -82,6 +85,7 @@ where
             peer_addr,
             connection,
             on_connect,
+            on_connect_data,
             ka_expire,
             ka_timer,
             _t: PhantomData,
@@ -130,10 +134,14 @@ where
                     head.headers = parts.headers.into();
                     head.peer_addr = this.peer_addr;
 
+                    // DEPRECATED
                     // set on_connect data
                     if let Some(ref on_connect) = this.on_connect {
                         on_connect.set(&mut req.extensions_mut());
                     }
+
+                    // merge on_connect_ext data into request extensions
+                    req.extensions_mut().drain_from(&mut this.on_connect_data);
 
                     actix_rt::spawn(ServiceResponse::<
                         S::Future,

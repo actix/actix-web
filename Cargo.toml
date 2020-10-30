@@ -64,6 +64,14 @@ required-features = ["compress"]
 name = "test_server"
 required-features = ["compress"]
 
+[[example]]
+name = "on_connect"
+required-features = []
+
+[[example]]
+name = "client"
+required-features = ["rustls"]
+
 [dependencies]
 actix-codec = "0.3.0"
 actix-service = "1.0.6"
@@ -105,7 +113,7 @@ tinyvec = { version = "1", features = ["alloc"] }
 actix = "0.10.0"
 actix-http = { version = "2.0.0", features = ["actors"] }
 rand = "0.7"
-env_logger = "0.7"
+env_logger = "0.8"
 serde_derive = "1.0"
 brotli2 = "0.3.2"
 flate2 = "1.0.13"
@@ -124,10 +132,6 @@ actix-web-codegen = { path = "actix-web-codegen" }
 actix-files = { path = "actix-files" }
 actix-multipart = { path = "actix-multipart" }
 awc = { path = "awc" }
-
-[[example]]
-name = "client"
-required-features = ["rustls"]
 
 [[bench]]
 name = "server"
