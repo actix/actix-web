@@ -1,8 +1,8 @@
 [package]
 name = "actix-web"
-version = "3.1.0"
+version = "3.2.0"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
-description = "Actix web is a powerful, pragmatic, and extremely fast web framework for Rust."
+description = "Actix web is a powerful, pragmatic, and extremely fast web framework for Rust"
 readme = "README.md"
 keywords = ["actix", "http", "web", "framework", "async"]
 homepage = "https://actix.rs"
@@ -84,8 +84,8 @@ actix-macros = "0.1.0"
 actix-threadpool = "0.3.1"
 actix-tls = "2.0.0"
 
-actix-web-codegen = "0.3.0"
-actix-http = "2.0.0"
+actix-web-codegen = "0.4.0"
+actix-http = "2.1.0"
 awc = { version = "2.0.0", default-features = false }
 
 bytes = "0.5.3"
@@ -111,7 +111,7 @@ tinyvec = { version = "1", features = ["alloc"] }
 
 [dev-dependencies]
 actix = "0.10.0"
-actix-http = { version = "2.0.0", features = ["actors"] }
+actix-http = { version = "2.1.0", features = ["actors"] }
 rand = "0.7"
 env_logger = "0.8"
 serde_derive = "1.0"

@@ -5,15 +5,17 @@
   </p>
   <p>
 
-[![crates.io](https://meritbadge.herokuapp.com/actix-web)](https://crates.io/crates/actix-web)
-[![Documentation](https://docs.rs/actix-web/badge.svg)](https://docs.rs/actix-web)
+[![crates.io](https://img.shields.io/crates/v/actix-web?label=latest)](https://crates.io/crates/actix-web)
+[![Documentation](https://docs.rs/actix-web/badge.svg?version=3.2.0)](https://docs.rs/actix-web/3.2.0)
 [![Version](https://img.shields.io/badge/rustc-1.42+-ab6000.svg)](https://blog.rust-lang.org/2020/03/12/Rust-1.42.html)
 ![License](https://img.shields.io/crates/l/actix-web.svg)
+[![Dependency Status](https://deps.rs/crate/actix-web/3.2.0/status.svg)](https://deps.rs/crate/actix-web/2.2.0)
 <br />
 [![Build Status](https://travis-ci.org/actix/actix-web.svg?branch=master)](https://travis-ci.org/actix/actix-web) 
 [![codecov](https://codecov.io/gh/actix/actix-web/branch/master/graph/badge.svg)](https://codecov.io/gh/actix/actix-web) 
 [![Download](https://img.shields.io/crates/d/actix-web.svg)](https://crates.io/crates/actix-web)
 [![Join the chat at https://gitter.im/actix/actix](https://badges.gitter.im/actix/actix.svg)](https://gitter.im/actix/actix?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+[![Chat on Discord](https://img.shields.io/discord/771444961383153695?label=chat&logo=discord)](https://discord.gg/NWpN5mmg3x)
 
   </p>
 </div>

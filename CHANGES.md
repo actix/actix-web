@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2020-xx-xx
+
+
+## 3.2.0 - 2020-10-30
 ### Added
 * Implement `exclude_regex` for Logger middleware. [#1723]
 * Add request-local data extractor `web::ReqData`. [#1748]
@@ -9,6 +12,7 @@
 * Expose `on_connect` for access to the connection stream before request is handled. [#1754]
 
 ### Changed
+* Updated actix-web-codegen dependency for access to new `#[route(...)]` multi-method macro.
 * Print non-configured `Data<T>` type when attempting extraction. [#1743]
 * Re-export bytes::Buf{Mut} in web module. [#1750]
 * Upgrade `pin-project` to `1.0`.

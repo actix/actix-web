@@ -3,7 +3,7 @@
 ## Unreleased - 2020-xx-xx
 
 
-## 2.0.1 - 2020-xx-xx
+## 2.0.1 - 2020-10-30
 ### Changed
 * Upgrade `base64` to `0.13`. [#1744]
 * Deprecate `ClientRequest::{if_some, if_true}`. [#1760]
