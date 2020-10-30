@@ -1,18 +1,21 @@
 # Changes
 
 ## Unreleased - 2020-xx-xx
+
+
+## 2.1.0 - 2020-10-30
 ### Added
 * Added more flexible `on_connect_ext` methods for on-connect handling. [#1754]
 
 ### Changed
-* Upgrade `base64` to `0.13`.
-* Upgrade `pin-project` to `1.0`.
+* Upgrade `base64` to `0.13`. [#1744]
+* Upgrade `pin-project` to `1.0`. [#1733]
 * Deprecate `ResponseBuilder::{if_some, if_true}`. [#1760]
 
 [#1760]: https://github.com/actix/actix-web/pull/1760
-
-
 [#1754]: https://github.com/actix/actix-web/pull/1754
+[#1733]: https://github.com/actix/actix-web/pull/1733
+[#1744]: https://github.com/actix/actix-web/pull/1744
 
 
 ## 2.0.0 - 2020-09-11
