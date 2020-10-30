@@ -1,14 +1,19 @@
-# Actix http client [![Build Status](https://travis-ci.org/actix/actix-web.svg?branch=master)](https://travis-ci.org/actix/actix-web) [![codecov](https://codecov.io/gh/actix/actix-web/branch/master/graph/badge.svg)](https://codecov.io/gh/actix/actix-web) [![crates.io](https://meritbadge.herokuapp.com/awc)](https://crates.io/crates/awc) [![Join the chat at https://gitter.im/actix/actix](https://badges.gitter.im/actix/actix.svg)](https://gitter.im/actix/actix?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+# awc (Actix Web Client)
 
-An HTTP Client
+> Async HTTP and WebSocket client library.
 
-## Documentation & community resources
+[![crates.io](https://img.shields.io/crates/v/awc?label=latest)](https://crates.io/crates/awc)
+[![Documentation](https://docs.rs/awc/badge.svg?version=2.0.1)](https://docs.rs/awc/2.0.1)
+![Apache 2.0 or MIT licensed](https://img.shields.io/crates/l/awc)
+[![Dependency Status](https://deps.rs/crate/awc/2.0.1/status.svg)](https://deps.rs/crate/awc/2.0.1)
+[![Join the chat at https://gitter.im/actix/actix-web](https://badges.gitter.im/actix/actix-web.svg)](https://gitter.im/actix/actix-web?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
-* [User Guide](https://actix.rs/docs/)
-* [API Documentation](https://docs.rs/awc/)
-* [Chat on gitter](https://gitter.im/actix/actix)
-* Cargo package: [awc](https://crates.io/crates/awc)
-* Minimum supported Rust version: 1.40 or later
+## Documentation & Resources
+
+- [API Documentation](https://docs.rs/awc/2.0.1)
+- [Example Project](https://github.com/actix/examples/tree/HEAD/awc_https)
+- [Chat on Gitter](https://gitter.im/actix/actix-web)
+- Minimum Supported Rust Version (MSRV): 1.42.0
 
 ## Example
 
