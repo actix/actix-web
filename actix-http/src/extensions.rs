@@ -1,5 +1,5 @@
 use std::any::{Any, TypeId};
-use std::fmt;
+use std::{fmt, mem};
 
 use fxhash::FxHashMap;
 
@@ -65,6 +65,11 @@ impl Extensions {
     /// Extends self with the items from another `Extensions`.
     pub fn extend(&mut self, other: Extensions) {
         self.map.extend(other.map);
+    }
+
+    /// Sets (or overrides) items from `other` into this map.
+    pub(crate) fn drain_from(&mut self, other: &mut Self) {
+        self.map.extend(mem::take(&mut other.map));
     }
 }
 
@@ -212,5 +217,28 @@ mod tests {
 
         assert_eq!(extensions.get(), Some(&20u8));
         assert_eq!(extensions.get_mut(), Some(&mut 20u8));
+    }
+
+    #[test]
+    fn test_drain_from() {
+        let mut ext = Extensions::new();
+        ext.insert(2isize);
+
+        let mut more_ext = Extensions::new();
+
+        more_ext.insert(5isize);
+        more_ext.insert(5usize);
+
+        assert_eq!(ext.get::<isize>(), Some(&2isize));
+        assert_eq!(ext.get::<usize>(), None);
+        assert_eq!(more_ext.get::<isize>(), Some(&5isize));
+        assert_eq!(more_ext.get::<usize>(), Some(&5usize));
+
+        ext.drain_from(&mut more_ext);
+
+        assert_eq!(ext.get::<isize>(), Some(&5isize));
+        assert_eq!(ext.get::<usize>(), Some(&5usize));
+        assert_eq!(more_ext.get::<isize>(), None);
+        assert_eq!(more_ext.get::<usize>(), None);
     }
 }

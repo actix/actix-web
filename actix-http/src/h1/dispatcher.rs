@@ -12,7 +12,6 @@ use bytes::{Buf, BytesMut};
 use log::{error, trace};
 use pin_project::pin_project;
 
-use crate::body::{Body, BodySize, MessageBody, ResponseBody};
 use crate::cloneable::CloneableService;
 use crate::config::ServiceConfig;
 use crate::error::{DispatchError, Error};
@@ -21,6 +20,10 @@ use crate::helpers::DataFactory;
 use crate::httpmessage::HttpMessage;
 use crate::request::Request;
 use crate::response::Response;
+use crate::{
+    body::{Body, BodySize, MessageBody, ResponseBody},
+    Extensions,
+};
 
 use super::codec::Codec;
 use super::payload::{Payload, PayloadSender, PayloadStatus};
@@ -88,6 +91,7 @@ where
     expect: CloneableService<X>,
     upgrade: Option<CloneableService<U>>,
     on_connect: Option<Box<dyn DataFactory>>,
+    on_connect_data: Extensions,
     flags: Flags,
     peer_addr: Option<net::SocketAddr>,
     error: Option<DispatchError>,
@@ -167,7 +171,7 @@ where
     U: Service<Request = (Request, Framed<T, Codec>), Response = ()>,
     U::Error: fmt::Display,
 {
-    /// Create http/1 dispatcher.
+    /// Create HTTP/1 dispatcher.
     pub(crate) fn new(
         stream: T,
         config: ServiceConfig,
@@ -175,6 +179,7 @@ where
         expect: CloneableService<X>,
         upgrade: Option<CloneableService<U>>,
         on_connect: Option<Box<dyn DataFactory>>,
+        on_connect_data: Extensions,
         peer_addr: Option<net::SocketAddr>,
     ) -> Self {
         Dispatcher::with_timeout(
@@ -187,6 +192,7 @@ where
             expect,
             upgrade,
             on_connect,
+            on_connect_data,
             peer_addr,
         )
     }
@@ -202,6 +208,7 @@ where
         expect: CloneableService<X>,
         upgrade: Option<CloneableService<U>>,
         on_connect: Option<Box<dyn DataFactory>>,
+        on_connect_data: Extensions,
         peer_addr: Option<net::SocketAddr>,
     ) -> Self {
         let keepalive = config.keep_alive_enabled();
@@ -234,6 +241,7 @@ where
                 expect,
                 upgrade,
                 on_connect,
+                on_connect_data,
                 flags,
                 peer_addr,
                 ka_expire,
@@ -526,10 +534,14 @@ where
                             let pl = this.codec.message_type();
                             req.head_mut().peer_addr = *this.peer_addr;
 
+                            // DEPRECATED
                             // set on_connect data
                             if let Some(ref on_connect) = this.on_connect {
                                 on_connect.set(&mut req.extensions_mut());
                             }
+
+                            // merge on_connect_ext data into request extensions
+                            req.extensions_mut().drain_from(this.on_connect_data);
 
                             if pl == MessageType::Stream && this.upgrade.is_some() {
                                 this.messages.push_back(DispatcherMessage::Upgrade(req));
@@ -927,8 +939,10 @@ mod tests {
                 CloneableService::new(ExpectHandler),
                 None,
                 None,
+                Extensions::new(),
                 None,
             );
+
             match Pin::new(&mut h1).poll(cx) {
                 Poll::Pending => panic!(),
                 Poll::Ready(res) => assert!(res.is_err()),
