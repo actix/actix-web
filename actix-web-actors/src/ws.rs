@@ -164,7 +164,6 @@ pub fn handshake_with_protocols(
 
     let mut response = HttpResponse::build(StatusCode::SWITCHING_PROTOCOLS)
         .upgrade("websocket")
-        .header(header::TRANSFER_ENCODING, "chunked")
         .header(header::SEC_WEBSOCKET_ACCEPT, key.as_str())
         .take();
 
@@ -664,10 +663,10 @@ mod tests {
             )
             .to_http_request();
 
-        assert_eq!(
-            StatusCode::SWITCHING_PROTOCOLS,
-            handshake(&req).unwrap().finish().status()
-        );
+        let resp = handshake(&req).unwrap().finish();
+        assert_eq!(StatusCode::SWITCHING_PROTOCOLS, resp.status());
+        assert_eq!(None, resp.headers().get(&header::CONTENT_LENGTH));
+        assert_eq!(None, resp.headers().get(&header::TRANSFER_ENCODING));
 
         let req = TestRequest::default()
             .header(
