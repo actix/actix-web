@@ -1,10 +1,14 @@
 # Changes
 
 ## Unreleased - 2020-xx-xx
+### Added
+* HttpResponse builders for 1xx status codes. [#1768]
+
 ### Fixed
 * Started dropping `transfer-encoding: chunked` and `Content-Length` for 1XX and 204 responses. [#1767]
 
 [#1767]: https://github.com/actix/actix-web/pull/1767
+[#1768]: https://github.com/actix/actix-web/pull/1768
 
 
 ## 2.1.0 - 2020-10-30
