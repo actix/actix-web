@@ -50,6 +50,7 @@ impl<'a> io::Write for Writer<'a> {
         self.0.extend_from_slice(buf);
         Ok(buf.len())
     }
+
     fn flush(&mut self) -> io::Result<()> {
         Ok(())
     }

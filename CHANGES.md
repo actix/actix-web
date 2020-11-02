@@ -1,12 +1,18 @@
 # Changes
 
 ## Unreleased - 2020-xx-xx
+
+
+## 3.2.0 - 2020-10-30
 ### Added
 * Implement `exclude_regex` for Logger middleware. [#1723]
 * Add request-local data extractor `web::ReqData`. [#1748]
+* Add ability to register closure for request middleware logging. [#1749]
 * Add `app_data` to `ServiceConfig`. [#1757]
+* Expose `on_connect` for access to the connection stream before request is handled. [#1754]
 
 ### Changed
+* Updated actix-web-codegen dependency for access to new `#[route(...)]` multi-method macro.
 * Print non-configured `Data<T>` type when attempting extraction. [#1743]
 * Re-export bytes::Buf{Mut} in web module. [#1750]
 * Upgrade `pin-project` to `1.0`.
@@ -15,6 +21,8 @@
 [#1743]: https://github.com/actix/actix-web/pull/1743
 [#1748]: https://github.com/actix/actix-web/pull/1748
 [#1750]: https://github.com/actix/actix-web/pull/1750
+[#1754]: https://github.com/actix/actix-web/pull/1754
+[#1749]: https://github.com/actix/actix-web/pull/1749
 
 
 ## 3.1.0 - 2020-09-29
