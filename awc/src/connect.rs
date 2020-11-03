@@ -1,3 +1,4 @@
+use if_chain::if_chain;
 use std::cell::RefCell;
 use std::future::Future;
 use std::pin::Pin;
@@ -135,22 +136,21 @@ where
 
                 match resp {
                     Ok((resphead, payload)) => {
-                        if resphead.status.is_redirection() {
-                            reqhead.uri = resphead
-                                .headers
-                                .get(actix_http::http::header::LOCATION)
-                                .unwrap()
-                                .to_str()
-                                .unwrap()
-                                .parse::<Uri>()
-                                .unwrap();
-                            return deal_with_redirects(
-                                backend.clone(),
-                                reqhead,
-                                reqbody,
-                                addr,
-                            )
-                            .await;
+                        if_chain! {
+                            if resphead.status.is_redirection();
+                            if let Some(location_value) = resphead.headers.get(actix_http::http::header::LOCATION);
+                            if let Ok(location_str) = location_value.to_str();
+                            if let Ok(location_uri) = location_str.parse::<Uri>();
+                            then {
+                                reqhead.uri = location_uri;
+                                return deal_with_redirects(
+                                    backend.clone(),
+                                    reqhead,
+                                    reqbody,
+                                    addr,
+                                )
+                                .await;
+                            }
                         }
                         Ok(ClientResponse::new(resphead, payload))
                     }
