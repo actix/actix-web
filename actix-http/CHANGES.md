@@ -4,6 +4,9 @@
 ### Added
 * HttpResponse builders for 1xx status codes. [#1768]
 
+### Changed
+* Upgrade `bytes` to `0.6`. 
+
 ### Fixed
 * Started dropping `transfer-encoding: chunked` and `Content-Length` for 1XX and 204 responses. [#1767]
 

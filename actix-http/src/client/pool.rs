@@ -6,8 +6,8 @@ use std::rc::Rc;
 use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
 
-use actix_codec::{AsyncRead, AsyncWrite};
-use actix_rt::time::{delay_for, Delay};
+use actix_codec::{AsyncRead, AsyncWrite, ReadBuf};
+use actix_rt::time::{sleep, Sleep};
 use actix_service::Service;
 use actix_utils::{oneshot, task::LocalWaker};
 use bytes::Bytes;
@@ -333,10 +333,11 @@ where
                 } else {
                     let mut io = conn.io;
                     let mut buf = [0; 2];
+                    let mut read_buf = ReadBuf::new(&mut buf);
                     if let ConnectionType::H1(ref mut s) = io {
-                        match Pin::new(s).poll_read(cx, &mut buf) {
+                        match Pin::new(s).poll_read(cx, &mut read_buf) {
                             Poll::Pending => (),
-                            Poll::Ready(Ok(n)) if n > 0 => {
+                            Poll::Ready(Ok(())) if read_buf.filled().len() > 0 => {
                                 if let Some(timeout) = self.config.disconnect_timeout {
                                     if let ConnectionType::H1(io) = io {
                                         actix_rt::spawn(CloseConnection::new(
@@ -388,7 +389,7 @@ where
 
 struct CloseConnection<T> {
     io: T,
-    timeout: Delay,
+    timeout: Sleep,
 }
 
 impl<T> CloseConnection<T>
@@ -398,7 +399,7 @@ where
     fn new(io: T, timeout: Duration) -> Self {
         CloseConnection {
             io,
-            timeout: delay_for(timeout),
+            timeout: sleep(timeout),
         }
     }
 }

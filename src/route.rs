@@ -345,7 +345,7 @@ where
 mod tests {
     use std::time::Duration;
 
-    use actix_rt::time::delay_for;
+    use actix_rt::time::sleep;
     use bytes::Bytes;
     use serde_derive::Serialize;
 
@@ -369,16 +369,16 @@ mod tests {
                             Err::<HttpResponse, _>(error::ErrorBadRequest("err"))
                         }))
                         .route(web::post().to(|| async {
-                            delay_for(Duration::from_millis(100)).await;
+                            sleep(Duration::from_millis(100)).await;
                             Ok::<_, ()>(HttpResponse::Created())
                         }))
                         .route(web::delete().to(|| async {
-                            delay_for(Duration::from_millis(100)).await;
+                            sleep(Duration::from_millis(100)).await;
                             Err::<HttpResponse, _>(error::ErrorBadRequest("err"))
                         })),
                 )
                 .service(web::resource("/json").route(web::get().to(|| async {
-                    delay_for(Duration::from_millis(25)).await;
+                    sleep(Duration::from_millis(25)).await;
                     web::Json(MyObject {
                         name: "test".to_string(),
                     })

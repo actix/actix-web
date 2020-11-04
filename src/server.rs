@@ -149,7 +149,7 @@ where
     /// This method should be called before `bind()` method call.
     pub fn backlog(mut self, backlog: i32) -> Self {
         self.backlog = backlog;
-        self.builder = self.builder.backlog(backlog);
+        self.builder = self.builder.backlog(backlog as u32);
         self
     }
 

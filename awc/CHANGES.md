@@ -1,7 +1,8 @@
 # Changes
 
 ## Unreleased - 2020-xx-xx
-
+### Changed
+* Upgrade `bytes` to `0.6`. 
 
 ## 2.0.1 - 2020-10-30
 ### Changed

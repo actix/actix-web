@@ -586,7 +586,7 @@ impl ServiceFactory for ResourceEndpoint {
 mod tests {
     use std::time::Duration;
 
-    use actix_rt::time::delay_for;
+    use actix_rt::time::sleep;
     use actix_service::Service;
     use futures_util::future::ok;
 
@@ -654,7 +654,7 @@ mod tests {
     async fn test_to() {
         let mut srv =
             init_service(App::new().service(web::resource("/test").to(|| async {
-                delay_for(Duration::from_millis(100)).await;
+                sleep(Duration::from_millis(100)).await;
                 Ok::<_, Error>(HttpResponse::Ok())
             })))
             .await;

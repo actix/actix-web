@@ -11,7 +11,7 @@ use actix_http::http::{Error as HttpError, Method, StatusCode, Uri, Version};
 use actix_http::test::TestRequest as HttpTestRequest;
 use actix_http::{cookie::Cookie, ws, Extensions, HttpService, Request};
 use actix_router::{Path, ResourceDef, Url};
-use actix_rt::{time::delay_for, System};
+use actix_rt::{time::sleep, System};
 use actix_service::{
     map_config, IntoService, IntoServiceFactory, Service, ServiceFactory,
 };
@@ -1021,7 +1021,7 @@ impl TestServer {
     pub async fn stop(self) {
         self.server.stop(true).await;
         self.system.stop();
-        delay_for(time::Duration::from_millis(100)).await;
+        sleep(time::Duration::from_millis(100)).await;
     }
 }
 

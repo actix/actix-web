@@ -4,7 +4,7 @@ use std::rc::Rc;
 use std::time::Duration;
 use std::{fmt, net};
 
-use actix_rt::time::{delay_for, delay_until, Delay, Instant};
+use actix_rt::time::{sleep, sleep_until, Instant, Sleep};
 use bytes::BytesMut;
 use futures_util::{future, FutureExt};
 use time::OffsetDateTime;
@@ -121,10 +121,10 @@ impl ServiceConfig {
 
     #[inline]
     /// Client timeout for first request.
-    pub fn client_timer(&self) -> Option<Delay> {
+    pub fn client_timer(&self) -> Option<Sleep> {
         let delay_time = self.0.client_timeout;
         if delay_time != 0 {
-            Some(delay_until(
+            Some(sleep_until(
                 self.0.timer.now() + Duration::from_millis(delay_time),
             ))
         } else {
@@ -154,9 +154,9 @@ impl ServiceConfig {
 
     #[inline]
     /// Return keep-alive timer delay is configured.
-    pub fn keep_alive_timer(&self) -> Option<Delay> {
+    pub fn keep_alive_timer(&self) -> Option<Sleep> {
         if let Some(ka) = self.0.keep_alive {
-            Some(delay_until(self.0.timer.now() + ka))
+            Some(sleep_until(self.0.timer.now() + ka))
         } else {
             None
         }
@@ -266,7 +266,7 @@ impl DateService {
 
             // periodic date update
             let s = self.clone();
-            actix_rt::spawn(delay_for(Duration::from_millis(500)).then(move |_| {
+            actix_rt::spawn(sleep(Duration::from_millis(500)).then(move |_| {
                 s.0.reset();
                 future::ready(())
             }));

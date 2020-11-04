@@ -6,7 +6,7 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 
 use actix_codec::{AsyncRead, AsyncWrite};
-use actix_rt::time::{Delay, Instant};
+use actix_rt::time::{Instant, Sleep};
 use actix_service::Service;
 use bytes::{Bytes, BytesMut};
 use h2::server::{Connection, SendResponse};
@@ -41,7 +41,7 @@ where
     config: ServiceConfig,
     peer_addr: Option<net::SocketAddr>,
     ka_expire: Instant,
-    ka_timer: Option<Delay>,
+    ka_timer: Option<Sleep>,
     _t: PhantomData<B>,
 }
 
@@ -60,7 +60,7 @@ where
         on_connect: Option<Box<dyn DataFactory>>,
         on_connect_data: Extensions,
         config: ServiceConfig,
-        timeout: Option<Delay>,
+        timeout: Option<Sleep>,
         peer_addr: Option<net::SocketAddr>,
     ) -> Self {
         // let keepalive = config.keep_alive_enabled();

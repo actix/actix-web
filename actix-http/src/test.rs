@@ -5,7 +5,7 @@ use std::pin::Pin;
 use std::str::FromStr;
 use std::task::{Context, Poll};
 
-use actix_codec::{AsyncRead, AsyncWrite};
+use actix_codec::{AsyncRead, AsyncWrite, ReadBuf};
 use bytes::{Bytes, BytesMut};
 use http::header::{self, HeaderName, HeaderValue};
 use http::{Error as HttpError, Method, Uri, Version};
@@ -245,9 +245,9 @@ impl AsyncRead for TestBuffer {
     fn poll_read(
         self: Pin<&mut Self>,
         _: &mut Context<'_>,
-        buf: &mut [u8],
-    ) -> Poll<io::Result<usize>> {
-        Poll::Ready(self.get_mut().read(buf))
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<io::Result<()>> {
+        Poll::Ready(self.get_mut().read(buf.filled_mut()).map(|_| ()))
     }
 }
 

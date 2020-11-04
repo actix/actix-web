@@ -5,7 +5,7 @@ use std::task::{Context, Poll};
 use std::{fmt, io, net};
 
 use actix_codec::{AsyncRead, AsyncWrite, Decoder, Encoder, Framed, FramedParts};
-use actix_rt::time::{delay_until, Delay, Instant};
+use actix_rt::time::{sleep_until, Instant, Sleep};
 use actix_service::Service;
 use bitflags::bitflags;
 use bytes::{Buf, BytesMut};
@@ -102,7 +102,7 @@ where
     messages: VecDeque<DispatcherMessage>,
 
     ka_expire: Instant,
-    ka_timer: Option<Delay>,
+    ka_timer: Option<Sleep>,
 
     io: Option<T>,
     read_buf: BytesMut,
@@ -203,7 +203,7 @@ where
         codec: Codec,
         config: ServiceConfig,
         read_buf: BytesMut,
-        timeout: Option<Delay>,
+        timeout: Option<Sleep>,
         service: CloneableService<S>,
         expect: CloneableService<X>,
         upgrade: Option<CloneableService<U>>,
@@ -635,7 +635,7 @@ where
             // shutdown timeout
             if this.flags.contains(Flags::SHUTDOWN) {
                 if let Some(interval) = this.codec.config().client_disconnect_timer() {
-                    *this.ka_timer = Some(delay_until(interval));
+                    *this.ka_timer = Some(sleep_until(interval));
                 } else {
                     this.flags.insert(Flags::READ_DISCONNECT);
                     if let Some(mut payload) = this.payload.take() {
@@ -912,7 +912,8 @@ fn read<T>(
 where
     T: AsyncRead + Unpin,
 {
-    Pin::new(io).poll_read_buf(cx, buf)
+    // FIXME: use tokio-util poll_read_buf
+    actix_codec::util::poll_read_buf(Pin::new(io), cx, buf)
 }
 
 #[cfg(test)]
