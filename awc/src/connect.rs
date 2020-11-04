@@ -109,8 +109,7 @@ where
             Box::pin(async move {
                 let connection = fut.await?;
 
-                // FIXME: whether we'll resend the body depends on the redirect status code
-                let reqbody = match body {
+                let mut reqbody = match body {
                     Body::None => Body::None,
                     Body::Empty => Body::Empty,
                     Body::Bytes(ref b) => Body::Bytes(b.clone()),
@@ -120,7 +119,6 @@ where
                 };
 
                 let mut reqhead = RequestHead::default();
-                // FIXME: method depends on redirect code
                 reqhead.method = head.method.clone();
                 reqhead.version = head.version.clone();
                 // FIXME: not all headers should be mirrored on redirect
@@ -142,6 +140,10 @@ where
                             if let Ok(location_str) = location_value.to_str();
                             if let Ok(location_uri) = location_str.parse::<Uri>();
                             then {
+                                if resphead.status == actix_http::http::StatusCode::SEE_OTHER {
+                                    reqhead.method = actix_http::http::Method::GET;
+                                    reqbody = Body::None;
+                                }
                                 reqhead.uri = location_uri;
                                 return deal_with_redirects(
                                     backend.clone(),
