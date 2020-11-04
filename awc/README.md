@@ -17,8 +17,8 @@
 
 ## Example
 ```rust
-use actix_web::client::Client;
-use actix_web::rt::System;
+use actix_rt::System;
+use awc::Client;
 
 fn main() {
     System::new("test").block_on(async {
