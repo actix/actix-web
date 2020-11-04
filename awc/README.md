@@ -16,23 +16,21 @@
 - Minimum Supported Rust Version (MSRV): 1.42.0
 
 ## Example
-
 ```rust
 use actix_rt::System;
 use awc::Client;
-use futures::future::{Future, lazy};
 
 fn main() {
-    System::new("test").block_on(lazy(|| {
-       let mut client = Client::default();
+    System::new("test").block_on(async {
+        let client = Client::default();
 
-       client.get("http://www.rust-lang.org") // <- Create request builder
-          .header("User-Agent", "Actix-web")
-          .send()                             // <- Send http request
-          .and_then(|response| {              // <- server http response
-               println!("Response: {:?}", response);
-               Ok(())
-          })
-    }));
+        let res = client
+            .get("http://www.rust-lang.org")    // <- Create request builder
+            .header("User-Agent", "Actix-web")
+            .send()                             // <- Send http request
+            .await;
+
+        println!("Response: {:?}", res);        // <- server http response
+    });
 }
 ```
