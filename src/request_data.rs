@@ -50,7 +50,7 @@ use crate::{dev::Payload, FromRequest, HttpRequest};
 pub struct ReqData<T: Clone + 'static>(T);
 
 impl<T: Clone + 'static> ReqData<T> {
-    /// Consumes the `ReqData`, returning it's wrapped data.
+    /// Consumes the `ReqData`, returning its wrapped data.
     pub fn into_inner(self) -> T {
         self.0
     }
