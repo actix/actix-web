@@ -102,7 +102,7 @@ pin-project = "1.0.0"
 regex = "1.4"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-serde_urlencoded = "0.6.1"
+serde_urlencoded = "0.7"
 time = { version = "0.2.7", default-features = false, features = ["std"] }
 url = "2.1"
 open-ssl = { package = "openssl", version = "0.10", optional = true }

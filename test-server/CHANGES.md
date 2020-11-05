@@ -4,6 +4,7 @@
 
 * add ability to set address for `TestServer` [#1645]
 * Upgrade `base64` to `0.13`.
+* Upgrade `serde_urlencoded` to `0.7`.
 
 [#1645]: https://github.com/actix/actix-web/pull/1645
 

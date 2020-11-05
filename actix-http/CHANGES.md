@@ -7,6 +7,9 @@
 ### Fixed
 * Started dropping `transfer-encoding: chunked` and `Content-Length` for 1XX and 204 responses. [#1767]
 
+### Changed
+* Upgrade `serde_urlencoded` to `0.7`.
+
 [#1767]: https://github.com/actix/actix-web/pull/1767
 [#1768]: https://github.com/actix/actix-web/pull/1768
 
