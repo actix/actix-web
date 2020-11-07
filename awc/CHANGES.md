@@ -1,7 +1,8 @@
 # Changes
 
 ## Unreleased - 2020-xx-xx
-
+### Changed
+* Upgrade `serde_urlencoded` to `0.7`.
 
 ## 2.0.1 - 2020-10-30
 ### Changed
