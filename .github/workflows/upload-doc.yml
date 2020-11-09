@@ -16,7 +16,7 @@ jobs:
       - name: Install Rust
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: stable-x86_64-unknown-linux-gnu
+          toolchain: nightly-x86_64-unknown-linux-gnu
           profile: minimal
           override: true
 
