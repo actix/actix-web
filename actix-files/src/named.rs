@@ -193,7 +193,7 @@ impl NamedFile {
     /// image, and video content types, and `attachment` otherwise, and
     /// the filename is taken from the path provided in the `open` method
     /// after converting it to UTF-8 using.
-    /// [to_string_lossy](https://doc.rust-lang.org/std/ffi/struct.OsStr.html#method.to_string_lossy).
+    /// [`std::ffi::OsStr::to_string_lossy`]
     #[inline]
     pub fn set_content_disposition(mut self, cd: header::ContentDisposition) -> Self {
         self.content_disposition = cd;
