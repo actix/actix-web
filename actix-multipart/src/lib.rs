@@ -3,6 +3,7 @@
 #![deny(rust_2018_idioms)]
 #![allow(clippy::borrow_interior_mutable_const)]
 
+pub mod client;
 mod error;
 mod extractor;
 mod server;
