@@ -138,7 +138,7 @@ where
 /// "polymorphic payloads" where, for example, a form might be JSON or URL encoded.
 ///
 /// It is important to note that this extractor, by necessity, buffers the entire request payload
-/// as part of it's implementation. Though, it does respect a `PayloadConfig`'s maximum size limit.
+/// as part of its implementation. Though, it does respect a `PayloadConfig`'s maximum size limit.
 impl<A, B> FromRequest for Either<A, B>
 where
     A: FromRequest + 'static,
