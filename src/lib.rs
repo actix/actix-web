@@ -106,7 +106,7 @@ pub use crate::responder::Responder;
 pub use crate::route::Route;
 pub use crate::scope::Scope;
 pub use crate::server::HttpServer;
-pub use crate::types::Either;
+pub use crate::types::{Either, EitherExtractError};
 
 pub mod dev {
     //! The `actix-web` prelude for library developers

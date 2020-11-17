@@ -108,16 +108,17 @@ where
     }
 }
 
+/// A composite error resulting from failure to extract an `Either<A, B>`.
+///
+/// The implementation of `Into<actix_web::Error>` will return the payload buffering error or the
+/// error from the primary extractor. To access the fallback error, use a match clause.
 #[derive(Debug)]
 pub enum EitherExtractError<A, B> {
     /// Error from payload buffering, such as exceeding payload max size limit.
     Bytes(Error),
 
     /// Error from primary extractor.
-    A(A),
-
-    /// Error from fallback extractor.
-    B(B),
+    Extract(A, B),
 }
 
 impl<A, B> Into<Error> for EitherExtractError<A, B>
@@ -128,8 +129,7 @@ where
     fn into(self) -> Error {
         match self {
             EitherExtractError::Bytes(err) => err,
-            EitherExtractError::A(err) => err.into(),
-            EitherExtractError::B(err) => err.into(),
+            EitherExtractError::Extract(a_err, _b_err) => a_err.into(),
         }
     }
 }
@@ -179,7 +179,7 @@ where
     let mut pl = payload_from_bytes(fallback);
     match B::from_request(&req, &mut pl).await {
         Ok(b_data) => return Ok(Either::B(b_data)),
-        Err(_b_err) => Err(EitherExtractError::A(a_err)),
+        Err(b_err) => Err(EitherExtractError::Extract(a_err, b_err)),
     }
 }
 
@@ -250,5 +250,25 @@ mod tests {
             .unwrap()
             .unwrap_right();
         assert_eq!(&payload.as_ref(), &b"!@$%^&*()");
+    }
+
+    #[actix_rt::test]
+    async fn test_either_extract_recursive_fallback_inner() {
+        let (req, mut pl) = TestRequest::default()
+            .set_json(&TestForm {
+                hello: "world".to_owned(),
+            })
+            .to_http_parts();
+
+        let form =
+            Either::<Either<Form<TestForm>, Json<TestForm>>, Bytes>::from_request(
+                &req, &mut pl,
+            )
+            .await
+            .unwrap()
+            .unwrap_left()
+            .unwrap_right()
+            .into_inner();
+        assert_eq!(&form.hello, "world");
     }
 }
