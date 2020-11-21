@@ -62,12 +62,8 @@ futures-core = { version = "0.3.5", default-features = false }
 futures-util = { version = "0.3.5", default-features = false }
 fxhash = "0.2.1"
 
-#h2 = "0.2.7"
-#http = "0.2.0"
-# FIXME: Use release version
-http = { git = "https://github.com/paolobarbolini/http.git", branch = "bytes06" }
-h2 = { git = "https://github.com/paolobarbolini/h2", branch = "bytes06" }
-
+h2 = "0.3.0"
+http = "0.2.1"
 httparse = "1.3"
 indexmap = "1.3"
 itoa = "0.4"

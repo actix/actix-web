@@ -140,8 +140,8 @@ actix-tls = { git = "https://github.com/fakeshadow/actix-net.git", branch = "mio
 actix-connect = { git = "https://github.com/fakeshadow/actix-net.git", branch = "mio-0.7.3" }
 actix-utils = { git = "https://github.com/fakeshadow/actix-net.git", branch = "mio-0.7.3" }
 actix-codec = { git = "https://github.com/fakeshadow/actix-net.git", branch = "mio-0.7.3" }
+h2 = { git = "https://github.com/hyperium/h2.git" }
 http = { git = "https://github.com/paolobarbolini/http.git", branch = "bytes06" }
-h2 = { git = "https://github.com/paolobarbolini/h2", branch = "bytes06" }
 
 [[bench]]
 name = "server"

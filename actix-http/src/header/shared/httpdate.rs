@@ -3,7 +3,8 @@ use std::io::Write;
 use std::str::FromStr;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use bytes::{buf::BufMut, BytesMut};
+use bytes::buf::BufMut;
+use bytes::BytesMut;
 use http::header::{HeaderValue, InvalidHeaderValue};
 use time::{offset, OffsetDateTime, PrimitiveDateTime};
 
