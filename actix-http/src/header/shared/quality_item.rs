@@ -18,7 +18,7 @@ use self::internal::IntoQuality;
 ///
 /// [RFC7231 Section 5.3.1](https://tools.ietf.org/html/rfc7231#section-5.3.1)
 /// gives more information on quality values in HTTP header fields.
-#[derive(Copy, Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Quality(u16);
 
 impl Default for Quality {
@@ -121,7 +121,7 @@ fn from_f32(f: f32) -> Quality {
 /// Convenience function to wrap a value in a `QualityItem`
 /// Sets `q` to the default 1.0
 pub fn qitem<T>(item: T) -> QualityItem<T> {
-    QualityItem::new(item, Default::default())
+    QualityItem::new(item, Quality::default())
 }
 
 /// Convenience function to create a `Quality` from a float or integer.
