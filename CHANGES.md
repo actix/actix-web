@@ -1,12 +1,16 @@
 # Changes
 
 ## Unreleased - 2020-xx-xx
+
+
+## 3.3.0 - 2020-11-25
 ### Added
 * Add `Either<A, B>` extractor helper. [#1788]
 
 ### Changed
-* Upgrade `serde_urlencoded` to `0.7`.
+* Upgrade `serde_urlencoded` to `0.7`. [#1773]
 
+[#1773]: https://github.com/actix/actix-web/pull/1773
 [#1788]: https://github.com/actix/actix-web/pull/1788
 
 

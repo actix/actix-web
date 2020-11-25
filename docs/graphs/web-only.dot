@@ -8,6 +8,7 @@ digraph {
         "actix-multipart"
         "actix-web-actors"
         "actix-web-codegen"
+        "actix-http-test"
     }
 
     "actix-web" -> {  "actix-web-codegen" "actix-http" "awc" }
@@ -16,4 +17,5 @@ digraph {
     "actix-multipart" -> { "actix-web" }
     "actix-http" -> { "actix" }[color=blue] // optional
     "actix-files" -> { "actix-web" "actix-http" }
+    "actix-http-test" -> { "awc" }
 }

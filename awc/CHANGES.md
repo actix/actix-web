@@ -1,8 +1,14 @@
 # Changes
 
 ## Unreleased - 2020-xx-xx
+
+
+## 2.0.2 - 2020-11-25
 ### Changed
-* Upgrade `serde_urlencoded` to `0.7`.
+* Upgrade `serde_urlencoded` to `0.7`. [#1773]
+
+[#1773]: https://github.com/actix/actix-web/pull/1773
+
 
 ## 2.0.1 - 2020-10-30
 ### Changed

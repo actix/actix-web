@@ -1,9 +1,15 @@
-# Actix http test server [![Build Status](https://travis-ci.org/actix/actix-web.svg?branch=master)](https://travis-ci.org/actix/actix-web) [![codecov](https://codecov.io/gh/actix/actix-web/branch/master/graph/badge.svg)](https://codecov.io/gh/actix/actix-web) [![crates.io](https://meritbadge.herokuapp.com/actix-http-test)](https://crates.io/crates/actix-http-test) [![Join the chat at https://gitter.im/actix/actix](https://badges.gitter.im/actix/actix.svg)](https://gitter.im/actix/actix?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+# actix-http-test
 
-## Documentation & community resources
+> Various helpers for Actix applications to use during testing.
 
-* [User Guide](https://actix.rs/docs/)
-* [API Documentation](https://docs.rs/actix-http-test/)
-* [Chat on gitter](https://gitter.im/actix/actix)
-* Cargo package: [actix-http-test](https://crates.io/crates/actix-http-test)
-* Minimum supported Rust version: 1.40 or later
+[![crates.io](https://img.shields.io/crates/v/actix-http-test?label=latest)](https://crates.io/crates/actix-http-test)
+[![Documentation](https://docs.rs/actix-http-test/badge.svg?version=2.1.0)](https://docs.rs/actix-http-test/2.1.0)
+![Apache 2.0 or MIT licensed](https://img.shields.io/crates/l/actix-http-test)
+[![Dependency Status](https://deps.rs/crate/actix-http-test/2.1.0/status.svg)](https://deps.rs/crate/actix-http-test/2.1.0)
+[![Join the chat at https://gitter.im/actix/actix-web](https://badges.gitter.im/actix/actix-web.svg)](https://gitter.im/actix/actix-web?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+
+## Documentation & Resources
+
+- [API Documentation](https://docs.rs/actix-http-test)
+- [Chat on Gitter](https://gitter.im/actix/actix-web)
+- Minimum Supported Rust Version (MSRV): 1.42.0
