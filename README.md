@@ -6,10 +6,10 @@
   <p>
 
 [![crates.io](https://img.shields.io/crates/v/actix-web?label=latest)](https://crates.io/crates/actix-web)
-[![Documentation](https://docs.rs/actix-web/badge.svg?version=3.2.0)](https://docs.rs/actix-web/3.2.0)
+[![Documentation](https://docs.rs/actix-web/badge.svg?version=3.3.0)](https://docs.rs/actix-web/3.3.0)
 [![Version](https://img.shields.io/badge/rustc-1.42+-ab6000.svg)](https://blog.rust-lang.org/2020/03/12/Rust-1.42.html)
 ![License](https://img.shields.io/crates/l/actix-web.svg)
-[![Dependency Status](https://deps.rs/crate/actix-web/3.2.0/status.svg)](https://deps.rs/crate/actix-web/3.2.0)
+[![Dependency Status](https://deps.rs/crate/actix-web/3.3.0/status.svg)](https://deps.rs/crate/actix-web/3.3.0)
 <br />
 [![Build Status](https://travis-ci.org/actix/actix-web.svg?branch=master)](https://travis-ci.org/actix/actix-web) 
 [![codecov](https://codecov.io/gh/actix/actix-web/branch/master/graph/badge.svg)](https://codecov.io/gh/actix/actix-web) 

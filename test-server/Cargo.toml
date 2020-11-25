@@ -1,8 +1,8 @@
 [package]
 name = "actix-http-test"
-version = "2.0.0"
+version = "2.1.0"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
-description = "Actix HTTP test server"
+description = "Various helpers for Actix applications to use during testing"
 readme = "README.md"
 keywords = ["http", "web", "framework", "async", "futures"]
 homepage = "https://actix.rs"
