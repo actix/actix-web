@@ -88,6 +88,8 @@ impl ResourceMap {
                 }
             } else if pattern.is_match(path) {
                 return true;
+            } else if pattern.pattern() == "" && path == "/" {
+                return true;
             }
         }
         false

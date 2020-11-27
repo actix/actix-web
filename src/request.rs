@@ -675,4 +675,41 @@ mod tests {
         let res = call_service(&mut srv, req).await;
         assert_eq!(res.status(), StatusCode::OK);
     }
+
+    #[actix_rt::test]
+    async fn extract_path_pattern_complex() {
+        let mut srv = init_service(
+            App::new()
+                .service(web::scope("/user").service(web::scope("/{id}").service(
+                    web::resource("").to(move |req: HttpRequest| {
+                        println!("req: {:#?}", req.resource_map());
+                        assert_eq!(req.match_pattern(), Some("/user/{id}".to_owned()));
+
+                        HttpResponse::Ok().finish()
+                    }),
+                )))
+                .service(web::resource("/").to(move |req: HttpRequest| {
+                    assert_eq!(req.match_pattern(), Some("/".to_owned()));
+
+                    HttpResponse::Ok().finish()
+                }))
+                .default_service(web::to(move |req: HttpRequest| {
+                    assert!(req.match_pattern().is_none());
+                    HttpResponse::Ok().finish()
+                })),
+        )
+        .await;
+
+        let req = TestRequest::get().uri("/user/test").to_request();
+        let res = call_service(&mut srv, req).await;
+        assert_eq!(res.status(), StatusCode::OK);
+
+        let req = TestRequest::get().uri("/").to_request();
+        let res = call_service(&mut srv, req).await;
+        assert_eq!(res.status(), StatusCode::OK);
+
+        let req = TestRequest::get().uri("/not-exist").to_request();
+        let res = call_service(&mut srv, req).await;
+        assert_eq!(res.status(), StatusCode::OK);
+    }
 }
