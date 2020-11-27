@@ -682,7 +682,6 @@ mod tests {
             App::new()
                 .service(web::scope("/user").service(web::scope("/{id}").service(
                     web::resource("").to(move |req: HttpRequest| {
-                        println!("req: {:#?}", req.resource_map());
                         assert_eq!(req.match_pattern(), Some("/user/{id}".to_owned()));
 
                         HttpResponse::Ok().finish()
