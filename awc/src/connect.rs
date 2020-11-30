@@ -118,6 +118,7 @@ where
                     Body::Message(_) => Body::Empty,
                 };
 
+                let uri = head.uri.clone();
                 let mut reqhead = RequestHead::default();
                 reqhead.method = head.method.clone();
                 reqhead.version = head.version.clone();
@@ -144,7 +145,12 @@ where
                                     reqhead.method = actix_http::http::Method::GET;
                                     reqbody = Body::None;
                                 }
-                                reqhead.uri = location_uri;
+                                let mut parts = location_uri.clone().into_parts();
+                                if location_uri.authority().is_none() {
+                                    parts.scheme = Some(uri.scheme().unwrap().clone());
+                                    parts.authority = Some(uri.authority().unwrap().clone());
+                                }
+                                reqhead.uri = Uri::from_parts(parts).unwrap();
                                 return deal_with_redirects(
                                     backend.clone(),
                                     reqhead,
