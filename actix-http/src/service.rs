@@ -570,41 +570,37 @@ where
         }
 
         match proto {
-            Protocol::Http2 => HttpServiceHandlerResponse {
-                state: State::H2Handshake(Some((
-                    server::handshake(io),
-                    self.cfg.clone(),
-                    self.srv.clone(),
-                    deprecated_on_connect,
-                    connect_extensions,
-                    peer_addr,
-                ))),
-            },
-
-            Protocol::Http1 => HttpServiceHandlerResponse {
-                state: State::H1(h1::Dispatcher::new(
-                    io,
-                    self.cfg.clone(),
-                    self.srv.clone(),
-                    self.expect.clone(),
-                    self.upgrade.clone(),
-                    deprecated_on_connect,
-                    connect_extensions,
-                    peer_addr,
-                )),
-            },
+            Protocol::Http2 => HttpServiceHandlerResponse::H2Handshake(Some((
+                server::handshake(io),
+                self.cfg.clone(),
+                self.srv.clone(),
+                deprecated_on_connect,
+                connect_extensions,
+                peer_addr,
+            ))),
+            Protocol::Http1 => HttpServiceHandlerResponse::H1(h1::Dispatcher::new(
+                io,
+                self.cfg.clone(),
+                self.srv.clone(),
+                self.expect.clone(),
+                self.upgrade.clone(),
+                deprecated_on_connect,
+                connect_extensions,
+                peer_addr,
+            )),
         }
     }
 }
 
 #[pin_project(project = StateProj)]
-enum State<T, S, B, X, U>
+pub enum HttpServiceHandlerResponse<T, S, B, X, U>
 where
-    S: Service<Request = Request>,
-    S::Future: 'static,
-    S::Error: Into<Error>,
     T: AsyncRead + AsyncWrite + Unpin,
-    B: MessageBody,
+    S: Service<Request = Request>,
+    S::Error: Into<Error> + 'static,
+    S::Future: 'static,
+    S::Response: Into<Response<B>> + 'static,
+    B: MessageBody + 'static,
     X: Service<Request = Request, Response = Request>,
     X::Error: Into<Error>,
     U: Service<Request = (Request, Framed<T, h1::Codec>), Response = ()>,
@@ -624,24 +620,6 @@ where
     ),
 }
 
-#[pin_project]
-pub struct HttpServiceHandlerResponse<T, S, B, X, U>
-where
-    T: AsyncRead + AsyncWrite + Unpin,
-    S: Service<Request = Request>,
-    S::Error: Into<Error> + 'static,
-    S::Future: 'static,
-    S::Response: Into<Response<B>> + 'static,
-    B: MessageBody + 'static,
-    X: Service<Request = Request, Response = Request>,
-    X::Error: Into<Error>,
-    U: Service<Request = (Request, Framed<T, h1::Codec>), Response = ()>,
-    U::Error: fmt::Display,
-{
-    #[pin]
-    state: State<T, S, B, X, U>,
-}
-
 impl<T, S, B, X, U> Future for HttpServiceHandlerResponse<T, S, B, X, U>
 where
     T: AsyncRead + AsyncWrite + Unpin,
@@ -657,27 +635,7 @@ where
 {
     type Output = Result<(), DispatchError>;
 
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        self.project().state.poll(cx)
-    }
-}
-
-impl<T, S, B, X, U> State<T, S, B, X, U>
-where
-    T: AsyncRead + AsyncWrite + Unpin,
-    S: Service<Request = Request>,
-    S::Error: Into<Error> + 'static,
-    S::Response: Into<Response<B>> + 'static,
-    B: MessageBody + 'static,
-    X: Service<Request = Request, Response = Request>,
-    X::Error: Into<Error>,
-    U: Service<Request = (Request, Framed<T, h1::Codec>), Response = ()>,
-    U::Error: fmt::Display,
-{
-    fn poll(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Result<(), DispatchError>> {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         match self.as_mut().project() {
             StateProj::H1(disp) => disp.poll(cx),
             StateProj::H2(disp) => disp.poll(cx),
@@ -696,7 +654,7 @@ where
                 };
                 let (_, cfg, srv, on_connect, on_connect_data, peer_addr) =
                     data.take().unwrap();
-                self.set(State::H2(Dispatcher::new(
+                self.set(HttpServiceHandlerResponse::H2(Dispatcher::new(
                     srv,
                     conn,
                     on_connect,

@@ -56,7 +56,7 @@ impl<'a> io::Write for Writer<'a> {
     }
 }
 
-pub(crate) trait DataFactory {
+pub trait DataFactory {
     fn set(&self, ext: &mut Extensions);
 }
 

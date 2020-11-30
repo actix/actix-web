@@ -10,7 +10,7 @@ use actix_service::Service;
 /// # Panics
 /// CloneableService might panic with some creative use of thread local storage.
 /// See https://github.com/actix/actix-web/issues/1295 for example
-pub(crate) struct CloneableService<T: Service>(Rc<RefCell<T>>);
+pub struct CloneableService<T: Service>(Rc<RefCell<T>>);
 
 impl<T: Service> CloneableService<T> {
     pub(crate) fn new(service: T) -> Self {
