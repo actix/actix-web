@@ -4,6 +4,9 @@
 ### Fixed
 * Ensure `actix-http` dependency uses same `serde_urlencoded`.
 * Removed an occasional `unwrap` on `None` panic in `NormalizePathNormalization`.
+* Fix match_pattern() returning None for scope with resource of empty path. [#1798]
+
+[#1798]: https://github.com/actix/actix-web/pull/1798
 
 
 ## 3.3.0 - 2020-11-25
