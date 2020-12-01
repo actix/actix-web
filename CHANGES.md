@@ -3,6 +3,7 @@
 ## Unreleased - 2020-xx-xx
 ### Fixed
 * Ensure `actix-http` dependency uses same `serde_urlencoded`.
+* Removed an occasional `unwrap` on `None` panic in `NormalizePathNormalization`.
 
 
 ## 3.3.0 - 2020-11-25
