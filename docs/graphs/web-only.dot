@@ -11,11 +11,11 @@ digraph {
         "actix-http-test"
     }
 
-    "actix-web" -> {  "actix-web-codegen" "actix-http" "awc" }
+    "actix-web" -> { "actix-web-codegen" "actix-http" "awc" }
     "awc" -> { "actix-http" }
     "actix-web-actors" -> { "actix" "actix-web" "actix-http" }
     "actix-multipart" -> { "actix-web" }
     "actix-http" -> { "actix" }[color=blue] // optional
-    "actix-files" -> { "actix-web" "actix-http" }
+    "actix-files" -> { "actix-web" }
     "actix-http-test" -> { "awc" }
 }

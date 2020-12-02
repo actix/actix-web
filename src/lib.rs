@@ -1,4 +1,4 @@
-//! Actix web is a powerful, pragmatic, and extremely fast web framework for Rust.
+//! Actix Web is a powerful, pragmatic, and extremely fast web framework for Rust.
 //!
 //! ## Example
 //!

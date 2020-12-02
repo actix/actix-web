@@ -17,7 +17,7 @@ digraph {
     "multipart" -> { "web" "service" "utils" }
     "http" -> { "service" "codec" "connect" "utils" "rt" "threadpool" }
     "http" -> { "actix" "tls" }[color=blue] // optional
-    "files" -> { "web" "http" }
+    "files" -> { "web" }
     "http-test" -> { "service" "codec" "connect" "utils" "rt" "server" "testing" "awc" }
 
     // net

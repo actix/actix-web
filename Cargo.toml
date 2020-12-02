@@ -1,8 +1,8 @@
 [package]
 name = "actix-web"
-version = "3.3.0"
+version = "3.3.2"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
-description = "Actix web is a powerful, pragmatic, and extremely fast web framework for Rust"
+description = "Actix Web is a powerful, pragmatic, and extremely fast web framework for Rust"
 readme = "README.md"
 keywords = ["actix", "http", "web", "framework", "async"]
 homepage = "https://actix.rs"
@@ -34,7 +34,7 @@ members = [
   "actix-multipart",
   "actix-web-actors",
   "actix-web-codegen",
-  "test-server",
+  "actix-http-test",
 ]
 
 [features]
@@ -85,11 +85,11 @@ actix-threadpool = "0.3.1"
 actix-tls = "2.0.0"
 
 actix-web-codegen = "0.4.0"
-actix-http = "2.1.0"
-awc = { version = "2.0.0", default-features = false }
+actix-http = "2.2.0"
+awc = { version = "2.0.3", default-features = false }
 
 bytes = "0.5.3"
-derive_more = "0.99.2"
+derive_more = "0.99.5"
 encoding_rs = "0.8"
 futures-channel = { version = "0.3.5", default-features = false }
 futures-core = { version = "0.3.5", default-features = false }
@@ -97,7 +97,7 @@ futures-util = { version = "0.3.5", default-features = false }
 fxhash = "0.2.1"
 log = "0.4"
 mime = "0.3"
-socket2 = "0.3"
+socket2 = "0.3.16"
 pin-project = "1.0.0"
 regex = "1.4"
 serde = { version = "1.0", features = ["derive"] }
@@ -127,10 +127,10 @@ codegen-units = 1
 [patch.crates-io]
 actix-web = { path = "." }
 actix-http = { path = "actix-http" }
-actix-http-test = { path = "test-server" }
+actix-http-test = { path = "actix-http-test" }
 actix-web-codegen = { path = "actix-web-codegen" }
-actix-files = { path = "actix-files" }
 actix-multipart = { path = "actix-multipart" }
+actix-files = { path = "actix-files" }
 awc = { path = "awc" }
 
 [[bench]]
