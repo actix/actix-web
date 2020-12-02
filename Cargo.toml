@@ -34,7 +34,7 @@ members = [
   "actix-multipart",
   "actix-web-actors",
   "actix-web-codegen",
-  "test-server",
+  "actix-http-test",
 ]
 
 [features]
@@ -127,10 +127,10 @@ codegen-units = 1
 [patch.crates-io]
 actix-web = { path = "." }
 actix-http = { path = "actix-http" }
-actix-http-test = { path = "test-server" }
+actix-http-test = { path = "actix-http-test" }
 actix-web-codegen = { path = "actix-web-codegen" }
-actix-files = { path = "actix-files" }
 actix-multipart = { path = "actix-multipart" }
+actix-files = { path = "actix-files" }
 awc = { path = "awc" }
 
 [[bench]]
