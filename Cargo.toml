@@ -34,7 +34,7 @@ members = [
   "actix-multipart",
   "actix-web-actors",
   "actix-web-codegen",
-  "test-server",
+  "actix-http-test",
 ]
 
 [features]
