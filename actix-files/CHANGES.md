@@ -1,6 +1,7 @@
 # Changes
 
 ## Unreleased - 2020-xx-xx
+* Optionally support hidden files/directories.
 
 
 ## 0.4.1 - 2020-11-24
