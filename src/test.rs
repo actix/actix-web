@@ -269,8 +269,9 @@ where
 {
     let body = read_body(res).await;
 
-    serde_json::from_slice(&body)
-        .unwrap_or_else(|e| panic!("read_response_json failed during deserialization: {}", e))
+    serde_json::from_slice(&body).unwrap_or_else(|e| {
+        panic!("read_response_json failed during deserialization: {}", e)
+    })
 }
 
 pub async fn load_stream<S>(mut stream: S) -> Result<Bytes, Error>
