@@ -217,7 +217,7 @@ impl Files {
         self
     }
 
-    /// Enables serving hidden files and directories, allowing a trailing dots in url fragments.
+    /// Enables serving hidden files and directories, allowing a leading dots in url fragments.
     #[inline]
     pub fn use_hidden_files(mut self) -> Self {
         self.hidden_files = true;
