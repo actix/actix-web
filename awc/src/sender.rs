@@ -186,7 +186,7 @@ impl RequestSender {
 
         let fut = match self {
             RequestSender::Owned(head) => {
-                connector.send_request(head, body.into(), addr)
+                connector.send_request(head, body.into(), addr, config.max_redirects)
             }
             RequestSender::Rc(head, extra_headers) => {
                 connector.send_request_extra(head, extra_headers, body.into(), addr)

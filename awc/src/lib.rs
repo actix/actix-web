@@ -148,6 +148,7 @@ pub(crate) struct ClientConfig {
     pub(crate) connector: RefCell<Box<dyn Connect>>,
     pub(crate) headers: HeaderMap,
     pub(crate) timeout: Option<Duration>,
+    pub(crate) max_redirects: usize,
 }
 
 impl Default for Client {
@@ -158,6 +159,7 @@ impl Default for Client {
             ))))),
             headers: HeaderMap::new(),
             timeout: Some(Duration::from_secs(5)),
+            max_redirects: 10,
         }))
     }
 }

@@ -5,6 +5,7 @@ use std::pin::Pin;
 use std::rc::Rc;
 use std::task::{Context, Poll};
 use std::{fmt, io, mem, net};
+use url::Url;
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use actix_http::body::Body;
@@ -12,7 +13,7 @@ use actix_http::client::{
     Connect as ClientConnect, ConnectError, Connection, SendRequestError,
 };
 use actix_http::h1::ClientCodec;
-use actix_http::http::{HeaderMap, Uri};
+use actix_http::http::HeaderMap;
 use actix_http::Extensions;
 use actix_http::{RequestHead, RequestHeadType, ResponseHead};
 use actix_service::Service;
@@ -27,6 +28,7 @@ pub(crate) trait Connect {
         head: RequestHead,
         body: Body,
         addr: Option<net::SocketAddr>,
+        max_redirect: usize,
     ) -> Pin<Box<dyn Future<Output = Result<ClientResponse, SendRequestError>>>>;
 
     fn send_request_extra(
@@ -85,12 +87,15 @@ where
         head: RequestHead,
         body: Body,
         addr: Option<net::SocketAddr>,
+        max_redirects: usize,
     ) -> Pin<Box<dyn Future<Output = Result<ClientResponse, SendRequestError>>>> {
         fn deal_with_redirects<S>(
             backend: Rc<RefCell<S>>,
             head: RequestHead,
             body: Body,
             addr: Option<net::SocketAddr>,
+            max_redirects: usize,
+            redirect_count: usize,
         ) -> Pin<Box<dyn Future<Output = Result<ClientResponse, SendRequestError>>>>
         where
             S: Service<Request = ClientConnect, Error = ConnectError> + 'static,
@@ -139,23 +144,25 @@ where
                             if resphead.status.is_redirection();
                             if let Some(location_value) = resphead.headers.get(actix_http::http::header::LOCATION);
                             if let Ok(location_str) = location_value.to_str();
-                            if let Ok(location_uri) = location_str.parse::<Uri>();
                             then {
+                                if redirect_count >= max_redirects {
+                                     // TODO: need a better error
+                                    return Err(SendRequestError::Timeout);
+                                }
                                 if resphead.status == actix_http::http::StatusCode::SEE_OTHER {
                                     reqhead.method = actix_http::http::Method::GET;
                                     reqbody = Body::None;
                                 }
-                                let mut parts = location_uri.clone().into_parts();
-                                if location_uri.authority().is_none() {
-                                    parts.scheme = Some(uri.scheme().unwrap().clone());
-                                    parts.authority = Some(uri.authority().unwrap().clone());
-                                }
-                                reqhead.uri = Uri::from_parts(parts).unwrap();
+                                let base_url = Url::parse(&uri.to_string()).unwrap();
+                                let url_parser = Url::options().base_url(Some(&base_url));
+                                reqhead.uri = url_parser.parse(location_str).unwrap().as_str().parse().unwrap();
                                 return deal_with_redirects(
                                     backend.clone(),
                                     reqhead,
                                     reqbody,
                                     addr,
+                                    max_redirects,
+                                    redirect_count + 1,
                                 )
                                 .await;
                             }
@@ -167,7 +174,7 @@ where
             })
         }
 
-        deal_with_redirects(self.0.clone(), head, body, addr)
+        deal_with_redirects(self.0.clone(), head, body, addr, max_redirects, 0)
     }
 
     fn send_request_extra(

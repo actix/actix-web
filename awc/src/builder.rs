@@ -191,6 +191,7 @@ impl ClientBuilder {
         let config = ClientConfig {
             headers: self.headers,
             timeout: self.timeout,
+            max_redirects: self.max_redirects,
             connector,
         };
         Client(Rc::new(config))
