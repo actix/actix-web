@@ -17,7 +17,6 @@ use crate::{Client, ClientConfig};
 /// builder-like pattern.
 pub struct ClientBuilder {
     default_headers: bool,
-    allow_redirects: bool,
     max_redirects: usize,
     max_http_version: Option<http::Version>,
     stream_window_size: Option<u32>,
@@ -37,7 +36,6 @@ impl ClientBuilder {
     pub fn new() -> Self {
         ClientBuilder {
             default_headers: true,
-            allow_redirects: true,
             max_redirects: 10,
             headers: HeaderMap::new(),
             timeout: Some(Duration::from_secs(5)),
@@ -81,7 +79,7 @@ impl ClientBuilder {
     ///
     /// Redirects are allowed by default.
     pub fn disable_redirects(mut self) -> Self {
-        self.allow_redirects = false;
+        self.max_redirects = 0;
         self
     }
 
