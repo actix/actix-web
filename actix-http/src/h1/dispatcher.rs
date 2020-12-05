@@ -912,8 +912,7 @@ fn read<T>(
 where
     T: AsyncRead + Unpin,
 {
-    // FIXME: use tokio-util poll_read_buf
-    actix_codec::util::poll_read_buf(Pin::new(io), cx, buf)
+    actix_codec::poll_read_buf(Pin::new(io), cx, buf)
 }
 
 #[cfg(test)]

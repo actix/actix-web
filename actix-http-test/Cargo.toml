@@ -39,7 +39,7 @@ actix-testing = "1.0.0"
 awc = "2.0.0"
 
 base64 = "0.13"
-bytes = "0.5"
+bytes = "0.6"
 futures-core = { version = "0.3.5", default-features = false }
 http = "0.2.0"
 log = "0.4"
