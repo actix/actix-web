@@ -4,6 +4,18 @@
 ### Changed
 * Upgrade `bytes` to `0.6`. 
 
+## 2.0.3 - 2020-11-29
+### Fixed
+* Ensure `actix-http` dependency uses same `serde_urlencoded`.
+
+
+## 2.0.2 - 2020-11-25
+### Changed
+* Upgrade `serde_urlencoded` to `0.7`. [#1773]
+
+[#1773]: https://github.com/actix/actix-web/pull/1773
+
+
 ## 2.0.1 - 2020-10-30
 ### Changed
 * Upgrade `base64` to `0.13`. [#1744]

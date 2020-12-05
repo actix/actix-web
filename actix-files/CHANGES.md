@@ -3,6 +3,10 @@
 ## Unreleased - 2020-xx-xx
 
 
+## 0.4.1 - 2020-11-24
+* Clarify order of parameters in `Files::new` and improve docs.
+
+
 ## 0.4.0 - 2020-10-06
 * Add `Files::prefer_utf8` option that adds UTF-8 charset on certain response types. [#1714]
 

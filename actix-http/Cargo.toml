@@ -1,6 +1,6 @@
 [package]
 name = "actix-http"
-version = "2.1.0"
+version = "2.2.0"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "HTTP primitives for the Actix ecosystem"
 readme = "README.md"
@@ -79,7 +79,7 @@ serde = "1.0"
 serde_json = "1.0"
 sha-1 = "0.9"
 slab = "0.4"
-serde_urlencoded = "0.6.1"
+serde_urlencoded = "0.7"
 time = { version = "0.2.7", default-features = false, features = ["std"] }
 
 # compression
