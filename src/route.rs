@@ -135,7 +135,7 @@ impl Service for RouteService {
     }
 
     fn call(&mut self, req: ServiceRequest) -> Self::Future {
-        self.service.call(req).boxed_local()
+        self.service.call(req)
     }
 }
 

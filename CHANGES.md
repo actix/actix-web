@@ -1,6 +1,11 @@
 # Changes
 
 ## Unreleased - 2020-xx-xx
+### Fixed
+* added the actual parsing error to `test::read_body_json` [#1812]
+
+[#1812]: https://github.com/actix/actix-web/pull/1812
+
 
 
 ## 3.3.2 - 2020-12-01
