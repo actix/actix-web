@@ -134,6 +134,7 @@ actix-files = { path = "actix-files" }
 awc = { path = "awc" }
 
 # FIXME: remove these override
+actix = { git = "https://github.com/fakeshadow/actix.git", branch = "tokio-0.3" }
 actix-rt = { git = "https://github.com/fakeshadow/actix-net.git", branch = "mio-0.7.3" }
 actix-server = { git = "https://github.com/fakeshadow/actix-net.git", branch = "mio-0.7.3" }
 actix-tls = { git = "https://github.com/fakeshadow/actix-net.git", branch = "mio-0.7.3" }

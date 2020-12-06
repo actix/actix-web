@@ -2,6 +2,7 @@
 
 ## Unreleased - 2020-xx-xx
 * Fix multipart consuming payload before header checks #1513
+* Update `Bytes` to 0.6
 
 
 ## 3.0.0 - 2020-09-11

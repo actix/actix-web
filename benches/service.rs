@@ -26,7 +26,7 @@ where
     S: Service<Request = ServiceRequest, Response = ServiceResponse, Error = Error>
         + 'static,
 {
-    let mut rt = actix_rt::System::new("test");
+    let rt = actix_rt::System::new("test");
     let srv = Rc::new(RefCell::new(srv));
 
     let req = TestRequest::default().to_srv_request();
@@ -67,7 +67,7 @@ async fn index(req: ServiceRequest) -> Result<ServiceResponse, Error> {
 // Sample results on MacBook Pro '14
 // time:   [2.0724 us 2.1345 us 2.2074 us]
 fn async_web_service(c: &mut Criterion) {
-    let mut rt = actix_rt::System::new("test");
+    let rt = actix_rt::System::new("test");
     let srv = Rc::new(RefCell::new(rt.block_on(init_service(
         App::new().service(web::service("/").finish(index)),
     ))));

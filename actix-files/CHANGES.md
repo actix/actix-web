@@ -1,6 +1,7 @@
 # Changes
 
 ## Unreleased - 2020-xx-xx
+* Update `Bytes` to 0.6.
 
 
 ## 0.4.1 - 2020-11-24

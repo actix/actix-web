@@ -59,7 +59,7 @@ either = "1.5.3"
 encoding_rs = "0.8"
 futures-channel = { version = "0.3.5", default-features = false }
 futures-core = { version = "0.3.5", default-features = false }
-futures-util = { version = "0.3.5", default-features = false }
+futures-util = { version = "0.3.5", default-features = false, features = ["sink"] }
 fxhash = "0.2.1"
 
 h2 = "0.3.0"
