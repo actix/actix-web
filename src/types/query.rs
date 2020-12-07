@@ -64,7 +64,7 @@ impl<T> Query<T> {
     where
         T: de::DeserializeOwned,
     {
-        serde_urlencoded::from_str::<T>(query_str)
+        serde_qs::from_str::<T>(query_str)
             .map(|val| Ok(Query(val)))
             .unwrap_or_else(move |e| Err(QueryPayloadError::Deserialize(e)))
     }
@@ -144,7 +144,7 @@ where
             .map(|c| c.ehandler.clone())
             .unwrap_or(None);
 
-        serde_urlencoded::from_str::<T>(req.query_string())
+        serde_qs::from_str::<T>(req.query_string())
             .map(|val| ok(Query(val)))
             .unwrap_or_else(move |e| {
                 let e = QueryPayloadError::Deserialize(e);

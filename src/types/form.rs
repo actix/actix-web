@@ -162,7 +162,7 @@ impl<T: Serialize> Responder for Form<T> {
     type Future = Ready<Result<Response, Error>>;
 
     fn respond_to(self, _: &HttpRequest) -> Self::Future {
-        let body = match serde_urlencoded::to_string(&self.0) {
+        let body = match serde_qs::to_string(&self.0) {
             Ok(body) => body,
             Err(e) => return err(e.into()),
         };
@@ -359,15 +359,13 @@ where
                 }
 
                 if encoding == UTF_8 {
-                    serde_urlencoded::from_bytes::<U>(&body)
-                        .map_err(|_| UrlencodedError::Parse)
+                    serde_qs::from_bytes::<U>(&body).map_err(|_| UrlencodedError::Parse)
                 } else {
                     let body = encoding
                         .decode_without_bom_handling_and_without_replacement(&body)
                         .map(|s| s.into_owned())
                         .ok_or(UrlencodedError::Parse)?;
-                    serde_urlencoded::from_str::<U>(&body)
-                        .map_err(|_| UrlencodedError::Parse)
+                    serde_qs::from_str::<U>(&body).map_err(|_| UrlencodedError::Parse)
                 }
             }
             .boxed_local(),

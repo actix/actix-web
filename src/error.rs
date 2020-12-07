@@ -120,7 +120,7 @@ impl ResponseError for PathError {
 pub enum QueryPayloadError {
     /// Deserialize error
     #[display(fmt = "Query deserialize error: {}", _0)]
-    Deserialize(serde::de::value::Error),
+    Deserialize(serde_qs::Error),
 }
 
 impl std::error::Error for QueryPayloadError {}
@@ -188,7 +188,7 @@ mod tests {
     #[test]
     fn test_query_payload_error() {
         let resp: HttpResponse = QueryPayloadError::Deserialize(
-            serde_urlencoded::from_str::<i32>("bad query").unwrap_err(),
+            serde_qs::from_str::<i32>("bad query").unwrap_err(),
         )
         .error_response();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);

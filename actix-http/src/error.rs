@@ -17,7 +17,7 @@ use http::uri::InvalidUri;
 use http::{header, Error as HttpError, StatusCode};
 use serde::de::value::Error as DeError;
 use serde_json::error::Error as JsonError;
-use serde_urlencoded::ser::Error as FormError;
+use serde_qs::Error as FormError;
 
 // re-export for convenience
 use crate::body::Body;

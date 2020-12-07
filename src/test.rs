@@ -496,7 +496,7 @@ impl TestRequest {
     /// Serialize `data` to a URL encoded form and set it as the request payload. The `Content-Type`
     /// header is set to `application/x-www-form-urlencoded`.
     pub fn set_form<T: Serialize>(mut self, data: &T) -> Self {
-        let bytes = serde_urlencoded::to_string(data)
+        let bytes = serde_qs::to_string(data)
             .expect("Failed to serialize test data as a urlencoded form");
         self.req.set_payload(bytes);
         self.req.set(ContentType::form_url_encoded());

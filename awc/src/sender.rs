@@ -231,7 +231,7 @@ impl RequestSender {
         config: &ClientConfig,
         value: &T,
     ) -> SendClientRequest {
-        let body = match serde_urlencoded::to_string(value) {
+        let body = match serde_qs::to_string(value) {
             Ok(body) => body,
             Err(e) => return Error::from(e).into(),
         };
