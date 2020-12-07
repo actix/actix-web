@@ -590,6 +590,12 @@ mod tests {
     use super::*;
     use crate::Client;
 
+    #[derive(Serialize, Debug)]
+    struct Query<'a> {
+        key1: &'a str,
+        key2: &'a str,
+    }
+
     #[actix_rt::test]
     async fn test_debug() {
         let request = Client::new().get("/").header("x-test", "111");
@@ -715,7 +721,10 @@ mod tests {
     async fn client_query() {
         let req = Client::new()
             .get("/")
-            .query(&[("key1", "val1"), ("key2", "val2")])
+            .query(&Query {
+                key1: &"val1",
+                key2: &"val2",
+            })
             .unwrap();
         assert_eq!(req.get_uri().query().unwrap(), "key1=val1&key2=val2");
     }
