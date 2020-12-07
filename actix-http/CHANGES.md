@@ -1,7 +1,9 @@
 # Changes
 
 ## Unreleased - 2020-xx-xx
+* Migrate from `serde_urlencoded` to `serde_qs`. [#1816]
 
+[#1816]: https://github.com/actix/actix-web/pull/1816
 
 ## 2.2.0 - 2020-11-25
 ### Added

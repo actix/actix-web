@@ -3,8 +3,10 @@
 ## Unreleased - 2020-xx-xx
 ### Fixed
 * added the actual parsing error to `test::read_body_json` [#1812]
+* Migrate from `serde_urlencoded` to `serde_qs`. [#1816]
 
 [#1812]: https://github.com/actix/actix-web/pull/1812
+[#1816]: https://github.com/actix/actix-web/pull/1816
 
 
 
