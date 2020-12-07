@@ -9,7 +9,6 @@
 [#1816]: https://github.com/actix/actix-web/pull/1816
 
 
-
 ## 3.3.2 - 2020-12-01
 ### Fixed
 * Removed an occasional `unwrap` on `None` panic in `NormalizePathNormalization`. [#1762]
