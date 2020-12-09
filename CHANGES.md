@@ -7,6 +7,9 @@
 [#1812]: https://github.com/actix/actix-web/pull/1812
 
 
+* Add `fn cookie(x: &str)` in ServiceRequest [#1821]
+
+[#1821]: https://github.com/actix/actix-web/pull/1821
 
 ## 3.3.2 - 2020-12-01
 ### Fixed
