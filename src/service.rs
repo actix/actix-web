@@ -12,6 +12,7 @@ use actix_router::{IntoPattern, Path, Resource, ResourceDef, Url};
 use actix_service::{IntoServiceFactory, ServiceFactory};
 
 use crate::config::{AppConfig, AppService};
+use crate::cookie::Cookie;
 use crate::dev::insert_slash;
 use crate::guard::Guard;
 use crate::info::ConnectionInfo;
@@ -223,6 +224,12 @@ impl ServiceRequest {
     #[inline]
     pub fn app_config(&self) -> &AppConfig {
         self.0.app_config()
+    }
+
+    /// Get a cookie by name from the ServiceRequest
+    #[inline]
+    pub fn cookie(&self, name: &str) -> Option<Cookie<'static>> {
+        self.0.cookie(name)
     }
 
     /// Counterpart to [`HttpRequest::app_data`](../struct.HttpRequest.html#method.app_data).
@@ -543,6 +550,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::http::header::COOKIE;
     use crate::test::{init_service, TestRequest};
     use crate::{guard, http, web, App, HttpResponse};
     use actix_service::Service;
@@ -567,6 +575,14 @@ mod tests {
         let (r, _pl) = req.into_parts();
         let _r2 = r.clone();
         assert!(ServiceRequest::from_request(r).is_err());
+
+        let req = TestRequest::default()
+            .header(COOKIE, "cookie1=value1")
+            .header(COOKIE, "cookie2=value2")
+            .to_srv_request();
+        let cookie = req.cookie("cookie1");
+        assert_eq!(cookie.is_some(), true);
+        assert_eq!(cookie.unwrap().value(), "value1");
     }
 
     #[actix_rt::test]
