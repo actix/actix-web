@@ -3,7 +3,9 @@ use actix_http::HttpService;
 use actix_http_test::test_server;
 use actix_service::{map_config, ServiceFactory};
 use actix_web::http::Version;
-use actix_web::{dev::AppConfig, web, App, HttpResponse};
+use actix_web::{dev::AppConfig, test, web, App, HttpResponse};
+use awc::http::StatusCode;
+use bytes::Bytes;
 use open_ssl::ssl::{SslAcceptor, SslConnector, SslFiletype, SslMethod, SslVerifyMode};
 
 fn ssl_acceptor() -> SslAcceptor {
@@ -57,4 +59,55 @@ async fn test_connection_window_size() {
     let response = request.await.unwrap();
     assert!(response.status().is_success());
     assert_eq!(response.version(), Version::HTTP_2);
+}
+
+#[actix_rt::test]
+async fn test_follow_redirects() {
+    let srv = test::start(|| {
+        App::new()
+            .service(web::resource("/do/redirect").route(web::to(|| {
+                HttpResponse::TemporaryRedirect()
+                    .header("Location", "get")
+                    .finish()
+            })))
+            .service(web::resource("/do/get").route(web::to(HttpResponse::Ok)))
+    });
+
+    let client = awc::Client::builder().finish();
+
+    let request = client.get(srv.url("/do/redirect")).send();
+    let response = request.await.unwrap();
+    assert!(response.status().is_success());
+    assert_eq!(response.status(), StatusCode::OK);
+}
+
+#[actix_rt::test]
+async fn test_max_redirects() {
+    let srv = test::start(|| {
+        App::new()
+            .service(web::resource("/first-redirect").route(web::to(|| {
+                HttpResponse::TemporaryRedirect()
+                    .header("Location", "/second-redirect")
+                    .body("first")
+            })))
+            .service(web::resource("/second-redirect").route(web::to(|| {
+                HttpResponse::TemporaryRedirect()
+                    .header("Location", "/third-redirect")
+                    .body("second")
+            })))
+            .service(web::resource("/third-redirect").route(web::to(|| {
+                HttpResponse::TemporaryRedirect()
+                    .header("Location", "/the-content")
+                    .body("third")
+            })))
+            .service(web::resource("/the-content").route(web::to(HttpResponse::Ok)))
+    });
+
+    let client = awc::Client::builder().max_redirects(2).finish();
+
+    let request = client.get(srv.url("/first-redirect")).send();
+    let mut response = request.await.unwrap();
+    assert!(response.status().is_redirection());
+    assert_eq!(response.status(), StatusCode::TEMPORARY_REDIRECT);
+    assert_eq!(response.body().await.unwrap(), Bytes::from("third"));
 }

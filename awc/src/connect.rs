@@ -142,13 +142,10 @@ where
                     Ok((resphead, payload)) => {
                         if_chain! {
                             if resphead.status.is_redirection();
+                            if redirect_count < max_redirects;
                             if let Some(location_value) = resphead.headers.get(actix_http::http::header::LOCATION);
                             if let Ok(location_str) = location_value.to_str();
                             then {
-                                if redirect_count >= max_redirects {
-                                     // TODO: need a better error
-                                    return Err(SendRequestError::Timeout);
-                                }
                                 if resphead.status == actix_http::http::StatusCode::SEE_OTHER {
                                     reqhead.method = actix_http::http::Method::GET;
                                     reqbody = Body::None;
