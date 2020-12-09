@@ -192,10 +192,7 @@ impl AcceptEncoding {
         };
         let quality = match parts.len() {
             1 => encoding.quality(),
-            _ => match f64::from_str(parts[1]) {
-                Ok(q) => q,
-                Err(_) => 0.0,
-            },
+            _ => f64::from_str(parts[1]).unwrap_or(0.0),
         };
         Some(AcceptEncoding { encoding, quality })
     }
