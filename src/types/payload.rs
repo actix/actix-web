@@ -241,9 +241,10 @@ pub struct PayloadConfig {
 impl PayloadConfig {
     /// Create `PayloadConfig` instance and set max size of payload.
     pub fn new(limit: usize) -> Self {
-        let mut cfg = Self::default();
-        cfg.limit = limit;
-        cfg
+        Self {
+            limit,
+            ..Default::default()
+        }
     }
 
     /// Change max size of payload. By default max size is 256Kb

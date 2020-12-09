@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2020-xx-xx
+
+
+## 2.0.3 - 2020-11-29
 ### Fixed
 * Ensure `actix-http` dependency uses same `serde_urlencoded`.
 
