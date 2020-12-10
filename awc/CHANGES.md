@@ -2,6 +2,9 @@
 
 ## Unreleased - 2020-xx-xx
 
+### Fixed
+* Follows redirects and respects `disable_redirects` and `max_redirects` options.
+
 
 ## 2.0.3 - 2020-11-29
 ### Fixed
