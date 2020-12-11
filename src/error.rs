@@ -1,4 +1,5 @@
 //! Error and Result module
+
 pub use actix_http::error::*;
 use derive_more::{Display, From};
 use serde_json::error::Error as JsonError;

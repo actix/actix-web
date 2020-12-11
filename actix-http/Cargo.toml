@@ -1,6 +1,6 @@
 [package]
 name = "actix-http"
-version = "2.1.0"
+version = "2.2.0"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "HTTP primitives for the Actix ecosystem"
 readme = "README.md"

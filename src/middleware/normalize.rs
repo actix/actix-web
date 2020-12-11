@@ -137,9 +137,9 @@ where
         // so the change can not be deduced from the length comparison
         if path != original_path {
             let mut parts = head.uri.clone().into_parts();
-            let pq = parts.path_and_query.as_ref().unwrap();
+            let query = parts.path_and_query.as_ref().and_then(|pq| pq.query());
 
-            let path = if let Some(q) = pq.query() {
+            let path = if let Some(q) = query {
                 Bytes::from(format!("{}?{}", path, q))
             } else {
                 Bytes::copy_from_slice(path.as_bytes())

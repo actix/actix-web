@@ -7,9 +7,7 @@ use self::Charset::*;
 ///
 /// The string representation is normalized to upper case.
 ///
-/// See [http://www.iana.org/assignments/character-sets/character-sets.xhtml][url].
-///
-/// [url]: http://www.iana.org/assignments/character-sets/character-sets.xhtml
+/// See <http://www.iana.org/assignments/character-sets/character-sets.xhtml>.
 #[derive(Clone, Debug, PartialEq)]
 #[allow(non_camel_case_types)]
 pub enum Charset {
