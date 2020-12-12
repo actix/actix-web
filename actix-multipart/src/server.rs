@@ -725,9 +725,7 @@ impl Drop for Safety {
         if Rc::strong_count(&self.payload) != self.level {
             self.clean.set(true);
         }
-        if let Some(task) = self.task.take() {
-            task.wake()
-        }
+        self.task.wake();
     }
 }
 
