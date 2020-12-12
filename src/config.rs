@@ -219,6 +219,20 @@ impl ServiceConfig {
         )
     }
 
+    /// Register http service conditionally.
+    ///
+    /// This is same as `App::service()` method with condition.
+    pub fn service_if<F>(&mut self, flag: bool, factory: F) -> &mut Self
+    where
+        F: HttpServiceFactory + 'static,
+    {
+        if flag {
+            self.services
+                .push(Box::new(ServiceFactoryWrapper::new(factory)));
+        }
+        self
+    }
+
     /// Register http service.
     ///
     /// This is same as `App::service()` method.
@@ -353,6 +367,51 @@ mod tests {
             .to_request();
         let resp = call_service(&mut srv, req).await;
         assert_eq!(resp.status(), StatusCode::CREATED);
+
+        let req = TestRequest::with_uri("/index.html")
+            .method(Method::GET)
+            .to_request();
+        let resp = call_service(&mut srv, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[actix_rt::test]
+    async fn test_service_if() {
+        let mut srv = init_service(App::new().configure(|cfg| {
+            cfg.service_if(
+                true,
+                web::resource("/true").route(web::get().to(HttpResponse::Created)),
+            )
+            .route("/index.html", web::get().to(HttpResponse::Ok));
+        }))
+        .await;
+
+        let req = TestRequest::with_uri("/true")
+            .method(Method::GET)
+            .to_request();
+        let resp = call_service(&mut srv, req).await;
+        assert_eq!(resp.status(), StatusCode::CREATED);
+
+        let req = TestRequest::with_uri("/index.html")
+            .method(Method::GET)
+            .to_request();
+        let resp = call_service(&mut srv, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let mut srv = init_service(App::new().configure(|cfg| {
+            cfg.service_if(
+                false,
+                web::resource("/false").route(web::get().to(HttpResponse::Created)),
+            )
+            .route("/index.html", web::get().to(HttpResponse::Ok));
+        }))
+        .await;
+
+        let req = TestRequest::with_uri("/false")
+            .method(Method::GET)
+            .to_request();
+        let resp = call_service(&mut srv, req).await;
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 
         let req = TestRequest::with_uri("/index.html")
             .method(Method::GET)
