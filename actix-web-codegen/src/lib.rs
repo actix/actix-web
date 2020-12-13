@@ -8,7 +8,7 @@
 //! are re-exported.
 //!
 //! # Runtime Setup
-//! Used for setting up the actix async runtime. See [main] macro docs.
+//! Used for setting up the actix async runtime. See [macro@main] macro docs.
 //!
 //! ```rust
 //! #[actix_web_codegen::main] // or `#[actix_web::main]` in Actix Web apps
@@ -34,7 +34,7 @@
 //!
 //! # Multiple Method Handlers
 //! Similar to the single method handler macro but takes one or more arguments for the HTTP methods
-//! it should respond to. See [route] macro docs.
+//! it should respond to. See [macro@route] macro docs.
 //!
 //! ```rust
 //! # use actix_web::HttpResponse;
@@ -46,17 +46,15 @@
 //! ```
 //!
 //! [actix-web attributes docs]: https://docs.rs/actix-web/*/actix_web/#attributes
-//! [main]: attr.main.html
-//! [route]: attr.route.html
-//! [GET]: attr.get.html
-//! [POST]: attr.post.html
-//! [PUT]: attr.put.html
-//! [DELETE]: attr.delete.html
-//! [HEAD]: attr.head.html
-//! [CONNECT]: attr.connect.html
-//! [OPTIONS]: attr.options.html
-//! [TRACE]: attr.trace.html
-//! [PATCH]: attr.patch.html
+//! [GET]: macro@get
+//! [POST]: macro@post
+//! [PUT]: macro@put
+//! [HEAD]: macro@head
+//! [CONNECT]: macro@macro@connect
+//! [OPTIONS]: macro@options
+//! [TRACE]: macro@trace
+//! [PATCH]: macro@patch
+//! [DELETE]: macro@delete
 
 #![recursion_limit = "512"]
 

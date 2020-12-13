@@ -53,7 +53,7 @@ pub async fn test_server<F: ServiceFactory<TcpStream>>(factory: F) -> TestServer
     test_server_with_addr(tcp, factory).await
 }
 
-/// Start [`test server`](./fn.test_server.html) on a concrete Address
+/// Start [`test server`](test_server()) on a concrete Address
 pub async fn test_server_with_addr<F: ServiceFactory<TcpStream>>(
     tcp: net::TcpListener,
     factory: F,

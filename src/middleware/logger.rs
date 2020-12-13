@@ -82,11 +82,10 @@ use crate::HttpResponse;
 ///
 /// # Security
 ///  **\*** It is calculated using
-///  [`ConnectionInfo::realip_remote_addr()`](../dev/struct.ConnectionInfo.html#method.realip_remote_addr)
+///  [`ConnectionInfo::realip_remote_addr()`](crate::dev::ConnectionInfo::realip_remote_addr())
 ///
 ///  If you use this value ensure that all requests come from trusted hosts, since it is trivial
 ///  for the remote client to simulate being another client.
-///
 pub struct Logger(Rc<Inner>);
 
 struct Inner {
