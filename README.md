@@ -6,7 +6,7 @@
   <p>
 
 [![crates.io](https://img.shields.io/crates/v/actix-web?label=latest)](https://crates.io/crates/actix-web)
-[![Documentation](https://docs.rs/actix-web/badge.svg?version=3.3.2)](actix_web)
+[![Documentation](https://docs.rs/actix-web/badge.svg?version=3.3.2)](https://docs.rs/actix-web/3.3.2)
 [![Version](https://img.shields.io/badge/rustc-1.42+-ab6000.svg)](https://blog.rust-lang.org/2020/03/12/Rust-1.42.html)
 ![License](https://img.shields.io/crates/l/actix-web.svg)
 [![Dependency Status](https://deps.rs/crate/actix-web/3.3.2/status.svg)](https://deps.rs/crate/actix-web/3.3.2)
@@ -40,7 +40,7 @@
 
 * [Website & User Guide](https://actix.rs)
 * [Examples Repository](https://github.com/actix/examples)
-* [API Documentation](actix_web)
+* [API Documentation](https://docs.rs/actix-web)
 * [API Documentation (master branch)](https://actix.rs/actix-web/actix_web)
 
 ## Example

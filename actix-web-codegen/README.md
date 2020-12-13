@@ -3,7 +3,7 @@
 > Helper and convenience macros for Actix Web
 
 [![crates.io](https://meritbadge.herokuapp.com/actix-web-codegen)](https://crates.io/crates/actix-web-codegen)
-[![Documentation](https://docs.rs/actix-web-codegen/badge.svg)](https://docs.rs/actix-web)
+[![Documentation](https://docs.rs/actix-web-codegen/badge.svg)](https://docs.rs/actix-web-codegen/0.4.0/actix_web_codegen/)
 [![Version](https://img.shields.io/badge/rustc-1.42+-ab6000.svg)](https://blog.rust-lang.org/2020/03/12/Rust-1.42.html)
 [![Build Status](https://travis-ci.org/actix/actix-web.svg?branch=master)](https://travis-ci.org/actix/actix-web)
 [![codecov](https://codecov.io/gh/actix/actix-web/branch/master/graph/badge.svg)](https://codecov.io/gh/actix/actix-web)
@@ -11,7 +11,7 @@
 
 ## Documentation & Resources
 
-- [API Documentation](actix_web_codegen)
+- [API Documentation](https://docs.rs/actix-web-codegen)
 - [Chat on Gitter](https://gitter.im/actix/actix-web)
 - Cargo package: [actix-web-codegen](https://crates.io/crates/actix-web-codegen)
 - Minimum supported Rust version: 1.42 or later.

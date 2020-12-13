@@ -8,7 +8,6 @@ use http::header::{HeaderName, HeaderValue};
 /// A set of HTTP headers
 ///
 /// `HeaderMap` is an multi-map of [`HeaderName`] to values.
-///
 #[derive(Debug, Clone)]
 pub struct HeaderMap {
     pub(crate) inner: FxHashMap<HeaderName, Value>,
@@ -140,7 +139,6 @@ impl HeaderMap {
     /// The returned view does not incur any allocations and allows iterating
     /// the values associated with the key.  See [`GetAll`] for more details.
     /// Returns `None` if there are no values associated with the key.
-    ///
     pub fn get_all<N: AsName>(&self, name: N) -> GetAll<'_> {
         GetAll {
             idx: 0,
