@@ -2,7 +2,7 @@
 
 ## Documentation & community resources
 
-* [API Documentation](https://docs.rs/actix-multipart/)
+* [API Documentation](actix_multipart)
 * [Chat on gitter](https://gitter.im/actix/actix)
 * Cargo package: [actix-multipart](https://crates.io/crates/actix-multipart)
 * Minimum supported Rust version: 1.40 or later

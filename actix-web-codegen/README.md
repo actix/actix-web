@@ -11,7 +11,7 @@
 
 ## Documentation & Resources
 
-- [API Documentation](https://docs.rs/actix-web-codegen)
+- [API Documentation](actix_web_codegen)
 - [Chat on Gitter](https://gitter.im/actix/actix-web)
 - Cargo package: [actix-web-codegen](https://crates.io/crates/actix-web-codegen)
 - Minimum supported Rust version: 1.42 or later.

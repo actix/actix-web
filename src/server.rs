@@ -213,7 +213,7 @@ where
     /// Set server host name.
     ///
     /// Host name is used by application router as a hostname for url generation.
-    /// Check [ConnectionInfo](./dev/struct.ConnectionInfo.html#method.host)
+    /// Check [ConnectionInfo](dev::ConnectionInfo::host())
     /// documentation for more information.
     ///
     /// By default host name is set to a "localhost" value.

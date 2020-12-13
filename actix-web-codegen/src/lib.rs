@@ -46,17 +46,15 @@
 //! ```
 //!
 //! [actix-web attributes docs]: https://docs.rs/actix-web/*/actix_web/#attributes
-//! [main]: attr.main.html
-//! [route]: attr.route.html
-//! [GET]: attr.get.html
-//! [POST]: attr.post.html
-//! [PUT]: attr.put.html
-//! [DELETE]: attr.delete.html
-//! [HEAD]: attr.head.html
-//! [CONNECT]: attr.connect.html
-//! [OPTIONS]: attr.options.html
-//! [TRACE]: attr.trace.html
-//! [PATCH]: attr.patch.html
+//! [GET]: get
+//! [POST]: post
+//! [PUT]: put
+//! [DELETE]: delete
+//! [HEAD]: head
+//! [CONNECT]: connect
+//! [OPTIONS]: options
+//! [TRACE]: trace
+//! [PATCH]: patch
 
 #![recursion_limit = "512"]
 

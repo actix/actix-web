@@ -9,7 +9,6 @@ use http::header::{HeaderName, HeaderValue};
 ///
 /// `HeaderMap` is an multi-map of [`HeaderName`] to values.
 ///
-/// [`HeaderName`]: struct.HeaderName.html
 #[derive(Debug, Clone)]
 pub struct HeaderMap {
     pub(crate) inner: FxHashMap<HeaderName, Value>,
@@ -142,7 +141,6 @@ impl HeaderMap {
     /// the values associated with the key.  See [`GetAll`] for more details.
     /// Returns `None` if there are no values associated with the key.
     ///
-    /// [`GetAll`]: struct.GetAll.html
     pub fn get_all<N: AsName>(&self, name: N) -> GetAll<'_> {
         GetAll {
             idx: 0,
