@@ -111,7 +111,7 @@ impl FromRequest for Payload {
 ///
 /// Loads request's payload and construct Bytes instance.
 ///
-/// [**PayloadConfig**](struct.PayloadConfig.html) allows to configure
+/// [**PayloadConfig**](PayloadConfig) allows to configure
 /// extraction process.
 ///
 /// ## Example
@@ -159,7 +159,7 @@ impl FromRequest for Bytes {
 ///
 /// Text extractor automatically decode body according to the request's charset.
 ///
-/// [**PayloadConfig**](struct.PayloadConfig.html) allows to configure
+/// [**PayloadConfig**](PayloadConfig) allows to configure
 /// extraction process.
 ///
 /// ## Example

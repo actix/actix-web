@@ -1,6 +1,6 @@
 //! Websockets client
 //!
-//! Type definitions required to use [`awc::Client`](../struct.Client.html) as a WebSocket client.
+//! Type definitions required to use [`awc::Client`](super::Client) as a WebSocket client.
 //!
 //! # Example
 //!
