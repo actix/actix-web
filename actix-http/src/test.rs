@@ -247,7 +247,9 @@ impl AsyncRead for TestBuffer {
         _: &mut Context<'_>,
         buf: &mut ReadBuf<'_>,
     ) -> Poll<io::Result<()>> {
-        Poll::Ready(self.get_mut().read(buf.filled_mut()).map(|_| ()))
+        let dst = buf.initialize_unfilled();
+        let res = self.get_mut().read(dst).map(|n| buf.advance(n));
+        Poll::Ready(res)
     }
 }
 

@@ -270,11 +270,11 @@ where
     where
         F: IntoServiceFactory<U>,
         U: ServiceFactory<
-                Config = (),
-                Request = ServiceRequest,
-                Response = ServiceResponse,
-                Error = Error,
-            > + 'static,
+            Config = (),
+            Request = ServiceRequest,
+            Response = ServiceResponse,
+            Error = Error,
+        > + 'static,
         U::InitError: fmt::Debug,
     {
         // create and configure default resource

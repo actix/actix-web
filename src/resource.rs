@@ -347,11 +347,11 @@ where
     where
         F: IntoServiceFactory<U>,
         U: ServiceFactory<
-                Config = (),
-                Request = ServiceRequest,
-                Response = ServiceResponse,
-                Error = Error,
-            > + 'static,
+            Config = (),
+            Request = ServiceRequest,
+            Response = ServiceResponse,
+            Error = Error,
+        > + 'static,
         U::InitError: fmt::Debug,
     {
         // create and configure default resource
@@ -368,12 +368,12 @@ where
 impl<T> HttpServiceFactory for Resource<T>
 where
     T: ServiceFactory<
-            Config = (),
-            Request = ServiceRequest,
-            Response = ServiceResponse,
-            Error = Error,
-            InitError = (),
-        > + 'static,
+        Config = (),
+        Request = ServiceRequest,
+        Response = ServiceResponse,
+        Error = Error,
+        InitError = (),
+    > + 'static,
 {
     fn register(mut self, config: &mut AppService) {
         let guards = if self.guards.is_empty() {
