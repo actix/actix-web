@@ -5,6 +5,7 @@ use std::task::{Context, Poll};
 
 use actix_http::error::Error;
 use futures_util::future::{ready, Ready};
+use futures_util::ready;
 
 use crate::dev::Payload;
 use crate::request::HttpRequest;
@@ -121,13 +122,14 @@ where
     type Output = Result<Option<T>, Error>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        match self.project().fut.poll(cx) {
-            Poll::Ready(Ok(t)) => Poll::Ready(Ok(Some(t))),
-            Poll::Ready(Err(e)) => {
+        let this = self.project();
+        let res = ready!(this.fut.poll(cx));
+        match res {
+            Ok(t) => Poll::Ready(Ok(Some(t))),
+            Err(e) => {
                 log::debug!("Error for Option<T> extractor: {}", e.into());
                 Poll::Ready(Ok(None))
             }
-            Poll::Pending => Poll::Pending,
         }
     }
 }
@@ -209,11 +211,9 @@ where
     type Output = Result<Result<T, E>, Error>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        match self.project().fut.poll(cx) {
-            Poll::Ready(Ok(t)) => Poll::Ready(Ok(Ok(t))),
-            Poll::Ready(Err(e)) => Poll::Ready(Ok(Err(e))),
-            Poll::Pending => Poll::Pending,
-        }
+        let this = self.project();
+        let res = ready!(this.fut.poll(cx));
+        Poll::Ready(Ok(res))
     }
 }
 
