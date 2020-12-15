@@ -35,7 +35,7 @@ use crate::{responder::Responder, web};
 /// To extract typed information from request's body, the type `T` must
 /// implement the `Deserialize` trait from *serde*.
 ///
-/// [**FormConfig**](struct.FormConfig.html) allows to configure extraction
+/// [**FormConfig**](FormConfig) allows to configure extraction
 /// process.
 ///
 /// ### Example
