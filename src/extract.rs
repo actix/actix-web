@@ -4,7 +4,7 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 
 use actix_http::error::Error;
-use futures_util::future::{ok, FutureExt, LocalBoxFuture, Ready};
+use futures_util::future::{ready, Ready};
 
 use crate::dev::Payload;
 use crate::request::HttpRequest;
@@ -95,21 +95,40 @@ where
     T: FromRequest,
     T::Future: 'static,
 {
-    type Config = T::Config;
     type Error = Error;
-    type Future = LocalBoxFuture<'static, Result<Option<T>, Error>>;
+    type Future = FromRequestOptFuture<T::Future>;
+    type Config = T::Config;
 
     #[inline]
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
-        T::from_request(req, payload)
-            .then(|r| match r {
-                Ok(v) => ok(Some(v)),
-                Err(e) => {
-                    log::debug!("Error for Option<T> extractor: {}", e.into());
-                    ok(None)
-                }
-            })
-            .boxed_local()
+        FromRequestOptFuture {
+            fut: T::from_request(req, payload),
+        }
+    }
+}
+
+#[pin_project::pin_project]
+pub struct FromRequestOptFuture<Fut> {
+    #[pin]
+    fut: Fut,
+}
+
+impl<Fut, T, E> Future for FromRequestOptFuture<Fut>
+where
+    Fut: Future<Output = Result<T, E>>,
+    E: Into<Error>,
+{
+    type Output = Result<Option<T>, Error>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        match self.project().fut.poll(cx) {
+            Poll::Ready(Ok(t)) => Poll::Ready(Ok(Some(t))),
+            Poll::Ready(Err(e)) => {
+                log::debug!("Error for Option<T> extractor: {}", e.into());
+                Poll::Ready(Ok(None))
+            }
+            Poll::Pending => Poll::Pending,
+        }
     }
 }
 
@@ -165,29 +184,47 @@ where
     T::Error: 'static,
     T::Future: 'static,
 {
-    type Config = T::Config;
     type Error = Error;
-    type Future = LocalBoxFuture<'static, Result<Result<T, T::Error>, Error>>;
+    type Future = FromRequestResFuture<T::Future>;
+    type Config = T::Config;
 
     #[inline]
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
-        T::from_request(req, payload)
-            .then(|res| match res {
-                Ok(v) => ok(Ok(v)),
-                Err(e) => ok(Err(e)),
-            })
-            .boxed_local()
+        FromRequestResFuture {
+            fut: T::from_request(req, payload),
+        }
+    }
+}
+
+#[pin_project::pin_project]
+pub struct FromRequestResFuture<Fut> {
+    #[pin]
+    fut: Fut,
+}
+
+impl<Fut, T, E> Future for FromRequestResFuture<Fut>
+where
+    Fut: Future<Output = Result<T, E>>,
+{
+    type Output = Result<Result<T, E>, Error>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        match self.project().fut.poll(cx) {
+            Poll::Ready(Ok(t)) => Poll::Ready(Ok(Ok(t))),
+            Poll::Ready(Err(e)) => Poll::Ready(Ok(Err(e))),
+            Poll::Pending => Poll::Pending,
+        }
     }
 }
 
 #[doc(hidden)]
 impl FromRequest for () {
-    type Config = ();
     type Error = Error;
     type Future = Ready<Result<(), Error>>;
+    type Config = ();
 
     fn from_request(_: &HttpRequest, _: &mut Payload) -> Self::Future {
-        ok(())
+        ready(Ok(()))
     }
 }
 
