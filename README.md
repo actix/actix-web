@@ -38,7 +38,9 @@
 
 ## Documentation
 
-* [Website & User Guide](https://actix.rs)
+* Website & User Guide
+  * [English](https://actix.rs)
+  * [简体中文](https://github.com/zzy/actix-web-zh-cn), [在线阅读](https://actix-web.budshome.com/)
 * [Examples Repository](https://github.com/actix/examples)
 * [API Documentation](https://docs.rs/actix-web)
 * [API Documentation (master branch)](https://actix.rs/actix-web/actix_web)
