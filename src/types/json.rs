@@ -10,6 +10,7 @@ use std::{fmt, ops};
 use bytes::BytesMut;
 use futures_util::future::{ready, Ready};
 use futures_util::ready;
+use futures_util::stream::Stream;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
@@ -22,7 +23,6 @@ use crate::error::{Error, JsonPayloadError};
 use crate::extract::FromRequest;
 use crate::request::HttpRequest;
 use crate::{responder::Responder, web};
-use futures_util::stream::Stream;
 
 /// Json helper
 ///
@@ -392,7 +392,7 @@ where
         let payload = payload.take();
 
         JsonBody::Body {
-            limit: 32_768,
+            limit: 262_144,
             length,
             payload,
             buf: BytesMut::with_capacity(8192),
