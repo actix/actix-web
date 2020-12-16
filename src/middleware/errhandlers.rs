@@ -181,11 +181,11 @@ mod tests {
 
     fn render_500_async<B: 'static>(
         mut res: ServiceResponse<B>,
-    ) -> Result<ErrorHandlerResponse<B>> {
+    ) -> ErrorHandlerResponse<B> {
         res.response_mut()
             .headers_mut()
             .insert(CONTENT_TYPE, HeaderValue::from_static("0001"));
-        Ok(ErrorHandlerResponse::Future(ok(res).boxed_local()))
+        ErrorHandlerResponse::Future(ok(res).boxed_local())
     }
 
     #[actix_rt::test]
