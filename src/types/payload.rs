@@ -7,10 +7,15 @@ use std::task::{Context, Poll};
 use actix_http::error::{Error, ErrorBadRequest, PayloadError};
 use actix_http::HttpMessage;
 use bytes::{Bytes, BytesMut};
-use encoding_rs::UTF_8;
+use encoding_rs::{Encoding, UTF_8};
 use futures_core::stream::Stream;
-use futures_util::future::{err, ok, Either, FutureExt, LocalBoxFuture, Ready};
-use futures_util::StreamExt;
+use futures_util::{
+    future::{
+        err, ok, Either, ErrInto, FutureExt as _, LocalBoxFuture, Ready,
+        TryFutureExt as _,
+    },
+    stream::StreamExt as _,
+};
 use mime::Mime;
 
 use crate::extract::FromRequest;
@@ -135,10 +140,7 @@ impl FromRequest for Payload {
 impl FromRequest for Bytes {
     type Config = PayloadConfig;
     type Error = Error;
-    type Future = Either<
-        LocalBoxFuture<'static, Result<Bytes, Error>>,
-        Ready<Result<Bytes, Error>>,
-    >;
+    type Future = Either<ErrInto<HttpMessageBody, Error>, Ready<Result<Bytes, Error>>>;
 
     #[inline]
     fn from_request(req: &HttpRequest, payload: &mut dev::Payload) -> Self::Future {
@@ -151,7 +153,7 @@ impl FromRequest for Bytes {
 
         let limit = cfg.limit;
         let fut = HttpMessageBody::new(req, payload).limit(limit);
-        Either::Left(async move { Ok(fut.await?) }.boxed_local())
+        Either::Left(fut.err_into())
     }
 }
 
@@ -185,10 +187,7 @@ impl FromRequest for Bytes {
 impl FromRequest for String {
     type Config = PayloadConfig;
     type Error = Error;
-    type Future = Either<
-        LocalBoxFuture<'static, Result<String, Error>>,
-        Ready<Result<String, Error>>,
-    >;
+    type Future = Either<StringExtractFut, Ready<Result<String, Error>>>;
 
     #[inline]
     fn from_request(req: &HttpRequest, payload: &mut dev::Payload) -> Self::Future {
@@ -205,25 +204,40 @@ impl FromRequest for String {
             Err(e) => return Either::Right(err(e.into())),
         };
         let limit = cfg.limit;
-        let fut = HttpMessageBody::new(req, payload).limit(limit);
+        let body_fut = HttpMessageBody::new(req, payload).limit(limit);
 
-        Either::Left(
-            async move {
-                let body = fut.await?;
+        Either::Left(StringExtractFut { body_fut, encoding })
+    }
+}
 
-                if encoding == UTF_8 {
-                    Ok(str::from_utf8(body.as_ref())
-                        .map_err(|_| ErrorBadRequest("Can not decode body"))?
-                        .to_owned())
-                } else {
-                    Ok(encoding
-                        .decode_without_bom_handling_and_without_replacement(&body)
-                        .map(|s| s.into_owned())
-                        .ok_or_else(|| ErrorBadRequest("Can not decode body"))?)
-                }
-            }
-            .boxed_local(),
-        )
+pub struct StringExtractFut {
+    body_fut: HttpMessageBody,
+    encoding: &'static Encoding,
+}
+
+impl<'a> Future for StringExtractFut {
+    type Output = Result<String, Error>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let encoding = self.encoding;
+
+        Pin::new(&mut self.body_fut).poll(cx).map(|out| {
+            let body = out?;
+            bytes_to_string(body, encoding)
+        })
+    }
+}
+
+fn bytes_to_string(body: Bytes, encoding: &'static Encoding) -> Result<String, Error> {
+    if encoding == UTF_8 {
+        Ok(str::from_utf8(body.as_ref())
+            .map_err(|_| ErrorBadRequest("Can not decode body"))?
+            .to_owned())
+    } else {
+        Ok(encoding
+            .decode_without_bom_handling_and_without_replacement(&body)
+            .map(|s| s.into_owned())
+            .ok_or_else(|| ErrorBadRequest("Can not decode body"))?)
     }
 }
 
