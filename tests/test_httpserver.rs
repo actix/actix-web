@@ -64,7 +64,7 @@ async fn test_start() {
 }
 
 #[cfg(feature = "openssl")]
-fn ssl_acceptor() -> std::io::Result<SslAcceptorBuilder> {
+fn ssl_acceptor() -> SslAcceptorBuilder {
     use open_ssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
     // load ssl keys
     let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
@@ -74,7 +74,7 @@ fn ssl_acceptor() -> std::io::Result<SslAcceptorBuilder> {
     builder
         .set_certificate_chain_file("tests/cert.pem")
         .unwrap();
-    Ok(builder)
+    builder
 }
 
 #[actix_rt::test]
