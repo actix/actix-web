@@ -124,8 +124,8 @@ where
     B: MessageBody,
 {
     None,
-    ExpectCall(Pin<Box<X::Future>>),
-    ServiceCall(Pin<Box<S::Future>>),
+    ExpectCall(#[pin] X::Future),
+    ServiceCall(#[pin] S::Future),
     SendPayload(#[pin] ResponseBody<B>),
 }
 
@@ -382,12 +382,11 @@ where
                     }
                     None => None,
                 },
-                StateProj::ExpectCall(fut) => match fut.as_mut().poll(cx) {
+                StateProj::ExpectCall(fut) => match fut.poll(cx) {
                     Poll::Ready(Ok(req)) => {
                         self.as_mut().send_continue();
                         this = self.as_mut().project();
-                        this.state
-                            .set(State::ServiceCall(Box::pin(this.service.call(req))));
+                        this.state.set(State::ServiceCall(this.service.call(req)));
                         continue;
                     }
                     Poll::Ready(Err(e)) => {
@@ -397,7 +396,7 @@ where
                     }
                     Poll::Pending => None,
                 },
-                StateProj::ServiceCall(fut) => match fut.as_mut().poll(cx) {
+                StateProj::ServiceCall(fut) => match fut.poll(cx) {
                     Poll::Ready(Ok(res)) => {
                         let (res, body) = res.into().replace_body(());
                         let state = self.as_mut().send_response(res, body)?;
@@ -473,42 +472,19 @@ where
     fn handle_request(
         mut self: Pin<&mut Self>,
         req: Request,
-        cx: &mut Context<'_>,
+        _: &mut Context<'_>,
     ) -> Result<State<S, B, X>, DispatchError> {
         // Handle `EXPECT: 100-Continue` header
         let req = if req.head().expect() {
-            let mut task = Box::pin(self.as_mut().project().expect.call(req));
-            match task.as_mut().poll(cx) {
-                Poll::Ready(Ok(req)) => {
-                    self.as_mut().send_continue();
-                    req
-                }
-                Poll::Pending => return Ok(State::ExpectCall(task)),
-                Poll::Ready(Err(e)) => {
-                    let e = e.into();
-                    let res: Response = e.into();
-                    let (res, body) = res.replace_body(());
-                    return self.send_response(res, body.into_body());
-                }
-            }
+            let task = self.as_mut().project().expect.call(req);
+            return Ok(State::ExpectCall(task));
         } else {
             req
         };
 
         // Call service
-        let mut task = Box::pin(self.as_mut().project().service.call(req));
-        match task.as_mut().poll(cx) {
-            Poll::Ready(Ok(res)) => {
-                let (res, body) = res.into().replace_body(());
-                self.send_response(res, body)
-            }
-            Poll::Pending => Ok(State::ServiceCall(task)),
-            Poll::Ready(Err(e)) => {
-                let res: Response = e.into().into();
-                let (res, body) = res.replace_body(());
-                self.send_response(res, body.into_body())
-            }
-        }
+        let task = self.as_mut().project().service.call(req);
+        Ok(State::ServiceCall(task))
     }
 
     /// Process one incoming requests
