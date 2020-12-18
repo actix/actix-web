@@ -450,8 +450,10 @@ where
             };
 
             // state is changed and continue when the state is not Empty
-            if state_change && !self.state.is_empty() {
-                continue;
+            if state_change {
+                if !self.state.is_empty() {
+                    continue;
+                }
             } else {
                 // if read-backpressure is enabled and we consumed some data.
                 // we may read more data and retry
