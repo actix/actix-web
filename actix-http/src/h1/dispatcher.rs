@@ -141,10 +141,6 @@ where
         matches!(self, State::None)
     }
 
-    fn is_noop(&self) -> bool {
-        matches!(self, State::NoOp)
-    }
-
     fn is_call(&self) -> bool {
         matches!(self, State::ServiceCall(_))
     }
@@ -344,7 +340,7 @@ where
         self: Pin<&mut Self>,
         message: Response<()>,
         body: ResponseBody<B>,
-    ) -> Result<State<S, B, X>, DispatchError> {
+    ) -> Result<Option<State<S, B, X>>, DispatchError> {
         let mut this = self.project();
         this.codec
             .encode(Message::Item((message, body.size())), &mut this.write_buf)
@@ -357,8 +353,8 @@ where
 
         this.flags.set(Flags::KEEPALIVE, this.codec.keepalive());
         match body.size() {
-            BodySize::None | BodySize::Empty => Ok(State::None),
-            _ => Ok(State::SendPayload(body)),
+            BodySize::None | BodySize::Empty => Ok(Some(State::None)),
+            _ => Ok(Some(State::SendPayload(body))),
         }
     }
 
@@ -377,12 +373,11 @@ where
             let state = match this.state.project() {
                 StateProj::None => match this.messages.pop_front() {
                     Some(DispatcherMessage::Item(req)) => {
-                        Some(self.as_mut().handle_request(req, cx)?)
+                        self.as_mut().handle_request(req, cx)?
                     }
-                    Some(DispatcherMessage::Error(res)) => Some(
-                        self.as_mut()
-                            .send_response(res, ResponseBody::Other(Body::Empty))?,
-                    ),
+                    Some(DispatcherMessage::Error(res)) => self
+                        .as_mut()
+                        .send_response(res, ResponseBody::Other(Body::Empty))?,
                     Some(DispatcherMessage::Upgrade(req)) => {
                         return Ok(PollResponse::Upgrade(req));
                     }
@@ -398,14 +393,15 @@ where
                     Poll::Ready(Err(e)) => {
                         let res: Response = e.into().into();
                         let (res, body) = res.replace_body(());
-                        Some(self.as_mut().send_response(res, body.into_body())?)
+                        self.as_mut().send_response(res, body.into_body())?
                     }
                     Poll::Pending => None,
                 },
                 StateProj::ServiceCall(fut) => match fut.poll(cx) {
                     Poll::Ready(Ok(res)) => {
                         let (res, body) = res.into().replace_body(());
-                        let state = self.as_mut().send_response(res, body)?;
+                        // send_response does not return a None variant of State.
+                        let state = self.as_mut().send_response(res, body)?.unwrap();
                         this = self.as_mut().project();
                         this.state.set(state);
                         continue;
@@ -413,7 +409,7 @@ where
                     Poll::Ready(Err(e)) => {
                         let res: Response = e.into().into();
                         let (res, body) = res.replace_body(());
-                        Some(self.as_mut().send_response(res, body.into_body())?)
+                        self.as_mut().send_response(res, body.into_body())?
                     }
                     Poll::Pending => None,
                 },
@@ -457,10 +453,7 @@ where
 
             // set new state
             if let Some(state) = state {
-                // only set state when it's not noop
-                if !state.is_noop() {
-                    this.state.set(state);
-                }
+                this.state.set(state);
                 if !self.state.is_empty() {
                     continue;
                 }
@@ -485,7 +478,7 @@ where
         mut self: Pin<&mut Self>,
         req: Request,
         cx: &mut Context<'_>,
-    ) -> Result<State<S, B, X>, DispatchError> {
+    ) -> Result<Option<State<S, B, X>>, DispatchError> {
         // Handle `EXPECT: 100-Continue` header
         if req.head().expect() {
             // set dispatcher state so the future is pinned.
@@ -511,7 +504,7 @@ where
                         }
                         // future is pending. return NoOp state to notify that we already set
                         // the state and it should not be updated again.
-                        Poll::Pending => return Ok(State::NoOp),
+                        Poll::Pending => return Ok(None),
                         // future is error. send response and return a state on success to notify
                         // the dispatcher state should be updated.
                         Poll::Ready(Err(e)) => {
@@ -532,7 +525,7 @@ where
                             self.send_response(res, body)
                         }
                         // see the comment on ExpectCall state branch's Pending.
-                        Poll::Pending => Ok(State::NoOp),
+                        Poll::Pending => Ok(None),
                         // see the comment on ExpectCall state branch's Ready(Err(e)).
                         Poll::Ready(Err(e)) => {
                             let res: Response = e.into().into();
@@ -594,9 +587,10 @@ where
 
                             // handle request early
                             if this.state.is_empty() {
+                                // State can be set here
                                 let state = self.as_mut().handle_request(req, cx)?;
                                 this = self.as_mut().project();
-                                if !state.is_noop() {
+                                if let Some(state) = state {
                                     this.state.set(state);
                                 }
                             } else {
