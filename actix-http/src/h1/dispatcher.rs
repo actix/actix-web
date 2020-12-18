@@ -127,8 +127,6 @@ where
     ExpectCall(#[pin] X::Future),
     ServiceCall(#[pin] S::Future),
     SendPayload(#[pin] ResponseBody<B>),
-    // A special state hinting the state should not be updated.
-    NoOp,
 }
 
 impl<S, B, X> State<S, B, X>
@@ -443,9 +441,6 @@ where
                         break;
                     }
                     continue;
-                }
-                StateProj::NoOp => {
-                    unreachable!("State::NoOp is only used in handle_request method")
                 }
             };
 
