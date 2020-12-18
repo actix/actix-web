@@ -1,10 +1,14 @@
 //! Middleware for setting default response headers
 use std::convert::TryFrom;
+use std::future::Future;
+use std::marker::PhantomData;
+use std::pin::Pin;
 use std::rc::Rc;
 use std::task::{Context, Poll};
 
 use actix_service::{Service, Transform};
-use futures_util::future::{ok, FutureExt, LocalBoxFuture, Ready};
+use futures_util::future::{ready, Ready};
+use futures_util::ready;
 
 use crate::http::header::{HeaderName, HeaderValue, CONTENT_TYPE};
 use crate::http::{Error as HttpError, HeaderMap};
@@ -97,15 +101,15 @@ where
     type Request = ServiceRequest;
     type Response = ServiceResponse<B>;
     type Error = Error;
-    type InitError = ();
     type Transform = DefaultHeadersMiddleware<S>;
+    type InitError = ();
     type Future = Ready<Result<Self::Transform, Self::InitError>>;
 
     fn new_transform(&self, service: S) -> Self::Future {
-        ok(DefaultHeadersMiddleware {
+        ready(Ok(DefaultHeadersMiddleware {
             service,
             inner: self.inner.clone(),
-        })
+        }))
     }
 }
 
@@ -122,36 +126,56 @@ where
     type Request = ServiceRequest;
     type Response = ServiceResponse<B>;
     type Error = Error;
-    type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
+    type Future = DefaultHeaderFuture<S, B>;
 
     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         self.service.poll_ready(cx)
     }
 
-    #[allow(clippy::borrow_interior_mutable_const)]
     fn call(&mut self, req: ServiceRequest) -> Self::Future {
         let inner = self.inner.clone();
         let fut = self.service.call(req);
 
-        async move {
-            let mut res = fut.await?;
-
-            // set response headers
-            for (key, value) in inner.headers.iter() {
-                if !res.headers().contains_key(key) {
-                    res.headers_mut().insert(key.clone(), value.clone());
-                }
-            }
-            // default content-type
-            if inner.ct && !res.headers().contains_key(&CONTENT_TYPE) {
-                res.headers_mut().insert(
-                    CONTENT_TYPE,
-                    HeaderValue::from_static("application/octet-stream"),
-                );
-            }
-            Ok(res)
+        DefaultHeaderFuture {
+            fut,
+            inner,
+            _body: PhantomData,
         }
-        .boxed_local()
+    }
+}
+
+#[pin_project::pin_project]
+pub struct DefaultHeaderFuture<S: Service, B> {
+    #[pin]
+    fut: S::Future,
+    inner: Rc<Inner>,
+    _body: PhantomData<B>,
+}
+
+impl<S, B> Future for DefaultHeaderFuture<S, B>
+where
+    S: Service<Response = ServiceResponse<B>, Error = Error>,
+{
+    type Output = <S::Future as Future>::Output;
+
+    #[allow(clippy::borrow_interior_mutable_const)]
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = self.project();
+        let mut res = ready!(this.fut.poll(cx))?;
+        // set response headers
+        for (key, value) in this.inner.headers.iter() {
+            if !res.headers().contains_key(key) {
+                res.headers_mut().insert(key.clone(), value.clone());
+            }
+        }
+        // default content-type
+        if this.inner.ct && !res.headers().contains_key(&CONTENT_TYPE) {
+            res.headers_mut().insert(
+                CONTENT_TYPE,
+                HeaderValue::from_static("application/octet-stream"),
+            );
+        }
+        Poll::Ready(Ok(res))
     }
 }
 
