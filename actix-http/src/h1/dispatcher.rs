@@ -497,7 +497,7 @@ where
                             self.as_mut().project().state.set(State::ServiceCall(task));
                             continue;
                         }
-                        // future is pending. return NoOp state to notify that we already set
+                        // future is pending. return None to notify that we already set
                         // the state and it should not be updated again.
                         Poll::Pending => return Ok(None),
                         // future is error. send response and return a state on success to notify
