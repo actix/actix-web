@@ -183,7 +183,7 @@ fn parts(parts: &mut Option<Inner>) -> &mut Inner {
     parts.as_mut().expect("cannot reuse test request builder")
 }
 
-/// Async io buffer
+/// Async I/O test buffer.
 pub struct TestBuffer {
     pub read_buf: BytesMut,
     pub write_buf: BytesMut,
@@ -191,24 +191,24 @@ pub struct TestBuffer {
 }
 
 impl TestBuffer {
-    /// Create new TestBuffer instance
+    /// Create new `TestBuffer` instance with initial read buffer.
     pub fn new<T>(data: T) -> TestBuffer
     where
-        BytesMut: From<T>,
+        T: Into<BytesMut>,
     {
         TestBuffer {
-            read_buf: BytesMut::from(data),
+            read_buf: data.into(),
             write_buf: BytesMut::new(),
             err: None,
         }
     }
 
-    /// Create new empty TestBuffer instance
+    /// Create new empty `TestBuffer` instance.
     pub fn empty() -> TestBuffer {
         TestBuffer::new("")
     }
 
-    /// Add extra data to read buffer.
+    /// Add data to read buffer.
     pub fn extend_read_buf<T: AsRef<[u8]>>(&mut self, data: T) {
         self.read_buf.extend_from_slice(data.as_ref())
     }
@@ -236,6 +236,7 @@ impl io::Write for TestBuffer {
         self.write_buf.extend(buf);
         Ok(buf.len())
     }
+
     fn flush(&mut self) -> io::Result<()> {
         Ok(())
     }

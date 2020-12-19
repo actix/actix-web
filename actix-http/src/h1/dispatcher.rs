@@ -59,6 +59,9 @@ where
 {
     #[pin]
     inner: DispatcherState<T, S, B, X, U>,
+
+    #[cfg(test)]
+    poll_count: u64,
 }
 
 #[pin_project(project = DispatcherStateProj)]
@@ -247,6 +250,9 @@ where
                 ka_expire,
                 ka_timer,
             }),
+
+            #[cfg(test)]
+            poll_count: 0,
         }
     }
 }
@@ -511,12 +517,12 @@ where
         }
     }
 
-    /// Process one incoming requests
+    /// Process one incoming request.
     pub(self) fn poll_request(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
     ) -> Result<bool, DispatchError> {
-        // limit a mount of non processed requests
+        // limit amount of non-processed requests
         if self.messages.len() >= MAX_PIPELINED_MESSAGES || !self.can_read(cx) {
             return Ok(false);
         }
@@ -725,6 +731,12 @@ where
     #[inline]
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.as_mut().project();
+
+        #[cfg(test)]
+        {
+            *this.poll_count += 1;
+        }
+
         match this.inner.project() {
             DispatcherStateProj::Normal(mut inner) => {
                 inner.as_mut().poll_keepalive(cx)?;
@@ -833,15 +845,21 @@ where
                             && !inner_p.flags.intersects(Flags::KEEPALIVE)
                         {
                             inner_p.flags.insert(Flags::SHUTDOWN);
+                            eprintln!("flag shutdown inserted, re-poll");
                             self.poll(cx)
                         }
                         // disconnect if shutdown
                         else if inner_p.flags.contains(Flags::SHUTDOWN) {
+                            eprintln!("flag shutdown set, re-poll");
                             self.poll(cx)
                         } else {
+                            eprintln!("no error, not started or KA, not shutdown");
+                            eprintln!("{:?}", &inner_p.flags);
                             Poll::Pending
                         }
                     } else {
+                        eprintln!("is_empty and write_buf is_empty");
+                        eprintln!("{:?}", &inner_p.flags);
                         Poll::Pending
                     }
                 }
@@ -854,6 +872,11 @@ where
     }
 }
 
+/// Returns either:
+/// - `Ok(Some(true))` - data was read and done reading all data.
+/// - `Ok(Some(false))` - data was read but there should be more to read.
+/// - `Ok(None)` - no data was read but there should be more to read later.
+/// - Unhandled Errors
 fn read_available<T>(
     cx: &mut Context<'_>,
     io: &mut T,
@@ -887,17 +910,17 @@ where
                     read_some = true;
                 }
             }
-            Poll::Ready(Err(e)) => {
-                return if e.kind() == io::ErrorKind::WouldBlock {
+            Poll::Ready(Err(err)) => {
+                return if err.kind() == io::ErrorKind::WouldBlock {
                     if read_some {
                         Ok(Some(false))
                     } else {
                         Ok(None)
                     }
-                } else if e.kind() == io::ErrorKind::ConnectionReset && read_some {
+                } else if err.kind() == io::ErrorKind::ConnectionReset && read_some {
                     Ok(Some(true))
                 } else {
-                    Err(e)
+                    Err(err)
                 }
             }
         }
@@ -918,12 +941,33 @@ where
 #[cfg(test)]
 mod tests {
     use actix_service::IntoService;
-    use futures_util::future::{lazy, ok};
+    use futures_util::future::{lazy, ready};
 
     use super::*;
-    use crate::error::Error;
     use crate::h1::{ExpectHandler, UpgradeHandler};
     use crate::test::TestBuffer;
+    use crate::{error::Error, KeepAlive};
+
+    fn ok_service() -> impl Service<Request = Request, Response = Response, Error = Error>
+    {
+        (|_| ready(Ok::<_, Error>(Response::Ok().finish()))).into_service()
+    }
+
+    fn find_slice(haystack: &[u8], needle: &[u8], from: usize) -> Option<usize> {
+        haystack[from..]
+            .windows(needle.len())
+            .position(|window| window == needle)
+    }
+
+    fn stabilize_date_header(payload: &mut [u8]) {
+        let mut from = 0;
+
+        while let Some(pos) = find_slice(&payload, b"date", from) {
+            payload[(from + pos)..(from + pos + 35)]
+                .copy_from_slice(b"date: Thu, 01 Jan 1970 12:34:56 UTC");
+            from += 35;
+        }
+    }
 
     #[actix_rt::test]
     async fn test_req_parse_err() {
@@ -933,9 +977,7 @@ mod tests {
             let mut h1 = Dispatcher::<_, _, _, _, UpgradeHandler<TestBuffer>>::new(
                 buf,
                 ServiceConfig::default(),
-                CloneableService::new(
-                    (|_| ok::<_, Error>(Response::Ok().finish())).into_service(),
-                ),
+                CloneableService::new(ok_service()),
                 CloneableService::new(ExpectHandler),
                 None,
                 None,
@@ -953,6 +995,61 @@ mod tests {
                 assert_eq!(
                     &inner.io.take().unwrap().write_buf[..26],
                     b"HTTP/1.1 400 Bad Request\r\n"
+                );
+            }
+        })
+        .await;
+    }
+
+    #[actix_rt::test]
+    async fn test_pipelining() {
+        lazy(|cx| {
+            let buf = TestBuffer::new(
+                "\
+                GET /test HTTP/1.1\r\n\r\n\
+                GET /test HTTP/1.1\r\n\r\n\
+                ",
+            );
+
+            let cfg = ServiceConfig::new(KeepAlive::Disabled, 1, 1, false, None);
+
+            let mut h1 = Dispatcher::<_, _, _, _, UpgradeHandler<TestBuffer>>::new(
+                buf,
+                cfg,
+                CloneableService::new(ok_service()),
+                CloneableService::new(ExpectHandler),
+                None,
+                None,
+                Extensions::new(),
+                None,
+            );
+
+            assert!(matches!(&h1.inner, DispatcherState::Normal(_)));
+
+            match Pin::new(&mut h1).poll(cx) {
+                Poll::Pending => panic!("first poll should not be pending"),
+                Poll::Ready(res) => assert!(res.is_ok()),
+            }
+
+            // polls: initial => shutdown
+            assert_eq!(h1.poll_count, 2);
+
+            if let DispatcherState::Normal(ref mut inner) = h1.inner {
+                let res = &mut inner.io.take().unwrap().write_buf[..];
+                stabilize_date_header(res);
+
+                assert_eq!(
+                    &res,
+                    b"\
+                    HTTP/1.1 200 OK\r\n\
+                    content-length: 0\r\n\
+                    connection: close\r\n\
+                    date: Thu, 01 Jan 1970 12:34:56 UTC\r\n\r\n\
+                    HTTP/1.1 200 OK\r\n\
+                    content-length: 0\r\n\
+                    connection: close\r\n\
+                    date: Thu, 01 Jan 1970 12:34:56 UTC\r\n\r\n\
+                    "
                 );
             }
         })
