@@ -1038,19 +1038,18 @@ mod tests {
                 let res = &mut inner.io.take().unwrap().write_buf[..];
                 stabilize_date_header(res);
 
-                assert_eq!(
-                    &res,
-                    b"\
-                    HTTP/1.1 200 OK\r\n\
-                    content-length: 0\r\n\
-                    connection: close\r\n\
-                    date: Thu, 01 Jan 1970 12:34:56 UTC\r\n\r\n\
-                    HTTP/1.1 200 OK\r\n\
-                    content-length: 0\r\n\
-                    connection: close\r\n\
-                    date: Thu, 01 Jan 1970 12:34:56 UTC\r\n\r\n\
-                    "
-                );
+                let exp = b"\
+                HTTP/1.1 200 OK\r\n\
+                content-length: 0\r\n\
+                connection: close\r\n\
+                date: Thu, 01 Jan 1970 12:34:56 UTC\r\n\r\n\
+                HTTP/1.1 200 OK\r\n\
+                content-length: 0\r\n\
+                connection: close\r\n\
+                date: Thu, 01 Jan 1970 12:34:56 UTC\r\n\r\n\
+                ";
+
+                assert_eq!(res.to_vec(), exp.to_vec());
             }
         })
         .await;
