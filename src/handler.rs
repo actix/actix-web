@@ -150,17 +150,18 @@ where
         loop {
             match self.as_mut().project() {
                 HandlerProj::Extract(fut, req, handle) => {
-                    let item = match ready!(fut.poll(cx)) {
-                        Ok(item) => item,
+                    match ready!(fut.poll(cx)) {
+                        Ok(item) => {
+                            let fut = handle.call(item);
+                            let state = HandlerServiceFuture::Handle(fut, req.take());
+                            self.as_mut().set(state);
+                        }
                         Err(e) => {
                             let res: Response = e.into().into();
                             let req = req.take().unwrap();
                             return Poll::Ready(Ok(ServiceResponse::new(req, res)));
                         }
                     };
-                    let fut = handle.call(item);
-                    let state = HandlerServiceFuture::Handle(fut, req.take());
-                    self.as_mut().set(state);
                 }
                 HandlerProj::Handle(fut, req) => {
                     let res = ready!(fut.poll(cx));
