@@ -163,7 +163,7 @@ where
 {
     type Request = ServiceRequest;
     type Response = ServiceResponse;
-    type Error = (Error, ServiceRequest);
+    type Error = Error;
     type Config = ();
     type Service = ExtractService<T, S>;
     type InitError = ();
@@ -192,7 +192,7 @@ where
 {
     type Request = ServiceRequest;
     type Response = ServiceResponse;
-    type Error = (Error, ServiceRequest);
+    type Error = Error;
     type Future = ExtractResponse<T, S>;
 
     fn poll_ready(&mut self, _: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
@@ -220,7 +220,7 @@ where
         Error = Infallible,
     >,
 {
-    type Output = Result<ServiceResponse, (Error, ServiceRequest)>;
+    type Output = Result<ServiceResponse, Error>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         loop {
@@ -231,7 +231,7 @@ where
                     match res {
                         Err(e) => {
                             let req = ServiceRequest::new(req);
-                            return Poll::Ready(Err((e.into(), req)));
+                            return Poll::Ready(Ok(req.error_response(e.into())));
                         }
                         Ok(item) => {
                             let fut = srv.call((item, req));
