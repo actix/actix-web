@@ -940,18 +940,13 @@ where
 
 #[cfg(test)]
 mod tests {
-    use actix_service::IntoService;
+    use actix_service::fn_service;
     use futures_util::future::{lazy, ready};
 
     use super::*;
     use crate::h1::{ExpectHandler, UpgradeHandler};
     use crate::test::TestBuffer;
     use crate::{error::Error, KeepAlive};
-
-    fn ok_service() -> impl Service<Request = Request, Response = Response, Error = Error>
-    {
-        (|_| ready(Ok::<_, Error>(Response::Ok().finish()))).into_service()
-    }
 
     fn find_slice(haystack: &[u8], needle: &[u8], from: usize) -> Option<usize> {
         haystack[from..]
@@ -967,6 +962,19 @@ mod tests {
                 .copy_from_slice(b"date: Thu, 01 Jan 1970 12:34:56 UTC");
             from += 35;
         }
+    }
+
+    fn ok_service() -> impl Service<Request = Request, Response = Response, Error = Error>
+    {
+        fn_service(|_req: Request| ready(Ok::<_, Error>(Response::Ok().finish())))
+    }
+
+    fn echo_path_service(
+    ) -> impl Service<Request = Request, Response = Response, Error = Error> {
+        fn_service(|req: Request| {
+            let path = req.path().as_bytes();
+            ready(Ok::<_, Error>(Response::Ok().body(Body::from_slice(path))))
+        })
     }
 
     #[actix_rt::test]
@@ -1006,8 +1014,8 @@ mod tests {
         lazy(|cx| {
             let buf = TestBuffer::new(
                 "\
-                GET /test HTTP/1.1\r\n\r\n\
-                GET /test HTTP/1.1\r\n\r\n\
+                GET /abcd HTTP/1.1\r\n\r\n\
+                GET /def HTTP/1.1\r\n\r\n\
                 ",
             );
 
@@ -1016,7 +1024,7 @@ mod tests {
             let mut h1 = Dispatcher::<_, _, _, _, UpgradeHandler<TestBuffer>>::new(
                 buf,
                 cfg,
-                CloneableService::new(ok_service()),
+                CloneableService::new(echo_path_service()),
                 CloneableService::new(ExpectHandler),
                 None,
                 None,
@@ -1040,10 +1048,64 @@ mod tests {
 
                 let exp = b"\
                 HTTP/1.1 200 OK\r\n\
-                content-length: 0\r\n\
+                content-length: 5\r\n\
                 connection: close\r\n\
                 date: Thu, 01 Jan 1970 12:34:56 UTC\r\n\r\n\
+                /abcd\
                 HTTP/1.1 200 OK\r\n\
+                content-length: 4\r\n\
+                connection: close\r\n\
+                date: Thu, 01 Jan 1970 12:34:56 UTC\r\n\r\n\
+                /def\
+                ";
+
+                assert_eq!(res.to_vec(), exp.to_vec());
+            }
+        })
+        .await;
+
+        lazy(|cx| {
+            let buf = TestBuffer::new(
+                "\
+                GET /abcd HTTP/1.1\r\n\r\n\
+                GET /def HTTP/1\r\n\r\n\
+                ",
+            );
+
+            let cfg = ServiceConfig::new(KeepAlive::Disabled, 1, 1, false, None);
+
+            let mut h1 = Dispatcher::<_, _, _, _, UpgradeHandler<TestBuffer>>::new(
+                buf,
+                cfg,
+                CloneableService::new(echo_path_service()),
+                CloneableService::new(ExpectHandler),
+                None,
+                None,
+                Extensions::new(),
+                None,
+            );
+
+            assert!(matches!(&h1.inner, DispatcherState::Normal(_)));
+
+            match Pin::new(&mut h1).poll(cx) {
+                Poll::Pending => panic!("first poll should not be pending"),
+                Poll::Ready(res) => assert!(res.is_err()),
+            }
+
+            // polls: initial => shutdown
+            assert_eq!(h1.poll_count, 1);
+
+            if let DispatcherState::Normal(ref mut inner) = h1.inner {
+                let res = &mut inner.io.take().unwrap().write_buf[..];
+                stabilize_date_header(res);
+
+                let exp = b"\
+                HTTP/1.1 200 OK\r\n\
+                content-length: 5\r\n\
+                connection: close\r\n\
+                date: Thu, 01 Jan 1970 12:34:56 UTC\r\n\r\n\
+                /abcd\
+                HTTP/1.1 400 Bad Request\r\n\
                 content-length: 0\r\n\
                 connection: close\r\n\
                 date: Thu, 01 Jan 1970 12:34:56 UTC\r\n\r\n\
