@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2020-xx-xx
+### Changed
+* Bumped `rand` to `0.8`
+
 ### Fixed
 * added the actual parsing error to `test::read_body_json` [#1812]
 

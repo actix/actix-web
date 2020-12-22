@@ -112,7 +112,7 @@ tinyvec = { version = "1", features = ["alloc"] }
 [dev-dependencies]
 actix = "0.10.0"
 actix-http = { version = "2.1.0", features = ["actors"] }
-rand = "0.7"
+rand = "0.8"
 env_logger = "0.8"
 serde_derive = "1.0"
 brotli2 = "0.3.2"
