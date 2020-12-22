@@ -28,7 +28,7 @@ log = "0.4"
 mime = "0.3"
 mime_guess = "2.0.1"
 percent-encoding = "2.1"
-v_htmlescape = "0.11"
+v_htmlescape = { version = "0.12", default-features = false, features = ["bytes-buf-tokio3"] }
 
 [dev-dependencies]
 actix-rt = "1.0.0"

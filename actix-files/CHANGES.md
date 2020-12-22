@@ -1,6 +1,7 @@
 # Changes
 
 ## Unreleased - 2020-xx-xx
+* Bump `v_htmlescape` to `0.12`
 
 
 ## 0.4.1 - 2020-11-24
