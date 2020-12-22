@@ -1,8 +1,11 @@
-use std::collections::VecDeque;
-use std::future::Future;
-use std::pin::Pin;
-use std::task::{Context, Poll};
-use std::{fmt, io, net};
+use std::{
+    collections::VecDeque,
+    fmt,
+    future::Future,
+    io, mem, net,
+    pin::Pin,
+    task::{Context, Poll},
+};
 
 use actix_codec::{AsyncRead, AsyncWrite, Decoder, Encoder, Framed, FramedParts};
 use actix_rt::time::{delay_until, Delay, Instant};
@@ -800,10 +803,10 @@ where
                             let inner_p = inner.as_mut().project();
                             let mut parts = FramedParts::with_read_buf(
                                 inner_p.io.take().unwrap(),
-                                std::mem::take(inner_p.codec),
-                                std::mem::take(inner_p.read_buf),
+                                mem::take(inner_p.codec),
+                                mem::take(inner_p.read_buf),
                             );
-                            parts.write_buf = std::mem::take(inner_p.write_buf);
+                            parts.write_buf = mem::take(inner_p.write_buf);
                             let framed = Framed::from_parts(parts);
                             let upgrade =
                                 inner_p.upgrade.take().unwrap().call((req, framed));
@@ -937,7 +940,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::str;
+    use std::{marker::PhantomData, str};
 
     use actix_service::fn_service;
     use futures_util::future::{lazy, ready};
@@ -1260,6 +1263,40 @@ mod tests {
                     "
                 );
             }
+        })
+        .await;
+    }
+
+    #[actix_rt::test]
+    async fn test_upgrade() {
+        lazy(|cx| {
+            let mut buf = TestSeqBuffer::empty();
+            let cfg = ServiceConfig::new(KeepAlive::Disabled, 0, 0, false, None);
+            let mut h1 = Dispatcher::<_, _, _, _, UpgradeHandler<_>>::new(
+                buf.clone(),
+                cfg,
+                CloneableService::new(ok_service()),
+                CloneableService::new(ExpectHandler),
+                Some(CloneableService::new(UpgradeHandler(PhantomData))),
+                None,
+                Extensions::new(),
+                None,
+            );
+
+            buf.extend_read_buf(
+                "\
+                GET /ws HTTP/1.1\r\n\
+                Connection: Upgrade\r\n\
+                Upgrade: websocket\r\n\
+                \r\n\
+                ",
+            );
+
+            assert!(Pin::new(&mut h1).poll(cx).is_ready());
+            assert!(matches!(&h1.inner, DispatcherState::Upgrade(_)));
+
+            // polls: manual shutdown
+            assert_eq!(h1.poll_count, 2);
         })
         .await;
     }
