@@ -1205,4 +1205,62 @@ mod tests {
         })
         .await;
     }
+
+    #[actix_rt::test]
+    async fn test_eager_expect() {
+        lazy(|cx| {
+            let mut buf = TestSeqBuffer::empty();
+            let cfg = ServiceConfig::new(KeepAlive::Disabled, 0, 0, false, None);
+            let mut h1 = Dispatcher::<_, _, _, _, UpgradeHandler<_>>::new(
+                buf.clone(),
+                cfg,
+                CloneableService::new(echo_path_service()),
+                CloneableService::new(ExpectHandler),
+                None,
+                None,
+                Extensions::new(),
+                None,
+            );
+
+            buf.extend_read_buf(
+                "\
+                POST /upload HTTP/1.1\r\n\
+                Content-Length: 5\r\n\
+                Expect: 100-continue\r\n\
+                \r\n\
+                ",
+            );
+
+            assert!(Pin::new(&mut h1).poll(cx).is_ready());
+            assert!(matches!(&h1.inner, DispatcherState::Normal(_)));
+
+            // polls: manual shutdown
+            assert_eq!(h1.poll_count, 2);
+
+            if let DispatcherState::Normal(ref inner) = h1.inner {
+                let io = inner.io.as_ref().unwrap();
+                let mut res = (&io.write_buf()[..]).to_owned();
+                stabilize_date_header(&mut res);
+
+                // Despite the content-length header and even though the request payload has not
+                // been sent, this test expects a complete service response since the payload
+                // is not used at all. The service passed to dispatcher is path echo and doesn't
+                // consume payload bytes.
+                assert_eq!(
+                    str::from_utf8(&res).unwrap(),
+                    "\
+                    HTTP/1.1 100 Continue\r\n\
+                    \r\n\
+                    HTTP/1.1 200 OK\r\n\
+                    content-length: 7\r\n\
+                    connection: close\r\n\
+                    date: Thu, 01 Jan 1970 12:34:56 UTC\r\n\
+                    \r\n\
+                    /upload\
+                    "
+                );
+            }
+        })
+        .await;
+    }
 }
