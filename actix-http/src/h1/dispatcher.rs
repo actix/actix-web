@@ -815,8 +815,11 @@ where
                         }
 
                         // we didn't get WouldBlock from write operation,
-                        // so data get written to kernel completely (OSX)
+                        // so data get written to kernel completely (macOS)
                         // and we have to write again otherwise response can get stuck
+                        //
+                        // TODO: what? is WouldBlock good or bad?
+                        // want to find a reference for this macOS behavior
                         if inner.as_mut().poll_flush(cx)? || !drain {
                             break;
                         }
@@ -845,21 +848,15 @@ where
                             && !inner_p.flags.intersects(Flags::KEEPALIVE)
                         {
                             inner_p.flags.insert(Flags::SHUTDOWN);
-                            eprintln!("flag shutdown inserted, re-poll");
                             self.poll(cx)
                         }
                         // disconnect if shutdown
                         else if inner_p.flags.contains(Flags::SHUTDOWN) {
-                            eprintln!("flag shutdown set, re-poll");
                             self.poll(cx)
                         } else {
-                            eprintln!("no error, not started or KA, not shutdown");
-                            eprintln!("{:?}", &inner_p.flags);
                             Poll::Pending
                         }
                     } else {
-                        eprintln!("is_empty and write_buf is_empty");
-                        eprintln!("{:?}", &inner_p.flags);
                         Poll::Pending
                     }
                 }
@@ -940,13 +937,18 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::str;
+
     use actix_service::fn_service;
     use futures_util::future::{lazy, ready};
 
     use super::*;
-    use crate::h1::{ExpectHandler, UpgradeHandler};
     use crate::test::TestBuffer;
     use crate::{error::Error, KeepAlive};
+    use crate::{
+        h1::{ExpectHandler, UpgradeHandler},
+        test::TestSeqBuffer,
+    };
 
     fn find_slice(haystack: &[u8], needle: &[u8], from: usize) -> Option<usize> {
         haystack[from..]
@@ -974,6 +976,23 @@ mod tests {
         fn_service(|req: Request| {
             let path = req.path().as_bytes();
             ready(Ok::<_, Error>(Response::Ok().body(Body::from_slice(path))))
+        })
+    }
+
+    fn echo_payload_service(
+    ) -> impl Service<Request = Request, Response = Response, Error = Error> {
+        fn_service(|mut req: Request| {
+            Box::pin(async move {
+                use futures_util::stream::StreamExt as _;
+
+                let mut pl = req.take_payload();
+                let mut body = BytesMut::new();
+                while let Some(chunk) = pl.next().await {
+                    body.extend_from_slice(chunk.unwrap().bytes())
+                }
+
+                Ok::<_, Error>(Response::Ok().body(body))
+            })
         })
     }
 
@@ -1112,6 +1131,76 @@ mod tests {
                 ";
 
                 assert_eq!(res.to_vec(), exp.to_vec());
+            }
+        })
+        .await;
+    }
+
+    #[actix_rt::test]
+    async fn test_expect() {
+        lazy(|cx| {
+            let mut buf = TestSeqBuffer::empty();
+            let cfg = ServiceConfig::new(KeepAlive::Disabled, 0, 0, false, None);
+            let mut h1 = Dispatcher::<_, _, _, _, UpgradeHandler<_>>::new(
+                buf.clone(),
+                cfg,
+                CloneableService::new(echo_payload_service()),
+                CloneableService::new(ExpectHandler),
+                None,
+                None,
+                Extensions::new(),
+                None,
+            );
+
+            buf.extend_read_buf(
+                "\
+                POST /upload HTTP/1.1\r\n\
+                Content-Length: 5\r\n\
+                Expect: 100-continue\r\n\
+                \r\n\
+                ",
+            );
+
+            assert!(Pin::new(&mut h1).poll(cx).is_pending());
+            assert!(matches!(&h1.inner, DispatcherState::Normal(_)));
+
+            // polls: manual
+            assert_eq!(h1.poll_count, 1);
+            eprintln!("poll count: {}", h1.poll_count);
+
+            if let DispatcherState::Normal(ref inner) = h1.inner {
+                let io = inner.io.as_ref().unwrap();
+                let res = &io.write_buf()[..];
+                assert_eq!(
+                    str::from_utf8(res).unwrap(),
+                    "HTTP/1.1 100 Continue\r\n\r\n"
+                );
+            }
+
+            buf.extend_read_buf("12345");
+            assert!(Pin::new(&mut h1).poll(cx).is_ready());
+
+            // polls: manual manual shutdown
+            assert_eq!(h1.poll_count, 3);
+
+            if let DispatcherState::Normal(ref inner) = h1.inner {
+                let io = inner.io.as_ref().unwrap();
+                let mut res = (&io.write_buf()[..]).to_owned();
+                stabilize_date_header(&mut res);
+
+                assert_eq!(
+                    str::from_utf8(&res).unwrap(),
+                    "\
+                    HTTP/1.1 100 Continue\r\n\
+                    \r\n\
+                    HTTP/1.1 200 OK\r\n\
+                    content-length: 5\r\n\
+                    connection: close\r\n\
+                    date: Thu, 01 Jan 1970 12:34:56 UTC\r\n\
+                    \r\n\
+                    12345\
+                    "
+                );
             }
         })
         .await;
