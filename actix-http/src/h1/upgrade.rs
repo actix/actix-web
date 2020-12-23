@@ -3,13 +3,13 @@ use std::task::{Context, Poll};
 
 use actix_codec::Framed;
 use actix_service::{Service, ServiceFactory};
-use futures_util::future::Ready;
+use futures_util::future::{ready, Ready};
 
 use crate::error::Error;
 use crate::h1::Codec;
 use crate::request::Request;
 
-pub struct UpgradeHandler<T>(PhantomData<T>);
+pub struct UpgradeHandler<T>(pub(crate) PhantomData<T>);
 
 impl<T> ServiceFactory for UpgradeHandler<T> {
     type Config = ();
@@ -36,6 +36,6 @@ impl<T> Service for UpgradeHandler<T> {
     }
 
     fn call(&mut self, _: Self::Request) -> Self::Future {
-        unimplemented!()
+        ready(Ok(()))
     }
 }

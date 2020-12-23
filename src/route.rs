@@ -234,7 +234,7 @@ impl Route {
 
 struct RouteNewService<T>
 where
-    T: ServiceFactory<Request = ServiceRequest, Error = (Error, ServiceRequest)>,
+    T: ServiceFactory<Request = ServiceRequest, Error = Error>,
 {
     service: T,
 }
@@ -245,7 +245,7 @@ where
         Config = (),
         Request = ServiceRequest,
         Response = ServiceResponse,
-        Error = (Error, ServiceRequest),
+        Error = Error,
     >,
     T::Future: 'static,
     T::Service: 'static,
@@ -262,7 +262,7 @@ where
         Config = (),
         Request = ServiceRequest,
         Response = ServiceResponse,
-        Error = (Error, ServiceRequest),
+        Error = Error,
     >,
     T::Future: 'static,
     T::Service: 'static,
@@ -297,11 +297,7 @@ struct RouteServiceWrapper<T: Service> {
 impl<T> Service for RouteServiceWrapper<T>
 where
     T::Future: 'static,
-    T: Service<
-        Request = ServiceRequest,
-        Response = ServiceResponse,
-        Error = (Error, ServiceRequest),
-    >,
+    T: Service<Request = ServiceRequest, Response = ServiceResponse, Error = Error>,
 {
     type Request = ServiceRequest;
     type Response = ServiceResponse;
@@ -309,27 +305,11 @@ where
     type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
 
     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        self.service.poll_ready(cx).map_err(|(e, _)| e)
+        self.service.poll_ready(cx)
     }
 
     fn call(&mut self, req: ServiceRequest) -> Self::Future {
-        // let mut fut = self.service.call(req);
-        self.service
-            .call(req)
-            .map(|res| match res {
-                Ok(res) => Ok(res),
-                Err((err, req)) => Ok(req.error_response(err)),
-            })
-            .boxed_local()
-
-        // match fut.poll() {
-        //     Poll::Ready(Ok(res)) => Either::Left(ok(res)),
-        //     Poll::Ready(Err((e, req))) => Either::Left(ok(req.error_response(e))),
-        //     Poll::Pending => Either::Right(Box::new(fut.then(|res| match res {
-        //         Ok(res) => Ok(res),
-        //         Err((err, req)) => Ok(req.error_response(err)),
-        //     }))),
-        // }
+        Box::pin(self.service.call(req))
     }
 }
 

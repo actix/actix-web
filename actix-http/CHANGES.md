@@ -1,7 +1,8 @@
 # Changes
 
 ## Unreleased - 2020-xx-xx
-
+### Changed
+* Bumped `rand` to `0.8`
 
 ## 2.2.0 - 2020-11-25
 ### Added

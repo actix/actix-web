@@ -3,8 +3,8 @@ use std::{fmt, mem};
 
 use fxhash::FxHashMap;
 
-#[derive(Default)]
 /// A type map of request extensions.
+#[derive(Default)]
 pub struct Extensions {
     /// Use FxHasher with a std HashMap with for faster
     /// lookups on the small `TypeId` (u64 equivalent) keys.
