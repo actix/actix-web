@@ -1,4 +1,4 @@
-//! Static files support for Actix Web.
+//! Static file serving for Actix Web.
 //!
 //! Provides a non-blocking service for serving static files from disk.
 //!
@@ -8,12 +8,8 @@
 //! use actix_files::Files;
 //!
 //! let app = App::new()
-//!     .service(Files::new("/static", "."));
+//!     .service(Files::new("/static", ".").prefer_utf8(true));
 //! ```
-//!
-//! # Implementation Quirks
-//! - If a filename contains non-ascii characters, that file will be served with the `charset=utf-8`
-//!   extension on the Content-Type header.
 
 #![deny(rust_2018_idioms)]
 #![warn(missing_docs, missing_debug_implementations)]
@@ -30,6 +26,7 @@ use mime_guess::from_ext;
 
 mod chunked;
 mod directory;
+mod encoding;
 mod error;
 mod files;
 mod named;
@@ -93,6 +90,9 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_file_extension_to_mime() {
+        let m = file_extension_to_mime("");
+        assert_eq!(m, mime::APPLICATION_OCTET_STREAM);
+
         let m = file_extension_to_mime("jpg");
         assert_eq!(m, mime::IMAGE_JPEG);
 

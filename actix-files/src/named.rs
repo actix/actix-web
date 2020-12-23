@@ -22,20 +22,21 @@ use bitflags::bitflags;
 use futures_util::future::{ready, Ready};
 use mime_guess::from_path;
 
-use crate::range::HttpRange;
 use crate::ChunkedReadFile;
+use crate::{encoding::equiv_utf8_text, range::HttpRange};
 
 bitflags! {
     pub(crate) struct Flags: u8 {
-        const ETAG = 0b0000_0001;
-        const LAST_MD = 0b0000_0010;
+        const ETAG =                0b0000_0001;
+        const LAST_MD =             0b0000_0010;
         const CONTENT_DISPOSITION = 0b0000_0100;
+        const PREFER_UTF8 =         0b0000_1000;
     }
 }
 
 impl Default for Flags {
     fn default() -> Self {
-        Flags::all()
+        Flags::from_bits_truncate(0b0000_0111)
     }
 }
 
@@ -92,6 +93,7 @@ impl NamedFile {
             };
 
             let ct = from_path(&path).first_or_octet_stream();
+
             let disposition = match ct.type_() {
                 mime::IMAGE | mime::TEXT | mime::VIDEO => DispositionType::Inline,
                 _ => DispositionType::Attachment,
@@ -191,7 +193,7 @@ impl NamedFile {
     /// image, and video content types, and `attachment` otherwise, and
     /// the filename is taken from the path provided in the `open` method
     /// after converting it to UTF-8 using.
-    /// [to_string_lossy](https://doc.rust-lang.org/std/ffi/struct.OsStr.html#method.to_string_lossy).
+    /// [`std::ffi::OsStr::to_string_lossy`]
     #[inline]
     pub fn set_content_disposition(mut self, cd: header::ContentDisposition) -> Self {
         self.content_disposition = cd;
@@ -215,21 +217,30 @@ impl NamedFile {
         self
     }
 
-    #[inline]
-    ///Specifies whether to use ETag or not.
+    /// Specifies whether to use ETag or not.
     ///
-    ///Default is true.
+    /// Default is true.
+    #[inline]
     pub fn use_etag(mut self, value: bool) -> Self {
         self.flags.set(Flags::ETAG, value);
         self
     }
 
-    #[inline]
-    ///Specifies whether to use Last-Modified or not.
+    /// Specifies whether to use Last-Modified or not.
     ///
-    ///Default is true.
+    /// Default is true.
+    #[inline]
     pub fn use_last_modified(mut self, value: bool) -> Self {
         self.flags.set(Flags::LAST_MD, value);
+        self
+    }
+
+    /// Specifies whether text responses should signal a UTF-8 encoding.
+    ///
+    /// Default is false (but will default to true in a future version).
+    #[inline]
+    pub fn prefer_utf8(mut self, value: bool) -> Self {
+        self.flags.set(Flags::PREFER_UTF8, value);
         self
     }
 
@@ -268,18 +279,24 @@ impl NamedFile {
     /// Creates an `HttpResponse` with file as a streaming body.
     pub fn into_response(self, req: &HttpRequest) -> Result<HttpResponse, Error> {
         if self.status_code != StatusCode::OK {
-            let mut resp = HttpResponse::build(self.status_code);
+            let mut res = HttpResponse::build(self.status_code);
 
-            resp.set(header::ContentType(self.content_type.clone()))
-                .if_true(self.flags.contains(Flags::CONTENT_DISPOSITION), |res| {
-                    res.header(
-                        header::CONTENT_DISPOSITION,
-                        self.content_disposition.to_string(),
-                    );
-                });
+            if self.flags.contains(Flags::PREFER_UTF8) {
+                let ct = equiv_utf8_text(self.content_type.clone());
+                res.header(header::CONTENT_TYPE, ct.to_string());
+            } else {
+                res.header(header::CONTENT_TYPE, self.content_type.to_string());
+            }
+
+            if self.flags.contains(Flags::CONTENT_DISPOSITION) {
+                res.header(
+                    header::CONTENT_DISPOSITION,
+                    self.content_disposition.to_string(),
+                );
+            }
 
             if let Some(current_encoding) = self.encoding {
-                resp.encoding(current_encoding);
+                res.encoding(current_encoding);
             }
 
             let reader = ChunkedReadFile {
@@ -290,7 +307,7 @@ impl NamedFile {
                 counter: 0,
             };
 
-            return Ok(resp.streaming(reader));
+            return Ok(res.streaming(reader));
         }
 
         let etag = if self.flags.contains(Flags::ETAG) {
@@ -342,25 +359,33 @@ impl NamedFile {
         };
 
         let mut resp = HttpResponse::build(self.status_code);
-        resp.set(header::ContentType(self.content_type.clone()))
-            .if_true(self.flags.contains(Flags::CONTENT_DISPOSITION), |res| {
-                res.header(
-                    header::CONTENT_DISPOSITION,
-                    self.content_disposition.to_string(),
-                );
-            });
+
+        if self.flags.contains(Flags::PREFER_UTF8) {
+            let ct = equiv_utf8_text(self.content_type.clone());
+            resp.header(header::CONTENT_TYPE, ct.to_string());
+        } else {
+            resp.header(header::CONTENT_TYPE, self.content_type.to_string());
+        }
+
+        if self.flags.contains(Flags::CONTENT_DISPOSITION) {
+            resp.header(
+                header::CONTENT_DISPOSITION,
+                self.content_disposition.to_string(),
+            );
+        }
 
         // default compressing
         if let Some(current_encoding) = self.encoding {
             resp.encoding(current_encoding);
         }
 
-        resp.if_some(last_modified, |lm, resp| {
-            resp.set(header::LastModified(lm));
-        })
-        .if_some(etag, |etag, resp| {
-            resp.set(header::ETag(etag));
-        });
+        if let Some(lm) = last_modified {
+            resp.header(header::LAST_MODIFIED, lm.to_string());
+        }
+
+        if let Some(etag) = etag {
+            resp.header(header::ETAG, etag.to_string());
+        }
 
         resp.header(header::ACCEPT_RANGES, "bytes");
 

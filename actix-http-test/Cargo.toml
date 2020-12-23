@@ -1,8 +1,8 @@
 [package]
 name = "actix-http-test"
-version = "2.0.0"
+version = "2.1.0"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
-description = "Actix HTTP test server"
+description = "Various helpers for Actix applications to use during testing"
 readme = "README.md"
 keywords = ["http", "web", "framework", "async", "futures"]
 homepage = "https://actix.rs"
@@ -38,7 +38,7 @@ actix-server = "1.0.0"
 actix-testing = "1.0.0"
 awc = "2.0.0"
 
-base64 = "0.12"
+base64 = "0.13"
 bytes = "0.5.3"
 futures-core = { version = "0.3.5", default-features = false }
 http = "0.2.0"
@@ -47,7 +47,7 @@ socket2 = "0.3"
 serde = "1.0"
 serde_json = "1.0"
 slab = "0.4"
-serde_urlencoded = "0.6.1"
+serde_urlencoded = "0.7"
 time = { version = "0.2.7", default-features = false, features = ["std"] }
 open-ssl = { version = "0.10", package = "openssl", optional = true }
 

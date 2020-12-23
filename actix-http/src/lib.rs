@@ -1,4 +1,4 @@
-//! Basic http primitives for actix-net framework.
+//! HTTP primitives for the Actix ecosystem.
 
 #![deny(rust_2018_idioms)]
 #![allow(
@@ -8,6 +8,8 @@
     clippy::borrow_interior_mutable_const
 )]
 #![allow(clippy::manual_strip)] // Allow this to keep MSRV(1.42).
+#![doc(html_logo_url = "https://actix.rs/img/logo.png")]
+#![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
 
 #[macro_use]
 extern crate log;
@@ -78,3 +80,5 @@ pub enum Protocol {
     Http1,
     Http2,
 }
+
+type ConnectCallback<IO> = dyn Fn(&IO, &mut Extensions);

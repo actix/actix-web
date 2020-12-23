@@ -195,13 +195,13 @@ impl ServiceRequest {
         self.0.match_info()
     }
 
-    /// Counterpart to [`HttpRequest::match_name`](../struct.HttpRequest.html#method.match_name).
+    /// Counterpart to [`HttpRequest::match_name`](super::HttpRequest::match_name()).
     #[inline]
     pub fn match_name(&self) -> Option<&str> {
         self.0.match_name()
     }
 
-    /// Counterpart to [`HttpRequest::match_pattern`](../struct.HttpRequest.html#method.match_pattern).
+    /// Counterpart to [`HttpRequest::match_pattern`](super::HttpRequest::match_pattern()).
     #[inline]
     pub fn match_pattern(&self) -> Option<String> {
         self.0.match_pattern()
@@ -225,7 +225,7 @@ impl ServiceRequest {
         self.0.app_config()
     }
 
-    /// Counterpart to [`HttpRequest::app_data`](../struct.HttpRequest.html#method.app_data).
+    /// Counterpart to [`HttpRequest::app_data`](super::HttpRequest::app_data()).
     pub fn app_data<T: 'static>(&self) -> Option<&T> {
         for container in (self.0).0.app_data.iter().rev() {
             if let Some(data) = container.get::<T>() {

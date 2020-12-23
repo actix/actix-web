@@ -1,10 +1,10 @@
 use std::any::{Any, TypeId};
-use std::fmt;
+use std::{fmt, mem};
 
 use fxhash::FxHashMap;
 
-#[derive(Default)]
 /// A type map of request extensions.
+#[derive(Default)]
 pub struct Extensions {
     /// Use FxHasher with a std HashMap with for faster
     /// lookups on the small `TypeId` (u64 equivalent) keys.
@@ -60,6 +60,16 @@ impl Extensions {
     #[inline]
     pub fn clear(&mut self) {
         self.map.clear();
+    }
+
+    /// Extends self with the items from another `Extensions`.
+    pub fn extend(&mut self, other: Extensions) {
+        self.map.extend(other.map);
+    }
+
+    /// Sets (or overrides) items from `other` into this map.
+    pub(crate) fn drain_from(&mut self, other: &mut Self) {
+        self.map.extend(mem::take(&mut other.map));
     }
 }
 
@@ -177,5 +187,58 @@ mod tests {
 
         assert_eq!(extensions.get::<bool>(), None);
         assert_eq!(extensions.get(), Some(&MyType(10)));
+    }
+
+    #[test]
+    fn test_extend() {
+        #[derive(Debug, PartialEq)]
+        struct MyType(i32);
+
+        let mut extensions = Extensions::new();
+
+        extensions.insert(5i32);
+        extensions.insert(MyType(10));
+
+        let mut other = Extensions::new();
+
+        other.insert(15i32);
+        other.insert(20u8);
+
+        extensions.extend(other);
+
+        assert_eq!(extensions.get(), Some(&15i32));
+        assert_eq!(extensions.get_mut(), Some(&mut 15i32));
+
+        assert_eq!(extensions.remove::<i32>(), Some(15i32));
+        assert!(extensions.get::<i32>().is_none());
+
+        assert_eq!(extensions.get::<bool>(), None);
+        assert_eq!(extensions.get(), Some(&MyType(10)));
+
+        assert_eq!(extensions.get(), Some(&20u8));
+        assert_eq!(extensions.get_mut(), Some(&mut 20u8));
+    }
+
+    #[test]
+    fn test_drain_from() {
+        let mut ext = Extensions::new();
+        ext.insert(2isize);
+
+        let mut more_ext = Extensions::new();
+
+        more_ext.insert(5isize);
+        more_ext.insert(5usize);
+
+        assert_eq!(ext.get::<isize>(), Some(&2isize));
+        assert_eq!(ext.get::<usize>(), None);
+        assert_eq!(more_ext.get::<isize>(), Some(&5isize));
+        assert_eq!(more_ext.get::<usize>(), Some(&5usize));
+
+        ext.drain_from(&mut more_ext);
+
+        assert_eq!(ext.get::<isize>(), Some(&5isize));
+        assert_eq!(ext.get::<usize>(), Some(&5usize));
+        assert_eq!(more_ext.get::<isize>(), None);
+        assert_eq!(more_ext.get::<usize>(), None);
     }
 }

@@ -39,8 +39,8 @@ where
 {
     pub(crate) endpoint: T,
     pub(crate) extensions: RefCell<Option<Extensions>>,
-    pub(crate) data: Rc<Vec<Box<dyn DataFactory>>>,
-    pub(crate) data_factories: Rc<Vec<FnDataFactory>>,
+    pub(crate) data: Rc<[Box<dyn DataFactory>]>,
+    pub(crate) data_factories: Rc<[FnDataFactory]>,
     pub(crate) services: Rc<RefCell<Vec<Box<dyn AppServiceFactory>>>>,
     pub(crate) default: Option<Rc<HttpNewService>>,
     pub(crate) factory_ref: Rc<RefCell<Option<AppRoutingFactory>>>,
@@ -88,15 +88,15 @@ where
         // complete pipeline creation
         *self.factory_ref.borrow_mut() = Some(AppRoutingFactory {
             default,
-            services: Rc::new(
-                services
-                    .into_iter()
-                    .map(|(mut rdef, srv, guards, nested)| {
-                        rmap.add(&mut rdef, nested);
-                        (rdef, srv, RefCell::new(guards))
-                    })
-                    .collect(),
-            ),
+            services: services
+                .into_iter()
+                .map(|(mut rdef, srv, guards, nested)| {
+                    rmap.add(&mut rdef, nested);
+                    (rdef, srv, RefCell::new(guards))
+                })
+                .collect::<Vec<_>>()
+                .into_boxed_slice()
+                .into(),
         });
 
         // external resources
@@ -147,7 +147,7 @@ where
 
     rmap: Rc<ResourceMap>,
     config: AppConfig,
-    data: Rc<Vec<Box<dyn DataFactory>>>,
+    data: Rc<[Box<dyn DataFactory>]>,
     extensions: Option<Extensions>,
 
     _t: PhantomData<B>,
@@ -273,7 +273,7 @@ where
 }
 
 pub struct AppRoutingFactory {
-    services: Rc<Vec<(ResourceDef, HttpNewService, RefCell<Option<Guards>>)>>,
+    services: Rc<[(ResourceDef, HttpNewService, RefCell<Option<Guards>>)]>,
     default: Rc<HttpNewService>,
 }
 

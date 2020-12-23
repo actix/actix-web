@@ -1,4 +1,4 @@
-//! Actix web is a powerful, pragmatic, and extremely fast web framework for Rust.
+//! Actix Web is a powerful, pragmatic, and extremely fast web framework for Rust.
 //!
 //! ## Example
 //!
@@ -29,16 +29,16 @@
 //!
 //! To get started navigating the API docs, you may consider looking at the following pages first:
 //!
-//! * [App](struct.App.html): This struct represents an Actix web application and is used to
+//! * [App]: This struct represents an Actix web application and is used to
 //!   configure routes and other common application settings.
 //!
-//! * [HttpServer](struct.HttpServer.html): This struct represents an HTTP server instance and is
+//! * [HttpServer]: This struct represents an HTTP server instance and is
 //!   used to instantiate and configure servers.
 //!
-//! * [web](web/index.html): This module provides essential types for route registration as well as
+//! * [web]: This module provides essential types for route registration as well as
 //!   common utilities for request handlers.
 //!
-//! * [HttpRequest](struct.HttpRequest.html) and [HttpResponse](struct.HttpResponse.html): These
+//! * [HttpRequest] and [HttpResponse]: These
 //!   structs represent HTTP requests and responses and expose methods for creating, inspecting,
 //!   and otherwise utilizing them.
 //!
@@ -67,7 +67,6 @@
 
 #![deny(rust_2018_idioms)]
 #![allow(clippy::needless_doctest_main, clippy::type_complexity)]
-#![allow(clippy::rc_buffer)] // FXIME: We should take a closer look for the warnings at some point.
 #![doc(html_logo_url = "https://actix.rs/img/logo.png")]
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
 
@@ -82,6 +81,7 @@ mod handler;
 mod info;
 pub mod middleware;
 mod request;
+mod request_data;
 mod resource;
 mod responder;
 mod rmap;
@@ -102,10 +102,11 @@ pub use crate::app::App;
 pub use crate::extract::FromRequest;
 pub use crate::request::HttpRequest;
 pub use crate::resource::Resource;
-pub use crate::responder::{Either, Responder};
+pub use crate::responder::Responder;
 pub use crate::route::Route;
 pub use crate::scope::Scope;
 pub use crate::server::HttpServer;
+pub use crate::types::{Either, EitherExtractError};
 
 pub mod dev {
     //! The `actix-web` prelude for library developers

@@ -1,6 +1,34 @@
 # Changes
 
 ## Unreleased - 2020-xx-xx
+### Changed
+* Bumped `rand` to `0.8`
+
+
+## 2.0.3 - 2020-11-29
+### Fixed
+* Ensure `actix-http` dependency uses same `serde_urlencoded`.
+
+
+## 2.0.2 - 2020-11-25
+### Changed
+* Upgrade `serde_urlencoded` to `0.7`. [#1773]
+
+[#1773]: https://github.com/actix/actix-web/pull/1773
+
+
+## 2.0.1 - 2020-10-30
+### Changed
+* Upgrade `base64` to `0.13`. [#1744]
+* Deprecate `ClientRequest::{if_some, if_true}`. [#1760]
+
+### Fixed
+* Use `Accept-Encoding: identity` instead of `Accept-Encoding: br` when no compression feature
+  is enabled [#1737]
+
+[#1737]: https://github.com/actix/actix-web/pull/1737
+[#1760]: https://github.com/actix/actix-web/pull/1760
+[#1744]: https://github.com/actix/actix-web/pull/1744
 
 
 ## 2.0.0 - 2020-09-11

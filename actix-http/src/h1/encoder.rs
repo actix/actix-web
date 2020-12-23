@@ -64,14 +64,17 @@ pub(crate) trait MessageType: Sized {
         // Content length
         if let Some(status) = self.status() {
             match status {
-                StatusCode::NO_CONTENT
-                | StatusCode::CONTINUE
-                | StatusCode::PROCESSING => length = BodySize::None,
-                StatusCode::SWITCHING_PROTOCOLS => {
+                StatusCode::CONTINUE
+                | StatusCode::SWITCHING_PROTOCOLS
+                | StatusCode::PROCESSING
+                | StatusCode::NO_CONTENT => {
+                    // skip content-length and transfer-encoding headers
+                    // See https://tools.ietf.org/html/rfc7230#section-3.3.1
+                    // and https://tools.ietf.org/html/rfc7230#section-3.3.2
                     skip_len = true;
-                    length = BodySize::Stream;
+                    length = BodySize::None
                 }
-                _ => (),
+                _ => {}
             }
         }
         match length {
@@ -675,5 +678,29 @@ mod tests {
         assert!(data.contains("connection: close\r\n"));
         assert!(data.contains("authorization: another authorization\r\n"));
         assert!(data.contains("date: date\r\n"));
+    }
+
+    #[test]
+    fn test_no_content_length() {
+        let mut bytes = BytesMut::with_capacity(2048);
+
+        let mut res: Response<()> =
+            Response::new(StatusCode::SWITCHING_PROTOCOLS).into_body::<()>();
+        res.headers_mut()
+            .insert(DATE, HeaderValue::from_static(&""));
+        res.headers_mut()
+            .insert(CONTENT_LENGTH, HeaderValue::from_static(&"0"));
+
+        let _ = res.encode_headers(
+            &mut bytes,
+            Version::HTTP_11,
+            BodySize::Stream,
+            ConnectionType::Upgrade,
+            &ServiceConfig::default(),
+        );
+        let data =
+            String::from_utf8(Vec::from(bytes.split().freeze().as_ref())).unwrap();
+        assert!(!data.contains("content-length: 0\r\n"));
+        assert!(!data.contains("transfer-encoding: chunked\r\n"));
     }
 }

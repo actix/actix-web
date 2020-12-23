@@ -31,7 +31,7 @@ pub struct AppService {
         Option<Guards>,
         Option<Rc<ResourceMap>>,
     )>,
-    service_data: Rc<Vec<Box<dyn DataFactory>>>,
+    service_data: Rc<[Box<dyn DataFactory>]>,
 }
 
 impl AppService {
@@ -39,7 +39,7 @@ impl AppService {
     pub(crate) fn new(
         config: AppConfig,
         default: Rc<HttpNewService>,
-        service_data: Rc<Vec<Box<dyn DataFactory>>>,
+        service_data: Rc<[Box<dyn DataFactory>]>,
     ) -> Self {
         AppService {
             config,
@@ -141,7 +141,7 @@ impl AppConfig {
     /// Server host name.
     ///
     /// Host name is used by application router as a hostname for url generation.
-    /// Check [ConnectionInfo](./struct.ConnectionInfo.html#method.host)
+    /// Check [ConnectionInfo](super::dev::ConnectionInfo::host())
     /// documentation for more information.
     ///
     /// By default host name is set to a "localhost" value.
@@ -178,6 +178,7 @@ pub struct ServiceConfig {
     pub(crate) services: Vec<Box<dyn AppServiceFactory>>,
     pub(crate) data: Vec<Box<dyn DataFactory>>,
     pub(crate) external: Vec<ResourceDef>,
+    pub(crate) extensions: Extensions,
 }
 
 impl ServiceConfig {
@@ -186,6 +187,7 @@ impl ServiceConfig {
             services: Vec::new(),
             data: Vec::new(),
             external: Vec::new(),
+            extensions: Extensions::new(),
         }
     }
 
@@ -195,6 +197,14 @@ impl ServiceConfig {
     /// This is same as `App::data()` method.
     pub fn data<S: 'static>(&mut self, data: S) -> &mut Self {
         self.data.push(Box::new(Data::new(data)));
+        self
+    }
+
+    /// Set arbitrary data item.
+    ///
+    /// This is same as `App::data()` method.
+    pub fn app_data<U: 'static>(&mut self, ext: U) -> &mut Self {
+        self.extensions.insert(ext);
         self
     }
 
@@ -254,13 +264,16 @@ mod tests {
     async fn test_data() {
         let cfg = |cfg: &mut ServiceConfig| {
             cfg.data(10usize);
+            cfg.app_data(15u8);
         };
 
-        let mut srv =
-            init_service(App::new().configure(cfg).service(
-                web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()),
-            ))
-            .await;
+        let mut srv = init_service(App::new().configure(cfg).service(
+            web::resource("/").to(|_: web::Data<usize>, req: HttpRequest| {
+                assert_eq!(*req.app_data::<u8>().unwrap(), 15u8);
+                HttpResponse::Ok()
+            }),
+        ))
+        .await;
         let req = TestRequest::default().to_request();
         let resp = srv.call(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);

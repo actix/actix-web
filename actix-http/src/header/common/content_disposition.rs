@@ -550,8 +550,7 @@ impl fmt::Display for ContentDisposition {
         write!(f, "{}", self.disposition)?;
         self.parameters
             .iter()
-            .map(|param| write!(f, "; {}", param))
-            .collect()
+            .try_for_each(|param| write!(f, "; {}", param))
     }
 }
 

@@ -1,8 +1,8 @@
 [package]
 name = "actix-files"
-version = "0.3.0"
+version = "0.4.1"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
-description = "Static files support for actix web."
+description = "Static file serving for Actix Web"
 readme = "README.md"
 keywords = ["actix", "http", "async", "futures"]
 homepage = "https://actix.rs"
@@ -21,14 +21,14 @@ actix-web = { version = "3.0.0", default-features = false }
 actix-service = "1.0.6"
 bitflags = "1"
 bytes = "0.5.3"
-futures-core = { version = "0.3.5", default-features = false }
-futures-util = { version = "0.3.5", default-features = false }
+futures-core = { version = "0.3.7", default-features = false }
+futures-util = { version = "0.3.7", default-features = false }
 derive_more = "0.99.2"
 log = "0.4"
 mime = "0.3"
 mime_guess = "2.0.1"
 percent-encoding = "2.1"
-v_htmlescape = "0.10"
+v_htmlescape = "0.11"
 
 [dev-dependencies]
 actix-rt = "1.0.0"

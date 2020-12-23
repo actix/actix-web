@@ -1,4 +1,9 @@
 //! Various helpers for Actix applications to use during testing.
+
+#![deny(rust_2018_idioms)]
+#![doc(html_logo_url = "https://actix.rs/img/logo.png")]
+#![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
+
 use std::sync::mpsc;
 use std::{net, thread, time};
 
@@ -48,7 +53,7 @@ pub async fn test_server<F: ServiceFactory<TcpStream>>(factory: F) -> TestServer
     test_server_with_addr(tcp, factory).await
 }
 
-/// Start [`test server`](./fn.test_server.html) on a concrete Address
+/// Start [`test server`](test_server()) on a concrete Address
 pub async fn test_server_with_addr<F: ServiceFactory<TcpStream>>(
     tcp: net::TcpListener,
     factory: F,

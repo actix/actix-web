@@ -1,6 +1,41 @@
 # Changes
 
 ## Unreleased - 2020-xx-xx
+### Changed
+* Bumped `rand` to `0.8`
+
+## 2.2.0 - 2020-11-25
+### Added
+* HttpResponse builders for 1xx status codes. [#1768]
+* `Accept::mime_precedence` and `Accept::mime_preference`. [#1793]
+* `TryFrom<u16>` and `TryFrom<f32>` for `http::header::Quality`. [#1797]
+
+### Fixed
+* Started dropping `transfer-encoding: chunked` and `Content-Length` for 1XX and 204 responses. [#1767]
+
+### Changed
+* Upgrade `serde_urlencoded` to `0.7`. [#1773]
+
+[#1773]: https://github.com/actix/actix-web/pull/1773
+[#1767]: https://github.com/actix/actix-web/pull/1767
+[#1768]: https://github.com/actix/actix-web/pull/1768
+[#1793]: https://github.com/actix/actix-web/pull/1793
+[#1797]: https://github.com/actix/actix-web/pull/1797
+
+
+## 2.1.0 - 2020-10-30
+### Added
+* Added more flexible `on_connect_ext` methods for on-connect handling. [#1754]
+
+### Changed
+* Upgrade `base64` to `0.13`. [#1744]
+* Upgrade `pin-project` to `1.0`. [#1733]
+* Deprecate `ResponseBuilder::{if_some, if_true}`. [#1760]
+
+[#1760]: https://github.com/actix/actix-web/pull/1760
+[#1754]: https://github.com/actix/actix-web/pull/1754
+[#1733]: https://github.com/actix/actix-web/pull/1733
+[#1744]: https://github.com/actix/actix-web/pull/1744
 
 
 ## 2.0.0 - 2020-09-11

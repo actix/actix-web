@@ -4,7 +4,9 @@ use std::ptr::copy_nonoverlapping;
 use std::slice;
 
 // Holds a slice guaranteed to be shorter than 8 bytes
-struct ShortSlice<'a>(&'a mut [u8]);
+struct ShortSlice<'a> {
+    inner: &'a mut [u8],
+}
 
 impl<'a> ShortSlice<'a> {
     /// # Safety
@@ -12,10 +14,11 @@ impl<'a> ShortSlice<'a> {
     unsafe fn new(slice: &'a mut [u8]) -> Self {
         // Sanity check for debug builds
         debug_assert!(slice.len() < 8);
-        ShortSlice(slice)
+        ShortSlice { inner: slice }
     }
+
     fn len(&self) -> usize {
-        self.0.len()
+        self.inner.len()
     }
 }
 
@@ -56,7 +59,7 @@ pub(crate) fn apply_mask(buf: &mut [u8], mask_u32: u32) {
 fn xor_short(buf: ShortSlice<'_>, mask: u64) {
     // SAFETY: we know that a `ShortSlice` fits in a u64
     unsafe {
-        let (ptr, len) = (buf.0.as_mut_ptr(), buf.0.len());
+        let (ptr, len) = (buf.inner.as_mut_ptr(), buf.len());
         let mut b: u64 = 0;
         #[allow(trivial_casts)]
         copy_nonoverlapping(ptr, &mut b as *mut _ as *mut u8, len);
@@ -96,7 +99,13 @@ fn align_buf(buf: &mut [u8]) -> (ShortSlice<'_>, &mut [u64], ShortSlice<'_>) {
 
         // SAFETY: we know the middle section is correctly aligned, and the outer
         // sections are smaller than 8 bytes
-        unsafe { (ShortSlice::new(head), cast_slice(mid), ShortSlice(tail)) }
+        unsafe {
+            (
+                ShortSlice::new(head),
+                cast_slice(mid),
+                ShortSlice::new(tail),
+            )
+        }
     } else {
         // We didn't cross even one aligned boundary!
 

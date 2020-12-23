@@ -1,8 +1,8 @@
 [package]
 name = "awc"
-version = "2.0.0"
+version = "2.0.3"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
-description = "Async HTTP client library that uses the Actix runtime."
+description = "Async HTTP and WebSocket client library built on the Actix ecosystem"
 readme = "README.md"
 keywords = ["actix", "http", "framework", "async", "web"]
 homepage = "https://actix.rs"
@@ -39,20 +39,21 @@ compress = ["actix-http/compress"]
 [dependencies]
 actix-codec = "0.3.0"
 actix-service = "1.0.6"
-actix-http = "2.0.0"
+actix-http = "2.2.0"
 actix-rt = "1.0.0"
 
-base64 = "0.12"
+base64 = "0.13"
 bytes = "0.5.3"
+cfg-if = "1.0"
 derive_more = "0.99.2"
 futures-core = { version = "0.3.5", default-features = false }
 log =" 0.4"
 mime = "0.3"
 percent-encoding = "2.1"
-rand = "0.7"
+rand = "0.8"
 serde = "1.0"
 serde_json = "1.0"
-serde_urlencoded = "0.6.1"
+serde_urlencoded = "0.7"
 open-ssl = { version = "0.10", package = "openssl", optional = true }
 rust-tls = { version = "0.18.0", package = "rustls", optional = true, features = ["dangerous_configuration"] }
 

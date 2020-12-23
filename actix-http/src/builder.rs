@@ -14,10 +14,11 @@ use crate::helpers::{Data, DataFactory};
 use crate::request::Request;
 use crate::response::Response;
 use crate::service::HttpService;
+use crate::{ConnectCallback, Extensions};
 
-/// A http service builder
+/// A HTTP service builder
 ///
-/// This type can be used to construct an instance of `http service` through a
+/// This type can be used to construct an instance of [`HttpService`] through a
 /// builder-like pattern.
 pub struct HttpServiceBuilder<T, S, X = ExpectHandler, U = UpgradeHandler<T>> {
     keep_alive: KeepAlive,
@@ -27,7 +28,9 @@ pub struct HttpServiceBuilder<T, S, X = ExpectHandler, U = UpgradeHandler<T>> {
     local_addr: Option<net::SocketAddr>,
     expect: X,
     upgrade: Option<U>,
+    // DEPRECATED: in favor of on_connect_ext
     on_connect: Option<Rc<dyn Fn(&T) -> Box<dyn DataFactory>>>,
+    on_connect_ext: Option<Rc<ConnectCallback<T>>>,
     _t: PhantomData<(T, S)>,
 }
 
@@ -49,6 +52,7 @@ where
             expect: ExpectHandler,
             upgrade: None,
             on_connect: None,
+            on_connect_ext: None,
             _t: PhantomData,
         }
     }
@@ -138,6 +142,7 @@ where
             expect: expect.into_factory(),
             upgrade: self.upgrade,
             on_connect: self.on_connect,
+            on_connect_ext: self.on_connect_ext,
             _t: PhantomData,
         }
     }
@@ -167,14 +172,16 @@ where
             expect: self.expect,
             upgrade: Some(upgrade.into_factory()),
             on_connect: self.on_connect,
+            on_connect_ext: self.on_connect_ext,
             _t: PhantomData,
         }
     }
 
     /// Set on-connect callback.
     ///
-    /// It get called once per connection and result of the call
-    /// get stored to the request's extensions.
+    /// Called once per connection. Return value of the call is stored in request extensions.
+    ///
+    /// *SOFT DEPRECATED*: Prefer the `on_connect_ext` style callback.
     pub fn on_connect<F, I>(mut self, f: F) -> Self
     where
         F: Fn(&T) -> I + 'static,
@@ -184,7 +191,20 @@ where
         self
     }
 
-    /// Finish service configuration and create *http service* for HTTP/1 protocol.
+    /// Sets the callback to be run on connection establishment.
+    ///
+    /// Has mutable access to a data container that will be merged into request extensions.
+    /// This enables transport layer data (like client certificates) to be accessed in middleware
+    /// and handlers.
+    pub fn on_connect_ext<F>(mut self, f: F) -> Self
+    where
+        F: Fn(&T, &mut Extensions) + 'static,
+    {
+        self.on_connect_ext = Some(Rc::new(f));
+        self
+    }
+
+    /// Finish service configuration and create a HTTP Service for HTTP/1 protocol.
     pub fn h1<F, B>(self, service: F) -> H1Service<T, S, B, X, U>
     where
         B: MessageBody,
@@ -200,13 +220,15 @@ where
             self.secure,
             self.local_addr,
         );
+
         H1Service::with_config(cfg, service.into_factory())
             .expect(self.expect)
             .upgrade(self.upgrade)
             .on_connect(self.on_connect)
+            .on_connect_ext(self.on_connect_ext)
     }
 
-    /// Finish service configuration and create *http service* for HTTP/2 protocol.
+    /// Finish service configuration and create a HTTP service for HTTP/2 protocol.
     pub fn h2<F, B>(self, service: F) -> H2Service<T, S, B>
     where
         B: MessageBody + 'static,
@@ -223,7 +245,10 @@ where
             self.secure,
             self.local_addr,
         );
-        H2Service::with_config(cfg, service.into_factory()).on_connect(self.on_connect)
+
+        H2Service::with_config(cfg, service.into_factory())
+            .on_connect(self.on_connect)
+            .on_connect_ext(self.on_connect_ext)
     }
 
     /// Finish service configuration and create `HttpService` instance.
@@ -243,9 +268,11 @@ where
             self.secure,
             self.local_addr,
         );
+
         HttpService::with_config(cfg, service.into_factory())
             .expect(self.expect)
             .upgrade(self.upgrade)
             .on_connect(self.on_connect)
+            .on_connect_ext(self.on_connect_ext)
     }
 }

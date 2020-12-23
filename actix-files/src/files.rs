@@ -65,13 +65,25 @@ impl Clone for Files {
 }
 
 impl Files {
-    /// Create new `Files` instance for specified base directory.
+    /// Create new `Files` instance for a specified base directory.
     ///
-    /// `File` uses `ThreadPool` for blocking filesystem operations.
-    /// By default pool with 5x threads of available cpus is used.
-    /// Pool size can be changed by setting ACTIX_THREADPOOL environment variable.
-    pub fn new<T: Into<PathBuf>>(path: &str, dir: T) -> Files {
-        let orig_dir = dir.into();
+    /// # Argument Order
+    /// The first argument (`mount_path`) is the root URL at which the static files are served.
+    /// For example, `/assets` will serve files at `example.com/assets/...`.
+    ///
+    /// The second argument (`serve_from`) is the location on disk at which files are loaded.
+    /// This can be a relative path. For example, `./` would serve files from the current
+    /// working directory.
+    ///
+    /// # Implementation Notes
+    /// If the mount path is set as the root path `/`, services registered after this one will
+    /// be inaccessible. Register more specific handlers and services first.
+    ///
+    /// `Files` uses a threadpool for blocking filesystem operations. By default, the pool uses a
+    /// number of threads equal to 5x the number of available logical CPUs. Pool size can be changed
+    /// by setting ACTIX_THREADPOOL environment variable.
+    pub fn new<T: Into<PathBuf>>(mount_path: &str, serve_from: T) -> Files {
+        let orig_dir = serve_from.into();
         let dir = match orig_dir.canonicalize() {
             Ok(canon_dir) => canon_dir,
             Err(_) => {
@@ -81,7 +93,7 @@ impl Files {
         };
 
         Files {
-            path: path.to_string(),
+            path: mount_path.to_owned(),
             directory: dir,
             index: None,
             show_index: false,
@@ -138,21 +150,30 @@ impl Files {
         self
     }
 
-    #[inline]
     /// Specifies whether to use ETag or not.
     ///
     /// Default is true.
+    #[inline]
     pub fn use_etag(mut self, value: bool) -> Self {
         self.file_flags.set(named::Flags::ETAG, value);
         self
     }
 
-    #[inline]
     /// Specifies whether to use Last-Modified or not.
     ///
     /// Default is true.
+    #[inline]
     pub fn use_last_modified(mut self, value: bool) -> Self {
         self.file_flags.set(named::Flags::LAST_MD, value);
+        self
+    }
+
+    /// Specifies whether text responses should signal a UTF-8 encoding.
+    ///
+    /// Default is false (but will default to true in a future version).
+    #[inline]
+    pub fn prefer_utf8(mut self, value: bool) -> Self {
+        self.file_flags.set(named::Flags::PREFER_UTF8, value);
         self
     }
 

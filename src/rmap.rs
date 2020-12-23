@@ -86,7 +86,7 @@ impl ResourceMap {
                 if let Some(plen) = pattern.is_prefix_match(path) {
                     return rmap.has_resource(&path[plen..]);
                 }
-            } else if pattern.is_match(path) {
+            } else if pattern.is_match(path) || pattern.pattern() == "" && path == "/" {
                 return true;
             }
         }
