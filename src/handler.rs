@@ -156,10 +156,10 @@ impl<T: FromRequest, S> Extract<T, S> {
 impl<T: FromRequest, S> ServiceFactory for Extract<T, S>
 where
     S: Service<
-        Request = (T, HttpRequest),
-        Response = ServiceResponse,
-        Error = Infallible,
-    > + Clone,
+            Request = (T, HttpRequest),
+            Response = ServiceResponse,
+            Error = Infallible,
+        > + Clone,
 {
     type Request = ServiceRequest;
     type Response = ServiceResponse;
@@ -185,10 +185,10 @@ pub struct ExtractService<T: FromRequest, S> {
 impl<T: FromRequest, S> Service for ExtractService<T, S>
 where
     S: Service<
-        Request = (T, HttpRequest),
-        Response = ServiceResponse,
-        Error = Infallible,
-    > + Clone,
+            Request = (T, HttpRequest),
+            Response = ServiceResponse,
+            Error = Infallible,
+        > + Clone,
 {
     type Request = ServiceRequest;
     type Response = ServiceResponse;

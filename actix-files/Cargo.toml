@@ -20,7 +20,7 @@ path = "src/lib.rs"
 actix-web = { version = "3.0.0", default-features = false }
 actix-service = "1.0.6"
 bitflags = "1"
-bytes = "0.6"
+bytes = "1"
 futures-core = { version = "0.3.7", default-features = false }
 futures-util = { version = "0.3.7", default-features = false, features = ["sink"] }
 derive_more = "0.99.2"

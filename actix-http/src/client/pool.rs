@@ -388,8 +388,10 @@ where
     }
 }
 
+#[pin_project::pin_project]
 struct CloseConnection<T> {
     io: T,
+    #[pin]
     timeout: Sleep,
 }
 
@@ -412,11 +414,11 @@ where
     type Output = ();
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<()> {
-        let this = self.get_mut();
+        let this = self.project();
 
-        match Pin::new(&mut this.timeout).poll(cx) {
+        match this.timeout.poll(cx) {
             Poll::Ready(_) => Poll::Ready(()),
-            Poll::Pending => match Pin::new(&mut this.io).poll_shutdown(cx) {
+            Poll::Pending => match Pin::new(this.io).poll_shutdown(cx) {
                 Poll::Ready(_) => Poll::Ready(()),
                 Poll::Pending => Poll::Pending,
             },

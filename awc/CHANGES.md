@@ -2,7 +2,7 @@
 
 ## Unreleased - 2020-xx-xx
 ### Changed
-* Upgrade `bytes` to `0.6`. 
+* Upgrade `bytes` to `1`.
 * Bumped `rand` to `0.8`
 
 

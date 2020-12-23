@@ -107,12 +107,12 @@ impl AppService {
     ) where
         F: IntoServiceFactory<S>,
         S: ServiceFactory<
-            Config = (),
-            Request = ServiceRequest,
-            Response = ServiceResponse,
-            Error = Error,
-            InitError = (),
-        > + 'static,
+                Config = (),
+                Request = ServiceRequest,
+                Response = ServiceResponse,
+                Error = Error,
+                InitError = (),
+            > + 'static,
     {
         self.services.push((
             rdef,

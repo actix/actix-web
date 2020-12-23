@@ -43,7 +43,7 @@ actix-http = "2.2.0"
 actix-rt = "1.0.0"
 
 base64 = "0.13"
-bytes = "0.6"
+bytes = "1"
 cfg-if = "1.0"
 derive_more = "0.99.2"
 futures-core = { version = "0.3.5", default-features = false }
