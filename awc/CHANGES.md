@@ -3,6 +3,8 @@
 ## Unreleased - 2020-xx-xx
 ### Changed
 * Upgrade `bytes` to `0.6`. 
+* Bumped `rand` to `0.8`
+
 
 ## 2.0.3 - 2020-11-29
 ### Fixed

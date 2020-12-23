@@ -1,9 +1,14 @@
-//! Test Various helpers for Actix applications to use during testing.
-use std::convert::TryFrom;
-use std::io::{self, Read, Write};
-use std::pin::Pin;
-use std::str::FromStr;
-use std::task::{Context, Poll};
+//! Various testing helpers for use in internal and app tests.
+
+use std::{
+    cell::{Ref, RefCell},
+    convert::TryFrom,
+    io::{self, Read, Write},
+    pin::Pin,
+    rc::Rc,
+    str::FromStr,
+    task::{Context, Poll},
+};
 
 use actix_codec::{AsyncRead, AsyncWrite, ReadBuf};
 use bytes::{Bytes, BytesMut};
@@ -183,7 +188,7 @@ fn parts(parts: &mut Option<Inner>) -> &mut Inner {
     parts.as_mut().expect("cannot reuse test request builder")
 }
 
-/// Async io buffer
+/// Async I/O test buffer.
 pub struct TestBuffer {
     pub read_buf: BytesMut,
     pub write_buf: BytesMut,
@@ -191,24 +196,24 @@ pub struct TestBuffer {
 }
 
 impl TestBuffer {
-    /// Create new TestBuffer instance
-    pub fn new<T>(data: T) -> TestBuffer
+    /// Create new `TestBuffer` instance with initial read buffer.
+    pub fn new<T>(data: T) -> Self
     where
-        BytesMut: From<T>,
+        T: Into<BytesMut>,
     {
-        TestBuffer {
-            read_buf: BytesMut::from(data),
+        Self {
+            read_buf: data.into(),
             write_buf: BytesMut::new(),
             err: None,
         }
     }
 
-    /// Create new empty TestBuffer instance
-    pub fn empty() -> TestBuffer {
-        TestBuffer::new("")
+    /// Create new empty `TestBuffer` instance.
+    pub fn empty() -> Self {
+        Self::new("")
     }
 
-    /// Add extra data to read buffer.
+    /// Add data to read buffer.
     pub fn extend_read_buf<T: AsRef<[u8]>>(&mut self, data: T) {
         self.read_buf.extend_from_slice(data.as_ref())
     }
@@ -236,6 +241,7 @@ impl io::Write for TestBuffer {
         self.write_buf.extend(buf);
         Ok(buf.len())
     }
+
     fn flush(&mut self) -> io::Result<()> {
         Ok(())
     }
@@ -254,6 +260,116 @@ impl AsyncRead for TestBuffer {
 }
 
 impl AsyncWrite for TestBuffer {
+    fn poll_write(
+        self: Pin<&mut Self>,
+        _: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<io::Result<usize>> {
+        Poll::Ready(self.get_mut().write(buf))
+    }
+
+    fn poll_flush(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<io::Result<()>> {
+        Poll::Ready(Ok(()))
+    }
+
+    fn poll_shutdown(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<io::Result<()>> {
+        Poll::Ready(Ok(()))
+    }
+}
+
+/// Async I/O test buffer with ability to incrementally add to the read buffer.
+#[derive(Clone)]
+pub struct TestSeqBuffer(Rc<RefCell<TestSeqInner>>);
+
+impl TestSeqBuffer {
+    /// Create new `TestBuffer` instance with initial read buffer.
+    pub fn new<T>(data: T) -> Self
+    where
+        T: Into<BytesMut>,
+    {
+        Self(Rc::new(RefCell::new(TestSeqInner {
+            read_buf: data.into(),
+            write_buf: BytesMut::new(),
+            err: None,
+        })))
+    }
+
+    /// Create new empty `TestBuffer` instance.
+    pub fn empty() -> Self {
+        Self::new("")
+    }
+
+    pub fn read_buf(&self) -> Ref<'_, BytesMut> {
+        Ref::map(self.0.borrow(), |inner| &inner.read_buf)
+    }
+
+    pub fn write_buf(&self) -> Ref<'_, BytesMut> {
+        Ref::map(self.0.borrow(), |inner| &inner.write_buf)
+    }
+
+    pub fn err(&self) -> Ref<'_, Option<io::Error>> {
+        Ref::map(self.0.borrow(), |inner| &inner.err)
+    }
+
+    /// Add data to read buffer.
+    pub fn extend_read_buf<T: AsRef<[u8]>>(&mut self, data: T) {
+        self.0
+            .borrow_mut()
+            .read_buf
+            .extend_from_slice(data.as_ref())
+    }
+}
+
+pub struct TestSeqInner {
+    read_buf: BytesMut,
+    write_buf: BytesMut,
+    err: Option<io::Error>,
+}
+
+impl io::Read for TestSeqBuffer {
+    fn read(&mut self, dst: &mut [u8]) -> Result<usize, io::Error> {
+        if self.0.borrow().read_buf.is_empty() {
+            if self.0.borrow().err.is_some() {
+                Err(self.0.borrow_mut().err.take().unwrap())
+            } else {
+                Err(io::Error::new(io::ErrorKind::WouldBlock, ""))
+            }
+        } else {
+            let size = std::cmp::min(self.0.borrow().read_buf.len(), dst.len());
+            let b = self.0.borrow_mut().read_buf.split_to(size);
+            dst[..size].copy_from_slice(&b);
+            Ok(size)
+        }
+    }
+}
+
+impl io::Write for TestSeqBuffer {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.0.borrow_mut().write_buf.extend(buf);
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+impl AsyncRead for TestSeqBuffer {
+    fn poll_read(
+        self: Pin<&mut Self>,
+        _: &mut Context<'_>,
+        buf: &mut [u8],
+    ) -> Poll<io::Result<usize>> {
+        let r = self.get_mut().read(buf);
+        match r {
+            Ok(n) => Poll::Ready(Ok(n)),
+            Err(err) if err.kind() == io::ErrorKind::WouldBlock => Poll::Pending,
+            Err(err) => Poll::Ready(Err(err)),
+        }
+    }
+}
+
+impl AsyncWrite for TestSeqBuffer {
     fn poll_write(
         self: Pin<&mut Self>,
         _: &mut Context<'_>,
