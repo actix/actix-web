@@ -183,7 +183,7 @@ where
         let config = JsonConfig::from_req(req);
 
         let limit = config.limit;
-        let ctype = config.content_type.clone();
+        let ctype = config.content_type.as_deref();
         let err_handler = config.err_handler.clone();
 
         JsonExtractFut {
@@ -361,7 +361,7 @@ where
     pub fn new(
         req: &HttpRequest,
         payload: &mut Payload,
-        ctype: Option<Arc<dyn Fn(mime::Mime) -> bool + Send + Sync>>,
+        ctype: Option<&(dyn Fn(mime::Mime) -> bool + Send + Sync)>,
     ) -> Self {
         // check content-type
         let json = if let Ok(Some(mime)) = req.mime_type() {
