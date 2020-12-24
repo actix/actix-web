@@ -1032,7 +1032,7 @@ mod tests {
         lazy(|cx| {
             let buf = TestBuffer::new("GET /test HTTP/1\r\n\r\n");
 
-            let mut h1 = Dispatcher::<_, _, _, _, UpgradeHandler<TestBuffer>>::new(
+            let h1 = Dispatcher::<_, _, _, _, UpgradeHandler<TestBuffer>>::new(
                 buf,
                 ServiceConfig::default(),
                 CloneableService::new(ok_service()),
@@ -1043,15 +1043,17 @@ mod tests {
                 None,
             );
 
-            match Pin::new(&mut h1).poll(cx) {
+            futures_util::pin_mut!(h1);
+
+            match h1.as_mut().poll(cx) {
                 Poll::Pending => panic!(),
                 Poll::Ready(res) => assert!(res.is_err()),
             }
 
-            if let DispatcherState::Normal(ref mut inner) = h1.inner {
+            if let DispatcherStateProj::Normal(inner) = h1.project().inner.project() {
                 assert!(inner.flags.contains(Flags::READ_DISCONNECT));
                 assert_eq!(
-                    &inner.io.take().unwrap().write_buf[..26],
+                    &inner.project().io.take().unwrap().write_buf[..26],
                     b"HTTP/1.1 400 Bad Request\r\n"
                 );
             }
@@ -1071,7 +1073,7 @@ mod tests {
 
             let cfg = ServiceConfig::new(KeepAlive::Disabled, 1, 1, false, None);
 
-            let mut h1 = Dispatcher::<_, _, _, _, UpgradeHandler<TestBuffer>>::new(
+            let h1 = Dispatcher::<_, _, _, _, UpgradeHandler<TestBuffer>>::new(
                 buf,
                 cfg,
                 CloneableService::new(echo_path_service()),
@@ -1082,9 +1084,11 @@ mod tests {
                 None,
             );
 
+            futures_util::pin_mut!(h1);
+
             assert!(matches!(&h1.inner, DispatcherState::Normal(_)));
 
-            match Pin::new(&mut h1).poll(cx) {
+            match h1.as_mut().poll(cx) {
                 Poll::Pending => panic!("first poll should not be pending"),
                 Poll::Ready(res) => assert!(res.is_ok()),
             }
@@ -1092,8 +1096,8 @@ mod tests {
             // polls: initial => shutdown
             assert_eq!(h1.poll_count, 2);
 
-            if let DispatcherState::Normal(ref mut inner) = h1.inner {
-                let res = &mut inner.io.take().unwrap().write_buf[..];
+            if let DispatcherStateProj::Normal(inner) = h1.project().inner.project() {
+                let res = &mut inner.project().io.take().unwrap().write_buf[..];
                 stabilize_date_header(res);
 
                 let exp = b"\
@@ -1124,7 +1128,7 @@ mod tests {
 
             let cfg = ServiceConfig::new(KeepAlive::Disabled, 1, 1, false, None);
 
-            let mut h1 = Dispatcher::<_, _, _, _, UpgradeHandler<TestBuffer>>::new(
+            let h1 = Dispatcher::<_, _, _, _, UpgradeHandler<TestBuffer>>::new(
                 buf,
                 cfg,
                 CloneableService::new(echo_path_service()),
@@ -1135,9 +1139,11 @@ mod tests {
                 None,
             );
 
+            futures_util::pin_mut!(h1);
+
             assert!(matches!(&h1.inner, DispatcherState::Normal(_)));
 
-            match Pin::new(&mut h1).poll(cx) {
+            match h1.as_mut().poll(cx) {
                 Poll::Pending => panic!("first poll should not be pending"),
                 Poll::Ready(res) => assert!(res.is_err()),
             }
@@ -1145,8 +1151,8 @@ mod tests {
             // polls: initial => shutdown
             assert_eq!(h1.poll_count, 1);
 
-            if let DispatcherState::Normal(ref mut inner) = h1.inner {
-                let res = &mut inner.io.take().unwrap().write_buf[..];
+            if let DispatcherStateProj::Normal(inner) = h1.project().inner.project() {
+                let res = &mut inner.project().io.take().unwrap().write_buf[..];
                 stabilize_date_header(res);
 
                 let exp = b"\
@@ -1172,7 +1178,7 @@ mod tests {
         lazy(|cx| {
             let mut buf = TestSeqBuffer::empty();
             let cfg = ServiceConfig::new(KeepAlive::Disabled, 0, 0, false, None);
-            let mut h1 = Dispatcher::<_, _, _, _, UpgradeHandler<_>>::new(
+            let h1 = Dispatcher::<_, _, _, _, UpgradeHandler<_>>::new(
                 buf.clone(),
                 cfg,
                 CloneableService::new(echo_payload_service()),
@@ -1192,7 +1198,9 @@ mod tests {
                 ",
             );
 
-            assert!(Pin::new(&mut h1).poll(cx).is_pending());
+            futures_util::pin_mut!(h1);
+
+            assert!(h1.as_mut().poll(cx).is_pending());
             assert!(matches!(&h1.inner, DispatcherState::Normal(_)));
 
             // polls: manual
@@ -1209,7 +1217,7 @@ mod tests {
             }
 
             buf.extend_read_buf("12345");
-            assert!(Pin::new(&mut h1).poll(cx).is_ready());
+            assert!(h1.as_mut().poll(cx).is_ready());
 
             // polls: manual manual shutdown
             assert_eq!(h1.poll_count, 3);
@@ -1242,7 +1250,7 @@ mod tests {
         lazy(|cx| {
             let mut buf = TestSeqBuffer::empty();
             let cfg = ServiceConfig::new(KeepAlive::Disabled, 0, 0, false, None);
-            let mut h1 = Dispatcher::<_, _, _, _, UpgradeHandler<_>>::new(
+            let h1 = Dispatcher::<_, _, _, _, UpgradeHandler<_>>::new(
                 buf.clone(),
                 cfg,
                 CloneableService::new(echo_path_service()),
@@ -1262,7 +1270,9 @@ mod tests {
                 ",
             );
 
-            assert!(Pin::new(&mut h1).poll(cx).is_ready());
+            futures_util::pin_mut!(h1);
+
+            assert!(h1.as_mut().poll(cx).is_ready());
             assert!(matches!(&h1.inner, DispatcherState::Normal(_)));
 
             // polls: manual shutdown
@@ -1300,7 +1310,7 @@ mod tests {
         lazy(|cx| {
             let mut buf = TestSeqBuffer::empty();
             let cfg = ServiceConfig::new(KeepAlive::Disabled, 0, 0, false, None);
-            let mut h1 = Dispatcher::<_, _, _, _, UpgradeHandler<_>>::new(
+            let h1 = Dispatcher::<_, _, _, _, UpgradeHandler<_>>::new(
                 buf.clone(),
                 cfg,
                 CloneableService::new(ok_service()),
@@ -1320,7 +1330,9 @@ mod tests {
                 ",
             );
 
-            assert!(Pin::new(&mut h1).poll(cx).is_ready());
+            futures_util::pin_mut!(h1);
+
+            assert!(h1.as_mut().poll(cx).is_ready());
             assert!(matches!(&h1.inner, DispatcherState::Upgrade(_)));
 
             // polls: manual shutdown
