@@ -4,7 +4,7 @@ use actix_connect::resolver::ResolveError;
 use derive_more::{Display, From};
 
 #[cfg(feature = "openssl")]
-use actix_connect::ssl::openssl::{HandshakeError, SslError};
+use actix_connect::ssl::openssl::SslError;
 
 use crate::error::{Error, ParseError, ResponseError};
 use crate::http::{Error as HttpError, StatusCode};
@@ -21,10 +21,10 @@ pub enum ConnectError {
     #[display(fmt = "{}", _0)]
     SslError(SslError),
 
-    /// SSL Handshake error
-    #[cfg(feature = "openssl")]
-    #[display(fmt = "{}", _0)]
-    SslHandshakeError(String),
+    // /// SSL Handshake error
+    // #[cfg(feature = "openssl")]
+    // #[display(fmt = "{}", _0)]
+    // SslHandshakeError(SslError),
 
     /// Failed to resolve the hostname
     #[display(fmt = "Failed resolving hostname: {}", _0)]
@@ -69,12 +69,12 @@ impl From<actix_connect::ConnectError> for ConnectError {
     }
 }
 
-#[cfg(feature = "openssl")]
-impl<T: std::fmt::Debug> From<HandshakeError<T>> for ConnectError {
-    fn from(err: HandshakeError<T>) -> ConnectError {
-        ConnectError::SslHandshakeError(format!("{:?}", err))
-    }
-}
+// #[cfg(feature = "openssl")]
+// impl<T: std::fmt::Debug> From<HandshakeError<T>> for ConnectError {
+//     fn from(err: HandshakeError<T>) -> ConnectError {
+//         ConnectError::SslHandshakeError(format!("{:?}", err))
+//     }
+// }
 
 #[derive(Debug, Display, From)]
 pub enum InvalidUrl {

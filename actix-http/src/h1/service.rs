@@ -101,7 +101,7 @@ mod openssl {
     use super::*;
 
     use actix_tls::openssl::{Acceptor, SslAcceptor, SslStream};
-    use actix_tls::{openssl::HandshakeError, TlsError};
+    use actix_tls::{openssl::Error as SslError, TlsError};
 
     impl<S, B, X, U> H1Service<SslStream<TcpStream>, S, B, X, U>
     where
@@ -129,7 +129,7 @@ mod openssl {
             Config = (),
             Request = TcpStream,
             Response = (),
-            Error = TlsError<HandshakeError<TcpStream>, DispatchError>,
+            Error = TlsError<SslError, DispatchError>,
             InitError = (),
         > {
             pipeline_factory(

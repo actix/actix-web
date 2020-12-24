@@ -180,9 +180,9 @@ impl ResponseError for FormError {}
 /// `InternalServerError` for `openssl::ssl::Error`
 impl ResponseError for actix_connect::ssl::openssl::SslError {}
 
-#[cfg(feature = "openssl")]
-/// `InternalServerError` for `openssl::ssl::HandshakeError`
-impl<T: std::fmt::Debug> ResponseError for actix_tls::openssl::HandshakeError<T> {}
+// #[cfg(feature = "openssl")]
+// /// `InternalServerError` for `openssl::ssl::HandshakeError`
+// impl<T: std::fmt::Debug> ResponseError for actix_tls::openssl::HandshakeError<T> {}
 
 /// Return `BAD_REQUEST` for `de::value::Error`
 impl ResponseError for DeError {
