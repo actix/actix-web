@@ -219,12 +219,12 @@ impl Route {
     ///     );
     /// }
     /// ```
-    pub fn to<F, T, R, U>(mut self, handler: F) -> Self
+    pub fn to<F, T, R>(mut self, handler: F) -> Self
     where
-        F: Handler<T, R, U>,
+        F: Handler<T, R>,
         T: FromRequest + 'static,
-        R: Future<Output = U> + 'static,
-        U: Responder + 'static,
+        R: Future + 'static,
+        R::Output: Responder + 'static,
     {
         self.service = Box::new(RouteNewService::new(HandlerService::new(handler)));
         self

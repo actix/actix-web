@@ -20,19 +20,19 @@ use crate::service::{ServiceRequest, ServiceResponse};
 ///
 /// If you got the error `the trait Handler<_, _, _> is not implemented`, then your function is not
 /// a valid handler. See [Request Handlers](https://actix.rs/docs/handlers/) for more information.
-pub trait Handler<T, R, O>: Clone + 'static
+pub trait Handler<T, R>: Clone + 'static
 where
-    R: Future<Output = O>,
-    O: Responder,
+    R: Future,
+    R::Output: Responder,
 {
     fn call(&self, param: T) -> R;
 }
 
-impl<F, R, O> Handler<(), R, O> for F
+impl<F, R> Handler<(), R> for F
 where
     F: Fn() -> R + Clone + 'static,
-    R: Future<Output = O>,
-    O: Responder,
+    R: Future,
+    R::Output: Responder,
 {
     fn call(&self, _: ()) -> R {
         (self)()
@@ -41,23 +41,23 @@ where
 
 #[doc(hidden)]
 /// Extract arguments from request, run factory function and make response.
-pub struct HandlerService<F, T, R, O>
+pub struct HandlerService<F, T, R>
 where
-    F: Handler<T, R, O>,
+    F: Handler<T, R>,
     T: FromRequest,
-    R: Future<Output = O>,
-    O: Responder,
+    R: Future,
+    R::Output: Responder,
 {
     hnd: F,
-    _t: PhantomData<(T, R, O)>,
+    _t: PhantomData<(T, R)>,
 }
 
-impl<F, T, R, O> HandlerService<F, T, R, O>
+impl<F, T, R> HandlerService<F, T, R>
 where
-    F: Handler<T, R, O>,
+    F: Handler<T, R>,
     T: FromRequest,
-    R: Future<Output = O>,
-    O: Responder,
+    R: Future,
+    R::Output: Responder,
 {
     pub fn new(hnd: F) -> Self {
         Self {
@@ -67,12 +67,12 @@ where
     }
 }
 
-impl<F, T, R, O> Clone for HandlerService<F, T, R, O>
+impl<F, T, R> Clone for HandlerService<F, T, R>
 where
-    F: Handler<T, R, O>,
+    F: Handler<T, R>,
     T: FromRequest,
-    R: Future<Output = O>,
-    O: Responder,
+    R: Future,
+    R::Output: Responder,
 {
     fn clone(&self) -> Self {
         Self {
@@ -82,12 +82,12 @@ where
     }
 }
 
-impl<F, T, R, O> ServiceFactory for HandlerService<F, T, R, O>
+impl<F, T, R> ServiceFactory for HandlerService<F, T, R>
 where
-    F: Handler<T, R, O>,
+    F: Handler<T, R>,
     T: FromRequest,
-    R: Future<Output = O>,
-    O: Responder,
+    R: Future,
+    R::Output: Responder,
 {
     type Request = ServiceRequest;
     type Response = ServiceResponse;
@@ -103,17 +103,17 @@ where
 }
 
 // Handler is both it's ServiceHandler and Service Type.
-impl<F, T, R, O> Service for HandlerService<F, T, R, O>
+impl<F, T, R> Service for HandlerService<F, T, R>
 where
-    F: Handler<T, R, O>,
+    F: Handler<T, R>,
     T: FromRequest,
-    R: Future<Output = O>,
-    O: Responder,
+    R: Future,
+    R::Output: Responder,
 {
     type Request = ServiceRequest;
     type Response = ServiceResponse;
     type Error = Error;
-    type Future = HandlerServiceFuture<F, T, R, O>;
+    type Future = HandlerServiceFuture<F, T, R>;
 
     fn poll_ready(&mut self, _: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         Poll::Ready(Ok(()))
@@ -128,24 +128,24 @@ where
 
 #[doc(hidden)]
 #[pin_project(project = HandlerProj)]
-pub enum HandlerServiceFuture<F, T, R, O>
+pub enum HandlerServiceFuture<F, T, R>
 where
-    F: Handler<T, R, O>,
+    F: Handler<T, R>,
     T: FromRequest,
-    R: Future<Output = O>,
-    O: Responder,
+    R: Future,
+    R::Output: Responder,
 {
     Extract(#[pin] T::Future, Option<HttpRequest>, F),
     Handle(#[pin] R, Option<HttpRequest>),
-    Respond(#[pin] O::Future, Option<HttpRequest>),
+    Respond(#[pin] <R::Output as Responder>::Future, Option<HttpRequest>),
 }
 
-impl<F, T, R, O> Future for HandlerServiceFuture<F, T, R, O>
+impl<F, T, R> Future for HandlerServiceFuture<F, T, R>
 where
-    F: Handler<T, R, O>,
+    F: Handler<T, R>,
     T: FromRequest,
-    R: Future<Output = O>,
-    O: Responder,
+    R: Future,
+    R::Output: Responder,
 {
     // Error type in this future is a placeholder type.
     // all instances of error must be converted to ServiceResponse and return in Ok.
@@ -186,10 +186,10 @@ where
 
 /// FromRequest trait impl for tuples
 macro_rules! factory_tuple ({ $(($n:tt, $T:ident)),+} => {
-    impl<Func, $($T,)+ Res, O> Handler<($($T,)+), Res, O> for Func
+    impl<Func, $($T,)+ Res> Handler<($($T,)+), Res> for Func
     where Func: Fn($($T,)+) -> Res + Clone + 'static,
-          Res: Future<Output = O>,
-          O: Responder,
+          Res: Future,
+          Res::Output: Responder,
     {
         fn call(&self, param: ($($T,)+)) -> Res {
             (self)($(param.$n,)+)

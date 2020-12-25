@@ -244,12 +244,12 @@ pub fn method(method: Method) -> Route {
 ///         web::to(index))
 /// );
 /// ```
-pub fn to<F, I, R, U>(handler: F) -> Route
+pub fn to<F, I, R>(handler: F) -> Route
 where
-    F: Handler<I, R, U>,
+    F: Handler<I, R>,
     I: FromRequest + 'static,
-    R: Future<Output = U> + 'static,
-    U: Responder + 'static,
+    R: Future + 'static,
+    R::Output: Responder + 'static,
 {
     Route::new().to(handler)
 }
