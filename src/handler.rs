@@ -15,6 +15,9 @@ use crate::responder::Responder;
 use crate::service::{ServiceRequest, ServiceResponse};
 
 /// Async handler converter factory
+/// 
+/// If you got the error `the trait Handler<_, _, _> is not implemented`, then your function is not
+/// a valid handler. See [Request Handlers](https://actix.rs/docs/handlers/) for more information.
 pub trait Handler<T, R, O>: Clone + 'static
 where
     R: Future<Output = O>,
