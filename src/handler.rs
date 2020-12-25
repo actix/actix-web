@@ -36,7 +36,7 @@ where
 
 #[doc(hidden)]
 /// Extract arguments from request, run factory function and make response.
-pub struct Handler<F, T, R, O>
+pub struct HandlerService<F, T, R, O>
 where
     F: Factory<T, R, O>,
     T: FromRequest,
@@ -47,7 +47,7 @@ where
     _t: PhantomData<(T, R, O)>,
 }
 
-impl<F, T, R, O> Handler<F, T, R, O>
+impl<F, T, R, O> HandlerService<F, T, R, O>
 where
     F: Factory<T, R, O>,
     T: FromRequest,
@@ -55,14 +55,14 @@ where
     O: Responder,
 {
     pub fn new(hnd: F) -> Self {
-        Handler {
+        Self {
             hnd,
             _t: PhantomData,
         }
     }
 }
 
-impl<F, T, R, O> Clone for Handler<F, T, R, O>
+impl<F, T, R, O> Clone for HandlerService<F, T, R, O>
 where
     F: Factory<T, R, O>,
     T: FromRequest,
@@ -70,14 +70,14 @@ where
     O: Responder,
 {
     fn clone(&self) -> Self {
-        Handler {
+        Self {
             hnd: self.hnd.clone(),
             _t: PhantomData,
         }
     }
 }
 
-impl<F, T, R, O> ServiceFactory for Handler<F, T, R, O>
+impl<F, T, R, O> ServiceFactory for HandlerService<F, T, R, O>
 where
     F: Factory<T, R, O>,
     T: FromRequest,
@@ -98,7 +98,7 @@ where
 }
 
 // Handler is both it's ServiceFactory and Service Type.
-impl<F, T, R, O> Service for Handler<F, T, R, O>
+impl<F, T, R, O> Service for HandlerService<F, T, R, O>
 where
     F: Factory<T, R, O>,
     T: FromRequest,
