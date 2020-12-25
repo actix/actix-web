@@ -17,7 +17,7 @@ use crate::data::Data;
 use crate::dev::{insert_slash, AppService, HttpServiceFactory, ResourceDef};
 use crate::extract::FromRequest;
 use crate::guard::Guard;
-use crate::handler::Factory;
+use crate::handler::Handler;
 use crate::responder::Responder;
 use crate::route::{CreateRouteService, Route, RouteService};
 use crate::service::{ServiceRequest, ServiceResponse};
@@ -229,7 +229,7 @@ where
     /// ```
     pub fn to<F, I, R, U>(mut self, handler: F) -> Self
     where
-        F: Factory<I, R, U>,
+        F: Handler<I, R, U>,
         I: FromRequest + 'static,
         R: Future<Output = U> + 'static,
         U: Responder + 'static,

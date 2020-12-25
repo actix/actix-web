@@ -11,7 +11,7 @@ use futures_util::future::{ready, FutureExt, LocalBoxFuture};
 
 use crate::extract::FromRequest;
 use crate::guard::{self, Guard};
-use crate::handler::{Factory, HandlerService};
+use crate::handler::{Handler, HandlerService};
 use crate::responder::Responder;
 use crate::service::{ServiceRequest, ServiceResponse};
 use crate::HttpResponse;
@@ -221,7 +221,7 @@ impl Route {
     /// ```
     pub fn to<F, T, R, U>(mut self, handler: F) -> Self
     where
-        F: Factory<T, R, U>,
+        F: Handler<T, R, U>,
         T: FromRequest + 'static,
         R: Future<Output = U> + 'static,
         U: Responder + 'static,

@@ -9,7 +9,7 @@ pub use futures_channel::oneshot::Canceled;
 
 use crate::error::BlockingError;
 use crate::extract::FromRequest;
-use crate::handler::Factory;
+use crate::handler::Handler;
 use crate::resource::Resource;
 use crate::responder::Responder;
 use crate::route::Route;
@@ -246,7 +246,7 @@ pub fn method(method: Method) -> Route {
 /// ```
 pub fn to<F, I, R, U>(handler: F) -> Route
 where
-    F: Factory<I, R, U>,
+    F: Handler<I, R, U>,
     I: FromRequest + 'static,
     R: Future<Output = U> + 'static,
     U: Responder + 'static,

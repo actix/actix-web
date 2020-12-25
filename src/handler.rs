@@ -15,7 +15,7 @@ use crate::responder::Responder;
 use crate::service::{ServiceRequest, ServiceResponse};
 
 /// Async handler converter factory
-pub trait Factory<T, R, O>: Clone + 'static
+pub trait Handler<T, R, O>: Clone + 'static
 where
     R: Future<Output = O>,
     O: Responder,
@@ -23,7 +23,7 @@ where
     fn call(&self, param: T) -> R;
 }
 
-impl<F, R, O> Factory<(), R, O> for F
+impl<F, R, O> Handler<(), R, O> for F
 where
     F: Fn() -> R + Clone + 'static,
     R: Future<Output = O>,
@@ -38,7 +38,7 @@ where
 /// Extract arguments from request, run factory function and make response.
 pub struct HandlerService<F, T, R, O>
 where
-    F: Factory<T, R, O>,
+    F: Handler<T, R, O>,
     T: FromRequest,
     R: Future<Output = O>,
     O: Responder,
@@ -49,7 +49,7 @@ where
 
 impl<F, T, R, O> HandlerService<F, T, R, O>
 where
-    F: Factory<T, R, O>,
+    F: Handler<T, R, O>,
     T: FromRequest,
     R: Future<Output = O>,
     O: Responder,
@@ -64,7 +64,7 @@ where
 
 impl<F, T, R, O> Clone for HandlerService<F, T, R, O>
 where
-    F: Factory<T, R, O>,
+    F: Handler<T, R, O>,
     T: FromRequest,
     R: Future<Output = O>,
     O: Responder,
@@ -79,7 +79,7 @@ where
 
 impl<F, T, R, O> ServiceFactory for HandlerService<F, T, R, O>
 where
-    F: Factory<T, R, O>,
+    F: Handler<T, R, O>,
     T: FromRequest,
     R: Future<Output = O>,
     O: Responder,
@@ -97,10 +97,10 @@ where
     }
 }
 
-// Handler is both it's ServiceFactory and Service Type.
+// Handler is both it's ServiceHandler and Service Type.
 impl<F, T, R, O> Service for HandlerService<F, T, R, O>
 where
-    F: Factory<T, R, O>,
+    F: Handler<T, R, O>,
     T: FromRequest,
     R: Future<Output = O>,
     O: Responder,
@@ -125,7 +125,7 @@ where
 #[pin_project(project = HandlerProj)]
 pub enum HandlerServiceFuture<F, T, R, O>
 where
-    F: Factory<T, R, O>,
+    F: Handler<T, R, O>,
     T: FromRequest,
     R: Future<Output = O>,
     O: Responder,
@@ -137,7 +137,7 @@ where
 
 impl<F, T, R, O> Future for HandlerServiceFuture<F, T, R, O>
 where
-    F: Factory<T, R, O>,
+    F: Handler<T, R, O>,
     T: FromRequest,
     R: Future<Output = O>,
     O: Responder,
@@ -181,7 +181,7 @@ where
 
 /// FromRequest trait impl for tuples
 macro_rules! factory_tuple ({ $(($n:tt, $T:ident)),+} => {
-    impl<Func, $($T,)+ Res, O> Factory<($($T,)+), Res, O> for Func
+    impl<Func, $($T,)+ Res, O> Handler<($($T,)+), Res, O> for Func
     where Func: Fn($($T,)+) -> Res + Clone + 'static,
           Res: Future<Output = O>,
           O: Responder,
