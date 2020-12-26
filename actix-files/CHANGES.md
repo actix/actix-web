@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2020-xx-xx
+
+
+## 0.5.0 - 2020-12-26
 * Optionally support hidden files/directories. [#1811]
 
 [#1811]: https://github.com/actix/actix-web/pull/1811
