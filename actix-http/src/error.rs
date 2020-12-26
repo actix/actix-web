@@ -25,7 +25,7 @@ pub use crate::cookie::ParseError as CookieParseError;
 use crate::helpers::Writer;
 use crate::response::{Response, ResponseBuilder};
 
-/// A specialized [`Result`](https://doc.rust-lang.org/std/result/enum.Result.html)
+/// A specialized [`std::result::Result`]
 /// for actix web operations
 ///
 /// This typedef is generally used to avoid writing out

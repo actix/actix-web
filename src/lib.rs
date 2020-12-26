@@ -29,16 +29,16 @@
 //!
 //! To get started navigating the API docs, you may consider looking at the following pages first:
 //!
-//! * [App](struct.App.html): This struct represents an Actix web application and is used to
+//! * [App]: This struct represents an Actix web application and is used to
 //!   configure routes and other common application settings.
 //!
-//! * [HttpServer](struct.HttpServer.html): This struct represents an HTTP server instance and is
+//! * [HttpServer]: This struct represents an HTTP server instance and is
 //!   used to instantiate and configure servers.
 //!
-//! * [web](web/index.html): This module provides essential types for route registration as well as
+//! * [web]: This module provides essential types for route registration as well as
 //!   common utilities for request handlers.
 //!
-//! * [HttpRequest](struct.HttpRequest.html) and [HttpResponse](struct.HttpResponse.html): These
+//! * [HttpRequest] and [HttpResponse]: These
 //!   structs represent HTTP requests and responses and expose methods for creating, inspecting,
 //!   and otherwise utilizing them.
 //!

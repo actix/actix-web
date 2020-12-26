@@ -1,6 +1,6 @@
 //! Websockets client
 //!
-//! Type definitions required to use [`awc::Client`](../struct.Client.html) as a WebSocket client.
+//! Type definitions required to use [`awc::Client`](super::Client) as a WebSocket client.
 //!
 //! # Example
 //!
@@ -70,9 +70,14 @@ impl WebsocketsRequest {
         <Uri as TryFrom<U>>::Error: Into<HttpError>,
     {
         let mut err = None;
-        let mut head = RequestHead::default();
-        head.method = Method::GET;
-        head.version = Version::HTTP_11;
+
+        #[allow(clippy::field_reassign_with_default)]
+        let mut head = {
+            let mut head = RequestHead::default();
+            head.method = Method::GET;
+            head.version = Version::HTTP_11;
+            head
+        };
 
         match Uri::try_from(uri) {
             Ok(uri) => head.uri = uri,

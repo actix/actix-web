@@ -58,6 +58,7 @@ impl Codec {
         } else {
             Flags::empty()
         };
+
         Codec {
             config,
             flags,
@@ -69,26 +70,26 @@ impl Codec {
         }
     }
 
+    /// Check if request is upgrade.
     #[inline]
-    /// Check if request is upgrade
     pub fn upgrade(&self) -> bool {
         self.ctype == ConnectionType::Upgrade
     }
 
+    /// Check if last response is keep-alive.
     #[inline]
-    /// Check if last response is keep-alive
     pub fn keepalive(&self) -> bool {
         self.ctype == ConnectionType::KeepAlive
     }
 
+    /// Check if keep-alive enabled on server level.
     #[inline]
-    /// Check if keep-alive enabled on server level
     pub fn keepalive_enabled(&self) -> bool {
         self.flags.contains(Flags::KEEPALIVE_ENABLED)
     }
 
+    /// Check last request's message type.
     #[inline]
-    /// Check last request's message type
     pub fn message_type(&self) -> MessageType {
         if self.flags.contains(Flags::STREAM) {
             MessageType::Stream
