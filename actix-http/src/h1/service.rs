@@ -9,12 +9,12 @@ use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use actix_rt::net::TcpStream;
 use actix_service::{pipeline_factory, IntoServiceFactory, Service, ServiceFactory};
 use futures_core::ready;
-use futures_util::future::{ok, Ready};
+use futures_util::future::ready;
 
 use crate::body::MessageBody;
 use crate::cloneable::CloneableService;
 use crate::config::ServiceConfig;
-use crate::error::{DispatchError, Error, ParseError};
+use crate::error::{DispatchError, Error};
 use crate::helpers::DataFactory;
 use crate::request::Request;
 use crate::response::Response;
@@ -22,7 +22,7 @@ use crate::{ConnectCallback, Extensions};
 
 use super::codec::Codec;
 use super::dispatcher::Dispatcher;
-use super::{ExpectHandler, Message, UpgradeHandler};
+use super::{ExpectHandler, UpgradeHandler};
 
 /// `ServiceFactory` implementation for HTTP1 transport
 pub struct H1Service<T, S, B, X = ExpectHandler, U = UpgradeHandler<T>> {
@@ -90,7 +90,7 @@ where
     > {
         pipeline_factory(|io: TcpStream| {
             let peer_addr = io.peer_addr().ok();
-            ok((io, peer_addr))
+            ready(Ok((io, peer_addr)))
         })
         .and_then(self)
     }
@@ -139,7 +139,7 @@ mod openssl {
             )
             .and_then(|io: SslStream<TcpStream>| {
                 let peer_addr = io.get_ref().peer_addr().ok();
-                ok((io, peer_addr))
+                ready(Ok((io, peer_addr)))
             })
             .and_then(self.map_err(TlsError::Service))
         }
@@ -189,7 +189,7 @@ mod rustls {
             )
             .and_then(|io: TlsStream<TcpStream>| {
                 let peer_addr = io.get_ref().0.peer_addr().ok();
-                ok((io, peer_addr))
+                ready(Ok((io, peer_addr)))
             })
             .and_then(self.map_err(TlsError::Service))
         }
@@ -498,105 +498,5 @@ where
             connect_extensions,
             addr,
         )
-    }
-}
-
-/// `ServiceFactory` implementation for `OneRequestService` service
-#[derive(Default)]
-pub struct OneRequest<T> {
-    config: ServiceConfig,
-    _t: PhantomData<T>,
-}
-
-impl<T> OneRequest<T>
-where
-    T: AsyncRead + AsyncWrite + Unpin,
-{
-    /// Create new `H1SimpleService` instance.
-    pub fn new() -> Self {
-        OneRequest {
-            config: ServiceConfig::default(),
-            _t: PhantomData,
-        }
-    }
-}
-
-impl<T> ServiceFactory for OneRequest<T>
-where
-    T: AsyncRead + AsyncWrite + Unpin,
-{
-    type Config = ();
-    type Request = T;
-    type Response = (Request, Framed<T, Codec>);
-    type Error = ParseError;
-    type InitError = ();
-    type Service = OneRequestService<T>;
-    type Future = Ready<Result<Self::Service, Self::InitError>>;
-
-    fn new_service(&self, _: ()) -> Self::Future {
-        ok(OneRequestService {
-            _t: PhantomData,
-            config: self.config.clone(),
-        })
-    }
-}
-
-/// `Service` implementation for HTTP1 transport. Reads one request and returns
-/// request and framed object.
-pub struct OneRequestService<T> {
-    _t: PhantomData<T>,
-    config: ServiceConfig,
-}
-
-impl<T> Service for OneRequestService<T>
-where
-    T: AsyncRead + AsyncWrite + Unpin,
-{
-    type Request = T;
-    type Response = (Request, Framed<T, Codec>);
-    type Error = ParseError;
-    type Future = OneRequestServiceResponse<T>;
-
-    fn poll_ready(&mut self, _: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        Poll::Ready(Ok(()))
-    }
-
-    fn call(&mut self, req: Self::Request) -> Self::Future {
-        OneRequestServiceResponse {
-            framed: Some(Framed::new(req, Codec::new(self.config.clone()))),
-        }
-    }
-}
-
-#[doc(hidden)]
-#[pin_project::pin_project]
-pub struct OneRequestServiceResponse<T>
-where
-    T: AsyncRead + AsyncWrite + Unpin,
-{
-    #[pin]
-    framed: Option<Framed<T, Codec>>,
-}
-
-impl<T> Future for OneRequestServiceResponse<T>
-where
-    T: AsyncRead + AsyncWrite + Unpin,
-{
-    type Output = Result<(Request, Framed<T, Codec>), ParseError>;
-
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let this = self.as_mut().project();
-
-        match ready!(this.framed.as_pin_mut().unwrap().next_item(cx)) {
-            Some(Ok(req)) => match req {
-                Message::Item(req) => {
-                    let mut this = self.as_mut().project();
-                    Poll::Ready(Ok((req, this.framed.take().unwrap())))
-                }
-                Message::Chunk(_) => unreachable!("Something is wrong"),
-            },
-            Some(Err(err)) => Poll::Ready(Err(err)),
-            None => Poll::Ready(Err(ParseError::Incomplete)),
-        }
     }
 }

@@ -108,7 +108,6 @@ where
     messages: VecDeque<DispatcherMessage>,
 
     ka_expire: Instant,
-
     #[pin]
     ka_timer: Option<Sleep>,
 

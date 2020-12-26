@@ -40,7 +40,7 @@ awc = "2.0.0"
 
 base64 = "0.13"
 bytes = "1"
-futures-core = { version = "0.3.5", default-features = false }
+futures-core = { version = "0.3.7", default-features = false }
 http = "0.2.2"
 log = "0.4"
 socket2 = "0.3"

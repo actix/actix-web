@@ -25,7 +25,6 @@ pub enum ConnectError {
     // #[cfg(feature = "openssl")]
     // #[display(fmt = "{}", _0)]
     // SslHandshakeError(SslError),
-
     /// Failed to resolve the hostname
     #[display(fmt = "Failed resolving hostname: {}", _0)]
     Resolver(ResolveError),

@@ -4,6 +4,7 @@
 ### Changed
 * Upgrade `bytes` to `1`.
 * Bumped `rand` to `0.8`
+* Update `rust-tls` to `0.19.0`
 
 
 ## 2.0.3 - 2020-11-29

@@ -11,7 +11,7 @@ use futures_util::future::{ready, FutureExt, LocalBoxFuture};
 
 use crate::extract::FromRequest;
 use crate::guard::{self, Guard};
-use crate::handler::{Factory, Handler};
+use crate::handler::{Handler, HandlerService};
 use crate::responder::Responder;
 use crate::service::{ServiceRequest, ServiceResponse};
 use crate::HttpResponse;
@@ -51,7 +51,7 @@ impl Route {
     #[allow(clippy::new_without_default)]
     pub fn new() -> Route {
         Route {
-            service: Box::new(RouteNewService::new(Handler::new(|| {
+            service: Box::new(RouteNewService::new(HandlerService::new(|| {
                 ready(HttpResponse::NotFound())
             }))),
             guards: Rc::new(Vec::new()),
@@ -219,14 +219,14 @@ impl Route {
     ///     );
     /// }
     /// ```
-    pub fn to<F, T, R, U>(mut self, handler: F) -> Self
+    pub fn to<F, T, R>(mut self, handler: F) -> Self
     where
-        F: Factory<T, R, U>,
+        F: Handler<T, R>,
         T: FromRequest + 'static,
-        R: Future<Output = U> + 'static,
-        U: Responder + 'static,
+        R: Future + 'static,
+        R::Output: Responder + 'static,
     {
-        self.service = Box::new(RouteNewService::new(Handler::new(handler)));
+        self.service = Box::new(RouteNewService::new(HandlerService::new(handler)));
         self
     }
 }

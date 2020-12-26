@@ -21,11 +21,11 @@ actix-web = { version = "3.0.0", default-features = false }
 actix-http = "2.0.0"
 actix-codec = "0.3.0"
 bytes = "1"
-futures-channel = { version = "0.3.5", default-features = false }
-futures-core = { version = "0.3.5", default-features = false }
+futures-channel = { version = "0.3.7", default-features = false }
+futures-core = { version = "0.3.7", default-features = false }
 pin-project = "1.0.0"
 
 [dev-dependencies]
 actix-rt = "1.1.1"
 env_logger = "0.7"
-futures-util = { version = "0.3.5", default-features = false }
+futures-util = { version = "0.3.7", default-features = false }
