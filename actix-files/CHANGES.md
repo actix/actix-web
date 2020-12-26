@@ -4,6 +4,12 @@
 * Update `bytes` to `1`.
 
 
+## 0.5.0 - 2020-12-26
+* Optionally support hidden files/directories. [#1811]
+
+[#1811]: https://github.com/actix/actix-web/pull/1811
+
+
 ## 0.4.1 - 2020-11-24
 * Clarify order of parameters in `Files::new` and improve docs.
 

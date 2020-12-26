@@ -15,12 +15,19 @@ impl FromStr for PathBufWrap {
     type Err = UriSegmentError;
 
     fn from_str(path: &str) -> Result<Self, Self::Err> {
+        Self::parse_path(path, false)
+    }
+}
+
+impl PathBufWrap {
+    /// Parse a path, giving the choice of allowing hidden files to be considered valid segments.
+    pub fn parse_path(path: &str, hidden_files: bool) -> Result<Self, UriSegmentError> {
         let mut buf = PathBuf::new();
 
         for segment in path.split('/') {
             if segment == ".." {
                 buf.pop();
-            } else if segment.starts_with('.') {
+            } else if !hidden_files && segment.starts_with('.') {
                 return Err(UriSegmentError::BadStart('.'));
             } else if segment.starts_with('*') {
                 return Err(UriSegmentError::BadStart('*'));
@@ -94,6 +101,19 @@ mod tests {
         assert_eq!(
             PathBufWrap::from_str("/seg1/../seg2/").unwrap().0,
             PathBuf::from_iter(vec!["seg2"])
+        );
+    }
+
+    #[test]
+    fn test_parse_path() {
+        assert_eq!(
+            PathBufWrap::parse_path("/test/.tt", false).map(|t| t.0),
+            Err(UriSegmentError::BadStart('.'))
+        );
+
+        assert_eq!(
+            PathBufWrap::parse_path("/test/.tt", true).unwrap().0,
+            PathBuf::from_iter(vec!["test", ".tt"])
         );
     }
 }

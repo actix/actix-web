@@ -4,12 +4,14 @@
 ### Changed
 * Bumped `rand` to `0.8`
 * Update `rust-tls` to `0.19.0`
+* Rename `Handler` to `HandlerService` and rename `Factory` to `Handler`. [#1852]
+
 
 ### Fixed
 * added the actual parsing error to `test::read_body_json` [#1812]
 
 [#1812]: https://github.com/actix/actix-web/pull/1812
-
+[#1852]: https://github.com/actix/actix-web/pull/1852
 
 ## 3.3.2 - 2020-12-01
 ### Fixed

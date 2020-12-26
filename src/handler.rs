@@ -14,7 +14,12 @@ use crate::request::HttpRequest;
 use crate::responder::Responder;
 use crate::service::{ServiceRequest, ServiceResponse};
 
-/// Async handler converter factory
+///  A request handler is an async function that accepts zero or more parameters that can be
+///  extracted from a request (ie, [`impl FromRequest`](crate::FromRequest)) and returns a type that can be converted into
+///  an [`HttpResponse`](crate::HttpResponse) (ie, [`impl Responder`](crate::Responder)).
+///
+/// If you got the error `the trait Handler<_, _, _> is not implemented`, then your function is not
+/// a valid handler. See [Request Handlers](https://actix.rs/docs/handlers/) for more information.
 pub trait Handler<T, R>: Clone + 'static
 where
     R: Future,
@@ -55,7 +60,7 @@ where
     R::Output: Responder,
 {
     pub fn new(hnd: F) -> Self {
-        HandlerService {
+        Self {
             hnd,
             _t: PhantomData,
         }
@@ -70,7 +75,7 @@ where
     R::Output: Responder,
 {
     fn clone(&self) -> Self {
-        HandlerService {
+        Self {
             hnd: self.hnd.clone(),
             _t: PhantomData,
         }
@@ -97,7 +102,7 @@ where
     }
 }
 
-// Handler is both it's ServiceFactory and Service Type.
+// HandlerService is both it's ServiceFactory and Service Type.
 impl<F, T, R> Service for HandlerService<F, T, R>
 where
     F: Handler<T, R>,
