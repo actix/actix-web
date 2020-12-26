@@ -31,6 +31,7 @@ pub struct FilesService {
     pub(crate) mime_override: Option<Rc<MimeOverride>>,
     pub(crate) file_flags: named::Flags,
     pub(crate) guards: Option<Rc<dyn Guard>>,
+    pub(crate) hidden_files: bool,
 }
 
 type FilesServiceFuture = Either<
@@ -83,10 +84,11 @@ impl Service for FilesService {
             )));
         }
 
-        let real_path: PathBufWrap = match req.match_info().path().parse() {
-            Ok(item) => item,
-            Err(e) => return Either::Left(ok(req.error_response(e))),
-        };
+        let real_path =
+            match PathBufWrap::parse_path(req.match_info().path(), self.hidden_files) {
+                Ok(item) => item,
+                Err(e) => return Either::Left(ok(req.error_response(e))),
+            };
 
         // full file path
         let path = match self.directory.join(&real_path).canonicalize() {

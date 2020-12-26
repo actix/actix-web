@@ -39,6 +39,7 @@ pub struct Files {
     mime_override: Option<Rc<MimeOverride>>,
     file_flags: named::Flags,
     guards: Option<Rc<dyn Guard>>,
+    hidden_files: bool,
 }
 
 impl fmt::Debug for Files {
@@ -60,6 +61,7 @@ impl Clone for Files {
             path: self.path.clone(),
             mime_override: self.mime_override.clone(),
             guards: self.guards.clone(),
+            hidden_files: self.hidden_files,
         }
     }
 }
@@ -103,6 +105,7 @@ impl Files {
             mime_override: None,
             file_flags: named::Flags::default(),
             guards: None,
+            hidden_files: false,
         }
     }
 
@@ -213,6 +216,13 @@ impl Files {
 
         self
     }
+
+    /// Enables serving hidden files and directories, allowing a leading dots in url fragments.
+    #[inline]
+    pub fn use_hidden_files(mut self) -> Self {
+        self.hidden_files = true;
+        self
+    }
 }
 
 impl HttpServiceFactory for Files {
@@ -251,6 +261,7 @@ impl ServiceFactory for Files {
             mime_override: self.mime_override.clone(),
             file_flags: self.file_flags,
             guards: self.guards.clone(),
+            hidden_files: self.hidden_files,
         };
 
         if let Some(ref default) = *self.default.borrow() {
