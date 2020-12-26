@@ -17,7 +17,7 @@ pub use self::codec::Codec;
 pub use self::dispatcher::Dispatcher;
 pub use self::expect::ExpectHandler;
 pub use self::payload::Payload;
-pub use self::service::{H1Service, H1ServiceHandler, OneRequest};
+pub use self::service::{H1Service, H1ServiceHandler};
 pub use self::upgrade::UpgradeHandler;
 pub use self::utils::SendResponse;
 
