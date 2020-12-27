@@ -4,6 +4,13 @@
 ### Changed
 * Bumped `rand` to `0.8`
 
+### Removed
+* Deprecated `on_connect` methods have been removed. Prefer the new
+  `on_connect_ext` technique. [#1857]
+
+[#1857]: https://github.com/actix/actix-web/pull/1857
+
+
 ## 2.2.0 - 2020-11-25
 ### Added
 * HttpResponse builders for 1xx status codes. [#1768]

@@ -3,8 +3,6 @@ use std::io;
 use bytes::{BufMut, BytesMut};
 use http::Version;
 
-use crate::extensions::Extensions;
-
 const DIGITS_START: u8 = b'0';
 
 pub(crate) fn write_status_line(version: Version, n: u16, bytes: &mut BytesMut) {
@@ -53,18 +51,6 @@ impl<'a> io::Write for Writer<'a> {
 
     fn flush(&mut self) -> io::Result<()> {
         Ok(())
-    }
-}
-
-pub(crate) trait DataFactory {
-    fn set(&self, ext: &mut Extensions);
-}
-
-pub(crate) struct Data<T>(pub(crate) T);
-
-impl<T: Clone + 'static> DataFactory for Data<T> {
-    fn set(&self, ext: &mut Extensions) {
-        ext.insert(self.0.clone())
     }
 }
 
