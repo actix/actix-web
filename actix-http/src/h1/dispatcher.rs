@@ -1026,7 +1026,6 @@ mod tests {
                 CloneableService::new(ok_service()),
                 CloneableService::new(ExpectHandler),
                 None,
-                None,
                 Extensions::new(),
                 None,
             );
@@ -1066,7 +1065,6 @@ mod tests {
                 cfg,
                 CloneableService::new(echo_path_service()),
                 CloneableService::new(ExpectHandler),
-                None,
                 None,
                 Extensions::new(),
                 None,
@@ -1122,7 +1120,6 @@ mod tests {
                 CloneableService::new(echo_path_service()),
                 CloneableService::new(ExpectHandler),
                 None,
-                None,
                 Extensions::new(),
                 None,
             );
@@ -1171,7 +1168,6 @@ mod tests {
                 cfg,
                 CloneableService::new(echo_payload_service()),
                 CloneableService::new(ExpectHandler),
-                None,
                 None,
                 Extensions::new(),
                 None,
@@ -1244,7 +1240,6 @@ mod tests {
                 CloneableService::new(echo_path_service()),
                 CloneableService::new(ExpectHandler),
                 None,
-                None,
                 Extensions::new(),
                 None,
             );
@@ -1304,7 +1299,6 @@ mod tests {
                 CloneableService::new(ok_service()),
                 CloneableService::new(ExpectHandler),
                 Some(CloneableService::new(UpgradeHandler(PhantomData))),
-                None,
                 Extensions::new(),
                 None,
             );
