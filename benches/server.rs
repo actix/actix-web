@@ -31,16 +31,20 @@ fn bench_async_burst(c: &mut Criterion) {
     // Maybe add to actix_rt docs
     let mut rt = actix_rt::System::new("test");
 
-    let srv = test::start(|| {
-        App::new()
-            .service(web::resource("/").route(web::to(|| HttpResponse::Ok().body(STR))))
+    let srv = rt.block_on(async {
+        test::start(|| {
+            App::new().service(
+                web::resource("/").route(web::to(|| HttpResponse::Ok().body(STR))),
+            )
+        })
     });
 
     let url = srv.url("/");
 
     c.bench_function("get_body_async_burst", move |b| {
         b.iter_custom(|iters| {
-            let client = Client::new().get(url.clone()).freeze().unwrap();
+            let client =
+                rt.block_on(async { Client::new().get(url.clone()).freeze().unwrap() });
 
             let start = std::time::Instant::now();
             // benchmark body
