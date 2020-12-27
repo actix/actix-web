@@ -4,6 +4,7 @@
 ### Changed
 * Bumped `rand` to `0.8`
 * Rename `Handler` to `HandlerService` and rename `Factory` to `Handler`. [#1852]
+* MSRV is now 1.46.0.
 
 ### Fixed
 * added the actual parsing error to `test::read_body_json` [#1812]

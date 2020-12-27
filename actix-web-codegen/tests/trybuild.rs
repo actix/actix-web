@@ -11,12 +11,12 @@ fn compile_macros() {
     test_route_missing_method(&t)
 }
 
-#[rustversion::stable(1.42)]
+#[rustversion::stable(1.46)]
 fn test_route_missing_method(t: &trybuild::TestCases) {
     t.compile_fail("tests/trybuild/route-missing-method-fail-msrv.rs");
 }
 
-#[rustversion::not(stable(1.42))]
+#[rustversion::not(stable(1.46))]
 #[rustversion::not(nightly)]
 fn test_route_missing_method(t: &trybuild::TestCases) {
     t.compile_fail("tests/trybuild/route-missing-method-fail.rs");
