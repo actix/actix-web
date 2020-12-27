@@ -47,8 +47,6 @@ jobs:
           command: generate-lockfile
       - name: Cache Dependencies
         uses: Swatinem/rust-cache@v1.0.1
-        with:
-          key: windows
 
       - name: check build
         uses: actions-rs/cargo@v1
