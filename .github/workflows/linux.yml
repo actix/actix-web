@@ -30,6 +30,25 @@ jobs:
           profile: minimal
           override: true
 
+      - name: Generate Cargo.lock
+        uses: actions-rs/cargo@v1
+        with:
+          command: generate-lockfile
+      - name: Cache cargo dirs
+        uses: actions/cache@v2
+        with:
+          path:
+            ~/.cargo/registry
+            ~/.cargo/git
+            ~/.cargo/bin
+          key: ${{ matrix.version }}-x86_64-unknown-linux-gnu-cargo-trimmed-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo build
+        uses: actions/cache@v2
+        with:
+          path: target
+          key: ${{ matrix.version }}-x86_64-unknown-linux-gnu-cargo-build-trimmed-${{ hashFiles('**/Cargo.lock') }}
+
       - name: check build
         uses: actions-rs/cargo@v1
         with:
@@ -60,10 +79,18 @@ jobs:
       - name: Generate coverage file
         if: matrix.version == 'stable' && (github.ref == 'refs/heads/master' || github.event_name == 'pull_request')
         run: |
-          cargo install cargo-tarpaulin --vers "^0.13"
-          cargo tarpaulin --out Xml
+          cargo install cargo-tarpaulin
+          cargo tarpaulin --out Xml --workspace
+
       - name: Upload to Codecov
         if: matrix.version == 'stable' && (github.ref == 'refs/heads/master' || github.event_name == 'pull_request')
         uses: codecov/codecov-action@v1
         with:
           file: cobertura.xml
+
+      - name: Clear the cargo caches
+        run: |
+          rustup update stable
+          rustup override set stable
+          cargo install cargo-cache --no-default-features --features ci-autoclean
+          cargo-cache
