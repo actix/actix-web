@@ -71,10 +71,11 @@ pub async fn test_server_with_addr<F: ServiceFactory<TcpStream>>(
                 .unwrap()
                 .workers(1)
                 .disable_signals()
-                .start()
+                .start();
+
+            tx.send((System::current(), local_addr)).unwrap();
         });
 
-        tx.send((System::current(), local_addr)).unwrap();
         sys.run()
     });
 
