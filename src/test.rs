@@ -698,7 +698,7 @@ where
 
     // run server in separate thread
     thread::spawn(move || {
-        let sys = System::new("actix-test-server");
+        let mut sys = System::new("actix-test-server");
         let tcp = net::TcpListener::bind("127.0.0.1:0").unwrap();
         let local_addr = tcp.local_addr().unwrap();
         let factory = factory.clone();
@@ -788,10 +788,13 @@ where
                 }),
             },
         }
-        .unwrap()
-        .start();
+        .unwrap();
 
-        tx.send((System::current(), srv, local_addr)).unwrap();
+        sys.block_on(async {
+            let srv = srv.run();
+            tx.send((System::current(), srv, local_addr)).unwrap();
+        });
+
         sys.run()
     });
 

@@ -13,26 +13,29 @@ async fn test_start() {
     let (tx, rx) = mpsc::channel();
 
     thread::spawn(move || {
-        let sys = actix_rt::System::new("test");
+        let mut sys = actix_rt::System::new("test");
 
-        let srv = HttpServer::new(|| {
-            App::new().service(
-                web::resource("/").route(web::to(|| HttpResponse::Ok().body("test"))),
-            )
-        })
-        .workers(1)
-        .backlog(1)
-        .max_connections(10)
-        .max_connection_rate(10)
-        .keep_alive(10)
-        .client_timeout(5000)
-        .client_shutdown(0)
-        .server_hostname("localhost")
-        .system_exit()
-        .disable_signals()
-        .bind(format!("{}", addr))
-        .unwrap()
-        .run();
+        let srv = sys.block_on(async {
+            HttpServer::new(|| {
+                App::new().service(
+                    web::resource("/")
+                        .route(web::to(|| HttpResponse::Ok().body("test"))),
+                )
+            })
+            .workers(1)
+            .backlog(1)
+            .max_connections(10)
+            .max_connection_rate(10)
+            .keep_alive(10)
+            .client_timeout(5000)
+            .client_shutdown(0)
+            .server_hostname("localhost")
+            .system_exit()
+            .disable_signals()
+            .bind(format!("{}", addr))
+            .unwrap()
+            .run()
+        });
 
         let _ = tx.send((srv, actix_rt::System::current()));
         let _ = sys.run();
