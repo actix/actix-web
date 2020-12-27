@@ -15,8 +15,8 @@ async fn test_start() {
     thread::spawn(move || {
         let mut sys = actix_rt::System::new("test");
 
-        let srv = sys.block_on(async {
-            HttpServer::new(|| {
+        sys.block_on(async {
+            let srv = HttpServer::new(|| {
                 App::new().service(
                     web::resource("/")
                         .route(web::to(|| HttpResponse::Ok().body("test"))),
@@ -34,10 +34,10 @@ async fn test_start() {
             .disable_signals()
             .bind(format!("{}", addr))
             .unwrap()
-            .run()
-        });
+            .run();
 
-        let _ = tx.send((srv, actix_rt::System::current()));
+            let _ = tx.send((srv, actix_rt::System::current()));
+        });
         let _ = sys.run();
     });
     let (srv, sys) = rx.recv().unwrap();
