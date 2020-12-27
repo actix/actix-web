@@ -45,19 +45,10 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: generate-lockfile
-      - name: Cache cargo dirs
-        uses: actions/cache@v2
+      - name: Cache Dependencies
+        uses: Swatinem/rust-cache@v1.0.1
         with:
-          path:
-            ~/.cargo/registry
-            ~/.cargo/git
-            ~/.cargo/bin
-          key: ${{ matrix.version }}-win-${{ hashFiles('**/Cargo.lock') }}
-      - name: Cache cargo build
-        uses: actions/cache@v2
-        with:
-          path: target
-          key: ${{ matrix.version }}-win-build-${{ hashFiles('**/Cargo.lock') }}
+          key: windows
 
       - name: check build
         uses: actions-rs/cargo@v1
