@@ -41,6 +41,24 @@ jobs:
           Get-ChildItem C:\vcpkg\installed\x64-windows\bin
           Get-ChildItem C:\vcpkg\installed\x64-windows\lib
 
+      - name: Generate Cargo.lock
+        uses: actions-rs/cargo@v1
+        with:
+          command: generate-lockfile
+      - name: Cache cargo dirs
+        uses: actions/cache@v2
+        with:
+          path:
+            ~/.cargo/registry
+            ~/.cargo/git
+            ~/.cargo/bin
+          key: ${{ matrix.version }}-x86_64-unknown-linux-gnu-cargo-trimmed-${{ hashFiles('**/Cargo.lock') }}
+      - name: Cache cargo build
+        uses: actions/cache@v2
+        with:
+          path: target
+          key: ${{ matrix.version }}-x86_64-unknown-linux-gnu-cargo-build-trimmed-${{ hashFiles('**/Cargo.lock') }}
+
       - name: check build
         uses: actions-rs/cargo@v1
         with:
@@ -62,3 +80,10 @@ jobs:
                 --skip=test_connection_force_close
                 --skip=test_connection_server_close
                 --skip=test_connection_wait_queue_force_close
+
+      - name: Clear the cargo caches
+        run: |
+          rustup update stable
+          rustup override set stable
+          cargo install cargo-cache --no-default-features --features ci-autoclean
+          cargo-cache

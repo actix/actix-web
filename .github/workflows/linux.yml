@@ -42,7 +42,6 @@ jobs:
             ~/.cargo/git
             ~/.cargo/bin
           key: ${{ matrix.version }}-x86_64-unknown-linux-gnu-cargo-trimmed-${{ hashFiles('**/Cargo.lock') }}
-
       - name: Cache cargo build
         uses: actions/cache@v2
         with:
