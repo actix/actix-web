@@ -56,7 +56,7 @@
 //! * Middlewares ([Logger, Session, CORS, etc](https://actix.rs/docs/middleware/))
 //! * Includes an async [HTTP client](https://actix.rs/actix-web/actix_web/client/index.html)
 //! * Supports [Actix actor framework](https://github.com/actix/actix)
-//! * Runs on stable Rust 1.42+
+//! * Runs on stable Rust 1.46+
 //!
 //! ## Crate Features
 //!
@@ -65,7 +65,7 @@
 //! * `rustls` - HTTPS support via `rustls` crate, supports `HTTP/2`
 //! * `secure-cookies` - secure cookies support
 
-#![deny(rust_2018_idioms)]
+#![deny(rust_2018_idioms, nonstandard_style)]
 #![allow(clippy::needless_doctest_main, clippy::type_complexity)]
 #![doc(html_logo_url = "https://actix.rs/img/logo.png")]
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
