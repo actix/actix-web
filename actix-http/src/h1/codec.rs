@@ -111,8 +111,8 @@ impl Decoder for Codec {
     type Error = ParseError;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
-        if self.payload.is_some() {
-            Ok(match self.payload.as_mut().unwrap().decode(src)? {
+        if let Some(ref mut payload) = self.payload {
+            Ok(match payload.decode(src)? {
                 Some(PayloadItem::Chunk(chunk)) => Some(Message::Chunk(Some(chunk))),
                 Some(PayloadItem::Eof) => {
                     self.payload.take();

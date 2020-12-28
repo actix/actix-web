@@ -19,7 +19,6 @@ use crate::cloneable::CloneableService;
 use crate::config::ServiceConfig;
 use crate::error::{DispatchError, Error};
 use crate::error::{ParseError, PayloadError};
-use crate::helpers::DataFactory;
 use crate::httpmessage::HttpMessage;
 use crate::request::Request;
 use crate::response::Response;
@@ -96,7 +95,6 @@ where
     service: CloneableService<S>,
     expect: CloneableService<X>,
     upgrade: Option<CloneableService<U>>,
-    on_connect: Option<Box<dyn DataFactory>>,
     on_connect_data: Extensions,
     flags: Flags,
     peer_addr: Option<net::SocketAddr>,
@@ -184,7 +182,6 @@ where
         service: CloneableService<S>,
         expect: CloneableService<X>,
         upgrade: Option<CloneableService<U>>,
-        on_connect: Option<Box<dyn DataFactory>>,
         on_connect_data: Extensions,
         peer_addr: Option<net::SocketAddr>,
     ) -> Self {
@@ -197,7 +194,6 @@ where
             service,
             expect,
             upgrade,
-            on_connect,
             on_connect_data,
             peer_addr,
         )
@@ -213,7 +209,6 @@ where
         service: CloneableService<S>,
         expect: CloneableService<X>,
         upgrade: Option<CloneableService<U>>,
-        on_connect: Option<Box<dyn DataFactory>>,
         on_connect_data: Extensions,
         peer_addr: Option<net::SocketAddr>,
     ) -> Self {
@@ -246,7 +241,6 @@ where
                 service,
                 expect,
                 upgrade,
-                on_connect,
                 on_connect_data,
                 flags,
                 peer_addr,
@@ -571,12 +565,6 @@ where
                         Message::Item(mut req) => {
                             let pl = this.codec.message_type();
                             req.head_mut().peer_addr = *this.peer_addr;
-
-                            // DEPRECATED
-                            // set on_connect data
-                            if let Some(ref on_connect) = this.on_connect {
-                                on_connect.set(&mut req.extensions_mut());
-                            }
 
                             // merge on_connect_ext data into request extensions
                             req.extensions_mut().drain_from(this.on_connect_data);
@@ -1038,7 +1026,6 @@ mod tests {
                 CloneableService::new(ok_service()),
                 CloneableService::new(ExpectHandler),
                 None,
-                None,
                 Extensions::new(),
                 None,
             );
@@ -1078,7 +1065,6 @@ mod tests {
                 cfg,
                 CloneableService::new(echo_path_service()),
                 CloneableService::new(ExpectHandler),
-                None,
                 None,
                 Extensions::new(),
                 None,
@@ -1134,7 +1120,6 @@ mod tests {
                 CloneableService::new(echo_path_service()),
                 CloneableService::new(ExpectHandler),
                 None,
-                None,
                 Extensions::new(),
                 None,
             );
@@ -1183,7 +1168,6 @@ mod tests {
                 cfg,
                 CloneableService::new(echo_payload_service()),
                 CloneableService::new(ExpectHandler),
-                None,
                 None,
                 Extensions::new(),
                 None,
@@ -1256,7 +1240,6 @@ mod tests {
                 CloneableService::new(echo_path_service()),
                 CloneableService::new(ExpectHandler),
                 None,
-                None,
                 Extensions::new(),
                 None,
             );
@@ -1316,7 +1299,6 @@ mod tests {
                 CloneableService::new(ok_service()),
                 CloneableService::new(ExpectHandler),
                 Some(CloneableService::new(UpgradeHandler(PhantomData))),
-                None,
                 Extensions::new(),
                 None,
             );

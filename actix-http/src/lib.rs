@@ -7,7 +7,6 @@
     clippy::new_without_default,
     clippy::borrow_interior_mutable_const
 )]
-#![allow(clippy::manual_strip)] // Allow this to keep MSRV(1.42).
 #![doc(html_logo_url = "https://actix.rs/img/logo.png")]
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
 
