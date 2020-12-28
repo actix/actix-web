@@ -10,7 +10,6 @@ use crate::config::{KeepAlive, ServiceConfig};
 use crate::error::Error;
 use crate::h1::{Codec, ExpectHandler, H1Service, UpgradeHandler};
 use crate::h2::H2Service;
-use crate::helpers::{Data, DataFactory};
 use crate::request::Request;
 use crate::response::Response;
 use crate::service::HttpService;
@@ -28,8 +27,6 @@ pub struct HttpServiceBuilder<T, S, X = ExpectHandler, U = UpgradeHandler<T>> {
     local_addr: Option<net::SocketAddr>,
     expect: X,
     upgrade: Option<U>,
-    // DEPRECATED: in favor of on_connect_ext
-    on_connect: Option<Rc<dyn Fn(&T) -> Box<dyn DataFactory>>>,
     on_connect_ext: Option<Rc<ConnectCallback<T>>>,
     _t: PhantomData<(T, S)>,
 }
@@ -51,7 +48,6 @@ where
             local_addr: None,
             expect: ExpectHandler,
             upgrade: None,
-            on_connect: None,
             on_connect_ext: None,
             _t: PhantomData,
         }
@@ -141,7 +137,6 @@ where
             local_addr: self.local_addr,
             expect: expect.into_factory(),
             upgrade: self.upgrade,
-            on_connect: self.on_connect,
             on_connect_ext: self.on_connect_ext,
             _t: PhantomData,
         }
@@ -171,24 +166,9 @@ where
             local_addr: self.local_addr,
             expect: self.expect,
             upgrade: Some(upgrade.into_factory()),
-            on_connect: self.on_connect,
             on_connect_ext: self.on_connect_ext,
             _t: PhantomData,
         }
-    }
-
-    /// Set on-connect callback.
-    ///
-    /// Called once per connection. Return value of the call is stored in request extensions.
-    ///
-    /// *SOFT DEPRECATED*: Prefer the `on_connect_ext` style callback.
-    pub fn on_connect<F, I>(mut self, f: F) -> Self
-    where
-        F: Fn(&T) -> I + 'static,
-        I: Clone + 'static,
-    {
-        self.on_connect = Some(Rc::new(move |io| Box::new(Data(f(io)))));
-        self
     }
 
     /// Sets the callback to be run on connection establishment.
@@ -224,7 +204,6 @@ where
         H1Service::with_config(cfg, service.into_factory())
             .expect(self.expect)
             .upgrade(self.upgrade)
-            .on_connect(self.on_connect)
             .on_connect_ext(self.on_connect_ext)
     }
 
@@ -247,7 +226,6 @@ where
         );
 
         H2Service::with_config(cfg, service.into_factory())
-            .on_connect(self.on_connect)
             .on_connect_ext(self.on_connect_ext)
     }
 
@@ -272,7 +250,6 @@ where
         HttpService::with_config(cfg, service.into_factory())
             .expect(self.expect)
             .upgrade(self.upgrade)
-            .on_connect(self.on_connect)
             .on_connect_ext(self.on_connect_ext)
     }
 }
