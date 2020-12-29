@@ -16,8 +16,6 @@ use futures_core::stream::Stream;
 use http::Method;
 use socket2::{Domain, Protocol, Socket, Type};
 
-pub use actix_testing::*;
-
 /// Start test server
 ///
 /// `TestServer` is very simple test server that simplify process of writing
@@ -65,13 +63,16 @@ pub async fn test_server_with_addr<F: ServiceFactory<TcpStream>>(
         let sys = System::new("actix-test-server");
         let local_addr = tcp.local_addr().unwrap();
 
-        Server::build()
+        let srv = Server::build()
             .listen("test", tcp, factory)?
             .workers(1)
-            .disable_signals()
-            .start();
+            .disable_signals();
 
-        tx.send((System::current(), local_addr)).unwrap();
+        sys.block_on(async {
+            srv.start();
+            tx.send((System::current(), local_addr)).unwrap();
+        });
+
         sys.run()
     });
 
@@ -105,7 +106,7 @@ pub async fn test_server_with_addr<F: ServiceFactory<TcpStream>>(
 
         Client::builder().connector(connector).finish()
     };
-    actix_connect::start_default_resolver().await.unwrap();
+    actix_tls::connect::start_default_resolver().await.unwrap();
 
     TestServer {
         addr,

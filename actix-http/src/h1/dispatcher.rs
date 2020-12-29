@@ -978,7 +978,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::{marker::PhantomData, str};
+    use std::str;
 
     use actix_service::fn_service;
     use futures_util::future::{lazy, ready};
@@ -1040,7 +1040,7 @@ mod tests {
         lazy(|cx| {
             let buf = TestBuffer::new("GET /test HTTP/1\r\n\r\n");
 
-            let h1 = Dispatcher::<_, _, _, _, UpgradeHandler<TestBuffer>>::new(
+            let h1 = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
                 buf,
                 ServiceConfig::default(),
                 CloneableService::new(ok_service()),
@@ -1081,7 +1081,7 @@ mod tests {
 
             let cfg = ServiceConfig::new(KeepAlive::Disabled, 1, 1, false, None);
 
-            let h1 = Dispatcher::<_, _, _, _, UpgradeHandler<TestBuffer>>::new(
+            let h1 = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
                 buf,
                 cfg,
                 CloneableService::new(echo_path_service()),
@@ -1136,7 +1136,7 @@ mod tests {
 
             let cfg = ServiceConfig::new(KeepAlive::Disabled, 1, 1, false, None);
 
-            let h1 = Dispatcher::<_, _, _, _, UpgradeHandler<TestBuffer>>::new(
+            let h1 = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
                 buf,
                 cfg,
                 CloneableService::new(echo_path_service()),
@@ -1186,7 +1186,7 @@ mod tests {
         lazy(|cx| {
             let mut buf = TestSeqBuffer::empty();
             let cfg = ServiceConfig::new(KeepAlive::Disabled, 0, 0, false, None);
-            let h1 = Dispatcher::<_, _, _, _, UpgradeHandler<_>>::new(
+            let h1 = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
                 buf.clone(),
                 cfg,
                 CloneableService::new(echo_payload_service()),
@@ -1258,7 +1258,7 @@ mod tests {
         lazy(|cx| {
             let mut buf = TestSeqBuffer::empty();
             let cfg = ServiceConfig::new(KeepAlive::Disabled, 0, 0, false, None);
-            let h1 = Dispatcher::<_, _, _, _, UpgradeHandler<_>>::new(
+            let h1 = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
                 buf.clone(),
                 cfg,
                 CloneableService::new(echo_path_service()),
@@ -1318,12 +1318,12 @@ mod tests {
         lazy(|cx| {
             let mut buf = TestSeqBuffer::empty();
             let cfg = ServiceConfig::new(KeepAlive::Disabled, 0, 0, false, None);
-            let h1 = Dispatcher::<_, _, _, _, UpgradeHandler<_>>::new(
+            let h1 = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
                 buf.clone(),
                 cfg,
                 CloneableService::new(ok_service()),
                 CloneableService::new(ExpectHandler),
-                Some(CloneableService::new(UpgradeHandler(PhantomData))),
+                Some(CloneableService::new(UpgradeHandler)),
                 None,
                 Extensions::new(),
                 None,

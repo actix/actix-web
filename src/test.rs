@@ -785,9 +785,11 @@ where
         }
         .unwrap();
 
-        let srv = sys.block_on(async { srv.start() });
+        sys.block_on(async {
+            let srv = srv.start();
+            tx.send((System::current(), srv, local_addr)).unwrap();
+        });
 
-        tx.send((System::current(), srv, local_addr)).unwrap();
         sys.run()
     });
 

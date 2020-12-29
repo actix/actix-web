@@ -1,6 +1,6 @@
 use std::{cell::RefCell, fmt, io, path::PathBuf, rc::Rc};
 
-use actix_service::{boxed, IntoServiceFactory, ServiceFactory};
+use actix_service::{boxed, IntoServiceFactory, ServiceFactory, ServiceFactoryExt};
 use actix_web::{
     dev::{
         AppService, HttpServiceFactory, ResourceDef, ServiceRequest, ServiceResponse,
@@ -201,10 +201,10 @@ impl Files {
     /// Sets default handler which is used when no matched file could be found.
     pub fn default_handler<F, U>(mut self, f: F) -> Self
     where
-        F: IntoServiceFactory<U>,
+        F: IntoServiceFactory<U, ServiceRequest>,
         U: ServiceFactory<
+                ServiceRequest,
                 Config = (),
-                Request = ServiceRequest,
                 Response = ServiceResponse,
                 Error = Error,
             > + 'static,
@@ -241,8 +241,7 @@ impl HttpServiceFactory for Files {
     }
 }
 
-impl ServiceFactory for Files {
-    type Request = ServiceRequest;
+impl ServiceFactory<ServiceRequest> for Files {
     type Response = ServiceResponse;
     type Error = Error;
     type Config = ();

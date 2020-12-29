@@ -9,9 +9,9 @@ use crate::request::Request;
 pub struct ExpectHandler;
 
 impl ServiceFactory<Request> for ExpectHandler {
-    type Config = ();
     type Response = Request;
     type Error = Error;
+    type Config = ();
     type Service = ExpectHandler;
     type InitError = Error;
     type Future = Ready<Result<Self::Service, Self::InitError>>;

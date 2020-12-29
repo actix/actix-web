@@ -171,7 +171,9 @@ where
     /// limit the global TLS CPU usage.
     ///
     /// By default max connections is set to a 256.
+    #[allow(unused_variables)]
     pub fn max_connection_rate(self, num: usize) -> Self {
+        #[cfg(any(feature = "rustls", feature = "openssl"))]
         actix_tls::accept::max_concurrent_tls_connect(num);
         self
     }

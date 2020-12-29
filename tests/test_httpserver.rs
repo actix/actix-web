@@ -15,8 +15,8 @@ async fn test_start() {
     thread::spawn(move || {
         let sys = actix_rt::System::new("test");
 
-        let srv = sys.block_on(async {
-            HttpServer::new(|| {
+        sys.block_on(async {
+            let srv = HttpServer::new(|| {
                 App::new().service(
                     web::resource("/")
                         .route(web::to(|| HttpResponse::Ok().body("test"))),
@@ -34,10 +34,11 @@ async fn test_start() {
             .disable_signals()
             .bind(format!("{}", addr))
             .unwrap()
-            .run()
+            .run();
+
+            let _ = tx.send((srv, actix_rt::System::current()));
         });
 
-        let _ = tx.send((srv, actix_rt::System::current()));
         let _ = sys.run();
     });
     let (srv, sys) = rx.recv().unwrap();
@@ -103,10 +104,13 @@ async fn test_start_ssl() {
         .system_exit()
         .disable_signals()
         .bind_openssl(format!("{}", addr), builder)
-        .unwrap()
-        .run();
+        .unwrap();
 
-        let _ = tx.send((srv, actix_rt::System::current()));
+        sys.block_on(async {
+            let srv = srv.run();
+            let _ = tx.send((srv, actix_rt::System::current()));
+        });
+
         let _ = sys.run();
     });
     let (srv, sys) = rx.recv().unwrap();

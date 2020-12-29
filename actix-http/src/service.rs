@@ -348,11 +348,11 @@ where
     U::InitError: fmt::Debug,
     <U::Service as Service<(Request, Framed<T, h1::Codec>)>>::Future: 'static,
 {
-    type Config = ();
     type Response = ();
     type Error = DispatchError;
-    type InitError = ();
+    type Config = ();
     type Service = HttpServiceHandler<T, S::Service, B, X::Service, U::Service>;
+    type InitError = ();
     type Future = HttpServiceResponse<T, S, B, X, U>;
 
     fn new_service(&self, _: ()) -> Self::Future {

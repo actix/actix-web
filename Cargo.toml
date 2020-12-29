@@ -47,10 +47,10 @@ compress = ["actix-http/compress", "awc/compress"]
 secure-cookies = ["actix-http/secure-cookies"]
 
 # openssl
-openssl = ["actix-tls/openssl", "awc/openssl", "open-ssl"]
+openssl = ["actix-tls/accept", "actix-tls/openssl", "awc/openssl", "open-ssl"]
 
 # rustls
-rustls = ["actix-tls/rustls", "awc/rustls", "rust-tls"]
+rustls = ["actix-tls/accept", "actix-tls/rustls", "awc/rustls", "rust-tls"]
 
 [[example]]
 name = "basic"
@@ -74,15 +74,14 @@ required-features = ["rustls"]
 
 [dependencies]
 actix-codec = "0.4.0-beta.1"
-actix-service = "2.0.0-beta.1"
-actix-utils = "3.0.0-beta.1"
+actix-macros = "0.1.0"
 actix-router = "0.2.4"
 actix-rt = "2.0.0-beta.1"
 actix-server = "2.0.0-beta.1"
-#actix-testing = "1.0.0"
-actix-macros = "0.1.0"
+actix-service = "2.0.0-beta.1"
+actix-utils = "3.0.0-beta.1"
 actix-threadpool = "0.3.1"
-actix-tls = "3.0.0-beta.1"
+actix-tls = { version = "3.0.0-beta.1", default-features = false, optional = true }
 
 actix-web-codegen = "0.4.0"
 actix-http = "2.2.0"
@@ -110,7 +109,7 @@ tinyvec = { version = "1", features = ["alloc"] }
 
 [dev-dependencies]
 actix = "0.10.0"
-actix-http = { version = "2.1.0", features = ["actors"] }
+actix-http = { version = "2.2.0", features = ["actors"] }
 rand = "0.8"
 env_logger = "0.8"
 serde_derive = "1.0"
@@ -133,12 +132,12 @@ actix-files = { path = "actix-files" }
 awc = { path = "awc" }
 
 # FIXME: remove these override
-actix-tls = { git = "https://github.com/actix/actix-net.git", branch = "fix/actix-tls" }
-actix-service = { path = "../actix-net/actix-service" }
-
-#http = { git = "https://github.com/fakeshadow/http.git" }
-trust-dns-proto = { git = "https://github.com/messense/trust-dns.git", branch = "tokio-1" }
-trust-dns-resolver = { git = "https://github.com/messense/trust-dns.git", branch = "tokio-1" }
+actix = { git = "https://github.com/fakeshadow/actix.git", branch = "tokio-0.3" }
+actix-tls = { git = "https://github.com/actix/actix-net.git", branch = "master" }
+actix-server = { git = "https://github.com/actix/actix-net.git", branch = "master" }
+actix-service = { git = "https://github.com/actix/actix-net.git", branch = "master" }
+trust-dns-proto = { git = "https://github.com/bluejekyll/trust-dns.git", branch = "main" }
+trust-dns-resolver = { git = "https://github.com/bluejekyll/trust-dns.git", branch = "main" }
 
 [[bench]]
 name = "server"
