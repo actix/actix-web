@@ -13,6 +13,7 @@
 
 #![deny(rust_2018_idioms)]
 #![warn(missing_docs, missing_debug_implementations)]
+#![clippy::msrv = "1.46"]
 
 use std::io;
 
