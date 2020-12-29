@@ -70,7 +70,7 @@ pub(crate) trait Connect {
 
 impl<T> Connect for ConnectorWrapper<T>
 where
-    T: Service<Request = ClientConnect, Error = ConnectError>,
+    T: Service<ClientConnect, Error = ConnectError>,
     T::Response: Connection,
     <T::Response as Connection>::Io: 'static,
     <T::Response as Connection>::Future: 'static,

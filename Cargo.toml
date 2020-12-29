@@ -73,16 +73,16 @@ name = "client"
 required-features = ["rustls"]
 
 [dependencies]
-actix-codec = "0.3.0"
-actix-service = "1.0.6"
-actix-utils = "2.0.0"
+actix-codec = "0.4.0-beta.1"
+actix-service = "2.0.0-beta.1"
+actix-utils = "3.0.0-beta.1"
 actix-router = "0.2.4"
-actix-rt = "1.1.1"
-actix-server = "1.0.0"
-actix-testing = "1.0.0"
+actix-rt = "2.0.0-beta.1"
+actix-server = "2.0.0-beta.1"
+#actix-testing = "1.0.0"
 actix-macros = "0.1.0"
 actix-threadpool = "0.3.1"
-actix-tls = "2.0.0"
+actix-tls = "3.0.0-beta.1"
 
 actix-web-codegen = "0.4.0"
 actix-http = "2.2.0"
@@ -91,7 +91,6 @@ awc = { version = "2.0.3", default-features = false }
 bytes = "1"
 derive_more = "0.99.5"
 encoding_rs = "0.8"
-futures-channel = { version = "0.3.7", default-features = false }
 futures-core = { version = "0.3.7", default-features = false }
 futures-util = { version = "0.3.7", default-features = false }
 fxhash = "0.2.1"
@@ -134,16 +133,10 @@ actix-files = { path = "actix-files" }
 awc = { path = "awc" }
 
 # FIXME: remove these override
-actix = { git = "https://github.com/fakeshadow/actix.git", branch = "tokio-0.3" }
-actix-rt = { git = "https://github.com/fakeshadow/actix-net.git", branch = "mio-0.7.3" }
-actix-server = { git = "https://github.com/fakeshadow/actix-net.git", branch = "mio-0.7.3" }
-actix-tls = { git = "https://github.com/fakeshadow/actix-net.git", branch = "mio-0.7.3" }
-#actix-connect = { git = "https://github.com/fakeshadow/actix-net.git", branch = "mio-0.7.3" }
-actix-connect = { path = "../actix-net-fs/actix-connect" }
-actix-utils = { git = "https://github.com/fakeshadow/actix-net.git", branch = "mio-0.7.3" }
-actix-codec = { git = "https://github.com/fakeshadow/actix-net.git", branch = "mio-0.7.3" }
+actix-tls = { git = "https://github.com/actix/actix-net.git", branch = "fix/actix-tls" }
+actix-service = { path = "../actix-net/actix-service" }
 
-http = { git = "https://github.com/fakeshadow/http.git" }
+#http = { git = "https://github.com/fakeshadow/http.git" }
 trust-dns-proto = { git = "https://github.com/messense/trust-dns.git", branch = "tokio-1" }
 trust-dns-resolver = { git = "https://github.com/messense/trust-dns.git", branch = "tokio-1" }
 

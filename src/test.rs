@@ -37,16 +37,14 @@ use crate::{Error, HttpRequest, HttpResponse};
 
 /// Create service that always responds with `HttpResponse::Ok()`
 pub fn ok_service(
-) -> impl Service<Request = ServiceRequest, Response = ServiceResponse<Body>, Error = Error>
-{
+) -> impl Service<ServiceRequest, Response = ServiceResponse<Body>, Error = Error> {
     default_service(StatusCode::OK)
 }
 
 /// Create service that responds with response with specified status code
 pub fn default_service(
     status_code: StatusCode,
-) -> impl Service<Request = ServiceRequest, Response = ServiceResponse<Body>, Error = Error>
-{
+) -> impl Service<ServiceRequest, Response = ServiceResponse<Body>, Error = Error> {
     (move |req: ServiceRequest| {
         ok(req.into_response(HttpResponse::build(status_code).finish()))
     })
@@ -77,12 +75,12 @@ pub fn default_service(
 /// ```
 pub async fn init_service<R, S, B, E>(
     app: R,
-) -> impl Service<Request = Request, Response = ServiceResponse<B>, Error = E>
+) -> impl Service<Request, Response = ServiceResponse<B>, Error = E>
 where
-    R: IntoServiceFactory<S>,
+    R: IntoServiceFactory<S, Request>,
     S: ServiceFactory<
+        Request,
         Config = AppConfig,
-        Request = Request,
         Response = ServiceResponse<B>,
         Error = E,
     >,
@@ -96,15 +94,12 @@ where
 /// Fallible version of init_service that allows testing data factory errors.
 pub(crate) async fn try_init_service<R, S, B, E>(
     app: R,
-) -> Result<
-    impl Service<Request = Request, Response = ServiceResponse<B>, Error = E>,
-    S::InitError,
->
+) -> Result<impl Service<Request, Response = ServiceResponse<B>, Error = E>, S::InitError>
 where
-    R: IntoServiceFactory<S>,
+    R: IntoServiceFactory<S, Request>,
     S: ServiceFactory<
+        Request,
         Config = AppConfig,
-        Request = Request,
         Response = ServiceResponse<B>,
         Error = E,
     >,
@@ -138,7 +133,7 @@ where
 /// ```
 pub async fn call_service<S, R, B, E>(app: &mut S, req: R) -> S::Response
 where
-    S: Service<Request = R, Response = ServiceResponse<B>, Error = E>,
+    S: Service<R, Response = ServiceResponse<B>, Error = E>,
     E: std::fmt::Debug,
 {
     app.call(req).await.unwrap()
@@ -171,7 +166,7 @@ where
 /// ```
 pub async fn read_response<S, B>(app: &mut S, req: Request) -> Bytes
 where
-    S: Service<Request = Request, Response = ServiceResponse<B>, Error = Error>,
+    S: Service<Request, Response = ServiceResponse<B>, Error = Error>,
     B: MessageBody + Unpin,
 {
     let mut resp = app
@@ -321,7 +316,7 @@ where
 /// ```
 pub async fn read_response_json<S, B, T>(app: &mut S, req: Request) -> T
 where
-    S: Service<Request = Request, Response = ServiceResponse<B>, Error = Error>,
+    S: Service<Request, Response = ServiceResponse<B>, Error = Error>,
     B: MessageBody + Unpin,
     T: DeserializeOwned,
 {
@@ -602,7 +597,7 @@ impl TestRequest {
     /// Complete request creation, calls service and waits for response future completion.
     pub async fn send_request<S, B, E>(self, app: &mut S) -> S::Response
     where
-        S: Service<Request = Request, Response = ServiceResponse<B>, Error = E>,
+        S: Service<Request, Response = ServiceResponse<B>, Error = E>,
         E: std::fmt::Debug,
     {
         let req = self.to_request();
@@ -639,12 +634,12 @@ impl TestRequest {
 pub fn start<F, I, S, B>(factory: F) -> TestServer
 where
     F: Fn() -> I + Send + Clone + 'static,
-    I: IntoServiceFactory<S>,
-    S: ServiceFactory<Config = AppConfig, Request = Request> + 'static,
+    I: IntoServiceFactory<S, Request>,
+    S: ServiceFactory<Request, Config = AppConfig> + 'static,
     S::Error: Into<Error> + 'static,
     S::InitError: fmt::Debug,
     S::Response: Into<HttpResponse<B>> + 'static,
-    <S::Service as Service>::Future: 'static,
+    <S::Service as Service<Request>>::Future: 'static,
     B: MessageBody + 'static,
 {
     start_with(TestServerConfig::default(), factory)
@@ -678,12 +673,12 @@ where
 pub fn start_with<F, I, S, B>(cfg: TestServerConfig, factory: F) -> TestServer
 where
     F: Fn() -> I + Send + Clone + 'static,
-    I: IntoServiceFactory<S>,
-    S: ServiceFactory<Config = AppConfig, Request = Request> + 'static,
+    I: IntoServiceFactory<S, Request>,
+    S: ServiceFactory<Request, Config = AppConfig> + 'static,
     S::Error: Into<Error> + 'static,
     S::InitError: fmt::Debug,
     S::Response: Into<HttpResponse<B>> + 'static,
-    <S::Service as Service>::Future: 'static,
+    <S::Service as Service<Request>>::Future: 'static,
     B: MessageBody + 'static,
 {
     let (tx, rx) = mpsc::channel();
@@ -788,8 +783,9 @@ where
                 }),
             },
         }
-        .unwrap()
-        .start();
+        .unwrap();
+
+        let srv = sys.block_on(async { srv.start() });
 
         tx.send((System::current(), srv, local_addr)).unwrap();
         sys.run()

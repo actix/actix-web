@@ -1,10 +1,10 @@
 use std::io;
 
-use actix_connect::resolver::ResolveError;
+use actix_tls::connect::resolver::ResolveError;
 use derive_more::{Display, From};
 
 #[cfg(feature = "openssl")]
-use actix_connect::ssl::openssl::SslError;
+use actix_tls::accept::openssl::SslError;
 
 use crate::error::{Error, ParseError, ResponseError};
 use crate::http::{Error as HttpError, StatusCode};
@@ -21,10 +21,6 @@ pub enum ConnectError {
     #[display(fmt = "{}", _0)]
     SslError(SslError),
 
-    // /// SSL Handshake error
-    // #[cfg(feature = "openssl")]
-    // #[display(fmt = "{}", _0)]
-    // SslHandshakeError(SslError),
     /// Failed to resolve the hostname
     #[display(fmt = "Failed resolving hostname: {}", _0)]
     Resolver(ResolveError),
@@ -56,24 +52,17 @@ pub enum ConnectError {
 
 impl std::error::Error for ConnectError {}
 
-impl From<actix_connect::ConnectError> for ConnectError {
-    fn from(err: actix_connect::ConnectError) -> ConnectError {
+impl From<actix_tls::connect::ConnectError> for ConnectError {
+    fn from(err: actix_tls::connect::ConnectError) -> ConnectError {
         match err {
-            actix_connect::ConnectError::Resolver(e) => ConnectError::Resolver(e),
-            actix_connect::ConnectError::NoRecords => ConnectError::NoRecords,
-            actix_connect::ConnectError::InvalidInput => panic!(),
-            actix_connect::ConnectError::Unresolved => ConnectError::Unresolved,
-            actix_connect::ConnectError::Io(e) => ConnectError::Io(e),
+            actix_tls::connect::ConnectError::Resolver(e) => ConnectError::Resolver(e),
+            actix_tls::connect::ConnectError::NoRecords => ConnectError::NoRecords,
+            actix_tls::connect::ConnectError::InvalidInput => panic!(),
+            actix_tls::connect::ConnectError::Unresolved => ConnectError::Unresolved,
+            actix_tls::connect::ConnectError::Io(e) => ConnectError::Io(e),
         }
     }
 }
-
-// #[cfg(feature = "openssl")]
-// impl<T: std::fmt::Debug> From<HandshakeError<T>> for ConnectError {
-//     fn from(err: HandshakeError<T>) -> ConnectError {
-//         ConnectError::SslHandshakeError(format!("{:?}", err))
-//     }
-// }
 
 #[derive(Debug, Display, From)]
 pub enum InvalidUrl {

@@ -37,10 +37,10 @@ rustls = ["rust-tls", "actix-http/rustls"]
 compress = ["actix-http/compress"]
 
 [dependencies]
-actix-codec = "0.3.0"
-actix-service = "1.0.6"
+actix-codec = "0.4.0-beta.1"
+actix-service = "2.0.0-beta.1"
 actix-http = "2.2.0"
-actix-rt = "1.0.0"
+actix-rt = "2.0.0-beta.1"
 
 base64 = "0.13"
 bytes = "1"
@@ -58,13 +58,13 @@ open-ssl = { version = "0.10", package = "openssl", optional = true }
 rust-tls = { version = "0.19.0", package = "rustls", optional = true, features = ["dangerous_configuration"] }
 
 [dev-dependencies]
-actix-connect = { version = "2.0.0", features = ["openssl"] }
+#actix-connect = { version = "2.0.0", features = ["openssl"] }
 actix-web = { version = "3.0.0", features = ["openssl"] }
 actix-http = { version = "2.0.0", features = ["openssl"] }
 actix-http-test = { version = "2.0.0", features = ["openssl"] }
-actix-utils = "2.0.0"
-actix-server = "1.0.0"
-actix-tls = { version = "2.0.0", features = ["openssl", "rustls"] }
+actix-utils = "3.0.0-beta.1"
+actix-server = "2.0.0-beta.1"
+#actix-tls = { version = "3", features = ["openssl", "rustls"] }
 brotli2 = "0.3.2"
 flate2 = "1.0.13"
 futures-util = { version = "0.3.7", default-features = false }

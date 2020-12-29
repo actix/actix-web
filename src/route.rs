@@ -18,7 +18,7 @@ use crate::HttpResponse;
 
 type BoxedRouteService = Box<
     dyn Service<
-        Request = ServiceRequest,
+        ServiceRequest,
         Response = ServiceResponse,
         Error = Error,
         Future = LocalBoxFuture<'static, Result<ServiceResponse, Error>>,
@@ -27,8 +27,8 @@ type BoxedRouteService = Box<
 
 type BoxedRouteNewService = Box<
     dyn ServiceFactory<
+        ServiceRequest,
         Config = (),
-        Request = ServiceRequest,
         Response = ServiceResponse,
         Error = Error,
         InitError = (),
@@ -63,9 +63,8 @@ impl Route {
     }
 }
 
-impl ServiceFactory for Route {
+impl ServiceFactory<ServiceRequest> for Route {
     type Config = ();
-    type Request = ServiceRequest;
     type Response = ServiceResponse;
     type Error = Error;
     type InitError = ();
@@ -117,8 +116,7 @@ impl RouteService {
     }
 }
 
-impl Service for RouteService {
-    type Request = ServiceRequest;
+impl Service<ServiceRequest> for RouteService {
     type Response = ServiceResponse;
     type Error = Error;
     type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
@@ -233,7 +231,7 @@ impl Route {
 
 struct RouteNewService<T>
 where
-    T: ServiceFactory<Request = ServiceRequest, Error = Error>,
+    T: ServiceFactory<ServiceRequest, Error = Error>,
 {
     service: T,
 }
@@ -241,33 +239,32 @@ where
 impl<T> RouteNewService<T>
 where
     T: ServiceFactory<
+        ServiceRequest,
         Config = (),
-        Request = ServiceRequest,
         Response = ServiceResponse,
         Error = Error,
     >,
     T::Future: 'static,
     T::Service: 'static,
-    <T::Service as Service>::Future: 'static,
+    <T::Service as Service<ServiceRequest>>::Future: 'static,
 {
     pub fn new(service: T) -> Self {
         RouteNewService { service }
     }
 }
 
-impl<T> ServiceFactory for RouteNewService<T>
+impl<T> ServiceFactory<ServiceRequest> for RouteNewService<T>
 where
     T: ServiceFactory<
+        ServiceRequest,
         Config = (),
-        Request = ServiceRequest,
         Response = ServiceResponse,
         Error = Error,
     >,
     T::Future: 'static,
     T::Service: 'static,
-    <T::Service as Service>::Future: 'static,
+    <T::Service as Service<ServiceRequest>>::Future: 'static,
 {
-    type Request = ServiceRequest;
     type Response = ServiceResponse;
     type Error = Error;
     type Config = ();
@@ -289,16 +286,15 @@ where
     }
 }
 
-struct RouteServiceWrapper<T: Service> {
+struct RouteServiceWrapper<T: Service<ServiceRequest>> {
     service: T,
 }
 
-impl<T> Service for RouteServiceWrapper<T>
+impl<T> Service<ServiceRequest> for RouteServiceWrapper<T>
 where
     T::Future: 'static,
-    T: Service<Request = ServiceRequest, Response = ServiceResponse, Error = Error>,
+    T: Service<ServiceRequest, Response = ServiceResponse, Error = Error>,
 {
-    type Request = ServiceRequest;
     type Response = ServiceResponse;
     type Error = Error;
     type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;

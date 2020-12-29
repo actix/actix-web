@@ -52,12 +52,12 @@ bitflags! {
 /// Dispatcher for HTTP/1.1 protocol
 pub struct Dispatcher<T, S, B, X, U>
 where
-    S: Service<Request = Request>,
+    S: Service<Request>,
     S::Error: Into<Error>,
     B: MessageBody,
-    X: Service<Request = Request, Response = Request>,
+    X: Service<Request, Response = Request>,
     X::Error: Into<Error>,
-    U: Service<Request = (Request, Framed<T, Codec>), Response = ()>,
+    U: Service<(Request, Framed<T, Codec>), Response = ()>,
     U::Error: fmt::Display,
 {
     #[pin]
@@ -70,12 +70,12 @@ where
 #[pin_project(project = DispatcherStateProj)]
 enum DispatcherState<T, S, B, X, U>
 where
-    S: Service<Request = Request>,
+    S: Service<Request>,
     S::Error: Into<Error>,
     B: MessageBody,
-    X: Service<Request = Request, Response = Request>,
+    X: Service<Request, Response = Request>,
     X::Error: Into<Error>,
-    U: Service<Request = (Request, Framed<T, Codec>), Response = ()>,
+    U: Service<(Request, Framed<T, Codec>), Response = ()>,
     U::Error: fmt::Display,
 {
     Normal(#[pin] InnerDispatcher<T, S, B, X, U>),
@@ -85,12 +85,12 @@ where
 #[pin_project(project = InnerDispatcherProj)]
 struct InnerDispatcher<T, S, B, X, U>
 where
-    S: Service<Request = Request>,
+    S: Service<Request>,
     S::Error: Into<Error>,
     B: MessageBody,
-    X: Service<Request = Request, Response = Request>,
+    X: Service<Request, Response = Request>,
     X::Error: Into<Error>,
-    U: Service<Request = (Request, Framed<T, Codec>), Response = ()>,
+    U: Service<(Request, Framed<T, Codec>), Response = ()>,
     U::Error: fmt::Display,
 {
     service: CloneableService<S>,
@@ -126,8 +126,8 @@ enum DispatcherMessage {
 #[pin_project(project = StateProj)]
 enum State<S, B, X>
 where
-    S: Service<Request = Request>,
-    X: Service<Request = Request, Response = Request>,
+    S: Service<Request>,
+    X: Service<Request, Response = Request>,
     B: MessageBody,
 {
     None,
@@ -138,8 +138,8 @@ where
 
 impl<S, B, X> State<S, B, X>
 where
-    S: Service<Request = Request>,
-    X: Service<Request = Request, Response = Request>,
+    S: Service<Request>,
+    X: Service<Request, Response = Request>,
     B: MessageBody,
 {
     fn is_empty(&self) -> bool {
@@ -169,13 +169,13 @@ impl PartialEq for PollResponse {
 impl<T, S, B, X, U> Dispatcher<T, S, B, X, U>
 where
     T: AsyncRead + AsyncWrite + Unpin,
-    S: Service<Request = Request>,
+    S: Service<Request>,
     S::Error: Into<Error>,
     S::Response: Into<Response<B>>,
     B: MessageBody,
-    X: Service<Request = Request, Response = Request>,
+    X: Service<Request, Response = Request>,
     X::Error: Into<Error>,
-    U: Service<Request = (Request, Framed<T, Codec>), Response = ()>,
+    U: Service<(Request, Framed<T, Codec>), Response = ()>,
     U::Error: fmt::Display,
 {
     /// Create HTTP/1 dispatcher.
@@ -264,13 +264,13 @@ where
 impl<T, S, B, X, U> InnerDispatcher<T, S, B, X, U>
 where
     T: AsyncRead + AsyncWrite + Unpin,
-    S: Service<Request = Request>,
+    S: Service<Request>,
     S::Error: Into<Error>,
     S::Response: Into<Response<B>>,
     B: MessageBody,
-    X: Service<Request = Request, Response = Request>,
+    X: Service<Request, Response = Request>,
     X::Error: Into<Error>,
-    U: Service<Request = (Request, Framed<T, Codec>), Response = ()>,
+    U: Service<(Request, Framed<T, Codec>), Response = ()>,
     U::Error: fmt::Display,
 {
     fn can_read(&self, cx: &mut Context<'_>) -> bool {
@@ -758,13 +758,13 @@ where
 impl<T, S, B, X, U> Future for Dispatcher<T, S, B, X, U>
 where
     T: AsyncRead + AsyncWrite + Unpin,
-    S: Service<Request = Request>,
+    S: Service<Request>,
     S::Error: Into<Error>,
     S::Response: Into<Response<B>>,
     B: MessageBody,
-    X: Service<Request = Request, Response = Request>,
+    X: Service<Request, Response = Request>,
     X::Error: Into<Error>,
-    U: Service<Request = (Request, Framed<T, Codec>), Response = ()>,
+    U: Service<(Request, Framed<T, Codec>), Response = ()>,
     U::Error: fmt::Display,
 {
     type Output = Result<(), DispatchError>;
@@ -1007,21 +1007,19 @@ mod tests {
         }
     }
 
-    fn ok_service() -> impl Service<Request = Request, Response = Response, Error = Error>
-    {
+    fn ok_service() -> impl Service<Request, Response = Response, Error = Error> {
         fn_service(|_req: Request| ready(Ok::<_, Error>(Response::Ok().finish())))
     }
 
-    fn echo_path_service(
-    ) -> impl Service<Request = Request, Response = Response, Error = Error> {
+    fn echo_path_service() -> impl Service<Request, Response = Response, Error = Error> {
         fn_service(|req: Request| {
             let path = req.path().as_bytes();
             ready(Ok::<_, Error>(Response::Ok().body(Body::from_slice(path))))
         })
     }
 
-    fn echo_payload_service(
-    ) -> impl Service<Request = Request, Response = Response, Error = Error> {
+    fn echo_payload_service() -> impl Service<Request, Response = Response, Error = Error>
+    {
         fn_service(|mut req: Request| {
             Box::pin(async move {
                 use futures_util::stream::StreamExt as _;

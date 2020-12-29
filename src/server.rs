@@ -20,9 +20,9 @@ use actix_service::pipeline_factory;
 use futures_util::future::ok;
 
 #[cfg(feature = "openssl")]
-use actix_tls::openssl::{AlpnError, SslAcceptor, SslAcceptorBuilder};
+use actix_tls::accept::openssl::{AlpnError, SslAcceptor, SslAcceptorBuilder};
 #[cfg(feature = "rustls")]
-use actix_tls::rustls::ServerConfig as RustlsServerConfig;
+use actix_tls::accept::rustls::ServerConfig as RustlsServerConfig;
 
 use crate::config::AppConfig;
 
@@ -58,8 +58,8 @@ struct Config {
 pub struct HttpServer<F, I, S, B>
 where
     F: Fn() -> I + Send + Clone + 'static,
-    I: IntoServiceFactory<S>,
-    S: ServiceFactory<Config = AppConfig, Request = Request>,
+    I: IntoServiceFactory<S, Request>,
+    S: ServiceFactory<Request, Config = AppConfig>,
     S::Error: Into<Error>,
     S::InitError: fmt::Debug,
     S::Response: Into<Response<B>>,
@@ -77,12 +77,13 @@ where
 impl<F, I, S, B> HttpServer<F, I, S, B>
 where
     F: Fn() -> I + Send + Clone + 'static,
-    I: IntoServiceFactory<S>,
-    S: ServiceFactory<Config = AppConfig, Request = Request>,
+    I: IntoServiceFactory<S, Request>,
+    S: ServiceFactory<Request, Config = AppConfig> + 'static,
     S::Error: Into<Error> + 'static,
     S::InitError: fmt::Debug,
     S::Response: Into<Response<B>> + 'static,
-    <S::Service as Service>::Future: 'static,
+    <S::Service as Service<Request>>::Future: 'static,
+    S::Service: 'static,
     B: MessageBody + 'static,
 {
     /// Create new http server with application factory
@@ -171,7 +172,7 @@ where
     ///
     /// By default max connections is set to a 256.
     pub fn max_connection_rate(self, num: usize) -> Self {
-        actix_tls::max_concurrent_tls_connect(num);
+        actix_tls::accept::max_concurrent_tls_connect(num);
         self
     }
 
@@ -603,8 +604,8 @@ where
 impl<F, I, S, B> HttpServer<F, I, S, B>
 where
     F: Fn() -> I + Send + Clone + 'static,
-    I: IntoServiceFactory<S>,
-    S: ServiceFactory<Config = AppConfig, Request = Request>,
+    I: IntoServiceFactory<S, Request>,
+    S: ServiceFactory<Request, Config = AppConfig>,
     S::Error: Into<Error>,
     S::InitError: fmt::Debug,
     S::Response: Into<Response<B>>,

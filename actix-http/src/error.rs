@@ -178,7 +178,7 @@ impl ResponseError for FormError {}
 
 #[cfg(feature = "openssl")]
 /// `InternalServerError` for `openssl::ssl::Error`
-impl ResponseError for actix_connect::ssl::openssl::SslError {}
+impl ResponseError for actix_tls::accept::openssl::SslError {}
 
 // #[cfg(feature = "openssl")]
 // /// `InternalServerError` for `openssl::ssl::HandshakeError`

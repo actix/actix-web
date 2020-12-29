@@ -9,7 +9,8 @@ use actix_http::{Extensions, Response};
 use actix_router::{ResourceDef, ResourceInfo, Router};
 use actix_service::boxed::{self, BoxService, BoxServiceFactory};
 use actix_service::{
-    apply, apply_fn_factory, IntoServiceFactory, Service, ServiceFactory, Transform,
+    apply, apply_fn_factory, IntoServiceFactory, Service, ServiceFactory,
+    ServiceFactoryExt, Transform,
 };
 use futures_util::future::{ok, Either, LocalBoxFuture, Ready};
 
@@ -89,8 +90,8 @@ impl Scope {
 impl<T> Scope<T>
 where
     T: ServiceFactory<
+        ServiceRequest,
         Config = (),
-        Request = ServiceRequest,
         Response = ServiceResponse,
         Error = Error,
         InitError = (),
@@ -285,10 +286,10 @@ where
     /// If default resource is not registered, app's default resource is being used.
     pub fn default_service<F, U>(mut self, f: F) -> Self
     where
-        F: IntoServiceFactory<U>,
+        F: IntoServiceFactory<U, ServiceRequest>,
         U: ServiceFactory<
+                ServiceRequest,
                 Config = (),
-                Request = ServiceRequest,
                 Response = ServiceResponse,
                 Error = Error,
             > + 'static,
@@ -318,8 +319,8 @@ where
         mw: M,
     ) -> Scope<
         impl ServiceFactory<
+            ServiceRequest,
             Config = (),
-            Request = ServiceRequest,
             Response = ServiceResponse,
             Error = Error,
             InitError = (),
@@ -328,7 +329,7 @@ where
     where
         M: Transform<
             T::Service,
-            Request = ServiceRequest,
+            ServiceRequest,
             Response = ServiceResponse,
             Error = Error,
             InitError = (),
@@ -383,8 +384,8 @@ where
         mw: F,
     ) -> Scope<
         impl ServiceFactory<
+            ServiceRequest,
             Config = (),
-            Request = ServiceRequest,
             Response = ServiceResponse,
             Error = Error,
             InitError = (),
@@ -410,8 +411,8 @@ where
 impl<T> HttpServiceFactory for Scope<T>
 where
     T: ServiceFactory<
+            ServiceRequest,
             Config = (),
-            Request = ServiceRequest,
             Response = ServiceResponse,
             Error = Error,
             InitError = (),
@@ -481,9 +482,8 @@ pub struct ScopeFactory {
     default: Rc<RefCell<Option<Rc<HttpNewService>>>>,
 }
 
-impl ServiceFactory for ScopeFactory {
+impl ServiceFactory<ServiceRequest> for ScopeFactory {
     type Config = ();
-    type Request = ServiceRequest;
     type Response = ServiceResponse;
     type Error = Error;
     type InitError = ();
@@ -602,8 +602,7 @@ pub struct ScopeService {
     _ready: Option<(ServiceRequest, ResourceInfo)>,
 }
 
-impl Service for ScopeService {
-    type Request = ServiceRequest;
+impl Service<ServiceRequest> for ScopeService {
     type Response = ServiceResponse;
     type Error = Error;
     type Future = Either<BoxedResponse, Ready<Result<Self::Response, Self::Error>>>;
@@ -652,13 +651,12 @@ impl ScopeEndpoint {
     }
 }
 
-impl ServiceFactory for ScopeEndpoint {
-    type Config = ();
-    type Request = ServiceRequest;
+impl ServiceFactory<ServiceRequest> for ScopeEndpoint {
     type Response = ServiceResponse;
     type Error = Error;
-    type InitError = ();
+    type Config = ();
     type Service = ScopeService;
+    type InitError = ();
     type Future = ScopeFactoryResponse;
 
     fn new_service(&self, _: ()) -> Self::Future {

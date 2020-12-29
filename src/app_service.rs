@@ -30,8 +30,8 @@ type BoxResponse = LocalBoxFuture<'static, Result<ServiceResponse, Error>>;
 pub struct AppInit<T, B>
 where
     T: ServiceFactory<
+        ServiceRequest,
         Config = (),
-        Request = ServiceRequest,
         Response = ServiceResponse<B>,
         Error = Error,
         InitError = (),
@@ -47,22 +47,21 @@ where
     pub(crate) external: RefCell<Vec<ResourceDef>>,
 }
 
-impl<T, B> ServiceFactory for AppInit<T, B>
+impl<T, B> ServiceFactory<Request> for AppInit<T, B>
 where
     T: ServiceFactory<
+        ServiceRequest,
         Config = (),
-        Request = ServiceRequest,
         Response = ServiceResponse<B>,
         Error = Error,
         InitError = (),
     >,
 {
-    type Config = AppConfig;
-    type Request = Request;
     type Response = ServiceResponse<B>;
     type Error = T::Error;
-    type InitError = T::InitError;
+    type Config = AppConfig;
     type Service = AppInitService<T::Service, B>;
+    type InitError = T::InitError;
     type Future = AppInitResult<T, B>;
 
     fn new_service(&self, config: AppConfig) -> Self::Future {
@@ -133,7 +132,7 @@ where
 #[pin_project::pin_project]
 pub struct AppInitResult<T, B>
 where
-    T: ServiceFactory,
+    T: ServiceFactory<ServiceRequest>,
 {
     #[pin]
     endpoint_fut: T::Future,
@@ -156,8 +155,8 @@ where
 impl<T, B> Future for AppInitResult<T, B>
 where
     T: ServiceFactory<
+        ServiceRequest,
         Config = (),
-        Request = ServiceRequest,
         Response = ServiceResponse<B>,
         Error = Error,
         InitError = (),
@@ -215,7 +214,7 @@ where
 /// Service to convert `Request` to a `ServiceRequest<S>`
 pub struct AppInitService<T, B>
 where
-    T: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    T: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
 {
     service: T,
     rmap: Rc<ResourceMap>,
@@ -224,11 +223,10 @@ where
     pool: &'static HttpRequestPool,
 }
 
-impl<T, B> Service for AppInitService<T, B>
+impl<T, B> Service<Request> for AppInitService<T, B>
 where
-    T: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    T: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
 {
-    type Request = Request;
     type Response = ServiceResponse<B>;
     type Error = T::Error;
     type Future = T::Future;
@@ -265,7 +263,7 @@ where
 
 impl<T, B> Drop for AppInitService<T, B>
 where
-    T: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    T: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
 {
     fn drop(&mut self) {
         self.pool.clear();
@@ -277,9 +275,8 @@ pub struct AppRoutingFactory {
     default: Rc<HttpNewService>,
 }
 
-impl ServiceFactory for AppRoutingFactory {
+impl ServiceFactory<ServiceRequest> for AppRoutingFactory {
     type Config = ();
-    type Request = ServiceRequest;
     type Response = ServiceResponse;
     type Error = Error;
     type InitError = ();
@@ -388,8 +385,7 @@ pub struct AppRouting {
     default: Option<HttpService>,
 }
 
-impl Service for AppRouting {
-    type Request = ServiceRequest;
+impl Service<ServiceRequest> for AppRouting {
     type Response = ServiceResponse;
     type Error = Error;
     type Future = BoxResponse;
@@ -436,9 +432,8 @@ impl AppEntry {
     }
 }
 
-impl ServiceFactory for AppEntry {
+impl ServiceFactory<ServiceRequest> for AppEntry {
     type Config = ();
-    type Request = ServiceRequest;
     type Response = ServiceResponse;
     type Error = Error;
     type InitError = ();

@@ -30,9 +30,11 @@ const CHUNK_SIZE: usize = 16_384;
 
 /// Dispatcher for HTTP/2 protocol
 #[pin_project::pin_project]
-pub struct Dispatcher<T, S: Service<Request = Request>, B: MessageBody>
+pub struct Dispatcher<T, S, B>
 where
     T: AsyncRead + AsyncWrite + Unpin,
+    S: Service<Request>,
+    B: MessageBody,
 {
     service: CloneableService<S>,
     connection: Connection<T, Bytes>,
@@ -48,7 +50,7 @@ where
 impl<T, S, B> Dispatcher<T, S, B>
 where
     T: AsyncRead + AsyncWrite + Unpin,
-    S: Service<Request = Request>,
+    S: Service<Request>,
     S::Error: Into<Error>,
     // S::Future: 'static,
     S::Response: Into<Response<B>>,
@@ -96,7 +98,7 @@ where
 impl<T, S, B> Future for Dispatcher<T, S, B>
 where
     T: AsyncRead + AsyncWrite + Unpin,
-    S: Service<Request = Request>,
+    S: Service<Request>,
     S::Error: Into<Error> + 'static,
     S::Future: 'static,
     S::Response: Into<Response<B>> + 'static,

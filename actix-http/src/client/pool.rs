@@ -50,8 +50,7 @@ pub(crate) struct ConnectionPool<T, Io: 'static>(Rc<RefCell<T>>, Rc<RefCell<Inne
 impl<T, Io> ConnectionPool<T, Io>
 where
     Io: AsyncRead + AsyncWrite + Unpin + 'static,
-    T: Service<Request = Connect, Response = (Io, Protocol), Error = ConnectError>
-        + 'static,
+    T: Service<Connect, Response = (Io, Protocol), Error = ConnectError> + 'static,
 {
     pub(crate) fn new(connector: T, config: ConnectorConfig) -> Self {
         let connector_rc = Rc::new(RefCell::new(connector));
@@ -90,13 +89,11 @@ impl<T, Io> Drop for ConnectionPool<T, Io> {
     }
 }
 
-impl<T, Io> Service for ConnectionPool<T, Io>
+impl<T, Io> Service<Connect> for ConnectionPool<T, Io>
 where
     Io: AsyncRead + AsyncWrite + Unpin + 'static,
-    T: Service<Request = Connect, Response = (Io, Protocol), Error = ConnectError>
-        + 'static,
+    T: Service<Connect, Response = (Io, Protocol), Error = ConnectError> + 'static,
 {
-    type Request = Connect;
     type Response = IoConnection<Io>;
     type Error = ConnectError;
     type Future = LocalBoxFuture<'static, Result<IoConnection<Io>, ConnectError>>;
@@ -438,7 +435,7 @@ where
 impl<T, Io> Future for ConnectorPoolSupport<T, Io>
 where
     Io: AsyncRead + AsyncWrite + Unpin + 'static,
-    T: Service<Request = Connect, Response = (Io, Protocol), Error = ConnectError>,
+    T: Service<Connect, Response = (Io, Protocol), Error = ConnectError>,
     T::Future: 'static,
 {
     type Output = ();

@@ -81,17 +81,16 @@ impl<B> ErrorHandlers<B> {
     }
 }
 
-impl<S, B> Transform<S> for ErrorHandlers<B>
+impl<S, B> Transform<S, ServiceRequest> for ErrorHandlers<B>
 where
-    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
     S::Future: 'static,
     B: 'static,
 {
-    type Request = ServiceRequest;
     type Response = ServiceResponse<B>;
     type Error = Error;
-    type InitError = ();
     type Transform = ErrorHandlersMiddleware<S, B>;
+    type InitError = ();
     type Future = Ready<Result<Self::Transform, Self::InitError>>;
 
     fn new_transform(&self, service: S) -> Self::Future {
@@ -108,13 +107,12 @@ pub struct ErrorHandlersMiddleware<S, B> {
     handlers: Rc<FxHashMap<StatusCode, Box<ErrorHandler<B>>>>,
 }
 
-impl<S, B> Service for ErrorHandlersMiddleware<S, B>
+impl<S, B> Service<ServiceRequest> for ErrorHandlersMiddleware<S, B>
 where
-    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
     S::Future: 'static,
     B: 'static,
 {
-    type Request = ServiceRequest;
     type Response = ServiceResponse<B>;
     type Error = Error;
     type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
