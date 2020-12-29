@@ -2,31 +2,29 @@ digraph {
     subgraph cluster_web {
         label="actix/actix-web"
         "awc"
-        "web"
-        "files"
-        "http"
-        "multipart"
-        "web-actors"
-        "codegen"
-        "http-test"
+        "actix-web"
+        "actix-files"
+        "actix-http"
+        "actix-multipart"
+        "actix-web-actors"
+        "actix-web-codegen"
+        "actix-http-test"
     }
 
-    "web" -> { "codec" "service" "utils" "router" "rt" "server" "testing" "macros" "threadpool" "tls" "codegen" "http" "awc" }
-    "awc" -> { "codec" "service" "http" "rt" }
-    "web-actors" -> { "actix" "web" "http" "codec" }
-    "multipart" -> { "web" "service" "utils" }
-    "http" -> { "service" "codec" "connect" "utils" "rt" "threadpool" }
-    "http" -> { "actix" "tls" }[color=blue] // optional
-    "files" -> { "web" }
-    "http-test" -> { "service" "codec" "connect" "utils" "rt" "server" "testing" "awc" }
+    "actix-web" -> { "actix-codec" "actix-service" "actix-utils" "actix-router" "actix-rt" "actix-server" "macros" "threadpool" "actix-tls" "actix-web-codegen" "actix-http" "awc" }
+    "awc" -> { "actix-codec" "actix-service" "actix-http" "actix-rt" }
+    "actix-web-actors" -> { "actix" "actix-web" "actix-http" "actix-codec" }
+    "actix-multipart" -> { "actix-web" "actix-service" "actix-utils" }
+    "actix-http" -> { "actix-service" "actix-codec" "actix-tls" "actix-utils" "actix-rt" "threadpool" }
+    "actix-http" -> { "actix" "actix-tls" }[color=blue] // optional
+    "actix-files" -> { "actix-web" }
+    "actix-http-test" -> { "actix-service" "actix-codec" "actix-tls" "actix-utils" "actix-rt" "actix-server" "awc" }
 
     // net
 
-    "utils" -> { "service" "rt" "codec" }
-    "tracing" -> { "service" }
-    "tls" -> { "service" "codec" "utils" }
-    "testing" -> { "rt" "macros" "server" "service" }
-    "server" -> { "service" "rt" "codec" "utils" }
-    "rt" -> { "macros" "threadpool" }
-    "connect" -> { "service" "codec" "utils" "rt" }
+    "actix-utils" -> { "actix-service" "actix-rt" "actix-codec" }
+    "actix-tracing" -> { "actix-service" }
+    "actix-tls" -> { "actix-service" "actix-codec" "actix-utils" }
+    "actix-server" -> { "actix-service" "actix-rt" "actix-codec" "actix-utils" }
+    "actix-rt" -> { "macros" "threadpool" }
 }

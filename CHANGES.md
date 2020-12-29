@@ -5,6 +5,7 @@
 * Bumped `rand` to `0.8`
 * Update `rust-tls` to `0.19.0`
 * Rename `Handler` to `HandlerService` and rename `Factory` to `Handler`. [#1852]
+* MSRV is now 1.46.0.
 
 
 ### Fixed

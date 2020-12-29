@@ -15,7 +15,6 @@ use crate::body::MessageBody;
 use crate::cloneable::CloneableService;
 use crate::config::ServiceConfig;
 use crate::error::{DispatchError, Error};
-use crate::helpers::DataFactory;
 use crate::request::Request;
 use crate::response::Response;
 use crate::{ConnectCallback, Extensions};
@@ -30,7 +29,6 @@ pub struct H1Service<T, S, B, X = ExpectHandler, U = UpgradeHandler> {
     cfg: ServiceConfig,
     expect: X,
     upgrade: Option<U>,
-    on_connect: Option<Rc<dyn Fn(&T) -> Box<dyn DataFactory>>>,
     on_connect_ext: Option<Rc<ConnectCallback<T>>>,
     _t: PhantomData<B>,
 }
@@ -53,7 +51,6 @@ where
             srv: service.into_factory(),
             expect: ExpectHandler,
             upgrade: None,
-            on_connect: None,
             on_connect_ext: None,
             _t: PhantomData,
         }
@@ -213,7 +210,6 @@ where
             cfg: self.cfg,
             srv: self.srv,
             upgrade: self.upgrade,
-            on_connect: self.on_connect,
             on_connect_ext: self.on_connect_ext,
             _t: PhantomData,
         }
@@ -230,19 +226,9 @@ where
             cfg: self.cfg,
             srv: self.srv,
             expect: self.expect,
-            on_connect: self.on_connect,
             on_connect_ext: self.on_connect_ext,
             _t: PhantomData,
         }
-    }
-
-    /// Set on connect callback.
-    pub(crate) fn on_connect(
-        mut self,
-        f: Option<Rc<dyn Fn(&T) -> Box<dyn DataFactory>>>,
-    ) -> Self {
-        self.on_connect = f;
-        self
     }
 
     /// Set on connect callback.
@@ -282,7 +268,6 @@ where
             fut_upg: self.upgrade.as_ref().map(|f| f.new_service(())),
             expect: None,
             upgrade: None,
-            on_connect: self.on_connect.clone(),
             on_connect_ext: self.on_connect_ext.clone(),
             cfg: Some(self.cfg.clone()),
             _t: PhantomData,
@@ -312,7 +297,6 @@ where
     fut_upg: Option<U::Future>,
     expect: Option<X::Service>,
     upgrade: Option<U::Service>,
-    on_connect: Option<Rc<dyn Fn(&T) -> Box<dyn DataFactory>>>,
     on_connect_ext: Option<Rc<ConnectCallback<T>>>,
     cfg: Option<ServiceConfig>,
     _t: PhantomData<(T, B)>,
@@ -369,7 +353,6 @@ where
                 service,
                 this.expect.take().unwrap(),
                 this.upgrade.take(),
-                this.on_connect.clone(),
                 this.on_connect_ext.clone(),
             )
         }))
@@ -386,7 +369,6 @@ where
     srv: CloneableService<S>,
     expect: CloneableService<X>,
     upgrade: Option<CloneableService<U>>,
-    on_connect: Option<Rc<dyn Fn(&T) -> Box<dyn DataFactory>>>,
     on_connect_ext: Option<Rc<ConnectCallback<T>>>,
     cfg: ServiceConfig,
     _t: PhantomData<B>,
@@ -408,7 +390,6 @@ where
         srv: S,
         expect: X,
         upgrade: Option<U>,
-        on_connect: Option<Rc<dyn Fn(&T) -> Box<dyn DataFactory>>>,
         on_connect_ext: Option<Rc<ConnectCallback<T>>>,
     ) -> H1ServiceHandler<T, S, B, X, U> {
         H1ServiceHandler {
@@ -416,7 +397,6 @@ where
             expect: CloneableService::new(expect),
             upgrade: upgrade.map(CloneableService::new),
             cfg,
-            on_connect,
             on_connect_ext,
             _t: PhantomData,
         }
@@ -483,8 +463,6 @@ where
     }
 
     fn call(&mut self, (io, addr): (T, Option<net::SocketAddr>)) -> Self::Future {
-        let deprecated_on_connect = self.on_connect.as_ref().map(|handler| handler(&io));
-
         let mut connect_extensions = Extensions::new();
         if let Some(ref handler) = self.on_connect_ext {
             // run on_connect_ext callback, populating connect extensions
@@ -497,7 +475,6 @@ where
             self.srv.clone(),
             self.expect.clone(),
             self.upgrade.clone(),
-            deprecated_on_connect,
             connect_extensions,
             addr,
         )

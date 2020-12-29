@@ -199,14 +199,14 @@ macro_rules! factory_tuple ({ $(($n:tt, $T:ident)),+} => {
 mod m {
     use super::*;
 
-factory_tuple!((0, A));
-factory_tuple!((0, A), (1, B));
-factory_tuple!((0, A), (1, B), (2, C));
-factory_tuple!((0, A), (1, B), (2, C), (3, D));
-factory_tuple!((0, A), (1, B), (2, C), (3, D), (4, E));
-factory_tuple!((0, A), (1, B), (2, C), (3, D), (4, E), (5, F));
-factory_tuple!((0, A), (1, B), (2, C), (3, D), (4, E), (5, F), (6, G));
-factory_tuple!((0, A), (1, B), (2, C), (3, D), (4, E), (5, F), (6, G), (7, H));
-factory_tuple!((0, A), (1, B), (2, C), (3, D), (4, E), (5, F), (6, G), (7, H), (8, I));
-factory_tuple!((0, A), (1, B), (2, C), (3, D), (4, E), (5, F), (6, G), (7, H), (8, I), (9, J));
+    factory_tuple!((0, A));
+    factory_tuple!((0, A), (1, B));
+    factory_tuple!((0, A), (1, B), (2, C));
+    factory_tuple!((0, A), (1, B), (2, C), (3, D));
+    factory_tuple!((0, A), (1, B), (2, C), (3, D), (4, E));
+    factory_tuple!((0, A), (1, B), (2, C), (3, D), (4, E), (5, F));
+    factory_tuple!((0, A), (1, B), (2, C), (3, D), (4, E), (5, F), (6, G));
+    factory_tuple!((0, A), (1, B), (2, C), (3, D), (4, E), (5, F), (6, G), (7, H));
+    factory_tuple!((0, A), (1, B), (2, C), (3, D), (4, E), (5, F), (6, G), (7, H), (8, I));
+    factory_tuple!((0, A), (1, B), (2, C), (3, D), (4, E), (5, F), (6, G), (7, H), (8, I), (9, J));
 }

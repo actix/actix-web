@@ -18,7 +18,6 @@ use crate::body::{BodySize, MessageBody, ResponseBody};
 use crate::cloneable::CloneableService;
 use crate::config::ServiceConfig;
 use crate::error::{DispatchError, Error};
-use crate::helpers::DataFactory;
 use crate::httpmessage::HttpMessage;
 use crate::message::ResponseHead;
 use crate::payload::Payload;
@@ -38,7 +37,6 @@ where
 {
     service: CloneableService<S>,
     connection: Connection<T, Bytes>,
-    on_connect: Option<Box<dyn DataFactory>>,
     on_connect_data: Extensions,
     config: ServiceConfig,
     peer_addr: Option<net::SocketAddr>,
@@ -59,7 +57,6 @@ where
     pub(crate) fn new(
         service: CloneableService<S>,
         connection: Connection<T, Bytes>,
-        on_connect: Option<Box<dyn DataFactory>>,
         on_connect_data: Extensions,
         config: ServiceConfig,
         timeout: Option<Sleep>,
@@ -86,7 +83,6 @@ where
             config,
             peer_addr,
             connection,
-            on_connect,
             on_connect_data,
             ka_expire,
             ka_timer,
@@ -135,12 +131,6 @@ where
                     head.version = parts.version;
                     head.headers = parts.headers.into();
                     head.peer_addr = this.peer_addr;
-
-                    // DEPRECATED
-                    // set on_connect data
-                    if let Some(ref on_connect) = this.on_connect {
-                        on_connect.set(&mut req.extensions_mut());
-                    }
 
                     // merge on_connect_ext data into request extensions
                     req.extensions_mut().drain_from(&mut this.on_connect_data);

@@ -2,6 +2,7 @@
 
 ## Unreleased - 2020-xx-xx
 * Update `bytes` to `1`.
+* `HttpRange::parse` now has its own error type.
 
 
 ## 0.5.0 - 2020-12-26

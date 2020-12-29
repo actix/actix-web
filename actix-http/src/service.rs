@@ -17,7 +17,6 @@ use crate::builder::HttpServiceBuilder;
 use crate::cloneable::CloneableService;
 use crate::config::{KeepAlive, ServiceConfig};
 use crate::error::{DispatchError, Error};
-use crate::helpers::DataFactory;
 use crate::request::Request;
 use crate::response::Response;
 use crate::{h1, h2::Dispatcher, ConnectCallback, Extensions, Protocol};
@@ -28,8 +27,6 @@ pub struct HttpService<T, S, B, X = h1::ExpectHandler, U = h1::UpgradeHandler> {
     cfg: ServiceConfig,
     expect: X,
     upgrade: Option<U>,
-    // DEPRECATED: in favor of on_connect_ext
-    on_connect: Option<Rc<dyn Fn(&T) -> Box<dyn DataFactory>>>,
     on_connect_ext: Option<Rc<ConnectCallback<T>>>,
     _t: PhantomData<B>,
 }
@@ -67,7 +64,6 @@ where
             srv: service.into_factory(),
             expect: h1::ExpectHandler,
             upgrade: None,
-            on_connect: None,
             on_connect_ext: None,
             _t: PhantomData,
         }
@@ -83,7 +79,6 @@ where
             srv: service.into_factory(),
             expect: h1::ExpectHandler,
             upgrade: None,
-            on_connect: None,
             on_connect_ext: None,
             _t: PhantomData,
         }
@@ -116,7 +111,6 @@ where
             cfg: self.cfg,
             srv: self.srv,
             upgrade: self.upgrade,
-            on_connect: self.on_connect,
             on_connect_ext: self.on_connect_ext,
             _t: PhantomData,
         }
@@ -138,19 +132,9 @@ where
             cfg: self.cfg,
             srv: self.srv,
             expect: self.expect,
-            on_connect: self.on_connect,
             on_connect_ext: self.on_connect_ext,
             _t: PhantomData,
         }
-    }
-
-    /// Set on connect callback.
-    pub(crate) fn on_connect(
-        mut self,
-        f: Option<Rc<dyn Fn(&T) -> Box<dyn DataFactory>>>,
-    ) -> Self {
-        self.on_connect = f;
-        self
     }
 
     /// Set connect callback with mutable access to request data container.
@@ -362,7 +346,6 @@ where
             fut_upg: self.upgrade.as_ref().map(|f| f.new_service(())),
             expect: None,
             upgrade: None,
-            on_connect: self.on_connect.clone(),
             on_connect_ext: self.on_connect_ext.clone(),
             cfg: self.cfg.clone(),
             _t: PhantomData,
@@ -386,7 +369,6 @@ where
     fut_upg: Option<U::Future>,
     expect: Option<X::Service>,
     upgrade: Option<U::Service>,
-    on_connect: Option<Rc<dyn Fn(&T) -> Box<dyn DataFactory>>>,
     on_connect_ext: Option<Rc<ConnectCallback<T>>>,
     cfg: ServiceConfig,
     _t: PhantomData<(T, B)>,
@@ -446,7 +428,6 @@ where
                 service,
                 this.expect.take().unwrap(),
                 this.upgrade.take(),
-                this.on_connect.clone(),
                 this.on_connect_ext.clone(),
             )
         }))
@@ -464,7 +445,6 @@ where
     expect: CloneableService<X>,
     upgrade: Option<CloneableService<U>>,
     cfg: ServiceConfig,
-    on_connect: Option<Rc<dyn Fn(&T) -> Box<dyn DataFactory>>>,
     on_connect_ext: Option<Rc<ConnectCallback<T>>>,
     _t: PhantomData<B>,
 }
@@ -486,12 +466,10 @@ where
         srv: S,
         expect: X,
         upgrade: Option<U>,
-        on_connect: Option<Rc<dyn Fn(&T) -> Box<dyn DataFactory>>>,
         on_connect_ext: Option<Rc<ConnectCallback<T>>>,
     ) -> HttpServiceHandler<T, S, B, X, U> {
         HttpServiceHandler {
             cfg,
-            on_connect,
             on_connect_ext,
             srv: CloneableService::new(srv),
             expect: CloneableService::new(expect),
@@ -567,7 +545,6 @@ where
     ) -> Self::Future {
         let mut connect_extensions = Extensions::new();
 
-        let deprecated_on_connect = self.on_connect.as_ref().map(|handler| handler(&io));
         if let Some(ref handler) = self.on_connect_ext {
             handler(&io, &mut connect_extensions);
         }
@@ -578,7 +555,6 @@ where
                     server::handshake(io),
                     self.cfg.clone(),
                     self.srv.clone(),
-                    deprecated_on_connect,
                     connect_extensions,
                     peer_addr,
                 ))),
@@ -591,7 +567,6 @@ where
                     self.srv.clone(),
                     self.expect.clone(),
                     self.upgrade.clone(),
-                    deprecated_on_connect,
                     connect_extensions,
                     peer_addr,
                 )),
@@ -620,7 +595,6 @@ where
             Handshake<T, Bytes>,
             ServiceConfig,
             CloneableService<S>,
-            Option<Box<dyn DataFactory>>,
             Extensions,
             Option<net::SocketAddr>,
         )>,
@@ -697,12 +671,10 @@ where
                 } else {
                     panic!()
                 };
-                let (_, cfg, srv, on_connect, on_connect_data, peer_addr) =
-                    data.take().unwrap();
+                let (_, cfg, srv, on_connect_data, peer_addr) = data.take().unwrap();
                 self.set(State::H2(Dispatcher::new(
                     srv,
                     conn,
-                    on_connect,
                     on_connect_data,
                     cfg,
                     None,
