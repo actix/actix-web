@@ -66,6 +66,7 @@ async fn test_start() {
     let _ = sys.stop();
 }
 
+#[allow(clippy::unnecessary_wraps)]
 #[cfg(feature = "openssl")]
 fn ssl_acceptor() -> std::io::Result<SslAcceptorBuilder> {
     use open_ssl::ssl::{SslAcceptor, SslFiletype, SslMethod};

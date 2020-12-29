@@ -12,7 +12,7 @@
 
 - [API Documentation](https://docs.rs/actix-http)
 - [Chat on Gitter](https://gitter.im/actix/actix-web)
-- Minimum Supported Rust Version (MSRV): 1.42.0
+- Minimum Supported Rust Version (MSRV): 1.46.0
 
 ## Example
 
