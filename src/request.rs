@@ -6,7 +6,7 @@ use actix_http::http::{HeaderMap, Method, Uri, Version};
 use actix_http::{Error, Extensions, HttpMessage, Message, Payload, RequestHead};
 use actix_router::{Path, Url};
 use futures_util::future::{ok, Ready};
-use tinyvec::TinyVec;
+use smallvec::SmallVec;
 
 use crate::config::AppConfig;
 use crate::error::UrlGenerationError;
@@ -22,7 +22,7 @@ pub(crate) struct HttpRequestInner {
     pub(crate) head: Message<RequestHead>,
     pub(crate) path: Path<Url>,
     pub(crate) payload: Payload,
-    pub(crate) app_data: TinyVec<[Rc<Extensions>; 4]>,
+    pub(crate) app_data: SmallVec<[Rc<Extensions>; 4]>,
     rmap: Rc<ResourceMap>,
     config: AppConfig,
     pool: &'static HttpRequestPool,
@@ -39,7 +39,7 @@ impl HttpRequest {
         app_data: Rc<Extensions>,
         pool: &'static HttpRequestPool,
     ) -> HttpRequest {
-        let mut data = TinyVec::<[Rc<Extensions>; 4]>::new();
+        let mut data = SmallVec::<[Rc<Extensions>; 4]>::new();
         data.push(app_data);
 
         HttpRequest(Rc::new(HttpRequestInner {
@@ -277,10 +277,16 @@ impl HttpMessage for HttpRequest {
 impl Drop for HttpRequest {
     fn drop(&mut self) {
         // if possible, contribute to current worker's HttpRequest allocation pool
-        if Rc::strong_count(&self.0) == 1 {
-            let v = &mut self.0.pool.0.borrow_mut();
+
+        // This relies on no Weak<HttpRequestInner> exists anywhere.(There is none)
+        if let Some(inner) = Rc::get_mut(&mut self.0) {
+            let v = &mut inner.pool.0.borrow_mut();
             if v.len() < 128 {
-                self.extensions_mut().clear();
+                // clear additional app_data and keep the root one for reuse.
+                inner.app_data.truncate(1);
+                // inner is borrowed mut here. get head's Extension mutably
+                // to reduce borrow check
+                inner.head.extensions.get_mut().clear();
                 v.push(self.0.clone());
             }
         }
