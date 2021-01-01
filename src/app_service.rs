@@ -10,7 +10,6 @@ use actix_router::{Path, ResourceDef, ResourceInfo, Router, Url};
 use actix_service::boxed::{self, BoxService, BoxServiceFactory};
 use actix_service::{fn_service, Service, ServiceFactory};
 use futures_util::future::{join_all, ok, FutureExt, LocalBoxFuture};
-use tinyvec::tiny_vec;
 
 use crate::config::{AppConfig, AppService};
 use crate::data::{DataFactory, FnDataFactory};
@@ -246,7 +245,6 @@ where
             inner.path.reset();
             inner.head = head;
             inner.payload = payload;
-            inner.app_data = tiny_vec![self.data.clone()];
             req
         } else {
             HttpRequest::new(
