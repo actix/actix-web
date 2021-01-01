@@ -132,12 +132,10 @@ actix-files = { path = "actix-files" }
 awc = { path = "awc" }
 
 # FIXME: remove these override
-actix = { git = "https://github.com/fakeshadow/actix.git", branch = "tokio-0.3" }
+actix = { git = "https://github.com/fakeshadow/actix.git", branch = "master" }
 actix-tls = { git = "https://github.com/actix/actix-net.git", branch = "master" }
 actix-server = { git = "https://github.com/actix/actix-net.git", branch = "master" }
 actix-service = { git = "https://github.com/actix/actix-net.git", branch = "master" }
-trust-dns-proto = { git = "https://github.com/bluejekyll/trust-dns.git", branch = "main" }
-trust-dns-resolver = { git = "https://github.com/bluejekyll/trust-dns.git", branch = "main" }
 
 [[bench]]
 name = "server"

@@ -9,7 +9,13 @@
 ### Removed
 * Deprecated `on_connect` methods have been removed. Prefer the new
   `on_connect_ext` technique. [#1857]
+* Remove `ResponseError` impl for `actix::actors::resolver::ResolverError`
+  due to deprecate of resolver actor. [#1813]
+* Remove `ConnectError::SslHandshakeError` and re-export of `openssl::HandshakeError`.
+  due to the removal of this type from `openssl` crate. openssl handshake error would 
+  return as `ConnectError::SslError`. [#1813]
 
+[#1813]: https://github.com/actix/actix-web/pull/1857
 [#1857]: https://github.com/actix/actix-web/pull/1857
 
 
