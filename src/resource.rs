@@ -11,7 +11,7 @@ use actix_service::boxed::{self, BoxService, BoxServiceFactory};
 use actix_service::{
     apply, apply_fn_factory, IntoServiceFactory, Service, ServiceFactory, Transform,
 };
-use futures_util::future::{ok, Either, LocalBoxFuture, Ready};
+use futures_core::future::LocalBoxFuture;
 
 use crate::data::Data;
 use crate::dev::{insert_slash, AppService, HttpServiceFactory, ResourceDef};
@@ -524,10 +524,7 @@ impl Service for ResourceService {
     type Request = ServiceRequest;
     type Response = ServiceResponse;
     type Error = Error;
-    type Future = Either<
-        Ready<Result<ServiceResponse, Error>>,
-        LocalBoxFuture<'static, Result<ServiceResponse, Error>>,
-    >;
+    type Future = LocalBoxFuture<'static, Result<ServiceResponse, Error>>;
 
     fn poll_ready(&mut self, _: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         Poll::Ready(Ok(()))
@@ -539,20 +536,22 @@ impl Service for ResourceService {
                 if let Some(ref data) = self.data {
                     req.add_data_container(data.clone());
                 }
-                return Either::Right(route.call(req));
+                return route.call(req);
             }
         }
         if let Some(ref mut default) = self.default {
             if let Some(ref data) = self.data {
                 req.add_data_container(data.clone());
             }
-            Either::Right(default.call(req))
+            default.call(req)
         } else {
             let req = req.into_parts().0;
-            Either::Left(ok(ServiceResponse::new(
-                req,
-                Response::MethodNotAllowed().finish(),
-            )))
+            Box::pin(async {
+                Ok(ServiceResponse::new(
+                    req,
+                    Response::MethodNotAllowed().finish(),
+                ))
+            })
         }
     }
 }
