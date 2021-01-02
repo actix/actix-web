@@ -1,8 +1,8 @@
 # Changes
 
-## Unreleased - 2020-xx-xx
-* Update `bytes` to `1`.
+## Unreleased - 2021-xx-xx
 * `HttpRange::parse` now has its own error type.
+* Update `bytes` to `1`.
 
 
 ## 0.5.0 - 2020-12-26

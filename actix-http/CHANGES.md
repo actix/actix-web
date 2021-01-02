@@ -1,10 +1,11 @@
 # Changes
 
-## Unreleased - 2020-xx-xx
+## Unreleased - 2021-xx-xx
 ### Changed
 * Bumped `rand` to `0.8`
 * Upgrade `bytes` to `1`
 * Upgrade `h2` to `0.3`
+
 
 ### Removed
 * Deprecated `on_connect` methods have been removed. Prefer the new

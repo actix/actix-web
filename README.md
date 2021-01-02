@@ -107,5 +107,5 @@ at your option.
 
 ## Code of Conduct
 
-Contribution to the actix-web crate is organized under the terms of the Contributor Covenant, the
-maintainers of Actix web, promises to intervene to uphold that code of conduct.
+Contribution to the actix-web repo is organized under the terms of the Contributor Covenant.
+The Actix team promises to intervene to uphold that code of conduct.
