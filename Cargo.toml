@@ -131,7 +131,6 @@ actix-multipart = { path = "actix-multipart" }
 actix-files = { path = "actix-files" }
 awc = { path = "awc" }
 
-actix = { git = "https://github.com/actix/actix.git", branch = "master" }
 actix-tls = { git = "https://github.com/actix/actix-net.git", branch = "master" }
 actix-server = { git = "https://github.com/actix/actix-net.git", branch = "master" }
 actix-service = { git = "https://github.com/actix/actix-net.git", branch = "master" }
