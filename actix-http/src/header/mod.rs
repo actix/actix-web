@@ -1,8 +1,6 @@
-//! Various http headers
-// This is mostly copy of [hyper](https://github.com/hyperium/hyper/tree/master/src/header)
+//! Various HTTP headers.
 
-use std::convert::TryFrom;
-use std::{fmt, str::FromStr};
+use std::{convert::TryFrom, fmt, str::FromStr};
 
 use bytes::{Bytes, BytesMut};
 use http::Error as HttpError;

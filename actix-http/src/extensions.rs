@@ -1,14 +1,16 @@
-use std::any::{Any, TypeId};
-use std::{fmt, mem};
+use std::{
+    any::{Any, TypeId},
+    fmt, mem,
+};
 
-use fxhash::FxHashMap;
+use ahash::AHashMap;
 
 /// A type map of request extensions.
 #[derive(Default)]
 pub struct Extensions {
     /// Use FxHasher with a std HashMap with for faster
     /// lookups on the small `TypeId` (u64 equivalent) keys.
-    map: FxHashMap<TypeId, Box<dyn Any>>,
+    map: AHashMap<TypeId, Box<dyn Any>>,
 }
 
 impl Extensions {
@@ -16,7 +18,7 @@ impl Extensions {
     #[inline]
     pub fn new() -> Extensions {
         Extensions {
-            map: FxHashMap::default(),
+            map: AHashMap::default(),
         }
     }
 
