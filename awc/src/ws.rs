@@ -71,6 +71,7 @@ impl WebsocketsRequest {
     {
         let mut err = None;
 
+        #[allow(clippy::field_reassign_with_default)]
         let mut head = {
             let mut head = RequestHead::default();
             head.method = Method::GET;

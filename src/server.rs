@@ -67,7 +67,7 @@ where
 {
     pub(super) factory: F,
     config: Arc<Mutex<Config>>,
-    backlog: i32,
+    backlog: u32,
     sockets: Vec<Socket>,
     builder: ServerBuilder,
     on_connect_fn: Option<Arc<dyn Fn(&dyn Any, &mut Extensions) + Send + Sync>>,
@@ -148,9 +148,9 @@ where
     /// Generally set in the 64-2048 range. Default value is 2048.
     ///
     /// This method should be called before `bind()` method call.
-    pub fn backlog(mut self, backlog: i32) -> Self {
+    pub fn backlog(mut self, backlog: u32) -> Self {
         self.backlog = backlog;
-        self.builder = self.builder.backlog(backlog as u32);
+        self.builder = self.builder.backlog(backlog);
         self
     }
 
@@ -642,7 +642,7 @@ where
 
 fn create_tcp_listener(
     addr: net::SocketAddr,
-    backlog: i32,
+    backlog: u32,
 ) -> io::Result<net::TcpListener> {
     use socket2::{Domain, Protocol, Socket, Type};
     let domain = match addr {
@@ -652,6 +652,8 @@ fn create_tcp_listener(
     let socket = Socket::new(domain, Type::stream(), Some(Protocol::tcp()))?;
     socket.set_reuse_address(true)?;
     socket.bind(&addr.into())?;
+    // clamp backlog to max u32 that fits in i32 range
+    let backlog = backlog.min(i32::MAX as u32) as i32;
     socket.listen(backlog)?;
     Ok(socket.into_tcp_listener())
 }

@@ -2,9 +2,12 @@
 
 ## Unreleased - 2021-xx-xx
 ### Changed
-* Bumped `rand` to `0.8`
-* Upgrade `bytes` to `1`
-* Upgrade `h2` to `0.3`
+* Bumped `rand` to `0.8`.
+* Update `bytes` to `1.0`. [#1813]
+* Update `h2` to `0.3`. [#1813]
+
+[#1813]: https://github.com/actix/actix-web/pull/1813
+
 
 ### Removed
 * Deprecated `on_connect` methods have been removed. Prefer the new

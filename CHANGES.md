@@ -2,10 +2,12 @@
 
 ## Unreleased - 2021-xx-xx
 ### Changed
-* Bumped `rand` to `0.8`
-* Update `rust-tls` to `0.19.0`
+* Bumped `rand` to `0.8`.
+* Update `rust-tls` to `0.19`. [#1813]
 * Rename `Handler` to `HandlerService` and rename `Factory` to `Handler`. [#1852]
 * MSRV is now 1.46.0.
+
+[#1813]: https://github.com/actix/actix-web/pull/1813
 
 
 ### Fixed

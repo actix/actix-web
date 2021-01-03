@@ -22,7 +22,7 @@ actix-service = "2.0.0-beta.2"
 bitflags = "1"
 bytes = "1"
 futures-core = { version = "0.3.7", default-features = false }
-futures-util = { version = "0.3.7", default-features = false, features = ["sink"] }
+futures-util = { version = "0.3.7", default-features = false }
 derive_more = "0.99.5"
 log = "0.4"
 mime = "0.3"
