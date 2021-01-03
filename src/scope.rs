@@ -12,7 +12,7 @@ use actix_service::{
     apply, apply_fn_factory, IntoServiceFactory, Service, ServiceFactory,
     ServiceFactoryExt, Transform,
 };
-use futures_util::future::{ok, Either, LocalBoxFuture, Ready};
+use futures_core::future::LocalBoxFuture;
 
 use crate::config::ServiceConfig;
 use crate::data::Data;
@@ -29,7 +29,6 @@ use crate::service::{
 type Guards = Vec<Box<dyn Guard>>;
 type HttpService = BoxService<ServiceRequest, ServiceResponse, Error>;
 type HttpNewService = BoxServiceFactory<(), ServiceRequest, ServiceResponse, Error, ()>;
-type BoxedResponse = LocalBoxFuture<'static, Result<ServiceResponse, Error>>;
 
 /// Resources scope.
 ///
@@ -605,7 +604,7 @@ pub struct ScopeService {
 impl Service<ServiceRequest> for ScopeService {
     type Response = ServiceResponse;
     type Error = Error;
-    type Future = Either<BoxedResponse, Ready<Result<Self::Response, Self::Error>>>;
+    type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
 
     fn poll_ready(&mut self, _: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         Poll::Ready(Ok(()))
@@ -627,15 +626,17 @@ impl Service<ServiceRequest> for ScopeService {
             if let Some(ref data) = self.data {
                 req.add_data_container(data.clone());
             }
-            Either::Left(srv.call(req))
+            srv.call(req)
         } else if let Some(ref mut default) = self.default {
             if let Some(ref data) = self.data {
                 req.add_data_container(data.clone());
             }
-            Either::Left(default.call(req))
+            default.call(req)
         } else {
             let req = req.into_parts().0;
-            Either::Right(ok(ServiceResponse::new(req, Response::NotFound().finish())))
+            Box::pin(async {
+                Ok(ServiceResponse::new(req, Response::NotFound().finish()))
+            })
         }
     }
 }
