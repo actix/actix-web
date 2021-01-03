@@ -29,12 +29,12 @@ default = []
 openssl = ["open-ssl", "awc/openssl"]
 
 [dependencies]
-actix-service = "2.0.0-beta.1"
+actix-service = "2.0.0-beta.2"
 actix-codec = "0.4.0-beta.1"
-actix-tls = "3.0.0-beta.1"
+actix-tls = "3.0.0-beta.2"
 actix-utils = "3.0.0-beta.1"
 actix-rt = "2.0.0-beta.1"
-actix-server = "2.0.0-beta.1"
+actix-server = "2.0.0-beta.2"
 awc = "2.0.0"
 
 base64 = "0.13"
