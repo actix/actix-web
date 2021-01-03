@@ -3,8 +3,10 @@
 ## Unreleased - 2021-xx-xx
 ### Changed
 * Bumped `rand` to `0.8`.
+* Update `actix-*` dependencies to tokio `1.0` based versions. [#1813]
 * Update `bytes` to `1.0`. [#1813]
 * Update `h2` to `0.3`. [#1813]
+
 
 [#1813]: https://github.com/actix/actix-web/pull/1813
 

@@ -2,6 +2,7 @@
 
 ## Unreleased - 2021-xx-xx
 ### Changed
+* Update `actix-*` dependencies to tokio `1.0` based versions. [#1813]
 * Bumped `rand` to `0.8`.
 * Update `rust-tls` to `0.19`. [#1813]
 * Rename `Handler` to `HandlerService` and rename `Factory` to `Handler`. [#1852]
