@@ -1,7 +1,10 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Changed
 * `Response::content_type` now takes an `impl IntoHeaderValue` to support `mime` types. [#1894]
+* `Response::set` and `Response::header` methods; use the respective `Response::set_header` and
+  `Response::append_header` methods. [#1869]
 
 [#1894]: https://github.com/actix/actix-web/pull/1894
 
@@ -32,7 +35,12 @@
 [#1813]: https://github.com/actix/actix-web/pull/1813
 [#1857]: https://github.com/actix/actix-web/pull/1857
 [#1864]: https://github.com/actix/actix-web/pull/1864
+<<<<<<< HEAD
 [#1878]: https://github.com/actix/actix-web/pull/1878
+=======
+[#1869]: https://github.com/actix/actix-web/pull/1869
+
+>>>>>>> 587000a2... add IntoHeaderPair trait
 
 ## 2.2.0 - 2020-11-25
 ### Added

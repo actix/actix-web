@@ -7,7 +7,7 @@ use http::header::{HeaderName, HeaderValue};
 /// A set of HTTP headers
 ///
 /// `HeaderMap` is an multi-map of [`HeaderName`] to values.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct HeaderMap {
     pub(crate) inner: AHashMap<HeaderName, Value>,
 }

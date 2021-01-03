@@ -1,16 +1,17 @@
 //! Various HTTP headers.
 
-use std::{convert::TryFrom, fmt, str::FromStr};
+use std::{fmt, str::FromStr};
 
 use bytes::{Bytes, BytesMut};
-use http::Error as HttpError;
-use mime::Mime;
 use percent_encoding::{AsciiSet, CONTROLS};
 
 pub use http::header::*;
 
 use crate::error::ParseError;
 use crate::httpmessage::HttpMessage;
+
+mod into_pair;
+mod into_value;
 
 mod common;
 pub(crate) mod map;
@@ -19,112 +20,19 @@ pub use self::common::*;
 #[doc(hidden)]
 pub use self::shared::*;
 
+pub use self::into_pair::IntoHeaderPair;
+pub use self::into_value::IntoHeaderValue;
 #[doc(hidden)]
 pub use self::map::GetAll;
 pub use self::map::HeaderMap;
 
-/// A trait for any object that will represent a header field and value.
-pub trait Header
-where
-    Self: IntoHeaderValue,
-{
+/// A trait for any object that already represents a valid header field and value.
+pub trait Header: IntoHeaderValue {
     /// Returns the name of the header field
     fn name() -> HeaderName;
 
     /// Parse a header
     fn parse<T: HttpMessage>(msg: &T) -> Result<Self, ParseError>;
-}
-
-/// A trait for any object that can be Converted to a `HeaderValue`
-pub trait IntoHeaderValue: Sized {
-    /// The type returned in the event of a conversion error.
-    type Error: Into<HttpError>;
-
-    /// Try to convert value to a Header value.
-    fn try_into(self) -> Result<HeaderValue, Self::Error>;
-}
-
-impl IntoHeaderValue for HeaderValue {
-    type Error = InvalidHeaderValue;
-
-    #[inline]
-    fn try_into(self) -> Result<HeaderValue, Self::Error> {
-        Ok(self)
-    }
-}
-
-impl<'a> IntoHeaderValue for &'a str {
-    type Error = InvalidHeaderValue;
-
-    #[inline]
-    fn try_into(self) -> Result<HeaderValue, Self::Error> {
-        self.parse()
-    }
-}
-
-impl<'a> IntoHeaderValue for &'a [u8] {
-    type Error = InvalidHeaderValue;
-
-    #[inline]
-    fn try_into(self) -> Result<HeaderValue, Self::Error> {
-        HeaderValue::from_bytes(self)
-    }
-}
-
-impl IntoHeaderValue for Bytes {
-    type Error = InvalidHeaderValue;
-
-    #[inline]
-    fn try_into(self) -> Result<HeaderValue, Self::Error> {
-        HeaderValue::from_maybe_shared(self)
-    }
-}
-
-impl IntoHeaderValue for Vec<u8> {
-    type Error = InvalidHeaderValue;
-
-    #[inline]
-    fn try_into(self) -> Result<HeaderValue, Self::Error> {
-        HeaderValue::try_from(self)
-    }
-}
-
-impl IntoHeaderValue for String {
-    type Error = InvalidHeaderValue;
-
-    #[inline]
-    fn try_into(self) -> Result<HeaderValue, Self::Error> {
-        HeaderValue::try_from(self)
-    }
-}
-
-impl IntoHeaderValue for usize {
-    type Error = InvalidHeaderValue;
-
-    #[inline]
-    fn try_into(self) -> Result<HeaderValue, Self::Error> {
-        let s = format!("{}", self);
-        HeaderValue::try_from(s)
-    }
-}
-
-impl IntoHeaderValue for u64 {
-    type Error = InvalidHeaderValue;
-
-    #[inline]
-    fn try_into(self) -> Result<HeaderValue, Self::Error> {
-        let s = format!("{}", self);
-        HeaderValue::try_from(s)
-    }
-}
-
-impl IntoHeaderValue for Mime {
-    type Error = InvalidHeaderValue;
-
-    #[inline]
-    fn try_into(self) -> Result<HeaderValue, Self::Error> {
-        HeaderValue::try_from(format!("{}", self))
-    }
 }
 
 /// Represents supported types of content encodings

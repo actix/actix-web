@@ -42,14 +42,13 @@ use crate::httpmessage::HttpMessage;
 /// let mut builder = Response::Ok();
 /// builder.set(IfRange::EntityTag(EntityTag::new(
 ///     false,
-///     "xyzzy".to_owned(),
+///     "abc".to_owned(),
 /// )));
 /// ```
 ///
 /// ```rust
-/// use actix_http::Response;
-/// use actix_http::http::header::IfRange;
 /// use std::time::{Duration, SystemTime};
+/// use actix_http::{http::header::IfRange, Response};
 ///
 /// let mut builder = Response::Ok();
 /// let fetched = SystemTime::now() - Duration::from_secs(60 * 60 * 24);
@@ -57,9 +56,10 @@ use crate::httpmessage::HttpMessage;
 /// ```
 #[derive(Clone, Debug, PartialEq)]
 pub enum IfRange {
-    /// The entity-tag the client has of the resource
+    /// The entity-tag the client has of the resource.
     EntityTag(EntityTag),
-    /// The date when the client retrieved the resource
+
+    /// The date when the client retrieved the resource.
     Date(HttpDate),
 }
 

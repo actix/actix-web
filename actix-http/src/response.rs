@@ -14,7 +14,7 @@ use crate::body::{Body, BodyStream, MessageBody, ResponseBody};
 use crate::cookie::{Cookie, CookieJar};
 use crate::error::Error;
 use crate::extensions::Extensions;
-use crate::header::{Header, IntoHeaderValue};
+use crate::header::{Header, IntoHeaderPair, IntoHeaderValue};
 use crate::http::header::{self, HeaderName, HeaderValue};
 use crate::http::{Error as HttpError, HeaderMap, StatusCode};
 use crate::message::{BoxedResponseHead, ConnectionType, ResponseHead};
@@ -399,35 +399,57 @@ impl ResponseBuilder {
         self
     }
 
-    /// Set a header.
+    /// Insert a header, replacing any that existed with an equivalent field name.
     ///
     /// ```rust
     /// use actix_http::{http, Request, Response};
     ///
     /// fn index(req: Request) -> Response {
     ///     Response::Ok()
-    ///         .set_header("X-TEST", "value")
-    ///         .set_header(http::header::CONTENT_TYPE, "application/json")
+    ///         .set_header(("X-TEST", "value"))
+    ///         .set_header(ContentType(mime::APPLICATION_JSON))
     ///         .finish()
     /// }
     /// ```
-    pub fn set_header<K, V>(&mut self, key: K, value: V) -> &mut Self
+    pub fn insert_header<H>(&mut self, header: H) -> &mut Self
     where
-        HeaderName: TryFrom<K>,
-        <HeaderName as TryFrom<K>>::Error: Into<HttpError>,
-        V: IntoHeaderValue,
+        H: IntoHeaderPair,
+        H::Error: Into<HttpError>,
     {
         if let Some(parts) = parts(&mut self.head, &self.err) {
-            match HeaderName::try_from(key) {
-                Ok(key) => match value.try_into() {
-                    Ok(value) => {
-                        parts.headers.insert(key, value);
-                    }
-                    Err(e) => self.err = Some(e.into()),
-                },
+            match header.try_into_header_pair() {
+                Ok((key, value)) => parts.headers.insert(key, value),
                 Err(e) => self.err = Some(e.into()),
             };
         }
+
+        self
+    }
+
+    /// Append a header, keeping any that existed with an equivalent field name.
+    ///
+    /// ```rust
+    /// use actix_http::{http, Request, Response};
+    ///
+    /// fn index(req: Request) -> Response {
+    ///     Response::Ok()
+    ///         .append_header(("X-TEST", "value"))
+    ///         .append_header(ContentType(mime::APPLICATION_JSON))
+    ///         .finish()
+    /// }
+    /// ```
+    pub fn append_header<H>(&mut self, header: H) -> &mut Self
+    where
+        H: IntoHeaderPair,
+        H::Error: Into<HttpError>,
+    {
+        if let Some(parts) = parts(&mut self.head, &self.err) {
+            match header.try_into_header_pair() {
+                Ok((key, value)) => parts.headers.append(key, value),
+                Err(e) => self.err = Some(e.into()),
+            };
+        }
+
         self
     }
 
@@ -458,7 +480,13 @@ impl ResponseBuilder {
         if let Some(parts) = parts(&mut self.head, &self.err) {
             parts.set_connection_type(ConnectionType::Upgrade);
         }
-        self.set_header(header::UPGRADE, value)
+
+        // TODO: fix signature
+        if let Ok(value) = value.try_into() {
+            self.insert_header((header::UPGRADE, value));
+        }
+
+        self
     }
 
     /// Force close connection, even if it is marked as keep-alive

@@ -1,4 +1,4 @@
-//! Copied for `hyper::header::shared`;
+//! Originally taken from `hyper::header::shared`.
 
 pub use self::charset::Charset;
 pub use self::encoding::Encoding;

@@ -13,7 +13,7 @@ use crate::payload::Payload;
 
 struct Cookies(Vec<Cookie<'static>>);
 
-/// Trait that implements general purpose operations on http messages
+/// Trait that implements general purpose operations on HTTP messages.
 pub trait HttpMessage: Sized {
     /// Type of message payload stream
     type Stream;
@@ -30,8 +30,8 @@ pub trait HttpMessage: Sized {
     /// Mutable reference to a the request's extensions container
     fn extensions_mut(&self) -> RefMut<'_, Extensions>;
 
+    /// Get a header.
     #[doc(hidden)]
-    /// Get a header
     fn get_header<H: Header>(&self) -> Option<H>
     where
         Self: Sized,
@@ -43,8 +43,8 @@ pub trait HttpMessage: Sized {
         }
     }
 
-    /// Read the request content type. If request does not contain
-    /// *Content-Type* header, empty str get returned.
+    /// Read the request content type. If request did not contain a *Content-Type* header, an empty
+    /// string is returned.
     fn content_type(&self) -> &str {
         if let Some(content_type) = self.headers().get(header::CONTENT_TYPE) {
             if let Ok(content_type) = content_type.to_str() {
@@ -90,7 +90,7 @@ pub trait HttpMessage: Sized {
         Ok(None)
     }
 
-    /// Check if request has chunked transfer encoding
+    /// Check if request has chunked transfer encoding.
     fn chunked(&self) -> Result<bool, ParseError> {
         if let Some(encodings) = self.headers().get(header::TRANSFER_ENCODING) {
             if let Ok(s) = encodings.to_str() {
