@@ -73,11 +73,12 @@ impl ServiceRequest {
         mut req: HttpRequest,
         pl: Payload,
     ) -> Result<Self, (HttpRequest, Payload)> {
-        if Rc::strong_count(&req.0) == 1 && Rc::weak_count(&req.0) == 0 {
-            Rc::get_mut(&mut req.0).unwrap().payload = pl;
-            Ok(ServiceRequest(req))
-        } else {
-            Err((req, pl))
+        match Rc::get_mut(&mut req.0) {
+            Some(p) => {
+                p.payload = pl;
+                Ok(ServiceRequest(req))
+            }
+            None => Err((req, pl)),
         }
     }
 
@@ -87,7 +88,9 @@ impl ServiceRequest {
     /// can be re-constructed only if rc's strong pointers count eq 1 and
     /// weak pointers count is 0.
     pub fn from_request(req: HttpRequest) -> Result<Self, HttpRequest> {
-        if Rc::strong_count(&req.0) == 1 && Rc::weak_count(&req.0) == 0 {
+        // There is no weak pointer used on HttpRequest so intentionally
+        // ignore the check.
+        if Rc::strong_count(&req.0) == 1 {
             Ok(ServiceRequest(req))
         } else {
             Err(req)
