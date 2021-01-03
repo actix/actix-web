@@ -18,6 +18,7 @@ pub use self::content_disposition::{
 };
 pub use self::content_language::ContentLanguage;
 pub use self::content_range::{ContentRange, ContentRangeSpec};
+pub use self::content_encoding::{ContentEncoding};
 pub use self::content_type::ContentType;
 pub use self::date::Date;
 pub use self::etag::ETag;
@@ -340,6 +341,7 @@ mod allow;
 mod cache_control;
 mod content_disposition;
 mod content_language;
+mod content_encoding;
 mod content_range;
 mod content_type;
 mod date;

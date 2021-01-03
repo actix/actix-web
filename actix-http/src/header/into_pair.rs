@@ -6,7 +6,7 @@ use http::{
     HeaderValue,
 };
 
-/// A trait for transforming things
+/// Transforms structures into header K/V pairs for inserting into `HeaderMap`s.
 pub trait IntoHeaderPair: Sized {
     type Error;
 

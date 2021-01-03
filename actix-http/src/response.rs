@@ -1,10 +1,14 @@
-//! Http response
-use std::cell::{Ref, RefMut};
-use std::convert::TryFrom;
-use std::future::Future;
-use std::pin::Pin;
-use std::task::{Context, Poll};
-use std::{fmt, str};
+//! HTTP responses.
+
+use std::{
+    cell::{Ref, RefMut},
+    convert::TryFrom,
+    fmt,
+    future::Future,
+    pin::Pin,
+    str,
+    task::{Context, Poll},
+};
 
 use bytes::{Bytes, BytesMut};
 use futures_core::Stream;
