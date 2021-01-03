@@ -6,17 +6,16 @@
 * Upgrade `bytes` to `1`
 * Upgrade `h2` to `0.3`
 
-
 ### Removed
 * Deprecated `on_connect` methods have been removed. Prefer the new
   `on_connect_ext` technique. [#1857]
 * Remove `ResponseError` impl for `actix::actors::resolver::ResolverError`
   due to deprecate of resolver actor. [#1813]
-* Remove `ConnectError::SslHandshakeError` and re-export of `openssl::HandshakeError`.
-  due to the removal of this type from `openssl` crate. openssl handshake error would 
-  return as `ConnectError::SslError`. [#1813]
+* Remove `ConnectError::SslHandshakeError` and re-export of `HandshakeError`.
+  due to the removal of this type from `tokio-openssl` crate. openssl handshake 
+  error would return as `ConnectError::SslError`. [#1813]
 
-[#1813]: https://github.com/actix/actix-web/pull/1857
+[#1813]: https://github.com/actix/actix-web/pull/1813
 [#1857]: https://github.com/actix/actix-web/pull/1857
 
 
@@ -25,9 +24,6 @@
 * HttpResponse builders for 1xx status codes. [#1768]
 * `Accept::mime_precedence` and `Accept::mime_preference`. [#1793]
 * `TryFrom<u16>` and `TryFrom<f32>` for `http::header::Quality`. [#1797]
-
-### Changed
-* Upgrade `bytes` to `0.6`. 
 
 ### Fixed
 * Started dropping `transfer-encoding: chunked` and `Content-Length` for 1XX and 204 responses. [#1767]
