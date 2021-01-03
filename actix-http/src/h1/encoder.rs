@@ -532,30 +532,29 @@ unsafe fn write_data(value: &[u8], buf: *mut u8, len: usize) {
 }
 
 fn write_camel_case(value: &[u8], buffer: &mut [u8]) {
-    let mut index = 0;
-    let key = value;
-    let mut key_iter = key.iter();
+    // first copy entire (potentially wrong) slice to output
+    buffer[..value.len()].copy_from_slice(value);
 
-    if let Some(c) = key_iter.next() {
-        if *c >= b'a' && *c <= b'z' {
-            buffer[index] = *c ^ b' ';
-            index += 1;
-        }
-    } else {
-        return;
+    let mut iter = value.iter();
+
+    // first character should be uppercase
+    if let Some(c @ b'a'..=b'z') = iter.next() {
+        buffer[0] = c & 0b1101_1111;
     }
 
-    while let Some(c) = key_iter.next() {
-        buffer[index] = *c;
-        index += 1;
-        if *c == b'-' {
-            if let Some(c) = key_iter.next() {
-                if *c >= b'a' && *c <= b'z' {
-                    buffer[index] = *c ^ b' ';
-                    index += 1;
-                }
+    // track 1 ahead of the current position since that's the location being assigned to
+    let mut index = 2;
+
+    // remaining characters after hyphens should also be uppercase
+    while let Some(&c) = iter.next() {
+        if c == b'-' {
+            // advance iter by one and uppercase if needed
+            if let Some(c @ b'a'..=b'z') = iter.next() {
+                buffer[index] = c & 0b1101_1111;
             }
         }
+
+        index += 1;
     }
 }
 
@@ -604,6 +603,8 @@ mod tests {
         );
         let data =
             String::from_utf8(Vec::from(bytes.split().freeze().as_ref())).unwrap();
+        eprintln!("{}", &data);
+
         assert!(data.contains("Content-Length: 0\r\n"));
         assert!(data.contains("Connection: close\r\n"));
         assert!(data.contains("Content-Type: plain/text\r\n"));
