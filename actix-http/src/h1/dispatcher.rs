@@ -8,7 +8,7 @@ use std::{
 };
 
 use actix_codec::{AsyncRead, AsyncWrite, Decoder, Encoder, Framed, FramedParts};
-use actix_rt::time::{delay_until, Delay, Instant};
+use actix_rt::time::{sleep_until, Instant, Sleep};
 use actix_service::Service;
 use bitflags::bitflags;
 use bytes::{Buf, BytesMut};
@@ -51,12 +51,12 @@ bitflags! {
 /// Dispatcher for HTTP/1.1 protocol
 pub struct Dispatcher<T, S, B, X, U>
 where
-    S: Service<Request = Request>,
+    S: Service<Request>,
     S::Error: Into<Error>,
     B: MessageBody,
-    X: Service<Request = Request, Response = Request>,
+    X: Service<Request, Response = Request>,
     X::Error: Into<Error>,
-    U: Service<Request = (Request, Framed<T, Codec>), Response = ()>,
+    U: Service<(Request, Framed<T, Codec>), Response = ()>,
     U::Error: fmt::Display,
 {
     #[pin]
@@ -69,12 +69,12 @@ where
 #[pin_project(project = DispatcherStateProj)]
 enum DispatcherState<T, S, B, X, U>
 where
-    S: Service<Request = Request>,
+    S: Service<Request>,
     S::Error: Into<Error>,
     B: MessageBody,
-    X: Service<Request = Request, Response = Request>,
+    X: Service<Request, Response = Request>,
     X::Error: Into<Error>,
-    U: Service<Request = (Request, Framed<T, Codec>), Response = ()>,
+    U: Service<(Request, Framed<T, Codec>), Response = ()>,
     U::Error: fmt::Display,
 {
     Normal(#[pin] InnerDispatcher<T, S, B, X, U>),
@@ -84,12 +84,12 @@ where
 #[pin_project(project = InnerDispatcherProj)]
 struct InnerDispatcher<T, S, B, X, U>
 where
-    S: Service<Request = Request>,
+    S: Service<Request>,
     S::Error: Into<Error>,
     B: MessageBody,
-    X: Service<Request = Request, Response = Request>,
+    X: Service<Request, Response = Request>,
     X::Error: Into<Error>,
-    U: Service<Request = (Request, Framed<T, Codec>), Response = ()>,
+    U: Service<(Request, Framed<T, Codec>), Response = ()>,
     U::Error: fmt::Display,
 {
     service: CloneableService<S>,
@@ -106,7 +106,8 @@ where
     messages: VecDeque<DispatcherMessage>,
 
     ka_expire: Instant,
-    ka_timer: Option<Delay>,
+    #[pin]
+    ka_timer: Option<Sleep>,
 
     io: Option<T>,
     read_buf: BytesMut,
@@ -123,8 +124,8 @@ enum DispatcherMessage {
 #[pin_project(project = StateProj)]
 enum State<S, B, X>
 where
-    S: Service<Request = Request>,
-    X: Service<Request = Request, Response = Request>,
+    S: Service<Request>,
+    X: Service<Request, Response = Request>,
     B: MessageBody,
 {
     None,
@@ -135,8 +136,8 @@ where
 
 impl<S, B, X> State<S, B, X>
 where
-    S: Service<Request = Request>,
-    X: Service<Request = Request, Response = Request>,
+    S: Service<Request>,
+    X: Service<Request, Response = Request>,
     B: MessageBody,
 {
     fn is_empty(&self) -> bool {
@@ -166,13 +167,13 @@ impl PartialEq for PollResponse {
 impl<T, S, B, X, U> Dispatcher<T, S, B, X, U>
 where
     T: AsyncRead + AsyncWrite + Unpin,
-    S: Service<Request = Request>,
+    S: Service<Request>,
     S::Error: Into<Error>,
     S::Response: Into<Response<B>>,
     B: MessageBody,
-    X: Service<Request = Request, Response = Request>,
+    X: Service<Request, Response = Request>,
     X::Error: Into<Error>,
-    U: Service<Request = (Request, Framed<T, Codec>), Response = ()>,
+    U: Service<(Request, Framed<T, Codec>), Response = ()>,
     U::Error: fmt::Display,
 {
     /// Create HTTP/1 dispatcher.
@@ -205,7 +206,7 @@ where
         codec: Codec,
         config: ServiceConfig,
         read_buf: BytesMut,
-        timeout: Option<Delay>,
+        timeout: Option<Sleep>,
         service: CloneableService<S>,
         expect: CloneableService<X>,
         upgrade: Option<CloneableService<U>>,
@@ -257,13 +258,13 @@ where
 impl<T, S, B, X, U> InnerDispatcher<T, S, B, X, U>
 where
     T: AsyncRead + AsyncWrite + Unpin,
-    S: Service<Request = Request>,
+    S: Service<Request>,
     S::Error: Into<Error>,
     S::Response: Into<Response<B>>,
     B: MessageBody,
-    X: Service<Request = Request, Response = Request>,
+    X: Service<Request, Response = Request>,
     X::Error: Into<Error>,
-    U: Service<Request = (Request, Framed<T, Codec>), Response = ()>,
+    U: Service<(Request, Framed<T, Codec>), Response = ()>,
     U::Error: fmt::Display,
 {
     fn can_read(&self, cx: &mut Context<'_>) -> bool {
@@ -660,7 +661,7 @@ where
             // shutdown timeout
             if this.flags.contains(Flags::SHUTDOWN) {
                 if let Some(interval) = this.codec.config().client_disconnect_timer() {
-                    *this.ka_timer = Some(delay_until(interval));
+                    this.ka_timer.set(Some(sleep_until(interval)));
                 } else {
                     this.flags.insert(Flags::READ_DISCONNECT);
                     if let Some(mut payload) = this.payload.take() {
@@ -673,12 +674,14 @@ where
             }
         }
 
-        match Pin::new(&mut this.ka_timer.as_mut().unwrap()).poll(cx) {
+        match this.ka_timer.as_mut().as_pin_mut().unwrap().poll(cx) {
             Poll::Ready(()) => {
                 // if we get timeout during shutdown, drop connection
                 if this.flags.contains(Flags::SHUTDOWN) {
                     return Err(DispatchError::DisconnectTimeout);
-                } else if this.ka_timer.as_mut().unwrap().deadline() >= *this.ka_expire {
+                } else if this.ka_timer.as_mut().as_pin_mut().unwrap().deadline()
+                    >= *this.ka_expire
+                {
                     // check for any outstanding tasks
                     if this.state.is_empty() && this.write_buf.is_empty() {
                         if this.flags.contains(Flags::STARTED) {
@@ -689,9 +692,15 @@ where
                             if let Some(deadline) =
                                 this.codec.config().client_disconnect_timer()
                             {
-                                if let Some(mut timer) = this.ka_timer.as_mut() {
+                                if let Some(timer) = this.ka_timer.as_mut().as_pin_mut()
+                                {
                                     timer.reset(deadline);
-                                    let _ = Pin::new(&mut timer).poll(cx);
+                                    let _ = this
+                                        .ka_timer
+                                        .as_mut()
+                                        .as_pin_mut()
+                                        .unwrap()
+                                        .poll(cx);
                                 }
                             } else {
                                 // no shutdown timeout, drop socket
@@ -716,14 +725,15 @@ where
                     } else if let Some(deadline) =
                         this.codec.config().keep_alive_expire()
                     {
-                        if let Some(mut timer) = this.ka_timer.as_mut() {
+                        if let Some(timer) = this.ka_timer.as_mut().as_pin_mut() {
                             timer.reset(deadline);
-                            let _ = Pin::new(&mut timer).poll(cx);
+                            let _ =
+                                this.ka_timer.as_mut().as_pin_mut().unwrap().poll(cx);
                         }
                     }
-                } else if let Some(mut timer) = this.ka_timer.as_mut() {
+                } else if let Some(timer) = this.ka_timer.as_mut().as_pin_mut() {
                     timer.reset(*this.ka_expire);
-                    let _ = Pin::new(&mut timer).poll(cx);
+                    let _ = this.ka_timer.as_mut().as_pin_mut().unwrap().poll(cx);
                 }
             }
             Poll::Pending => (),
@@ -736,13 +746,13 @@ where
 impl<T, S, B, X, U> Future for Dispatcher<T, S, B, X, U>
 where
     T: AsyncRead + AsyncWrite + Unpin,
-    S: Service<Request = Request>,
+    S: Service<Request>,
     S::Error: Into<Error>,
     S::Response: Into<Response<B>>,
     B: MessageBody,
-    X: Service<Request = Request, Response = Request>,
+    X: Service<Request, Response = Request>,
     X::Error: Into<Error>,
-    U: Service<Request = (Request, Framed<T, Codec>), Response = ()>,
+    U: Service<(Request, Framed<T, Codec>), Response = ()>,
     U::Error: fmt::Display,
 {
     type Output = Result<(), DispatchError>;
@@ -951,12 +961,12 @@ fn read<T>(
 where
     T: AsyncRead + Unpin,
 {
-    Pin::new(io).poll_read_buf(cx, buf)
+    actix_codec::poll_read_buf(Pin::new(io), cx, buf)
 }
 
 #[cfg(test)]
 mod tests {
-    use std::{marker::PhantomData, str};
+    use std::str;
 
     use actix_service::fn_service;
     use futures_util::future::{lazy, ready};
@@ -985,21 +995,19 @@ mod tests {
         }
     }
 
-    fn ok_service() -> impl Service<Request = Request, Response = Response, Error = Error>
-    {
+    fn ok_service() -> impl Service<Request, Response = Response, Error = Error> {
         fn_service(|_req: Request| ready(Ok::<_, Error>(Response::Ok().finish())))
     }
 
-    fn echo_path_service(
-    ) -> impl Service<Request = Request, Response = Response, Error = Error> {
+    fn echo_path_service() -> impl Service<Request, Response = Response, Error = Error> {
         fn_service(|req: Request| {
             let path = req.path().as_bytes();
             ready(Ok::<_, Error>(Response::Ok().body(Body::from_slice(path))))
         })
     }
 
-    fn echo_payload_service(
-    ) -> impl Service<Request = Request, Response = Response, Error = Error> {
+    fn echo_payload_service() -> impl Service<Request, Response = Response, Error = Error>
+    {
         fn_service(|mut req: Request| {
             Box::pin(async move {
                 use futures_util::stream::StreamExt as _;
@@ -1007,7 +1015,7 @@ mod tests {
                 let mut pl = req.take_payload();
                 let mut body = BytesMut::new();
                 while let Some(chunk) = pl.next().await {
-                    body.extend_from_slice(chunk.unwrap().bytes())
+                    body.extend_from_slice(chunk.unwrap().chunk())
                 }
 
                 Ok::<_, Error>(Response::Ok().body(body))
@@ -1020,7 +1028,7 @@ mod tests {
         lazy(|cx| {
             let buf = TestBuffer::new("GET /test HTTP/1\r\n\r\n");
 
-            let h1 = Dispatcher::<_, _, _, _, UpgradeHandler<TestBuffer>>::new(
+            let h1 = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
                 buf,
                 ServiceConfig::default(),
                 CloneableService::new(ok_service()),
@@ -1060,7 +1068,7 @@ mod tests {
 
             let cfg = ServiceConfig::new(KeepAlive::Disabled, 1, 1, false, None);
 
-            let h1 = Dispatcher::<_, _, _, _, UpgradeHandler<TestBuffer>>::new(
+            let h1 = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
                 buf,
                 cfg,
                 CloneableService::new(echo_path_service()),
@@ -1114,7 +1122,7 @@ mod tests {
 
             let cfg = ServiceConfig::new(KeepAlive::Disabled, 1, 1, false, None);
 
-            let h1 = Dispatcher::<_, _, _, _, UpgradeHandler<TestBuffer>>::new(
+            let h1 = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
                 buf,
                 cfg,
                 CloneableService::new(echo_path_service()),
@@ -1163,7 +1171,7 @@ mod tests {
         lazy(|cx| {
             let mut buf = TestSeqBuffer::empty();
             let cfg = ServiceConfig::new(KeepAlive::Disabled, 0, 0, false, None);
-            let h1 = Dispatcher::<_, _, _, _, UpgradeHandler<_>>::new(
+            let h1 = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
                 buf.clone(),
                 cfg,
                 CloneableService::new(echo_payload_service()),
@@ -1234,7 +1242,7 @@ mod tests {
         lazy(|cx| {
             let mut buf = TestSeqBuffer::empty();
             let cfg = ServiceConfig::new(KeepAlive::Disabled, 0, 0, false, None);
-            let h1 = Dispatcher::<_, _, _, _, UpgradeHandler<_>>::new(
+            let h1 = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
                 buf.clone(),
                 cfg,
                 CloneableService::new(echo_path_service()),
@@ -1293,12 +1301,12 @@ mod tests {
         lazy(|cx| {
             let mut buf = TestSeqBuffer::empty();
             let cfg = ServiceConfig::new(KeepAlive::Disabled, 0, 0, false, None);
-            let h1 = Dispatcher::<_, _, _, _, UpgradeHandler<_>>::new(
+            let h1 = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
                 buf.clone(),
                 cfg,
                 CloneableService::new(ok_service()),
                 CloneableService::new(ExpectHandler),
-                Some(CloneableService::new(UpgradeHandler(PhantomData))),
+                Some(CloneableService::new(UpgradeHandler)),
                 Extensions::new(),
                 None,
             );

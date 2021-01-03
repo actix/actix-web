@@ -6,7 +6,7 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 
 use actix_codec::{AsyncRead, AsyncWrite};
-use actix_rt::time::{Delay, Instant};
+use actix_rt::time::{Instant, Sleep};
 use actix_service::Service;
 use bytes::{Bytes, BytesMut};
 use h2::server::{Connection, SendResponse};
@@ -29,9 +29,11 @@ const CHUNK_SIZE: usize = 16_384;
 
 /// Dispatcher for HTTP/2 protocol
 #[pin_project::pin_project]
-pub struct Dispatcher<T, S: Service<Request = Request>, B: MessageBody>
+pub struct Dispatcher<T, S, B>
 where
     T: AsyncRead + AsyncWrite + Unpin,
+    S: Service<Request>,
+    B: MessageBody,
 {
     service: CloneableService<S>,
     connection: Connection<T, Bytes>,
@@ -39,14 +41,14 @@ where
     config: ServiceConfig,
     peer_addr: Option<net::SocketAddr>,
     ka_expire: Instant,
-    ka_timer: Option<Delay>,
+    ka_timer: Option<Sleep>,
     _t: PhantomData<B>,
 }
 
 impl<T, S, B> Dispatcher<T, S, B>
 where
     T: AsyncRead + AsyncWrite + Unpin,
-    S: Service<Request = Request>,
+    S: Service<Request>,
     S::Error: Into<Error>,
     // S::Future: 'static,
     S::Response: Into<Response<B>>,
@@ -57,7 +59,7 @@ where
         connection: Connection<T, Bytes>,
         on_connect_data: Extensions,
         config: ServiceConfig,
-        timeout: Option<Delay>,
+        timeout: Option<Sleep>,
         peer_addr: Option<net::SocketAddr>,
     ) -> Self {
         // let keepalive = config.keep_alive_enabled();
@@ -92,7 +94,7 @@ where
 impl<T, S, B> Future for Dispatcher<T, S, B>
 where
     T: AsyncRead + AsyncWrite + Unpin,
-    S: Service<Request = Request>,
+    S: Service<Request>,
     S::Error: Into<Error> + 'static,
     S::Future: 'static,
     S::Response: Into<Response<B>> + 'static,

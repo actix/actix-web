@@ -82,14 +82,13 @@ where
     }
 }
 
-impl<F, T, R> ServiceFactory for HandlerService<F, T, R>
+impl<F, T, R> ServiceFactory<ServiceRequest> for HandlerService<F, T, R>
 where
     F: Handler<T, R>,
     T: FromRequest,
     R: Future,
     R::Output: Responder,
 {
-    type Request = ServiceRequest;
     type Response = ServiceResponse;
     type Error = Error;
     type Config = ();
@@ -102,15 +101,14 @@ where
     }
 }
 
-// Handler is both it's ServiceHandler and Service Type.
-impl<F, T, R> Service for HandlerService<F, T, R>
+// HandlerService is both it's ServiceFactory and Service Type.
+impl<F, T, R> Service<ServiceRequest> for HandlerService<F, T, R>
 where
     F: Handler<T, R>,
     T: FromRequest,
     R: Future,
     R::Output: Responder,
 {
-    type Request = ServiceRequest;
     type Response = ServiceResponse;
     type Error = Error;
     type Future = HandlerServiceFuture<F, T, R>;
@@ -119,7 +117,7 @@ where
         Poll::Ready(Ok(()))
     }
 
-    fn call(&mut self, req: Self::Request) -> Self::Future {
+    fn call(&mut self, req: ServiceRequest) -> Self::Future {
         let (req, mut payload) = req.into_parts();
         let fut = T::from_request(&req, &mut payload);
         HandlerServiceFuture::Extract(fut, Some(req), self.hnd.clone())

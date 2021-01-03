@@ -2,7 +2,11 @@
 
 ## Unreleased - 2021-xx-xx
 ### Changed
-* Bumped `rand` to `0.8`
+* Update `rand` to `0.8`
+* Update `bytes` to `1.0`. [#1813]
+* Update `rust-tls` to `0.19`. [#1813]
+
+[#1813]: https://github.com/actix/actix-web/pull/1813
 
 
 ## 2.0.3 - 2020-11-29

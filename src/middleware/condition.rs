@@ -31,19 +31,18 @@ impl<T> Condition<T> {
     }
 }
 
-impl<S, T> Transform<S> for Condition<T>
+impl<S, T, Req> Transform<S, Req> for Condition<T>
 where
-    S: Service + 'static,
-    T: Transform<S, Request = S::Request, Response = S::Response, Error = S::Error>,
+    S: Service<Req> + 'static,
+    T: Transform<S, Req, Response = S::Response, Error = S::Error>,
     T::Future: 'static,
     T::InitError: 'static,
     T::Transform: 'static,
 {
-    type Request = S::Request;
     type Response = S::Response;
     type Error = S::Error;
-    type InitError = T::InitError;
     type Transform = ConditionMiddleware<T::Transform, S>;
+    type InitError = T::InitError;
     type Future = LocalBoxFuture<'static, Result<Self::Transform, Self::InitError>>;
 
     fn new_transform(&self, service: S) -> Self::Future {
@@ -66,12 +65,11 @@ pub enum ConditionMiddleware<E, D> {
     Disable(D),
 }
 
-impl<E, D> Service for ConditionMiddleware<E, D>
+impl<E, D, Req> Service<Req> for ConditionMiddleware<E, D>
 where
-    E: Service,
-    D: Service<Request = E::Request, Response = E::Response, Error = E::Error>,
+    E: Service<Req>,
+    D: Service<Req, Response = E::Response, Error = E::Error>,
 {
-    type Request = E::Request;
     type Response = E::Response;
     type Error = E::Error;
     type Future = Either<E::Future, D::Future>;
@@ -84,7 +82,7 @@ where
         }
     }
 
-    fn call(&mut self, req: E::Request) -> Self::Future {
+    fn call(&mut self, req: Req) -> Self::Future {
         use ConditionMiddleware::*;
         match self {
             Enable(service) => Either::Left(service.call(req)),

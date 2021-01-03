@@ -88,17 +88,16 @@ async fn route_test() -> impl Responder {
 
 pub struct ChangeStatusCode;
 
-impl<S, B> Transform<S> for ChangeStatusCode
+impl<S, B> Transform<S, ServiceRequest> for ChangeStatusCode
 where
-    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
     S::Future: 'static,
     B: 'static,
 {
-    type Request = ServiceRequest;
     type Response = ServiceResponse<B>;
     type Error = Error;
-    type InitError = ();
     type Transform = ChangeStatusCodeMiddleware<S>;
+    type InitError = ();
     type Future = future::Ready<Result<Self::Transform, Self::InitError>>;
 
     fn new_transform(&self, service: S) -> Self::Future {
@@ -110,13 +109,12 @@ pub struct ChangeStatusCodeMiddleware<S> {
     service: S,
 }
 
-impl<S, B> Service for ChangeStatusCodeMiddleware<S>
+impl<S, B> Service<ServiceRequest> for ChangeStatusCodeMiddleware<S>
 where
-    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
     S::Future: 'static,
     B: 'static,
 {
-    type Request = ServiceRequest;
     type Response = ServiceResponse<B>;
     type Error = Error;
     #[allow(clippy::type_complexity)]

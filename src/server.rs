@@ -20,9 +20,9 @@ use actix_service::pipeline_factory;
 use futures_util::future::ok;
 
 #[cfg(feature = "openssl")]
-use actix_tls::openssl::{AlpnError, SslAcceptor, SslAcceptorBuilder};
+use actix_tls::accept::openssl::{AlpnError, SslAcceptor, SslAcceptorBuilder};
 #[cfg(feature = "rustls")]
-use actix_tls::rustls::ServerConfig as RustlsServerConfig;
+use actix_tls::accept::rustls::ServerConfig as RustlsServerConfig;
 
 use crate::config::AppConfig;
 
@@ -58,8 +58,8 @@ struct Config {
 pub struct HttpServer<F, I, S, B>
 where
     F: Fn() -> I + Send + Clone + 'static,
-    I: IntoServiceFactory<S>,
-    S: ServiceFactory<Config = AppConfig, Request = Request>,
+    I: IntoServiceFactory<S, Request>,
+    S: ServiceFactory<Request, Config = AppConfig>,
     S::Error: Into<Error>,
     S::InitError: fmt::Debug,
     S::Response: Into<Response<B>>,
@@ -67,7 +67,7 @@ where
 {
     pub(super) factory: F,
     config: Arc<Mutex<Config>>,
-    backlog: i32,
+    backlog: u32,
     sockets: Vec<Socket>,
     builder: ServerBuilder,
     on_connect_fn: Option<Arc<dyn Fn(&dyn Any, &mut Extensions) + Send + Sync>>,
@@ -77,12 +77,13 @@ where
 impl<F, I, S, B> HttpServer<F, I, S, B>
 where
     F: Fn() -> I + Send + Clone + 'static,
-    I: IntoServiceFactory<S>,
-    S: ServiceFactory<Config = AppConfig, Request = Request>,
+    I: IntoServiceFactory<S, Request>,
+    S: ServiceFactory<Request, Config = AppConfig> + 'static,
     S::Error: Into<Error> + 'static,
     S::InitError: fmt::Debug,
     S::Response: Into<Response<B>> + 'static,
-    <S::Service as Service>::Future: 'static,
+    <S::Service as Service<Request>>::Future: 'static,
+    S::Service: 'static,
     B: MessageBody + 'static,
 {
     /// Create new http server with application factory
@@ -147,7 +148,7 @@ where
     /// Generally set in the 64-2048 range. Default value is 2048.
     ///
     /// This method should be called before `bind()` method call.
-    pub fn backlog(mut self, backlog: i32) -> Self {
+    pub fn backlog(mut self, backlog: u32) -> Self {
         self.backlog = backlog;
         self.builder = self.builder.backlog(backlog);
         self
@@ -170,8 +171,10 @@ where
     /// limit the global TLS CPU usage.
     ///
     /// By default max connections is set to a 256.
+    #[allow(unused_variables)]
     pub fn max_connection_rate(self, num: usize) -> Self {
-        actix_tls::max_concurrent_tls_connect(num);
+        #[cfg(any(feature = "rustls", feature = "openssl"))]
+        actix_tls::accept::max_concurrent_tls_connect(num);
         self
     }
 
@@ -603,8 +606,8 @@ where
 impl<F, I, S, B> HttpServer<F, I, S, B>
 where
     F: Fn() -> I + Send + Clone + 'static,
-    I: IntoServiceFactory<S>,
-    S: ServiceFactory<Config = AppConfig, Request = Request>,
+    I: IntoServiceFactory<S, Request>,
+    S: ServiceFactory<Request, Config = AppConfig>,
     S::Error: Into<Error>,
     S::InitError: fmt::Debug,
     S::Response: Into<Response<B>>,
@@ -639,7 +642,7 @@ where
 
 fn create_tcp_listener(
     addr: net::SocketAddr,
-    backlog: i32,
+    backlog: u32,
 ) -> io::Result<net::TcpListener> {
     use socket2::{Domain, Protocol, Socket, Type};
     let domain = match addr {
@@ -649,6 +652,8 @@ fn create_tcp_listener(
     let socket = Socket::new(domain, Type::stream(), Some(Protocol::tcp()))?;
     socket.set_reuse_address(true)?;
     socket.bind(&addr.into())?;
+    // clamp backlog to max u32 that fits in i32 range
+    let backlog = backlog.min(i32::MAX as u32) as i32;
     socket.listen(backlog)?;
     Ok(socket.into_tcp_listener())
 }

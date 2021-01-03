@@ -2,6 +2,9 @@
 
 ## Unreleased - 2021-xx-xx
 * `HttpRange::parse` now has its own error type.
+* Update `bytes` to `1.0`. [#1813]
+
+[#1813]: https://github.com/actix/actix-web/pull/1813
 
 
 ## 0.5.0 - 2020-12-26

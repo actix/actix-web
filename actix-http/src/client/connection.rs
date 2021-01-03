@@ -1,10 +1,10 @@
 use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use std::{fmt, io, mem, time};
+use std::{fmt, io, time};
 
-use actix_codec::{AsyncRead, AsyncWrite, Framed};
-use bytes::{Buf, Bytes};
+use actix_codec::{AsyncRead, AsyncWrite, Framed, ReadBuf};
+use bytes::Bytes;
 use futures_util::future::{err, Either, FutureExt, LocalBoxFuture, Ready};
 use h2::client::SendRequest;
 use pin_project::pin_project;
@@ -223,21 +223,11 @@ where
     fn poll_read(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
-        buf: &mut [u8],
-    ) -> Poll<io::Result<usize>> {
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<io::Result<()>> {
         match self.project() {
             EitherIoProj::A(val) => val.poll_read(cx, buf),
             EitherIoProj::B(val) => val.poll_read(cx, buf),
-        }
-    }
-
-    unsafe fn prepare_uninitialized_buffer(
-        &self,
-        buf: &mut [mem::MaybeUninit<u8>],
-    ) -> bool {
-        match self {
-            EitherIo::A(ref val) => val.prepare_uninitialized_buffer(buf),
-            EitherIo::B(ref val) => val.prepare_uninitialized_buffer(buf),
         }
     }
 }
@@ -272,20 +262,6 @@ where
         match self.project() {
             EitherIoProj::A(val) => val.poll_shutdown(cx),
             EitherIoProj::B(val) => val.poll_shutdown(cx),
-        }
-    }
-
-    fn poll_write_buf<U: Buf>(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &mut U,
-    ) -> Poll<Result<usize, io::Error>>
-    where
-        Self: Sized,
-    {
-        match self.project() {
-            EitherIoProj::A(val) => val.poll_write_buf(cx, buf),
-            EitherIoProj::B(val) => val.poll_write_buf(cx, buf),
         }
     }
 }

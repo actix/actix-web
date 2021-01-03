@@ -51,16 +51,15 @@ impl Default for Compress {
     }
 }
 
-impl<S, B> Transform<S> for Compress
+impl<S, B> Transform<S, ServiceRequest> for Compress
 where
     B: MessageBody,
-    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
 {
-    type Request = ServiceRequest;
     type Response = ServiceResponse<Encoder<B>>;
     type Error = Error;
-    type InitError = ();
     type Transform = CompressMiddleware<S>;
+    type InitError = ();
     type Future = Ready<Result<Self::Transform, Self::InitError>>;
 
     fn new_transform(&self, service: S) -> Self::Future {
@@ -76,12 +75,11 @@ pub struct CompressMiddleware<S> {
     encoding: ContentEncoding,
 }
 
-impl<S, B> Service for CompressMiddleware<S>
+impl<S, B> Service<ServiceRequest> for CompressMiddleware<S>
 where
     B: MessageBody,
-    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
 {
-    type Request = ServiceRequest;
     type Response = ServiceResponse<Encoder<B>>;
     type Error = Error;
     type Future = CompressResponse<S, B>;
@@ -115,7 +113,7 @@ where
 #[pin_project]
 pub struct CompressResponse<S, B>
 where
-    S: Service,
+    S: Service<ServiceRequest>,
     B: MessageBody,
 {
     #[pin]
@@ -127,7 +125,7 @@ where
 impl<S, B> Future for CompressResponse<S, B>
 where
     B: MessageBody,
-    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
 {
     type Output = Result<ServiceResponse<Encoder<B>>, Error>;
 
