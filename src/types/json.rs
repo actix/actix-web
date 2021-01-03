@@ -367,7 +367,7 @@ where
         let json = if let Ok(Some(mime)) = req.mime_type() {
             mime.subtype() == mime::JSON
                 || mime.suffix() == Some(mime::JSON)
-                || ctype.as_ref().map_or(false, |predicate| predicate(mime))
+                || ctype.map_or(false, |predicate| predicate(mime))
         } else {
             false
         };

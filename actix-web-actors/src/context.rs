@@ -12,8 +12,8 @@ use actix::{
 };
 use actix_web::error::Error;
 use bytes::Bytes;
-use futures_channel::oneshot::Sender;
 use futures_core::Stream;
+use tokio::sync::oneshot::Sender;
 
 /// Execution context for http actors
 pub struct HttpContext<A>

@@ -36,11 +36,10 @@ impl<T> Clone for WsService<T> {
     }
 }
 
-impl<T> Service for WsService<T>
+impl<T> Service<(Request, Framed<T, h1::Codec>)> for WsService<T>
 where
     T: AsyncRead + AsyncWrite + Unpin + 'static,
 {
-    type Request = (Request, Framed<T, h1::Codec>);
     type Response = ();
     type Error = Error;
     type Future = Pin<Box<dyn Future<Output = Result<(), Error>>>>;
@@ -50,7 +49,10 @@ where
         Poll::Ready(Ok(()))
     }
 
-    fn call(&mut self, (req, mut framed): Self::Request) -> Self::Future {
+    fn call(
+        &mut self,
+        (req, mut framed): (Request, Framed<T, h1::Codec>),
+    ) -> Self::Future {
         let fut = async move {
             let res = ws::handshake(req.head()).unwrap().message_body(());
 

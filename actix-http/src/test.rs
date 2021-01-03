@@ -10,7 +10,7 @@ use std::{
     task::{Context, Poll},
 };
 
-use actix_codec::{AsyncRead, AsyncWrite};
+use actix_codec::{AsyncRead, AsyncWrite, ReadBuf};
 use bytes::{Bytes, BytesMut};
 use http::header::{self, HeaderName, HeaderValue};
 use http::{Error as HttpError, Method, Uri, Version};
@@ -251,9 +251,11 @@ impl AsyncRead for TestBuffer {
     fn poll_read(
         self: Pin<&mut Self>,
         _: &mut Context<'_>,
-        buf: &mut [u8],
-    ) -> Poll<io::Result<usize>> {
-        Poll::Ready(self.get_mut().read(buf))
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<io::Result<()>> {
+        let dst = buf.initialize_unfilled();
+        let res = self.get_mut().read(dst).map(|n| buf.advance(n));
+        Poll::Ready(res)
     }
 }
 
@@ -356,11 +358,15 @@ impl AsyncRead for TestSeqBuffer {
     fn poll_read(
         self: Pin<&mut Self>,
         _: &mut Context<'_>,
-        buf: &mut [u8],
-    ) -> Poll<io::Result<usize>> {
-        let r = self.get_mut().read(buf);
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<io::Result<()>> {
+        let dst = buf.initialize_unfilled();
+        let r = self.get_mut().read(dst);
         match r {
-            Ok(n) => Poll::Ready(Ok(n)),
+            Ok(n) => {
+                buf.advance(n);
+                Poll::Ready(Ok(()))
+            }
             Err(err) if err.kind() == io::ErrorKind::WouldBlock => Poll::Pending,
             Err(err) => Poll::Ready(Err(err)),
         }

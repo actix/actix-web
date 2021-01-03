@@ -1,19 +1,17 @@
 #![cfg(feature = "openssl")]
 use std::io;
 
-use actix_http_test::test_server;
-use actix_service::{fn_service, ServiceFactory};
-
-use bytes::{Bytes, BytesMut};
-use futures_util::future::{err, ok, ready};
-use futures_util::stream::{once, Stream, StreamExt};
-use open_ssl::ssl::{AlpnError, SslAcceptor, SslFiletype, SslMethod};
-
 use actix_http::error::{ErrorBadRequest, PayloadError};
 use actix_http::http::header::{self, HeaderName, HeaderValue};
 use actix_http::http::{Method, StatusCode, Version};
 use actix_http::httpmessage::HttpMessage;
 use actix_http::{body, Error, HttpService, Request, Response};
+use actix_http_test::test_server;
+use actix_service::{fn_service, ServiceFactoryExt};
+use bytes::{Bytes, BytesMut};
+use futures_util::future::{err, ok, ready};
+use futures_util::stream::{once, Stream, StreamExt};
+use open_ssl::ssl::{AlpnError, SslAcceptor, SslFiletype, SslMethod};
 
 async fn load_body<S>(stream: S) -> Result<BytesMut, PayloadError>
 where

@@ -93,12 +93,11 @@ impl DefaultHeaders {
     }
 }
 
-impl<S, B> Transform<S> for DefaultHeaders
+impl<S, B> Transform<S, ServiceRequest> for DefaultHeaders
 where
-    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
     S::Future: 'static,
 {
-    type Request = ServiceRequest;
     type Response = ServiceResponse<B>;
     type Error = Error;
     type Transform = DefaultHeadersMiddleware<S>;
@@ -118,12 +117,11 @@ pub struct DefaultHeadersMiddleware<S> {
     inner: Rc<Inner>,
 }
 
-impl<S, B> Service for DefaultHeadersMiddleware<S>
+impl<S, B> Service<ServiceRequest> for DefaultHeadersMiddleware<S>
 where
-    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
     S::Future: 'static,
 {
-    type Request = ServiceRequest;
     type Response = ServiceResponse<B>;
     type Error = Error;
     type Future = DefaultHeaderFuture<S, B>;
@@ -145,7 +143,7 @@ where
 }
 
 #[pin_project::pin_project]
-pub struct DefaultHeaderFuture<S: Service, B> {
+pub struct DefaultHeaderFuture<S: Service<ServiceRequest>, B> {
     #[pin]
     fut: S::Future,
     inner: Rc<Inner>,
@@ -154,7 +152,7 @@ pub struct DefaultHeaderFuture<S: Service, B> {
 
 impl<S, B> Future for DefaultHeaderFuture<S, B>
 where
-    S: Service<Response = ServiceResponse<B>, Error = Error>,
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
 {
     type Output = <S::Future as Future>::Output;
 

@@ -47,10 +47,10 @@ compress = ["actix-http/compress", "awc/compress"]
 secure-cookies = ["actix-http/secure-cookies"]
 
 # openssl
-openssl = ["actix-tls/openssl", "awc/openssl", "open-ssl"]
+openssl = ["actix-tls/accept", "actix-tls/openssl", "awc/openssl", "open-ssl"]
 
 # rustls
-rustls = ["actix-tls/rustls", "awc/rustls", "rust-tls"]
+rustls = ["actix-tls/accept", "actix-tls/rustls", "awc/rustls", "rust-tls"]
 
 [[example]]
 name = "basic"
@@ -73,27 +73,25 @@ name = "client"
 required-features = ["rustls"]
 
 [dependencies]
-actix-codec = "0.3.0"
-actix-service = "1.0.6"
-actix-utils = "2.0.0"
-actix-router = "0.2.4"
-actix-rt = "1.1.1"
-actix-server = "1.0.0"
-actix-testing = "1.0.0"
+actix-codec = "0.4.0-beta.1"
 actix-macros = "0.1.0"
+actix-router = "0.2.4"
+actix-rt = "2.0.0-beta.1"
+actix-server = "2.0.0-beta.2"
+actix-service = "2.0.0-beta.2"
+actix-utils = "3.0.0-beta.1"
 actix-threadpool = "0.3.1"
-actix-tls = "2.0.0"
+actix-tls = { version = "3.0.0-beta.2", default-features = false, optional = true }
 
 actix-web-codegen = "0.4.0"
 actix-http = "2.2.0"
 awc = { version = "2.0.3", default-features = false }
 
-bytes = "0.5.3"
+bytes = "1"
 derive_more = "0.99.5"
 encoding_rs = "0.8"
-futures-channel = { version = "0.3.5", default-features = false }
-futures-core = { version = "0.3.5", default-features = false }
-futures-util = { version = "0.3.5", default-features = false }
+futures-core = { version = "0.3.7", default-features = false }
+futures-util = { version = "0.3.7", default-features = false }
 fxhash = "0.2.1"
 log = "0.4"
 mime = "0.3"
@@ -106,12 +104,12 @@ serde_urlencoded = "0.7"
 time = { version = "0.2.7", default-features = false, features = ["std"] }
 url = "2.1"
 open-ssl = { package = "openssl", version = "0.10", optional = true }
-rust-tls = { package = "rustls", version = "0.18.0", optional = true }
+rust-tls = { package = "rustls", version = "0.19.0", optional = true }
 smallvec = "1.6"
 
 [dev-dependencies]
-actix = "0.10.0"
-actix-http = { version = "2.1.0", features = ["actors"] }
+actix = "0.11.0-beta.1"
+actix-http = { version = "2.2.0", features = ["actors"] }
 rand = "0.8"
 env_logger = "0.8"
 serde_derive = "1.0"

@@ -45,7 +45,7 @@ const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
 struct TestBody {
     data: Bytes,
     chunk_size: usize,
-    delay: actix_rt::time::Delay,
+    delay: Pin<Box<actix_rt::time::Sleep>>,
 }
 
 impl TestBody {
@@ -53,7 +53,7 @@ impl TestBody {
         TestBody {
             data,
             chunk_size,
-            delay: actix_rt::time::delay_for(std::time::Duration::from_millis(10)),
+            delay: Box::pin(actix_rt::time::sleep(std::time::Duration::from_millis(10))),
         }
     }
 }
@@ -67,7 +67,8 @@ impl futures_core::stream::Stream for TestBody {
     ) -> Poll<Option<Self::Item>> {
         ready!(Pin::new(&mut self.delay).poll(cx));
 
-        self.delay = actix_rt::time::delay_for(std::time::Duration::from_millis(10));
+        self.delay =
+            Box::pin(actix_rt::time::sleep(std::time::Duration::from_millis(10)));
         let chunk_size = std::cmp::min(self.chunk_size, self.data.len());
         let chunk = self.data.split_to(chunk_size);
         if chunk.is_empty() {

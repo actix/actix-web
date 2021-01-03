@@ -24,8 +24,8 @@ use actix_web::error::{Error, PayloadError};
 use actix_web::http::{header, Method, StatusCode};
 use actix_web::{HttpRequest, HttpResponse};
 use bytes::{Bytes, BytesMut};
-use futures_channel::oneshot::Sender;
 use futures_core::Stream;
+use tokio::sync::oneshot::Sender;
 
 /// Do websocket handshake and start ws actor.
 pub fn start<A, T>(actor: A, req: &HttpRequest, stream: T) -> Result<HttpResponse, Error>

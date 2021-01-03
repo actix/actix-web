@@ -57,8 +57,7 @@ impl fmt::Debug for FilesService {
     }
 }
 
-impl Service for FilesService {
-    type Request = ServiceRequest;
+impl Service<ServiceRequest> for FilesService {
     type Response = ServiceResponse;
     type Error = Error;
     type Future = FilesServiceFuture;

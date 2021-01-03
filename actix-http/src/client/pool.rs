@@ -6,8 +6,8 @@ use std::rc::Rc;
 use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
 
-use actix_codec::{AsyncRead, AsyncWrite};
-use actix_rt::time::{delay_for, Delay};
+use actix_codec::{AsyncRead, AsyncWrite, ReadBuf};
+use actix_rt::time::{sleep, Sleep};
 use actix_service::Service;
 use actix_utils::task::LocalWaker;
 use bytes::Bytes;
@@ -50,8 +50,7 @@ pub(crate) struct ConnectionPool<T, Io: 'static>(Rc<RefCell<T>>, Rc<RefCell<Inne
 impl<T, Io> ConnectionPool<T, Io>
 where
     Io: AsyncRead + AsyncWrite + Unpin + 'static,
-    T: Service<Request = Connect, Response = (Io, Protocol), Error = ConnectError>
-        + 'static,
+    T: Service<Connect, Response = (Io, Protocol), Error = ConnectError> + 'static,
 {
     pub(crate) fn new(connector: T, config: ConnectorConfig) -> Self {
         let connector_rc = Rc::new(RefCell::new(connector));
@@ -90,13 +89,11 @@ impl<T, Io> Drop for ConnectionPool<T, Io> {
     }
 }
 
-impl<T, Io> Service for ConnectionPool<T, Io>
+impl<T, Io> Service<Connect> for ConnectionPool<T, Io>
 where
     Io: AsyncRead + AsyncWrite + Unpin + 'static,
-    T: Service<Request = Connect, Response = (Io, Protocol), Error = ConnectError>
-        + 'static,
+    T: Service<Connect, Response = (Io, Protocol), Error = ConnectError> + 'static,
 {
-    type Request = Connect;
     type Response = IoConnection<Io>;
     type Error = ConnectError;
     type Future = LocalBoxFuture<'static, Result<IoConnection<Io>, ConnectError>>;
@@ -334,10 +331,11 @@ where
                 } else {
                     let mut io = conn.io;
                     let mut buf = [0; 2];
+                    let mut read_buf = ReadBuf::new(&mut buf);
                     if let ConnectionType::H1(ref mut s) = io {
-                        match Pin::new(s).poll_read(cx, &mut buf) {
+                        match Pin::new(s).poll_read(cx, &mut read_buf) {
                             Poll::Pending => (),
-                            Poll::Ready(Ok(n)) if n > 0 => {
+                            Poll::Ready(Ok(())) if !read_buf.filled().is_empty() => {
                                 if let Some(timeout) = self.config.disconnect_timeout {
                                     if let ConnectionType::H1(io) = io {
                                         actix_rt::spawn(CloseConnection::new(
@@ -387,9 +385,11 @@ where
     }
 }
 
+#[pin_project::pin_project]
 struct CloseConnection<T> {
     io: T,
-    timeout: Delay,
+    #[pin]
+    timeout: Sleep,
 }
 
 impl<T> CloseConnection<T>
@@ -399,7 +399,7 @@ where
     fn new(io: T, timeout: Duration) -> Self {
         CloseConnection {
             io,
-            timeout: delay_for(timeout),
+            timeout: sleep(timeout),
         }
     }
 }
@@ -411,11 +411,11 @@ where
     type Output = ();
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<()> {
-        let this = self.get_mut();
+        let this = self.project();
 
-        match Pin::new(&mut this.timeout).poll(cx) {
+        match this.timeout.poll(cx) {
             Poll::Ready(_) => Poll::Ready(()),
-            Poll::Pending => match Pin::new(&mut this.io).poll_shutdown(cx) {
+            Poll::Pending => match Pin::new(this.io).poll_shutdown(cx) {
                 Poll::Ready(_) => Poll::Ready(()),
                 Poll::Pending => Poll::Pending,
             },
@@ -435,7 +435,7 @@ where
 impl<T, Io> Future for ConnectorPoolSupport<T, Io>
 where
     Io: AsyncRead + AsyncWrite + Unpin + 'static,
-    T: Service<Request = Connect, Response = (Io, Protocol), Error = ConnectError>,
+    T: Service<Connect, Response = (Io, Protocol), Error = ConnectError>,
     T::Future: 'static,
 {
     type Output = ();
