@@ -97,7 +97,7 @@ open-ssl = { version="0.10", package = "openssl" }
 rust-tls = { version="0.18", package = "rustls" }
 
 [[bench]]
-name = "content-length"
+name = "write-camel-case"
 harness = false
 
 [[bench]]
