@@ -1,13 +1,26 @@
 # Changes
 
-## Unreleased - 2020-xx-xx
+## Unreleased - 2021-xx-xx
 ### Changed
-* Bumped `rand` to `0.8`
+* Bumped `rand` to `0.8`.
+* Update `actix-*` dependencies to tokio `1.0` based versions. [#1813]
+* Update `bytes` to `1.0`. [#1813]
+* Update `h2` to `0.3`. [#1813]
+
+
+[#1813]: https://github.com/actix/actix-web/pull/1813
+
 
 ### Removed
 * Deprecated `on_connect` methods have been removed. Prefer the new
   `on_connect_ext` technique. [#1857]
+* Remove `ResponseError` impl for `actix::actors::resolver::ResolverError`
+  due to deprecate of resolver actor. [#1813]
+* Remove `ConnectError::SslHandshakeError` and re-export of `HandshakeError`.
+  due to the removal of this type from `tokio-openssl` crate. openssl handshake 
+  error would return as `ConnectError::SslError`. [#1813]
 
+[#1813]: https://github.com/actix/actix-web/pull/1813
 [#1857]: https://github.com/actix/actix-web/pull/1857
 
 

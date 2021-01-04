@@ -1,9 +1,8 @@
-use actix_service::ServiceFactory;
-use bytes::Bytes;
-use futures_util::future::{self, ok};
-
 use actix_http::{http, HttpService, Request, Response};
 use actix_http_test::test_server;
+use actix_service::ServiceFactoryExt;
+use bytes::Bytes;
+use futures_util::future::{self, ok};
 
 const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
                    Hello World Hello World Hello World Hello World Hello World \

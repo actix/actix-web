@@ -19,7 +19,7 @@ use crate::{ConnectCallback, Extensions};
 ///
 /// This type can be used to construct an instance of [`HttpService`] through a
 /// builder-like pattern.
-pub struct HttpServiceBuilder<T, S, X = ExpectHandler, U = UpgradeHandler<T>> {
+pub struct HttpServiceBuilder<T, S, X = ExpectHandler, U = UpgradeHandler> {
     keep_alive: KeepAlive,
     client_timeout: u64,
     client_disconnect: u64,
@@ -28,15 +28,15 @@ pub struct HttpServiceBuilder<T, S, X = ExpectHandler, U = UpgradeHandler<T>> {
     expect: X,
     upgrade: Option<U>,
     on_connect_ext: Option<Rc<ConnectCallback<T>>>,
-    _t: PhantomData<(T, S)>,
+    _phantom: PhantomData<S>,
 }
 
-impl<T, S> HttpServiceBuilder<T, S, ExpectHandler, UpgradeHandler<T>>
+impl<T, S> HttpServiceBuilder<T, S, ExpectHandler, UpgradeHandler>
 where
-    S: ServiceFactory<Config = (), Request = Request>,
+    S: ServiceFactory<Request, Config = ()>,
     S::Error: Into<Error> + 'static,
     S::InitError: fmt::Debug,
-    <S::Service as Service>::Future: 'static,
+    <S::Service as Service<Request>>::Future: 'static,
 {
     /// Create instance of `ServiceConfigBuilder`
     pub fn new() -> Self {
@@ -49,25 +49,25 @@ where
             expect: ExpectHandler,
             upgrade: None,
             on_connect_ext: None,
-            _t: PhantomData,
+            _phantom: PhantomData,
         }
     }
 }
 
 impl<T, S, X, U> HttpServiceBuilder<T, S, X, U>
 where
-    S: ServiceFactory<Config = (), Request = Request>,
+    S: ServiceFactory<Request, Config = ()>,
     S::Error: Into<Error> + 'static,
     S::InitError: fmt::Debug,
-    <S::Service as Service>::Future: 'static,
-    X: ServiceFactory<Config = (), Request = Request, Response = Request>,
+    <S::Service as Service<Request>>::Future: 'static,
+    X: ServiceFactory<Request, Config = (), Response = Request>,
     X::Error: Into<Error>,
     X::InitError: fmt::Debug,
-    <X::Service as Service>::Future: 'static,
-    U: ServiceFactory<Config = (), Request = (Request, Framed<T, Codec>), Response = ()>,
+    <X::Service as Service<Request>>::Future: 'static,
+    U: ServiceFactory<(Request, Framed<T, Codec>), Config = (), Response = ()>,
     U::Error: fmt::Display,
     U::InitError: fmt::Debug,
-    <U::Service as Service>::Future: 'static,
+    <U::Service as Service<(Request, Framed<T, Codec>)>>::Future: 'static,
 {
     /// Set server keep-alive setting.
     ///
@@ -123,11 +123,11 @@ where
     /// request will be forwarded to main service.
     pub fn expect<F, X1>(self, expect: F) -> HttpServiceBuilder<T, S, X1, U>
     where
-        F: IntoServiceFactory<X1>,
-        X1: ServiceFactory<Config = (), Request = Request, Response = Request>,
+        F: IntoServiceFactory<X1, Request>,
+        X1: ServiceFactory<Request, Config = (), Response = Request>,
         X1::Error: Into<Error>,
         X1::InitError: fmt::Debug,
-        <X1::Service as Service>::Future: 'static,
+        <X1::Service as Service<Request>>::Future: 'static,
     {
         HttpServiceBuilder {
             keep_alive: self.keep_alive,
@@ -138,7 +138,7 @@ where
             expect: expect.into_factory(),
             upgrade: self.upgrade,
             on_connect_ext: self.on_connect_ext,
-            _t: PhantomData,
+            _phantom: PhantomData,
         }
     }
 
@@ -148,15 +148,11 @@ where
     /// and this service get called with original request and framed object.
     pub fn upgrade<F, U1>(self, upgrade: F) -> HttpServiceBuilder<T, S, X, U1>
     where
-        F: IntoServiceFactory<U1>,
-        U1: ServiceFactory<
-            Config = (),
-            Request = (Request, Framed<T, Codec>),
-            Response = (),
-        >,
+        F: IntoServiceFactory<U1, (Request, Framed<T, Codec>)>,
+        U1: ServiceFactory<(Request, Framed<T, Codec>), Config = (), Response = ()>,
         U1::Error: fmt::Display,
         U1::InitError: fmt::Debug,
-        <U1::Service as Service>::Future: 'static,
+        <U1::Service as Service<(Request, Framed<T, Codec>)>>::Future: 'static,
     {
         HttpServiceBuilder {
             keep_alive: self.keep_alive,
@@ -167,7 +163,7 @@ where
             expect: self.expect,
             upgrade: Some(upgrade.into_factory()),
             on_connect_ext: self.on_connect_ext,
-            _t: PhantomData,
+            _phantom: PhantomData,
         }
     }
 
@@ -188,7 +184,7 @@ where
     pub fn h1<F, B>(self, service: F) -> H1Service<T, S, B, X, U>
     where
         B: MessageBody,
-        F: IntoServiceFactory<S>,
+        F: IntoServiceFactory<S, Request>,
         S::Error: Into<Error>,
         S::InitError: fmt::Debug,
         S::Response: Into<Response<B>>,
@@ -211,11 +207,11 @@ where
     pub fn h2<F, B>(self, service: F) -> H2Service<T, S, B>
     where
         B: MessageBody + 'static,
-        F: IntoServiceFactory<S>,
+        F: IntoServiceFactory<S, Request>,
         S::Error: Into<Error> + 'static,
         S::InitError: fmt::Debug,
         S::Response: Into<Response<B>> + 'static,
-        <S::Service as Service>::Future: 'static,
+        <S::Service as Service<Request>>::Future: 'static,
     {
         let cfg = ServiceConfig::new(
             self.keep_alive,
@@ -233,11 +229,11 @@ where
     pub fn finish<F, B>(self, service: F) -> HttpService<T, S, B, X, U>
     where
         B: MessageBody + 'static,
-        F: IntoServiceFactory<S>,
+        F: IntoServiceFactory<S, Request>,
         S::Error: Into<Error> + 'static,
         S::InitError: fmt::Debug,
         S::Response: Into<Response<B>> + 'static,
-        <S::Service as Service>::Future: 'static,
+        <S::Service as Service<Request>>::Future: 'static,
     {
         let cfg = ServiceConfig::new(
             self.keep_alive,

@@ -5,10 +5,11 @@ use std::marker::PhantomData;
 use std::rc::Rc;
 
 use actix_http::body::{Body, MessageBody};
-use actix_http::Extensions;
+use actix_http::{Extensions, Request};
 use actix_service::boxed::{self, BoxServiceFactory};
 use actix_service::{
-    apply, apply_fn_factory, IntoServiceFactory, ServiceFactory, Transform,
+    apply, apply_fn_factory, IntoServiceFactory, ServiceFactory, ServiceFactoryExt,
+    Transform,
 };
 use futures_util::future::FutureExt;
 
@@ -37,7 +38,7 @@ pub struct App<T, B> {
     data_factories: Vec<FnDataFactory>,
     external: Vec<ResourceDef>,
     extensions: Extensions,
-    _t: PhantomData<B>,
+    _phantom: PhantomData<B>,
 }
 
 impl App<AppEntry, Body> {
@@ -54,7 +55,7 @@ impl App<AppEntry, Body> {
             factory_ref: fref,
             external: Vec::new(),
             extensions: Extensions::new(),
-            _t: PhantomData,
+            _phantom: PhantomData,
         }
     }
 }
@@ -63,8 +64,8 @@ impl<T, B> App<T, B>
 where
     B: MessageBody,
     T: ServiceFactory<
+        ServiceRequest,
         Config = (),
-        Request = ServiceRequest,
         Response = ServiceResponse<B>,
         Error = Error,
         InitError = (),
@@ -268,10 +269,10 @@ where
     /// ```
     pub fn default_service<F, U>(mut self, f: F) -> Self
     where
-        F: IntoServiceFactory<U>,
+        F: IntoServiceFactory<U, ServiceRequest>,
         U: ServiceFactory<
+                ServiceRequest,
                 Config = (),
-                Request = ServiceRequest,
                 Response = ServiceResponse,
                 Error = Error,
             > + 'static,
@@ -353,8 +354,8 @@ where
         mw: M,
     ) -> App<
         impl ServiceFactory<
+            ServiceRequest,
             Config = (),
-            Request = ServiceRequest,
             Response = ServiceResponse<B1>,
             Error = Error,
             InitError = (),
@@ -364,7 +365,7 @@ where
     where
         M: Transform<
             T::Service,
-            Request = ServiceRequest,
+            ServiceRequest,
             Response = ServiceResponse<B1>,
             Error = Error,
             InitError = (),
@@ -380,7 +381,7 @@ where
             factory_ref: self.factory_ref,
             external: self.external,
             extensions: self.extensions,
-            _t: PhantomData,
+            _phantom: PhantomData,
         }
     }
 
@@ -420,8 +421,8 @@ where
         mw: F,
     ) -> App<
         impl ServiceFactory<
+            ServiceRequest,
             Config = (),
-            Request = ServiceRequest,
             Response = ServiceResponse<B1>,
             Error = Error,
             InitError = (),
@@ -442,17 +443,17 @@ where
             factory_ref: self.factory_ref,
             external: self.external,
             extensions: self.extensions,
-            _t: PhantomData,
+            _phantom: PhantomData,
         }
     }
 }
 
-impl<T, B> IntoServiceFactory<AppInit<T, B>> for App<T, B>
+impl<T, B> IntoServiceFactory<AppInit<T, B>, Request> for App<T, B>
 where
     B: MessageBody,
     T: ServiceFactory<
+        ServiceRequest,
         Config = (),
-        Request = ServiceRequest,
         Response = ServiceResponse<B>,
         Error = Error,
         InitError = (),

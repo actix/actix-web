@@ -55,7 +55,7 @@ impl ConnectionInfo {
                                             host = Some(val.trim());
                                         }
                                     }
-                                    _ => (),
+                                    _ => {}
                                 }
                             }
                         }

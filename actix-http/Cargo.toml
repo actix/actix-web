@@ -25,10 +25,10 @@ path = "src/lib.rs"
 default = []
 
 # openssl
-openssl = ["actix-tls/openssl", "actix-connect/openssl"]
+openssl = ["actix-tls/openssl"]
 
 # rustls support
-rustls = ["actix-tls/rustls", "actix-connect/rustls"]
+rustls = ["actix-tls/rustls"]
 
 # enable compressison support
 compress = ["flate2", "brotli2"]
@@ -40,29 +40,28 @@ secure-cookies = ["cookie/secure"]
 actors = ["actix"]
 
 [dependencies]
-actix-service = "1.0.6"
-actix-codec = "0.3.0"
-actix-connect = "2.0.0"
-actix-utils = "2.0.0"
-actix-rt = "1.0.0"
+actix-service = "2.0.0-beta.2"
+actix-codec = "0.4.0-beta.1"
+actix-utils = "3.0.0-beta.1"
+actix-rt = "2.0.0-beta.1"
 actix-threadpool = "0.3.1"
-actix-tls = { version = "2.0.0", optional = true }
-actix = { version = "0.10.0", optional = true }
+actix-tls = "3.0.0-beta.2"
+actix = { version = "0.11.0-beta.1", optional = true }
 
 base64 = "0.13"
 bitflags = "1.2"
-bytes = "0.5.3"
+bytes = "1"
 cookie = { version = "0.14.1", features = ["percent-encode"] }
 copyless = "0.1.4"
 derive_more = "0.99.2"
 either = "1.5.3"
 encoding_rs = "0.8"
-futures-channel = { version = "0.3.5", default-features = false }
-futures-core = { version = "0.3.5", default-features = false }
-futures-util = { version = "0.3.5", default-features = false }
+futures-channel = { version = "0.3.7", default-features = false }
+futures-core = { version = "0.3.7", default-features = false }
+futures-util = { version = "0.3.7", default-features = false, features = ["sink"] }
 fxhash = "0.2.1"
-h2 = "0.2.1"
-http = "0.2.0"
+h2 = "0.3.0"
+http = "0.2.2"
 httparse = "1.3"
 indexmap = "1.3"
 itoa = "0.4"
@@ -86,18 +85,17 @@ brotli2 = { version="0.3.2", optional = true }
 flate2 = { version = "1.0.13", optional = true }
 
 [dev-dependencies]
-actix-server = "1.0.1"
-actix-connect = { version = "2.0.0", features = ["openssl"] }
+actix-server = "2.0.0-beta.2"
 actix-http-test = { version = "2.0.0", features = ["openssl"] }
-actix-tls = { version = "2.0.0", features = ["openssl"] }
+actix-tls = { version = "3.0.0-beta.2", features = ["openssl"] }
 criterion = "0.3"
 env_logger = "0.7"
 serde_derive = "1.0"
 open-ssl = { version="0.10", package = "openssl" }
-rust-tls = { version="0.18", package = "rustls" }
+rust-tls = { version="0.19", package = "rustls" }
 
 [[bench]]
-name = "content-length"
+name = "write-camel-case"
 harness = false
 
 [[bench]]

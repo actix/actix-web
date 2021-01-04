@@ -8,11 +8,10 @@ use crate::request::Request;
 
 pub struct ExpectHandler;
 
-impl ServiceFactory for ExpectHandler {
-    type Config = ();
-    type Request = Request;
+impl ServiceFactory<Request> for ExpectHandler {
     type Response = Request;
     type Error = Error;
+    type Config = ();
     type Service = ExpectHandler;
     type InitError = Error;
     type Future = Ready<Result<Self::Service, Self::InitError>>;
@@ -22,8 +21,7 @@ impl ServiceFactory for ExpectHandler {
     }
 }
 
-impl Service for ExpectHandler {
-    type Request = Request;
+impl Service<Request> for ExpectHandler {
     type Response = Request;
     type Error = Error;
     type Future = Ready<Result<Self::Response, Self::Error>>;

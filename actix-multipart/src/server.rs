@@ -326,7 +326,7 @@ impl InnerMultipart {
                             }
                         }
                     }
-                    _ => (),
+                    _ => {}
                 }
 
                 // read field headers for next field
@@ -835,7 +835,7 @@ mod tests {
     async fn test_boundary() {
         let headers = HeaderMap::new();
         match Multipart::boundary(&headers) {
-            Err(MultipartError::NoContentType) => (),
+            Err(MultipartError::NoContentType) => {}
             _ => unreachable!("should not happen"),
         }
 
@@ -846,7 +846,7 @@ mod tests {
         );
 
         match Multipart::boundary(&headers) {
-            Err(MultipartError::ParseContentType) => (),
+            Err(MultipartError::ParseContentType) => {}
             _ => unreachable!("should not happen"),
         }
 
@@ -856,7 +856,7 @@ mod tests {
             header::HeaderValue::from_static("multipart/mixed"),
         );
         match Multipart::boundary(&headers) {
-            Err(MultipartError::Boundary) => (),
+            Err(MultipartError::Boundary) => {}
             _ => unreachable!("should not happen"),
         }
 
@@ -956,17 +956,17 @@ mod tests {
         let mut multipart = Multipart::new(&headers, payload);
 
         match multipart.next().await.unwrap() {
-            Ok(_) => (),
+            Ok(_) => {}
             _ => unreachable!(),
         }
 
         match multipart.next().await.unwrap() {
-            Ok(_) => (),
+            Ok(_) => {}
             _ => unreachable!(),
         }
 
         match multipart.next().await {
-            None => (),
+            None => {}
             _ => unreachable!(),
         }
     }
@@ -993,7 +993,7 @@ mod tests {
                     _ => unreachable!(),
                 }
                 match field.next().await {
-                    None => (),
+                    None => {}
                     _ => unreachable!(),
                 }
             }
@@ -1010,7 +1010,7 @@ mod tests {
                     _ => unreachable!(),
                 }
                 match field.next().await {
-                    None => (),
+                    None => {}
                     _ => unreachable!(),
                 }
             }
@@ -1018,7 +1018,7 @@ mod tests {
         }
 
         match multipart.next().await {
-            None => (),
+            None => {}
             _ => unreachable!(),
         }
     }
@@ -1066,7 +1066,7 @@ mod tests {
         }
 
         match multipart.next().await {
-            None => (),
+            None => {}
             _ => unreachable!(),
         }
     }

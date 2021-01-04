@@ -9,9 +9,10 @@ use actix_http::{Error, Extensions, Response};
 use actix_router::IntoPattern;
 use actix_service::boxed::{self, BoxService, BoxServiceFactory};
 use actix_service::{
-    apply, apply_fn_factory, IntoServiceFactory, Service, ServiceFactory, Transform,
+    apply, apply_fn_factory, IntoServiceFactory, Service, ServiceFactory,
+    ServiceFactoryExt, Transform,
 };
-use futures_util::future::{ok, Either, LocalBoxFuture, Ready};
+use futures_core::future::LocalBoxFuture;
 
 use crate::data::Data;
 use crate::dev::{insert_slash, AppService, HttpServiceFactory, ResourceDef};
@@ -78,8 +79,8 @@ impl Resource {
 impl<T> Resource<T>
 where
     T: ServiceFactory<
+        ServiceRequest,
         Config = (),
-        Request = ServiceRequest,
         Response = ServiceResponse,
         Error = Error,
         InitError = (),
@@ -250,8 +251,8 @@ where
         mw: M,
     ) -> Resource<
         impl ServiceFactory<
+            ServiceRequest,
             Config = (),
-            Request = ServiceRequest,
             Response = ServiceResponse,
             Error = Error,
             InitError = (),
@@ -260,7 +261,7 @@ where
     where
         M: Transform<
             T::Service,
-            Request = ServiceRequest,
+            ServiceRequest,
             Response = ServiceResponse,
             Error = Error,
             InitError = (),
@@ -317,8 +318,8 @@ where
         mw: F,
     ) -> Resource<
         impl ServiceFactory<
+            ServiceRequest,
             Config = (),
-            Request = ServiceRequest,
             Response = ServiceResponse,
             Error = Error,
             InitError = (),
@@ -345,10 +346,10 @@ where
     /// default handler from `App` or `Scope`.
     pub fn default_service<F, U>(mut self, f: F) -> Self
     where
-        F: IntoServiceFactory<U>,
+        F: IntoServiceFactory<U, ServiceRequest>,
         U: ServiceFactory<
+                ServiceRequest,
                 Config = (),
-                Request = ServiceRequest,
                 Response = ServiceResponse,
                 Error = Error,
             > + 'static,
@@ -368,8 +369,8 @@ where
 impl<T> HttpServiceFactory for Resource<T>
 where
     T: ServiceFactory<
+            ServiceRequest,
             Config = (),
-            Request = ServiceRequest,
             Response = ServiceResponse,
             Error = Error,
             InitError = (),
@@ -398,11 +399,11 @@ where
     }
 }
 
-impl<T> IntoServiceFactory<T> for Resource<T>
+impl<T> IntoServiceFactory<T, ServiceRequest> for Resource<T>
 where
     T: ServiceFactory<
+        ServiceRequest,
         Config = (),
-        Request = ServiceRequest,
         Response = ServiceResponse,
         Error = Error,
         InitError = (),
@@ -425,13 +426,12 @@ pub struct ResourceFactory {
     default: Rc<RefCell<Option<Rc<HttpNewService>>>>,
 }
 
-impl ServiceFactory for ResourceFactory {
-    type Config = ();
-    type Request = ServiceRequest;
+impl ServiceFactory<ServiceRequest> for ResourceFactory {
     type Response = ServiceResponse;
     type Error = Error;
-    type InitError = ();
+    type Config = ();
     type Service = ResourceService;
+    type InitError = ();
     type Future = CreateResourceService;
 
     fn new_service(&self, _: ()) -> Self::Future {
@@ -520,14 +520,10 @@ pub struct ResourceService {
     default: Option<HttpService>,
 }
 
-impl Service for ResourceService {
-    type Request = ServiceRequest;
+impl Service<ServiceRequest> for ResourceService {
     type Response = ServiceResponse;
     type Error = Error;
-    type Future = Either<
-        Ready<Result<ServiceResponse, Error>>,
-        LocalBoxFuture<'static, Result<ServiceResponse, Error>>,
-    >;
+    type Future = LocalBoxFuture<'static, Result<ServiceResponse, Error>>;
 
     fn poll_ready(&mut self, _: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         Poll::Ready(Ok(()))
@@ -539,20 +535,22 @@ impl Service for ResourceService {
                 if let Some(ref data) = self.data {
                     req.add_data_container(data.clone());
                 }
-                return Either::Right(route.call(req));
+                return route.call(req);
             }
         }
         if let Some(ref mut default) = self.default {
             if let Some(ref data) = self.data {
                 req.add_data_container(data.clone());
             }
-            Either::Right(default.call(req))
+            default.call(req)
         } else {
             let req = req.into_parts().0;
-            Either::Left(ok(ServiceResponse::new(
-                req,
-                Response::MethodNotAllowed().finish(),
-            )))
+            Box::pin(async {
+                Ok(ServiceResponse::new(
+                    req,
+                    Response::MethodNotAllowed().finish(),
+                ))
+            })
         }
     }
 }
@@ -568,9 +566,8 @@ impl ResourceEndpoint {
     }
 }
 
-impl ServiceFactory for ResourceEndpoint {
+impl ServiceFactory<ServiceRequest> for ResourceEndpoint {
     type Config = ();
-    type Request = ServiceRequest;
     type Response = ServiceResponse;
     type Error = Error;
     type InitError = ();
@@ -586,7 +583,7 @@ impl ServiceFactory for ResourceEndpoint {
 mod tests {
     use std::time::Duration;
 
-    use actix_rt::time::delay_for;
+    use actix_rt::time::sleep;
     use actix_service::Service;
     use futures_util::future::ok;
 
@@ -654,7 +651,7 @@ mod tests {
     async fn test_to() {
         let mut srv =
             init_service(App::new().service(web::resource("/test").to(|| async {
-                delay_for(Duration::from_millis(100)).await;
+                sleep(Duration::from_millis(100)).await;
                 Ok::<_, Error>(HttpResponse::Ok())
             })))
             .await;

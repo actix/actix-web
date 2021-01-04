@@ -5,7 +5,7 @@ use std::rc::Rc;
 use std::task::{Context, Poll};
 use std::time::Duration;
 
-use actix_rt::time::{delay_for, Delay};
+use actix_rt::time::{sleep, Sleep};
 use bytes::Bytes;
 use derive_more::From;
 use futures_core::Stream;
@@ -56,7 +56,8 @@ impl Into<SendRequestError> for PrepForSendingError {
 pub enum SendClientRequest {
     Fut(
         Pin<Box<dyn Future<Output = Result<ClientResponse, SendRequestError>>>>,
-        Option<Delay>,
+        // FIXME: use a pinned Sleep instead of box.
+        Option<Pin<Box<Sleep>>>,
         bool,
     ),
     Err(Option<SendRequestError>),
@@ -68,7 +69,7 @@ impl SendClientRequest {
         response_decompress: bool,
         timeout: Option<Duration>,
     ) -> SendClientRequest {
-        let delay = timeout.map(delay_for);
+        let delay = timeout.map(|d| Box::pin(sleep(d)));
         SendClientRequest::Fut(send, delay, response_decompress)
     }
 }
@@ -85,7 +86,7 @@ impl Future for SendClientRequest {
             SendClientRequest::Fut(send, delay, response_decompress) => {
                 if delay.is_some() {
                     match Pin::new(delay.as_mut().unwrap()).poll(cx) {
-                        Poll::Pending => (),
+                        Poll::Pending => {}
                         _ => return Poll::Ready(Err(SendRequestError::Timeout)),
                     }
                 }
@@ -126,7 +127,7 @@ impl Future for SendClientRequest {
             SendClientRequest::Fut(send, delay, _) => {
                 if delay.is_some() {
                     match Pin::new(delay.as_mut().unwrap()).poll(cx) {
-                        Poll::Pending => (),
+                        Poll::Pending => {}
                         _ => return Poll::Ready(Err(SendRequestError::Timeout)),
                     }
                 }

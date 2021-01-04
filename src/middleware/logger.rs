@@ -179,12 +179,11 @@ impl Default for Logger {
     }
 }
 
-impl<S, B> Transform<S> for Logger
+impl<S, B> Transform<S, ServiceRequest> for Logger
 where
-    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
     B: MessageBody,
 {
-    type Request = ServiceRequest;
     type Response = ServiceResponse<StreamLog<B>>;
     type Error = Error;
     type InitError = ();
@@ -216,12 +215,11 @@ pub struct LoggerMiddleware<S> {
     service: S,
 }
 
-impl<S, B> Service for LoggerMiddleware<S>
+impl<S, B> Service<ServiceRequest> for LoggerMiddleware<S>
 where
-    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
     B: MessageBody,
 {
-    type Request = ServiceRequest;
     type Response = ServiceResponse<StreamLog<B>>;
     type Error = Error;
     type Future = LoggerResponse<S, B>;
@@ -238,7 +236,7 @@ where
                 fut: self.service.call(req),
                 format: None,
                 time: OffsetDateTime::now_utc(),
-                _t: PhantomData,
+                _phantom: PhantomData,
             }
         } else {
             let now = OffsetDateTime::now_utc();
@@ -251,7 +249,7 @@ where
                 fut: self.service.call(req),
                 format: Some(format),
                 time: now,
-                _t: PhantomData,
+                _phantom: PhantomData,
             }
         }
     }
@@ -262,19 +260,19 @@ where
 pub struct LoggerResponse<S, B>
 where
     B: MessageBody,
-    S: Service,
+    S: Service<ServiceRequest>,
 {
     #[pin]
     fut: S::Future,
     time: OffsetDateTime,
     format: Option<Format>,
-    _t: PhantomData<(B,)>,
+    _phantom: PhantomData<B>,
 }
 
 impl<S, B> Future for LoggerResponse<S, B>
 where
     B: MessageBody,
-    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
 {
     type Output = Result<ServiceResponse<StreamLog<B>>, Error>;
 
@@ -524,7 +522,7 @@ impl FormatText {
                 };
                 *self = FormatText::Str(s.to_string())
             }
-            _ => (),
+            _ => {}
         }
     }
 
@@ -589,7 +587,7 @@ impl FormatText {
 
                 *self = s;
             }
-            _ => (),
+            _ => {}
         }
     }
 }

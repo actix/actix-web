@@ -21,7 +21,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for Ws {
             ws::Message::Text(text) => ctx.text(text),
             ws::Message::Binary(bin) => ctx.binary(bin),
             ws::Message::Close(reason) => ctx.close(reason),
-            _ => (),
+            _ => {}
         }
     }
 }

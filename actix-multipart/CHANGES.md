@@ -1,7 +1,10 @@
 # Changes
 
-## Unreleased - 2020-xx-xx
+## Unreleased - 2021-xx-xx
 * Fix multipart consuming payload before header checks #1513
+* Update `bytes` to `1.0`. [#1813]
+
+[#1813]: https://github.com/actix/actix-web/pull/1813
 
 
 ## 3.0.0 - 2020-09-11

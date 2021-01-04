@@ -91,16 +91,15 @@ impl NormalizePath {
     }
 }
 
-impl<S, B> Transform<S> for NormalizePath
+impl<S, B> Transform<S, ServiceRequest> for NormalizePath
 where
-    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
     S::Future: 'static,
 {
-    type Request = ServiceRequest;
     type Response = ServiceResponse<B>;
     type Error = Error;
-    type InitError = ();
     type Transform = NormalizePathNormalization<S>;
+    type InitError = ();
     type Future = Ready<Result<Self::Transform, Self::InitError>>;
 
     fn new_transform(&self, service: S) -> Self::Future {
@@ -119,12 +118,11 @@ pub struct NormalizePathNormalization<S> {
     trailing_slash_behavior: TrailingSlash,
 }
 
-impl<S, B> Service for NormalizePathNormalization<S>
+impl<S, B> Service<ServiceRequest> for NormalizePathNormalization<S>
 where
-    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
     S::Future: 'static,
 {
-    type Request = ServiceRequest;
     type Response = ServiceResponse<B>;
     type Error = Error;
     type Future = S::Future;

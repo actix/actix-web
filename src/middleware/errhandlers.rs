@@ -3,8 +3,8 @@ use std::rc::Rc;
 use std::task::{Context, Poll};
 
 use actix_service::{Service, Transform};
+use ahash::AHashMap;
 use futures_util::future::{ok, FutureExt, LocalBoxFuture, Ready};
-use fxhash::FxHashMap;
 
 use crate::dev::{ServiceRequest, ServiceResponse};
 use crate::error::{Error, Result};
@@ -52,13 +52,13 @@ type ErrorHandler<B> = dyn Fn(ServiceResponse<B>) -> Result<ErrorHandlerResponse
 /// # }
 /// ```
 pub struct ErrorHandlers<B> {
-    handlers: Rc<FxHashMap<StatusCode, Box<ErrorHandler<B>>>>,
+    handlers: Rc<AHashMap<StatusCode, Box<ErrorHandler<B>>>>,
 }
 
 impl<B> Default for ErrorHandlers<B> {
     fn default() -> Self {
         ErrorHandlers {
-            handlers: Rc::new(FxHashMap::default()),
+            handlers: Rc::new(AHashMap::default()),
         }
     }
 }
@@ -81,17 +81,16 @@ impl<B> ErrorHandlers<B> {
     }
 }
 
-impl<S, B> Transform<S> for ErrorHandlers<B>
+impl<S, B> Transform<S, ServiceRequest> for ErrorHandlers<B>
 where
-    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
     S::Future: 'static,
     B: 'static,
 {
-    type Request = ServiceRequest;
     type Response = ServiceResponse<B>;
     type Error = Error;
-    type InitError = ();
     type Transform = ErrorHandlersMiddleware<S, B>;
+    type InitError = ();
     type Future = Ready<Result<Self::Transform, Self::InitError>>;
 
     fn new_transform(&self, service: S) -> Self::Future {
@@ -105,16 +104,15 @@ where
 #[doc(hidden)]
 pub struct ErrorHandlersMiddleware<S, B> {
     service: S,
-    handlers: Rc<FxHashMap<StatusCode, Box<ErrorHandler<B>>>>,
+    handlers: Rc<AHashMap<StatusCode, Box<ErrorHandler<B>>>>,
 }
 
-impl<S, B> Service for ErrorHandlersMiddleware<S, B>
+impl<S, B> Service<ServiceRequest> for ErrorHandlersMiddleware<S, B>
 where
-    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
     S::Future: 'static,
     B: 'static,
 {
-    type Request = ServiceRequest;
     type Response = ServiceResponse<B>;
     type Error = Error;
     type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;

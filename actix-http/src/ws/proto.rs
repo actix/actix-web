@@ -222,7 +222,7 @@ mod test {
     macro_rules! opcode_into {
         ($from:expr => $opcode:pat) => {
             match OpCode::from($from) {
-                e @ $opcode => (),
+                e @ $opcode => {}
                 e => unreachable!("{:?}", e),
             }
         };
@@ -232,7 +232,7 @@ mod test {
         ($from:expr => $opcode:pat) => {
             let res: u8 = $from.into();
             match res {
-                e @ $opcode => (),
+                e @ $opcode => {}
                 e => unreachable!("{:?}", e),
             }
         };

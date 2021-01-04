@@ -1,16 +1,22 @@
 # Changes
 
-## Unreleased - 2020-xx-xx
+## Unreleased - 2021-xx-xx
 ### Changed
-* Bumped `rand` to `0.8`
+* Update `actix-*` dependencies to tokio `1.0` based versions. [#1813]
+* Bumped `rand` to `0.8`.
+* Update `rust-tls` to `0.19`. [#1813]
 * Rename `Handler` to `HandlerService` and rename `Factory` to `Handler`. [#1852]
 * MSRV is now 1.46.0.
+
+[#1813]: https://github.com/actix/actix-web/pull/1813
+
 
 ### Fixed
 * added the actual parsing error to `test::read_body_json` [#1812]
 
 [#1812]: https://github.com/actix/actix-web/pull/1812
 [#1852]: https://github.com/actix/actix-web/pull/1852
+
 
 ## 3.3.2 - 2020-12-01
 ### Fixed
