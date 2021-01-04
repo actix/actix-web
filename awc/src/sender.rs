@@ -86,7 +86,7 @@ impl Future for SendClientRequest {
             SendClientRequest::Fut(send, delay, response_decompress) => {
                 if delay.is_some() {
                     match Pin::new(delay.as_mut().unwrap()).poll(cx) {
-                        Poll::Pending => (),
+                        Poll::Pending => {},
                         _ => return Poll::Ready(Err(SendRequestError::Timeout)),
                     }
                 }
@@ -127,7 +127,7 @@ impl Future for SendClientRequest {
             SendClientRequest::Fut(send, delay, _) => {
                 if delay.is_some() {
                     match Pin::new(delay.as_mut().unwrap()).poll(cx) {
-                        Poll::Pending => (),
+                        Poll::Pending => {},
                         _ => return Poll::Ready(Err(SendRequestError::Timeout)),
                     }
                 }

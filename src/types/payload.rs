@@ -539,7 +539,7 @@ mod tests {
             .into_parts();
         let res = HttpMessageBody::new(&req, &mut pl).await;
         match res.err().unwrap() {
-            PayloadError::UnknownLength => (),
+            PayloadError::UnknownLength => {},
             _ => unreachable!("error"),
         }
 
@@ -548,7 +548,7 @@ mod tests {
             .into_parts();
         let res = HttpMessageBody::new(&req, &mut pl).await;
         match res.err().unwrap() {
-            PayloadError::Overflow => (),
+            PayloadError::Overflow => {},
             _ => unreachable!("error"),
         }
 
@@ -563,7 +563,7 @@ mod tests {
             .to_http_parts();
         let res = HttpMessageBody::new(&req, &mut pl).limit(5).await;
         match res.err().unwrap() {
-            PayloadError::Overflow => (),
+            PayloadError::Overflow => {},
             _ => unreachable!("error"),
         }
     }

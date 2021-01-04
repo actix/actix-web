@@ -236,7 +236,7 @@ where
                 fut: self.service.call(req),
                 format: None,
                 time: OffsetDateTime::now_utc(),
-                _t: PhantomData,
+                _phantom: PhantomData,
             }
         } else {
             let now = OffsetDateTime::now_utc();
@@ -249,7 +249,7 @@ where
                 fut: self.service.call(req),
                 format: Some(format),
                 time: now,
-                _t: PhantomData,
+                _phantom: PhantomData,
             }
         }
     }
@@ -266,7 +266,7 @@ where
     fut: S::Future,
     time: OffsetDateTime,
     format: Option<Format>,
-    _t: PhantomData<B>,
+    _phantom: PhantomData<B>,
 }
 
 impl<S, B> Future for LoggerResponse<S, B>
@@ -522,7 +522,7 @@ impl FormatText {
                 };
                 *self = FormatText::Str(s.to_string())
             }
-            _ => (),
+            _ => {},
         }
     }
 
@@ -587,7 +587,7 @@ impl FormatText {
 
                 *self = s;
             }
-            _ => (),
+            _ => {},
         }
     }
 }

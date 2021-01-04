@@ -334,7 +334,7 @@ where
                     let mut read_buf = ReadBuf::new(&mut buf);
                     if let ConnectionType::H1(ref mut s) = io {
                         match Pin::new(s).poll_read(cx, &mut read_buf) {
-                            Poll::Pending => (),
+                            Poll::Pending => {},
                             Poll::Ready(Ok(())) if !read_buf.filled().is_empty() => {
                                 if let Some(timeout) = self.config.disconnect_timeout {
                                     if let ConnectionType::H1(io) = io {

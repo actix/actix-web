@@ -371,7 +371,7 @@ impl MessageBody for String {
 pub struct BodyStream<S: Unpin, E> {
     #[pin]
     stream: S,
-    _t: PhantomData<E>,
+    _phantom: PhantomData<E>,
 }
 
 impl<S, E> BodyStream<S, E>
@@ -382,7 +382,7 @@ where
     pub fn new(stream: S) -> Self {
         BodyStream {
             stream,
-            _t: PhantomData,
+            _phantom: PhantomData,
         }
     }
 }

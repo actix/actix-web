@@ -38,7 +38,7 @@ pub struct App<T, B> {
     data_factories: Vec<FnDataFactory>,
     external: Vec<ResourceDef>,
     extensions: Extensions,
-    _t: PhantomData<B>,
+    _phantom: PhantomData<B>,
 }
 
 impl App<AppEntry, Body> {
@@ -55,7 +55,7 @@ impl App<AppEntry, Body> {
             factory_ref: fref,
             external: Vec::new(),
             extensions: Extensions::new(),
-            _t: PhantomData,
+            _phantom: PhantomData,
         }
     }
 }
@@ -381,7 +381,7 @@ where
             factory_ref: self.factory_ref,
             external: self.external,
             extensions: self.extensions,
-            _t: PhantomData,
+            _phantom: PhantomData,
         }
     }
 
@@ -443,7 +443,7 @@ where
             factory_ref: self.factory_ref,
             external: self.external,
             extensions: self.extensions,
-            _t: PhantomData,
+            _phantom: PhantomData,
         }
     }
 }

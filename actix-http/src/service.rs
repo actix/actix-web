@@ -28,7 +28,7 @@ pub struct HttpService<T, S, B, X = h1::ExpectHandler, U = h1::UpgradeHandler> {
     expect: X,
     upgrade: Option<U>,
     on_connect_ext: Option<Rc<ConnectCallback<T>>>,
-    _t: PhantomData<B>,
+    _phantom: PhantomData<B>,
 }
 
 impl<T, S, B> HttpService<T, S, B>
@@ -65,7 +65,7 @@ where
             expect: h1::ExpectHandler,
             upgrade: None,
             on_connect_ext: None,
-            _t: PhantomData,
+            _phantom: PhantomData,
         }
     }
 
@@ -80,7 +80,7 @@ where
             expect: h1::ExpectHandler,
             upgrade: None,
             on_connect_ext: None,
-            _t: PhantomData,
+            _phantom: PhantomData,
         }
     }
 }
@@ -112,7 +112,7 @@ where
             srv: self.srv,
             upgrade: self.upgrade,
             on_connect_ext: self.on_connect_ext,
-            _t: PhantomData,
+            _phantom: PhantomData,
         }
     }
 
@@ -133,7 +133,7 @@ where
             srv: self.srv,
             expect: self.expect,
             on_connect_ext: self.on_connect_ext,
-            _t: PhantomData,
+            _phantom: PhantomData,
         }
     }
 
@@ -348,7 +348,7 @@ where
             upgrade: None,
             on_connect_ext: self.on_connect_ext.clone(),
             cfg: self.cfg.clone(),
-            _t: PhantomData,
+            _phantom: PhantomData,
         }
     }
 }
@@ -371,7 +371,7 @@ where
     upgrade: Option<U::Service>,
     on_connect_ext: Option<Rc<ConnectCallback<T>>>,
     cfg: ServiceConfig,
-    _t: PhantomData<(T, B)>,
+    _phantom: PhantomData<(T, B)>,
 }
 
 impl<T, S, B, X, U> Future for HttpServiceResponse<T, S, B, X, U>
@@ -446,7 +446,7 @@ where
     upgrade: Option<CloneableService<U>>,
     cfg: ServiceConfig,
     on_connect_ext: Option<Rc<ConnectCallback<T>>>,
-    _t: PhantomData<B>,
+    _phantom: PhantomData<B>,
 }
 
 impl<T, S, B, X, U> HttpServiceHandler<T, S, B, X, U>
@@ -474,7 +474,7 @@ where
             srv: CloneableService::new(srv),
             expect: CloneableService::new(expect),
             upgrade: upgrade.map(CloneableService::new),
-            _t: PhantomData,
+            _phantom: PhantomData,
         }
     }
 }

@@ -30,7 +30,7 @@ pub struct H1Service<T, S, B, X = ExpectHandler, U = UpgradeHandler> {
     expect: X,
     upgrade: Option<U>,
     on_connect_ext: Option<Rc<ConnectCallback<T>>>,
-    _t: PhantomData<B>,
+    _phantom: PhantomData<B>,
 }
 
 impl<T, S, B> H1Service<T, S, B>
@@ -52,7 +52,7 @@ where
             expect: ExpectHandler,
             upgrade: None,
             on_connect_ext: None,
-            _t: PhantomData,
+            _phantom: PhantomData,
         }
     }
 }
@@ -211,7 +211,7 @@ where
             srv: self.srv,
             upgrade: self.upgrade,
             on_connect_ext: self.on_connect_ext,
-            _t: PhantomData,
+            _phantom: PhantomData,
         }
     }
 
@@ -227,7 +227,7 @@ where
             srv: self.srv,
             expect: self.expect,
             on_connect_ext: self.on_connect_ext,
-            _t: PhantomData,
+            _phantom: PhantomData,
         }
     }
 
@@ -270,7 +270,7 @@ where
             upgrade: None,
             on_connect_ext: self.on_connect_ext.clone(),
             cfg: Some(self.cfg.clone()),
-            _t: PhantomData,
+            _phantom: PhantomData,
         }
     }
 }
@@ -299,7 +299,7 @@ where
     upgrade: Option<U::Service>,
     on_connect_ext: Option<Rc<ConnectCallback<T>>>,
     cfg: Option<ServiceConfig>,
-    _t: PhantomData<(T, B)>,
+    _phantom: PhantomData<(T, B)>,
 }
 
 impl<T, S, B, X, U> Future for H1ServiceResponse<T, S, B, X, U>
@@ -371,7 +371,7 @@ where
     upgrade: Option<CloneableService<U>>,
     on_connect_ext: Option<Rc<ConnectCallback<T>>>,
     cfg: ServiceConfig,
-    _t: PhantomData<B>,
+    _phantom: PhantomData<B>,
 }
 
 impl<T, S, B, X, U> H1ServiceHandler<T, S, B, X, U>
@@ -398,7 +398,7 @@ where
             upgrade: upgrade.map(CloneableService::new),
             cfg,
             on_connect_ext,
-            _t: PhantomData,
+            _phantom: PhantomData,
         }
     }
 }

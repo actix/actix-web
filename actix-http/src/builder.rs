@@ -28,7 +28,7 @@ pub struct HttpServiceBuilder<T, S, X = ExpectHandler, U = UpgradeHandler> {
     expect: X,
     upgrade: Option<U>,
     on_connect_ext: Option<Rc<ConnectCallback<T>>>,
-    _t: PhantomData<S>,
+    _phantom: PhantomData<S>,
 }
 
 impl<T, S> HttpServiceBuilder<T, S, ExpectHandler, UpgradeHandler>
@@ -49,7 +49,7 @@ where
             expect: ExpectHandler,
             upgrade: None,
             on_connect_ext: None,
-            _t: PhantomData,
+            _phantom: PhantomData,
         }
     }
 }
@@ -138,7 +138,7 @@ where
             expect: expect.into_factory(),
             upgrade: self.upgrade,
             on_connect_ext: self.on_connect_ext,
-            _t: PhantomData,
+            _phantom: PhantomData,
         }
     }
 
@@ -163,7 +163,7 @@ where
             expect: self.expect,
             upgrade: Some(upgrade.into_factory()),
             on_connect_ext: self.on_connect_ext,
-            _t: PhantomData,
+            _phantom: PhantomData,
         }
     }
 

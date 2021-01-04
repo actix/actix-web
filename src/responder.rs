@@ -349,14 +349,14 @@ where
 pub struct ResponseFuture<T, E> {
     #[pin]
     fut: T,
-    _t: PhantomData<E>,
+    _phantom: PhantomData<E>,
 }
 
 impl<T, E> ResponseFuture<T, E> {
     pub fn new(fut: T) -> Self {
         ResponseFuture {
             fut,
-            _t: PhantomData,
+            _phantom: PhantomData,
         }
     }
 }

@@ -26,12 +26,12 @@ use crate::{ConnectCallback, Extensions};
 
 use super::dispatcher::Dispatcher;
 
-/// `ServiceFactory` implementation for HTTP2 transport
+/// `ServiceFactory` implementation for HTTP/2 transport
 pub struct H2Service<T, S, B> {
     srv: S,
     cfg: ServiceConfig,
     on_connect_ext: Option<Rc<ConnectCallback<T>>>,
-    _t: PhantomData<(T, B)>,
+    _phantom: PhantomData<(T, B)>,
 }
 
 impl<T, S, B> H2Service<T, S, B>
@@ -42,7 +42,7 @@ where
     <S::Service as Service<Request>>::Future: 'static,
     B: MessageBody + 'static,
 {
-    /// Create new `HttpService` instance with config.
+    /// Create new `H2Service` instance with config.
     pub(crate) fn with_config<F: IntoServiceFactory<S, Request>>(
         cfg: ServiceConfig,
         service: F,
@@ -51,7 +51,7 @@ where
             cfg,
             on_connect_ext: None,
             srv: service.into_factory(),
-            _t: PhantomData,
+            _phantom: PhantomData,
         }
     }
 
@@ -70,7 +70,7 @@ where
     <S::Service as Service<Request>>::Future: 'static,
     B: MessageBody + 'static,
 {
-    /// Create simple tcp based service
+    /// Create plain TCP based service
     pub fn tcp(
         self,
     ) -> impl ServiceFactory<
@@ -106,7 +106,7 @@ mod openssl {
         <S::Service as Service<Request>>::Future: 'static,
         B: MessageBody + 'static,
     {
-        /// Create ssl based service
+        /// Create OpenSSL based service
         pub fn openssl(
             self,
             acceptor: SslAcceptor,
@@ -149,7 +149,7 @@ mod rustls {
         <S::Service as Service<Request>>::Future: 'static,
         B: MessageBody + 'static,
     {
-        /// Create openssl based service
+        /// Create Rustls based service
         pub fn rustls(
             self,
             mut config: ServerConfig,
@@ -200,7 +200,7 @@ where
             fut: self.srv.new_service(()),
             cfg: Some(self.cfg.clone()),
             on_connect_ext: self.on_connect_ext.clone(),
-            _t: PhantomData,
+            _phantom: PhantomData,
         }
     }
 }
@@ -215,7 +215,7 @@ where
     fut: S::Future,
     cfg: Option<ServiceConfig>,
     on_connect_ext: Option<Rc<ConnectCallback<T>>>,
-    _t: PhantomData<B>,
+    _phantom: PhantomData<B>,
 }
 
 impl<T, S, B> Future for H2ServiceResponse<T, S, B>
@@ -232,14 +232,14 @@ where
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.as_mut().project();
 
-        Poll::Ready(ready!(this.fut.poll(cx)).map(|service| {
+        this.fut.poll(cx).map_ok(|service| {
             let this = self.as_mut().project();
             H2ServiceHandler::new(
                 this.cfg.take().unwrap(),
                 this.on_connect_ext.clone(),
                 service,
             )
-        }))
+        })
     }
 }
 
@@ -251,7 +251,7 @@ where
     srv: CloneableService<S>,
     cfg: ServiceConfig,
     on_connect_ext: Option<Rc<ConnectCallback<T>>>,
-    _t: PhantomData<B>,
+    _phantom: PhantomData<B>,
 }
 
 impl<T, S, B> H2ServiceHandler<T, S, B>
@@ -271,7 +271,7 @@ where
             cfg,
             on_connect_ext,
             srv: CloneableService::new(srv),
-            _t: PhantomData,
+            _phantom: PhantomData,
         }
     }
 }
@@ -363,8 +363,8 @@ where
                 ref peer_addr,
                 ref mut on_connect_data,
                 ref mut handshake,
-            ) => match Pin::new(handshake).poll(cx) {
-                Poll::Ready(Ok(conn)) => {
+            ) => match ready!(Pin::new(handshake).poll(cx)) {
+                Ok(conn) => {
                     self.state = State::Incoming(Dispatcher::new(
                         srv.take().unwrap(),
                         conn,
@@ -375,11 +375,10 @@ where
                     ));
                     self.poll(cx)
                 }
-                Poll::Ready(Err(err)) => {
+                Err(err) => {
                     trace!("H2 handshake error: {}", err);
                     Poll::Ready(Err(err.into()))
                 }
-                Poll::Pending => Poll::Pending,
             },
         }
     }

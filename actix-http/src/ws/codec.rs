@@ -184,7 +184,7 @@ impl Encoder<Message> for Codec {
                     }
                 }
             },
-            Message::Nop => (),
+            Message::Nop => {},
         }
         Ok(())
     }

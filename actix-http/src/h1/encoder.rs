@@ -21,7 +21,7 @@ const AVERAGE_HEADER_SIZE: usize = 30;
 pub(crate) struct MessageEncoder<T: MessageType> {
     pub length: BodySize,
     pub te: TransferEncoding,
-    _t: PhantomData<T>,
+    _phantom: PhantomData<T>,
 }
 
 impl<T: MessageType> Default for MessageEncoder<T> {
@@ -29,7 +29,7 @@ impl<T: MessageType> Default for MessageEncoder<T> {
         MessageEncoder {
             length: BodySize::None,
             te: TransferEncoding::empty(),
-            _t: PhantomData,
+            _phantom: PhantomData,
         }
     }
 }
@@ -118,7 +118,7 @@ pub(crate) trait MessageType: Sized {
                     dst.put_slice(b"connection: close\r\n")
                 }
             }
-            _ => (),
+            _ => {},
         }
 
         // merging headers from head and extra headers. HeaderMap::new() does not allocate.
@@ -148,7 +148,7 @@ pub(crate) trait MessageType: Sized {
                 CONNECTION => continue,
                 TRANSFER_ENCODING | CONTENT_LENGTH if skip_len => continue,
                 DATE => has_date = true,
-                _ => (),
+                _ => {},
             }
 
             let k = key.as_str().as_bytes();

@@ -49,7 +49,7 @@ where
     R::Output: Responder,
 {
     hnd: F,
-    _t: PhantomData<(T, R)>,
+    _phantom: PhantomData<(T, R)>,
 }
 
 impl<F, T, R> HandlerService<F, T, R>
@@ -62,7 +62,7 @@ where
     pub fn new(hnd: F) -> Self {
         Self {
             hnd,
-            _t: PhantomData,
+            _phantom: PhantomData,
         }
     }
 }
@@ -77,7 +77,7 @@ where
     fn clone(&self) -> Self {
         Self {
             hnd: self.hnd.clone(),
-            _t: PhantomData,
+            _phantom: PhantomData,
         }
     }
 }

@@ -1,6 +1,6 @@
 use std::{
     any::Any,
-    fmt, io,
+    cmp, fmt, io,
     marker::PhantomData,
     net,
     sync::{Arc, Mutex},
@@ -71,7 +71,7 @@ where
     sockets: Vec<Socket>,
     builder: ServerBuilder,
     on_connect_fn: Option<Arc<dyn Fn(&dyn Any, &mut Extensions) + Send + Sync>>,
-    _t: PhantomData<(S, B)>,
+    _phantom: PhantomData<(S, B)>,
 }
 
 impl<F, I, S, B> HttpServer<F, I, S, B>
@@ -100,7 +100,7 @@ where
             sockets: Vec::new(),
             builder: ServerBuilder::default(),
             on_connect_fn: None,
-            _t: PhantomData,
+            _phantom: PhantomData,
         }
     }
 
@@ -125,7 +125,7 @@ where
             sockets: self.sockets,
             builder: self.builder,
             on_connect_fn: Some(Arc::new(f)),
-            _t: PhantomData,
+            _phantom: PhantomData,
         }
     }
 
@@ -653,7 +653,7 @@ fn create_tcp_listener(
     socket.set_reuse_address(true)?;
     socket.bind(&addr.into())?;
     // clamp backlog to max u32 that fits in i32 range
-    let backlog = backlog.min(i32::MAX as u32) as i32;
+    let backlog = cmp::min(backlog, i32::MAX as u32) as i32;
     socket.listen(backlog)?;
     Ok(socket.into_tcp_listener())
 }

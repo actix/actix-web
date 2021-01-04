@@ -52,7 +52,7 @@ pub struct Connector<T, U> {
     config: ConnectorConfig,
     #[allow(dead_code)]
     ssl: SslConnector,
-    _t: PhantomData<U>,
+    _phantom: PhantomData<U>,
 }
 
 trait Io: AsyncRead + AsyncWrite + Unpin {}
@@ -72,7 +72,7 @@ impl Connector<(), ()> {
             ssl: Self::build_ssl(vec![b"h2".to_vec(), b"http/1.1".to_vec()]),
             connector: default_connector(),
             config: ConnectorConfig::default(),
-            _t: PhantomData,
+            _phantom: PhantomData,
         }
     }
 
@@ -126,7 +126,7 @@ impl<T, U> Connector<T, U> {
             connector,
             config: self.config,
             ssl: self.ssl,
-            _t: PhantomData,
+            _phantom: PhantomData,
         }
     }
 }
@@ -468,11 +468,11 @@ mod connect_impl {
             match req.uri.scheme_str() {
                 Some("https") | Some("wss") => Either::Right(InnerConnectorResponseB {
                     fut: self.ssl_pool.call(req),
-                    _t: PhantomData,
+                    _phantom: PhantomData,
                 }),
                 _ => Either::Left(InnerConnectorResponseA {
                     fut: self.tcp_pool.call(req),
-                    _t: PhantomData,
+                    _phantom: PhantomData,
                 }),
             }
         }
@@ -486,7 +486,7 @@ mod connect_impl {
     {
         #[pin]
         fut: <ConnectionPool<T, Io1> as Service<Connect>>::Future,
-        _t: PhantomData<Io2>,
+        _phantom: PhantomData<Io2>,
     }
 
     impl<T, Io1, Io2> Future for InnerConnectorResponseA<T, Io1, Io2>
@@ -513,7 +513,7 @@ mod connect_impl {
     {
         #[pin]
         fut: <ConnectionPool<T, Io2> as Service<Connect>>::Future,
-        _t: PhantomData<Io1>,
+        _phantom: PhantomData<Io1>,
     }
 
     impl<T, Io1, Io2> Future for InnerConnectorResponseB<T, Io1, Io2>

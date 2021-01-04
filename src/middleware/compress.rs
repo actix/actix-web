@@ -104,7 +104,7 @@ where
         CompressResponse {
             encoding,
             fut: self.service.call(req),
-            _t: PhantomData,
+            _phantom: PhantomData,
         }
     }
 }
@@ -119,7 +119,7 @@ where
     #[pin]
     fut: S::Future,
     encoding: ContentEncoding,
-    _t: PhantomData<B>,
+    _phantom: PhantomData<B>,
 }
 
 impl<S, B> Future for CompressResponse<S, B>

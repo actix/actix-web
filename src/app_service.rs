@@ -123,7 +123,7 @@ where
             ),
             config,
             rmap,
-            _t: PhantomData,
+            _phantom: PhantomData,
         }
     }
 }
@@ -148,7 +148,7 @@ where
     data: Rc<[Box<dyn DataFactory>]>,
     extensions: Option<Extensions>,
 
-    _t: PhantomData<B>,
+    _phantom: PhantomData<B>,
 }
 
 impl<T, B> Future for AppInitResult<T, B>

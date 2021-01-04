@@ -89,7 +89,7 @@ where
             CONNECTION | TRANSFER_ENCODING => continue, // http2 specific
             CONTENT_LENGTH if skip_len => continue,
             // DATE => has_date = true,
-            _ => (),
+            _ => {},
         }
         req.headers_mut().append(key, value.clone());
     }

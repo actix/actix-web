@@ -736,7 +736,7 @@ where
                     let _ = this.ka_timer.as_mut().as_pin_mut().unwrap().poll(cx);
                 }
             }
-            Poll::Pending => (),
+            Poll::Pending => {},
         }
 
         Ok(())
