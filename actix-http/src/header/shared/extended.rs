@@ -106,7 +106,6 @@ impl fmt::Display for ExtendedValue {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
