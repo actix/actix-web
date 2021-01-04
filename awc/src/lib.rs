@@ -76,7 +76,7 @@
 //!     .await?;
 //!
 //! connection
-//!     .send(awc::ws::Message::Text("Echo".to_string()))
+//!     .send(awc::ws::Message::Text("Echo".into()))
 //!     .await?;
 //! let response = connection.next().await.unwrap()?;
 //! # assert_eq!(response, awc::ws::Frame::Text("Echo".as_bytes().into()));

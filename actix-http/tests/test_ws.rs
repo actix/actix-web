@@ -74,7 +74,7 @@ async fn service(msg: ws::Frame) -> Result<ws::Message, Error> {
     let msg = match msg {
         ws::Frame::Ping(msg) => ws::Message::Pong(msg),
         ws::Frame::Text(text) => {
-            ws::Message::Text(String::from_utf8_lossy(&text).to_owned().into())
+            ws::Message::Text(String::from_utf8_lossy(&text).into_owned().into())
         }
         ws::Frame::Binary(bin) => ws::Message::Binary(bin),
         ws::Frame::Continuation(item) => ws::Message::Continuation(item),

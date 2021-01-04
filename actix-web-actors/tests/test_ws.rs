@@ -39,7 +39,7 @@ async fn test_simple() {
     // client service
     let mut framed = srv.ws().await.unwrap();
     framed
-        .send(ws::Message::Text("text".to_string()))
+        .send(ws::Message::Text("text".into()))
         .await
         .unwrap();
 

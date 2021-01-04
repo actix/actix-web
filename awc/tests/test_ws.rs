@@ -11,7 +11,7 @@ async fn ws_service(req: ws::Frame) -> Result<ws::Message, io::Error> {
     match req {
         ws::Frame::Ping(msg) => Ok(ws::Message::Pong(msg)),
         ws::Frame::Text(text) => Ok(ws::Message::Text(
-            String::from_utf8(Vec::from(text.as_ref())).unwrap(),
+            String::from_utf8(Vec::from(text.as_ref())).unwrap().into(),
         )),
         ws::Frame::Binary(bin) => Ok(ws::Message::Binary(bin)),
         ws::Frame::Close(reason) => Ok(ws::Message::Close(reason)),
@@ -44,7 +44,7 @@ async fn test_simple() {
     // client service
     let mut framed = srv.ws().await.unwrap();
     framed
-        .send(ws::Message::Text("text".to_string()))
+        .send(ws::Message::Text("text".into()))
         .await
         .unwrap();
     let item = framed.next().await.unwrap().unwrap();
