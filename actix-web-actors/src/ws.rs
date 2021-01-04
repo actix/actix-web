@@ -40,6 +40,43 @@ where
     Ok(res.streaming(WebsocketContext::create(actor, stream)))
 }
 
+/// Perform WebSocket handshake and start actor with the given frame size.
+pub fn start_with_frame_size<A, T>(
+    actor: A,
+    req: &HttpRequest,
+    stream: T,
+    frame_size: usize,
+) -> Result<HttpResponse, Error>
+where
+    A: Actor<Context = WebsocketContext<A>>
+        + StreamHandler<Result<Message, ProtocolError>>,
+    T: Stream<Item = Result<Bytes, PayloadError>> + 'static,
+{
+    let mut res = handshake(req)?;
+    Ok(res.streaming(WebsocketContext::with_codec(
+        actor,
+        stream,
+        Codec::new().max_size(frame_size),
+    )))
+}
+
+/// Perform WebSocket handshake and start actor with the given
+/// `actix_http::ws::Codec`.
+pub fn start_with_codec<A, T>(
+    actor: A,
+    req: &HttpRequest,
+    stream: T,
+    codec: Codec,
+) -> Result<HttpResponse, Error>
+where
+    A: Actor<Context = WebsocketContext<A>>
+        + StreamHandler<Result<Message, ProtocolError>>,
+    T: Stream<Item = Result<Bytes, PayloadError>> + 'static,
+{
+    let mut res = handshake(req)?;
+    Ok(res.streaming(WebsocketContext::with_codec(actor, stream, codec)))
+}
+
 /// Perform WebSocket handshake and start actor.
 ///
 /// `req` is an HTTP Request that should be requesting a websocket protocol
