@@ -5,7 +5,7 @@
 
 use std::io;
 
-use derive_more::{Display, From, Error};
+use derive_more::{Display, Error, From};
 use http::{header, Method, StatusCode};
 
 use crate::error::ResponseError;
