@@ -127,7 +127,7 @@ async fn test_timeout() {
 
     let request = client.get(srv.url("/")).send();
     match request.await {
-        Err(SendRequestError::Timeout) => {},
+        Err(SendRequestError::Timeout) => {}
         _ => panic!(),
     }
 }
@@ -149,7 +149,7 @@ async fn test_timeout_override() {
         .timeout(Duration::from_millis(50))
         .send();
     match request.await {
-        Err(SendRequestError::Timeout) => {},
+        Err(SendRequestError::Timeout) => {}
         _ => panic!(),
     }
 }

@@ -370,14 +370,14 @@ mod tests {
     async fn test_body() {
         let mut req = TestResponse::with_header(header::CONTENT_LENGTH, "xxxx").finish();
         match req.body().await.err().unwrap() {
-            PayloadError::UnknownLength => {},
+            PayloadError::UnknownLength => {}
             _ => unreachable!("error"),
         }
 
         let mut req =
             TestResponse::with_header(header::CONTENT_LENGTH, "1000000").finish();
         match req.body().await.err().unwrap() {
-            PayloadError::Overflow => {},
+            PayloadError::Overflow => {}
             _ => unreachable!("error"),
         }
 
@@ -390,7 +390,7 @@ mod tests {
             .set_payload(Bytes::from_static(b"11111111111111"))
             .finish();
         match req.body().limit(5).await.err().unwrap() {
-            PayloadError::Overflow => {},
+            PayloadError::Overflow => {}
             _ => unreachable!("error"),
         }
     }

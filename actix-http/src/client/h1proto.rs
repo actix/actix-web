@@ -72,7 +72,7 @@ where
 
     // send request body
     match body.size() {
-        BodySize::None | BodySize::Empty | BodySize::Sized(0) => {},
+        BodySize::None | BodySize::Empty | BodySize::Sized(0) => {}
         _ => send_body(body, Pin::new(&mut framed_inner)).await?,
     };
 

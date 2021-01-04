@@ -176,7 +176,7 @@ mod _original {
                 buf[5] = b'0';
                 buf[7] = b'9';
             }
-            _ => {},
+            _ => {}
         }
 
         let mut curr: isize = 12;

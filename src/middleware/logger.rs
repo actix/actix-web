@@ -522,7 +522,7 @@ impl FormatText {
                 };
                 *self = FormatText::Str(s.to_string())
             }
-            _ => {},
+            _ => {}
         }
     }
 
@@ -587,7 +587,7 @@ impl FormatText {
 
                 *self = s;
             }
-            _ => {},
+            _ => {}
         }
     }
 }
