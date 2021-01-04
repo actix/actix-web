@@ -4,6 +4,8 @@
 * Update `pin-project` to `1.0`.
 * Update `bytes` to `1.0`. [#1813]
 * `WebsocketContext::text` now takes an `Into<bytestring::ByteString>`. [#1864]
+* Add `ws::start_with_frame_size()` and `ws::start_with_codec()` to start
+  websocket actor with a given frame size or a `actix_http::ws::Codec`. [#1873]
 
 [#1813]: https://github.com/actix/actix-web/pull/1813
 [#1864]: https://github.com/actix/actix-web/pull/1864
