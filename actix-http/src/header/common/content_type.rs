@@ -99,6 +99,7 @@ impl ContentType {
     pub fn form_url_encoded() -> ContentType {
         ContentType(mime::APPLICATION_WWW_FORM_URLENCODED)
     }
+
     /// A constructor  to easily create a `Content-Type: image/jpeg` header.
     #[inline]
     pub fn jpeg() -> ContentType {

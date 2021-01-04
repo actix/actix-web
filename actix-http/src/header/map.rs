@@ -1,12 +1,16 @@
-use std::{collections::hash_map::{self, Entry}, convert::TryFrom};
+use std::{
+    collections::hash_map::{self, Entry},
+    convert::TryFrom,
+};
 
 use ahash::AHashMap;
 use either::Either;
 use http::header::{HeaderName, HeaderValue};
+use smallvec::{smallvec, SmallVec};
 
-/// A set of HTTP headers
+/// A multi-map of HTTP headers.
 ///
-/// `HeaderMap` is an multi-map of [`HeaderName`] to values.
+/// `HeaderMap` is a "multi-map" of [`HeaderName`] to one or more values.
 #[derive(Debug, Clone, Default)]
 pub struct HeaderMap {
     pub(crate) inner: AHashMap<HeaderName, Value>,
@@ -15,18 +19,18 @@ pub struct HeaderMap {
 #[derive(Debug, Clone)]
 pub(crate) enum Value {
     One(HeaderValue),
-    Multi(Vec<HeaderValue>),
+    Multi(SmallVec<[HeaderValue; 4]>),
 }
 
 impl Value {
-    fn get(&self) -> &HeaderValue {
+    fn first(&self) -> &HeaderValue {
         match self {
             Value::One(ref val) => val,
             Value::Multi(ref val) => &val[0],
         }
     }
 
-    fn get_mut(&mut self) -> &mut HeaderValue {
+    fn first_mut(&mut self) -> &mut HeaderValue {
         match self {
             Value::One(ref mut val) => val,
             Value::Multi(ref mut val) => &mut val[0],
@@ -36,7 +40,7 @@ impl Value {
     fn append(&mut self, val: HeaderValue) {
         match self {
             Value::One(_) => {
-                let data = std::mem::replace(self, Value::Multi(vec![val]));
+                let data = std::mem::replace(self, Value::Multi(smallvec![val]));
                 match data {
                     Value::One(val) => self.append(val),
                     Value::Multi(_) => unreachable!(),
@@ -117,7 +121,7 @@ impl HeaderMap {
     /// is returned. Use `get_all` to get all values associated with a given
     /// key. Returns `None` if there are no values associated with the key.
     pub fn get<N: AsName>(&self, name: N) -> Option<&HeaderValue> {
-        self.get2(name).map(|v| v.get())
+        self.get2(name).map(|v| v.first())
     }
 
     fn get2<N: AsName>(&self, name: N) -> Option<&Value> {
@@ -133,11 +137,11 @@ impl HeaderMap {
         }
     }
 
-    /// Returns a view of all values associated with a key.
+    /// Returns an iterator of all values associated with a key.
     ///
-    /// The returned view does not incur any allocations and allows iterating
-    /// the values associated with the key.  See [`GetAll`] for more details.
-    /// Returns `None` if there are no values associated with the key.
+    /// The returned view does not incur any allocations and allows iterating the values associated
+    /// with the key. Returns `None` if there are no values associated with the key. Iteration order
+    /// is not guaranteed to be the same as insertion order.
     pub fn get_all<N: AsName>(&self, name: N) -> GetAll<'_> {
         GetAll {
             idx: 0,
@@ -152,10 +156,10 @@ impl HeaderMap {
     /// key. Returns `None` if there are no values associated with the key.
     pub fn get_mut<N: AsName>(&mut self, name: N) -> Option<&mut HeaderValue> {
         match name.as_name() {
-            Either::Left(name) => self.inner.get_mut(name).map(|v| v.get_mut()),
+            Either::Left(name) => self.inner.get_mut(name).map(|v| v.first_mut()),
             Either::Right(s) => {
                 if let Ok(name) = HeaderName::try_from(s) {
-                    self.inner.get_mut(&name).map(|v| v.get_mut())
+                    self.inner.get_mut(&name).map(|v| v.first_mut())
                 } else {
                     None
                 }
@@ -336,7 +340,7 @@ impl<'a> IntoIterator for &'a HeaderMap {
 
 pub struct Iter<'a> {
     idx: usize,
-    current: Option<(&'a HeaderName, &'a Vec<HeaderValue>)>,
+    current: Option<(&'a HeaderName, &'a SmallVec<[HeaderValue; 4]>)>,
     iter: hash_map::Iter<'a, HeaderName, Value>,
 }
 

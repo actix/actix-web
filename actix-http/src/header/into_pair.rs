@@ -3,8 +3,10 @@ use std::convert::{Infallible, TryFrom};
 use either::Either;
 use http::{
     header::{HeaderName, InvalidHeaderName, InvalidHeaderValue},
-    HeaderValue,
+    Error as HttpError, HeaderValue,
 };
+
+use super::{Header, IntoHeaderValue};
 
 /// Transforms structures into header K/V pairs for inserting into `HeaderMap`s.
 pub trait IntoHeaderPair: Sized {
@@ -41,13 +43,28 @@ impl IntoHeaderPair for (&str, HeaderValue) {
     }
 }
 
+#[derive(Debug)]
+pub enum InvalidHeaderPart {
+    Name(InvalidHeaderName),
+    Value(InvalidHeaderValue),
+}
+
+impl From<InvalidHeaderPart> for HttpError {
+    fn from(part_err: InvalidHeaderPart) -> Self {
+        match part_err {
+            InvalidHeaderPart::Name(err) => err.into(),
+            InvalidHeaderPart::Value(err) => err.into(),
+        }
+    }
+}
+
 impl IntoHeaderPair for (&str, &str) {
-    type Error = Either<InvalidHeaderName, InvalidHeaderValue>;
+    type Error = InvalidHeaderPart;
 
     fn try_into_header_pair(self) -> Result<(HeaderName, HeaderValue), Self::Error> {
         let (name, value) = self;
-        let name = HeaderName::try_from(name).map_err(Either::Left)?;
-        let value = HeaderValue::try_from(value).map_err(Either::Right)?;
+        let name = HeaderName::try_from(name).map_err(InvalidHeaderPart::Name)?;
+        let value = HeaderValue::try_from(value).map_err(InvalidHeaderPart::Value)?;
         Ok((name, value))
     }
 }
@@ -80,5 +97,16 @@ impl IntoHeaderPair for (String, String) {
         let name = HeaderName::try_from(&name).map_err(Either::Left)?;
         let value = HeaderValue::try_from(&value).map_err(Either::Right)?;
         Ok((name, value))
+    }
+}
+
+impl<T> IntoHeaderPair for T
+where
+    T: Header,
+{
+    type Error = <T as IntoHeaderValue>::Error;
+
+    fn try_into_header_pair(self) -> Result<(HeaderName, HeaderValue), Self::Error> {
+        Ok((T::name(), self.try_into_value()?))
     }
 }

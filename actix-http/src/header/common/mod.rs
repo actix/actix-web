@@ -169,7 +169,7 @@ macro_rules! header {
         impl $crate::http::header::IntoHeaderValue for $id {
             type Error = $crate::http::header::InvalidHeaderValue;
 
-            fn try_into(self) -> Result<$crate::http::header::HeaderValue, Self::Error> {
+            fn try_into_value(self) -> Result<$crate::http::header::HeaderValue, Self::Error> {
                 use std::fmt::Write;
                 let mut writer = $crate::http::header::Writer::new();
                 let _ = write!(&mut writer, "{}", self);
@@ -205,7 +205,7 @@ macro_rules! header {
         impl $crate::http::header::IntoHeaderValue for $id {
             type Error = $crate::http::header::InvalidHeaderValue;
 
-            fn try_into(self) -> Result<$crate::http::header::HeaderValue, Self::Error> {
+            fn try_into_value(self) -> Result<$crate::http::header::HeaderValue, Self::Error> {
                 use std::fmt::Write;
                 let mut writer = $crate::http::header::Writer::new();
                 let _ = write!(&mut writer, "{}", self);
@@ -241,8 +241,8 @@ macro_rules! header {
         impl $crate::http::header::IntoHeaderValue for $id {
             type Error = $crate::http::header::InvalidHeaderValue;
 
-            fn try_into(self) -> Result<$crate::http::header::HeaderValue, Self::Error> {
-                self.0.try_into()
+            fn try_into_value(self) -> Result<$crate::http::header::HeaderValue, Self::Error> {
+                self.0.try_into_value()
             }
         }
     };
@@ -290,7 +290,7 @@ macro_rules! header {
         impl $crate::http::header::IntoHeaderValue for $id {
             type Error = $crate::http::header::InvalidHeaderValue;
 
-            fn try_into(self) -> Result<$crate::http::header::HeaderValue, Self::Error> {
+            fn try_into_value(self) -> Result<$crate::http::header::HeaderValue, Self::Error> {
                 use std::fmt::Write;
                 let mut writer = $crate::http::header::Writer::new();
                 let _ = write!(&mut writer, "{}", self);

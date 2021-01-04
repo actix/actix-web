@@ -169,7 +169,7 @@ impl ClientRequest {
     /// }
     /// ```
     pub fn set<H: Header>(mut self, hdr: H) -> Self {
-        match hdr.try_into() {
+        match hdr.try_into_value() {
             Ok(value) => {
                 self.head.headers.insert(H::name(), value);
             }
@@ -203,7 +203,7 @@ impl ClientRequest {
         V: IntoHeaderValue,
     {
         match HeaderName::try_from(key) {
-            Ok(key) => match value.try_into() {
+            Ok(key) => match value.try_into_value() {
                 Ok(value) => self.head.headers.append(key, value),
                 Err(e) => self.err = Some(e.into()),
             },
@@ -220,7 +220,7 @@ impl ClientRequest {
         V: IntoHeaderValue,
     {
         match HeaderName::try_from(key) {
-            Ok(key) => match value.try_into() {
+            Ok(key) => match value.try_into_value() {
                 Ok(value) => self.head.headers.insert(key, value),
                 Err(e) => self.err = Some(e.into()),
             },
@@ -239,7 +239,7 @@ impl ClientRequest {
         match HeaderName::try_from(key) {
             Ok(key) => {
                 if !self.head.headers.contains_key(&key) {
-                    match value.try_into() {
+                    match value.try_into_value() {
                         Ok(value) => self.head.headers.insert(key, value),
                         Err(e) => self.err = Some(e.into()),
                     }

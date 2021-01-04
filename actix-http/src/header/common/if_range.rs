@@ -98,7 +98,7 @@ impl Display for IfRange {
 impl IntoHeaderValue for IfRange {
     type Error = InvalidHeaderValue;
 
-    fn try_into(self) -> Result<HeaderValue, Self::Error> {
+    fn try_into_value(self) -> Result<HeaderValue, Self::Error> {
         let mut writer = Writer::new();
         let _ = write!(&mut writer, "{}", self);
         HeaderValue::from_maybe_shared(writer.take())

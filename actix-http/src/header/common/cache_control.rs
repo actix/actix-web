@@ -82,7 +82,7 @@ impl fmt::Display for CacheControl {
 impl IntoHeaderValue for CacheControl {
     type Error = header::InvalidHeaderValue;
 
-    fn try_into(self) -> Result<header::HeaderValue, Self::Error> {
+    fn try_into_value(self) -> Result<header::HeaderValue, Self::Error> {
         let mut writer = Writer::new();
         let _ = write!(&mut writer, "{}", self);
         header::HeaderValue::from_maybe_shared(writer.take())

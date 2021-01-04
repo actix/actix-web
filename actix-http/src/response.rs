@@ -361,7 +361,7 @@ impl ResponseBuilder {
     #[doc(hidden)]
     pub fn set<H: Header>(&mut self, hdr: H) -> &mut Self {
         if let Some(parts) = parts(&mut self.head, &self.err) {
-            match hdr.try_into() {
+            match hdr.try_into_value() {
                 Ok(value) => {
                     parts.headers.append(H::name(), value);
                 }
@@ -391,7 +391,7 @@ impl ResponseBuilder {
     {
         if let Some(parts) = parts(&mut self.head, &self.err) {
             match HeaderName::try_from(key) {
-                Ok(key) => match value.try_into() {
+                Ok(key) => match value.try_into_value() {
                     Ok(value) => {
                         parts.headers.append(key, value);
                     }
@@ -485,8 +485,7 @@ impl ResponseBuilder {
             parts.set_connection_type(ConnectionType::Upgrade);
         }
 
-        // TODO: fix signature
-        if let Ok(value) = value.try_into() {
+        if let Ok(value) = value.try_into_value() {
             self.insert_header((header::UPGRADE, value));
         }
 
@@ -880,6 +879,8 @@ impl From<BytesMut> for Response {
 
 #[cfg(test)]
 mod tests {
+    use serde_json::json;
+
     use super::*;
     use crate::body::Body;
     use crate::http::header::{HeaderValue, CONTENT_TYPE, COOKIE, SET_COOKIE};
@@ -1112,5 +1113,55 @@ mod tests {
 
         let cookie = resp.cookies().next().unwrap();
         assert_eq!((cookie.name(), cookie.value()), ("cookie1", "val100"));
+    }
+
+    #[test]
+    fn response_builder_header_insert_kv() {
+        let mut res = Response::Ok();
+        res.insert_header(("Content-Type", "application/octet-stream"));
+        let res = res.finish();
+
+        assert_eq!(
+            res.headers().get("Content-Type"),
+            Some(&HeaderValue::from_static("application/octet-stream"))
+        );
+    }
+
+    #[test]
+    fn response_builder_header_insert_typed() {
+        let mut res = Response::Ok();
+        res.insert_header(header::ContentType(mime::APPLICATION_OCTET_STREAM));
+        let res = res.finish();
+
+        assert_eq!(
+            res.headers().get("Content-Type"),
+            Some(&HeaderValue::from_static("application/octet-stream"))
+        );
+    }
+
+    #[test]
+    fn response_builder_header_append_kv() {
+        let mut res = Response::Ok();
+        res.append_header(("Content-Type", "application/octet-stream"));
+        res.append_header(("Content-Type", "application/json"));
+        let res = res.finish();
+
+        let headers: Vec<_> = res.headers().get_all("Content-Type").cloned().collect();
+        assert_eq!(headers.len(), 2);
+        assert!(headers.contains(&HeaderValue::from_static("application/octet-stream")));
+        assert!(headers.contains(&HeaderValue::from_static("application/json")));
+    }
+
+    #[test]
+    fn response_builder_header_append_typed() {
+        let mut res = Response::Ok();
+        res.append_header(header::ContentType(mime::APPLICATION_OCTET_STREAM));
+        res.append_header(header::ContentType(mime::APPLICATION_JSON));
+        let res = res.finish();
+
+        let headers: Vec<_> = res.headers().get_all("Content-Type").cloned().collect();
+        assert_eq!(headers.len(), 2);
+        assert!(headers.contains(&HeaderValue::from_static("application/octet-stream")));
+        assert!(headers.contains(&HeaderValue::from_static("application/json")));
     }
 }
