@@ -3,8 +3,8 @@ use std::rc::Rc;
 use std::task::{Context, Poll};
 
 use actix_service::{Service, Transform};
-use futures_util::future::{ok, FutureExt, LocalBoxFuture, Ready};
 use ahash::AHashMap;
+use futures_util::future::{ok, FutureExt, LocalBoxFuture, Ready};
 
 use crate::dev::{ServiceRequest, ServiceResponse};
 use crate::error::{Error, Result};
