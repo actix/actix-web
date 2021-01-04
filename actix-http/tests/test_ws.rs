@@ -74,7 +74,7 @@ async fn service(msg: ws::Frame) -> Result<ws::Message, Error> {
     let msg = match msg {
         ws::Frame::Ping(msg) => ws::Message::Pong(msg),
         ws::Frame::Text(text) => {
-            ws::Message::Text(String::from_utf8_lossy(&text).to_string())
+            ws::Message::Text(String::from_utf8_lossy(&text).into_owned().into())
         }
         ws::Frame::Binary(bin) => ws::Message::Binary(bin),
         ws::Frame::Continuation(item) => ws::Message::Continuation(item),
@@ -101,10 +101,7 @@ async fn test_simple() {
 
     // client service
     let mut framed = srv.ws().await.unwrap();
-    framed
-        .send(ws::Message::Text("text".to_string()))
-        .await
-        .unwrap();
+    framed.send(ws::Message::Text("text".into())).await.unwrap();
     let (item, mut framed) = framed.into_future().await;
     assert_eq!(
         item.unwrap().unwrap(),
