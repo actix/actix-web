@@ -87,12 +87,12 @@ actix-web-codegen = "0.4.0"
 actix-http = "2.2.0"
 awc = { version = "2.0.3", default-features = false }
 
+ahash = "0.6"
 bytes = "1"
 derive_more = "0.99.5"
 encoding_rs = "0.8"
 futures-core = { version = "0.3.7", default-features = false }
 futures-util = { version = "0.3.7", default-features = false }
-fxhash = "0.2.1"
 log = "0.4"
 mime = "0.3"
 socket2 = "0.3.16"
