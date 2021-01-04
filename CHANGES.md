@@ -1,6 +1,11 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Added
+* `Scoped` middleware enabling generic response body/error type of middlewares
+  like `Logger` and `Compress` to be used in `middleware::Condition` 
+  and `Resource`, `Scope` services. [#1865]
+
 ### Changed
 * Update `actix-*` dependencies to tokio `1.0` based versions. [#1813]
 * Bumped `rand` to `0.8`.
@@ -9,7 +14,7 @@
 * MSRV is now 1.46.0.
 
 [#1813]: https://github.com/actix/actix-web/pull/1813
-
+[#1865]: https://github.com/actix/actix-web/pull/1865
 
 ### Fixed
 * added the actual parsing error to `test::read_body_json` [#1812]

@@ -41,15 +41,14 @@ impl<T> Scoped<T> {
     }
 }
 
-impl<S, T> Transform<S> for Scoped<T>
+impl<S, T, Req> Transform<S, Req> for Scoped<T>
 where
-    S: Service,
-    T: Transform<S>,
+    S: Service<Req>,
+    T: Transform<S, Req>,
     T::Future: 'static,
     T::Response: MapServiceResponseBody,
     Error: From<T::Error>,
 {
-    type Request = T::Request;
     type Response = ServiceResponse;
     type Error = Error;
     type Transform = ScopedMiddleware<T::Transform>;
@@ -69,22 +68,21 @@ pub struct ScopedMiddleware<S> {
     service: S,
 }
 
-impl<S> Service for ScopedMiddleware<S>
+impl<S, Req> Service<Req> for ScopedMiddleware<S>
 where
-    S: Service,
+    S: Service<Req>,
     S::Response: MapServiceResponseBody,
     Error: From<S::Error>,
 {
-    type Request = S::Request;
     type Response = ServiceResponse;
     type Error = Error;
-    type Future = ScopedFuture<S>;
+    type Future = ScopedFuture<S::Future>;
 
     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         self.service.poll_ready(cx).map_err(From::from)
     }
 
-    fn call(&mut self, req: Self::Request) -> Self::Future {
+    fn call(&mut self, req: Req) -> Self::Future {
         let fut = self.service.call(req);
         ScopedFuture { fut }
     }
@@ -92,19 +90,16 @@ where
 
 #[doc(hidden)]
 #[pin_project::pin_project]
-pub struct ScopedFuture<S>
-where
-    S: Service,
-{
+pub struct ScopedFuture<Fut> {
     #[pin]
-    fut: S::Future,
+    fut: Fut,
 }
 
-impl<S> Future for ScopedFuture<S>
+impl<Fut, T, E> Future for ScopedFuture<Fut>
 where
-    S: Service,
-    S::Response: MapServiceResponseBody,
-    Error: From<S::Error>,
+    Fut: Future<Output = Result<T, E>>,
+    T: MapServiceResponseBody,
+    Error: From<E>,
 {
     type Output = Result<ServiceResponse, Error>;
 
@@ -114,8 +109,8 @@ where
     }
 }
 
-// private trait for convert ServiceResponse's ResponseBody<B> type
-// to ResponseBody::Other(Body::Message)
+// private trait for convert ServiceResponse's ResponseBody<B> generic type
+// to ResponseBody<Body>
 #[doc(hidden)]
 pub trait MapServiceResponseBody {
     fn map_body(self) -> ServiceResponse;
@@ -137,8 +132,7 @@ mod tests {
     use crate::http::StatusCode;
     use crate::middleware::{Compress, Condition, Logger};
     use crate::test::{call_service, init_service, TestRequest};
-    use crate::App;
-    use crate::{web, HttpResponse};
+    use crate::{web, App, HttpResponse};
 
     #[actix_rt::test]
     async fn test_scope_middleware() {
