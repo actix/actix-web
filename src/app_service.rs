@@ -238,7 +238,7 @@ where
         let (head, payload) = req.into_parts();
 
         let req = if let Some(mut req) = self.pool.get_request() {
-            let inner = Rc::get_mut(&mut req.0).unwrap();
+            let inner = Rc::get_mut(&mut req.inner).unwrap();
             inner.path.get_mut().update(&head.uri);
             inner.path.reset();
             inner.head = head;
