@@ -4,7 +4,7 @@ use std::task::{Context, Poll};
 
 use actix_service::{Service, Transform};
 use futures_util::future::{ok, FutureExt, LocalBoxFuture, Ready};
-use fxhash::FxHashMap;
+use ahash::AHashMap;
 
 use crate::dev::{ServiceRequest, ServiceResponse};
 use crate::error::{Error, Result};
@@ -52,13 +52,13 @@ type ErrorHandler<B> = dyn Fn(ServiceResponse<B>) -> Result<ErrorHandlerResponse
 /// # }
 /// ```
 pub struct ErrorHandlers<B> {
-    handlers: Rc<FxHashMap<StatusCode, Box<ErrorHandler<B>>>>,
+    handlers: Rc<AHashMap<StatusCode, Box<ErrorHandler<B>>>>,
 }
 
 impl<B> Default for ErrorHandlers<B> {
     fn default() -> Self {
         ErrorHandlers {
-            handlers: Rc::new(FxHashMap::default()),
+            handlers: Rc::new(AHashMap::default()),
         }
     }
 }
@@ -104,7 +104,7 @@ where
 #[doc(hidden)]
 pub struct ErrorHandlersMiddleware<S, B> {
     service: S,
-    handlers: Rc<FxHashMap<StatusCode, Box<ErrorHandler<B>>>>,
+    handlers: Rc<AHashMap<StatusCode, Box<ErrorHandler<B>>>>,
 }
 
 impl<S, B> Service<ServiceRequest> for ErrorHandlersMiddleware<S, B>
