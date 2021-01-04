@@ -18,30 +18,28 @@ use crate::service::ServiceResponse;
 /// ## Usage
 ///
 /// ```rust
-/// use actix_web::middleware::{Logger, Scoped};
+/// use actix_web::middleware::{Logger, Compat};
 /// use actix_web::{App, web};
 ///
-/// # fn main() {
 /// let logger = Logger::default();
 ///
 /// // this would not compile
 /// // let app = App::new().service(web::scope("scoped").wrap(logger));
 ///
 /// // by using scoped middleware we can use logger in scope.
-/// let app = App::new().service(web::scope("scoped").wrap(Scoped::new(logger)));
-/// # }
+/// let app = App::new().service(web::scope("scoped").wrap(Compat::new(logger)));
 /// ```
-pub struct Scoped<T> {
+pub struct Compat<T> {
     transform: T,
 }
 
-impl<T> Scoped<T> {
+impl<T> Compat<T> {
     pub fn new(transform: T) -> Self {
         Self { transform }
     }
 }
 
-impl<S, T, Req> Transform<S, Req> for Scoped<T>
+impl<S, T, Req> Transform<S, Req> for Compat<T>
 where
     S: Service<Req>,
     T: Transform<S, Req>,
@@ -51,7 +49,7 @@ where
 {
     type Response = ServiceResponse;
     type Error = Error;
-    type Transform = ScopedMiddleware<T::Transform>;
+    type Transform = CompatMiddleware<T::Transform>;
     type InitError = T::InitError;
     type Future = LocalBoxFuture<'static, Result<Self::Transform, Self::InitError>>;
 
@@ -59,16 +57,16 @@ where
         let fut = self.transform.new_transform(service);
         Box::pin(async move {
             let service = fut.await?;
-            Ok(ScopedMiddleware { service })
+            Ok(CompatMiddleware { service })
         })
     }
 }
 
-pub struct ScopedMiddleware<S> {
+pub struct CompatMiddleware<S> {
     service: S,
 }
 
-impl<S, Req> Service<Req> for ScopedMiddleware<S>
+impl<S, Req> Service<Req> for CompatMiddleware<S>
 where
     S: Service<Req>,
     S::Response: MapServiceResponseBody,
@@ -76,7 +74,7 @@ where
 {
     type Response = ServiceResponse;
     type Error = Error;
-    type Future = ScopedFuture<S::Future>;
+    type Future = CompatMiddlewareFuture<S::Future>;
 
     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         self.service.poll_ready(cx).map_err(From::from)
@@ -84,18 +82,17 @@ where
 
     fn call(&mut self, req: Req) -> Self::Future {
         let fut = self.service.call(req);
-        ScopedFuture { fut }
+        CompatMiddlewareFuture { fut }
     }
 }
 
-#[doc(hidden)]
 #[pin_project::pin_project]
-pub struct ScopedFuture<Fut> {
+pub struct CompatMiddlewareFuture<Fut> {
     #[pin]
     fut: Fut,
 }
 
-impl<Fut, T, E> Future for ScopedFuture<Fut>
+impl<Fut, T, E> Future for CompatMiddlewareFuture<Fut>
 where
     Fut: Future<Output = Result<T, E>>,
     T: MapServiceResponseBody,
@@ -109,9 +106,8 @@ where
     }
 }
 
-// private trait for convert ServiceResponse's ResponseBody<B> generic type
+// trait for convert ServiceResponse's ResponseBody<B> generic type
 // to ResponseBody<Body>
-#[doc(hidden)]
 pub trait MapServiceResponseBody {
     fn map_body(self) -> ServiceResponse;
 }
@@ -142,8 +138,8 @@ mod tests {
         let mut srv = init_service(
             App::new().service(
                 web::scope("app")
-                    .wrap(Scoped::new(logger))
-                    .wrap(Scoped::new(compress))
+                    .wrap(Compat::new(logger))
+                    .wrap(Compat::new(compress))
                     .service(
                         web::resource("/test").route(web::get().to(HttpResponse::Ok)),
                     ),
@@ -164,8 +160,8 @@ mod tests {
         let mut srv = init_service(
             App::new().service(
                 web::resource("app/test")
-                    .wrap(Scoped::new(logger))
-                    .wrap(Scoped::new(compress))
+                    .wrap(Compat::new(logger))
+                    .wrap(Compat::new(compress))
                     .route(web::get().to(HttpResponse::Ok)),
             ),
         )
@@ -186,7 +182,7 @@ mod tests {
 
         let logger = Logger::default();
 
-        let mut mw = Condition::new(true, Scoped::new(logger))
+        let mut mw = Condition::new(true, Compat::new(logger))
             .new_transform(srv.into_service())
             .await
             .unwrap();

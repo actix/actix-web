@@ -8,7 +8,7 @@ use futures_util::future::{ok, Either, FutureExt, LocalBoxFuture};
 /// The controlled middleware must not change the `Service` interfaces.
 ///
 /// This means you cannot control such middlewares like `Logger` or `Compress` directly.
-/// *. See `Scoped` middleware for alternative.
+/// *. See `Compat` middleware for alternative.
 ///
 /// ## Usage
 ///

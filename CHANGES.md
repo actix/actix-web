@@ -2,7 +2,7 @@
 
 ## Unreleased - 2021-xx-xx
 ### Added
-* `Scoped` middleware enabling generic response body/error type of middlewares
+* `Compat` middleware enabling generic response body/error type of middlewares
   like `Logger` and `Compress` to be used in `middleware::Condition` 
   and `Resource`, `Scope` services. [#1865]
 
