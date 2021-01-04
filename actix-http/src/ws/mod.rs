@@ -1,11 +1,11 @@
 //! WebSocket protocol support.
 //!
-//! To setup a `WebSocket`, first do web socket handshake then on success
-//! convert `Payload` into a `WsStream` stream and then use `WsWriter` to
-//! communicate with the peer.
+//! To setup a WebSocket, first do web socket handshake then on success convert `Payload` into a
+//! `WsStream` stream and then use `WsWriter` to communicate with the peer.
+
 use std::io;
 
-use derive_more::{Display, From};
+use derive_more::{Display, Error, From};
 use http::{header, Method, StatusCode};
 
 use crate::error::ResponseError;
@@ -23,86 +23,103 @@ pub use self::dispatcher::Dispatcher;
 pub use self::frame::Parser;
 pub use self::proto::{hash_key, CloseCode, CloseReason, OpCode};
 
-/// Websocket protocol errors
-#[derive(Debug, Display, From)]
+/// WebSocket protocol errors.
+#[derive(Debug, Display, From, Error)]
 pub enum ProtocolError {
-    /// Received an unmasked frame from client
-    #[display(fmt = "Received an unmasked frame from client")]
+    /// Received an unmasked frame from client.
+    #[display(fmt = "Received an unmasked frame from client.")]
     UnmaskedFrame,
-    /// Received a masked frame from server
-    #[display(fmt = "Received a masked frame from server")]
+
+    /// Received a masked frame from server.
+    #[display(fmt = "Received a masked frame from server.")]
     MaskedFrame,
-    /// Encountered invalid opcode
-    #[display(fmt = "Invalid opcode: {}", _0)]
-    InvalidOpcode(u8),
+
+    /// Encountered invalid opcode.
+    #[display(fmt = "Invalid opcode: {}.", _0)]
+    InvalidOpcode(#[error(not(source))] u8),
+
     /// Invalid control frame length
-    #[display(fmt = "Invalid control frame length: {}", _0)]
-    InvalidLength(usize),
-    /// Bad web socket op code
-    #[display(fmt = "Bad web socket op code")]
+    #[display(fmt = "Invalid control frame length: {}.", _0)]
+    InvalidLength(#[error(not(source))] usize),
+
+    /// Bad opcode.
+    #[display(fmt = "Bad opcode.")]
     BadOpCode,
+
     /// A payload reached size limit.
     #[display(fmt = "A payload reached size limit.")]
     Overflow,
-    /// Continuation is not started
+
+    /// Continuation is not started.
     #[display(fmt = "Continuation is not started.")]
     ContinuationNotStarted,
-    /// Received new continuation but it is already started
-    #[display(fmt = "Received new continuation but it is already started")]
+
+    /// Received new continuation but it is already started.
+    #[display(fmt = "Received new continuation but it is already started.")]
     ContinuationStarted,
-    /// Unknown continuation fragment
-    #[display(fmt = "Unknown continuation fragment.")]
-    ContinuationFragment(OpCode),
-    /// Io error
-    #[display(fmt = "io error: {}", _0)]
+
+    /// Unknown continuation fragment.
+    #[display(fmt = "Unknown continuation fragment: {}.", _0)]
+    ContinuationFragment(#[error(not(source))] OpCode),
+
+    /// I/O error.
+    #[display(fmt = "I/O error: {}", _0)]
     Io(io::Error),
 }
 
-impl std::error::Error for ProtocolError {}
-
 impl ResponseError for ProtocolError {}
 
-/// Websocket handshake errors
+/// WebSocket handshake errors
 #[derive(PartialEq, Debug, Display)]
 pub enum HandshakeError {
-    /// Only get method is allowed
-    #[display(fmt = "Method not allowed")]
+    /// Only get method is allowed.
+    #[display(fmt = "Method not allowed.")]
     GetMethodRequired,
-    /// Upgrade header if not set to websocket
-    #[display(fmt = "Websocket upgrade is expected")]
+
+    /// Upgrade header if not set to websocket.
+    #[display(fmt = "WebSocket upgrade is expected.")]
     NoWebsocketUpgrade,
-    /// Connection header is not set to upgrade
-    #[display(fmt = "Connection upgrade is expected")]
+
+    /// Connection header is not set to upgrade.
+    #[display(fmt = "Connection upgrade is expected.")]
     NoConnectionUpgrade,
-    /// Websocket version header is not set
-    #[display(fmt = "Websocket version header is required")]
+
+    /// WebSocket version header is not set.
+    #[display(fmt = "WebSocket version header is required.")]
     NoVersionHeader,
-    /// Unsupported websocket version
-    #[display(fmt = "Unsupported version")]
+
+    /// Unsupported websocket version.
+    #[display(fmt = "Unsupported version.")]
     UnsupportedVersion,
-    /// Websocket key is not set or wrong
-    #[display(fmt = "Unknown websocket key")]
+
+    /// WebSocket key is not set or wrong.
+    #[display(fmt = "Unknown websocket key.")]
     BadWebsocketKey,
 }
 
 impl ResponseError for HandshakeError {
     fn error_response(&self) -> Response {
-        match *self {
+        match self {
             HandshakeError::GetMethodRequired => Response::MethodNotAllowed()
                 .header(header::ALLOW, "GET")
                 .finish(),
+
             HandshakeError::NoWebsocketUpgrade => Response::BadRequest()
                 .reason("No WebSocket UPGRADE header found")
                 .finish(),
+
             HandshakeError::NoConnectionUpgrade => Response::BadRequest()
                 .reason("No CONNECTION upgrade")
                 .finish(),
+
             HandshakeError::NoVersionHeader => Response::BadRequest()
                 .reason("Websocket version header is required")
                 .finish(),
+
             HandshakeError::UnsupportedVersion => Response::BadRequest()
                 .reason("Unsupported version")
                 .finish(),
+
             HandshakeError::BadWebsocketKey => {
                 Response::BadRequest().reason("Handshake error").finish()
             }
