@@ -22,6 +22,7 @@ actix-http = "2.0.0"
 actix-web = { version = "3.0.0", default-features = false }
 
 bytes = "1"
+bytestring = "1"
 futures-core = { version = "0.3.7", default-features = false }
 pin-project = "1.0.0"
 tokio = { version = "1", features = ["sync"] }

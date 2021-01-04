@@ -17,7 +17,7 @@
 //!         .unwrap();
 //!
 //!     connection
-//!         .send(ws::Message::Text("Echo".to_string()))
+//!         .send(ws::Message::Text("Echo".into()))
 //!         .await
 //!         .unwrap();
 //!     let response = connection.next().await.unwrap().unwrap();

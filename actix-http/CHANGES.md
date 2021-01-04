@@ -2,14 +2,11 @@
 
 ## Unreleased - 2021-xx-xx
 ### Changed
-* Bumped `rand` to `0.8`.
 * Update `actix-*` dependencies to tokio `1.0` based versions. [#1813]
+* Bumped `rand` to `0.8`.
 * Update `bytes` to `1.0`. [#1813]
 * Update `h2` to `0.3`. [#1813]
-
-
-[#1813]: https://github.com/actix/actix-web/pull/1813
-
+* The `ws::Message::Text` enum variant now contains a `bytestring::ByteString`. [#1864]
 
 ### Removed
 * Deprecated `on_connect` methods have been removed. Prefer the new
@@ -22,6 +19,7 @@
 
 [#1813]: https://github.com/actix/actix-web/pull/1813
 [#1857]: https://github.com/actix/actix-web/pull/1857
+[#1864]: https://github.com/actix/actix-web/pull/1864
 
 
 ## 2.2.0 - 2020-11-25
