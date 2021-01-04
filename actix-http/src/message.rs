@@ -67,7 +67,7 @@ impl Head for RequestHead {
     fn clear(&mut self) {
         self.flags = Flags::empty();
         self.headers.clear();
-        self.extensions.borrow_mut().clear();
+        self.extensions.get_mut().clear();
     }
 
     fn pool() -> &'static MessagePool<Self> {
@@ -440,9 +440,11 @@ impl<T: Head> MessagePool<T> {
     #[inline]
     fn get_message(&'static self) -> Message<T> {
         if let Some(mut msg) = self.0.borrow_mut().pop() {
-            if let Some(r) = Rc::get_mut(&mut msg) {
-                r.clear();
-            }
+            // Message is put in pool only when it's the last copy.
+            // which means it's guaranteed to be unique when popped out.
+            Rc::get_mut(&mut msg)
+                .expect("Multiple copies exist")
+                .clear();
             Message { head: msg }
         } else {
             Message {
