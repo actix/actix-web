@@ -48,9 +48,10 @@ impl Default for TrailingSlash {
 ///   to [`new`](NormalizePath::new()).
 ///
 /// # Default Behavior
-/// The default constructor chooses to append trailing slashes to the end of paths without them
-/// ([`TrailingSlash::Always`]), the effect is that route definitions should be defined with
-/// trailing slashes or else they will be inaccessible, or vice versa when using the trim behavior.
+/// The default constructor chooses to strip trailing slashes from the end of paths with them
+/// ([`TrailingSlash::Trim`]). The implication is that route definitions should be defined without
+/// trailing slashes or else they will be inaccessible (or vice versa when using the
+/// `TrailingSlash::Always` behavior), as shown in the example tests below.
 ///
 /// # Usage
 /// ```rust
@@ -91,16 +92,6 @@ impl NormalizePath {
     /// Create new `NormalizePath` middleware with the specified trailing slash style.
     pub fn new(trailing_slash_style: TrailingSlash) -> Self {
         NormalizePath(trailing_slash_style)
-    }
-
-    /// Shortcut for new `NormalizePath::new(TrailingSlash::Trim)`.
-    pub fn trim() -> Self {
-        NormalizePath::new(TrailingSlash::Trim)
-    }
-
-    /// Shortcut for new `NormalizePath::new(TrailingSlash::MergeOnly)`.
-    pub fn merge_only() -> Self {
-        NormalizePath::new(TrailingSlash::MergeOnly)
     }
 }
 

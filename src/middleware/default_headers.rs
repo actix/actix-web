@@ -9,13 +9,13 @@ use std::{
     task::{Context, Poll},
 };
 
-use actix_service::{Service, Transform};
 use futures_util::{
     future::{ready, Ready},
     ready,
 };
 
 use crate::{
+    dev::{Service, Transform},
     http::{
         header::{HeaderName, HeaderValue, CONTENT_TYPE},
         Error as HttpError, HeaderMap,

@@ -11,8 +11,8 @@
 * Update `rust-tls` to `0.19`. [#1813]
 * Rename `Handler` to `HandlerService` and rename `Factory` to `Handler`. [#1852]
 * The default `TrailingSlash` is now `Trim`, in line with existing documentation. See migration
-  guide for implications. [#????]
-* Rename `DefaultHeaders::{content_type => add_content_type}`. [#????]
+  guide for implications. [#1875]
+* Rename `DefaultHeaders::{content_type => add_content_type}`. [#1875]
 * MSRV is now 1.46.0.
 
 ### Fixed
@@ -26,7 +26,7 @@
 [#1813]: https://github.com/actix/actix-web/pull/1813
 [#1852]: https://github.com/actix/actix-web/pull/1852
 [#1865]: https://github.com/actix/actix-web/pull/1865
-[#????]: https://github.com/actix/actix-web/pull/????
+[#1875]: https://github.com/actix/actix-web/pull/1875
 
 
 ## 3.3.2 - 2020-12-01
