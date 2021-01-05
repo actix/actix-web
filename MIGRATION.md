@@ -1,5 +1,15 @@
 ## Unreleased
 
+* The default `NormalizePath` behavior now strips trailing slashes by default. This was
+  previously documented to be the case in v3 but the behavior now matches. The effect is that
+  routes defined with trailing slashes will become inaccessible when
+  using `NormalizePath::default()`.
+  
+  Before: `#[get("/test/")`  
+  After: `#[get("/test")`  
+
+  Alternatively, explicitly require trailing slashes: `NormalizePath::new(TrailingSlash::Always)`.
+
 
 ## 3.0.0
 

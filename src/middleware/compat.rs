@@ -1,41 +1,45 @@
-//! `Middleware` for enabling any middleware to be used in `Resource`, `Scope` and `Condition`.
-use std::future::Future;
-use std::pin::Pin;
-use std::task::{Context, Poll};
+//! For middleware documentation, see [`Compat`].
 
-use actix_http::body::Body;
-use actix_http::body::{MessageBody, ResponseBody};
+use std::{
+    future::Future,
+    pin::Pin,
+    task::{Context, Poll},
+};
+
+use actix_http::body::{Body, MessageBody, ResponseBody};
 use actix_service::{Service, Transform};
-use futures_core::future::LocalBoxFuture;
-use futures_core::ready;
+use futures_core::{future::LocalBoxFuture, ready};
 
-use crate::error::Error;
-use crate::service::ServiceResponse;
+use crate::{error::Error, service::ServiceResponse};
 
-/// `Middleware` for enabling any middleware to be used in `Resource`, `Scope` and `Condition`.
+/// Middleware for enabling any middleware to be used in [`Resource::wrap`](crate::Resource::wrap),
+/// [`Scope::wrap`](crate::Scope::wrap) and [`Condition`](super::Condition).
 ///
-///
-/// ## Usage
-///
+/// # Usage
 /// ```rust
 /// use actix_web::middleware::{Logger, Compat};
 /// use actix_web::{App, web};
 ///
 /// let logger = Logger::default();
 ///
-/// // this would not compile
-/// // let app = App::new().service(web::scope("scoped").wrap(logger));
+/// // this would not compile because of incompatible body types
+/// // let app = App::new()
+/// //     .service(web::scope("scoped").wrap(logger));
 ///
-/// // by using scoped middleware we can use logger in scope.
-/// let app = App::new().service(web::scope("scoped").wrap(Compat::new(logger)));
+/// // by using this middleware we can use the logger on a scope
+/// let app = App::new()
+///     .service(web::scope("scoped").wrap(Compat::new(logger)));
 /// ```
 pub struct Compat<T> {
     transform: T,
 }
 
 impl<T> Compat<T> {
-    pub fn new(transform: T) -> Self {
-        Self { transform }
+    /// Wrap a middleware to give it broader compatibility.
+    pub fn new(middleware: T) -> Self {
+        Self {
+            transform: middleware,
+        }
     }
 }
 

@@ -1,35 +1,36 @@
-//! Custom handlers service for responses.
+//! For middleware documentation, see [`ErrorHandlers`].
+
 use std::rc::Rc;
-use std::task::{Context, Poll};
 
 use actix_service::{Service, Transform};
 use ahash::AHashMap;
 use futures_util::future::{ok, FutureExt, LocalBoxFuture, Ready};
 
-use crate::dev::{ServiceRequest, ServiceResponse};
-use crate::error::{Error, Result};
-use crate::http::StatusCode;
+use crate::{
+    dev::{ServiceRequest, ServiceResponse},
+    error::{Error, Result},
+    http::StatusCode,
+};
 
-/// Error handler response
+/// Return type for [`ErrorHandlers`] custom handlers.
 pub enum ErrorHandlerResponse<B> {
-    /// New http response got generated
+    /// Immediate HTTP response.
     Response(ServiceResponse<B>),
-    /// Result is a future that resolves to a new http response
+
+    /// A future that resolves to an HTTP response.
     Future(LocalBoxFuture<'static, Result<ServiceResponse<B>, Error>>),
 }
 
 type ErrorHandler<B> = dyn Fn(ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>>;
 
-/// `Middleware` for allowing custom handlers for responses.
+/// Middleware for registering custom status code based error handlers.
 ///
-/// You can use `ErrorHandlers::handler()` method  to register a custom error
-/// handler for specific status code. You can modify existing response or
-/// create completely new one.
+/// Register handlers with the `ErrorHandlers::handler()` method to register a custom error handler
+/// for a given status code. Handlers can modify existing responses or create completely new ones.
 ///
-/// ## Example
-///
+/// # Usage
 /// ```rust
-/// use actix_web::middleware::errhandlers::{ErrorHandlers, ErrorHandlerResponse};
+/// use actix_web::middleware::{ErrorHandlers, ErrorHandlerResponse};
 /// use actix_web::{web, http, dev, App, HttpRequest, HttpResponse, Result};
 ///
 /// fn render_500<B>(mut res: dev::ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
@@ -39,7 +40,6 @@ type ErrorHandler<B> = dyn Fn(ServiceResponse<B>) -> Result<ErrorHandlerResponse
 ///     Ok(ErrorHandlerResponse::Response(res))
 /// }
 ///
-/// # fn main() {
 /// let app = App::new()
 ///     .wrap(
 ///         ErrorHandlers::new()
@@ -49,7 +49,6 @@ type ErrorHandler<B> = dyn Fn(ServiceResponse<B>) -> Result<ErrorHandlerResponse
 ///         .route(web::get().to(|| HttpResponse::Ok()))
 ///         .route(web::head().to(|| HttpResponse::MethodNotAllowed())
 ///     ));
-/// # }
 /// ```
 pub struct ErrorHandlers<B> {
     handlers: Rc<AHashMap<StatusCode, Box<ErrorHandler<B>>>>,
@@ -64,12 +63,12 @@ impl<B> Default for ErrorHandlers<B> {
 }
 
 impl<B> ErrorHandlers<B> {
-    /// Construct new `ErrorHandlers` instance
+    /// Construct new `ErrorHandlers` instance.
     pub fn new() -> Self {
         ErrorHandlers::default()
     }
 
-    /// Register error handler for specified status code
+    /// Register error handler for specified status code.
     pub fn handler<F>(mut self, status: StatusCode, handler: F) -> Self
     where
         F: Fn(ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> + 'static,
@@ -117,9 +116,7 @@ where
     type Error = Error;
     type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
 
-    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        self.service.poll_ready(cx)
-    }
+    actix_service::forward_ready!(service);
 
     fn call(&mut self, req: ServiceRequest) -> Self::Future {
         let handlers = self.handlers.clone();

@@ -1,35 +1,36 @@
-//! `Middleware` for conditionally enables another middleware.
+//! For middleware documentation, see [`Condition`].
+
 use std::task::{Context, Poll};
 
 use actix_service::{Service, Transform};
-use futures_util::future::{ok, Either, FutureExt, LocalBoxFuture};
+use futures_util::future::{Either, FutureExt, LocalBoxFuture};
 
-/// `Middleware` for conditionally enables another middleware.
-/// The controlled middleware must not change the `Service` interfaces.
+/// Middleware for conditionally enabling other middleware.
 ///
-/// This means you cannot control such middlewares like `Logger` or `Compress` directly.
-/// *. See `Compat` middleware for alternative.
+/// The controlled middleware must not change the `Service` interfaces. This means you cannot
+/// control such middlewares like `Logger` or `Compress` directly. See the [`Compat`](super::Compat)
+/// middleware for a workaround.
 ///
-/// ## Usage
-///
+/// # Usage
 /// ```rust
 /// use actix_web::middleware::{Condition, NormalizePath};
 /// use actix_web::App;
 ///
-/// # fn main() {
-/// let enable_normalize = std::env::var("NORMALIZE_PATH") == Ok("true".into());
+/// let enable_normalize = std::env::var("NORMALIZE_PATH").is_ok();
 /// let app = App::new()
 ///     .wrap(Condition::new(enable_normalize, NormalizePath::default()));
-/// # }
 /// ```
 pub struct Condition<T> {
-    trans: T,
+    transformer: T,
     enable: bool,
 }
 
 impl<T> Condition<T> {
-    pub fn new(enable: bool, trans: T) -> Self {
-        Self { trans, enable }
+    pub fn new(enable: bool, transformer: T) -> Self {
+        Self {
+            transformer,
+            enable,
+        }
     }
 }
 
@@ -49,16 +50,15 @@ where
 
     fn new_transform(&self, service: S) -> Self::Future {
         if self.enable {
-            let f = self.trans.new_transform(service).map(|res| {
-                res.map(
-                    ConditionMiddleware::Enable as fn(T::Transform) -> Self::Transform,
-                )
-            });
-            Either::Left(f)
+            let fut = self.transformer.new_transform(service);
+            async move {
+                let wrapped_svc = fut.await?;
+                Ok(ConditionMiddleware::Enable(wrapped_svc))
+            }
+            .boxed_local()
         } else {
-            Either::Right(ok(ConditionMiddleware::Disable(service)))
+            async move { Ok(ConditionMiddleware::Disable(service)) }.boxed_local()
         }
-        .boxed_local()
     }
 }
 
@@ -77,18 +77,16 @@ where
     type Future = Either<E::Future, D::Future>;
 
     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        use ConditionMiddleware::*;
         match self {
-            Enable(service) => service.poll_ready(cx),
-            Disable(service) => service.poll_ready(cx),
+            ConditionMiddleware::Enable(service) => service.poll_ready(cx),
+            ConditionMiddleware::Disable(service) => service.poll_ready(cx),
         }
     }
 
     fn call(&mut self, req: Req) -> Self::Future {
-        use ConditionMiddleware::*;
         match self {
-            Enable(service) => Either::Left(service.call(req)),
-            Disable(service) => Either::Right(service.call(req)),
+            ConditionMiddleware::Enable(service) => Either::Left(service.call(req)),
+            ConditionMiddleware::Disable(service) => Either::Right(service.call(req)),
         }
     }
 }
@@ -96,14 +94,17 @@ where
 #[cfg(test)]
 mod tests {
     use actix_service::IntoService;
+    use futures_util::future::ok;
 
     use super::*;
-    use crate::dev::{ServiceRequest, ServiceResponse};
-    use crate::error::Result;
-    use crate::http::{header::CONTENT_TYPE, HeaderValue, StatusCode};
-    use crate::middleware::errhandlers::*;
-    use crate::test::{self, TestRequest};
-    use crate::HttpResponse;
+    use crate::{
+        dev::{ServiceRequest, ServiceResponse},
+        error::Result,
+        http::{header::CONTENT_TYPE, HeaderValue, StatusCode},
+        middleware::err_handlers::*,
+        test::{self, TestRequest},
+        HttpResponse,
+    };
 
     #[allow(clippy::unnecessary_wraps)]
     fn render_500<B>(mut res: ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {

@@ -1,7 +1,9 @@
-use std::future::Future;
-use std::io::{Read, Write};
-use std::pin::Pin;
-use std::task::{Context, Poll};
+use std::{
+    future::Future,
+    io::{Read, Write},
+    pin::Pin,
+    task::{Context, Poll},
+};
 
 use actix_http::http::header::{
     ContentEncoding, ACCEPT_ENCODING, CONTENT_ENCODING, CONTENT_LENGTH,
@@ -9,15 +11,16 @@ use actix_http::http::header::{
 };
 use brotli2::write::{BrotliDecoder, BrotliEncoder};
 use bytes::Bytes;
-use flate2::read::GzDecoder;
-use flate2::write::{GzEncoder, ZlibDecoder, ZlibEncoder};
-use flate2::Compression;
+use flate2::{
+    read::GzDecoder,
+    write::{GzEncoder, ZlibDecoder, ZlibEncoder},
+    Compression,
+};
 use futures_util::ready;
 use rand::{distributions::Alphanumeric, Rng};
 
 use actix_web::dev::BodyEncoding;
-use actix_web::middleware::normalize::TrailingSlash;
-use actix_web::middleware::{Compress, NormalizePath};
+use actix_web::middleware::{Compress, NormalizePath, TrailingSlash};
 use actix_web::{dev, test, web, App, Error, HttpResponse};
 
 const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
