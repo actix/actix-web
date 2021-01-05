@@ -71,7 +71,7 @@ where
         InitError = (),
     >,
 {
-    /// Adds an arbirtraty application level data item.
+    /// Adds an arbitrary application level data item.
     ///
     /// Application data can be accessed by using a `Data<T>` extractor where `T` is the data type.
     ///
@@ -83,6 +83,16 @@ where
     /// Internally the data will be wrapped in an `Arc`.
     /// If your data is already wrapped in an `Arc`
     /// you can instead store it directly using the `App::app_data()` function.
+    /// Note: There is a `From<Arc<T>>` implementation for `Data<T>` so anything wrapped in an `Arc`
+    /// can be converted to a `Data` like this:
+    ///
+    /// ```rust
+    /// use std::sync::Arc;
+    /// use actix_web::web::Data;
+    ///
+    /// let arc = Arc::new(String::from("test-123"));
+    /// let data_from_arc = Data::from(arc);
+    /// ```
     ///
     /// **Note**: `HttpServer` accepts an application factory (closure) rather than
     /// an application instance (`App`).
