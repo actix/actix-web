@@ -1,13 +1,16 @@
-//! Request logging middleware
-use std::collections::HashSet;
-use std::convert::TryFrom;
-use std::env;
-use std::fmt::{self, Display, Formatter};
-use std::future::Future;
-use std::marker::PhantomData;
-use std::pin::Pin;
-use std::rc::Rc;
-use std::task::{Context, Poll};
+//! For middleware documentation, see [`Logger`].
+
+use std::{
+    collections::HashSet,
+    convert::TryFrom,
+    env,
+    fmt::{self, Display as _},
+    future::Future,
+    marker::PhantomData,
+    pin::Pin,
+    rc::Rc,
+    task::{Context, Poll},
+};
 
 use actix_service::{Service, Transform};
 use bytes::Bytes;
@@ -16,78 +19,69 @@ use log::debug;
 use regex::{Regex, RegexSet};
 use time::OffsetDateTime;
 
-use crate::dev::{BodySize, MessageBody, ResponseBody};
-use crate::error::{Error, Result};
-use crate::http::{HeaderName, StatusCode};
-use crate::service::{ServiceRequest, ServiceResponse};
-use crate::HttpResponse;
+use crate::{
+    dev::{BodySize, MessageBody, ResponseBody},
+    error::{Error, Result},
+    http::{HeaderName, StatusCode},
+    service::{ServiceRequest, ServiceResponse},
+    HttpResponse,
+};
 
-/// `Middleware` for logging request and response info to the terminal.
+/// Middleware for logging request and response summaries to the terminal.
 ///
-/// `Logger` middleware uses standard log crate to log information. You should
-/// enable logger for `actix_web` package to see access log.
-/// ([`env_logger`](https://docs.rs/env_logger/*/env_logger/) or similar)
+/// This middleware uses the `log` crate to output information. Enable `log`'s output for the
+/// "actix_web" scope using [`env_logger`](https://docs.rs/env_logger) or similar crate.
 ///
-/// ## Usage
-///
-/// Create `Logger` middleware with the specified `format`.
-/// Default `Logger` could be created with `default` method, it uses the
-/// default format:
+/// # Default Format
+/// The [`default`](Logger::default) Logger uses the following format:
 ///
 /// ```plain
 /// %a "%r" %s %b "%{Referer}i" "%{User-Agent}i" %T
+///
+/// Example Output:
+/// 127.0.0.1:54278 "GET /test HTTP/1.1" 404 20 "-" "HTTPie/2.2.0" 0.001074
 /// ```
 ///
+/// # Usage
 /// ```rust
 /// use actix_web::{middleware::Logger, App};
 ///
-/// std::env::set_var("RUST_LOG", "actix_web=info");
-/// env_logger::init();
+/// // access logs are printed with the INFO level so ensure it is enabled by default
+/// env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
 ///
 /// let app = App::new()
-///     .wrap(Logger::default())
+///     // .wrap(Logger::default())
 ///     .wrap(Logger::new("%a %{User-Agent}i"));
 /// ```
 ///
-/// ## Format
-///
-/// `%%`  The percent sign
-///
-/// `%a`  Remote IP-address (IP-address of proxy if using reverse proxy)
-///
-/// `%t`  Time when the request was started to process (in rfc3339 format)
-///
-/// `%r`  First line of request
-///
-/// `%s`  Response status code
-///
-/// `%b`  Size of response in bytes, including HTTP headers
-///
-/// `%T` Time taken to serve the request, in seconds with floating fraction in
-/// .06f format
-///
-/// `%D`  Time taken to serve the request, in milliseconds
-///
-/// `%U`  Request URL
-///
-/// `%{r}a`  Real IP remote address **\***
-///
-/// `%{FOO}i`  request.headers['FOO']
-///
-/// `%{FOO}o`  response.headers['FOO']
-///
-/// `%{FOO}e`  os.environ['FOO']
-///
-/// `%{FOO}xi`  [custom request replacement](Logger::custom_request_replace) labelled "FOO"
+/// # Format
+/// Variable | Description
+/// -------- | -----------
+/// `%%` | The percent sign
+/// `%a` | Peer IP address (or IP address of reverse proxy if used)
+/// `%t` | Time when the request started processing (in RFC 3339 format)
+/// `%r` | First line of request (Example: `GET /test HTTP/1.1`)
+/// `%s` | Response status code
+/// `%b` | Size of response in bytes, including HTTP headers
+/// `%T` | Time taken to serve the request, in seconds to 6 decimal places
+/// `%D` | Time taken to serve the request, in milliseconds
+/// `%U` | Request URL
+/// `%{r}a` | "Real IP" remote address **\***
+/// `%{FOO}i` |  `request.headers["FOO"]`
+/// `%{FOO}o` | `response.headers["FOO"]`
+/// `%{FOO}e` | `env_var["FOO"]`
+/// `%{FOO}xi` | [Custom request replacement](Logger::custom_request_replace) labelled "FOO"
 ///
 /// # Security
-///  **\*** It is calculated using
-///  [`ConnectionInfo::realip_remote_addr()`](crate::dev::ConnectionInfo::realip_remote_addr())
+/// **\*** "Real IP" remote address is calculated using
+/// [`ConnectionInfo::realip_remote_addr()`](crate::dev::ConnectionInfo::realip_remote_addr())
 ///
-///  If you use this value ensure that all requests come from trusted hosts, since it is trivial
-///  for the remote client to simulate being another client.
+/// If you use this value, ensure that all requests come from trusted hosts. Otherwise, it is
+/// trivial for the remote client to falsify their source IP address.
+#[derive(Debug)]
 pub struct Logger(Rc<Inner>);
 
+#[derive(Debug, Clone)]
 struct Inner {
     format: Format,
     exclude: HashSet<String>,
@@ -113,7 +107,7 @@ impl Logger {
         self
     }
 
-    /// Ignore and do not log access info for paths that match regex
+    /// Ignore and do not log access info for paths that match regex.
     pub fn exclude_regex<T: Into<String>>(mut self, path: T) -> Self {
         let inner = Rc::get_mut(&mut self.0).unwrap();
         let mut patterns = inner.exclude_regex.patterns().to_vec();
@@ -209,7 +203,7 @@ where
     }
 }
 
-/// Logger middleware
+/// Logger middleware service.
 pub struct LoggerMiddleware<S> {
     inner: Rc<Inner>,
     service: S,
@@ -224,9 +218,7 @@ where
     type Error = Error;
     type Future = LoggerResponse<S, B>;
 
-    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        self.service.poll_ready(cx)
-    }
+    actix_service::forward_ready!(service);
 
     fn call(&mut self, req: ServiceRequest) -> Self::Future {
         if self.inner.exclude.contains(req.path())
@@ -255,7 +247,6 @@ where
     }
 }
 
-#[doc(hidden)]
 #[pin_project::pin_project]
 pub struct LoggerResponse<S, B>
 where
@@ -325,7 +316,7 @@ pub struct StreamLog<B> {
 impl<B> PinnedDrop for StreamLog<B> {
     fn drop(self: Pin<&mut Self>) {
         if let Some(ref format) = self.format {
-            let render = |fmt: &mut Formatter<'_>| {
+            let render = |fmt: &mut fmt::Formatter<'_>| {
                 for unit in &format.0 {
                     unit.render(fmt, self.size, self.time)?;
                 }
@@ -356,9 +347,8 @@ impl<B: MessageBody> MessageBody for StreamLog<B> {
     }
 }
 
-/// A formatting style for the `Logger`, consisting of multiple
-/// `FormatText`s concatenated into one line.
-#[derive(Clone)]
+/// A formatting style for the `Logger` consisting of multiple concatenated `FormatText` items.
+#[derive(Debug, Clone)]
 struct Format(Vec<FormatText>);
 
 impl Default for Format {
@@ -430,13 +420,12 @@ impl Format {
     }
 }
 
-/// A string of text to be logged. This is either one of the data
-/// fields supported by the `Logger`, or a custom `String`.
-#[doc(hidden)]
+/// A string of text to be logged.
+///
+/// This is either one of the data fields supported by the `Logger`, or a custom `String`.
 #[non_exhaustive]
 #[derive(Debug, Clone)]
-// TODO: remove pub on next breaking change
-pub enum FormatText {
+enum FormatText {
     Str(String),
     Percent,
     RequestLine,
@@ -454,10 +443,8 @@ pub enum FormatText {
     CustomRequest(String, Option<CustomRequestFn>),
 }
 
-// TODO: remove pub on next breaking change
-#[doc(hidden)]
 #[derive(Clone)]
-pub struct CustomRequestFn {
+struct CustomRequestFn {
     inner_fn: Rc<dyn Fn(&ServiceRequest) -> String>,
 }
 
@@ -476,11 +463,11 @@ impl fmt::Debug for CustomRequestFn {
 impl FormatText {
     fn render(
         &self,
-        fmt: &mut Formatter<'_>,
+        fmt: &mut fmt::Formatter<'_>,
         size: usize,
         entry_time: OffsetDateTime,
     ) -> Result<(), fmt::Error> {
-        match *self {
+        match self {
             FormatText::Str(ref string) => fmt.write_str(string),
             FormatText::Percent => "%".fmt(fmt),
             FormatText::ResponseSize => size.fmt(fmt),
@@ -506,7 +493,7 @@ impl FormatText {
     }
 
     fn render_response<B>(&mut self, res: &HttpResponse<B>) {
-        match *self {
+        match self {
             FormatText::ResponseStatus => {
                 *self = FormatText::Str(format!("{}", res.status().as_u16()))
             }
@@ -527,7 +514,7 @@ impl FormatText {
     }
 
     fn render_request(&mut self, now: OffsetDateTime, req: &ServiceRequest) {
-        match &*self {
+        match self {
             FormatText::RequestLine => {
                 *self = if req.query_string().is_empty() {
                     FormatText::Str(format!(
@@ -594,11 +581,11 @@ impl FormatText {
 
 /// Converter to get a String from something that writes to a Formatter.
 pub(crate) struct FormatDisplay<'a>(
-    &'a dyn Fn(&mut Formatter<'_>) -> Result<(), fmt::Error>,
+    &'a dyn Fn(&mut fmt::Formatter<'_>) -> Result<(), fmt::Error>,
 );
 
 impl<'a> fmt::Display for FormatDisplay<'a> {
-    fn fmt(&self, fmt: &mut Formatter<'_>) -> Result<(), fmt::Error> {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         (self.0)(fmt)
     }
 }
@@ -675,7 +662,7 @@ mod tests {
             unit.render_response(&resp);
         }
 
-        let render = |fmt: &mut Formatter<'_>| {
+        let render = |fmt: &mut fmt::Formatter<'_>| {
             for unit in &format.0 {
                 unit.render(fmt, 1024, now)?;
             }
@@ -708,7 +695,7 @@ mod tests {
         }
 
         let entry_time = OffsetDateTime::now_utc();
-        let render = |fmt: &mut Formatter<'_>| {
+        let render = |fmt: &mut fmt::Formatter<'_>| {
             for unit in &format.0 {
                 unit.render(fmt, 1024, entry_time)?;
             }
@@ -736,7 +723,7 @@ mod tests {
             unit.render_response(&resp);
         }
 
-        let render = |fmt: &mut Formatter<'_>| {
+        let render = |fmt: &mut fmt::Formatter<'_>| {
             for unit in &format.0 {
                 unit.render(fmt, 1024, now)?;
             }
@@ -769,7 +756,7 @@ mod tests {
         }
 
         let entry_time = OffsetDateTime::now_utc();
-        let render = |fmt: &mut Formatter<'_>| {
+        let render = |fmt: &mut fmt::Formatter<'_>| {
             for unit in &format.0 {
                 unit.render(fmt, 1024, entry_time)?;
             }
@@ -800,7 +787,7 @@ mod tests {
 
         unit.render_request(now, &req);
 
-        let render = |fmt: &mut Formatter<'_>| unit.render(fmt, 1024, now);
+        let render = |fmt: &mut fmt::Formatter<'_>| unit.render(fmt, 1024, now);
 
         let log_output = FormatDisplay(&render).to_string();
         assert_eq!(log_output, "custom_log");
