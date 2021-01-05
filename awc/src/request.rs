@@ -354,8 +354,9 @@ impl ClientRequest {
         self
     }
 
-    /// This method calls provided closure with builder reference if
-    /// value is `true`.
+    /// This method calls provided closure with builder reference if value is `true`.
+    #[doc(hidden)]
+    #[deprecated = "Use an if statement."]
     pub fn if_true<F>(self, value: bool, f: F) -> Self
     where
         F: FnOnce(ClientRequest) -> ClientRequest,
@@ -367,8 +368,9 @@ impl ClientRequest {
         }
     }
 
-    /// This method calls provided closure with builder reference if
-    /// value is `Some`.
+    /// This method calls provided closure with builder reference if value is `Some`.
+    #[doc(hidden)]
+    #[deprecated = "Use an if-let construction."]
     pub fn if_some<T, F>(self, value: Option<T>, f: F) -> Self
     where
         F: FnOnce(T, ClientRequest) -> ClientRequest,
@@ -521,7 +523,7 @@ impl ClientRequest {
             return Err(InvalidUrl::MissingScheme.into());
         } else if let Some(scheme) = uri.scheme() {
             match scheme.as_str() {
-                "http" | "ws" | "https" | "wss" => (),
+                "http" | "ws" | "https" | "wss" => {}
                 _ => return Err(InvalidUrl::UnknownScheme.into()),
             }
         } else {
@@ -601,20 +603,27 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_basics() {
-        let mut req = Client::new()
+        let req = Client::new()
             .put("/")
             .version(Version::HTTP_2)
             .set(header::Date(SystemTime::now().into()))
             .content_type("plain/text")
-            .if_true(true, |req| req.header(header::SERVER, "awc"))
-            .if_true(false, |req| req.header(header::EXPECT, "awc"))
-            .if_some(Some("server"), |val, req| {
-                req.header(header::USER_AGENT, val)
-            })
-            .if_some(Option::<&str>::None, |_, req| {
-                req.header(header::ALLOW, "1")
-            })
-            .content_length(100);
+            .header(header::SERVER, "awc");
+
+        let req = if let Some(val) = Some("server") {
+            req.header(header::USER_AGENT, val)
+        } else {
+            req
+        };
+
+        let req = if let Some(_val) = Option::<&str>::None {
+            req.header(header::ALLOW, "1")
+        } else {
+            req
+        };
+
+        let mut req = req.content_length(100);
+
         assert!(req.headers().contains_key(header::CONTENT_TYPE));
         assert!(req.headers().contains_key(header::DATE));
         assert!(req.headers().contains_key(header::SERVER));
@@ -622,6 +631,7 @@ mod tests {
         assert!(!req.headers().contains_key(header::ALLOW));
         assert!(!req.headers().contains_key(header::EXPECT));
         assert_eq!(req.head.version, Version::HTTP_2);
+
         let _ = req.headers_mut();
         let _ = req.send_body("");
     }

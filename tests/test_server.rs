@@ -1,7 +1,9 @@
-use std::future::Future;
-use std::io::{Read, Write};
-use std::pin::Pin;
-use std::task::{Context, Poll};
+use std::{
+    future::Future,
+    io::{Read, Write},
+    pin::Pin,
+    task::{Context, Poll},
+};
 
 use actix_http::http::header::{
     ContentEncoding, ACCEPT_ENCODING, CONTENT_ENCODING, CONTENT_LENGTH,
@@ -9,15 +11,16 @@ use actix_http::http::header::{
 };
 use brotli2::write::{BrotliDecoder, BrotliEncoder};
 use bytes::Bytes;
-use flate2::read::GzDecoder;
-use flate2::write::{GzEncoder, ZlibDecoder, ZlibEncoder};
-use flate2::Compression;
+use flate2::{
+    read::GzDecoder,
+    write::{GzEncoder, ZlibDecoder, ZlibEncoder},
+    Compression,
+};
 use futures_util::ready;
 use rand::{distributions::Alphanumeric, Rng};
 
 use actix_web::dev::BodyEncoding;
-use actix_web::middleware::normalize::TrailingSlash;
-use actix_web::middleware::{Compress, NormalizePath};
+use actix_web::middleware::{Compress, NormalizePath, TrailingSlash};
 use actix_web::{dev, test, web, App, Error, HttpResponse};
 
 const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
@@ -45,7 +48,7 @@ const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
 struct TestBody {
     data: Bytes,
     chunk_size: usize,
-    delay: actix_rt::time::Delay,
+    delay: Pin<Box<actix_rt::time::Sleep>>,
 }
 
 impl TestBody {
@@ -53,7 +56,7 @@ impl TestBody {
         TestBody {
             data,
             chunk_size,
-            delay: actix_rt::time::delay_for(std::time::Duration::from_millis(10)),
+            delay: Box::pin(actix_rt::time::sleep(std::time::Duration::from_millis(10))),
         }
     }
 }
@@ -67,7 +70,8 @@ impl futures_core::stream::Stream for TestBody {
     ) -> Poll<Option<Self::Item>> {
         ready!(Pin::new(&mut self.delay).poll(cx));
 
-        self.delay = actix_rt::time::delay_for(std::time::Duration::from_millis(10));
+        self.delay =
+            Box::pin(actix_rt::time::sleep(std::time::Duration::from_millis(10)));
         let chunk_size = std::cmp::min(self.chunk_size, self.data.len());
         let chunk = self.data.split_to(chunk_size);
         if chunk.is_empty() {
@@ -248,6 +252,7 @@ async fn test_body_gzip_large_random() {
     let data = rand::thread_rng()
         .sample_iter(&Alphanumeric)
         .take(70_000)
+        .map(char::from)
         .collect::<String>();
     let srv_data = data.clone();
 
@@ -529,6 +534,7 @@ async fn test_reading_gzip_encoding_large_random() {
     let data = rand::thread_rng()
         .sample_iter(&Alphanumeric)
         .take(60_000)
+        .map(char::from)
         .collect::<String>();
 
     let srv = test::start_with(test::config().h1(), || {
@@ -614,6 +620,7 @@ async fn test_reading_deflate_encoding_large_random() {
     let data = rand::thread_rng()
         .sample_iter(&Alphanumeric)
         .take(160_000)
+        .map(char::from)
         .collect::<String>();
 
     let srv = test::start_with(test::config().h1(), || {
@@ -672,6 +679,7 @@ async fn test_brotli_encoding_large() {
     let data = rand::thread_rng()
         .sample_iter(&Alphanumeric)
         .take(320_000)
+        .map(char::from)
         .collect::<String>();
 
     let srv = test::start_with(test::config().h1(), || {
@@ -753,6 +761,7 @@ async fn test_reading_deflate_encoding_large_random_rustls() {
     let data = rand::thread_rng()
         .sample_iter(&Alphanumeric)
         .take(160_000)
+        .map(char::from)
         .collect::<String>();
 
     // load ssl keys

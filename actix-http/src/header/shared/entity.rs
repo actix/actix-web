@@ -7,10 +7,12 @@ use crate::header::{HeaderValue, IntoHeaderValue, InvalidHeaderValue, Writer};
 /// 1. `%x21`, or
 /// 2. in the range `%x23` to `%x7E`, or
 /// 3. above `%x80`
+fn entity_validate_char(c: u8) -> bool {
+    c == 0x21 || (0x23..=0x7e).contains(&c) || (c >= 0x80)
+}
+
 fn check_slice_validity(slice: &str) -> bool {
-    slice
-        .bytes()
-        .all(|c| c == b'\x21' || (c >= b'\x23' && c <= b'\x7e') | (c >= b'\x80'))
+    slice.bytes().all(entity_validate_char)
 }
 
 /// An entity tag, defined in [RFC7232](https://tools.ietf.org/html/rfc7232#section-2.3)

@@ -15,26 +15,30 @@ async fn test_start() {
     thread::spawn(move || {
         let sys = actix_rt::System::new("test");
 
-        let srv = HttpServer::new(|| {
-            App::new().service(
-                web::resource("/").route(web::to(|| HttpResponse::Ok().body("test"))),
-            )
-        })
-        .workers(1)
-        .backlog(1)
-        .max_connections(10)
-        .max_connection_rate(10)
-        .keep_alive(10)
-        .client_timeout(5000)
-        .client_shutdown(0)
-        .server_hostname("localhost")
-        .system_exit()
-        .disable_signals()
-        .bind(format!("{}", addr))
-        .unwrap()
-        .run();
+        sys.block_on(async {
+            let srv = HttpServer::new(|| {
+                App::new().service(
+                    web::resource("/")
+                        .route(web::to(|| HttpResponse::Ok().body("test"))),
+                )
+            })
+            .workers(1)
+            .backlog(1)
+            .max_connections(10)
+            .max_connection_rate(10)
+            .keep_alive(10)
+            .client_timeout(5000)
+            .client_shutdown(0)
+            .server_hostname("localhost")
+            .system_exit()
+            .disable_signals()
+            .bind(format!("{}", addr))
+            .unwrap()
+            .run();
 
-        let _ = tx.send((srv, actix_rt::System::current()));
+            let _ = tx.send((srv, actix_rt::System::current()));
+        });
+
         let _ = sys.run();
     });
     let (srv, sys) = rx.recv().unwrap();
@@ -63,6 +67,7 @@ async fn test_start() {
     let _ = sys.stop();
 }
 
+#[allow(clippy::unnecessary_wraps)]
 #[cfg(feature = "openssl")]
 fn ssl_acceptor() -> std::io::Result<SslAcceptorBuilder> {
     use open_ssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
@@ -100,10 +105,13 @@ async fn test_start_ssl() {
         .system_exit()
         .disable_signals()
         .bind_openssl(format!("{}", addr), builder)
-        .unwrap()
-        .run();
+        .unwrap();
 
-        let _ = tx.send((srv, actix_rt::System::current()));
+        sys.block_on(async {
+            let srv = srv.run();
+            let _ = tx.send((srv, actix_rt::System::current()));
+        });
+
         let _ = sys.run();
     });
     let (srv, sys) = rx.recv().unwrap();

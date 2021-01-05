@@ -318,9 +318,8 @@ impl ContentDisposition {
                 return Err(crate::error::ParseError::Header);
             }
             left = new_left;
-            if param_name.ends_with('*') {
+            if let Some(param_name) = param_name.strip_suffix('*') {
                 // extended parameters
-                let param_name = &param_name[..param_name.len() - 1]; // trim asterisk
                 let (ext_value, new_left) = split_once_and_trim(left, ';');
                 left = new_left;
                 let ext_value = header::parse_extended_value(ext_value)?;
@@ -550,8 +549,7 @@ impl fmt::Display for ContentDisposition {
         write!(f, "{}", self.disposition)?;
         self.parameters
             .iter()
-            .map(|param| write!(f, "; {}", param))
-            .collect()
+            .try_for_each(|param| write!(f, "; {}", param))
     }
 }
 

@@ -25,7 +25,7 @@ pub use crate::cookie::ParseError as CookieParseError;
 use crate::helpers::Writer;
 use crate::response::{Response, ResponseBuilder};
 
-/// A specialized [`Result`](https://doc.rust-lang.org/std/result/enum.Result.html)
+/// A specialized [`std::result::Result`]
 /// for actix web operations
 ///
 /// This typedef is generally used to avoid writing out
@@ -178,11 +178,7 @@ impl ResponseError for FormError {}
 
 #[cfg(feature = "openssl")]
 /// `InternalServerError` for `openssl::ssl::Error`
-impl ResponseError for actix_connect::ssl::openssl::SslError {}
-
-#[cfg(feature = "openssl")]
-/// `InternalServerError` for `openssl::ssl::HandshakeError`
-impl<T: std::fmt::Debug> ResponseError for actix_tls::openssl::HandshakeError<T> {}
+impl ResponseError for actix_tls::accept::openssl::SslError {}
 
 /// Return `BAD_REQUEST` for `de::value::Error`
 impl ResponseError for DeError {
@@ -955,11 +951,6 @@ where
 /// `InternalServerError` for `actix::MailboxError`
 /// This is supported on feature=`actors` only
 impl ResponseError for actix::MailboxError {}
-
-#[cfg(feature = "actors")]
-/// `InternalServerError` for `actix::ResolverError`
-/// This is supported on feature=`actors` only
-impl ResponseError for actix::actors::resolver::ResolverError {}
 
 #[cfg(test)]
 mod tests {

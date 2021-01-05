@@ -125,7 +125,7 @@ impl Parser {
                 debug!("Received close frame with payload length exceeding 125. Morphing to protocol close frame.");
                 return Ok(Some((true, OpCode::Close, None)));
             }
-            _ => (),
+            _ => {}
         }
 
         // unmask

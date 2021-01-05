@@ -1,26 +1,31 @@
-use std::collections::VecDeque;
-use std::future::Future;
-use std::pin::Pin;
-use std::task::{Context, Poll};
-use std::{fmt, io, net};
+use std::{
+    collections::VecDeque,
+    fmt,
+    future::Future,
+    io, mem, net,
+    pin::Pin,
+    task::{Context, Poll},
+};
 
 use actix_codec::{AsyncRead, AsyncWrite, Decoder, Encoder, Framed, FramedParts};
-use actix_rt::time::{delay_until, Delay, Instant};
+use actix_rt::time::{sleep_until, Instant, Sleep};
 use actix_service::Service;
 use bitflags::bitflags;
 use bytes::{Buf, BytesMut};
 use log::{error, trace};
 use pin_project::pin_project;
 
-use crate::body::{Body, BodySize, MessageBody, ResponseBody};
 use crate::cloneable::CloneableService;
 use crate::config::ServiceConfig;
 use crate::error::{DispatchError, Error};
 use crate::error::{ParseError, PayloadError};
-use crate::helpers::DataFactory;
 use crate::httpmessage::HttpMessage;
 use crate::request::Request;
 use crate::response::Response;
+use crate::{
+    body::{Body, BodySize, MessageBody, ResponseBody},
+    Extensions,
+};
 
 use super::codec::Codec;
 use super::payload::{Payload, PayloadSender, PayloadStatus};
@@ -46,27 +51,30 @@ bitflags! {
 /// Dispatcher for HTTP/1.1 protocol
 pub struct Dispatcher<T, S, B, X, U>
 where
-    S: Service<Request = Request>,
+    S: Service<Request>,
     S::Error: Into<Error>,
     B: MessageBody,
-    X: Service<Request = Request, Response = Request>,
+    X: Service<Request, Response = Request>,
     X::Error: Into<Error>,
-    U: Service<Request = (Request, Framed<T, Codec>), Response = ()>,
+    U: Service<(Request, Framed<T, Codec>), Response = ()>,
     U::Error: fmt::Display,
 {
     #[pin]
     inner: DispatcherState<T, S, B, X, U>,
+
+    #[cfg(test)]
+    poll_count: u64,
 }
 
 #[pin_project(project = DispatcherStateProj)]
 enum DispatcherState<T, S, B, X, U>
 where
-    S: Service<Request = Request>,
+    S: Service<Request>,
     S::Error: Into<Error>,
     B: MessageBody,
-    X: Service<Request = Request, Response = Request>,
+    X: Service<Request, Response = Request>,
     X::Error: Into<Error>,
-    U: Service<Request = (Request, Framed<T, Codec>), Response = ()>,
+    U: Service<(Request, Framed<T, Codec>), Response = ()>,
     U::Error: fmt::Display,
 {
     Normal(#[pin] InnerDispatcher<T, S, B, X, U>),
@@ -76,18 +84,18 @@ where
 #[pin_project(project = InnerDispatcherProj)]
 struct InnerDispatcher<T, S, B, X, U>
 where
-    S: Service<Request = Request>,
+    S: Service<Request>,
     S::Error: Into<Error>,
     B: MessageBody,
-    X: Service<Request = Request, Response = Request>,
+    X: Service<Request, Response = Request>,
     X::Error: Into<Error>,
-    U: Service<Request = (Request, Framed<T, Codec>), Response = ()>,
+    U: Service<(Request, Framed<T, Codec>), Response = ()>,
     U::Error: fmt::Display,
 {
     service: CloneableService<S>,
     expect: CloneableService<X>,
     upgrade: Option<CloneableService<U>>,
-    on_connect: Option<Box<dyn DataFactory>>,
+    on_connect_data: Extensions,
     flags: Flags,
     peer_addr: Option<net::SocketAddr>,
     error: Option<DispatchError>,
@@ -98,7 +106,8 @@ where
     messages: VecDeque<DispatcherMessage>,
 
     ka_expire: Instant,
-    ka_timer: Option<Delay>,
+    #[pin]
+    ka_timer: Option<Sleep>,
 
     io: Option<T>,
     read_buf: BytesMut,
@@ -115,20 +124,20 @@ enum DispatcherMessage {
 #[pin_project(project = StateProj)]
 enum State<S, B, X>
 where
-    S: Service<Request = Request>,
-    X: Service<Request = Request, Response = Request>,
+    S: Service<Request>,
+    X: Service<Request, Response = Request>,
     B: MessageBody,
 {
     None,
-    ExpectCall(Pin<Box<X::Future>>),
-    ServiceCall(Pin<Box<S::Future>>),
+    ExpectCall(#[pin] X::Future),
+    ServiceCall(#[pin] S::Future),
     SendPayload(#[pin] ResponseBody<B>),
 }
 
 impl<S, B, X> State<S, B, X>
 where
-    S: Service<Request = Request>,
-    X: Service<Request = Request, Response = Request>,
+    S: Service<Request>,
+    X: Service<Request, Response = Request>,
     B: MessageBody,
 {
     fn is_empty(&self) -> bool {
@@ -158,23 +167,23 @@ impl PartialEq for PollResponse {
 impl<T, S, B, X, U> Dispatcher<T, S, B, X, U>
 where
     T: AsyncRead + AsyncWrite + Unpin,
-    S: Service<Request = Request>,
+    S: Service<Request>,
     S::Error: Into<Error>,
     S::Response: Into<Response<B>>,
     B: MessageBody,
-    X: Service<Request = Request, Response = Request>,
+    X: Service<Request, Response = Request>,
     X::Error: Into<Error>,
-    U: Service<Request = (Request, Framed<T, Codec>), Response = ()>,
+    U: Service<(Request, Framed<T, Codec>), Response = ()>,
     U::Error: fmt::Display,
 {
-    /// Create http/1 dispatcher.
+    /// Create HTTP/1 dispatcher.
     pub(crate) fn new(
         stream: T,
         config: ServiceConfig,
         service: CloneableService<S>,
         expect: CloneableService<X>,
         upgrade: Option<CloneableService<U>>,
-        on_connect: Option<Box<dyn DataFactory>>,
+        on_connect_data: Extensions,
         peer_addr: Option<net::SocketAddr>,
     ) -> Self {
         Dispatcher::with_timeout(
@@ -186,7 +195,7 @@ where
             service,
             expect,
             upgrade,
-            on_connect,
+            on_connect_data,
             peer_addr,
         )
     }
@@ -197,11 +206,11 @@ where
         codec: Codec,
         config: ServiceConfig,
         read_buf: BytesMut,
-        timeout: Option<Delay>,
+        timeout: Option<Sleep>,
         service: CloneableService<S>,
         expect: CloneableService<X>,
         upgrade: Option<CloneableService<U>>,
-        on_connect: Option<Box<dyn DataFactory>>,
+        on_connect_data: Extensions,
         peer_addr: Option<net::SocketAddr>,
     ) -> Self {
         let keepalive = config.keep_alive_enabled();
@@ -233,12 +242,15 @@ where
                 service,
                 expect,
                 upgrade,
-                on_connect,
+                on_connect_data,
                 flags,
                 peer_addr,
                 ka_expire,
                 ka_timer,
             }),
+
+            #[cfg(test)]
+            poll_count: 0,
         }
     }
 }
@@ -246,13 +258,13 @@ where
 impl<T, S, B, X, U> InnerDispatcher<T, S, B, X, U>
 where
     T: AsyncRead + AsyncWrite + Unpin,
-    S: Service<Request = Request>,
+    S: Service<Request>,
     S::Error: Into<Error>,
     S::Response: Into<Response<B>>,
     B: MessageBody,
-    X: Service<Request = Request, Response = Request>,
+    X: Service<Request, Response = Request>,
     X::Error: Into<Error>,
-    U: Service<Request = (Request, Framed<T, Codec>), Response = ()>,
+    U: Service<(Request, Framed<T, Codec>), Response = ()>,
     U::Error: fmt::Display,
 {
     fn can_read(&self, cx: &mut Context<'_>) -> bool {
@@ -330,7 +342,7 @@ where
         self: Pin<&mut Self>,
         message: Response<()>,
         body: ResponseBody<B>,
-    ) -> Result<State<S, B, X>, DispatchError> {
+    ) -> Result<(), DispatchError> {
         let mut this = self.project();
         this.codec
             .encode(Message::Item((message, body.size())), &mut this.write_buf)
@@ -343,9 +355,10 @@ where
 
         this.flags.set(Flags::KEEPALIVE, this.codec.keepalive());
         match body.size() {
-            BodySize::None | BodySize::Empty => Ok(State::None),
-            _ => Ok(State::SendPayload(body)),
-        }
+            BodySize::None | BodySize::Empty => this.state.set(State::None),
+            _ => this.state.set(State::SendPayload(body)),
+        };
+        Ok(())
     }
 
     fn send_continue(self: Pin<&mut Self>) {
@@ -360,49 +373,52 @@ where
     ) -> Result<PollResponse, DispatchError> {
         loop {
             let mut this = self.as_mut().project();
-            let state = match this.state.project() {
+            // state is not changed on Poll::Pending.
+            // other variant and conditions always trigger a state change(or an error).
+            let state_change = match this.state.project() {
                 StateProj::None => match this.messages.pop_front() {
                     Some(DispatcherMessage::Item(req)) => {
-                        Some(self.as_mut().handle_request(req, cx)?)
+                        self.as_mut().handle_request(req, cx)?;
+                        true
                     }
-                    Some(DispatcherMessage::Error(res)) => Some(
+                    Some(DispatcherMessage::Error(res)) => {
                         self.as_mut()
-                            .send_response(res, ResponseBody::Other(Body::Empty))?,
-                    ),
+                            .send_response(res, ResponseBody::Other(Body::Empty))?;
+                        true
+                    }
                     Some(DispatcherMessage::Upgrade(req)) => {
                         return Ok(PollResponse::Upgrade(req));
                     }
-                    None => None,
+                    None => false,
                 },
-                StateProj::ExpectCall(fut) => match fut.as_mut().poll(cx) {
+                StateProj::ExpectCall(fut) => match fut.poll(cx) {
                     Poll::Ready(Ok(req)) => {
                         self.as_mut().send_continue();
                         this = self.as_mut().project();
-                        this.state
-                            .set(State::ServiceCall(Box::pin(this.service.call(req))));
+                        this.state.set(State::ServiceCall(this.service.call(req)));
                         continue;
                     }
                     Poll::Ready(Err(e)) => {
                         let res: Response = e.into().into();
                         let (res, body) = res.replace_body(());
-                        Some(self.as_mut().send_response(res, body.into_body())?)
+                        self.as_mut().send_response(res, body.into_body())?;
+                        true
                     }
-                    Poll::Pending => None,
+                    Poll::Pending => false,
                 },
-                StateProj::ServiceCall(fut) => match fut.as_mut().poll(cx) {
+                StateProj::ServiceCall(fut) => match fut.poll(cx) {
                     Poll::Ready(Ok(res)) => {
                         let (res, body) = res.into().replace_body(());
-                        let state = self.as_mut().send_response(res, body)?;
-                        this = self.as_mut().project();
-                        this.state.set(state);
+                        self.as_mut().send_response(res, body)?;
                         continue;
                     }
                     Poll::Ready(Err(e)) => {
                         let res: Response = e.into().into();
                         let (res, body) = res.replace_body(());
-                        Some(self.as_mut().send_response(res, body.into_body())?)
+                        self.as_mut().send_response(res, body.into_body())?;
+                        true
                     }
-                    Poll::Pending => None,
+                    Poll::Pending => false,
                 },
                 StateProj::SendPayload(mut stream) => {
                     loop {
@@ -437,11 +453,8 @@ where
                 }
             };
 
-            this = self.as_mut().project();
-
-            // set new state
-            if let Some(state) = state {
-                this.state.set(state);
+            // state is changed and continue when the state is not Empty
+            if state_change {
                 if !self.state.is_empty() {
                     continue;
                 }
@@ -466,49 +479,77 @@ where
         mut self: Pin<&mut Self>,
         req: Request,
         cx: &mut Context<'_>,
-    ) -> Result<State<S, B, X>, DispatchError> {
+    ) -> Result<(), DispatchError> {
         // Handle `EXPECT: 100-Continue` header
-        let req = if req.head().expect() {
-            let mut task = Box::pin(self.as_mut().project().expect.call(req));
-            match task.as_mut().poll(cx) {
-                Poll::Ready(Ok(req)) => {
-                    self.as_mut().send_continue();
-                    req
-                }
-                Poll::Pending => return Ok(State::ExpectCall(task)),
-                Poll::Ready(Err(e)) => {
-                    let e = e.into();
-                    let res: Response = e.into();
-                    let (res, body) = res.replace_body(());
-                    return self.send_response(res, body.into_body());
-                }
-            }
+        if req.head().expect() {
+            // set dispatcher state so the future is pinned.
+            let task = self.as_mut().project().expect.call(req);
+            self.as_mut().project().state.set(State::ExpectCall(task));
         } else {
-            req
+            // the same as above.
+            let task = self.as_mut().project().service.call(req);
+            self.as_mut().project().state.set(State::ServiceCall(task));
         };
 
-        // Call service
-        let mut task = Box::pin(self.as_mut().project().service.call(req));
-        match task.as_mut().poll(cx) {
-            Poll::Ready(Ok(res)) => {
-                let (res, body) = res.into().replace_body(());
-                self.send_response(res, body)
-            }
-            Poll::Pending => Ok(State::ServiceCall(task)),
-            Poll::Ready(Err(e)) => {
-                let res: Response = e.into().into();
-                let (res, body) = res.replace_body(());
-                self.send_response(res, body.into_body())
+        // eagerly poll the future for once(or twice if expect is resolved immediately).
+        loop {
+            match self.as_mut().project().state.project() {
+                StateProj::ExpectCall(fut) => {
+                    match fut.poll(cx) {
+                        // expect is resolved. continue loop and poll the service call branch.
+                        Poll::Ready(Ok(req)) => {
+                            self.as_mut().send_continue();
+                            let task = self.as_mut().project().service.call(req);
+                            self.as_mut().project().state.set(State::ServiceCall(task));
+                            continue;
+                        }
+                        // future is pending. return Ok(()) to notify that a new state is
+                        // set  and the outer loop should be continue.
+                        Poll::Pending => return Ok(()),
+                        // future is error. send response and return a result. On success
+                        // to notify the dispatcher a new state is set and the outer loop
+                        // should be continue.
+                        Poll::Ready(Err(e)) => {
+                            let e = e.into();
+                            let res: Response = e.into();
+                            let (res, body) = res.replace_body(());
+                            return self.send_response(res, body.into_body());
+                        }
+                    }
+                }
+                StateProj::ServiceCall(fut) => {
+                    // return no matter the service call future's result.
+                    return match fut.poll(cx) {
+                        // future is resolved. send response and return a result. On success
+                        // to notify the dispatcher a new state is set and the outer loop
+                        // should be continue.
+                        Poll::Ready(Ok(res)) => {
+                            let (res, body) = res.into().replace_body(());
+                            self.send_response(res, body)
+                        }
+                        // see the comment on ExpectCall state branch's Pending.
+                        Poll::Pending => Ok(()),
+                        // see the comment on ExpectCall state branch's Ready(Err(e)).
+                        Poll::Ready(Err(e)) => {
+                            let res: Response = e.into().into();
+                            let (res, body) = res.replace_body(());
+                            self.send_response(res, body.into_body())
+                        }
+                    };
+                }
+                _ => unreachable!(
+                    "State must be set to ServiceCall or ExceptCall in handle_request"
+                ),
             }
         }
     }
 
-    /// Process one incoming requests
+    /// Process one incoming request.
     pub(self) fn poll_request(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
     ) -> Result<bool, DispatchError> {
-        // limit a mount of non processed requests
+        // limit amount of non-processed requests
         if self.messages.len() >= MAX_PIPELINED_MESSAGES || !self.can_read(cx) {
             return Ok(false);
         }
@@ -526,10 +567,8 @@ where
                             let pl = this.codec.message_type();
                             req.head_mut().peer_addr = *this.peer_addr;
 
-                            // set on_connect data
-                            if let Some(ref on_connect) = this.on_connect {
-                                on_connect.set(&mut req.extensions_mut());
-                            }
+                            // merge on_connect_ext data into request extensions
+                            req.extensions_mut().drain_from(this.on_connect_data);
 
                             if pl == MessageType::Stream && this.upgrade.is_some() {
                                 this.messages.push_back(DispatcherMessage::Upgrade(req));
@@ -545,9 +584,8 @@ where
 
                             // handle request early
                             if this.state.is_empty() {
-                                let state = self.as_mut().handle_request(req, cx)?;
+                                self.as_mut().handle_request(req, cx)?;
                                 this = self.as_mut().project();
-                                this.state.set(state);
                             } else {
                                 this.messages.push_back(DispatcherMessage::Item(req));
                             }
@@ -623,7 +661,7 @@ where
             // shutdown timeout
             if this.flags.contains(Flags::SHUTDOWN) {
                 if let Some(interval) = this.codec.config().client_disconnect_timer() {
-                    *this.ka_timer = Some(delay_until(interval));
+                    this.ka_timer.set(Some(sleep_until(interval)));
                 } else {
                     this.flags.insert(Flags::READ_DISCONNECT);
                     if let Some(mut payload) = this.payload.take() {
@@ -636,12 +674,14 @@ where
             }
         }
 
-        match Pin::new(&mut this.ka_timer.as_mut().unwrap()).poll(cx) {
+        match this.ka_timer.as_mut().as_pin_mut().unwrap().poll(cx) {
             Poll::Ready(()) => {
                 // if we get timeout during shutdown, drop connection
                 if this.flags.contains(Flags::SHUTDOWN) {
                     return Err(DispatchError::DisconnectTimeout);
-                } else if this.ka_timer.as_mut().unwrap().deadline() >= *this.ka_expire {
+                } else if this.ka_timer.as_mut().as_pin_mut().unwrap().deadline()
+                    >= *this.ka_expire
+                {
                     // check for any outstanding tasks
                     if this.state.is_empty() && this.write_buf.is_empty() {
                         if this.flags.contains(Flags::STARTED) {
@@ -652,9 +692,15 @@ where
                             if let Some(deadline) =
                                 this.codec.config().client_disconnect_timer()
                             {
-                                if let Some(mut timer) = this.ka_timer.as_mut() {
+                                if let Some(timer) = this.ka_timer.as_mut().as_pin_mut()
+                                {
                                     timer.reset(deadline);
-                                    let _ = Pin::new(&mut timer).poll(cx);
+                                    let _ = this
+                                        .ka_timer
+                                        .as_mut()
+                                        .as_pin_mut()
+                                        .unwrap()
+                                        .poll(cx);
                                 }
                             } else {
                                 // no shutdown timeout, drop socket
@@ -679,17 +725,18 @@ where
                     } else if let Some(deadline) =
                         this.codec.config().keep_alive_expire()
                     {
-                        if let Some(mut timer) = this.ka_timer.as_mut() {
+                        if let Some(timer) = this.ka_timer.as_mut().as_pin_mut() {
                             timer.reset(deadline);
-                            let _ = Pin::new(&mut timer).poll(cx);
+                            let _ =
+                                this.ka_timer.as_mut().as_pin_mut().unwrap().poll(cx);
                         }
                     }
-                } else if let Some(mut timer) = this.ka_timer.as_mut() {
+                } else if let Some(timer) = this.ka_timer.as_mut().as_pin_mut() {
                     timer.reset(*this.ka_expire);
-                    let _ = Pin::new(&mut timer).poll(cx);
+                    let _ = this.ka_timer.as_mut().as_pin_mut().unwrap().poll(cx);
                 }
             }
-            Poll::Pending => (),
+            Poll::Pending => {}
         }
 
         Ok(())
@@ -699,13 +746,13 @@ where
 impl<T, S, B, X, U> Future for Dispatcher<T, S, B, X, U>
 where
     T: AsyncRead + AsyncWrite + Unpin,
-    S: Service<Request = Request>,
+    S: Service<Request>,
     S::Error: Into<Error>,
     S::Response: Into<Response<B>>,
     B: MessageBody,
-    X: Service<Request = Request, Response = Request>,
+    X: Service<Request, Response = Request>,
     X::Error: Into<Error>,
-    U: Service<Request = (Request, Framed<T, Codec>), Response = ()>,
+    U: Service<(Request, Framed<T, Codec>), Response = ()>,
     U::Error: fmt::Display,
 {
     type Output = Result<(), DispatchError>;
@@ -713,6 +760,12 @@ where
     #[inline]
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.as_mut().project();
+
+        #[cfg(test)]
+        {
+            *this.poll_count += 1;
+        }
+
         match this.inner.project() {
             DispatcherStateProj::Normal(mut inner) => {
                 inner.as_mut().poll_keepalive(cx)?;
@@ -776,10 +829,10 @@ where
                             let inner_p = inner.as_mut().project();
                             let mut parts = FramedParts::with_read_buf(
                                 inner_p.io.take().unwrap(),
-                                std::mem::take(inner_p.codec),
-                                std::mem::take(inner_p.read_buf),
+                                mem::take(inner_p.codec),
+                                mem::take(inner_p.read_buf),
                             );
-                            parts.write_buf = std::mem::take(inner_p.write_buf);
+                            parts.write_buf = mem::take(inner_p.write_buf);
                             let framed = Framed::from_parts(parts);
                             let upgrade =
                                 inner_p.upgrade.take().unwrap().call((req, framed));
@@ -791,8 +844,11 @@ where
                         }
 
                         // we didn't get WouldBlock from write operation,
-                        // so data get written to kernel completely (OSX)
+                        // so data get written to kernel completely (macOS)
                         // and we have to write again otherwise response can get stuck
+                        //
+                        // TODO: what? is WouldBlock good or bad?
+                        // want to find a reference for this macOS behavior
                         if inner.as_mut().poll_flush(cx)? || !drain {
                             break;
                         }
@@ -842,6 +898,11 @@ where
     }
 }
 
+/// Returns either:
+/// - `Ok(Some(true))` - data was read and done reading all data.
+/// - `Ok(Some(false))` - data was read but there should be more to read.
+/// - `Ok(None)` - no data was read but there should be more to read later.
+/// - Unhandled Errors
 fn read_available<T>(
     cx: &mut Context<'_>,
     io: &mut T,
@@ -875,17 +936,17 @@ where
                     read_some = true;
                 }
             }
-            Poll::Ready(Err(e)) => {
-                return if e.kind() == io::ErrorKind::WouldBlock {
+            Poll::Ready(Err(err)) => {
+                return if err.kind() == io::ErrorKind::WouldBlock {
                     if read_some {
                         Ok(Some(false))
                     } else {
                         Ok(None)
                     }
-                } else if e.kind() == io::ErrorKind::ConnectionReset && read_some {
+                } else if err.kind() == io::ErrorKind::ConnectionReset && read_some {
                     Ok(Some(true))
                 } else {
-                    Err(e)
+                    Err(err)
                 }
             }
         }
@@ -900,47 +961,372 @@ fn read<T>(
 where
     T: AsyncRead + Unpin,
 {
-    Pin::new(io).poll_read_buf(cx, buf)
+    actix_codec::poll_read_buf(Pin::new(io), cx, buf)
 }
 
 #[cfg(test)]
 mod tests {
-    use actix_service::IntoService;
-    use futures_util::future::{lazy, ok};
+    use std::str;
+
+    use actix_service::fn_service;
+    use futures_util::future::{lazy, ready};
 
     use super::*;
-    use crate::error::Error;
-    use crate::h1::{ExpectHandler, UpgradeHandler};
     use crate::test::TestBuffer;
+    use crate::{error::Error, KeepAlive};
+    use crate::{
+        h1::{ExpectHandler, UpgradeHandler},
+        test::TestSeqBuffer,
+    };
+
+    fn find_slice(haystack: &[u8], needle: &[u8], from: usize) -> Option<usize> {
+        haystack[from..]
+            .windows(needle.len())
+            .position(|window| window == needle)
+    }
+
+    fn stabilize_date_header(payload: &mut [u8]) {
+        let mut from = 0;
+
+        while let Some(pos) = find_slice(&payload, b"date", from) {
+            payload[(from + pos)..(from + pos + 35)]
+                .copy_from_slice(b"date: Thu, 01 Jan 1970 12:34:56 UTC");
+            from += 35;
+        }
+    }
+
+    fn ok_service() -> impl Service<Request, Response = Response, Error = Error> {
+        fn_service(|_req: Request| ready(Ok::<_, Error>(Response::Ok().finish())))
+    }
+
+    fn echo_path_service() -> impl Service<Request, Response = Response, Error = Error> {
+        fn_service(|req: Request| {
+            let path = req.path().as_bytes();
+            ready(Ok::<_, Error>(Response::Ok().body(Body::from_slice(path))))
+        })
+    }
+
+    fn echo_payload_service() -> impl Service<Request, Response = Response, Error = Error>
+    {
+        fn_service(|mut req: Request| {
+            Box::pin(async move {
+                use futures_util::stream::StreamExt as _;
+
+                let mut pl = req.take_payload();
+                let mut body = BytesMut::new();
+                while let Some(chunk) = pl.next().await {
+                    body.extend_from_slice(chunk.unwrap().chunk())
+                }
+
+                Ok::<_, Error>(Response::Ok().body(body))
+            })
+        })
+    }
 
     #[actix_rt::test]
     async fn test_req_parse_err() {
         lazy(|cx| {
             let buf = TestBuffer::new("GET /test HTTP/1\r\n\r\n");
 
-            let mut h1 = Dispatcher::<_, _, _, _, UpgradeHandler<TestBuffer>>::new(
+            let h1 = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
                 buf,
                 ServiceConfig::default(),
-                CloneableService::new(
-                    (|_| ok::<_, Error>(Response::Ok().finish())).into_service(),
-                ),
+                CloneableService::new(ok_service()),
                 CloneableService::new(ExpectHandler),
                 None,
-                None,
+                Extensions::new(),
                 None,
             );
-            match Pin::new(&mut h1).poll(cx) {
+
+            futures_util::pin_mut!(h1);
+
+            match h1.as_mut().poll(cx) {
                 Poll::Pending => panic!(),
                 Poll::Ready(res) => assert!(res.is_err()),
             }
 
-            if let DispatcherState::Normal(ref mut inner) = h1.inner {
+            if let DispatcherStateProj::Normal(inner) = h1.project().inner.project() {
                 assert!(inner.flags.contains(Flags::READ_DISCONNECT));
                 assert_eq!(
-                    &inner.io.take().unwrap().write_buf[..26],
+                    &inner.project().io.take().unwrap().write_buf[..26],
                     b"HTTP/1.1 400 Bad Request\r\n"
                 );
             }
+        })
+        .await;
+    }
+
+    #[actix_rt::test]
+    async fn test_pipelining() {
+        lazy(|cx| {
+            let buf = TestBuffer::new(
+                "\
+                GET /abcd HTTP/1.1\r\n\r\n\
+                GET /def HTTP/1.1\r\n\r\n\
+                ",
+            );
+
+            let cfg = ServiceConfig::new(KeepAlive::Disabled, 1, 1, false, None);
+
+            let h1 = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
+                buf,
+                cfg,
+                CloneableService::new(echo_path_service()),
+                CloneableService::new(ExpectHandler),
+                None,
+                Extensions::new(),
+                None,
+            );
+
+            futures_util::pin_mut!(h1);
+
+            assert!(matches!(&h1.inner, DispatcherState::Normal(_)));
+
+            match h1.as_mut().poll(cx) {
+                Poll::Pending => panic!("first poll should not be pending"),
+                Poll::Ready(res) => assert!(res.is_ok()),
+            }
+
+            // polls: initial => shutdown
+            assert_eq!(h1.poll_count, 2);
+
+            if let DispatcherStateProj::Normal(inner) = h1.project().inner.project() {
+                let res = &mut inner.project().io.take().unwrap().write_buf[..];
+                stabilize_date_header(res);
+
+                let exp = b"\
+                HTTP/1.1 200 OK\r\n\
+                content-length: 5\r\n\
+                connection: close\r\n\
+                date: Thu, 01 Jan 1970 12:34:56 UTC\r\n\r\n\
+                /abcd\
+                HTTP/1.1 200 OK\r\n\
+                content-length: 4\r\n\
+                connection: close\r\n\
+                date: Thu, 01 Jan 1970 12:34:56 UTC\r\n\r\n\
+                /def\
+                ";
+
+                assert_eq!(res.to_vec(), exp.to_vec());
+            }
+        })
+        .await;
+
+        lazy(|cx| {
+            let buf = TestBuffer::new(
+                "\
+                GET /abcd HTTP/1.1\r\n\r\n\
+                GET /def HTTP/1\r\n\r\n\
+                ",
+            );
+
+            let cfg = ServiceConfig::new(KeepAlive::Disabled, 1, 1, false, None);
+
+            let h1 = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
+                buf,
+                cfg,
+                CloneableService::new(echo_path_service()),
+                CloneableService::new(ExpectHandler),
+                None,
+                Extensions::new(),
+                None,
+            );
+
+            futures_util::pin_mut!(h1);
+
+            assert!(matches!(&h1.inner, DispatcherState::Normal(_)));
+
+            match h1.as_mut().poll(cx) {
+                Poll::Pending => panic!("first poll should not be pending"),
+                Poll::Ready(res) => assert!(res.is_err()),
+            }
+
+            // polls: initial => shutdown
+            assert_eq!(h1.poll_count, 1);
+
+            if let DispatcherStateProj::Normal(inner) = h1.project().inner.project() {
+                let res = &mut inner.project().io.take().unwrap().write_buf[..];
+                stabilize_date_header(res);
+
+                let exp = b"\
+                HTTP/1.1 200 OK\r\n\
+                content-length: 5\r\n\
+                connection: close\r\n\
+                date: Thu, 01 Jan 1970 12:34:56 UTC\r\n\r\n\
+                /abcd\
+                HTTP/1.1 400 Bad Request\r\n\
+                content-length: 0\r\n\
+                connection: close\r\n\
+                date: Thu, 01 Jan 1970 12:34:56 UTC\r\n\r\n\
+                ";
+
+                assert_eq!(res.to_vec(), exp.to_vec());
+            }
+        })
+        .await;
+    }
+
+    #[actix_rt::test]
+    async fn test_expect() {
+        lazy(|cx| {
+            let mut buf = TestSeqBuffer::empty();
+            let cfg = ServiceConfig::new(KeepAlive::Disabled, 0, 0, false, None);
+            let h1 = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
+                buf.clone(),
+                cfg,
+                CloneableService::new(echo_payload_service()),
+                CloneableService::new(ExpectHandler),
+                None,
+                Extensions::new(),
+                None,
+            );
+
+            buf.extend_read_buf(
+                "\
+                POST /upload HTTP/1.1\r\n\
+                Content-Length: 5\r\n\
+                Expect: 100-continue\r\n\
+                \r\n\
+                ",
+            );
+
+            futures_util::pin_mut!(h1);
+
+            assert!(h1.as_mut().poll(cx).is_pending());
+            assert!(matches!(&h1.inner, DispatcherState::Normal(_)));
+
+            // polls: manual
+            assert_eq!(h1.poll_count, 1);
+            eprintln!("poll count: {}", h1.poll_count);
+
+            if let DispatcherState::Normal(ref inner) = h1.inner {
+                let io = inner.io.as_ref().unwrap();
+                let res = &io.write_buf()[..];
+                assert_eq!(
+                    str::from_utf8(res).unwrap(),
+                    "HTTP/1.1 100 Continue\r\n\r\n"
+                );
+            }
+
+            buf.extend_read_buf("12345");
+            assert!(h1.as_mut().poll(cx).is_ready());
+
+            // polls: manual manual shutdown
+            assert_eq!(h1.poll_count, 3);
+
+            if let DispatcherState::Normal(ref inner) = h1.inner {
+                let io = inner.io.as_ref().unwrap();
+                let mut res = (&io.write_buf()[..]).to_owned();
+                stabilize_date_header(&mut res);
+
+                assert_eq!(
+                    str::from_utf8(&res).unwrap(),
+                    "\
+                    HTTP/1.1 100 Continue\r\n\
+                    \r\n\
+                    HTTP/1.1 200 OK\r\n\
+                    content-length: 5\r\n\
+                    connection: close\r\n\
+                    date: Thu, 01 Jan 1970 12:34:56 UTC\r\n\
+                    \r\n\
+                    12345\
+                    "
+                );
+            }
+        })
+        .await;
+    }
+
+    #[actix_rt::test]
+    async fn test_eager_expect() {
+        lazy(|cx| {
+            let mut buf = TestSeqBuffer::empty();
+            let cfg = ServiceConfig::new(KeepAlive::Disabled, 0, 0, false, None);
+            let h1 = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
+                buf.clone(),
+                cfg,
+                CloneableService::new(echo_path_service()),
+                CloneableService::new(ExpectHandler),
+                None,
+                Extensions::new(),
+                None,
+            );
+
+            buf.extend_read_buf(
+                "\
+                POST /upload HTTP/1.1\r\n\
+                Content-Length: 5\r\n\
+                Expect: 100-continue\r\n\
+                \r\n\
+                ",
+            );
+
+            futures_util::pin_mut!(h1);
+
+            assert!(h1.as_mut().poll(cx).is_ready());
+            assert!(matches!(&h1.inner, DispatcherState::Normal(_)));
+
+            // polls: manual shutdown
+            assert_eq!(h1.poll_count, 2);
+
+            if let DispatcherState::Normal(ref inner) = h1.inner {
+                let io = inner.io.as_ref().unwrap();
+                let mut res = (&io.write_buf()[..]).to_owned();
+                stabilize_date_header(&mut res);
+
+                // Despite the content-length header and even though the request payload has not
+                // been sent, this test expects a complete service response since the payload
+                // is not used at all. The service passed to dispatcher is path echo and doesn't
+                // consume payload bytes.
+                assert_eq!(
+                    str::from_utf8(&res).unwrap(),
+                    "\
+                    HTTP/1.1 100 Continue\r\n\
+                    \r\n\
+                    HTTP/1.1 200 OK\r\n\
+                    content-length: 7\r\n\
+                    connection: close\r\n\
+                    date: Thu, 01 Jan 1970 12:34:56 UTC\r\n\
+                    \r\n\
+                    /upload\
+                    "
+                );
+            }
+        })
+        .await;
+    }
+
+    #[actix_rt::test]
+    async fn test_upgrade() {
+        lazy(|cx| {
+            let mut buf = TestSeqBuffer::empty();
+            let cfg = ServiceConfig::new(KeepAlive::Disabled, 0, 0, false, None);
+            let h1 = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
+                buf.clone(),
+                cfg,
+                CloneableService::new(ok_service()),
+                CloneableService::new(ExpectHandler),
+                Some(CloneableService::new(UpgradeHandler)),
+                Extensions::new(),
+                None,
+            );
+
+            buf.extend_read_buf(
+                "\
+                GET /ws HTTP/1.1\r\n\
+                Connection: Upgrade\r\n\
+                Upgrade: websocket\r\n\
+                \r\n\
+                ",
+            );
+
+            futures_util::pin_mut!(h1);
+
+            assert!(h1.as_mut().poll(cx).is_ready());
+            assert!(matches!(&h1.inner, DispatcherState::Upgrade(_)));
+
+            // polls: manual shutdown
+            assert_eq!(h1.poll_count, 2);
         })
         .await;
     }

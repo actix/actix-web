@@ -3,7 +3,7 @@ use std::time::Duration;
 use std::{net, thread};
 
 use actix_http_test::test_server;
-use actix_rt::time::delay_for;
+use actix_rt::time::sleep;
 use actix_service::fn_service;
 use bytes::Bytes;
 use futures_util::future::{self, err, ok, ready, FutureExt};
@@ -88,7 +88,7 @@ async fn test_expect_continue_h1() {
     let srv = test_server(|| {
         HttpService::build()
             .expect(fn_service(|req: Request| {
-                delay_for(Duration::from_millis(20)).then(move |_| {
+                sleep(Duration::from_millis(20)).then(move |_| {
                     if req.head().uri.query() == Some("yes=") {
                         ok(req)
                     } else {
@@ -662,9 +662,9 @@ async fn test_h1_service_error() {
 async fn test_h1_on_connect() {
     let srv = test_server(|| {
         HttpService::build()
-            .on_connect(|_| 10usize)
+            .on_connect_ext(|_, data| data.insert(20isize))
             .h1(|req: Request| {
-                assert!(req.extensions().contains::<usize>());
+                assert!(req.extensions().contains::<isize>());
                 future::ok::<_, ()>(Response::Ok().finish())
             })
             .tcp()

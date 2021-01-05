@@ -10,16 +10,16 @@ use crate::config::{KeepAlive, ServiceConfig};
 use crate::error::Error;
 use crate::h1::{Codec, ExpectHandler, H1Service, UpgradeHandler};
 use crate::h2::H2Service;
-use crate::helpers::{Data, DataFactory};
 use crate::request::Request;
 use crate::response::Response;
 use crate::service::HttpService;
+use crate::{ConnectCallback, Extensions};
 
-/// A http service builder
+/// A HTTP service builder
 ///
-/// This type can be used to construct an instance of `http service` through a
+/// This type can be used to construct an instance of [`HttpService`] through a
 /// builder-like pattern.
-pub struct HttpServiceBuilder<T, S, X = ExpectHandler, U = UpgradeHandler<T>> {
+pub struct HttpServiceBuilder<T, S, X = ExpectHandler, U = UpgradeHandler> {
     keep_alive: KeepAlive,
     client_timeout: u64,
     client_disconnect: u64,
@@ -27,16 +27,16 @@ pub struct HttpServiceBuilder<T, S, X = ExpectHandler, U = UpgradeHandler<T>> {
     local_addr: Option<net::SocketAddr>,
     expect: X,
     upgrade: Option<U>,
-    on_connect: Option<Rc<dyn Fn(&T) -> Box<dyn DataFactory>>>,
-    _t: PhantomData<(T, S)>,
+    on_connect_ext: Option<Rc<ConnectCallback<T>>>,
+    _phantom: PhantomData<S>,
 }
 
-impl<T, S> HttpServiceBuilder<T, S, ExpectHandler, UpgradeHandler<T>>
+impl<T, S> HttpServiceBuilder<T, S, ExpectHandler, UpgradeHandler>
 where
-    S: ServiceFactory<Config = (), Request = Request>,
+    S: ServiceFactory<Request, Config = ()>,
     S::Error: Into<Error> + 'static,
     S::InitError: fmt::Debug,
-    <S::Service as Service>::Future: 'static,
+    <S::Service as Service<Request>>::Future: 'static,
 {
     /// Create instance of `ServiceConfigBuilder`
     pub fn new() -> Self {
@@ -48,26 +48,26 @@ where
             local_addr: None,
             expect: ExpectHandler,
             upgrade: None,
-            on_connect: None,
-            _t: PhantomData,
+            on_connect_ext: None,
+            _phantom: PhantomData,
         }
     }
 }
 
 impl<T, S, X, U> HttpServiceBuilder<T, S, X, U>
 where
-    S: ServiceFactory<Config = (), Request = Request>,
+    S: ServiceFactory<Request, Config = ()>,
     S::Error: Into<Error> + 'static,
     S::InitError: fmt::Debug,
-    <S::Service as Service>::Future: 'static,
-    X: ServiceFactory<Config = (), Request = Request, Response = Request>,
+    <S::Service as Service<Request>>::Future: 'static,
+    X: ServiceFactory<Request, Config = (), Response = Request>,
     X::Error: Into<Error>,
     X::InitError: fmt::Debug,
-    <X::Service as Service>::Future: 'static,
-    U: ServiceFactory<Config = (), Request = (Request, Framed<T, Codec>), Response = ()>,
+    <X::Service as Service<Request>>::Future: 'static,
+    U: ServiceFactory<(Request, Framed<T, Codec>), Config = (), Response = ()>,
     U::Error: fmt::Display,
     U::InitError: fmt::Debug,
-    <U::Service as Service>::Future: 'static,
+    <U::Service as Service<(Request, Framed<T, Codec>)>>::Future: 'static,
 {
     /// Set server keep-alive setting.
     ///
@@ -123,11 +123,11 @@ where
     /// request will be forwarded to main service.
     pub fn expect<F, X1>(self, expect: F) -> HttpServiceBuilder<T, S, X1, U>
     where
-        F: IntoServiceFactory<X1>,
-        X1: ServiceFactory<Config = (), Request = Request, Response = Request>,
+        F: IntoServiceFactory<X1, Request>,
+        X1: ServiceFactory<Request, Config = (), Response = Request>,
         X1::Error: Into<Error>,
         X1::InitError: fmt::Debug,
-        <X1::Service as Service>::Future: 'static,
+        <X1::Service as Service<Request>>::Future: 'static,
     {
         HttpServiceBuilder {
             keep_alive: self.keep_alive,
@@ -137,8 +137,8 @@ where
             local_addr: self.local_addr,
             expect: expect.into_factory(),
             upgrade: self.upgrade,
-            on_connect: self.on_connect,
-            _t: PhantomData,
+            on_connect_ext: self.on_connect_ext,
+            _phantom: PhantomData,
         }
     }
 
@@ -148,15 +148,11 @@ where
     /// and this service get called with original request and framed object.
     pub fn upgrade<F, U1>(self, upgrade: F) -> HttpServiceBuilder<T, S, X, U1>
     where
-        F: IntoServiceFactory<U1>,
-        U1: ServiceFactory<
-            Config = (),
-            Request = (Request, Framed<T, Codec>),
-            Response = (),
-        >,
+        F: IntoServiceFactory<U1, (Request, Framed<T, Codec>)>,
+        U1: ServiceFactory<(Request, Framed<T, Codec>), Config = (), Response = ()>,
         U1::Error: fmt::Display,
         U1::InitError: fmt::Debug,
-        <U1::Service as Service>::Future: 'static,
+        <U1::Service as Service<(Request, Framed<T, Codec>)>>::Future: 'static,
     {
         HttpServiceBuilder {
             keep_alive: self.keep_alive,
@@ -166,29 +162,29 @@ where
             local_addr: self.local_addr,
             expect: self.expect,
             upgrade: Some(upgrade.into_factory()),
-            on_connect: self.on_connect,
-            _t: PhantomData,
+            on_connect_ext: self.on_connect_ext,
+            _phantom: PhantomData,
         }
     }
 
-    /// Set on-connect callback.
+    /// Sets the callback to be run on connection establishment.
     ///
-    /// It get called once per connection and result of the call
-    /// get stored to the request's extensions.
-    pub fn on_connect<F, I>(mut self, f: F) -> Self
+    /// Has mutable access to a data container that will be merged into request extensions.
+    /// This enables transport layer data (like client certificates) to be accessed in middleware
+    /// and handlers.
+    pub fn on_connect_ext<F>(mut self, f: F) -> Self
     where
-        F: Fn(&T) -> I + 'static,
-        I: Clone + 'static,
+        F: Fn(&T, &mut Extensions) + 'static,
     {
-        self.on_connect = Some(Rc::new(move |io| Box::new(Data(f(io)))));
+        self.on_connect_ext = Some(Rc::new(f));
         self
     }
 
-    /// Finish service configuration and create *http service* for HTTP/1 protocol.
+    /// Finish service configuration and create a HTTP Service for HTTP/1 protocol.
     pub fn h1<F, B>(self, service: F) -> H1Service<T, S, B, X, U>
     where
         B: MessageBody,
-        F: IntoServiceFactory<S>,
+        F: IntoServiceFactory<S, Request>,
         S::Error: Into<Error>,
         S::InitError: fmt::Debug,
         S::Response: Into<Response<B>>,
@@ -200,21 +196,22 @@ where
             self.secure,
             self.local_addr,
         );
+
         H1Service::with_config(cfg, service.into_factory())
             .expect(self.expect)
             .upgrade(self.upgrade)
-            .on_connect(self.on_connect)
+            .on_connect_ext(self.on_connect_ext)
     }
 
-    /// Finish service configuration and create *http service* for HTTP/2 protocol.
+    /// Finish service configuration and create a HTTP service for HTTP/2 protocol.
     pub fn h2<F, B>(self, service: F) -> H2Service<T, S, B>
     where
         B: MessageBody + 'static,
-        F: IntoServiceFactory<S>,
+        F: IntoServiceFactory<S, Request>,
         S::Error: Into<Error> + 'static,
         S::InitError: fmt::Debug,
         S::Response: Into<Response<B>> + 'static,
-        <S::Service as Service>::Future: 'static,
+        <S::Service as Service<Request>>::Future: 'static,
     {
         let cfg = ServiceConfig::new(
             self.keep_alive,
@@ -223,18 +220,20 @@ where
             self.secure,
             self.local_addr,
         );
-        H2Service::with_config(cfg, service.into_factory()).on_connect(self.on_connect)
+
+        H2Service::with_config(cfg, service.into_factory())
+            .on_connect_ext(self.on_connect_ext)
     }
 
     /// Finish service configuration and create `HttpService` instance.
     pub fn finish<F, B>(self, service: F) -> HttpService<T, S, B, X, U>
     where
         B: MessageBody + 'static,
-        F: IntoServiceFactory<S>,
+        F: IntoServiceFactory<S, Request>,
         S::Error: Into<Error> + 'static,
         S::InitError: fmt::Debug,
         S::Response: Into<Response<B>> + 'static,
-        <S::Service as Service>::Future: 'static,
+        <S::Service as Service<Request>>::Future: 'static,
     {
         let cfg = ServiceConfig::new(
             self.keep_alive,
@@ -243,9 +242,10 @@ where
             self.secure,
             self.local_addr,
         );
+
         HttpService::with_config(cfg, service.into_factory())
             .expect(self.expect)
             .upgrade(self.upgrade)
-            .on_connect(self.on_connect)
+            .on_connect_ext(self.on_connect_ext)
     }
 }

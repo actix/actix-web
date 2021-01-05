@@ -10,7 +10,6 @@ use actix_router::{Path, ResourceDef, ResourceInfo, Router, Url};
 use actix_service::boxed::{self, BoxService, BoxServiceFactory};
 use actix_service::{fn_service, Service, ServiceFactory};
 use futures_util::future::{join_all, ok, FutureExt, LocalBoxFuture};
-use tinyvec::tiny_vec;
 
 use crate::config::{AppConfig, AppService};
 use crate::data::{DataFactory, FnDataFactory};
@@ -30,8 +29,8 @@ type BoxResponse = LocalBoxFuture<'static, Result<ServiceResponse, Error>>;
 pub struct AppInit<T, B>
 where
     T: ServiceFactory<
+        ServiceRequest,
         Config = (),
-        Request = ServiceRequest,
         Response = ServiceResponse<B>,
         Error = Error,
         InitError = (),
@@ -47,22 +46,21 @@ where
     pub(crate) external: RefCell<Vec<ResourceDef>>,
 }
 
-impl<T, B> ServiceFactory for AppInit<T, B>
+impl<T, B> ServiceFactory<Request> for AppInit<T, B>
 where
     T: ServiceFactory<
+        ServiceRequest,
         Config = (),
-        Request = ServiceRequest,
         Response = ServiceResponse<B>,
         Error = Error,
         InitError = (),
     >,
 {
-    type Config = AppConfig;
-    type Request = Request;
     type Response = ServiceResponse<B>;
     type Error = T::Error;
-    type InitError = T::InitError;
+    type Config = AppConfig;
     type Service = AppInitService<T::Service, B>;
+    type InitError = T::InitError;
     type Future = AppInitResult<T, B>;
 
     fn new_service(&self, config: AppConfig) -> Self::Future {
@@ -125,7 +123,7 @@ where
             ),
             config,
             rmap,
-            _t: PhantomData,
+            _phantom: PhantomData,
         }
     }
 }
@@ -133,7 +131,7 @@ where
 #[pin_project::pin_project]
 pub struct AppInitResult<T, B>
 where
-    T: ServiceFactory,
+    T: ServiceFactory<ServiceRequest>,
 {
     #[pin]
     endpoint_fut: T::Future,
@@ -150,14 +148,14 @@ where
     data: Rc<[Box<dyn DataFactory>]>,
     extensions: Option<Extensions>,
 
-    _t: PhantomData<B>,
+    _phantom: PhantomData<B>,
 }
 
 impl<T, B> Future for AppInitResult<T, B>
 where
     T: ServiceFactory<
+        ServiceRequest,
         Config = (),
-        Request = ServiceRequest,
         Response = ServiceResponse<B>,
         Error = Error,
         InitError = (),
@@ -215,7 +213,7 @@ where
 /// Service to convert `Request` to a `ServiceRequest<S>`
 pub struct AppInitService<T, B>
 where
-    T: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    T: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
 {
     service: T,
     rmap: Rc<ResourceMap>,
@@ -224,11 +222,10 @@ where
     pool: &'static HttpRequestPool,
 }
 
-impl<T, B> Service for AppInitService<T, B>
+impl<T, B> Service<Request> for AppInitService<T, B>
 where
-    T: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    T: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
 {
-    type Request = Request;
     type Response = ServiceResponse<B>;
     type Error = T::Error;
     type Future = T::Future;
@@ -241,12 +238,11 @@ where
         let (head, payload) = req.into_parts();
 
         let req = if let Some(mut req) = self.pool.get_request() {
-            let inner = Rc::get_mut(&mut req.0).unwrap();
+            let inner = Rc::get_mut(&mut req.inner).unwrap();
             inner.path.get_mut().update(&head.uri);
             inner.path.reset();
             inner.head = head;
             inner.payload = payload;
-            inner.app_data = tiny_vec![self.data.clone()];
             req
         } else {
             HttpRequest::new(
@@ -265,7 +261,7 @@ where
 
 impl<T, B> Drop for AppInitService<T, B>
 where
-    T: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    T: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
 {
     fn drop(&mut self) {
         self.pool.clear();
@@ -277,9 +273,8 @@ pub struct AppRoutingFactory {
     default: Rc<HttpNewService>,
 }
 
-impl ServiceFactory for AppRoutingFactory {
+impl ServiceFactory<ServiceRequest> for AppRoutingFactory {
     type Config = ();
-    type Request = ServiceRequest;
     type Response = ServiceResponse;
     type Error = Error;
     type InitError = ();
@@ -388,8 +383,7 @@ pub struct AppRouting {
     default: Option<HttpService>,
 }
 
-impl Service for AppRouting {
-    type Request = ServiceRequest;
+impl Service<ServiceRequest> for AppRouting {
     type Response = ServiceResponse;
     type Error = Error;
     type Future = BoxResponse;
@@ -436,9 +430,8 @@ impl AppEntry {
     }
 }
 
-impl ServiceFactory for AppEntry {
+impl ServiceFactory<ServiceRequest> for AppEntry {
     type Config = ();
-    type Request = ServiceRequest;
     type Response = ServiceResponse;
     type Error = Error;
     type InitError = ();

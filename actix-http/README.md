@@ -1,14 +1,18 @@
-# Actix http [![Build Status](https://travis-ci.org/actix/actix-web.svg?branch=master)](https://travis-ci.org/actix/actix-web)  [![codecov](https://codecov.io/gh/actix/actix-web/branch/master/graph/badge.svg)](https://codecov.io/gh/actix/actix-web) [![crates.io](https://meritbadge.herokuapp.com/actix-http)](https://crates.io/crates/actix-http) [![Join the chat at https://gitter.im/actix/actix](https://badges.gitter.im/actix/actix.svg)](https://gitter.im/actix/actix?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+# actix-http
 
-Actix http
+> HTTP primitives for the Actix ecosystem.
 
-## Documentation & community resources
+[![crates.io](https://img.shields.io/crates/v/actix-http?label=latest)](https://crates.io/crates/actix-http)
+[![Documentation](https://docs.rs/actix-http/badge.svg?version=2.2.0)](https://docs.rs/actix-http/2.2.0)
+![Apache 2.0 or MIT licensed](https://img.shields.io/crates/l/actix-http)
+[![Dependency Status](https://deps.rs/crate/actix-http/2.2.0/status.svg)](https://deps.rs/crate/actix-http/2.2.0)
+[![Join the chat at https://gitter.im/actix/actix-web](https://badges.gitter.im/actix/actix-web.svg)](https://gitter.im/actix/actix-web?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
-* [User Guide](https://actix.rs/docs/)
-* [API Documentation](https://docs.rs/actix-http/)
-* [Chat on gitter](https://gitter.im/actix/actix)
-* Cargo package: [actix-http](https://crates.io/crates/actix-http)
-* Minimum supported Rust version: 1.40 or later
+## Documentation & Resources
+
+- [API Documentation](https://docs.rs/actix-http)
+- [Chat on Gitter](https://gitter.im/actix/actix-web)
+- Minimum Supported Rust Version (MSRV): 1.46.0
 
 ## Example
 

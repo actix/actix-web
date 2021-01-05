@@ -105,10 +105,10 @@ impl AppService {
         factory: F,
         nested: Option<Rc<ResourceMap>>,
     ) where
-        F: IntoServiceFactory<S>,
+        F: IntoServiceFactory<S, ServiceRequest>,
         S: ServiceFactory<
+                ServiceRequest,
                 Config = (),
-                Request = ServiceRequest,
                 Response = ServiceResponse,
                 Error = Error,
                 InitError = (),
@@ -141,7 +141,7 @@ impl AppConfig {
     /// Server host name.
     ///
     /// Host name is used by application router as a hostname for url generation.
-    /// Check [ConnectionInfo](./struct.ConnectionInfo.html#method.host)
+    /// Check [ConnectionInfo](super::dev::ConnectionInfo::host())
     /// documentation for more information.
     ///
     /// By default host name is set to a "localhost" value.

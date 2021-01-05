@@ -234,7 +234,7 @@ pub struct JsonBody<S, U> {
     length: Option<usize>,
     err: Option<JsonPayloadError>,
     fut: Option<ReadBody<S>>,
-    _t: PhantomData<U>,
+    _phantom: PhantomData<U>,
 }
 
 impl<S, U> JsonBody<S, U>
@@ -255,7 +255,7 @@ where
                 length: None,
                 fut: None,
                 err: Some(JsonPayloadError::ContentType),
-                _t: PhantomData,
+                _phantom: PhantomData,
             };
         }
 
@@ -272,7 +272,7 @@ where
             length: len,
             err: None,
             fut: Some(ReadBody::new(req.take_payload(), 65536)),
-            _t: PhantomData,
+            _phantom: PhantomData,
         }
     }
 
@@ -370,14 +370,14 @@ mod tests {
     async fn test_body() {
         let mut req = TestResponse::with_header(header::CONTENT_LENGTH, "xxxx").finish();
         match req.body().await.err().unwrap() {
-            PayloadError::UnknownLength => (),
+            PayloadError::UnknownLength => {}
             _ => unreachable!("error"),
         }
 
         let mut req =
             TestResponse::with_header(header::CONTENT_LENGTH, "1000000").finish();
         match req.body().await.err().unwrap() {
-            PayloadError::Overflow => (),
+            PayloadError::Overflow => {}
             _ => unreachable!("error"),
         }
 
@@ -390,7 +390,7 @@ mod tests {
             .set_payload(Bytes::from_static(b"11111111111111"))
             .finish();
         match req.body().limit(5).await.err().unwrap() {
-            PayloadError::Overflow => (),
+            PayloadError::Overflow => {}
             _ => unreachable!("error"),
         }
     }

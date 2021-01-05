@@ -1,19 +1,17 @@
 #![cfg(feature = "openssl")]
 use std::io;
 
-use actix_http_test::test_server;
-use actix_service::{fn_service, ServiceFactory};
-
-use bytes::{Bytes, BytesMut};
-use futures_util::future::{err, ok, ready};
-use futures_util::stream::{once, Stream, StreamExt};
-use open_ssl::ssl::{AlpnError, SslAcceptor, SslFiletype, SslMethod};
-
 use actix_http::error::{ErrorBadRequest, PayloadError};
 use actix_http::http::header::{self, HeaderName, HeaderValue};
 use actix_http::http::{Method, StatusCode, Version};
 use actix_http::httpmessage::HttpMessage;
 use actix_http::{body, Error, HttpService, Request, Response};
+use actix_http_test::test_server;
+use actix_service::{fn_service, ServiceFactoryExt};
+use bytes::{Bytes, BytesMut};
+use futures_util::future::{err, ok, ready};
+use futures_util::stream::{once, Stream, StreamExt};
+use open_ssl::ssl::{AlpnError, SslAcceptor, SslFiletype, SslMethod};
 
 async fn load_body<S>(stream: S) -> Result<BytesMut, PayloadError>
 where
@@ -410,9 +408,9 @@ async fn test_h2_service_error() {
 async fn test_h2_on_connect() {
     let srv = test_server(move || {
         HttpService::build()
-            .on_connect(|_| 10usize)
+            .on_connect_ext(|_, data| data.insert(20isize))
             .h2(|req: Request| {
-                assert!(req.extensions().contains::<usize>());
+                assert!(req.extensions().contains::<isize>());
                 ok::<_, ()>(Response::Ok().finish())
             })
             .openssl(ssl_acceptor())

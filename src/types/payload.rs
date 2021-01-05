@@ -7,10 +7,12 @@ use std::task::{Context, Poll};
 use actix_http::error::{Error, ErrorBadRequest, PayloadError};
 use actix_http::HttpMessage;
 use bytes::{Bytes, BytesMut};
-use encoding_rs::UTF_8;
+use encoding_rs::{Encoding, UTF_8};
 use futures_core::stream::Stream;
-use futures_util::future::{err, ok, Either, FutureExt, LocalBoxFuture, Ready};
-use futures_util::StreamExt;
+use futures_util::{
+    future::{err, ok, Either, ErrInto, Ready, TryFutureExt as _},
+    ready,
+};
 use mime::Mime;
 
 use crate::extract::FromRequest;
@@ -111,7 +113,7 @@ impl FromRequest for Payload {
 ///
 /// Loads request's payload and construct Bytes instance.
 ///
-/// [**PayloadConfig**](struct.PayloadConfig.html) allows to configure
+/// [**PayloadConfig**](PayloadConfig) allows to configure
 /// extraction process.
 ///
 /// ## Example
@@ -135,10 +137,7 @@ impl FromRequest for Payload {
 impl FromRequest for Bytes {
     type Config = PayloadConfig;
     type Error = Error;
-    type Future = Either<
-        LocalBoxFuture<'static, Result<Bytes, Error>>,
-        Ready<Result<Bytes, Error>>,
-    >;
+    type Future = Either<ErrInto<HttpMessageBody, Error>, Ready<Result<Bytes, Error>>>;
 
     #[inline]
     fn from_request(req: &HttpRequest, payload: &mut dev::Payload) -> Self::Future {
@@ -151,7 +150,7 @@ impl FromRequest for Bytes {
 
         let limit = cfg.limit;
         let fut = HttpMessageBody::new(req, payload).limit(limit);
-        Either::Left(async move { Ok(fut.await?) }.boxed_local())
+        Either::Left(fut.err_into())
     }
 }
 
@@ -159,7 +158,7 @@ impl FromRequest for Bytes {
 ///
 /// Text extractor automatically decode body according to the request's charset.
 ///
-/// [**PayloadConfig**](struct.PayloadConfig.html) allows to configure
+/// [**PayloadConfig**](PayloadConfig) allows to configure
 /// extraction process.
 ///
 /// ## Example
@@ -185,10 +184,7 @@ impl FromRequest for Bytes {
 impl FromRequest for String {
     type Config = PayloadConfig;
     type Error = Error;
-    type Future = Either<
-        LocalBoxFuture<'static, Result<String, Error>>,
-        Ready<Result<String, Error>>,
-    >;
+    type Future = Either<StringExtractFut, Ready<Result<String, Error>>>;
 
     #[inline]
     fn from_request(req: &HttpRequest, payload: &mut dev::Payload) -> Self::Future {
@@ -205,25 +201,40 @@ impl FromRequest for String {
             Err(e) => return Either::Right(err(e.into())),
         };
         let limit = cfg.limit;
-        let fut = HttpMessageBody::new(req, payload).limit(limit);
+        let body_fut = HttpMessageBody::new(req, payload).limit(limit);
 
-        Either::Left(
-            async move {
-                let body = fut.await?;
+        Either::Left(StringExtractFut { body_fut, encoding })
+    }
+}
 
-                if encoding == UTF_8 {
-                    Ok(str::from_utf8(body.as_ref())
-                        .map_err(|_| ErrorBadRequest("Can not decode body"))?
-                        .to_owned())
-                } else {
-                    Ok(encoding
-                        .decode_without_bom_handling_and_without_replacement(&body)
-                        .map(|s| s.into_owned())
-                        .ok_or_else(|| ErrorBadRequest("Can not decode body"))?)
-                }
-            }
-            .boxed_local(),
-        )
+pub struct StringExtractFut {
+    body_fut: HttpMessageBody,
+    encoding: &'static Encoding,
+}
+
+impl<'a> Future for StringExtractFut {
+    type Output = Result<String, Error>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let encoding = self.encoding;
+
+        Pin::new(&mut self.body_fut).poll(cx).map(|out| {
+            let body = out?;
+            bytes_to_string(body, encoding)
+        })
+    }
+}
+
+fn bytes_to_string(body: Bytes, encoding: &'static Encoding) -> Result<String, Error> {
+    if encoding == UTF_8 {
+        Ok(str::from_utf8(body.as_ref())
+            .map_err(|_| ErrorBadRequest("Can not decode body"))?
+            .to_owned())
+    } else {
+        Ok(encoding
+            .decode_without_bom_handling_and_without_replacement(&body)
+            .map(|s| s.into_owned())
+            .ok_or_else(|| ErrorBadRequest("Can not decode body"))?)
     }
 }
 
@@ -241,9 +252,10 @@ pub struct PayloadConfig {
 impl PayloadConfig {
     /// Create `PayloadConfig` instance and set max size of payload.
     pub fn new(limit: usize) -> Self {
-        let mut cfg = Self::default();
-        cfg.limit = limit;
-        cfg
+        Self {
+            limit,
+            ..Default::default()
+        }
     }
 
     /// Change max size of payload. By default max size is 256Kb
@@ -290,9 +302,11 @@ impl PayloadConfig {
 
 // Allow shared refs to default.
 const DEFAULT_CONFIG: PayloadConfig = PayloadConfig {
-    limit: 262_144, // 2^18 bytes (~256kB)
+    limit: DEFAULT_CONFIG_LIMIT,
     mimetype: None,
 };
+
+const DEFAULT_CONFIG_LIMIT: usize = 262_144; // 2^18 bytes (~256kB)
 
 impl Default for PayloadConfig {
     fn default() -> Self {
@@ -311,99 +325,83 @@ pub struct HttpMessageBody {
     limit: usize,
     length: Option<usize>,
     #[cfg(feature = "compress")]
-    stream: Option<dev::Decompress<dev::Payload>>,
+    stream: dev::Decompress<dev::Payload>,
     #[cfg(not(feature = "compress"))]
-    stream: Option<dev::Payload>,
+    stream: dev::Payload,
+    buf: BytesMut,
     err: Option<PayloadError>,
-    fut: Option<LocalBoxFuture<'static, Result<Bytes, PayloadError>>>,
 }
 
 impl HttpMessageBody {
     /// Create `MessageBody` for request.
     #[allow(clippy::borrow_interior_mutable_const)]
     pub fn new(req: &HttpRequest, payload: &mut dev::Payload) -> HttpMessageBody {
-        let mut len = None;
+        let mut length = None;
+        let mut err = None;
+
         if let Some(l) = req.headers().get(&header::CONTENT_LENGTH) {
-            if let Ok(s) = l.to_str() {
-                if let Ok(l) = s.parse::<usize>() {
-                    len = Some(l)
-                } else {
-                    return Self::err(PayloadError::UnknownLength);
-                }
-            } else {
-                return Self::err(PayloadError::UnknownLength);
+            match l.to_str() {
+                Ok(s) => match s.parse::<usize>() {
+                    Ok(l) if l > DEFAULT_CONFIG_LIMIT => {
+                        err = Some(PayloadError::Overflow)
+                    }
+                    Ok(l) => length = Some(l),
+                    Err(_) => err = Some(PayloadError::UnknownLength),
+                },
+                Err(_) => err = Some(PayloadError::UnknownLength),
             }
         }
 
         #[cfg(feature = "compress")]
-        let stream = Some(dev::Decompress::from_headers(payload.take(), req.headers()));
+        let stream = dev::Decompress::from_headers(payload.take(), req.headers());
         #[cfg(not(feature = "compress"))]
-        let stream = Some(payload.take());
+        let stream = payload.take();
 
         HttpMessageBody {
             stream,
-            limit: 262_144,
-            length: len,
-            fut: None,
-            err: None,
+            limit: DEFAULT_CONFIG_LIMIT,
+            length,
+            buf: BytesMut::with_capacity(8192),
+            err,
         }
     }
 
     /// Change max size of payload. By default max size is 256Kb
     pub fn limit(mut self, limit: usize) -> Self {
+        if let Some(l) = self.length {
+            if l > limit {
+                self.err = Some(PayloadError::Overflow);
+            }
+        }
         self.limit = limit;
         self
-    }
-
-    fn err(e: PayloadError) -> Self {
-        HttpMessageBody {
-            stream: None,
-            limit: 262_144,
-            fut: None,
-            err: Some(e),
-            length: None,
-        }
     }
 }
 
 impl Future for HttpMessageBody {
     type Output = Result<Bytes, PayloadError>;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        if let Some(ref mut fut) = self.fut {
-            return Pin::new(fut).poll(cx);
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = self.get_mut();
+
+        if let Some(e) = this.err.take() {
+            return Poll::Ready(Err(e));
         }
 
-        if let Some(err) = self.err.take() {
-            return Poll::Ready(Err(err));
-        }
-
-        if let Some(len) = self.length.take() {
-            if len > self.limit {
-                return Poll::Ready(Err(PayloadError::Overflow));
-            }
-        }
-
-        // future
-        let limit = self.limit;
-        let mut stream = self.stream.take().unwrap();
-        self.fut = Some(
-            async move {
-                let mut body = BytesMut::with_capacity(8192);
-
-                while let Some(item) = stream.next().await {
-                    let chunk = item?;
-                    if body.len() + chunk.len() > limit {
-                        return Err(PayloadError::Overflow);
+        loop {
+            let res = ready!(Pin::new(&mut this.stream).poll_next(cx));
+            match res {
+                Some(chunk) => {
+                    let chunk = chunk?;
+                    if this.buf.len() + chunk.len() > this.limit {
+                        return Poll::Ready(Err(PayloadError::Overflow));
                     } else {
-                        body.extend_from_slice(&chunk);
+                        this.buf.extend_from_slice(&chunk);
                     }
                 }
-                Ok(body.freeze())
+                None => return Poll::Ready(Ok(this.buf.split().freeze())),
             }
-            .boxed_local(),
-        );
-        self.poll(cx)
+        }
     }
 }
 
@@ -541,7 +539,7 @@ mod tests {
             .into_parts();
         let res = HttpMessageBody::new(&req, &mut pl).await;
         match res.err().unwrap() {
-            PayloadError::UnknownLength => (),
+            PayloadError::UnknownLength => {}
             _ => unreachable!("error"),
         }
 
@@ -550,7 +548,7 @@ mod tests {
             .into_parts();
         let res = HttpMessageBody::new(&req, &mut pl).await;
         match res.err().unwrap() {
-            PayloadError::Overflow => (),
+            PayloadError::Overflow => {}
             _ => unreachable!("error"),
         }
 
@@ -565,7 +563,7 @@ mod tests {
             .to_http_parts();
         let res = HttpMessageBody::new(&req, &mut pl).limit(5).await;
         match res.err().unwrap() {
-            PayloadError::Overflow => (),
+            PayloadError::Overflow => {}
             _ => unreachable!("error"),
         }
     }

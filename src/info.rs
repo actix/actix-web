@@ -55,7 +55,7 @@ impl ConnectionInfo {
                                             host = Some(val.trim());
                                         }
                                     }
-                                    _ => (),
+                                    _ => {}
                                 }
                             }
                         }
@@ -174,7 +174,7 @@ impl ConnectionInfo {
     /// Do not use this function for security purposes, unless you can ensure the Forwarded and
     /// X-Forwarded-For headers cannot be spoofed by the client. If you want the client's socket
     /// address explicitly, use
-    /// [`HttpRequest::peer_addr()`](../web/struct.HttpRequest.html#method.peer_addr) instead.
+    /// [`HttpRequest::peer_addr()`](super::web::HttpRequest::peer_addr()) instead.
     #[inline]
     pub fn realip_remote_addr(&self) -> Option<&str> {
         if let Some(ref r) = self.realip_remote_addr {

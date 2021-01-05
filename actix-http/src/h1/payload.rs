@@ -182,9 +182,7 @@ impl Inner {
         self.len += data.len();
         self.items.push_back(data);
         self.need_read = self.len < MAX_BUFFER_SIZE;
-        if let Some(task) = self.task.take() {
-            task.wake()
-        }
+        self.task.wake();
     }
 
     #[cfg(test)]

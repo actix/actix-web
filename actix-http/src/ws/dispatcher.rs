@@ -11,7 +11,7 @@ use super::{Codec, Frame, Message};
 #[pin_project::pin_project]
 pub struct Dispatcher<S, T>
 where
-    S: Service<Request = Frame, Response = Message> + 'static,
+    S: Service<Frame, Response = Message> + 'static,
     T: AsyncRead + AsyncWrite,
 {
     #[pin]
@@ -21,17 +21,17 @@ where
 impl<S, T> Dispatcher<S, T>
 where
     T: AsyncRead + AsyncWrite,
-    S: Service<Request = Frame, Response = Message>,
+    S: Service<Frame, Response = Message>,
     S::Future: 'static,
     S::Error: 'static,
 {
-    pub fn new<F: IntoService<S>>(io: T, service: F) -> Self {
+    pub fn new<F: IntoService<S, Frame>>(io: T, service: F) -> Self {
         Dispatcher {
             inner: InnerDispatcher::new(Framed::new(io, Codec::new()), service),
         }
     }
 
-    pub fn with<F: IntoService<S>>(framed: Framed<T, Codec>, service: F) -> Self {
+    pub fn with<F: IntoService<S, Frame>>(framed: Framed<T, Codec>, service: F) -> Self {
         Dispatcher {
             inner: InnerDispatcher::new(framed, service),
         }
@@ -41,7 +41,7 @@ where
 impl<S, T> Future for Dispatcher<S, T>
 where
     T: AsyncRead + AsyncWrite,
-    S: Service<Request = Frame, Response = Message>,
+    S: Service<Frame, Response = Message>,
     S::Future: 'static,
     S::Error: 'static,
 {

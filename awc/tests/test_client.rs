@@ -108,14 +108,14 @@ async fn test_form() {
 async fn test_timeout() {
     let srv = test::start(|| {
         App::new().service(web::resource("/").route(web::to(|| async {
-            actix_rt::time::delay_for(Duration::from_millis(200)).await;
+            actix_rt::time::sleep(Duration::from_millis(200)).await;
             Ok::<_, Error>(HttpResponse::Ok().body(STR))
         })))
     });
 
     let connector = awc::Connector::new()
-        .connector(actix_connect::new_connector(
-            actix_connect::start_default_resolver().await.unwrap(),
+        .connector(actix_tls::connect::new_connector(
+            actix_tls::connect::start_default_resolver().await.unwrap(),
         ))
         .timeout(Duration::from_secs(15))
         .finish();
@@ -127,7 +127,7 @@ async fn test_timeout() {
 
     let request = client.get(srv.url("/")).send();
     match request.await {
-        Err(SendRequestError::Timeout) => (),
+        Err(SendRequestError::Timeout) => {}
         _ => panic!(),
     }
 }
@@ -136,7 +136,7 @@ async fn test_timeout() {
 async fn test_timeout_override() {
     let srv = test::start(|| {
         App::new().service(web::resource("/").route(web::to(|| async {
-            actix_rt::time::delay_for(Duration::from_millis(200)).await;
+            actix_rt::time::sleep(Duration::from_millis(200)).await;
             Ok::<_, Error>(HttpResponse::Ok().body(STR))
         })))
     });
@@ -149,7 +149,7 @@ async fn test_timeout_override() {
         .timeout(Duration::from_millis(50))
         .send();
     match request.await {
-        Err(SendRequestError::Timeout) => (),
+        Err(SendRequestError::Timeout) => {}
         _ => panic!(),
     }
 }
@@ -480,6 +480,7 @@ async fn test_client_gzip_encoding_large_random() {
     let data = rand::thread_rng()
         .sample_iter(&rand::distributions::Alphanumeric)
         .take(100_000)
+        .map(char::from)
         .collect::<String>();
 
     let srv = test::start(|| {
@@ -529,6 +530,7 @@ async fn test_client_brotli_encoding_large_random() {
     let data = rand::thread_rng()
         .sample_iter(&rand::distributions::Alphanumeric)
         .take(70_000)
+        .map(char::from)
         .collect::<String>();
 
     let srv = test::start(|| {

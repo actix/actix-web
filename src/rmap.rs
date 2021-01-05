@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::rc::{Rc, Weak};
 
 use actix_router::ResourceDef;
-use fxhash::FxHashMap;
+use ahash::AHashMap;
 use url::Url;
 
 use crate::error::UrlGenerationError;
@@ -12,7 +12,7 @@ use crate::request::HttpRequest;
 pub struct ResourceMap {
     root: ResourceDef,
     parent: RefCell<Weak<ResourceMap>>,
-    named: FxHashMap<String, ResourceDef>,
+    named: AHashMap<String, ResourceDef>,
     patterns: Vec<(ResourceDef, Option<Rc<ResourceMap>>)>,
 }
 
@@ -21,7 +21,7 @@ impl ResourceMap {
         ResourceMap {
             root,
             parent: RefCell::new(Weak::new()),
-            named: FxHashMap::default(),
+            named: AHashMap::default(),
             patterns: Vec::new(),
         }
     }
@@ -86,7 +86,7 @@ impl ResourceMap {
                 if let Some(plen) = pattern.is_prefix_match(path) {
                     return rmap.has_resource(&path[plen..]);
                 }
-            } else if pattern.is_match(path) {
+            } else if pattern.is_match(path) || pattern.pattern() == "" && path == "/" {
                 return true;
             }
         }

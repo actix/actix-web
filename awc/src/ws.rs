@@ -1,6 +1,6 @@
 //! Websockets client
 //!
-//! Type definitions required to use [`awc::Client`](../struct.Client.html) as a WebSocket client.
+//! Type definitions required to use [`awc::Client`](super::Client) as a WebSocket client.
 //!
 //! # Example
 //!
@@ -17,7 +17,7 @@
 //!         .unwrap();
 //!
 //!     connection
-//!         .send(ws::Message::Text("Echo".to_string()))
+//!         .send(ws::Message::Text("Echo".into()))
 //!         .await
 //!         .unwrap();
 //!     let response = connection.next().await.unwrap().unwrap();
@@ -70,9 +70,14 @@ impl WebsocketsRequest {
         <Uri as TryFrom<U>>::Error: Into<HttpError>,
     {
         let mut err = None;
-        let mut head = RequestHead::default();
-        head.method = Method::GET;
-        head.version = Version::HTTP_11;
+
+        #[allow(clippy::field_reassign_with_default)]
+        let mut head = {
+            let mut head = RequestHead::default();
+            head.method = Method::GET;
+            head.version = Version::HTTP_11;
+            head
+        };
 
         match Uri::try_from(uri) {
             Ok(uri) => head.uri = uri,
@@ -254,7 +259,7 @@ impl WebsocketsRequest {
             return Err(InvalidUrl::MissingScheme.into());
         } else if let Some(scheme) = uri.scheme() {
             match scheme.as_str() {
-                "http" | "ws" | "https" | "wss" => (),
+                "http" | "ws" | "https" | "wss" => {}
                 _ => return Err(InvalidUrl::UnknownScheme.into()),
             }
         } else {

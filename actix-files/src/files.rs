@@ -1,6 +1,6 @@
 use std::{cell::RefCell, fmt, io, path::PathBuf, rc::Rc};
 
-use actix_service::{boxed, IntoServiceFactory, ServiceFactory};
+use actix_service::{boxed, IntoServiceFactory, ServiceFactory, ServiceFactoryExt};
 use actix_web::{
     dev::{
         AppService, HttpServiceFactory, ResourceDef, ServiceRequest, ServiceResponse,
@@ -39,6 +39,7 @@ pub struct Files {
     mime_override: Option<Rc<MimeOverride>>,
     file_flags: named::Flags,
     guards: Option<Rc<dyn Guard>>,
+    hidden_files: bool,
 }
 
 impl fmt::Debug for Files {
@@ -60,18 +61,31 @@ impl Clone for Files {
             path: self.path.clone(),
             mime_override: self.mime_override.clone(),
             guards: self.guards.clone(),
+            hidden_files: self.hidden_files,
         }
     }
 }
 
 impl Files {
-    /// Create new `Files` instance for specified base directory.
+    /// Create new `Files` instance for a specified base directory.
     ///
-    /// `File` uses `ThreadPool` for blocking filesystem operations.
-    /// By default pool with 5x threads of available cpus is used.
-    /// Pool size can be changed by setting ACTIX_THREADPOOL environment variable.
-    pub fn new<T: Into<PathBuf>>(path: &str, dir: T) -> Files {
-        let orig_dir = dir.into();
+    /// # Argument Order
+    /// The first argument (`mount_path`) is the root URL at which the static files are served.
+    /// For example, `/assets` will serve files at `example.com/assets/...`.
+    ///
+    /// The second argument (`serve_from`) is the location on disk at which files are loaded.
+    /// This can be a relative path. For example, `./` would serve files from the current
+    /// working directory.
+    ///
+    /// # Implementation Notes
+    /// If the mount path is set as the root path `/`, services registered after this one will
+    /// be inaccessible. Register more specific handlers and services first.
+    ///
+    /// `Files` uses a threadpool for blocking filesystem operations. By default, the pool uses a
+    /// number of threads equal to 5x the number of available logical CPUs. Pool size can be changed
+    /// by setting ACTIX_THREADPOOL environment variable.
+    pub fn new<T: Into<PathBuf>>(mount_path: &str, serve_from: T) -> Files {
+        let orig_dir = serve_from.into();
         let dir = match orig_dir.canonicalize() {
             Ok(canon_dir) => canon_dir,
             Err(_) => {
@@ -81,7 +95,7 @@ impl Files {
         };
 
         Files {
-            path: path.to_string(),
+            path: mount_path.to_owned(),
             directory: dir,
             index: None,
             show_index: false,
@@ -91,6 +105,7 @@ impl Files {
             mime_override: None,
             file_flags: named::Flags::default(),
             guards: None,
+            hidden_files: false,
         }
     }
 
@@ -186,10 +201,10 @@ impl Files {
     /// Sets default handler which is used when no matched file could be found.
     pub fn default_handler<F, U>(mut self, f: F) -> Self
     where
-        F: IntoServiceFactory<U>,
+        F: IntoServiceFactory<U, ServiceRequest>,
         U: ServiceFactory<
+                ServiceRequest,
                 Config = (),
-                Request = ServiceRequest,
                 Response = ServiceResponse,
                 Error = Error,
             > + 'static,
@@ -199,6 +214,13 @@ impl Files {
             f.into_factory().map_init_err(|_| ()),
         )))));
 
+        self
+    }
+
+    /// Enables serving hidden files and directories, allowing a leading dots in url fragments.
+    #[inline]
+    pub fn use_hidden_files(mut self) -> Self {
+        self.hidden_files = true;
         self
     }
 }
@@ -219,8 +241,7 @@ impl HttpServiceFactory for Files {
     }
 }
 
-impl ServiceFactory for Files {
-    type Request = ServiceRequest;
+impl ServiceFactory<ServiceRequest> for Files {
     type Response = ServiceResponse;
     type Error = Error;
     type Config = ();
@@ -239,6 +260,7 @@ impl ServiceFactory for Files {
             mime_override: self.mime_override.clone(),
             file_flags: self.file_flags,
             guards: self.guards.clone(),
+            hidden_files: self.hidden_files,
         };
 
         if let Some(ref default) = *self.default.borrow() {

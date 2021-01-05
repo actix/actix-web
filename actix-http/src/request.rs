@@ -23,6 +23,10 @@ impl<P> HttpMessage for Request<P> {
         &self.head().headers
     }
 
+    fn take_payload(&mut self) -> Payload<P> {
+        std::mem::replace(&mut self.payload, Payload::None)
+    }
+
     /// Request extensions
     #[inline]
     fn extensions(&self) -> Ref<'_, Extensions> {
@@ -33,10 +37,6 @@ impl<P> HttpMessage for Request<P> {
     #[inline]
     fn extensions_mut(&self) -> RefMut<'_, Extensions> {
         self.head.extensions_mut()
-    }
-
-    fn take_payload(&mut self) -> Payload<P> {
-        std::mem::replace(&mut self.payload, Payload::None)
     }
 }
 

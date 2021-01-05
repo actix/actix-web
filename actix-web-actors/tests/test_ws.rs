@@ -21,7 +21,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for Ws {
             ws::Message::Text(text) => ctx.text(text),
             ws::Message::Binary(bin) => ctx.binary(bin),
             ws::Message::Close(reason) => ctx.close(reason),
-            _ => (),
+            _ => {}
         }
     }
 }
@@ -38,10 +38,7 @@ async fn test_simple() {
 
     // client service
     let mut framed = srv.ws().await.unwrap();
-    framed
-        .send(ws::Message::Text("text".to_string()))
-        .await
-        .unwrap();
+    framed.send(ws::Message::Text("text".into())).await.unwrap();
 
     let item = framed.next().await.unwrap().unwrap();
     assert_eq!(item, ws::Frame::Text(Bytes::from_static(b"text")));

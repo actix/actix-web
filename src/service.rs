@@ -62,7 +62,7 @@ impl ServiceRequest {
 
     /// Deconstruct request into parts
     pub fn into_parts(mut self) -> (HttpRequest, Payload) {
-        let pl = Rc::get_mut(&mut (self.0).0).unwrap().payload.take();
+        let pl = Rc::get_mut(&mut (self.0).inner).unwrap().payload.take();
         (self.0, pl)
     }
 
@@ -73,11 +73,12 @@ impl ServiceRequest {
         mut req: HttpRequest,
         pl: Payload,
     ) -> Result<Self, (HttpRequest, Payload)> {
-        if Rc::strong_count(&req.0) == 1 && Rc::weak_count(&req.0) == 0 {
-            Rc::get_mut(&mut req.0).unwrap().payload = pl;
-            Ok(ServiceRequest(req))
-        } else {
-            Err((req, pl))
+        match Rc::get_mut(&mut req.inner) {
+            Some(p) => {
+                p.payload = pl;
+                Ok(ServiceRequest(req))
+            }
+            None => Err((req, pl)),
         }
     }
 
@@ -87,7 +88,10 @@ impl ServiceRequest {
     /// can be re-constructed only if rc's strong pointers count eq 1 and
     /// weak pointers count is 0.
     pub fn from_request(req: HttpRequest) -> Result<Self, HttpRequest> {
-        if Rc::strong_count(&req.0) == 1 && Rc::weak_count(&req.0) == 0 {
+        // There is no weak pointer used on HttpRequest so intentionally
+        // ignore the check.
+        if Rc::strong_count(&req.inner) == 1 {
+            debug_assert!(Rc::weak_count(&req.inner) == 0);
             Ok(ServiceRequest(req))
         } else {
             Err(req)
@@ -195,13 +199,13 @@ impl ServiceRequest {
         self.0.match_info()
     }
 
-    /// Counterpart to [`HttpRequest::match_name`](../struct.HttpRequest.html#method.match_name).
+    /// Counterpart to [`HttpRequest::match_name`](super::HttpRequest::match_name()).
     #[inline]
     pub fn match_name(&self) -> Option<&str> {
         self.0.match_name()
     }
 
-    /// Counterpart to [`HttpRequest::match_pattern`](../struct.HttpRequest.html#method.match_pattern).
+    /// Counterpart to [`HttpRequest::match_pattern`](super::HttpRequest::match_pattern()).
     #[inline]
     pub fn match_pattern(&self) -> Option<String> {
         self.0.match_pattern()
@@ -225,9 +229,9 @@ impl ServiceRequest {
         self.0.app_config()
     }
 
-    /// Counterpart to [`HttpRequest::app_data`](../struct.HttpRequest.html#method.app_data).
+    /// Counterpart to [`HttpRequest::app_data`](super::HttpRequest::app_data()).
     pub fn app_data<T: 'static>(&self) -> Option<&T> {
-        for container in (self.0).0.app_data.iter().rev() {
+        for container in (self.0).inner.app_data.iter().rev() {
             if let Some(data) = container.get::<T>() {
                 return Some(data);
             }
@@ -238,13 +242,13 @@ impl ServiceRequest {
 
     /// Set request payload.
     pub fn set_payload(&mut self, payload: Payload) {
-        Rc::get_mut(&mut (self.0).0).unwrap().payload = payload;
+        Rc::get_mut(&mut (self.0).inner).unwrap().payload = payload;
     }
 
     #[doc(hidden)]
     /// Add app data container to request's resolution set.
     pub fn add_data_container(&mut self, extensions: Rc<Extensions>) {
-        Rc::get_mut(&mut (self.0).0)
+        Rc::get_mut(&mut (self.0).inner)
             .unwrap()
             .app_data
             .push(extensions);
@@ -280,7 +284,7 @@ impl HttpMessage for ServiceRequest {
 
     #[inline]
     fn take_payload(&mut self) -> Payload<Self::Stream> {
-        Rc::get_mut(&mut (self.0).0).unwrap().payload.take()
+        Rc::get_mut(&mut (self.0).inner).unwrap().payload.take()
     }
 }
 
@@ -486,10 +490,10 @@ impl WebService {
     /// Set a service factory implementation and generate web service.
     pub fn finish<T, F>(self, service: F) -> impl HttpServiceFactory
     where
-        F: IntoServiceFactory<T>,
+        F: IntoServiceFactory<T, ServiceRequest>,
         T: ServiceFactory<
+                ServiceRequest,
                 Config = (),
-                Request = ServiceRequest,
                 Response = ServiceResponse,
                 Error = Error,
                 InitError = (),
@@ -514,8 +518,8 @@ struct WebServiceImpl<T> {
 impl<T> HttpServiceFactory for WebServiceImpl<T>
 where
     T: ServiceFactory<
+            ServiceRequest,
             Config = (),
-            Request = ServiceRequest,
             Response = ServiceResponse,
             Error = Error,
             InitError = (),

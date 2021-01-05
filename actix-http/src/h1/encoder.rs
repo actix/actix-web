@@ -21,7 +21,7 @@ const AVERAGE_HEADER_SIZE: usize = 30;
 pub(crate) struct MessageEncoder<T: MessageType> {
     pub length: BodySize,
     pub te: TransferEncoding,
-    _t: PhantomData<T>,
+    _phantom: PhantomData<T>,
 }
 
 impl<T: MessageType> Default for MessageEncoder<T> {
@@ -29,7 +29,7 @@ impl<T: MessageType> Default for MessageEncoder<T> {
         MessageEncoder {
             length: BodySize::None,
             te: TransferEncoding::empty(),
-            _t: PhantomData,
+            _phantom: PhantomData,
         }
     }
 }
@@ -64,14 +64,17 @@ pub(crate) trait MessageType: Sized {
         // Content length
         if let Some(status) = self.status() {
             match status {
-                StatusCode::NO_CONTENT
-                | StatusCode::CONTINUE
-                | StatusCode::PROCESSING => length = BodySize::None,
-                StatusCode::SWITCHING_PROTOCOLS => {
+                StatusCode::CONTINUE
+                | StatusCode::SWITCHING_PROTOCOLS
+                | StatusCode::PROCESSING
+                | StatusCode::NO_CONTENT => {
+                    // skip content-length and transfer-encoding headers
+                    // See https://tools.ietf.org/html/rfc7230#section-3.3.1
+                    // and https://tools.ietf.org/html/rfc7230#section-3.3.2
                     skip_len = true;
-                    length = BodySize::Stream;
+                    length = BodySize::None
                 }
-                _ => (),
+                _ => {}
             }
         }
         match length {
@@ -115,7 +118,7 @@ pub(crate) trait MessageType: Sized {
                     dst.put_slice(b"connection: close\r\n")
                 }
             }
-            _ => (),
+            _ => {}
         }
 
         // merging headers from head and extra headers. HeaderMap::new() does not allocate.
@@ -132,7 +135,7 @@ pub(crate) trait MessageType: Sized {
 
         let mut has_date = false;
 
-        let mut buf = dst.bytes_mut().as_mut_ptr() as *mut u8;
+        let mut buf = dst.chunk_mut().as_mut_ptr() as *mut u8;
         let mut remaining = dst.capacity() - dst.len();
 
         // tracks bytes written since last buffer resize
@@ -145,7 +148,7 @@ pub(crate) trait MessageType: Sized {
                 CONNECTION => continue,
                 TRANSFER_ENCODING | CONTENT_LENGTH if skip_len => continue,
                 DATE => has_date = true,
-                _ => (),
+                _ => {}
             }
 
             let k = key.as_str().as_bytes();
@@ -174,7 +177,7 @@ pub(crate) trait MessageType: Sized {
 
                         // re-assign buf raw pointer since it's possible that the buffer was
                         // reallocated and/or resized
-                        buf = dst.bytes_mut().as_mut_ptr() as *mut u8;
+                        buf = dst.chunk_mut().as_mut_ptr() as *mut u8;
                     }
 
                     // SAFETY: on each write, it is enough to ensure that the advancement of the
@@ -221,7 +224,7 @@ pub(crate) trait MessageType: Sized {
 
                             // re-assign buf raw pointer since it's possible that the buffer was
                             // reallocated and/or resized
-                            buf = dst.bytes_mut().as_mut_ptr() as *mut u8;
+                            buf = dst.chunk_mut().as_mut_ptr() as *mut u8;
                         }
 
                         // SAFETY: on each write, it is enough to ensure that the advancement of
@@ -529,30 +532,29 @@ unsafe fn write_data(value: &[u8], buf: *mut u8, len: usize) {
 }
 
 fn write_camel_case(value: &[u8], buffer: &mut [u8]) {
-    let mut index = 0;
-    let key = value;
-    let mut key_iter = key.iter();
+    // first copy entire (potentially wrong) slice to output
+    buffer[..value.len()].copy_from_slice(value);
 
-    if let Some(c) = key_iter.next() {
-        if *c >= b'a' && *c <= b'z' {
-            buffer[index] = *c ^ b' ';
-            index += 1;
-        }
-    } else {
-        return;
+    let mut iter = value.iter();
+
+    // first character should be uppercase
+    if let Some(c @ b'a'..=b'z') = iter.next() {
+        buffer[0] = c & 0b1101_1111;
     }
 
-    while let Some(c) = key_iter.next() {
-        buffer[index] = *c;
-        index += 1;
-        if *c == b'-' {
-            if let Some(c) = key_iter.next() {
-                if *c >= b'a' && *c <= b'z' {
-                    buffer[index] = *c ^ b' ';
-                    index += 1;
-                }
+    // track 1 ahead of the current position since that's the location being assigned to
+    let mut index = 2;
+
+    // remaining characters after hyphens should also be uppercase
+    while let Some(&c) = iter.next() {
+        if c == b'-' {
+            // advance iter by one and uppercase if needed
+            if let Some(c @ b'a'..=b'z') = iter.next() {
+                buffer[index] = c & 0b1101_1111;
             }
         }
+
+        index += 1;
     }
 }
 
@@ -601,6 +603,8 @@ mod tests {
         );
         let data =
             String::from_utf8(Vec::from(bytes.split().freeze().as_ref())).unwrap();
+        eprintln!("{}", &data);
+
         assert!(data.contains("Content-Length: 0\r\n"));
         assert!(data.contains("Connection: close\r\n"));
         assert!(data.contains("Content-Type: plain/text\r\n"));
@@ -675,5 +679,29 @@ mod tests {
         assert!(data.contains("connection: close\r\n"));
         assert!(data.contains("authorization: another authorization\r\n"));
         assert!(data.contains("date: date\r\n"));
+    }
+
+    #[test]
+    fn test_no_content_length() {
+        let mut bytes = BytesMut::with_capacity(2048);
+
+        let mut res: Response<()> =
+            Response::new(StatusCode::SWITCHING_PROTOCOLS).into_body::<()>();
+        res.headers_mut()
+            .insert(DATE, HeaderValue::from_static(&""));
+        res.headers_mut()
+            .insert(CONTENT_LENGTH, HeaderValue::from_static(&"0"));
+
+        let _ = res.encode_headers(
+            &mut bytes,
+            Version::HTTP_11,
+            BodySize::Stream,
+            ConnectionType::Upgrade,
+            &ServiceConfig::default(),
+        );
+        let data =
+            String::from_utf8(Vec::from(bytes.split().freeze().as_ref())).unwrap();
+        assert!(!data.contains("content-length: 0\r\n"));
+        assert!(!data.contains("transfer-encoding: chunked\r\n"));
     }
 }

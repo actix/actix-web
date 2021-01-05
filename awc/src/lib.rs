@@ -1,11 +1,4 @@
-#![deny(rust_2018_idioms)]
-#![allow(
-    clippy::type_complexity,
-    clippy::borrow_interior_mutable_const,
-    clippy::needless_doctest_main
-)]
-
-//! `awc` is a HTTP and WebSocket client library built using the Actix ecosystem.
+//! `awc` is a HTTP and WebSocket client library built on the Actix ecosystem.
 //!
 //! ## Making a GET request
 //!
@@ -83,13 +76,22 @@
 //!     .await?;
 //!
 //! connection
-//!     .send(awc::ws::Message::Text("Echo".to_string()))
+//!     .send(awc::ws::Message::Text("Echo".into()))
 //!     .await?;
 //! let response = connection.next().await.unwrap()?;
 //! # assert_eq!(response, awc::ws::Frame::Text("Echo".as_bytes().into()));
 //! # Ok(())
 //! # }
 //! ```
+
+#![deny(rust_2018_idioms)]
+#![allow(
+    clippy::type_complexity,
+    clippy::borrow_interior_mutable_const,
+    clippy::needless_doctest_main
+)]
+#![doc(html_logo_url = "https://actix.rs/img/logo.png")]
+#![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
 
 use std::cell::RefCell;
 use std::convert::TryFrom;

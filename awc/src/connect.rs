@@ -2,9 +2,9 @@ use std::future::Future;
 use std::pin::Pin;
 use std::rc::Rc;
 use std::task::{Context, Poll};
-use std::{fmt, io, mem, net};
+use std::{fmt, io, net};
 
-use actix_codec::{AsyncRead, AsyncWrite, Framed};
+use actix_codec::{AsyncRead, AsyncWrite, Framed, ReadBuf};
 use actix_http::body::Body;
 use actix_http::client::{
     Connect as ClientConnect, ConnectError, Connection, SendRequestError,
@@ -70,7 +70,7 @@ pub(crate) trait Connect {
 
 impl<T> Connect for ConnectorWrapper<T>
 where
-    T: Service<Request = ClientConnect, Error = ConnectError>,
+    T: Service<ClientConnect, Error = ConnectError>,
     T::Response: Connection,
     <T::Response as Connection>::Io: 'static,
     <T::Response as Connection>::Future: 'static,
@@ -221,18 +221,11 @@ impl fmt::Debug for BoxedSocket {
 }
 
 impl AsyncRead for BoxedSocket {
-    unsafe fn prepare_uninitialized_buffer(
-        &self,
-        buf: &mut [mem::MaybeUninit<u8>],
-    ) -> bool {
-        self.0.as_read().prepare_uninitialized_buffer(buf)
-    }
-
     fn poll_read(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
-        buf: &mut [u8],
-    ) -> Poll<io::Result<usize>> {
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<io::Result<()>> {
         Pin::new(self.get_mut().0.as_read_mut()).poll_read(cx, buf)
     }
 }

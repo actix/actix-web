@@ -137,7 +137,7 @@ pub(crate) trait MessageType: Sized {
                             expect = true;
                         }
                     }
-                    _ => (),
+                    _ => {}
                 }
 
                 headers.append(name, value);
@@ -685,7 +685,7 @@ mod tests {
             match MessageDecoder::<Request>::default().decode($e) {
                 Err(err) => match err {
                     ParseError::Io(_) => unreachable!("Parse error expected"),
-                    _ => (),
+                    _ => {}
                 },
                 _ => unreachable!("Error expected"),
             }

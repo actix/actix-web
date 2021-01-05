@@ -1,47 +1,60 @@
 use actix_codec::{Decoder, Encoder};
+use bitflags::bitflags;
 use bytes::{Bytes, BytesMut};
+use bytestring::ByteString;
 
 use super::frame::Parser;
 use super::proto::{CloseReason, OpCode};
 use super::ProtocolError;
 
-/// `WebSocket` Message
+/// A WebSocket message.
 #[derive(Debug, PartialEq)]
 pub enum Message {
-    /// Text message
-    Text(String),
-    /// Binary message
+    /// Text message.
+    Text(ByteString),
+
+    /// Binary message.
     Binary(Bytes),
-    /// Continuation
+
+    /// Continuation.
     Continuation(Item),
-    /// Ping message
+
+    /// Ping message.
     Ping(Bytes),
-    /// Pong message
+
+    /// Pong message.
     Pong(Bytes),
-    /// Close message with optional reason
+
+    /// Close message with optional reason.
     Close(Option<CloseReason>),
-    /// No-op. Useful for actix-net services
+
+    /// No-op. Useful for low-level services.
     Nop,
 }
 
-/// `WebSocket` frame
+/// A WebSocket frame.
 #[derive(Debug, PartialEq)]
 pub enum Frame {
-    /// Text frame, codec does not verify utf8 encoding
+    /// Text frame. Note that the codec does not validate UTF-8 encoding.
     Text(Bytes),
-    /// Binary frame
+
+    /// Binary frame.
     Binary(Bytes),
-    /// Continuation
+
+    /// Continuation.
     Continuation(Item),
-    /// Ping message
+
+    /// Ping message.
     Ping(Bytes),
-    /// Pong message
+
+    /// Pong message.
     Pong(Bytes),
-    /// Close message with optional reason
+
+    /// Close message with optional reason.
     Close(Option<CloseReason>),
 }
 
-/// `WebSocket` continuation item
+/// A `WebSocket` continuation item.
 #[derive(Debug, PartialEq)]
 pub enum Item {
     FirstText(Bytes),
@@ -51,13 +64,13 @@ pub enum Item {
 }
 
 #[derive(Debug, Copy, Clone)]
-/// WebSockets protocol codec
+/// WebSocket protocol codec.
 pub struct Codec {
     flags: Flags,
     max_size: usize,
 }
 
-bitflags::bitflags! {
+bitflags! {
     struct Flags: u8 {
         const SERVER         = 0b0000_0001;
         const CONTINUATION   = 0b0000_0010;
@@ -66,7 +79,7 @@ bitflags::bitflags! {
 }
 
 impl Codec {
-    /// Create new websocket frames decoder
+    /// Create new websocket frames decoder.
     pub fn new() -> Codec {
         Codec {
             max_size: 65_536,
@@ -74,9 +87,9 @@ impl Codec {
         }
     }
 
-    /// Set max frame size
+    /// Set max frame size.
     ///
-    /// By default max size is set to 64kb
+    /// By default max size is set to 64kb.
     pub fn max_size(mut self, size: usize) -> Self {
         self.max_size = size;
         self
@@ -184,7 +197,7 @@ impl Encoder<Message> for Codec {
                     }
                 }
             },
-            Message::Nop => (),
+            Message::Nop => {}
         }
         Ok(())
     }

@@ -1,10 +1,17 @@
-use std::{cmp, fmt, str};
+use std::{
+    cmp,
+    convert::{TryFrom, TryInto},
+    fmt, str,
+};
 
-use self::internal::IntoQuality;
+use derive_more::{Display, Error};
+
+const MAX_QUALITY: u16 = 1000;
+const MAX_FLOAT_QUALITY: f32 = 1.0;
 
 /// Represents a quality used in quality values.
 ///
-/// Can be created with the `q` function.
+/// Can be created with the [`q`] function.
 ///
 /// # Implementation notes
 ///
@@ -18,12 +25,54 @@ use self::internal::IntoQuality;
 ///
 /// [RFC7231 Section 5.3.1](https://tools.ietf.org/html/rfc7231#section-5.3.1)
 /// gives more information on quality values in HTTP header fields.
-#[derive(Copy, Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Quality(u16);
+
+impl Quality {
+    /// # Panics
+    /// Panics in debug mode when value is not in the range 0.0 <= n <= 1.0.
+    fn from_f32(value: f32) -> Self {
+        // Check that `value` is within range should be done before calling this method.
+        // Just in case, this debug_assert should catch if we were forgetful.
+        debug_assert!(
+            (0.0f32..=1.0f32).contains(&value),
+            "q value must be between 0.0 and 1.0"
+        );
+
+        Quality((value * MAX_QUALITY as f32) as u16)
+    }
+}
 
 impl Default for Quality {
     fn default() -> Quality {
-        Quality(1000)
+        Quality(MAX_QUALITY)
+    }
+}
+
+#[derive(Debug, Clone, Display, Error)]
+pub struct QualityOutOfBounds;
+
+impl TryFrom<u16> for Quality {
+    type Error = QualityOutOfBounds;
+
+    fn try_from(value: u16) -> Result<Self, Self::Error> {
+        if (0..=MAX_QUALITY).contains(&value) {
+            Ok(Quality(value))
+        } else {
+            Err(QualityOutOfBounds)
+        }
+    }
+}
+
+impl TryFrom<f32> for Quality {
+    type Error = QualityOutOfBounds;
+
+    fn try_from(value: f32) -> Result<Self, Self::Error> {
+        if (0.0..=MAX_FLOAT_QUALITY).contains(&value) {
+            Ok(Quality::from_f32(value))
+        } else {
+            Err(QualityOutOfBounds)
+        }
     }
 }
 
@@ -55,8 +104,9 @@ impl<T: PartialEq> cmp::PartialOrd for QualityItem<T> {
 impl<T: fmt::Display> fmt::Display for QualityItem<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(&self.item, f)?;
+
         match self.quality.0 {
-            1000 => Ok(()),
+            MAX_QUALITY => Ok(()),
             0 => f.write_str("; q=0"),
             x => write!(f, "; q=0.{}", format!("{:03}", x).trim_end_matches('0')),
         }
@@ -66,105 +116,79 @@ impl<T: fmt::Display> fmt::Display for QualityItem<T> {
 impl<T: str::FromStr> str::FromStr for QualityItem<T> {
     type Err = crate::error::ParseError;
 
-    fn from_str(s: &str) -> Result<QualityItem<T>, crate::error::ParseError> {
-        if !s.is_ascii() {
+    fn from_str(qitem_str: &str) -> Result<QualityItem<T>, crate::error::ParseError> {
+        if !qitem_str.is_ascii() {
             return Err(crate::error::ParseError::Header);
         }
+
         // Set defaults used if parsing fails.
-        let mut raw_item = s;
+        let mut raw_item = qitem_str;
         let mut quality = 1f32;
 
-        let parts: Vec<&str> = s.rsplitn(2, ';').map(|x| x.trim()).collect();
+        let parts: Vec<_> = qitem_str.rsplitn(2, ';').map(str::trim).collect();
+
         if parts.len() == 2 {
+            // example for item with q-factor:
+            //
+            // gzip; q=0.65
+            //       ^^^^^^  parts[0]
+            //       ^^      start
+            //         ^^^^  q_val
+            // ^^^^          parts[1]
+
             if parts[0].len() < 2 {
+                // Can't possibly be an attribute since an attribute needs at least a name followed
+                // by an equals sign. And bare identifiers are forbidden.
                 return Err(crate::error::ParseError::Header);
             }
+
             let start = &parts[0][0..2];
+
             if start == "q=" || start == "Q=" {
-                let q_part = &parts[0][2..parts[0].len()];
-                if q_part.len() > 5 {
+                let q_val = &parts[0][2..];
+                if q_val.len() > 5 {
+                    // longer than 5 indicates an over-precise q-factor
                     return Err(crate::error::ParseError::Header);
                 }
-                match q_part.parse::<f32>() {
-                    Ok(q_value) => {
-                        if 0f32 <= q_value && q_value <= 1f32 {
-                            quality = q_value;
-                            raw_item = parts[1];
-                        } else {
-                            return Err(crate::error::ParseError::Header);
-                        }
-                    }
-                    Err(_) => return Err(crate::error::ParseError::Header),
+
+                let q_value = q_val
+                    .parse::<f32>()
+                    .map_err(|_| crate::error::ParseError::Header)?;
+
+                if (0f32..=1f32).contains(&q_value) {
+                    quality = q_value;
+                    raw_item = parts[1];
+                } else {
+                    return Err(crate::error::ParseError::Header);
                 }
             }
         }
-        match raw_item.parse::<T>() {
-            // we already checked above that the quality is within range
-            Ok(item) => Ok(QualityItem::new(item, from_f32(quality))),
-            Err(_) => Err(crate::error::ParseError::Header),
-        }
-    }
-}
 
-#[inline]
-fn from_f32(f: f32) -> Quality {
-    // this function is only used internally. A check that `f` is within range
-    // should be done before calling this method. Just in case, this
-    // debug_assert should catch if we were forgetful
-    debug_assert!(
-        f >= 0f32 && f <= 1f32,
-        "q value must be between 0.0 and 1.0"
-    );
-    Quality((f * 1000f32) as u16)
+        let item = raw_item
+            .parse::<T>()
+            .map_err(|_| crate::error::ParseError::Header)?;
+
+        // we already checked above that the quality is within range
+        Ok(QualityItem::new(item, Quality::from_f32(quality)))
+    }
 }
 
 /// Convenience function to wrap a value in a `QualityItem`
 /// Sets `q` to the default 1.0
 pub fn qitem<T>(item: T) -> QualityItem<T> {
-    QualityItem::new(item, Default::default())
+    QualityItem::new(item, Quality::default())
 }
 
 /// Convenience function to create a `Quality` from a float or integer.
 ///
 /// Implemented for `u16` and `f32`. Panics if value is out of range.
-pub fn q<T: IntoQuality>(val: T) -> Quality {
-    val.into_quality()
-}
-
-mod internal {
-    use super::Quality;
-
-    // TryFrom is probably better, but it's not stable. For now, we want to
-    // keep the functionality of the `q` function, while allowing it to be
-    // generic over `f32` and `u16`.
-    //
-    // `q` would panic before, so keep that behavior. `TryFrom` can be
-    // introduced later for a non-panicking conversion.
-
-    pub trait IntoQuality: Sealed + Sized {
-        fn into_quality(self) -> Quality;
-    }
-
-    impl IntoQuality for f32 {
-        fn into_quality(self) -> Quality {
-            assert!(
-                self >= 0f32 && self <= 1f32,
-                "float must be between 0.0 and 1.0"
-            );
-            super::from_f32(self)
-        }
-    }
-
-    impl IntoQuality for u16 {
-        fn into_quality(self) -> Quality {
-            assert!(self <= 1000, "u16 must be between 0 and 1000");
-            Quality(self)
-        }
-    }
-
-    pub trait Sealed {}
-    impl Sealed for u16 {}
-    impl Sealed for f32 {}
+pub fn q<T>(val: T) -> Quality
+where
+    T: TryInto<Quality>,
+    T::Error: fmt::Debug,
+{
+    // TODO: on next breaking change, handle unwrap differently
+    val.try_into().unwrap()
 }
 
 #[cfg(test)]
@@ -270,15 +294,13 @@ mod tests {
     }
 
     #[test]
-    #[should_panic] // FIXME - 32-bit msvc unwinding broken
-    #[cfg_attr(all(target_arch = "x86", target_env = "msvc"), ignore)]
+    #[should_panic]
     fn test_quality_invalid() {
         q(-1.0);
     }
 
     #[test]
-    #[should_panic] // FIXME - 32-bit msvc unwinding broken
-    #[cfg_attr(all(target_arch = "x86", target_env = "msvc"), ignore)]
+    #[should_panic]
     fn test_quality_invalid2() {
         q(2.0);
     }

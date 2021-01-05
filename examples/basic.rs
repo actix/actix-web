@@ -18,8 +18,7 @@ async fn no_params() -> &'static str {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    std::env::set_var("RUST_LOG", "actix_server=info,actix_web=info");
-    env_logger::init();
+    env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
 
     HttpServer::new(|| {
         App::new()
