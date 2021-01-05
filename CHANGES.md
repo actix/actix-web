@@ -2,25 +2,31 @@
 
 ## Unreleased - 2021-xx-xx
 ### Added
-* `Compat` middleware enabling generic response body/error type of middlewares
-  like `Logger` and `Compress` to be used in `middleware::Condition` 
-  and `Resource`, `Scope` services. [#1865]
+* `Compat` middleware enabling generic response body/error type of middlewares like `Logger` and
+  `Compress` to be used in `middleware::Condition` and `Resource`, `Scope` services. [#1865]
 
 ### Changed
 * Update `actix-*` dependencies to tokio `1.0` based versions. [#1813]
 * Bumped `rand` to `0.8`.
 * Update `rust-tls` to `0.19`. [#1813]
 * Rename `Handler` to `HandlerService` and rename `Factory` to `Handler`. [#1852]
+* The default `TrailingSlash` is now `Trim`, in line with existing documentation. See migration
+  guide for implications. [#????]
+* Rename `DefaultHeaders::{content_type => add_content_type}`. [#????]
 * MSRV is now 1.46.0.
 
-[#1813]: https://github.com/actix/actix-web/pull/1813
-[#1865]: https://github.com/actix/actix-web/pull/1865
-
 ### Fixed
-* added the actual parsing error to `test::read_body_json` [#1812]
+* Added the underlying parse error to `test::read_body_json`'s panic message. [#1812]
+
+### Removed
+* Public modules `middleware::{normalize, err_handlers}`. All necessary middleware structs are now
+  exposed directly by the `middleware` module.
 
 [#1812]: https://github.com/actix/actix-web/pull/1812
+[#1813]: https://github.com/actix/actix-web/pull/1813
 [#1852]: https://github.com/actix/actix-web/pull/1852
+[#1865]: https://github.com/actix/actix-web/pull/1865
+[#????]: https://github.com/actix/actix-web/pull/????
 
 
 ## 3.3.2 - 2020-12-01
