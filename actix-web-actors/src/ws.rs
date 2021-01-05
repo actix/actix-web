@@ -60,8 +60,7 @@ where
     )))
 }
 
-/// Perform WebSocket handshake and start actor with the given
-/// `actix_http::ws::Codec`.
+/// Perform WebSocket handshake and start actor with the given [`Codec`].
 pub fn start_with_codec<A, T>(
     actor: A,
     req: &HttpRequest,
