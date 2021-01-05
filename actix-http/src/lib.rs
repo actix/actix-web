@@ -19,7 +19,6 @@ mod macros;
 pub mod body;
 mod builder;
 pub mod client;
-mod cloneable;
 mod config;
 #[cfg(feature = "compress")]
 pub mod encoding;
@@ -81,3 +80,36 @@ pub enum Protocol {
 }
 
 type ConnectCallback<IO> = dyn Fn(&IO, &mut Extensions);
+
+// container for data that extract with ConnectCallback
+pub(crate) struct OnConnectData(Option<Extensions>);
+
+impl Default for OnConnectData {
+    fn default() -> Self {
+        Self(None)
+    }
+}
+
+impl OnConnectData {
+    // construct self from io.
+    pub(crate) fn from_io<T>(
+        io: &T,
+        on_connect_ext: Option<&ConnectCallback<T>>,
+    ) -> Self {
+        let ext = on_connect_ext.map(|handler| {
+            let mut extensions = Extensions::new();
+            handler(io, &mut extensions);
+            extensions
+        });
+
+        Self(ext)
+    }
+
+    // merge self to given request's head extension.
+    #[inline]
+    pub(crate) fn merge(&mut self, req: &mut Request) {
+        if let Some(ref mut ext) = self.0 {
+            req.head.extensions.get_mut().drain_from(ext);
+        }
+    }
+}
