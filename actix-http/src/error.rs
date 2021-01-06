@@ -300,8 +300,8 @@ impl From<httparse::Error> for ParseError {
     }
 }
 
-#[derive(Debug, Display)]
 /// A set of errors that can occur running blocking tasks in thread pool.
+#[derive(Debug, Display)]
 pub enum BlockingError<E: fmt::Debug> {
     #[display(fmt = "{:?}", _0)]
     Error(E),
