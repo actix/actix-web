@@ -249,7 +249,7 @@ pub struct H2ServiceHandler<T, S, B>
 where
     S: Service<Request>,
 {
-    services: Rc<RefCell<HttpFlow<S, (), ()>>>,
+    flow: Rc<RefCell<HttpFlow<S, (), ()>>>,
     cfg: ServiceConfig,
     on_connect_ext: Option<Rc<ConnectCallback<T>>>,
     _phantom: PhantomData<B>,
@@ -269,7 +269,7 @@ where
         service: S,
     ) -> H2ServiceHandler<T, S, B> {
         H2ServiceHandler {
-            services: HttpFlow::new(service, (), None),
+            flow: HttpFlow::new(service, (), None),
             cfg,
             on_connect_ext,
             _phantom: PhantomData,
@@ -291,7 +291,7 @@ where
     type Future = H2ServiceHandlerResponse<T, S, B>;
 
     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        self.services
+        self.flow
             .borrow_mut()
             .service
             .poll_ready(cx)
@@ -308,7 +308,7 @@ where
 
         H2ServiceHandlerResponse {
             state: State::Handshake(
-                Some(self.services.clone()),
+                Some(self.flow.clone()),
                 Some(self.cfg.clone()),
                 addr,
                 on_connect_data,

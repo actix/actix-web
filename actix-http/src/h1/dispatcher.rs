@@ -91,7 +91,7 @@ where
     U: Service<(Request, Framed<T, Codec>), Response = ()>,
     U::Error: fmt::Display,
 {
-    services: Rc<RefCell<HttpFlow<S, X, U>>>,
+    flow: Rc<RefCell<HttpFlow<S, X, U>>>,
     on_connect_data: OnConnectData,
     flags: Flags,
     peer_addr: Option<net::SocketAddr>,
@@ -230,7 +230,7 @@ where
                 io: Some(io),
                 codec,
                 read_buf,
-                services,
+                flow: services,
                 on_connect_data,
                 flags,
                 peer_addr,
@@ -384,7 +384,7 @@ where
                     Poll::Ready(Ok(req)) => {
                         self.as_mut().send_continue();
                         this = self.as_mut().project();
-                        let fut = this.services.borrow_mut().service.call(req);
+                        let fut = this.flow.borrow_mut().service.call(req);
                         this.state.set(State::ServiceCall(fut));
                         continue;
                     }
@@ -474,12 +474,12 @@ where
         if req.head().expect() {
             // set dispatcher state so the future is pinned.
             let mut this = self.as_mut().project();
-            let task = this.services.borrow_mut().expect.call(req);
+            let task = this.flow.borrow_mut().expect.call(req);
             this.state.set(State::ExpectCall(task));
         } else {
             // the same as above.
             let mut this = self.as_mut().project();
-            let task = this.services.borrow_mut().service.call(req);
+            let task = this.flow.borrow_mut().service.call(req);
             this.state.set(State::ServiceCall(task));
         };
 
@@ -492,7 +492,7 @@ where
                         Poll::Ready(Ok(req)) => {
                             self.as_mut().send_continue();
                             let mut this = self.as_mut().project();
-                            let task = this.services.borrow_mut().service.call(req);
+                            let task = this.flow.borrow_mut().service.call(req);
                             this.state.set(State::ServiceCall(task));
                             continue;
                         }
@@ -564,7 +564,7 @@ where
                             this.on_connect_data.merge_into(&mut req);
 
                             if pl == MessageType::Stream
-                                && this.services.borrow().upgrade.is_some()
+                                && this.flow.borrow().upgrade.is_some()
                             {
                                 this.messages.push_back(DispatcherMessage::Upgrade(req));
                                 break;
@@ -830,7 +830,7 @@ where
                             parts.write_buf = mem::take(inner_p.write_buf);
                             let framed = Framed::from_parts(parts);
                             let upgrade = inner_p
-                                .services
+                                .flow
                                 .borrow_mut()
                                 .upgrade
                                 .take()

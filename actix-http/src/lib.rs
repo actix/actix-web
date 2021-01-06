@@ -72,7 +72,7 @@ pub mod http {
     pub use crate::message::ConnectionType;
 }
 
-/// Http protocol
+/// HTTP protocol
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Protocol {
     Http1,
@@ -82,6 +82,9 @@ pub enum Protocol {
 type ConnectCallback<IO> = dyn Fn(&IO, &mut Extensions);
 
 /// Container for data that extract with ConnectCallback.
+///
+/// # Implementation Details
+/// Uses Option to reduce necessary allocations when merging with request extensions.
 pub(crate) struct OnConnectData(Option<Extensions>);
 
 impl Default for OnConnectData {
@@ -91,7 +94,7 @@ impl Default for OnConnectData {
 }
 
 impl OnConnectData {
-    // construct self from io.
+    /// Construct by calling the on-connect callback with the underlying transport I/O.
     pub(crate) fn from_io<T>(
         io: &T,
         on_connect_ext: Option<&ConnectCallback<T>>,
@@ -105,7 +108,7 @@ impl OnConnectData {
         Self(ext)
     }
 
-    // merge self to given request's head extension.
+    /// Merge self into given request's extensions.
     #[inline]
     pub(crate) fn merge_into(&mut self, req: &mut Request) {
         if let Some(ref mut ext) = self.0 {

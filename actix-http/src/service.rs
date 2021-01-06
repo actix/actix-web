@@ -441,13 +441,13 @@ where
     X: Service<Request>,
     U: Service<(Request, Framed<T, h1::Codec>)>,
 {
-    services: Rc<RefCell<HttpFlow<S, X, U>>>,
+    flow: Rc<RefCell<HttpFlow<S, X, U>>>,
     cfg: ServiceConfig,
     on_connect_ext: Option<Rc<ConnectCallback<T>>>,
     _phantom: PhantomData<B>,
 }
 
-// a collection of service for http.
+/// A collection of services that describe an HTTP request flow.
 pub(super) struct HttpFlow<S, X, U> {
     pub(super) service: S,
     pub(super) expect: X,
@@ -486,7 +486,7 @@ where
         HttpServiceHandler {
             cfg,
             on_connect_ext,
-            services: HttpFlow::new(service, expect, upgrade),
+            flow: HttpFlow::new(service, expect, upgrade),
             _phantom: PhantomData,
         }
     }
@@ -511,8 +511,8 @@ where
     type Future = HttpServiceHandlerResponse<T, S, B, X, U>;
 
     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        let mut services = self.services.borrow_mut();
-        let ready = services
+        let mut flow = self.flow.borrow_mut();
+        let ready = flow
             .expect
             .poll_ready(cx)
             .map_err(|e| {
@@ -522,7 +522,7 @@ where
             })?
             .is_ready();
 
-        let ready = services
+        let ready = flow
             .service
             .poll_ready(cx)
             .map_err(|e| {
@@ -533,7 +533,7 @@ where
             .is_ready()
             && ready;
 
-        let ready = if let Some(ref mut upg) = services.upgrade {
+        let ready = if let Some(ref mut upg) = flow.upgrade {
             upg.poll_ready(cx)
                 .map_err(|e| {
                     let e = e.into();
@@ -565,7 +565,7 @@ where
                 state: State::H2Handshake(Some((
                     server::handshake(io),
                     self.cfg.clone(),
-                    self.services.clone(),
+                    self.flow.clone(),
                     on_connect_data,
                     peer_addr,
                 ))),
@@ -575,7 +575,7 @@ where
                 state: State::H1(h1::Dispatcher::new(
                     io,
                     self.cfg.clone(),
-                    self.services.clone(),
+                    self.flow.clone(),
                     on_connect_data,
                     peer_addr,
                 )),

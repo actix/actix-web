@@ -367,7 +367,7 @@ where
     X: Service<Request>,
     U: Service<(Request, Framed<T, Codec>)>,
 {
-    services: Rc<RefCell<HttpFlow<S, X, U>>>,
+    flow: Rc<RefCell<HttpFlow<S, X, U>>>,
     on_connect_ext: Option<Rc<ConnectCallback<T>>>,
     cfg: ServiceConfig,
     _phantom: PhantomData<B>,
@@ -392,7 +392,7 @@ where
         on_connect_ext: Option<Rc<ConnectCallback<T>>>,
     ) -> H1ServiceHandler<T, S, B, X, U> {
         H1ServiceHandler {
-            services: HttpFlow::new(service, expect, upgrade),
+            flow: HttpFlow::new(service, expect, upgrade),
             cfg,
             on_connect_ext,
             _phantom: PhantomData,
@@ -418,8 +418,8 @@ where
     type Future = Dispatcher<T, S, B, X, U>;
 
     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        let mut services = self.services.borrow_mut();
-        let ready = services
+        let mut flow = self.flow.borrow_mut();
+        let ready = flow
             .expect
             .poll_ready(cx)
             .map_err(|e| {
@@ -429,7 +429,7 @@ where
             })?
             .is_ready();
 
-        let ready = services
+        let ready = flow
             .service
             .poll_ready(cx)
             .map_err(|e| {
@@ -440,7 +440,7 @@ where
             .is_ready()
             && ready;
 
-        let ready = if let Some(ref mut upg) = services.upgrade {
+        let ready = if let Some(ref mut upg) = flow.upgrade {
             upg.poll_ready(cx)
                 .map_err(|e| {
                     let e = e.into();
@@ -467,7 +467,7 @@ where
         Dispatcher::new(
             io,
             self.cfg.clone(),
-            self.services.clone(),
+            self.flow.clone(),
             on_connect_data,
             addr,
         )

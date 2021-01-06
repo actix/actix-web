@@ -37,7 +37,7 @@ where
     S: Service<Request>,
     B: MessageBody,
 {
-    services: Rc<RefCell<HttpFlow<S, X, U>>>,
+    flow: Rc<RefCell<HttpFlow<S, X, U>>>,
     connection: Connection<T, Bytes>,
     on_connect_data: OnConnectData,
     config: ServiceConfig,
@@ -80,7 +80,7 @@ where
         };
 
         Dispatcher {
-            services,
+            flow: services,
             config,
             peer_addr,
             connection,
@@ -138,7 +138,7 @@ where
 
                     let svc = ServiceResponse::<S::Future, S::Response, S::Error, B> {
                         state: ServiceResponseState::ServiceCall(
-                            this.services.borrow_mut().service.call(req),
+                            this.flow.borrow_mut().service.call(req),
                             Some(res),
                         ),
                         config: this.config.clone(),
