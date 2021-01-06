@@ -6,12 +6,31 @@ use actix_http::http::{
 };
 use actix_http::ResponseBuilder;
 use bytes::{Bytes, BytesMut};
+use std::{
+    fmt,
+    future::Future,
+    marker::PhantomData,
+    pin::Pin,
+    task::{Context, Poll},
+};
+
+use actix_http::{
+    error::InternalError,
+    http::{header::IntoHeaderPair, Error as HttpError, HeaderMap, StatusCode},
+    Error, Response, ResponseBuilder,
+};
+use bytes::{Bytes, BytesMut};
+use futures_util::{
+    future::{err, ok, Either as EitherFuture, Ready},
+    ready,
+};
+use pin_project::pin_project;
 
 use crate::{Error, HttpRequest, HttpResponse};
 
-/// Trait implemented by types that can be converted to a http response.
+/// Trait implemented by types that can be converted to an HTTP response.
 ///
-/// Types that implement this trait can be used as the return type of a handler.
+/// Any types that implement this trait can be used in the return type of a handler.
 pub trait Responder {
     /// Convert self to `HttpResponse`.
     fn respond_to(self, req: &HttpRequest) -> HttpResponse;
@@ -19,12 +38,11 @@ pub trait Responder {
     /// Override a status code for a Responder.
     ///
     /// ```rust
-    /// use actix_web::{HttpRequest, Responder, http::StatusCode};
+    /// use actix_web::{http::StatusCode, HttpRequest, Responder};
     ///
     /// fn index(req: HttpRequest) -> impl Responder {
     ///     "Welcome!".with_status(StatusCode::OK)
     /// }
-    /// # fn main() {}
     /// ```
     fn with_status(self, status: StatusCode) -> CustomResponder<Self>
     where
@@ -33,7 +51,9 @@ pub trait Responder {
         CustomResponder::new(self).with_status(status)
     }
 
-    /// Add header to the Responder's response.
+    /// Insert header to the final response.
+    ///
+    /// Overrides other headers with the same name.
     ///
     /// ```rust
     /// use actix_web::{web, HttpRequest, Responder};
@@ -45,21 +65,17 @@ pub trait Responder {
     /// }
     ///
     /// fn index(req: HttpRequest) -> impl Responder {
-    ///     web::Json(
-    ///         MyObj{name: "Name".to_string()}
-    ///     )
-    ///     .with_header("x-version", "1.2.3")
+    ///     web::Json(MyObj { name: "Name".to_owned() })
+    ///         .with_header(("x-version", "1.2.3"))
     /// }
-    /// # fn main() {}
     /// ```
-    fn with_header<K, V>(self, key: K, value: V) -> CustomResponder<Self>
+    fn with_header<H>(self, header: H) -> CustomResponder<Self>
     where
         Self: Sized,
-        HeaderName: TryFrom<K>,
-        <HeaderName as TryFrom<K>>::Error: Into<HttpError>,
-        V: IntoHeaderValue,
+        H: IntoHeaderPair,
+        H::Error: Into<HttpError>,
     {
-        CustomResponder::new(self).with_header(key, value)
+        CustomResponder::new(self).with_header(header)
     }
 }
 
@@ -155,7 +171,7 @@ impl Responder for BytesMut {
     }
 }
 
-/// Allows to override status code and headers for a responder.
+/// Allows overriding status code and headers for a responder.
 pub struct CustomResponder<T> {
     responder: T,
     status: Option<StatusCode>,
@@ -181,14 +197,15 @@ impl<T: Responder> CustomResponder<T> {
     /// fn index(req: HttpRequest) -> impl Responder {
     ///     "Welcome!".with_status(StatusCode::OK)
     /// }
-    /// # fn main() {}
     /// ```
     pub fn with_status(mut self, status: StatusCode) -> Self {
         self.status = Some(status);
         self
     }
 
-    /// Add header to the Responder's response.
+    /// Insert header to the final response.
+    ///
+    /// Overrides other headers with the same name.
     ///
     /// ```rust
     /// use actix_web::{web, HttpRequest, Responder};
@@ -200,12 +217,9 @@ impl<T: Responder> CustomResponder<T> {
     /// }
     ///
     /// fn index(req: HttpRequest) -> impl Responder {
-    ///     web::Json(
-    ///         MyObj{name: "Name".to_string()}
-    ///     )
-    ///     .with_header(("x-version", "1.2.3"))
+    ///     web::Json(MyObj { name: "Name".to_string() })
+    ///         .with_header(("x-version", "1.2.3"))
     /// }
-    /// # fn main() {}
     /// ```
     pub fn with_header<H>(mut self, header: H) -> Self
     where
@@ -235,6 +249,7 @@ impl<T: Responder> Responder for CustomResponder<T> {
 
         if let Some(ref headers) = self.headers {
             for (k, v) in headers {
+                // TODO: before v4, decide if this should be append instead
                 res.headers_mut().insert(k.clone(), v.clone());
             }
         }
@@ -245,7 +260,7 @@ impl<T: Responder> Responder for CustomResponder<T> {
 
 impl<T> Responder for InternalError<T>
 where
-    T: std::fmt::Debug + std::fmt::Display + 'static,
+    T: fmt::Debug + fmt::Display + 'static,
 {
     fn respond_to(self, _: &HttpRequest) -> HttpResponse {
         HttpResponse::from_error(self.into())
@@ -407,8 +422,9 @@ pub(crate) mod tests {
 
         let res = "test"
             .to_string()
-            .with_header("content-type", "json")
-            .respond_to(&req);
+            .with_header(("content-type", "json"))
+            .respond_to(&req)
+            .unwrap();
 
         assert_eq!(res.status(), StatusCode::OK);
         assert_eq!(res.body().bin_ref(), b"test");
@@ -427,13 +443,14 @@ pub(crate) mod tests {
 
         let req = TestRequest::default().to_http_request();
         let res = ("test".to_string(), StatusCode::OK)
-            .with_header("content-type", "json")
-            .respond_to(&req);
+            .with_header(CONTENT_TYPE, mime::APPLICATION_JSON)
+            .respond_to(&req)
+            .unwrap();
         assert_eq!(res.status(), StatusCode::OK);
         assert_eq!(res.body().bin_ref(), b"test");
         assert_eq!(
             res.headers().get(CONTENT_TYPE).unwrap(),
-            HeaderValue::from_static("json")
+            HeaderValue::from_static("application/json")
         );
     }
 }
