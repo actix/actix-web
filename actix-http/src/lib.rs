@@ -81,7 +81,7 @@ pub enum Protocol {
 
 type ConnectCallback<IO> = dyn Fn(&IO, &mut Extensions);
 
-// container for data that extract with ConnectCallback
+/// Container for data that extract with ConnectCallback.
 pub(crate) struct OnConnectData(Option<Extensions>);
 
 impl Default for OnConnectData {
