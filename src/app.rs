@@ -458,11 +458,12 @@ where
         Error = Error,
         InitError = (),
     >,
+    T::Future: 'static,
 {
     fn into_factory(self) -> AppInit<T, B> {
         AppInit {
-            data: self.data.into_boxed_slice().into(),
-            data_factories: self.data_factories.into_boxed_slice().into(),
+            data_factories: self.data.into_boxed_slice().into(),
+            async_data_factories: self.data_factories.into_boxed_slice().into(),
             endpoint: self.endpoint,
             services: Rc::new(RefCell::new(self.services)),
             external: RefCell::new(self.external),
