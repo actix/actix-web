@@ -23,7 +23,7 @@ use crate::error::{DispatchError, Error};
 use crate::error::{ParseError, PayloadError};
 use crate::request::Request;
 use crate::response::Response;
-use crate::service::HttpServices;
+use crate::service::HttpFlow;
 use crate::OnConnectData;
 
 use super::codec::Codec;
@@ -91,7 +91,7 @@ where
     U: Service<(Request, Framed<T, Codec>), Response = ()>,
     U::Error: fmt::Display,
 {
-    services: Rc<RefCell<HttpServices<S, X, U>>>,
+    services: Rc<RefCell<HttpFlow<S, X, U>>>,
     on_connect_data: OnConnectData,
     flags: Flags,
     peer_addr: Option<net::SocketAddr>,
@@ -177,7 +177,7 @@ where
     pub(crate) fn new(
         stream: T,
         config: ServiceConfig,
-        services: Rc<RefCell<HttpServices<S, X, U>>>,
+        services: Rc<RefCell<HttpFlow<S, X, U>>>,
         on_connect_data: OnConnectData,
         peer_addr: Option<net::SocketAddr>,
     ) -> Self {
@@ -200,7 +200,7 @@ where
         config: ServiceConfig,
         read_buf: BytesMut,
         timeout: Option<Sleep>,
-        services: Rc<RefCell<HttpServices<S, X, U>>>,
+        services: Rc<RefCell<HttpFlow<S, X, U>>>,
         on_connect_data: OnConnectData,
         peer_addr: Option<net::SocketAddr>,
     ) -> Self {
@@ -561,7 +561,7 @@ where
                             req.head_mut().peer_addr = *this.peer_addr;
 
                             // merge on_connect_ext data into request extensions
-                            this.on_connect_data.merge(&mut req);
+                            this.on_connect_data.merge_into(&mut req);
 
                             if pl == MessageType::Stream
                                 && this.services.borrow().upgrade.is_some()
@@ -1028,7 +1028,7 @@ mod tests {
         lazy(|cx| {
             let buf = TestBuffer::new("GET /test HTTP/1\r\n\r\n");
 
-            let services = HttpServices::new(ok_service(), ExpectHandler, None);
+            let services = HttpFlow::new(ok_service(), ExpectHandler, None);
 
             let h1 = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
                 buf,
@@ -1068,7 +1068,7 @@ mod tests {
 
             let cfg = ServiceConfig::new(KeepAlive::Disabled, 1, 1, false, None);
 
-            let services = HttpServices::new(echo_path_service(), ExpectHandler, None);
+            let services = HttpFlow::new(echo_path_service(), ExpectHandler, None);
 
             let h1 = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
                 buf,
@@ -1122,7 +1122,7 @@ mod tests {
 
             let cfg = ServiceConfig::new(KeepAlive::Disabled, 1, 1, false, None);
 
-            let services = HttpServices::new(echo_path_service(), ExpectHandler, None);
+            let services = HttpFlow::new(echo_path_service(), ExpectHandler, None);
 
             let h1 = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
                 buf,
@@ -1172,8 +1172,7 @@ mod tests {
             let mut buf = TestSeqBuffer::empty();
             let cfg = ServiceConfig::new(KeepAlive::Disabled, 0, 0, false, None);
 
-            let services =
-                HttpServices::new(echo_payload_service(), ExpectHandler, None);
+            let services = HttpFlow::new(echo_payload_service(), ExpectHandler, None);
 
             let h1 = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
                 buf.clone(),
@@ -1245,7 +1244,7 @@ mod tests {
             let mut buf = TestSeqBuffer::empty();
             let cfg = ServiceConfig::new(KeepAlive::Disabled, 0, 0, false, None);
 
-            let services = HttpServices::new(echo_path_service(), ExpectHandler, None);
+            let services = HttpFlow::new(echo_path_service(), ExpectHandler, None);
 
             let h1 = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
                 buf.clone(),
@@ -1306,7 +1305,7 @@ mod tests {
             let cfg = ServiceConfig::new(KeepAlive::Disabled, 0, 0, false, None);
 
             let services =
-                HttpServices::new(ok_service(), ExpectHandler, Some(UpgradeHandler));
+                HttpFlow::new(ok_service(), ExpectHandler, Some(UpgradeHandler));
 
             let h1 = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
                 buf.clone(),

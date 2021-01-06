@@ -17,7 +17,7 @@ use crate::config::ServiceConfig;
 use crate::error::{DispatchError, Error};
 use crate::request::Request;
 use crate::response::Response;
-use crate::service::HttpServices;
+use crate::service::HttpFlow;
 use crate::{ConnectCallback, OnConnectData};
 
 use super::codec::Codec;
@@ -367,7 +367,7 @@ where
     X: Service<Request>,
     U: Service<(Request, Framed<T, Codec>)>,
 {
-    services: Rc<RefCell<HttpServices<S, X, U>>>,
+    services: Rc<RefCell<HttpFlow<S, X, U>>>,
     on_connect_ext: Option<Rc<ConnectCallback<T>>>,
     cfg: ServiceConfig,
     _phantom: PhantomData<B>,
@@ -392,7 +392,7 @@ where
         on_connect_ext: Option<Rc<ConnectCallback<T>>>,
     ) -> H1ServiceHandler<T, S, B, X, U> {
         H1ServiceHandler {
-            services: HttpServices::new(service, expect, upgrade),
+            services: HttpFlow::new(service, expect, upgrade),
             cfg,
             on_connect_ext,
             _phantom: PhantomData,

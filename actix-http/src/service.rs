@@ -441,20 +441,20 @@ where
     X: Service<Request>,
     U: Service<(Request, Framed<T, h1::Codec>)>,
 {
-    services: Rc<RefCell<HttpServices<S, X, U>>>,
+    services: Rc<RefCell<HttpFlow<S, X, U>>>,
     cfg: ServiceConfig,
     on_connect_ext: Option<Rc<ConnectCallback<T>>>,
     _phantom: PhantomData<B>,
 }
 
 // a collection of service for http.
-pub(super) struct HttpServices<S, X, U> {
+pub(super) struct HttpFlow<S, X, U> {
     pub(super) service: S,
     pub(super) expect: X,
     pub(super) upgrade: Option<U>,
 }
 
-impl<S, X, U> HttpServices<S, X, U> {
+impl<S, X, U> HttpFlow<S, X, U> {
     pub(super) fn new(service: S, expect: X, upgrade: Option<U>) -> Rc<RefCell<Self>> {
         Rc::new(RefCell::new(Self {
             service,
@@ -486,7 +486,7 @@ where
         HttpServiceHandler {
             cfg,
             on_connect_ext,
-            services: HttpServices::new(service, expect, upgrade),
+            services: HttpFlow::new(service, expect, upgrade),
             _phantom: PhantomData,
         }
     }
@@ -603,7 +603,7 @@ where
         Option<(
             Handshake<T, Bytes>,
             ServiceConfig,
-            Rc<RefCell<HttpServices<S, X, U>>>,
+            Rc<RefCell<HttpFlow<S, X, U>>>,
             OnConnectData,
             Option<net::SocketAddr>,
         )>,

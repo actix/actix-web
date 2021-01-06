@@ -22,7 +22,7 @@ use crate::config::ServiceConfig;
 use crate::error::{DispatchError, Error};
 use crate::request::Request;
 use crate::response::Response;
-use crate::service::HttpServices;
+use crate::service::HttpFlow;
 use crate::{ConnectCallback, OnConnectData};
 
 use super::dispatcher::Dispatcher;
@@ -249,7 +249,7 @@ pub struct H2ServiceHandler<T, S, B>
 where
     S: Service<Request>,
 {
-    services: Rc<RefCell<HttpServices<S, (), ()>>>,
+    services: Rc<RefCell<HttpFlow<S, (), ()>>>,
     cfg: ServiceConfig,
     on_connect_ext: Option<Rc<ConnectCallback<T>>>,
     _phantom: PhantomData<B>,
@@ -269,7 +269,7 @@ where
         service: S,
     ) -> H2ServiceHandler<T, S, B> {
         H2ServiceHandler {
-            services: HttpServices::new(service, (), None),
+            services: HttpFlow::new(service, (), None),
             cfg,
             on_connect_ext,
             _phantom: PhantomData,
@@ -325,7 +325,7 @@ where
 {
     Incoming(Dispatcher<T, S, B, (), ()>),
     Handshake(
-        Option<Rc<RefCell<HttpServices<S, (), ()>>>>,
+        Option<Rc<RefCell<HttpFlow<S, (), ()>>>>,
         Option<ServiceConfig>,
         Option<net::SocketAddr>,
         OnConnectData,

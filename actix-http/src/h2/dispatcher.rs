@@ -24,7 +24,7 @@ use crate::message::ResponseHead;
 use crate::payload::Payload;
 use crate::request::Request;
 use crate::response::Response;
-use crate::service::HttpServices;
+use crate::service::HttpFlow;
 use crate::OnConnectData;
 
 const CHUNK_SIZE: usize = 16_384;
@@ -37,7 +37,7 @@ where
     S: Service<Request>,
     B: MessageBody,
 {
-    services: Rc<RefCell<HttpServices<S, X, U>>>,
+    services: Rc<RefCell<HttpFlow<S, X, U>>>,
     connection: Connection<T, Bytes>,
     on_connect_data: OnConnectData,
     config: ServiceConfig,
@@ -56,7 +56,7 @@ where
     B: MessageBody,
 {
     pub(crate) fn new(
-        services: Rc<RefCell<HttpServices<S, X, U>>>,
+        services: Rc<RefCell<HttpFlow<S, X, U>>>,
         connection: Connection<T, Bytes>,
         on_connect_data: OnConnectData,
         config: ServiceConfig,
@@ -134,7 +134,7 @@ where
                     head.peer_addr = this.peer_addr;
 
                     // merge on_connect_ext data into request extensions
-                    this.on_connect_data.merge(&mut req);
+                    this.on_connect_data.merge_into(&mut req);
 
                     let svc = ServiceResponse::<S::Future, S::Response, S::Error, B> {
                         state: ServiceResponseState::ServiceCall(
