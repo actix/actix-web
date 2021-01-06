@@ -280,5 +280,11 @@ where
     I: Send + 'static,
     E: Send + std::fmt::Debug + 'static,
 {
-    actix_threadpool::run(f).await
+    // map error to BlockingError. this is for not breaking the existing api.
+    // preferably this should just return actix_rt::task::JoinHandle for a more
+    // flexible control of when the task is awaited and/or the abort(if needed).
+    match actix_rt::task::spawn_blocking(f).await {
+        Ok(res) => res.map_err(BlockingError::Error),
+        Err(_) => Err(BlockingError::Canceled),
+    }
 }

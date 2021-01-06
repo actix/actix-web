@@ -21,13 +21,15 @@
 ### Removed
 * Public modules `middleware::{normalize, err_handlers}`. All necessary middleware structs are now
   exposed directly by the `middleware` module.
+* Remove `actix-threadpool` as dependency. `actix_threadpool::Blocking` error type can be imported 
+  from `actix_hweb::error` module. [#1878]
 
 [#1812]: https://github.com/actix/actix-web/pull/1812
 [#1813]: https://github.com/actix/actix-web/pull/1813
 [#1852]: https://github.com/actix/actix-web/pull/1852
 [#1865]: https://github.com/actix/actix-web/pull/1865
 [#1875]: https://github.com/actix/actix-web/pull/1875
-
+[#1878]: https://github.com/actix/actix-web/pull/1878
 
 ## 3.3.2 - 2020-12-01
 ### Fixed

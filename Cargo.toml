@@ -80,7 +80,6 @@ actix-rt = "2.0.0-beta.1"
 actix-server = "2.0.0-beta.2"
 actix-service = "2.0.0-beta.2"
 actix-utils = "3.0.0-beta.1"
-actix-threadpool = "0.3.1"
 actix-tls = { version = "3.0.0-beta.2", default-features = false, optional = true }
 
 actix-web-codegen = "0.4.0"
@@ -130,6 +129,9 @@ actix-web-codegen = { path = "actix-web-codegen" }
 actix-multipart = { path = "actix-multipart" }
 actix-files = { path = "actix-files" }
 awc = { path = "awc" }
+
+# TODO: remove override
+actix-rt = { git = "https://github.com/actix/actix-net.git" }
 
 [[bench]]
 name = "server"
