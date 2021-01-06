@@ -1,6 +1,4 @@
 use std::cell::RefCell;
-use std::future::Future;
-use std::pin::Pin;
 use std::rc::Rc;
 use std::task::{Context, Poll};
 
@@ -216,111 +214,52 @@ pub struct AppRoutingFactory {
 }
 
 impl ServiceFactory<ServiceRequest> for AppRoutingFactory {
-    type Config = ();
     type Response = ServiceResponse;
     type Error = Error;
-    type InitError = ();
+    type Config = ();
     type Service = AppRouting;
-    type Future = AppRoutingFactoryResponse;
+    type InitError = ();
+    type Future = LocalBoxFuture<'static, Result<Self::Service, Self::InitError>>;
 
     fn new_service(&self, _: ()) -> Self::Future {
-        AppRoutingFactoryResponse {
-            fut: self
-                .services
-                .iter()
-                .map(|(path, service, guards)| {
-                    CreateAppRoutingItem::Future(
-                        Some(path.clone()),
-                        guards.borrow_mut().take(),
-                        Box::pin(service.new_service(())),
-                    )
-                })
-                .collect(),
-            default: None,
-            default_fut: Some(self.default.new_service(())),
-        }
-    }
-}
+        // construct all services factory future with it's resource def and guards.
+        let factory_fut =
+            join_all(self.services.iter().map(|(path, factory, guards)| {
+                let path = path.clone();
+                let guards = guards.borrow_mut().take();
+                let factory_fut = factory.new_service(());
+                async move {
+                    let service = factory_fut.await?;
+                    Ok((path, guards, service))
+                }
+            }));
 
-type HttpServiceFut = LocalBoxFuture<'static, Result<HttpService, ()>>;
+        // construct default service factory future
+        let default_fut = self.default.new_service(());
 
-/// Create app service
-#[doc(hidden)]
-pub struct AppRoutingFactoryResponse {
-    fut: Vec<CreateAppRoutingItem>,
-    default: Option<HttpService>,
-    default_fut: Option<HttpServiceFut>,
-}
+        Box::pin(async move {
+            let default = default_fut.await?;
 
-enum CreateAppRoutingItem {
-    Future(Option<ResourceDef>, Option<Guards>, HttpServiceFut),
-    Service(ResourceDef, Option<Guards>, HttpService),
-}
-
-impl Future for AppRoutingFactoryResponse {
-    type Output = Result<AppRouting, ()>;
-
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let mut done = true;
-
-        if let Some(ref mut fut) = self.default_fut {
-            match Pin::new(fut).poll(cx)? {
-                Poll::Ready(default) => self.default = Some(default),
-                Poll::Pending => done = false,
-            }
-        }
-
-        // poll http services
-        for item in &mut self.fut {
-            let res = match item {
-                CreateAppRoutingItem::Future(
-                    ref mut path,
-                    ref mut guards,
-                    ref mut fut,
-                ) => match Pin::new(fut).poll(cx) {
-                    Poll::Ready(Ok(service)) => {
-                        Some((path.take().unwrap(), guards.take(), service))
-                    }
-                    Poll::Ready(Err(_)) => return Poll::Ready(Err(())),
-                    Poll::Pending => {
-                        done = false;
-                        None
-                    }
-                },
-                CreateAppRoutingItem::Service(_, _, _) => continue,
-            };
-
-            if let Some((path, guards, service)) = res {
-                *item = CreateAppRoutingItem::Service(path, guards, service);
-            }
-        }
-
-        if done {
-            let router = self
-                .fut
+            // build router from the factory future result.
+            let router = factory_fut
+                .await
+                .into_iter()
+                .collect::<Result<Vec<_>, _>>()?
                 .drain(..)
-                .fold(Router::build(), |mut router, item| {
-                    match item {
-                        CreateAppRoutingItem::Service(path, guards, service) => {
-                            router.rdef(path, service).2 = guards;
-                        }
-                        CreateAppRoutingItem::Future(_, _, _) => unreachable!(),
-                    }
+                .fold(Router::build(), |mut router, (path, guards, service)| {
+                    router.rdef(path, service).2 = guards;
                     router
-                });
-            Poll::Ready(Ok(AppRouting {
-                router: router.finish(),
-                default: self.default.take(),
-            }))
-        } else {
-            Poll::Pending
-        }
+                })
+                .finish();
+
+            Ok(AppRouting { router, default })
+        })
     }
 }
 
 pub struct AppRouting {
     router: Router<HttpService, Guards>,
-    default: Option<HttpService>,
+    default: HttpService,
 }
 
 impl Service<ServiceRequest> for AppRouting {
@@ -344,13 +283,8 @@ impl Service<ServiceRequest> for AppRouting {
 
         if let Some((srv, _info)) = res {
             srv.call(req)
-        } else if let Some(ref mut default) = self.default {
-            default.call(req)
         } else {
-            let req = req.into_parts().0;
-            Box::pin(async {
-                Ok(ServiceResponse::new(req, Response::NotFound().finish()))
-            })
+            self.default.call(req)
         }
     }
 }
@@ -372,7 +306,7 @@ impl ServiceFactory<ServiceRequest> for AppEntry {
     type Config = ();
     type Service = AppRouting;
     type InitError = ();
-    type Future = AppRoutingFactoryResponse;
+    type Future = LocalBoxFuture<'static, Result<Self::Service, Self::InitError>>;
 
     fn new_service(&self, _: ()) -> Self::Future {
         self.factory.borrow_mut().as_mut().unwrap().new_service(())
@@ -384,9 +318,10 @@ mod tests {
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
 
+    use actix_service::Service;
+
     use crate::test::{init_service, TestRequest};
     use crate::{web, App, HttpResponse};
-    use actix_service::Service;
 
     struct DropData(Arc<AtomicBool>);
 
