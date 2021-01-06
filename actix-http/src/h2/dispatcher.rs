@@ -1,7 +1,9 @@
+use std::cell::RefCell;
 use std::future::Future;
 use std::marker::PhantomData;
 use std::net;
 use std::pin::Pin;
+use std::rc::Rc;
 use std::task::{Context, Poll};
 use std::{cmp, convert::TryFrom};
 
@@ -16,29 +18,28 @@ use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCOD
 use log::{error, trace};
 
 use crate::body::{BodySize, MessageBody, ResponseBody};
-use crate::cloneable::CloneableService;
 use crate::config::ServiceConfig;
 use crate::error::{DispatchError, Error};
-use crate::httpmessage::HttpMessage;
 use crate::message::ResponseHead;
 use crate::payload::Payload;
 use crate::request::Request;
 use crate::response::Response;
-use crate::Extensions;
+use crate::service::HttpFlow;
+use crate::OnConnectData;
 
 const CHUNK_SIZE: usize = 16_384;
 
 /// Dispatcher for HTTP/2 protocol.
 #[pin_project::pin_project]
-pub struct Dispatcher<T, S, B>
+pub struct Dispatcher<T, S, B, X, U>
 where
     T: AsyncRead + AsyncWrite + Unpin,
     S: Service<Request>,
     B: MessageBody,
 {
-    service: CloneableService<S>,
+    services: Rc<RefCell<HttpFlow<S, X, U>>>,
     connection: Connection<T, Bytes>,
-    on_connect_data: Extensions,
+    on_connect_data: OnConnectData,
     config: ServiceConfig,
     peer_addr: Option<net::SocketAddr>,
     ka_expire: Instant,
@@ -46,7 +47,7 @@ where
     _phantom: PhantomData<B>,
 }
 
-impl<T, S, B> Dispatcher<T, S, B>
+impl<T, S, B, X, U> Dispatcher<T, S, B, X, U>
 where
     T: AsyncRead + AsyncWrite + Unpin,
     S: Service<Request>,
@@ -55,9 +56,9 @@ where
     B: MessageBody,
 {
     pub(crate) fn new(
-        service: CloneableService<S>,
+        services: Rc<RefCell<HttpFlow<S, X, U>>>,
         connection: Connection<T, Bytes>,
-        on_connect_data: Extensions,
+        on_connect_data: OnConnectData,
         config: ServiceConfig,
         timeout: Option<Sleep>,
         peer_addr: Option<net::SocketAddr>,
@@ -79,7 +80,7 @@ where
         };
 
         Dispatcher {
-            service,
+            services,
             config,
             peer_addr,
             connection,
@@ -91,7 +92,7 @@ where
     }
 }
 
-impl<T, S, B> Future for Dispatcher<T, S, B>
+impl<T, S, B, X, U> Future for Dispatcher<T, S, B, X, U>
 where
     T: AsyncRead + AsyncWrite + Unpin,
     S: Service<Request>,
@@ -133,11 +134,11 @@ where
                     head.peer_addr = this.peer_addr;
 
                     // merge on_connect_ext data into request extensions
-                    req.extensions_mut().drain_from(&mut this.on_connect_data);
+                    this.on_connect_data.merge_into(&mut req);
 
                     let svc = ServiceResponse::<S::Future, S::Response, S::Error, B> {
                         state: ServiceResponseState::ServiceCall(
-                            this.service.call(req),
+                            this.services.borrow_mut().service.call(req),
                             Some(res),
                         ),
                         config: this.config.clone(),

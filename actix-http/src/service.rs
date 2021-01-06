@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::marker::PhantomData;
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -14,12 +15,11 @@ use pin_project::pin_project;
 
 use crate::body::MessageBody;
 use crate::builder::HttpServiceBuilder;
-use crate::cloneable::CloneableService;
 use crate::config::{KeepAlive, ServiceConfig};
 use crate::error::{DispatchError, Error};
 use crate::request::Request;
 use crate::response::Response;
-use crate::{h1, h2::Dispatcher, ConnectCallback, Extensions, Protocol};
+use crate::{h1, h2::Dispatcher, ConnectCallback, OnConnectData, Protocol};
 
 /// A `ServiceFactory` for HTTP/1.1 or HTTP/2 protocol.
 pub struct HttpService<T, S, B, X = h1::ExpectHandler, U = h1::UpgradeHandler> {
@@ -371,7 +371,7 @@ where
     upgrade: Option<U::Service>,
     on_connect_ext: Option<Rc<ConnectCallback<T>>>,
     cfg: ServiceConfig,
-    _phantom: PhantomData<(T, B)>,
+    _phantom: PhantomData<B>,
 }
 
 impl<T, S, B, X, U> Future for HttpServiceResponse<T, S, B, X, U>
@@ -441,12 +441,27 @@ where
     X: Service<Request>,
     U: Service<(Request, Framed<T, h1::Codec>)>,
 {
-    srv: CloneableService<S>,
-    expect: CloneableService<X>,
-    upgrade: Option<CloneableService<U>>,
+    services: Rc<RefCell<HttpFlow<S, X, U>>>,
     cfg: ServiceConfig,
     on_connect_ext: Option<Rc<ConnectCallback<T>>>,
     _phantom: PhantomData<B>,
+}
+
+// a collection of service for http.
+pub(super) struct HttpFlow<S, X, U> {
+    pub(super) service: S,
+    pub(super) expect: X,
+    pub(super) upgrade: Option<U>,
+}
+
+impl<S, X, U> HttpFlow<S, X, U> {
+    pub(super) fn new(service: S, expect: X, upgrade: Option<U>) -> Rc<RefCell<Self>> {
+        Rc::new(RefCell::new(Self {
+            service,
+            expect,
+            upgrade,
+        }))
+    }
 }
 
 impl<T, S, B, X, U> HttpServiceHandler<T, S, B, X, U>
@@ -463,7 +478,7 @@ where
 {
     fn new(
         cfg: ServiceConfig,
-        srv: S,
+        service: S,
         expect: X,
         upgrade: Option<U>,
         on_connect_ext: Option<Rc<ConnectCallback<T>>>,
@@ -471,9 +486,7 @@ where
         HttpServiceHandler {
             cfg,
             on_connect_ext,
-            srv: CloneableService::new(srv),
-            expect: CloneableService::new(expect),
-            upgrade: upgrade.map(CloneableService::new),
+            services: HttpFlow::new(service, expect, upgrade),
             _phantom: PhantomData,
         }
     }
@@ -498,7 +511,8 @@ where
     type Future = HttpServiceHandlerResponse<T, S, B, X, U>;
 
     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        let ready = self
+        let mut services = self.services.borrow_mut();
+        let ready = services
             .expect
             .poll_ready(cx)
             .map_err(|e| {
@@ -508,8 +522,8 @@ where
             })?
             .is_ready();
 
-        let ready = self
-            .srv
+        let ready = services
+            .service
             .poll_ready(cx)
             .map_err(|e| {
                 let e = e.into();
@@ -519,7 +533,7 @@ where
             .is_ready()
             && ready;
 
-        let ready = if let Some(ref mut upg) = self.upgrade {
+        let ready = if let Some(ref mut upg) = services.upgrade {
             upg.poll_ready(cx)
                 .map_err(|e| {
                     let e = e.into();
@@ -543,19 +557,16 @@ where
         &mut self,
         (io, proto, peer_addr): (T, Protocol, Option<net::SocketAddr>),
     ) -> Self::Future {
-        let mut connect_extensions = Extensions::new();
-
-        if let Some(ref handler) = self.on_connect_ext {
-            handler(&io, &mut connect_extensions);
-        }
+        let on_connect_data =
+            OnConnectData::from_io(&io, self.on_connect_ext.as_deref());
 
         match proto {
             Protocol::Http2 => HttpServiceHandlerResponse {
                 state: State::H2Handshake(Some((
                     server::handshake(io),
                     self.cfg.clone(),
-                    self.srv.clone(),
-                    connect_extensions,
+                    self.services.clone(),
+                    on_connect_data,
                     peer_addr,
                 ))),
             },
@@ -564,10 +575,8 @@ where
                 state: State::H1(h1::Dispatcher::new(
                     io,
                     self.cfg.clone(),
-                    self.srv.clone(),
-                    self.expect.clone(),
-                    self.upgrade.clone(),
-                    connect_extensions,
+                    self.services.clone(),
+                    on_connect_data,
                     peer_addr,
                 )),
             },
@@ -589,13 +598,13 @@ where
     U::Error: fmt::Display,
 {
     H1(#[pin] h1::Dispatcher<T, S, B, X, U>),
-    H2(#[pin] Dispatcher<T, S, B>),
+    H2(#[pin] Dispatcher<T, S, B, X, U>),
     H2Handshake(
         Option<(
             Handshake<T, Bytes>,
             ServiceConfig,
-            CloneableService<S>,
-            Extensions,
+            Rc<RefCell<HttpFlow<S, X, U>>>,
+            OnConnectData,
             Option<net::SocketAddr>,
         )>,
     ),

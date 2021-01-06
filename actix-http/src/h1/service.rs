@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::future::Future;
 use std::marker::PhantomData;
 use std::pin::Pin;
@@ -12,12 +13,12 @@ use futures_core::ready;
 use futures_util::future::ready;
 
 use crate::body::MessageBody;
-use crate::cloneable::CloneableService;
 use crate::config::ServiceConfig;
 use crate::error::{DispatchError, Error};
 use crate::request::Request;
 use crate::response::Response;
-use crate::{ConnectCallback, Extensions};
+use crate::service::HttpFlow;
+use crate::{ConnectCallback, OnConnectData};
 
 use super::codec::Codec;
 use super::dispatcher::Dispatcher;
@@ -299,7 +300,7 @@ where
     upgrade: Option<U::Service>,
     on_connect_ext: Option<Rc<ConnectCallback<T>>>,
     cfg: Option<ServiceConfig>,
-    _phantom: PhantomData<(T, B)>,
+    _phantom: PhantomData<B>,
 }
 
 impl<T, S, B, X, U> Future for H1ServiceResponse<T, S, B, X, U>
@@ -366,9 +367,7 @@ where
     X: Service<Request>,
     U: Service<(Request, Framed<T, Codec>)>,
 {
-    srv: CloneableService<S>,
-    expect: CloneableService<X>,
-    upgrade: Option<CloneableService<U>>,
+    services: Rc<RefCell<HttpFlow<S, X, U>>>,
     on_connect_ext: Option<Rc<ConnectCallback<T>>>,
     cfg: ServiceConfig,
     _phantom: PhantomData<B>,
@@ -387,15 +386,13 @@ where
 {
     fn new(
         cfg: ServiceConfig,
-        srv: S,
+        service: S,
         expect: X,
         upgrade: Option<U>,
         on_connect_ext: Option<Rc<ConnectCallback<T>>>,
     ) -> H1ServiceHandler<T, S, B, X, U> {
         H1ServiceHandler {
-            srv: CloneableService::new(srv),
-            expect: CloneableService::new(expect),
-            upgrade: upgrade.map(CloneableService::new),
+            services: HttpFlow::new(service, expect, upgrade),
             cfg,
             on_connect_ext,
             _phantom: PhantomData,
@@ -421,7 +418,8 @@ where
     type Future = Dispatcher<T, S, B, X, U>;
 
     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        let ready = self
+        let mut services = self.services.borrow_mut();
+        let ready = services
             .expect
             .poll_ready(cx)
             .map_err(|e| {
@@ -431,8 +429,8 @@ where
             })?
             .is_ready();
 
-        let ready = self
-            .srv
+        let ready = services
+            .service
             .poll_ready(cx)
             .map_err(|e| {
                 let e = e.into();
@@ -442,7 +440,7 @@ where
             .is_ready()
             && ready;
 
-        let ready = if let Some(ref mut upg) = self.upgrade {
+        let ready = if let Some(ref mut upg) = services.upgrade {
             upg.poll_ready(cx)
                 .map_err(|e| {
                     let e = e.into();
@@ -463,19 +461,14 @@ where
     }
 
     fn call(&mut self, (io, addr): (T, Option<net::SocketAddr>)) -> Self::Future {
-        let mut connect_extensions = Extensions::new();
-        if let Some(ref handler) = self.on_connect_ext {
-            // run on_connect_ext callback, populating connect extensions
-            handler(&io, &mut connect_extensions);
-        }
+        let on_connect_data =
+            OnConnectData::from_io(&io, self.on_connect_ext.as_deref());
 
         Dispatcher::new(
             io,
             self.cfg.clone(),
-            self.srv.clone(),
-            self.expect.clone(),
-            self.upgrade.clone(),
-            connect_extensions,
+            self.services.clone(),
+            on_connect_data,
             addr,
         )
     }
