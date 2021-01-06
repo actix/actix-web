@@ -580,6 +580,8 @@ where
                     peer_addr,
                 )),
             },
+
+            proto => unimplemented!("Unsupported HTTP version: {:?}.", proto)
         }
     }
 }

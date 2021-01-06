@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Added
+* Add `Http3` to `Protocol` enum for future compatibility and also mark `#[non_exhaustive]`.
+
 ### Changed
 * Update `actix-*` dependencies to tokio `1.0` based versions. [#1813]
 * Bumped `rand` to `0.8`.

@@ -72,11 +72,13 @@ pub mod http {
     pub use crate::message::ConnectionType;
 }
 
-/// HTTP protocol
+/// A major HTTP protocol version.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum Protocol {
     Http1,
     Http2,
+    Http3,
 }
 
 type ConnectCallback<IO> = dyn Fn(&IO, &mut Extensions);
