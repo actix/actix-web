@@ -3,7 +3,6 @@ use std::net;
 use std::rc::Rc;
 
 use bitflags::bitflags;
-use copyless::BoxHelper;
 
 use crate::extensions::Extensions;
 use crate::header::HeaderMap;
@@ -480,17 +479,17 @@ impl BoxedResponsePool {
             BoxedResponseHead { head: Some(head) }
         } else {
             BoxedResponseHead {
-                head: Some(Box::alloc().init(ResponseHead::new(status))),
+                head: Some(Box::new(ResponseHead::new(status))),
             }
         }
     }
 
     #[inline]
     /// Release request instance
-    fn release(&self, msg: Box<ResponseHead>) {
+    fn release(&self, mut msg: Box<ResponseHead>) {
         let v = &mut self.0.borrow_mut();
         if v.len() < 128 {
-            msg.extensions.borrow_mut().clear();
+            msg.extensions.get_mut().clear();
             v.push(msg);
         }
     }
