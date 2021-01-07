@@ -126,7 +126,7 @@ where
     A: Into<Error>,
     B: Into<Error>,
 {
-    fn into(err: EitherExtractError<A, B>) -> Error {
+    fn from(err: EitherExtractError<A, B>) -> Error {
         match err {
             EitherExtractError::Bytes(err) => err,
             EitherExtractError::Extract(a_err, _b_err) => a_err.into(),

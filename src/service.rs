@@ -417,7 +417,7 @@ impl<B> ServiceResponse<B> {
 }
 
 impl<B> From<ServiceResponse<B>> for Response<B> {
-    fn into(res: ServiceResponse<B>) -> Response<B> {
+    fn from(res: ServiceResponse<B>) -> Response<B> {
         res.response
     }
 }

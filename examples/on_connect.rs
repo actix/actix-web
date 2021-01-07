@@ -4,7 +4,7 @@
 //! For an example of extracting a client TLS certificate, see:
 //! <https://github.com/actix/examples/tree/HEAD/rustls-client-cert>
 
-use std::{any::Any, env, io, net::SocketAddr};
+use std::{any::Any, io, net::SocketAddr};
 
 use actix_web::{dev::Extensions, rt::net::TcpStream, web, App, HttpServer};
 
@@ -36,11 +36,7 @@ fn get_conn_info(connection: &dyn Any, data: &mut Extensions) {
 
 #[actix_web::main]
 async fn main() -> io::Result<()> {
-    if env::var("RUST_LOG").is_err() {
-        env::set_var("RUST_LOG", "info");
-    }
-
-    env_logger::init();
+    env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
 
     HttpServer::new(|| App::new().default_service(web::to(route_whoami)))
         .on_connect(get_conn_info)
