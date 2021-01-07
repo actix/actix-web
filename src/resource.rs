@@ -412,7 +412,7 @@ where
     fn into_factory(self) -> T {
         *self.factory_ref.borrow_mut() = Some(ResourceFactory {
             routes: self.routes,
-            data: self.app_data.map(Rc::new),
+            app_data: self.app_data.map(Rc::new),
             default: self.default,
         });
 
@@ -422,7 +422,7 @@ where
 
 pub struct ResourceFactory {
     routes: Vec<Route>,
-    data: Option<Rc<Extensions>>,
+    app_data: Option<Rc<Extensions>>,
     default: HttpNewService,
 }
 
@@ -442,7 +442,7 @@ impl ServiceFactory<ServiceRequest> for ResourceFactory {
         let factory_fut =
             join_all(self.routes.iter().map(|route| route.new_service(())));
 
-        let data = self.data.clone();
+        let app_data = self.app_data.clone();
 
         Box::pin(async move {
             let default = default_fut.await?;
@@ -452,7 +452,7 @@ impl ServiceFactory<ServiceRequest> for ResourceFactory {
                 .collect::<Result<Vec<_>, _>>()?;
 
             Ok(ResourceService {
-                app_data: data,
+                app_data,
                 default,
                 routes,
             })
@@ -482,8 +482,8 @@ impl Service<ServiceRequest> for ResourceService {
                 return route.call(req);
             }
         }
-        if let Some(ref data) = self.app_data {
-            req.add_data_container(data.clone());
+        if let Some(ref app_data) = self.app_data {
+            req.add_data_container(app_data.clone());
         }
         self.default.call(req)
     }
