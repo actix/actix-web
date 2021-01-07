@@ -338,7 +338,7 @@ where
                 .map_err(|e| log::error!("Init http service error: {:?}", e)))?;
             this = self.as_mut().project();
             *this.upgrade = Some(upgrade);
-            this.fut_ex.set(None);
+            this.fut_upg.set(None);
         }
 
         let result = ready!(this

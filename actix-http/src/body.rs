@@ -3,8 +3,7 @@ use std::task::{Context, Poll};
 use std::{fmt, mem};
 
 use bytes::{Bytes, BytesMut};
-use futures_core::Stream;
-use futures_util::ready;
+use futures_core::{ready, Stream};
 use pin_project::pin_project;
 
 use crate::error::Error;
