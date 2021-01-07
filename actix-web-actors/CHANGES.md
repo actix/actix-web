@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 4.0.0-beta.1 - 2021-01-07
 * Update `pin-project` to `1.0`.
 * Update `bytes` to `1.0`. [#1813]
 * `WebsocketContext::text` now takes an `Into<bytestring::ByteString>`. [#1864]
