@@ -1,6 +1,6 @@
 [package]
 name = "actix-multipart"
-version = "0.3.0"
+version = "0.4.0-beta.1"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Multipart support for actix web framework."
 readme = "README.md"
@@ -16,11 +16,11 @@ name = "actix_multipart"
 path = "src/lib.rs"
 
 [dependencies]
-actix-web = { version = "3.0.0", default-features = false }
+actix-web = { version = "4.0.0-beta.1", default-features = false }
 actix-utils = "3.0.0-beta.1"
 
 bytes = "1"
-derive_more = "0.99.2"
+derive_more = "0.99.5"
 httparse = "1.3"
 futures-util = { version = "0.3.7", default-features = false }
 log = "0.4"
@@ -29,4 +29,4 @@ twoway = "0.2"
 
 [dev-dependencies]
 actix-rt = "2.0.0-beta.1"
-actix-http = "2.0.0"
+actix-http = "3.0.0-beta.1"

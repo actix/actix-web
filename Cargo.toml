@@ -1,6 +1,6 @@
 [package]
 name = "actix-web"
-version = "3.3.2"
+version = "4.0.0-beta.1"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix Web is a powerful, pragmatic, and extremely fast web framework for Rust"
 readme = "README.md"
@@ -84,8 +84,8 @@ actix-threadpool = "0.3.1"
 actix-tls = { version = "3.0.0-beta.2", default-features = false, optional = true }
 
 actix-web-codegen = "0.4.0"
-actix-http = "2.2.0"
-awc = { version = "2.0.3", default-features = false }
+actix-http = "3.0.0-beta.1"
+awc = { version = "3.0.0-beta.1", default-features = false }
 
 ahash = "0.6"
 bytes = "1"
@@ -109,7 +109,7 @@ smallvec = "1.6"
 
 [dev-dependencies]
 actix = "0.11.0-beta.1"
-actix-http = { version = "2.2.0", features = ["actors"] }
+actix-http = { version = "3.0.0-beta.1", features = ["actors"] }
 rand = "0.8"
 env_logger = "0.8"
 serde_derive = "1.0"
@@ -126,6 +126,7 @@ codegen-units = 1
 actix-web = { path = "." }
 actix-http = { path = "actix-http" }
 actix-http-test = { path = "actix-http-test" }
+actix-web-actors = { path = "actix-web-actors" }
 actix-web-codegen = { path = "actix-web-codegen" }
 actix-multipart = { path = "actix-multipart" }
 actix-files = { path = "actix-files" }

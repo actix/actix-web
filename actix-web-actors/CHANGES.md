@@ -1,12 +1,16 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 4.0.0-beta.1 - 2021-01-07
 * Update `pin-project` to `1.0`.
 * Update `bytes` to `1.0`. [#1813]
 * `WebsocketContext::text` now takes an `Into<bytestring::ByteString>`. [#1864]
 
 [#1813]: https://github.com/actix/actix-web/pull/1813
 [#1864]: https://github.com/actix/actix-web/pull/1864
+
 
 ## 3.0.0 - 2020-09-11
 * No significant changes from `3.0.0-beta.2`.

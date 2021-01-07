@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 3.0.0-beta.1 - 2021-01-07
 ### Changed
 * Update `rand` to `0.8`
 * Update `bytes` to `1.0`. [#1813]
