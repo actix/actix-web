@@ -1,17 +1,21 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
-* Fix multipart consuming payload before header checks #1513
+
+
+## 0.4.0-beta.1 - 2021-01-07
+* Fix multipart consuming payload before header checks. [#1513]
 * Update `bytes` to `1.0`. [#1813]
 
 [#1813]: https://github.com/actix/actix-web/pull/1813
+[#1513]: https://github.com/actix/actix-web/pull/1513
 
 
-## 3.0.0 - 2020-09-11
-* No significant changes from `3.0.0-beta.2`.
+## 0.3.0 - 2020-09-11
+* No significant changes from `0.3.0-beta.2`.
 
 
-## 3.0.0-beta.2 - 2020-09-10
+## 0.3.0-beta.2 - 2020-09-10
 * Update `actix-*` dependencies to latest versions.
 
 
