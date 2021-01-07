@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 4.0.0-beta.1 - 2021-01-07
 ### Added
 * `Compat` middleware enabling generic response body/error type of middlewares like `Logger` and
   `Compress` to be used in `middleware::Condition` and `Resource`, `Scope` services. [#1865]

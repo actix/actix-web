@@ -17,7 +17,7 @@ name = "actix_files"
 path = "src/lib.rs"
 
 [dependencies]
-actix-web = { version = "3.0.0", default-features = false }
+actix-web = { version = "4.0.0-beta.1", default-features = false }
 actix-service = "2.0.0-beta.2"
 bitflags = "1"
 bytes = "1"
@@ -32,4 +32,4 @@ v_htmlescape = "0.12"
 
 [dev-dependencies]
 actix-rt = "2.0.0-beta.1"
-actix-web = "3.0.0"
+actix-web = "4.0.0-beta.1"
