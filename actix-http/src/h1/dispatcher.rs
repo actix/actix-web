@@ -687,15 +687,11 @@ where
                             if let Some(deadline) =
                                 this.codec.config().client_disconnect_timer()
                             {
-                                if let Some(timer) = this.ka_timer.as_mut().as_pin_mut()
+                                if let Some(mut timer) =
+                                    this.ka_timer.as_mut().as_pin_mut()
                                 {
-                                    timer.reset(deadline);
-                                    let _ = this
-                                        .ka_timer
-                                        .as_mut()
-                                        .as_pin_mut()
-                                        .unwrap()
-                                        .poll(cx);
+                                    timer.as_mut().reset(deadline);
+                                    let _ = timer.poll(cx);
                                 }
                             } else {
                                 // no shutdown timeout, drop socket
@@ -720,15 +716,14 @@ where
                     } else if let Some(deadline) =
                         this.codec.config().keep_alive_expire()
                     {
-                        if let Some(timer) = this.ka_timer.as_mut().as_pin_mut() {
-                            timer.reset(deadline);
-                            let _ =
-                                this.ka_timer.as_mut().as_pin_mut().unwrap().poll(cx);
+                        if let Some(mut timer) = this.ka_timer.as_mut().as_pin_mut() {
+                            timer.as_mut().reset(deadline);
+                            let _ = timer.poll(cx);
                         }
                     }
-                } else if let Some(timer) = this.ka_timer.as_mut().as_pin_mut() {
-                    timer.reset(*this.ka_expire);
-                    let _ = this.ka_timer.as_mut().as_pin_mut().unwrap().poll(cx);
+                } else if let Some(mut timer) = this.ka_timer.as_mut().as_pin_mut() {
+                    timer.as_mut().reset(*this.ka_expire);
+                    let _ = timer.poll(cx);
                 }
             }
             Poll::Pending => {}
