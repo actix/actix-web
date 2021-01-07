@@ -85,7 +85,7 @@ actix-tls = { version = "3.0.0-beta.2", default-features = false, optional = tru
 
 actix-web-codegen = "0.4.0"
 actix-http = "3.0.0-beta.1"
-awc = { version = "2.0.3", default-features = false }
+awc = { version = "3.0.0-beta.1", default-features = false }
 
 ahash = "0.6"
 bytes = "1"
