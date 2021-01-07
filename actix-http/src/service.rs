@@ -581,7 +581,7 @@ where
                 )),
             },
 
-            proto => unimplemented!("Unsupported HTTP version: {:?}.", proto)
+            proto => unimplemented!("Unsupported HTTP version: {:?}.", proto),
         }
     }
 }

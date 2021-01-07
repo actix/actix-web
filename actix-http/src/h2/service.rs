@@ -291,15 +291,11 @@ where
     type Future = H2ServiceHandlerResponse<T, S, B>;
 
     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        self.flow
-            .borrow_mut()
-            .service
-            .poll_ready(cx)
-            .map_err(|e| {
-                let e = e.into();
-                error!("Service readiness error: {:?}", e);
-                DispatchError::Service(e)
-            })
+        self.flow.borrow_mut().service.poll_ready(cx).map_err(|e| {
+            let e = e.into();
+            error!("Service readiness error: {:?}", e);
+            DispatchError::Service(e)
+        })
     }
 
     fn call(&mut self, (io, addr): (T, Option<net::SocketAddr>)) -> Self::Future {
