@@ -121,13 +121,13 @@ pub enum EitherExtractError<A, B> {
     Extract(A, B),
 }
 
-impl<A, B> Into<Error> for EitherExtractError<A, B>
+impl<A, B> From<EitherExtractError<A, B>> for Error
 where
     A: Into<Error>,
     B: Into<Error>,
 {
-    fn into(self) -> Error {
-        match self {
+    fn into(err: EitherExtractError<A, B>) -> Error {
+        match err {
             EitherExtractError::Bytes(err) => err,
             EitherExtractError::Extract(a_err, _b_err) => a_err.into(),
         }

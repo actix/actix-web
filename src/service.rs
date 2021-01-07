@@ -416,9 +416,9 @@ impl<B> ServiceResponse<B> {
     }
 }
 
-impl<B> Into<Response<B>> for ServiceResponse<B> {
-    fn into(self) -> Response<B> {
-        self.response
+impl<B> From<ServiceResponse<B>> for Response<B> {
+    fn into(res: ServiceResponse<B>) -> Response<B> {
+        res.response
     }
 }
 
