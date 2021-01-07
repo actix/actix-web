@@ -84,7 +84,7 @@ actix-threadpool = "0.3.1"
 actix-tls = { version = "3.0.0-beta.2", default-features = false, optional = true }
 
 actix-web-codegen = "0.4.0"
-actix-http = "2.2.0"
+actix-http = "3.0.0-beta.1"
 awc = { version = "2.0.3", default-features = false }
 
 ahash = "0.6"
@@ -109,7 +109,7 @@ smallvec = "1.6"
 
 [dev-dependencies]
 actix = "0.11.0-beta.1"
-actix-http = { version = "2.2.0", features = ["actors"] }
+actix-http = { version = "3.0.0-beta.1", features = ["actors"] }
 rand = "0.8"
 env_logger = "0.8"
 serde_derive = "1.0"
