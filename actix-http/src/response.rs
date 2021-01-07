@@ -1,6 +1,9 @@
 //! Http response
 use std::cell::{Ref, RefMut};
 use std::convert::TryFrom;
+use std::future::Future;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 use std::{fmt, str};
 
 use bytes::{Bytes, BytesMut};
@@ -275,6 +278,18 @@ impl<B: MessageBody> fmt::Debug for Response<B> {
         }
         let _ = writeln!(f, "  body: {:?}", self.body.size());
         res
+    }
+}
+
+impl Future for Response {
+    type Output = Result<Response, Error>;
+
+    fn poll(mut self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Self::Output> {
+        Poll::Ready(Ok(Response {
+            head: self.head.take(),
+            body: self.body.take_body(),
+            error: self.error.take(),
+        }))
     }
 }
 
@@ -738,6 +753,14 @@ impl<'a> From<&'a ResponseHead> for ResponseBuilder {
             err: None,
             cookies: jar,
         }
+    }
+}
+
+impl Future for ResponseBuilder {
+    type Output = Result<Response, Error>;
+
+    fn poll(mut self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Self::Output> {
+        Poll::Ready(Ok(self.finish()))
     }
 }
 
