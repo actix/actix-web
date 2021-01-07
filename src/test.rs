@@ -1,12 +1,12 @@
 //! Various helpers for Actix applications to use during testing.
-use std::convert::TryFrom;
+
 use std::net::SocketAddr;
 use std::rc::Rc;
 use std::sync::mpsc;
 use std::{fmt, net, thread, time};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
-use actix_http::http::header::{ContentType, Header, HeaderName, IntoHeaderValue};
+use actix_http::http::header::{ContentType, IntoHeaderPair};
 use actix_http::http::{Error as HttpError, Method, StatusCode, Uri, Version};
 use actix_http::test::TestRequest as HttpTestRequest;
 use actix_http::{cookie::Cookie, ws, Extensions, HttpService, Request};
@@ -390,18 +390,12 @@ impl TestRequest {
     }
 
     /// Create TestRequest and set header
-    pub fn with_hdr<H: Header>(hdr: H) -> TestRequest {
-        TestRequest::default().set(hdr)
-    }
-
-    /// Create TestRequest and set header
-    pub fn with_header<K, V>(key: K, value: V) -> TestRequest
+    pub fn with_header<H>(header: H) -> TestRequest
     where
-        HeaderName: TryFrom<K>,
-        <HeaderName as TryFrom<K>>::Error: Into<HttpError>,
-        V: IntoHeaderValue,
+        H: IntoHeaderPair,
+        H::Error: Into<HttpError>,
     {
-        TestRequest::default().header(key, value)
+        TestRequest::default().header(header)
     }
 
     /// Create TestRequest and set method to `Method::GET`
@@ -448,19 +442,12 @@ impl TestRequest {
     }
 
     /// Set a header
-    pub fn set<H: Header>(mut self, hdr: H) -> Self {
-        self.req.set(hdr);
-        self
-    }
-
-    /// Set a header
-    pub fn header<K, V>(mut self, key: K, value: V) -> Self
+    pub fn header<H>(mut self, header: H) -> Self
     where
-        HeaderName: TryFrom<K>,
-        <HeaderName as TryFrom<K>>::Error: Into<HttpError>,
-        V: IntoHeaderValue,
+        H: IntoHeaderPair,
+        H::Error: Into<HttpError>,
     {
-        self.req.header(key, value);
+        self.req.header(header);
         self
     }
 
@@ -494,7 +481,7 @@ impl TestRequest {
         let bytes = serde_urlencoded::to_string(data)
             .expect("Failed to serialize test data as a urlencoded form");
         self.req.set_payload(bytes);
-        self.req.set(ContentType::form_url_encoded());
+        self.req.header(ContentType::form_url_encoded());
         self
     }
 
@@ -504,7 +491,7 @@ impl TestRequest {
         let bytes =
             serde_json::to_string(data).expect("Failed to serialize test data to json");
         self.req.set_payload(bytes);
-        self.req.set(ContentType::json());
+        self.req.header(ContentType::json());
         self
     }
 
