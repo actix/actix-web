@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 3.0.0-beta.1 - 2021-01-07
 ### Added
 * Add `Http3` to `Protocol` enum for future compatibility and also mark `#[non_exhaustive]`.
 

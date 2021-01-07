@@ -1,6 +1,6 @@
 [package]
 name = "awc"
-version = "2.0.3"
+version = "3.0.0-beta.1"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Async HTTP and WebSocket client library built on the Actix ecosystem"
 readme = "README.md"
@@ -39,13 +39,13 @@ compress = ["actix-http/compress"]
 [dependencies]
 actix-codec = "0.4.0-beta.1"
 actix-service = "2.0.0-beta.2"
-actix-http = "2.2.0"
+actix-http = "3.0.0-beta.1"
 actix-rt = "2.0.0-beta.1"
 
 base64 = "0.13"
 bytes = "1"
 cfg-if = "1.0"
-derive_more = "0.99.2"
+derive_more = "0.99.5"
 futures-core = { version = "0.3.7", default-features = false }
 log =" 0.4"
 mime = "0.3"
@@ -61,9 +61,9 @@ rust-tls = { version = "0.19.0", package = "rustls", optional = true, features =
 # TODO: actix is temporary added as dev dep for actix-macro reason.
 # Can be removed when it does not impact tests.
 actix = "0.11.0-beta.1"
-actix-web = { version = "3.0.0", features = ["openssl"] }
-actix-http = { version = "2.0.0", features = ["openssl"] }
-actix-http-test = { version = "2.0.0", features = ["openssl"] }
+actix-web = { version = "4.0.0-beta.1", features = ["openssl"] }
+actix-http = { version = "3.0.0-beta.1", features = ["openssl"] }
+actix-http-test = { version = "3.0.0-beta.1", features = ["openssl"] }
 actix-utils = "3.0.0-beta.1"
 actix-server = "2.0.0-beta.2"
 actix-tls = { version = "3.0.0-beta.2", features = ["openssl", "rustls"] }
