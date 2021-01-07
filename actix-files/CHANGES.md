@@ -3,7 +3,7 @@
 ## Unreleased - 2021-xx-xx
 
 
-## 0.6.0-beta.1 - 2021-xx-xx
+## 0.6.0-beta.1 - 2021-01-07
 * `HttpRange::parse` now has its own error type.
 * Update `bytes` to `1.0`. [#1813]
 

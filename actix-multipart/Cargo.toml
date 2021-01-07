@@ -20,7 +20,7 @@ actix-web = { version = "4.0.0-beta.1", default-features = false }
 actix-utils = "3.0.0-beta.1"
 
 bytes = "1"
-derive_more = "0.99.2"
+derive_more = "0.99.5"
 httparse = "1.3"
 futures-util = { version = "0.3.7", default-features = false }
 log = "0.4"

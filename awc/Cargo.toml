@@ -45,7 +45,7 @@ actix-rt = "2.0.0-beta.1"
 base64 = "0.13"
 bytes = "1"
 cfg-if = "1.0"
-derive_more = "0.99.2"
+derive_more = "0.99.5"
 futures-core = { version = "0.3.7", default-features = false }
 log =" 0.4"
 mime = "0.3"

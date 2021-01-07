@@ -11,6 +11,7 @@
 [#1813]: https://github.com/actix/actix-web/pull/1813
 [#1864]: https://github.com/actix/actix-web/pull/1864
 
+
 ## 3.0.0 - 2020-09-11
 * No significant changes from `3.0.0-beta.2`.
 
