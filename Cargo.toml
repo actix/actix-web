@@ -141,3 +141,7 @@ harness = false
 [[bench]]
 name = "service"
 harness = false
+
+[[bench]]
+name = "responder"
+harness = false

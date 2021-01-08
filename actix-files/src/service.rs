@@ -120,10 +120,8 @@ impl Service<ServiceRequest> for FilesService {
                         named_file.flags = self.file_flags;
 
                         let (req, _) = req.into_parts();
-                        Either::Left(ok(match named_file.into_response(&req) {
-                            Ok(item) => ServiceResponse::new(req, item),
-                            Err(e) => ServiceResponse::from_err(e, req),
-                        }))
+                        let res = named_file.into_response(&req);
+                        Either::Left(ok(ServiceResponse::new(req, res)))
                     }
                     Err(e) => self.handle_err(e, req),
                 }
@@ -154,12 +152,8 @@ impl Service<ServiceRequest> for FilesService {
                     named_file.flags = self.file_flags;
 
                     let (req, _) = req.into_parts();
-                    match named_file.into_response(&req) {
-                        Ok(item) => {
-                            Either::Left(ok(ServiceResponse::new(req.clone(), item)))
-                        }
-                        Err(e) => Either::Left(ok(ServiceResponse::from_err(e, req))),
-                    }
+                    let res = named_file.into_response(&req);
+                    Either::Left(ok(ServiceResponse::new(req, res)))
                 }
                 Err(e) => self.handle_err(e, req),
             }

@@ -9,7 +9,7 @@ use std::{fmt, ops};
 use actix_http::{Error, HttpMessage, Payload, Response};
 use bytes::BytesMut;
 use encoding_rs::{Encoding, UTF_8};
-use futures_util::future::{err, ok, FutureExt, LocalBoxFuture, Ready};
+use futures_util::future::{FutureExt, LocalBoxFuture};
 use futures_util::StreamExt;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -158,18 +158,13 @@ impl<T: fmt::Display> fmt::Display for Form<T> {
 }
 
 impl<T: Serialize> Responder for Form<T> {
-    type Error = Error;
-    type Future = Ready<Result<Response, Error>>;
-
-    fn respond_to(self, _: &HttpRequest) -> Self::Future {
-        let body = match serde_urlencoded::to_string(&self.0) {
-            Ok(body) => body,
-            Err(e) => return err(e.into()),
-        };
-
-        ok(Response::build(StatusCode::OK)
-            .set(ContentType::form_url_encoded())
-            .body(body))
+    fn respond_to(self, _: &HttpRequest) -> Response {
+        match serde_urlencoded::to_string(&self.0) {
+            Ok(body) => Response::build(StatusCode::OK)
+                .set(ContentType::form_url_encoded())
+                .body(body),
+            Err(e) => Response::from_error(e.into()),
+        }
     }
 }
 
@@ -493,7 +488,7 @@ mod tests {
             hello: "world".to_string(),
             counter: 123,
         });
-        let resp = form.respond_to(&req).await.unwrap();
+        let resp = form.respond_to(&req);
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(
             resp.headers().get(CONTENT_TYPE).unwrap(),
