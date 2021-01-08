@@ -552,6 +552,25 @@ mod tests {
     }
 
     #[actix_rt::test]
+    async fn test_drop_http_request_pool() {
+        let mut srv = init_service(App::new().service(web::resource("/").to(
+            |req: HttpRequest| {
+                HttpResponse::Ok()
+                    .set_header("pool_cap", req.inner.config.pool().cap)
+                    .finish()
+            },
+        )))
+        .await;
+
+        let req = TestRequest::default().to_request();
+        let resp = call_service(&mut srv, req).await;
+
+        drop(srv);
+
+        assert_eq!(resp.headers().get("pool_cap").unwrap(), "128");
+    }
+
+    #[actix_rt::test]
     async fn test_data() {
         let mut srv = init_service(App::new().app_data(10usize).service(
             web::resource("/").to(|req: HttpRequest| {
