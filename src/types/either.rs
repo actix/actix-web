@@ -1,13 +1,6 @@
-use std::{
-    future::Future,
-    pin::Pin,
-    task::{Context, Poll},
-};
-
 use actix_http::{Error, Response};
 use bytes::Bytes;
-use futures_util::{future::LocalBoxFuture, ready, FutureExt, TryFutureExt};
-use pin_project::pin_project;
+use futures_util::{future::LocalBoxFuture, FutureExt, TryFutureExt};
 
 use crate::{dev, request::HttpRequest, FromRequest, Responder};
 
@@ -68,42 +61,10 @@ where
     A: Responder,
     B: Responder,
 {
-    type Error = Error;
-    type Future = EitherResponder<A, B>;
-
-    fn respond_to(self, req: &HttpRequest) -> Self::Future {
+    fn respond_to(self, req: &HttpRequest) -> Response {
         match self {
-            Either::A(a) => EitherResponder::A(a.respond_to(req)),
-            Either::B(b) => EitherResponder::B(b.respond_to(req)),
-        }
-    }
-}
-
-#[pin_project(project = EitherResponderProj)]
-pub enum EitherResponder<A, B>
-where
-    A: Responder,
-    B: Responder,
-{
-    A(#[pin] A::Future),
-    B(#[pin] B::Future),
-}
-
-impl<A, B> Future for EitherResponder<A, B>
-where
-    A: Responder,
-    B: Responder,
-{
-    type Output = Result<Response, Error>;
-
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        match self.project() {
-            EitherResponderProj::A(fut) => {
-                Poll::Ready(ready!(fut.poll(cx)).map_err(|e| e.into()))
-            }
-            EitherResponderProj::B(fut) => {
-                Poll::Ready(ready!(fut.poll(cx).map_err(|e| e.into())))
-            }
+            Either::A(a) => a.respond_to(req),
+            Either::B(b) => b.respond_to(req),
         }
     }
 }

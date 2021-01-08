@@ -1,7 +1,11 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
-
+### Changed
+* Rework `Responder` trait to be sync and returns `Response`/`HttpResponse` directly.
+  Making it more simple and performant. [#1891]
+  
+[#1891]: https://github.com/actix/actix-web/pull/1891
 
 ## 4.0.0-beta.1 - 2021-01-07
 ### Added

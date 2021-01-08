@@ -8,7 +8,6 @@ use std::task::{Context, Poll};
 use std::{fmt, ops};
 
 use bytes::BytesMut;
-use futures_util::future::{ready, Ready};
 use futures_util::ready;
 use futures_util::stream::Stream;
 use serde::de::DeserializeOwned;
@@ -123,18 +122,13 @@ where
 }
 
 impl<T: Serialize> Responder for Json<T> {
-    type Error = Error;
-    type Future = Ready<Result<Response, Error>>;
-
-    fn respond_to(self, _: &HttpRequest) -> Self::Future {
-        let body = match serde_json::to_string(&self.0) {
-            Ok(body) => body,
-            Err(e) => return ready(Err(e.into())),
-        };
-
-        ready(Ok(Response::build(StatusCode::OK)
-            .content_type("application/json")
-            .body(body)))
+    fn respond_to(self, _: &HttpRequest) -> Response {
+        match serde_json::to_string(&self.0) {
+            Ok(body) => Response::build(StatusCode::OK)
+                .content_type("application/json")
+                .body(body),
+            Err(e) => Response::from_error(e.into()),
+        }
     }
 }
 
@@ -498,7 +492,7 @@ mod tests {
         let j = Json(MyObject {
             name: "test".to_string(),
         });
-        let resp = j.respond_to(&req).await.unwrap();
+        let resp = j.respond_to(&req);
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(
             resp.headers().get(header::CONTENT_TYPE).unwrap(),
