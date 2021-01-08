@@ -19,7 +19,6 @@ use actix_web::{
     Error, HttpMessage, HttpRequest, HttpResponse, Responder,
 };
 use bitflags::bitflags;
-use futures_util::future::{ready, Ready};
 use mime_guess::from_path;
 
 use crate::ChunkedReadFile;
@@ -495,10 +494,8 @@ fn none_match(etag: Option<&header::EntityTag>, req: &HttpRequest) -> bool {
 }
 
 impl Responder for NamedFile {
-    type Error = Error;
-    type Future = Ready<Result<HttpResponse, Error>>;
-
-    fn respond_to(self, req: &HttpRequest) -> Self::Future {
-        ready(self.into_response(req))
+    fn respond_to(self, req: &HttpRequest) -> HttpResponse {
+        self.into_response(req)
+            .unwrap_or_else(|e| HttpResponse::from_error(e))
     }
 }
