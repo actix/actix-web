@@ -13,7 +13,7 @@ use crate::config::{AppConfig, AppService};
 use crate::data::{DataFactory, FnDataFactory};
 use crate::error::Error;
 use crate::guard::Guard;
-use crate::request::{HttpRequest, HttpRequestPool};
+use crate::request::HttpRequest;
 use crate::rmap::ResourceMap;
 use crate::service::{AppServiceFactory, ServiceRequest, ServiceResponse};
 
@@ -144,7 +144,6 @@ where
                 rmap,
                 config,
                 app_data: Rc::new(app_data),
-                pool: HttpRequestPool::create(),
             })
         })
     }
@@ -159,7 +158,6 @@ where
     rmap: Rc<ResourceMap>,
     config: AppConfig,
     app_data: Rc<Extensions>,
-    pool: &'static HttpRequestPool,
 }
 
 impl<T, B> Service<Request> for AppInitService<T, B>
@@ -177,7 +175,7 @@ where
     fn call(&mut self, req: Request) -> Self::Future {
         let (head, payload) = req.into_parts();
 
-        let req = if let Some(mut req) = self.pool.get_request() {
+        let req = if let Some(mut req) = self.config.pool().get() {
             let inner = Rc::get_mut(&mut req.inner).unwrap();
             inner.path.get_mut().update(&head.uri);
             inner.path.reset();
@@ -192,19 +190,19 @@ where
                 self.rmap.clone(),
                 self.config.clone(),
                 self.app_data.clone(),
-                self.pool,
             )
         };
         self.service.call(ServiceRequest::new(req))
     }
 }
 
+// TODO: remove the drop impl as pool is not leaked anymore.
 impl<T, B> Drop for AppInitService<T, B>
 where
     T: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
 {
     fn drop(&mut self) {
-        self.pool.clear();
+        self.config.pool().clear();
     }
 }
 

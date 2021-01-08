@@ -30,7 +30,6 @@ pub use actix_http::test::TestBuffer;
 use crate::config::AppConfig;
 use crate::data::Data;
 use crate::dev::{Body, MessageBody, Payload, Server};
-use crate::request::HttpRequestPool;
 use crate::rmap::ResourceMap;
 use crate::service::{ServiceRequest, ServiceResponse};
 use crate::{Error, HttpRequest, HttpResponse};
@@ -549,7 +548,6 @@ impl TestRequest {
             Rc::new(self.rmap),
             self.config.clone(),
             Rc::new(self.app_data),
-            HttpRequestPool::create(),
         ))
     }
 
@@ -571,7 +569,6 @@ impl TestRequest {
             Rc::new(self.rmap),
             self.config.clone(),
             Rc::new(self.app_data),
-            HttpRequestPool::create(),
         )
     }
 
@@ -588,7 +585,6 @@ impl TestRequest {
             Rc::new(self.rmap),
             self.config.clone(),
             Rc::new(self.app_data),
-            HttpRequestPool::create(),
         );
 
         (req, payload)
