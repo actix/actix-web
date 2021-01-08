@@ -332,7 +332,7 @@ impl NamedFile {
             let t2: SystemTime = since.clone().into();
 
             match (t1.duration_since(UNIX_EPOCH), t2.duration_since(UNIX_EPOCH)) {
-                (Ok(t1), Ok(t2)) => t1 > t2,
+                (Ok(t1), Ok(t2)) => t1.as_secs() > t2.as_secs(),
                 _ => false,
             }
         } else {
@@ -351,7 +351,7 @@ impl NamedFile {
             let t2: SystemTime = since.clone().into();
 
             match (t1.duration_since(UNIX_EPOCH), t2.duration_since(UNIX_EPOCH)) {
-                (Ok(t1), Ok(t2)) => t1 <= t2,
+                (Ok(t1), Ok(t2)) => t1.as_secs() <= t2.as_secs(),
                 _ => false,
             }
         } else {
