@@ -16,7 +16,7 @@ use actix_web::{
         },
         ContentEncoding, StatusCode,
     },
-    Error, HttpMessage, HttpRequest, HttpResponse, Responder,
+    HttpMessage, HttpRequest, HttpResponse, Responder,
 };
 use bitflags::bitflags;
 use mime_guess::from_path;
@@ -276,7 +276,7 @@ impl NamedFile {
     }
 
     /// Creates an `HttpResponse` with file as a streaming body.
-    pub fn into_response(self, req: &HttpRequest) -> Result<HttpResponse, Error> {
+    pub fn into_response(self, req: &HttpRequest) -> HttpResponse {
         if self.status_code != StatusCode::OK {
             let mut res = HttpResponse::build(self.status_code);
 
@@ -306,7 +306,7 @@ impl NamedFile {
                 counter: 0,
             };
 
-            return Ok(res.streaming(reader));
+            return res.streaming(reader);
         }
 
         let etag = if self.flags.contains(Flags::ETAG) {
@@ -410,17 +410,17 @@ impl NamedFile {
                     );
                 } else {
                     resp.header(header::CONTENT_RANGE, format!("bytes */{}", length));
-                    return Ok(resp.status(StatusCode::RANGE_NOT_SATISFIABLE).finish());
+                    return resp.status(StatusCode::RANGE_NOT_SATISFIABLE).finish();
                 };
             } else {
-                return Ok(resp.status(StatusCode::BAD_REQUEST).finish());
+                return resp.status(StatusCode::BAD_REQUEST).finish();
             };
         };
 
         if precondition_failed {
-            return Ok(resp.status(StatusCode::PRECONDITION_FAILED).finish());
+            return resp.status(StatusCode::PRECONDITION_FAILED).finish();
         } else if not_modified {
-            return Ok(resp.status(StatusCode::NOT_MODIFIED).finish());
+            return resp.status(StatusCode::NOT_MODIFIED).finish();
         }
 
         let reader = ChunkedReadFile {
@@ -435,7 +435,7 @@ impl NamedFile {
             resp.status(StatusCode::PARTIAL_CONTENT);
         }
 
-        Ok(resp.body(SizedStream::new(length, reader)))
+        resp.body(SizedStream::new(length, reader))
     }
 }
 
@@ -496,6 +496,5 @@ fn none_match(etag: Option<&header::EntityTag>, req: &HttpRequest) -> bool {
 impl Responder for NamedFile {
     fn respond_to(self, req: &HttpRequest) -> HttpResponse {
         self.into_response(req)
-            .unwrap_or_else(|e| HttpResponse::from_error(e))
     }
 }
