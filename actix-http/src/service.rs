@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::marker::PhantomData;
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -8,18 +9,16 @@ use actix_rt::net::TcpStream;
 use actix_service::{pipeline_factory, IntoServiceFactory, Service, ServiceFactory};
 use bytes::Bytes;
 use futures_core::{ready, Future};
-use futures_util::future::ok;
 use h2::server::{self, Handshake};
 use pin_project::pin_project;
 
 use crate::body::MessageBody;
 use crate::builder::HttpServiceBuilder;
-use crate::cloneable::CloneableService;
 use crate::config::{KeepAlive, ServiceConfig};
 use crate::error::{DispatchError, Error};
 use crate::request::Request;
 use crate::response::Response;
-use crate::{h1, h2::Dispatcher, ConnectCallback, Extensions, Protocol};
+use crate::{h1, h2::Dispatcher, ConnectCallback, OnConnectData, Protocol};
 
 /// A `ServiceFactory` for HTTP/1.1 or HTTP/2 protocol.
 pub struct HttpService<T, S, B, X = h1::ExpectHandler, U = h1::UpgradeHandler> {
@@ -175,9 +174,9 @@ where
         Error = DispatchError,
         InitError = (),
     > {
-        pipeline_factory(|io: TcpStream| {
+        pipeline_factory(|io: TcpStream| async {
             let peer_addr = io.peer_addr().ok();
-            ok((io, Protocol::Http1, peer_addr))
+            Ok((io, Protocol::Http1, peer_addr))
         })
         .and_then(self)
     }
@@ -227,7 +226,7 @@ mod openssl {
                     .map_err(TlsError::Tls)
                     .map_init_err(|_| panic!()),
             )
-            .and_then(|io: SslStream<TcpStream>| {
+            .and_then(|io: SslStream<TcpStream>| async {
                 let proto = if let Some(protos) = io.ssl().selected_alpn_protocol() {
                     if protos.windows(2).any(|window| window == b"h2") {
                         Protocol::Http2
@@ -238,7 +237,7 @@ mod openssl {
                     Protocol::Http1
                 };
                 let peer_addr = io.get_ref().peer_addr().ok();
-                ok((io, proto, peer_addr))
+                Ok((io, proto, peer_addr))
             })
             .and_then(self.map_err(TlsError::Service))
         }
@@ -295,7 +294,7 @@ mod rustls {
                     .map_err(TlsError::Tls)
                     .map_init_err(|_| panic!()),
             )
-            .and_then(|io: TlsStream<TcpStream>| {
+            .and_then(|io: TlsStream<TcpStream>| async {
                 let proto = if let Some(protos) = io.get_ref().1.get_alpn_protocol() {
                     if protos.windows(2).any(|window| window == b"h2") {
                         Protocol::Http2
@@ -306,7 +305,7 @@ mod rustls {
                     Protocol::Http1
                 };
                 let peer_addr = io.get_ref().0.peer_addr().ok();
-                ok((io, proto, peer_addr))
+                Ok((io, proto, peer_addr))
             })
             .and_then(self.map_err(TlsError::Service))
         }
@@ -371,7 +370,7 @@ where
     upgrade: Option<U::Service>,
     on_connect_ext: Option<Rc<ConnectCallback<T>>>,
     cfg: ServiceConfig,
-    _phantom: PhantomData<(T, B)>,
+    _phantom: PhantomData<B>,
 }
 
 impl<T, S, B, X, U> Future for HttpServiceResponse<T, S, B, X, U>
@@ -413,7 +412,7 @@ where
                 .map_err(|e| log::error!("Init http service error: {:?}", e)))?;
             this = self.as_mut().project();
             *this.upgrade = Some(upgrade);
-            this.fut_ex.set(None);
+            this.fut_upg.set(None);
         }
 
         let result = ready!(this
@@ -441,12 +440,27 @@ where
     X: Service<Request>,
     U: Service<(Request, Framed<T, h1::Codec>)>,
 {
-    srv: CloneableService<S>,
-    expect: CloneableService<X>,
-    upgrade: Option<CloneableService<U>>,
+    flow: Rc<RefCell<HttpFlow<S, X, U>>>,
     cfg: ServiceConfig,
     on_connect_ext: Option<Rc<ConnectCallback<T>>>,
     _phantom: PhantomData<B>,
+}
+
+/// A collection of services that describe an HTTP request flow.
+pub(super) struct HttpFlow<S, X, U> {
+    pub(super) service: S,
+    pub(super) expect: X,
+    pub(super) upgrade: Option<U>,
+}
+
+impl<S, X, U> HttpFlow<S, X, U> {
+    pub(super) fn new(service: S, expect: X, upgrade: Option<U>) -> Rc<RefCell<Self>> {
+        Rc::new(RefCell::new(Self {
+            service,
+            expect,
+            upgrade,
+        }))
+    }
 }
 
 impl<T, S, B, X, U> HttpServiceHandler<T, S, B, X, U>
@@ -463,7 +477,7 @@ where
 {
     fn new(
         cfg: ServiceConfig,
-        srv: S,
+        service: S,
         expect: X,
         upgrade: Option<U>,
         on_connect_ext: Option<Rc<ConnectCallback<T>>>,
@@ -471,9 +485,7 @@ where
         HttpServiceHandler {
             cfg,
             on_connect_ext,
-            srv: CloneableService::new(srv),
-            expect: CloneableService::new(expect),
-            upgrade: upgrade.map(CloneableService::new),
+            flow: HttpFlow::new(service, expect, upgrade),
             _phantom: PhantomData,
         }
     }
@@ -498,7 +510,8 @@ where
     type Future = HttpServiceHandlerResponse<T, S, B, X, U>;
 
     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        let ready = self
+        let mut flow = self.flow.borrow_mut();
+        let ready = flow
             .expect
             .poll_ready(cx)
             .map_err(|e| {
@@ -508,8 +521,8 @@ where
             })?
             .is_ready();
 
-        let ready = self
-            .srv
+        let ready = flow
+            .service
             .poll_ready(cx)
             .map_err(|e| {
                 let e = e.into();
@@ -519,7 +532,7 @@ where
             .is_ready()
             && ready;
 
-        let ready = if let Some(ref mut upg) = self.upgrade {
+        let ready = if let Some(ref mut upg) = flow.upgrade {
             upg.poll_ready(cx)
                 .map_err(|e| {
                     let e = e.into();
@@ -543,19 +556,16 @@ where
         &mut self,
         (io, proto, peer_addr): (T, Protocol, Option<net::SocketAddr>),
     ) -> Self::Future {
-        let mut connect_extensions = Extensions::new();
-
-        if let Some(ref handler) = self.on_connect_ext {
-            handler(&io, &mut connect_extensions);
-        }
+        let on_connect_data =
+            OnConnectData::from_io(&io, self.on_connect_ext.as_deref());
 
         match proto {
             Protocol::Http2 => HttpServiceHandlerResponse {
                 state: State::H2Handshake(Some((
                     server::handshake(io),
                     self.cfg.clone(),
-                    self.srv.clone(),
-                    connect_extensions,
+                    self.flow.clone(),
+                    on_connect_data,
                     peer_addr,
                 ))),
             },
@@ -564,13 +574,13 @@ where
                 state: State::H1(h1::Dispatcher::new(
                     io,
                     self.cfg.clone(),
-                    self.srv.clone(),
-                    self.expect.clone(),
-                    self.upgrade.clone(),
-                    connect_extensions,
+                    self.flow.clone(),
+                    on_connect_data,
                     peer_addr,
                 )),
             },
+
+            proto => unimplemented!("Unsupported HTTP version: {:?}.", proto),
         }
     }
 }
@@ -589,13 +599,13 @@ where
     U::Error: fmt::Display,
 {
     H1(#[pin] h1::Dispatcher<T, S, B, X, U>),
-    H2(#[pin] Dispatcher<T, S, B>),
+    H2(#[pin] Dispatcher<T, S, B, X, U>),
     H2Handshake(
         Option<(
             Handshake<T, Bytes>,
             ServiceConfig,
-            CloneableService<S>,
-            Extensions,
+            Rc<RefCell<HttpFlow<S, X, U>>>,
+            OnConnectData,
             Option<net::SocketAddr>,
         )>,
     ),
@@ -634,53 +644,30 @@ where
 {
     type Output = Result<(), DispatchError>;
 
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        self.project().state.poll(cx)
-    }
-}
-
-impl<T, S, B, X, U> State<T, S, B, X, U>
-where
-    T: AsyncRead + AsyncWrite + Unpin,
-    S: Service<Request>,
-    S::Error: Into<Error> + 'static,
-    S::Response: Into<Response<B>> + 'static,
-    B: MessageBody + 'static,
-    X: Service<Request, Response = Request>,
-    X::Error: Into<Error>,
-    U: Service<(Request, Framed<T, h1::Codec>), Response = ()>,
-    U::Error: fmt::Display,
-{
-    fn poll(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Result<(), DispatchError>> {
-        match self.as_mut().project() {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        match self.as_mut().project().state.project() {
             StateProj::H1(disp) => disp.poll(cx),
             StateProj::H2(disp) => disp.poll(cx),
-            StateProj::H2Handshake(ref mut data) => {
-                let conn = if let Some(ref mut item) = data {
-                    match Pin::new(&mut item.0).poll(cx) {
-                        Poll::Ready(Ok(conn)) => conn,
-                        Poll::Ready(Err(err)) => {
-                            trace!("H2 handshake error: {}", err);
-                            return Poll::Ready(Err(err.into()));
-                        }
-                        Poll::Pending => return Poll::Pending,
+            StateProj::H2Handshake(data) => {
+                match ready!(Pin::new(&mut data.as_mut().unwrap().0).poll(cx)) {
+                    Ok(conn) => {
+                        let (_, cfg, srv, on_connect_data, peer_addr) =
+                            data.take().unwrap();
+                        self.as_mut().project().state.set(State::H2(Dispatcher::new(
+                            srv,
+                            conn,
+                            on_connect_data,
+                            cfg,
+                            None,
+                            peer_addr,
+                        )));
+                        self.poll(cx)
                     }
-                } else {
-                    panic!()
-                };
-                let (_, cfg, srv, on_connect_data, peer_addr) = data.take().unwrap();
-                self.set(State::H2(Dispatcher::new(
-                    srv,
-                    conn,
-                    on_connect_data,
-                    cfg,
-                    None,
-                    peer_addr,
-                )));
-                self.poll(cx)
+                    Err(err) => {
+                        trace!("H2 handshake error: {}", err);
+                        Poll::Ready(Err(err.into()))
+                    }
+                }
             }
         }
     }

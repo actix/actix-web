@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::future::Future;
 use std::marker::PhantomData;
 use std::pin::Pin;
@@ -17,12 +18,12 @@ use h2::server::{self, Handshake};
 use log::error;
 
 use crate::body::MessageBody;
-use crate::cloneable::CloneableService;
 use crate::config::ServiceConfig;
 use crate::error::{DispatchError, Error};
 use crate::request::Request;
 use crate::response::Response;
-use crate::{ConnectCallback, Extensions};
+use crate::service::HttpFlow;
+use crate::{ConnectCallback, OnConnectData};
 
 use super::dispatcher::Dispatcher;
 
@@ -248,7 +249,7 @@ pub struct H2ServiceHandler<T, S, B>
 where
     S: Service<Request>,
 {
-    srv: CloneableService<S>,
+    flow: Rc<RefCell<HttpFlow<S, (), ()>>>,
     cfg: ServiceConfig,
     on_connect_ext: Option<Rc<ConnectCallback<T>>>,
     _phantom: PhantomData<B>,
@@ -265,12 +266,12 @@ where
     fn new(
         cfg: ServiceConfig,
         on_connect_ext: Option<Rc<ConnectCallback<T>>>,
-        srv: S,
+        service: S,
     ) -> H2ServiceHandler<T, S, B> {
         H2ServiceHandler {
+            flow: HttpFlow::new(service, (), None),
             cfg,
             on_connect_ext,
-            srv: CloneableService::new(srv),
             _phantom: PhantomData,
         }
     }
@@ -290,7 +291,7 @@ where
     type Future = H2ServiceHandlerResponse<T, S, B>;
 
     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        self.srv.poll_ready(cx).map_err(|e| {
+        self.flow.borrow_mut().service.poll_ready(cx).map_err(|e| {
             let e = e.into();
             error!("Service readiness error: {:?}", e);
             DispatchError::Service(e)
@@ -298,18 +299,15 @@ where
     }
 
     fn call(&mut self, (io, addr): (T, Option<net::SocketAddr>)) -> Self::Future {
-        let mut connect_extensions = Extensions::new();
-        if let Some(ref handler) = self.on_connect_ext {
-            // run on_connect_ext callback, populating connect extensions
-            handler(&io, &mut connect_extensions);
-        }
+        let on_connect_data =
+            OnConnectData::from_io(&io, self.on_connect_ext.as_deref());
 
         H2ServiceHandlerResponse {
             state: State::Handshake(
-                Some(self.srv.clone()),
+                Some(self.flow.clone()),
                 Some(self.cfg.clone()),
                 addr,
-                Some(connect_extensions),
+                on_connect_data,
                 server::handshake(io),
             ),
         }
@@ -321,12 +319,12 @@ where
     T: AsyncRead + AsyncWrite + Unpin,
     S::Future: 'static,
 {
-    Incoming(Dispatcher<T, S, B>),
+    Incoming(Dispatcher<T, S, B, (), ()>),
     Handshake(
-        Option<CloneableService<S>>,
+        Option<Rc<RefCell<HttpFlow<S, (), ()>>>>,
         Option<ServiceConfig>,
         Option<net::SocketAddr>,
-        Option<Extensions>,
+        OnConnectData,
         Handshake<T, Bytes>,
     ),
 }
@@ -365,10 +363,11 @@ where
                 ref mut handshake,
             ) => match ready!(Pin::new(handshake).poll(cx)) {
                 Ok(conn) => {
+                    let on_connect_data = std::mem::take(on_connect_data);
                     self.state = State::Incoming(Dispatcher::new(
                         srv.take().unwrap(),
                         conn,
-                        on_connect_data.take().unwrap(),
+                        on_connect_data,
                         config.take().unwrap(),
                         None,
                         *peer_addr,

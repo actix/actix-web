@@ -1,6 +1,6 @@
 [package]
 name = "actix-http"
-version = "2.2.0"
+version = "3.0.0-beta.1"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "HTTP primitives for the Actix ecosystem"
 readme = "README.md"
@@ -52,7 +52,6 @@ bitflags = "1.2"
 bytes = "1"
 bytestring = "1"
 cookie = { version = "0.14.1", features = ["percent-encode"] }
-copyless = "0.1.4"
 derive_more = "0.99.5"
 either = "1.5.3"
 encoding_rs = "0.8"
@@ -86,7 +85,7 @@ flate2 = { version = "1.0.13", optional = true }
 
 [dev-dependencies]
 actix-server = "2.0.0-beta.2"
-actix-http-test = { version = "2.0.0", features = ["openssl"] }
+actix-http-test = { version = "3.0.0-beta.1", features = ["openssl"] }
 actix-tls = { version = "3.0.0-beta.2", features = ["openssl"] }
 criterion = "0.3"
 env_logger = "0.7"
