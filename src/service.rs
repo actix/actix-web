@@ -537,28 +537,7 @@ mod tests {
     use crate::{guard, http, web, App, HttpResponse};
     use actix_service::Service;
     use futures_util::future::ok;
-
-    #[test]
-    fn test_service_request() {
-        // let req = TestRequest::default().to_srv_request();
-        // let (r, pl) = req.into_parts();
-        // assert!(ServiceRequest::from_parts(r, pl).is_ok());
-
-        // let req = TestRequest::default().to_srv_request();
-        // let (r, pl) = req.into_parts();
-        // let _r2 = r.clone();
-        // assert!(ServiceRequest::from_parts(r, pl).is_err());
-
-        // let req = TestRequest::default().to_srv_request();
-        // let (r, _pl) = req.into_parts();
-        // assert!(ServiceRequest::from_request(r).is_ok());
-
-        // let req = TestRequest::default().to_srv_request();
-        // let (r, _pl) = req.into_parts();
-        // let _r2 = r.clone();
-        // assert!(ServiceRequest::from_request(r).is_err());
-    }
-
+    
     #[actix_rt::test]
     async fn test_service() {
         let mut srv = init_service(
