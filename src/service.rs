@@ -70,8 +70,6 @@ impl ServiceRequest {
     }
 
     /// Construct request from parts.
-    ///
-    /// `ServiceRequest` can be re-constructed only if `req` hasn't been cloned.
     pub fn from_parts(req: HttpRequest, payload: Payload) -> Self {
         Self { req, payload }
     }
