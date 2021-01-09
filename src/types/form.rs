@@ -1,72 +1,68 @@
-//! Form extractor
+//! For URL encoded form helper documentation, see [`Form`].
 
-use std::future::Future;
-use std::pin::Pin;
-use std::rc::Rc;
-use std::task::{Context, Poll};
-use std::{fmt, ops};
+use std::{
+    fmt,
+    future::Future,
+    ops,
+    pin::Pin,
+    rc::Rc,
+    task::{Context, Poll},
+};
 
-use actix_http::{Error, HttpMessage, Payload, Response};
+use actix_http::Payload;
 use bytes::BytesMut;
 use encoding_rs::{Encoding, UTF_8};
-use futures_util::future::{FutureExt, LocalBoxFuture};
-use futures_util::StreamExt;
-use serde::de::DeserializeOwned;
-use serde::Serialize;
+use futures_util::{
+    future::{FutureExt, LocalBoxFuture},
+    StreamExt,
+};
+use serde::{de::DeserializeOwned, Serialize};
 
 #[cfg(feature = "compress")]
 use crate::dev::Decompress;
-use crate::error::UrlencodedError;
-use crate::extract::FromRequest;
-use crate::http::{
-    header::{ContentType, CONTENT_LENGTH},
-    StatusCode,
+use crate::{
+    error::UrlencodedError, extract::FromRequest, http::header::CONTENT_LENGTH, web,
+    Error, HttpMessage, HttpRequest, HttpResponse, Responder,
 };
-use crate::request::HttpRequest;
-use crate::{responder::Responder, web};
 
-/// Form data helper (`application/x-www-form-urlencoded`)
+/// URL encoded payload extractor and responder.
 ///
-/// Can be use to extract url-encoded data from the request body,
-/// or send url-encoded data as the response.
+/// `Form` has two uses: URL encoded responses, and extracting typed data from URL request payloads.
 ///
-/// ## Extract
+/// # Extractor
+/// To extract typed data from a request body, the inner type `T` must implement the
+/// [`serde::Deserialize`] trait.
 ///
-/// To extract typed information from request's body, the type `T` must
-/// implement the `Deserialize` trait from *serde*.
+/// Use [`FormConfig`] to configure extraction process.
 ///
-/// [**FormConfig**](FormConfig) allows to configure extraction
-/// process.
-///
-/// ### Example
-/// ```rust
-/// use actix_web::web;
-/// use serde_derive::Deserialize;
+/// ```
+/// use actix_web::{post, web};
+/// use serde::Deserialize;
 ///
 /// #[derive(Deserialize)]
-/// struct FormData {
-///     username: String,
+/// struct Info {
+///     name: String,
 /// }
 ///
-/// /// Extract form data using serde.
-/// /// This handler get called only if content type is *x-www-form-urlencoded*
-/// /// and content of the request could be deserialized to a `FormData` struct
-/// fn index(form: web::Form<FormData>) -> String {
-///     format!("Welcome {}!", form.username)
+/// // This handler is only called if:
+/// // - request headers declare the content type as `application/x-www-form-urlencoded`
+/// // - request payload is deserialized into a `Info` struct from the URL encoded format
+/// #[post("/")]
+/// async fn index(form: web::Form<Info>) -> String {
+///     format!("Welcome {}!", form.name)
 /// }
-/// # fn main() {}
 /// ```
 ///
-/// ## Respond
+/// # Responder
+/// The `Form` type also allows you to create URL encoded responses:
+/// simply return a value of type Form<T> where T is the type to be URL encoded.
+/// The type  must implement [`serde::Serialize`].
 ///
-/// The `Form` type also allows you to respond with well-formed url-encoded data:
-/// simply return a value of type Form<T> where T is the type to be url-encoded.
-/// The type  must implement `serde::Serialize`;
+/// Responses use
 ///
-/// ### Example
-/// ```rust
-/// use actix_web::*;
-/// use serde_derive::Serialize;
+/// ```
+/// use actix_web::{get, web};
+/// use serde::Serialize;
 ///
 /// #[derive(Serialize)]
 /// struct SomeForm {
@@ -74,22 +70,23 @@ use crate::{responder::Responder, web};
 ///     age: u8
 /// }
 ///
-/// // Will return a 200 response with header
-/// // `Content-Type: application/x-www-form-urlencoded`
-/// // and body "name=actix&age=123"
-/// fn index() -> web::Form<SomeForm> {
+/// // Response will have:
+/// // - status: 200 OK
+/// // - header: `Content-Type: application/x-www-form-urlencoded`
+/// // - body: `name=actix&age=123`
+/// #[get("/")]
+/// async fn index() -> web::Form<SomeForm> {
 ///     web::Form(SomeForm {
 ///         name: "actix".into(),
 ///         age: 123
 ///     })
 /// }
-/// # fn main() {}
 /// ```
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
 pub struct Form<T>(pub T);
 
 impl<T> Form<T> {
-    /// Deconstruct to an inner value
+    /// Unwrap into inner `T` value.
     pub fn into_inner(self) -> T {
         self.0
     }
@@ -109,6 +106,7 @@ impl<T> ops::DerefMut for Form<T> {
     }
 }
 
+/// See [here](#extractor) for example of usage as an extractor.
 impl<T> FromRequest for Form<T>
 where
     T: DeserializeOwned + 'static,
@@ -120,7 +118,7 @@ where
     #[inline]
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         let req2 = req.clone();
-        let (limit, err) = req
+        let (limit, err_handler) = req
             .app_data::<Self::Config>()
             .or_else(|| {
                 req.app_data::<web::Data<Self::Config>>()
@@ -132,13 +130,10 @@ where
         UrlEncoded::new(req, payload)
             .limit(limit)
             .map(move |res| match res {
-                Err(e) => {
-                    if let Some(err) = err {
-                        Err((*err)(e, &req2))
-                    } else {
-                        Err(e.into())
-                    }
-                }
+                Err(err) => match err_handler {
+                    Some(err_handler) => Err((err_handler)(err, &req2)),
+                    None => Err(err.into()),
+                },
                 Ok(item) => Ok(Form(item)),
             })
             .boxed_local()
@@ -157,44 +152,39 @@ impl<T: fmt::Display> fmt::Display for Form<T> {
     }
 }
 
+/// See [here](#responder) for example of usage as a handler return type.
 impl<T: Serialize> Responder for Form<T> {
-    fn respond_to(self, _: &HttpRequest) -> Response {
+    fn respond_to(self, _: &HttpRequest) -> HttpResponse {
         match serde_urlencoded::to_string(&self.0) {
-            Ok(body) => Response::build(StatusCode::OK)
-                .set(ContentType::form_url_encoded())
+            Ok(body) => HttpResponse::Ok()
+                .content_type(mime::APPLICATION_WWW_FORM_URLENCODED)
                 .body(body),
-            Err(e) => Response::from_error(e.into()),
+            Err(err) => HttpResponse::from_error(err.into()),
         }
     }
 }
 
-/// Form extractor configuration
+/// [`Form`] extractor configuration.
 ///
-/// ```rust
-/// use actix_web::{web, App, FromRequest, Result};
-/// use serde_derive::Deserialize;
+/// ```
+/// use actix_web::{post, web, App, FromRequest, Result};
+/// use serde::Deserialize;
 ///
 /// #[derive(Deserialize)]
-/// struct FormData {
+/// struct Info {
 ///     username: String,
 /// }
 ///
-/// /// Extract form data using serde.
-/// /// Custom configuration is used for this handler, max payload size is 4k
-/// async fn index(form: web::Form<FormData>) -> Result<String> {
+/// // Custom `FormConfig` is applied to App.
+/// // Max payload size for URL encoded forms is set to 4kB.
+/// #[post("/")]
+/// async fn index(form: web::Form<Info>) -> Result<String> {
 ///     Ok(format!("Welcome {}!", form.username))
 /// }
 ///
-/// fn main() {
-///     let app = App::new().service(
-///         web::resource("/index.html")
-///             // change `Form` extractor configuration
-///             .app_data(
-///                 web::FormConfig::default().limit(4097)
-///             )
-///             .route(web::get().to(index))
-///     );
-/// }
+/// App::new()
+///     .app_data(web::FormConfig::default().limit(4096))
+///     .service(index);
 /// ```
 #[derive(Clone)]
 pub struct FormConfig {
@@ -203,7 +193,7 @@ pub struct FormConfig {
 }
 
 impl FormConfig {
-    /// Change max size of payload. By default max size is 16Kb
+    /// Set maximum accepted payload size. By default this limit is 16kB.
     pub fn limit(mut self, limit: usize) -> Self {
         self.limit = limit;
         self
@@ -228,33 +218,30 @@ impl Default for FormConfig {
     }
 }
 
-/// Future that resolves to a parsed urlencoded values.
+/// Future that resolves to some `T` when parsed from a URL encoded payload.
 ///
-/// Parse `application/x-www-form-urlencoded` encoded request's body.
-/// Return `UrlEncoded` future. Form can be deserialized to any type that
-/// implements `Deserialize` trait from *serde*.
+/// Form can be deserialized from any type `T` that implements [`serde::Deserialize`].
 ///
-/// Returns error:
-///
-/// * content type is not `application/x-www-form-urlencoded`
-/// * content-length is greater than 32k
-///
-pub struct UrlEncoded<U> {
+/// Returns error if:
+/// - content type is not `application/x-www-form-urlencoded`
+/// - content length is greater than [limit](UrlEncoded::limit())
+pub struct UrlEncoded<T> {
     #[cfg(feature = "compress")]
     stream: Option<Decompress<Payload>>,
     #[cfg(not(feature = "compress"))]
     stream: Option<Payload>,
+
     limit: usize,
     length: Option<usize>,
     encoding: &'static Encoding,
     err: Option<UrlencodedError>,
-    fut: Option<LocalBoxFuture<'static, Result<U, UrlencodedError>>>,
+    fut: Option<LocalBoxFuture<'static, Result<T, UrlencodedError>>>,
 }
 
 #[allow(clippy::borrow_interior_mutable_const)]
-impl<U> UrlEncoded<U> {
-    /// Create a new future to URL encode a request
-    pub fn new(req: &HttpRequest, payload: &mut Payload) -> UrlEncoded<U> {
+impl<T> UrlEncoded<T> {
+    /// Create a new future to decode a URL encoded request payload.
+    pub fn new(req: &HttpRequest, payload: &mut Payload) -> Self {
         // check content type
         if req.content_type().to_lowercase() != "application/x-www-form-urlencoded" {
             return Self::err(UrlencodedError::ContentType);
@@ -292,29 +279,29 @@ impl<U> UrlEncoded<U> {
         }
     }
 
-    fn err(e: UrlencodedError) -> Self {
+    fn err(err: UrlencodedError) -> Self {
         UrlEncoded {
             stream: None,
             limit: 32_768,
             fut: None,
-            err: Some(e),
+            err: Some(err),
             length: None,
             encoding: UTF_8,
         }
     }
 
-    /// Change max size of payload. By default max size is 256Kb
+    /// Set maximum accepted payload size. The default limit is 256kB.
     pub fn limit(mut self, limit: usize) -> Self {
         self.limit = limit;
         self
     }
 }
 
-impl<U> Future for UrlEncoded<U>
+impl<T> Future for UrlEncoded<T>
 where
-    U: DeserializeOwned + 'static,
+    T: DeserializeOwned + 'static,
 {
-    type Output = Result<U, UrlencodedError>;
+    type Output = Result<T, UrlencodedError>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         if let Some(ref mut fut) = self.fut {
@@ -343,6 +330,7 @@ where
 
                 while let Some(item) = stream.next().await {
                     let chunk = item?;
+
                     if (body.len() + chunk.len()) > limit {
                         return Err(UrlencodedError::Overflow {
                             size: body.len() + chunk.len(),
@@ -354,19 +342,21 @@ where
                 }
 
                 if encoding == UTF_8 {
-                    serde_urlencoded::from_bytes::<U>(&body)
+                    serde_urlencoded::from_bytes::<T>(&body)
                         .map_err(|_| UrlencodedError::Parse)
                 } else {
                     let body = encoding
                         .decode_without_bom_handling_and_without_replacement(&body)
                         .map(|s| s.into_owned())
                         .ok_or(UrlencodedError::Parse)?;
-                    serde_urlencoded::from_str::<U>(&body)
+
+                    serde_urlencoded::from_str::<T>(&body)
                         .map_err(|_| UrlencodedError::Parse)
                 }
             }
             .boxed_local(),
         );
+
         self.poll(cx)
     }
 }
@@ -377,7 +367,10 @@ mod tests {
     use serde::{Deserialize, Serialize};
 
     use super::*;
-    use crate::http::header::{HeaderValue, CONTENT_LENGTH, CONTENT_TYPE};
+    use crate::http::{
+        header::{HeaderValue, CONTENT_LENGTH, CONTENT_TYPE},
+        StatusCode,
+    };
     use crate::test::TestRequest;
 
     #[derive(Deserialize, Serialize, Debug, PartialEq)]
@@ -514,6 +507,6 @@ mod tests {
         assert!(s.is_err());
 
         let err_str = s.err().unwrap().to_string();
-        assert!(err_str.contains("Urlencoded payload size is bigger"));
+        assert!(err_str.starts_with("URL encoded payload is larger"));
     }
 }

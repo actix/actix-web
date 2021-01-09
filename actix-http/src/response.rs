@@ -481,15 +481,14 @@ impl ResponseBuilder {
         self
     }
 
-    /// Set response content type
+    /// Set response content type.
     #[inline]
     pub fn content_type<V>(&mut self, value: V) -> &mut Self
     where
-        HeaderValue: TryFrom<V>,
-        <HeaderValue as TryFrom<V>>::Error: Into<HttpError>,
+        V: IntoHeaderValue,
     {
         if let Some(parts) = parts(&mut self.head, &self.err) {
-            match HeaderValue::try_from(value) {
+            match value.try_into() {
                 Ok(value) => {
                     parts.headers.insert(header::CONTENT_TYPE, value);
                 }
@@ -802,7 +801,7 @@ impl From<ResponseBuilder> for Response {
 impl From<&'static str> for Response {
     fn from(val: &'static str) -> Self {
         Response::Ok()
-            .content_type("text/plain; charset=utf-8")
+            .content_type(mime::TEXT_PLAIN_UTF_8)
             .body(val)
     }
 }
@@ -810,7 +809,7 @@ impl From<&'static str> for Response {
 impl From<&'static [u8]> for Response {
     fn from(val: &'static [u8]) -> Self {
         Response::Ok()
-            .content_type("application/octet-stream")
+            .content_type(mime::APPLICATION_OCTET_STREAM)
             .body(val)
     }
 }
@@ -818,7 +817,7 @@ impl From<&'static [u8]> for Response {
 impl From<String> for Response {
     fn from(val: String) -> Self {
         Response::Ok()
-            .content_type("text/plain; charset=utf-8")
+            .content_type(mime::TEXT_PLAIN_UTF_8)
             .body(val)
     }
 }
@@ -826,7 +825,7 @@ impl From<String> for Response {
 impl<'a> From<&'a String> for Response {
     fn from(val: &'a String) -> Self {
         Response::Ok()
-            .content_type("text/plain; charset=utf-8")
+            .content_type(mime::TEXT_PLAIN_UTF_8)
             .body(val)
     }
 }
@@ -834,7 +833,7 @@ impl<'a> From<&'a String> for Response {
 impl From<Bytes> for Response {
     fn from(val: Bytes) -> Self {
         Response::Ok()
-            .content_type("application/octet-stream")
+            .content_type(mime::APPLICATION_OCTET_STREAM)
             .body(val)
     }
 }
@@ -842,7 +841,7 @@ impl From<Bytes> for Response {
 impl From<BytesMut> for Response {
     fn from(val: BytesMut) -> Self {
         Response::Ok()
-            .content_type("application/octet-stream")
+            .content_type(mime::APPLICATION_OCTET_STREAM)
             .body(val)
     }
 }
