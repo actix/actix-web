@@ -1,34 +1,37 @@
 //! Request extractors
-use std::future::Future;
-use std::pin::Pin;
-use std::task::{Context, Poll};
 
-use actix_http::error::Error;
-use futures_util::future::{ready, Ready};
-use futures_util::ready;
+use std::{
+    future::Future,
+    pin::Pin,
+    task::{Context, Poll},
+};
 
-use crate::dev::Payload;
-use crate::request::HttpRequest;
+use futures_util::{
+    future::{ready, Ready},
+    ready,
+};
+
+use crate::{dev::Payload, Error, HttpRequest};
 
 /// Trait implemented by types that can be extracted from request.
 ///
 /// Types that implement this trait can be used with `Route` handlers.
 pub trait FromRequest: Sized {
+    /// Configuration for this extractor.
+    type Config: Default + 'static;
+
     /// The associated error which can be returned.
     type Error: Into<Error>;
 
-    /// Future that resolves to a Self
+    /// Future that resolves to a Self.
     type Future: Future<Output = Result<Self, Self::Error>>;
 
-    /// Configuration for this extractor
-    type Config: Default + 'static;
-
-    /// Convert request to a Self
+    /// Create a Self from request parts asynchronously.
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future;
 
-    /// Convert request to a Self
+    /// Create a Self from request head asynchronously.
     ///
-    /// This method uses `Payload::None` as payload stream.
+    /// This method is short for `T::from_request(req, &mut Payload::None)`.
     fn extract(req: &HttpRequest) -> Self::Future {
         Self::from_request(req, &mut Payload::None)
     }

@@ -4,17 +4,17 @@ use actix_http::error::InternalError;
 use actix_http::http::{
     header::IntoHeaderValue, Error as HttpError, HeaderMap, HeaderName, StatusCode,
 };
-use actix_http::{Error, Response, ResponseBuilder};
+use actix_http::ResponseBuilder;
 use bytes::{Bytes, BytesMut};
 
-use crate::request::HttpRequest;
+use crate::{Error, HttpRequest, HttpResponse};
 
 /// Trait implemented by types that can be converted to a http response.
 ///
 /// Types that implement this trait can be used as the return type of a handler.
 pub trait Responder {
-    /// Convert self to `Response`.
-    fn respond_to(self, req: &HttpRequest) -> Response;
+    /// Convert self to `HttpResponse`.
+    fn respond_to(self, req: &HttpRequest) -> HttpResponse;
 
     /// Override a status code for a Responder.
     ///
@@ -63,18 +63,18 @@ pub trait Responder {
     }
 }
 
-impl Responder for Response {
+impl Responder for HttpResponse {
     #[inline]
-    fn respond_to(self, _: &HttpRequest) -> Response {
+    fn respond_to(self, _: &HttpRequest) -> HttpResponse {
         self
     }
 }
 
 impl<T: Responder> Responder for Option<T> {
-    fn respond_to(self, req: &HttpRequest) -> Response {
+    fn respond_to(self, req: &HttpRequest) -> HttpResponse {
         match self {
             Some(t) => t.respond_to(req),
-            None => Response::build(StatusCode::NOT_FOUND).finish(),
+            None => HttpResponse::build(StatusCode::NOT_FOUND).finish(),
         }
     }
 }
@@ -84,23 +84,23 @@ where
     T: Responder,
     E: Into<Error>,
 {
-    fn respond_to(self, req: &HttpRequest) -> Response {
+    fn respond_to(self, req: &HttpRequest) -> HttpResponse {
         match self {
             Ok(val) => val.respond_to(req),
-            Err(e) => Response::from_error(e.into()),
+            Err(e) => HttpResponse::from_error(e.into()),
         }
     }
 }
 
 impl Responder for ResponseBuilder {
     #[inline]
-    fn respond_to(mut self, _: &HttpRequest) -> Response {
+    fn respond_to(mut self, _: &HttpRequest) -> HttpResponse {
         self.finish()
     }
 }
 
 impl<T: Responder> Responder for (T, StatusCode) {
-    fn respond_to(self, req: &HttpRequest) -> Response {
+    fn respond_to(self, req: &HttpRequest) -> HttpResponse {
         let mut res = self.0.respond_to(req);
         *res.status_mut() = self.1;
         res
@@ -108,49 +108,49 @@ impl<T: Responder> Responder for (T, StatusCode) {
 }
 
 impl Responder for &'static str {
-    fn respond_to(self, _: &HttpRequest) -> Response {
-        Response::build(StatusCode::OK)
-            .content_type("text/plain; charset=utf-8")
+    fn respond_to(self, _: &HttpRequest) -> HttpResponse {
+        HttpResponse::Ok()
+            .content_type(mime::TEXT_PLAIN_UTF_8)
             .body(self)
     }
 }
 
 impl Responder for &'static [u8] {
-    fn respond_to(self, _: &HttpRequest) -> Response {
-        Response::build(StatusCode::OK)
-            .content_type("application/octet-stream")
+    fn respond_to(self, _: &HttpRequest) -> HttpResponse {
+        HttpResponse::Ok()
+            .content_type(mime::APPLICATION_OCTET_STREAM)
             .body(self)
     }
 }
 
 impl Responder for String {
-    fn respond_to(self, _: &HttpRequest) -> Response {
-        Response::build(StatusCode::OK)
-            .content_type("text/plain; charset=utf-8")
+    fn respond_to(self, _: &HttpRequest) -> HttpResponse {
+        HttpResponse::Ok()
+            .content_type(mime::TEXT_PLAIN_UTF_8)
             .body(self)
     }
 }
 
 impl<'a> Responder for &'a String {
-    fn respond_to(self, _: &HttpRequest) -> Response {
-        Response::build(StatusCode::OK)
-            .content_type("text/plain; charset=utf-8")
+    fn respond_to(self, _: &HttpRequest) -> HttpResponse {
+        HttpResponse::Ok()
+            .content_type(mime::TEXT_PLAIN_UTF_8)
             .body(self)
     }
 }
 
 impl Responder for Bytes {
-    fn respond_to(self, _: &HttpRequest) -> Response {
-        Response::build(StatusCode::OK)
-            .content_type("application/octet-stream")
+    fn respond_to(self, _: &HttpRequest) -> HttpResponse {
+        HttpResponse::Ok()
+            .content_type(mime::APPLICATION_OCTET_STREAM)
             .body(self)
     }
 }
 
 impl Responder for BytesMut {
-    fn respond_to(self, _: &HttpRequest) -> Response {
-        Response::build(StatusCode::OK)
-            .content_type("application/octet-stream")
+    fn respond_to(self, _: &HttpRequest) -> HttpResponse {
+        HttpResponse::Ok()
+            .content_type(mime::APPLICATION_OCTET_STREAM)
             .body(self)
     }
 }
@@ -231,7 +231,7 @@ impl<T: Responder> CustomResponder<T> {
 }
 
 impl<T: Responder> Responder for CustomResponder<T> {
-    fn respond_to(self, req: &HttpRequest) -> Response {
+    fn respond_to(self, req: &HttpRequest) -> HttpResponse {
         let mut res = self.responder.respond_to(req);
 
         if let Some(status) = self.status {
@@ -252,8 +252,8 @@ impl<T> Responder for InternalError<T>
 where
     T: std::fmt::Debug + std::fmt::Display + 'static,
 {
-    fn respond_to(self, _: &HttpRequest) -> Response {
-        Response::from_error(self.into())
+    fn respond_to(self, _: &HttpRequest) -> HttpResponse {
+        HttpResponse::from_error(self.into())
     }
 }
 

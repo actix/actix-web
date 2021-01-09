@@ -89,7 +89,7 @@ impl Codec {
 
     /// Set max frame size.
     ///
-    /// By default max size is set to 64kb.
+    /// By default max size is set to 64kB.
     pub fn max_size(mut self, size: usize) -> Self {
         self.max_size = size;
         self

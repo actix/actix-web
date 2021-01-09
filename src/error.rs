@@ -1,12 +1,11 @@
 //! Error and Result module
 
 pub use actix_http::error::*;
-use derive_more::{Display, From};
+use derive_more::{Display, Error, From};
 use serde_json::error::Error as JsonError;
 use url::ParseError as UrlParseError;
 
-use crate::http::StatusCode;
-use crate::HttpResponse;
+use crate::{http::StatusCode, HttpResponse};
 
 /// Errors which can occur when attempting to generate resource uri.
 #[derive(Debug, PartialEq, Display, From)]
@@ -28,33 +27,36 @@ impl std::error::Error for UrlGenerationError {}
 impl ResponseError for UrlGenerationError {}
 
 /// A set of errors that can occur during parsing urlencoded payloads
-#[derive(Debug, Display, From)]
+#[derive(Debug, Display, Error, From)]
 pub enum UrlencodedError {
-    /// Can not decode chunked transfer encoding
-    #[display(fmt = "Can not decode chunked transfer encoding")]
+    /// Can not decode chunked transfer encoding.
+    #[display(fmt = "Can not decode chunked transfer encoding.")]
     Chunked,
-    /// Payload size is bigger than allowed. (default: 256kB)
+
+    /// Payload size is larger than allowed. (default limit: 256kB).
     #[display(
-        fmt = "Urlencoded payload size is bigger ({} bytes) than allowed (default: {} bytes)",
+        fmt = "URL encoded payload is larger ({} bytes) than allowed (limit: {} bytes).",
         size,
         limit
     )]
     Overflow { size: usize, limit: usize },
-    /// Payload size is now known
-    #[display(fmt = "Payload size is now known")]
+
+    /// Payload size is now known.
+    #[display(fmt = "Payload size is now known.")]
     UnknownLength,
-    /// Content type error
-    #[display(fmt = "Content type error")]
+
+    /// Content type error.
+    #[display(fmt = "Content type error.")]
     ContentType,
-    /// Parse error
-    #[display(fmt = "Parse error")]
+
+    /// Parse error.
+    #[display(fmt = "Parse error.")]
     Parse,
-    /// Payload error
-    #[display(fmt = "Error that occur during reading payload: {}", _0)]
+
+    /// Payload error.
+    #[display(fmt = "Error that occur during reading payload: {}.", _0)]
     Payload(PayloadError),
 }
-
-impl std::error::Error for UrlencodedError {}
 
 /// Return `BadRequest` for `UrlencodedError`
 impl ResponseError for UrlencodedError {
@@ -115,15 +117,13 @@ impl ResponseError for PathError {
     }
 }
 
-/// A set of errors that can occur during parsing query strings
-#[derive(Debug, Display, From)]
+/// A set of errors that can occur during parsing query strings.
+#[derive(Debug, Display, Error, From)]
 pub enum QueryPayloadError {
-    /// Deserialize error
+    /// Query deserialize error.
     #[display(fmt = "Query deserialize error: {}", _0)]
     Deserialize(serde::de::value::Error),
 }
-
-impl std::error::Error for QueryPayloadError {}
 
 /// Return `BadRequest` for `QueryPayloadError`
 impl ResponseError for QueryPayloadError {

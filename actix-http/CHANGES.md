@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+* `Response::content_type` now takes an `impl IntoHeaderValue` to support `mime` types. [#1894]
+
+[#1894]: https://github.com/actix/actix-web/pull/1894
 
 
 ## 3.0.0-beta.1 - 2021-01-07
