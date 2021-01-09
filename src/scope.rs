@@ -1,18 +1,18 @@
 use std::cell::RefCell;
 use std::fmt;
 use std::future::Future;
-use std::pin::Pin;
 use std::rc::Rc;
-use std::task::{Context, Poll};
+use std::task::Poll;
 
-use actix_http::{Extensions, Response};
-use actix_router::{ResourceDef, ResourceInfo, Router};
+use actix_http::Extensions;
+use actix_router::{ResourceDef, Router};
 use actix_service::boxed::{self, BoxService, BoxServiceFactory};
 use actix_service::{
     apply, apply_fn_factory, IntoServiceFactory, Service, ServiceFactory,
     ServiceFactoryExt, Transform,
 };
 use futures_core::future::LocalBoxFuture;
+use futures_util::future::join_all;
 
 use crate::config::ServiceConfig;
 use crate::data::Data;
@@ -61,10 +61,10 @@ type HttpNewService = BoxServiceFactory<(), ServiceRequest, ServiceResponse, Err
 pub struct Scope<T = ScopeEndpoint> {
     endpoint: T,
     rdef: String,
-    data: Option<Extensions>,
+    app_data: Option<Extensions>,
     services: Vec<Box<dyn AppServiceFactory>>,
     guards: Vec<Box<dyn Guard>>,
-    default: Rc<RefCell<Option<Rc<HttpNewService>>>>,
+    default: Option<Rc<HttpNewService>>,
     external: Vec<ResourceDef>,
     factory_ref: Rc<RefCell<Option<ScopeFactory>>>,
 }
@@ -76,10 +76,10 @@ impl Scope {
         Scope {
             endpoint: ScopeEndpoint::new(fref.clone()),
             rdef: path.to_string(),
-            data: None,
+            app_data: None,
             guards: Vec::new(),
             services: Vec::new(),
-            default: Rc::new(RefCell::new(None)),
+            default: None,
             external: Vec::new(),
             factory_ref: fref,
         }
@@ -155,10 +155,10 @@ where
     ///
     /// Data of different types from parent contexts will still be accessible.
     pub fn app_data<U: 'static>(mut self, data: U) -> Self {
-        if self.data.is_none() {
-            self.data = Some(Extensions::new());
+        if self.app_data.is_none() {
+            self.app_data = Some(Extensions::new());
         }
-        self.data.as_mut().unwrap().insert(data);
+        self.app_data.as_mut().unwrap().insert(data);
         self
     }
 
@@ -201,15 +201,15 @@ where
         self.external.extend(cfg.external);
 
         if !cfg.data.is_empty() {
-            let mut data = self.data.unwrap_or_else(Extensions::new);
+            let mut data = self.app_data.unwrap_or_else(Extensions::new);
 
             for value in cfg.data.iter() {
                 value.create(&mut data);
             }
 
-            self.data = Some(data);
+            self.app_data = Some(data);
         }
-        self.data
+        self.app_data
             .get_or_insert_with(Extensions::new)
             .extend(cfg.extensions);
         self
@@ -295,11 +295,9 @@ where
         U::InitError: fmt::Debug,
     {
         // create and configure default resource
-        self.default = Rc::new(RefCell::new(Some(Rc::new(boxed::factory(
-            f.into_factory().map_init_err(|e| {
-                log::error!("Can not construct default service: {:?}", e)
-            }),
-        )))));
+        self.default = Some(Rc::new(boxed::factory(f.into_factory().map_init_err(
+            |e| log::error!("Can not construct default service: {:?}", e),
+        ))));
 
         self
     }
@@ -337,7 +335,7 @@ where
         Scope {
             endpoint: apply(mw, self.endpoint),
             rdef: self.rdef,
-            data: self.data,
+            app_data: self.app_data,
             guards: self.guards,
             services: self.services,
             default: self.default,
@@ -397,7 +395,7 @@ where
         Scope {
             endpoint: apply_fn_factory(self.endpoint, mw),
             rdef: self.rdef,
-            data: self.data,
+            app_data: self.app_data,
             guards: self.guards,
             services: self.services,
             default: self.default,
@@ -419,9 +417,7 @@ where
 {
     fn register(mut self, config: &mut AppService) {
         // update default resource if needed
-        if self.default.borrow().is_none() {
-            *self.default.borrow_mut() = Some(config.default_service());
-        }
+        let default = self.default.unwrap_or_else(|| config.default_service());
 
         // register nested services
         let mut cfg = config.clone_config();
@@ -437,14 +433,14 @@ where
         }
 
         // custom app data storage
-        if let Some(ref mut ext) = self.data {
+        if let Some(ref mut ext) = self.app_data {
             config.set_service_data(ext);
         }
 
         // complete scope pipeline creation
         *self.factory_ref.borrow_mut() = Some(ScopeFactory {
-            data: self.data.take().map(Rc::new),
-            default: self.default.clone(),
+            app_data: self.app_data.take().map(Rc::new),
+            default,
             services: cfg
                 .into_services()
                 .1
@@ -476,129 +472,65 @@ where
 }
 
 pub struct ScopeFactory {
-    data: Option<Rc<Extensions>>,
+    app_data: Option<Rc<Extensions>>,
     services: Rc<[(ResourceDef, HttpNewService, RefCell<Option<Guards>>)]>,
-    default: Rc<RefCell<Option<Rc<HttpNewService>>>>,
+    default: Rc<HttpNewService>,
 }
 
 impl ServiceFactory<ServiceRequest> for ScopeFactory {
-    type Config = ();
     type Response = ServiceResponse;
     type Error = Error;
-    type InitError = ();
+    type Config = ();
     type Service = ScopeService;
-    type Future = ScopeFactoryResponse;
+    type InitError = ();
+    type Future = LocalBoxFuture<'static, Result<Self::Service, Self::InitError>>;
 
     fn new_service(&self, _: ()) -> Self::Future {
-        let default_fut = if let Some(ref default) = *self.default.borrow() {
-            Some(default.new_service(()))
-        } else {
-            None
-        };
+        // construct default service factory future
+        let default_fut = self.default.new_service(());
 
-        ScopeFactoryResponse {
-            fut: self
-                .services
-                .iter()
-                .map(|(path, service, guards)| {
-                    CreateScopeServiceItem::Future(
-                        Some(path.clone()),
-                        guards.borrow_mut().take(),
-                        service.new_service(()),
-                    )
-                })
-                .collect(),
-            default: None,
-            data: self.data.clone(),
-            default_fut,
-        }
-    }
-}
+        // construct all services factory future with it's resource def and guards.
+        let factory_fut =
+            join_all(self.services.iter().map(|(path, factory, guards)| {
+                let path = path.clone();
+                let guards = guards.borrow_mut().take();
+                let factory_fut = factory.new_service(());
+                async move {
+                    let service = factory_fut.await?;
+                    Ok((path, guards, service))
+                }
+            }));
 
-/// Create scope service
-#[doc(hidden)]
-#[pin_project::pin_project]
-pub struct ScopeFactoryResponse {
-    fut: Vec<CreateScopeServiceItem>,
-    data: Option<Rc<Extensions>>,
-    default: Option<HttpService>,
-    default_fut: Option<LocalBoxFuture<'static, Result<HttpService, ()>>>,
-}
+        let app_data = self.app_data.clone();
 
-type HttpServiceFut = LocalBoxFuture<'static, Result<HttpService, ()>>;
+        Box::pin(async move {
+            let default = default_fut.await?;
 
-enum CreateScopeServiceItem {
-    Future(Option<ResourceDef>, Option<Guards>, HttpServiceFut),
-    Service(ResourceDef, Option<Guards>, HttpService),
-}
-
-impl Future for ScopeFactoryResponse {
-    type Output = Result<ScopeService, ()>;
-
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let mut done = true;
-
-        if let Some(ref mut fut) = self.default_fut {
-            match Pin::new(fut).poll(cx)? {
-                Poll::Ready(default) => self.default = Some(default),
-                Poll::Pending => done = false,
-            }
-        }
-
-        // poll http services
-        for item in &mut self.fut {
-            let res = match item {
-                CreateScopeServiceItem::Future(
-                    ref mut path,
-                    ref mut guards,
-                    ref mut fut,
-                ) => match Pin::new(fut).poll(cx)? {
-                    Poll::Ready(service) => {
-                        Some((path.take().unwrap(), guards.take(), service))
-                    }
-                    Poll::Pending => {
-                        done = false;
-                        None
-                    }
-                },
-                CreateScopeServiceItem::Service(_, _, _) => continue,
-            };
-
-            if let Some((path, guards, service)) = res {
-                *item = CreateScopeServiceItem::Service(path, guards, service);
-            }
-        }
-
-        if done {
-            let router = self
-                .fut
+            // build router from the factory future result.
+            let router = factory_fut
+                .await
+                .into_iter()
+                .collect::<Result<Vec<_>, _>>()?
                 .drain(..)
-                .fold(Router::build(), |mut router, item| {
-                    match item {
-                        CreateScopeServiceItem::Service(path, guards, service) => {
-                            router.rdef(path, service).2 = guards;
-                        }
-                        CreateScopeServiceItem::Future(_, _, _) => unreachable!(),
-                    }
+                .fold(Router::build(), |mut router, (path, guards, service)| {
+                    router.rdef(path, service).2 = guards;
                     router
-                });
-            Poll::Ready(Ok(ScopeService {
-                data: self.data.clone(),
-                router: router.finish(),
-                default: self.default.take(),
-                _ready: None,
-            }))
-        } else {
-            Poll::Pending
-        }
+                })
+                .finish();
+
+            Ok(ScopeService {
+                app_data,
+                router,
+                default,
+            })
+        })
     }
 }
 
 pub struct ScopeService {
-    data: Option<Rc<Extensions>>,
+    app_data: Option<Rc<Extensions>>,
     router: Router<HttpService, Vec<Box<dyn Guard>>>,
-    default: Option<HttpService>,
-    _ready: Option<(ServiceRequest, ResourceInfo)>,
+    default: HttpService,
 }
 
 impl Service<ServiceRequest> for ScopeService {
@@ -606,9 +538,7 @@ impl Service<ServiceRequest> for ScopeService {
     type Error = Error;
     type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
 
-    fn poll_ready(&mut self, _: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        Poll::Ready(Ok(()))
-    }
+    actix_service::always_ready!();
 
     fn call(&mut self, mut req: ServiceRequest) -> Self::Future {
         let res = self.router.recognize_mut_checked(&mut req, |req, guards| {
@@ -622,21 +552,14 @@ impl Service<ServiceRequest> for ScopeService {
             true
         });
 
+        if let Some(ref app_data) = self.app_data {
+            req.add_data_container(app_data.clone());
+        }
+
         if let Some((srv, _info)) = res {
-            if let Some(ref data) = self.data {
-                req.add_data_container(data.clone());
-            }
             srv.call(req)
-        } else if let Some(ref mut default) = self.default {
-            if let Some(ref data) = self.data {
-                req.add_data_container(data.clone());
-            }
-            default.call(req)
         } else {
-            let req = req.into_parts().0;
-            Box::pin(async {
-                Ok(ServiceResponse::new(req, Response::NotFound().finish()))
-            })
+            self.default.call(req)
         }
     }
 }
@@ -658,7 +581,7 @@ impl ServiceFactory<ServiceRequest> for ScopeEndpoint {
     type Config = ();
     type Service = ScopeService;
     type InitError = ();
-    type Future = ScopeFactoryResponse;
+    type Future = LocalBoxFuture<'static, Result<Self::Service, Self::InitError>>;
 
     fn new_service(&self, _: ()) -> Self::Future {
         self.factory.borrow_mut().as_mut().unwrap().new_service(())

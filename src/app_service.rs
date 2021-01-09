@@ -62,7 +62,8 @@ where
     type Future = LocalBoxFuture<'static, Result<Self::Service, Self::InitError>>;
 
     fn new_service(&self, config: AppConfig) -> Self::Future {
-        // update resource default service
+        // set AppService's default service to 404 NotFound
+        // if no user defined default service exists.
         let default = self.default.clone().unwrap_or_else(|| {
             Rc::new(boxed::factory(fn_service(|req: ServiceRequest| async {
                 Ok(req.into_response(Response::NotFound().finish()))
