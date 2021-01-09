@@ -7,7 +7,6 @@ use std::string::FromUtf8Error;
 use std::{fmt, io, result};
 
 use actix_codec::{Decoder, Encoder};
-pub use actix_threadpool::BlockingError;
 use actix_utils::dispatcher::DispatcherError as FramedDispatcherError;
 use actix_utils::timeout::TimeoutError;
 use bytes::BytesMut;
@@ -186,9 +185,6 @@ impl ResponseError for DeError {
 /// `InternalServerError` for `Canceled`
 impl ResponseError for Canceled {}
 
-/// `InternalServerError` for `BlockingError`
-impl<E: fmt::Debug> ResponseError for BlockingError<E> {}
-
 /// Return `BAD_REQUEST` for `Utf8Error`
 impl ResponseError for Utf8Error {
     fn status_code(&self) -> StatusCode {
@@ -299,6 +295,20 @@ impl From<httparse::Error> for ParseError {
         }
     }
 }
+
+/// A set of errors that can occur running blocking tasks in thread pool.
+#[derive(Debug, Display)]
+pub enum BlockingError<E: fmt::Debug> {
+    #[display(fmt = "{:?}", _0)]
+    Error(E),
+    #[display(fmt = "Thread pool is gone")]
+    Canceled,
+}
+
+impl<E: fmt::Debug> std::error::Error for BlockingError<E> {}
+
+/// `InternalServerError` for `BlockingError`
+impl<E: fmt::Debug> ResponseError for BlockingError<E> {}
 
 #[derive(Display, Debug)]
 /// A set of errors that can occur during payload parsing
