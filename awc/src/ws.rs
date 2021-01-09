@@ -4,7 +4,7 @@
 //!
 //! # Example
 //!
-//! ```
+//! ```no_run
 //! use awc::{Client, ws};
 //! use futures_util::{sink::SinkExt, stream::StreamExt};
 //!
