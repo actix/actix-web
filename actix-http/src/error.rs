@@ -1022,22 +1022,22 @@ mod tests {
     fn test_payload_error() {
         let err: PayloadError =
             io::Error::new(io::ErrorKind::Other, "ParseError").into();
-        assert!(format!("{}", err).contains("ParseError"));
+        assert!(err.to_string().contains("ParseError"));
 
         let err = PayloadError::Incomplete(None);
         assert_eq!(
-            format!("{}", err),
-            "A payload reached EOF, but is not complete. With error: None"
+            err.to_string(),
+            "A payload reached EOF, but is not complete. Inner error: None"
         );
     }
 
     macro_rules! from {
         ($from:expr => $error:pat) => {
             match ParseError::from($from) {
-                e @ $error => {
-                    assert!(format!("{}", e).len() >= 5);
+                err @ $error => {
+                    assert!(err.to_string().len() >= 5);
                 }
-                e => unreachable!("{:?}", e),
+                err => unreachable!("{:?}", err),
             }
         };
     }
@@ -1080,7 +1080,7 @@ mod tests {
         let err = PayloadError::Overflow;
         let resp_err: &dyn ResponseError = &err;
         let err = resp_err.downcast_ref::<PayloadError>().unwrap();
-        assert_eq!(err.to_string(), "A payload reached size limit.");
+        assert_eq!(err.to_string(), "Payload reached size limit.");
         let not_err = resp_err.downcast_ref::<ContentTypeError>();
         assert!(not_err.is_none());
     }
