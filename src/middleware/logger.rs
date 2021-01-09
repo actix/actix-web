@@ -15,7 +15,7 @@ use std::{
 use actix_service::{Service, Transform};
 use bytes::Bytes;
 use futures_util::future::{ok, Ready};
-use log::debug;
+use log::{debug, warn};
 use regex::{Regex, RegexSet};
 use time::OffsetDateTime;
 
@@ -188,9 +188,8 @@ where
         for unit in &self.0.format.0 {
             // missing request replacement function diagnostic
             if let FormatText::CustomRequest(label, None) = unit {
-                debug!(
-                    "No custom request replacement function was registered for label {} in\
-                    logger format.",
+                warn!(
+                    "No custom request replacement function was registered for label \"{}\".",
                     label
                 );
             }

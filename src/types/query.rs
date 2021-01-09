@@ -1,30 +1,27 @@
-//! Query extractor
+//! For query parameter extractor documentation, see [`Query`].
 
-use std::sync::Arc;
-use std::{fmt, ops};
+use std::{fmt, ops, sync::Arc};
 
-use actix_http::error::Error;
 use futures_util::future::{err, ok, Ready};
 use serde::de;
 
-use crate::dev::Payload;
-use crate::error::QueryPayloadError;
-use crate::extract::FromRequest;
-use crate::request::HttpRequest;
+use crate::{dev::Payload, error::QueryPayloadError, Error, FromRequest, HttpRequest};
 
 /// Extract typed information from the request's query.
 ///
-/// **Note**: A query string consists of unordered `key=value` pairs, therefore it cannot
-/// be decoded into any type which depends upon data ordering e.g. tuples or tuple-structs.
-/// Attempts to do so will *fail at runtime*.
+/// To extract typed data from the URL query string, the inner type `T` must implement the
+/// [`serde::Deserialize`] trait.
 ///
-/// [**QueryConfig**](QueryConfig) allows to configure extraction process.
+/// Use [`QueryConfig`] to configure extraction process.
 ///
-/// ## Example
+/// # Panics
+/// A query string consists of unordered `key=value` pairs, therefore it cannot be decoded into any
+/// type which depends upon data ordering (eg. tuples). Trying to do so will result in a panic.
 ///
-/// ```rust
-/// use actix_web::{web, App};
-/// use serde_derive::Deserialize;
+/// # Usage
+/// ```
+/// use actix_web::{get, web};
+/// use serde::Deserialize;
 ///
 /// #[derive(Debug, Deserialize)]
 /// pub enum ResponseType {
@@ -38,35 +35,40 @@ use crate::request::HttpRequest;
 ///    response_type: ResponseType,
 /// }
 ///
-/// // Use `Query` extractor for query information (and destructure it within the signature).
-/// // This handler gets called only if the request's query string contains `id` and `response_type` fields.
-/// // The correct request for this handler would be `/index.html?id=64&response_type=Code"`.
-/// async fn index(web::Query(info): web::Query<AuthRequest>) -> String {
-///     format!("Authorization request for client with id={} and type={:?}!", info.id, info.response_type)
-/// }
-///
-/// fn main() {
-///     let app = App::new().service(
-///        web::resource("/index.html").route(web::get().to(index))); // <- use `Query` extractor
+/// // Deserialize `AuthRequest` struct from query string.
+/// // This handler gets called only if the request's query parameters contain both fields.
+/// // A valid request path for this handler would be `/?id=64&response_type=Code"`.
+/// #[get("/")]
+/// async fn index(info: web::Query<AuthRequest>) -> String {
+///     format!("Authorization request for id={} and type={:?}!", info.id, info.response_type)
 /// }
 /// ```
-#[derive(PartialEq, Eq, PartialOrd, Ord)]
-pub struct Query<T>(pub T);
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Query<T>(T);
 
 impl<T> Query<T> {
-    /// Deconstruct to a inner value
+    /// Unwrap into inner `T` value.
     pub fn into_inner(self) -> T {
         self.0
     }
 
-    /// Get query parameters from the path
+    /// Deserialize `T` from a URL encoded query parameter string.
+    ///
+    /// ```
+    /// # use std::collections::HashMap;
+    /// # use actix_web::web::Query;
+    /// let numbers = Query::<HashMap<String, u32>>::from_query("one=1&two=2").unwrap();
+    /// assert_eq!(numbers.get("one"), Some(&1));
+    /// assert_eq!(numbers.get("two"), Some(&2));
+    /// assert!(numbers.get("three").is_none());
+    /// ```
     pub fn from_query(query_str: &str) -> Result<Self, QueryPayloadError>
     where
         T: de::DeserializeOwned,
     {
         serde_urlencoded::from_str::<T>(query_str)
-            .map(|val| Ok(Query(val)))
-            .unwrap_or_else(move |e| Err(QueryPayloadError::Deserialize(e)))
+            .map(Self)
+            .map_err(QueryPayloadError::Deserialize)
     }
 }
 
@@ -96,39 +98,7 @@ impl<T: fmt::Display> fmt::Display for Query<T> {
     }
 }
 
-/// Extract typed information from the request's query.
-///
-/// ## Example
-///
-/// ```rust
-/// use actix_web::{web, App};
-/// use serde_derive::Deserialize;
-///
-/// #[derive(Debug, Deserialize)]
-/// pub enum ResponseType {
-///    Token,
-///    Code
-/// }
-///
-/// #[derive(Deserialize)]
-/// pub struct AuthRequest {
-///    id: u64,
-///    response_type: ResponseType,
-/// }
-///
-/// // Use `Query` extractor for query information.
-/// // This handler get called only if request's query contains `id` and `response_type` fields.
-/// // The correct request for this handler would be `/index.html?id=64&response_type=Code"`
-/// async fn index(info: web::Query<AuthRequest>) -> String {
-///     format!("Authorization request for client with id={} and type={:?}!", info.id, info.response_type)
-/// }
-///
-/// fn main() {
-///     let app = App::new().service(
-///        web::resource("/index.html")
-///            .route(web::get().to(index))); // <- use `Query` extractor
-/// }
-/// ```
+/// See [here](#usage) for example of usage as an extractor.
 impl<T> FromRequest for Query<T>
 where
     T: de::DeserializeOwned,
@@ -141,7 +111,7 @@ where
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
         let error_handler = req
             .app_data::<Self::Config>()
-            .map(|c| c.ehandler.clone())
+            .map(|c| c.err_handler.clone())
             .unwrap_or(None);
 
         serde_urlencoded::from_str::<T>(req.query_string())
@@ -166,13 +136,12 @@ where
     }
 }
 
-/// Query extractor configuration
+/// Query extractor configuration.
 ///
-/// ## Example
-///
-/// ```rust
-/// use actix_web::{error, web, App, FromRequest, HttpResponse};
-/// use serde_derive::Deserialize;
+/// # Usage
+/// ```
+/// use actix_web::{error, get, web, App, FromRequest, HttpResponse};
+/// use serde::Deserialize;
 ///
 /// #[derive(Deserialize)]
 /// struct Info {
@@ -180,27 +149,25 @@ where
 /// }
 ///
 /// /// deserialize `Info` from request's querystring
+/// #[get("/")]
 /// async fn index(info: web::Query<Info>) -> String {
 ///     format!("Welcome {}!", info.username)
 /// }
 ///
-/// fn main() {
-///     let app = App::new().service(
-///         web::resource("/index.html").app_data(
-///             // change query extractor configuration
-///             web::QueryConfig::default()
-///                 .error_handler(|err, req| {  // <- create custom error response
-///                     error::InternalError::from_response(
-///                         err, HttpResponse::Conflict().finish()).into()
-///                 })
-///             )
-///             .route(web::post().to(index))
-///     );
-/// }
+/// // custom `Query` extractor configuration
+/// let query_cfg = web::QueryConfig::default()
+///     // use custom error handler
+///     .error_handler(|err, req| {
+///         error::InternalError::from_response(err, HttpResponse::Conflict().finish()).into()
+///     });
+///
+/// App::new()
+///     .app_data(query_cfg)
+///     .service(index);
 /// ```
 #[derive(Clone)]
 pub struct QueryConfig {
-    ehandler:
+    err_handler:
         Option<Arc<dyn Fn(QueryPayloadError, &HttpRequest) -> Error + Send + Sync>>,
 }
 
@@ -210,14 +177,14 @@ impl QueryConfig {
     where
         F: Fn(QueryPayloadError, &HttpRequest) -> Error + Send + Sync + 'static,
     {
-        self.ehandler = Some(Arc::new(f));
+        self.err_handler = Some(Arc::new(f));
         self
     }
 }
 
 impl Default for QueryConfig {
     fn default() -> Self {
-        QueryConfig { ehandler: None }
+        QueryConfig { err_handler: None }
     }
 }
 
@@ -225,7 +192,7 @@ impl Default for QueryConfig {
 mod tests {
     use actix_http::http::StatusCode;
     use derive_more::Display;
-    use serde_derive::Deserialize;
+    use serde::Deserialize;
 
     use super::*;
     use crate::error::InternalError;
@@ -269,6 +236,17 @@ mod tests {
         s.id = "test1".to_string();
         let s = s.into_inner();
         assert_eq!(s.id, "test1");
+    }
+
+    #[actix_rt::test]
+    #[should_panic]
+    async fn test_tuple_panic() {
+        let req = TestRequest::with_uri("/?one=1&two=2").to_srv_request();
+        let (req, mut pl) = req.into_parts();
+
+        Query::<(u32, u32)>::from_request(&req, &mut pl)
+            .await
+            .unwrap();
     }
 
     #[actix_rt::test]

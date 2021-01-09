@@ -184,7 +184,7 @@ where
         }
     }
 
-    /// Change max size of payload. By default max size is 256Kb
+    /// Change max size of payload. By default max size is 256kB
     pub fn limit(mut self, limit: usize) -> Self {
         if let Some(ref mut fut) = self.fut {
             fut.limit = limit;
@@ -276,7 +276,7 @@ where
         }
     }
 
-    /// Change max size of payload. By default max size is 64Kb
+    /// Change max size of payload. By default max size is 64kB
     pub fn limit(mut self, limit: usize) -> Self {
         if let Some(ref mut fut) = self.fut {
             fut.limit = limit;
