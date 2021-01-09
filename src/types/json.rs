@@ -1,45 +1,44 @@
-//! Json extractor/responder
+//! For JSON helper documentation, see [`Json`].
 
-use std::future::Future;
-use std::marker::PhantomData;
-use std::pin::Pin;
-use std::sync::Arc;
-use std::task::{Context, Poll};
-use std::{fmt, ops};
+use std::{
+    fmt,
+    future::Future,
+    marker::PhantomData,
+    ops,
+    pin::Pin,
+    sync::Arc,
+    task::{Context, Poll},
+};
 
 use bytes::BytesMut;
-use futures_util::ready;
-use futures_util::stream::Stream;
-use serde::de::DeserializeOwned;
-use serde::Serialize;
+use futures_util::{ready, stream::Stream};
+use serde::{de::DeserializeOwned, Serialize};
 
-use actix_http::http::{header::CONTENT_LENGTH, StatusCode};
-use actix_http::{HttpMessage, Payload, Response};
+use actix_http::Payload;
 
 #[cfg(feature = "compress")]
 use crate::dev::Decompress;
-use crate::error::{Error, JsonPayloadError};
-use crate::extract::FromRequest;
-use crate::request::HttpRequest;
-use crate::{responder::Responder, web};
+use crate::{
+    error::{Error, JsonPayloadError},
+    extract::FromRequest,
+    http::header::CONTENT_LENGTH,
+    request::HttpRequest,
+    web, HttpMessage, HttpResponse, Responder,
+};
 
-/// Json helper
+/// JSON extractor and responder.
 ///
-/// Json can be used for two different purpose. First is for json response
-/// generation and second is for extracting typed information from request's
-/// payload.
+/// `Json` has two uses: JSON responses, and extracting typed data from JSON request payloads.
 ///
-/// To extract typed information from request's body, the type `T` must
-/// implement the `Deserialize` trait from *serde*.
+/// # Extractor
+/// To extract typed data from a request body, the inner type `T` must implement the
+/// [`serde::Deserialize`] trait.
 ///
-/// [**JsonConfig**](JsonConfig) allows to configure extraction
-/// process.
+/// Use [`JsonConfig`] to configure extraction process.
 ///
-/// ## Example
-///
-/// ```rust
-/// use actix_web::{web, App};
-/// use serde_derive::Deserialize;
+/// ```
+/// use actix_web::{post, web, App};
+/// use serde::Deserialize;
 ///
 /// #[derive(Deserialize)]
 /// struct Info {
@@ -47,43 +46,37 @@ use crate::{responder::Responder, web};
 /// }
 ///
 /// /// deserialize `Info` from request's body
+/// #[post("/")]
 /// async fn index(info: web::Json<Info>) -> String {
 ///     format!("Welcome {}!", info.username)
 /// }
-///
-/// fn main() {
-///     let app = App::new().service(
-///        web::resource("/index.html").route(
-///            web::post().to(index))
-///     );
-/// }
 /// ```
 ///
-/// The `Json` type allows you to respond with well-formed JSON data: simply
-/// return a value of type Json<T> where T is the type of a structure
-/// to serialize into *JSON*. The type `T` must implement the `Serialize`
-/// trait from *serde*.
+/// # Responder
+/// The `Json` type  JSON formatted responses. A handler may return a value of type
+/// `Json<T>` where `T` is the type of a structure to serialize into JSON. The type `T` must
+/// implement [`serde::Serialize`].
 ///
-/// ```rust
-/// use actix_web::*;
-/// use serde_derive::Serialize;
+/// ```
+/// use actix_web::{post, web, HttpRequest};
+/// use serde::Serialize;
 ///
 /// #[derive(Serialize)]
-/// struct MyObj {
+/// struct Info {
 ///     name: String,
 /// }
 ///
-/// fn index(req: HttpRequest) -> Result<web::Json<MyObj>> {
-///     Ok(web::Json(MyObj {
-///         name: req.match_info().get("name").unwrap().to_string(),
-///     }))
+/// #[post("/{name}")]
+/// async fn index(req: HttpRequest) -> web::Json<Info> {
+///     web::Json(Info {
+///         name: req.match_info().get("name").unwrap().to_owned(),
+///     })
 /// }
-/// # fn main() {}
 /// ```
 pub struct Json<T>(pub T);
 
 impl<T> Json<T> {
-    /// Deconstruct to an inner value
+    /// Unwrap into inner `T` value.
     pub fn into_inner(self) -> T {
         self.0
     }
@@ -121,49 +114,21 @@ where
     }
 }
 
+/// Creates response with OK status code, correct content type header, and serialized JSON payload.
+///
+/// If serialization failed
 impl<T: Serialize> Responder for Json<T> {
-    fn respond_to(self, _: &HttpRequest) -> Response {
+    fn respond_to(self, _: &HttpRequest) -> HttpResponse {
         match serde_json::to_string(&self.0) {
-            Ok(body) => Response::build(StatusCode::OK)
+            Ok(body) => HttpResponse::Ok()
                 .content_type("application/json")
                 .body(body),
-            Err(e) => Response::from_error(e.into()),
+            Err(err) => HttpResponse::from_error(err.into()),
         }
     }
 }
 
-/// Json extractor. Allow to extract typed information from request's
-/// payload.
-///
-/// To extract typed information from request's body, the type `T` must
-/// implement the `Deserialize` trait from *serde*.
-///
-/// [**JsonConfig**](JsonConfig) allows to configure extraction
-/// process.
-///
-/// ## Example
-///
-/// ```rust
-/// use actix_web::{web, App};
-/// use serde_derive::Deserialize;
-///
-/// #[derive(Deserialize)]
-/// struct Info {
-///     username: String,
-/// }
-///
-/// /// deserialize `Info` from request's body
-/// async fn index(info: web::Json<Info>) -> String {
-///     format!("Welcome {}!", info.username)
-/// }
-///
-/// fn main() {
-///     let app = App::new().service(
-///         web::resource("/index.html").route(
-///            web::post().to(index))
-///     );
-/// }
-/// ```
+/// See [here](#extractor) for example of usage as an extractor.
 impl<T> FromRequest for Json<T>
 where
     T: DeserializeOwned + 'static,
@@ -209,7 +174,7 @@ where
         let res = ready!(Pin::new(&mut this.fut).poll(cx));
 
         let res = match res {
-            Err(e) => {
+            Err(err) => {
                 let req = this.req.take().unwrap();
                 log::debug!(
                     "Failed to deserialize Json from payload. \
@@ -217,10 +182,10 @@ where
                     req.path()
                 );
 
-                if let Some(err) = this.err_handler.as_ref() {
-                    Err((*err)(e, &req))
+                if let Some(err_handler) = this.err_handler.as_ref() {
+                    Err((*err_handler)(err, &req))
                 } else {
-                    Err(e.into())
+                    Err(err.into())
                 }
             }
             Ok(data) => Ok(Json(data)),
@@ -230,44 +195,39 @@ where
     }
 }
 
-/// Json extractor configuration
+/// `Json` extractor configuration.
 ///
-/// # Example
-///
-/// ```rust
-/// use actix_web::{error, web, App, FromRequest, HttpResponse};
-/// use serde_derive::Deserialize;
+/// # Usage
+/// ```
+/// use actix_web::{error, post, web, App, FromRequest, HttpResponse};
+/// use serde::Deserialize;
 ///
 /// #[derive(Deserialize)]
 /// struct Info {
-///     username: String,
+///     name: String,
 /// }
 ///
-/// /// deserialize `Info` from request's body, max payload size is 4kb
+/// // `Json` extraction is bound by custom `JsonConfig` applied to App.
+/// #[post("/")]
 /// async fn index(info: web::Json<Info>) -> String {
-///     format!("Welcome {}!", info.username)
+///     format!("Welcome {}!", info.name)
 /// }
 ///
-/// fn main() {
-///     let app = App::new().service(
-///         web::resource("/index.html")
-///             .app_data(
-///                 // Json extractor configuration for this resource.
-///                 web::JsonConfig::default()
-///                     .limit(4096) // Limit request payload size
-///                     .content_type(|mime| {  // <- accept text/plain content type
-///                         mime.type_() == mime::TEXT && mime.subtype() == mime::PLAIN
-///                     })
-///                     .error_handler(|err, req| {  // <- create custom error response
-///                        error::InternalError::from_response(
-///                            err, HttpResponse::Conflict().finish()).into()
-///                     })
-///             )
-///             .route(web::post().to(index))
-///     );
-/// }
+/// // custom `Json` extractor configuration
+/// let json_cfg = web::JsonConfig::default()
+///     // limit request payload size
+///     .limit(4096)
+///     // only accept text/plain content type
+///     .content_type(|mime| mime == mime::TEXT_PLAIN)
+///     // use custom error handler
+///     .error_handler(|err, req| {
+///         error::InternalError::from_response(err, HttpResponse::Conflict().finish()).into()
+///     });
+///
+/// App::new()
+///     .app_data(json_cfg)
+///     .service(index);
 /// ```
-///
 #[derive(Clone)]
 pub struct JsonConfig {
     limit: usize,
@@ -276,13 +236,13 @@ pub struct JsonConfig {
 }
 
 impl JsonConfig {
-    /// Change max size of payload. By default max size is 32Kb
+    /// Set maximum accepted payload size. By default this limit is 32kB.
     pub fn limit(mut self, limit: usize) -> Self {
         self.limit = limit;
         self
     }
 
-    /// Set custom error handler
+    /// Set custom error handler.
     pub fn error_handler<F>(mut self, f: F) -> Self
     where
         F: Fn(JsonPayloadError, &HttpRequest) -> Error + Send + Sync + 'static,
@@ -291,7 +251,7 @@ impl JsonConfig {
         self
     }
 
-    /// Set predicate for allowed content types
+    /// Set predicate for allowed content types.
     pub fn content_type<F>(mut self, predicate: F) -> Self
     where
         F: Fn(mime::Mime) -> bool + Send + Sync + 'static,
@@ -322,15 +282,14 @@ impl Default for JsonConfig {
     }
 }
 
-/// Request's payload json parser, it resolves to a deserialized `T` value.
-/// This future could be used with `ServiceRequest` and `ServiceFromRequest`.
+/// Future that resolves to some `T` when parsed from a JSON payload.
 ///
-/// Returns error:
+/// Form can be deserialized from any type `T` that implements [`serde::Deserialize`].
 ///
-/// * content type is not `application/json`
-///   (unless specified in [`JsonConfig`])
-/// * content length is greater than 256k
-pub enum JsonBody<U> {
+/// Returns error if:
+/// - content type is not `application/json`
+/// - content length is greater than [limit](JsonBody::limit())
+pub enum JsonBody<T> {
     Error(Option<JsonPayloadError>),
     Body {
         limit: usize,
@@ -340,17 +299,17 @@ pub enum JsonBody<U> {
         #[cfg(not(feature = "compress"))]
         payload: Payload,
         buf: BytesMut,
-        _res: PhantomData<U>,
+        _res: PhantomData<T>,
     },
 }
 
-impl<U> Unpin for JsonBody<U> {}
+impl<T> Unpin for JsonBody<T> {}
 
-impl<U> JsonBody<U>
+impl<T> JsonBody<T>
 where
-    U: DeserializeOwned + 'static,
+    T: DeserializeOwned + 'static,
 {
-    /// Create `JsonBody` for request.
+    /// Create a new future to decode a JSON request payload.
     #[allow(clippy::borrow_interior_mutable_const)]
     pub fn new(
         req: &HttpRequest,
@@ -394,7 +353,7 @@ where
         }
     }
 
-    /// Change max size of payload. By default max size is 256Kb
+    /// Set maximum accepted payload size. The default limit is 256kB.
     pub fn limit(self, limit: usize) -> Self {
         match self {
             JsonBody::Body {
@@ -422,11 +381,11 @@ where
     }
 }
 
-impl<U> Future for JsonBody<U>
+impl<T> Future for JsonBody<T>
 where
-    U: DeserializeOwned + 'static,
+    T: DeserializeOwned + 'static,
 {
-    type Output = Result<U, JsonPayloadError>;
+    type Output = Result<T, JsonPayloadError>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.get_mut();
@@ -449,7 +408,7 @@ where
                         }
                     }
                     None => {
-                        let json = serde_json::from_slice::<U>(&buf)?;
+                        let json = serde_json::from_slice::<T>(&buf)?;
                         return Poll::Ready(Ok(json));
                     }
                 }
@@ -462,13 +421,17 @@ where
 #[cfg(test)]
 mod tests {
     use bytes::Bytes;
-    use serde_derive::{Deserialize, Serialize};
+    use serde::{Deserialize, Serialize};
 
     use super::*;
-    use crate::error::InternalError;
-    use crate::http::header::{self, HeaderValue, CONTENT_LENGTH, CONTENT_TYPE};
-    use crate::test::{load_stream, TestRequest};
-    use crate::HttpResponse;
+    use crate::{
+        error::InternalError,
+        http::{
+            header::{self, HeaderValue, CONTENT_LENGTH, CONTENT_TYPE},
+            StatusCode,
+        },
+        test::{load_stream, TestRequest},
+    };
 
     #[derive(Serialize, Deserialize, PartialEq, Debug)]
     struct MyObject {
@@ -526,7 +489,7 @@ mod tests {
             .to_http_parts();
 
         let s = Json::<MyObject>::from_request(&req, &mut pl).await;
-        let mut resp = Response::from_error(s.err().unwrap());
+        let mut resp = HttpResponse::from_error(s.err().unwrap());
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 
         let body = load_stream(resp.take_body()).await.unwrap();

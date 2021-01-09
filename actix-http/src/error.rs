@@ -100,10 +100,6 @@ impl fmt::Debug for Error {
 }
 
 impl std::error::Error for Error {
-    fn cause(&self) -> Option<&dyn std::error::Error> {
-        None
-    }
-
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         None
     }
@@ -309,28 +305,45 @@ impl From<httparse::Error> for ParseError {
 pub enum PayloadError {
     /// A payload reached EOF, but is not complete.
     #[display(
-        fmt = "A payload reached EOF, but is not complete. With error: {:?}",
+        fmt = "A payload reached EOF, but is not complete. Inner error: {:?}",
         _0
     )]
     Incomplete(Option<io::Error>),
-    /// Content encoding stream corruption
+
+    /// Content encoding stream corruption.
     #[display(fmt = "Can not decode content-encoding.")]
     EncodingCorrupted,
-    /// A payload reached size limit.
-    #[display(fmt = "A payload reached size limit.")]
+
+    /// Payload reached size limit.
+    #[display(fmt = "Payload reached size limit.")]
     Overflow,
-    /// A payload length is unknown.
-    #[display(fmt = "A payload length is unknown.")]
+
+    /// Payload length is unknown.
+    #[display(fmt = "Payload length is unknown.")]
     UnknownLength,
-    /// Http2 payload error
+
+    /// HTTP/2 payload error.
     #[display(fmt = "{}", _0)]
     Http2Payload(h2::Error),
-    /// Io error
+
+    /// Generic I/O error.
     #[display(fmt = "{}", _0)]
     Io(io::Error),
 }
 
-impl std::error::Error for PayloadError {}
+impl std::error::Error for PayloadError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            PayloadError::Incomplete(None) => None,
+            PayloadError::Incomplete(Some(err)) => Some(err as &dyn std::error::Error),
+            PayloadError::EncodingCorrupted => None,
+            PayloadError::Overflow => None,
+            PayloadError::UnknownLength => None,
+            PayloadError::Http2Payload(err) => Some(err as &dyn std::error::Error),
+            PayloadError::Io(err) => Some(err as &dyn std::error::Error),
+        }
+    }
+}
 
 impl From<h2::Error> for PayloadError {
     fn from(err: h2::Error) -> Self {

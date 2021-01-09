@@ -90,7 +90,7 @@ mod scope;
 mod server;
 mod service;
 pub mod test;
-mod types;
+pub(crate) mod types;
 pub mod web;
 
 pub use actix_http::Response as HttpResponse;
@@ -106,6 +106,7 @@ pub use crate::responder::Responder;
 pub use crate::route::Route;
 pub use crate::scope::Scope;
 pub use crate::server::HttpServer;
+// TODO: is exposing the error directly really needed
 pub use crate::types::{Either, EitherExtractError};
 
 pub mod dev {
