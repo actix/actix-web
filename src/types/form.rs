@@ -1,4 +1,4 @@
-//! For form-urlencoded helper documentation, see [`Form`].
+//! For URL encoded form helper documentation, see [`Form`].
 
 use std::{
     fmt,

@@ -1,5 +1,4 @@
 //! For either helper, see [`Either`].
-// TODO: could we just use either::Either?
 
 use bytes::Bytes;
 use futures_util::{future::LocalBoxFuture, FutureExt, TryFutureExt};

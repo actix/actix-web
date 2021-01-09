@@ -15,7 +15,7 @@
 * Public field of `web::Query` has been made private. [#1894]
 
 [#1891]: https://github.com/actix/actix-web/pull/1891
-[#????]: https://github.com/actix/actix-web/pull/????
+[#1894]: https://github.com/actix/actix-web/pull/1894
 
 ## 4.0.0-beta.1 - 2021-01-07
 ### Added
