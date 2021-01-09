@@ -280,5 +280,8 @@ where
     I: Send + 'static,
     E: Send + std::fmt::Debug + 'static,
 {
-    actix_threadpool::run(f).await
+    match actix_rt::task::spawn_blocking(f).await {
+        Ok(res) => res.map_err(BlockingError::Error),
+        Err(_) => Err(BlockingError::Canceled),
+    }
 }
