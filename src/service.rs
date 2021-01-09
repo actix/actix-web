@@ -537,7 +537,7 @@ mod tests {
     use crate::{guard, http, web, App, HttpResponse};
     use actix_service::Service;
     use futures_util::future::ok;
-    
+
     #[actix_rt::test]
     async fn test_service() {
         let mut srv = init_service(
