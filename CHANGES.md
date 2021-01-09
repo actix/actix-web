@@ -4,8 +4,11 @@
 ### Changed
 * Rework `Responder` trait to be sync and returns `Response`/`HttpResponse` directly.
   Making it more simple and performant. [#1891]
+* `ServiceRequest::into_parts` and `ServiceRequest::from_parts` would not fail.
+  `ServiceRequest::from_request` would not fail and no payload would be generated [#1893]
   
 [#1891]: https://github.com/actix/actix-web/pull/1891
+[#1893]: https://github.com/actix/actix-web/pull/1893
 
 ## 4.0.0-beta.1 - 2021-01-07
 ### Added
