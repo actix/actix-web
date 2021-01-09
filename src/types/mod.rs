@@ -1,5 +1,6 @@
-//! Helper types
+//! Common extractors and responders.
 
+// TODO: review visibility
 mod either;
 pub(crate) mod form;
 pub(crate) mod json;

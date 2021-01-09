@@ -1,14 +1,25 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Added
+* The method `Either<web::Json<T>, web::Form<T>>::into_inner()` which returns the inner type for
+  whichever variant was created. Also works for `Either<web::Form<T>, web::Json<T>>`. [#1894]
+
 ### Changed
 * Rework `Responder` trait to be sync and returns `Response`/`HttpResponse` directly.
   Making it more simple and performant. [#1891]
 * `ServiceRequest::into_parts` and `ServiceRequest::from_parts` would not fail.
   `ServiceRequest::from_request` would not fail and no payload would be generated [#1893]
-  
+* Our `Either` type now uses `Left`/`Right` variants (instead of `A`/`B`) [#1894]
+
+### Removed
+* Public field of `web::Path` has been made private. [#1894]
+* Public field of `web::Query` has been made private. [#1894]
+
 [#1891]: https://github.com/actix/actix-web/pull/1891
 [#1893]: https://github.com/actix/actix-web/pull/1893
+[#1894]: https://github.com/actix/actix-web/pull/1894
+
 
 ## 4.0.0-beta.1 - 2021-01-07
 ### Added
