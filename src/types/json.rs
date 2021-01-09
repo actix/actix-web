@@ -121,7 +121,7 @@ impl<T: Serialize> Responder for Json<T> {
     fn respond_to(self, _: &HttpRequest) -> HttpResponse {
         match serde_json::to_string(&self.0) {
             Ok(body) => HttpResponse::Ok()
-                .content_type("application/json")
+                .content_type(mime::APPLICATION_JSON)
                 .body(body),
             Err(err) => HttpResponse::from_error(err.into()),
         }

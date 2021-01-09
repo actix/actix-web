@@ -9,7 +9,7 @@ use std::{
     task::{Context, Poll},
 };
 
-use actix_http::{Error, HttpMessage, Payload};
+use actix_http::Payload;
 use bytes::BytesMut;
 use encoding_rs::{Encoding, UTF_8};
 use futures_util::{
@@ -21,13 +21,8 @@ use serde::{de::DeserializeOwned, Serialize};
 #[cfg(feature = "compress")]
 use crate::dev::Decompress;
 use crate::{
-    error::UrlencodedError,
-    extract::FromRequest,
-    http::{
-        header::{ContentType, CONTENT_LENGTH},
-        StatusCode,
-    },
-    web, HttpRequest, HttpResponse, Responder,
+    error::UrlencodedError, extract::FromRequest, http::header::CONTENT_LENGTH, web,
+    Error, HttpMessage, HttpRequest, HttpResponse, Responder,
 };
 
 /// URL encoded payload extractor and responder.
@@ -161,8 +156,8 @@ impl<T: fmt::Display> fmt::Display for Form<T> {
 impl<T: Serialize> Responder for Form<T> {
     fn respond_to(self, _: &HttpRequest) -> HttpResponse {
         match serde_urlencoded::to_string(&self.0) {
-            Ok(body) => HttpResponse::build(StatusCode::OK)
-                .set(ContentType::form_url_encoded())
+            Ok(body) => HttpResponse::Ok()
+                .content_type(mime::APPLICATION_WWW_FORM_URLENCODED)
                 .body(body),
             Err(err) => HttpResponse::from_error(err.into()),
         }
@@ -372,7 +367,10 @@ mod tests {
     use serde::{Deserialize, Serialize};
 
     use super::*;
-    use crate::http::header::{HeaderValue, CONTENT_LENGTH, CONTENT_TYPE};
+    use crate::http::{
+        header::{HeaderValue, CONTENT_LENGTH, CONTENT_TYPE},
+        StatusCode,
+    };
     use crate::test::TestRequest;
 
     #[derive(Deserialize, Serialize, Debug, PartialEq)]
@@ -509,6 +507,6 @@ mod tests {
         assert!(s.is_err());
 
         let err_str = s.err().unwrap().to_string();
-        assert!(err_str.contains("Urlencoded payload size is bigger"));
+        assert!(err_str.starts_with("URL encoded payload is larger"));
     }
 }

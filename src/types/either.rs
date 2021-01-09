@@ -61,7 +61,7 @@ use crate::{
 ///         // respond with Right variant
 ///         Either::Right(
 ///             Ok(HttpResponse::Ok()
-///                 .content_type("text/html")
+///                 .content_type(mime::TEXT_HTML)
 ///                 .body("<p>Hello!</p>"))
 ///         )
 ///     }
