@@ -1,57 +1,51 @@
-//! Payload/Bytes/String extractors
-use std::future::Future;
-use std::pin::Pin;
-use std::str;
-use std::task::{Context, Poll};
+//! Basic binary and string payload extractors.
 
-use actix_http::error::{Error, ErrorBadRequest, PayloadError};
-use actix_http::HttpMessage;
+use std::{
+    future::Future,
+    pin::Pin,
+    str,
+    task::{Context, Poll},
+};
+
+use actix_http::error::{ErrorBadRequest, PayloadError};
 use bytes::{Bytes, BytesMut};
 use encoding_rs::{Encoding, UTF_8};
 use futures_core::stream::Stream;
 use futures_util::{
-    future::{err, ok, Either, ErrInto, Ready, TryFutureExt as _},
+    future::{ready, Either, ErrInto, Ready, TryFutureExt as _},
     ready,
 };
 use mime::Mime;
 
-use crate::extract::FromRequest;
-use crate::http::header;
-use crate::request::HttpRequest;
-use crate::{dev, web};
+use crate::{dev, http::header, web, Error, FromRequest, HttpMessage, HttpRequest};
 
-/// Payload extractor returns request 's payload stream.
+/// Extract a request's raw payload stream.
 ///
-/// ## Example
+/// See [`PayloadConfig`] for important notes when using this advanced extractor.
 ///
-/// ```rust
-/// use actix_web::{web, error, App, Error, HttpResponse};
+/// # Usage
+/// ```
 /// use std::future::Future;
-/// use futures_core::stream::Stream;
-/// use futures_util::StreamExt;
-/// /// extract binary data from request
-/// async fn index(mut body: web::Payload) -> Result<HttpResponse, Error>
-/// {
+/// use futures_util::stream::{Stream, StreamExt};
+/// use actix_web::{post, web};
+///
+/// // `body: web::Payload` parameter extracts raw payload stream from request
+/// #[post("/")]
+/// async fn index(mut body: web::Payload) -> actix_web::Result<String> {
+///     // for demonstration only; in a normal case use the `Bytes` extractor
+///     // collect payload stream into a bytes object
 ///     let mut bytes = web::BytesMut::new();
 ///     while let Some(item) = body.next().await {
 ///         bytes.extend_from_slice(&item?);
 ///     }
 ///
-///     format!("Body {:?}!", bytes);
-///     Ok(HttpResponse::Ok().finish())
-/// }
-///
-/// fn main() {
-///     let app = App::new().service(
-///         web::resource("/index.html").route(
-///             web::get().to(index))
-///     );
+///     Ok(format!("Request Body Bytes:\n{:?}", bytes))
 /// }
 /// ```
 pub struct Payload(pub crate::dev::Payload);
 
 impl Payload {
-    /// Deconstruct to a inner value
+    /// Unwrap to inner Payload type.
     pub fn into_inner(self) -> crate::dev::Payload {
         self.0
     }
@@ -69,35 +63,7 @@ impl Stream for Payload {
     }
 }
 
-/// Get request's payload stream
-///
-/// ## Example
-///
-/// ```rust
-/// use actix_web::{web, error, App, Error, HttpResponse};
-/// use std::future::Future;
-/// use futures_core::stream::Stream;
-/// use futures_util::StreamExt;
-///
-/// /// extract binary data from request
-/// async fn index(mut body: web::Payload) -> Result<HttpResponse, Error>
-/// {
-///     let mut bytes = web::BytesMut::new();
-///     while let Some(item) = body.next().await {
-///         bytes.extend_from_slice(&item?);
-///     }
-///
-///     format!("Body {:?}!", bytes);
-///     Ok(HttpResponse::Ok().finish())
-/// }
-///
-/// fn main() {
-///     let app = App::new().service(
-///         web::resource("/index.html").route(
-///             web::get().to(index))
-///     );
-/// }
-/// ```
+/// See [here](#usage) for example of usage as an extractor.
 impl FromRequest for Payload {
     type Config = PayloadConfig;
     type Error = Error;
@@ -105,33 +71,24 @@ impl FromRequest for Payload {
 
     #[inline]
     fn from_request(_: &HttpRequest, payload: &mut dev::Payload) -> Self::Future {
-        ok(Payload(payload.take()))
+        ready(Ok(Payload(payload.take())))
     }
 }
 
-/// Request binary data from a request's payload.
+/// Extract binary data from a request's payload.
 ///
-/// Loads request's payload and construct Bytes instance.
+/// Collects request payload stream into a [Bytes] instance.
 ///
-/// [**PayloadConfig**](PayloadConfig) allows to configure
-/// extraction process.
+/// Use [`PayloadConfig`] to configure extraction process.
 ///
-/// ## Example
-///
-/// ```rust
-/// use bytes::Bytes;
-/// use actix_web::{web, App};
+/// # Usage
+/// ```
+/// use actix_web::{post, web};
 ///
 /// /// extract binary data from request
-/// async fn index(body: Bytes) -> String {
+/// #[post("/")]
+/// async fn index(body: web::Bytes) -> String {
 ///     format!("Body {:?}!", body)
-/// }
-///
-/// fn main() {
-///     let app = App::new().service(
-///         web::resource("/index.html").route(
-///             web::get().to(index))
-///     );
 /// }
 /// ```
 impl FromRequest for Bytes {
@@ -144,8 +101,8 @@ impl FromRequest for Bytes {
         // allow both Config and Data<Config>
         let cfg = PayloadConfig::from_req(req);
 
-        if let Err(e) = cfg.check_mimetype(req) {
-            return Either::Right(err(e));
+        if let Err(err) = cfg.check_mimetype(req) {
+            return Either::Right(ready(Err(err)));
         }
 
         let limit = cfg.limit;
@@ -161,26 +118,15 @@ impl FromRequest for Bytes {
 /// [**PayloadConfig**](PayloadConfig) allows to configure
 /// extraction process.
 ///
-/// ## Example
+/// # Usage
+/// ```
+/// use actix_web::{post, web, FromRequest};
 ///
-/// ```rust
-/// use actix_web::{web, App, FromRequest};
-///
-/// /// extract text data from request
+/// // extract text data from request
+/// #[post("/")]
 /// async fn index(text: String) -> String {
 ///     format!("Body {}!", text)
 /// }
-///
-/// fn main() {
-///     let app = App::new().service(
-///         web::resource("/index.html")
-///             .app_data(String::configure(|cfg| {  // <- limit size of the payload
-///                 cfg.limit(4096)
-///             }))
-///             .route(web::get().to(index))  // <- register handler with extractor params
-///     );
-/// }
-/// ```
 impl FromRequest for String {
     type Config = PayloadConfig;
     type Error = Error;
@@ -191,14 +137,14 @@ impl FromRequest for String {
         let cfg = PayloadConfig::from_req(req);
 
         // check content-type
-        if let Err(e) = cfg.check_mimetype(req) {
-            return Either::Right(err(e));
+        if let Err(err) = cfg.check_mimetype(req) {
+            return Either::Right(ready(Err(err)));
         }
 
         // check charset
         let encoding = match req.encoding() {
             Ok(enc) => enc,
-            Err(e) => return Either::Right(err(e.into())),
+            Err(err) => return Either::Right(ready(Err(err.into()))),
         };
         let limit = cfg.limit;
         let body_fut = HttpMessageBody::new(req, payload).limit(limit);
@@ -238,11 +184,13 @@ fn bytes_to_string(body: Bytes, encoding: &'static Encoding) -> Result<String, E
     }
 }
 
-/// Configuration for request's payload.
+/// Configuration for request payloads.
 ///
-/// Applies to the built-in `Bytes` and `String` extractors. Note that the Payload extractor does
+/// Applies to the built-in `Bytes` and `String` extractors. Note that the `Payload` extractor does
 /// not automatically check conformance with this configuration to allow more flexibility when
 /// building extractors on top of `Payload`.
+///
+/// By default, the payload size limit is 256kB and there is no mime type condition.
 #[derive(Clone)]
 pub struct PayloadConfig {
     limit: usize,
@@ -250,7 +198,7 @@ pub struct PayloadConfig {
 }
 
 impl PayloadConfig {
-    /// Create `PayloadConfig` instance and set max size of payload.
+    /// Create new instance with a size limit and no mime type condition.
     pub fn new(limit: usize) -> Self {
         Self {
             limit,
@@ -258,14 +206,13 @@ impl PayloadConfig {
         }
     }
 
-    /// Change max size of payload. By default max size is 256Kb
+    /// Set maximum accepted payload size. The default limit is 256kB.
     pub fn limit(mut self, limit: usize) -> Self {
         self.limit = limit;
         self
     }
 
-    /// Set required mime-type of the request. By default mime type is not
-    /// enforced.
+    /// Set required mime type of the request. By default mime type is not enforced.
     pub fn mimetype(mut self, mt: Mime) -> Self {
         self.mimetype = Some(mt);
         self
@@ -292,7 +239,7 @@ impl PayloadConfig {
     }
 
     /// Extract payload config from app data. Check both `T` and `Data<T>`, in that order, and fall
-    /// back to the default payload config.
+    /// back to the default payload config if neither is found.
     fn from_req(req: &HttpRequest) -> &Self {
         req.app_data::<Self>()
             .or_else(|| req.app_data::<web::Data<Self>>().map(|d| d.as_ref()))
@@ -314,13 +261,10 @@ impl Default for PayloadConfig {
     }
 }
 
-/// Future that resolves to a complete http message body.
+/// Future that resolves to a complete HTTP body payload.
 ///
-/// Load http message body.
-///
-/// By default only 256Kb payload reads to a memory, then
-/// `PayloadError::Overflow` get returned. Use `MessageBody::limit()`
-/// method to change upper limit.
+/// By default only 256kB payload is accepted before `PayloadError::Overflow` is returned.
+/// Use `MessageBody::limit()` method to change upper limit.
 pub struct HttpMessageBody {
     limit: usize,
     length: Option<usize>,
@@ -366,7 +310,7 @@ impl HttpMessageBody {
         }
     }
 
-    /// Change max size of payload. By default max size is 256Kb
+    /// Change max size of payload. By default max size is 256kB
     pub fn limit(mut self, limit: usize) -> Self {
         if let Some(l) = self.length {
             if l > limit {
@@ -384,8 +328,8 @@ impl Future for HttpMessageBody {
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.get_mut();
 
-        if let Some(e) = this.err.take() {
-            return Poll::Ready(Err(e));
+        if let Some(err) = this.err.take() {
+            return Poll::Ready(Err(err));
         }
 
         loop {

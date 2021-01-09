@@ -17,9 +17,10 @@ use crate::rmap::ResourceMap;
 #[derive(Clone)]
 /// An HTTP Request
 pub struct HttpRequest {
-    // *. Rc<HttpRequestInner> is used exclusively and NO Weak<HttpRequestInner>
-    // is allowed anywhere in the code. Weak pointer is purposely ignored when
-    // doing Rc's ref counter check.
+    /// # Panics
+    /// `Rc<HttpRequestInner>` is used exclusively and NO `Weak<HttpRequestInner>`
+    /// is allowed anywhere in the code. Weak pointer is purposely ignored when
+    /// doing `Rc`'s ref counter check. Expect panics if this invariant is violated.
     pub(crate) inner: Rc<HttpRequestInner>,
 }
 
