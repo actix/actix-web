@@ -27,10 +27,10 @@ use socket2::{Domain, Protocol, Socket, Type};
 
 pub use actix_http::test::TestBuffer;
 
+use crate::app_service::AppInitServiceState;
 use crate::config::AppConfig;
 use crate::data::Data;
 use crate::dev::{Body, MessageBody, Payload, Server};
-use crate::request::HttpRequestPool;
 use crate::rmap::ResourceMap;
 use crate::service::{ServiceRequest, ServiceResponse};
 use crate::{Error, HttpRequest, HttpResponse};
@@ -542,14 +542,15 @@ impl TestRequest {
         head.peer_addr = self.peer_addr;
         self.path.get_mut().update(&head.uri);
 
+        let app_state =
+            AppInitServiceState::new(Rc::new(self.rmap), self.config.clone());
+
         ServiceRequest::new(HttpRequest::new(
             self.path,
             head,
             payload,
-            Rc::new(self.rmap),
-            self.config.clone(),
+            app_state,
             Rc::new(self.app_data),
-            HttpRequestPool::create(),
         ))
     }
 
@@ -564,15 +565,10 @@ impl TestRequest {
         head.peer_addr = self.peer_addr;
         self.path.get_mut().update(&head.uri);
 
-        HttpRequest::new(
-            self.path,
-            head,
-            payload,
-            Rc::new(self.rmap),
-            self.config.clone(),
-            Rc::new(self.app_data),
-            HttpRequestPool::create(),
-        )
+        let app_state =
+            AppInitServiceState::new(Rc::new(self.rmap), self.config.clone());
+
+        HttpRequest::new(self.path, head, payload, app_state, Rc::new(self.app_data))
     }
 
     /// Complete request creation and generate `HttpRequest` and `Payload` instances
@@ -581,14 +577,15 @@ impl TestRequest {
         head.peer_addr = self.peer_addr;
         self.path.get_mut().update(&head.uri);
 
+        let app_state =
+            AppInitServiceState::new(Rc::new(self.rmap), self.config.clone());
+
         let req = HttpRequest::new(
             self.path,
             head,
             Payload::None,
-            Rc::new(self.rmap),
-            self.config.clone(),
+            app_state,
             Rc::new(self.app_data),
-            HttpRequestPool::create(),
         );
 
         (req, payload)
