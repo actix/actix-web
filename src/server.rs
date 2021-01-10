@@ -283,11 +283,7 @@ where
             lst,
             move || {
                 let c = cfg.lock().unwrap();
-                let cfg = AppConfig::new(
-                    false,
-                    addr,
-                    c.host.clone().unwrap_or_else(|| format!("{}", addr)),
-                );
+                let host = c.host.clone().unwrap_or_else(|| format!("{}", addr));
 
                 let svc = HttpService::build()
                     .keep_alive(c.keep_alive)
@@ -302,8 +298,10 @@ where
                     svc
                 };
 
-                svc.finish(map_config(factory(), move |_| cfg.clone()))
-                    .tcp()
+                svc.finish(map_config(factory(), move |_| {
+                    AppConfig::new(false, addr, host.clone())
+                }))
+                .tcp()
             },
         )?;
         Ok(self)
@@ -342,11 +340,7 @@ where
             lst,
             move || {
                 let c = cfg.lock().unwrap();
-                let cfg = AppConfig::new(
-                    true,
-                    addr,
-                    c.host.clone().unwrap_or_else(|| format!("{}", addr)),
-                );
+                let host = c.host.clone().unwrap_or_else(|| format!("{}", addr));
 
                 let svc = HttpService::build()
                     .keep_alive(c.keep_alive)
@@ -361,8 +355,10 @@ where
                     svc
                 };
 
-                svc.finish(map_config(factory(), move |_| cfg.clone()))
-                    .openssl(acceptor.clone())
+                svc.finish(map_config(factory(), move |_| {
+                    AppConfig::new(true, addr, host.clone())
+                }))
+                .openssl(acceptor.clone())
             },
         )?;
         Ok(self)
@@ -401,11 +397,7 @@ where
             lst,
             move || {
                 let c = cfg.lock().unwrap();
-                let cfg = AppConfig::new(
-                    true,
-                    addr,
-                    c.host.clone().unwrap_or_else(|| format!("{}", addr)),
-                );
+                let host = c.host.clone().unwrap_or_else(|| format!("{}", addr));
 
                 let svc = HttpService::build()
                     .keep_alive(c.keep_alive)
@@ -420,8 +412,10 @@ where
                     svc
                 };
 
-                svc.finish(map_config(factory(), move |_| cfg.clone()))
-                    .rustls(config.clone())
+                svc.finish(map_config(factory(), move |_| {
+                    AppConfig::new(true, addr, host.clone())
+                }))
+                .rustls(config.clone())
             },
         )?;
         Ok(self)
