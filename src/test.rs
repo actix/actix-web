@@ -27,6 +27,7 @@ use socket2::{Domain, Protocol, Socket, Type};
 
 pub use actix_http::test::TestBuffer;
 
+use crate::app_service::AppInitServiceState;
 use crate::config::AppConfig;
 use crate::data::Data;
 use crate::dev::{Body, MessageBody, Payload, Server};
@@ -541,12 +542,14 @@ impl TestRequest {
         head.peer_addr = self.peer_addr;
         self.path.get_mut().update(&head.uri);
 
+        let app_state =
+            AppInitServiceState::new(Rc::new(self.rmap), self.config.clone());
+
         ServiceRequest::new(HttpRequest::new(
             self.path,
             head,
             payload,
-            Rc::new(self.rmap),
-            self.config.clone(),
+            app_state,
             Rc::new(self.app_data),
         ))
     }
@@ -562,14 +565,10 @@ impl TestRequest {
         head.peer_addr = self.peer_addr;
         self.path.get_mut().update(&head.uri);
 
-        HttpRequest::new(
-            self.path,
-            head,
-            payload,
-            Rc::new(self.rmap),
-            self.config.clone(),
-            Rc::new(self.app_data),
-        )
+        let app_state =
+            AppInitServiceState::new(Rc::new(self.rmap), self.config.clone());
+
+        HttpRequest::new(self.path, head, payload, app_state, Rc::new(self.app_data))
     }
 
     /// Complete request creation and generate `HttpRequest` and `Payload` instances
@@ -578,12 +577,14 @@ impl TestRequest {
         head.peer_addr = self.peer_addr;
         self.path.get_mut().update(&head.uri);
 
+        let app_state =
+            AppInitServiceState::new(Rc::new(self.rmap), self.config.clone());
+
         let req = HttpRequest::new(
             self.path,
             head,
             Payload::None,
-            Rc::new(self.rmap),
-            self.config.clone(),
+            app_state,
             Rc::new(self.app_data),
         );
 

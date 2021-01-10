@@ -4,7 +4,7 @@ use std::io::{self, Write};
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-use actix_threadpool::{run, CpuFuture};
+use actix_rt::task::{spawn_blocking, JoinHandle};
 use brotli2::write::BrotliEncoder;
 use bytes::Bytes;
 use flate2::write::{GzEncoder, ZlibEncoder};
@@ -17,6 +17,7 @@ use crate::http::{HeaderValue, StatusCode};
 use crate::{Error, ResponseHead};
 
 use super::Writer;
+use crate::error::BlockingError;
 
 const INPLACE: usize = 1024;
 
@@ -26,7 +27,7 @@ pub struct Encoder<B> {
     #[pin]
     body: EncoderBody<B>,
     encoder: Option<ContentEncoder>,
-    fut: Option<CpuFuture<ContentEncoder, io::Error>>,
+    fut: Option<JoinHandle<Result<ContentEncoder, io::Error>>>,
 }
 
 impl<B: MessageBody> Encoder<B> {
@@ -136,8 +137,15 @@ impl<B: MessageBody> MessageBody for Encoder<B> {
 
             if let Some(ref mut fut) = this.fut {
                 let mut encoder = match ready!(Pin::new(fut).poll(cx)) {
-                    Ok(item) => item,
-                    Err(e) => return Poll::Ready(Some(Err(e.into()))),
+                    Ok(Ok(item)) => item,
+                    Ok(Err(e)) => {
+                        return Poll::Ready(Some(Err(BlockingError::Error(e).into())))
+                    }
+                    Err(_) => {
+                        return Poll::Ready(Some(Err(
+                            BlockingError::<io::Error>::Canceled.into(),
+                        )))
+                    }
                 };
                 let chunk = encoder.take();
                 *this.encoder = Some(encoder);
@@ -160,7 +168,7 @@ impl<B: MessageBody> MessageBody for Encoder<B> {
                                 return Poll::Ready(Some(Ok(chunk)));
                             }
                         } else {
-                            *this.fut = Some(run(move || {
+                            *this.fut = Some(spawn_blocking(move || {
                                 encoder.write(&chunk)?;
                                 Ok(encoder)
                             }));

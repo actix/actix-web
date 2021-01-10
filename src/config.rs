@@ -8,7 +8,6 @@ use actix_service::{boxed, IntoServiceFactory, ServiceFactory};
 use crate::data::{Data, DataFactory};
 use crate::error::Error;
 use crate::guard::Guard;
-use crate::request::HttpRequestPool;
 use crate::resource::Resource;
 use crate::rmap::ResourceMap;
 use crate::route::Route;
@@ -126,23 +125,15 @@ impl AppService {
 
 /// Application connection config
 #[derive(Clone)]
-pub struct AppConfig(Rc<AppConfigInner>);
-
-struct AppConfigInner {
+pub struct AppConfig {
     secure: bool,
     host: String,
     addr: SocketAddr,
-    pool: HttpRequestPool,
 }
 
 impl AppConfig {
     pub(crate) fn new(secure: bool, addr: SocketAddr, host: String) -> Self {
-        AppConfig(Rc::new(AppConfigInner {
-            secure,
-            addr,
-            host,
-            pool: HttpRequestPool::default(),
-        }))
+        AppConfig { secure, addr, host }
     }
 
     /// Server host name.
@@ -153,22 +144,17 @@ impl AppConfig {
     ///
     /// By default host name is set to a "localhost" value.
     pub fn host(&self) -> &str {
-        &self.0.host
+        &self.host
     }
 
     /// Returns true if connection is secure(https)
     pub fn secure(&self) -> bool {
-        self.0.secure
+        self.secure
     }
 
     /// Returns the socket address of the local half of this TCP connection
     pub fn local_addr(&self) -> SocketAddr {
-        self.0.addr
-    }
-
-    #[inline]
-    pub(crate) fn pool(&self) -> &HttpRequestPool {
-        &self.0.pool
+        self.addr
     }
 }
 

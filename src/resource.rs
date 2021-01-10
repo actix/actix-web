@@ -1,18 +1,18 @@
 use std::cell::RefCell;
 use std::fmt;
 use std::future::Future;
-use std::pin::Pin;
 use std::rc::Rc;
-use std::task::{Context, Poll};
+use std::task::Poll;
 
 use actix_http::{Error, Extensions, Response};
 use actix_router::IntoPattern;
 use actix_service::boxed::{self, BoxService, BoxServiceFactory};
 use actix_service::{
-    apply, apply_fn_factory, IntoServiceFactory, Service, ServiceFactory,
+    apply, apply_fn_factory, fn_service, IntoServiceFactory, Service, ServiceFactory,
     ServiceFactoryExt, Transform,
 };
 use futures_core::future::LocalBoxFuture;
+use futures_util::future::join_all;
 
 use crate::data::Data;
 use crate::dev::{insert_slash, AppService, HttpServiceFactory, ResourceDef};
@@ -20,7 +20,7 @@ use crate::extract::FromRequest;
 use crate::guard::Guard;
 use crate::handler::Handler;
 use crate::responder::Responder;
-use crate::route::{CreateRouteService, Route, RouteService};
+use crate::route::{Route, RouteService};
 use crate::service::{ServiceRequest, ServiceResponse};
 
 type HttpService = BoxService<ServiceRequest, ServiceResponse, Error>;
@@ -53,9 +53,9 @@ pub struct Resource<T = ResourceEndpoint> {
     rdef: Vec<String>,
     name: Option<String>,
     routes: Vec<Route>,
-    data: Option<Extensions>,
+    app_data: Option<Extensions>,
     guards: Vec<Box<dyn Guard>>,
-    default: Rc<RefCell<Option<Rc<HttpNewService>>>>,
+    default: HttpNewService,
     factory_ref: Rc<RefCell<Option<ResourceFactory>>>,
 }
 
@@ -70,8 +70,10 @@ impl Resource {
             endpoint: ResourceEndpoint::new(fref.clone()),
             factory_ref: fref,
             guards: Vec::new(),
-            data: None,
-            default: Rc::new(RefCell::new(None)),
+            app_data: None,
+            default: boxed::factory(fn_service(|req: ServiceRequest| async {
+                Ok(req.into_response(Response::MethodNotAllowed().finish()))
+            })),
         }
     }
 }
@@ -201,10 +203,10 @@ where
     ///
     /// Data of different types from parent contexts will still be accessible.
     pub fn app_data<U: 'static>(mut self, data: U) -> Self {
-        if self.data.is_none() {
-            self.data = Some(Extensions::new());
+        if self.app_data.is_none() {
+            self.app_data = Some(Extensions::new());
         }
-        self.data.as_mut().unwrap().insert(data);
+        self.app_data.as_mut().unwrap().insert(data);
         self
     }
 
@@ -274,7 +276,7 @@ where
             guards: self.guards,
             routes: self.routes,
             default: self.default,
-            data: self.data,
+            app_data: self.app_data,
             factory_ref: self.factory_ref,
         }
     }
@@ -336,7 +338,7 @@ where
             guards: self.guards,
             routes: self.routes,
             default: self.default,
-            data: self.data,
+            app_data: self.app_data,
             factory_ref: self.factory_ref,
         }
     }
@@ -356,11 +358,9 @@ where
         U::InitError: fmt::Debug,
     {
         // create and configure default resource
-        self.default = Rc::new(RefCell::new(Some(Rc::new(boxed::factory(
-            f.into_factory().map_init_err(|e| {
-                log::error!("Can not construct default service: {:?}", e)
-            }),
-        )))));
+        self.default = boxed::factory(f.into_factory().map_init_err(|e| {
+            log::error!("Can not construct default service: {:?}", e)
+        }));
 
         self
     }
@@ -391,7 +391,7 @@ where
             *rdef.name_mut() = name.clone();
         }
         // custom app data storage
-        if let Some(ref mut ext) = self.data {
+        if let Some(ref mut ext) = self.app_data {
             config.set_service_data(ext);
         }
 
@@ -412,7 +412,7 @@ where
     fn into_factory(self) -> T {
         *self.factory_ref.borrow_mut() = Some(ResourceFactory {
             routes: self.routes,
-            data: self.data.map(Rc::new),
+            app_data: self.app_data.map(Rc::new),
             default: self.default,
         });
 
@@ -422,8 +422,8 @@ where
 
 pub struct ResourceFactory {
     routes: Vec<Route>,
-    data: Option<Rc<Extensions>>,
-    default: Rc<RefCell<Option<Rc<HttpNewService>>>>,
+    app_data: Option<Rc<Extensions>>,
+    default: HttpNewService,
 }
 
 impl ServiceFactory<ServiceRequest> for ResourceFactory {
@@ -432,126 +432,60 @@ impl ServiceFactory<ServiceRequest> for ResourceFactory {
     type Config = ();
     type Service = ResourceService;
     type InitError = ();
-    type Future = CreateResourceService;
+    type Future = LocalBoxFuture<'static, Result<Self::Service, Self::InitError>>;
 
     fn new_service(&self, _: ()) -> Self::Future {
-        let default_fut = if let Some(ref default) = *self.default.borrow() {
-            Some(default.new_service(()))
-        } else {
-            None
-        };
+        // construct default service factory future.
+        let default_fut = self.default.new_service(());
 
-        CreateResourceService {
-            fut: self
-                .routes
-                .iter()
-                .map(|route| CreateRouteServiceItem::Future(route.new_service(())))
-                .collect(),
-            data: self.data.clone(),
-            default: None,
-            default_fut,
-        }
-    }
-}
+        // construct route service factory futures
+        let factory_fut =
+            join_all(self.routes.iter().map(|route| route.new_service(())));
 
-enum CreateRouteServiceItem {
-    Future(CreateRouteService),
-    Service(RouteService),
-}
+        let app_data = self.app_data.clone();
 
-pub struct CreateResourceService {
-    fut: Vec<CreateRouteServiceItem>,
-    data: Option<Rc<Extensions>>,
-    default: Option<HttpService>,
-    default_fut: Option<LocalBoxFuture<'static, Result<HttpService, ()>>>,
-}
+        Box::pin(async move {
+            let default = default_fut.await?;
+            let routes = factory_fut
+                .await
+                .into_iter()
+                .collect::<Result<Vec<_>, _>>()?;
 
-impl Future for CreateResourceService {
-    type Output = Result<ResourceService, ()>;
-
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let mut done = true;
-
-        if let Some(ref mut fut) = self.default_fut {
-            match Pin::new(fut).poll(cx)? {
-                Poll::Ready(default) => self.default = Some(default),
-                Poll::Pending => done = false,
-            }
-        }
-
-        // poll http services
-        for item in &mut self.fut {
-            match item {
-                CreateRouteServiceItem::Future(ref mut fut) => match Pin::new(fut)
-                    .poll(cx)?
-                {
-                    Poll::Ready(route) => *item = CreateRouteServiceItem::Service(route),
-                    Poll::Pending => {
-                        done = false;
-                    }
-                },
-                CreateRouteServiceItem::Service(_) => continue,
-            };
-        }
-
-        if done {
-            let routes = self
-                .fut
-                .drain(..)
-                .map(|item| match item {
-                    CreateRouteServiceItem::Service(service) => service,
-                    CreateRouteServiceItem::Future(_) => unreachable!(),
-                })
-                .collect();
-            Poll::Ready(Ok(ResourceService {
+            Ok(ResourceService {
+                app_data,
+                default,
                 routes,
-                data: self.data.clone(),
-                default: self.default.take(),
-            }))
-        } else {
-            Poll::Pending
-        }
+            })
+        })
     }
 }
 
 pub struct ResourceService {
     routes: Vec<RouteService>,
-    data: Option<Rc<Extensions>>,
-    default: Option<HttpService>,
+    app_data: Option<Rc<Extensions>>,
+    default: HttpService,
 }
 
 impl Service<ServiceRequest> for ResourceService {
     type Response = ServiceResponse;
     type Error = Error;
-    type Future = LocalBoxFuture<'static, Result<ServiceResponse, Error>>;
+    type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
 
-    fn poll_ready(&mut self, _: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        Poll::Ready(Ok(()))
-    }
+    actix_service::always_ready!();
 
     fn call(&mut self, mut req: ServiceRequest) -> Self::Future {
         for route in self.routes.iter_mut() {
             if route.check(&mut req) {
-                if let Some(ref data) = self.data {
-                    req.add_data_container(data.clone());
+                if let Some(ref app_data) = self.app_data {
+                    req.add_data_container(app_data.clone());
                 }
                 return route.call(req);
             }
         }
-        if let Some(ref mut default) = self.default {
-            if let Some(ref data) = self.data {
-                req.add_data_container(data.clone());
-            }
-            default.call(req)
-        } else {
-            let req = req.into_parts().0;
-            Box::pin(async {
-                Ok(ServiceResponse::new(
-                    req,
-                    Response::MethodNotAllowed().finish(),
-                ))
-            })
+        if let Some(ref app_data) = self.app_data {
+            req.add_data_container(app_data.clone());
         }
+        self.default.call(req)
     }
 }
 
@@ -567,15 +501,15 @@ impl ResourceEndpoint {
 }
 
 impl ServiceFactory<ServiceRequest> for ResourceEndpoint {
-    type Config = ();
     type Response = ServiceResponse;
     type Error = Error;
-    type InitError = ();
+    type Config = ();
     type Service = ResourceService;
-    type Future = CreateResourceService;
+    type InitError = ();
+    type Future = LocalBoxFuture<'static, Result<Self::Service, Self::InitError>>;
 
     fn new_service(&self, _: ()) -> Self::Future {
-        self.factory.borrow_mut().as_mut().unwrap().new_service(())
+        self.factory.borrow().as_ref().unwrap().new_service(())
     }
 }
 

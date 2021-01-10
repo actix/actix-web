@@ -8,6 +8,7 @@ use actix_router::{Path, Url};
 use futures_util::future::{ok, Ready};
 use smallvec::SmallVec;
 
+use crate::app_service::AppInitServiceState;
 use crate::config::AppConfig;
 use crate::error::UrlGenerationError;
 use crate::extract::FromRequest;
@@ -17,9 +18,10 @@ use crate::rmap::ResourceMap;
 #[derive(Clone)]
 /// An HTTP Request
 pub struct HttpRequest {
-    // *. Rc<HttpRequestInner> is used exclusively and NO Weak<HttpRequestInner>
-    // is allowed anywhere in the code. Weak pointer is purposely ignored when
-    // doing Rc's ref counter check.
+    /// # Panics
+    /// `Rc<HttpRequestInner>` is used exclusively and NO `Weak<HttpRequestInner>`
+    /// is allowed anywhere in the code. Weak pointer is purposely ignored when
+    /// doing `Rc`'s ref counter check. Expect panics if this invariant is violated.
     pub(crate) inner: Rc<HttpRequestInner>,
 }
 
@@ -28,8 +30,7 @@ pub(crate) struct HttpRequestInner {
     pub(crate) path: Path<Url>,
     pub(crate) payload: Payload,
     pub(crate) app_data: SmallVec<[Rc<Extensions>; 4]>,
-    rmap: Rc<ResourceMap>,
-    config: AppConfig,
+    app_state: Rc<AppInitServiceState>,
 }
 
 impl HttpRequest {
@@ -38,8 +39,7 @@ impl HttpRequest {
         path: Path<Url>,
         head: Message<RequestHead>,
         payload: Payload,
-        rmap: Rc<ResourceMap>,
-        config: AppConfig,
+        app_state: Rc<AppInitServiceState>,
         app_data: Rc<Extensions>,
     ) -> HttpRequest {
         let mut data = SmallVec::<[Rc<Extensions>; 4]>::new();
@@ -50,8 +50,7 @@ impl HttpRequest {
                 head,
                 path,
                 payload,
-                rmap,
-                config,
+                app_state,
                 app_data: data,
             }),
         }
@@ -138,7 +137,7 @@ impl HttpRequest {
     /// Returns a None when no resource is fully matched, including default services.
     #[inline]
     pub fn match_pattern(&self) -> Option<String> {
-        self.inner.rmap.match_pattern(self.path())
+        self.resource_map().match_pattern(self.path())
     }
 
     /// The resource name that matched the path. Useful for logging and metrics.
@@ -146,7 +145,7 @@ impl HttpRequest {
     /// Returns a None when no resource is fully matched, including default services.
     #[inline]
     pub fn match_name(&self) -> Option<&str> {
-        self.inner.rmap.match_name(self.path())
+        self.resource_map().match_name(self.path())
     }
 
     /// Request extensions
@@ -188,7 +187,7 @@ impl HttpRequest {
         U: IntoIterator<Item = I>,
         I: AsRef<str>,
     {
-        self.inner.rmap.url_for(&self, name, elements)
+        self.resource_map().url_for(&self, name, elements)
     }
 
     /// Generate url for named resource
@@ -203,7 +202,7 @@ impl HttpRequest {
     #[inline]
     /// Get a reference to a `ResourceMap` of current application.
     pub fn resource_map(&self) -> &ResourceMap {
-        &self.inner.rmap
+        &self.app_state().rmap()
     }
 
     /// Peer socket address
@@ -223,13 +222,13 @@ impl HttpRequest {
     /// borrowed.
     #[inline]
     pub fn connection_info(&self) -> Ref<'_, ConnectionInfo> {
-        ConnectionInfo::get(self.head(), &*self.app_config())
+        ConnectionInfo::get(self.head(), self.app_config())
     }
 
     /// App config
     #[inline]
     pub fn app_config(&self) -> &AppConfig {
-        &self.inner.config
+        self.app_state().config()
     }
 
     /// Get an application data object stored with `App::data` or `App::app_data`
@@ -248,6 +247,11 @@ impl HttpRequest {
         }
 
         None
+    }
+
+    #[inline]
+    fn app_state(&self) -> &AppInitServiceState {
+        &*self.inner.app_state
     }
 }
 
@@ -284,7 +288,7 @@ impl Drop for HttpRequest {
 
         // This relies on no Weak<HttpRequestInner> exists anywhere.(There is none)
         if let Some(inner) = Rc::get_mut(&mut self.inner) {
-            if inner.config.pool().is_available() {
+            if inner.app_state.pool().is_available() {
                 // clear additional app_data and keep the root one for reuse.
                 inner.app_data.truncate(1);
                 // inner is borrowed mut here. get head's Extension mutably
@@ -293,7 +297,7 @@ impl Drop for HttpRequest {
 
                 // a re-borrow of pool is necessary here.
                 let req = self.inner.clone();
-                self.inner.config.pool().push(req);
+                self.app_state().pool().push(req);
             }
         }
     }
@@ -384,7 +388,7 @@ impl HttpRequestPool {
 
     /// Re-use a previously allocated (but now completed/discarded) HttpRequest object.
     #[inline]
-    pub(crate) fn get(&self) -> Option<HttpRequest> {
+    pub(crate) fn pop(&self) -> Option<HttpRequest> {
         self.inner
             .borrow_mut()
             .pop()
@@ -556,7 +560,7 @@ mod tests {
         let mut srv = init_service(App::new().service(web::resource("/").to(
             |req: HttpRequest| {
                 HttpResponse::Ok()
-                    .set_header("pool_cap", req.inner.config.pool().cap)
+                    .set_header("pool_cap", req.app_state().pool().cap)
                     .finish()
             },
         )))
