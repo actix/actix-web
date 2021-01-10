@@ -298,16 +298,13 @@ where
         let mut written = 0;
         while written < len {
             match io.as_mut().poll_write(cx, &write_buf[written..]) {
-                Poll::Ready(Ok(n)) => {
-                    if n == 0 {
-                        return Err(DispatchError::Io(io::Error::new(
-                            io::ErrorKind::WriteZero,
-                            "",
-                        )));
-                    } else {
-                        written += n;
-                    }
+                Poll::Ready(Ok(0)) => {
+                    return Err(DispatchError::Io(io::Error::new(
+                        io::ErrorKind::WriteZero,
+                        "",
+                    )))
                 }
+                Poll::Ready(Ok(n)) => written += n,
                 Poll::Pending => {
                     write_buf.advance(written);
                     return Ok(true);
