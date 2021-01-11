@@ -788,7 +788,7 @@ async fn test_reading_deflate_encoding_large_random_rustls() {
     // client request
     let req = srv
         .post("/")
-        .header(actix_web::http::header::CONTENT_ENCODING, "deflate")
+        .insert_header((actix_web::http::header::CONTENT_ENCODING, "deflate"))
         .send_stream(TestBody::new(Bytes::from(enc), 1024));
 
     let mut response = req.await.unwrap();
