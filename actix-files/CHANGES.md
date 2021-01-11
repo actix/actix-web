@@ -1,7 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+* Fix If-Modified-Since and If-Unmodified-Since to not compare using sub-second timestamps. [#1887]
 
+[#1887]: https://github.com/actix/actix-web/pull/1887
 
 ## 0.6.0-beta.1 - 2021-01-07
 * `HttpRange::parse` now has its own error type.
