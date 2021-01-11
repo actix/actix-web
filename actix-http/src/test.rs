@@ -105,12 +105,13 @@ impl TestRequest {
         match header.try_into_header_pair() {
             Ok((key, value)) => {
                 parts(&mut self.0).headers.insert(key, value);
-                return self;
             }
             Err(err) => {
                 panic!("Error inserting test header: {}.", err.into());
             }
         }
+
+        self
     }
 
     /// Append a header, keeping any that were set with an equivalent field name.
@@ -121,12 +122,13 @@ impl TestRequest {
         match header.try_into_header_pair() {
             Ok((key, value)) => {
                 parts(&mut self.0).headers.append(key, value);
-                return self;
             }
             Err(err) => {
                 panic!("Error inserting test header: {}.", err.into());
             }
         }
+
+        self
     }
 
     /// Set cookie for this request.
