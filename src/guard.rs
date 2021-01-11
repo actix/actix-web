@@ -330,7 +330,8 @@ mod tests {
 
     #[test]
     fn test_header() {
-        let req = TestRequest::with_header(header::TRANSFER_ENCODING, "chunked")
+        let req = TestRequest::default()
+            .insert_header((header::TRANSFER_ENCODING, "chunked"))
             .to_http_request();
 
         let pred = Header("transfer-encoding", "chunked");
@@ -346,10 +347,10 @@ mod tests {
     #[test]
     fn test_host() {
         let req = TestRequest::default()
-            .header(
+            .insert_header((
                 header::HOST,
                 header::HeaderValue::from_static("www.rust-lang.org"),
-            )
+            ))
             .to_http_request();
 
         let pred = Host("www.rust-lang.org");
@@ -374,10 +375,10 @@ mod tests {
     #[test]
     fn test_host_scheme() {
         let req = TestRequest::default()
-            .header(
+            .insert_header((
                 header::HOST,
                 header::HeaderValue::from_static("https://www.rust-lang.org"),
-            )
+            ))
             .to_http_request();
 
         let pred = Host("www.rust-lang.org").scheme("https");

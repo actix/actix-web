@@ -73,12 +73,12 @@ mod tests {
     fn test_if_none_match() {
         let mut if_none_match: Result<IfNoneMatch, _>;
 
-        let req = TestRequest::with_header(IF_NONE_MATCH, "*").finish();
+        let req = TestRequest::default().insert_header(IF_NONE_MATCH, "*").finish();
         if_none_match = Header::parse(&req);
         assert_eq!(if_none_match.ok(), Some(IfNoneMatch::Any));
 
         let req =
-            TestRequest::with_header(IF_NONE_MATCH, &b"\"foobar\", W/\"weak-etag\""[..])
+            TestRequest::default().insert_header(IF_NONE_MATCH, &b"\"foobar\", W/\"weak-etag\""[..])
                 .finish();
 
         if_none_match = Header::parse(&req);

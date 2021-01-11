@@ -2,7 +2,6 @@
 
 use std::{
     cell::{Ref, RefMut},
-    convert::TryFrom,
     fmt,
     future::Future,
     pin::Pin,
@@ -18,8 +17,8 @@ use crate::body::{Body, BodyStream, MessageBody, ResponseBody};
 use crate::cookie::{Cookie, CookieJar};
 use crate::error::Error;
 use crate::extensions::Extensions;
-use crate::header::{Header, IntoHeaderPair, IntoHeaderValue};
-use crate::http::header::{self, HeaderName, HeaderValue};
+use crate::header::{IntoHeaderPair, IntoHeaderValue};
+use crate::http::header::{self, HeaderValue};
 use crate::http::{Error as HttpError, HeaderMap, StatusCode};
 use crate::message::{BoxedResponseHead, ConnectionType, ResponseHead};
 
@@ -345,80 +344,18 @@ impl ResponseBuilder {
         self
     }
 
-    /// Set a header.
+    /// Insert a header, replacing any that were set with an equivalent field name.
     ///
     /// ```rust
-    /// use actix_http::{http, Request, Response, Result};
-    ///
-    /// fn index(req: Request) -> Result<Response> {
-    ///     Ok(Response::Ok()
-    ///         .set(http::header::IfModifiedSince(
-    ///             "Sun, 07 Nov 1994 08:48:37 GMT".parse()?,
-    ///         ))
-    ///         .finish())
-    /// }
-    /// ```
-    #[doc(hidden)]
-    pub fn set<H: Header>(&mut self, hdr: H) -> &mut Self {
-        if let Some(parts) = parts(&mut self.head, &self.err) {
-            match hdr.try_into_value() {
-                Ok(value) => {
-                    parts.headers.append(H::name(), value);
-                }
-                Err(e) => self.err = Some(e.into()),
-            }
-        }
-        self
-    }
-
-    /// Append a header to existing headers.
-    ///
-    /// ```rust
-    /// use actix_http::{http, Request, Response};
-    ///
-    /// fn index(req: Request) -> Response {
-    ///     Response::Ok()
-    ///         .header("X-TEST", "value")
-    ///         .header(http::header::CONTENT_TYPE, "application/json")
-    ///         .finish()
-    /// }
-    /// ```
-    pub fn header<K, V>(&mut self, key: K, value: V) -> &mut Self
-    where
-        HeaderName: TryFrom<K>,
-        <HeaderName as TryFrom<K>>::Error: Into<HttpError>,
-        V: IntoHeaderValue,
-    {
-        if let Some(parts) = parts(&mut self.head, &self.err) {
-            match HeaderName::try_from(key) {
-                Ok(key) => match value.try_into_value() {
-                    Ok(value) => {
-                        parts.headers.append(key, value);
-                    }
-                    Err(e) => self.err = Some(e.into()),
-                },
-                Err(e) => self.err = Some(e.into()),
-            };
-        }
-        self
-    }
-
-    /// Insert a header, replacing any that existed with an equivalent field name.
-    ///
-    /// ```rust
-    /// use actix_http::{http, Request, Response};
-    ///
-    /// fn index(req: Request) -> Response {
-    ///     Response::Ok()
-    ///         .set_header(("X-TEST", "value"))
-    ///         .set_header(ContentType(mime::APPLICATION_JSON))
-    ///         .finish()
-    /// }
+    /// # use actix_http::Response;
+    /// Response::Ok()
+    ///     .set_header(("X-TEST", "value"))
+    ///     .set_header(ContentType(mime::APPLICATION_JSON))
+    ///     .finish()
     /// ```
     pub fn insert_header<H>(&mut self, header: H) -> &mut Self
     where
         H: IntoHeaderPair,
-        H::Error: Into<HttpError>,
     {
         if let Some(parts) = parts(&mut self.head, &self.err) {
             match header.try_into_header_pair() {
@@ -430,22 +367,18 @@ impl ResponseBuilder {
         self
     }
 
-    /// Append a header, keeping any that existed with an equivalent field name.
+    /// Append a header, keeping any that were set with an equivalent field name.
     ///
     /// ```rust
-    /// use actix_http::{http, Request, Response};
-    ///
-    /// fn index(req: Request) -> Response {
-    ///     Response::Ok()
-    ///         .append_header(("X-TEST", "value"))
-    ///         .append_header(ContentType(mime::APPLICATION_JSON))
-    ///         .finish()
-    /// }
+    /// # use actix_http::Response;
+    /// Response::Ok()
+    ///     .append_header(("X-TEST", "value"))
+    ///     .append_header(ContentType(mime::APPLICATION_JSON))
+    ///     .finish()
     /// ```
     pub fn append_header<H>(&mut self, header: H) -> &mut Self
     where
         H: IntoHeaderPair,
-        H::Error: Into<HttpError>,
     {
         if let Some(parts) = parts(&mut self.head, &self.err) {
             match header.try_into_header_pair() {
@@ -504,7 +437,7 @@ impl ResponseBuilder {
     /// Disable chunked transfer encoding for HTTP/1.1 streaming responses.
     #[inline]
     pub fn no_chunking(&mut self, len: u64) -> &mut Self {
-        self.header(header::CONTENT_LENGTH, len);
+        self.insert_header((header::CONTENT_LENGTH, len));
 
         if let Some(parts) = parts(&mut self.head, &self.err) {
             parts.no_chunking(true);
@@ -519,7 +452,7 @@ impl ResponseBuilder {
         V: IntoHeaderValue,
     {
         if let Some(parts) = parts(&mut self.head, &self.err) {
-            match value.try_into() {
+            match value.try_into_value() {
                 Ok(value) => {
                     parts.headers.insert(header::CONTENT_TYPE, value);
                 }
@@ -689,8 +622,9 @@ impl ResponseBuilder {
                 } else {
                     true
                 };
+
                 if !contains {
-                    self.header(header::CONTENT_TYPE, "application/json");
+                    self.insert_header(header::ContentType(mime::APPLICATION_JSON));
                 }
 
                 self.body(Body::from(body))

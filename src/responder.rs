@@ -1,30 +1,11 @@
-use std::convert::TryFrom;
-
-use actix_http::error::InternalError;
-use actix_http::http::{
-    header::IntoHeaderPair, Error as HttpError, HeaderMap, HeaderName, StatusCode,
-};
-use actix_http::ResponseBuilder;
-use bytes::{Bytes, BytesMut};
-use std::{
-    fmt,
-    future::Future,
-    marker::PhantomData,
-    pin::Pin,
-    task::{Context, Poll},
-};
+use std::fmt;
 
 use actix_http::{
     error::InternalError,
     http::{header::IntoHeaderPair, Error as HttpError, HeaderMap, StatusCode},
-    Error, Response, ResponseBuilder,
+    ResponseBuilder,
 };
 use bytes::{Bytes, BytesMut};
-use futures_util::{
-    future::{err, ok, Either as EitherFuture, Ready},
-    ready,
-};
-use pin_project::pin_project;
 
 use crate::{Error, HttpRequest, HttpResponse};
 
@@ -73,7 +54,6 @@ pub trait Responder {
     where
         Self: Sized,
         H: IntoHeaderPair,
-        H::Error: Into<HttpError>,
     {
         CustomResponder::new(self).with_header(header)
     }
@@ -219,12 +199,12 @@ impl<T: Responder> CustomResponder<T> {
     /// fn index(req: HttpRequest) -> impl Responder {
     ///     web::Json(MyObj { name: "Name".to_string() })
     ///         .with_header(("x-version", "1.2.3"))
+    ///         .with_header(("x-version", "1.2.3"))
     /// }
     /// ```
     pub fn with_header<H>(mut self, header: H) -> Self
     where
         H: IntoHeaderPair,
-        H::Error: Into<HttpError>,
     {
         if self.headers.is_none() {
             self.headers = Some(HeaderMap::new());
@@ -423,8 +403,7 @@ pub(crate) mod tests {
         let res = "test"
             .to_string()
             .with_header(("content-type", "json"))
-            .respond_to(&req)
-            .unwrap();
+            .respond_to(&req);
 
         assert_eq!(res.status(), StatusCode::OK);
         assert_eq!(res.body().bin_ref(), b"test");
@@ -443,9 +422,8 @@ pub(crate) mod tests {
 
         let req = TestRequest::default().to_http_request();
         let res = ("test".to_string(), StatusCode::OK)
-            .with_header(CONTENT_TYPE, mime::APPLICATION_JSON)
-            .respond_to(&req)
-            .unwrap();
+            .with_header((CONTENT_TYPE, mime::APPLICATION_JSON))
+            .respond_to(&req);
         assert_eq!(res.status(), StatusCode::OK);
         assert_eq!(res.body().bin_ref(), b"test");
         assert_eq!(

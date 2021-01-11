@@ -9,7 +9,7 @@ pub trait IntoHeaderValue: Sized {
     /// The type returned in the event of a conversion error.
     type Error: Into<HttpError>;
 
-    /// Try to convert value to a Header pair value.
+    /// Try to convert value to a HeaderValue.
     fn try_into_value(self) -> Result<HeaderValue, Self::Error>;
 }
 
@@ -22,7 +22,16 @@ impl IntoHeaderValue for HeaderValue {
     }
 }
 
-impl<'a> IntoHeaderValue for &'a str {
+impl IntoHeaderValue for &HeaderValue {
+    type Error = InvalidHeaderValue;
+
+    #[inline]
+    fn try_into_value(self) -> Result<HeaderValue, Self::Error> {
+        Ok(self.clone())
+    }
+}
+
+impl IntoHeaderValue for &str {
     type Error = InvalidHeaderValue;
 
     #[inline]
@@ -31,7 +40,7 @@ impl<'a> IntoHeaderValue for &'a str {
     }
 }
 
-impl<'a> IntoHeaderValue for &'a [u8] {
+impl IntoHeaderValue for &[u8] {
     type Error = InvalidHeaderValue;
 
     #[inline]
@@ -72,8 +81,16 @@ impl IntoHeaderValue for usize {
 
     #[inline]
     fn try_into_value(self) -> Result<HeaderValue, Self::Error> {
-        let s = format!("{}", self);
-        HeaderValue::try_from(s)
+        HeaderValue::try_from(self.to_string())
+    }
+}
+
+impl IntoHeaderValue for i64 {
+    type Error = InvalidHeaderValue;
+
+    #[inline]
+    fn try_into_value(self) -> Result<HeaderValue, Self::Error> {
+        HeaderValue::try_from(self.to_string())
     }
 }
 
@@ -82,8 +99,25 @@ impl IntoHeaderValue for u64 {
 
     #[inline]
     fn try_into_value(self) -> Result<HeaderValue, Self::Error> {
-        let s = format!("{}", self);
-        HeaderValue::try_from(s)
+        HeaderValue::try_from(self.to_string())
+    }
+}
+
+impl IntoHeaderValue for i32 {
+    type Error = InvalidHeaderValue;
+
+    #[inline]
+    fn try_into_value(self) -> Result<HeaderValue, Self::Error> {
+        HeaderValue::try_from(self.to_string())
+    }
+}
+
+impl IntoHeaderValue for u32 {
+    type Error = InvalidHeaderValue;
+
+    #[inline]
+    fn try_into_value(self) -> Result<HeaderValue, Self::Error> {
+        HeaderValue::try_from(self.to_string())
     }
 }
 

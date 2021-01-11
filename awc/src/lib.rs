@@ -182,8 +182,8 @@ impl Client {
     {
         let mut req = ClientRequest::new(method, url, self.0.clone());
 
-        for (key, value) in self.0.headers.iter() {
-            req = req.set_header_if_none(key.clone(), value.clone());
+        for header in self.0.headers.iter() {
+            req = req.insert_header_if_none(header);
         }
         req
     }
@@ -198,8 +198,8 @@ impl Client {
         <Uri as TryFrom<U>>::Error: Into<HttpError>,
     {
         let mut req = self.request(head.method.clone(), url);
-        for (key, value) in head.headers.iter() {
-            req = req.set_header_if_none(key.clone(), value.clone());
+        for header in head.headers.iter() {
+            req = req.insert_header_if_none(header);
         }
         req
     }

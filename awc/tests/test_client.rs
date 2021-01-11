@@ -52,7 +52,7 @@ async fn test_simple() {
             .service(web::resource("/").route(web::to(|| HttpResponse::Ok().body(STR))))
     });
 
-    let request = srv.get("/").header("x-test", "111").send();
+    let request = srv.get("/").append_header("x-test", "111").send();
     let mut response = request.await.unwrap();
     assert!(response.status().is_success());
 
@@ -82,7 +82,7 @@ async fn test_json() {
 
     let request = srv
         .get("/")
-        .header("x-test", "111")
+        .append_header("x-test", "111")
         .send_json(&"TEST".to_string());
     let response = request.await.unwrap();
     assert!(response.status().is_success());
@@ -99,7 +99,7 @@ async fn test_form() {
     let mut data = HashMap::new();
     let _ = data.insert("key".to_string(), "TEST".to_string());
 
-    let request = srv.get("/").header("x-test", "111").send_form(&data);
+    let request = srv.get("/").append_header("x-test", "111").send_form(&data);
     let response = request.await.unwrap();
     assert!(response.status().is_success());
 }

@@ -108,7 +108,7 @@ async fn test_body_gzip() {
     let mut response = srv
         .get("/")
         .no_decompress()
-        .header(ACCEPT_ENCODING, "gzip")
+        .append_header((ACCEPT_ENCODING, "gzip"))
         .send()
         .await
         .unwrap();
@@ -137,7 +137,7 @@ async fn test_body_gzip2() {
     let mut response = srv
         .get("/")
         .no_decompress()
-        .header(ACCEPT_ENCODING, "gzip")
+        .append_header((ACCEPT_ENCODING, "gzip"))
         .send()
         .await
         .unwrap();
@@ -178,7 +178,7 @@ async fn test_body_encoding_override() {
     let mut response = srv
         .get("/")
         .no_decompress()
-        .header(ACCEPT_ENCODING, "deflate")
+        .append_header((ACCEPT_ENCODING, "deflate"))
         .send()
         .await
         .unwrap();
@@ -197,7 +197,7 @@ async fn test_body_encoding_override() {
     let mut response = srv
         .request(actix_web::http::Method::GET, srv.url("/raw"))
         .no_decompress()
-        .header(ACCEPT_ENCODING, "deflate")
+        .append_header((ACCEPT_ENCODING, "deflate"))
         .send()
         .await
         .unwrap();
@@ -231,7 +231,7 @@ async fn test_body_gzip_large() {
     let mut response = srv
         .get("/")
         .no_decompress()
-        .header(ACCEPT_ENCODING, "gzip")
+        .append_header((ACCEPT_ENCODING, "gzip"))
         .send()
         .await
         .unwrap();
@@ -269,7 +269,7 @@ async fn test_body_gzip_large_random() {
     let mut response = srv
         .get("/")
         .no_decompress()
-        .header(ACCEPT_ENCODING, "gzip")
+        .append_header((ACCEPT_ENCODING, "gzip"))
         .send()
         .await
         .unwrap();
@@ -300,7 +300,7 @@ async fn test_body_chunked_implicit() {
     let mut response = srv
         .get("/")
         .no_decompress()
-        .header(ACCEPT_ENCODING, "gzip")
+        .append_header((ACCEPT_ENCODING, "gzip"))
         .send()
         .await
         .unwrap();
@@ -333,7 +333,7 @@ async fn test_body_br_streaming() {
 
     let mut response = srv
         .get("/")
-        .header(ACCEPT_ENCODING, "br")
+        .append_header((ACCEPT_ENCODING, "br"))
         .no_decompress()
         .send()
         .await
@@ -406,7 +406,7 @@ async fn test_body_deflate() {
     // client request
     let mut response = srv
         .get("/")
-        .header(ACCEPT_ENCODING, "deflate")
+        .append_header((ACCEPT_ENCODING, "deflate"))
         .no_decompress()
         .send()
         .await
@@ -433,7 +433,7 @@ async fn test_body_brotli() {
     // client request
     let mut response = srv
         .get("/")
-        .header(ACCEPT_ENCODING, "br")
+        .append_header((ACCEPT_ENCODING, "br"))
         .no_decompress()
         .send()
         .await
@@ -466,7 +466,7 @@ async fn test_encoding() {
 
     let request = srv
         .post("/")
-        .header(CONTENT_ENCODING, "gzip")
+        .insert_header((CONTENT_ENCODING, "gzip"))
         .send_body(enc.clone());
     let mut response = request.await.unwrap();
     assert!(response.status().is_success());
@@ -492,7 +492,7 @@ async fn test_gzip_encoding() {
 
     let request = srv
         .post("/")
-        .header(CONTENT_ENCODING, "gzip")
+        .append_header((CONTENT_ENCODING, "gzip"))
         .send_body(enc.clone());
     let mut response = request.await.unwrap();
     assert!(response.status().is_success());
@@ -519,7 +519,7 @@ async fn test_gzip_encoding_large() {
 
     let request = srv
         .post("/")
-        .header(CONTENT_ENCODING, "gzip")
+        .append_header((CONTENT_ENCODING, "gzip"))
         .send_body(enc.clone());
     let mut response = request.await.unwrap();
     assert!(response.status().is_success());
@@ -551,7 +551,7 @@ async fn test_reading_gzip_encoding_large_random() {
 
     let request = srv
         .post("/")
-        .header(CONTENT_ENCODING, "gzip")
+        .append_header((CONTENT_ENCODING, "gzip"))
         .send_body(enc.clone());
     let mut response = request.await.unwrap();
     assert!(response.status().is_success());
@@ -578,7 +578,7 @@ async fn test_reading_deflate_encoding() {
     // client request
     let request = srv
         .post("/")
-        .header(CONTENT_ENCODING, "deflate")
+        .append_header((CONTENT_ENCODING, "deflate"))
         .send_body(enc.clone());
     let mut response = request.await.unwrap();
     assert!(response.status().is_success());
@@ -605,7 +605,7 @@ async fn test_reading_deflate_encoding_large() {
     // client request
     let request = srv
         .post("/")
-        .header(CONTENT_ENCODING, "deflate")
+        .append_header((CONTENT_ENCODING, "deflate"))
         .send_body(enc.clone());
     let mut response = request.await.unwrap();
     assert!(response.status().is_success());
@@ -637,7 +637,7 @@ async fn test_reading_deflate_encoding_large_random() {
     // client request
     let request = srv
         .post("/")
-        .header(CONTENT_ENCODING, "deflate")
+        .append_header((CONTENT_ENCODING, "deflate"))
         .send_body(enc.clone());
     let mut response = request.await.unwrap();
     assert!(response.status().is_success());
@@ -664,7 +664,7 @@ async fn test_brotli_encoding() {
     // client request
     let request = srv
         .post("/")
-        .header(CONTENT_ENCODING, "br")
+        .append_header((CONTENT_ENCODING, "br"))
         .send_body(enc.clone());
     let mut response = request.await.unwrap();
     assert!(response.status().is_success());
@@ -699,7 +699,7 @@ async fn test_brotli_encoding_large() {
     // client request
     let request = srv
         .post("/")
-        .header(CONTENT_ENCODING, "br")
+        .append_header((CONTENT_ENCODING, "br"))
         .send_body(enc.clone());
     let mut response = request.await.unwrap();
     assert!(response.status().is_success());
@@ -739,7 +739,7 @@ async fn test_brotli_encoding_large_openssl() {
     // client request
     let mut response = srv
         .post("/")
-        .header(actix_web::http::header::CONTENT_ENCODING, "br")
+        .append_header((actix_web::http::header::CONTENT_ENCODING, "br"))
         .send_body(enc)
         .await
         .unwrap();

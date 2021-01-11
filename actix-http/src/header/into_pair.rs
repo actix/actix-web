@@ -1,6 +1,5 @@
-use std::convert::{Infallible, TryFrom};
+use std::convert::TryFrom;
 
-use either::Either;
 use http::{
     header::{HeaderName, InvalidHeaderName, InvalidHeaderValue},
     Error as HttpError, HeaderValue,
@@ -10,37 +9,9 @@ use super::{Header, IntoHeaderValue};
 
 /// Transforms structures into header K/V pairs for inserting into `HeaderMap`s.
 pub trait IntoHeaderPair: Sized {
-    type Error;
+    type Error: Into<HttpError>;
 
     fn try_into_header_pair(self) -> Result<(HeaderName, HeaderValue), Self::Error>;
-}
-
-impl IntoHeaderPair for (HeaderName, HeaderValue) {
-    type Error = Infallible;
-
-    fn try_into_header_pair(self) -> Result<(HeaderName, HeaderValue), Self::Error> {
-        Ok(self)
-    }
-}
-
-impl IntoHeaderPair for (HeaderName, &str) {
-    type Error = InvalidHeaderValue;
-
-    fn try_into_header_pair(self) -> Result<(HeaderName, HeaderValue), Self::Error> {
-        let (name, value) = self;
-        let value = HeaderValue::try_from(value)?;
-        Ok((name, value))
-    }
-}
-
-impl IntoHeaderPair for (&str, HeaderValue) {
-    type Error = InvalidHeaderName;
-
-    fn try_into_header_pair(self) -> Result<(HeaderName, HeaderValue), Self::Error> {
-        let (name, value) = self;
-        let name = HeaderName::try_from(name)?;
-        Ok((name, value))
-    }
 }
 
 #[derive(Debug)]
@@ -58,52 +29,86 @@ impl From<InvalidHeaderPart> for HttpError {
     }
 }
 
-impl IntoHeaderPair for (&str, &str) {
+impl<V> IntoHeaderPair for (HeaderName, V)
+where
+    V: IntoHeaderValue,
+    V::Error: Into<InvalidHeaderValue>,
+{
+    type Error = InvalidHeaderPart;
+
+    fn try_into_header_pair(self) -> Result<(HeaderName, HeaderValue), Self::Error> {
+        let (name, value) = self;
+        let value = value
+            .try_into_value()
+            .map_err(|err| InvalidHeaderPart::Value(err.into()))?;
+        Ok((name, value))
+    }
+}
+
+impl<V> IntoHeaderPair for (&HeaderName, V)
+where
+    V: IntoHeaderValue,
+    V::Error: Into<InvalidHeaderValue>,
+{
+    type Error = InvalidHeaderPart;
+
+    fn try_into_header_pair(self) -> Result<(HeaderName, HeaderValue), Self::Error> {
+        let (name, value) = self;
+        let value = value
+            .try_into_value()
+            .map_err(|err| InvalidHeaderPart::Value(err.into()))?;
+        Ok((name.clone(), value))
+    }
+}
+
+impl<V> IntoHeaderPair for (&[u8], V)
+where
+    V: IntoHeaderValue,
+    V::Error: Into<InvalidHeaderValue>,
+{
     type Error = InvalidHeaderPart;
 
     fn try_into_header_pair(self) -> Result<(HeaderName, HeaderValue), Self::Error> {
         let (name, value) = self;
         let name = HeaderName::try_from(name).map_err(InvalidHeaderPart::Name)?;
-        let value = HeaderValue::try_from(value).map_err(InvalidHeaderPart::Value)?;
+        let value = value
+            .try_into_value()
+            .map_err(|err| InvalidHeaderPart::Value(err.into()))?;
         Ok((name, value))
     }
 }
 
-impl IntoHeaderPair for (HeaderName, String) {
-    type Error = InvalidHeaderValue;
-
-    fn try_into_header_pair(self) -> Result<(HeaderName, HeaderValue), Self::Error> {
-        let (name, value) = self;
-        let value = HeaderValue::try_from(&value)?;
-        Ok((name, value))
-    }
-}
-
-impl IntoHeaderPair for (String, HeaderValue) {
-    type Error = InvalidHeaderName;
-
-    fn try_into_header_pair(self) -> Result<(HeaderName, HeaderValue), Self::Error> {
-        let (name, value) = self;
-        let name = HeaderName::try_from(&name)?;
-        Ok((name, value))
-    }
-}
-
-impl IntoHeaderPair for (String, String) {
-    type Error = Either<InvalidHeaderName, InvalidHeaderValue>;
-
-    fn try_into_header_pair(self) -> Result<(HeaderName, HeaderValue), Self::Error> {
-        let (name, value) = self;
-        let name = HeaderName::try_from(&name).map_err(Either::Left)?;
-        let value = HeaderValue::try_from(&value).map_err(Either::Right)?;
-        Ok((name, value))
-    }
-}
-
-impl<T> IntoHeaderPair for T
+impl<V> IntoHeaderPair for (&str, V)
 where
-    T: Header,
+    V: IntoHeaderValue,
+    V::Error: Into<InvalidHeaderValue>,
 {
+    type Error = InvalidHeaderPart;
+
+    fn try_into_header_pair(self) -> Result<(HeaderName, HeaderValue), Self::Error> {
+        let (name, value) = self;
+        let name = HeaderName::try_from(name).map_err(InvalidHeaderPart::Name)?;
+        let value = value
+            .try_into_value()
+            .map_err(|err| InvalidHeaderPart::Value(err.into()))?;
+        Ok((name, value))
+    }
+}
+
+impl<V> IntoHeaderPair for (String, V)
+where
+    V: IntoHeaderValue,
+    V::Error: Into<InvalidHeaderValue>,
+{
+    type Error = InvalidHeaderPart;
+
+    fn try_into_header_pair(self) -> Result<(HeaderName, HeaderValue), Self::Error> {
+        let (name, value) = self;
+        (name.as_str(), value).try_into_header_pair()
+    }
+}
+
+impl<T: Header> IntoHeaderPair for T {
     type Error = <T as IntoHeaderValue>::Error;
 
     fn try_into_header_pair(self) -> Result<(HeaderName, HeaderValue), Self::Error> {

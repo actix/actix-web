@@ -15,10 +15,12 @@
 ### Removed
 * Public field of `web::Path` has been made private. [#1894]
 * Public field of `web::Query` has been made private. [#1894]
+* `TestRequest::with_header`; use `TestRequest::default().insert_header()`. [#1869]
 
 [#1891]: https://github.com/actix/actix-web/pull/1891
 [#1893]: https://github.com/actix/actix-web/pull/1893
 [#1894]: https://github.com/actix/actix-web/pull/1894
+[#1869]: https://github.com/actix/actix-web/pull/1869
 
 
 ## 4.0.0-beta.1 - 2021-01-07

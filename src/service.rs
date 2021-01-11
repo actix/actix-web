@@ -588,14 +588,14 @@ mod tests {
     fn test_fmt_debug() {
         let req = TestRequest::get()
             .uri("/index.html?test=1")
-            .header("x-test", "111")
+            .insert_header(("x-test", "111"))
             .to_srv_request();
         let s = format!("{:?}", req);
         assert!(s.contains("ServiceRequest"));
         assert!(s.contains("test=1"));
         assert!(s.contains("x-test"));
 
-        let res = HttpResponse::Ok().header("x-test", "111").finish();
+        let res = HttpResponse::Ok().insert_header(("x-test", "111")).finish();
         let res = TestRequest::post()
             .uri("/index.html?test=1")
             .to_srv_response(res);

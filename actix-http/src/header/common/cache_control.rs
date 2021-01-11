@@ -196,7 +196,7 @@ mod tests {
 
     #[test]
     fn test_parse_multiple_headers() {
-        let req = TestRequest::with_header(header::CACHE_CONTROL, "no-cache, private")
+        let req = TestRequest::default().insert_header(header::CACHE_CONTROL, "no-cache, private")
             .finish();
         let cache = Header::parse(&req);
         assert_eq!(
@@ -211,7 +211,7 @@ mod tests {
     #[test]
     fn test_parse_argument() {
         let req =
-            TestRequest::with_header(header::CACHE_CONTROL, "max-age=100, private")
+            TestRequest::default().insert_header(header::CACHE_CONTROL, "max-age=100, private")
                 .finish();
         let cache = Header::parse(&req);
         assert_eq!(
@@ -226,7 +226,7 @@ mod tests {
     #[test]
     fn test_parse_quote_form() {
         let req =
-            TestRequest::with_header(header::CACHE_CONTROL, "max-age=\"200\"").finish();
+            TestRequest::default().insert_header(header::CACHE_CONTROL, "max-age=\"200\"").finish();
         let cache = Header::parse(&req);
         assert_eq!(
             cache.ok(),
@@ -237,7 +237,7 @@ mod tests {
     #[test]
     fn test_parse_extension() {
         let req =
-            TestRequest::with_header(header::CACHE_CONTROL, "foo, bar=baz").finish();
+            TestRequest::default().insert_header(header::CACHE_CONTROL, "foo, bar=baz").finish();
         let cache = Header::parse(&req);
         assert_eq!(
             cache.ok(),
@@ -250,7 +250,7 @@ mod tests {
 
     #[test]
     fn test_parse_bad_syntax() {
-        let req = TestRequest::with_header(header::CACHE_CONTROL, "foo=").finish();
+        let req = TestRequest::default().insert_header(header::CACHE_CONTROL, "foo=").finish();
         let cache: Result<CacheControl, _> = Header::parse(&req);
         assert_eq!(cache.ok(), None)
     }

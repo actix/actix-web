@@ -285,6 +285,7 @@ impl<'a> AsName for &'a String {
     }
 }
 
+/// Iterator for all values in a `HeaderMap` with the same name.
 pub struct GetAll<'a> {
     idx: usize,
     item: Option<&'a Value>,

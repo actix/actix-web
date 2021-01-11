@@ -1,11 +1,26 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
-### Changed
-* `Response::content_type` now takes an `impl IntoHeaderValue` to support `mime` types. [#1894]
-* `Response::set` and `Response::header` methods; use the respective `Response::set_header` and
-  `Response::append_header` methods. [#1869]
+### Added
+* `IntoHeaderPair` trait that allows using types and non-typed headers in the same methods. [#1869]
+* `ResponseBuilder::insert_header` method which allows using typed headers. [#1869]
+* `ResponseBuilder::append_header` method which allows using typed headers. [#1869]
+* `TestRequest::insert_header` method which allows using typed headers. [#1869]
 
+### Changed
+* `ResponseBuilder::content_type` now takes an `impl IntoHeaderValue` to support using typed
+  `mime` types. [#1894]
+* Renamed `IntoHeaderValue::{try_into => try_into_value}` to avoid ambiguity with std
+  `TryInto` trait. [#1894]
+
+### Removed
+* `ResponseBuilder::set`; use `ResponseBuilder::insert_header`. [#1869]
+* `ResponseBuilder::set_header`; use `ResponseBuilder::insert_header`. [#1869]
+* `ResponseBuilder::header`; use `ResponseBuilder::append_header`. [#1869]
+* `TestRequest::with_hdr`; use `TestRequest::default().insert_header()`. [#1869]
+* `TestRequest::with_header`; use `TestRequest::default().insert_header()`. [#1869]
+
+[#1869]: https://github.com/actix/actix-web/pull/1869
 [#1894]: https://github.com/actix/actix-web/pull/1894
 
 
@@ -35,12 +50,8 @@
 [#1813]: https://github.com/actix/actix-web/pull/1813
 [#1857]: https://github.com/actix/actix-web/pull/1857
 [#1864]: https://github.com/actix/actix-web/pull/1864
-<<<<<<< HEAD
 [#1878]: https://github.com/actix/actix-web/pull/1878
-=======
-[#1869]: https://github.com/actix/actix-web/pull/1869
 
->>>>>>> 587000a2... add IntoHeaderPair trait
 
 ## 2.2.0 - 2020-11-25
 ### Added

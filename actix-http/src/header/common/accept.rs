@@ -132,7 +132,7 @@ header! {
         #[test]
         fn test_fuzzing1() {
             use crate::test::TestRequest;
-            let req = TestRequest::with_header(crate::header::ACCEPT, "chunk#;e").finish();
+            let req = TestRequest::default().insert_header(crate::header::ACCEPT, "chunk#;e").finish();
             let header = Accept::parse(&req);
             assert!(header.is_ok());
         }

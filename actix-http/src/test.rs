@@ -13,7 +13,7 @@ use actix_codec::{AsyncRead, AsyncWrite, ReadBuf};
 use bytes::{Bytes, BytesMut};
 use http::{
     header::{self, HeaderValue},
-    Error as HttpError, Method, Uri, Version,
+    Method, Uri, Version,
 };
 
 use crate::{
@@ -38,7 +38,7 @@ use crate::{
 ///     }
 /// }
 ///
-/// let resp = TestRequest::with_header("content-type", "text/plain")
+/// let resp = TestRequest::default().insert_header("content-type", "text/plain")
 ///     .run(&index)
 ///     .unwrap();
 /// assert_eq!(resp.status(), StatusCode::OK);
@@ -76,15 +76,6 @@ impl TestRequest {
         TestRequest::default().uri(path).take()
     }
 
-    /// Create a default TestRequest and then set a header.
-    pub fn with_header<H>(header: H) -> TestRequest
-    where
-        H: IntoHeaderPair,
-        H::Error: Into<HttpError>,
-    {
-        TestRequest::default().header(header).take()
-    }
-
     /// Set HTTP version of this request.
     pub fn version(&mut self, ver: Version) -> &mut Self {
         parts(&mut self.0).version = ver;
@@ -97,17 +88,35 @@ impl TestRequest {
         self
     }
 
-    /// Set HTTP Uri of this request.
+    /// Set URI of this request.
+    ///
+    /// # Panics
+    /// If provided URI is invalid.
     pub fn uri(&mut self, path: &str) -> &mut Self {
         parts(&mut self.0).uri = Uri::from_str(path).unwrap();
         self
     }
 
-    /// Set a header.
-    pub fn header<H>(&mut self, header: H) -> &mut Self
+    /// Insert a header, replacing any that were set with an equivalent field name.
+    pub fn insert_header<H>(&mut self, header: H) -> &mut Self
     where
         H: IntoHeaderPair,
-        H::Error: Into<HttpError>,
+    {
+        match header.try_into_header_pair() {
+            Ok((key, value)) => {
+                parts(&mut self.0).headers.insert(key, value);
+                return self;
+            }
+            Err(err) => {
+                panic!("Error inserting test header: {}.", err.into());
+            }
+        }
+    }
+
+    /// Append a header, keeping any that were set with an equivalent field name.
+    pub fn append_header<H>(&mut self, header: H) -> &mut Self
+    where
+        H: IntoHeaderPair,
     {
         match header.try_into_header_pair() {
             Ok((key, value)) => {
@@ -115,7 +124,7 @@ impl TestRequest {
                 return self;
             }
             Err(err) => {
-                panic!("Error setting test header: {}.", err.into());
+                panic!("Error inserting test header: {}.", err.into());
             }
         }
     }

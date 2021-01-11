@@ -9,10 +9,10 @@ use serde::Serialize;
 
 use actix_http::body::Body;
 use actix_http::cookie::{Cookie, CookieJar};
-use actix_http::http::header::{self, Header, IntoHeaderValue};
+use actix_http::http::header::{self, IntoHeaderPair};
 use actix_http::http::{
-    uri, ConnectionType, Error as HttpError, HeaderMap, HeaderName, HeaderValue, Method,
-    Uri, Version,
+    uri, ConnectionType, Error as HttpError, HeaderMap, HeaderValue, Method, Uri,
+    Version,
 };
 use actix_http::{Error, RequestHead};
 
@@ -143,45 +143,49 @@ impl ClientRequest {
         &self.head.peer_addr
     }
 
-    #[inline]
     /// Returns request's headers.
+    #[inline]
     pub fn headers(&self) -> &HeaderMap {
         &self.head.headers
     }
 
-    #[inline]
     /// Returns request's mutable headers.
+    #[inline]
     pub fn headers_mut(&mut self) -> &mut HeaderMap {
         &mut self.head.headers
     }
 
-    /// Set a header.
-    ///
-    /// ```rust
-    /// fn main() {
-    /// # actix_rt::System::new("test").block_on(futures_util::future::lazy(|_| {
-    ///     let req = awc::Client::new()
-    ///         .get("http://www.rust-lang.org")
-    ///         .set(awc::http::header::Date::now())
-    ///         .set(awc::http::header::ContentType(mime::TEXT_HTML));
-    /// #   Ok::<_, ()>(())
-    /// # }));
-    /// }
-    /// ```
-    pub fn set<H: Header>(mut self, hdr: H) -> Self {
-        match hdr.try_into_value() {
-            Ok(value) => {
-                self.head.headers.insert(H::name(), value);
-            }
+    /// Insert a header, replacing any that were set with an equivalent field name.
+    pub fn insert_header<H>(mut self, header: H) -> Self
+    where
+        H: IntoHeaderPair,
+    {
+        match header.try_into_header_pair() {
+            Ok((key, value)) => self.head.headers.insert(key, value),
             Err(e) => self.err = Some(e.into()),
-        }
+        };
+
         self
     }
 
-    /// Append a header.
-    ///
-    /// Header gets appended to existing header.
-    /// To override header use `set_header()` method.
+    /// Insert a header only if it is not yet set.
+    pub fn insert_header_if_none<H>(mut self, header: H) -> Self
+    where
+        H: IntoHeaderPair,
+    {
+        match header.try_into_header_pair() {
+            Ok((key, value)) => {
+                if !self.head.headers.contains_key(&key) {
+                    self.head.headers.insert(key, value);
+                }
+            }
+            Err(e) => self.err = Some(e.into()),
+        };
+
+        self
+    }
+
+    /// Append a header, keeping any that were set with an equivalent field name.
     ///
     /// ```rust
     /// use awc::{http, Client};
@@ -196,57 +200,15 @@ impl ClientRequest {
     /// # });
     /// }
     /// ```
-    pub fn header<K, V>(mut self, key: K, value: V) -> Self
+    pub fn append_header<H>(mut self, header: H) -> Self
     where
-        HeaderName: TryFrom<K>,
-        <HeaderName as TryFrom<K>>::Error: Into<HttpError>,
-        V: IntoHeaderValue,
+        H: IntoHeaderPair,
     {
-        match HeaderName::try_from(key) {
-            Ok(key) => match value.try_into_value() {
-                Ok(value) => self.head.headers.append(key, value),
-                Err(e) => self.err = Some(e.into()),
-            },
+        match header.try_into_header_pair() {
+            Ok((key, value)) => self.head.headers.append(key, value),
             Err(e) => self.err = Some(e.into()),
-        }
-        self
-    }
+        };
 
-    /// Insert a header, replaces existing header.
-    pub fn set_header<K, V>(mut self, key: K, value: V) -> Self
-    where
-        HeaderName: TryFrom<K>,
-        <HeaderName as TryFrom<K>>::Error: Into<HttpError>,
-        V: IntoHeaderValue,
-    {
-        match HeaderName::try_from(key) {
-            Ok(key) => match value.try_into_value() {
-                Ok(value) => self.head.headers.insert(key, value),
-                Err(e) => self.err = Some(e.into()),
-            },
-            Err(e) => self.err = Some(e.into()),
-        }
-        self
-    }
-
-    /// Insert a header only if it is not yet set.
-    pub fn set_header_if_none<K, V>(mut self, key: K, value: V) -> Self
-    where
-        HeaderName: TryFrom<K>,
-        <HeaderName as TryFrom<K>>::Error: Into<HttpError>,
-        V: IntoHeaderValue,
-    {
-        match HeaderName::try_from(key) {
-            Ok(key) => {
-                if !self.head.headers.contains_key(&key) {
-                    match value.try_into_value() {
-                        Ok(value) => self.head.headers.insert(key, value),
-                        Err(e) => self.err = Some(e.into()),
-                    }
-                }
-            }
-            Err(e) => self.err = Some(e.into()),
-        }
         self
     }
 
@@ -282,7 +244,7 @@ impl ClientRequest {
     /// Set content length
     #[inline]
     pub fn content_length(self, len: u64) -> Self {
-        self.header(header::CONTENT_LENGTH, len)
+        self.append_header((header::CONTENT_LENGTH, len))
     }
 
     /// Set HTTP basic authorization header
@@ -294,10 +256,10 @@ impl ClientRequest {
             Some(password) => format!("{}:{}", username, password),
             None => format!("{}:", username),
         };
-        self.header(
+        self.append_header((
             header::AUTHORIZATION,
             format!("Basic {}", base64::encode(&auth)),
-        )
+        ))
     }
 
     /// Set HTTP bearer authentication header
@@ -305,7 +267,7 @@ impl ClientRequest {
     where
         T: fmt::Display,
     {
-        self.header(header::AUTHORIZATION, format!("Bearer {}", token))
+        self.append_header((header::AUTHORIZATION, format!("Bearer {}", token)))
     }
 
     /// Set a cookie
@@ -557,12 +519,15 @@ impl ClientRequest {
                 .unwrap_or(true);
 
             if https {
-                slf = slf.set_header_if_none(header::ACCEPT_ENCODING, HTTPS_ENCODING)
+                slf =
+                    slf.insert_header_if_none((header::ACCEPT_ENCODING, HTTPS_ENCODING))
             } else {
                 #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
                 {
-                    slf =
-                        slf.set_header_if_none(header::ACCEPT_ENCODING, "gzip, deflate")
+                    slf = slf.insert_header_if_none((
+                        header::ACCEPT_ENCODING,
+                        "gzip, deflate",
+                    ))
                 }
             };
         }
@@ -595,7 +560,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_debug() {
-        let request = Client::new().get("/").header("x-test", "111");
+        let request = Client::new().get("/").append_header("x-test", "111");
         let repr = format!("{:?}", request);
         assert!(repr.contains("ClientRequest"));
         assert!(repr.contains("x-test"));
@@ -608,16 +573,16 @@ mod tests {
             .version(Version::HTTP_2)
             .set(header::Date(SystemTime::now().into()))
             .content_type("plain/text")
-            .header(header::SERVER, "awc");
+            .append_header(header::SERVER, "awc");
 
         let req = if let Some(val) = Some("server") {
-            req.header(header::USER_AGENT, val)
+            req.append_header(header::USER_AGENT, val)
         } else {
             req
         };
 
         let req = if let Some(_val) = Option::<&str>::None {
-            req.header(header::ALLOW, "1")
+            req.append_header(header::ALLOW, "1")
         } else {
             req
         };
@@ -660,7 +625,7 @@ mod tests {
             .header(header::CONTENT_TYPE, "111")
             .finish()
             .get("/")
-            .set_header(header::CONTENT_TYPE, "222");
+            .insert_header(header::CONTENT_TYPE, "222");
 
         assert_eq!(
             req.head

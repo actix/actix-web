@@ -1,4 +1,5 @@
-//! Various HTTP headers.
+//! Typed HTTP headers, pre-defined `HeaderName`s, traits for parsing/conversion and other
+//! header utility methods.
 
 use std::fmt;
 
@@ -68,7 +69,7 @@ impl fmt::Write for Writer {
     }
 }
 
-/// Convert http::HeaderMap to a HeaderMap
+/// Convert `http::HeaderMap` to our `HeaderMap`.
 impl From<http::HeaderMap> for HeaderMap {
     fn from(map: http::HeaderMap) -> HeaderMap {
         let mut new_map = HeaderMap::with_capacity(map.capacity());
@@ -80,7 +81,7 @@ impl From<http::HeaderMap> for HeaderMap {
 }
 
 // This encode set is used for HTTP header values and is defined at
-// https://tools.ietf.org/html/rfc5987#section-3.2
+// https://tools.ietf.org/html/rfc5987#section-3.2.
 pub(crate) const HTTP_VALUE: &AsciiSet = &CONTROLS
     .add(b' ')
     .add(b'"')
