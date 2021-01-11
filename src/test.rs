@@ -545,13 +545,10 @@ impl TestRequest {
         let app_state =
             AppInitServiceState::new(Rc::new(self.rmap), self.config.clone());
 
-        ServiceRequest::new(HttpRequest::new(
-            self.path,
-            head,
+        ServiceRequest::new(
+            HttpRequest::new(self.path, head, app_state, Rc::new(self.app_data)),
             payload,
-            app_state,
-            Rc::new(self.app_data),
-        ))
+        )
     }
 
     /// Complete request creation and generate `ServiceResponse` instance
@@ -561,14 +558,14 @@ impl TestRequest {
 
     /// Complete request creation and generate `HttpRequest` instance
     pub fn to_http_request(mut self) -> HttpRequest {
-        let (mut head, payload) = self.req.finish().into_parts();
+        let (mut head, _) = self.req.finish().into_parts();
         head.peer_addr = self.peer_addr;
         self.path.get_mut().update(&head.uri);
 
         let app_state =
             AppInitServiceState::new(Rc::new(self.rmap), self.config.clone());
 
-        HttpRequest::new(self.path, head, payload, app_state, Rc::new(self.app_data))
+        HttpRequest::new(self.path, head, app_state, Rc::new(self.app_data))
     }
 
     /// Complete request creation and generate `HttpRequest` and `Payload` instances
@@ -580,13 +577,7 @@ impl TestRequest {
         let app_state =
             AppInitServiceState::new(Rc::new(self.rmap), self.config.clone());
 
-        let req = HttpRequest::new(
-            self.path,
-            head,
-            Payload::None,
-            app_state,
-            Rc::new(self.app_data),
-        );
+        let req = HttpRequest::new(self.path, head, app_state, Rc::new(self.app_data));
 
         (req, payload)
     }

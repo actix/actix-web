@@ -1,6 +1,6 @@
 use std::cell::RefCell;
 use std::rc::Rc;
-use std::task::{Context, Poll};
+use std::task::Poll;
 
 use actix_http::{Extensions, Request, Response};
 use actix_router::{Path, ResourceDef, Router, Url};
@@ -201,9 +201,7 @@ where
     type Error = T::Error;
     type Future = T::Future;
 
-    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        self.service.poll_ready(cx)
-    }
+    actix_service::forward_ready!(service);
 
     fn call(&mut self, req: Request) -> Self::Future {
         let (head, payload) = req.into_parts();
@@ -213,18 +211,16 @@ where
             inner.path.get_mut().update(&head.uri);
             inner.path.reset();
             inner.head = head;
-            inner.payload = payload;
             req
         } else {
             HttpRequest::new(
                 Path::new(Url::new(head.uri.clone())),
                 head,
-                payload,
                 self.app_state.clone(),
                 self.app_data.clone(),
             )
         };
-        self.service.call(ServiceRequest::new(req))
+        self.service.call(ServiceRequest::new(req, payload))
     }
 }
 
