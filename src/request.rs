@@ -28,7 +28,6 @@ pub struct HttpRequest {
 pub(crate) struct HttpRequestInner {
     pub(crate) head: Message<RequestHead>,
     pub(crate) path: Path<Url>,
-    pub(crate) payload: Payload,
     pub(crate) app_data: SmallVec<[Rc<Extensions>; 4]>,
     app_state: Rc<AppInitServiceState>,
 }
@@ -38,7 +37,6 @@ impl HttpRequest {
     pub(crate) fn new(
         path: Path<Url>,
         head: Message<RequestHead>,
-        payload: Payload,
         app_state: Rc<AppInitServiceState>,
         app_data: Rc<Extensions>,
     ) -> HttpRequest {
@@ -49,7 +47,6 @@ impl HttpRequest {
             inner: Rc::new(HttpRequestInner {
                 head,
                 path,
-                payload,
                 app_state,
                 app_data: data,
             }),
