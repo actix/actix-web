@@ -30,31 +30,24 @@ header! {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```
     /// use actix_http::Response;
     /// use actix_http::http::header::ContentType;
     ///
-    /// # fn main() {
     /// let mut builder = Response::Ok();
-    /// builder.set(
+    /// builder.insert_header(
     ///     ContentType::json()
     /// );
-    /// # }
     /// ```
     ///
-    /// ```rust
-    /// # extern crate mime;
-    /// # extern crate actix_http;
-    /// use mime::TEXT_HTML;
+    /// ```
     /// use actix_http::Response;
     /// use actix_http::http::header::ContentType;
     ///
-    /// # fn main() {
     /// let mut builder = Response::Ok();
-    /// builder.set(
-    ///     ContentType(TEXT_HTML)
+    /// builder.insert_header(
+    ///     ContentType(mime::TEXT_HTML)
     /// );
-    /// # }
     /// ```
     (ContentType, CONTENT_TYPE) => [Mime]
 

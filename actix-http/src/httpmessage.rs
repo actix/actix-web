@@ -174,11 +174,11 @@ mod tests {
     #[test]
     fn test_content_type() {
         let req = TestRequest::default()
-            .insert_header("content-type", "text/plain")
+            .insert_header(("content-type", "text/plain"))
             .finish();
         assert_eq!(req.content_type(), "text/plain");
         let req = TestRequest::default()
-            .insert_header("content-type", "application/json; charset=utf=8")
+            .insert_header(("content-type", "application/json; charset=utf=8"))
             .finish();
         assert_eq!(req.content_type(), "application/json");
         let req = TestRequest::default().finish();
@@ -188,13 +188,13 @@ mod tests {
     #[test]
     fn test_mime_type() {
         let req = TestRequest::default()
-            .insert_header("content-type", "application/json")
+            .insert_header(("content-type", "application/json"))
             .finish();
         assert_eq!(req.mime_type().unwrap(), Some(mime::APPLICATION_JSON));
         let req = TestRequest::default().finish();
         assert_eq!(req.mime_type().unwrap(), None);
         let req = TestRequest::default()
-            .insert_header("content-type", "application/json; charset=utf-8")
+            .insert_header(("content-type", "application/json; charset=utf-8"))
             .finish();
         let mt = req.mime_type().unwrap().unwrap();
         assert_eq!(mt.get_param(mime::CHARSET), Some(mime::UTF_8));
@@ -205,7 +205,7 @@ mod tests {
     #[test]
     fn test_mime_type_error() {
         let req = TestRequest::default()
-            .insert_header("content-type", "applicationadfadsfasdflknadsfklnadsfjson")
+            .insert_header(("content-type", "applicationadfadsfasdflknadsfklnadsfjson"))
             .finish();
         assert_eq!(Err(ContentTypeError::ParseError), req.mime_type());
     }
@@ -216,12 +216,12 @@ mod tests {
         assert_eq!(UTF_8.name(), req.encoding().unwrap().name());
 
         let req = TestRequest::default()
-            .insert_header("content-type", "application/json")
+            .insert_header(("content-type", "application/json"))
             .finish();
         assert_eq!(UTF_8.name(), req.encoding().unwrap().name());
 
         let req = TestRequest::default()
-            .insert_header("content-type", "application/json; charset=ISO-8859-2")
+            .insert_header(("content-type", "application/json; charset=ISO-8859-2"))
             .finish();
         assert_eq!(ISO_8859_2, req.encoding().unwrap());
     }
@@ -229,12 +229,12 @@ mod tests {
     #[test]
     fn test_encoding_error() {
         let req = TestRequest::default()
-            .insert_header("content-type", "applicatjson")
+            .insert_header(("content-type", "applicatjson"))
             .finish();
         assert_eq!(Some(ContentTypeError::ParseError), req.encoding().err());
 
         let req = TestRequest::default()
-            .insert_header("content-type", "application/json; charset=kkkttktk")
+            .insert_header(("content-type", "application/json; charset=kkkttktk"))
             .finish();
         assert_eq!(
             Some(ContentTypeError::UnknownEncoding),
@@ -248,15 +248,15 @@ mod tests {
         assert!(!req.chunked().unwrap());
 
         let req = TestRequest::default()
-            .insert_header(header::TRANSFER_ENCODING, "chunked")
+            .insert_header((header::TRANSFER_ENCODING, "chunked"))
             .finish();
         assert!(req.chunked().unwrap());
 
         let req = TestRequest::default()
-            .header(
+            .insert_header((
                 header::TRANSFER_ENCODING,
                 Bytes::from_static(b"some va\xadscc\xacas0xsdasdlue"),
-            )
+            ))
             .finish();
         assert!(req.chunked().is_err());
     }

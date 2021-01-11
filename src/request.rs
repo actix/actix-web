@@ -439,8 +439,8 @@ mod tests {
     #[test]
     fn test_request_cookies() {
         let req = TestRequest::default()
-            .insert_header((header::COOKIE, "cookie1=value1"))
-            .insert_header((header::COOKIE, "cookie2=value2"))
+            .append_header((header::COOKIE, "cookie1=value1"))
+            .append_header((header::COOKIE, "cookie2=value2"))
             .to_http_request();
         {
             let cookies = req.cookies().unwrap();

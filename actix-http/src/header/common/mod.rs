@@ -84,7 +84,7 @@ macro_rules! test_header {
             let a: Vec<Vec<u8>> = raw.iter().map(|x| x.to_vec()).collect();
             let mut req = test::TestRequest::default();
             for item in a {
-                req = req.header(HeaderField::name(), item).take();
+                req = req.insert_header((HeaderField::name(), item)).take();
             }
             let req = req.finish();
             let value = HeaderField::parse(&req);
@@ -111,7 +111,7 @@ macro_rules! test_header {
             let a: Vec<Vec<u8>> = $raw.iter().map(|x| x.to_vec()).collect();
             let mut req = test::TestRequest::default();
             for item in a {
-                req.header(HeaderField::name(), item);
+                req.insert_header((HeaderField::name(), item));
             }
             let req = req.finish();
             let val = HeaderField::parse(&req);
@@ -334,7 +334,7 @@ macro_rules! header {
 }
 
 mod accept_charset;
-//mod accept_encoding;
+// mod accept_encoding;
 mod accept;
 mod accept_language;
 mod allow;

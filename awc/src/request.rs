@@ -37,13 +37,11 @@ cfg_if::cfg_if! {
 /// builder-like pattern.
 ///
 /// ```rust
-/// use actix_rt::System;
-///
 /// #[actix_rt::main]
 /// async fn main() {
 ///    let response = awc::Client::new()
 ///         .get("http://www.rust-lang.org") // <- Create request builder
-///         .header("User-Agent", "Actix-web")
+///         .insert_header(("User-Agent", "Actix-web"))
 ///         .send()                          // <- Send http request
 ///         .await;
 ///
@@ -188,17 +186,16 @@ impl ClientRequest {
     /// Append a header, keeping any that were set with an equivalent field name.
     ///
     /// ```rust
-    /// use awc::{http, Client};
+    /// # #[actix_rt::main]
+    /// # async fn main() {
+    /// # use awc::Client;
+    /// use awc::http::header::ContentType;
     ///
-    /// fn main() {
-    /// # actix_rt::System::new("test").block_on(async {
-    ///     let req = Client::new()
-    ///         .get("http://www.rust-lang.org")
-    ///         .header("X-TEST", "value")
-    ///         .header(http::header::CONTENT_TYPE, "application/json");
-    /// #   Ok::<_, ()>(())
-    /// # });
-    /// }
+    /// Client::new()
+    ///     .get("http://www.rust-lang.org")
+    ///     .insert_header(("X-TEST", "value"))
+    ///     .insert_header(ContentType(mime::APPLICATION_JSON));
+    /// # }
     /// ```
     pub fn append_header<H>(mut self, header: H) -> Self
     where
@@ -560,7 +557,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_debug() {
-        let request = Client::new().get("/").append_header("x-test", "111");
+        let request = Client::new().get("/").append_header(("x-test", "111"));
         let repr = format!("{:?}", request);
         assert!(repr.contains("ClientRequest"));
         assert!(repr.contains("x-test"));
@@ -571,18 +568,18 @@ mod tests {
         let req = Client::new()
             .put("/")
             .version(Version::HTTP_2)
-            .set(header::Date(SystemTime::now().into()))
+            .insert_header(header::Date(SystemTime::now().into()))
             .content_type("plain/text")
-            .append_header(header::SERVER, "awc");
+            .append_header((header::SERVER, "awc"));
 
         let req = if let Some(val) = Some("server") {
-            req.append_header(header::USER_AGENT, val)
+            req.append_header((header::USER_AGENT, val))
         } else {
             req
         };
 
         let req = if let Some(_val) = Option::<&str>::None {
-            req.append_header(header::ALLOW, "1")
+            req.append_header((header::ALLOW, "1"))
         } else {
             req
         };
@@ -625,7 +622,7 @@ mod tests {
             .header(header::CONTENT_TYPE, "111")
             .finish()
             .get("/")
-            .insert_header(header::CONTENT_TYPE, "222");
+            .insert_header((header::CONTENT_TYPE, "222"));
 
         assert_eq!(
             req.head

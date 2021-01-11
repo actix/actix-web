@@ -446,7 +446,7 @@ impl TestRequest {
     where
         H: IntoHeaderPair,
     {
-        self.req.insert_header(header);
+        self.req.append_header(header);
         self
     }
 

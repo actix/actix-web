@@ -32,50 +32,36 @@ header! {
     /// * `text/plain; q=0.5, text/html, text/x-dvi; q=0.8, text/x-c`
     ///
     /// # Examples
-    /// ```rust
-    /// # extern crate actix_http;
-    /// extern crate mime;
+    /// ```
     /// use actix_http::Response;
     /// use actix_http::http::header::{Accept, qitem};
     ///
-    /// # fn main() {
     /// let mut builder = Response::Ok();
-    ///
-    /// builder.set(
+    /// builder.insert_header(
     ///     Accept(vec![
     ///         qitem(mime::TEXT_HTML),
     ///     ])
     /// );
-    /// # }
     /// ```
     ///
-    /// ```rust
-    /// # extern crate actix_http;
-    /// extern crate mime;
+    /// ```
     /// use actix_http::Response;
     /// use actix_http::http::header::{Accept, qitem};
     ///
-    /// # fn main() {
     /// let mut builder = Response::Ok();
-    ///
-    /// builder.set(
+    /// builder.insert_header(
     ///     Accept(vec![
     ///         qitem(mime::APPLICATION_JSON),
     ///     ])
     /// );
-    /// # }
     /// ```
     ///
-    /// ```rust
-    /// # extern crate actix_http;
-    /// extern crate mime;
+    /// ```
     /// use actix_http::Response;
     /// use actix_http::http::header::{Accept, QualityItem, q, qitem};
     ///
-    /// # fn main() {
     /// let mut builder = Response::Ok();
-    ///
-    /// builder.set(
+    /// builder.insert_header(
     ///     Accept(vec![
     ///         qitem(mime::TEXT_HTML),
     ///         qitem("application/xhtml+xml".parse().unwrap()),
@@ -90,7 +76,6 @@ header! {
     ///         ),
     ///     ])
     /// );
-    /// # }
     /// ```
     (Accept, header::ACCEPT) => (QualityItem<Mime>)+
 
@@ -132,7 +117,7 @@ header! {
         #[test]
         fn test_fuzzing1() {
             use crate::test::TestRequest;
-            let req = TestRequest::default().insert_header(crate::header::ACCEPT, "chunk#;e").finish();
+            let req = TestRequest::default().insert_header((crate::header::ACCEPT, "chunk#;e")).finish();
             let header = Accept::parse(&req);
             assert!(header.is_ok());
         }

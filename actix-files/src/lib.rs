@@ -101,7 +101,7 @@ mod tests {
             header::HttpDate::from(SystemTime::now().add(Duration::from_secs(60)));
 
         let req = TestRequest::default()
-            .header(header::IF_MODIFIED_SINCE, since)
+            .insert_header((header::IF_MODIFIED_SINCE, since))
             .to_http_request();
         let resp = file.respond_to(&req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::NOT_MODIFIED);
@@ -126,8 +126,8 @@ mod tests {
             header::HttpDate::from(SystemTime::now().add(Duration::from_secs(60)));
 
         let req = TestRequest::default()
-            .header(header::IF_NONE_MATCH, "miss_etag")
-            .header(header::IF_MODIFIED_SINCE, since)
+            .insert_header((header::IF_NONE_MATCH, "miss_etag"))
+            .insert_header((header::IF_MODIFIED_SINCE, since))
             .to_http_request();
         let resp = file.respond_to(&req).await.unwrap();
         assert_ne!(resp.status(), StatusCode::NOT_MODIFIED);
@@ -398,7 +398,7 @@ mod tests {
         // Valid range header
         let request = TestRequest::get()
             .uri("/t%65st/Cargo.toml")
-            .header(header::RANGE, "bytes=10-20")
+            .insert_header((header::RANGE, "bytes=10-20"))
             .to_request();
         let response = test::call_service(&mut srv, request).await;
         assert_eq!(response.status(), StatusCode::PARTIAL_CONTENT);
@@ -406,7 +406,7 @@ mod tests {
         // Invalid range header
         let request = TestRequest::get()
             .uri("/t%65st/Cargo.toml")
-            .header(header::RANGE, "bytes=1-0")
+            .insert_header((header::RANGE, "bytes=1-0"))
             .to_request();
         let response = test::call_service(&mut srv, request).await;
 
@@ -420,7 +420,7 @@ mod tests {
         // Valid range header
         let response = srv
             .get("/tests/test.binary")
-            .header(header::RANGE, "bytes=10-20")
+            .insert_header((header::RANGE, "bytes=10-20"))
             .send()
             .await
             .unwrap();
@@ -430,7 +430,7 @@ mod tests {
         // Invalid range header
         let response = srv
             .get("/tests/test.binary")
-            .header(header::RANGE, "bytes=10-5")
+            .insert_header((header::RANGE, "bytes=10-5"))
             .send()
             .await
             .unwrap();
@@ -445,7 +445,7 @@ mod tests {
         // Valid range header
         let response = srv
             .get("/tests/test.binary")
-            .header(header::RANGE, "bytes=10-20")
+            .insert_header((header::RANGE, "bytes=10-20"))
             .send()
             .await
             .unwrap();
@@ -455,7 +455,7 @@ mod tests {
         // Valid range header, starting from 0
         let response = srv
             .get("/tests/test.binary")
-            .header(header::RANGE, "bytes=0-20")
+            .insert_header((header::RANGE, "bytes=0-20"))
             .send()
             .await
             .unwrap();
@@ -560,7 +560,7 @@ mod tests {
 
         let request = TestRequest::get()
             .uri("/")
-            .header(header::ACCEPT_ENCODING, "gzip")
+            .insert_header((header::ACCEPT_ENCODING, "gzip"))
             .to_request();
         let res = test::call_service(&mut srv, request).await;
         assert_eq!(res.status(), StatusCode::OK);
@@ -580,7 +580,7 @@ mod tests {
 
         let request = TestRequest::get()
             .uri("/")
-            .header(header::ACCEPT_ENCODING, "gzip")
+            .insert_header((header::ACCEPT_ENCODING, "gzip"))
             .to_request();
         let res = test::call_service(&mut srv, request).await;
         assert_eq!(res.status(), StatusCode::OK);

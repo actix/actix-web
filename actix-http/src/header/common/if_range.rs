@@ -35,24 +35,27 @@ use crate::httpmessage::HttpMessage;
 ///
 /// # Examples
 ///
-/// ```rust
+/// ```
 /// use actix_http::Response;
 /// use actix_http::http::header::{EntityTag, IfRange};
 ///
 /// let mut builder = Response::Ok();
-/// builder.set(IfRange::EntityTag(EntityTag::new(
-///     false,
-///     "abc".to_owned(),
-/// )));
+/// builder.insert_header(
+///     IfRange::EntityTag(
+///         EntityTag::new(false, "abc".to_owned())
+///     )
+/// );
 /// ```
 ///
-/// ```rust
+/// ```
 /// use std::time::{Duration, SystemTime};
 /// use actix_http::{http::header::IfRange, Response};
 ///
 /// let mut builder = Response::Ok();
 /// let fetched = SystemTime::now() - Duration::from_secs(60 * 60 * 24);
-/// builder.set(IfRange::Date(fetched.into()));
+/// builder.insert_header(
+///     IfRange::Date(fetched.into())
+/// );
 /// ```
 #[derive(Clone, Debug, PartialEq)]
 pub enum IfRange {

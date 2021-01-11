@@ -348,10 +348,12 @@ impl ResponseBuilder {
     ///
     /// ```rust
     /// # use actix_http::Response;
+    ///
+    /// use actix_http::http::header::ContentType;
     /// Response::Ok()
-    ///     .set_header(("X-TEST", "value"))
-    ///     .set_header(ContentType(mime::APPLICATION_JSON))
-    ///     .finish()
+    ///     .insert_header(("X-TEST", "value"))
+    ///     .insert_header(ContentType(mime::APPLICATION_JSON))
+    ///     .finish();
     /// ```
     pub fn insert_header<H>(&mut self, header: H) -> &mut Self
     where
@@ -371,10 +373,12 @@ impl ResponseBuilder {
     ///
     /// ```rust
     /// # use actix_http::Response;
+    /// use actix_http::http::header::ContentType;
+    ///
     /// Response::Ok()
     ///     .append_header(("X-TEST", "value"))
     ///     .append_header(ContentType(mime::APPLICATION_JSON))
-    ///     .finish()
+    ///     .finish();
     /// ```
     pub fn append_header<H>(&mut self, header: H) -> &mut Self
     where
@@ -822,8 +826,8 @@ mod tests {
     #[test]
     fn test_debug() {
         let resp = Response::Ok()
-            .header(COOKIE, HeaderValue::from_static("cookie1=value1; "))
-            .header(COOKIE, HeaderValue::from_static("cookie2=value2; "))
+            .append_header((COOKIE, HeaderValue::from_static("cookie1=value1; ")))
+            .append_header((COOKIE, HeaderValue::from_static("cookie2=value2; ")))
             .finish();
         let dbg = format!("{:?}", resp);
         assert!(dbg.contains("Response"));
@@ -834,8 +838,8 @@ mod tests {
         use crate::httpmessage::HttpMessage;
 
         let req = crate::test::TestRequest::default()
-            .header(COOKIE, "cookie1=value1")
-            .header(COOKIE, "cookie2=value2")
+            .append_header((COOKIE, "cookie1=value1"))
+            .append_header((COOKIE, "cookie2=value2"))
             .finish();
         let cookies = req.cookies().unwrap();
 
@@ -889,7 +893,7 @@ mod tests {
 
     #[test]
     fn test_basic_builder() {
-        let resp = Response::Ok().header("X-TEST", "value").finish();
+        let resp = Response::Ok().insert_header(("X-TEST", "value")).finish();
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
@@ -930,7 +934,7 @@ mod tests {
     #[test]
     fn test_json_ct() {
         let resp = Response::build(StatusCode::OK)
-            .header(CONTENT_TYPE, "text/json")
+            .insert_header((CONTENT_TYPE, "text/json"))
             .json(vec!["v1", "v2", "v3"]);
         let ct = resp.headers().get(CONTENT_TYPE).unwrap();
         assert_eq!(ct, HeaderValue::from_static("text/json"));
@@ -948,7 +952,7 @@ mod tests {
     #[test]
     fn test_json2_ct() {
         let resp = Response::build(StatusCode::OK)
-            .header(CONTENT_TYPE, "text/json")
+            .insert_header((CONTENT_TYPE, "text/json"))
             .json2(&vec!["v1", "v2", "v3"]);
         let ct = resp.headers().get(CONTENT_TYPE).unwrap();
         assert_eq!(ct, HeaderValue::from_static("text/json"));
