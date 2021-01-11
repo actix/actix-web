@@ -10,7 +10,7 @@ async fn main() -> Result<(), Error> {
     // Create request builder, configure request and send
     let mut response = client
         .get("https://www.rust-lang.org/")
-        .append_header("User-Agent", "Actix-web")
+        .append_header(("User-Agent", "Actix-web"))
         .send()
         .await?;
 
