@@ -14,12 +14,10 @@
 #![deny(rust_2018_idioms)]
 #![warn(missing_docs, missing_debug_implementations)]
 
-use std::io;
-
 use actix_service::boxed::{BoxService, BoxServiceFactory};
 use actix_web::{
     dev::{ServiceRequest, ServiceResponse},
-    error::{BlockingError, Error, ErrorInternalServerError},
+    error::Error,
     http::header::DispositionType,
 };
 use mime_guess::from_ext;
@@ -54,13 +52,6 @@ type HttpNewService = BoxServiceFactory<(), ServiceRequest, ServiceResponse, Err
 #[inline]
 pub fn file_extension_to_mime(ext: &str) -> mime::Mime {
     from_ext(ext).first_or_octet_stream()
-}
-
-pub(crate) fn handle_error(err: BlockingError<io::Error>) -> Error {
-    match err {
-        BlockingError::Error(err) => err.into(),
-        BlockingError::Canceled => ErrorInternalServerError("Unexpected error"),
-    }
 }
 
 type MimeOverride = dyn Fn(&mime::Name<'_>) -> DispositionType;

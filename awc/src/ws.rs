@@ -4,7 +4,7 @@
 //!
 //! # Example
 //!
-//! ```
+//! ```no_run
 //! use awc::{Client, ws};
 //! use futures_util::{sink::SinkExt, stream::StreamExt};
 //!
@@ -147,7 +147,7 @@ impl WebsocketsRequest {
 
     /// Set max frame size
     ///
-    /// By default max size is set to 64kb
+    /// By default max size is set to 64kB
     pub fn max_frame_size(mut self, size: usize) -> Self {
         self.max_size = size;
         self

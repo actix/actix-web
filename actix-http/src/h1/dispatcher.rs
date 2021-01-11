@@ -287,42 +287,35 @@ where
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
     ) -> Result<bool, DispatchError> {
-        if self.write_buf.is_empty() {
+        let len = self.write_buf.len();
+        if len == 0 {
             return Ok(false);
         }
 
-        let len = self.write_buf.len();
-        let mut written = 0;
         let InnerDispatcherProj { io, write_buf, .. } = self.project();
         let mut io = Pin::new(io.as_mut().unwrap());
+
+        let mut written = 0;
         while written < len {
             match io.as_mut().poll_write(cx, &write_buf[written..]) {
                 Poll::Ready(Ok(0)) => {
                     return Err(DispatchError::Io(io::Error::new(
                         io::ErrorKind::WriteZero,
                         "",
-                    )));
+                    )))
                 }
-                Poll::Ready(Ok(n)) => {
-                    written += n;
-                }
+                Poll::Ready(Ok(n)) => written += n,
                 Poll::Pending => {
-                    if written > 0 {
-                        write_buf.advance(written);
-                    }
+                    write_buf.advance(written);
                     return Ok(true);
                 }
                 Poll::Ready(Err(err)) => return Err(DispatchError::Io(err)),
             }
         }
 
-        if written == write_buf.len() {
-            // SAFETY: setting length to 0 is safe
-            // skips one length check vs truncate
-            unsafe { write_buf.set_len(0) }
-        } else {
-            write_buf.advance(written);
-        }
+        // SAFETY: setting length to 0 is safe
+        // skips one length check vs truncate
+        unsafe { write_buf.set_len(0) }
 
         Ok(false)
     }
@@ -766,19 +759,12 @@ where
                     } else {
                         // flush buffer
                         inner.as_mut().poll_flush(cx)?;
-                        if !inner.write_buf.is_empty() || inner.io.is_none() {
+                        if !inner.write_buf.is_empty() {
                             Poll::Pending
                         } else {
-                            match Pin::new(inner.project().io)
-                                .as_pin_mut()
-                                .unwrap()
+                            Pin::new(inner.project().io.as_mut().unwrap())
                                 .poll_shutdown(cx)
-                            {
-                                Poll::Ready(res) => {
-                                    Poll::Ready(res.map_err(DispatchError::from))
-                                }
-                                Poll::Pending => Poll::Pending,
-                            }
+                                .map_err(DispatchError::from)
                         }
                     }
                 } else {
@@ -920,7 +906,7 @@ where
             buf.reserve(HW_BUFFER_SIZE - remaining);
         }
 
-        match read(cx, io, buf) {
+        match actix_codec::poll_read_buf(Pin::new(io), cx, buf) {
             Poll::Pending => {
                 return if read_some { Ok(Some(false)) } else { Ok(None) };
             }
@@ -946,17 +932,6 @@ where
             }
         }
     }
-}
-
-fn read<T>(
-    cx: &mut Context<'_>,
-    io: &mut T,
-    buf: &mut BytesMut,
-) -> Poll<Result<usize, io::Error>>
-where
-    T: AsyncRead + Unpin,
-{
-    actix_codec::poll_read_buf(Pin::new(io), cx, buf)
 }
 
 #[cfg(test)]

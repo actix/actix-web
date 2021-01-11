@@ -82,8 +82,9 @@ impl Files {
     /// be inaccessible. Register more specific handlers and services first.
     ///
     /// `Files` uses a threadpool for blocking filesystem operations. By default, the pool uses a
-    /// number of threads equal to 5x the number of available logical CPUs. Pool size can be changed
-    /// by setting ACTIX_THREADPOOL environment variable.
+    /// max number of threads equal to `512 * HttpServer::worker`. Real time thread count are
+    /// adjusted with work load. More threads would spawn when need and threads goes idle for a
+    /// period of time would be de-spawned.
     pub fn new<T: Into<PathBuf>>(mount_path: &str, serve_from: T) -> Files {
         let orig_dir = serve_from.into();
         let dir = match orig_dir.canonicalize() {

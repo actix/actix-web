@@ -1,6 +1,24 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Added
+* The method `Either<web::Json<T>, web::Form<T>>::into_inner()` which returns the inner type for
+  whichever variant was created. Also works for `Either<web::Form<T>, web::Json<T>>`. [#1894]
+
+### Changed
+* Rework `Responder` trait to be sync and returns `Response`/`HttpResponse` directly.
+  Making it more simple and performant. [#1891]
+* `ServiceRequest::into_parts` and `ServiceRequest::from_parts` would not fail.
+  `ServiceRequest::from_request` would not fail and no payload would be generated [#1893]
+* Our `Either` type now uses `Left`/`Right` variants (instead of `A`/`B`) [#1894]
+
+### Removed
+* Public field of `web::Path` has been made private. [#1894]
+* Public field of `web::Query` has been made private. [#1894]
+
+[#1891]: https://github.com/actix/actix-web/pull/1891
+[#1893]: https://github.com/actix/actix-web/pull/1893
+[#1894]: https://github.com/actix/actix-web/pull/1894
 
 
 ## 4.0.0-beta.1 - 2021-01-07
@@ -24,13 +42,15 @@
 ### Removed
 * Public modules `middleware::{normalize, err_handlers}`. All necessary middleware structs are now
   exposed directly by the `middleware` module.
+* Remove `actix-threadpool` as dependency. `actix_threadpool::BlockingError` error type can be imported 
+  from `actix_web::error` module. [#1878]
 
 [#1812]: https://github.com/actix/actix-web/pull/1812
 [#1813]: https://github.com/actix/actix-web/pull/1813
 [#1852]: https://github.com/actix/actix-web/pull/1852
 [#1865]: https://github.com/actix/actix-web/pull/1865
 [#1875]: https://github.com/actix/actix-web/pull/1875
-
+[#1878]: https://github.com/actix/actix-web/pull/1878
 
 ## 3.3.2 - 2020-12-01
 ### Fixed
