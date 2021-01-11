@@ -8,7 +8,7 @@ use bytes::{BufMut, BytesMut};
 
 use crate::body::BodySize;
 use crate::config::ServiceConfig;
-use crate::header::map;
+use crate::header::{map::Value, HeaderName};
 use crate::helpers;
 use crate::http::header::{CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING};
 use crate::http::{HeaderMap, StatusCode, Version};
@@ -121,16 +121,6 @@ pub(crate) trait MessageType: Sized {
             _ => {}
         }
 
-        // merging headers from head and extra headers. HeaderMap::new() does not allocate.
-        let empty_headers = HeaderMap::new();
-        let extra_headers = self.extra_headers().unwrap_or(&empty_headers);
-        let headers = self
-            .headers()
-            .inner
-            .iter()
-            .filter(|(name, _)| !extra_headers.contains_key(*name))
-            .chain(extra_headers.inner.iter());
-
         // write headers
 
         let mut has_date = false;
@@ -143,10 +133,10 @@ pub(crate) trait MessageType: Sized {
         // container's knowledge, this is used to sync the containers cursor after data is written
         let mut pos = 0;
 
-        for (key, value) in headers {
+        self.write_headers(|key, value| {
             match *key {
-                CONNECTION => continue,
-                TRANSFER_ENCODING | CONTENT_LENGTH if skip_len => continue,
+                CONNECTION => return,
+                TRANSFER_ENCODING | CONTENT_LENGTH if skip_len => return,
                 DATE => has_date = true,
                 _ => {}
             }
@@ -155,7 +145,7 @@ pub(crate) trait MessageType: Sized {
             let k_len = k.len();
 
             match value {
-                map::Value::One(ref val) => {
+                Value::One(ref val) => {
                     let v = val.as_ref();
                     let v_len = v.len();
 
@@ -206,7 +196,7 @@ pub(crate) trait MessageType: Sized {
                     remaining -= len;
                 }
 
-                map::Value::Multi(ref vec) => {
+                Value::Multi(ref vec) => {
                     for val in vec {
                         let v = val.as_ref();
                         let v_len = v.len();
@@ -253,7 +243,7 @@ pub(crate) trait MessageType: Sized {
                     }
                 }
             }
-        }
+        });
 
         // final cursor synchronization with the bytes container
         //
@@ -272,6 +262,25 @@ pub(crate) trait MessageType: Sized {
         }
 
         Ok(())
+    }
+
+    #[inline]
+    fn write_headers<F>(&mut self, mut f: F)
+    where
+        F: FnMut(&HeaderName, &Value),
+    {
+        match self.extra_headers() {
+            Some(headers) => {
+                // merging headers from head and extra headers. HeaderMap::new() does not allocate.
+                self.headers()
+                    .inner
+                    .iter()
+                    .filter(|(name, _)| !headers.contains_key(*name))
+                    .chain(headers.inner.iter())
+                    .for_each(|(k, v)| f(k, v))
+            }
+            None => self.headers().inner.iter().for_each(|(k, v)| f(k, v)),
+        }
     }
 }
 
