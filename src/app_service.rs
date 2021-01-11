@@ -142,10 +142,8 @@ where
 
             Ok(AppInitService {
                 service,
-                rmap,
-                config,
                 app_data: Rc::new(app_data),
-                pool: HttpRequestPool::create(),
+                app_state: AppInitServiceState::new(rmap, config),
             })
         })
     }
@@ -157,10 +155,42 @@ where
     T: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
 {
     service: T,
+    app_data: Rc<Extensions>,
+    app_state: Rc<AppInitServiceState>,
+}
+
+// a collection of AppInitService state that shared between HttpRequests.
+pub(crate) struct AppInitServiceState {
     rmap: Rc<ResourceMap>,
     config: AppConfig,
-    app_data: Rc<Extensions>,
-    pool: &'static HttpRequestPool,
+    pool: HttpRequestPool,
+}
+
+impl AppInitServiceState {
+    pub(crate) fn new(rmap: Rc<ResourceMap>, config: AppConfig) -> Rc<Self> {
+        Rc::new(AppInitServiceState {
+            rmap,
+            config,
+            // TODO: AppConfig can be used to pass user defined HttpRequestPool
+            // capacity.
+            pool: HttpRequestPool::default(),
+        })
+    }
+
+    #[inline]
+    pub(crate) fn rmap(&self) -> &ResourceMap {
+        &*self.rmap
+    }
+
+    #[inline]
+    pub(crate) fn config(&self) -> &AppConfig {
+        &self.config
+    }
+
+    #[inline]
+    pub(crate) fn pool(&self) -> &HttpRequestPool {
+        &self.pool
+    }
 }
 
 impl<T, B> Service<Request> for AppInitService<T, B>
@@ -176,7 +206,7 @@ where
     fn call(&mut self, req: Request) -> Self::Future {
         let (head, payload) = req.into_parts();
 
-        let req = if let Some(mut req) = self.pool.get_request() {
+        let req = if let Some(mut req) = self.app_state.pool().pop() {
             let inner = Rc::get_mut(&mut req.inner).unwrap();
             inner.path.get_mut().update(&head.uri);
             inner.path.reset();
@@ -186,10 +216,8 @@ where
             HttpRequest::new(
                 Path::new(Url::new(head.uri.clone())),
                 head,
-                self.rmap.clone(),
-                self.config.clone(),
+                self.app_state.clone(),
                 self.app_data.clone(),
-                self.pool,
             )
         };
         self.service.call(ServiceRequest::new(req, payload))
@@ -201,7 +229,7 @@ where
     T: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
 {
     fn drop(&mut self) {
-        self.pool.clear();
+        self.app_state.pool().clear();
     }
 }
 
