@@ -8,6 +8,7 @@ use actix_router::{Path, Url};
 use futures_util::future::{ok, Ready};
 use smallvec::SmallVec;
 
+use crate::app_service::AppInitServiceState;
 use crate::config::AppConfig;
 use crate::error::UrlGenerationError;
 use crate::extract::FromRequest;
@@ -27,11 +28,8 @@ pub struct HttpRequest {
 pub(crate) struct HttpRequestInner {
     pub(crate) head: Message<RequestHead>,
     pub(crate) path: Path<Url>,
-    pub(crate) payload: Payload,
     pub(crate) app_data: SmallVec<[Rc<Extensions>; 4]>,
-    rmap: Rc<ResourceMap>,
-    config: AppConfig,
-    pool: &'static HttpRequestPool,
+    app_state: Rc<AppInitServiceState>,
 }
 
 impl HttpRequest {
@@ -39,11 +37,8 @@ impl HttpRequest {
     pub(crate) fn new(
         path: Path<Url>,
         head: Message<RequestHead>,
-        payload: Payload,
-        rmap: Rc<ResourceMap>,
-        config: AppConfig,
+        app_state: Rc<AppInitServiceState>,
         app_data: Rc<Extensions>,
-        pool: &'static HttpRequestPool,
     ) -> HttpRequest {
         let mut data = SmallVec::<[Rc<Extensions>; 4]>::new();
         data.push(app_data);
@@ -52,11 +47,8 @@ impl HttpRequest {
             inner: Rc::new(HttpRequestInner {
                 head,
                 path,
-                payload,
-                rmap,
-                config,
+                app_state,
                 app_data: data,
-                pool,
             }),
         }
     }
@@ -142,7 +134,7 @@ impl HttpRequest {
     /// Returns a None when no resource is fully matched, including default services.
     #[inline]
     pub fn match_pattern(&self) -> Option<String> {
-        self.inner.rmap.match_pattern(self.path())
+        self.resource_map().match_pattern(self.path())
     }
 
     /// The resource name that matched the path. Useful for logging and metrics.
@@ -150,7 +142,7 @@ impl HttpRequest {
     /// Returns a None when no resource is fully matched, including default services.
     #[inline]
     pub fn match_name(&self) -> Option<&str> {
-        self.inner.rmap.match_name(self.path())
+        self.resource_map().match_name(self.path())
     }
 
     /// Request extensions
@@ -192,7 +184,7 @@ impl HttpRequest {
         U: IntoIterator<Item = I>,
         I: AsRef<str>,
     {
-        self.inner.rmap.url_for(&self, name, elements)
+        self.resource_map().url_for(&self, name, elements)
     }
 
     /// Generate url for named resource
@@ -207,7 +199,7 @@ impl HttpRequest {
     #[inline]
     /// Get a reference to a `ResourceMap` of current application.
     pub fn resource_map(&self) -> &ResourceMap {
-        &self.inner.rmap
+        &self.app_state().rmap()
     }
 
     /// Peer socket address
@@ -227,13 +219,13 @@ impl HttpRequest {
     /// borrowed.
     #[inline]
     pub fn connection_info(&self) -> Ref<'_, ConnectionInfo> {
-        ConnectionInfo::get(self.head(), &*self.app_config())
+        ConnectionInfo::get(self.head(), self.app_config())
     }
 
     /// App config
     #[inline]
     pub fn app_config(&self) -> &AppConfig {
-        &self.inner.config
+        self.app_state().config()
     }
 
     /// Get an application data object stored with `App::data` or `App::app_data`
@@ -252,6 +244,11 @@ impl HttpRequest {
         }
 
         None
+    }
+
+    #[inline]
+    fn app_state(&self) -> &AppInitServiceState {
+        &*self.inner.app_state
     }
 }
 
@@ -288,14 +285,16 @@ impl Drop for HttpRequest {
 
         // This relies on no Weak<HttpRequestInner> exists anywhere.(There is none)
         if let Some(inner) = Rc::get_mut(&mut self.inner) {
-            let v = &mut inner.pool.0.borrow_mut();
-            if v.len() < 128 {
+            if inner.app_state.pool().is_available() {
                 // clear additional app_data and keep the root one for reuse.
                 inner.app_data.truncate(1);
                 // inner is borrowed mut here. get head's Extension mutably
                 // to reduce borrow check
                 inner.head.extensions.get_mut().clear();
-                v.push(self.inner.clone());
+
+                // a re-borrow of pool is necessary here.
+                let req = self.inner.clone();
+                self.app_state().pool().push(req);
             }
         }
     }
@@ -364,25 +363,50 @@ impl fmt::Debug for HttpRequest {
 /// Request objects are added when they are dropped (see `<HttpRequest as Drop>::drop`) and re-used
 /// in `<AppInitService as Service>::call` when there are available objects in the list.
 ///
-/// The pool's initial capacity is 128 items.
-pub(crate) struct HttpRequestPool(RefCell<Vec<Rc<HttpRequestInner>>>);
+/// The pool's default capacity is 128 items.
+pub(crate) struct HttpRequestPool {
+    inner: RefCell<Vec<Rc<HttpRequestInner>>>,
+    cap: usize,
+}
+
+impl Default for HttpRequestPool {
+    fn default() -> Self {
+        Self::with_capacity(128)
+    }
+}
 
 impl HttpRequestPool {
-    /// Allocates a slab of memory for pool use.
-    pub(crate) fn create() -> &'static HttpRequestPool {
-        let pool = HttpRequestPool(RefCell::new(Vec::with_capacity(128)));
-        Box::leak(Box::new(pool))
+    pub(crate) fn with_capacity(cap: usize) -> Self {
+        HttpRequestPool {
+            inner: RefCell::new(Vec::with_capacity(cap)),
+            cap,
+        }
     }
 
     /// Re-use a previously allocated (but now completed/discarded) HttpRequest object.
     #[inline]
-    pub(crate) fn get_request(&self) -> Option<HttpRequest> {
-        self.0.borrow_mut().pop().map(|inner| HttpRequest { inner })
+    pub(crate) fn pop(&self) -> Option<HttpRequest> {
+        self.inner
+            .borrow_mut()
+            .pop()
+            .map(|inner| HttpRequest { inner })
+    }
+
+    /// Check if the pool still has capacity for request storage.
+    #[inline]
+    pub(crate) fn is_available(&self) -> bool {
+        self.inner.borrow_mut().len() < self.cap
+    }
+
+    /// Push a request to pool.
+    #[inline]
+    pub(crate) fn push(&self, req: Rc<HttpRequestInner>) {
+        self.inner.borrow_mut().push(req);
     }
 
     /// Clears all allocated HttpRequest objects.
     pub(crate) fn clear(&self) {
-        self.0.borrow_mut().clear()
+        self.inner.borrow_mut().clear()
     }
 }
 
@@ -526,6 +550,25 @@ mod tests {
             url.ok().unwrap().as_str(),
             "https://youtube.com/watch/oHg5SJYRHA0"
         );
+    }
+
+    #[actix_rt::test]
+    async fn test_drop_http_request_pool() {
+        let mut srv = init_service(App::new().service(web::resource("/").to(
+            |req: HttpRequest| {
+                HttpResponse::Ok()
+                    .set_header("pool_cap", req.app_state().pool().cap)
+                    .finish()
+            },
+        )))
+        .await;
+
+        let req = TestRequest::default().to_request();
+        let resp = call_service(&mut srv, req).await;
+
+        drop(srv);
+
+        assert_eq!(resp.headers().get("pool_cap").unwrap(), "128");
     }
 
     #[actix_rt::test]

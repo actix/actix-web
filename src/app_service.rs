@@ -1,6 +1,6 @@
 use std::cell::RefCell;
 use std::rc::Rc;
-use std::task::{Context, Poll};
+use std::task::Poll;
 
 use actix_http::{Extensions, Request, Response};
 use actix_router::{Path, ResourceDef, Router, Url};
@@ -62,7 +62,8 @@ where
     type Future = LocalBoxFuture<'static, Result<Self::Service, Self::InitError>>;
 
     fn new_service(&self, config: AppConfig) -> Self::Future {
-        // update resource default service
+        // set AppService's default service to 404 NotFound
+        // if no user defined default service exists.
         let default = self.default.clone().unwrap_or_else(|| {
             Rc::new(boxed::factory(fn_service(|req: ServiceRequest| async {
                 Ok(req.into_response(Response::NotFound().finish()))
@@ -141,10 +142,8 @@ where
 
             Ok(AppInitService {
                 service,
-                rmap,
-                config,
                 app_data: Rc::new(app_data),
-                pool: HttpRequestPool::create(),
+                app_state: AppInitServiceState::new(rmap, config),
             })
         })
     }
@@ -156,10 +155,42 @@ where
     T: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
 {
     service: T,
+    app_data: Rc<Extensions>,
+    app_state: Rc<AppInitServiceState>,
+}
+
+// a collection of AppInitService state that shared between HttpRequests.
+pub(crate) struct AppInitServiceState {
     rmap: Rc<ResourceMap>,
     config: AppConfig,
-    app_data: Rc<Extensions>,
-    pool: &'static HttpRequestPool,
+    pool: HttpRequestPool,
+}
+
+impl AppInitServiceState {
+    pub(crate) fn new(rmap: Rc<ResourceMap>, config: AppConfig) -> Rc<Self> {
+        Rc::new(AppInitServiceState {
+            rmap,
+            config,
+            // TODO: AppConfig can be used to pass user defined HttpRequestPool
+            // capacity.
+            pool: HttpRequestPool::default(),
+        })
+    }
+
+    #[inline]
+    pub(crate) fn rmap(&self) -> &ResourceMap {
+        &*self.rmap
+    }
+
+    #[inline]
+    pub(crate) fn config(&self) -> &AppConfig {
+        &self.config
+    }
+
+    #[inline]
+    pub(crate) fn pool(&self) -> &HttpRequestPool {
+        &self.pool
+    }
 }
 
 impl<T, B> Service<Request> for AppInitService<T, B>
@@ -170,32 +201,26 @@ where
     type Error = T::Error;
     type Future = T::Future;
 
-    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        self.service.poll_ready(cx)
-    }
+    actix_service::forward_ready!(service);
 
     fn call(&mut self, req: Request) -> Self::Future {
         let (head, payload) = req.into_parts();
 
-        let req = if let Some(mut req) = self.pool.get_request() {
+        let req = if let Some(mut req) = self.app_state.pool().pop() {
             let inner = Rc::get_mut(&mut req.inner).unwrap();
             inner.path.get_mut().update(&head.uri);
             inner.path.reset();
             inner.head = head;
-            inner.payload = payload;
             req
         } else {
             HttpRequest::new(
                 Path::new(Url::new(head.uri.clone())),
                 head,
-                payload,
-                self.rmap.clone(),
-                self.config.clone(),
+                self.app_state.clone(),
                 self.app_data.clone(),
-                self.pool,
             )
         };
-        self.service.call(ServiceRequest::new(req))
+        self.service.call(ServiceRequest::new(req, payload))
     }
 }
 
@@ -204,7 +229,7 @@ where
     T: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
 {
     fn drop(&mut self) {
-        self.pool.clear();
+        self.app_state.pool().clear();
     }
 }
 
