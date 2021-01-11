@@ -652,83 +652,82 @@ where
         cx: &mut Context<'_>,
     ) -> Result<(), DispatchError> {
         let mut this = self.as_mut().project();
-        if this.ka_timer.is_none() {
-            // shutdown timeout
-            if this.flags.contains(Flags::SHUTDOWN) {
-                if let Some(interval) = this.codec.config().client_disconnect_timer() {
-                    this.ka_timer.set(Some(sleep_until(interval)));
-                } else {
-                    this.flags.insert(Flags::READ_DISCONNECT);
-                    if let Some(mut payload) = this.payload.take() {
-                        payload.set_error(PayloadError::Incomplete(None));
-                    }
-                    return Ok(());
-                }
-            } else {
-                return Ok(());
-            }
-        }
 
-        match this.ka_timer.as_mut().as_pin_mut().unwrap().poll(cx) {
-            Poll::Ready(()) => {
-                // if we get timeout during shutdown, drop connection
+        // when a branch is not explicit return early it's meant to fall through
+        // and return as Ok(())
+        match this.ka_timer.as_mut().as_pin_mut() {
+            None => {
+                // conditionally go into shutdown timeout
                 if this.flags.contains(Flags::SHUTDOWN) {
-                    return Err(DispatchError::DisconnectTimeout);
-                } else if this.ka_timer.as_mut().as_pin_mut().unwrap().deadline()
-                    >= *this.ka_expire
-                {
-                    // check for any outstanding tasks
-                    if this.state.is_empty() && this.write_buf.is_empty() {
-                        if this.flags.contains(Flags::STARTED) {
-                            trace!("Keep-alive timeout, close connection");
-                            this.flags.insert(Flags::SHUTDOWN);
+                    if let Some(deadline) = this.codec.config().client_disconnect_timer()
+                    {
+                        // write client disconnect time out and poll again to
+                        // go into Some<Pin<&mut Sleep>> branch
+                        this.ka_timer.set(Some(sleep_until(deadline)));
+                        return self.poll_keepalive(cx);
+                    } else {
+                        this.flags.insert(Flags::READ_DISCONNECT);
+                        if let Some(mut payload) = this.payload.take() {
+                            payload.set_error(PayloadError::Incomplete(None));
+                        }
+                    }
+                }
+            }
+            Some(mut timer) => {
+                // only operate when keep-alive timer is resolved.
+                if timer.as_mut().poll(cx).is_ready() {
+                    // got timeout during shutdown, drop connection
+                    if this.flags.contains(Flags::SHUTDOWN) {
+                        return Err(DispatchError::DisconnectTimeout);
+                    // exceed deadline. check for any outstanding tasks
+                    } else if timer.deadline() >= *this.ka_expire {
+                        // have no task at hand.
+                        if this.state.is_empty() && this.write_buf.is_empty() {
+                            if this.flags.contains(Flags::STARTED) {
+                                trace!("Keep-alive timeout, close connection");
+                                this.flags.insert(Flags::SHUTDOWN);
 
-                            // start shutdown timer
-                            if let Some(deadline) =
-                                this.codec.config().client_disconnect_timer()
-                            {
-                                if let Some(mut timer) =
-                                    this.ka_timer.as_mut().as_pin_mut()
+                                // start shutdown timeout
+                                if let Some(deadline) =
+                                    this.codec.config().client_disconnect_timer()
                                 {
                                     timer.as_mut().reset(deadline);
                                     let _ = timer.poll(cx);
+                                } else {
+                                    // no shutdown timeout, drop socket
+                                    this.flags.insert(Flags::WRITE_DISCONNECT);
                                 }
                             } else {
-                                // no shutdown timeout, drop socket
-                                this.flags.insert(Flags::WRITE_DISCONNECT);
-                                return Ok(());
+                                // timeout on first request (slow request) return 408
+                                if !this.flags.contains(Flags::STARTED) {
+                                    trace!("Slow request timeout");
+                                    let _ = self.as_mut().send_response(
+                                        Response::RequestTimeout().finish().drop_body(),
+                                        ResponseBody::Other(Body::Empty),
+                                    );
+                                    this = self.project();
+                                } else {
+                                    trace!("Keep-alive connection timeout");
+                                }
+                                this.flags.insert(Flags::STARTED | Flags::SHUTDOWN);
+                                this.state.set(State::None);
                             }
-                        } else {
-                            // timeout on first request (slow request) return 408
-                            if !this.flags.contains(Flags::STARTED) {
-                                trace!("Slow request timeout");
-                                let _ = self.as_mut().send_response(
-                                    Response::RequestTimeout().finish().drop_body(),
-                                    ResponseBody::Other(Body::Empty),
-                                );
-                                this = self.as_mut().project();
-                            } else {
-                                trace!("Keep-alive connection timeout");
-                            }
-                            this.flags.insert(Flags::STARTED | Flags::SHUTDOWN);
-                            this.state.set(State::None);
-                        }
-                    } else if let Some(deadline) =
-                        this.codec.config().keep_alive_expire()
-                    {
-                        if let Some(mut timer) = this.ka_timer.as_mut().as_pin_mut() {
+                        // still have unfinished task. try to reset and register keep-alive.
+                        } else if let Some(deadline) =
+                            this.codec.config().keep_alive_expire()
+                        {
                             timer.as_mut().reset(deadline);
                             let _ = timer.poll(cx);
                         }
+                    // timer resolved but still have not met the keep-alive expire deadline.
+                    // reset and register for later wakeup.
+                    } else {
+                        timer.as_mut().reset(*this.ka_expire);
+                        let _ = timer.poll(cx);
                     }
-                } else if let Some(mut timer) = this.ka_timer.as_mut().as_pin_mut() {
-                    timer.as_mut().reset(*this.ka_expire);
-                    let _ = timer.poll(cx);
                 }
             }
-            Poll::Pending => {}
         }
-
         Ok(())
     }
 }
