@@ -113,7 +113,7 @@ mod tests {
         let since = file.last_modified().unwrap();
 
         let req = TestRequest::default()
-            .header(header::IF_MODIFIED_SINCE, since)
+            .insert_header((header::IF_MODIFIED_SINCE, since))
             .to_http_request();
         let resp = file.respond_to(&req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::NOT_MODIFIED);
@@ -139,7 +139,7 @@ mod tests {
         let since = file.last_modified().unwrap();
 
         let req = TestRequest::default()
-            .header(header::IF_UNMODIFIED_SINCE, since)
+            .insert_header((header::IF_UNMODIFIED_SINCE, since))
             .to_http_request();
         let resp = file.respond_to(&req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
@@ -151,7 +151,7 @@ mod tests {
         let since = header::HttpDate::from(SystemTime::UNIX_EPOCH);
 
         let req = TestRequest::default()
-            .header(header::IF_UNMODIFIED_SINCE, since)
+            .insert_header((header::IF_UNMODIFIED_SINCE, since))
             .to_http_request();
         let resp = file.respond_to(&req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::PRECONDITION_FAILED);
