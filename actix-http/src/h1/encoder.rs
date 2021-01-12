@@ -125,7 +125,7 @@ pub(crate) trait MessageType: Sized {
 
         let mut has_date = false;
 
-        let mut buf = dst.chunk_mut().as_mut_ptr() as *mut u8;
+        let mut buf = dst.chunk_mut().as_mut_ptr();
         let mut remaining = dst.capacity() - dst.len();
 
         // tracks bytes written since last buffer resize
@@ -167,7 +167,7 @@ pub(crate) trait MessageType: Sized {
 
                         // re-assign buf raw pointer since it's possible that the buffer was
                         // reallocated and/or resized
-                        buf = dst.chunk_mut().as_mut_ptr() as *mut u8;
+                        buf = dst.chunk_mut().as_mut_ptr();
                     }
 
                     // SAFETY: on each write, it is enough to ensure that the advancement of the
@@ -214,7 +214,7 @@ pub(crate) trait MessageType: Sized {
 
                             // re-assign buf raw pointer since it's possible that the buffer was
                             // reallocated and/or resized
-                            buf = dst.chunk_mut().as_mut_ptr() as *mut u8;
+                            buf = dst.chunk_mut().as_mut_ptr();
                         }
 
                         // SAFETY: on each write, it is enough to ensure that the advancement of
@@ -271,7 +271,7 @@ pub(crate) trait MessageType: Sized {
     {
         match self.extra_headers() {
             Some(headers) => {
-                // merging headers from head and extra headers. HeaderMap::new() does not allocate.
+                // merging headers from head and extra headers.
                 self.headers()
                     .inner
                     .iter()
