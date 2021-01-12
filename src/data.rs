@@ -22,7 +22,7 @@ pub(crate) type FnDataFactory =
 ///
 /// Internally it wraps the data in an `Arc`.
 ///
-/// See `App::data()` and `App::app_data()` for when and how to use this.
+/// See [`App::data()`] and [`App::app_data()`] for when and how to use this.
 #[derive(Debug)]
 pub struct Data<T: ?Sized>(Arc<T>);
 
