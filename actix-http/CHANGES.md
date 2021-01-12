@@ -1,6 +1,15 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+* `Response::content_type` now takes an `impl IntoHeaderValue` to support `mime` types. [#1894]
+
+[#1894]: https://github.com/actix/actix-web/pull/1894
+
+
+## 3.0.0-beta.1 - 2021-01-07
+### Added
+* Add `Http3` to `Protocol` enum for future compatibility and also mark `#[non_exhaustive]`.
+
 ### Changed
 * Update `actix-*` dependencies to tokio `1.0` based versions. [#1813]
 * Bumped `rand` to `0.8`.
@@ -16,11 +25,14 @@
 * Remove `ConnectError::SslHandshakeError` and re-export of `HandshakeError`.
   due to the removal of this type from `tokio-openssl` crate. openssl handshake 
   error would return as `ConnectError::SslError`. [#1813]
+* Remove `actix-threadpool` dependency. Use `actix_rt::task::spawn_blocking`.
+  Due to this change `actix_threadpool::BlockingError` type is moved into 
+  `actix_http::error` module. [#1878]
 
 [#1813]: https://github.com/actix/actix-web/pull/1813
 [#1857]: https://github.com/actix/actix-web/pull/1857
 [#1864]: https://github.com/actix/actix-web/pull/1864
-
+[#1878]: https://github.com/actix/actix-web/pull/1878
 
 ## 2.2.0 - 2020-11-25
 ### Added

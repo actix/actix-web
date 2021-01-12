@@ -52,75 +52,61 @@ where
 /// An service http request
 ///
 /// ServiceRequest allows mutable access to request's internal structures
-pub struct ServiceRequest(HttpRequest);
+pub struct ServiceRequest {
+    req: HttpRequest,
+    payload: Payload,
+}
 
 impl ServiceRequest {
     /// Construct service request
-    pub(crate) fn new(req: HttpRequest) -> Self {
-        ServiceRequest(req)
+    pub(crate) fn new(req: HttpRequest, payload: Payload) -> Self {
+        Self { req, payload }
     }
 
     /// Deconstruct request into parts
-    pub fn into_parts(mut self) -> (HttpRequest, Payload) {
-        let pl = Rc::get_mut(&mut (self.0).inner).unwrap().payload.take();
-        (self.0, pl)
+    #[inline]
+    pub fn into_parts(self) -> (HttpRequest, Payload) {
+        (self.req, self.payload)
     }
 
     /// Construct request from parts.
-    ///
-    /// `ServiceRequest` can be re-constructed only if `req` hasn't been cloned.
-    pub fn from_parts(
-        mut req: HttpRequest,
-        pl: Payload,
-    ) -> Result<Self, (HttpRequest, Payload)> {
-        match Rc::get_mut(&mut req.inner) {
-            Some(p) => {
-                p.payload = pl;
-                Ok(ServiceRequest(req))
-            }
-            None => Err((req, pl)),
-        }
+    pub fn from_parts(req: HttpRequest, payload: Payload) -> Self {
+        Self { req, payload }
     }
 
     /// Construct request from request.
     ///
-    /// `HttpRequest` implements `Clone` trait via `Rc` type. `ServiceRequest`
-    /// can be re-constructed only if rc's strong pointers count eq 1 and
-    /// weak pointers count is 0.
-    pub fn from_request(req: HttpRequest) -> Result<Self, HttpRequest> {
-        // There is no weak pointer used on HttpRequest so intentionally
-        // ignore the check.
-        if Rc::strong_count(&req.inner) == 1 {
-            debug_assert!(Rc::weak_count(&req.inner) == 0);
-            Ok(ServiceRequest(req))
-        } else {
-            Err(req)
+    /// The returned `ServiceRequest` would have no payload.
+    pub fn from_request(req: HttpRequest) -> Self {
+        ServiceRequest {
+            req,
+            payload: Payload::None,
         }
     }
 
     /// Create service response
     #[inline]
     pub fn into_response<B, R: Into<Response<B>>>(self, res: R) -> ServiceResponse<B> {
-        ServiceResponse::new(self.0, res.into())
+        ServiceResponse::new(self.req, res.into())
     }
 
     /// Create service response for error
     #[inline]
     pub fn error_response<B, E: Into<Error>>(self, err: E) -> ServiceResponse<B> {
         let res: Response = err.into().into();
-        ServiceResponse::new(self.0, res.into_body())
+        ServiceResponse::new(self.req, res.into_body())
     }
 
     /// This method returns reference to the request head
     #[inline]
     pub fn head(&self) -> &RequestHead {
-        &self.0.head()
+        &self.req.head()
     }
 
     /// This method returns reference to the request head
     #[inline]
     pub fn head_mut(&mut self) -> &mut RequestHead {
-        self.0.head_mut()
+        self.req.head_mut()
     }
 
     /// Request's uri.
@@ -196,42 +182,42 @@ impl ServiceRequest {
     /// access the matched value for that segment.
     #[inline]
     pub fn match_info(&self) -> &Path<Url> {
-        self.0.match_info()
+        self.req.match_info()
     }
 
     /// Counterpart to [`HttpRequest::match_name`](super::HttpRequest::match_name()).
     #[inline]
     pub fn match_name(&self) -> Option<&str> {
-        self.0.match_name()
+        self.req.match_name()
     }
 
     /// Counterpart to [`HttpRequest::match_pattern`](super::HttpRequest::match_pattern()).
     #[inline]
     pub fn match_pattern(&self) -> Option<String> {
-        self.0.match_pattern()
+        self.req.match_pattern()
     }
 
     #[inline]
     /// Get a mutable reference to the Path parameters.
     pub fn match_info_mut(&mut self) -> &mut Path<Url> {
-        self.0.match_info_mut()
+        self.req.match_info_mut()
     }
 
     #[inline]
     /// Get a reference to a `ResourceMap` of current application.
     pub fn resource_map(&self) -> &ResourceMap {
-        self.0.resource_map()
+        self.req.resource_map()
     }
 
     /// Service configuration
     #[inline]
     pub fn app_config(&self) -> &AppConfig {
-        self.0.app_config()
+        self.req.app_config()
     }
 
     /// Counterpart to [`HttpRequest::app_data`](super::HttpRequest::app_data()).
     pub fn app_data<T: 'static>(&self) -> Option<&T> {
-        for container in (self.0).inner.app_data.iter().rev() {
+        for container in self.req.inner.app_data.iter().rev() {
             if let Some(data) = container.get::<T>() {
                 return Some(data);
             }
@@ -242,13 +228,13 @@ impl ServiceRequest {
 
     /// Set request payload.
     pub fn set_payload(&mut self, payload: Payload) {
-        Rc::get_mut(&mut (self.0).inner).unwrap().payload = payload;
+        self.payload = payload;
     }
 
     #[doc(hidden)]
     /// Add app data container to request's resolution set.
     pub fn add_data_container(&mut self, extensions: Rc<Extensions>) {
-        Rc::get_mut(&mut (self.0).inner)
+        Rc::get_mut(&mut (self.req).inner)
             .unwrap()
             .app_data
             .push(extensions);
@@ -273,18 +259,18 @@ impl HttpMessage for ServiceRequest {
     /// Request extensions
     #[inline]
     fn extensions(&self) -> Ref<'_, Extensions> {
-        self.0.extensions()
+        self.req.extensions()
     }
 
     /// Mutable reference to a the request's extensions
     #[inline]
     fn extensions_mut(&self) -> RefMut<'_, Extensions> {
-        self.0.extensions_mut()
+        self.req.extensions_mut()
     }
 
     #[inline]
     fn take_payload(&mut self) -> Payload<Self::Stream> {
-        Rc::get_mut(&mut (self.0).inner).unwrap().payload.take()
+        self.payload.take()
     }
 }
 
@@ -416,9 +402,9 @@ impl<B> ServiceResponse<B> {
     }
 }
 
-impl<B> Into<Response<B>> for ServiceResponse<B> {
-    fn into(self) -> Response<B> {
-        self.response
+impl<B> From<ServiceResponse<B>> for Response<B> {
+    fn from(res: ServiceResponse<B>) -> Response<B> {
+        res.response
     }
 }
 
@@ -551,27 +537,6 @@ mod tests {
     use crate::{guard, http, web, App, HttpResponse};
     use actix_service::Service;
     use futures_util::future::ok;
-
-    #[test]
-    fn test_service_request() {
-        let req = TestRequest::default().to_srv_request();
-        let (r, pl) = req.into_parts();
-        assert!(ServiceRequest::from_parts(r, pl).is_ok());
-
-        let req = TestRequest::default().to_srv_request();
-        let (r, pl) = req.into_parts();
-        let _r2 = r.clone();
-        assert!(ServiceRequest::from_parts(r, pl).is_err());
-
-        let req = TestRequest::default().to_srv_request();
-        let (r, _pl) = req.into_parts();
-        assert!(ServiceRequest::from_request(r).is_ok());
-
-        let req = TestRequest::default().to_srv_request();
-        let (r, _pl) = req.into_parts();
-        let _r2 = r.clone();
-        assert!(ServiceRequest::from_request(r).is_err());
-    }
 
     #[actix_rt::test]
     async fn test_service() {

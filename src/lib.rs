@@ -6,7 +6,8 @@
 //! use actix_web::{get, web, App, HttpServer, Responder};
 //!
 //! #[get("/{id}/{name}/index.html")]
-//! async fn index(web::Path((id, name)): web::Path<(u32, String)>) -> impl Responder {
+//! async fn index(path: web::Path<(u32, String)>) -> impl Responder {
+//!     let (id, name) = path.into_inner();
 //!     format!("Hello {}! id:{}", name, id)
 //! }
 //!
@@ -90,7 +91,7 @@ mod scope;
 mod server;
 mod service;
 pub mod test;
-mod types;
+pub(crate) mod types;
 pub mod web;
 
 pub use actix_http::Response as HttpResponse;
@@ -106,6 +107,7 @@ pub use crate::responder::Responder;
 pub use crate::route::Route;
 pub use crate::scope::Scope;
 pub use crate::server::HttpServer;
+// TODO: is exposing the error directly really needed
 pub use crate::types::{Either, EitherExtractError};
 
 pub mod dev {

@@ -19,7 +19,6 @@ mod macros;
 pub mod body;
 mod builder;
 pub mod client;
-mod cloneable;
 mod config;
 #[cfg(feature = "compress")]
 pub mod encoding;
@@ -73,11 +72,49 @@ pub mod http {
     pub use crate::message::ConnectionType;
 }
 
-/// Http protocol
+/// A major HTTP protocol version.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum Protocol {
     Http1,
     Http2,
+    Http3,
 }
 
 type ConnectCallback<IO> = dyn Fn(&IO, &mut Extensions);
+
+/// Container for data that extract with ConnectCallback.
+///
+/// # Implementation Details
+/// Uses Option to reduce necessary allocations when merging with request extensions.
+pub(crate) struct OnConnectData(Option<Extensions>);
+
+impl Default for OnConnectData {
+    fn default() -> Self {
+        Self(None)
+    }
+}
+
+impl OnConnectData {
+    /// Construct by calling the on-connect callback with the underlying transport I/O.
+    pub(crate) fn from_io<T>(
+        io: &T,
+        on_connect_ext: Option<&ConnectCallback<T>>,
+    ) -> Self {
+        let ext = on_connect_ext.map(|handler| {
+            let mut extensions = Extensions::new();
+            handler(io, &mut extensions);
+            extensions
+        });
+
+        Self(ext)
+    }
+
+    /// Merge self into given request's extensions.
+    #[inline]
+    pub(crate) fn merge_into(&mut self, req: &mut Request) {
+        if let Some(ref mut ext) = self.0 {
+            req.head.extensions.get_mut().drain_from(ext);
+        }
+    }
+}

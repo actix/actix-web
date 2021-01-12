@@ -135,7 +135,6 @@ where
 {
     Extract(#[pin] T::Future, Option<HttpRequest>, F),
     Handle(#[pin] R, Option<HttpRequest>),
-    Respond(#[pin] <R::Output as Responder>::Future, Option<HttpRequest>),
 }
 
 impl<F, T, R> Future for HandlerServiceFuture<F, T, R>
@@ -168,13 +167,8 @@ where
                 }
                 HandlerProj::Handle(fut, req) => {
                     let res = ready!(fut.poll(cx));
-                    let fut = res.respond_to(req.as_ref().unwrap());
-                    let state = HandlerServiceFuture::Respond(fut, req.take());
-                    self.as_mut().set(state);
-                }
-                HandlerProj::Respond(fut, req) => {
-                    let res = ready!(fut.poll(cx)).unwrap_or_else(|e| e.into().into());
                     let req = req.take().unwrap();
+                    let res = res.respond_to(&req);
                     return Poll::Ready(Ok(ServiceResponse::new(req, res)));
                 }
             }

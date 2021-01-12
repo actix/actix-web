@@ -33,18 +33,18 @@ pub(crate) enum PrepForSendingError {
     Http(HttpError),
 }
 
-impl Into<FreezeRequestError> for PrepForSendingError {
-    fn into(self) -> FreezeRequestError {
-        match self {
+impl From<PrepForSendingError> for FreezeRequestError {
+    fn from(err: PrepForSendingError) -> FreezeRequestError {
+        match err {
             PrepForSendingError::Url(e) => FreezeRequestError::Url(e),
             PrepForSendingError::Http(e) => FreezeRequestError::Http(e),
         }
     }
 }
 
-impl Into<SendRequestError> for PrepForSendingError {
-    fn into(self) -> SendRequestError {
-        match self {
+impl From<PrepForSendingError> for SendRequestError {
+    fn from(err: PrepForSendingError) -> SendRequestError {
+        match err {
             PrepForSendingError::Url(e) => SendRequestError::Url(e),
             PrepForSendingError::Http(e) => SendRequestError::Http(e),
         }

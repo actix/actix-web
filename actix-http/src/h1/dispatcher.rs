@@ -1,9 +1,11 @@
 use std::{
+    cell::RefCell,
     collections::VecDeque,
     fmt,
     future::Future,
     io, mem, net,
     pin::Pin,
+    rc::Rc,
     task::{Context, Poll},
 };
 
@@ -15,17 +17,14 @@ use bytes::{Buf, BytesMut};
 use log::{error, trace};
 use pin_project::pin_project;
 
-use crate::cloneable::CloneableService;
+use crate::body::{Body, BodySize, MessageBody, ResponseBody};
 use crate::config::ServiceConfig;
 use crate::error::{DispatchError, Error};
 use crate::error::{ParseError, PayloadError};
-use crate::httpmessage::HttpMessage;
 use crate::request::Request;
 use crate::response::Response;
-use crate::{
-    body::{Body, BodySize, MessageBody, ResponseBody},
-    Extensions,
-};
+use crate::service::HttpFlow;
+use crate::OnConnectData;
 
 use super::codec::Codec;
 use super::payload::{Payload, PayloadSender, PayloadStatus};
@@ -78,7 +77,7 @@ where
     U::Error: fmt::Display,
 {
     Normal(#[pin] InnerDispatcher<T, S, B, X, U>),
-    Upgrade(Pin<Box<U::Future>>),
+    Upgrade(#[pin] U::Future),
 }
 
 #[pin_project(project = InnerDispatcherProj)]
@@ -92,10 +91,8 @@ where
     U: Service<(Request, Framed<T, Codec>), Response = ()>,
     U::Error: fmt::Display,
 {
-    service: CloneableService<S>,
-    expect: CloneableService<X>,
-    upgrade: Option<CloneableService<U>>,
-    on_connect_data: Extensions,
+    flow: Rc<RefCell<HttpFlow<S, X, U>>>,
+    on_connect_data: OnConnectData,
     flags: Flags,
     peer_addr: Option<net::SocketAddr>,
     error: Option<DispatchError>,
@@ -180,10 +177,8 @@ where
     pub(crate) fn new(
         stream: T,
         config: ServiceConfig,
-        service: CloneableService<S>,
-        expect: CloneableService<X>,
-        upgrade: Option<CloneableService<U>>,
-        on_connect_data: Extensions,
+        services: Rc<RefCell<HttpFlow<S, X, U>>>,
+        on_connect_data: OnConnectData,
         peer_addr: Option<net::SocketAddr>,
     ) -> Self {
         Dispatcher::with_timeout(
@@ -192,9 +187,7 @@ where
             config,
             BytesMut::with_capacity(HW_BUFFER_SIZE),
             None,
-            service,
-            expect,
-            upgrade,
+            services,
             on_connect_data,
             peer_addr,
         )
@@ -207,10 +200,8 @@ where
         config: ServiceConfig,
         read_buf: BytesMut,
         timeout: Option<Sleep>,
-        service: CloneableService<S>,
-        expect: CloneableService<X>,
-        upgrade: Option<CloneableService<U>>,
-        on_connect_data: Extensions,
+        services: Rc<RefCell<HttpFlow<S, X, U>>>,
+        on_connect_data: OnConnectData,
         peer_addr: Option<net::SocketAddr>,
     ) -> Self {
         let keepalive = config.keep_alive_enabled();
@@ -239,9 +230,7 @@ where
                 io: Some(io),
                 codec,
                 read_buf,
-                service,
-                expect,
-                upgrade,
+                flow: services,
                 on_connect_data,
                 flags,
                 peer_addr,
@@ -298,42 +287,35 @@ where
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
     ) -> Result<bool, DispatchError> {
-        if self.write_buf.is_empty() {
+        let len = self.write_buf.len();
+        if len == 0 {
             return Ok(false);
         }
 
-        let len = self.write_buf.len();
-        let mut written = 0;
         let InnerDispatcherProj { io, write_buf, .. } = self.project();
         let mut io = Pin::new(io.as_mut().unwrap());
+
+        let mut written = 0;
         while written < len {
             match io.as_mut().poll_write(cx, &write_buf[written..]) {
                 Poll::Ready(Ok(0)) => {
                     return Err(DispatchError::Io(io::Error::new(
                         io::ErrorKind::WriteZero,
                         "",
-                    )));
+                    )))
                 }
-                Poll::Ready(Ok(n)) => {
-                    written += n;
-                }
+                Poll::Ready(Ok(n)) => written += n,
                 Poll::Pending => {
-                    if written > 0 {
-                        write_buf.advance(written);
-                    }
+                    write_buf.advance(written);
                     return Ok(true);
                 }
                 Poll::Ready(Err(err)) => return Err(DispatchError::Io(err)),
             }
         }
 
-        if written == write_buf.len() {
-            // SAFETY: setting length to 0 is safe
-            // skips one length check vs truncate
-            unsafe { write_buf.set_len(0) }
-        } else {
-            write_buf.advance(written);
-        }
+        // SAFETY: setting length to 0 is safe
+        // skips one length check vs truncate
+        unsafe { write_buf.set_len(0) }
 
         Ok(false)
     }
@@ -395,7 +377,8 @@ where
                     Poll::Ready(Ok(req)) => {
                         self.as_mut().send_continue();
                         this = self.as_mut().project();
-                        this.state.set(State::ServiceCall(this.service.call(req)));
+                        let fut = this.flow.borrow_mut().service.call(req);
+                        this.state.set(State::ServiceCall(fut));
                         continue;
                     }
                     Poll::Ready(Err(e)) => {
@@ -483,12 +466,14 @@ where
         // Handle `EXPECT: 100-Continue` header
         if req.head().expect() {
             // set dispatcher state so the future is pinned.
-            let task = self.as_mut().project().expect.call(req);
-            self.as_mut().project().state.set(State::ExpectCall(task));
+            let mut this = self.as_mut().project();
+            let task = this.flow.borrow_mut().expect.call(req);
+            this.state.set(State::ExpectCall(task));
         } else {
             // the same as above.
-            let task = self.as_mut().project().service.call(req);
-            self.as_mut().project().state.set(State::ServiceCall(task));
+            let mut this = self.as_mut().project();
+            let task = this.flow.borrow_mut().service.call(req);
+            this.state.set(State::ServiceCall(task));
         };
 
         // eagerly poll the future for once(or twice if expect is resolved immediately).
@@ -499,8 +484,9 @@ where
                         // expect is resolved. continue loop and poll the service call branch.
                         Poll::Ready(Ok(req)) => {
                             self.as_mut().send_continue();
-                            let task = self.as_mut().project().service.call(req);
-                            self.as_mut().project().state.set(State::ServiceCall(task));
+                            let mut this = self.as_mut().project();
+                            let task = this.flow.borrow_mut().service.call(req);
+                            this.state.set(State::ServiceCall(task));
                             continue;
                         }
                         // future is pending. return Ok(()) to notify that a new state is
@@ -568,9 +554,11 @@ where
                             req.head_mut().peer_addr = *this.peer_addr;
 
                             // merge on_connect_ext data into request extensions
-                            req.extensions_mut().drain_from(this.on_connect_data);
+                            this.on_connect_data.merge_into(&mut req);
 
-                            if pl == MessageType::Stream && this.upgrade.is_some() {
+                            if pl == MessageType::Stream
+                                && this.flow.borrow().upgrade.is_some()
+                            {
                                 this.messages.push_back(DispatcherMessage::Upgrade(req));
                                 break;
                             }
@@ -692,15 +680,11 @@ where
                             if let Some(deadline) =
                                 this.codec.config().client_disconnect_timer()
                             {
-                                if let Some(timer) = this.ka_timer.as_mut().as_pin_mut()
+                                if let Some(mut timer) =
+                                    this.ka_timer.as_mut().as_pin_mut()
                                 {
-                                    timer.reset(deadline);
-                                    let _ = this
-                                        .ka_timer
-                                        .as_mut()
-                                        .as_pin_mut()
-                                        .unwrap()
-                                        .poll(cx);
+                                    timer.as_mut().reset(deadline);
+                                    let _ = timer.poll(cx);
                                 }
                             } else {
                                 // no shutdown timeout, drop socket
@@ -725,15 +709,14 @@ where
                     } else if let Some(deadline) =
                         this.codec.config().keep_alive_expire()
                     {
-                        if let Some(timer) = this.ka_timer.as_mut().as_pin_mut() {
-                            timer.reset(deadline);
-                            let _ =
-                                this.ka_timer.as_mut().as_pin_mut().unwrap().poll(cx);
+                        if let Some(mut timer) = this.ka_timer.as_mut().as_pin_mut() {
+                            timer.as_mut().reset(deadline);
+                            let _ = timer.poll(cx);
                         }
                     }
-                } else if let Some(timer) = this.ka_timer.as_mut().as_pin_mut() {
-                    timer.reset(*this.ka_expire);
-                    let _ = this.ka_timer.as_mut().as_pin_mut().unwrap().poll(cx);
+                } else if let Some(mut timer) = this.ka_timer.as_mut().as_pin_mut() {
+                    timer.as_mut().reset(*this.ka_expire);
+                    let _ = timer.poll(cx);
                 }
             }
             Poll::Pending => {}
@@ -776,19 +759,12 @@ where
                     } else {
                         // flush buffer
                         inner.as_mut().poll_flush(cx)?;
-                        if !inner.write_buf.is_empty() || inner.io.is_none() {
+                        if !inner.write_buf.is_empty() {
                             Poll::Pending
                         } else {
-                            match Pin::new(inner.project().io)
-                                .as_pin_mut()
-                                .unwrap()
+                            Pin::new(inner.project().io.as_mut().unwrap())
                                 .poll_shutdown(cx)
-                            {
-                                Poll::Ready(res) => {
-                                    Poll::Ready(res.map_err(DispatchError::from))
-                                }
-                                Poll::Pending => Poll::Pending,
-                            }
+                                .map_err(DispatchError::from)
                         }
                     }
                 } else {
@@ -834,12 +810,17 @@ where
                             );
                             parts.write_buf = mem::take(inner_p.write_buf);
                             let framed = Framed::from_parts(parts);
-                            let upgrade =
-                                inner_p.upgrade.take().unwrap().call((req, framed));
+                            let upgrade = inner_p
+                                .flow
+                                .borrow_mut()
+                                .upgrade
+                                .take()
+                                .unwrap()
+                                .call((req, framed));
                             self.as_mut()
                                 .project()
                                 .inner
-                                .set(DispatcherState::Upgrade(Box::pin(upgrade)));
+                                .set(DispatcherState::Upgrade(upgrade));
                             return self.poll(cx);
                         }
 
@@ -890,7 +871,7 @@ where
                     }
                 }
             }
-            DispatcherStateProj::Upgrade(fut) => fut.as_mut().poll(cx).map_err(|e| {
+            DispatcherStateProj::Upgrade(fut) => fut.poll(cx).map_err(|e| {
                 error!("Upgrade handler error: {}", e);
                 DispatchError::Upgrade
             }),
@@ -925,7 +906,7 @@ where
             buf.reserve(HW_BUFFER_SIZE - remaining);
         }
 
-        match read(cx, io, buf) {
+        match actix_codec::poll_read_buf(Pin::new(io), cx, buf) {
             Poll::Pending => {
                 return if read_some { Ok(Some(false)) } else { Ok(None) };
             }
@@ -951,17 +932,6 @@ where
             }
         }
     }
-}
-
-fn read<T>(
-    cx: &mut Context<'_>,
-    io: &mut T,
-    buf: &mut BytesMut,
-) -> Poll<Result<usize, io::Error>>
-where
-    T: AsyncRead + Unpin,
-{
-    actix_codec::poll_read_buf(Pin::new(io), cx, buf)
 }
 
 #[cfg(test)]
@@ -1028,13 +998,13 @@ mod tests {
         lazy(|cx| {
             let buf = TestBuffer::new("GET /test HTTP/1\r\n\r\n");
 
+            let services = HttpFlow::new(ok_service(), ExpectHandler, None);
+
             let h1 = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
                 buf,
                 ServiceConfig::default(),
-                CloneableService::new(ok_service()),
-                CloneableService::new(ExpectHandler),
-                None,
-                Extensions::new(),
+                services,
+                OnConnectData::default(),
                 None,
             );
 
@@ -1068,13 +1038,13 @@ mod tests {
 
             let cfg = ServiceConfig::new(KeepAlive::Disabled, 1, 1, false, None);
 
+            let services = HttpFlow::new(echo_path_service(), ExpectHandler, None);
+
             let h1 = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
                 buf,
                 cfg,
-                CloneableService::new(echo_path_service()),
-                CloneableService::new(ExpectHandler),
-                None,
-                Extensions::new(),
+                services,
+                OnConnectData::default(),
                 None,
             );
 
@@ -1122,13 +1092,13 @@ mod tests {
 
             let cfg = ServiceConfig::new(KeepAlive::Disabled, 1, 1, false, None);
 
+            let services = HttpFlow::new(echo_path_service(), ExpectHandler, None);
+
             let h1 = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
                 buf,
                 cfg,
-                CloneableService::new(echo_path_service()),
-                CloneableService::new(ExpectHandler),
-                None,
-                Extensions::new(),
+                services,
+                OnConnectData::default(),
                 None,
             );
 
@@ -1171,13 +1141,14 @@ mod tests {
         lazy(|cx| {
             let mut buf = TestSeqBuffer::empty();
             let cfg = ServiceConfig::new(KeepAlive::Disabled, 0, 0, false, None);
+
+            let services = HttpFlow::new(echo_payload_service(), ExpectHandler, None);
+
             let h1 = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
                 buf.clone(),
                 cfg,
-                CloneableService::new(echo_payload_service()),
-                CloneableService::new(ExpectHandler),
-                None,
-                Extensions::new(),
+                services,
+                OnConnectData::default(),
                 None,
             );
 
@@ -1242,13 +1213,14 @@ mod tests {
         lazy(|cx| {
             let mut buf = TestSeqBuffer::empty();
             let cfg = ServiceConfig::new(KeepAlive::Disabled, 0, 0, false, None);
+
+            let services = HttpFlow::new(echo_path_service(), ExpectHandler, None);
+
             let h1 = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
                 buf.clone(),
                 cfg,
-                CloneableService::new(echo_path_service()),
-                CloneableService::new(ExpectHandler),
-                None,
-                Extensions::new(),
+                services,
+                OnConnectData::default(),
                 None,
             );
 
@@ -1301,13 +1273,15 @@ mod tests {
         lazy(|cx| {
             let mut buf = TestSeqBuffer::empty();
             let cfg = ServiceConfig::new(KeepAlive::Disabled, 0, 0, false, None);
+
+            let services =
+                HttpFlow::new(ok_service(), ExpectHandler, Some(UpgradeHandler));
+
             let h1 = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
                 buf.clone(),
                 cfg,
-                CloneableService::new(ok_service()),
-                CloneableService::new(ExpectHandler),
-                Some(CloneableService::new(UpgradeHandler)),
-                Extensions::new(),
+                services,
+                OnConnectData::default(),
                 None,
             );
 

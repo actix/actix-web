@@ -2,7 +2,7 @@
 //!
 //! ## Making a GET request
 //!
-//! ```rust
+//! ```no_run
 //! # #[actix_rt::main]
 //! # async fn main() -> Result<(), awc::error::SendRequestError> {
 //! let mut client = awc::Client::default();
@@ -20,7 +20,7 @@
 //!
 //! ### Raw body contents
 //!
-//! ```rust
+//! ```no_run
 //! # #[actix_rt::main]
 //! # async fn main() -> Result<(), awc::error::SendRequestError> {
 //! let mut client = awc::Client::default();
@@ -33,7 +33,7 @@
 //!
 //! ### Forms
 //!
-//! ```rust
+//! ```no_run
 //! # #[actix_rt::main]
 //! # async fn main() -> Result<(), awc::error::SendRequestError> {
 //! let params = [("foo", "bar"), ("baz", "quux")];
@@ -48,7 +48,7 @@
 //!
 //! ### JSON
 //!
-//! ```rust
+//! ```no_run
 //! # #[actix_rt::main]
 //! # async fn main() -> Result<(), awc::error::SendRequestError> {
 //! let request = serde_json::json!({
@@ -66,7 +66,7 @@
 //!
 //! ## WebSocket support
 //!
-//! ```
+//! ```no_run
 //! # #[actix_rt::main]
 //! # async fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! use futures_util::{sink::SinkExt, stream::StreamExt};
