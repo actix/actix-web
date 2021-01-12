@@ -264,7 +264,6 @@ pub(crate) trait MessageType: Sized {
         Ok(())
     }
 
-    #[inline]
     fn write_headers<F>(&mut self, mut f: F)
     where
         F: FnMut(&HeaderName, &Value),
