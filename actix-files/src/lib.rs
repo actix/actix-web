@@ -108,6 +108,18 @@ mod tests {
     }
 
     #[actix_rt::test]
+    async fn test_if_modified_since_without_if_none_match_same() {
+        let file = NamedFile::open("Cargo.toml").unwrap();
+        let since = file.last_modified().unwrap();
+
+        let req = TestRequest::default()
+            .header(header::IF_MODIFIED_SINCE, since)
+            .to_http_request();
+        let resp = file.respond_to(&req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::NOT_MODIFIED);
+    }
+
+    #[actix_rt::test]
     async fn test_if_modified_since_with_if_none_match() {
         let file = NamedFile::open("Cargo.toml").unwrap();
         let since =
@@ -119,6 +131,30 @@ mod tests {
             .to_http_request();
         let resp = file.respond_to(&req).await.unwrap();
         assert_ne!(resp.status(), StatusCode::NOT_MODIFIED);
+    }
+
+    #[actix_rt::test]
+    async fn test_if_unmodified_since() {
+        let file = NamedFile::open("Cargo.toml").unwrap();
+        let since = file.last_modified().unwrap();
+
+        let req = TestRequest::default()
+            .header(header::IF_UNMODIFIED_SINCE, since)
+            .to_http_request();
+        let resp = file.respond_to(&req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[actix_rt::test]
+    async fn test_if_unmodified_since_failed() {
+        let file = NamedFile::open("Cargo.toml").unwrap();
+        let since = header::HttpDate::from(SystemTime::UNIX_EPOCH);
+
+        let req = TestRequest::default()
+            .header(header::IF_UNMODIFIED_SINCE, since)
+            .to_http_request();
+        let resp = file.respond_to(&req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::PRECONDITION_FAILED);
     }
 
     #[actix_rt::test]
