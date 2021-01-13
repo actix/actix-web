@@ -152,26 +152,22 @@ where
     type Output = Fut::Output;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        loop {
-            match self.as_mut().project() {
-                ErrorHandlersProj::ServiceFuture { fut, handlers } => {
-                    let res = ready!(fut.poll(cx))?;
-                    match handlers.get(&res.status()) {
-                        Some(handler) => match handler(res)? {
-                            ErrorHandlerResponse::Response(res) => {
-                                return Poll::Ready(Ok(res))
-                            }
-                            ErrorHandlerResponse::Future(fut) => self
-                                .as_mut()
-                                .set(ErrorHandlersFuture::HandlerFuture { fut }),
-                        },
-                        None => return Poll::Ready(Ok(res)),
-                    }
-                }
-                ErrorHandlersProj::HandlerFuture { fut } => {
-                    return fut.as_mut().poll(cx)
+        match self.as_mut().project() {
+            ErrorHandlersProj::ServiceFuture { fut, handlers } => {
+                let res = ready!(fut.poll(cx))?;
+                match handlers.get(&res.status()) {
+                    Some(handler) => match handler(res)? {
+                        ErrorHandlerResponse::Response(res) => Poll::Ready(Ok(res)),
+                        ErrorHandlerResponse::Future(fut) => {
+                            self.as_mut()
+                                .set(ErrorHandlersFuture::HandlerFuture { fut });
+                            self.poll(cx)
+                        }
+                    },
+                    None => Poll::Ready(Ok(res)),
                 }
             }
+            ErrorHandlersProj::HandlerFuture { fut } => fut.as_mut().poll(cx),
         }
     }
 }
