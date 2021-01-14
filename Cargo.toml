@@ -132,6 +132,12 @@ actix-multipart = { path = "actix-multipart" }
 actix-files = { path = "actix-files" }
 awc = { path = "awc" }
 
+actix-service = { git = "https://github.com/actix/actix-net.git", branch="feat/immutable" }
+actix-server = { git = "https://github.com/actix/actix-net.git", branch = "feat/immutable" }
+actix-tls = { git = "https://github.com/actix/actix-net.git", branch = "feat/immutable" }
+actix-utils = { git = "https://github.com/actix/actix-net.git", branch = "feat/immutable" }
+actix-router = { git = "https://github.com/actix/actix-net.git", branch = "feat/immutable" }
+
 [[bench]]
 name = "server"
 harness = false

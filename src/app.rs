@@ -271,11 +271,11 @@ where
     where
         F: IntoServiceFactory<U, ServiceRequest>,
         U: ServiceFactory<
-                ServiceRequest,
-                Config = (),
-                Response = ServiceResponse,
-                Error = Error,
-            > + 'static,
+            ServiceRequest,
+            Config = (),
+            Response = ServiceResponse,
+            Error = Error,
+        > + 'static,
         U::InitError: fmt::Debug,
     {
         // create and configure default resource
@@ -431,7 +431,7 @@ where
     >
     where
         B1: MessageBody,
-        F: FnMut(ServiceRequest, &mut T::Service) -> R + Clone,
+        F: Fn(ServiceRequest, &T::Service) -> R + Clone,
         R: Future<Output = Result<ServiceResponse<B1>, Error>>,
     {
         App {
@@ -491,7 +491,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_default_resource() {
-        let mut srv = init_service(
+        let srv = init_service(
             App::new().service(web::resource("/test").to(HttpResponse::Ok)),
         )
         .await;
@@ -503,7 +503,7 @@ mod tests {
         let resp = srv.call(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 
-        let mut srv = init_service(
+        let srv = init_service(
             App::new()
                 .service(web::resource("/test").to(HttpResponse::Ok))
                 .service(
@@ -536,7 +536,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_data_factory() {
-        let mut srv =
+        let srv =
             init_service(App::new().data_factory(|| ok::<_, ()>(10usize)).service(
                 web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()),
             ))
@@ -545,7 +545,7 @@ mod tests {
         let resp = srv.call(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
 
-        let mut srv =
+        let srv =
             init_service(App::new().data_factory(|| ok::<_, ()>(10u32)).service(
                 web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()),
             ))
@@ -568,7 +568,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_extension() {
-        let mut srv = init_service(App::new().app_data(10usize).service(
+        let srv = init_service(App::new().app_data(10usize).service(
             web::resource("/").to(|req: HttpRequest| {
                 assert_eq!(*req.app_data::<usize>().unwrap(), 10);
                 HttpResponse::Ok()
@@ -582,7 +582,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_wrap() {
-        let mut srv = init_service(
+        let srv = init_service(
             App::new()
                 .wrap(
                     DefaultHeaders::new()
@@ -592,7 +592,7 @@ mod tests {
         )
         .await;
         let req = TestRequest::with_uri("/test").to_request();
-        let resp = call_service(&mut srv, req).await;
+        let resp = call_service(&srv, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(
             resp.headers().get(header::CONTENT_TYPE).unwrap(),
@@ -602,7 +602,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_router_wrap() {
-        let mut srv = init_service(
+        let srv = init_service(
             App::new()
                 .route("/test", web::get().to(HttpResponse::Ok))
                 .wrap(
@@ -612,7 +612,7 @@ mod tests {
         )
         .await;
         let req = TestRequest::with_uri("/test").to_request();
-        let resp = call_service(&mut srv, req).await;
+        let resp = call_service(&srv, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(
             resp.headers().get(header::CONTENT_TYPE).unwrap(),
@@ -622,7 +622,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_wrap_fn() {
-        let mut srv = init_service(
+        let srv = init_service(
             App::new()
                 .wrap_fn(|req, srv| {
                     let fut = srv.call(req);
@@ -639,7 +639,7 @@ mod tests {
         )
         .await;
         let req = TestRequest::with_uri("/test").to_request();
-        let resp = call_service(&mut srv, req).await;
+        let resp = call_service(&srv, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(
             resp.headers().get(header::CONTENT_TYPE).unwrap(),
@@ -649,7 +649,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_router_wrap_fn() {
-        let mut srv = init_service(
+        let srv = init_service(
             App::new()
                 .route("/test", web::get().to(HttpResponse::Ok))
                 .wrap_fn(|req, srv| {
@@ -666,7 +666,7 @@ mod tests {
         )
         .await;
         let req = TestRequest::with_uri("/test").to_request();
-        let resp = call_service(&mut srv, req).await;
+        let resp = call_service(&srv, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(
             resp.headers().get(header::CONTENT_TYPE).unwrap(),
@@ -676,7 +676,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_external_resource() {
-        let mut srv = init_service(
+        let srv = init_service(
             App::new()
                 .external_resource("youtube", "https://youtube.com/watch/{video_id}")
                 .route(
@@ -690,7 +690,7 @@ mod tests {
         )
         .await;
         let req = TestRequest::with_uri("/test").to_request();
-        let resp = call_service(&mut srv, req).await;
+        let resp = call_service(&srv, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
         let body = read_body(resp).await;
         assert_eq!(body, Bytes::from_static(b"https://youtube.com/watch/12345"));

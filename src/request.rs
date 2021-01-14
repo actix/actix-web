@@ -554,7 +554,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_drop_http_request_pool() {
-        let mut srv = init_service(App::new().service(web::resource("/").to(
+        let srv = init_service(App::new().service(web::resource("/").to(
             |req: HttpRequest| {
                 HttpResponse::Ok()
                     .set_header("pool_cap", req.app_state().pool().cap)
@@ -564,7 +564,7 @@ mod tests {
         .await;
 
         let req = TestRequest::default().to_request();
-        let resp = call_service(&mut srv, req).await;
+        let resp = call_service(&srv, req).await;
 
         drop(srv);
 
@@ -573,7 +573,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_data() {
-        let mut srv = init_service(App::new().app_data(10usize).service(
+        let srv = init_service(App::new().app_data(10usize).service(
             web::resource("/").to(|req: HttpRequest| {
                 if req.app_data::<usize>().is_some() {
                     HttpResponse::Ok()
@@ -585,10 +585,10 @@ mod tests {
         .await;
 
         let req = TestRequest::default().to_request();
-        let resp = call_service(&mut srv, req).await;
+        let resp = call_service(&srv, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
 
-        let mut srv = init_service(App::new().app_data(10u32).service(
+        let srv = init_service(App::new().app_data(10u32).service(
             web::resource("/").to(|req: HttpRequest| {
                 if req.app_data::<usize>().is_some() {
                     HttpResponse::Ok()
@@ -600,7 +600,7 @@ mod tests {
         .await;
 
         let req = TestRequest::default().to_request();
-        let resp = call_service(&mut srv, req).await;
+        let resp = call_service(&srv, req).await;
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
     }
 
@@ -612,7 +612,7 @@ mod tests {
             HttpResponse::Ok().body(num.to_string())
         }
 
-        let mut srv = init_service(
+        let srv = init_service(
             App::new()
                 .app_data(88usize)
                 .service(web::resource("/").route(web::get().to(echo_usize)))
@@ -643,7 +643,7 @@ mod tests {
             HttpResponse::Ok().body(num.to_string())
         }
 
-        let mut srv = init_service(
+        let srv = init_service(
             App::new()
                 .app_data(88usize)
                 .service(web::resource("/").route(web::get().to(echo_usize)))
@@ -683,7 +683,7 @@ mod tests {
         let tracker = Rc::new(RefCell::new(Tracker { dropped: false }));
         {
             let tracker2 = Rc::clone(&tracker);
-            let mut srv = init_service(App::new().data(10u32).service(
+            let srv = init_service(App::new().data(10u32).service(
                 web::resource("/").to(move |req: HttpRequest| {
                     req.extensions_mut().insert(Foo {
                         tracker: Rc::clone(&tracker2),
@@ -694,7 +694,7 @@ mod tests {
             .await;
 
             let req = TestRequest::default().to_request();
-            let resp = call_service(&mut srv, req).await;
+            let resp = call_service(&srv, req).await;
             assert_eq!(resp.status(), StatusCode::OK);
         }
 
@@ -703,7 +703,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn extract_path_pattern() {
-        let mut srv = init_service(
+        let srv = init_service(
             App::new().service(
                 web::scope("/user/{id}")
                     .service(web::resource("/profile").route(web::get().to(
@@ -725,17 +725,17 @@ mod tests {
         .await;
 
         let req = TestRequest::get().uri("/user/22/profile").to_request();
-        let res = call_service(&mut srv, req).await;
+        let res = call_service(&srv, req).await;
         assert_eq!(res.status(), StatusCode::OK);
 
         let req = TestRequest::get().uri("/user/22/not-exist").to_request();
-        let res = call_service(&mut srv, req).await;
+        let res = call_service(&srv, req).await;
         assert_eq!(res.status(), StatusCode::OK);
     }
 
     #[actix_rt::test]
     async fn extract_path_pattern_complex() {
-        let mut srv = init_service(
+        let srv = init_service(
             App::new()
                 .service(web::scope("/user").service(web::scope("/{id}").service(
                     web::resource("").to(move |req: HttpRequest| {
@@ -757,15 +757,15 @@ mod tests {
         .await;
 
         let req = TestRequest::get().uri("/user/test").to_request();
-        let res = call_service(&mut srv, req).await;
+        let res = call_service(&srv, req).await;
         assert_eq!(res.status(), StatusCode::OK);
 
         let req = TestRequest::get().uri("/").to_request();
-        let res = call_service(&mut srv, req).await;
+        let res = call_service(&srv, req).await;
         assert_eq!(res.status(), StatusCode::OK);
 
         let req = TestRequest::get().uri("/not-exist").to_request();
-        let res = call_service(&mut srv, req).await;
+        let res = call_service(&srv, req).await;
         assert_eq!(res.status(), StatusCode::OK);
     }
 }

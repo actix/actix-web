@@ -44,7 +44,7 @@ where
     type Error = Error;
     type Future = Pin<Box<dyn Future<Output = Result<(), Error>>>>;
 
-    fn poll_ready(&mut self, _ctx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+    fn poll_ready(&self, _ctx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         self.set_polled();
         Poll::Ready(Ok(()))
     }

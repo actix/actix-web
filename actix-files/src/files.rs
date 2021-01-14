@@ -129,8 +129,9 @@ impl Files {
     /// Set custom directory renderer
     pub fn files_listing_renderer<F>(mut self, f: F) -> Self
     where
-        for<'r, 's> F: Fn(&'r Directory, &'s HttpRequest) -> Result<ServiceResponse, io::Error>
-            + 'static,
+        for<'r, 's> F:
+            Fn(&'r Directory, &'s HttpRequest) -> Result<ServiceResponse, io::Error>
+                + 'static,
     {
         self.renderer = Rc::new(f);
         self
@@ -204,11 +205,11 @@ impl Files {
     where
         F: IntoServiceFactory<U, ServiceRequest>,
         U: ServiceFactory<
-                ServiceRequest,
-                Config = (),
-                Response = ServiceResponse,
-                Error = Error,
-            > + 'static,
+            ServiceRequest,
+            Config = (),
+            Response = ServiceResponse,
+            Error = Error,
+        > + 'static,
     {
         // create and configure default resource
         self.default = Rc::new(RefCell::new(Some(Rc::new(boxed::factory(

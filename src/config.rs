@@ -107,12 +107,12 @@ impl AppService {
     ) where
         F: IntoServiceFactory<S, ServiceRequest>,
         S: ServiceFactory<
-                ServiceRequest,
-                Config = (),
-                Response = ServiceResponse,
-                Error = Error,
-                InitError = (),
-            > + 'static,
+            ServiceRequest,
+            Config = (),
+            Response = ServiceResponse,
+            Error = Error,
+            InitError = (),
+        > + 'static,
     {
         self.services.push((
             rdef,
@@ -265,7 +265,7 @@ mod tests {
             cfg.app_data(15u8);
         };
 
-        let mut srv = init_service(App::new().configure(cfg).service(
+        let srv = init_service(App::new().configure(cfg).service(
             web::resource("/").to(|_: web::Data<usize>, req: HttpRequest| {
                 assert_eq!(*req.app_data::<u8>().unwrap(), 15u8);
                 HttpResponse::Ok()
@@ -288,7 +288,7 @@ mod tests {
     //         });
     //     };
 
-    //     let mut srv =
+    //     let srv =
     //         init_service(App::new().configure(cfg).service(
     //             web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()),
     //         ));
@@ -299,7 +299,7 @@ mod tests {
     //     let cfg2 = |cfg: &mut ServiceConfig| {
     //         cfg.data_factory(|| Ok::<_, ()>(10u32));
     //     };
-    //     let mut srv = init_service(
+    //     let srv = init_service(
     //         App::new()
     //             .service(web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()))
     //             .configure(cfg2),
@@ -311,7 +311,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_external_resource() {
-        let mut srv = init_service(
+        let srv = init_service(
             App::new()
                 .configure(|cfg| {
                     cfg.external_resource(
@@ -330,7 +330,7 @@ mod tests {
         )
         .await;
         let req = TestRequest::with_uri("/test").to_request();
-        let resp = call_service(&mut srv, req).await;
+        let resp = call_service(&srv, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
         let body = read_body(resp).await;
         assert_eq!(body, Bytes::from_static(b"https://youtube.com/watch/12345"));
@@ -338,7 +338,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_service() {
-        let mut srv = init_service(App::new().configure(|cfg| {
+        let srv = init_service(App::new().configure(|cfg| {
             cfg.service(
                 web::resource("/test").route(web::get().to(HttpResponse::Created)),
             )
@@ -349,13 +349,13 @@ mod tests {
         let req = TestRequest::with_uri("/test")
             .method(Method::GET)
             .to_request();
-        let resp = call_service(&mut srv, req).await;
+        let resp = call_service(&srv, req).await;
         assert_eq!(resp.status(), StatusCode::CREATED);
 
         let req = TestRequest::with_uri("/index.html")
             .method(Method::GET)
             .to_request();
-        let resp = call_service(&mut srv, req).await;
+        let resp = call_service(&srv, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
     }
 }
