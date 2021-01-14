@@ -287,11 +287,11 @@ where
     where
         F: IntoServiceFactory<U, ServiceRequest>,
         U: ServiceFactory<
-            ServiceRequest,
-            Config = (),
-            Response = ServiceResponse,
-            Error = Error,
-        > + 'static,
+                ServiceRequest,
+                Config = (),
+                Response = ServiceResponse,
+                Error = Error,
+            > + 'static,
         U::InitError: fmt::Debug,
     {
         // create and configure default resource
@@ -408,12 +408,12 @@ where
 impl<T> HttpServiceFactory for Scope<T>
 where
     T: ServiceFactory<
-        ServiceRequest,
-        Config = (),
-        Response = ServiceResponse,
-        Error = Error,
-        InitError = (),
-    > + 'static,
+            ServiceRequest,
+            Config = (),
+            Response = ServiceResponse,
+            Error = Error,
+            InitError = (),
+        > + 'static,
 {
     fn register(mut self, config: &mut AppService) {
         // update default resource if needed

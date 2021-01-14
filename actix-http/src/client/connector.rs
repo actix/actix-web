@@ -62,10 +62,10 @@ impl Connector<(), ()> {
     #[allow(clippy::new_ret_no_self, clippy::let_unit_value)]
     pub fn new() -> Connector<
         impl Service<
-            TcpConnect<Uri>,
-            Response = TcpConnection<Uri, TcpStream>,
-            Error = actix_tls::connect::ConnectError,
-        > + Clone,
+                TcpConnect<Uri>,
+                Response = TcpConnection<Uri, TcpStream>,
+                Error = actix_tls::connect::ConnectError,
+            > + Clone,
         TcpStream,
     > {
         Connector {
@@ -117,10 +117,10 @@ impl<T, U> Connector<T, U> {
     where
         U1: AsyncRead + AsyncWrite + Unpin + fmt::Debug,
         T1: Service<
-            TcpConnect<Uri>,
-            Response = TcpConnection<Uri, U1>,
-            Error = actix_tls::connect::ConnectError,
-        > + Clone,
+                TcpConnect<Uri>,
+                Response = TcpConnection<Uri, U1>,
+                Error = actix_tls::connect::ConnectError,
+            > + Clone,
     {
         Connector {
             connector,
@@ -135,10 +135,10 @@ impl<T, U> Connector<T, U>
 where
     U: AsyncRead + AsyncWrite + Unpin + fmt::Debug + 'static,
     T: Service<
-        TcpConnect<Uri>,
-        Response = TcpConnection<Uri, U>,
-        Error = actix_tls::connect::ConnectError,
-    > + Clone
+            TcpConnect<Uri>,
+            Response = TcpConnection<Uri, U>,
+            Error = actix_tls::connect::ConnectError,
+        > + Clone
         + 'static,
 {
     /// Connection timeout, i.e. max time to connect to remote host including dns name resolution.
