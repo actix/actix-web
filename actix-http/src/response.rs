@@ -2,6 +2,7 @@
 
 use std::{
     cell::{Ref, RefMut},
+    convert::TryInto,
     fmt,
     future::Future,
     pin::Pin,
@@ -18,7 +19,7 @@ use crate::cookie::{Cookie, CookieJar};
 use crate::error::Error;
 use crate::extensions::Extensions;
 use crate::header::{IntoHeaderPair, IntoHeaderValue};
-use crate::http::header::{self, HeaderValue};
+use crate::http::header::{self, HeaderName, HeaderValue};
 use crate::http::{Error as HttpError, HeaderMap, StatusCode};
 use crate::message::{BoxedResponseHead, ConnectionType, ResponseHead};
 
@@ -348,11 +349,11 @@ impl ResponseBuilder {
     ///
     /// ```rust
     /// # use actix_http::Response;
-    ///
     /// use actix_http::http::header::ContentType;
+    ///
     /// Response::Ok()
-    ///     .insert_header(("X-TEST", "value"))
     ///     .insert_header(ContentType(mime::APPLICATION_JSON))
+    ///     .insert_header(("X-TEST", "value"))
     ///     .finish();
     /// ```
     pub fn insert_header<H>(&mut self, header: H) -> &mut Self
@@ -376,8 +377,9 @@ impl ResponseBuilder {
     /// use actix_http::http::header::ContentType;
     ///
     /// Response::Ok()
-    ///     .append_header(("X-TEST", "value"))
     ///     .append_header(ContentType(mime::APPLICATION_JSON))
+    ///     .append_header(("X-TEST", "value1"))
+    ///     .append_header(("X-TEST", "value2"))
     ///     .finish();
     /// ```
     pub fn append_header<H>(&mut self, header: H) -> &mut Self
@@ -389,6 +391,48 @@ impl ResponseBuilder {
                 Ok((key, value)) => parts.headers.append(key, value),
                 Err(e) => self.err = Some(e.into()),
             };
+        }
+
+        self
+    }
+
+    /// Replaced with [`Self::insert_header()`].
+    #[deprecated = "Replaced with `insert_header((key, value))`."]
+    pub fn set_header<K, V>(&mut self, key: K, value: V) -> &mut Self
+    where
+        K: TryInto<HeaderName>,
+        K::Error: Into<HttpError>,
+        V: IntoHeaderValue,
+    {
+        if self.err.is_some() {
+            return self;
+        }
+
+        match (key.try_into(), value.try_into_value()) {
+            (Ok(name), Ok(value)) => return self.insert_header((name, value)),
+            (Err(err), _) => self.err = Some(err.into()),
+            (_, Err(err)) => self.err = Some(err.into()),
+        }
+
+        self
+    }
+
+    /// Replaced with [`Self::append_header()`].
+    #[deprecated = "Replaced with `append_header((key, value))`."]
+    pub fn header<K, V>(&mut self, key: K, value: V) -> &mut Self
+    where
+        K: TryInto<HeaderName>,
+        K::Error: Into<HttpError>,
+        V: IntoHeaderValue,
+    {
+        if self.err.is_some() {
+            return self;
+        }
+
+        match (key.try_into(), value.try_into_value()) {
+            (Ok(name), Ok(value)) => return self.append_header((name, value)),
+            (Err(err), _) => self.err = Some(err.into()),
+            (_, Err(err)) => self.err = Some(err.into()),
         }
 
         self

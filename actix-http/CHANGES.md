@@ -2,7 +2,7 @@
 
 ## Unreleased - 2021-xx-xx
 ### Added
-* `IntoHeaderPair` trait that allows using types and non-typed headers in the same methods. [#1869]
+* `IntoHeaderPair` trait that allows using typed and untyped headers in the same methods. [#1869]
 * `ResponseBuilder::insert_header` method which allows using typed headers. [#1869]
 * `ResponseBuilder::append_header` method which allows using typed headers. [#1869]
 * `TestRequest::insert_header` method which allows using typed headers. [#1869]
