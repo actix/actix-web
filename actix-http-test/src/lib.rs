@@ -69,7 +69,7 @@ pub async fn test_server_with_addr<F: ServiceFactory<TcpStream>>(
             .disable_signals();
 
         sys.block_on(async {
-            srv.start();
+            srv.run();
             tx.send((System::current(), local_addr)).unwrap();
         });
 
