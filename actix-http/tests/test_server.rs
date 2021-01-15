@@ -662,7 +662,9 @@ async fn test_h1_service_error() {
 async fn test_h1_on_connect() {
     let srv = test_server(|| {
         HttpService::build()
-            .on_connect_ext(|_, data| data.insert(20isize))
+            .on_connect_ext(|_, data| {
+                data.insert(20isize);
+            })
             .h1(|req: Request| {
                 assert!(req.extensions().contains::<isize>());
                 future::ok::<_, ()>(Response::Ok().finish())

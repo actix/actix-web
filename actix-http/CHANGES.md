@@ -12,6 +12,7 @@
   `mime` types. [#1894]
 * Renamed `IntoHeaderValue::{try_into => try_into_value}` to avoid ambiguity with std
   `TryInto` trait. [#1894]
+* `Extensions::insert` returns Option of replaced item. [#1904]
 
 ### Removed
 * `ResponseBuilder::set`; use `ResponseBuilder::insert_header`. [#1869]
@@ -22,6 +23,7 @@
 
 [#1869]: https://github.com/actix/actix-web/pull/1869
 [#1894]: https://github.com/actix/actix-web/pull/1894
+[#1904]: https://github.com/actix/actix-web/pull/1904
 
 
 ## 3.0.0-beta.1 - 2021-01-07
