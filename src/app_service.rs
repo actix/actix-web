@@ -10,7 +10,7 @@ use futures_core::future::LocalBoxFuture;
 use futures_util::future::join_all;
 
 use crate::config::{AppConfig, AppService};
-use crate::data::{DataFactory, FnDataFactory};
+use crate::data::FnDataFactory;
 use crate::error::Error;
 use crate::guard::Guard;
 use crate::request::{HttpRequest, HttpRequestPool};
@@ -35,7 +35,6 @@ where
 {
     pub(crate) endpoint: T,
     pub(crate) extensions: RefCell<Option<Extensions>>,
-    pub(crate) data_factories: Rc<[Box<dyn DataFactory>]>,
     pub(crate) async_data_factories: Rc<[FnDataFactory]>,
     pub(crate) services: Rc<RefCell<Vec<Box<dyn AppServiceFactory>>>>,
     pub(crate) default: Option<Rc<HttpNewService>>,
@@ -71,8 +70,7 @@ where
         });
 
         // App config
-        let mut config =
-            AppService::new(config, default.clone(), self.data_factories.clone());
+        let mut config = AppService::new(config, default.clone());
 
         // register services
         std::mem::take(&mut *self.services.borrow_mut())
@@ -119,8 +117,6 @@ where
             .take()
             .unwrap_or_else(Extensions::new);
 
-        let data_factories = self.data_factories.clone();
-
         Box::pin(async move {
             // async data factories
             let async_data_factories = factory_futs
@@ -133,12 +129,9 @@ where
             let service = endpoint_fut.await?;
 
             // populate app data container from (async) data factories.
-            data_factories
-                .iter()
-                .chain(&async_data_factories)
-                .for_each(|factory| {
-                    factory.create(&mut app_data);
-                });
+            async_data_factories.iter().for_each(|factory| {
+                factory.create(&mut app_data);
+            });
 
             Ok(AppInitService {
                 service,
