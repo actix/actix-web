@@ -21,7 +21,7 @@ impl<T> WsService<T> {
         WsService(Arc::new(Mutex::new((PhantomData, Cell::new(false)))))
     }
 
-    fn set_polled(&mut self) {
+    fn set_polled(&self) {
         *self.0.lock().unwrap().1.get_mut() = true;
     }
 
@@ -49,10 +49,7 @@ where
         Poll::Ready(Ok(()))
     }
 
-    fn call(
-        &mut self,
-        (req, mut framed): (Request, Framed<T, h1::Codec>),
-    ) -> Self::Future {
+    fn call(&self, (req, mut framed): (Request, Framed<T, h1::Codec>)) -> Self::Future {
         let fut = async move {
             let res = ws::handshake(req.head()).unwrap().message_body(());
 

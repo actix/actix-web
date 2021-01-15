@@ -541,7 +541,7 @@ impl Service<ServiceRequest> for ScopeService {
     actix_service::always_ready!();
 
     fn call(&self, mut req: ServiceRequest) -> Self::Future {
-        let res = self.router.recognize_mut_checked(&mut req, |req, guards| {
+        let res = self.router.recognize_checked(&mut req, |req, guards| {
             if let Some(ref guards) = guards {
                 for f in guards {
                     if !f.check(req.head()) {
