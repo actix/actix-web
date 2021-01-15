@@ -408,7 +408,9 @@ async fn test_h2_service_error() {
 async fn test_h2_on_connect() {
     let srv = test_server(move || {
         HttpService::build()
-            .on_connect_ext(|_, data| data.insert(20isize))
+            .on_connect_ext(|_, data| {
+                data.insert(20isize);
+            })
             .h2(|req: Request| {
                 assert!(req.extensions().contains::<isize>());
                 ok::<_, ()>(Response::Ok().finish())
