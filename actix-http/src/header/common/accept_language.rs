@@ -27,7 +27,7 @@ header! {
     /// use actix_http::Response;
     /// use actix_http::http::header::{AcceptLanguage, LanguageTag, qitem};
     ///
-    /// let mut builder = Response::Ok();
+    /// let mut builder = Response::ok();
     /// let mut langtag: LanguageTag = Default::default();
     /// langtag.language = Some("en".to_owned());
     /// langtag.region = Some("US".to_owned());
@@ -43,7 +43,7 @@ header! {
     /// use actix_http::Response;
     /// use actix_http::http::header::{AcceptLanguage, QualityItem, q, qitem};
     ///
-    /// let mut builder = Response::Ok();
+    /// let mut builder = Response::ok();
     /// builder.insert_header(
     ///     AcceptLanguage(vec![
     ///         qitem(langtag!(da)),

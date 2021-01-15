@@ -674,7 +674,7 @@ mod tests {
     async fn test_default_handler_file_missing() {
         let mut st = Files::new("/", ".")
             .default_handler(|req: ServiceRequest| {
-                ok(req.into_response(HttpResponse::Ok().body("default content")))
+                ok(req.into_response(HttpResponse::ok().body("default content")))
             })
             .new_service(())
             .await

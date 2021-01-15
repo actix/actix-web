@@ -32,9 +32,9 @@ use crate::{
 ///
 /// fn index(req: &HttpRequest) -> Response {
 ///     if let Some(hdr) = req.headers().get(header::CONTENT_TYPE) {
-///         Response::Ok().into()
+///         Response::ok().into()
 ///     } else {
-///         Response::BadRequest().into()
+///         Response::bad_request().into()
 ///     }
 /// }
 ///

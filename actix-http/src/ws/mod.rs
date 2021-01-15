@@ -100,28 +100,28 @@ pub enum HandshakeError {
 impl ResponseError for HandshakeError {
     fn error_response(&self) -> Response {
         match self {
-            HandshakeError::GetMethodRequired => Response::MethodNotAllowed()
+            HandshakeError::GetMethodRequired => Response::method_not_allowed()
                 .insert_header((header::ALLOW, "GET"))
                 .finish(),
 
-            HandshakeError::NoWebsocketUpgrade => Response::BadRequest()
+            HandshakeError::NoWebsocketUpgrade => Response::bad_request()
                 .reason("No WebSocket UPGRADE header found")
                 .finish(),
 
-            HandshakeError::NoConnectionUpgrade => Response::BadRequest()
+            HandshakeError::NoConnectionUpgrade => Response::bad_request()
                 .reason("No CONNECTION upgrade")
                 .finish(),
 
-            HandshakeError::NoVersionHeader => Response::BadRequest()
+            HandshakeError::NoVersionHeader => Response::bad_request()
                 .reason("Websocket version header is required")
                 .finish(),
 
-            HandshakeError::UnsupportedVersion => Response::BadRequest()
+            HandshakeError::UnsupportedVersion => Response::bad_request()
                 .reason("Unsupported version")
                 .finish(),
 
             HandshakeError::BadWebsocketKey => {
-                Response::BadRequest().reason("Handshake error").finish()
+                Response::bad_request().reason("Handshake error").finish()
             }
         }
     }

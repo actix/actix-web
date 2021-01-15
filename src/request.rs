@@ -164,14 +164,14 @@ impl HttpRequest {
     /// #
     /// fn index(req: HttpRequest) -> HttpResponse {
     ///     let url = req.url_for("foo", &["1", "2", "3"]); // <- generate url for "foo" resource
-    ///     HttpResponse::Ok().into()
+    ///     HttpResponse::ok().into()
     /// }
     ///
     /// fn main() {
     ///     let app = App::new()
     ///         .service(web::resource("/test/{one}/{two}/{three}")
     ///              .name("foo")  // <- set resource name, then it could be used in `url_for`
-    ///              .route(web::get().to(|| HttpResponse::Ok()))
+    ///              .route(web::get().to(|| HttpResponse::ok()))
     ///         );
     /// }
     /// ```
@@ -558,7 +558,7 @@ mod tests {
     async fn test_drop_http_request_pool() {
         let mut srv = init_service(App::new().service(web::resource("/").to(
             |req: HttpRequest| {
-                HttpResponse::Ok()
+                HttpResponse::ok()
                     .insert_header(("pool_cap", req.app_state().pool().cap))
                     .finish()
             },
@@ -578,9 +578,9 @@ mod tests {
         let mut srv = init_service(App::new().app_data(10usize).service(
             web::resource("/").to(|req: HttpRequest| {
                 if req.app_data::<usize>().is_some() {
-                    HttpResponse::Ok()
+                    HttpResponse::ok()
                 } else {
-                    HttpResponse::BadRequest()
+                    HttpResponse::bad_request()
                 }
             }),
         ))
@@ -593,9 +593,9 @@ mod tests {
         let mut srv = init_service(App::new().app_data(10u32).service(
             web::resource("/").to(|req: HttpRequest| {
                 if req.app_data::<usize>().is_some() {
-                    HttpResponse::Ok()
+                    HttpResponse::ok()
                 } else {
-                    HttpResponse::BadRequest()
+                    HttpResponse::bad_request()
                 }
             }),
         ))
@@ -611,7 +611,7 @@ mod tests {
         #[allow(dead_code)]
         fn echo_usize(req: HttpRequest) -> HttpResponse {
             let num = req.app_data::<usize>().unwrap();
-            HttpResponse::Ok().body(num.to_string())
+            HttpResponse::ok().body(num.to_string())
         }
 
         let mut srv = init_service(
@@ -642,7 +642,7 @@ mod tests {
         #[allow(dead_code)]
         fn echo_usize(req: HttpRequest) -> HttpResponse {
             let num = req.app_data::<usize>().unwrap();
-            HttpResponse::Ok().body(num.to_string())
+            HttpResponse::ok().body(num.to_string())
         }
 
         let mut srv = init_service(
@@ -690,7 +690,7 @@ mod tests {
                     req.extensions_mut().insert(Foo {
                         tracker: Rc::clone(&tracker2),
                     });
-                    HttpResponse::Ok()
+                    HttpResponse::ok()
                 }),
             ))
             .await;
@@ -715,12 +715,12 @@ mod tests {
                                 Some("/user/{id}/profile".to_owned())
                             );
 
-                            HttpResponse::Ok().finish()
+                            HttpResponse::ok().finish()
                         },
                     )))
                     .default_service(web::to(move |req: HttpRequest| {
                         assert!(req.match_pattern().is_none());
-                        HttpResponse::Ok().finish()
+                        HttpResponse::ok().finish()
                     })),
             ),
         )
@@ -743,17 +743,17 @@ mod tests {
                     web::resource("").to(move |req: HttpRequest| {
                         assert_eq!(req.match_pattern(), Some("/user/{id}".to_owned()));
 
-                        HttpResponse::Ok().finish()
+                        HttpResponse::ok().finish()
                     }),
                 )))
                 .service(web::resource("/").to(move |req: HttpRequest| {
                     assert_eq!(req.match_pattern(), Some("/".to_owned()));
 
-                    HttpResponse::Ok().finish()
+                    HttpResponse::ok().finish()
                 }))
                 .default_service(web::to(move |req: HttpRequest| {
                     assert!(req.match_pattern().is_none());
-                    HttpResponse::Ok().finish()
+                    HttpResponse::ok().finish()
                 })),
         )
         .await;

@@ -13,77 +13,77 @@ use futures_util::future;
 // Make sure that we can name function as 'config'
 #[get("/config")]
 async fn config() -> impl Responder {
-    HttpResponse::Ok()
+    HttpResponse::ok()
 }
 
 #[get("/test")]
 async fn test_handler() -> impl Responder {
-    HttpResponse::Ok()
+    HttpResponse::ok()
 }
 
 #[put("/test")]
 async fn put_test() -> impl Responder {
-    HttpResponse::Created()
+    HttpResponse::created()
 }
 
 #[patch("/test")]
 async fn patch_test() -> impl Responder {
-    HttpResponse::Ok()
+    HttpResponse::ok()
 }
 
 #[post("/test")]
 async fn post_test() -> impl Responder {
-    HttpResponse::NoContent()
+    HttpResponse::no_content()
 }
 
 #[head("/test")]
 async fn head_test() -> impl Responder {
-    HttpResponse::Ok()
+    HttpResponse::ok()
 }
 
 #[connect("/test")]
 async fn connect_test() -> impl Responder {
-    HttpResponse::Ok()
+    HttpResponse::ok()
 }
 
 #[options("/test")]
 async fn options_test() -> impl Responder {
-    HttpResponse::Ok()
+    HttpResponse::ok()
 }
 
 #[trace("/test")]
 async fn trace_test() -> impl Responder {
-    HttpResponse::Ok()
+    HttpResponse::ok()
 }
 
 #[get("/test")]
 fn auto_async() -> impl Future<Output = Result<HttpResponse, actix_web::Error>> {
-    future::ok(HttpResponse::Ok().finish())
+    future::ok(HttpResponse::ok().finish())
 }
 
 #[get("/test")]
 fn auto_sync() -> impl Future<Output = Result<HttpResponse, actix_web::Error>> {
-    future::ok(HttpResponse::Ok().finish())
+    future::ok(HttpResponse::ok().finish())
 }
 
 #[put("/test/{param}")]
 async fn put_param_test(_: Path<String>) -> impl Responder {
-    HttpResponse::Created()
+    HttpResponse::created()
 }
 
 #[delete("/test/{param}")]
 async fn delete_param_test(_: Path<String>) -> impl Responder {
-    HttpResponse::NoContent()
+    HttpResponse::no_content()
 }
 
 #[get("/test/{param}")]
 async fn get_param_test(_: Path<String>) -> impl Responder {
-    HttpResponse::Ok()
+    HttpResponse::ok()
 }
 
 #[route("/multi", method = "GET", method = "POST", method = "HEAD")]
 async fn route_test() -> impl Responder {
-    HttpResponse::Ok()
+    HttpResponse::ok()
 }
 
 pub struct ChangeStatusCode;
@@ -140,7 +140,7 @@ where
 
 #[get("/test/wrap", wrap = "ChangeStatusCode")]
 async fn get_wrap(_: Path<String>) -> impl Responder {
-    HttpResponse::Ok()
+    HttpResponse::ok()
 }
 
 #[actix_rt::test]

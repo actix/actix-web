@@ -51,8 +51,8 @@ type ErrorHandler<B> = dyn Fn(ServiceResponse<B>) -> Result<ErrorHandlerResponse
 ///             .handler(http::StatusCode::INTERNAL_SERVER_ERROR, render_500),
 ///     )
 ///     .service(web::resource("/test")
-///         .route(web::get().to(|| HttpResponse::Ok()))
-///         .route(web::head().to(|| HttpResponse::MethodNotAllowed())
+///         .route(web::get().to(|| HttpResponse::ok()))
+///         .route(web::head().to(|| HttpResponse::method_not_allowed())
 ///     ));
 /// ```
 pub struct ErrorHandlers<B> {
@@ -193,7 +193,7 @@ mod tests {
     #[actix_rt::test]
     async fn test_handler() {
         let srv = |req: ServiceRequest| {
-            ok(req.into_response(HttpResponse::InternalServerError().finish()))
+            ok(req.into_response(HttpResponse::internal_server_error().finish()))
         };
 
         let mut mw = ErrorHandlers::new()
@@ -220,7 +220,7 @@ mod tests {
     #[actix_rt::test]
     async fn test_handler_async() {
         let srv = |req: ServiceRequest| {
-            ok(req.into_response(HttpResponse::InternalServerError().finish()))
+            ok(req.into_response(HttpResponse::internal_server_error().finish()))
         };
 
         let mut mw = ErrorHandlers::new()

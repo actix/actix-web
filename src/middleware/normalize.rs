@@ -198,8 +198,8 @@ mod tests {
         let mut app = init_service(
             App::new()
                 .wrap(NormalizePath::default())
-                .service(web::resource("/").to(HttpResponse::Ok))
-                .service(web::resource("/v1/something").to(HttpResponse::Ok)),
+                .service(web::resource("/").to(HttpResponse::ok))
+                .service(web::resource("/v1/something").to(HttpResponse::ok)),
         )
         .await;
 
@@ -237,8 +237,8 @@ mod tests {
         let mut app = init_service(
             App::new()
                 .wrap(NormalizePath(TrailingSlash::Trim))
-                .service(web::resource("/").to(HttpResponse::Ok))
-                .service(web::resource("/v1/something").to(HttpResponse::Ok)),
+                .service(web::resource("/").to(HttpResponse::ok))
+                .service(web::resource("/v1/something").to(HttpResponse::ok)),
         )
         .await;
 
@@ -277,9 +277,9 @@ mod tests {
         let mut app = init_service(
             App::new()
                 .wrap(NormalizePath(TrailingSlash::MergeOnly))
-                .service(web::resource("/").to(HttpResponse::Ok))
-                .service(web::resource("/v1/something").to(HttpResponse::Ok))
-                .service(web::resource("/v1/").to(HttpResponse::Ok)),
+                .service(web::resource("/").to(HttpResponse::ok))
+                .service(web::resource("/v1/something").to(HttpResponse::ok))
+                .service(web::resource("/v1/").to(HttpResponse::ok)),
         )
         .await;
 
@@ -308,7 +308,7 @@ mod tests {
     async fn test_in_place_normalization() {
         let srv = |req: ServiceRequest| {
             assert_eq!("/v1/something", req.path());
-            ready(Ok(req.into_response(HttpResponse::Ok().finish())))
+            ready(Ok(req.into_response(HttpResponse::ok().finish())))
         };
 
         let mut normalize = NormalizePath::default()
@@ -339,7 +339,7 @@ mod tests {
 
         let srv = |req: ServiceRequest| {
             assert_eq!(URI, req.path());
-            ready(Ok(req.into_response(HttpResponse::Ok().finish())))
+            ready(Ok(req.into_response(HttpResponse::ok().finish())))
         };
 
         let mut normalize = NormalizePath::default()
@@ -356,7 +356,7 @@ mod tests {
     async fn should_normalize_no_trail() {
         let srv = |req: ServiceRequest| {
             assert_eq!("/v1/something", req.path());
-            ready(Ok(req.into_response(HttpResponse::Ok().finish())))
+            ready(Ok(req.into_response(HttpResponse::ok().finish())))
         };
 
         let mut normalize = NormalizePath::default()

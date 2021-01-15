@@ -351,7 +351,7 @@ impl ResponseBuilder {
     /// # use actix_http::Response;
     /// use actix_http::http::header::ContentType;
     ///
-    /// Response::Ok()
+    /// Response::ok()
     ///     .insert_header(ContentType(mime::APPLICATION_JSON))
     ///     .insert_header(("X-TEST", "value"))
     ///     .finish();
@@ -376,7 +376,7 @@ impl ResponseBuilder {
     /// # use actix_http::Response;
     /// use actix_http::http::header::ContentType;
     ///
-    /// Response::Ok()
+    /// Response::ok()
     ///     .append_header(ContentType(mime::APPLICATION_JSON))
     ///     .append_header(("X-TEST", "value1"))
     ///     .append_header(("X-TEST", "value2"))
@@ -516,7 +516,7 @@ impl ResponseBuilder {
     /// use actix_http::{http, Request, Response};
     ///
     /// fn index(req: Request) -> Response {
-    ///     Response::Ok()
+    ///     Response::ok()
     ///         .cookie(
     ///             http::Cookie::build("name", "value")
     ///                 .domain("www.rust-lang.org")
@@ -545,7 +545,7 @@ impl ResponseBuilder {
     /// use actix_http::{http, Request, Response, HttpMessage};
     ///
     /// fn index(req: Request) -> Response {
-    ///     let mut builder = Response::Ok();
+    ///     let mut builder = Response::ok();
     ///
     ///     if let Some(ref cookie) = req.cookie("name") {
     ///         builder.del_cookie(cookie);
@@ -813,7 +813,7 @@ impl From<ResponseBuilder> for Response {
 
 impl From<&'static str> for Response {
     fn from(val: &'static str) -> Self {
-        Response::Ok()
+        Response::ok()
             .content_type(mime::TEXT_PLAIN_UTF_8)
             .body(val)
     }
@@ -821,7 +821,7 @@ impl From<&'static str> for Response {
 
 impl From<&'static [u8]> for Response {
     fn from(val: &'static [u8]) -> Self {
-        Response::Ok()
+        Response::ok()
             .content_type(mime::APPLICATION_OCTET_STREAM)
             .body(val)
     }
@@ -829,7 +829,7 @@ impl From<&'static [u8]> for Response {
 
 impl From<String> for Response {
     fn from(val: String) -> Self {
-        Response::Ok()
+        Response::ok()
             .content_type(mime::TEXT_PLAIN_UTF_8)
             .body(val)
     }
@@ -837,7 +837,7 @@ impl From<String> for Response {
 
 impl<'a> From<&'a String> for Response {
     fn from(val: &'a String) -> Self {
-        Response::Ok()
+        Response::ok()
             .content_type(mime::TEXT_PLAIN_UTF_8)
             .body(val)
     }
@@ -845,7 +845,7 @@ impl<'a> From<&'a String> for Response {
 
 impl From<Bytes> for Response {
     fn from(val: Bytes) -> Self {
-        Response::Ok()
+        Response::ok()
             .content_type(mime::APPLICATION_OCTET_STREAM)
             .body(val)
     }
@@ -853,7 +853,7 @@ impl From<Bytes> for Response {
 
 impl From<BytesMut> for Response {
     fn from(val: BytesMut) -> Self {
-        Response::Ok()
+        Response::ok()
             .content_type(mime::APPLICATION_OCTET_STREAM)
             .body(val)
     }
@@ -869,7 +869,7 @@ mod tests {
 
     #[test]
     fn test_debug() {
-        let resp = Response::Ok()
+        let resp = Response::ok()
             .append_header((COOKIE, HeaderValue::from_static("cookie1=value1; ")))
             .append_header((COOKIE, HeaderValue::from_static("cookie2=value2; ")))
             .finish();
@@ -887,7 +887,7 @@ mod tests {
             .finish();
         let cookies = req.cookies().unwrap();
 
-        let resp = Response::Ok()
+        let resp = Response::ok()
             .cookie(
                 crate::http::Cookie::build("name", "value")
                     .domain("www.rust-lang.org")
@@ -914,7 +914,7 @@ mod tests {
 
     #[test]
     fn test_update_response_cookies() {
-        let mut r = Response::Ok()
+        let mut r = Response::ok()
             .cookie(crate::http::Cookie::new("original", "val100"))
             .finish();
 
@@ -937,7 +937,7 @@ mod tests {
 
     #[test]
     fn test_basic_builder() {
-        let resp = Response::Ok().insert_header(("X-TEST", "value")).finish();
+        let resp = Response::ok().insert_header(("X-TEST", "value")).finish();
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
@@ -1099,7 +1099,7 @@ mod tests {
 
     #[test]
     fn response_builder_header_insert_kv() {
-        let mut res = Response::Ok();
+        let mut res = Response::ok();
         res.insert_header(("Content-Type", "application/octet-stream"));
         let res = res.finish();
 
@@ -1111,7 +1111,7 @@ mod tests {
 
     #[test]
     fn response_builder_header_insert_typed() {
-        let mut res = Response::Ok();
+        let mut res = Response::ok();
         res.insert_header(header::ContentType(mime::APPLICATION_OCTET_STREAM));
         let res = res.finish();
 
@@ -1123,7 +1123,7 @@ mod tests {
 
     #[test]
     fn response_builder_header_append_kv() {
-        let mut res = Response::Ok();
+        let mut res = Response::ok();
         res.append_header(("Content-Type", "application/octet-stream"));
         res.append_header(("Content-Type", "application/json"));
         let res = res.finish();
@@ -1136,7 +1136,7 @@ mod tests {
 
     #[test]
     fn response_builder_header_append_typed() {
-        let mut res = Response::Ok();
+        let mut res = Response::ok();
         res.append_header(header::ContentType(mime::APPLICATION_OCTET_STREAM));
         res.append_header(header::ContentType(mime::APPLICATION_JSON));
         let res = res.finish();

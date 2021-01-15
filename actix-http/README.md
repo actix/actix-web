@@ -37,7 +37,7 @@ async fn main() -> io::Result<()> {
                 .client_disconnect(1000)
                 .finish(|_req| {
                     info!("{:?}", _req);
-                    let mut res = Response::Ok();
+                    let mut res = Response::ok();
                     res.header("x-head", HeaderValue::from_static("dummy value!"));
                     future::ok::<_, ()>(res.body("Hello world!"))
                 })

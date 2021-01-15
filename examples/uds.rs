@@ -37,7 +37,7 @@ async fn main() -> std::io::Result<()> {
                         middleware::DefaultHeaders::new().header("X-Version-R2", "0.3"),
                     )
                     .default_service(
-                        web::route().to(|| HttpResponse::MethodNotAllowed()),
+                        web::route().to(|| HttpResponse::method_not_allowed()),
                     )
                     .route(web::get().to(index_async)),
             )

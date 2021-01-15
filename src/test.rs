@@ -35,7 +35,7 @@ use crate::rmap::ResourceMap;
 use crate::service::{ServiceRequest, ServiceResponse};
 use crate::{Error, HttpRequest, HttpResponse};
 
-/// Create service that always responds with `HttpResponse::Ok()`
+/// Create service that always responds with `HttpResponse::ok()`
 pub fn ok_service(
 ) -> impl Service<ServiceRequest, Response = ServiceResponse<Body>, Error = Error> {
     default_service(StatusCode::OK)
@@ -62,7 +62,7 @@ pub fn default_service(
 /// async fn test_init_service() {
 ///     let mut app = test::init_service(
 ///         App::new()
-///             .service(web::resource("/test").to(|| async { HttpResponse::Ok() }))
+///             .service(web::resource("/test").to(|| async { HttpResponse::ok() }))
 ///     ).await;
 ///
 ///     // Create request object
@@ -119,7 +119,7 @@ where
 ///     let mut app = test::init_service(
 ///         App::new()
 ///             .service(web::resource("/test").to(|| async {
-///                 HttpResponse::Ok()
+///                 HttpResponse::ok()
 ///             }))
 ///     ).await;
 ///
@@ -151,7 +151,7 @@ where
 ///         App::new().service(
 ///             web::resource("/index.html")
 ///                 .route(web::post().to(|| async {
-///                     HttpResponse::Ok().body("welcome!")
+///                     HttpResponse::ok().body("welcome!")
 ///                 })))
 ///     ).await;
 ///
@@ -194,7 +194,7 @@ where
 ///         App::new().service(
 ///             web::resource("/index.html")
 ///                 .route(web::post().to(|| async {
-///                     HttpResponse::Ok().body("welcome!")
+///                     HttpResponse::ok().body("welcome!")
 ///                 })))
 ///     ).await;
 ///
@@ -238,7 +238,7 @@ where
 ///         App::new().service(
 ///             web::resource("/people")
 ///                 .route(web::post().to(|person: web::Json<Person>| async {
-///                     HttpResponse::Ok()
+///                     HttpResponse::ok()
 ///                         .json(person.into_inner())})
 ///                     ))
 ///     ).await;
@@ -298,7 +298,7 @@ where
 ///         App::new().service(
 ///             web::resource("/people")
 ///                 .route(web::post().to(|person: web::Json<Person>| async {
-///                     HttpResponse::Ok()
+///                     HttpResponse::ok()
 ///                         .json(person.into_inner())})
 ///                     ))
 ///     ).await;
@@ -341,9 +341,9 @@ where
 ///
 /// async fn index(req: HttpRequest) -> HttpResponse {
 ///     if let Some(hdr) = req.headers().get(header::CONTENT_TYPE) {
-///         HttpResponse::Ok().into()
+///         HttpResponse::ok().into()
 ///     } else {
-///         HttpResponse::BadRequest().into()
+///         HttpResponse::bad_request().into()
 ///     }
 /// }
 ///
@@ -590,7 +590,7 @@ impl TestRequest {
 /// use actix_web::{web, test, App, HttpResponse, Error};
 ///
 /// async fn my_handler() -> Result<HttpResponse, Error> {
-///     Ok(HttpResponse::Ok().into())
+///     Ok(HttpResponse::ok().into())
 /// }
 ///
 /// #[actix_rt::test]
@@ -630,7 +630,7 @@ where
 /// use actix_web::{web, test, App, HttpResponse, Error};
 ///
 /// async fn my_handler() -> Result<HttpResponse, Error> {
-///     Ok(HttpResponse::Ok().into())
+///     Ok(HttpResponse::ok().into())
 /// }
 ///
 /// #[actix_rt::test]
@@ -1046,9 +1046,9 @@ mod tests {
         let mut app = init_service(
             App::new().service(
                 web::resource("/index.html")
-                    .route(web::put().to(|| HttpResponse::Ok().body("put!")))
-                    .route(web::patch().to(|| HttpResponse::Ok().body("patch!")))
-                    .route(web::delete().to(|| HttpResponse::Ok().body("delete!"))),
+                    .route(web::put().to(|| HttpResponse::ok().body("put!")))
+                    .route(web::patch().to(|| HttpResponse::ok().body("patch!")))
+                    .route(web::delete().to(|| HttpResponse::ok().body("delete!"))),
             ),
         )
         .await;
@@ -1079,7 +1079,7 @@ mod tests {
         let mut app = init_service(
             App::new().service(
                 web::resource("/index.html")
-                    .route(web::post().to(|| HttpResponse::Ok().body("welcome!"))),
+                    .route(web::post().to(|| HttpResponse::ok().body("welcome!"))),
             ),
         )
         .await;
@@ -1098,7 +1098,7 @@ mod tests {
         let mut app = init_service(
             App::new().service(
                 web::resource("/index.html")
-                    .route(web::get().to(|| HttpResponse::Ok().body("welcome!"))),
+                    .route(web::get().to(|| HttpResponse::ok().body("welcome!"))),
             ),
         )
         .await;
@@ -1122,7 +1122,7 @@ mod tests {
     async fn test_response_json() {
         let mut app = init_service(App::new().service(web::resource("/people").route(
             web::post().to(|person: web::Json<Person>| {
-                HttpResponse::Ok().json(person.into_inner())
+                HttpResponse::ok().json(person.into_inner())
             }),
         )))
         .await;
@@ -1143,7 +1143,7 @@ mod tests {
     async fn test_body_json() {
         let mut app = init_service(App::new().service(web::resource("/people").route(
             web::post().to(|person: web::Json<Person>| {
-                HttpResponse::Ok().json(person.into_inner())
+                HttpResponse::ok().json(person.into_inner())
             }),
         )))
         .await;
@@ -1165,7 +1165,7 @@ mod tests {
     async fn test_request_response_form() {
         let mut app = init_service(App::new().service(web::resource("/people").route(
             web::post().to(|person: web::Form<Person>| {
-                HttpResponse::Ok().json(person.into_inner())
+                HttpResponse::ok().json(person.into_inner())
             }),
         )))
         .await;
@@ -1191,7 +1191,7 @@ mod tests {
     async fn test_request_response_json() {
         let mut app = init_service(App::new().service(web::resource("/people").route(
             web::post().to(|person: web::Json<Person>| {
-                HttpResponse::Ok().json(person.into_inner())
+                HttpResponse::ok().json(person.into_inner())
             }),
         )))
         .await;
@@ -1219,7 +1219,7 @@ mod tests {
             let res = web::block(move || Some(4usize).ok_or("wrong")).await;
 
             match res {
-                Ok(value) => Ok(HttpResponse::Ok()
+                Ok(value) => Ok(HttpResponse::ok()
                     .content_type("text/plain")
                     .body(format!("Async with block value: {}", value))),
                 Err(_) => panic!("Unexpected"),
@@ -1240,7 +1240,7 @@ mod tests {
     async fn test_server_data() {
         async fn handler(data: web::Data<usize>) -> impl Responder {
             assert_eq!(**data, 10);
-            HttpResponse::Ok()
+            HttpResponse::ok()
         }
 
         let mut app = init_service(
@@ -1289,9 +1289,9 @@ mod tests {
             let res = addr.send(Num(1)).await?;
 
             if res == 1 {
-                Ok(HttpResponse::Ok())
+                Ok(HttpResponse::ok())
             } else {
-                Ok(HttpResponse::BadRequest())
+                Ok(HttpResponse::bad_request())
             }
         }
 

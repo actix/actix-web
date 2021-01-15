@@ -28,7 +28,7 @@ header! {
     /// use actix_http::Response;
     /// use actix_http::http::header::{ContentLanguage, qitem};
     ///
-    /// let mut builder = Response::Ok();
+    /// let mut builder = Response::ok();
     /// builder.insert_header(
     ///     ContentLanguage(vec![
     ///         qitem(langtag!(en)),
@@ -41,7 +41,7 @@ header! {
     /// use actix_http::Response;
     /// use actix_http::http::header::{ContentLanguage, qitem};
     ///
-    /// let mut builder = Response::Ok();
+    /// let mut builder = Response::ok();
     /// builder.insert_header(
     ///     ContentLanguage(vec![
     ///         qitem(langtag!(da)),

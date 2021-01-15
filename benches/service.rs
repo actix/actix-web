@@ -59,7 +59,7 @@ where
 }
 
 async fn index(req: ServiceRequest) -> Result<ServiceResponse, Error> {
-    Ok(req.into_response(HttpResponse::Ok().finish()))
+    Ok(req.into_response(HttpResponse::ok().finish()))
 }
 
 // Benchmark basic WebService directly

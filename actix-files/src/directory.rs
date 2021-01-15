@@ -107,7 +107,7 @@ pub(crate) fn directory_listing(
     );
     Ok(ServiceResponse::new(
         req.clone(),
-        HttpResponse::Ok()
+        HttpResponse::ok()
             .content_type("text/html; charset=utf-8")
             .body(html),
     ))

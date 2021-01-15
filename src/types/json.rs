@@ -120,7 +120,7 @@ where
 impl<T: Serialize> Responder for Json<T> {
     fn respond_to(self, _: &HttpRequest) -> HttpResponse {
         match serde_json::to_string(&self.0) {
-            Ok(body) => HttpResponse::Ok()
+            Ok(body) => HttpResponse::ok()
                 .content_type(mime::APPLICATION_JSON)
                 .body(body),
             Err(err) => HttpResponse::from_error(err.into()),
@@ -221,7 +221,7 @@ where
 ///     .content_type(|mime| mime == mime::TEXT_PLAIN)
 ///     // use custom error handler
 ///     .error_handler(|err, req| {
-///         error::InternalError::from_response(err, HttpResponse::Conflict().finish()).into()
+///         error::InternalError::from_response(err, HttpResponse::conflict().finish()).into()
 ///     });
 ///
 /// App::new()
@@ -482,7 +482,7 @@ mod tests {
                 let msg = MyObject {
                     name: "invalid request".to_string(),
                 };
-                let resp = HttpResponse::BadRequest()
+                let resp = HttpResponse::bad_request()
                     .body(serde_json::to_string(&msg).unwrap());
                 InternalError::from_response(err, resp).into()
             }))

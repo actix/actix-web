@@ -47,7 +47,7 @@ pub(crate) type FnDataFactory =
 /// async fn index(data: web::Data<Mutex<MyData>>) -> impl Responder {
 ///     let mut data = data.lock().unwrap();
 ///     data.counter += 1;
-///     HttpResponse::Ok()
+///     HttpResponse::ok()
 /// }
 ///
 /// fn main() {
@@ -150,7 +150,7 @@ mod tests {
         let mut srv = init_service(App::new().data("TEST".to_string()).service(
             web::resource("/").to(|data: web::Data<String>| {
                 assert_eq!(data.to_lowercase(), "test");
-                HttpResponse::Ok()
+                HttpResponse::ok()
             }),
         ))
         .await;
@@ -161,7 +161,7 @@ mod tests {
 
         let mut srv =
             init_service(App::new().data(10u32).service(
-                web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()),
+                web::resource("/").to(|_: web::Data<usize>| HttpResponse::ok()),
             ))
             .await;
         let req = TestRequest::default().to_request();
@@ -173,7 +173,7 @@ mod tests {
     async fn test_app_data_extractor() {
         let mut srv =
             init_service(App::new().app_data(Data::new(10usize)).service(
-                web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()),
+                web::resource("/").to(|_: web::Data<usize>| HttpResponse::ok()),
             ))
             .await;
 
@@ -183,7 +183,7 @@ mod tests {
 
         let mut srv =
             init_service(App::new().app_data(Data::new(10u32)).service(
-                web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()),
+                web::resource("/").to(|_: web::Data<usize>| HttpResponse::ok()),
             ))
             .await;
         let req = TestRequest::default().to_request();
@@ -197,7 +197,7 @@ mod tests {
             App::new().service(
                 web::resource("/")
                     .data(10usize)
-                    .route(web::get().to(|_data: web::Data<usize>| HttpResponse::Ok())),
+                    .route(web::get().to(|_data: web::Data<usize>| HttpResponse::ok())),
             ),
         )
         .await;
@@ -211,7 +211,7 @@ mod tests {
             App::new().service(
                 web::resource("/")
                     .data(10u32)
-                    .route(web::get().to(|_: web::Data<usize>| HttpResponse::Ok())),
+                    .route(web::get().to(|_: web::Data<usize>| HttpResponse::ok())),
             ),
         )
         .await;
@@ -226,7 +226,7 @@ mod tests {
             web::resource("/").data(10usize).route(web::get().to(
                 |data: web::Data<usize>| {
                     assert_eq!(**data, 10);
-                    HttpResponse::Ok()
+                    HttpResponse::ok()
                 },
             )),
         ))

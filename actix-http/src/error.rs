@@ -1079,7 +1079,7 @@ mod tests {
     #[test]
     fn test_internal_error() {
         let err =
-            InternalError::from_response(ParseError::Method, Response::Ok().into());
+            InternalError::from_response(ParseError::Method, Response::ok().into());
         let resp: Response = err.error_response();
         assert_eq!(resp.status(), StatusCode::OK);
     }

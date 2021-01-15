@@ -14,7 +14,7 @@ async fn handle_request(mut req: Request) -> Result<Response, Error> {
     }
 
     info!("request body: {:?}", body);
-    Ok(Response::Ok()
+    Ok(Response::ok()
         .insert_header(("x-head", HeaderValue::from_static("dummy value!")))
         .body(body))
 }

@@ -86,7 +86,7 @@ impl futures_core::stream::Stream for TestBody {
 async fn test_body() {
     let srv = test::start(|| {
         App::new()
-            .service(web::resource("/").route(web::to(|| HttpResponse::Ok().body(STR))))
+            .service(web::resource("/").route(web::to(|| HttpResponse::ok().body(STR))))
     });
 
     let mut response = srv.get("/").send().await.unwrap();
@@ -102,7 +102,7 @@ async fn test_body_gzip() {
     let srv = test::start_with(test::config().h1(), || {
         App::new()
             .wrap(Compress::new(ContentEncoding::Gzip))
-            .service(web::resource("/").route(web::to(|| HttpResponse::Ok().body(STR))))
+            .service(web::resource("/").route(web::to(|| HttpResponse::ok().body(STR))))
     });
 
     let mut response = srv
@@ -130,7 +130,7 @@ async fn test_body_gzip2() {
         App::new()
             .wrap(Compress::new(ContentEncoding::Gzip))
             .service(web::resource("/").route(web::to(|| {
-                HttpResponse::Ok().body(STR).into_body::<dev::Body>()
+                HttpResponse::ok().body(STR).into_body::<dev::Body>()
             })))
     });
 
@@ -159,7 +159,7 @@ async fn test_body_encoding_override() {
         App::new()
             .wrap(Compress::new(ContentEncoding::Gzip))
             .service(web::resource("/").route(web::to(|| {
-                HttpResponse::Ok()
+                HttpResponse::ok()
                     .encoding(ContentEncoding::Deflate)
                     .body(STR)
             })))
@@ -224,7 +224,7 @@ async fn test_body_gzip_large() {
             .wrap(Compress::new(ContentEncoding::Gzip))
             .service(
                 web::resource("/")
-                    .route(web::to(move || HttpResponse::Ok().body(data.clone()))),
+                    .route(web::to(move || HttpResponse::ok().body(data.clone()))),
             )
     });
 
@@ -262,7 +262,7 @@ async fn test_body_gzip_large_random() {
             .wrap(Compress::new(ContentEncoding::Gzip))
             .service(
                 web::resource("/")
-                    .route(web::to(move || HttpResponse::Ok().body(data.clone()))),
+                    .route(web::to(move || HttpResponse::ok().body(data.clone()))),
             )
     });
 
@@ -292,7 +292,7 @@ async fn test_body_chunked_implicit() {
         App::new()
             .wrap(Compress::new(ContentEncoding::Gzip))
             .service(web::resource("/").route(web::get().to(move || {
-                HttpResponse::Ok()
+                HttpResponse::ok()
                     .streaming(TestBody::new(Bytes::from_static(STR.as_ref()), 24))
             })))
     });
@@ -325,7 +325,7 @@ async fn test_body_br_streaming() {
     let srv = test::start_with(test::config().h1(), || {
         App::new().wrap(Compress::new(ContentEncoding::Br)).service(
             web::resource("/").route(web::to(move || {
-                HttpResponse::Ok()
+                HttpResponse::ok()
                     .streaming(TestBody::new(Bytes::from_static(STR.as_ref()), 24))
             })),
         )
@@ -357,7 +357,7 @@ async fn test_head_binary() {
     let srv = test::start_with(test::config().h1(), || {
         App::new().service(
             web::resource("/")
-                .route(web::head().to(move || HttpResponse::Ok().body(STR))),
+                .route(web::head().to(move || HttpResponse::ok().body(STR))),
         )
     });
 
@@ -378,7 +378,7 @@ async fn test_head_binary() {
 async fn test_no_chunking() {
     let srv = test::start_with(test::config().h1(), || {
         App::new().service(web::resource("/").route(web::to(move || {
-            HttpResponse::Ok()
+            HttpResponse::ok()
                 .no_chunking(STR.len() as u64)
                 .streaming(TestBody::new(Bytes::from_static(STR.as_ref()), 24))
         })))
@@ -399,7 +399,7 @@ async fn test_body_deflate() {
         App::new()
             .wrap(Compress::new(ContentEncoding::Deflate))
             .service(
-                web::resource("/").route(web::to(move || HttpResponse::Ok().body(STR))),
+                web::resource("/").route(web::to(move || HttpResponse::ok().body(STR))),
             )
     });
 
@@ -426,7 +426,7 @@ async fn test_body_deflate() {
 async fn test_body_brotli() {
     let srv = test::start_with(test::config().h1(), || {
         App::new().wrap(Compress::new(ContentEncoding::Br)).service(
-            web::resource("/").route(web::to(move || HttpResponse::Ok().body(STR))),
+            web::resource("/").route(web::to(move || HttpResponse::ok().body(STR))),
         )
     });
 
@@ -455,7 +455,7 @@ async fn test_encoding() {
     let srv = test::start_with(test::config().h1(), || {
         App::new().wrap(Compress::default()).service(
             web::resource("/")
-                .route(web::to(move |body: Bytes| HttpResponse::Ok().body(body))),
+                .route(web::to(move |body: Bytes| HttpResponse::ok().body(body))),
         )
     });
 
@@ -481,7 +481,7 @@ async fn test_gzip_encoding() {
     let srv = test::start_with(test::config().h1(), || {
         App::new().service(
             web::resource("/")
-                .route(web::to(move |body: Bytes| HttpResponse::Ok().body(body))),
+                .route(web::to(move |body: Bytes| HttpResponse::ok().body(body))),
         )
     });
 
@@ -508,7 +508,7 @@ async fn test_gzip_encoding_large() {
     let srv = test::start_with(test::config().h1(), || {
         App::new().service(
             web::resource("/")
-                .route(web::to(move |body: Bytes| HttpResponse::Ok().body(body))),
+                .route(web::to(move |body: Bytes| HttpResponse::ok().body(body))),
         )
     });
 
@@ -540,7 +540,7 @@ async fn test_reading_gzip_encoding_large_random() {
     let srv = test::start_with(test::config().h1(), || {
         App::new().service(
             web::resource("/")
-                .route(web::to(move |body: Bytes| HttpResponse::Ok().body(body))),
+                .route(web::to(move |body: Bytes| HttpResponse::ok().body(body))),
         )
     });
 
@@ -567,7 +567,7 @@ async fn test_reading_deflate_encoding() {
     let srv = test::start_with(test::config().h1(), || {
         App::new().service(
             web::resource("/")
-                .route(web::to(move |body: Bytes| HttpResponse::Ok().body(body))),
+                .route(web::to(move |body: Bytes| HttpResponse::ok().body(body))),
         )
     });
 
@@ -594,7 +594,7 @@ async fn test_reading_deflate_encoding_large() {
     let srv = test::start_with(test::config().h1(), || {
         App::new().service(
             web::resource("/")
-                .route(web::to(move |body: Bytes| HttpResponse::Ok().body(body))),
+                .route(web::to(move |body: Bytes| HttpResponse::ok().body(body))),
         )
     });
 
@@ -626,7 +626,7 @@ async fn test_reading_deflate_encoding_large_random() {
     let srv = test::start_with(test::config().h1(), || {
         App::new().service(
             web::resource("/")
-                .route(web::to(move |body: Bytes| HttpResponse::Ok().body(body))),
+                .route(web::to(move |body: Bytes| HttpResponse::ok().body(body))),
         )
     });
 
@@ -653,7 +653,7 @@ async fn test_brotli_encoding() {
     let srv = test::start_with(test::config().h1(), || {
         App::new().service(
             web::resource("/")
-                .route(web::to(move |body: Bytes| HttpResponse::Ok().body(body))),
+                .route(web::to(move |body: Bytes| HttpResponse::ok().body(body))),
         )
     });
 
@@ -687,7 +687,7 @@ async fn test_brotli_encoding_large() {
             web::resource("/")
                 .app_data(web::PayloadConfig::new(320_000))
                 .route(web::to(move |body: Bytes| {
-                    HttpResponse::Ok().streaming(TestBody::new(body, 10240))
+                    HttpResponse::ok().streaming(TestBody::new(body, 10240))
                 })),
         )
     });
@@ -725,7 +725,7 @@ async fn test_brotli_encoding_large_openssl() {
     let data = STR.repeat(10);
     let srv = test::start_with(test::config().openssl(builder.build()), move || {
         App::new().service(web::resource("/").route(web::to(|bytes: Bytes| {
-            HttpResponse::Ok()
+            HttpResponse::ok()
                 .encoding(actix_web::http::ContentEncoding::Identity)
                 .body(bytes)
         })))
@@ -774,7 +774,7 @@ async fn test_reading_deflate_encoding_large_random_rustls() {
 
     let srv = test::start_with(test::config().rustls(config), || {
         App::new().service(web::resource("/").route(web::to(|bytes: Bytes| {
-            HttpResponse::Ok()
+            HttpResponse::ok()
                 .encoding(actix_web::http::ContentEncoding::Identity)
                 .body(bytes)
         })))
@@ -808,7 +808,7 @@ async fn test_reading_deflate_encoding_large_random_rustls() {
 //     let srv = test::TestServer::with_factory(|| {
 //         App::new().resource("/", |r| {
 //             r.f(|_| {
-//                 HttpResponse::Ok()
+//                 HttpResponse::ok()
 //                     .cookie(
 //                         http::CookieBuilder::new("first", "first_value")
 //                             .http_only(true)
@@ -862,7 +862,7 @@ async fn test_slow_request() {
     use std::net;
 
     let srv = test::start_with(test::config().client_timeout(200), || {
-        App::new().service(web::resource("/").route(web::to(HttpResponse::Ok)))
+        App::new().service(web::resource("/").route(web::to(HttpResponse::ok)))
     });
 
     let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
@@ -883,7 +883,7 @@ async fn test_normalize() {
         App::new()
             .wrap(NormalizePath::new(TrailingSlash::Trim))
             .service(
-                web::resource("/one").route(web::to(|| HttpResponse::Ok().finish())),
+                web::resource("/one").route(web::to(|| HttpResponse::ok().finish())),
             )
     });
 

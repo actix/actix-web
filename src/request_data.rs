@@ -40,7 +40,7 @@ use crate::{dev::Payload, FromRequest, HttpRequest};
 ///         assert_eq!(&flag.into_inner(), req.extensions().get::<FlagFromMiddleware>().unwrap());
 ///     }
 ///     
-///     HttpResponse::Ok()
+///     HttpResponse::ok()
 /// }
 /// ```
 ///
@@ -125,7 +125,7 @@ mod tests {
                             );
                         }
 
-                        HttpResponse::Ok()
+                        HttpResponse::ok()
                     },
                 )),
         )
@@ -163,7 +163,7 @@ mod tests {
                     *data.borrow_mut() += 11;
                     assert_eq!(*data.borrow(), 53);
 
-                    HttpResponse::Ok()
+                    HttpResponse::ok()
                 })),
         )
         .await;

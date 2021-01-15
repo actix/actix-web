@@ -3,7 +3,7 @@ use actix_web_codegen::*;
 
 #[get("/config")]
 async fn config() -> impl Responder {
-    HttpResponse::Ok()
+    HttpResponse::ok()
 }
 
 #[actix_web::main]

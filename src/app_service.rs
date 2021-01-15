@@ -66,7 +66,7 @@ where
         // if no user defined default service exists.
         let default = self.default.clone().unwrap_or_else(|| {
             Rc::new(boxed::factory(fn_service(|req: ServiceRequest| async {
-                Ok(req.into_response(Response::NotFound().finish()))
+                Ok(req.into_response(Response::not_found().finish()))
             })))
         });
 
@@ -364,7 +364,7 @@ mod tests {
             let mut app = init_service(
                 App::new()
                     .data(DropData(data.clone()))
-                    .service(web::resource("/test").to(HttpResponse::Ok)),
+                    .service(web::resource("/test").to(HttpResponse::ok)),
             )
             .await;
             let req = TestRequest::with_uri("/test").to_request();

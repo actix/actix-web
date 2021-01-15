@@ -52,7 +52,7 @@ impl Route {
     pub fn new() -> Route {
         Route {
             service: Box::new(RouteNewService::new(HandlerService::new(|| {
-                ready(HttpResponse::NotFound())
+                ready(HttpResponse::not_found())
             }))),
             guards: Rc::new(Vec::new()),
         }
@@ -140,7 +140,7 @@ impl Route {
     ///     web::get()
     ///         .method(http::Method::CONNECT)
     ///         .guard(guard::Header("content-type", "text/plain"))
-    ///         .to(|req: HttpRequest| HttpResponse::Ok()))
+    ///         .to(|req: HttpRequest| HttpResponse::ok()))
     /// );
     /// # }
     /// ```
@@ -160,7 +160,7 @@ impl Route {
     ///     web::route()
     ///         .guard(guard::Get())
     ///         .guard(guard::Header("content-type", "text/plain"))
-    ///         .to(|req: HttpRequest| HttpResponse::Ok()))
+    ///         .to(|req: HttpRequest| HttpResponse::ok()))
     /// );
     /// # }
     /// ```
@@ -331,13 +331,13 @@ mod tests {
             App::new()
                 .service(
                     web::resource("/test")
-                        .route(web::get().to(HttpResponse::Ok))
+                        .route(web::get().to(HttpResponse::ok))
                         .route(web::put().to(|| async {
                             Err::<HttpResponse, _>(error::ErrorBadRequest("err"))
                         }))
                         .route(web::post().to(|| async {
                             sleep(Duration::from_millis(100)).await;
-                            Ok::<_, ()>(HttpResponse::Created())
+                            Ok::<_, ()>(HttpResponse::created())
                         }))
                         .route(web::delete().to(|| async {
                             sleep(Duration::from_millis(100)).await;

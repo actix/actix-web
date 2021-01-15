@@ -105,7 +105,7 @@ impl<T: Responder> Responder for (T, StatusCode) {
 
 impl Responder for &'static str {
     fn respond_to(self, _: &HttpRequest) -> HttpResponse {
-        HttpResponse::Ok()
+        HttpResponse::ok()
             .content_type(mime::TEXT_PLAIN_UTF_8)
             .body(self)
     }
@@ -113,7 +113,7 @@ impl Responder for &'static str {
 
 impl Responder for &'static [u8] {
     fn respond_to(self, _: &HttpRequest) -> HttpResponse {
-        HttpResponse::Ok()
+        HttpResponse::ok()
             .content_type(mime::APPLICATION_OCTET_STREAM)
             .body(self)
     }
@@ -121,7 +121,7 @@ impl Responder for &'static [u8] {
 
 impl Responder for String {
     fn respond_to(self, _: &HttpRequest) -> HttpResponse {
-        HttpResponse::Ok()
+        HttpResponse::ok()
             .content_type(mime::TEXT_PLAIN_UTF_8)
             .body(self)
     }
@@ -129,7 +129,7 @@ impl Responder for String {
 
 impl<'a> Responder for &'a String {
     fn respond_to(self, _: &HttpRequest) -> HttpResponse {
-        HttpResponse::Ok()
+        HttpResponse::ok()
             .content_type(mime::TEXT_PLAIN_UTF_8)
             .body(self)
     }
@@ -137,7 +137,7 @@ impl<'a> Responder for &'a String {
 
 impl Responder for Bytes {
     fn respond_to(self, _: &HttpRequest) -> HttpResponse {
-        HttpResponse::Ok()
+        HttpResponse::ok()
             .content_type(mime::APPLICATION_OCTET_STREAM)
             .body(self)
     }
@@ -145,7 +145,7 @@ impl Responder for Bytes {
 
 impl Responder for BytesMut {
     fn respond_to(self, _: &HttpRequest) -> HttpResponse {
-        HttpResponse::Ok()
+        HttpResponse::ok()
             .content_type(mime::APPLICATION_OCTET_STREAM)
             .body(self)
     }

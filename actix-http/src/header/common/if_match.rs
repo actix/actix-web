@@ -33,7 +33,7 @@ header! {
     /// use actix_http::Response;
     /// use actix_http::http::header::IfMatch;
     ///
-    /// let mut builder = Response::Ok();
+    /// let mut builder = Response::ok();
     /// builder.insert_header(IfMatch::Any);
     /// ```
     ///
@@ -41,7 +41,7 @@ header! {
     /// use actix_http::Response;
     /// use actix_http::http::header::{IfMatch, EntityTag};
     ///
-    /// let mut builder = Response::Ok();
+    /// let mut builder = Response::ok();
     /// builder.insert_header(
     ///     IfMatch::Items(vec![
     ///         EntityTag::new(false, "xyzzy".to_owned()),

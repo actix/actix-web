@@ -117,7 +117,7 @@ mod tests {
     #[actix_rt::test]
     async fn test_handler_enabled() {
         let srv = |req: ServiceRequest| {
-            ok(req.into_response(HttpResponse::InternalServerError().finish()))
+            ok(req.into_response(HttpResponse::internal_server_error().finish()))
         };
 
         let mw =
@@ -135,7 +135,7 @@ mod tests {
     #[actix_rt::test]
     async fn test_handler_disabled() {
         let srv = |req: ServiceRequest| {
-            ok(req.into_response(HttpResponse::InternalServerError().finish()))
+            ok(req.into_response(HttpResponse::internal_server_error().finish()))
         };
 
         let mw =

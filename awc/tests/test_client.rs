@@ -49,7 +49,7 @@ const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
 async fn test_simple() {
     let srv = test::start(|| {
         App::new()
-            .service(web::resource("/").route(web::to(|| HttpResponse::Ok().body(STR))))
+            .service(web::resource("/").route(web::to(|| HttpResponse::ok().body(STR))))
     });
 
     let request = srv.get("/").insert_header(("x-test", "111")).send();
@@ -76,7 +76,7 @@ async fn test_simple() {
 async fn test_json() {
     let srv = test::start(|| {
         App::new().service(
-            web::resource("/").route(web::to(|_: web::Json<String>| HttpResponse::Ok())),
+            web::resource("/").route(web::to(|_: web::Json<String>| HttpResponse::ok())),
         )
     });
 
@@ -92,7 +92,7 @@ async fn test_json() {
 async fn test_form() {
     let srv = test::start(|| {
         App::new().service(web::resource("/").route(web::to(
-            |_: web::Form<HashMap<String, String>>| HttpResponse::Ok(),
+            |_: web::Form<HashMap<String, String>>| HttpResponse::ok(),
         )))
     });
 
@@ -112,7 +112,7 @@ async fn test_timeout() {
     let srv = test::start(|| {
         App::new().service(web::resource("/").route(web::to(|| async {
             actix_rt::time::sleep(Duration::from_millis(200)).await;
-            Ok::<_, Error>(HttpResponse::Ok().body(STR))
+            Ok::<_, Error>(HttpResponse::ok().body(STR))
         })))
     });
 
@@ -140,7 +140,7 @@ async fn test_timeout_override() {
     let srv = test::start(|| {
         App::new().service(web::resource("/").route(web::to(|| async {
             actix_rt::time::sleep(Duration::from_millis(200)).await;
-            Ok::<_, Error>(HttpResponse::Ok().body(STR))
+            Ok::<_, Error>(HttpResponse::ok().body(STR))
         })))
     });
 
@@ -170,7 +170,7 @@ async fn test_connection_reuse() {
         })
         .and_then(
             HttpService::new(map_config(
-                App::new().service(web::resource("/").route(web::to(HttpResponse::Ok))),
+                App::new().service(web::resource("/").route(web::to(HttpResponse::ok))),
                 |_| AppConfig::default(),
             ))
             .tcp(),
@@ -207,7 +207,7 @@ async fn test_connection_force_close() {
         })
         .and_then(
             HttpService::new(map_config(
-                App::new().service(web::resource("/").route(web::to(HttpResponse::Ok))),
+                App::new().service(web::resource("/").route(web::to(HttpResponse::ok))),
                 |_| AppConfig::default(),
             ))
             .tcp(),
@@ -246,7 +246,7 @@ async fn test_connection_server_close() {
             HttpService::new(map_config(
                 App::new().service(
                     web::resource("/")
-                        .route(web::to(|| HttpResponse::Ok().force_close().finish())),
+                        .route(web::to(|| HttpResponse::ok().force_close().finish())),
                 ),
                 |_| AppConfig::default(),
             ))
@@ -285,7 +285,7 @@ async fn test_connection_wait_queue() {
         .and_then(
             HttpService::new(map_config(
                 App::new().service(
-                    web::resource("/").route(web::to(|| HttpResponse::Ok().body(STR))),
+                    web::resource("/").route(web::to(|| HttpResponse::ok().body(STR))),
                 ),
                 |_| AppConfig::default(),
             ))
@@ -334,7 +334,7 @@ async fn test_connection_wait_queue_force_close() {
             HttpService::new(map_config(
                 App::new().service(
                     web::resource("/")
-                        .route(web::to(|| HttpResponse::Ok().force_close().body(STR))),
+                        .route(web::to(|| HttpResponse::ok().force_close().body(STR))),
                 ),
                 |_| AppConfig::default(),
             ))
@@ -373,9 +373,9 @@ async fn test_with_query_parameter() {
     let srv = test::start(|| {
         App::new().service(web::resource("/").to(|req: HttpRequest| {
             if req.query_string().contains("qp") {
-                HttpResponse::Ok()
+                HttpResponse::ok()
             } else {
-                HttpResponse::BadRequest()
+                HttpResponse::bad_request()
             }
         }))
     });
@@ -394,7 +394,7 @@ async fn test_no_decompress() {
         App::new()
             .wrap(Compress::default())
             .service(web::resource("/").route(web::to(|| {
-                let mut res = HttpResponse::Ok().body(STR);
+                let mut res = HttpResponse::ok().body(STR);
                 res.encoding(header::ContentEncoding::Gzip);
                 res
             })))
@@ -440,7 +440,7 @@ async fn test_client_gzip_encoding() {
             e.write_all(STR.as_ref()).unwrap();
             let data = e.finish().unwrap();
 
-            HttpResponse::Ok()
+            HttpResponse::ok()
                 .insert_header(("content-encoding", "gzip"))
                 .body(data)
         })))
@@ -463,7 +463,7 @@ async fn test_client_gzip_encoding_large() {
             e.write_all(STR.repeat(10).as_ref()).unwrap();
             let data = e.finish().unwrap();
 
-            HttpResponse::Ok()
+            HttpResponse::ok()
                 .insert_header(("content-encoding", "gzip"))
                 .body(data)
         })))
@@ -491,7 +491,7 @@ async fn test_client_gzip_encoding_large_random() {
             let mut e = GzEncoder::new(Vec::new(), Compression::default());
             e.write_all(&data).unwrap();
             let data = e.finish().unwrap();
-            HttpResponse::Ok()
+            HttpResponse::ok()
                 .insert_header(("content-encoding", "gzip"))
                 .body(data)
         })))
@@ -513,7 +513,7 @@ async fn test_client_brotli_encoding() {
             let mut e = BrotliEncoder::new(Vec::new(), 5);
             e.write_all(&data).unwrap();
             let data = e.finish().unwrap();
-            HttpResponse::Ok()
+            HttpResponse::ok()
                 .insert_header(("content-encoding", "br"))
                 .body(data)
         })))
@@ -541,7 +541,7 @@ async fn test_client_brotli_encoding_large_random() {
             let mut e = BrotliEncoder::new(Vec::new(), 5);
             e.write_all(&data).unwrap();
             let data = e.finish().unwrap();
-            HttpResponse::Ok()
+            HttpResponse::ok()
                 .insert_header(("content-encoding", "br"))
                 .body(data)
         })))
@@ -564,7 +564,7 @@ async fn test_client_brotli_encoding_large_random() {
 //         app.handler(|req: &HttpRequest| {
 //             req.body()
 //                 .and_then(|bytes: Bytes| {
-//                     Ok(HttpResponse::Ok()
+//                     Ok(HttpResponse::ok()
 //                         .content_encoding(http::ContentEncoding::Br)
 //                         .body(bytes))
 //                 })
@@ -598,7 +598,7 @@ async fn test_client_brotli_encoding_large_random() {
 //         app.handler(|req: &HttpRequest| {
 //             req.body()
 //                 .and_then(|bytes: Bytes| {
-//                     Ok(HttpResponse::Ok()
+//                     Ok(HttpResponse::ok()
 //                         .content_encoding(http::ContentEncoding::Br)
 //                         .body(bytes))
 //                 })
@@ -628,7 +628,7 @@ async fn test_client_brotli_encoding_large_random() {
 //             req.body()
 //                 .map_err(Error::from)
 //                 .and_then(|body| {
-//                     Ok(HttpResponse::Ok()
+//                     Ok(HttpResponse::ok()
 //                         .chunked()
 //                         .content_encoding(http::ContentEncoding::Identity)
 //                         .body(body))
@@ -654,7 +654,7 @@ async fn test_client_brotli_encoding_large_random() {
 //     let srv = test::TestServer::start(|app| {
 //         app.handler(|_| {
 //             let body = once(Ok(Bytes::from_static(STR.as_ref())));
-//             HttpResponse::Ok()
+//             HttpResponse::ok()
 //                 .content_encoding(http::ContentEncoding::Gzip)
 //                 .body(Body::Streaming(Box::new(body)))
 //         })
@@ -721,7 +721,7 @@ async fn test_client_cookie_handling() {
                     } else {
                         // Send some cookies back
                         Ok::<_, Error>(
-                            HttpResponse::Ok().cookie(cookie1).cookie(cookie2).finish(),
+                            HttpResponse::ok().cookie(cookie1).cookie(cookie2).finish(),
                         )
                     }
                 }
@@ -783,9 +783,9 @@ async fn client_basic_auth() {
                     .unwrap()
                     == "Basic dXNlcm5hbWU6cGFzc3dvcmQ="
                 {
-                    HttpResponse::Ok()
+                    HttpResponse::ok()
                 } else {
-                    HttpResponse::BadRequest()
+                    HttpResponse::bad_request()
                 }
             }),
         )
@@ -811,9 +811,9 @@ async fn client_bearer_auth() {
                     .unwrap()
                     == "Bearer someS3cr3tAutht0k3n"
                 {
-                    HttpResponse::Ok()
+                    HttpResponse::ok()
                 } else {
-                    HttpResponse::BadRequest()
+                    HttpResponse::bad_request()
                 }
             }),
         )

@@ -34,7 +34,7 @@ header! {
     /// use actix_http::Response;
     /// use actix_http::http::header::ContentType;
     ///
-    /// let mut builder = Response::Ok();
+    /// let mut builder = Response::ok();
     /// builder.insert_header(
     ///     ContentType::json()
     /// );
@@ -44,7 +44,7 @@ header! {
     /// use actix_http::Response;
     /// use actix_http::http::header::ContentType;
     ///
-    /// let mut builder = Response::Ok();
+    /// let mut builder = Response::ok();
     /// builder.insert_header(
     ///     ContentType(mime::TEXT_HTML)
     /// );

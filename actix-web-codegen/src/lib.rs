@@ -28,7 +28,7 @@
 //! # use actix_web_codegen::get;
 //! #[get("/test")]
 //! async fn get_handler() -> HttpResponse {
-//!     HttpResponse::Ok().finish()
+//!     HttpResponse::ok().finish()
 //! }
 //! ```
 //!
@@ -41,7 +41,7 @@
 //! # use actix_web_codegen::route;
 //! #[route("/test", method="GET", method="HEAD")]
 //! async fn get_and_head_handler() -> HttpResponse {
-//!     HttpResponse::Ok().finish()
+//!     HttpResponse::ok().finish()
 //! }
 //! ```
 //!
@@ -86,7 +86,7 @@ mod route;
 /// # use actix_web_codegen::route;
 /// #[route("/test", method="GET", method="HEAD")]
 /// async fn example() -> HttpResponse {
-///     HttpResponse::Ok().finish()
+///     HttpResponse::ok().finish()
 /// }
 /// ```
 #[proc_macro_attribute]
@@ -130,7 +130,7 @@ code, e.g `my_guard` or `my_module::my_guard`.
 # use actix_web_codegen::"#, stringify!($method), ";
 #[", stringify!($method), r#"("/")]
 async fn example() -> HttpResponse {
-    HttpResponse::Ok().finish()
+    HttpResponse::ok().finish()
 }
 ```
 "#);

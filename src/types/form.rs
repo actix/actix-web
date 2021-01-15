@@ -156,7 +156,7 @@ impl<T: fmt::Display> fmt::Display for Form<T> {
 impl<T: Serialize> Responder for Form<T> {
     fn respond_to(self, _: &HttpRequest) -> HttpResponse {
         match serde_urlencoded::to_string(&self.0) {
-            Ok(body) => HttpResponse::Ok()
+            Ok(body) => HttpResponse::ok()
                 .content_type(mime::APPLICATION_WWW_FORM_URLENCODED)
                 .body(body),
             Err(err) => HttpResponse::from_error(err.into()),

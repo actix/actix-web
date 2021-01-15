@@ -47,8 +47,8 @@ pub use crate::types::*;
 ///
 /// let app = App::new().service(
 ///     web::resource("/users/{userid}/{friend}")
-///         .route(web::get().to(|| HttpResponse::Ok()))
-///         .route(web::head().to(|| HttpResponse::MethodNotAllowed()))
+///         .route(web::get().to(|| HttpResponse::ok()))
+///         .route(web::head().to(|| HttpResponse::method_not_allowed()))
 /// );
 /// ```
 pub fn resource<T: IntoPattern>(path: T) -> Resource {
@@ -65,9 +65,9 @@ pub fn resource<T: IntoPattern>(path: T) -> Resource {
 ///
 /// let app = App::new().service(
 ///     web::scope("/{project_id}")
-///         .service(web::resource("/path1").to(|| HttpResponse::Ok()))
-///         .service(web::resource("/path2").to(|| HttpResponse::Ok()))
-///         .service(web::resource("/path3").to(|| HttpResponse::MethodNotAllowed()))
+///         .service(web::resource("/path1").to(|| HttpResponse::ok()))
+///         .service(web::resource("/path2").to(|| HttpResponse::ok()))
+///         .service(web::resource("/path3").to(|| HttpResponse::method_not_allowed()))
 /// );
 /// ```
 ///
@@ -92,7 +92,7 @@ pub fn route() -> Route {
 ///
 /// let app = App::new().service(
 ///     web::resource("/{project_id}")
-///        .route(web::get().to(|| HttpResponse::Ok()))
+///        .route(web::get().to(|| HttpResponse::ok()))
 /// );
 /// ```
 ///
@@ -110,7 +110,7 @@ pub fn get() -> Route {
 ///
 /// let app = App::new().service(
 ///     web::resource("/{project_id}")
-///         .route(web::post().to(|| HttpResponse::Ok()))
+///         .route(web::post().to(|| HttpResponse::ok()))
 /// );
 /// ```
 ///
@@ -128,7 +128,7 @@ pub fn post() -> Route {
 ///
 /// let app = App::new().service(
 ///     web::resource("/{project_id}")
-///         .route(web::put().to(|| HttpResponse::Ok()))
+///         .route(web::put().to(|| HttpResponse::ok()))
 /// );
 /// ```
 ///
@@ -146,7 +146,7 @@ pub fn put() -> Route {
 ///
 /// let app = App::new().service(
 ///     web::resource("/{project_id}")
-///         .route(web::patch().to(|| HttpResponse::Ok()))
+///         .route(web::patch().to(|| HttpResponse::ok()))
 /// );
 /// ```
 ///
@@ -164,7 +164,7 @@ pub fn patch() -> Route {
 ///
 /// let app = App::new().service(
 ///     web::resource("/{project_id}")
-///         .route(web::delete().to(|| HttpResponse::Ok()))
+///         .route(web::delete().to(|| HttpResponse::ok()))
 /// );
 /// ```
 ///
@@ -182,7 +182,7 @@ pub fn delete() -> Route {
 ///
 /// let app = App::new().service(
 ///     web::resource("/{project_id}")
-///         .route(web::head().to(|| HttpResponse::Ok()))
+///         .route(web::head().to(|| HttpResponse::ok()))
 /// );
 /// ```
 ///
@@ -200,7 +200,7 @@ pub fn head() -> Route {
 ///
 /// let app = App::new().service(
 ///     web::resource("/{project_id}")
-///         .route(web::trace().to(|| HttpResponse::Ok()))
+///         .route(web::trace().to(|| HttpResponse::ok()))
 /// );
 /// ```
 ///
@@ -218,7 +218,7 @@ pub fn trace() -> Route {
 ///
 /// let app = App::new().service(
 ///     web::resource("/{project_id}")
-///         .route(web::method(http::Method::GET).to(|| HttpResponse::Ok()))
+///         .route(web::method(http::Method::GET).to(|| HttpResponse::ok()))
 /// );
 /// ```
 ///
@@ -235,7 +235,7 @@ pub fn method(method: Method) -> Route {
 /// use actix_web::{web, App, HttpResponse, Responder};
 ///
 /// async fn index() -> impl Responder {
-///    HttpResponse::Ok()
+///    HttpResponse::ok()
 /// }
 ///
 /// App::new().service(
@@ -259,7 +259,7 @@ where
 /// use actix_web::{dev, web, guard, App, Error, HttpResponse};
 ///
 /// async fn my_service(req: dev::ServiceRequest) -> Result<dev::ServiceResponse, Error> {
-///     Ok(req.into_response(HttpResponse::Ok().finish()))
+///     Ok(req.into_response(HttpResponse::ok().finish()))
 /// }
 ///
 /// let app = App::new().service(

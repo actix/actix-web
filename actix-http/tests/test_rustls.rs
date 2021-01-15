@@ -43,7 +43,7 @@ fn ssl_acceptor() -> RustlsServerConfig {
 async fn test_h1() -> io::Result<()> {
     let srv = test_server(move || {
         HttpService::build()
-            .h1(|_| future::ok::<_, Error>(Response::Ok().finish()))
+            .h1(|_| future::ok::<_, Error>(Response::ok().finish()))
             .rustls(ssl_acceptor())
     })
     .await;
@@ -57,7 +57,7 @@ async fn test_h1() -> io::Result<()> {
 async fn test_h2() -> io::Result<()> {
     let srv = test_server(move || {
         HttpService::build()
-            .h2(|_| future::ok::<_, Error>(Response::Ok().finish()))
+            .h2(|_| future::ok::<_, Error>(Response::ok().finish()))
             .rustls(ssl_acceptor())
     })
     .await;
@@ -74,7 +74,7 @@ async fn test_h1_1() -> io::Result<()> {
             .h1(|req: Request| {
                 assert!(req.peer_addr().is_some());
                 assert_eq!(req.version(), Version::HTTP_11);
-                future::ok::<_, Error>(Response::Ok().finish())
+                future::ok::<_, Error>(Response::ok().finish())
             })
             .rustls(ssl_acceptor())
     })
@@ -92,7 +92,7 @@ async fn test_h2_1() -> io::Result<()> {
             .finish(|req: Request| {
                 assert!(req.peer_addr().is_some());
                 assert_eq!(req.version(), Version::HTTP_2);
-                future::ok::<_, Error>(Response::Ok().finish())
+                future::ok::<_, Error>(Response::ok().finish())
             })
             .rustls(ssl_acceptor())
     })
@@ -110,7 +110,7 @@ async fn test_h2_body1() -> io::Result<()> {
         HttpService::build()
             .h2(|mut req: Request<_>| async move {
                 let body = load_body(req.take_payload()).await?;
-                Ok::<_, Error>(Response::Ok().body(body))
+                Ok::<_, Error>(Response::ok().body(body))
             })
             .rustls(ssl_acceptor())
     })
@@ -179,7 +179,7 @@ async fn test_h2_headers() {
     let mut srv = test_server(move || {
         let data = data.clone();
         HttpService::build().h2(move |_| {
-            let mut config = Response::Ok();
+            let mut config = Response::ok();
             for idx in 0..90 {
                 config.insert_header((
                     format!("X-TEST-{}", idx).as_str(),
@@ -237,7 +237,7 @@ const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
 async fn test_h2_body2() {
     let mut srv = test_server(move || {
         HttpService::build()
-            .h2(|_| future::ok::<_, ()>(Response::Ok().body(STR)))
+            .h2(|_| future::ok::<_, ()>(Response::ok().body(STR)))
             .rustls(ssl_acceptor())
     })
     .await;
@@ -254,7 +254,7 @@ async fn test_h2_body2() {
 async fn test_h2_head_empty() {
     let mut srv = test_server(move || {
         HttpService::build()
-            .finish(|_| ok::<_, ()>(Response::Ok().body(STR)))
+            .finish(|_| ok::<_, ()>(Response::ok().body(STR)))
             .rustls(ssl_acceptor())
     })
     .await;
@@ -280,7 +280,7 @@ async fn test_h2_head_empty() {
 async fn test_h2_head_binary() {
     let mut srv = test_server(move || {
         HttpService::build()
-            .h2(|_| ok::<_, ()>(Response::Ok().body(STR)))
+            .h2(|_| ok::<_, ()>(Response::ok().body(STR)))
             .rustls(ssl_acceptor())
     })
     .await;
@@ -305,7 +305,7 @@ async fn test_h2_head_binary() {
 async fn test_h2_head_binary2() {
     let srv = test_server(move || {
         HttpService::build()
-            .h2(|_| ok::<_, ()>(Response::Ok().body(STR)))
+            .h2(|_| ok::<_, ()>(Response::ok().body(STR)))
             .rustls(ssl_acceptor())
     })
     .await;
@@ -329,7 +329,7 @@ async fn test_h2_body_length() {
             .h2(|_| {
                 let body = once(ok(Bytes::from_static(STR.as_ref())));
                 ok::<_, ()>(
-                    Response::Ok().body(body::SizedStream::new(STR.len() as u64, body)),
+                    Response::ok().body(body::SizedStream::new(STR.len() as u64, body)),
                 )
             })
             .rustls(ssl_acceptor())
@@ -351,7 +351,7 @@ async fn test_h2_body_chunked_explicit() {
             .h2(|_| {
                 let body = once(ok::<_, Error>(Bytes::from_static(STR.as_ref())));
                 ok::<_, ()>(
-                    Response::Ok()
+                    Response::ok()
                         .insert_header((header::TRANSFER_ENCODING, "chunked"))
                         .streaming(body),
                 )
@@ -379,7 +379,7 @@ async fn test_h2_response_http_error_handling() {
                 ok::<_, ()>(fn_service(|_| {
                     let broken_header = Bytes::from_static(b"\0\0\0");
                     ok::<_, ()>(
-                        Response::Ok()
+                        Response::ok()
                             .insert_header((http::header::CONTENT_TYPE, broken_header))
                             .body(STR),
                     )

@@ -235,7 +235,7 @@ mod tests {
     async fn test_default_resource() {
         let mut srv =
             init_service(App::new().service(web::resource("/test").to(|| {
-                HttpResponse::Ok().streaming(HttpContext::create(MyActor { count: 0 }))
+                HttpResponse::ok().streaming(HttpContext::create(MyActor { count: 0 }))
             })))
             .await;
 

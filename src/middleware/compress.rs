@@ -35,7 +35,7 @@ use crate::{
 ///
 /// let app = App::new()
 ///     .wrap(middleware::Compress::default())
-///     .default_service(web::to(|| HttpResponse::NotFound()));
+///     .default_service(web::to(|| HttpResponse::not_found()));
 /// ```
 #[derive(Debug, Clone)]
 pub struct Compress(ContentEncoding);

@@ -456,7 +456,7 @@ impl WebService {
     /// use actix_web::{web, guard, dev, App, Error, HttpResponse};
     ///
     /// async fn index(req: dev::ServiceRequest) -> Result<dev::ServiceResponse, Error> {
-    ///     Ok(req.into_response(HttpResponse::Ok().finish()))
+    ///     Ok(req.into_response(HttpResponse::ok().finish()))
     /// }
     ///
     /// fn main() {
@@ -542,7 +542,7 @@ mod tests {
     async fn test_service() {
         let mut srv = init_service(
             App::new().service(web::service("/test").name("test").finish(
-                |req: ServiceRequest| ok(req.into_response(HttpResponse::Ok().finish())),
+                |req: ServiceRequest| ok(req.into_response(HttpResponse::ok().finish())),
             )),
         )
         .await;
@@ -552,7 +552,7 @@ mod tests {
 
         let mut srv = init_service(
             App::new().service(web::service("/test").guard(guard::Get()).finish(
-                |req: ServiceRequest| ok(req.into_response(HttpResponse::Ok().finish())),
+                |req: ServiceRequest| ok(req.into_response(HttpResponse::ok().finish())),
             )),
         )
         .await;
@@ -574,7 +574,7 @@ mod tests {
                             req.app_data::<web::Data<u32>>().unwrap().as_ref(),
                             &42
                         );
-                        ok(req.into_response(HttpResponse::Ok().finish()))
+                        ok(req.into_response(HttpResponse::ok().finish()))
                     },
                 )),
         )
@@ -595,7 +595,7 @@ mod tests {
         assert!(s.contains("test=1"));
         assert!(s.contains("x-test"));
 
-        let res = HttpResponse::Ok().insert_header(("x-test", "111")).finish();
+        let res = HttpResponse::ok().insert_header(("x-test", "111")).finish();
         let res = TestRequest::post()
             .uri("/index.html?test=1")
             .to_srv_response(res);

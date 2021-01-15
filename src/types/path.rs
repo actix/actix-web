@@ -155,7 +155,7 @@ where
 ///             .app_data(PathConfig::default().error_handler(|err, req| {
 ///                 error::InternalError::from_response(
 ///                     err,
-///                     HttpResponse::Conflict().finish(),
+///                     HttpResponse::conflict().finish(),
 ///                 )
 ///                 .into()
 ///             }))
@@ -302,7 +302,7 @@ mod tests {
             .app_data(PathConfig::default().error_handler(|err, _| {
                 error::InternalError::from_response(
                     err,
-                    HttpResponse::Conflict().finish(),
+                    HttpResponse::conflict().finish(),
                 )
                 .into()
             }))

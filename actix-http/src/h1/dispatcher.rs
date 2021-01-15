@@ -587,7 +587,9 @@ where
                                 );
                                 this.flags.insert(Flags::READ_DISCONNECT);
                                 this.messages.push_back(DispatcherMessage::Error(
-                                    Response::InternalServerError().finish().drop_body(),
+                                    Response::internal_server_error()
+                                        .finish()
+                                        .drop_body(),
                                 ));
                                 *this.error = Some(DispatchError::InternalError);
                                 break;
@@ -600,7 +602,9 @@ where
                                 error!("Internal server error: unexpected eof");
                                 this.flags.insert(Flags::READ_DISCONNECT);
                                 this.messages.push_back(DispatcherMessage::Error(
-                                    Response::InternalServerError().finish().drop_body(),
+                                    Response::internal_server_error()
+                                        .finish()
+                                        .drop_body(),
                                 ));
                                 *this.error = Some(DispatchError::InternalError);
                                 break;
@@ -622,7 +626,7 @@ where
 
                     // Malformed requests should be responded with 400
                     this.messages.push_back(DispatcherMessage::Error(
-                        Response::BadRequest().finish().drop_body(),
+                        Response::bad_request().finish().drop_body(),
                     ));
                     this.flags.insert(Flags::READ_DISCONNECT);
                     *this.error = Some(e.into());
@@ -696,7 +700,7 @@ where
                             if !this.flags.contains(Flags::STARTED) {
                                 trace!("Slow request timeout");
                                 let _ = self.as_mut().send_response(
-                                    Response::RequestTimeout().finish().drop_body(),
+                                    Response::request_timeout().finish().drop_body(),
                                     ResponseBody::Other(Body::Empty),
                                 );
                                 this = self.as_mut().project();
@@ -966,13 +970,13 @@ mod tests {
     }
 
     fn ok_service() -> impl Service<Request, Response = Response, Error = Error> {
-        fn_service(|_req: Request| ready(Ok::<_, Error>(Response::Ok().finish())))
+        fn_service(|_req: Request| ready(Ok::<_, Error>(Response::ok().finish())))
     }
 
     fn echo_path_service() -> impl Service<Request, Response = Response, Error = Error> {
         fn_service(|req: Request| {
             let path = req.path().as_bytes();
-            ready(Ok::<_, Error>(Response::Ok().body(Body::from_slice(path))))
+            ready(Ok::<_, Error>(Response::ok().body(Body::from_slice(path))))
         })
     }
 
@@ -988,7 +992,7 @@ mod tests {
                     body.extend_from_slice(chunk.unwrap().chunk())
                 }
 
-                Ok::<_, Error>(Response::Ok().body(body))
+                Ok::<_, Error>(Response::ok().body(body))
             })
         })
     }

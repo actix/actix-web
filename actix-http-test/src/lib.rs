@@ -29,7 +29,7 @@ use socket2::{Domain, Protocol, Socket, Type};
 /// use actix_web::{web, App, HttpResponse, Error};
 ///
 /// async fn my_handler() -> Result<HttpResponse, Error> {
-///     Ok(HttpResponse::Ok().into())
+///     Ok(HttpResponse::ok().into())
 /// }
 ///
 /// #[actix_rt::test]

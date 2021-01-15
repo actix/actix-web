@@ -32,7 +32,7 @@ use crate::header::{
 /// use actix_http::Response;
 /// use actix_http::http::header::{CacheControl, CacheDirective};
 ///
-/// let mut builder = Response::Ok();
+/// let mut builder = Response::ok();
 /// builder.insert_header(CacheControl(vec![CacheDirective::MaxAge(86400u32)]));
 /// ```
 ///
@@ -40,7 +40,7 @@ use crate::header::{
 /// use actix_http::Response;
 /// use actix_http::http::header::{CacheControl, CacheDirective};
 ///
-/// let mut builder = Response::Ok();
+/// let mut builder = Response::ok();
 /// builder.insert_header(CacheControl(vec![
 ///     CacheDirective::NoCache,
 ///     CacheDirective::Private,

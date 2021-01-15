@@ -24,7 +24,7 @@ header! {
     /// use actix_http::Response;
     /// use actix_http::http::header::Date;
     ///
-    /// let mut builder = Response::Ok();
+    /// let mut builder = Response::ok();
     /// builder.insert_header(
     ///     Date(SystemTime::now().into())
     /// );

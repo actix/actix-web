@@ -13,6 +13,7 @@
 * Renamed `IntoHeaderValue::{try_into => try_into_value}` to avoid ambiguity with std
   `TryInto` trait. [#1894]
 * `Extensions::insert` returns Option of replaced item. [#1904]
+* Rename `HttpResponse` httpcode methods from PascalCase to snake_case
 
 ### Removed
 * `ResponseBuilder::set`; use `ResponseBuilder::insert_header`. [#1869]

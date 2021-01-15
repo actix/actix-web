@@ -268,7 +268,7 @@ mod tests {
         let mut srv = init_service(App::new().configure(cfg).service(
             web::resource("/").to(|_: web::Data<usize>, req: HttpRequest| {
                 assert_eq!(*req.app_data::<u8>().unwrap(), 15u8);
-                HttpResponse::Ok()
+                HttpResponse::ok()
             }),
         ))
         .await;
@@ -290,7 +290,7 @@ mod tests {
 
     //     let mut srv =
     //         init_service(App::new().configure(cfg).service(
-    //             web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()),
+    //             web::resource("/").to(|_: web::Data<usize>| HttpResponse::ok()),
     //         ));
     //     let req = TestRequest::default().to_request();
     //     let resp = srv.call(req).await.unwrap();
@@ -301,7 +301,7 @@ mod tests {
     //     };
     //     let mut srv = init_service(
     //         App::new()
-    //             .service(web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()))
+    //             .service(web::resource("/").to(|_: web::Data<usize>| HttpResponse::ok()))
     //             .configure(cfg2),
     //     );
     //     let req = TestRequest::default().to_request();
@@ -322,7 +322,7 @@ mod tests {
                 .route(
                     "/test",
                     web::get().to(|req: HttpRequest| {
-                        HttpResponse::Ok().body(
+                        HttpResponse::ok().body(
                             req.url_for("youtube", &["12345"]).unwrap().to_string(),
                         )
                     }),
@@ -340,9 +340,9 @@ mod tests {
     async fn test_service() {
         let mut srv = init_service(App::new().configure(|cfg| {
             cfg.service(
-                web::resource("/test").route(web::get().to(HttpResponse::Created)),
+                web::resource("/test").route(web::get().to(HttpResponse::created)),
             )
-            .route("/index.html", web::get().to(HttpResponse::Ok));
+            .route("/index.html", web::get().to(HttpResponse::ok));
         }))
         .await;
 

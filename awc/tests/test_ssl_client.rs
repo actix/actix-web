@@ -46,7 +46,7 @@ async fn test_connection_reuse_h2() {
             HttpService::build()
                 .h2(map_config(
                     App::new()
-                        .service(web::resource("/").route(web::to(HttpResponse::Ok))),
+                        .service(web::resource("/").route(web::to(HttpResponse::ok))),
                     |_| AppConfig::default(),
                 ))
                 .openssl(ssl_acceptor())

@@ -30,7 +30,7 @@ const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
 async fn test_h1_v2() {
     let srv = test_server(move || {
         HttpService::build()
-            .finish(|_| future::ok::<_, ()>(Response::Ok().body(STR)))
+            .finish(|_| future::ok::<_, ()>(Response::ok().body(STR)))
             .tcp()
     })
     .await;
@@ -58,7 +58,7 @@ async fn test_h1_v2() {
 async fn test_connection_close() {
     let srv = test_server(move || {
         HttpService::build()
-            .finish(|_| ok::<_, ()>(Response::Ok().body(STR)))
+            .finish(|_| ok::<_, ()>(Response::ok().body(STR)))
             .tcp()
             .map(|_| ())
     })
@@ -74,9 +74,9 @@ async fn test_with_query_parameter() {
         HttpService::build()
             .finish(|req: Request| {
                 if req.uri().query().unwrap().contains("qp=") {
-                    ok::<_, ()>(Response::Ok().finish())
+                    ok::<_, ()>(Response::ok().finish())
                 } else {
-                    ok::<_, ()>(Response::BadRequest().finish())
+                    ok::<_, ()>(Response::bad_request().finish())
                 }
             })
             .tcp()

@@ -25,7 +25,7 @@ use crate::server::Multipart;
 ///                println!("-- CHUNK: \n{:?}", std::str::from_utf8(&chunk?));
 ///            }
 ///     }
-///     Ok(HttpResponse::Ok().into())
+///     Ok(HttpResponse::ok().into())
 /// }
 /// # fn main() {}
 /// ```

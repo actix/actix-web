@@ -37,8 +37,8 @@ use crate::{
 ///         .wrap(middleware::DefaultHeaders::new().header("X-Version", "0.2"))
 ///         .service(
 ///             web::resource("/test")
-///                 .route(web::get().to(|| HttpResponse::Ok()))
-///                 .route(web::method(http::Method::HEAD).to(|| HttpResponse::MethodNotAllowed()))
+///                 .route(web::get().to(|| HttpResponse::ok()))
+///                 .route(web::method(http::Method::HEAD).to(|| HttpResponse::method_not_allowed()))
 ///         );
 /// }
 /// ```
@@ -213,7 +213,7 @@ mod tests {
         let req = TestRequest::default().to_srv_request();
         let srv = |req: ServiceRequest| {
             ok(req.into_response(
-                HttpResponse::Ok()
+                HttpResponse::ok()
                     .insert_header((CONTENT_TYPE, "0002"))
                     .finish(),
             ))
@@ -230,7 +230,7 @@ mod tests {
     #[actix_rt::test]
     async fn test_content_type() {
         let srv =
-            |req: ServiceRequest| ok(req.into_response(HttpResponse::Ok().finish()));
+            |req: ServiceRequest| ok(req.into_response(HttpResponse::ok().finish()));
         let mut mw = DefaultHeaders::new()
             .add_content_type()
             .new_transform(srv.into_service())

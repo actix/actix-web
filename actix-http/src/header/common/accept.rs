@@ -36,7 +36,7 @@ header! {
     /// use actix_http::Response;
     /// use actix_http::http::header::{Accept, qitem};
     ///
-    /// let mut builder = Response::Ok();
+    /// let mut builder = Response::ok();
     /// builder.insert_header(
     ///     Accept(vec![
     ///         qitem(mime::TEXT_HTML),
@@ -48,7 +48,7 @@ header! {
     /// use actix_http::Response;
     /// use actix_http::http::header::{Accept, qitem};
     ///
-    /// let mut builder = Response::Ok();
+    /// let mut builder = Response::ok();
     /// builder.insert_header(
     ///     Accept(vec![
     ///         qitem(mime::APPLICATION_JSON),
@@ -60,7 +60,7 @@ header! {
     /// use actix_http::Response;
     /// use actix_http::http::header::{Accept, QualityItem, q, qitem};
     ///
-    /// let mut builder = Response::Ok();
+    /// let mut builder = Response::ok();
     /// builder.insert_header(
     ///     Accept(vec![
     ///         qitem(mime::TEXT_HTML),

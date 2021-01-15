@@ -19,7 +19,7 @@ async fn test_start() {
             let srv = HttpServer::new(|| {
                 App::new().service(
                     web::resource("/")
-                        .route(web::to(|| HttpResponse::Ok().body("test"))),
+                        .route(web::to(|| HttpResponse::ok().body("test"))),
                 )
             })
             .workers(1)
@@ -97,7 +97,7 @@ async fn test_start_ssl() {
         let srv = HttpServer::new(|| {
             App::new().service(web::resource("/").route(web::to(|req: HttpRequest| {
                 assert!(req.app_config().secure());
-                HttpResponse::Ok().body("test")
+                HttpResponse::ok().body("test")
             })))
         })
         .workers(1)

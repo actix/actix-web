@@ -27,7 +27,7 @@ header! {
     /// use actix_http::Response;
     /// use actix_http::http::header::IfUnmodifiedSince;
     ///
-    /// let mut builder = Response::Ok();
+    /// let mut builder = Response::ok();
     /// let modified = SystemTime::now() - Duration::from_secs(60 * 60 * 24);
     /// builder.insert_header(
     ///     IfUnmodifiedSince(modified.into())

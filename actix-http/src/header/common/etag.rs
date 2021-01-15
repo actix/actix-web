@@ -31,7 +31,7 @@ header! {
     /// use actix_http::Response;
     /// use actix_http::http::header::{ETag, EntityTag};
     ///
-    /// let mut builder = Response::Ok();
+    /// let mut builder = Response::ok();
     /// builder.insert_header(
     ///     ETag(EntityTag::new(false, "xyzzy".to_owned()))
     /// );
@@ -41,7 +41,7 @@ header! {
     /// use actix_http::Response;
     /// use actix_http::http::header::{ETag, EntityTag};
     ///
-    /// let mut builder = Response::Ok();
+    /// let mut builder = Response::ok();
     /// builder.insert_header(
     ///     ETag(EntityTag::new(true, "xyzzy".to_owned()))
     /// );

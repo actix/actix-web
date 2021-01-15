@@ -49,7 +49,7 @@ struct Config {
 /// async fn main() -> std::io::Result<()> {
 ///     HttpServer::new(
 ///         || App::new()
-///             .service(web::resource("/").to(|| HttpResponse::Ok())))
+///             .service(web::resource("/").to(|| HttpResponse::ok())))
 ///         .bind("127.0.0.1:59090")?
 ///         .run()
 ///         .await
@@ -623,7 +623,7 @@ where
     ///
     /// #[actix_rt::main]
     /// async fn main() -> io::Result<()> {
-    ///     HttpServer::new(|| App::new().service(web::resource("/").to(|| HttpResponse::Ok())))
+    ///     HttpServer::new(|| App::new().service(web::resource("/").to(|| HttpResponse::ok())))
     ///         .bind("127.0.0.1:0")?
     ///         .run()
     ///         .await

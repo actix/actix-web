@@ -47,9 +47,9 @@ type HttpNewService = BoxServiceFactory<(), ServiceRequest, ServiceResponse, Err
 /// fn main() {
 ///     let app = App::new().service(
 ///         web::scope("/{project_id}/")
-///             .service(web::resource("/path1").to(|| async { HttpResponse::Ok() }))
-///             .service(web::resource("/path2").route(web::get().to(|| HttpResponse::Ok())))
-///             .service(web::resource("/path3").route(web::head().to(|| HttpResponse::MethodNotAllowed())))
+///             .service(web::resource("/path1").to(|| async { HttpResponse::ok() }))
+///             .service(web::resource("/path2").route(web::get().to(|| HttpResponse::ok())))
+///             .service(web::resource("/path3").route(web::head().to(|| HttpResponse::method_not_allowed())))
 ///     );
 /// }
 /// ```
@@ -111,7 +111,7 @@ where
     ///             .guard(guard::Header("content-type", "text/plain"))
     ///             .route("/test1", web::get().to(index))
     ///             .route("/test2", web::post().to(|r: HttpRequest| {
-    ///                 HttpResponse::MethodNotAllowed()
+    ///                 HttpResponse::method_not_allowed()
     ///             }))
     ///     );
     /// }
@@ -134,7 +134,7 @@ where
     ///
     /// async fn index(data: web::Data<MyData>) -> impl Responder {
     ///     data.counter.set(data.counter.get() + 1);
-    ///     HttpResponse::Ok()
+    ///     HttpResponse::ok()
     /// }
     ///
     /// fn main() {
@@ -176,8 +176,8 @@ where
     /// // this function could be located in different module
     /// fn config(cfg: &mut web::ServiceConfig) {
     ///     cfg.service(web::resource("/test")
-    ///         .route(web::get().to(|| HttpResponse::Ok()))
-    ///         .route(web::head().to(|| HttpResponse::MethodNotAllowed()))
+    ///         .route(web::get().to(|| HttpResponse::ok()))
+    ///         .route(web::head().to(|| HttpResponse::method_not_allowed()))
     ///     );
     /// }
     ///
@@ -188,7 +188,7 @@ where
     ///             web::scope("/api")
     ///                 .configure(config)
     ///         )
-    ///         .route("/index.html", web::get().to(|| HttpResponse::Ok()));
+    ///         .route("/index.html", web::get().to(|| HttpResponse::ok()));
     /// }
     /// ```
     pub fn configure<F>(mut self, f: F) -> Self
@@ -268,7 +268,7 @@ where
     ///     let app = App::new().service(
     ///         web::scope("/app")
     ///             .route("/test1", web::get().to(index))
-    ///             .route("/test2", web::post().to(|| HttpResponse::MethodNotAllowed()))
+    ///             .route("/test2", web::post().to(|| HttpResponse::method_not_allowed()))
     ///     );
     /// }
     /// ```
@@ -604,7 +604,7 @@ mod tests {
     #[actix_rt::test]
     async fn test_scope() {
         let mut srv = init_service(App::new().service(
-            web::scope("/app").service(web::resource("/path1").to(HttpResponse::Ok)),
+            web::scope("/app").service(web::resource("/path1").to(HttpResponse::ok)),
         ))
         .await;
 
@@ -618,8 +618,8 @@ mod tests {
         let mut srv = init_service(
             App::new().service(
                 web::scope("/app")
-                    .service(web::resource("").to(HttpResponse::Ok))
-                    .service(web::resource("/").to(HttpResponse::Created)),
+                    .service(web::resource("").to(HttpResponse::ok))
+                    .service(web::resource("/").to(HttpResponse::created)),
             ),
         )
         .await;
@@ -636,7 +636,7 @@ mod tests {
     #[actix_rt::test]
     async fn test_scope_root2() {
         let mut srv = init_service(App::new().service(
-            web::scope("/app/").service(web::resource("").to(HttpResponse::Ok)),
+            web::scope("/app/").service(web::resource("").to(HttpResponse::ok)),
         ))
         .await;
 
@@ -652,7 +652,7 @@ mod tests {
     #[actix_rt::test]
     async fn test_scope_root3() {
         let mut srv = init_service(App::new().service(
-            web::scope("/app/").service(web::resource("/").to(HttpResponse::Ok)),
+            web::scope("/app/").service(web::resource("/").to(HttpResponse::ok)),
         ))
         .await;
 
@@ -670,8 +670,8 @@ mod tests {
         let mut srv = init_service(
             App::new().service(
                 web::scope("app")
-                    .route("/path1", web::get().to(HttpResponse::Ok))
-                    .route("/path1", web::delete().to(HttpResponse::Ok)),
+                    .route("/path1", web::get().to(HttpResponse::ok))
+                    .route("/path1", web::delete().to(HttpResponse::ok)),
             ),
         )
         .await;
@@ -699,8 +699,8 @@ mod tests {
             App::new().service(
                 web::scope("app").service(
                     web::resource("path1")
-                        .route(web::get().to(HttpResponse::Ok))
-                        .route(web::delete().to(HttpResponse::Ok)),
+                        .route(web::get().to(HttpResponse::ok))
+                        .route(web::delete().to(HttpResponse::ok)),
                 ),
             ),
         )
@@ -729,7 +729,7 @@ mod tests {
             App::new().service(
                 web::scope("/app")
                     .guard(guard::Get())
-                    .service(web::resource("/path1").to(HttpResponse::Ok)),
+                    .service(web::resource("/path1").to(HttpResponse::ok)),
             ),
         )
         .await;
@@ -752,7 +752,7 @@ mod tests {
         let mut srv =
             init_service(App::new().service(web::scope("/ab-{project}").service(
                 web::resource("/path1").to(|r: HttpRequest| {
-                    HttpResponse::Ok()
+                    HttpResponse::ok()
                         .body(format!("project: {}", &r.match_info()["project"]))
                 }),
             )))
@@ -778,7 +778,7 @@ mod tests {
     #[actix_rt::test]
     async fn test_nested_scope() {
         let mut srv = init_service(App::new().service(web::scope("/app").service(
-            web::scope("/t1").service(web::resource("/path1").to(HttpResponse::Created)),
+            web::scope("/t1").service(web::resource("/path1").to(HttpResponse::created)),
         )))
         .await;
 
@@ -790,7 +790,7 @@ mod tests {
     #[actix_rt::test]
     async fn test_nested_scope_no_slash() {
         let mut srv = init_service(App::new().service(web::scope("/app").service(
-            web::scope("t1").service(web::resource("/path1").to(HttpResponse::Created)),
+            web::scope("t1").service(web::resource("/path1").to(HttpResponse::created)),
         )))
         .await;
 
@@ -805,8 +805,8 @@ mod tests {
             App::new().service(
                 web::scope("/app").service(
                     web::scope("/t1")
-                        .service(web::resource("").to(HttpResponse::Ok))
-                        .service(web::resource("/").to(HttpResponse::Created)),
+                        .service(web::resource("").to(HttpResponse::ok))
+                        .service(web::resource("/").to(HttpResponse::created)),
                 ),
             ),
         )
@@ -828,7 +828,7 @@ mod tests {
                 web::scope("/app").service(
                     web::scope("/t1")
                         .guard(guard::Get())
-                        .service(web::resource("/path1").to(HttpResponse::Ok)),
+                        .service(web::resource("/path1").to(HttpResponse::ok)),
                 ),
             ),
         )
@@ -852,7 +852,7 @@ mod tests {
         let mut srv = init_service(App::new().service(web::scope("/app").service(
             web::scope("/{project_id}").service(web::resource("/path1").to(
                 |r: HttpRequest| {
-                    HttpResponse::Created()
+                    HttpResponse::created()
                         .body(format!("project: {}", &r.match_info()["project_id"]))
                 },
             )),
@@ -877,7 +877,7 @@ mod tests {
         let mut srv = init_service(App::new().service(web::scope("/app").service(
             web::scope("/{project}").service(web::scope("/{id}").service(
                 web::resource("/path1").to(|r: HttpRequest| {
-                    HttpResponse::Created().body(format!(
+                    HttpResponse::created().body(format!(
                         "project: {} - {}",
                         &r.match_info()["project"],
                         &r.match_info()["id"],
@@ -909,9 +909,9 @@ mod tests {
         let mut srv = init_service(
             App::new().service(
                 web::scope("/app")
-                    .service(web::resource("/path1").to(HttpResponse::Ok))
+                    .service(web::resource("/path1").to(HttpResponse::ok))
                     .default_service(|r: ServiceRequest| {
-                        ok(r.into_response(HttpResponse::BadRequest()))
+                        ok(r.into_response(HttpResponse::bad_request()))
                     }),
             ),
         )
@@ -928,18 +928,18 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_default_resource_propagation() {
-        let mut srv = init_service(
-            App::new()
-                .service(
-                    web::scope("/app1")
-                        .default_service(web::resource("").to(HttpResponse::BadRequest)),
-                )
-                .service(web::scope("/app2"))
-                .default_service(|r: ServiceRequest| {
-                    ok(r.into_response(HttpResponse::MethodNotAllowed()))
-                }),
-        )
-        .await;
+        let mut srv =
+            init_service(
+                App::new()
+                    .service(web::scope("/app1").default_service(
+                        web::resource("").to(HttpResponse::bad_request),
+                    ))
+                    .service(web::scope("/app2"))
+                    .default_service(|r: ServiceRequest| {
+                        ok(r.into_response(HttpResponse::method_not_allowed()))
+                    }),
+            )
+            .await;
 
         let req = TestRequest::with_uri("/non-exist").to_request();
         let resp = srv.call(req).await.unwrap();
@@ -966,7 +966,7 @@ mod tests {
                         ),
                     )
                     .service(
-                        web::resource("/test").route(web::get().to(HttpResponse::Ok)),
+                        web::resource("/test").route(web::get().to(HttpResponse::ok)),
                     ),
             ),
         )
@@ -997,7 +997,7 @@ mod tests {
                             Ok(res)
                         }
                     })
-                    .route("/test", web::get().to(HttpResponse::Ok)),
+                    .route("/test", web::get().to(HttpResponse::ok)),
             ),
         )
         .await;
@@ -1018,7 +1018,7 @@ mod tests {
                 "/t",
                 web::get().to(|data: web::Data<usize>| {
                     assert_eq!(**data, 10);
-                    HttpResponse::Ok()
+                    HttpResponse::ok()
                 }),
             ),
         ))
@@ -1035,7 +1035,7 @@ mod tests {
             web::scope("app").data(10usize).default_service(web::to(
                 |data: web::Data<usize>| {
                     assert_eq!(**data, 10);
-                    HttpResponse::Ok()
+                    HttpResponse::ok()
                 },
             )),
         ))
@@ -1053,7 +1053,7 @@ mod tests {
                 "/t",
                 web::get().to(|data: web::Data<usize>| {
                     assert_eq!(**data, 10);
-                    HttpResponse::Ok()
+                    HttpResponse::ok()
                 }),
             ),
         ))
@@ -1068,7 +1068,7 @@ mod tests {
     async fn test_scope_config() {
         let mut srv =
             init_service(App::new().service(web::scope("/app").configure(|s| {
-                s.route("/path1", web::get().to(HttpResponse::Ok));
+                s.route("/path1", web::get().to(HttpResponse::ok));
             })))
             .await;
 
@@ -1082,7 +1082,7 @@ mod tests {
         let mut srv =
             init_service(App::new().service(web::scope("/app").configure(|s| {
                 s.service(web::scope("/v1").configure(|s| {
-                    s.route("/", web::get().to(HttpResponse::Ok));
+                    s.route("/", web::get().to(HttpResponse::ok));
                 }));
             })))
             .await;
@@ -1104,7 +1104,7 @@ mod tests {
                     s.route(
                         "/",
                         web::get().to(|req: HttpRequest| {
-                            HttpResponse::Ok().body(
+                            HttpResponse::ok().body(
                                 req.url_for("youtube", &["xxxxxx"]).unwrap().to_string(),
                             )
                         }),
@@ -1125,7 +1125,7 @@ mod tests {
         let mut srv = init_service(App::new().service(web::scope("/a").service(
             web::scope("/b").service(web::resource("/c/{stuff}").name("c").route(
                 web::get().to(|req: HttpRequest| {
-                    HttpResponse::Ok()
+                    HttpResponse::ok()
                         .body(format!("{}", req.url_for("c", &["12345"]).unwrap()))
                 }),
             )),

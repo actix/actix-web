@@ -92,7 +92,7 @@ where
     ///
     /// async fn index(data: web::Data<MyData>) -> impl Responder {
     ///     data.counter.set(data.counter.get() + 1);
-    ///     HttpResponse::Ok()
+    ///     HttpResponse::ok()
     /// }
     ///
     /// let app = App::new()
@@ -163,8 +163,8 @@ where
     /// // this function could be located in different module
     /// fn config(cfg: &mut web::ServiceConfig) {
     ///     cfg.service(web::resource("/test")
-    ///         .route(web::get().to(|| HttpResponse::Ok()))
-    ///         .route(web::head().to(|| HttpResponse::MethodNotAllowed()))
+    ///         .route(web::get().to(|| HttpResponse::ok()))
+    ///         .route(web::head().to(|| HttpResponse::method_not_allowed()))
     ///     );
     /// }
     ///
@@ -172,7 +172,7 @@ where
     ///     let app = App::new()
     ///         .wrap(middleware::Logger::default())
     ///         .configure(config)  // <- register resources
-    ///         .route("/index.html", web::get().to(|| HttpResponse::Ok()));
+    ///         .route("/index.html", web::get().to(|| HttpResponse::ok()));
     /// }
     /// ```
     pub fn configure<F>(mut self, f: F) -> Self
@@ -204,7 +204,7 @@ where
     /// fn main() {
     ///     let app = App::new()
     ///         .route("/test1", web::get().to(index))
-    ///         .route("/test2", web::post().to(|| HttpResponse::MethodNotAllowed()));
+    ///         .route("/test2", web::post().to(|| HttpResponse::method_not_allowed()));
     /// }
     /// ```
     pub fn route(self, path: &str, mut route: Route) -> Self {
@@ -249,7 +249,7 @@ where
     ///         .service(
     ///             web::resource("/index.html").route(web::get().to(index)))
     ///         .default_service(
-    ///             web::route().to(|| HttpResponse::NotFound()));
+    ///             web::route().to(|| HttpResponse::not_found()));
     /// }
     /// ```
     ///
@@ -261,9 +261,9 @@ where
     /// fn main() {
     ///     let app = App::new()
     ///         .service(
-    ///             web::resource("/index.html").to(|| HttpResponse::Ok()))
+    ///             web::resource("/index.html").to(|| HttpResponse::ok()))
     ///         .default_service(
-    ///             web::to(|| HttpResponse::NotFound())
+    ///             web::to(|| HttpResponse::not_found())
     ///         );
     /// }
     /// ```
@@ -298,7 +298,7 @@ where
     /// async fn index(req: HttpRequest) -> Result<HttpResponse> {
     ///     let url = req.url_for("youtube", &["asdlkjqme"])?;
     ///     assert_eq!(url.as_str(), "https://youtube.com/watch/asdlkjqme");
-    ///     Ok(HttpResponse::Ok().into())
+    ///     Ok(HttpResponse::ok().into())
     /// }
     ///
     /// fn main() {
@@ -492,7 +492,7 @@ mod tests {
     #[actix_rt::test]
     async fn test_default_resource() {
         let mut srv = init_service(
-            App::new().service(web::resource("/test").to(HttpResponse::Ok)),
+            App::new().service(web::resource("/test").to(HttpResponse::ok)),
         )
         .await;
         let req = TestRequest::with_uri("/test").to_request();
@@ -505,16 +505,16 @@ mod tests {
 
         let mut srv = init_service(
             App::new()
-                .service(web::resource("/test").to(HttpResponse::Ok))
+                .service(web::resource("/test").to(HttpResponse::ok))
                 .service(
                     web::resource("/test2")
                         .default_service(|r: ServiceRequest| {
-                            ok(r.into_response(HttpResponse::Created()))
+                            ok(r.into_response(HttpResponse::created()))
                         })
-                        .route(web::get().to(HttpResponse::Ok)),
+                        .route(web::get().to(HttpResponse::ok)),
                 )
                 .default_service(|r: ServiceRequest| {
-                    ok(r.into_response(HttpResponse::MethodNotAllowed()))
+                    ok(r.into_response(HttpResponse::method_not_allowed()))
                 }),
         )
         .await;
@@ -538,7 +538,7 @@ mod tests {
     async fn test_data_factory() {
         let mut srv =
             init_service(App::new().data_factory(|| ok::<_, ()>(10usize)).service(
-                web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()),
+                web::resource("/").to(|_: web::Data<usize>| HttpResponse::ok()),
             ))
             .await;
         let req = TestRequest::default().to_request();
@@ -547,7 +547,7 @@ mod tests {
 
         let mut srv =
             init_service(App::new().data_factory(|| ok::<_, ()>(10u32)).service(
-                web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()),
+                web::resource("/").to(|_: web::Data<usize>| HttpResponse::ok()),
             ))
             .await;
         let req = TestRequest::default().to_request();
@@ -559,7 +559,7 @@ mod tests {
     async fn test_data_factory_errors() {
         let srv =
             try_init_service(App::new().data_factory(|| err::<u32, _>(())).service(
-                web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()),
+                web::resource("/").to(|_: web::Data<usize>| HttpResponse::ok()),
             ))
             .await;
 
@@ -571,7 +571,7 @@ mod tests {
         let mut srv = init_service(App::new().app_data(10usize).service(
             web::resource("/").to(|req: HttpRequest| {
                 assert_eq!(*req.app_data::<usize>().unwrap(), 10);
-                HttpResponse::Ok()
+                HttpResponse::ok()
             }),
         ))
         .await;
@@ -588,7 +588,7 @@ mod tests {
                     DefaultHeaders::new()
                         .header(header::CONTENT_TYPE, HeaderValue::from_static("0001")),
                 )
-                .route("/test", web::get().to(HttpResponse::Ok)),
+                .route("/test", web::get().to(HttpResponse::ok)),
         )
         .await;
         let req = TestRequest::with_uri("/test").to_request();
@@ -604,7 +604,7 @@ mod tests {
     async fn test_router_wrap() {
         let mut srv = init_service(
             App::new()
-                .route("/test", web::get().to(HttpResponse::Ok))
+                .route("/test", web::get().to(HttpResponse::ok))
                 .wrap(
                     DefaultHeaders::new()
                         .header(header::CONTENT_TYPE, HeaderValue::from_static("0001")),
@@ -635,7 +635,7 @@ mod tests {
                         Ok(res)
                     }
                 })
-                .service(web::resource("/test").to(HttpResponse::Ok)),
+                .service(web::resource("/test").to(HttpResponse::ok)),
         )
         .await;
         let req = TestRequest::with_uri("/test").to_request();
@@ -651,7 +651,7 @@ mod tests {
     async fn test_router_wrap_fn() {
         let mut srv = init_service(
             App::new()
-                .route("/test", web::get().to(HttpResponse::Ok))
+                .route("/test", web::get().to(HttpResponse::ok))
                 .wrap_fn(|req, srv| {
                     let fut = srv.call(req);
                     async {
@@ -682,7 +682,7 @@ mod tests {
                 .route(
                     "/test",
                     web::get().to(|req: HttpRequest| {
-                        HttpResponse::Ok().body(
+                        HttpResponse::ok().body(
                             req.url_for("youtube", &["12345"]).unwrap().to_string(),
                         )
                     }),

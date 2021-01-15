@@ -42,7 +42,7 @@ type HttpNewService = BoxServiceFactory<(), ServiceRequest, ServiceResponse, Err
 /// fn main() {
 ///     let app = App::new().service(
 ///         web::resource("/")
-///             .route(web::get().to(|| HttpResponse::Ok())));
+///             .route(web::get().to(|| HttpResponse::ok())));
 /// }
 /// ```
 ///
@@ -72,7 +72,7 @@ impl Resource {
             guards: Vec::new(),
             app_data: None,
             default: boxed::factory(fn_service(|req: ServiceRequest| async {
-                Ok(req.into_response(Response::MethodNotAllowed().finish()))
+                Ok(req.into_response(Response::method_not_allowed().finish()))
             })),
         }
     }
@@ -115,7 +115,7 @@ where
     ///         .service(
     ///             web::resource("/app")
     ///                 .guard(guard::Header("content-type", "text/json"))
-    ///                 .route(web::get().to(|| HttpResponse::MethodNotAllowed()))
+    ///                 .route(web::get().to(|| HttpResponse::method_not_allowed()))
     ///         );
     /// }
     /// ```
@@ -140,7 +140,7 @@ where
     ///             web::route()
     ///                 .guard(guard::Any(guard::Get()).or(guard::Put()))
     ///                 .guard(guard::Header("Content-Type", "text/plain"))
-    ///                 .to(|| HttpResponse::Ok()))
+    ///                 .to(|| HttpResponse::ok()))
     ///     );
     /// }
     /// ```
@@ -159,9 +159,9 @@ where
     ///              .route(web::delete().to(delete_handler))
     ///     );
     /// }
-    /// # async fn get_handler() -> impl actix_web::Responder { actix_web::HttpResponse::Ok() }
-    /// # async fn post_handler() -> impl actix_web::Responder { actix_web::HttpResponse::Ok() }
-    /// # async fn delete_handler() -> impl actix_web::Responder { actix_web::HttpResponse::Ok() }
+    /// # async fn get_handler() -> impl actix_web::Responder { actix_web::HttpResponse::ok() }
+    /// # async fn post_handler() -> impl actix_web::Responder { actix_web::HttpResponse::ok() }
+    /// # async fn delete_handler() -> impl actix_web::Responder { actix_web::HttpResponse::ok() }
     /// ```
     pub fn route(mut self, route: Route) -> Self {
         self.routes.push(route);
@@ -538,7 +538,7 @@ mod tests {
                             header::CONTENT_TYPE,
                             HeaderValue::from_static("0001"),
                         ))
-                        .route(web::get().to(HttpResponse::Ok)),
+                        .route(web::get().to(HttpResponse::ok)),
                 ),
             )
             .await;
@@ -568,7 +568,7 @@ mod tests {
                             })
                         }
                     })
-                    .route(web::get().to(HttpResponse::Ok)),
+                    .route(web::get().to(HttpResponse::ok)),
             ),
         )
         .await;
@@ -586,7 +586,7 @@ mod tests {
         let mut srv =
             init_service(App::new().service(web::resource("/test").to(|| async {
                 sleep(Duration::from_millis(100)).await;
-                Ok::<_, Error>(HttpResponse::Ok())
+                Ok::<_, Error>(HttpResponse::ok())
             })))
             .await;
         let req = TestRequest::with_uri("/test").to_request();
@@ -599,7 +599,7 @@ mod tests {
         let mut srv = init_service(
             App::new().service(
                 web::resource(["/test", "/test2"])
-                    .to(|| async { Ok::<_, Error>(HttpResponse::Ok()) }),
+                    .to(|| async { Ok::<_, Error>(HttpResponse::ok()) }),
             ),
         )
         .await;
@@ -615,9 +615,9 @@ mod tests {
     async fn test_default_resource() {
         let mut srv = init_service(
             App::new()
-                .service(web::resource("/test").route(web::get().to(HttpResponse::Ok)))
+                .service(web::resource("/test").route(web::get().to(HttpResponse::ok)))
                 .default_service(|r: ServiceRequest| {
-                    ok(r.into_response(HttpResponse::BadRequest()))
+                    ok(r.into_response(HttpResponse::bad_request()))
                 }),
         )
         .await;
@@ -634,9 +634,9 @@ mod tests {
         let mut srv = init_service(
             App::new().service(
                 web::resource("/test")
-                    .route(web::get().to(HttpResponse::Ok))
+                    .route(web::get().to(HttpResponse::ok))
                     .default_service(|r: ServiceRequest| {
-                        ok(r.into_response(HttpResponse::BadRequest()))
+                        ok(r.into_response(HttpResponse::bad_request()))
                     }),
             ),
         )
@@ -660,17 +660,17 @@ mod tests {
                 .service(
                     web::resource("/test/{p}")
                         .guard(guard::Get())
-                        .to(HttpResponse::Ok),
+                        .to(HttpResponse::ok),
                 )
                 .service(
                     web::resource("/test/{p}")
                         .guard(guard::Put())
-                        .to(HttpResponse::Created),
+                        .to(HttpResponse::created),
                 )
                 .service(
                     web::resource("/test/{p}")
                         .guard(guard::Delete())
-                        .to(HttpResponse::NoContent),
+                        .to(HttpResponse::no_content),
                 ),
         )
         .await;
@@ -714,7 +714,7 @@ mod tests {
                                 assert_eq!(**data2, '*');
                                 let error = std::f64::EPSILON;
                                 assert!((**data3 - 1.0).abs() < error);
-                                HttpResponse::Ok()
+                                HttpResponse::ok()
                             },
                         ),
                 ),
@@ -734,7 +734,7 @@ mod tests {
                     .data(10usize)
                     .default_service(web::to(|data: web::Data<usize>| {
                         assert_eq!(**data, 10);
-                        HttpResponse::Ok()
+                        HttpResponse::ok()
                     })),
             ),
         )

@@ -144,7 +144,7 @@ mod tests {
                     .wrap(Compat::new(logger))
                     .wrap(Compat::new(compress))
                     .service(
-                        web::resource("/test").route(web::get().to(HttpResponse::Ok)),
+                        web::resource("/test").route(web::get().to(HttpResponse::ok)),
                     ),
             ),
         )
@@ -165,7 +165,7 @@ mod tests {
                 web::resource("app/test")
                     .wrap(Compat::new(logger))
                     .wrap(Compat::new(compress))
-                    .route(web::get().to(HttpResponse::Ok)),
+                    .route(web::get().to(HttpResponse::ok)),
             ),
         )
         .await;
@@ -179,7 +179,7 @@ mod tests {
     async fn test_condition_scope_middleware() {
         let srv = |req: ServiceRequest| {
             Box::pin(async move {
-                Ok(req.into_response(HttpResponse::InternalServerError().finish()))
+                Ok(req.into_response(HttpResponse::internal_server_error().finish()))
             })
         };
 

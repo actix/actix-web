@@ -77,7 +77,7 @@ impl Service<ServiceRequest> for FilesService {
 
         if !is_method_valid {
             return Either::Left(ok(req.into_response(
-                actix_web::HttpResponse::MethodNotAllowed()
+                actix_web::HttpResponse::method_not_allowed()
                     .insert_header(header::ContentType(mime::TEXT_PLAIN_UTF_8))
                     .body("Request did not meet this resource's requirements."),
             )));
@@ -101,7 +101,7 @@ impl Service<ServiceRequest> for FilesService {
                     let redirect_to = format!("{}/", req.path());
 
                     return Either::Left(ok(req.into_response(
-                        HttpResponse::Found()
+                        HttpResponse::found()
                             .insert_header((header::LOCATION, redirect_to))
                             .body("")
                             .into_body(),

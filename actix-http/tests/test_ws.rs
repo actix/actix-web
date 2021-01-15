@@ -93,7 +93,7 @@ async fn test_simple() {
             let ws_service = ws_service.clone();
             HttpService::build()
                 .upgrade(fn_factory(move || future::ok::<_, ()>(ws_service.clone())))
-                .finish(|_| future::ok::<_, ()>(Response::NotFound()))
+                .finish(|_| future::ok::<_, ()>(Response::not_found()))
                 .tcp()
         }
     })

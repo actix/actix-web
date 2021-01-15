@@ -25,7 +25,7 @@ async fn main() -> io::Result<()> {
 
                     info!("request body: {:?}", body);
                     Ok::<_, Error>(
-                        Response::Ok()
+                        Response::ok()
                             .insert_header((
                                 "x-head",
                                 HeaderValue::from_static("dummy value!"),
