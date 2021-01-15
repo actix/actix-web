@@ -1,10 +1,14 @@
-//! Http response
-use std::cell::{Ref, RefMut};
-use std::convert::TryFrom;
-use std::future::Future;
-use std::pin::Pin;
-use std::task::{Context, Poll};
-use std::{fmt, str};
+//! HTTP responses.
+
+use std::{
+    cell::{Ref, RefMut},
+    convert::TryInto,
+    fmt,
+    future::Future,
+    pin::Pin,
+    str,
+    task::{Context, Poll},
+};
 
 use bytes::{Bytes, BytesMut};
 use futures_core::Stream;
@@ -14,7 +18,7 @@ use crate::body::{Body, BodyStream, MessageBody, ResponseBody};
 use crate::cookie::{Cookie, CookieJar};
 use crate::error::Error;
 use crate::extensions::Extensions;
-use crate::header::{Header, IntoHeaderValue};
+use crate::header::{IntoHeaderPair, IntoHeaderValue};
 use crate::http::header::{self, HeaderName, HeaderValue};
 use crate::http::{Error as HttpError, HeaderMap, StatusCode};
 use crate::message::{BoxedResponseHead, ConnectionType, ResponseHead};
@@ -341,93 +345,96 @@ impl ResponseBuilder {
         self
     }
 
-    /// Set a header.
+    /// Insert a header, replacing any that were set with an equivalent field name.
     ///
     /// ```rust
-    /// use actix_http::{http, Request, Response, Result};
+    /// # use actix_http::Response;
+    /// use actix_http::http::header::ContentType;
     ///
-    /// fn index(req: Request) -> Result<Response> {
-    ///     Ok(Response::Ok()
-    ///         .set(http::header::IfModifiedSince(
-    ///             "Sun, 07 Nov 1994 08:48:37 GMT".parse()?,
-    ///         ))
-    ///         .finish())
-    /// }
+    /// Response::Ok()
+    ///     .insert_header(ContentType(mime::APPLICATION_JSON))
+    ///     .insert_header(("X-TEST", "value"))
+    ///     .finish();
     /// ```
-    #[doc(hidden)]
-    pub fn set<H: Header>(&mut self, hdr: H) -> &mut Self {
-        if let Some(parts) = parts(&mut self.head, &self.err) {
-            match hdr.try_into() {
-                Ok(value) => {
-                    parts.headers.append(H::name(), value);
-                }
-                Err(e) => self.err = Some(e.into()),
-            }
-        }
-        self
-    }
-
-    /// Append a header to existing headers.
-    ///
-    /// ```rust
-    /// use actix_http::{http, Request, Response};
-    ///
-    /// fn index(req: Request) -> Response {
-    ///     Response::Ok()
-    ///         .header("X-TEST", "value")
-    ///         .header(http::header::CONTENT_TYPE, "application/json")
-    ///         .finish()
-    /// }
-    /// ```
-    pub fn header<K, V>(&mut self, key: K, value: V) -> &mut Self
+    pub fn insert_header<H>(&mut self, header: H) -> &mut Self
     where
-        HeaderName: TryFrom<K>,
-        <HeaderName as TryFrom<K>>::Error: Into<HttpError>,
-        V: IntoHeaderValue,
+        H: IntoHeaderPair,
     {
         if let Some(parts) = parts(&mut self.head, &self.err) {
-            match HeaderName::try_from(key) {
-                Ok(key) => match value.try_into() {
-                    Ok(value) => {
-                        parts.headers.append(key, value);
-                    }
-                    Err(e) => self.err = Some(e.into()),
-                },
+            match header.try_into_header_pair() {
+                Ok((key, value)) => parts.headers.insert(key, value),
                 Err(e) => self.err = Some(e.into()),
             };
         }
+
         self
     }
 
-    /// Set a header.
+    /// Append a header, keeping any that were set with an equivalent field name.
     ///
     /// ```rust
-    /// use actix_http::{http, Request, Response};
+    /// # use actix_http::Response;
+    /// use actix_http::http::header::ContentType;
     ///
-    /// fn index(req: Request) -> Response {
-    ///     Response::Ok()
-    ///         .set_header("X-TEST", "value")
-    ///         .set_header(http::header::CONTENT_TYPE, "application/json")
-    ///         .finish()
-    /// }
+    /// Response::Ok()
+    ///     .append_header(ContentType(mime::APPLICATION_JSON))
+    ///     .append_header(("X-TEST", "value1"))
+    ///     .append_header(("X-TEST", "value2"))
+    ///     .finish();
     /// ```
+    pub fn append_header<H>(&mut self, header: H) -> &mut Self
+    where
+        H: IntoHeaderPair,
+    {
+        if let Some(parts) = parts(&mut self.head, &self.err) {
+            match header.try_into_header_pair() {
+                Ok((key, value)) => parts.headers.append(key, value),
+                Err(e) => self.err = Some(e.into()),
+            };
+        }
+
+        self
+    }
+
+    /// Replaced with [`Self::insert_header()`].
+    #[deprecated = "Replaced with `insert_header((key, value))`."]
     pub fn set_header<K, V>(&mut self, key: K, value: V) -> &mut Self
     where
-        HeaderName: TryFrom<K>,
-        <HeaderName as TryFrom<K>>::Error: Into<HttpError>,
+        K: TryInto<HeaderName>,
+        K::Error: Into<HttpError>,
         V: IntoHeaderValue,
     {
-        if let Some(parts) = parts(&mut self.head, &self.err) {
-            match HeaderName::try_from(key) {
-                Ok(key) => match value.try_into() {
-                    Ok(value) => {
-                        parts.headers.insert(key, value);
-                    }
-                    Err(e) => self.err = Some(e.into()),
-                },
-                Err(e) => self.err = Some(e.into()),
-            };
+        if self.err.is_some() {
+            return self;
         }
+
+        match (key.try_into(), value.try_into_value()) {
+            (Ok(name), Ok(value)) => return self.insert_header((name, value)),
+            (Err(err), _) => self.err = Some(err.into()),
+            (_, Err(err)) => self.err = Some(err.into()),
+        }
+
+        self
+    }
+
+    /// Replaced with [`Self::append_header()`].
+    #[deprecated = "Replaced with `append_header((key, value))`."]
+    pub fn header<K, V>(&mut self, key: K, value: V) -> &mut Self
+    where
+        K: TryInto<HeaderName>,
+        K::Error: Into<HttpError>,
+        V: IntoHeaderValue,
+    {
+        if self.err.is_some() {
+            return self;
+        }
+
+        match (key.try_into(), value.try_into_value()) {
+            (Ok(name), Ok(value)) => return self.append_header((name, value)),
+            (Err(err), _) => self.err = Some(err.into()),
+            (_, Err(err)) => self.err = Some(err.into()),
+        }
+
         self
     }
 
@@ -458,7 +465,12 @@ impl ResponseBuilder {
         if let Some(parts) = parts(&mut self.head, &self.err) {
             parts.set_connection_type(ConnectionType::Upgrade);
         }
-        self.set_header(header::UPGRADE, value)
+
+        if let Ok(value) = value.try_into_value() {
+            self.insert_header((header::UPGRADE, value));
+        }
+
+        self
     }
 
     /// Force close connection, even if it is marked as keep-alive
@@ -473,7 +485,7 @@ impl ResponseBuilder {
     /// Disable chunked transfer encoding for HTTP/1.1 streaming responses.
     #[inline]
     pub fn no_chunking(&mut self, len: u64) -> &mut Self {
-        self.header(header::CONTENT_LENGTH, len);
+        self.insert_header((header::CONTENT_LENGTH, len));
 
         if let Some(parts) = parts(&mut self.head, &self.err) {
             parts.no_chunking(true);
@@ -488,7 +500,7 @@ impl ResponseBuilder {
         V: IntoHeaderValue,
     {
         if let Some(parts) = parts(&mut self.head, &self.err) {
-            match value.try_into() {
+            match value.try_into_value() {
                 Ok(value) => {
                     parts.headers.insert(header::CONTENT_TYPE, value);
                 }
@@ -658,8 +670,9 @@ impl ResponseBuilder {
                 } else {
                     true
                 };
+
                 if !contains {
-                    self.header(header::CONTENT_TYPE, "application/json");
+                    self.insert_header(header::ContentType(mime::APPLICATION_JSON));
                 }
 
                 self.body(Body::from(body))
@@ -848,6 +861,8 @@ impl From<BytesMut> for Response {
 
 #[cfg(test)]
 mod tests {
+    use serde_json::json;
+
     use super::*;
     use crate::body::Body;
     use crate::http::header::{HeaderValue, CONTENT_TYPE, COOKIE, SET_COOKIE};
@@ -855,8 +870,8 @@ mod tests {
     #[test]
     fn test_debug() {
         let resp = Response::Ok()
-            .header(COOKIE, HeaderValue::from_static("cookie1=value1; "))
-            .header(COOKIE, HeaderValue::from_static("cookie2=value2; "))
+            .append_header((COOKIE, HeaderValue::from_static("cookie1=value1; ")))
+            .append_header((COOKIE, HeaderValue::from_static("cookie2=value2; ")))
             .finish();
         let dbg = format!("{:?}", resp);
         assert!(dbg.contains("Response"));
@@ -867,8 +882,8 @@ mod tests {
         use crate::httpmessage::HttpMessage;
 
         let req = crate::test::TestRequest::default()
-            .header(COOKIE, "cookie1=value1")
-            .header(COOKIE, "cookie2=value2")
+            .append_header((COOKIE, "cookie1=value1"))
+            .append_header((COOKIE, "cookie2=value2"))
             .finish();
         let cookies = req.cookies().unwrap();
 
@@ -922,7 +937,7 @@ mod tests {
 
     #[test]
     fn test_basic_builder() {
-        let resp = Response::Ok().header("X-TEST", "value").finish();
+        let resp = Response::Ok().insert_header(("X-TEST", "value")).finish();
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
@@ -963,7 +978,7 @@ mod tests {
     #[test]
     fn test_json_ct() {
         let resp = Response::build(StatusCode::OK)
-            .header(CONTENT_TYPE, "text/json")
+            .insert_header((CONTENT_TYPE, "text/json"))
             .json(vec!["v1", "v2", "v3"]);
         let ct = resp.headers().get(CONTENT_TYPE).unwrap();
         assert_eq!(ct, HeaderValue::from_static("text/json"));
@@ -981,7 +996,7 @@ mod tests {
     #[test]
     fn test_json2_ct() {
         let resp = Response::build(StatusCode::OK)
-            .header(CONTENT_TYPE, "text/json")
+            .insert_header((CONTENT_TYPE, "text/json"))
             .json2(&vec!["v1", "v2", "v3"]);
         let ct = resp.headers().get(CONTENT_TYPE).unwrap();
         assert_eq!(ct, HeaderValue::from_static("text/json"));
@@ -1080,5 +1095,55 @@ mod tests {
 
         let cookie = resp.cookies().next().unwrap();
         assert_eq!((cookie.name(), cookie.value()), ("cookie1", "val100"));
+    }
+
+    #[test]
+    fn response_builder_header_insert_kv() {
+        let mut res = Response::Ok();
+        res.insert_header(("Content-Type", "application/octet-stream"));
+        let res = res.finish();
+
+        assert_eq!(
+            res.headers().get("Content-Type"),
+            Some(&HeaderValue::from_static("application/octet-stream"))
+        );
+    }
+
+    #[test]
+    fn response_builder_header_insert_typed() {
+        let mut res = Response::Ok();
+        res.insert_header(header::ContentType(mime::APPLICATION_OCTET_STREAM));
+        let res = res.finish();
+
+        assert_eq!(
+            res.headers().get("Content-Type"),
+            Some(&HeaderValue::from_static("application/octet-stream"))
+        );
+    }
+
+    #[test]
+    fn response_builder_header_append_kv() {
+        let mut res = Response::Ok();
+        res.append_header(("Content-Type", "application/octet-stream"));
+        res.append_header(("Content-Type", "application/json"));
+        let res = res.finish();
+
+        let headers: Vec<_> = res.headers().get_all("Content-Type").cloned().collect();
+        assert_eq!(headers.len(), 2);
+        assert!(headers.contains(&HeaderValue::from_static("application/octet-stream")));
+        assert!(headers.contains(&HeaderValue::from_static("application/json")));
+    }
+
+    #[test]
+    fn response_builder_header_append_typed() {
+        let mut res = Response::Ok();
+        res.append_header(header::ContentType(mime::APPLICATION_OCTET_STREAM));
+        res.append_header(header::ContentType(mime::APPLICATION_JSON));
+        let res = res.finish();
+
+        let headers: Vec<_> = res.headers().get_all("Content-Type").cloned().collect();
+        assert_eq!(headers.len(), 2);
+        assert!(headers.contains(&HeaderValue::from_static("application/octet-stream")));
+        assert!(headers.contains(&HeaderValue::from_static("application/json")));
     }
 }

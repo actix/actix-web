@@ -1,5 +1,9 @@
-use std::cell::{Ref, RefMut};
-use std::{fmt, net};
+//! HTTP requests.
+
+use std::{
+    cell::{Ref, RefMut},
+    fmt, net,
+};
 
 use http::{header, Method, Uri, Version};
 

@@ -2,7 +2,6 @@
 
 use std::{
     cell::{Ref, RefCell},
-    convert::TryFrom,
     io::{self, Read, Write},
     pin::Pin,
     rc::Rc,
@@ -12,14 +11,17 @@ use std::{
 
 use actix_codec::{AsyncRead, AsyncWrite, ReadBuf};
 use bytes::{Bytes, BytesMut};
-use http::header::{self, HeaderName, HeaderValue};
-use http::{Error as HttpError, Method, Uri, Version};
+use http::{
+    header::{self, HeaderValue},
+    Method, Uri, Version,
+};
 
-use crate::cookie::{Cookie, CookieJar};
-use crate::header::HeaderMap;
-use crate::header::{Header, IntoHeaderValue};
-use crate::payload::Payload;
-use crate::Request;
+use crate::{
+    cookie::{Cookie, CookieJar},
+    header::{HeaderMap, IntoHeaderPair},
+    payload::Payload,
+    Request,
+};
 
 /// Test `Request` builder
 ///
@@ -36,7 +38,7 @@ use crate::Request;
 ///     }
 /// }
 ///
-/// let resp = TestRequest::with_header("content-type", "text/plain")
+/// let resp = TestRequest::default().insert_header("content-type", "text/plain")
 ///     .run(&index)
 ///     .unwrap();
 /// assert_eq!(resp.status(), StatusCode::OK);
@@ -69,76 +71,73 @@ impl Default for TestRequest {
 }
 
 impl TestRequest {
-    /// Create TestRequest and set request uri
+    /// Create a default TestRequest and then set its URI.
     pub fn with_uri(path: &str) -> TestRequest {
         TestRequest::default().uri(path).take()
     }
 
-    /// Create TestRequest and set header
-    pub fn with_hdr<H: Header>(hdr: H) -> TestRequest {
-        TestRequest::default().set(hdr).take()
-    }
-
-    /// Create TestRequest and set header
-    pub fn with_header<K, V>(key: K, value: V) -> TestRequest
-    where
-        HeaderName: TryFrom<K>,
-        <HeaderName as TryFrom<K>>::Error: Into<HttpError>,
-        V: IntoHeaderValue,
-    {
-        TestRequest::default().header(key, value).take()
-    }
-
-    /// Set HTTP version of this request
+    /// Set HTTP version of this request.
     pub fn version(&mut self, ver: Version) -> &mut Self {
         parts(&mut self.0).version = ver;
         self
     }
 
-    /// Set HTTP method of this request
+    /// Set HTTP method of this request.
     pub fn method(&mut self, meth: Method) -> &mut Self {
         parts(&mut self.0).method = meth;
         self
     }
 
-    /// Set HTTP Uri of this request
+    /// Set URI of this request.
+    ///
+    /// # Panics
+    /// If provided URI is invalid.
     pub fn uri(&mut self, path: &str) -> &mut Self {
         parts(&mut self.0).uri = Uri::from_str(path).unwrap();
         self
     }
 
-    /// Set a header
-    pub fn set<H: Header>(&mut self, hdr: H) -> &mut Self {
-        if let Ok(value) = hdr.try_into() {
-            parts(&mut self.0).headers.append(H::name(), value);
-            return self;
-        }
-        panic!("Can not set header");
-    }
-
-    /// Set a header
-    pub fn header<K, V>(&mut self, key: K, value: V) -> &mut Self
+    /// Insert a header, replacing any that were set with an equivalent field name.
+    pub fn insert_header<H>(&mut self, header: H) -> &mut Self
     where
-        HeaderName: TryFrom<K>,
-        <HeaderName as TryFrom<K>>::Error: Into<HttpError>,
-        V: IntoHeaderValue,
+        H: IntoHeaderPair,
     {
-        if let Ok(key) = HeaderName::try_from(key) {
-            if let Ok(value) = value.try_into() {
-                parts(&mut self.0).headers.append(key, value);
-                return self;
+        match header.try_into_header_pair() {
+            Ok((key, value)) => {
+                parts(&mut self.0).headers.insert(key, value);
+            }
+            Err(err) => {
+                panic!("Error inserting test header: {}.", err.into());
             }
         }
-        panic!("Can not create header");
+
+        self
     }
 
-    /// Set cookie for this request
+    /// Append a header, keeping any that were set with an equivalent field name.
+    pub fn append_header<H>(&mut self, header: H) -> &mut Self
+    where
+        H: IntoHeaderPair,
+    {
+        match header.try_into_header_pair() {
+            Ok((key, value)) => {
+                parts(&mut self.0).headers.append(key, value);
+            }
+            Err(err) => {
+                panic!("Error inserting test header: {}.", err.into());
+            }
+        }
+
+        self
+    }
+
+    /// Set cookie for this request.
     pub fn cookie<'a>(&mut self, cookie: Cookie<'a>) -> &mut Self {
         parts(&mut self.0).cookies.add(cookie.into_owned());
         self
     }
 
-    /// Set request payload
+    /// Set request payload.
     pub fn set_payload<B: Into<Bytes>>(&mut self, data: B) -> &mut Self {
         let mut payload = crate::h1::Payload::empty();
         payload.unread_data(data.into());
@@ -150,7 +149,7 @@ impl TestRequest {
         TestRequest(self.0.take())
     }
 
-    /// Complete request creation and generate `Request` instance
+    /// Complete request creation and generate `Request` instance.
     pub fn finish(&mut self) -> Request {
         let inner = self.0.take().expect("cannot reuse test request builder");
 

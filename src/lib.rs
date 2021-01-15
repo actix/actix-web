@@ -211,7 +211,7 @@ pub mod client {
     //!
     //!    // Create request builder and send request
     //!    let response = client.get("http://www.rust-lang.org")
-    //!       .header("User-Agent", "actix-web/3.0")
+    //!       .insert_header(("User-Agent", "actix-web/3.0"))
     //!       .send()     // <- Send request
     //!       .await;     // <- Wait for response
     //!

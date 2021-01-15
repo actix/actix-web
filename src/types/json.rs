@@ -427,7 +427,7 @@ mod tests {
     use crate::{
         error::InternalError,
         http::{
-            header::{self, HeaderValue, CONTENT_LENGTH, CONTENT_TYPE},
+            header::{self, CONTENT_LENGTH, CONTENT_TYPE},
             StatusCode,
         },
         test::{load_stream, TestRequest},
@@ -469,14 +469,14 @@ mod tests {
     #[actix_rt::test]
     async fn test_custom_error_responder() {
         let (req, mut pl) = TestRequest::default()
-            .header(
+            .insert_header((
                 header::CONTENT_TYPE,
                 header::HeaderValue::from_static("application/json"),
-            )
-            .header(
+            ))
+            .insert_header((
                 header::CONTENT_LENGTH,
                 header::HeaderValue::from_static("16"),
-            )
+            ))
             .set_payload(Bytes::from_static(b"{\"name\": \"test\"}"))
             .app_data(JsonConfig::default().limit(10).error_handler(|err, _| {
                 let msg = MyObject {
@@ -500,14 +500,14 @@ mod tests {
     #[actix_rt::test]
     async fn test_extract() {
         let (req, mut pl) = TestRequest::default()
-            .header(
+            .insert_header((
                 header::CONTENT_TYPE,
                 header::HeaderValue::from_static("application/json"),
-            )
-            .header(
+            ))
+            .insert_header((
                 header::CONTENT_LENGTH,
                 header::HeaderValue::from_static("16"),
-            )
+            ))
             .set_payload(Bytes::from_static(b"{\"name\": \"test\"}"))
             .to_http_parts();
 
@@ -521,14 +521,14 @@ mod tests {
         );
 
         let (req, mut pl) = TestRequest::default()
-            .header(
+            .insert_header((
                 header::CONTENT_TYPE,
                 header::HeaderValue::from_static("application/json"),
-            )
-            .header(
+            ))
+            .insert_header((
                 header::CONTENT_LENGTH,
                 header::HeaderValue::from_static("16"),
-            )
+            ))
             .set_payload(Bytes::from_static(b"{\"name\": \"test\"}"))
             .app_data(JsonConfig::default().limit(10))
             .to_http_parts();
@@ -538,14 +538,14 @@ mod tests {
             .contains("Json payload size is bigger than allowed"));
 
         let (req, mut pl) = TestRequest::default()
-            .header(
+            .insert_header((
                 header::CONTENT_TYPE,
                 header::HeaderValue::from_static("application/json"),
-            )
-            .header(
+            ))
+            .insert_header((
                 header::CONTENT_LENGTH,
                 header::HeaderValue::from_static("16"),
-            )
+            ))
             .set_payload(Bytes::from_static(b"{\"name\": \"test\"}"))
             .app_data(
                 JsonConfig::default()
@@ -564,23 +564,23 @@ mod tests {
         assert!(json_eq(json.err().unwrap(), JsonPayloadError::ContentType));
 
         let (req, mut pl) = TestRequest::default()
-            .header(
+            .insert_header((
                 header::CONTENT_TYPE,
                 header::HeaderValue::from_static("application/text"),
-            )
+            ))
             .to_http_parts();
         let json = JsonBody::<MyObject>::new(&req, &mut pl, None).await;
         assert!(json_eq(json.err().unwrap(), JsonPayloadError::ContentType));
 
         let (req, mut pl) = TestRequest::default()
-            .header(
+            .insert_header((
                 header::CONTENT_TYPE,
                 header::HeaderValue::from_static("application/json"),
-            )
-            .header(
+            ))
+            .insert_header((
                 header::CONTENT_LENGTH,
                 header::HeaderValue::from_static("10000"),
-            )
+            ))
             .to_http_parts();
 
         let json = JsonBody::<MyObject>::new(&req, &mut pl, None)
@@ -589,14 +589,14 @@ mod tests {
         assert!(json_eq(json.err().unwrap(), JsonPayloadError::Overflow));
 
         let (req, mut pl) = TestRequest::default()
-            .header(
+            .insert_header((
                 header::CONTENT_TYPE,
                 header::HeaderValue::from_static("application/json"),
-            )
-            .header(
+            ))
+            .insert_header((
                 header::CONTENT_LENGTH,
                 header::HeaderValue::from_static("16"),
-            )
+            ))
             .set_payload(Bytes::from_static(b"{\"name\": \"test\"}"))
             .to_http_parts();
 
@@ -611,17 +611,18 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_with_json_and_bad_content_type() {
-        let (req, mut pl) = TestRequest::with_header(
-            header::CONTENT_TYPE,
-            header::HeaderValue::from_static("text/plain"),
-        )
-        .header(
-            header::CONTENT_LENGTH,
-            header::HeaderValue::from_static("16"),
-        )
-        .set_payload(Bytes::from_static(b"{\"name\": \"test\"}"))
-        .app_data(JsonConfig::default().limit(4096))
-        .to_http_parts();
+        let (req, mut pl) = TestRequest::default()
+            .insert_header((
+                header::CONTENT_TYPE,
+                header::HeaderValue::from_static("text/plain"),
+            ))
+            .insert_header((
+                header::CONTENT_LENGTH,
+                header::HeaderValue::from_static("16"),
+            ))
+            .set_payload(Bytes::from_static(b"{\"name\": \"test\"}"))
+            .app_data(JsonConfig::default().limit(4096))
+            .to_http_parts();
 
         let s = Json::<MyObject>::from_request(&req, &mut pl).await;
         assert!(s.is_err())
@@ -629,19 +630,20 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_with_json_and_good_custom_content_type() {
-        let (req, mut pl) = TestRequest::with_header(
-            header::CONTENT_TYPE,
-            header::HeaderValue::from_static("text/plain"),
-        )
-        .header(
-            header::CONTENT_LENGTH,
-            header::HeaderValue::from_static("16"),
-        )
-        .set_payload(Bytes::from_static(b"{\"name\": \"test\"}"))
-        .app_data(JsonConfig::default().content_type(|mime: mime::Mime| {
-            mime.type_() == mime::TEXT && mime.subtype() == mime::PLAIN
-        }))
-        .to_http_parts();
+        let (req, mut pl) = TestRequest::default()
+            .insert_header((
+                header::CONTENT_TYPE,
+                header::HeaderValue::from_static("text/plain"),
+            ))
+            .insert_header((
+                header::CONTENT_LENGTH,
+                header::HeaderValue::from_static("16"),
+            ))
+            .set_payload(Bytes::from_static(b"{\"name\": \"test\"}"))
+            .app_data(JsonConfig::default().content_type(|mime: mime::Mime| {
+                mime.type_() == mime::TEXT && mime.subtype() == mime::PLAIN
+            }))
+            .to_http_parts();
 
         let s = Json::<MyObject>::from_request(&req, &mut pl).await;
         assert!(s.is_ok())
@@ -649,19 +651,20 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_with_json_and_bad_custom_content_type() {
-        let (req, mut pl) = TestRequest::with_header(
-            header::CONTENT_TYPE,
-            header::HeaderValue::from_static("text/html"),
-        )
-        .header(
-            header::CONTENT_LENGTH,
-            header::HeaderValue::from_static("16"),
-        )
-        .set_payload(Bytes::from_static(b"{\"name\": \"test\"}"))
-        .app_data(JsonConfig::default().content_type(|mime: mime::Mime| {
-            mime.type_() == mime::TEXT && mime.subtype() == mime::PLAIN
-        }))
-        .to_http_parts();
+        let (req, mut pl) = TestRequest::default()
+            .insert_header((
+                header::CONTENT_TYPE,
+                header::HeaderValue::from_static("text/html"),
+            ))
+            .insert_header((
+                header::CONTENT_LENGTH,
+                header::HeaderValue::from_static("16"),
+            ))
+            .set_payload(Bytes::from_static(b"{\"name\": \"test\"}"))
+            .app_data(JsonConfig::default().content_type(|mime: mime::Mime| {
+                mime.type_() == mime::TEXT && mime.subtype() == mime::PLAIN
+            }))
+            .to_http_parts();
 
         let s = Json::<MyObject>::from_request(&req, &mut pl).await;
         assert!(s.is_err())
@@ -670,8 +673,8 @@ mod tests {
     #[actix_rt::test]
     async fn test_with_config_in_data_wrapper() {
         let (req, mut pl) = TestRequest::default()
-            .header(CONTENT_TYPE, HeaderValue::from_static("application/json"))
-            .header(CONTENT_LENGTH, HeaderValue::from_static("16"))
+            .insert_header((CONTENT_TYPE, mime::APPLICATION_JSON))
+            .insert_header((CONTENT_LENGTH, 16))
             .set_payload(Bytes::from_static(b"{\"name\": \"test\"}"))
             .app_data(web::Data::new(JsonConfig::default().limit(10)))
             .to_http_parts();

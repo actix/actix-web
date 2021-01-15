@@ -48,7 +48,7 @@ impl From<SystemTime> for HttpDate {
 impl IntoHeaderValue for HttpDate {
     type Error = InvalidHeaderValue;
 
-    fn try_into(self) -> Result<HeaderValue, Self::Error> {
+    fn try_into_value(self) -> Result<HeaderValue, Self::Error> {
         let mut wrt = BytesMut::with_capacity(29).writer();
         write!(
             wrt,

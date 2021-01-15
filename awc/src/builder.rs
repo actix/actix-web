@@ -133,7 +133,7 @@ impl ClientBuilder {
         V::Error: fmt::Debug,
     {
         match HeaderName::try_from(key) {
-            Ok(key) => match value.try_into() {
+            Ok(key) => match value.try_into_value() {
                 Ok(value) => {
                     self.headers.append(key, value);
                 }

@@ -52,7 +52,7 @@ async fn test_simple() {
             .service(web::resource("/").route(web::to(|| HttpResponse::Ok().body(STR))))
     });
 
-    let request = srv.get("/").header("x-test", "111").send();
+    let request = srv.get("/").insert_header(("x-test", "111")).send();
     let mut response = request.await.unwrap();
     assert!(response.status().is_success());
 
@@ -82,7 +82,7 @@ async fn test_json() {
 
     let request = srv
         .get("/")
-        .header("x-test", "111")
+        .insert_header(("x-test", "111"))
         .send_json(&"TEST".to_string());
     let response = request.await.unwrap();
     assert!(response.status().is_success());
@@ -99,7 +99,10 @@ async fn test_form() {
     let mut data = HashMap::new();
     let _ = data.insert("key".to_string(), "TEST".to_string());
 
-    let request = srv.get("/").header("x-test", "111").send_form(&data);
+    let request = srv
+        .get("/")
+        .append_header(("x-test", "111"))
+        .send_form(&data);
     let response = request.await.unwrap();
     assert!(response.status().is_success());
 }
@@ -438,7 +441,7 @@ async fn test_client_gzip_encoding() {
             let data = e.finish().unwrap();
 
             HttpResponse::Ok()
-                .header("content-encoding", "gzip")
+                .insert_header(("content-encoding", "gzip"))
                 .body(data)
         })))
     });
@@ -461,7 +464,7 @@ async fn test_client_gzip_encoding_large() {
             let data = e.finish().unwrap();
 
             HttpResponse::Ok()
-                .header("content-encoding", "gzip")
+                .insert_header(("content-encoding", "gzip"))
                 .body(data)
         })))
     });
@@ -489,7 +492,7 @@ async fn test_client_gzip_encoding_large_random() {
             e.write_all(&data).unwrap();
             let data = e.finish().unwrap();
             HttpResponse::Ok()
-                .header("content-encoding", "gzip")
+                .insert_header(("content-encoding", "gzip"))
                 .body(data)
         })))
     });
@@ -511,7 +514,7 @@ async fn test_client_brotli_encoding() {
             e.write_all(&data).unwrap();
             let data = e.finish().unwrap();
             HttpResponse::Ok()
-                .header("content-encoding", "br")
+                .insert_header(("content-encoding", "br"))
                 .body(data)
         })))
     });
@@ -539,7 +542,7 @@ async fn test_client_brotli_encoding_large_random() {
             e.write_all(&data).unwrap();
             let data = e.finish().unwrap();
             HttpResponse::Ok()
-                .header("content-encoding", "br")
+                .insert_header(("content-encoding", "br"))
                 .body(data)
         })))
     });

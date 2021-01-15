@@ -19,7 +19,10 @@ async fn main() -> io::Result<()> {
                 .finish(|_req| {
                     info!("{:?}", _req);
                     let mut res = Response::Ok();
-                    res.header("x-head", HeaderValue::from_static("dummy value!"));
+                    res.insert_header((
+                        "x-head",
+                        HeaderValue::from_static("dummy value!"),
+                    ));
                     future::ok::<_, ()>(res.body("Hello world!"))
                 })
                 .tcp()

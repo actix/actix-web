@@ -347,25 +347,21 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_option() {
-        let (req, mut pl) = TestRequest::with_header(
-            header::CONTENT_TYPE,
-            "application/x-www-form-urlencoded",
-        )
-        .data(FormConfig::default().limit(4096))
-        .to_http_parts();
+        let (req, mut pl) = TestRequest::default()
+            .insert_header((header::CONTENT_TYPE, "application/x-www-form-urlencoded"))
+            .data(FormConfig::default().limit(4096))
+            .to_http_parts();
 
         let r = Option::<Form<Info>>::from_request(&req, &mut pl)
             .await
             .unwrap();
         assert_eq!(r, None);
 
-        let (req, mut pl) = TestRequest::with_header(
-            header::CONTENT_TYPE,
-            "application/x-www-form-urlencoded",
-        )
-        .header(header::CONTENT_LENGTH, "9")
-        .set_payload(Bytes::from_static(b"hello=world"))
-        .to_http_parts();
+        let (req, mut pl) = TestRequest::default()
+            .insert_header((header::CONTENT_TYPE, "application/x-www-form-urlencoded"))
+            .insert_header((header::CONTENT_LENGTH, "9"))
+            .set_payload(Bytes::from_static(b"hello=world"))
+            .to_http_parts();
 
         let r = Option::<Form<Info>>::from_request(&req, &mut pl)
             .await
@@ -377,13 +373,11 @@ mod tests {
             }))
         );
 
-        let (req, mut pl) = TestRequest::with_header(
-            header::CONTENT_TYPE,
-            "application/x-www-form-urlencoded",
-        )
-        .header(header::CONTENT_LENGTH, "9")
-        .set_payload(Bytes::from_static(b"bye=world"))
-        .to_http_parts();
+        let (req, mut pl) = TestRequest::default()
+            .insert_header((header::CONTENT_TYPE, "application/x-www-form-urlencoded"))
+            .insert_header((header::CONTENT_LENGTH, "9"))
+            .set_payload(Bytes::from_static(b"bye=world"))
+            .to_http_parts();
 
         let r = Option::<Form<Info>>::from_request(&req, &mut pl)
             .await
@@ -393,13 +387,11 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_result() {
-        let (req, mut pl) = TestRequest::with_header(
-            header::CONTENT_TYPE,
-            "application/x-www-form-urlencoded",
-        )
-        .header(header::CONTENT_LENGTH, "11")
-        .set_payload(Bytes::from_static(b"hello=world"))
-        .to_http_parts();
+        let (req, mut pl) = TestRequest::default()
+            .insert_header((header::CONTENT_TYPE, "application/x-www-form-urlencoded"))
+            .insert_header((header::CONTENT_LENGTH, "11"))
+            .set_payload(Bytes::from_static(b"hello=world"))
+            .to_http_parts();
 
         let r = Result::<Form<Info>, Error>::from_request(&req, &mut pl)
             .await
@@ -412,13 +404,11 @@ mod tests {
             })
         );
 
-        let (req, mut pl) = TestRequest::with_header(
-            header::CONTENT_TYPE,
-            "application/x-www-form-urlencoded",
-        )
-        .header(header::CONTENT_LENGTH, "9")
-        .set_payload(Bytes::from_static(b"bye=world"))
-        .to_http_parts();
+        let (req, mut pl) = TestRequest::default()
+            .insert_header((header::CONTENT_TYPE, "application/x-www-form-urlencoded"))
+            .insert_header((header::CONTENT_LENGTH, 9))
+            .set_payload(Bytes::from_static(b"bye=world"))
+            .to_http_parts();
 
         let r = Result::<Form<Info>, Error>::from_request(&req, &mut pl)
             .await

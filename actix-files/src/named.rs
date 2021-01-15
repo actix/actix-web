@@ -282,16 +282,16 @@ impl NamedFile {
 
             if self.flags.contains(Flags::PREFER_UTF8) {
                 let ct = equiv_utf8_text(self.content_type.clone());
-                res.header(header::CONTENT_TYPE, ct.to_string());
+                res.insert_header((header::CONTENT_TYPE, ct.to_string()));
             } else {
-                res.header(header::CONTENT_TYPE, self.content_type.to_string());
+                res.insert_header((header::CONTENT_TYPE, self.content_type.to_string()));
             }
 
             if self.flags.contains(Flags::CONTENT_DISPOSITION) {
-                res.header(
+                res.insert_header((
                     header::CONTENT_DISPOSITION,
                     self.content_disposition.to_string(),
-                );
+                ));
             }
 
             if let Some(current_encoding) = self.encoding {
@@ -361,16 +361,16 @@ impl NamedFile {
 
         if self.flags.contains(Flags::PREFER_UTF8) {
             let ct = equiv_utf8_text(self.content_type.clone());
-            resp.header(header::CONTENT_TYPE, ct.to_string());
+            resp.insert_header((header::CONTENT_TYPE, ct.to_string()));
         } else {
-            resp.header(header::CONTENT_TYPE, self.content_type.to_string());
+            resp.insert_header((header::CONTENT_TYPE, self.content_type.to_string()));
         }
 
         if self.flags.contains(Flags::CONTENT_DISPOSITION) {
-            resp.header(
+            resp.insert_header((
                 header::CONTENT_DISPOSITION,
                 self.content_disposition.to_string(),
-            );
+            ));
         }
 
         // default compressing
@@ -379,14 +379,14 @@ impl NamedFile {
         }
 
         if let Some(lm) = last_modified {
-            resp.header(header::LAST_MODIFIED, lm.to_string());
+            resp.insert_header((header::LAST_MODIFIED, lm.to_string()));
         }
 
         if let Some(etag) = etag {
-            resp.header(header::ETAG, etag.to_string());
+            resp.insert_header((header::ETAG, etag.to_string()));
         }
 
-        resp.header(header::ACCEPT_RANGES, "bytes");
+        resp.insert_header((header::ACCEPT_RANGES, "bytes"));
 
         let mut length = self.md.len();
         let mut offset = 0;
@@ -399,7 +399,7 @@ impl NamedFile {
                     offset = ranges[0].start;
 
                     resp.encoding(ContentEncoding::Identity);
-                    resp.header(
+                    resp.insert_header((
                         header::CONTENT_RANGE,
                         format!(
                             "bytes {}-{}/{}",
@@ -407,9 +407,12 @@ impl NamedFile {
                             offset + length - 1,
                             self.md.len()
                         ),
-                    );
+                    ));
                 } else {
-                    resp.header(header::CONTENT_RANGE, format!("bytes */{}", length));
+                    resp.insert_header((
+                        header::CONTENT_RANGE,
+                        format!("bytes */{}", length),
+                    ));
                     return resp.status(StatusCode::RANGE_NOT_SATISFIABLE).finish();
                 };
             } else {
