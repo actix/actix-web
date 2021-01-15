@@ -142,7 +142,7 @@ where
     }
 }
 
-/// Service to convert `Request` to a `ServiceRequest<S>`
+/// Service that takes a [`Request`] and delegates to a service that take a [`ServiceRequest`].
 pub struct AppInitService<T, B>
 where
     T: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
@@ -152,7 +152,7 @@ where
     app_state: Rc<AppInitServiceState>,
 }
 
-// a collection of AppInitService state that shared between HttpRequests.
+/// A collection of [`AppInitService`] state that shared across `HttpRequest`s.
 pub(crate) struct AppInitServiceState {
     rmap: Rc<ResourceMap>,
     config: AppConfig,

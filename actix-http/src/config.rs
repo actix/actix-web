@@ -9,7 +9,7 @@ use bytes::BytesMut;
 use futures_util::{future, FutureExt};
 use time::OffsetDateTime;
 
-// "Sun, 06 Nov 1994 08:49:37 GMT".len()
+/// "Sun, 06 Nov 1994 08:49:37 GMT".len()
 const DATE_VALUE_LENGTH: usize = 29;
 
 #[derive(Debug, PartialEq, Clone, Copy)]

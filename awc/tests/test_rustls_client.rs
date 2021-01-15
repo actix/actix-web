@@ -50,6 +50,7 @@ mod danger {
     }
 }
 
+// TODO: why is test ignored
 // #[actix_rt::test]
 async fn _test_connection_reuse_h2() {
     let num = Arc::new(AtomicUsize::new(0));

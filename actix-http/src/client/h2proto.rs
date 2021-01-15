@@ -171,7 +171,7 @@ async fn send_body<B: MessageBody>(
     }
 }
 
-// release SendRequest object
+/// release SendRequest object
 fn release<T: AsyncRead + AsyncWrite + Unpin + 'static>(
     io: SendRequest<Bytes>,
     pool: Option<Acquired<T>>,

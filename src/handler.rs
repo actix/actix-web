@@ -101,7 +101,7 @@ where
     }
 }
 
-// HandlerService is both it's ServiceFactory and Service Type.
+/// HandlerService is both it's ServiceFactory and Service Type.
 impl<F, T, R> Service<ServiceRequest> for HandlerService<F, T, R>
 where
     F: Handler<T, R>,

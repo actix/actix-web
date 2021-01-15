@@ -557,6 +557,7 @@ async fn test_client_brotli_encoding_large_random() {
     assert_eq!(bytes, Bytes::from(data));
 }
 
+// TODO: why is test ignored
 // #[actix_rt::test]
 // async fn test_client_deflate_encoding() {
 //     let srv = test::TestServer::start(|app| {
@@ -585,6 +586,7 @@ async fn test_client_brotli_encoding_large_random() {
 //     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
 // }
 
+// TODO: why is test ignored
 // #[actix_rt::test]
 // async fn test_client_deflate_encoding_large_random() {
 //     let data = rand::thread_rng()
@@ -618,6 +620,7 @@ async fn test_client_brotli_encoding_large_random() {
 //     assert_eq!(bytes, Bytes::from(data));
 // }
 
+// TODO: why is test ignored
 // #[actix_rt::test]
 // async fn test_client_streaming_explicit() {
 //     let srv = test::TestServer::start(|app| {
@@ -645,6 +648,7 @@ async fn test_client_brotli_encoding_large_random() {
 //     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
 // }
 
+// TODO: why is test ignored
 // #[actix_rt::test]
 // async fn test_body_streaming_implicit() {
 //     let srv = test::TestServer::start(|app| {
@@ -734,6 +738,7 @@ async fn test_client_cookie_handling() {
     assert_eq!(c2, cookie2);
 }
 
+// TODO: why is test ignored
 // #[actix_rt::test]
 // fn client_read_until_eof() {
 //     let addr = test::TestServer::unused_addr();

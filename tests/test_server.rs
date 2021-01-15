@@ -800,6 +800,7 @@ async fn test_reading_deflate_encoding_large_random_rustls() {
     assert_eq!(bytes, Bytes::from(data));
 }
 
+// TODO: why is test ignored
 // #[test]
 // fn test_server_cookies() {
 //     use actix_web::http;
@@ -889,28 +890,3 @@ async fn test_normalize() {
     let response = srv.get("/one/").send().await.unwrap();
     assert!(response.status().is_success());
 }
-
-// #[cfg(feature = "openssl")]
-// #[actix_rt::test]
-// async fn test_ssl_handshake_timeout() {
-//     use open_ssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
-//     use std::net;
-
-//     // load ssl keys
-//     let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
-//     builder
-//         .set_private_key_file("tests/key.pem", SslFiletype::PEM)
-//         .unwrap();
-//     builder
-//         .set_certificate_chain_file("tests/cert.pem")
-//         .unwrap();
-
-//     let srv = test::start_with(test::config().openssl(builder.build()), || {
-//         App::new().service(web::resource("/").route(web::to(|| HttpResponse::Ok())))
-//     });
-
-//     let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
-//     let mut data = String::new();
-//     let _ = stream.read_to_string(&mut data);
-//     assert!(data.is_empty());
-// }
