@@ -231,8 +231,10 @@ impl ServiceRequest {
         self.payload = payload;
     }
 
-    #[doc(hidden)]
-    /// Add app data container to request's resolution set.
+    /// Add data container to request's resolution set.
+    ///
+    /// In middleware, prefer [`extensions_mut`](ServiceRequest::extensions_mut) for request-local
+    /// data since it is assumed that the same app data is presented for every request.
     pub fn add_data_container(&mut self, extensions: Rc<Extensions>) {
         Rc::get_mut(&mut (self.req).inner)
             .unwrap()
