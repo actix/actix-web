@@ -155,10 +155,10 @@ where
     ///
     /// Data of different types from parent contexts will still be accessible.
     pub fn app_data<U: 'static>(mut self, data: U) -> Self {
-        if self.app_data.is_none() {
-            self.app_data = Some(Extensions::new());
-        }
-        self.app_data.as_mut().unwrap().insert(data);
+        self.app_data
+            .get_or_insert_with(Extensions::new)
+            .insert(data);
+
         self
     }
 
@@ -200,18 +200,9 @@ where
         self.services.extend(cfg.services);
         self.external.extend(cfg.external);
 
-        if !cfg.data.is_empty() {
-            let mut data = self.app_data.unwrap_or_else(Extensions::new);
-
-            for value in cfg.data.iter() {
-                value.create(&mut data);
-            }
-
-            self.app_data = Some(data);
-        }
         self.app_data
             .get_or_insert_with(Extensions::new)
-            .extend(cfg.extensions);
+            .extend(cfg.app_data);
         self
     }
 
@@ -430,11 +421,6 @@ where
         // external resources
         for mut rdef in std::mem::take(&mut self.external) {
             rmap.add(&mut rdef, None);
-        }
-
-        // custom app data storage
-        if let Some(ref mut ext) = self.app_data {
-            config.set_service_data(ext);
         }
 
         // complete scope pipeline creation
