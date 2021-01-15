@@ -173,8 +173,8 @@ async fn test_h2_headers() {
         HttpService::build().h2(move |_| {
             let mut builder = Response::Ok();
             for idx in 0..90 {
-                builder.header(
-                    format!("X-TEST-{}", idx).as_str(),
+                builder.insert_header(
+                    (format!("X-TEST-{}", idx).as_str(),
                     "TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST \
                         TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST \
                         TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST \
@@ -188,7 +188,7 @@ async fn test_h2_headers() {
                         TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST \
                         TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST \
                         TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST ",
-                );
+                ));
             }
             ok::<_, ()>(builder.body(data.clone()))
         })
@@ -341,7 +341,7 @@ async fn test_h2_body_chunked_explicit() {
                 let body = once(ok::<_, Error>(Bytes::from_static(STR.as_ref())));
                 ok::<_, ()>(
                     Response::Ok()
-                        .header(header::TRANSFER_ENCODING, "chunked")
+                        .insert_header((header::TRANSFER_ENCODING, "chunked"))
                         .streaming(body),
                 )
             })
@@ -369,7 +369,7 @@ async fn test_h2_response_http_error_handling() {
                 let broken_header = Bytes::from_static(b"\0\0\0");
                 ok::<_, ()>(
                     Response::Ok()
-                        .header(header::CONTENT_TYPE, broken_header)
+                        .insert_header((header::CONTENT_TYPE, broken_header))
                         .body(STR),
                 )
             }))
@@ -408,7 +408,9 @@ async fn test_h2_service_error() {
 async fn test_h2_on_connect() {
     let srv = test_server(move || {
         HttpService::build()
-            .on_connect_ext(|_, data| data.insert(20isize))
+            .on_connect_ext(|_, data| {
+                data.insert(20isize);
+            })
             .h2(|req: Request| {
                 assert!(req.extensions().contains::<isize>());
                 ok::<_, ()>(Response::Ok().finish())

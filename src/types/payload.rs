@@ -364,14 +364,13 @@ mod tests {
         let cfg = PayloadConfig::default().mimetype(mime::APPLICATION_JSON);
         assert!(cfg.check_mimetype(&req).is_err());
 
-        let req = TestRequest::with_header(
-            header::CONTENT_TYPE,
-            "application/x-www-form-urlencoded",
-        )
-        .to_http_request();
+        let req = TestRequest::default()
+            .insert_header((header::CONTENT_TYPE, "application/x-www-form-urlencoded"))
+            .to_http_request();
         assert!(cfg.check_mimetype(&req).is_err());
 
-        let req = TestRequest::with_header(header::CONTENT_TYPE, "application/json")
+        let req = TestRequest::default()
+            .insert_header((header::CONTENT_TYPE, "application/json"))
             .to_http_request();
         assert!(cfg.check_mimetype(&req).is_ok());
     }
@@ -432,25 +431,25 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 
         let req = TestRequest::with_uri("/bytes-app-data")
-            .header(header::CONTENT_TYPE, mime::APPLICATION_JSON)
+            .insert_header(header::ContentType(mime::APPLICATION_JSON))
             .to_request();
         let resp = call_service(&mut srv, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
 
         let req = TestRequest::with_uri("/bytes-data")
-            .header(header::CONTENT_TYPE, mime::APPLICATION_JSON)
+            .insert_header(header::ContentType(mime::APPLICATION_JSON))
             .to_request();
         let resp = call_service(&mut srv, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
 
         let req = TestRequest::with_uri("/string-app-data")
-            .header(header::CONTENT_TYPE, mime::APPLICATION_JSON)
+            .insert_header(header::ContentType(mime::APPLICATION_JSON))
             .to_request();
         let resp = call_service(&mut srv, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
 
         let req = TestRequest::with_uri("/string-data")
-            .header(header::CONTENT_TYPE, mime::APPLICATION_JSON)
+            .insert_header(header::ContentType(mime::APPLICATION_JSON))
             .to_request();
         let resp = call_service(&mut srv, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
@@ -458,7 +457,8 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_bytes() {
-        let (req, mut pl) = TestRequest::with_header(header::CONTENT_LENGTH, "11")
+        let (req, mut pl) = TestRequest::default()
+            .insert_header((header::CONTENT_LENGTH, "11"))
             .set_payload(Bytes::from_static(b"hello=world"))
             .to_http_parts();
 
@@ -468,7 +468,8 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_string() {
-        let (req, mut pl) = TestRequest::with_header(header::CONTENT_LENGTH, "11")
+        let (req, mut pl) = TestRequest::default()
+            .insert_header((header::CONTENT_LENGTH, "11"))
             .set_payload(Bytes::from_static(b"hello=world"))
             .to_http_parts();
 
@@ -478,7 +479,8 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_message_body() {
-        let (req, mut pl) = TestRequest::with_header(header::CONTENT_LENGTH, "xxxx")
+        let (req, mut pl) = TestRequest::default()
+            .insert_header((header::CONTENT_LENGTH, "xxxx"))
             .to_srv_request()
             .into_parts();
         let res = HttpMessageBody::new(&req, &mut pl).await;
@@ -487,7 +489,8 @@ mod tests {
             _ => unreachable!("error"),
         }
 
-        let (req, mut pl) = TestRequest::with_header(header::CONTENT_LENGTH, "1000000")
+        let (req, mut pl) = TestRequest::default()
+            .insert_header((header::CONTENT_LENGTH, "1000000"))
             .to_srv_request()
             .into_parts();
         let res = HttpMessageBody::new(&req, &mut pl).await;

@@ -45,7 +45,7 @@ impl TestResponse {
 
     /// Set a header
     pub fn set<H: Header>(mut self, hdr: H) -> Self {
-        if let Ok(value) = hdr.try_into() {
+        if let Ok(value) = hdr.try_into_value() {
             self.head.headers.append(H::name(), value);
             return self;
         }
@@ -60,7 +60,7 @@ impl TestResponse {
         V: IntoHeaderValue,
     {
         if let Ok(key) = HeaderName::try_from(key) {
-            if let Ok(value) = value.try_into() {
+            if let Ok(value) = value.try_into_value() {
                 self.head.headers.append(key, value);
                 return self;
             }

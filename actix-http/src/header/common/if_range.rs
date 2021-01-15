@@ -35,31 +35,34 @@ use crate::httpmessage::HttpMessage;
 ///
 /// # Examples
 ///
-/// ```rust
+/// ```
 /// use actix_http::Response;
 /// use actix_http::http::header::{EntityTag, IfRange};
 ///
 /// let mut builder = Response::Ok();
-/// builder.set(IfRange::EntityTag(EntityTag::new(
-///     false,
-///     "xyzzy".to_owned(),
-/// )));
+/// builder.insert_header(
+///     IfRange::EntityTag(
+///         EntityTag::new(false, "abc".to_owned())
+///     )
+/// );
 /// ```
 ///
-/// ```rust
-/// use actix_http::Response;
-/// use actix_http::http::header::IfRange;
+/// ```
 /// use std::time::{Duration, SystemTime};
+/// use actix_http::{http::header::IfRange, Response};
 ///
 /// let mut builder = Response::Ok();
 /// let fetched = SystemTime::now() - Duration::from_secs(60 * 60 * 24);
-/// builder.set(IfRange::Date(fetched.into()));
+/// builder.insert_header(
+///     IfRange::Date(fetched.into())
+/// );
 /// ```
 #[derive(Clone, Debug, PartialEq)]
 pub enum IfRange {
-    /// The entity-tag the client has of the resource
+    /// The entity-tag the client has of the resource.
     EntityTag(EntityTag),
-    /// The date when the client retrieved the resource
+
+    /// The date when the client retrieved the resource.
     Date(HttpDate),
 }
 
@@ -98,7 +101,7 @@ impl Display for IfRange {
 impl IntoHeaderValue for IfRange {
     type Error = InvalidHeaderValue;
 
-    fn try_into(self) -> Result<HeaderValue, Self::Error> {
+    fn try_into_value(self) -> Result<HeaderValue, Self::Error> {
         let mut writer = Writer::new();
         let _ = write!(&mut writer, "{}", self);
         HeaderValue::from_maybe_shared(writer.take())
@@ -110,7 +113,8 @@ mod test_if_range {
     use super::IfRange as HeaderField;
     use crate::header::*;
     use std::str;
+
     test_header!(test1, vec![b"Sat, 29 Oct 1994 19:43:31 GMT"]);
-    test_header!(test2, vec![b"\"xyzzy\""]);
+    test_header!(test2, vec![b"\"abc\""]);
     test_header!(test3, vec![b"this-is-invalid"], None::<IfRange>);
 }

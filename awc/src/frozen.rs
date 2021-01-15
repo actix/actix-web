@@ -144,7 +144,7 @@ impl FrozenSendBuilder {
         V: IntoHeaderValue,
     {
         match HeaderName::try_from(key) {
-            Ok(key) => match value.try_into() {
+            Ok(key) => match value.try_into_value() {
                 Ok(value) => self.extra_headers.insert(key, value),
                 Err(e) => self.err = Some(e.into()),
             },

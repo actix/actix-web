@@ -161,7 +161,7 @@ impl FromStr for EntityTag {
 impl IntoHeaderValue for EntityTag {
     type Error = InvalidHeaderValue;
 
-    fn try_into(self) -> Result<HeaderValue, Self::Error> {
+    fn try_into_value(self) -> Result<HeaderValue, Self::Error> {
         let mut wrt = Writer::new();
         write!(wrt, "{}", self).unwrap();
         HeaderValue::from_maybe_shared(wrt.take())
