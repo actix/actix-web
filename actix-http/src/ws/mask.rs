@@ -3,7 +3,7 @@
 use std::ptr::copy_nonoverlapping;
 use std::slice;
 
-// Holds a slice guaranteed to be shorter than 8 bytes
+/// Holds a slice guaranteed to be shorter than 8 bytes.
 struct ShortSlice<'a> {
     inner: &'a mut [u8],
 }
@@ -80,8 +80,10 @@ unsafe fn cast_slice(buf: &mut [u8]) -> &mut [u64] {
     slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut u64, buf.len() >> 3)
 }
 
-// Splits a slice into three parts: an unaligned short head and tail, plus an aligned
-// u64 mid section.
+/// Splits a slice into three parts:
+/// - an unaligned short head
+/// - an aligned `u64` slice mid section
+/// - an unaligned short tail
 #[inline]
 fn align_buf(buf: &mut [u8]) -> (ShortSlice<'_>, &mut [u64], ShortSlice<'_>) {
     let start_ptr = buf.as_ptr() as usize;

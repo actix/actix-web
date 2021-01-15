@@ -128,18 +128,12 @@ impl ResponseError for HandshakeError {
 }
 
 /// Verify `WebSocket` handshake request and create handshake response.
-// /// `protocols` is a sequence of known protocols. On successful handshake,
-// /// the returned response headers contain the first protocol in this list
-// /// which the server also knows.
 pub fn handshake(req: &RequestHead) -> Result<ResponseBuilder, HandshakeError> {
     verify_handshake(req)?;
     Ok(handshake_response(req))
 }
 
 /// Verify `WebSocket` handshake request.
-// /// `protocols` is a sequence of known protocols. On successful handshake,
-// /// the returned response headers contain the first protocol in this list
-// /// which the server also knows.
 pub fn verify_handshake(req: &RequestHead) -> Result<(), HandshakeError> {
     // WebSocket accepts only GET
     if req.method != Method::GET {

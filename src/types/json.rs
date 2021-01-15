@@ -269,7 +269,7 @@ impl JsonConfig {
     }
 }
 
-// Allow shared refs to default.
+/// Allow shared refs used as default.
 const DEFAULT_CONFIG: JsonConfig = JsonConfig {
     limit: 32_768, // 2^15 bytes, (~32kB)
     err_handler: None,
