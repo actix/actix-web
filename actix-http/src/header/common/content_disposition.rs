@@ -1,10 +1,10 @@
-// # References
-//
-// "The Content-Disposition Header Field" https://www.ietf.org/rfc/rfc2183.txt
-// "The Content-Disposition Header Field in the Hypertext Transfer Protocol (HTTP)" https://www.ietf.org/rfc/rfc6266.txt
-// "Returning Values from Forms: multipart/form-data" https://www.ietf.org/rfc/rfc7578.txt
-// Browser conformance tests at: http://greenbytes.de/tech/tc2231/
-// IANA assignment: http://www.iana.org/assignments/cont-disp/cont-disp.xhtml
+//! # References
+//!
+//! "The Content-Disposition Header Field" https://www.ietf.org/rfc/rfc2183.txt
+//! "The Content-Disposition Header Field in the Hypertext Transfer Protocol (HTTP)" https://www.ietf.org/rfc/rfc6266.txt
+//! "Returning Values from Forms: multipart/form-data" https://www.ietf.org/rfc/rfc7578.txt
+//! Browser conformance tests at: http://greenbytes.de/tech/tc2231/
+//! IANA assignment: http://www.iana.org/assignments/cont-disp/cont-disp.xhtml
 
 use lazy_static::lazy_static;
 use regex::Regex;

@@ -247,7 +247,7 @@ impl PayloadConfig {
     }
 }
 
-// Allow shared refs to default.
+/// Allow shared refs used as defaults.
 const DEFAULT_CONFIG: PayloadConfig = PayloadConfig {
     limit: DEFAULT_CONFIG_LIMIT,
     mimetype: None,
