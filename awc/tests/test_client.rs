@@ -570,10 +570,7 @@ async fn test_client_deflate_encoding() {
         }))
     });
 
-    let req = srv
-        .post("/")
-        .insert_header(header::ContentEncoding::Deflate)
-        .send_body(STR);
+    let req = srv.post("/").send_body(STR);
 
     let mut res = req.await.unwrap();
     assert_eq!(res.status(), StatusCode::OK);
@@ -598,16 +595,13 @@ async fn test_client_deflate_encoding_large_random() {
         }))
     });
 
-    let req = srv
-        .post("/")
-        .insert_header(header::ContentEncoding::Deflate)
-        .send_body(data.clone());
+    let req = srv.post("/").send_body(data.clone());
 
     let mut res = req.await.unwrap();
-    assert_eq!(res.status(), StatusCode::OK);
-
     let bytes = res.body().await.unwrap();
-    assert_eq!(bytes, Bytes::from(data));
+
+    assert_eq!(res.status(), StatusCode::BAD_REQUEST);
+    assert_eq!(bytes, Bytes::from_static(b"corrupt deflate stream"));
 }
 
 #[actix_rt::test]
