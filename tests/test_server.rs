@@ -802,22 +802,20 @@ async fn test_reading_deflate_encoding_large_random_rustls() {
 
 #[actix_rt::test]
 async fn test_server_cookies() {
-    use actix_web::http;
+    use actix_web::{http, HttpMessage};
 
-    let srv = test::TestServer::with_factory(|| {
-        App::new().resource("/", |r| {
-            r.f(|_| {
-                HttpResponse::Ok()
-                    .cookie(
-                        http::CookieBuilder::new("first", "first_value")
-                            .http_only(true)
-                            .finish(),
-                    )
-                    .cookie(http::Cookie::new("second", "first_value"))
-                    .cookie(http::Cookie::new("second", "second_value"))
-                    .finish()
-            })
-        })
+    let srv = test::start(|| {
+        App::new().default_service(web::to(|| async {
+            HttpResponse::Ok()
+                .cookie(
+                    http::CookieBuilder::new("first", "first_value")
+                        .http_only(true)
+                        .finish(),
+                )
+                .cookie(http::Cookie::new("second", "first_value"))
+                .cookie(http::Cookie::new("second", "second_value"))
+                .finish()
+        }))
     });
 
     let first_cookie = http::CookieBuilder::new("first", "first_value")
@@ -825,11 +823,11 @@ async fn test_server_cookies() {
         .finish();
     let second_cookie = http::Cookie::new("second", "second_value");
 
-    let request = srv.get("/").finish().unwrap();
-    let response = srv.execute(request.send()).unwrap();
-    assert!(response.status().is_success());
+    let req = srv.get("/");
+    let res = req.send().await.unwrap();
+    assert!(res.status().is_success());
 
-    let cookies = response.cookies().expect("To have cookies");
+    let cookies = res.cookies().expect("To have cookies");
     assert_eq!(cookies.len(), 2);
     if cookies[0] == first_cookie {
         assert_eq!(cookies[1], second_cookie);
@@ -840,11 +838,10 @@ async fn test_server_cookies() {
 
     let first_cookie = first_cookie.to_string();
     let second_cookie = second_cookie.to_string();
-    //Check that we have exactly two instances of raw cookie headers
-    let cookies = response
+    // Check that we have exactly two instances of raw cookie headers
+    let cookies = res
         .headers()
         .get_all(http::header::SET_COOKIE)
-        .iter()
         .map(|header| header.to_str().expect("To str").to_string())
         .collect::<Vec<_>>();
     assert_eq!(cookies.len(), 2);
