@@ -195,7 +195,7 @@ impl Guard for NotGuard {
     }
 
     fn clone_guard(&self) -> Box<dyn Guard> {
-        self.0.clone_guard()
+        Box::new(NotGuard(self.0.clone_guard()))
     }
 }
 
