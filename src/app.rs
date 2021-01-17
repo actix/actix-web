@@ -34,7 +34,6 @@ pub struct App<T, B> {
     services: Vec<Box<dyn AppServiceFactory>>,
     default: Option<Rc<HttpNewService>>,
     factory_ref: Rc<RefCell<Option<AppRoutingFactory>>>,
-    data: Vec<Box<dyn DataFactory>>,
     data_factories: Vec<FnDataFactory>,
     external: Vec<ResourceDef>,
     extensions: Extensions,
@@ -48,7 +47,6 @@ impl App<AppEntry, Body> {
         let fref = Rc::new(RefCell::new(None));
         App {
             endpoint: AppEntry::new(fref.clone()),
-            data: Vec::new(),
             data_factories: Vec::new(),
             services: Vec::new(),
             default: None,
@@ -101,9 +99,8 @@ where
     ///         web::resource("/index.html").route(
     ///             web::get().to(index)));
     /// ```
-    pub fn data<U: 'static>(mut self, data: U) -> Self {
-        self.data.push(Box::new(Data::new(data)));
-        self
+    pub fn data<U: 'static>(self, data: U) -> Self {
+        self.app_data(Data::new(data))
     }
 
     /// Set application data factory. This function is
@@ -157,8 +154,7 @@ where
     /// some of the resource's configuration could be moved to different module.
     ///
     /// ```rust
-    /// # extern crate actix_web;
-    /// use actix_web::{web, middleware, App, HttpResponse};
+    /// use actix_web::{web, App, HttpResponse};
     ///
     /// // this function could be located in different module
     /// fn config(cfg: &mut web::ServiceConfig) {
@@ -168,12 +164,9 @@ where
     ///     );
     /// }
     ///
-    /// fn main() {
-    ///     let app = App::new()
-    ///         .wrap(middleware::Logger::default())
-    ///         .configure(config)  // <- register resources
-    ///         .route("/index.html", web::get().to(|| HttpResponse::Ok()));
-    /// }
+    /// App::new()
+    ///     .configure(config)  // <- register resources
+    ///     .route("/index.html", web::get().to(|| HttpResponse::Ok()));
     /// ```
     pub fn configure<F>(mut self, f: F) -> Self
     where
@@ -181,10 +174,9 @@ where
     {
         let mut cfg = ServiceConfig::new();
         f(&mut cfg);
-        self.data.extend(cfg.data);
         self.services.extend(cfg.services);
         self.external.extend(cfg.external);
-        self.extensions.extend(cfg.extensions);
+        self.extensions.extend(cfg.app_data);
         self
     }
 
@@ -374,7 +366,6 @@ where
     {
         App {
             endpoint: apply(mw, self.endpoint),
-            data: self.data,
             data_factories: self.data_factories,
             services: self.services,
             default: self.default,
@@ -436,7 +427,6 @@ where
     {
         App {
             endpoint: apply_fn_factory(self.endpoint, mw),
-            data: self.data,
             data_factories: self.data_factories,
             services: self.services,
             default: self.default,
@@ -462,7 +452,6 @@ where
 {
     fn into_factory(self) -> AppInit<T, B> {
         AppInit {
-            data_factories: self.data.into_boxed_slice().into(),
             async_data_factories: self.data_factories.into_boxed_slice().into(),
             endpoint: self.endpoint,
             services: Rc::new(RefCell::new(self.services)),
