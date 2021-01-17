@@ -1,3 +1,13 @@
+use std::{convert::Infallible, str::FromStr};
+
+use http::header::InvalidHeaderValue;
+
+use crate::{
+    error::ParseError,
+    header::{self, from_one_raw_str, Header, HeaderName, HeaderValue, IntoHeaderValue},
+    HttpMessage,
+};
+
 /// Represents a supported content encoding.
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub enum ContentEncoding {
@@ -47,6 +57,20 @@ impl ContentEncoding {
     }
 }
 
+impl Default for ContentEncoding {
+    fn default() -> Self {
+        Self::Identity
+    }
+}
+
+impl FromStr for ContentEncoding {
+    type Err = Infallible;
+
+    fn from_str(val: &str) -> Result<Self, Self::Err> {
+        Ok(Self::from(val))
+    }
+}
+
 impl From<&str> for ContentEncoding {
     fn from(val: &str) -> ContentEncoding {
         let val = val.trim();
@@ -58,7 +82,25 @@ impl From<&str> for ContentEncoding {
         } else if val.eq_ignore_ascii_case("deflate") {
             ContentEncoding::Deflate
         } else {
-            ContentEncoding::Identity
+            ContentEncoding::default()
         }
+    }
+}
+
+impl IntoHeaderValue for ContentEncoding {
+    type Error = InvalidHeaderValue;
+
+    fn try_into_value(self) -> Result<http::HeaderValue, Self::Error> {
+        Ok(HeaderValue::from_static(self.as_str()))
+    }
+}
+
+impl Header for ContentEncoding {
+    fn name() -> HeaderName {
+        header::CONTENT_ENCODING
+    }
+
+    fn parse<T: HttpMessage>(msg: &T) -> Result<Self, ParseError> {
+        from_one_raw_str(msg.headers().get(Self::name()))
     }
 }

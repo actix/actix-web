@@ -6,6 +6,7 @@
 * `ResponseBuilder::insert_header` method which allows using typed headers. [#1869]
 * `ResponseBuilder::append_header` method which allows using typed headers. [#1869]
 * `TestRequest::insert_header` method which allows using typed headers. [#1869]
+* `ContentEncoding` implements all necessary header traits. [#1912]
 
 ### Changed
 * `ResponseBuilder::content_type` now takes an `impl IntoHeaderValue` to support using typed
@@ -24,6 +25,7 @@
 [#1869]: https://github.com/actix/actix-web/pull/1869
 [#1894]: https://github.com/actix/actix-web/pull/1894
 [#1904]: https://github.com/actix/actix-web/pull/1904
+[#1912]: https://github.com/actix/actix-web/pull/1912
 
 
 ## 3.0.0-beta.1 - 2021-01-07
