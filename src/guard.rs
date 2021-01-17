@@ -38,6 +38,9 @@ use actix_http::RequestHead;
 pub trait Guard {
     /// Check if request matches predicate
     fn check(&self, request: &RequestHead) -> bool;
+
+    /// Clone self into a new boxed guard.
+    fn clone_guard(&self) -> Box<dyn Guard>;
 }
 
 /// Create guard object for supplied function.
@@ -58,28 +61,36 @@ pub trait Guard {
 /// ```
 pub fn fn_guard<F>(f: F) -> impl Guard
 where
-    F: Fn(&RequestHead) -> bool,
+    F: Fn(&RequestHead) -> bool + Clone + 'static,
 {
     FnGuard(f)
 }
 
-struct FnGuard<F: Fn(&RequestHead) -> bool>(F);
+struct FnGuard<F: Fn(&RequestHead) -> bool + Clone>(F);
 
 impl<F> Guard for FnGuard<F>
 where
-    F: Fn(&RequestHead) -> bool,
+    F: Fn(&RequestHead) -> bool + Clone + 'static,
 {
     fn check(&self, head: &RequestHead) -> bool {
         (self.0)(head)
+    }
+
+    fn clone_guard(&self) -> Box<dyn Guard> {
+        Box::new(FnGuard(self.0.clone()))
     }
 }
 
 impl<F> Guard for F
 where
-    F: Fn(&RequestHead) -> bool,
+    F: Fn(&RequestHead) -> bool + Clone + 'static,
 {
     fn check(&self, head: &RequestHead) -> bool {
         (self)(head)
+    }
+
+    fn clone_guard(&self) -> Box<dyn Guard> {
+        Box::new(FnGuard(self.clone()))
     }
 }
 
@@ -119,6 +130,10 @@ impl Guard for AnyGuard {
             }
         }
         false
+    }
+
+    fn clone_guard(&self) -> Box<dyn Guard> {
+        Box::new(AnyGuard(self.0.iter().map(|g| g.clone_guard()).collect()))
     }
 }
 
@@ -160,6 +175,10 @@ impl Guard for AllGuard {
         }
         true
     }
+
+    fn clone_guard(&self) -> Box<dyn Guard> {
+        Box::new(AllGuard(self.0.iter().map(|g| g.clone_guard()).collect()))
+    }
 }
 
 /// Return guard that matches if supplied guard does not match.
@@ -174,6 +193,10 @@ impl Guard for NotGuard {
     fn check(&self, request: &RequestHead) -> bool {
         !self.0.check(request)
     }
+
+    fn clone_guard(&self) -> Box<dyn Guard> {
+        self.0.clone_guard()
+    }
 }
 
 /// Http method guard
@@ -183,6 +206,10 @@ pub struct MethodGuard(http::Method);
 impl Guard for MethodGuard {
     fn check(&self, request: &RequestHead) -> bool {
         request.method == self.0
+    }
+
+    fn clone_guard(&self) -> Box<dyn Guard> {
+        Box::new(MethodGuard(self.0.clone()))
     }
 }
 
@@ -255,6 +282,10 @@ impl Guard for HeaderGuard {
         }
         false
     }
+
+    fn clone_guard(&self) -> Box<dyn Guard> {
+        Box::new(HeaderGuard(self.0.clone(), self.1.clone()))
+    }
 }
 
 /// Return predicate that matches if request contains specified Host name.
@@ -318,6 +349,10 @@ impl Guard for HostGuard {
         }
 
         true
+    }
+
+    fn clone_guard(&self) -> Box<dyn Guard> {
+        Box::new(HostGuard(self.0.clone(), self.1.clone()))
     }
 }
 

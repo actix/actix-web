@@ -2,7 +2,6 @@
 
 use std::future::Future;
 use std::pin::Pin;
-use std::rc::Rc;
 use std::task::{Context, Poll};
 
 use actix_http::{http::Method, Error};
@@ -43,7 +42,7 @@ type BoxedRouteNewService = Box<
 /// If handler is not explicitly set, default *404 Not Found* handler is used.
 pub struct Route {
     service: BoxedRouteNewService,
-    guards: Rc<Vec<Box<dyn Guard>>>,
+    guards: Vec<Box<dyn Guard>>,
 }
 
 impl Route {
@@ -54,34 +53,34 @@ impl Route {
             service: Box::new(RouteNewService::new(HandlerService::new(|| {
                 ready(HttpResponse::NotFound())
             }))),
-            guards: Rc::new(Vec::new()),
+            guards: Vec::new(),
         }
     }
 
     pub(crate) fn take_guards(&mut self) -> Vec<Box<dyn Guard>> {
-        std::mem::take(Rc::get_mut(&mut self.guards).unwrap())
+        std::mem::take(&mut self.guards)
     }
 }
 
 impl ServiceFactory<ServiceRequest> for Route {
-    type Config = ();
     type Response = ServiceResponse;
     type Error = Error;
-    type InitError = ();
+    type Config = ();
     type Service = RouteService;
+    type InitError = ();
     type Future = CreateRouteService;
 
     fn new_service(&self, _: ()) -> Self::Future {
         CreateRouteService {
             fut: self.service.new_service(()),
-            guards: self.guards.clone(),
+            guards: self.guards.iter().map(|g| g.clone_guard()).collect(),
         }
     }
 }
 
 pub struct CreateRouteService {
     fut: LocalBoxFuture<'static, Result<BoxedRouteService, ()>>,
-    guards: Rc<Vec<Box<dyn Guard>>>,
+    guards: Vec<Box<dyn Guard>>,
 }
 
 impl Future for CreateRouteService {
@@ -93,7 +92,7 @@ impl Future for CreateRouteService {
         match this.fut.as_mut().poll(cx)? {
             Poll::Ready(service) => Poll::Ready(Ok(RouteService {
                 service,
-                guards: this.guards.clone(),
+                guards: std::mem::take(&mut this.guards),
             })),
             Poll::Pending => Poll::Pending,
         }
@@ -102,7 +101,7 @@ impl Future for CreateRouteService {
 
 pub struct RouteService {
     service: BoxedRouteService,
-    guards: Rc<Vec<Box<dyn Guard>>>,
+    guards: Vec<Box<dyn Guard>>,
 }
 
 impl RouteService {
@@ -145,9 +144,7 @@ impl Route {
     /// # }
     /// ```
     pub fn method(mut self, method: Method) -> Self {
-        Rc::get_mut(&mut self.guards)
-            .unwrap()
-            .push(Box::new(guard::Method(method)));
+        self.guards.push(Box::new(guard::Method(method)));
         self
     }
 
@@ -165,7 +162,7 @@ impl Route {
     /// # }
     /// ```
     pub fn guard<F: Guard + 'static>(mut self, f: F) -> Self {
-        Rc::get_mut(&mut self.guards).unwrap().push(Box::new(f));
+        self.guards.push(Box::new(f));
         self
     }
 
