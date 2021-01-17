@@ -600,8 +600,8 @@ async fn test_client_deflate_encoding_large_random() {
     let mut res = req.await.unwrap();
     let bytes = res.body().await.unwrap();
 
-    assert_eq!(res.status(), StatusCode::BAD_REQUEST);
-    assert_eq!(bytes, Bytes::from_static(b"corrupt deflate stream"));
+    assert_eq!(res.status(), StatusCode::OK);
+    assert_eq!(bytes, Bytes::from(data));
 }
 
 #[actix_rt::test]
