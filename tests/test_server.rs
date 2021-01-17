@@ -805,7 +805,7 @@ async fn test_server_cookies() {
     use actix_web::{http, HttpMessage};
 
     let srv = test::start(|| {
-        App::new().default_service(web::to(|| async {
+        App::new().default_service(web::to(|| {
             HttpResponse::Ok()
                 .cookie(
                     http::CookieBuilder::new("first", "first_value")
