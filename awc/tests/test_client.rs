@@ -563,7 +563,7 @@ async fn test_client_brotli_encoding_large_random() {
 #[actix_rt::test]
 async fn test_client_deflate_encoding() {
     let srv = test::start(|| {
-        App::new().default_service(web::to(|body: Bytes| async move {
+        App::new().default_service(web::to(|body: Bytes| {
             HttpResponse::Ok()
                 .encoding(http::ContentEncoding::Br)
                 .body(body)
@@ -588,7 +588,7 @@ async fn test_client_deflate_encoding_large_random() {
         .collect::<String>();
 
     let srv = test::start(|| {
-        App::new().default_service(web::to(|body: Bytes| async move {
+        App::new().default_service(web::to(|body: Bytes| {
             HttpResponse::Ok()
                 .encoding(http::ContentEncoding::Br)
                 .body(body)
@@ -607,7 +607,7 @@ async fn test_client_deflate_encoding_large_random() {
 #[actix_rt::test]
 async fn test_client_streaming_explicit() {
     let srv = test::start(|| {
-        App::new().default_service(web::to(|body: web::Payload| async move {
+        App::new().default_service(web::to(|body: web::Payload| {
             HttpResponse::Ok()
                 .encoding(http::ContentEncoding::Identity)
                 .streaming(body)
