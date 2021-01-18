@@ -14,6 +14,8 @@
 * Renamed `IntoHeaderValue::{try_into => try_into_value}` to avoid ambiguity with std
   `TryInto` trait. [#1894]
 * `Extensions::insert` returns Option of replaced item. [#1904]
+* Remove `HttpResponseBuilder::json2()` and make `HttpResponseBuilder::json()` take a value by
+  reference. [#1903]
 
 ### Removed
 * `ResponseBuilder::set`; use `ResponseBuilder::insert_header`. [#1869]
@@ -24,6 +26,7 @@
 
 [#1869]: https://github.com/actix/actix-web/pull/1869
 [#1894]: https://github.com/actix/actix-web/pull/1894
+[#1903]: https://github.com/actix/actix-web/pull/1903
 [#1904]: https://github.com/actix/actix-web/pull/1904
 [#1912]: https://github.com/actix/actix-web/pull/1912
 
