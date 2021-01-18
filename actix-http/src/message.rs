@@ -353,14 +353,6 @@ impl<T: Head> Message<T> {
     }
 }
 
-impl<T: Head> Clone for Message<T> {
-    fn clone(&self) -> Self {
-        Message {
-            head: self.head.clone(),
-        }
-    }
-}
-
 impl<T: Head> std::ops::Deref for Message<T> {
     type Target = T;
 
@@ -377,9 +369,7 @@ impl<T: Head> std::ops::DerefMut for Message<T> {
 
 impl<T: Head> Drop for Message<T> {
     fn drop(&mut self) {
-        if Rc::strong_count(&self.head) == 1 {
-            T::with_pool(|p| p.release(self.head.clone()))
-        }
+        T::with_pool(|p| p.release(self.head.clone()))
     }
 }
 
@@ -416,9 +406,13 @@ impl std::ops::DerefMut for BoxedResponseHead {
 
 impl Drop for BoxedResponseHead {
     fn drop(&mut self) {
-        if let Some(head) = self.head.take() {
-            RESPONSE_POOL.with(move |p| p.release(head))
-        }
+        RESPONSE_POOL.with(move |p| {
+            p.release(
+                self.head
+                    .take()
+                    .expect("ResponseHead is taken before dropped"),
+            )
+        })
     }
 }
 
