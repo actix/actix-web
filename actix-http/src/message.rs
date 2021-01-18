@@ -414,13 +414,9 @@ impl std::ops::DerefMut for BoxedResponseHead {
 
 impl Drop for BoxedResponseHead {
     fn drop(&mut self) {
-        RESPONSE_POOL.with(move |p| {
-            p.release(
-                self.head
-                    .take()
-                    .expect("ResponseHead is taken before dropped"),
-            )
-        })
+        if let Some(head) = self.head.take() {
+            RESPONSE_POOL.with(move |p| p.release(head))
+        }
     }
 }
 
