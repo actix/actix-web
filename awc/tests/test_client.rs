@@ -722,9 +722,11 @@ async fn test_client_cookie_handling() {
 async fn client_unread_response() {
     let addr = test::unused_addr();
 
+    let (tx, rx) = std::sync::mpsc::sync_channel(1);
+
     std::thread::spawn(move || {
         let lst = std::net::TcpListener::bind(addr).unwrap();
-
+        tx.send(()).unwrap();
         for stream in lst.incoming() {
             let mut stream = stream.unwrap();
             let mut b = [0; 1000];
@@ -737,6 +739,8 @@ async fn client_unread_response() {
             );
         }
     });
+
+    rx.recv().unwrap();
 
     // client request
     let req = awc::Client::new().get(format!("http://{}/", addr).as_str());

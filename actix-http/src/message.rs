@@ -348,12 +348,6 @@ pub struct Message<T: Head> {
     head: Rc<T>,
 }
 
-impl<T: Head> Clone for Message<T> {
-    fn clone(&self) -> Self {
-        panic!("Message<T> type should not be Clone.")
-    }
-}
-
 impl<T: Head> Message<T> {
     /// Get new message from the pool of objects
     pub fn new() -> Self {
