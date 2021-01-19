@@ -36,11 +36,17 @@ rustls = ["rust-tls", "actix-http/rustls"]
 # content-encoding support
 compress = ["actix-http/compress"]
 
+# trust-dns as dns resolver
+trust-dns = ["trust-dns-resolver/tokio-runtime", "trust-dns-resolver/system-config"]
+
 [dependencies]
 actix-codec = "0.4.0-beta.1"
 actix-service = "2.0.0-beta.3"
 actix-http = "3.0.0-beta.1"
 actix-rt = "2.0.0-beta.2"
+
+# TODO: temporary import actix-tls to bypass some actix-http mods
+actix-tls = { version = "3.0.0-beta.2", default-features = false, features = ["connect"] }
 
 base64 = "0.13"
 bytes = "1"
@@ -56,6 +62,7 @@ serde_json = "1.0"
 serde_urlencoded = "0.7"
 open-ssl = { version = "0.10", package = "openssl", optional = true }
 rust-tls = { version = "0.19.0", package = "rustls", optional = true, features = ["dangerous_configuration"] }
+trust-dns-resolver = { version = "0.20.0", default-features = false, optional = true }
 
 [dev-dependencies]
 # TODO: actix is temporary added as dev dep for actix-macro reason.

@@ -105,6 +105,7 @@ use actix_http::RequestHead;
 
 mod builder;
 mod connect;
+mod connector;
 pub mod error;
 mod frozen;
 mod request;
@@ -154,7 +155,9 @@ impl Default for Client {
     fn default() -> Self {
         Client(Rc::new(ClientConfig {
             connector: RefCell::new(Box::new(ConnectorWrapper(
-                Connector::new().finish(),
+                Connector::new()
+                    .connector(connector::default_connector())
+                    .finish(),
             ))),
             headers: HeaderMap::new(),
             timeout: Some(Duration::from_secs(5)),

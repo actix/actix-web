@@ -132,6 +132,8 @@ actix-multipart = { path = "actix-multipart" }
 actix-files = { path = "actix-files" }
 awc = { path = "awc" }
 
+actix-tls = { git = "https://github.com/actix/actix-net", branch = "refactor/resolver" }
+
 [[bench]]
 name = "server"
 harness = false

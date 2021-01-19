@@ -4,8 +4,12 @@
 ### Added
 * `ClientRequest::insert_header` method which allows using typed headers. [#1869]
 * `ClientRequest::append_header` method which allows using typed headers. [#1869]
+* `trust-dns` option feature to use it as default dns resolver.   
+* `connector::default_connector` function to get a default connector type 
+  that uses current dns resolver feature.
 
 ### Removed
+* `trust-dns` removed from default dns resolver
 * `ClientRequest::set`; use `ClientRequest::insert_header`. [#1869]
 * `ClientRequest::set_header`; use `ClientRequest::insert_header`. [#1869]
 * `ClientRequest::set_header_if_none`; use `ClientRequest::insert_header_if_none`. [#1869]

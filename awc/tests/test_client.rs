@@ -120,9 +120,7 @@ async fn test_timeout() {
     });
 
     let connector = awc::Connector::new()
-        .connector(actix_tls::connect::new_connector(
-            actix_tls::connect::start_default_resolver().await.unwrap(),
-        ))
+        .connector(actix_tls::connect::default_connector())
         .timeout(Duration::from_secs(15))
         .finish();
 
