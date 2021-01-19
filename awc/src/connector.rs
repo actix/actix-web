@@ -1,21 +1,23 @@
 // TODO: this mod bypass actix-http and use actix_tls::connect directly.
 // Future refactor should change this mod if actix-http still used as upstream dep of awc.
 
-pub(crate) use connector_impl::*;
+pub use connector_impl::*;
 
-#[cfg(not(features = "trust-dns"))]
-pub(crate) mod connector_impl {
-    pub(crate) use actix_tls::connect::default_connector;
+#[cfg(not(feature = "trust-dns"))]
+mod connector_impl {
+    pub use actix_tls::connect::default_connector;
 }
 
-#[cfg(features = "trust-dns")]
-pub(crate) mod connector_impl {
+#[cfg(feature = "trust-dns")]
+mod connector_impl {
     // resolver implementation using trust-dns crate.
     use std::net::SocketAddr;
 
     use actix_rt::{net::TcpStream, Arbiter};
-    use actix_service::ServiceFactory;
-    use actix_tls::connect::{Connect, ConnectError, Connection, Resolve, Resolver};
+    use actix_service::Service;
+    use actix_tls::connect::{
+        Address, Connect, ConnectError, Connection, Resolve, Resolver,
+    };
     use futures_core::future::LocalBoxFuture;
     use trust_dns_resolver::{
         config::{ResolverConfig, ResolverOpts},
@@ -47,7 +49,7 @@ pub(crate) mod connector_impl {
 
                 let resolver = TokioAsyncResolver::tokio(cfg, opts).unwrap();
                 Arbiter::set_item(resolver.clone());
-                resolver
+                TrustDnsResolver { resolver }
             }
         }
     }
@@ -61,7 +63,7 @@ pub(crate) mod connector_impl {
         {
             Box::pin(async move {
                 let res = self
-                    .trust_dns
+                    .resolver
                     .lookup_ip(host)
                     .await?
                     .iter()
@@ -72,13 +74,9 @@ pub(crate) mod connector_impl {
         }
     }
 
-    pub(crate) fn default_connector() -> impl ServiceFactory<
-        Connect<T>,
-        Config = (),
-        Response = Connection<T, TcpStream>,
-        Error = ConnectError,
-        InitError = (),
-    > + Clone {
+    pub fn default_connector<T: Address + 'static>(
+    ) -> impl Service<Connect<T>, Response = Connection<T, TcpStream>, Error = ConnectError>
+           + Clone {
         actix_tls::connect::new_connector(Resolver::new_custom(TrustDnsResolver::new()))
     }
 }

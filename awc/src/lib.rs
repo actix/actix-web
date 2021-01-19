@@ -105,7 +105,7 @@ use actix_http::RequestHead;
 
 mod builder;
 mod connect;
-mod connector;
+pub mod connector;
 pub mod error;
 mod frozen;
 mod request;
