@@ -44,7 +44,7 @@ actix-service = "2.0.0-beta.3"
 actix-codec = "0.4.0-beta.1"
 actix-utils = "3.0.0-beta.1"
 actix-rt = "2.0.0-beta.2"
-actix-tls = "3.0.0-beta.2"
+actix-tls = { version = "3.0.0-beta.2", default-features = false, features = ["accept", "uri"] }
 actix = { version = "0.11.0-beta.1", optional = true }
 
 base64 = "0.13"
@@ -55,9 +55,9 @@ cookie = { version = "0.14.1", features = ["percent-encode"] }
 derive_more = "0.99.5"
 either = "1.5.3"
 encoding_rs = "0.8"
-futures-channel = { version = "0.3.7", default-features = false }
+futures-channel = { version = "0.3.7", default-features = false, features = ["alloc"] }
 futures-core = { version = "0.3.7", default-features = false }
-futures-util = { version = "0.3.7", default-features = false, features = ["sink"] }
+futures-util = { version = "0.3.7", default-features = false, features = ["alloc", "sink"] }
 ahash = "0.6"
 h2 = "0.3.0"
 http = "0.2.2"

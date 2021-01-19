@@ -13,10 +13,10 @@ use h2::{
 use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, TRANSFER_ENCODING};
 use http::{request::Request, Method, Version};
 
-use crate::body::{BodySize, MessageBody};
-use crate::header::HeaderMap;
-use crate::message::{RequestHeadType, ResponseHead};
-use crate::payload::Payload;
+use actix_http::body::{BodySize, MessageBody};
+use actix_http::HeaderMap;
+use actix_http::Payload;
+use actix_http::{RequestHeadType, ResponseHead};
 
 use super::config::ConnectorConfig;
 use super::connection::{ConnectionType, IoConnection};
@@ -34,7 +34,7 @@ where
     T: AsyncRead + AsyncWrite + Unpin + 'static,
     B: MessageBody,
 {
-    trace!("Sending client request: {:?} {:?}", head, body.size());
+    log::trace!("Sending client request: {:?} {:?}", head, body.size());
     let head_req = head.as_ref().method == Method::HEAD;
     let length = body.size();
     let eof = matches!(

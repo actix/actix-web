@@ -120,7 +120,6 @@ async fn test_timeout() {
     });
 
     let connector = awc::Connector::new()
-        .connector(awc::connector::default_connector())
         .timeout(Duration::from_secs(15))
         .finish();
 

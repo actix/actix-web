@@ -6,14 +6,14 @@ use std::{fmt, io, net};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed, ReadBuf};
 use actix_http::body::Body;
-use actix_http::client::{
-    Connect as ClientConnect, ConnectError, Connection, SendRequestError,
-};
 use actix_http::h1::ClientCodec;
 use actix_http::http::HeaderMap;
 use actix_http::{RequestHead, RequestHeadType, ResponseHead};
 use actix_service::Service;
 
+use crate::client::{
+    Connect as ClientConnect, ConnectError, Connection, SendRequestError,
+};
 use crate::response::ClientResponse;
 
 pub(crate) struct ConnectorWrapper<T>(pub T);

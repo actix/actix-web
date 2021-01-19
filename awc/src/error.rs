@@ -1,5 +1,5 @@
 //! Http client errors
-pub use actix_http::client::{
+pub use crate::client::{
     ConnectError, FreezeRequestError, InvalidUrl, SendRequestError,
 };
 pub use actix_http::error::PayloadError;

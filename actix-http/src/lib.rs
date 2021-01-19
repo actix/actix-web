@@ -18,7 +18,6 @@ mod macros;
 
 pub mod body;
 mod builder;
-pub mod client;
 mod config;
 #[cfg(feature = "compress")]
 pub mod encoding;
@@ -45,6 +44,7 @@ pub use self::builder::HttpServiceBuilder;
 pub use self::config::{KeepAlive, ServiceConfig};
 pub use self::error::{Error, ResponseError, Result};
 pub use self::extensions::Extensions;
+pub use self::header::HeaderMap;
 pub use self::httpmessage::HttpMessage;
 pub use self::message::{Message, RequestHead, RequestHeadType, ResponseHead};
 pub use self::payload::{Payload, PayloadStream};

@@ -98,14 +98,15 @@ use std::convert::TryFrom;
 use std::rc::Rc;
 use std::time::Duration;
 
-pub use actix_http::{client::Connector, cookie, http};
+pub use crate::client::Connector;
+pub use actix_http::{cookie, http};
 
 use actix_http::http::{Error as HttpError, HeaderMap, Method, Uri};
 use actix_http::RequestHead;
 
 mod builder;
+mod client;
 mod connect;
-pub mod connector;
 pub mod error;
 mod frozen;
 mod request;
@@ -155,9 +156,7 @@ impl Default for Client {
     fn default() -> Self {
         Client(Rc::new(ClientConfig {
             connector: RefCell::new(Box::new(ConnectorWrapper(
-                Connector::new()
-                    .connector(connector::default_connector())
-                    .finish(),
+                Connector::new().finish(),
             ))),
             headers: HeaderMap::new(),
             timeout: Some(Duration::from_secs(5)),

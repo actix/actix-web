@@ -1,13 +1,9 @@
-use std::fmt;
-use std::marker::PhantomData;
-use std::time::Duration;
+use std::{fmt, marker::PhantomData, time::Duration};
 
 use actix_codec::{AsyncRead, AsyncWrite};
 use actix_rt::net::TcpStream;
 use actix_service::{apply_fn, Service, ServiceExt};
-use actix_tls::connect::{
-    default_connector, Connect as TcpConnect, Connection as TcpConnection,
-};
+use actix_tls::connect::{Connect as TcpConnect, Connection as TcpConnection};
 use actix_utils::timeout::{TimeoutError, TimeoutService};
 use http::Uri;
 
@@ -22,15 +18,13 @@ use actix_tls::connect::ssl::openssl::SslConnector as OpensslConnector;
 
 #[cfg(feature = "rustls")]
 use actix_tls::connect::ssl::rustls::ClientConfig;
-#[cfg(feature = "rustls")]
-use std::sync::Arc;
 
 #[cfg(any(feature = "openssl", feature = "rustls"))]
 enum SslConnector {
     #[cfg(feature = "openssl")]
     Openssl(OpensslConnector),
     #[cfg(feature = "rustls")]
-    Rustls(Arc<ClientConfig>),
+    Rustls(std::sync::Arc<ClientConfig>),
 }
 #[cfg(not(any(feature = "openssl", feature = "rustls")))]
 type SslConnector = ();
@@ -70,7 +64,7 @@ impl Connector<(), ()> {
     > {
         Connector {
             ssl: Self::build_ssl(vec![b"h2".to_vec(), b"http/1.1".to_vec()]),
-            connector: default_connector(),
+            connector: connector_impl::default_connector(),
             config: ConnectorConfig::default(),
             _phantom: PhantomData,
         }
@@ -91,7 +85,7 @@ impl Connector<(), ()> {
         let mut ssl = OpensslConnector::builder(SslMethod::tls()).unwrap();
         let _ = ssl
             .set_alpn_protos(&alpn)
-            .map_err(|e| error!("Can not set alpn protocol: {:?}", e));
+            .map_err(|e| log::error!("Can not set alpn protocol: {:?}", e));
         SslConnector::Openssl(ssl.build())
     }
 
@@ -103,7 +97,7 @@ impl Connector<(), ()> {
         config
             .root_store
             .add_server_trust_anchors(&actix_tls::accept::rustls::TLS_SERVER_ROOTS);
-        SslConnector::Rustls(Arc::new(config))
+        SslConnector::Rustls(std::sync::Arc::new(config))
     }
 
     // ssl turned off, provides empty ssl connector
@@ -156,7 +150,7 @@ where
     }
 
     #[cfg(feature = "rustls")]
-    pub fn rustls(mut self, connector: Arc<ClientConfig>) -> Self {
+    pub fn rustls(mut self, connector: std::sync::Arc<ClientConfig>) -> Self {
         self.ssl = SslConnector::Rustls(connector);
         self
     }
@@ -530,5 +524,83 @@ mod connect_impl {
                     .map(EitherConnection::B),
             )
         }
+    }
+}
+
+#[cfg(not(feature = "trust-dns"))]
+mod connector_impl {
+    pub use actix_tls::connect::default_connector;
+}
+
+// resolver implementation using trust-dns crate.
+#[cfg(feature = "trust-dns")]
+mod connector_impl {
+    use std::net::SocketAddr;
+
+    use actix_rt::{net::TcpStream, Arbiter};
+    use actix_service::Service;
+    use actix_tls::connect::{
+        Address, Connect, ConnectError, Connection, Resolve, Resolver,
+    };
+    use futures_core::future::LocalBoxFuture;
+    use trust_dns_resolver::{
+        config::{ResolverConfig, ResolverOpts},
+        system_conf::read_system_conf,
+        TokioAsyncResolver,
+    };
+
+    pub struct TrustDnsResolver {
+        resolver: TokioAsyncResolver,
+    }
+
+    impl TrustDnsResolver {
+        fn new() -> Self {
+            // dns struct is cached in Arbiter thread local map.
+            // so new client constructor can reuse the dns resolver on local thread.
+
+            if Arbiter::contains_item::<TokioAsyncResolver>() {
+                Arbiter::get_item(|item: &TokioAsyncResolver| TrustDnsResolver {
+                    resolver: item.clone(),
+                })
+            } else {
+                let (cfg, opts) = match read_system_conf() {
+                    Ok((cfg, opts)) => (cfg, opts),
+                    Err(e) => {
+                        log::error!("TRust-DNS can not load system config: {}", e);
+                        (ResolverConfig::default(), ResolverOpts::default())
+                    }
+                };
+
+                let resolver = TokioAsyncResolver::tokio(cfg, opts).unwrap();
+                Arbiter::set_item(resolver.clone());
+                TrustDnsResolver { resolver }
+            }
+        }
+    }
+
+    impl Resolve for TrustDnsResolver {
+        fn lookup<'a>(
+            &'a self,
+            host: &'a str,
+            port: u16,
+        ) -> LocalBoxFuture<'a, Result<Vec<SocketAddr>, Box<dyn std::error::Error>>>
+        {
+            Box::pin(async move {
+                let res = self
+                    .resolver
+                    .lookup_ip(host)
+                    .await?
+                    .iter()
+                    .map(|ip| SocketAddr::new(ip, port))
+                    .collect();
+                Ok(res)
+            })
+        }
+    }
+
+    pub fn default_connector<T: Address + 'static>(
+    ) -> impl Service<Connect<T>, Response = Connection<T, TcpStream>, Error = ConnectError>
+           + Clone {
+        actix_tls::connect::new_connector(Resolver::new_custom(TrustDnsResolver::new()))
     }
 }

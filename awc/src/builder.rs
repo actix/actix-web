@@ -4,10 +4,10 @@ use std::fmt;
 use std::rc::Rc;
 use std::time::Duration;
 
-use actix_http::client::{Connect as HttpConnect, ConnectError, Connection, Connector};
 use actix_http::http::{self, header, Error as HttpError, HeaderMap, HeaderName};
 use actix_service::Service;
 
+use crate::client::{Connect as HttpConnect, ConnectError, Connection, Connector};
 use crate::connect::{Connect, ConnectorWrapper};
 use crate::{Client, ClientConfig};
 

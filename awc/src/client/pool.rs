@@ -12,13 +12,13 @@ use actix_service::Service;
 use actix_utils::task::LocalWaker;
 use ahash::AHashMap;
 use bytes::Bytes;
-use futures_channel::oneshot;
 use futures_util::future::{poll_fn, FutureExt, LocalBoxFuture};
 use h2::client::{Connection, SendRequest};
 use http::uri::Authority;
 use indexmap::IndexSet;
 use pin_project::pin_project;
 use slab::Slab;
+use tokio::sync::oneshot;
 
 use super::config::ConnectorConfig;
 use super::connection::{ConnectionType, IoConnection};

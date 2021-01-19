@@ -47,10 +47,10 @@ compress = ["actix-http/compress", "awc/compress"]
 secure-cookies = ["actix-http/secure-cookies"]
 
 # openssl
-openssl = ["actix-tls/accept", "actix-tls/openssl", "awc/openssl", "open-ssl"]
+openssl = ["actix-http/openssl", "awc/openssl", "actix-tls/accept", "open-ssl"]
 
 # rustls
-rustls = ["actix-tls/accept", "actix-tls/rustls", "awc/rustls", "rust-tls"]
+rustls = ["actix-http/rustls", "awc/rustls", "actix-tls/accept", "rust-tls"]
 
 [[example]]
 name = "basic"

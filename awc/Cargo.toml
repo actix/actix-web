@@ -28,10 +28,10 @@ features = ["openssl", "rustls", "compress"]
 default = ["compress"]
 
 # openssl
-openssl = ["open-ssl", "actix-http/openssl"]
+openssl = ["open-ssl", "actix-tls/openssl"]
 
 # rustls
-rustls = ["rust-tls", "actix-http/rustls"]
+rustls = ["rust-tls", "actix-tls/rustls"]
 
 # content-encoding support
 compress = ["actix-http/compress"]
@@ -44,15 +44,19 @@ actix-codec = "0.4.0-beta.1"
 actix-service = "2.0.0-beta.3"
 actix-http = "3.0.0-beta.1"
 actix-rt = "2.0.0-beta.2"
+actix-tls = { version = "3.0.0-beta.2", default-features = false, features = ["connect", "uri"] }
+actix-utils = "3.0.0-beta.1"
 
-# TODO: temporary import actix-tls to bypass some actix-http mods
-actix-tls = { version = "3.0.0-beta.2", default-features = false, features = ["connect"] }
-
+ahash = "0.6"
 base64 = "0.13"
 bytes = "1"
 cfg-if = "1.0"
 derive_more = "0.99.5"
-futures-core = { version = "0.3.7", default-features = false }
+futures-core = { version = "0.3.7", default-features = false, features = ["alloc"] }
+futures-util = { version = "0.3.7", default-features = false, features = ["alloc"] }
+h2 = "0.3"
+http = "0.2.3"
+indexmap = "1.6"
 log =" 0.4"
 mime = "0.3"
 percent-encoding = "2.1"
@@ -60,8 +64,11 @@ rand = "0.8"
 serde = "1.0"
 serde_json = "1.0"
 serde_urlencoded = "0.7"
+slab = "0.4"
 open-ssl = { version = "0.10", package = "openssl", optional = true }
+pin-project = "1"
 rust-tls = { version = "0.19.0", package = "rustls", optional = true, features = ["dangerous_configuration"] }
+tokio = { version = "1", features = ["sync"] }
 trust-dns-resolver = { version = "0.20.0", default-features = false, optional = true }
 
 [dev-dependencies]

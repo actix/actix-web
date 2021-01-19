@@ -9,10 +9,10 @@ use futures_util::future::{err, Either, FutureExt, LocalBoxFuture, Ready};
 use h2::client::SendRequest;
 use pin_project::pin_project;
 
-use crate::body::MessageBody;
-use crate::h1::ClientCodec;
-use crate::message::{RequestHeadType, ResponseHead};
-use crate::payload::Payload;
+use actix_http::body::MessageBody;
+use actix_http::h1::ClientCodec;
+use actix_http::Payload;
+use actix_http::{RequestHeadType, ResponseHead};
 
 use super::error::SendRequestError;
 use super::pool::{Acquired, Protocol};

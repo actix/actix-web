@@ -5,8 +5,8 @@ use derive_more::{Display, From};
 #[cfg(feature = "openssl")]
 use actix_tls::accept::openssl::SslError;
 
-use crate::error::{Error, ParseError, ResponseError};
-use crate::http::{Error as HttpError, StatusCode};
+use actix_http::error::{Error, ParseError, ResponseError};
+use actix_http::http::{Error as HttpError, StatusCode};
 
 /// A set of errors that can occur while connecting to an HTTP host
 #[derive(Debug, Display, From)]
