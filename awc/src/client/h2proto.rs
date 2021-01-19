@@ -10,11 +10,12 @@ use h2::{
     client::{Builder, Connection, SendRequest},
     SendStream,
 };
-use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, TRANSFER_ENCODING};
 use http::{request::Request, Method, Version};
 
 use actix_http::body::{BodySize, MessageBody};
-use actix_http::HeaderMap;
+use actix_http::http::header::{
+    HeaderMap, HeaderValue, CONNECTION, CONTENT_LENGTH, TRANSFER_ENCODING,
+};
 use actix_http::Payload;
 use actix_http::{RequestHeadType, ResponseHead};
 

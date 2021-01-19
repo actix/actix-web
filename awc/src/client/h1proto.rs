@@ -13,8 +13,7 @@ use futures_util::{pin_mut, SinkExt, StreamExt};
 use actix_http::body::{BodySize, MessageBody};
 use actix_http::error::PayloadError;
 use actix_http::h1;
-use actix_http::http::header::{IntoHeaderValue, HOST};
-use actix_http::HeaderMap;
+use actix_http::http::header::{HeaderMap, IntoHeaderValue, HOST};
 use actix_http::{Payload, PayloadStream};
 use actix_http::{RequestHeadType, ResponseHead};
 

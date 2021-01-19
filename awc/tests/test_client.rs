@@ -718,10 +718,9 @@ async fn test_client_cookie_handling() {
 #[actix_rt::test]
 async fn client_unread_response() {
     let addr = test::unused_addr();
+    let lst = std::net::TcpListener::bind(addr).unwrap();
 
     std::thread::spawn(move || {
-        let lst = std::net::TcpListener::bind(addr).unwrap();
-
         for stream in lst.incoming() {
             let mut stream = stream.unwrap();
             let mut b = [0; 1000];
