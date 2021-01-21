@@ -50,6 +50,7 @@ where
         + StreamHandler<Result<Message, ProtocolError>>,
     T: Stream<Item = Result<Bytes, PayloadError>> + 'static,
 {
+    #[inline]
     pub fn new(actor: A, req: &'a HttpRequest, stream: T) -> Self {
         WsResponseBuilder {
             actor,
@@ -61,21 +62,25 @@ where
         }
     }
 
-    pub fn protocols(&mut self, protocols: &'a [&'a str]) -> &mut Self {
+    #[inline]
+    pub fn protocols(mut self, protocols: &'a [&'a str]) -> Self {
         self.protocols = Some(protocols);
         self
     }
 
-    pub fn frame_size(&mut self, frame_size: usize) -> &mut Self {
+    #[inline]
+    pub fn frame_size(mut self, frame_size: usize) -> Self {
         self.frame_size = Some(frame_size);
         self
     }
 
-    pub fn codec(&mut self, codec: Codec) -> &mut Self {
+    #[inline]
+    pub fn codec(mut self, codec: Codec) -> Self {
         self.codec = Some(codec);
         self
     }
 
+    #[inline]
     fn handshake_resp(&self) -> Result<HttpResponseBuilder, HandshakeError> {
         match self.protocols {
             Some(protocols) => handshake_with_protocols(self.req, protocols),
@@ -83,6 +88,7 @@ where
         }
     }
 
+    #[inline]
     fn set_frame_size(&mut self) {
         if let Some(frame_size) = self.frame_size {
             match &mut self.codec {
@@ -108,6 +114,7 @@ where
     ///
     /// If successful, consume the [`WsResponseBuilder`] and return a
     /// [`HttpResponse`] wrapped in a [`Result`].
+    #[inline]
     pub fn start(mut self) -> Result<HttpResponse, Error> {
         let mut res = self.handshake_resp()?;
         self.set_frame_size();
@@ -136,6 +143,7 @@ where
     /// If successful, returns a pair where the first item is an address for the
     /// created actor and the second item is the [`HttpResponse`] that should be
     /// returned from the websocket request.
+    #[inline]
     pub fn start_with_addr(mut self) -> Result<(Addr<A>, HttpResponse), Error> {
         let mut res = self.handshake_resp()?;
         self.set_frame_size();
