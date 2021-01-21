@@ -1,6 +1,7 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+* Add `ws:WsResponseBuilder` for building web socket session response.
 
 
 ## 4.0.0-beta.1 - 2021-01-07
