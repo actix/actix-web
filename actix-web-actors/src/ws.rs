@@ -30,6 +30,24 @@ use futures_core::Stream;
 use tokio::sync::oneshot::Sender;
 
 /// Builder for Websocket Session response.
+///
+/// # Examples
+///
+/// Create a Websocket session response with default configs.
+/// ```rust
+/// WsResponseBuilder::new(WsActor, &req, stream).start()
+/// ```
+///
+/// Create a Websocket session with a specific max frame size,
+/// a [`Codec`] or protocols.
+/// ```rust
+/// const MAX_FRAME_SIZE: usize = 10_000; // in bytes.
+/// ws::WsResponseBuilder::new(WsActor, &req, stream)
+///     .codec(Codec::new()) // optional
+///     .protocols(&["A", "B"]) // optional
+///     .frame_size(MAX_FRAME_SIZE) // optional
+///     .start()
+/// ```
 pub struct WsResponseBuilder<'a, A, T>
 where
     A: Actor<Context = WebsocketContext<A>>
@@ -50,7 +68,6 @@ where
         + StreamHandler<Result<Message, ProtocolError>>,
     T: Stream<Item = Result<Bytes, PayloadError>> + 'static,
 {
-    #[inline]
     pub fn new(actor: A, req: &'a HttpRequest, stream: T) -> Self {
         WsResponseBuilder {
             actor,
@@ -62,25 +79,29 @@ where
         }
     }
 
-    #[inline]
+    /// Set the protocols for the session.
     pub fn protocols(mut self, protocols: &'a [&'a str]) -> Self {
         self.protocols = Some(protocols);
         self
     }
 
-    #[inline]
+    /// Set the max frame size for each message.
+    ///
+    /// **Note**: This will override any given [`Codec`]'s
+    /// max frame size.
     pub fn frame_size(mut self, frame_size: usize) -> Self {
         self.frame_size = Some(frame_size);
         self
     }
 
-    #[inline]
+    /// Set the [`Codec`] for the session. If [`Self::frame_size`]
+    /// is also set, the given [`Codec`]'s max frame size will be
+    /// overriden.
     pub fn codec(mut self, codec: Codec) -> Self {
         self.codec = Some(codec);
         self
     }
 
-    #[inline]
     fn handshake_resp(&self) -> Result<HttpResponseBuilder, HandshakeError> {
         match self.protocols {
             Some(protocols) => handshake_with_protocols(self.req, protocols),
@@ -88,7 +109,6 @@ where
         }
     }
 
-    #[inline]
     fn set_frame_size(&mut self) {
         if let Some(frame_size) = self.frame_size {
             match &mut self.codec {
@@ -104,7 +124,6 @@ where
         }
     }
 
-    #[inline]
     /// Perform WebSocket handshake and start actor.
     ///
     /// `req` is an [`HttpRequest`] that should be requesting a websocket
@@ -132,7 +151,6 @@ where
         }
     }
 
-    #[inline]
     /// Perform WebSocket handshake and start actor.
     ///
     /// `req` is an [`HttpRequest`] that should be requesting a websocket
