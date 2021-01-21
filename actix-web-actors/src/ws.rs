@@ -29,6 +29,135 @@ use bytestring::ByteString;
 use futures_core::Stream;
 use tokio::sync::oneshot::Sender;
 
+/// Builder for Websocket Session response.
+pub struct WsResponseBuilder<'a, A, T>
+where
+    A: Actor<Context = WebsocketContext<A>>
+        + StreamHandler<Result<Message, ProtocolError>>,
+    T: Stream<Item = Result<Bytes, PayloadError>> + 'static,
+{
+    actor: A,
+    req: &'a HttpRequest,
+    stream: T,
+    protocols: Option<&'a [&'a str]>,
+    frame_size: Option<usize>,
+    codec: Option<Codec>,
+}
+
+impl<'a, A, T> WsResponseBuilder<'a, A, T>
+where
+    A: Actor<Context = WebsocketContext<A>>
+        + StreamHandler<Result<Message, ProtocolError>>,
+    T: Stream<Item = Result<Bytes, PayloadError>> + 'static,
+{
+    pub fn new(actor: A, req: &'a HttpRequest, stream: T) -> Self {
+        WsResponseBuilder {
+            actor,
+            req,
+            stream,
+            protocols: None,
+            frame_size: None,
+            codec: None,
+        }
+    }
+
+    pub fn protocols(&mut self, protocols: &'a [&'a str]) -> &mut Self {
+        self.protocols = Some(protocols);
+        self
+    }
+
+    pub fn frame_size(&mut self, frame_size: usize) -> &mut Self {
+        self.frame_size = Some(frame_size);
+        self
+    }
+
+    pub fn codec(&mut self, codec: Codec) -> &mut Self {
+        self.codec = Some(codec);
+        self
+    }
+
+    fn handshake_resp(&self) -> Result<HttpResponseBuilder, HandshakeError> {
+        match self.protocols {
+            Some(protocols) => handshake_with_protocols(self.req, protocols),
+            None => handshake(self.req),
+        }
+    }
+
+    fn set_frame_size(&mut self) {
+        if let Some(frame_size) = self.frame_size {
+            match &mut self.codec {
+                // Modify existing Codec's size.
+                Some(codec) => {
+                    codec.max_size(frame_size);
+                }
+                // Otherwise, create a new codec with the given size.
+                None => {
+                    self.codec = Some(Codec::new().max_size(frame_size));
+                }
+            }
+        }
+    }
+
+    /// Perform WebSocket handshake and start actor.
+    ///
+    /// `req` is an [`HttpRequest`] that should be requesting a websocket
+    /// protocol change. `stream` should be a [`Bytes`] stream (such as
+    /// `actix_web::web::Payload`) that contains a stream of the body request.
+    ///
+    /// If there is a problem with the handshake, an error is returned.
+    ///
+    /// If successful, consume the [`WsResponseBuilder`] and return a
+    /// [`HttpResponse`] wrapped in a [`Result`].
+    pub fn start(mut self) -> Result<HttpResponse, Error> {
+        let mut res = self.handshake_resp()?;
+        self.set_frame_size();
+
+        match self.codec {
+            Some(codec) => {
+                let out_stream =
+                    WebsocketContext::with_codec(self.actor, self.stream, codec);
+                Ok(res.streaming(out_stream))
+            }
+            None => {
+                let out_stream = WebsocketContext::create(self.actor, self.stream);
+                Ok(res.streaming(out_stream))
+            }
+        }
+    }
+
+    /// Perform WebSocket handshake and start actor.
+    ///
+    /// `req` is an [`HttpRequest`] that should be requesting a websocket
+    /// protocol change. `stream` should be a [`Bytes`] stream (such as
+    /// `actix_web::web::Payload`) that contains a stream of the body request.
+    ///
+    /// If there is a problem with the handshake, an error is returned.
+    ///
+    /// If successful, returns a pair where the first item is an address for the
+    /// created actor and the second item is the [`HttpResponse`] that should be
+    /// returned from the websocket request.
+    pub fn start_with_addr(mut self) -> Result<(Addr<A>, HttpResponse), Error> {
+        let mut res = self.handshake_resp()?;
+        self.set_frame_size();
+
+        match self.codec {
+            Some(codec) => {
+                let (addr, out_stream) = WebsocketContext::create_with_codec_addr(
+                    self.actor,
+                    self.stream,
+                    codec,
+                );
+                Ok((addr, res.streaming(out_stream)))
+            }
+            None => {
+                let (addr, out_stream) =
+                    WebsocketContext::create_with_addr(self.actor, self.stream);
+                Ok((addr, res.streaming(out_stream)))
+            }
+        }
+    }
+}
+
 /// Perform WebSocket handshake and start actor.
 pub fn start<A, T>(actor: A, req: &HttpRequest, stream: T) -> Result<HttpResponse, Error>
 where
@@ -38,43 +167,6 @@ where
 {
     let mut res = handshake(req)?;
     Ok(res.streaming(WebsocketContext::create(actor, stream)))
-}
-
-/// Perform WebSocket handshake and start actor with the given frame size.
-pub fn start_with_frame_size<A, T>(
-    actor: A,
-    req: &HttpRequest,
-    stream: T,
-    frame_size: usize,
-) -> Result<HttpResponse, Error>
-where
-    A: Actor<Context = WebsocketContext<A>>
-        + StreamHandler<Result<Message, ProtocolError>>,
-    T: Stream<Item = Result<Bytes, PayloadError>> + 'static,
-{
-    let mut res = handshake(req)?;
-    Ok(res.streaming(WebsocketContext::with_codec(
-        actor,
-        stream,
-        Codec::new().max_size(frame_size),
-    )))
-}
-
-/// Perform WebSocket handshake and start actor with the given
-/// `actix_http::ws::Codec`.
-pub fn start_with_codec<A, T>(
-    actor: A,
-    req: &HttpRequest,
-    stream: T,
-    codec: Codec,
-) -> Result<HttpResponse, Error>
-where
-    A: Actor<Context = WebsocketContext<A>>
-        + StreamHandler<Result<Message, ProtocolError>>,
-    T: Stream<Item = Result<Bytes, PayloadError>> + 'static,
-{
-    let mut res = handshake(req)?;
-    Ok(res.streaming(WebsocketContext::with_codec(actor, stream, codec)))
 }
 
 /// Perform WebSocket handshake and start actor.
@@ -314,6 +406,33 @@ where
         let addr = ctx.address();
 
         (addr, WebsocketContextFut::new(ctx, actor, mb, Codec::new()))
+    }
+
+    #[inline]
+    /// Create a new Websocket context from a request, an actor, and a codec.
+    ///
+    /// Returns a pair, where the first item is an addr for the created actor,
+    /// and the second item is a stream intended to be set as part of the
+    /// response via `HttpResponseBuilder::streaming()`.
+    pub fn create_with_codec_addr<S>(
+        actor: A,
+        stream: S,
+        codec: Codec,
+    ) -> (Addr<A>, impl Stream<Item = Result<Bytes, Error>>)
+    where
+        A: StreamHandler<Result<Message, ProtocolError>>,
+        S: Stream<Item = Result<Bytes, PayloadError>> + 'static,
+    {
+        let mb = Mailbox::default();
+        let mut ctx = WebsocketContext {
+            inner: ContextParts::new(mb.sender_producer()),
+            messages: VecDeque::new(),
+        };
+        ctx.add_stream(WsStream::new(stream, codec));
+
+        let addr = ctx.address();
+
+        (addr, WebsocketContextFut::new(ctx, actor, mb, codec))
     }
 
     #[inline]
