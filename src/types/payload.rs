@@ -191,6 +191,9 @@ fn bytes_to_string(body: Bytes, encoding: &'static Encoding) -> Result<String, E
 /// building extractors on top of `Payload`.
 ///
 /// By default, the payload size limit is 256kB and there is no mime type condition.
+///
+/// To use this, add an instance of it to your app or service through one of the `.app_data()`
+/// methods.
 #[derive(Clone)]
 pub struct PayloadConfig {
     limit: usize,
@@ -198,7 +201,7 @@ pub struct PayloadConfig {
 }
 
 impl PayloadConfig {
-    /// Create new instance with a size limit and no mime type condition.
+    /// Create new instance with a size limit (in bytes) and no mime type condition.
     pub fn new(limit: usize) -> Self {
         Self {
             limit,
@@ -206,7 +209,7 @@ impl PayloadConfig {
         }
     }
 
-    /// Set maximum accepted payload size. The default limit is 256kB.
+    /// Set maximum accepted payload size in bytes. The default limit is 256kB.
     pub fn limit(mut self, limit: usize) -> Self {
         self.limit = limit;
         self
