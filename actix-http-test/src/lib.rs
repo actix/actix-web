@@ -106,7 +106,6 @@ pub async fn test_server_with_addr<F: ServiceFactory<TcpStream>>(
 
         Client::builder().connector(connector).finish()
     };
-    actix_tls::connect::start_default_resolver().await.unwrap();
 
     TestServer {
         addr,

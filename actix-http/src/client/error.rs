@@ -1,6 +1,5 @@
 use std::io;
 
-use actix_tls::connect::resolver::ResolveError;
 use derive_more::{Display, From};
 
 #[cfg(feature = "openssl")]
@@ -23,7 +22,7 @@ pub enum ConnectError {
 
     /// Failed to resolve the hostname
     #[display(fmt = "Failed resolving hostname: {}", _0)]
-    Resolver(ResolveError),
+    Resolver(Box<dyn std::error::Error>),
 
     /// No dns records
     #[display(fmt = "No dns records found for the input")]

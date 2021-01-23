@@ -212,8 +212,11 @@ mod tests {
 
         let req = TestRequest::default().to_srv_request();
         let srv = |req: ServiceRequest| {
-            ok(req
-                .into_response(HttpResponse::Ok().header(CONTENT_TYPE, "0002").finish()))
+            ok(req.into_response(
+                HttpResponse::Ok()
+                    .insert_header((CONTENT_TYPE, "0002"))
+                    .finish(),
+            ))
         };
         let mw = DefaultHeaders::new()
             .header(CONTENT_TYPE, "0001")

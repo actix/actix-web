@@ -12,13 +12,22 @@
   `ServiceRequest::from_request` would not fail and no payload would be generated [#1893]
 * Our `Either` type now uses `Left`/`Right` variants (instead of `A`/`B`) [#1894]
 
+### Fixed
+* Multiple calls `App::data` with the same type now keeps the latest call's data. [#1906]
+
 ### Removed
 * Public field of `web::Path` has been made private. [#1894]
 * Public field of `web::Query` has been made private. [#1894]
+* `TestRequest::with_header`; use `TestRequest::default().insert_header()`. [#1869]
+* `AppService::set_service_data`; for custom HTTP service factories adding application data, use the
+  layered data model by calling `ServiceRequest::add_data_container` when handling
+  requests instead. [#1906]
 
 [#1891]: https://github.com/actix/actix-web/pull/1891
 [#1893]: https://github.com/actix/actix-web/pull/1893
 [#1894]: https://github.com/actix/actix-web/pull/1894
+[#1869]: https://github.com/actix/actix-web/pull/1869
+[#1906]: https://github.com/actix/actix-web/pull/1906
 
 
 ## 4.0.0-beta.1 - 2021-01-07

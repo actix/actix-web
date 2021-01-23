@@ -203,10 +203,10 @@ where
     ///
     /// Data of different types from parent contexts will still be accessible.
     pub fn app_data<U: 'static>(mut self, data: U) -> Self {
-        if self.app_data.is_none() {
-            self.app_data = Some(Extensions::new());
-        }
-        self.app_data.as_mut().unwrap().insert(data);
+        self.app_data
+            .get_or_insert_with(Extensions::new)
+            .insert(data);
+
         self
     }
 
@@ -382,17 +382,15 @@ where
         } else {
             Some(std::mem::take(&mut self.guards))
         };
+
         let mut rdef = if config.is_root() || !self.rdef.is_empty() {
             ResourceDef::new(insert_slash(self.rdef.clone()))
         } else {
             ResourceDef::new(self.rdef.clone())
         };
+
         if let Some(ref name) = self.name {
             *rdef.name_mut() = name.clone();
-        }
-        // custom app data storage
-        if let Some(ref mut ext) = self.app_data {
-            config.set_service_data(ext);
         }
 
         config.register_service(rdef, guards, self, None)
@@ -479,12 +477,15 @@ impl Service<ServiceRequest> for ResourceService {
                 if let Some(ref app_data) = self.app_data {
                     req.add_data_container(app_data.clone());
                 }
+
                 return route.call(req);
             }
         }
+
         if let Some(ref app_data) = self.app_data {
             req.add_data_container(app_data.clone());
         }
+
         self.default.call(req)
     }
 }

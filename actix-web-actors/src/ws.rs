@@ -166,11 +166,11 @@ pub fn handshake_with_protocols(
 
     let mut response = HttpResponse::build(StatusCode::SWITCHING_PROTOCOLS)
         .upgrade("websocket")
-        .header(header::SEC_WEBSOCKET_ACCEPT, key.as_str())
+        .insert_header((header::SEC_WEBSOCKET_ACCEPT, key))
         .take();
 
     if let Some(protocol) = protocol {
-        response.header(&header::SEC_WEBSOCKET_PROTOCOL, protocol);
+        response.insert_header((header::SEC_WEBSOCKET_PROTOCOL, protocol));
     }
 
     Ok(response)
@@ -573,7 +573,7 @@ mod tests {
         );
 
         let req = TestRequest::default()
-            .header(header::UPGRADE, header::HeaderValue::from_static("test"))
+            .insert_header((header::UPGRADE, header::HeaderValue::from_static("test")))
             .to_http_request();
         assert_eq!(
             HandshakeError::NoWebsocketUpgrade,
@@ -581,10 +581,10 @@ mod tests {
         );
 
         let req = TestRequest::default()
-            .header(
+            .insert_header((
                 header::UPGRADE,
                 header::HeaderValue::from_static("websocket"),
-            )
+            ))
             .to_http_request();
         assert_eq!(
             HandshakeError::NoConnectionUpgrade,
@@ -592,14 +592,14 @@ mod tests {
         );
 
         let req = TestRequest::default()
-            .header(
+            .insert_header((
                 header::UPGRADE,
                 header::HeaderValue::from_static("websocket"),
-            )
-            .header(
+            ))
+            .insert_header((
                 header::CONNECTION,
                 header::HeaderValue::from_static("upgrade"),
-            )
+            ))
             .to_http_request();
         assert_eq!(
             HandshakeError::NoVersionHeader,
@@ -607,18 +607,18 @@ mod tests {
         );
 
         let req = TestRequest::default()
-            .header(
+            .insert_header((
                 header::UPGRADE,
                 header::HeaderValue::from_static("websocket"),
-            )
-            .header(
+            ))
+            .insert_header((
                 header::CONNECTION,
                 header::HeaderValue::from_static("upgrade"),
-            )
-            .header(
+            ))
+            .insert_header((
                 header::SEC_WEBSOCKET_VERSION,
                 header::HeaderValue::from_static("5"),
-            )
+            ))
             .to_http_request();
         assert_eq!(
             HandshakeError::UnsupportedVersion,
@@ -626,18 +626,18 @@ mod tests {
         );
 
         let req = TestRequest::default()
-            .header(
+            .insert_header((
                 header::UPGRADE,
                 header::HeaderValue::from_static("websocket"),
-            )
-            .header(
+            ))
+            .insert_header((
                 header::CONNECTION,
                 header::HeaderValue::from_static("upgrade"),
-            )
-            .header(
+            ))
+            .insert_header((
                 header::SEC_WEBSOCKET_VERSION,
                 header::HeaderValue::from_static("13"),
-            )
+            ))
             .to_http_request();
         assert_eq!(
             HandshakeError::BadWebsocketKey,
@@ -645,22 +645,22 @@ mod tests {
         );
 
         let req = TestRequest::default()
-            .header(
+            .insert_header((
                 header::UPGRADE,
                 header::HeaderValue::from_static("websocket"),
-            )
-            .header(
+            ))
+            .insert_header((
                 header::CONNECTION,
                 header::HeaderValue::from_static("upgrade"),
-            )
-            .header(
+            ))
+            .insert_header((
                 header::SEC_WEBSOCKET_VERSION,
                 header::HeaderValue::from_static("13"),
-            )
-            .header(
+            ))
+            .insert_header((
                 header::SEC_WEBSOCKET_KEY,
                 header::HeaderValue::from_static("13"),
-            )
+            ))
             .to_http_request();
 
         let resp = handshake(&req).unwrap().finish();
@@ -669,26 +669,26 @@ mod tests {
         assert_eq!(None, resp.headers().get(&header::TRANSFER_ENCODING));
 
         let req = TestRequest::default()
-            .header(
+            .insert_header((
                 header::UPGRADE,
                 header::HeaderValue::from_static("websocket"),
-            )
-            .header(
+            ))
+            .insert_header((
                 header::CONNECTION,
                 header::HeaderValue::from_static("upgrade"),
-            )
-            .header(
+            ))
+            .insert_header((
                 header::SEC_WEBSOCKET_VERSION,
                 header::HeaderValue::from_static("13"),
-            )
-            .header(
+            ))
+            .insert_header((
                 header::SEC_WEBSOCKET_KEY,
                 header::HeaderValue::from_static("13"),
-            )
-            .header(
+            ))
+            .insert_header((
                 header::SEC_WEBSOCKET_PROTOCOL,
                 header::HeaderValue::from_static("graphql"),
-            )
+            ))
             .to_http_request();
 
         let protocols = ["graphql"];
@@ -710,26 +710,26 @@ mod tests {
         );
 
         let req = TestRequest::default()
-            .header(
+            .insert_header((
                 header::UPGRADE,
                 header::HeaderValue::from_static("websocket"),
-            )
-            .header(
+            ))
+            .insert_header((
                 header::CONNECTION,
                 header::HeaderValue::from_static("upgrade"),
-            )
-            .header(
+            ))
+            .insert_header((
                 header::SEC_WEBSOCKET_VERSION,
                 header::HeaderValue::from_static("13"),
-            )
-            .header(
+            ))
+            .insert_header((
                 header::SEC_WEBSOCKET_KEY,
                 header::HeaderValue::from_static("13"),
-            )
-            .header(
+            ))
+            .insert_header((
                 header::SEC_WEBSOCKET_PROTOCOL,
                 header::HeaderValue::from_static("p1, p2, p3"),
-            )
+            ))
             .to_http_request();
 
         let protocols = vec!["p3", "p2"];
@@ -751,26 +751,26 @@ mod tests {
         );
 
         let req = TestRequest::default()
-            .header(
+            .insert_header((
                 header::UPGRADE,
                 header::HeaderValue::from_static("websocket"),
-            )
-            .header(
+            ))
+            .insert_header((
                 header::CONNECTION,
                 header::HeaderValue::from_static("upgrade"),
-            )
-            .header(
+            ))
+            .insert_header((
                 header::SEC_WEBSOCKET_VERSION,
                 header::HeaderValue::from_static("13"),
-            )
-            .header(
+            ))
+            .insert_header((
                 header::SEC_WEBSOCKET_KEY,
                 header::HeaderValue::from_static("13"),
-            )
-            .header(
+            ))
+            .insert_header((
                 header::SEC_WEBSOCKET_PROTOCOL,
                 header::HeaderValue::from_static("p1,p2,p3"),
-            )
+            ))
             .to_http_request();
 
         let protocols = vec!["p3", "p2"];

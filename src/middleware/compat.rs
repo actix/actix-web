@@ -110,8 +110,7 @@ where
     }
 }
 
-// trait for convert ServiceResponse's ResponseBody<B> generic type
-// to ResponseBody<Body>
+/// Convert `ServiceResponse`'s `ResponseBody<B>` generic type to `ResponseBody<Body>`.
 pub trait MapServiceResponseBody {
     fn map_body(self) -> ServiceResponse;
 }

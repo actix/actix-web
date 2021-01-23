@@ -170,7 +170,7 @@ impl WebsocketsRequest {
         V: IntoHeaderValue,
     {
         match HeaderName::try_from(key) {
-            Ok(key) => match value.try_into() {
+            Ok(key) => match value.try_into_value() {
                 Ok(value) => {
                     self.head.headers.append(key, value);
                 }
@@ -189,7 +189,7 @@ impl WebsocketsRequest {
         V: IntoHeaderValue,
     {
         match HeaderName::try_from(key) {
-            Ok(key) => match value.try_into() {
+            Ok(key) => match value.try_into_value() {
                 Ok(value) => {
                     self.head.headers.insert(key, value);
                 }
@@ -210,7 +210,7 @@ impl WebsocketsRequest {
         match HeaderName::try_from(key) {
             Ok(key) => {
                 if !self.head.headers.contains_key(&key) {
-                    match value.try_into() {
+                    match value.try_into_value() {
                         Ok(value) => {
                             self.head.headers.insert(key, value);
                         }

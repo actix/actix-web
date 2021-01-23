@@ -27,20 +27,24 @@ header! {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```
     /// use actix_http::Response;
     /// use actix_http::http::header::{ETag, EntityTag};
     ///
     /// let mut builder = Response::Ok();
-    /// builder.set(ETag(EntityTag::new(false, "xyzzy".to_owned())));
+    /// builder.insert_header(
+    ///     ETag(EntityTag::new(false, "xyzzy".to_owned()))
+    /// );
     /// ```
     ///
-    /// ```rust
+    /// ```
     /// use actix_http::Response;
     /// use actix_http::http::header::{ETag, EntityTag};
     ///
     /// let mut builder = Response::Ok();
-    /// builder.set(ETag(EntityTag::new(true, "xyzzy".to_owned())));
+    /// builder.insert_header(
+    ///     ETag(EntityTag::new(true, "xyzzy".to_owned()))
+    /// );
     /// ```
     (ETag, ETAG) => [EntityTag]
 

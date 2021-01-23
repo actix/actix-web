@@ -101,7 +101,7 @@ impl ResponseError for HandshakeError {
     fn error_response(&self) -> Response {
         match self {
             HandshakeError::GetMethodRequired => Response::MethodNotAllowed()
-                .header(header::ALLOW, "GET")
+                .insert_header((header::ALLOW, "GET"))
                 .finish(),
 
             HandshakeError::NoWebsocketUpgrade => Response::BadRequest()
@@ -128,18 +128,12 @@ impl ResponseError for HandshakeError {
 }
 
 /// Verify `WebSocket` handshake request and create handshake response.
-// /// `protocols` is a sequence of known protocols. On successful handshake,
-// /// the returned response headers contain the first protocol in this list
-// /// which the server also knows.
 pub fn handshake(req: &RequestHead) -> Result<ResponseBuilder, HandshakeError> {
     verify_handshake(req)?;
     Ok(handshake_response(req))
 }
 
 /// Verify `WebSocket` handshake request.
-// /// `protocols` is a sequence of known protocols. On successful handshake,
-// /// the returned response headers contain the first protocol in this list
-// /// which the server also knows.
 pub fn verify_handshake(req: &RequestHead) -> Result<(), HandshakeError> {
     // WebSocket accepts only GET
     if req.method != Method::GET {
@@ -198,8 +192,8 @@ pub fn handshake_response(req: &RequestHead) -> ResponseBuilder {
 
     Response::build(StatusCode::SWITCHING_PROTOCOLS)
         .upgrade("websocket")
-        .header(header::TRANSFER_ENCODING, "chunked")
-        .header(header::SEC_WEBSOCKET_ACCEPT, key.as_str())
+        .insert_header((header::TRANSFER_ENCODING, "chunked"))
+        .insert_header((header::SEC_WEBSOCKET_ACCEPT, key))
         .take()
 }
 
@@ -224,7 +218,7 @@ mod tests {
         );
 
         let req = TestRequest::default()
-            .header(header::UPGRADE, header::HeaderValue::from_static("test"))
+            .insert_header((header::UPGRADE, header::HeaderValue::from_static("test")))
             .finish();
         assert_eq!(
             HandshakeError::NoWebsocketUpgrade,
@@ -232,10 +226,10 @@ mod tests {
         );
 
         let req = TestRequest::default()
-            .header(
+            .insert_header((
                 header::UPGRADE,
                 header::HeaderValue::from_static("websocket"),
-            )
+            ))
             .finish();
         assert_eq!(
             HandshakeError::NoConnectionUpgrade,
@@ -243,14 +237,14 @@ mod tests {
         );
 
         let req = TestRequest::default()
-            .header(
+            .insert_header((
                 header::UPGRADE,
                 header::HeaderValue::from_static("websocket"),
-            )
-            .header(
+            ))
+            .insert_header((
                 header::CONNECTION,
                 header::HeaderValue::from_static("upgrade"),
-            )
+            ))
             .finish();
         assert_eq!(
             HandshakeError::NoVersionHeader,
@@ -258,18 +252,18 @@ mod tests {
         );
 
         let req = TestRequest::default()
-            .header(
+            .insert_header((
                 header::UPGRADE,
                 header::HeaderValue::from_static("websocket"),
-            )
-            .header(
+            ))
+            .insert_header((
                 header::CONNECTION,
                 header::HeaderValue::from_static("upgrade"),
-            )
-            .header(
+            ))
+            .insert_header((
                 header::SEC_WEBSOCKET_VERSION,
                 header::HeaderValue::from_static("5"),
-            )
+            ))
             .finish();
         assert_eq!(
             HandshakeError::UnsupportedVersion,
@@ -277,18 +271,18 @@ mod tests {
         );
 
         let req = TestRequest::default()
-            .header(
+            .insert_header((
                 header::UPGRADE,
                 header::HeaderValue::from_static("websocket"),
-            )
-            .header(
+            ))
+            .insert_header((
                 header::CONNECTION,
                 header::HeaderValue::from_static("upgrade"),
-            )
-            .header(
+            ))
+            .insert_header((
                 header::SEC_WEBSOCKET_VERSION,
                 header::HeaderValue::from_static("13"),
-            )
+            ))
             .finish();
         assert_eq!(
             HandshakeError::BadWebsocketKey,
@@ -296,22 +290,22 @@ mod tests {
         );
 
         let req = TestRequest::default()
-            .header(
+            .insert_header((
                 header::UPGRADE,
                 header::HeaderValue::from_static("websocket"),
-            )
-            .header(
+            ))
+            .insert_header((
                 header::CONNECTION,
                 header::HeaderValue::from_static("upgrade"),
-            )
-            .header(
+            ))
+            .insert_header((
                 header::SEC_WEBSOCKET_VERSION,
                 header::HeaderValue::from_static("13"),
-            )
-            .header(
+            ))
+            .insert_header((
                 header::SEC_WEBSOCKET_KEY,
                 header::HeaderValue::from_static("13"),
-            )
+            ))
             .finish();
         assert_eq!(
             StatusCode::SWITCHING_PROTOCOLS,

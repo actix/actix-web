@@ -5,7 +5,7 @@ use actix_http::Extensions;
 use actix_router::ResourceDef;
 use actix_service::{boxed, IntoServiceFactory, ServiceFactory};
 
-use crate::data::{Data, DataFactory};
+use crate::data::Data;
 use crate::error::Error;
 use crate::guard::Guard;
 use crate::resource::Resource;
@@ -31,20 +31,14 @@ pub struct AppService {
         Option<Guards>,
         Option<Rc<ResourceMap>>,
     )>,
-    service_data: Rc<[Box<dyn DataFactory>]>,
 }
 
 impl AppService {
-    /// Crate server settings instance
-    pub(crate) fn new(
-        config: AppConfig,
-        default: Rc<HttpNewService>,
-        service_data: Rc<[Box<dyn DataFactory>]>,
-    ) -> Self {
+    /// Crate server settings instance.
+    pub(crate) fn new(config: AppConfig, default: Rc<HttpNewService>) -> Self {
         AppService {
             config,
             default,
-            service_data,
             root: true,
             services: Vec::new(),
         }
@@ -75,7 +69,6 @@ impl AppService {
             default: self.default.clone(),
             services: Vec::new(),
             root: false,
-            service_data: self.service_data.clone(),
         }
     }
 
@@ -89,15 +82,7 @@ impl AppService {
         self.default.clone()
     }
 
-    /// Set global route data
-    pub fn set_service_data(&self, extensions: &mut Extensions) -> bool {
-        for f in self.service_data.iter() {
-            f.create(extensions);
-        }
-        !self.service_data.is_empty()
-    }
-
-    /// Register http service
+    /// Register HTTP service.
     pub fn register_service<F, S>(
         &mut self,
         rdef: ResourceDef,
@@ -168,47 +153,60 @@ impl Default for AppConfig {
     }
 }
 
-/// Service config is used for external configuration.
-/// Part of application configuration could be offloaded
-/// to set of external methods. This could help with
-/// modularization of big application configuration.
+/// Enables parts of app configuration to be declared separately from the app itself. Helpful for
+/// modularizing large applications.
+///
+/// Merge a `ServiceConfig` into an app using [`App::configure`](crate::App::configure). Scope and
+/// resources services have similar methods.
+///
+/// ```
+/// use actix_web::{web, App, HttpResponse};
+///
+/// // this function could be located in different module
+/// fn config(cfg: &mut web::ServiceConfig) {
+///     cfg.service(web::resource("/test")
+///         .route(web::get().to(|| HttpResponse::Ok()))
+///         .route(web::head().to(|| HttpResponse::MethodNotAllowed()))
+///     );
+/// }
+///
+/// // merge `/test` routes from config function to App
+/// App::new().configure(config);
+/// ```
 pub struct ServiceConfig {
     pub(crate) services: Vec<Box<dyn AppServiceFactory>>,
-    pub(crate) data: Vec<Box<dyn DataFactory>>,
     pub(crate) external: Vec<ResourceDef>,
-    pub(crate) extensions: Extensions,
+    pub(crate) app_data: Extensions,
 }
 
 impl ServiceConfig {
     pub(crate) fn new() -> Self {
         Self {
             services: Vec::new(),
-            data: Vec::new(),
             external: Vec::new(),
-            extensions: Extensions::new(),
+            app_data: Extensions::new(),
         }
     }
 
-    /// Set application data. Application data could be accessed
-    /// by using `Data<T>` extractor where `T` is data type.
+    /// Add shared app data item.
     ///
-    /// This is same as `App::data()` method.
-    pub fn data<S: 'static>(&mut self, data: S) -> &mut Self {
-        self.data.push(Box::new(Data::new(data)));
+    /// Counterpart to [`App::data()`](crate::App::data).
+    pub fn data<U: 'static>(&mut self, data: U) -> &mut Self {
+        self.app_data(Data::new(data));
         self
     }
 
-    /// Set arbitrary data item.
+    /// Add arbitrary app data item.
     ///
-    /// This is same as `App::data()` method.
+    /// Counterpart to [`App::app_data()`](crate::App::app_data).
     pub fn app_data<U: 'static>(&mut self, ext: U) -> &mut Self {
-        self.extensions.insert(ext);
+        self.app_data.insert(ext);
         self
     }
 
     /// Configure route for a specific path.
     ///
-    /// This is same as `App::route()` method.
+    /// Counterpart to [`App::route()`](crate::App::route).
     pub fn route(&mut self, path: &str, mut route: Route) -> &mut Self {
         self.service(
             Resource::new(path)
@@ -217,9 +215,9 @@ impl ServiceConfig {
         )
     }
 
-    /// Register http service.
+    /// Register HTTP service factory.
     ///
-    /// This is same as `App::service()` method.
+    /// Counterpart to [`App::service()`](crate::App::service).
     pub fn service<F>(&mut self, factory: F) -> &mut Self
     where
         F: HttpServiceFactory + 'static,
@@ -231,11 +229,11 @@ impl ServiceConfig {
 
     /// Register an external resource.
     ///
-    /// External resources are useful for URL generation purposes only
-    /// and are never considered for matching at request time. Calls to
-    /// `HttpRequest::url_for()` will work as expected.
+    /// External resources are useful for URL generation purposes only and are never considered for
+    /// matching at request time. Calls to [`HttpRequest::url_for()`](crate::HttpRequest::url_for)
+    /// will work as expected.
     ///
-    /// This is same as `App::external_service()` method.
+    /// Counterpart to [`App::external_resource()`](crate::App::external_resource).
     pub fn external_resource<N, U>(&mut self, name: N, url: U) -> &mut Self
     where
         N: AsRef<str>,

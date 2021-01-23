@@ -10,8 +10,9 @@ use crate::dev::Payload;
 use crate::extract::FromRequest;
 use crate::request::HttpRequest;
 
-/// Application data factory
+/// Data factory.
 pub(crate) trait DataFactory {
+    /// Return true if modifications were made to extensions map.
     fn create(&self, extensions: &mut Extensions) -> bool;
 }
 
@@ -126,12 +127,8 @@ impl<T: ?Sized + 'static> FromRequest for Data<T> {
 
 impl<T: ?Sized + 'static> DataFactory for Data<T> {
     fn create(&self, extensions: &mut Extensions) -> bool {
-        if !extensions.contains::<Data<T>>() {
-            extensions.insert(Data(self.0.clone()));
-            true
-        } else {
-            false
-        }
+        extensions.insert(Data(self.0.clone()));
+        true
     }
 }
 
@@ -167,6 +164,24 @@ mod tests {
         let req = TestRequest::default().to_request();
         let resp = srv.call(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+
+        let srv = init_service(
+            App::new()
+                .data(10u32)
+                .data(13u32)
+                .app_data(12u64)
+                .app_data(15u64)
+                .default_service(web::to(|n: web::Data<u32>, req: HttpRequest| {
+                    // in each case, the latter insertion should be preserved
+                    assert_eq!(*req.app_data::<u64>().unwrap(), 15);
+                    assert_eq!(*n.into_inner(), 13);
+                    HttpResponse::Ok()
+                })),
+        )
+        .await;
+        let req = TestRequest::default().to_request();
+        let resp = srv.call(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
     }
 
     #[actix_rt::test]

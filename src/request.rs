@@ -423,8 +423,9 @@ mod tests {
 
     #[test]
     fn test_debug() {
-        let req =
-            TestRequest::with_header("content-type", "text/plain").to_http_request();
+        let req = TestRequest::default()
+            .insert_header(("content-type", "text/plain"))
+            .to_http_request();
         let dbg = format!("{:?}", req);
         assert!(dbg.contains("HttpRequest"));
     }
@@ -438,8 +439,8 @@ mod tests {
     #[test]
     fn test_request_cookies() {
         let req = TestRequest::default()
-            .header(header::COOKIE, "cookie1=value1")
-            .header(header::COOKIE, "cookie2=value2")
+            .append_header((header::COOKIE, "cookie1=value1"))
+            .append_header((header::COOKIE, "cookie2=value2"))
             .to_http_request();
         {
             let cookies = req.cookies().unwrap();
@@ -476,7 +477,8 @@ mod tests {
         assert!(rmap.has_resource("/user/test.html"));
         assert!(!rmap.has_resource("/test/unknown"));
 
-        let req = TestRequest::with_header(header::HOST, "www.rust-lang.org")
+        let req = TestRequest::default()
+            .insert_header((header::HOST, "www.rust-lang.org"))
             .rmap(rmap)
             .to_http_request();
 
@@ -506,7 +508,7 @@ mod tests {
         assert!(rmap.has_resource("/index.html"));
 
         let req = TestRequest::with_uri("/test")
-            .header(header::HOST, "www.rust-lang.org")
+            .insert_header((header::HOST, "www.rust-lang.org"))
             .rmap(rmap)
             .to_http_request();
         let url = req.url_for_static("index");
@@ -557,7 +559,7 @@ mod tests {
         let srv = init_service(App::new().service(web::resource("/").to(
             |req: HttpRequest| {
                 HttpResponse::Ok()
-                    .set_header("pool_cap", req.app_state().pool().cap)
+                    .insert_header(("pool_cap", req.app_state().pool().cap))
                     .finish()
             },
         )))

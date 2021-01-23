@@ -1,13 +1,13 @@
 //! Various helpers for Actix applications to use during testing.
-use std::convert::TryFrom;
+
 use std::net::SocketAddr;
 use std::rc::Rc;
 use std::sync::mpsc;
 use std::{fmt, net, thread, time};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
-use actix_http::http::header::{ContentType, Header, HeaderName, IntoHeaderValue};
-use actix_http::http::{Error as HttpError, Method, StatusCode, Uri, Version};
+use actix_http::http::header::{ContentType, IntoHeaderPair};
+use actix_http::http::{Method, StatusCode, Uri, Version};
 use actix_http::test::TestRequest as HttpTestRequest;
 use actix_http::{cookie::Cookie, ws, Extensions, HttpService, Request};
 use actix_router::{Path, ResourceDef, Url};
@@ -239,7 +239,7 @@ where
 ///             web::resource("/people")
 ///                 .route(web::post().to(|person: web::Json<Person>| async {
 ///                     HttpResponse::Ok()
-///                         .json(person.into_inner())})
+///                         .json(person)})
 ///                     ))
 ///     ).await;
 ///
@@ -299,7 +299,7 @@ where
 ///             web::resource("/people")
 ///                 .route(web::post().to(|person: web::Json<Person>| async {
 ///                     HttpResponse::Ok()
-///                         .json(person.into_inner())})
+///                         .json(person)})
 ///                     ))
 ///     ).await;
 ///
@@ -349,7 +349,7 @@ where
 ///
 /// #[test]
 /// fn test_index() {
-///     let req = test::TestRequest::with_header("content-type", "text/plain")
+///     let req = test::TestRequest::default().insert_header("content-type", "text/plain")
 ///         .to_http_request();
 ///
 ///     let resp = index(req).await.unwrap();
@@ -387,21 +387,6 @@ impl TestRequest {
     /// Create TestRequest and set request uri
     pub fn with_uri(path: &str) -> TestRequest {
         TestRequest::default().uri(path)
-    }
-
-    /// Create TestRequest and set header
-    pub fn with_hdr<H: Header>(hdr: H) -> TestRequest {
-        TestRequest::default().set(hdr)
-    }
-
-    /// Create TestRequest and set header
-    pub fn with_header<K, V>(key: K, value: V) -> TestRequest
-    where
-        HeaderName: TryFrom<K>,
-        <HeaderName as TryFrom<K>>::Error: Into<HttpError>,
-        V: IntoHeaderValue,
-    {
-        TestRequest::default().header(key, value)
     }
 
     /// Create TestRequest and set method to `Method::GET`
@@ -447,24 +432,25 @@ impl TestRequest {
         self
     }
 
-    /// Set a header
-    pub fn set<H: Header>(mut self, hdr: H) -> Self {
-        self.req.set(hdr);
-        self
-    }
-
-    /// Set a header
-    pub fn header<K, V>(mut self, key: K, value: V) -> Self
+    /// Insert a header, replacing any that were set with an equivalent field name.
+    pub fn insert_header<H>(mut self, header: H) -> Self
     where
-        HeaderName: TryFrom<K>,
-        <HeaderName as TryFrom<K>>::Error: Into<HttpError>,
-        V: IntoHeaderValue,
+        H: IntoHeaderPair,
     {
-        self.req.header(key, value);
+        self.req.insert_header(header);
         self
     }
 
-    /// Set cookie for this request
+    /// Append a header, keeping any that were set with an equivalent field name.
+    pub fn append_header<H>(mut self, header: H) -> Self
+    where
+        H: IntoHeaderPair,
+    {
+        self.req.append_header(header);
+        self
+    }
+
+    /// Set cookie for this request.
     pub fn cookie(mut self, cookie: Cookie<'_>) -> Self {
         self.req.cookie(cookie);
         self
@@ -494,7 +480,7 @@ impl TestRequest {
         let bytes = serde_urlencoded::to_string(data)
             .expect("Failed to serialize test data as a urlencoded form");
         self.req.set_payload(bytes);
-        self.req.set(ContentType::form_url_encoded());
+        self.req.insert_header(ContentType::form_url_encoded());
         self
     }
 
@@ -504,7 +490,7 @@ impl TestRequest {
         let bytes =
             serde_json::to_string(data).expect("Failed to serialize test data to json");
         self.req.set_payload(bytes);
-        self.req.set(ContentType::json());
+        self.req.insert_header(ContentType::json());
         self
     }
 
@@ -1029,9 +1015,10 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_basics() {
-        let req = TestRequest::with_hdr(header::ContentType::json())
+        let req = TestRequest::default()
             .version(Version::HTTP_2)
-            .set(header::Date(SystemTime::now().into()))
+            .insert_header(header::ContentType::json())
+            .insert_header(header::Date(SystemTime::now().into()))
             .param("test", "123")
             .data(10u32)
             .app_data(20u64)
@@ -1068,7 +1055,7 @@ mod tests {
 
         let put_req = TestRequest::put()
             .uri("/index.html")
-            .header(header::CONTENT_TYPE, "application/json")
+            .insert_header((header::CONTENT_TYPE, "application/json"))
             .to_request();
 
         let result = read_response(&app, put_req).await;
@@ -1076,7 +1063,7 @@ mod tests {
 
         let patch_req = TestRequest::patch()
             .uri("/index.html")
-            .header(header::CONTENT_TYPE, "application/json")
+            .insert_header((header::CONTENT_TYPE, "application/json"))
             .to_request();
 
         let result = read_response(&app, patch_req).await;
@@ -1099,7 +1086,7 @@ mod tests {
 
         let req = TestRequest::post()
             .uri("/index.html")
-            .header(header::CONTENT_TYPE, "application/json")
+            .insert_header((header::CONTENT_TYPE, "application/json"))
             .to_request();
 
         let result = read_response(&app, req).await;
@@ -1134,9 +1121,7 @@ mod tests {
     #[actix_rt::test]
     async fn test_response_json() {
         let app = init_service(App::new().service(web::resource("/people").route(
-            web::post().to(|person: web::Json<Person>| {
-                HttpResponse::Ok().json(person.into_inner())
-            }),
+            web::post().to(|person: web::Json<Person>| HttpResponse::Ok().json(person)),
         )))
         .await;
 
@@ -1144,7 +1129,7 @@ mod tests {
 
         let req = TestRequest::post()
             .uri("/people")
-            .header(header::CONTENT_TYPE, "application/json")
+            .insert_header((header::CONTENT_TYPE, "application/json"))
             .set_payload(payload)
             .to_request();
 
@@ -1155,9 +1140,7 @@ mod tests {
     #[actix_rt::test]
     async fn test_body_json() {
         let app = init_service(App::new().service(web::resource("/people").route(
-            web::post().to(|person: web::Json<Person>| {
-                HttpResponse::Ok().json(person.into_inner())
-            }),
+            web::post().to(|person: web::Json<Person>| HttpResponse::Ok().json(person)),
         )))
         .await;
 
@@ -1165,7 +1148,7 @@ mod tests {
 
         let resp = TestRequest::post()
             .uri("/people")
-            .header(header::CONTENT_TYPE, "application/json")
+            .insert_header((header::CONTENT_TYPE, "application/json"))
             .set_payload(payload)
             .send_request(&app)
             .await;
@@ -1177,9 +1160,7 @@ mod tests {
     #[actix_rt::test]
     async fn test_request_response_form() {
         let app = init_service(App::new().service(web::resource("/people").route(
-            web::post().to(|person: web::Form<Person>| {
-                HttpResponse::Ok().json(person.into_inner())
-            }),
+            web::post().to(|person: web::Form<Person>| HttpResponse::Ok().json(person)),
         )))
         .await;
 
@@ -1203,9 +1184,7 @@ mod tests {
     #[actix_rt::test]
     async fn test_request_response_json() {
         let app = init_service(App::new().service(web::resource("/people").route(
-            web::post().to(|person: web::Json<Person>| {
-                HttpResponse::Ok().json(person.into_inner())
-            }),
+            web::post().to(|person: web::Json<Person>| HttpResponse::Ok().json(person)),
         )))
         .await;
 

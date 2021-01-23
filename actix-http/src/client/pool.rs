@@ -10,10 +10,11 @@ use actix_codec::{AsyncRead, AsyncWrite, ReadBuf};
 use actix_rt::time::{sleep, Sleep};
 use actix_service::Service;
 use actix_utils::task::LocalWaker;
+use ahash::AHashMap;
 use bytes::Bytes;
 use futures_channel::oneshot;
-use futures_util::future::{poll_fn, FutureExt, LocalBoxFuture};
-use fxhash::FxHashMap;
+use futures_core::future::LocalBoxFuture;
+use futures_util::future::{poll_fn, FutureExt};
 use h2::client::{Connection, SendRequest};
 use http::uri::Authority;
 use indexmap::IndexSet;
@@ -59,7 +60,7 @@ where
             acquired: 0,
             waiters: Slab::new(),
             waiters_queue: IndexSet::new(),
-            available: FxHashMap::default(),
+            available: AHashMap::default(),
             waker: LocalWaker::new(),
         }));
 
@@ -257,7 +258,7 @@ struct AvailableConnection<Io> {
 pub(crate) struct Inner<Io> {
     config: ConnectorConfig,
     acquired: usize,
-    available: FxHashMap<Key, VecDeque<AvailableConnection<Io>>>,
+    available: AHashMap<Key, VecDeque<AvailableConnection<Io>>>,
     waiters: Slab<
         Option<(
             Connect,

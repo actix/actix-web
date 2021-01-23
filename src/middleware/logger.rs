@@ -603,7 +603,7 @@ mod tests {
         let srv = |req: ServiceRequest| {
             ok(req.into_response(
                 HttpResponse::build(StatusCode::OK)
-                    .header("X-Test", "ttt")
+                    .insert_header(("X-Test", "ttt"))
                     .finish(),
             ))
         };
@@ -611,11 +611,12 @@ mod tests {
 
         let srv = logger.new_transform(srv.into_service()).await.unwrap();
 
-        let req = TestRequest::with_header(
-            header::USER_AGENT,
-            header::HeaderValue::from_static("ACTIX-WEB"),
-        )
-        .to_srv_request();
+        let req = TestRequest::default()
+            .insert_header((
+                header::USER_AGENT,
+                header::HeaderValue::from_static("ACTIX-WEB"),
+            ))
+            .to_srv_request();
         let _res = srv.call(req).await;
     }
 
@@ -624,7 +625,7 @@ mod tests {
         let srv = |req: ServiceRequest| {
             ok(req.into_response(
                 HttpResponse::build(StatusCode::OK)
-                    .header("X-Test", "ttt")
+                    .insert_header(("X-Test", "ttt"))
                     .finish(),
             ))
         };
@@ -633,23 +634,25 @@ mod tests {
 
         let srv = logger.new_transform(srv.into_service()).await.unwrap();
 
-        let req = TestRequest::with_header(
-            header::USER_AGENT,
-            header::HeaderValue::from_static("ACTIX-WEB"),
-        )
-        .to_srv_request();
+        let req = TestRequest::default()
+            .insert_header((
+                header::USER_AGENT,
+                header::HeaderValue::from_static("ACTIX-WEB"),
+            ))
+            .to_srv_request();
         let _res = srv.call(req).await.unwrap();
     }
 
     #[actix_rt::test]
     async fn test_url_path() {
         let mut format = Format::new("%T %U");
-        let req = TestRequest::with_header(
-            header::USER_AGENT,
-            header::HeaderValue::from_static("ACTIX-WEB"),
-        )
-        .uri("/test/route/yeah")
-        .to_srv_request();
+        let req = TestRequest::default()
+            .insert_header((
+                header::USER_AGENT,
+                header::HeaderValue::from_static("ACTIX-WEB"),
+            ))
+            .uri("/test/route/yeah")
+            .to_srv_request();
 
         let now = OffsetDateTime::now_utc();
         for unit in &mut format.0 {
@@ -676,12 +679,13 @@ mod tests {
     async fn test_default_format() {
         let mut format = Format::default();
 
-        let req = TestRequest::with_header(
-            header::USER_AGENT,
-            header::HeaderValue::from_static("ACTIX-WEB"),
-        )
-        .peer_addr("127.0.0.1:8081".parse().unwrap())
-        .to_srv_request();
+        let req = TestRequest::default()
+            .insert_header((
+                header::USER_AGENT,
+                header::HeaderValue::from_static("ACTIX-WEB"),
+            ))
+            .peer_addr("127.0.0.1:8081".parse().unwrap())
+            .to_srv_request();
 
         let now = OffsetDateTime::now_utc();
         for unit in &mut format.0 {
@@ -736,13 +740,14 @@ mod tests {
     async fn test_remote_addr_format() {
         let mut format = Format::new("%{r}a");
 
-        let req = TestRequest::with_header(
-            header::FORWARDED,
-            header::HeaderValue::from_static(
-                "for=192.0.2.60;proto=http;by=203.0.113.43",
-            ),
-        )
-        .to_srv_request();
+        let req = TestRequest::default()
+            .insert_header((
+                header::FORWARDED,
+                header::HeaderValue::from_static(
+                    "for=192.0.2.60;proto=http;by=203.0.113.43",
+                ),
+            ))
+            .to_srv_request();
 
         let now = OffsetDateTime::now_utc();
         for unit in &mut format.0 {
