@@ -46,7 +46,7 @@ impl From<Authority> for Key {
 }
 
 /// Connections pool
-pub(crate) struct ConnectionPool<T, Io: 'static>(Rc<RefCell<T>>, Rc<RefCell<Inner<Io>>>);
+pub(crate) struct ConnectionPool<T, Io: 'static>(Rc<T>, Rc<RefCell<Inner<Io>>>);
 
 impl<T, Io> ConnectionPool<T, Io>
 where
@@ -54,7 +54,7 @@ where
     T: Service<Connect, Response = (Io, Protocol), Error = ConnectError> + 'static,
 {
     pub(crate) fn new(connector: T, config: ConnectorConfig) -> Self {
-        let connector_rc = Rc::new(RefCell::new(connector));
+        let connector_rc = Rc::new(connector);
         let inner_rc = Rc::new(RefCell::new(Inner {
             config,
             acquired: 0,
@@ -429,7 +429,7 @@ struct ConnectorPoolSupport<T, Io>
 where
     Io: AsyncRead + AsyncWrite + Unpin + 'static,
 {
-    connector: T,
+    connector: Rc<T>,
     inner: Rc<RefCell<Inner<Io>>>,
 }
 
