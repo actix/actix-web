@@ -17,6 +17,7 @@
 * Remove `HttpResponseBuilder::json2()` and make `HttpResponseBuilder::json()` take a value by
   reference. [#1903]
 * `client::error::ConnectError` Resolver variant contains `Box<dyn std::error::Error>` type [#1905]
+* `client::ConnectorConfig` default timeout changed to 5 seconds. [#1905]
 
 ### Removed
 * `ResponseBuilder::set`; use `ResponseBuilder::insert_header`. [#1869]

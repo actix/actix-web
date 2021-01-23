@@ -100,9 +100,9 @@ impl Connector<(), ()> {
     fn build_ssl(protocols: Vec<Vec<u8>>) -> SslConnector {
         let mut config = ClientConfig::new();
         config.set_protocols(&protocols);
-        config
-            .root_store
-            .add_server_trust_anchors(&actix_tls::accept::rustls::TLS_SERVER_ROOTS);
+        config.root_store.add_server_trust_anchors(
+            &actix_tls::connect::ssl::rustls::TLS_SERVER_ROOTS,
+        );
         SslConnector::Rustls(Arc::new(config))
     }
 
