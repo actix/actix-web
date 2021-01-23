@@ -11,7 +11,11 @@
 * `ServiceRequest::into_parts` and `ServiceRequest::from_parts` would not fail.
   `ServiceRequest::from_request` would not fail and no payload would be generated [#1893]
 * Our `Either` type now uses `Left`/`Right` variants (instead of `A`/`B`) [#1894]
-
+* `test::{call_service, read_response, read_response_json, send_request}` take `&Service` 
+  in argument [#1905]
+* `App::wrap_fn`, `Resource::wrap_fn` and `Scope::wrap_fn` would give `&Service` in closure
+  argument [#1905]
+  
 ### Fixed
 * Multiple calls `App::data` with the same type now keeps the latest call's data. [#1906]
 
@@ -27,6 +31,7 @@
 [#1893]: https://github.com/actix/actix-web/pull/1893
 [#1894]: https://github.com/actix/actix-web/pull/1894
 [#1869]: https://github.com/actix/actix-web/pull/1869
+[#1905]: https://github.com/actix/actix-web/pull/1905
 [#1906]: https://github.com/actix/actix-web/pull/1906
 
 

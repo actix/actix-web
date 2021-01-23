@@ -160,7 +160,7 @@ where
 ///         .header(header::CONTENT_TYPE, "application/json")
 ///         .to_request();
 ///
-///     let result = test::read_response(&mut app, req).await;
+///     let result = test::read_response(&app, req).await;
 ///     assert_eq!(result, Bytes::from_static(b"welcome!"));
 /// }
 /// ```
