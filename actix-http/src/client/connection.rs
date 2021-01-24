@@ -1,9 +1,12 @@
 use std::future::Future;
+use std::ops::{Deref, DerefMut};
 use std::pin::Pin;
+use std::rc::Rc;
 use std::task::{Context, Poll};
 use std::{fmt, io, time};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed, ReadBuf};
+use actix_utils::task::LocalWaker;
 use bytes::Bytes;
 use futures_util::future::{err, Either, FutureExt, LocalBoxFuture, Ready};
 use h2::client::SendRequest;
@@ -20,7 +23,94 @@ use super::{h1proto, h2proto};
 
 pub(crate) enum ConnectionType<Io> {
     H1(Io),
-    H2(SendRequest<Bytes>),
+    H2(H2Connection),
+}
+
+// h2 connection has two parts: SendRequest and Connection.
+// Connection is spawned as async task on runtime and H2Connection would hold a waker for
+// this task. So it can wake up and quit the task when SendRequest is dropped.
+// TODO: consider use actix_rt::task::JoinHandle for spawn task abort when v2 release.
+pub(crate) struct H2Connection {
+    waker: Rc<LocalWaker>,
+    sender: SendRequest<Bytes>,
+}
+
+impl H2Connection {
+    pub(crate) fn new<Io>(
+        sender: SendRequest<Bytes>,
+        connection: h2::client::Connection<Io>,
+    ) -> Self
+    where
+        Io: AsyncRead + AsyncWrite + Unpin + 'static,
+    {
+        let (connection, waker) = WakeupOnDrop::new(connection);
+
+        actix_rt::spawn(connection);
+
+        Self { waker, sender }
+    }
+}
+
+// wake up waker when drop
+impl Drop for H2Connection {
+    fn drop(&mut self) {
+        self.waker.wake();
+    }
+}
+
+// only expose sender type to public.
+impl Deref for H2Connection {
+    type Target = SendRequest<Bytes>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.sender
+    }
+}
+
+impl DerefMut for H2Connection {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.sender
+    }
+}
+
+// wrap a future and notify it to terminate based on the waker state.
+#[pin_project::pin_project]
+struct WakeupOnDrop<Fut> {
+    waker: Rc<LocalWaker>,
+    #[pin]
+    fut: Fut,
+}
+
+impl<Fut> WakeupOnDrop<Fut> {
+    fn new(fut: Fut) -> (Self, Rc<LocalWaker>) {
+        let waker = Rc::new(LocalWaker::new());
+        let this = WakeupOnDrop {
+            waker: waker.clone(),
+            fut,
+        };
+
+        (this, waker)
+    }
+}
+
+impl<Fut: Future> Future for WakeupOnDrop<Fut> {
+    type Output = ();
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = self.project();
+
+        if Rc::strong_count(&this.waker) == 1 {
+            return Poll::Ready(());
+        }
+
+        this.waker.register(cx.waker());
+
+        if this.fut.poll(cx).is_ready() {
+            Poll::Ready(())
+        } else {
+            Poll::Pending
+        }
+    }
 }
 
 pub trait Connection {
