@@ -4,8 +4,7 @@ use std::{
 };
 
 use ahash::AHashMap;
-use either::Either;
-use http::header::{HeaderName, HeaderValue};
+use http::header::{HeaderName, HeaderValue, InvalidHeaderName};
 use smallvec::{smallvec, SmallVec};
 
 /// A multi-map of HTTP headers.
@@ -126,14 +125,9 @@ impl HeaderMap {
 
     fn get2<N: AsName>(&self, name: N) -> Option<&Value> {
         match name.as_name() {
-            Either::Left(name) => self.inner.get(name),
-            Either::Right(s) => {
-                if let Ok(name) = HeaderName::try_from(s) {
-                    self.inner.get(&name)
-                } else {
-                    None
-                }
-            }
+            AsHeaderName::Borrowed(name) => self.inner.get(name),
+            AsHeaderName::Owned(Ok(name)) => self.inner.get(&name),
+            AsHeaderName::Owned(Err(_)) => None,
         }
     }
 
@@ -156,28 +150,22 @@ impl HeaderMap {
     /// key. Returns `None` if there are no values associated with the key.
     pub fn get_mut<N: AsName>(&mut self, name: N) -> Option<&mut HeaderValue> {
         match name.as_name() {
-            Either::Left(name) => self.inner.get_mut(name).map(|v| v.first_mut()),
-            Either::Right(s) => {
-                if let Ok(name) = HeaderName::try_from(s) {
-                    self.inner.get_mut(&name).map(|v| v.first_mut())
-                } else {
-                    None
-                }
+            AsHeaderName::Borrowed(name) => {
+                self.inner.get_mut(name).map(|v| v.first_mut())
             }
+            AsHeaderName::Owned(Ok(name)) => {
+                self.inner.get_mut(&name).map(|v| v.first_mut())
+            }
+            AsHeaderName::Owned(Err(_)) => None,
         }
     }
 
     /// Returns true if the map contains a value for the specified key.
     pub fn contains_key<N: AsName>(&self, key: N) -> bool {
         match key.as_name() {
-            Either::Left(name) => self.inner.contains_key(name),
-            Either::Right(s) => {
-                if let Ok(name) = HeaderName::try_from(s) {
-                    self.inner.contains_key(&name)
-                } else {
-                    false
-                }
-            }
+            AsHeaderName::Borrowed(name) => self.inner.contains_key(name),
+            AsHeaderName::Owned(Ok(name)) => self.inner.contains_key(&name),
+            AsHeaderName::Owned(Err(_)) => false,
         }
     }
 
@@ -238,50 +226,55 @@ impl HeaderMap {
     /// Removes all headers for a particular header name from the map.
     pub fn remove<N: AsName>(&mut self, key: N) {
         match key.as_name() {
-            Either::Left(name) => {
+            AsHeaderName::Borrowed(name) => {
                 let _ = self.inner.remove(name);
             }
-            Either::Right(s) => {
-                if let Ok(name) = HeaderName::try_from(s) {
-                    let _ = self.inner.remove(&name);
-                }
+            AsHeaderName::Owned(Ok(name)) => {
+                let _ = self.inner.remove(&name);
             }
+            AsHeaderName::Owned(Err(_)) => {}
         }
     }
 }
 
 #[doc(hidden)]
+pub enum AsHeaderName<'a> {
+    Owned(Result<HeaderName, InvalidHeaderName>),
+    Borrowed(&'a HeaderName),
+}
+
+#[doc(hidden)]
 pub trait AsName {
-    fn as_name(&self) -> Either<&HeaderName, &str>;
+    fn as_name(&self) -> AsHeaderName<'_>;
 }
 
 impl AsName for HeaderName {
-    fn as_name(&self) -> Either<&HeaderName, &str> {
-        Either::Left(self)
+    fn as_name(&self) -> AsHeaderName<'_> {
+        AsHeaderName::Borrowed(self)
     }
 }
 
 impl<'a> AsName for &'a HeaderName {
-    fn as_name(&self) -> Either<&HeaderName, &str> {
-        Either::Left(self)
+    fn as_name(&self) -> AsHeaderName<'_> {
+        AsHeaderName::Borrowed(self)
     }
 }
 
 impl<'a> AsName for &'a str {
-    fn as_name(&self) -> Either<&HeaderName, &str> {
-        Either::Right(self)
+    fn as_name(&self) -> AsHeaderName<'_> {
+        AsHeaderName::Owned(HeaderName::try_from(*self))
     }
 }
 
 impl AsName for String {
-    fn as_name(&self) -> Either<&HeaderName, &str> {
-        Either::Right(self.as_str())
+    fn as_name(&self) -> AsHeaderName<'_> {
+        AsHeaderName::Owned(HeaderName::try_from(self.as_str()))
     }
 }
 
 impl<'a> AsName for &'a String {
-    fn as_name(&self) -> Either<&HeaderName, &str> {
-        Either::Right(self.as_str())
+    fn as_name(&self) -> AsHeaderName<'_> {
+        AsHeaderName::Owned(HeaderName::try_from(self.as_str()))
     }
 }
 
