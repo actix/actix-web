@@ -192,8 +192,8 @@ fn bytes_to_string(body: Bytes, encoding: &'static Encoding) -> Result<String, E
 ///
 /// By default, the payload size limit is 256kB and there is no mime type condition.
 ///
-/// To use this, add an instance of it to your app or service through one of the `.app_data()`
-/// methods.
+/// To use this, add an instance of it to your app or service through one of the
+/// `.app_data()` methods.
 #[derive(Clone)]
 pub struct PayloadConfig {
     limit: usize,
