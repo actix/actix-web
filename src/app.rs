@@ -11,11 +11,10 @@ use actix_service::{
     apply, apply_fn_factory, IntoServiceFactory, ServiceFactory, ServiceFactoryExt,
     Transform,
 };
-use futures_util::future::FutureExt;
 
 use crate::app_service::{AppEntry, AppInit, AppRoutingFactory};
 use crate::config::ServiceConfig;
-use crate::data::{Data, DataFactory, FnDataFactory};
+use crate::data::{Data, FnDataFactory};
 use crate::dev::ResourceDef;
 use crate::error::Error;
 use crate::resource::Resource;
@@ -114,22 +113,19 @@ where
         E: std::fmt::Debug,
     {
         self.data_factories.push(Box::new(move || {
-            {
-                let fut = data();
-                async move {
-                    match fut.await {
-                        Err(e) => {
-                            log::error!("Can not construct data instance: {:?}", e);
-                            Err(())
-                        }
-                        Ok(data) => {
-                            let data: Box<dyn DataFactory> = Box::new(Data::new(data));
-                            Ok(data)
-                        }
+            let fut = data();
+            Box::pin(async move {
+                match fut.await {
+                    Err(e) => {
+                        log::error!("Can not construct data instance: {:?}", e);
+                        Err(())
+                    }
+                    Ok(data) => {
+                        let data = Box::new(Data::new(data)) as _;
+                        Ok(data)
                     }
                 }
-            }
-            .boxed_local()
+            })
         }));
         self
     }
@@ -453,7 +449,7 @@ where
     fn into_factory(self) -> AppInit<T, B> {
         AppInit {
             async_data_factories: self.data_factories.into_boxed_slice().into(),
-            endpoint: self.endpoint,
+            endpoint: Rc::new(self.endpoint),
             services: Rc::new(RefCell::new(self.services)),
             external: RefCell::new(self.external),
             default: self.default,
@@ -473,9 +469,7 @@ mod tests {
     use crate::http::{header, HeaderValue, Method, StatusCode};
     use crate::middleware::DefaultHeaders;
     use crate::service::ServiceRequest;
-    use crate::test::{
-        call_service, init_service, read_body, try_init_service, TestRequest,
-    };
+    use crate::test::{call_service, init_service, read_body, TestRequest};
     use crate::{web, HttpRequest, HttpResponse};
 
     #[actix_rt::test]
@@ -546,13 +540,21 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_data_factory_errors() {
-        let srv =
-            try_init_service(App::new().data_factory(|| err::<u32, _>(())).service(
-                web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()),
-            ))
-            .await;
+        let mut srv = init_service(
+            App::new().data_factory(|| err::<u32, _>(())).service(
+                web::resource("/")
+                    .route(web::get().to(|_: web::Data<usize>| HttpResponse::Ok())),
+            ),
+        )
+        .await;
 
-        assert!(srv.is_err());
+        let req = TestRequest::get().uri("/").to_request();
+        let resp = srv.call(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+
+        let req = TestRequest::post().uri("/test").to_request();
+        let resp = srv.call(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
     }
 
     #[actix_rt::test]

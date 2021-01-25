@@ -26,14 +26,14 @@ type HttpNewService = BoxServiceFactory<(), ServiceRequest, ServiceResponse, Err
 pub struct AppInit<T, B>
 where
     T: ServiceFactory<
-        ServiceRequest,
-        Config = (),
-        Response = ServiceResponse<B>,
-        Error = Error,
-        InitError = (),
-    >,
+            ServiceRequest,
+            Config = (),
+            Response = ServiceResponse<B>,
+            Error = Error,
+            InitError = (),
+        > + 'static,
 {
-    pub(crate) endpoint: T,
+    pub(crate) endpoint: Rc<T>,
     pub(crate) extensions: RefCell<Option<Extensions>>,
     pub(crate) async_data_factories: Rc<[FnDataFactory]>,
     pub(crate) services: Rc<RefCell<Vec<Box<dyn AppServiceFactory>>>>,
@@ -45,12 +45,12 @@ where
 impl<T, B> ServiceFactory<Request> for AppInit<T, B>
 where
     T: ServiceFactory<
-        ServiceRequest,
-        Config = (),
-        Response = ServiceResponse<B>,
-        Error = Error,
-        InitError = (),
-    >,
+            ServiceRequest,
+            Config = (),
+            Response = ServiceResponse<B>,
+            Error = Error,
+            InitError = (),
+        > + 'static,
     T::Future: 'static,
 {
     type Response = ServiceResponse<B>;
@@ -77,38 +77,21 @@ where
             .into_iter()
             .for_each(|mut srv| srv.register(&mut config));
 
-        let mut rmap = ResourceMap::new(ResourceDef::new(""));
-
-        let (config, services) = config.into_services();
-
-        // complete pipeline creation.
-        *self.factory_ref.borrow_mut() = Some(AppRoutingFactory {
-            default,
-            services: services
-                .into_iter()
-                .map(|(mut rdef, srv, guards, nested)| {
-                    rmap.add(&mut rdef, nested);
-                    (rdef, srv, RefCell::new(guards))
-                })
-                .collect::<Vec<_>>()
-                .into_boxed_slice()
-                .into(),
-        });
-
-        // external resources
-        for mut rdef in std::mem::take(&mut *self.external.borrow_mut()) {
-            rmap.add(&mut rdef, None);
-        }
-
-        // complete ResourceMap tree creation
-        let rmap = Rc::new(rmap);
-        rmap.finish(rmap.clone());
+        let (config, mut services) = config.into_services();
 
         // construct all async data factory futures
         let factory_futs = join_all(self.async_data_factories.iter().map(|f| f()));
 
-        // construct app service and middleware service factory future.
-        let endpoint_fut = self.endpoint.new_service(());
+        // clone factory_ref and endpoint to use them in async block.
+        let factory_ref = self.factory_ref.clone();
+        let endpoint = self.endpoint.clone();
+
+        // construct resource map. it would move to async block afterwards.
+        let mut rmap = ResourceMap::new(ResourceDef::new(""));
+        // add external resources
+        for mut rdef in std::mem::take(&mut *self.external.borrow_mut()) {
+            rmap.add(&mut rdef, None);
+        }
 
         // take extensions or create new one as app data container.
         let mut app_data = self
@@ -118,15 +101,56 @@ where
             .unwrap_or_else(Extensions::new);
 
         Box::pin(async move {
-            // async data factories
-            let async_data_factories = factory_futs
+            // construct async data factories.
+            let res = factory_futs
                 .await
                 .into_iter()
-                .collect::<Result<Vec<_>, _>>()
-                .map_err(|_| ())?;
+                .collect::<Result<Vec<_>, _>>();
 
-            // app service and middleware
-            let service = endpoint_fut.await?;
+            let async_data_factories = match res {
+                Ok(async_data_factories) => async_data_factories,
+                Err(_) => {
+                    // error occur producing app_data.
+                    // replace services with 500 error response
+                    services = services
+                        .into_iter()
+                        .map(|(rdef, _, guards, nested)| {
+                            let srv = boxed::factory(fn_service(
+                                |req: ServiceRequest| async {
+                                    Ok(req.into_response(
+                                        Response::InternalServerError().finish(),
+                                    ))
+                                },
+                            ));
+                            (rdef, srv, guards, nested)
+                        })
+                        .collect();
+
+                    // throw away async_data.
+                    Vec::new()
+                }
+            };
+
+            // complete pipeline creation.
+            *factory_ref.borrow_mut() = Some(AppRoutingFactory {
+                default,
+                services: services
+                    .into_iter()
+                    .map(|(mut rdef, srv, guards, nested)| {
+                        rmap.add(&mut rdef, nested);
+                        (rdef, srv, RefCell::new(guards))
+                    })
+                    .collect::<Vec<_>>()
+                    .into_boxed_slice()
+                    .into(),
+            });
+
+            // complete ResourceMap tree creation
+            let rmap = Rc::new(rmap);
+            rmap.finish(rmap.clone());
+
+            // construct app service and middleware service.
+            let service = endpoint.new_service(()).await?;
 
             // populate app data container from (async) data factories.
             async_data_factories.iter().for_each(|factory| {
