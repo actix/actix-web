@@ -203,7 +203,13 @@ impl MessageType for Request {
 
                     (len, method, uri, version, req.headers.len())
                 }
-                httparse::Status::Partial => return Ok(None),
+                httparse::Status::Partial => {
+                    return if src.len() >= super::dispatcher::MAX_HW_BUFFER_SIZE {
+                        Err(ParseError::TooLarge)
+                    } else {
+                        Ok(None)
+                    }
+                }
             }
         };
 
