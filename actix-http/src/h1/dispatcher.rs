@@ -30,8 +30,8 @@ use super::codec::Codec;
 use super::payload::{Payload, PayloadSender, PayloadStatus};
 use super::{Message, MessageType};
 
-const LW_BUFFER_SIZE: usize = 4096;
-const HW_BUFFER_SIZE: usize = 32_768;
+const LW_BUFFER_SIZE: usize = 1024;
+const HW_BUFFER_SIZE: usize = 8192;
 const MAX_PIPELINED_MESSAGES: usize = 16;
 
 bitflags! {
@@ -893,18 +893,13 @@ where
 {
     let mut read_some = false;
 
+    // reserve capacity for buffer
+    let remaining = buf.capacity() - buf.len();
+    if remaining < LW_BUFFER_SIZE {
+        buf.reserve(HW_BUFFER_SIZE - remaining);
+    }
+
     loop {
-        // If buf is full return but do not disconnect since
-        // there is more reading to be done
-        if buf.len() >= HW_BUFFER_SIZE {
-            return Ok(Some(false));
-        }
-
-        let remaining = buf.capacity() - buf.len();
-        if remaining < LW_BUFFER_SIZE {
-            buf.reserve(HW_BUFFER_SIZE - remaining);
-        }
-
         match actix_codec::poll_read_buf(Pin::new(io), cx, buf) {
             Poll::Pending => {
                 return if read_some { Ok(Some(false)) } else { Ok(None) };
@@ -913,6 +908,12 @@ where
                 if n == 0 {
                     return Ok(Some(true));
                 } else {
+                    // If buf is full return but do not disconnect since
+                    // there is more reading to be done
+                    if buf.len() >= HW_BUFFER_SIZE {
+                        return Ok(Some(false));
+                    }
+
                     read_some = true;
                 }
             }
