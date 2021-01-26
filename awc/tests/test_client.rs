@@ -184,7 +184,7 @@ async fn test_response_timeout() {
         .send()
         .await
         .unwrap()
-        .timeout(Duration::from_millis(210))
+        .timeout(Duration::from_millis(300))
         .body()
         .await
         .unwrap();
