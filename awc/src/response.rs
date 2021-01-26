@@ -1,9 +1,11 @@
 use std::cell::{Ref, RefMut};
 use std::fmt;
 use std::future::Future;
+use std::io;
 use std::marker::PhantomData;
 use std::pin::Pin;
 use std::task::{Context, Poll};
+use std::time::{Duration, Instant};
 
 use bytes::{Bytes, BytesMut};
 use futures_core::{ready, Stream};
@@ -13,6 +15,7 @@ use actix_http::error::{CookieParseError, PayloadError};
 use actix_http::http::header::{CONTENT_LENGTH, SET_COOKIE};
 use actix_http::http::{HeaderMap, StatusCode, Version};
 use actix_http::{Extensions, HttpMessage, Payload, PayloadStream, ResponseHead};
+use actix_rt::time::{sleep, Sleep};
 use serde::de::DeserializeOwned;
 
 use crate::error::JsonPayloadError;
@@ -21,6 +24,41 @@ use crate::error::JsonPayloadError;
 pub struct ClientResponse<S = PayloadStream> {
     pub(crate) head: ResponseHead,
     pub(crate) payload: Payload<S>,
+    pub(crate) timeout: ResponseTimeout,
+}
+
+// a helper enum for response timeout for reusing the boxed sleep.
+// It's pass from `SendClientRequest`.
+pub(crate) enum ResponseTimeout {
+    Disabled(Option<Pin<Box<Sleep>>>),
+    Enabled(Option<Pin<Box<Sleep>>>),
+}
+
+impl ResponseTimeout {
+    fn poll_timeout(&mut self, cx: &mut Context<'_>) -> Result<(), io::Error> {
+        match *self {
+            Self::Disabled(_) => Ok(()),
+            Self::Enabled(Some(ref mut timeout)) => {
+                if timeout.as_mut().poll(cx).is_ready() {
+                    Ok(())
+                } else {
+                    Err(Self::err())
+                }
+            }
+            Self::Enabled(None) => Err(Self::err()),
+        }
+    }
+
+    fn take(&mut self) -> Option<Pin<Box<Sleep>>> {
+        match *self {
+            Self::Disabled(_) => None,
+            Self::Enabled(ref mut timeout) => timeout.take(),
+        }
+    }
+
+    fn err() -> io::Error {
+        io::Error::new(io::ErrorKind::TimedOut, "Response Payload IO timed out")
+    }
 }
 
 impl<S> HttpMessage for ClientResponse<S> {
@@ -30,16 +68,16 @@ impl<S> HttpMessage for ClientResponse<S> {
         &self.head.headers
     }
 
+    fn take_payload(&mut self) -> Payload<S> {
+        std::mem::replace(&mut self.payload, Payload::None)
+    }
+
     fn extensions(&self) -> Ref<'_, Extensions> {
         self.head.extensions()
     }
 
     fn extensions_mut(&self) -> RefMut<'_, Extensions> {
         self.head.extensions_mut()
-    }
-
-    fn take_payload(&mut self) -> Payload<S> {
-        std::mem::replace(&mut self.payload, Payload::None)
     }
 
     /// Load request cookies.
@@ -65,7 +103,11 @@ impl<S> HttpMessage for ClientResponse<S> {
 impl<S> ClientResponse<S> {
     /// Create new Request instance
     pub(crate) fn new(head: ResponseHead, payload: Payload<S>) -> Self {
-        ClientResponse { head, payload }
+        ClientResponse {
+            head,
+            payload,
+            timeout: ResponseTimeout::Disabled(None),
+        }
     }
 
     #[inline]
@@ -101,7 +143,44 @@ impl<S> ClientResponse<S> {
         ClientResponse {
             payload,
             head: self.head,
+            timeout: self.timeout,
         }
+    }
+
+    /// Set a timeout duration for [`ClientResponse`](self::ClientResponse).
+    ///
+    /// This duration covers the duration of processing the response body stream
+    /// and would end it as timeout error when deadline met.
+    ///
+    /// Disabled by default.
+    pub fn timeout(self, dur: Duration) -> Self {
+        let timeout = match self.timeout {
+            ResponseTimeout::Disabled(Some(mut timeout))
+            | ResponseTimeout::Enabled(Some(mut timeout)) => {
+                match Instant::now().checked_add(dur) {
+                    Some(deadline) => {
+                        timeout.as_mut().reset(deadline.into());
+                        ResponseTimeout::Enabled(Some(timeout))
+                    }
+                    None => ResponseTimeout::Enabled(Some(Box::pin(sleep(dur)))),
+                }
+            }
+            _ => ResponseTimeout::Enabled(Some(Box::pin(sleep(dur)))),
+        };
+
+        Self {
+            payload: self.payload,
+            head: self.head,
+            timeout,
+        }
+    }
+
+    // this method does not enable timeout. It's used to pass the boxed Sleep from
+    // `SendClientRequest` and reuse it's heap allocation together with it's slot
+    // in timer wheel.
+    pub(crate) fn _timeout(mut self, timeout: Option<Pin<Box<Sleep>>>) -> Self {
+        self.timeout = ResponseTimeout::Disabled(timeout);
+        self
     }
 }
 
@@ -136,7 +215,10 @@ where
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
     ) -> Poll<Option<Self::Item>> {
-        Pin::new(&mut self.get_mut().payload).poll_next(cx)
+        let this = self.get_mut();
+        this.timeout.poll_timeout(cx).map_err(PayloadError::Io)?;
+
+        Pin::new(&mut this.payload).poll_next(cx)
     }
 }
 
@@ -155,6 +237,7 @@ impl<S> fmt::Debug for ClientResponse<S> {
 pub struct MessageBody<S> {
     length: Option<usize>,
     err: Option<PayloadError>,
+    timeout: Option<Pin<Box<Sleep>>>,
     fut: Option<ReadBody<S>>,
 }
 
@@ -180,6 +263,7 @@ where
         MessageBody {
             length: len,
             err: None,
+            timeout: res.timeout.take(),
             fut: Some(ReadBody::new(res.take_payload(), 262_144)),
         }
     }
@@ -197,6 +281,7 @@ where
             fut: None,
             err: Some(e),
             length: None,
+            timeout: None,
         }
     }
 }
@@ -220,6 +305,12 @@ where
             }
         }
 
+        if let Some(ref mut timeout) = this.timeout {
+            if timeout.as_mut().poll(cx).is_ready() {
+                return Poll::Ready(Err(PayloadError::Io(ResponseTimeout::err())));
+            }
+        }
+
         Pin::new(&mut this.fut.as_mut().unwrap()).poll(cx)
     }
 }
@@ -233,6 +324,7 @@ where
 pub struct JsonBody<S, U> {
     length: Option<usize>,
     err: Option<JsonPayloadError>,
+    timeout: Option<Pin<Box<Sleep>>>,
     fut: Option<ReadBody<S>>,
     _phantom: PhantomData<U>,
 }
@@ -254,6 +346,7 @@ where
             return JsonBody {
                 length: None,
                 fut: None,
+                timeout: None,
                 err: Some(JsonPayloadError::ContentType),
                 _phantom: PhantomData,
             };
@@ -271,6 +364,7 @@ where
         JsonBody {
             length: len,
             err: None,
+            timeout: req.timeout.take(),
             fut: Some(ReadBody::new(req.take_payload(), 65536)),
             _phantom: PhantomData,
         }
@@ -309,6 +403,14 @@ where
                 return Poll::Ready(Err(JsonPayloadError::Payload(
                     PayloadError::Overflow,
                 )));
+            }
+        }
+
+        if let Some(ref mut timeout) = self.timeout {
+            if timeout.as_mut().poll(cx).is_ready() {
+                return Poll::Ready(Err(JsonPayloadError::Payload(PayloadError::Io(
+                    ResponseTimeout::err(),
+                ))));
             }
         }
 
