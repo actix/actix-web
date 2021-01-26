@@ -27,6 +27,8 @@ pub struct ClientResponse<S = PayloadStream> {
     pub(crate) timeout: ResponseTimeout,
 }
 
+/// helper enum with reusable sleep passed from `SendClientResponse`.
+/// See `ClientResponse::_timeout` for reason.
 pub(crate) enum ResponseTimeout {
     Disabled(Option<Pin<Box<Sleep>>>),
     Enabled(Option<Pin<Box<Sleep>>>),
@@ -175,6 +177,9 @@ impl<S> ClientResponse<S> {
         }
     }
 
+    /// This method does not enable timeout. It's used to pass the boxed `Sleep` from
+    /// `SendClientRequest` and reuse it's heap allocation together with it's slot in
+    /// timer wheel.
     pub(crate) fn _timeout(mut self, timeout: Option<Pin<Box<Sleep>>>) -> Self {
         self.timeout = ResponseTimeout::Disabled(timeout);
         self
