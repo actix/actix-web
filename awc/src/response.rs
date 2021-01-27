@@ -31,7 +31,7 @@ pub struct ClientResponse<S = PayloadStream> {
 /// See `ClientResponse::_timeout` for reason.
 pub(crate) enum ResponseTimeout {
     Disabled(Option<Pin<Box<Sleep>>>),
-    Enabled(Option<Pin<Box<Sleep>>>),
+    Enabled(Pin<Box<Sleep>>),
 }
 
 impl Default for ResponseTimeout {
@@ -43,23 +43,18 @@ impl Default for ResponseTimeout {
 impl ResponseTimeout {
     fn poll_timeout(&mut self, cx: &mut Context<'_>) -> Result<(), PayloadError> {
         match *self {
-            Self::Disabled(_) => Ok(()),
-            Self::Enabled(Some(ref mut timeout)) => {
+            Self::Enabled(ref mut timeout) => {
                 if timeout.as_mut().poll(cx).is_ready() {
-                    Err(Self::err())
+                    Err(PayloadError::Io(io::Error::new(
+                        io::ErrorKind::TimedOut,
+                        "Response Payload IO timed out",
+                    )))
                 } else {
                     Ok(())
                 }
             }
-            Self::Enabled(None) => Err(Self::err()),
+            Self::Disabled(_) => Ok(()),
         }
-    }
-
-    fn err() -> PayloadError {
-        PayloadError::Io(io::Error::new(
-            io::ErrorKind::TimedOut,
-            "Response Payload IO timed out",
-        ))
     }
 }
 
@@ -158,16 +153,16 @@ impl<S> ClientResponse<S> {
     pub fn timeout(self, dur: Duration) -> Self {
         let timeout = match self.timeout {
             ResponseTimeout::Disabled(Some(mut timeout))
-            | ResponseTimeout::Enabled(Some(mut timeout)) => {
+            | ResponseTimeout::Enabled(mut timeout) => {
                 match Instant::now().checked_add(dur) {
                     Some(deadline) => {
                         timeout.as_mut().reset(deadline.into());
-                        ResponseTimeout::Enabled(Some(timeout))
+                        ResponseTimeout::Enabled(timeout)
                     }
-                    None => ResponseTimeout::Enabled(Some(Box::pin(sleep(dur)))),
+                    None => ResponseTimeout::Enabled(Box::pin(sleep(dur))),
                 }
             }
-            _ => ResponseTimeout::Enabled(Some(Box::pin(sleep(dur)))),
+            _ => ResponseTimeout::Enabled(Box::pin(sleep(dur))),
         };
 
         Self {
