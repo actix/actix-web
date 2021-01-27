@@ -196,7 +196,7 @@ fn bytes_to_string(body: Bytes, encoding: &'static Encoding) -> Result<String, E
 /// `.app_data()` methods.
 #[derive(Clone)]
 pub struct PayloadConfig {
-    limit: usize,
+    pub limit: usize,
     mimetype: Option<Mime>,
 }
 
@@ -316,9 +316,11 @@ impl HttpMessageBody {
     /// Change max size of payload. By default max size is 256kB
     pub fn limit(mut self, limit: usize) -> Self {
         if let Some(l) = self.length {
-            if l > limit {
-                self.err = Some(PayloadError::Overflow);
-            }
+            self.err = if l > limit {
+                Some(PayloadError::Overflow)
+            } else {
+                None
+            };
         }
         self.limit = limit;
         self
