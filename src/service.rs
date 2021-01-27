@@ -675,6 +675,15 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_services_macro() {
+        let scoped = services![
+            web::service("/scoped_test1").name("scoped_test1").finish(
+                |req: ServiceRequest| async {
+                    Ok(req.into_response(HttpResponse::Ok().finish()))
+                }
+            ),
+            web::resource("/scoped_test2").to(|| async { "test2" }),
+        ];
+
         let services = services![
             web::service("/test1")
                 .name("test")
@@ -682,7 +691,7 @@ mod tests {
                     Ok(req.into_response(HttpResponse::Ok().finish()))
                 }),
             web::resource("/test2").to(|| async { "test2" }),
-            web::scope("/test3").route("/", web::get().to(|| async { "test3" }))
+            web::scope("/test3").service(scoped)
         ];
 
         let mut srv = init_service(App::new().service(services)).await;
@@ -695,7 +704,11 @@ mod tests {
         let resp = srv.call(req).await.unwrap();
         assert_eq!(resp.status(), http::StatusCode::OK);
 
-        let req = TestRequest::with_uri("/test3/").to_request();
+        let req = TestRequest::with_uri("/test3/scoped_test1").to_request();
+        let resp = srv.call(req).await.unwrap();
+        assert_eq!(resp.status(), http::StatusCode::OK);
+
+        let req = TestRequest::with_uri("/test3/scoped_test2").to_request();
         let resp = srv.call(req).await.unwrap();
         assert_eq!(resp.status(), http::StatusCode::OK);
     }
@@ -705,10 +718,19 @@ mod tests {
         let services = vec![
             web::resource("/test1").to(|| async { "test1" }),
             web::resource("/test2").to(|| async { "test2" }),
-            web::resource("/test3").to(|| async { "test3" }),
         ];
 
-        let mut srv = init_service(App::new().service(services)).await;
+        let scoped = vec![
+            web::resource("/scoped_test1").to(|| async { "test1" }),
+            web::resource("/scoped_test2").to(|| async { "test2" }),
+        ];
+
+        let mut srv = init_service(
+            App::new()
+                .service(services)
+                .service(web::scope("/test3").service(scoped)),
+        )
+        .await;
 
         let req = TestRequest::with_uri("/test1").to_request();
         let resp = srv.call(req).await.unwrap();
@@ -718,7 +740,11 @@ mod tests {
         let resp = srv.call(req).await.unwrap();
         assert_eq!(resp.status(), http::StatusCode::OK);
 
-        let req = TestRequest::with_uri("/test3").to_request();
+        let req = TestRequest::with_uri("/test3/scoped_test1").to_request();
+        let resp = srv.call(req).await.unwrap();
+        assert_eq!(resp.status(), http::StatusCode::OK);
+
+        let req = TestRequest::with_uri("/test3/scoped_test2").to_request();
         let resp = srv.call(req).await.unwrap();
         assert_eq!(resp.status(), http::StatusCode::OK);
     }
