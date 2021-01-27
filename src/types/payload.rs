@@ -289,10 +289,12 @@ impl HttpMessageBody {
         if let Some(l) = req.headers().get(&header::CONTENT_LENGTH) {
             match l.to_str() {
                 Ok(s) => match s.parse::<usize>() {
-                    Ok(l) if l > DEFAULT_CONFIG_LIMIT => {
-                        err = Some(PayloadError::Overflow)
+                    Ok(l) => {
+                        if l > DEFAULT_CONFIG_LIMIT {
+                            err = Some(PayloadError::Overflow);
+                        }
+                        length = Some(l)
                     }
-                    Ok(l) => length = Some(l),
                     Err(_) => err = Some(PayloadError::UnknownLength),
                 },
                 Err(_) => err = Some(PayloadError::UnknownLength),
