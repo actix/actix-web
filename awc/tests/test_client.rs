@@ -722,8 +722,12 @@ async fn test_client_cookie_handling() {
 async fn client_unread_response() {
     let addr = test::unused_addr();
 
+    let ready = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let ready_clone = ready.clone();
+
     std::thread::spawn(move || {
         let lst = std::net::TcpListener::bind(addr).unwrap();
+        ready_clone.store(true, Ordering::Relaxed);
 
         for stream in lst.incoming() {
             let mut stream = stream.unwrap();
@@ -737,6 +741,9 @@ async fn client_unread_response() {
             );
         }
     });
+
+    // wait for server thread ready
+    while !ready.load(Ordering::Relaxed) {}
 
     // client request
     let req = awc::Client::new().get(format!("http://{}/", addr).as_str());
