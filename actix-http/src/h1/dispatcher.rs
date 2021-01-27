@@ -609,6 +609,8 @@ where
                         }
                     }
                 }
+                // decode is partial and buffer is not full yet.
+                // break and wait for more read.
                 Ok(None) => break,
                 Err(ParseError::Io(e)) => {
                     self.as_mut().client_disconnected();

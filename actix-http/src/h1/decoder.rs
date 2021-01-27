@@ -208,8 +208,9 @@ impl MessageType for Request {
                         trace!("MAX_BUFFER_SIZE unprocessed data reached, closing");
                         Err(ParseError::TooLarge)
                     } else {
+                        // Return None to notify more read are needed for parsing request
                         Ok(None)
-                    }
+                    };
                 }
             }
         };
@@ -277,14 +278,16 @@ impl MessageType for ResponseHead {
 
                     (len, version, status, res.headers.len())
                 }
-                httparse::Status::Partial => return {
-                    if src.len() >= MAX_BUFFER_SIZE {
-                        error!("MAX_BUFFER_SIZE unprocessed data reached, closing");
-                        Err(ParseError::TooLarge)
-                    } else {
-                        Ok(None)
+                httparse::Status::Partial => {
+                    return {
+                        if src.len() >= MAX_BUFFER_SIZE {
+                            error!("MAX_BUFFER_SIZE unprocessed data reached, closing");
+                            Err(ParseError::TooLarge)
+                        } else {
+                            Ok(None)
+                        }
                     }
-                },
+                }
             }
         };
 
