@@ -196,7 +196,7 @@ fn bytes_to_string(body: Bytes, encoding: &'static Encoding) -> Result<String, E
 /// `.app_data()` methods.
 #[derive(Clone)]
 pub struct PayloadConfig {
-    pub limit: usize,
+    limit: usize,
     mimetype: Option<Mime>,
 }
 
