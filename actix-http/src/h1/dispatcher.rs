@@ -27,12 +27,12 @@ use crate::service::HttpFlow;
 use crate::OnConnectData;
 
 use super::codec::Codec;
+use super::decoder::MAX_BUFFER_SIZE;
 use super::payload::{Payload, PayloadSender, PayloadStatus};
 use super::{Message, MessageType};
 
 const LW_BUFFER_SIZE: usize = 1024;
 const HW_BUFFER_SIZE: usize = 1024 * 8;
-pub(crate) const MAX_HW_BUFFER_SIZE: usize = HW_BUFFER_SIZE * 4;
 const MAX_PIPELINED_MESSAGES: usize = 16;
 
 bitflags! {
@@ -911,7 +911,7 @@ where
                 } else {
                     // If buf is full return but do not disconnect since
                     // there is more reading to be done
-                    if buf.len() >= MAX_HW_BUFFER_SIZE {
+                    if buf.len() >= MAX_BUFFER_SIZE {
                         return Ok(Some(false));
                     }
 
