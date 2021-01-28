@@ -1,6 +1,5 @@
 use std::{
     fmt,
-    future::Future,
     io, net,
     pin::Pin,
     task::{Context, Poll},
@@ -14,10 +13,13 @@ use actix_http::{
     RequestHead, RequestHeadType, ResponseHead,
 };
 use actix_service::Service;
+use futures_core::future::LocalBoxFuture;
 
 use crate::response::ClientResponse;
 
 pub(crate) struct ConnectorWrapper<T>(pub T);
+
+type TunnelResponse = (ResponseHead, Framed<BoxedSocket, ClientCodec>);
 
 pub(crate) trait Connect {
     fn send_request(
@@ -25,23 +27,14 @@ pub(crate) trait Connect {
         head: RequestHeadType,
         body: Body,
         addr: Option<net::SocketAddr>,
-    ) -> Pin<Box<dyn Future<Output = Result<ClientResponse, SendRequestError>>>>;
+    ) -> LocalBoxFuture<'static, Result<ClientResponse, SendRequestError>>;
 
     /// Send request, returns Response and Framed
     fn open_tunnel(
         &mut self,
         head: RequestHead,
         addr: Option<net::SocketAddr>,
-    ) -> Pin<
-        Box<
-            dyn Future<
-                Output = Result<
-                    (ResponseHead, Framed<BoxedSocket, ClientCodec>),
-                    SendRequestError,
-                >,
-            >,
-        >,
-    >;
+    ) -> LocalBoxFuture<'static, Result<TunnelResponse, SendRequestError>>;
 }
 
 impl<T> Connect for ConnectorWrapper<T>
@@ -58,7 +51,7 @@ where
         head: RequestHeadType,
         body: Body,
         addr: Option<net::SocketAddr>,
-    ) -> Pin<Box<dyn Future<Output = Result<ClientResponse, SendRequestError>>>> {
+    ) -> LocalBoxFuture<'static, Result<ClientResponse, SendRequestError>> {
         // connect to the host
         let fut = self.0.call(ClientConnect {
             uri: head.as_ref().uri.clone(),
@@ -79,16 +72,7 @@ where
         &mut self,
         head: RequestHead,
         addr: Option<net::SocketAddr>,
-    ) -> Pin<
-        Box<
-            dyn Future<
-                Output = Result<
-                    (ResponseHead, Framed<BoxedSocket, ClientCodec>),
-                    SendRequestError,
-                >,
-            >,
-        >,
-    > {
+    ) -> LocalBoxFuture<'static, Result<TunnelResponse, SendRequestError>> {
         // connect to the host
         let fut = self.0.call(ClientConnect {
             uri: head.uri.clone(),
