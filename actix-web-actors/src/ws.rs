@@ -34,13 +34,13 @@ use tokio::sync::oneshot::Sender;
 /// # Examples
 ///
 /// Create a Websocket session response with default configs.
-/// ```rust
+/// ```ignore
 /// WsResponseBuilder::new(WsActor, &req, stream).start()
 /// ```
 ///
 /// Create a Websocket session with a specific max frame size,
 /// a [`Codec`] or protocols.
-/// ```rust
+/// ```ignore
 /// const MAX_FRAME_SIZE: usize = 10_000; // in bytes.
 /// ws::WsResponseBuilder::new(WsActor, &req, stream)
 ///     .codec(Codec::new()) // optional
