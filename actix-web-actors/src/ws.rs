@@ -124,6 +124,32 @@ where
         }
     }
 
+    /// Create a new Websocket context from a request, an actor, and a codec.
+    ///
+    /// Returns a pair, where the first item is an addr for the created actor,
+    /// and the second item is a stream intended to be set as part of the
+    /// response via `HttpResponseBuilder::streaming()`.
+    fn create_with_codec_addr<S>(
+        actor: A,
+        stream: S,
+        codec: Codec,
+    ) -> (Addr<A>, impl Stream<Item = Result<Bytes, Error>>)
+    where
+        A: StreamHandler<Result<Message, ProtocolError>>,
+        S: Stream<Item = Result<Bytes, PayloadError>> + 'static,
+    {
+        let mb = Mailbox::default();
+        let mut ctx = WebsocketContext {
+            inner: ContextParts::new(mb.sender_producer()),
+            messages: VecDeque::new(),
+        };
+        ctx.add_stream(WsStream::new(stream, codec));
+
+        let addr = ctx.address();
+
+        (addr, WebsocketContextFut::new(ctx, actor, mb, codec))
+    }
+
     /// Perform WebSocket handshake and start actor.
     ///
     /// `req` is an [`HttpRequest`] that should be requesting a websocket
@@ -168,11 +194,8 @@ where
 
         match self.codec {
             Some(codec) => {
-                let (addr, out_stream) = WebsocketContext::create_with_codec_addr(
-                    self.actor,
-                    self.stream,
-                    codec,
-                );
+                let (addr, out_stream) =
+                    Self::create_with_codec_addr(self.actor, self.stream, codec);
                 Ok((addr, res.streaming(out_stream)))
             }
             None => {
@@ -432,33 +455,6 @@ where
         let addr = ctx.address();
 
         (addr, WebsocketContextFut::new(ctx, actor, mb, Codec::new()))
-    }
-
-    #[inline]
-    /// Create a new Websocket context from a request, an actor, and a codec.
-    ///
-    /// Returns a pair, where the first item is an addr for the created actor,
-    /// and the second item is a stream intended to be set as part of the
-    /// response via `HttpResponseBuilder::streaming()`.
-    pub fn create_with_codec_addr<S>(
-        actor: A,
-        stream: S,
-        codec: Codec,
-    ) -> (Addr<A>, impl Stream<Item = Result<Bytes, Error>>)
-    where
-        A: StreamHandler<Result<Message, ProtocolError>>,
-        S: Stream<Item = Result<Bytes, PayloadError>> + 'static,
-    {
-        let mb = Mailbox::default();
-        let mut ctx = WebsocketContext {
-            inner: ContextParts::new(mb.sender_producer()),
-            messages: VecDeque::new(),
-        };
-        ctx.add_stream(WsStream::new(stream, codec));
-
-        let addr = ctx.address();
-
-        (addr, WebsocketContextFut::new(ctx, actor, mb, codec))
     }
 
     #[inline]
