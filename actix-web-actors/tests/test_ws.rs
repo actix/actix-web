@@ -88,6 +88,34 @@ async fn test_builder_with_frame_size() {
 }
 
 #[actix_rt::test]
+#[should_panic]
+async fn test_builder_with_frame_size_exceeded() {
+    let mut srv = test::start(|| {
+        App::new().service(web::resource("/").to(
+            |req: HttpRequest, stream: web::Payload| async move {
+                ws::WsResponseBuilder::new(Ws, &req, stream)
+                    .frame_size(MAX_FRAME_SIZE)
+                    .start()
+            },
+        ))
+    });
+
+    // client service
+    let mut framed = srv.ws().await.unwrap();
+
+    // Create a request with a frame size larger than expected. This should
+    // panic with '`Err` value: Overflow'.
+    let bytes = Bytes::from(vec![0; MAX_FRAME_SIZE + 1]);
+    framed
+        .send(ws::Message::Binary(bytes.clone()))
+        .await
+        .unwrap();
+
+    // try unwrapping to panic.
+    framed.next().await.unwrap().unwrap();
+}
+
+#[actix_rt::test]
 async fn test_builder_with_codec() {
     let srv = test::start(|| {
         App::new().service(web::resource("/").to(
