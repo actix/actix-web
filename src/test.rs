@@ -667,7 +667,7 @@ where
 
     // run server in separate thread
     thread::spawn(move || {
-        let sys = System::new("actix-test-server");
+        let sys = System::new();
         let tcp = net::TcpListener::bind("127.0.0.1:0").unwrap();
         let local_addr = tcp.local_addr().unwrap();
         let factory = factory.clone();

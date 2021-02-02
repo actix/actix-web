@@ -150,16 +150,6 @@ enum PollResponse {
     DrainWriteBuf,
 }
 
-impl PartialEq for PollResponse {
-    fn eq(&self, other: &PollResponse) -> bool {
-        match self {
-            PollResponse::DrainWriteBuf => matches!(other, PollResponse::DrainWriteBuf),
-            PollResponse::DoNothing => matches!(other, PollResponse::DoNothing),
-            _ => false,
-        }
-    }
-}
-
 impl<T, S, B, X, U> Dispatcher<T, S, B, X, U>
 where
     T: AsyncRead + AsyncWrite + Unpin,
@@ -324,9 +314,10 @@ where
         message: Response<()>,
         body: ResponseBody<B>,
     ) -> Result<(), DispatchError> {
+        let size = body.size();
         let mut this = self.project();
         this.codec
-            .encode(Message::Item((message, body.size())), &mut this.write_buf)
+            .encode(Message::Item((message, size)), &mut this.write_buf)
             .map_err(|err| {
                 if let Some(mut payload) = this.payload.take() {
                     payload.set_error(PayloadError::Incomplete(None));
@@ -335,7 +326,7 @@ where
             })?;
 
         this.flags.set(Flags::KEEPALIVE, this.codec.keepalive());
-        match body.size() {
+        match size {
             BodySize::None | BodySize::Empty => this.state.set(State::None),
             _ => this.state.set(State::SendPayload(body)),
         };
@@ -462,28 +453,28 @@ where
         req: Request,
         cx: &mut Context<'_>,
     ) -> Result<(), DispatchError> {
+        let mut this = self.as_mut().project();
+
         // Handle `EXPECT: 100-Continue` header
         if req.head().expect() {
             // set dispatcher state so the future is pinned.
-            let mut this = self.as_mut().project();
             let task = this.flow.expect.call(req);
             this.state.set(State::ExpectCall(task));
         } else {
             // the same as above.
-            let mut this = self.as_mut().project();
             let task = this.flow.service.call(req);
             this.state.set(State::ServiceCall(task));
         };
 
         // eagerly poll the future for once(or twice if expect is resolved immediately).
         loop {
-            match self.as_mut().project().state.project() {
+            match this.state.project() {
                 StateProj::ExpectCall(fut) => {
                     match fut.poll(cx) {
                         // expect is resolved. continue loop and poll the service call branch.
                         Poll::Ready(Ok(req)) => {
                             self.as_mut().send_continue();
-                            let mut this = self.as_mut().project();
+                            this = self.as_mut().project();
                             let task = this.flow.service.call(req);
                             this.state.set(State::ServiceCall(task));
                             continue;
@@ -793,31 +784,32 @@ where
                         if remaining < LW_BUFFER_SIZE {
                             inner_p.write_buf.reserve(HW_BUFFER_SIZE - remaining);
                         }
-                        let result = inner.as_mut().poll_response(cx)?;
-                        let drain = result == PollResponse::DrainWriteBuf;
 
-                        // switch to upgrade handler
-                        if let PollResponse::Upgrade(req) = result {
-                            let inner_p = inner.as_mut().project();
-                            let mut parts = FramedParts::with_read_buf(
-                                inner_p.io.take().unwrap(),
-                                mem::take(inner_p.codec),
-                                mem::take(inner_p.read_buf),
-                            );
-                            parts.write_buf = mem::take(inner_p.write_buf);
-                            let framed = Framed::from_parts(parts);
-                            let upgrade = inner_p
-                                .flow
-                                .upgrade
-                                .as_ref()
-                                .unwrap()
-                                .call((req, framed));
-                            self.as_mut()
-                                .project()
-                                .inner
-                                .set(DispatcherState::Upgrade(upgrade));
-                            return self.poll(cx);
-                        }
+                        let drain = match inner.as_mut().poll_response(cx)? {
+                            PollResponse::DrainWriteBuf => true,
+                            PollResponse::DoNothing => false,
+                            PollResponse::Upgrade(req) => {
+                                let inner_p = inner.as_mut().project();
+                                let mut parts = FramedParts::with_read_buf(
+                                    inner_p.io.take().unwrap(),
+                                    mem::take(inner_p.codec),
+                                    mem::take(inner_p.read_buf),
+                                );
+                                parts.write_buf = mem::take(inner_p.write_buf);
+                                let framed = Framed::from_parts(parts);
+                                let upgrade = inner_p
+                                    .flow
+                                    .upgrade
+                                    .as_ref()
+                                    .unwrap()
+                                    .call((req, framed));
+                                self.as_mut()
+                                    .project()
+                                    .inner
+                                    .set(DispatcherState::Upgrade(upgrade));
+                                return self.poll(cx);
+                            }
+                        };
 
                         // we didn't get WouldBlock from write operation,
                         // so data get written to kernel completely (macOS)

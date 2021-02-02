@@ -60,7 +60,7 @@ pub async fn test_server_with_addr<F: ServiceFactory<TcpStream>>(
 
     // run server in separate thread
     thread::spawn(move || {
-        let sys = System::new("actix-test-server");
+        let sys = System::new();
         let local_addr = tcp.local_addr().unwrap();
 
         let srv = Server::build()

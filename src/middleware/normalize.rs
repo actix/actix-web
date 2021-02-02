@@ -57,7 +57,7 @@ impl Default for TrailingSlash {
 /// ```rust
 /// use actix_web::{web, middleware, App};
 ///
-/// # actix_web::rt::System::new("doctest").block_on(async {
+/// # actix_web::rt::System::new().block_on(async {
 /// let app = App::new()
 ///     .wrap(middleware::NormalizePath::default())
 ///     .route("/test", web::get().to(|| async { "test" }))
