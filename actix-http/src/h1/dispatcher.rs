@@ -330,12 +330,6 @@ where
         Ok(())
     }
 
-    fn send_continue(self: Pin<&mut Self>) {
-        self.project()
-            .write_buf
-            .extend_from_slice(b"HTTP/1.1 100 Continue\r\n\r\n");
-    }
-
     fn poll_response(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
@@ -377,8 +371,8 @@ where
                     // expect resolved. write continue to buffer and set InnerDispatcher state
                     // to service call.
                     Poll::Ready(Ok(req)) => {
-                        self.as_mut().send_continue();
-                        this = self.as_mut().project();
+                        this.write_buf
+                            .extend_from_slice(b"HTTP/1.1 100 Continue\r\n\r\n");
                         let fut = this.flow.service.call(req);
                         this.state.set(State::ServiceCall(fut));
                     }
@@ -488,6 +482,8 @@ where
                     match fut.poll(cx) {
                         // expect is resolved. continue loop and poll the service call branch.
                         Poll::Ready(Ok(req)) => {
+                            this.write_buf
+                                .extend_from_slice(b"HTTP/1.1 100 Continue\r\n\r\n");
                             let task = this.flow.service.call(req);
                             this.state.as_mut().set(State::ServiceCall(task));
                         }
