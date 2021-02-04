@@ -43,7 +43,7 @@ trust-dns = ["trust-dns-resolver/tokio-runtime", "trust-dns-resolver/system-conf
 actix-codec = "0.4.0-beta.1"
 actix-service = "2.0.0-beta.3"
 actix-http = "3.0.0-beta.1"
-actix-rt = "2.0.0-beta.2"
+actix-rt = "2"
 actix-tls = { version = "3.0.0-beta.2", default-features = false, features = ["connect", "uri"] }
 actix-utils = "3.0.0-beta.1"
 
@@ -72,9 +72,6 @@ tokio = { version = "1", features = ["sync"] }
 trust-dns-resolver = { version = "0.20.0", default-features = false, optional = true }
 
 [dev-dependencies]
-# TODO: actix is temporary added as dev dep for actix-macro reason.
-# Can be removed when it does not impact tests.
-actix = "0.11.0-beta.1"
 actix-web = { version = "4.0.0-beta.1", features = ["openssl"] }
 actix-http = { version = "3.0.0-beta.1", features = ["openssl"] }
 actix-http-test = { version = "3.0.0-beta.1", features = ["openssl"] }

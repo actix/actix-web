@@ -8,6 +8,9 @@
 * `connector::default_connector` function to get a default connector type 
   that uses current dns resolver feature.
 
+### Changed
+* Relax default timeout for `Connector` to 5 seconds(original 1 second). [#1905]
+
 ### Removed
 * `trust-dns` removed from default dns resolver
 * `ClientRequest::set`; use `ClientRequest::insert_header`. [#1869]
@@ -16,6 +19,7 @@
 * `ClientRequest::header`; use `ClientRequest::append_header`. [#1869]
 
 [#1869]: https://github.com/actix/actix-web/pull/1869
+[#1905]: https://github.com/actix/actix-web/pull/1905
 
 
 ## 3.0.0-beta.1 - 2021-01-07

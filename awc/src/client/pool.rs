@@ -46,7 +46,7 @@ impl From<Authority> for Key {
 }
 
 /// Connections pool
-pub(crate) struct ConnectionPool<T, Io: 'static>(Rc<RefCell<T>>, Rc<RefCell<Inner<Io>>>);
+pub(crate) struct ConnectionPool<T, Io: 'static>(Rc<T>, Rc<RefCell<Inner<Io>>>);
 
 impl<T, Io> ConnectionPool<T, Io>
 where
@@ -54,7 +54,7 @@ where
     T: Service<Connect, Response = (Io, Protocol), Error = ConnectError> + 'static,
 {
     pub(crate) fn new(connector: T, config: ConnectorConfig) -> Self {
-        let connector_rc = Rc::new(RefCell::new(connector));
+        let connector_rc = Rc::new(connector);
         let inner_rc = Rc::new(RefCell::new(Inner {
             config,
             acquired: 0,
@@ -99,12 +99,12 @@ where
     type Error = ConnectError;
     type Future = LocalBoxFuture<'static, Result<IoConnection<Io>, ConnectError>>;
 
-    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+    fn poll_ready(&self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         self.0.poll_ready(cx)
     }
 
-    fn call(&mut self, req: Connect) -> Self::Future {
-        let mut connector = self.0.clone();
+    fn call(&self, req: Connect) -> Self::Future {
+        let connector = self.0.clone();
         let inner = self.1.clone();
 
         let fut = async move {
@@ -326,7 +326,7 @@ where
                 {
                     if let Some(timeout) = self.config.disconnect_timeout {
                         if let ConnectionType::H1(io) = conn.io {
-                            actix_rt::spawn(CloseConnection::new(io, timeout))
+                            actix_rt::spawn(CloseConnection::new(io, timeout));
                         }
                     }
                 } else {
@@ -341,7 +341,7 @@ where
                                     if let ConnectionType::H1(io) = io {
                                         actix_rt::spawn(CloseConnection::new(
                                             io, timeout,
-                                        ))
+                                        ));
                                     }
                                 }
                                 continue;
@@ -373,7 +373,7 @@ where
         self.acquired -= 1;
         if let Some(timeout) = self.config.disconnect_timeout {
             if let ConnectionType::H1(io) = io {
-                actix_rt::spawn(CloseConnection::new(io, timeout))
+                actix_rt::spawn(CloseConnection::new(io, timeout));
             }
         }
         self.check_availability();
@@ -429,7 +429,7 @@ struct ConnectorPoolSupport<T, Io>
 where
     Io: AsyncRead + AsyncWrite + Unpin + 'static,
 {
-    connector: T,
+    connector: Rc<T>,
     inner: Rc<RefCell<Inner<Io>>>,
 }
 
@@ -536,7 +536,7 @@ where
             rx: Some(rx),
             inner: Some(inner),
             config,
-        })
+        });
     }
 }
 

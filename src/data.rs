@@ -144,7 +144,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_data_extractor() {
-        let mut srv = init_service(App::new().data("TEST".to_string()).service(
+        let srv = init_service(App::new().data("TEST".to_string()).service(
             web::resource("/").to(|data: web::Data<String>| {
                 assert_eq!(data.to_lowercase(), "test");
                 HttpResponse::Ok()
@@ -156,7 +156,7 @@ mod tests {
         let resp = srv.call(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
 
-        let mut srv =
+        let srv =
             init_service(App::new().data(10u32).service(
                 web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()),
             ))
@@ -165,7 +165,7 @@ mod tests {
         let resp = srv.call(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
 
-        let mut srv = init_service(
+        let srv = init_service(
             App::new()
                 .data(10u32)
                 .data(13u32)
@@ -186,7 +186,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_app_data_extractor() {
-        let mut srv =
+        let srv =
             init_service(App::new().app_data(Data::new(10usize)).service(
                 web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()),
             ))
@@ -196,7 +196,7 @@ mod tests {
         let resp = srv.call(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
 
-        let mut srv =
+        let srv =
             init_service(App::new().app_data(Data::new(10u32)).service(
                 web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()),
             ))
@@ -208,7 +208,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_route_data_extractor() {
-        let mut srv = init_service(
+        let srv = init_service(
             App::new().service(
                 web::resource("/")
                     .data(10usize)
@@ -222,7 +222,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
 
         // different type
-        let mut srv = init_service(
+        let srv = init_service(
             App::new().service(
                 web::resource("/")
                     .data(10u32)
@@ -237,7 +237,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_override_data() {
-        let mut srv = init_service(App::new().data(1usize).service(
+        let srv = init_service(App::new().data(1usize).service(
             web::resource("/").data(10usize).route(web::get().to(
                 |data: web::Data<usize>| {
                     assert_eq!(**data, 10);

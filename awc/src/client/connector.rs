@@ -94,9 +94,9 @@ impl Connector<(), ()> {
     fn build_ssl(protocols: Vec<Vec<u8>>) -> SslConnector {
         let mut config = ClientConfig::new();
         config.set_protocols(&protocols);
-        config
-            .root_store
-            .add_server_trust_anchors(&actix_tls::accept::rustls::TLS_SERVER_ROOTS);
+        config.root_store.add_server_trust_anchors(
+            &actix_tls::connect::ssl::rustls::TLS_SERVER_ROOTS,
+        );
         SslConnector::Rustls(std::sync::Arc::new(config))
     }
 
@@ -386,11 +386,11 @@ mod connect_impl {
             Ready<Result<IoConnection<Io>, ConnectError>>,
         >;
 
-        fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        fn poll_ready(&self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
             self.tcp_pool.poll_ready(cx)
         }
 
-        fn call(&mut self, req: Connect) -> Self::Future {
+        fn call(&self, req: Connect) -> Self::Future {
             match req.uri.scheme_str() {
                 Some("https") | Some("wss") => {
                     Either::Right(err(ConnectError::SslIsNotSupported))
@@ -454,11 +454,11 @@ mod connect_impl {
             InnerConnectorResponseB<T2, Io1, Io2>,
         >;
 
-        fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        fn poll_ready(&self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
             self.tcp_pool.poll_ready(cx)
         }
 
-        fn call(&mut self, req: Connect) -> Self::Future {
+        fn call(&self, req: Connect) -> Self::Future {
             match req.uri.scheme_str() {
                 Some("https") | Some("wss") => Either::Right(InnerConnectorResponseB {
                     fut: self.ssl_pool.call(req),
@@ -535,9 +535,9 @@ mod connector_impl {
 // resolver implementation using trust-dns crate.
 #[cfg(feature = "trust-dns")]
 mod connector_impl {
-    use std::net::SocketAddr;
+    use std::{cell::RefCell, net::SocketAddr};
 
-    use actix_rt::{net::TcpStream, Arbiter};
+    use actix_rt::net::TcpStream;
     use actix_service::Service;
     use actix_tls::connect::{
         Address, Connect, ConnectError, Connection, Resolve, Resolver,
@@ -549,32 +549,42 @@ mod connector_impl {
         TokioAsyncResolver,
     };
 
+    #[derive(Clone)]
     pub struct TrustDnsResolver {
         resolver: TokioAsyncResolver,
     }
 
     impl TrustDnsResolver {
         fn new() -> Self {
-            // dns struct is cached in Arbiter thread local map.
-            // so new client constructor can reuse the dns resolver on local thread.
-
-            if Arbiter::contains_item::<TokioAsyncResolver>() {
-                Arbiter::get_item(|item: &TokioAsyncResolver| TrustDnsResolver {
-                    resolver: item.clone(),
-                })
-            } else {
-                let (cfg, opts) = match read_system_conf() {
-                    Ok((cfg, opts)) => (cfg, opts),
-                    Err(e) => {
-                        log::error!("TRust-DNS can not load system config: {}", e);
-                        (ResolverConfig::default(), ResolverOpts::default())
-                    }
-                };
-
-                let resolver = TokioAsyncResolver::tokio(cfg, opts).unwrap();
-                Arbiter::set_item(resolver.clone());
-                TrustDnsResolver { resolver }
+            // dns struct is cached in thread local.
+            // so new client constructor can reuse the existing dns resolver.
+            thread_local! {
+                static TRUST_DNS_RESOLVER: RefCell<Option<TrustDnsResolver>> = RefCell::new(None)
             }
+
+            TRUST_DNS_RESOLVER.with(|local| {
+                let resolver = local.borrow().as_ref().map(Clone::clone);
+                match resolver {
+                    Some(resolver) => resolver,
+                    None => {
+                        let (cfg, opts) = match read_system_conf() {
+                            Ok((cfg, opts)) => (cfg, opts),
+                            Err(e) => {
+                                log::error!(
+                                    "TRust-DNS can not load system config: {}",
+                                    e
+                                );
+                                (ResolverConfig::default(), ResolverOpts::default())
+                            }
+                        };
+
+                        let resolver = TokioAsyncResolver::tokio(cfg, opts).unwrap();
+                        let resolver = TrustDnsResolver { resolver };
+                        *local.borrow_mut() = Some(resolver.clone());
+                        resolver
+                    }
+                }
+            })
         }
     }
 

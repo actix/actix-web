@@ -93,7 +93,6 @@
 #![doc(html_logo_url = "https://actix.rs/img/logo.png")]
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
 
-use std::cell::RefCell;
 use std::convert::TryFrom;
 use std::rc::Rc;
 use std::time::Duration;
@@ -147,7 +146,7 @@ use self::connect::{Connect, ConnectorWrapper};
 pub struct Client(Rc<ClientConfig>);
 
 pub(crate) struct ClientConfig {
-    pub(crate) connector: RefCell<Box<dyn Connect>>,
+    pub(crate) connector: Box<dyn Connect>,
     pub(crate) headers: HeaderMap,
     pub(crate) timeout: Option<Duration>,
 }
@@ -155,9 +154,7 @@ pub(crate) struct ClientConfig {
 impl Default for Client {
     fn default() -> Self {
         Client(Rc::new(ClientConfig {
-            connector: RefCell::new(Box::new(ConnectorWrapper(
-                Connector::new().finish(),
-            ))),
+            connector: Box::new(ConnectorWrapper(Connector::new().finish())),
             headers: HeaderMap::new(),
             timeout: Some(Duration::from_secs(5)),
         }))

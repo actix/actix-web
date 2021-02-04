@@ -325,11 +325,7 @@ impl WebsocketsRequest {
         let max_size = self.max_size;
         let server_mode = self.server_mode;
 
-        let fut = self
-            .config
-            .connector
-            .borrow_mut()
-            .open_tunnel(head, self.addr);
+        let fut = self.config.connector.open_tunnel(head, self.addr);
 
         // set request timeout
         let (head, framed) = if let Some(to) = self.config.timeout {
