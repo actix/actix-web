@@ -30,7 +30,7 @@
 [#1894]: https://github.com/actix/actix-web/pull/1894
 [#1903]: https://github.com/actix/actix-web/pull/1903
 [#1904]: https://github.com/actix/actix-web/pull/1904
-[#1905]: https://github.com/actix/actix-web/pull/1905
+[#1905]: https://github.com/actix/actix-web/pull/190
 [#1912]: https://github.com/actix/actix-web/pull/1912
 
 

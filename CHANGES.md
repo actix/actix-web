@@ -19,6 +19,9 @@
 ### Fixed
 * Multiple calls `App::data` with the same type now keeps the latest call's data. [#1906]
 
+### Fixed
+* Multiple calls `App::data` with the same type now keeps the latest call's data. [#1906]
+
 ### Removed
 * Public field of `web::Path` has been made private. [#1894]
 * Public field of `web::Query` has been made private. [#1894]
