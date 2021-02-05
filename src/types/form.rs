@@ -381,11 +381,11 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_form() {
-        let (req, mut pl) =
-            TestRequest::with_header(CONTENT_TYPE, "application/x-www-form-urlencoded")
-                .header(CONTENT_LENGTH, "11")
-                .set_payload(Bytes::from_static(b"hello=world&counter=123"))
-                .to_http_parts();
+        let (req, mut pl) = TestRequest::default()
+            .insert_header((CONTENT_TYPE, "application/x-www-form-urlencoded"))
+            .insert_header((CONTENT_LENGTH, 11))
+            .set_payload(Bytes::from_static(b"hello=world&counter=123"))
+            .to_http_parts();
 
         let Form(s) = Form::<Info>::from_request(&req, &mut pl).await.unwrap();
         assert_eq!(
@@ -414,25 +414,26 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_urlencoded_error() {
-        let (req, mut pl) =
-            TestRequest::with_header(CONTENT_TYPE, "application/x-www-form-urlencoded")
-                .header(CONTENT_LENGTH, "xxxx")
-                .to_http_parts();
+        let (req, mut pl) = TestRequest::default()
+            .insert_header((CONTENT_TYPE, "application/x-www-form-urlencoded"))
+            .insert_header((CONTENT_LENGTH, "xxxx"))
+            .to_http_parts();
         let info = UrlEncoded::<Info>::new(&req, &mut pl).await;
         assert!(eq(info.err().unwrap(), UrlencodedError::UnknownLength));
 
-        let (req, mut pl) =
-            TestRequest::with_header(CONTENT_TYPE, "application/x-www-form-urlencoded")
-                .header(CONTENT_LENGTH, "1000000")
-                .to_http_parts();
+        let (req, mut pl) = TestRequest::default()
+            .insert_header((CONTENT_TYPE, "application/x-www-form-urlencoded"))
+            .insert_header((CONTENT_LENGTH, "1000000"))
+            .to_http_parts();
         let info = UrlEncoded::<Info>::new(&req, &mut pl).await;
         assert!(eq(
             info.err().unwrap(),
             UrlencodedError::Overflow { size: 0, limit: 0 }
         ));
 
-        let (req, mut pl) = TestRequest::with_header(CONTENT_TYPE, "text/plain")
-            .header(CONTENT_LENGTH, "10")
+        let (req, mut pl) = TestRequest::default()
+            .insert_header((CONTENT_TYPE, "text/plain"))
+            .insert_header((CONTENT_LENGTH, 10))
             .to_http_parts();
         let info = UrlEncoded::<Info>::new(&req, &mut pl).await;
         assert!(eq(info.err().unwrap(), UrlencodedError::ContentType));
@@ -440,11 +441,11 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_urlencoded() {
-        let (req, mut pl) =
-            TestRequest::with_header(CONTENT_TYPE, "application/x-www-form-urlencoded")
-                .header(CONTENT_LENGTH, "11")
-                .set_payload(Bytes::from_static(b"hello=world&counter=123"))
-                .to_http_parts();
+        let (req, mut pl) = TestRequest::default()
+            .insert_header((CONTENT_TYPE, "application/x-www-form-urlencoded"))
+            .insert_header((CONTENT_LENGTH, 11))
+            .set_payload(Bytes::from_static(b"hello=world&counter=123"))
+            .to_http_parts();
 
         let info = UrlEncoded::<Info>::new(&req, &mut pl).await.unwrap();
         assert_eq!(
@@ -455,13 +456,14 @@ mod tests {
             }
         );
 
-        let (req, mut pl) = TestRequest::with_header(
-            CONTENT_TYPE,
-            "application/x-www-form-urlencoded; charset=utf-8",
-        )
-        .header(CONTENT_LENGTH, "11")
-        .set_payload(Bytes::from_static(b"hello=world&counter=123"))
-        .to_http_parts();
+        let (req, mut pl) = TestRequest::default()
+            .insert_header((
+                CONTENT_TYPE,
+                "application/x-www-form-urlencoded; charset=utf-8",
+            ))
+            .insert_header((CONTENT_LENGTH, 11))
+            .set_payload(Bytes::from_static(b"hello=world&counter=123"))
+            .to_http_parts();
 
         let info = UrlEncoded::<Info>::new(&req, &mut pl).await.unwrap();
         assert_eq!(
@@ -497,8 +499,8 @@ mod tests {
         let ctype = HeaderValue::from_static("application/x-www-form-urlencoded");
 
         let (req, mut pl) = TestRequest::default()
-            .header(CONTENT_TYPE, ctype)
-            .header(CONTENT_LENGTH, HeaderValue::from_static("20"))
+            .insert_header((CONTENT_TYPE, ctype))
+            .insert_header((CONTENT_LENGTH, HeaderValue::from_static("20")))
             .set_payload(Bytes::from_static(b"hello=test&counter=4"))
             .app_data(web::Data::new(FormConfig::default().limit(10)))
             .to_http_parts();

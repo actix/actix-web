@@ -21,14 +21,16 @@ header! {
     ///
     /// # Example
     ///
-    /// ```rust
+    /// ```
+    /// use std::time::{SystemTime, Duration};
     /// use actix_http::Response;
     /// use actix_http::http::header::LastModified;
-    /// use std::time::{SystemTime, Duration};
     ///
     /// let mut builder = Response::Ok();
     /// let modified = SystemTime::now() - Duration::from_secs(60 * 60 * 24);
-    /// builder.set(LastModified(modified.into()));
+    /// builder.insert_header(
+    ///     LastModified(modified.into())
+    /// );
     /// ```
     (LastModified, LAST_MODIFIED) => [HttpDate]
 

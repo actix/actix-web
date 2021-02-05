@@ -1,4 +1,4 @@
-use std::task::{Context, Poll};
+use std::task::Poll;
 
 use actix_codec::Framed;
 use actix_service::{Service, ServiceFactory};
@@ -28,11 +28,9 @@ impl<T> Service<(Request, Framed<T, Codec>)> for UpgradeHandler {
     type Error = Error;
     type Future = Ready<Result<Self::Response, Self::Error>>;
 
-    fn poll_ready(&mut self, _: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        Poll::Ready(Ok(()))
-    }
+    actix_service::always_ready!();
 
-    fn call(&mut self, _: (Request, Framed<T, Codec>)) -> Self::Future {
+    fn call(&self, _: (Request, Framed<T, Codec>)) -> Self::Future {
         ready(Ok(()))
     }
 }

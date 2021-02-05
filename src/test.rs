@@ -1,13 +1,13 @@
 //! Various helpers for Actix applications to use during testing.
-use std::convert::TryFrom;
+
 use std::net::SocketAddr;
 use std::rc::Rc;
 use std::sync::mpsc;
 use std::{fmt, net, thread, time};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
-use actix_http::http::header::{ContentType, Header, HeaderName, IntoHeaderValue};
-use actix_http::http::{Error as HttpError, Method, StatusCode, Uri, Version};
+use actix_http::http::header::{ContentType, IntoHeaderPair};
+use actix_http::http::{Method, StatusCode, Uri, Version};
 use actix_http::test::TestRequest as HttpTestRequest;
 use actix_http::{cookie::Cookie, ws, Extensions, HttpService, Request};
 use actix_router::{Path, ResourceDef, Url};
@@ -60,7 +60,7 @@ pub fn default_service(
 ///
 /// #[actix_rt::test]
 /// async fn test_init_service() {
-///     let mut app = test::init_service(
+///     let app = test::init_service(
 ///         App::new()
 ///             .service(web::resource("/test").to(|| async { HttpResponse::Ok() }))
 ///     ).await;
@@ -116,7 +116,7 @@ where
 ///
 /// #[actix_rt::test]
 /// async fn test_response() {
-///     let mut app = test::init_service(
+///     let app = test::init_service(
 ///         App::new()
 ///             .service(web::resource("/test").to(|| async {
 ///                 HttpResponse::Ok()
@@ -127,11 +127,11 @@ where
 ///     let req = test::TestRequest::with_uri("/test").to_request();
 ///
 ///     // Call application
-///     let resp = test::call_service(&mut app, req).await;
+///     let resp = test::call_service(&app, req).await;
 ///     assert_eq!(resp.status(), StatusCode::OK);
 /// }
 /// ```
-pub async fn call_service<S, R, B, E>(app: &mut S, req: R) -> S::Response
+pub async fn call_service<S, R, B, E>(app: &S, req: R) -> S::Response
 where
     S: Service<R, Response = ServiceResponse<B>, Error = E>,
     E: std::fmt::Debug,
@@ -147,7 +147,7 @@ where
 ///
 /// #[actix_rt::test]
 /// async fn test_index() {
-///     let mut app = test::init_service(
+///     let app = test::init_service(
 ///         App::new().service(
 ///             web::resource("/index.html")
 ///                 .route(web::post().to(|| async {
@@ -160,11 +160,11 @@ where
 ///         .header(header::CONTENT_TYPE, "application/json")
 ///         .to_request();
 ///
-///     let result = test::read_response(&mut app, req).await;
+///     let result = test::read_response(&app, req).await;
 ///     assert_eq!(result, Bytes::from_static(b"welcome!"));
 /// }
 /// ```
-pub async fn read_response<S, B>(app: &mut S, req: Request) -> Bytes
+pub async fn read_response<S, B>(app: &S, req: Request) -> Bytes
 where
     S: Service<Request, Response = ServiceResponse<B>, Error = Error>,
     B: MessageBody + Unpin,
@@ -190,7 +190,7 @@ where
 ///
 /// #[actix_rt::test]
 /// async fn test_index() {
-///     let mut app = test::init_service(
+///     let app = test::init_service(
 ///         App::new().service(
 ///             web::resource("/index.html")
 ///                 .route(web::post().to(|| async {
@@ -203,7 +203,7 @@ where
 ///         .header(header::CONTENT_TYPE, "application/json")
 ///         .to_request();
 ///
-///     let resp = test::call_service(&mut app, req).await;
+///     let resp = test::call_service(&app, req).await;
 ///     let result = test::read_body(resp).await;
 ///     assert_eq!(result, Bytes::from_static(b"welcome!"));
 /// }
@@ -234,12 +234,12 @@ where
 ///
 /// #[actix_rt::test]
 /// async fn test_post_person() {
-///     let mut app = test::init_service(
+///     let app = test::init_service(
 ///         App::new().service(
 ///             web::resource("/people")
 ///                 .route(web::post().to(|person: web::Json<Person>| async {
 ///                     HttpResponse::Ok()
-///                         .json(person.into_inner())})
+///                         .json(person)})
 ///                     ))
 ///     ).await;
 ///
@@ -294,12 +294,12 @@ where
 ///
 /// #[actix_rt::test]
 /// async fn test_add_person() {
-///     let mut app = test::init_service(
+///     let app = test::init_service(
 ///         App::new().service(
 ///             web::resource("/people")
 ///                 .route(web::post().to(|person: web::Json<Person>| async {
 ///                     HttpResponse::Ok()
-///                         .json(person.into_inner())})
+///                         .json(person)})
 ///                     ))
 ///     ).await;
 ///
@@ -314,7 +314,7 @@ where
 ///     let result: Person = test::read_response_json(&mut app, req).await;
 /// }
 /// ```
-pub async fn read_response_json<S, B, T>(app: &mut S, req: Request) -> T
+pub async fn read_response_json<S, B, T>(app: &S, req: Request) -> T
 where
     S: Service<Request, Response = ServiceResponse<B>, Error = Error>,
     B: MessageBody + Unpin,
@@ -349,7 +349,7 @@ where
 ///
 /// #[test]
 /// fn test_index() {
-///     let req = test::TestRequest::with_header("content-type", "text/plain")
+///     let req = test::TestRequest::default().insert_header("content-type", "text/plain")
 ///         .to_http_request();
 ///
 ///     let resp = index(req).await.unwrap();
@@ -387,21 +387,6 @@ impl TestRequest {
     /// Create TestRequest and set request uri
     pub fn with_uri(path: &str) -> TestRequest {
         TestRequest::default().uri(path)
-    }
-
-    /// Create TestRequest and set header
-    pub fn with_hdr<H: Header>(hdr: H) -> TestRequest {
-        TestRequest::default().set(hdr)
-    }
-
-    /// Create TestRequest and set header
-    pub fn with_header<K, V>(key: K, value: V) -> TestRequest
-    where
-        HeaderName: TryFrom<K>,
-        <HeaderName as TryFrom<K>>::Error: Into<HttpError>,
-        V: IntoHeaderValue,
-    {
-        TestRequest::default().header(key, value)
     }
 
     /// Create TestRequest and set method to `Method::GET`
@@ -447,24 +432,25 @@ impl TestRequest {
         self
     }
 
-    /// Set a header
-    pub fn set<H: Header>(mut self, hdr: H) -> Self {
-        self.req.set(hdr);
-        self
-    }
-
-    /// Set a header
-    pub fn header<K, V>(mut self, key: K, value: V) -> Self
+    /// Insert a header, replacing any that were set with an equivalent field name.
+    pub fn insert_header<H>(mut self, header: H) -> Self
     where
-        HeaderName: TryFrom<K>,
-        <HeaderName as TryFrom<K>>::Error: Into<HttpError>,
-        V: IntoHeaderValue,
+        H: IntoHeaderPair,
     {
-        self.req.header(key, value);
+        self.req.insert_header(header);
         self
     }
 
-    /// Set cookie for this request
+    /// Append a header, keeping any that were set with an equivalent field name.
+    pub fn append_header<H>(mut self, header: H) -> Self
+    where
+        H: IntoHeaderPair,
+    {
+        self.req.append_header(header);
+        self
+    }
+
+    /// Set cookie for this request.
     pub fn cookie(mut self, cookie: Cookie<'_>) -> Self {
         self.req.cookie(cookie);
         self
@@ -494,7 +480,7 @@ impl TestRequest {
         let bytes = serde_urlencoded::to_string(data)
             .expect("Failed to serialize test data as a urlencoded form");
         self.req.set_payload(bytes);
-        self.req.set(ContentType::form_url_encoded());
+        self.req.insert_header(ContentType::form_url_encoded());
         self
     }
 
@@ -504,7 +490,7 @@ impl TestRequest {
         let bytes =
             serde_json::to_string(data).expect("Failed to serialize test data to json");
         self.req.set_payload(bytes);
-        self.req.set(ContentType::json());
+        self.req.insert_header(ContentType::json());
         self
     }
 
@@ -583,7 +569,7 @@ impl TestRequest {
     }
 
     /// Complete request creation, calls service and waits for response future completion.
-    pub async fn send_request<S, B, E>(self, app: &mut S) -> S::Response
+    pub async fn send_request<S, B, E>(self, app: &S) -> S::Response
     where
         S: Service<Request, Response = ServiceResponse<B>, Error = E>,
         E: std::fmt::Debug,
@@ -609,7 +595,7 @@ impl TestRequest {
 ///
 /// #[actix_rt::test]
 /// async fn test_example() {
-///     let mut srv = test::start(
+///     let srv = test::start(
 ///         || App::new().service(
 ///                 web::resource("/").to(my_handler))
 ///     );
@@ -649,7 +635,7 @@ where
 ///
 /// #[actix_rt::test]
 /// async fn test_example() {
-///     let mut srv = test::start_with(test::config().h1(), ||
+///     let srv = test::start_with(test::config().h1(), ||
 ///         App::new().service(web::resource("/").to(my_handler))
 ///     );
 ///
@@ -681,7 +667,7 @@ where
 
     // run server in separate thread
     thread::spawn(move || {
-        let sys = System::new("actix-test-server");
+        let sys = System::new();
         let tcp = net::TcpListener::bind("127.0.0.1:0").unwrap();
         let local_addr = tcp.local_addr().unwrap();
         let factory = factory.clone();
@@ -774,7 +760,7 @@ where
         .unwrap();
 
         sys.block_on(async {
-            let srv = srv.start();
+            let srv = srv.run();
             tx.send((System::current(), srv, local_addr)).unwrap();
         });
 
@@ -1029,9 +1015,10 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_basics() {
-        let req = TestRequest::with_hdr(header::ContentType::json())
+        let req = TestRequest::default()
             .version(Version::HTTP_2)
-            .set(header::Date(SystemTime::now().into()))
+            .insert_header(header::ContentType::json())
+            .insert_header(header::Date(SystemTime::now().into()))
             .param("test", "123")
             .data(10u32)
             .app_data(20u64)
@@ -1056,7 +1043,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_request_methods() {
-        let mut app = init_service(
+        let app = init_service(
             App::new().service(
                 web::resource("/index.html")
                     .route(web::put().to(|| HttpResponse::Ok().body("put!")))
@@ -1068,28 +1055,28 @@ mod tests {
 
         let put_req = TestRequest::put()
             .uri("/index.html")
-            .header(header::CONTENT_TYPE, "application/json")
+            .insert_header((header::CONTENT_TYPE, "application/json"))
             .to_request();
 
-        let result = read_response(&mut app, put_req).await;
+        let result = read_response(&app, put_req).await;
         assert_eq!(result, Bytes::from_static(b"put!"));
 
         let patch_req = TestRequest::patch()
             .uri("/index.html")
-            .header(header::CONTENT_TYPE, "application/json")
+            .insert_header((header::CONTENT_TYPE, "application/json"))
             .to_request();
 
-        let result = read_response(&mut app, patch_req).await;
+        let result = read_response(&app, patch_req).await;
         assert_eq!(result, Bytes::from_static(b"patch!"));
 
         let delete_req = TestRequest::delete().uri("/index.html").to_request();
-        let result = read_response(&mut app, delete_req).await;
+        let result = read_response(&app, delete_req).await;
         assert_eq!(result, Bytes::from_static(b"delete!"));
     }
 
     #[actix_rt::test]
     async fn test_response() {
-        let mut app = init_service(
+        let app = init_service(
             App::new().service(
                 web::resource("/index.html")
                     .route(web::post().to(|| HttpResponse::Ok().body("welcome!"))),
@@ -1099,16 +1086,16 @@ mod tests {
 
         let req = TestRequest::post()
             .uri("/index.html")
-            .header(header::CONTENT_TYPE, "application/json")
+            .insert_header((header::CONTENT_TYPE, "application/json"))
             .to_request();
 
-        let result = read_response(&mut app, req).await;
+        let result = read_response(&app, req).await;
         assert_eq!(result, Bytes::from_static(b"welcome!"));
     }
 
     #[actix_rt::test]
     async fn test_send_request() {
-        let mut app = init_service(
+        let app = init_service(
             App::new().service(
                 web::resource("/index.html")
                     .route(web::get().to(|| HttpResponse::Ok().body("welcome!"))),
@@ -1118,7 +1105,7 @@ mod tests {
 
         let resp = TestRequest::get()
             .uri("/index.html")
-            .send_request(&mut app)
+            .send_request(&app)
             .await;
 
         let result = read_body(resp).await;
@@ -1133,10 +1120,8 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_response_json() {
-        let mut app = init_service(App::new().service(web::resource("/people").route(
-            web::post().to(|person: web::Json<Person>| {
-                HttpResponse::Ok().json(person.into_inner())
-            }),
+        let app = init_service(App::new().service(web::resource("/people").route(
+            web::post().to(|person: web::Json<Person>| HttpResponse::Ok().json(person)),
         )))
         .await;
 
@@ -1144,20 +1129,18 @@ mod tests {
 
         let req = TestRequest::post()
             .uri("/people")
-            .header(header::CONTENT_TYPE, "application/json")
+            .insert_header((header::CONTENT_TYPE, "application/json"))
             .set_payload(payload)
             .to_request();
 
-        let result: Person = read_response_json(&mut app, req).await;
+        let result: Person = read_response_json(&app, req).await;
         assert_eq!(&result.id, "12345");
     }
 
     #[actix_rt::test]
     async fn test_body_json() {
-        let mut app = init_service(App::new().service(web::resource("/people").route(
-            web::post().to(|person: web::Json<Person>| {
-                HttpResponse::Ok().json(person.into_inner())
-            }),
+        let app = init_service(App::new().service(web::resource("/people").route(
+            web::post().to(|person: web::Json<Person>| HttpResponse::Ok().json(person)),
         )))
         .await;
 
@@ -1165,9 +1148,9 @@ mod tests {
 
         let resp = TestRequest::post()
             .uri("/people")
-            .header(header::CONTENT_TYPE, "application/json")
+            .insert_header((header::CONTENT_TYPE, "application/json"))
             .set_payload(payload)
-            .send_request(&mut app)
+            .send_request(&app)
             .await;
 
         let result: Person = read_body_json(resp).await;
@@ -1176,10 +1159,8 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_request_response_form() {
-        let mut app = init_service(App::new().service(web::resource("/people").route(
-            web::post().to(|person: web::Form<Person>| {
-                HttpResponse::Ok().json(person.into_inner())
-            }),
+        let app = init_service(App::new().service(web::resource("/people").route(
+            web::post().to(|person: web::Form<Person>| HttpResponse::Ok().json(person)),
         )))
         .await;
 
@@ -1195,17 +1176,15 @@ mod tests {
 
         assert_eq!(req.content_type(), "application/x-www-form-urlencoded");
 
-        let result: Person = read_response_json(&mut app, req).await;
+        let result: Person = read_response_json(&app, req).await;
         assert_eq!(&result.id, "12345");
         assert_eq!(&result.name, "User name");
     }
 
     #[actix_rt::test]
     async fn test_request_response_json() {
-        let mut app = init_service(App::new().service(web::resource("/people").route(
-            web::post().to(|person: web::Json<Person>| {
-                HttpResponse::Ok().json(person.into_inner())
-            }),
+        let app = init_service(App::new().service(web::resource("/people").route(
+            web::post().to(|person: web::Json<Person>| HttpResponse::Ok().json(person)),
         )))
         .await;
 
@@ -1221,7 +1200,7 @@ mod tests {
 
         assert_eq!(req.content_type(), "application/json");
 
-        let result: Person = read_response_json(&mut app, req).await;
+        let result: Person = read_response_json(&app, req).await;
         assert_eq!(&result.id, "12345");
         assert_eq!(&result.name, "User name");
     }
@@ -1239,7 +1218,7 @@ mod tests {
             }
         }
 
-        let mut app = init_service(
+        let app = init_service(
             App::new().service(web::resource("/index.html").to(async_with_block)),
         )
         .await;
@@ -1256,7 +1235,7 @@ mod tests {
             HttpResponse::Ok()
         }
 
-        let mut app = init_service(
+        let app = init_service(
             App::new()
                 .data(10usize)
                 .service(web::resource("/index.html").to(handler)),
@@ -1312,7 +1291,7 @@ mod tests {
             .data(addr.clone())
             .service(web::resource("/").to(actor_handler));
 
-        let mut app = init_service(srv).await;
+        let app = init_service(srv).await;
 
         let req = TestRequest::post().uri("/").to_request();
         let res = app.call(req).await.unwrap();

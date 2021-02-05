@@ -45,7 +45,7 @@ where
                 Some(port) => write!(wrt, "{}:{}", host, port),
             };
 
-            match wrt.get_mut().split().freeze().try_into() {
+            match wrt.get_mut().split().freeze().try_into_value() {
                 Ok(value) => match head {
                     RequestHeadType::Owned(ref mut head) => {
                         head.headers.insert(HOST, value)

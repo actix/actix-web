@@ -23,38 +23,31 @@ header! {
     ///
     /// # Examples
     ///
-    /// ```rust
-    /// # extern crate actix_http;
-    /// # #[macro_use] extern crate language_tags;
+    /// ```
+    /// use language_tags::langtag;
     /// use actix_http::Response;
-    /// # use actix_http::http::header::{ContentLanguage, qitem};
-    /// #
-    /// # fn main() {
+    /// use actix_http::http::header::{ContentLanguage, qitem};
+    ///
     /// let mut builder = Response::Ok();
-    /// builder.set(
+    /// builder.insert_header(
     ///     ContentLanguage(vec![
     ///         qitem(langtag!(en)),
     ///     ])
     /// );
-    /// # }
     /// ```
     ///
-    /// ```rust
-    /// # extern crate actix_http;
-    /// # #[macro_use] extern crate language_tags;
+    /// ```
+    /// use language_tags::langtag;
     /// use actix_http::Response;
-    /// # use actix_http::http::header::{ContentLanguage, qitem};
-    /// #
-    /// # fn main() {
+    /// use actix_http::http::header::{ContentLanguage, qitem};
     ///
     /// let mut builder = Response::Ok();
-    /// builder.set(
+    /// builder.insert_header(
     ///     ContentLanguage(vec![
     ///         qitem(langtag!(da)),
     ///         qitem(langtag!(en;;;GB)),
     ///     ])
     /// );
-    /// # }
     /// ```
     (ContentLanguage, CONTENT_LANGUAGE) => (QualityItem<LanguageTag>)+
 

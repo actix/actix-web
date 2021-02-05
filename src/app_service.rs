@@ -10,7 +10,7 @@ use futures_core::future::LocalBoxFuture;
 use futures_util::future::join_all;
 
 use crate::config::{AppConfig, AppService};
-use crate::data::{DataFactory, FnDataFactory};
+use crate::data::FnDataFactory;
 use crate::error::Error;
 use crate::guard::Guard;
 use crate::request::{HttpRequest, HttpRequestPool};
@@ -35,7 +35,6 @@ where
 {
     pub(crate) endpoint: T,
     pub(crate) extensions: RefCell<Option<Extensions>>,
-    pub(crate) data_factories: Rc<[Box<dyn DataFactory>]>,
     pub(crate) async_data_factories: Rc<[FnDataFactory]>,
     pub(crate) services: Rc<RefCell<Vec<Box<dyn AppServiceFactory>>>>,
     pub(crate) default: Option<Rc<HttpNewService>>,
@@ -71,8 +70,7 @@ where
         });
 
         // App config
-        let mut config =
-            AppService::new(config, default.clone(), self.data_factories.clone());
+        let mut config = AppService::new(config, default.clone());
 
         // register services
         std::mem::take(&mut *self.services.borrow_mut())
@@ -119,8 +117,6 @@ where
             .take()
             .unwrap_or_else(Extensions::new);
 
-        let data_factories = self.data_factories.clone();
-
         Box::pin(async move {
             // async data factories
             let async_data_factories = factory_futs
@@ -133,12 +129,9 @@ where
             let service = endpoint_fut.await?;
 
             // populate app data container from (async) data factories.
-            data_factories
-                .iter()
-                .chain(&async_data_factories)
-                .for_each(|factory| {
-                    factory.create(&mut app_data);
-                });
+            async_data_factories.iter().for_each(|factory| {
+                factory.create(&mut app_data);
+            });
 
             Ok(AppInitService {
                 service,
@@ -149,7 +142,7 @@ where
     }
 }
 
-/// Service to convert `Request` to a `ServiceRequest<S>`
+/// Service that takes a [`Request`] and delegates to a service that take a [`ServiceRequest`].
 pub struct AppInitService<T, B>
 where
     T: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
@@ -159,7 +152,7 @@ where
     app_state: Rc<AppInitServiceState>,
 }
 
-// a collection of AppInitService state that shared between HttpRequests.
+/// A collection of [`AppInitService`] state that shared across `HttpRequest`s.
 pub(crate) struct AppInitServiceState {
     rmap: Rc<ResourceMap>,
     config: AppConfig,
@@ -203,7 +196,7 @@ where
 
     actix_service::forward_ready!(service);
 
-    fn call(&mut self, req: Request) -> Self::Future {
+    fn call(&self, req: Request) -> Self::Future {
         let (head, payload) = req.into_parts();
 
         let req = if let Some(mut req) = self.app_state.pool().pop() {
@@ -294,8 +287,8 @@ impl Service<ServiceRequest> for AppRouting {
 
     actix_service::always_ready!();
 
-    fn call(&mut self, mut req: ServiceRequest) -> Self::Future {
-        let res = self.router.recognize_mut_checked(&mut req, |req, guards| {
+    fn call(&self, mut req: ServiceRequest) -> Self::Future {
+        let res = self.router.recognize_checked(&mut req, |req, guards| {
             if let Some(ref guards) = guards {
                 for f in guards {
                     if !f.check(req.head()) {
@@ -361,7 +354,7 @@ mod tests {
         let data = Arc::new(AtomicBool::new(false));
 
         {
-            let mut app = init_service(
+            let app = init_service(
                 App::new()
                     .data(DropData(data.clone()))
                     .service(web::resource("/test").to(HttpResponse::Ok)),

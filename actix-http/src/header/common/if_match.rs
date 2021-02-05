@@ -29,20 +29,20 @@ header! {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```
     /// use actix_http::Response;
     /// use actix_http::http::header::IfMatch;
     ///
     /// let mut builder = Response::Ok();
-    /// builder.set(IfMatch::Any);
+    /// builder.insert_header(IfMatch::Any);
     /// ```
     ///
-    /// ```rust
+    /// ```
     /// use actix_http::Response;
     /// use actix_http::http::header::{IfMatch, EntityTag};
     ///
     /// let mut builder = Response::Ok();
-    /// builder.set(
+    /// builder.insert_header(
     ///     IfMatch::Items(vec![
     ///         EntityTag::new(false, "xyzzy".to_owned()),
     ///         EntityTag::new(false, "foobar".to_owned()),

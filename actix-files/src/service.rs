@@ -1,9 +1,4 @@
-use std::{
-    fmt, io,
-    path::PathBuf,
-    rc::Rc,
-    task::{Context, Poll},
-};
+use std::{fmt, io, path::PathBuf, rc::Rc, task::Poll};
 
 use actix_service::Service;
 use actix_web::{
@@ -40,10 +35,10 @@ type FilesServiceFuture = Either<
 >;
 
 impl FilesService {
-    fn handle_err(&mut self, e: io::Error, req: ServiceRequest) -> FilesServiceFuture {
+    fn handle_err(&self, e: io::Error, req: ServiceRequest) -> FilesServiceFuture {
         log::debug!("Failed to handle {}: {}", req.path(), e);
 
-        if let Some(ref mut default) = self.default {
+        if let Some(ref default) = self.default {
             Either::Right(default.call(req))
         } else {
             Either::Left(ok(req.error_response(e)))
@@ -62,11 +57,9 @@ impl Service<ServiceRequest> for FilesService {
     type Error = Error;
     type Future = FilesServiceFuture;
 
-    fn poll_ready(&mut self, _: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        Poll::Ready(Ok(()))
-    }
+    actix_service::always_ready!();
 
-    fn call(&mut self, req: ServiceRequest) -> Self::Future {
+    fn call(&self, req: ServiceRequest) -> Self::Future {
         let is_method_valid = if let Some(guard) = &self.guards {
             // execute user defined guards
             (**guard).check(req.head())
@@ -78,7 +71,7 @@ impl Service<ServiceRequest> for FilesService {
         if !is_method_valid {
             return Either::Left(ok(req.into_response(
                 actix_web::HttpResponse::MethodNotAllowed()
-                    .header(header::CONTENT_TYPE, "text/plain")
+                    .insert_header(header::ContentType(mime::TEXT_PLAIN_UTF_8))
                     .body("Request did not meet this resource's requirements."),
             )));
         }
@@ -102,7 +95,7 @@ impl Service<ServiceRequest> for FilesService {
 
                     return Either::Left(ok(req.into_response(
                         HttpResponse::Found()
-                            .header(header::LOCATION, redirect_to)
+                            .insert_header((header::LOCATION, redirect_to))
                             .body("")
                             .into_body(),
                     )));

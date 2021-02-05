@@ -10,10 +10,11 @@ use actix_codec::{AsyncRead, AsyncWrite, ReadBuf};
 use actix_rt::time::{sleep, Sleep};
 use actix_service::Service;
 use actix_utils::task::LocalWaker;
+use ahash::AHashMap;
 use bytes::Bytes;
 use futures_channel::oneshot;
-use futures_util::future::{poll_fn, FutureExt, LocalBoxFuture};
-use fxhash::FxHashMap;
+use futures_core::future::LocalBoxFuture;
+use futures_util::future::{poll_fn, FutureExt};
 use h2::client::{Connection, SendRequest};
 use http::uri::Authority;
 use indexmap::IndexSet;
@@ -45,7 +46,7 @@ impl From<Authority> for Key {
 }
 
 /// Connections pool
-pub(crate) struct ConnectionPool<T, Io: 'static>(Rc<RefCell<T>>, Rc<RefCell<Inner<Io>>>);
+pub(crate) struct ConnectionPool<T, Io: 'static>(Rc<T>, Rc<RefCell<Inner<Io>>>);
 
 impl<T, Io> ConnectionPool<T, Io>
 where
@@ -53,13 +54,13 @@ where
     T: Service<Connect, Response = (Io, Protocol), Error = ConnectError> + 'static,
 {
     pub(crate) fn new(connector: T, config: ConnectorConfig) -> Self {
-        let connector_rc = Rc::new(RefCell::new(connector));
+        let connector_rc = Rc::new(connector);
         let inner_rc = Rc::new(RefCell::new(Inner {
             config,
             acquired: 0,
             waiters: Slab::new(),
             waiters_queue: IndexSet::new(),
-            available: FxHashMap::default(),
+            available: AHashMap::default(),
             waker: LocalWaker::new(),
         }));
 
@@ -98,12 +99,12 @@ where
     type Error = ConnectError;
     type Future = LocalBoxFuture<'static, Result<IoConnection<Io>, ConnectError>>;
 
-    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+    fn poll_ready(&self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         self.0.poll_ready(cx)
     }
 
-    fn call(&mut self, req: Connect) -> Self::Future {
-        let mut connector = self.0.clone();
+    fn call(&self, req: Connect) -> Self::Future {
+        let connector = self.0.clone();
         let inner = self.1.clone();
 
         let fut = async move {
@@ -257,7 +258,7 @@ struct AvailableConnection<Io> {
 pub(crate) struct Inner<Io> {
     config: ConnectorConfig,
     acquired: usize,
-    available: FxHashMap<Key, VecDeque<AvailableConnection<Io>>>,
+    available: AHashMap<Key, VecDeque<AvailableConnection<Io>>>,
     waiters: Slab<
         Option<(
             Connect,
@@ -325,7 +326,7 @@ where
                 {
                     if let Some(timeout) = self.config.disconnect_timeout {
                         if let ConnectionType::H1(io) = conn.io {
-                            actix_rt::spawn(CloseConnection::new(io, timeout))
+                            actix_rt::spawn(CloseConnection::new(io, timeout));
                         }
                     }
                 } else {
@@ -340,7 +341,7 @@ where
                                     if let ConnectionType::H1(io) = io {
                                         actix_rt::spawn(CloseConnection::new(
                                             io, timeout,
-                                        ))
+                                        ));
                                     }
                                 }
                                 continue;
@@ -372,7 +373,7 @@ where
         self.acquired -= 1;
         if let Some(timeout) = self.config.disconnect_timeout {
             if let ConnectionType::H1(io) = io {
-                actix_rt::spawn(CloseConnection::new(io, timeout))
+                actix_rt::spawn(CloseConnection::new(io, timeout));
             }
         }
         self.check_availability();
@@ -428,7 +429,7 @@ struct ConnectorPoolSupport<T, Io>
 where
     Io: AsyncRead + AsyncWrite + Unpin + 'static,
 {
-    connector: T,
+    connector: Rc<T>,
     inner: Rc<RefCell<Inner<Io>>>,
 }
 
@@ -535,7 +536,7 @@ where
             rx: Some(rx),
             inner: Some(inner),
             config,
-        })
+        });
     }
 }
 

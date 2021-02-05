@@ -28,12 +28,12 @@ use crate::header::{
 /// * `max-age=30`
 ///
 /// # Examples
-/// ```rust
+/// ```
 /// use actix_http::Response;
 /// use actix_http::http::header::{CacheControl, CacheDirective};
 ///
 /// let mut builder = Response::Ok();
-/// builder.set(CacheControl(vec![CacheDirective::MaxAge(86400u32)]));
+/// builder.insert_header(CacheControl(vec![CacheDirective::MaxAge(86400u32)]));
 /// ```
 ///
 /// ```rust
@@ -41,7 +41,7 @@ use crate::header::{
 /// use actix_http::http::header::{CacheControl, CacheDirective};
 ///
 /// let mut builder = Response::Ok();
-/// builder.set(CacheControl(vec![
+/// builder.insert_header(CacheControl(vec![
 ///     CacheDirective::NoCache,
 ///     CacheDirective::Private,
 ///     CacheDirective::MaxAge(360u32),
@@ -82,7 +82,7 @@ impl fmt::Display for CacheControl {
 impl IntoHeaderValue for CacheControl {
     type Error = header::InvalidHeaderValue;
 
-    fn try_into(self) -> Result<header::HeaderValue, Self::Error> {
+    fn try_into_value(self) -> Result<header::HeaderValue, Self::Error> {
         let mut writer = Writer::new();
         let _ = write!(&mut writer, "{}", self);
         header::HeaderValue::from_maybe_shared(writer.take())
@@ -196,7 +196,8 @@ mod tests {
 
     #[test]
     fn test_parse_multiple_headers() {
-        let req = TestRequest::with_header(header::CACHE_CONTROL, "no-cache, private")
+        let req = TestRequest::default()
+            .insert_header((header::CACHE_CONTROL, "no-cache, private"))
             .finish();
         let cache = Header::parse(&req);
         assert_eq!(
@@ -210,9 +211,9 @@ mod tests {
 
     #[test]
     fn test_parse_argument() {
-        let req =
-            TestRequest::with_header(header::CACHE_CONTROL, "max-age=100, private")
-                .finish();
+        let req = TestRequest::default()
+            .insert_header((header::CACHE_CONTROL, "max-age=100, private"))
+            .finish();
         let cache = Header::parse(&req);
         assert_eq!(
             cache.ok(),
@@ -225,8 +226,9 @@ mod tests {
 
     #[test]
     fn test_parse_quote_form() {
-        let req =
-            TestRequest::with_header(header::CACHE_CONTROL, "max-age=\"200\"").finish();
+        let req = TestRequest::default()
+            .insert_header((header::CACHE_CONTROL, "max-age=\"200\""))
+            .finish();
         let cache = Header::parse(&req);
         assert_eq!(
             cache.ok(),
@@ -236,8 +238,9 @@ mod tests {
 
     #[test]
     fn test_parse_extension() {
-        let req =
-            TestRequest::with_header(header::CACHE_CONTROL, "foo, bar=baz").finish();
+        let req = TestRequest::default()
+            .insert_header((header::CACHE_CONTROL, "foo, bar=baz"))
+            .finish();
         let cache = Header::parse(&req);
         assert_eq!(
             cache.ok(),
@@ -250,7 +253,9 @@ mod tests {
 
     #[test]
     fn test_parse_bad_syntax() {
-        let req = TestRequest::with_header(header::CACHE_CONTROL, "foo=").finish();
+        let req = TestRequest::default()
+            .insert_header((header::CACHE_CONTROL, "foo="))
+            .finish();
         let cache: Result<CacheControl, _> = Header::parse(&req);
         assert_eq!(cache.ok(), None)
     }

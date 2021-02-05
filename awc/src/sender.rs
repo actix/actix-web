@@ -183,15 +183,13 @@ impl RequestSender {
     where
         B: Into<Body>,
     {
-        let mut connector = config.connector.borrow_mut();
-
         let fut = match self {
             RequestSender::Owned(head) => {
-                connector.send_request(head, body.into(), addr)
+                config.connector.send_request(head, body.into(), addr)
             }
-            RequestSender::Rc(head, extra_headers) => {
-                connector.send_request_extra(head, extra_headers, body.into(), addr)
-            }
+            RequestSender::Rc(head, extra_headers) => config
+                .connector
+                .send_request_extra(head, extra_headers, body.into(), addr),
         };
 
         SendClientRequest::new(fut, response_decompress, timeout.or(config.timeout))
@@ -296,7 +294,7 @@ impl RequestSender {
         match self {
             RequestSender::Owned(head) => {
                 if !head.headers.contains_key(&key) {
-                    match value.try_into() {
+                    match value.try_into_value() {
                         Ok(value) => head.headers.insert(key, value),
                         Err(e) => return Err(e.into()),
                     }
@@ -306,7 +304,7 @@ impl RequestSender {
                 if !head.headers.contains_key(&key)
                     && !extra_headers.iter().any(|h| h.contains_key(&key))
                 {
-                    match value.try_into() {
+                    match value.try_into_value() {
                         Ok(v) => {
                             let h = extra_headers.get_or_insert(HeaderMap::new());
                             h.insert(key, v)

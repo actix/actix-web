@@ -16,6 +16,7 @@ use actix_http::{
     Error,
 };
 use actix_service::{Service, Transform};
+use futures_core::ready;
 use futures_util::future::{ok, Ready};
 use pin_project::pin_project;
 
@@ -89,7 +90,7 @@ where
     actix_service::forward_ready!(service);
 
     #[allow(clippy::borrow_interior_mutable_const)]
-    fn call(&mut self, req: ServiceRequest) -> Self::Future {
+    fn call(&self, req: ServiceRequest) -> Self::Future {
         // negotiate content-encoding
         let encoding = if let Some(val) = req.headers().get(&ACCEPT_ENCODING) {
             if let Ok(enc) = val.to_str() {
@@ -131,7 +132,7 @@ where
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.project();
 
-        match futures_util::ready!(this.fut.poll(cx)) {
+        match ready!(this.fut.poll(cx)) {
             Ok(resp) => {
                 let enc = if let Some(enc) = resp.response().get_encoding() {
                     enc

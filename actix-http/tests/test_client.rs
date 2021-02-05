@@ -38,7 +38,7 @@ async fn test_h1_v2() {
     let response = srv.get("/").send().await.unwrap();
     assert!(response.status().is_success());
 
-    let request = srv.get("/").header("x-test", "111").send();
+    let request = srv.get("/").insert_header(("x-test", "111")).send();
     let mut response = request.await.unwrap();
     assert!(response.status().is_success());
 
