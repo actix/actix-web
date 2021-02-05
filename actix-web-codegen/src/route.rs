@@ -117,7 +117,7 @@ impl Args {
                         } else {
                             return Err(syn::Error::new_spanned(
                                 nv.lit,
-                                "Attribute endpoint expects literal string!",
+                                "Attribute name expects literal string!",
                             ));
                         }
                     } else if nv.path.is_ident("guard") {
@@ -296,11 +296,9 @@ impl ToTokens for Route {
             resource_type,
             doc_attributes,
         } = self;
-        let resource_name = if let Some(resource_name) = resource_name {
-            resource_name.value()
-        } else {
-            name.to_string()
-        };
+        let resource_name = resource_name
+            .as_ref()
+            .map_or_else(|| name.to_string(), |n| n.value());
         let method_guards = {
             let mut others = methods.iter();
             // unwrapping since length is checked to be at least one
