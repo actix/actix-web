@@ -15,11 +15,8 @@
   in argument [#1905]
 * `App::wrap_fn`, `Resource::wrap_fn` and `Scope::wrap_fn` would give `&Service` in closure
   argument [#1905]
-  
-### Fixed
-* Multiple calls `App::data` with the same type now keeps the latest call's data. [#1906]
 * `web::block` accept any closure that has an output bound to `Send` and `'static`. [#1957]
-
+  
 ### Fixed
 * Multiple calls `App::data` with the same type now keeps the latest call's data. [#1906]
 
