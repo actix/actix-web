@@ -11,7 +11,7 @@
 * `ServiceRequest::into_parts` and `ServiceRequest::from_parts` would not fail.
   `ServiceRequest::from_request` would not fail and no payload would be generated [#1893]
 * Our `Either` type now uses `Left`/`Right` variants (instead of `A`/`B`) [#1894]
-* `web::block` accept any closure that has an output bound to `Send` and `'static`. [#]
+* `web::block` accept any closure that has an output bound to `Send` and `'static`. [#1957]
 
 ### Fixed
 * Multiple calls `App::data` with the same type now keeps the latest call's data. [#1906]
@@ -29,6 +29,7 @@
 [#1894]: https://github.com/actix/actix-web/pull/1894
 [#1869]: https://github.com/actix/actix-web/pull/1869
 [#1906]: https://github.com/actix/actix-web/pull/1906
+[#1957]: https://github.com/actix/actix-web/pull/1957
 
 
 ## 4.0.0-beta.1 - 2021-01-07
