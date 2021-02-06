@@ -1213,7 +1213,7 @@ mod tests {
             match res {
                 Ok(value) => Ok(HttpResponse::Ok()
                     .content_type("text/plain")
-                    .body(format!("Async with block value: {}", value))),
+                    .body(format!("Async with block value: {:?}", value))),
                 Err(_) => panic!("Unexpected"),
             }
         }

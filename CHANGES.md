@@ -18,6 +18,7 @@
   
 ### Fixed
 * Multiple calls `App::data` with the same type now keeps the latest call's data. [#1906]
+* `web::block` accept any closure that has an output bound to `Send` and `'static`. [#1957]
 
 ### Fixed
 * Multiple calls `App::data` with the same type now keeps the latest call's data. [#1906]
@@ -36,6 +37,7 @@
 [#1869]: https://github.com/actix/actix-web/pull/1869
 [#1905]: https://github.com/actix/actix-web/pull/1905
 [#1906]: https://github.com/actix/actix-web/pull/1906
+[#1957]: https://github.com/actix/actix-web/pull/1957
 
 
 ## 4.0.0-beta.1 - 2021-01-07
