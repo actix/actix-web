@@ -40,9 +40,9 @@ secure-cookies = ["cookie/secure"]
 actors = ["actix"]
 
 [dependencies]
-actix-service = "2.0.0-beta.3"
+actix-service = "2.0.0-beta.4"
 actix-codec = "0.4.0-beta.1"
-actix-utils = "3.0.0-beta.1"
+actix-utils = "3.0.0-beta.2"
 actix-rt = "2"
 actix-tls = "3.0.0-beta.2"
 actix = { version = "0.11.0-beta.1", default-features = false, optional = true }
@@ -85,7 +85,7 @@ brotli2 = { version="0.3.2", optional = true }
 flate2 = { version = "1.0.13", optional = true }
 
 [dev-dependencies]
-actix-server = "2.0.0-beta.2"
+actix-server = "2.0.0-beta.3"
 actix-http-test = { version = "3.0.0-beta.1", features = ["openssl"] }
 actix-tls = { version = "3.0.0-beta.2", features = ["openssl"] }
 criterion = "0.3"
