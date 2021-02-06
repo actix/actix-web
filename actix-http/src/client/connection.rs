@@ -355,3 +355,47 @@ where
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+    use std::sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    };
+
+    use super::*;
+
+    #[actix_rt::test]
+    async fn test_manual_drop() {
+        let var = Arc::new(AtomicUsize::new(0));
+
+        let var_1 = var.clone();
+        let fut = async move {
+            actix_rt::time::sleep(std::time::Duration::from_millis(500)).await;
+            var_1.fetch_add(1, Ordering::SeqCst);
+        };
+        let (fut, handle) = WakeupOnDrop::new(fut);
+
+        actix_rt::spawn(fut);
+
+        actix_rt::time::sleep(std::time::Duration::from_millis(100)).await;
+
+        handle.wake();
+        drop(handle);
+
+        actix_rt::time::sleep(std::time::Duration::from_millis(500)).await;
+        assert_eq!(var.load(Ordering::SeqCst), 0);
+
+        let var_1 = var.clone();
+        let fut = async move {
+            actix_rt::time::sleep(std::time::Duration::from_millis(500)).await;
+            var_1.fetch_add(1, Ordering::SeqCst);
+        };
+
+        let (fut, _handle) = WakeupOnDrop::new(fut);
+        actix_rt::spawn(fut);
+
+        actix_rt::time::sleep(std::time::Duration::from_millis(600)).await;
+        assert_eq!(var.load(Ordering::SeqCst), 1);
+    }
+}
