@@ -16,6 +16,7 @@
 * `Extensions::insert` returns Option of replaced item. [#1904]
 * Remove `HttpResponseBuilder::json2()` and make `HttpResponseBuilder::json()` take a value by
   reference. [#1903]
+* Simplify `BlockingError` type to a struct. It's only triggered with blocking thread pool is dead. [#]  
 
 ### Removed
 * `ResponseBuilder::set`; use `ResponseBuilder::insert_header`. [#1869]

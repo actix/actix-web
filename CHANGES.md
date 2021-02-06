@@ -11,6 +11,7 @@
 * `ServiceRequest::into_parts` and `ServiceRequest::from_parts` would not fail.
   `ServiceRequest::from_request` would not fail and no payload would be generated [#1893]
 * Our `Either` type now uses `Left`/`Right` variants (instead of `A`/`B`) [#1894]
+* `web::block` accept any closure that has an output bound to `Send` and `'static`. [#]
 
 ### Fixed
 * Multiple calls `App::data` with the same type now keeps the latest call's data. [#1906]
