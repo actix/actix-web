@@ -31,5 +31,5 @@ percent-encoding = "2.1"
 v_htmlescape = "0.12"
 
 [dev-dependencies]
-actix-rt = "2.0.0-beta.2"
+actix-rt = "=2.0.0-beta.2"
 actix-web = "4.0.0-beta.1"
