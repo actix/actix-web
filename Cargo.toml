@@ -78,7 +78,7 @@ actix-macros = "0.2.0"
 actix-router = "0.2.6"
 actix-rt = "2"
 actix-server = "2.0.0-beta.2"
-actix-service = "=2.0.0-beta.3"
+actix-service = "2.0.0-beta.3"
 actix-utils = "3.0.0-beta.1"
 actix-tls = { version = "3.0.0-beta.2", default-features = false, optional = true }
 
