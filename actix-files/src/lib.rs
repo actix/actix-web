@@ -73,7 +73,8 @@ mod tests {
         },
         middleware::Compress,
         test::{self, TestRequest},
-        web, App, HttpResponse, Responder,
+        web::{self, Bytes},
+        App, HttpResponse, Responder,
     };
     use futures_util::future::ok;
 
@@ -365,7 +366,7 @@ mod tests {
             DispositionType::Attachment
         }
 
-        let mut srv = test::init_service(
+        let srv = test::init_service(
             App::new().service(
                 Files::new("/", ".")
                     .mime_override(all_attachment)
@@ -375,7 +376,7 @@ mod tests {
         .await;
 
         let request = TestRequest::get().uri("/").to_request();
-        let response = test::call_service(&mut srv, request).await;
+        let response = test::call_service(&srv, request).await;
         assert_eq!(response.status(), StatusCode::OK);
 
         let content_disposition = response
@@ -390,7 +391,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_named_file_ranges_status_code() {
-        let mut srv = test::init_service(
+        let srv = test::init_service(
             App::new().service(Files::new("/test", ".").index_file("Cargo.toml")),
         )
         .await;
@@ -400,7 +401,7 @@ mod tests {
             .uri("/t%65st/Cargo.toml")
             .insert_header((header::RANGE, "bytes=10-20"))
             .to_request();
-        let response = test::call_service(&mut srv, request).await;
+        let response = test::call_service(&srv, request).await;
         assert_eq!(response.status(), StatusCode::PARTIAL_CONTENT);
 
         // Invalid range header
@@ -408,7 +409,7 @@ mod tests {
             .uri("/t%65st/Cargo.toml")
             .insert_header((header::RANGE, "bytes=1-0"))
             .to_request();
-        let response = test::call_service(&mut srv, request).await;
+        let response = test::call_service(&srv, request).await;
 
         assert_eq!(response.status(), StatusCode::RANGE_NOT_SATISFIABLE);
     }
@@ -495,14 +496,14 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_static_files_with_spaces() {
-        let mut srv = test::init_service(
+        let srv = test::init_service(
             App::new().service(Files::new("/", ".").index_file("Cargo.toml")),
         )
         .await;
         let request = TestRequest::get()
             .uri("/tests/test%20space.binary")
             .to_request();
-        let response = test::call_service(&mut srv, request).await;
+        let response = test::call_service(&srv, request).await;
         assert_eq!(response.status(), StatusCode::OK);
 
         let bytes = test::read_body(response).await;
@@ -512,28 +513,28 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_files_not_allowed() {
-        let mut srv = test::init_service(App::new().service(Files::new("/", "."))).await;
+        let srv = test::init_service(App::new().service(Files::new("/", "."))).await;
 
         let req = TestRequest::default()
             .uri("/Cargo.toml")
             .method(Method::POST)
             .to_request();
 
-        let resp = test::call_service(&mut srv, req).await;
+        let resp = test::call_service(&srv, req).await;
         assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
 
-        let mut srv = test::init_service(App::new().service(Files::new("/", "."))).await;
+        let srv = test::init_service(App::new().service(Files::new("/", "."))).await;
         let req = TestRequest::default()
             .method(Method::PUT)
             .uri("/Cargo.toml")
             .to_request();
-        let resp = test::call_service(&mut srv, req).await;
+        let resp = test::call_service(&srv, req).await;
         assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
     }
 
     #[actix_rt::test]
     async fn test_files_guards() {
-        let mut srv = test::init_service(
+        let srv = test::init_service(
             App::new().service(Files::new("/", ".").use_guards(guard::Post())),
         )
         .await;
@@ -543,13 +544,13 @@ mod tests {
             .method(Method::POST)
             .to_request();
 
-        let resp = test::call_service(&mut srv, req).await;
+        let resp = test::call_service(&srv, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
     #[actix_rt::test]
     async fn test_named_file_content_encoding() {
-        let mut srv = test::init_service(App::new().wrap(Compress::default()).service(
+        let srv = test::init_service(App::new().wrap(Compress::default()).service(
             web::resource("/").to(|| async {
                 NamedFile::open("Cargo.toml")
                     .unwrap()
@@ -562,14 +563,14 @@ mod tests {
             .uri("/")
             .insert_header((header::ACCEPT_ENCODING, "gzip"))
             .to_request();
-        let res = test::call_service(&mut srv, request).await;
+        let res = test::call_service(&srv, request).await;
         assert_eq!(res.status(), StatusCode::OK);
         assert!(!res.headers().contains_key(header::CONTENT_ENCODING));
     }
 
     #[actix_rt::test]
     async fn test_named_file_content_encoding_gzip() {
-        let mut srv = test::init_service(App::new().wrap(Compress::default()).service(
+        let srv = test::init_service(App::new().wrap(Compress::default()).service(
             web::resource("/").to(|| async {
                 NamedFile::open("Cargo.toml")
                     .unwrap()
@@ -582,7 +583,7 @@ mod tests {
             .uri("/")
             .insert_header((header::ACCEPT_ENCODING, "gzip"))
             .to_request();
-        let res = test::call_service(&mut srv, request).await;
+        let res = test::call_service(&srv, request).await;
         assert_eq!(res.status(), StatusCode::OK);
         assert_eq!(
             res.headers()
@@ -604,27 +605,27 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_static_files() {
-        let mut srv = test::init_service(
+        let srv = test::init_service(
             App::new().service(Files::new("/", ".").show_files_listing()),
         )
         .await;
         let req = TestRequest::with_uri("/missing").to_request();
 
-        let resp = test::call_service(&mut srv, req).await;
+        let resp = test::call_service(&srv, req).await;
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 
-        let mut srv = test::init_service(App::new().service(Files::new("/", "."))).await;
+        let srv = test::init_service(App::new().service(Files::new("/", "."))).await;
 
         let req = TestRequest::default().to_request();
-        let resp = test::call_service(&mut srv, req).await;
+        let resp = test::call_service(&srv, req).await;
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 
-        let mut srv = test::init_service(
+        let srv = test::init_service(
             App::new().service(Files::new("/", ".").show_files_listing()),
         )
         .await;
         let req = TestRequest::with_uri("/tests").to_request();
-        let resp = test::call_service(&mut srv, req).await;
+        let resp = test::call_service(&srv, req).await;
         assert_eq!(
             resp.headers().get(header::CONTENT_TYPE).unwrap(),
             "text/html; charset=utf-8"
@@ -637,16 +638,16 @@ mod tests {
     #[actix_rt::test]
     async fn test_redirect_to_slash_directory() {
         // should not redirect if no index
-        let mut srv = test::init_service(
+        let srv = test::init_service(
             App::new().service(Files::new("/", ".").redirect_to_slash_directory()),
         )
         .await;
         let req = TestRequest::with_uri("/tests").to_request();
-        let resp = test::call_service(&mut srv, req).await;
+        let resp = test::call_service(&srv, req).await;
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 
         // should redirect if index present
-        let mut srv = test::init_service(
+        let srv = test::init_service(
             App::new().service(
                 Files::new("/", ".")
                     .index_file("test.png")
@@ -655,12 +656,12 @@ mod tests {
         )
         .await;
         let req = TestRequest::with_uri("/tests").to_request();
-        let resp = test::call_service(&mut srv, req).await;
+        let resp = test::call_service(&srv, req).await;
         assert_eq!(resp.status(), StatusCode::FOUND);
 
         // should not redirect if the path is wrong
         let req = TestRequest::with_uri("/not_existing").to_request();
-        let resp = test::call_service(&mut srv, req).await;
+        let resp = test::call_service(&srv, req).await;
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
     }
 
@@ -672,7 +673,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_default_handler_file_missing() {
-        let mut st = Files::new("/", ".")
+        let st = Files::new("/", ".")
             .default_handler(|req: ServiceRequest| {
                 ok(req.into_response(HttpResponse::Ok().body("default content")))
             })
@@ -681,7 +682,7 @@ mod tests {
             .unwrap();
         let req = TestRequest::with_uri("/missing").to_srv_request();
 
-        let resp = test::call_service(&mut st, req).await;
+        let resp = test::call_service(&st, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
         let bytes = test::read_body(resp).await;
         assert_eq!(bytes, web::Bytes::from_static(b"default content"));
@@ -750,54 +751,49 @@ mod tests {
     //         );
     //     }
 
-    //     #[actix_rt::test]
-    //     fn integration_serve_index() {
-    //         let mut srv = test::TestServer::with_factory(|| {
-    //             App::new().handler(
-    //                 "test",
-    //                 Files::new(".").index_file("Cargo.toml"),
-    //             )
-    //         });
+    #[actix_rt::test]
+    async fn integration_serve_index() {
+        let srv = test::init_service(
+            App::new().service(Files::new("test", ".").index_file("Cargo.toml")),
+        )
+        .await;
 
-    //         let request = srv.get().uri(srv.url("/test")).finish().unwrap();
-    //         let response = srv.execute(request.send()).unwrap();
-    //         assert_eq!(response.status(), StatusCode::OK);
-    //         let bytes = srv.execute(response.body()).unwrap();
-    //         let data = Bytes::from(fs::read("Cargo.toml").unwrap());
-    //         assert_eq!(bytes, data);
+        let req = TestRequest::get().uri("/test").to_request();
+        let res = test::call_service(&srv, req).await;
+        assert_eq!(res.status(), StatusCode::OK);
 
-    //         let request = srv.get().uri(srv.url("/test/")).finish().unwrap();
-    //         let response = srv.execute(request.send()).unwrap();
-    //         assert_eq!(response.status(), StatusCode::OK);
-    //         let bytes = srv.execute(response.body()).unwrap();
-    //         let data = Bytes::from(fs::read("Cargo.toml").unwrap());
-    //         assert_eq!(bytes, data);
+        let bytes = test::read_body(res).await;
 
-    //         // nonexistent index file
-    //         let request = srv.get().uri(srv.url("/test/unknown")).finish().unwrap();
-    //         let response = srv.execute(request.send()).unwrap();
-    //         assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        let data = Bytes::from(fs::read("Cargo.toml").unwrap());
+        assert_eq!(bytes, data);
 
-    //         let request = srv.get().uri(srv.url("/test/unknown/")).finish().unwrap();
-    //         let response = srv.execute(request.send()).unwrap();
-    //         assert_eq!(response.status(), StatusCode::NOT_FOUND);
-    //     }
+        let req = TestRequest::get().uri("/test/").to_request();
+        let res = test::call_service(&srv, req).await;
+        assert_eq!(res.status(), StatusCode::OK);
 
-    //     #[actix_rt::test]
-    //     fn integration_percent_encoded() {
-    //         let mut srv = test::TestServer::with_factory(|| {
-    //             App::new().handler(
-    //                 "test",
-    //                 Files::new(".").index_file("Cargo.toml"),
-    //             )
-    //         });
+        let bytes = test::read_body(res).await;
+        let data = Bytes::from(fs::read("Cargo.toml").unwrap());
+        assert_eq!(bytes, data);
 
-    //         let request = srv
-    //             .get()
-    //             .uri(srv.url("/test/%43argo.toml"))
-    //             .finish()
-    //             .unwrap();
-    //         let response = srv.execute(request.send()).unwrap();
-    //         assert_eq!(response.status(), StatusCode::OK);
-    //     }
+        // nonexistent index file
+        let req = TestRequest::get().uri("/test/unknown").to_request();
+        let res = test::call_service(&srv, req).await;
+        assert_eq!(res.status(), StatusCode::NOT_FOUND);
+
+        let req = TestRequest::get().uri("/test/unknown/").to_request();
+        let res = test::call_service(&srv, req).await;
+        assert_eq!(res.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[actix_rt::test]
+    async fn integration_percent_encoded() {
+        let srv = test::init_service(
+            App::new().service(Files::new("test", ".").index_file("Cargo.toml")),
+        )
+        .await;
+
+        let req = TestRequest::get().uri("/test/%43argo.toml").to_request();
+        let res = test::call_service(&srv, req).await;
+        assert_eq!(res.status(), StatusCode::OK);
+    }
 }

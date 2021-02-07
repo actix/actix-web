@@ -8,7 +8,8 @@ use std::{fmt, io, time};
 use actix_codec::{AsyncRead, AsyncWrite, Framed, ReadBuf};
 use actix_utils::task::LocalWaker;
 use bytes::Bytes;
-use futures_util::future::{err, Either, FutureExt, LocalBoxFuture, Ready};
+use futures_core::future::LocalBoxFuture;
+use futures_util::future::{err, Either, FutureExt, Ready};
 use h2::client::SendRequest;
 use pin_project::pin_project;
 

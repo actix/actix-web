@@ -40,12 +40,12 @@ secure-cookies = ["cookie/secure"]
 actors = ["actix"]
 
 [dependencies]
-actix-service = "2.0.0-beta.3"
+actix-service = "2.0.0-beta.4"
 actix-codec = "0.4.0-beta.1"
-actix-utils = "3.0.0-beta.1"
-actix-rt = "=2.0.0-beta.2"
+actix-utils = "3.0.0-beta.2"
+actix-rt = "2"
 actix-tls = "3.0.0-beta.2"
-actix = { version = "0.11.0-beta.1", optional = true }
+actix = { version = "0.11.0-beta.2", default-features = false, optional = true }
 
 base64 = "0.13"
 bitflags = "1.2"
@@ -55,9 +55,9 @@ cookie = { version = "0.14.1", features = ["percent-encode"] }
 derive_more = "0.99.5"
 either = "1.5.3"
 encoding_rs = "0.8"
-futures-channel = { version = "0.3.7", default-features = false }
-futures-core = { version = "0.3.7", default-features = false }
-futures-util = { version = "0.3.7", default-features = false, features = ["sink"] }
+futures-channel = { version = "0.3.7", default-features = false, features = ["alloc"] }
+futures-core = { version = "0.3.7", default-features = false, features = ["alloc"] }
+futures-util = { version = "0.3.7", default-features = false, features = ["alloc", "sink"] }
 ahash = "0.6"
 h2 = "0.3.0"
 http = "0.2.2"
@@ -85,7 +85,7 @@ brotli2 = { version="0.3.2", optional = true }
 flate2 = { version = "1.0.13", optional = true }
 
 [dev-dependencies]
-actix-server = "2.0.0-beta.2"
+actix-server = "2.0.0-beta.3"
 actix-http-test = { version = "3.0.0-beta.1", features = ["openssl"] }
 actix-tls = { version = "3.0.0-beta.2", features = ["openssl"] }
 criterion = "0.3"

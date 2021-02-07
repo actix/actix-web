@@ -13,7 +13,7 @@ async fn test_start() {
     let (tx, rx) = mpsc::channel();
 
     thread::spawn(move || {
-        let sys = actix_rt::System::new("test");
+        let sys = actix_rt::System::new();
 
         sys.block_on(async {
             let srv = HttpServer::new(|| {
@@ -91,7 +91,7 @@ async fn test_start_ssl() {
     let (tx, rx) = mpsc::channel();
 
     thread::spawn(move || {
-        let sys = actix_rt::System::new("test");
+        let sys = actix_rt::System::new();
         let builder = ssl_acceptor().unwrap();
 
         let srv = HttpServer::new(|| {
