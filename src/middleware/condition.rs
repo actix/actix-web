@@ -76,14 +76,14 @@ where
     type Error = E::Error;
     type Future = Either<E::Future, D::Future>;
 
-    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+    fn poll_ready(&self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         match self {
             ConditionMiddleware::Enable(service) => service.poll_ready(cx),
             ConditionMiddleware::Disable(service) => service.poll_ready(cx),
         }
     }
 
-    fn call(&mut self, req: Req) -> Self::Future {
+    fn call(&self, req: Req) -> Self::Future {
         match self {
             ConditionMiddleware::Enable(service) => Either::Left(service.call(req)),
             ConditionMiddleware::Disable(service) => Either::Right(service.call(req)),
@@ -106,7 +106,6 @@ mod tests {
         HttpResponse,
     };
 
-    #[allow(clippy::unnecessary_wraps)]
     fn render_500<B>(mut res: ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
         res.response_mut()
             .headers_mut()
@@ -123,12 +122,12 @@ mod tests {
         let mw =
             ErrorHandlers::new().handler(StatusCode::INTERNAL_SERVER_ERROR, render_500);
 
-        let mut mw = Condition::new(true, mw)
+        let mw = Condition::new(true, mw)
             .new_transform(srv.into_service())
             .await
             .unwrap();
         let resp =
-            test::call_service(&mut mw, TestRequest::default().to_srv_request()).await;
+            test::call_service(&mw, TestRequest::default().to_srv_request()).await;
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0001");
     }
 
@@ -141,13 +140,13 @@ mod tests {
         let mw =
             ErrorHandlers::new().handler(StatusCode::INTERNAL_SERVER_ERROR, render_500);
 
-        let mut mw = Condition::new(false, mw)
+        let mw = Condition::new(false, mw)
             .new_transform(srv.into_service())
             .await
             .unwrap();
 
         let resp =
-            test::call_service(&mut mw, TestRequest::default().to_srv_request()).await;
+            test::call_service(&mw, TestRequest::default().to_srv_request()).await;
         assert_eq!(resp.headers().get(CONTENT_TYPE), None);
     }
 }

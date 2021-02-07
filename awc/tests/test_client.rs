@@ -120,9 +120,7 @@ async fn test_timeout() {
     });
 
     let connector = awc::Connector::new()
-        .connector(actix_tls::connect::new_connector(
-            actix_tls::connect::start_default_resolver().await.unwrap(),
-        ))
+        .connector(actix_tls::connect::default_connector())
         .timeout(Duration::from_secs(15))
         .finish();
 
@@ -722,9 +720,9 @@ async fn test_client_cookie_handling() {
 async fn client_unread_response() {
     let addr = test::unused_addr();
 
-    std::thread::spawn(move || {
-        let lst = std::net::TcpListener::bind(addr).unwrap();
+    let lst = std::net::TcpListener::bind(addr).unwrap();
 
+    std::thread::spawn(move || {
         for stream in lst.incoming() {
             let mut stream = stream.unwrap();
             let mut b = [0; 1000];

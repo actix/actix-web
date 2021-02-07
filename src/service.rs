@@ -608,7 +608,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_service() {
-        let mut srv = init_service(
+        let srv = init_service(
             App::new().service(web::service("/test").name("test").finish(
                 |req: ServiceRequest| ok(req.into_response(HttpResponse::Ok().finish())),
             )),
@@ -618,7 +618,7 @@ mod tests {
         let resp = srv.call(req).await.unwrap();
         assert_eq!(resp.status(), http::StatusCode::OK);
 
-        let mut srv = init_service(
+        let srv = init_service(
             App::new().service(web::service("/test").guard(guard::Get()).finish(
                 |req: ServiceRequest| ok(req.into_response(HttpResponse::Ok().finish())),
             )),
@@ -633,7 +633,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_service_data() {
-        let mut srv = init_service(
+        let srv = init_service(
             App::new()
                 .data(42u32)
                 .service(web::service("/test").name("test").finish(

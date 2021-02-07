@@ -298,13 +298,7 @@ impl NamedFile {
                 res.encoding(current_encoding);
             }
 
-            let reader = ChunkedReadFile {
-                size: self.md.len(),
-                offset: 0,
-                file: Some(self.file),
-                fut: None,
-                counter: 0,
-            };
+            let reader = ChunkedReadFile::new(self.md.len(), 0, self.file);
 
             return res.streaming(reader);
         }
@@ -426,13 +420,7 @@ impl NamedFile {
             return resp.status(StatusCode::NOT_MODIFIED).finish();
         }
 
-        let reader = ChunkedReadFile {
-            offset,
-            size: length,
-            file: Some(self.file),
-            fut: None,
-            counter: 0,
-        };
+        let reader = ChunkedReadFile::new(length, offset, self.file);
 
         if offset != 0 || length != self.md.len() {
             resp.status(StatusCode::PARTIAL_CONTENT);

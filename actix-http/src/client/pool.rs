@@ -13,7 +13,8 @@ use actix_utils::task::LocalWaker;
 use ahash::AHashMap;
 use bytes::Bytes;
 use futures_channel::oneshot;
-use futures_util::future::{poll_fn, FutureExt, LocalBoxFuture};
+use futures_core::future::LocalBoxFuture;
+use futures_util::future::{poll_fn, FutureExt};
 use h2::client::{Connection, SendRequest};
 use http::uri::Authority;
 use indexmap::IndexSet;
@@ -25,6 +26,7 @@ use super::connection::{ConnectionType, IoConnection};
 use super::error::ConnectError;
 use super::h2proto::handshake;
 use super::Connect;
+use crate::client::connection::H2Connection;
 
 #[derive(Clone, Copy, PartialEq)]
 /// Protocol version
@@ -45,7 +47,7 @@ impl From<Authority> for Key {
 }
 
 /// Connections pool
-pub(crate) struct ConnectionPool<T, Io: 'static>(Rc<RefCell<T>>, Rc<RefCell<Inner<Io>>>);
+pub(crate) struct ConnectionPool<T, Io: 'static>(Rc<T>, Rc<RefCell<Inner<Io>>>);
 
 impl<T, Io> ConnectionPool<T, Io>
 where
@@ -53,7 +55,7 @@ where
     T: Service<Connect, Response = (Io, Protocol), Error = ConnectError> + 'static,
 {
     pub(crate) fn new(connector: T, config: ConnectorConfig) -> Self {
-        let connector_rc = Rc::new(RefCell::new(connector));
+        let connector_rc = Rc::new(connector);
         let inner_rc = Rc::new(RefCell::new(Inner {
             config,
             acquired: 0,
@@ -98,12 +100,12 @@ where
     type Error = ConnectError;
     type Future = LocalBoxFuture<'static, Result<IoConnection<Io>, ConnectError>>;
 
-    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+    fn poll_ready(&self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         self.0.poll_ready(cx)
     }
 
-    fn call(&mut self, req: Connect) -> Self::Future {
-        let mut connector = self.0.clone();
+    fn call(&self, req: Connect) -> Self::Future {
+        let connector = self.0.clone();
         let inner = self.1.clone();
 
         let fut = async move {
@@ -138,10 +140,9 @@ where
                             Some(guard.consume()),
                         ))
                     } else {
-                        let (snd, connection) = handshake(io, &config).await?;
-                        actix_rt::spawn(connection.map(|_| ()));
+                        let (sender, connection) = handshake(io, &config).await?;
                         Ok(IoConnection::new(
-                            ConnectionType::H2(snd),
+                            ConnectionType::H2(H2Connection::new(sender, connection)),
                             Instant::now(),
                             Some(guard.consume()),
                         ))
@@ -325,7 +326,7 @@ where
                 {
                     if let Some(timeout) = self.config.disconnect_timeout {
                         if let ConnectionType::H1(io) = conn.io {
-                            actix_rt::spawn(CloseConnection::new(io, timeout))
+                            actix_rt::spawn(CloseConnection::new(io, timeout));
                         }
                     }
                 } else {
@@ -340,7 +341,7 @@ where
                                     if let ConnectionType::H1(io) = io {
                                         actix_rt::spawn(CloseConnection::new(
                                             io, timeout,
-                                        ))
+                                        ));
                                     }
                                 }
                                 continue;
@@ -372,7 +373,7 @@ where
         self.acquired -= 1;
         if let Some(timeout) = self.config.disconnect_timeout {
             if let ConnectionType::H1(io) = io {
-                actix_rt::spawn(CloseConnection::new(io, timeout))
+                actix_rt::spawn(CloseConnection::new(io, timeout));
             }
         }
         self.check_availability();
@@ -428,7 +429,7 @@ struct ConnectorPoolSupport<T, Io>
 where
     Io: AsyncRead + AsyncWrite + Unpin + 'static,
 {
-    connector: T,
+    connector: Rc<T>,
     inner: Rc<RefCell<Inner<Io>>>,
 }
 
@@ -535,7 +536,7 @@ where
             rx: Some(rx),
             inner: Some(inner),
             config,
-        })
+        });
     }
 }
 
@@ -565,11 +566,10 @@ where
 
         if let Some(ref mut h2) = this.h2 {
             return match Pin::new(h2).poll(cx) {
-                Poll::Ready(Ok((snd, connection))) => {
-                    actix_rt::spawn(connection.map(|_| ()));
+                Poll::Ready(Ok((sender, connection))) => {
                     let rx = this.rx.take().unwrap();
                     let _ = rx.send(Ok(IoConnection::new(
-                        ConnectionType::H2(snd),
+                        ConnectionType::H2(H2Connection::new(sender, connection)),
                         Instant::now(),
                         Some(Acquired(this.key.clone(), this.inner.take())),
                     )));

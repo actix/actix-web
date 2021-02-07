@@ -1,4 +1,7 @@
 #![cfg(feature = "openssl")]
+
+extern crate tls_openssl as openssl;
+
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
@@ -8,7 +11,7 @@ use actix_service::{map_config, pipeline_factory, ServiceFactoryExt};
 use actix_web::http::Version;
 use actix_web::{dev::AppConfig, web, App, HttpResponse};
 use futures_util::future::ok;
-use open_ssl::ssl::{SslAcceptor, SslConnector, SslFiletype, SslMethod, SslVerifyMode};
+use openssl::ssl::{SslAcceptor, SslConnector, SslFiletype, SslMethod, SslVerifyMode};
 
 fn ssl_acceptor() -> SslAcceptor {
     // load ssl keys
@@ -24,7 +27,7 @@ fn ssl_acceptor() -> SslAcceptor {
         if protos.windows(3).any(|window| window == H2) {
             Ok(b"h2")
         } else {
-            Err(open_ssl::ssl::AlpnError::NOACK)
+            Err(openssl::ssl::AlpnError::NOACK)
         }
     });
     builder.set_alpn_protos(b"\x02h2").unwrap();

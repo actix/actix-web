@@ -47,10 +47,10 @@ compress = ["actix-http/compress", "awc/compress"]
 secure-cookies = ["actix-http/secure-cookies"]
 
 # openssl
-openssl = ["actix-tls/accept", "actix-tls/openssl", "awc/openssl", "open-ssl"]
+openssl = ["tls_openssl", "actix-tls/accept", "actix-tls/openssl", "awc/openssl"]
 
 # rustls
-rustls = ["actix-tls/accept", "actix-tls/rustls", "awc/rustls", "rust-tls"]
+rustls = ["tls_rustls", "actix-tls/accept", "actix-tls/rustls", "awc/rustls"]
 
 [[example]]
 name = "basic"
@@ -74,19 +74,19 @@ required-features = ["rustls"]
 
 [dependencies]
 actix-codec = "0.4.0-beta.1"
-actix-macros = "0.1.0"
-actix-router = "0.2.4"
-actix-rt = "2.0.0-beta.2"
-actix-server = "2.0.0-beta.2"
-actix-service = "2.0.0-beta.3"
-actix-utils = "3.0.0-beta.1"
-actix-tls = { version = "3.0.0-beta.2", default-features = false, optional = true }
+actix-macros = "0.2.0"
+actix-router = "0.2.7"
+actix-rt = "2"
+actix-server = "2.0.0-beta.3"
+actix-service = "2.0.0-beta.4"
+actix-utils = "3.0.0-beta.2"
+actix-tls = { version = "3.0.0-beta.3", default-features = false, optional = true }
 
 actix-web-codegen = "0.4.0"
 actix-http = "3.0.0-beta.1"
 awc = { version = "3.0.0-beta.1", default-features = false }
 
-ahash = "0.6"
+ahash = "0.7"
 bytes = "1"
 derive_more = "0.99.5"
 either = "1.5.3"
@@ -101,14 +101,14 @@ regex = "1.4"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde_urlencoded = "0.7"
-time = { version = "0.2.7", default-features = false, features = ["std"] }
+time = { version = "0.2.23", default-features = false, features = ["std"] }
 url = "2.1"
-open-ssl = { package = "openssl", version = "0.10", optional = true }
-rust-tls = { package = "rustls", version = "0.19.0", optional = true }
+tls_openssl = { package = "openssl", version = "0.10.9", optional = true }
+tls_rustls = { package = "rustls", version = "0.19.0", optional = true }
 smallvec = "1.6"
 
 [dev-dependencies]
-actix = "0.11.0-beta.1"
+actix = { version = "0.11.0-beta.2", default-features = false }
 actix-http = { version = "3.0.0-beta.1", features = ["actors"] }
 rand = "0.8"
 env_logger = "0.8"

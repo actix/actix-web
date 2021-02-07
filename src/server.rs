@@ -630,7 +630,7 @@ where
     /// }
     /// ```
     pub fn run(self) -> Server {
-        self.builder.start()
+        self.builder.run()
     }
 }
 
