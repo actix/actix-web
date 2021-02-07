@@ -106,7 +106,6 @@ mod tests {
         HttpResponse,
     };
 
-    #[allow(clippy::unnecessary_wraps)]
     fn render_500<B>(mut res: ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
         res.response_mut()
             .headers_mut()

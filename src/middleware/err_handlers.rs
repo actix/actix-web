@@ -182,7 +182,6 @@ mod tests {
     use crate::test::{self, TestRequest};
     use crate::HttpResponse;
 
-    #[allow(clippy::unnecessary_wraps)]
     fn render_500<B>(mut res: ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
         res.response_mut()
             .headers_mut()
@@ -207,7 +206,6 @@ mod tests {
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0001");
     }
 
-    #[allow(clippy::unnecessary_wraps)]
     fn render_500_async<B: 'static>(
         mut res: ServiceResponse<B>,
     ) -> Result<ErrorHandlerResponse<B>> {

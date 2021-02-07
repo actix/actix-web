@@ -1,32 +1,39 @@
+name: Lint
+
 on:
   pull_request:
     types: [opened, synchronize, reopened]
 
-name: Clippy and rustfmt Check
 jobs:
-  clippy_check:
+  fmt:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
 
-      - uses: actions-rs/toolchain@v1
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
           components: rustfmt
-          override: true
       - name: Check with rustfmt
         uses: actions-rs/cargo@v1
         with:
           command: fmt
           args: --all -- --check
 
-      - uses: actions-rs/toolchain@v1
+  clippy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly
+          toolchain: stable
           components: clippy
           override: true
       - name: Check with Clippy
         uses: actions-rs/clippy-check@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          args: --all-features --all --tests
+          args: --workspace --tests --all-features
