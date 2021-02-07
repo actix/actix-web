@@ -126,6 +126,6 @@ impl IntoHeaderValue for Mime {
 
     #[inline]
     fn try_into_value(self) -> Result<HeaderValue, Self::Error> {
-        HeaderValue::try_from(format!("{}", self))
+        HeaderValue::from_str(self.as_ref())
     }
 }

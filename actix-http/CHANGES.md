@@ -16,7 +16,9 @@
 * `Extensions::insert` returns Option of replaced item. [#1904]
 * Remove `HttpResponseBuilder::json2()` and make `HttpResponseBuilder::json()` take a value by
   reference. [#1903]
-* Simplify `BlockingError` type to a struct. It's only triggered with blocking thread pool is dead. [#1957]  
+* `client::error::ConnectError` Resolver variant contains `Box<dyn std::error::Error>` type [#1905]
+* `client::ConnectorConfig` default timeout changed to 5 seconds. [#1905]
+* Simplify `BlockingError` type to a struct. It's only triggered with blocking thread pool is dead. [#1957]
 
 ### Removed
 * `ResponseBuilder::set`; use `ResponseBuilder::insert_header`. [#1869]
@@ -29,6 +31,7 @@
 [#1894]: https://github.com/actix/actix-web/pull/1894
 [#1903]: https://github.com/actix/actix-web/pull/1903
 [#1904]: https://github.com/actix/actix-web/pull/1904
+[#1905]: https://github.com/actix/actix-web/pull/1905
 [#1912]: https://github.com/actix/actix-web/pull/1912
 [#1957]: https://github.com/actix/actix-web/pull/1957
 

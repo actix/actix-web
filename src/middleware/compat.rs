@@ -80,11 +80,11 @@ where
     type Error = Error;
     type Future = CompatMiddlewareFuture<S::Future>;
 
-    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+    fn poll_ready(&self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         self.service.poll_ready(cx).map_err(From::from)
     }
 
-    fn call(&mut self, req: Req) -> Self::Future {
+    fn call(&self, req: Req) -> Self::Future {
         let fut = self.service.call(req);
         CompatMiddlewareFuture { fut }
     }
@@ -138,7 +138,7 @@ mod tests {
         let logger = Logger::default();
         let compress = Compress::default();
 
-        let mut srv = init_service(
+        let srv = init_service(
             App::new().service(
                 web::scope("app")
                     .wrap(Compat::new(logger))
@@ -151,7 +151,7 @@ mod tests {
         .await;
 
         let req = TestRequest::with_uri("/app/test").to_request();
-        let resp = call_service(&mut srv, req).await;
+        let resp = call_service(&srv, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
@@ -160,7 +160,7 @@ mod tests {
         let logger = Logger::default();
         let compress = Compress::default();
 
-        let mut srv = init_service(
+        let srv = init_service(
             App::new().service(
                 web::resource("app/test")
                     .wrap(Compat::new(logger))
@@ -171,7 +171,7 @@ mod tests {
         .await;
 
         let req = TestRequest::with_uri("/app/test").to_request();
-        let resp = call_service(&mut srv, req).await;
+        let resp = call_service(&srv, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
@@ -185,11 +185,11 @@ mod tests {
 
         let logger = Logger::default();
 
-        let mut mw = Condition::new(true, Compat::new(logger))
+        let mw = Condition::new(true, Compat::new(logger))
             .new_transform(srv.into_service())
             .await
             .unwrap();
-        let resp = call_service(&mut mw, TestRequest::default().to_srv_request()).await;
+        let resp = call_service(&mw, TestRequest::default().to_srv_request()).await;
         assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
     }
 }

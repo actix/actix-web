@@ -74,13 +74,13 @@ required-features = ["rustls"]
 
 [dependencies]
 actix-codec = "0.4.0-beta.1"
-actix-macros = "=0.2.0-beta.1"
-actix-router = "0.2.4"
-actix-rt = "=2.0.0-beta.2"
-actix-server = "2.0.0-beta.2"
-actix-service = "=2.0.0-beta.3"
-actix-utils = "3.0.0-beta.1"
-actix-tls = { version = "3.0.0-beta.2", default-features = false, optional = true }
+actix-macros = "0.2.0"
+actix-router = "0.2.7"
+actix-rt = "2"
+actix-server = "2.0.0-beta.3"
+actix-service = "2.0.0-beta.4"
+actix-utils = "3.0.0-beta.2"
+actix-tls = { version = "3.0.0-beta.3", default-features = false, optional = true }
 
 actix-web-codegen = "0.4.0"
 actix-http = "3.0.0-beta.1"
@@ -108,7 +108,7 @@ rust-tls = { package = "rustls", version = "0.19.0", optional = true }
 smallvec = "1.6"
 
 [dev-dependencies]
-actix = "0.11.0-beta.1"
+actix = { version = "0.11.0-beta.2", default-features = false }
 actix-http = { version = "3.0.0-beta.1", features = ["actors"] }
 rand = "0.8"
 env_logger = "0.8"
