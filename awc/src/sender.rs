@@ -1,20 +1,25 @@
-use std::future::Future;
-use std::net;
-use std::pin::Pin;
-use std::rc::Rc;
-use std::task::{Context, Poll};
-use std::time::Duration;
+use std::{
+    future::Future,
+    net,
+    pin::Pin,
+    rc::Rc,
+    task::{Context, Poll},
+    time::Duration,
+};
 
+use actix_http::{
+    body::{Body, BodyStream},
+    http::{
+        header::{self, HeaderMap, HeaderName, IntoHeaderValue},
+        Error as HttpError,
+    },
+    Error, RequestHead, RequestHeadType,
+};
 use actix_rt::time::{sleep, Sleep};
 use bytes::Bytes;
 use derive_more::From;
 use futures_core::Stream;
 use serde::Serialize;
-
-use actix_http::body::{Body, BodyStream};
-use actix_http::http::header::{self, IntoHeaderValue};
-use actix_http::http::{Error as HttpError, HeaderMap, HeaderName};
-use actix_http::{Error, RequestHead};
 
 #[cfg(feature = "compress")]
 use actix_http::encoding::Decoder;
@@ -184,12 +189,16 @@ impl RequestSender {
         B: Into<Body>,
     {
         let fut = match self {
-            RequestSender::Owned(head) => {
-                config.connector.send_request(head, body.into(), addr)
-            }
-            RequestSender::Rc(head, extra_headers) => config
-                .connector
-                .send_request_extra(head, extra_headers, body.into(), addr),
+            RequestSender::Owned(head) => config.connector.send_request(
+                RequestHeadType::Owned(head),
+                body.into(),
+                addr,
+            ),
+            RequestSender::Rc(head, extra_headers) => config.connector.send_request(
+                RequestHeadType::Rc(head, extra_headers),
+                body.into(),
+                addr,
+            ),
         };
 
         SendClientRequest::new(fut, response_decompress, timeout.or(config.timeout))
