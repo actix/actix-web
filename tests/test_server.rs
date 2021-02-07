@@ -1,3 +1,8 @@
+#[cfg(feature = "openssl")]
+extern crate tls_openssl as openssl;
+#[cfg(feature = "rustls")]
+extern crate tls_rustls as rustls;
+
 use std::{
     future::Future,
     io::{Read, Write},
@@ -713,7 +718,7 @@ async fn test_brotli_encoding_large() {
 #[actix_rt::test]
 async fn test_brotli_encoding_large_openssl() {
     // load ssl keys
-    use open_ssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
+    use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
     let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
     builder
         .set_private_key_file("tests/key.pem", SslFiletype::PEM)
@@ -753,8 +758,8 @@ async fn test_brotli_encoding_large_openssl() {
 #[cfg(all(feature = "rustls", feature = "openssl"))]
 #[actix_rt::test]
 async fn test_reading_deflate_encoding_large_random_rustls() {
-    use rust_tls::internal::pemfile::{certs, pkcs8_private_keys};
-    use rust_tls::{NoClientAuth, ServerConfig};
+    use rustls::internal::pemfile::{certs, pkcs8_private_keys};
+    use rustls::{NoClientAuth, ServerConfig};
     use std::fs::File;
     use std::io::BufReader;
 

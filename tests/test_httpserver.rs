@@ -2,7 +2,12 @@ use std::sync::mpsc;
 use std::{thread, time::Duration};
 
 #[cfg(feature = "openssl")]
-use open_ssl::ssl::SslAcceptorBuilder;
+extern crate tls_openssl as openssl;
+#[cfg(feature = "rustls")]
+extern crate tls_rustls as rustls;
+
+#[cfg(feature = "openssl")]
+use openssl::ssl::SslAcceptorBuilder;
 
 use actix_web::{test, web, App, HttpResponse, HttpServer};
 
@@ -70,7 +75,7 @@ async fn test_start() {
 #[allow(clippy::unnecessary_wraps)]
 #[cfg(feature = "openssl")]
 fn ssl_acceptor() -> std::io::Result<SslAcceptorBuilder> {
-    use open_ssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
+    use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
     // load ssl keys
     let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
     builder
@@ -116,7 +121,7 @@ async fn test_start_ssl() {
     });
     let (srv, sys) = rx.recv().unwrap();
 
-    use open_ssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
+    use openssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
     let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
     builder.set_verify(SslVerifyMode::NONE);
     let _ = builder

@@ -773,7 +773,7 @@ where
         let connector = {
             #[cfg(feature = "openssl")]
             {
-                use open_ssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
+                use openssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
 
                 let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
                 builder.set_verify(SslVerifyMode::NONE);
@@ -825,9 +825,9 @@ enum HttpVer {
 enum StreamType {
     Tcp,
     #[cfg(feature = "openssl")]
-    Openssl(open_ssl::ssl::SslAcceptor),
+    Openssl(openssl::ssl::SslAcceptor),
     #[cfg(feature = "rustls")]
-    Rustls(rust_tls::ServerConfig),
+    Rustls(rustls::ServerConfig),
 }
 
 impl Default for TestServerConfig {
@@ -865,14 +865,14 @@ impl TestServerConfig {
 
     /// Start openssl server
     #[cfg(feature = "openssl")]
-    pub fn openssl(mut self, acceptor: open_ssl::ssl::SslAcceptor) -> Self {
+    pub fn openssl(mut self, acceptor: openssl::ssl::SslAcceptor) -> Self {
         self.stream = StreamType::Openssl(acceptor);
         self
     }
 
     /// Start rustls server
     #[cfg(feature = "rustls")]
-    pub fn rustls(mut self, config: rust_tls::ServerConfig) -> Self {
+    pub fn rustls(mut self, config: rustls::ServerConfig) -> Self {
         self.stream = StreamType::Rustls(config);
         self
     }

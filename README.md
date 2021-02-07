@@ -11,10 +11,9 @@
 ![License](https://img.shields.io/crates/l/actix-web.svg)
 [![Dependency Status](https://deps.rs/crate/actix-web/3.3.2/status.svg)](https://deps.rs/crate/actix-web/3.3.2)
 <br />
-[![Build Status](https://travis-ci.org/actix/actix-web.svg?branch=master)](https://travis-ci.org/actix/actix-web) 
+[![build status](https://github.com/actix/actix-web/workflows/CI%20%28Linux%29/badge.svg?branch=master&event=push)](https://github.com/actix/actix-web/actions)
 [![codecov](https://codecov.io/gh/actix/actix-web/branch/master/graph/badge.svg)](https://codecov.io/gh/actix/actix-web) 
-[![Download](https://img.shields.io/crates/d/actix-web.svg)](https://crates.io/crates/actix-web)
-[![Join the chat at https://gitter.im/actix/actix](https://badges.gitter.im/actix/actix.svg)](https://gitter.im/actix/actix?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+![downloads](https://img.shields.io/crates/d/actix-web.svg)
 [![Chat on Discord](https://img.shields.io/discord/771444961383153695?label=chat&logo=discord)](https://discord.gg/NWpN5mmg3x)
 
   </p>
@@ -99,9 +98,9 @@ One of the fastest web frameworks available according to the
 This project is licensed under either of
 
 * Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or
-  [http://www.apache.org/licenses/LICENSE-2.0](http://www.apache.org/licenses/LICENSE-2.0))
+  [http://www.apache.org/licenses/LICENSE-2.0])
 * MIT license ([LICENSE-MIT](LICENSE-MIT) or
-  [http://opensource.org/licenses/MIT](http://opensource.org/licenses/MIT))
+  [http://opensource.org/licenses/MIT])
 
 at your option.
 

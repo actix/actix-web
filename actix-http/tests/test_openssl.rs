@@ -1,4 +1,7 @@
 #![cfg(feature = "openssl")]
+
+extern crate tls_openssl as openssl;
+
 use std::io;
 
 use actix_http::error::{ErrorBadRequest, PayloadError};
@@ -11,7 +14,7 @@ use actix_service::{fn_service, ServiceFactoryExt};
 use bytes::{Bytes, BytesMut};
 use futures_util::future::{err, ok, ready};
 use futures_util::stream::{once, Stream, StreamExt};
-use open_ssl::ssl::{AlpnError, SslAcceptor, SslFiletype, SslMethod};
+use openssl::ssl::{AlpnError, SslAcceptor, SslFiletype, SslMethod};
 
 async fn load_body<S>(stream: S) -> Result<BytesMut, PayloadError>
 where

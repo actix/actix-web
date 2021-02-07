@@ -47,10 +47,10 @@ compress = ["actix-http/compress", "awc/compress"]
 secure-cookies = ["actix-http/secure-cookies"]
 
 # openssl
-openssl = ["actix-tls/accept", "actix-tls/openssl", "awc/openssl", "open-ssl"]
+openssl = ["tls_openssl", "actix-tls/accept", "actix-tls/openssl", "awc/openssl"]
 
 # rustls
-rustls = ["actix-tls/accept", "actix-tls/rustls", "awc/rustls", "rust-tls"]
+rustls = ["tls_rustls", "actix-tls/accept", "actix-tls/rustls", "awc/rustls"]
 
 [[example]]
 name = "basic"
@@ -86,7 +86,7 @@ actix-web-codegen = "0.4.0"
 actix-http = "3.0.0-beta.1"
 awc = { version = "3.0.0-beta.1", default-features = false }
 
-ahash = "0.6"
+ahash = "0.7"
 bytes = "1"
 derive_more = "0.99.5"
 either = "1.5.3"
@@ -101,10 +101,10 @@ regex = "1.4"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde_urlencoded = "0.7"
-time = { version = "0.2.7", default-features = false, features = ["std"] }
+time = { version = "0.2.23", default-features = false, features = ["std"] }
 url = "2.1"
-open-ssl = { package = "openssl", version = "0.10", optional = true }
-rust-tls = { package = "rustls", version = "0.19.0", optional = true }
+tls_openssl = { package = "openssl", version = "0.10.9", optional = true }
+tls_rustls = { package = "rustls", version = "0.19.0", optional = true }
 smallvec = "1.6"
 
 [dev-dependencies]

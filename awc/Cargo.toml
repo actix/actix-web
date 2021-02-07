@@ -28,10 +28,10 @@ features = ["openssl", "rustls", "compress"]
 default = ["compress"]
 
 # openssl
-openssl = ["open-ssl", "actix-http/openssl"]
+openssl = ["tls-openssl", "actix-http/openssl"]
 
 # rustls
-rustls = ["rust-tls", "actix-http/rustls"]
+rustls = ["tls-rustls", "actix-http/rustls"]
 
 # content-encoding support
 compress = ["actix-http/compress"]
@@ -54,8 +54,8 @@ rand = "0.8"
 serde = "1.0"
 serde_json = "1.0"
 serde_urlencoded = "0.7"
-open-ssl = { version = "0.10", package = "openssl", optional = true }
-rust-tls = { version = "0.19.0", package = "rustls", optional = true, features = ["dangerous_configuration"] }
+tls-openssl = { version = "0.10.9", package = "openssl", optional = true }
+tls-rustls = { version = "0.19.0", package = "rustls", optional = true, features = ["dangerous_configuration"] }
 
 [dev-dependencies]
 actix-web = { version = "4.0.0-beta.1", features = ["openssl"] }
@@ -68,6 +68,6 @@ actix-tls = { version = "3.0.0-beta.3", features = ["openssl", "rustls"] }
 brotli2 = "0.3.2"
 flate2 = "1.0.13"
 futures-util = { version = "0.3.7", default-features = false }
-env_logger = "0.7"
+env_logger = "0.8"
 rcgen = "0.8"
 webpki = "0.21"

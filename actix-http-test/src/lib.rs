@@ -4,6 +4,9 @@
 #![doc(html_logo_url = "https://actix.rs/img/logo.png")]
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
 
+#[cfg(feature = "openssl")]
+extern crate tls_openssl as openssl;
+
 use std::sync::mpsc;
 use std::{net, thread, time};
 
@@ -82,7 +85,7 @@ pub async fn test_server_with_addr<F: ServiceFactory<TcpStream>>(
         let connector = {
             #[cfg(feature = "openssl")]
             {
-                use open_ssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
+                use openssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
 
                 let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
                 builder.set_verify(SslVerifyMode::NONE);
