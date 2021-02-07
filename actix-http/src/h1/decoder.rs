@@ -279,13 +279,11 @@ impl MessageType for ResponseHead {
                     (len, version, status, res.headers.len())
                 }
                 httparse::Status::Partial => {
-                    return {
-                        if src.len() >= MAX_BUFFER_SIZE {
-                            error!("MAX_BUFFER_SIZE unprocessed data reached, closing");
-                            Err(ParseError::TooLarge)
-                        } else {
-                            Ok(None)
-                        }
+                    return if src.len() >= MAX_BUFFER_SIZE {
+                        error!("MAX_BUFFER_SIZE unprocessed data reached, closing");
+                        Err(ParseError::TooLarge)
+                    } else {
+                        Ok(None)
                     }
                 }
             }

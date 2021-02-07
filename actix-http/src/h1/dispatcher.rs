@@ -27,7 +27,6 @@ use crate::service::HttpFlow;
 use crate::OnConnectData;
 
 use super::codec::Codec;
-use super::decoder::MAX_BUFFER_SIZE;
 use super::payload::{Payload, PayloadSender, PayloadStatus};
 use super::{Message, MessageType};
 
@@ -406,7 +405,7 @@ where
                 },
                 StateProj::SendPayload(mut stream) => {
                     loop {
-                        if this.write_buf.len() < HW_BUFFER_SIZE {
+                        if this.write_buf.len() < super::payload::MAX_BUFFER_SIZE {
                             match stream.as_mut().poll_next(cx) {
                                 Poll::Ready(Some(Ok(item))) => {
                                     this.codec.encode(
@@ -616,6 +615,18 @@ where
                     self.as_mut().client_disconnected();
                     this = self.as_mut().project();
                     *this.error = Some(DispatchError::Io(e));
+                    break;
+                }
+                Err(ParseError::TooLarge) => {
+                    if let Some(mut payload) = this.payload.take() {
+                        payload.set_error(PayloadError::Overflow);
+                    }
+                    // Requests overflow buffer size should be responded with 413
+                    this.messages.push_back(DispatcherMessage::Error(
+                        Response::PayloadTooLarge().finish().drop_body(),
+                    ));
+                    this.flags.insert(Flags::READ_DISCONNECT);
+                    *this.error = Some(ParseError::TooLarge.into());
                     break;
                 }
                 Err(e) => {
@@ -913,7 +924,11 @@ where
                 } else {
                     // If buf is full return but do not disconnect since
                     // there is more reading to be done
-                    if buf.len() >= MAX_BUFFER_SIZE {
+                    if buf.len() >= super::decoder::MAX_BUFFER_SIZE {
+                        // at this point it's not known io is still scheduled to
+                        // be waked up. so force wake up dispatcher just in case.
+                        // TODO: figure out the overhead.
+                        cx.waker().wake_by_ref();
                         return Ok(Some(false));
                     }
 
