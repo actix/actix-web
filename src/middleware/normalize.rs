@@ -57,7 +57,7 @@ impl Default for TrailingSlash {
 /// ```rust
 /// use actix_web::{web, middleware, App};
 ///
-/// # actix_web::rt::System::new("doctest").block_on(async {
+/// # actix_web::rt::System::new().block_on(async {
 /// let app = App::new()
 ///     .wrap(middleware::NormalizePath::default())
 ///     .route("/test", web::get().to(|| async { "test" }))
@@ -66,22 +66,22 @@ impl Default for TrailingSlash {
 /// use actix_web::http::StatusCode;
 /// use actix_web::test::{call_service, init_service, TestRequest};
 ///
-/// let mut app = init_service(app).await;
+/// let app = init_service(app).await;
 ///
 /// let req = TestRequest::with_uri("/test").to_request();
-/// let res = call_service(&mut app, req).await;
+/// let res = call_service(&app, req).await;
 /// assert_eq!(res.status(), StatusCode::OK);
 ///
 /// let req = TestRequest::with_uri("/test/").to_request();
-/// let res = call_service(&mut app, req).await;
+/// let res = call_service(&app, req).await;
 /// assert_eq!(res.status(), StatusCode::OK);
 ///
 /// let req = TestRequest::with_uri("/unmatchable").to_request();
-/// let res = call_service(&mut app, req).await;
+/// let res = call_service(&app, req).await;
 /// assert_eq!(res.status(), StatusCode::NOT_FOUND);
 ///
 /// let req = TestRequest::with_uri("/unmatchable/").to_request();
-/// let res = call_service(&mut app, req).await;
+/// let res = call_service(&app, req).await;
 /// assert_eq!(res.status(), StatusCode::NOT_FOUND);
 /// # })
 /// ```
@@ -132,7 +132,7 @@ where
 
     actix_service::forward_ready!(service);
 
-    fn call(&mut self, mut req: ServiceRequest) -> Self::Future {
+    fn call(&self, mut req: ServiceRequest) -> Self::Future {
         let head = req.head_mut();
 
         let original_path = head.uri.path();
@@ -195,7 +195,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_wrap() {
-        let mut app = init_service(
+        let app = init_service(
             App::new()
                 .wrap(NormalizePath::default())
                 .service(web::resource("/").to(HttpResponse::Ok))
@@ -204,37 +204,37 @@ mod tests {
         .await;
 
         let req = TestRequest::with_uri("/").to_request();
-        let res = call_service(&mut app, req).await;
+        let res = call_service(&app, req).await;
         assert!(res.status().is_success());
 
         let req = TestRequest::with_uri("/?query=test").to_request();
-        let res = call_service(&mut app, req).await;
+        let res = call_service(&app, req).await;
         assert!(res.status().is_success());
 
         let req = TestRequest::with_uri("///").to_request();
-        let res = call_service(&mut app, req).await;
+        let res = call_service(&app, req).await;
         assert!(res.status().is_success());
 
         let req = TestRequest::with_uri("/v1//something////").to_request();
-        let res = call_service(&mut app, req).await;
+        let res = call_service(&app, req).await;
         assert!(res.status().is_success());
 
         let req2 = TestRequest::with_uri("//v1/something").to_request();
-        let res2 = call_service(&mut app, req2).await;
+        let res2 = call_service(&app, req2).await;
         assert!(res2.status().is_success());
 
         let req3 = TestRequest::with_uri("//v1//////something").to_request();
-        let res3 = call_service(&mut app, req3).await;
+        let res3 = call_service(&app, req3).await;
         assert!(res3.status().is_success());
 
         let req4 = TestRequest::with_uri("/v1//something").to_request();
-        let res4 = call_service(&mut app, req4).await;
+        let res4 = call_service(&app, req4).await;
         assert!(res4.status().is_success());
     }
 
     #[actix_rt::test]
     async fn trim_trailing_slashes() {
-        let mut app = init_service(
+        let app = init_service(
             App::new()
                 .wrap(NormalizePath(TrailingSlash::Trim))
                 .service(web::resource("/").to(HttpResponse::Ok))
@@ -244,37 +244,37 @@ mod tests {
 
         // root paths should still work
         let req = TestRequest::with_uri("/").to_request();
-        let res = call_service(&mut app, req).await;
+        let res = call_service(&app, req).await;
         assert!(res.status().is_success());
 
         let req = TestRequest::with_uri("/?query=test").to_request();
-        let res = call_service(&mut app, req).await;
+        let res = call_service(&app, req).await;
         assert!(res.status().is_success());
 
         let req = TestRequest::with_uri("///").to_request();
-        let res = call_service(&mut app, req).await;
+        let res = call_service(&app, req).await;
         assert!(res.status().is_success());
 
         let req = TestRequest::with_uri("/v1/something////").to_request();
-        let res = call_service(&mut app, req).await;
+        let res = call_service(&app, req).await;
         assert!(res.status().is_success());
 
         let req2 = TestRequest::with_uri("/v1/something/").to_request();
-        let res2 = call_service(&mut app, req2).await;
+        let res2 = call_service(&app, req2).await;
         assert!(res2.status().is_success());
 
         let req3 = TestRequest::with_uri("//v1//something//").to_request();
-        let res3 = call_service(&mut app, req3).await;
+        let res3 = call_service(&app, req3).await;
         assert!(res3.status().is_success());
 
         let req4 = TestRequest::with_uri("//v1//something").to_request();
-        let res4 = call_service(&mut app, req4).await;
+        let res4 = call_service(&app, req4).await;
         assert!(res4.status().is_success());
     }
 
     #[actix_rt::test]
     async fn keep_trailing_slash_unchanged() {
-        let mut app = init_service(
+        let app = init_service(
             App::new()
                 .wrap(NormalizePath(TrailingSlash::MergeOnly))
                 .service(web::resource("/").to(HttpResponse::Ok))
@@ -299,7 +299,7 @@ mod tests {
 
         for (path, success) in tests {
             let req = TestRequest::with_uri(path).to_request();
-            let res = call_service(&mut app, req).await;
+            let res = call_service(&app, req).await;
             assert_eq!(res.status().is_success(), success);
         }
     }
@@ -311,7 +311,7 @@ mod tests {
             ready(Ok(req.into_response(HttpResponse::Ok().finish())))
         };
 
-        let mut normalize = NormalizePath::default()
+        let normalize = NormalizePath::default()
             .new_transform(srv.into_service())
             .await
             .unwrap();
@@ -342,7 +342,7 @@ mod tests {
             ready(Ok(req.into_response(HttpResponse::Ok().finish())))
         };
 
-        let mut normalize = NormalizePath::default()
+        let normalize = NormalizePath::default()
             .new_transform(srv.into_service())
             .await
             .unwrap();
@@ -359,7 +359,7 @@ mod tests {
             ready(Ok(req.into_response(HttpResponse::Ok().finish())))
         };
 
-        let mut normalize = NormalizePath::default()
+        let normalize = NormalizePath::default()
             .new_transform(srv.into_service())
             .await
             .unwrap();

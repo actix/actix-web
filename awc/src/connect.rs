@@ -20,14 +20,14 @@ pub(crate) struct ConnectorWrapper<T>(pub T);
 
 pub(crate) trait Connect {
     fn send_request(
-        &mut self,
+        &self,
         head: RequestHead,
         body: Body,
         addr: Option<net::SocketAddr>,
     ) -> Pin<Box<dyn Future<Output = Result<ClientResponse, SendRequestError>>>>;
 
     fn send_request_extra(
-        &mut self,
+        &self,
         head: Rc<RequestHead>,
         extra_headers: Option<HeaderMap>,
         body: Body,
@@ -36,7 +36,7 @@ pub(crate) trait Connect {
 
     /// Send request, returns Response and Framed
     fn open_tunnel(
-        &mut self,
+        &self,
         head: RequestHead,
         addr: Option<net::SocketAddr>,
     ) -> Pin<
@@ -52,7 +52,7 @@ pub(crate) trait Connect {
 
     /// Send request and extra headers, returns Response and Framed
     fn open_tunnel_extra(
-        &mut self,
+        &self,
         head: Rc<RequestHead>,
         extra_headers: Option<HeaderMap>,
         addr: Option<net::SocketAddr>,
@@ -78,7 +78,7 @@ where
     T::Future: 'static,
 {
     fn send_request(
-        &mut self,
+        &self,
         head: RequestHead,
         body: Body,
         addr: Option<net::SocketAddr>,
@@ -101,7 +101,7 @@ where
     }
 
     fn send_request_extra(
-        &mut self,
+        &self,
         head: Rc<RequestHead>,
         extra_headers: Option<HeaderMap>,
         body: Body,
@@ -126,7 +126,7 @@ where
     }
 
     fn open_tunnel(
-        &mut self,
+        &self,
         head: RequestHead,
         addr: Option<net::SocketAddr>,
     ) -> Pin<
@@ -158,7 +158,7 @@ where
     }
 
     fn open_tunnel_extra(
-        &mut self,
+        &self,
         head: Rc<RequestHead>,
         extra_headers: Option<HeaderMap>,
         addr: Option<net::SocketAddr>,

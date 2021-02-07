@@ -123,7 +123,7 @@ where
 
     actix_service::forward_ready!(service);
 
-    fn call(&mut self, req: ServiceRequest) -> Self::Future {
+    fn call(&self, req: ServiceRequest) -> Self::Future {
         let handlers = self.handlers.clone();
         let fut = self.service.call(req);
         ErrorHandlersFuture::ServiceFuture { fut, handlers }
@@ -196,14 +196,14 @@ mod tests {
             ok(req.into_response(HttpResponse::InternalServerError().finish()))
         };
 
-        let mut mw = ErrorHandlers::new()
+        let mw = ErrorHandlers::new()
             .handler(StatusCode::INTERNAL_SERVER_ERROR, render_500)
             .new_transform(srv.into_service())
             .await
             .unwrap();
 
         let resp =
-            test::call_service(&mut mw, TestRequest::default().to_srv_request()).await;
+            test::call_service(&mw, TestRequest::default().to_srv_request()).await;
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0001");
     }
 
@@ -223,14 +223,14 @@ mod tests {
             ok(req.into_response(HttpResponse::InternalServerError().finish()))
         };
 
-        let mut mw = ErrorHandlers::new()
+        let mw = ErrorHandlers::new()
             .handler(StatusCode::INTERNAL_SERVER_ERROR, render_500_async)
             .new_transform(srv.into_service())
             .await
             .unwrap();
 
         let resp =
-            test::call_service(&mut mw, TestRequest::default().to_srv_request()).await;
+            test::call_service(&mw, TestRequest::default().to_srv_request()).await;
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0001");
     }
 }

@@ -68,7 +68,7 @@ impl<T: Responder> Responder for OptionResponder<T> {
 }
 
 fn future_responder(c: &mut Criterion) {
-    let rt = actix_rt::System::new("test");
+    let rt = actix_rt::System::new();
     let req = TestRequest::default().to_http_request();
 
     c.bench_function("future_responder", move |b| {
@@ -91,7 +91,7 @@ fn future_responder(c: &mut Criterion) {
 }
 
 fn responder(c: &mut Criterion) {
-    let rt = actix_rt::System::new("test");
+    let rt = actix_rt::System::new();
     let req = TestRequest::default().to_http_request();
     c.bench_function("responder", move |b| {
         b.iter_custom(|_| {

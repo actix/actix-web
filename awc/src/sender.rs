@@ -183,15 +183,13 @@ impl RequestSender {
     where
         B: Into<Body>,
     {
-        let mut connector = config.connector.borrow_mut();
-
         let fut = match self {
             RequestSender::Owned(head) => {
-                connector.send_request(head, body.into(), addr)
+                config.connector.send_request(head, body.into(), addr)
             }
-            RequestSender::Rc(head, extra_headers) => {
-                connector.send_request_extra(head, extra_headers, body.into(), addr)
-            }
+            RequestSender::Rc(head, extra_headers) => config
+                .connector
+                .send_request_extra(head, extra_headers, body.into(), addr),
         };
 
         SendClientRequest::new(fut, response_decompress, timeout.or(config.timeout))

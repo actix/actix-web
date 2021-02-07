@@ -1,4 +1,3 @@
-use std::cell::RefCell;
 use std::future::Future;
 use std::marker::PhantomData;
 use std::pin::Pin;
@@ -249,7 +248,7 @@ pub struct H2ServiceHandler<T, S, B>
 where
     S: Service<Request>,
 {
-    flow: Rc<RefCell<HttpFlow<S, (), ()>>>,
+    flow: Rc<HttpFlow<S, (), ()>>,
     cfg: ServiceConfig,
     on_connect_ext: Option<Rc<ConnectCallback<T>>>,
     _phantom: PhantomData<B>,
@@ -290,15 +289,15 @@ where
     type Error = DispatchError;
     type Future = H2ServiceHandlerResponse<T, S, B>;
 
-    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        self.flow.borrow_mut().service.poll_ready(cx).map_err(|e| {
+    fn poll_ready(&self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        self.flow.service.poll_ready(cx).map_err(|e| {
             let e = e.into();
             error!("Service readiness error: {:?}", e);
             DispatchError::Service(e)
         })
     }
 
-    fn call(&mut self, (io, addr): (T, Option<net::SocketAddr>)) -> Self::Future {
+    fn call(&self, (io, addr): (T, Option<net::SocketAddr>)) -> Self::Future {
         let on_connect_data =
             OnConnectData::from_io(&io, self.on_connect_ext.as_deref());
 
@@ -321,7 +320,7 @@ where
 {
     Incoming(Dispatcher<T, S, B, (), ()>),
     Handshake(
-        Option<Rc<RefCell<HttpFlow<S, (), ()>>>>,
+        Option<Rc<HttpFlow<S, (), ()>>>,
         Option<ServiceConfig>,
         Option<net::SocketAddr>,
         OnConnectData,
