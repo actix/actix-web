@@ -1,4 +1,4 @@
-name: Benchmark (Linux)
+name: Benchmark
 
 on:
   pull_request:

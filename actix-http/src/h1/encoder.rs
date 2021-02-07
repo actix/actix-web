@@ -337,7 +337,7 @@ impl MessageType for RequestHeadType {
         let head = self.as_ref();
         dst.reserve(256 + head.headers.len() * AVERAGE_HEADER_SIZE);
         write!(
-            Writer(dst),
+            helpers::Writer(dst),
             "{} {} {}",
             head.method,
             head.uri.path_and_query().map(|u| u.as_str()).unwrap_or("/"),
@@ -470,7 +470,7 @@ impl TransferEncoding {
                     *eof = true;
                     buf.extend_from_slice(b"0\r\n\r\n");
                 } else {
-                    writeln!(Writer(buf), "{:X}\r", msg.len())
+                    writeln!(helpers::Writer(buf), "{:X}\r", msg.len())
                         .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
 
                     buf.reserve(msg.len() + 2);
@@ -517,18 +517,6 @@ impl TransferEncoding {
                 Ok(())
             }
         }
-    }
-}
-
-struct Writer<'a>(pub &'a mut BytesMut);
-
-impl<'a> io::Write for Writer<'a> {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.0.extend_from_slice(buf);
-        Ok(buf.len())
-    }
-    fn flush(&mut self) -> io::Result<()> {
-        Ok(())
     }
 }
 

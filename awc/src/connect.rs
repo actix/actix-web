@@ -1,71 +1,39 @@
-use std::future::Future;
-use std::pin::Pin;
-use std::rc::Rc;
-use std::task::{Context, Poll};
-use std::{fmt, io, net};
+use std::{
+    fmt, io, net,
+    pin::Pin,
+    task::{Context, Poll},
+};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed, ReadBuf};
-use actix_http::body::Body;
-use actix_http::client::{
-    Connect as ClientConnect, ConnectError, Connection, SendRequestError,
+use actix_http::{
+    body::Body,
+    client::{Connect as ClientConnect, ConnectError, Connection, SendRequestError},
+    h1::ClientCodec,
+    RequestHead, RequestHeadType, ResponseHead,
 };
-use actix_http::h1::ClientCodec;
-use actix_http::http::HeaderMap;
-use actix_http::{RequestHead, RequestHeadType, ResponseHead};
 use actix_service::Service;
+use futures_core::future::LocalBoxFuture;
 
 use crate::response::ClientResponse;
 
 pub(crate) struct ConnectorWrapper<T>(pub T);
 
+type TunnelResponse = (ResponseHead, Framed<BoxedSocket, ClientCodec>);
+
 pub(crate) trait Connect {
     fn send_request(
         &self,
-        head: RequestHead,
+        head: RequestHeadType,
         body: Body,
         addr: Option<net::SocketAddr>,
-    ) -> Pin<Box<dyn Future<Output = Result<ClientResponse, SendRequestError>>>>;
-
-    fn send_request_extra(
-        &self,
-        head: Rc<RequestHead>,
-        extra_headers: Option<HeaderMap>,
-        body: Body,
-        addr: Option<net::SocketAddr>,
-    ) -> Pin<Box<dyn Future<Output = Result<ClientResponse, SendRequestError>>>>;
+    ) -> LocalBoxFuture<'static, Result<ClientResponse, SendRequestError>>;
 
     /// Send request, returns Response and Framed
     fn open_tunnel(
         &self,
         head: RequestHead,
         addr: Option<net::SocketAddr>,
-    ) -> Pin<
-        Box<
-            dyn Future<
-                Output = Result<
-                    (ResponseHead, Framed<BoxedSocket, ClientCodec>),
-                    SendRequestError,
-                >,
-            >,
-        >,
-    >;
-
-    /// Send request and extra headers, returns Response and Framed
-    fn open_tunnel_extra(
-        &self,
-        head: Rc<RequestHead>,
-        extra_headers: Option<HeaderMap>,
-        addr: Option<net::SocketAddr>,
-    ) -> Pin<
-        Box<
-            dyn Future<
-                Output = Result<
-                    (ResponseHead, Framed<BoxedSocket, ClientCodec>),
-                    SendRequestError,
-                >,
-            >,
-        >,
-    >;
+    ) -> LocalBoxFuture<'static, Result<TunnelResponse, SendRequestError>>;
 }
 
 impl<T> Connect for ConnectorWrapper<T>
@@ -79,13 +47,13 @@ where
 {
     fn send_request(
         &self,
-        head: RequestHead,
+        head: RequestHeadType,
         body: Body,
         addr: Option<net::SocketAddr>,
-    ) -> Pin<Box<dyn Future<Output = Result<ClientResponse, SendRequestError>>>> {
+    ) -> LocalBoxFuture<'static, Result<ClientResponse, SendRequestError>> {
         // connect to the host
         let fut = self.0.call(ClientConnect {
-            uri: head.uri.clone(),
+            uri: head.as_ref().uri.clone(),
             addr,
         });
 
@@ -93,33 +61,7 @@ where
             let connection = fut.await?;
 
             // send request
-            connection
-                .send_request(RequestHeadType::from(head), body)
-                .await
-                .map(|(head, payload)| ClientResponse::new(head, payload))
-        })
-    }
-
-    fn send_request_extra(
-        &self,
-        head: Rc<RequestHead>,
-        extra_headers: Option<HeaderMap>,
-        body: Body,
-        addr: Option<net::SocketAddr>,
-    ) -> Pin<Box<dyn Future<Output = Result<ClientResponse, SendRequestError>>>> {
-        // connect to the host
-        let fut = self.0.call(ClientConnect {
-            uri: head.uri.clone(),
-            addr,
-        });
-
-        Box::pin(async move {
-            let connection = fut.await?;
-
-            // send request
-            let (head, payload) = connection
-                .send_request(RequestHeadType::Rc(head, extra_headers), body)
-                .await?;
+            let (head, payload) = connection.send_request(head, body).await?;
 
             Ok(ClientResponse::new(head, payload))
         })
@@ -129,16 +71,7 @@ where
         &self,
         head: RequestHead,
         addr: Option<net::SocketAddr>,
-    ) -> Pin<
-        Box<
-            dyn Future<
-                Output = Result<
-                    (ResponseHead, Framed<BoxedSocket, ClientCodec>),
-                    SendRequestError,
-                >,
-            >,
-        >,
-    > {
+    ) -> LocalBoxFuture<'static, Result<TunnelResponse, SendRequestError>> {
         // connect to the host
         let fut = self.0.call(ClientConnect {
             uri: head.uri.clone(),
@@ -151,40 +84,6 @@ where
             // send request
             let (head, framed) =
                 connection.open_tunnel(RequestHeadType::from(head)).await?;
-
-            let framed = framed.into_map_io(|io| BoxedSocket(Box::new(Socket(io))));
-            Ok((head, framed))
-        })
-    }
-
-    fn open_tunnel_extra(
-        &self,
-        head: Rc<RequestHead>,
-        extra_headers: Option<HeaderMap>,
-        addr: Option<net::SocketAddr>,
-    ) -> Pin<
-        Box<
-            dyn Future<
-                Output = Result<
-                    (ResponseHead, Framed<BoxedSocket, ClientCodec>),
-                    SendRequestError,
-                >,
-            >,
-        >,
-    > {
-        // connect to the host
-        let fut = self.0.call(ClientConnect {
-            uri: head.uri.clone(),
-            addr,
-        });
-
-        Box::pin(async move {
-            let connection = fut.await?;
-
-            // send request
-            let (head, framed) = connection
-                .open_tunnel(RequestHeadType::Rc(head, extra_headers))
-                .await?;
 
             let framed = framed.into_map_io(|io| BoxedSocket(Box::new(Socket(io))));
             Ok((head, framed))

@@ -343,6 +343,8 @@ impl ResponseHead {
 }
 
 pub struct Message<T: Head> {
+    // Rc here should not be cloned by anyone.
+    // It's used to reuse allocation of T and no shared ownership is allowed.
     head: Rc<T>,
 }
 
@@ -350,14 +352,6 @@ impl<T: Head> Message<T> {
     /// Get new message from the pool of objects
     pub fn new() -> Self {
         T::with_pool(|p| p.get_message())
-    }
-}
-
-impl<T: Head> Clone for Message<T> {
-    fn clone(&self) -> Self {
-        Message {
-            head: self.head.clone(),
-        }
     }
 }
 
@@ -377,9 +371,7 @@ impl<T: Head> std::ops::DerefMut for Message<T> {
 
 impl<T: Head> Drop for Message<T> {
     fn drop(&mut self) {
-        if Rc::strong_count(&self.head) == 1 {
-            T::with_pool(|p| p.release(self.head.clone()))
-        }
+        T::with_pool(|p| p.release(self.head.clone()))
     }
 }
 
