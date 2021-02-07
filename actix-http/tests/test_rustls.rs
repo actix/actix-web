@@ -1,4 +1,7 @@
 #![cfg(feature = "rustls")]
+
+extern crate tls_rustls as rustls;
+
 use actix_http::error::PayloadError;
 use actix_http::http::header::{self, HeaderName, HeaderValue};
 use actix_http::http::{Method, StatusCode, Version};
@@ -9,7 +12,7 @@ use actix_service::{fn_factory_with_config, fn_service};
 use bytes::{Bytes, BytesMut};
 use futures_util::future::{self, err, ok};
 use futures_util::stream::{once, Stream, StreamExt};
-use rust_tls::{
+use rustls::{
     internal::pemfile::{certs, pkcs8_private_keys},
     NoClientAuth, ServerConfig as RustlsServerConfig,
 };

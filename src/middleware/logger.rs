@@ -219,7 +219,7 @@ where
 
     actix_service::forward_ready!(service);
 
-    fn call(&mut self, req: ServiceRequest) -> Self::Future {
+    fn call(&self, req: ServiceRequest) -> Self::Future {
         if self.inner.exclude.contains(req.path())
             || self.inner.exclude_regex.is_match(req.path())
         {
@@ -609,7 +609,7 @@ mod tests {
         };
         let logger = Logger::new("%% %{User-Agent}i %{X-Test}o %{HOME}e %D test");
 
-        let mut srv = logger.new_transform(srv.into_service()).await.unwrap();
+        let srv = logger.new_transform(srv.into_service()).await.unwrap();
 
         let req = TestRequest::default()
             .insert_header((
@@ -632,7 +632,7 @@ mod tests {
         let logger = Logger::new("%% %{User-Agent}i %{X-Test}o %{HOME}e %D test")
             .exclude_regex("\\w");
 
-        let mut srv = logger.new_transform(srv.into_service()).await.unwrap();
+        let srv = logger.new_transform(srv.into_service()).await.unwrap();
 
         let req = TestRequest::default()
             .insert_header((
@@ -806,7 +806,7 @@ mod tests {
                 captured.to_owned()
             });
 
-        let mut srv = logger.new_transform(test::ok_service()).await.unwrap();
+        let srv = logger.new_transform(test::ok_service()).await.unwrap();
 
         let req = TestRequest::default().to_srv_request();
         srv.call(req).await.unwrap();

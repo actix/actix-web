@@ -188,8 +188,6 @@ impl RequestSender {
     where
         B: Into<Body>,
     {
-        let mut connector = config.connector.borrow_mut();
-
         let fut = match self {
             RequestSender::Owned(head) => {
                 connector.send_request(RequestHeadType::Owned(head), body.into(), addr)

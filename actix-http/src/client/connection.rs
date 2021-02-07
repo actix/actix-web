@@ -1,11 +1,14 @@
 use std::future::Future;
+use std::ops::{Deref, DerefMut};
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::{fmt, io, time};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed, ReadBuf};
+use actix_rt::task::JoinHandle;
 use bytes::Bytes;
-use futures_util::future::{err, Either, FutureExt, LocalBoxFuture, Ready};
+use futures_core::future::LocalBoxFuture;
+use futures_util::future::{err, Either, FutureExt, Ready};
 use h2::client::SendRequest;
 use pin_project::pin_project;
 
@@ -20,7 +23,53 @@ use super::{h1proto, h2proto};
 
 pub(crate) enum ConnectionType<Io> {
     H1(Io),
-    H2(SendRequest<Bytes>),
+    H2(H2Connection),
+}
+
+// h2 connection has two parts: SendRequest and Connection.
+// Connection is spawned as async task on runtime and H2Connection would hold a handle for
+// this task. So it can wake up and quit the task when SendRequest is dropped.
+pub(crate) struct H2Connection {
+    handle: JoinHandle<()>,
+    sender: SendRequest<Bytes>,
+}
+
+impl H2Connection {
+    pub(crate) fn new<Io>(
+        sender: SendRequest<Bytes>,
+        connection: h2::client::Connection<Io>,
+    ) -> Self
+    where
+        Io: AsyncRead + AsyncWrite + Unpin + 'static,
+    {
+        let handle = actix_rt::spawn(async move {
+            let _ = connection.await;
+        });
+
+        Self { handle, sender }
+    }
+}
+
+// wake up waker when drop
+impl Drop for H2Connection {
+    fn drop(&mut self) {
+        self.handle.abort();
+    }
+}
+
+// only expose sender type to public.
+impl Deref for H2Connection {
+    type Target = SendRequest<Bytes>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.sender
+    }
+}
+
+impl DerefMut for H2Connection {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.sender
+    }
 }
 
 pub trait Connection {
@@ -263,5 +312,37 @@ where
             EitherIoProj::A(val) => val.poll_shutdown(cx),
             EitherIoProj::B(val) => val.poll_shutdown(cx),
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use std::net;
+
+    use actix_rt::net::TcpStream;
+
+    use super::*;
+
+    #[actix_rt::test]
+    async fn test_h2_connection_drop() {
+        let addr = "127.0.0.1:0".parse::<net::SocketAddr>().unwrap();
+        let listener = net::TcpListener::bind(addr).unwrap();
+        let local = listener.local_addr().unwrap();
+
+        std::thread::spawn(move || while listener.accept().is_ok() {});
+
+        let tcp = TcpStream::connect(local).await.unwrap();
+        let (sender, connection) = h2::client::handshake(tcp).await.unwrap();
+        let conn = H2Connection::new(sender.clone(), connection);
+
+        assert!(sender.clone().ready().await.is_ok());
+        assert!(h2::client::SendRequest::clone(&*conn).ready().await.is_ok());
+
+        drop(conn);
+
+        match sender.ready().await {
+            Ok(_) => panic!("connection should be gone and can not be ready"),
+            Err(e) => assert!(e.is_io()),
+        };
     }
 }

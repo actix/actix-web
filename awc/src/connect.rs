@@ -22,7 +22,7 @@ type TunnelResponse = (ResponseHead, Framed<BoxedSocket, ClientCodec>);
 
 pub(crate) trait Connect {
     fn send_request(
-        &mut self,
+        &self,
         head: RequestHeadType,
         body: Body,
         addr: Option<net::SocketAddr>,
@@ -30,7 +30,7 @@ pub(crate) trait Connect {
 
     /// Send request, returns Response and Framed
     fn open_tunnel(
-        &mut self,
+        &self,
         head: RequestHead,
         addr: Option<net::SocketAddr>,
     ) -> LocalBoxFuture<'static, Result<TunnelResponse, SendRequestError>>;
@@ -46,7 +46,7 @@ where
     T::Future: 'static,
 {
     fn send_request(
-        &mut self,
+        &self,
         head: RequestHeadType,
         body: Body,
         addr: Option<net::SocketAddr>,
@@ -68,7 +68,7 @@ where
     }
 
     fn open_tunnel(
-        &mut self,
+        &self,
         head: RequestHead,
         addr: Option<net::SocketAddr>,
     ) -> LocalBoxFuture<'static, Result<TunnelResponse, SendRequestError>> {
