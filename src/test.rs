@@ -60,7 +60,7 @@ pub fn default_service(
 ///
 /// #[actix_rt::test]
 /// async fn test_init_service() {
-///     let mut app = test::init_service(
+///     let app = test::init_service(
 ///         App::new()
 ///             .service(web::resource("/test").to(|| async { HttpResponse::Ok() }))
 ///     ).await;
@@ -116,7 +116,7 @@ where
 ///
 /// #[actix_rt::test]
 /// async fn test_response() {
-///     let mut app = test::init_service(
+///     let app = test::init_service(
 ///         App::new()
 ///             .service(web::resource("/test").to(|| async {
 ///                 HttpResponse::Ok()
@@ -127,11 +127,11 @@ where
 ///     let req = test::TestRequest::with_uri("/test").to_request();
 ///
 ///     // Call application
-///     let resp = test::call_service(&mut app, req).await;
+///     let resp = test::call_service(&app, req).await;
 ///     assert_eq!(resp.status(), StatusCode::OK);
 /// }
 /// ```
-pub async fn call_service<S, R, B, E>(app: &mut S, req: R) -> S::Response
+pub async fn call_service<S, R, B, E>(app: &S, req: R) -> S::Response
 where
     S: Service<R, Response = ServiceResponse<B>, Error = E>,
     E: std::fmt::Debug,
@@ -147,7 +147,7 @@ where
 ///
 /// #[actix_rt::test]
 /// async fn test_index() {
-///     let mut app = test::init_service(
+///     let app = test::init_service(
 ///         App::new().service(
 ///             web::resource("/index.html")
 ///                 .route(web::post().to(|| async {
@@ -160,11 +160,11 @@ where
 ///         .header(header::CONTENT_TYPE, "application/json")
 ///         .to_request();
 ///
-///     let result = test::read_response(&mut app, req).await;
+///     let result = test::read_response(&app, req).await;
 ///     assert_eq!(result, Bytes::from_static(b"welcome!"));
 /// }
 /// ```
-pub async fn read_response<S, B>(app: &mut S, req: Request) -> Bytes
+pub async fn read_response<S, B>(app: &S, req: Request) -> Bytes
 where
     S: Service<Request, Response = ServiceResponse<B>, Error = Error>,
     B: MessageBody + Unpin,
@@ -190,7 +190,7 @@ where
 ///
 /// #[actix_rt::test]
 /// async fn test_index() {
-///     let mut app = test::init_service(
+///     let app = test::init_service(
 ///         App::new().service(
 ///             web::resource("/index.html")
 ///                 .route(web::post().to(|| async {
@@ -203,7 +203,7 @@ where
 ///         .header(header::CONTENT_TYPE, "application/json")
 ///         .to_request();
 ///
-///     let resp = test::call_service(&mut app, req).await;
+///     let resp = test::call_service(&app, req).await;
 ///     let result = test::read_body(resp).await;
 ///     assert_eq!(result, Bytes::from_static(b"welcome!"));
 /// }
@@ -234,12 +234,12 @@ where
 ///
 /// #[actix_rt::test]
 /// async fn test_post_person() {
-///     let mut app = test::init_service(
+///     let app = test::init_service(
 ///         App::new().service(
 ///             web::resource("/people")
 ///                 .route(web::post().to(|person: web::Json<Person>| async {
 ///                     HttpResponse::Ok()
-///                         .json(person.into_inner())})
+///                         .json(person)})
 ///                     ))
 ///     ).await;
 ///
@@ -294,12 +294,12 @@ where
 ///
 /// #[actix_rt::test]
 /// async fn test_add_person() {
-///     let mut app = test::init_service(
+///     let app = test::init_service(
 ///         App::new().service(
 ///             web::resource("/people")
 ///                 .route(web::post().to(|person: web::Json<Person>| async {
 ///                     HttpResponse::Ok()
-///                         .json(person.into_inner())})
+///                         .json(person)})
 ///                     ))
 ///     ).await;
 ///
@@ -314,7 +314,7 @@ where
 ///     let result: Person = test::read_response_json(&mut app, req).await;
 /// }
 /// ```
-pub async fn read_response_json<S, B, T>(app: &mut S, req: Request) -> T
+pub async fn read_response_json<S, B, T>(app: &S, req: Request) -> T
 where
     S: Service<Request, Response = ServiceResponse<B>, Error = Error>,
     B: MessageBody + Unpin,
@@ -569,7 +569,7 @@ impl TestRequest {
     }
 
     /// Complete request creation, calls service and waits for response future completion.
-    pub async fn send_request<S, B, E>(self, app: &mut S) -> S::Response
+    pub async fn send_request<S, B, E>(self, app: &S) -> S::Response
     where
         S: Service<Request, Response = ServiceResponse<B>, Error = E>,
         E: std::fmt::Debug,
@@ -595,7 +595,7 @@ impl TestRequest {
 ///
 /// #[actix_rt::test]
 /// async fn test_example() {
-///     let mut srv = test::start(
+///     let srv = test::start(
 ///         || App::new().service(
 ///                 web::resource("/").to(my_handler))
 ///     );
@@ -635,7 +635,7 @@ where
 ///
 /// #[actix_rt::test]
 /// async fn test_example() {
-///     let mut srv = test::start_with(test::config().h1(), ||
+///     let srv = test::start_with(test::config().h1(), ||
 ///         App::new().service(web::resource("/").to(my_handler))
 ///     );
 ///
@@ -667,7 +667,7 @@ where
 
     // run server in separate thread
     thread::spawn(move || {
-        let sys = System::new("actix-test-server");
+        let sys = System::new();
         let tcp = net::TcpListener::bind("127.0.0.1:0").unwrap();
         let local_addr = tcp.local_addr().unwrap();
         let factory = factory.clone();
@@ -760,7 +760,7 @@ where
         .unwrap();
 
         sys.block_on(async {
-            let srv = srv.start();
+            let srv = srv.run();
             tx.send((System::current(), srv, local_addr)).unwrap();
         });
 
@@ -773,7 +773,7 @@ where
         let connector = {
             #[cfg(feature = "openssl")]
             {
-                use open_ssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
+                use openssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
 
                 let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
                 builder.set_verify(SslVerifyMode::NONE);
@@ -825,9 +825,9 @@ enum HttpVer {
 enum StreamType {
     Tcp,
     #[cfg(feature = "openssl")]
-    Openssl(open_ssl::ssl::SslAcceptor),
+    Openssl(openssl::ssl::SslAcceptor),
     #[cfg(feature = "rustls")]
-    Rustls(rust_tls::ServerConfig),
+    Rustls(rustls::ServerConfig),
 }
 
 impl Default for TestServerConfig {
@@ -865,14 +865,14 @@ impl TestServerConfig {
 
     /// Start openssl server
     #[cfg(feature = "openssl")]
-    pub fn openssl(mut self, acceptor: open_ssl::ssl::SslAcceptor) -> Self {
+    pub fn openssl(mut self, acceptor: openssl::ssl::SslAcceptor) -> Self {
         self.stream = StreamType::Openssl(acceptor);
         self
     }
 
     /// Start rustls server
     #[cfg(feature = "rustls")]
-    pub fn rustls(mut self, config: rust_tls::ServerConfig) -> Self {
+    pub fn rustls(mut self, config: rustls::ServerConfig) -> Self {
         self.stream = StreamType::Rustls(config);
         self
     }
@@ -1043,7 +1043,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_request_methods() {
-        let mut app = init_service(
+        let app = init_service(
             App::new().service(
                 web::resource("/index.html")
                     .route(web::put().to(|| HttpResponse::Ok().body("put!")))
@@ -1058,7 +1058,7 @@ mod tests {
             .insert_header((header::CONTENT_TYPE, "application/json"))
             .to_request();
 
-        let result = read_response(&mut app, put_req).await;
+        let result = read_response(&app, put_req).await;
         assert_eq!(result, Bytes::from_static(b"put!"));
 
         let patch_req = TestRequest::patch()
@@ -1066,17 +1066,17 @@ mod tests {
             .insert_header((header::CONTENT_TYPE, "application/json"))
             .to_request();
 
-        let result = read_response(&mut app, patch_req).await;
+        let result = read_response(&app, patch_req).await;
         assert_eq!(result, Bytes::from_static(b"patch!"));
 
         let delete_req = TestRequest::delete().uri("/index.html").to_request();
-        let result = read_response(&mut app, delete_req).await;
+        let result = read_response(&app, delete_req).await;
         assert_eq!(result, Bytes::from_static(b"delete!"));
     }
 
     #[actix_rt::test]
     async fn test_response() {
-        let mut app = init_service(
+        let app = init_service(
             App::new().service(
                 web::resource("/index.html")
                     .route(web::post().to(|| HttpResponse::Ok().body("welcome!"))),
@@ -1089,13 +1089,13 @@ mod tests {
             .insert_header((header::CONTENT_TYPE, "application/json"))
             .to_request();
 
-        let result = read_response(&mut app, req).await;
+        let result = read_response(&app, req).await;
         assert_eq!(result, Bytes::from_static(b"welcome!"));
     }
 
     #[actix_rt::test]
     async fn test_send_request() {
-        let mut app = init_service(
+        let app = init_service(
             App::new().service(
                 web::resource("/index.html")
                     .route(web::get().to(|| HttpResponse::Ok().body("welcome!"))),
@@ -1105,7 +1105,7 @@ mod tests {
 
         let resp = TestRequest::get()
             .uri("/index.html")
-            .send_request(&mut app)
+            .send_request(&app)
             .await;
 
         let result = read_body(resp).await;
@@ -1120,10 +1120,8 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_response_json() {
-        let mut app = init_service(App::new().service(web::resource("/people").route(
-            web::post().to(|person: web::Json<Person>| {
-                HttpResponse::Ok().json(person.into_inner())
-            }),
+        let app = init_service(App::new().service(web::resource("/people").route(
+            web::post().to(|person: web::Json<Person>| HttpResponse::Ok().json(person)),
         )))
         .await;
 
@@ -1135,16 +1133,14 @@ mod tests {
             .set_payload(payload)
             .to_request();
 
-        let result: Person = read_response_json(&mut app, req).await;
+        let result: Person = read_response_json(&app, req).await;
         assert_eq!(&result.id, "12345");
     }
 
     #[actix_rt::test]
     async fn test_body_json() {
-        let mut app = init_service(App::new().service(web::resource("/people").route(
-            web::post().to(|person: web::Json<Person>| {
-                HttpResponse::Ok().json(person.into_inner())
-            }),
+        let app = init_service(App::new().service(web::resource("/people").route(
+            web::post().to(|person: web::Json<Person>| HttpResponse::Ok().json(person)),
         )))
         .await;
 
@@ -1154,7 +1150,7 @@ mod tests {
             .uri("/people")
             .insert_header((header::CONTENT_TYPE, "application/json"))
             .set_payload(payload)
-            .send_request(&mut app)
+            .send_request(&app)
             .await;
 
         let result: Person = read_body_json(resp).await;
@@ -1163,10 +1159,8 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_request_response_form() {
-        let mut app = init_service(App::new().service(web::resource("/people").route(
-            web::post().to(|person: web::Form<Person>| {
-                HttpResponse::Ok().json(person.into_inner())
-            }),
+        let app = init_service(App::new().service(web::resource("/people").route(
+            web::post().to(|person: web::Form<Person>| HttpResponse::Ok().json(person)),
         )))
         .await;
 
@@ -1182,17 +1176,15 @@ mod tests {
 
         assert_eq!(req.content_type(), "application/x-www-form-urlencoded");
 
-        let result: Person = read_response_json(&mut app, req).await;
+        let result: Person = read_response_json(&app, req).await;
         assert_eq!(&result.id, "12345");
         assert_eq!(&result.name, "User name");
     }
 
     #[actix_rt::test]
     async fn test_request_response_json() {
-        let mut app = init_service(App::new().service(web::resource("/people").route(
-            web::post().to(|person: web::Json<Person>| {
-                HttpResponse::Ok().json(person.into_inner())
-            }),
+        let app = init_service(App::new().service(web::resource("/people").route(
+            web::post().to(|person: web::Json<Person>| HttpResponse::Ok().json(person)),
         )))
         .await;
 
@@ -1208,7 +1200,7 @@ mod tests {
 
         assert_eq!(req.content_type(), "application/json");
 
-        let result: Person = read_response_json(&mut app, req).await;
+        let result: Person = read_response_json(&app, req).await;
         assert_eq!(&result.id, "12345");
         assert_eq!(&result.name, "User name");
     }
@@ -1221,12 +1213,12 @@ mod tests {
             match res {
                 Ok(value) => Ok(HttpResponse::Ok()
                     .content_type("text/plain")
-                    .body(format!("Async with block value: {}", value))),
+                    .body(format!("Async with block value: {:?}", value))),
                 Err(_) => panic!("Unexpected"),
             }
         }
 
-        let mut app = init_service(
+        let app = init_service(
             App::new().service(web::resource("/index.html").to(async_with_block)),
         )
         .await;
@@ -1243,7 +1235,7 @@ mod tests {
             HttpResponse::Ok()
         }
 
-        let mut app = init_service(
+        let app = init_service(
             App::new()
                 .data(10usize)
                 .service(web::resource("/index.html").to(handler)),
@@ -1299,7 +1291,7 @@ mod tests {
             .data(addr.clone())
             .service(web::resource("/").to(actor_handler));
 
-        let mut app = init_service(srv).await;
+        let app = init_service(srv).await;
 
         let req = TestRequest::post().uri("/").to_request();
         let res = app.call(req).await.unwrap();

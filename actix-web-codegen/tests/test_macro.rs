@@ -1,5 +1,4 @@
 use std::future::Future;
-use std::pin::Pin;
 use std::task::{Context, Poll};
 
 use actix_web::dev::{Service, ServiceRequest, ServiceResponse, Transform};
@@ -8,7 +7,7 @@ use actix_web::{http, test, web::Path, App, Error, HttpResponse, Responder};
 use actix_web_codegen::{
     connect, delete, get, head, options, patch, post, put, route, trace,
 };
-use futures_util::future;
+use futures_util::future::{self, LocalBoxFuture};
 
 // Make sure that we can name function as 'config'
 #[get("/config")]
@@ -117,14 +116,13 @@ where
 {
     type Response = ServiceResponse<B>;
     type Error = Error;
-    #[allow(clippy::type_complexity)]
-    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>>>>;
+    type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
 
-    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+    fn poll_ready(&self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         self.service.poll_ready(cx)
     }
 
-    fn call(&mut self, req: ServiceRequest) -> Self::Future {
+    fn call(&self, req: ServiceRequest) -> Self::Future {
         let fut = self.service.call(req);
 
         Box::pin(async move {

@@ -18,7 +18,9 @@ path = "src/lib.rs"
 
 [dependencies]
 actix-web = { version = "4.0.0-beta.1", default-features = false }
-actix-service = "2.0.0-beta.3"
+actix-service = "2.0.0-beta.4"
+
+askama_escape = "0.10"
 bitflags = "1"
 bytes = "1"
 futures-core = { version = "0.3.7", default-features = false }
@@ -28,8 +30,7 @@ log = "0.4"
 mime = "0.3"
 mime_guess = "2.0.1"
 percent-encoding = "2.1"
-v_htmlescape = "0.12"
 
 [dev-dependencies]
-actix-rt = "2.0.0-beta.2"
+actix-rt = "2"
 actix-web = "4.0.0-beta.1"

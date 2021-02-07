@@ -191,6 +191,9 @@ fn bytes_to_string(body: Bytes, encoding: &'static Encoding) -> Result<String, E
 /// building extractors on top of `Payload`.
 ///
 /// By default, the payload size limit is 256kB and there is no mime type condition.
+///
+/// To use this, add an instance of it to your app or service through one of the
+/// `.app_data()` methods.
 #[derive(Clone)]
 pub struct PayloadConfig {
     limit: usize,
@@ -198,7 +201,7 @@ pub struct PayloadConfig {
 }
 
 impl PayloadConfig {
-    /// Create new instance with a size limit and no mime type condition.
+    /// Create new instance with a size limit (in bytes) and no mime type condition.
     pub fn new(limit: usize) -> Self {
         Self {
             limit,
@@ -206,7 +209,7 @@ impl PayloadConfig {
         }
     }
 
-    /// Set maximum accepted payload size. The default limit is 256kB.
+    /// Set maximum accepted payload size in bytes. The default limit is 256kB.
     pub fn limit(mut self, limit: usize) -> Self {
         self.limit = limit;
         self
@@ -286,10 +289,12 @@ impl HttpMessageBody {
         if let Some(l) = req.headers().get(&header::CONTENT_LENGTH) {
             match l.to_str() {
                 Ok(s) => match s.parse::<usize>() {
-                    Ok(l) if l > DEFAULT_CONFIG_LIMIT => {
-                        err = Some(PayloadError::Overflow)
+                    Ok(l) => {
+                        if l > DEFAULT_CONFIG_LIMIT {
+                            err = Some(PayloadError::Overflow);
+                        }
+                        length = Some(l)
                     }
-                    Ok(l) => length = Some(l),
                     Err(_) => err = Some(PayloadError::UnknownLength),
                 },
                 Err(_) => err = Some(PayloadError::UnknownLength),
@@ -313,9 +318,11 @@ impl HttpMessageBody {
     /// Change max size of payload. By default max size is 256kB
     pub fn limit(mut self, limit: usize) -> Self {
         if let Some(l) = self.length {
-            if l > limit {
-                self.err = Some(PayloadError::Overflow);
-            }
+            self.err = if l > limit {
+                Some(PayloadError::Overflow)
+            } else {
+                None
+            };
         }
         self.limit = limit;
         self
@@ -385,7 +392,7 @@ mod tests {
             "payload is probably json string"
         }
 
-        let mut srv = init_service(
+        let srv = init_service(
             App::new()
                 .service(
                     web::resource("/bytes-app-data")
@@ -415,43 +422,43 @@ mod tests {
         .await;
 
         let req = TestRequest::with_uri("/bytes-app-data").to_request();
-        let resp = call_service(&mut srv, req).await;
+        let resp = call_service(&srv, req).await;
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 
         let req = TestRequest::with_uri("/bytes-data").to_request();
-        let resp = call_service(&mut srv, req).await;
+        let resp = call_service(&srv, req).await;
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 
         let req = TestRequest::with_uri("/string-app-data").to_request();
-        let resp = call_service(&mut srv, req).await;
+        let resp = call_service(&srv, req).await;
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 
         let req = TestRequest::with_uri("/string-data").to_request();
-        let resp = call_service(&mut srv, req).await;
+        let resp = call_service(&srv, req).await;
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 
         let req = TestRequest::with_uri("/bytes-app-data")
             .insert_header(header::ContentType(mime::APPLICATION_JSON))
             .to_request();
-        let resp = call_service(&mut srv, req).await;
+        let resp = call_service(&srv, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
 
         let req = TestRequest::with_uri("/bytes-data")
             .insert_header(header::ContentType(mime::APPLICATION_JSON))
             .to_request();
-        let resp = call_service(&mut srv, req).await;
+        let resp = call_service(&srv, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
 
         let req = TestRequest::with_uri("/string-app-data")
             .insert_header(header::ContentType(mime::APPLICATION_JSON))
             .to_request();
-        let resp = call_service(&mut srv, req).await;
+        let resp = call_service(&srv, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
 
         let req = TestRequest::with_uri("/string-data")
             .insert_header(header::ContentType(mime::APPLICATION_JSON))
             .to_request();
-        let resp = call_service(&mut srv, req).await;
+        let resp = call_service(&srv, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
     }
 

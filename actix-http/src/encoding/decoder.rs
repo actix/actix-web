@@ -79,15 +79,8 @@ where
     ) -> Poll<Option<Self::Item>> {
         loop {
             if let Some(ref mut fut) = self.fut {
-                let (chunk, decoder) = match ready!(Pin::new(fut).poll(cx)) {
-                    Ok(Ok(item)) => item,
-                    Ok(Err(e)) => {
-                        return Poll::Ready(Some(Err(BlockingError::Error(e).into())))
-                    }
-                    Err(_) => {
-                        return Poll::Ready(Some(Err(BlockingError::Canceled.into())))
-                    }
-                };
+                let (chunk, decoder) =
+                    ready!(Pin::new(fut).poll(cx)).map_err(|_| BlockingError)??;
                 self.decoder = Some(decoder);
                 self.fut.take();
                 if let Some(chunk) = chunk {

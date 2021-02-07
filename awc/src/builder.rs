@@ -1,4 +1,3 @@
-use std::cell::RefCell;
 use std::convert::TryFrom;
 use std::fmt;
 use std::rc::Rc;
@@ -24,7 +23,7 @@ pub struct ClientBuilder {
     conn_window_size: Option<u32>,
     headers: HeaderMap,
     timeout: Option<Duration>,
-    connector: Option<RefCell<Box<dyn Connect>>>,
+    connector: Option<Box<dyn Connect>>,
 }
 
 impl Default for ClientBuilder {
@@ -56,7 +55,7 @@ impl ClientBuilder {
         <T::Response as Connection>::Future: 'static,
         T::Future: 'static,
     {
-        self.connector = Some(RefCell::new(Box::new(ConnectorWrapper(connector))));
+        self.connector = Some(Box::new(ConnectorWrapper(connector)));
         self
     }
 
@@ -182,9 +181,7 @@ impl ClientBuilder {
             if let Some(val) = self.stream_window_size {
                 connector = connector.initial_window_size(val)
             };
-            RefCell::new(
-                Box::new(ConnectorWrapper(connector.finish())) as Box<dyn Connect>
-            )
+            Box::new(ConnectorWrapper(connector.finish())) as _
         };
         let config = ClientConfig {
             headers: self.headers,

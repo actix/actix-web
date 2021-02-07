@@ -1,6 +1,6 @@
 #![cfg(feature = "rustls")]
 
-extern crate rust_tls as rustls;
+extern crate tls_rustls as rustls;
 
 use std::{
     io::BufReader,
