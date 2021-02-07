@@ -21,7 +21,7 @@ use actix_rt::System;
 use awc::Client;
 
 fn main() {
-    System::new("test").block_on(async {
+    System::new().block_on(async {
         let client = Client::default();
 
         let res = client

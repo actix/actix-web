@@ -100,9 +100,9 @@ impl Connector<(), ()> {
     fn build_ssl(protocols: Vec<Vec<u8>>) -> SslConnector {
         let mut config = ClientConfig::new();
         config.set_protocols(&protocols);
-        config
-            .root_store
-            .add_server_trust_anchors(&actix_tls::accept::rustls::TLS_SERVER_ROOTS);
+        config.root_store.add_server_trust_anchors(
+            &actix_tls::connect::ssl::rustls::TLS_SERVER_ROOTS,
+        );
         SslConnector::Rustls(Arc::new(config))
     }
 
@@ -392,11 +392,11 @@ mod connect_impl {
             Ready<Result<IoConnection<Io>, ConnectError>>,
         >;
 
-        fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        fn poll_ready(&self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
             self.tcp_pool.poll_ready(cx)
         }
 
-        fn call(&mut self, req: Connect) -> Self::Future {
+        fn call(&self, req: Connect) -> Self::Future {
             match req.uri.scheme_str() {
                 Some("https") | Some("wss") => {
                     Either::Right(err(ConnectError::SslIsNotSupported))
@@ -460,11 +460,11 @@ mod connect_impl {
             InnerConnectorResponseB<T2, Io1, Io2>,
         >;
 
-        fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        fn poll_ready(&self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
             self.tcp_pool.poll_ready(cx)
         }
 
-        fn call(&mut self, req: Connect) -> Self::Future {
+        fn call(&self, req: Connect) -> Self::Future {
             match req.uri.scheme_str() {
                 Some("https") | Some("wss") => Either::Right(InnerConnectorResponseB {
                     fut: self.ssl_pool.call(req),

@@ -1,4 +1,4 @@
-use std::task::{Context, Poll};
+use std::task::Poll;
 
 use actix_service::{Service, ServiceFactory};
 use futures_util::future::{ready, Ready};
@@ -26,11 +26,9 @@ impl Service<Request> for ExpectHandler {
     type Error = Error;
     type Future = Ready<Result<Self::Response, Self::Error>>;
 
-    fn poll_ready(&mut self, _: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        Poll::Ready(Ok(()))
-    }
+    actix_service::always_ready!();
 
-    fn call(&mut self, req: Request) -> Self::Future {
+    fn call(&self, req: Request) -> Self::Future {
         ready(Ok(req))
         // TODO: add some way to trigger error
         // Err(error::ErrorExpectationFailed("test"))

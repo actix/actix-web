@@ -147,7 +147,10 @@ impl From<ResponseBuilder> for Error {
     }
 }
 
-/// Return `GATEWAY_TIMEOUT` for `TimeoutError`
+/// Inspects the underlying enum and returns an appropriate status code.
+///
+/// If the variant is [`TimeoutError::Service`], the error code of the service is returned.
+/// Otherwise, [`StatusCode::GATEWAY_TIMEOUT`] is returned.
 impl<E: ResponseError> ResponseError for TimeoutError<E> {
     fn status_code(&self) -> StatusCode {
         match self {
@@ -161,41 +164,44 @@ impl<E: ResponseError> ResponseError for TimeoutError<E> {
 #[display(fmt = "UnknownError")]
 struct UnitError;
 
-/// `InternalServerError` for `UnitError`
+/// Returns [`StatusCode::INTERNAL_SERVER_ERROR`] for [`UnitError`].
 impl ResponseError for UnitError {}
 
-/// `InternalServerError` for `JsonError`
+/// Returns [`StatusCode::INTERNAL_SERVER_ERROR`] for [`JsonError`].
 impl ResponseError for JsonError {}
 
-/// `InternalServerError` for `FormError`
+/// Returns [`StatusCode::INTERNAL_SERVER_ERROR`] for [`FormError`].
 impl ResponseError for FormError {}
 
 #[cfg(feature = "openssl")]
-/// `InternalServerError` for `openssl::ssl::Error`
+/// Returns [`StatusCode::INTERNAL_SERVER_ERROR`] for [`actix_tls::accept::openssl::SslError`].
 impl ResponseError for actix_tls::accept::openssl::SslError {}
 
-/// Return `BAD_REQUEST` for `de::value::Error`
+/// Returns [`StatusCode::BAD_REQUEST`] for [`DeError`].
 impl ResponseError for DeError {
     fn status_code(&self) -> StatusCode {
         StatusCode::BAD_REQUEST
     }
 }
 
-/// `InternalServerError` for `Canceled`
+/// Returns [`StatusCode::INTERNAL_SERVER_ERROR`] for [`Canceled`].
 impl ResponseError for Canceled {}
 
-/// Return `BAD_REQUEST` for `Utf8Error`
+/// Returns [`StatusCode::BAD_REQUEST`] for [`Utf8Error`].
 impl ResponseError for Utf8Error {
     fn status_code(&self) -> StatusCode {
         StatusCode::BAD_REQUEST
     }
 }
 
-/// Return `InternalServerError` for `HttpError`,
-/// Response generation can return `HttpError`, so it is internal error
+/// Returns [`StatusCode::INTERNAL_SERVER_ERROR`] for [`HttpError`].
 impl ResponseError for HttpError {}
 
-/// Return `InternalServerError` for `io::Error`
+/// Inspects the underlying [`io::ErrorKind`] and returns an appropriate status code.
+///
+/// If the error is [`io::ErrorKind::NotFound`], [`StatusCode::NOT_FOUND`] is returned. If the
+/// error is [`io::ErrorKind::PermissionDenied`], [`StatusCode::FORBIDDEN`] is returned. Otherwise,
+/// [`StatusCode::INTERNAL_SERVER_ERROR`] is returned.
 impl ResponseError for io::Error {
     fn status_code(&self) -> StatusCode {
         match self.kind() {
@@ -206,7 +212,7 @@ impl ResponseError for io::Error {
     }
 }
 
-/// `BadRequest` for `InvalidHeaderValue`
+/// Returns [`StatusCode::BAD_REQUEST`] for [`header::InvalidHeaderValue`].
 impl ResponseError for header::InvalidHeaderValue {
     fn status_code(&self) -> StatusCode {
         StatusCode::BAD_REQUEST
@@ -297,17 +303,13 @@ impl From<httparse::Error> for ParseError {
 
 /// A set of errors that can occur running blocking tasks in thread pool.
 #[derive(Debug, Display)]
-pub enum BlockingError<E: fmt::Debug> {
-    #[display(fmt = "{:?}", _0)]
-    Error(E),
-    #[display(fmt = "Thread pool is gone")]
-    Canceled,
-}
+#[display(fmt = "Blocking thread pool is gone")]
+pub struct BlockingError;
 
-impl<E: fmt::Debug> std::error::Error for BlockingError<E> {}
+impl std::error::Error for BlockingError {}
 
 /// `InternalServerError` for `BlockingError`
-impl<E: fmt::Debug> ResponseError for BlockingError<E> {}
+impl ResponseError for BlockingError {}
 
 #[derive(Display, Debug)]
 /// A set of errors that can occur during payload parsing
@@ -372,15 +374,12 @@ impl From<io::Error> for PayloadError {
     }
 }
 
-impl From<BlockingError<io::Error>> for PayloadError {
-    fn from(err: BlockingError<io::Error>) -> Self {
-        match err {
-            BlockingError::Error(e) => PayloadError::Io(e),
-            BlockingError::Canceled => PayloadError::Io(io::Error::new(
-                io::ErrorKind::Other,
-                "Operation is canceled",
-            )),
-        }
+impl From<BlockingError> for PayloadError {
+    fn from(_: BlockingError) -> Self {
+        PayloadError::Io(io::Error::new(
+            io::ErrorKind::Other,
+            "Operation is canceled",
+        ))
     }
 }
 
@@ -970,8 +969,9 @@ where
 }
 
 #[cfg(feature = "actors")]
-/// `InternalServerError` for `actix::MailboxError`
-/// This is supported on feature=`actors` only
+/// Returns [`StatusCode::INTERNAL_SERVER_ERROR`] for [`actix::MailboxError`].
+///
+/// This is only supported when the feature `actors` is enabled.
 impl ResponseError for actix::MailboxError {}
 
 #[cfg(test)]

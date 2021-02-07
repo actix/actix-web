@@ -4,6 +4,9 @@
 #![doc(html_logo_url = "https://actix.rs/img/logo.png")]
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
 
+#[cfg(feature = "openssl")]
+extern crate tls_openssl as openssl;
+
 use std::sync::mpsc;
 use std::{net, thread, time};
 
@@ -60,7 +63,7 @@ pub async fn test_server_with_addr<F: ServiceFactory<TcpStream>>(
 
     // run server in separate thread
     thread::spawn(move || {
-        let sys = System::new("actix-test-server");
+        let sys = System::new();
         let local_addr = tcp.local_addr().unwrap();
 
         let srv = Server::build()
@@ -69,7 +72,7 @@ pub async fn test_server_with_addr<F: ServiceFactory<TcpStream>>(
             .disable_signals();
 
         sys.block_on(async {
-            srv.start();
+            srv.run();
             tx.send((System::current(), local_addr)).unwrap();
         });
 
@@ -82,7 +85,7 @@ pub async fn test_server_with_addr<F: ServiceFactory<TcpStream>>(
         let connector = {
             #[cfg(feature = "openssl")]
             {
-                use open_ssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
+                use openssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
 
                 let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
                 builder.set_verify(SslVerifyMode::NONE);
@@ -106,7 +109,6 @@ pub async fn test_server_with_addr<F: ServiceFactory<TcpStream>>(
 
         Client::builder().connector(connector).finish()
     };
-    actix_tls::connect::start_default_resolver().await.unwrap();
 
     TestServer {
         addr,

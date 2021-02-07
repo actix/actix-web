@@ -1,4 +1,3 @@
-use std::cell::RefCell;
 use std::future::Future;
 use std::marker::PhantomData;
 use std::net;
@@ -37,7 +36,7 @@ where
     S: Service<Request>,
     B: MessageBody,
 {
-    flow: Rc<RefCell<HttpFlow<S, X, U>>>,
+    flow: Rc<HttpFlow<S, X, U>>,
     connection: Connection<T, Bytes>,
     on_connect_data: OnConnectData,
     config: ServiceConfig,
@@ -56,7 +55,7 @@ where
     B: MessageBody,
 {
     pub(crate) fn new(
-        services: Rc<RefCell<HttpFlow<S, X, U>>>,
+        flow: Rc<HttpFlow<S, X, U>>,
         connection: Connection<T, Bytes>,
         on_connect_data: OnConnectData,
         config: ServiceConfig,
@@ -80,7 +79,7 @@ where
         };
 
         Dispatcher {
-            flow: services,
+            flow,
             config,
             peer_addr,
             connection,
@@ -138,7 +137,7 @@ where
 
                     let svc = ServiceResponse::<S::Future, S::Response, S::Error, B> {
                         state: ServiceResponseState::ServiceCall(
-                            this.flow.borrow_mut().service.call(req),
+                            this.flow.service.call(req),
                             Some(res),
                         ),
                         config: this.config.clone(),
