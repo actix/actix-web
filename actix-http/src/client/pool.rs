@@ -26,6 +26,7 @@ use super::connection::{ConnectionType, IoConnection};
 use super::error::ConnectError;
 use super::h2proto::handshake;
 use super::Connect;
+use crate::client::connection::H2Connection;
 
 #[derive(Clone, Copy, PartialEq)]
 /// Protocol version
@@ -139,10 +140,9 @@ where
                             Some(guard.consume()),
                         ))
                     } else {
-                        let (snd, connection) = handshake(io, &config).await?;
-                        actix_rt::spawn(connection.map(|_| ()));
+                        let (sender, connection) = handshake(io, &config).await?;
                         Ok(IoConnection::new(
-                            ConnectionType::H2(snd),
+                            ConnectionType::H2(H2Connection::new(sender, connection)),
                             Instant::now(),
                             Some(guard.consume()),
                         ))
@@ -566,11 +566,10 @@ where
 
         if let Some(ref mut h2) = this.h2 {
             return match Pin::new(h2).poll(cx) {
-                Poll::Ready(Ok((snd, connection))) => {
-                    actix_rt::spawn(connection.map(|_| ()));
+                Poll::Ready(Ok((sender, connection))) => {
                     let rx = this.rx.take().unwrap();
                     let _ = rx.send(Ok(IoConnection::new(
-                        ConnectionType::H2(snd),
+                        ConnectionType::H2(H2Connection::new(sender, connection)),
                         Instant::now(),
                         Some(Acquired(this.key.clone(), this.inner.take())),
                     )));
