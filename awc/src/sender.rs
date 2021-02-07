@@ -189,10 +189,12 @@ impl RequestSender {
         B: Into<Body>,
     {
         let fut = match self {
-            RequestSender::Owned(head) => {
-                connector.send_request(RequestHeadType::Owned(head), body.into(), addr)
-            }
-            RequestSender::Rc(head, extra_headers) => connector.send_request(
+            RequestSender::Owned(head) => config.connector.send_request(
+                RequestHeadType::Owned(head),
+                body.into(),
+                addr,
+            ),
+            RequestSender::Rc(head, extra_headers) => config.connector.send_request(
                 RequestHeadType::Rc(head, extra_headers),
                 body.into(),
                 addr,
