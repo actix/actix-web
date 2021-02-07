@@ -734,6 +734,78 @@ where
         }
         Ok(())
     }
+
+    /// Returns true when io stream can be disconnected after write to it.
+    ///
+    /// It covers these conditions:
+    ///
+    /// - `std::io::ErrorKind::ConnectionReset` after partial read.
+    /// - all data read done.
+    #[inline(always)]
+    fn read_available(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Result<bool, DispatchError> {
+        let this = self.project();
+
+        if this.flags.contains(Flags::READ_DISCONNECT) {
+            return Ok(false);
+        };
+
+        let mut io = Pin::new(this.io.as_mut().unwrap());
+
+        let mut read_some = false;
+
+        loop {
+            // grow buffer if necessary.
+            let remaining = this.read_buf.capacity() - this.read_buf.len();
+            if remaining < LW_BUFFER_SIZE {
+                this.read_buf.reserve(HW_BUFFER_SIZE - remaining);
+            }
+
+            match actix_codec::poll_read_buf(io.as_mut(), cx, this.read_buf) {
+                Poll::Pending => return Ok(false),
+                Poll::Ready(Ok(n)) => {
+                    if n == 0 {
+                        return Ok(true);
+                    } else {
+                        // Return early when read buf exceed decoder's max buffer size.
+                        if this.read_buf.len() >= super::decoder::MAX_BUFFER_SIZE {
+                            // at this point it's not known io is still scheduled to
+                            // be waked up. so force wake up dispatcher just in case.
+                            // TODO: figure out the overhead.
+                            cx.waker().wake_by_ref();
+                            return Ok(false);
+                        }
+
+                        read_some = true;
+                    }
+                }
+                Poll::Ready(Err(err)) => {
+                    return if err.kind() == io::ErrorKind::WouldBlock {
+                        Ok(false)
+                    } else if err.kind() == io::ErrorKind::ConnectionReset && read_some {
+                        Ok(true)
+                    } else {
+                        Err(DispatchError::Io(err))
+                    }
+                }
+            }
+        }
+    }
+
+    /// call upgrade service with request.
+    fn upgrade(self: Pin<&mut Self>, req: Request) -> U::Future {
+        let this = self.project();
+        let mut parts = FramedParts::with_read_buf(
+            this.io.take().unwrap(),
+            mem::take(this.codec),
+            mem::take(this.read_buf),
+        );
+        parts.write_buf = mem::take(this.write_buf);
+        let framed = Framed::from_parts(parts);
+        this.flow.upgrade.as_ref().unwrap().call((req, framed))
+    }
 }
 
 impl<T, S, B, X, U> Future for Dispatcher<T, S, B, X, U>
@@ -778,60 +850,36 @@ where
                         }
                     }
                 } else {
-                    // read socket into a buf
-                    let should_disconnect =
-                        if !inner.flags.contains(Flags::READ_DISCONNECT) {
-                            let mut inner_p = inner.as_mut().project();
-                            read_available(
-                                cx,
-                                inner_p.io.as_mut().unwrap(),
-                                &mut inner_p.read_buf,
-                            )?
-                        } else {
-                            None
-                        };
+                    // read from io stream and fill read buffer.
+                    let should_disconnect = inner.as_mut().read_available(cx)?;
 
                     inner.as_mut().poll_request(cx)?;
-                    if let Some(true) = should_disconnect {
-                        let inner_p = inner.as_mut().project();
-                        inner_p.flags.insert(Flags::READ_DISCONNECT);
-                        if let Some(mut payload) = inner_p.payload.take() {
+
+                    // io stream should to be closed.
+                    if should_disconnect {
+                        let inner = inner.as_mut().project();
+                        inner.flags.insert(Flags::READ_DISCONNECT);
+                        if let Some(mut payload) = inner.payload.take() {
                             payload.feed_eof();
                         }
                     };
 
                     loop {
-                        let inner_p = inner.as_mut().project();
-                        let remaining =
-                            inner_p.write_buf.capacity() - inner_p.write_buf.len();
-                        if remaining < LW_BUFFER_SIZE {
-                            inner_p.write_buf.reserve(HW_BUFFER_SIZE - remaining);
-                        }
-                        let result = inner.as_mut().poll_response(cx)?;
-                        let drain = result == PollResponse::DrainWriteBuf;
-
-                        // switch to upgrade handler
-                        if let PollResponse::Upgrade(req) = result {
-                            let inner_p = inner.as_mut().project();
-                            let mut parts = FramedParts::with_read_buf(
-                                inner_p.io.take().unwrap(),
-                                mem::take(inner_p.codec),
-                                mem::take(inner_p.read_buf),
-                            );
-                            parts.write_buf = mem::take(inner_p.write_buf);
-                            let framed = Framed::from_parts(parts);
-                            let upgrade = inner_p
-                                .flow
-                                .upgrade
-                                .as_ref()
-                                .unwrap()
-                                .call((req, framed));
-                            self.as_mut()
-                                .project()
-                                .inner
-                                .set(DispatcherState::Upgrade(upgrade));
-                            return self.poll(cx);
-                        }
+                        // poll_response and populate write buffer.
+                        // drain indicate if write buffer should be emptied before next run.
+                        let drain = match inner.as_mut().poll_response(cx)? {
+                            PollResponse::DrainWriteBuf => true,
+                            PollResponse::DoNothing => false,
+                            // upgrade request and goes Upgrade variant of DispatcherState.
+                            PollResponse::Upgrade(req) => {
+                                let upgrade = inner.upgrade(req);
+                                self.as_mut()
+                                    .project()
+                                    .inner
+                                    .set(DispatcherState::Upgrade(upgrade));
+                                return self.poll(cx);
+                            }
+                        };
 
                         // we didn't get WouldBlock from write operation,
                         // so data get written to kernel completely (macOS)
@@ -884,66 +932,6 @@ where
                 error!("Upgrade handler error: {}", e);
                 DispatchError::Upgrade
             }),
-        }
-    }
-}
-
-/// Returns either:
-/// - `Ok(Some(true))` - data was read and done reading all data.
-/// - `Ok(Some(false))` - data was read but there should be more to read.
-/// - `Ok(None)` - no data was read but there should be more to read later.
-/// - Unhandled Errors
-fn read_available<T>(
-    cx: &mut Context<'_>,
-    io: &mut T,
-    buf: &mut BytesMut,
-) -> Result<Option<bool>, io::Error>
-where
-    T: AsyncRead + Unpin,
-{
-    let mut read_some = false;
-
-    loop {
-        // reserve capacity for buffer
-        let remaining = buf.capacity() - buf.len();
-        if remaining < LW_BUFFER_SIZE {
-            buf.reserve(HW_BUFFER_SIZE - remaining);
-        }
-
-        match actix_codec::poll_read_buf(Pin::new(io), cx, buf) {
-            Poll::Pending => {
-                return if read_some { Ok(Some(false)) } else { Ok(None) };
-            }
-            Poll::Ready(Ok(n)) => {
-                if n == 0 {
-                    return Ok(Some(true));
-                } else {
-                    // If buf is full return but do not disconnect since
-                    // there is more reading to be done
-                    if buf.len() >= super::decoder::MAX_BUFFER_SIZE {
-                        // at this point it's not known io is still scheduled to
-                        // be waked up. so force wake up dispatcher just in case.
-                        // TODO: figure out the overhead.
-                        cx.waker().wake_by_ref();
-                        return Ok(Some(false));
-                    }
-
-                    read_some = true;
-                }
-            }
-            Poll::Ready(Err(err)) => {
-                return if err.kind() == io::ErrorKind::WouldBlock {
-                    if read_some {
-                        Ok(Some(false))
-                    } else {
-                        Ok(None)
-                    }
-                } else if err.kind() == io::ErrorKind::ConnectionReset && read_some {
-                    Ok(Some(true))
-                } else {
-                    Err(err)
-                }
-            }
         }
     }
 }

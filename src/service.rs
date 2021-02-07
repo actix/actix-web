@@ -694,7 +694,7 @@ mod tests {
             web::scope("/test3").service(scoped)
         ];
 
-        let mut srv = init_service(App::new().service(services)).await;
+        let srv = init_service(App::new().service(services)).await;
 
         let req = TestRequest::with_uri("/test1").to_request();
         let resp = srv.call(req).await.unwrap();
@@ -725,7 +725,7 @@ mod tests {
             web::resource("/scoped_test2").to(|| async { "test2" }),
         ];
 
-        let mut srv = init_service(
+        let srv = init_service(
             App::new()
                 .service(services)
                 .service(web::scope("/test3").service(scoped)),
