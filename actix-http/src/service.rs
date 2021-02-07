@@ -1,4 +1,3 @@
-use std::cell::RefCell;
 use std::marker::PhantomData;
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -440,7 +439,7 @@ where
     X: Service<Request>,
     U: Service<(Request, Framed<T, h1::Codec>)>,
 {
-    flow: Rc<RefCell<HttpFlow<S, X, U>>>,
+    flow: Rc<HttpFlow<S, X, U>>,
     cfg: ServiceConfig,
     on_connect_ext: Option<Rc<ConnectCallback<T>>>,
     _phantom: PhantomData<B>,
@@ -454,12 +453,12 @@ pub(super) struct HttpFlow<S, X, U> {
 }
 
 impl<S, X, U> HttpFlow<S, X, U> {
-    pub(super) fn new(service: S, expect: X, upgrade: Option<U>) -> Rc<RefCell<Self>> {
-        Rc::new(RefCell::new(Self {
+    pub(super) fn new(service: S, expect: X, upgrade: Option<U>) -> Rc<Self> {
+        Rc::new(Self {
             service,
             expect,
             upgrade,
-        }))
+        })
     }
 }
 
@@ -509,9 +508,9 @@ where
     type Error = DispatchError;
     type Future = HttpServiceHandlerResponse<T, S, B, X, U>;
 
-    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        let mut flow = self.flow.borrow_mut();
-        let ready = flow
+    fn poll_ready(&self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        let ready = self
+            .flow
             .expect
             .poll_ready(cx)
             .map_err(|e| {
@@ -521,7 +520,8 @@ where
             })?
             .is_ready();
 
-        let ready = flow
+        let ready = self
+            .flow
             .service
             .poll_ready(cx)
             .map_err(|e| {
@@ -532,7 +532,7 @@ where
             .is_ready()
             && ready;
 
-        let ready = if let Some(ref mut upg) = flow.upgrade {
+        let ready = if let Some(ref upg) = self.flow.upgrade {
             upg.poll_ready(cx)
                 .map_err(|e| {
                     let e = e.into();
@@ -553,7 +553,7 @@ where
     }
 
     fn call(
-        &mut self,
+        &self,
         (io, proto, peer_addr): (T, Protocol, Option<net::SocketAddr>),
     ) -> Self::Future {
         let on_connect_data =
@@ -604,7 +604,7 @@ where
         Option<(
             Handshake<T, Bytes>,
             ServiceConfig,
-            Rc<RefCell<HttpFlow<S, X, U>>>,
+            Rc<HttpFlow<S, X, U>>,
             OnConnectData,
             Option<net::SocketAddr>,
         )>,

@@ -233,14 +233,13 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_default_resource() {
-        let mut srv =
-            init_service(App::new().service(web::resource("/test").to(|| {
-                HttpResponse::Ok().streaming(HttpContext::create(MyActor { count: 0 }))
-            })))
-            .await;
+        let srv = init_service(App::new().service(web::resource("/test").to(|| {
+            HttpResponse::Ok().streaming(HttpContext::create(MyActor { count: 0 }))
+        })))
+        .await;
 
         let req = TestRequest::with_uri("/test").to_request();
-        let resp = call_service(&mut srv, req).await;
+        let resp = call_service(&srv, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
 
         let body = read_body(resp).await;

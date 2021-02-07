@@ -22,9 +22,10 @@ use super::config::ConnectorConfig;
 use super::connection::{ConnectionType, IoConnection};
 use super::error::SendRequestError;
 use super::pool::Acquired;
+use crate::client::connection::H2Connection;
 
 pub(crate) async fn send_request<T, B>(
-    mut io: SendRequest<Bytes>,
+    mut io: H2Connection,
     head: RequestHeadType,
     body: B,
     created: time::Instant,
@@ -173,7 +174,7 @@ async fn send_body<B: MessageBody>(
 
 /// release SendRequest object
 fn release<T: AsyncRead + AsyncWrite + Unpin + 'static>(
-    io: SendRequest<Bytes>,
+    io: H2Connection,
     pool: Option<Acquired<T>>,
     created: time::Instant,
     close: bool,

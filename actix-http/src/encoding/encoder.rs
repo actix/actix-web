@@ -136,17 +136,8 @@ impl<B: MessageBody> MessageBody for Encoder<B> {
             }
 
             if let Some(ref mut fut) = this.fut {
-                let mut encoder = match ready!(Pin::new(fut).poll(cx)) {
-                    Ok(Ok(item)) => item,
-                    Ok(Err(e)) => {
-                        return Poll::Ready(Some(Err(BlockingError::Error(e).into())))
-                    }
-                    Err(_) => {
-                        return Poll::Ready(Some(Err(
-                            BlockingError::<io::Error>::Canceled.into(),
-                        )))
-                    }
-                };
+                let mut encoder =
+                    ready!(Pin::new(fut).poll(cx)).map_err(|_| BlockingError)??;
                 let chunk = encoder.take();
                 *this.encoder = Some(encoder);
                 this.fut.take();
