@@ -303,17 +303,13 @@ impl From<httparse::Error> for ParseError {
 
 /// A set of errors that can occur running blocking tasks in thread pool.
 #[derive(Debug, Display)]
-pub enum BlockingError<E: fmt::Debug> {
-    #[display(fmt = "{:?}", _0)]
-    Error(E),
-    #[display(fmt = "Thread pool is gone")]
-    Canceled,
-}
+#[display(fmt = "Blocking thread pool is gone")]
+pub struct BlockingError;
 
-impl<E: fmt::Debug> std::error::Error for BlockingError<E> {}
+impl std::error::Error for BlockingError {}
 
 /// `InternalServerError` for `BlockingError`
-impl<E: fmt::Debug> ResponseError for BlockingError<E> {}
+impl ResponseError for BlockingError {}
 
 #[derive(Display, Debug)]
 /// A set of errors that can occur during payload parsing
@@ -378,15 +374,12 @@ impl From<io::Error> for PayloadError {
     }
 }
 
-impl From<BlockingError<io::Error>> for PayloadError {
-    fn from(err: BlockingError<io::Error>) -> Self {
-        match err {
-            BlockingError::Error(e) => PayloadError::Io(e),
-            BlockingError::Canceled => PayloadError::Io(io::Error::new(
-                io::ErrorKind::Other,
-                "Operation is canceled",
-            )),
-        }
+impl From<BlockingError> for PayloadError {
+    fn from(_: BlockingError) -> Self {
+        PayloadError::Io(io::Error::new(
+            io::ErrorKind::Other,
+            "Operation is canceled",
+        ))
     }
 }
 

@@ -274,14 +274,11 @@ pub fn service<T: IntoPattern>(path: T) -> WebService {
 
 /// Execute blocking function on a thread pool, returns future that resolves
 /// to result of the function execution.
-pub async fn block<F, I, E>(f: F) -> Result<I, BlockingError<E>>
+pub fn block<F, R>(f: F) -> impl Future<Output = Result<R, BlockingError>>
 where
-    F: FnOnce() -> Result<I, E> + Send + 'static,
-    I: Send + 'static,
-    E: Send + std::fmt::Debug + 'static,
+    F: FnOnce() -> R + Send + 'static,
+    R: Send + 'static,
 {
-    match actix_rt::task::spawn_blocking(f).await {
-        Ok(res) => res.map_err(BlockingError::Error),
-        Err(_) => Err(BlockingError::Canceled),
-    }
+    let fut = actix_rt::task::spawn_blocking(f);
+    async { fut.await.map_err(|_| BlockingError) }
 }

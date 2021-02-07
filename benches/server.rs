@@ -29,7 +29,7 @@ const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
 fn bench_async_burst(c: &mut Criterion) {
     // We are using System here, since Runtime requires preinitialized tokio
     // Maybe add to actix_rt docs
-    let rt = actix_rt::System::new("test");
+    let rt = actix_rt::System::new();
 
     let srv = rt.block_on(async {
         test::start(|| {

@@ -175,7 +175,6 @@ pub fn main(_: TokenStream, item: TokenStream) -> TokenStream {
     let vis = &input.vis;
     let sig = &mut input.sig;
     let body = &input.block;
-    let name = &sig.ident;
 
     if sig.asyncness.is_none() {
         return syn::Error::new_spanned(sig.fn_token, "only async fn is supported")
@@ -188,7 +187,7 @@ pub fn main(_: TokenStream, item: TokenStream) -> TokenStream {
     (quote! {
         #(#attrs)*
         #vis #sig {
-            actix_web::rt::System::new(stringify!(#name))
+            actix_web::rt::System::new()
                 .block_on(async move { #body })
         }
     })

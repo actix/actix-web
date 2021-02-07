@@ -90,7 +90,7 @@ where
     actix_service::forward_ready!(service);
 
     #[allow(clippy::borrow_interior_mutable_const)]
-    fn call(&mut self, req: ServiceRequest) -> Self::Future {
+    fn call(&self, req: ServiceRequest) -> Self::Future {
         // negotiate content-encoding
         let encoding = if let Some(val) = req.headers().get(&ACCEPT_ENCODING) {
             if let Ok(enc) = val.to_str() {

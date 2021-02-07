@@ -1,4 +1,3 @@
-use std::cell::RefCell;
 use std::future::Future;
 use std::marker::PhantomData;
 use std::pin::Pin;
@@ -367,7 +366,7 @@ where
     X: Service<Request>,
     U: Service<(Request, Framed<T, Codec>)>,
 {
-    flow: Rc<RefCell<HttpFlow<S, X, U>>>,
+    flow: Rc<HttpFlow<S, X, U>>,
     on_connect_ext: Option<Rc<ConnectCallback<T>>>,
     cfg: ServiceConfig,
     _phantom: PhantomData<B>,
@@ -417,9 +416,9 @@ where
     type Error = DispatchError;
     type Future = Dispatcher<T, S, B, X, U>;
 
-    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        let mut flow = self.flow.borrow_mut();
-        let ready = flow
+    fn poll_ready(&self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        let ready = self
+            .flow
             .expect
             .poll_ready(cx)
             .map_err(|e| {
@@ -429,7 +428,8 @@ where
             })?
             .is_ready();
 
-        let ready = flow
+        let ready = self
+            .flow
             .service
             .poll_ready(cx)
             .map_err(|e| {
@@ -440,7 +440,7 @@ where
             .is_ready()
             && ready;
 
-        let ready = if let Some(ref mut upg) = flow.upgrade {
+        let ready = if let Some(ref upg) = self.flow.upgrade {
             upg.poll_ready(cx)
                 .map_err(|e| {
                     let e = e.into();
@@ -460,7 +460,7 @@ where
         }
     }
 
-    fn call(&mut self, (io, addr): (T, Option<net::SocketAddr>)) -> Self::Future {
+    fn call(&self, (io, addr): (T, Option<net::SocketAddr>)) -> Self::Future {
         let on_connect_data =
             OnConnectData::from_io(&io, self.on_connect_ext.as_deref());
 
