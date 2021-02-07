@@ -18,7 +18,7 @@ use actix_http::{
 use actix_rt::time::{sleep, Sleep};
 use bytes::Bytes;
 use derive_more::From;
-use futures_core::Stream;
+use futures_core::{ready, Stream};
 use serde::Serialize;
 
 #[cfg(feature = "compress")]
