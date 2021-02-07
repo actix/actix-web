@@ -29,8 +29,8 @@ use super::codec::Codec;
 use super::payload::{Payload, PayloadSender, PayloadStatus};
 use super::{Message, MessageType};
 
-const LW_BUFFER_SIZE: usize = 4096;
-const HW_BUFFER_SIZE: usize = 32_768;
+const LW_BUFFER_SIZE: usize = 1024;
+const HW_BUFFER_SIZE: usize = 1024 * 8;
 const MAX_PIPELINED_MESSAGES: usize = 16;
 
 bitflags! {
@@ -404,7 +404,7 @@ where
                 },
                 StateProj::SendPayload(mut stream) => {
                     loop {
-                        if this.write_buf.len() < HW_BUFFER_SIZE {
+                        if this.write_buf.len() < super::payload::MAX_BUFFER_SIZE {
                             match stream.as_mut().poll_next(cx) {
                                 Poll::Ready(Some(Ok(item))) => {
                                     this.codec.encode(
@@ -605,11 +605,25 @@ where
                         }
                     }
                 }
+                // decode is partial and buffer is not full yet.
+                // break and wait for more read.
                 Ok(None) => break,
                 Err(ParseError::Io(e)) => {
                     self.as_mut().client_disconnected();
                     this = self.as_mut().project();
                     *this.error = Some(DispatchError::Io(e));
+                    break;
+                }
+                Err(ParseError::TooLarge) => {
+                    if let Some(mut payload) = this.payload.take() {
+                        payload.set_error(PayloadError::Overflow);
+                    }
+                    // Requests overflow buffer size should be responded with 413
+                    this.messages.push_back(DispatcherMessage::Error(
+                        Response::PayloadTooLarge().finish().drop_body(),
+                    ));
+                    this.flags.insert(Flags::READ_DISCONNECT);
+                    *this.error = Some(ParseError::TooLarge.into());
                     break;
                 }
                 Err(e) => {
@@ -890,12 +904,7 @@ where
     let mut read_some = false;
 
     loop {
-        // If buf is full return but do not disconnect since
-        // there is more reading to be done
-        if buf.len() >= HW_BUFFER_SIZE {
-            return Ok(Some(false));
-        }
-
+        // reserve capacity for buffer
         let remaining = buf.capacity() - buf.len();
         if remaining < LW_BUFFER_SIZE {
             buf.reserve(HW_BUFFER_SIZE - remaining);
@@ -909,6 +918,16 @@ where
                 if n == 0 {
                     return Ok(Some(true));
                 } else {
+                    // If buf is full return but do not disconnect since
+                    // there is more reading to be done
+                    if buf.len() >= super::decoder::MAX_BUFFER_SIZE {
+                        // at this point it's not known io is still scheduled to
+                        // be waked up. so force wake up dispatcher just in case.
+                        // TODO: figure out the overhead.
+                        cx.waker().wake_by_ref();
+                        return Ok(Some(false));
+                    }
+
                     read_some = true;
                 }
             }
