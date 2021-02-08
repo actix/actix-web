@@ -289,13 +289,13 @@ where
         let time = *this.time;
         let format = this.format.take();
 
-        Poll::Ready(Ok(res.map_body(move |_, body| {
-            ResponseBody::Body(StreamLog {
+        Poll::Ready(Ok(res.map_body(move |_, body| ResponseBody::Body {
+            body: StreamLog {
                 body,
                 time,
                 format,
                 size: 0,
-            })
+            },
         })))
     }
 }

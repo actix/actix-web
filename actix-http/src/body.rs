@@ -4,7 +4,7 @@ use std::{fmt, mem};
 
 use bytes::{Bytes, BytesMut};
 use futures_core::{ready, Stream};
-use pin_project::pin_project;
+use pin_project_lite::pin_project;
 
 use crate::error::Error;
 
@@ -63,31 +63,33 @@ impl<T: MessageBody + Unpin> MessageBody for Box<T> {
     }
 }
 
-#[pin_project(project = ResponseBodyProj)]
-pub enum ResponseBody<B> {
-    Body(#[pin] B),
-    Other(Body),
+pin_project! {
+    #[project = ResponseBodyProj]
+    pub enum ResponseBody<B> {
+        Body { #[pin] body: B },
+        Other { body: Body }
+    }
 }
 
 impl ResponseBody<Body> {
     pub fn into_body<B>(self) -> ResponseBody<B> {
         match self {
-            ResponseBody::Body(b) => ResponseBody::Other(b),
-            ResponseBody::Other(b) => ResponseBody::Other(b),
+            ResponseBody::Body { body } => ResponseBody::Other { body },
+            ResponseBody::Other { body } => ResponseBody::Other { body },
         }
     }
 }
 
 impl<B> ResponseBody<B> {
     pub fn take_body(&mut self) -> ResponseBody<B> {
-        std::mem::replace(self, ResponseBody::Other(Body::None))
+        std::mem::replace(self, ResponseBody::Other { body: Body::None })
     }
 }
 
 impl<B: MessageBody> ResponseBody<B> {
     pub fn as_ref(&self) -> Option<&B> {
-        if let ResponseBody::Body(ref b) = self {
-            Some(b)
+        if let ResponseBody::Body { body } = self {
+            Some(body)
         } else {
             None
         }
@@ -97,8 +99,8 @@ impl<B: MessageBody> ResponseBody<B> {
 impl<B: MessageBody> MessageBody for ResponseBody<B> {
     fn size(&self) -> BodySize {
         match self {
-            ResponseBody::Body(ref body) => body.size(),
-            ResponseBody::Other(ref body) => body.size(),
+            ResponseBody::Body { body } => body.size(),
+            ResponseBody::Other { body } => body.size(),
         }
     }
 
@@ -107,8 +109,8 @@ impl<B: MessageBody> MessageBody for ResponseBody<B> {
         cx: &mut Context<'_>,
     ) -> Poll<Option<Result<Bytes, Error>>> {
         match self.project() {
-            ResponseBodyProj::Body(body) => body.poll_next(cx),
-            ResponseBodyProj::Other(body) => Pin::new(body).poll_next(cx),
+            ResponseBodyProj::Body { body } => body.poll_next(cx),
+            ResponseBodyProj::Other { body } => Pin::new(body).poll_next(cx),
         }
     }
 }
@@ -121,8 +123,8 @@ impl<B: MessageBody> Stream for ResponseBody<B> {
         cx: &mut Context<'_>,
     ) -> Poll<Option<Self::Item>> {
         match self.project() {
-            ResponseBodyProj::Body(body) => body.poll_next(cx),
-            ResponseBodyProj::Other(body) => Pin::new(body).poll_next(cx),
+            ResponseBodyProj::Body { body } => body.poll_next(cx),
+            ResponseBodyProj::Other { body } => Pin::new(body).poll_next(cx),
         }
     }
 }
@@ -468,8 +470,8 @@ mod tests {
     impl ResponseBody<Body> {
         pub(crate) fn get_ref(&self) -> &[u8] {
             match *self {
-                ResponseBody::Body(ref b) => b.get_ref(),
-                ResponseBody::Other(ref b) => b.get_ref(),
+                ResponseBody::Body { ref body } => body.get_ref(),
+                ResponseBody::Other { ref body } => body.get_ref(),
             }
         }
     }

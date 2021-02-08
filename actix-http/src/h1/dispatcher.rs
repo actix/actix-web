@@ -14,7 +14,7 @@ use actix_service::Service;
 use bitflags::bitflags;
 use bytes::{Buf, BytesMut};
 use log::{error, trace};
-use pin_project::pin_project;
+use pin_project_lite::pin_project;
 
 use crate::body::{Body, BodySize, MessageBody, ResponseBody};
 use crate::config::ServiceConfig;
@@ -45,70 +45,92 @@ bitflags! {
     }
 }
 
-#[pin_project::pin_project]
-/// Dispatcher for HTTP/1.1 protocol
-pub struct Dispatcher<T, S, B, X, U>
-where
-    S: Service<Request>,
-    S::Error: Into<Error>,
-    B: MessageBody,
-    X: Service<Request, Response = Request>,
-    X::Error: Into<Error>,
-    U: Service<(Request, Framed<T, Codec>), Response = ()>,
-    U::Error: fmt::Display,
-{
-    #[pin]
-    inner: DispatcherState<T, S, B, X, U>,
-
-    #[cfg(test)]
-    poll_count: u64,
+#[cfg(test)]
+pin_project! {
+    /// Dispatcher for HTTP/1.1 protocol
+    pub struct Dispatcher<T, S, B, X, U>
+    where
+        S: Service<Request>,
+        S::Error: Into<Error>,
+        B: MessageBody,
+        X: Service<Request, Response = Request>,
+        X::Error: Into<Error>,
+        U: Service<(Request, Framed<T, Codec>), Response = ()>,
+        U::Error: fmt::Display
+    {
+        #[pin]
+        inner: DispatcherState<T, S, B, X, U>,
+        poll_count: u64
+    }
 }
 
-#[pin_project(project = DispatcherStateProj)]
-enum DispatcherState<T, S, B, X, U>
-where
-    S: Service<Request>,
-    S::Error: Into<Error>,
-    B: MessageBody,
-    X: Service<Request, Response = Request>,
-    X::Error: Into<Error>,
-    U: Service<(Request, Framed<T, Codec>), Response = ()>,
-    U::Error: fmt::Display,
-{
-    Normal(#[pin] InnerDispatcher<T, S, B, X, U>),
-    Upgrade(#[pin] U::Future),
+#[cfg(not(test))]
+pin_project! {
+    /// Dispatcher for HTTP/1.1 protocol
+    pub struct Dispatcher<T, S, B, X, U>
+        where
+            S: Service<Request>,
+            S::Error: Into<Error>,
+            B: MessageBody,
+            X: Service<Request, Response = Request>,
+            X::Error: Into<Error>,
+            U: Service<(Request, Framed<T, Codec>), Response = ()>,
+            U::Error: fmt::Display
+    {
+        #[pin]
+        inner: DispatcherState<T, S, B, X, U>
+    }
 }
 
-#[pin_project(project = InnerDispatcherProj)]
-struct InnerDispatcher<T, S, B, X, U>
-where
-    S: Service<Request>,
-    S::Error: Into<Error>,
-    B: MessageBody,
-    X: Service<Request, Response = Request>,
-    X::Error: Into<Error>,
-    U: Service<(Request, Framed<T, Codec>), Response = ()>,
-    U::Error: fmt::Display,
-{
-    flow: Rc<HttpFlow<S, X, U>>,
-    on_connect_data: OnConnectData,
-    flags: Flags,
-    peer_addr: Option<net::SocketAddr>,
-    error: Option<DispatchError>,
+pin_project! {
+    #[project = DispatcherStateProj]
+    enum DispatcherState<T, S, B, X, U>
+    where
+        S: Service<Request>,
+        S::Error: Into<Error>,
+        B: MessageBody,
+        X: Service<Request, Response = Request>,
+        X::Error: Into<Error>,
+        U: Service<(Request, Framed<T, Codec>), Response = ()>,
+        U::Error: fmt::Display
+    {
+        Normal { #[pin] inner: InnerDispatcher<T, S, B, X, U>},
+        Upgrade { #[pin] upgrade: U::Future }
+    }
+}
 
-    #[pin]
-    state: State<S, B, X>,
-    payload: Option<PayloadSender>,
-    messages: VecDeque<DispatcherMessage>,
+pin_project! {
+    #[project = InnerDispatcherProj]
+    struct InnerDispatcher<T, S, B, X, U>
+    where
+        S: Service<Request>,
+        S::Error: Into<Error>,
+        B: MessageBody,
+        X: Service<Request, Response = Request>,
+        X::Error: Into<Error>,
+        U: Service<(Request, Framed<T, Codec>), Response = ()>,
+        U::Error: fmt::Display
+    {
+        flow: Rc<HttpFlow<S, X, U>>,
+        on_connect_data: OnConnectData,
+        flags: Flags,
+        peer_addr: Option<net::SocketAddr>,
+        error: Option<DispatchError>,
 
-    ka_expire: Instant,
-    #[pin]
-    ka_timer: Option<Sleep>,
+        #[pin]
+        state: State<S, B, X>,
+        payload: Option<PayloadSender>,
+        messages: VecDeque<DispatcherMessage>,
 
-    io: Option<T>,
-    read_buf: BytesMut,
-    write_buf: BytesMut,
-    codec: Codec,
+        ka_expire: Instant,
+        #[pin]
+        ka_timer: Option<Sleep>,
+
+        io: Option<T>,
+        read_buf: BytesMut,
+        write_buf: BytesMut,
+        codec: Codec
+    }
 }
 
 enum DispatcherMessage {
@@ -117,17 +139,19 @@ enum DispatcherMessage {
     Error(Response<()>),
 }
 
-#[pin_project(project = StateProj)]
-enum State<S, B, X>
-where
-    S: Service<Request>,
-    X: Service<Request, Response = Request>,
-    B: MessageBody,
-{
-    None,
-    ExpectCall(#[pin] X::Future),
-    ServiceCall(#[pin] S::Future),
-    SendPayload(#[pin] ResponseBody<B>),
+pin_project! {
+    #[project = StateProj]
+    enum State<S, B, X>
+    where
+        S: Service<Request>,
+        X: Service<Request, Response = Request>,
+        B: MessageBody
+    {
+        None,
+        ExpectCall { #[pin] fut: X::Future },
+        ServiceCall { #[pin] fut: S::Future },
+        SendPayload { #[pin] body: ResponseBody<B> }
+    }
 }
 
 impl<S, B, X> State<S, B, X>
@@ -141,7 +165,7 @@ where
     }
 
     fn is_call(&self) -> bool {
-        matches!(self, State::ServiceCall(_))
+        matches!(self, State::ServiceCall { .. })
     }
 }
 enum PollResponse {
@@ -220,22 +244,24 @@ where
         };
 
         Dispatcher {
-            inner: DispatcherState::Normal(InnerDispatcher {
-                write_buf: BytesMut::with_capacity(HW_BUFFER_SIZE),
-                payload: None,
-                state: State::None,
-                error: None,
-                messages: VecDeque::new(),
-                io: Some(io),
-                codec,
-                read_buf,
-                flow: services,
-                on_connect_data,
-                flags,
-                peer_addr,
-                ka_expire,
-                ka_timer,
-            }),
+            inner: DispatcherState::Normal {
+                inner: InnerDispatcher {
+                    write_buf: BytesMut::with_capacity(HW_BUFFER_SIZE),
+                    payload: None,
+                    state: State::None,
+                    error: None,
+                    messages: VecDeque::new(),
+                    io: Some(io),
+                    codec,
+                    read_buf,
+                    flow: services,
+                    on_connect_data,
+                    flags,
+                    peer_addr,
+                    ka_expire,
+                    ka_timer,
+                },
+            },
 
             #[cfg(test)]
             poll_count: 0,
@@ -337,7 +363,7 @@ where
         this.flags.set(Flags::KEEPALIVE, this.codec.keepalive());
         match body.size() {
             BodySize::None | BodySize::Empty => this.state.set(State::None),
-            _ => this.state.set(State::SendPayload(body)),
+            _ => this.state.set(State::SendPayload { body }),
         };
         Ok(())
     }
@@ -363,8 +389,10 @@ where
                         true
                     }
                     Some(DispatcherMessage::Error(res)) => {
-                        self.as_mut()
-                            .send_response(res, ResponseBody::Other(Body::Empty))?;
+                        self.as_mut().send_response(
+                            res,
+                            ResponseBody::Other { body: Body::Empty },
+                        )?;
                         true
                     }
                     Some(DispatcherMessage::Upgrade(req)) => {
@@ -372,12 +400,12 @@ where
                     }
                     None => false,
                 },
-                StateProj::ExpectCall(fut) => match fut.poll(cx) {
+                StateProj::ExpectCall { fut } => match fut.poll(cx) {
                     Poll::Ready(Ok(req)) => {
                         self.as_mut().send_continue();
                         this = self.as_mut().project();
                         let fut = this.flow.service.call(req);
-                        this.state.set(State::ServiceCall(fut));
+                        this.state.set(State::ServiceCall { fut });
                         continue;
                     }
                     Poll::Ready(Err(e)) => {
@@ -388,7 +416,7 @@ where
                     }
                     Poll::Pending => false,
                 },
-                StateProj::ServiceCall(fut) => match fut.poll(cx) {
+                StateProj::ServiceCall { fut } => match fut.poll(cx) {
                     Poll::Ready(Ok(res)) => {
                         let (res, body) = res.into().replace_body(());
                         self.as_mut().send_response(res, body)?;
@@ -402,10 +430,10 @@ where
                     }
                     Poll::Pending => false,
                 },
-                StateProj::SendPayload(mut stream) => {
+                StateProj::SendPayload { mut body } => {
                     loop {
                         if this.write_buf.len() < super::payload::MAX_BUFFER_SIZE {
-                            match stream.as_mut().poll_next(cx) {
+                            match body.as_mut().poll_next(cx) {
                                 Poll::Ready(Some(Ok(item))) => {
                                     this.codec.encode(
                                         Message::Chunk(Some(item)),
@@ -466,26 +494,26 @@ where
         if req.head().expect() {
             // set dispatcher state so the future is pinned.
             let mut this = self.as_mut().project();
-            let task = this.flow.expect.call(req);
-            this.state.set(State::ExpectCall(task));
+            let fut = this.flow.expect.call(req);
+            this.state.set(State::ExpectCall { fut });
         } else {
             // the same as above.
             let mut this = self.as_mut().project();
-            let task = this.flow.service.call(req);
-            this.state.set(State::ServiceCall(task));
+            let fut = this.flow.service.call(req);
+            this.state.set(State::ServiceCall { fut });
         };
 
         // eagerly poll the future for once(or twice if expect is resolved immediately).
         loop {
             match self.as_mut().project().state.project() {
-                StateProj::ExpectCall(fut) => {
+                StateProj::ExpectCall { fut } => {
                     match fut.poll(cx) {
                         // expect is resolved. continue loop and poll the service call branch.
                         Poll::Ready(Ok(req)) => {
                             self.as_mut().send_continue();
                             let mut this = self.as_mut().project();
-                            let task = this.flow.service.call(req);
-                            this.state.set(State::ServiceCall(task));
+                            let fut = this.flow.service.call(req);
+                            this.state.set(State::ServiceCall { fut });
                             continue;
                         }
                         // future is pending. return Ok(()) to notify that a new state is
@@ -502,7 +530,7 @@ where
                         }
                     }
                 }
-                StateProj::ServiceCall(fut) => {
+                StateProj::ServiceCall { fut } => {
                     // return no matter the service call future's result.
                     return match fut.poll(cx) {
                         // future is resolved. send response and return a result. On success
@@ -707,7 +735,7 @@ where
                                     trace!("Slow request timeout");
                                     let _ = self.as_mut().send_response(
                                         Response::RequestTimeout().finish().drop_body(),
-                                        ResponseBody::Other(Body::Empty),
+                                        ResponseBody::Other { body: Body::Empty },
                                     );
                                     this = self.project();
                                 } else {
@@ -832,7 +860,7 @@ where
         }
 
         match this.inner.project() {
-            DispatcherStateProj::Normal(mut inner) => {
+            DispatcherStateProj::Normal { mut inner } => {
                 inner.as_mut().poll_keepalive(cx)?;
 
                 if inner.flags.contains(Flags::SHUTDOWN) {
@@ -876,7 +904,7 @@ where
                                 self.as_mut()
                                     .project()
                                     .inner
-                                    .set(DispatcherState::Upgrade(upgrade));
+                                    .set(DispatcherState::Upgrade { upgrade });
                                 return self.poll(cx);
                             }
                         };
@@ -928,7 +956,7 @@ where
                     }
                 }
             }
-            DispatcherStateProj::Upgrade(fut) => fut.poll(cx).map_err(|e| {
+            DispatcherStateProj::Upgrade { upgrade } => upgrade.poll(cx).map_err(|e| {
                 error!("Upgrade handler error: {}", e);
                 DispatchError::Upgrade
             }),
@@ -1017,7 +1045,7 @@ mod tests {
                 Poll::Ready(res) => assert!(res.is_err()),
             }
 
-            if let DispatcherStateProj::Normal(inner) = h1.project().inner.project() {
+            if let DispatcherStateProj::Normal { inner } = h1.project().inner.project() {
                 assert!(inner.flags.contains(Flags::READ_DISCONNECT));
                 assert_eq!(
                     &inner.project().io.take().unwrap().write_buf[..26],
@@ -1052,7 +1080,7 @@ mod tests {
 
             futures_util::pin_mut!(h1);
 
-            assert!(matches!(&h1.inner, DispatcherState::Normal(_)));
+            assert!(matches!(&h1.inner, DispatcherState::Normal { .. }));
 
             match h1.as_mut().poll(cx) {
                 Poll::Pending => panic!("first poll should not be pending"),
@@ -1062,7 +1090,7 @@ mod tests {
             // polls: initial => shutdown
             assert_eq!(h1.poll_count, 2);
 
-            if let DispatcherStateProj::Normal(inner) = h1.project().inner.project() {
+            if let DispatcherStateProj::Normal { inner } = h1.project().inner.project() {
                 let res = &mut inner.project().io.take().unwrap().write_buf[..];
                 stabilize_date_header(res);
 
@@ -1106,7 +1134,7 @@ mod tests {
 
             futures_util::pin_mut!(h1);
 
-            assert!(matches!(&h1.inner, DispatcherState::Normal(_)));
+            assert!(matches!(&h1.inner, DispatcherState::Normal { .. }));
 
             match h1.as_mut().poll(cx) {
                 Poll::Pending => panic!("first poll should not be pending"),
@@ -1116,7 +1144,7 @@ mod tests {
             // polls: initial => shutdown
             assert_eq!(h1.poll_count, 1);
 
-            if let DispatcherStateProj::Normal(inner) = h1.project().inner.project() {
+            if let DispatcherStateProj::Normal { inner } = h1.project().inner.project() {
                 let res = &mut inner.project().io.take().unwrap().write_buf[..];
                 stabilize_date_header(res);
 
@@ -1166,13 +1194,13 @@ mod tests {
             futures_util::pin_mut!(h1);
 
             assert!(h1.as_mut().poll(cx).is_pending());
-            assert!(matches!(&h1.inner, DispatcherState::Normal(_)));
+            assert!(matches!(&h1.inner, DispatcherState::Normal { .. }));
 
             // polls: manual
             assert_eq!(h1.poll_count, 1);
             eprintln!("poll count: {}", h1.poll_count);
 
-            if let DispatcherState::Normal(ref inner) = h1.inner {
+            if let DispatcherState::Normal { ref inner } = h1.inner {
                 let io = inner.io.as_ref().unwrap();
                 let res = &io.write_buf()[..];
                 assert_eq!(
@@ -1187,7 +1215,7 @@ mod tests {
             // polls: manual manual shutdown
             assert_eq!(h1.poll_count, 3);
 
-            if let DispatcherState::Normal(ref inner) = h1.inner {
+            if let DispatcherState::Normal { ref inner } = h1.inner {
                 let io = inner.io.as_ref().unwrap();
                 let mut res = (&io.write_buf()[..]).to_owned();
                 stabilize_date_header(&mut res);
@@ -1238,12 +1266,12 @@ mod tests {
             futures_util::pin_mut!(h1);
 
             assert!(h1.as_mut().poll(cx).is_ready());
-            assert!(matches!(&h1.inner, DispatcherState::Normal(_)));
+            assert!(matches!(&h1.inner, DispatcherState::Normal { .. }));
 
             // polls: manual shutdown
             assert_eq!(h1.poll_count, 2);
 
-            if let DispatcherState::Normal(ref inner) = h1.inner {
+            if let DispatcherState::Normal { ref inner } = h1.inner {
                 let io = inner.io.as_ref().unwrap();
                 let mut res = (&io.write_buf()[..]).to_owned();
                 stabilize_date_header(&mut res);
@@ -1299,7 +1327,7 @@ mod tests {
             futures_util::pin_mut!(h1);
 
             assert!(h1.as_mut().poll(cx).is_ready());
-            assert!(matches!(&h1.inner, DispatcherState::Upgrade(_)));
+            assert!(matches!(&h1.inner, DispatcherState::Upgrade { .. }));
 
             // polls: manual shutdown
             assert_eq!(h1.poll_count, 2);

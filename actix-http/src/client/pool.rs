@@ -11,14 +11,12 @@ use actix_rt::time::{sleep, Sleep};
 use actix_service::Service;
 use actix_utils::task::LocalWaker;
 use ahash::AHashMap;
-use bytes::Bytes;
 use futures_channel::oneshot;
 use futures_core::future::LocalBoxFuture;
 use futures_util::future::{poll_fn, FutureExt};
-use h2::client::{Connection, SendRequest};
 use http::uri::Authority;
 use indexmap::IndexSet;
-use pin_project::pin_project;
+use pin_project_lite::pin_project;
 use slab::Slab;
 
 use super::config::ConnectorConfig;
@@ -386,11 +384,12 @@ where
     }
 }
 
-#[pin_project::pin_project]
-struct CloseConnection<T> {
-    io: T,
-    #[pin]
-    timeout: Sleep,
+pin_project! {
+    struct CloseConnection<T> {
+        io: T,
+        #[pin]
+        timeout: Sleep
+    }
 }
 
 impl<T> CloseConnection<T>
@@ -424,7 +423,6 @@ where
     }
 }
 
-#[pin_project]
 struct ConnectorPoolSupport<T, Io>
 where
     Io: AsyncRead + AsyncWrite + Unpin + 'static,
@@ -442,9 +440,9 @@ where
     type Output = ();
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let this = self.project();
+        let this = self.get_mut();
 
-        if Rc::strong_count(this.inner) == 1 {
+        if Rc::strong_count(&this.inner) == 1 {
             // If we are last copy of Inner<Io> it means the ConnectionPool is already gone
             // and we are safe to exit.
             return Poll::Ready(());
@@ -498,117 +496,78 @@ where
     }
 }
 
-#[pin_project::pin_project(PinnedDrop)]
-struct OpenWaitingConnection<F, Io>
+struct OpenWaitingConnection<Io>
 where
     Io: AsyncRead + AsyncWrite + Unpin + 'static,
 {
-    #[pin]
-    fut: F,
-    key: Key,
-    h2: Option<
-        LocalBoxFuture<
-            'static,
-            Result<(SendRequest<Bytes>, Connection<Io, Bytes>), h2::Error>,
-        >,
-    >,
-    rx: Option<oneshot::Sender<Result<IoConnection<Io>, ConnectError>>>,
     inner: Option<Rc<RefCell<Inner<Io>>>>,
-    config: ConnectorConfig,
 }
 
-impl<F, Io> OpenWaitingConnection<F, Io>
+impl<Io> OpenWaitingConnection<Io>
 where
-    F: Future<Output = Result<(Io, Protocol), ConnectError>> + 'static,
     Io: AsyncRead + AsyncWrite + Unpin + 'static,
 {
-    fn spawn(
+    fn spawn<F>(
         key: Key,
         rx: oneshot::Sender<Result<IoConnection<Io>, ConnectError>>,
         inner: Rc<RefCell<Inner<Io>>>,
         fut: F,
         config: ConnectorConfig,
-    ) {
-        actix_rt::spawn(OpenWaitingConnection {
-            key,
-            fut,
-            h2: None,
-            rx: Some(rx),
-            inner: Some(inner),
-            config,
+    ) where
+        F: Future<Output = Result<(Io, Protocol), ConnectError>> + 'static,
+    {
+        // OpenWaitingConnection would guard the spawn task and release
+        // permission/wake up support future when spawn task is canceled/generated error.
+        let mut guard = OpenWaitingConnection { inner: Some(inner) };
+
+        actix_rt::spawn(async move {
+            let (io, proto) = match fut.await {
+                Ok((io, proto)) => (io, proto),
+                Err(e) => {
+                    let _ = Option::take(&mut guard.inner);
+                    let _ = rx.send(Err(e));
+                    return;
+                }
+            };
+            match proto {
+                Protocol::Http1 => {
+                    let inner = Option::take(&mut guard.inner);
+                    let _ = rx.send(Ok(IoConnection::new(
+                        ConnectionType::H1(io),
+                        Instant::now(),
+                        Some(Acquired(key, inner)),
+                    )));
+                }
+                _ => match handshake(io, &config).await {
+                    Ok((sender, connection)) => {
+                        let inner = Option::take(&mut guard.inner);
+                        let _ = rx.send(Ok(IoConnection::new(
+                            ConnectionType::H2(H2Connection::new(sender, connection)),
+                            Instant::now(),
+                            Some(Acquired(key, inner)),
+                        )));
+                    }
+                    Err(err) => {
+                        let _ = Option::take(&mut guard.inner);
+                        let _ = rx.send(Err(ConnectError::H2(err)));
+                    }
+                },
+            }
         });
     }
 }
 
-#[pin_project::pinned_drop]
-impl<F, Io> PinnedDrop for OpenWaitingConnection<F, Io>
+impl<Io> Drop for OpenWaitingConnection<Io>
 where
     Io: AsyncRead + AsyncWrite + Unpin + 'static,
 {
-    fn drop(self: Pin<&mut Self>) {
-        if let Some(inner) = self.project().inner.take() {
+    fn drop(&mut self) {
+        // if inner is some it means OpenWaitingConnection did not finish
+        // it's task. release permission and try to wake up support future.
+        if let Some(inner) = self.inner.take() {
             let mut inner = inner.as_ref().borrow_mut();
             inner.release();
             inner.check_availability();
-        }
-    }
-}
-
-impl<F, Io> Future for OpenWaitingConnection<F, Io>
-where
-    F: Future<Output = Result<(Io, Protocol), ConnectError>>,
-    Io: AsyncRead + AsyncWrite + Unpin,
-{
-    type Output = ();
-
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let this = self.as_mut().project();
-
-        if let Some(ref mut h2) = this.h2 {
-            return match Pin::new(h2).poll(cx) {
-                Poll::Ready(Ok((sender, connection))) => {
-                    let rx = this.rx.take().unwrap();
-                    let _ = rx.send(Ok(IoConnection::new(
-                        ConnectionType::H2(H2Connection::new(sender, connection)),
-                        Instant::now(),
-                        Some(Acquired(this.key.clone(), this.inner.take())),
-                    )));
-                    Poll::Ready(())
-                }
-                Poll::Pending => Poll::Pending,
-                Poll::Ready(Err(err)) => {
-                    let _ = this.inner.take();
-                    if let Some(rx) = this.rx.take() {
-                        let _ = rx.send(Err(ConnectError::H2(err)));
-                    }
-                    Poll::Ready(())
-                }
-            };
-        }
-
-        match this.fut.poll(cx) {
-            Poll::Ready(Err(err)) => {
-                let _ = this.inner.take();
-                if let Some(rx) = this.rx.take() {
-                    let _ = rx.send(Err(err));
-                }
-                Poll::Ready(())
-            }
-            Poll::Ready(Ok((io, proto))) => {
-                if proto == Protocol::Http1 {
-                    let rx = this.rx.take().unwrap();
-                    let _ = rx.send(Ok(IoConnection::new(
-                        ConnectionType::H1(io),
-                        Instant::now(),
-                        Some(Acquired(this.key.clone(), this.inner.take())),
-                    )));
-                    Poll::Ready(())
-                } else {
-                    *this.h2 = Some(handshake(io, this.config).boxed_local());
-                    self.poll(cx)
-                }
-            }
-            Poll::Pending => Poll::Pending,
         }
     }
 }

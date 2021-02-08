@@ -15,6 +15,7 @@ use h2::server::{Connection, SendResponse};
 use h2::SendStream;
 use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING};
 use log::{error, trace};
+use pin_project_lite::pin_project;
 
 use crate::body::{BodySize, MessageBody, ResponseBody};
 use crate::config::ServiceConfig;
@@ -28,22 +29,25 @@ use crate::OnConnectData;
 
 const CHUNK_SIZE: usize = 16_384;
 
-/// Dispatcher for HTTP/2 protocol.
-#[pin_project::pin_project]
-pub struct Dispatcher<T, S, B, X, U>
-where
-    T: AsyncRead + AsyncWrite + Unpin,
-    S: Service<Request>,
-    B: MessageBody,
-{
-    flow: Rc<HttpFlow<S, X, U>>,
-    connection: Connection<T, Bytes>,
-    on_connect_data: OnConnectData,
-    config: ServiceConfig,
-    peer_addr: Option<net::SocketAddr>,
-    ka_expire: Instant,
-    ka_timer: Option<Sleep>,
-    _phantom: PhantomData<B>,
+pin_project! {
+    /// Dispatcher for HTTP/2 protocol.
+    pub struct Dispatcher<T, S, B, X, U>
+    where
+        T: AsyncRead,
+        T: AsyncWrite,
+        T: Unpin,
+        S: Service<Request>,
+        B: MessageBody
+    {
+        flow: Rc<HttpFlow<S, X, U>>,
+        connection: Connection<T, Bytes>,
+        on_connect_data: OnConnectData,
+        config: ServiceConfig,
+        peer_addr: Option<net::SocketAddr>,
+        ka_expire: Instant,
+        ka_timer: Option<Sleep>,
+        _phantom: PhantomData<B>
+    }
 }
 
 impl<T, S, B, X, U> Dispatcher<T, S, B, X, U>
@@ -136,10 +140,10 @@ where
                     this.on_connect_data.merge_into(&mut req);
 
                     let svc = ServiceResponse::<S::Future, S::Response, S::Error, B> {
-                        state: ServiceResponseState::ServiceCall(
-                            this.flow.service.call(req),
-                            Some(res),
-                        ),
+                        state: ServiceResponseState::ServiceCall {
+                            fut: this.flow.service.call(req),
+                            sender: Some(res),
+                        },
                         config: this.config.clone(),
                         buffer: None,
                         _phantom: PhantomData,
@@ -152,19 +156,30 @@ where
     }
 }
 
-#[pin_project::pin_project]
-struct ServiceResponse<F, I, E, B> {
-    #[pin]
-    state: ServiceResponseState<F, B>,
-    config: ServiceConfig,
-    buffer: Option<Bytes>,
-    _phantom: PhantomData<(I, E)>,
+pin_project! {
+    struct ServiceResponse<F, I, E, B> {
+        #[pin]
+        state: ServiceResponseState<F, B>,
+        config: ServiceConfig,
+        buffer: Option<Bytes>,
+        _phantom: PhantomData<(I, E)>,
+    }
 }
 
-#[pin_project::pin_project(project = ServiceResponseStateProj)]
-enum ServiceResponseState<F, B> {
-    ServiceCall(#[pin] F, Option<SendResponse<Bytes>>),
-    SendPayload(SendStream<Bytes>, #[pin] ResponseBody<B>),
+pin_project! {
+    #[project = ServiceResponseStateProj]
+    enum ServiceResponseState<F, B> {
+        ServiceCall {
+            #[pin]
+            fut: F,
+            sender: Option<SendResponse<Bytes>>
+        },
+        SendPayload {
+            stream: SendStream<Bytes>,
+            #[pin]
+            body: ResponseBody<B>
+        },
+    }
 }
 
 impl<F, I, E, B> ServiceResponse<F, I, E, B>
@@ -250,12 +265,12 @@ where
         let mut this = self.as_mut().project();
 
         match this.state.project() {
-            ServiceResponseStateProj::ServiceCall(call, send) => {
-                match ready!(call.poll(cx)) {
+            ServiceResponseStateProj::ServiceCall { fut, sender } => {
+                match ready!(fut.poll(cx)) {
                     Ok(res) => {
                         let (res, body) = res.into().replace_body(());
 
-                        let mut send = send.take().unwrap();
+                        let mut send = sender.take().unwrap();
                         let mut size = body.size();
                         let h2_res =
                             self.as_mut().prepare_response(res.head(), &mut size);
@@ -273,7 +288,7 @@ where
                             Poll::Ready(())
                         } else {
                             this.state
-                                .set(ServiceResponseState::SendPayload(stream, body));
+                                .set(ServiceResponseState::SendPayload { stream, body });
                             self.poll(cx)
                         }
                     }
@@ -282,7 +297,7 @@ where
                         let res: Response = e.into().into();
                         let (res, body) = res.replace_body(());
 
-                        let mut send = send.take().unwrap();
+                        let mut send = sender.take().unwrap();
                         let mut size = body.size();
                         let h2_res =
                             self.as_mut().prepare_response(res.head(), &mut size);
@@ -299,72 +314,65 @@ where
                         if size.is_eof() {
                             Poll::Ready(())
                         } else {
-                            this.state.set(ServiceResponseState::SendPayload(
+                            this.state.set(ServiceResponseState::SendPayload {
                                 stream,
-                                body.into_body(),
-                            ));
+                                body: body.into_body(),
+                            });
                             self.poll(cx)
                         }
                     }
                 }
             }
 
-            ServiceResponseStateProj::SendPayload(ref mut stream, ref mut body) => {
+            ServiceResponseStateProj::SendPayload { stream, mut body } => loop {
                 loop {
-                    loop {
-                        match this.buffer {
-                            Some(ref mut buffer) => {
-                                match ready!(stream.poll_capacity(cx)) {
-                                    None => return Poll::Ready(()),
+                    match this.buffer {
+                        Some(ref mut buffer) => match ready!(stream.poll_capacity(cx)) {
+                            None => return Poll::Ready(()),
 
-                                    Some(Ok(cap)) => {
-                                        let len = buffer.len();
-                                        let bytes = buffer.split_to(cmp::min(cap, len));
+                            Some(Ok(cap)) => {
+                                let len = buffer.len();
+                                let bytes = buffer.split_to(cmp::min(cap, len));
 
-                                        if let Err(e) = stream.send_data(bytes, false) {
-                                            warn!("{:?}", e);
-                                            return Poll::Ready(());
-                                        } else if !buffer.is_empty() {
-                                            let cap = cmp::min(buffer.len(), CHUNK_SIZE);
-                                            stream.reserve_capacity(cap);
-                                        } else {
-                                            this.buffer.take();
-                                        }
-                                    }
-
-                                    Some(Err(e)) => {
-                                        warn!("{:?}", e);
-                                        return Poll::Ready(());
-                                    }
+                                if let Err(e) = stream.send_data(bytes, false) {
+                                    warn!("{:?}", e);
+                                    return Poll::Ready(());
+                                } else if !buffer.is_empty() {
+                                    let cap = cmp::min(buffer.len(), CHUNK_SIZE);
+                                    stream.reserve_capacity(cap);
+                                } else {
+                                    this.buffer.take();
                                 }
                             }
 
-                            None => match ready!(body.as_mut().poll_next(cx)) {
-                                None => {
-                                    if let Err(e) = stream.send_data(Bytes::new(), true)
-                                    {
-                                        warn!("{:?}", e);
-                                    }
-                                    return Poll::Ready(());
-                                }
+                            Some(Err(e)) => {
+                                warn!("{:?}", e);
+                                return Poll::Ready(());
+                            }
+                        },
 
-                                Some(Ok(chunk)) => {
-                                    stream.reserve_capacity(cmp::min(
-                                        chunk.len(),
-                                        CHUNK_SIZE,
-                                    ));
-                                    *this.buffer = Some(chunk);
+                        None => match ready!(body.as_mut().poll_next(cx)) {
+                            None => {
+                                if let Err(e) = stream.send_data(Bytes::new(), true) {
+                                    warn!("{:?}", e);
                                 }
+                                return Poll::Ready(());
+                            }
 
-                                Some(Err(e)) => {
-                                    error!("Response payload stream error: {:?}", e);
-                                    return Poll::Ready(());
-                                }
-                            },
-                        }
+                            Some(Ok(chunk)) => {
+                                stream
+                                    .reserve_capacity(cmp::min(chunk.len(), CHUNK_SIZE));
+                                *this.buffer = Some(chunk);
+                            }
+
+                            Some(Err(e)) => {
+                                error!("Response payload stream error: {:?}", e);
+                                return Poll::Ready(());
+                            }
+                        },
                     }
                 }
-            }
+            },
         }
     }
 }

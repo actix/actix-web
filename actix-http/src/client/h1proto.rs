@@ -9,6 +9,7 @@ use bytes::{Bytes, BytesMut};
 use futures_core::Stream;
 use futures_util::future::poll_fn;
 use futures_util::{pin_mut, SinkExt, StreamExt};
+use pin_project_lite::pin_project;
 
 use crate::error::PayloadError;
 use crate::h1;
@@ -237,10 +238,11 @@ impl<T: AsyncRead + AsyncWrite + Unpin + 'static> AsyncWrite for H1Connection<T>
     }
 }
 
-#[pin_project::pin_project]
-pub(crate) struct PlStream<Io> {
-    #[pin]
-    framed: Option<Framed<Io, h1::ClientPayloadCodec>>,
+pin_project! {
+    pub(crate) struct PlStream<Io> {
+        #[pin]
+        framed: Option<Framed<Io, h1::ClientPayloadCodec>>,
+    }
 }
 
 impl<Io: ConnectionLifetime> PlStream<Io> {

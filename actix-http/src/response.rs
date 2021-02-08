@@ -49,7 +49,7 @@ impl Response<Body> {
     pub fn new(status: StatusCode) -> Response {
         Response {
             head: BoxedResponseHead::new(status),
-            body: ResponseBody::Body(Body::Empty),
+            body: ResponseBody::Body { body: Body::Empty },
             error: None,
         }
     }
@@ -67,14 +67,14 @@ impl Response<Body> {
 
     /// Convert response to response with body
     pub fn into_body<B>(self) -> Response<B> {
-        let b = match self.body {
-            ResponseBody::Body(b) => b,
-            ResponseBody::Other(b) => b,
+        let body = match self.body {
+            ResponseBody::Body { body } => body,
+            ResponseBody::Other { body } => body,
         };
         Response {
             head: self.head,
             error: self.error,
-            body: ResponseBody::Other(b),
+            body: ResponseBody::Other { body },
         }
     }
 }
@@ -85,7 +85,7 @@ impl<B> Response<B> {
     pub fn with_body(status: StatusCode, body: B) -> Response<B> {
         Response {
             head: BoxedResponseHead::new(status),
-            body: ResponseBody::Body(body),
+            body: ResponseBody::Body { body },
             error: None,
         }
     }
@@ -210,7 +210,7 @@ impl<B> Response<B> {
     pub fn set_body<B2>(self, body: B2) -> Response<B2> {
         Response {
             head: self.head,
-            body: ResponseBody::Body(body),
+            body: ResponseBody::Body { body },
             error: None,
         }
     }
@@ -220,7 +220,7 @@ impl<B> Response<B> {
         (
             Response {
                 head: self.head,
-                body: ResponseBody::Body(()),
+                body: ResponseBody::Body { body: () },
                 error: self.error,
             },
             self.body,
@@ -231,7 +231,7 @@ impl<B> Response<B> {
     pub fn drop_body(self) -> Response<()> {
         Response {
             head: self.head,
-            body: ResponseBody::Body(()),
+            body: ResponseBody::Body { body: () },
             error: None,
         }
     }
@@ -241,7 +241,7 @@ impl<B> Response<B> {
         (
             Response {
                 head: self.head,
-                body: ResponseBody::Body(body),
+                body: ResponseBody::Body { body },
                 error: self.error,
             },
             self.body,
@@ -635,7 +635,7 @@ impl ResponseBuilder {
 
         Response {
             head: response,
-            body: ResponseBody::Body(body),
+            body: ResponseBody::Body { body },
             error: None,
         }
     }

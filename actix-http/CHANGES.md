@@ -19,6 +19,7 @@
 * `client::error::ConnectError` Resolver variant contains `Box<dyn std::error::Error>` type [#1905]
 * `client::ConnectorConfig` default timeout changed to 5 seconds. [#1905]
 * Simplify `BlockingError` type to a struct. It's only triggered with blocking thread pool is dead. [#1957]
+* `body::ResponseBody` enum use named field.
 
 ### Removed
 * `ResponseBuilder::set`; use `ResponseBuilder::insert_header`. [#1869]

@@ -9,7 +9,7 @@ use brotli2::write::BrotliEncoder;
 use bytes::Bytes;
 use flate2::write::{GzEncoder, ZlibEncoder};
 use futures_core::ready;
-use pin_project::pin_project;
+use pin_project_lite::pin_project;
 
 use crate::body::{Body, BodySize, MessageBody, ResponseBody};
 use crate::http::header::{ContentEncoding, CONTENT_ENCODING};
@@ -21,13 +21,14 @@ use crate::error::BlockingError;
 
 const INPLACE: usize = 1024;
 
-#[pin_project]
-pub struct Encoder<B> {
-    eof: bool,
-    #[pin]
-    body: EncoderBody<B>,
-    encoder: Option<ContentEncoder>,
-    fut: Option<JoinHandle<Result<ContentEncoder, io::Error>>>,
+pin_project! {
+    pub struct Encoder<B> {
+        eof: bool,
+        #[pin]
+        body: EncoderBody<B>,
+        encoder: Option<ContentEncoder>,
+        fut: Option<JoinHandle<Result<ContentEncoder, io::Error>>>,
+    }
 }
 
 impl<B: MessageBody> Encoder<B> {
@@ -43,19 +44,21 @@ impl<B: MessageBody> Encoder<B> {
             || encoding == ContentEncoding::Auto);
 
         let body = match body {
-            ResponseBody::Other(b) => match b {
-                Body::None => return ResponseBody::Other(Body::None),
-                Body::Empty => return ResponseBody::Other(Body::Empty),
-                Body::Bytes(buf) => {
+            ResponseBody::Other { body } => match body {
+                Body::None => return ResponseBody::Other { body: Body::None },
+                Body::Empty => return ResponseBody::Other { body: Body::Empty },
+                Body::Bytes(bytes) => {
                     if can_encode {
-                        EncoderBody::Bytes(buf)
+                        EncoderBody::Bytes { bytes }
                     } else {
-                        return ResponseBody::Other(Body::Bytes(buf));
+                        return ResponseBody::Other {
+                            body: Body::Bytes(bytes),
+                        };
                     }
                 }
-                Body::Message(stream) => EncoderBody::BoxedStream(stream),
+                Body::Message(stream) => EncoderBody::BoxedStream { stream },
             },
-            ResponseBody::Body(stream) => EncoderBody::Stream(stream),
+            ResponseBody::Body { body } => EncoderBody::Stream { stream: body },
         };
 
         if can_encode {
@@ -63,36 +66,42 @@ impl<B: MessageBody> Encoder<B> {
             if let Some(enc) = ContentEncoder::encoder(encoding) {
                 update_head(encoding, head);
                 head.no_chunking(false);
-                return ResponseBody::Body(Encoder {
-                    body,
-                    eof: false,
-                    fut: None,
-                    encoder: Some(enc),
-                });
+                return ResponseBody::Body {
+                    body: Encoder {
+                        body,
+                        eof: false,
+                        fut: None,
+                        encoder: Some(enc),
+                    },
+                };
             }
         }
-        ResponseBody::Body(Encoder {
-            body,
-            eof: false,
-            fut: None,
-            encoder: None,
-        })
+        ResponseBody::Body {
+            body: Encoder {
+                body,
+                eof: false,
+                fut: None,
+                encoder: None,
+            },
+        }
     }
 }
 
-#[pin_project(project = EncoderBodyProj)]
-enum EncoderBody<B> {
-    Bytes(Bytes),
-    Stream(#[pin] B),
-    BoxedStream(Box<dyn MessageBody + Unpin>),
+pin_project! {
+    #[project = EncoderBodyProj]
+    enum EncoderBody<B> {
+        Bytes { bytes: Bytes },
+        Stream { #[pin] stream: B },
+        BoxedStream { stream: Box<dyn MessageBody + Unpin> }
+    }
 }
 
 impl<B: MessageBody> MessageBody for EncoderBody<B> {
     fn size(&self) -> BodySize {
         match self {
-            EncoderBody::Bytes(ref b) => b.size(),
-            EncoderBody::Stream(ref b) => b.size(),
-            EncoderBody::BoxedStream(ref b) => b.size(),
+            EncoderBody::Bytes { ref bytes } => bytes.size(),
+            EncoderBody::Stream { ref stream } => stream.size(),
+            EncoderBody::BoxedStream { ref stream } => stream.size(),
         }
     }
 
@@ -101,16 +110,16 @@ impl<B: MessageBody> MessageBody for EncoderBody<B> {
         cx: &mut Context<'_>,
     ) -> Poll<Option<Result<Bytes, Error>>> {
         match self.project() {
-            EncoderBodyProj::Bytes(b) => {
-                if b.is_empty() {
+            EncoderBodyProj::Bytes { bytes } => {
+                if bytes.is_empty() {
                     Poll::Ready(None)
                 } else {
-                    Poll::Ready(Some(Ok(std::mem::take(b))))
+                    Poll::Ready(Some(Ok(std::mem::take(bytes))))
                 }
             }
-            EncoderBodyProj::Stream(b) => b.poll_next(cx),
-            EncoderBodyProj::BoxedStream(ref mut b) => {
-                Pin::new(b.as_mut()).poll_next(cx)
+            EncoderBodyProj::Stream { stream } => stream.poll_next(cx),
+            EncoderBodyProj::BoxedStream { stream } => {
+                Pin::new(stream.as_mut()).poll_next(cx)
             }
         }
     }

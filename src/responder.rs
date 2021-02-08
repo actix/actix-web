@@ -277,7 +277,9 @@ pub(crate) mod tests {
         let resp = srv.call(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
         match resp.response().body() {
-            ResponseBody::Body(Body::Bytes(ref b)) => {
+            ResponseBody::Body {
+                body: Body::Bytes(ref b),
+            } => {
                 let bytes = b.clone();
                 assert_eq!(bytes, Bytes::from_static(b"some"));
             }
@@ -292,21 +294,21 @@ pub(crate) mod tests {
 
     impl BodyTest for ResponseBody<Body> {
         fn bin_ref(&self) -> &[u8] {
-            match self {
-                ResponseBody::Body(ref b) => match b {
+            match *self {
+                ResponseBody::Body { ref body } => match body {
                     Body::Bytes(ref bin) => &bin,
                     _ => panic!(),
                 },
-                ResponseBody::Other(ref b) => match b {
+                ResponseBody::Other { ref body } => match body {
                     Body::Bytes(ref bin) => &bin,
                     _ => panic!(),
                 },
             }
         }
         fn body(&self) -> &Body {
-            match self {
-                ResponseBody::Body(ref b) => b,
-                ResponseBody::Other(ref b) => b,
+            match *self {
+                ResponseBody::Body { ref body } => body,
+                ResponseBody::Other { ref body } => body,
             }
         }
     }

@@ -3,20 +3,22 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
+use pin_project_lite::pin_project;
 
 use crate::body::{BodySize, MessageBody, ResponseBody};
 use crate::error::Error;
 use crate::h1::{Codec, Message};
 use crate::response::Response;
 
-/// Send HTTP/1 response
-#[pin_project::pin_project]
-pub struct SendResponse<T, B> {
-    res: Option<Message<(Response<()>, BodySize)>>,
-    #[pin]
-    body: Option<ResponseBody<B>>,
-    #[pin]
-    framed: Option<Framed<T, Codec>>,
+pin_project! {
+    /// Send HTTP/1 response
+    pub struct SendResponse<T, B> {
+        res: Option<Message<(Response<()>, BodySize)>>,
+        #[pin]
+        body: Option<ResponseBody<B>>,
+        #[pin]
+        framed: Option<Framed<T, Codec>>
+    }
 }
 
 impl<T, B> SendResponse<T, B>

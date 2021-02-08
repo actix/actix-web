@@ -416,6 +416,7 @@ mod connect_impl {
 
     use futures_core::ready;
     use futures_util::future::Either;
+    use pin_project_lite::pin_project;
 
     use super::*;
     use crate::client::connection::EitherConnection;
@@ -478,15 +479,20 @@ mod connect_impl {
         }
     }
 
-    #[pin_project::pin_project]
-    pub(crate) struct InnerConnectorResponseA<T, Io1, Io2>
-    where
-        Io1: AsyncRead + AsyncWrite + Unpin + 'static,
-        T: Service<Connect, Response = (Io1, Protocol), Error = ConnectError> + 'static,
-    {
-        #[pin]
-        fut: <ConnectionPool<T, Io1> as Service<Connect>>::Future,
-        _phantom: PhantomData<Io2>,
+    pin_project! {
+        pub(crate) struct InnerConnectorResponseA<T, Io1, Io2>
+        where
+            Io1: AsyncRead,
+            Io1: AsyncWrite,
+            Io1: Unpin,
+            Io1: 'static,
+            T: Service<Connect, Response = (Io1, Protocol), Error = ConnectError>,
+            T: 'static
+        {
+            #[pin]
+            fut: <ConnectionPool<T, Io1> as Service<Connect>>::Future,
+            _phantom: PhantomData<Io2>
+        }
     }
 
     impl<T, Io1, Io2> Future for InnerConnectorResponseA<T, Io1, Io2>
@@ -505,15 +511,20 @@ mod connect_impl {
         }
     }
 
-    #[pin_project::pin_project]
-    pub(crate) struct InnerConnectorResponseB<T, Io1, Io2>
-    where
-        Io2: AsyncRead + AsyncWrite + Unpin + 'static,
-        T: Service<Connect, Response = (Io2, Protocol), Error = ConnectError> + 'static,
-    {
-        #[pin]
-        fut: <ConnectionPool<T, Io2> as Service<Connect>>::Future,
-        _phantom: PhantomData<Io1>,
+    pin_project! {
+        pub(crate) struct InnerConnectorResponseB<T, Io1, Io2>
+        where
+            Io2: AsyncRead,
+            Io2: AsyncWrite,
+            Io2: Unpin,
+            Io2: 'static,
+            T: Service<Connect, Response = (Io2, Protocol), Error = ConnectError>,
+            T: 'static
+        {
+            #[pin]
+            fut: <ConnectionPool<T, Io2> as Service<Connect>>::Future,
+            _phantom: PhantomData<Io1>
+        }
     }
 
     impl<T, Io1, Io2> Future for InnerConnectorResponseB<T, Io1, Io2>

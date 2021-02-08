@@ -15,6 +15,7 @@ use futures_core::ready;
 use futures_util::future::ok;
 use h2::server::{self, Handshake};
 use log::error;
+use pin_project_lite::pin_project;
 
 use crate::body::MessageBody;
 use crate::config::ServiceConfig;
@@ -205,17 +206,18 @@ where
     }
 }
 
-#[doc(hidden)]
-#[pin_project::pin_project]
-pub struct H2ServiceResponse<T, S, B>
-where
-    S: ServiceFactory<Request>,
-{
-    #[pin]
-    fut: S::Future,
-    cfg: Option<ServiceConfig>,
-    on_connect_ext: Option<Rc<ConnectCallback<T>>>,
-    _phantom: PhantomData<B>,
+pin_project! {
+    #[doc(hidden)]
+    pub struct H2ServiceResponse<T, S, B>
+    where
+        S: ServiceFactory<Request>,
+    {
+        #[pin]
+        fut: S::Future,
+        cfg: Option<ServiceConfig>,
+        on_connect_ext: Option<Rc<ConnectCallback<T>>>,
+        _phantom: PhantomData<B>
+    }
 }
 
 impl<T, S, B> Future for H2ServiceResponse<T, S, B>
