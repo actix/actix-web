@@ -19,7 +19,7 @@
 * `client::error::ConnectError` Resolver variant contains `Box<dyn std::error::Error>` type [#1905]
 * `client::ConnectorConfig` default timeout changed to 5 seconds. [#1905]
 * Simplify `BlockingError` type to a struct. It's only triggered with blocking thread pool is dead. [#1957]
-* `body::ResponseBody` enum use named field.
+* `body::ResponseBody` enum use named field. [#1968]
 
 ### Removed
 * `ResponseBuilder::set`; use `ResponseBuilder::insert_header`. [#1869]
@@ -35,6 +35,7 @@
 [#1905]: https://github.com/actix/actix-web/pull/1905
 [#1912]: https://github.com/actix/actix-web/pull/1912
 [#1957]: https://github.com/actix/actix-web/pull/1957
+[#1968]: https://github.com/actix/actix-web/pull/1968
 
 
 ## 3.0.0-beta.1 - 2021-01-07
