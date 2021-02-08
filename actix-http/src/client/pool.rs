@@ -517,7 +517,7 @@ where
         F: Future<Output = Result<(Io, Protocol), ConnectError>> + 'static,
     {
         // OpenWaitingConnection would guard the spawn task and release
-        // permission/wake up support future when spawn task is canceled/generated error.
+        // permission/wake up support future when spawn task is canceled.
         let mut guard = OpenWaitingConnection { inner: Some(inner) };
 
         actix_rt::spawn(async move {
