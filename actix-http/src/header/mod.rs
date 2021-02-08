@@ -1,4 +1,4 @@
-//! Typed HTTP headers, pre-defined `HeaderName`s, traits for parsing/conversion and other
+//! Typed HTTP headers, pre-defined `HeaderName`s, traits for parsing and conversion, and other
 //! header utility methods.
 
 use std::fmt;
@@ -39,16 +39,14 @@ pub trait Header: IntoHeaderValue {
     fn parse<T: HttpMessage>(msg: &T) -> Result<Self, ParseError>;
 }
 
-#[doc(hidden)]
+#[derive(Debug, Default)]
 pub(crate) struct Writer {
     buf: BytesMut,
 }
 
 impl Writer {
     fn new() -> Writer {
-        Writer {
-            buf: BytesMut::new(),
-        }
+        Writer::default()
     }
 
     fn take(&mut self) -> Bytes {
@@ -71,12 +69,8 @@ impl fmt::Write for Writer {
 
 /// Convert `http::HeaderMap` to our `HeaderMap`.
 impl From<http::HeaderMap> for HeaderMap {
-    fn from(map: http::HeaderMap) -> HeaderMap {
-        let mut new_map = HeaderMap::with_capacity(map.capacity());
-        for (h, v) in map.iter() {
-            new_map.append(h.clone(), v.clone());
-        }
-        new_map
+    fn from(mut map: http::HeaderMap) -> HeaderMap {
+        HeaderMap::from_drain(map.drain())
     }
 }
 
@@ -103,3 +97,26 @@ pub(crate) const HTTP_VALUE: &AsciiSet = &CONTROLS
     .add(b']')
     .add(b'{')
     .add(b'}');
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::header;
+
+    #[test]
+    fn test_http_header_map_to_ours() {
+        let mut http_map = http::HeaderMap::new();
+        let map = HeaderMap::from_drain(http_map.drain());
+        assert!(map.is_empty());
+
+        let mut http_map = http::HeaderMap::new();
+        http_map.append(header::HOST, HeaderValue::from_static("duck.com"));
+        http_map.append(header::COOKIE, HeaderValue::from_static("one=1"));
+        http_map.append(header::COOKIE, HeaderValue::from_static("two=2"));
+
+        let map = HeaderMap::from_drain(http_map.drain());
+        assert_eq!(map.len(), 3);
+        assert!(map.contains_key(header::HOST));
+        assert!(map.contains_key(header::COOKIE));
+    }
+}

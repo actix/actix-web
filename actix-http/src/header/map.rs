@@ -1,8 +1,13 @@
-use std::{borrow::Cow, collections::hash_map, str::FromStr};
+//! A multi-value [`HeaderMap`], its iterators, and a helper trait for types that can be effectively
+//! borrowed as, or converted to, a [HeaderValue].
+
+use std::{borrow::Cow, collections::hash_map, mem, str::FromStr};
 
 use ahash::AHashMap;
 use http::header::{HeaderName, HeaderValue, InvalidHeaderName};
 use smallvec::{smallvec, SmallVec};
+
+pub use as_header_name::AsHeaderName;
 
 /// A multi-map of HTTP headers.
 ///
@@ -19,6 +24,13 @@ pub(crate) enum Value {
 }
 
 impl Value {
+    fn len(&self) -> usize {
+        match self {
+            Value::One(_) => 1,
+            Value::Multi(vals) => vals.len(),
+        }
+    }
+
     fn first(&self) -> &HeaderValue {
         match self {
             Value::One(ref val) => val,
@@ -35,14 +47,11 @@ impl Value {
 
     fn append(&mut self, val: HeaderValue) {
         match self {
-            Value::One(_) => {
-                let data = std::mem::replace(self, Value::Multi(smallvec![val]));
-                match data {
-                    Value::One(val) => self.append(val),
-                    Value::Multi(_) => unreachable!(),
-                }
-            }
-            Value::Multi(ref mut vec) => vec.push(val),
+            Value::One(_) => match mem::replace(self, Value::Multi(smallvec![val])) {
+                Value::One(val) => self.append(val),
+                Value::Multi(_) => unreachable!(),
+            },
+            Value::Multi(ref mut vals) => vals.push(val),
         }
     }
 }
@@ -50,29 +59,63 @@ impl Value {
 impl HeaderMap {
     /// Create an empty `HeaderMap`.
     ///
-    /// The map will be created without any capacity. This function will not allocate.
+    /// The map will be created without any capacity; this function will not allocate.
     pub fn new() -> Self {
         HeaderMap::default()
     }
 
     /// Create an empty `HeaderMap` with the specified capacity.
     ///
-    /// The returned map will allocate internal storage in order to hold about `capacity` elements
-    /// without reallocating. However, this is a "best effort" as there are usage patterns that
-    /// could cause additional allocations before `capacity` headers are stored in the map.
-    ///
-    /// More capacity than requested may be allocated.
-    pub fn with_capacity(capacity: usize) -> HeaderMap {
+    /// The map will be able to hold at least `capacity` elements without needing to reallocate.
+    /// If `capacity` is 0, the map will be created without allocating.
+    pub fn with_capacity(capacity: usize) -> Self {
         HeaderMap {
             inner: AHashMap::with_capacity(capacity),
         }
     }
 
-    /// Returns the number of keys stored in the map.
+    /// Create new `HeaderMap` from a `http::HeaderMap`-like drain.
+    pub(crate) fn from_drain<I>(mut drain: I) -> Self
+    where
+        I: Iterator<Item = (Option<HeaderName>, HeaderValue)>,
+    {
+        let (first_name, first_value) = match drain.next() {
+            None => return HeaderMap::new(),
+            Some((name, val)) => {
+                let name = name.expect("drained first item had no name");
+                (name, val)
+            }
+        };
+
+        let (lb, ub) = drain.size_hint();
+        let capacity = ub.unwrap_or(lb);
+
+        let mut map = HeaderMap::with_capacity(capacity);
+        map.append(first_name.clone(), first_value);
+
+        let (map, _) =
+            drain.fold((map, first_name), |(mut map, prev_name), (name, value)| {
+                let name = name.unwrap_or(prev_name.clone());
+                map.append(name.clone(), value);
+                (map, name)
+            });
+
+        map
+    }
+
+    /// Returns the number of values stored in the map.
     ///
-    /// This number could be be less than or equal to actual headers stored in the map.
+    /// Also see [`len_keys`](Self::len_keys).
     pub fn len(&self) -> usize {
-        // TODO: wat!? that's messed up
+        self.inner
+            .iter()
+            .fold(0, |acc, (_, values)| acc + values.len())
+    }
+
+    /// Returns the number of _keys_ stored in the map.
+    ///
+    /// The number of _values_ stored will be at least this number. Also see [`Self::len`].
+    pub fn len_keys(&self) -> usize {
         self.inner.len()
     }
 
@@ -81,25 +124,27 @@ impl HeaderMap {
         self.inner.len() == 0
     }
 
-    /// Clears the map, removing all name-value pairs. Keeps the allocated memory for reuse.
+    /// Clears the map, removing all name-value pairs.
+    ///
+    /// Keeps the allocated memory for reuse.
     pub fn clear(&mut self) {
         self.inner.clear();
     }
 
-    /// Returns the number of headers the map can hold without reallocating.
+    /// Returns the number of single-value headers the map can hold without needing to reallocate.
     ///
-    /// This number is an approximation as certain usage patterns could cause additional allocations
-    /// before the returned capacity is filled.
+    /// Since this is a multi-value map, the actual capacity is much larger when considering
+    /// each header name can be associated with an arbitrary number of values. The effect is that
+    /// the size of `len` may be greater than `capacity` since it counts all the values.
+    /// Conversely, [`len_keys`](Self::len_keys) will never be larger than capacity.
     pub fn capacity(&self) -> usize {
         self.inner.capacity()
     }
 
     /// Reserves capacity for at least `additional` more headers to be inserted in the map.
     ///
-    /// The header map may reserve more space to avoid frequent reallocations. Like with
-    /// `with_capacity`, this will be a "best effort" to avoid allocations until `additional` more
-    /// headers are inserted. Certain usage patterns could cause additional allocations before the
-    /// number is reached.
+    /// The header map may reserve more space to avoid frequent reallocations. Additional capacity
+    /// only considers single-value headers.
     pub fn reserve(&mut self, additional: usize) {
         self.inner.reserve(additional)
     }
@@ -111,20 +156,20 @@ impl HeaderMap {
         }
     }
 
-    /// Returns a reference to the first value associated with a header name.
+    /// Returns a reference to the _first_ value associated with a header name.
     ///
-    /// If there are multiple values associated with the key, then the first one is returned.
-    /// Use `get_all` to get all values associated with a given key. Returns `None` if there are no
-    /// values associated with the key.
+    /// Even when multiple values associated with the key, the "first" one is returned but is not
+    /// guaranteed to be chosen in with particular order. Use `get_all` to get all values associated
+    /// with a given key. Returns `None` if there are no values associated with the key.
     pub fn get(&self, key: impl AsHeaderName) -> Option<&HeaderValue> {
         self.get_value(key).map(|val| val.first())
     }
 
-    /// Returns a mutable reference to the first value associated a header name.
+    /// Returns a mutable reference to the _first_ value associated a header name.
     ///
-    /// If there are multiple values associated with the key, then the first one is returned.
-    /// Use `get_all` to get all values associated with a given key. Returns `None` if there are no
-    /// values associated with the key.
+    /// Even when multiple values associated with the key, the "first" one is returned but is not
+    /// guaranteed to be chosen in with particular order. Use `get_all` to get all values associated
+    /// with a given key. Returns `None` if there are no values associated with the key.
     pub fn get_mut(&mut self, key: impl AsHeaderName) -> Option<&mut HeaderValue> {
         match key.try_as_name().ok()? {
             Cow::Borrowed(name) => self.inner.get_mut(name).map(|v| v.first_mut()),
@@ -132,16 +177,16 @@ impl HeaderMap {
         }
     }
 
-    /// Returns an iterator of all values associated with a header name.
+    /// Returns an iterator over all values associated with a header name.
     ///
-    /// The returned view does not incur any allocations and allows iterating the values associated
-    /// with the key. Iterator will yield no items if there are no values associated with the key.
-    /// Iteration order is not guaranteed to be the same as insertion order.
+    /// The returned iterator does not incur any allocations and will yield no items if there are no
+    /// values associated with the key. Iteration order is **not** guaranteed to be the same as
+    /// insertion order.
     pub fn get_all(&self, key: impl AsHeaderName) -> GetAll<'_> {
         GetAll::new(self.get_value(key))
     }
 
-    /// Returns true if the map contains a value for the specified key.
+    /// Returns `true` if the map contains a value for the specified key.
     ///
     /// Invalid header names will simply return false.
     pub fn contains_key(&self, key: impl AsHeaderName) -> bool {
@@ -152,42 +197,36 @@ impl HeaderMap {
         }
     }
 
-    /// An iterator visiting all name-value pairs.
+    /// An iterator over all name-value pairs.
     ///
-    /// The iteration order is arbitrary but consistent across platforms for the same crate version.
-    /// Each key will be yielded once per associated value. So, if a key has 3 associated values, it
-    /// will be yielded 3 times.
+    /// Names will be yielded for each associated value. So, if a key has 3 associated values, it
+    /// will be yielded 3 times. The iteration order should be considered arbitrary.
     pub fn iter(&self) -> Iter<'_> {
         Iter::new(self.inner.iter())
     }
 
-    /// An iterator visiting all keys.
+    /// An iterator over all contained header names.
     ///
-    /// The iteration order is arbitrary but consistent across platforms for the same crate version.
-    /// Each key will be yielded only once even if it has multiple associated values.
+    /// Each name will only be yielded once even if it has multiple associated values. The iteration
+    /// order should be considered arbitrary.
     pub fn keys(&self) -> Keys<'_> {
         Keys(self.inner.keys())
     }
 
     /// Inserts a name-value pair into the map.
     ///
-    /// If the map did have this key present, the new value is associated with the key and all
-    /// previous values are removed. **Note** that only a single one of the previous values
-    /// is returned. If there are multiple values that have been previously associated with the key,
-    /// then the first one is returned. See `insert_mult` on `OccupiedEntry` for an API that returns
-    /// all values.
-    ///
-    /// The key is not updated, though; this matters for types that can be `==`
-    /// without being identical.
-    pub fn insert(&mut self, key: HeaderName, val: HeaderValue) {
-        self.inner.insert(key, Value::One(val));
+    /// If the map already contained this key, the new value is associated with the key and all
+    /// previous values are removed and returned as a `Removed` iterator. The key is not updated;
+    /// this matters for types that can be `==` without being identical.
+    pub fn insert(&mut self, key: HeaderName, val: HeaderValue) -> Removed {
+        Removed::new(self.inner.insert(key, Value::One(val)))
     }
 
     /// Inserts a name-value pair into the map.
     ///
-    /// If the map did have this key present, the new value is pushed to the end of the list of
-    /// values currently associated with the key. The key is not updated, though; this matters for
-    /// types that can be `==` without being identical.
+    /// If the map already contained this key, the new value is added to the list of values
+    /// currently associated with the key. The key is not updated; this matters for types that can
+    /// be `==` without being identical.
     pub fn append(&mut self, key: HeaderName, value: HeaderValue) {
         match self.inner.entry(key) {
             hash_map::Entry::Occupied(mut entry) => {
@@ -200,16 +239,18 @@ impl HeaderMap {
     }
 
     /// Removes all headers for a particular header name from the map.
-    // TODO: return value somehow
-    pub fn remove(&mut self, key: impl AsHeaderName) {
-        match key.try_as_name() {
+    pub fn remove(&mut self, key: impl AsHeaderName) -> Removed {
+        let value = match key.try_as_name() {
             Ok(Cow::Borrowed(name)) => self.inner.remove(name),
             Ok(Cow::Owned(name)) => self.inner.remove(&name),
             Err(_) => None,
         };
+
+        Removed::new(value)
     }
 }
 
+/// Note that this implementation will clone a [HeaderName] for each value.
 impl IntoIterator for HeaderMap {
     type Item = (HeaderName, HeaderValue);
     type IntoIter = IntoIter;
@@ -230,10 +271,10 @@ impl<'a> IntoIterator for &'a HeaderMap {
     }
 }
 
-pub trait AsHeaderName: sealed::Sealed {}
-
-mod sealed {
+mod as_header_name {
     use super::*;
+
+    pub trait AsHeaderName: Sealed {}
 
     pub trait Sealed {
         fn try_as_name(&self) -> Result<Cow<'_, HeaderName>, InvalidHeaderName>;
@@ -275,7 +316,10 @@ mod sealed {
     impl AsHeaderName for &String {}
 }
 
-/// Iterator for all values in a `HeaderMap` with the same name.
+// TODO: add size hints to the iterators
+
+/// Iterator for all values with the same header name.
+#[derive(Debug)]
 pub struct GetAll<'a> {
     idx: usize,
     value: Option<&'a Value>,
@@ -300,7 +344,7 @@ impl<'a> Iterator for GetAll<'a> {
                 self.value = None;
                 Some(val)
             }
-            Value::Multi(ref vec) => match vec.get(self.idx) {
+            Value::Multi(ref vals) => match vals.get(self.idx) {
                 Some(val) => {
                     self.idx += 1;
                     Some(val)
@@ -315,6 +359,36 @@ impl<'a> Iterator for GetAll<'a> {
     }
 }
 
+/// Iterator for owned [`HeaderValue`]s with the same associated [`HeaderName`] returned from methods
+/// on [`HeaderMap`] that remove or replace items.
+#[derive(Debug)]
+pub struct Removed {
+    inner: smallvec::IntoIter<[HeaderValue; 4]>,
+}
+
+impl<'a> Removed {
+    fn new(value: Option<Value>) -> Self {
+        let inner = match value {
+            Some(Value::One(val)) => smallvec![val].into_iter(),
+            Some(Value::Multi(vals)) => vals.into_iter(),
+            None => smallvec![].into_iter(),
+        };
+
+        Self { inner }
+    }
+}
+
+impl Iterator for Removed {
+    type Item = HeaderValue;
+
+    #[inline]
+    fn next(&mut self) -> Option<HeaderValue> {
+        self.inner.next()
+    }
+}
+
+/// Iterator over all [`HeaderName`]s in the map.
+#[derive(Debug)]
 pub struct Keys<'a>(hash_map::Keys<'a, HeaderName, Value>);
 
 impl<'a> Iterator for Keys<'a> {
@@ -326,6 +400,7 @@ impl<'a> Iterator for Keys<'a> {
     }
 }
 
+#[derive(Debug)]
 pub struct Iter<'a> {
     iter: hash_map::Iter<'a, HeaderName, Value>,
     multi_inner: Option<(&'a HeaderName, &'a SmallVec<[HeaderValue; 4]>)>,
@@ -375,6 +450,10 @@ impl<'a> Iterator for Iter<'a> {
     }
 }
 
+/// Iterator over owned name-value pairs.
+///
+/// Implementation necessarily clones header names for each value.
+#[derive(Debug)]
 pub struct IntoIter {
     iter: hash_map::IntoIter<HeaderName, Value>,
     multi_inner: Option<(HeaderName, smallvec::IntoIter<[HeaderValue; 4]>)>,
@@ -427,7 +506,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_new() {
+    fn create() {
         let map = HeaderMap::new();
         assert_eq!(map.len(), 0);
         assert_eq!(map.capacity(), 0);
@@ -438,7 +517,7 @@ mod tests {
     }
 
     #[test]
-    fn test_insert() {
+    fn insert() {
         let mut map = HeaderMap::new();
 
         map.insert(header::LOCATION, HeaderValue::from_static("/test"));
@@ -446,7 +525,7 @@ mod tests {
     }
 
     #[test]
-    fn test_contains() {
+    fn contains() {
         let mut map = HeaderMap::new();
         assert!(!map.contains_key(header::LOCATION));
 
@@ -458,7 +537,7 @@ mod tests {
     }
 
     #[test]
-    fn test_entries_iter() {
+    fn entries_iter() {
         let mut map = HeaderMap::new();
 
         map.append(header::HOST, HeaderValue::from_static("duck.com"));
@@ -478,7 +557,7 @@ mod tests {
     }
 
     #[test]
-    fn test_entries_into_iter() {
+    fn entries_into_iter() {
         let mut map = HeaderMap::new();
 
         map.append(header::HOST, HeaderValue::from_static("duck.com"));
@@ -493,7 +572,7 @@ mod tests {
     }
 
     #[test]
-    fn test_entries_iter_and_into_iter_same_order() {
+    fn iter_and_into_iter_same_order() {
         let mut map = HeaderMap::new();
 
         map.append(header::HOST, HeaderValue::from_static("duck.com"));
@@ -507,6 +586,21 @@ mod tests {
         assert_eq!(iter.next().map(owned_pair), into_iter.next());
         assert_eq!(iter.next().map(owned_pair), into_iter.next());
         assert_eq!(iter.next().map(owned_pair), into_iter.next());
+    }
+
+    #[test]
+    fn get_all_and_remove_same_order() {
+        let mut map = HeaderMap::new();
+
+        map.append(header::COOKIE, HeaderValue::from_static("one=1"));
+        map.append(header::COOKIE, HeaderValue::from_static("two=2"));
+
+        let mut vals = map.get_all(header::COOKIE);
+        let mut removed = map.clone().remove(header::COOKIE);
+
+        assert_eq!(vals.next(), removed.next().as_ref());
+        assert_eq!(vals.next(), removed.next().as_ref());
+        assert_eq!(vals.next(), removed.next().as_ref());
     }
 
     fn owned_pair<'a>(
