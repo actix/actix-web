@@ -4,6 +4,8 @@
 ### Added
 * The method `Either<web::Json<T>, web::Form<T>>::into_inner()` which returns the inner type for
   whichever variant was created. Also works for `Either<web::Form<T>, web::Json<T>>`. [#1894]
+* Add `services!` macro for helping register multiple services to `App`. [#1933]
+* Enable registering vector of same type of `HttpServiceFactory` to `App` [#1933]
 
 ### Changed
 * Rework `Responder` trait to be sync and returns `Response`/`HttpResponse` directly.
@@ -11,7 +13,12 @@
 * `ServiceRequest::into_parts` and `ServiceRequest::from_parts` would not fail.
   `ServiceRequest::from_request` would not fail and no payload would be generated [#1893]
 * Our `Either` type now uses `Left`/`Right` variants (instead of `A`/`B`) [#1894]
-
+* `test::{call_service, read_response, read_response_json, send_request}` take `&Service` 
+  in argument [#1905]
+* `App::wrap_fn`, `Resource::wrap_fn` and `Scope::wrap_fn` would give `&Service` in closure
+  argument [#1905]
+* `web::block` accept any closure that has an output bound to `Send` and `'static`. [#1957]
+  
 ### Fixed
 * Multiple calls `App::data` with the same type now keeps the latest call's data. [#1906]
 
@@ -27,7 +34,10 @@
 [#1893]: https://github.com/actix/actix-web/pull/1893
 [#1894]: https://github.com/actix/actix-web/pull/1894
 [#1869]: https://github.com/actix/actix-web/pull/1869
+[#1905]: https://github.com/actix/actix-web/pull/1905
 [#1906]: https://github.com/actix/actix-web/pull/1906
+[#1933]: https://github.com/actix/actix-web/pull/1933
+[#1957]: https://github.com/actix/actix-web/pull/1957
 
 
 ## 4.0.0-beta.1 - 2021-01-07

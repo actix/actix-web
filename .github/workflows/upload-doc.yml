@@ -24,7 +24,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: doc
-          args: --no-deps --workspace --all-features
+          args: --workspace --all-features --no-deps
 
       - name: Tweak HTML
         run: echo "<meta http-equiv=refresh content=0;url=os_balloon/index.html>" > target/doc/index.html

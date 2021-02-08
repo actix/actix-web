@@ -220,7 +220,7 @@ where
 
     actix_service::forward_ready!(service);
 
-    fn call(&mut self, req: Request) -> Self::Future {
+    fn call(&self, req: Request) -> Self::Future {
         let (head, payload) = req.into_parts();
 
         let req = if let Some(mut req) = self.app_state.pool().pop() {
@@ -311,8 +311,8 @@ impl Service<ServiceRequest> for AppRouting {
 
     actix_service::always_ready!();
 
-    fn call(&mut self, mut req: ServiceRequest) -> Self::Future {
-        let res = self.router.recognize_mut_checked(&mut req, |req, guards| {
+    fn call(&self, mut req: ServiceRequest) -> Self::Future {
+        let res = self.router.recognize_checked(&mut req, |req, guards| {
             if let Some(ref guards) = guards {
                 for f in guards {
                     if !f.check(req.head()) {
@@ -378,7 +378,7 @@ mod tests {
         let data = Arc::new(AtomicBool::new(false));
 
         {
-            let mut app = init_service(
+            let app = init_service(
                 App::new()
                     .data(DropData(data.clone()))
                     .service(web::resource("/test").to(HttpResponse::Ok)),

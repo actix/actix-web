@@ -143,7 +143,7 @@ where
 
     actix_service::forward_ready!(service);
 
-    fn call(&mut self, req: ServiceRequest) -> Self::Future {
+    fn call(&self, req: ServiceRequest) -> Self::Future {
         let inner = self.inner.clone();
         let fut = self.service.call(req);
 
@@ -200,7 +200,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_default_headers() {
-        let mut mw = DefaultHeaders::new()
+        let mw = DefaultHeaders::new()
             .header(CONTENT_TYPE, "0001")
             .new_transform(ok_service())
             .await
@@ -218,7 +218,7 @@ mod tests {
                     .finish(),
             ))
         };
-        let mut mw = DefaultHeaders::new()
+        let mw = DefaultHeaders::new()
             .header(CONTENT_TYPE, "0001")
             .new_transform(srv.into_service())
             .await
@@ -231,7 +231,7 @@ mod tests {
     async fn test_content_type() {
         let srv =
             |req: ServiceRequest| ok(req.into_response(HttpResponse::Ok().finish()));
-        let mut mw = DefaultHeaders::new()
+        let mw = DefaultHeaders::new()
             .add_content_type()
             .new_transform(srv.into_service())
             .await
