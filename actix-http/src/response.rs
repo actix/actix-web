@@ -752,9 +752,11 @@ impl<'a> From<&'a ResponseHead> for ResponseBuilder {
         let mut msg = BoxedResponseHead::new(head.status);
         msg.version = head.version;
         msg.reason = head.reason;
-        for (k, v) in &head.headers {
+
+        for (k, v) in head.headers.iter() {
             msg.headers.append(k.clone(), v.clone());
         }
+
         msg.no_chunking(!head.chunked());
 
         ResponseBuilder {
