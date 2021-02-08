@@ -22,6 +22,13 @@ pub trait HttpServiceFactory {
     fn register(self, config: &mut AppService);
 }
 
+impl<T: HttpServiceFactory> HttpServiceFactory for Vec<T> {
+    fn register(self, config: &mut AppService) {
+        self.into_iter()
+            .for_each(|factory| factory.register(config));
+    }
+}
+
 pub(crate) trait AppServiceFactory {
     fn register(&mut self, config: &mut AppService);
 }
@@ -532,6 +539,65 @@ where
     }
 }
 
+/// Macro helping register different types of services at the sametime.
+///
+/// The service type must be implementing [`HttpServiceFactory`](self::HttpServiceFactory) trait.
+///
+/// The max number of services can be grouped together is 12.
+///
+/// # Examples
+///
+/// ```
+/// use actix_web::{services, web, App};
+///
+/// let services = services![
+///     web::resource("/test2").to(|| async { "test2" }),
+///     web::scope("/test3").route("/", web::get().to(|| async { "test3" }))
+/// ];
+///
+/// let app = App::new().service(services);
+///
+/// // services macro just convert multiple services to a tuple.
+/// // below would also work without importing the macro.
+/// let app = App::new().service((
+///     web::resource("/test2").to(|| async { "test2" }),
+///     web::scope("/test3").route("/", web::get().to(|| async { "test3" }))
+/// ));
+/// ```
+#[macro_export]
+macro_rules! services {
+    ($($x:expr),+ $(,)?) => {
+        ($($x,)+)
+    }
+}
+
+/// HttpServiceFactory trait impl for tuples
+macro_rules! service_tuple ({ $(($n:tt, $T:ident)),+} => {
+    impl<$($T: HttpServiceFactory),+> HttpServiceFactory for ($($T,)+) {
+        fn register(self, config: &mut AppService) {
+            $(self.$n.register(config);)+
+        }
+    }
+});
+
+#[rustfmt::skip]
+mod m {
+    use super::*;
+
+    service_tuple!((0, A));
+    service_tuple!((0, A), (1, B));
+    service_tuple!((0, A), (1, B), (2, C));
+    service_tuple!((0, A), (1, B), (2, C), (3, D));
+    service_tuple!((0, A), (1, B), (2, C), (3, D), (4, E));
+    service_tuple!((0, A), (1, B), (2, C), (3, D), (4, E), (5, F));
+    service_tuple!((0, A), (1, B), (2, C), (3, D), (4, E), (5, F), (6, G));
+    service_tuple!((0, A), (1, B), (2, C), (3, D), (4, E), (5, F), (6, G), (7, H));
+    service_tuple!((0, A), (1, B), (2, C), (3, D), (4, E), (5, F), (6, G), (7, H), (8, I));
+    service_tuple!((0, A), (1, B), (2, C), (3, D), (4, E), (5, F), (6, G), (7, H), (8, I), (9, J));
+    service_tuple!((0, A), (1, B), (2, C), (3, D), (4, E), (5, F), (6, G), (7, H), (8, I), (9, J), (10, K));
+    service_tuple!((0, A), (1, B), (2, C), (3, D), (4, E), (5, F), (6, G), (7, H), (8, I), (9, J), (10, K), (11, L));
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -605,5 +671,81 @@ mod tests {
         let s = format!("{:?}", res);
         assert!(s.contains("ServiceResponse"));
         assert!(s.contains("x-test"));
+    }
+
+    #[actix_rt::test]
+    async fn test_services_macro() {
+        let scoped = services![
+            web::service("/scoped_test1").name("scoped_test1").finish(
+                |req: ServiceRequest| async {
+                    Ok(req.into_response(HttpResponse::Ok().finish()))
+                }
+            ),
+            web::resource("/scoped_test2").to(|| async { "test2" }),
+        ];
+
+        let services = services![
+            web::service("/test1")
+                .name("test")
+                .finish(|req: ServiceRequest| async {
+                    Ok(req.into_response(HttpResponse::Ok().finish()))
+                }),
+            web::resource("/test2").to(|| async { "test2" }),
+            web::scope("/test3").service(scoped)
+        ];
+
+        let srv = init_service(App::new().service(services)).await;
+
+        let req = TestRequest::with_uri("/test1").to_request();
+        let resp = srv.call(req).await.unwrap();
+        assert_eq!(resp.status(), http::StatusCode::OK);
+
+        let req = TestRequest::with_uri("/test2").to_request();
+        let resp = srv.call(req).await.unwrap();
+        assert_eq!(resp.status(), http::StatusCode::OK);
+
+        let req = TestRequest::with_uri("/test3/scoped_test1").to_request();
+        let resp = srv.call(req).await.unwrap();
+        assert_eq!(resp.status(), http::StatusCode::OK);
+
+        let req = TestRequest::with_uri("/test3/scoped_test2").to_request();
+        let resp = srv.call(req).await.unwrap();
+        assert_eq!(resp.status(), http::StatusCode::OK);
+    }
+
+    #[actix_rt::test]
+    async fn test_services_vec() {
+        let services = vec![
+            web::resource("/test1").to(|| async { "test1" }),
+            web::resource("/test2").to(|| async { "test2" }),
+        ];
+
+        let scoped = vec![
+            web::resource("/scoped_test1").to(|| async { "test1" }),
+            web::resource("/scoped_test2").to(|| async { "test2" }),
+        ];
+
+        let srv = init_service(
+            App::new()
+                .service(services)
+                .service(web::scope("/test3").service(scoped)),
+        )
+        .await;
+
+        let req = TestRequest::with_uri("/test1").to_request();
+        let resp = srv.call(req).await.unwrap();
+        assert_eq!(resp.status(), http::StatusCode::OK);
+
+        let req = TestRequest::with_uri("/test2").to_request();
+        let resp = srv.call(req).await.unwrap();
+        assert_eq!(resp.status(), http::StatusCode::OK);
+
+        let req = TestRequest::with_uri("/test3/scoped_test1").to_request();
+        let resp = srv.call(req).await.unwrap();
+        assert_eq!(resp.status(), http::StatusCode::OK);
+
+        let req = TestRequest::with_uri("/test3/scoped_test2").to_request();
+        let resp = srv.call(req).await.unwrap();
+        assert_eq!(resp.status(), http::StatusCode::OK);
     }
 }

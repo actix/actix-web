@@ -4,6 +4,8 @@
 ### Added
 * The method `Either<web::Json<T>, web::Form<T>>::into_inner()` which returns the inner type for
   whichever variant was created. Also works for `Either<web::Form<T>, web::Json<T>>`. [#1894]
+* Add `services!` macro for helping register multiple services to `App`. [#1933]
+* Enable registering vector of same type of `HttpServiceFactory` to `App` [#1933]
 
 ### Changed
 * Rework `Responder` trait to be sync and returns `Response`/`HttpResponse` directly.
@@ -34,6 +36,7 @@
 [#1869]: https://github.com/actix/actix-web/pull/1869
 [#1905]: https://github.com/actix/actix-web/pull/1905
 [#1906]: https://github.com/actix/actix-web/pull/1906
+[#1933]: https://github.com/actix/actix-web/pull/1933
 [#1957]: https://github.com/actix/actix-web/pull/1957
 
 
