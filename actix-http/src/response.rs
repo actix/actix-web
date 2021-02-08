@@ -363,7 +363,9 @@ impl ResponseBuilder {
     {
         if let Some(parts) = parts(&mut self.head, &self.err) {
             match header.try_into_header_pair() {
-                Ok((key, value)) => parts.headers.insert(key, value),
+                Ok((key, value)) => {
+                    parts.headers.insert(key, value);
+                }
                 Err(e) => self.err = Some(e.into()),
             };
         }

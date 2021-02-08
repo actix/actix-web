@@ -131,24 +131,6 @@ impl HeaderMap {
         self.inner.clear();
     }
 
-    /// Returns the number of single-value headers the map can hold without needing to reallocate.
-    ///
-    /// Since this is a multi-value map, the actual capacity is much larger when considering
-    /// each header name can be associated with an arbitrary number of values. The effect is that
-    /// the size of `len` may be greater than `capacity` since it counts all the values.
-    /// Conversely, [`len_keys`](Self::len_keys) will never be larger than capacity.
-    pub fn capacity(&self) -> usize {
-        self.inner.capacity()
-    }
-
-    /// Reserves capacity for at least `additional` more headers to be inserted in the map.
-    ///
-    /// The header map may reserve more space to avoid frequent reallocations. Additional capacity
-    /// only considers single-value headers.
-    pub fn reserve(&mut self, additional: usize) {
-        self.inner.reserve(additional)
-    }
-
     fn get_value(&self, key: impl AsHeaderName) -> Option<&Value> {
         match key.try_as_name().ok()? {
             Cow::Borrowed(name) => self.inner.get(name),
@@ -197,22 +179,6 @@ impl HeaderMap {
         }
     }
 
-    /// An iterator over all name-value pairs.
-    ///
-    /// Names will be yielded for each associated value. So, if a key has 3 associated values, it
-    /// will be yielded 3 times. The iteration order should be considered arbitrary.
-    pub fn iter(&self) -> Iter<'_> {
-        Iter::new(self.inner.iter())
-    }
-
-    /// An iterator over all contained header names.
-    ///
-    /// Each name will only be yielded once even if it has multiple associated values. The iteration
-    /// order should be considered arbitrary.
-    pub fn keys(&self) -> Keys<'_> {
-        Keys(self.inner.keys())
-    }
-
     /// Inserts a name-value pair into the map.
     ///
     /// If the map already contained this key, the new value is associated with the key and all
@@ -247,6 +213,51 @@ impl HeaderMap {
         };
 
         Removed::new(value)
+    }
+
+    /// Returns the number of single-value headers the map can hold without needing to reallocate.
+    ///
+    /// Since this is a multi-value map, the actual capacity is much larger when considering
+    /// each header name can be associated with an arbitrary number of values. The effect is that
+    /// the size of `len` may be greater than `capacity` since it counts all the values.
+    /// Conversely, [`len_keys`](Self::len_keys) will never be larger than capacity.
+    pub fn capacity(&self) -> usize {
+        self.inner.capacity()
+    }
+
+    /// Reserves capacity for at least `additional` more headers to be inserted in the map.
+    ///
+    /// The header map may reserve more space to avoid frequent reallocations. Additional capacity
+    /// only considers single-value headers.
+    pub fn reserve(&mut self, additional: usize) {
+        self.inner.reserve(additional)
+    }
+
+    /// An iterator over all name-value pairs.
+    ///
+    /// Names will be yielded for each associated value. So, if a key has 3 associated values, it
+    /// will be yielded 3 times. The iteration order should be considered arbitrary.
+    pub fn iter(&self) -> Iter<'_> {
+        Iter::new(self.inner.iter())
+    }
+
+    /// An iterator over all contained header names.
+    ///
+    /// Each name will only be yielded once even if it has multiple associated values. The iteration
+    /// order should be considered arbitrary.
+    pub fn keys(&self) -> Keys<'_> {
+        Keys(self.inner.keys())
+    }
+
+    /// Clears the map, returning all name-value sets as an iterator.
+    ///
+    /// Header names will only be yielded for the first value in each set. All items that are
+    /// yielded without a name and after an item with a name are associated with that same name.
+    /// The first item will always contain a name.
+    ///
+    /// Keeps the allocated memory for reuse.
+    pub fn drain(&mut self) -> Drain<'_> {
+        Drain::new(self.inner.drain())
     }
 }
 
@@ -335,7 +346,7 @@ impl<'a> Iterator for GetAll<'a> {
     type Item = &'a HeaderValue;
 
     #[inline]
-    fn next(&mut self) -> Option<&'a HeaderValue> {
+    fn next(&mut self) -> Option<Self::Item> {
         let val = self.value?;
 
         match val {
@@ -382,7 +393,7 @@ impl Iterator for Removed {
     type Item = HeaderValue;
 
     #[inline]
-    fn next(&mut self) -> Option<HeaderValue> {
+    fn next(&mut self) -> Option<Self::Item> {
         self.inner.next()
     }
 }
@@ -395,14 +406,14 @@ impl<'a> Iterator for Keys<'a> {
     type Item = &'a HeaderName;
 
     #[inline]
-    fn next(&mut self) -> Option<&'a HeaderName> {
+    fn next(&mut self) -> Option<Self::Item> {
         self.0.next()
     }
 }
 
 #[derive(Debug)]
 pub struct Iter<'a> {
-    iter: hash_map::Iter<'a, HeaderName, Value>,
+    inner: hash_map::Iter<'a, HeaderName, Value>,
     multi_inner: Option<(&'a HeaderName, &'a SmallVec<[HeaderValue; 4]>)>,
     multi_idx: usize,
 }
@@ -410,7 +421,7 @@ pub struct Iter<'a> {
 impl<'a> Iter<'a> {
     fn new(iter: hash_map::Iter<'a, HeaderName, Value>) -> Self {
         Self {
-            iter,
+            inner: iter,
             multi_idx: 0,
             multi_inner: None,
         }
@@ -421,7 +432,7 @@ impl<'a> Iterator for Iter<'a> {
     type Item = (&'a HeaderName, &'a HeaderValue);
 
     #[inline]
-    fn next(&mut self) -> Option<(&'a HeaderName, &'a HeaderValue)> {
+    fn next(&mut self) -> Option<Self::Item> {
         // handle in-progress multi value lists first
         if let Some((ref name, ref mut vals)) = self.multi_inner {
             match vals.get(self.multi_idx) {
@@ -437,13 +448,63 @@ impl<'a> Iterator for Iter<'a> {
             }
         }
 
-        let (name, value) = self.iter.next()?;
+        let (name, value) = self.inner.next()?;
 
         match value {
             Value::One(ref value) => Some((name, value)),
             Value::Multi(ref vals) => {
                 // set up new multi value inner iter and recurse into it
                 self.multi_inner = Some((name, vals));
+                self.next()
+            }
+        }
+    }
+}
+
+/// Iterator over drained name-value pairs.
+///
+/// Iterator items are `(Option<HeaderName>, HeaderValue)` to avoid cloning.
+#[derive(Debug)]
+pub struct Drain<'a> {
+    inner: hash_map::Drain<'a, HeaderName, Value>,
+    multi_inner: Option<(Option<HeaderName>, SmallVec<[HeaderValue; 4]>)>,
+    multi_inner_idx: usize,
+}
+
+impl<'a> Drain<'a> {
+    fn new(iter: hash_map::Drain<'a, HeaderName, Value>) -> Self {
+        Self {
+            inner: iter,
+            multi_inner: None,
+            multi_inner_idx: 0,
+        }
+    }
+}
+
+impl<'a> Iterator for Drain<'a> {
+    type Item = (Option<HeaderName>, HeaderValue);
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        // handle in-progress multi value iterators first
+        if let Some((ref mut name, ref mut vals)) = self.multi_inner {
+            if vals.len() > 0 {
+                // OPTIMISE: array removals
+                return Some((name.take(), vals.remove(0)));
+            } else {
+                // no more items in value iterator; reset state
+                self.multi_inner = None;
+                self.multi_inner_idx = 0;
+            }
+        }
+
+        let (name, mut value) = self.inner.next()?;
+
+        match value {
+            Value::One(value) => Some((Some(name), value)),
+            Value::Multi(ref mut vals) => {
+                // set up new multi value inner iter and recurse into it
+                self.multi_inner = Some((Some(name), mem::take(vals)));
                 self.next()
             }
         }
@@ -472,7 +533,7 @@ impl Iterator for IntoIter {
     type Item = (HeaderName, HeaderValue);
 
     #[inline]
-    fn next(&mut self) -> Option<(HeaderName, HeaderValue)> {
+    fn next(&mut self) -> Option<Self::Item> {
         // handle in-progress multi value iterators first
         if let Some((ref name, ref mut vals)) = self.multi_inner {
             match vals.next() {
@@ -554,6 +615,33 @@ mod tests {
         assert!(pairs.contains(&(&header::HOST, &HeaderValue::from_static("duck.com"))));
         assert!(pairs.contains(&(&header::COOKIE, &HeaderValue::from_static("one=1"))));
         assert!(pairs.contains(&(&header::COOKIE, &HeaderValue::from_static("two=2"))));
+    }
+
+    #[test]
+    fn drain_iter() {
+        let mut map = HeaderMap::new();
+
+        map.append(header::COOKIE, HeaderValue::from_static("one=1"));
+        map.append(header::COOKIE, HeaderValue::from_static("two=2"));
+
+        let mut vals = vec![];
+        let mut iter = map.drain();
+
+        let (name, val) = iter.next().unwrap();
+        assert_eq!(name, Some(header::COOKIE));
+        vals.push(val);
+
+        let (name, val) = iter.next().unwrap();
+        assert!(name.is_none());
+        vals.push(val);
+
+        assert!(vals.contains(&HeaderValue::from_static("one=1")));
+        assert!(vals.contains(&HeaderValue::from_static("two=2")));
+
+        assert!(iter.next().is_none());
+        drop(iter);
+        
+        assert!(map.is_empty());
     }
 
     #[test]

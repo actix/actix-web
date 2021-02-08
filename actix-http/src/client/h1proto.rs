@@ -48,11 +48,11 @@ where
             match wrt.get_mut().split().freeze().try_into_value() {
                 Ok(value) => match head {
                     RequestHeadType::Owned(ref mut head) => {
-                        head.headers.insert(HOST, value)
+                        head.headers.insert(HOST, value);
                     }
                     RequestHeadType::Rc(_, ref mut extra_headers) => {
                         let headers = extra_headers.get_or_insert(HeaderMap::new());
-                        headers.insert(HOST, value)
+                        headers.insert(HOST, value);
                     }
                 },
                 Err(e) => log::error!("Can not set HOST header {}", e),
