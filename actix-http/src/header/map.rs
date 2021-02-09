@@ -327,8 +327,6 @@ mod as_header_name {
     impl AsHeaderName for &String {}
 }
 
-// TODO: add size hints to the iterators
-
 /// Iterator for all values with the same header name.
 #[derive(Debug)]
 pub struct GetAll<'a> {
@@ -345,7 +343,6 @@ impl<'a> GetAll<'a> {
 impl<'a> Iterator for GetAll<'a> {
     type Item = &'a HeaderValue;
 
-    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         let val = self.value?;
 
@@ -366,6 +363,13 @@ impl<'a> Iterator for GetAll<'a> {
                     None
                 }
             },
+        }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        match self.value {
+            Some(val) => (val.len(), Some(val.len())),
+            None => (0, Some(0)),
         }
     }
 }
@@ -396,6 +400,11 @@ impl Iterator for Removed {
     fn next(&mut self) -> Option<Self::Item> {
         self.inner.next()
     }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.inner.size_hint()
+    }
 }
 
 /// Iterator over all [`HeaderName`]s in the map.
@@ -408,6 +417,11 @@ impl<'a> Iterator for Keys<'a> {
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         self.0.next()
+    }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.0.size_hint()
     }
 }
 
@@ -431,7 +445,6 @@ impl<'a> Iter<'a> {
 impl<'a> Iterator for Iter<'a> {
     type Item = (&'a HeaderName, &'a HeaderValue);
 
-    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         // handle in-progress multi value lists first
         if let Some((ref name, ref mut vals)) = self.multi_inner {
@@ -459,6 +472,13 @@ impl<'a> Iterator for Iter<'a> {
             }
         }
     }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        // take inner lower bound
+        // make no attempt at an upper bound
+        (self.inner.size_hint().0, None)
+    }
 }
 
 /// Iterator over drained name-value pairs.
@@ -484,7 +504,6 @@ impl<'a> Drain<'a> {
 impl<'a> Iterator for Drain<'a> {
     type Item = (Option<HeaderName>, HeaderValue);
 
-    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         // handle in-progress multi value iterators first
         if let Some((ref mut name, ref mut vals)) = self.multi_inner {
@@ -509,6 +528,13 @@ impl<'a> Iterator for Drain<'a> {
             }
         }
     }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        // take inner lower bound
+        // make no attempt at an upper bound
+        (self.inner.size_hint().0, None)
+    }
 }
 
 /// Iterator over owned name-value pairs.
@@ -516,14 +542,14 @@ impl<'a> Iterator for Drain<'a> {
 /// Implementation necessarily clones header names for each value.
 #[derive(Debug)]
 pub struct IntoIter {
-    iter: hash_map::IntoIter<HeaderName, Value>,
+    inner: hash_map::IntoIter<HeaderName, Value>,
     multi_inner: Option<(HeaderName, smallvec::IntoIter<[HeaderValue; 4]>)>,
 }
 
 impl IntoIter {
-    fn new(iter: hash_map::IntoIter<HeaderName, Value>) -> Self {
+    fn new(inner: hash_map::IntoIter<HeaderName, Value>) -> Self {
         Self {
-            iter,
+            inner,
             multi_inner: None,
         }
     }
@@ -532,7 +558,6 @@ impl IntoIter {
 impl Iterator for IntoIter {
     type Item = (HeaderName, HeaderValue);
 
-    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         // handle in-progress multi value iterators first
         if let Some((ref name, ref mut vals)) = self.multi_inner {
@@ -547,7 +572,7 @@ impl Iterator for IntoIter {
             }
         }
 
-        let (name, value) = self.iter.next()?;
+        let (name, value) = self.inner.next()?;
 
         match value {
             Value::One(value) => Some((name, value)),
@@ -557,6 +582,13 @@ impl Iterator for IntoIter {
                 self.next()
             }
         }
+    }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        // take inner lower bound
+        // make no attempt at an upper bound
+        (self.inner.size_hint().0, None)
     }
 }
 
@@ -640,7 +672,7 @@ mod tests {
 
         assert!(iter.next().is_none());
         drop(iter);
-        
+
         assert!(map.is_empty());
     }
 
