@@ -10,6 +10,7 @@
 * `HeaderMap::len_keys` has the behavior of the old `len` method. [#1964]
 * `HeaderMap::drain` as an efficient draining iterator. [#1964]
 * Implement `IntoIterator` for owned `HeaderMap`. [#1964]
+* `trust-dns` optional feature to enable `trust-dns-resolver` as client dns resolver. [#1969]
 
 ### Changed
 * `ResponseBuilder::content_type` now takes an `impl IntoHeaderValue` to support using typed
@@ -32,6 +33,8 @@
 * `ResponseBuilder::header`; use `ResponseBuilder::append_header`. [#1869]
 * `TestRequest::with_hdr`; use `TestRequest::default().insert_header()`. [#1869]
 * `TestRequest::with_header`; use `TestRequest::default().insert_header()`. [#1869]
+* `actors` optional feature. [#1969]
+* `ResponseError` impl for `actix::MailboxError`. [#1969]
 
 ### Documentation
 * Vastly improve docs and add examples for `HeaderMap`. [#1964]
@@ -44,6 +47,7 @@
 [#1912]: https://github.com/actix/actix-web/pull/1912
 [#1957]: https://github.com/actix/actix-web/pull/1957
 [#1964]: https://github.com/actix/actix-web/pull/1964
+[#1969]: https://github.com/actix/actix-web/pull/1969
 
 
 ## 3.0.0-beta.1 - 2021-01-07

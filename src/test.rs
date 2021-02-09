@@ -1277,8 +1277,10 @@ mod tests {
         async fn actor_handler(
             addr: Data<Addr<MyActor>>,
         ) -> Result<impl Responder, Error> {
-            // `?` operator tests "actors" feature flag on actix-http
-            let res = addr.send(Num(1)).await?;
+            let res = addr
+                .send(Num(1))
+                .await
+                .map_err(crate::error::ErrorInternalServerError)?;
 
             if res == 1 {
                 Ok(HttpResponse::Ok())

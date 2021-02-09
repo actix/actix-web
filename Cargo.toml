@@ -109,7 +109,6 @@ smallvec = "1.6"
 
 [dev-dependencies]
 actix = { version = "0.11.0-beta.2", default-features = false }
-actix-http = { version = "3.0.0-beta.1", features = ["actors"] }
 rand = "0.8"
 env_logger = "0.8"
 serde_derive = "1.0"
