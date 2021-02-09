@@ -177,13 +177,17 @@ impl<P> fmt::Debug for Request<P> {
             self.method(),
             self.path()
         )?;
+
         if let Some(q) = self.uri().query().as_ref() {
             writeln!(f, "  query: ?{:?}", q)?;
         }
+
         writeln!(f, "  headers:")?;
-        for (key, val) in self.headers() {
+
+        for (key, val) in self.headers().iter() {
             writeln!(f, "    {:?}: {:?}", key, val)?;
         }
+
         Ok(())
     }
 }

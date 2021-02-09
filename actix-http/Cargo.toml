@@ -52,7 +52,6 @@ bytes = "1"
 bytestring = "1"
 cookie = { version = "0.14.1", features = ["percent-encode"] }
 derive_more = "0.99.5"
-either = "1.5.3"
 encoding_rs = "0.8"
 futures-channel = { version = "0.3.7", default-features = false, features = ["alloc"] }
 futures-core = { version = "0.3.7", default-features = false, features = ["alloc"] }

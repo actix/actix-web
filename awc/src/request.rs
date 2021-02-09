@@ -159,7 +159,9 @@ impl ClientRequest {
         H: IntoHeaderPair,
     {
         match header.try_into_header_pair() {
-            Ok((key, value)) => self.head.headers.insert(key, value),
+            Ok((key, value)) => {
+                self.head.headers.insert(key, value);
+            }
             Err(e) => self.err = Some(e.into()),
         };
 
@@ -232,7 +234,9 @@ impl ClientRequest {
         <HeaderValue as TryFrom<V>>::Error: Into<HttpError>,
     {
         match HeaderValue::try_from(value) {
-            Ok(value) => self.head.headers.insert(header::CONTENT_TYPE, value),
+            Ok(value) => {
+                self.head.headers.insert(header::CONTENT_TYPE, value);
+            }
             Err(e) => self.err = Some(e.into()),
         }
         self

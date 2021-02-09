@@ -304,7 +304,9 @@ impl RequestSender {
             RequestSender::Owned(head) => {
                 if !head.headers.contains_key(&key) {
                     match value.try_into_value() {
-                        Ok(value) => head.headers.insert(key, value),
+                        Ok(value) => {
+                            head.headers.insert(key, value);
+                        }
                         Err(e) => return Err(e.into()),
                     }
                 }

@@ -7,6 +7,9 @@
 * `ResponseBuilder::append_header` method which allows using typed headers. [#1869]
 * `TestRequest::insert_header` method which allows using typed headers. [#1869]
 * `ContentEncoding` implements all necessary header traits. [#1912]
+* `HeaderMap::len_keys` has the behavior of the old `len` method. [#1964]
+* `HeaderMap::drain` as an efficient draining iterator. [#1964]
+* Implement `IntoIterator` for owned `HeaderMap`. [#1964]
 * `trust-dns` optional feature to enable `trust-dns-resolver` as client dns resolver. [#1969]
 
 ### Changed
@@ -20,6 +23,9 @@
 * `client::error::ConnectError` Resolver variant contains `Box<dyn std::error::Error>` type [#1905]
 * `client::ConnectorConfig` default timeout changed to 5 seconds. [#1905]
 * Simplify `BlockingError` type to a struct. It's only triggered with blocking thread pool is dead. [#1957]
+* `HeaderMap::len` now returns number of values instead of number of keys. [#1964]
+* `HeaderMap::insert` now returns iterator of removed values. [#1964]
+* `HeaderMap::remove` now returns iterator of removed values. [#1964]
 
 ### Removed
 * `ResponseBuilder::set`; use `ResponseBuilder::insert_header`. [#1869]
@@ -30,6 +36,9 @@
 * `actors` optional feature. [#1969]
 * `ResponseError` impl for `actix::MailboxError`. [#1969]
 
+### Documentation
+* Vastly improve docs and add examples for `HeaderMap`. [#1964]
+
 [#1869]: https://github.com/actix/actix-web/pull/1869
 [#1894]: https://github.com/actix/actix-web/pull/1894
 [#1903]: https://github.com/actix/actix-web/pull/1903
@@ -37,6 +46,7 @@
 [#1905]: https://github.com/actix/actix-web/pull/1905
 [#1912]: https://github.com/actix/actix-web/pull/1912
 [#1957]: https://github.com/actix/actix-web/pull/1957
+[#1964]: https://github.com/actix/actix-web/pull/1964
 [#1969]: https://github.com/actix/actix-web/pull/1969
 
 

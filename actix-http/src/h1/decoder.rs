@@ -830,8 +830,8 @@ mod tests {
             .get_all(SET_COOKIE)
             .map(|v| v.to_str().unwrap().to_owned())
             .collect();
-        assert_eq!(val[1], "c1=cookie1");
-        assert_eq!(val[0], "c2=cookie2");
+        assert_eq!(val[0], "c1=cookie1");
+        assert_eq!(val[1], "c2=cookie2");
     }
 
     #[test]
