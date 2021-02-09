@@ -968,12 +968,6 @@ where
     InternalError::new(err, StatusCode::NETWORK_AUTHENTICATION_REQUIRED).into()
 }
 
-#[cfg(feature = "actors")]
-/// Returns [`StatusCode::INTERNAL_SERVER_ERROR`] for [`actix::MailboxError`].
-///
-/// This is only supported when the feature `actors` is enabled.
-impl ResponseError for actix::MailboxError {}
-
 #[cfg(test)]
 mod tests {
     use super::*;

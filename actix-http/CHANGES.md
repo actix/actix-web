@@ -7,6 +7,7 @@
 * `ResponseBuilder::append_header` method which allows using typed headers. [#1869]
 * `TestRequest::insert_header` method which allows using typed headers. [#1869]
 * `ContentEncoding` implements all necessary header traits. [#1912]
+* `trust-dns` optional feature to enable `trust-dns-resolver` as client dns resolver. [#1969]
 
 ### Changed
 * `ResponseBuilder::content_type` now takes an `impl IntoHeaderValue` to support using typed
@@ -26,6 +27,8 @@
 * `ResponseBuilder::header`; use `ResponseBuilder::append_header`. [#1869]
 * `TestRequest::with_hdr`; use `TestRequest::default().insert_header()`. [#1869]
 * `TestRequest::with_header`; use `TestRequest::default().insert_header()`. [#1869]
+* `actors` optional feature. [#1969]
+* `ResponseError` impl for `actix::MailboxError`. [#1969]
 
 [#1869]: https://github.com/actix/actix-web/pull/1869
 [#1894]: https://github.com/actix/actix-web/pull/1894
@@ -34,6 +37,7 @@
 [#1905]: https://github.com/actix/actix-web/pull/1905
 [#1912]: https://github.com/actix/actix-web/pull/1912
 [#1957]: https://github.com/actix/actix-web/pull/1957
+[#1969]: https://github.com/actix/actix-web/pull/1969
 
 
 ## 3.0.0-beta.1 - 2021-01-07

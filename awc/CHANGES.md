@@ -4,6 +4,7 @@
 ### Added
 * `ClientRequest::insert_header` method which allows using typed headers. [#1869]
 * `ClientRequest::append_header` method which allows using typed headers. [#1869]
+* `trust-dns` optional feature to enable `trust-dns-resolver` as client dns resolver. [#1969]
 
 ### Changed
 * Relax default timeout for `Connector` to 5 seconds(original 1 second). [#1905]
@@ -16,6 +17,7 @@
 
 [#1869]: https://github.com/actix/actix-web/pull/1869
 [#1905]: https://github.com/actix/actix-web/pull/1905
+[#1969]: https://github.com/actix/actix-web/pull/1969
 
 
 ## 3.0.0-beta.1 - 2021-01-07

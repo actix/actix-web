@@ -36,6 +36,9 @@ rustls = ["tls-rustls", "actix-http/rustls"]
 # content-encoding support
 compress = ["actix-http/compress"]
 
+# trust-dns as dns resolver
+trust-dns = ["actix-http/trust-dns"]
+
 [dependencies]
 actix-codec = "0.4.0-beta.1"
 actix-service = "2.0.0-beta.4"
