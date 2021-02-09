@@ -903,7 +903,7 @@ mod tests {
         let mut val = resp
             .headers()
             .get_all(SET_COOKIE)
-            .map(|v| v.to_str().unwrap())
+            .map(|v| v.to_str().unwrap().to_owned())
             .collect::<Vec<_>>();
         val.sort();
 
