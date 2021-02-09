@@ -11,6 +11,7 @@ pub use http::header::*;
 use crate::error::ParseError;
 use crate::httpmessage::HttpMessage;
 
+mod as_name;
 mod into_pair;
 mod into_value;
 mod utils;
@@ -23,6 +24,7 @@ pub use self::common::*;
 #[doc(hidden)]
 pub use self::shared::*;
 
+pub use self::as_name::AsHeaderName;
 pub use self::into_pair::IntoHeaderPair;
 pub use self::into_value::IntoHeaderValue;
 #[doc(hidden)]
@@ -97,26 +99,3 @@ pub(crate) const HTTP_VALUE: &AsciiSet = &CONTROLS
     .add(b']')
     .add(b'{')
     .add(b'}');
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::header;
-
-    #[test]
-    fn test_http_header_map_to_ours() {
-        let mut http_map = http::HeaderMap::new();
-        let map = HeaderMap::from_drain(http_map.drain());
-        assert!(map.is_empty());
-
-        let mut http_map = http::HeaderMap::new();
-        http_map.append(header::HOST, HeaderValue::from_static("duck.com"));
-        http_map.append(header::COOKIE, HeaderValue::from_static("one=1"));
-        http_map.append(header::COOKIE, HeaderValue::from_static("two=2"));
-
-        let map = HeaderMap::from_drain(http_map.drain());
-        assert_eq!(map.len(), 3);
-        assert!(map.contains_key(header::HOST));
-        assert!(map.contains_key(header::COOKIE));
-    }
-}

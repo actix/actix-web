@@ -897,16 +897,20 @@ mod tests {
                     .max_age(time::Duration::days(1))
                     .finish(),
             )
-            .del_cookie(&cookies[1])
+            .del_cookie(&cookies[0])
             .finish();
 
-        let mut val: Vec<_> = resp
+        let mut val = resp
             .headers()
             .get_all(SET_COOKIE)
-            .map(|v| v.to_str().unwrap().to_owned())
-            .collect();
+            .map(|v| v.to_str().unwrap())
+            .collect::<Vec<_>>();
         val.sort();
+
+        // the .del_cookie call
         assert!(val[0].starts_with("cookie1=; Max-Age=0;"));
+
+        // the .cookie call
         assert_eq!(
             val[1],
             "name=value; HttpOnly; Path=/test; Domain=www.rust-lang.org; Max-Age=86400"
@@ -931,9 +935,9 @@ mod tests {
 
         let mut iter = r.cookies();
         let v = iter.next().unwrap();
-        assert_eq!((v.name(), v.value()), ("cookie3", "val300"));
-        let v = iter.next().unwrap();
         assert_eq!((v.name(), v.value()), ("original", "val100"));
+        let v = iter.next().unwrap();
+        assert_eq!((v.name(), v.value()), ("cookie3", "val300"));
     }
 
     #[test]

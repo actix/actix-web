@@ -1,58 +1,71 @@
 //! A multi-value [`HeaderMap`], its iterators, and a helper trait for types that can be effectively
 //! borrowed as, or converted to, a [HeaderValue].
 
-use std::{borrow::Cow, collections::hash_map, mem, str::FromStr};
+use std::{borrow::Cow, collections::hash_map, ops};
 
 use ahash::AHashMap;
-use http::header::{HeaderName, HeaderValue, InvalidHeaderName};
+use http::header::{HeaderName, HeaderValue};
 use smallvec::{smallvec, SmallVec};
 
-pub use as_header_name::AsHeaderName;
+use crate::header::AsHeaderName;
 
 /// A multi-map of HTTP headers.
 ///
 /// `HeaderMap` is a "multi-map" of [`HeaderName`] to one or more [`HeaderValue`]s.
+///
+/// # Examples
+/// ```
+/// use actix_http::http::{header, HeaderMap, HeaderValue};
+///
+/// let mut map = HeaderMap::new();
+///
+/// map.insert(header::CONTENT_TYPE, HeaderValue::from_static("text/plain"));
+/// map.insert(header::ORIGIN, HeaderValue::from_static("example.com"));
+///
+/// assert!(map.contains_key(header::CONTENT_TYPE));
+/// assert!(map.contains_key(header::ORIGIN));
+///
+/// let mut removed = map.remove(header::ORIGIN);
+/// assert_eq!(removed.next().unwrap(), "example.com");
+///
+/// assert!(!map.contains_key(header::ORIGIN));
+/// ```
 #[derive(Debug, Clone, Default)]
 pub struct HeaderMap {
     pub(crate) inner: AHashMap<HeaderName, Value>,
 }
 
+/// A bespoke non-empty list for HeaderMap values.
 #[derive(Debug, Clone)]
-pub(crate) enum Value {
-    One(HeaderValue),
-    Multi(SmallVec<[HeaderValue; 4]>),
+pub(crate) struct Value {
+    inner: SmallVec<[HeaderValue; 4]>,
 }
 
 impl Value {
-    fn len(&self) -> usize {
-        match self {
-            Value::One(_) => 1,
-            Value::Multi(vals) => vals.len(),
+    fn one(val: HeaderValue) -> Self {
+        Self {
+            inner: smallvec![val],
         }
     }
 
     fn first(&self) -> &HeaderValue {
-        match self {
-            Value::One(ref val) => val,
-            Value::Multi(ref val) => &val[0],
-        }
+        &self.inner[0]
     }
 
     fn first_mut(&mut self) -> &mut HeaderValue {
-        match self {
-            Value::One(ref mut val) => val,
-            Value::Multi(ref mut val) => &mut val[0],
-        }
+        &mut self.inner[0]
     }
 
-    fn append(&mut self, val: HeaderValue) {
-        match self {
-            Value::One(_) => match mem::replace(self, Value::Multi(smallvec![val])) {
-                Value::One(val) => self.append(val),
-                Value::Multi(_) => unreachable!(),
-            },
-            Value::Multi(ref mut vals) => vals.push(val),
-        }
+    fn append(&mut self, new_val: HeaderValue) {
+        self.inner.push(new_val)
+    }
+}
+
+impl ops::Deref for Value {
+    type Target = SmallVec<[HeaderValue; 4]>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
     }
 }
 
@@ -60,6 +73,15 @@ impl HeaderMap {
     /// Create an empty `HeaderMap`.
     ///
     /// The map will be created without any capacity; this function will not allocate.
+    ///
+    /// # Examples
+    /// ```
+    /// # use actix_http::http::HeaderMap;
+    /// let map = HeaderMap::new();
+    ///
+    /// assert!(map.is_empty());
+    /// assert_eq!(0, map.capacity());
+    /// ```
     pub fn new() -> Self {
         HeaderMap::default()
     }
@@ -68,6 +90,15 @@ impl HeaderMap {
     ///
     /// The map will be able to hold at least `capacity` elements without needing to reallocate.
     /// If `capacity` is 0, the map will be created without allocating.
+    ///
+    /// # Examples
+    /// ```
+    /// # use actix_http::http::HeaderMap;
+    /// let map = HeaderMap::with_capacity(16);
+    ///
+    /// assert!(map.is_empty());
+    /// assert!(map.capacity() >= 16);
+    /// ```
     pub fn with_capacity(capacity: usize) -> Self {
         HeaderMap {
             inner: AHashMap::with_capacity(capacity),
@@ -105,7 +136,21 @@ impl HeaderMap {
 
     /// Returns the number of values stored in the map.
     ///
-    /// Also see [`len_keys`](Self::len_keys).
+    /// See also: [`len_keys`](Self::len_keys).
+    ///
+    /// # Examples
+    /// ```
+    /// # use actix_http::http::{header, HeaderMap, HeaderValue};
+    /// let mut map = HeaderMap::new();
+    /// assert_eq!(map.len(), 0);
+    ///
+    /// map.insert(header::ACCEPT, HeaderValue::from_static("text/plain"));
+    /// map.insert(header::SET_COOKIE, HeaderValue::from_static("one=1"));
+    /// assert_eq!(map.len(), 2);
+    ///
+    /// map.append(header::SET_COOKIE, HeaderValue::from_static("two=2"));
+    /// assert_eq!(map.len(), 3);
+    /// ```
     pub fn len(&self) -> usize {
         self.inner
             .iter()
@@ -114,12 +159,36 @@ impl HeaderMap {
 
     /// Returns the number of _keys_ stored in the map.
     ///
-    /// The number of _values_ stored will be at least this number. Also see [`Self::len`].
+    /// The number of values stored will be at least this number. See also: [`Self::len`].
+    ///
+    /// # Examples
+    /// ```
+    /// # use actix_http::http::{header, HeaderMap, HeaderValue};
+    /// let mut map = HeaderMap::new();
+    /// assert_eq!(map.len_keys(), 0);
+    ///
+    /// map.insert(header::ACCEPT, HeaderValue::from_static("text/plain"));
+    /// map.insert(header::SET_COOKIE, HeaderValue::from_static("one=1"));
+    /// assert_eq!(map.len_keys(), 2);
+    ///
+    /// map.append(header::SET_COOKIE, HeaderValue::from_static("two=2"));
+    /// assert_eq!(map.len_keys(), 2);
+    /// ```
     pub fn len_keys(&self) -> usize {
         self.inner.len()
     }
 
     /// Returns true if the map contains no elements.
+    ///
+    /// # Examples
+    /// ```
+    /// # use actix_http::http::{header, HeaderMap, HeaderValue};
+    /// let mut map = HeaderMap::new();
+    /// assert!(map.is_empty());
+    ///
+    /// map.insert(header::ACCEPT, HeaderValue::from_static("text/plain"));
+    /// assert!(!map.is_empty());
+    /// ```
     pub fn is_empty(&self) -> bool {
         self.inner.len() == 0
     }
@@ -127,6 +196,19 @@ impl HeaderMap {
     /// Clears the map, removing all name-value pairs.
     ///
     /// Keeps the allocated memory for reuse.
+    ///
+    /// # Examples
+    /// ```
+    /// # use actix_http::http::{header, HeaderMap, HeaderValue};
+    /// let mut map = HeaderMap::new();
+    ///
+    /// map.insert(header::ACCEPT, HeaderValue::from_static("text/plain"));
+    /// map.insert(header::SET_COOKIE, HeaderValue::from_static("one=1"));
+    /// assert_eq!(map.len(), 2);
+    ///
+    /// map.clear();
+    /// assert!(map.is_empty());
+    /// ```
     pub fn clear(&mut self) {
         self.inner.clear();
     }
@@ -140,18 +222,63 @@ impl HeaderMap {
 
     /// Returns a reference to the _first_ value associated with a header name.
     ///
-    /// Even when multiple values associated with the key, the "first" one is returned but is not
-    /// guaranteed to be chosen in with particular order. Use `get_all` to get all values associated
-    /// with a given key. Returns `None` if there are no values associated with the key.
+    /// Returns `None` if there is no value associated with the key.
+    ///
+    /// Even when multiple values are associated with the key, the "first" one is returned but is
+    /// not guaranteed to be chosen with any particular order; though, the returned item will be
+    /// consistent for each call to `get` if the map has not changed.
+    ///
+    /// See also: [`get_all`](Self::get_all).
+    ///
+    /// # Examples
+    /// ```
+    /// # use actix_http::http::{header, HeaderMap, HeaderValue};
+    /// let mut map = HeaderMap::new();
+    ///
+    /// map.insert(header::SET_COOKIE, HeaderValue::from_static("one=1"));
+    ///
+    /// let cookie = map.get(header::SET_COOKIE).unwrap();
+    /// assert_eq!(cookie, "one=1");
+    ///
+    /// map.append(header::SET_COOKIE, HeaderValue::from_static("two=2"));
+    /// assert_eq!(map.get(header::SET_COOKIE).unwrap(), "one=1");
+    ///
+    /// assert_eq!(map.get(header::SET_COOKIE), map.get("set-cookie"));
+    /// assert_eq!(map.get(header::SET_COOKIE), map.get("Set-Cookie"));
+    ///
+    /// assert!(map.get(header::HOST).is_none());
+    /// assert!(map.get("INVALID HEADER NAME").is_none());
+    /// ```
     pub fn get(&self, key: impl AsHeaderName) -> Option<&HeaderValue> {
         self.get_value(key).map(|val| val.first())
     }
 
     /// Returns a mutable reference to the _first_ value associated a header name.
     ///
-    /// Even when multiple values associated with the key, the "first" one is returned but is not
-    /// guaranteed to be chosen in with particular order. Use `get_all` to get all values associated
-    /// with a given key. Returns `None` if there are no values associated with the key.
+    /// Returns `None` if there is no value associated with the key.
+    ///
+    /// Even when multiple values are associated with the key, the "first" one is returned but is
+    /// not guaranteed to be chosen with any particular order; though, the returned item will be
+    /// consistent for each call to `get_mut` if the map has not changed.
+    ///
+    /// See also: [`get_all`](Self::get_all).
+    ///
+    /// # Examples
+    /// ```
+    /// # use actix_http::http::{header, HeaderMap, HeaderValue};
+    /// let mut map = HeaderMap::new();
+    ///
+    /// map.insert(header::SET_COOKIE, HeaderValue::from_static("one=1"));
+    ///
+    /// let mut cookie = map.get_mut(header::SET_COOKIE).unwrap();
+    /// assert_eq!(cookie, "one=1");
+    ///
+    /// *cookie = HeaderValue::from_static("three=3");
+    /// assert_eq!(map.get(header::SET_COOKIE).unwrap(), "three=3");
+    ///
+    /// assert!(map.get(header::HOST).is_none());
+    /// assert!(map.get("INVALID HEADER NAME").is_none());
+    /// ```
     pub fn get_mut(&mut self, key: impl AsHeaderName) -> Option<&mut HeaderValue> {
         match key.try_as_name().ok()? {
             Cow::Borrowed(name) => self.inner.get_mut(name).map(|v| v.first_mut()),
@@ -164,6 +291,23 @@ impl HeaderMap {
     /// The returned iterator does not incur any allocations and will yield no items if there are no
     /// values associated with the key. Iteration order is **not** guaranteed to be the same as
     /// insertion order.
+    ///
+    /// # Examples
+    /// ```
+    /// # use actix_http::http::{header, HeaderMap, HeaderValue};
+    /// let mut map = HeaderMap::new();
+    ///
+    /// let mut none_iter = map.get_all(header::ORIGIN);
+    /// assert!(none_iter.next().is_none());
+    ///
+    /// map.insert(header::SET_COOKIE, HeaderValue::from_static("one=1"));
+    /// map.append(header::SET_COOKIE, HeaderValue::from_static("two=2"));
+    ///
+    /// let mut set_cookies_iter = map.get_all(header::SET_COOKIE);
+    /// assert_eq!(set_cookies_iter.next().unwrap(), "one=1");
+    /// assert_eq!(set_cookies_iter.next().unwrap(), "two=2");
+    /// assert!(set_cookies_iter.next().is_none());
+    /// ```
     pub fn get_all(&self, key: impl AsHeaderName) -> GetAll<'_> {
         GetAll::new(self.get_value(key))
     }
@@ -185,7 +329,8 @@ impl HeaderMap {
     /// previous values are removed and returned as a `Removed` iterator. The key is not updated;
     /// this matters for types that can be `==` without being identical.
     pub fn insert(&mut self, key: HeaderName, val: HeaderValue) -> Removed {
-        Removed::new(self.inner.insert(key, Value::One(val)))
+        let value = self.inner.insert(key, Value::one(val));
+        Removed::new(value)
     }
 
     /// Inserts a name-value pair into the map.
@@ -199,7 +344,7 @@ impl HeaderMap {
                 entry.get_mut().append(value);
             }
             hash_map::Entry::Vacant(entry) => {
-                entry.insert(Value::One(value));
+                entry.insert(Value::one(value));
             }
         };
     }
@@ -282,51 +427,6 @@ impl<'a> IntoIterator for &'a HeaderMap {
     }
 }
 
-mod as_header_name {
-    use super::*;
-
-    pub trait AsHeaderName: Sealed {}
-
-    pub trait Sealed {
-        fn try_as_name(&self) -> Result<Cow<'_, HeaderName>, InvalidHeaderName>;
-    }
-
-    impl Sealed for HeaderName {
-        fn try_as_name(&self) -> Result<Cow<'_, HeaderName>, InvalidHeaderName> {
-            Ok(Cow::Borrowed(self))
-        }
-    }
-    impl AsHeaderName for HeaderName {}
-
-    impl Sealed for &HeaderName {
-        fn try_as_name(&self) -> Result<Cow<'_, HeaderName>, InvalidHeaderName> {
-            Ok(Cow::Borrowed(*self))
-        }
-    }
-    impl AsHeaderName for &HeaderName {}
-
-    impl Sealed for &str {
-        fn try_as_name(&self) -> Result<Cow<'_, HeaderName>, InvalidHeaderName> {
-            HeaderName::from_str(self).map(Cow::Owned)
-        }
-    }
-    impl AsHeaderName for &str {}
-
-    impl Sealed for String {
-        fn try_as_name(&self) -> Result<Cow<'_, HeaderName>, InvalidHeaderName> {
-            HeaderName::from_str(self).map(Cow::Owned)
-        }
-    }
-    impl AsHeaderName for String {}
-
-    impl Sealed for &String {
-        fn try_as_name(&self) -> Result<Cow<'_, HeaderName>, InvalidHeaderName> {
-            HeaderName::from_str(self).map(Cow::Owned)
-        }
-    }
-    impl AsHeaderName for &String {}
-}
-
 /// Iterator for all values with the same header name.
 #[derive(Debug)]
 pub struct GetAll<'a> {
@@ -346,23 +446,16 @@ impl<'a> Iterator for GetAll<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         let val = self.value?;
 
-        match val {
-            Value::One(ref val) => {
-                // remove value to fast-path future next calls
-                self.value = None;
+        match val.get(self.idx) {
+            Some(val) => {
+                self.idx += 1;
                 Some(val)
             }
-            Value::Multi(ref vals) => match vals.get(self.idx) {
-                Some(val) => {
-                    self.idx += 1;
-                    Some(val)
-                }
-                None => {
-                    // current index is none; remove value to fast-path future next calls
-                    self.value = None;
-                    None
-                }
-            },
+            None => {
+                // current index is none; remove value to fast-path future next calls
+                self.value = None;
+                None
+            }
         }
     }
 
@@ -378,17 +471,12 @@ impl<'a> Iterator for GetAll<'a> {
 /// on [`HeaderMap`] that remove or replace items.
 #[derive(Debug)]
 pub struct Removed {
-    inner: smallvec::IntoIter<[HeaderValue; 4]>,
+    inner: Option<smallvec::IntoIter<[HeaderValue; 4]>>,
 }
 
 impl<'a> Removed {
     fn new(value: Option<Value>) -> Self {
-        let inner = match value {
-            Some(Value::One(val)) => smallvec![val].into_iter(),
-            Some(Value::Multi(vals)) => vals.into_iter(),
-            None => smallvec![].into_iter(),
-        };
-
+        let inner = value.map(|value| value.inner.into_iter());
         Self { inner }
     }
 }
@@ -398,12 +486,15 @@ impl Iterator for Removed {
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        self.inner.next()
+        self.inner.as_mut()?.next()
     }
 
     #[inline]
     fn size_hint(&self) -> (usize, Option<usize>) {
-        self.inner.size_hint()
+        match self.inner {
+            Some(ref iter) => iter.size_hint(),
+            None => (0, None),
+        }
     }
 }
 
@@ -463,14 +554,9 @@ impl<'a> Iterator for Iter<'a> {
 
         let (name, value) = self.inner.next()?;
 
-        match value {
-            Value::One(ref value) => Some((name, value)),
-            Value::Multi(ref vals) => {
-                // set up new multi value inner iter and recurse into it
-                self.multi_inner = Some((name, vals));
-                self.next()
-            }
-        }
+        // set up new inner iter and recurse into it
+        self.multi_inner = Some((name, &value.inner));
+        self.next()
     }
 
     #[inline]
@@ -488,7 +574,7 @@ impl<'a> Iterator for Iter<'a> {
 pub struct Drain<'a> {
     inner: hash_map::Drain<'a, HeaderName, Value>,
     multi_inner: Option<(Option<HeaderName>, SmallVec<[HeaderValue; 4]>)>,
-    multi_inner_idx: usize,
+    multi_idx: usize,
 }
 
 impl<'a> Drain<'a> {
@@ -496,7 +582,7 @@ impl<'a> Drain<'a> {
         Self {
             inner: iter,
             multi_inner: None,
-            multi_inner_idx: 0,
+            multi_idx: 0,
         }
     }
 }
@@ -508,25 +594,20 @@ impl<'a> Iterator for Drain<'a> {
         // handle in-progress multi value iterators first
         if let Some((ref mut name, ref mut vals)) = self.multi_inner {
             if vals.len() > 0 {
-                // OPTIMISE: array removals
+                // OPTIMIZE: array removals
                 return Some((name.take(), vals.remove(0)));
             } else {
                 // no more items in value iterator; reset state
                 self.multi_inner = None;
-                self.multi_inner_idx = 0;
+                self.multi_idx = 0;
             }
         }
 
-        let (name, mut value) = self.inner.next()?;
+        let (name, value) = self.inner.next()?;
 
-        match value {
-            Value::One(value) => Some((Some(name), value)),
-            Value::Multi(ref mut vals) => {
-                // set up new multi value inner iter and recurse into it
-                self.multi_inner = Some((Some(name), mem::take(vals)));
-                self.next()
-            }
-        }
+        // set up new inner iter and recurse into it
+        self.multi_inner = Some((Some(name), value.inner));
+        self.next()
     }
 
     #[inline]
@@ -574,14 +655,9 @@ impl Iterator for IntoIter {
 
         let (name, value) = self.inner.next()?;
 
-        match value {
-            Value::One(value) => Some((name, value)),
-            Value::Multi(vals) => {
-                // set up new multi value inner iter and recurse into it
-                self.multi_inner = Some((name, vals.into_iter()));
-                self.next()
-            }
-        }
+        // set up new inner iter and recurse into it
+        self.multi_inner = Some((name, value.inner.into_iter()));
+        self.next()
     }
 
     #[inline]
