@@ -4,6 +4,7 @@
 ### Added
 * `ClientRequest::insert_header` method which allows using typed headers. [#1869]
 * `ClientRequest::append_header` method which allows using typed headers. [#1869]
+* `trust-dns` optional feature to enable `trust-dns-resolver` as client dns resolver.
 
 ### Changed
 * Relax default timeout for `Connector` to 5 seconds(original 1 second). [#1905]
