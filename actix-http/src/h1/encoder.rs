@@ -148,6 +148,8 @@ pub(crate) trait MessageType: Sized {
             for val in value.iter() {
                 let v = val.as_ref();
                 let v_len = v.len();
+
+                // key length + value length + colon + space + \r\n
                 let len = k_len + v_len + 4;
 
                 if len > remaining {
@@ -156,6 +158,7 @@ pub(crate) trait MessageType: Sized {
                     unsafe {
                         dst.advance_mut(pos);
                     }
+
                     pos = 0;
                     dst.reserve(len * 2);
                     remaining = dst.capacity() - dst.len();
@@ -169,6 +172,7 @@ pub(crate) trait MessageType: Sized {
                 // the cursor matches the number of bytes written
                 unsafe {
                     if camel_case {
+                        // use Camel-Case headers
                         write_camel_case(k, from_raw_parts_mut(buf, k_len));
                     } else {
                         write_data(k, buf, k_len);
