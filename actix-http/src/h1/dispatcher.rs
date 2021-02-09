@@ -286,15 +286,12 @@ where
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
     ) -> Result<bool, DispatchError> {
-        let len = self.write_buf.len();
-        if len == 0 {
-            return Ok(false);
-        }
-
         let InnerDispatcherProj { io, write_buf, .. } = self.project();
         let mut io = Pin::new(io.as_mut().unwrap());
 
+        let len = write_buf.len();
         let mut written = 0;
+
         while written < len {
             match io.as_mut().poll_write(cx, &write_buf[written..]) {
                 Poll::Ready(Ok(0)) => {
@@ -314,9 +311,14 @@ where
 
         // SAFETY: setting length to 0 is safe
         // skips one length check vs truncate
-        unsafe { write_buf.set_len(0) }
+        unsafe {
+            write_buf.set_len(0);
+        }
 
-        Ok(false)
+        // flush the io and check if get blocked.
+        let blocked = io.poll_flush(cx)?.is_pending();
+
+        Ok(blocked)
     }
 
     fn send_response(
