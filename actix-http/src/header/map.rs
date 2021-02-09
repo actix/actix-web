@@ -1,5 +1,4 @@
-//! A multi-value [`HeaderMap`], its iterators, and a helper trait for types that can be effectively
-//! borrowed as, or converted to, a [HeaderValue].
+//! A multi-value [`HeaderMap`] and its iterators.
 
 use std::{borrow::Cow, collections::hash_map, ops};
 
@@ -311,6 +310,8 @@ impl HeaderMap {
     pub fn get_all(&self, key: impl AsHeaderName) -> GetAll<'_> {
         GetAll::new(self.get_value(key))
     }
+
+    // TODO: get_all_mut ?
 
     /// Returns `true` if the map contains a value for the specified key.
     ///

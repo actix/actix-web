@@ -1,3 +1,5 @@
+//! Helper trait for types that can be effectively borrowed as a [HeaderValue].
+
 use std::{borrow::Cow, str::FromStr};
 
 use http::header::{HeaderName, InvalidHeaderName};
