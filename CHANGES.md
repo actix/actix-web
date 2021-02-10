@@ -3,7 +3,7 @@
 ## Unreleased - 2021-xx-xx
 
 
-## Unreleased - 2021-xx-xx
+## 4.0.0-beta.2 - 2021-xx-xx
 ### Added
 * The method `Either<web::Json<T>, web::Form<T>>::into_inner()` which returns the inner type for
   whichever variant was created. Also works for `Either<web::Form<T>, web::Json<T>>`. [#1894]
