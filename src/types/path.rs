@@ -13,7 +13,7 @@ use crate::{dev::Payload, error::PathError, FromRequest, HttpRequest};
 ///
 /// Use [`PathConfig`] to configure extraction process.
 ///
-/// # Usage
+/// # Examples
 /// ```
 /// use actix_web::{get, web};
 ///

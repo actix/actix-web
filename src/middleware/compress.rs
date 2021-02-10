@@ -30,7 +30,7 @@ use crate::{
 /// Use `BodyEncoding` trait for overriding response compression. To disable compression set
 /// encoding to `ContentEncoding::Identity`.
 ///
-/// # Usage
+/// # Examples
 /// ```rust
 /// use actix_web::{web, middleware, App, HttpResponse};
 ///

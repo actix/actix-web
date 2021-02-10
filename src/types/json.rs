@@ -197,7 +197,7 @@ where
 
 /// `Json` extractor configuration.
 ///
-/// # Usage
+/// # Examples
 /// ```
 /// use actix_web::{error, post, web, App, FromRequest, HttpResponse};
 /// use serde::Deserialize;

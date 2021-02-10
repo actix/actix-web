@@ -42,7 +42,7 @@ use crate::{
 /// 127.0.0.1:54278 "GET /test HTTP/1.1" 404 20 "-" "HTTPie/2.2.0" 0.001074
 /// ```
 ///
-/// # Usage
+/// # Examples
 /// ```rust
 /// use actix_web::{middleware::Logger, App};
 ///

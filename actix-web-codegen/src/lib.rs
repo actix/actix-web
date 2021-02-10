@@ -159,7 +159,7 @@ method_macro! {
 /// # Actix Web Re-export
 /// This macro can be applied with `#[actix_web::main]` when used in Actix Web applications.
 ///
-/// # Usage
+/// # Examples
 /// ```rust
 /// #[actix_web_codegen::main]
 /// async fn main() {
