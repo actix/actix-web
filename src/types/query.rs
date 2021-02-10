@@ -18,7 +18,7 @@ use crate::{dev::Payload, error::QueryPayloadError, Error, FromRequest, HttpRequ
 /// A query string consists of unordered `key=value` pairs, therefore it cannot be decoded into any
 /// type which depends upon data ordering (eg. tuples). Trying to do so will result in a panic.
 ///
-/// # Usage
+/// # Examples
 /// ```
 /// use actix_web::{get, web};
 /// use serde::Deserialize;
@@ -138,7 +138,7 @@ where
 
 /// Query extractor configuration.
 ///
-/// # Usage
+/// # Examples
 /// ```
 /// use actix_web::{error, get, web, App, FromRequest, HttpResponse};
 /// use serde::Deserialize;

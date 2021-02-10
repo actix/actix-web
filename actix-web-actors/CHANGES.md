@@ -3,6 +3,10 @@
 ## Unreleased - 2021-xx-xx
 
 
+## 4.0.0-beta.2 - 2021-02-10
+* No notable changes.
+
+
 ## 4.0.0-beta.1 - 2021-01-07
 * Update `pin-project` to `1.0`.
 * Update `bytes` to `1.0`. [#1813]

@@ -1,11 +1,15 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 0.6.0-beta.2 - 2021-02-10
 * Fix If-Modified-Since and If-Unmodified-Since to not compare using sub-second timestamps. [#1887]
 * Replace `v_htmlescape` with `askama_escape`. [#1953]
 
 [#1887]: https://github.com/actix/actix-web/pull/1887
 [#1953]: https://github.com/actix/actix-web/pull/1953
+
 
 ## 0.6.0-beta.1 - 2021-01-07
 * `HttpRange::parse` now has its own error type.

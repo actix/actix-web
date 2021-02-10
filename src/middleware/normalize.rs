@@ -53,7 +53,7 @@ impl Default for TrailingSlash {
 /// trailing slashes or else they will be inaccessible (or vice versa when using the
 /// `TrailingSlash::Always` behavior), as shown in the example tests below.
 ///
-/// # Usage
+/// # Examples
 /// ```rust
 /// use actix_web::{web, middleware, App};
 ///
