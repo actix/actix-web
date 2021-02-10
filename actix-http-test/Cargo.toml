@@ -1,6 +1,6 @@
 [package]
 name = "actix-http-test"
-version = "3.0.0-beta.1"
+version = "3.0.0-beta.2"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Various helpers for Actix applications to use during testing"
 readme = "README.md"
@@ -35,7 +35,7 @@ actix-tls = "3.0.0-beta.3"
 actix-utils = "3.0.0-beta.2"
 actix-rt = "2"
 actix-server = "2.0.0-beta.3"
-awc = "3.0.0-beta.1"
+awc = "3.0.0-beta.2"
 
 base64 = "0.13"
 bytes = "1"
@@ -51,5 +51,5 @@ time = { version = "0.2.23", default-features = false, features = ["std"] }
 tls-openssl = { version = "0.10.9", package = "openssl", optional = true }
 
 [dev-dependencies]
-actix-web = "4.0.0-beta.1"
-actix-http = "3.0.0-beta.1"
+actix-web = "4.0.0-beta.2"
+actix-http = "3.0.0-beta.2"

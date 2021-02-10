@@ -1,4 +1,5 @@
 //! Essentials helper functions and types for application registration.
+
 use actix_http::http::Method;
 use actix_router::IntoPattern;
 use std::future::Future;

@@ -15,7 +15,7 @@ use crate::{error::Error, service::ServiceResponse};
 /// Middleware for enabling any middleware to be used in [`Resource::wrap`](crate::Resource::wrap),
 /// [`Scope::wrap`](crate::Scope::wrap) and [`Condition`](super::Condition).
 ///
-/// # Usage
+/// # Examples
 /// ```rust
 /// use actix_web::middleware::{Logger, Compat};
 /// use actix_web::{App, web};

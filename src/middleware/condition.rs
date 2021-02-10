@@ -11,7 +11,7 @@ use futures_util::future::{Either, FutureExt, LocalBoxFuture};
 /// control such middlewares like `Logger` or `Compress` directly. See the [`Compat`](super::Compat)
 /// middleware for a workaround.
 ///
-/// # Usage
+/// # Examples
 /// ```rust
 /// use actix_web::middleware::{Condition, NormalizePath};
 /// use actix_web::App;

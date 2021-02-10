@@ -1,6 +1,7 @@
 digraph {
     subgraph cluster_web {
         label="actix/actix-web"
+
         "awc"
         "actix-web"
         "actix-files"
@@ -16,7 +17,7 @@ digraph {
     "actix-web-actors" -> { "actix" "actix-web" "actix-http" "actix-codec" }
     "actix-multipart" -> { "actix-web" "actix-service" "actix-utils" }
     "actix-http" -> { "actix-service" "actix-codec" "actix-tls" "actix-utils" "actix-rt" "threadpool" }
-    "actix-http" -> { "actix" "actix-tls" }[color=blue] // optional
+    "actix-http" -> { "actix-tls" }[color=blue] // optional
     "actix-files" -> { "actix-web" }
     "actix-http-test" -> { "actix-service" "actix-codec" "actix-tls" "actix-utils" "actix-rt" "actix-server" "awc" }
 
@@ -27,4 +28,8 @@ digraph {
     "actix-tls" -> { "actix-service" "actix-codec" "actix-utils" }
     "actix-server" -> { "actix-service" "actix-rt" "actix-codec" "actix-utils" }
     "actix-rt" -> { "macros" "threadpool" }
+
+    // actix
+
+    "actix" -> { "actix-rt" }
 }

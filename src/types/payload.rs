@@ -23,7 +23,7 @@ use crate::{dev, http::header, web, Error, FromRequest, HttpMessage, HttpRequest
 ///
 /// See [`PayloadConfig`] for important notes when using this advanced extractor.
 ///
-/// # Usage
+/// # Examples
 /// ```
 /// use std::future::Future;
 /// use futures_util::stream::{Stream, StreamExt};
@@ -81,7 +81,7 @@ impl FromRequest for Payload {
 ///
 /// Use [`PayloadConfig`] to configure extraction process.
 ///
-/// # Usage
+/// # Examples
 /// ```
 /// use actix_web::{post, web};
 ///
@@ -118,7 +118,7 @@ impl FromRequest for Bytes {
 /// [**PayloadConfig**](PayloadConfig) allows to configure
 /// extraction process.
 ///
-/// # Usage
+/// # Examples
 /// ```
 /// use actix_web::{post, web, FromRequest};
 ///

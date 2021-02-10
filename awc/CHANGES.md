@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 3.0.0-beta.2 - 2021-02-10
 ### Added
 * `ClientRequest::insert_header` method which allows using typed headers. [#1869]
 * `ClientRequest::append_header` method which allows using typed headers. [#1869]
