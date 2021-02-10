@@ -309,11 +309,8 @@ where
             }
         }
 
-        // SAFETY: setting length to 0 is safe
-        // skips one length check vs truncate
-        unsafe {
-            write_buf.set_len(0);
-        }
+        // everything has written to io. clear buffer.
+        write_buf.clear();
 
         // flush the io and check if get blocked.
         let blocked = io.poll_flush(cx)?.is_pending();
