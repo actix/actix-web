@@ -3,6 +3,10 @@
 ## Unreleased - 2021-xx-xx
 
 
+## 0.5.0-beta.1 - 2021-02-10
+* Use new call signature for `System::new`.
+
+
 ## 0.4.0 - 2020-09-20
 * Added compile success and failure testing. [#1677]
 * Add `route` macro for supporting multiple HTTP methods guards. [#1674]

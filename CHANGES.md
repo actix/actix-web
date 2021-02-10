@@ -3,7 +3,11 @@
 ## Unreleased - 2021-xx-xx
 
 
-## 4.0.0-beta.2 - 2021-xx-xx
+## 4.0.0-beta.3 - 2021-02-10
+* Update `actix-web-codegen` to `0.5.0-beta.1`.
+
+
+## 4.0.0-beta.2 - 2021-02-10
 ### Added
 * The method `Either<web::Json<T>, web::Form<T>>::into_inner()` which returns the inner type for
   whichever variant was created. Also works for `Either<web::Form<T>, web::Json<T>>`. [#1894]
