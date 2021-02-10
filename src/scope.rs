@@ -206,11 +206,11 @@ where
         self
     }
 
-    /// Register http service.
+    /// Register HTTP service.
     ///
     /// This is similar to `App's` service registration.
     ///
-    /// Actix web provides several services implementations:
+    /// Actix Web provides several services implementations:
     ///
     /// * *Resource* is an entry in resource table which corresponds to requested URL.
     /// * *Scope* is a set of resources with common root path.

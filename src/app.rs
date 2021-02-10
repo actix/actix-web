@@ -211,7 +211,7 @@ where
     ///
     /// Http service is any type that implements `HttpServiceFactory` trait.
     ///
-    /// Actix web provides several services implementations:
+    /// Actix Web provides several services implementations:
     ///
     /// * *Resource* is an entry in resource table which corresponds to requested URL.
     /// * *Scope* is a set of resources with common root path.

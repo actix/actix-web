@@ -1,5 +1,5 @@
 <div align="center">
-  <h1>Actix web</h1>
+  <h1>Actix Web</h1>
   <p>
     <strong>Actix Web is a powerful, pragmatic, and extremely fast web framework for Rust</strong>
   </p>

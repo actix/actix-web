@@ -30,7 +30,7 @@
 //!
 //! To get started navigating the API docs, you may consider looking at the following pages first:
 //!
-//! * [App]: This struct represents an Actix web application and is used to
+//! * [App]: This struct represents an Actix Web application and is used to
 //!   configure routes and other common application settings.
 //!
 //! * [HttpServer]: This struct represents an HTTP server instance and is
@@ -205,7 +205,7 @@ pub mod dev {
 }
 
 pub mod client {
-    //! Actix web async HTTP client.
+    //! Actix Web async HTTP client.
     //!
     //! ```rust
     //! use actix_web::client::Client;
