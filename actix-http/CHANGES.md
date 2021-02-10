@@ -21,11 +21,12 @@
 * Renamed `IntoHeaderValue::{try_into => try_into_value}` to avoid ambiguity with std
   `TryInto` trait. [#1894]
 * `Extensions::insert` returns Option of replaced item. [#1904]
-* Remove `HttpResponseBuilder::json2()` and make `HttpResponseBuilder::json()` take a value by
-  reference. [#1903]
-* `client::error::ConnectError` Resolver variant contains `Box<dyn std::error::Error>` type [#1905]
+* Remove `HttpResponseBuilder::json2()`. [#1903]
+* Enable `HttpResponseBuilder::json()` to receive data by value and reference. [#1903]
+* `client::error::ConnectError` Resolver variant contains `Box<dyn std::error::Error>` type. [#1905]
 * `client::ConnectorConfig` default timeout changed to 5 seconds. [#1905]
-* Simplify `BlockingError` type to a struct. It's only triggered with blocking thread pool is dead. [#1957]
+* Simplify `BlockingError` type to a unit struct. It's now only triggered when blocking thread pool
+  is dead. [#1957]
 * `HeaderMap::len` now returns number of values instead of number of keys. [#1964]
 * `HeaderMap::insert` now returns iterator of removed values. [#1964]
 * `HeaderMap::remove` now returns iterator of removed values. [#1964]

@@ -61,7 +61,7 @@ tls-openssl = { version = "0.10.9", package = "openssl", optional = true }
 tls-rustls = { version = "0.19.0", package = "rustls", optional = true, features = ["dangerous_configuration"] }
 
 [dev-dependencies]
-actix-web = { version = "4.0.0-beta.1", features = ["openssl"] }
+actix-web = { version = "4.0.0-beta.2", features = ["openssl"] }
 actix-http = { version = "3.0.0-beta.2", features = ["openssl"] }
 actix-http-test = { version = "3.0.0-beta.1", features = ["openssl"] }
 actix-utils = "3.0.0-beta.1"
