@@ -841,9 +841,8 @@ where
                     if inner.flags.contains(Flags::WRITE_DISCONNECT) {
                         Poll::Ready(Ok(()))
                     } else {
-                        // flush buffer
-                        inner.as_mut().poll_flush(cx)?;
-                        if !inner.write_buf.is_empty() {
+                        // flush buffer and wait on block.
+                        if inner.as_mut().poll_flush(cx)? {
                             Poll::Pending
                         } else {
                             Pin::new(inner.project().io.as_mut().unwrap())
