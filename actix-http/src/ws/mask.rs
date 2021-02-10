@@ -19,6 +19,12 @@ fn apply_mask_fallback(buf: &mut [u8], mask: [u8; 4]) {
 pub fn apply_mask_fast32(buf: &mut [u8], mask: [u8; 4]) {
     let mask_u32 = u32::from_ne_bytes(mask);
 
+    // SAFETY:
+    //
+    // buf is a valid slice borrowed mutably from bytes::BytesMut.
+    //
+    // un aligned prefix and suffix would be mask/unmask per byte.
+    // proper aligned middle slice goes into fast path and operates on 4-byte blocks.
     let (mut prefix, words, mut suffix) = unsafe { buf.align_to_mut::<u32>() };
     apply_mask_fallback(&mut prefix, mask);
     let head = prefix.len() & 3;
