@@ -3,9 +3,9 @@
 > Async HTTP and WebSocket client library.
 
 [![crates.io](https://img.shields.io/crates/v/awc?label=latest)](https://crates.io/crates/awc)
-[![Documentation](https://docs.rs/awc/badge.svg?version=2.0.3)](https://docs.rs/awc/2.0.3)
+[![Documentation](https://docs.rs/awc/badge.svg?version=3.0.0-beta.2)](https://docs.rs/awc/3.0.0-beta.2)
 ![Apache 2.0 or MIT licensed](https://img.shields.io/crates/l/awc)
-[![Dependency Status](https://deps.rs/crate/awc/2.0.3/status.svg)](https://deps.rs/crate/awc/2.0.3)
+[![Dependency Status](https://deps.rs/crate/awc/3.0.0-beta.2/status.svg)](https://deps.rs/crate/awc/3.0.0-beta.2)
 [![Join the chat at https://gitter.im/actix/actix-web](https://badges.gitter.im/actix/actix-web.svg)](https://gitter.im/actix/actix-web?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
 ## Documentation & Resources
