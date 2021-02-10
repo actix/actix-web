@@ -1,6 +1,6 @@
 [package]
 name = "actix-http"
-version = "3.0.0-beta.2"
+version = "3.0.0-beta.3"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "HTTP primitives for the Actix ecosystem"
 readme = "README.md"
@@ -15,7 +15,7 @@ license = "MIT OR Apache-2.0"
 edition = "2018"
 
 [package.metadata.docs.rs]
-features = ["openssl", "rustls", "compress", "secure-cookies", "actors"]
+features = ["openssl", "rustls", "compress", "secure-cookies"]
 
 [lib]
 name = "actix_http"

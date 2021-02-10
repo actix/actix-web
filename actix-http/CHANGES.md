@@ -3,7 +3,11 @@
 ## Unreleased - 2021-xx-xx
 
 
-## 3.0.0-beta.2 - 2021-02-19
+## 3.0.0-beta.3 - 2021-02-10
+* No notable changes.
+
+
+## 3.0.0-beta.2 - 2021-02-10
 ### Added
 * `IntoHeaderPair` trait that allows using typed and untyped headers in the same methods. [#1869]
 * `ResponseBuilder::insert_header` method which allows using typed headers. [#1869]
