@@ -5,8 +5,7 @@ use std::{fmt, net};
 use actix_http::body::{Body, MessageBody, ResponseBody};
 use actix_http::http::{HeaderMap, Method, StatusCode, Uri, Version};
 use actix_http::{
-    Error, Extensions, HttpMessage, Payload, PayloadStream, RequestHead, Response,
-    ResponseHead,
+    Error, Extensions, HttpMessage, Payload, PayloadStream, RequestHead, Response, ResponseHead,
 };
 use actix_router::{IntoPattern, Path, Resource, ResourceDef, Url};
 use actix_service::{IntoServiceFactory, ServiceFactory};
@@ -635,20 +634,18 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_service_data() {
-        let srv = init_service(
-            App::new()
-                .data(42u32)
-                .service(web::service("/test").name("test").finish(
-                    |req: ServiceRequest| {
-                        assert_eq!(
-                            req.app_data::<web::Data<u32>>().unwrap().as_ref(),
-                            &42
-                        );
-                        ok(req.into_response(HttpResponse::Ok().finish()))
-                    },
-                )),
-        )
-        .await;
+        let srv =
+            init_service(
+                App::new()
+                    .data(42u32)
+                    .service(web::service("/test").name("test").finish(
+                        |req: ServiceRequest| {
+                            assert_eq!(req.app_data::<web::Data<u32>>().unwrap().as_ref(), &42);
+                            ok(req.into_response(HttpResponse::Ok().finish()))
+                        },
+                    )),
+            )
+            .await;
         let req = TestRequest::with_uri("/test").to_request();
         let resp = srv.call(req).await.unwrap();
         assert_eq!(resp.status(), http::StatusCode::OK);

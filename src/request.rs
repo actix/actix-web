@@ -175,11 +175,7 @@ impl HttpRequest {
     ///         );
     /// }
     /// ```
-    pub fn url_for<U, I>(
-        &self,
-        name: &str,
-        elements: U,
-    ) -> Result<url::Url, UrlGenerationError>
+    pub fn url_for<U, I>(&self, name: &str, elements: U) -> Result<url::Url, UrlGenerationError>
     where
         U: IntoIterator<Item = I>,
         I: AsRef<str>,
@@ -577,30 +573,30 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_data() {
-        let srv = init_service(App::new().app_data(10usize).service(
-            web::resource("/").to(|req: HttpRequest| {
+        let srv = init_service(App::new().app_data(10usize).service(web::resource("/").to(
+            |req: HttpRequest| {
                 if req.app_data::<usize>().is_some() {
                     HttpResponse::Ok()
                 } else {
                     HttpResponse::BadRequest()
                 }
-            }),
-        ))
+            },
+        )))
         .await;
 
         let req = TestRequest::default().to_request();
         let resp = call_service(&srv, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
 
-        let srv = init_service(App::new().app_data(10u32).service(
-            web::resource("/").to(|req: HttpRequest| {
+        let srv = init_service(App::new().app_data(10u32).service(web::resource("/").to(
+            |req: HttpRequest| {
                 if req.app_data::<usize>().is_some() {
                     HttpResponse::Ok()
                 } else {
                     HttpResponse::BadRequest()
                 }
-            }),
-        ))
+            },
+        )))
         .await;
 
         let req = TestRequest::default().to_request();
@@ -687,14 +683,14 @@ mod tests {
         let tracker = Rc::new(RefCell::new(Tracker { dropped: false }));
         {
             let tracker2 = Rc::clone(&tracker);
-            let srv = init_service(App::new().data(10u32).service(
-                web::resource("/").to(move |req: HttpRequest| {
+            let srv = init_service(App::new().data(10u32).service(web::resource("/").to(
+                move |req: HttpRequest| {
                     req.extensions_mut().insert(Foo {
                         tracker: Rc::clone(&tracker2),
                     });
                     HttpResponse::Ok()
-                }),
-            ))
+                },
+            )))
             .await;
 
             let req = TestRequest::default().to_request();

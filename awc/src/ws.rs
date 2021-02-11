@@ -40,12 +40,8 @@ pub use actix_http::ws::{CloseCode, CloseReason, Codec, Frame, Message};
 
 use crate::connect::BoxedSocket;
 use crate::error::{InvalidUrl, SendRequestError, WsClientError};
-use crate::http::header::{
-    self, HeaderName, HeaderValue, IntoHeaderValue, AUTHORIZATION,
-};
-use crate::http::{
-    ConnectionType, Error as HttpError, Method, StatusCode, Uri, Version,
-};
+use crate::http::header::{self, HeaderName, HeaderValue, IntoHeaderValue, AUTHORIZATION};
+use crate::http::{ConnectionType, Error as HttpError, Method, StatusCode, Uri, Version};
 use crate::response::ClientResponse;
 use crate::ClientConfig;
 

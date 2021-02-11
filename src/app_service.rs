@@ -241,16 +241,15 @@ impl ServiceFactory<ServiceRequest> for AppRoutingFactory {
 
     fn new_service(&self, _: ()) -> Self::Future {
         // construct all services factory future with it's resource def and guards.
-        let factory_fut =
-            join_all(self.services.iter().map(|(path, factory, guards)| {
-                let path = path.clone();
-                let guards = guards.borrow_mut().take();
-                let factory_fut = factory.new_service(());
-                async move {
-                    let service = factory_fut.await?;
-                    Ok((path, guards, service))
-                }
-            }));
+        let factory_fut = join_all(self.services.iter().map(|(path, factory, guards)| {
+            let path = path.clone();
+            let guards = guards.borrow_mut().take();
+            let factory_fut = factory.new_service(());
+            async move {
+                let service = factory_fut.await?;
+                Ok((path, guards, service))
+            }
+        }));
 
         // construct default service factory future
         let default_fut = self.default.new_service(());

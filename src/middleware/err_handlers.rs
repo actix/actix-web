@@ -201,8 +201,7 @@ mod tests {
             .await
             .unwrap();
 
-        let resp =
-            test::call_service(&mw, TestRequest::default().to_srv_request()).await;
+        let resp = test::call_service(&mw, TestRequest::default().to_srv_request()).await;
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0001");
     }
 
@@ -227,8 +226,7 @@ mod tests {
             .await
             .unwrap();
 
-        let resp =
-            test::call_service(&mw, TestRequest::default().to_srv_request()).await;
+        let resp = test::call_service(&mw, TestRequest::default().to_srv_request()).await;
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0001");
     }
 }

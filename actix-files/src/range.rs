@@ -46,8 +46,7 @@ impl HttpRange {
                 if start_str.is_empty() {
                     // If no start is specified, end specifies the
                     // range start relative to the end of the file.
-                    let mut length: i64 =
-                        end_str.parse().map_err(|_| ParseRangeErr(()))?;
+                    let mut length: i64 = end_str.parse().map_err(|_| ParseRangeErr(()))?;
 
                     if length > size_sig {
                         length = size_sig;
@@ -72,8 +71,7 @@ impl HttpRange {
                         // If no end is specified, range extends to end of the file.
                         size_sig - start
                     } else {
-                        let mut end: i64 =
-                            end_str.parse().map_err(|_| ParseRangeErr(()))?;
+                        let mut end: i64 = end_str.parse().map_err(|_| ParseRangeErr(()))?;
 
                         if start > end {
                             return Err(ParseRangeErr(()));

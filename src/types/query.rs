@@ -167,8 +167,7 @@ where
 /// ```
 #[derive(Clone)]
 pub struct QueryConfig {
-    err_handler:
-        Option<Arc<dyn Fn(QueryPayloadError, &HttpRequest) -> Error + Send + Sync>>,
+    err_handler: Option<Arc<dyn Fn(QueryPayloadError, &HttpRequest) -> Error + Send + Sync>>,
 }
 
 impl QueryConfig {

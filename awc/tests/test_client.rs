@@ -51,8 +51,7 @@ const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
 #[actix_rt::test]
 async fn test_simple() {
     let srv = test::start(|| {
-        App::new()
-            .service(web::resource("/").route(web::to(|| HttpResponse::Ok().body(STR))))
+        App::new().service(web::resource("/").route(web::to(|| HttpResponse::Ok().body(STR))))
     });
 
     let request = srv.get("/").insert_header(("x-test", "111")).send();
@@ -612,9 +611,8 @@ async fn test_client_streaming_explicit() {
         }))
     });
 
-    let body = stream::once(async {
-        Ok::<_, actix_http::Error>(Bytes::from_static(STR.as_bytes()))
-    });
+    let body =
+        stream::once(async { Ok::<_, actix_http::Error>(Bytes::from_static(STR.as_bytes())) });
     let req = srv.post("/").send_stream(Box::pin(body));
 
     let mut res = req.await.unwrap();

@@ -11,11 +11,7 @@ impl Actor for Ws {
 }
 
 impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for Ws {
-    fn handle(
-        &mut self,
-        msg: Result<ws::Message, ws::ProtocolError>,
-        ctx: &mut Self::Context,
-    ) {
+    fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
         match msg.unwrap() {
             ws::Message::Ping(msg) => ctx.pong(&msg),
             ws::Message::Text(text) => ctx.text(text),
@@ -30,9 +26,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for Ws {
 async fn test_simple() {
     let mut srv = test::start(|| {
         App::new().service(web::resource("/").to(
-            |req: HttpRequest, stream: web::Payload| async move {
-                ws::start(Ws, &req, stream)
-            },
+            |req: HttpRequest, stream: web::Payload| async move { ws::start(Ws, &req, stream) },
         ))
     });
 

@@ -482,8 +482,8 @@ mod tests {
                 let msg = MyObject {
                     name: "invalid request".to_string(),
                 };
-                let resp = HttpResponse::BadRequest()
-                    .body(serde_json::to_string(&msg).unwrap());
+                let resp =
+                    HttpResponse::BadRequest().body(serde_json::to_string(&msg).unwrap());
                 InternalError::from_response(err, resp).into()
             }))
             .to_http_parts();

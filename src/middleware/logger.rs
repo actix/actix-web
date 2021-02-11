@@ -137,9 +137,9 @@ impl Logger {
     ) -> Self {
         let inner = Rc::get_mut(&mut self.0).unwrap();
 
-        let ft = inner.format.0.iter_mut().find(|ft| {
-            matches!(ft, FormatText::CustomRequest(unit_label, _) if label == unit_label)
-        });
+        let ft = inner.format.0.iter_mut().find(
+            |ft| matches!(ft, FormatText::CustomRequest(unit_label, _) if label == unit_label),
+        );
 
         if let Some(FormatText::CustomRequest(_, request_fn)) = ft {
             // replace into None or previously registered fn using same label
@@ -363,8 +363,7 @@ impl Format {
     /// Returns `None` if the format string syntax is incorrect.
     pub fn new(s: &str) -> Format {
         log::trace!("Access log format: {}", s);
-        let fmt =
-            Regex::new(r"%(\{([A-Za-z0-9\-_]+)\}([aioe]|xi)|[atPrUsbTD]?)").unwrap();
+        let fmt = Regex::new(r"%(\{([A-Za-z0-9\-_]+)\}([aioe]|xi)|[atPrUsbTD]?)").unwrap();
 
         let mut idx = 0;
         let mut results = Vec::new();
@@ -385,12 +384,12 @@ impl Format {
                             unreachable!()
                         }
                     }
-                    "i" => FormatText::RequestHeader(
-                        HeaderName::try_from(key.as_str()).unwrap(),
-                    ),
-                    "o" => FormatText::ResponseHeader(
-                        HeaderName::try_from(key.as_str()).unwrap(),
-                    ),
+                    "i" => {
+                        FormatText::RequestHeader(HeaderName::try_from(key.as_str()).unwrap())
+                    }
+                    "o" => {
+                        FormatText::ResponseHeader(HeaderName::try_from(key.as_str()).unwrap())
+                    }
                     "e" => FormatText::EnvironHeader(key.as_str().to_owned()),
                     "xi" => FormatText::CustomRequest(key.as_str().to_owned(), None),
                     _ => unreachable!(),
@@ -533,9 +532,7 @@ impl FormatText {
                 };
             }
             FormatText::UrlPath => *self = FormatText::Str(req.path().to_string()),
-            FormatText::RequestTime => {
-                *self = FormatText::Str(now.format("%Y-%m-%dT%H:%M:%S"))
-            }
+            FormatText::RequestTime => *self = FormatText::Str(now.format("%Y-%m-%dT%H:%M:%S")),
             FormatText::RequestHeader(ref name) => {
                 let s = if let Some(val) = req.headers().get(name) {
                     if let Ok(s) = val.to_str() {
@@ -557,8 +554,7 @@ impl FormatText {
                 *self = s;
             }
             FormatText::RealIPRemoteAddr => {
-                let s = if let Some(remote) = req.connection_info().realip_remote_addr()
-                {
+                let s = if let Some(remote) = req.connection_info().realip_remote_addr() {
                     FormatText::Str(remote.to_string())
                 } else {
                     FormatText::Str("-".to_string())
@@ -629,8 +625,8 @@ mod tests {
                     .finish(),
             ))
         };
-        let logger = Logger::new("%% %{User-Agent}i %{X-Test}o %{HOME}e %D test")
-            .exclude_regex("\\w");
+        let logger =
+            Logger::new("%% %{User-Agent}i %{X-Test}o %{HOME}e %D test").exclude_regex("\\w");
 
         let srv = logger.new_transform(srv.into_service()).await.unwrap();
 
@@ -743,9 +739,7 @@ mod tests {
         let req = TestRequest::default()
             .insert_header((
                 header::FORWARDED,
-                header::HeaderValue::from_static(
-                    "for=192.0.2.60;proto=http;by=203.0.113.43",
-                ),
+                header::HeaderValue::from_static("for=192.0.2.60;proto=http;by=203.0.113.43"),
             ))
             .to_srv_request();
 

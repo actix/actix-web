@@ -11,8 +11,7 @@ use actix_http::body::Body;
 use actix_http::cookie::{Cookie, CookieJar};
 use actix_http::http::header::{self, IntoHeaderPair};
 use actix_http::http::{
-    uri, ConnectionType, Error as HttpError, HeaderMap, HeaderValue, Method, Uri,
-    Version,
+    uri, ConnectionType, Error as HttpError, HeaderMap, HeaderValue, Method, Uri, Version,
 };
 use actix_http::{Error, RequestHead};
 
@@ -520,15 +519,11 @@ impl ClientRequest {
                 .unwrap_or(true);
 
             if https {
-                slf =
-                    slf.insert_header_if_none((header::ACCEPT_ENCODING, HTTPS_ENCODING))
+                slf = slf.insert_header_if_none((header::ACCEPT_ENCODING, HTTPS_ENCODING))
             } else {
                 #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
                 {
-                    slf = slf.insert_header_if_none((
-                        header::ACCEPT_ENCODING,
-                        "gzip, deflate",
-                    ))
+                    slf = slf.insert_header_if_none((header::ACCEPT_ENCODING, "gzip, deflate"))
                 }
             };
         }

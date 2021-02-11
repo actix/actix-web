@@ -277,32 +277,28 @@ where
         });
         let on_connect_fn = self.on_connect_fn.clone();
 
-        self.builder = self.builder.listen(
-            format!("actix-web-service-{}", addr),
-            lst,
-            move || {
-                let c = cfg.lock().unwrap();
-                let host = c.host.clone().unwrap_or_else(|| format!("{}", addr));
+        self.builder =
+            self.builder
+                .listen(format!("actix-web-service-{}", addr), lst, move || {
+                    let c = cfg.lock().unwrap();
+                    let host = c.host.clone().unwrap_or_else(|| format!("{}", addr));
 
-                let svc = HttpService::build()
-                    .keep_alive(c.keep_alive)
-                    .client_timeout(c.client_timeout)
-                    .local_addr(addr);
+                    let svc = HttpService::build()
+                        .keep_alive(c.keep_alive)
+                        .client_timeout(c.client_timeout)
+                        .local_addr(addr);
 
-                let svc = if let Some(handler) = on_connect_fn.clone() {
-                    svc.on_connect_ext(move |io: &_, ext: _| {
-                        (handler)(io as &dyn Any, ext)
-                    })
-                } else {
-                    svc
-                };
+                    let svc = if let Some(handler) = on_connect_fn.clone() {
+                        svc.on_connect_ext(move |io: &_, ext: _| (handler)(io as &dyn Any, ext))
+                    } else {
+                        svc
+                    };
 
-                svc.finish(map_config(factory(), move |_| {
-                    AppConfig::new(false, addr, host.clone())
-                }))
-                .tcp()
-            },
-        )?;
+                    svc.finish(map_config(factory(), move |_| {
+                        AppConfig::new(false, addr, host.clone())
+                    }))
+                    .tcp()
+                })?;
         Ok(self)
     }
 
@@ -334,32 +330,30 @@ where
 
         let on_connect_fn = self.on_connect_fn.clone();
 
-        self.builder = self.builder.listen(
-            format!("actix-web-service-{}", addr),
-            lst,
-            move || {
-                let c = cfg.lock().unwrap();
-                let host = c.host.clone().unwrap_or_else(|| format!("{}", addr));
+        self.builder =
+            self.builder
+                .listen(format!("actix-web-service-{}", addr), lst, move || {
+                    let c = cfg.lock().unwrap();
+                    let host = c.host.clone().unwrap_or_else(|| format!("{}", addr));
 
-                let svc = HttpService::build()
-                    .keep_alive(c.keep_alive)
-                    .client_timeout(c.client_timeout)
-                    .client_disconnect(c.client_shutdown);
+                    let svc = HttpService::build()
+                        .keep_alive(c.keep_alive)
+                        .client_timeout(c.client_timeout)
+                        .client_disconnect(c.client_shutdown);
 
-                let svc = if let Some(handler) = on_connect_fn.clone() {
-                    svc.on_connect_ext(move |io: &_, ext: _| {
-                        (&*handler)(io as &dyn Any, ext)
-                    })
-                } else {
-                    svc
-                };
+                    let svc = if let Some(handler) = on_connect_fn.clone() {
+                        svc.on_connect_ext(move |io: &_, ext: _| {
+                            (&*handler)(io as &dyn Any, ext)
+                        })
+                    } else {
+                        svc
+                    };
 
-                svc.finish(map_config(factory(), move |_| {
-                    AppConfig::new(true, addr, host.clone())
-                }))
-                .openssl(acceptor.clone())
-            },
-        )?;
+                    svc.finish(map_config(factory(), move |_| {
+                        AppConfig::new(true, addr, host.clone())
+                    }))
+                    .openssl(acceptor.clone())
+                })?;
         Ok(self)
     }
 
@@ -391,32 +385,28 @@ where
 
         let on_connect_fn = self.on_connect_fn.clone();
 
-        self.builder = self.builder.listen(
-            format!("actix-web-service-{}", addr),
-            lst,
-            move || {
-                let c = cfg.lock().unwrap();
-                let host = c.host.clone().unwrap_or_else(|| format!("{}", addr));
+        self.builder =
+            self.builder
+                .listen(format!("actix-web-service-{}", addr), lst, move || {
+                    let c = cfg.lock().unwrap();
+                    let host = c.host.clone().unwrap_or_else(|| format!("{}", addr));
 
-                let svc = HttpService::build()
-                    .keep_alive(c.keep_alive)
-                    .client_timeout(c.client_timeout)
-                    .client_disconnect(c.client_shutdown);
+                    let svc = HttpService::build()
+                        .keep_alive(c.keep_alive)
+                        .client_timeout(c.client_timeout)
+                        .client_disconnect(c.client_shutdown);
 
-                let svc = if let Some(handler) = on_connect_fn.clone() {
-                    svc.on_connect_ext(move |io: &_, ext: _| {
-                        (handler)(io as &dyn Any, ext)
-                    })
-                } else {
-                    svc
-                };
+                    let svc = if let Some(handler) = on_connect_fn.clone() {
+                        svc.on_connect_ext(move |io: &_, ext: _| (handler)(io as &dyn Any, ext))
+                    } else {
+                        svc
+                    };
 
-                svc.finish(map_config(factory(), move |_| {
-                    AppConfig::new(true, addr, host.clone())
-                }))
-                .rustls(config.clone())
-            },
-        )?;
+                    svc.finish(map_config(factory(), move |_| {
+                        AppConfig::new(true, addr, host.clone())
+                    }))
+                    .rustls(config.clone())
+                })?;
         Ok(self)
     }
 
@@ -433,10 +423,7 @@ where
         Ok(self)
     }
 
-    fn bind2<A: net::ToSocketAddrs>(
-        &self,
-        addr: A,
-    ) -> io::Result<Vec<net::TcpListener>> {
+    fn bind2<A: net::ToSocketAddrs>(&self, addr: A) -> io::Result<Vec<net::TcpListener>> {
         let mut err = None;
         let mut success = false;
         let mut sockets = Vec::new();
@@ -469,11 +456,7 @@ where
     /// Start listening for incoming tls connections.
     ///
     /// This method sets alpn protocols to "h2" and "http/1.1"
-    pub fn bind_openssl<A>(
-        mut self,
-        addr: A,
-        builder: SslAcceptorBuilder,
-    ) -> io::Result<Self>
+    pub fn bind_openssl<A>(mut self, addr: A, builder: SslAcceptorBuilder) -> io::Result<Self>
     where
         A: net::ToSocketAddrs,
     {
@@ -505,18 +488,13 @@ where
 
     #[cfg(unix)]
     /// Start listening for unix domain (UDS) connections on existing listener.
-    pub fn listen_uds(
-        mut self,
-        lst: std::os::unix::net::UnixListener,
-    ) -> io::Result<Self> {
+    pub fn listen_uds(mut self, lst: std::os::unix::net::UnixListener) -> io::Result<Self> {
         use actix_rt::net::UnixStream;
 
         let cfg = self.config.clone();
         let factory = self.factory.clone();
-        let socket_addr = net::SocketAddr::new(
-            net::IpAddr::V4(net::Ipv4Addr::new(127, 0, 0, 1)),
-            8080,
-        );
+        let socket_addr =
+            net::SocketAddr::new(net::IpAddr::V4(net::Ipv4Addr::new(127, 0, 0, 1)), 8080);
         self.sockets.push(Socket {
             scheme: "http",
             addr: socket_addr,
@@ -533,23 +511,19 @@ where
                 c.host.clone().unwrap_or_else(|| format!("{}", socket_addr)),
             );
 
-            pipeline_factory(|io: UnixStream| ok((io, Protocol::Http1, None))).and_then(
-                {
-                    let svc = HttpService::build()
-                        .keep_alive(c.keep_alive)
-                        .client_timeout(c.client_timeout);
+            pipeline_factory(|io: UnixStream| ok((io, Protocol::Http1, None))).and_then({
+                let svc = HttpService::build()
+                    .keep_alive(c.keep_alive)
+                    .client_timeout(c.client_timeout);
 
-                    let svc = if let Some(handler) = on_connect_fn.clone() {
-                        svc.on_connect_ext(move |io: &_, ext: _| {
-                            (&*handler)(io as &dyn Any, ext)
-                        })
-                    } else {
-                        svc
-                    };
+                let svc = if let Some(handler) = on_connect_fn.clone() {
+                    svc.on_connect_ext(move |io: &_, ext: _| (&*handler)(io as &dyn Any, ext))
+                } else {
+                    svc
+                };
 
-                    svc.finish(map_config(factory(), move |_| config.clone()))
-                },
-            )
+                svc.finish(map_config(factory(), move |_| config.clone()))
+            })
         })?;
         Ok(self)
     }
@@ -564,10 +538,8 @@ where
 
         let cfg = self.config.clone();
         let factory = self.factory.clone();
-        let socket_addr = net::SocketAddr::new(
-            net::IpAddr::V4(net::Ipv4Addr::new(127, 0, 0, 1)),
-            8080,
-        );
+        let socket_addr =
+            net::SocketAddr::new(net::IpAddr::V4(net::Ipv4Addr::new(127, 0, 0, 1)), 8080);
         self.sockets.push(Socket {
             scheme: "http",
             addr: socket_addr,
@@ -583,13 +555,12 @@ where
                     socket_addr,
                     c.host.clone().unwrap_or_else(|| format!("{}", socket_addr)),
                 );
-                pipeline_factory(|io: UnixStream| ok((io, Protocol::Http1, None)))
-                    .and_then(
-                        HttpService::build()
-                            .keep_alive(c.keep_alive)
-                            .client_timeout(c.client_timeout)
-                            .finish(map_config(factory(), move |_| config.clone())),
-                    )
+                pipeline_factory(|io: UnixStream| ok((io, Protocol::Http1, None))).and_then(
+                    HttpService::build()
+                        .keep_alive(c.keep_alive)
+                        .client_timeout(c.client_timeout)
+                        .finish(map_config(factory(), move |_| config.clone())),
+                )
             },
         )?;
         Ok(self)
@@ -633,10 +604,7 @@ where
     }
 }
 
-fn create_tcp_listener(
-    addr: net::SocketAddr,
-    backlog: u32,
-) -> io::Result<net::TcpListener> {
+fn create_tcp_listener(addr: net::SocketAddr, backlog: u32) -> io::Result<net::TcpListener> {
     use socket2::{Domain, Protocol, Socket, Type};
     let domain = match addr {
         net::SocketAddr::V4(_) => Domain::ipv4(),

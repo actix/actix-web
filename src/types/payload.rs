@@ -55,10 +55,7 @@ impl Stream for Payload {
     type Item = Result<Bytes, PayloadError>;
 
     #[inline]
-    fn poll_next(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Option<Self::Item>> {
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         Pin::new(&mut self.0).poll_next(cx)
     }
 }
@@ -396,9 +393,7 @@ mod tests {
             App::new()
                 .service(
                     web::resource("/bytes-app-data")
-                        .app_data(
-                            PayloadConfig::default().mimetype(mime::APPLICATION_JSON),
-                        )
+                        .app_data(PayloadConfig::default().mimetype(mime::APPLICATION_JSON))
                         .route(web::get().to(bytes_handler)),
                 )
                 .service(
@@ -408,9 +403,7 @@ mod tests {
                 )
                 .service(
                     web::resource("/string-app-data")
-                        .app_data(
-                            PayloadConfig::default().mimetype(mime::APPLICATION_JSON),
-                        )
+                        .app_data(PayloadConfig::default().mimetype(mime::APPLICATION_JSON))
                         .route(web::get().to(string_handler)),
                 )
                 .service(

@@ -7,13 +7,12 @@ use std::task::{Context, Poll};
 use std::{collections::VecDeque, convert::TryFrom};
 
 use actix::dev::{
-    AsyncContextParts, ContextFut, ContextParts, Envelope, Mailbox, StreamHandler,
-    ToEnvelope,
+    AsyncContextParts, ContextFut, ContextParts, Envelope, Mailbox, StreamHandler, ToEnvelope,
 };
 use actix::fut::ActorFuture;
 use actix::{
-    Actor, ActorContext, ActorState, Addr, AsyncContext, Handler,
-    Message as ActixMessage, SpawnHandle,
+    Actor, ActorContext, ActorState, Addr, AsyncContext, Handler, Message as ActixMessage,
+    SpawnHandle,
 };
 use actix_codec::{Decoder, Encoder};
 use actix_http::ws::{hash_key, Codec};
@@ -32,8 +31,7 @@ use tokio::sync::oneshot::Sender;
 /// Perform WebSocket handshake and start actor.
 pub fn start<A, T>(actor: A, req: &HttpRequest, stream: T) -> Result<HttpResponse, Error>
 where
-    A: Actor<Context = WebsocketContext<A>>
-        + StreamHandler<Result<Message, ProtocolError>>,
+    A: Actor<Context = WebsocketContext<A>> + StreamHandler<Result<Message, ProtocolError>>,
     T: Stream<Item = Result<Bytes, PayloadError>> + 'static,
 {
     let mut res = handshake(req)?;
@@ -57,8 +55,7 @@ pub fn start_with_addr<A, T>(
     stream: T,
 ) -> Result<(Addr<A>, HttpResponse), Error>
 where
-    A: Actor<Context = WebsocketContext<A>>
-        + StreamHandler<Result<Message, ProtocolError>>,
+    A: Actor<Context = WebsocketContext<A>> + StreamHandler<Result<Message, ProtocolError>>,
     T: Stream<Item = Result<Bytes, PayloadError>> + 'static,
 {
     let mut res = handshake(req)?;
@@ -76,8 +73,7 @@ pub fn start_with_protocols<A, T>(
     stream: T,
 ) -> Result<HttpResponse, Error>
 where
-    A: Actor<Context = WebsocketContext<A>>
-        + StreamHandler<Result<Message, ProtocolError>>,
+    A: Actor<Context = WebsocketContext<A>> + StreamHandler<Result<Message, ProtocolError>>,
     T: Stream<Item = Result<Bytes, PayloadError>> + 'static,
 {
     let mut res = handshake_with_protocols(req, protocols)?;
@@ -301,10 +297,7 @@ where
     }
 
     /// Create a new Websocket context
-    pub fn with_factory<S, F>(
-        stream: S,
-        f: F,
-    ) -> impl Stream<Item = Result<Bytes, Error>>
+    pub fn with_factory<S, F>(stream: S, f: F) -> impl Stream<Item = Result<Bytes, Error>>
     where
         F: FnOnce(&mut Self) -> A + 'static,
         A: StreamHandler<Result<Message, ProtocolError>>,
@@ -423,10 +416,7 @@ where
 {
     type Item = Result<Bytes, Error>;
 
-    fn poll_next(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Option<Self::Item>> {
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.get_mut();
 
         if this.fut.alive() {
@@ -493,10 +483,7 @@ where
 {
     type Item = Result<Message, ProtocolError>;
 
-    fn poll_next(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Option<Self::Item>> {
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let mut this = self.as_mut().project();
 
         if !*this.closed {
@@ -512,9 +499,10 @@ where
                     }
                     Poll::Pending => break,
                     Poll::Ready(Some(Err(e))) => {
-                        return Poll::Ready(Some(Err(ProtocolError::Io(
-                            io::Error::new(io::ErrorKind::Other, format!("{}", e)),
-                        ))));
+                        return Poll::Ready(Some(Err(ProtocolError::Io(io::Error::new(
+                            io::ErrorKind::Other,
+                            format!("{}", e),
+                        )))));
                     }
                 }
             }

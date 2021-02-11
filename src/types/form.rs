@@ -21,8 +21,8 @@ use serde::{de::DeserializeOwned, Serialize};
 #[cfg(feature = "compress")]
 use crate::dev::Decompress;
 use crate::{
-    error::UrlencodedError, extract::FromRequest, http::header::CONTENT_LENGTH, web,
-    Error, HttpMessage, HttpRequest, HttpResponse, Responder,
+    error::UrlencodedError, extract::FromRequest, http::header::CONTENT_LENGTH, web, Error,
+    HttpMessage, HttpRequest, HttpResponse, Responder,
 };
 
 /// URL encoded payload extractor and responder.
@@ -342,16 +342,14 @@ where
                 }
 
                 if encoding == UTF_8 {
-                    serde_urlencoded::from_bytes::<T>(&body)
-                        .map_err(|_| UrlencodedError::Parse)
+                    serde_urlencoded::from_bytes::<T>(&body).map_err(|_| UrlencodedError::Parse)
                 } else {
                     let body = encoding
                         .decode_without_bom_handling_and_without_replacement(&body)
                         .map(|s| s.into_owned())
                         .ok_or(UrlencodedError::Parse)?;
 
-                    serde_urlencoded::from_str::<T>(&body)
-                        .map_err(|_| UrlencodedError::Parse)
+                    serde_urlencoded::from_str::<T>(&body).map_err(|_| UrlencodedError::Parse)
                 }
             }
             .boxed_local(),

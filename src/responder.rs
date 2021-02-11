@@ -262,9 +262,7 @@ pub(crate) mod tests {
     async fn test_option_responder() {
         let srv = init_service(
             App::new()
-                .service(
-                    web::resource("/none").to(|| async { Option::<&'static str>::None }),
-                )
+                .service(web::resource("/none").to(|| async { Option::<&'static str>::None }))
                 .service(web::resource("/some").to(|| async { Some("some") })),
         )
         .await;
@@ -364,8 +362,7 @@ pub(crate) mod tests {
         );
 
         // InternalError
-        let resp =
-            error::InternalError::new("err", StatusCode::BAD_REQUEST).respond_to(&req);
+        let resp = error::InternalError::new("err", StatusCode::BAD_REQUEST).respond_to(&req);
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
     }
 
@@ -382,9 +379,8 @@ pub(crate) mod tests {
             HeaderValue::from_static("text/plain; charset=utf-8")
         );
 
-        let res =
-            Err::<String, _>(error::InternalError::new("err", StatusCode::BAD_REQUEST))
-                .respond_to(&req);
+        let res = Err::<String, _>(error::InternalError::new("err", StatusCode::BAD_REQUEST))
+            .respond_to(&req);
 
         assert_eq!(res.status(), StatusCode::BAD_REQUEST);
     }

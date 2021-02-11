@@ -82,8 +82,7 @@ where
             let connection = fut.await?;
 
             // send request
-            let (head, framed) =
-                connection.open_tunnel(RequestHeadType::from(head)).await?;
+            let (head, framed) = connection.open_tunnel(RequestHeadType::from(head)).await?;
 
             let framed = framed.into_map_io(|io| BoxedSocket(Box::new(Socket(io))));
             Ok((head, framed))
@@ -142,10 +141,7 @@ impl AsyncWrite for BoxedSocket {
         Pin::new(self.get_mut().0.as_write()).poll_flush(cx)
     }
 
-    fn poll_shutdown(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<io::Result<()>> {
+    fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         Pin::new(self.get_mut().0.as_write()).poll_shutdown(cx)
     }
 }

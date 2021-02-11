@@ -11,8 +11,7 @@ use actix_web::{
     dev::{BodyEncoding, SizedStream},
     http::{
         header::{
-            self, Charset, ContentDisposition, DispositionParam, DispositionType,
-            ExtendedValue,
+            self, Charset, ContentDisposition, DispositionParam, DispositionType, ExtendedValue,
         },
         ContentEncoding, StatusCode,
     },
@@ -395,18 +394,10 @@ impl NamedFile {
                     resp.encoding(ContentEncoding::Identity);
                     resp.insert_header((
                         header::CONTENT_RANGE,
-                        format!(
-                            "bytes {}-{}/{}",
-                            offset,
-                            offset + length - 1,
-                            self.md.len()
-                        ),
+                        format!("bytes {}-{}/{}", offset, offset + length - 1, self.md.len()),
                     ));
                 } else {
-                    resp.insert_header((
-                        header::CONTENT_RANGE,
-                        format!("bytes */{}", length),
-                    ));
+                    resp.insert_header((header::CONTENT_RANGE, format!("bytes */{}", length)));
                     return resp.status(StatusCode::RANGE_NOT_SATISFIABLE).finish();
                 };
             } else {

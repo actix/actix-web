@@ -33,9 +33,8 @@ fn bench_async_burst(c: &mut Criterion) {
 
     let srv = rt.block_on(async {
         test::start(|| {
-            App::new().service(
-                web::resource("/").route(web::to(|| HttpResponse::Ok().body(STR))),
-            )
+            App::new()
+                .service(web::resource("/").route(web::to(|| HttpResponse::Ok().body(STR))))
         })
     });
 

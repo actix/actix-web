@@ -120,8 +120,7 @@ pub async fn test_server_with_addr<F: ServiceFactory<TcpStream>>(
 /// Get first available unused address
 pub fn unused_addr() -> net::SocketAddr {
     let addr: net::SocketAddr = "127.0.0.1:0".parse().unwrap();
-    let socket =
-        Socket::new(Domain::ipv4(), Type::stream(), Some(Protocol::tcp())).unwrap();
+    let socket = Socket::new(Domain::ipv4(), Type::stream(), Some(Protocol::tcp())).unwrap();
     socket.bind(&addr.into()).unwrap();
     socket.set_reuse_address(true).unwrap();
     let tcp = socket.into_tcp_listener();
@@ -248,8 +247,7 @@ impl TestServer {
     pub async fn ws_at(
         &mut self,
         path: &str,
-    ) -> Result<Framed<impl AsyncRead + AsyncWrite, ws::Codec>, awc::error::WsClientError>
-    {
+    ) -> Result<Framed<impl AsyncRead + AsyncWrite, ws::Codec>, awc::error::WsClientError> {
         let url = self.url(path);
         let connect = self.client.ws(url).connect();
         connect.await.map(|(_, framed)| framed)
@@ -258,8 +256,7 @@ impl TestServer {
     /// Connect to a websocket server
     pub async fn ws(
         &mut self,
-    ) -> Result<Framed<impl AsyncRead + AsyncWrite, ws::Codec>, awc::error::WsClientError>
-    {
+    ) -> Result<Framed<impl AsyncRead + AsyncWrite, ws::Codec>, awc::error::WsClientError> {
         self.ws_at("/").await
     }
 

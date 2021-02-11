@@ -130,9 +130,7 @@ pub mod dev {
     pub use crate::handler::Handler;
     pub use crate::info::ConnectionInfo;
     pub use crate::rmap::ResourceMap;
-    pub use crate::service::{
-        HttpServiceFactory, ServiceRequest, ServiceResponse, WebService,
-    };
+    pub use crate::service::{HttpServiceFactory, ServiceRequest, ServiceResponse, WebService};
 
     pub use crate::types::form::UrlEncoded;
     pub use crate::types::json::JsonBody;
@@ -142,9 +140,7 @@ pub mod dev {
     #[cfg(feature = "compress")]
     pub use actix_http::encoding::Decoder as Decompress;
     pub use actix_http::ResponseBuilder as HttpResponseBuilder;
-    pub use actix_http::{
-        Extensions, Payload, PayloadStream, RequestHead, ResponseHead,
-    };
+    pub use actix_http::{Extensions, Payload, PayloadStream, RequestHead, ResponseHead};
     pub use actix_router::{Path, ResourceDef, ResourcePath, Url};
     pub use actix_server::Server;
     pub use actix_service::{Service, Transform};

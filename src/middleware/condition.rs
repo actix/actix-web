@@ -119,15 +119,13 @@ mod tests {
             ok(req.into_response(HttpResponse::InternalServerError().finish()))
         };
 
-        let mw =
-            ErrorHandlers::new().handler(StatusCode::INTERNAL_SERVER_ERROR, render_500);
+        let mw = ErrorHandlers::new().handler(StatusCode::INTERNAL_SERVER_ERROR, render_500);
 
         let mw = Condition::new(true, mw)
             .new_transform(srv.into_service())
             .await
             .unwrap();
-        let resp =
-            test::call_service(&mw, TestRequest::default().to_srv_request()).await;
+        let resp = test::call_service(&mw, TestRequest::default().to_srv_request()).await;
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0001");
     }
 
@@ -137,16 +135,14 @@ mod tests {
             ok(req.into_response(HttpResponse::InternalServerError().finish()))
         };
 
-        let mw =
-            ErrorHandlers::new().handler(StatusCode::INTERNAL_SERVER_ERROR, render_500);
+        let mw = ErrorHandlers::new().handler(StatusCode::INTERNAL_SERVER_ERROR, render_500);
 
         let mw = Condition::new(false, mw)
             .new_transform(srv.into_service())
             .await
             .unwrap();
 
-        let resp =
-            test::call_service(&mw, TestRequest::default().to_srv_request()).await;
+        let resp = test::call_service(&mw, TestRequest::default().to_srv_request()).await;
         assert_eq!(resp.headers().get(CONTENT_TYPE), None);
     }
 }

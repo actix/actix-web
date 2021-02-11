@@ -49,10 +49,7 @@ impl fmt::Debug for ChunkedReadFile {
 impl Stream for ChunkedReadFile {
     type Item = Result<Bytes, Error>;
 
-    fn poll_next(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Option<Self::Item>> {
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.as_mut().get_mut();
         match this.state {
             ChunkedReadFileState::File(ref mut file) => {
@@ -68,16 +65,13 @@ impl Stream for ChunkedReadFile {
                         .expect("ChunkedReadFile polled after completion");
 
                     let fut = spawn_blocking(move || {
-                        let max_bytes =
-                            cmp::min(size.saturating_sub(counter), 65_536) as usize;
+                        let max_bytes = cmp::min(size.saturating_sub(counter), 65_536) as usize;
 
                         let mut buf = Vec::with_capacity(max_bytes);
                         file.seek(io::SeekFrom::Start(offset))?;
 
-                        let n_bytes = file
-                            .by_ref()
-                            .take(max_bytes as u64)
-                            .read_to_end(&mut buf)?;
+                        let n_bytes =
+                            file.by_ref().take(max_bytes as u64).read_to_end(&mut buf)?;
 
                         if n_bytes == 0 {
                             return Err(io::ErrorKind::UnexpectedEof.into());

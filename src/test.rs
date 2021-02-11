@@ -12,9 +12,7 @@ use actix_http::test::TestRequest as HttpTestRequest;
 use actix_http::{cookie::Cookie, ws, Extensions, HttpService, Request};
 use actix_router::{Path, ResourceDef, Url};
 use actix_rt::{time::sleep, System};
-use actix_service::{
-    map_config, IntoService, IntoServiceFactory, Service, ServiceFactory,
-};
+use actix_service::{map_config, IntoService, IntoServiceFactory, Service, ServiceFactory};
 use awc::error::PayloadError;
 use awc::{Client, ClientRequest, ClientResponse, Connector};
 use bytes::{Bytes, BytesMut};
@@ -78,12 +76,7 @@ pub async fn init_service<R, S, B, E>(
 ) -> impl Service<Request, Response = ServiceResponse<B>, Error = E>
 where
     R: IntoServiceFactory<S, Request>,
-    S: ServiceFactory<
-        Request,
-        Config = AppConfig,
-        Response = ServiceResponse<B>,
-        Error = E,
-    >,
+    S: ServiceFactory<Request, Config = AppConfig, Response = ServiceResponse<B>, Error = E>,
     S::InitError: std::fmt::Debug,
 {
     try_init_service(app)
@@ -97,12 +90,7 @@ pub(crate) async fn try_init_service<R, S, B, E>(
 ) -> Result<impl Service<Request, Response = ServiceResponse<B>, Error = E>, S::InitError>
 where
     R: IntoServiceFactory<S, Request>,
-    S: ServiceFactory<
-        Request,
-        Config = AppConfig,
-        Response = ServiceResponse<B>,
-        Error = E,
-    >,
+    S: ServiceFactory<Request, Config = AppConfig, Response = ServiceResponse<B>, Error = E>,
     S::InitError: std::fmt::Debug,
 {
     let srv = app.into_factory();
@@ -264,9 +252,8 @@ where
 {
     let body = read_body(res).await;
 
-    serde_json::from_slice(&body).unwrap_or_else(|e| {
-        panic!("read_response_json failed during deserialization: {}", e)
-    })
+    serde_json::from_slice(&body)
+        .unwrap_or_else(|e| panic!("read_response_json failed during deserialization: {}", e))
 }
 
 pub async fn load_stream<S>(mut stream: S) -> Result<Bytes, Error>
@@ -487,8 +474,7 @@ impl TestRequest {
     /// Serialize `data` to JSON and set it as the request payload. The `Content-Type` header is
     /// set to `application/json`.
     pub fn set_json<T: Serialize>(mut self, data: &T) -> Self {
-        let bytes =
-            serde_json::to_string(data).expect("Failed to serialize test data to json");
+        let bytes = serde_json::to_string(data).expect("Failed to serialize test data to json");
         self.req.set_payload(bytes);
         self.req.insert_header(ContentType::json());
         self
@@ -528,8 +514,7 @@ impl TestRequest {
         head.peer_addr = self.peer_addr;
         self.path.get_mut().update(&head.uri);
 
-        let app_state =
-            AppInitServiceState::new(Rc::new(self.rmap), self.config.clone());
+        let app_state = AppInitServiceState::new(Rc::new(self.rmap), self.config.clone());
 
         ServiceRequest::new(
             HttpRequest::new(self.path, head, app_state, Rc::new(self.app_data)),
@@ -548,8 +533,7 @@ impl TestRequest {
         head.peer_addr = self.peer_addr;
         self.path.get_mut().update(&head.uri);
 
-        let app_state =
-            AppInitServiceState::new(Rc::new(self.rmap), self.config.clone());
+        let app_state = AppInitServiceState::new(Rc::new(self.rmap), self.config.clone());
 
         HttpRequest::new(self.path, head, app_state, Rc::new(self.app_data))
     }
@@ -560,8 +544,7 @@ impl TestRequest {
         head.peer_addr = self.peer_addr;
         self.path.get_mut().update(&head.uri);
 
-        let app_state =
-            AppInitServiceState::new(Rc::new(self.rmap), self.config.clone());
+        let app_state = AppInitServiceState::new(Rc::new(self.rmap), self.config.clone());
 
         let req = HttpRequest::new(self.path, head, app_state, Rc::new(self.app_data));
 
@@ -678,24 +661,21 @@ where
         let srv = match cfg.stream {
             StreamType::Tcp => match cfg.tp {
                 HttpVer::Http1 => builder.listen("test", tcp, move || {
-                    let cfg =
-                        AppConfig::new(false, local_addr, format!("{}", local_addr));
+                    let cfg = AppConfig::new(false, local_addr, format!("{}", local_addr));
                     HttpService::build()
                         .client_timeout(ctimeout)
                         .h1(map_config(factory(), move |_| cfg.clone()))
                         .tcp()
                 }),
                 HttpVer::Http2 => builder.listen("test", tcp, move || {
-                    let cfg =
-                        AppConfig::new(false, local_addr, format!("{}", local_addr));
+                    let cfg = AppConfig::new(false, local_addr, format!("{}", local_addr));
                     HttpService::build()
                         .client_timeout(ctimeout)
                         .h2(map_config(factory(), move |_| cfg.clone()))
                         .tcp()
                 }),
                 HttpVer::Both => builder.listen("test", tcp, move || {
-                    let cfg =
-                        AppConfig::new(false, local_addr, format!("{}", local_addr));
+                    let cfg = AppConfig::new(false, local_addr, format!("{}", local_addr));
                     HttpService::build()
                         .client_timeout(ctimeout)
                         .finish(map_config(factory(), move |_| cfg.clone()))
@@ -705,24 +685,21 @@ where
             #[cfg(feature = "openssl")]
             StreamType::Openssl(acceptor) => match cfg.tp {
                 HttpVer::Http1 => builder.listen("test", tcp, move || {
-                    let cfg =
-                        AppConfig::new(true, local_addr, format!("{}", local_addr));
+                    let cfg = AppConfig::new(true, local_addr, format!("{}", local_addr));
                     HttpService::build()
                         .client_timeout(ctimeout)
                         .h1(map_config(factory(), move |_| cfg.clone()))
                         .openssl(acceptor.clone())
                 }),
                 HttpVer::Http2 => builder.listen("test", tcp, move || {
-                    let cfg =
-                        AppConfig::new(true, local_addr, format!("{}", local_addr));
+                    let cfg = AppConfig::new(true, local_addr, format!("{}", local_addr));
                     HttpService::build()
                         .client_timeout(ctimeout)
                         .h2(map_config(factory(), move |_| cfg.clone()))
                         .openssl(acceptor.clone())
                 }),
                 HttpVer::Both => builder.listen("test", tcp, move || {
-                    let cfg =
-                        AppConfig::new(true, local_addr, format!("{}", local_addr));
+                    let cfg = AppConfig::new(true, local_addr, format!("{}", local_addr));
                     HttpService::build()
                         .client_timeout(ctimeout)
                         .finish(map_config(factory(), move |_| cfg.clone()))
@@ -732,24 +709,21 @@ where
             #[cfg(feature = "rustls")]
             StreamType::Rustls(config) => match cfg.tp {
                 HttpVer::Http1 => builder.listen("test", tcp, move || {
-                    let cfg =
-                        AppConfig::new(true, local_addr, format!("{}", local_addr));
+                    let cfg = AppConfig::new(true, local_addr, format!("{}", local_addr));
                     HttpService::build()
                         .client_timeout(ctimeout)
                         .h1(map_config(factory(), move |_| cfg.clone()))
                         .rustls(config.clone())
                 }),
                 HttpVer::Http2 => builder.listen("test", tcp, move || {
-                    let cfg =
-                        AppConfig::new(true, local_addr, format!("{}", local_addr));
+                    let cfg = AppConfig::new(true, local_addr, format!("{}", local_addr));
                     HttpService::build()
                         .client_timeout(ctimeout)
                         .h2(map_config(factory(), move |_| cfg.clone()))
                         .rustls(config.clone())
                 }),
                 HttpVer::Both => builder.listen("test", tcp, move || {
-                    let cfg =
-                        AppConfig::new(true, local_addr, format!("{}", local_addr));
+                    let cfg = AppConfig::new(true, local_addr, format!("{}", local_addr));
                     HttpService::build()
                         .client_timeout(ctimeout)
                         .finish(map_config(factory(), move |_| cfg.clone()))
@@ -887,8 +861,7 @@ impl TestServerConfig {
 /// Get first available unused address
 pub fn unused_addr() -> net::SocketAddr {
     let addr: net::SocketAddr = "127.0.0.1:0".parse().unwrap();
-    let socket =
-        Socket::new(Domain::ipv4(), Type::stream(), Some(Protocol::tcp())).unwrap();
+    let socket = Socket::new(Domain::ipv4(), Type::stream(), Some(Protocol::tcp())).unwrap();
     socket.bind(&addr.into()).unwrap();
     socket.set_reuse_address(true).unwrap();
     let tcp = socket.into_tcp_listener();
@@ -975,8 +948,7 @@ impl TestServer {
     pub async fn ws_at(
         &mut self,
         path: &str,
-    ) -> Result<Framed<impl AsyncRead + AsyncWrite, ws::Codec>, awc::error::WsClientError>
-    {
+    ) -> Result<Framed<impl AsyncRead + AsyncWrite, ws::Codec>, awc::error::WsClientError> {
         let url = self.url(path);
         let connect = self.client.ws(url).connect();
         connect.await.map(|(_, framed)| framed)
@@ -985,8 +957,7 @@ impl TestServer {
     /// Connect to a websocket server
     pub async fn ws(
         &mut self,
-    ) -> Result<Framed<impl AsyncRead + AsyncWrite, ws::Codec>, awc::error::WsClientError>
-    {
+    ) -> Result<Framed<impl AsyncRead + AsyncWrite, ws::Codec>, awc::error::WsClientError> {
         self.ws_at("/").await
     }
 
@@ -1218,10 +1189,9 @@ mod tests {
             }
         }
 
-        let app = init_service(
-            App::new().service(web::resource("/index.html").to(async_with_block)),
-        )
-        .await;
+        let app =
+            init_service(App::new().service(web::resource("/index.html").to(async_with_block)))
+                .await;
 
         let req = TestRequest::post().uri("/index.html").to_request();
         let res = app.call(req).await.unwrap();

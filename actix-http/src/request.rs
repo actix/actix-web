@@ -9,9 +9,9 @@ use http::{header, Method, Uri, Version};
 
 use crate::extensions::Extensions;
 use crate::header::HeaderMap;
-use crate::HttpMessage;
 use crate::message::{Message, RequestHead};
 use crate::payload::{Payload, PayloadStream};
+use crate::HttpMessage;
 
 /// Request
 pub struct Request<P = PayloadStream> {

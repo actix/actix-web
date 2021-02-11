@@ -143,9 +143,7 @@ mod tests {
                 web::scope("app")
                     .wrap(Compat::new(logger))
                     .wrap(Compat::new(compress))
-                    .service(
-                        web::resource("/test").route(web::get().to(HttpResponse::Ok)),
-                    ),
+                    .service(web::resource("/test").route(web::get().to(HttpResponse::Ok))),
             ),
         )
         .await;

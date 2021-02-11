@@ -13,9 +13,7 @@ use futures_util::stream::{LocalBoxStream, Stream, StreamExt};
 
 use actix_utils::task::LocalWaker;
 use actix_web::error::{ParseError, PayloadError};
-use actix_web::http::header::{
-    self, ContentDisposition, HeaderMap, HeaderName, HeaderValue,
-};
+use actix_web::http::header::{self, ContentDisposition, HeaderMap, HeaderName, HeaderValue};
 
 use crate::error::MultipartError;
 
@@ -120,10 +118,7 @@ impl Multipart {
 impl Stream for Multipart {
     type Item = Result<Field, MultipartError>;
 
-    fn poll_next(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Option<Self::Item>> {
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         if let Some(err) = self.error.take() {
             Poll::Ready(Some(Err(err)))
         } else if self.safety.current() {
@@ -142,9 +137,7 @@ impl Stream for Multipart {
 }
 
 impl InnerMultipart {
-    fn read_headers(
-        payload: &mut PayloadBuffer,
-    ) -> Result<Option<HeaderMap>, MultipartError> {
+    fn read_headers(payload: &mut PayloadBuffer) -> Result<Option<HeaderMap>, MultipartError> {
         match payload.read_until(b"\r\n\r\n")? {
             None => {
                 if payload.eof {
@@ -226,8 +219,7 @@ impl InnerMultipart {
                     if chunk.len() < boundary.len() {
                         continue;
                     }
-                    if &chunk[..2] == b"--"
-                        && &chunk[2..chunk.len() - 2] == boundary.as_bytes()
+                    if &chunk[..2] == b"--" && &chunk[2..chunk.len() - 2] == boundary.as_bytes()
                     {
                         break;
                     } else {
@@ -273,9 +265,7 @@ impl InnerMultipart {
                             match field.borrow_mut().poll(safety) {
                                 Poll::Pending => return Poll::Pending,
                                 Poll::Ready(Some(Ok(_))) => continue,
-                                Poll::Ready(Some(Err(e))) => {
-                                    return Poll::Ready(Some(Err(e)))
-                                }
+                                Poll::Ready(Some(Err(e))) => return Poll::Ready(Some(Err(e))),
                                 Poll::Ready(None) => true,
                             }
                         }
@@ -311,10 +301,7 @@ impl InnerMultipart {
                     }
                     // read boundary
                     InnerState::Boundary => {
-                        match InnerMultipart::read_boundary(
-                            &mut *payload,
-                            &self.boundary,
-                        )? {
+                        match InnerMultipart::read_boundary(&mut *payload, &self.boundary)? {
                             None => return Poll::Pending,
                             Some(eof) => {
                                 if eof {
@@ -418,8 +405,7 @@ impl Field {
     pub fn content_disposition(&self) -> Option<ContentDisposition> {
         // RFC 7578: 'Each part MUST contain a Content-Disposition header field
         // where the disposition type is "form-data".'
-        if let Some(content_disposition) = self.headers.get(&header::CONTENT_DISPOSITION)
-        {
+        if let Some(content_disposition) = self.headers.get(&header::CONTENT_DISPOSITION) {
             ContentDisposition::from_raw(content_disposition).ok()
         } else {
             None
@@ -430,15 +416,10 @@ impl Field {
 impl Stream for Field {
     type Item = Result<Bytes, MultipartError>;
 
-    fn poll_next(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Option<Self::Item>> {
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         if self.safety.current() {
             let mut inner = self.inner.borrow_mut();
-            if let Some(mut payload) =
-                inner.payload.as_ref().unwrap().get_mut(&self.safety)
-            {
+            if let Some(mut payload) = inner.payload.as_ref().unwrap().get_mut(&self.safety) {
                 payload.poll_stream(cx)?;
             }
             inner.poll(&self.safety)
@@ -607,8 +588,7 @@ impl InnerField {
             return Poll::Ready(None);
         }
 
-        let result = if let Some(mut payload) = self.payload.as_ref().unwrap().get_mut(s)
-        {
+        let result = if let Some(mut payload) = self.payload.as_ref().unwrap().get_mut(s) {
             if !self.eof {
                 let res = if let Some(ref mut len) = self.length {
                     InnerField::read_len(&mut *payload, len)
@@ -628,7 +608,9 @@ impl InnerField {
                 Ok(None) => Poll::Pending,
                 Ok(Some(line)) => {
                     if line.as_ref() != b"\r\n" {
-                        log::warn!("multipart field did not read all the data or it is malformed");
+                        log::warn!(
+                            "multipart field did not read all the data or it is malformed"
+                        );
                     }
                     Poll::Ready(None)
                 }
@@ -804,9 +786,7 @@ impl PayloadBuffer {
     /// Read bytes until new line delimiter or eof
     pub fn readline_or_eof(&mut self) -> Result<Option<Bytes>, MultipartError> {
         match self.readline() {
-            Err(MultipartError::Incomplete) if self.eof => {
-                Ok(Some(self.buf.split().freeze()))
-            }
+            Err(MultipartError::Incomplete) if self.eof => Ok(Some(self.buf.split().freeze())),
             line => line,
         }
     }
@@ -902,10 +882,7 @@ mod tests {
     impl Stream for SlowStream {
         type Item = Result<Bytes, PayloadError>;
 
-        fn poll_next(
-            self: Pin<&mut Self>,
-            cx: &mut Context<'_>,
-        ) -> Poll<Option<Self::Item>> {
+        fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
             let this = self.get_mut();
             if !this.ready {
                 this.ready = true;
