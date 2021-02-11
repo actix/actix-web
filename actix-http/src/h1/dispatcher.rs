@@ -37,15 +37,14 @@ bitflags! {
     pub struct Flags: u8 {
         const STARTED            = 0b0000_0001;
         const KEEPALIVE          = 0b0000_0010;
-        const POLLED             = 0b0000_0100;
-        const SHUTDOWN           = 0b0000_1000;
-        const READ_DISCONNECT    = 0b0001_0000;
-        const WRITE_DISCONNECT   = 0b0010_0000;
-        const UPGRADE            = 0b0100_0000;
+        const SHUTDOWN           = 0b0000_0100;
+        const READ_DISCONNECT    = 0b0000_1000;
+        const WRITE_DISCONNECT   = 0b0001_0000;
+        const UPGRADE            = 0b0010_0000;
     }
 }
 
-#[pin_project::pin_project]
+#[pin_project]
 /// Dispatcher for HTTP/1.1 protocol
 pub struct Dispatcher<T, S, B, X, U>
 where
