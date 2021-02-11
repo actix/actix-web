@@ -243,7 +243,7 @@ where
     }
 }
 
-/// `Service` implementation for http/2 transport
+/// `Service` implementation for HTTP/2 transport
 pub struct H2ServiceHandler<T, S, B>
 where
     S: Service<Request>,

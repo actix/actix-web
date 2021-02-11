@@ -1,4 +1,5 @@
-//! Http client api
+//! HTTP client.
+
 use http::Uri;
 
 mod config;

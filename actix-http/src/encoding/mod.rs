@@ -1,4 +1,5 @@
-//! Content-Encoding support
+//! Content-Encoding support.
+
 use std::io;
 
 use bytes::{Bytes, BytesMut};

@@ -95,32 +95,32 @@ impl ServiceConfig {
         }))
     }
 
+    /// Returns true if connection is secure (HTTPS)
     #[inline]
-    /// Returns true if connection is secure(https)
     pub fn secure(&self) -> bool {
         self.0.secure
     }
 
-    #[inline]
     /// Returns the local address that this server is bound to.
+    #[inline]
     pub fn local_addr(&self) -> Option<net::SocketAddr> {
         self.0.local_addr
     }
 
-    #[inline]
     /// Keep alive duration if configured.
+    #[inline]
     pub fn keep_alive(&self) -> Option<Duration> {
         self.0.keep_alive
     }
 
-    #[inline]
     /// Return state of connection keep-alive functionality
+    #[inline]
     pub fn keep_alive_enabled(&self) -> bool {
         self.0.ka_enabled
     }
 
-    #[inline]
     /// Client timeout for first request.
+    #[inline]
     pub fn client_timer(&self) -> Option<Sleep> {
         let delay_time = self.0.client_timeout;
         if delay_time != 0 {

@@ -1,4 +1,6 @@
 //! Helper trait for types that can be effectively borrowed as a [HeaderValue].
+//!
+//! [HeaderValue]: crate::http::HeaderValue
 
 use std::{borrow::Cow, str::FromStr};
 

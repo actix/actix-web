@@ -65,13 +65,16 @@ impl From<actix_tls::connect::ConnectError> for ConnectError {
 
 #[derive(Debug, Display, From)]
 pub enum InvalidUrl {
-    #[display(fmt = "Missing url scheme")]
+    #[display(fmt = "Missing URL scheme")]
     MissingScheme,
-    #[display(fmt = "Unknown url scheme")]
+
+    #[display(fmt = "Unknown URL scheme")]
     UnknownScheme,
+
     #[display(fmt = "Missing host name")]
     MissingHost,
-    #[display(fmt = "Url parse error: {}", _0)]
+
+    #[display(fmt = "URL parse error: {}", _0)]
     HttpError(http::Error),
 }
 
@@ -83,25 +86,33 @@ pub enum SendRequestError {
     /// Invalid URL
     #[display(fmt = "Invalid URL: {}", _0)]
     Url(InvalidUrl),
+
     /// Failed to connect to host
     #[display(fmt = "Failed to connect to host: {}", _0)]
     Connect(ConnectError),
+
     /// Error sending request
     Send(io::Error),
+
     /// Error parsing response
     Response(ParseError),
+
     /// Http error
     #[display(fmt = "{}", _0)]
     Http(HttpError),
+
     /// Http2 error
     #[display(fmt = "{}", _0)]
     H2(h2::Error),
+
     /// Response took too long
     #[display(fmt = "Timeout while waiting for response")]
     Timeout,
-    /// Tunnels are not supported for http2 connection
+
+    /// Tunnels are not supported for HTTP/2 connection
     #[display(fmt = "Tunnels are not supported for http2 connection")]
     TunnelNotSupported,
+
     /// Error sending request body
     Body(Error),
 }
@@ -127,7 +138,8 @@ pub enum FreezeRequestError {
     /// Invalid URL
     #[display(fmt = "Invalid URL: {}", _0)]
     Url(InvalidUrl),
-    /// Http error
+
+    /// HTTP error
     #[display(fmt = "{}", _0)]
     Http(HttpError),
 }

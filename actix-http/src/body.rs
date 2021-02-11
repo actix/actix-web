@@ -1,6 +1,10 @@
-use std::pin::Pin;
-use std::task::{Context, Poll};
-use std::{fmt, mem};
+//! Traits and structures to aid consuming and writing HTTP payloads.
+
+use std::{
+    fmt, mem,
+    pin::Pin,
+    task::{Context, Poll},
+};
 
 use bytes::{Bytes, BytesMut};
 use futures_core::{ready, Stream};
@@ -8,8 +12,8 @@ use pin_project::pin_project;
 
 use crate::error::Error;
 
+/// Body size hint.
 #[derive(Debug, PartialEq, Copy, Clone)]
-/// Body size hint
 pub enum BodySize {
     None,
     Empty,
@@ -23,7 +27,7 @@ impl BodySize {
     }
 }
 
-/// Type that provides this trait can be streamed to a peer.
+/// Type that implement this trait can be streamed to a peer.
 pub trait MessageBody {
     fn size(&self) -> BodySize;
 
@@ -80,7 +84,7 @@ impl ResponseBody<Body> {
 
 impl<B> ResponseBody<B> {
     pub fn take_body(&mut self) -> ResponseBody<B> {
-        std::mem::replace(self, ResponseBody::Other(Body::None))
+        mem::replace(self, ResponseBody::Other(Body::None))
     }
 }
 
@@ -127,7 +131,7 @@ impl<B: MessageBody> Stream for ResponseBody<B> {
     }
 }
 
-/// Represents various types of http message body.
+/// Represents various types of HTTP message body.
 pub enum Body {
     /// Empty response. `Content-Length` header is not set.
     None,

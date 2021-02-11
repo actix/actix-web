@@ -851,13 +851,13 @@ impl TestServerConfig {
         }
     }
 
-    /// Start http/1.1 server only
+    /// Start HTTP/1.1 server only
     pub fn h1(mut self) -> Self {
         self.tp = HttpVer::Http1;
         self
     }
 
-    /// Start http/2 server only
+    /// Start HTTP/2 server only
     pub fn h2(mut self) -> Self {
         self.tp = HttpVer::Http2;
         self
@@ -956,7 +956,7 @@ impl TestServer {
         self.client.options(self.url(path.as_ref()).as_str())
     }
 
-    /// Connect to test http server
+    /// Connect to test HTTP server
     pub fn request<S: AsRef<str>>(&self, method: Method, path: S) -> ClientRequest {
         self.client.request(method, path.as_ref())
     }
@@ -990,7 +990,7 @@ impl TestServer {
         self.ws_at("/").await
     }
 
-    /// Gracefully stop http server
+    /// Gracefully stop HTTP server
     pub async fn stop(self) {
         self.server.stop(true).await;
         self.system.stop();
@@ -1006,7 +1006,7 @@ impl Drop for TestServer {
 
 #[cfg(test)]
 mod tests {
-    use actix_http::httpmessage::HttpMessage;
+    use actix_http::HttpMessage;
     use serde::{Deserialize, Serialize};
     use std::time::SystemTime;
 

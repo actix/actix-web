@@ -40,7 +40,7 @@ struct Config {
 
 /// An HTTP Server.
 ///
-/// Create new http server with application factory.
+/// Create new HTTP server with application factory.
 ///
 /// ```rust,no_run
 /// use actix_web::{web, App, HttpResponse, HttpServer};
@@ -86,7 +86,7 @@ where
     S::Service: 'static,
     B: MessageBody + 'static,
 {
-    /// Create new http server with application factory
+    /// Create new HTTP server with application factory
     pub fn new(factory: F) -> Self {
         HttpServer {
             factory,
@@ -131,8 +131,7 @@ where
 
     /// Set number of workers to start.
     ///
-    /// By default http server uses number of available logical cpu as threads
-    /// count.
+    /// By default, server uses number of available logical CPU as thread count.
     pub fn workers(mut self, num: usize) -> Self {
         self.builder = self.builder.workers(num);
         self
@@ -257,7 +256,7 @@ where
     /// Get addresses of bound sockets and the scheme for it.
     ///
     /// This is useful when the server is bound from different sources
-    /// with some sockets listening on http and some listening on https
+    /// with some sockets listening on HTTP and some listening on HTTPS
     /// and the user should be presented with an enumeration of which
     /// socket requires which protocol.
     pub fn addrs_with_scheme(&self) -> Vec<(net::SocketAddr, &str)> {
@@ -610,7 +609,7 @@ where
 {
     /// Start listening for incoming connections.
     ///
-    /// This method starts number of http workers in separate threads.
+    /// This method starts number of HTTP workers in separate threads.
     /// For each address this method starts separate thread which does
     /// `accept()` in a loop.
     ///

@@ -176,7 +176,7 @@ impl Guard for NotGuard {
     }
 }
 
-/// Http method guard
+/// HTTP method guard.
 #[doc(hidden)]
 pub struct MethodGuard(http::Method);
 
@@ -186,52 +186,52 @@ impl Guard for MethodGuard {
     }
 }
 
-/// Guard to match *GET* http method
+/// Guard to match *GET* HTTP method.
 pub fn Get() -> MethodGuard {
     MethodGuard(http::Method::GET)
 }
 
-/// Predicate to match *POST* http method
+/// Predicate to match *POST* HTTP method.
 pub fn Post() -> MethodGuard {
     MethodGuard(http::Method::POST)
 }
 
-/// Predicate to match *PUT* http method
+/// Predicate to match *PUT* HTTP method.
 pub fn Put() -> MethodGuard {
     MethodGuard(http::Method::PUT)
 }
 
-/// Predicate to match *DELETE* http method
+/// Predicate to match *DELETE* HTTP method.
 pub fn Delete() -> MethodGuard {
     MethodGuard(http::Method::DELETE)
 }
 
-/// Predicate to match *HEAD* http method
+/// Predicate to match *HEAD* HTTP method.
 pub fn Head() -> MethodGuard {
     MethodGuard(http::Method::HEAD)
 }
 
-/// Predicate to match *OPTIONS* http method
+/// Predicate to match *OPTIONS* HTTP method.
 pub fn Options() -> MethodGuard {
     MethodGuard(http::Method::OPTIONS)
 }
 
-/// Predicate to match *CONNECT* http method
+/// Predicate to match *CONNECT* HTTP method.
 pub fn Connect() -> MethodGuard {
     MethodGuard(http::Method::CONNECT)
 }
 
-/// Predicate to match *PATCH* http method
+/// Predicate to match *PATCH* HTTP method.
 pub fn Patch() -> MethodGuard {
     MethodGuard(http::Method::PATCH)
 }
 
-/// Predicate to match *TRACE* http method
+/// Predicate to match *TRACE* HTTP method.
 pub fn Trace() -> MethodGuard {
     MethodGuard(http::Method::TRACE)
 }
 
-/// Predicate to match specified http method
+/// Predicate to match specified HTTP method.
 pub fn Method(method: http::Method) -> MethodGuard {
     MethodGuard(method)
 }

@@ -10,7 +10,7 @@ use futures_util::future::{self, err, ok, ready, FutureExt};
 use futures_util::stream::{once, StreamExt};
 use regex::Regex;
 
-use actix_http::httpmessage::HttpMessage;
+use actix_http::HttpMessage;
 use actix_http::{
     body, error, http, http::header, Error, HttpService, KeepAlive, Request, Response,
 };

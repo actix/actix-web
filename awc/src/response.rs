@@ -109,7 +109,7 @@ impl<S> ClientResponse<S>
 where
     S: Stream<Item = Result<Bytes, PayloadError>>,
 {
-    /// Loads http response's body.
+    /// Loads HTTP response's body.
     pub fn body(&mut self) -> MessageBody<S> {
         MessageBody::new(self)
     }
@@ -151,7 +151,7 @@ impl<S> fmt::Debug for ClientResponse<S> {
     }
 }
 
-/// Future that resolves to a complete http message body.
+/// Future that resolves to a complete HTTP message body.
 pub struct MessageBody<S> {
     length: Option<usize>,
     err: Option<PayloadError>,

@@ -27,7 +27,7 @@ pub(crate) type FnDataFactory =
 ///
 /// Application data can be accessed by using `Data<T>` extractor where `T` is data type.
 ///
-/// **Note**: http server accepts an application factory rather than an application instance. HTTP
+/// **Note**: HTTP server accepts an application factory rather than an application instance. HTTP
 /// server constructs an application instance for each thread, thus application data must be
 /// constructed multiple times. If you want to share data between different threads, a shareable
 /// object should be used, e.g. `Send + Sync`. Application data does not need to be `Send`

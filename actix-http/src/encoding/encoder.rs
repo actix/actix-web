@@ -1,8 +1,7 @@
-//! Stream encoder
-use std::future::Future;
-use std::io::{self, Write};
-use std::pin::Pin;
+//! Stream encoders.
+
 use std::task::{Context, Poll};
+use std::{future::Future, io, io::Write as _, pin::Pin};
 
 use actix_rt::task::{spawn_blocking, JoinHandle};
 use brotli2::write::BrotliEncoder;

@@ -72,7 +72,7 @@ where
     /// Set application data. Application data could be accessed
     /// by using `Data<T>` extractor where `T` is data type.
     ///
-    /// **Note**: http server accepts an application factory rather than
+    /// **Note**: HTTP server accepts an application factory rather than
     /// an application instance. Http server constructs an application
     /// instance for each thread, thus application data must be constructed
     /// multiple times. If you want to share data between different
@@ -207,7 +207,7 @@ where
         )
     }
 
-    /// Register http service.
+    /// Register HTTP service.
     ///
     /// Http service is any type that implements `HttpServiceFactory` trait.
     ///

@@ -107,7 +107,7 @@ impl<P> Request<P> {
 
     #[inline]
     #[doc(hidden)]
-    /// Mutable reference to a http message part of the request
+    /// Mutable reference to a HTTP message part of the request
     pub fn head_mut(&mut self) -> &mut RequestHead {
         &mut *self.head
     }
@@ -158,10 +158,12 @@ impl<P> Request<P> {
         self.head().method == Method::CONNECT
     }
 
-    /// Peer socket address
+    /// Peer socket address.
     ///
-    /// Peer address is actual socket address, if proxy is used in front of
-    /// actix http server, then peer address would be address of this proxy.
+    /// Peer address is the directly connected peer's socket address. If a proxy is used in front of
+    /// the Actix Web server, then it would be address of this proxy.
+    ///
+    /// Will only return None when called in unit tests.
     #[inline]
     pub fn peer_addr(&self) -> Option<net::SocketAddr> {
         self.head().peer_addr

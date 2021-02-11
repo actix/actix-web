@@ -178,7 +178,7 @@ where
         )
     }
 
-    /// Create http/1 dispatcher with slow request timeout.
+    /// Create HTTP/1 dispatcher with slow request timeout.
     pub(crate) fn with_timeout(
         io: T,
         codec: Codec,

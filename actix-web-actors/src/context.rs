@@ -15,7 +15,7 @@ use bytes::Bytes;
 use futures_core::Stream;
 use tokio::sync::oneshot::Sender;
 
-/// Execution context for http actors
+/// Execution context for HTTP actors
 pub struct HttpContext<A>
 where
     A: Actor<Context = HttpContext<A>>,

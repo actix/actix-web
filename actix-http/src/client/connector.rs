@@ -34,7 +34,8 @@ enum SslConnector {
 #[cfg(not(any(feature = "openssl", feature = "rustls")))]
 type SslConnector = ();
 
-/// Manages http client network connectivity
+/// Manages HTTP client network connectivity.
+///
 /// The `Connector` type uses a builder-like combinator pattern for service
 /// construction that finishes by calling the `.finish()` method.
 ///
@@ -160,8 +161,9 @@ where
         self
     }
 
-    /// Maximum supported http major version
-    /// Supported versions http/1.1, http/2
+    /// Maximum supported HTTP major version.
+    ///
+    /// Supported versions are HTTP/1.1 and HTTP/2.
     pub fn max_http_version(mut self, val: http::Version) -> Self {
         let versions = match val {
             http::Version::HTTP_11 => vec![b"http/1.1".to_vec()],

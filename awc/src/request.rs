@@ -42,10 +42,10 @@ cfg_if::cfg_if! {
 ///    let response = awc::Client::new()
 ///         .get("http://www.rust-lang.org") // <- Create request builder
 ///         .insert_header(("User-Agent", "Actix-web"))
-///         .send()                          // <- Send http request
+///         .send()                          // <- Send HTTP request
 ///         .await;
 ///
-///    response.and_then(|response| {   // <- server http response
+///    response.and_then(|response| {   // <- server HTTP response
 ///         println!("Response: {:?}", response);
 ///         Ok(())
 ///    });
@@ -219,7 +219,7 @@ impl ClientRequest {
     }
 
     /// Force close connection instead of returning it back to connections pool.
-    /// This setting affect only http/1 connections.
+    /// This setting affect only HTTP/1 connections.
     #[inline]
     pub fn force_close(mut self) -> Self {
         self.head.set_connection_type(ConnectionType::Close);

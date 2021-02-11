@@ -32,13 +32,13 @@ pub struct Response<B = Body> {
 }
 
 impl Response<Body> {
-    /// Create http response builder with specific status.
+    /// Create HTTP response builder with specific status.
     #[inline]
     pub fn build(status: StatusCode) -> ResponseBuilder {
         ResponseBuilder::new(status)
     }
 
-    /// Create http response builder
+    /// Create HTTP response builder
     #[inline]
     pub fn build_from<T: Into<ResponseBuilder>>(source: T) -> ResponseBuilder {
         source.into()
@@ -97,7 +97,7 @@ impl<B> Response<B> {
     }
 
     #[inline]
-    /// Mutable reference to a http message part of the response
+    /// Mutable reference to a HTTP message part of the response
     pub fn head_mut(&mut self) -> &mut ResponseHead {
         &mut *self.head
     }
