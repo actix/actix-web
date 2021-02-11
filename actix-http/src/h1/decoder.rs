@@ -652,7 +652,7 @@ mod tests {
     use super::*;
     use crate::error::ParseError;
     use crate::http::header::{HeaderName, SET_COOKIE};
-    use crate::httpmessage::HttpMessage;
+    use crate::HttpMessage;
 
     impl PayloadType {
         fn unwrap(self) -> PayloadDecoder {

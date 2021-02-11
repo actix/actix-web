@@ -9,7 +9,7 @@ use percent_encoding::{AsciiSet, CONTROLS};
 pub use http::header::*;
 
 use crate::error::ParseError;
-use crate::httpmessage::HttpMessage;
+use crate::HttpMessage;
 
 mod as_name;
 mod into_pair;

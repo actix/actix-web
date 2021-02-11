@@ -867,6 +867,7 @@ mod tests {
     use super::*;
     use crate::body::Body;
     use crate::http::header::{HeaderValue, CONTENT_TYPE, COOKIE, SET_COOKIE};
+    use crate::HttpMessage;
 
     #[test]
     fn test_debug() {
@@ -880,8 +881,6 @@ mod tests {
 
     #[test]
     fn test_response_cookies() {
-        use crate::httpmessage::HttpMessage;
-
         let req = crate::test::TestRequest::default()
             .append_header((COOKIE, "cookie1=value1"))
             .append_header((COOKIE, "cookie2=value2"))

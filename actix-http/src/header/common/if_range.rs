@@ -5,7 +5,7 @@ use crate::header::{
     self, from_one_raw_str, EntityTag, Header, HeaderName, HeaderValue, HttpDate,
     IntoHeaderValue, InvalidHeaderValue, Writer,
 };
-use crate::httpmessage::HttpMessage;
+use crate::HttpMessage;
 
 /// `If-Range` header, defined in [RFC7233](http://tools.ietf.org/html/rfc7233#section-3.2)
 ///

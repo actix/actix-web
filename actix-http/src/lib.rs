@@ -1,6 +1,6 @@
 //! HTTP primitives for the Actix ecosystem.
 
-#![deny(rust_2018_idioms)]
+#![deny(rust_2018_idioms, nonstandard_style)]
 #![allow(
     clippy::type_complexity,
     clippy::too_many_arguments,
@@ -26,7 +26,7 @@ mod extensions;
 mod header;
 mod helpers;
 mod http_codes;
-mod httpmessage;
+mod http_message;
 mod message;
 mod payload;
 mod request;
@@ -45,7 +45,7 @@ pub use self::builder::HttpServiceBuilder;
 pub use self::config::{KeepAlive, ServiceConfig};
 pub use self::error::{Error, ResponseError, Result};
 pub use self::extensions::Extensions;
-pub use self::httpmessage::HttpMessage;
+pub use self::http_message::HttpMessage;
 pub use self::message::{Message, RequestHead, RequestHeadType, ResponseHead};
 pub use self::payload::{Payload, PayloadStream};
 pub use self::request::Request;

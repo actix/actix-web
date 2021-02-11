@@ -9,7 +9,7 @@ use http::{header, Method, Uri, Version};
 
 use crate::extensions::Extensions;
 use crate::header::HeaderMap;
-use crate::httpmessage::HttpMessage;
+use crate::HttpMessage;
 use crate::message::{Message, RequestHead};
 use crate::payload::{Payload, PayloadStream};
 

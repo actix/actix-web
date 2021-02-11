@@ -382,8 +382,8 @@ where
                     }
 
                     // send service call error as response
-                    Poll::Ready(Err(e)) => {
-                        let res: Response = e.into().into();
+                    Poll::Ready(Err(err)) => {
+                        let res: Response = err.into().into();
                         let (res, body) = res.replace_body(());
                         self.as_mut().send_response(res, body.into_body())?;
                     }
@@ -421,8 +421,8 @@ where
                                 continue 'res;
                             }
 
-                            Poll::Ready(Some(Err(e))) => {
-                                return Err(DispatchError::Service(e))
+                            Poll::Ready(Some(Err(err))) => {
+                                return Err(DispatchError::Service(err))
                             }
 
                             Poll::Pending => return Ok(PollResponse::DoNothing),
@@ -443,8 +443,8 @@ where
                         this.state.set(State::ServiceCall(fut));
                     }
                     // send expect error as response
-                    Poll::Ready(Err(e)) => {
-                        let res: Response = e.into().into();
+                    Poll::Ready(Err(err)) => {
+                        let res: Response = err.into().into();
                         let (res, body) = res.replace_body(());
                         self.as_mut().send_response(res, body.into_body())?;
                     }
@@ -492,9 +492,9 @@ where
                         // future is error. send response and return a result. On success
                         // to notify the dispatcher a new state is set and the outer loop
                         // should be continue.
-                        Poll::Ready(Err(e)) => {
-                            let e = e.into();
-                            let res: Response = e.into();
+                        Poll::Ready(Err(err)) => {
+                            let err = err.into();
+                            let res: Response = err.into();
                             let (res, body) = res.replace_body(());
                             return self.send_response(res, body.into_body());
                         }
@@ -512,9 +512,9 @@ where
                         }
                         // see the comment on ExpectCall state branch's Pending.
                         Poll::Pending => Ok(()),
-                        // see the comment on ExpectCall state branch's Ready(Err(e)).
-                        Poll::Ready(Err(e)) => {
-                            let res: Response = e.into().into();
+                        // see the comment on ExpectCall state branch's Ready(Err(err)).
+                        Poll::Ready(Err(err)) => {
+                            let res: Response = err.into().into();
                             let (res, body) = res.replace_body(());
                             self.send_response(res, body.into_body())
                         }
@@ -606,25 +606,25 @@ where
                 // decode is partial and buffer is not full yet.
                 // break and wait for more read.
                 Ok(None) => break,
-                Err(ParseError::Io(e)) => {
+                Err(ParseError::Io(err)) => {
                     self.as_mut().client_disconnected();
                     this = self.as_mut().project();
-                    *this.error = Some(DispatchError::Io(e));
+                    *this.error = Some(DispatchError::Io(err));
                     break;
                 }
                 Err(ParseError::TooLarge) => {
                     if let Some(mut payload) = this.payload.take() {
                         payload.set_error(PayloadError::Overflow);
                     }
-                    // Requests overflow buffer size should be responded with 413
+                    // Requests overflow buffer size should be responded with 431
                     this.messages.push_back(DispatcherMessage::Error(
-                        Response::PayloadTooLarge().finish().drop_body(),
+                        Response::RequestHeaderFieldsTooLarge().finish().drop_body(),
                     ));
                     this.flags.insert(Flags::READ_DISCONNECT);
                     *this.error = Some(ParseError::TooLarge.into());
                     break;
                 }
-                Err(e) => {
+                Err(err) => {
                     if let Some(mut payload) = this.payload.take() {
                         payload.set_error(PayloadError::EncodingCorrupted);
                     }
@@ -634,7 +634,7 @@ where
                         Response::BadRequest().finish().drop_body(),
                     ));
                     this.flags.insert(Flags::READ_DISCONNECT);
-                    *this.error = Some(e.into());
+                    *this.error = Some(err.into());
                     break;
                 }
             }
