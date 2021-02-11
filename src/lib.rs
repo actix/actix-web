@@ -56,7 +56,6 @@
 //! * SSL support using OpenSSL or Rustls
 //! * Middlewares ([Logger, Session, CORS, etc](https://actix.rs/docs/middleware/))
 //! * Includes an async [HTTP client](https://actix.rs/actix-web/actix_web/client/index.html)
-//! * Supports [Actix actor framework](https://github.com/actix/actix)
 //! * Runs on stable Rust 1.46+
 //!
 //! ## Crate Features
@@ -202,30 +201,4 @@ pub mod dev {
             self
         }
     }
-}
-
-pub mod client {
-    //! Actix Web async HTTP client.
-    //!
-    //! ```rust
-    //! use actix_web::client::Client;
-    //!
-    //! #[actix_web::main]
-    //! async fn main() {
-    //!    let mut client = Client::default();
-    //!
-    //!    // Create request builder and send request
-    //!    let response = client.get("http://www.rust-lang.org")
-    //!       .insert_header(("User-Agent", "actix-web/3.0"))
-    //!       .send()     // <- Send request
-    //!       .await;     // <- Wait for response
-    //!
-    //!    println!("Response: {:?}", response);
-    //! }
-    //! ```
-
-    pub use awc::error::*;
-    pub use awc::{
-        test, Client, ClientBuilder, ClientRequest, ClientResponse, Connector,
-    };
 }

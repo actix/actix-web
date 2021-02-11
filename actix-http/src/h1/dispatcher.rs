@@ -356,6 +356,7 @@ where
                             this.state.set(State::ServiceCall(task));
                         };
                     }
+
                     // handle error message.
                     Some(DispatcherMessage::Error(res)) => {
                         // send_response would update InnerDispatcher state to SendPayload or
@@ -364,10 +365,12 @@ where
                         self.as_mut()
                             .send_response(res, ResponseBody::Other(Body::Empty))?;
                     }
+
                     // return with upgrade request and poll it exclusively.
                     Some(DispatcherMessage::Upgrade(req)) => {
                         return Ok(PollResponse::Upgrade(req));
                     }
+
                     // all messages are dealt with.
                     None => return Ok(PollResponse::DoNothing),
                 },
@@ -377,12 +380,14 @@ where
                         let (res, body) = res.into().replace_body(());
                         self.as_mut().send_response(res, body)?;
                     }
+
                     // send service call error as response
                     Poll::Ready(Err(e)) => {
                         let res: Response = e.into().into();
                         let (res, body) = res.replace_body(());
                         self.as_mut().send_response(res, body.into_body())?;
                     }
+
                     // service call pending and could be waiting for more chunk messages.
                     // (pipeline message limit and/or payload can_read limit)
                     Poll::Pending => {
@@ -394,6 +399,7 @@ where
                         // otherwise keep loop.
                     }
                 },
+
                 StateProj::SendPayload(mut stream) => {
                     // keep populate writer buffer until buffer size limit hit,
                     // get blocked or finished.
@@ -405,6 +411,7 @@ where
                                     &mut this.write_buf,
                                 )?;
                             }
+
                             Poll::Ready(None) => {
                                 this.codec
                                     .encode(Message::Chunk(None), &mut this.write_buf)?;
@@ -413,9 +420,11 @@ where
                                 this.state.set(State::None);
                                 continue 'res;
                             }
+
                             Poll::Ready(Some(Err(e))) => {
                                 return Err(DispatchError::Service(e))
                             }
+
                             Poll::Pending => return Ok(PollResponse::DoNothing),
                         }
                     }
@@ -423,6 +432,7 @@ where
                     // return and try to write the whole buffer to io stream.
                     return Ok(PollResponse::DrainWriteBuf);
                 }
+
                 StateProj::ExpectCall(fut) => match fut.poll(cx) {
                     // expect resolved. write continue to buffer and set InnerDispatcher state
                     // to service call.

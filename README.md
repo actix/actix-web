@@ -32,7 +32,6 @@
 * SSL support using OpenSSL or Rustls
 * Middlewares ([Logger, Session, CORS, etc](https://actix.rs/docs/middleware/))
 * Includes an async [HTTP client](https://actix.rs/actix-web/actix_web/client/index.html)
-* Supports [Actix actor framework](https://github.com/actix/actix)
 * Runs on stable Rust 1.46+
 
 ## Documentation
